@@ -15,7 +15,7 @@ from step_geometrie import analysiere_datei  # noqa: E402
 from step_import import importiere  # noqa: E402
 
 STEP = HIER / "step"
-if not (STEP / "T05_RR33-7x2-6_L500.step").exists():
+if not (STEP / "T06_QR40x3_L1000_Langloch.step").exists():
     subprocess.run([sys.executable, str(HIER / "erzeuge_testteile.py")], check=True, capture_output=True)
 
 pi = math.pi
@@ -28,6 +28,8 @@ SOLL = {  # Profilform, A, B, t, Fläche, Länge, Schneidweg, Konturen
     "T04_RE60x40x3_Gehrung": ("Rechteckrohr", 60, 40, 3.0, 60 * 40 - 54 * 34, 1825.5,
                               200 + 2 * 40 + 2 * 60 * math.sqrt(2), 2),
     "T05_RR33-7x2-6_L500": ("Rundrohr", 33.7, 0, 2.6, pi / 4 * (33.7**2 - 28.5**2), 500, 2 * pi * 33.7, 2),
+    "T06_QR40x3_L1000_Langloch": ("Quadratrohr", 40, 0, 3.0, (1600 - (4 - pi) * 36) - (34**2 - (4 - pi) * 9),
+                                  1000, 2 * qr_umfang + 2 * (800 + 20), 3),
 }
 
 
@@ -65,7 +67,7 @@ with tempfile.TemporaryDirectory() as d:
     shutil.copy(HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx", m)
     erg = importiere(m, [STEP], werkstoff="S235-10219", stueck=5)
     zeilen = [z for _, z, _ in erg]
-    assert zeilen == [18, 19, 20, 21, 22], zeilen
+    assert zeilen == [18, 19, 20, 21, 22, 23], zeilen
     t05 = [i for a_, _, i in erg if a_.startswith("T05")][0]
     assert "Profil fehlt" in t05, t05
     erg2 = importiere(m, [STEP])
@@ -78,6 +80,11 @@ with tempfile.TemporaryDirectory() as d:
     assert wb["Profile"]["A10"].value == "RR 33,7x2,6", wb["Profile"]["A10"].value
     assert wb["Auftrag"]["D18"].value == "RR 33,7x2,6"
     assert wb["Auftrag"]["Y18"].value == "ja" and abs(wb["Auftrag"]["Z18"].value - 105.9) < 0.05
-    print("OK     Import, Doppelimport-Sperre, Profil anlegen")
+    try:
+        importiere(m, [STEP], stueck=-1)
+        raise AssertionError("negative Stückzahl nicht abgewiesen")
+    except ValueError:
+        pass
+    print("OK     Import, Doppelimport-Sperre, Profil anlegen, Stückzahl-Prüfung")
 
 sys.exit(1 if fehler else 0)

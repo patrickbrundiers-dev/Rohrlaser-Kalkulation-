@@ -88,4 +88,8 @@ if __name__ == "__main__":
     schreibe(gehrung(kastenrohr(60, 40, 3, 1795.5 + 60, 0), 1795.5, 45), "T04_RE60x40x3_Gehrung")
     # 5 Rundrohr 33,7x2,6 (nicht in den Beispiel-Stammdaten)
     schreibe(rundrohr(33.7, 2.6, 500), "T05_RR33-7x2-6_L500")
+    # 6 Quadratrohr 40x40x3 mit Langloch 20 breit von 10 % bis 90 % der Länge in einer Wand
+    s = kastenrohr(40, 40, 3, 1000, 6)
+    schlitz = BRepPrimAPI_MakeBox(gp_Pnt(10, -10, 100), 20, 20, 800).Shape()
+    schreibe(cut(s, schlitz), "T06_QR40x3_L1000_Langloch")
     print("Testteile geschrieben nach", ZIEL)

@@ -183,7 +183,8 @@ def analysiere(solid, datei="", koerper=1):
 
     # Querschnitt: Lage mit größter Netto-Fläche und genau 2 Konturen (Außen/Innen)
     best = None
-    for anteil in (0.5, 0.43, 0.57, 0.35, 0.65, 0.27, 0.73, 0.2, 0.8, 0.12, 0.88):
+    # dicht über die ganze Länge abtasten, damit auch lange Ausschnitte umgangen werden
+    for anteil in [0.5] + [i / 50 for i in range(1, 50)]:
         z = zmin + anteil * t.laenge
         ws = _schnitt(lok, z)
         if len(ws) != 2:

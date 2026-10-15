@@ -102,6 +102,8 @@ def step_dateien(pfade):
 
 def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, erneut=False, sicherung=True):
     mappe = Path(mappe)
+    if stueck is not None and (int(stueck) != stueck or stueck < 1):
+        raise ValueError("Stückzahl muss eine ganze Zahl ≥ 1 sein")
     if sicherung:
         shutil.copy2(mappe, mappe.with_suffix(".bak" + mappe.suffix))
     wb = load_workbook(mappe, keep_vba=mappe.suffix.lower() == ".xlsm")
@@ -151,7 +153,7 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
                 if werkstoff:
                     wa.cell(zeile, 5, werkstoff)
                 wa.cell(zeile, 6, round(t.laenge, 1))
-                if stueck:
+                if stueck is not None:
                     wa.cell(zeile, 7, int(stueck))
                 wa.cell(zeile, 8, round(t.schneidweg, 1))
                 wa.cell(zeile, 9, t.konturen)
@@ -190,6 +192,8 @@ def main():
     ap.add_argument("--neue-profile", action="store_true", help="fehlende Profile in 'Profile' anlegen")
     ap.add_argument("--erneut", action="store_true", help="Artikel auch dann eintragen, wenn schon vorhanden")
     a = ap.parse_args()
+    if a.stueck is not None and a.stueck < 1:
+        ap.error("--stueck muss eine ganze Zahl ≥ 1 sein")
     for artikel, zeile, info in importiere(a.mappe, a.pfade, a.werkstoff, a.stueck, a.neue_profile, a.erneut):
         print(f"{artikel:40s} Zeile {zeile or '-':>4}  {info}")
 
