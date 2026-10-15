@@ -11,11 +11,11 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "tools"))
-from step_geometrie import analysiere_datei  # noqa: E402
+from step_geometrie import analysiere_datei, gewinde_vorschlag  # noqa: E402
 from step_import import importiere  # noqa: E402
 
 STEP = HIER / "step"
-if not (STEP / "T06_QR40x3_L1000_Langloch.step").exists():
+if not (STEP / "T07_QR40x3_L1000_Gewinde_Gravur.step").exists():
     subprocess.run([sys.executable, str(HIER / "erzeuge_testteile.py")], check=True, capture_output=True)
 
 pi = math.pi
@@ -30,6 +30,9 @@ SOLL = {  # Profilform, A, B, t, Fläche, Länge, Schneidweg, Konturen
     "T05_RR33-7x2-6_L500": ("Rundrohr", 33.7, 0, 2.6, pi / 4 * (33.7**2 - 28.5**2), 500, 2 * pi * 33.7, 2),
     "T06_QR40x3_L1000_Langloch": ("Quadratrohr", 40, 0, 3.0, (1600 - (4 - pi) * 36) - (34**2 - (4 - pi) * 9),
                                   1000, 2 * qr_umfang + 2 * (800 + 20), 3),
+    # 4xØ5 (M6), Ausschnitt 10x20, Ausklinkung am Ende B (+2x15), Gravur 24x5 separat
+    "T07_QR40x3_L1000_Gewinde_Gravur": ("Quadratrohr", 40, 0, 3.0, (1600 - (4 - pi) * 36) - (34**2 - (4 - pi) * 9),
+                                        1000, 2 * qr_umfang + 30 + 4 * pi * 5 + 60, 7),
 }
 
 
@@ -54,8 +57,16 @@ for name, (form, a, b, t, fl, l, sw, k) in SOLL.items():
             nah(teil.schneidweg, sw, 0.05, "Schneidweg", name)
         assert teil.konturen == k, f"{name}: Konturen {teil.konturen}, soll {k}"
         nah(teil.ende_a + teil.ende_b + teil.innen, teil.schneidweg, 0.01, "Summe Enden+innen", name)
-        gerade_b = not name.startswith("T04")  # nur T04 hat eine Gehrung
+        gerade_b = not name.startswith(("T04", "T07"))  # T04 Gehrung, T07 Ausklinkung
         assert teil.ende_a_gerade and teil.ende_b_gerade == gerade_b, f"{name}: Enden gerade {teil.ende_a_gerade}/{teil.ende_b_gerade}"
+        if name.startswith("T07"):
+            nah(teil.ende_b, qr_umfang + 30, 0.05, "Endschnitt", name)
+            nah(teil.innen, 4 * pi * 5 + 60, 0.05, "Innenkonturen", name)
+            nah(teil.gravur, 2 * (24 + 5), 0.05, "Gravur", name)
+            assert teil.gravur_konturen == 1 and teil.innen_konturen == 5
+            assert gewinde_vorschlag(teil.bohrungen) == "4xM6 (Ø5)", gewinde_vorschlag(teil.bohrungen)
+        else:
+            assert teil.gravur == 0, f"{name}: Gravur {teil.gravur}"
         print(f"OK     {name}")
     except AssertionError as e:
         fehler += 1
@@ -67,9 +78,13 @@ with tempfile.TemporaryDirectory() as d:
     shutil.copy(HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx", m)
     erg = importiere(m, [STEP], werkstoff="S235-10219", stueck=5)
     zeilen = [z for _, z, _ in erg]
-    assert zeilen == [18, 19, 20, 21, 22, 23], zeilen
+    assert zeilen == [18, 19, 20, 21, 22, 23, 24], zeilen
     t05 = [i for a_, _, i in erg if a_.startswith("T05")][0]
     assert "Profil fehlt" in t05, t05
+    from openpyxl import load_workbook
+    w = load_workbook(m)["Auftrag"]
+    assert w["AF24"].value == "4xM6 (Ø5)" and w["AG24"].value is None, (w["AF24"].value, w["AG24"].value)
+    assert w["AD24"].value == 58.0 and w["AE24"].value == "4xØ5", (w["AD24"].value, w["AE24"].value)
     erg2 = importiere(m, [STEP])
     assert all(z is None for _, z, _ in erg2), "Doppelimport nicht verhindert"
     shutil.copy(HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx", m)
@@ -85,6 +100,6 @@ with tempfile.TemporaryDirectory() as d:
         raise AssertionError("negative Stückzahl nicht abgewiesen")
     except ValueError:
         pass
-    print("OK     Import, Doppelimport-Sperre, Profil anlegen, Stückzahl-Prüfung")
+    print("OK     Import, Gewinde-Vorschlag, Doppelimport-Sperre, Profil anlegen, Stückzahl-Prüfung")
 
 sys.exit(1 if fehler else 0)

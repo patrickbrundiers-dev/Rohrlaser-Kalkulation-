@@ -20,15 +20,26 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill
 
 sys.path.insert(0, str(Path(__file__).parent))
-from step_geometrie import analysiere_datei  # noqa: E402
+from step_geometrie import KERNLOCH, analysiere_datei, bohrungen_text, gewinde_vorschlag  # noqa: E402
 
 M0, M1 = 5, 304           # Stammdatenzeilen
 O0, O1 = 13, 512          # Auftragspositionen
 TOL_MASS = 0.15           # mm, Toleranz beim Profilabgleich
 LOG = "STEP-Import"
 LOG_KOPF = ["Zeitpunkt", "Datei", "Körper", "Profilform", "Abm. A [mm]", "Abm. B [mm]", "Wandstärke [mm]",
-            "Querschnitt [mm²]", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Ende A gerade", "Schnitt Ende A [mm]", "Ende B gerade", "Schnitt Ende B [mm]",
-            "Schneidweg innen [mm]", "Profil-ID", "Zeile Auftrag", "Hinweise"]
+            "Querschnitt [mm²]", "Länge [mm]", "Schneidweg ohne Gravur [mm]", "Einstiche",
+            "Anfangsschnitt gerade", "Anfangsschnitt [mm]", "Endschnitt gerade", "Endschnitt [mm]",
+            "Innenkonturen [mm]", "Innenkonturen [Stk]", "Gravur [mm]", "Gravur [Stk]", "Bohrungen",
+            "Gewinde-Vorschlag", "Profil-ID", "Zeile Auftrag", "Hinweise"]
+
+
+def lies_gewinde(wb):
+    if "Gewinde" not in wb.sheetnames:
+        return KERNLOCH
+    ws = wb["Gewinde"]
+    tab = [(ws.cell(r, 1).value, ws.cell(r, 2).value) for r in range(M0, M1 + 1)]
+    tab = [(g, float(d)) for g, d in tab if g and isinstance(d, (int, float))]
+    return tab or KERNLOCH
 
 
 def lies_profile(ws):
@@ -85,7 +96,7 @@ def log_blatt(wb):
         c.fill = PatternFill("solid", fgColor="1F4E78")
         ws.column_dimensions[c.column_letter].width = 14
     ws.column_dimensions["B"].width = 34
-    ws.column_dimensions["S"].width = 50
+    ws.column_dimensions["X"].width = 50
     ws.freeze_panes = "A5"
     return ws
 
@@ -110,6 +121,7 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
     wa, wp = wb["Auftrag"], wb["Profile"]
     wl = log_blatt(wb)
     profile = lies_profile(wp)
+    gewinde = lies_gewinde(wb)
 
     vorhandene = {wa.cell(r, 2).value for r in range(O0, O1 + 1) if wa.cell(r, 2).value}
     pos = [wa.cell(r, 1).value for r in range(O0, O1 + 1) if isinstance(wa.cell(r, 1).value, (int, float))]
@@ -129,6 +141,7 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
         for t in teile:
             artikel = t.datei if len(teile) == 1 else f"{t.datei}-K{t.koerper}"
             hinweise = list(t.hinweise)
+            vorschlag = gewinde_vorschlag(t.bohrungen, gewinde)
             ziel = ""
             pid = finde_profil(t, profile) if t.profilform else None
             if t.profilform and not pid:
@@ -163,6 +176,12 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
                 if t.ende_b:
                     wa.cell(zeile, 27, "ja" if t.ende_b_gerade else "nein")
                     wa.cell(zeile, 28, round(t.ende_b, 1))
+                wa.cell(zeile, 29, round(t.innen, 1))
+                wa.cell(zeile, 30, round(t.gravur, 1))
+                if t.bohrungen:
+                    wa.cell(zeile, 31, bohrungen_text(t.bohrungen))
+                if vorschlag:
+                    wa.cell(zeile, 32, vorschlag)
                 ziel = zeile
                 vorhandene.add(artikel)
                 naechste_pos += 10
@@ -171,7 +190,8 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
                        round(t.wandstaerke, 2), round(t.flaeche, 1), round(t.laenge, 1), round(t.schneidweg, 1),
                        t.konturen, "ja" if t.ende_a_gerade else "nein", round(t.ende_a, 1),
                        "ja" if t.ende_b_gerade else "nein", round(t.ende_b, 1), round(t.innen, 1),
-                       pid, ziel, "; ".join(hinweise)])
+                       t.innen_konturen, round(t.gravur, 1), t.gravur_konturen, bohrungen_text(t.bohrungen),
+                       vorschlag, pid, ziel, "; ".join(hinweise)])
             ergebnis.append((artikel, ziel or None, "; ".join(hinweise) or "OK"))
 
     for row in wl.iter_rows(min_row=5):

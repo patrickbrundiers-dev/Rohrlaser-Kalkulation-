@@ -110,6 +110,8 @@ rows = [
     ("Preise", "Materialpreis je Profil + Werkstoff, wahlweise €/kg oder €/Stange."),
     ("Maschinen", "Maschinenparameter: Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge, Stundensatz."),
     ("Schneiddaten", "Vorschub und Einstechzeit je Maschine, Werkstoff und Wandstärke (für Laserzeit in Schritt 4)."),
+    ("Gewinde", "Kernlochdurchmesser je Gewinde. Der STEP-Import schlägt anhand dieser Tabelle Gewinde vor."),
+    ("STEP-Import", "Wird beim ersten STEP-Import angelegt: Protokoll aller Messwerte je Teil."),
     ("Listen", "Auswahllisten (Profilform, Preisbasis)."),
     ("", ""),
     ("Arbeitsablauf", None),
@@ -129,7 +131,9 @@ rows = [
     ("A8", "Keine Restlagerverwaltung: Reststücke werden nur als Verschnitt ausgewiesen (Entscheidung vom 15.10.2026)."),
     ("A9", "Kapazität: 300 Zeilen je Stammdatenblatt, 500 Auftragspositionen. Erweiterbar, indem Formelzeilen nach unten kopiert und die Namen in Formeln > Namens-Manager angepasst werden."),
     ("A10", "Einheiten: Längen in mm, Gewicht in kg, Preise in € netto."),
-    ("A11", "Gemeinsamer Trennschnitt: Liegen zwei Teile auf der Stange nebeneinander und sind beide zugewandten Enden gerade (senkrecht), wird nur ein Schnitt gerechnet, sonst zwei. Dafür stehen je Teil Ende A/B (gerade ja/nein, Schnittlänge) in Spalten Y–AB; Spalte H enthält immer beide Enden voll. Die Verrechnung erfolgt in der Optimierung (Schritt 3)."),
+    ("A11", "Gemeinsamer Trennschnitt: Liegen zwei Teile auf der Stange nebeneinander und sind beide zugewandten Enden gerade (senkrecht), wird nur ein Schnitt gerechnet, sonst zwei. Dafür stehen je Teil Anfangs- und Endschnitt (gerade ja/nein, Schnittlänge) in Spalten Y–AB; Spalte H enthält immer beide Enden voll. Die Verrechnung erfolgt in der Optimierung (Schritt 3). Beim gemeinsamen Schnitt zählt auch der Schnittverlust nur einmal."),
+    ("A12", "Schneidweg (Spalte H) = Anfangsschnitt + Endschnitt + Innenkonturen (AC). Gravuren (nicht durchgehende Konturen) stehen separat in AD und sind nicht im Schneidweg enthalten."),
+    ("A13", "Gewinde: Der STEP-Import erkennt durchgehende Rundbohrungen (AE) und schlägt bei passendem Kernloch ein Gewinde vor (AF). Gerechnet wird nur, was nach manueller Prüfung in AG eingetragen ist (Format z. B. 4xM6; 2xM8). Solange AF gefüllt und AG leer ist, zeigt der Status einen Hinweis."),
 ]
 r = 4
 for a, b in rows:
@@ -309,6 +313,21 @@ add_dv(wsd, num_dv(1, 100000, msg="Vorschub in mm/min."), f"D{M0}:D{M1}")
 add_dv(wsd, num_dv(0, 60, msg="Einstechzeit in s."), f"E{M0}:E{M1}")
 wsd.freeze_panes = "C5"
 
+# ---------------------------------------------------------------- Gewinde
+wg = wb.create_sheet("Gewinde", 7)
+title(wg, "Gewinde / Kernlöcher", "ISO-Regelgewinde, Kernloch nach DIN 336. Der STEP-Import vergleicht Bohrungsdurchmesser mit dieser Tabelle (±0,05 mm).")
+cols_g = [("Gewinde", 12, "in"), ("Kernloch Ø [mm]", 12, "in"), ("Zeit je Gewinde [s]", 12, "in"), ("Bemerkung", 36, "in")]
+header(wg, 4, cols_g)
+style_rows(wg, M0, M0 + 49, cols_g, {2: "0.0", 3: "0"})
+for i, (g_, d_) in enumerate([("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
+                              ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)], start=M0):
+    wg.cell(row=i, column=1, value=g_)
+    wg.cell(row=i, column=2, value=d_)
+wg.cell(row=M0, column=4, value="Zeit je Gewinde für Kalkulation in Schritt 4")
+add_dv(wg, num_dv(0.5, 100, msg="Kernloch in mm."), f"B{M0}:B{M0 + 49}")
+add_dv(wg, num_dv(0, 3600, msg="Zeit in s."), f"C{M0}:C{M0 + 49}")
+wg.freeze_panes = "B5"
+
 # ---------------------------------------------------------------- Auftrag
 wa = wb.create_sheet("Auftrag", 1)
 title(wa, "Auftrag – Eingabe", "Kopf ausfüllen, dann Positionen ab Zeile 13. Status in Spalte W beachten. Beispielpositionen vor Gebrauch löschen (nur gelbe Zellen).")
@@ -350,20 +369,23 @@ wa["J3"] = "Übersicht"; wa["J3"].font = f_note
 
 cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "in"), ("Profil-ID", 18, "in"),
           ("Werkstoff-ID", 15, "in"), ("Teilelänge [mm]", 11, "in"), ("Stückzahl", 9, "in"),
-          ("Schneidweg je Teil [mm] (STEP)", 13, "in"), ("Einstiche je Teil (STEP)", 10, "in"),
+          ("Schneidweg je Teil ohne Gravur [mm] (STEP)", 13, "in"), ("Einstiche je Teil (STEP)", 10, "in"),
           ("Stangenlänge abweichend [mm]", 12, "in"),
           ("Profilform", 13, "link"), ("Querschnitt [mm²]", 10, "link"), ("Wandstärke [mm]", 10, "link"),
           ("Metergewicht [kg/m]", 10, "calc"), ("Gewicht je Teil [kg]", 10, "calc"), ("Länge gesamt [mm]", 11, "calc"),
           ("Stangenlänge wirksam [mm]", 11, "calc"), ("Endbeschnitt wirksam [mm]", 10, "calc"),
           ("Greiferrest wirksam [mm]", 10, "calc"), ("Nutzlänge Stange [mm]", 11, "calc"),
           ("Preis hinterlegt", 9, "calc"), ("Vorschub [mm/min]", 10, "link"), ("Status", 34, "calc"), ("Gewicht Position [kg]", 11, "calc"),
-          ("Ende A gerade (STEP)", 9, "in"), ("Schnitt Ende A [mm] (STEP)", 11, "in"),
-          ("Ende B gerade (STEP)", 9, "in"), ("Schnitt Ende B [mm] (STEP)", 11, "in")]
+          ("Anfangsschnitt gerade (STEP)", 10, "in"), ("Anfangsschnitt [mm] (STEP)", 11, "in"),
+          ("Endschnitt gerade (STEP)", 10, "in"), ("Endschnitt [mm] (STEP)", 11, "in"),
+          ("Innenkonturen [mm] (STEP)", 11, "in"), ("Gravur [mm] (STEP)", 10, "in"),
+          ("Bohrungen (STEP)", 16, "in"), ("Gewinde-Vorschlag (STEP)", 18, "in"),
+          ("Gewinde geprüft (manuell)", 16, "in")]
 header(wa, 12, cols_a)
 wa.row_dimensions[12].height = 60
 style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 10: "#,##0", 12: "0.0",
                                  13: "0.00", 14: "0.000", 15: "0.000", 16: "#,##0", 17: "#,##0", 18: "0",
-                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0"})
+                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0", 29: "#,##0.0", 30: "#,##0.0"})
 P = lambda col: f"Profile!${col}${M0}:${col}${M1}"
 SD = lambda col: f"Schneiddaten!${col}${M0}:${col}${M1}"
 for r in range(O0, O1 + 1):
@@ -397,7 +419,8 @@ for r in range(O0, O1 + 1):
         f'IF($F{r}+$H$6>T{r},"FEHLER: Teil länger als Nutzlänge",'
         f'IF(U{r}="nein","WARNUNG: kein gültiger Materialpreis",'
         f'IF($H{r}="","HINWEIS: Schneidweg fehlt",'
-        f'IF(V{r}="","HINWEIS: keine Schneiddaten","OK"))))))))))))')
+        f'IF(V{r}="","HINWEIS: keine Schneiddaten",'
+        f'IF(AND($AF{r}<>"",$AG{r}=""),"HINWEIS: Gewinde-Vorschlag prüfen","OK")))))))))))))')
 
 ex = [(10, "4711-001", "Holm links", "RR 42,4x2,0", "S235-10219", 1250, 24, 410.5, 4, None),
       (20, "4711-002", "Querstrebe", "RR 42,4x2,0", "S235-10219", 860, 40, 302.0, 2, None),
@@ -435,7 +458,17 @@ for prefix, color in (("FEHLER", "F8CBAD"), ("WARNUNG", "FFD966"), ("HINWEIS", "
     wa.conditional_formatting.add(wrng, FormulaRule(formula=[f'LEFT($W{O0},{len(prefix)})="{prefix}"'],
                                                     fill=PatternFill("solid", fgColor=color)))
 wa.freeze_panes = "E13"
-wa.auto_filter.ref = f"A12:AB{O1}"
+add_dv(wa, num_dv(0, 1000000, msg="Länge in mm (≥ 0)."), f"AC{O0}:AD{O1}")
+gv = DataValidation(type="custom", allow_blank=True,
+                    formula1=f'=ISNUMBER(SEARCH("xM",AG{O0}))')
+gv.error = "Format: Anzahl x Gewinde, mehrere mit Semikolon, z. B. 4xM6; 2xM8"
+gv.errorTitle = "Ungültige Eingabe"; gv.showErrorMessage = True
+add_dv(wa, gv, f"AG{O0}:AG{O1}")
+wa["AF12"].comment = Comment("Nur Vorschlag aus dem Kernlochdurchmesser (Blatt 'Gewinde'). Wird nicht gerechnet.", "Kalkulation")
+wa["AG12"].comment = Comment("Nach manueller Prüfung eintragen, z. B. 4xM6; 2xM8. Nur dieser Wert wird gerechnet.", "Kalkulation")
+wa.conditional_formatting.add(f"AF{O0}:AF{O1}", FormulaRule(formula=[f'AND($AF{O0}<>"",$AG{O0}="")'],
+                                                            fill=PatternFill("solid", fgColor="FFD966")))
+wa.auto_filter.ref = f"A12:AG{O1}"
 
 for s in wb.worksheets:
     s.sheet_view.zoomScale = 90

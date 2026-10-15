@@ -92,4 +92,13 @@ if __name__ == "__main__":
     s = kastenrohr(40, 40, 3, 1000, 6)
     schlitz = BRepPrimAPI_MakeBox(gp_Pnt(10, -10, 100), 20, 20, 800).Shape()
     schreibe(cut(s, schlitz), "T06_QR40x3_L1000_Langloch")
+    # 7 Quadratrohr 40x40x3 L1000, r6: 4x Kernloch Ø5 (M6) in +X-Wand, Rechteckausschnitt 10x20 in -X-Wand,
+    #   Gravur 24x5 (0,3 tief) in +Y-Wand, Ausklinkung 16 breit x 15 tief am Ende B in +X-Wand
+    s = kastenrohr(40, 40, 3, 1000, 6)
+    for z in (100, 150, 200, 250):
+        s = cut(s, BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(10, 0, z), gp_Dir(1, 0, 0)), 2.5, 20).Shape())
+    s = cut(s, BRepPrimAPI_MakeBox(gp_Pnt(-21, -5, 600), 5, 10, 20).Shape())
+    s = cut(s, BRepPrimAPI_MakeBox(gp_Pnt(-12, 19.7, 400), 24, 2, 5).Shape())
+    s = cut(s, BRepPrimAPI_MakeBox(gp_Pnt(15, -8, 985), 10, 16, 20).Shape())
+    schreibe(s, "T07_QR40x3_L1000_Gewinde_Gravur")
     print("Testteile geschrieben nach", ZIEL)

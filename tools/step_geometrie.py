@@ -3,13 +3,15 @@
 Je Volumenkörper wird ermittelt:
 - Rohrachse, Teilelänge (Ausdehnung entlang der Achse)
 - Profilform, Abmessungen, Wandstärke, Querschnittsfläche
-- Schneidweg: Länge aller Schnittkonturen auf der Außenhaut des Rohrs
-- Anzahl Konturen (= Einstiche)
+- Schneidweg getrennt nach Anfangsschnitt (Ende A), Endschnitt (Ende B) und
+  Innenkonturen; Gravuren (nicht durchgehend) separat
+- Anzahl Konturen (= Einstiche, ohne Gravur), Rundbohrungen je Durchmesser
 
 Annahmen:
 - Gerades Rohr mit konstantem Querschnitt (nicht gebogen).
-- Der Laser schneidet durch die Wand; jede Fläche, die nicht zur Außen- oder
-  Innenwand gehört, ist eine Schnittfläche (Enden, Bohrungen, Ausschnitte).
+- Jede Fläche, die nicht zur Außen- oder Innenwand gehört, gehört zu einem
+  Merkmal. Reicht das Merkmal bis zur Innenwand, ist es ein Schnitt
+  (Enden, Bohrungen, Ausschnitte), sonst eine Gravur.
 - Der Schneidweg wird auf der Außenhaut gemessen. Beide Endschnitte zählen
   voll je Teil (kein gemeinsamer Trennschnitt).
 """
@@ -43,6 +45,10 @@ except ImportError:  # ältere OCP-Versionen
 from OCP.BRep import BRep_Tool
 from OCP.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Vec, gp_Ax3, gp_Trsf
 
+# ISO-Regelgewinde: Kernlochbohrung nach DIN 336 (bearbeitbar im Blatt 'Gewinde' der Mappe)
+KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
+            ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
+
 TOL_WAND = 0.05     # mm, Abstand eines Punkts zur Profilkontur
 TOL_PARALLEL = 1e-3
 
@@ -63,7 +69,11 @@ class Teil:
     ende_a_gerade: bool = False # Ende A ist ein gerader Schnitt (senkrecht zur Achse)
     ende_b: float = 0.0
     ende_b_gerade: bool = False
-    innen: float = 0.0          # Schneidweg aller übrigen Konturen (Bohrungen, Ausschnitte)
+    innen: float = 0.0          # Schneidweg aller Innenkonturen (Bohrungen, Ausschnitte)
+    innen_konturen: int = 0
+    gravur: float = 0.0         # Konturlänge nicht durchgehender Merkmale (Gravur/Markierung)
+    gravur_konturen: int = 0
+    bohrungen: dict = field(default_factory=dict)  # Ø -> Anzahl (durchgehende Rundbohrungen)
     hinweise: list = field(default_factory=list)
 
     @property
@@ -116,26 +126,43 @@ def _vec(d):
 
 
 def _achse(solid):
-    """Rohrachse: die OBB-Achse, zu der die meiste Fläche 'parallel extrudiert' ist."""
+    """Rohrachse: die OBB-Achse, zu der die meiste Fläche 'parallel extrudiert' ist,
+    danach exakt aus den Wandflächen nachgeschärft (OBB ist bei unsymmetrischen Teilen leicht schief)."""
     obb = Bnd_OBB()
     BRepBndLib.AddOBB_s(solid, obb, False, True, False)
-    kandidaten = [obb.XDirection(), obb.YDirection(), obb.ZDirection()]
+    TOL_GROB = 0.02
+    flaechen = []
+    for f in _liste(solid, TopAbs_FACE):
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        if s.GetType() == GeomAbs_Plane:
+            flaechen.append(("P", _vec(s.Plane().Axis().Direction()), _flaeche(f)))
+        elif s.GetType() == GeomAbs_Cylinder:
+            flaechen.append(("Z", _vec(s.Cylinder().Axis().Direction()), _flaeche(f)))
     best, best_a = None, -1.0
-    for k in kandidaten:
+    for k in (obb.XDirection(), obb.YDirection(), obb.ZDirection()):
         kv = _vec(k)
-        a = 0.0
-        for f in _liste(solid, TopAbs_FACE):
-            s = BRepAdaptor_Surface(TopoDS.Face(f))
-            t = s.GetType()
-            if t == GeomAbs_Plane:
-                if abs(_vec(s.Plane().Axis().Direction()).Dot(kv)) < TOL_PARALLEL:
-                    a += _flaeche(f)
-            elif t == GeomAbs_Cylinder:
-                if abs(abs(_vec(s.Cylinder().Axis().Direction()).Dot(kv)) - 1) < TOL_PARALLEL:
-                    a += _flaeche(f)
+        a = sum(fl for typ, d, fl in flaechen
+                if (typ == "P" and abs(d.Dot(kv)) < TOL_GROB) or (typ == "Z" and abs(abs(d.Dot(kv)) - 1) < TOL_GROB))
         if a > best_a:
-            best, best_a = k, a
-    return best, obb.Center()
+            best, best_a = kv, a
+    # Nachschärfen: größte parallele Zylinderwand, sonst Kreuzprodukt der zwei größten nicht parallelen Wandebenen
+    zyl = sorted([(fl, d) for typ, d, fl in flaechen if typ == "Z" and abs(abs(d.Dot(best)) - 1) < TOL_GROB],
+                 key=lambda x: -x[0])
+    if zyl:
+        achse = zyl[0][1]
+    else:
+        ebenen = sorted([(fl, d) for typ, d, fl in flaechen if typ == "P" and abs(d.Dot(best)) < TOL_GROB],
+                        key=lambda x: -x[0])
+        achse = best
+        for _, d2 in ebenen[1:]:
+            kreuz = ebenen[0][1].Crossed(d2)
+            if kreuz.Magnitude() > 0.5:
+                achse = kreuz
+                break
+    achse = achse.Normalized()
+    if achse.Dot(best) < 0:
+        achse.Reverse()
+    return achse, obb.Center()
 
 
 def _lokal(solid, achse, zentrum):
@@ -184,13 +211,14 @@ def analysiere(solid, datei="", koerper=1):
     # Querschnitt: Lage mit größter Netto-Fläche und genau 2 Konturen (Außen/Innen)
     best = None
     # dicht über die ganze Länge abtasten, damit auch lange Ausschnitte umgangen werden
-    for anteil in [0.5] + [i / 50 for i in range(1, 50)]:
+    # krumme Anteile, damit die Ebene nicht genau auf einer Merkmalskante liegt
+    for anteil in [0.5037] + [(i + 0.37) / 50 for i in range(1, 49)]:
         z = zmin + anteil * t.laenge
         ws = _schnitt(lok, z)
         if len(ws) != 2:
             continue
         netto = ws[0][0] - ws[1][0]
-        if best is None or netto > best[0] + 1e-6:
+        if best is None or netto > best[0] * 1.001:
             best = (netto, z, ws)
     if best is None:
         t.hinweise.append("Kein Rohrquerschnitt gefunden (kein Hohlprofil?)")
@@ -251,15 +279,8 @@ def analysiere(solid, datei="", koerper=1):
     TopExp.MapShapesAndAncestors_s(lok, TopAbs_EDGE, TopAbs_FACE, kf)
     vmap = TopTools_IndexedMapOfShape()
     TopExp.MapShapes_s(lok, TopAbs_VERTEX, vmap)
-    schnittkanten = []
-    for i in range(1, kf.Extent() + 1):
-        e = kf.FindKey(i)
-        arten = {art[faces.FindIndex(f)] for f in kf.FindFromIndex(i)}
-        if "A" in arten and "S" in arten:
-            schnittkanten.append(e)
-    t.schneidweg = sum(_kantenlaenge(e) for e in schnittkanten)
 
-    # Konturen zählen: zusammenhängende Kantenzüge über gemeinsame Eckpunkte
+    # Merkmale = zusammenhängende Schnittflächen (über gemeinsame Kanten)
     eltern = {}
 
     def finde(x):
@@ -268,33 +289,100 @@ def analysiere(solid, datei="", koerper=1):
             x = eltern[x]
         return x
 
-    for e in schnittkanten:
-        vs = [vmap.FindIndex(v) for v in _liste(e, TopAbs_VERTEX)]
-        for v in vs[1:]:
-            eltern[finde(vs[0])] = finde(v)
-        finde(vs[0])
-    gruppen = {}
-    for e in schnittkanten:
-        v0 = vmap.FindIndex(_liste(e, TopAbs_VERTEX)[0])
-        gruppen.setdefault(finde(v0), []).append(e)
-    t.konturen = len(gruppen)
+    kanten_info = []   # (Kante, Menge Flächenindizes)
+    for i in range(1, kf.Extent() + 1):
+        fi = {faces.FindIndex(f) for f in kf.FindFromIndex(i)}
+        kanten_info.append((kf.FindKey(i), fi))
+        s_faces = [f for f in fi if art[f] == "S"]
+        for f in s_faces:
+            finde(f)
+            if f != s_faces[0]:
+                eltern[finde(f)] = finde(s_faces[0])
 
-    # Endkonturen: berühren das kleinste bzw. größte Achsmaß; gerade = ganz in einer Ebene senkrecht zur Achse
+    merkmale = {}  # Wurzel -> dict(faces, aussenkanten, durch)
+    for f, a_ in art.items():
+        if a_ == "S":
+            merkmale.setdefault(finde(f), dict(faces=[], kanten=[], durch=False))["faces"].append(f)
+    for e, fi in kanten_info:
+        arten = {art[f] for f in fi}
+        for f in fi:
+            if art[f] == "S":
+                m = merkmale[finde(f)]
+                if "A" in arten:
+                    m["kanten"].append(e)
+                if "I" in arten:
+                    m["durch"] = True
+
+    def konturen_zaehlen(kanten):
+        ve = {}
+
+        def fv(x):
+            while ve.setdefault(x, x) != x:
+                ve[x] = ve[ve[x]]
+                x = ve[x]
+            return x
+        for e in kanten:
+            vs = [vmap.FindIndex(v) for v in _liste(e, TopAbs_VERTEX)]
+            for v in vs:
+                ve[fv(v)] = fv(vs[0])
+        return len({fv(v) for v in list(ve)})
+
     TOL_Z = 0.01
-    for kanten in gruppen.values():
+    bohrungen = {}
+    for m in merkmale.values():
+        kanten = m["kanten"]
+        if not kanten:
+            continue
+        laenge = sum(_kantenlaenge(e) for e in kanten)
+        n = konturen_zaehlen(kanten)
+        if not m["durch"]:
+            t.gravur += laenge
+            t.gravur_konturen += n
+            continue
         bb = Bnd_Box()
         for e in kanten:
             BRepBndLib.AddOptimal_s(e, bb, False, False)
         gz0, gz1 = bb.CornerMin().Z(), bb.CornerMax().Z()
-        laenge = sum(_kantenlaenge(e) for e in kanten)
-        gerade = gz1 - gz0 < TOL_Z
-        if gz0 - zmin < TOL_Z and not t.ende_a:
-            t.ende_a, t.ende_a_gerade = laenge, gerade and gz1 - zmin < TOL_Z
-        elif zmax - gz1 < TOL_Z and not t.ende_b:
-            t.ende_b, t.ende_b_gerade = laenge, gerade
+        if gz0 - zmin < TOL_Z:
+            t.ende_a += laenge
+            t.ende_a_gerade = (gz1 - zmin < TOL_Z) if t.ende_a == laenge else False
+        elif zmax - gz1 < TOL_Z:
+            t.ende_b += laenge
+            t.ende_b_gerade = (zmax - gz0 < TOL_Z) if t.ende_b == laenge else False
         else:
             t.innen += laenge
+            t.innen_konturen += n
+            # Rundbohrung: nur Zylinderflächen gleichen Radius, Achse quer zum Rohr
+            radien = set()
+            for f in m["faces"]:
+                sf = BRepAdaptor_Surface(TopoDS.Face(faces.FindKey(f)))
+                if sf.GetType() != GeomAbs_Cylinder or abs(sf.Cylinder().Axis().Direction().Z()) > 0.99:
+                    radien = None
+                    break
+                radien.add(round(sf.Cylinder().Radius(), 2))
+            if radien and len(radien) == 1:
+                d = round(2 * radien.pop(), 2)
+                bohrungen[d] = bohrungen.get(d, 0) + n
+        t.konturen += n
+    t.bohrungen = dict(sorted(bohrungen.items()))
+    t.schneidweg = t.ende_a + t.ende_b + t.innen
     return t
+
+
+def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
+    """Ordnet Bohrungsdurchmesser einem Kernloch zu. Ergebnis z. B. '4xM6 (Ø5)'. Nur Vorschlag."""
+    tabelle = tabelle or KERNLOCH
+    out = []
+    for d, n in bohrungen.items():
+        for gew, kern in tabelle:
+            if abs(d - kern) <= tol:
+                out.append(f"{n}x{gew} (Ø{f'{kern:g}'.replace('.', ',')})")
+                break
+    return "; ".join(out)
+
+
+def bohrungen_text(bohrungen):
+    return "; ".join(f"{n}xØ{f'{d:g}'.replace('.', ',')}" for d, n in bohrungen.items())
 
 
 def analysiere_datei(pfad):
