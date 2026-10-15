@@ -51,6 +51,9 @@ for name, (form, a, b, t, fl, l, sw, k) in SOLL.items():
         else:
             nah(teil.schneidweg, sw, 0.05, "Schneidweg", name)
         assert teil.konturen == k, f"{name}: Konturen {teil.konturen}, soll {k}"
+        nah(teil.ende_a + teil.ende_b + teil.innen, teil.schneidweg, 0.01, "Summe Enden+innen", name)
+        gerade_b = not name.startswith("T04")  # nur T04 hat eine Gehrung
+        assert teil.ende_a_gerade and teil.ende_b_gerade == gerade_b, f"{name}: Enden gerade {teil.ende_a_gerade}/{teil.ende_b_gerade}"
         print(f"OK     {name}")
     except AssertionError as e:
         fehler += 1
@@ -74,6 +77,7 @@ with tempfile.TemporaryDirectory() as d:
     wb = load_workbook(m)
     assert wb["Profile"]["A10"].value == "RR 33,7x2,6", wb["Profile"]["A10"].value
     assert wb["Auftrag"]["D18"].value == "RR 33,7x2,6"
+    assert wb["Auftrag"]["Y18"].value == "ja" and abs(wb["Auftrag"]["Z18"].value - 105.9) < 0.05
     print("OK     Import, Doppelimport-Sperre, Profil anlegen")
 
 sys.exit(1 if fehler else 0)

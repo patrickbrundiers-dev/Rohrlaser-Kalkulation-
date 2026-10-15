@@ -45,4 +45,5 @@ Messregeln und Annahmen:
 - Teilelänge = größte Ausdehnung entlang der Rohrachse (bei Gehrung die lange Seite).
 - Schneidweg = Länge aller Schnittkonturen auf der Außenhaut. Beide Endschnitte zählen voll je Teil (kein gemeinsamer Trennschnitt).
 - Einstiche = Anzahl getrennter Schnittkonturen (Enden und jede Bohrung/jeder Ausschnitt).
+- Je Ende wird erkannt, ob der Schnitt gerade (senkrecht zur Achse) ist, und die Schnittlänge des Endes gemessen (Spalten Y–AB im Auftrag). Regel für die Optimierung (Schritt 3): zwei benachbarte Teile mit geraden zugewandten Enden teilen sich einen Schnitt, sonst werden zwei Schnitte gerechnet.
 - Profilform aus dem Querschnitt: Rund-, Quadrat-, Rechteckrohr; alles andere wird als Sonderprofil mit Hinweis gemeldet.

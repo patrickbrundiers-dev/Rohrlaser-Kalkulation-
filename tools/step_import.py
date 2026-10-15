@@ -27,7 +27,8 @@ O0, O1 = 13, 512          # Auftragspositionen
 TOL_MASS = 0.15           # mm, Toleranz beim Profilabgleich
 LOG = "STEP-Import"
 LOG_KOPF = ["Zeitpunkt", "Datei", "Körper", "Profilform", "Abm. A [mm]", "Abm. B [mm]", "Wandstärke [mm]",
-            "Querschnitt [mm²]", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Profil-ID", "Zeile Auftrag", "Hinweise"]
+            "Querschnitt [mm²]", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Ende A gerade", "Schnitt Ende A [mm]", "Ende B gerade", "Schnitt Ende B [mm]",
+            "Schneidweg innen [mm]", "Profil-ID", "Zeile Auftrag", "Hinweise"]
 
 
 def lies_profile(ws):
@@ -84,7 +85,7 @@ def log_blatt(wb):
         c.fill = PatternFill("solid", fgColor="1F4E78")
         ws.column_dimensions[c.column_letter].width = 14
     ws.column_dimensions["B"].width = 34
-    ws.column_dimensions["N"].width = 50
+    ws.column_dimensions["S"].width = 50
     ws.freeze_panes = "A5"
     return ws
 
@@ -120,7 +121,7 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
         try:
             teile = analysiere_datei(datei)
         except Exception as e:  # Datei defekt o. ä.: protokollieren, weitermachen
-            wl.append([jetzt, datei.name, "", "", "", "", "", "", "", "", "", "", "", f"FEHLER: {e}"])
+            wl.append([jetzt, datei.name] + [""] * (len(LOG_KOPF) - 3) + [f"FEHLER: {e}"])
             ergebnis.append((datei.name, None, f"FEHLER: {e}"))
             continue
         for t in teile:
@@ -154,13 +155,21 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
                     wa.cell(zeile, 7, int(stueck))
                 wa.cell(zeile, 8, round(t.schneidweg, 1))
                 wa.cell(zeile, 9, t.konturen)
+                if t.ende_a:
+                    wa.cell(zeile, 25, "ja" if t.ende_a_gerade else "nein")
+                    wa.cell(zeile, 26, round(t.ende_a, 1))
+                if t.ende_b:
+                    wa.cell(zeile, 27, "ja" if t.ende_b_gerade else "nein")
+                    wa.cell(zeile, 28, round(t.ende_b, 1))
                 ziel = zeile
                 vorhandene.add(artikel)
                 naechste_pos += 10
                 zeile += 1
             wl.append([jetzt, datei.name, t.koerper, t.profilform, round(t.abm_a, 2), round(t.abm_b, 2) or None,
                        round(t.wandstaerke, 2), round(t.flaeche, 1), round(t.laenge, 1), round(t.schneidweg, 1),
-                       t.konturen, pid, ziel, "; ".join(hinweise)])
+                       t.konturen, "ja" if t.ende_a_gerade else "nein", round(t.ende_a, 1),
+                       "ja" if t.ende_b_gerade else "nein", round(t.ende_b, 1), round(t.innen, 1),
+                       pid, ziel, "; ".join(hinweise)])
             ergebnis.append((artikel, ziel or None, "; ".join(hinweise) or "OK"))
 
     for row in wl.iter_rows(min_row=5):

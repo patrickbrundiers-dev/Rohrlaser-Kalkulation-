@@ -129,6 +129,7 @@ rows = [
     ("A8", "Keine Restlagerverwaltung: Reststücke werden nur als Verschnitt ausgewiesen (Entscheidung vom 15.10.2026)."),
     ("A9", "Kapazität: 300 Zeilen je Stammdatenblatt, 500 Auftragspositionen. Erweiterbar, indem Formelzeilen nach unten kopiert und die Namen in Formeln > Namens-Manager angepasst werden."),
     ("A10", "Einheiten: Längen in mm, Gewicht in kg, Preise in € netto."),
+    ("A11", "Gemeinsamer Trennschnitt: Liegen zwei Teile auf der Stange nebeneinander und sind beide zugewandten Enden gerade (senkrecht), wird nur ein Schnitt gerechnet, sonst zwei. Dafür stehen je Teil Ende A/B (gerade ja/nein, Schnittlänge) in Spalten Y–AB; Spalte H enthält immer beide Enden voll. Die Verrechnung erfolgt in der Optimierung (Schritt 3)."),
 ]
 r = 4
 for a, b in rows:
@@ -153,6 +154,11 @@ for c in (wl["A4"], wl["B4"]):
     c.font = f_head; c.fill = fill_head
 for i, v in enumerate(["Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil"], start=5):
     wl.cell(row=i, column=1, value=v).font = f_in
+wl["C4"] = "Ja/Nein"
+wl["C4"].font = f_head; wl["C4"].fill = fill_head
+for i, v in enumerate(["ja", "nein"], start=5):
+    wl.cell(row=i, column=3, value=v).font = f_in
+wb.defined_names["lst_JaNein"] = DefinedName("lst_JaNein", attr_text="Listen!$C$5:$C$6")
 for i, v in enumerate(["€/kg", "€/Stange"], start=5):
     wl.cell(row=i, column=2, value=v).font = f_in
 wl.column_dimensions["A"].width = 18
@@ -350,12 +356,14 @@ cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "i
           ("Metergewicht [kg/m]", 10, "calc"), ("Gewicht je Teil [kg]", 10, "calc"), ("Länge gesamt [mm]", 11, "calc"),
           ("Stangenlänge wirksam [mm]", 11, "calc"), ("Endbeschnitt wirksam [mm]", 10, "calc"),
           ("Greiferrest wirksam [mm]", 10, "calc"), ("Nutzlänge Stange [mm]", 11, "calc"),
-          ("Preis hinterlegt", 9, "calc"), ("Vorschub [mm/min]", 10, "link"), ("Status", 34, "calc"), ("Gewicht Position [kg]", 11, "calc")]
+          ("Preis hinterlegt", 9, "calc"), ("Vorschub [mm/min]", 10, "link"), ("Status", 34, "calc"), ("Gewicht Position [kg]", 11, "calc"),
+          ("Ende A gerade (STEP)", 9, "in"), ("Schnitt Ende A [mm] (STEP)", 11, "in"),
+          ("Ende B gerade (STEP)", 9, "in"), ("Schnitt Ende B [mm] (STEP)", 11, "in")]
 header(wa, 12, cols_a)
 wa.row_dimensions[12].height = 60
 style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 10: "#,##0", 12: "0.0",
                                  13: "0.00", 14: "0.000", 15: "0.000", 16: "#,##0", 17: "#,##0", 18: "0",
-                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00"})
+                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0"})
 P = lambda col: f"Profile!${col}${M0}:${col}${M1}"
 SD = lambda col: f"Schneiddaten!${col}${M0}:${col}${M1}"
 for r in range(O0, O1 + 1):
@@ -416,13 +424,18 @@ add_dv(wa, num_dv(500, 20000, whole=True, msg="Stangenlänge in mm (500–20000)
 add_dv(wa, num_dv(1, 99999, whole=True, msg="Positionsnummer als ganze Zahl."), f"A{O0}:A{O1}")
 wa["H12"].comment = Comment("Wird in Schritt 2 automatisch aus der STEP-Datei gefüllt; bis dahin manuell.", "Kalkulation")
 wa["J12"].comment = Comment("Leer = Standard-Stangenlänge aus C9.", "Kalkulation")
+add_dv(wa, list_dv("lst_JaNein", "Bitte ja oder nein wählen."), f"Y{O0}:Y{O1}")
+add_dv(wa, list_dv("lst_JaNein", "Bitte ja oder nein wählen."), f"AA{O0}:AA{O1}")
+add_dv(wa, num_dv(0, 100000, msg="Schnittlänge in mm (≥ 0)."), f"Z{O0}:Z{O1}")
+add_dv(wa, num_dv(0, 100000, msg="Schnittlänge in mm (≥ 0)."), f"AB{O0}:AB{O1}")
+wa["Y12"].comment = Comment("Gerade = Schnitt senkrecht zur Rohrachse. Zwei benachbarte gerade Enden teilen sich in der Optimierung einen Schnitt.", "Kalkulation")
 
 wrng = f"W{O0}:W{O1}"
 for prefix, color in (("FEHLER", "F8CBAD"), ("WARNUNG", "FFD966"), ("HINWEIS", "FFF2CC"), ("OK", "C6EFCE")):
     wa.conditional_formatting.add(wrng, FormulaRule(formula=[f'LEFT($W{O0},{len(prefix)})="{prefix}"'],
                                                     fill=PatternFill("solid", fgColor=color)))
 wa.freeze_panes = "E13"
-wa.auto_filter.ref = f"A12:X{O1}"
+wa.auto_filter.ref = f"A12:AB{O1}"
 
 for s in wb.worksheets:
     s.sheet_view.zoomScale = 90

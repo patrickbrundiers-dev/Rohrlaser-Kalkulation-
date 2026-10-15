@@ -59,6 +59,11 @@ class Teil:
     laenge: float = 0.0
     schneidweg: float = 0.0
     konturen: int = 0
+    ende_a: float = 0.0         # Schnittlänge Ende A (Anfang, kleineres Achsmaß) [mm]
+    ende_a_gerade: bool = False # Ende A ist ein gerader Schnitt (senkrecht zur Achse)
+    ende_b: float = 0.0
+    ende_b_gerade: bool = False
+    innen: float = 0.0          # Schneidweg aller übrigen Konturen (Bohrungen, Ausschnitte)
     hinweise: list = field(default_factory=list)
 
     @property
@@ -267,7 +272,27 @@ def analysiere(solid, datei="", koerper=1):
         for v in vs[1:]:
             eltern[finde(vs[0])] = finde(v)
         finde(vs[0])
-    t.konturen = len({finde(v) for v in list(eltern)})
+    gruppen = {}
+    for e in schnittkanten:
+        v0 = vmap.FindIndex(_liste(e, TopAbs_VERTEX)[0])
+        gruppen.setdefault(finde(v0), []).append(e)
+    t.konturen = len(gruppen)
+
+    # Endkonturen: berühren das kleinste bzw. größte Achsmaß; gerade = ganz in einer Ebene senkrecht zur Achse
+    TOL_Z = 0.01
+    for kanten in gruppen.values():
+        bb = Bnd_Box()
+        for e in kanten:
+            BRepBndLib.AddOptimal_s(e, bb, False, False)
+        gz0, gz1 = bb.CornerMin().Z(), bb.CornerMax().Z()
+        laenge = sum(_kantenlaenge(e) for e in kanten)
+        gerade = gz1 - gz0 < TOL_Z
+        if gz0 - zmin < TOL_Z and not t.ende_a:
+            t.ende_a, t.ende_a_gerade = laenge, gerade and gz1 - zmin < TOL_Z
+        elif zmax - gz1 < TOL_Z and not t.ende_b:
+            t.ende_b, t.ende_b_gerade = laenge, gerade
+        else:
+            t.innen += laenge
     return t
 
 
