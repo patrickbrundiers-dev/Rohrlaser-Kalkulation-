@@ -134,6 +134,7 @@ rows = [
     ("A11", "Gemeinsamer Trennschnitt: Liegen zwei Teile auf der Stange nebeneinander und sind beide zugewandten Enden gerade (senkrecht), wird nur ein Schnitt gerechnet, sonst zwei. Dafür stehen je Teil Anfangs- und Endschnitt (gerade ja/nein, Schnittlänge) in Spalten Y–AB; Spalte H enthält immer beide Enden voll. Die Verrechnung erfolgt in der Optimierung (Schritt 3). Beim gemeinsamen Schnitt zählt auch der Schnittverlust nur einmal."),
     ("A12", "Schneidweg (Spalte H) = Anfangsschnitt + Endschnitt + Innenkonturen (AC). Gravuren (nicht durchgehende Konturen) stehen separat in AD und sind nicht im Schneidweg enthalten."),
     ("A13", "Gewinde: Der STEP-Import erkennt durchgehende Rundbohrungen (AE) und schlägt bei passendem Kernloch ein Gewinde vor (AF). Gerechnet wird nur, was nach manueller Prüfung in AG eingetragen ist (Format z. B. 4xM6; 2xM8). Solange AF gefüllt und AG leer ist, zeigt der Status einen Hinweis."),
+    ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine."),
 ]
 r = 4
 for a, b in rows:
@@ -269,12 +270,13 @@ wm = wb.create_sheet("Maschinen", 5)
 title(wm, "Maschinenparameter", "Endbeschnitt = Anschnitt am Stangenanfang; Greiferrest = nicht nutzbares Ende im Greifer; Schnittverlust = Materialverlust je Trennschnitt.")
 cols_m = [("Maschinen-ID", 16, "in"), ("Bezeichnung", 26, "in"), ("Endbeschnitt [mm]", 12, "in"),
           ("Greiferrest [mm]", 12, "in"), ("Schnittverlust je Schnitt [mm]", 13, "in"),
-          ("Max. Stangenlänge [mm]", 13, "in"), ("Stundensatz [€/h]", 12, "in"), ("Bemerkung", 30, "in")]
+          ("Max. Stangenlänge [mm]", 13, "in"), ("Stundensatz [€/h]", 12, "in"), ("Kontur klein bis [mm]", 11, "in"),
+          ("Kontur mittel bis [mm]", 11, "in"), ("Bemerkung", 30, "in")]
 header(wm, 4, cols_m)
 style_rows(wm, M0, M1, cols_m, {3: "0", 4: "0", 5: "0.0", 6: "#,##0", 7: "#,##0.00"})
 for i, row in enumerate([
-    ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, "Beispielwerte"),
-    ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, "Beispielwerte"),
+    ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, 10, 50, "Beispielwerte"),
+    ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, 10, 50, "Beispielwerte"),
 ], start=M0):
     for j, v in enumerate(row, start=1):
         wm.cell(row=i, column=j, value=v)
@@ -282,6 +284,9 @@ add_dv(wm, num_dv(0, 2000, msg="Wert in mm (0–2000)."), f"C{M0}:D{M1}")
 add_dv(wm, num_dv(0, 20, msg="Schnittverlust in mm (0–20)."), f"E{M0}:E{M1}")
 add_dv(wm, num_dv(500, 20000, whole=True, msg="Stangenlänge in mm (500–20000)."), f"F{M0}:F{M1}")
 add_dv(wm, num_dv(0, 10000, msg="Stundensatz in €/h."), f"G{M0}:G{M1}")
+add_dv(wm, num_dv(0.1, 5000, msg="Grenze in mm (größtes Hüllmaß der Kontur)."), f"H{M0}:I{M1}")
+wm["H4"].comment = Comment("Innenkontur gilt als klein, wenn ihr größtes Hüllmaß ≤ diesem Wert ist.", "Kalkulation")
+wm["I4"].comment = Comment("Bis zu diesem Hüllmaß mittel, darüber groß.", "Kalkulation")
 dup = DataValidation(type="custom", formula1=f"=COUNTIF($A${M0}:$A${M1},A{M0})=1", allow_blank=True)
 dup.error = "Diese Maschinen-ID existiert bereits."; dup.showErrorMessage = True
 add_dv(wm, dup, f"A{M0}:A{M1}")
@@ -380,12 +385,16 @@ cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "i
           ("Endschnitt gerade (STEP)", 10, "in"), ("Endschnitt [mm] (STEP)", 11, "in"),
           ("Innenkonturen [mm] (STEP)", 11, "in"), ("Gravur [mm] (STEP)", 10, "in"),
           ("Bohrungen (STEP)", 16, "in"), ("Gewinde-Vorschlag (STEP)", 18, "in"),
-          ("Gewinde geprüft (manuell)", 16, "in")]
+          ("Gewinde geprüft (manuell)", 16, "in"),
+          ("Kontur klein [Stk] (STEP)", 9, "in"), ("Kontur klein [mm] (STEP)", 10, "in"),
+          ("Kontur mittel [Stk] (STEP)", 9, "in"), ("Kontur mittel [mm] (STEP)", 10, "in"),
+          ("Kontur groß [Stk] (STEP)", 9, "in"), ("Kontur groß [mm] (STEP)", 10, "in")]
 header(wa, 12, cols_a)
 wa.row_dimensions[12].height = 60
 style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 10: "#,##0", 12: "0.0",
                                  13: "0.00", 14: "0.000", 15: "0.000", 16: "#,##0", 17: "#,##0", 18: "0",
-                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0", 29: "#,##0.0", 30: "#,##0.0"})
+                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0", 29: "#,##0.0", 30: "#,##0.0",
+                                 34: "0", 35: "#,##0.0", 36: "0", 37: "#,##0.0", 38: "0", 39: "#,##0.0"})
 P = lambda col: f"Profile!${col}${M0}:${col}${M1}"
 SD = lambda col: f"Schneiddaten!${col}${M0}:${col}${M1}"
 for r in range(O0, O1 + 1):
@@ -468,7 +477,13 @@ wa["AF12"].comment = Comment("Nur Vorschlag aus dem Kernlochdurchmesser (Blatt '
 wa["AG12"].comment = Comment("Nach manueller Prüfung eintragen, z. B. 4xM6; 2xM8. Nur dieser Wert wird gerechnet.", "Kalkulation")
 wa.conditional_formatting.add(f"AF{O0}:AF{O1}", FormulaRule(formula=[f'AND($AF{O0}<>"",$AG{O0}="")'],
                                                             fill=PatternFill("solid", fgColor="FFD966")))
-wa.auto_filter.ref = f"A12:AG{O1}"
+add_dv(wa, num_dv(0, 10000, whole=True, msg="Anzahl als ganze Zahl ≥ 0."), f"AH{O0}:AH{O1}")
+add_dv(wa, num_dv(0, 10000, whole=True, msg="Anzahl als ganze Zahl ≥ 0."), f"AJ{O0}:AJ{O1}")
+add_dv(wa, num_dv(0, 10000, whole=True, msg="Anzahl als ganze Zahl ≥ 0."), f"AL{O0}:AL{O1}")
+for c_ in ("AI", "AK", "AM"):
+    add_dv(wa, num_dv(0, 1000000, msg="Länge in mm (≥ 0)."), f"{c_}{O0}:{c_}{O1}")
+wa["AH12"].comment = Comment("Innenkonturen nach größtem Hüllmaß; Grenzen je Maschine im Blatt 'Maschinen' (Spalten H/I).", "Kalkulation")
+wa.auto_filter.ref = f"A12:AM{O1}"
 
 for s in wb.worksheets:
     s.sheet_view.zoomScale = 90

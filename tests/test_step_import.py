@@ -11,7 +11,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "tools"))
-from step_geometrie import analysiere_datei, gewinde_vorschlag  # noqa: E402
+from step_geometrie import analysiere_datei, gewinde_vorschlag, konturklassen  # noqa: E402
 from step_import import importiere  # noqa: E402
 
 STEP = HIER / "step"
@@ -65,8 +65,16 @@ for name, (form, a, b, t, fl, l, sw, k) in SOLL.items():
             nah(teil.gravur, 2 * (24 + 5), 0.05, "Gravur", name)
             assert teil.gravur_konturen == 1 and teil.innen_konturen == 5
             assert gewinde_vorschlag(teil.bohrungen) == "4xM6 (Ø5)", gewinde_vorschlag(teil.bohrungen)
+            kl = konturklassen(teil.innen_liste)  # 4x Ø5 klein, Ausschnitt 10x20 mittel
+            assert kl["klein"][0] == 4 and kl["mittel"][0] == 1 and kl["gross"][0] == 0, kl
+            nah(kl["klein"][1], 4 * pi * 5, 0.05, "Kontur klein", name)
+            nah(kl["mittel"][1], 60, 0.05, "Kontur mittel", name)
         else:
             assert teil.gravur == 0, f"{name}: Gravur {teil.gravur}"
+        if name.startswith("T06"):
+            assert konturklassen(teil.innen_liste)["gross"][0] == 1, "Langloch muss groß sein"
+        if name.startswith("T02"):
+            assert konturklassen(teil.innen_liste)["klein"][0] == 2, "Ø10 auf der Grenze muss klein sein"
         print(f"OK     {name}")
     except AssertionError as e:
         fehler += 1
@@ -85,6 +93,7 @@ with tempfile.TemporaryDirectory() as d:
     w = load_workbook(m)["Auftrag"]
     assert w["AF24"].value == "4xM6 (Ø5)" and w["AG24"].value is None, (w["AF24"].value, w["AG24"].value)
     assert w["AD24"].value == 58.0 and w["AE24"].value == "4xØ5", (w["AD24"].value, w["AE24"].value)
+    assert [w.cell(24, c).value for c in range(34, 40)] == [4, 62.8, 1, 60.0, 0, 0.0], [w.cell(24, c).value for c in range(34, 40)]
     erg2 = importiere(m, [STEP])
     assert all(z is None for _, z, _ in erg2), "Doppelimport nicht verhindert"
     shutil.copy(HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx", m)

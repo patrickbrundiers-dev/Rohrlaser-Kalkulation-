@@ -20,7 +20,8 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill
 
 sys.path.insert(0, str(Path(__file__).parent))
-from step_geometrie import KERNLOCH, analysiere_datei, bohrungen_text, gewinde_vorschlag  # noqa: E402
+from step_geometrie import (KERNLOCH, KLEIN_BIS, MITTEL_BIS, analysiere_datei, bohrungen_text,  # noqa: E402
+                            gewinde_vorschlag, konturklassen)
 
 M0, M1 = 5, 304           # Stammdatenzeilen
 O0, O1 = 13, 512          # Auftragspositionen
@@ -30,7 +31,21 @@ LOG_KOPF = ["Zeitpunkt", "Datei", "Körper", "Profilform", "Abm. A [mm]", "Abm. 
             "Querschnitt [mm²]", "Länge [mm]", "Schneidweg ohne Gravur [mm]", "Einstiche",
             "Anfangsschnitt gerade", "Anfangsschnitt [mm]", "Endschnitt gerade", "Endschnitt [mm]",
             "Innenkonturen [mm]", "Innenkonturen [Stk]", "Gravur [mm]", "Gravur [Stk]", "Bohrungen",
-            "Gewinde-Vorschlag", "Profil-ID", "Zeile Auftrag", "Hinweise"]
+            "Gewinde-Vorschlag", "Kontur klein [Stk]", "Kontur klein [mm]", "Kontur mittel [Stk]",
+            "Kontur mittel [mm]", "Kontur groß [Stk]", "Kontur groß [mm]", "Profil-ID", "Zeile Auftrag", "Hinweise"]
+
+
+def lies_konturgrenzen(wb):
+    """Grenzen klein/mittel der im Auftragskopf gewählten Maschine (Blatt 'Maschinen', Spalten H/I)."""
+    maschine = wb["Auftrag"]["C8"].value
+    ws = wb["Maschinen"]
+    for r in range(M0, M1 + 1):
+        if maschine and ws.cell(r, 1).value == maschine:
+            k, m = ws.cell(r, 8).value, ws.cell(r, 9).value
+            if isinstance(k, (int, float)) and isinstance(m, (int, float)) and 0 < k < m:
+                return float(k), float(m), ""
+            break
+    return KLEIN_BIS, MITTEL_BIS, f"Konturgrenzen Vorgabe {KLEIN_BIS:g}/{MITTEL_BIS:g} mm (Maschine ohne Werte)"
 
 
 def lies_gewinde(wb):
@@ -122,6 +137,7 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
     wl = log_blatt(wb)
     profile = lies_profile(wp)
     gewinde = lies_gewinde(wb)
+    klein_bis, mittel_bis, grenz_hinweis = lies_konturgrenzen(wb)
 
     vorhandene = {wa.cell(r, 2).value for r in range(O0, O1 + 1) if wa.cell(r, 2).value}
     pos = [wa.cell(r, 1).value for r in range(O0, O1 + 1) if isinstance(wa.cell(r, 1).value, (int, float))]
@@ -142,6 +158,9 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
             artikel = t.datei if len(teile) == 1 else f"{t.datei}-K{t.koerper}"
             hinweise = list(t.hinweise)
             vorschlag = gewinde_vorschlag(t.bohrungen, gewinde)
+            klassen = konturklassen(t.innen_liste, klein_bis, mittel_bis)
+            if grenz_hinweis and t.innen_liste:
+                hinweise.append(grenz_hinweis)
             ziel = ""
             pid = finde_profil(t, profile) if t.profilform else None
             if t.profilform and not pid:
@@ -182,6 +201,9 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
                     wa.cell(zeile, 31, bohrungen_text(t.bohrungen))
                 if vorschlag:
                     wa.cell(zeile, 32, vorschlag)
+                for i, k in enumerate(("klein", "mittel", "gross")):
+                    wa.cell(zeile, 34 + 2 * i, klassen[k][0])
+                    wa.cell(zeile, 35 + 2 * i, round(klassen[k][1], 1))
                 ziel = zeile
                 vorhandene.add(artikel)
                 naechste_pos += 10
@@ -191,7 +213,9 @@ def importiere(mappe, pfade, werkstoff=None, stueck=None, neue_profile=False, er
                        t.konturen, "ja" if t.ende_a_gerade else "nein", round(t.ende_a, 1),
                        "ja" if t.ende_b_gerade else "nein", round(t.ende_b, 1), round(t.innen, 1),
                        t.innen_konturen, round(t.gravur, 1), t.gravur_konturen, bohrungen_text(t.bohrungen),
-                       vorschlag, pid, ziel, "; ".join(hinweise)])
+                       vorschlag, klassen["klein"][0], round(klassen["klein"][1], 1),
+                       klassen["mittel"][0], round(klassen["mittel"][1], 1),
+                       klassen["gross"][0], round(klassen["gross"][1], 1), pid, ziel, "; ".join(hinweise)])
             ergebnis.append((artikel, ziel or None, "; ".join(hinweise) or "OK"))
 
     for row in wl.iter_rows(min_row=5):

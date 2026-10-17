@@ -6,6 +6,7 @@ Je Volumenkörper wird ermittelt:
 - Schneidweg getrennt nach Anfangsschnitt (Ende A), Endschnitt (Ende B) und
   Innenkonturen; Gravuren (nicht durchgehend) separat
 - Anzahl Konturen (= Einstiche, ohne Gravur), Rundbohrungen je Durchmesser
+- Innenkonturen je Kontur mit Größe (größtes Hüllmaß) für die Einteilung klein/mittel/groß
 
 Annahmen:
 - Gerades Rohr mit konstantem Querschnitt (nicht gebogen).
@@ -74,6 +75,7 @@ class Teil:
     gravur: float = 0.0         # Konturlänge nicht durchgehender Merkmale (Gravur/Markierung)
     gravur_konturen: int = 0
     bohrungen: dict = field(default_factory=dict)  # Ø -> Anzahl (durchgehende Rundbohrungen)
+    innen_liste: list = field(default_factory=list)  # je Innenkontur (Größe = größtes Hüllmaß, Länge) [mm]
     hinweise: list = field(default_factory=list)
 
     @property
@@ -313,7 +315,8 @@ def analysiere(solid, datei="", koerper=1):
                 if "I" in arten:
                     m["durch"] = True
 
-    def konturen_zaehlen(kanten):
+    def konturzuege(kanten):
+        """Kanten zu geschlossenen Konturzügen gruppieren (über gemeinsame Eckpunkte)."""
         ve = {}
 
         def fv(x):
@@ -325,7 +328,13 @@ def analysiere(solid, datei="", koerper=1):
             vs = [vmap.FindIndex(v) for v in _liste(e, TopAbs_VERTEX)]
             for v in vs:
                 ve[fv(v)] = fv(vs[0])
-        return len({fv(v) for v in list(ve)})
+        zuege = {}
+        for e in kanten:
+            zuege.setdefault(fv(vmap.FindIndex(_liste(e, TopAbs_VERTEX)[0])), []).append(e)
+        return list(zuege.values())
+
+    def konturen_zaehlen(kanten):
+        return len(konturzuege(kanten))
 
     TOL_Z = 0.01
     bohrungen = {}
@@ -352,6 +361,13 @@ def analysiere(solid, datei="", koerper=1):
         else:
             t.innen += laenge
             t.innen_konturen += n
+            for zug in konturzuege(kanten):
+                zb = Bnd_Box()
+                for e in zug:
+                    BRepBndLib.AddOptimal_s(e, zb, False, False)
+                mn, mx = zb.CornerMin(), zb.CornerMax()
+                groesse = max(mx.X() - mn.X(), mx.Y() - mn.Y(), mx.Z() - mn.Z())
+                t.innen_liste.append((groesse, sum(_kantenlaenge(e) for e in zug)))
             # Rundbohrung: nur Zylinderflächen gleichen Radius, Achse quer zum Rohr
             radien = set()
             for f in m["faces"]:
@@ -379,6 +395,22 @@ def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
                 out.append(f"{n}x{gew} (Ø{f'{kern:g}'.replace('.', ',')})")
                 break
     return "; ".join(out)
+
+
+# Vorgabe Konturklassen, wenn im Blatt 'Maschinen' nichts eingetragen ist
+KLEIN_BIS, MITTEL_BIS = 10.0, 50.0
+
+
+def konturklassen(innen_liste, klein_bis=KLEIN_BIS, mittel_bis=MITTEL_BIS):
+    """Teilt Innenkonturen nach Größe (größtes Hüllmaß) ein: klein ≤ klein_bis < mittel ≤ mittel_bis < groß.
+    Ergebnis: {'klein': (Anzahl, Länge), 'mittel': ..., 'gross': ...}"""
+    out = {"klein": [0, 0.0], "mittel": [0, 0.0], "gross": [0, 0.0]}
+    for groesse, laenge in innen_liste:
+        groesse = round(groesse, 2)  # Ø10 genau auf der Grenze zählt als klein
+        k = "klein" if groesse <= klein_bis else "mittel" if groesse <= mittel_bis else "gross"
+        out[k][0] += 1
+        out[k][1] += laenge
+    return {k: tuple(v) for k, v in out.items()}
 
 
 def bohrungen_text(bohrungen):

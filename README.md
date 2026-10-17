@@ -38,12 +38,13 @@ python tools/step_import.py mappe/Rohrlaser_Kalkulation_v01.xlsx ORDNER_ODER_DAT
 | `--neue-profile` | Fehlende Profile im Blatt „Profile“ anlegen (mit gemessener Fläche) |
 | `--erneut` | Artikel auch eintragen, wenn er schon im Auftrag steht |
 
-Je Volumenkörper wird eine Position angelegt: Artikelnummer = Dateiname, Profil-ID (Abgleich mit „Profile“ über Form und Maße, ±0,15 mm), Teilelänge, Schneidweg, Einstiche, Anfangs- und Endschnitt (gerade ja/nein, Länge), Innenkonturen, Gravur, Bohrungen und Gewinde-Vorschlag. Alle Messwerte stehen zusätzlich im Blatt „STEP-Import“. Vor dem Schreiben wird `*.bak.xlsx` als Sicherung angelegt.
+Je Volumenkörper wird eine Position angelegt: Artikelnummer = Dateiname, Profil-ID (Abgleich mit „Profile“ über Form und Maße, ±0,15 mm), Teilelänge, Schneidweg, Einstiche, Anfangs- und Endschnitt (gerade ja/nein, Länge), Innenkonturen (gesamt und nach klein/mittel/groß), Gravur, Bohrungen und Gewinde-Vorschlag. Alle Messwerte stehen zusätzlich im Blatt „STEP-Import“. Vor dem Schreiben wird `*.bak.xlsx` als Sicherung angelegt.
 
 Messregeln und Annahmen:
 - Gerade Rohre mit konstantem Querschnitt (keine Biegeteile).
 - Teilelänge = größte Ausdehnung entlang der Rohrachse (bei Gehrung die lange Seite).
 - Konturen werden nach Art getrennt: Anfangsschnitt, Endschnitt, Innenkonturen (Bohrungen, Ausschnitte) und Gravuren. Eine Kontur, die bis ans Rohrende reicht (z. B. Ausklinkung), gehört zum Anfangs- bzw. Endschnitt; das Ende gilt dann als nicht gerade.
+- Konturgröße: Jede Innenkontur wird nach ihrem größten Hüllmaß als klein, mittel oder groß eingestuft. Die Grenzen stehen je Maschine im Blatt „Maschinen“ (Vorgabe klein ≤ 10 mm, mittel ≤ 50 mm). Es gilt die im Auftragskopf gewählte Maschine.
 - Gravur = Kontur, die nicht durch die Wand geht. Sie wird separat ausgewiesen und ist nicht im Schneidweg enthalten.
 - Schneidweg = Anfangsschnitt + Endschnitt + Innenkonturen, gemessen auf der Außenhaut. Beide Endschnitte zählen voll je Teil.
 - Einstiche = Anzahl getrennter Schnittkonturen ohne Gravuren.
