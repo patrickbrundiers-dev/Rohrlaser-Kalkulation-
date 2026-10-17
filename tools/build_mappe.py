@@ -7,7 +7,7 @@ from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.comments import Comment
 
 import os, sys
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "mappe", "Rohrlaser_Kalkulation_v01.xlsx")
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "mappe", "Rohrlaser_Kalkulation_v02.xlsm")
 F = "Arial"
 N_MASTER = 300          # Datenzeilen je Stammdatenblatt (Zeile 5..304)
 M0, M1 = 5, 5 + N_MASTER - 1
@@ -97,8 +97,8 @@ ws = wb.active
 ws.title = "Anleitung"
 ws.column_dimensions["A"].width = 26
 ws.column_dimensions["B"].width = 100
-title(ws, "Kalkulation Rohrlaserteile – Version 0.1 (Schritt 1: Grundstruktur)",
-      f"Erstellt {datetime.date(2026, 10, 15).strftime('%d.%m.%Y')}. Optimierung (VBA), STEP-Import und Kostenrechnung folgen in Schritt 2–4.")
+title(ws, "Kalkulation Rohrlaserteile – Version 0.2",
+      f"Stand {datetime.date(2026, 10, 17).strftime('%d.%m.%Y')}. Optimierung und STEP-Import laufen als Makros in dieser Mappe, ohne Installation.")
 rows = [
     ("Farblegende", None),
     ("Gelb / blaue Schrift", "Eingabefeld. Nur hier Werte eintragen."),
@@ -113,7 +113,7 @@ rows = [
     ("Maschinen", "Maschinenparameter: Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge, Stundensatz."),
     ("Schneiddaten", "Vorschub je Konturklasse (groß/Trennschnitt, mittel, klein) und Einstechzeit je Maschine, Werkstoff und Wandstärke (für Laserzeit in Schritt 4)."),
     ("Gewinde", "Kernlochdurchmesser je Gewinde. Der STEP-Import schlägt anhand dieser Tabelle Gewinde vor."),
-    ("STEP-Import", "Wird beim ersten STEP-Import angelegt: Protokoll aller Messwerte je Teil."),
+    ("STEP-Import", "Protokoll aller Messwerte je importiertem Teil."),
     ("Kalkulation", "Material-, Laser-, Gewinde- und Rüstkosten je Teil und Position, Zuschläge, Verkaufspreis."),
     ("Schnittplan", "Ergebnis der Optimierung: eine Zeile je Stange mit Belegung, Rest, Ausnutzung und Prüfung gegen Überbelegung."),
     ("Stangenbelegung", "Ergebnis der Optimierung: eine Zeile je Teil mit Lage auf der Stange (von/bis) und Art der Trennung."),
@@ -123,12 +123,12 @@ rows = [
     ("Arbeitsablauf", None),
     ("1.", "Stammdaten pflegen (Profile, Werkstoffe, Preise, Maschinen, Schneiddaten). Die vorhandenen Zeilen sind BEISPIELWERTE und müssen durch eigene Daten ersetzt werden."),
     ("2.", "Auftragskopf ausfüllen, Maschine wählen, Standard-Stangenlänge prüfen (Vorgabe 6.000 mm)."),
-    ("3.", "Positionen eintragen (Profil und Werkstoff per Auswahlliste). Schneidweg später automatisch per STEP-Import (Schritt 2)."),
+    ("3.", "Positionen eintragen (Profil und Werkstoff per Auswahlliste) oder im Blatt 'Auftrag' auf 'STEP importieren' klicken und STEP-Dateien wählen. Dafür muss der Ordner 'STEP-Import' (mit STEP-Import.exe) neben der Mappe liegen."),
     ("4.", "Status-Spalte prüfen: FEHLER muss behoben werden, WARNUNG/HINWEIS sollte geprüft werden."),
-    ("5.", "Mappe schließen und Optimierung.bat starten: füllt Schnittplan, Stangenbelegung und Auswertung. Danach Mappe öffnen, Blatt 'Kalkulation' prüfen."),
+    ("5.", "Im Blatt 'Auftrag' auf 'Optimieren' klicken: füllt Schnittplan, Stangenbelegung und Auswertung. Danach Blatt 'Kalkulation' prüfen. Nach jeder Änderung am Auftrag erneut optimieren."),
     ("", ""),
     ("Annahmen", None),
-    ("A1", "Microsoft 365 / Excel 2019 oder neuer. Diese Version ist .xlsx ohne Makros; ab Schritt 3 wird sie zu .xlsm (Makros erforderlich)."),
+    ("A1", "Microsoft 365 / Excel 2019 oder neuer unter Windows, Makros müssen aktiviert sein (beim Öffnen 'Inhalt aktivieren' bzw. Datei als vertrauenswürdig markieren). Keine Installation nötig: Optimierung und Übernahme laufen in VBA, die STEP-Geometrie misst STEP-Import.exe (portable, liegt im Ordner 'STEP-Import' neben der Mappe). Die Mappe darf dabei offen bleiben."),
     ("A2", "Ein Auftrag je Blatt 'Auftrag'. Alle Positionen laufen auf der im Kopf gewählten Maschine."),
     ("A3", "Stangenlänge: Standard aus dem Auftragskopf, je Position abweichend überschreibbar (Spalte J)."),
     ("A4", "Endbeschnitt und Greiferrest kommen von der Maschine; ist am Profil ein abweichender Wert eingetragen, gilt der Profilwert."),
@@ -484,7 +484,7 @@ add_dv(wa, num_dv(0, 1000000, msg="Schneidweg in mm (≥ 0)."), f"H{O0}:H{O1}")
 add_dv(wa, num_dv(0, 1000, whole=True, msg="Anzahl Einstiche als ganze Zahl ≥ 0."), f"I{O0}:I{O1}")
 add_dv(wa, num_dv(500, 20000, whole=True, msg="Stangenlänge in mm (500–20000)."), f"J{O0}:J{O1}")
 add_dv(wa, num_dv(1, 99999, whole=True, msg="Positionsnummer als ganze Zahl."), f"A{O0}:A{O1}")
-wa["H12"].comment = Comment("Wird in Schritt 2 automatisch aus der STEP-Datei gefüllt; bis dahin manuell.", "Kalkulation")
+wa["H12"].comment = Comment("Wird beim STEP-Import automatisch gefüllt, sonst manuell eintragen.", "Kalkulation")
 wa["J12"].comment = Comment("Leer = Standard-Stangenlänge aus C9.", "Kalkulation")
 add_dv(wa, list_dv("lst_JaNein", "Bitte ja oder nein wählen."), f"Y{O0}:Y{O1}")
 add_dv(wa, list_dv("lst_JaNein", "Bitte ja oder nein wählen."), f"AA{O0}:AA{O1}")
@@ -518,7 +518,7 @@ wa.auto_filter.ref = f"A12:AO{O1}"
 # ---------------------------------------------------------------- Schnittplan (Stangen)
 wsp = wb.create_sheet("Schnittplan", 2)
 title(wsp, "Schnittplan je Stange",
-      "Wird von der Optimierung gefüllt (Optimierung.bat). Graue Spalten rechnen selbst und prüfen jede Stange gegen Überbelegung.")
+      "Wird von der Optimierung gefüllt (Schaltfläche 'Optimieren' im Blatt 'Auftrag'). Graue Spalten rechnen selbst und prüfen jede Stange gegen Überbelegung.")
 cols_sp = [("Stange Nr.", 8, "in"), ("Profil-ID", 18, "in"), ("Werkstoff-ID", 15, "in"), ("Stangenlänge [mm]", 10, "in"),
            ("Endbeschnitt [mm]", 9, "in"), ("Greiferrest [mm]", 9, "in"), ("Teile [Stk]", 8, "calc"),
            ("Summe Teilelängen [mm]", 11, "calc"), ("Schnittverluste + Abstände [mm]", 11, "in"),
@@ -669,7 +669,47 @@ for r in range(O0, O1 + 1):
                    f'IF($H{r}="","keine Schneiddaten",IF(AND(Auftrag!$AF{r}<>"",Auftrag!$AG{r}=""),"Gewinde ungeprüft","")))))')
 wk.freeze_panes = "C13"
 
+# ---------------------------------------------------------------- STEP-Import (Protokoll)
+# Spalten wie LOG_KOPF in tools/step_import.py (geprüft in tests/test_step_import.py)
+LOG_KOPF = ["Zeitpunkt", "Datei", "Körper", "Profilform", "Abm. A [mm]", "Abm. B [mm]", "Wandstärke [mm]",
+            "Querschnitt [mm²]", "Länge [mm]", "Schneidweg ohne Gravur [mm]", "Einstiche",
+            "Anfangsschnitt gerade", "Anfangsschnitt [mm]", "Endschnitt gerade", "Endschnitt [mm]",
+            "Innenkonturen [mm]", "Innenkonturen [Stk]", "Gravur [mm]", "Gravur [Stk]", "Bohrungen",
+            "Gewinde-Vorschlag", "Kontur klein [Stk]", "Kontur klein [mm]", "Kontur mittel [Stk]",
+            "Kontur mittel [mm]", "Kontur groß [Stk]", "Kontur groß [mm]", "Profil-ID", "Zeile Auftrag", "Hinweise"]
+wlog = wb.create_sheet("STEP-Import")
+wlog["A1"] = "STEP-Import Protokoll"
+wlog["A1"].font = Font(name=F, size=14, bold=True)
+wlog["A2"] = "Messwerte je Teil. Schneidweg = Konturlänge auf der Außenhaut, beide Endschnitte voll gezählt."
+wlog["A2"].font = Font(name=F, italic=True, color="595959", size=9)
+for i, k in enumerate(LOG_KOPF, start=1):
+    c = wlog.cell(4, i, k)
+    c.font = f_head
+    c.fill = fill_head
+    wlog.column_dimensions[c.column_letter].width = 14
+wlog.column_dimensions["B"].width = 34
+wlog.column_dimensions["AD"].width = 50
+wlog.freeze_panes = "A5"
+
 for s in wb.worksheets:
     s.sheet_view.zoomScale = 90
-wb.save(OUT)
+
+# ---------------------------------------------------------------- VBA-Projekt und Schaltflächen
+import glob, tempfile
+from vba_projekt import vba_projekt, xlsm_packen, schaltflaechen_xml
+wb.code_name = "DieseArbeitsmappe"
+for i, s in enumerate(wb.worksheets, start=1):
+    s.sheet_properties.codeName = f"Tabelle{i}"
+module = {}
+for datei in sorted(glob.glob(os.path.join(os.path.dirname(__file__), "..", "vba", "*.bas"))):
+    code = open(datei, encoding="utf-8").read()
+    name = os.path.splitext(os.path.basename(datei))[0]
+    module[name] = "\n".join(z for z in code.splitlines() if not z.startswith("Attribute VB_Name"))
+dokumente = [("DieseArbeitsmappe", "", True)] + [(f"Tabelle{i}", "", False) for i in range(1, len(wb.worksheets) + 1)]
+knoepfe = [("Optimieren", "Optimieren", (13, 3, 16, 5), "1F4E78"),
+           ("StepImportieren", "STEP importieren", (13, 6, 16, 8), "548235")]
+with tempfile.TemporaryDirectory() as tmp:
+    roh = os.path.join(tmp, "roh.xlsx")
+    wb.save(roh)
+    xlsm_packen(roh, OUT, vba_projekt(module, dokumente), {"Auftrag": schaltflaechen_xml(knoepfe)})
 print("saved", OUT)

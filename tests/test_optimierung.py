@@ -14,7 +14,7 @@ from openpyxl import load_workbook  # noqa: E402
 from optimierung import (Gruppe, Teil, manuell, optimiere, optimiere_mappe, pruefe, untergrenze,  # noqa: E402
                          verbrauch, gemeinsame_schnitte)
 
-MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx"
+MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 
 
 def gruppe(teile, stange=1000):
@@ -64,9 +64,9 @@ for lauf in range(150):
 
 # 5) Mappe: Beispielauftrag + Sonderfälle
 with tempfile.TemporaryDirectory() as d:
-    m = Path(d) / "t.xlsx"
+    m = Path(d) / "t.xlsm"
     shutil.copy(MAPPE, m)
-    wb = load_workbook(m)
+    wb = load_workbook(m, keep_vba=True)
     wa = wb["Auftrag"]
     zusatz = [  # Zeile 18: zu lang, 19: unbekanntes Profil, 20: schräg/gerade Ende, 21: abweichende Stange
         (60, "Z-zu-lang", "zu lang", "RR 42,4x2,0", "S235-10219", 5950, 1, None, None, None),

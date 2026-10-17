@@ -2,3 +2,6 @@
 *.tmp
 __pycache__/
 *.bak.xlsx
+*.bak.xlsm
+build/
+dist/
