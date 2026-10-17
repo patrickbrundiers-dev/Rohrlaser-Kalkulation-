@@ -12,6 +12,8 @@ F = "Arial"
 N_MASTER = 300          # Datenzeilen je Stammdatenblatt (Zeile 5..304)
 M0, M1 = 5, 5 + N_MASTER - 1
 O0, O1 = 13, 13 + 500 - 1   # Auftragspositionen Zeile 13..512
+S0, S1 = 5, 5 + 1000 - 1    # Schnittplan: Stangen Zeile 5..1004
+D0, D1 = 5, 5 + 10000 - 1   # Stangenbelegung: Teile Zeile 5..10004
 
 f_title = Font(name=F, size=14, bold=True)
 f_bold = Font(name=F, bold=True)
@@ -112,6 +114,10 @@ rows = [
     ("Schneiddaten", "Vorschub je Konturklasse (groß/Trennschnitt, mittel, klein) und Einstechzeit je Maschine, Werkstoff und Wandstärke (für Laserzeit in Schritt 4)."),
     ("Gewinde", "Kernlochdurchmesser je Gewinde. Der STEP-Import schlägt anhand dieser Tabelle Gewinde vor."),
     ("STEP-Import", "Wird beim ersten STEP-Import angelegt: Protokoll aller Messwerte je Teil."),
+    ("Kalkulation", "Material-, Laser-, Gewinde- und Rüstkosten je Teil und Position, Zuschläge, Verkaufspreis."),
+    ("Schnittplan", "Ergebnis der Optimierung: eine Zeile je Stange mit Belegung, Rest, Ausnutzung und Prüfung gegen Überbelegung."),
+    ("Stangenbelegung", "Ergebnis der Optimierung: eine Zeile je Teil mit Lage auf der Stange (von/bis) und Art der Trennung."),
+    ("Auswertung", "Vergleich optimierte gegen einfache manuelle Einteilung, Liste nicht eingeplanter Teile."),
     ("Listen", "Auswahllisten (Profilform, Preisbasis)."),
     ("", ""),
     ("Arbeitsablauf", None),
@@ -119,13 +125,14 @@ rows = [
     ("2.", "Auftragskopf ausfüllen, Maschine wählen, Standard-Stangenlänge prüfen (Vorgabe 6.000 mm)."),
     ("3.", "Positionen eintragen (Profil und Werkstoff per Auswahlliste). Schneidweg später automatisch per STEP-Import (Schritt 2)."),
     ("4.", "Status-Spalte prüfen: FEHLER muss behoben werden, WARNUNG/HINWEIS sollte geprüft werden."),
+    ("5.", "Mappe schließen und Optimierung.bat starten: füllt Schnittplan, Stangenbelegung und Auswertung. Danach Mappe öffnen, Blatt 'Kalkulation' prüfen."),
     ("", ""),
     ("Annahmen", None),
     ("A1", "Microsoft 365 / Excel 2019 oder neuer. Diese Version ist .xlsx ohne Makros; ab Schritt 3 wird sie zu .xlsm (Makros erforderlich)."),
     ("A2", "Ein Auftrag je Blatt 'Auftrag'. Alle Positionen laufen auf der im Kopf gewählten Maschine."),
     ("A3", "Stangenlänge: Standard aus dem Auftragskopf, je Position abweichend überschreibbar (Spalte J)."),
     ("A4", "Endbeschnitt und Greiferrest kommen von der Maschine; ist am Profil ein abweichender Wert eingetragen, gilt der Profilwert."),
-    ("A5", "Nutzlänge je Stange = Stangenlänge − Endbeschnitt − Greiferrest. Ein Teil passt nur, wenn Teilelänge + Schnittverlust ≤ Nutzlänge (konservativ, genaue Regel folgt mit der Optimierung)."),
+    ("A5", "Nutzlänge je Stange = Stangenlänge − Endbeschnitt − Greiferrest. Ein Teil passt nur, wenn Teilelänge + Schnittverlust ≤ Nutzlänge; die genaue Belegungsregel steht in A15."),
     ("A6", "Querschnitt berechnet ohne Eckradien (Quadrat-/Rechteckrohr ca. 1–4 % zu schwer). Für exakte Gewichte den Herstellerwert in 'Fläche manuell' eintragen; Sonderprofile benötigen immer 'Fläche manuell'."),
     ("A7", "Metergewicht [kg/m] = Querschnitt [mm²] × Dichte [kg/dm³] / 1000."),
     ("A8", "Keine Restlagerverwaltung: Reststücke werden nur als Verschnitt ausgewiesen (Entscheidung vom 15.10.2026)."),
@@ -134,6 +141,9 @@ rows = [
     ("A11", "Gemeinsamer Trennschnitt: Liegen zwei Teile auf der Stange nebeneinander und sind beide zugewandten Enden gerade (senkrecht), wird nur ein Schnitt gerechnet, sonst zwei. Dafür stehen je Teil Anfangs- und Endschnitt (gerade ja/nein, Schnittlänge) in Spalten Y–AB; Spalte H enthält immer beide Enden voll. Die Verrechnung erfolgt in der Optimierung (Schritt 3). Beim gemeinsamen Schnitt zählt auch der Schnittverlust nur einmal."),
     ("A12", "Schneidweg (Spalte H) = Anfangsschnitt + Endschnitt + Innenkonturen (AC). Gravuren (nicht durchgehende Konturen) stehen separat in AD und sind nicht im Schneidweg enthalten."),
     ("A13", "Gewinde: Der STEP-Import erkennt durchgehende Rundbohrungen (AE) und schlägt bei passendem Kernloch ein Gewinde vor (AF). Gerechnet wird nur, was nach manueller Prüfung in AG eingetragen ist (Format z. B. 4xM6; 2xM8). Solange AF gefüllt und AG leer ist, zeigt der Status einen Hinweis."),
+    ("A15", "Optimierung: je Profil + Werkstoff + Stangenlänge getrennt (keine Vermischung). Belegung je Stange = Endbeschnitt + Teile + Trennungen + letzter Schnittverlust; frei bleiben muss der Greiferrest. Trennung: beide Enden gerade = 1 gemeinsamer Schnitt (1 × Schnittverlust), sonst 2 Schnitte (2 × Schnittverlust + Abstand getrennte Schnitte). Teile dürfen gedreht werden, damit gerade Enden aneinanderliegen; schräge Enden kommen bevorzugt an Stangenanfang oder -ende. Fehlt die Angabe 'gerade', gilt das Ende als gerade."),
+    ("A16", "Verfahren: First-Fit- und Best-Fit-Decreasing mit anschließendem Auflösen schwach belegter Stangen; das bessere Ergebnis zählt. Untergrenze = Summe(Teilelänge + Schnittverlust) / (Stangenlänge − Endbeschnitt − Greiferrest), aufgerundet. Vergleich: manuelle Einteilung = Positionen in Eingabereihenfolge, Stange voll, dann nächste."),
+    ("A17", "Kalkulation: Materialkosten je Gruppe = Summe der Stangenkosten (Stangenlänge × kg/m × €/kg oder €/Stange anteilig zur Lieferlänge). Umlage auf Positionen nach Längenanteil, damit trägt jedes Teil den Verschnitt anteilig. Laserzeit = Schneidweg je Konturklasse / Vorschub + Einstiche × Einstechzeit + Gravur / Vorschub Gravur, abzüglich der Einsparung durch gemeinsame Schnitte. Gewindezeit nur aus 'Gewinde geprüft' × Zeit je Gewinde (Blatt Gewinde). Rüstzeit und Stangenwechsel werden gleichmäßig auf alle Teile umgelegt. Fertigung mit Maschinenstundensatz."),
     ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine. Für die Laserzeit gilt je Klasse der eigene Vorschub aus 'Schneiddaten'; Anfangs-/Endschnitt mit Vorschub groß; fehlt mittel oder klein, wird der nächstgrößere verwendet."),
 ]
 r = 4
@@ -271,12 +281,13 @@ title(wm, "Maschinenparameter", "Endbeschnitt = Anschnitt am Stangenanfang; Grei
 cols_m = [("Maschinen-ID", 16, "in"), ("Bezeichnung", 26, "in"), ("Endbeschnitt [mm]", 12, "in"),
           ("Greiferrest [mm]", 12, "in"), ("Schnittverlust je Schnitt [mm]", 13, "in"),
           ("Max. Stangenlänge [mm]", 13, "in"), ("Stundensatz [€/h]", 12, "in"), ("Kontur klein bis [mm]", 11, "in"),
-          ("Kontur mittel bis [mm]", 11, "in"), ("Bemerkung", 30, "in")]
+          ("Kontur mittel bis [mm]", 11, "in"), ("Abstand getrennte Schnitte [mm]", 12, "in"),
+          ("Rüstzeit je Auftrag [min]", 11, "in"), ("Stangenwechsel je Stange [s]", 11, "in"), ("Bemerkung", 30, "in")]
 header(wm, 4, cols_m)
-style_rows(wm, M0, M1, cols_m, {3: "0", 4: "0", 5: "0.0", 6: "#,##0", 7: "#,##0.00"})
+style_rows(wm, M0, M1, cols_m, {3: "0", 4: "0", 5: "0.0", 6: "#,##0", 7: "#,##0.00", 10: "0.0", 11: "0", 12: "0"})
 for i, row in enumerate([
-    ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, 10, 50, "Beispielwerte"),
-    ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, 10, 50, "Beispielwerte"),
+    ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30, "Beispielwerte"),
+    ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, 10, 50, 2, 20, 40, "Beispielwerte"),
 ], start=M0):
     for j, v in enumerate(row, start=1):
         wm.cell(row=i, column=j, value=v)
@@ -287,6 +298,12 @@ add_dv(wm, num_dv(0, 10000, msg="Stundensatz in €/h."), f"G{M0}:G{M1}")
 add_dv(wm, num_dv(0.1, 5000, msg="Grenze in mm (größtes Hüllmaß der Kontur)."), f"H{M0}:I{M1}")
 wm["H4"].comment = Comment("Innenkontur gilt als klein, wenn ihr größtes Hüllmaß ≤ diesem Wert ist.", "Kalkulation")
 wm["I4"].comment = Comment("Bis zu diesem Hüllmaß mittel, darüber groß.", "Kalkulation")
+add_dv(wm, num_dv(0, 100, msg="Abstand in mm (0–100)."), f"J{M0}:J{M1}")
+add_dv(wm, num_dv(0, 1440, msg="Zeit in min."), f"K{M0}:K{M1}")
+add_dv(wm, num_dv(0, 3600, msg="Zeit in s."), f"L{M0}:L{M1}")
+wm["J4"].comment = Comment("Steg zwischen zwei getrennten Schnitten (wenn nicht beide Enden gerade sind). Je getrennter Trennung: 2 × Schnittverlust + dieser Abstand.", "Kalkulation")
+wm["K4"].comment = Comment("Einmal je Auftrag, wird auf alle Teile umgelegt.", "Kalkulation")
+wm["L4"].comment = Comment("Laden/Entladen je Stange, wird auf alle Teile umgelegt.", "Kalkulation")
 dup = DataValidation(type="custom", formula1=f"=COUNTIF($A${M0}:$A${M1},A{M0})=1", allow_blank=True)
 dup.error = "Diese Maschinen-ID existiert bereits."; dup.showErrorMessage = True
 add_dv(wm, dup, f"A{M0}:A{M1}")
@@ -298,9 +315,10 @@ wsd = wb.create_sheet("Schneiddaten", 6)
 title(wsd, "Schneiddaten (Laserzeit)", "Je Maschine + Werkstoff gestaffelt nach Wandstärke: es gilt die Zeile mit der kleinsten 'Wandstärke bis', die ≥ der Profilwandstärke ist.")
 cols_sd = [("Maschinen-ID", 16, "in"), ("Werkstoff-ID", 16, "in"), ("Wandstärke bis [mm]", 12, "in"),
            ("Vorschub groß / Trennschnitt [mm/min]", 13, "in"), ("Vorschub mittel [mm/min]", 12, "in"),
-           ("Vorschub klein [mm/min]", 12, "in"), ("Einstechzeit [s]", 12, "in"), ("Bemerkung", 30, "in")]
+           ("Vorschub klein [mm/min]", 12, "in"), ("Einstechzeit [s]", 12, "in"), ("Vorschub Gravur [mm/min]", 12, "in"),
+           ("Bemerkung", 30, "in")]
 header(wsd, 4, cols_sd)
-style_rows(wsd, M0, M1, cols_sd, {3: "0.0", 4: "#,##0", 5: "#,##0", 6: "#,##0", 7: "0.0"})
+style_rows(wsd, M0, M1, cols_sd, {3: "0.0", 4: "#,##0", 5: "#,##0", 6: "#,##0", 7: "0.0", 8: "#,##0"})
 sd_rows = []
 for m in ("RL-1",):
     for w, data in (("S235-10219", [(2, 6000, 0.3), (3, 4500, 0.5), (5, 3000, 0.8)]),
@@ -309,7 +327,7 @@ for m in ("RL-1",):
                     ("AW6060-T66", [(2, 7000, 0.3), (3, 5000, 0.5), (5, 3200, 0.8)])):
         for t, v, e in data:
             # Beispiel: mittlere Konturen 70 %, kleine 40 % des Vorschubs groß
-            sd_rows.append((m, w, t, v, round(v * 0.7, -1), round(v * 0.4, -1), e, "Beispiel"))
+            sd_rows.append((m, w, t, v, round(v * 0.7, -1), round(v * 0.4, -1), e, 10000, "Beispiel"))
 for i, row in enumerate(sd_rows, start=M0):
     for j, v in enumerate(row, start=1):
         wsd.cell(row=i, column=j, value=v)
@@ -318,6 +336,8 @@ add_dv(wsd, list_dv("lst_Werkstoff", "Bitte Werkstoff-ID aus Blatt 'Werkstoffe' 
 add_dv(wsd, num_dv(0.1, 50, msg="Wandstärke in mm."), f"C{M0}:C{M1}")
 add_dv(wsd, num_dv(1, 100000, msg="Vorschub in mm/min."), f"D{M0}:F{M1}")
 add_dv(wsd, num_dv(0, 60, msg="Einstechzeit in s."), f"G{M0}:G{M1}")
+add_dv(wsd, num_dv(1, 100000, msg="Vorschub in mm/min."), f"H{M0}:H{M1}")
+wsd["H4"].comment = Comment("Leer = Vorschub groß wird verwendet.", "Kalkulation")
 wsd["D4"].comment = Comment("Gilt für Anfangs-/Endschnitt und große Innenkonturen.", "Kalkulation")
 wsd["E4"].comment = Comment("Leer = Vorschub groß wird verwendet.", "Kalkulation")
 wsd["F4"].comment = Comment("Leer = Vorschub mittel bzw. groß wird verwendet.", "Kalkulation")
@@ -355,7 +375,7 @@ wa["C9"].number_format = "#,##0"
 mlook = lambda col: f'=IF($C$8="","",IFERROR(INDEX(Maschinen!${col}${M0}:${col}${M1},MATCH($C$8,lst_Maschine,0)),"?"))'
 mk = [("Endbeschnitt [mm]", mlook("C"), "0"), ("Greiferrest [mm]", mlook("D"), "0"),
       ("Schnittverlust [mm]", mlook("E"), "0.0"), ("Max. Stangenlänge [mm]", mlook("F"), "#,##0"),
-      ("Stundensatz [€/h]", mlook("G"), "#,##0.00")]
+      ("Stundensatz [€/h]", mlook("G"), "#,##0.00"), ("Abstand getr. Schnitte [mm]", mlook("J"), "0.0")]
 for i, (lab, fml, fmt) in enumerate(mk, start=4):
     wa.cell(row=i, column=6, value=lab).font = f_bold
     wa.merge_cells(start_row=i, start_column=6, end_row=i, end_column=7)
@@ -393,7 +413,8 @@ cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "i
           ("Gewinde geprüft (manuell)", 16, "in"),
           ("Kontur klein [Stk] (STEP)", 9, "in"), ("Kontur klein [mm] (STEP)", 10, "in"),
           ("Kontur mittel [Stk] (STEP)", 9, "in"), ("Kontur mittel [mm] (STEP)", 10, "in"),
-          ("Kontur groß [Stk] (STEP)", 9, "in"), ("Kontur groß [mm] (STEP)", 10, "in")]
+          ("Kontur groß [Stk] (STEP)", 9, "in"), ("Kontur groß [mm] (STEP)", 10, "in"),
+          ("Eingeplant [Stk]", 9, "calc"), ("Nicht eingeplant [Stk]", 9, "calc")]
 header(wa, 12, cols_a)
 wa.row_dimensions[12].height = 60
 style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 10: "#,##0", 12: "0.0",
@@ -401,6 +422,7 @@ style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 
                                  19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0", 29: "#,##0.0", 30: "#,##0.0",
                                  34: "0", 35: "#,##0.0", 36: "0", 37: "#,##0.0", 38: "0", 39: "#,##0.0"})
 P = lambda col: f"Profile!${col}${M0}:${col}${M1}"
+DET = lambda col: f"Stangenbelegung!${col}${D0}:${col}${D1}"
 SD = lambda col: f"Schneiddaten!${col}${M0}:${col}${M1}"
 for r in range(O0, O1 + 1):
     mp = f"MATCH($D{r},lst_Profil,0)"
@@ -421,6 +443,8 @@ for r in range(O0, O1 + 1):
     wa[f"V{r}"] = (f'=IF(OR(M{r}="",$E{r}="",$C$8=""),"",IF({thr}=0,"",'
                    f'SUMIFS({SD("D")},{SD("A")},$C$8,{SD("B")},$E{r},{SD("C")},{thr})))')
     wa[f"X{r}"] = f'=IF(OR(O{r}="",$G{r}=""),"",O{r}*$G{r})'
+    wa[f"AN{r}"] = f'=IF($D{r}="","",COUNTIFS({DET("E")},ROW()))'
+    wa[f"AO{r}"] = f'=IF(OR($G{r}="",COUNTA({DET("A")})=0),"",$G{r}-AN{r})'
     wa[f"W{r}"] = (
         f'=IF(AND($D{r}="",$E{r}="",$F{r}="",$G{r}=""),"",'
         f'IF(ISNA({mp}),"FEHLER: Profil unbekannt",'
@@ -431,10 +455,11 @@ for r in range(O0, O1 + 1):
         f'IF(NOT(ISNUMBER($H$4)),"FEHLER: Maschine fehlt/unbekannt",'
         f'IF(Q{r}>$H$7,"FEHLER: Stange länger als Maschine zulässt",'
         f'IF($F{r}+$H$6>T{r},"FEHLER: Teil länger als Nutzlänge",'
+        f'IF(N(AO{r})>0,"WARNUNG: nicht vollständig eingeplant",'
         f'IF(U{r}="nein","WARNUNG: kein gültiger Materialpreis",'
         f'IF($H{r}="","HINWEIS: Schneidweg fehlt",'
         f'IF(V{r}="","HINWEIS: keine Schneiddaten",'
-        f'IF(AND($AF{r}<>"",$AG{r}=""),"HINWEIS: Gewinde-Vorschlag prüfen","OK")))))))))))))')
+        f'IF(AND($AF{r}<>"",$AG{r}=""),"HINWEIS: Gewinde-Vorschlag prüfen","OK"))))))))))))))')
 
 ex = [(10, "4711-001", "Holm links", "RR 42,4x2,0", "S235-10219", 1250, 24, 410.5, 4, None),
       (20, "4711-002", "Querstrebe", "RR 42,4x2,0", "S235-10219", 860, 40, 302.0, 2, None),
@@ -488,7 +513,161 @@ add_dv(wa, num_dv(0, 10000, whole=True, msg="Anzahl als ganze Zahl ≥ 0."), f"A
 for c_ in ("AI", "AK", "AM"):
     add_dv(wa, num_dv(0, 1000000, msg="Länge in mm (≥ 0)."), f"{c_}{O0}:{c_}{O1}")
 wa["AH12"].comment = Comment("Innenkonturen nach größtem Hüllmaß; Grenzen je Maschine im Blatt 'Maschinen' (Spalten H/I).", "Kalkulation")
-wa.auto_filter.ref = f"A12:AM{O1}"
+wa.auto_filter.ref = f"A12:AO{O1}"
+
+# ---------------------------------------------------------------- Schnittplan (Stangen)
+wsp = wb.create_sheet("Schnittplan", 2)
+title(wsp, "Schnittplan je Stange",
+      "Wird von der Optimierung gefüllt (Optimierung.bat). Graue Spalten rechnen selbst und prüfen jede Stange gegen Überbelegung.")
+cols_sp = [("Stange Nr.", 8, "in"), ("Profil-ID", 18, "in"), ("Werkstoff-ID", 15, "in"), ("Stangenlänge [mm]", 10, "in"),
+           ("Endbeschnitt [mm]", 9, "in"), ("Greiferrest [mm]", 9, "in"), ("Teile [Stk]", 8, "calc"),
+           ("Summe Teilelängen [mm]", 11, "calc"), ("Schnittverluste + Abstände [mm]", 11, "in"),
+           ("Belegt bis [mm]", 10, "calc"), ("Rest / Verschnitt inkl. Greiferrest [mm]", 11, "calc"),
+           ("Ausnutzung", 9, "calc"), ("Prüfung", 13, "calc"), ("Trennungen [Stk]", 9, "in"),
+           ("davon gemeinsamer Schnitt", 10, "in"), ("Belegung (Pos. × Länge)", 60, "in"),
+           ("Stangengewicht [kg]", 10, "calc"), ("Materialkosten Stange [€]", 11, "calc")]
+header(wsp, 4, cols_sp)
+style_rows(wsp, S0, S1, cols_sp, {4: "#,##0", 5: "0", 6: "0", 7: "0", 8: "#,##0.0", 9: "#,##0.0", 10: "#,##0.0",
+                                   11: "#,##0.0", 12: "0.0%", 14: "0", 15: "0", 17: "#,##0.00", 18: "#,##0.00"})
+for r in range(S0, S1 + 1):
+    g = f'IF($A{r}="","",'
+    wsp[f"G{r}"] = f'={g}COUNTIFS({DET("A")},$A{r}))'
+    wsp[f"H{r}"] = f'={g}SUMIFS({DET("F")},{DET("A")},$A{r}))'
+    wsp[f"J{r}"] = f'={g}$E{r}+H{r}+$I{r})'
+    wsp[f"K{r}"] = f'={g}$D{r}-J{r})'
+    wsp[f"L{r}"] = f'={g}H{r}/$D{r})'
+    wsp[f"M{r}"] = (f'={g}IF(OR(J{r}+$F{r}>$D{r}+0.001,_xlfn.MAXIFS({DET("H")},{DET("A")},$A{r})>$D{r}-$F{r}+0.001),'
+                    f'"ÜBERBELEGT","OK"))')
+    kgm = (f'INDEX(Profile!$K${M0}:$K${M1},MATCH($B{r},lst_Profil,0))'
+           f'*INDEX(Werkstoffe!$E${M0}:$E${M1},MATCH($C{r},lst_Werkstoff,0))/1000')
+    wsp[f"Q{r}"] = f'={g}IFERROR($D{r}/1000*{kgm},""))'
+    pk = lambda col: f'Preise!${col}${M0}:${col}${M1}'
+    crit = f'{pk("A")},$B{r},{pk("B")},$C{r},{pk("I")},"OK"'
+    wsp[f"R{r}"] = (f'={g}IF(COUNTIFS({crit},{pk("C")},"€/kg")>0,N(Q{r})*SUMIFS({pk("D")},{crit}),'
+                    f'IF(COUNTIFS({crit},{pk("C")},"€/Stange")>0,'
+                    f'SUMIFS({pk("D")},{crit})*$D{r}/SUMIFS({pk("E")},{crit}),0)))')
+wsp.conditional_formatting.add(f"M{S0}:M{S1}", FormulaRule(formula=[f'$M{S0}="ÜBERBELEGT"'], fill=PatternFill("solid", fgColor="F8CBAD")))
+wsp.conditional_formatting.add(f"M{S0}:M{S1}", FormulaRule(formula=[f'$M{S0}="OK"'], fill=PatternFill("solid", fgColor="C6EFCE")))
+wsp.freeze_panes = "B5"
+wsp.page_setup.orientation = "landscape"
+wsp.page_setup.fitToWidth = 1
+wsp.page_setup.fitToHeight = 0
+wsp.sheet_properties.pageSetUpPr.fitToPage = True
+wsp.print_title_rows = "4:4"
+
+# ---------------------------------------------------------------- Stangenbelegung (Teile je Stange)
+wdt = wb.create_sheet("Stangenbelegung", 3)
+title(wdt, "Stangenbelegung je Teil",
+      "Ein Eintrag je Teil, in Reihenfolge auf der Stange. Von/Bis ab Stangenanfang. Gemeinsamer Schnitt = beide Enden gerade.")
+cols_dt = [("Stange Nr.", 8, "in"), ("Platz", 6, "in"), ("Pos.", 6, "in"), ("Artikelnummer", 22, "in"),
+           ("Zeile Auftrag", 8, "in"), ("Teilelänge [mm]", 10, "in"), ("Von [mm]", 10, "in"), ("Bis [mm]", 10, "in"),
+           ("Lage", 9, "in"), ("Trennung zum Vorgänger", 16, "in"), ("Eingesparter Schneidweg [mm]", 11, "in"),
+           ("Eingesparte Einstiche", 9, "in")]
+header(wdt, 4, cols_dt)
+for c_ in range(1, len(cols_dt) + 1):
+    wdt.cell(row=4, column=c_).border = border
+wdt.freeze_panes = "A5"
+wdt.print_title_rows = "4:4"
+
+# ---------------------------------------------------------------- Auswertung
+wau = wb.create_sheet("Auswertung", 4)
+title(wau, "Auswertung Materialoptimierung",
+      "Je Profil/Werkstoff/Stangenlänge: optimierte Einteilung gegen einfache manuelle Einteilung (Reihenfolge der Positionen, Stange voll, dann nächste).")
+wau.column_dimensions["A"].width = 20
+
+# ---------------------------------------------------------------- Kalkulation
+wk = wb.create_sheet("Kalkulation", 2)
+title(wk, "Kalkulation je Teil und Auftrag",
+      "Material aus dem Schnittplan (Verschnitt anteilig nach Länge umgelegt), Laserzeit aus Schneidweg je Konturklasse, Gewinde nur aus 'Gewinde geprüft'.")
+for i, (lab, val, fmt) in enumerate([("Zuschlag Material", 0.10, "0.0%"), ("Zuschlag Fertigung", 0.15, "0.0%"),
+                                      ("Gewinn", 0.10, "0.0%")], start=4):
+    wk.cell(row=i, column=1, value=lab).font = f_bold
+    wk.merge_cells(start_row=i, start_column=1, end_row=i, end_column=2)
+    c = wk.cell(row=i, column=3, value=val)
+    c.font = f_in; c.fill = fill_in; c.border = border; c.number_format = fmt
+wk["A3"] = "Zuschläge (Beispielwerte)"; wk["A3"].font = f_note
+add_dv(wk, num_dv(0, 5, msg="Zuschlag als Anteil, z. B. 10 % = 0,10."), "C4:C6")
+mk_k = lambda col: f'IFERROR(INDEX(Maschinen!${col}${M0}:${col}${M1},MATCH(Auftrag!$C$8,lst_Maschine,0))+0,0)'
+info = [("Rüstzeit je Auftrag [min]", f"={mk_k('K')}", "0"),
+        ("Stangenwechsel je Stange [s]", f"={mk_k('L')}", "0"),
+        ("Stangen laut Schnittplan", f"=COUNT(Schnittplan!$A${S0}:$A${S1})", "0"),
+        ("Rüsten + Stangenwechsel [€]", "=(F4*60+F5*F6)/3600*N(Auftrag!$H$8)", "#,##0.00"),
+        ("Teile gesamt [Stk]", f"=SUM($C${O0}:$C${O1})", "#,##0")]
+for i, (lab, fml, fmt) in enumerate(info, start=4):
+    wk.cell(row=i, column=4, value=lab).font = f_bold
+    wk.merge_cells(start_row=i, start_column=4, end_row=i, end_column=5)
+    c = wk.cell(row=i, column=6, value=fml)
+    c.font = f_calc; c.fill = fill_calc; c.border = border; c.number_format = fmt
+wk["D3"] = "Auftragskosten (umgelegt auf alle Teile)"; wk["D3"].font = f_note
+tot = [("Material [€]", f"=SUM($X${O0}:$X${O1})"),
+       ("Laser + Gewinde [€]", f"=SUM($Y${O0}:$Y${O1})"),
+       ("Rüsten + Stangenwechsel [€]", "=F7"),
+       ("Herstellkosten [€]", f"=SUM($V${O0}:$V${O1})"),
+       ("Verkaufspreis Auftrag [€]", f"=SUM($U${O0}:$U${O1})")]
+for i, (lab, fml) in enumerate(tot, start=4):
+    wk.cell(row=i, column=8, value=lab).font = f_bold
+    wk.merge_cells(start_row=i, start_column=8, end_row=i, end_column=10)
+    c = wk.cell(row=i, column=11, value=fml)
+    c.font = Font(name=F, bold=True); c.fill = fill_calc; c.border = border; c.number_format = "#,##0.00"
+wk["H3"] = "Summen Auftrag"; wk["H3"].font = f_note
+
+cols_k = [("Pos.", 6, "link"), ("Artikelnummer", 18, "link"), ("Stückzahl", 8, "link"),
+          ("Materialkosten Gruppe [€]", 11, "calc"), ("Längenanteil an Gruppe", 9, "calc"),
+          ("Material je Teil [€]", 10, "calc"), ("Wandstärke-Stufe [mm]", 9, "calc"),
+          ("Vorschub groß [mm/min]", 9, "link"), ("Vorschub mittel [mm/min]", 9, "link"),
+          ("Vorschub klein [mm/min]", 9, "link"), ("Vorschub Gravur [mm/min]", 9, "link"), ("Einstechzeit [s]", 8, "link"),
+          ("Laserzeit brutto je Teil [s]", 10, "calc"), ("Einsparung gemeinsame Schnitte je Teil [s]", 11, "calc"),
+          ("Laserzeit netto je Teil [s]", 10, "calc"), ("Gewindezeit je Teil [s]", 10, "calc"),
+          ("Laser + Gewinde je Teil [€]", 10, "calc"), ("Rüsten + Stangenwechsel je Teil [€]", 11, "calc"),
+          ("Herstellkosten je Teil [€]", 11, "calc"), ("Verkaufspreis je Teil [€]", 11, "calc"),
+          ("Verkaufspreis Position [€]", 12, "calc"), ("Herstellkosten Position [€]", 12, "calc"), ("Hinweis", 30, "calc"),
+          ("Material Position [€]", 11, "calc"), ("Laser + Gewinde Position [€]", 11, "calc")]
+header(wk, 12, cols_k)
+wk.row_dimensions[12].height = 60
+style_rows(wk, O0, O1, cols_k, {3: "#,##0", 4: "#,##0.00", 5: "0.0%", 6: "#,##0.000", 7: "0.0", 8: "#,##0", 9: "#,##0",
+                                 10: "#,##0", 11: "#,##0", 12: "0.0", 13: "#,##0.0", 14: "#,##0.0", 15: "#,##0.0",
+                                 16: "#,##0.0", 17: "#,##0.000", 18: "#,##0.000", 19: "#,##0.000", 20: "#,##0.000",
+                                 21: "#,##0.00", 22: "#,##0.00", 24: "#,##0.00", 25: "#,##0.00"})
+for r in range(O0, O1 + 1):
+    a = f"Auftrag!$%s${r}"
+    g = f'IF($A{r}="","",'
+    wk[f"A{r}"] = f'=IF(Auftrag!$D{r}="","",Auftrag!$A{r})'
+    wk[f"B{r}"] = f'={g}Auftrag!$B{r})'
+    wk[f"C{r}"] = f'={g}N(Auftrag!$G{r}))'
+    wk[f"D{r}"] = (f'={g}SUMIFS(Schnittplan!$R${S0}:$R${S1},Schnittplan!$B${S0}:$B${S1},Auftrag!$D{r},'
+                   f'Schnittplan!$C${S0}:$C${S1},Auftrag!$E{r},Schnittplan!$D${S0}:$D${S1},Auftrag!$Q{r}))')
+    wk[f"E{r}"] = (f'={g}IFERROR(N(Auftrag!$P{r})/SUMIFS(Auftrag!$P${O0}:$P${O1},Auftrag!$D${O0}:$D${O1},Auftrag!$D{r},'
+                   f'Auftrag!$E${O0}:$E${O1},Auftrag!$E{r},Auftrag!$Q${O0}:$Q${O1},Auftrag!$Q{r}),0))')
+    wk[f"F{r}"] = f'={g}IF($C{r}=0,0,$D{r}*$E{r}/$C{r}))'
+    crit = f'{SD("A")},Auftrag!$C$8,{SD("B")},Auftrag!$E{r}'
+    wk[f"G{r}"] = f'={g}_xlfn.MINIFS({SD("C")},{crit},{SD("C")},">="&N(Auftrag!$M{r})))'
+    sv = lambda col: f'SUMIFS({SD(col)},{crit},{SD("C")},$G{r})'
+    wk[f"H{r}"] = f'={g}IF(N($G{r})=0,"",{sv("D")}))'
+    wk[f"I{r}"] = f'={g}IF($H{r}="","",IF({sv("E")}>0,{sv("E")},$H{r})))'
+    wk[f"J{r}"] = f'={g}IF($H{r}="","",IF({sv("F")}>0,{sv("F")},$I{r})))'
+    wk[f"K{r}"] = f'={g}IF($H{r}="","",IF({sv("H")}>0,{sv("H")},$H{r})))'
+    wk[f"L{r}"] = f'={g}IF($H{r}="","",{sv("G")}))'
+    hm = lambda col: f"N(Auftrag!${col}{r})"
+    wk[f"M{r}"] = (f'={g}IF($H{r}="","",60*(({hm("H")}-{hm("AI")}-{hm("AK")})/$H{r}+{hm("AI")}/$J{r}+{hm("AK")}/$I{r}'
+                   f'+{hm("AD")}/$K{r})+{hm("I")}*$L{r}))')
+    wk[f"N{r}"] = (f'={g}IF(OR($H{r}="",$C{r}=0),0,(60*SUMIFS({DET("K")},{DET("E")},ROW())/$H{r}'
+                   f'+SUMIFS({DET("L")},{DET("E")},ROW())*$L{r})/$C{r}))')
+    wk[f"O{r}"] = f'={g}IF($M{r}="","",MAX(0,$M{r}-$N{r})))'
+    T = f'";"&SUBSTITUTE(UPPER(Auftrag!$AG{r})," ","")&";"'
+    K = f'"X"&UPPER(Gewinde!$A${M0}:$A${M0 + 49})&";"'
+    wk[f"P{r}"] = (f'={g}IFERROR(SUMPRODUCT(--("0"&TRIM(RIGHT(SUBSTITUTE(LEFT({T}&{K},SEARCH({K},{T}&{K})-1),";",'
+                   f'REPT(" ",50)),50))),Gewinde!$C${M0}:$C${M0 + 49}),0))')
+    wk[f"Q{r}"] = f'={g}(N($O{r})+$P{r})/3600*N(Auftrag!$H$8))'
+    wk[f"R{r}"] = f'={g}IF($F$8=0,0,$F$7/$F$8))'
+    wk[f"S{r}"] = f'={g}$F{r}*(1+$C$4)+($Q{r}+$R{r})*(1+$C$5))'
+    wk[f"T{r}"] = f'={g}$S{r}*(1+$C$6))'
+    wk[f"U{r}"] = f'={g}$T{r}*$C{r})'
+    wk[f"V{r}"] = f'={g}$S{r}*$C{r})'
+    wk[f"X{r}"] = f'={g}$F{r}*$C{r})'
+    wk[f"Y{r}"] = f'={g}$Q{r}*$C{r})'
+    wk[f"W{r}"] = (f'={g}IF(N(Auftrag!$AO{r})>0,"nicht vollständig eingeplant",IF($D{r}=0,"kein Schnittplan oder Preis",'
+                   f'IF($H{r}="","keine Schneiddaten",IF(AND(Auftrag!$AF{r}<>"",Auftrag!$AG{r}=""),"Gewinde ungeprüft","")))))')
+wk.freeze_panes = "C13"
 
 for s in wb.worksheets:
     s.sheet_view.zoomScale = 90

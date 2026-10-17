@@ -386,13 +386,13 @@ def analysiere(solid, datei="", koerper=1):
 
 
 def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
-    """Ordnet Bohrungsdurchmesser einem Kernloch zu. Ergebnis z. B. '4xM6 (Ø5)'. Nur Vorschlag."""
+    """Ordnet Bohrungsdurchmesser einem Kernloch zu. Ergebnis z. B. '4xM6' (so in Auftrag AG übernehmbar). Nur Vorschlag."""
     tabelle = tabelle or KERNLOCH
     out = []
     for d, n in bohrungen.items():
         for gew, kern in tabelle:
             if abs(d - kern) <= tol:
-                out.append(f"{n}x{gew} (Ø{f'{kern:g}'.replace('.', ',')})")
+                out.append(f"{n}x{gew}")
                 break
     return "; ".join(out)
 
