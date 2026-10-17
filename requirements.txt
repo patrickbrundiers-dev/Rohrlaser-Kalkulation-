@@ -1,0 +1,2 @@
+cadquery-ocp>=7.7
+openpyxl>=3.1

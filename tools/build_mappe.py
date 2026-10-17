@@ -109,7 +109,9 @@ rows = [
     ("Werkstoffe", "Werkstoff/Materialqualität mit Dichte."),
     ("Preise", "Materialpreis je Profil + Werkstoff, wahlweise €/kg oder €/Stange."),
     ("Maschinen", "Maschinenparameter: Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge, Stundensatz."),
-    ("Schneiddaten", "Vorschub und Einstechzeit je Maschine, Werkstoff und Wandstärke (für Laserzeit in Schritt 4)."),
+    ("Schneiddaten", "Vorschub je Konturklasse (groß/Trennschnitt, mittel, klein) und Einstechzeit je Maschine, Werkstoff und Wandstärke (für Laserzeit in Schritt 4)."),
+    ("Gewinde", "Kernlochdurchmesser je Gewinde. Der STEP-Import schlägt anhand dieser Tabelle Gewinde vor."),
+    ("STEP-Import", "Wird beim ersten STEP-Import angelegt: Protokoll aller Messwerte je Teil."),
     ("Listen", "Auswahllisten (Profilform, Preisbasis)."),
     ("", ""),
     ("Arbeitsablauf", None),
@@ -129,6 +131,10 @@ rows = [
     ("A8", "Keine Restlagerverwaltung: Reststücke werden nur als Verschnitt ausgewiesen (Entscheidung vom 15.10.2026)."),
     ("A9", "Kapazität: 300 Zeilen je Stammdatenblatt, 500 Auftragspositionen. Erweiterbar, indem Formelzeilen nach unten kopiert und die Namen in Formeln > Namens-Manager angepasst werden."),
     ("A10", "Einheiten: Längen in mm, Gewicht in kg, Preise in € netto."),
+    ("A11", "Gemeinsamer Trennschnitt: Liegen zwei Teile auf der Stange nebeneinander und sind beide zugewandten Enden gerade (senkrecht), wird nur ein Schnitt gerechnet, sonst zwei. Dafür stehen je Teil Anfangs- und Endschnitt (gerade ja/nein, Schnittlänge) in Spalten Y–AB; Spalte H enthält immer beide Enden voll. Die Verrechnung erfolgt in der Optimierung (Schritt 3). Beim gemeinsamen Schnitt zählt auch der Schnittverlust nur einmal."),
+    ("A12", "Schneidweg (Spalte H) = Anfangsschnitt + Endschnitt + Innenkonturen (AC). Gravuren (nicht durchgehende Konturen) stehen separat in AD und sind nicht im Schneidweg enthalten."),
+    ("A13", "Gewinde: Der STEP-Import erkennt durchgehende Rundbohrungen (AE) und schlägt bei passendem Kernloch ein Gewinde vor (AF). Gerechnet wird nur, was nach manueller Prüfung in AG eingetragen ist (Format z. B. 4xM6; 2xM8). Solange AF gefüllt und AG leer ist, zeigt der Status einen Hinweis."),
+    ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine. Für die Laserzeit gilt je Klasse der eigene Vorschub aus 'Schneiddaten'; Anfangs-/Endschnitt mit Vorschub groß; fehlt mittel oder klein, wird der nächstgrößere verwendet."),
 ]
 r = 4
 for a, b in rows:
@@ -153,6 +159,11 @@ for c in (wl["A4"], wl["B4"]):
     c.font = f_head; c.fill = fill_head
 for i, v in enumerate(["Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil"], start=5):
     wl.cell(row=i, column=1, value=v).font = f_in
+wl["C4"] = "Ja/Nein"
+wl["C4"].font = f_head; wl["C4"].fill = fill_head
+for i, v in enumerate(["ja", "nein"], start=5):
+    wl.cell(row=i, column=3, value=v).font = f_in
+wb.defined_names["lst_JaNein"] = DefinedName("lst_JaNein", attr_text="Listen!$C$5:$C$6")
 for i, v in enumerate(["€/kg", "€/Stange"], start=5):
     wl.cell(row=i, column=2, value=v).font = f_in
 wl.column_dimensions["A"].width = 18
@@ -259,12 +270,13 @@ wm = wb.create_sheet("Maschinen", 5)
 title(wm, "Maschinenparameter", "Endbeschnitt = Anschnitt am Stangenanfang; Greiferrest = nicht nutzbares Ende im Greifer; Schnittverlust = Materialverlust je Trennschnitt.")
 cols_m = [("Maschinen-ID", 16, "in"), ("Bezeichnung", 26, "in"), ("Endbeschnitt [mm]", 12, "in"),
           ("Greiferrest [mm]", 12, "in"), ("Schnittverlust je Schnitt [mm]", 13, "in"),
-          ("Max. Stangenlänge [mm]", 13, "in"), ("Stundensatz [€/h]", 12, "in"), ("Bemerkung", 30, "in")]
+          ("Max. Stangenlänge [mm]", 13, "in"), ("Stundensatz [€/h]", 12, "in"), ("Kontur klein bis [mm]", 11, "in"),
+          ("Kontur mittel bis [mm]", 11, "in"), ("Bemerkung", 30, "in")]
 header(wm, 4, cols_m)
 style_rows(wm, M0, M1, cols_m, {3: "0", 4: "0", 5: "0.0", 6: "#,##0", 7: "#,##0.00"})
 for i, row in enumerate([
-    ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, "Beispielwerte"),
-    ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, "Beispielwerte"),
+    ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, 10, 50, "Beispielwerte"),
+    ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, 10, 50, "Beispielwerte"),
 ], start=M0):
     for j, v in enumerate(row, start=1):
         wm.cell(row=i, column=j, value=v)
@@ -272,6 +284,9 @@ add_dv(wm, num_dv(0, 2000, msg="Wert in mm (0–2000)."), f"C{M0}:D{M1}")
 add_dv(wm, num_dv(0, 20, msg="Schnittverlust in mm (0–20)."), f"E{M0}:E{M1}")
 add_dv(wm, num_dv(500, 20000, whole=True, msg="Stangenlänge in mm (500–20000)."), f"F{M0}:F{M1}")
 add_dv(wm, num_dv(0, 10000, msg="Stundensatz in €/h."), f"G{M0}:G{M1}")
+add_dv(wm, num_dv(0.1, 5000, msg="Grenze in mm (größtes Hüllmaß der Kontur)."), f"H{M0}:I{M1}")
+wm["H4"].comment = Comment("Innenkontur gilt als klein, wenn ihr größtes Hüllmaß ≤ diesem Wert ist.", "Kalkulation")
+wm["I4"].comment = Comment("Bis zu diesem Hüllmaß mittel, darüber groß.", "Kalkulation")
 dup = DataValidation(type="custom", formula1=f"=COUNTIF($A${M0}:$A${M1},A{M0})=1", allow_blank=True)
 dup.error = "Diese Maschinen-ID existiert bereits."; dup.showErrorMessage = True
 add_dv(wm, dup, f"A{M0}:A{M1}")
@@ -282,9 +297,10 @@ wb.defined_names["lst_Maschine"] = DefinedName("lst_Maschine", attr_text=f"Masch
 wsd = wb.create_sheet("Schneiddaten", 6)
 title(wsd, "Schneiddaten (Laserzeit)", "Je Maschine + Werkstoff gestaffelt nach Wandstärke: es gilt die Zeile mit der kleinsten 'Wandstärke bis', die ≥ der Profilwandstärke ist.")
 cols_sd = [("Maschinen-ID", 16, "in"), ("Werkstoff-ID", 16, "in"), ("Wandstärke bis [mm]", 12, "in"),
-           ("Vorschub [mm/min]", 12, "in"), ("Einstechzeit [s]", 12, "in"), ("Bemerkung", 30, "in")]
+           ("Vorschub groß / Trennschnitt [mm/min]", 13, "in"), ("Vorschub mittel [mm/min]", 12, "in"),
+           ("Vorschub klein [mm/min]", 12, "in"), ("Einstechzeit [s]", 12, "in"), ("Bemerkung", 30, "in")]
 header(wsd, 4, cols_sd)
-style_rows(wsd, M0, M1, cols_sd, {3: "0.0", 4: "#,##0", 5: "0.0"})
+style_rows(wsd, M0, M1, cols_sd, {3: "0.0", 4: "#,##0", 5: "#,##0", 6: "#,##0", 7: "0.0"})
 sd_rows = []
 for m in ("RL-1",):
     for w, data in (("S235-10219", [(2, 6000, 0.3), (3, 4500, 0.5), (5, 3000, 0.8)]),
@@ -292,16 +308,35 @@ for m in ("RL-1",):
                     ("1.4301", [(2, 5000, 0.4), (3, 3500, 0.6), (5, 2000, 1.0)]),
                     ("AW6060-T66", [(2, 7000, 0.3), (3, 5000, 0.5), (5, 3200, 0.8)])):
         for t, v, e in data:
-            sd_rows.append((m, w, t, v, e, "Beispiel"))
+            # Beispiel: mittlere Konturen 70 %, kleine 40 % des Vorschubs groß
+            sd_rows.append((m, w, t, v, round(v * 0.7, -1), round(v * 0.4, -1), e, "Beispiel"))
 for i, row in enumerate(sd_rows, start=M0):
     for j, v in enumerate(row, start=1):
         wsd.cell(row=i, column=j, value=v)
 add_dv(wsd, list_dv("lst_Maschine", "Bitte Maschinen-ID aus Blatt 'Maschinen' wählen."), f"A{M0}:A{M1}")
 add_dv(wsd, list_dv("lst_Werkstoff", "Bitte Werkstoff-ID aus Blatt 'Werkstoffe' wählen."), f"B{M0}:B{M1}")
 add_dv(wsd, num_dv(0.1, 50, msg="Wandstärke in mm."), f"C{M0}:C{M1}")
-add_dv(wsd, num_dv(1, 100000, msg="Vorschub in mm/min."), f"D{M0}:D{M1}")
-add_dv(wsd, num_dv(0, 60, msg="Einstechzeit in s."), f"E{M0}:E{M1}")
+add_dv(wsd, num_dv(1, 100000, msg="Vorschub in mm/min."), f"D{M0}:F{M1}")
+add_dv(wsd, num_dv(0, 60, msg="Einstechzeit in s."), f"G{M0}:G{M1}")
+wsd["D4"].comment = Comment("Gilt für Anfangs-/Endschnitt und große Innenkonturen.", "Kalkulation")
+wsd["E4"].comment = Comment("Leer = Vorschub groß wird verwendet.", "Kalkulation")
+wsd["F4"].comment = Comment("Leer = Vorschub mittel bzw. groß wird verwendet.", "Kalkulation")
 wsd.freeze_panes = "C5"
+
+# ---------------------------------------------------------------- Gewinde
+wg = wb.create_sheet("Gewinde", 7)
+title(wg, "Gewinde / Kernlöcher", "ISO-Regelgewinde, Kernloch nach DIN 336. Der STEP-Import vergleicht Bohrungsdurchmesser mit dieser Tabelle (±0,05 mm).")
+cols_g = [("Gewinde", 12, "in"), ("Kernloch Ø [mm]", 12, "in"), ("Zeit je Gewinde [s]", 12, "in"), ("Bemerkung", 36, "in")]
+header(wg, 4, cols_g)
+style_rows(wg, M0, M0 + 49, cols_g, {2: "0.0", 3: "0"})
+for i, (g_, d_) in enumerate([("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
+                              ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)], start=M0):
+    wg.cell(row=i, column=1, value=g_)
+    wg.cell(row=i, column=2, value=d_)
+wg.cell(row=M0, column=4, value="Zeit je Gewinde für Kalkulation in Schritt 4")
+add_dv(wg, num_dv(0.5, 100, msg="Kernloch in mm."), f"B{M0}:B{M0 + 49}")
+add_dv(wg, num_dv(0, 3600, msg="Zeit in s."), f"C{M0}:C{M0 + 49}")
+wg.freeze_panes = "B5"
 
 # ---------------------------------------------------------------- Auftrag
 wa = wb.create_sheet("Auftrag", 1)
@@ -344,18 +379,27 @@ wa["J3"] = "Übersicht"; wa["J3"].font = f_note
 
 cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "in"), ("Profil-ID", 18, "in"),
           ("Werkstoff-ID", 15, "in"), ("Teilelänge [mm]", 11, "in"), ("Stückzahl", 9, "in"),
-          ("Schneidweg je Teil [mm] (STEP)", 13, "in"), ("Einstiche je Teil (STEP)", 10, "in"),
+          ("Schneidweg je Teil ohne Gravur [mm] (STEP)", 13, "in"), ("Einstiche je Teil (STEP)", 10, "in"),
           ("Stangenlänge abweichend [mm]", 12, "in"),
           ("Profilform", 13, "link"), ("Querschnitt [mm²]", 10, "link"), ("Wandstärke [mm]", 10, "link"),
           ("Metergewicht [kg/m]", 10, "calc"), ("Gewicht je Teil [kg]", 10, "calc"), ("Länge gesamt [mm]", 11, "calc"),
           ("Stangenlänge wirksam [mm]", 11, "calc"), ("Endbeschnitt wirksam [mm]", 10, "calc"),
           ("Greiferrest wirksam [mm]", 10, "calc"), ("Nutzlänge Stange [mm]", 11, "calc"),
-          ("Preis hinterlegt", 9, "calc"), ("Vorschub [mm/min]", 10, "link"), ("Status", 34, "calc"), ("Gewicht Position [kg]", 11, "calc")]
+          ("Preis hinterlegt", 9, "calc"), ("Vorschub groß [mm/min]", 10, "link"), ("Status", 34, "calc"), ("Gewicht Position [kg]", 11, "calc"),
+          ("Anfangsschnitt gerade (STEP)", 10, "in"), ("Anfangsschnitt [mm] (STEP)", 11, "in"),
+          ("Endschnitt gerade (STEP)", 10, "in"), ("Endschnitt [mm] (STEP)", 11, "in"),
+          ("Innenkonturen [mm] (STEP)", 11, "in"), ("Gravur [mm] (STEP)", 10, "in"),
+          ("Bohrungen (STEP)", 16, "in"), ("Gewinde-Vorschlag (STEP)", 18, "in"),
+          ("Gewinde geprüft (manuell)", 16, "in"),
+          ("Kontur klein [Stk] (STEP)", 9, "in"), ("Kontur klein [mm] (STEP)", 10, "in"),
+          ("Kontur mittel [Stk] (STEP)", 9, "in"), ("Kontur mittel [mm] (STEP)", 10, "in"),
+          ("Kontur groß [Stk] (STEP)", 9, "in"), ("Kontur groß [mm] (STEP)", 10, "in")]
 header(wa, 12, cols_a)
 wa.row_dimensions[12].height = 60
 style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 10: "#,##0", 12: "0.0",
                                  13: "0.00", 14: "0.000", 15: "0.000", 16: "#,##0", 17: "#,##0", 18: "0",
-                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00"})
+                                 19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0", 29: "#,##0.0", 30: "#,##0.0",
+                                 34: "0", 35: "#,##0.0", 36: "0", 37: "#,##0.0", 38: "0", 39: "#,##0.0"})
 P = lambda col: f"Profile!${col}${M0}:${col}${M1}"
 SD = lambda col: f"Schneiddaten!${col}${M0}:${col}${M1}"
 for r in range(O0, O1 + 1):
@@ -389,7 +433,8 @@ for r in range(O0, O1 + 1):
         f'IF($F{r}+$H$6>T{r},"FEHLER: Teil länger als Nutzlänge",'
         f'IF(U{r}="nein","WARNUNG: kein gültiger Materialpreis",'
         f'IF($H{r}="","HINWEIS: Schneidweg fehlt",'
-        f'IF(V{r}="","HINWEIS: keine Schneiddaten","OK"))))))))))))')
+        f'IF(V{r}="","HINWEIS: keine Schneiddaten",'
+        f'IF(AND($AF{r}<>"",$AG{r}=""),"HINWEIS: Gewinde-Vorschlag prüfen","OK")))))))))))))')
 
 ex = [(10, "4711-001", "Holm links", "RR 42,4x2,0", "S235-10219", 1250, 24, 410.5, 4, None),
       (20, "4711-002", "Querstrebe", "RR 42,4x2,0", "S235-10219", 860, 40, 302.0, 2, None),
@@ -416,13 +461,34 @@ add_dv(wa, num_dv(500, 20000, whole=True, msg="Stangenlänge in mm (500–20000)
 add_dv(wa, num_dv(1, 99999, whole=True, msg="Positionsnummer als ganze Zahl."), f"A{O0}:A{O1}")
 wa["H12"].comment = Comment("Wird in Schritt 2 automatisch aus der STEP-Datei gefüllt; bis dahin manuell.", "Kalkulation")
 wa["J12"].comment = Comment("Leer = Standard-Stangenlänge aus C9.", "Kalkulation")
+add_dv(wa, list_dv("lst_JaNein", "Bitte ja oder nein wählen."), f"Y{O0}:Y{O1}")
+add_dv(wa, list_dv("lst_JaNein", "Bitte ja oder nein wählen."), f"AA{O0}:AA{O1}")
+add_dv(wa, num_dv(0, 100000, msg="Schnittlänge in mm (≥ 0)."), f"Z{O0}:Z{O1}")
+add_dv(wa, num_dv(0, 100000, msg="Schnittlänge in mm (≥ 0)."), f"AB{O0}:AB{O1}")
+wa["Y12"].comment = Comment("Gerade = Schnitt senkrecht zur Rohrachse. Zwei benachbarte gerade Enden teilen sich in der Optimierung einen Schnitt.", "Kalkulation")
 
 wrng = f"W{O0}:W{O1}"
 for prefix, color in (("FEHLER", "F8CBAD"), ("WARNUNG", "FFD966"), ("HINWEIS", "FFF2CC"), ("OK", "C6EFCE")):
     wa.conditional_formatting.add(wrng, FormulaRule(formula=[f'LEFT($W{O0},{len(prefix)})="{prefix}"'],
                                                     fill=PatternFill("solid", fgColor=color)))
 wa.freeze_panes = "E13"
-wa.auto_filter.ref = f"A12:X{O1}"
+add_dv(wa, num_dv(0, 1000000, msg="Länge in mm (≥ 0)."), f"AC{O0}:AD{O1}")
+gv = DataValidation(type="custom", allow_blank=True,
+                    formula1=f'=ISNUMBER(SEARCH("xM",AG{O0}))')
+gv.error = "Format: Anzahl x Gewinde, mehrere mit Semikolon, z. B. 4xM6; 2xM8"
+gv.errorTitle = "Ungültige Eingabe"; gv.showErrorMessage = True
+add_dv(wa, gv, f"AG{O0}:AG{O1}")
+wa["AF12"].comment = Comment("Nur Vorschlag aus dem Kernlochdurchmesser (Blatt 'Gewinde'). Wird nicht gerechnet.", "Kalkulation")
+wa["AG12"].comment = Comment("Nach manueller Prüfung eintragen, z. B. 4xM6; 2xM8. Nur dieser Wert wird gerechnet.", "Kalkulation")
+wa.conditional_formatting.add(f"AF{O0}:AF{O1}", FormulaRule(formula=[f'AND($AF{O0}<>"",$AG{O0}="")'],
+                                                            fill=PatternFill("solid", fgColor="FFD966")))
+add_dv(wa, num_dv(0, 10000, whole=True, msg="Anzahl als ganze Zahl ≥ 0."), f"AH{O0}:AH{O1}")
+add_dv(wa, num_dv(0, 10000, whole=True, msg="Anzahl als ganze Zahl ≥ 0."), f"AJ{O0}:AJ{O1}")
+add_dv(wa, num_dv(0, 10000, whole=True, msg="Anzahl als ganze Zahl ≥ 0."), f"AL{O0}:AL{O1}")
+for c_ in ("AI", "AK", "AM"):
+    add_dv(wa, num_dv(0, 1000000, msg="Länge in mm (≥ 0)."), f"{c_}{O0}:{c_}{O1}")
+wa["AH12"].comment = Comment("Innenkonturen nach größtem Hüllmaß; Grenzen je Maschine im Blatt 'Maschinen' (Spalten H/I).", "Kalkulation")
+wa.auto_filter.ref = f"A12:AM{O1}"
 
 for s in wb.worksheets:
     s.sheet_view.zoomScale = 90
