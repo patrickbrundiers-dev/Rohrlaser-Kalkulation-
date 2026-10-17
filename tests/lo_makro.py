@@ -52,11 +52,13 @@ class LibreOffice:
         url = uno.systemPathToFileUrl(os.path.abspath(mappe))
         doc = self.desk.loadComponentFromURL(url, "_blank", 0, (_pv("Hidden", True), _pv("MacroExecutionMode", 4)))
         aufrufe = makro if isinstance(makro, list) else [(makro, argumente)]
+        self.rueckgaben = []   # Rückgaben aller Makros dieses Aufrufs
         try:
             for makro, argumente in aufrufe:
                 skript = doc.getScriptProvider().getScript(
                     f"vnd.sun.star.script:VBAProject.{makro}?language=Basic&location=document")
                 rueckgabe = skript.invoke(tuple(argumente), (), ())[0]
+                self.rueckgaben.append(rueckgabe)
                 if isinstance(rueckgabe, str) and rueckgabe.startswith("FEHLER"):
                     break
             if ausgabe:

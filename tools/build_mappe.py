@@ -115,17 +115,23 @@ rows = [
     ("Gewinde", "Kernlochdurchmesser je Gewinde. Der STEP-Import schlägt anhand dieser Tabelle Gewinde vor."),
     ("STEP-Import", "Protokoll aller Messwerte je importiertem Teil."),
     ("Kalkulation", "Material-, Laser-, Gewinde- und Rüstkosten je Teil und Position, Zuschläge, Verkaufspreis."),
+    ("Angebot", "Angebot an den Kunden mit Einzel- und Gesamtpreisen. Briefkopf, Bedingungen, Gültigkeit und MwSt.-Satz einmal eintragen; die Positionen trägt 'Angebot (PDF)' ein."),
+    ("Werkstattpapier", "Wird von 'Werkstattpapiere (PDF)' gefüllt: Materialliste und je Stange die Teile in Schnittreihenfolge (gleiche Stangen zusammengefasst)."),
     ("Schnittplan", "Ergebnis der Optimierung: eine Zeile je Stange mit Belegung, Rest, Ausnutzung und Prüfung gegen Überbelegung."),
     ("Stangenbelegung", "Ergebnis der Optimierung: eine Zeile je Teil mit Lage auf der Stange (von/bis) und Art der Trennung."),
     ("Auswertung", "Vergleich optimierte gegen einfache manuelle Einteilung, Liste nicht eingeplanter Teile."),
     ("Listen", "Auswahllisten (Profilform, Preisbasis)."),
     ("", ""),
     ("Arbeitsablauf", None),
+    ("Bedienung", "Alle Funktionen stehen im Menüband auf der Registerkarte 'Rohrlaser' (auf jedem Blatt) und als Schaltflächen im Blatt 'Auftrag'."),
+    ("0.", "'Neuer Auftrag' leert Positionen und Ergebnisse, zählt die Auftragsnummer hoch und setzt das Datum. Stammdaten, Maschine und Stangenlänge bleiben. Vorher wird gefragt, ob der bisherige Auftrag gespeichert werden soll."),
     ("1.", "Stammdaten pflegen (Profile, Werkstoffe, Preise, Maschinen, Schneiddaten). Die vorhandenen Zeilen sind BEISPIELWERTE und müssen durch eigene Daten ersetzt werden."),
     ("2.", "Auftragskopf ausfüllen, Maschine wählen, Standard-Stangenlänge prüfen (Vorgabe 6.000 mm)."),
     ("3.", "Positionen eintragen (Profil und Werkstoff per Auswahlliste) oder im Blatt 'Auftrag' auf 'STEP importieren' klicken und STEP-Dateien wählen. Dafür muss der Ordner 'STEP-Import' (mit STEP-Import.exe) neben der Mappe liegen."),
     ("4.", "Status-Spalte prüfen: FEHLER muss behoben werden, WARNUNG/HINWEIS sollte geprüft werden."),
-    ("5.", "Im Blatt 'Auftrag' auf 'Optimieren' klicken: füllt Schnittplan, Stangenbelegung und Auswertung. Danach Blatt 'Kalkulation' prüfen. Nach jeder Änderung am Auftrag erneut optimieren."),
+    ("5.", "'Optimieren' klicken: füllt Schnittplan, Stangenbelegung und Auswertung. Danach Blatt 'Kalkulation' prüfen. 'Stand Optimierung' (Auftrag C10, Kalkulation C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern."),
+    ("6.", "'Werkstattpapiere (PDF)', 'Angebot (PDF)' oder 'Kalkulation (PDF)': erzeugt die PDF-Datei im Ordner 'Aufträge' neben der Mappe und öffnet sie. Ist die Optimierung veraltet, wird vorher gefragt, ob neu optimiert wird."),
+    ("7.", "'Auftrag speichern als' legt eine Kopie der Mappe als '<Auftragsnummer> <Kunde>.xlsm' im Ordner 'Aufträge' ab. Die geöffnete Mappe bleibt die Vorlage für den nächsten Auftrag."),
     ("", ""),
     ("Annahmen", None),
     ("A1", "Microsoft 365 / Excel 2019 oder neuer unter Windows, Makros müssen aktiviert sein (beim Öffnen 'Inhalt aktivieren' bzw. Datei als vertrauenswürdig markieren). Keine Installation nötig: Optimierung und Übernahme laufen in VBA, die STEP-Geometrie misst STEP-Import.exe (portable, liegt im Ordner 'STEP-Import' neben der Mappe). Die Mappe darf dabei offen bleiben."),
@@ -142,8 +148,10 @@ rows = [
     ("A12", "Schneidweg (Spalte H) = Anfangsschnitt + Endschnitt + Innenkonturen (AC). Gravuren (nicht durchgehende Konturen) stehen separat in AD und sind nicht im Schneidweg enthalten."),
     ("A13", "Gewinde: Der STEP-Import erkennt durchgehende Rundbohrungen (AE) und schlägt bei passendem Kernloch ein Gewinde vor (AF). Gerechnet wird nur, was nach manueller Prüfung in AG eingetragen ist (Format z. B. 4xM6; 2xM8). Solange AF gefüllt und AG leer ist, zeigt der Status einen Hinweis."),
     ("A15", "Optimierung: je Profil + Werkstoff + Stangenlänge getrennt (keine Vermischung). Belegung je Stange = Endbeschnitt + Teile + Trennungen + letzter Schnittverlust; frei bleiben muss der Greiferrest. Trennung: beide Enden gerade = 1 gemeinsamer Schnitt (1 × Schnittverlust), sonst 2 Schnitte (2 × Schnittverlust + Abstand getrennte Schnitte). Teile dürfen gedreht werden, damit gerade Enden aneinanderliegen; schräge Enden kommen bevorzugt an Stangenanfang oder -ende. Fehlt die Angabe 'gerade', gilt das Ende als gerade."),
-    ("A16", "Verfahren: First-Fit- und Best-Fit-Decreasing mit anschließendem Auflösen schwach belegter Stangen; das bessere Ergebnis zählt. Untergrenze = Summe(Teilelänge + Schnittverlust) / (Stangenlänge − Endbeschnitt − Greiferrest), aufgerundet. Vergleich: manuelle Einteilung = Positionen in Eingabereihenfolge, Stange voll, dann nächste."),
+    ("A16", "Verfahren: First-Fit- und Best-Fit-Decreasing mit anschließendem Auflösen schwach belegter Stangen; das bessere Ergebnis zählt. Liegt es über der Untergrenze und hat die Gruppe höchstens 60 Teile, prüft eine exakte Suche (Branch and Bound, höchstens 20.000 Suchschritte je Gruppe) alle Einteilungen auf eine mit weniger Stangen. Die Auswertung zeigt je Gruppe den Abstand zur Untergrenze und ob das Ergebnis nachweislich optimal ist ('Untergrenze erreicht' oder 'alle Einteilungen geprüft') oder die Suche begrenzt war. Untergrenze = Summe(Teilelänge + Schnittverlust) / (Stangenlänge − Endbeschnitt − Greiferrest), aufgerundet. Vergleich: manuelle Einteilung = Positionen in Eingabereihenfolge, Stange voll, dann nächste."),
     ("A17", "Kalkulation: Materialkosten je Gruppe = Summe der Stangenkosten (Stangenlänge × kg/m × €/kg oder €/Stange anteilig zur Lieferlänge). Umlage auf Positionen nach Längenanteil, damit trägt jedes Teil den Verschnitt anteilig. Laserzeit = Schneidweg je Konturklasse / Vorschub + Einstiche × Einstechzeit + Gravur / Vorschub Gravur, abzüglich der Einsparung durch gemeinsame Schnitte. Gewindezeit nur aus 'Gewinde geprüft' × Zeit je Gewinde (Blatt Gewinde). Rüstzeit und Stangenwechsel werden gleichmäßig auf alle Teile umgelegt. Fertigung mit Maschinenstundensatz."),
+    ("A18", "Ablage: Auftragsmappen und PDF-Dateien liegen im Ordner 'Aufträge' neben der Vorlage (wird angelegt). Wird eine abgelegte Auftragsmappe selbst geöffnet, gilt ihr eigener Ordner; der STEP-Import findet die STEP-Import.exe dann auch im übergeordneten Ordner. Jede Auftragsmappe enthält ihre eigenen Stammdaten (nachvollziehbar, auch wenn sich Preise später ändern). 'Stammdaten übernehmen' kopiert Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Auswahllisten, Zuschläge und Angebotskopf aus einer anderen Mappe gleicher Version (nur Eingabezellen, keine Formeln)."),
+    ("A19", "Angebot: Einzelpreis = Verkaufspreis je Teil aus der Kalkulation, auf Cent gerundet; Gesamtpreis = Einzelpreis × Menge. Positionen mit Hinweis in der Kalkulation (z. B. ohne Preis oder nicht eingeplant) werden vor dem Erstellen gemeldet."),
     ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine. Für die Laserzeit gilt je Klasse der eigene Vorschub aus 'Schneiddaten'; Anfangs-/Endschnitt mit Vorschub groß; fehlt mittel oder klein, wird der nächstgrößere verwendet."),
 ]
 r = 4
@@ -174,6 +182,13 @@ wl["C4"].font = f_head; wl["C4"].fill = fill_head
 for i, v in enumerate(["ja", "nein"], start=5):
     wl.cell(row=i, column=3, value=v).font = f_in
 wb.defined_names["lst_JaNein"] = DefinedName("lst_JaNein", attr_text="Listen!$C$5:$C$6")
+wl["E4"] = "Optimierung veraltet"
+wl["E4"].font = f_head; wl["E4"].fill = fill_head
+wl["E5"] = "nein"   # setzen die Makros (ja = nach der letzten Optimierung geändert)
+wl["E5"].font = f_calc; wl["E5"].fill = fill_calc
+wl["E6"] = "Wird von den Makros gesetzt, nicht ändern."
+wl["E6"].font = f_note
+wl.column_dimensions["E"].width = 20
 for i, v in enumerate(["€/kg", "€/Stange"], start=5):
     wl.cell(row=i, column=2, value=v).font = f_in
 wl.column_dimensions["A"].width = 18
@@ -358,6 +373,23 @@ add_dv(wg, num_dv(0.5, 100, msg="Kernloch in mm."), f"B{M0}:B{M0 + 49}")
 add_dv(wg, num_dv(0, 3600, msg="Zeit in s."), f"C{M0}:C{M0 + 49}")
 wg.freeze_panes = "B5"
 
+STAND_OPT = (f'=IF(COUNT(Schnittplan!$A${S0}:$A${S1})=0,"noch nicht optimiert",'
+             f'IF(Listen!$E$5="ja","VERALTET – Auftrag geändert, bitte neu optimieren","aktuell"))')
+
+
+def stand_optimierung(ws, zeile, bis_spalte):
+    """Anzeige 'Stand Optimierung' (Merker Listen!E5) mit Ampelfarben."""
+    ws.cell(zeile, 1, "Stand Optimierung").font = f_bold
+    ws.merge_cells(start_row=zeile, start_column=1, end_row=zeile, end_column=2)
+    c = ws.cell(zeile, 3, STAND_OPT)
+    c.font = Font(name=F, bold=True); c.border = border
+    ws.merge_cells(start_row=zeile, start_column=3, end_row=zeile, end_column=bis_spalte)
+    a = f"C{zeile}"
+    ws.conditional_formatting.add(a, FormulaRule(formula=[f'LEFT(${a},7)="VERALTE"'], fill=PatternFill("solid", fgColor="F8CBAD")))
+    ws.conditional_formatting.add(a, FormulaRule(formula=[f'${a}="aktuell"'], fill=PatternFill("solid", fgColor="C6EFCE")))
+    ws.conditional_formatting.add(a, FormulaRule(formula=[f'${a}="noch nicht optimiert"'], fill=PatternFill("solid", fgColor="FFEB9C")))
+
+
 # ---------------------------------------------------------------- Auftrag
 wa = wb.create_sheet("Auftrag", 1)
 title(wa, "Auftrag – Eingabe", "Kopf ausfüllen, dann Positionen ab Zeile 13. Status in Spalte W beachten. Beispielpositionen vor Gebrauch löschen (nur gelbe Zellen).")
@@ -396,6 +428,8 @@ for i, (lab, fml, fmt) in enumerate(summ, start=4):
     c = wa.cell(row=i, column=13, value=fml)
     c.font = f_calc; c.fill = fill_calc; c.border = border; c.number_format = fmt
 wa["J3"] = "Übersicht"; wa["J3"].font = f_note
+stand_optimierung(wa, 10, 8)
+wa["N3"] = "Alle Funktionen auch im Menüband 'Rohrlaser'"; wa["N3"].font = f_note
 
 cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "in"), ("Profil-ID", 18, "in"),
           ("Werkstoff-ID", 15, "in"), ("Teilelänge [mm]", 11, "in"), ("Stückzahl", 9, "in"),
@@ -610,6 +644,7 @@ for i, (lab, fml) in enumerate(tot, start=4):
     c = wk.cell(row=i, column=11, value=fml)
     c.font = Font(name=F, bold=True); c.fill = fill_calc; c.border = border; c.number_format = "#,##0.00"
 wk["H3"] = "Summen Auftrag"; wk["H3"].font = f_note
+stand_optimierung(wk, 10, 6)
 
 cols_k = [("Pos.", 6, "link"), ("Artikelnummer", 18, "link"), ("Stückzahl", 8, "link"),
           ("Materialkosten Gruppe [€]", 11, "calc"), ("Längenanteil an Gruppe", 9, "calc"),
@@ -691,12 +726,81 @@ wlog.column_dimensions["B"].width = 34
 wlog.column_dimensions["AD"].width = 50
 wlog.freeze_panes = "A5"
 
+# ---------------------------------------------------------------- Angebot
+wan = wb.create_sheet("Angebot")
+for i, v in enumerate(["Firmenname", "Straße Nr.", "PLZ Ort", "Telefon / E-Mail"], start=1):
+    c = wan.cell(i, 1, v)
+    c.font = Font(name=F, bold=(i == 1), size=12 if i == 1 else 10)
+    wan.merge_cells(start_row=i, start_column=1, end_row=i, end_column=5)
+wan["K1"] = "← eigener Briefkopf (A1:A4), Bedingungen (C12), Gültigkeit (H10) und MwSt.-Satz (C11) einmal eintragen"
+wan["K1"].font = f_note
+wan["A6"] = "Angebot"
+wan["A6"].font = Font(name=F, bold=True, size=16)
+for zeile, lab, fml, fmt in [(8, "Kunde", "=IF(Auftrag!$C$6=\"\",\"\",Auftrag!$C$6)", "General"),
+                             (9, "Kundennummer", "=IF(Auftrag!$C$5=\"\",\"\",Auftrag!$C$5)", "General"),
+                             (11, "MwSt.-Satz", 0.19, "0%")]:
+    wan.cell(zeile, 1, lab).font = f_bold
+    wan.merge_cells(start_row=zeile, start_column=1, end_row=zeile, end_column=2)
+    c = wan.cell(zeile, 3, fml)
+    c.font = Font(name=F); c.number_format = fmt; c.alignment = Alignment(horizontal="left")
+    wan.merge_cells(start_row=zeile, start_column=3, end_row=zeile, end_column=5)
+for zeile, lab, fml, fmt in [(8, "Angebotsnummer", "=IF(Auftrag!$C$4=\"\",\"\",Auftrag!$C$4)", "General"),
+                             (9, "Datum", "=IF(Auftrag!$C$7=\"\",\"\",Auftrag!$C$7)", "DD.MM.YYYY"),
+                             (10, "Gültigkeit [Tage]", 30, "0"),
+                             (11, "Gültig bis", '=IF(N(H9)=0,"",H9+N(H10))', "DD.MM.YYYY")]:
+    wan.cell(zeile, 6, lab).font = f_bold
+    wan.merge_cells(start_row=zeile, start_column=6, end_row=zeile, end_column=7)
+    c = wan.cell(zeile, 8, fml)
+    c.font = Font(name=F); c.number_format = fmt; c.alignment = Alignment(horizontal="left")
+    wan.merge_cells(start_row=zeile, start_column=8, end_row=zeile, end_column=9)
+wan["A12"] = "Bedingungen"; wan["A12"].font = f_bold; wan["A12"].alignment = wrap
+wan.merge_cells("A12:B12")
+wan["C12"] = "Lieferzeit nach Absprache. Zahlung 30 Tage netto. Preise in Euro zuzüglich Mehrwertsteuer."
+wan["C12"].font = Font(name=F); wan["C12"].alignment = wrap
+wan.merge_cells("C12:I12")
+wan.row_dimensions[12].height = 30
+cols_an = [("Pos.", 7, "in"), ("Artikelnummer", 18, "in"), ("Bezeichnung", 26, "in"), ("Profil", 16, "in"),
+           ("Werkstoff", 13, "in"), ("Länge [mm]", 10, "in"), ("Menge [Stk]", 9, "in"), ("Einzelpreis [€]", 12, "in"),
+           ("Gesamtpreis [€]", 13, "in")]
+header(wan, 13, cols_an)
+wan.row_dimensions[13].height = 30
+wan["A14"] = "Positionen werden über 'Angebot (PDF)' eingetragen."
+wan["A14"].font = f_note
+wan.page_setup.orientation = "portrait"
+wan.page_setup.paperSize = 9
+wan.page_setup.fitToWidth = 1
+wan.page_setup.fitToHeight = 0
+wan.sheet_properties.pageSetUpPr.fitToPage = True
+wan.print_title_rows = "13:13"
+
+# ---------------------------------------------------------------- Werkstattpapier
+wwp = wb.create_sheet("Werkstattpapier")
+wwp["A1"] = "Werkstattpapiere – Schnittpläne"
+wwp["A1"].font = f_title
+wwp["A2"] = "Wird über 'Werkstattpapiere (PDF)' gefüllt: Materialliste und je Stange die Teile in Schnittreihenfolge."
+wwp["A2"].font = f_note
+for col, w in zip("ABCDEFGHIJ", (7, 7, 18, 24, 10, 10, 10, 9, 20, 9)):
+    wwp.column_dimensions[col].width = w
+wwp.page_setup.orientation = "portrait"
+wwp.page_setup.paperSize = 9
+wwp.page_setup.fitToWidth = 1
+wwp.page_setup.fitToHeight = 0
+wwp.sheet_properties.pageSetUpPr.fitToPage = True
+
+reihenfolge = ["Anleitung", "Auftrag", "Kalkulation", "Angebot", "Werkstattpapier", "Schnittplan", "Stangenbelegung",
+               "Auswertung", "Listen", "Profile", "Werkstoffe", "Preise", "Maschinen", "Schneiddaten", "Gewinde",
+               "STEP-Import"]
+assert sorted(reihenfolge) == sorted(wb.sheetnames), wb.sheetnames
+wb._sheets = [wb[n] for n in reihenfolge]
+wb.active = 1
+
 for s in wb.worksheets:
     s.sheet_view.zoomScale = 90
+    s.sheet_view.tabSelected = s.title == "Auftrag"
 
 # ---------------------------------------------------------------- VBA-Projekt und Schaltflächen
 import glob, tempfile
-from vba_projekt import vba_projekt, xlsm_packen, schaltflaechen_xml
+from vba_projekt import vba_projekt, xlsm_packen, schaltflaechen_xml, menueband_xml
 wb.code_name = "DieseArbeitsmappe"
 for i, s in enumerate(wb.worksheets, start=1):
     s.sheet_properties.codeName = f"Tabelle{i}"
@@ -705,11 +809,37 @@ for datei in sorted(glob.glob(os.path.join(os.path.dirname(__file__), "..", "vba
     code = open(datei, encoding="utf-8").read()
     name = os.path.splitext(os.path.basename(datei))[0]
     module[name] = "\n".join(z for z in code.splitlines() if not z.startswith("Attribute VB_Name"))
-dokumente = [("DieseArbeitsmappe", "", True)] + [(f"Tabelle{i}", "", False) for i in range(1, len(wb.worksheets) + 1)]
+# Änderungen an diesen Blättern machen die Optimierung veraltet (Modul Bedienung)
+AENDERUNG = ("Private Sub Worksheet_Change(ByVal Target As Range)\n"
+             "    Bedienung.Geaendert Me.Name, Target\n"
+             "End Sub\n")
+dokumente = [("DieseArbeitsmappe", "", True)] + [
+    (f"Tabelle{i}", AENDERUNG if s.title in ("Auftrag", "Profile", "Werkstoffe", "Maschinen") else "", False)
+    for i, s in enumerate(wb.worksheets, start=1)]
 knoepfe = [("Optimieren", "Optimieren", (13, 3, 16, 5), "1F4E78"),
-           ("StepImportieren", "STEP importieren", (13, 6, 16, 8), "548235")]
+           ("StepImportieren", "STEP importieren", (13, 6, 16, 8), "548235"),
+           ("NeuerAuftrag", "Neuer Auftrag", (17, 3, 20, 5), "7F7F7F"),
+           ("AuftragSpeichernAls", "Auftrag speichern", (17, 6, 20, 8), "7F7F7F"),
+           ("WerkstattpapiereDrucken", "Werkstattpapiere (PDF)", (21, 3, 23, 5), "C55A11"),
+           ("AngebotDrucken", "Angebot (PDF)", (21, 6, 23, 8), "C55A11")]
+menueband = menueband_xml("Rohrlaser", [
+    ("Auftrag", [("RbNeuerAuftrag", "Neuer Auftrag", "FileNew",
+                  "Positionen und Ergebnisse leeren, Stammdaten bleiben. Fragt vorher, ob der aktuelle Auftrag gespeichert wird."),
+                 ("RbStepImport", "STEP importieren", "FileOpen",
+                  "STEP-Dateien messen und als Positionen übernehmen (STEP-Import.exe im Ordner STEP-Import neben der Mappe)."),
+                 ("RbOptimieren", "Optimieren", "CalculateNow",
+                  "Teile auf möglichst wenige Stangen verteilen: füllt Schnittplan, Stangenbelegung und Auswertung.")]),
+    ("Ausgabe (PDF)", [("RbWerkstattpapiere", "Werkstattpapiere", "FilePrint",
+                        "Materialliste und Schnittplan je Stange mit den Teilen in Schnittreihenfolge."),
+                       ("RbAngebot", "Angebot", "FileSaveAsPdfOrXps", "Angebot mit Einzel- und Gesamtpreisen aus der Kalkulation."),
+                       ("RbKalkulation", "Kalkulation", "FilePrintPreview", "Blatt Kalkulation (intern) als PDF.")]),
+    ("Ablage", [("RbSpeichern", "Auftrag speichern als", "FileSaveAs",
+                 "Kopie der Mappe als <Auftragsnummer> <Kunde>.xlsm im Ordner Aufträge neben der Mappe speichern."),
+                ("RbStammdaten", "Stammdaten übernehmen", "ImportExcel",
+                 "Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und Gewinde aus einer anderen Mappe (z. B. der Vorlage) übernehmen.")]),
+])
 with tempfile.TemporaryDirectory() as tmp:
     roh = os.path.join(tmp, "roh.xlsx")
     wb.save(roh)
-    xlsm_packen(roh, OUT, vba_projekt(module, dokumente), {"Auftrag": schaltflaechen_xml(knoepfe)})
+    xlsm_packen(roh, OUT, vba_projekt(module, dokumente), {"Auftrag": schaltflaechen_xml(knoepfe)}, menueband)
 print("saved", OUT)

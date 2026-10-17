@@ -29,6 +29,8 @@ Private Const D0 As Long = 5
 Private Const D1 As Long = 10004
 Private Const EPS As Double = 0.000001
 Private Const FEHLER_BASIS As Long = -2147221504   ' vbObjectError
+Private Const EXAKT_MAX_TEILE As Long = 60      ' exakte Suche nur für Gruppen bis zu so vielen Teilen
+Private Const EXAKT_MAX_KNOTEN As Long = 20000  ' Suchschritte je Gruppe
 
 ' Teile aller Gruppen
 Private nT As Long
@@ -38,7 +40,7 @@ Private tLen() As Double, tAg() As Boolean, tBg() As Boolean, tAs() As Double, t
 ' Gruppen (Profil + Werkstoff + Stangenlänge)
 Private nG As Long
 Private gProfil() As Variant, gWst() As Variant, gStange() As Double, gEnd() As Double, gGreif() As Double
-Private gKerf() As Double, gAbst() As Double, gTeile() As Variant, gErg() As Variant
+Private gKerf() As Double, gAbst() As Double, gTeile() As Variant, gErg() As Variant, gBew() As Boolean
 
 ' Nicht eingeplante Teile
 Private nF As Long
@@ -46,6 +48,11 @@ Private fZeile() As Long, fPos() As Variant, fArt() As Variant, fAnz() As Long, 
 
 ' Werte der gerade bearbeiteten Gruppe
 Private cEnd As Double, cKerf As Double, cAbst As Double, cNb As Double
+
+' Zustand der exakten Suche
+Private xT() As Long, xBedarf() As Double, xRest() As Double, xZu() As Long, xN As Long, xNutz As Double
+Private xSt() As Variant, xBel() As Double, xNSt As Long, xBeste As Variant, xBesteN As Long
+Private xKnoten As Long, xAbbruch As Boolean, xUG As Long
 
 
 ' ================================================================== Einstieg
@@ -69,10 +76,11 @@ Public Function OptimiereMappe() As String
     LiesAuftrag
     For g = 1 To nG
         WaehleGruppe g
-        gErg(g) = Optimiere(gTeile(g))
+        gErg(g) = Optimiere(gTeile(g), g)
     Next g
     Pruefe
     Schreibe
+    ThisWorkbook.Worksheets("Listen").Range("E5").Value = "nein"   ' Optimierung aktuell (Auftrag C10)
     Application.Calculation = alteBerechnung
     Application.Calculate
     Application.ScreenUpdating = True
@@ -80,7 +88,8 @@ Public Function OptimiereMappe() As String
         WaehleGruppe g
         s = s & gProfil(g) & " / " & gWst(g) & " / " & gStange(g) & " mm: " & gTeile(g)(0) & " Teile -> " & _
             Anzahl(gErg(g)) & " Stangen (manuell " & Manuell(gTeile(g)) & ", Untergrenze " & _
-            Untergrenze(gTeile(g)) & "), " & GemeinsameGesamt(gErg(g)) & " gemeinsame Schnitte" & vbLf
+            Untergrenze(gTeile(g)) & "), " & GemeinsameGesamt(gErg(g)) & " gemeinsame Schnitte, " & _
+            Bewertung(g) & vbLf
     Next g
     If nG = 0 Then s = "Keine einplanbaren Positionen." & vbLf
     For k = 1 To nF
@@ -404,8 +413,95 @@ Private Function GemeinsameGesamt(folgen As Variant) As Long
     Next s
 End Function
 
+Private Function Gleichartig(ByVal a As Long, ByVal b As Long) As Boolean
+    Gleichartig = (tLen(a) = tLen(b) And tAg(a) = tAg(b) And tBg(a) = tBg(b))
+End Function
+
+' Exakte Suche (Branch and Bound) nach einer Einteilung mit weniger als ziel Stangen.
+' Teile in der Reihenfolge von Sortiert, jedes Teil der Reihe nach in jede vorhandene Stange,
+' dann in eine neue. Abgeschnitten wird, wenn selbst bei voller Nutzung aller freien Längen
+' nicht weniger Stangen als das bisher beste Ergebnis möglich sind.
+' Ergebnis: Stangen oder Empty; vollstaendig = Suche nicht wegen EXAKT_MAX_KNOTEN abgebrochen.
+Private Function Exakt(teile As Variant, ByVal ziel As Long, vollstaendig As Boolean) As Variant
+    Dim srt As Variant, i As Long
+    srt = Sortiert(teile)
+    xN = srt(0)
+    xNutz = cNb - cEnd
+    ReDim xT(1 To xN): ReDim xBedarf(1 To xN): ReDim xRest(1 To xN + 1): ReDim xZu(1 To xN)
+    ReDim xSt(1 To xN): ReDim xBel(1 To xN)
+    For i = 1 To xN
+        xT(i) = srt(i): xBedarf(i) = tLen(srt(i)) + cKerf
+    Next i
+    xRest(xN + 1) = 0
+    For i = xN To 1 Step -1
+        xRest(i) = xRest(i + 1) + xBedarf(i)
+    Next i
+    xUG = Untergrenze(teile)
+    xNSt = 0: xBeste = Empty: xBesteN = ziel: xKnoten = 0: xAbbruch = False
+    Suche 1
+    vollstaendig = (Not xAbbruch) Or xBesteN <= xUG
+    Exakt = xBeste
+End Function
+
+Private Sub Suche(ByVal i As Long)
+    Dim frei As Double, neu As Long, s As Long, start As Long, t As Long, l As Variant, b() As Variant
+    If i > xN Then
+        ReDim b(1 To xNSt)
+        For s = 1 To xNSt
+            b(s) = Kopie(xSt(s))
+        Next s
+        xBeste = b: xBesteN = xNSt
+        Exit Sub
+    End If
+    xKnoten = xKnoten + 1
+    If xKnoten > EXAKT_MAX_KNOTEN Then xAbbruch = True: Exit Sub
+    For s = 1 To xNSt
+        frei = frei + (xNutz - xBel(s))
+    Next s
+    If xRest(i) > frei + EPS Then neu = -Int(-((xRest(i) - frei) / xNutz - EPS))
+    If xNSt + neu >= xBesteN Then Exit Sub
+    t = xT(i)
+    start = 1
+    If i > 1 Then
+        If Gleichartig(xT(i - 1), t) Then start = xZu(i - 1)
+    End If
+    For s = start To xNSt
+        If xBel(s) + xBedarf(i) <= xNutz + EPS Then
+            If Passt(MitTeil(xSt(s), t)) Then
+                l = xSt(s): Anh l, t: xSt(s) = l
+                xBel(s) = xBel(s) + xBedarf(i)
+                xZu(i) = s
+                Suche i + 1
+                l = xSt(s): l(0) = l(0) - 1: xSt(s) = l
+                xBel(s) = xBel(s) - xBedarf(i)
+                If xAbbruch Or xBesteN <= xUG Then Exit Sub
+            End If
+        End If
+    Next s
+    If xNSt + 1 < xBesteN Then
+        xNSt = xNSt + 1
+        l = NeueListe(): Anh l, t: xSt(xNSt) = l
+        xBel(xNSt) = xBedarf(i)
+        xZu(i) = xNSt
+        Suche i + 1
+        xNSt = xNSt - 1
+    End If
+End Sub
+
+' Text für die Auswertung: wie nah das Ergebnis am Optimum liegt.
+Private Function Bewertung(ByVal g As Long) As String
+    If Anzahl(gErg(g)) <= Untergrenze(gTeile(g)) Then
+        Bewertung = "optimal (Untergrenze erreicht)"
+    ElseIf gBew(g) Then
+        Bewertung = "optimal (alle Einteilungen geprüft)"
+    Else
+        Bewertung = "nicht bewiesen (Suche begrenzt)"
+    End If
+End Function
+
 ' Ergebnis: je Stange die angeordnete Folge; volle Stangen zuerst, Reststange zuletzt.
-Private Function Optimiere(teile As Variant) As Variant
+' Setzt gBew(g), wenn die Stangenzahl nachweislich minimal ist.
+Private Function Optimiere(teile As Variant, ByVal g As Long) As Variant
     Dim ff As Variant, bf As Variant, folgen As Variant, s As Long, n As Long, i As Long, j As Long
     Dim v As Variant, vs() As Double, zs() As Long, tv As Double, tz As Long
     ff = Aufloesen(FirstFit(teile))
@@ -419,6 +515,17 @@ Private Function Optimiere(teile As Variant) As Variant
     Else
         folgen = ff
     End If
+    Dim ug As Long, ex As Variant, bew As Boolean
+    ug = Untergrenze(teile)
+    bew = (Anzahl(folgen) <= ug)
+    If Not bew And teile(0) <= EXAKT_MAX_TEILE Then
+        ex = Exakt(teile, Anzahl(folgen), bew)
+        If Not IsEmpty(ex) Then
+            For s = 1 To Anzahl(ex): ex(s) = Anordnen(ex(s)): Next s
+            folgen = ex
+        End If
+    End If
+    gBew(g) = bew
     ' stabil sortieren nach (-Belegung, Zeile des ersten Teils)
     n = Anzahl(folgen)
     ReDim vs(1 To n): ReDim zs(1 To n)
@@ -571,6 +678,7 @@ Private Sub LiesAuftrag()
     ReDim tLen(0 To 64): ReDim tAg(0 To 64): ReDim tBg(0 To 64): ReDim tAs(0 To 64): ReDim tBs(0 To 64)
     ReDim gProfil(0 To 0): ReDim gWst(0 To 0): ReDim gStange(0 To 0): ReDim gEnd(0 To 0)
     ReDim gGreif(0 To 0): ReDim gKerf(0 To 0): ReDim gAbst(0 To 0): ReDim gTeile(0 To 0): ReDim gErg(0 To 0)
+    ReDim gBew(0 To 0)
 
     maschine = wa.Range("C8").Value
     For i = 1 To M1 - M0 + 1
@@ -640,6 +748,7 @@ Private Sub LiesAuftrag()
             ReDim Preserve gProfil(0 To nG): ReDim Preserve gWst(0 To nG): ReDim Preserve gStange(0 To nG)
             ReDim Preserve gEnd(0 To nG): ReDim Preserve gGreif(0 To nG): ReDim Preserve gKerf(0 To nG)
             ReDim Preserve gAbst(0 To nG): ReDim Preserve gTeile(0 To nG): ReDim Preserve gErg(0 To nG)
+            ReDim Preserve gBew(0 To nG)
             gProfil(g) = pid: gWst(g) = wst: gStange(g) = stange: gEnd(g) = pEnd: gGreif(g) = pGreif
             gKerf(g) = mKerf: gAbst(g) = mAbst: gTeile(g) = NeueListe()
         End If
@@ -775,8 +884,8 @@ Private Sub Schreibe()
     kopf = Array("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Teile [Stk]", "Stangen optimiert", _
                  "Stangen manuell", "Untergrenze Stangen", "Ersparnis Stangen", "Materialbedarf [m]", _
                  "Teilelänge [m]", "Verschnitt [m]", "Ausnutzung optimiert", "Ausnutzung manuell", _
-                 "Gemeinsame Schnitte", "Prüfung Stangen")
-    For c = 1 To 15
+                 "Gemeinsame Schnitte", "Prüfung Stangen", "Über Untergrenze [Stangen]", "Bewertung")
+    For c = 1 To 17
         With wau.Cells(4, c)
             .Value = kopf(c - 1)
             Kopfzelle wau.Cells(4, c)
@@ -789,6 +898,7 @@ Private Sub Schreibe()
         wau.Columns(c).ColumnWidth = 13
     Next c
     wau.Columns(1).ColumnWidth = 20
+    wau.Columns(17).ColumnWidth = 34
     wau.Rows(4).RowHeight = 45
     r = 5
     For g = 1 To nG
@@ -809,7 +919,9 @@ Private Sub Schreibe()
         wau.Cells(r, 13).Value = ManuellAusnutzung(gTeile(g), g)
         wau.Cells(r, 14).Formula = "=SUMIFS(" & SpBereich("O") & "," & crit & ")"
         wau.Cells(r, 15).Formula = "=IF(COUNTIFS(" & crit & "," & SpBereich("M") & ",""ÜBERBELEGT"")>0,""ÜBERBELEGT"",""OK"")"
-        With wau.Range(wau.Cells(r, 1), wau.Cells(r, 15))
+        wau.Cells(r, 16).Formula = "=E" & r & "-G" & r
+        wau.Cells(r, 17).Value = Bewertung(g)
+        With wau.Range(wau.Cells(r, 1), wau.Cells(r, 17))
             .Borders.LineStyle = 1
             .Borders.Color = RGB(191, 191, 191)
         End With
@@ -821,7 +933,7 @@ Private Sub Schreibe()
     If nG > 0 Then
         wau.Cells(r, 1).Value = "Summe"
         wau.Cells(r, 1).Font.Bold = True
-        For Each kopf In Array(4, 5, 6, 7, 8, 9, 10, 11, 14)
+        For Each kopf In Array(4, 5, 6, 7, 8, 9, 10, 11, 14, 16)
             sp = Split(wau.Cells(1, kopf).Address(True, False), "$")(0)
             With wau.Cells(r, kopf)
                 .Formula = "=SUM(" & sp & "5:" & sp & (r - 1) & ")"

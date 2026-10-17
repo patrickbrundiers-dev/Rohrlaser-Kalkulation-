@@ -8,7 +8,10 @@
    wie STEP-Import.exe) werden per VBA übernommen. Auftrag, Profile und Protokoll müssen
    mit dem Python-Import übereinstimmen.
 
-Aufruf: python tests/test_vba.py [optimierung|import]   (benötigt LibreOffice, für 2. auch OCP)
+3. Bedienung und Ausgabe: Merker "Optimierung veraltet", Werkstattpapier und Angebot füllen,
+   neuer Auftrag, Stammdaten aus einer anderen Mappe übernehmen.
+
+Aufruf: python tests/test_vba.py [optimierung|import|bedienung]   (benötigt LibreOffice, für 2. auch OCP)
 """
 import random
 import shutil
@@ -51,7 +54,7 @@ def lies(pfad, werte=False):
     sp = [[wsp.cell(r, c).value for c in (1, 2, 3, 4, 5, 6, 9, 14, 15, 16)] for r in range(5, 1005)
           if wsp.cell(r, 1).value is not None]
     dt = [[wdt.cell(r, c).value for c in range(1, 13)] for r in range(5, 10005) if wdt.cell(r, 1).value is not None]
-    au = [[wau.cell(r, c).value for c in range(1, 16)] for r in range(4, wau.max_row + 1)]
+    au = [[wau.cell(r, c).value for c in range(1, 18)] for r in range(4, wau.max_row + 1)]
     while au and all(v in (None, "") for v in au[-1]):
         au.pop()
     pruef = [wsp.cell(r, 13).value for r in range(5, 5 + len(sp))] if werte else None
@@ -111,10 +114,28 @@ def sonderfaelle(wb, rnd):
     wb["Maschinen"]["F5"] = 8500
 
 
+def schwer(wb, rnd):
+    """Eine Gruppe mit 10 bis 25 Einzelteilen: hier ist First/Best-Fit oft eine Stange schlechter
+    als die exakte Suche."""
+    wa = wb["Auftrag"]
+    for r in range(13, 513):
+        for c in list(range(1, 11)) + list(range(25, 29)):
+            wa.cell(r, c).value = None
+    for i in range(rnd.randint(10, 25)):
+        for c, v in enumerate([(i + 1) * 10, f"S-{i}", None, "QR 40x40x3", "S235-10219",
+                               float(round(rnd.uniform(300, 2500))), 1], start=1):
+            wa.cell(13 + i, c, v)
+        if rnd.random() < 0.3:
+            wa.cell(13 + i, 25, "nein")
+        if rnd.random() < 0.3:
+            wa.cell(13 + i, 27, "nein")
+
+
 def test_optimierung(lo, d):
     rnd = random.Random(2610)
     faelle = [("Beispielauftrag", None), ("Sonderfälle", sonderfaelle)]
     faelle += [(f"Zufall {i + 1}", zufallsauftrag) for i in range(25)]
+    faelle += [(f"Exakt {i + 1}", schwer) for i in range(12)]
     if True:
         for name, aendern in faelle:
             ein = d / "ein.xlsm"
@@ -133,7 +154,8 @@ def test_optimierung(lo, d):
             vergleiche(name, lies(py), vb)
             pruef = lies(aus, werte=True)[3]
             assert all(p == "OK" for p in pruef), f"{name}: Prüfung Schnittplan {set(pruef)}"
-            print(f"OK     {name}: {len(vb[0])} Stangen, {len(vb[1])} Teile")
+            bew = {z[16] for z in vb[2][1:] if z[16]}
+            print(f"OK     {name}: {len(vb[0])} Stangen, {len(vb[1])} Teile {sorted(bew)}")
     print("OK: VBA-Optimierung = Python-Optimierung")
 
 
@@ -191,13 +213,99 @@ def test_import(lo, d):
     print("OK: VBA-STEP-Import = Python-STEP-Import")
 
 
+# ------------------------------------------------------------------ Bedienung und Ausgabe
+def test_bedienung(lo, d):
+    ein = d / "ein.xlsm"
+    shutil.copy(MAPPE, ein)
+    aus = d / "vba.xlsx"
+    lo.ausfuehren(ein, [("Optimierung.OptimiereTest", ()), ("Bedienung.GeaendertTest", ()),
+                        ("Optimierung.OptimiereTest", ()), ("Ausgabe.AusgabeTest", ())], aus)
+    r = lo.rueckgaben
+    assert not r[0].startswith("FEHLER"), r[0]
+    assert r[1] == "nein,ja", f"Merker Optimierung veraltet: {r[1]}"
+    assert r[3].startswith("OK"), r[3]
+    wb = load_workbook(aus, data_only=True)
+    assert wb["Listen"]["E5"].value == "nein"
+    assert wb["Auftrag"]["C10"].value == "aktuell", wb["Auftrag"]["C10"].value
+    # Werkstattpapier: Materialliste und Blöcke decken alle Stangen und Teile ab
+    wsp, wdt, wwp = wb["Schnittplan"], wb["Stangenbelegung"], wb["Werkstattpapier"]
+    stangen = [wsp.cell(r_, 1).value for r_ in range(5, 1005) if wsp.cell(r_, 1).value is not None]
+    teile = sum(1 for r_ in range(5, 10005) if wdt.cell(r_, 1).value is not None)
+    zeilen = [[wwp.cell(r_, c).value for c in range(1, 11)] for r_ in range(1, wwp.max_row + 1)]
+    mat = []
+    i = next(k for k, z in enumerate(zeilen) if z[0] == "Profil-ID") + 1
+    while zeilen[i][0]:
+        mat.append(zeilen[i]); i += 1
+    assert sum(z[5] for z in mat) == len(stangen), (mat, len(stangen))
+    bloecke = [z[0] for z in zeilen if isinstance(z[0], str) and z[0].startswith("Stange")]
+    n_stangen, n_teile, faktor = 0, 0, 0
+    for z in zeilen:
+        if isinstance(z[0], str) and z[0].startswith("Stange"):
+            faktor = int(z[0].split("(")[1].split()[0]) if "(" in z[0] else 1
+            n_stangen += faktor
+        elif isinstance(z[0], (int, float)) and z[4] is not None:
+            n_teile += faktor
+    assert n_stangen == len(stangen) and n_teile == teile, (n_stangen, len(stangen), n_teile, teile)
+    print(f"OK     Werkstattpapier: {len(bloecke)} Blöcke für {len(stangen)} Stangen, {teile} Teile")
+    # Angebot: eine Zeile je Position, Preise = Kalkulation (auf Cent)
+    wan, wk, wa = wb["Angebot"], wb["Kalkulation"], wb["Auftrag"]
+    pos = [r_ for r_ in range(13, 513) if wa.cell(r_, 4).value not in (None, "")]
+    summe = 0.0
+    for k, r_ in enumerate(pos):
+        z = [wan.cell(14 + k, c).value for c in range(1, 10)]
+        ep = round(wk.cell(r_, 20).value, 2)
+        assert z[1] == wa.cell(r_, 2).value and abs(z[7] - ep) < 1e-9, (z, ep)
+        assert abs(z[8] - round(ep * wa.cell(r_, 7).value, 2)) < 1e-9
+        summe += z[8]
+    zs = 14 + len(pos) + 1
+    assert wan.cell(zs, 7).value == "Summe netto [€]" and abs(wan.cell(zs, 9).value - summe) < 0.005
+    assert abs(wan.cell(zs + 2, 9).value - (summe + round(summe * 0.19, 2))) < 0.005
+    print(f"OK     Angebot: {len(pos)} Positionen, {summe:.2f} € netto")
+
+    # Neuer Auftrag
+    text = lo.ausfuehren(ein, [("Optimierung.OptimiereTest", ()), ("Ausgabe.AusgabeTest", ()),
+                               ("Bedienung.NeuerAuftragTest", ())], d / "neu.xlsx")
+    assert text == "OK A-2026-0002", text
+    wb = load_workbook(d / "neu.xlsx", data_only=True)
+    wa = wb["Auftrag"]
+    assert all(wa.cell(r_, c).value in (None, "") for r_ in range(13, 513) for c in list(range(1, 11)) + list(range(25, 40)))
+    assert wa["C8"].value == "RL-1" and wa["C9"].value == 6000 and wa["C6"].value in (None, "")
+    assert wb["Schnittplan"]["A5"].value in (None, "") and wb["Stangenbelegung"]["A5"].value in (None, "")
+    assert wa["C10"].value == "noch nicht optimiert", wa["C10"].value
+    assert wb["Angebot"]["A14"].value in (None, "") and wb["Werkstattpapier"]["A5"].value in (None, "")
+    print("OK     Neuer Auftrag")
+
+    # Stammdaten aus einer anderen Mappe übernehmen
+    quelle = d / "quelle.xlsm"
+    shutil.copy(MAPPE, quelle)
+    wb = load_workbook(quelle, keep_vba=True)
+    wb["Profile"]["A10"] = "QR 50x50x4"; wb["Profile"]["B10"] = "Quadratrohr"
+    wb["Profile"]["C10"] = 50; wb["Profile"]["E10"] = 4
+    wb["Werkstoffe"]["E7"] = 7.93
+    wb["Angebot"]["A1"] = "Laser GmbH"
+    wb["Kalkulation"]["C6"] = 0.2
+    wb.save(quelle)
+    text = lo.ausfuehren(ein, ("Bedienung.StammdatenTest"), d / "stamm.xlsx", (str(quelle),))
+    assert text.startswith("Stammdaten übernommen"), text
+    wb = load_workbook(d / "stamm.xlsx")
+    wp = wb["Profile"]
+    assert [wp.cell(10, c).value for c in (1, 2, 3, 5)] == ["QR 50x50x4", "Quadratrohr", 50, 4]
+    assert str(wp["K10"].value).startswith("="), "Formelspalte überschrieben"
+    assert wb["Werkstoffe"]["E7"].value == 7.93 and wb["Werkstoffe"]["A7"].value == "1.4301"
+    assert wb["Angebot"]["A1"].value == "Laser GmbH" and wb["Kalkulation"]["C6"].value == 0.2
+    assert load_workbook(d / "stamm.xlsx", data_only=True)["Listen"]["E5"].value == "ja"
+    print("OK     Stammdaten übernehmen")
+
+
 def main():
-    welche = sys.argv[1:] or ["optimierung", "import"]
+    welche = sys.argv[1:] or ["optimierung", "import", "bedienung"]
     with tempfile.TemporaryDirectory() as d, LibreOffice() as lo:
         if "optimierung" in welche:
             test_optimierung(lo, Path(d))
         if "import" in welche:
             test_import(lo, Path(d))
+        if "bedienung" in welche:
+            test_bedienung(lo, Path(d))
 
 
 if __name__ == "__main__":

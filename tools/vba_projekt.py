@@ -372,9 +372,13 @@ def _blatt_pfade(z):
     return out
 
 
-def xlsm_packen(xlsx, xlsm, projekt, zeichnungen=None):
+REL_MENUBAND = "http://schemas.microsoft.com/office/2006/relationships/ui/extensibility"
+
+
+def xlsm_packen(xlsx, xlsm, projekt, zeichnungen=None, menueband=None):
     """xlsx (von openpyxl, CodeNames gesetzt) + vbaProject.bin -> xlsm.
-    zeichnungen: {Blattname: DrawingML-XML} für Schaltflächen (nur Blätter ohne eigene Zeichnung)."""
+    zeichnungen: {Blattname: DrawingML-XML} für Schaltflächen (nur Blätter ohne eigene Zeichnung).
+    menueband: customUI-XML (Schema 2006/01) für eine eigene Registerkarte."""
     zeichnungen = zeichnungen or {}
     with zipfile.ZipFile(xlsx) as z:
         dateien = {n: z.read(n) for n in z.namelist()}
@@ -411,11 +415,35 @@ def xlsm_packen(xlsx, xlsm, projekt, zeichnungen=None):
         m = re.search(r"<(%s)[ >/]" % "|".join(NACH_DRAWING), s)
         s = s[:m.start()] + tag + s[m.start():] if m else s.replace("</worksheet>", tag + "</worksheet>")
         dateien[pfad] = s.encode()
+    if menueband:
+        dateien["customUI/customUI.xml"] = menueband.encode("utf-8")
+        if 'Extension="xml"' not in ct:
+            ct = ct.replace("<Default ", '<Default Extension="xml" ContentType="application/xml"/><Default ', 1)
+        r = dateien["_rels/.rels"].decode()
+        r = r.replace("</Relationships>", f'<Relationship Id="rIdUI1" Type="{REL_MENUBAND}" Target="customUI/customUI.xml"/></Relationships>')
+        dateien["_rels/.rels"] = r.encode()
     dateien["[Content_Types].xml"] = ct.encode()
 
     with zipfile.ZipFile(xlsm, "w", zipfile.ZIP_DEFLATED) as z:
         for n in ["[Content_Types].xml"] + [n for n in dateien if n != "[Content_Types].xml"]:
             z.writestr(n, dateien[n])
+
+
+def menueband_xml(tab, gruppen):
+    """Registerkarte für das Menüband. gruppen: [(Bezeichnung, [(Makro, Beschriftung, imageMso, Tipp)])].
+    Die Makros werden mit dem IRibbonControl-Argument aufgerufen."""
+    from xml.sax.saxutils import quoteattr
+    teile = []
+    for g, (titel, knoepfe) in enumerate(gruppen, start=1):
+        teile.append(f'<group id="grp{g}" label={quoteattr(titel)}>')
+        for k, (makro, text, bild, tipp) in enumerate(knoepfe, start=1):
+            teile.append(f'<button id="btn{g}_{k}" label={quoteattr(text)} imageMso="{bild}" size="large" '
+                         f'onAction="{makro}" screentip={quoteattr(text)} supertip={quoteattr(tipp)}/>')
+        teile.append("</group>")
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            '<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui">'
+            f'<ribbon><tabs><tab id="tabRohrlaser" label={quoteattr(tab)} insertAfterMso="TabHome">'
+            + "".join(teile) + "</tab></tabs></ribbon></customUI>")
 
 
 def schaltflaechen_xml(knoepfe):

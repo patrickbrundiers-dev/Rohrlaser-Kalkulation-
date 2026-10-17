@@ -11,28 +11,33 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 | 3 | Stangenoptimierung | erledigt |
 | 4 | Kalkulation (Material, Laserzeit, Rüsten, Preis) und Auswertung | erledigt |
 | 5 | Betrieb ohne .bat-Dateien und ohne Installation (VBA + portable STEP-Import.exe) | erledigt |
+| 6 | Menüband, neuer Auftrag, Ablage, PDF-Ausgabe, exakte Optimierung kleiner Gruppen | erledigt |
 
 ## Benutzung (ohne Installation)
 
 1. Unter **Releases → aktuell** `Rohrlaser-Kalkulation.zip` herunterladen und entpacken. Darin liegen die Mappe `Rohrlaser_Kalkulation_v02.xlsm` und der Ordner `STEP-Import` (mit `STEP-Import.exe`). Beide müssen nebeneinander liegen bleiben.
 2. Mappe in Excel öffnen und Makros aktivieren („Inhalt aktivieren“). Sperrt Windows die Datei als Download, unter Eigenschaften „Zulassen“ anhaken oder den Ordner als vertrauenswürdigen Speicherort eintragen.
-3. Im Blatt „Auftrag“:
+3. Registerkarte **Rohrlaser** im Menüband (oder Schaltflächen im Blatt „Auftrag“):
+   - **Neuer Auftrag**: leert Positionen und Ergebnisse, zählt die Auftragsnummer hoch, setzt das Datum. Stammdaten, Maschine und Stangenlänge bleiben. Fragt vorher, ob der bisherige Auftrag gespeichert werden soll.
    - **STEP importieren**: STEP-Dateien wählen, optional Werkstoff und Stückzahl für alle Teile angeben. Fehlen Profile in den Stammdaten oder stehen Artikel schon im Auftrag, fragt die Mappe nach.
-   - **Optimieren**: füllt Schnittplan, Stangenbelegung und Auswertung. Alte Ergebnisse werden überschrieben.
+   - **Optimieren**: füllt Schnittplan, Stangenbelegung und Auswertung. „Stand Optimierung“ (Auftrag C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern.
+   - **Werkstattpapiere / Angebot / Kalkulation** (PDF): erzeugt die PDF-Datei im Ordner `Aufträge` neben der Mappe und öffnet sie. Werkstattpapiere = Materialliste und je Stange die Teile in Schnittreihenfolge (gleich belegte Stangen zusammengefasst).
+   - **Auftrag speichern als**: Kopie der Mappe als `<Auftragsnummer> <Kunde>.xlsm` im Ordner `Aufträge`. Die geöffnete Mappe bleibt die Vorlage.
+   - **Stammdaten übernehmen**: Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zuschläge und Angebotskopf aus einer anderen Mappe (z. B. der gepflegten Vorlage) in eine abgelegte Auftragsmappe kopieren.
 
 Die Mappe bleibt dabei geöffnet. Python wird nur zum Entwickeln gebraucht, nicht für die Benutzung.
 
 ## Inhalt
 
 - `mappe/Rohrlaser_Kalkulation_v02.xlsm`: aktuelle Mappe mit Makros. Bedienung und Annahmen stehen im Blatt „Anleitung“.
-- `vba/Optimierung.bas`, `vba/StepImport.bas`: Quelltext der Makros (Stangenoptimierung, Übernahme der STEP-Messwerte).
+- `vba/Optimierung.bas`, `vba/StepImport.bas`: Quelltext der Makros (Stangenoptimierung, Übernahme der STEP-Messwerte). `vba/Bedienung.bas`: Menüband, neuer Auftrag, Ablage, Stammdaten, Merker „Optimierung veraltet“. `vba/Ausgabe.bas`: Werkstattpapiere, Angebot, PDF.
 - `tools/build_mappe.py`: erzeugt die Mappe neu und bettet die Makros ein (`python3 tools/build_mappe.py`, benötigt `openpyxl`). Das VBA-Projekt schreibt `tools/vba_projekt.py` direkt aus dem Quelltext; Excel übersetzt es beim ersten Öffnen.
 - `tools/step_messen.py`: STEP-Messung (OpenCascade), wird als `STEP-Import.exe` ausgeliefert. `tools/step_geometrie.py`: Geometrieauswertung.
 - `tools/optimierung.py`, `tools/step_import.py`: Python-Fassungen von Optimierung und Import. Sie sind die Referenz für die Tests der Makros.
 - `.github/workflows/paket.yml`: baut `STEP-Import.exe` auf Windows (PyInstaller), prüft sie gegen die Python-Messung, packt sie mit der Mappe und veröffentlicht das Paket auf `main` als Release „aktuell“.
 - `tests/`: Testteile mit bekannten Sollwerten und Prüfskripte:
   - `python tests/test_step_import.py`, `python tests/test_optimierung.py`: Python-Fassungen.
-  - `python tests/test_vba.py`: führt die Makros in LibreOffice aus und vergleicht sie mit den Python-Fassungen (27 Testaufträge für die Optimierung, 5 Importfälle).
+  - `python tests/test_vba.py`: führt die Makros in LibreOffice aus und vergleicht sie mit den Python-Fassungen (39 Testaufträge für die Optimierung, 5 Importfälle) und prüft Werkstattpapier, Angebot, neuen Auftrag und Stammdatenübernahme.
 
 Alle Stammdaten in der Mappe sind Beispielwerte.
 
@@ -70,7 +75,7 @@ Regeln:
 - Teile werden bei Bedarf gedreht, damit gerade Enden aneinanderliegen; schräge Enden kommen an Stangenanfang oder -ende.
 - Keine Restverwaltung: Reste zählen als Verschnitt.
 - Teile, die nicht auf eine Stange passen oder unvollständige Daten haben, stehen in „Auswertung“ unter „Nicht eingeplante Teile“ und im Auftrag als Warnung.
-- Verfahren: First-Fit- und Best-Fit-Decreasing, danach werden schwach belegte Stangen aufgelöst. Die Auswertung zeigt je Gruppe die Untergrenze und den Vergleich mit einer manuellen Einteilung (Eingabereihenfolge, Stange voll, dann nächste).
+- Verfahren: First-Fit- und Best-Fit-Decreasing, danach werden schwach belegte Stangen aufgelöst. Liegt das Ergebnis über der Untergrenze und hat die Gruppe höchstens 60 Teile, sucht eine exakte Suche (Branch and Bound, höchstens 20.000 Suchschritte je Gruppe) eine Einteilung mit weniger Stangen. Die Auswertung zeigt je Gruppe die Untergrenze, den Abstand dazu, ob das Ergebnis nachweislich optimal ist, und den Vergleich mit einer manuellen Einteilung (Eingabereihenfolge, Stange voll, dann nächste).
 
 Kalkulation (Blatt „Kalkulation“):
 - Material: Kosten der Stangen laut Schnittplan (€/kg oder €/Stange aus „Preise“), je Gruppe nach Längenanteil auf die Positionen verteilt. Verschnitt ist damit enthalten.
@@ -84,4 +89,5 @@ Kalkulation (Blatt „Kalkulation“):
 - Excel unter Windows. `STEP-Import.exe` ist ein Windows-Programm; die Optimierung läuft auch ohne sie.
 - Getestet wird automatisch in LibreOffice, nicht in Excel. LibreOffice ist bei manchen Fehlern nachsichtiger als Excel, deshalb vor dem ersten produktiven Einsatz einmal Beispielauftrag optimieren und ein STEP-Teil importieren.
 - Python und VBA runden Grenzfälle (z. B. 128,95 auf eine Stelle) unterschiedlich; Abweichungen von einer Stelle in gerundeten Anzeigewerten sind möglich, an der Einteilung ändert das nichts.
+- Das Menüband „Rohrlaser“ ist ohne Verweis auf die Office-Bibliothek gebaut (Rückruf mit `control As Object`). Fehlt die Registerkarte, funktionieren die Schaltflächen im Blatt „Auftrag“ und alle Makros über Alt+F8 weiter.
 - Startet `STEP-Import.exe` nicht (z. B. durch eine Firmenrichtlinie gesperrt), muss die IT den Ordner `STEP-Import` freigeben.

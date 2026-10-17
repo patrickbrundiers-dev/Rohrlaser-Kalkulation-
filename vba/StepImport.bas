@@ -150,7 +150,8 @@ Private Function FindeExe() As String
     Dim kandidaten As Variant, k As Variant, sep As String
     sep = Application.PathSeparator
     kandidaten = Array(ThisWorkbook.Path & sep & "STEP-Import" & sep & "STEP-Import.exe", _
-                       ThisWorkbook.Path & sep & "STEP-Import.exe")
+                       ThisWorkbook.Path & sep & "STEP-Import.exe", _
+                       ThisWorkbook.Path & sep & ".." & sep & "STEP-Import" & sep & "STEP-Import.exe")   ' abgelegte Auftragsmappe
     For Each k In kandidaten
         If Len(Dir$(k)) > 0 Then FindeExe = k: Exit Function
     Next k
