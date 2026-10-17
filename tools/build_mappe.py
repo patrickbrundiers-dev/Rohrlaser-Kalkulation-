@@ -109,7 +109,7 @@ rows = [
     ("Werkstoffe", "Werkstoff/Materialqualität mit Dichte."),
     ("Preise", "Materialpreis je Profil + Werkstoff, wahlweise €/kg oder €/Stange."),
     ("Maschinen", "Maschinenparameter: Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge, Stundensatz."),
-    ("Schneiddaten", "Vorschub und Einstechzeit je Maschine, Werkstoff und Wandstärke (für Laserzeit in Schritt 4)."),
+    ("Schneiddaten", "Vorschub je Konturklasse (groß/Trennschnitt, mittel, klein) und Einstechzeit je Maschine, Werkstoff und Wandstärke (für Laserzeit in Schritt 4)."),
     ("Gewinde", "Kernlochdurchmesser je Gewinde. Der STEP-Import schlägt anhand dieser Tabelle Gewinde vor."),
     ("STEP-Import", "Wird beim ersten STEP-Import angelegt: Protokoll aller Messwerte je Teil."),
     ("Listen", "Auswahllisten (Profilform, Preisbasis)."),
@@ -134,7 +134,7 @@ rows = [
     ("A11", "Gemeinsamer Trennschnitt: Liegen zwei Teile auf der Stange nebeneinander und sind beide zugewandten Enden gerade (senkrecht), wird nur ein Schnitt gerechnet, sonst zwei. Dafür stehen je Teil Anfangs- und Endschnitt (gerade ja/nein, Schnittlänge) in Spalten Y–AB; Spalte H enthält immer beide Enden voll. Die Verrechnung erfolgt in der Optimierung (Schritt 3). Beim gemeinsamen Schnitt zählt auch der Schnittverlust nur einmal."),
     ("A12", "Schneidweg (Spalte H) = Anfangsschnitt + Endschnitt + Innenkonturen (AC). Gravuren (nicht durchgehende Konturen) stehen separat in AD und sind nicht im Schneidweg enthalten."),
     ("A13", "Gewinde: Der STEP-Import erkennt durchgehende Rundbohrungen (AE) und schlägt bei passendem Kernloch ein Gewinde vor (AF). Gerechnet wird nur, was nach manueller Prüfung in AG eingetragen ist (Format z. B. 4xM6; 2xM8). Solange AF gefüllt und AG leer ist, zeigt der Status einen Hinweis."),
-    ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine."),
+    ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine. Für die Laserzeit gilt je Klasse der eigene Vorschub aus 'Schneiddaten'; Anfangs-/Endschnitt mit Vorschub groß; fehlt mittel oder klein, wird der nächstgrößere verwendet."),
 ]
 r = 4
 for a, b in rows:
@@ -297,9 +297,10 @@ wb.defined_names["lst_Maschine"] = DefinedName("lst_Maschine", attr_text=f"Masch
 wsd = wb.create_sheet("Schneiddaten", 6)
 title(wsd, "Schneiddaten (Laserzeit)", "Je Maschine + Werkstoff gestaffelt nach Wandstärke: es gilt die Zeile mit der kleinsten 'Wandstärke bis', die ≥ der Profilwandstärke ist.")
 cols_sd = [("Maschinen-ID", 16, "in"), ("Werkstoff-ID", 16, "in"), ("Wandstärke bis [mm]", 12, "in"),
-           ("Vorschub [mm/min]", 12, "in"), ("Einstechzeit [s]", 12, "in"), ("Bemerkung", 30, "in")]
+           ("Vorschub groß / Trennschnitt [mm/min]", 13, "in"), ("Vorschub mittel [mm/min]", 12, "in"),
+           ("Vorschub klein [mm/min]", 12, "in"), ("Einstechzeit [s]", 12, "in"), ("Bemerkung", 30, "in")]
 header(wsd, 4, cols_sd)
-style_rows(wsd, M0, M1, cols_sd, {3: "0.0", 4: "#,##0", 5: "0.0"})
+style_rows(wsd, M0, M1, cols_sd, {3: "0.0", 4: "#,##0", 5: "#,##0", 6: "#,##0", 7: "0.0"})
 sd_rows = []
 for m in ("RL-1",):
     for w, data in (("S235-10219", [(2, 6000, 0.3), (3, 4500, 0.5), (5, 3000, 0.8)]),
@@ -307,15 +308,19 @@ for m in ("RL-1",):
                     ("1.4301", [(2, 5000, 0.4), (3, 3500, 0.6), (5, 2000, 1.0)]),
                     ("AW6060-T66", [(2, 7000, 0.3), (3, 5000, 0.5), (5, 3200, 0.8)])):
         for t, v, e in data:
-            sd_rows.append((m, w, t, v, e, "Beispiel"))
+            # Beispiel: mittlere Konturen 70 %, kleine 40 % des Vorschubs groß
+            sd_rows.append((m, w, t, v, round(v * 0.7, -1), round(v * 0.4, -1), e, "Beispiel"))
 for i, row in enumerate(sd_rows, start=M0):
     for j, v in enumerate(row, start=1):
         wsd.cell(row=i, column=j, value=v)
 add_dv(wsd, list_dv("lst_Maschine", "Bitte Maschinen-ID aus Blatt 'Maschinen' wählen."), f"A{M0}:A{M1}")
 add_dv(wsd, list_dv("lst_Werkstoff", "Bitte Werkstoff-ID aus Blatt 'Werkstoffe' wählen."), f"B{M0}:B{M1}")
 add_dv(wsd, num_dv(0.1, 50, msg="Wandstärke in mm."), f"C{M0}:C{M1}")
-add_dv(wsd, num_dv(1, 100000, msg="Vorschub in mm/min."), f"D{M0}:D{M1}")
-add_dv(wsd, num_dv(0, 60, msg="Einstechzeit in s."), f"E{M0}:E{M1}")
+add_dv(wsd, num_dv(1, 100000, msg="Vorschub in mm/min."), f"D{M0}:F{M1}")
+add_dv(wsd, num_dv(0, 60, msg="Einstechzeit in s."), f"G{M0}:G{M1}")
+wsd["D4"].comment = Comment("Gilt für Anfangs-/Endschnitt und große Innenkonturen.", "Kalkulation")
+wsd["E4"].comment = Comment("Leer = Vorschub groß wird verwendet.", "Kalkulation")
+wsd["F4"].comment = Comment("Leer = Vorschub mittel bzw. groß wird verwendet.", "Kalkulation")
 wsd.freeze_panes = "C5"
 
 # ---------------------------------------------------------------- Gewinde
@@ -380,7 +385,7 @@ cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "i
           ("Metergewicht [kg/m]", 10, "calc"), ("Gewicht je Teil [kg]", 10, "calc"), ("Länge gesamt [mm]", 11, "calc"),
           ("Stangenlänge wirksam [mm]", 11, "calc"), ("Endbeschnitt wirksam [mm]", 10, "calc"),
           ("Greiferrest wirksam [mm]", 10, "calc"), ("Nutzlänge Stange [mm]", 11, "calc"),
-          ("Preis hinterlegt", 9, "calc"), ("Vorschub [mm/min]", 10, "link"), ("Status", 34, "calc"), ("Gewicht Position [kg]", 11, "calc"),
+          ("Preis hinterlegt", 9, "calc"), ("Vorschub groß [mm/min]", 10, "link"), ("Status", 34, "calc"), ("Gewicht Position [kg]", 11, "calc"),
           ("Anfangsschnitt gerade (STEP)", 10, "in"), ("Anfangsschnitt [mm] (STEP)", 11, "in"),
           ("Endschnitt gerade (STEP)", 10, "in"), ("Endschnitt [mm] (STEP)", 11, "in"),
           ("Innenkonturen [mm] (STEP)", 11, "in"), ("Gravur [mm] (STEP)", 10, "in"),
