@@ -64,7 +64,7 @@ for name, (form, a, b, t, fl, l, sw, k) in SOLL.items():
             nah(teil.innen, 4 * pi * 5 + 60, 0.05, "Innenkonturen", name)
             nah(teil.gravur, 2 * (24 + 5), 0.05, "Gravur", name)
             assert teil.gravur_konturen == 1 and teil.innen_konturen == 5
-            assert gewinde_vorschlag(teil.bohrungen) == "4xM6 (Ø5)", gewinde_vorschlag(teil.bohrungen)
+            assert gewinde_vorschlag(teil.bohrungen) == "4xM6", gewinde_vorschlag(teil.bohrungen)
             kl = konturklassen(teil.innen_liste)  # 4x Ø5 klein, Ausschnitt 10x20 mittel
             assert kl["klein"][0] == 4 and kl["mittel"][0] == 1 and kl["gross"][0] == 0, kl
             nah(kl["klein"][1], 4 * pi * 5, 0.05, "Kontur klein", name)
@@ -91,7 +91,7 @@ with tempfile.TemporaryDirectory() as d:
     assert "Profil fehlt" in t05, t05
     from openpyxl import load_workbook
     w = load_workbook(m)["Auftrag"]
-    assert w["AF24"].value == "4xM6 (Ø5)" and w["AG24"].value is None, (w["AF24"].value, w["AG24"].value)
+    assert w["AF24"].value == "4xM6" and w["AG24"].value is None, (w["AF24"].value, w["AG24"].value)
     assert w["AD24"].value == 58.0 and w["AE24"].value == "4xØ5", (w["AD24"].value, w["AE24"].value)
     assert [w.cell(24, c).value for c in range(34, 40)] == [4, 62.8, 1, 60.0, 0, 0.0], [w.cell(24, c).value for c in range(34, 40)]
     erg2 = importiere(m, [STEP])
