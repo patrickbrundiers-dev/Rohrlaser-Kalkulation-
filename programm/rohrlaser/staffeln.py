@@ -128,6 +128,7 @@ def kennung(kopf, positionen, stufen, k, tabellen, einst):
              [{a: b for a, b in p.items() if a not in ("id", "auftrag_id", "nr", "zeile")} for p in positionen],
              [(txt(s.get("schluessel")), s.get("menge")) for s in gueltige(stufen)],
              [k.profile, k.werkstoffe, k.maschinen], tabellen,
-             {n: einst.get(n) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn", "ruesten_abmessung",
+             {n: einst.get(n) for n in ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn",
+                                         "ruesten_abmessung",
                                          "pauschale_abmessung", "auftragsaufschlag")}]
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()

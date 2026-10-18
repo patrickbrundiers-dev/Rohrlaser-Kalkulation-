@@ -237,8 +237,9 @@ def main(ziel):
     bereit()
     kopf_box = s.felder["nummer"].parentWidget()
     foto.foto("auftrag_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
-                                        (knopf(s, "Neue Position"), 4), (knopf(s, "STEP importieren …"), 5),
-                                        (knopf(s, "Optimieren"), 6), (s.zeige_berechnet, 7)])
+                                        (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
+                                        (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
+                                        (s.zeige_berechnet, 8)])
     s.zeige_berechnet.setChecked(True)
     foto.foto("auftrag_berechnet", f)
     s.zeige_berechnet.setChecked(False)
@@ -261,6 +262,43 @@ def main(ziel):
     db.position_aendern(pos[0]["id"], "stueck", 8)
     s.neu_laden()
     s.optimieren()
+
+    # 7a) Zusatzarbeiten: alle Teile feuerverzinkt; Pos. 1 zusätzlich Gewinde und Gravur extra (Dialog);
+    #     Pos. 2 mit manueller Schneidzeit
+    s.zusatzarbeiten(list(range(len(s.positionen))), (None, json.dumps([dict(name="Feuerverzinken")])))
+
+    def zusatz_ausfuellen(d):
+        d.gewinde.setText("2xM8")
+        r = d.zeile_neu()
+        d.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
+        d.tabelle.cellWidget(r, 4).setText("Logo")
+        QApplication.processEvents()
+        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.tabelle.cellWidget(r, 0), 2),
+                                       (d.tabelle.cellWidget(0, 2), 3), (d.tabelle.cellWidget(r, 4), 4),
+                                       (knopf(d, "Zusatzarbeit hinzufügen"), 5)])
+        d._ok()
+    QTimer.singleShot(100, lambda: _warte_modal(zusatz_ausfuellen))
+    s.zusatzarbeiten([0])
+    db.position_aendern(s.positionen[1]["id"], "zeit_manuell", 45.0)
+    s.neu_laden()
+    bereit()
+    m = s.pos_modell
+    versteckt = [i for i, (art, x) in enumerate(m.spalten) if art == "feld" and x.name in
+                 ("einstiche", "stange", "satz", "je_satz", "preis_m")]
+    for c in versteckt:
+        s.pos_ansicht.setColumnHidden(c, True)
+    spalte = {x.name if art != "status" else "status": i for i, (art, x) in enumerate(m.spalten) if art != "berechnet"}
+    kopf = s.pos_ansicht.horizontalHeader()
+
+    def kopf_marke(c):
+        x = kopf.sectionViewportPosition(c)
+        return (kopf, QRect(x, 0, kopf.sectionSize(c), kopf.height()))
+    QApplication.processEvents()
+    status = s.pos_ansicht.visualRect(m.index(1, spalte["status"]))
+    foto.foto("auftrag_zusatz", f, [(kopf_marke(spalte["zeit_manuell"]), 1), (kopf_marke(spalte["zusatz"]), 2),
+                                    ((s.pos_ansicht.viewport(), status), 3)], ausschnitt=reiterflaeche(s))
+    for c in versteckt:
+        s.pos_ansicht.setColumnHidden(c, False)
 
     # 8) Staffeln: Gestelle als Satz
     for menge, bem in ((1, "Einzelgestell"), (2, "Anfrage"), (5, "kleine Serie"), (10, "Rahmenauftrag")):

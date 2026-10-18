@@ -18,7 +18,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from openpyxl import load_workbook  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.mappe_import import lies_mappe  # noqa: E402
-from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, Kontext, beispieldaten, flaeche_berechnet,  # noqa: E402
+from rohrlaser.stammdaten import (TABELLE, TABELLEN, PROFILE, PREISE, Kontext, beispieldaten, flaeche_berechnet,  # noqa: E402
                                   preis_je_m_automatisch, pruefen, wert_aus_text, wert_als_text)
 
 MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
@@ -27,7 +27,9 @@ tmp = Path(tempfile.mkdtemp())
 # 1) Beispieldaten einer neuen Datenbank = Stammdaten der Mappe v02 (Übernahme liest alles, ohne Hinweise)
 daten, einst, hinweise = lies_mappe(MAPPE)
 assert hinweise == [], hinweise
-assert daten == beispieldaten(), "Beispieldaten im Programm weichen von der Mappe ab"
+# (Tabellen und Felder, die es nur im Programm gibt, z. B. Zusatzarbeiten und Preis je Gewinde, liest die Mappe nicht)
+assert daten == {t.name: [{f.name: z[f.name] for f in t.felder if f.spalte} for z in beispieldaten()[t.name]]
+                 for t in TABELLEN if t.blatt}, "Beispieldaten im Programm weichen von der Mappe ab"
 assert einst["zuschlag_fertigung"] == 0.15 and einst["standard_stange"] == 6000 and einst["mwst"] == 0.19
 assert einst["profilformen"].splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil"]
 db = Datenbank(tmp / "a" / "rohrlaser.db")

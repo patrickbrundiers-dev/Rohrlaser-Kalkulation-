@@ -35,6 +35,8 @@ jobs:
           /usr/bin/python3 tests/test_programm.py
           /usr/bin/python3 tests/test_programm_mappe.py
           /usr/bin/python3 tests/test_programm_ausgabe.py
+          /usr/bin/python3 tests/test_zusatzarbeiten.py
+          /usr/bin/python3 tests/test_anleitung.py
       - name: Abnahme (realistische Testaufträge, Kriterien und Vergleich mit der Mappe)
         env:
           QT_QPA_PLATFORM: offscreen

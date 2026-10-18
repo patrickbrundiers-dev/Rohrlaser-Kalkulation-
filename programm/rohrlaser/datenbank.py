@@ -3,7 +3,8 @@
 Das Schema entsteht aus stammdaten.TABELLEN und auftrag.KOPF/POSITIONEN; die Schemaversion steht in
 PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 = nur Stammdaten,
 2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
-Frachtkosten im Auftragskopf). Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt.
+Frachtkosten im Auftragskopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell). Fehlende Spalten
+älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die Beispiel-Zusatzarbeiten.
 """
 import datetime
 import json
@@ -11,9 +12,10 @@ import sqlite3
 from pathlib import Path
 
 from .auftrag import KOPF, POSITIONEN, naechste_nummer
-from .stammdaten import TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispieldaten, kontext_aus
+from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+                         beispieldaten, kontext_aus)
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
 
@@ -68,6 +70,10 @@ class Datenbank:
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
                         self.con.execute(f'ALTER TABLE "{tabelle}" ADD COLUMN "{f.name}" {SQL_ART.get(f.art, "TEXT")}')
+            if 0 < version < 5 and not self.anzahl("zusatzarbeiten"):
+                namen = [f.name for f in TABELLE["zusatzarbeiten"].felder]
+                self.con.executemany(f'INSERT INTO zusatzarbeiten ({", ".join(namen)}) VALUES ({", ".join("?" * len(namen))})',
+                                     [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -128,6 +134,14 @@ class Datenbank:
             for t in TABELLEN:
                 if t.name not in daten:
                     continue
+                # Felder, die es nur im Programm gibt (z. B. Preis je Gewinde), bleiben je Schlüssel erhalten
+                nur_programm = [f.name for f in t.felder if not f.spalte]
+                if nur_programm:
+                    alt = {tuple(z.get(s) for s in t.schluessel): z for z in self.zeilen(t.name)}
+                    daten = dict(daten)
+                    daten[t.name] = [dict(z, **{n: (alt.get(tuple(z.get(s) for s in t.schluessel)) or {}).get(n)
+                                                for n in nur_programm if z.get(n) is None})
+                                     for z in daten[t.name]]
                 self.con.execute(f'DELETE FROM "{t.name}"')
                 namen = [f.name for f in t.felder]
                 self.con.executemany(
@@ -144,8 +158,8 @@ class Datenbank:
         return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen")}, formen)
 
     def tabellen(self):
-        """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde)."""
-        return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde")}
+        """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten)."""
+        return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde", "zusatzarbeiten")}
 
     # -------------------------------------------------------------- Aufträge
     def auftraege(self, suche=""):

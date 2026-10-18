@@ -6,7 +6,7 @@ from openpyxl.utils import get_column_letter
 
 from .auftrag import KOPF, POSITIONEN
 from .auftrag_spalten import AUSW_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
-from .rechnen import auswertung_zeilen
+from .rechnen import auswertung_zeilen, zusatz_text
 from .staffeln import SPALTEN as STAFFEL_SPALTEN
 
 KOPF_FUELLUNG = PatternFill("solid", fgColor="1F4E78")
@@ -39,7 +39,8 @@ def auftrag_xlsx(pfad, kopf, positionen, status, kalk_zeilen, summen, ergebnis, 
     wb.remove(wb.active)
     # Auftrag: Kopf und Positionen
     ws = _blatt(wb, "Auftrag", f"Auftrag {kopf.get('nummer') or ''}",
-                [(f.titel, f.name, max(8, f.breite / 7)) for f in POSITIONEN.felder] + [("Status", "_status", 40)],
+                [(f.titel, zusatz_text if f.art == "zusatz" else f.name, max(8, f.breite / 7)) for f in POSITIONEN.felder]
+                + [("Status", "_status", 40)],
                 [dict(p, _status=s) for p, s in zip(positionen, status)])
     ws.insert_rows(2, len(KOPF) + 1)
     for i, f in enumerate(KOPF):
@@ -48,9 +49,10 @@ def auftrag_xlsx(pfad, kopf, positionen, status, kalk_zeilen, summen, ergebnis, 
     ws.freeze_panes = f"A{len(KOPF) + 5}"
     _blatt(wb, "Kalkulation", "Kalkulation", [(t, s, w / 6) for t, s, _, w in KALK_SPALTEN], [z for z in kalk_zeilen if z])
     ks = wb["Kalkulation"]
-    ks.insert_rows(2, 9)
+    ks.insert_rows(2, 10)
     for i, (t, n) in enumerate((("Material [€]", "material"), ("Laser + Gewinde [€]", "laser"),
-                                ("Rüsten + Stangenwechsel [€]", "ruesten"), ("Herstellkosten [€]", "herstell"),
+                                ("Rüsten + Stangenwechsel [€]", "ruesten"), ("Zusatzarbeiten [€]", "zusatz"),
+                                ("Herstellkosten [€]", "herstell"),
                                 ("Pauschalen je Abmessung [€]", "pauschalen"), ("Auftragsaufschlag [€]", "auftragsaufschlag"),
                                 ("Fracht [€]", "fracht"), ("Verkaufspreis Auftrag [€]", "verkauf"))):
         ks.cell(2 + i, 1, t).font = Font(bold=True)

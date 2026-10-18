@@ -145,7 +145,7 @@ class Auswahl(QStyledItemDelegate):
         art, f = quelle.model().spalten[quelle.column()]
         if art == "feld" and f.art == "auswahl":
             cb = QComboBox(parent)
-            cb.setEditable(f.auswahl not in ("preisbasis", "profilform"))
+            cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein"))
             cb.addItems([""] + quelle.model().k.auswahl(f.auswahl))
             return cb
         return super().createEditor(parent, option, index)
@@ -493,7 +493,7 @@ class Hauptfenster(QMainWindow):
         except Exception as e:   # beschädigte oder fremde Datei: Meldung statt Absturz
             QMessageBox.warning(self, "Übernahme nicht möglich", str(e))
             return False
-        zeilen = "\n".join(f"  {t.titel}: {len(daten[t.name])}" for t in TABELLEN)
+        zeilen = "\n".join(f"  {t.titel}: {len(daten[t.name])}" for t in TABELLEN if t.name in daten)
         text = (f"Aus '{Path(pfad).name}' übernehmen:\n{zeilen}\n  dazu Zuschläge, Angebotskopf und Auftragsvorgaben.\n\n"
                 "Die vorhandenen Stammdaten im Programm werden ersetzt. Vorher wird eine Datensicherung angelegt.")
         if hinweise:

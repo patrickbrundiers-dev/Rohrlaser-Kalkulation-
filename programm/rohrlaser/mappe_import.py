@@ -39,22 +39,25 @@ def lies_mappe(pfad):
     bleiben leer und werden gemeldet."""
     pfad = Path(pfad)
     wb = load_workbook(pfad, read_only=True, data_only=True, keep_vba=False)
-    fehlend = [t.blatt for t in TABELLEN if t.blatt not in wb.sheetnames]
+    fehlend = [t.blatt for t in TABELLEN if t.blatt and t.blatt not in wb.sheetnames]
     if fehlend:
         wb.close()
         raise ValueError(f"'{pfad.name}' ist keine Kalkulationsmappe: Blatt {', '.join(fehlend)} fehlt.")
     daten, hinweise = {}, []
     for t in TABELLEN:
+        if not t.blatt:          # Tabelle gibt es nur im Programm (Zusatzarbeiten): bleibt unverändert
+            continue
         ws = wb[t.blatt]
         zeilen, schluessel = [], set()
-        breite = max(f.spalte for f in t.felder)
+        felder = [f for f in t.felder if f.spalte]     # Felder nur im Programm bleiben leer
+        breite = max(f.spalte for f in felder)
         for nr, werte in enumerate(ws.iter_rows(min_row=t.zeilen[0], max_row=t.zeilen[1], max_col=breite,
                                                 values_only=True), start=t.zeilen[0]):
             werte = list(werte) + [None] * (breite - len(werte))
-            if all(werte[f.spalte - 1] in (None, "") for f in t.felder):
+            if all(werte[f.spalte - 1] in (None, "") for f in felder):
                 continue
             z = {}
-            for f in t.felder:
+            for f in felder:
                 roh = werte[f.spalte - 1]
                 try:
                     z[f.name] = _wert(f, roh)
@@ -115,15 +118,16 @@ def lies_auftrag(pfad):
             except (ValueError, TypeError):
                 kopf[f.name] = None
                 hinweise.append(f"Auftrag {KOPF_ZELLE[f.name]}: {f.titel} nicht lesbar.")
-    breite = max(f.spalte for f in POSITIONEN.felder)
+    felder = [f for f in POSITIONEN.felder if f.spalte]
+    breite = max(f.spalte for f in felder)
     positionen = []
     for nr, werte in enumerate(ws.iter_rows(min_row=POSITIONEN.zeilen[0], max_row=POSITIONEN.zeilen[1],
                                             max_col=breite, values_only=True), start=POSITIONEN.zeilen[0]):
         werte = list(werte) + [None] * (breite - len(werte))
-        if all(werte[f.spalte - 1] in (None, "") for f in POSITIONEN.felder):
+        if all(werte[f.spalte - 1] in (None, "") for f in felder):
             continue
         p = {}
-        for f in POSITIONEN.felder:
+        for f in felder:
             roh = werte[f.spalte - 1]
             try:
                 p[f.name] = _wert(f, roh)

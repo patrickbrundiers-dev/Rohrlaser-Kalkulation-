@@ -1,7 +1,7 @@
 """Aufbau der Stammdaten: Tabellen, Felder, Prüfregeln und berechnete Spalten.
 
 Eine Beschreibung je Tabelle dient für alles: Datenbankschema, Übernahme aus der Excel-Mappe
-(Spalte im Stammdatenblatt), Anzeige im Programm und Prüfung. Grenzen und Prüfungen entsprechen
+(Spalte im Stammdatenblatt; None = Feld gibt es nur im Programm), Anzeige im Programm und Prüfung. Grenzen und Prüfungen entsprechen
 den Eingabeprüfungen und Prüfformeln der Mappe (tools/build_mappe.py).
 """
 import datetime
@@ -11,13 +11,17 @@ from dataclasses import dataclass, field
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
+# Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge oder Stück; 's/Stück' = Zeit in
+# Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur, die nicht im STEP-Modell ist)
+ZUSATZARTEN = ("€/kg", "€/m²", "€/m", "€/Stück", "s/Stück")
+ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk"}
 
 
 @dataclass(frozen=True)
 class Feld:
     name: str               # Spalte in der Datenbank
     titel: str              # Spaltenkopf im Programm
-    spalte: int             # Spalte im Stammdatenblatt der Mappe (1 = A)
+    spalte: int             # Spalte im Stammdatenblatt der Mappe (1 = A), None = nur im Programm
     art: str = "text"       # text | zahl | ganz | datum | auswahl
     von: float = None       # zulässiger Bereich (wie Eingabeprüfung der Mappe)
     bis: float = None
@@ -32,7 +36,7 @@ class Feld:
 class Tabelle:
     name: str               # Tabelle in der Datenbank
     titel: str              # Reiter im Programm
-    blatt: str              # Blatt in der Mappe
+    blatt: str              # Blatt in der Mappe (None = nur im Programm)
     felder: tuple
     schluessel: tuple       # eindeutige Felder (zusammen)
     hinweis: str
@@ -183,13 +187,30 @@ GEWINDE = Tabelle(
     (Feld("gewinde", "Gewinde", 1, pflicht=True, breite=80),
      Feld("kernloch", "Kernloch Ø [mm]", 2, "zahl", 0.5, 100, stellen=1, pflicht=True),
      Feld("zeit", "Zeit je Gewinde [s]", 3, "zahl", 0, 3600, stellen=0),
-     Feld("bemerkung", "Bemerkung", 4, breite=260)),
+     Feld("bemerkung", "Bemerkung", 4, breite=260),
+     Feld("preis", "Preis je Gewinde [€]", None, "zahl", 0, 1000, stellen=2, breite=90)),
     ("gewinde",),
     "ISO-Regelgewinde, Kernloch nach DIN 336. Der STEP-Import vergleicht Bohrungsdurchmesser mit dieser "
-    "Tabelle (±0,05 mm). Die Zeit je Gewinde geht in die Kalkulation ein.",
+    "Tabelle (±0,05 mm). In der Kalkulation zählt der feste Preis je Gewinde; ist er leer, die Zeit je "
+    "Gewinde mit dem Maschinenstundensatz.",
     zeilen=(5, 54))
 
-TABELLEN = (PROFILE, WERKSTOFFE, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE)
+ZUSATZARBEITEN = Tabelle(
+    "zusatzarbeiten", "Zusatzarbeiten", None,
+    (Feld("name", "Zusatzarbeit", None, pflicht=True, breite=160),
+     Feld("art", "Abrechnung", None, "auswahl", auswahl="zusatzart", pflicht=True, breite=80),
+     Feld("preis", "Preis [€] bzw. Zeit [s] je Einheit", None, "zahl", 0, 100000, stellen=2, pflicht=True, breite=95),
+     Feld("mindest", "Mindestbetrag je Auftrag [€]", None, "zahl", 0, 100000, stellen=2, breite=95),
+     Feld("fremd", "Fremdleistung", None, "auswahl", auswahl="janein", breite=80),
+     Feld("angebotstext", "Text im Angebot", None, breite=170),
+     Feld("bemerkung", "Bemerkung", None, breite=260)),
+    ("name",),
+    "Auswahl für 'Zusatzarbeiten …' im Auftrag. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
+    "Umfang × Länge), €/m (Teilelänge), €/Stück, s/Stück (Zeit je Stück, wird zur Schneidzeit addiert, z. B. "
+    "Gravur, die nicht im Teil ist). Mindestbetrag: liegt die Summe im Auftrag darunter, wird auf den "
+    "Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag Fremdleistung, sonst Zuschlag Fertigung.")
+
+TABELLEN = (PROFILE, WERKSTOFFE, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -217,6 +238,7 @@ class Einstellung:
 EINSTELLUNGEN = (
     Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0.10, ("Kalkulation", "C4"), 0, 5),
     Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0.15, ("Kalkulation", "C5"), 0, 5),
+    Einstellung("zuschlag_fremdleistung", "Zuschlag Fremdleistung", "Kalkulation", "anteil", 0.10, None, 0, 5),
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, ("Kalkulation", "C6"), 0, 5),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, None, 0, 1440),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, None, 0, 100000),
@@ -317,7 +339,7 @@ class Kontext:
     profilformen: tuple = PROFILFORMEN
 
     def auswahl(self, quelle):
-        return {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
+        return {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS), "zusatzart": list(ZUSATZARTEN),
                 "profil": sorted(self.profile), "werkstoff": sorted(self.werkstoffe), "janein": ["ja", "nein"],
                 "maschine": sorted(self.maschinen)}[quelle]
 
@@ -375,8 +397,8 @@ def beispieldaten():
                      ("AW6060-T66", [(2, 7000, 0.3), (3, 5000, 0.5), (5, 3200, 0.8)])):
         for s, v, e in daten:
             sd.append(("RL-1", w, s, v, round(v * 0.7, -1), round(v * 0.4, -1), e, 10000, "Beispiel"))
-    gewinde = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
-               ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
+    gewinde = [("M3", 2.5, 0.60), ("M4", 3.3, 0.70), ("M5", 4.2, 0.80), ("M6", 5.0, 0.90), ("M8", 6.8, 1.10),
+               ("M10", 8.5, 1.30), ("M12", 10.2, 1.60), ("M14", 12.0, 1.90), ("M16", 14.0, 2.20), ("M20", 17.5, 2.80)]
     return {
         "profile": zeilen(PROFILE, [
             ("RR 42,4x2,0", "Rundrohr", 42.4, None, 2.0, None, None, None, "Beispiel"),
@@ -400,6 +422,19 @@ def beispieldaten():
             ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30, "Beispielwerte"),
             ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, 10, 50, 2, 20, 40, "Beispielwerte")]),
         "schneiddaten": zeilen(SCHNEIDDATEN, sd),
-        "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None)
-                                    for i, (g, k) in enumerate(gewinde)]),
+        "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None, p)
+                                    for i, (g, k, p) in enumerate(gewinde)]),
+        "zusatzarbeiten": beispiel_zusatzarbeiten(),
     }
+
+
+def beispiel_zusatzarbeiten():
+    """Vorbelegung der Zusatzarbeiten (Beispielpreise, bitte durch eigene ersetzen)."""
+    werte = [("Feuerverzinken", "€/kg", 0.65, 120.0, "ja", "feuerverzinkt", "Beispielpreis; Mindestbetrag der Verzinkerei"),
+             ("Galvanisch verzinken", "€/kg", 1.20, 80.0, "ja", "galvanisch verzinkt", "Beispielpreis"),
+             ("Pulverbeschichten", "€/m²", 18.00, 90.0, "ja", "pulverbeschichtet",
+              "Beispielpreis; Farbe je Position als Text eintragen, z. B. RAL 7016"),
+             ("Entgraten", "€/Stück", 0.50, None, "nein", "entgratet", "Beispielpreis"),
+             ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
+              "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)")]
+    return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte]

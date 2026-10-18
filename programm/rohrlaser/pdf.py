@@ -276,13 +276,15 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
 
 
 # ------------------------------------------------------------------ Kalkulation
-KALK = [("Pos.", "pos", 0, 10), ("Artikelnummer", "artikel", None, 26), ("Stück", "stueck", 0, 13),
+KALK = [("Pos.", "pos", 0, 10), ("Artikelnummer", "artikel", None, 22), ("Stück", "stueck", 0, 11),
         ("Material je Teil [€]", "material_teil", 3, 19), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 19),
-        ("Gewindezeit je Teil [s]", "gewindezeit", 1, 18), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 19),
-        ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 21), ("Herstellkosten je Teil [€]", "herstell_teil", 3, 20),
-        ("Pauschalen + Aufschlag + Fracht je Teil [€]", "pauschalen_teil", 3, 22),
-        ("Verkaufspreis je Teil [€]", "preis_teil", 3, 20), ("Verkaufspreis Position [€]", "preis_position", 2, 22),
-        ("Herstellkosten Position [€]", "herstell_position", 2, 22), ("Hinweis", "hinweis", None, 22)]
+        ("Gewindezeit je Teil [s]", "gewindezeit", 1, 17), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 19),
+        ("Zusatzarbeiten je Teil [€]", "zusatz_teil", 3, 19), ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 18),
+        ("Herstellkosten je Teil [€]", "herstell_teil", 3, 20),
+        ("Pauschalen + Aufschlag + Fracht je Teil [€]", "pauschalen_teil", 3, 19),
+        ("Verkaufspreis je Teil [€]", "preis_teil", 3, 20), ("Verkaufspreis Position [€]", "preis_position", 2, 19),
+        ("Herstellkosten Position [€]", "herstell_position", 2, 19), ("Hinweis", "hinweis", None, 22)]
+assert sum(s[3] for s in KALK) <= 273     # Breite A4 quer ohne Ränder [mm]
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
@@ -295,7 +297,8 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
         inhalt.append(_p("ACHTUNG: Kalkulation passt nicht zum aktuellen Auftrag (Optimierung veraltet).",
                          ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
     werte = [("Material [€]", _z(summen["material"])), ("Laser + Gewinde [€]", _z(summen["laser"])),
-             ("Rüsten + Stangenwechsel [€]", _z(summen["ruesten"])), ("Herstellkosten [€]", _z(summen["herstell"])),
+             ("Rüsten + Stangenwechsel [€]", _z(summen["ruesten"])),
+             ("Zusatzarbeiten [€]", _z(summen["zusatz"])), ("Herstellkosten [€]", _z(summen["herstell"])),
              ("Pauschalen je Abmessung [€]", _z(summen["pauschalen"])),
              ("Auftragsaufschlag + Fracht [€]", _z(summen["auftragsaufschlag"] + summen["fracht"])),
              ("Verkaufspreis Auftrag [€]", _z(summen["verkauf"]))]
@@ -303,8 +306,9 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
                ("Abmessungen × Rüstzeit [min]", f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"),
                ("Stangenwechsel [s]", _z(summen["stangenwechsel"], 0)),
                ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0)),
-               ("Zuschläge M / F / Gewinn", " / ".join(f"{_z(100 * (einst.get(n) or 0), 1)} %" for n in
-                                                       ("zuschlag_material", "zuschlag_fertigung", "gewinn")))]
+               ("Zuschläge M / F / Fremdl. / Gewinn", " / ".join(f"{_z(100 * (einst.get(n) or 0), 1)} %" for n in
+                                                       ("zuschlag_material", "zuschlag_fertigung",
+                                                        "zuschlag_fremdleistung", "gewinn")))]
     t = Table([[_p(a, S_FETT), _p(b, S_RECHTS), "", _p(c, S_FETT), _p(d, S_RECHTS)] for (a, b), (c, d) in
                zip_longest(werte, auftrag, fillvalue=("", ""))],
               colWidths=[50 * mm, 30 * mm, 15 * mm, 50 * mm, 40 * mm], hAlign="LEFT")

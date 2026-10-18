@@ -34,6 +34,9 @@ POSITIONEN = Tabelle(
      Feld("je_satz", "Stück je Satz", 44, "ganz", 1, 100000, breite=60),
      Feld("preis_m", "Materialpreis abweichend [€/m]", 42, "zahl", 0, 100000, stellen=2, breite=85),
      Feld("gewinde", "Gewinde geprüft", 33, muster=GEWINDE_MUSTER, breite=110),
+     Feld("zeit_manuell", "Schneidzeit manuell je Teil [s]", None, "zahl", 0, 100000, stellen=1, breite=85),
+     # Zusatzarbeiten als JSON-Liste [{name, menge, preis, text}] (Dialog 'Zusatzarbeiten …')
+     Feld("zusatz", "Zusatzarbeiten", None, "zusatz", breite=220),
      # STEP-Werte
      Feld("a_gerade", "Anfangsschnitt gerade", 25, "auswahl", auswahl="janein", breite=70),
      Feld("a_schnitt", "Anfangsschnitt [mm]", 26, "zahl", 0, 100000, stellen=1, breite=75),
@@ -53,7 +56,9 @@ POSITIONEN = Tabelle(
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt wie in der Mappe "
     "FEHLER, WARNUNG, HINWEIS oder OK.",
     zeilen=(13, 512))
-STEP_FELDER = {f.name for f in POSITIONEN.felder[14:]}
+STEP_FELDER = {"a_gerade", "a_schnitt", "b_gerade", "b_schnitt", "innen", "gravur", "bohrungen", "gewinde_vorschlag",
+               "klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm"}
+assert STEP_FELDER <= {f.name for f in POSITIONEN.felder}
 
 
 def naechste_nummer(nr):
