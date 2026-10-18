@@ -270,7 +270,62 @@ assert db.auftrag(a4)["nummer"] != db.auftrag(a5)["nummer"]
 assert set(fenster.offen) == {a1, a4, a5}
 fenster.auftrag_schliessen(a5)
 assert a5 not in fenster.offen
+
+# 12) Schritt 3: Staffeln aus der Mappe, Staffelpreise, PDFs und Excel-Export in die Ablage
+from openpyxl import load_workbook as _lade  # noqa: E402
+from rohrlaser import ausgabe, staffeln  # noqa: E402
+assert [(x["schluessel"], x["menge"]) for x in db.staffeln(a4)] == [("Rahmen", 2), ("Rahmen", 4), ("Rahmen", 8),
+                                                                     ("10", 24), ("10", 50), ("10", 100)]
+db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))
+s4 = fenster.offen[a4]
+assert [staffeln.pruefen(x, s4.positionen) for x in s4.stufen[:4]] == ["Satz mit 2 Positionen"] * 3 + ["Position"]
+assert staffeln.pruefen(dict(schluessel="gibt es nicht", menge=3), s4.positionen).startswith("FEHLER")
+assert staffeln.pruefen(dict(schluessel="10", menge=None), s4.positionen) == "FEHLER: Menge fehlt"
+assert s4.optimieren()
+sp = s4.staffelpreise_rechnen()
+assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
+assert [z["preis_einheit"] for z in sp] == [159.19, 149.71, 138.36, 7.31, 6.71, 6.11], sp   # Werte der Mappe
+assert "aktuell" in s4.staffel_info.text()
+st_mod = s4.staffel_modell
+assert st_mod.setData(st_mod.index(5, 1), "200") and db.staffeln(a4)[5]["menge"] == 200
+assert "VERALTET" in s4.staffel_info.text()
+assert not st_mod.setData(st_mod.index(5, 1), "0")
+ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
+assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
+assert abs(ang["netto"] - 1008.16) < 1e-9 and ang["mwst"] == 191.55, ang   # wie Angebot der Mappe
+assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2, L = 1250 mm, inkl. Material S235 EN10219"
+assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
+for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
+                     (s4.kalkulation_pdf, "Kalkulation.pdf"), (s4.excel_export, ".xlsx")):
+    datei = aufruf()
+    assert datei and datei.parent == tmp / "Ablage" and datei.name.endswith(name) and datei.stat().st_size > 1000, datei
+    if name.endswith(".pdf"):
+        assert datei.read_bytes()[:5] == b"%PDF-"
+wbx = _lade(datei)
+assert {"Auftrag", "Kalkulation", "Schnittplan", "Stangenbelegung", "Auswertung", "Staffelpreise", "Angebot"} <= set(wbx.sheetnames)
+assert ausgabe.nummern_text([1, 2, 3, 7, 9, 10]) == "1–3, 7, 9–10"
+assert ausgabe.dateiname(dict(nummer="A/1", kunde="X: Y"), "Angebot", True) == "A_1 X_ Y Angebot"
+assert ausgabe.zahl_kurz(2.0) == "2" and ausgabe.zahl_kurz(42.4) == "42,4" and ausgabe.kaufm_runden(2.675) == 2.68
+a6 = db.auftrag_kopieren(a4)
+assert len(db.staffeln(a6)) == 6
 fenster.close()
+db.schliessen()
+
+# 13) Datendatei aus Schritt 2 (Schema 2) wird beim Öffnen erweitert
+import sqlite3  # noqa: E402
+alt = tmp / "c" / "rohrlaser.db"
+Datenbank(alt).schliessen()
+con = sqlite3.connect(alt)
+con.execute("DROP TABLE staffeln")
+con.execute("ALTER TABLE auftraege DROP COLUMN staffelpreise")
+con.execute("PRAGMA user_version=2")
+con.commit()
+con.close()
+db = Datenbank(alt)
+a7 = db.auftrag_neu()
+db.staffel_neu(a7, dict(schluessel="10", menge=5))
+db.staffelpreise_speichern(a7, dict(zeilen=[], kennung="x", am=None))
+assert db.auftrag(a7)["staffelpreise"]["kennung"] == "x" and len(db.staffeln(a7)) == 1
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)
 print("OK: Programm")

@@ -2,7 +2,7 @@
 
 Das Schema entsteht aus stammdaten.TABELLEN und auftrag.KOPF/POSITIONEN; die Schemaversion steht in
 PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 = nur Stammdaten,
-2 = mit Aufträgen).
+2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen).
 """
 import datetime
 import json
@@ -12,7 +12,7 @@ from pathlib import Path
 from .auftrag import KOPF, POSITIONEN, naechste_nummer
 from .stammdaten import TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispieldaten, kontext_aus
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
 
@@ -55,6 +55,12 @@ class Datenbank:
             self.con.execute("CREATE INDEX IF NOT EXISTS positionen_auftrag ON positionen (auftrag_id, nr)")
             self.con.execute("CREATE TABLE IF NOT EXISTS step_protokoll (id INTEGER PRIMARY KEY, auftrag_id INTEGER "
                              "NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE, zeile TEXT)")
+            self.con.execute("CREATE TABLE IF NOT EXISTS staffeln (id INTEGER PRIMARY KEY, auftrag_id INTEGER "
+                             "NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE, nr INTEGER, schluessel TEXT, "
+                             "menge INTEGER, bemerkung TEXT)")
+            spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(auftraege)")}
+            if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
+                self.con.execute("ALTER TABLE auftraege ADD COLUMN staffelpreise TEXT")
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -154,6 +160,7 @@ class Datenbank:
             return None
         a = dict(r)
         a["ergebnis"] = json.loads(a["ergebnis"]) if a["ergebnis"] else None
+        a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         return a
 
     def _jetzt(self):
@@ -200,6 +207,8 @@ class Datenbank:
         neu = self.auftrag_neu(kopf)
         for p in self.positionen(auftrag_id):
             self.position_neu(neu, p)
+        for st in self.staffeln(auftrag_id):
+            self.staffel_neu(neu, st)
         return neu
 
     def auftrag_loeschen(self, auftrag_id):
@@ -211,6 +220,36 @@ class Datenbank:
             self.con.execute("UPDATE auftraege SET ergebnis=?, optimiert_am=? WHERE id=?",
                              (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None,
                               self._jetzt() if ergebnis else None, auftrag_id))
+
+    def staffelpreise_speichern(self, auftrag_id, staffelpreise):
+        """staffelpreise: {'zeilen': [...], 'kennung': str, 'am': Zeitpunkt} oder None"""
+        with self.con:
+            self.con.execute("UPDATE auftraege SET staffelpreise=? WHERE id=?",
+                             (json.dumps(staffelpreise, ensure_ascii=False) if staffelpreise else None, auftrag_id))
+
+    # -------------------------------------------------------------- Staffeln (Mengenstufen)
+    def staffeln(self, auftrag_id):
+        return [dict(r) for r in self.con.execute("SELECT * FROM staffeln WHERE auftrag_id=? ORDER BY nr, id",
+                                                  (auftrag_id,))]
+
+    def staffel_neu(self, auftrag_id, werte=None):
+        werte = werte or {}
+        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM staffeln WHERE auftrag_id=?",
+                              (auftrag_id,)).fetchone()[0]
+        with self.con:
+            return self.con.execute("INSERT INTO staffeln (auftrag_id, nr, schluessel, menge, bemerkung) VALUES "
+                                    "(?, ?, ?, ?, ?)", (auftrag_id, nr, werte.get("schluessel"), werte.get("menge"),
+                                                        werte.get("bemerkung"))).lastrowid
+
+    def staffel_aendern(self, staffel_id, feld, wert):
+        if feld not in ("schluessel", "menge", "bemerkung"):
+            raise KeyError(feld)
+        with self.con:
+            self.con.execute(f'UPDATE staffeln SET "{feld}"=? WHERE id=?', (wert, staffel_id))
+
+    def staffeln_loeschen(self, ids):
+        with self.con:
+            self.con.executemany("DELETE FROM staffeln WHERE id=?", [(i,) for i in ids])
 
     def positionen(self, auftrag_id):
         return [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE auftrag_id=? ORDER BY nr, id",

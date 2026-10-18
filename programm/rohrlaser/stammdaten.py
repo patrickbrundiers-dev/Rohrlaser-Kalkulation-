@@ -211,6 +211,7 @@ EINSTELLUNGEN = (
     Einstellung("bedingungen", "Bedingungen", "Angebot", "mehrzeilig",
                 "Lieferzeit nach Absprache. Zahlung 30 Tage netto. Preise in Euro zuzüglich Mehrwertsteuer.",
                 ("Angebot", "C12")),
+    Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Aufträge' neben dem Programm)", "Ablage", "text", ""),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(PROFILFORMEN)),
 )

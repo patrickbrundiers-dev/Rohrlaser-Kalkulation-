@@ -134,3 +134,24 @@ def lies_auftrag(pfad):
         positionen.append(p)
     wb.close()
     return kopf, positionen, hinweise
+
+
+def lies_staffeln(pfad):
+    """Mengenstufen aus dem Blatt 'Staffeln' (Zeilen 5–104): [{schluessel, menge, bemerkung}].
+    Mappen ohne dieses Blatt (vor Version 2) liefern eine leere Liste."""
+    wb = load_workbook(Path(pfad), read_only=True, data_only=True, keep_vba=False)
+    stufen = []
+    if "Staffeln" in wb.sheetnames:
+        for schl, menge, bem in wb["Staffeln"].iter_rows(min_row=5, max_row=104, max_col=3, values_only=True):
+            if schl in (None, "") and menge in (None, ""):
+                continue
+            if isinstance(schl, float) and schl == int(schl):
+                schl = int(schl)
+            try:
+                menge = int(float(menge)) if menge not in (None, "") else None
+            except (TypeError, ValueError):
+                menge = None
+            stufen.append(dict(schluessel=None if schl in (None, "") else str(schl).strip(), menge=menge,
+                               bemerkung=None if bem in (None, "") else str(bem)))
+    wb.close()
+    return stufen

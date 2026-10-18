@@ -1,0 +1,195 @@
+"""Inhalte der Ausgaben: Angebot, Werkstattpapier (Schnittpläne), Kalkulation – wie vba/Ausgabe.bas der Mappe.
+
+Die Funktionen liefern nur Daten (Zeilen und Summen); pdf.py setzt sie als PDF, export.py als Excel.
+tests/test_programm_ausgabe.py vergleicht Angebot und Werkstattpapier mit den Makros der Mappe.
+"""
+import datetime
+import re
+from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
+
+from . import rechnen
+
+ABLAGE = "Aufträge"     # Ordnername wie in der Mappe
+
+
+# ------------------------------------------------------------------ Hilfen
+def kaufm_runden(x, stellen=2):
+    """Kaufmännisch runden (halbe Einheit von null weg) wie RUNDEN in Excel bzw. Format$ in VBA."""
+    if x is None:
+        return None
+    q = Decimal(1).scaleb(-stellen)
+    return float(Decimal(repr(float(x))).quantize(q, rounding=ROUND_HALF_UP))
+
+
+def zahl_kurz(x, dezimal=","):
+    """Format '0.##': höchstens 2 Nachkommastellen, ohne Nullen am Ende (42,4 / 2 / 2,6)."""
+    if x is None or x == "":
+        return ""
+    s = f"{kaufm_runden(x, 2):.2f}".rstrip("0").rstrip(".")
+    return s.replace(".", dezimal)
+
+
+def _wert(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+
+def _satz(v):
+    return "" if v is None else str(v).strip()
+
+
+def dateiname(kopf, zusatz="", mit_kunde=False):
+    """'<Auftragsnummer> [<Kunde>] <Zusatz>' ohne in Dateinamen verbotene Zeichen (Dateiname in Bedienung.bas)."""
+    s = str(kopf.get("nummer") or "").strip() or "Auftrag"
+    if mit_kunde and str(kopf.get("kunde") or "").strip():
+        s += " " + str(kopf["kunde"]).strip()
+    if zusatz:
+        s += " " + zusatz
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", s).strip()
+
+
+def ablageordner(einstellung, programmordner):
+    """Ablage: eingestellter Ordner, sonst 'Aufträge' neben dem Programm. Wird angelegt."""
+    ordner = Path(einstellung) if einstellung else Path(programmordner) / ABLAGE
+    ordner.mkdir(parents=True, exist_ok=True)
+    return ordner
+
+
+def nummern_text(nummern):
+    """Stangennummern kompakt: [1, 2, 3, 7] -> '1–3, 7'."""
+    teile, i = [], 0
+    while i < len(nummern):
+        j = i
+        while j + 1 < len(nummern) and nummern[j + 1] == nummern[j] + 1:
+            j += 1
+        teile.append(f"{nummern[i]}–{nummern[j]}" if j > i else str(nummern[i]))
+        i = j + 1
+    return ", ".join(teile)
+
+
+def datum_text(iso):
+    try:
+        return datetime.date.fromisoformat(iso).strftime("%d.%m.%Y") if iso else ""
+    except ValueError:
+        return str(iso)
+
+
+# ------------------------------------------------------------------ Angebot
+def profiltext(pid, k, dezimal=","):
+    """'Rundrohr Ø 42,4 x 2', 'Quadratrohr 40 x 40 x 3', 'Rechteckrohr 60 x 40 x 3', sonst die Profil-ID."""
+    z = k.profile.get(pid)
+    if not z:
+        return str(pid or "")
+    a, b, wand = (zahl_kurz(z.get(n), dezimal) for n in ("a", "b", "wand"))
+    return {"Rundrohr": f"Rundrohr Ø {a} x {wand}", "Quadratrohr": f"Quadratrohr {a} x {a} x {wand}",
+            "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}"}.get(z.get("form"), str(pid))
+
+
+def angebotstext(p, k, dezimal=","):
+    """Bezeichnung einer Position im Angebot, z. B. 'Rechteckrohr 80 x 40 x 5, L = 1500 mm, inkl. Material
+    S235 EN10219, Zusatzarbeiten: Gewinde 4xM6, Gravur'."""
+    laenge = p.get("laenge")
+    t = profiltext(p.get("profil_id"), k, dezimal)
+    t += f", L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else ", L =  mm"
+    w = k.werkstoffe.get(p.get("werkstoff_id"))
+    t += ", inkl. Material " + ((w or {}).get("angebotstext") or str(p.get("werkstoff_id") or ""))
+    zus = []
+    if p.get("gewinde"):
+        zus.append(f"Gewinde {p['gewinde']}")
+    if _wert(p.get("gravur")) > 0:
+        zus.append("Gravur")
+    if zus:
+        t += ", Zusatzarbeiten: " + ", ".join(zus)
+    return t
+
+
+def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=","):
+    """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
+    zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt}], netto, mwst, brutto,
+    mwst_satz, staffeln [{art, pos, text, menge, preis, gesamt}], hinweise (Positionen mit Hinweis)."""
+    def preis(i):
+        z = kalk_zeilen[i]
+        return round(_wert(z["preis_teil"]) if z else 0, 2)
+
+    def je(p):
+        n = _wert(p.get("je_satz"))
+        return n if n >= 1 else 1
+
+    zeilen, erledigt = [], set()
+    for i, p in enumerate(positionen):
+        if p.get("profil_id") in (None, ""):
+            continue
+        satz = _satz(p.get("satz"))
+        if not satz:
+            pr, menge = preis(i), _wert(p.get("stueck"))
+            zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=angebotstext(p, k, dezimal),
+                               menge=p.get("stueck"), preis=pr, gesamt=round(pr * menge, 2)))
+        elif satz not in erledigt:
+            erledigt.add(satz)
+            teile = [(j, q) for j, q in enumerate(positionen) if _satz(q.get("satz")) == satz]
+            n = max((_wert(q.get("stueck")) / je(q) for _, q in teile), default=0)
+            saetze = max(1, int(n + 0.5))
+            satzpreis = round(sum(preis(j) * je(q) for j, q in teile), 2)
+            zeilen.append(dict(art="satz", pos=None, artikel=None, text=f"Satz {satz}", menge=saetze,
+                               preis=satzpreis, gesamt=round(satzpreis * saetze, 2)))
+            for j, q in teile:
+                zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
+                                   text=f"   {kaufm_runden(je(q), 0):.0f} x {angebotstext(q, k, dezimal)}",
+                                   menge=None, preis=None, gesamt=None))
+    hinweise = sum(1 for i, p in enumerate(positionen)
+                   if p.get("profil_id") not in (None, "") and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
+    netto = sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None)
+    satz_mwst = _wert(einst.get("mwst"))
+    mwst = kaufm_runden(netto * satz_mwst, 2)
+    staffeln = []
+    for z in staffelpreise or ():
+        if z.get("einheit") == "Satz":
+            bez = z.get("bezeichnung") or ""
+            staffeln.append(dict(art="satz", pos=None, text=f"Satz {z['schluessel']}" + (f" ({bez})" if bez else ""),
+                                 menge=z["menge"], preis=z["preis_einheit"], gesamt=z["preis_gesamt"]))
+        else:
+            staffeln.append(dict(art="teil", pos=z["schluessel"], text=z.get("bezeichnung") or "", menge=z["menge"],
+                                 preis=z["preis_einheit"], gesamt=z["preis_gesamt"]))
+    return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=netto + mwst, mwst_satz=satz_mwst, staffeln=staffeln,
+                hinweise=hinweise)
+
+
+def gueltig_bis(kopf, einst):
+    try:
+        d = datetime.date.fromisoformat(kopf.get("datum") or "")
+    except ValueError:
+        return None
+    return d + datetime.timedelta(days=int(_wert(einst.get("gueltigkeit"))))
+
+
+# ------------------------------------------------------------------ Werkstattpapier
+def werkstatt(kopf, positionen, ergebnis, k, tabellen):
+    """Materialliste und je Stangenmuster ein Block (WerkstattpapierFuellen).
+    Ergebnis: dict(material=[{profil, werkstoff, stange, stangen, gewicht}],
+                   muster=[{nummern, anzahl, stange (Schnittplanzeile), rest, ausnutzung, teile=[…]}])."""
+    if not ergebnis or not ergebnis.get("stangen"):
+        return dict(material=[], muster=[])
+    sw = rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen)
+    werte = {s["nr"]: w for s, w in zip(ergebnis["stangen"], sw)}
+    material = {}
+    for s in ergebnis["stangen"]:
+        m = material.setdefault((s["profil"], s["werkstoff"], s["stange"]),
+                                dict(profil=s["profil"], werkstoff=s["werkstoff"], stange=s["stange"], stangen=0, gewicht=0.0))
+        m["stangen"] += 1
+        m["gewicht"] += _wert(werte[s["nr"]]["gewicht"])
+    muster = []
+    for s, nummern in rechnen.stangenmuster(ergebnis):
+        w = werte[s["nr"]]
+        teile = []
+        for platz, t in enumerate(s["teile"], start=1):
+            p = positionen[t["index"]] if 0 <= t["index"] < len(positionen) else {}
+            teile.append(dict(platz=platz, pos=t["pos"], artikel=t["artikel"], bezeichnung=p.get("bezeichnung"),
+                              laenge=t["laenge"], von=t["von"], bis=t["bis"], lage=t["lage"], trennung=t["trennung"]))
+        muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
+                           rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile))
+    return dict(material=list(material.values()), muster=muster)
+
+
+def muster_titel(m):
+    return (f"Stange {m['nummern_text']}" if m["anzahl"] == 1
+            else f"Stangen {m['nummern_text']}  ({m['anzahl']} Stück gleich)")

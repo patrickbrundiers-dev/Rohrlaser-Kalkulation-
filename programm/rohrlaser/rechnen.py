@@ -434,3 +434,17 @@ def stangenmuster(ergebnis):
                 tuple((t["ref"], t["laenge"], t["lage"]) for t in s["teile"]))
         muster.setdefault(schl, (s, []))[1].append(s["nr"])
     return list(muster.values())
+
+
+def auswertung_zeilen(ergebnis, sw):
+    """Auswertung je Gruppe mit Materialbedarf, Teilelänge und Verschnitt [m] (Blatt Auswertung).
+    sw = stangen_werte(...)"""
+    out = []
+    for a in ergebnis["auswertung"]:
+        st_g = [(s, w) for s, w in zip(ergebnis["stangen"], sw)
+                if (s["profil"], s["werkstoff"], s["stange"]) == (a["profil"], a["werkstoff"], a["stange"])]
+        bedarf = sum(s["stange"] for s, _ in st_g) / 1000
+        laenge = sum(w["summe"] for _, w in st_g) / 1000
+        out.append(dict(a, bedarf=bedarf, laenge=laenge, verschnitt=bedarf - laenge,
+                        ausnutzung=laenge / bedarf if bedarf else 0))
+    return out

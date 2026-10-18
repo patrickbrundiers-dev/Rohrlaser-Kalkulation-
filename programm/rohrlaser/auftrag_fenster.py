@@ -11,10 +11,11 @@ from PySide6.QtWidgets import (
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QTableView, QTabWidget,
     QVBoxLayout, QWidget)
 
-from . import rechnen, step
+from . import ausgabe, export, pdf, rechnen, staffeln, step
 from .auftrag import KOPF, POSITIONEN, STEP_FELDER
+from .auftrag_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
-from .mappe_import import lies_auftrag
+from .mappe_import import lies_auftrag, lies_staffeln
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
 FARBE_TEILE = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F",
@@ -124,9 +125,10 @@ class AuftraegeSeite(QWidget):
         self.suche.textChanged.connect(self.neu_laden)
         leiste = QHBoxLayout()
         for text, ziel in (("Neuer Auftrag", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
-                           ("Löschen", self.loeschen), ("Auftrag aus Excel-Mappe übernehmen …", self.aus_mappe)):
+                           ("Löschen", self.loeschen), ("Auftrag aus Excel-Mappe übernehmen …", self.aus_mappe),
+                           ("Ablage öffnen", self.f.ablage_oeffnen)):
             b = QPushButton(text)
-            b.clicked.connect(ziel)
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addSpacing(20)
         leiste.addWidget(self.suche, 1)
@@ -195,6 +197,11 @@ class AuftraegeSeite(QWidget):
         i = self.db.auftrag_neu(kopf)
         for p in positionen:
             self.db.position_neu(i, p)
+        try:
+            for st in lies_staffeln(pfad):
+                self.db.staffel_neu(i, st)
+        except Exception as e:   # Staffeln sind Beiwerk: Auftrag trotzdem übernehmen
+            hinweise.append(f"Staffeln nicht übernommen: {e}")
         self.neu_laden()
         a = self.db.auftrag(i)
         text = f"Auftrag {a['nummer']} mit {len(positionen)} Positionen übernommen."
@@ -338,6 +345,85 @@ class PositionenModell(QAbstractTableModel):
         return True
 
 
+# ------------------------------------------------------------------ Staffeln
+STAFFEL_TITEL = ("Satz oder Pos.", "Menge [Sätze bzw. Stück]", "Bemerkung", "Prüfung")
+STAFFELPREIS_SPALTEN = [("Satz oder Pos.", "schluessel", None, 100), ("Bezeichnung", "bezeichnung", None, 180),
+                        ("Einheit", "einheit", None, 55), ("Menge", "menge", 0, 60), ("Teile gesamt [Stk]", "teile", 0, 70),
+                        ("Stangen", "stangen", 0, 60), ("Material [€]", "material", 2, 80),
+                        ("Laser + Gewinde [€]", "laser", 2, 80), ("Rüsten + Stangenwechsel [€]", "ruesten", 2, 95),
+                        ("Herstellkosten [€]", "herstell", 2, 90), ("Herstellkosten je Einheit [€]", "herstell_einheit", 3, 95),
+                        ("Verkaufspreis je Einheit [€]", "preis_einheit", 2, 95),
+                        ("Verkaufspreis gesamt [€]", "preis_gesamt", 2, 95), ("Hinweis", "hinweis", None, 260)]
+
+
+class StaffelnModell(QAbstractTableModel):
+    """Mengenstufen eines Auftrags (wie Blatt 'Staffeln'): Schlüssel, Menge, Bemerkung, Prüfung."""
+    geaendert = Signal()
+    FELDER = ("schluessel", "menge", "bemerkung")
+
+    def __init__(self, seite):
+        super().__init__()
+        self.s, self.daten = seite, []
+
+    def setzen(self, daten):
+        self.beginResetModel()
+        self.daten = daten
+        self.endResetModel()
+
+    def rowCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else len(self.daten)
+
+    def columnCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else 4
+
+    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
+        if rolle == Qt.DisplayRole:
+            return STAFFEL_TITEL[abschnitt] if richtung == Qt.Horizontal else str(abschnitt + 1)
+        return None
+
+    def data(self, index, rolle=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        z, c = self.daten[index.row()], index.column()
+        w = staffeln.pruefen(z, self.s.positionen) if c == 3 else z.get(self.FELDER[c])
+        if rolle in (Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole):
+            return _z(w, 0) if c == 1 and rolle != Qt.EditRole else ("" if w is None else str(w))
+        if rolle == Qt.TextAlignmentRole and c == 1:
+            return int(Qt.AlignRight | Qt.AlignVCenter)
+        if rolle == Qt.BackgroundRole:
+            if c == 3:
+                return QBrush(FARBE_STATUS["FEHLER"] if str(w).startswith("FEHLER") else FARBE_BERECHNET)
+            return QBrush(FARBE_EINGABE)
+        return None
+
+    def flags(self, index):
+        f = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+        return f | Qt.ItemIsEditable if index.column() < 3 else f
+
+    def setData(self, index, text, rolle=Qt.EditRole):
+        if rolle != Qt.EditRole or not index.isValid() or index.column() > 2:
+            return False
+        feld = self.FELDER[index.column()]
+        t = str(text).strip()
+        wert = t or None
+        if feld == "menge" and t:
+            try:
+                wert = int(t.replace(".", ""))
+                if wert < 1:
+                    raise ValueError
+            except ValueError:
+                self.s.f.meldung("Menge: bitte eine ganze Zahl ab 1 eingeben (Sätze bzw. Stück).", fehler=True)
+                return False
+        z = self.daten[index.row()]
+        if wert == z.get(feld):
+            return False
+        self.s.db.staffel_aendern(z["id"], feld, wert)
+        z[feld] = wert
+        self.dataChanged.emit(self.index(index.row(), 0), self.index(index.row(), 3))
+        self.geaendert.emit()
+        return True
+
+
 # ------------------------------------------------------------------ Stangenbild
 class Stangenbild(QWidget):
     """Je Stangenmuster ein maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Pos. und Länge,
@@ -409,42 +495,6 @@ class Stangenbild(QWidget):
 
 
 # ------------------------------------------------------------------ Auftrag
-KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Stückzahl", "stueck", 0, 60),
-                ("Material je Teil [€]", "material_teil", 3, 80), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 80),
-                ("Gewindezeit je Teil [s]", "gewindezeit", 1, 75), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 80),
-                ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 110),
-                ("Herstellkosten je Teil [€]", "herstell_teil", 3, 85), ("Verkaufspreis je Teil [€]", "preis_teil", 3, 85),
-                ("Verkaufspreis Position [€]", "preis_position", 2, 95), ("Herstellkosten Position [€]", "herstell_position", 2, 95),
-                ("Hinweis", "hinweis", None, 190),
-                ("Materialkosten Gruppe [€]", "material_gruppe", 2, 90), ("Längenanteil an Gruppe", lambda z: 100 * z["anteil"], 1, 75),
-                ("Wandstärke-Stufe [mm]", "wand_stufe", 1, 85), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 75),
-                ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 75), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 75),
-                ("Vorschub Gravur [mm/min]", "vorschub_gravur", 0, 75), ("Einstechzeit [s]", "einstechzeit", 1, 65),
-                ("Laserzeit brutto je Teil [s]", "laser_brutto", 1, 80),
-                ("Einsparung gemeinsame Schnitte je Teil [s]", "einsparung", 1, 95),
-                ("Material Position [€]", "material_position", 2, 85), ("Laser + Gewinde Position [€]", "laser_position", 2, 85)]
-STANGEN_SPALTEN = [("Stange Nr.", "nr", 0, 55), ("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100),
-                   ("Stangenlänge [mm]", "stange", 0, 90), ("Endbeschnitt [mm]", "end", 0, 90), ("Greiferrest [mm]", "greif", 0, 70),
-                   ("Teile [Stk]", "teile", 0, 50), ("Summe Teilelängen [mm]", "summe", 1, 85),
-                   ("Schnittverluste + Abstände [mm]", "verlust", 1, 90), ("Belegt bis [mm]", "belegt", 1, 75),
-                   ("Rest / Verschnitt inkl. Greiferrest [mm]", "rest", 1, 100), ("Ausnutzung [%]", lambda z: 100 * z["ausnutzung"], 1, 75),
-                   ("Prüfung", "pruefung", None, 85), ("Trennungen [Stk]", "trennungen", 0, 85),
-                   ("davon gemeinsamer Schnitt", "gemeinsam", 0, 95), ("Stangengewicht [kg]", "gewicht", 2, 100),
-                   ("Materialkosten Stange [€]", "kosten", 2, 105), ("Belegung (Pos. × Länge)", "belegung", None, 400)]
-TEIL_SPALTEN = [("Platz", "platz", 0, 45), ("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 140),
-                ("Teilelänge [mm]", "laenge", 1, 80), ("Von [mm]", "von", 2, 80), ("Bis [mm]", "bis", 2, 80),
-                ("Lage", "lage", None, 70), ("Trennung zum Vorgänger", "trennung", None, 140),
-                ("Eingesparter Schneidweg [mm]", "eingespart_mm", 1, 90), ("Eingesparte Einstiche", "eingespart_e", 0, 80)]
-AUSW_SPALTEN = [("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100), ("Stangenlänge [mm]", "stange", 0, 90),
-                ("Teile [Stk]", "teile", 0, 55), ("Stangen optimiert", "stangen", 0, 70), ("Stangen manuell", "manuell", 0, 70),
-                ("Untergrenze Stangen", "untergrenze", 0, 75), ("Ersparnis Stangen", lambda z: z["manuell"] - z["stangen"], 0, 70),
-                ("Materialbedarf [m]", "bedarf", 2, 90), ("Teilelänge [m]", "laenge", 2, 75), ("Verschnitt [m]", "verschnitt", 2, 75),
-                ("Ausnutzung optimiert [%]", lambda z: 100 * z["ausnutzung"], 1, 80),
-                ("Ausnutzung manuell [%]", lambda z: 100 * z["ausnutzung_manuell"], 1, 80),
-                ("Gemeinsame Schnitte", "gemeinsam", 0, 85), ("Über Untergrenze [Stangen]", lambda z: z["stangen"] - z["untergrenze"], 0, 80),
-                ("Bewertung", "bewertung", None, 230)]
-FEHLER_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 150), ("Anzahl", "anzahl", 0, 60),
-                  ("Grund", "grund", None, 300)]
 PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None, 90) for i, t in enumerate(step.PROTOKOLL)]
 
 
@@ -513,6 +563,15 @@ class AuftragSeite(QWidget):
             c.toggled.connect(self._spalten_zeigen)
             leiste.addWidget(c)
         leiste.addStretch(1)
+        ausgabe_leiste = QHBoxLayout()
+        ausgabe_leiste.addWidget(QLabel("Ausgabe:"))
+        for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
+                           ("Kalkulation (PDF)", self.kalkulation_pdf), ("Excel-Export", self.excel_export),
+                           ("Ablage öffnen", self.f.ablage_oeffnen)):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            ausgabe_leiste.addWidget(b)
+        ausgabe_leiste.addStretch(1)
 
         # Positionen und Ergebnisse
         self.pos_modell = PositionenModell(self)
@@ -561,6 +620,42 @@ class AuftragSeite(QWidget):
         al.addWidget(fehler_ansicht, 1)
         prot_ansicht = _tabelle(self.prot)
         _breiten(prot_ansicht, PROT_SPALTEN)
+        # Staffeln: Mengenstufen (Eingabe) und Staffelpreise (Ergebnis)
+        self.staffel_modell = StaffelnModell(self)
+        self.staffel_modell.geaendert.connect(self._staffel_stand)
+        self.staffel_ansicht = _tabelle(self.staffel_modell, sortieren=False)
+        self.staffel_ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
+                                             | QAbstractItemView.AnyKeyPressed)
+        for i, b in enumerate((120, 110, 220, 260)):
+            self.staffel_ansicht.setColumnWidth(i, b)
+        self.staffelpreise = Liste(STAFFELPREIS_SPALTEN)
+        sp_ansicht = _tabelle(self.staffelpreise, sortieren=False)
+        _breiten(sp_ansicht, STAFFELPREIS_SPALTEN)
+        self.staffel_info = QLabel()
+        st_seite = QWidget()
+        stl = QVBoxLayout(st_seite)
+        st_leiste = QHBoxLayout()
+        for text, ziel in (("Neue Stufe", self.staffel_neu), ("Stufen löschen", self.staffeln_loeschen),
+                           ("Staffelpreise rechnen", self.staffelpreise_rechnen)):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            st_leiste.addWidget(b)
+        st_leiste.addSpacing(20)
+        hinweis = QLabel("Je Zeile eine Mengenstufe: Satzbezeichnung (Spalte Satz) oder Positionsnummer. Jede Stufe wird "
+                         "als eigener Auftrag neu gerechnet; die Preise stehen im Angebot unter den Positionen.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet("color: #595959;")
+        st_leiste.addWidget(hinweis, 1)
+        stl.addLayout(st_leiste)
+        st_split = QSplitter(Qt.Vertical)
+        st_split.addWidget(self.staffel_ansicht)
+        unten = QWidget()
+        ul = QVBoxLayout(unten)
+        ul.setContentsMargins(0, 0, 0, 0)
+        ul.addWidget(self.staffel_info)
+        ul.addWidget(sp_ansicht, 1)
+        st_split.addWidget(unten)
+        stl.addWidget(st_split, 1)
 
         self.reiter = QTabWidget()
         self.reiter.addTab(self.pos_ansicht, "Positionen")
@@ -568,11 +663,13 @@ class AuftragSeite(QWidget):
         self.reiter.addTab(plan, "Schnittplan")
         self.reiter.addTab(bild_rahmen, "Stangenbild")
         self.reiter.addTab(ausw_seite, "Auswertung")
+        self.reiter.addTab(st_seite, "Staffeln")
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
 
         lay = QVBoxLayout(self)
         lay.addLayout(oben)
         lay.addLayout(leiste)
+        lay.addLayout(ausgabe_leiste)
         lay.addWidget(self.reiter, 1)
         self._spalten_zeigen()
         self.neu_laden()
@@ -591,6 +688,7 @@ class AuftragSeite(QWidget):
         self.k = self.db.kontext()
         self.tabellen = self.db.tabellen()
         self.einst = self.db.einstellungen()
+        self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
         self._ergebnisse_anzeigen()
@@ -675,14 +773,7 @@ class AuftragSeite(QWidget):
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
             self.stangen.setzen([dict(s, **w) for s, w in zip(erg["stangen"], sw)])
-            ausw = []
-            for a in erg["auswertung"]:
-                st_g = [(s, w) for s, w in zip(erg["stangen"], sw) if (s["profil"], s["werkstoff"], s["stange"])
-                        == (a["profil"], a["werkstoff"], a["stange"])]
-                bedarf = sum(s["stange"] for s, _ in st_g) / 1000
-                laenge_g = sum(w["summe"] for _, w in st_g) / 1000
-                ausw.append(dict(a, bedarf=bedarf, laenge=laenge_g, verschnitt=bedarf - laenge_g,
-                                 ausnutzung=laenge_g / bedarf if bedarf else 0))
+            ausw = rechnen.auswertung_zeilen(erg, sw)
             self.ausw.setzen(ausw)
             self.fehler.setzen(erg["fehler"] or [dict(grund="keine")])
         else:
@@ -692,6 +783,8 @@ class AuftragSeite(QWidget):
         self.teile.setzen([])
         self.bild.setzen(erg)
         self.prot.setzen(self.db.protokoll(self.id))
+        self.staffel_modell.setzen(self.stufen)
+        self._staffel_stand()
 
     def _stange_gewaehlt(self, aktuell, _=None):
         if not aktuell.isValid() or not self.ergebnis:
@@ -754,6 +847,183 @@ class AuftragSeite(QWidget):
             text += f", {len(erg['neue_profile'])} Profil(e) aus dem Namen angelegt"
         self.f.meldung(text + ".")
         return True
+
+    # -------------------------------------------------------------- Staffeln
+    def staffel_neu(self):
+        self.db.staffel_neu(self.id)
+        self.neu_laden()
+        i = self.staffel_modell.index(len(self.stufen) - 1, 0)
+        self.reiter.setCurrentIndex(self.reiter.count() - 2)
+        self.staffel_ansicht.setCurrentIndex(i)
+        self.staffel_ansicht.edit(i)
+
+    def staffeln_loeschen(self):
+        zeilen = sorted({i.row() for i in self.staffel_ansicht.selectionModel().selectedIndexes()})
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Stufen markieren, die gelöscht werden sollen.", fehler=True)
+            return
+        self.db.staffeln_loeschen([self.stufen[r]["id"] for r in zeilen])
+        self.neu_laden()
+
+    def _staffel_kennung(self):
+        return staffeln.kennung(self.kopf, self.positionen, self.stufen, self.k, self.tabellen, self.einst)
+
+    def _staffel_stand(self):
+        sp = self.kopf.get("staffelpreise")
+        self.staffelpreise.setzen(sp["zeilen"] if sp else [])
+        if not staffeln.gueltige(self.stufen):
+            text, farbe = "Keine Mengenstufen eingetragen.", "#595959"
+        elif not sp:
+            text, farbe = "Staffelpreise noch nicht gerechnet.", "#9C5700"
+        elif sp.get("kennung") != self._staffel_kennung():
+            text, farbe = ("VERALTET – Auftrag, Stufen oder Stammdaten geändert. Das Angebot rechnet sie neu.", "#C00000")
+        else:
+            text, farbe = f"Staffelpreise aktuell (gerechnet {_zeit(sp.get('am'))}).", "#375623"
+        self.staffel_info.setText(f"<b style='color:{farbe}'>{text}</b>")
+
+    def staffelpreise_rechnen(self):
+        """Alle Stufen neu rechnen und speichern. Ergebnis: Zeilen oder None (abgebrochen)."""
+        stufen = staffeln.gueltige(self.stufen)
+        if not stufen:
+            self.f.meldung("Keine Mengenstufe eingetragen (Reiter Staffeln).", fehler=True)
+            self.staffelpreise_speichern([])
+            return []
+        fortschritt = QProgressDialog("Staffelpreise werden gerechnet …", "Abbrechen", 0, len(stufen), self)
+        fortschritt.setWindowModality(Qt.WindowModal)
+        fortschritt.setMinimumDuration(500)
+
+        def weiter(i, n):
+            fortschritt.setValue(i)
+            QApplication.processEvents()
+            return not fortschritt.wasCanceled()
+        try:
+            zeilen = staffeln.rechnen_alle(self.kopf, self.positionen, stufen, self.k, self.tabellen, self.einst, weiter)
+        except (ValueError, AssertionError) as e:
+            fortschritt.close()
+            QMessageBox.warning(self, "Staffelpreise", f"Staffelpreise abgebrochen:\n{e}")
+            return None
+        abgebrochen = fortschritt.wasCanceled()
+        fortschritt.close()
+        if abgebrochen:
+            self.f.meldung("Staffelpreise abgebrochen.", fehler=True)
+            return None
+        self.staffelpreise_speichern(zeilen)
+        self.f.meldung(f"{len(zeilen)} Mengenstufe(n) gerechnet.")
+        return zeilen
+
+    def staffelpreise_speichern(self, zeilen):
+        sp = dict(zeilen=zeilen, kennung=self._staffel_kennung(),
+                  am=datetime.datetime.now().isoformat(timespec="seconds")) if zeilen else None
+        self.db.staffelpreise_speichern(self.id, sp)
+        self.kopf["staffelpreise"] = sp
+        self._staffel_stand()
+
+    def staffelpreise_aktuell(self):
+        """Staffelpreise fürs Angebot; veraltete werden vorher neu gerechnet. None = abgebrochen."""
+        if not staffeln.gueltige(self.stufen):
+            return []
+        sp = self.kopf.get("staffelpreise")
+        if sp and sp.get("kennung") == self._staffel_kennung():
+            return sp["zeilen"]
+        return self.staffelpreise_rechnen()
+
+    # -------------------------------------------------------------- Ausgabe (PDF, Excel)
+    def _vor_ausgabe(self):
+        """Wie VorAusgabeOptimieren der Mappe: bei veralteter Optimierung fragen. True = weiter."""
+        if self.stand_optimierung() == "aktuell":
+            return True
+        if self.f.stumm:
+            return self.optimieren()
+        a = QMessageBox.question(self, "Optimierung veraltet",
+                                 "Der Schnittplan passt nicht mehr zum Auftrag (oder es wurde noch nicht optimiert).\n\n"
+                                 "Jetzt neu optimieren?\nJa = optimieren, Nein = mit dem bisherigen Stand weiter",
+                                 QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
+        if a == QMessageBox.Cancel:
+            return False
+        return self.optimieren() if a == QMessageBox.Yes else True
+
+    def _ziel(self, zusatz, endung, mit_kunde=False):
+        try:
+            return self.f.ablage() / (ausgabe.dateiname(self.kopf, zusatz, mit_kunde) + endung)
+        except OSError as e:
+            QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht anlegen:\n{e}")
+            return None
+
+    def _schreiben(self, art, pfad, schreiben):
+        """Datei schreiben und öffnen. Ergebnis: Pfad oder None."""
+        if pfad is None:
+            return None
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            schreiben(pfad)
+        except PermissionError:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, art, f"Die Datei konnte nicht gespeichert werden:\n{pfad}\n\n"
+                                "Ist sie noch in einem anderen Programm geöffnet?")
+            return None
+        QApplication.restoreOverrideCursor()
+        self.f.meldung(f"{art} gespeichert: {pfad}")
+        self.f.datei_oeffnen(pfad)
+        return pfad
+
+    def _rechnung(self):
+        zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+        return zeilen, summen
+
+    def angebot_daten(self):
+        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen)."""
+        sp = self.staffelpreise_aktuell()
+        if sp is None:
+            return None
+        zeilen, _ = self._rechnung()
+        return ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp)
+
+    def angebot_pdf(self):
+        if not self._vor_ausgabe():
+            return None
+        if not any(p.get("profil_id") for p in self.positionen):
+            QMessageBox.warning(self, "Angebot", "Der Auftrag hat keine Positionen.")
+            return None
+        ang = self.angebot_daten()
+        if ang is None:
+            return None
+        if ang["hinweise"] and not self.f.stumm and QMessageBox.question(
+                self, "Angebot", f"{ang['hinweise']} Position(en) haben einen Hinweis in der Kalkulation, z. B. kein "
+                "Preis oder nicht eingeplant.\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
+            self.reiter.setCurrentIndex(1)
+            return None
+        return self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
+                               lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
+
+    def werkstatt_pdf(self):
+        if not self._vor_ausgabe():
+            return None
+        if not self.ergebnis or not self.ergebnis["stangen"]:
+            QMessageBox.warning(self, "Werkstattpapiere", "Der Schnittplan ist leer. Bitte zuerst optimieren.")
+            return None
+        wp = ausgabe.werkstatt(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
+        aktuell = self.stand_optimierung() == "aktuell"
+        return self._schreiben("Werkstattpapiere", self._ziel("Werkstattpapiere", ".pdf"),
+                               lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell))
+
+    def kalkulation_pdf(self):
+        if not self._vor_ausgabe():
+            return None
+        zeilen, summen = self._rechnung()
+        aktuell = self.stand_optimierung() == "aktuell"
+        return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
+                               lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell))
+
+    def excel_export(self):
+        ang = self.angebot_daten()
+        if ang is None:
+            return None
+        zeilen, summen = self._rechnung()
+        sw = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen) if self.ergebnis else []
+        sp = (self.kopf.get("staffelpreise") or {}).get("zeilen", [])
+        return self._schreiben("Excel-Export", self._ziel("", ".xlsx", mit_kunde=True),
+                               lambda p: export.auftrag_xlsx(p, self.kopf, self.positionen, self.pos_modell.status, zeilen,
+                                                             summen, self.ergebnis, sw, sp, ang))
 
     # -------------------------------------------------------------- STEP-Import
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None):

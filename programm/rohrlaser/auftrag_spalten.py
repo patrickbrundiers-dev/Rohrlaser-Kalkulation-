@@ -1,0 +1,39 @@
+"""Spalten der Ergebnistabellen eines Auftrags (Anzeige im Programm und Excel-Export):
+[(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
+
+KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Stückzahl", "stueck", 0, 60),
+                ("Material je Teil [€]", "material_teil", 3, 80), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 80),
+                ("Gewindezeit je Teil [s]", "gewindezeit", 1, 75), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 80),
+                ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 110),
+                ("Herstellkosten je Teil [€]", "herstell_teil", 3, 85), ("Verkaufspreis je Teil [€]", "preis_teil", 3, 85),
+                ("Verkaufspreis Position [€]", "preis_position", 2, 95), ("Herstellkosten Position [€]", "herstell_position", 2, 95),
+                ("Hinweis", "hinweis", None, 190),
+                ("Materialkosten Gruppe [€]", "material_gruppe", 2, 90), ("Längenanteil an Gruppe", lambda z: 100 * z["anteil"], 1, 75),
+                ("Wandstärke-Stufe [mm]", "wand_stufe", 1, 85), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 75),
+                ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 75), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 75),
+                ("Vorschub Gravur [mm/min]", "vorschub_gravur", 0, 75), ("Einstechzeit [s]", "einstechzeit", 1, 65),
+                ("Laserzeit brutto je Teil [s]", "laser_brutto", 1, 80),
+                ("Einsparung gemeinsame Schnitte je Teil [s]", "einsparung", 1, 95),
+                ("Material Position [€]", "material_position", 2, 85), ("Laser + Gewinde Position [€]", "laser_position", 2, 85)]
+STANGEN_SPALTEN = [("Stange Nr.", "nr", 0, 55), ("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100),
+                   ("Stangenlänge [mm]", "stange", 0, 90), ("Endbeschnitt [mm]", "end", 0, 90), ("Greiferrest [mm]", "greif", 0, 70),
+                   ("Teile [Stk]", "teile", 0, 50), ("Summe Teilelängen [mm]", "summe", 1, 85),
+                   ("Schnittverluste + Abstände [mm]", "verlust", 1, 90), ("Belegt bis [mm]", "belegt", 1, 75),
+                   ("Rest / Verschnitt inkl. Greiferrest [mm]", "rest", 1, 100), ("Ausnutzung [%]", lambda z: 100 * z["ausnutzung"], 1, 75),
+                   ("Prüfung", "pruefung", None, 85), ("Trennungen [Stk]", "trennungen", 0, 85),
+                   ("davon gemeinsamer Schnitt", "gemeinsam", 0, 95), ("Stangengewicht [kg]", "gewicht", 2, 100),
+                   ("Materialkosten Stange [€]", "kosten", 2, 105), ("Belegung (Pos. × Länge)", "belegung", None, 400)]
+TEIL_SPALTEN = [("Platz", "platz", 0, 45), ("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 140),
+                ("Teilelänge [mm]", "laenge", 1, 80), ("Von [mm]", "von", 2, 80), ("Bis [mm]", "bis", 2, 80),
+                ("Lage", "lage", None, 70), ("Trennung zum Vorgänger", "trennung", None, 140),
+                ("Eingesparter Schneidweg [mm]", "eingespart_mm", 1, 90), ("Eingesparte Einstiche", "eingespart_e", 0, 80)]
+AUSW_SPALTEN = [("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100), ("Stangenlänge [mm]", "stange", 0, 90),
+                ("Teile [Stk]", "teile", 0, 55), ("Stangen optimiert", "stangen", 0, 70), ("Stangen manuell", "manuell", 0, 70),
+                ("Untergrenze Stangen", "untergrenze", 0, 75), ("Ersparnis Stangen", lambda z: z["manuell"] - z["stangen"], 0, 70),
+                ("Materialbedarf [m]", "bedarf", 2, 90), ("Teilelänge [m]", "laenge", 2, 75), ("Verschnitt [m]", "verschnitt", 2, 75),
+                ("Ausnutzung optimiert [%]", lambda z: 100 * z["ausnutzung"], 1, 80),
+                ("Ausnutzung manuell [%]", lambda z: 100 * z["ausnutzung_manuell"], 1, 80),
+                ("Gemeinsame Schnitte", "gemeinsam", 0, 85), ("Über Untergrenze [Stangen]", lambda z: z["stangen"] - z["untergrenze"], 0, 80),
+                ("Bewertung", "bewertung", None, 230)]
+FEHLER_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 150), ("Anzahl", "anzahl", 0, 60),
+                  ("Grund", "grund", None, 300)]

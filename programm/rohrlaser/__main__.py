@@ -4,7 +4,8 @@ Die Datendatei liegt im Ordner 'Daten' neben dem Programm (portabel, keine Insta
 --daten ORDNER     anderer Datenordner
 --selbsttest       Fenster aufbauen, alle Reiter einmal anzeigen, beenden (Rückgabewert 0 = in Ordnung);
                    mit --mappe DATEI zusätzlich die Stammdaten aus der Mappe übernehmen,
-                   und den Auftrag der Mappe übernehmen und optimieren, mit --step DATEI … zusätzlich STEP-Dateien
+                   und den Auftrag der Mappe übernehmen, optimieren, Staffelpreise, PDFs und Excel-Export
+                   erzeugen, mit --step DATEI … zusätzlich STEP-Dateien
                    messen und übernehmen, mit --ergebnis DATEI das Protokoll in eine Textdatei schreiben
                    (die .exe hat keine Konsole).
 """
@@ -50,6 +51,21 @@ def selbsttest(app, mappe, ergebnis, step_dateien=()):
                     seite.reiter.setCurrentIndex(i)
                     app.processEvents()
                 e = seite.ergebnis
+                db.einstellung_setzen("ablageordner", str(Path(tmp) / "Ablage"))
+                if not seite.stufen:
+                    db.staffel_neu(aid, dict(schluessel=str(seite.positionen[0]["pos"]), menge=10))
+                    seite.neu_laden()
+                sp = seite.staffelpreise_rechnen()
+                if not sp or any(str(z.get("hinweis") or "").startswith("FEHLER") for z in sp):
+                    raise RuntimeError(f"Staffelpreise fehlerhaft: {sp}")
+                protokoll.append(f"Staffelpreise: {len(sp)} Stufen, " + ", ".join(
+                    f"{z['menge']} {z['einheit']} {z['preis_einheit']:.2f} €" for z in sp))
+                for art, aufruf in (("Angebot", seite.angebot_pdf), ("Werkstattpapiere", seite.werkstatt_pdf),
+                                    ("Kalkulation", seite.kalkulation_pdf), ("Excel-Export", seite.excel_export)):
+                    datei = aufruf()
+                    if not datei or Path(datei).stat().st_size < 1000:
+                        raise RuntimeError(f"{art} nicht geschrieben")
+                    protokoll.append(f"{art}: {Path(datei).name} ({Path(datei).stat().st_size // 1024} KB)")
                 protokoll.append(f"Auftrag {seite.kopf['nummer']}: {len(seite.positionen)} Positionen, "
                                  f"{len(e['stangen'])} Stangen, Stand {seite.stand_optimierung()}, "
                                  f"Verkaufspreis {seite.kalk.zeilen and sum(z['preis_position'] or 0 for z in seite.kalk.zeilen):.2f}")

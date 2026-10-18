@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import NAME, VERSION
+from . import NAME, VERSION, ausgabe
 from .mappe_import import lies_mappe
 from .stammdaten import TABELLEN, EINSTELLUNGEN, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
@@ -343,7 +343,8 @@ class StartSeite(QWidget):
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
         hinweis = QLabel("Aufträge werden im Reiter 'Aufträge' angelegt oder aus einer Excel-Auftragsmappe übernommen. "
-                         "PDF-Ausgabe (Angebot, Schnittplan), Staffelpreise und Excel-Export folgen im nächsten Schritt.")
+                         "Im Auftrag: Staffelpreise im Reiter 'Staffeln', Angebot, Werkstattpapiere und Kalkulation als PDF sowie "
+                         "Excel-Export über die Leiste 'Ausgabe'. Die Dateien landen im Ablageordner (Einstellungen).")
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")
         lay = QVBoxLayout(self)
@@ -405,6 +406,7 @@ class Hauptfenster(QMainWindow):
         for text, ziel, taste in (("Stammdaten aus Excel-Mappe übernehmen …", self.mappe_uebernehmen, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Datenordner öffnen", self.datenordner_oeffnen, None),
+                                  ("Ablageordner öffnen (PDF, Excel)", self.ablage_oeffnen, None),
                                   (None, None, None),
                                   ("Beenden", self.close, QKeySequence.Quit)):
             if text is None:
@@ -496,8 +498,23 @@ class Hauptfenster(QMainWindow):
         self.meldung(f"Sicherung erstellt: {ziel}")
 
     def datenordner_oeffnen(self):
-        ordner = str(self.db.pfad.parent)
+        self.datei_oeffnen(self.db.pfad.parent)
+
+    def ablage(self):
+        """Ordner für PDF und Excel-Export (Einstellung 'Ablageordner', sonst 'Aufträge' neben dem Programm)."""
+        return ausgabe.ablageordner(self.db.einstellung("ablageordner"), self.programmordner)
+
+    def ablage_oeffnen(self):
+        try:
+            self.datei_oeffnen(self.ablage())
+        except OSError as e:
+            QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht öffnen:\n{e}")
+
+    def datei_oeffnen(self, pfad):
+        """Datei oder Ordner mit dem zugehörigen Programm öffnen (im Selbsttest nicht)."""
+        if self.stumm:
+            return
         if sys.platform == "win32":
-            os.startfile(ordner)
+            os.startfile(str(pfad))
         else:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(ordner))
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad)))
