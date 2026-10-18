@@ -35,6 +35,17 @@ jobs:
           /usr/bin/python3 tests/test_programm.py
           /usr/bin/python3 tests/test_programm_mappe.py
           /usr/bin/python3 tests/test_programm_ausgabe.py
+      - name: Abnahme (realistische Testaufträge, Kriterien und Vergleich mit der Mappe)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          /usr/bin/python3 tests/test_abnahme.py --protokoll Abnahmeprotokoll.md
+          cat Abnahmeprotokoll.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Abnahmeprotokoll
+          path: Abnahmeprotokoll.md
+          retention-days: 90
       - name: VBA-Tests (LibreOffice)
         run: /usr/bin/python3 tests/test_vba.py
 

@@ -17,7 +17,7 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 | P1 | Eigenes Windows-Programm: Gerüst, Datenbank, Stammdaten, Übernahme aus der Mappe | erledigt |
 | P2 | Programm: Aufträge, STEP-Import, Optimierung, Kalkulation, Stangenbild | erledigt |
 | P3 | Programm: PDF-Ausgabe, Staffelpreise, Auftragsablage, Excel-Export | erledigt |
-| P4 | Programm: Abnahme gegen die Mappe | offen |
+| P4 | Programm: Abnahme (realistische Testaufträge, Abnahmekriterien, Vergleich mit der Mappe) | erledigt |
 
 ## Benutzung (ohne Installation)
 
@@ -52,9 +52,11 @@ Das Programm `Rohrlaser-Kalkulation.exe` soll die Mappe ablösen (Entscheidung 1
 
 Optimierung, Status, Schnittplan und Kalkulation rechnen genau wie die Mappe v02: `tests/test_programm_mappe.py` vergleicht 13 Testaufträge Zelle für Zelle mit der von LibreOffice berechneten Mappe. Einzige bewusste Abweichung: Positionen ohne Pos.-Nr. rechnet das Programm wie Excel (LibreOffice weicht dort ab). `tests/test_programm_ausgabe.py` vergleicht Staffelpreise, Angebot (Positionen, Summen, Preistreppe) und Werkstattpapier mit den Makros der Mappe. Bewusste Abweichungen: Maße im Angebot mit Dezimalkomma (42,4 statt 42.4); Teile ohne Artikelnummer heißen „Zeile n“ nach ihrer Reihenfolge im Auftrag.
 
+Abnahme: `tests/test_abnahme.py` rechnet 8 realistische Testaufträge (`tests/abnahme_auftraege.py`: Geländer, Maschinengestell, Edelstahl-Möbel, Fahrzeugrahmen, Großserie, gemischte Qualitäten und Stangenlängen, Grenzfälle, Kleinmengen) auf dem Weg des Programms (Datenbank, Auftrag, Optimierung, gespeichertes Ergebnis) und rechnet das Ergebnis unabhängig nach: jede Position mit voller Stückzahl eingeplant und nichts vermischt, Lage jedes Teils gegen Endbeschnitt, Trennschnitte und Greiferrest (keine Stange überlastet), Belegung, Rest, Gewicht und Materialkosten, nie mehr Stangen als die einfache manuelle Einteilung und nie weniger als die Untergrenze. Dieselben Aufträge laufen zusätzlich Zelle für Zelle gegen die Mappe. GitHub Actions legt bei jedem Lauf das `Abnahmeprotokoll.md` ab (Zusammenfassung des Laufs und Artefakt „Abnahmeprotokoll“).
+
 Sicherung: beim ersten Start jedes Tages und vor jeder Übernahme eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren.
 
-Entwicklung: `pip install -r programm/requirements.txt`, Start mit `python -m rohrlaser` im Ordner `programm`, Tests mit `python tests/test_programm.py` und `python tests/test_programm_mappe.py` (braucht LibreOffice). Der Build (`pyinstaller programm/rohrlaser.spec`) läuft in GitHub Actions auf Windows und prüft die fertige .exe mit `--selbsttest` (Stammdaten und Auftrag aus der Mappe übernehmen, optimieren, die Testteile per STEP-Import einlesen).
+Entwicklung: `pip install -r programm/requirements.txt`, Start mit `python -m rohrlaser` im Ordner `programm`, Tests mit `python tests/test_programm.py` , `python tests/test_programm_mappe.py` und `python tests/test_abnahme.py` (beide brauchen LibreOffice, die Abnahme ohne Mappenvergleich auch mit `--ohne-mappe`). Der Build (`pyinstaller programm/rohrlaser.spec`) läuft in GitHub Actions auf Windows und prüft die fertige .exe mit `--selbsttest` (Stammdaten und Auftrag aus der Mappe übernehmen, optimieren, die Testteile per STEP-Import einlesen).
 
 ## Inhalt
 
