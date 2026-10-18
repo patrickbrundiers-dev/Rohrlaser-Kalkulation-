@@ -4,6 +4,8 @@ Attribute VB_Name = "Ausgabe"
 ' Werkstattpapier: Materialliste je Profil/Werkstoff/Stangenlänge, danach je Stangenmuster
 ' ein Block mit den Teilen in Schnittreihenfolge. Gleich belegte Stangen (gleiche Teile in
 ' gleicher Reihenfolge und Lage) stehen nur einmal da, mit ihren Stangennummern.
+' Stangenbild: je Stangenmuster ein maßstäblicher Balken (Endbeschnitt, Teile, Schnitte, Rest,
+' Greiferrest), gleiche Muster wie im Werkstattpapier zusammengefasst.
 ' Angebot: Positionen mit Verkaufspreis je Teil aus dem Blatt Kalkulation (auf Cent gerundet).
 ' Die PDF-Dateien landen im Ablageordner (siehe Modul Bedienung).
 Option Explicit
@@ -18,6 +20,14 @@ Private Const D0 As Long = 5
 Private Const A0 As Long = 14              ' erste Positionszeile im Blatt Angebot
 Private Const P0 As Long = 5               ' erste Zeile im Blatt Staffelpreise
 Private Const ZEILEN_JE_SEITE As Long = 50 ' Werkstattpapier: Blöcke nicht über Seitenwechsel teilen
+Private Const BILD_ZELLEN As Long = 120     ' Stangenbild: Zellen je Stange (Maßstab Stangenlänge / 120)
+Private Const BILD_SPALTE As Long = 2       ' Stangenbild: erste Spalte des Balkens
+Private Const BILDER_JE_SEITE As Long = 10  ' Stangenbild: Stangen je Druckseite
+
+' Schnittplan und Stangenbelegung, gelesen von StangenLesen (für Werkstattpapier und Stangenbild)
+Private gSp As Variant, gDt As Variant, gNS As Long, gNM As Long
+Private gErste() As Long, gAnzT() As Long, gMuster() As Long, gMStange() As Long, gMAnz() As Long
+Private gMNr() As String
 
 
 ' ================================================================== Schaltflächen
@@ -28,7 +38,18 @@ Public Sub WerkstattpapiereDrucken()
     If n = 0 Then MsgBox "Der Schnittplan ist leer.", vbExclamation, "Werkstattpapiere": Exit Sub
     Set ws = ThisWorkbook.Worksheets("Werkstattpapier")
     ws.PageSetup.PrintArea = ws.Range("A1:J" & n).Address
-    PdfSpeichern ws, "Werkstattpapiere"
+    n = StangenbildFuellen()
+    With ThisWorkbook.Worksheets("Stangenbild")
+        .PageSetup.PrintArea = .Range(.Cells(1, 1), .Cells(n, BILD_SPALTE + BILD_ZELLEN)).Address
+    End With
+    PdfSpeichern ws, "Werkstattpapiere", "Stangenbild"
+End Sub
+
+Public Sub StangenbildZeigen()
+    If Not Bedienung.VorAusgabeOptimieren() Then Exit Sub
+    If StangenbildFuellen() = 0 Then MsgBox "Der Schnittplan ist leer. Bitte zuerst optimieren.", vbExclamation, "Stangenbild": Exit Sub
+    ThisWorkbook.Worksheets("Stangenbild").Activate
+    ThisWorkbook.Worksheets("Stangenbild").Range("A1").Select
 End Sub
 
 Public Sub AngebotDrucken()
@@ -69,14 +90,24 @@ Private Function LetzteZeile(bereich As Range, ByVal erste As Long) As Long
     Next i
 End Function
 
-Private Sub PdfSpeichern(ws As Worksheet, ByVal art As String)
+' Speichert ws als PDF; mit zweitesBlatt kommen beide Blätter in eine Datei.
+Private Sub PdfSpeichern(ws As Worksheet, ByVal art As String, Optional ByVal zweitesBlatt As String = "")
     Dim ordner As String, ziel As String
     ordner = Bedienung.Ablageordner()
     If ordner = "" Then Exit Sub
     ziel = ordner & Application.PathSeparator & Bedienung.Dateiname(art) & ".pdf"
     On Error GoTo Fehler
-    ws.ExportAsFixedFormat Type:=0, Filename:=ziel, Quality:=0, IncludeDocProperties:=True, _
-                           IgnorePrintAreas:=False, OpenAfterPublish:=True
+    If zweitesBlatt <> "" Then
+        ' mehrere ausgewählte Blätter landen gemeinsam in einer PDF-Datei
+        ThisWorkbook.Activate
+        ThisWorkbook.Worksheets(Array(ws.Name, zweitesBlatt)).Select
+        ActiveSheet.ExportAsFixedFormat Type:=0, Filename:=ziel, Quality:=0, IncludeDocProperties:=True, _
+                                        IgnorePrintAreas:=False, OpenAfterPublish:=True
+        ws.Select
+    Else
+        ws.ExportAsFixedFormat Type:=0, Filename:=ziel, Quality:=0, IncludeDocProperties:=True, _
+                               IgnorePrintAreas:=False, OpenAfterPublish:=True
+    End If
     Exit Sub
 Fehler:
     MsgBox "PDF konnte nicht gespeichert werden:" & vbLf & ziel & vbLf & vbLf & Err.Description & vbLf & _
@@ -97,53 +128,16 @@ End Sub
 ' Ergebnis: letzte beschriebene Zeile (0 = kein Schnittplan).
 Public Function WerkstattpapierFuellen() As Long
     Dim ws As Worksheet, wa As Worksheet, sp As Variant, dt As Variant, bez As Variant
-    Dim nS As Long, nD As Long, s As Long, i As Long, k As Long, r As Long, m As Long
-    Dim erste() As Long, anzahlT() As Long, schl() As String, muster() As Long, nM As Long
-    Dim mNr() As String, mAnz() As Long, mStange() As Long, hoehe As Long, aufSeite As Long
-    Dim zeile As Long, letzteD As Long
+    Dim nS As Long, s As Long, i As Long, k As Long, r As Long, m As Long
+    Dim hoehe As Long, aufSeite As Long, zeile As Long
 
     Set ws = ThisWorkbook.Worksheets("Werkstattpapier")
     Set wa = ThisWorkbook.Worksheets("Auftrag")
     WerkstattpapierLeeren
-    sp = ThisWorkbook.Worksheets("Schnittplan").Range("A" & S0 & ":R" & S1).Value
-    For s = 1 To UBound(sp, 1)
-        If Not IsNumeric(sp(s, 1)) Or IsEmpty(sp(s, 1)) Then Exit For
-        nS = s
-    Next s
+    nS = StangenLesen()
     If nS = 0 Then Exit Function
-    With ThisWorkbook.Worksheets("Stangenbelegung")
-        letzteD = .UsedRange.Row + .UsedRange.Rows.Count - 1
-        If letzteD < D0 Then Exit Function
-        dt = .Range("A" & D0 & ":L" & letzteD).Value
-    End With
+    sp = gSp: dt = gDt
     bez = wa.Range("C" & O0 & ":C" & O1).Value
-
-    ' Teile je Stange (Stangenbelegung ist nach Stange und Platz sortiert)
-    ReDim erste(1 To nS): ReDim anzahlT(1 To nS): ReDim schl(1 To nS)
-    For i = 1 To UBound(dt, 1)
-        If IsEmpty(dt(i, 1)) Then Exit For
-        nD = i
-        s = dt(i, 1)
-        If s >= 1 And s <= nS Then
-            If anzahlT(s) = 0 Then erste(s) = i
-            anzahlT(s) = anzahlT(s) + 1
-            schl(s) = schl(s) & "|" & dt(i, 5) & ":" & dt(i, 6) & ":" & dt(i, 9)
-        End If
-    Next i
-    ' gleiche Stangenmuster zusammenfassen
-    ReDim muster(1 To nS): ReDim mNr(1 To nS): ReDim mAnz(1 To nS): ReDim mStange(1 To nS)
-    For s = 1 To nS
-        schl(s) = sp(s, 2) & "|" & sp(s, 3) & "|" & sp(s, 4) & schl(s)
-        For m = 1 To nM
-            If schl(mStange(m)) = schl(s) Then Exit For
-        Next m
-        If m > nM Then nM = m: mStange(m) = s
-        muster(s) = m
-        mAnz(m) = mAnz(m) + 1
-    Next s
-    For m = 1 To nM
-        mNr(m) = Nummern(muster, nS, m)
-    Next m
 
     ' Kopf
     Application.ScreenUpdating = False
@@ -192,9 +186,9 @@ Public Function WerkstattpapierFuellen() As Long
     aufSeite = r - 1
 
     ' je Stangenmuster ein Block
-    For m = 1 To nM
-        s = mStange(m)
-        hoehe = anzahlT(s) + 4
+    For m = 1 To gNM
+        s = gMStange(m)
+        hoehe = gAnzT(s) + 4
         If aufSeite + hoehe > ZEILEN_JE_SEITE And aufSeite > 0 Then
             On Error Resume Next
             ws.HPageBreaks.Add ws.Cells(r, 1)
@@ -205,10 +199,10 @@ Public Function WerkstattpapierFuellen() As Long
             .Interior.Color = RGB(221, 235, 247)
             .Font.Bold = True
         End With
-        If mAnz(m) = 1 Then
-            ws.Cells(r, 1).Value = AlsText("Stange " & mNr(m))
+        If gMAnz(m) = 1 Then
+            ws.Cells(r, 1).Value = AlsText("Stange " & gMNr(m))
         Else
-            ws.Cells(r, 1).Value = AlsText("Stangen " & mNr(m) & "  (" & mAnz(m) & " Stück gleich)")
+            ws.Cells(r, 1).Value = AlsText("Stangen " & gMNr(m) & "  (" & gMAnz(m) & " Stück gleich)")
         End If
         ws.Cells(r, 1).Font.Size = 12
         r = r + 1
@@ -220,7 +214,7 @@ Public Function WerkstattpapierFuellen() As Long
         Kopf ws, r, Array("Platz", "Pos.", "Artikelnummer", "Bezeichnung", "Länge [mm]", "Von [mm]", "Bis [mm]", _
                           "Lage", "Trennung zum Vorgänger", "erledigt")
         k = r
-        For i = erste(s) To erste(s) + anzahlT(s) - 1
+        For i = gErste(s) To gErste(s) + gAnzT(s) - 1
             r = r + 1
             ws.Cells(r, 1).Value = dt(i, 2)
             ws.Cells(r, 2).Value = AlsText(dt(i, 3))
@@ -243,6 +237,231 @@ Public Function WerkstattpapierFuellen() As Long
     Next m
     Application.ScreenUpdating = True
     WerkstattpapierFuellen = r - 2
+End Function
+
+' Liest Schnittplan und Stangenbelegung und fasst gleich belegte Stangen (gleiches Profil,
+' Werkstoff, Stangenlänge, gleiche Teile in gleicher Reihenfolge und Lage) zu Mustern zusammen.
+' Ergebnis: Anzahl Stangen (0 = kein Schnittplan); Daten in den Modulvariablen g*.
+Private Function StangenLesen() As Long
+    Dim sp As Variant, dt As Variant, schl() As String, nS As Long, s As Long, i As Long, m As Long
+    Dim letzteD As Long
+    gNS = 0: gNM = 0
+    sp = ThisWorkbook.Worksheets("Schnittplan").Range("A" & S0 & ":R" & S1).Value
+    For s = 1 To UBound(sp, 1)
+        If Not IsNumeric(sp(s, 1)) Or IsEmpty(sp(s, 1)) Then Exit For
+        nS = s
+    Next s
+    If nS = 0 Then Exit Function
+    With ThisWorkbook.Worksheets("Stangenbelegung")
+        letzteD = .UsedRange.Row + .UsedRange.Rows.Count - 1
+        If letzteD < D0 Then Exit Function
+        dt = .Range("A" & D0 & ":L" & letzteD).Value
+    End With
+
+    ' Teile je Stange (Stangenbelegung ist nach Stange und Platz sortiert)
+    ReDim gErste(1 To nS): ReDim gAnzT(1 To nS): ReDim schl(1 To nS)
+    For i = 1 To UBound(dt, 1)
+        If IsEmpty(dt(i, 1)) Then Exit For
+        s = dt(i, 1)
+        If s >= 1 And s <= nS Then
+            If gAnzT(s) = 0 Then gErste(s) = i
+            gAnzT(s) = gAnzT(s) + 1
+            schl(s) = schl(s) & "|" & dt(i, 5) & ":" & dt(i, 6) & ":" & dt(i, 9)
+        End If
+    Next i
+    ' gleiche Stangenmuster zusammenfassen
+    ReDim gMuster(1 To nS): ReDim gMNr(1 To nS): ReDim gMAnz(1 To nS): ReDim gMStange(1 To nS)
+    For s = 1 To nS
+        schl(s) = sp(s, 2) & "|" & sp(s, 3) & "|" & sp(s, 4) & schl(s)
+        For m = 1 To gNM
+            If schl(gMStange(m)) = schl(s) Then Exit For
+        Next m
+        If m > gNM Then gNM = m: gMStange(m) = s
+        gMuster(s) = m
+        gMAnz(m) = gMAnz(m) + 1
+    Next s
+    For m = 1 To gNM
+        gMNr(m) = Nummern(gMuster, nS, m)
+    Next m
+    gSp = sp: gDt = dt: gNS = nS
+    StangenLesen = nS
+End Function
+
+
+' ================================================================== Stangenbild (Verschachtelung)
+Public Sub StangenbildLeeren()
+    With ThisWorkbook.Worksheets("Stangenbild")
+        .Range(.Rows(3), .Rows(.Rows.Count)).Clear
+        On Error Resume Next
+        .ResetAllPageBreaks
+    End With
+End Sub
+
+' Füllt das Blatt Stangenbild: je Stangenmuster eine Kopfzeile und ein Balken aus BILD_ZELLEN
+' Zellen (eine Zelle = Stangenlänge / BILD_ZELLEN). Teile werden gerundet, jedes Teil bekommt
+' mindestens eine Zelle. Ergebnis: letzte beschriebene Zeile (0 = kein Schnittplan).
+Public Function StangenbildFuellen() As Long
+    Dim ws As Worksheet, wa As Worksheet, sp As Variant, dt As Variant
+    Dim nS As Long, s As Long, i As Long, m As Long, r As Long, j As Long
+    Dim lang As Double, endb As Double, greif As Double, a As Long, b As Long, cur As Long
+    Dim posListe() As String, nPos As Long, farbe As Long, txt As String, bloecke As Long
+
+    Set ws = ThisWorkbook.Worksheets("Stangenbild")
+    Set wa = ThisWorkbook.Worksheets("Auftrag")
+    StangenbildLeeren
+    nS = StangenLesen()
+    If nS = 0 Then Exit Function
+    sp = gSp: dt = gDt
+    ReDim posListe(1 To 1)
+
+    Application.ScreenUpdating = False
+    ws.Columns(1).ColumnWidth = 2
+    ws.Range(ws.Columns(BILD_SPALTE), ws.Columns(BILD_SPALTE + BILD_ZELLEN - 1)).ColumnWidth = 1
+    ws.Columns(BILD_SPALTE + BILD_ZELLEN).ColumnWidth = 2
+    ws.Range("A2").Value = AlsText("Auftrag " & wa.Range("C4").Value & "   |   Kunde " & wa.Range("C6").Value & _
+                                   "   |   Maschine " & wa.Range("C8").Value & "   |   erstellt " & _
+                                   Format$(Now, "dd.mm.yyyy") & " " & Format$(Now, "hh:mm"))
+    ws.Range("A2").Font.Italic = False: ws.Range("A2").Font.Size = 9
+    ' Legende
+    r = 3
+    If Not Bedienung.OptimierungAktuell() Then
+        ws.Range("A3").Value = "ACHTUNG: Stangenbild passt nicht zum aktuellen Auftrag (Optimierung veraltet)."
+        ws.Range("A3").Font.Bold = True: ws.Range("A3").Font.Color = RGB(192, 0, 0)
+        r = 4
+    End If
+    Legende ws, r, 0, RGB(127, 127, 127), "Endbeschnitt"
+    Legende ws, r, 18, RGB(189, 215, 238), "Teil (Pos., Länge in mm; Farbe je Position)"
+    Legende ws, r, 58, RGB(242, 242, 242), "Rest / Verschnitt"
+    Legende ws, r, 82, RGB(255, 153, 153), "Greiferrest"
+    ws.Cells(r + 1, BILD_SPALTE).Value = "Dicke schwarze Linie = Schnitt. Maßstab: eine Zelle = Stangenlänge / " & BILD_ZELLEN & "."
+    ws.Cells(r + 1, BILD_SPALTE).Font.Size = 8
+    ws.Cells(r + 1, BILD_SPALTE).Font.Color = RGB(89, 89, 89)
+    r = r + 3
+
+    For m = 1 To gNM
+        s = gMStange(m)
+        If bloecke > 0 And bloecke Mod BILDER_JE_SEITE = 0 Then
+            On Error Resume Next
+            ws.HPageBreaks.Add ws.Cells(r, 1)
+            On Error GoTo 0
+        End If
+        bloecke = bloecke + 1
+        lang = Zahl0(sp(s, 4)): endb = Zahl0(sp(s, 5)): greif = Zahl0(sp(s, 6))
+        If gMAnz(m) = 1 Then txt = "Stange " & gMNr(m) Else txt = "Stangen " & gMNr(m) & "  (" & gMAnz(m) & " Stück gleich)"
+        ws.Cells(r, BILD_SPALTE).Value = AlsText(txt & "   |   " & sp(s, 2) & "   |   " & sp(s, 3) & "   |   " & _
+                                                 Format$(lang, "#,##0") & " mm   |   " & gAnzT(s) & " Teile   |   Rest " & _
+                                                 ZahlOderText(sp(s, 11), "#,##0.0") & " mm   |   Ausnutzung " & _
+                                                 ZahlOderText(sp(s, 12), "0.0%"))
+        ws.Cells(r, BILD_SPALTE).Font.Bold = True
+        ws.Cells(r, BILD_SPALTE).Font.Size = 9
+        ws.Rows(r + 1).RowHeight = 26
+        ws.Rows(r + 2).RowHeight = 11
+        If lang > 0 Then
+            ' ganze Stange als Rest, darauf Endbeschnitt, Greiferrest und Teile
+            Balken ws, r + 1, 0, BILD_ZELLEN, RGB(242, 242, 242)
+            cur = 0
+            If endb > 0 Then cur = Groesser(Zelle(endb, lang), 1): Balken ws, r + 1, 0, cur, RGB(127, 127, 127)
+            If greif > 0 Then Balken ws, r + 1, Kleiner(Zelle(lang - greif, lang), BILD_ZELLEN - 1), BILD_ZELLEN, RGB(255, 153, 153)
+            For i = gErste(s) To gErste(s) + gAnzT(s) - 1
+                a = Zelle(Zahl0(dt(i, 7)), lang): b = Zelle(Zahl0(dt(i, 8)), lang)
+                If a < cur Then a = cur
+                If b <= a Then b = a + 1
+                If b > BILD_ZELLEN Then b = BILD_ZELLEN
+                If a < b Then
+                    For j = 1 To nPos
+                        If posListe(j) = CStr(dt(i, 3)) Then Exit For
+                    Next j
+                    If j > nPos Then nPos = j: ReDim Preserve posListe(1 To nPos): posListe(nPos) = CStr(dt(i, 3))
+                    farbe = Palette(j)
+                    If b - a >= 12 Then
+                        txt = "Pos " & dt(i, 3) & "  " & Format$(Zahl0(dt(i, 6)), "0")
+                    ElseIf b - a >= 4 Then
+                        txt = CStr(dt(i, 3))
+                    Else
+                        txt = ""
+                    End If
+                    BildTeil ws, r + 1, a, b, farbe, txt
+                    cur = b
+                End If
+            Next i
+            With ws.Range(ws.Cells(r + 1, BILD_SPALTE), ws.Cells(r + 1, BILD_SPALTE + BILD_ZELLEN - 1))
+                .Borders(8).LineStyle = 1: .Borders(8).Weight = 2
+                .Borders(9).LineStyle = 1: .Borders(9).Weight = 2
+            End With
+            ws.Cells(r + 2, BILD_SPALTE).Value = "0"
+            ws.Cells(r + 2, BILD_SPALTE + BILD_ZELLEN - 1).Value = AlsText(Format$(lang, "#,##0") & " mm")
+            ws.Cells(r + 2, BILD_SPALTE + BILD_ZELLEN - 1).HorizontalAlignment = -4152   ' xlRight
+            ws.Range(ws.Cells(r + 2, BILD_SPALTE), ws.Cells(r + 2, BILD_SPALTE + BILD_ZELLEN - 1)).Font.Size = 7
+        End If
+        r = r + 4
+    Next m
+    Application.ScreenUpdating = True
+    StangenbildFuellen = r - 2
+End Function
+
+' Zelle (0 bis BILD_ZELLEN) für die Lage x [mm] auf einer Stange der Länge lang
+Private Function Zelle(ByVal x As Double, ByVal lang As Double) As Long
+    Zelle = Int(x / lang * BILD_ZELLEN + 0.5)
+    If Zelle < 0 Then Zelle = 0
+    If Zelle > BILD_ZELLEN Then Zelle = BILD_ZELLEN
+End Function
+
+Private Function Groesser(ByVal a As Long, ByVal b As Long) As Long
+    If a > b Then Groesser = a Else Groesser = b
+End Function
+
+Private Function Kleiner(ByVal a As Long, ByVal b As Long) As Long
+    If a < b Then Kleiner = a Else Kleiner = b
+End Function
+
+Private Function Zahl0(v As Variant) As Double
+    If IsError(v) Then Exit Function
+    If IsNumeric(v) And Not IsEmpty(v) Then Zahl0 = CDbl(v)
+End Function
+
+' Zellen a bis b-1 des Balkens einfärben
+Private Sub Balken(ws As Worksheet, ByVal r As Long, ByVal a As Long, ByVal b As Long, ByVal farbe As Long)
+    If b <= a Then Exit Sub
+    ws.Range(ws.Cells(r, BILD_SPALTE + a), ws.Cells(r, BILD_SPALTE + b - 1)).Interior.Color = farbe
+End Sub
+
+' Teil als verbundene Zellen a bis b-1 mit Beschriftung und Schnittlinien links und rechts
+Private Sub BildTeil(ws As Worksheet, ByVal r As Long, ByVal a As Long, ByVal b As Long, ByVal farbe As Long, _
+                 ByVal txt As String)
+    With ws.Range(ws.Cells(r, BILD_SPALTE + a), ws.Cells(r, BILD_SPALTE + b - 1))
+        .Interior.Color = farbe
+        If b - a > 1 Then .Merge
+        .HorizontalAlignment = -4108
+        .VerticalAlignment = -4108
+        .Font.Size = 8
+        .Borders(7).LineStyle = 1: .Borders(7).Weight = -4138    ' links, mittel
+        .Borders(10).LineStyle = 1: .Borders(10).Weight = -4138  ' rechts, mittel
+    End With
+    If txt <> "" Then ws.Cells(r, BILD_SPALTE + a).Value = AlsText(txt)
+End Sub
+
+Private Sub Legende(ws As Worksheet, ByVal r As Long, ByVal versatz As Long, ByVal farbe As Long, ByVal txt As String)
+    With ws.Range(ws.Cells(r, BILD_SPALTE + versatz), ws.Cells(r, BILD_SPALTE + versatz + 1))
+        .Interior.Color = farbe
+        .Borders.LineStyle = 1
+    End With
+    ws.Cells(r, BILD_SPALTE + versatz + 3).Value = txt
+    ws.Cells(r, BILD_SPALTE + versatz + 3).Font.Size = 8
+End Sub
+
+' Farbe je Position (Reihenfolge des ersten Auftretens), helle Töne für lesbare Schrift
+Private Function Palette(ByVal j As Long) As Long
+    Select Case (j - 1) Mod 9
+        Case 0: Palette = RGB(189, 215, 238)
+        Case 1: Palette = RGB(198, 224, 180)
+        Case 2: Palette = RGB(255, 230, 153)
+        Case 3: Palette = RGB(217, 210, 233)
+        Case 4: Palette = RGB(180, 198, 231)
+        Case 5: Palette = RGB(248, 203, 173)
+        Case 6: Palette = RGB(204, 236, 255)
+        Case 7: Palette = RGB(226, 239, 218)
+        Case Else: Palette = RGB(237, 237, 190)
+    End Select
 End Function
 
 ' Stangennummern eines Musters kompakt: "1–3, 7"
@@ -548,7 +767,7 @@ End Function
 Public Function AusgabeTest() As String
     Dim h As Long
     On Error GoTo Fehler
-    AusgabeTest = "OK " & WerkstattpapierFuellen() & " " & AngebotFuellen(h) & " " & h
+    AusgabeTest = "OK " & WerkstattpapierFuellen() & " " & AngebotFuellen(h) & " " & h & " " & StangenbildFuellen()
     Exit Function
 Fehler:
     AusgabeTest = "FEHLER " & Err.Number & ": " & Err.Description & " (Zeile " & Erl & ")"

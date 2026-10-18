@@ -447,21 +447,23 @@ def menueband_xml(tab, gruppen):
 
 
 def schaltflaechen_xml(knoepfe):
-    """knoepfe: [(Makroname, Beschriftung, (Spalte0, Zeile0, Spalte1, Zeile1), Farbe)] mit 0-basierten Zellen."""
+    """knoepfe: [(Makroname, Beschriftung, (Spalte0, Versatz, Zeile0, Versatz), (Breite, Höhe), Farbe)].
+    Zellen 0-basiert, Versatz, Breite und Höhe in EMU. Feste Größe (oneCellAnchor): Auf- und Zuklappen
+    von Spaltengruppen verändert die Schaltflächen nicht."""
     teile = []
-    for i, (makro, text, (c0, r0, c1, r1), farbe) in enumerate(knoepfe, start=2):
+    for i, (makro, text, (c0, dx, r0, dy), (cx, cy), farbe) in enumerate(knoepfe, start=2):
         teile.append(
-            f'<xdr:twoCellAnchor editAs="absolute">'
-            f'<xdr:from><xdr:col>{c0}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{r0}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'
-            f'<xdr:to><xdr:col>{c1}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{r1}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>'
+            f'<xdr:oneCellAnchor>'
+            f'<xdr:from><xdr:col>{c0}</xdr:col><xdr:colOff>{dx}</xdr:colOff><xdr:row>{r0}</xdr:row><xdr:rowOff>{dy}</xdr:rowOff></xdr:from>'
+            f'<xdr:ext cx="{cx}" cy="{cy}"/>'
             f'<xdr:sp macro="[0]!{makro}" textlink="">'
             f'<xdr:nvSpPr><xdr:cNvPr id="{i}" name="Schaltfläche {makro}"/><xdr:cNvSpPr/></xdr:nvSpPr>'
             f'<xdr:spPr><a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom>'
             f'<a:solidFill><a:srgbClr val="{farbe}"/></a:solidFill><a:ln><a:noFill/></a:ln></xdr:spPr>'
-            f'<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/><a:lstStyle/>'
-            f'<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="de-DE" sz="1100" b="1">'
+            f'<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" lIns="36000" rIns="36000" rtlCol="0" anchor="ctr"/><a:lstStyle/>'
+            f'<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="de-DE" sz="900" b="1">'
             f'<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Arial"/></a:rPr>'
-            f'<a:t>{text}</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>')
+            f'<a:t>{text}</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:oneCellAnchor>')
     return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" '
             'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' + "".join(teile) + "</xdr:wsDr>")

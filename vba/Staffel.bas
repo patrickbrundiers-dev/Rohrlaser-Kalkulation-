@@ -144,11 +144,11 @@ Private Sub StaffelZeile(wa As Worksheet, wf As Worksheet, ByVal zeile As Long, 
 
     stangen = Zahl(wk.Range("F6").Value)
     teile = Zahl(wk.Range("F8").Value)
-    material = Zahl(wk.Range("K4").Value)
-    laser = Zahl(wk.Range("K5").Value)
-    ruesten = Zahl(wk.Range("K6").Value)
-    hk = Zahl(wk.Range("K7").Value)
-    vk = Zahl(wk.Range("K8").Value)
+    material = Zahl(wk.Range("V4").Value)
+    laser = Zahl(wk.Range("V5").Value)
+    ruesten = Zahl(wk.Range("V6").Value)
+    hk = Zahl(wk.Range("V7").Value)
+    vk = Zahl(wk.Range("V8").Value)
 
     wf.Cells(zeile, 5).Value = teile
     wf.Cells(zeile, 6).Value = stangen

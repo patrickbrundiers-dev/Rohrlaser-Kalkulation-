@@ -60,6 +60,7 @@ Public Sub Optimieren()
     Dim bericht As String
     On Error GoTo Fehler
     bericht = OptimiereMappe()
+    Ausgabe.StangenbildFuellen
     MsgBox bericht, vbInformation, "Stangenoptimierung"
     Exit Sub
 Fehler:

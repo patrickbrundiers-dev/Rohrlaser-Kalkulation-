@@ -13,16 +13,18 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 | 5 | Betrieb ohne .bat-Dateien und ohne Installation (VBA + portable STEP-Import.exe) | erledigt |
 | 6 | Menüband, neuer Auftrag, Ablage, PDF-Ausgabe, exakte Optimierung kleiner Gruppen | erledigt |
 | 7 | Sätze und Staffelpreise | erledigt |
+| 8 | Stangenbild (Verschachtelung), Schaltflächen in Excel sichtbar | erledigt |
 
 ## Benutzung (ohne Installation)
 
 1. Unter **Releases → aktuell** `Rohrlaser-Kalkulation.zip` herunterladen und entpacken. Darin liegen die Mappe `Rohrlaser_Kalkulation_v02.xlsm` und der Ordner `STEP-Import` (mit `STEP-Import.exe`). Beide müssen nebeneinander liegen bleiben.
 2. Mappe in Excel öffnen und Makros aktivieren („Inhalt aktivieren“). Sperrt Windows die Datei als Download, unter Eigenschaften „Zulassen“ anhaken oder den Ordner als vertrauenswürdigen Speicherort eintragen.
-3. Registerkarte **Rohrlaser** im Menüband (oder Schaltflächen im Blatt „Auftrag“):
+3. Registerkarte **Rohrlaser** im Menüband (oder Schaltflächenleiste im Blatt „Auftrag“, Zeile 11 über den Spaltenköpfen):
    - **Neuer Auftrag**: leert Positionen und Ergebnisse, zählt die Auftragsnummer hoch, setzt das Datum. Stammdaten, Maschine und Stangenlänge bleiben. Fragt vorher, ob der bisherige Auftrag gespeichert werden soll.
    - **STEP importieren**: STEP-Dateien wählen, optional Werkstoff und Stückzahl für alle Teile angeben. Fehlen Profile in den Stammdaten oder stehen Artikel schon im Auftrag, fragt die Mappe nach.
-   - **Optimieren**: füllt Schnittplan, Stangenbelegung und Auswertung. „Stand Optimierung“ (Auftrag C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern.
-   - **Werkstattpapiere / Angebot / Kalkulation** (PDF): erzeugt die PDF-Datei im Ordner `Aufträge` neben der Mappe und öffnet sie. Werkstattpapiere = Materialliste und je Stange die Teile in Schnittreihenfolge (gleich belegte Stangen zusammengefasst).
+   - **Optimieren**: füllt Schnittplan, Stangenbelegung, Auswertung und Stangenbild. „Stand Optimierung“ (Auftrag C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern.
+   - **Stangenbild**: Verschachtelung je Stange als maßstäblicher Balken (Endbeschnitt grau, Teile farbig mit Pos. und Länge, dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot). Gleich belegte Stangen stehen einmal da.
+   - **Werkstattpapiere / Angebot / Kalkulation** (PDF): erzeugt die PDF-Datei im Ordner `Aufträge` neben der Mappe und öffnet sie. Werkstattpapiere = Materialliste und je Stange die Teile in Schnittreihenfolge (gleich belegte Stangen zusammengefasst), dahinter das Stangenbild.
    - **Staffelpreise rechnen**: rechnet jede Mengenstufe aus dem Blatt „Staffeln“ als eigenen Auftrag neu und schreibt sie ins Blatt „Staffelpreise“ und unter die Angebotspositionen. Danach steht der ursprüngliche Auftrag wieder da.
    - **Auftrag speichern als**: Kopie der Mappe als `<Auftragsnummer> <Kunde>.xlsm` im Ordner `Aufträge`. Die geöffnete Mappe bleibt die Vorlage.
    - **Stammdaten übernehmen**: Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zuschläge und Angebotskopf aus einer anderen Mappe (z. B. der gepflegten Vorlage) in eine abgelegte Auftragsmappe kopieren.

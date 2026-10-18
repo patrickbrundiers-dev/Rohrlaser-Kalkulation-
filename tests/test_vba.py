@@ -253,6 +253,23 @@ def test_bedienung(lo, d):
             n_teile += faktor
     assert n_stangen == len(stangen) and n_teile == teile, (n_stangen, len(stangen), n_teile, teile)
     print(f"OK     Werkstattpapier: {len(bloecke)} Blöcke für {len(stangen)} Stangen, {teile} Teile")
+    # Stangenbild: gleiche Muster wie im Werkstattpapier, je Teil ein Abschnitt mit Schnittlinie links
+    wsb = wb["Stangenbild"]
+    assert int(r[3].split()[-1]) > 0, r[3]
+    n_stangen, n_teile, n_bloecke = 0, 0, 0
+    for zz in range(3, wsb.max_row + 1):
+        kopf_ = wsb.cell(zz, 2).value
+        if not (isinstance(kopf_, str) and kopf_.startswith("Stange")):
+            continue
+        n_bloecke += 1
+        faktor = int(kopf_.split("(")[1].split()[0]) if "(" in kopf_.split("|")[0] else 1
+        n_stangen += faktor
+        anzahl = int(kopf_.split("|")[4].split()[0])
+        abschnitte = sum(1 for c in range(2, 122) if (wsb.cell(zz + 1, c).border.left.style or "") in ("medium", "thick"))
+        assert abschnitte == anzahl, (kopf_, abschnitte)
+        n_teile += faktor * anzahl
+    assert n_bloecke == len(bloecke) and n_stangen == len(stangen) and n_teile == teile, (n_bloecke, n_stangen, n_teile)
+    print(f"OK     Stangenbild: {n_bloecke} Bilder für {n_stangen} Stangen, {n_teile} Teile")
     # Angebot: eine Zeile je Einzelteil, je Satz ein Block mit Satzpreis; Preise = Kalkulation (auf Cent)
     wan, wk, wa = wb["Angebot"], wb["Kalkulation"], wb["Auftrag"]
     pos = [r_ for r_ in range(13, 513) if wa.cell(r_, 4).value not in (None, "")]
