@@ -281,7 +281,7 @@ KALK = [("Pos.", "pos", 0, 10), ("Artikelnummer", "artikel", None, 22), ("Stück
         ("Gewindezeit je Teil [s]", "gewindezeit", 1, 17), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 19),
         ("Zusatzarbeiten je Teil [€]", "zusatz_teil", 3, 19), ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 18),
         ("Herstellkosten je Teil [€]", "herstell_teil", 3, 20),
-        ("Pauschalen + Aufschlag + Fracht je Teil [€]", "pauschalen_teil", 3, 19),
+        ("Pauschalen, Programmierung, Aufschlag, Fracht je Teil [€]", "pauschalen_teil", 3, 19),
         ("Verkaufspreis je Teil [€]", "preis_teil", 3, 20), ("Verkaufspreis Position [€]", "preis_position", 2, 19),
         ("Herstellkosten Position [€]", "herstell_position", 2, 19), ("Hinweis", "hinweis", None, 22)]
 assert sum(s[3] for s in KALK) <= 273     # Breite A4 quer ohne Ränder [mm]
@@ -300,6 +300,7 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
              ("Rüsten + Stangenwechsel [€]", _z(summen["ruesten"])),
              ("Zusatzarbeiten [€]", _z(summen["zusatz"])), ("Herstellkosten [€]", _z(summen["herstell"])),
              ("Pauschalen je Abmessung [€]", _z(summen["pauschalen"])),
+             ("Programmierkosten [€]", _z(summen["programmierung"])),
              ("Auftragsaufschlag + Fracht [€]", _z(summen["auftragsaufschlag"] + summen["fracht"])),
              ("Verkaufspreis Auftrag [€]", _z(summen["verkauf"]))]
     auftrag = [("Rüstzeit [min]", _z(summen["ruestzeit"], 0)),

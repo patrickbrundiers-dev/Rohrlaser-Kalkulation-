@@ -452,6 +452,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Auftragsaufschlag (€) und
       Frachtkosten aus dem Auftragskopf (€), umgelegt auf alle Teile; gehen ohne Zuschläge in den
       Verkaufspreis ein.
+    - Programmierkosten je Teil (Einstellung, €) für jede Position mit Stückzahl, umgelegt auf deren
+      Stückzahl, ohne Zuschläge in den Verkaufspreis.
     - Gewinde mit festem Preis (Stammdaten Gewinde) zählen mit dem Preis statt mit der Zeit.
     - Schneidzeit manuell (Position) ersetzt die berechnete Laserzeit netto je Teil.
     - Zusatzarbeiten je Position: Beträge je Teil (€/kg, €/m², €/m, €/Stück) mit Zuschlag Fremdleistung bzw.
@@ -474,6 +476,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
     ruest_abm = ruest_abm_min / 60 * satz_h            # € je Abmessung
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
+    prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Auftrag
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = {i: zusatz_werte(positionen[i], k, tabellen) for i in aktiv}
     zus_summe, zus_teile = {}, {}
@@ -551,7 +554,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         zfr = sum(e["teil"] for e in zus[i] if e["fremd"])
         n_abm = teile_abm.get(p.get("profil_id"), 0)
         rz = (f7 / f8 if f8 else 0) + (ruest_abm / n_abm if n_abm and c else 0)
-        uz = (pausch_abm / n_abm if n_abm and c else 0) + ((aufschlag + fracht) / f8 if f8 and c else 0)
+        uz = (pausch_abm / n_abm if n_abm and c else 0) + ((aufschlag + fracht) / f8 if f8 and c else 0) \
+            + (prog / c if c else 0)
         s_ = f * (1 + zm) + (qz + rz + ze) * (1 + zf) + zfr * (1 + zfl)
         t_ = s_ * (1 + gew) + uz
         nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
@@ -579,6 +583,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, auftragsaufschlag=aufschlag, fracht=fracht,
+                  programmierung=prog * sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
                   material=sum(z["material_position"] for z in zeilen if z),
                   laser=sum(z["laser_position"] for z in zeilen if z),
                   zusatz=sum(z["zusatz_position"] for z in zeilen if z),

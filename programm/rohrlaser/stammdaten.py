@@ -242,6 +242,8 @@ EINSTELLUNGEN = (
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, ("Kalkulation", "C6"), 0, 5),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, None, 0, 1440),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, None, 0, 100000),
+    Einstellung("programmierung_teil", "Programmierkosten je Teil (Position) [€]", "Kalkulation", "zahl", 8.50, None, 0,
+                100000),
     Einstellung("auftragsaufschlag", "Auftragsaufschlag je Auftrag [€]", "Kalkulation", "zahl", 50.0, None, 0, 100000),
     Einstellung("standard_maschine", "Standard-Maschine", "Auftrag", "auswahl", "RL-1", ("Auftrag", "C8"),
                 auswahl="maschine"),

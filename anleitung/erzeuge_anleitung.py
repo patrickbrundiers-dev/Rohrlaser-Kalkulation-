@@ -420,6 +420,9 @@ def kapitel_einstellungen(i):
          "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn)."],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Auftrag, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
+        ["Kalkulation", "Programmierkosten je Teil (Position) [€]",
+         "einmal je Position mit Stückzahl (Vorgabe 8,50 €), auf deren Stückzahl verteilt, ohne Zuschläge auf den "
+         "Preis; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Auftragsaufschlag je Auftrag [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
         ["Auftrag", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Aufträge"],
@@ -587,7 +590,8 @@ def kapitel_optimieren(i):
             "dem Zuschlag Fremdleistung.",
             "<b>Rüsten</b>: Rüstzeit je Auftrag (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
             "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt.",
-            "<b>Pauschale je Abmessung, Auftragsaufschlag, Fracht</b>: ohne Zuschläge auf den Preis.")
+            "<b>Pauschale je Abmessung, Programmierkosten je Teil, Auftragsaufschlag, Fracht</b>: ohne Zuschläge auf "
+            "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.")
     i.abschnitt("Schnittplan")
     i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Ein Klick auf eine Stange zeigt unten ihre "
            "Teile in Schnittreihenfolge mit Lage (von/bis), Drehung und Art der Trennung.")
