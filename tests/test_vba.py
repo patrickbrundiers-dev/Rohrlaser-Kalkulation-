@@ -11,7 +11,11 @@
 3. Bedienung und Ausgabe: Merker "Optimierung veraltet", Werkstattpapier und Angebot füllen,
    neuer Auftrag, Stammdaten aus einer anderen Mappe übernehmen.
 
-Aufruf: python tests/test_vba.py [optimierung|import|bedienung]   (benötigt LibreOffice, für 2. auch OCP)
+4. Staffelpreise (tools/staffeln.py): Jede Mengenstufe wird vom VBA-Makro als eigener Auftrag
+   gerechnet. Stangenzahl je Stufe gegen die Python-Optimierung, Preise gegen die Kalkulation,
+   Wiederherstellung des Auftrags.
+
+Aufruf: python tests/test_vba.py [optimierung|import|bedienung|staffeln]   (benötigt LibreOffice, für 2. auch OCP)
 """
 import random
 import shutil
@@ -24,6 +28,7 @@ sys.path.insert(0, str(HIER.parent / "tools"))
 sys.path.insert(0, str(HIER))
 from openpyxl import load_workbook  # noqa: E402
 from optimierung import optimiere_mappe  # noqa: E402
+import staffeln  # noqa: E402
 from lo_makro import LibreOffice  # noqa: E402
 
 MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
@@ -248,21 +253,46 @@ def test_bedienung(lo, d):
             n_teile += faktor
     assert n_stangen == len(stangen) and n_teile == teile, (n_stangen, len(stangen), n_teile, teile)
     print(f"OK     Werkstattpapier: {len(bloecke)} Blöcke für {len(stangen)} Stangen, {teile} Teile")
-    # Angebot: eine Zeile je Position, Preise = Kalkulation (auf Cent)
+    # Angebot: eine Zeile je Einzelteil, je Satz ein Block mit Satzpreis; Preise = Kalkulation (auf Cent)
     wan, wk, wa = wb["Angebot"], wb["Kalkulation"], wb["Auftrag"]
     pos = [r_ for r_ in range(13, 513) if wa.cell(r_, 4).value not in (None, "")]
+    ep = {r_: round(wk.cell(r_, 20).value, 2) for r_ in pos}
+    je = {r_: (wa.cell(r_, 44).value or 1) for r_ in pos}
+    satz = {r_: (wa.cell(r_, 43).value or "") for r_ in pos}
+    zeilen, gesehen = [], set()
+    for r_ in pos:
+        if not satz[r_]:
+            zeilen.append(("einzel", r_))
+        elif satz[r_] not in gesehen:
+            gesehen.add(satz[r_])
+            zeilen.append(("satz", satz[r_]))
+            zeilen += [("teil", k_) for k_ in pos if satz[k_] == satz[r_]]
+    assert gesehen, "Beispielauftrag ohne Satz – Satzblock wird nicht geprüft"
     summe = 0.0
-    for k, r_ in enumerate(pos):
+    bezeichnung = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
+    for k, (art, ref) in enumerate(zeilen):
         z = [wan.cell(14 + k, c).value for c in range(1, 7)]
-        ep = round(wk.cell(r_, 20).value, 2)
-        assert z[1] == wa.cell(r_, 2).value and abs(z[4] - ep) < 1e-9, (z, ep)
-        assert abs(z[5] - round(ep * wa.cell(r_, 7).value, 2)) < 1e-9
-        assert z[2].startswith(("Rundrohr", "Quadratrohr", "Rechteckrohr")) and ", L = " in z[2] and "inkl. Material" in z[2], z[2]
-        summe += z[5]
-    zs = 14 + len(pos) + 1
+        if art == "einzel":
+            assert z[1] == wa.cell(ref, 2).value and abs(z[4] - ep[ref]) < 1e-9, (z, ep[ref])
+            assert abs(z[5] - round(ep[ref] * wa.cell(ref, 7).value, 2)) < 1e-9
+            assert z[2].startswith(bezeichnung) and ", L = " in z[2] and "inkl. Material" in z[2], z[2]
+            summe += z[5]
+        elif art == "satz":
+            glieder = [k_ for k_ in pos if satz[k_] == ref]
+            preis = round(sum(ep[k_] * je[k_] for k_ in glieder), 2)
+            saetze = max(round(wa.cell(k_, 7).value / je[k_]) for k_ in glieder)
+            assert z[2] == f"Satz {ref}" and z[3] == saetze, (z, saetze)
+            assert abs(z[4] - preis) < 1e-9 and abs(z[5] - round(preis * saetze, 2)) < 1e-9, (z, preis)
+            summe += z[5]
+        else:
+            assert z[1] == wa.cell(ref, 2).value, z
+            assert z[4] in (None, "") and z[5] in (None, ""), f"Satzteil mit Preis: {z}"
+            assert z[2].strip().startswith(f"{int(je[ref])} x"), z[2]
+    zs = 14 + len(zeilen) + 1
     assert wan.cell(zs, 4).value == "Summe netto [€]" and abs(wan.cell(zs, 6).value - summe) < 0.005
     assert abs(wan.cell(zs + 2, 6).value - (summe + round(summe * 0.19, 2))) < 0.005
-    print(f"OK     Angebot: {len(pos)} Positionen, {summe:.2f} € netto, Text: {wan.cell(14, 3).value}")
+    print(f"OK     Angebot: {len(zeilen)} Zeilen für {len(pos)} Positionen und {len(gesehen)} Satz/Sätze, "
+          f"{summe:.2f} € netto, Text: {wan.cell(14, 3).value}")
 
     # Materialpreis je Position im Auftrag (Spalte AP) schlägt Preise und Tonnenpreis
     preis_ein = d / "preis.xlsm"
@@ -289,11 +319,12 @@ def test_bedienung(lo, d):
     assert text == "OK A-2026-0002", text
     wb = load_workbook(d / "neu.xlsx", data_only=True)
     wa = wb["Auftrag"]
-    assert all(wa.cell(r_, c).value in (None, "") for r_ in range(13, 513) for c in list(range(1, 11)) + list(range(25, 40)))
+    assert all(wa.cell(r_, c).value in (None, "") for r_ in range(13, 513) for c in list(range(1, 11)) + list(range(25, 40)) + [42, 43, 44])
     assert wa["C8"].value == "RL-1" and wa["C9"].value == 6000 and wa["C6"].value in (None, "")
     assert wb["Schnittplan"]["A5"].value in (None, "") and wb["Stangenbelegung"]["A5"].value in (None, "")
     assert wa["C10"].value == "noch nicht optimiert", wa["C10"].value
     assert wb["Angebot"]["A14"].value in (None, "") and wb["Werkstattpapier"]["A5"].value in (None, "")
+    assert wb["Staffeln"]["A5"].value in (None, "") and wb["Staffelpreise"]["A5"].value in (None, "")
     print("OK     Neuer Auftrag")
 
     # Stammdaten aus einer anderen Mappe übernehmen
@@ -318,8 +349,73 @@ def test_bedienung(lo, d):
     print("OK     Stammdaten übernehmen")
 
 
+def test_staffeln(lo, d):
+    """Staffelpreise: je Mengenstufe ein eigener Rechenlauf, Auftrag danach wiederhergestellt."""
+    ein = d / "staffel.xlsm"
+    shutil.copy(MAPPE, ein)
+    aus = d / "staffel.xlsx"
+    lo.ausfuehren(ein, [("Optimierung.OptimiereTest", ()), ("Staffel.StaffelTest", ()),
+                        ("Ausgabe.AusgabeTest", ())], aus)
+    r = lo.rueckgaben
+    assert not r[0].startswith("FEHLER"), r[0]
+    assert "gerechnet" in r[1], r[1]
+    assert r[2].startswith("OK"), r[2]
+
+    vorlage = load_workbook(MAPPE)
+    erwartet = staffeln.szenarien(vorlage)
+    assert erwartet, "Beispielmappe ohne Staffeln"
+    wb = load_workbook(aus, data_only=True)
+    wf, wa = wb["Staffelpreise"], wb["Auftrag"]
+
+    # Auftrag unverändert: Stückzahlen wie in der Vorlage, Optimierung wieder aktuell
+    for zeile in range(13, 513):
+        assert wa.cell(zeile, 7).value == vorlage["Auftrag"].cell(zeile, 7).value, f"Stückzahl Zeile {zeile}"
+    assert wb["Listen"]["E5"].value == "nein" and wa["C10"].value == "aktuell", wa["C10"].value
+
+    zm, zf, zg = (wb["Kalkulation"][c].value for c in ("C4", "C5", "C6"))
+    zeilen = [[wf.cell(z, c).value for c in range(1, 15)] for z in range(5, 205) if wf.cell(z, 1).value is not None]
+    assert len(zeilen) == len(erwartet), f"{len(zeilen)} Zeilen gegen {len(erwartet)} Staffeln"
+    for z, (schl, menge, ist_satz, mengen) in zip(zeilen, erwartet):
+        assert staffeln._txt(z[0]) == schl and z[2] == ("Satz" if ist_satz else "Stück") and z[3] == menge, z
+        assert z[4] == sum(mengen.values()), (z, mengen)
+        # Stangenzahl gegen die Python-Optimierung des gleichen Szenarios
+        pfad = d / f"sz_{schl}_{int(menge)}.xlsx"
+        wbs = load_workbook(MAPPE)
+        staffeln.setze(wbs, mengen)
+        wbs.save(pfad)
+        optimiere_mappe(pfad, sicherung=False)
+        wbs = load_workbook(pfad)
+        py = sum(1 for zz in range(5, 1005) if wbs["Schnittplan"].cell(zz, 1).value is not None)
+        assert z[5] == py, f"Staffel {schl}/{menge:.0f}: VBA {z[5]} Stangen, Python {py}"
+        # Herstellkosten = Material x (1 + Zuschlag Material) + (Laser + Rüsten) x (1 + Zuschlag Fertigung)
+        assert abs(z[9] - (z[6] * (1 + zm) + (z[7] + z[8]) * (1 + zf))) < 0.05, z
+        assert abs(z[10] - z[9] / menge) < 0.005, z
+        assert abs(z[11] - round(z[9] * (1 + zg) / menge, 2)) < 0.011, z
+        assert abs(z[12] - round(z[11] * menge, 2)) < 0.005, z
+    # Stückpreis sinkt mit der Menge (Rüsten wird auf mehr Einheiten verteilt)
+    je_schluessel = {}
+    for z in zeilen:
+        je_schluessel.setdefault(staffeln._txt(z[0]), []).append((z[3], z[10]))
+    for schl, stufen in je_schluessel.items():
+        stufen.sort()
+        for (m1, p1), (m2, p2) in zip(stufen, stufen[1:]):
+            assert p2 <= p1 + 1e-9, f"Staffel {schl}: {m2:.0f} Stück teurer je Einheit als {m1:.0f}"
+    # Preistreppe im Angebot
+    wan = wb["Angebot"]
+    kopf = next(zz for zz in range(14, wan.max_row + 1) if wan.cell(zz, 1).value == "Staffelpreise")
+    for i, z in enumerate(zeilen):
+        a = [wan.cell(kopf + 2 + i, c).value for c in range(1, 7)]
+        if z[2] == "Satz":
+            assert a[2] == f"Satz {z[0]} ({z[1]})", (a, z)
+        else:
+            assert staffeln._txt(a[0]) == staffeln._txt(z[0]) and a[2] == z[1], (a, z)
+        assert a[3] == z[3] and abs(a[4] - z[11]) < 1e-9 and abs(a[5] - z[12]) < 1e-9, (a, z)
+    print(f"OK     Staffelpreise: {len(zeilen)} Stufen, Preise je Einheit "
+          + ", ".join(f"{z[3]:.0f}x{z[2]} {z[11]:.2f} €" for z in zeilen))
+
+
 def main():
-    welche = sys.argv[1:] or ["optimierung", "import", "bedienung"]
+    welche = sys.argv[1:] or ["optimierung", "import", "bedienung", "staffeln"]
     with tempfile.TemporaryDirectory() as d, LibreOffice() as lo:
         if "optimierung" in welche:
             test_optimierung(lo, Path(d))
@@ -327,6 +423,8 @@ def main():
             test_import(lo, Path(d))
         if "bedienung" in welche:
             test_bedienung(lo, Path(d))
+        if "staffeln" in welche:
+            test_staffeln(lo, Path(d))
 
 
 if __name__ == "__main__":

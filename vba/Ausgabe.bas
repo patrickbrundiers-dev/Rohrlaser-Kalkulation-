@@ -16,6 +16,7 @@ Private Const S0 As Long = 5
 Private Const S1 As Long = 1004
 Private Const D0 As Long = 5
 Private Const A0 As Long = 14              ' erste Positionszeile im Blatt Angebot
+Private Const P0 As Long = 5               ' erste Zeile im Blatt Staffelpreise
 Private Const ZEILEN_JE_SEITE As Long = 50 ' Werkstattpapier: Blöcke nicht über Seitenwechsel teilen
 
 
@@ -277,31 +278,60 @@ End Sub
 ' Füllt die Positionen des Angebots aus Auftrag und Kalkulation.
 ' Ergebnis: letzte beschriebene Zeile (0 = keine Positionen); hinweise = Positionen mit Hinweis.
 Public Function AngebotFuellen(hinweise As Long) As Long
-    Dim ws As Worksheet, av As Variant, kv As Variant, i As Long, r As Long, preis As Double, menge As Double
-    Dim w As Variant, summeZeile As Long
+    Dim ws As Worksheet, av As Variant, kv As Variant, i As Long, j As Long, r As Long
+    Dim w As Variant, summeZeile As Long, satz As String, erledigt As String
+    Dim saetze As Double, satzPreis As Double, preis As Double, menge As Double
     Set ws = ThisWorkbook.Worksheets("Angebot")
     Application.Calculate
     AngebotLeeren
     ws.Range(ws.Cells(A0, 4), ws.Cells(A0 + 600, 5)).UnMerge
-    av = ThisWorkbook.Worksheets("Auftrag").Range("A" & O0 & ":AG" & O1).Value
+    av = ThisWorkbook.Worksheets("Auftrag").Range("A" & O0 & ":AR" & O1).Value
     kv = ThisWorkbook.Worksheets("Kalkulation").Range("A" & O0 & ":W" & O1).Value
     hinweise = 0
+    erledigt = "|"
     r = A0 - 1
     For i = 1 To UBound(av, 1)
-        If Len(CStr(av(i, 4))) > 0 Then
-            r = r + 1
-            ws.Cells(r, 1).Value = AlsText(av(i, 1))
-            ws.Cells(r, 2).Value = AlsText(av(i, 2))
-            ws.Cells(r, 3).Value = AngebotText(av, i)
-            ws.Cells(r, 4).Value = av(i, 7)
-            preis = 0: menge = 0
-            w = kv(i, 20)
-            If Not IsError(w) Then
-                If IsNumeric(w) And Not IsEmpty(w) Then preis = Round(CDbl(w), 2)
+        If Len(SatzText(av(i, 4))) > 0 Then
+            satz = SatzText(av(i, 43))
+            If Len(satz) = 0 Then
+                ' Einzelteil: eine Zeile mit Stückpreis und Gesamtpreis
+                r = r + 1
+                ws.Cells(r, 1).Value = AlsText(av(i, 1))
+                ws.Cells(r, 2).Value = AlsText(av(i, 2))
+                ws.Cells(r, 3).Value = AngebotText(av, i)
+                ws.Cells(r, 4).Value = av(i, 7)
+                preis = PreisJeTeil(kv, i)
+                menge = Wert(av(i, 7))
+                ws.Cells(r, 5).Value = preis
+                ws.Cells(r, 6).Value = Round(preis * menge, 2)
+            ElseIf InStr(erledigt, "|" & satz & "|") = 0 Then
+                ' Satz: ein Block mit Satzpreis, die Teile darunter nachrichtlich
+                erledigt = erledigt & satz & "|"
+                saetze = SatzAnzahl(av, satz)
+                satzPreis = 0
+                For j = 1 To UBound(av, 1)
+                    If SatzText(av(j, 43)) = satz Then satzPreis = satzPreis + PreisJeTeil(kv, j) * JeSatz(av, j)
+                Next j
+                satzPreis = Round(satzPreis, 2)
+                r = r + 1
+                ws.Cells(r, 3).Value = "Satz " & satz
+                ws.Cells(r, 4).Value = saetze
+                ws.Cells(r, 5).Value = satzPreis
+                ws.Cells(r, 6).Value = Round(satzPreis * saetze, 2)
+                ws.Range(ws.Cells(r, 1), ws.Cells(r, 6)).Font.Bold = True
+                For j = 1 To UBound(av, 1)
+                    If SatzText(av(j, 43)) = satz Then
+                        r = r + 1
+                        ws.Cells(r, 1).Value = AlsText(av(j, 1))
+                        ws.Cells(r, 2).Value = AlsText(av(j, 2))
+                        ws.Cells(r, 3).Value = "   " & Format$(JeSatz(av, j), "0") & " x " & AngebotText(av, j)
+                    End If
+                Next j
             End If
-            If IsNumeric(av(i, 7)) And Not IsEmpty(av(i, 7)) Then menge = CDbl(av(i, 7))
-            ws.Cells(r, 5).Value = preis
-            ws.Cells(r, 6).Value = Round(preis * menge, 2)
+        End If
+    Next i
+    For i = 1 To UBound(av, 1)
+        If Len(SatzText(av(i, 4))) > 0 Then
             w = kv(i, 23)
             If IsError(w) Then
                 hinweise = hinweise + 1
@@ -337,7 +367,85 @@ Public Function AngebotFuellen(hinweise As Long) As Long
     End With
     ws.Range(ws.Cells(summeZeile, 6), ws.Cells(summeZeile + 2, 6)).NumberFormat = "#,##0.00"
     ws.Range(ws.Cells(summeZeile + 2, 4), ws.Cells(summeZeile + 2, 6)).Borders(8).LineStyle = 1   ' xlEdgeTop
-    AngebotFuellen = summeZeile + 2
+    AngebotFuellen = Staffeltreppe(ws, summeZeile + 2)
+End Function
+
+' Preistreppe unter den Positionen: je Mengenstufe aus dem Blatt Staffelpreise
+' eine Zeile mit Preis je Satz bzw. Stück. Ergebnis: letzte beschriebene Zeile.
+Private Function Staffeltreppe(ws As Worksheet, ByVal ab As Long) As Long
+    Dim wf As Worksheet, n As Long, i As Long, r As Long, k As Long, schl As String, bez As String
+    n = Staffel.StaffelZeilen()
+    Staffeltreppe = ab
+    If n = 0 Then Exit Function
+    Set wf = ThisWorkbook.Worksheets("Staffelpreise")
+    r = ab + 3
+    ws.Cells(r, 1).Value = "Staffelpreise"
+    ws.Cells(r, 1).Font.Bold = True
+    ws.Cells(r, 3).Value = "Je Stufe neu gerechnet: Rüsten, Stangenwechsel und Verschnitt fallen je Menge neu an."
+    r = r + 1
+    k = r
+    Kopf ws, r, Array("Pos.", "Artikelnummer", "Satz / Position", "Menge", _
+                      "Preis je Einheit [€]", "Gesamtpreis [€]")
+    ws.Rows(r).RowHeight = 34
+    For i = 1 To n
+        r = r + 1
+        schl = SatzText(wf.Cells(P0 + i - 1, 1).Value)
+        bez = SatzText(wf.Cells(P0 + i - 1, 2).Value)
+        If SatzText(wf.Cells(P0 + i - 1, 3).Value) = "Satz" Then
+            ws.Cells(r, 3).Value = "Satz " & schl & IIf(Len(bez) > 0, " (" & bez & ")", "")
+            ws.Range(ws.Cells(r, 1), ws.Cells(r, 6)).Font.Bold = True
+        Else
+            ws.Cells(r, 1).Value = wf.Cells(P0 + i - 1, 1).Value
+            ws.Cells(r, 3).Value = bez
+        End If
+        ws.Cells(r, 4).Value = wf.Cells(P0 + i - 1, 4).Value
+        ws.Cells(r, 5).Value = wf.Cells(P0 + i - 1, 12).Value
+        ws.Cells(r, 6).Value = wf.Cells(P0 + i - 1, 13).Value
+    Next i
+    Rahmen ws.Range(ws.Cells(k, 1), ws.Cells(r, 6))
+    ws.Range(ws.Cells(k + 1, 4), ws.Cells(r, 4)).NumberFormat = "#,##0"
+    ws.Range(ws.Cells(k + 1, 5), ws.Cells(r, 6)).NumberFormat = "#,##0.00"
+    ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 6)).Font.Name = "Arial"
+    ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 6)).Font.Size = 10
+    ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 1)).HorizontalAlignment = -4108   ' xlCenter
+    Staffeltreppe = r
+End Function
+
+' Verkaufspreis je Teil aus der Kalkulation (Spalte T), auf Cent gerundet.
+Private Function PreisJeTeil(kv As Variant, ByVal i As Long) As Double
+    PreisJeTeil = Round(Wert(kv(i, 20)), 2)
+End Function
+
+' Wie oft ein Teil in einem Satz steckt (Auftrag Spalte AR), mindestens 1.
+Private Function JeSatz(av As Variant, ByVal i As Long) As Double
+    JeSatz = Wert(av(i, 44))
+    If JeSatz < 1 Then JeSatz = 1
+End Function
+
+' Anzahl Sätze = Stückzahl / Stück je Satz (größter Wert der Satzpositionen).
+Private Function SatzAnzahl(av As Variant, ByVal satz As String) As Double
+    Dim i As Long, n As Double, stk As Double
+    For i = 1 To UBound(av, 1)
+        If SatzText(av(i, 43)) = satz Then
+            stk = Wert(av(i, 7)) / JeSatz(av, i)
+            If stk > n Then n = stk
+        End If
+    Next i
+    SatzAnzahl = Int(n + 0.5)
+    If SatzAnzahl < 1 Then SatzAnzahl = 1
+End Function
+
+Private Function SatzText(v As Variant) As String
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+    SatzText = Trim$(CStr(v))
+End Function
+
+Private Function Wert(v As Variant) As Double
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+    If Not IsNumeric(v) Then Exit Function
+    Wert = CDbl(v)
 End Function
 
 ' Bezeichnung einer Position fürs Angebot, z. B.

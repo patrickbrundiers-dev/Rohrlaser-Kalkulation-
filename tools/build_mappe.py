@@ -116,6 +116,8 @@ rows = [
     ("STEP-Import", "Protokoll aller Messwerte je importiertem Teil."),
     ("Kalkulation", "Material-, Laser-, Gewinde- und Rüstkosten je Teil und Position, Zuschläge, Verkaufspreis."),
     ("Angebot", "Angebot an den Kunden mit Einzel- und Gesamtpreisen. Briefkopf, Bedingungen, Gültigkeit und MwSt.-Satz einmal eintragen; die Positionen trägt 'Angebot (PDF)' ein."),
+    ("Staffeln", "Mengenstufen je Satz oder Position (Eingabe): welche Stückzahlen zusätzlich gerechnet werden sollen."),
+    ("Staffelpreise", "Ergebnis von 'Staffelpreise': je Mengenstufe ein eigener Rechenlauf mit Stangen, Kosten und Preis je Satz bzw. Stück."),
     ("Werkstattpapier", "Wird von 'Werkstattpapiere (PDF)' gefüllt: Materialliste und je Stange die Teile in Schnittreihenfolge (gleiche Stangen zusammengefasst)."),
     ("Schnittplan", "Ergebnis der Optimierung: eine Zeile je Stange mit Belegung, Rest, Ausnutzung und Prüfung gegen Überbelegung."),
     ("Stangenbelegung", "Ergebnis der Optimierung: eine Zeile je Teil mit Lage auf der Stange (von/bis) und Art der Trennung."),
@@ -131,6 +133,7 @@ rows = [
     ("4.", "Status-Spalte prüfen: FEHLER muss behoben werden, WARNUNG/HINWEIS sollte geprüft werden."),
     ("5.", "'Optimieren' klicken: füllt Schnittplan, Stangenbelegung und Auswertung. Danach Blatt 'Kalkulation' prüfen. 'Stand Optimierung' (Auftrag C10, Kalkulation C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern."),
     ("6.", "'Werkstattpapiere (PDF)', 'Angebot (PDF)' oder 'Kalkulation (PDF)': erzeugt die PDF-Datei im Ordner 'Aufträge' neben der Mappe und öffnet sie. Ist die Optimierung veraltet, wird vorher gefragt, ob neu optimiert wird."),
+    ("6a.", "Staffelpreise: im Blatt 'Staffeln' je Satz oder Position die gewünschten Mengen eintragen und 'Staffelpreise' klicken. Jede Stufe wird als eigener Auftrag komplett neu gerechnet (Stangenbedarf, Verschnitt, Rüsten, Stangenwechsel); das Ergebnis steht im Blatt 'Staffelpreise' und im Angebot unter den Positionen. Der ursprüngliche Auftrag wird danach wiederhergestellt."),
     ("7.", "'Auftrag speichern als' legt eine Kopie der Mappe als '<Auftragsnummer> <Kunde>.xlsm' im Ordner 'Aufträge' ab. Die geöffnete Mappe bleibt die Vorlage für den nächsten Auftrag."),
     ("", ""),
     ("Annahmen", None),
@@ -153,6 +156,8 @@ rows = [
     ("A18", "Ablage: Auftragsmappen und PDF-Dateien liegen im Ordner 'Aufträge' neben der Vorlage (wird angelegt). Wird eine abgelegte Auftragsmappe selbst geöffnet, gilt ihr eigener Ordner; der STEP-Import findet die STEP-Import.exe dann auch im übergeordneten Ordner. Jede Auftragsmappe enthält ihre eigenen Stammdaten (nachvollziehbar, auch wenn sich Preise später ändern). 'Stammdaten übernehmen' kopiert Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Auswahllisten, Zuschläge und Angebotskopf aus einer anderen Mappe gleicher Version (nur Eingabezellen, keine Formeln)."),
     ("A20", "Materialpreis je Auftrag: In Spalte AP des Auftrags kann je Position ein Preis in €/m eingetragen werden. Er gilt für alle Positionen mit gleichem Profil, Werkstoff und gleicher Stangenlänge und schlägt Blatt 'Preise' und den Tonnenpreis. Reihenfolge: Auftrag (AP) vor 'Preise' (€/kg, €/m, €/Stange) vor Tonnenpreis des Werkstoffs."),
     ("A19", "Angebot: Einzelpreis = Verkaufspreis je Teil aus der Kalkulation, auf Cent gerundet; Gesamtpreis = Einzelpreis × Menge. Positionen mit Hinweis in der Kalkulation (z. B. ohne Preis oder nicht eingeplant) werden vor dem Erstellen gemeldet."),
+    ("A21", "Satz: Positionen mit gleichem Eintrag in Spalte AQ bilden einen Satz. Spalte AR sagt, wie oft ein Teil in einem Satz steckt; die Stückzahl in Spalte G bleibt immer die Gesamtmenge, Anzahl Sätze = G / AR. Im Angebot erscheint der Satz als ein Block mit Satzpreis, die Teile darunter nachrichtlich. Gerechnet wird weiterhin je Teil – ein Satz ändert die Optimierung nicht."),
+    ("A22", "Staffelpreise: Jede Stufe ist ein eigener Rechenlauf, der nur die Positionen dieser Staffel enthält. Damit fallen Rüstzeit, Stangenwechsel und Verschnitt je Stufe neu an und der Stückpreis sinkt mit der Menge. Mengen anderer Staffeln werden nicht mitgerechnet, die Stufen sind also unabhängig voneinander kalkuliert."),
     ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine. Für die Laserzeit gilt je Klasse der eigene Vorschub aus 'Schneiddaten'; Anfangs-/Endschnitt mit Vorschub groß; fehlt mittel oder klein, wird der nächstgrößere verwendet."),
 ]
 r = 4
@@ -456,14 +461,15 @@ cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "i
           ("Kontur mittel [Stk] (STEP)", 9, "in"), ("Kontur mittel [mm] (STEP)", 10, "in"),
           ("Kontur groß [Stk] (STEP)", 9, "in"), ("Kontur groß [mm] (STEP)", 10, "in"),
           ("Eingeplant [Stk]", 9, "calc"), ("Nicht eingeplant [Stk]", 9, "calc"),
-          ("Materialpreis abweichend [€/m]", 13, "in")]
+          ("Materialpreis abweichend [€/m]", 13, "in"),
+          ("Satz", 14, "in"), ("Stück je Satz", 10, "in")]
 header(wa, 12, cols_a)
 wa.row_dimensions[12].height = 60
 style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 10: "#,##0", 12: "0.0",
                                  13: "0.00", 14: "0.000", 15: "0.000", 16: "#,##0", 17: "#,##0", 18: "0",
                                  19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0", 29: "#,##0.0", 30: "#,##0.0",
                                  34: "0", 35: "#,##0.0", 36: "0", 37: "#,##0.0", 38: "0", 39: "#,##0.0",
-                                 42: "#,##0.00"})
+                                 42: "#,##0.00", 44: "#,##0"})
 P = lambda col: f"Profile!${col}${M0}:${col}${M1}"
 DET = lambda col: f"Stangenbelegung!${col}${D0}:${col}${D1}"
 SD = lambda col: f"Schneiddaten!${col}${M0}:${col}${M1}"
@@ -501,9 +507,11 @@ for r in range(O0, O1 + 1):
         f'IF($F{r}+$H$6>T{r},"FEHLER: Teil länger als Nutzlänge",'
         f'IF(N(AO{r})>0,"WARNUNG: nicht vollständig eingeplant",'
         f'IF(U{r}="nein","WARNUNG: kein gültiger Materialpreis",'
+        f'IF(AND($AQ{r}<>"",N($AR{r})>0,MOD($G{r},$AR{r})<>0),'
+        f'"WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz",'
         f'IF($H{r}="","HINWEIS: Schneidweg fehlt",'
         f'IF(V{r}="","HINWEIS: keine Schneiddaten",'
-        f'IF(AND($AF{r}<>"",$AG{r}=""),"HINWEIS: Gewinde-Vorschlag prüfen","OK"))))))))))))))')
+        f'IF(AND($AF{r}<>"",$AG{r}=""),"HINWEIS: Gewinde-Vorschlag prüfen","OK")))))))))))))))')
 
 ex = [(10, "4711-001", "Holm links", "RR 42,4x2,0", "S235-10219", 1250, 24, 410.5, 4, None),
       (20, "4711-002", "Querstrebe", "RR 42,4x2,0", "S235-10219", 860, 40, 302.0, 2, None),
@@ -514,6 +522,9 @@ for i, row in enumerate(ex, start=O0):
     for j, v in enumerate(row, start=1):
         if v is not None:
             wa.cell(row=i, column=j, value=v)
+
+for r_, satz_, je_ in ((O0 + 2, "Rahmen", 3), (O0 + 3, "Rahmen", 4)):
+    wa.cell(r_, 43, satz_); wa.cell(r_, 44, je_)
 
 add_dv(wa, list_dv("lst_Maschine", "Bitte Maschinen-ID aus Blatt 'Maschinen' wählen."), "C8")
 add_dv(wa, num_dv(500, 20000, whole=True, msg="Stangenlänge in mm (500–20000)."), "C9")
@@ -538,6 +549,11 @@ wa["Y12"].comment = Comment("Gerade = Schnitt senkrecht zur Rohrachse. Zwei bena
 wa["AP12"].comment = Comment("Preis je Meter nur für diesen Auftrag. Gefüllt schlägt er Blatt 'Preise' und Tonnenpreis. "
                              "Gilt für alle Positionen mit gleichem Profil, Werkstoff und gleicher Stangenlänge.", "Kalkulation")
 add_dv(wa, num_dv(0, 100000, msg="Materialpreis je Meter in € (≥ 0), leer = Preis aus den Stammdaten."), f"AP{O0}:AP{O1}")
+add_dv(wa, num_dv(1, 100000, whole=True, msg="Stück je Satz als ganze Zahl ≥ 1, leer = 1."), f"AR{O0}:AR{O1}")
+wa["AQ12"].comment = Comment("Satzbezeichnung, z. B. 'Rahmen'. Positionen mit gleichem Eintrag bilden einen Satz und "
+                             "erscheinen im Angebot als ein Block mit einem Satzpreis. Leer = Einzelteil.", "Kalkulation")
+wa["AR12"].comment = Comment("Wie oft dieses Teil in einem Satz steckt. Anzahl Sätze = Stückzahl / Stück je Satz; "
+                             "die Stückzahl in Spalte G bleibt immer die Gesamtmenge.", "Kalkulation")
 
 wrng = f"W{O0}:W{O1}"
 for prefix, color in (("FEHLER", "F8CBAD"), ("WARNUNG", "FFD966"), ("HINWEIS", "FFF2CC"), ("OK", "C6EFCE")):
@@ -549,7 +565,7 @@ wa.column_dimensions.group("K", "V", hidden=True)
 wa.column_dimensions.group("X", "X", hidden=True)
 wa.column_dimensions.group("Y", "AM", hidden=True)
 wa.sheet_properties.outlinePr.summaryRight = False
-wa["N4"] = ("Eingabe: A–J und AP (Materialpreis abweichend). Berechnetes (K–V, X) und STEP-Werte (Y–AM) "
+wa["N4"] = ("Eingabe: A–J, AP (Materialpreis abweichend), AQ/AR (Satz). Berechnetes (K–V, X) und STEP-Werte (Y–AM) "
             "sind zugeklappt – mit + über den Spaltenköpfen öffnen.")
 wa["N4"].font = f_note
 wa.page_setup.orientation = "landscape"
@@ -768,6 +784,56 @@ wlog.column_dimensions["B"].width = 34
 wlog.column_dimensions["AD"].width = 50
 wlog.freeze_panes = "A5"
 
+# ---------------------------------------------------------------- Staffeln (Eingabe)
+T0, T1 = 5, 104
+wsa = wb.create_sheet("Staffeln")
+title(wsa, "Staffeln (Mengenstufen)",
+      "Je Zeile eine Mengenstufe: Satzbezeichnung aus Spalte AQ des Auftrags oder Positionsnummer aus Spalte A. "
+      "'Staffelpreise' rechnet jede Stufe als eigenen Auftrag neu – Stangenbedarf, Verschnitt, Rüsten und Stangenwechsel fallen je Stufe neu an.")
+cols_sa = [("Satz oder Pos.", 18, "in"), ("Menge [Sätze bzw. Stück]", 13, "in"), ("Bemerkung", 36, "in"),
+           ("Prüfung", 32, "calc")]
+header(wsa, 4, cols_sa)
+style_rows(wsa, T0, T1, cols_sa, {2: "#,##0"})
+AQ = lambda: f"Auftrag!$AQ${O0}:$AQ${O1}"
+for r in range(T0, T1 + 1):
+    wsa[f"D{r}"] = (f'=IF($A{r}="","",IF(N($B{r})<1,"FEHLER: Menge fehlt",'
+                    f'IF(COUNTIF({AQ()},$A{r})>0,"Satz mit "&COUNTIF({AQ()},$A{r})&" Positionen",'
+                    f'IF(COUNTIF(Auftrag!$A${O0}:$A${O1},$A{r})>0,"Position",'
+                    f'"FEHLER: Satz/Pos. nicht im Auftrag"))))')
+add_dv(wsa, num_dv(1, 1000000, whole=True, msg="Menge als ganze Zahl ≥ 1 (Sätze bzw. Stück)."), f"B{T0}:B{T1}")
+for i, (schl, menge, bem) in enumerate([("Rahmen", 2, "Beispiel: Satz aus Pos. 30 und 40"), ("Rahmen", 4, None),
+                                        ("Rahmen", 8, None), (10, 24, "Beispiel: Einzelposition"),
+                                        (10, 50, None), (10, 100, None)], start=T0):
+    wsa.cell(i, 1, schl); wsa.cell(i, 2, menge)
+    if bem:
+        wsa.cell(i, 3, bem)
+wsa.conditional_formatting.add(f"D{T0}:D{T1}", FormulaRule(formula=[f'LEFT($D{T0},6)="FEHLER"'],
+                                                           fill=PatternFill("solid", fgColor="F8CBAD")))
+wsa.freeze_panes = "A5"
+wsa.print_title_rows = "4:4"
+
+# ---------------------------------------------------------------- Staffelpreise (Ergebnis)
+F0, F1 = 5, 204
+wsf = wb.create_sheet("Staffelpreise")
+title(wsf, "Staffelpreise",
+      "Wird von der Schaltfläche 'Staffelpreise' gefüllt. Jede Zeile ist ein kompletter eigener Rechenlauf mit nur den "
+      "Positionen dieser Staffel; danach stellt das Makro den ursprünglichen Auftrag wieder her.")
+cols_sf = [("Satz oder Pos.", 18, "calc"), ("Bezeichnung", 30, "calc"), ("Einheit", 8, "calc"),
+           ("Menge", 9, "calc"), ("Teile gesamt [Stk]", 9, "calc"), ("Stangen", 8, "calc"),
+           ("Material [€]", 11, "calc"), ("Laser + Gewinde [€]", 11, "calc"),
+           ("Rüsten + Stangenwechsel [€]", 12, "calc"), ("Herstellkosten [€]", 11, "calc"),
+           ("Herstellkosten je Einheit [€]", 12, "calc"), ("Verkaufspreis je Einheit [€]", 12, "calc"),
+           ("Verkaufspreis gesamt [€]", 12, "calc"), ("Hinweis", 28, "calc")]
+header(wsf, 4, cols_sf)
+style_rows(wsf, F0, F1, cols_sf, {4: "#,##0", 5: "#,##0", 6: "#,##0", 7: "#,##0.00", 8: "#,##0.00",
+                                  9: "#,##0.00", 10: "#,##0.00", 11: "#,##0.000", 12: "#,##0.00", 13: "#,##0.00"})
+wsf.freeze_panes = "B5"
+wsf.print_title_rows = "4:4"
+wsf.page_setup.orientation = "landscape"
+wsf.page_setup.fitToWidth = 1
+wsf.page_setup.fitToHeight = 0
+wsf.sheet_properties.pageSetUpPr.fitToPage = True
+
 # ---------------------------------------------------------------- Angebot
 wan = wb.create_sheet("Angebot")
 for i, v in enumerate(["Firmenname", "Straße Nr.", "PLZ Ort", "Telefon / E-Mail"], start=1):
@@ -837,9 +903,9 @@ wwp.oddFooter.left.text = "Werkstattpapier"
 wwp.oddFooter.right.text = "Seite &P von &N"
 wwp.oddFooter.left.size = wwp.oddFooter.right.size = 8
 
-reihenfolge = ["Anleitung", "Auftrag", "Kalkulation", "Angebot", "Werkstattpapier", "Schnittplan", "Stangenbelegung",
-               "Auswertung", "Listen", "Profile", "Werkstoffe", "Preise", "Maschinen", "Schneiddaten", "Gewinde",
-               "STEP-Import"]
+reihenfolge = ["Anleitung", "Auftrag", "Kalkulation", "Staffeln", "Staffelpreise", "Angebot", "Werkstattpapier",
+               "Schnittplan", "Stangenbelegung", "Auswertung", "Listen", "Profile", "Werkstoffe", "Preise",
+               "Maschinen", "Schneiddaten", "Gewinde", "STEP-Import"]
 assert sorted(reihenfolge) == sorted(wb.sheetnames), wb.sheetnames
 wb._sheets = [wb[n] for n in reihenfolge]
 wb.active = 1
@@ -871,7 +937,8 @@ knoepfe = [("Optimieren", "Optimieren", (13, 3, 16, 5), "1F4E78"),
            ("NeuerAuftrag", "Neuer Auftrag", (17, 3, 20, 5), "7F7F7F"),
            ("AuftragSpeichernAls", "Auftrag speichern", (17, 6, 20, 8), "7F7F7F"),
            ("WerkstattpapiereDrucken", "Werkstattpapiere (PDF)", (21, 3, 23, 5), "C55A11"),
-           ("AngebotDrucken", "Angebot (PDF)", (21, 6, 23, 8), "C55A11")]
+           ("AngebotDrucken", "Angebot (PDF)", (21, 6, 23, 8), "C55A11"),
+           ("StaffelpreiseRechnen", "Staffelpreise", (13, 9, 16, 11), "7030A0")]
 menueband = menueband_xml("Rohrlaser", [
     ("Auftrag", [("RbNeuerAuftrag", "Neuer Auftrag", "FileNew",
                   "Positionen und Ergebnisse leeren, Stammdaten bleiben. Fragt vorher, ob der aktuelle Auftrag gespeichert wird."),
@@ -883,6 +950,8 @@ menueband = menueband_xml("Rohrlaser", [
                         "Materialliste und Schnittplan je Stange mit den Teilen in Schnittreihenfolge."),
                        ("RbAngebot", "Angebot", "FileSaveAsPdfOrXps", "Angebot mit Einzel- und Gesamtpreisen aus der Kalkulation."),
                        ("RbKalkulation", "Kalkulation", "FilePrintPreview", "Blatt Kalkulation (intern) als PDF.")]),
+    ("Staffeln", [("RbStaffelpreise", "Staffelpreise rechnen", "TableInsertDialog",
+                   "Jede Mengenstufe aus dem Blatt 'Staffeln' komplett neu rechnen und im Blatt 'Staffelpreise' eintragen.")]),
     ("Ablage", [("RbSpeichern", "Auftrag speichern als", "FileSaveAs",
                  "Kopie der Mappe als <Auftragsnummer> <Kunde>.xlsm im Ordner Aufträge neben der Mappe speichern."),
                 ("RbStammdaten", "Stammdaten übernehmen", "ImportExcel",

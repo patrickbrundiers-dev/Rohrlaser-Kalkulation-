@@ -51,6 +51,10 @@ Public Sub RbStammdaten(control As Object)
     StammdatenUebernehmen
 End Sub
 
+Public Sub RbStaffelpreise(control As Object)
+    Staffel.StaffelpreiseRechnen
+End Sub
+
 
 ' ================================================================== Optimierung veraltet
 ' Aufruf aus Worksheet_Change der Blätter Auftrag, Profile, Werkstoffe und Maschinen.
@@ -125,6 +129,7 @@ Public Sub AuftragLeeren()
     nr = NaechsteNummer(CStr(wa.Range("C4").Value))
     wa.Range("A" & O0 & ":J" & O1).ClearContents
     wa.Range("Y" & O0 & ":AM" & O1).ClearContents
+    wa.Range("AP" & O0 & ":AR" & O1).ClearContents
     wa.Range("C4").Value = AlsText(nr)
     wa.Range("C5").ClearContents
     wa.Range("C6").ClearContents
@@ -143,6 +148,8 @@ Public Sub AuftragLeeren()
     Set ws = ThisWorkbook.Worksheets("STEP-Import")
     letzte = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
     If letzte >= 5 Then ws.Range(ws.Rows(5), ws.Rows(letzte)).ClearContents
+    ThisWorkbook.Worksheets("Staffeln").Range("A5:C104").ClearContents
+    Staffel.StaffelpreiseLeeren
     Ausgabe.WerkstattpapierLeeren
     Ausgabe.AngebotLeeren
     SetzeVeraltet False
@@ -284,7 +291,7 @@ Public Function StammdatenKopieren(q As Workbook) As String
     BereichKopieren q, "Kalkulation", "C4:C6"
     BereichKopieren q, "Angebot", "A1:A4"
     BereichKopieren q, "Angebot", "C11:C12"
-    BereichKopieren q, "Angebot", "H10:H10"
+    BereichKopieren q, "Angebot", "F10:F10"
     SetzeVeraltet True
     StammdatenKopieren = "Stammdaten übernommen aus " & q.Name & ":" & vbLf & bericht & vbLf & _
                          "Bitte neu optimieren und die Kalkulation prüfen."
