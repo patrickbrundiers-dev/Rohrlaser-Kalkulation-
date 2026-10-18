@@ -24,6 +24,15 @@ def programmordner():
     return Path(__file__).resolve().parent.parent
 
 
+def deutsch(app):
+    """Deutsche Texte für Qt-Standarddialoge (Ja/Nein, Abbrechen, Dateiauswahl), falls die Übersetzung dabei ist."""
+    from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
+    uebersetzung = QTranslator(app)
+    if uebersetzung.load(QLocale(QLocale.German, QLocale.Germany), "qtbase", "_",
+                         QLibraryInfo.path(QLibraryInfo.TranslationsPath)):
+        app.installTranslator(uebersetzung)
+
+
 def selbsttest(app, mappe, ergebnis, step_dateien=()):
     from .datenbank import Datenbank
     from .fenster import Hauptfenster
@@ -111,6 +120,7 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName(NAME)
     app.setStyle("Fusion")
+    deutsch(app)
     if a.selbsttest:
         return selbsttest(app, a.mappe, a.ergebnis, a.step)
 

@@ -15,6 +15,7 @@ from . import NAME, VERSION, ausgabe
 from .mappe_import import lies_mappe
 from .stammdaten import TABELLEN, EINSTELLUNGEN, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
+ANLEITUNG = "Bedienungsanleitung.pdf"
 FARBE_EINGABE = QColor("#FFF9E0")   # wie Eingabefelder der Mappe (gelb)
 FARBE_BERECHNET = QColor("#EDEDED")
 FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": QColor("#C6EFCE")}
@@ -426,6 +427,10 @@ class Hauptfenster(QMainWindow):
                 a.setShortcut(taste)
             datei.addAction(a)
         hilfe = self.menuBar().addMenu("&Hilfe")
+        a = QAction("Bedienungsanleitung (PDF)", self)
+        a.setShortcut(QKeySequence.HelpContents)
+        a.triggered.connect(self.anleitung_oeffnen)
+        hilfe.addAction(a)
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
             self, NAME, f"<b>{NAME}</b> {VERSION}<br>Kalkulation und Materialoptimierung von Rohrlaserteilen.<br>"
@@ -500,6 +505,16 @@ class Hauptfenster(QMainWindow):
         self.alles_neu_laden()
         self.meldung(f"Stammdaten aus {Path(pfad).name} übernommen.")
         return True
+
+    def anleitung_oeffnen(self):
+        """Bedienungsanleitung.pdf neben dem Programm (liegt im ZIP), beim Entwickeln aus dem Ordner anleitung."""
+        for pfad in (self.programmordner / ANLEITUNG, self.programmordner.parent / "anleitung" / ANLEITUNG):
+            if pfad.is_file():
+                self.datei_oeffnen(pfad)
+                return pfad
+        QMessageBox.warning(self, "Bedienungsanleitung", f"{ANLEITUNG} wurde nicht gefunden.\n\n"
+                            f"Sie gehört in den Programmordner:\n{self.programmordner}")
+        return None
 
     def sicherung_erstellen(self):
         ziel = self.db.sicherung()

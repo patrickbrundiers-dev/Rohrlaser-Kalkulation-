@@ -1,0 +1,345 @@
+"""Bildschirmfotos für die Bedienungsanleitung, aus dem echten Programm mit Beispieldaten.
+
+Das Programm läuft unsichtbar (QT_QPA_PLATFORM=offscreen), bekommt die Stammdaten der Mappe v02 und
+einen realistischen Auftrag (Maschinengestell aus der Abnahme), wird bedient wie von Hand und
+fotografiert Fenster, Reiter und Dialoge. Wichtige Bedienelemente bekommen rote Nummern, die der Text
+der Anleitung aufgreift. Die PDF-Ausgaben des Programms werden als Seitenbilder eingebunden.
+
+Aufruf: python anleitung/bilder.py ZIELORDNER   (schreibt PNG-Dateien und bilder.json)
+"""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_SCALE_FACTOR", "2")      # doppelte Auflösung, damit der Druck scharf wird
+
+HIER = Path(__file__).resolve().parent
+WURZEL = HIER.parent
+sys.path.insert(0, str(WURZEL / "programm"))
+sys.path.insert(0, str(WURZEL / "tools"))
+sys.path.insert(0, str(WURZEL / "tests"))
+
+from PySide6.QtCore import QLocale, QPoint, QRect, QRectF, Qt, QTimer  # noqa: E402
+from PySide6.QtGui import QColor, QFont, QPainter, QPen  # noqa: E402
+from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QSpinBox  # noqa: E402
+
+from abnahme_auftraege import AUFTRAEGE  # noqa: E402
+
+MAPPE = WURZEL / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
+STEP = sorted((WURZEL / "tests" / "step").glob("*.step"))
+ROT = QColor("#D0021B")
+
+FIRMA = ("Muster Rohrlaser GmbH", "Industriestraße 12", "12345 Musterstadt", "Tel. 01234 5678-0 · info@muster-rohrlaser.example")
+
+
+class Fotograf:
+    def __init__(self, ziel):
+        self.ziel = Path(ziel)
+        self.ziel.mkdir(parents=True, exist_ok=True)
+        self.bilder = {}
+
+    def foto(self, name, wurzel, marken=(), ausschnitt=None):
+        """wurzel fotografieren; marken = [(Widget oder (Widget, QRect im Widget), Nummer)];
+        ausschnitt = QRect in Koordinaten von wurzel (nur diesen Teil speichern)."""
+        QApplication.processEvents()
+        bild = wurzel.grab()
+        dpr = bild.devicePixelRatio()
+        p = QPainter(bild)
+        p.setRenderHint(QPainter.Antialiasing)
+        for ziel, nr in marken:
+            w, r = ziel if isinstance(ziel, tuple) else (ziel, None)
+            r = QRect(r) if r is not None else w.rect()
+            r.moveTopLeft(w.mapTo(wurzel, r.topLeft()))
+            r = r.adjusted(-2, -2, 2, 2)
+            p.setPen(QPen(ROT, 2.2))
+            p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(QRectF(r), 4, 4)
+            d = 20
+            mitte = QPoint(r.left() + 2, r.top() + 2)
+            kreis = QRectF(mitte.x() - d / 2, mitte.y() - d / 2, d, d)
+            p.setPen(QPen(QColor("white"), 1.5))
+            p.setBrush(ROT)
+            p.drawEllipse(kreis)
+            f = QFont(QApplication.font())
+            f.setBold(True)
+            f.setPointSizeF(8.5)
+            p.setFont(f)
+            p.setPen(QColor("white"))
+            p.drawText(kreis, Qt.AlignCenter, str(nr))
+        p.end()
+        if ausschnitt is not None:
+            bild = bild.copy(QRect(int(ausschnitt.x() * dpr), int(ausschnitt.y() * dpr),
+                                   int(ausschnitt.width() * dpr), int(ausschnitt.height() * dpr)))
+        datei = self.ziel / f"{name}.png"
+        bild.save(str(datei))
+        self.bilder[name] = dict(datei=datei.name, breite=bild.width(), hoehe=bild.height())
+        return datei
+
+
+def tab_rect(reiter, text):
+    leiste = reiter.tabBar()
+    for i in range(reiter.count()):
+        if reiter.tabText(i) == text:
+            return (leiste, leiste.tabRect(i))
+    raise KeyError(text)
+
+
+def knopf(wurzel, text):
+    for b in wurzel.findChildren(QPushButton):
+        if b.text() == text:
+            return b
+    raise KeyError(text)
+
+
+def auftrag_anlegen(db, vorlage, nummer, kunde, kundennr, bemerkung, saetze=None):
+    """Auftrag aus einer Vorlage der Abnahme anlegen; saetze = Anzahl Gestelle (Spalte Satz, Stück je Satz)."""
+    a = db.auftrag_neu(dict(nummer=nummer, kunde=kunde, kundennr=kundennr, maschine=vorlage["maschine"],
+                            stange=vorlage["stange"], bemerkung=bemerkung, datum="2026-10-19"))
+    for p in vorlage["positionen"]:
+        werte = dict(pos=p["pos"], artikel=p["artikel"], bezeichnung=p["bezeichnung"], profil_id=p["profil"],
+                     werkstoff_id=p["werkstoff"], laenge=p["laenge"], stueck=p["stueck"])
+        for f in ("schneidweg", "einstiche", "a_gerade", "b_gerade", "stange"):
+            if p.get(f) is not None:
+                werte[f] = p[f]
+        if saetze:
+            werte.update(satz="MG 2000", je_satz=p["stueck"] // saetze)
+        db.position_neu(a, werte)
+    return a
+
+
+def mit_dialog(aktion, foto, name, antwort):
+    """aktion() öffnet einen modalen Dialog; der wird fotografiert und mit antwort(dialog) geschlossen."""
+    def knipsen():
+        d = QApplication.activeModalWidget()
+        if d is None:
+            QTimer.singleShot(50, knipsen)
+            return
+        foto.foto(name, d)
+        antwort(d)
+    QTimer.singleShot(100, knipsen)
+    return aktion()
+
+
+def ja(d):
+    for b in d.findChildren(QPushButton):
+        if b.text().replace("&", "") in ("Yes", "Ja", "OK"):
+            b.click()
+            return
+    d.accept()
+
+
+def reiter_waehlen(s, text):
+    for i in range(s.reiter.count()):
+        if s.reiter.tabText(i) == text:
+            s.reiter.setCurrentIndex(i)
+            QApplication.processEvents()
+            return
+    raise KeyError(text)
+
+
+def main(ziel):
+    from rohrlaser.datenbank import Datenbank
+    from rohrlaser.fenster import Hauptfenster
+    from rohrlaser.__main__ import deutsch
+
+    QLocale.setDefault(QLocale(QLocale.German, QLocale.Germany))
+    app = QApplication(sys.argv[:1])
+    app.setStyle("Fusion")
+    deutsch(app)
+    app.setFont(QFont("Liberation Sans", 9))
+    foto = Fotograf(ziel)
+    tmp = Path(tempfile.mkdtemp(prefix="anleitung_"))
+    programmordner = tmp / "Rohrlaser-Kalkulation"
+    (programmordner / "Daten").mkdir(parents=True)
+    db = Datenbank(programmordner / "Daten" / "rohrlaser.db")
+    f = Hauptfenster(db, programmordner, stumm=True)
+    f.resize(1280, 760)
+    f.show()
+    QApplication.processEvents()
+
+    def start_zeigen():
+        # Pfad so zeigen, wie er unter Windows aussieht
+        f.start.neu_laden()
+        f.start.info.setText(f.start.info.text().replace(str(db.pfad), r"C:\Rohrlaser\Daten\rohrlaser.db"))
+        f.reiter.setCurrentWidget(f.start)
+        f.statusBar().showMessage("Bereit")
+
+    def reiterflaeche(seite):
+        """Nur die Reiter des Auftrags (Kopf und Knöpfe stehen schon auf dem ersten Bild)."""
+        y = seite.reiter.mapTo(f, QPoint(0, 0)).y() - 4
+        return QRect(0, y, f.width(), f.height() - y)
+
+    def bereit():
+        f.statusBar().setStyleSheet("")
+        f.statusBar().showMessage("Bereit")
+
+    # 1) Start mit Beispieldaten
+    start_zeigen()
+    foto.foto("start_beispiel", f, [(knopf(f.start, "Stammdaten aus Excel-Mappe übernehmen …"), 1),
+                                    (knopf(f.start, "Datensicherung erstellen"), 2),
+                                    (knopf(f.start, "Datenordner öffnen"), 3)])
+
+    # 2) Stammdaten aus der Mappe übernehmen (mit der echten Rückfrage)
+    mit_dialog(lambda: f.mappe_uebernehmen(str(MAPPE), nachfragen=True), foto, "uebernahme_frage", ja)
+    for i, text in enumerate(FIRMA, 1):
+        db.einstellung_setzen(f"briefkopf_{i}", text)
+    db.einstellung_setzen("letzte_auftragsnummer", "A-2026-0038")
+    f.alles_neu_laden()
+    start_zeigen()
+    foto.foto("start_mappe", f)
+
+    # 3) Stammdaten-Reiter
+    for seite in f.seiten:
+        f.reiter.setCurrentWidget(seite)
+        QApplication.processEvents()
+        marken = []
+        if seite.t.name == "profile":
+            marken = [(tab_rect(f.reiter, seite.t.titel), 1), (knopf(seite, "Neue Zeile"), 2),
+                      (knopf(seite, "Zeilen löschen"), 3), (seite.suche, 4)]
+            kopf = seite.ansicht.horizontalHeader()
+            spalte = len(seite.modell.spalten) - 1
+            x = kopf.sectionViewportPosition(spalte)
+            marken.append(((kopf, QRect(x, 0, min(kopf.sectionSize(spalte), kopf.width() - x), kopf.height())), 5))
+        foto.foto("stamm_" + seite.t.name, f, marken)
+
+    # 4) Einstellungen
+    f.reiter.setCurrentWidget(f.einstellungen)
+    foto.foto("einstellungen", f)
+    leiste = f.einstellungen.verticalScrollBar()
+    leiste.setValue(leiste.maximum())
+    foto.foto("einstellungen_unten", f)
+    leiste.setValue(0)
+
+    # 5) Aufträge: Beispielauftrag Maschinengestell (2 Gestelle), dazu zwei ältere Aufträge für die Liste
+    vorlagen = {a["nummer"]: a for a in AUFTRAEGE}
+    a1 = auftrag_anlegen(db, vorlagen["ABN-01"], "A-2026-0039", "Metallbau Krüger", "10417", "Geländer Treppenhaus")
+    a2 = auftrag_anlegen(db, vorlagen["ABN-08"], "A-2026-0040", "Metallbau Krüger", "10417", "Nachbestellung")
+    haupt = auftrag_anlegen(db, vorlagen["ABN-02"], "A-2026-0041", "Anlagenbau Hessler", "10233",
+                            "Maschinengestell MG 2000", saetze=2)
+    db.einstellung_setzen("letzte_auftragsnummer", "A-2026-0041")
+    for a in (a1, a2):
+        f.auftrag_oeffnen(a).optimieren()
+        f.auftrag_schliessen(a)
+    f.reiter.setCurrentWidget(f.auftraege)
+    f.auftraege.neu_laden()
+    bereit()
+    au = f.auftraege
+    foto.foto("auftraege", f, [(tab_rect(f.reiter, "Aufträge"), 1), (knopf(au, "Neuer Auftrag"), 2),
+                               (knopf(au, "Kopieren"), 3), (knopf(au, "Auftrag aus Excel-Mappe übernehmen …"), 4),
+                               (au.suche, 5)])
+
+    # 6) Auftrag öffnen: Positionen vor der Optimierung
+    s = f.auftrag_oeffnen(haupt)
+    bereit()
+    kopf_box = s.felder["nummer"].parentWidget()
+    foto.foto("auftrag_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
+                                        (knopf(s, "Neue Position"), 4), (knopf(s, "STEP importieren …"), 5),
+                                        (knopf(s, "Optimieren"), 6), (s.zeige_berechnet, 7)])
+    s.zeige_berechnet.setChecked(True)
+    foto.foto("auftrag_berechnet", f)
+    s.zeige_berechnet.setChecked(False)
+
+    # 7) Optimieren und Ergebnisse
+    s.optimieren()
+    foto.foto("auftrag_optimiert", f, [(s.stand, 1)])
+    for text, name in (("Kalkulation", "erg_kalkulation"), ("Schnittplan", "erg_schnittplan"),
+                       ("Stangenbild", "erg_stangenbild"), ("Auswertung", "erg_auswertung")):
+        reiter_waehlen(s, text)
+        if text == "Schnittplan":
+            s.stangen_ansicht.selectRow(2)
+        foto.foto(name, f, ausschnitt=reiterflaeche(s))
+    # veraltet nach einer Änderung
+    pos = db.positionen(haupt)
+    db.position_aendern(pos[0]["id"], "stueck", 10)
+    s.neu_laden()
+    reiter_waehlen(s, "Positionen")
+    foto.foto("auftrag_veraltet", f, [(s.stand, 1)])
+    db.position_aendern(pos[0]["id"], "stueck", 8)
+    s.neu_laden()
+    s.optimieren()
+
+    # 8) Staffeln: Gestelle als Satz
+    for menge, bem in ((1, "Einzelgestell"), (2, "Anfrage"), (5, "kleine Serie"), (10, "Rahmenauftrag")):
+        db.staffel_neu(haupt, dict(schluessel="MG 2000", menge=menge, bemerkung=bem))
+    s.neu_laden()
+    reiter_waehlen(s, "Staffeln")
+    bereit()
+    foto.foto("staffeln_vorher", f, [(knopf(s, "Neue Stufe"), 1), (s.staffel_ansicht, 2),
+                                     (knopf(s, "Staffelpreise rechnen"), 3)], ausschnitt=reiterflaeche(s))
+    s.staffelpreise_rechnen()
+    foto.foto("staffeln", f, ausschnitt=reiterflaeche(s))
+
+    # 9) Ausgabe
+    reiter_waehlen(s, "Positionen")
+    bereit()
+    unterkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() + 34
+    foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Werkstattpapiere (PDF)"), 2),
+                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "Excel-Export"), 4),
+                                    (knopf(s, "Ablage öffnen"), 5)],
+              ausschnitt=QRect(0, 0, f.width(), unterkante))
+    pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf())
+    s.excel_export()
+    seiten = {}
+    for art, pfad in pdfs.items():
+        info = subprocess.run(["pdfinfo", str(pfad)], capture_output=True, text=True, check=True).stdout
+        n = int(next(z.split()[-1] for z in info.splitlines() if z.startswith("Pages:")))
+        seiten[art] = n
+        for nr in range(1, n + 1):
+            pdf_seite(pfad, foto, f"pdf_{art}_{nr}", nr)
+    ablage = sorted(p.name for p in (programmordner / "Aufträge").iterdir())
+
+    # 10) STEP-Import in einen neuen Auftrag (Testteile aus tests/step)
+    neu = db.auftrag_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Teile laut Zeichnung (STEP)"))
+    s2 = f.auftrag_oeffnen(neu)
+    s2.f.stumm = False
+    def step_dialog_ausfuellen(d):
+        d.findChild(QComboBox).setCurrentText("S235-10219")
+        d.findChild(QSpinBox).setValue(10)
+        foto.foto("step_dialog", d)
+        d.accept()
+    QTimer.singleShot(100, lambda: _warte_modal(step_dialog_ausfuellen))
+    auswahl = s2._step_dialog()
+    f.stumm = True
+    s2.step_importieren([str(p) for p in STEP], werkstoff=auswahl[0], stueck=auswahl[1])
+    bereit()
+    s2.zeige_step.setChecked(True)
+    foto.foto("step_positionen", f, [(s2.zeige_step, 1)])
+    reiter_waehlen(s2, "STEP-Protokoll")
+    foto.foto("step_protokoll", f, ausschnitt=reiterflaeche(s2))
+    s2.optimieren()
+    reiter_waehlen(s2, "Positionen")
+    s2.zeige_step.setChecked(False)
+    bereit()
+    foto.foto("step_optimiert", f)
+
+    # Menü Hilfe
+    f.reiter.setCurrentWidget(f.start)
+    start_zeigen()
+    (Path(ziel) / "bilder.json").write_text(json.dumps(dict(bilder=foto.bilder, seiten=seiten, ablage=ablage),
+                                                       indent=1, ensure_ascii=False), encoding="utf-8")
+    f.close()
+    db.schliessen()
+
+
+def _warte_modal(aufruf):
+    d = QApplication.activeModalWidget()
+    if d is None:
+        QTimer.singleShot(50, lambda: _warte_modal(aufruf))
+        return
+    aufruf(d)
+
+
+def pdf_seite(pdf, foto, name, seite, dpi=110):
+    """Eine PDF-Seite als PNG (pdftoppm aus Poppler)."""
+    basis = foto.ziel / name
+    subprocess.run(["pdftoppm", "-png", "-r", str(dpi), "-f", str(seite), "-l", str(seite), "-singlefile",
+                    str(pdf), str(basis)], check=True)
+    foto.bilder[name] = dict(datei=basis.with_suffix(".png").name)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else "anleitung_bilder")
