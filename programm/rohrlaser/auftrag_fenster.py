@@ -6,7 +6,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QAbstractTableModel, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
+    QFileDialog,
     QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QTableView, QTabWidget,
     QVBoxLayout, QWidget)
@@ -524,6 +525,12 @@ class AuftragSeite(QWidget):
                 w.setGroupSeparatorShown(True)
                 w.setSingleStep(100)
                 w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, w.value()))
+            elif fd.art == "zahl":
+                w = QDoubleSpinBox()
+                w.setRange(fd.von, fd.bis)
+                w.setDecimals(fd.stellen or 2)
+                w.setGroupSeparatorShown(True)
+                w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, round(w.value(), 2) or None))
             else:
                 w = QLineEdit()
                 w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, w.text().strip() or None))
@@ -708,6 +715,8 @@ class AuftragSeite(QWidget):
                 w.setCurrentText(v or "")
             elif isinstance(w, QSpinBox):
                 w.setValue(int(v or 0))
+            elif isinstance(w, QDoubleSpinBox):
+                w.setValue(v or 0)
             else:
                 w.setText(v or "")
         m = rechnen.maschine(self.kopf, self.k)
@@ -715,7 +724,9 @@ class AuftragSeite(QWidget):
             self.maschinenwerte.setText(
                 f"Maschine: Endbeschnitt {_z(m.get('endbeschnitt'), 0)} mm · Greiferrest {_z(m.get('greiferrest'), 0)} mm · "
                 f"Schnittverlust {_z(m.get('schnittverlust'), 1)} mm · max. Stange {_z(m.get('max_stange'), 0)} mm · "
-                f"Stundensatz {_z(m.get('stundensatz'), 2)} €/h")
+                f"Stundensatz {_z(m.get('stundensatz'), 2)} €/h"
+                + (f" · max. Hüllkreis-Ø {_z(m['max_huellkreis'], 1)} mm" if m.get("max_huellkreis") else "")
+                + (f" · max. Metergewicht {_z(m['max_kg_m'], 1)} kg/m" if m.get("max_kg_m") else ""))
         else:
             self.maschinenwerte.setText("<span style='color:#C00000'>Maschine fehlt oder ist unbekannt.</span>")
         self._laden = False
@@ -761,13 +772,18 @@ class AuftragSeite(QWidget):
             f"<td></td><td>Rüsten + Stangenwechsel</td><td align='right'>{_z(summen['ruesten'])} €</td></tr>"
             f"<tr><td>Teile gesamt</td><td align='right'>{_z(teile, 0)} Stk</td>"
             f"<td></td><td>Herstellkosten</td><td align='right'>{_z(summen['herstell'])} €</td></tr>"
+            f"<tr><td></td><td></td><td></td><td>Pauschalen + Aufschlag + Fracht</td><td align='right'>"
+            f"{_z(summen['pauschalen'] + summen['auftragsaufschlag'] + summen['fracht'])} €</td></tr>"
             f"<tr><td>Teilelänge / Gewicht</td><td align='right'>{_z(laenge)} m / {_z(gewicht)} kg</td>"
             f"<td></td><td><b>Verkaufspreis</b></td><td align='right'><b>{_z(summen['verkauf'])} €</b></td></tr>"
             f"<tr><td>Stangen</td><td align='right'>{summen['stangen']}</td><td></td><td></td><td></td></tr></table>")
         self.summen.setText(
             f"Material {_z(summen['material'])} € · Laser + Gewinde {_z(summen['laser'])} € · Rüsten + Stangenwechsel "
-            f"{_z(summen['ruesten'])} € ({_z(summen['ruestzeit'], 0)} min Rüsten, {summen['stangen']} Stangen × "
+            f"{_z(summen['ruesten'])} € ({_z(summen['ruestzeit'], 0)} min Rüsten + {summen['abmessungen']} Abmessung(en) × "
+            f"{_z(summen['ruestzeit_abmessung'], 0)} min, {summen['stangen']} Stangen × "
             f"{_z(summen['stangenwechsel'], 0)} s) · Herstellkosten {_z(summen['herstell'])} € · "
+            f"Pauschale {summen['abmessungen']} × {_z(self.einst.get('pauschale_abmessung') or 0)} € · "
+            f"Auftragsaufschlag {_z(summen['auftragsaufschlag'])} € · Fracht {_z(summen['fracht'])} € · "
             f"<b>Verkaufspreis {_z(summen['verkauf'])} €</b> · Zuschläge Material {_z(100 * self.einst['zuschlag_material'], 1)} %, "
             f"Fertigung {_z(100 * self.einst['zuschlag_fertigung'], 1)} %, Gewinn {_z(100 * self.einst['gewinn'], 1)} %")
         if erg:

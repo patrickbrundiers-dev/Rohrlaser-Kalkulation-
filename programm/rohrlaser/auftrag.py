@@ -11,6 +11,7 @@ KOPF = (
     Feld("maschine", "Maschine", 0, "auswahl", auswahl="maschine", pflicht=True),
     Feld("stange", "Standard-Stangenlänge [mm]", 0, "ganz", 500, 20000, pflicht=True),
     Feld("bemerkung", "Bemerkung", 0),
+    Feld("fracht", "Frachtkosten [€]", 0, "zahl", 0, 100000, stellen=2),
 )
 # Zelle des Auftragskopfs in der Mappe
 KOPF_ZELLE = {"nummer": "C4", "kundennr": "C5", "kunde": "C6", "datum": "C7", "maschine": "C8", "stange": "C9"}

@@ -3,6 +3,7 @@
 Die Inhalte kommen aus ausgabe.py (gleich wie die Mappe); hier wird nur gesetzt (reportlab, A4).
 """
 import datetime
+from itertools import zip_longest
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT
@@ -279,8 +280,9 @@ KALK = [("Pos.", "pos", 0, 10), ("Artikelnummer", "artikel", None, 26), ("Stück
         ("Material je Teil [€]", "material_teil", 3, 19), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 19),
         ("Gewindezeit je Teil [s]", "gewindezeit", 1, 18), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 19),
         ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 21), ("Herstellkosten je Teil [€]", "herstell_teil", 3, 20),
+        ("Pauschalen + Aufschlag + Fracht je Teil [€]", "pauschalen_teil", 3, 22),
         ("Verkaufspreis je Teil [€]", "preis_teil", 3, 20), ("Verkaufspreis Position [€]", "preis_position", 2, 22),
-        ("Herstellkosten Position [€]", "herstell_position", 2, 22), ("Hinweis", "hinweis", None, 44)]
+        ("Herstellkosten Position [€]", "herstell_position", 2, 22), ("Hinweis", "hinweis", None, 22)]
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
@@ -294,12 +296,17 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
                          ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
     werte = [("Material [€]", _z(summen["material"])), ("Laser + Gewinde [€]", _z(summen["laser"])),
              ("Rüsten + Stangenwechsel [€]", _z(summen["ruesten"])), ("Herstellkosten [€]", _z(summen["herstell"])),
+             ("Pauschalen je Abmessung [€]", _z(summen["pauschalen"])),
+             ("Auftragsaufschlag + Fracht [€]", _z(summen["auftragsaufschlag"] + summen["fracht"])),
              ("Verkaufspreis Auftrag [€]", _z(summen["verkauf"]))]
-    auftrag = [("Rüstzeit [min]", _z(summen["ruestzeit"], 0)), ("Stangenwechsel [s]", _z(summen["stangenwechsel"], 0)),
+    auftrag = [("Rüstzeit [min]", _z(summen["ruestzeit"], 0)),
+               ("Abmessungen × Rüstzeit [min]", f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"),
+               ("Stangenwechsel [s]", _z(summen["stangenwechsel"], 0)),
                ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0)),
                ("Zuschläge M / F / Gewinn", " / ".join(f"{_z(100 * (einst.get(n) or 0), 1)} %" for n in
                                                        ("zuschlag_material", "zuschlag_fertigung", "gewinn")))]
-    t = Table([[_p(a, S_FETT), _p(b, S_RECHTS), "", _p(c, S_FETT), _p(d, S_RECHTS)] for (a, b), (c, d) in zip(werte, auftrag)],
+    t = Table([[_p(a, S_FETT), _p(b, S_RECHTS), "", _p(c, S_FETT), _p(d, S_RECHTS)] for (a, b), (c, d) in
+               zip_longest(werte, auftrag, fillvalue=("", ""))],
               colWidths=[50 * mm, 30 * mm, 15 * mm, 50 * mm, 40 * mm], hAlign="LEFT")
     t.setStyle(TableStyle([("LINEBELOW", (0, 0), (1, -1), 0.3, RAHMEN), ("LINEBELOW", (3, 0), (4, -1), 0.3, RAHMEN)]))
     inhalt += [Spacer(1, 3 * mm), t, Spacer(1, 5 * mm)]

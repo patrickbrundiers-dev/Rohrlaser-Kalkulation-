@@ -188,6 +188,8 @@ from rohrlaser import rechnen, step  # noqa: E402
 from rohrlaser.auftrag import naechste_nummer  # noqa: E402
 assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
 db = Datenbank(tmp / "b" / "rohrlaser.db")
+for n in ("ruesten_abmessung", "pauschale_abmessung", "auftragsaufschlag"):   # Vergleichswerte der Mappe: ohne
+    db.einstellung_setzen(n, 0)                                               # die neuen Kosten (Teil 14)
 a1 = db.auftrag_neu()
 a2 = db.auftrag_neu()
 n1, n2 = db.auftrag(a1)["nummer"], db.auftrag(a2)["nummer"]
@@ -318,6 +320,8 @@ Datenbank(alt).schliessen()
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE staffeln")
 con.execute("ALTER TABLE auftraege DROP COLUMN staffelpreise")
+con.execute("ALTER TABLE auftraege DROP COLUMN fracht")
+con.execute("ALTER TABLE maschinen DROP COLUMN max_kg_m")
 con.execute("PRAGMA user_version=2")
 con.commit()
 con.close()
@@ -326,6 +330,64 @@ a7 = db.auftrag_neu()
 db.staffel_neu(a7, dict(schluessel="10", menge=5))
 db.staffelpreise_speichern(a7, dict(zeilen=[], kennung="x", am=None))
 assert db.auftrag(a7)["staffelpreise"]["kennung"] == "x" and len(db.staffeln(a7)) == 1
+db.auftrag_aendern(a7, "fracht", 80.0)
+assert db.auftrag(a7)["fracht"] == 80.0 and "max_kg_m" in db.zeilen("maschinen")[0]
+db.schliessen()
+
+# 14) Maschinengrenzen (Hüllkreis, Metergewicht) und Kosten je Abmessung / Auftrag, Fracht
+from rohrlaser.stammdaten import huellkreis  # noqa: E402
+assert huellkreis(dict(form="Rundrohr", a=42.4)) == 42.4
+assert abs(huellkreis(dict(form="Quadratrohr", a=40)) - 56.5685) < 1e-3
+assert abs(huellkreis(dict(form="Rechteckrohr", a=120, b=60)) - 134.164) < 1e-3
+assert huellkreis(dict(form="Sonderprofil", a=50)) is None
+db = Datenbank(tmp / "d" / "rohrlaser.db")
+assert db.einstellung("ruesten_abmessung") == 15 and db.einstellung("pauschale_abmessung") == 22.5
+assert db.einstellung("auftragsaufschlag") == 50
+k, tab = db.kontext(), db.tabellen()
+kopf = dict(maschine="RL-1", stange=6000)
+pos = [dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=1000, stueck=6),
+       dict(pos=20, artikel="B", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=500, stueck=4),
+       dict(pos=30, artikel="C", profil_id="RE 120x60x4", werkstoff_id="S235-10219", laenge=800, stueck=5),
+       dict(pos=40, artikel="D", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=700)]   # ohne Stückzahl
+erg = rechnen.optimieren(kopf, pos, k)
+assert not erg["fehler"] or all(f_["artikel"] == "D" for f_ in erg["fehler"])
+null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, auftragsaufschlag=0)
+z0, s0 = rechnen.kalkulation(kopf, pos, erg, k, tab, null)
+z1, s1 = rechnen.kalkulation(dict(kopf, fracht=120.0), pos, erg, k, tab, db.einstellungen())
+satz = k.maschinen["RL-1"]["stundensatz"]
+assert s1["abmessungen"] == 2 and s1["pauschalen"] == 45.0 and s1["auftragsaufschlag"] == 50 and s1["fracht"] == 120
+assert abs(s1["ruesten"] - s0["ruesten"] - 2 * 15 / 60 * satz) < 1e-9
+gew = 1 + db.einstellung("gewinn")
+fert = 1 + db.einstellung("zuschlag_fertigung")
+# Verkaufspreis steigt um Rüsten je Abmessung (mit Zuschlag Fertigung und Gewinn) + Pauschalen + Aufschlag + Fracht
+erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120
+assert abs(s1["verkauf"] - erwartet) < 1e-6, (s1["verkauf"], erwartet)
+# Pauschale je Abmessung trägt nur deren Teile: QR 40x40x3 hat 10, RE 120x60x4 hat 5 Teile
+assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15)) < 1e-9
+assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15)) < 1e-9
+assert z1[3]["pauschalen_teil"] == 0 and z1[3]["preis_position"] == 0
+# Grenzen der Maschine: RE 120x60x4 (Hüllkreis 134,2 mm, 10,9 kg/m) passt nicht mehr
+db.aendern("maschinen", db.zeilen("maschinen")[0]["id"], "max_huellkreis", 130)
+k = db.kontext()
+w = rechnen.position_werte(pos[2], kopf, k, tab)
+assert rechnen.status(pos[2], w, kopf, k) == "FEHLER: Hüllkreis größer als Maschine zulässt"
+assert rechnen.status(pos[0], rechnen.position_werte(pos[0], kopf, k, tab), kopf, k) != "FEHLER: Hüllkreis größer als Maschine zulässt"
+erg = rechnen.optimieren(kopf, pos, k)
+assert [(f_["artikel"], f_["grund"]) for f_ in erg["fehler"] if f_["artikel"] == "C"] == \
+    [("C", "Hüllkreis größer als Maschine zulässt")]
+assert all(t["artikel"] != "C" for s_ in erg["stangen"] for t in s_["teile"])
+db.aendern("maschinen", db.zeilen("maschinen")[0]["id"], "max_huellkreis", None)
+db.aendern("maschinen", db.zeilen("maschinen")[0]["id"], "max_kg_m", 5)
+k = db.kontext()
+assert w["kg_m"] > 5 and rechnen.status(pos[2], w, kopf, k) == "FEHLER: Metergewicht über Maschinengrenze"
+assert rechnen.position_werte(pos[0], kopf, k, tab)["kg_m"] > 3   # QR 40x40x3 ≈ 3,3 kg/m, liegt unter 5
+assert "FEHLER" not in rechnen.status(pos[0], rechnen.position_werte(pos[0], kopf, k, tab), kopf, k)
+erg = rechnen.optimieren(kopf, pos, k)
+assert any(f_["grund"] == "Metergewicht über Maschinengrenze" for f_ in erg["fehler"])
+# Staffel: jede Stufe trägt Aufschlag, Fracht und die Kosten ihrer Abmessungen voll
+sp = staffeln.rechnen_alle(dict(kopf, fracht=120.0), pos, [dict(schluessel="10", menge=6)], k, tab, db.einstellungen())
+sp0 = staffeln.rechnen_alle(kopf, pos, [dict(schluessel="10", menge=6)], k, tab, null)
+assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 50 + 120)) < 0.1
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)
 print("OK: Programm")

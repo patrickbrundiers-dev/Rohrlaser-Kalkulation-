@@ -2,7 +2,8 @@
 
 Das Schema entsteht aus stammdaten.TABELLEN und auftrag.KOPF/POSITIONEN; die Schemaversion steht in
 PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 = nur Stammdaten,
-2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen).
+2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
+Frachtkosten im Auftragskopf). Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt.
 """
 import datetime
 import json
@@ -12,7 +13,7 @@ from pathlib import Path
 from .auftrag import KOPF, POSITIONEN, naechste_nummer
 from .stammdaten import TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispieldaten, kontext_aus
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
 
@@ -61,6 +62,12 @@ class Datenbank:
             spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(auftraege)")}
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE auftraege ADD COLUMN staffelpreise TEXT")
+            for tabelle, felder in [(t.name, t.felder) for t in TABELLEN] + [("auftraege", KOPF),
+                                                                            ("positionen", POSITIONEN.felder)]:
+                vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
+                for f in felder:                       # neue Felder späterer Versionen
+                    if f.name not in vorhanden:
+                        self.con.execute(f'ALTER TABLE "{tabelle}" ADD COLUMN "{f.name}" {SQL_ART.get(f.art, "TEXT")}')
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
