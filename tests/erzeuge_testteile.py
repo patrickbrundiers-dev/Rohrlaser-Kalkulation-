@@ -10,9 +10,10 @@ from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_EDGE
-from OCP.TopoDS import TopoDS
+from OCP.TopoDS import TopoDS, TopoDS_Compound
 from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.GeomAbs import GeomAbs_Line
+from OCP.BRep import BRep_Builder
 from OCP.gp import gp_Ax2, gp_Pnt, gp_Dir, gp_Trsf, gp_Ax1, gp_Vec
 
 ZIEL = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "step"
@@ -67,11 +68,27 @@ def drehe_beliebig(shape):
     return BRepBuilderAPI_Transform(BRepBuilderAPI_Transform(shape, tr, True).Shape(), tr2, True).Shape()
 
 
-def schreibe(shape, name):
-    ZIEL.mkdir(parents=True, exist_ok=True)
+def verschiebe(shape, x, y, z):
+    tr = gp_Trsf(); tr.SetTranslation(gp_Vec(x, y, z))
+    return BRepBuilderAPI_Transform(shape, tr, True).Shape()
+
+
+def baugruppe(*shapes):
+    """Mehrere Körper in einer Datei (wie eine Baugruppe aus dem CAD)."""
+    c = TopoDS_Compound()
+    b = BRep_Builder()
+    b.MakeCompound(c)
+    for s in shapes:
+        b.Add(c, s)
+    return c
+
+
+def schreibe(shape, name, ziel=None):
+    ziel = ziel or ZIEL
+    ziel.mkdir(parents=True, exist_ok=True)
     w = STEPControl_Writer()
     w.Transfer(shape, STEPControl_AsIs)
-    w.Write(str(ZIEL / f"{name}.step"))
+    w.Write(str(ziel / f"{name}.step"))
 
 
 if __name__ == "__main__":
@@ -101,4 +118,12 @@ if __name__ == "__main__":
     s = cut(s, BRepPrimAPI_MakeBox(gp_Pnt(-12, 19.7, 400), 24, 2, 5).Shape())
     s = cut(s, BRepPrimAPI_MakeBox(gp_Pnt(15, -8, 985), 10, 16, 20).Shape())
     schreibe(s, "T07_QR40x3_L1000_Gewinde_Gravur")
+    # 8 Baugruppe (eigener Ordner step_satz, damit die Einzelteil-Tests unverändert bleiben): 3x Quadratrohr
+    #   40x40x3 L600 (eines gedreht, eines gespiegelt) mit Bohrung Ø8 + 1x Rundrohr 42,4x2 L900 = 2 verschiedene Teile
+    q = kastenrohr(40, 40, 3, 600, 6)
+    q = cut(q, BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 150), gp_Dir(1, 0, 0)), 4, 100).Shape())
+    gespiegelt = gp_Trsf(); gespiegelt.SetRotation(gp_Ax1(gp_Pnt(0, 0, 300), gp_Dir(0, 1, 0)), math.pi)
+    schreibe(baugruppe(q, verschiebe(q, 100, 0, 0), BRepBuilderAPI_Transform(verschiebe(q, 200, 0, 0), gespiegelt, True).Shape(),
+                       drehe_beliebig(rundrohr(42.4, 2.0, 900))),
+             "T08_Gestell_Baugruppe", ZIEL.parent / "step_satz")
     print("Testteile geschrieben nach", ZIEL)

@@ -33,6 +33,15 @@ def messprogramm(programmordner):
     return None
 
 
+def step_dateien(pfade):
+    """STEP-Dateien aus Dateien und Ordnern (Ordner samt Unterordnern), sortiert und ohne doppelte."""
+    out = []
+    for p in map(Path, pfade):
+        kandidaten = sorted(x for x in p.rglob("*") if x.is_file()) if p.is_dir() else [p]
+        out += [x for x in kandidaten if x.suffix.lower() in (".step", ".stp") and x not in out]
+    return out
+
+
 def lies_messwerte(pfad):
     """Textdatei der Messung (UTF-8, Tabulator, Kopfzeile) als Liste von dicts."""
     zeilen = Path(pfad).read_text(encoding="utf-8").splitlines()
@@ -103,6 +112,57 @@ def finde_profil(m, profile):
     return None
 
 
+TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wenn alle Maße so nah beieinander liegen
+
+
+def _rohrteil(m):
+    return not m.get("fehler") and bool(m.get("profilform")) and _z(m, "laenge") > 0
+
+
+def _gleich(a, b):
+    """Zwei gemessene Körper sind dasselbe Teil (Lage im Raum und vertauschte Enden egal)."""
+    if a.get("profilform") != b.get("profilform") or bohrungen_text(a.get("bohrungen")) != bohrungen_text(b.get("bohrungen")):
+        return False
+    if any(int(_z(a, n)) != int(_z(b, n)) for n in ("konturen", "innen_konturen", "gravur_konturen")):
+        return False
+    if any(abs(_z(a, n) - _z(b, n)) > TOL_GLEICH
+           for n in ("abm_a", "abm_b", "wandstaerke", "laenge", "schneidweg", "innen", "gravur")):
+        return False
+    enden = [sorted([(x.get("ende_a_gerade") == "1", _z(x, "ende_a")), (x.get("ende_b_gerade") == "1", _z(x, "ende_b"))])
+             for x in (a, b)]
+    return all(ga == gb and abs(la - lb) <= TOL_GLEICH for (ga, la), (gb, lb) in zip(*enden))
+
+
+def gleiche_teile(messwerte):
+    """Gruppen gleicher Rohrteile je Datei: {Index des ersten Körpers: [Indizes aller gleichen Körper]}."""
+    gruppen = {}
+    for i, m in enumerate(messwerte):
+        if not _rohrteil(m):
+            continue
+        for erster, liste in gruppen.items():
+            if messwerte[erster].get("datei") == m.get("datei") and _gleich(messwerte[erster], m):
+                liste.append(i)
+                break
+        else:
+            gruppen[i] = [i]
+    return gruppen
+
+
+def mehrteilig(messwerte):
+    """STEP-Dateien mit mehreren Rohrteilen: {Datei: (Anzahl Körper, Anzahl verschiedene Teile)}."""
+    out = {}
+    for erster, liste in gleiche_teile(messwerte).items():
+        d = messwerte[erster].get("datei")
+        n, v = out.get(d, (0, 0))
+        out[d] = (n + len(liste), v + 1)
+    return {d: nv for d, nv in out.items() if nv[0] > 1}
+
+
+def satzname(datei):
+    """Satzbezeichnung aus dem Dateinamen (ohne Endung)."""
+    return Path(str(datei)).stem
+
+
 def vorpruefung(messwerte, positionen, k):
     """(fehlende Profil-IDs, Anzahl Artikel, die schon im Auftrag stehen) für die Rückfragen."""
     vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
@@ -119,9 +179,11 @@ def vorpruefung(messwerte, positionen, k):
 
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
-                neue_profile=False, erneut=False, jetzt=None):
+                neue_profile=False, erneut=False, jetzt=None, saetze=()):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
-    protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil])."""
+    protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
+    saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
+    Position mit 'Stück je Satz' = Anzahl, stueck zählt dann Sätze (Stückzahl = Sätze × Stück je Satz)."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
@@ -135,7 +197,15 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     pos_max = max((p["pos"] for p in positionen if isinstance(p.get("pos"), (int, float))), default=0)
     naechste = int(pos_max) + 10
     neu, neue_prof, protokoll, bericht = [], [], [], []
-    for m in messwerte:
+    saetze = set(saetze or ())
+    gruppe_von = {}         # Index -> Index des ersten gleichen Körpers (nur in Sätzen)
+    for erster, liste in gleiche_teile(messwerte).items():
+        if messwerte[erster].get("datei") in saetze:
+            for i in liste:
+                gruppe_von[i] = erster
+    gruppen = {e: [i for i, g in gruppe_von.items() if g == e] for e in set(gruppe_von.values())}
+    ergebnis = {}           # Index des ersten Körpers -> Ziel-Pos. (None = nicht übernommen)
+    for i, m in enumerate(messwerte):
         if m.get("fehler"):
             protokoll.append([jetzt, m.get("datei")] + [None] * 27 + ["FEHLER: " + m["fehler"]])
             bericht.append(f"{m.get('datei')}: FEHLER: {m['fehler']}")
@@ -161,7 +231,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     hinweise.append("Profil neu in Stammdaten angelegt")
                 else:
                     hinweise.append("Profil fehlt in Stammdaten")
-        if art in vorhanden and not erneut:
+        erster = gruppe_von.get(i)
+        satz = satzname(m.get("datei")) if erster is not None else None
+        if erster is not None and erster != i:
+            ziel = ergebnis[erster]
+            hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
+        elif art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Auftrag")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):
             hinweise.append("nicht übernommen: kein Rohrteil erkannt")
@@ -179,10 +254,18 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["b_schnitt"] = round(_z(m, "ende_b"), 1)
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
+            if satz:
+                anzahl = len(gruppen[i])
+                p["satz"], p["je_satz"] = satz, anzahl
+                p["stueck"] = stueck * anzahl if stueck else None
+                hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz"
+                                + (f" (Körper {', '.join(messwerte[j].get('koerper') for j in gruppen[i])})" if anzahl > 1 else ""))
             neu.append(p)
             ziel = naechste
             vorhanden.add(art)
             naechste += 10
+        if erster == i:
+            ergebnis[i] = ziel
         abm_b = round(_z(m, "abm_b"), 2)
         protokoll.append([jetzt, m.get("datei"), int(_z(m, "koerper")), m.get("profilform"), round(_z(m, "abm_a"), 2),
                           abm_b or None, round(_z(m, "wandstaerke"), 2), round(_z(m, "flaeche"), 1),

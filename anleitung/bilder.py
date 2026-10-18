@@ -25,12 +25,13 @@ sys.path.insert(0, str(WURZEL / "tests"))
 
 from PySide6.QtCore import QLocale, QPoint, QRect, QRectF, Qt, QTimer  # noqa: E402
 from PySide6.QtGui import QColor, QFont, QPainter, QPen  # noqa: E402
-from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QSpinBox  # noqa: E402
+from PySide6.QtWidgets import QApplication, QComboBox, QMessageBox, QPushButton, QSpinBox  # noqa: E402
 
 from abnahme_auftraege import AUFTRAEGE  # noqa: E402
 
 MAPPE = WURZEL / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 STEP = sorted((WURZEL / "tests" / "step").glob("*.step"))
+BAUGRUPPE = WURZEL / "tests" / "step_satz" / "T08_Gestell_Baugruppe.step"
 ROT = QColor("#D0021B")
 
 FIRMA = ("Muster Rohrlaser GmbH", "Industriestraße 12", "12345 Musterstadt", "Tel. 01234 5678-0 · info@muster-rohrlaser.example")
@@ -353,6 +354,37 @@ def main(ziel):
     s2.zeige_step.setChecked(False)
     bereit()
     foto.foto("step_optimiert", f)
+
+    # 11) Baugruppe (mehrere Teile in einer STEP) als Satz, mit der echten Rückfrage
+    gestell = db.auftrag_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Gestell als Baugruppe (STEP)"))
+    s3 = f.auftrag_oeffnen(gestell)
+    f.stumm = False
+
+    def abschluss_schliessen():
+        d = QApplication.activeModalWidget()
+        if not isinstance(d, QMessageBox) or "übernommen" not in d.text():
+            QTimer.singleShot(50, abschluss_schliessen)
+            return
+        d.accept()
+
+    def satz_ja(d):
+        ja(d)
+        QTimer.singleShot(50, abschluss_schliessen)      # Abschlussmeldung „… übernommen“ schließen
+    def frage_knipsen():                                 # erst nach der Messung (Fortschrittsanzeige) kommt die Frage
+        d = QApplication.activeModalWidget()
+        if not isinstance(d, QMessageBox) or "Satz" not in d.text():
+            QTimer.singleShot(50, frage_knipsen)
+            return
+        foto.foto("step_satz_frage", d)
+        satz_ja(d)
+    QTimer.singleShot(100, frage_knipsen)
+    s3.step_importieren([str(BAUGRUPPE)], werkstoff="S235-10219", stueck=4)
+    f.stumm = True
+    bereit()
+    spalten = [i for i, (art, x) in enumerate(s3.pos_modell.spalten) if art == "feld" and x.name in ("satz", "je_satz", "stueck")]
+    s3.pos_ansicht.scrollTo(s3.pos_modell.index(0, max(spalten)))
+    QApplication.processEvents()
+    foto.foto("step_satz_positionen", f, [(s3.pos_ansicht, 1)])
 
     # Menü Hilfe
     f.reiter.setCurrentWidget(f.start)
