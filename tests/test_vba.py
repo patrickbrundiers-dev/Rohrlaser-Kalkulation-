@@ -102,11 +102,12 @@ def zufallsauftrag(wb, rnd):
 def sonderfaelle(wb, rnd):
     wa = wb["Auftrag"]
     zusatz = [(60, "Z-zu-lang", "zu lang", "RR 42,4x2,0", "S235-10219", 5950, 1, None, None, None),
-              (70, "Z-profil", "Profil fehlt", "RR 99x9", "S235-10219", 500, 2, None, None, None),
+              (70, "Z-profil", "Profil fehlt", "ZZ 99x9", "S235-10219", 500, 2, None, None, None),
               (80, "Z-schraeg", "Gehrung", "RR 42,4x2,0", "S235-10219", 700, 7, 300, 2, None),
               (90, "Z-8m", "lange Stange", "QR 40x40x3", "S235-10219", 2600, 5, 400, 2, 8000),
               (None, None, None, "QR 40x40x3", "S235-10219", 777, 3, None, None, None),
-              (110, "Z-stk", None, "QR 40x40x3", "S235-10219", 777, 2.5, None, None, None)]
+              (110, "Z-stk", None, "QR 40x40x3", "S235-10219", 777, 2.5, None, None, None),
+              (120, "Z-auto", "Profil aus Namen", "RR 99x9", "S235-10219", 500, 2, None, None, None)]
     for i, werte in enumerate(zusatz):
         for c, v in enumerate(werte, start=1):
             wa.cell(18 + i, c, v)
@@ -252,15 +253,16 @@ def test_bedienung(lo, d):
     pos = [r_ for r_ in range(13, 513) if wa.cell(r_, 4).value not in (None, "")]
     summe = 0.0
     for k, r_ in enumerate(pos):
-        z = [wan.cell(14 + k, c).value for c in range(1, 10)]
+        z = [wan.cell(14 + k, c).value for c in range(1, 7)]
         ep = round(wk.cell(r_, 20).value, 2)
-        assert z[1] == wa.cell(r_, 2).value and abs(z[7] - ep) < 1e-9, (z, ep)
-        assert abs(z[8] - round(ep * wa.cell(r_, 7).value, 2)) < 1e-9
-        summe += z[8]
+        assert z[1] == wa.cell(r_, 2).value and abs(z[4] - ep) < 1e-9, (z, ep)
+        assert abs(z[5] - round(ep * wa.cell(r_, 7).value, 2)) < 1e-9
+        assert z[2].startswith(("Rundrohr", "Quadratrohr", "Rechteckrohr")) and ", L = " in z[2] and "inkl. Material" in z[2], z[2]
+        summe += z[5]
     zs = 14 + len(pos) + 1
-    assert wan.cell(zs, 7).value == "Summe netto [€]" and abs(wan.cell(zs, 9).value - summe) < 0.005
-    assert abs(wan.cell(zs + 2, 9).value - (summe + round(summe * 0.19, 2))) < 0.005
-    print(f"OK     Angebot: {len(pos)} Positionen, {summe:.2f} € netto")
+    assert wan.cell(zs, 5).value == "Summe netto [€]" and abs(wan.cell(zs, 6).value - summe) < 0.005
+    assert abs(wan.cell(zs + 2, 6).value - (summe + round(summe * 0.19, 2))) < 0.005
+    print(f"OK     Angebot: {len(pos)} Positionen, {summe:.2f} € netto, Text: {wan.cell(14, 3).value}")
 
     # Neuer Auftrag
     text = lo.ausfuehren(ein, [("Optimierung.OptimiereTest", ()), ("Ausgabe.AusgabeTest", ()),

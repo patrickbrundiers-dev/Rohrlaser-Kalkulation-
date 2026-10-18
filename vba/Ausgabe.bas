@@ -8,6 +8,8 @@ Attribute VB_Name = "Ausgabe"
 ' Die PDF-Dateien landen im Ablageordner (siehe Modul Bedienung).
 Option Explicit
 
+Private Const M0 As Long = 5
+Private Const M1 As Long = 304
 Private Const O0 As Long = 13
 Private Const O1 As Long = 512
 Private Const S0 As Long = 5
@@ -275,11 +277,11 @@ End Sub
 ' Ergebnis: letzte beschriebene Zeile (0 = keine Positionen); hinweise = Positionen mit Hinweis.
 Public Function AngebotFuellen(hinweise As Long) As Long
     Dim ws As Worksheet, av As Variant, kv As Variant, i As Long, r As Long, preis As Double, menge As Double
-    Dim w As Variant
+    Dim w As Variant, summeZeile As Long
     Set ws = ThisWorkbook.Worksheets("Angebot")
     Application.Calculate
     AngebotLeeren
-    av = ThisWorkbook.Worksheets("Auftrag").Range("A" & O0 & ":G" & O1).Value
+    av = ThisWorkbook.Worksheets("Auftrag").Range("A" & O0 & ":AG" & O1).Value
     kv = ThisWorkbook.Worksheets("Kalkulation").Range("A" & O0 & ":W" & O1).Value
     hinweise = 0
     r = A0 - 1
@@ -288,19 +290,16 @@ Public Function AngebotFuellen(hinweise As Long) As Long
             r = r + 1
             ws.Cells(r, 1).Value = AlsText(av(i, 1))
             ws.Cells(r, 2).Value = AlsText(av(i, 2))
-            ws.Cells(r, 3).Value = AlsText(av(i, 3))
-            ws.Cells(r, 4).Value = AlsText(av(i, 4))
-            ws.Cells(r, 5).Value = AlsText(av(i, 5))
-            ws.Cells(r, 6).Value = av(i, 6)
-            ws.Cells(r, 7).Value = av(i, 7)
-            w = kv(i, 20)
+            ws.Cells(r, 3).Value = AngebotText(av, i)
+            ws.Cells(r, 4).Value = av(i, 7)
             preis = 0: menge = 0
+            w = kv(i, 20)
             If Not IsError(w) Then
                 If IsNumeric(w) And Not IsEmpty(w) Then preis = Round(CDbl(w), 2)
             End If
             If IsNumeric(av(i, 7)) And Not IsEmpty(av(i, 7)) Then menge = CDbl(av(i, 7))
-            ws.Cells(r, 8).Value = preis
-            ws.Cells(r, 9).Value = Round(preis * menge, 2)
+            ws.Cells(r, 5).Value = preis
+            ws.Cells(r, 6).Value = Round(preis * menge, 2)
             w = kv(i, 23)
             If IsError(w) Then
                 hinweise = hinweise + 1
@@ -310,24 +309,69 @@ Public Function AngebotFuellen(hinweise As Long) As Long
         End If
     Next i
     If r < A0 Then Exit Function
-    Rahmen ws.Range(ws.Cells(A0, 1), ws.Cells(r, 9))
-    ws.Range(ws.Cells(A0, 6), ws.Cells(r, 6)).NumberFormat = "#,##0.0"
-    ws.Range(ws.Cells(A0, 7), ws.Cells(r, 7)).NumberFormat = "#,##0"
-    ws.Range(ws.Cells(A0, 8), ws.Cells(r, 9)).NumberFormat = "#,##0.00"
-    ws.Range(ws.Cells(A0, 1), ws.Cells(r, 9)).Font.Name = "Arial"
-    ws.Cells(r + 2, 7).Value = "Summe netto [€]"
-    ws.Cells(r + 2, 9).Formula = "=SUM(I" & A0 & ":I" & r & ")"
-    ws.Cells(r + 3, 7).Value = "zzgl. MwSt. [€]"
-    ws.Cells(r + 3, 9).Formula = "=ROUND(I" & (r + 2) & "*$C$11,2)"
-    ws.Cells(r + 4, 7).Value = "Gesamtbetrag [€]"
-    ws.Cells(r + 4, 9).Formula = "=I" & (r + 2) & "+I" & (r + 3)
-    With ws.Range(ws.Cells(r + 2, 7), ws.Cells(r + 4, 9))
+    Rahmen ws.Range(ws.Cells(A0, 1), ws.Cells(r, 6))
+    ws.Range(ws.Cells(A0, 3), ws.Cells(r, 3)).WrapText = True
+    ws.Range(ws.Cells(A0, 1), ws.Cells(r, 6)).VerticalAlignment = -4160   ' xlTop
+    ws.Range(ws.Cells(A0, 4), ws.Cells(r, 4)).NumberFormat = "#,##0"
+    ws.Range(ws.Cells(A0, 5), ws.Cells(r, 6)).NumberFormat = "#,##0.00"
+    ws.Range(ws.Cells(A0, 1), ws.Cells(r, 6)).Font.Name = "Arial"
+    summeZeile = r + 2
+    ws.Cells(summeZeile, 5).Value = "Summe netto [€]"
+    ws.Cells(summeZeile, 6).Formula = "=SUM(F" & A0 & ":F" & r & ")"
+    ws.Cells(summeZeile + 1, 5).Value = "zzgl. MwSt. [€]"
+    ws.Cells(summeZeile + 1, 6).Formula = "=ROUND(F" & summeZeile & "*$C$11,2)"
+    ws.Cells(summeZeile + 2, 5).Value = "Gesamtbetrag [€]"
+    ws.Cells(summeZeile + 2, 6).Formula = "=F" & summeZeile & "+F" & (summeZeile + 1)
+    With ws.Range(ws.Cells(summeZeile, 5), ws.Cells(summeZeile + 2, 6))
         .Font.Name = "Arial"
         .Font.Bold = True
     End With
-    ws.Range(ws.Cells(r + 2, 9), ws.Cells(r + 4, 9)).NumberFormat = "#,##0.00"
-    ws.Range(ws.Cells(r + 4, 7), ws.Cells(r + 4, 9)).Borders(8).LineStyle = 1   ' xlEdgeTop
-    AngebotFuellen = r + 4
+    ws.Range(ws.Cells(summeZeile, 6), ws.Cells(summeZeile + 2, 6)).NumberFormat = "#,##0.00"
+    ws.Range(ws.Cells(summeZeile + 2, 5), ws.Cells(summeZeile + 2, 6)).Borders(8).LineStyle = 1   ' xlEdgeTop
+    AngebotFuellen = summeZeile + 2
+End Function
+
+' Bezeichnung einer Position fürs Angebot, z. B.
+' "Rechteckrohr 80 x 40 x 5, L = 1500 mm, inkl. Material S235 EN10219, Zusatzarbeiten: Gewinde 4xM6, Gravur"
+Private Function AngebotText(av As Variant, ByVal i As Long) As String
+    Dim t As String, zus As String, wst As Variant
+    t = Profiltext(CStr(av(i, 4)))
+    t = t & ", L = " & Format$(av(i, 6), "0") & " mm"
+    wst = Application.Match(CStr(av(i, 5)), ThisWorkbook.Worksheets("Werkstoffe").Range("A" & M0 & ":A" & M1), 0)
+    If IsError(wst) Then
+        t = t & ", inkl. Material " & CStr(av(i, 5))
+    Else
+        t = t & ", inkl. Material " & TextOderLeer(ThisWorkbook.Worksheets("Werkstoffe").Cells(M0 + wst - 1, 8).Value, CStr(av(i, 5)))
+    End If
+    If Len(CStr(av(i, 33))) > 0 Then zus = "Gewinde " & CStr(av(i, 33))       ' AG
+    If IsNumeric(av(i, 30)) And Not IsEmpty(av(i, 30)) Then                      ' AD: Gravur [mm]
+        If CDbl(av(i, 30)) > 0 Then zus = zus & IIf(Len(zus) > 0, ", ", "") & "Gravur"
+    End If
+    If Len(zus) > 0 Then t = t & ", Zusatzarbeiten: " & zus
+    AngebotText = t
+End Function
+
+' Profilbezeichnung aus dem Blatt Profile (Form und Maße), sonst die Profil-ID.
+Private Function Profiltext(ByVal pid As String) As String
+    Dim wp As Worksheet, z As Variant, form As String, a As String, b As String, wand As String
+    Set wp = ThisWorkbook.Worksheets("Profile")
+    z = Application.Match(pid, wp.Range("A" & M0 & ":A" & M1), 0)
+    If IsError(z) Then Profiltext = pid: Exit Function
+    z = M0 + z - 1
+    form = CStr(wp.Cells(z, 2).Value)
+    a = Format$(wp.Cells(z, 3).Value, "0.##")
+    b = Format$(wp.Cells(z, 4).Value, "0.##")
+    wand = Format$(wp.Cells(z, 5).Value, "0.##")
+    Select Case form
+        Case "Rundrohr": Profiltext = "Rundrohr Ø " & a & " x " & wand
+        Case "Quadratrohr": Profiltext = "Quadratrohr " & a & " x " & a & " x " & wand
+        Case "Rechteckrohr": Profiltext = "Rechteckrohr " & a & " x " & b & " x " & wand
+        Case Else: Profiltext = pid
+    End Select
+End Function
+
+Private Function TextOderLeer(v As Variant, ByVal ersatz As String) As String
+    If Len(CStr(v)) > 0 Then TextOderLeer = CStr(v) Else TextOderLeer = ersatz
 End Function
 
 

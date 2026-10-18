@@ -624,12 +624,88 @@ Private Function Txt(v As Variant) As String
     If IsError(v) Then Txt = "#FEHLER" Else Txt = CStr(v)
 End Function
 
+' Profilform und Maße aus der Profil-ID, z. B. "RR 42,4x2,0", "QR 40x40x3", "RE 60x40x3".
+' Gleiche Regeln wie profil_aus_name in tools/optimierung.py. True = erkannt.
+Private Function ProfilAusName(ByVal pid As String, form As String, a As Double, b As Double, wand As Double) As Boolean
+    Dim p As Long, kurz As String, rest As String, z As Variant, n As Long, i As Long
+    pid = Trim$(pid)
+    p = InStr(pid, " ")
+    If p = 0 Then Exit Function
+    kurz = UCase$(Left$(pid, p - 1))
+    rest = Replace(Replace(Mid$(pid, p + 1), ",", "."), "X", "x")
+    z = Split(rest, "x")
+    n = UBound(z) + 1
+    For i = 0 To n - 1
+        If Not IstDezimal(CStr(z(i))) Then Exit Function
+    Next i
+    b = 0
+    Select Case kurz
+        Case "RR"
+            If n <> 2 Then Exit Function
+            form = "Rundrohr": a = Val(z(0)): wand = Val(z(1))
+        Case "QR"
+            If n <> 3 Then Exit Function
+            If Val(z(0)) <> Val(z(1)) Then Exit Function
+            form = "Quadratrohr": a = Val(z(0)): wand = Val(z(2))
+        Case "RE"
+            If n <> 3 Then Exit Function
+            form = "Rechteckrohr": a = Val(z(0)): b = Val(z(1)): wand = Val(z(2))
+        Case Else
+            Exit Function
+    End Select
+    If a <= 0 Or wand <= 0 Or 2 * wand >= a Then Exit Function
+    ProfilAusName = True
+End Function
+
+Private Function IstDezimal(ByVal t As String) As Boolean
+    Dim i As Long, c As String, punkte As Long, ziffern As Long
+    If Len(t) = 0 Then Exit Function
+    For i = 1 To Len(t)
+        c = Mid$(t, i, 1)
+        If c = "." Then
+            punkte = punkte + 1
+        ElseIf c >= "0" And c <= "9" Then
+            ziffern = ziffern + 1
+        Else
+            Exit Function
+        End If
+    Next i
+    IstDezimal = (punkte <= 1 And ziffern > 0)
+End Function
+
+' Legt ein Profil aus seinem Namen in der ersten freien Zeile des Blatts "Profile" an.
+Private Function ProfilAnlegen(ByVal pid As String) As Boolean
+    Dim wp As Worksheet, r As Long, form As String, a As Double, b As Double, wand As Double
+    If Not ProfilAusName(pid, form, a, b, wand) Then Exit Function
+    Set wp = ThisWorkbook.Worksheets("Profile")
+    For r = M0 To M1
+        If Len(CStr(wp.Cells(r, 1).Value)) = 0 Then Exit For
+    Next r
+    If r > M1 Then Exit Function
+    wp.Cells(r, 1).Value = AlsWert(pid)
+    wp.Cells(r, 2).Value = form
+    wp.Cells(r, 3).Value = a
+    If b > 0 Then wp.Cells(r, 4).Value = b
+    wp.Cells(r, 5).Value = wand
+    wp.Cells(r, 9).Value = "automatisch aus Profil-ID angelegt"
+    ProfilAnlegen = True
+End Function
+
 Private Function Umfang(ByVal form As String, ByVal a As Double, ByVal b As Double) As Double
     Select Case form
         Case "Rundrohr": Umfang = 4 * Atn(1) * a
         Case "Quadratrohr": Umfang = 4 * a
         Case "Rechteckrohr": If b = 0 Then Umfang = 4 * a Else Umfang = 2 * (a + b)
     End Select
+End Function
+
+Private Function ProfilVorhanden(pv As Variant, ByVal pid As String) As Boolean
+    Dim i As Long
+    For i = 1 To UBound(pv, 1)
+        If Not Leer(pv(i, 1)) Then
+            If Txt(pv(i, 1)) = pid Then ProfilVorhanden = True: Exit Function
+        End If
+    Next i
 End Function
 
 Private Sub Fehlt(ByVal r As Long, pos As Variant, art As Variant, ByVal stk As Long, ByVal grund As String)
@@ -672,6 +748,12 @@ Private Sub LiesAuftrag()
     mv = ThisWorkbook.Worksheets("Maschinen").Range("A" & M0 & ":J" & M1).Value
     wv = ThisWorkbook.Worksheets("Werkstoffe").Range("A" & M0 & ":A" & M1).Value
     av = wa.Range("A" & O0 & ":AB" & O1).Value
+    ' unbekannte Profile mit gültigem Namen anlegen (wie profil_anlegen in Python)
+    For r = 1 To UBound(av, 1)
+        If Not Leer(av(r, 4)) And Not ProfilVorhanden(pv, Txt(av(r, 4))) Then
+            If ProfilAnlegen(Txt(av(r, 4))) Then pv = ThisWorkbook.Worksheets("Profile").Range("A" & M0 & ":H" & M1).Value
+        End If
+    Next r
 
     nT = 0: nG = 0: nF = 0
     ReDim tZeile(0 To 64): ReDim tPos(0 To 64): ReDim tArt(0 To 64): ReDim tNr(0 To 64)

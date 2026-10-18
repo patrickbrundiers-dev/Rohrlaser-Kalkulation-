@@ -189,29 +189,32 @@ wl["E5"].font = f_calc; wl["E5"].fill = fill_calc
 wl["E6"] = "Wird von den Makros gesetzt, nicht ändern."
 wl["E6"].font = f_note
 wl.column_dimensions["E"].width = 20
-for i, v in enumerate(["€/kg", "€/Stange"], start=5):
+for i, v in enumerate(["€/kg", "€/Stange", "€/m"], start=5):
     wl.cell(row=i, column=2, value=v).font = f_in
 wl.column_dimensions["A"].width = 18
 wl.column_dimensions["B"].width = 14
 wb.defined_names["lst_Profilform"] = DefinedName("lst_Profilform", attr_text="Listen!$A$5:$A$20")
-wb.defined_names["lst_Preisbasis"] = DefinedName("lst_Preisbasis", attr_text="Listen!$B$5:$B$6")
+wb.defined_names["lst_Preisbasis"] = DefinedName("lst_Preisbasis", attr_text="Listen!$B$5:$B$7")
 
 # ---------------------------------------------------------------- Werkstoffe
 ww = wb.create_sheet("Werkstoffe", 2)
-title(ww, "Werkstoffe / Materialqualität", "Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Auftrag. Beispielwerte ersetzen.")
+title(ww, "Werkstoffe / Materialqualität", "Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Auftrag. Der Tonnenpreis ergibt automatisch den Preis je kg, je m und je Stange; Abweichungen im Blatt 'Preise' eintragen.")
 cols_w = [("Werkstoff-ID", 18, "in"), ("Werkstoff", 16, "in"), ("Werkstoff-Nr.", 14, "in"),
-          ("Norm / Qualität", 30, "in"), ("Dichte [kg/dm³]", 12, "in"), ("Bemerkung", 30, "in")]
+          ("Norm / Qualität", 30, "in"), ("Dichte [kg/dm³]", 12, "in"), ("Bemerkung", 30, "in"),
+          ("Tonnenpreis [€/t]", 14, "in"), ("Text im Angebot", 24, "in")]
 header(ww, 4, cols_w)
-style_rows(ww, M0, M1, cols_w, {5: "0.00"})
+style_rows(ww, M0, M1, cols_w, {5: "0.00", 7: "#,##0"})
+ww.column_dimensions["H"].width = 24
 for i, row in enumerate([
-    ("S235-10219", "S235JRH", "1.0039", "EN 10219 kaltgefertigt, geschweißt", 7.85, "Beispiel"),
-    ("S355-10219", "S355J2H", "1.0576", "EN 10219 kaltgefertigt, geschweißt", 7.85, "Beispiel"),
-    ("1.4301", "X5CrNi18-10", "1.4301", "EN 10217-7 / ASTM A554", 7.90, "Beispiel"),
-    ("AW6060-T66", "EN AW-6060 T66", "3.3206", "EN 755-2", 2.70, "Beispiel"),
+    ("S235-10219", "S235JRH", "1.0039", "EN 10219 kaltgefertigt, geschweißt", 7.85, "Beispiel", 1000, "S235 EN10219"),
+    ("S355-10219", "S355J2H", "1.0576", "EN 10219 kaltgefertigt, geschweißt", 7.85, "Beispiel", 1050, "S355 EN10219"),
+    ("1.4301", "X5CrNi18-10", "1.4301", "EN 10217-7 / ASTM A554", 7.90, "Beispiel", 4200, "1.4301 EN10217-7"),
+    ("AW6060-T66", "EN AW-6060 T66", "3.3206", "EN 755-2", 2.70, "Beispiel", 4500, "EN AW-6060 T66"),
 ], start=M0):
     for j, v in enumerate(row, start=1):
         ww.cell(row=i, column=j, value=v)
 add_dv(ww, num_dv(0.5, 25, msg="Dichte in kg/dm³ (z. B. Stahl 7,85, Alu 2,70)."), f"E{M0}:E{M1}")
+add_dv(ww, num_dv(0.01, 1000000, msg="Tonnenpreis in € je Tonne (> 0)."), f"G{M0}:G{M1}")
 dup = DataValidation(type="custom", formula1=f"=COUNTIF($A${M0}:$A${M1},A{M0})=1", allow_blank=True)
 dup.error = "Diese Werkstoff-ID existiert bereits."; dup.showErrorMessage = True
 add_dv(ww, dup, f"A{M0}:A{M1}")
@@ -262,9 +265,9 @@ wpr = wb.create_sheet("Preise", 4)
 title(wpr, "Materialpreise", "Je Kombination Profil + Werkstoff genau eine Zeile. Preisbasis €/kg oder €/Stange (bezogen auf die Liefer-Stangenlänge).")
 cols_pr = [("Profil-ID", 20, "in"), ("Werkstoff-ID", 16, "in"), ("Preisbasis", 11, "in"), ("Preis [€]", 11, "in"),
            ("Liefer-Stangenlänge [mm]", 13, "in"), ("Gültig ab", 12, "in"), ("Lieferant", 20, "in"),
-           ("Bemerkung", 22, "in"), ("Prüfung", 26, "calc")]
+           ("Bemerkung", 22, "in"), ("Prüfung", 26, "calc"), ("Preis €/m automatisch", 13, "calc")]
 header(wpr, 4, cols_pr)
-style_rows(wpr, M0, M1, cols_pr, {4: "#,##0.00", 5: "#,##0", 6: "DD.MM.YYYY"})
+style_rows(wpr, M0, M1, cols_pr, {4: "#,##0.00", 5: "#,##0", 6: "DD.MM.YYYY", 10: "#,##0.00"})
 for i, row in enumerate([
     ("RR 42,4x2,0", "S235-10219", "€/kg", 1.45, 6000, datetime.date(2026, 10, 1), "Beispiel-Lieferant", "Beispiel"),
     ("RR 48,3x2,6", "S235-10219", "€/kg", 1.45, 6000, datetime.date(2026, 10, 1), "Beispiel-Lieferant", "Beispiel"),
@@ -280,9 +283,12 @@ for r in range(M0, M1 + 1):
                     f'IF(COUNTIFS($A${M0}:$A${M1},A{r},$B${M0}:$B${M1},B{r})>1,"FEHLER: doppelt",'
                     f'IF(OR(C{r}="",D{r}=""),"FEHLER: Preis unvollständig",'
                     f'IF(AND(C{r}="€/Stange",E{r}=""),"FEHLER: Stangenlänge fehlt","OK"))))))')
+    wpr[f"J{r}"] = (f'=IF(OR(A{r}="",B{r}=""),"",IFERROR(INDEX(Profile!$K${M0}:$K${M1},MATCH(A{r},lst_Profil,0))'
+                    f'*INDEX(Werkstoffe!$E${M0}:$E${M1},MATCH(B{r},lst_Werkstoff,0))/1000'
+                    f'*INDEX(Werkstoffe!$G${M0}:$G${M1},MATCH(B{r},lst_Werkstoff,0))/1000,""))')
 add_dv(wpr, list_dv("lst_Profil", "Bitte Profil-ID aus Blatt 'Profile' wählen."), f"A{M0}:A{M1}")
 add_dv(wpr, list_dv("lst_Werkstoff", "Bitte Werkstoff-ID aus Blatt 'Werkstoffe' wählen."), f"B{M0}:B{M1}")
-add_dv(wpr, list_dv("lst_Preisbasis", "Bitte €/kg oder €/Stange wählen."), f"C{M0}:C{M1}")
+add_dv(wpr, list_dv("lst_Preisbasis", "Bitte €/kg, €/m oder €/Stange wählen."), f"C{M0}:C{M1}")
 add_dv(wpr, num_dv(0.01, 100000, msg="Preis in € (> 0)."), f"D{M0}:D{M1}")
 add_dv(wpr, num_dv(500, 20000, whole=True, msg="Stangenlänge in mm (500–20000)."), f"E{M0}:E{M1}")
 dd = DataValidation(type="date", operator="greaterThan", formula1="36526", allow_blank=True)
@@ -471,8 +477,9 @@ for r in range(O0, O1 + 1):
     wa[f"R{r}"] = f'=IF($D{r}="","",IFERROR(IF(INDEX({P("G")},{mp})<>"",INDEX({P("G")},{mp}),$H$4),$H$4))'
     wa[f"S{r}"] = f'=IF($D{r}="","",IFERROR(IF(INDEX({P("H")},{mp})<>"",INDEX({P("H")},{mp}),$H$5),$H$5))'
     wa[f"T{r}"] = f'=IF(OR(Q{r}="",NOT(ISNUMBER(R{r})),NOT(ISNUMBER(S{r}))),"",Q{r}-R{r}-S{r})'
-    wa[f"U{r}"] = (f'=IF(OR($D{r}="",$E{r}=""),"",IF(COUNTIFS(Preise!$A${M0}:$A${M1},$D{r},'
-                   f'Preise!$B${M0}:$B${M1},$E{r},Preise!$I${M0}:$I${M1},"OK")>0,"ja","nein"))')
+    wa[f"U{r}"] = (f'=IF(OR($D{r}="",$E{r}=""),"",IF(OR(COUNTIFS(Preise!$A${M0}:$A${M1},$D{r},'
+                   f'Preise!$B${M0}:$B${M1},$E{r},Preise!$I${M0}:$I${M1},"OK")>0,'
+                   f'N(INDEX(Werkstoffe!$G${M0}:$G${M1},MATCH($E{r},lst_Werkstoff,0)))>0),"ja","nein"))')
     thr = (f'_xlfn.MINIFS({SD("C")},{SD("A")},$C$8,{SD("B")},$E{r},{SD("C")},">="&M{r})')
     wa[f"V{r}"] = (f'=IF(OR(M{r}="",$E{r}="",$C$8=""),"",IF({thr}=0,"",'
                    f'SUMIFS({SD("D")},{SD("A")},$C$8,{SD("B")},$E{r},{SD("C")},{thr})))')
@@ -577,9 +584,12 @@ for r in range(S0, S1 + 1):
     wsp[f"Q{r}"] = f'={g}IFERROR($D{r}/1000*{kgm},""))'
     pk = lambda col: f'Preise!${col}${M0}:${col}${M1}'
     crit = f'{pk("A")},$B{r},{pk("B")},$C{r},{pk("I")},"OK"'
+    tonnen = f'IFERROR(INDEX(Werkstoffe!$G${M0}:$G${M1},MATCH($C{r},lst_Werkstoff,0)),0)'
     wsp[f"R{r}"] = (f'={g}IF(COUNTIFS({crit},{pk("C")},"€/kg")>0,N(Q{r})*SUMIFS({pk("D")},{crit}),'
+                    f'IF(COUNTIFS({crit},{pk("C")},"€/m")>0,SUMIFS({pk("D")},{crit})*$D{r}/1000,'
                     f'IF(COUNTIFS({crit},{pk("C")},"€/Stange")>0,'
-                    f'SUMIFS({pk("D")},{crit})*$D{r}/SUMIFS({pk("E")},{crit}),0)))')
+                    f'SUMIFS({pk("D")},{crit})*$D{r}/SUMIFS({pk("E")},{crit}),'
+                    f'N(Q{r})*{tonnen}/1000)))')
 wsp.conditional_formatting.add(f"M{S0}:M{S1}", FormulaRule(formula=[f'$M{S0}="ÜBERBELEGT"'], fill=PatternFill("solid", fgColor="F8CBAD")))
 wsp.conditional_formatting.add(f"M{S0}:M{S1}", FormulaRule(formula=[f'$M{S0}="OK"'], fill=PatternFill("solid", fgColor="C6EFCE")))
 wsp.freeze_panes = "B5"
@@ -759,12 +769,11 @@ wan["C12"] = "Lieferzeit nach Absprache. Zahlung 30 Tage netto. Preise in Euro z
 wan["C12"].font = Font(name=F); wan["C12"].alignment = wrap
 wan.merge_cells("C12:I12")
 wan.row_dimensions[12].height = 30
-cols_an = [("Pos.", 7, "in"), ("Artikelnummer", 18, "in"), ("Bezeichnung", 26, "in"), ("Profil", 16, "in"),
-           ("Werkstoff", 13, "in"), ("Länge [mm]", 10, "in"), ("Menge [Stk]", 9, "in"), ("Einzelpreis [€]", 12, "in"),
-           ("Gesamtpreis [€]", 13, "in")]
+cols_an = [("Pos.", 7, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung (automatisch)", 62, "in"),
+           ("Menge [Stk]", 9, "in"), ("Stückpreis [€]", 12, "in"), ("Gesamtpreis [€]", 13, "in")]
 header(wan, 13, cols_an)
 wan.row_dimensions[13].height = 30
-wan["A14"] = "Positionen werden über 'Angebot (PDF)' eingetragen."
+wan["A14"] = "Positionen werden über 'Angebot (PDF)' eingetragen. Bezeichnung aus Profil, Länge, Werkstoff (Spalte H im Blatt Werkstoffe) und Zusatzarbeiten."
 wan["A14"].font = f_note
 wan.page_setup.orientation = "portrait"
 wan.page_setup.paperSize = 9

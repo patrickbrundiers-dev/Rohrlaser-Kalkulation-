@@ -319,6 +319,52 @@ def umfang(form, a, b):
     return 0.0
 
 
+PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr"}
+
+
+def profil_aus_name(pid):
+    """Profilform und Maße aus der Profil-ID, z. B. 'RR 42,4x2,0', 'QR 40x40x3', 'RE 60x40x3'.
+    Ergebnis dict(form, a, b, wand) oder None, wenn der Name nicht nach dem Schema aufgebaut ist.
+    Gleiche Regeln wie ProfilAusName in vba/Optimierung.bas."""
+    kurz, _, rest = str(pid).strip().partition(" ")
+    form = PROFILFORM.get(kurz.upper())
+    zahlen = rest.replace(",", ".").replace("X", "x").split("x")
+    try:
+        z = [float(v) for v in zahlen]
+    except ValueError:
+        return None
+    if form == "Rundrohr" and len(z) == 2:
+        a, b, wand = z[0], None, z[1]
+    elif form == "Quadratrohr" and len(z) == 3 and z[0] == z[1]:
+        a, b, wand = z[0], None, z[2]
+    elif form == "Rechteckrohr" and len(z) == 3:
+        a, b, wand = z[0], z[1], z[2]
+    else:
+        return None
+    if a <= 0 or wand <= 0 or 2 * wand >= a:
+        return None
+    return dict(form=form, a=a, b=b, wand=wand)
+
+
+def profil_anlegen(wb, pid):
+    """Legt das Profil aus dem Namen in die erste freie Zeile des Blatts 'Profile' an.
+    Ergebnis dict wie in lies_auftrag, oder None."""
+    wp = wb["Profile"]
+    daten = profil_aus_name(pid)
+    if daten is None:
+        return None
+    zeile = next((r for r in range(M0, M1 + 1) if wp.cell(r, 1).value in (None, "")), None)
+    if zeile is None:
+        return None
+    wp.cell(zeile, 1).value = str(pid)
+    wp.cell(zeile, 2).value = daten["form"]
+    wp.cell(zeile, 3).value = daten["a"]
+    wp.cell(zeile, 4).value = daten["b"]
+    wp.cell(zeile, 5).value = daten["wand"]
+    wp.cell(zeile, 9).value = "automatisch aus Profil-ID angelegt"
+    return dict(form=daten["form"], a=daten["a"], b=daten["b"], end=None, greif=None)
+
+
 def lies_auftrag(wb):
     wa, wp, wm, ww = wb["Auftrag"], wb["Profile"], wb["Maschinen"], wb["Werkstoffe"]
     profile = {}
@@ -328,6 +374,12 @@ def lies_auftrag(wb):
             profile[pid] = dict(form=wp.cell(r, 2).value, a=_zahl(wp.cell(r, 3).value) or 0,
                                 b=_zahl(wp.cell(r, 4).value), end=_zahl(wp.cell(r, 7).value),
                                 greif=_zahl(wp.cell(r, 8).value))
+    for r in range(O0, O1 + 1):
+        pid = wa.cell(r, 4).value
+        if pid not in (None, "") and pid not in profile:
+            neu = profil_anlegen(wb, pid)
+            if neu is not None:
+                profile[pid] = neu
     werkstoffe = {ww.cell(r, 1).value for r in range(M0, M1 + 1) if ww.cell(r, 1).value not in (None, "")}
     maschine = wa["C8"].value
     mrow = next((r for r in range(M0, M1 + 1) if maschine and wm.cell(r, 1).value == maschine), None)
