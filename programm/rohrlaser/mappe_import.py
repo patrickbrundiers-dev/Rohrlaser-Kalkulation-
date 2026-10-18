@@ -9,6 +9,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from .auftrag import KOPF, KOPF_ZELLE, POSITIONEN
 from .stammdaten import TABELLEN, EINSTELLUNGEN, zahl_aus_text, zahl_als_text
 
 
@@ -95,3 +96,41 @@ def lies_mappe(pfad):
             einstellungen["profilformen"] = "\n".join(str(f).strip() for f in formen)
     wb.close()
     return daten, einstellungen, hinweise
+
+
+def lies_auftrag(pfad):
+    """Auftragskopf und Positionen aus einer Mappe (Vorlage oder abgelegte Auftragsmappe).
+    Ergebnis: (kopf, positionen, hinweise). Positionen in der Reihenfolge der Zeilen, leere Zeilen
+    werden ausgelassen."""
+    wb = load_workbook(Path(pfad), read_only=True, data_only=True, keep_vba=False)
+    if "Auftrag" not in wb.sheetnames:
+        wb.close()
+        raise ValueError(f"'{Path(pfad).name}' ist keine Kalkulationsmappe: Blatt Auftrag fehlt.")
+    ws, hinweise = wb["Auftrag"], []
+    kopf = {}
+    for f in KOPF:
+        if f.name in KOPF_ZELLE:
+            try:
+                kopf[f.name] = _wert(f, ws[KOPF_ZELLE[f.name]].value)
+            except (ValueError, TypeError):
+                kopf[f.name] = None
+                hinweise.append(f"Auftrag {KOPF_ZELLE[f.name]}: {f.titel} nicht lesbar.")
+    breite = max(f.spalte for f in POSITIONEN.felder)
+    positionen = []
+    for nr, werte in enumerate(ws.iter_rows(min_row=POSITIONEN.zeilen[0], max_row=POSITIONEN.zeilen[1],
+                                            max_col=breite, values_only=True), start=POSITIONEN.zeilen[0]):
+        werte = list(werte) + [None] * (breite - len(werte))
+        if all(werte[f.spalte - 1] in (None, "") for f in POSITIONEN.felder):
+            continue
+        p = {}
+        for f in POSITIONEN.felder:
+            roh = werte[f.spalte - 1]
+            try:
+                p[f.name] = _wert(f, roh)
+            except (ValueError, TypeError):
+                p[f.name] = None
+                hinweise.append(f"Auftrag Zeile {nr}: {f.titel} '{roh}' nicht lesbar, bleibt leer.")
+        p["zeile"] = nr
+        positionen.append(p)
+    wb.close()
+    return kopf, positionen, hinweise

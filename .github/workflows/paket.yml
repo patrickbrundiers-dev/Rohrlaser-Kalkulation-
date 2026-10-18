@@ -31,7 +31,9 @@ jobs:
       - name: Programm-Tests
         env:
           QT_QPA_PLATFORM: offscreen
-        run: /usr/bin/python3 tests/test_programm.py
+        run: |
+          /usr/bin/python3 tests/test_programm.py
+          /usr/bin/python3 tests/test_programm_mappe.py
       - name: VBA-Tests (LibreOffice)
         run: /usr/bin/python3 tests/test_vba.py
 
@@ -61,11 +63,13 @@ jobs:
           python tests/vergleiche_messung.py referenz.txt exe.txt
       - name: Rohrlaser-Kalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
-      - name: Rohrlaser-Kalkulation.exe Selbsttest
+      - name: Rohrlaser-Kalkulation.exe Selbsttest (mit Auftrag, Optimierung und STEP-Import)
         shell: pwsh
         run: |
+          Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Kalkulation/STEP-Import
+          $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
           $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Kalkulation/Rohrlaser-Kalkulation.exe" `
-            -ArgumentList "--selbsttest", "--mappe", "mappe/Rohrlaser_Kalkulation_v02.xlsm", "--ergebnis", "selbsttest.txt"
+            -ArgumentList (@("--selbsttest", "--mappe", "mappe/Rohrlaser_Kalkulation_v02.xlsm", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt
           if ($p.ExitCode -ne 0) { throw "Selbsttest Rückgabewert $($p.ExitCode)" }
       - name: Paket zusammenstellen
@@ -98,7 +102,8 @@ jobs:
             Stand ${{ github.sha }}.
             Rohrlaser-Kalkulation.zip: Mappe und STEP-Import.exe. Entpacken, Rohrlaser_Kalkulation_v02.xlsm öffnen
             und Makros aktivieren. Der Ordner STEP-Import muss neben der Mappe liegen.
-            Rohrlaser-Programm.zip: eigenständiges Programm (im Aufbau). Entpacken, Rohrlaser-Kalkulation.exe starten.
+            Rohrlaser-Programm.zip: eigenständiges Programm (im Aufbau, mit STEP-Import). Entpacken,
+            Rohrlaser-Kalkulation.exe starten.
             Die Daten liegen im Ordner Daten neben dem Programm.
           files: |
             Rohrlaser-Kalkulation.zip

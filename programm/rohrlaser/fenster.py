@@ -1,4 +1,4 @@
-"""Hauptfenster: Start, Stammdaten (je Tabelle ein Reiter) und Einstellungen."""
+"""Hauptfenster: Start, Aufträge (Übersicht und je offener Auftrag ein Reiter), Stammdaten und Einstellungen."""
 import datetime
 import os
 import sys
@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QKeySequenc
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QSpinBox, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QSpinBox, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import NAME, VERSION
 from .mappe_import import lies_mappe
@@ -342,8 +342,8 @@ class StartSeite(QWidget):
             b.clicked.connect(ziel)
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
-        hinweis = QLabel("Auftragsbearbeitung (Positionen, STEP-Import, Optimierung, Kalkulation) folgt im "
-                         "nächsten Schritt. Bis dahin werden Aufträge weiter in der Excel-Mappe gerechnet.")
+        hinweis = QLabel("Aufträge werden im Reiter 'Aufträge' angelegt oder aus einer Excel-Auftragsmappe übernommen. "
+                         "PDF-Ausgabe (Angebot, Schnittplan), Staffelpreise und Excel-Export folgen im nächsten Schritt.")
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")
         lay = QVBoxLayout(self)
@@ -371,19 +371,30 @@ class StartSeite(QWidget):
 
 
 class Hauptfenster(QMainWindow):
-    def __init__(self, db):
+    def __init__(self, db, programmordner=None, stumm=False):
+        from .auftrag_fenster import AuftraegeSeite
         super().__init__()
         self.db = db
+        self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
+        self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
+        self.offen = {}             # Auftrags-ID -> AuftragSeite
         self.setWindowTitle(f"{NAME} {VERSION}")
         self.resize(1400, 800)
         self.reiter = QTabWidget()
+        self.reiter.setTabsClosable(True)
+        self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
         self.start = StartSeite(self)
         self.reiter.addTab(self.start, "Start")
+        self.auftraege = AuftraegeSeite(self)
+        self.auftraege.oeffnen.connect(self.auftrag_oeffnen)
+        self.reiter.addTab(self.auftraege, "Aufträge")
         self.seiten = [StammdatenSeite(db, t, self.meldung) for t in TABELLEN]
         for s in self.seiten:
             self.reiter.addTab(s, s.t.titel)
         self.einstellungen = EinstellungenSeite(db, self.meldung)
         self.reiter.addTab(self.einstellungen, "Einstellungen")
+        for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
+            self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
         self._menue()
@@ -411,6 +422,33 @@ class Hauptfenster(QMainWindow):
                         f"Daten: {self.db.pfad}"))
         hilfe.addAction(a)
 
+    def auftrag_oeffnen(self, auftrag_id):
+        from .auftrag_fenster import AuftragSeite
+        seite = self.offen.get(auftrag_id)
+        if seite is None:
+            seite = AuftragSeite(self, auftrag_id)
+            self.offen[auftrag_id] = seite
+            self.reiter.addTab(seite, seite.titel())
+        self.reiter.setCurrentWidget(seite)
+        return seite
+
+    def auftrag_schliessen(self, auftrag_id):
+        seite = self.offen.pop(auftrag_id, None)
+        if seite is not None:
+            self.reiter.removeTab(self.reiter.indexOf(seite))
+            seite.deleteLater()
+
+    def _reiter_schliessen(self, i):
+        w = self.reiter.widget(i)
+        for aid, seite in list(self.offen.items()):
+            if seite is w:
+                self.auftrag_schliessen(aid)
+
+    def reiter_titel(self, seite):
+        i = self.reiter.indexOf(seite)
+        if i >= 0:
+            self.reiter.setTabText(i, seite.titel())
+
     def meldung(self, text, fehler=False):
         self.statusBar().setStyleSheet("color: #C00000;" if fehler else "")
         self.statusBar().showMessage(text, 8000)
@@ -422,6 +460,9 @@ class Hauptfenster(QMainWindow):
 
     def alles_neu_laden(self):
         self.start.neu_laden()
+        self.auftraege.neu_laden()
+        for seite in self.offen.values():
+            seite.neu_laden()
         for s in self.seiten:
             s.neu_laden()
         self.einstellungen.neu_laden()

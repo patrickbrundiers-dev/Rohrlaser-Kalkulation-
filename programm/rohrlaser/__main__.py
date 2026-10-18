@@ -4,7 +4,9 @@ Die Datendatei liegt im Ordner 'Daten' neben dem Programm (portabel, keine Insta
 --daten ORDNER     anderer Datenordner
 --selbsttest       Fenster aufbauen, alle Reiter einmal anzeigen, beenden (Rückgabewert 0 = in Ordnung);
                    mit --mappe DATEI zusätzlich die Stammdaten aus der Mappe übernehmen,
-                   mit --ergebnis DATEI das Protokoll in eine Textdatei schreiben (die .exe hat keine Konsole).
+                   und den Auftrag der Mappe übernehmen und optimieren, mit --step DATEI … zusätzlich STEP-Dateien
+                   messen und übernehmen, mit --ergebnis DATEI das Protokoll in eine Textdatei schreiben
+                   (die .exe hat keine Konsole).
 """
 import argparse
 import sys
@@ -21,14 +23,14 @@ def programmordner():
     return Path(__file__).resolve().parent.parent
 
 
-def selbsttest(app, mappe, ergebnis):
+def selbsttest(app, mappe, ergebnis, step_dateien=()):
     from .datenbank import Datenbank
     from .fenster import Hauptfenster
     protokoll = []
     try:
         with tempfile.TemporaryDirectory() as tmp:
             db = Datenbank(Path(tmp) / "rohrlaser.db")
-            f = Hauptfenster(db)
+            f = Hauptfenster(db, programmordner(), stumm=True)
             f.show()
             for i in range(f.reiter.count()):
                 f.reiter.setCurrentIndex(i)
@@ -38,6 +40,28 @@ def selbsttest(app, mappe, ergebnis):
                 if not f.mappe_uebernehmen(mappe, nachfragen=False):
                     raise RuntimeError(f"Übernahme aus {mappe} fehlgeschlagen")
                 protokoll.append("Übernahme: " + ", ".join(f"{s.t.titel} {len(s.modell.daten)}" for s in f.seiten))
+                aid = f.auftraege.aus_mappe(mappe)
+                if not aid:
+                    raise RuntimeError("Auftrag aus der Mappe nicht übernommen")
+                seite = f.offen[aid]
+                if not seite.optimieren():
+                    raise RuntimeError("Optimierung fehlgeschlagen")
+                for i in range(seite.reiter.count()):
+                    seite.reiter.setCurrentIndex(i)
+                    app.processEvents()
+                e = seite.ergebnis
+                protokoll.append(f"Auftrag {seite.kopf['nummer']}: {len(seite.positionen)} Positionen, "
+                                 f"{len(e['stangen'])} Stangen, Stand {seite.stand_optimierung()}, "
+                                 f"Verkaufspreis {seite.kalk.zeilen and sum(z['preis_position'] or 0 for z in seite.kalk.zeilen):.2f}")
+                if step_dateien:
+                    erg = seite.step_importieren(list(step_dateien), werkstoff=None, stueck=10)
+                    if not erg or len(erg["positionen"]) == 0:
+                        raise RuntimeError("STEP-Import ohne Ergebnis")
+                    protokoll.append(f"STEP-Import: {len(erg['positionen'])} Positionen, "
+                                     f"Protokoll {len(seite.prot.zeilen)} Zeilen")
+                    seite.optimieren()
+                    protokoll.append(f"Neu optimiert: {len(seite.ergebnis['stangen'])} Stangen")
+                f.auftrag_schliessen(aid)
             f.sicherung_erstellen()
             protokoll.append("Sicherung: ok")
             f.close()
@@ -62,6 +86,7 @@ def main(argv=None):
     ap.add_argument("--selbsttest", action="store_true")
     ap.add_argument("--mappe")
     ap.add_argument("--ergebnis")
+    ap.add_argument("--step", nargs="*", default=[])
     a = ap.parse_args(argv)
 
     from PySide6.QtCore import QLocale
@@ -71,7 +96,7 @@ def main(argv=None):
     app.setApplicationName(NAME)
     app.setStyle("Fusion")
     if a.selbsttest:
-        return selbsttest(app, a.mappe, a.ergebnis)
+        return selbsttest(app, a.mappe, a.ergebnis, a.step)
 
     from .datenbank import Datenbank
     from .fenster import Hauptfenster
@@ -82,7 +107,7 @@ def main(argv=None):
     except Exception as e:
         QMessageBox.critical(None, NAME, f"Die Datendatei in {ordner} lässt sich nicht öffnen:\n\n{e}")
         return 1
-    f = Hauptfenster(db)
+    f = Hauptfenster(db, programmordner())
     f.show()
     code = app.exec()
     db.schliessen()

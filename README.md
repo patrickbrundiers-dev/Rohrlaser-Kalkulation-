@@ -15,7 +15,7 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 | 7 | Sätze und Staffelpreise | erledigt |
 | 8 | Stangenbild (Verschachtelung), Schaltflächen in Excel sichtbar | erledigt |
 | P1 | Eigenes Windows-Programm: Gerüst, Datenbank, Stammdaten, Übernahme aus der Mappe | erledigt |
-| P2 | Programm: Aufträge, STEP-Import, Optimierung, Kalkulation, Stangenbild | offen |
+| P2 | Programm: Aufträge, STEP-Import, Optimierung, Kalkulation, Stangenbild | erledigt |
 | P3 | Programm: PDF-Ausgabe, Staffelpreise, Auftragsablage, Excel-Export | offen |
 | P4 | Programm: Abnahme gegen die Mappe | offen |
 
@@ -37,16 +37,21 @@ Die Mappe bleibt dabei geöffnet. Python wird nur zum Entwickeln gebraucht, nich
 
 ## Eigenes Programm (im Aufbau)
 
-Das Programm `Rohrlaser-Kalkulation.exe` soll die Mappe ablösen (Entscheidung 18.10.2026). Bis Schritt P2 fertig ist, werden Aufträge weiter in der Mappe gerechnet.
+Das Programm `Rohrlaser-Kalkulation.exe` soll die Mappe ablösen (Entscheidung 18.10.2026). Stammdaten und Aufträge (Positionen, STEP-Import, Optimierung, Kalkulation, Schnittplan, Stangenbild) sind fertig. PDF-Ausgabe, Staffelpreise, Ablage und Excel-Export folgen; bis dahin entstehen Angebote und Werkstattpapiere noch in der Mappe.
 
 1. Unter **Releases → aktuell** `Rohrlaser-Programm.zip` herunterladen und in einen Ordner entpacken, in dem man schreiben darf (z. B. `C:\Rohrlaser` oder ein Netzlaufwerk-Ordner nur für diesen Arbeitsplatz, nicht `C:\Programme`).
 2. `Rohrlaser-Kalkulation.exe` starten. Beim ersten Start legt es den Ordner `Daten` mit `rohrlaser.db` (Stammdaten, Einstellungen) und Beispieldaten an.
 3. **Datei → Stammdaten aus Excel-Mappe übernehmen**: liest Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zuschläge, Angebotskopf und Auftragsvorgaben aus der gepflegten Mappe (Vorlage oder abgelegte Auftragsmappe). Vorher wird eine Sicherung angelegt. Doppelte Zeilen oder unlesbare Werte meldet das Programm vor der Übernahme.
 4. Stammdaten lassen sich in den Reitern direkt bearbeiten (Doppelklick oder lostippen, Zahlen mit Komma). Jede Änderung wird sofort gespeichert. Die Spalte **Prüfung** zeigt wie in der Mappe OK, WARNUNG oder FEHLER. Wird eine Profil-, Werkstoff- oder Maschinen-ID umbenannt, ändern sich die Verweise in Preisen und Schneiddaten mit.
 
+5. Reiter **Aufträge**: neuen Auftrag anlegen (Nummer zählt hoch), kopieren, löschen, suchen (auch nach Artikel) oder **Auftrag aus Excel-Mappe übernehmen** (Kopf und Positionen einer Auftragsmappe). Doppelklick öffnet den Auftrag in einem eigenen Reiter.
+6. Im Auftrag: Kopf oben, Positionen wie im Blatt „Auftrag“ bearbeiten (Häkchen **Berechnete Werte** und **STEP-Werte** blenden die übrigen Spalten ein). **STEP importieren** misst die gewählten Dateien mit `STEP-Import.exe` (Ordner `STEP-Import` neben dem Programm, ist im ZIP enthalten) und legt die Positionen an; die Messwerte stehen im Reiter STEP-Protokoll. **Optimieren** plant die Stangen; danach zeigen die Reiter Kalkulation, Schnittplan (Klick auf eine Stange zeigt die Teile), Stangenbild und Auswertung (mit nicht eingeplanten Teilen) die Ergebnisse. Nach jeder Änderung am Auftrag oder an den Stammdaten zeigt die Übersicht „VERALTET“, bis neu optimiert wird.
+
+Optimierung, Status, Schnittplan und Kalkulation rechnen genau wie die Mappe v02: `tests/test_programm_mappe.py` vergleicht 13 Testaufträge Zelle für Zelle mit der von LibreOffice berechneten Mappe. Einzige bewusste Abweichung: Positionen ohne Pos.-Nr. rechnet das Programm wie Excel (LibreOffice weicht dort ab).
+
 Sicherung: beim ersten Start jedes Tages und vor jeder Übernahme eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren.
 
-Entwicklung: `pip install -r programm/requirements.txt`, Start mit `python -m rohrlaser` im Ordner `programm`, Test mit `python tests/test_programm.py`. Der Build (`pyinstaller programm/rohrlaser.spec`) läuft in GitHub Actions auf Windows und prüft die fertige .exe mit `--selbsttest`.
+Entwicklung: `pip install -r programm/requirements.txt`, Start mit `python -m rohrlaser` im Ordner `programm`, Tests mit `python tests/test_programm.py` und `python tests/test_programm_mappe.py` (braucht LibreOffice). Der Build (`pyinstaller programm/rohrlaser.spec`) läuft in GitHub Actions auf Windows und prüft die fertige .exe mit `--selbsttest` (Stammdaten und Auftrag aus der Mappe übernehmen, optimieren, die Testteile per STEP-Import einlesen).
 
 ## Inhalt
 

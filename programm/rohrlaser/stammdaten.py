@@ -25,6 +25,7 @@ class Feld:
     stellen: int = None     # Nachkommastellen in der Anzeige
     breite: int = 110       # Spaltenbreite in Pixeln
     pflicht: bool = False
+    muster: tuple = None    # (regulärer Ausdruck, Meldung) für Textfelder
 
 
 @dataclass(frozen=True)
@@ -250,6 +251,8 @@ def wert_aus_text(f, text):
             except ValueError:
                 pass
         raise ValueError(f"{f.titel}: Datum als TT.MM.JJJJ eingeben.")
+    if f.muster and not re.search(f.muster[0], t):
+        raise ValueError(f"{f.titel}: {f.muster[1]}")
     return t
 
 
@@ -291,8 +294,18 @@ class Kontext:
 
     def auswahl(self, quelle):
         return {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                "profil": sorted(self.profile), "werkstoff": sorted(self.werkstoffe),
+                "profil": sorted(self.profile), "werkstoff": sorted(self.werkstoffe), "janein": ["ja", "nein"],
                 "maschine": sorted(self.maschinen)}[quelle]
+
+
+def kontext_aus(daten, profilformen=PROFILFORMEN):
+    """Kontext aus Stammdatenzeilen {Tabelle: [Zeile]} (Datenbank oder gelesene Mappe)."""
+    k = Kontext()
+    k.profile = {z["profil_id"]: z for z in daten.get("profile", []) if z.get("profil_id")}
+    k.werkstoffe = {z["werkstoff_id"]: z for z in daten.get("werkstoffe", []) if z.get("werkstoff_id")}
+    k.maschinen = {z["maschinen_id"]: z for z in daten.get("maschinen", []) if z.get("maschinen_id")}
+    k.profilformen = tuple(profilformen)
+    return k
 
 
 def pruefen(t, z, k):

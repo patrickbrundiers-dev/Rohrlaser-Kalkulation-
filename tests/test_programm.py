@@ -1,4 +1,6 @@
-"""Prüft das Windows-Programm (Schritt 1): Datenbank, Übernahme aus der Mappe, Prüfregeln, Oberfläche.
+"""Prüft das Windows-Programm: Datenbank, Übernahme aus der Mappe, Prüfregeln, Oberfläche (Schritt 1);
+Aufträge, STEP-Übernahme, Optimierung und Auftragsfenster (Schritt 2). Die Rechnung selbst vergleicht
+tests/test_programm_mappe.py Zelle für Zelle mit der Mappe.
 
 Aufruf: python tests/test_programm.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -177,6 +179,97 @@ fenster.einstellungen.felder["gewinn"].editingFinished.emit()
 assert db.einstellung("gewinn") == 0.125
 assert fenster.mappe_uebernehmen(str(MAPPE), nachfragen=False)
 assert db.einstellung("gewinn") == 0.1 and db.einstellung("stammdaten_herkunft").endswith("v02.xlsm")
+fenster.close()
+db.schliessen()
+
+# 9) Aufträge: Nummern zählen hoch, Kopieren übernimmt Positionen, Löschen nimmt Positionen mit
+import subprocess  # noqa: E402
+from rohrlaser import rechnen, step  # noqa: E402
+from rohrlaser.auftrag import naechste_nummer  # noqa: E402
+assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
+db = Datenbank(tmp / "b" / "rohrlaser.db")
+a1 = db.auftrag_neu()
+a2 = db.auftrag_neu()
+n1, n2 = db.auftrag(a1)["nummer"], db.auftrag(a2)["nummer"]
+assert n1 != n2 and db.einstellung("letzte_auftragsnummer") == n2
+try:
+    db.auftrag_aendern(a2, "nummer", n1)
+    raise AssertionError("doppelte Auftragsnummer nicht abgewiesen")
+except ValueError:
+    pass
+db.position_neu(a1, dict(pos=10, artikel="X-1", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=1000, stueck=7))
+a3 = db.auftrag_kopieren(a1)
+assert [p["artikel"] for p in db.positionen(a3)] == ["X-1"] and db.auftrag(a3)["kunde"] == db.auftrag(a1)["kunde"]
+db.auftrag_loeschen(a3)
+assert db.positionen(a3) == [] and db.auftrag(a3) is None
+assert {a["id"] for a in db.auftraege("X-1")} == {a1}
+
+# 10) STEP-Übernahme wie die Mappe (vgl. tests/test_step_import.py): Werte, Gewinde-Vorschlag, Doppelimport, Profil anlegen
+STEP_ORDNER = HIER / "step"
+befehl = step.messprogramm(HIER.parent / "programm")
+if befehl is None:
+    print("HINWEIS: OpenCascade fehlt, STEP-Übernahme nicht geprüft")
+else:
+    messung = tmp / "messwerte.txt"
+    subprocess.run(befehl + ["--ausgabe", str(messung), str(STEP_ORDNER)], check=False, capture_output=True)
+    mw = sorted(step.lies_messwerte(messung), key=lambda m: m["datei"])
+    k = db.kontext()
+    pos = db.positionen(a1)
+    erg = step.uebernehmen(mw, pos, k, db.zeilen("gewinde"), rechnen.maschine(db.auftrag(a1), k), "S235-10219", 5)
+    assert [p["pos"] for p in erg["positionen"]] == [20, 30, 40, 50, 60, 70, 80], erg["positionen"]
+    t07 = erg["positionen"][-1]
+    assert t07["gewinde_vorschlag"] == "4xM6" and t07["bohrungen"] == "4xØ5" and t07["gravur"] == 58.0, t07
+    assert [t07[x] for x in ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")] == [4, 62.8, 1, 60.0, 0, 0.0]
+    assert "gewinde" not in t07     # geprüftes Gewinde trägt nur der Mensch ein
+    t05 = [z for z in erg["protokoll"] if str(z[1]).startswith("T05")][0]
+    assert "Profil fehlt" in t05[-1] and len(t05) == len(step.PROTOKOLL), t05
+    assert step.vorpruefung(mw, pos, k) == (["RR 33,7x2,6"], 0)
+    for p in erg["positionen"]:
+        db.position_neu(a1, p)
+    zweit = step.uebernehmen(mw, db.positionen(a1), k, db.zeilen("gewinde"), None)
+    assert zweit["positionen"] == [] and all("übersprungen" in b for b in zweit["bericht"]), zweit["bericht"]
+    neu = step.uebernehmen([m for m in mw if m["datei"].startswith("T05")], [], k, [], None, neue_profile=True)
+    assert neu["profile"][0]["profil_id"] == "RR 33,7x2,6" and "neu in Stammdaten" in neu["bericht"][0]
+    t05p = neu["positionen"][0]
+    assert t05p["profil_id"] == "RR 33,7x2,6" and t05p["a_gerade"] == "ja" and abs(t05p["a_schnitt"] - 105.9) < 0.05
+    assert "Konturgrenzen Vorgabe" not in neu["bericht"][0]   # T05 hat keine Innenkonturen
+
+# 11) Auftragsfenster: Optimieren speichert das Ergebnis, Ändern macht es veraltet, Status und Summen stehen
+app = QApplication.instance() or QApplication([])
+fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+seite = fenster.auftrag_oeffnen(a1)
+assert seite.stand_optimierung() == "noch nicht optimiert"
+assert seite.optimieren()
+e = db.auftrag(a1)["ergebnis"]
+assert e and e["stangen"] and seite.stand_optimierung() == "aktuell"
+for s_ in e["stangen"]:
+    assert s_["teile"][-1]["bis"] <= s_["stange"] - s_["greif"] + 1e-6, "Stange überbelegt"
+eingeplant = sum(len(s_["teile"]) for s_ in e["stangen"])
+nicht = sum(f_["anzahl"] for f_ in e["fehler"])
+assert eingeplant + nicht == sum(p["stueck"] or 0 for p in db.positionen(a1)), (eingeplant, nicht)
+pm = seite.pos_modell
+assert pm.rowCount() == len(db.positionen(a1)) and pm.status[0] == "HINWEIS: Schneidweg fehlt", pm.status
+assert pm.status[-1] == "HINWEIS: Gewinde-Vorschlag prüfen" and pm.status[1] == "OK", pm.status
+c_stk = next(i for i, (art, f_) in enumerate(pm.spalten) if art == "feld" and f_.name == "stueck")
+assert pm.setData(pm.index(0, c_stk), "8")
+assert seite.stand_optimierung().startswith("VERALTET")
+assert not pm.setData(pm.index(0, c_stk), "-3") and db.positionen(a1)[0]["stueck"] == 8
+assert seite.optimieren() and seite.stand_optimierung() == "aktuell"
+assert seite.kalk.rowCount() == len(db.positionen(a1)) and "Verkaufspreis" in seite.uebersicht.text()
+seite.reiter.setCurrentIndex(3)
+seite.bild.resize(1200, seite.bild.minimumHeight())
+assert not seite.bild.grab().isNull() and len(seite.bild.muster) >= 1
+seite.felder["stange"].setValue(6500)
+seite.felder["stange"].editingFinished.emit()
+assert db.auftrag(a1)["stange"] == 6500 and seite.stand_optimierung().startswith("VERALTET")
+# Auftrag aus der Mappe übernehmen: Kopf und 5 Positionen, vorhandene Nummer wird ersetzt
+a4 = fenster.auftraege.aus_mappe(str(MAPPE))
+a5 = fenster.auftraege.aus_mappe(str(MAPPE))
+assert len(db.positionen(a4)) == 5 and db.auftrag(a4)["kunde"] == "Beispiel GmbH"
+assert db.auftrag(a4)["nummer"] != db.auftrag(a5)["nummer"]
+assert set(fenster.offen) == {a1, a4, a5}
+fenster.auftrag_schliessen(a5)
+assert a5 not in fenster.offen
 fenster.close()
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)

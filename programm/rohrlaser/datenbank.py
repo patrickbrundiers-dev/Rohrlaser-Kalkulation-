@@ -1,16 +1,18 @@
-"""Datenbank des Programms: eine SQLite-Datei mit Stammdaten und Einstellungen.
+"""Datenbank des Programms: eine SQLite-Datei mit Stammdaten, Einstellungen und Aufträgen.
 
-Aufträge kommen in Schritt 2 dazu. Das Schema entsteht aus stammdaten.TABELLEN; die Schemaversion
-steht in PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können.
+Das Schema entsteht aus stammdaten.TABELLEN und auftrag.KOPF/POSITIONEN; die Schemaversion steht in
+PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 = nur Stammdaten,
+2 = mit Aufträgen).
 """
 import datetime
 import json
 import sqlite3
 from pathlib import Path
 
-from .stammdaten import TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, Kontext, beispieldaten
+from .auftrag import KOPF, POSITIONEN, naechste_nummer
+from .stammdaten import TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispieldaten, kontext_aus
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
 
@@ -43,7 +45,18 @@ class Datenbank:
                 schl = ", ".join(f'"{s}"' for s in t.schluessel)
                 self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
             self.con.execute("CREATE TABLE IF NOT EXISTS einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
+            kopf = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in KOPF)
+            self.con.execute(f"CREATE TABLE IF NOT EXISTS auftraege (id INTEGER PRIMARY KEY, {kopf}, angelegt TEXT, "
+                             "geaendert TEXT, ergebnis TEXT, optimiert_am TEXT)")
+            self.con.execute("CREATE UNIQUE INDEX IF NOT EXISTS auftraege_nummer ON auftraege (nummer)")
+            spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in POSITIONEN.felder)
+            self.con.execute("CREATE TABLE IF NOT EXISTS positionen (id INTEGER PRIMARY KEY, auftrag_id INTEGER "
+                             f"NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE, nr INTEGER, {spalten})")
+            self.con.execute("CREATE INDEX IF NOT EXISTS positionen_auftrag ON positionen (auftrag_id, nr)")
+            self.con.execute("CREATE TABLE IF NOT EXISTS step_protokoll (id INTEGER PRIMARY KEY, auftrag_id INTEGER "
+                             "NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE, zeile TEXT)")
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        self.con.execute("PRAGMA foreign_keys=ON")
 
     # -------------------------------------------------------------- Stammdaten
     def zeilen(self, tabelle):
@@ -114,12 +127,131 @@ class Datenbank:
             self._einstellung_schreiben("stammdaten_stand", datetime.datetime.now().isoformat(timespec="seconds"))
 
     def kontext(self):
-        k = Kontext()
-        k.profile = {z["profil_id"]: z for z in self.zeilen("profile") if z["profil_id"]}
-        k.werkstoffe = {z["werkstoff_id"]: z for z in self.zeilen("werkstoffe") if z["werkstoff_id"]}
-        k.maschinen = {z["maschinen_id"]: z for z in self.zeilen("maschinen") if z["maschinen_id"]}
-        k.profilformen = tuple(s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip())
-        return k
+        formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
+        return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen")}, formen)
+
+    def tabellen(self):
+        """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde)."""
+        return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde")}
+
+    # -------------------------------------------------------------- Aufträge
+    def auftraege(self, suche=""):
+        """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
+        sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
+               "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM auftraege a "
+               "LEFT JOIN positionen p ON p.auftrag_id = a.id")
+        werte = []
+        if suche:
+            sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
+                    "OR a.id IN (SELECT auftrag_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
+            werte = [f"%{suche}%"] * 6
+        sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
+        return [dict(r) for r in self.con.execute(sql, werte)]
+
+    def auftrag(self, auftrag_id):
+        r = self.con.execute("SELECT * FROM auftraege WHERE id=?", (auftrag_id,)).fetchone()
+        if r is None:
+            return None
+        a = dict(r)
+        a["ergebnis"] = json.loads(a["ergebnis"]) if a["ergebnis"] else None
+        return a
+
+    def _jetzt(self):
+        return datetime.datetime.now().isoformat(timespec="seconds")
+
+    def auftrag_neu(self, kopf=None):
+        """Neuer Auftrag mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch."""
+        kopf = dict(kopf or {})
+        if not kopf.get("nummer"):
+            nr = naechste_nummer(self.einstellung("letzte_auftragsnummer"))
+            while self.con.execute("SELECT 1 FROM auftraege WHERE nummer=?", (nr,)).fetchone():
+                nr = naechste_nummer(nr)
+            kopf["nummer"] = nr
+        kopf.setdefault("datum", datetime.date.today().isoformat())
+        kopf.setdefault("maschine", self.einstellung("standard_maschine"))
+        kopf.setdefault("stange", self.einstellung("standard_stange"))
+        namen = [f.name for f in KOPF if f.name in kopf]
+        try:
+            with self.con:
+                i = self.con.execute(
+                    f'INSERT INTO auftraege ({", ".join(namen)}, angelegt, geaendert) VALUES '
+                    f'({", ".join("?" * len(namen))}, ?, ?)', [kopf[n] for n in namen] + [self._jetzt()] * 2).lastrowid
+                self._einstellung_schreiben("letzte_auftragsnummer", kopf["nummer"])
+        except sqlite3.IntegrityError:
+            raise ValueError(f"Auftragsnummer '{kopf['nummer']}' gibt es schon.")
+        return i
+
+    def auftrag_aendern(self, auftrag_id, feld, wert):
+        if feld not in {f.name for f in KOPF}:
+            raise KeyError(feld)
+        if feld == "nummer" and not wert:
+            raise ValueError("Die Auftragsnummer darf nicht leer sein.")
+        try:
+            with self.con:
+                self.con.execute(f'UPDATE auftraege SET "{feld}"=?, geaendert=? WHERE id=?',
+                                 (wert, self._jetzt(), auftrag_id))
+        except sqlite3.IntegrityError:
+            raise ValueError(f"Auftragsnummer '{wert}' gibt es schon.")
+
+    def auftrag_kopieren(self, auftrag_id):
+        a = self.auftrag(auftrag_id)
+        kopf = {f.name: a[f.name] for f in KOPF if f.name != "nummer"}
+        kopf["datum"] = datetime.date.today().isoformat()
+        neu = self.auftrag_neu(kopf)
+        for p in self.positionen(auftrag_id):
+            self.position_neu(neu, p)
+        return neu
+
+    def auftrag_loeschen(self, auftrag_id):
+        with self.con:
+            self.con.execute("DELETE FROM auftraege WHERE id=?", (auftrag_id,))
+
+    def ergebnis_speichern(self, auftrag_id, ergebnis):
+        with self.con:
+            self.con.execute("UPDATE auftraege SET ergebnis=?, optimiert_am=? WHERE id=?",
+                             (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None,
+                              self._jetzt() if ergebnis else None, auftrag_id))
+
+    def positionen(self, auftrag_id):
+        return [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE auftrag_id=? ORDER BY nr, id",
+                                                  (auftrag_id,))]
+
+    def position_neu(self, auftrag_id, werte=None):
+        werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
+        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM positionen WHERE auftrag_id=?",
+                              (auftrag_id,)).fetchone()[0]
+        namen = ["auftrag_id", "nr"] + list(werte)
+        with self.con:
+            i = self.con.execute(f'INSERT INTO positionen ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
+                                 f'VALUES ({", ".join("?" * len(namen))})', [auftrag_id, nr] + list(werte.values())).lastrowid
+            self.con.execute("UPDATE auftraege SET geaendert=? WHERE id=?", (self._jetzt(), auftrag_id))
+        return i
+
+    def position_aendern(self, position_id, feld, wert):
+        POSITIONEN.feld(feld)
+        with self.con:
+            self.con.execute(f'UPDATE positionen SET "{feld}"=? WHERE id=?', (wert, position_id))
+            self.con.execute("UPDATE auftraege SET geaendert=? WHERE id=(SELECT auftrag_id FROM positionen WHERE id=?)",
+                             (self._jetzt(), position_id))
+
+    def positionen_loeschen(self, ids):
+        with self.con:
+            self.con.executemany("DELETE FROM positionen WHERE id=?", [(i,) for i in ids])
+
+    def protokoll(self, auftrag_id):
+        return [json.loads(r[0]) for r in self.con.execute(
+            "SELECT zeile FROM step_protokoll WHERE auftrag_id=? ORDER BY id", (auftrag_id,))]
+
+    def protokoll_anhaengen(self, auftrag_id, zeilen):
+        with self.con:
+            self.con.executemany("INSERT INTO step_protokoll (auftrag_id, zeile) VALUES (?, ?)",
+                                 [(auftrag_id, json.dumps(z, default=str, ensure_ascii=False)) for z in zeilen])
+
+    def profile_anlegen(self, profile):
+        """Profile aus Optimierung (Name) oder STEP-Import anlegen, vorhandene IDs bleiben unverändert."""
+        for p in profile:
+            if not self.con.execute("SELECT 1 FROM profile WHERE profil_id=?", (p["profil_id"],)).fetchone():
+                self.neu("profile", {k: v for k, v in p.items() if k in {f.name for f in TABELLE["profile"].felder}})
 
     # -------------------------------------------------------------- Einstellungen
     def einstellung(self, name):

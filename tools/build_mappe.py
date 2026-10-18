@@ -509,7 +509,7 @@ for r in range(O0, O1 + 1):
         f'IF($F{r}+$H$6>T{r},"FEHLER: Teil länger als Nutzlänge",'
         f'IF(N(AO{r})>0,"WARNUNG: nicht vollständig eingeplant",'
         f'IF(U{r}="nein","WARNUNG: kein gültiger Materialpreis",'
-        f'IF(AND($AQ{r}<>"",N($AR{r})>0,MOD($G{r},$AR{r})<>0),'
+        f'IF(IF(AND($AQ{r}<>"",N($AR{r})>0),MOD($G{r},$AR{r})<>0,FALSE),'
         f'"WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz",'
         f'IF($H{r}="","HINWEIS: Schneidweg fehlt",'
         f'IF(V{r}="","HINWEIS: keine Schneiddaten",'
