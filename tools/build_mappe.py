@@ -1,6 +1,7 @@
 import datetime
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.workbook.defined_name import DefinedName
@@ -119,6 +120,7 @@ rows = [
     ("Staffeln", "Mengenstufen je Satz oder Position (Eingabe): welche Stückzahlen zusätzlich gerechnet werden sollen."),
     ("Staffelpreise", "Ergebnis von 'Staffelpreise': je Mengenstufe ein eigener Rechenlauf mit Stangen, Kosten und Preis je Satz bzw. Stück."),
     ("Werkstattpapier", "Wird von 'Werkstattpapiere (PDF)' gefüllt: Materialliste und je Stange die Teile in Schnittreihenfolge (gleiche Stangen zusammengefasst)."),
+    ("Stangenbild", "Verschachtelung: je Stange ein maßstäblicher Balken mit Endbeschnitt, Teilen (Pos. und Länge), Schnitten, Rest und Greiferrest. Wird beim Optimieren gefüllt und mit den Werkstattpapieren gedruckt."),
     ("Schnittplan", "Ergebnis der Optimierung: eine Zeile je Stange mit Belegung, Rest, Ausnutzung und Prüfung gegen Überbelegung."),
     ("Stangenbelegung", "Ergebnis der Optimierung: eine Zeile je Teil mit Lage auf der Stange (von/bis) und Art der Trennung."),
     ("Auswertung", "Vergleich optimierte gegen einfache manuelle Einteilung, Liste nicht eingeplanter Teile."),
@@ -131,7 +133,7 @@ rows = [
     ("2.", "Auftragskopf ausfüllen, Maschine wählen, Standard-Stangenlänge prüfen (Vorgabe 6.000 mm)."),
     ("3.", "Positionen eintragen (Profil und Werkstoff per Auswahlliste) oder im Blatt 'Auftrag' auf 'STEP importieren' klicken und STEP-Dateien wählen. Dafür muss der Ordner 'STEP-Import' (mit STEP-Import.exe) neben der Mappe liegen."),
     ("4.", "Status-Spalte prüfen: FEHLER muss behoben werden, WARNUNG/HINWEIS sollte geprüft werden."),
-    ("5.", "'Optimieren' klicken: füllt Schnittplan, Stangenbelegung und Auswertung. Danach Blatt 'Kalkulation' prüfen. 'Stand Optimierung' (Auftrag C10, Kalkulation C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern."),
+    ("5.", "'Optimieren' klicken: füllt Schnittplan, Stangenbelegung, Auswertung und Stangenbild ('Stangenbild' zeigt es an). Danach Blatt 'Kalkulation' prüfen. 'Stand Optimierung' (Auftrag C10, Kalkulation C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern."),
     ("6.", "'Werkstattpapiere (PDF)', 'Angebot (PDF)' oder 'Kalkulation (PDF)': erzeugt die PDF-Datei im Ordner 'Aufträge' neben der Mappe und öffnet sie. Ist die Optimierung veraltet, wird vorher gefragt, ob neu optimiert wird."),
     ("6a.", "Staffelpreise: im Blatt 'Staffeln' je Satz oder Position die gewünschten Mengen eintragen und 'Staffelpreise' klicken. Jede Stufe wird als eigener Auftrag komplett neu gerechnet (Stangenbedarf, Verschnitt, Rüsten, Stangenwechsel); das Ergebnis steht im Blatt 'Staffelpreise' und im Angebot unter den Positionen. Der ursprüngliche Auftrag wird danach wiederhergestellt."),
     ("7.", "'Auftrag speichern als' legt eine Kopie der Mappe als '<Auftragsnummer> <Kunde>.xlsm' im Ordner 'Aufträge' ab. Die geöffnete Mappe bleibt die Vorlage für den nächsten Auftrag."),
@@ -404,7 +406,8 @@ def stand_optimierung(ws, zeile, bis_spalte):
 
 # ---------------------------------------------------------------- Auftrag
 wa = wb.create_sheet("Auftrag", 1)
-title(wa, "Auftrag – Eingabe", "Kopf ausfüllen, dann Positionen ab Zeile 13. Status in Spalte W beachten. Beispielpositionen vor Gebrauch löschen (nur gelbe Zellen).")
+title(wa, "Auftrag – Eingabe", "Kopf ausfüllen, dann Positionen ab Zeile 13. Status in Spalte W beachten. Beispielpositionen vor Gebrauch löschen (nur gelbe Zellen). "
+              "Berechnetes (K–V, X) und STEP-Werte (Y–AM) sind zugeklappt – mit + über den Spaltenköpfen öffnen.")
 kopf = [("Auftragsnummer", "A-2026-0001"), ("Kundennummer", "K-10045"), ("Kundenname", "Beispiel GmbH"),
         ("Datum", datetime.date(2026, 10, 15)), ("Maschine", "RL-1"), ("Standard-Stangenlänge [mm]", 6000)]
 for i, (lab, val) in enumerate(kopf, start=4):
@@ -428,20 +431,19 @@ for i, (lab, fml, fmt) in enumerate(mk, start=4):
 wa["F3"] = "Maschinenwerte (aus Blatt 'Maschinen')"; wa["F3"].font = f_note
 OR_ = f"{O0}:{{c}}{O1}"
 rng = lambda c: f"${c}${O0}:${c}${O1}"
-summ = [("Positionen", f'=COUNTIF({rng("W")},"?*")', "0"),
-        ("davon FEHLER", f'=COUNTIF({rng("W")},"FEHLER*")', "0"),
-        ("davon WARNUNG/HINWEIS", f'=COUNTIF({rng("W")},"WARNUNG*")+COUNTIF({rng("W")},"HINWEIS*")', "0"),
-        ("Teile gesamt [Stk]", f'=SUM({rng("G")})', "#,##0"),
-        ("Teilelänge gesamt [m]", f'=SUM({rng("P")})/1000', "#,##0.00"),
-        ("Teilegewicht gesamt [kg]", f'=SUM({rng("X")})', "#,##0.00")]
+# Übersicht in Spalte W (über "Status"): K–V sind zugeklappt, dort wäre sie unsichtbar
+summ = [("Positionen", f'COUNTIF({rng("W")},"?*")', "0"),
+        ("davon FEHLER", f'COUNTIF({rng("W")},"FEHLER*")', "0"),
+        ("davon WARNUNG/HINWEIS", f'COUNTIF({rng("W")},"WARNUNG*")+COUNTIF({rng("W")},"HINWEIS*")', "0"),
+        ("Teile gesamt", f'SUM({rng("G")})', "#,##0"),
+        ("Teilelänge gesamt", f'SUM({rng("P")})/1000', "#,##0.00"),
+        ("Teilegewicht gesamt", f'SUM({rng("X")})', "#,##0.00")]
+einheit = {"Teile gesamt": " Stk", "Teilelänge gesamt": " m", "Teilegewicht gesamt": " kg"}
 for i, (lab, fml, fmt) in enumerate(summ, start=4):
-    wa.cell(row=i, column=10, value=lab).font = f_bold
-    wa.merge_cells(start_row=i, start_column=10, end_row=i, end_column=12)
-    c = wa.cell(row=i, column=13, value=fml)
-    c.font = f_calc; c.fill = fill_calc; c.border = border; c.number_format = fmt
-wa["J3"] = "Übersicht"; wa["J3"].font = f_note
+    c = wa.cell(row=i, column=23, value=f'="{lab}: "&TEXT({fml},"{fmt}")&"{einheit.get(lab, "")}"')
+    c.font = f_calc; c.fill = fill_calc; c.border = border
+wa["W3"] = "Übersicht"; wa["W3"].font = f_note
 stand_optimierung(wa, 10, 8)
-wa["N3"] = "Alle Funktionen auch im Menüband 'Rohrlaser'"; wa["N3"].font = f_note
 
 cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "in"), ("Profil-ID", 18, "in"),
           ("Werkstoff-ID", 15, "in"), ("Teilelänge [mm]", 11, "in"), ("Stückzahl", 9, "in"),
@@ -565,9 +567,7 @@ wa.column_dimensions.group("K", "V", hidden=True)
 wa.column_dimensions.group("X", "X", hidden=True)
 wa.column_dimensions.group("Y", "AM", hidden=True)
 wa.sheet_properties.outlinePr.summaryRight = False
-wa["N4"] = ("Eingabe: A–J, AP (Materialpreis abweichend), AQ/AR (Satz). Berechnetes (K–V, X) und STEP-Werte (Y–AM) "
-            "sind zugeklappt – mit + über den Spaltenköpfen öffnen.")
-wa["N4"].font = f_note
+wa.row_dimensions[11].height = 30   # Schaltflächen (siehe unten), über den Spaltenköpfen
 wa.page_setup.orientation = "landscape"
 wa.page_setup.fitToWidth = 1
 wa.page_setup.fitToHeight = 0
@@ -687,13 +687,21 @@ tot = [("Material [€]", f"=SUM($X${O0}:$X${O1})"),
        ("Rüsten + Stangenwechsel [€]", "=F7"),
        ("Herstellkosten [€]", f"=SUM($V${O0}:$V${O1})"),
        ("Verkaufspreis Auftrag [€]", f"=SUM($U${O0}:$U${O1})")]
+# Summen in S:U / V, weil D–R zugeklappt sind (Staffel.bas liest V4:V8)
 for i, (lab, fml) in enumerate(tot, start=4):
-    wk.cell(row=i, column=8, value=lab).font = f_bold
-    wk.merge_cells(start_row=i, start_column=8, end_row=i, end_column=10)
-    c = wk.cell(row=i, column=11, value=fml)
+    wk.cell(row=i, column=19, value=lab).font = f_bold
+    wk.merge_cells(start_row=i, start_column=19, end_row=i, end_column=21)
+    c = wk.cell(row=i, column=22, value=fml)
     c.font = Font(name=F, bold=True); c.fill = fill_calc; c.border = border; c.number_format = "#,##0.00"
-wk["H3"] = "Summen Auftrag"; wk["H3"].font = f_note
-stand_optimierung(wk, 10, 6)
+wk["S3"] = "Summen Auftrag"; wk["S3"].font = f_note
+# Auftragskosten (D–F, zugeklappt) als Text in Spalte W sichtbar
+wk["W3"] = "Auftragskosten (umgelegt auf alle Teile)"; wk["W3"].font = f_note
+for i, (lab, fml, fmt) in enumerate(info, start=4):
+    lab_, _, einh = lab.partition(" [")
+    einh = " " + einh.rstrip("]") if einh else ""
+    c = wk.cell(row=i, column=23, value=f'="{lab_}: "&TEXT($F${i},"{fmt}")&"{einh}"')
+    c.font = f_calc; c.fill = fill_calc; c.border = border
+stand_optimierung(wk, 10, 23)
 
 cols_k = [("Pos.", 6, "link"), ("Artikelnummer", 18, "link"), ("Stückzahl", 8, "link"),
           ("Materialkosten Gruppe [€]", 11, "calc"), ("Längenanteil an Gruppe", 9, "calc"),
@@ -903,8 +911,24 @@ wwp.oddFooter.left.text = "Werkstattpapier"
 wwp.oddFooter.right.text = "Seite &P von &N"
 wwp.oddFooter.left.size = wwp.oddFooter.right.size = 8
 
+# ---------------------------------------------------------------- Stangenbild (Verschachtelung)
+wsb = wb.create_sheet("Stangenbild")
+wsb["A1"] = "Stangenbild – Verschachtelung je Stange"
+wsb["A1"].font = f_title
+wsb["A2"] = "Wird beim Optimieren gefüllt (und über 'Stangenbild'): je Stange ein maßstäblicher Balken mit Endbeschnitt, Teilen, Schnitten und Rest."
+wsb["A2"].font = f_note
+wsb.page_setup.orientation = "landscape"
+wsb.page_setup.paperSize = 9
+wsb.page_setup.fitToWidth = 1
+wsb.page_setup.fitToHeight = 0
+wsb.sheet_properties.pageSetUpPr.fitToPage = True
+wsb.page_margins.left = wsb.page_margins.right = 0.4
+wsb.oddFooter.left.text = "Stangenbild"
+wsb.oddFooter.right.text = "Seite &P von &N"
+wsb.oddFooter.left.size = wsb.oddFooter.right.size = 8
+
 reihenfolge = ["Anleitung", "Auftrag", "Kalkulation", "Staffeln", "Staffelpreise", "Angebot", "Werkstattpapier",
-               "Schnittplan", "Stangenbelegung", "Auswertung", "Listen", "Profile", "Werkstoffe", "Preise",
+               "Stangenbild", "Schnittplan", "Stangenbelegung", "Auswertung", "Listen", "Profile", "Werkstoffe", "Preise",
                "Maschinen", "Schneiddaten", "Gewinde", "STEP-Import"]
 assert sorted(reihenfolge) == sorted(wb.sheetnames), wb.sheetnames
 wb._sheets = [wb[n] for n in reihenfolge]
@@ -932,22 +956,44 @@ AENDERUNG = ("Private Sub Worksheet_Change(ByVal Target As Range)\n"
 dokumente = [("DieseArbeitsmappe", "", True)] + [
     (f"Tabelle{i}", AENDERUNG if s.title in ("Auftrag", "Profile", "Werkstoffe", "Maschinen") else "", False)
     for i, s in enumerate(wb.worksheets, start=1)]
-knoepfe = [("Optimieren", "Optimieren", (13, 3, 16, 5), "1F4E78"),
-           ("StepImportieren", "STEP importieren", (13, 6, 16, 8), "548235"),
-           ("NeuerAuftrag", "Neuer Auftrag", (17, 3, 20, 5), "7F7F7F"),
-           ("AuftragSpeichernAls", "Auftrag speichern", (17, 6, 20, 8), "7F7F7F"),
-           ("WerkstattpapiereDrucken", "Werkstattpapiere (PDF)", (21, 3, 23, 5), "C55A11"),
-           ("AngebotDrucken", "Angebot (PDF)", (21, 6, 23, 8), "C55A11"),
-           ("StaffelpreiseRechnen", "Staffelpreise", (13, 9, 16, 11), "7030A0")]
+# Schaltflächen als Leiste in Zeile 11 über den Spaltenköpfen, nur in den Spalten A–J
+# (K–V sind zugeklappt; dort wären sie in Excel null breit und unsichtbar).
+EMU_PX = 9525
+def spalte_px(ws, buchstabe):
+    return int(ws.column_dimensions[buchstabe].width * 7 + 5)
+def leiste(ws, eintraege, zeile0, breite_px, hoehe_px, abstand_px, rand_oben_px):
+    spalten = [get_column_letter(i) for i in range(1, 11)]
+    grenzen, x = [], 0
+    for sp_ in spalten:
+        grenzen.append(x); x += spalte_px(ws, sp_)
+    assert len(eintraege) * (breite_px + abstand_px) - abstand_px <= x, "Leiste breiter als A–J"
+    knoepfe, x = [], 2
+    for makro, text, farbe in eintraege:
+        c = max(i for i, g_ in enumerate(grenzen) if g_ <= x)
+        knoepfe.append((makro, text, (c, (x - grenzen[c]) * EMU_PX, zeile0, rand_oben_px * EMU_PX),
+                        (breite_px * EMU_PX, hoehe_px * EMU_PX), farbe))
+        x += breite_px + abstand_px
+    return knoepfe
+knoepfe = leiste(wa, [("Optimieren", "Optimieren", "1F4E78"),
+                      ("StepImportieren", "STEP importieren", "548235"),
+                      ("StangenbildZeigen", "Stangenbild", "2E75B6"),
+                      ("NeuerAuftrag", "Neuer Auftrag", "7F7F7F"),
+                      ("AuftragSpeichern", "Auftrag speichern", "7F7F7F"),
+                      ("WerkstattpapiereDrucken", "Werkstattpapiere", "C55A11"),
+                      ("AngebotDrucken", "Angebot (PDF)", "C55A11"),
+                      ("StaffelpreiseRechnen", "Staffelpreise", "7030A0")],
+                 zeile0=10, breite_px=114, hoehe_px=30, abstand_px=4, rand_oben_px=5)
 menueband = menueband_xml("Rohrlaser", [
     ("Auftrag", [("RbNeuerAuftrag", "Neuer Auftrag", "FileNew",
                   "Positionen und Ergebnisse leeren, Stammdaten bleiben. Fragt vorher, ob der aktuelle Auftrag gespeichert wird."),
                  ("RbStepImport", "STEP importieren", "FileOpen",
                   "STEP-Dateien messen und als Positionen übernehmen (STEP-Import.exe im Ordner STEP-Import neben der Mappe)."),
                  ("RbOptimieren", "Optimieren", "CalculateNow",
-                  "Teile auf möglichst wenige Stangen verteilen: füllt Schnittplan, Stangenbelegung und Auswertung.")]),
+                  "Teile auf möglichst wenige Stangen verteilen: füllt Schnittplan, Stangenbelegung, Auswertung und Stangenbild."),
+                 ("RbStangenbild", "Stangenbild", "ChartTypeBarInsertGallery",
+                  "Verschachtelung: je Stange ein maßstäbliches Bild mit Endbeschnitt, Teilen, Schnitten und Rest.")]),
     ("Ausgabe (PDF)", [("RbWerkstattpapiere", "Werkstattpapiere", "FilePrint",
-                        "Materialliste und Schnittplan je Stange mit den Teilen in Schnittreihenfolge."),
+                        "Materialliste, Schnittplan je Stange mit den Teilen in Schnittreihenfolge und Stangenbild."),
                        ("RbAngebot", "Angebot", "FileSaveAsPdfOrXps", "Angebot mit Einzel- und Gesamtpreisen aus der Kalkulation."),
                        ("RbKalkulation", "Kalkulation", "FilePrintPreview", "Blatt Kalkulation (intern) als PDF.")]),
     ("Staffeln", [("RbStaffelpreise", "Staffelpreise rechnen", "TableInsertDialog",

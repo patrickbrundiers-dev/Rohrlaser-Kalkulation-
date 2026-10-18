@@ -31,6 +31,10 @@ Public Sub RbOptimieren(control As Object)
     Optimierung.Optimieren
 End Sub
 
+Public Sub RbStangenbild(control As Object)
+    Ausgabe.StangenbildZeigen
+End Sub
+
 Public Sub RbWerkstattpapiere(control As Object)
     Ausgabe.WerkstattpapiereDrucken
 End Sub
@@ -151,6 +155,7 @@ Public Sub AuftragLeeren()
     ThisWorkbook.Worksheets("Staffeln").Range("A5:C104").ClearContents
     Staffel.StaffelpreiseLeeren
     Ausgabe.WerkstattpapierLeeren
+    Ausgabe.StangenbildLeeren
     Ausgabe.AngebotLeeren
     SetzeVeraltet False
     Application.ScreenUpdating = True
@@ -217,6 +222,11 @@ End Function
 
 ' Speichert eine Kopie der Mappe als "<Auftragsnummer> <Kunde>.xlsm" im Ablageordner.
 ' Die geöffnete Mappe bleibt unverändert offen. Ergebnis True = gespeichert.
+' Schaltfläche im Blatt Auftrag (eine Schaltfläche braucht eine Sub, keine Function)
+Public Sub AuftragSpeichern()
+    AuftragSpeichernAls
+End Sub
+
 Public Function AuftragSpeichernAls() As Boolean
     Dim ordner As String, ziel As String
     If Trim$(CStr(ThisWorkbook.Worksheets("Auftrag").Range("C4").Value)) = "" Then
