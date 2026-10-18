@@ -538,6 +538,18 @@ for prefix, color in (("FEHLER", "F8CBAD"), ("WARNUNG", "FFD966"), ("HINWEIS", "
     wa.conditional_formatting.add(wrng, FormulaRule(formula=[f'LEFT($W{O0},{len(prefix)})="{prefix}"'],
                                                     fill=PatternFill("solid", fgColor=color)))
 wa.freeze_panes = "E13"
+# Spalten gruppieren: Eingabe bleibt sichtbar, Berechnetes und STEP-Werte sind zugeklappt
+wa.column_dimensions.group("K", "V", hidden=True)
+wa.column_dimensions.group("X", "X", hidden=True)
+wa.column_dimensions.group("Y", "AM", hidden=True)
+wa.sheet_properties.outlinePr.summaryRight = False
+wa["N4"] = "Eingabe: A–J. Berechnetes (K–V, X) und STEP-Werte (Y–AM) sind zugeklappt – mit + über den Spaltenköpfen öffnen."
+wa["N4"].font = f_note
+wa.page_setup.orientation = "landscape"
+wa.page_setup.fitToWidth = 1
+wa.page_setup.fitToHeight = 0
+wa.sheet_properties.pageSetUpPr.fitToPage = True
+wa.print_title_rows = "12:12"
 add_dv(wa, num_dv(0, 1000000, msg="Länge in mm (≥ 0)."), f"AC{O0}:AD{O1}")
 gv = DataValidation(type="custom", allow_blank=True,
                     formula1=f'=ISNUMBER(SEARCH("xM",AG{O0}))')
@@ -713,6 +725,15 @@ for r in range(O0, O1 + 1):
     wk[f"W{r}"] = (f'={g}IF(N(Auftrag!$AO{r})>0,"nicht vollständig eingeplant",IF($D{r}=0,"kein Schnittplan oder Preis",'
                    f'IF($H{r}="","keine Schneiddaten",IF(AND(Auftrag!$AF{r}<>"",Auftrag!$AG{r}=""),"Gewinde ungeprüft","")))))')
 wk.freeze_panes = "C13"
+# Zwischenschritte (Vorschübe, Zeiten) zuklappen; sichtbar bleiben Position, Kosten und Preis
+wk.column_dimensions.group("D", "R", hidden=True)
+wk.column_dimensions.group("X", "Y", hidden=True)
+wk.sheet_properties.outlinePr.summaryRight = False
+wk.page_setup.orientation = "landscape"
+wk.page_setup.fitToWidth = 1
+wk.page_setup.fitToHeight = 0
+wk.sheet_properties.pageSetUpPr.fitToPage = True
+wk.print_title_rows = "12:12"
 
 # ---------------------------------------------------------------- STEP-Import (Protokoll)
 # Spalten wie LOG_KOPF in tools/step_import.py (geprüft in tests/test_step_import.py)
@@ -753,16 +774,15 @@ for zeile, lab, fml, fmt in [(8, "Kunde", "=IF(Auftrag!$C$6=\"\",\"\",Auftrag!$C
     wan.merge_cells(start_row=zeile, start_column=1, end_row=zeile, end_column=2)
     c = wan.cell(zeile, 3, fml)
     c.font = Font(name=F); c.number_format = fmt; c.alignment = Alignment(horizontal="left")
-    wan.merge_cells(start_row=zeile, start_column=3, end_row=zeile, end_column=5)
 for zeile, lab, fml, fmt in [(8, "Angebotsnummer", "=IF(Auftrag!$C$4=\"\",\"\",Auftrag!$C$4)", "General"),
                              (9, "Datum", "=IF(Auftrag!$C$7=\"\",\"\",Auftrag!$C$7)", "DD.MM.YYYY"),
                              (10, "Gültigkeit [Tage]", 30, "0"),
-                             (11, "Gültig bis", '=IF(N(H9)=0,"",H9+N(H10))', "DD.MM.YYYY")]:
-    wan.cell(zeile, 6, lab).font = f_bold
-    wan.merge_cells(start_row=zeile, start_column=6, end_row=zeile, end_column=7)
-    c = wan.cell(zeile, 8, fml)
-    c.font = Font(name=F); c.number_format = fmt; c.alignment = Alignment(horizontal="left")
-    wan.merge_cells(start_row=zeile, start_column=8, end_row=zeile, end_column=9)
+                             (11, "Gültig bis", '=IF(N(F9)=0,"",F9+N(F10))', "DD.MM.YYYY")]:
+    c = wan.cell(zeile, 4, lab)
+    c.font = f_bold; c.alignment = Alignment(horizontal="right")
+    wan.merge_cells(start_row=zeile, start_column=4, end_row=zeile, end_column=5)
+    c = wan.cell(zeile, 6, fml)
+    c.font = Font(name=F); c.number_format = fmt; c.alignment = Alignment(horizontal="right")
 wan["A12"] = "Bedingungen"; wan["A12"].font = f_bold; wan["A12"].alignment = wrap
 wan.merge_cells("A12:B12")
 wan["C12"] = "Lieferzeit nach Absprache. Zahlung 30 Tage netto. Preise in Euro zuzüglich Mehrwertsteuer."
@@ -781,6 +801,11 @@ wan.page_setup.fitToWidth = 1
 wan.page_setup.fitToHeight = 0
 wan.sheet_properties.pageSetUpPr.fitToPage = True
 wan.print_title_rows = "13:13"
+wan.print_area = "A1:F60"   # die Ausgabe setzt den genauen Bereich; der Hinweis in K1 bleibt außen vor
+wan.page_margins.left = wan.page_margins.right = 0.6
+wan.oddFooter.left.text = "&A"
+wan.oddFooter.right.text = "Seite &P von &N"
+wan.oddFooter.left.size = wan.oddFooter.right.size = 8
 
 # ---------------------------------------------------------------- Werkstattpapier
 wwp = wb.create_sheet("Werkstattpapier")
@@ -795,6 +820,11 @@ wwp.page_setup.paperSize = 9
 wwp.page_setup.fitToWidth = 1
 wwp.page_setup.fitToHeight = 0
 wwp.sheet_properties.pageSetUpPr.fitToPage = True
+wwp.page_margins.left = wwp.page_margins.right = 0.5
+wwp.page_margins.top = wwp.page_margins.bottom = 0.6
+wwp.oddFooter.left.text = "Werkstattpapier"
+wwp.oddFooter.right.text = "Seite &P von &N"
+wwp.oddFooter.left.size = wwp.oddFooter.right.size = 8
 
 reihenfolge = ["Anleitung", "Auftrag", "Kalkulation", "Angebot", "Werkstattpapier", "Schnittplan", "Stangenbelegung",
                "Auswertung", "Listen", "Profile", "Werkstoffe", "Preise", "Maschinen", "Schneiddaten", "Gewinde",

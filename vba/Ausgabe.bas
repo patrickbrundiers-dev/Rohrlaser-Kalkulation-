@@ -44,7 +44,7 @@ Public Sub AngebotDrucken()
         End If
     End If
     Set ws = ThisWorkbook.Worksheets("Angebot")
-    ws.PageSetup.PrintArea = ws.Range("A1:I" & n).Address
+    ws.PageSetup.PrintArea = ws.Range("A1:F" & n).Address
     PdfSpeichern ws, "Angebot"
 End Sub
 
@@ -149,6 +149,7 @@ Public Function WerkstattpapierFuellen() As Long
     ws.Cells.Font.Name = "Arial"
     ws.Cells.Font.Size = 10
     ws.Cells.RowHeight = 15
+    Spaltenbreiten ws, Array(7, 7, 18, 24, 11, 11, 11, 9, 20, 9)
     ws.Range("A1").Value = "Werkstattpapiere – Schnittpläne"
     ws.Range("A1").Font.Size = 14: ws.Range("A1").Font.Bold = True
     ws.Range("A2").Value = AlsText("Auftrag " & wa.Range("C4").Value & "   |   Kunde " & wa.Range("C6").Value & _
@@ -163,7 +164,7 @@ Public Function WerkstattpapierFuellen() As Long
     r = 5
     ws.Cells(r, 1).Value = "Materialliste": ws.Cells(r, 1).Font.Bold = True: ws.Cells(r, 1).Font.Size = 12
     r = r + 1
-    Kopf ws, r, Array("Profil-ID", "", "Werkstoff-ID", "", "Stangenlänge [mm]", "Stangen [Stk]", "Gewicht [kg]")
+    Kopf ws, r, Array("Profil-ID", "", "Werkstoff-ID", "", "Stange [mm]", "Stangen [Stk]", "Gewicht [kg]")
     ws.Range(ws.Cells(r, 1), ws.Cells(r, 2)).Merge
     ws.Range(ws.Cells(r, 3), ws.Cells(r, 4)).Merge
     k = r
@@ -234,7 +235,7 @@ Public Function WerkstattpapierFuellen() As Long
         Next i
         Rahmen ws.Range(ws.Cells(k, 1), ws.Cells(r, 10))
         ws.Range(ws.Cells(k + 1, 5), ws.Cells(r, 7)).NumberFormat = "#,##0.0"
-        ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 1)).HorizontalAlignment = -4108   ' xlCenter
+        ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 2)).HorizontalAlignment = -4108   ' xlCenter
         ws.Range(ws.Cells(k + 1, 8), ws.Cells(r, 8)).HorizontalAlignment = -4108
         r = r + 2
         aufSeite = aufSeite + hoehe
@@ -281,6 +282,7 @@ Public Function AngebotFuellen(hinweise As Long) As Long
     Set ws = ThisWorkbook.Worksheets("Angebot")
     Application.Calculate
     AngebotLeeren
+    ws.Range(ws.Cells(A0, 4), ws.Cells(A0 + 600, 5)).UnMerge
     av = ThisWorkbook.Worksheets("Auftrag").Range("A" & O0 & ":AG" & O1).Value
     kv = ThisWorkbook.Worksheets("Kalkulation").Range("A" & O0 & ":W" & O1).Value
     hinweise = 0
@@ -309,25 +311,32 @@ Public Function AngebotFuellen(hinweise As Long) As Long
         End If
     Next i
     If r < A0 Then Exit Function
+    Spaltenbreiten ws, Array(6, 15, 52, 9, 12, 13)
     Rahmen ws.Range(ws.Cells(A0, 1), ws.Cells(r, 6))
     ws.Range(ws.Cells(A0, 3), ws.Cells(r, 3)).WrapText = True
     ws.Range(ws.Cells(A0, 1), ws.Cells(r, 6)).VerticalAlignment = -4160   ' xlTop
     ws.Range(ws.Cells(A0, 4), ws.Cells(r, 4)).NumberFormat = "#,##0"
+    ws.Range(ws.Cells(A0, 1), ws.Cells(r, 1)).HorizontalAlignment = -4108   ' xlCenter
     ws.Range(ws.Cells(A0, 5), ws.Cells(r, 6)).NumberFormat = "#,##0.00"
     ws.Range(ws.Cells(A0, 1), ws.Cells(r, 6)).Font.Name = "Arial"
+    ws.Range(ws.Cells(A0, 1), ws.Cells(r, 6)).Font.Size = 10
     summeZeile = r + 2
-    ws.Cells(summeZeile, 5).Value = "Summe netto [€]"
+    ws.Cells(summeZeile, 4).Value = "Summe netto [€]"
     ws.Cells(summeZeile, 6).Formula = "=SUM(F" & A0 & ":F" & r & ")"
-    ws.Cells(summeZeile + 1, 5).Value = "zzgl. MwSt. [€]"
+    ws.Cells(summeZeile + 1, 4).Value = "zzgl. MwSt. [€]"
     ws.Cells(summeZeile + 1, 6).Formula = "=ROUND(F" & summeZeile & "*$C$11,2)"
-    ws.Cells(summeZeile + 2, 5).Value = "Gesamtbetrag [€]"
+    ws.Cells(summeZeile + 2, 4).Value = "Gesamtbetrag [€]"
     ws.Cells(summeZeile + 2, 6).Formula = "=F" & summeZeile & "+F" & (summeZeile + 1)
-    With ws.Range(ws.Cells(summeZeile, 5), ws.Cells(summeZeile + 2, 6))
+    For i = 0 To 2
+        ws.Range(ws.Cells(summeZeile + i, 4), ws.Cells(summeZeile + i, 5)).Merge
+        ws.Cells(summeZeile + i, 4).HorizontalAlignment = -4152   ' xlRight
+    Next i
+    With ws.Range(ws.Cells(summeZeile, 4), ws.Cells(summeZeile + 2, 6))
         .Font.Name = "Arial"
         .Font.Bold = True
     End With
     ws.Range(ws.Cells(summeZeile, 6), ws.Cells(summeZeile + 2, 6)).NumberFormat = "#,##0.00"
-    ws.Range(ws.Cells(summeZeile + 2, 5), ws.Cells(summeZeile + 2, 6)).Borders(8).LineStyle = 1   ' xlEdgeTop
+    ws.Range(ws.Cells(summeZeile + 2, 4), ws.Cells(summeZeile + 2, 6)).Borders(8).LineStyle = 1   ' xlEdgeTop
     AngebotFuellen = summeZeile + 2
 End Function
 
@@ -388,7 +397,14 @@ Private Sub Kopf(ws As Worksheet, ByVal r As Long, texte As Variant)
             .VerticalAlignment = -4108
         End With
     Next j
-    ws.Rows(r).RowHeight = 27
+    ws.Rows(r).RowHeight = 30
+End Sub
+
+Private Sub Spaltenbreiten(ws As Worksheet, breiten As Variant)
+    Dim j As Long
+    For j = 0 To UBound(breiten)
+        ws.Columns(j + 1).ColumnWidth = breiten(j)
+    Next j
 End Sub
 
 Private Sub Rahmen(b As Range)
