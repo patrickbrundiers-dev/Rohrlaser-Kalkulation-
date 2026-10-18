@@ -151,6 +151,7 @@ rows = [
     ("A16", "Verfahren: First-Fit- und Best-Fit-Decreasing mit anschließendem Auflösen schwach belegter Stangen; das bessere Ergebnis zählt. Liegt es über der Untergrenze und hat die Gruppe höchstens 60 Teile, prüft eine exakte Suche (Branch and Bound, höchstens 20.000 Suchschritte je Gruppe) alle Einteilungen auf eine mit weniger Stangen. Die Auswertung zeigt je Gruppe den Abstand zur Untergrenze und ob das Ergebnis nachweislich optimal ist ('Untergrenze erreicht' oder 'alle Einteilungen geprüft') oder die Suche begrenzt war. Untergrenze = Summe(Teilelänge + Schnittverlust) / (Stangenlänge − Endbeschnitt − Greiferrest), aufgerundet. Vergleich: manuelle Einteilung = Positionen in Eingabereihenfolge, Stange voll, dann nächste."),
     ("A17", "Kalkulation: Materialkosten je Gruppe = Summe der Stangenkosten (Stangenlänge × kg/m × €/kg oder €/Stange anteilig zur Lieferlänge). Umlage auf Positionen nach Längenanteil, damit trägt jedes Teil den Verschnitt anteilig. Laserzeit = Schneidweg je Konturklasse / Vorschub + Einstiche × Einstechzeit + Gravur / Vorschub Gravur, abzüglich der Einsparung durch gemeinsame Schnitte. Gewindezeit nur aus 'Gewinde geprüft' × Zeit je Gewinde (Blatt Gewinde). Rüstzeit und Stangenwechsel werden gleichmäßig auf alle Teile umgelegt. Fertigung mit Maschinenstundensatz."),
     ("A18", "Ablage: Auftragsmappen und PDF-Dateien liegen im Ordner 'Aufträge' neben der Vorlage (wird angelegt). Wird eine abgelegte Auftragsmappe selbst geöffnet, gilt ihr eigener Ordner; der STEP-Import findet die STEP-Import.exe dann auch im übergeordneten Ordner. Jede Auftragsmappe enthält ihre eigenen Stammdaten (nachvollziehbar, auch wenn sich Preise später ändern). 'Stammdaten übernehmen' kopiert Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Auswahllisten, Zuschläge und Angebotskopf aus einer anderen Mappe gleicher Version (nur Eingabezellen, keine Formeln)."),
+    ("A20", "Materialpreis je Auftrag: In Spalte AP des Auftrags kann je Position ein Preis in €/m eingetragen werden. Er gilt für alle Positionen mit gleichem Profil, Werkstoff und gleicher Stangenlänge und schlägt Blatt 'Preise' und den Tonnenpreis. Reihenfolge: Auftrag (AP) vor 'Preise' (€/kg, €/m, €/Stange) vor Tonnenpreis des Werkstoffs."),
     ("A19", "Angebot: Einzelpreis = Verkaufspreis je Teil aus der Kalkulation, auf Cent gerundet; Gesamtpreis = Einzelpreis × Menge. Positionen mit Hinweis in der Kalkulation (z. B. ohne Preis oder nicht eingeplant) werden vor dem Erstellen gemeldet."),
     ("A14", "Konturgröße: Innenkonturen werden nach ihrem größten Hüllmaß in klein / mittel / groß eingeteilt (AH–AM). Die Grenzen stehen je Maschine im Blatt 'Maschinen' (Vorgabe: klein ≤ 10 mm, mittel ≤ 50 mm, darüber groß). Anfangs- und Endschnitt werden nicht eingeteilt. Beim Import gilt die im Auftragskopf gewählte Maschine. Für die Laserzeit gilt je Klasse der eigene Vorschub aus 'Schneiddaten'; Anfangs-/Endschnitt mit Vorschub groß; fehlt mittel oder klein, wird der nächstgrößere verwendet."),
 ]
@@ -454,13 +455,15 @@ cols_a = [("Pos.", 6, "in"), ("Artikelnummer", 16, "in"), ("Bezeichnung", 22, "i
           ("Kontur klein [Stk] (STEP)", 9, "in"), ("Kontur klein [mm] (STEP)", 10, "in"),
           ("Kontur mittel [Stk] (STEP)", 9, "in"), ("Kontur mittel [mm] (STEP)", 10, "in"),
           ("Kontur groß [Stk] (STEP)", 9, "in"), ("Kontur groß [mm] (STEP)", 10, "in"),
-          ("Eingeplant [Stk]", 9, "calc"), ("Nicht eingeplant [Stk]", 9, "calc")]
+          ("Eingeplant [Stk]", 9, "calc"), ("Nicht eingeplant [Stk]", 9, "calc"),
+          ("Materialpreis abweichend [€/m]", 13, "in")]
 header(wa, 12, cols_a)
 wa.row_dimensions[12].height = 60
 style_rows(wa, O0, O1, cols_a, {6: "#,##0.0", 7: "#,##0", 8: "#,##0.0", 9: "0", 10: "#,##0", 12: "0.0",
                                  13: "0.00", 14: "0.000", 15: "0.000", 16: "#,##0", 17: "#,##0", 18: "0",
                                  19: "0", 20: "#,##0", 22: "#,##0", 24: "#,##0.00", 26: "#,##0.0", 28: "#,##0.0", 29: "#,##0.0", 30: "#,##0.0",
-                                 34: "0", 35: "#,##0.0", 36: "0", 37: "#,##0.0", 38: "0", 39: "#,##0.0"})
+                                 34: "0", 35: "#,##0.0", 36: "0", 37: "#,##0.0", 38: "0", 39: "#,##0.0",
+                                 42: "#,##0.00"})
 P = lambda col: f"Profile!${col}${M0}:${col}${M1}"
 DET = lambda col: f"Stangenbelegung!${col}${D0}:${col}${D1}"
 SD = lambda col: f"Schneiddaten!${col}${M0}:${col}${M1}"
@@ -477,7 +480,7 @@ for r in range(O0, O1 + 1):
     wa[f"R{r}"] = f'=IF($D{r}="","",IFERROR(IF(INDEX({P("G")},{mp})<>"",INDEX({P("G")},{mp}),$H$4),$H$4))'
     wa[f"S{r}"] = f'=IF($D{r}="","",IFERROR(IF(INDEX({P("H")},{mp})<>"",INDEX({P("H")},{mp}),$H$5),$H$5))'
     wa[f"T{r}"] = f'=IF(OR(Q{r}="",NOT(ISNUMBER(R{r})),NOT(ISNUMBER(S{r}))),"",Q{r}-R{r}-S{r})'
-    wa[f"U{r}"] = (f'=IF(OR($D{r}="",$E{r}=""),"",IF(OR(COUNTIFS(Preise!$A${M0}:$A${M1},$D{r},'
+    wa[f"U{r}"] = (f'=IF(OR($D{r}="",$E{r}=""),"",IF(OR(N($AP{r})>0,COUNTIFS(Preise!$A${M0}:$A${M1},$D{r},'
                    f'Preise!$B${M0}:$B${M1},$E{r},Preise!$I${M0}:$I${M1},"OK")>0,'
                    f'N(INDEX(Werkstoffe!$G${M0}:$G${M1},MATCH($E{r},lst_Werkstoff,0)))>0),"ja","nein"))')
     thr = (f'_xlfn.MINIFS({SD("C")},{SD("A")},$C$8,{SD("B")},$E{r},{SD("C")},">="&M{r})')
@@ -532,6 +535,9 @@ add_dv(wa, list_dv("lst_JaNein", "Bitte ja oder nein wählen."), f"AA{O0}:AA{O1}
 add_dv(wa, num_dv(0, 100000, msg="Schnittlänge in mm (≥ 0)."), f"Z{O0}:Z{O1}")
 add_dv(wa, num_dv(0, 100000, msg="Schnittlänge in mm (≥ 0)."), f"AB{O0}:AB{O1}")
 wa["Y12"].comment = Comment("Gerade = Schnitt senkrecht zur Rohrachse. Zwei benachbarte gerade Enden teilen sich in der Optimierung einen Schnitt.", "Kalkulation")
+wa["AP12"].comment = Comment("Preis je Meter nur für diesen Auftrag. Gefüllt schlägt er Blatt 'Preise' und Tonnenpreis. "
+                             "Gilt für alle Positionen mit gleichem Profil, Werkstoff und gleicher Stangenlänge.", "Kalkulation")
+add_dv(wa, num_dv(0, 100000, msg="Materialpreis je Meter in € (≥ 0), leer = Preis aus den Stammdaten."), f"AP{O0}:AP{O1}")
 
 wrng = f"W{O0}:W{O1}"
 for prefix, color in (("FEHLER", "F8CBAD"), ("WARNUNG", "FFD966"), ("HINWEIS", "FFF2CC"), ("OK", "C6EFCE")):
@@ -543,7 +549,8 @@ wa.column_dimensions.group("K", "V", hidden=True)
 wa.column_dimensions.group("X", "X", hidden=True)
 wa.column_dimensions.group("Y", "AM", hidden=True)
 wa.sheet_properties.outlinePr.summaryRight = False
-wa["N4"] = "Eingabe: A–J. Berechnetes (K–V, X) und STEP-Werte (Y–AM) sind zugeklappt – mit + über den Spaltenköpfen öffnen."
+wa["N4"] = ("Eingabe: A–J und AP (Materialpreis abweichend). Berechnetes (K–V, X) und STEP-Werte (Y–AM) "
+            "sind zugeklappt – mit + über den Spaltenköpfen öffnen.")
 wa["N4"].font = f_note
 wa.page_setup.orientation = "landscape"
 wa.page_setup.fitToWidth = 1
@@ -597,11 +604,15 @@ for r in range(S0, S1 + 1):
     pk = lambda col: f'Preise!${col}${M0}:${col}${M1}'
     crit = f'{pk("A")},$B{r},{pk("B")},$C{r},{pk("I")},"OK"'
     tonnen = f'IFERROR(INDEX(Werkstoffe!$G${M0}:$G${M1},MATCH($C{r},lst_Werkstoff,0)),0)'
-    wsp[f"R{r}"] = (f'={g}IF(COUNTIFS({crit},{pk("C")},"€/kg")>0,N(Q{r})*SUMIFS({pk("D")},{crit}),'
+    # Preis je Position aus dem Auftrag (Spalte AP) schlägt Preise und Tonnenpreis
+    ab = (f'_xlfn.MAXIFS(Auftrag!$AP${O0}:$AP${O1},Auftrag!$D${O0}:$D${O1},$B{r},'
+          f'Auftrag!$E${O0}:$E${O1},$C{r},Auftrag!$Q${O0}:$Q${O1},$D{r})')
+    wsp[f"R{r}"] = (f'={g}IF(N({ab})>0,{ab}*$D{r}/1000,'
+                    f'IF(COUNTIFS({crit},{pk("C")},"€/kg")>0,N(Q{r})*SUMIFS({pk("D")},{crit}),'
                     f'IF(COUNTIFS({crit},{pk("C")},"€/m")>0,SUMIFS({pk("D")},{crit})*$D{r}/1000,'
                     f'IF(COUNTIFS({crit},{pk("C")},"€/Stange")>0,'
                     f'SUMIFS({pk("D")},{crit})*$D{r}/SUMIFS({pk("E")},{crit}),'
-                    f'N(Q{r})*{tonnen}/1000)))')
+                    f'N(Q{r})*{tonnen}/1000)))))')
 wsp.conditional_formatting.add(f"M{S0}:M{S1}", FormulaRule(formula=[f'$M{S0}="ÜBERBELEGT"'], fill=PatternFill("solid", fgColor="F8CBAD")))
 wsp.conditional_formatting.add(f"M{S0}:M{S1}", FormulaRule(formula=[f'$M{S0}="OK"'], fill=PatternFill("solid", fgColor="C6EFCE")))
 wsp.freeze_panes = "B5"

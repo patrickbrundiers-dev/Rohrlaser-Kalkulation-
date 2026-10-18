@@ -264,6 +264,25 @@ def test_bedienung(lo, d):
     assert abs(wan.cell(zs + 2, 6).value - (summe + round(summe * 0.19, 2))) < 0.005
     print(f"OK     Angebot: {len(pos)} Positionen, {summe:.2f} € netto, Text: {wan.cell(14, 3).value}")
 
+    # Materialpreis je Position im Auftrag (Spalte AP) schlägt Preise und Tonnenpreis
+    preis_ein = d / "preis.xlsm"
+    shutil.copy(MAPPE, preis_ein)
+    wbp = load_workbook(preis_ein, keep_vba=True)
+    wbp["Auftrag"]["AP13"] = 9.5     # Zeile 13: RR 42,4x2,0 / S235-10219 / 6000 mm
+    wbp.save(preis_ein)
+    text = lo.ausfuehren(preis_ein, "Optimierung.OptimiereTest", d / "preis.xlsx")
+    assert not text.startswith("FEHLER"), text
+    wbp = load_workbook(d / "preis.xlsx", data_only=True)
+    wsp2, wa2 = wbp["Schnittplan"], wbp["Auftrag"]
+    stangen = [(wsp2.cell(r_, 2).value, wsp2.cell(r_, 4).value, wsp2.cell(r_, 18).value)
+               for r_ in range(5, 1005) if wsp2.cell(r_, 1).value is not None]
+    mit = [k for k in stangen if k[0] == "RR 42,4x2,0" and k[1] == 6000]
+    ohne = [k for k in stangen if k[0] != "RR 42,4x2,0"]
+    assert mit and all(abs(k[2] - 9.5 * k[1] / 1000) < 0.005 for k in mit), mit[:3]
+    assert ohne and all(abs(k[2] - 9.5 * k[1] / 1000) > 0.005 for k in ohne), ohne[:3]
+    assert wa2["U13"].value == "ja"
+    print(f"OK     Materialpreis im Auftrag: {len(mit)} Stangen zu {mit[0][2]:.2f} €")
+
     # Neuer Auftrag
     text = lo.ausfuehren(ein, [("Optimierung.OptimiereTest", ()), ("Ausgabe.AusgabeTest", ()),
                                ("Bedienung.NeuerAuftragTest", ())], d / "neu.xlsx")

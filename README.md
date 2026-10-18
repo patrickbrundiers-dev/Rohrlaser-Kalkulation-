@@ -78,7 +78,7 @@ Regeln:
 - Verfahren: First-Fit- und Best-Fit-Decreasing, danach werden schwach belegte Stangen aufgelöst. Liegt das Ergebnis über der Untergrenze und hat die Gruppe höchstens 60 Teile, sucht eine exakte Suche (Branch and Bound, höchstens 20.000 Suchschritte je Gruppe) eine Einteilung mit weniger Stangen. Die Auswertung zeigt je Gruppe die Untergrenze, den Abstand dazu, ob das Ergebnis nachweislich optimal ist, und den Vergleich mit einer manuellen Einteilung (Eingabereihenfolge, Stange voll, dann nächste).
 
 Kalkulation (Blatt „Kalkulation“):
-- Material: Kosten der Stangen laut Schnittplan (€/kg oder €/Stange aus „Preise“), je Gruppe nach Längenanteil auf die Positionen verteilt. Verschnitt ist damit enthalten.
+- Material: Kosten der Stangen laut Schnittplan, je Gruppe nach Längenanteil auf die Positionen verteilt. Verschnitt ist damit enthalten. Der Preis kommt in dieser Reihenfolge: Spalte AP im Auftrag (€/m, nur dieser Auftrag), dann Blatt „Preise“ (€/kg, €/m oder €/Stange), dann der Tonnenpreis des Werkstoffs (Blatt „Werkstoffe“, €/t).
 - Laserzeit: Schneidweg je Konturklasse durch den Vorschub der Klasse, Gravur mit eigenem Vorschub, plus Einstiche × Einstechzeit. Gemeinsame Schnitte werden abgezogen.
 - Gewinde: aus „Gewinde geprüft“ (z. B. `4xM6; 2xM8`) mit der Zeit je Gewinde aus „Gewinde“.
 - Rüstzeit je Auftrag und Stangenwechsel je Stange aus „Maschinen“, gleichmäßig auf alle Teile verteilt.
