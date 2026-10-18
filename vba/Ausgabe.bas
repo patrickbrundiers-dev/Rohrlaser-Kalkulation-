@@ -373,7 +373,7 @@ End Function
 ' Preistreppe unter den Positionen: je Mengenstufe aus dem Blatt Staffelpreise
 ' eine Zeile mit Preis je Satz bzw. Stück. Ergebnis: letzte beschriebene Zeile.
 Private Function Staffeltreppe(ws As Worksheet, ByVal ab As Long) As Long
-    Dim wf As Worksheet, n As Long, i As Long, r As Long, k As Long
+    Dim wf As Worksheet, n As Long, i As Long, r As Long, k As Long, schl As String, bez As String
     n = Staffel.StaffelZeilen()
     Staffeltreppe = ab
     If n = 0 Then Exit Function
@@ -384,12 +384,20 @@ Private Function Staffeltreppe(ws As Worksheet, ByVal ab As Long) As Long
     ws.Cells(r, 3).Value = "Je Stufe neu gerechnet: Rüsten, Stangenwechsel und Verschnitt fallen je Menge neu an."
     r = r + 1
     k = r
-    Kopf ws, r, Array("Satz / Pos.", "Einheit", "Bezeichnung", "Menge", "Preis je Einheit [€]", "Gesamtpreis [€]")
+    Kopf ws, r, Array("Pos.", "Artikelnummer", "Satz / Position", "Menge", _
+                      "Preis je Einheit [€]", "Gesamtpreis [€]")
+    ws.Rows(r).RowHeight = 34
     For i = 1 To n
         r = r + 1
-        ws.Cells(r, 1).Value = AlsText(wf.Cells(P0 + i - 1, 1).Value)
-        ws.Cells(r, 2).Value = AlsText(wf.Cells(P0 + i - 1, 3).Value)
-        ws.Cells(r, 3).Value = AlsText(wf.Cells(P0 + i - 1, 2).Value)
+        schl = SatzText(wf.Cells(P0 + i - 1, 1).Value)
+        bez = SatzText(wf.Cells(P0 + i - 1, 2).Value)
+        If SatzText(wf.Cells(P0 + i - 1, 3).Value) = "Satz" Then
+            ws.Cells(r, 3).Value = "Satz " & schl & IIf(Len(bez) > 0, " (" & bez & ")", "")
+            ws.Range(ws.Cells(r, 1), ws.Cells(r, 6)).Font.Bold = True
+        Else
+            ws.Cells(r, 1).Value = wf.Cells(P0 + i - 1, 1).Value
+            ws.Cells(r, 3).Value = bez
+        End If
         ws.Cells(r, 4).Value = wf.Cells(P0 + i - 1, 4).Value
         ws.Cells(r, 5).Value = wf.Cells(P0 + i - 1, 12).Value
         ws.Cells(r, 6).Value = wf.Cells(P0 + i - 1, 13).Value
@@ -399,6 +407,7 @@ Private Function Staffeltreppe(ws As Worksheet, ByVal ab As Long) As Long
     ws.Range(ws.Cells(k + 1, 5), ws.Cells(r, 6)).NumberFormat = "#,##0.00"
     ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 6)).Font.Name = "Arial"
     ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 6)).Font.Size = 10
+    ws.Range(ws.Cells(k + 1, 1), ws.Cells(r, 1)).HorizontalAlignment = -4108   ' xlCenter
     Staffeltreppe = r
 End Function
 

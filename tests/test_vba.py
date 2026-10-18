@@ -405,8 +405,11 @@ def test_staffeln(lo, d):
     kopf = next(zz for zz in range(14, wan.max_row + 1) if wan.cell(zz, 1).value == "Staffelpreise")
     for i, z in enumerate(zeilen):
         a = [wan.cell(kopf + 2 + i, c).value for c in range(1, 7)]
-        assert staffeln._txt(a[0]) == staffeln._txt(z[0]) and a[1] == z[2] and a[3] == z[3], (a, z)
-        assert abs(a[4] - z[11]) < 1e-9 and abs(a[5] - z[12]) < 1e-9, (a, z)
+        if z[2] == "Satz":
+            assert a[2] == f"Satz {z[0]} ({z[1]})", (a, z)
+        else:
+            assert staffeln._txt(a[0]) == staffeln._txt(z[0]) and a[2] == z[1], (a, z)
+        assert a[3] == z[3] and abs(a[4] - z[11]) < 1e-9 and abs(a[5] - z[12]) < 1e-9, (a, z)
     print(f"OK     Staffelpreise: {len(zeilen)} Stufen, Preise je Einheit "
           + ", ".join(f"{z[3]:.0f}x{z[2]} {z[11]:.2f} €" for z in zeilen))
 
