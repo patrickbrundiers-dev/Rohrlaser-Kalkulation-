@@ -16,7 +16,7 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 | 8 | Stangenbild (Verschachtelung), Schaltflächen in Excel sichtbar | erledigt |
 | P1 | Eigenes Windows-Programm: Gerüst, Datenbank, Stammdaten, Übernahme aus der Mappe | erledigt |
 | P2 | Programm: Aufträge, STEP-Import, Optimierung, Kalkulation, Stangenbild | erledigt |
-| P3 | Programm: PDF-Ausgabe, Staffelpreise, Auftragsablage, Excel-Export | offen |
+| P3 | Programm: PDF-Ausgabe, Staffelpreise, Auftragsablage, Excel-Export | erledigt |
 | P4 | Programm: Abnahme gegen die Mappe | offen |
 
 ## Benutzung (ohne Installation)
@@ -35,9 +35,9 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 
 Die Mappe bleibt dabei geöffnet. Python wird nur zum Entwickeln gebraucht, nicht für die Benutzung.
 
-## Eigenes Programm (im Aufbau)
+## Eigenes Programm
 
-Das Programm `Rohrlaser-Kalkulation.exe` soll die Mappe ablösen (Entscheidung 18.10.2026). Stammdaten und Aufträge (Positionen, STEP-Import, Optimierung, Kalkulation, Schnittplan, Stangenbild) sind fertig. PDF-Ausgabe, Staffelpreise, Ablage und Excel-Export folgen; bis dahin entstehen Angebote und Werkstattpapiere noch in der Mappe.
+Das Programm `Rohrlaser-Kalkulation.exe` soll die Mappe ablösen (Entscheidung 18.10.2026). Stammdaten, Aufträge (Positionen, STEP-Import, Optimierung, Kalkulation, Schnittplan, Stangenbild), Staffelpreise, PDF-Ausgabe (Angebot, Werkstattpapiere, Kalkulation), Ablage und Excel-Export sind fertig.
 
 1. Unter **Releases → aktuell** `Rohrlaser-Programm.zip` herunterladen und in einen Ordner entpacken, in dem man schreiben darf (z. B. `C:\Rohrlaser` oder ein Netzlaufwerk-Ordner nur für diesen Arbeitsplatz, nicht `C:\Programme`).
 2. `Rohrlaser-Kalkulation.exe` starten. Beim ersten Start legt es den Ordner `Daten` mit `rohrlaser.db` (Stammdaten, Einstellungen) und Beispieldaten an.
@@ -47,7 +47,10 @@ Das Programm `Rohrlaser-Kalkulation.exe` soll die Mappe ablösen (Entscheidung 1
 5. Reiter **Aufträge**: neuen Auftrag anlegen (Nummer zählt hoch), kopieren, löschen, suchen (auch nach Artikel) oder **Auftrag aus Excel-Mappe übernehmen** (Kopf und Positionen einer Auftragsmappe). Doppelklick öffnet den Auftrag in einem eigenen Reiter.
 6. Im Auftrag: Kopf oben, Positionen wie im Blatt „Auftrag“ bearbeiten (Häkchen **Berechnete Werte** und **STEP-Werte** blenden die übrigen Spalten ein). **STEP importieren** misst die gewählten Dateien mit `STEP-Import.exe` (Ordner `STEP-Import` neben dem Programm, ist im ZIP enthalten) und legt die Positionen an; die Messwerte stehen im Reiter STEP-Protokoll. **Optimieren** plant die Stangen; danach zeigen die Reiter Kalkulation, Schnittplan (Klick auf eine Stange zeigt die Teile), Stangenbild und Auswertung (mit nicht eingeplanten Teilen) die Ergebnisse. Nach jeder Änderung am Auftrag oder an den Stammdaten zeigt die Übersicht „VERALTET“, bis neu optimiert wird.
 
-Optimierung, Status, Schnittplan und Kalkulation rechnen genau wie die Mappe v02: `tests/test_programm_mappe.py` vergleicht 13 Testaufträge Zelle für Zelle mit der von LibreOffice berechneten Mappe. Einzige bewusste Abweichung: Positionen ohne Pos.-Nr. rechnet das Programm wie Excel (LibreOffice weicht dort ab).
+7. Reiter **Staffeln** im Auftrag: je Zeile eine Mengenstufe (Satzbezeichnung oder Positionsnummer und Menge). **Staffelpreise rechnen** rechnet jede Stufe als eigenen Auftrag neu (wie das Makro der Mappe). Ändert sich danach etwas, zeigt der Reiter „VERALTET“; das Angebot rechnet veraltete Staffelpreise selbst neu.
+8. Leiste **Ausgabe** im Auftrag: **Angebot (PDF)** (Positionen, Sätze, Summen mit MwSt., Preistreppe), **Werkstattpapiere (PDF)** (Materialliste, je Stangenmuster der Schnittplan zum Abhaken, danach das Stangenbild quer), **Kalkulation (PDF)** und **Excel-Export** (alle Ergebnisse als Werte). Ist die Optimierung veraltet, fragt das Programm vorher wie die Mappe. Die Dateien heißen wie in der Mappe („A-2026-0001 Angebot.pdf“) und landen im Ordner `Aufträge` neben dem Programm oder im Ablageordner aus den Einstellungen; **Ablage öffnen** zeigt ihn. Briefkopf, Bedingungen, Gültigkeit und MwSt.-Satz stehen in den Einstellungen (Gruppe Angebot). Die Auftragssuche im Reiter Aufträge findet Auftragsnummer, Kunde, Kundennummer, Bemerkung, Artikelnummer und Bezeichnung.
+
+Optimierung, Status, Schnittplan und Kalkulation rechnen genau wie die Mappe v02: `tests/test_programm_mappe.py` vergleicht 13 Testaufträge Zelle für Zelle mit der von LibreOffice berechneten Mappe. Einzige bewusste Abweichung: Positionen ohne Pos.-Nr. rechnet das Programm wie Excel (LibreOffice weicht dort ab). `tests/test_programm_ausgabe.py` vergleicht Staffelpreise, Angebot (Positionen, Summen, Preistreppe) und Werkstattpapier mit den Makros der Mappe. Bewusste Abweichungen: Maße im Angebot mit Dezimalkomma (42,4 statt 42.4); Teile ohne Artikelnummer heißen „Zeile n“ nach ihrer Reihenfolge im Auftrag.
 
 Sicherung: beim ersten Start jedes Tages und vor jeder Übernahme eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren.
 

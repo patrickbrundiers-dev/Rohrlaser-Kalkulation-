@@ -6,7 +6,7 @@
 import os
 
 a = Analysis([os.path.join(SPECPATH, "start.py")], pathex=[SPECPATH, os.path.join(SPECPATH, "..", "tools")],
-             binaries=[], datas=[], hiddenimports=["optimierung"], excludes=["tkinter", "matplotlib", "numpy", "PySide6.QtWebEngineCore",
+             binaries=[], datas=[], hiddenimports=["optimierung", "reportlab.graphics.barcode.common"], excludes=["tkinter", "matplotlib", "numpy", "PySide6.QtWebEngineCore",
                                          "PySide6.QtQml", "PySide6.QtQuick", "PySide6.Qt3DCore"],
              noarchive=False)
 pyz = PYZ(a.pure)
