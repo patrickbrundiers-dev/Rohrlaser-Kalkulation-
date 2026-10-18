@@ -260,7 +260,7 @@ def test_bedienung(lo, d):
         assert z[2].startswith(("Rundrohr", "Quadratrohr", "Rechteckrohr")) and ", L = " in z[2] and "inkl. Material" in z[2], z[2]
         summe += z[5]
     zs = 14 + len(pos) + 1
-    assert wan.cell(zs, 5).value == "Summe netto [€]" and abs(wan.cell(zs, 6).value - summe) < 0.005
+    assert wan.cell(zs, 4).value == "Summe netto [€]" and abs(wan.cell(zs, 6).value - summe) < 0.005
     assert abs(wan.cell(zs + 2, 6).value - (summe + round(summe * 0.19, 2))) < 0.005
     print(f"OK     Angebot: {len(pos)} Positionen, {summe:.2f} € netto, Text: {wan.cell(14, 3).value}")
 
