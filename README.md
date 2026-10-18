@@ -14,6 +14,10 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 | 6 | Menüband, neuer Auftrag, Ablage, PDF-Ausgabe, exakte Optimierung kleiner Gruppen | erledigt |
 | 7 | Sätze und Staffelpreise | erledigt |
 | 8 | Stangenbild (Verschachtelung), Schaltflächen in Excel sichtbar | erledigt |
+| P1 | Eigenes Windows-Programm: Gerüst, Datenbank, Stammdaten, Übernahme aus der Mappe | erledigt |
+| P2 | Programm: Aufträge, STEP-Import, Optimierung, Kalkulation, Stangenbild | offen |
+| P3 | Programm: PDF-Ausgabe, Staffelpreise, Auftragsablage, Excel-Export | offen |
+| P4 | Programm: Abnahme gegen die Mappe | offen |
 
 ## Benutzung (ohne Installation)
 
@@ -30,6 +34,19 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
    - **Stammdaten übernehmen**: Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zuschläge und Angebotskopf aus einer anderen Mappe (z. B. der gepflegten Vorlage) in eine abgelegte Auftragsmappe kopieren.
 
 Die Mappe bleibt dabei geöffnet. Python wird nur zum Entwickeln gebraucht, nicht für die Benutzung.
+
+## Eigenes Programm (im Aufbau)
+
+Das Programm `Rohrlaser-Kalkulation.exe` soll die Mappe ablösen (Entscheidung 18.10.2026). Bis Schritt P2 fertig ist, werden Aufträge weiter in der Mappe gerechnet.
+
+1. Unter **Releases → aktuell** `Rohrlaser-Programm.zip` herunterladen und in einen Ordner entpacken, in dem man schreiben darf (z. B. `C:\Rohrlaser` oder ein Netzlaufwerk-Ordner nur für diesen Arbeitsplatz, nicht `C:\Programme`).
+2. `Rohrlaser-Kalkulation.exe` starten. Beim ersten Start legt es den Ordner `Daten` mit `rohrlaser.db` (Stammdaten, Einstellungen) und Beispieldaten an.
+3. **Datei → Stammdaten aus Excel-Mappe übernehmen**: liest Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zuschläge, Angebotskopf und Auftragsvorgaben aus der gepflegten Mappe (Vorlage oder abgelegte Auftragsmappe). Vorher wird eine Sicherung angelegt. Doppelte Zeilen oder unlesbare Werte meldet das Programm vor der Übernahme.
+4. Stammdaten lassen sich in den Reitern direkt bearbeiten (Doppelklick oder lostippen, Zahlen mit Komma). Jede Änderung wird sofort gespeichert. Die Spalte **Prüfung** zeigt wie in der Mappe OK, WARNUNG oder FEHLER. Wird eine Profil-, Werkstoff- oder Maschinen-ID umbenannt, ändern sich die Verweise in Preisen und Schneiddaten mit.
+
+Sicherung: beim ersten Start jedes Tages und vor jeder Übernahme eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren.
+
+Entwicklung: `pip install -r programm/requirements.txt`, Start mit `python -m rohrlaser` im Ordner `programm`, Test mit `python tests/test_programm.py`. Der Build (`pyinstaller programm/rohrlaser.spec`) läuft in GitHub Actions auf Windows und prüft die fertige .exe mit `--selbsttest`.
 
 ## Inhalt
 

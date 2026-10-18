@@ -1,5 +1,6 @@
 # Baut STEP-Import.exe (Windows, ohne Installation lauffähig), prüft sie gegen die Python-Messung
-# und packt sie mit der Mappe zu Rohrlaser-Kalkulation.zip. Auf main wird das Paket als
+# und packt sie mit der Mappe zu Rohrlaser-Kalkulation.zip. Baut außerdem das eigenständige Programm
+# Rohrlaser-Kalkulation.exe (Rohrlaser-Programm.zip). Auf main werden beide Pakete als
 # Release "aktuell" veröffentlicht.
 name: Paket
 
@@ -20,13 +21,17 @@ jobs:
       - name: LibreOffice und Python-Pakete
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-calc python3-uno python3-pip
-          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt
+          sudo apt-get install -y --no-install-recommends libreoffice-calc python3-uno python3-pip libegl1 libxkbcommon0
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
       - name: Python-Tests
         run: |
           /usr/bin/python3 tests/test_step_import.py
           /usr/bin/python3 tests/test_optimierung.py
           /usr/bin/python3 tests/test_layout.py
+      - name: Programm-Tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: /usr/bin/python3 tests/test_programm.py
       - name: VBA-Tests (LibreOffice)
         run: /usr/bin/python3 tests/test_vba.py
 
@@ -40,7 +45,7 @@ jobs:
       - name: Python-Pakete
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements.txt -r programm/requirements.txt pyinstaller
       - name: STEP-Import.exe bauen
         run: pyinstaller --noconfirm --clean tools/step_import_exe.spec
       - name: STEP-Import.exe gegen Python-Messung prüfen
@@ -54,6 +59,15 @@ jobs:
           & "dist/STEP-Import/STEP-Import.exe" --liste liste.txt --ausgabe exe.txt
           if ($LASTEXITCODE -ne 0) { throw "STEP-Import.exe Rückgabewert $LASTEXITCODE" }
           python tests/vergleiche_messung.py referenz.txt exe.txt
+      - name: Rohrlaser-Kalkulation.exe bauen
+        run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
+      - name: Rohrlaser-Kalkulation.exe Selbsttest
+        shell: pwsh
+        run: |
+          $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Kalkulation/Rohrlaser-Kalkulation.exe" `
+            -ArgumentList "--selbsttest", "--mappe", "mappe/Rohrlaser_Kalkulation_v02.xlsm", "--ergebnis", "selbsttest.txt"
+          Get-Content -Encoding utf8 selbsttest.txt
+          if ($p.ExitCode -ne 0) { throw "Selbsttest Rückgabewert $($p.ExitCode)" }
       - name: Paket zusammenstellen
         shell: pwsh
         run: |
@@ -62,10 +76,17 @@ jobs:
           Copy-Item -Recurse dist/STEP-Import paket/STEP-Import
           Compress-Archive -Path paket/* -DestinationPath Rohrlaser-Kalkulation.zip
           "{0:N0} MB" -f ((Get-Item Rohrlaser-Kalkulation.zip).Length / 1MB)
+          Compress-Archive -Path dist/Rohrlaser-Kalkulation -DestinationPath Rohrlaser-Programm.zip
+          "{0:N0} MB" -f ((Get-Item Rohrlaser-Programm.zip).Length / 1MB)
       - uses: actions/upload-artifact@v4
         with:
           name: Rohrlaser-Kalkulation
           path: paket/
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rohrlaser-Programm
+          path: dist/Rohrlaser-Kalkulation/
           retention-days: 30
       - name: Release "aktuell" aktualisieren
         if: github.ref == 'refs/heads/main'
@@ -74,8 +95,12 @@ jobs:
           tag_name: aktuell
           name: Rohrlaser-Kalkulation (aktueller Stand)
           body: |
-            Mappe und STEP-Import.exe, Stand ${{ github.sha }}.
-            Herunterladen, entpacken, Rohrlaser_Kalkulation_v02.xlsm öffnen und Makros aktivieren.
-            Der Ordner STEP-Import muss neben der Mappe liegen.
-          files: Rohrlaser-Kalkulation.zip
+            Stand ${{ github.sha }}.
+            Rohrlaser-Kalkulation.zip: Mappe und STEP-Import.exe. Entpacken, Rohrlaser_Kalkulation_v02.xlsm öffnen
+            und Makros aktivieren. Der Ordner STEP-Import muss neben der Mappe liegen.
+            Rohrlaser-Programm.zip: eigenständiges Programm (im Aufbau). Entpacken, Rohrlaser-Kalkulation.exe starten.
+            Die Daten liegen im Ordner Daten neben dem Programm.
+          files: |
+            Rohrlaser-Kalkulation.zip
+            Rohrlaser-Programm.zip
           make_latest: true
