@@ -18,7 +18,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from openpyxl import load_workbook  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.mappe_import import lies_mappe  # noqa: E402
-from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, Kontext, beispieldaten, flaeche_berechnet,  # noqa: E402
+from rohrlaser.stammdaten import (TABELLE, TABELLEN, PROFILE, PREISE, Kontext, beispieldaten, flaeche_berechnet,  # noqa: E402
                                   preis_je_m_automatisch, pruefen, wert_aus_text, wert_als_text)
 
 MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
@@ -27,7 +27,9 @@ tmp = Path(tempfile.mkdtemp())
 # 1) Beispieldaten einer neuen Datenbank = Stammdaten der Mappe v02 (Übernahme liest alles, ohne Hinweise)
 daten, einst, hinweise = lies_mappe(MAPPE)
 assert hinweise == [], hinweise
-assert daten == beispieldaten(), "Beispieldaten im Programm weichen von der Mappe ab"
+# (Tabellen und Felder, die es nur im Programm gibt, z. B. Zusatzarbeiten und Preis je Gewinde, liest die Mappe nicht)
+assert daten == {t.name: [{f.name: z[f.name] for f in t.felder if f.spalte} for z in beispieldaten()[t.name]]
+                 for t in TABELLEN if t.blatt}, "Beispieldaten im Programm weichen von der Mappe ab"
 assert einst["zuschlag_fertigung"] == 0.15 and einst["standard_stange"] == 6000 and einst["mwst"] == 0.19
 assert einst["profilformen"].splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil"]
 db = Datenbank(tmp / "a" / "rohrlaser.db")
@@ -188,7 +190,7 @@ from rohrlaser import rechnen, step  # noqa: E402
 from rohrlaser.auftrag import naechste_nummer  # noqa: E402
 assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
 db = Datenbank(tmp / "b" / "rohrlaser.db")
-for n in ("ruesten_abmessung", "pauschale_abmessung", "auftragsaufschlag"):   # Vergleichswerte der Mappe: ohne
+for n in ("ruesten_abmessung", "pauschale_abmessung", "auftragsaufschlag", "programmierung_teil"):   # Vergleichswerte der Mappe: ohne
     db.einstellung_setzen(n, 0)                                               # die neuen Kosten (Teil 14)
 a1 = db.auftrag_neu()
 a2 = db.auftrag_neu()
@@ -352,20 +354,22 @@ pos = [dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-1021
        dict(pos=40, artikel="D", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=700)]   # ohne Stückzahl
 erg = rechnen.optimieren(kopf, pos, k)
 assert not erg["fehler"] or all(f_["artikel"] == "D" for f_ in erg["fehler"])
-null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, auftragsaufschlag=0)
+null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, auftragsaufschlag=0, programmierung_teil=0)
 z0, s0 = rechnen.kalkulation(kopf, pos, erg, k, tab, null)
 z1, s1 = rechnen.kalkulation(dict(kopf, fracht=120.0), pos, erg, k, tab, db.einstellungen())
 satz = k.maschinen["RL-1"]["stundensatz"]
 assert s1["abmessungen"] == 2 and s1["pauschalen"] == 45.0 and s1["auftragsaufschlag"] == 50 and s1["fracht"] == 120
+assert db.einstellung("programmierung_teil") == 8.5 and s1["programmierung"] == 3 * 8.5   # D ohne Stückzahl zählt nicht
 assert abs(s1["ruesten"] - s0["ruesten"] - 2 * 15 / 60 * satz) < 1e-9
 gew = 1 + db.einstellung("gewinn")
 fert = 1 + db.einstellung("zuschlag_fertigung")
 # Verkaufspreis steigt um Rüsten je Abmessung (mit Zuschlag Fertigung und Gewinn) + Pauschalen + Aufschlag + Fracht
-erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120
+erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120 + 3 * 8.5
 assert abs(s1["verkauf"] - erwartet) < 1e-6, (s1["verkauf"], erwartet)
 # Pauschale je Abmessung trägt nur deren Teile: QR 40x40x3 hat 10, RE 120x60x4 hat 5 Teile
-assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15)) < 1e-9
-assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15)) < 1e-9
+# Programmierkosten 8,50 € je Position, umgelegt auf deren Stückzahl (A 6, C 5 Stück)
+assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15 + 8.5 / 6)) < 1e-9
+assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15 + 8.5 / 5)) < 1e-9
 assert z1[3]["pauschalen_teil"] == 0 and z1[3]["preis_position"] == 0
 # Grenzen der Maschine: RE 120x60x4 (Hüllkreis 134,2 mm, 10,9 kg/m) passt nicht mehr
 db.aendern("maschinen", db.zeilen("maschinen")[0]["id"], "max_huellkreis", 130)
@@ -385,10 +389,10 @@ assert rechnen.position_werte(pos[0], kopf, k, tab)["kg_m"] > 3   # QR 40x40x3 �
 assert "FEHLER" not in rechnen.status(pos[0], rechnen.position_werte(pos[0], kopf, k, tab), kopf, k)
 erg = rechnen.optimieren(kopf, pos, k)
 assert any(f_["grund"] == "Metergewicht über Maschinengrenze" for f_ in erg["fehler"])
-# Staffel: jede Stufe trägt Aufschlag, Fracht und die Kosten ihrer Abmessungen voll
+# Staffel: jede Stufe trägt Aufschlag, Fracht, Programmierung und die Kosten ihrer Abmessungen voll
 sp = staffeln.rechnen_alle(dict(kopf, fracht=120.0), pos, [dict(schluessel="10", menge=6)], k, tab, db.einstellungen())
 sp0 = staffeln.rechnen_alle(kopf, pos, [dict(schluessel="10", menge=6)], k, tab, null)
-assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 50 + 120)) < 0.1
+assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 8.5 + 50 + 120)) < 0.1
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)
 print("OK: Programm")

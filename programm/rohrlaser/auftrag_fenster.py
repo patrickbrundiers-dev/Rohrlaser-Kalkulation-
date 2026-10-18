@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import ausgabe, export, pdf, rechnen, staffeln, step
+from .zusatz_dialog import ZusatzDialog
 from .auftrag import KOPF, POSITIONEN, STEP_FELDER
 from .auftrag_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -239,7 +240,7 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Vorschub groß [mm/min]", "vorschub", 0), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "laenge", "stueck", "schneidweg",
-            "einstiche", "stange", "satz", "je_satz", "preis_m", "gewinde"]
+            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz"]
 
 
 class PositionenModell(QAbstractTableModel):
@@ -249,7 +250,8 @@ class PositionenModell(QAbstractTableModel):
         super().__init__()
         self.s = seite
         felder = {f.name: f for f in POSITIONEN.felder}
-        self.spalten = ([("feld", felder[n]) for n in SICHTBAR] + [("status", None)]
+        self.spalten = ([("zusatz" if felder[n].art == "zusatz" else "feld", felder[n]) for n in SICHTBAR]
+                        + [("status", None)]
                         + [("berechnet", b) for b in BERECHNET]
                         + [("feld", f) for f in POSITIONEN.felder if f.name in STEP_FELDER])
         self.daten, self.werte, self.status = [], [], []
@@ -286,7 +288,7 @@ class PositionenModell(QAbstractTableModel):
         if richtung == Qt.Vertical:
             return str(abschnitt + 1)
         art, x = self.spalten[abschnitt]
-        return x.titel if art == "feld" else ("Status" if art == "status" else x[0])
+        return x.titel if art in ("feld", "zusatz") else ("Status" if art == "status" else x[0])
 
     def roh(self, r, c):
         art, x = self.spalten[c]
@@ -294,6 +296,8 @@ class PositionenModell(QAbstractTableModel):
             return self.daten[r].get(x.name)
         if art == "status":
             return self.status[r]
+        if art == "zusatz":
+            return rechnen.zusatz_text(self.daten[r])
         w = self.werte[r].get(x[1])
         return {True: "ja", False: "nein"}.get(w, w) if isinstance(w, bool) else w
 
@@ -307,6 +311,8 @@ class PositionenModell(QAbstractTableModel):
                 return wert_als_text(x, w)
             if art == "berechnet":
                 return _z(w, x[2]) if x[2] is not None else ("" if w is None else str(w))
+            if art == "zusatz" and rolle == Qt.ToolTipRole:
+                return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
             return w
         if rolle == Qt.EditRole and art == "feld":
             return wert_als_text(x, w, bearbeiten=True)
@@ -318,7 +324,7 @@ class PositionenModell(QAbstractTableModel):
         if rolle == Qt.BackgroundRole:
             if art == "status":
                 return QBrush(_farbe_status(w) or (QColor("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
-            return QBrush(FARBE_EINGABE if art == "feld" else FARBE_BERECHNET)
+            return QBrush(FARBE_EINGABE if art in ("feld", "zusatz") else FARBE_BERECHNET)
         return None
 
     def flags(self, index):
@@ -557,7 +563,8 @@ class AuftragSeite(QWidget):
         # Knöpfe
         leiste = QHBoxLayout()
         knoepfe = (("Neue Position", self.position_neu), ("Positionen löschen", self.positionen_loeschen),
-                   ("STEP importieren …", self.step_importieren), ("Optimieren", self.optimieren))
+                   ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
+                   ("STEP importieren …", lambda: self.step_importieren()), ("Optimieren", self.optimieren))
         for text, ziel in knoepfe:
             b = QPushButton(text)
             b.clicked.connect(ziel)
@@ -590,7 +597,9 @@ class AuftragSeite(QWidget):
                                          | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
-            self.pos_ansicht.setColumnWidth(i, x.breite if art == "feld" else (240 if art == "status" else 85))
+            self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld", "zusatz") else (240 if art == "status" else 85))
+        self.pos_ansicht.doubleClicked.connect(
+            lambda i: self.zusatzarbeiten([i.row()]) if self.pos_modell.spalten[i.column()][0] == "zusatz" else None)
 
         self.kalk = Liste(KALK_SPALTEN)
         self.stangen = Liste(STANGEN_SPALTEN)
@@ -772,9 +781,11 @@ class AuftragSeite(QWidget):
             f"{sum(1 for s in stat if s.startswith(('WARNUNG', 'HINWEIS')))}</td>"
             f"<td></td><td>Rüsten + Stangenwechsel</td><td align='right'>{_z(summen['ruesten'])} €</td></tr>"
             f"<tr><td>Teile gesamt</td><td align='right'>{_z(teile, 0)} Stk</td>"
-            f"<td></td><td>Herstellkosten</td><td align='right'>{_z(summen['herstell'])} €</td></tr>"
-            f"<tr><td></td><td></td><td></td><td>Pauschalen + Aufschlag + Fracht</td><td align='right'>"
-            f"{_z(summen['pauschalen'] + summen['auftragsaufschlag'] + summen['fracht'])} €</td></tr>"
+            f"<td></td><td>Zusatzarbeiten</td><td align='right'>{_z(summen['zusatz'])} €</td></tr>"
+            f"<tr><td></td><td></td><td></td><td>Herstellkosten</td><td align='right'>{_z(summen['herstell'])} €</td></tr>"
+            f"<tr><td></td><td></td><td></td><td>Pauschalen, Programmierung, Aufschlag, Fracht</td><td align='right'>"
+            f"{_z(summen['pauschalen'] + summen['programmierung'] + summen['auftragsaufschlag'] + summen['fracht'])} €"
+            f"</td></tr>"
             f"<tr><td>Teilelänge / Gewicht</td><td align='right'>{_z(laenge)} m / {_z(gewicht)} kg</td>"
             f"<td></td><td><b>Verkaufspreis</b></td><td align='right'><b>{_z(summen['verkauf'])} €</b></td></tr>"
             f"<tr><td>Stangen</td><td align='right'>{summen['stangen']}</td><td></td><td></td><td></td></tr></table>")
@@ -782,11 +793,15 @@ class AuftragSeite(QWidget):
             f"Material {_z(summen['material'])} € · Laser + Gewinde {_z(summen['laser'])} € · Rüsten + Stangenwechsel "
             f"{_z(summen['ruesten'])} € ({_z(summen['ruestzeit'], 0)} min Rüsten + {summen['abmessungen']} Abmessung(en) × "
             f"{_z(summen['ruestzeit_abmessung'], 0)} min, {summen['stangen']} Stangen × "
-            f"{_z(summen['stangenwechsel'], 0)} s) · Herstellkosten {_z(summen['herstell'])} € · "
+            f"{_z(summen['stangenwechsel'], 0)} s) · Zusatzarbeiten {_z(summen['zusatz'])} € · "
+            f"Herstellkosten {_z(summen['herstell'])} € · "
             f"Pauschale {summen['abmessungen']} × {_z(self.einst.get('pauschale_abmessung') or 0)} € · "
+            f"Programmierung {_z(summen['programmierung'])} € · "
             f"Auftragsaufschlag {_z(summen['auftragsaufschlag'])} € · Fracht {_z(summen['fracht'])} € · "
             f"<b>Verkaufspreis {_z(summen['verkauf'])} €</b> · Zuschläge Material {_z(100 * self.einst['zuschlag_material'], 1)} %, "
-            f"Fertigung {_z(100 * self.einst['zuschlag_fertigung'], 1)} %, Gewinn {_z(100 * self.einst['gewinn'], 1)} %")
+            f"Fertigung {_z(100 * self.einst['zuschlag_fertigung'], 1)} %, "
+            f"Fremdleistung {_z(100 * (self.einst.get('zuschlag_fremdleistung') or 0), 1)} %, "
+            f"Gewinn {_z(100 * self.einst['gewinn'], 1)} %")
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
             self.stangen.setzen([dict(s, **w) for s, w in zip(erg["stangen"], sw)])
@@ -828,6 +843,28 @@ class AuftragSeite(QWidget):
         self.pos_ansicht.scrollTo(i)
         self.pos_ansicht.setCurrentIndex(i)
         self.pos_ansicht.edit(i)
+
+    def zusatzarbeiten(self, zeilen=None, werte=None):
+        """Gewinde und Zusatzarbeiten der markierten Positionen wählen (Dialog). werte = (Gewinde, JSON) setzt
+        sie ohne Dialog (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return False
+        if werte is None:
+            d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen)
+            if d.exec() != QDialog.Accepted:
+                return False
+            werte = d.ergebnis
+        gewinde, zusatz = werte
+        for r in zeilen:
+            p = self.positionen[r]
+            self.db.position_aendern(p["id"], "gewinde", gewinde)
+            self.db.position_aendern(p["id"], "zusatz", zusatz)
+        self.f.meldung(f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
+        self.neu_laden()
+        return True
 
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})

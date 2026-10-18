@@ -85,9 +85,10 @@ def profiltext(pid, k, dezimal=","):
             "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}"}.get(z.get("form"), str(pid))
 
 
-def angebotstext(p, k, dezimal=","):
+def angebotstext(p, k, dezimal=",", zusatz=()):
     """Bezeichnung einer Position im Angebot, z. B. 'Rechteckrohr 80 x 40 x 5, L = 1500 mm, inkl. Material
-    S235 EN10219, Zusatzarbeiten: Gewinde 4xM6, Gravur'."""
+    S235 EN10219, Zusatzarbeiten: Gewinde 4xM6, Gravur, feuerverzinkt'. zusatz: Zusatzarbeiten der Position
+    aus der Kalkulation (Text im Angebot aus den Stammdaten, dazu der Text der Position, z. B. RAL 7016)."""
     laenge = p.get("laenge")
     t = profiltext(p.get("profil_id"), k, dezimal)
     t += f", L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else ", L =  mm"
@@ -98,6 +99,10 @@ def angebotstext(p, k, dezimal=","):
         zus.append(f"Gewinde {p['gewinde']}")
     if _wert(p.get("gravur")) > 0:
         zus.append("Gravur")
+    for e in zusatz or ():
+        t_e = e["angebotstext"] + (f" {e['text']}" if e.get("text") else "")
+        if t_e not in zus:
+            zus.append(t_e)
     if zus:
         t += ", Zusatzarbeiten: " + ", ".join(zus)
     return t
@@ -111,6 +116,9 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         z = kalk_zeilen[i]
         return round(_wert(z["preis_teil"]) if z else 0, 2)
 
+    def _zus(i):
+        return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
+
     def je(p):
         n = _wert(p.get("je_satz"))
         return n if n >= 1 else 1
@@ -122,7 +130,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         satz = _satz(p.get("satz"))
         if not satz:
             pr, menge = preis(i), _wert(p.get("stueck"))
-            zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=angebotstext(p, k, dezimal),
+            zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=angebotstext(p, k, dezimal, _zus(i)),
                                menge=p.get("stueck"), preis=pr, gesamt=round(pr * menge, 2)))
         elif satz not in erledigt:
             erledigt.add(satz)
@@ -134,7 +142,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                preis=satzpreis, gesamt=round(satzpreis * saetze, 2)))
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
-                                   text=f"   {kaufm_runden(je(q), 0):.0f} x {angebotstext(q, k, dezimal)}",
+                                   text=f"   {kaufm_runden(je(q), 0):.0f} x {angebotstext(q, k, dezimal, _zus(j))}",
                                    menge=None, preis=None, gesamt=None))
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if p.get("profil_id") not in (None, "") and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])

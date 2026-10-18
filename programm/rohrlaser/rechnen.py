@@ -6,12 +6,13 @@ ist dieselbe wie in der Mappe (tools/optimierung.py). tests/test_programm_mappe.
 Ergebnisse mit der in LibreOffice gerechneten Mappe.
 
 Eingaben: kopf (dict: maschine, stange, …), positionen (Liste von dicts, Reihenfolge = Zeilen im
-Auftrag), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', 'gewinde': Zeilen).
+Auftrag), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', 'gewinde' und
+'zusatzarbeiten': Zeilen; fehlen die Zusatzarbeiten, gibt es keine).
 """
 import hashlib
 import json
 
-from .stammdaten import flaeche_berechnet, flaeche_wirksam, huellkreis
+from .stammdaten import ZUSATZ_EINHEIT, flaeche_berechnet, flaeche_wirksam, huellkreis
 from .werkzeuge import optimierung as opt
 
 EPS = opt.EPS
@@ -92,6 +93,7 @@ def position_werte(p, kopf, k, tabellen):
         werkstoff = k.werkstoffe.get(p["werkstoff_id"]) or {}
         w["preis_hinterlegt"] = (_n(p.get("preis_m")) > 0 or preis_zeile(p["profil_id"], p["werkstoff_id"], k, tabellen)
                                  is not None or _n(werkstoff.get("tonnenpreis")) > 0)
+    w["zusatzarbeiten"] = tabellen.get("zusatzarbeiten")
     w["vorschub"] = None
     if w["wand"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
         sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand"], tabellen)
@@ -149,12 +151,18 @@ def status(p, w, kopf, k, eingeplant=None):
         return "WARNUNG: kein gültiger Materialpreis"
     if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
         return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
-    if _leer(p.get("schneidweg")):
+    unbekannt = zusatz_unbekannt(p, w.get("zusatzarbeiten"))
+    if unbekannt:
+        return f"WARNUNG: Zusatzarbeit '{unbekannt}' unbekannt"
+    manuell = not _leer(p.get("zeit_manuell"))
+    if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
-    if w["vorschub"] is None:
+    if w["vorschub"] is None and not manuell:
         return "HINWEIS: keine Schneiddaten"
     if not _leer(p.get("gewinde_vorschlag")) and _leer(p.get("gewinde")):
         return "HINWEIS: Gewinde-Vorschlag prüfen"
+    if manuell:
+        return "HINWEIS: Schneidzeit manuell"
     return "OK"
 
 
@@ -333,20 +341,104 @@ def stangenkosten(s, gewicht, kopf, positionen, k, tabellen):
 
 
 # ------------------------------------------------------------------ Kalkulation (Blatt Kalkulation)
-def gewindezeit(text, gewinde):
-    """Gewindezeit je Teil [s] aus 'Gewinde geprüft' (z. B. '4xM6; 2xM8') wie Kalkulation P."""
+def gewinde_anzahl(text, gewinde):
+    """{Gewinde: Anzahl je Teil} aus 'Gewinde geprüft' (z. B. '4xM6; 2xM8') wie Kalkulation P der Mappe."""
     t = ";" + str(text or "").upper().replace(" ", "") + ";"
-    summe = 0.0
+    n = {}
     try:
         for g in gewinde:
             kenn = "X" + str(g.get("gewinde") or "").upper() + ";"
             s = t + kenn
             vor = s[:s.find(kenn)]
             teil = vor.split(";")[-1].strip()
-            summe += float("0" + teil) * _n(g.get("zeit"))
+            n[g.get("gewinde")] = float("0" + teil)
     except ValueError:
-        return 0.0
-    return summe
+        return {}
+    return n
+
+
+def gewindezeit(text, gewinde):
+    """Gewindezeit je Teil [s] für Gewinde ohne festen Preis (Zeit je Gewinde × Anzahl)."""
+    anz = gewinde_anzahl(text, gewinde)
+    return sum(anz.get(g.get("gewinde"), 0) * _n(g.get("zeit")) for g in gewinde if _leer(g.get("preis")))
+
+
+def gewinde_preis(text, gewinde):
+    """Festpreis der Gewinde je Teil [€]: Anzahl × Preis je Gewinde (nur Gewinde mit Preis)."""
+    anz = gewinde_anzahl(text, gewinde)
+    return sum(anz.get(g.get("gewinde"), 0) * _n(g.get("preis")) for g in gewinde if not _leer(g.get("preis")))
+
+
+# ------------------------------------------------------------------ Zusatzarbeiten
+def zusatz_liste(p):
+    """Gewählte Zusatzarbeiten einer Position: [{name, menge, preis, text}] (leere Werte = automatisch)."""
+    roh = p.get("zusatz")
+    if not roh:
+        return []
+    try:
+        liste = json.loads(roh) if isinstance(roh, str) else roh
+    except ValueError:
+        return []
+    return [z for z in liste if isinstance(z, dict) and z.get("name")] if isinstance(liste, list) else []
+
+
+def zusatz_text(p):
+    """Kurzanzeige in der Positionstabelle, z. B. 'Feuerverzinken; Pulverbeschichten RAL 7016'."""
+    return "; ".join(z["name"] + (f" {z['text']}" if z.get("text") else "") for z in zusatz_liste(p))
+
+
+def zusatz_unbekannt(p, katalog):
+    namen = {z.get("name") for z in katalog or ()}
+    return next((z["name"] for z in zusatz_liste(p) if z["name"] not in namen), None)
+
+
+def oberflaeche(p, k):
+    """Außenfläche eines Teils [m²] = Umfang × Länge (ohne Stirnflächen und Innenseite)."""
+    pr = k.profile.get(p.get("profil_id"))
+    if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
+        return None
+    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"))
+    return u * p["laenge"] / 1e6 if u else None
+
+
+def zusatz_menge_auto(art, p, k):
+    """Vorschlag Menge je Teil: kg = Teilegewicht, m² = Außenfläche, m = Teilelänge, sonst 1 Stück."""
+    if art == "€/kg":
+        kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k)
+        return kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
+    if art == "€/m²":
+        return oberflaeche(p, k)
+    if art == "€/m":
+        return p["laenge"] / 1000 if not _leer(p.get("laenge")) else None
+    return 1.0
+
+
+def zusatz_werte(p, k, tabellen):
+    """Zusatzarbeiten einer Position je Teil: [{name, art, einheit, menge, preis, betrag, zeit, fremd, text,
+    angebotstext, mindest}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück).
+    Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung)."""
+    katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
+    out = []
+    for e in zusatz_liste(p):
+        kz = katalog.get(e["name"])
+        if kz is None:
+            continue
+        art = kz.get("art")
+        menge = e.get("menge") if isinstance(e.get("menge"), (int, float)) else zusatz_menge_auto(art, p, k)
+        preis = e.get("preis") if isinstance(e.get("preis"), (int, float)) else _n(kz.get("preis"))
+        wert = _n(menge) * preis
+        out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
+                        betrag=0.0 if art == "s/Stück" else wert, zeit=wert if art == "s/Stück" else 0.0,
+                        fremd=kz.get("fremd") == "ja", text=e.get("text"), mindest=_n(kz.get("mindest")),
+                        angebotstext=kz.get("angebotstext") or e["name"]))
+    return out
+
+
+def zahl(w, stellen=2):
+    """Kurze Zahl für Texte: 2,35 / 1 (ohne unnötige Nachkommastellen)."""
+    if not isinstance(w, (int, float)):
+        return "?"
+    return f"{w:.{stellen}f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
@@ -359,7 +451,14 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
       den Herstellkosten (mit Zuschlag Fertigung und Gewinn).
     - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Auftragsaufschlag (€) und
       Frachtkosten aus dem Auftragskopf (€), umgelegt auf alle Teile; gehen ohne Zuschläge in den
-      Verkaufspreis ein."""
+      Verkaufspreis ein.
+    - Programmierkosten je Teil (Einstellung, €) für jede Position mit Stückzahl, umgelegt auf deren
+      Stückzahl, ohne Zuschläge in den Verkaufspreis.
+    - Gewinde mit festem Preis (Stammdaten Gewinde) zählen mit dem Preis statt mit der Zeit.
+    - Schneidzeit manuell (Position) ersetzt die berechnete Laserzeit netto je Teil.
+    - Zusatzarbeiten je Position: Beträge je Teil (€/kg, €/m², €/m, €/Stück) mit Zuschlag Fremdleistung bzw.
+      Fertigung; liegt die Summe einer Zusatzarbeit im Auftrag unter ihrem Mindestbetrag, wird sie anteilig
+      angehoben. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen."""
     m = maschine(kopf, k) or {}
     satz_h = _n(m.get("stundensatz"))
     stangen = ergebnis["stangen"] if ergebnis else []
@@ -377,6 +476,23 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
     ruest_abm = ruest_abm_min / 60 * satz_h            # € je Abmessung
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
+    prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Auftrag
+    zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
+    zus = {i: zusatz_werte(positionen[i], k, tabellen) for i in aktiv}
+    zus_summe, zus_teile = {}, {}
+    for i in aktiv:
+        c = _n(positionen[i].get("stueck"))
+        for e in zus[i]:
+            zus_summe[e["name"]] = zus_summe.get(e["name"], 0.0) + e["betrag"] * c
+            zus_teile[e["name"]] = zus_teile.get(e["name"], 0) + c
+    for i in aktiv:                   # Mindestbetrag je Auftrag: anteilig anheben
+        for e in zus[i]:
+            if e["art"] == "s/Stück" or e["mindest"] <= 0 or not zus_teile[e["name"]]:
+                e["teil"] = e["betrag"]
+            elif zus_summe[e["name"]] <= 0:
+                e["teil"] = e["mindest"] / zus_teile[e["name"]]
+            else:
+                e["teil"] = e["betrag"] * max(1.0, e["mindest"] / zus_summe[e["name"]])
     aufschlag = _n(einstellungen.get("auftragsaufschlag")) if f8 else 0
     fracht = _n(kopf.get("fracht")) if f8 else 0
     eingespart = {}
@@ -425,25 +541,39 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             nz = 0
         else:
             nz = (60 * ein[1] / h + ein[2] * l) / c
-        oz = None if mz is None else max(0, mz - nz)
+        manuell = not _leer(p.get("zeit_manuell"))
+        zeit_extra = sum(e["zeit"] for e in zus[i])
+        if manuell:
+            oz = _n(p["zeit_manuell"]) + zeit_extra
+        else:
+            oz = None if mz is None and not zeit_extra else max(0, _n(mz) - nz) + zeit_extra
         pz = gewindezeit(p.get("gewinde"), tabellen["gewinde"])
-        qz = (_n(oz) + pz) / 3600 * satz_h
+        gp = gewinde_preis(p.get("gewinde"), tabellen["gewinde"])
+        qz = (_n(oz) + pz) / 3600 * satz_h + gp
+        ze = sum(e["teil"] for e in zus[i] if not e["fremd"])
+        zfr = sum(e["teil"] for e in zus[i] if e["fremd"])
         n_abm = teile_abm.get(p.get("profil_id"), 0)
         rz = (f7 / f8 if f8 else 0) + (ruest_abm / n_abm if n_abm and c else 0)
-        uz = (pausch_abm / n_abm if n_abm and c else 0) + ((aufschlag + fracht) / f8 if f8 and c else 0)
-        s_ = f * (1 + zm) + (qz + rz) * (1 + zf)
+        uz = (pausch_abm / n_abm if n_abm and c else 0) + ((aufschlag + fracht) / f8 if f8 and c else 0) \
+            + (prog / c if c else 0)
+        s_ = f * (1 + zm) + (qz + rz + ze) * (1 + zf) + zfr * (1 + zfl)
         t_ = s_ * (1 + gew) + uz
         nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
         if _n(nicht) > 0:
             hinweis = "nicht vollständig eingeplant"
         elif d == 0:
             hinweis = "kein Schnittplan oder Preis"
-        elif h is None:
+        elif h is None and not manuell:
             hinweis = "keine Schneiddaten"
+        elif zusatz_unbekannt(p, tabellen.get("zusatzarbeiten")):
+            hinweis = "Zusatzarbeit unbekannt"
         elif not _leer(p.get("gewinde_vorschlag")) and _leer(p.get("gewinde")):
             hinweis = "Gewinde ungeprüft"
         else:
             hinweis = ""
+        z.update(zeit_manuell="ja" if manuell else "", zeit_extra=zeit_extra, gewinde_preis=gp,
+                 zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c, zusatzarbeiten=zus[i],
+                 zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]))
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  herstell_teil=s_, pauschalen_teil=uz, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
@@ -453,8 +583,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, auftragsaufschlag=aufschlag, fracht=fracht,
+                  programmierung=prog * sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
                   material=sum(z["material_position"] for z in zeilen if z),
                   laser=sum(z["laser_position"] for z in zeilen if z),
+                  zusatz=sum(z["zusatz_position"] for z in zeilen if z),
                   herstell=sum(z["herstell_position"] for z in zeilen if z),
                   verkauf=sum(z["preis_position"] for z in zeilen if z))
     return zeilen, summen
