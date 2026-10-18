@@ -57,6 +57,21 @@ def flaeche_berechnet(p):
     return None
 
 
+def huellkreis(p):
+    """Durchmesser des Kreises um den Profilquerschnitt: Rundrohr Ø, Quadrat-/Rechteckrohr Diagonale.
+    Sonderprofile ohne Angabe (None)."""
+    form, a, b = p.get("form"), p.get("a"), p.get("b")
+    if a is None:
+        return None
+    if form == "Rundrohr":
+        return a
+    if form == "Quadratrohr":
+        return a * math.sqrt(2)
+    if form == "Rechteckrohr" and b is not None:
+        return math.hypot(a, b)
+    return None
+
+
 def flaeche_wirksam(p):
     """Herstellerwert (Fläche manuell) vor berechnetem Querschnitt, wie Profile!K."""
     if not p.get("profil_id"):
@@ -92,7 +107,8 @@ PROFILE = Tabelle(
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
     "(Eckradien, Sonderprofile).",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
-               ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1)))
+               ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1),
+               ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1)))
 
 WERKSTOFFE = Tabelle(
     "werkstoffe", "Werkstoffe", "Werkstoffe",
@@ -137,10 +153,14 @@ MASCHINEN = Tabelle(
      Feld("abstand", "Abstand getrennte Schnitte [mm]", 10, "zahl", 0, 100, stellen=1),
      Feld("ruestzeit", "Rüstzeit je Auftrag [min]", 11, "zahl", 0, 1440, stellen=0),
      Feld("stangenwechsel", "Stangenwechsel je Stange [s]", 12, "zahl", 0, 3600, stellen=0),
-     Feld("bemerkung", "Bemerkung", 13, breite=160)),
+     Feld("bemerkung", "Bemerkung", 13, breite=160),
+     Feld("max_huellkreis", "Max. Hüllkreis-Ø [mm]", 14, "zahl", 1, 2000, stellen=1),
+     Feld("max_kg_m", "Max. Metergewicht [kg/m]", 15, "zahl", 0.1, 1000, stellen=1)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
-    "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur.")
+    "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. "
+    "Max. Hüllkreis-Ø und max. Metergewicht: größere oder schwerere Profile bekommen im Auftrag FEHLER "
+    "und werden nicht eingeplant (leer = keine Grenze).")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten", "Schneiddaten",
@@ -198,6 +218,9 @@ EINSTELLUNGEN = (
     Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0.10, ("Kalkulation", "C4"), 0, 5),
     Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0.15, ("Kalkulation", "C5"), 0, 5),
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, ("Kalkulation", "C6"), 0, 5),
+    Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, None, 0, 1440),
+    Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, None, 0, 100000),
+    Einstellung("auftragsaufschlag", "Auftragsaufschlag je Auftrag [€]", "Kalkulation", "zahl", 50.0, None, 0, 100000),
     Einstellung("standard_maschine", "Standard-Maschine", "Auftrag", "auswahl", "RL-1", ("Auftrag", "C8"),
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Auftrag", "ganz", 6000, ("Auftrag", "C9"), 500, 20000),
@@ -343,7 +366,7 @@ def pruefen(t, z, k):
 def beispieldaten():
     """Beispielwerte einer neuen Datenbank, gleich wie in der Mappe v02 (tests/test_programm.py prüft das)."""
     def zeilen(t, werte):
-        return [dict(zip((f.name for f in t.felder), w)) for w in werte]
+        return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(t.felder)} for w in werte]
     d = datetime.date(2026, 10, 1).isoformat()
     sd = []
     for w, daten in (("S235-10219", [(2, 6000, 0.3), (3, 4500, 0.5), (5, 3000, 0.8)]),

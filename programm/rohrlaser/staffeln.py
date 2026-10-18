@@ -3,7 +3,8 @@
 Eine Stufe hat einen Schlüssel (Satzbezeichnung aus der Spalte 'Satz' oder eine Positionsnummer) und
 eine Menge (Anzahl Sätze bzw. Stück). Im Rechenlauf sind nur die Positionen dieser Stufe besetzt:
 bei einem Satz Menge × 'Stück je Satz', bei einer Position die Menge selbst. Alle anderen Stückzahlen
-sind leer. So fallen Rüsten, Stangenwechsel und Verschnitt je Stufe neu an.
+sind leer. So fallen Rüsten, Stangenwechsel und Verschnitt je Stufe neu an, ebenso Rüstzeit und Pauschale
+je Abmessung, Auftragsaufschlag und Fracht (jede Stufe ist ein eigener Auftrag).
 tests/test_programm_ausgabe.py vergleicht das Ergebnis mit dem Makro der Mappe.
 """
 import hashlib
@@ -122,10 +123,11 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst):
 
 def kennung(kopf, positionen, stufen, k, tabellen, einst):
     """Prüfsumme über alle Eingaben der Staffelrechnung; weicht sie ab, sind die Staffelpreise veraltet."""
-    felder = ("maschine", "stange")
+    felder = ("maschine", "stange", "fracht")
     daten = [{f: kopf.get(f) for f in felder},
              [{a: b for a, b in p.items() if a not in ("id", "auftrag_id", "nr", "zeile")} for p in positionen],
              [(txt(s.get("schluessel")), s.get("menge")) for s in gueltige(stufen)],
              [k.profile, k.werkstoffe, k.maschinen], tabellen,
-             {n: einst.get(n) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn")}]
+             {n: einst.get(n) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn", "ruesten_abmessung",
+                                         "pauschale_abmessung", "auftragsaufschlag")}]
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()

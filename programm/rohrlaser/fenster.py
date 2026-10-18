@@ -282,6 +282,12 @@ class EinstellungenSeite(QScrollArea):
             w.setDecimals(1)
             w.setSuffix(" %")
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, round(w.value() / 100, 6)))
+        elif e.art == "zahl":
+            w = QDoubleSpinBox()
+            w.setRange(e.von, e.bis)
+            w.setDecimals(2)
+            w.setGroupSeparatorShown(True)
+            w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, round(w.value(), 2)))
         elif e.art == "ganz":
             w = QSpinBox()
             w.setRange(int(e.von), int(e.bis))
@@ -313,6 +319,8 @@ class EinstellungenSeite(QScrollArea):
             w, v = self.felder[e.name], self.db.einstellung(e.name)
             if e.art == "anteil":
                 w.setValue((v or 0) * 100)
+            elif e.art == "zahl":
+                w.setValue(v or 0)
             elif e.art == "ganz":
                 w.setValue(int(v or 0))
             elif e.art == "mehrzeilig":

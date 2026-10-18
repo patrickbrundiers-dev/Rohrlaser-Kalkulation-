@@ -11,7 +11,7 @@ Auftrag), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', '
 import hashlib
 import json
 
-from .stammdaten import flaeche_wirksam
+from .stammdaten import flaeche_berechnet, flaeche_wirksam, huellkreis
 from .werkzeuge import optimierung as opt
 
 EPS = opt.EPS
@@ -41,6 +41,17 @@ def stange_wirksam(p, kopf):
     return p.get("stange") if not _leer(p.get("stange")) else kopf.get("stange")
 
 
+def grenze_ueberschritten(m, profil, kgm):
+    """Prüfung gegen die Maschinengrenzen max. Hüllkreis-Ø und max. Metergewicht (leer = keine Grenze).
+    profil: Profilzeile (form, a, b), kgm: kg/m oder None. Ergebnis: Grund als Text oder None."""
+    hk = huellkreis(profil) if profil else None
+    if _n(m.get("max_huellkreis")) > 0 and hk is not None and hk > m["max_huellkreis"] + EPS:
+        return "Hüllkreis größer als Maschine zulässt"
+    if _n(m.get("max_kg_m")) > 0 and kgm is not None and kgm > m["max_kg_m"] + EPS:
+        return "Metergewicht über Maschinengrenze"
+    return None
+
+
 def kg_je_m(profil_id, werkstoff_id, k):
     p, w = k.profile.get(profil_id), k.werkstoffe.get(werkstoff_id)
     if not p or not w:
@@ -59,6 +70,7 @@ def position_werte(p, kopf, k, tabellen):
     w = {}
     w["profilform"] = pr.get("form") if pr else None
     w["querschnitt"] = flaeche_wirksam(pr) if pr else None
+    w["huellkreis"] = huellkreis(pr) if pr else None
     w["wand"] = (_n(pr.get("wand")) if pr else None)
     kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if w["querschnitt"] is not None else None
     w["kg_m"] = kgm
@@ -126,6 +138,9 @@ def status(p, w, kopf, k, eingeplant=None):
         return "FEHLER: Maschine fehlt/unbekannt"
     if m.get("max_stange") and w["stange"] is not None and w["stange"] > m["max_stange"]:
         return "FEHLER: Stange länger als Maschine zulässt"
+    grenze = grenze_ueberschritten(m, k.profile.get(p.get("profil_id")), w["kg_m"])
+    if grenze:
+        return "FEHLER: " + grenze
     if w["nutz"] is None or p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"]:
         return "FEHLER: Teil länger als Nutzlänge"
     if eingeplant is not None and _n(p.get("stueck")) - eingeplant > 0:
@@ -150,14 +165,15 @@ def gruppen_bilden(kopf, positionen, k):
     (z. B. 'RR 42,4x2,0'), werden wie in der Mappe aus dem Namen angelegt: sie stehen in neue_profile
     und zählen hier schon als vorhanden."""
     profile = {pid: dict(form=z.get("form"), a=_n(z.get("a")), b=z.get("b"), end=z.get("endbeschnitt"),
-                         greif=z.get("greiferrest")) for pid, z in k.profile.items()}
+                         greif=z.get("greiferrest"), flaeche=flaeche_wirksam(z)) for pid, z in k.profile.items()}
     neue_profile = []
     for p in positionen:
         pid = p.get("profil_id")
         if not _leer(pid) and pid not in profile:
             d = opt.profil_aus_name(pid)
             if d is not None:
-                profile[pid] = dict(form=d["form"], a=d["a"], b=d["b"], end=None, greif=None)
+                profile[pid] = dict(form=d["form"], a=d["a"], b=d["b"], end=None, greif=None,
+                                    flaeche=flaeche_berechnet(dict(d, profil_id=pid)))
                 neue_profile.append(dict(profil_id=str(pid), form=d["form"], a=d["a"], b=d["b"], wand=d["wand"],
                                          bemerkung="automatisch aus Profil-ID angelegt"))
     m = maschine(kopf, k)
@@ -192,6 +208,11 @@ def gruppen_bilden(kopf, positionen, k):
         if me["maxlen"] and stange > me["maxlen"]:
             fehl("Stange länger als Maschine zulässt"); continue
         pr = profile[pid]
+        dichte = (k.werkstoffe.get(wst) or {}).get("dichte")
+        grenze = grenze_ueberschritten(m, pr, pr["flaeche"] * dichte / 1000
+                                       if pr["flaeche"] is not None and dichte is not None else None)
+        if grenze:
+            fehl(grenze); continue
         end = pr["end"] if pr["end"] is not None else me["end"]
         greif = pr["greif"] if pr["greif"] is not None else me["greif"]
         if end + laenge + me["kerf"] > stange - greif + EPS:
@@ -330,7 +351,15 @@ def gewindezeit(text, gewinde):
 
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation je Position und Summen. Ergebnis: (zeilen, summen); zeilen[i] ist None für
-    Positionen ohne Profil (wie leere Zeilen der Mappe)."""
+    Positionen ohne Profil (wie leere Zeilen der Mappe).
+
+    Über die Mappe hinaus (fehlen die Einstellungen, ist alles 0 und die Rechnung gleich der Mappe):
+    - Rüstzeit je Abmessung (Einstellung, min) für jede Abmessung (Profil-ID) mit Stückzahl, mit dem
+      Maschinenstundensatz bewertet, umgelegt auf die Teile dieser Abmessung; zählt zu Rüsten und damit zu
+      den Herstellkosten (mit Zuschlag Fertigung und Gewinn).
+    - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Auftragsaufschlag (€) und
+      Frachtkosten aus dem Auftragskopf (€), umgelegt auf alle Teile; gehen ohne Zuschläge in den
+      Verkaufspreis ein."""
     m = maschine(kopf, k) or {}
     satz_h = _n(m.get("stundensatz"))
     stangen = ergebnis["stangen"] if ergebnis else []
@@ -340,6 +369,16 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     f7 = (ruest * 60 + wechsel * len(stangen)) / 3600 * satz_h
     aktiv = [i for i, p in enumerate(positionen) if not _leer(p.get("profil_id"))]
     f8 = sum(_n(positionen[i].get("stueck")) for i in aktiv)
+    teile_abm = {}
+    for i in aktiv:
+        if _n(positionen[i].get("stueck")) > 0:
+            pid = positionen[i]["profil_id"]
+            teile_abm[pid] = teile_abm.get(pid, 0) + _n(positionen[i]["stueck"])
+    ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
+    ruest_abm = ruest_abm_min / 60 * satz_h            # € je Abmessung
+    pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
+    aufschlag = _n(einstellungen.get("auftragsaufschlag")) if f8 else 0
+    fracht = _n(kopf.get("fracht")) if f8 else 0
     eingespart = {}
     for s in stangen:
         for t in s["teile"]:
@@ -389,9 +428,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         oz = None if mz is None else max(0, mz - nz)
         pz = gewindezeit(p.get("gewinde"), tabellen["gewinde"])
         qz = (_n(oz) + pz) / 3600 * satz_h
-        rz = f7 / f8 if f8 else 0
+        n_abm = teile_abm.get(p.get("profil_id"), 0)
+        rz = (f7 / f8 if f8 else 0) + (ruest_abm / n_abm if n_abm and c else 0)
+        uz = (pausch_abm / n_abm if n_abm and c else 0) + ((aufschlag + fracht) / f8 if f8 and c else 0)
         s_ = f * (1 + zm) + (qz + rz) * (1 + zf)
-        t_ = s_ * (1 + gew)
+        t_ = s_ * (1 + gew) + uz
         nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
         if _n(nicht) > 0:
             hinweis = "nicht vollständig eingeplant"
@@ -404,11 +445,14 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         else:
             hinweis = ""
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
-                 herstell_teil=s_, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
+                 herstell_teil=s_, pauschalen_teil=uz, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
                  nicht_eingeplant=nicht)
         zeilen[i] = z
-    summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), ruesten=f7, teile=f8,
+    n_abm = len(teile_abm)
+    summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), teile=f8,
+                  abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
+                  pauschalen=pausch_abm * n_abm, auftragsaufschlag=aufschlag, fracht=fracht,
                   material=sum(z["material_position"] for z in zeilen if z),
                   laser=sum(z["laser_position"] for z in zeilen if z),
                   herstell=sum(z["herstell_position"] for z in zeilen if z),

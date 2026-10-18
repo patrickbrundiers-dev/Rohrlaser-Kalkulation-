@@ -48,10 +48,11 @@ def auftrag_xlsx(pfad, kopf, positionen, status, kalk_zeilen, summen, ergebnis, 
     ws.freeze_panes = f"A{len(KOPF) + 5}"
     _blatt(wb, "Kalkulation", "Kalkulation", [(t, s, w / 6) for t, s, _, w in KALK_SPALTEN], [z for z in kalk_zeilen if z])
     ks = wb["Kalkulation"]
-    ks.insert_rows(2, 6)
+    ks.insert_rows(2, 9)
     for i, (t, n) in enumerate((("Material [€]", "material"), ("Laser + Gewinde [€]", "laser"),
                                 ("Rüsten + Stangenwechsel [€]", "ruesten"), ("Herstellkosten [€]", "herstell"),
-                                ("Verkaufspreis Auftrag [€]", "verkauf"))):
+                                ("Pauschalen je Abmessung [€]", "pauschalen"), ("Auftragsaufschlag [€]", "auftragsaufschlag"),
+                                ("Fracht [€]", "fracht"), ("Verkaufspreis Auftrag [€]", "verkauf"))):
         ks.cell(2 + i, 1, t).font = Font(bold=True)
         ks.cell(2 + i, 3, summen[n]).number_format = "#,##0.00"
     if ergebnis:
