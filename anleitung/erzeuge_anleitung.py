@@ -530,8 +530,12 @@ def kapitel_step(i):
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
     i.liste("Im Auftrag auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
-            "Umschalt).",
-            "Werkstoff und Stückzahl für alle Teile angeben oder leer lassen und später eintragen.",
+            "Umschalt). Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> in das "
+            "Auftragsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
+            "Werkstoff und Stückzahl für alle Teile angeben oder leer lassen und später eintragen. Bei Sätzen zählt "
+            "die Stückzahl die Sätze.",
+            "Enthält eine STEP mehrere Teile (Baugruppe), fragt das Programm, ob sie als Satz angelegt werden sollen "
+            "(siehe unten).",
             "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
             "(danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im Auftrag, fragt es vor dem doppelten "
             "Eintragen.",
@@ -544,6 +548,19 @@ def kapitel_step(i):
     i.hinweis("Gewinde werden nur vorgeschlagen (Status HINWEIS: Gewinde-Vorschlag prüfen). Erst wenn das Gewinde "
               "nach Prüfung der Zeichnung in die Spalte <b>Gewinde geprüft</b> eingetragen ist, wird es gerechnet.")
     i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper", hoehe=80 * mm)
+    i.abschnitt("Baugruppen als Satz")
+    i.text("Liegen in einer STEP-Datei mehrere Rohrteile, fragt das Programm nach der Messung, ob sie als Satz "
+           "angelegt werden sollen. Mit <b>Ja</b>:")
+    i.liste("Der Satz heißt wie die Datei (ohne Endung) und steht in der Spalte <b>Satz</b> jeder Position.",
+            "Gleiche Teile (gleiche Maße, Konturen und Bohrungen, Lage im Raum egal) werden eine Position; "
+            "<b>Stück je Satz</b> ist ihre Anzahl in der Baugruppe.",
+            "Die Stückzahl aus dem Importdialog zählt Sätze: Stückzahl der Position = Sätze × Stück je Satz.",
+            "Das STEP-Protokoll zeigt weiter jeden Körper, die gleichen mit dem Hinweis <i>gleich wie …</i>.")
+    i.text("Mit <b>Nein</b> wird wie bisher jeder Körper eine eigene Position ohne Satz. Staffelpreise und Angebot "
+           "rechnen den Satz wie einen von Hand angelegten (Kapitel Staffelpreise).")
+    i.bilder_nebeneinander(["step_satz_frage"], "Rückfrage bei einer Baugruppe", hoehe=45 * mm)
+    i.bild("step_satz_positionen", "Baugruppe als Satz: 3 gleiche Quadratrohre und 1 Rundrohr, 4 Sätze",
+           hoehe=110 * mm, legende=[(1, "Spalten <b>Satz</b>, <b>Stück je Satz</b> und <b>Stückzahl</b>.")])
     i.abschnitt("Messregeln")
     i.liste("Gerade Rohre mit konstantem Querschnitt (keine Biegeteile). Rund-, Quadrat- und Rechteckrohr werden "
             "erkannt, alles andere als Sonderprofil gemeldet.",

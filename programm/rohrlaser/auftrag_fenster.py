@@ -509,6 +509,7 @@ PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None,
 class AuftragSeite(QWidget):
     def __init__(self, fenster, auftrag_id):
         super().__init__()
+        self.setAcceptDrops(True)       # STEP-Dateien und Ordner per Drag & Drop importieren
         self.f, self.db, self.id = fenster, fenster.db, auftrag_id
         self._laden = False
         self.kopf, self.positionen, self.ergebnis = {}, [], None
@@ -1080,7 +1081,23 @@ class AuftragSeite(QWidget):
                                                              summen, self.ergebnis, sw, sp, ang))
 
     # -------------------------------------------------------------- STEP-Import
-    def step_importieren(self, dateien=None, werkstoff=None, stueck=None):
+    def _gezogene_dateien(self, ereignis):
+        urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
+        return step.step_dateien([u.toLocalFile() for u in urls if u.isLocalFile()])
+
+    def dragEnterEvent(self, ereignis):
+        if self._gezogene_dateien(ereignis):
+            ereignis.acceptProposedAction()
+
+    def dropEvent(self, ereignis):
+        dateien = self._gezogene_dateien(ereignis)
+        if dateien:
+            ereignis.acceptProposedAction()
+            self.step_importieren([str(d) for d in dateien])
+
+    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
+        """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = nachfragen,
+        ohne Rückfragen ja)."""
         befehl = step.messprogramm(self.f.programmordner)
         if befehl is None:
             QMessageBox.warning(self, "STEP-Import", "STEP-Import.exe wurde nicht gefunden.\n\nDer Ordner 'STEP-Import' "
@@ -1091,7 +1108,8 @@ class AuftragSeite(QWidget):
                                                       "STEP-Dateien (*.step *.stp *.STEP *.STP)")
             if not dateien:
                 return None
-            auswahl = self._step_dialog()
+        if werkstoff is None and stueck is None and not self.f.stumm:
+            auswahl = self._step_dialog(len(dateien))
             if auswahl is None:
                 return None
             werkstoff, stueck = auswahl
@@ -1113,9 +1131,16 @@ class AuftragSeite(QWidget):
         if doppelt and not self.f.stumm:
             erneut = QMessageBox.question(self, "STEP-Import", f"{doppelt} Artikel stehen schon im Auftrag.\n\n"
                                           "Trotzdem noch einmal eintragen?") == QMessageBox.Yes
+        mehr = step.mehrteilig(messwerte)
+        if mehr and als_satz is None:
+            als_satz = self.f.stumm or QMessageBox.question(
+                self, "STEP-Import", "Diese STEP-Dateien enthalten mehrere Teile:\n"
+                + "\n".join(f"• {d}: {n} Körper, {v} verschiedene Teile" for d, (n, v) in mehr.items())
+                + "\n\nSollen sie als Satz angelegt werden?\n\nDer Satz heißt wie die Datei. Gleiche Teile werden eine "
+                "Position mit „Stück je Satz“, die Stückzahl aus dem Importdialog zählt dann Sätze.") == QMessageBox.Yes
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
-                               neue_profile, erneut)
+                               neue_profile, erneut, saetze=list(mehr) if als_satz else ())
         self.db.profile_anlegen(erg["profile"])
         for p in erg["positionen"]:
             self.db.position_neu(self.id, p)
@@ -1129,9 +1154,9 @@ class AuftragSeite(QWidget):
             box.exec()
         return erg
 
-    def _step_dialog(self):
+    def _step_dialog(self, anzahl=None):
         d = QDialog(self)
-        d.setWindowTitle("STEP-Import")
+        d.setWindowTitle("STEP-Import" + (f" ({anzahl} Datei{'en' if anzahl != 1 else ''})" if anzahl else ""))
         form = QFormLayout(d)
         wst = QComboBox()
         wst.addItems([""] + self.k.auswahl("werkstoff"))
@@ -1141,6 +1166,7 @@ class AuftragSeite(QWidget):
         form.addRow(QLabel("Werte für alle importierten Teile (leer = später eintragen):"))
         form.addRow("Werkstoff-ID", wst)
         form.addRow("Stückzahl", stk)
+        form.addRow(QLabel("Bei Sätzen (mehrere Teile in einer STEP) zählt die Stückzahl die Sätze."))
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(d.accept)
         knoepfe.rejected.connect(d.reject)
