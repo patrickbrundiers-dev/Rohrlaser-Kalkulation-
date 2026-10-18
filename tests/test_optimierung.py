@@ -14,7 +14,7 @@ from openpyxl import load_workbook  # noqa: E402
 from optimierung import (Gruppe, Teil, manuell, optimiere, optimiere_mappe, pruefe, untergrenze,  # noqa: E402
                          verbrauch, gemeinsame_schnitte)
 
-MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx"
+MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 
 
 def gruppe(teile, stange=1000):
@@ -64,15 +64,16 @@ for lauf in range(150):
 
 # 5) Mappe: Beispielauftrag + Sonderfälle
 with tempfile.TemporaryDirectory() as d:
-    m = Path(d) / "t.xlsx"
+    m = Path(d) / "t.xlsm"
     shutil.copy(MAPPE, m)
-    wb = load_workbook(m)
+    wb = load_workbook(m, keep_vba=True)
     wa = wb["Auftrag"]
     zusatz = [  # Zeile 18: zu lang, 19: unbekanntes Profil, 20: schräg/gerade Ende, 21: abweichende Stange
         (60, "Z-zu-lang", "zu lang", "RR 42,4x2,0", "S235-10219", 5950, 1, None, None, None),
-        (70, "Z-profil", "Profil fehlt", "RR 99x9", "S235-10219", 500, 2, None, None, None),
+        (70, "Z-profil", "Profil fehlt", "ZZ 99x9", "S235-10219", 500, 2, None, None, None),
         (80, "Z-schraeg", "Gehrung", "RR 42,4x2,0", "S235-10219", 700, 7, 300, 2, None),
         (90, "Z-8m", "lange Stange", "QR 40x40x3", "S235-10219", 2600, 5, 400, 2, 8000),
+        (100, "Z-auto", "Profil aus Namen", "RR 99x9", "S235-10219", 500, 2, None, None, None),
     ]
     for i, werte in enumerate(zusatz):
         for c, v in enumerate(werte, start=1):
@@ -84,6 +85,10 @@ with tempfile.TemporaryDirectory() as d:
     bericht, fehler = optimiere_mappe(m, sicherung=False)
     gr = {f["artikel"]: f["grund"] for f in fehler}
     assert gr == {"Z-zu-lang": "Teil länger als Nutzlänge der Stange", "Z-profil": "Profil unbekannt"}, gr
+    # unbekanntes Profil mit gültigem Namen wird im Blatt 'Profile' angelegt und eingeplant
+    wp = load_workbook(m)["Profile"]
+    neu = [[wp.cell(r, c).value for c in (1, 2, 3, 4, 5)] for r in range(5, 305) if wp.cell(r, 1).value == "RR 99x9"]
+    assert neu == [["RR 99x9", "Rundrohr", 99, None, 9]], neu
     st = {(b["profil"], b["stange"]): b for b in bericht}
     assert st[("QR 40x40x3", 8000)]["stangen"] == 2, st[("QR 40x40x3", 8000)]   # 3 × 2600 je 8-m-Stange
     for b in bericht:

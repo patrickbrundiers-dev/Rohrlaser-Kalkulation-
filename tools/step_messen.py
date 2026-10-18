@@ -1,0 +1,110 @@
+"""STEP-Messung für den STEP-Import der Mappe (wird als STEP-Import.exe ausgeliefert).
+
+Misst je Volumenkörper Profil, Länge, Schneidweg und Konturen (tools/step_geometrie.py)
+und schreibt die Messwerte als Textdatei (UTF-8, Tabulator-getrennt, Dezimalpunkt).
+Die Schaltfläche "STEP importieren" in der Mappe startet dieses Programm und übernimmt
+die Werte per VBA in den Auftrag. Die Mappe selbst wird hier nicht geöffnet, deshalb darf
+sie während der Messung in Excel offen bleiben.
+
+Aufruf:
+    STEP-Import.exe --ausgabe MESSWERTE.txt (--liste DATEILISTE.txt | DATEI_ODER_ORDNER ...)
+
+DATEILISTE.txt: ein Pfad je Zeile (UTF-8). Rückgabewert 0 = alle Dateien gelesen,
+1 = mindestens eine Datei mit Fehler (steht in der Spalte "fehler"), 2 = Aufruf falsch.
+"""
+import argparse
+import os
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from step_geometrie import analysiere_datei  # noqa: E402
+
+SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wandstaerke", "flaeche", "laenge",
+           "schneidweg", "konturen", "ende_a", "ende_a_gerade", "ende_b", "ende_b_gerade", "innen",
+           "innen_konturen", "gravur", "gravur_konturen", "bohrungen", "innen_liste", "profil_id_vorschlag",
+           "hinweise", "fehler"]
+
+
+def _z(x):
+    return repr(float(x))
+
+
+def _text(s):
+    return str(s).replace("\t", " ").replace("\r", " ").replace("\n", " ")
+
+
+def _analysiere(datei):
+    """Wie analysiere_datei; Pfade mit Umlauten o. ä. über eine Kopie mit einfachem Namen lesen,
+    weil OpenCascade solche Pfade unter Windows nicht in jeder Version öffnet."""
+    if str(datei).isascii() or not datei.is_file():
+        return analysiere_datei(datei)
+    ordner = None   # auch der Temp-Ordner kann Umlaute enthalten (Benutzername)
+    if not tempfile.gettempdir().isascii():
+        ordner = next((p for p in (os.environ.get("PUBLIC"), os.environ.get("SystemDrive", "C:") + "\\")
+                       if p and p.isascii() and os.access(p, os.W_OK)), None)
+    with tempfile.TemporaryDirectory(dir=ordner) as tmp:
+        kopie = Path(tmp) / "teil.step"
+        shutil.copyfile(datei, kopie)
+        teile = analysiere_datei(kopie)
+    for t in teile:
+        t.datei = datei.stem
+    return teile
+
+
+def zeilen(datei):
+    """Messwerte einer Datei als Zeilen (Liste von Feldern in der Reihenfolge SPALTEN)."""
+    try:
+        teile = _analysiere(datei)
+    except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
+        return [[datei.name, datei.stem] + [""] * (len(SPALTEN) - 3) + [_text(e) or type(e).__name__]]
+    out = []
+    for t in teile:
+        artikel = t.datei if len(teile) == 1 else f"{t.datei}-K{t.koerper}"
+        out.append([datei.name, artikel, str(t.koerper), t.profilform, _z(t.abm_a), _z(t.abm_b), _z(t.wandstaerke),
+                    _z(t.flaeche), _z(t.laenge), _z(t.schneidweg), str(t.konturen), _z(t.ende_a),
+                    "1" if t.ende_a_gerade else "0", _z(t.ende_b), "1" if t.ende_b_gerade else "0", _z(t.innen),
+                    str(t.innen_konturen), _z(t.gravur), str(t.gravur_konturen),
+                    "|".join(f"{_z(d)}:{n}" for d, n in t.bohrungen.items()),
+                    "|".join(f"{_z(g)}:{_z(l)}" for g, l in t.innen_liste),
+                    t.profil_id_vorschlag, _text("; ".join(t.hinweise)), ""])
+    return out
+
+
+def step_dateien(pfade):
+    out = []
+    for p in map(Path, pfade):
+        if p.is_dir():
+            out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp"))
+        else:
+            out.append(p)
+    return out
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="STEP-Dateien messen (für den STEP-Import der Kalkulationsmappe)")
+    ap.add_argument("--ausgabe", required=True, help="Textdatei für die Messwerte")
+    ap.add_argument("--liste", help="Textdatei mit einem STEP-Pfad je Zeile")
+    ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
+    a = ap.parse_args(argv)
+    pfade = list(a.pfade)
+    if a.liste:
+        pfade += [z.strip() for z in Path(a.liste).read_text(encoding="utf-8-sig").splitlines() if z.strip()]
+    if not pfade:
+        ap.error("keine STEP-Dateien angegeben")
+    dateien = step_dateien(pfade)
+    fehler = False
+    with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\t".join(SPALTEN) + "\n")
+        for i, datei in enumerate(dateien, start=1):
+            print(f"[{i}/{len(dateien)}] {datei.name}", flush=True)
+            for z in zeilen(datei):
+                fehler = fehler or bool(z[-1])
+                f.write("\t".join(z) + "\n")
+    return 1 if fehler else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

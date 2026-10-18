@@ -15,6 +15,7 @@ from step_geometrie import analysiere_datei, gewinde_vorschlag, konturklassen  #
 from step_import import importiere  # noqa: E402
 
 STEP = HIER / "step"
+MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 if not (STEP / "T07_QR40x3_L1000_Gewinde_Gravur.step").exists():
     subprocess.run([sys.executable, str(HIER / "erzeuge_testteile.py")], check=True, capture_output=True)
 
@@ -82,21 +83,23 @@ for name, (form, a, b, t, fl, l, sw, k) in SOLL.items():
 
 # Import in eine Kopie der Mappe
 with tempfile.TemporaryDirectory() as d:
-    m = Path(d) / "m.xlsx"
-    shutil.copy(HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx", m)
+    m = Path(d) / "m.xlsm"
+    shutil.copy(MAPPE, m)
     erg = importiere(m, [STEP], werkstoff="S235-10219", stueck=5)
     zeilen = [z for _, z, _ in erg]
     assert zeilen == [18, 19, 20, 21, 22, 23, 24], zeilen
     t05 = [i for a_, _, i in erg if a_.startswith("T05")][0]
     assert "Profil fehlt" in t05, t05
     from openpyxl import load_workbook
+    from step_import import LOG_KOPF
+    assert [c.value for c in load_workbook(MAPPE)["STEP-Import"][4]] == LOG_KOPF, "Protokollkopf in build_mappe.py"
     w = load_workbook(m)["Auftrag"]
     assert w["AF24"].value == "4xM6" and w["AG24"].value is None, (w["AF24"].value, w["AG24"].value)
     assert w["AD24"].value == 58.0 and w["AE24"].value == "4xØ5", (w["AD24"].value, w["AE24"].value)
     assert [w.cell(24, c).value for c in range(34, 40)] == [4, 62.8, 1, 60.0, 0, 0.0], [w.cell(24, c).value for c in range(34, 40)]
     erg2 = importiere(m, [STEP])
     assert all(z is None for _, z, _ in erg2), "Doppelimport nicht verhindert"
-    shutil.copy(HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v01.xlsx", m)
+    shutil.copy(MAPPE, m)
     erg3 = importiere(m, [STEP / "T05_RR33-7x2-6_L500.step"], neue_profile=True)
     assert "neu in Stammdaten" in erg3[0][2], erg3
     from openpyxl import load_workbook

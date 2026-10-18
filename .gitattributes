@@ -1,2 +1,2 @@
-*.bat text eol=crlf
 *.step -diff
+*.bas text eol=lf

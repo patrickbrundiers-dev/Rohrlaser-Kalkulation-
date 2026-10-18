@@ -29,6 +29,8 @@ O0, O1 = 13, 512
 S0, S1 = 5, 1004
 D0, D1 = 5, 10004
 EPS = 1e-6
+EXAKT_MAX_TEILE = 60     # exakte Suche nur für Gruppen bis zu so vielen Teilen
+EXAKT_MAX_KNOTEN = 20000  # Suchschritte je Gruppe, danach gilt das beste bis dahin gefundene Ergebnis
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,7 @@ class Gruppe:
     kerf: float
     abstand: float
     teile: list = field(default_factory=list)
+    bewiesen: bool = False   # Stangenzahl ist nachweislich minimal
 
     @property
     def nutzbar_bis(self):
@@ -190,8 +193,72 @@ def gemeinsame_schnitte(folge):
     return n
 
 
+def gleichartig(a, b):
+    return a.laenge == b.laenge and a.a_gerade == b.a_gerade and a.b_gerade == b.b_gerade
+
+
+def exakt(g, ziel):
+    """Exakte Suche (Branch and Bound) nach einer Einteilung mit weniger als `ziel` Stangen.
+    Teile in der Reihenfolge von sortiert(), jedes Teil der Reihe nach in jede vorhandene Stange,
+    dann in eine neue. Abgeschnitten wird, wenn selbst bei voller Nutzung aller freien Längen
+    nicht weniger Stangen als bisher bestes Ergebnis möglich sind. Ergebnis: (Stangen oder None,
+    Suche vollständig)."""
+    teile = sortiert(g.teile)
+    n = len(teile)
+    nutz = g.nutzbar_bis - g.endbeschnitt
+    bedarf = [t.laenge + g.kerf for t in teile]
+    rest = [0.0] * (n + 1)
+    for i in range(n - 1, -1, -1):
+        rest[i] = rest[i + 1] + bedarf[i]
+    ug = untergrenze(g)
+    stangen, belegt, zu = [], [], [0] * n
+    zustand = dict(beste=None, beste_n=ziel, knoten=0, abbruch=False)
+
+    def suche(i):
+        if i == n:
+            zustand["beste"] = [list(s) for s in stangen]
+            zustand["beste_n"] = len(stangen)
+            return
+        zustand["knoten"] += 1
+        if zustand["knoten"] > EXAKT_MAX_KNOTEN:
+            zustand["abbruch"] = True
+            return
+        frei = 0.0
+        for b in belegt:
+            frei += nutz - b
+        neu = 0
+        if rest[i] > frei + EPS:
+            neu = math.ceil((rest[i] - frei) / nutz - EPS)
+        if len(stangen) + neu >= zustand["beste_n"]:
+            return
+        t = teile[i]
+        start = zu[i - 1] if i > 0 and gleichartig(teile[i - 1], t) else 0
+        for s in range(start, len(stangen)):
+            if belegt[s] + bedarf[i] > nutz + EPS or not passt(g, stangen[s] + [t]):
+                continue
+            stangen[s].append(t)
+            belegt[s] += bedarf[i]
+            zu[i] = s
+            suche(i + 1)
+            stangen[s].pop()
+            belegt[s] -= bedarf[i]
+            if zustand["abbruch"] or zustand["beste_n"] <= ug:
+                return
+        if len(stangen) + 1 < zustand["beste_n"]:
+            stangen.append([t])
+            belegt.append(bedarf[i])
+            zu[i] = len(stangen) - 1
+            suche(i + 1)
+            stangen.pop()
+            belegt.pop()
+
+    suche(0)
+    return zustand["beste"], not zustand["abbruch"] or zustand["beste_n"] <= ug
+
+
 def optimiere(g):
-    """Ergebnis: Liste von Stangen, je Stange die angeordnete Folge [(Teil, gedreht)]."""
+    """Ergebnis: Liste von Stangen, je Stange die angeordnete Folge [(Teil, gedreht)].
+    Setzt g.bewiesen, wenn die Stangenzahl nachweislich minimal ist."""
     kandidaten = []
     for verfahren in (first_fit, best_fit):
         st = aufloesen(g, verfahren(g, g.teile))
@@ -199,9 +266,24 @@ def optimiere(g):
         kandidaten.append((len(folgen), -sum(gemeinsame_schnitte(f) for f in folgen), folgen))
     kandidaten.sort(key=lambda k: (k[0], k[1]))
     folgen = kandidaten[0][2]
+    ug = untergrenze(g)
+    g.bewiesen = len(folgen) <= ug
+    if not g.bewiesen and len(g.teile) <= EXAKT_MAX_TEILE:
+        st, g.bewiesen = exakt(g, len(folgen))
+        if st is not None:
+            folgen = [anordnen(s) for s in st]
     # Stangen mit der höchsten Belegung zuerst (Reststange zuletzt)
     folgen.sort(key=lambda f: (-verbrauch(g, f), f[0][0].zeile))
     return folgen
+
+
+def bewertung(g, n_stangen):
+    """Text für die Auswertung: wie nah das Ergebnis am Optimum liegt."""
+    if n_stangen <= untergrenze(g):
+        return "optimal (Untergrenze erreicht)"
+    if g.bewiesen:
+        return "optimal (alle Einteilungen geprüft)"
+    return "nicht bewiesen (Suche begrenzt)"
 
 
 def manuell(g):
@@ -237,6 +319,52 @@ def umfang(form, a, b):
     return 0.0
 
 
+PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr"}
+
+
+def profil_aus_name(pid):
+    """Profilform und Maße aus der Profil-ID, z. B. 'RR 42,4x2,0', 'QR 40x40x3', 'RE 60x40x3'.
+    Ergebnis dict(form, a, b, wand) oder None, wenn der Name nicht nach dem Schema aufgebaut ist.
+    Gleiche Regeln wie ProfilAusName in vba/Optimierung.bas."""
+    kurz, _, rest = str(pid).strip().partition(" ")
+    form = PROFILFORM.get(kurz.upper())
+    zahlen = rest.replace(",", ".").replace("X", "x").split("x")
+    try:
+        z = [float(v) for v in zahlen]
+    except ValueError:
+        return None
+    if form == "Rundrohr" and len(z) == 2:
+        a, b, wand = z[0], None, z[1]
+    elif form == "Quadratrohr" and len(z) == 3 and z[0] == z[1]:
+        a, b, wand = z[0], None, z[2]
+    elif form == "Rechteckrohr" and len(z) == 3:
+        a, b, wand = z[0], z[1], z[2]
+    else:
+        return None
+    if a <= 0 or wand <= 0 or 2 * wand >= a:
+        return None
+    return dict(form=form, a=a, b=b, wand=wand)
+
+
+def profil_anlegen(wb, pid):
+    """Legt das Profil aus dem Namen in die erste freie Zeile des Blatts 'Profile' an.
+    Ergebnis dict wie in lies_auftrag, oder None."""
+    wp = wb["Profile"]
+    daten = profil_aus_name(pid)
+    if daten is None:
+        return None
+    zeile = next((r for r in range(M0, M1 + 1) if wp.cell(r, 1).value in (None, "")), None)
+    if zeile is None:
+        return None
+    wp.cell(zeile, 1).value = str(pid)
+    wp.cell(zeile, 2).value = daten["form"]
+    wp.cell(zeile, 3).value = daten["a"]
+    wp.cell(zeile, 4).value = daten["b"]
+    wp.cell(zeile, 5).value = daten["wand"]
+    wp.cell(zeile, 9).value = "automatisch aus Profil-ID angelegt"
+    return dict(form=daten["form"], a=daten["a"], b=daten["b"], end=None, greif=None)
+
+
 def lies_auftrag(wb):
     wa, wp, wm, ww = wb["Auftrag"], wb["Profile"], wb["Maschinen"], wb["Werkstoffe"]
     profile = {}
@@ -246,6 +374,12 @@ def lies_auftrag(wb):
             profile[pid] = dict(form=wp.cell(r, 2).value, a=_zahl(wp.cell(r, 3).value) or 0,
                                 b=_zahl(wp.cell(r, 4).value), end=_zahl(wp.cell(r, 7).value),
                                 greif=_zahl(wp.cell(r, 8).value))
+    for r in range(O0, O1 + 1):
+        pid = wa.cell(r, 4).value
+        if pid not in (None, "") and pid not in profile:
+            neu = profil_anlegen(wb, pid)
+            if neu is not None:
+                profile[pid] = neu
     werkstoffe = {ww.cell(r, 1).value for r in range(M0, M1 + 1) if ww.cell(r, 1).value not in (None, "")}
     maschine = wa["C8"].value
     mrow = next((r for r in range(M0, M1 + 1) if maschine and wm.cell(r, 1).value == maschine), None)
@@ -367,7 +501,7 @@ def schreibe(wb, gruppen, ergebnisse, fehler):
     kopf = ["Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Teile [Stk]", "Stangen optimiert",
             "Stangen manuell", "Untergrenze Stangen", "Ersparnis Stangen", "Materialbedarf [m]",
             "Teilelänge [m]", "Verschnitt [m]", "Ausnutzung optimiert", "Ausnutzung manuell",
-            "Gemeinsame Schnitte", "Prüfung Stangen"]
+            "Gemeinsame Schnitte", "Prüfung Stangen", "Über Untergrenze [Stangen]", "Bewertung"]
     hfill = PatternFill("solid", fgColor="1F4E78")
     thin = Side(style="thin", color="BFBFBF")
     bd = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -379,6 +513,7 @@ def schreibe(wb, gruppen, ergebnisse, fehler):
         cell.border = bd
         wau.column_dimensions[cell.column_letter].width = 13
     wau.column_dimensions["A"].width = 20
+    wau.column_dimensions["Q"].width = 34
     wau.row_dimensions[4].height = 45
     sp = lambda col: f"Schnittplan!${col}${S0}:${col}${S1}"
     r = 5
@@ -390,7 +525,8 @@ def schreibe(wb, gruppen, ergebnisse, fehler):
                  f"=SUMIFS({sp('G')},{crit})", f"=COUNTIFS({crit})", len(man), untergrenze(g), f"=F{r}-E{r}",
                  f"=E{r}*C{r}/1000", f"=SUMIFS({sp('H')},{crit})/1000", f"=I{r}-J{r}", f"=IF(I{r}=0,0,J{r}/I{r})",
                  laenge_man / (len(man) * g.stange) if man else 0, f"=SUMIFS({sp('O')},{crit})",
-                 f'=IF(COUNTIFS({crit},{sp("M")},"ÜBERBELEGT")>0,"ÜBERBELEGT","OK")']
+                 f'=IF(COUNTIFS({crit},{sp("M")},"ÜBERBELEGT")>0,"ÜBERBELEGT","OK")', f"=E{r}-G{r}",
+                 bewertung(g, len(folgen))]
         for c, v in enumerate(werte, start=1):
             cell = wau.cell(r, c, v)
             cell.font = f_ar
@@ -401,7 +537,7 @@ def schreibe(wb, gruppen, ergebnisse, fehler):
     if gruppen:
         cell = wau.cell(r, 1, "Summe")
         cell.font = Font(name="Arial", bold=True)
-        for c in (4, 5, 6, 7, 8, 9, 10, 11, 14):
+        for c in (4, 5, 6, 7, 8, 9, 10, 11, 14, 16):
             col = wau.cell(5, c).column_letter
             cell = wau.cell(r, c, f"=SUM({col}5:{col}{r - 1})")
             cell.font = Font(name="Arial", bold=True)
@@ -423,6 +559,8 @@ def schreibe(wb, gruppen, ergebnisse, fehler):
         for c, v in enumerate([f["zeile"], f["pos"], f["artikel"], f["anzahl"], f["grund"]], start=1):
             wau.cell(r, c, v).font = f_ar
         r += 1
+    if "Listen" in wb.sheetnames:
+        wb["Listen"]["E5"] = "nein"   # Optimierung aktuell (siehe Auftrag C10)
     wb.calculation.fullCalcOnLoad = True
 
 

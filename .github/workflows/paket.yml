@@ -1,0 +1,80 @@
+# Baut STEP-Import.exe (Windows, ohne Installation lauffähig), prüft sie gegen die Python-Messung
+# und packt sie mit der Mappe zu Rohrlaser-Kalkulation.zip. Auf main wird das Paket als
+# Release "aktuell" veröffentlicht.
+name: Paket
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: LibreOffice und Python-Pakete
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc python3-uno python3-pip
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt
+      - name: Python-Tests
+        run: |
+          /usr/bin/python3 tests/test_step_import.py
+          /usr/bin/python3 tests/test_optimierung.py
+      - name: VBA-Tests (LibreOffice)
+        run: /usr/bin/python3 tests/test_vba.py
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python-Pakete
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: STEP-Import.exe bauen
+        run: pyinstaller --noconfirm --clean tools/step_import_exe.spec
+      - name: STEP-Import.exe gegen Python-Messung prüfen
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "pruef ordner" | Out-Null
+          Copy-Item tests/step/*.step "pruef ordner/"
+          Copy-Item tests/step/T01_RR42-4x2_L1250.step "pruef ordner/Halter_äöü_Ø.step"
+          python tools/step_messen.py --ausgabe referenz.txt "pruef ordner"
+          Set-Content -Encoding utf8 liste.txt ((Get-ChildItem "pruef ordner" -Filter *.step | Sort-Object Name).FullName)
+          & "dist/STEP-Import/STEP-Import.exe" --liste liste.txt --ausgabe exe.txt
+          if ($LASTEXITCODE -ne 0) { throw "STEP-Import.exe Rückgabewert $LASTEXITCODE" }
+          python tests/vergleiche_messung.py referenz.txt exe.txt
+      - name: Paket zusammenstellen
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory paket | Out-Null
+          Copy-Item mappe/Rohrlaser_Kalkulation_v02.xlsm paket/
+          Copy-Item -Recurse dist/STEP-Import paket/STEP-Import
+          Compress-Archive -Path paket/* -DestinationPath Rohrlaser-Kalkulation.zip
+          "{0:N0} MB" -f ((Get-Item Rohrlaser-Kalkulation.zip).Length / 1MB)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rohrlaser-Kalkulation
+          path: paket/
+          retention-days: 30
+      - name: Release "aktuell" aktualisieren
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: aktuell
+          name: Rohrlaser-Kalkulation (aktueller Stand)
+          body: |
+            Mappe und STEP-Import.exe, Stand ${{ github.sha }}.
+            Herunterladen, entpacken, Rohrlaser_Kalkulation_v02.xlsm öffnen und Makros aktivieren.
+            Der Ordner STEP-Import muss neben der Mappe liegen.
+          files: Rohrlaser-Kalkulation.zip
+          make_latest: true

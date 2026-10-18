@@ -111,7 +111,7 @@ def log_blatt(wb):
         c.fill = PatternFill("solid", fgColor="1F4E78")
         ws.column_dimensions[c.column_letter].width = 14
     ws.column_dimensions["B"].width = 34
-    ws.column_dimensions["X"].width = 50
+    ws.column_dimensions["AD"].width = 50
     ws.freeze_panes = "A5"
     return ws
 
