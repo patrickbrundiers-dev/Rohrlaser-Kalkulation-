@@ -12,6 +12,7 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
 | 4 | Kalkulation (Material, Laserzeit, Rüsten, Preis) und Auswertung | erledigt |
 | 5 | Betrieb ohne .bat-Dateien und ohne Installation (VBA + portable STEP-Import.exe) | erledigt |
 | 6 | Menüband, neuer Auftrag, Ablage, PDF-Ausgabe, exakte Optimierung kleiner Gruppen | erledigt |
+| 7 | Sätze und Staffelpreise | erledigt |
 
 ## Benutzung (ohne Installation)
 
@@ -22,6 +23,7 @@ Excel-Arbeitsmappe zur Kalkulation und Materialoptimierung von Rohrlaserteilen.
    - **STEP importieren**: STEP-Dateien wählen, optional Werkstoff und Stückzahl für alle Teile angeben. Fehlen Profile in den Stammdaten oder stehen Artikel schon im Auftrag, fragt die Mappe nach.
    - **Optimieren**: füllt Schnittplan, Stangenbelegung und Auswertung. „Stand Optimierung“ (Auftrag C10) zeigt VERALTET, sobald sich danach Auftrag, Profile, Werkstoffe oder Maschinen ändern.
    - **Werkstattpapiere / Angebot / Kalkulation** (PDF): erzeugt die PDF-Datei im Ordner `Aufträge` neben der Mappe und öffnet sie. Werkstattpapiere = Materialliste und je Stange die Teile in Schnittreihenfolge (gleich belegte Stangen zusammengefasst).
+   - **Staffelpreise rechnen**: rechnet jede Mengenstufe aus dem Blatt „Staffeln“ als eigenen Auftrag neu und schreibt sie ins Blatt „Staffelpreise“ und unter die Angebotspositionen. Danach steht der ursprüngliche Auftrag wieder da.
    - **Auftrag speichern als**: Kopie der Mappe als `<Auftragsnummer> <Kunde>.xlsm` im Ordner `Aufträge`. Die geöffnete Mappe bleibt die Vorlage.
    - **Stammdaten übernehmen**: Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zuschläge und Angebotskopf aus einer anderen Mappe (z. B. der gepflegten Vorlage) in eine abgelegte Auftragsmappe kopieren.
 
@@ -33,11 +35,12 @@ Die Mappe bleibt dabei geöffnet. Python wird nur zum Entwickeln gebraucht, nich
 - `vba/Optimierung.bas`, `vba/StepImport.bas`: Quelltext der Makros (Stangenoptimierung, Übernahme der STEP-Messwerte). `vba/Bedienung.bas`: Menüband, neuer Auftrag, Ablage, Stammdaten, Merker „Optimierung veraltet“. `vba/Ausgabe.bas`: Werkstattpapiere, Angebot, PDF.
 - `tools/build_mappe.py`: erzeugt die Mappe neu und bettet die Makros ein (`python3 tools/build_mappe.py`, benötigt `openpyxl`). Das VBA-Projekt schreibt `tools/vba_projekt.py` direkt aus dem Quelltext; Excel übersetzt es beim ersten Öffnen.
 - `tools/step_messen.py`: STEP-Messung (OpenCascade), wird als `STEP-Import.exe` ausgeliefert. `tools/step_geometrie.py`: Geometrieauswertung.
+- `vba/Staffel.bas`: Staffelpreise (Rechenlauf je Mengenstufe). `tools/staffeln.py`: Python-Fassung der Mengenlogik, Referenz für den Test.
 - `tools/optimierung.py`, `tools/step_import.py`: Python-Fassungen von Optimierung und Import. Sie sind die Referenz für die Tests der Makros.
 - `.github/workflows/paket.yml`: baut `STEP-Import.exe` auf Windows (PyInstaller), prüft sie gegen die Python-Messung, packt sie mit der Mappe und veröffentlicht das Paket auf `main` als Release „aktuell“.
 - `tests/`: Testteile mit bekannten Sollwerten und Prüfskripte:
   - `python tests/test_step_import.py`, `python tests/test_optimierung.py`: Python-Fassungen.
-  - `python tests/test_vba.py`: führt die Makros in LibreOffice aus und vergleicht sie mit den Python-Fassungen (39 Testaufträge für die Optimierung, 5 Importfälle) und prüft Werkstattpapier, Angebot, neuen Auftrag und Stammdatenübernahme.
+  - `python tests/test_vba.py`: führt die Makros in LibreOffice aus und vergleicht sie mit den Python-Fassungen (39 Testaufträge für die Optimierung, 5 Importfälle) und prüft Werkstattpapier, Angebot, neuen Auftrag, Stammdatenübernahme und die Staffelpreise.
 
 Alle Stammdaten in der Mappe sind Beispielwerte.
 
@@ -83,6 +86,19 @@ Kalkulation (Blatt „Kalkulation“):
 - Gewinde: aus „Gewinde geprüft“ (z. B. `4xM6; 2xM8`) mit der Zeit je Gewinde aus „Gewinde“.
 - Rüstzeit je Auftrag und Stangenwechsel je Stange aus „Maschinen“, gleichmäßig auf alle Teile verteilt.
 - Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung × (1 + Zuschlag Fertigung); Verkaufspreis = Herstellkosten × (1 + Gewinn).
+
+## Sätze und Staffelpreise
+
+Satz (Auftrag Spalten AQ/AR):
+- Positionen mit gleichem Eintrag in **AQ („Satz“)** gehören zusammen. **AR („Stück je Satz“)** sagt, wie oft ein Teil in einem Satz steckt; leer = 1.
+- Die Stückzahl in Spalte G bleibt immer die Gesamtmenge. Anzahl Sätze = G / AR; passt das nicht auf, warnt die Statusspalte.
+- Im Angebot steht der Satz als ein Block: eine Zeile „Satz <Name>“ mit Anzahl, Satzpreis und Gesamtpreis, darunter die Teile mit „<Stück je Satz> x <Bezeichnung>“ ohne eigenen Preis. Gerechnet wird weiter je Teil – ein Satz ändert die Optimierung nicht.
+
+Staffelpreise (Blätter „Staffeln“ und „Staffelpreise“):
+- Im Blatt „Staffeln“ je Zeile einen Schlüssel (Satzbezeichnung aus AQ oder Positionsnummer aus Spalte A) und eine Menge eintragen. Für einen Satz ist die Menge die Anzahl Sätze, für eine Position die Stückzahl.
+- **Staffelpreise rechnen** rechnet jede Stufe als eigenen Auftrag: nur die Positionen dieser Staffel sind besetzt, die Stückzahlen entsprechen der Stufe. Deshalb fallen Rüstzeit, Stangenwechsel und Verschnitt je Stufe neu an und der Preis je Einheit sinkt mit der Menge.
+- Ergebnis je Stufe: Teile, Stangen, Material, Laser + Gewinde, Rüsten + Stangenwechsel, Herstellkosten, Herstellkosten und Verkaufspreis je Einheit, Gesamtpreis. Danach wird der ursprüngliche Auftrag wiederhergestellt und neu optimiert.
+- Die Stufen sind unabhängig voneinander kalkuliert: Mengen anderer Staffeln werden nicht mitgerechnet.
 
 ## Grenzen und Annahmen der Makro-Fassung
 
