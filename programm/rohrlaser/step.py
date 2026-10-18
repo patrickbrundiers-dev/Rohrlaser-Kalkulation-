@@ -1,0 +1,198 @@
+"""STEP-Import: Messung mit STEP-Import.exe (bzw. tools/step_messen.py) und Übernahme in den Auftrag.
+
+Die Messung läuft als eigener Prozess, wie aus der Mappe: OpenCascade bleibt aus dem Programm heraus,
+und ein Absturz bei einer defekten Datei trifft nur die Messung. Die Übernahme der Messwerte folgt
+vba/StepImport.bas (Profilabgleich ±0,15 mm, Gewinde-Vorschlag, Konturklassen, Protokoll).
+"""
+import datetime
+import importlib.util
+import sys
+from pathlib import Path
+
+TOL_MASS = 0.15
+KLEIN_BIS, MITTEL_BIS = 10.0, 50.0
+KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
+            ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
+PROTOKOLL = ["Zeitpunkt", "Datei", "Körper", "Profilform", "Abm. A [mm]", "Abm. B [mm]", "Wandstärke [mm]",
+             "Querschnitt [mm²]", "Länge [mm]", "Schneidweg ohne Gravur [mm]", "Einstiche",
+             "Anfangsschnitt gerade", "Anfangsschnitt [mm]", "Endschnitt gerade", "Endschnitt [mm]",
+             "Innenkonturen [mm]", "Innenkonturen [Stk]", "Gravur [mm]", "Gravur [Stk]", "Bohrungen",
+             "Gewinde-Vorschlag", "Kontur klein [Stk]", "Kontur klein [mm]", "Kontur mittel [Stk]",
+             "Kontur mittel [mm]", "Kontur groß [Stk]", "Kontur groß [mm]", "Profil-ID", "Pos.", "Hinweise"]
+
+
+def messprogramm(programmordner):
+    """Befehl für die Messung (Liste für subprocess) oder None, wenn keine Messung verfügbar ist."""
+    exe = Path(programmordner) / "STEP-Import" / "STEP-Import.exe"
+    if exe.is_file():
+        return [str(exe)]
+    if not getattr(sys, "frozen", False):
+        skript = Path(__file__).resolve().parents[2] / "tools" / "step_messen.py"
+        if skript.is_file() and importlib.util.find_spec("OCP") is not None:
+            return [sys.executable, str(skript)]
+    return None
+
+
+def lies_messwerte(pfad):
+    """Textdatei der Messung (UTF-8, Tabulator, Kopfzeile) als Liste von dicts."""
+    zeilen = Path(pfad).read_text(encoding="utf-8").splitlines()
+    if not zeilen:
+        return []
+    kopf = zeilen[0].split("\t")
+    return [dict(zip(kopf, z.split("\t") + [""] * (len(kopf) - len(z.split("\t"))))) for z in zeilen[1:] if z]
+
+
+def _z(m, name):
+    try:
+        return float(m.get(name) or 0)
+    except ValueError:
+        return 0.0
+
+
+def _paare(text):
+    out = []
+    for teil in (text or "").split("|"):
+        if ":" in teil:
+            a, b = teil.split(":", 1)
+            out.append((float(a), float(b)))
+    return out
+
+
+def _dez(x):
+    return f"{x:g}".replace(".", ",")
+
+
+def bohrungen_text(text):
+    return "; ".join(f"{int(n)}xØ{_dez(d)}" for d, n in _paare(text))
+
+
+def gewinde_vorschlag(text, gewinde):
+    out = []
+    for d, n in _paare(text):
+        for g, kern in gewinde:
+            if abs(d - kern) <= 0.05:
+                out.append(f"{int(n)}x{g}")
+                break
+    return "; ".join(out)
+
+
+def konturklassen(text, klein, mittel):
+    """[(Anzahl, Länge) klein, mittel, groß] nach größtem Hüllmaß."""
+    kl = [[0, 0.0], [0, 0.0], [0, 0.0]]
+    for groesse, laenge in _paare(text):
+        g = round(groesse, 2)   # Ø10 genau auf der Grenze zählt als klein
+        c = 0 if g <= klein else 1 if g <= mittel else 2
+        kl[c][0] += 1
+        kl[c][1] += laenge
+    return kl
+
+
+def finde_profil(m, profile):
+    form, a, b, t = m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b"), _z(m, "wandstaerke")
+    for pid, p in profile.items():
+        if p.get("form") != form or abs((p.get("wand") or 0) - t) > TOL_MASS:
+            continue
+        pa, pb = p.get("a") or 0, p.get("b") or 0
+        if form in ("Rundrohr", "Quadratrohr"):
+            if abs(pa - a) <= TOL_MASS:
+                return pid
+        elif form == "Rechteckrohr":
+            gr, kl = max(pa, pb), min(pa, pb)
+            if abs(gr - a) <= TOL_MASS and abs(kl - b) <= TOL_MASS:
+                return pid
+    return None
+
+
+def vorpruefung(messwerte, positionen, k):
+    """(fehlende Profil-IDs, Anzahl Artikel, die schon im Auftrag stehen) für die Rückfragen."""
+    vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
+    fehlend, doppelt = [], 0
+    for m in messwerte:
+        if m.get("fehler") or not m.get("profilform"):
+            continue
+        pid = m.get("profil_id_vorschlag")
+        if finde_profil(m, k.profile) is None and pid and pid not in fehlend:
+            fehlend.append(pid)
+        if m.get("artikel") in vorhanden:
+            doppelt += 1
+    return fehlend, doppelt
+
+
+def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
+                neue_profile=False, erneut=False, jetzt=None):
+    """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
+    protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil])."""
+    jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
+    gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
+               if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
+    klein, mittel, grenz_hinweis = KLEIN_BIS, MITTEL_BIS, \
+        f"Konturgrenzen Vorgabe {KLEIN_BIS:g}/{MITTEL_BIS:g} mm (Maschine ohne Werte)"
+    if maschine and isinstance(maschine.get("kontur_klein"), (int, float)) and \
+            isinstance(maschine.get("kontur_mittel"), (int, float)) and 0 < maschine["kontur_klein"] < maschine["kontur_mittel"]:
+        klein, mittel, grenz_hinweis = maschine["kontur_klein"], maschine["kontur_mittel"], ""
+    profile = dict(k.profile)
+    vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
+    pos_max = max((p["pos"] for p in positionen if isinstance(p.get("pos"), (int, float))), default=0)
+    naechste = int(pos_max) + 10
+    neu, neue_prof, protokoll, bericht = [], [], [], []
+    for m in messwerte:
+        if m.get("fehler"):
+            protokoll.append([jetzt, m.get("datei")] + [None] * 27 + ["FEHLER: " + m["fehler"]])
+            bericht.append(f"{m.get('datei')}: FEHLER: {m['fehler']}")
+            continue
+        art = m.get("artikel")
+        hinweise = [h for h in [m.get("hinweise")] if h]
+        vorschlag = gewinde_vorschlag(m.get("bohrungen"), gewinde)
+        kl = konturklassen(m.get("innen_liste"), klein, mittel)
+        if grenz_hinweis and m.get("innen_liste"):
+            hinweise.append(grenz_hinweis)
+        ziel, pid = None, None
+        if m.get("profilform"):
+            pid = finde_profil(m, profile)
+            if pid is None:
+                pid = m.get("profil_id_vorschlag") or None
+                if neue_profile and pid:
+                    p = dict(profil_id=pid, form=m["profilform"], a=round(_z(m, "abm_a"), 2),
+                             b=round(_z(m, "abm_b"), 2) if m["profilform"] == "Rechteckrohr" else None,
+                             wand=round(_z(m, "wandstaerke"), 2), flaeche_manuell=round(_z(m, "flaeche"), 1),
+                             bemerkung="aus STEP-Import angelegt, bitte prüfen")
+                    neue_prof.append(p)
+                    profile[pid] = p
+                    hinweise.append("Profil neu in Stammdaten angelegt")
+                else:
+                    hinweise.append("Profil fehlt in Stammdaten")
+        if art in vorhanden and not erneut:
+            hinweise.append("übersprungen: Artikel steht schon im Auftrag")
+        elif _z(m, "laenge") <= 0 or not m.get("profilform"):
+            hinweise.append("nicht übernommen: kein Rohrteil erkannt")
+        else:
+            p = dict(pos=naechste, artikel=art, profil_id=pid, werkstoff_id=werkstoff or None,
+                     laenge=round(_z(m, "laenge"), 1), stueck=stueck or None,
+                     schneidweg=round(_z(m, "schneidweg"), 1), einstiche=int(_z(m, "konturen")),
+                     innen=round(_z(m, "innen"), 1), gravur=round(_z(m, "gravur"), 1),
+                     bohrungen=bohrungen_text(m.get("bohrungen")) or None, gewinde_vorschlag=vorschlag or None)
+            if _z(m, "ende_a"):
+                p["a_gerade"] = "ja" if m.get("ende_a_gerade") == "1" else "nein"
+                p["a_schnitt"] = round(_z(m, "ende_a"), 1)
+            if _z(m, "ende_b"):
+                p["b_gerade"] = "ja" if m.get("ende_b_gerade") == "1" else "nein"
+                p["b_schnitt"] = round(_z(m, "ende_b"), 1)
+            for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
+                p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
+            neu.append(p)
+            ziel = naechste
+            vorhanden.add(art)
+            naechste += 10
+        abm_b = round(_z(m, "abm_b"), 2)
+        protokoll.append([jetzt, m.get("datei"), int(_z(m, "koerper")), m.get("profilform"), round(_z(m, "abm_a"), 2),
+                          abm_b or None, round(_z(m, "wandstaerke"), 2), round(_z(m, "flaeche"), 1),
+                          round(_z(m, "laenge"), 1), round(_z(m, "schneidweg"), 1), int(_z(m, "konturen")),
+                          "ja" if m.get("ende_a_gerade") == "1" else "nein", round(_z(m, "ende_a"), 1),
+                          "ja" if m.get("ende_b_gerade") == "1" else "nein", round(_z(m, "ende_b"), 1),
+                          round(_z(m, "innen"), 1), int(_z(m, "innen_konturen")), round(_z(m, "gravur"), 1),
+                          int(_z(m, "gravur_konturen")), bohrungen_text(m.get("bohrungen")) or None, vorschlag or None,
+                          kl[0][0], round(kl[0][1], 1), kl[1][0], round(kl[1][1], 1), kl[2][0], round(kl[2][1], 1),
+                          pid, ziel, "; ".join(hinweise) or None])
+        bericht.append(f"{art}: " + (f"Pos. {ziel}" if ziel else "nicht übernommen") +
+                       (", " + "; ".join(hinweise) if hinweise else ", OK"))
+    return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht)

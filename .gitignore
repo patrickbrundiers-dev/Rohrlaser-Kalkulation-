@@ -5,3 +5,4 @@ __pycache__/
 *.bak.xlsm
 build/
 dist/
+programm/Daten/
