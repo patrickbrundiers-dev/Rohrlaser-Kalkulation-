@@ -40,6 +40,7 @@ def _tabelle(modell, sortieren=True):
     v.setModel(modell)
     v.setSelectionBehavior(QAbstractItemView.SelectRows)
     v.setSortingEnabled(sortieren)
+    v.sortByColumn(-1, Qt.AscendingOrder)   # zuerst in der gelieferten Reihenfolge (Pos. aufsteigend)
     kopf = v.horizontalHeader()
     kopf.setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
     kopf.setMinimumHeight(48)

@@ -239,6 +239,7 @@ else:
 # 11) Auftragsfenster: Optimieren speichert das Ergebnis, Ändern macht es veraltet, Status und Summen stehen
 app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+assert fenster.anleitung_oeffnen() == HIER.parent / "anleitung" / "Bedienungsanleitung.pdf"   # Hilfe-Menü
 seite = fenster.auftrag_oeffnen(a1)
 assert seite.stand_optimierung() == "noch nicht optimiert"
 assert seite.optimieren()

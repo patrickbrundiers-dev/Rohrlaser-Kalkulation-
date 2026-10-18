@@ -46,6 +46,17 @@ jobs:
           name: Abnahmeprotokoll
           path: Abnahmeprotokoll.md
           retention-days: 90
+      - name: Bedienungsanleitung erzeugen (prüft, dass alle Bildschirmfotos noch entstehen)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung-neu.pdf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bedienungsanleitung
+          path: Bedienungsanleitung-neu.pdf
+          retention-days: 30
       - name: VBA-Tests (LibreOffice)
         run: /usr/bin/python3 tests/test_vba.py
 
@@ -79,6 +90,7 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Kalkulation/STEP-Import
+          Copy-Item anleitung/Bedienungsanleitung.pdf dist/Rohrlaser-Kalkulation/
           $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
           $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Kalkulation/Rohrlaser-Kalkulation.exe" `
             -ArgumentList (@("--selbsttest", "--mappe", "mappe/Rohrlaser_Kalkulation_v02.xlsm", "--ergebnis", "selbsttest.txt", "--step") + $step)
@@ -115,7 +127,7 @@ jobs:
             Rohrlaser-Kalkulation.zip: Mappe und STEP-Import.exe. Entpacken, Rohrlaser_Kalkulation_v02.xlsm öffnen
             und Makros aktivieren. Der Ordner STEP-Import muss neben der Mappe liegen.
             Rohrlaser-Programm.zip: eigenständiges Programm (Aufträge, STEP-Import, Optimierung, Staffelpreise, PDF, Excel-Export). Entpacken,
-            Rohrlaser-Kalkulation.exe starten.
+            Rohrlaser-Kalkulation.exe starten. Bedienungsanleitung.pdf liegt daneben (auch im Programm unter Hilfe, F1).
             Die Daten liegen im Ordner Daten neben dem Programm.
           files: |
             Rohrlaser-Kalkulation.zip
