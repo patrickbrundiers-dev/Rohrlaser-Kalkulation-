@@ -612,6 +612,8 @@ def kapitel_step(i):
             "Angebotsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
             "Werkstoff und Stückzahl für alle Teile angeben oder leer lassen und später eintragen. Bei Sätzen zählt "
             "die Stückzahl die Sätze.",
+            "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> alle gemessenen Teile mit einer drehbaren "
+            "3D-Ansicht. <b>Übernehmen</b> legt die Positionen an, <b>Abbrechen</b> verwirft die Messung.",
             "Enthält eine STEP mehrere Teile (Baugruppe), fragt das Programm, ob sie als Satz angelegt werden sollen "
             "(siehe unten).",
             "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
@@ -626,6 +628,22 @@ def kapitel_step(i):
     i.hinweis("Gewinde werden nur vorgeschlagen (Status HINWEIS: Gewinde-Vorschlag prüfen). Erst wenn das Gewinde "
               "nach Prüfung der Zeichnung in die Spalte <b>Gewinde geprüft</b> eingetragen ist, wird es gerechnet.")
     i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper", hoehe=80 * mm)
+    i.abschnitt("3D-Ansicht")
+    i.text("Jedes per STEP-Import angelegte Teil wird mit seinem 3D-Modell gespeichert. In der Positionsliste steht "
+           "neben der Artikelnummer ein kleines Vorschaubild. <b>3D-Ansicht …</b> in der Knopfleiste des Angebots "
+           "öffnet alle Positionen mit großer Ansicht, beginnend mit der markierten Zeile. Beim Kopieren eines "
+           "Angebots gehen die 3D-Modelle mit.")
+    i.liste("Linke Maustaste ziehen: drehen. Rechte oder mittlere Maustaste ziehen: verschieben. Mausrad: zoomen. "
+            "Doppelklick: zurück zur Ausgangsansicht.",
+            "Farben: Außenwand grau, Innenwand dunkelgrau, <b>Anfangsschnitt orange</b>, <b>Endschnitt violett</b>, "
+            "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
+            "Schneidweg zählt.",
+            "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.")
+    i.bild("step_pruefen", "STEP-Import prüfen: Messwerte je Teil und 3D-Ansicht vor dem Übernehmen", hoehe=95 * mm)
+    i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
+        (1, "Feste Blickrichtungen: <b>Schräg</b>, <b>Vorn</b>, <b>Oben</b> und <b>Stirnseite</b>.")])
+    i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
+              "Prozessorkernen gleichzeitig.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Liegen in einer STEP-Datei mehrere Rohrteile, fragt das Programm nach der Messung, ob sie als Satz "
            "angelegt werden sollen. Mit <b>Ja</b>:")

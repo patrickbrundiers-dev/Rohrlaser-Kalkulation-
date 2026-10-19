@@ -76,11 +76,14 @@ jobs:
           New-Item -ItemType Directory -Force "pruef ordner" | Out-Null
           Copy-Item tests/step/*.step "pruef ordner/"
           Copy-Item tests/step/T01_RR42-4x2_L1250.step "pruef ordner/Halter_äöü_Ø.step"
-          python programm/step_messung/step_messen.py --ausgabe referenz.txt "pruef ordner"
+          python programm/step_messung/step_messen.py --ausgabe referenz.txt --netze netze_py "pruef ordner"
           Set-Content -Encoding utf8 liste.txt ((Get-ChildItem "pruef ordner" -Filter *.step | Sort-Object Name).FullName)
-          & "dist/STEP-Import/STEP-Import.exe" --liste liste.txt --ausgabe exe.txt
+          # 8 Dateien: die .exe misst auf mehreren Prozessen (freeze_support) und schreibt die 3D-Netze
+          & "dist/STEP-Import/STEP-Import.exe" --liste liste.txt --ausgabe exe.txt --netze netze_exe
           if ($LASTEXITCODE -ne 0) { throw "STEP-Import.exe Rückgabewert $LASTEXITCODE" }
           python tests/vergleiche_messung.py referenz.txt exe.txt
+          $n = (Get-ChildItem netze_exe -Filter *.json).Count
+          if ($n -ne (Get-ChildItem netze_py -Filter *.json).Count -or $n -lt 8) { throw "STEP-Import.exe: $n 3D-Netze" }
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
       - name: Rohrlaser-Angebotskalkulation.exe Selbsttest (Beispielangebot, Optimierung, Ausgaben, STEP-Import)

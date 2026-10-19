@@ -5,7 +5,7 @@ PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 
 2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
 Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote,
 7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf,
-8 = Nachkalkulation je Angebot).
+8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position).
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
 Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt.
 """
@@ -18,7 +18,7 @@ from .angebot import KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispieldaten, kontext_aus)
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -69,6 +69,8 @@ class Datenbank:
             self.con.execute("CREATE INDEX IF NOT EXISTS positionen_angebot ON positionen (angebot_id, nr)")
             self.con.execute("CREATE TABLE IF NOT EXISTS step_protokoll (id INTEGER PRIMARY KEY, angebot_id INTEGER "
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, zeile TEXT)")
+            self.con.execute("CREATE TABLE IF NOT EXISTS netze (position_id INTEGER PRIMARY KEY REFERENCES "
+                             "positionen(id) ON DELETE CASCADE, daten BLOB)")
             self.con.execute("CREATE TABLE IF NOT EXISTS staffeln (id INTEGER PRIMARY KEY, angebot_id INTEGER "
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, schluessel TEXT, "
                              "menge INTEGER, bemerkung TEXT)")
@@ -294,8 +296,11 @@ class Datenbank:
             kopf["kunde"] = k["name"] if k else None
             kopf.update(self.zahlungsbedingungen(kundennr))
         neu = self.angebot_neu(kopf)
+        netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
-            self.position_neu(neu, p)
+            i = self.position_neu(neu, p)
+            if p["id"] in netze:
+                self.netz_speichern(i, netze[p["id"]])
         for st in self.staffeln(angebot_id):
             self.staffel_neu(neu, st)
         return neu
@@ -371,6 +376,27 @@ class Datenbank:
     def positionen_loeschen(self, ids):
         with self.con:
             self.con.executemany("DELETE FROM positionen WHERE id=?", [(i,) for i in ids])
+
+    # -------------------------------------------------------------- 3D-Netze (STEP-Import)
+    def netz_speichern(self, position_id, daten):
+        """Dreiecksnetz einer Position (zlib-komprimiertes JSON, siehe ansicht3d.packen)."""
+        with self.con:
+            self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)", (position_id, daten))
+
+    def netz(self, position_id):
+        r = self.con.execute("SELECT daten FROM netze WHERE position_id=?", (position_id,)).fetchone()
+        return bytes(r[0]) if r else None
+
+    def netz_ids(self, angebot_id):
+        """Positions-IDs eines Angebots, für die es ein 3D-Netz gibt."""
+        return {r[0] for r in self.con.execute("SELECT n.position_id FROM netze n JOIN positionen p ON "
+                                                "p.id = n.position_id WHERE p.angebot_id=?", (angebot_id,))}
+
+    def netze(self, angebot_id):
+        """{Positions-ID: Netz-Bytes} aller Positionen eines Angebots mit 3D-Daten."""
+        return {r[0]: bytes(r[1]) for r in self.con.execute(
+            "SELECT n.position_id, n.daten FROM netze n JOIN positionen p ON p.id = n.position_id "
+            "WHERE p.angebot_id=?", (angebot_id,))}
 
     def protokoll(self, angebot_id):
         return [json.loads(r[0]) for r in self.con.execute(

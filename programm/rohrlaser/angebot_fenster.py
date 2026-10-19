@@ -4,7 +4,7 @@ import tempfile
 from itertools import zip_longest
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
@@ -262,11 +262,27 @@ class PositionenModell(QAbstractTableModel):
                         + [("berechnet", b) for b in BERECHNET]
                         + [("feld", f) for f in POSITIONEN.felder if f.name in STEP_FELDER])
         self.daten, self.werte, self.status = [], [], []
+        self.mit_netz, self.bilder = set(), {}
+
+    def vorschau(self, r):
+        """Kleines 3D-Bild der Position (nur aus dem STEP-Import), einmal je Position gezeichnet."""
+        pid = self.daten[r].get("id")
+        if pid not in self.mit_netz:
+            return None
+        if pid not in self.bilder:
+            from .ansicht3d import entpacken, vorschaubild
+            try:
+                self.bilder[pid] = vorschaubild(entpacken(self.s.db.netz(pid)), 64, 18)
+            except Exception:       # beschädigte Daten: ohne Bild weiter
+                self.bilder[pid] = None
+        return self.bilder[pid]
 
     def rechnen(self):
         s = self.s
         self.beginResetModel()
         self.daten = s.positionen
+        self.mit_netz = s.db.netz_ids(s.id)
+        self.bilder = {pid: b for pid, b in self.bilder.items() if pid in self.mit_netz}
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
         self.werte, self.status = [], []
@@ -323,6 +339,8 @@ class PositionenModell(QAbstractTableModel):
             return w
         if rolle == Qt.EditRole and art == "feld":
             return wert_als_text(x, w, bearbeiten=True)
+        if rolle == Qt.DecorationRole and art == "feld" and x.name == "artikel":
+            return self.vorschau(index.row())
         if rolle == Qt.UserRole:
             return w
         if rolle == Qt.TextAlignmentRole and (art == "berechnet" and x[2] is not None
@@ -579,7 +597,8 @@ class AngebotSeite(QWidget):
         leiste = QHBoxLayout()
         knoepfe = (("Neue Position", self.position_neu), ("Positionen löschen", self.positionen_loeschen),
                    ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
-                   ("STEP importieren …", lambda: self.step_importieren()), ("Optimieren", self.optimieren))
+                   ("STEP importieren …", lambda: self.step_importieren()), ("3D-Ansicht …", lambda: self.ansicht_3d()),
+                   ("Optimieren", self.optimieren))
         for text, ziel in knoepfe:
             b = QPushButton(text)
             b.clicked.connect(ziel)
@@ -611,6 +630,7 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                          | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
+        self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
         for i, (art, x) in enumerate(self.pos_modell.spalten):
             self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld", "zusatz") else (240 if art == "status" else 85))
         self.pos_ansicht.doubleClicked.connect(
@@ -1141,12 +1161,19 @@ class AngebotSeite(QWidget):
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
-            if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe)], len(dateien)):
+            netze = Path(tmp) / "netze"
+            if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze)],
+                                len(dateien)):
                 return None
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
-            messwerte = step.lies_messwerte(ausgabe)
+            messwerte = step.lade_netze(step.lies_messwerte(ausgabe), netze)
+        if not self.f.stumm:
+            from .step_dialog import StepPruefDialog
+            if StepPruefDialog(self, messwerte).exec() != QDialog.Accepted:
+                self.f.meldung("STEP-Import abgebrochen.")
+                return None
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
         neue_profile = erneut = False
         if fehlend:
@@ -1168,7 +1195,10 @@ class AngebotSeite(QWidget):
                                neue_profile, erneut, saetze=list(mehr) if als_satz else ())
         self.db.profile_anlegen(erg["profile"])
         for p in erg["positionen"]:
-            self.db.position_neu(self.id, p)
+            netz = p.pop("_netz", None)
+            pid = self.db.position_neu(self.id, p)
+            if netz:
+                self.db.netz_speichern(pid, netz)
         self.db.protokoll_anhaengen(self.id, erg["protokoll"])
         self.neu_laden()
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
@@ -1178,6 +1208,22 @@ class AngebotSeite(QWidget):
             box.setDetailedText("\n".join(erg["bericht"]))
             box.exec()
         return erg
+
+    def ansicht_3d(self, zeile=None):
+        """3D-Ansicht der Positionen (Teile aus dem STEP-Import); zeigt zuerst die markierte Position."""
+        from .step_dialog import Positionen3DDialog
+        netze = self.db.netze(self.id)
+        if not netze:
+            QMessageBox.information(self, "3D-Ansicht", "In diesem Angebot gibt es keine Teile mit 3D-Daten.\n\n"
+                                    "3D-Daten entstehen beim STEP-Import.")
+            return None
+        if zeile is None:
+            i = self.pos_ansicht.currentIndex()
+            zeile = i.row() if i.isValid() else next(r for r, p in enumerate(self.positionen) if p["id"] in netze)
+        d = Positionen3DDialog(self, self.positionen, netze, zeile)
+        if not self.f.stumm:
+            d.exec()
+        return d
 
     def _step_dialog(self, anzahl=None):
         d = QDialog(self)
