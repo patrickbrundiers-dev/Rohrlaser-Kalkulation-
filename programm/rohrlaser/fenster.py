@@ -1,4 +1,7 @@
-"""Hauptfenster: Start, Angebote (Übersicht und je offenes Angebot ein Reiter), Stammdaten und Einstellungen."""
+"""Hauptfenster: Start, Angebote (Übersicht und je offenes Angebot ein Reiter), Kunden und Einstellungen.
+
+Der Reiter Einstellungen ist mit einem Passwort geschützt (Einstellung 'passwort') und enthält als Unterreiter die
+allgemeinen Vorgaben und alle Stammdaten außer den Kunden."""
 import datetime
 import os
 import sys
@@ -9,7 +12,7 @@ from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QKeySequenc
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QSpinBox, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QSpinBox, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import NAME, VERSION, ausgabe
 from .stammdaten import TABELLEN, EINSTELLUNGEN, pruefen, wert_aus_text, wert_als_text, zahl_als_text
@@ -317,6 +320,10 @@ class EinstellungenSeite(QScrollArea):
             w = QComboBox()
             w.setEditable(True)
             w.currentTextChanged.connect(lambda text, e=e: self._speichern(e, text.strip()))
+        elif e.art == "passwort":
+            w = QLineEdit()
+            w.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+            w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text()))
         else:
             w = QLineEdit()
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
@@ -348,6 +355,97 @@ class EinstellungenSeite(QScrollArea):
             else:
                 w.setText(v or "")
         self._laden = False
+
+
+class EinstellungenBereich(QWidget):
+    """Reiter Einstellungen: erst Passwort, dann Unterreiter Vorgaben und Stammdaten (ohne Kunden).
+    Einmal geöffnet bleibt er offen, bis 'Sperren' gedrückt oder das Programm beendet wird."""
+
+    def __init__(self, db, vorgaben, seiten):
+        super().__init__()
+        self.db = db
+        self.stapel = QStackedWidget()
+        # Sperre
+        sperre = QWidget()
+        self.passwort = QLineEdit()
+        self.passwort.setEchoMode(QLineEdit.Password)
+        self.passwort.setPlaceholderText("Passwort")
+        self.passwort.setMaximumWidth(220)
+        self.passwort.returnPressed.connect(self.oeffnen)
+        oeffnen = QPushButton("Einstellungen öffnen")
+        oeffnen.clicked.connect(self.oeffnen)
+        self.fehler = QLabel()
+        self.fehler.setStyleSheet("color: #C00000;")
+        zeile = QHBoxLayout()
+        zeile.addWidget(self.passwort)
+        zeile.addWidget(oeffnen)
+        zeile.addStretch(1)
+        ls = QVBoxLayout(sperre)
+        text = QLabel("<h3>Einstellungen</h3><p>Vorgaben und Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, "
+                      "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) sind mit einem Passwort geschützt.</p>")
+        text.setWordWrap(True)
+        ls.addWidget(text)
+        ls.addLayout(zeile)
+        ls.addWidget(self.fehler)
+        ls.addStretch(1)
+        # Inhalt
+        inhalt = QWidget()
+        self.unter = QTabWidget()
+        self.unter.addTab(vorgaben, "Vorgaben")
+        for s in seiten:
+            self.unter.addTab(s, s.t.titel)
+        self.unter.currentChanged.connect(lambda _: self.neu_laden())
+        sperren = QPushButton("Einstellungen sperren")
+        sperren.clicked.connect(self.sperren)
+        oben = QHBoxLayout()
+        oben.addStretch(1)
+        oben.addWidget(sperren)
+        li = QVBoxLayout(inhalt)
+        li.setContentsMargins(0, 0, 0, 0)
+        li.addLayout(oben)
+        li.addWidget(self.unter, 1)
+        self.stapel.addWidget(sperre)
+        self.stapel.addWidget(inhalt)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.stapel)
+        self.offen = False
+        self.sperren()
+
+    def gesperrt(self):
+        return not self.offen and bool(self.db.einstellung("passwort"))
+
+    def oeffnen(self, passwort=None):
+        """Mit dem Passwort aus dem Eingabefeld (oder dem übergebenen) öffnen. Ergebnis: geöffnet ja/nein."""
+        text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
+        soll = self.db.einstellung("passwort") or ""
+        self.passwort.clear()
+        if soll and text != soll:
+            self.fehler.setText("Passwort falsch.")
+            return False
+        self.offen = True
+        self.fehler.clear()
+        self.stapel.setCurrentIndex(1)
+        self.neu_laden()
+        return True
+
+    def sperren(self):
+        self.offen = False
+        self.stapel.setCurrentIndex(1 if not self.gesperrt() else 0)
+
+    def zeigen(self, seite):
+        """Unterreiter auswählen (z. B. Vorgaben oder eine Stammdatenseite)."""
+        self.unter.setCurrentWidget(seite)
+
+    def neu_laden(self):
+        if self.gesperrt():
+            self.stapel.setCurrentIndex(0)
+            self.passwort.setFocus()
+            return
+        self.stapel.setCurrentIndex(1)
+        w = self.unter.currentWidget()
+        if hasattr(w, "neu_laden"):
+            w.neu_laden()
 
 
 class StartSeite(QWidget):
@@ -388,8 +486,8 @@ class StartSeite(QWidget):
             stand = datetime.datetime.fromisoformat(stand).strftime("%d.%m.%Y %H:%M")
         warnung = ""
         if herkunft == "Beispieldaten":
-            warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Bitte in den "
-                       "Stammdaten-Reitern durch die eigenen Werte ersetzen.</p>")
+            warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Bitte im Reiter "
+                       "Einstellungen durch die eigenen Werte ersetzen.</p>")
         self.info.setText(f"<p>Datendatei: {db.pfad}</p><p>Stammdaten: {herkunft} (Stand {stand})</p>{warnung}"
                           f"<table cellpadding='2'>{zeilen}</table>")
 
@@ -413,10 +511,12 @@ class Hauptfenster(QMainWindow):
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
         self.seiten = [StammdatenSeite(db, t, self.meldung) for t in TABELLEN]
-        for s in self.seiten:
-            self.reiter.addTab(s, s.t.titel)
+        for s in self.seiten:           # Kunden als eigener Reiter, die übrigen Stammdaten unter Einstellungen
+            if s.t.name == "kunden":
+                self.reiter.addTab(s, s.t.titel)
         self.einstellungen = EinstellungenSeite(db, self.meldung)
-        self.reiter.addTab(self.einstellungen, "Einstellungen")
+        self.bereich = EinstellungenBereich(db, self.einstellungen, [s for s in self.seiten if s.t.name != "kunden"])
+        self.reiter.addTab(self.bereich, "Einstellungen")
         for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
             self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
@@ -480,6 +580,13 @@ class Hauptfenster(QMainWindow):
     def meldung(self, text, fehler=False):
         self.statusBar().setStyleSheet("color: #C00000;" if fehler else "")
         self.statusBar().showMessage(text, 8000)
+
+    def zeigen(self, seite):
+        """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage)."""
+        if self.bereich.unter.indexOf(seite) >= 0:
+            self.bereich.zeigen(seite)
+            seite = self.bereich
+        self.reiter.setCurrentWidget(seite)
 
     def reiter_gewechselt(self, _):
         w = self.reiter.currentWidget()

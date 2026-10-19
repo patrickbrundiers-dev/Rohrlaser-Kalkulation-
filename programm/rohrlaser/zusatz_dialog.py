@@ -67,7 +67,7 @@ class ZusatzDialog(QDialog):
             text += (f" Gilt für alle {anzahl} markierten Positionen und ersetzt dort Gewinde und Zusatzarbeiten; "
                      "automatische Mengen rechnet jede Position selbst.")
         if not self.katalog:
-            text += " In den Stammdaten (Reiter Zusatzarbeiten) ist noch keine Zusatzarbeit angelegt."
+            text += " Unter Einstellungen (Zusatzarbeiten) ist noch keine Zusatzarbeit angelegt."
         hinweis = QLabel(text)
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")

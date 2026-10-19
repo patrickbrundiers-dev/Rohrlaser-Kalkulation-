@@ -263,7 +263,7 @@ class Einstellung:
     name: str
     titel: str
     gruppe: str
-    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl
+    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort
     vorgabe: object
     von: float = None
     bis: float = None
@@ -303,6 +303,8 @@ EINSTELLUNGEN = (
                 "\n".join(PROFILFORMEN)),
     Einstellung("kategorien", "Werkstoff-Kategorien (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(KATEGORIEN)),
+    # Der Reiter Einstellungen (mit den Stammdaten außer Kunden) öffnet nur mit diesem Passwort; leer = ohne
+    Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 

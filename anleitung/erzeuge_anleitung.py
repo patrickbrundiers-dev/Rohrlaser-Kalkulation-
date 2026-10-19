@@ -274,8 +274,8 @@ def kapitel_ueberblick(i):
            "Einstellungen werden einmal eingerichtet (Kapitel 3 und 4): das Programm startet mit Beispielwerten, die "
            "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
-    i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, die sieben "
-           "Stammdaten-Tabellen und <i>Einstellungen</i>. Jedes geöffnete Angebot bekommt einen eigenen Reiter "
+    i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, <i>Kunden</i> "
+           "und <i>Einstellungen</i> (mit Passwort; darin die Vorgaben und die übrigen Stammdaten als Unterreiter). Jedes geöffnete Angebot bekommt einen eigenen Reiter "
            "(<i>Angebot A-2026-0041</i>), der sich mit dem kleinen × schließen lässt. Unten in der Statuszeile "
            "meldet das Programm, was es gerade gespeichert oder gerechnet hat; Fehlermeldungen erscheinen dort rot.")
     i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=125 * mm)
@@ -343,7 +343,7 @@ def kapitel_start(i):
         (1, "<b>Datensicherung erstellen</b>: Kopie der Datendatei nach <i>Daten\\Sicherung</i> und, falls "
             "eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
-    i.text("Die Beispielwerte in den Stammdaten-Reitern (Kapitel 3) und den Einstellungen (Kapitel 4) durch die "
+    i.text("Die Beispielwerte in den Stammdaten (Kapitel 3) und den Vorgaben (Kapitel 4) im Reiter Einstellungen durch die "
            "eigenen ersetzen: Preise, Maschinen, Schneiddaten, Briefkopf und Zuschläge. Danach rechnet das Programm "
            "mit den eigenen Werten.")
     i.abschnitt("Datensicherung und Umzug")
@@ -364,9 +364,11 @@ def kapitel_start(i):
 def kapitel_stammdaten(i):
     i.kapitel("Stammdaten")
     i.abschnitt("Tabellen bearbeiten")
-    i.text("Jede Stammdaten-Tabelle hat einen eigenen Reiter. Alle sind gleich aufgebaut:")
-    i.bild("stamm_profile", "Reiter Profile", hoehe=125 * mm, legende=[
-        (1, "Reiter der Tabelle. Oben steht ein kurzer Hinweis, was in die Spalten gehört."),
+    i.text("Die Kunden haben einen eigenen Reiter. Alle anderen Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, "
+           "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) stehen als Unterreiter im Reiter <i>Einstellungen</i>, "
+           "der mit einem Passwort geschützt ist (Kapitel 4). Alle Tabellen sind gleich aufgebaut:")
+    i.bild("stamm_profile", "Einstellungen, Unterreiter Profile", hoehe=125 * mm, legende=[
+        (1, "Unterreiter der Tabelle. Oben steht ein kurzer Hinweis, was in die Spalten gehört."),
         (2, "<b>Neue Zeile</b> hängt eine leere Zeile an und springt hinein."),
         (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen (vorher Rückfrage; verweisen andere Tabellen "
             "darauf, sagt das Programm wie viele)."),
@@ -443,7 +445,7 @@ def kapitel_stammdaten(i):
            "1.4509) und Aluminium (EN AW-6060, 6063, 6082) mit Beispiel-Tonnenpreisen. Ältere Datendateien "
            "bekommen beim ersten Start die fehlenden Werkstoffe dazu; vorhandene bleiben unverändert und erhalten "
            "eine Kategorie (Dichte unter 4 = Aluminium, 1.4… = Edelstahl, sonst Stahl).")
-    i.bild("stamm_werkstoffe", "Reiter Werkstoffe mit Kategorie", hoehe=100 * mm)
+    i.bild("stamm_werkstoffe", "Einstellungen, Werkstoffe mit Kategorie", hoehe=100 * mm)
     i.tabelle(["Oberflächen", "Bedeutung"], [
         ["<b>Oberfläche</b>", "Name, z. B. <i>roh</i>, <i>K240</i>, <i>gestrahlt</i>; Auswahl in der Position"],
         ["Kategorie (leer = alle)", "für welche Werkstoffe die Oberfläche passt; sonst Warnung in der Position"],
@@ -453,7 +455,7 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
            "Werkstoff + Oberfläche + Stangenlänge. Leer und <i>roh</i> sind gleich.")
-    i.bild("stamm_oberflaechen", "Reiter Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm)
+    i.bild("stamm_oberflaechen", "Einstellungen, Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm)
     i.tabelle(["Preise", "Bedeutung"], [
         ["<b>Profil-ID</b>, <b>Werkstoff-ID</b>", "Kombination, für die der Preis gilt"],
         ["<b>Preisbasis</b>, <b>Preis [€]</b>", "€/kg, €/m oder €/Stange und der Betrag"],
@@ -492,13 +494,13 @@ def kapitel_stammdaten(i):
            "Datendateien bleiben erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche "
            "Wandstärke-Stufe und welches Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten "
            "Wandstärke-Stufe und Schneidgas).")
-    i.bild("stamm_schneiddaten", "Reiter Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm)
+    i.bild("stamm_schneiddaten", "Einstellungen, Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm)
     i.tabelle(["Gewinde", "Bedeutung"], [
         ["<b>Gewinde</b>, <b>Kernloch Ø [mm]</b>",
          "z. B. M6 mit 5,0 mm; der STEP-Import schlägt Gewinde an diesem Durchmesser vor"],
         ["Zeit je Gewinde [s], Preis je Gewinde [€]", "Preis geht vor; ohne Preis zählt die Zeit mit dem Stundensatz"],
         ["Bemerkung", "freier Text"]], [75, 190])
-    i.bild("stamm_maschinen", "Reiter Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
+    i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)
     i.abschnitt("Zusatzarbeiten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
@@ -520,14 +522,25 @@ def kapitel_stammdaten(i):
             "Zuschlag Fertigung wie eigene Arbeit.",
             "<b>Text im Angebot</b>: so erscheint die Arbeit in der Bezeichnung des Angebots, z. B. "
             "<i>…, Zusatzarbeiten: Gewinde 4xM6, feuerverzinkt</i>.")
-    i.bild("stamm_zusatzarbeiten", "Reiter Zusatzarbeiten mit den Beispielwerten", hoehe=100 * mm)
+    i.bild("stamm_zusatzarbeiten", "Einstellungen, Zusatzarbeiten mit den Beispielwerten", hoehe=100 * mm)
 
 
 def kapitel_einstellungen(i):
     i.kapitel("Einstellungen")
-    i.text("Im Reiter <i>Einstellungen</i> stehen die Werte, die für alle Angebote gelten. Änderungen werden beim "
-           "Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung.")
-    i.bild("einstellungen", "Reiter Einstellungen (oberer Teil)", hoehe=125 * mm)
+    i.text("Der Reiter <i>Einstellungen</i> enthält alle Voreinstellungen: den Unterreiter <i>Vorgaben</i> mit den "
+           "Werten, die für alle Angebote gelten, und die Stammdaten außer den Kunden (Kapitel 3).")
+    i.abschnitt("Passwort")
+    i.text("Der Reiter öffnet sich erst nach Eingabe des Passworts. Passwort eintippen und Enter oder "
+           "<b>Einstellungen öffnen</b> drücken. Er bleibt offen, bis <b>Einstellungen sperren</b> gedrückt oder das "
+           "Programm beendet wird. Das Passwort steht unter Vorgaben, Gruppe Zugang (<i>Passwort für die "
+           "Einstellungen</i>); leer = Einstellungen ohne Passwort. Das Passwort bitte beim Verantwortlichen "
+           "erfragen.")
+    i.bild("einstellungen_gesperrt", "Reiter Einstellungen gesperrt", hoehe=45 * mm, legende=[
+        (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
+    i.abschnitt("Vorgaben")
+    i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung.")
+    i.bild("einstellungen", "Einstellungen, Unterreiter Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
+        (1, "Unterreiter Vorgaben, daneben die Stammdaten"), (2, "<b>Einstellungen sperren</b>")])
     i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
         ["Kalkulation", "Zuschlag Material, Zuschlag Fertigung, Zuschlag Fremdleistung, Gewinn",
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
@@ -557,7 +570,9 @@ def kapitel_einstellungen(i):
                                                "(Kapitel 2.3)"],
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
-                                                  "(Vorgabe Stahl, Edelstahl, Aluminium)"]], [28, 80, 157])
+                                                  "(Vorgabe Stahl, Edelstahl, Aluminium)"],
+        ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen; leer = ohne Passwort"]],
+        [28, 80, 157])
 
 
 def kapitel_angebote(i):
@@ -907,7 +922,7 @@ def kapitel_fragen(i):
     i.kapitel("Häufige Fragen und Meldungen")
     i.tabelle(["Meldung / Frage", "Ursache und Abhilfe"], [
         ["Startseite rot: <i>Die Stammdaten sind Beispielwerte</i>",
-         "Die Stammdaten wurden noch nicht bearbeitet. Eigene Werte in den Stammdaten-Reitern eintragen "
+         "Die Stammdaten wurden noch nicht bearbeitet. Eigene Werte im Reiter Einstellungen eintragen "
          "(Kapitel 3); nach der ersten Änderung verschwindet der Hinweis."],
         ["Position mit <b>FEHLER: Profil fehlt</b> o. ä.",
          "Profil-ID oder Werkstoff-ID steht nicht in den Stammdaten oder ist falsch geschrieben. Aus der "
@@ -924,7 +939,7 @@ def kapitel_fragen(i):
          "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "
          "Neu aus dem ZIP entpacken."],
         ["STEP: <b>Profil fehlt in den Stammdaten</b>",
-         "Mit Ja aus den Messwerten anlegen lassen, danach im Reiter Profile prüfen (Bemerkung, Preis)."],
+         "Mit Ja aus den Messwerten anlegen lassen, danach unter Einstellungen, Profile prüfen (Bemerkung, Preis)."],
         ["Gewinde wird nicht gerechnet", "Nur Einträge in <b>Gewinde geprüft</b> zählen, nicht der Vorschlag."],
         ["<b>WARNUNG: Zusatzarbeit … unbekannt</b>",
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
@@ -941,7 +956,7 @@ def kapitel_fragen(i):
          "Weder der Werkstoff noch seine Kategorie hat für Maschine und Wandstärke eine Zeile in den Schneiddaten. "
          "Kategorie beim Werkstoff eintragen oder Schneiddaten ergänzen."],
         ["<b>WARNUNG: kein gültiger Materialpreis</b>", "Weder Preis noch Tonnenpreis für Profil + Werkstoff "
-                                                        "hinterlegt. Reiter Preise oder Werkstoffe ergänzen."],
+                                                        "hinterlegt. Unter Einstellungen Preise oder Werkstoffe ergänzen."],
         ["<b>WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz</b>",
          "Stückzahl und Stück je Satz der Position passen nicht zusammen (z. B. 7 Teile bei 2 je Satz)."],
         ["Preise sind höher als vor dem Update",

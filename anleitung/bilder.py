@@ -196,13 +196,20 @@ def main(ziel):
                                    "skonto", "skonto_tage", "zahlungsziel", "bemerkung"), kd)))
     f.alles_neu_laden()
 
-    # 3) Stammdaten-Reiter
+    # 3) Einstellungen gesperrt, dann mit Passwort geöffnet; Stammdaten als Unterreiter (Kunden eigener Reiter)
+    f.bereich.sperren()
+    f.reiter.setCurrentWidget(f.bereich)
+    QApplication.processEvents()
+    foto.foto("einstellungen_gesperrt", f, [(tab_rect(f.reiter, "Einstellungen"), 1), (f.bereich.passwort, 2),
+                                            (knopf(f.bereich, "Einstellungen öffnen"), 3)],
+              ausschnitt=QRect(0, 0, 760, f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    f.bereich.oeffnen(db.einstellung("passwort"))
     for seite in f.seiten:
-        f.reiter.setCurrentWidget(seite)
+        f.zeigen(seite)
         QApplication.processEvents()
         marken = []
         if seite.t.name == "profile":
-            marken = [(tab_rect(f.reiter, seite.t.titel), 1), (knopf(seite, "Neue Zeile"), 2),
+            marken = [(tab_rect(f.bereich.unter, seite.t.titel), 1), (knopf(seite, "Neue Zeile"), 2),
                       (knopf(seite, "Zeilen löschen"), 3), (seite.suche, 4)]
             kopf = seite.ansicht.horizontalHeader()
             spalte = len(seite.modell.spalten) - 1
@@ -210,9 +217,11 @@ def main(ziel):
             marken.append(((kopf, QRect(x, 0, min(kopf.sectionSize(spalte), kopf.width() - x), kopf.height())), 5))
         foto.foto("stamm_" + seite.t.name, f, marken)
 
-    # 4) Einstellungen
-    f.reiter.setCurrentWidget(f.einstellungen)
-    foto.foto("einstellungen", f)
+    # 4) Einstellungen: Unterreiter Vorgaben
+    f.zeigen(f.einstellungen)
+    QApplication.processEvents()
+    foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Vorgaben"), 1),
+                                   (knopf(f.bereich, "Einstellungen sperren"), 2)])
     leiste = f.einstellungen.verticalScrollBar()
     leiste.setValue(leiste.maximum())
     foto.foto("einstellungen_unten", f)
