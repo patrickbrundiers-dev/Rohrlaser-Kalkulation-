@@ -28,6 +28,7 @@ jobs:
           /usr/bin/python3 tests/test_step_regression.py
           /usr/bin/python3 tests/test_step_einlesen.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_profile.py
+          /usr/bin/python3 tests/test_step_konturen.py
           /usr/bin/python3 tests/test_optimierung.py
       - name: Programm-Tests
         env:

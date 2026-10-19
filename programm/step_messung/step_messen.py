@@ -30,7 +30,8 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "schneidweg", "konturen", "ende_a", "ende_a_gerade", "ende_b", "ende_b_gerade", "innen",
            "innen_konturen", "gravur", "gravur_konturen", "bohrungen", "innen_liste", "profil_id_vorschlag",
            "hinweise", "einheit", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen", "n_kanten",
-           "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "netz", "fehler"]
+           "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste", "netz",
+           "fehler"]
 
 
 def _z(x):
@@ -84,7 +85,8 @@ def zeilen(datei, netze=None, nr=1):
                     str(t.n_flaechen), str(t.n_kanten), "|".join(_z(x) for x in t.huelle),
                     _text("; ".join(t.meldungen)), _z(t.innen_a), _z(t.innen_b),
                     "|".join(":".join([_z(z), _z(x), _z(y), _z(w), s]) for z, x, y, w, s in t.wand_messungen),
-                    ";".join(f"{k}={v}" for k, v in t.sicherheit.items()), netz, ""])
+                    ";".join(f"{k}={v}" for k, v in t.sicherheit.items()),
+                    json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), netz, ""])
     return out
 
 

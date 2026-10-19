@@ -71,6 +71,22 @@ def profil(punkte, l, radien=None):
     return f.Shape()
 
 
+def schraeg_ende(shape, z, um_x, um_y, ende_b=True, breite=500):
+    """Schneidet ein Ende mit einer Ebene durch (0, 0, z) ab, deren Normale erst um X (um_x), dann um Y (um_y) aus der
+    Rohrachse geneigt ist. ende_b: alles oberhalb der Ebene weg, sonst alles unterhalb."""
+    k = BRepPrimAPI_MakeBox(gp_Pnt(-breite / 2, -breite / 2, 0 if ende_b else -breite), breite, breite, breite).Shape()
+    tr = gp_Trsf(); tr.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.radians(um_x))
+    ty = gp_Trsf(); ty.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0)), math.radians(um_y))
+    ty.Multiply(tr)
+    k = BRepBuilderAPI_Transform(k, ty, True).Shape()
+    return cut(shape, verschiebe(k, 0, 0, z))
+
+
+def zylinder(p, d, durchm, laenge):
+    """Bohrwerkzeug: Zylinder Ø durchm ab Punkt p in Richtung d."""
+    return BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(*p), gp_Dir(*d)), durchm / 2, laenge).Shape()
+
+
 def bohrung_quer(shape, d, z, achse=(1, 0, 0)):
     zyl = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(-200 * achse[0], -200 * achse[1], z), gp_Dir(*achse)), d / 2, 400).Shape()
     return cut(shape, zyl)
@@ -237,4 +253,26 @@ if __name__ == "__main__":
     schreibe(rr, "P09_RR42-4_exzentrisch_L800", pro)
     schreibe(cut(profil([(-30, -20), (30, -20), (30, 20), (-30, 20)], 600),
                  profil([(-28, -17), (28, -17), (28, 18), (-28, 18)], 600)), "P10_RE60x40_Wand2und3_L600", pro)
-    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, "und", pro)
+    # Kontur-Teile (eigener Ordner step_konturen): Bohrungen, Langloch, Ausschnitt, Sackbohrung, schräge Bohrung,
+    # Gehrung und zweiachsiger Schrägschnitt an bekannten Stellen
+    kon = ZIEL.parent / "step_konturen"
+    k = kastenrohr(60, 40, 3, 900, 0)                                   # RE 60x40x3, X = 60er-Seite
+    k = cut(k, zylinder((0, 10, 100), (0, 1, 0), 10, 30))              # Ø10 oben (+Y, 0°), z 100
+    k = cut(k, zylinder((20, 0, 200), (1, 0, 0), 6.6, 30))             # Ø6,6 rechts (+X, 270°), z 200
+    ll = cut(cut(BRepPrimAPI_MakeBox(gp_Pnt(-5, -30, 390), 10, 20, 20).Shape(), BRepPrimAPI_MakeBox(
+        gp_Pnt(-10, -30, 380), 20, 20, 10).Shape()), BRepPrimAPI_MakeBox(gp_Pnt(-10, -30, 410), 20, 20, 10).Shape())
+    k = cut(k, ll)                                                       # Langloch 30x10 längs, unten (-Y, 180°)
+    k = cut(k, zylinder((0, -30, 390), (0, 1, 0), 10, 20))
+    k = cut(k, zylinder((0, -30, 410), (0, 1, 0), 10, 20))
+    k = cut(k, BRepPrimAPI_MakeBox(gp_Pnt(-40, -5, 590), 20, 10, 20).Shape())   # Ausschnitt 20 längs x 10, links (90°)
+    k = cut(k, zylinder((0, 19, 700), (0, 1, 0), 6, 10))               # Sackbohrung Ø6, 1 tief, oben, z 700
+    k = schraeg_ende(k, 850, 30, 0)                                      # Ende B: Gehrung 30° um X
+    schreibe(k, "K01_RE60x40x3_Konturen", kon)
+    schreibe(drehe_beliebig(k), "K02_RE60x40x3_Konturen_gedreht", kon)
+    r = rundrohr(42.4, 2.0, 700)
+    r = cut(r, zylinder((0, 0, 150), (0, 1, 0), 8, 40))                 # Ø8 radial oben (0°), z 150
+    r = cut(r, zylinder((0, 0, 300), (0, math.cos(math.radians(30)), math.sin(math.radians(30))), 8, 40))  # 30° schräg
+    r = cut(r, zylinder((0, 0, 450), (-1, 0, 0), 12, 40))               # Ø12 radial links (90°), z 450
+    r = schraeg_ende(r, 30, 20, 10, ende_b=False)                        # Ende A: zweiachsig 20°/10° durch z 30
+    schreibe(r, "K03_RR42-4x2_Konturen", kon)
+    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, "und", kon)
