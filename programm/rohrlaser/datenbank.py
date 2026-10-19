@@ -5,7 +5,7 @@ PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 
 2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
 Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote,
 7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf,
-8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position).
+8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position, 10 = Kalkulationswerte je Angebot).
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
 Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt.
 """
@@ -14,11 +14,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .angebot import KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
+from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispieldaten, kontext_aus)
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -206,6 +206,20 @@ class Datenbank:
         k = self.kunde(kundennr) or {}
         return {n: k[n] if k.get(n) is not None else self.einstellung(n) for n in ZAHLUNG}
 
+    def kalkulation_vorgaben(self):
+        """Kalkulationswerte für ein Angebot aus den Einstellungen (Prozentwerte in %)."""
+        out = {}
+        for f in KALKULATION:
+            w = self.einstellung(f.name)
+            if isinstance(w, (int, float)):
+                out[f.name] = round(w * 100, 4) if f.name in KALK_PROZENT else w
+        return out
+
+    def kalkulation_zuruecksetzen(self, angebot_id):
+        """Kalkulationswerte des Angebots wieder auf die Einstellungen setzen."""
+        for n, w in self.kalkulation_vorgaben().items():
+            self.angebot_aendern(angebot_id, n, w)
+
     def kunde_uebernehmen(self, angebot_id, kundennr):
         """Kundennummer ins Angebot; steht sie im Kundenstamm, auch Name und Zahlungsbedingungen.
         Ergebnis: Kundenzeile oder None."""
@@ -260,6 +274,8 @@ class Datenbank:
         if k and not kopf.get("kunde"):
             kopf["kunde"] = k["name"]
         for n, w in self.zahlungsbedingungen(kopf.get("kundennr")).items():
+            kopf.setdefault(n, w)
+        for n, w in self.kalkulation_vorgaben().items():
             kopf.setdefault(n, w)
         namen = [f.name for f in KOPF if f.name in kopf]
         try:

@@ -10,13 +10,14 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFileDialog,
     QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QTableView, QTabWidget,
+    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyledItemDelegate, QTableView,
+    QTabWidget,
     QVBoxLayout, QWidget)
 
 from . import ausgabe, export, pdf, rechnen, staffeln, step
 from .nachkalk_seite import NachkalkulationSeite
 from .zusatz_dialog import ZusatzDialog
-from .angebot import KOPF, POSITIONEN, STEP_FELDER
+from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, STEP_FELDER
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
@@ -285,9 +286,10 @@ class PositionenModell(QAbstractTableModel):
         self.bilder = {pid: b for pid, b in self.bilder.items() if pid in self.mit_netz}
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
-        self.werte, self.status = [], []
+        self.werte, self.status, self.zeiten = [], [], []
         for i, p in enumerate(self.daten):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
+            self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand"), s.tabellen)[2])   # berechnet [s]
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
             w["eingeplant"] = ein if p.get("profil_id") else None
             w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
@@ -329,6 +331,23 @@ class PositionenModell(QAbstractTableModel):
             return None
         art, x = self.spalten[index.column()]
         w = self.roh(index.row(), index.column())
+        if art == "feld" and x.name == "zeit_manuell":      # Schneidzeit: berechnet, von Hand überschreibbar
+            berechnet = self.zeiten[index.row()]
+            if rolle == Qt.DisplayRole and w is None:
+                return _z(berechnet, 1) if berechnet is not None else ""
+            if rolle == Qt.ToolTipRole:
+                return (f"Berechnet: {_z(berechnet, 1)} s je Teil (ohne Einsparung gemeinsamer Schnitte). "
+                        if berechnet is not None else "Keine Schneiddaten: Zeit von Hand eintragen. ") + \
+                    ("Von Hand eingetragen; leeren = wieder berechnet." if w is not None
+                     else "Doppelklick zum Anpassen.")
+            if rolle == Qt.EditRole and w is None:
+                return _z(berechnet, 1) if berechnet is not None else ""
+            if rolle == Qt.ForegroundRole:
+                return QBrush(QColor("#000000" if w is not None else "#7F7F7F"))
+            if rolle == Qt.FontRole and w is not None:
+                f = QFont()
+                f.setBold(True)
+                return f
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
             if art == "feld":
                 return wert_als_text(x, w)
@@ -372,6 +391,9 @@ class PositionenModell(QAbstractTableModel):
             return False
         if wert == p.get(f.name):
             return False
+        if f.name == "zeit_manuell" and p.get(f.name) is None and wert is not None \
+                and self.zeiten[index.row()] is not None and abs(wert - round(self.zeiten[index.row()], 1)) < 0.05:
+            return False                # berechnete Zeit unverändert bestätigt: bleibt berechnet
         self.s.db.position_aendern(p["id"], f.name, wert)
         self.s.f.meldung(f"{f.titel} gespeichert.")
         self.geaendert.emit()
@@ -387,6 +409,35 @@ STAFFELPREIS_SPALTEN = [("Satz oder Pos.", "schluessel", None, 100), ("Bezeichnu
                         ("Herstellkosten [€]", "herstell", 2, 90), ("Herstellkosten je Einheit [€]", "herstell_einheit", 3, 95),
                         ("Verkaufspreis je Einheit [€]", "preis_einheit", 2, 95),
                         ("Verkaufspreis gesamt [€]", "preis_gesamt", 2, 95), ("Hinweis", "hinweis", None, 260)]
+
+
+class StaffelAuswahl(QStyledItemDelegate):
+    """Spalte 'Satz oder Pos.': Auswahl der Sätze und Positionen des Angebots (Eintippen geht weiter)."""
+
+    def __init__(self, seite, parent):
+        super().__init__(parent)
+        self.s = seite
+
+    def createEditor(self, parent, option, index):
+        cb = QComboBox(parent)
+        cb.setEditable(True)
+        cb.setInsertPolicy(QComboBox.NoInsert)
+        for schl, text, _ in staffeln.auswahl(self.s.positionen):
+            cb.addItem(text, schl)
+        return cb
+
+    def setEditorData(self, editor, index):
+        w = index.data(Qt.EditRole) or ""
+        i = editor.findData(w)
+        editor.setCurrentIndex(i)
+        if i < 0:
+            editor.setEditText(w)
+
+    def setModelData(self, editor, modell, index):
+        i = editor.currentIndex()
+        text = editor.currentText()
+        wert = editor.itemData(i) if i >= 0 and editor.itemText(i) == text else text
+        modell.setData(index, wert, Qt.EditRole)
 
 
 class StaffelnModell(QAbstractTableModel):
@@ -543,6 +594,7 @@ class AngebotSeite(QWidget):
         self.felder = {}
         kopf_box = QGroupBox("Angebotskopf")
         g = QGridLayout(kopf_box)
+        kalk = {f.name for f in KALKULATION}
         for i, fd in enumerate(KOPF):
             if fd.name == "kundennr":       # Kunde aus dem Kundenstamm wählen oder Nummer frei eintippen
                 w = QComboBox()
@@ -570,16 +622,32 @@ class AngebotSeite(QWidget):
                 w.setRange(fd.von, fd.bis)
                 w.setDecimals(fd.stellen or 2)
                 w.setGroupSeparatorShown(True)
-                w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, round(w.value(), 2) or None))
+                if fd.name in kalk:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
+                    w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, round(w.value(), 4)))
+                else:
+                    w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, round(w.value(), 2) or None))
             else:
                 w = QLineEdit()
                 w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, w.text().strip() or None))
             self.felder[fd.name] = w
-            g.addWidget(QLabel(fd.titel), i % 4, 2 * (i // 4))
-            g.addWidget(w, i % 4, 2 * (i // 4) + 1)
+            if fd.name in kalk:             # eigener Block unter dem Kopf, 3 Felder je Zeile
+                j = [f.name for f in KALKULATION].index(fd.name)
+                g.addWidget(QLabel(fd.titel), 6 + j // 3, 2 * (j % 3))
+                g.addWidget(w, 6 + j // 3, 2 * (j % 3) + 1)
+            else:
+                g.addWidget(QLabel(fd.titel), i % 4, 2 * (i // 4))
+                g.addWidget(w, i % 4, 2 * (i // 4) + 1)
         self.maschinenwerte = QLabel()
         self.maschinenwerte.setStyleSheet("color: #595959;")
         g.addWidget(self.maschinenwerte, 4, 0, 1, 6)
+        kalk_titel = QHBoxLayout()
+        kalk_titel.addWidget(QLabel("<b>Kalkulation dieses Angebots</b> (Vorgabe aus den Einstellungen, hier änderbar)"))
+        vorgaben = QPushButton("Vorgaben aus Einstellungen")
+        vorgaben.setToolTip("Zuschläge, Gewinn, Rüstzeit und Pauschalen wieder auf die Werte der Einstellungen setzen")
+        vorgaben.clicked.connect(lambda: self.kalkulation_zuruecksetzen())
+        kalk_titel.addWidget(vorgaben)
+        kalk_titel.addStretch(1)
+        g.addLayout(kalk_titel, 5, 0, 1, 6)
         self.uebersicht = QLabel()
         self.uebersicht.setTextInteractionFlags(Qt.TextSelectableByMouse)
         summen_box = QGroupBox("Übersicht")
@@ -677,6 +745,7 @@ class AngebotSeite(QWidget):
         self.staffel_modell = StaffelnModell(self)
         self.staffel_modell.geaendert.connect(self._staffel_stand)
         self.staffel_ansicht = _tabelle(self.staffel_modell, sortieren=False)
+        self.staffel_ansicht.setItemDelegateForColumn(0, StaffelAuswahl(self, self.staffel_ansicht))
         self.staffel_ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                              | QAbstractItemView.AnyKeyPressed)
         for i, b in enumerate((120, 110, 220, 260)):
@@ -688,13 +757,15 @@ class AngebotSeite(QWidget):
         st_seite = QWidget()
         stl = QVBoxLayout(st_seite)
         st_leiste = QHBoxLayout()
-        for text, ziel in (("Neue Stufe", self.staffel_neu), ("Stufen löschen", self.staffeln_loeschen),
+        for text, ziel in (("Neue Stufe", self.staffel_neu), ("Stufen aus Angebot", self.staffeln_aus_angebot),
+                           ("Stufen löschen", self.staffeln_loeschen),
                            ("Staffelpreise rechnen", self.staffelpreise_rechnen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             st_leiste.addWidget(b)
         st_leiste.addSpacing(20)
-        hinweis = QLabel("Je Zeile eine Mengenstufe: Satzbezeichnung (Spalte Satz) oder Positionsnummer. Jede Stufe wird "
+        hinweis = QLabel("Je Zeile eine Mengenstufe: Satz oder Position aus der Liste wählen (Doppelklick) und Menge "
+                         "eintragen. Jede Stufe wird "
                          "als eigenes Angebot neu gerechnet; die Preise stehen im Angebot unter den Positionen.")
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")
@@ -743,7 +814,7 @@ class AngebotSeite(QWidget):
         self.positionen = self.db.positionen(self.id)
         self.k = self.db.kontext()
         self.tabellen = self.db.tabellen()
-        self.einst = self.db.einstellungen()
+        self.einst = rechnen.einstellungen_angebot(a, self.db.einstellungen())     # mit Werten des Angebots
         self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
@@ -772,6 +843,8 @@ class AngebotSeite(QWidget):
             elif isinstance(w, QSpinBox):
                 w.setValue(int(v or 0))
             elif isinstance(w, QDoubleSpinBox):
+                if v is None and fd.name in {f.name for f in KALKULATION}:    # älteres Angebot: Einstellungen
+                    v = (self.einst.get(fd.name) or 0) * (100 if fd.name in KALK_PROZENT else 1)
                 w.setValue(v or 0)
             else:
                 w.setText(v or "")
@@ -798,6 +871,17 @@ class AngebotSeite(QWidget):
             return
         self.f.meldung(f"{fd.titel} gespeichert.")
         self.neu_laden()
+
+    def kalkulation_zuruecksetzen(self):
+        """Kalkulationswerte des Angebots auf die Einstellungen setzen (nach Rückfrage)."""
+        if not self.f.stumm and QMessageBox.question(
+                self, "Kalkulation", "Zuschläge, Gewinn, Rüstzeit und Pauschalen dieses Angebots auf die Werte der "
+                "Einstellungen setzen?") != QMessageBox.Yes:
+            return False
+        self.db.kalkulation_zuruecksetzen(self.id)
+        self.f.meldung("Kalkulationswerte aus den Einstellungen übernommen.")
+        self.neu_laden()
+        return True
 
     def kunde_waehlen(self, kundennr):
         """Kundennummer übernehmen; steht der Kunde im Kundenstamm, auch Name und Zahlungsbedingungen."""
@@ -958,6 +1042,20 @@ class AngebotSeite(QWidget):
         self.reiter.setCurrentWidget(self.st_seite)
         self.staffel_ansicht.setCurrentIndex(i)
         self.staffel_ansicht.edit(i)
+
+    def staffeln_aus_angebot(self):
+        """Je Satz und je Position ohne Satz eine Stufe mit der aktuellen Menge anlegen (nur, was noch fehlt)."""
+        da = {staffeln.txt(s.get("schluessel")) for s in self.stufen}
+        neu = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.positionen) if schl not in da]
+        if not neu:
+            self.f.meldung("Alle Sätze und Positionen stehen schon in den Staffeln.", fehler=not self.stufen)
+            return 0
+        for schl, menge in neu:
+            self.db.staffel_neu(self.id, dict(schluessel=schl, menge=menge))
+        self.neu_laden()
+        self.reiter.setCurrentWidget(self.st_seite)
+        self.f.meldung(f"{len(neu)} Stufe(n) angelegt. Weitere Mengen mit Neue Stufe ergänzen.")
+        return len(neu)
 
     def staffeln_loeschen(self):
         zeilen = sorted({i.row() for i in self.staffel_ansicht.selectionModel().selectedIndexes()})

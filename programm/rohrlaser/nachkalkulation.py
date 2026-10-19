@@ -1,7 +1,8 @@
 """Nachkalkulation: tatsächliche Werte nach dem Auftrag gegen die Kalkulation des Angebots (Soll).
 
 Verglichen werden die Einzelkosten ohne Zuschläge und Gewinn, weil nur sie sich in der Fertigung messen lassen:
-- Material: Ist-Stangen je Gruppe (Profil + Werkstoff + Stangenlänge) × Kosten je Stange laut Schnittplan
+- Material: Ist-Stangen je Gruppe (Profil + Werkstoff + Stangenlänge) × Kosten je Stange; die Kosten je Stange
+  kommen aus dem Ist-EK-Meterpreis × Stangenlänge, leer = kalkulierter Meterpreis laut Schnittplan
 - Laserzeit [h] × Stundensatz der Maschine (Soll = Laserzeit netto aller Teile, Zusatzzeiten eingeschlossen)
 - Rüsten + Stangenwechsel [min] × Stundensatz (Soll = Rüstzeit je Angebot + je Abmessung + Stangenwechsel)
 - Gewinde und Zusatzarbeiten [€] (Soll = Gewinde + Zusatzarbeiten der Kalkulation, Ist z. B. laut Rechnung)
@@ -9,7 +10,7 @@ Verglichen werden die Einzelkosten ohne Zuschläge und Gewinn, weil nur sie sich
 Erlös: Ist laut Rechnung, leer = Verkaufspreis des Angebots. Deckungsbeitrag = Erlös − Einzelkosten.
 Nicht erfasste Ist-Werte (leer) zählen wie das Soll und sind in der Spalte 'erfasst' als 'nein' markiert.
 
-ist (gespeichert je Angebot): {stangen: {Gruppenschlüssel: Anzahl}, laser_h, ruest_min, zusatz, sonstiges, erloes,
+ist (gespeichert je Angebot): {stangen: {Gruppenschlüssel: Anzahl}, meterpreis: {Gruppenschlüssel: €/m}, laser_h, ruest_min, zusatz, sonstiges, erloes,
 bemerkung, am}; Gruppenschlüssel = 'Profil|Werkstoff|Stangenlänge'.
 """
 from . import rechnen
@@ -45,6 +46,7 @@ def gruppen(ergebnis, kopf, positionen, k, tabellen):
         g["kosten"] += w["kosten"] or 0
     for g in out.values():
         g["kosten_stange"] = g["kosten"] / g["soll"]
+        g["meterpreis"] = g["kosten_stange"] * 1000 / g["stange"] if g["stange"] else None
     return list(out.values())
 
 
@@ -55,12 +57,14 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist):
     zeilen_k, summen = rechnen.kalkulation(kopf, positionen, ergebnis, k, tabellen, einst)
     satz = _n((rechnen.maschine(kopf, k) or {}).get("stundensatz")) or 0
     gr = gruppen(ergebnis, kopf, positionen, k, tabellen)
-    ist_st = ist.get("stangen") or {}
+    ist_st, ist_mp = ist.get("stangen") or {}, ist.get("meterpreis") or {}
     for g in gr:
         n = _n(ist_st.get(g["schluessel"]))
-        g["ist"] = n
+        mp = _n(ist_mp.get(g["schluessel"]))
+        g["ist"], g["meterpreis_ist"] = n, mp
+        g["kosten_stange_ist"] = mp * g["stange"] / 1000 if mp is not None else g["kosten_stange"]
         g["soll_kosten"] = g["kosten"]
-        g["ist_kosten"] = (n if n is not None else g["soll"]) * g["kosten_stange"]
+        g["ist_kosten"] = (n if n is not None else g["soll"]) * g["kosten_stange_ist"]
     laser_h = sum((z["laser_netto"] or 0) * z["stueck"] for z in zeilen_k if z) / 3600
     ruest_min = summen["ruestzeit"] + summen["abmessungen"] * summen["ruestzeit_abmessung"] \
         + summen["stangen"] * summen["stangenwechsel"] / 60
@@ -98,4 +102,4 @@ def erfasst(ist):
     """True, wenn mindestens ein Ist-Wert eingetragen ist."""
     ist = ist or {}
     return any(_n(ist.get(n)) is not None for n, _, _ in FELDER) or \
-        any(_n(v) is not None for v in (ist.get("stangen") or {}).values())
+        any(_n(v) is not None for n in ("stangen", "meterpreis") for v in (ist.get(n) or {}).values())

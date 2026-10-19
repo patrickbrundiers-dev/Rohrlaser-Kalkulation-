@@ -310,8 +310,9 @@ def main(ziel):
     s.neu_laden()
     reiter_waehlen(s, "Staffeln")
     bereit()
-    foto.foto("staffeln_vorher", f, [(knopf(s, "Neue Stufe"), 1), (s.staffel_ansicht, 2),
-                                     (knopf(s, "Staffelpreise rechnen"), 3)], ausschnitt=reiterflaeche(s))
+    foto.foto("staffeln_vorher", f, [(knopf(s, "Neue Stufe"), 1), (knopf(s, "Stufen aus Angebot"), 2),
+                                     (s.staffel_ansicht, 3), (knopf(s, "Staffelpreise rechnen"), 4)],
+              ausschnitt=reiterflaeche(s))
     s.staffelpreise_rechnen()
     foto.foto("staffeln", f, ausschnitt=reiterflaeche(s))
 
@@ -324,7 +325,8 @@ def main(ziel):
     nk.setzen(dict(laser_h=round(soll["Laserzeit"]["soll_menge"] * 1.15, 2), ruest_min=75,
                    zusatz=round(soll["Gewinde und Zusatzarbeiten"]["soll"] + 38, 2), sonstiges=24.0,
                    bemerkung="Stiele nachgeschnitten, Verzinkerei-Rechnung 4711"),
-              {g["schluessel"]: g["soll"] + (1 if p == "QR 40x40x3" else 0) for p, g in gr.items()})
+              {g["schluessel"]: g["soll"] + (1 if p == "QR 40x40x3" else 0) for p, g in gr.items()},
+              {g["schluessel"]: round(g["meterpreis"] * 1.06, 2) for p, g in gr.items() if p == "QR 40x40x3"})
     bereit()
     foto.foto("nachkalkulation", f, [(nk.gruppen, 1), (nk.felder["laser_h"].parentWidget(), 2),
                                      (nk.vergleich_ansicht, 3), (knopf(nk, "Nachkalkulation (PDF)"), 4)],

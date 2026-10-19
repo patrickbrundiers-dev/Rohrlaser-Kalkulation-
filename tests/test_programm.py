@@ -270,6 +270,17 @@ assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] 
 assert [z["preis_einheit"] for z in sp] == [159.19, 149.71, 138.36, 7.31, 6.71, 6.11], sp   # Referenzwerte
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
+assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
+                                                                       if not p.get("satz")]
+assert s4.staffeln_aus_angebot() == len(staffeln.auswahl(s4.positionen)) - 2        # Rahmen und 10 gibt es schon
+assert s4.staffeln_aus_angebot() == 0
+de = s4.staffel_ansicht.itemDelegateForColumn(0)       # Auswahlliste der Spalte Satz oder Pos.
+cb = de.createEditor(s4.staffel_ansicht.viewport(), None, st_mod.index(0, 0))
+assert cb.count() == len(staffeln.auswahl(s4.positionen)) and cb.itemText(0).startswith("Satz Rahmen (2 Pos.")
+de.setEditorData(cb, st_mod.index(0, 0))
+assert cb.currentData() == "Rahmen"
+db.staffeln_loeschen([x["id"] for x in s4.stufen[6:]])    # Referenzwerte unten gelten für die 6 Stufen
+s4.neu_laden()
 assert st_mod.setData(st_mod.index(5, 1), "200") and db.staffeln(a4)[5]["menge"] == 200
 assert "VERALTET" in s4.staffel_info.text()
 assert not st_mod.setData(st_mod.index(5, 1), "0")
@@ -327,7 +338,7 @@ con.execute("PRAGMA user_version=2")
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == 9
+assert db.con.execute("PRAGMA user_version").fetchone()[0] == 10
 tabellen_ = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
 assert "auftraege" not in tabellen_ and {"angebote", "angebote_nummer", "positionen_angebot"} <= tabellen_, tabellen_
 assert db.angebot(a_alt)["kunde"] == "Altkunde" and [p_["artikel"] for p_ in db.positionen(a_alt)] == ["ALT-1"]
@@ -508,6 +519,19 @@ assert z["Sonstige Kosten"]["ist"] == 25.0 and z["Sonstige Kosten"]["prozent"] i
 assert abs(v["db"]["ist"] - (900.0 - v["summe"]["ist"])) < 1e-9
 assert seite.nachkalk.vergleich.rowCount() == len(v["zeilen"]) + 3
 assert seite.nachkalk.felder["laser_h"].text() == "2,00" and seite.nachkalk.gruppen.item(0, 4).text() == str(g0["soll"] + 1)
+assert abs(g0["meterpreis"] - g0["kosten_stange"] * 1000 / g0["stange"]) < 1e-9 and g0["meterpreis_ist"] is None
+it = seite.nachkalk.gruppen.item(0, 6)            # EK-Meterpreis Ist eintragen
+assert it.text() == "" and seite.nachkalk.gruppen.item(0, 5).text()
+it.setText("12,5")
+a = db.angebot(a9)["nachkalkulation"]
+assert a["meterpreis"][g0["schluessel"]] == 12.5
+v = nk.vergleich(seite.kopf, seite.positionen, seite.ergebnis, seite.k, seite.tabellen, seite.einst, a)
+g1 = v["gruppen"][0]
+assert abs(g1["ist_kosten"] - (g0["soll"] + 1) * 12.5 * g0["stange"] / 1000) < 1e-9
+seite.nachkalk.gruppen.item(0, 6).setText("")      # leer = kalkulierter Meterpreis
+a = db.angebot(a9)["nachkalkulation"]
+v = nk.vergleich(seite.kopf, seite.positionen, seite.ergebnis, seite.k, seite.tabellen, seite.einst, a)
+assert abs(v["gruppen"][0]["ist_kosten"] - (g0["soll"] + 1) * g0["kosten_stange"]) < 1e-9
 fenster.angebote.neu_laden()
 assert any(z_["id"] == a9 and z_["nachkalkuliert"] for z_ in fenster.angebote.modell.zeilen)
 db.einstellung_setzen("ablageordner", str(tmp / "f" / "Ablage"))
