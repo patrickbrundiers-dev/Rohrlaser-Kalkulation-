@@ -1,7 +1,6 @@
-"""Inhalte der Ausgaben: Angebot, Werkstattpapier (Schnittpläne), Kalkulation – wie vba/Ausgabe.bas der Mappe.
+"""Inhalte der Ausgaben: Angebot, Werkstattpapier (Schnittpläne), Kalkulation.
 
-Die Funktionen liefern nur Daten (Zeilen und Summen); pdf.py setzt sie als PDF, export.py als Excel.
-tests/test_programm_ausgabe.py vergleicht Angebot und Werkstattpapier mit den Makros der Mappe.
+Die Funktionen liefern nur Daten (Zeilen und Summen); pdf.py setzt sie als PDF.
 """
 import datetime
 import re
@@ -10,12 +9,12 @@ from pathlib import Path
 
 from . import rechnen
 
-ABLAGE = "Aufträge"     # Ordnername wie in der Mappe
+ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
 
 # ------------------------------------------------------------------ Hilfen
 def kaufm_runden(x, stellen=2):
-    """Kaufmännisch runden (halbe Einheit von null weg) wie RUNDEN in Excel bzw. Format$ in VBA."""
+    """Kaufmännisch runden (halbe Einheit von null weg)."""
     if x is None:
         return None
     q = Decimal(1).scaleb(-stellen)
@@ -39,8 +38,8 @@ def _satz(v):
 
 
 def dateiname(kopf, zusatz="", mit_kunde=False):
-    """'<Auftragsnummer> [<Kunde>] <Zusatz>' ohne in Dateinamen verbotene Zeichen (Dateiname in Bedienung.bas)."""
-    s = str(kopf.get("nummer") or "").strip() or "Auftrag"
+    """'<Angebotsnummer> [<Kunde>] <Zusatz>' ohne in Dateinamen verbotene Zeichen."""
+    s = str(kopf.get("nummer") or "").strip() or "Angebot"
     if mit_kunde and str(kopf.get("kunde") or "").strip():
         s += " " + str(kopf["kunde"]).strip()
     if zusatz:
@@ -49,7 +48,7 @@ def dateiname(kopf, zusatz="", mit_kunde=False):
 
 
 def ablageordner(einstellung, programmordner):
-    """Ablage: eingestellter Ordner, sonst 'Aufträge' neben dem Programm. Wird angelegt."""
+    """Ablage: eingestellter Ordner, sonst 'Angebote' neben dem Programm. Wird angelegt."""
     ordner = Path(einstellung) if einstellung else Path(programmordner) / ABLAGE
     ordner.mkdir(parents=True, exist_ok=True)
     return ordner

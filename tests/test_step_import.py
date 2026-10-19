@@ -1,21 +1,17 @@
-"""Prüft Messwerte und Import gegen analytisch berechnete Sollwerte.
+"""Prüft die STEP-Messwerte gegen analytisch berechnete Sollwerte.
 
 Aufruf: python tests/test_step_import.py   (erzeugt die Testteile bei Bedarf)
 """
 import math
-import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
-sys.path.insert(0, str(HIER.parent / "tools"))
+sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
 from step_geometrie import analysiere_datei, gewinde_vorschlag, konturklassen  # noqa: E402
-from step_import import importiere  # noqa: E402
 
 STEP = HIER / "step"
-MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 if not (STEP / "T07_QR40x3_L1000_Gewinde_Gravur.step").exists():
     subprocess.run([sys.executable, str(HIER / "erzeuge_testteile.py")], check=True, capture_output=True)
 
@@ -80,38 +76,5 @@ for name, (form, a, b, t, fl, l, sw, k) in SOLL.items():
     except AssertionError as e:
         fehler += 1
         print(f"FEHLER {e}")
-
-# Import in eine Kopie der Mappe
-with tempfile.TemporaryDirectory() as d:
-    m = Path(d) / "m.xlsm"
-    shutil.copy(MAPPE, m)
-    erg = importiere(m, [STEP], werkstoff="S235-10219", stueck=5)
-    zeilen = [z for _, z, _ in erg]
-    assert zeilen == [18, 19, 20, 21, 22, 23, 24], zeilen
-    t05 = [i for a_, _, i in erg if a_.startswith("T05")][0]
-    assert "Profil fehlt" in t05, t05
-    from openpyxl import load_workbook
-    from step_import import LOG_KOPF
-    assert [c.value for c in load_workbook(MAPPE)["STEP-Import"][4]] == LOG_KOPF, "Protokollkopf in build_mappe.py"
-    w = load_workbook(m)["Auftrag"]
-    assert w["AF24"].value == "4xM6" and w["AG24"].value is None, (w["AF24"].value, w["AG24"].value)
-    assert w["AD24"].value == 58.0 and w["AE24"].value == "4xØ5", (w["AD24"].value, w["AE24"].value)
-    assert [w.cell(24, c).value for c in range(34, 40)] == [4, 62.8, 1, 60.0, 0, 0.0], [w.cell(24, c).value for c in range(34, 40)]
-    erg2 = importiere(m, [STEP])
-    assert all(z is None for _, z, _ in erg2), "Doppelimport nicht verhindert"
-    shutil.copy(MAPPE, m)
-    erg3 = importiere(m, [STEP / "T05_RR33-7x2-6_L500.step"], neue_profile=True)
-    assert "neu in Stammdaten" in erg3[0][2], erg3
-    from openpyxl import load_workbook
-    wb = load_workbook(m)
-    assert wb["Profile"]["A10"].value == "RR 33,7x2,6", wb["Profile"]["A10"].value
-    assert wb["Auftrag"]["D18"].value == "RR 33,7x2,6"
-    assert wb["Auftrag"]["Y18"].value == "ja" and abs(wb["Auftrag"]["Z18"].value - 105.9) < 0.05
-    try:
-        importiere(m, [STEP], stueck=-1)
-        raise AssertionError("negative Stückzahl nicht abgewiesen")
-    except ValueError:
-        pass
-    print("OK     Import, Gewinde-Vorschlag, Doppelimport-Sperre, Profil anlegen, Stückzahl-Prüfung")
 
 sys.exit(1 if fehler else 0)

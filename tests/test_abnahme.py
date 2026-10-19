@@ -1,6 +1,6 @@
-"""Abnahme des Programms (Schritt 4) mit realistischen Testaufträgen (tests/abnahme_auftraege.py).
+"""Abnahme des Programms (Schritt 4) mit realistischen Testangeboten (tests/abnahme_angebote.py).
 
-Je Auftrag läuft der Weg des Programms: Stammdaten aus der Mappe in die Datenbank, Auftrag anlegen,
+Je Angebot läuft der Weg des Programms: Datenbank mit den Beispiel-Stammdaten, Angebot anlegen,
 optimieren, Ergebnis speichern und wieder lesen. Das gespeicherte Ergebnis wird unabhängig von der
 Optimierung nachgerechnet, nur aus den Stammdaten und den Positionen:
 
@@ -13,11 +13,8 @@ Optimierung nachgerechnet, nur aus den Stammdaten und den Positionen:
    und je Teil.
 4. Besser als eine einfache manuelle Einteilung (Eingabereihenfolge, Stange voll, dann nächste) und nie
    unter der rechnerischen Untergrenze.
-5. Programm rechnet wie die Mappe: derselbe Auftrag in der Mappe (Python-Optimierung + LibreOffice-
-   Formeln) gegen das Programm, Zelle für Zelle (wie tests/test_programm_mappe.py).
 
-Aufruf: python tests/test_abnahme.py [--protokoll DATEI.md] [--ohne-mappe]
-        (--ohne-mappe: Punkt 5 auslassen, dann ist kein LibreOffice nötig)
+Aufruf: python tests/test_abnahme.py [--protokoll DATEI.md]
 """
 import argparse
 import math
@@ -28,16 +25,10 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
-sys.path.insert(0, str(HIER.parent / "tools"))
 sys.path.insert(0, str(HIER))
-from openpyxl import load_workbook  # noqa: E402
-from abnahme_auftraege import AUFTRAEGE, mappe_fuellen  # noqa: E402
+from abnahme_angebote import ANGEBOTE, programm_positionen  # noqa: E402
 from rohrlaser import rechnen  # noqa: E402
-from rohrlaser.auftrag import KOPF  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
-from rohrlaser.mappe_import import lies_mappe, lies_auftrag  # noqa: E402
-
-MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 TOL = 1e-6
 
 
@@ -71,23 +62,18 @@ def manuell(teile, end, nutzbar_bis, kerf, abstand):
     return n
 
 
-def programm_rechnen(m, tmp):
-    """Weg des Programms: Datenbank, Auftrag, Optimierung, gespeichertes Ergebnis."""
+def programm_rechnen(angebot, tmp):
+    """Weg des Programms: Datenbank, Angebot, Optimierung, gespeichertes Ergebnis."""
     db = Datenbank(tmp / "rohrlaser.db")
-    daten, einst, hinweise = lies_mappe(m)
-    assert not hinweise, hinweise
-    db.stammdaten_ersetzen(daten, einst, "Abnahme")
-    kopf, positionen, hinweise = lies_auftrag(m)
-    assert not hinweise, hinweise
-    aid = db.auftrag_neu({f.name: kopf[f.name] for f in KOPF if kopf.get(f.name) is not None})
-    for p in positionen:
+    aid = db.angebot_neu({n: angebot[n] for n in ("nummer", "kunde", "maschine", "stange")})
+    for p in programm_positionen(angebot):
         db.position_neu(aid, p)
-    kopf, positionen = db.auftrag(aid), db.positionen(aid)
+    kopf, positionen = db.angebot(aid), db.positionen(aid)
     erg = rechnen.optimieren(kopf, positionen, db.kontext())
     if erg["neue_profile"]:
         db.profile_anlegen(erg["neue_profile"])
     db.ergebnis_speichern(aid, erg)
-    gespeichert = db.auftrag(aid)["ergebnis"]
+    gespeichert = db.angebot(aid)["ergebnis"]
     assert gespeichert["stangen"] == erg["stangen"], "Ergebnis nach dem Speichern verändert"
     k, tabellen = db.kontext(), db.tabellen()
     zeilen, summen = rechnen.kalkulation(kopf, positionen, gespeichert, k, tabellen, db.einstellungen())
@@ -99,9 +85,9 @@ def programm_rechnen(m, tmp):
     return kopf, positionen, gespeichert, sw, zeilen, summen, stamm
 
 
-def pruefen(auftrag, kopf, positionen, erg, sw, zeilen, summen, stamm):
+def pruefen(angebot, kopf, positionen, erg, sw, zeilen, summen, stamm):
     """Abnahmekriterien 1–4 unabhängig nachrechnen. Ergebnis: Kennzahlen für das Protokoll."""
-    name = auftrag["name"]
+    name = angebot["name"]
     m = stamm["maschinen"][kopf["maschine"]]
     kerf, abstand = m["schnittverlust"], m["abstand"] or 0
     stange_von = lambda p: p.get("stange") or kopf["stange"]
@@ -117,7 +103,7 @@ def pruefen(auftrag, kopf, positionen, erg, sw, zeilen, summen, stamm):
             assert t["laenge"] == p["laenge"], f"{name}: Pos. {p['pos']} falsche Länge"
             gezaehlt[t["index"]] = gezaehlt.get(t["index"], 0) + 1
     fehler = {f["index"]: f for f in erg["fehler"]}
-    for i, (p, soll) in enumerate(zip(positionen, auftrag["positionen"])):
+    for i, (p, soll) in enumerate(zip(positionen, angebot["positionen"])):
         if soll.get("erwartet") == "nicht eingeplant":
             assert i not in gezaehlt and fehler.get(i, {}).get("anzahl") == p["stueck"], \
                 f"{name}: Pos. {p['pos']} hätte nicht eingeplant werden dürfen"
@@ -170,7 +156,7 @@ def pruefen(auftrag, kopf, positionen, erg, sw, zeilen, summen, stamm):
     for g in gruppen.values():   # Stangen einer Gruppe kosten gleich viel
         assert all(nahe(c, g["kosten"][0]) for c in g["kosten"])
     assert nahe(summen["material"], sum(x["kosten"] for x in sw)), \
-        f"{name}: Materialkosten Auftrag {summen['material']} ≠ Summe der Stangen {sum(x['kosten'] for x in sw)}"
+        f"{name}: Materialkosten Angebot {summen['material']} ≠ Summe der Stangen {sum(x['kosten'] for x in sw)}"
     for z in zeilen:
         if z and z["stueck"]:
             assert nahe(z["material_teil"] * z["stueck"], z["material_position"])
@@ -180,7 +166,7 @@ def pruefen(auftrag, kopf, positionen, erg, sw, zeilen, summen, stamm):
                                        "zuschlag_fertigung", "zuschlag_fremdleistung"))
     assert nahe(herstell, summen["herstell"]), f"{name}: Kostenarten {herstell} ≠ Herstellkosten {summen['herstell']}"
     verkauf = summen["herstell"] + sum(summen[n] for n in ("gewinn", "pauschalen", "programmierung",
-                                                          "auftragsaufschlag", "fracht"))
+                                                          "angebotsaufschlag", "fracht"))
     assert nahe(verkauf, summen["verkauf"]), f"{name}: Kostenarten {verkauf} ≠ Verkaufspreis {summen['verkauf']}"
     assert nahe(summen["laser_schneiden"] + summen["gewinde"], summen["laser"])
     assert nahe(summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"],
@@ -204,38 +190,26 @@ def pruefen(auftrag, kopf, positionen, erg, sw, zeilen, summen, stamm):
                                      untergrenze=ug, laenge=g["laenge"], teilelaenge=g["teile"],
                                      kosten=sum(g["kosten"]), kosten_manuell=n_man * g["kosten"][0],
                                      bewertung=a["bewertung"]))
-    return dict(name=auftrag["name"], nummer=auftrag["nummer"], gruppen=zeilen_protokoll,
+    return dict(name=angebot["name"], nummer=angebot["nummer"], gruppen=zeilen_protokoll,
                 positionen=len(positionen), eingeplant=sum(gezaehlt.values()),
                 nicht_eingeplant=sum(f["anzahl"] for f in erg["fehler"]),
                 gruende=sorted({f["grund"] for f in erg["fehler"]}), verkauf=summen["verkauf"])
-
-
-def gleiche_einteilung(erg, m):
-    """Programm über die Datenbank = Programm direkt aus der Mappe gelesen (gleiche Stangen)."""
-    from rohrlaser.stammdaten import kontext_aus
-    daten, _, _ = lies_mappe(m)
-    kopf, positionen, _ = lies_auftrag(m)
-    direkt = rechnen.optimieren(kopf, positionen, kontext_aus(daten))
-    form = lambda e: [(s["profil"], s["werkstoff"], s["stange"], s["belegung"], s["verlust"]) for s in e["stangen"]]
-    assert form(erg) == form(direkt), "Datenbank und Mappe ergeben verschiedene Einteilungen"
 
 
 def zahl(v, stellen=0):
     return f"{v:,.{stellen}f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def protokoll(ergebnisse, mappe_geprueft):
-    z = ["# Abnahmeprotokoll Rohrlaser-Kalkulation (Programm)", "",
-         "Erzeugt von `tests/test_abnahme.py` mit den Testaufträgen aus `tests/abnahme_auftraege.py` "
-         "und den Beispiel-Stammdaten der Mappe v02.", "",
+def protokoll(ergebnisse):
+    z = ["# Abnahmeprotokoll Rohrlaser-Angebotskalkulation (Programm)", "",
+         "Erzeugt von `tests/test_abnahme.py` mit den Testangeboten aus `tests/abnahme_angebote.py` "
+         "und den Beispiel-Stammdaten des Programms.", "",
          "| Kriterium | Ergebnis |", "|---|---|",
          "| Teile korrekt eingeplant (volle Stückzahl, nichts doppelt, keine Vermischung) | erfüllt |",
          "| Keine Stange überlastet (Lage jedes Teils nachgerechnet) | erfüllt |",
          "| Materialbedarf, Restlängen, Gewicht und Materialkosten stimmen | erfüllt |",
-         "| Besser als einfache manuelle Einteilung, nie unter der Untergrenze | erfüllt |",
-         "| Programm rechnet wie die Mappe (Zelle für Zelle) | "
-         + ("erfüllt |" if mappe_geprueft else "nicht geprüft (ohne LibreOffice) |"), "",
-         "| Auftrag | Profil / Werkstoff / Stange | Teile | Stangen | manuell | Untergrenze | Ausnutzung "
+         "| Besser als einfache manuelle Einteilung, nie unter der Untergrenze | erfüllt |", "",
+         "| Angebot | Profil / Werkstoff / Stange | Teile | Stangen | manuell | Untergrenze | Ausnutzung "
          "| Ausnutzung manuell | Material € | Material € manuell | Bewertung |",
          "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     ges = dict(stangen=0, manuell=0, kosten=0.0, kosten_manuell=0.0, laenge=0.0, teile=0.0, laenge_manuell=0.0)
@@ -271,46 +245,26 @@ def protokoll(ergebnisse, mappe_geprueft):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--protokoll")
-    ap.add_argument("--ohne-mappe", action="store_true")
     args = ap.parse_args()
     tmp = Path(tempfile.mkdtemp())
-    lo = None
-    if not args.ohne_mappe:
-        from lo_makro import LibreOffice
-        from test_programm_mappe import mappe_rechnen, vergleichen
-        lo = LibreOffice(port=2018).__enter__()
     ergebnisse = []
     try:
-        for auftrag in AUFTRAEGE:
-            d = tmp / auftrag["nummer"]
+        for angebot in ANGEBOTE:
+            d = tmp / angebot["nummer"]
             d.mkdir()
-            m = d / "eingabe.xlsm"
-            shutil.copy(MAPPE, m)
-            wb = load_workbook(m, keep_vba=True)
-            mappe_fuellen(wb, auftrag)
-            wb.save(m)
-            kopf, positionen, erg, sw, zeilen, summen, stamm = programm_rechnen(m, d)
-            gleiche_einteilung(erg, m)
-            e = pruefen(auftrag, kopf, positionen, erg, sw, zeilen, summen, stamm)
-            if lo:
-                rechnung = d / "rechnung.xlsm"
-                shutil.copy(m, rechnung)
-                mappe_rechnen(rechnung, d / "werte.xlsx", lo)
-                vergleichen(auftrag["name"], m, d / "werte.xlsx")
+            kopf, positionen, erg, sw, zeilen, summen, stamm = programm_rechnen(angebot, d)
+            e = pruefen(angebot, kopf, positionen, erg, sw, zeilen, summen, stamm)
             ergebnisse.append(e)
             s = sum(g["stangen"] for g in e["gruppen"])
             mn = sum(g["manuell"] for g in e["gruppen"])
-            print(f"{auftrag['nummer']} {auftrag['name']}: {e['eingeplant']} Teile auf {s} Stangen "
-                  f"(manuell {mn}), {e['nicht_eingeplant']} nicht eingeplant"
-                  + (", gleich wie Mappe" if lo else ""))
+            print(f"{angebot['nummer']} {angebot['name']}: {e['eingeplant']} Teile auf {s} Stangen "
+                  f"(manuell {mn}), {e['nicht_eingeplant']} nicht eingeplant")
     finally:
-        if lo:
-            lo.__exit__(None, None, None)
         shutil.rmtree(tmp, ignore_errors=True)
     s = sum(g["stangen"] for e in ergebnisse for g in e["gruppen"])
     mn = sum(g["manuell"] for e in ergebnisse for g in e["gruppen"])
     assert s < mn, f"Optimierung insgesamt nicht besser als manuell: {s} gegen {mn} Stangen"
-    text = protokoll(ergebnisse, lo is not None)
+    text = protokoll(ergebnisse)
     if args.protokoll:
         Path(args.protokoll).write_text(text, encoding="utf-8")
     print(f"OK: Abnahme bestanden, {s} Stangen statt {mn} bei manueller Einteilung")

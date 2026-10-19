@@ -1,4 +1,4 @@
-"""Aufträge: Übersicht, Auftragsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
+"""Angebote: Übersicht, Angebotsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
 import datetime
 import tempfile
 from itertools import zip_longest
@@ -15,10 +15,9 @@ from PySide6.QtWidgets import (
 
 from . import ausgabe, export, pdf, rechnen, staffeln, step
 from .zusatz_dialog import ZusatzDialog
-from .auftrag import KOPF, POSITIONEN, STEP_FELDER
-from .auftrag_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
+from .angebot import KOPF, POSITIONEN, STEP_FELDER
+from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
-from .mappe_import import lies_auftrag, lies_staffeln
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
 FARBE_TEILE = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F",
@@ -103,11 +102,11 @@ def _breiten(ansicht, spalten):
         ansicht.setColumnWidth(i, s[3] if len(s) > 3 else 90)
 
 
-# ------------------------------------------------------------------ Übersicht der Aufträge
-class AuftraegeSeite(QWidget):
+# ------------------------------------------------------------------ Übersicht der Angebote
+class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
 
-    SPALTEN = [("Auftragsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
+    SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
                ("Optimiert am", lambda z: _zeit(z.get("optimiert_am")), None, 120),
@@ -124,13 +123,12 @@ class AuftraegeSeite(QWidget):
         _breiten(self.ansicht, self.SPALTEN)
         self.ansicht.doubleClicked.connect(lambda i: self.oeffnen.emit(self._id(i)))
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen nach Auftrag, Kunde, Artikel …")
+        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel …")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
         leiste = QHBoxLayout()
-        for text, ziel in (("Neuer Auftrag", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
-                           ("Löschen", self.loeschen), ("Auftrag aus Excel-Mappe übernehmen …", self.aus_mappe),
-                           ("Ablage öffnen", self.f.ablage_oeffnen)):
+        for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
+                           ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
@@ -142,7 +140,7 @@ class AuftraegeSeite(QWidget):
         self.neu_laden()
 
     def neu_laden(self, *_):
-        self.modell.setzen(self.db.auftraege(self.suche.text().strip()))
+        self.modell.setzen(self.db.angebote(self.suche.text().strip()))
 
     def _id(self, index):
         return self.modell.zeilen[self.filter.mapToSource(index).row()]["id"]
@@ -150,12 +148,12 @@ class AuftraegeSeite(QWidget):
     def _gewaehlt(self):
         i = self.ansicht.currentIndex()
         if not i.isValid():
-            self.f.meldung("Bitte zuerst einen Auftrag wählen.", fehler=True)
+            self.f.meldung("Bitte zuerst ein Angebot wählen.", fehler=True)
             return None
         return self._id(i)
 
     def neu(self):
-        i = self.db.auftrag_neu()
+        i = self.db.angebot_neu()
         self.neu_laden()
         self.oeffnen.emit(i)
 
@@ -167,7 +165,7 @@ class AuftraegeSeite(QWidget):
     def kopieren(self):
         i = self._gewaehlt()
         if i:
-            neu = self.db.auftrag_kopieren(i)
+            neu = self.db.angebot_kopieren(i)
             self.neu_laden()
             self.oeffnen.emit(neu)
 
@@ -175,47 +173,12 @@ class AuftraegeSeite(QWidget):
         i = self._gewaehlt()
         if not i:
             return
-        a = self.db.auftrag(i)
-        if QMessageBox.question(self, "Auftrag löschen", f"Auftrag {a['nummer']} mit allen Positionen löschen?\n\n"
-                                "Die tägliche Datensicherung enthält ihn weiterhin.") == QMessageBox.Yes:
-            self.f.auftrag_schliessen(i)
-            self.db.auftrag_loeschen(i)
+        a = self.db.angebot(i)
+        if QMessageBox.question(self, "Angebot löschen", f"Angebot {a['nummer']} mit allen Positionen löschen?\n\n"
+                                "Die tägliche Datensicherung enthält es weiterhin.") == QMessageBox.Yes:
+            self.f.angebot_schliessen(i)
+            self.db.angebot_loeschen(i)
             self.neu_laden()
-
-    def aus_mappe(self, pfad=None):
-        if not pfad:
-            pfad, _ = QFileDialog.getOpenFileName(self, "Auftragsmappe wählen", str(Path.home()),
-                                                  "Excel-Mappe (*.xlsm *.xlsx)")
-            if not pfad:
-                return None
-        try:
-            kopf, positionen, hinweise = lies_auftrag(pfad)
-        except Exception as e:   # fremde oder beschädigte Datei: Meldung statt Absturz
-            QMessageBox.warning(self, "Übernahme nicht möglich", str(e))
-            return None
-        kopf = {f.name: kopf.get(f.name) for f in KOPF if kopf.get(f.name) is not None}
-        nummer = kopf.get("nummer")
-        if nummer and any(a["nummer"] == nummer for a in self.db.auftraege()):
-            kopf.pop("nummer")
-            hinweise.insert(0, f"Auftragsnummer {nummer} gibt es schon, der Auftrag bekommt eine neue Nummer.")
-        i = self.db.auftrag_neu(kopf)
-        for p in positionen:
-            self.db.position_neu(i, p)
-        try:
-            for st in lies_staffeln(pfad):
-                self.db.staffel_neu(i, st)
-        except Exception as e:   # Staffeln sind Beiwerk: Auftrag trotzdem übernehmen
-            hinweise.append(f"Staffeln nicht übernommen: {e}")
-        self.neu_laden()
-        a = self.db.auftrag(i)
-        text = f"Auftrag {a['nummer']} mit {len(positionen)} Positionen übernommen."
-        if hinweise:
-            text += "\n\n" + "\n".join(hinweise[:15])
-        self.f.meldung(text.splitlines()[0])
-        if hinweise and not self.f.stumm:
-            QMessageBox.information(self, "Auftrag übernommen", text)
-        self.oeffnen.emit(i)
-        return i
 
 
 def _datum(iso):
@@ -366,7 +329,7 @@ STAFFELPREIS_SPALTEN = [("Satz oder Pos.", "schluessel", None, 100), ("Bezeichnu
 
 
 class StaffelnModell(QAbstractTableModel):
-    """Mengenstufen eines Auftrags (wie Blatt 'Staffeln'): Schlüssel, Menge, Bemerkung, Prüfung."""
+    """Mengenstufen eines Angebots: Schlüssel, Menge, Bemerkung, Prüfung."""
     geaendert = Signal()
     FELDER = ("schluessel", "menge", "bemerkung")
 
@@ -436,7 +399,7 @@ class StaffelnModell(QAbstractTableModel):
 # ------------------------------------------------------------------ Stangenbild
 class Stangenbild(QWidget):
     """Je Stangenmuster ein maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Pos. und Länge,
-    dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot (wie Blatt 'Stangenbild' der Mappe)."""
+    dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot."""
     ZEILE = 74
 
     def __init__(self):
@@ -503,21 +466,21 @@ class Stangenbild(QWidget):
         p.end()
 
 
-# ------------------------------------------------------------------ Auftrag
+# ------------------------------------------------------------------ Angebot
 PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None, 90) for i, t in enumerate(step.PROTOKOLL)]
 
 
-class AuftragSeite(QWidget):
-    def __init__(self, fenster, auftrag_id):
+class AngebotSeite(QWidget):
+    def __init__(self, fenster, angebot_id):
         super().__init__()
         self.setAcceptDrops(True)       # STEP-Dateien und Ordner per Drag & Drop importieren
-        self.f, self.db, self.id = fenster, fenster.db, auftrag_id
+        self.f, self.db, self.id = fenster, fenster.db, angebot_id
         self._laden = False
         self.kopf, self.positionen, self.ergebnis = {}, [], None
 
         # Kopf
         self.felder = {}
-        kopf_box = QGroupBox("Auftragskopf")
+        kopf_box = QGroupBox("Angebotskopf")
         g = QGridLayout(kopf_box)
         for i, fd in enumerate(KOPF):
             if fd.art == "datum":
@@ -583,7 +546,7 @@ class AuftragSeite(QWidget):
         ausgabe_leiste = QHBoxLayout()
         ausgabe_leiste.addWidget(QLabel("Ausgabe:"))
         for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
-                           ("Kalkulation (PDF)", self.kalkulation_pdf), ("Excel-Export", self.excel_export),
+                           ("Kalkulation (PDF)", self.kalkulation_pdf), ("CSV-Export", self.csv_export),
                            ("Ablage öffnen", self.f.ablage_oeffnen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
@@ -662,7 +625,7 @@ class AuftragSeite(QWidget):
             st_leiste.addWidget(b)
         st_leiste.addSpacing(20)
         hinweis = QLabel("Je Zeile eine Mengenstufe: Satzbezeichnung (Spalte Satz) oder Positionsnummer. Jede Stufe wird "
-                         "als eigener Auftrag neu gerechnet; die Preise stehen im Angebot unter den Positionen.")
+                         "als eigenes Angebot neu gerechnet; die Preise stehen im Angebot unter den Positionen.")
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")
         st_leiste.addWidget(hinweis, 1)
@@ -696,10 +659,10 @@ class AuftragSeite(QWidget):
 
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
-        return f"Auftrag {self.kopf.get('nummer') or ''}"
+        return f"Angebot {self.kopf.get('nummer') or ''}"
 
     def neu_laden(self, *_):
-        a = self.db.auftrag(self.id)
+        a = self.db.angebot(self.id)
         if a is None:
             return
         self.kopf = a
@@ -748,7 +711,7 @@ class AuftragSeite(QWidget):
         if self._laden or wert == self.kopf.get(fd.name):
             return
         try:
-            self.db.auftrag_aendern(self.id, fd.name, wert)
+            self.db.angebot_aendern(self.id, fd.name, wert)
         except ValueError as e:
             self.f.meldung(str(e), fehler=True)
             self._kopf_anzeigen()
@@ -760,7 +723,7 @@ class AuftragSeite(QWidget):
         if not self.ergebnis:
             return "noch nicht optimiert"
         aktuell = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k) == self.ergebnis.get("kennung")
-        return "aktuell" if aktuell else "VERALTET – Auftrag oder Stammdaten geändert, bitte neu optimieren"
+        return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
 
     def _ergebnisse_anzeigen(self):
         st = self.stand_optimierung()
@@ -924,7 +887,7 @@ class AuftragSeite(QWidget):
         elif not sp:
             text, farbe = "Staffelpreise noch nicht gerechnet.", "#9C5700"
         elif sp.get("kennung") != self._staffel_kennung():
-            text, farbe = ("VERALTET – Auftrag, Stufen oder Stammdaten geändert. Das Angebot rechnet sie neu.", "#C00000")
+            text, farbe = ("VERALTET – Angebot, Stufen oder Stammdaten geändert. Das Angebot rechnet sie neu.", "#C00000")
         else:
             text, farbe = f"Staffelpreise aktuell (gerechnet {_zeit(sp.get('am'))}).", "#375623"
         self.staffel_info.setText(f"<b style='color:{farbe}'>{text}</b>")
@@ -975,15 +938,15 @@ class AuftragSeite(QWidget):
             return sp["zeilen"]
         return self.staffelpreise_rechnen()
 
-    # -------------------------------------------------------------- Ausgabe (PDF, Excel)
+    # -------------------------------------------------------------- Ausgabe (PDF, CSV)
     def _vor_ausgabe(self):
-        """Wie VorAusgabeOptimieren der Mappe: bei veralteter Optimierung fragen. True = weiter."""
+        """Bei veralteter Optimierung fragen. True = weiter."""
         if self.stand_optimierung() == "aktuell":
             return True
         if self.f.stumm:
             return self.optimieren()
         a = QMessageBox.question(self, "Optimierung veraltet",
-                                 "Der Schnittplan passt nicht mehr zum Auftrag (oder es wurde noch nicht optimiert).\n\n"
+                                 "Der Schnittplan passt nicht mehr zum Angebot (oder es wurde noch nicht optimiert).\n\n"
                                  "Jetzt neu optimieren?\nJa = optimieren, Nein = mit dem bisherigen Stand weiter",
                                  QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
         if a == QMessageBox.Cancel:
@@ -1030,7 +993,7 @@ class AuftragSeite(QWidget):
         if not self._vor_ausgabe():
             return None
         if not any(p.get("profil_id") for p in self.positionen):
-            QMessageBox.warning(self, "Angebot", "Der Auftrag hat keine Positionen.")
+            QMessageBox.warning(self, "Angebot", "Das Angebot hat keine Positionen.")
             return None
         ang = self.angebot_daten()
         if ang is None:
@@ -1062,16 +1025,12 @@ class AuftragSeite(QWidget):
         return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
                                lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell))
 
-    def excel_export(self):
-        ang = self.angebot_daten()
-        if ang is None:
+    def csv_export(self):
+        if not self._vor_ausgabe():
             return None
         zeilen, summen = self._rechnung()
-        sw = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen) if self.ergebnis else []
-        sp = (self.kopf.get("staffelpreise") or {}).get("zeilen", [])
-        return self._schreiben("Excel-Export", self._ziel("", ".xlsx", mit_kunde=True),
-                               lambda p: export.auftrag_xlsx(p, self.kopf, self.positionen, self.pos_modell.status, zeilen,
-                                                             summen, self.ergebnis, sw, sp, ang, self.einst))
+        return self._schreiben("CSV-Export", self._ziel("Kalkulation", ".csv", mit_kunde=True),
+                               lambda p: export.angebot_csv(p, self.kopf, zeilen, summen, self.einst))
 
     # -------------------------------------------------------------- STEP-Import
     def _gezogene_dateien(self, ereignis):
@@ -1122,7 +1081,7 @@ class AuftragSeite(QWidget):
                 self, "STEP-Import", "Diese Profile fehlen in den Stammdaten:\n" + "\n".join(fehlend)
                 + "\n\nSollen sie aus den Messwerten angelegt werden? (Bitte danach prüfen.)") == QMessageBox.Yes
         if doppelt and not self.f.stumm:
-            erneut = QMessageBox.question(self, "STEP-Import", f"{doppelt} Artikel stehen schon im Auftrag.\n\n"
+            erneut = QMessageBox.question(self, "STEP-Import", f"{doppelt} Artikel stehen schon im Angebot.\n\n"
                                           "Trotzdem noch einmal eintragen?") == QMessageBox.Yes
         mehr = step.mehrteilig(messwerte)
         if mehr and als_satz is None:
@@ -1139,7 +1098,7 @@ class AuftragSeite(QWidget):
             self.db.position_neu(self.id, p)
         self.db.protokoll_anhaengen(self.id, erg["protokoll"])
         self.neu_laden()
-        text = f"{len(erg['positionen'])} Position(en) in den Auftrag übernommen."
+        text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
         self.f.meldung(text)
         if not self.f.stumm:
             box = QMessageBox(QMessageBox.Information, "STEP-Import", text, parent=self)

@@ -1,4 +1,4 @@
-"""Hauptfenster: Start, Aufträge (Übersicht und je offener Auftrag ein Reiter), Stammdaten und Einstellungen."""
+"""Hauptfenster: Start, Angebote (Übersicht und je offenes Angebot ein Reiter), Stammdaten und Einstellungen."""
 import datetime
 import os
 import sys
@@ -7,16 +7,15 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QUrl, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
+    QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import NAME, VERSION, ausgabe
-from .mappe_import import lies_mappe
 from .stammdaten import TABELLEN, EINSTELLUNGEN, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
-FARBE_EINGABE = QColor("#FFF9E0")   # wie Eingabefelder der Mappe (gelb)
+FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
 FARBE_BERECHNET = QColor("#EDEDED")
 FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": QColor("#C6EFCE")}
 
@@ -344,16 +343,15 @@ class StartSeite(QWidget):
         self.info.setWordWrap(True)
         self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
         knoepfe = QHBoxLayout()
-        for text, ziel in (("Stammdaten aus Excel-Mappe übernehmen …", fenster.mappe_uebernehmen),
-                           ("Datensicherung erstellen", fenster.sicherung_erstellen),
+        for text, ziel in (("Datensicherung erstellen", fenster.sicherung_erstellen),
                            ("Datenordner öffnen", fenster.datenordner_oeffnen)):
             b = QPushButton(text)
             b.clicked.connect(ziel)
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
-        hinweis = QLabel("Aufträge werden im Reiter 'Aufträge' angelegt oder aus einer Excel-Auftragsmappe übernommen. "
-                         "Im Auftrag: Staffelpreise im Reiter 'Staffeln', Angebot, Werkstattpapiere und Kalkulation als PDF sowie "
-                         "Excel-Export über die Leiste 'Ausgabe'. Die Dateien landen im Ablageordner (Einstellungen).")
+        hinweis = QLabel("Angebote werden im Reiter 'Angebote' angelegt. "
+                         "Im Angebot: Staffelpreise im Reiter 'Staffeln', Angebot, Werkstattpapiere und Kalkulation als PDF sowie "
+                         "CSV-Export über die Leiste 'Ausgabe'. Die Dateien landen im Ablageordner (Einstellungen).")
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")
         lay = QVBoxLayout(self)
@@ -374,20 +372,20 @@ class StartSeite(QWidget):
             stand = datetime.datetime.fromisoformat(stand).strftime("%d.%m.%Y %H:%M")
         warnung = ""
         if herkunft == "Beispieldaten":
-            warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Über 'Stammdaten aus "
-                       "Excel-Mappe übernehmen' die gepflegten Daten aus der Kalkulationsmappe holen.</p>")
+            warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Bitte in den "
+                       "Stammdaten-Reitern durch die eigenen Werte ersetzen.</p>")
         self.info.setText(f"<p>Datendatei: {db.pfad}</p><p>Stammdaten: {herkunft} (Stand {stand})</p>{warnung}"
                           f"<table cellpadding='2'>{zeilen}</table>")
 
 
 class Hauptfenster(QMainWindow):
     def __init__(self, db, programmordner=None, stumm=False):
-        from .auftrag_fenster import AuftraegeSeite
+        from .angebot_fenster import AngeboteSeite
         super().__init__()
         self.db = db
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
-        self.offen = {}             # Auftrags-ID -> AuftragSeite
+        self.offen = {}             # Angebots-ID -> AngebotSeite
         self.setWindowTitle(f"{NAME} {VERSION}")
         self.resize(1400, 800)
         self.reiter = QTabWidget()
@@ -395,9 +393,9 @@ class Hauptfenster(QMainWindow):
         self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
         self.start = StartSeite(self)
         self.reiter.addTab(self.start, "Start")
-        self.auftraege = AuftraegeSeite(self)
-        self.auftraege.oeffnen.connect(self.auftrag_oeffnen)
-        self.reiter.addTab(self.auftraege, "Aufträge")
+        self.angebote = AngeboteSeite(self)
+        self.angebote.oeffnen.connect(self.angebot_oeffnen)
+        self.reiter.addTab(self.angebote, "Angebote")
         self.seiten = [StammdatenSeite(db, t, self.meldung) for t in TABELLEN]
         for s in self.seiten:
             self.reiter.addTab(s, s.t.titel)
@@ -412,10 +410,9 @@ class Hauptfenster(QMainWindow):
 
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
-        for text, ziel, taste in (("Stammdaten aus Excel-Mappe übernehmen …", self.mappe_uebernehmen, None),
-                                  ("Datensicherung erstellen", self.sicherung_erstellen, None),
+        for text, ziel, taste in (("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Datenordner öffnen", self.datenordner_oeffnen, None),
-                                  ("Ablageordner öffnen (PDF, Excel)", self.ablage_oeffnen, None),
+                                  ("Ablageordner öffnen (PDF, CSV)", self.ablage_oeffnen, None),
                                   (None, None, None),
                                   ("Beenden", self.close, QKeySequence.Quit)):
             if text is None:
@@ -433,22 +430,22 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
-            self, NAME, f"<b>{NAME}</b> {VERSION}<br>Kalkulation und Materialoptimierung von Rohrlaserteilen.<br>"
+            self, NAME, f"<b>{NAME}</b> {VERSION}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
                         f"Daten: {self.db.pfad}"))
         hilfe.addAction(a)
 
-    def auftrag_oeffnen(self, auftrag_id):
-        from .auftrag_fenster import AuftragSeite
-        seite = self.offen.get(auftrag_id)
+    def angebot_oeffnen(self, angebot_id):
+        from .angebot_fenster import AngebotSeite
+        seite = self.offen.get(angebot_id)
         if seite is None:
-            seite = AuftragSeite(self, auftrag_id)
-            self.offen[auftrag_id] = seite
+            seite = AngebotSeite(self, angebot_id)
+            self.offen[angebot_id] = seite
             self.reiter.addTab(seite, seite.titel())
         self.reiter.setCurrentWidget(seite)
         return seite
 
-    def auftrag_schliessen(self, auftrag_id):
-        seite = self.offen.pop(auftrag_id, None)
+    def angebot_schliessen(self, angebot_id):
+        seite = self.offen.pop(angebot_id, None)
         if seite is not None:
             self.reiter.removeTab(self.reiter.indexOf(seite))
             seite.deleteLater()
@@ -457,7 +454,7 @@ class Hauptfenster(QMainWindow):
         w = self.reiter.widget(i)
         for aid, seite in list(self.offen.items()):
             if seite is w:
-                self.auftrag_schliessen(aid)
+                self.angebot_schliessen(aid)
 
     def reiter_titel(self, seite):
         i = self.reiter.indexOf(seite)
@@ -475,36 +472,12 @@ class Hauptfenster(QMainWindow):
 
     def alles_neu_laden(self):
         self.start.neu_laden()
-        self.auftraege.neu_laden()
+        self.angebote.neu_laden()
         for seite in self.offen.values():
             seite.neu_laden()
         for s in self.seiten:
             s.neu_laden()
         self.einstellungen.neu_laden()
-
-    def mappe_uebernehmen(self, pfad=None, nachfragen=True):
-        if not pfad:
-            pfad, _ = QFileDialog.getOpenFileName(self, "Kalkulationsmappe wählen", str(Path.home()),
-                                                  "Excel-Mappe (*.xlsm *.xlsx)")
-            if not pfad:
-                return False
-        try:
-            daten, einst, hinweise = lies_mappe(pfad)
-        except Exception as e:   # beschädigte oder fremde Datei: Meldung statt Absturz
-            QMessageBox.warning(self, "Übernahme nicht möglich", str(e))
-            return False
-        zeilen = "\n".join(f"  {t.titel}: {len(daten[t.name])}" for t in TABELLEN if t.name in daten)
-        text = (f"Aus '{Path(pfad).name}' übernehmen:\n{zeilen}\n  dazu Zuschläge, Angebotskopf und Auftragsvorgaben.\n\n"
-                "Die vorhandenen Stammdaten im Programm werden ersetzt. Vorher wird eine Datensicherung angelegt.")
-        if hinweise:
-            text += "\n\nHinweise:\n" + "\n".join(hinweise[:15]) + ("\n…" if len(hinweise) > 15 else "")
-        if nachfragen and QMessageBox.question(self, "Stammdaten übernehmen", text) != QMessageBox.Yes:
-            return False
-        self.db.sicherung()
-        self.db.stammdaten_ersetzen(daten, einst, f"Mappe {Path(pfad).name}")
-        self.alles_neu_laden()
-        self.meldung(f"Stammdaten aus {Path(pfad).name} übernommen.")
-        return True
 
     def anleitung_oeffnen(self):
         """Bedienungsanleitung.pdf neben dem Programm (liegt im ZIP), beim Entwickeln aus dem Ordner anleitung."""
@@ -524,7 +497,7 @@ class Hauptfenster(QMainWindow):
         self.datei_oeffnen(self.db.pfad.parent)
 
     def ablage(self):
-        """Ordner für PDF und Excel-Export (Einstellung 'Ablageordner', sonst 'Aufträge' neben dem Programm)."""
+        """Ordner für PDF und CSV-Export (Einstellung 'Ablageordner', sonst 'Angebote' neben dem Programm)."""
         return ausgabe.ablageordner(self.db.einstellung("ablageordner"), self.programmordner)
 
     def ablage_oeffnen(self):

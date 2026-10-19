@@ -1,11 +1,10 @@
-"""Staffelpreise: jede Mengenstufe als eigener Auftrag neu rechnen (wie vba/Staffel.bas der Mappe).
+"""Staffelpreise: jede Mengenstufe als eigenes Angebot neu rechnen.
 
 Eine Stufe hat einen Schlüssel (Satzbezeichnung aus der Spalte 'Satz' oder eine Positionsnummer) und
 eine Menge (Anzahl Sätze bzw. Stück). Im Rechenlauf sind nur die Positionen dieser Stufe besetzt:
 bei einem Satz Menge × 'Stück je Satz', bei einer Position die Menge selbst. Alle anderen Stückzahlen
 sind leer. So fallen Rüsten, Stangenwechsel und Verschnitt je Stufe neu an, ebenso Programmierkosten, Rüstzeit und Pauschale
-je Abmessung, Auftragsaufschlag und Fracht (jede Stufe ist ein eigener Auftrag).
-tests/test_programm_ausgabe.py vergleicht das Ergebnis mit dem Makro der Mappe.
+je Abmessung, Angebotsaufschlag und Fracht (jede Stufe ist ein eigenes Angebot).
 """
 import hashlib
 import json
@@ -14,7 +13,7 @@ from . import rechnen
 from .stammdaten import kontext_aus
 
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
-           "herstell", "herstell_einheit", "preis_einheit", "preis_gesamt", "hinweis")   # Blatt Staffelpreise A–N
+           "herstell", "herstell_einheit", "preis_einheit", "preis_gesamt", "hinweis")
 MAX_STUFEN = 200
 
 
@@ -39,7 +38,7 @@ def je_satz(p):
 
 
 def pruefen(stufe, positionen):
-    """Prüfspalte im Blatt Staffeln (Spalte D)."""
+    """Prüfspalte der Staffeln."""
     schl = txt(stufe.get("schluessel"))
     if not schl:
         return ""
@@ -50,7 +49,7 @@ def pruefen(stufe, positionen):
         return f"Satz mit {n} Positionen"
     if any(txt(p.get("pos")) == schl for p in positionen):
         return "Position"
-    return "FEHLER: Satz/Pos. nicht im Auftrag"
+    return "FEHLER: Satz/Pos. nicht im Angebot"
 
 
 def gueltige(stufen):
@@ -92,12 +91,12 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst):
     z = dict.fromkeys(SPALTEN)
     z.update(schluessel=schl, einheit="Satz" if ist_satz else "Stück", menge=menge)
     if not mengen:
-        z.update(bezeichnung="", hinweis="FEHLER: Satz/Pos. nicht im Auftrag")
+        z.update(bezeichnung="", hinweis="FEHLER: Satz/Pos. nicht im Angebot")
         return z
     z["bezeichnung"] = bez
     lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
     erg = rechnen.optimieren(kopf, lauf, k)
-    if erg["neue_profile"]:      # wie die Mappe: Profil aus dem Namen gilt für diesen Lauf als angelegt
+    if erg["neue_profile"]:      # Profil aus dem Namen gilt für diesen Lauf als angelegt
         k = kontext_aus({"profile": list(k.profile.values()) + erg["neue_profile"],
                          "werkstoffe": list(k.werkstoffe.values()), "maschinen": list(k.maschinen.values())},
                         k.profilformen)
@@ -125,10 +124,10 @@ def kennung(kopf, positionen, stufen, k, tabellen, einst):
     """Prüfsumme über alle Eingaben der Staffelrechnung; weicht sie ab, sind die Staffelpreise veraltet."""
     felder = ("maschine", "stange", "fracht")
     daten = [{f: kopf.get(f) for f in felder},
-             [{a: b for a, b in p.items() if a not in ("id", "auftrag_id", "nr", "zeile")} for p in positionen],
+             [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
              [(txt(s.get("schluessel")), s.get("menge")) for s in gueltige(stufen)],
              [k.profile, k.werkstoffe, k.maschinen], tabellen,
              {n: einst.get(n) for n in ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn",
                                          "ruesten_abmessung",
-                                         "pauschale_abmessung", "programmierung_teil", "auftragsaufschlag")}]
+                                         "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag")}]
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()

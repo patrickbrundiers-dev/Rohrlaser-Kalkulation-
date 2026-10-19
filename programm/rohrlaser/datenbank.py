@@ -1,21 +1,28 @@
-"""Datenbank des Programms: eine SQLite-Datei mit Stammdaten, Einstellungen und Aufträgen.
+"""Datenbank des Programms: eine SQLite-Datei mit Stammdaten, Einstellungen und Angeboten.
 
-Das Schema entsteht aus stammdaten.TABELLEN und auftrag.KOPF/POSITIONEN; die Schemaversion steht in
+Das Schema entsteht aus stammdaten.TABELLEN und angebot.KOPF/POSITIONEN; die Schemaversion steht in
 PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 = nur Stammdaten,
 2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
-Frachtkosten im Auftragskopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell). Fehlende Spalten
-älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die Beispiel-Zusatzarbeiten.
+Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote).
+Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
+Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt.
 """
 import datetime
 import json
 import sqlite3
 from pathlib import Path
 
-from .auftrag import KOPF, POSITIONEN, naechste_nummer
+from .angebot import KOPF, POSITIONEN, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispieldaten, kontext_aus)
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
+# Schema 6: alte Namen (Schema 2–5) -> neue Namen
+UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
+UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
+                     ("staffeln", "auftrag_id", "angebot_id"))
+UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), ("auftragsaufschlag", "angebotsaufschlag"))
+ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
 
@@ -42,6 +49,8 @@ class Datenbank:
             raise RuntimeError(f"Die Datendatei {self.pfad} stammt von einer neueren Programmversion "
                                f"(Schema {version}). Bitte das Programm aktualisieren.")
         with self.con:
+            if 0 < version < 6:
+                self._umbenennen()
             for t in TABELLEN:
                 spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in t.felder)
                 self.con.execute(f'CREATE TABLE IF NOT EXISTS "{t.name}" (id INTEGER PRIMARY KEY, {spalten})')
@@ -49,22 +58,22 @@ class Datenbank:
                 self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
             self.con.execute("CREATE TABLE IF NOT EXISTS einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
             kopf = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in KOPF)
-            self.con.execute(f"CREATE TABLE IF NOT EXISTS auftraege (id INTEGER PRIMARY KEY, {kopf}, angelegt TEXT, "
+            self.con.execute(f"CREATE TABLE IF NOT EXISTS angebote (id INTEGER PRIMARY KEY, {kopf}, angelegt TEXT, "
                              "geaendert TEXT, ergebnis TEXT, optimiert_am TEXT)")
-            self.con.execute("CREATE UNIQUE INDEX IF NOT EXISTS auftraege_nummer ON auftraege (nummer)")
+            self.con.execute("CREATE UNIQUE INDEX IF NOT EXISTS angebote_nummer ON angebote (nummer)")
             spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in POSITIONEN.felder)
-            self.con.execute("CREATE TABLE IF NOT EXISTS positionen (id INTEGER PRIMARY KEY, auftrag_id INTEGER "
-                             f"NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE, nr INTEGER, {spalten})")
-            self.con.execute("CREATE INDEX IF NOT EXISTS positionen_auftrag ON positionen (auftrag_id, nr)")
-            self.con.execute("CREATE TABLE IF NOT EXISTS step_protokoll (id INTEGER PRIMARY KEY, auftrag_id INTEGER "
-                             "NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE, zeile TEXT)")
-            self.con.execute("CREATE TABLE IF NOT EXISTS staffeln (id INTEGER PRIMARY KEY, auftrag_id INTEGER "
-                             "NOT NULL REFERENCES auftraege(id) ON DELETE CASCADE, nr INTEGER, schluessel TEXT, "
+            self.con.execute("CREATE TABLE IF NOT EXISTS positionen (id INTEGER PRIMARY KEY, angebot_id INTEGER "
+                             f"NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, {spalten})")
+            self.con.execute("CREATE INDEX IF NOT EXISTS positionen_angebot ON positionen (angebot_id, nr)")
+            self.con.execute("CREATE TABLE IF NOT EXISTS step_protokoll (id INTEGER PRIMARY KEY, angebot_id INTEGER "
+                             "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, zeile TEXT)")
+            self.con.execute("CREATE TABLE IF NOT EXISTS staffeln (id INTEGER PRIMARY KEY, angebot_id INTEGER "
+                             "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, schluessel TEXT, "
                              "menge INTEGER, bemerkung TEXT)")
-            spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(auftraege)")}
+            spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
-                self.con.execute("ALTER TABLE auftraege ADD COLUMN staffelpreise TEXT")
-            for tabelle, felder in [(t.name, t.felder) for t in TABELLEN] + [("auftraege", KOPF),
+                self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
+            for tabelle, felder in [(t.name, t.felder) for t in TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder)]:
                 vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
                 for f in felder:                       # neue Felder späterer Versionen
@@ -77,6 +86,20 @@ class Datenbank:
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
+    def _umbenennen(self):
+        """Dateien vor Schema 6: Tabellen, Spalten und Einstellungen von Auftrag auf Angebot umbenennen."""
+        tabellen = {r[0] for r in self.con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for alt, neu in UMBENANNT_TABELLEN:
+            if alt in tabellen and neu not in tabellen:
+                self.con.execute(f'ALTER TABLE "{alt}" RENAME TO "{neu}"')
+        for tabelle, alt, neu in UMBENANNT_SPALTEN:
+            if tabelle in tabellen and alt in {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}:
+                self.con.execute(f'ALTER TABLE "{tabelle}" RENAME COLUMN "{alt}" TO "{neu}"')
+        for name in ALTE_INDIZES:
+            self.con.execute(f'DROP INDEX IF EXISTS "{name}"')
+        for alt, neu in UMBENANNT_EINSTELLUNGEN:
+            self.con.execute("UPDATE OR IGNORE einstellungen SET name=? WHERE name=?", (neu, alt))
+
     # -------------------------------------------------------------- Stammdaten
     def zeilen(self, tabelle):
         return [dict(r) for r in self.con.execute(f'SELECT * FROM "{tabelle}" ORDER BY id')]
@@ -84,9 +107,16 @@ class Datenbank:
     def anzahl(self, tabelle):
         return self.con.execute(f'SELECT COUNT(*) FROM "{tabelle}"').fetchone()[0]
 
+    def _stammdaten_geaendert(self, tabelle):
+        """Nach einer Änderung von Hand gelten die Stammdaten nicht mehr als Beispielwerte (Startseite)."""
+        if tabelle in TABELLE:
+            self._einstellung_schreiben("stammdaten_herkunft", "eigene Werte")
+            self._einstellung_schreiben("stammdaten_stand", self._jetzt())
+
     def neu(self, tabelle, werte=None):
         werte = {k: v for k, v in (werte or {}).items() if k != "id"}
         with self.con:
+            self._stammdaten_geaendert(tabelle)
             if not werte:
                 return self.con.execute(f'INSERT INTO "{tabelle}" DEFAULT VALUES').lastrowid
             namen = ", ".join(f'"{k}"' for k in werte)
@@ -101,6 +131,7 @@ class Datenbank:
         alt = self.con.execute(f'SELECT "{feld}" FROM "{tabelle}" WHERE id=?', (zeilen_id,)).fetchone()
         try:
             with self.con:
+                self._stammdaten_geaendert(tabelle)
                 self.con.execute(f'UPDATE "{tabelle}" SET "{feld}"=? WHERE id=?', (wert, zeilen_id))
                 if alt is not None and alt[0] not in (None, "") and wert not in (None, ""):
                     for ziel, zfeld in VERWEISE.get((tabelle, feld), ()):
@@ -125,23 +156,16 @@ class Datenbank:
 
     def loeschen(self, tabelle, ids):
         with self.con:
+            self._stammdaten_geaendert(tabelle)
             self.con.executemany(f'DELETE FROM "{tabelle}" WHERE id=?', [(i,) for i in ids])
 
     def stammdaten_ersetzen(self, daten, einstellungen, herkunft):
-        """Alle Stammdatentabellen in einem Schritt ersetzen (Übernahme aus einer Mappe).
+        """Alle Stammdatentabellen in einem Schritt ersetzen (z. B. Beispieldaten einer neuen Datei).
         daten: {Tabelle: [Zeile, …]}; einstellungen: {Name: Wert}, nur die genannten werden gesetzt."""
         with self.con:
             for t in TABELLEN:
                 if t.name not in daten:
                     continue
-                # Felder, die es nur im Programm gibt (z. B. Preis je Gewinde), bleiben je Schlüssel erhalten
-                nur_programm = [f.name for f in t.felder if not f.spalte]
-                if nur_programm:
-                    alt = {tuple(z.get(s) for s in t.schluessel): z for z in self.zeilen(t.name)}
-                    daten = dict(daten)
-                    daten[t.name] = [dict(z, **{n: (alt.get(tuple(z.get(s) for s in t.schluessel)) or {}).get(n)
-                                                for n in nur_programm if z.get(n) is None})
-                                     for z in daten[t.name]]
                 self.con.execute(f'DELETE FROM "{t.name}"')
                 namen = [f.name for f in t.felder]
                 self.con.executemany(
@@ -161,22 +185,22 @@ class Datenbank:
         """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten)."""
         return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde", "zusatzarbeiten")}
 
-    # -------------------------------------------------------------- Aufträge
-    def auftraege(self, suche=""):
+    # -------------------------------------------------------------- Angebote
+    def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM auftraege a "
-               "LEFT JOIN positionen p ON p.auftrag_id = a.id")
+               "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
+               "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
         if suche:
             sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
-                    "OR a.id IN (SELECT auftrag_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
+                    "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
             werte = [f"%{suche}%"] * 6
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
         return [dict(r) for r in self.con.execute(sql, werte)]
 
-    def auftrag(self, auftrag_id):
-        r = self.con.execute("SELECT * FROM auftraege WHERE id=?", (auftrag_id,)).fetchone()
+    def angebot(self, angebot_id):
+        r = self.con.execute("SELECT * FROM angebote WHERE id=?", (angebot_id,)).fetchone()
         if r is None:
             return None
         a = dict(r)
@@ -187,12 +211,12 @@ class Datenbank:
     def _jetzt(self):
         return datetime.datetime.now().isoformat(timespec="seconds")
 
-    def auftrag_neu(self, kopf=None):
-        """Neuer Auftrag mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch."""
+    def angebot_neu(self, kopf=None):
+        """Neues Angebot mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch."""
         kopf = dict(kopf or {})
         if not kopf.get("nummer"):
-            nr = naechste_nummer(self.einstellung("letzte_auftragsnummer"))
-            while self.con.execute("SELECT 1 FROM auftraege WHERE nummer=?", (nr,)).fetchone():
+            nr = naechste_nummer(self.einstellung("letzte_angebotsnummer"))
+            while self.con.execute("SELECT 1 FROM angebote WHERE nummer=?", (nr,)).fetchone():
                 nr = naechste_nummer(nr)
             kopf["nummer"] = nr
         kopf.setdefault("datum", datetime.date.today().isoformat())
@@ -202,64 +226,64 @@ class Datenbank:
         try:
             with self.con:
                 i = self.con.execute(
-                    f'INSERT INTO auftraege ({", ".join(namen)}, angelegt, geaendert) VALUES '
+                    f'INSERT INTO angebote ({", ".join(namen)}, angelegt, geaendert) VALUES '
                     f'({", ".join("?" * len(namen))}, ?, ?)', [kopf[n] for n in namen] + [self._jetzt()] * 2).lastrowid
-                self._einstellung_schreiben("letzte_auftragsnummer", kopf["nummer"])
+                self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
         except sqlite3.IntegrityError:
-            raise ValueError(f"Auftragsnummer '{kopf['nummer']}' gibt es schon.")
+            raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
         return i
 
-    def auftrag_aendern(self, auftrag_id, feld, wert):
+    def angebot_aendern(self, angebot_id, feld, wert):
         if feld not in {f.name for f in KOPF}:
             raise KeyError(feld)
         if feld == "nummer" and not wert:
-            raise ValueError("Die Auftragsnummer darf nicht leer sein.")
+            raise ValueError("Die Angebotsnummer darf nicht leer sein.")
         try:
             with self.con:
-                self.con.execute(f'UPDATE auftraege SET "{feld}"=?, geaendert=? WHERE id=?',
-                                 (wert, self._jetzt(), auftrag_id))
+                self.con.execute(f'UPDATE angebote SET "{feld}"=?, geaendert=? WHERE id=?',
+                                 (wert, self._jetzt(), angebot_id))
         except sqlite3.IntegrityError:
-            raise ValueError(f"Auftragsnummer '{wert}' gibt es schon.")
+            raise ValueError(f"Angebotsnummer '{wert}' gibt es schon.")
 
-    def auftrag_kopieren(self, auftrag_id):
-        a = self.auftrag(auftrag_id)
+    def angebot_kopieren(self, angebot_id):
+        a = self.angebot(angebot_id)
         kopf = {f.name: a[f.name] for f in KOPF if f.name != "nummer"}
         kopf["datum"] = datetime.date.today().isoformat()
-        neu = self.auftrag_neu(kopf)
-        for p in self.positionen(auftrag_id):
+        neu = self.angebot_neu(kopf)
+        for p in self.positionen(angebot_id):
             self.position_neu(neu, p)
-        for st in self.staffeln(auftrag_id):
+        for st in self.staffeln(angebot_id):
             self.staffel_neu(neu, st)
         return neu
 
-    def auftrag_loeschen(self, auftrag_id):
+    def angebot_loeschen(self, angebot_id):
         with self.con:
-            self.con.execute("DELETE FROM auftraege WHERE id=?", (auftrag_id,))
+            self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
-    def ergebnis_speichern(self, auftrag_id, ergebnis):
+    def ergebnis_speichern(self, angebot_id, ergebnis):
         with self.con:
-            self.con.execute("UPDATE auftraege SET ergebnis=?, optimiert_am=? WHERE id=?",
+            self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=? WHERE id=?",
                              (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None,
-                              self._jetzt() if ergebnis else None, auftrag_id))
+                              self._jetzt() if ergebnis else None, angebot_id))
 
-    def staffelpreise_speichern(self, auftrag_id, staffelpreise):
+    def staffelpreise_speichern(self, angebot_id, staffelpreise):
         """staffelpreise: {'zeilen': [...], 'kennung': str, 'am': Zeitpunkt} oder None"""
         with self.con:
-            self.con.execute("UPDATE auftraege SET staffelpreise=? WHERE id=?",
-                             (json.dumps(staffelpreise, ensure_ascii=False) if staffelpreise else None, auftrag_id))
+            self.con.execute("UPDATE angebote SET staffelpreise=? WHERE id=?",
+                             (json.dumps(staffelpreise, ensure_ascii=False) if staffelpreise else None, angebot_id))
 
     # -------------------------------------------------------------- Staffeln (Mengenstufen)
-    def staffeln(self, auftrag_id):
-        return [dict(r) for r in self.con.execute("SELECT * FROM staffeln WHERE auftrag_id=? ORDER BY nr, id",
-                                                  (auftrag_id,))]
+    def staffeln(self, angebot_id):
+        return [dict(r) for r in self.con.execute("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY nr, id",
+                                                  (angebot_id,))]
 
-    def staffel_neu(self, auftrag_id, werte=None):
+    def staffel_neu(self, angebot_id, werte=None):
         werte = werte or {}
-        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM staffeln WHERE auftrag_id=?",
-                              (auftrag_id,)).fetchone()[0]
+        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM staffeln WHERE angebot_id=?",
+                              (angebot_id,)).fetchone()[0]
         with self.con:
-            return self.con.execute("INSERT INTO staffeln (auftrag_id, nr, schluessel, menge, bemerkung) VALUES "
-                                    "(?, ?, ?, ?, ?)", (auftrag_id, nr, werte.get("schluessel"), werte.get("menge"),
+            return self.con.execute("INSERT INTO staffeln (angebot_id, nr, schluessel, menge, bemerkung) VALUES "
+                                    "(?, ?, ?, ?, ?)", (angebot_id, nr, werte.get("schluessel"), werte.get("menge"),
                                                         werte.get("bemerkung"))).lastrowid
 
     def staffel_aendern(self, staffel_id, feld, wert):
@@ -272,40 +296,40 @@ class Datenbank:
         with self.con:
             self.con.executemany("DELETE FROM staffeln WHERE id=?", [(i,) for i in ids])
 
-    def positionen(self, auftrag_id):
-        return [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE auftrag_id=? ORDER BY nr, id",
-                                                  (auftrag_id,))]
+    def positionen(self, angebot_id):
+        return [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
+                                                  (angebot_id,))]
 
-    def position_neu(self, auftrag_id, werte=None):
+    def position_neu(self, angebot_id, werte=None):
         werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
-        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM positionen WHERE auftrag_id=?",
-                              (auftrag_id,)).fetchone()[0]
-        namen = ["auftrag_id", "nr"] + list(werte)
+        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM positionen WHERE angebot_id=?",
+                              (angebot_id,)).fetchone()[0]
+        namen = ["angebot_id", "nr"] + list(werte)
         with self.con:
             i = self.con.execute(f'INSERT INTO positionen ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
-                                 f'VALUES ({", ".join("?" * len(namen))})', [auftrag_id, nr] + list(werte.values())).lastrowid
-            self.con.execute("UPDATE auftraege SET geaendert=? WHERE id=?", (self._jetzt(), auftrag_id))
+                                 f'VALUES ({", ".join("?" * len(namen))})', [angebot_id, nr] + list(werte.values())).lastrowid
+            self.con.execute("UPDATE angebote SET geaendert=? WHERE id=?", (self._jetzt(), angebot_id))
         return i
 
     def position_aendern(self, position_id, feld, wert):
         POSITIONEN.feld(feld)
         with self.con:
             self.con.execute(f'UPDATE positionen SET "{feld}"=? WHERE id=?', (wert, position_id))
-            self.con.execute("UPDATE auftraege SET geaendert=? WHERE id=(SELECT auftrag_id FROM positionen WHERE id=?)",
+            self.con.execute("UPDATE angebote SET geaendert=? WHERE id=(SELECT angebot_id FROM positionen WHERE id=?)",
                              (self._jetzt(), position_id))
 
     def positionen_loeschen(self, ids):
         with self.con:
             self.con.executemany("DELETE FROM positionen WHERE id=?", [(i,) for i in ids])
 
-    def protokoll(self, auftrag_id):
+    def protokoll(self, angebot_id):
         return [json.loads(r[0]) for r in self.con.execute(
-            "SELECT zeile FROM step_protokoll WHERE auftrag_id=? ORDER BY id", (auftrag_id,))]
+            "SELECT zeile FROM step_protokoll WHERE angebot_id=? ORDER BY id", (angebot_id,))]
 
-    def protokoll_anhaengen(self, auftrag_id, zeilen):
+    def protokoll_anhaengen(self, angebot_id, zeilen):
         with self.con:
-            self.con.executemany("INSERT INTO step_protokoll (auftrag_id, zeile) VALUES (?, ?)",
-                                 [(auftrag_id, json.dumps(z, default=str, ensure_ascii=False)) for z in zeilen])
+            self.con.executemany("INSERT INTO step_protokoll (angebot_id, zeile) VALUES (?, ?)",
+                                 [(angebot_id, json.dumps(z, default=str, ensure_ascii=False)) for z in zeilen])
 
     def profile_anlegen(self, profile):
         """Profile aus Optimierung (Name) oder STEP-Import anlegen, vorhandene IDs bleiben unverändert."""

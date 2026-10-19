@@ -1,26 +1,24 @@
-"""Rechnungen eines Auftrags: Positionswerte und Status, Stangenoptimierung, Schnittplan, Kalkulation.
+"""Rechnungen eines Angebots: Positionswerte und Status, Stangenoptimierung, Schnittplan, Kalkulation.
 
-Jede Funktion bildet die entsprechenden Formeln bzw. Makros der Mappe nach (Blätter Auftrag,
-Schnittplan, Stangenbelegung, Auswertung, Kalkulation in tools/build_mappe.py). Die Optimierung selbst
-ist dieselbe wie in der Mappe (tools/optimierung.py). tests/test_programm_mappe.py vergleicht die
-Ergebnisse mit der in LibreOffice gerechneten Mappe.
+Positionswerte und Status, Schnittplan, Stangenbelegung, Auswertung und Kalkulation. Die Optimierung
+selbst steht in optimierung.py; tests/test_abnahme.py rechnet die Ergebnisse unabhängig nach.
 
 Eingaben: kopf (dict: maschine, stange, …), positionen (Liste von dicts, Reihenfolge = Zeilen im
-Auftrag), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', 'gewinde' und
+Angebot), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', 'gewinde' und
 'zusatzarbeiten': Zeilen; fehlen die Zusatzarbeiten, gibt es keine).
 """
 import hashlib
 import json
 
 from .stammdaten import ZUSATZ_EINHEIT, flaeche_berechnet, flaeche_wirksam, huellkreis
-from .werkzeuge import optimierung as opt
+from . import optimierung as opt
 
 EPS = opt.EPS
-ZEILE0 = 13   # erste Positionszeile der Mappe: Teil.zeile = ZEILE0 + Index, damit die Reihenfolge gleich ist
+ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
 
 
 def _n(v):
-    """Wie N() in Excel: Zahl oder 0."""
+    """Zahl oder 0."""
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
 
 
@@ -38,7 +36,7 @@ def maschine(kopf, k):
 
 
 def stange_wirksam(p, kopf):
-    """Auftrag Q: abweichende Stangenlänge der Position, sonst Standard aus dem Kopf."""
+    """Angebot Q: abweichende Stangenlänge der Position, sonst Standard aus dem Kopf."""
     return p.get("stange") if not _leer(p.get("stange")) else kopf.get("stange")
 
 
@@ -63,9 +61,9 @@ def kg_je_m(profil_id, werkstoff_id, k):
     return fl * w["dichte"] / 1000
 
 
-# ------------------------------------------------------------------ Positionswerte (Auftrag K–X)
+# ------------------------------------------------------------------ Positionswerte
 def position_werte(p, kopf, k, tabellen):
-    """Berechnete Spalten einer Position (Auftrag K–V, X)."""
+    """Berechnete Spalten einer Position."""
     m = maschine(kopf, k) or {}
     pr = k.profile.get(p.get("profil_id")) if not _leer(p.get("profil_id")) else None
     w = {}
@@ -111,7 +109,7 @@ def preis_zeile(profil_id, werkstoff_id, k, tabellen):
 
 
 def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen):
-    """Zeile mit der kleinsten 'Wandstärke bis' ≥ wand (MINIFS der Mappe), sonst None."""
+    """Zeile mit der kleinsten 'Wandstärke bis' ≥ wand, sonst None."""
     kandidaten = [z for z in tabellen["schneiddaten"] if z.get("maschinen_id") == maschinen_id
                   and z.get("werkstoff_id") == werkstoff_id and z.get("wand_bis") is not None
                   and z["wand_bis"] >= wand]
@@ -120,9 +118,9 @@ def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen):
     return min(kandidaten, key=lambda z: z["wand_bis"])
 
 
-# ------------------------------------------------------------------ Status (Auftrag W)
+# ------------------------------------------------------------------ Status
 def status(p, w, kopf, k, eingeplant=None):
-    """Wie Spalte W der Mappe. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None)."""
+    """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None)."""
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
         return ""
     m = maschine(kopf, k)
@@ -168,9 +166,9 @@ def status(p, w, kopf, k, eingeplant=None):
 
 # ------------------------------------------------------------------ Optimierung
 def gruppen_bilden(kopf, positionen, k):
-    """Wie lies_auftrag in tools/optimierung.py, aber aus den Daten des Programms.
+    """Optimierungsgruppen (Profil + Werkstoff + Stangenlänge) aus den Positionen.
     Ergebnis: (gruppen, fehler, neue_profile). Unbekannte Profile, deren ID dem Schema entspricht
-    (z. B. 'RR 42,4x2,0'), werden wie in der Mappe aus dem Namen angelegt: sie stehen in neue_profile
+    (z. B. 'RR 42,4x2,0'), werden aus dem Namen angelegt: sie stehen in neue_profile
     und zählen hier schon als vorhanden."""
     profile = {pid: dict(form=z.get("form"), a=_n(z.get("a")), b=z.get("b"), end=z.get("endbeschnitt"),
                          greif=z.get("greiferrest"), flaeche=flaeche_wirksam(z)) for pid, z in k.profile.items()}
@@ -186,7 +184,7 @@ def gruppen_bilden(kopf, positionen, k):
                                          bemerkung="automatisch aus Profil-ID angelegt"))
     m = maschine(kopf, k)
     if m is None:
-        raise ValueError(f"Maschine '{kopf.get('maschine') or ''}' im Auftragskopf ist nicht in den Stammdaten.")
+        raise ValueError(f"Maschine '{kopf.get('maschine') or ''}' im Angebotskopf ist nicht in den Stammdaten.")
     me = dict(end=_n(m.get("endbeschnitt")), greif=_n(m.get("greiferrest")), kerf=_n(m.get("schnittverlust")),
               maxlen=m.get("max_stange"), abstand=_n(m.get("abstand")))
     std = kopf.get("stange") if isinstance(kopf.get("stange"), (int, float)) else None
@@ -242,7 +240,7 @@ def gruppen_bilden(kopf, positionen, k):
 
 def eingabe_kennung(kopf, positionen, k):
     """Prüfsumme über alles, was die Optimierung verwendet. Weicht sie von der gespeicherten ab,
-    ist die Optimierung veraltet (wie 'Stand Optimierung' der Mappe)."""
+    ist die Optimierung veraltet."""
     try:
         gruppen, fehler, neue = gruppen_bilden(kopf, positionen, k)
     except ValueError as e:
@@ -254,7 +252,7 @@ def eingabe_kennung(kopf, positionen, k):
 
 
 def optimieren(kopf, positionen, k):
-    """Optimiert den Auftrag. Ergebnis (als JSON speicherbar):
+    """Optimiert das Angebot. Ergebnis (als JSON speicherbar):
     {'stangen': [...], 'auswertung': [...], 'fehler': [...], 'neue_profile': [...], 'kennung': str}
     Je Stange: nr, profil, werkstoff, stange, end, greif, verlust, trennungen, gemeinsam, belegung (Text),
     teile: [{index, pos, artikel, laenge, von, bis, lage, trennung, eingespart_mm, eingespart_e}]"""
@@ -304,7 +302,7 @@ def optimieren(kopf, positionen, k):
                 kennung=eingabe_kennung(kopf, positionen, k))
 
 
-# ------------------------------------------------------------------ Schnittplan-Werte (Schnittplan G–R)
+# ------------------------------------------------------------------ Schnittplan-Werte
 def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
     """Berechnete Spalten je Stange: teile, summe, belegt, rest, ausnutzung, pruefung, gewicht, kosten."""
     out = []
@@ -323,7 +321,7 @@ def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
 
 
 def stangenkosten(s, gewicht, kopf, positionen, k, tabellen):
-    """Materialkosten einer Stange (Schnittplan R): Preis €/m im Auftrag > 'Preise' > Tonnenpreis."""
+    """Materialkosten einer Stange: Preis €/m im Angebot > 'Preise' > Tonnenpreis."""
     ab = [p["preis_m"] for p in positionen if _n(p.get("preis_m")) and p.get("profil_id") == s["profil"]
           and p.get("werkstoff_id") == s["werkstoff"] and stange_wirksam(p, kopf) == s["stange"]]
     if ab and max(ab) > 0:
@@ -340,9 +338,9 @@ def stangenkosten(s, gewicht, kopf, positionen, k, tabellen):
     return _n(gewicht) * tonne / 1000
 
 
-# ------------------------------------------------------------------ Kalkulation (Blatt Kalkulation)
+# ------------------------------------------------------------------ Kalkulation
 def gewinde_anzahl(text, gewinde):
-    """{Gewinde: Anzahl je Teil} aus 'Gewinde geprüft' (z. B. '4xM6; 2xM8') wie Kalkulation P der Mappe."""
+    """{Gewinde: Anzahl je Teil} aus 'Gewinde geprüft' (z. B. '4xM6; 2xM8')."""
     t = ";" + str(text or "").upper().replace(" ", "") + ";"
     n = {}
     try:
@@ -443,21 +441,21 @@ def zahl(w, stellen=2):
 
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation je Position und Summen. Ergebnis: (zeilen, summen); zeilen[i] ist None für
-    Positionen ohne Profil (wie leere Zeilen der Mappe).
+    Positionen ohne Profil.
 
-    Über die Mappe hinaus (fehlen die Einstellungen, ist alles 0 und die Rechnung gleich der Mappe):
+    Zusätzlich zu Material, Laserzeit, Gewinde, Rüsten und Zusatzarbeiten (fehlen die Einstellungen, ist alles 0):
     - Rüstzeit je Abmessung (Einstellung, min) für jede Abmessung (Profil-ID) mit Stückzahl, mit dem
       Maschinenstundensatz bewertet, umgelegt auf die Teile dieser Abmessung; zählt zu Rüsten und damit zu
       den Herstellkosten (mit Zuschlag Fertigung und Gewinn).
-    - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Auftragsaufschlag (€) und
-      Frachtkosten aus dem Auftragskopf (€), umgelegt auf alle Teile; gehen ohne Zuschläge in den
+    - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Angebotsaufschlag (€) und
+      Frachtkosten aus dem Angebotskopf (€), umgelegt auf alle Teile; gehen ohne Zuschläge in den
       Verkaufspreis ein.
     - Programmierkosten je Teil (Einstellung, €) für jede Position mit Stückzahl, umgelegt auf deren
       Stückzahl, ohne Zuschläge in den Verkaufspreis.
     - Gewinde mit festem Preis (Stammdaten Gewinde) zählen mit dem Preis statt mit der Zeit.
     - Schneidzeit manuell (Position) ersetzt die berechnete Laserzeit netto je Teil.
     - Zusatzarbeiten je Position: Beträge je Teil (€/kg, €/m², €/m, €/Stück) mit Zuschlag Fremdleistung bzw.
-      Fertigung; liegt die Summe einer Zusatzarbeit im Auftrag unter ihrem Mindestbetrag, wird sie anteilig
+      Fertigung; liegt die Summe einer Zusatzarbeit im Angebot unter ihrem Mindestbetrag, wird sie anteilig
       angehoben. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen."""
     m = maschine(kopf, k) or {}
     satz_h = _n(m.get("stundensatz"))
@@ -476,7 +474,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
     ruest_abm = ruest_abm_min / 60 * satz_h            # € je Abmessung
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
-    prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Auftrag
+    prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Angebot
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = {i: zusatz_werte(positionen[i], k, tabellen) for i in aktiv}
     zus_summe, zus_teile = {}, {}
@@ -485,7 +483,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         for e in zus[i]:
             zus_summe[e["name"]] = zus_summe.get(e["name"], 0.0) + e["betrag"] * c
             zus_teile[e["name"]] = zus_teile.get(e["name"], 0) + c
-    for i in aktiv:                   # Mindestbetrag je Auftrag: anteilig anheben
+    for i in aktiv:                   # Mindestbetrag je Angebot: anteilig anheben
         for e in zus[i]:
             if e["art"] == "s/Stück" or e["mindest"] <= 0 or not zus_teile[e["name"]]:
                 e["teil"] = e["betrag"]
@@ -493,7 +491,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                 e["teil"] = e["mindest"] / zus_teile[e["name"]]
             else:
                 e["teil"] = e["betrag"] * max(1.0, e["mindest"] / zus_summe[e["name"]])
-    aufschlag = _n(einstellungen.get("auftragsaufschlag")) if f8 else 0
+    aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     fracht = _n(kopf.get("fracht")) if f8 else 0
     eingespart = {}
     for s in stangen:
@@ -589,7 +587,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
 
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
-                  pauschalen=pausch_abm * n_abm, auftragsaufschlag=aufschlag, fracht=fracht,
+                  pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   programmierung=prog * sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
                   material=sum(z["material_position"] for z in zeilen if z),
                   laser=sum(z["laser_position"] for z in zeilen if z),
@@ -615,12 +613,12 @@ KOSTENARTEN = (
     ("Zuschlag Material", "zuschlag_material", False), ("Zuschlag Fertigung", "zuschlag_fertigung", False),
     ("Zuschlag Fremdleistung", "zuschlag_fremdleistung", False), ("Herstellkosten", "herstell", True),
     ("Gewinn", "gewinn", False), ("Pauschale je Abmessung", "pauschalen", False),
-    ("Programmierkosten", "programmierung", False), ("Auftragsaufschlag", "auftragsaufschlag", False),
+    ("Programmierkosten", "programmierung", False), ("Angebotsaufschlag", "angebotsaufschlag", False),
     ("Fracht", "fracht", False), ("Verkaufspreis", "verkauf", True))
 
 
 def kostenarten(summen, einst):
-    """[(Bezeichnung mit Mengenangabe, Betrag, fett)] aller Kostenarten des Auftrags, einzeln."""
+    """[(Bezeichnung mit Mengenangabe, Betrag, fett)] aller Kostenarten des Angebots, einzeln."""
     z = lambda w, st=1: zahl(w, st)
     zusatz = {
         "ruesten_maschine": f" ({z(summen['ruestzeit'])} min)",
@@ -645,7 +643,7 @@ def eingeplant_je_position(ergebnis):
 
 def stangenmuster(ergebnis):
     """Gleich belegte Stangen zusammenfassen (Profil, Werkstoff, Stangenlänge, gleiche Teile in gleicher
-    Reihenfolge und Lage), wie Werkstattpapier und Stangenbild der Mappe. Ergebnis: [(Stange, [Nummern])]."""
+    Reihenfolge und Lage), für Werkstattpapier und Stangenbild. Ergebnis: [(Stange, [Nummern])]."""
     muster = {}
     for s in (ergebnis or {}).get("stangen", []):
         schl = (s["profil"], s["werkstoff"], s["stange"],
@@ -655,7 +653,7 @@ def stangenmuster(ergebnis):
 
 
 def auswertung_zeilen(ergebnis, sw):
-    """Auswertung je Gruppe mit Materialbedarf, Teilelänge und Verschnitt [m] (Blatt Auswertung).
+    """Auswertung je Gruppe mit Materialbedarf, Teilelänge und Verschnitt [m].
     sw = stangen_werte(...)"""
     out = []
     for a in ergebnis["auswertung"]:

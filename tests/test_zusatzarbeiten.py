@@ -1,6 +1,6 @@
 """Prüft Zusatzarbeiten (Verzinken, Pulverbeschichten, Gravur extra …), Festpreis je Gewinde und die
-manuelle Schneidzeit: Rechnung, Status, Angebotstext, Datenbank (Erweiterung alter Dateien, Übernahme aus
-der Mappe) und Oberfläche (Dialog, Positionstabelle).
+manuelle Schneidzeit: Rechnung, Status, Angebotstext, Datenbank (Erweiterung alter Dateien) und
+Oberfläche (Dialog, Positionstabelle).
 
 Aufruf: python tests/test_zusatzarbeiten.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -17,7 +17,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import ausgabe, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
-MAPPE = HIER.parent / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 tmp = Path(tempfile.mkdtemp())
 
 
@@ -28,7 +27,7 @@ def nah(a, b, tol=1e-9):
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert [z["name"] for z in db.zeilen("zusatzarbeiten")] == ["Feuerverzinken", "Galvanisch verzinken", "Pulverbeschichten",
                                                              "Entgraten", "Gravur extra"]
-a = db.auftrag_neu(dict(kunde="Test"))
+a = db.angebot_neu(dict(kunde="Test"))
 p1 = db.position_neu(a, dict(pos=10, artikel="A", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,
                              stueck=10, schneidweg=300, einstiche=2))
 p2 = db.position_neu(a, dict(pos=20, artikel="B", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=500,
@@ -39,7 +38,7 @@ zf, zfl, gew = einst["zuschlag_fertigung"], einst["zuschlag_fremdleistung"], ein
 
 
 def rechnung():
-    kopf, pos = db.auftrag(a), db.positionen(a)
+    kopf, pos = db.angebot(a), db.positionen(a)
     erg = rechnen.optimieren(kopf, pos, k)
     return pos, rechnen.kalkulation(kopf, pos, erg, k, tab, einst)
 
@@ -93,7 +92,7 @@ db.position_aendern(p1, "zeit_manuell", 30.0)
 pos, (z, s) = rechnung()
 assert z[0]["laser_netto"] == 37.5 and z[0]["zeit_manuell"] == "ja" and z[0]["laser_brutto"] == basis[0]["laser_brutto"]
 assert nah(z[0]["laser_teil"], 37.5 / 3600 * satz_h)
-kopf = db.auftrag(a)
+kopf = db.angebot(a)
 st = rechnen.status(pos[0], rechnen.position_werte(pos[0], kopf, k, tab), kopf, k)
 assert st == "HINWEIS: Schneidzeit manuell", st
 db.position_aendern(p1, "schneidweg", None)                           # ohne Schneidweg trotzdem kein Hinweis darauf
@@ -126,19 +125,12 @@ assert rechnen.status(pos[0], w, kopf, k) == "WARNUNG: Zusatzarbeit 'Vergolden' 
 assert z[0]["hinweis"] == "Zusatzarbeit unbekannt" and z[0]["zusatz_teil"] == 0
 db.position_aendern(p1, "zusatz", json.dumps([dict(name="Feuerverzinken")]))
 
-# 8) Staffeln: jede Stufe ist ein eigener Auftrag, der Mindestbetrag gilt je Stufe
+# 8) Staffeln: jede Stufe ist ein eigenes Angebot, der Mindestbetrag gilt je Stufe
 pos = db.positionen(a)
-st1 = staffeln.stufe_rechnen(db.auftrag(a), pos, "10", 1, k, tab, einst)
-st100 = staffeln.stufe_rechnen(db.auftrag(a), pos, "10", 100, k, tab, einst)
+st1 = staffeln.stufe_rechnen(db.angebot(a), pos, "10", 1, k, tab, einst)
+st100 = staffeln.stufe_rechnen(db.angebot(a), pos, "10", 100, k, tab, einst)
 assert st1["preis_einheit"] > st100["preis_einheit"]
 
-# 9) Übernahme aus der Mappe behält Preis je Gewinde und die Zusatzarbeiten
-from rohrlaser.mappe_import import lies_mappe  # noqa: E402
-g8 = next(g for g in db.zeilen("gewinde") if g["gewinde"] == "M8")["preis"]
-daten, e, _ = lies_mappe(MAPPE)
-db.stammdaten_ersetzen(daten, e, "Mappe")
-assert next(g for g in db.zeilen("gewinde") if g["gewinde"] == "M8")["preis"] == g8 == 1.10
-assert db.anzahl("zusatzarbeiten") == 5
 db.schliessen()
 
 # 10) Datei einer älteren Programmversion (Schema 4) wird erweitert und bekommt die Beispiel-Zusatzarbeiten
@@ -151,7 +143,7 @@ con.execute("PRAGMA user_version=4")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 5 and d.con.execute("PRAGMA user_version").fetchone()[0] == 5
+assert d.anzahl("zusatzarbeiten") == 5 and d.con.execute("PRAGMA user_version").fetchone()[0] == 6
 d.schliessen()
 
 # 11) Oberfläche: Dialog liefert Gewinde und Zusatzarbeiten, Übernahme für mehrere Positionen, Tabellenspalte
@@ -161,7 +153,7 @@ from rohrlaser.zusatz_dialog import ZusatzDialog  # noqa: E402
 app = QApplication.instance() or QApplication([])
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 fenster = Hauptfenster(db, stumm=True)
-seite = fenster.auftrag_oeffnen(a)
+seite = fenster.angebot_oeffnen(a)
 dlg = ZusatzDialog(seite, seite.positionen[1], 2, seite.k, seite.tabellen)
 dlg.gewinde.setText("2xM8")
 r = dlg.zeile_neu()

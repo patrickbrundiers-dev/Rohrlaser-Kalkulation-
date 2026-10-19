@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QVBoxLayout)
 
 from . import rechnen
-from .auftrag import POSITIONEN
+from .angebot import POSITIONEN
 from .stammdaten import ZUSATZ_EINHEIT, wert_aus_text, zahl_als_text, zahl_aus_text
 
 SPALTEN = ("Zusatzarbeit", "Abrechnung", "Menge je Teil", "Preis [€] bzw. Zeit [s] je Einheit", "Text (z. B. RAL-Farbe)")

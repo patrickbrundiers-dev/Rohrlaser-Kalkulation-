@@ -236,12 +236,12 @@ def titelseite(inh, stand):
     f.append(Paragraph("Bedienungsanleitung", ParagraphStyle("t2", parent=S_H1, fontSize=20, leading=26,
                                                               textColor=GRAU)))
     f.append(Spacer(1, 4 * mm))
-    f.append(Paragraph(f"Kalkulation und Materialoptimierung von Rohrlaserteilen<br/>Programmversion {VERSION} · "
+    f.append(Paragraph(f"Angebotskalkulation und Materialoptimierung für Rohrlaserteile<br/>Programmversion {VERSION} · "
                        f"Stand {stand}", S))
     f.append(Spacer(1, 8 * mm))
     inh.bild("erg_stangenbild", hoehe=95 * mm)
     f.append(Spacer(1, 4 * mm))
-    f.append(Paragraph("Alle Bildschirmfotos stammen aus dem Programm selbst. Firmen, Kunden, Aufträge und Preise sind "
+    f.append(Paragraph("Alle Bildschirmfotos stammen aus dem Programm selbst. Firmen, Kunden, Angebote und Preise sind "
                        "Beispielwerte.", ParagraphStyle("klein", parent=S, fontSize=8.5, textColor=GRAU)))
     from reportlab.platypus.doctemplate import NextPageTemplate
     f.append(NextPageTemplate("normal"))
@@ -255,12 +255,11 @@ def titelseite(inh, stand):
 
 def kapitel_ueberblick(i):
     i.kapitel("Überblick")
-    i.text("Die Rohrlaser-Kalkulation plant für einen Auftrag, wie die Teile aus Stangen geschnitten werden, und "
-           "rechnet daraus Materialbedarf, Laserzeit und Verkaufspreis. Sie ersetzt die Excel-Mappe "
-           "<i>Rohrlaser_Kalkulation_v02.xlsm</i> und rechnet genau wie diese. Alles liegt in einer Datendatei "
-           "neben dem Programm; eine Installation ist nicht nötig.",
-           "Der normale Arbeitsablauf für einen Auftrag:")
-    i.liste("<b>Auftrag anlegen</b> (Reiter <i>Aufträge</i> → <i>Neuer Auftrag</i>) und den Kopf ausfüllen: Kunde, "
+    i.text("Die Rohrlaser Angebotskalkulation plant für ein Angebot, wie die Teile aus Stangen geschnitten werden, und "
+           "rechnet daraus Materialbedarf, Laserzeit und Angebotspreis. Alles liegt in einer Datendatei neben dem "
+           "Programm; eine Installation ist nicht nötig.",
+           "Der normale Arbeitsablauf für ein Angebot:")
+    i.liste("<b>Angebot anlegen</b> (Reiter <i>Angebote</i> → <i>Neues Angebot</i>) und den Kopf ausfüllen: Kunde, "
             "Maschine, Stangenlänge.",
             "<b>Positionen erfassen</b>: von Hand eintippen oder Konstruktionsdaten per <i>STEP importieren</i> "
             "einlesen (Länge, Profil, Schneidweg, Einstiche, Gewinde-Vorschlag).",
@@ -269,17 +268,17 @@ def kapitel_ueberblick(i):
             "Kalkulation.",
             "<b>Ergebnis prüfen</b>: Schnittplan, Stangenbild, Auswertung, nicht eingeplante Teile.",
             "Bei Bedarf <b>Staffelpreise</b> für weitere Mengen rechnen.",
-            "<b>Ausgeben</b>: Angebot, Werkstattpapiere und Kalkulation als PDF, auf Wunsch Excel-Export.",
+            "<b>Ausgeben</b>: Angebot, Werkstattpapiere und Kalkulation als PDF, auf Wunsch CSV-Export.",
             nummeriert=True)
     i.text("Die Stammdaten (Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
-           "Einstellungen werden einmal eingerichtet, am einfachsten durch Übernahme aus der gepflegten Excel-Mappe "
-           "(Kapitel 3). Zusatzarbeiten und Preise je Gewinde gibt es nur im Programm; sie werden dort gepflegt.")
+           "Einstellungen werden einmal eingerichtet (Kapitel 3 und 4): das Programm startet mit Beispielwerten, die "
+           "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
-    i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Aufträge</i>, die sieben "
-           "Stammdaten-Tabellen und <i>Einstellungen</i>. Jeder geöffnete Auftrag bekommt einen eigenen Reiter "
-           "(<i>Auftrag A-2026-0041</i>), der sich mit dem kleinen × schließen lässt. Unten in der Statuszeile "
+    i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, die sieben "
+           "Stammdaten-Tabellen und <i>Einstellungen</i>. Jedes geöffnete Angebot bekommt einen eigenen Reiter "
+           "(<i>Angebot A-2026-0041</i>), der sich mit dem kleinen × schließen lässt. Unten in der Statuszeile "
            "meldet das Programm, was es gerade gespeichert oder gerechnet hat; Fehlermeldungen erscheinen dort rot.")
-    i.bild("auftrag_optimiert", "Hauptfenster mit geöffnetem Auftrag nach dem Optimieren", hoehe=125 * mm)
+    i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=125 * mm)
     i.abschnitt("Farben in den Tabellen")
     i.text("Zahlen werden mit Komma eingegeben (1385,5). Jede Änderung wird sofort gespeichert; einen "
            "Speichern-Knopf gibt es nicht. Die Farben zeigen, was eingegeben werden kann und was geprüft werden "
@@ -297,21 +296,21 @@ def kapitel_ueberblick(i):
 def kapitel_start(i):
     i.kapitel("Installation und erster Start")
     i.abschnitt("Programm entpacken")
-    i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Programm.zip</b> herunterladen.",
+    i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
             "In einen Ordner entpacken, in dem man schreiben darf, z. B. <i>C:\\Rohrlaser</i>. Nicht nach "
             "<i>C:\\Programme</i>, dort darf das Programm seine Daten nicht ablegen.",
-            "<b>Rohrlaser-Kalkulation.exe</b> starten. Wer will, legt sich eine Verknüpfung auf den Desktop "
+            "<b>Rohrlaser-Angebotskalkulation.exe</b> starten. Wer will, legt sich eine Verknüpfung auf den Desktop "
             "(rechte Maustaste → Senden an → Desktop).", nummeriert=True)
     i.text("Der Programmordner sieht danach so aus:")
     i.tabelle(["Datei / Ordner", "Inhalt"], [
-        ["Rohrlaser-Kalkulation.exe", "das Programm"],
+        ["Rohrlaser-Angebotskalkulation.exe", "das Programm"],
         ["Bedienungsanleitung.pdf", "diese Anleitung (auch über <i>Hilfe → Bedienungsanleitung</i> oder F1)"],
         ["STEP-Import\\", "Messprogramm für STEP-Dateien. Muss neben der .exe liegen bleiben."],
         ["_internal\\", "Programmbibliotheken, nicht verändern"],
-        ["Daten\\rohrlaser.db", "Datendatei: Stammdaten, Einstellungen, alle Aufträge. Wird beim ersten Start "
+        ["Daten\\rohrlaser.db", "Datendatei: Stammdaten, Einstellungen, alle Angebote. Wird beim ersten Start "
                                 "angelegt."],
         ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (die letzten 30)"],
-        ["Aufträge\\", "Ablage für PDF und Excel-Export (wenn in den Einstellungen nichts anderes steht)"]],
+        ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"]],
         [60, 205])
     i.hinweis("Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“, auf <i>Weitere "
               "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Das Programm ist nicht signiert.",
@@ -320,12 +319,13 @@ def kapitel_start(i):
     i.text("Beim ersten Start legt das Programm die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in "
            "Rot, dass es sich um Beispielwerte handelt.")
     i.bild("start_beispiel", "Startseite nach dem ersten Start (Beispiel-Stammdaten)", hoehe=112 * mm, legende=[
-        (1, "<b>Stammdaten aus Excel-Mappe übernehmen</b>: holt die gepflegten Stammdaten aus der Kalkulationsmappe "
-            "(Kapitel 3.1)."),
-        (2, "<b>Datensicherung erstellen</b>: Kopie der Datendatei nach <i>Daten\\Sicherung</i>."),
-        (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
+        (1, "<b>Datensicherung erstellen</b>: Kopie der Datendatei nach <i>Daten\\Sicherung</i>."),
+        (2, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
+    i.text("Die Beispielwerte in den Stammdaten-Reitern (Kapitel 3) und den Einstellungen (Kapitel 4) durch die "
+           "eigenen ersetzen: Preise, Maschinen, Schneiddaten, Briefkopf und Zuschläge. Danach rechnet das Programm "
+           "mit den eigenen Werten.")
     i.abschnitt("Datensicherung und Umzug")
-    i.text("Beim ersten Start jedes Tages und vor jeder Übernahme aus einer Excel-Mappe legt das Programm "
+    i.text("Beim ersten Start jedes Tages legt das Programm "
            "automatisch eine Kopie der Datendatei in <i>Daten\\Sicherung</i> an; die letzten 30 bleiben erhalten. "
            "Zurückholen: Programm schließen, <i>Daten\\rohrlaser.db</i> umbenennen und die gewünschte Sicherung als "
            "<i>rohrlaser.db</i> in den Ordner <i>Daten</i> kopieren.",
@@ -335,18 +335,6 @@ def kapitel_start(i):
 
 def kapitel_stammdaten(i):
     i.kapitel("Stammdaten")
-    i.abschnitt("Übernahme aus der Excel-Mappe")
-    i.text("Wer die Kalkulationsmappe schon gepflegt hat, übernimmt die Stammdaten mit einem Klick: auf der "
-           "Startseite oder im Menü <i>Datei</i> den Punkt <b>Stammdaten aus Excel-Mappe übernehmen …</b> wählen und "
-           "die Mappe (Vorlage oder abgelegte Auftragsmappe, .xlsm oder .xlsx) auswählen. Das Programm zeigt vorher, "
-           "was übernommen wird, und meldet doppelte Zeilen oder unlesbare Werte.")
-    i.bilder_nebeneinander(["uebernahme_frage", "start_mappe"],
-                           "Links: Rückfrage vor der Übernahme. Rechts: Startseite danach mit Herkunft und Stand.",
-                           hoehe=80 * mm)
-    i.text("Übernommen werden Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, die Zuschläge, der "
-           "Angebotskopf und die Auftragsvorgaben. Die bisherigen Stammdaten im Programm werden ersetzt; vorher wird "
-           "eine Sicherung angelegt. Aufträge bleiben unberührt. Was die Mappe nicht kennt, bleibt erhalten: die "
-           "Tabelle Zusatzarbeiten und der Preis je Gewinde.")
     i.abschnitt("Tabellen bearbeiten")
     i.text("Jede Stammdaten-Tabelle hat einen eigenen Reiter. Alle sind gleich aufgebaut:")
     i.bild("stamm_profile", "Reiter Profile", hoehe=125 * mm, legende=[
@@ -355,7 +343,7 @@ def kapitel_stammdaten(i):
         (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen (vorher Rückfrage; verweisen andere Tabellen "
             "darauf, sagt das Programm wie viele)."),
         (4, "<b>Suchen</b> filtert die Tabelle nach jedem Text in jeder Spalte."),
-        (5, "<b>Prüfung</b>: OK, WARNUNG oder FEHLER mit Begründung, wie in der Mappe.")])
+        (5, "<b>Prüfung</b>: OK, WARNUNG oder FEHLER mit Begründung.")])
     i.liste("Bearbeiten: Zelle doppelklicken oder einfach lostippen, mit Enter bestätigen. Felder mit fester Auswahl "
             "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste.",
             "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite: Trennlinie im Kopf ziehen.",
@@ -365,7 +353,7 @@ def kapitel_stammdaten(i):
     i.tabelle(["Tabelle", "Inhalt", "Wichtig"], [
         ["Profile", "Profil-ID (z. B. <i>QR 40x40x3</i>), Form, Abmessungen, Wandstärke",
          "Abmessung A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). Endbeschnitt und Greiferrest nur bei "
-         "Abweichung von der Maschine. Unbekannte Profile im Auftrag legt das Programm aus der ID selbst an "
+         "Abweichung von der Maschine. Unbekannte Profile im Angebot legt das Programm aus der ID selbst an "
          "(RR/QR/RE-Schema)."],
         ["Werkstoffe", "Werkstoff-ID, Dichte, Tonnenpreis, Text im Angebot",
          "Der Tonnenpreis ergibt den Preis je kg, je m und je Stange, wenn unter Preise nichts steht."],
@@ -373,7 +361,7 @@ def kapitel_stammdaten(i):
          "Je Kombination höchstens eine Zeile. €/Stange bezieht sich auf die Liefer-Stangenlänge."],
         ["Maschinen", "Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge, Stundensatz, Konturgrenzen, "
                       "Rüstzeit, Stangenwechsel, max. Hüllkreis und Metergewicht",
-         "Profile über dem max. Hüllkreis-Ø oder Metergewicht bekommen im Auftrag FEHLER und werden nicht "
+         "Profile über dem max. Hüllkreis-Ø oder Metergewicht bekommen im Angebot FEHLER und werden nicht "
          "eingeplant (leer = keine Grenze)."],
         ["Schneiddaten", "Vorschübe je Maschine + Werkstoff, gestaffelt nach Wandstärke; Einstechzeit",
          "Es gilt die Zeile mit der kleinsten „Wandstärke bis“, die mindestens der Profilwandstärke entspricht."],
@@ -381,10 +369,61 @@ def kapitel_stammdaten(i):
          "Der STEP-Import erkennt Kernlochbohrungen an diesem Durchmesser (±0,05 mm). Gerechnet wird der feste "
          "Preis je Gewinde; ist er leer, die Zeit je Gewinde mit dem Stundensatz der Maschine."],
         ["Zusatzarbeiten", "Zusatzarbeit (Name), Abrechnung, Preis [€] bzw. Zeit [s] je Einheit, Mindestbetrag je "
-                           "Auftrag [€], Fremdleistung, Text im Angebot",
-         "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Auftrag (Kapitel 6.3). Vorbelegt mit Beispielpreisen, "
+                           "Angebot [€], Fremdleistung, Text im Angebot",
+         "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot (Kapitel 6.3). Vorbelegt mit Beispielpreisen, "
          "bitte eigene eintragen."]], [30, 95, 140])
-    i.bild("stamm_maschinen", "Reiter Maschinen: die Werte gelten für jeden Auftrag mit dieser Maschine",
+    i.abschnitt("Felder der Tabellen")
+    i.text("Die Spalten jeder Tabelle im Einzelnen. Pflichtfelder sind fett; was leer bleiben darf, rechnet das "
+           "Programm wie angegeben.")
+    i.tabelle(["Profile", "Bedeutung"], [
+        ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>"],
+        ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr oder Sonderprofil (Liste in den Einstellungen)"],
+        ["<b>Abmessung A [mm]</b>, Abmessung B [mm]", "A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr)"],
+        ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten"],
+        ["Fläche manuell [mm²]", "Querschnitt vom Hersteller (Eckradien, Sonderprofile); leer = aus den Maßen"],
+        ["Endbeschnitt abweichend [mm], Greiferrest abweichend [mm]",
+         "nur eintragen, wenn das Profil andere Werte braucht als die Maschine"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.tabelle(["Werkstoffe", "Bedeutung"], [
+        ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
+        ["Werkstoff, Werkstoff-Nr., Norm / Qualität", "Bezeichnung, Nummer (z. B. 1.0039) und Norm, nur zur Info"],
+        ["<b>Dichte [kg/dm³]</b>", "für Gewicht und Preis je kg"],
+        ["Tonnenpreis [€/t]", "Materialpreis, wenn unter Preise nichts steht"],
+        ["Text im Angebot", "so steht der Werkstoff in der Bezeichnung im Angebot"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.tabelle(["Preise", "Bedeutung"], [
+        ["<b>Profil-ID</b>, <b>Werkstoff-ID</b>", "Kombination, für die der Preis gilt"],
+        ["<b>Preisbasis</b>, <b>Preis [€]</b>", "€/kg, €/m oder €/Stange und der Betrag"],
+        ["Liefer-Stangenlänge [mm]", "Pflicht bei €/Stange: Länge, auf die sich der Stangenpreis bezieht"],
+        ["Gültig ab, Lieferant, Bemerkung", "zur Info, z. B. Datum des Lieferantenangebots"]], [75, 190])
+    i.tabelle(["Maschinen", "Bedeutung"], [
+        ["<b>Maschinen-ID</b>, Bezeichnung", "Kurzname (Auswahl im Angebotskopf) und Klartext"],
+        ["Endbeschnitt [mm], Greiferrest [mm]", "Anschnitt am Stangenanfang und nicht nutzbares Ende im Greifer"],
+        ["Schnittverlust je Schnitt [mm]", "Materialverlust je Trennschnitt (Schnittbreite)"],
+        ["Abstand getrennte Schnitte [mm]", "Steg zwischen zwei Teilen, wenn sich die Enden keinen Schnitt teilen"],
+        ["Max. Stangenlänge [mm]", "längste Stange, die die Maschine laden kann"],
+        ["Stundensatz [€/h]", "für Laserzeit, Gewinde ohne Festpreis, Rüsten und Stangenwechsel"],
+        ["Kontur klein bis [mm], Kontur mittel bis [mm]",
+         "Grenzen der Konturklassen nach größtem Hüllmaß (Vorgabe 10 und 50 mm), je Klasse eigener Vorschub"],
+        ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
+        ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
+         "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.tabelle(["Schneiddaten", "Bedeutung"], [
+        ["<b>Maschinen-ID</b>, <b>Werkstoff-ID</b>, <b>Wandstärke bis [mm]</b>",
+         "für welche Maschine, welchen Werkstoff und bis zu welcher Wandstärke die Zeile gilt"],
+        ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für Anfangs- und Endschnitte und große Innenkonturen"],
+        ["Vorschub mittel [mm/min], Vorschub klein [mm/min]",
+         "für mittlere und kleine Innenkonturen; leer = nächstgrößerer Vorschub"],
+        ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
+        ["Einstechzeit [s]", "Zeit je Einstich"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.tabelle(["Gewinde", "Bedeutung"], [
+        ["<b>Gewinde</b>, <b>Kernloch Ø [mm]</b>",
+         "z. B. M6 mit 5,0 mm; der STEP-Import schlägt Gewinde an diesem Durchmesser vor"],
+        ["Zeit je Gewinde [s], Preis je Gewinde [€]", "Preis geht vor; ohne Preis zählt die Zeit mit dem Stundensatz"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.bild("stamm_maschinen", "Reiter Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)
     i.abschnitt("Zusatzarbeiten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
@@ -399,7 +438,7 @@ def kapitel_stammdaten(i):
         ["s/Stück", "1 (Anzahl, z. B. 2 Gravuren)",
          "Menge × Zeit in Sekunden kommt zur Schneidzeit dazu und wird mit dem Stundensatz der Maschine gerechnet "
          "(z. B. <i>Gravur extra</i>)."]], [30, 95, 140])
-    i.liste("<b>Mindestbetrag je Auftrag [€]</b>: liegt die Summe dieser Zusatzarbeit im ganzen Auftrag darunter, wird "
+    i.liste("<b>Mindestbetrag je Angebot [€]</b>: liegt die Summe dieser Zusatzarbeit im ganzen Angebot darunter, wird "
             "sie auf den Mindestbetrag angehoben und anteilig auf die Teile verteilt (typisch für Verzinkereien). "
             "Bei Staffelpreisen gilt er je Mengenstufe.",
             "<b>Fremdleistung</b> = ja: Aufschlag mit dem <i>Zuschlag Fremdleistung</i> (Einstellungen), sonst mit dem "
@@ -411,7 +450,7 @@ def kapitel_stammdaten(i):
 
 def kapitel_einstellungen(i):
     i.kapitel("Einstellungen")
-    i.text("Im Reiter <i>Einstellungen</i> stehen die Werte, die für alle Aufträge gelten. Änderungen werden beim "
+    i.text("Im Reiter <i>Einstellungen</i> stehen die Werte, die für alle Angebote gelten. Änderungen werden beim "
            "Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung.")
     i.bild("einstellungen", "Reiter Einstellungen (oberer Teil)", hoehe=125 * mm)
     i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
@@ -419,57 +458,55 @@ def kapitel_einstellungen(i):
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
          "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn)."],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
-         "je verschiedenem Profil im Auftrag, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
+         "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
         ["Kalkulation", "Programmierkosten je Teil (Position) [€]",
          "einmal je Position mit Stückzahl (Vorgabe 8,50 €), auf deren Stückzahl verteilt, ohne Zuschläge auf den "
          "Preis; bei Staffelpreisen je Mengenstufe"],
-        ["Kalkulation", "Pauschale je Abmessung [€], Auftragsaufschlag je Auftrag [€]",
+        ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
-        ["Auftrag", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Aufträge"],
-        ["Auftrag", "Letzte Auftragsnummer", "Ein neuer Auftrag bekommt die nächste Nummer (A-2026-0041 → "
+        ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
                                              "A-2026-0042)."],
-        ["Angebot", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
+        ["Angebots-PDF", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
                     "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF"],
-        ["Ablage", "Ablageordner", "Ziel für PDF und Excel-Export; leer = Ordner <i>Aufträge</i> neben dem "
+        ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export; leer = Ordner <i>Angebote</i> neben dem "
                                    "Programm. Auch ein Netzlaufwerk ist möglich."],
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"]], [28, 80, 157])
 
 
-def kapitel_auftraege(i):
-    i.kapitel("Aufträge verwalten")
-    i.text("Der Reiter <i>Aufträge</i> listet alle Aufträge, die neuesten oben. Doppelklick öffnet einen Auftrag in "
+def kapitel_angebote(i):
+    i.kapitel("Angebote verwalten")
+    i.text("Der Reiter <i>Angebote</i> listet alle Angebote, die neuesten oben. Doppelklick öffnet ein Angebot in "
            "einem eigenen Reiter.")
-    i.bild("auftraege", "Reiter Aufträge", hoehe=125 * mm, legende=[
-        (1, "Reiter <b>Aufträge</b>: Übersicht mit Positionen, Teilen und Zeitpunkt der letzten Optimierung."),
-        (2, "<b>Neuer Auftrag</b>: legt einen Auftrag mit der nächsten Nummer, dem heutigen Datum, der "
-            "Standard-Maschine und -Stangenlänge an und öffnet ihn."),
-        (3, "<b>Kopieren</b>: Kopie des markierten Auftrags mit neuer Nummer, z. B. für eine Nachbestellung. "
-            "Daneben <b>Öffnen</b> und <b>Löschen</b> (die tägliche Sicherung enthält gelöschte Aufträge weiter)."),
-        (4, "<b>Auftrag aus Excel-Mappe übernehmen</b>: Kopf, Positionen und Staffeln einer abgelegten "
-            "Auftragsmappe."),
-        (5, "<b>Suchen</b> nach Auftragsnummer, Kunde, Kundennummer, Bemerkung, Artikelnummer oder Bezeichnung.")])
+    i.bild("angebote", "Reiter Angebote", hoehe=125 * mm, legende=[
+        (1, "Reiter <b>Angebote</b>: Übersicht mit Positionen, Teilen und Zeitpunkt der letzten Optimierung."),
+        (2, "<b>Neues Angebot</b>: legt ein Angebot mit der nächsten Nummer, dem heutigen Datum, der "
+            "Standard-Maschine und -Stangenlänge an und öffnet es."),
+        (3, "<b>Kopieren</b>: Kopie des markierten Angebots mit neuer Nummer, z. B. für eine Nachbestellung. "
+            "Daneben <b>Öffnen</b> und <b>Löschen</b> (die tägliche Sicherung enthält gelöschte Angebote weiter)."),
+        (4, "<b>Suchen</b> nach Angebotsnummer, Kunde, Kundennummer, Bemerkung, Artikelnummer oder Bezeichnung.")])
 
 
-def kapitel_auftrag(i):
-    i.kapitel("Auftrag bearbeiten")
-    i.text("Ein geöffneter Auftrag zeigt oben den Kopf und die Übersicht, darunter die Knopfleisten und die Reiter "
+def kapitel_angebot(i):
+    i.kapitel("Angebot bearbeiten")
+    i.text("Ein geöffnetes Angebot zeigt oben den Kopf und die Übersicht, darunter die Knopfleisten und die Reiter "
            "mit Positionen und Ergebnissen.")
-    i.bild("auftrag_positionen", "Auftrag A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
-        (1, "<b>Auftragskopf</b>: Nummer, Kundennummer und Kundenname, Datum, Maschine, Standard-Stangenlänge, Bemerkung, Frachtkosten. "
+    i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
+        (1, "<b>Angebotskopf</b>: Nummer, Kundennummer und Kundenname, Datum, Maschine, Standard-Stangenlänge, Bemerkung, Frachtkosten. "
             "Darunter grau die Werte der gewählten Maschine."),
         (2, "<b>Übersicht</b>: Stand der Optimierung, Anzahl Positionen und Fehler, Teile, Gewicht und jede "
-            "Kostenart einzeln bis zum Verkaufspreis des Auftrags (siehe Kalkulation)."),
+            "Kostenart einzeln bis zum Verkaufspreis des Angebots (siehe Kalkulation)."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b> / <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.3)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "<b>Berechnete Werte</b> und <b>STEP-Werte</b> blenden weitere Spalten ein.")])
-    i.abschnitt("Auftragskopf")
+    i.abschnitt("Angebotskopf")
     i.liste("<b>Maschine</b> bestimmt Endbeschnitt, Greiferrest, Schnittverlust, Konturgrenzen, Stundensatz und die "
             "Schneiddaten.",
             "<b>Standard-Stangenlänge</b> gilt für alle Positionen ohne abweichende Stangenlänge.",
-            "<b>Frachtkosten</b> kommen ohne Zuschläge auf den Auftragspreis.")
+            "<b>Frachtkosten</b> kommen ohne Zuschläge auf das Angebotspreis.")
     i.abschnitt("Positionen")
     i.tabelle(["Spalte", "Eintrag"], [
         ["Pos., Artikelnummer, Bezeichnung", "frei; die Artikelnummer erscheint in Angebot und Werkstattpapieren"],
@@ -480,11 +517,11 @@ def kapitel_auftrag(i):
         ["Schneidzeit manuell je Teil [s]", "nur bei Bedarf: ersetzt die berechnete Schneidzeit (Kapitel 6.4)"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz (Kapitel 9)"],
-        ["Materialpreis abweichend [€/m]", "Sonderpreis nur für diesen Auftrag; geht vor Preise und Tonnenpreis"],
+        ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.3)"]],
         [75, 190])
-    i.bild("auftrag_berechnet", "Mit Häkchen „Berechnete Werte“: Gewicht, Laserzeit, Stück- und Positionspreis je "
+    i.bild("angebot_berechnet", "Mit Häkchen „Berechnete Werte“: Gewicht, Laserzeit, Stück- und Positionspreis je "
                                 "Zeile", hoehe=125 * mm)
 
 
@@ -516,7 +553,7 @@ def kapitel_auftrag(i):
            "aus Zusatzarbeiten (Gravur extra) kommen weiterhin dazu. Der Status zeigt <b>HINWEIS: Schneidzeit "
            "manuell</b>, die Kalkulation in der Spalte <i>Schneidzeit manuell</i> ein „ja“. Feld leeren = wieder "
            "berechnet.")
-    i.bild("auftrag_zusatz", "Positionen mit Zusatzarbeiten und manueller Schneidzeit", hoehe=110 * mm, legende=[
+    i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und manueller Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit manuell je Teil [s]</b>."),
         (2, "Spalte <b>Zusatzarbeiten</b>: Doppelklick öffnet die Auswahl."),
         (3, "Status <b>HINWEIS: Schneidzeit manuell</b>.")])
@@ -529,15 +566,15 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
-    i.liste("Im Auftrag auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
+    i.liste("Im Angebot auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
             "Umschalt). Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> in das "
-            "Auftragsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
+            "Angebotsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
             "Werkstoff und Stückzahl für alle Teile angeben oder leer lassen und später eintragen. Bei Sätzen zählt "
             "die Stückzahl die Sätze.",
             "Enthält eine STEP mehrere Teile (Baugruppe), fragt das Programm, ob sie als Satz angelegt werden sollen "
             "(siehe unten).",
             "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
-            "(danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im Auftrag, fragt es vor dem doppelten "
+            "(danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im Angebot, fragt es vor dem doppelten "
             "Eintragen.",
             "Am Ende meldet es, wie viele Positionen übernommen wurden; <i>Details</i> zeigt den Bericht je Datei.",
             nummeriert=True)
@@ -587,19 +624,19 @@ def kapitel_optimieren(i):
             "exakte Suche, die beweist, ob es mit weniger Stangen ginge.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet")
-    i.text("Ändert sich danach etwas am Auftrag oder an den Stammdaten, zeigt die Übersicht <b>VERALTET</b>. Die "
+    i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>VERALTET</b>. Die "
            "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand fragt "
            "das Programm nach.")
-    i.bild("auftrag_veraltet", "Nach einer Änderung der Stückzahl: Stand VERALTET", hoehe=125 * mm,
+    i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand VERALTET", hoehe=125 * mm,
            legende=[(1, "Stand der Optimierung: grün aktuell, gelb noch nicht optimiert, rot VERALTET.")])
     i.abschnitt("Kalkulation")
-    i.text("Der Reiter <i>Kalkulation</i> zeigt oben die Summen des Auftrags und darunter je Position Material, "
+    i.text("Der Reiter <i>Kalkulation</i> zeigt oben die Summen des Angebots und darunter je Position Material, "
            "Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position.")
-    i.text("Übersicht, Reiter Kalkulation, Kalkulations-PDF und Excel-Export führen jede Kostenart des Auftrags "
+    i.text("Übersicht, Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots "
            "einzeln auf, nichts ist zusammengefasst: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
-           "Programmierkosten, Auftragsaufschlag und Fracht ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
+           "Programmierkosten, Angebotsaufschlag und Fracht ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
            "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
     i.bild("erg_kalkulation", "Reiter Kalkulation", hoehe=80 * mm)
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
@@ -611,9 +648,9 @@ def kapitel_optimieren(i):
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz.",
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
             "dem Zuschlag Fremdleistung.",
-            "<b>Rüsten</b>: Rüstzeit je Auftrag (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
+            "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
             "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt.",
-            "<b>Pauschale je Abmessung, Programmierkosten je Teil, Auftragsaufschlag, Fracht</b>: ohne Zuschläge auf "
+            "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
             "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.")
     i.abschnitt("Schnittplan")
     i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Ein Klick auf eine Stange zeigt unten ihre "
@@ -637,8 +674,8 @@ def kapitel_optimieren(i):
 def kapitel_staffeln(i):
     i.kapitel("Staffelpreise")
     i.text("Im Reiter <i>Staffeln</i> rechnet das Programm Preise für andere Mengen. Jede Mengenstufe wird als "
-           "eigener Auftrag neu optimiert und kalkuliert, weil Rüsten, Stangenwechsel und Verschnitt je Menge neu "
-           "anfallen. Der eigentliche Auftrag bleibt unverändert.")
+           "eigenes Angebot neu optimiert und kalkuliert, weil Rüsten, Stangenwechsel und Verschnitt je Menge neu "
+           "anfallen. Das eigentliche Angebot bleibt unverändert.")
     i.bild("staffeln_vorher", "Mengenstufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
         (1, "<b>Neue Stufe</b> fügt eine Zeile an; <b>Stufen löschen</b> entfernt die markierten."),
         (2, "Je Zeile: <b>Satz oder Pos.</b> (Satzbezeichnung aus der Spalte Satz der Positionen oder eine "
@@ -651,12 +688,12 @@ def kapitel_staffeln(i):
                        "auf mehr Teile verteilen",
            hoehe=85 * mm)
     i.text("Die Staffelpreise erscheinen im Angebot als Preistreppe unter den Positionen. Ändert sich danach etwas am "
-           "Auftrag, zeigt der Reiter VERALTET; das Angebot rechnet veraltete Staffelpreise selbst neu.")
+           "Angebot, zeigt der Reiter VERALTET; das Angebot rechnet veraltete Staffelpreise selbst neu.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation")
-    i.text("Die Leiste <b>Ausgabe</b> im Auftrag erzeugt die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
+    i.text("Die Leiste <b>Ausgabe</b> im Angebot erzeugt die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
            "und gleich geöffnet. Ist die Optimierung veraltet, fragt das Programm vorher.")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
         (1, "<b>Angebot (PDF)</b>: Briefkopf, Positionen mit Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe "
@@ -664,9 +701,10 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage."),
-        (4, "<b>Excel-Export</b>: alle Ergebnisse als Werte in einer .xlsx-Datei."),
+        (4, "<b>CSV-Export</b>: Angebotskopf, alle Kostenarten und die Kalkulation je Position als CSV-Datei "
+            "(Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer Tabellenkalkulation."),
         (5, "<b>Ablage öffnen</b>: zeigt den Ablageordner im Explorer.")])
-    i.text("Die Dateien heißen nach der Auftragsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
+    i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
     i.abschnitt("Angebot")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
     i.abschnitt("Werkstattpapiere")
@@ -682,7 +720,8 @@ def kapitel_fragen(i):
     i.kapitel("Häufige Fragen und Meldungen")
     i.tabelle(["Meldung / Frage", "Ursache und Abhilfe"], [
         ["Startseite rot: <i>Die Stammdaten sind Beispielwerte</i>",
-         "Es wurden noch keine eigenen Stammdaten übernommen. Kapitel 3.1."],
+         "Die Stammdaten wurden noch nicht bearbeitet. Eigene Werte in den Stammdaten-Reitern eintragen "
+         "(Kapitel 3); nach der ersten Änderung verschwindet der Hinweis."],
         ["Position mit <b>FEHLER: Profil fehlt</b> o. ä.",
          "Profil-ID oder Werkstoff-ID steht nicht in den Stammdaten oder ist falsch geschrieben. Aus der "
          "Auswahlliste wählen oder in den Stammdaten anlegen."],
@@ -691,7 +730,7 @@ def kapitel_fragen(i):
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>VERALTET</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
-         "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Kalkulation.exe</i> liegen. "
+         "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "
          "Neu aus dem ZIP entpacken."],
         ["STEP: <b>Profil fehlt in den Stammdaten</b>",
          "Mit Ja aus den Messwerten anlegen lassen, danach im Reiter Profile prüfen (Bemerkung, Preis)."],
@@ -701,13 +740,13 @@ def kapitel_fragen(i):
         ["<b>HINWEIS: Schneidzeit manuell</b>",
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
         ["Zusatzarbeit kostet mehr als Menge × Preis",
-         "Der Mindestbetrag je Auftrag greift; er wird auf alle Teile mit dieser Zusatzarbeit verteilt."],
+         "Der Mindestbetrag je Angebot greift; er wird auf alle Teile mit dieser Zusatzarbeit verteilt."],
         ["<b>WARNUNG: kein gültiger Materialpreis</b>", "Weder Preis noch Tonnenpreis für Profil + Werkstoff "
                                                         "hinterlegt. Reiter Preise oder Werkstoffe ergänzen."],
         ["<b>WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz</b>",
          "Stückzahl und Stück je Satz der Position passen nicht zusammen (z. B. 7 Teile bei 2 je Satz)."],
         ["Ablageordner lässt sich nicht öffnen", "Pfad in den Einstellungen prüfen (Netzlaufwerk verbunden?). Leer "
-                                                 "lassen = Ordner Aufträge neben dem Programm."],
+                                                 "lassen = Ordner Angebote neben dem Programm."],
         ["Daten versehentlich gelöscht oder Datendatei beschädigt",
          "Programm schließen, Sicherung aus <i>Daten\\Sicherung</i> zurückkopieren (Kapitel 2.3)."]], [85, 180])
 
@@ -726,7 +765,7 @@ def pdf_bauen(bilder_ordner, ziel):
     titelseite(inh, stand)
     inh.f.append(PageBreak())
     for kapitel in (kapitel_ueberblick, kapitel_start, kapitel_stammdaten, kapitel_einstellungen,
-                    kapitel_auftraege, kapitel_auftrag, kapitel_step, kapitel_optimieren, kapitel_staffeln):
+                    kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln):
         kapitel(inh)
     kapitel_ausgabe(inh, daten["seiten"], daten["ablage"])
     kapitel_fragen(inh)

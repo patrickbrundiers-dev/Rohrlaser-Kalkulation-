@@ -1,8 +1,8 @@
-"""STEP-Import: Messung mit STEP-Import.exe (bzw. tools/step_messen.py) und Übernahme in den Auftrag.
+"""STEP-Import: Messung mit STEP-Import.exe (bzw. step_messung/step_messen.py) und Übernahme in das Angebot.
 
-Die Messung läuft als eigener Prozess, wie aus der Mappe: OpenCascade bleibt aus dem Programm heraus,
-und ein Absturz bei einer defekten Datei trifft nur die Messung. Die Übernahme der Messwerte folgt
-vba/StepImport.bas (Profilabgleich ±0,15 mm, Gewinde-Vorschlag, Konturklassen, Protokoll).
+Die Messung läuft als eigener Prozess: OpenCascade bleibt aus dem Programm heraus, und ein Absturz bei
+einer defekten Datei trifft nur die Messung. Die Übernahme der Messwerte: Profilabgleich ±0,15 mm,
+Gewinde-Vorschlag, Konturklassen, Protokoll.
 """
 import datetime
 import importlib.util
@@ -27,7 +27,7 @@ def messprogramm(programmordner):
     if exe.is_file():
         return [str(exe)]
     if not getattr(sys, "frozen", False):
-        skript = Path(__file__).resolve().parents[2] / "tools" / "step_messen.py"
+        skript = Path(__file__).resolve().parents[1] / "step_messung" / "step_messen.py"
         if skript.is_file() and importlib.util.find_spec("OCP") is not None:
             return [sys.executable, str(skript)]
     return None
@@ -164,7 +164,7 @@ def satzname(datei):
 
 
 def vorpruefung(messwerte, positionen, k):
-    """(fehlende Profil-IDs, Anzahl Artikel, die schon im Auftrag stehen) für die Rückfragen."""
+    """(fehlende Profil-IDs, Anzahl Artikel, die schon im Angebot stehen) für die Rückfragen."""
     vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
     fehlend, doppelt = [], 0
     for m in messwerte:
@@ -237,7 +237,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
         elif art in vorhanden and not erneut:
-            hinweise.append("übersprungen: Artikel steht schon im Auftrag")
+            hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):
             hinweise.append("nicht übernommen: kein Rohrteil erkannt")
         else:

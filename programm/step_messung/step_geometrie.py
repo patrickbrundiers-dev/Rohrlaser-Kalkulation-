@@ -46,7 +46,7 @@ except ImportError:  # ältere OCP-Versionen
 from OCP.BRep import BRep_Tool
 from OCP.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Vec, gp_Ax3, gp_Trsf
 
-# ISO-Regelgewinde: Kernlochbohrung nach DIN 336 (bearbeitbar im Blatt 'Gewinde' der Mappe)
+# ISO-Regelgewinde: Kernlochbohrung nach DIN 336 (Vorgabe; im Programm gelten die Stammdaten 'Gewinde')
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
 
@@ -386,7 +386,7 @@ def analysiere(solid, datei="", koerper=1):
 
 
 def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
-    """Ordnet Bohrungsdurchmesser einem Kernloch zu. Ergebnis z. B. '4xM6' (so in Auftrag AG übernehmbar). Nur Vorschlag."""
+    """Ordnet Bohrungsdurchmesser einem Kernloch zu. Ergebnis z. B. '4xM6' (so in Angebot AG übernehmbar). Nur Vorschlag."""
     tabelle = tabelle or KERNLOCH
     out = []
     for d, n in bohrungen.items():
@@ -397,7 +397,7 @@ def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
     return "; ".join(out)
 
 
-# Vorgabe Konturklassen, wenn im Blatt 'Maschinen' nichts eingetragen ist
+# Vorgabe Konturklassen, wenn in den Maschinen-Stammdaten nichts eingetragen ist
 KLEIN_BIS, MITTEL_BIS = 10.0, 50.0
 
 

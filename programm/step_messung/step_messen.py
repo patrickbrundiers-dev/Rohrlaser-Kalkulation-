@@ -1,10 +1,8 @@
-"""STEP-Messung für den STEP-Import der Mappe (wird als STEP-Import.exe ausgeliefert).
+"""STEP-Messung für den STEP-Import des Programms (wird als STEP-Import.exe ausgeliefert).
 
-Misst je Volumenkörper Profil, Länge, Schneidweg und Konturen (tools/step_geometrie.py)
+Misst je Volumenkörper Profil, Länge, Schneidweg und Konturen (step_geometrie.py)
 und schreibt die Messwerte als Textdatei (UTF-8, Tabulator-getrennt, Dezimalpunkt).
-Die Schaltfläche "STEP importieren" in der Mappe startet dieses Programm und übernimmt
-die Werte per VBA in den Auftrag. Die Mappe selbst wird hier nicht geöffnet, deshalb darf
-sie während der Messung in Excel offen bleiben.
+"STEP importieren" im Programm startet diese Messung und übernimmt die Werte ins Angebot.
 
 Aufruf:
     STEP-Import.exe --ausgabe MESSWERTE.txt (--liste DATEILISTE.txt | DATEI_ODER_ORDNER ...)
@@ -84,7 +82,7 @@ def step_dateien(pfade):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="STEP-Dateien messen (für den STEP-Import der Kalkulationsmappe)")
+    ap = argparse.ArgumentParser(description="STEP-Dateien messen (für den STEP-Import der Angebotskalkulation)")
     ap.add_argument("--ausgabe", required=True, help="Textdatei für die Messwerte")
     ap.add_argument("--liste", help="Textdatei mit einem STEP-Pfad je Zeile")
     ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
