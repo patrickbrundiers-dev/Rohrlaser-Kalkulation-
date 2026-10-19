@@ -96,7 +96,8 @@ try:
     with tempfile.TemporaryDirectory() as tmp:
         aus = Path(tmp) / "m.txt"
         step_messen.main(["--ausgabe", str(aus), str(ORDNER / "P01_U50x30x3_L800.step"),
-                          str(HIER / "step" / "T01_RR42-4x2_L1250.step")])
+                          str(HIER / "step" / "T01_RR42-4x2_L1250.step"),
+                          str(HIER / "step_referenz" / "REF13_T50x40x5_L600.step")])
         mw = step.lies_messwerte(aus)
         db = Datenbank(Path(tmp) / "rohrlaser.db")
         k = db.kontext()
@@ -104,8 +105,10 @@ try:
         erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
         assert [p["artikel"] for p in erg["positionen"]] == ["T01_RR42-4x2_L1250"], erg["positionen"]
         assert any("U-Profil wird noch nicht kalkuliert" in z for z in erg["bericht"]), erg["bericht"]
+        # nicht erkanntes offenes Profil (T-Profil): ohne Schneidweg, darf nie als Position entstehen
+        assert any("offenes Sonderprofil wird noch nicht kalkuliert" in z for z in erg["bericht"]), erg["bericht"]
         assert mw[0]["sicherheit"].startswith("achse=sicher") and mw[0]["wand_messungen"], mw[0]
-    print("OK     Programm: U-Profil gemeldet, nicht übernommen")
+    print("OK     Programm: U-Profil und offenes Sonderprofil gemeldet, nicht übernommen")
 except AssertionError as e:
     fehler += 1
     print(f"FEHLER Programm: {e}")

@@ -32,12 +32,14 @@ GRENZEN = [
     "oder 'prüfen').",
     "Gewinde werden nur als Kernloch erkannt; ein Gewindevorschlag kommt aus dem Kernloch-Ø und muss geprüft werden.",
     "Offene Profile (U, L, C, Flachstahl) werden erkannt und gemeldet, aber nicht kalkuliert; ihre Konturen werden "
-    "nicht ausgewertet.",
+    "nicht ausgewertet. Nicht erkannte offene Profile (z. B. T-Profil) heißen 'offenes Sonderprofil' und werden "
+    "ebenfalls nicht kalkuliert.",
     "Nicht konvexe Hohlprofile (z. B. Rohre mit Sicke) werden über ihr umschließendes Rechteck gemessen; sie "
     "erscheinen als Rechteck-/Quadratrohr mit Prüfstatus 'prüfen' (Wandstärke uneinheitlich), nicht als Sonderprofil.",
     "Schräge Bohrungen werden über die Zylinderfläche erkannt; nicht zylindrische schräge Durchbrüche erscheinen als "
     "Ausschnitt mit Umriss.",
-    "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen.",
+    "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; lose Flächen "
+    "werden als 'Flächenmodell offen' gemeldet.",
     "Prüfstatus 'plausibel' ist keine Fertigungsfreigabe.",
 ]
 NICHT_AUSGEFUEHRT = [
@@ -203,6 +205,24 @@ def _(f, p):
     (t,) = analysiere_datei(p)
     f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
     f.gleich("Hinweis Wandstärke uneinheitlich", any("nicht einheitlich" in h for h in t.hinweise), True)
+
+
+@fall("REF13", "T-Profil (offen, nicht erkannt): gemeldet, nie kalkuliert", REF / "REF13_T50x40x5_L600.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    f.gleich("Profilform", t.profilform, "offenes Sonderprofil")
+    f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
+    f.wert("Länge", t.laenge, 600, TOL_MASS)
+
+
+@fall("REF14", "Flächenmodell mit loser Fläche: Rohr gemessen, lose Fläche gemeldet",
+      REF / "REF14_Flaechenmodell_mit_loser_Flaeche.step")
+def _(f, p):
+    teile = analysiere_datei(p)
+    f.gleich("Körperarten", [t.koerperart for t in teile], ["aus Flächenmodell genäht", "Flächenmodell offen"])
+    f.gleich("Profilform Körper 1", teile[0].profilform, "Quadratrohr")
+    f.wert("Seite Körper 1", teile[0].abm_a, 40, TOL_MASS)
+    f.gleich("Prüfstatus lose Fläche", teile[1].pruefstatus, "nicht messbar")
 
 
 def k01_pruefen(f, t, mit_winkel):

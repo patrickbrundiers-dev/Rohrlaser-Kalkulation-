@@ -324,4 +324,13 @@ if __name__ == "__main__":
     schreibe(cut(profil([(-20, -20), (20, -20), (20, 20), (5, 20), (0, 15), (-5, 20), (-20, 20)], 600),
                  profil([(-18, -18), (18, -18), (18, 18), (6, 18), (0, 12), (-6, 18), (-18, 18)], 600)),
              "REF12_QR40x2_Sicke", ref)
+    # T-Profil 50x40x5 (offen, von der Profilerkennung nicht als U/L/C erkannt): gemeldet, nie kalkuliert
+    schreibe(profil([(-25, 15), (-2.5, 15), (-2.5, -20), (2.5, -20), (2.5, 15), (25, 15), (25, 20), (-25, 20)], 600),
+             "REF13_T50x40x5_L600", ref)
+    # Flächenmodell: geschlossenes Quadratrohr und eine lose Fläche daneben (beides muss gemeldet werden)
+    tr = gp_Trsf(); tr.SetTranslation(gp_Vec(200, 0, 0))
+    lose = BRepBuilderAPI_Transform(BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 21.2, 500)
+                                    .Cylinder().LateralFace(), tr, True).Shape()
+    schreibe_flaechenmodell(baugruppe(kastenrohr(40, 40, 2, 800, 3), lose), "REF14_Flaechenmodell_mit_loser_Flaeche",
+                            ref)
     print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, "und", ref)

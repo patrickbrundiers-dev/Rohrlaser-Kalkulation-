@@ -110,7 +110,7 @@ class Teil:
         if not self.profilform or self.laenge <= 0:
             return "nicht messbar"
         if self.hinweise or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
-                self.profilform == "Sonderprofil":
+                "Sonderprofil" in self.profilform:
             return "prüfen"
         return "plausibel"
 
@@ -241,8 +241,11 @@ def _naehen(flaechen, tol=0.01):
                     out.append(("aus Flächenmodell genäht", TopoDS.Solid(sol[0])))
                     continue
         out.append(("Flächenmodell offen", sh))
-    if not schalen:   # einzelne Flächen, die sich nicht zu Schalen fügen
-        out += [("Flächenmodell offen", f) for f in _liste(erg, TopAbs_FACE)]
+    # einzelne Flächen, die zu keiner Schale gehören, werden ebenfalls gemeldet (nichts still verwerfen)
+    in_schalen = TopTools_IndexedMapOfShape()
+    for sh in schalen:
+        TopExp.MapShapes_s(sh, TopAbs_FACE, in_schalen)
+    out += [("Flächenmodell offen", f) for f in _liste(erg, TopAbs_FACE) if not in_schalen.Contains(f)]
     return out
 
 
@@ -917,7 +920,7 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
     je_seite = {k: sorted(v)[len(v) // 2] for k, v in seiten.items()}
     erg = _offenes_profil(aussen, t.flaeche, x0, y0, x1, y1, je_seite)
     if erg is None:
-        t.profilform, t.abm_a, t.abm_b = "Sonderprofil", max(x1 - x0, y1 - y0), min(x1 - x0, y1 - y0)
+        t.profilform, t.abm_a, t.abm_b = "offenes Sonderprofil", max(x1 - x0, y1 - y0), min(x1 - x0, y1 - y0)
         t.hinweise.append("Offenes Profil nicht erkannt, Fläche manuell prüfen")
         t.sicherheit["profil"] = "unsicher"
     else:

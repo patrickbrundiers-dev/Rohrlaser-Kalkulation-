@@ -130,7 +130,8 @@ def profil_vorschlag(m, profile):
 
 # Profilformen, die die Messung erkennt, das Programm aber noch nicht kalkuliert (Patrick 19.10.2026: erst erkennen
 # und melden, Stammdaten/Kalkulation später)
-NICHT_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl")
+NICHT_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl",
+                    "offenes Sonderprofil")
 
 
 def unsicher(m):
@@ -277,6 +278,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         if erster is not None and erster != i:
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
+        elif m.get("profilform") in NICHT_KALKULIERT:
+            hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         elif not gewaehlt(m):
             hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(unsicher(m))}), im Prüfdialog "
                             "bestätigen" if "_uebernehmen" not in m else "nicht übernommen: im Prüfdialog abgewählt")
@@ -284,8 +287,6 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):
             hinweise.append("nicht übernommen: kein Rohrteil erkannt")
-        elif m.get("profilform") in NICHT_KALKULIERT:
-            hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         else:
             wst = m.get("_werkstoff", werkstoff)
             stk = m.get("_stueck", stueck)

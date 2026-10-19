@@ -842,10 +842,13 @@ def kapitel_step(i):
             "Rohre mit Sicke oder anderem nicht konvexem Querschnitt werden über ihr umschließendes Rechteck "
             "gemessen und stehen mit Prüfstatus <i>prüfen</i> da.",
             "Gewinde werden nur als Kernloch erkannt; der Gewindevorschlag ist von Hand zu prüfen.",
-            "U-, L-, C-Profile und Flachstahl werden erkannt und gemeldet, aber nicht kalkuliert.",
+            "U-, L-, C-Profile und Flachstahl werden erkannt und gemeldet, aber nicht kalkuliert. Andere offene "
+            "Profile (z. B. T-Profil) erscheinen als <i>offenes Sonderprofil</i> und werden ebenfalls nicht "
+            "übernommen.",
             "Schräge Bohrungen werden über ihre Zylinderfläche erkannt; andere schräge Durchbrüche erscheinen als "
             "Ausschnitt.",
-            "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen.",
+            "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; "
+            "lose Flächen daneben stehen als <i>Flächenmodell offen</i> im Protokoll.",
             "<i>plausibel</i> heißt: die Messung ist in sich stimmig. Es ist keine Fertigungsfreigabe.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Liegen in einer STEP-Datei mehrere Rohrteile, steht im Dialog STEP-Import prüfen oben das Feld "
