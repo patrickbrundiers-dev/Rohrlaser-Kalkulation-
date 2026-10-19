@@ -56,6 +56,12 @@ kopf = dict(maschine="RL-1", stange=6000)
 for p in pos:                                                # Stückzahl passt zum Satz
     st = rechnen.status(p, rechnen.position_werte(p, kopf, k, db.tabellen()), kopf, k)
     assert "FEHLER" not in st and "Vielfaches" not in st, st
+# Feld „Sätze“ aus dem Prüfdialog: _saetze macht die Datei zum Satz, _je_satz überschreibt die Körperzahl
+mw2 = [dict(m, _saetze=5, _stueck=5, **({"_je_satz": 4} if m["artikel"] == "G-K1" else {})) if m["datei"] == "G.step"
+       else dict(m, _saetze=0) for m in mw]
+pos2 = step.uebernehmen(mw2, [], k, gew, None, "S235-10219", 3)["positionen"]
+assert [(p["artikel"], p.get("satz"), p.get("je_satz"), p["stueck"]) for p in pos2] == [
+    ("G-K1", "G", 4, 20), ("G-K3", "G", 2, 10), ("G-K5", "G", 1, 5), ("G-K6", "G", 1, 5), ("H", None, None, 3)], pos2
 # ohne Stückzahl bleibt sie leer, ohne Satz wie bisher jeder Körper eine Position
 assert all(p["stueck"] is None for p in step.uebernehmen(mw, [], k, gew, None, saetze=["G.step"])["positionen"])
 einzeln = step.uebernehmen(mw, [], k, gew, None, stueck=3)["positionen"]
@@ -150,10 +156,15 @@ else:
         if not isinstance(d, StepPruefDialog):
             QTimer.singleShot(20, pruefen)
             return
-        gesehen["zeilen"] = [(it.text(0), it.text(1), pr.currentText()) for it, _, pr, *_ in d.zeilen]
+        gesehen["zeilen"] = [(z.it.text(0), z.it.text(1), z.pr.currentText()) for z in d.zeilen]
+        gesehen["satzfeld"] = d.satz_feld.isVisibleTo(d) and d.satz_spin.value() == 0
+        gesehen["einzeln"] = [z.sp.value() for z in d.zeilen]
         d.alle_setzen("S355-10219", 3)
+        d.satz_spin.setValue(4)                                       # oben 4 Sätze eintragen
+        gesehen["kopf"] = d.baum.headerItem().text(4)
+        gesehen["je_satz"] = [z.sp.value() for z in d.zeilen]          # Spalte zeigt jetzt Stück je Satz
         d.zeile_setzen("T08_Gestell_Baugruppe-K4", uebernehmen=False)
-        d.baum.setCurrentItem(d.zeilen[0][0])
+        d.baum.setCurrentItem(d.zeilen[0].it)
         gesehen["3d"] = d.ansicht.ansicht.modell is not None
         fenster.stumm = True
         d.accept()
@@ -161,12 +172,43 @@ else:
     sp = fenster.angebot_oeffnen(ap)
     fenster.stumm = False
     QTimer.singleShot(20, pruefen)
-    sp.step_importieren([str(BAUGRUPPE)], als_satz=True)
+    sp.step_importieren([str(BAUGRUPPE)])
     assert gesehen["zeilen"] == [("T08_Gestell_Baugruppe-K1", "3", "QR 40x40x3"),
                                  ("T08_Gestell_Baugruppe-K4", "1", "RR 42,4x2,0")], gesehen
-    assert gesehen["3d"]
-    assert [(x["artikel"], x["werkstoff_id"], x["stueck"], x["je_satz"]) for x in db.positionen(ap)] == [
-        ("T08_Gestell_Baugruppe-K1", "S355-10219", 9, 3)], db.positionen(ap)
+    assert gesehen["3d"] and gesehen["satzfeld"] and gesehen["kopf"] == "Stück je Satz", gesehen
+    assert gesehen["je_satz"] == [3, 1], gesehen
+    assert [(x["artikel"], x["werkstoff_id"], x["stueck"], x["je_satz"], x["satz"]) for x in db.positionen(ap)] == [
+        ("T08_Gestell_Baugruppe-K1", "S355-10219", 12, 3, "T08_Gestell_Baugruppe")], db.positionen(ap)
+
+    # Sätze leer = Einzelpositionen, ohne Rückfrage; mehrere Dateien: Pfeile wechseln die gezeigte Datei
+    def pruefen_mehrere():
+        d = QApplication.activeModalWidget()
+        if not isinstance(d, StepPruefDialog):
+            QTimer.singleShot(20, pruefen_mehrere)
+            return
+        sichtbar = lambda: [z.it.text(0) for z in d.zeilen if not z.it.parent().isHidden()]
+        gesehen["d1"] = (d.datei_text.text(), sichtbar(), d.satz_feld.isVisibleTo(d), d.zurueck.isEnabled())
+        d.vor.click()
+        gesehen["d2"] = (d.datei_text.text(), sichtbar(), d.satz_feld.isVisibleTo(d), d.vor.isEnabled())
+        d.alle_setzen("S235-10219", 5)                                # „Für alle“: auch die andere Datei
+        d.zurueck.click()
+        gesehen["zurueck"] = d.datei_text.text()
+        fenster.stumm = True
+        d.accept()
+    aq = db.angebot_neu(dict(kunde="Test"))
+    sq = fenster.angebot_oeffnen(aq)
+    fenster.stumm = False
+    QTimer.singleShot(20, pruefen_mehrere)
+    einzel = HIER / "step" / "T01_RR42-4x2_L1250.step"
+    sq.step_importieren([str(BAUGRUPPE), str(einzel)])
+    assert gesehen["d1"] == ("Datei 1 von 2: T08_Gestell_Baugruppe.step",
+                             ["T08_Gestell_Baugruppe-K1", "T08_Gestell_Baugruppe-K4"], True, False), gesehen
+    assert gesehen["d2"] == ("Datei 2 von 2: T01_RR42-4x2_L1250.step", ["T01_RR42-4x2_L1250"], False, False), gesehen
+    assert gesehen["zurueck"].startswith("Datei 1 von 2"), gesehen
+    p = db.positionen(aq)
+    assert [(x["artikel"][-2:], x["satz"], x["stueck"], x["werkstoff_id"]) for x in p] == [
+        ("K1", None, 5, "S235-10219"), ("K2", None, 5, "S235-10219"), ("K3", None, 5, "S235-10219"),
+        ("K4", None, 5, "S235-10219"), ("50", None, 5, "S235-10219")], p
 
     # 3D-Ansicht: jede importierte Position hat ein Netz, Vorschaubild, Dialog; Kopieren nimmt die Netze mit
     from rohrlaser.ansicht3d import ARTEN, entpacken

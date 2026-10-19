@@ -1,4 +1,6 @@
 """Dialoge mit 3D-Ansicht: Prüfen der STEP-Messung vor dem Übernehmen und Ansehen der Positionen eines Angebots."""
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
@@ -57,10 +59,21 @@ class _Mit3D(QDialog):
         self.liste.resizeColumnsToContents()
 
 
+class _Zeile:
+    """Eine Zeile der Rohrliste: gleiche Teile einer Datei. werte = Stückzahl je Modus ('einzeln' bzw. 'satz' =
+    Stück je Satz); der Spin zeigt den Wert des Modus der Datei."""
+
+    def __init__(self, it, liste, pr, ws, sp, vorschlag, datei, stueck, je_satz):
+        self.it, self.liste, self.pr, self.ws, self.sp, self.vorschlag, self.datei = it, liste, pr, ws, sp, vorschlag, datei
+        self.werte = {"einzeln": stueck or 0, "satz": je_satz}
+
+
 class StepPruefDialog(QDialog):
-    """Gemessene Rohre je Profil mit 3D-Ansicht. Je Teil übernehmen ja/nein, Profil, Werkstoff und Stückzahl;
-    gleiche Teile einer Datei stehen in einer Zeile (Spalte 'In Datei'). OK schreibt die Werte als _uebernehmen,
-    _profil, _werkstoff, _stueck in die Messwerte (step.uebernehmen liest sie)."""
+    """Gemessene Rohre je STEP-Datei und Profil mit 3D-Ansicht. Oben Pfeile zum Wechseln der Datei und bei Dateien
+    mit mehreren Teilen das Feld 'Sätze' (leer = Einzelpositionen). Je Teil übernehmen ja/nein, Profil, Werkstoff
+    und Stückzahl (bei einem Satz: Stück je Satz); gleiche Teile einer Datei stehen in einer Zeile (Spalte
+    'In Datei'). OK schreibt die Werte als _uebernehmen, _profil, _werkstoff, _stueck, _saetze, _je_satz in die
+    Messwerte (step.uebernehmen liest sie)."""
     SPALTEN = ("Teil", "In Datei", "Profil-ID", "Werkstoff-ID", "Stückzahl", "Länge [mm]", "Schneidweg [mm]",
                "Konturen", "Hinweis")
 
@@ -70,6 +83,47 @@ class StepPruefDialog(QDialog):
         self.messwerte, self.k = messwerte, k
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
         self.resize(1350, 720)
+        self.dateien = list(dict.fromkeys(m.get("datei") for m in messwerte))
+        self.mehrteilig = step.mehrteilig(messwerte)
+        self.saetze = {d: 0 for d in self.dateien}      # Datei -> Sätze (0 = leer = Einzelpositionen)
+        for m in messwerte:
+            if m.get("_saetze") and m.get("datei") in self.mehrteilig:
+                self.saetze[m["datei"]] = int(m["_saetze"])
+        self.datei_nr = 0
+
+        # Kopfzeile: Datei wechseln, Sätze
+        self.kopf = QWidget()
+        kl = QHBoxLayout(self.kopf)
+        kl.setContentsMargins(0, 0, 0, 0)
+        self.zurueck, self.vor = QPushButton("◀"), QPushButton("▶")
+        for b, schritt, tipp in ((self.zurueck, -1, "Vorige STEP-Datei"), (self.vor, 1, "Nächste STEP-Datei")):
+            b.setFixedWidth(36)
+            b.setToolTip(tipp)
+            b.clicked.connect(lambda _=False, s=schritt: self.datei_waehlen(self.datei_nr + s))
+        self.datei_text = QLabel()
+        f = self.datei_text.font()
+        f.setBold(True)
+        self.datei_text.setFont(f)
+        self.satz_feld = QWidget()
+        sl = QHBoxLayout(self.satz_feld)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.addWidget(QLabel("Sätze:"))
+        self.satz_spin = QSpinBox()
+        self.satz_spin.setRange(0, 100000)
+        self.satz_spin.setSpecialValueText("leer")
+        self.satz_spin.setToolTip("Anzahl Sätze dieser Baugruppe. Leer = jedes Teil als Einzelposition laden.")
+        self.satz_spin.valueChanged.connect(lambda n: self.saetze_setzen(n))
+        sl.addWidget(self.satz_spin)
+        self.satz_info = QLabel()
+        kl.addWidget(self.zurueck)
+        kl.addWidget(self.vor)
+        kl.addSpacing(6)
+        kl.addWidget(self.datei_text)
+        kl.addSpacing(24)
+        kl.addWidget(self.satz_feld)
+        kl.addWidget(self.satz_info)
+        kl.addStretch(1)
+
         self.baum = QTreeWidget()
         self.baum.setColumnCount(len(self.SPALTEN))
         self.baum.setHeaderLabels(self.SPALTEN)
@@ -77,18 +131,21 @@ class StepPruefDialog(QDialog):
         self.baum.setUniformRowHeights(True)
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
-        self.zeilen = []        # (Item, [Indizes der Messwerte], Profil-Combo, Werkstoff-Combo, Stückzahl-Spin)
-        gruppen = {}            # gemessenes Profil -> Gruppen-Item
+        self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
+        self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
         teile = step.gleiche_teile(messwerte)
         fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
         profile, werkstoffe = k.auswahl("profil"), k.auswahl("werkstoff")
-        for erster, liste in sorted(teile.items(), key=lambda e: step.profil_vorschlag(messwerte[e[0]], k.profile) or ""):
+        reihe = sorted(teile.items(), key=lambda e: (self.dateien.index(messwerte[e[0]].get("datei")),
+                                                     step.profil_vorschlag(messwerte[e[0]], k.profile) or ""))
+        for erster, liste in reihe:
             m = messwerte[erster]
+            datei = m.get("datei")
             vorschlag = step.profil_vorschlag(m, k.profile)
             fehlt = vorschlag not in k.profile
-            g = gruppen.get(vorschlag)
+            g = self.gruppen.get((datei, vorschlag))
             if g is None:
-                g = gruppen[vorschlag] = QTreeWidgetItem(self.baum)
+                g = self.gruppen[(datei, vorschlag)] = QTreeWidgetItem(self.baum)
                 g.setFirstColumnSpanned(True)
                 g.setData(0, Qt.UserRole, vorschlag)
                 f = g.font(0)
@@ -118,25 +175,27 @@ class StepPruefDialog(QDialog):
             sp = QSpinBox()
             sp.setRange(0, 100000)
             sp.setSpecialValueText("leer")
-            sp.setValue(m.get("_stueck", stueck) or 0)
             for c, w in ((2, pr), (3, ws), (4, sp)):
                 self.baum.setItemWidget(it, c, w)
             it.setData(0, Qt.UserRole, len(self.zeilen))
-            self.zeilen.append((it, liste, pr, ws, sp, vorschlag))
-        for g in gruppen.values():
-            n = g.childCount()
-            g.setText(0, f"{g.data(0, Qt.UserRole) or 'ohne Profil'} – {n} Teil{'e' if n != 1 else ''}"
-                      + ("  (Profil fehlt in den Stammdaten)" if g.data(0, Qt.UserRole) not in k.profile else ""))
-        if fehler:
-            g = QTreeWidgetItem(self.baum, ["Nicht übernehmbar"])
-            g.setFirstColumnSpanned(True)
-            g.setBackground(0, QBrush(QColor("#F8CBAD")))
-            g.setExpanded(True)
-            for i in fehler:
-                m = messwerte[i]
-                it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "",
-                                         "", "", m.get("fehler") or "kein Rohrteil erkannt"])
-                it.setData(1, Qt.UserRole, i)
+            z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
+                       m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
+                       m.get("_je_satz") or len(liste))
+            sp.setValue(z.werte[self._modus(datei)])
+            sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
+            self.zeilen.append(z)
+        self.fehler_gruppen = {}
+        for i in fehler:
+            m = messwerte[i]
+            g = self.fehler_gruppen.get(m.get("datei"))
+            if g is None:
+                g = self.fehler_gruppen[m.get("datei")] = QTreeWidgetItem(self.baum, ["Nicht übernehmbar"])
+                g.setFirstColumnSpanned(True)
+                g.setBackground(0, QBrush(QColor("#F8CBAD")))
+                g.setExpanded(True)
+            it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "",
+                                     "", "", m.get("fehler") or "kein Rohrteil erkannt"])
+            it.setData(1, Qt.UserRole, i)
         for c, b in enumerate((250, 55, 130, 120, 75, 80, 95, 65, 260)):
             self.baum.setColumnWidth(c, b)
 
@@ -152,13 +211,16 @@ class StepPruefDialog(QDialog):
         self.alle_stk.setSpecialValueText("(Stückzahl)")
         alle.addWidget(self.alle_ws)
         alle.addWidget(self.alle_stk)
-        for text, nur in (("Für markierte", True), ("Für alle", False)):
+        for text, nur, tipp in (("Für markierte", True, "Markierte Zeilen dieser Datei"),
+                                ("Für alle", False, "Alle Teile aller STEP-Dateien")):
             b = QPushButton(text)
+            b.setToolTip(tipp)
             b.clicked.connect(lambda _=False, nur=nur: self.alle_setzen(nur_markierte=nur))
             alle.addWidget(b)
         alle.addSpacing(12)
         for text, an in (("Alle wählen", True), ("Keine wählen", False)):
             b = QPushButton(text)
+            b.setToolTip("Alle Teile aller STEP-Dateien")
             b.clicked.connect(lambda _=False, an=an: self.alle_waehlen(an))
             alle.addWidget(b)
         alle.addStretch(1)
@@ -166,6 +228,7 @@ class StepPruefDialog(QDialog):
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
+        ll.addWidget(self.kopf)
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
         self.ansicht = Ansicht3DMitKnoepfen()
@@ -176,10 +239,11 @@ class StepPruefDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.addWidget(teil, 1)
         hinweis = QLabel("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
-                         "eintragen. Mehrere Zeilen markieren (Strg/Umschalt) und unten Werte setzen. Gleiche Teile einer Datei stehen "
-                         "in einer Zeile. Bei einem Satz zählt die Stückzahl "
-                         "die Sätze. In der 3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, "
-                         "Gravur grün.")
+                         "eintragen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
+                         "Enthält eine Datei mehrere Teile, oben die Anzahl Sätze eintragen (leer = Einzelpositionen); "
+                         "die Spalte zeigt dann Stück je Satz, Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
+                         "markieren (Strg/Umschalt) und unten Werte setzen; „Für alle“ gilt für alle Dateien. In der "
+                         "3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün.")
         hinweis.setWordWrap(True)
         lay.addWidget(hinweis)
         knoepfe = QDialogButtonBox()
@@ -188,68 +252,149 @@ class StepPruefDialog(QDialog):
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
-        if self.zeilen:
-            self._zeigen(self.zeilen[0][0])      # 3D des ersten Teils, ohne es zu markieren
+        self.datei_waehlen(0)
+
+    def _modus(self, datei):
+        return "satz" if self.saetze.get(datei) else "einzeln"
+
+    @property
+    def datei(self):
+        return self.dateien[self.datei_nr] if self.dateien else None
+
+    def datei_waehlen(self, nr):
+        """Datei Nr. nr (ab 0) zeigen: nur ihre Teile, Feld Sätze, 3D des ersten Teils."""
+        if not self.dateien:
+            return
+        self.datei_nr = max(0, min(nr, len(self.dateien) - 1))
+        d = self.datei
+        n = len(self.dateien)
+        self.datei_text.setText(f"Datei {self.datei_nr + 1} von {n}: {Path(str(d)).name}")
+        self.zurueck.setEnabled(self.datei_nr > 0)
+        self.vor.setEnabled(self.datei_nr < n - 1)
+        self.zurueck.setVisible(n > 1)
+        self.vor.setVisible(n > 1)
+        for (datei, vorschlag), g in self.gruppen.items():
+            g.setHidden(datei != d)
+            if datei == d:
+                anz = g.childCount()
+                g.setText(0, f"{vorschlag or 'ohne Profil'} – {anz} Teil{'e' if anz != 1 else ''}"
+                          + ("  (Profil fehlt in den Stammdaten)" if vorschlag not in self.k.profile else ""))
+        for datei, g in self.fehler_gruppen.items():
+            g.setHidden(datei != d)
+        self.satz_feld.setVisible(d in self.mehrteilig)
+        self.satz_info.setVisible(d in self.mehrteilig)
+        self.satz_spin.blockSignals(True)
+        self.satz_spin.setValue(self.saetze.get(d, 0))
+        self.satz_spin.blockSignals(False)
+        self._satz_anzeigen()
+        self.baum.clearSelection()
+        erste = [z for z in self.zeilen if z.datei == d]
+        if erste:
+            self._zeigen(erste[0].it)      # 3D des ersten Teils, ohne es zu markieren
+        else:
+            fg = self.fehler_gruppen.get(d)
+            if fg and fg.childCount():
+                self._zeigen(fg.child(0))
+
+    def _satz_anzeigen(self):
+        d = self.datei
+        satz = bool(self.saetze.get(d))
+        self.baum.headerItem().setText(4, "Stück je Satz" if satz else "Stückzahl")
+        if d in self.mehrteilig:
+            koerper = self.mehrteilig[d][0]
+            from .step import satzname
+            self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"leer = {koerper} Einzelteile")
+
+    def saetze_setzen(self, n, datei=None):
+        """Anzahl Sätze einer Datei (Vorgabe: die gezeigte); 0 = Einzelpositionen. Wechselt die Spalte Stückzahl
+        zwischen Stückzahl und Stück je Satz."""
+        datei = self.datei if datei is None else datei
+        if datei not in self.mehrteilig:
+            raise KeyError(datei)
+        self.saetze[datei] = int(n or 0)
+        for z in self.zeilen:
+            if z.datei == datei:
+                z.sp.blockSignals(True)
+                z.sp.setValue(z.werte[self._modus(datei)])
+                z.sp.blockSignals(False)
+        if datei == self.datei:
+            if self.satz_spin.value() != self.saetze[datei]:
+                self.satz_spin.blockSignals(True)
+                self.satz_spin.setValue(self.saetze[datei])
+                self.satz_spin.blockSignals(False)
+            self._satz_anzeigen()
 
     def _zeile(self, it):
         if it is None or it.parent() is None:
             return None
         n = it.data(0, Qt.UserRole)
-        return self.zeilen[n] if isinstance(n, int) and 0 <= n < len(self.zeilen) and self.zeilen[n][0] is it else None
+        return self.zeilen[n] if isinstance(n, int) and 0 <= n < len(self.zeilen) and self.zeilen[n].it is it else None
 
     def _zeigen(self, it):
         z = self._zeile(it)
         if z:
-            m = self.messwerte[z[1][0]]
+            m = self.messwerte[z.liste[0]]
             self.ansicht.setzen(m.get("_netz"), m.get("artikel") or "", _messinfo(m))
         elif it is not None and it.data(1, Qt.UserRole) is not None:
             m = self.messwerte[it.data(1, Qt.UserRole)]
             self.ansicht.setzen(None, m.get("datei") or "", _messinfo(m))
 
     def _markiert(self):
-        z = [self._zeile(it) for it in self.baum.selectedItems()]
+        z = [self._zeile(it) for it in self.baum.selectedItems() if not it.isHidden() and not it.parent().isHidden()]
         return [x for x in z if x]
 
     def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False):
-        """Werkstoff und/oder Stückzahl (None = Auswahl unten) in alle bzw. die markierten Zeilen schreiben."""
+        """Werkstoff und/oder Stückzahl (None = Auswahl unten) in alle Teile aller Dateien bzw. die markierten
+        Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld Sätze)."""
         werkstoff = werkstoff if werkstoff is not None else (
             self.alle_ws.currentText() if self.alle_ws.currentIndex() > 0 else None)
         stueck = stueck if stueck is not None else (self.alle_stk.value() or None)
-        for _, _, _, ws, sp, _ in (self._markiert() if nur_markierte else self.zeilen):
+        for z in (self._markiert() if nur_markierte else self.zeilen):
             if werkstoff is not None:
-                ws.setCurrentText(werkstoff)
+                z.ws.setCurrentText(werkstoff)
             if stueck is not None:
-                sp.setValue(stueck)
+                z.werte["einzeln"] = stueck
+                if not self.saetze.get(z.datei):
+                    z.sp.setValue(stueck)
 
     def alle_waehlen(self, an):
-        for it, *_ in self.zeilen:
-            it.setCheckState(0, Qt.Checked if an else Qt.Unchecked)
+        for z in self.zeilen:
+            z.it.setCheckState(0, Qt.Checked if an else Qt.Unchecked)
 
     def zeile_setzen(self, artikel, uebernehmen=None, profil=None, werkstoff=None, stueck=None):
-        """Werte einer Zeile ohne Maus setzen (Tests, Bildschirmfotos)."""
-        for it, liste, pr, ws, sp, _ in self.zeilen:
-            if it.text(0) == artikel:
+        """Werte einer Zeile ohne Maus setzen (Tests, Bildschirmfotos). stueck = Wert der Spalte (bei einem Satz
+        Stück je Satz)."""
+        for z in self.zeilen:
+            if z.it.text(0) == artikel:
                 if uebernehmen is not None:
-                    it.setCheckState(0, Qt.Checked if uebernehmen else Qt.Unchecked)
+                    z.it.setCheckState(0, Qt.Checked if uebernehmen else Qt.Unchecked)
                 if profil is not None:
-                    pr.setCurrentText(profil)
+                    z.pr.setCurrentText(profil)
                 if werkstoff is not None:
-                    ws.setCurrentText(werkstoff)
+                    z.ws.setCurrentText(werkstoff)
                 if stueck is not None:
-                    sp.setValue(stueck)
-                return
+                    z.sp.setValue(stueck)
+                return z
         raise KeyError(artikel)
 
     def werte_schreiben(self):
-        """Gewählte Werte in die Messwerte schreiben (_uebernehmen, _profil, _werkstoff, _stueck)."""
-        for it, liste, pr, ws, sp, vorschlag in self.zeilen:
-            profil = pr.currentText().strip()
-            for i in liste:
+        """Gewählte Werte in die Messwerte schreiben (_uebernehmen, _profil, _werkstoff, _stueck; bei einem Satz
+        _saetze = Sätze, _stueck = Sätze, _je_satz = Stück je Satz)."""
+        for z in self.zeilen:
+            profil = z.pr.currentText().strip()
+            saetze = self.saetze.get(z.datei) if z.datei in self.mehrteilig else 0
+            for i in z.liste:
                 m = self.messwerte[i]
-                m["_uebernehmen"] = it.checkState(0) == Qt.Checked
-                m["_werkstoff"] = ws.currentText() or None
-                m["_stueck"] = sp.value() or None
-                if profil and profil != vorschlag:
+                m["_uebernehmen"] = z.it.checkState(0) == Qt.Checked
+                m["_werkstoff"] = z.ws.currentText() or None
+                if saetze:
+                    m["_saetze"], m["_stueck"] = saetze, saetze
+                    m["_je_satz"] = z.werte["satz"] or len(z.liste)
+                else:
+                    m["_saetze"] = 0           # leer = Einzelpositionen (auch ohne Rückfrage)
+                    m.pop("_je_satz", None)
+                    m["_stueck"] = z.werte["einzeln"] or None
+                if profil and profil != z.vorschlag:
                     m["_profil"] = profil
                 else:
                     m.pop("_profil", None)

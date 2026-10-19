@@ -1239,8 +1239,8 @@ class AngebotSeite(QWidget):
             self.step_importieren([str(d) for d in dateien])
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
-        """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = nachfragen,
-        ohne Rückfragen ja)."""
+        """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
+        Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
         befehl = step.messprogramm(self.f.programmordner)
         if befehl is None:
             QMessageBox.warning(self, "STEP-Import", "STEP-Import.exe wurde nicht gefunden.\n\nDer Ordner 'STEP-Import' "
@@ -1277,12 +1277,8 @@ class AngebotSeite(QWidget):
             erneut = QMessageBox.question(self, "STEP-Import", f"{doppelt} Artikel stehen schon im Angebot.\n\n"
                                           "Trotzdem noch einmal eintragen?") == QMessageBox.Yes
         mehr = step.mehrteilig(messwerte)
-        if mehr and als_satz is None:
-            als_satz = self.f.stumm or QMessageBox.question(
-                self, "STEP-Import", "Diese STEP-Dateien enthalten mehrere Teile:\n"
-                + "\n".join(f"• {d}: {n} Körper, {v} verschiedene Teile" for d, (n, v) in mehr.items())
-                + "\n\nSollen sie als Satz angelegt werden?\n\nDer Satz heißt wie die Datei. Gleiche Teile werden eine "
-                "Position mit „Stück je Satz“, die Stückzahl aus dem Importdialog zählt dann Sätze.") == QMessageBox.Yes
+        if als_satz is None:        # Prüfdialog: Feld „Sätze“ je Datei (leer = Einzelpositionen); ohne Dialog als Satz
+            als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
                                neue_profile, erneut, saetze=list(mehr) if als_satz else ())
