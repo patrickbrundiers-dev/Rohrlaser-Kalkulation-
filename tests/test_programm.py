@@ -157,6 +157,28 @@ assert seite.filter.rowCount() == 2
 fenster.einstellungen.felder["gewinn"].setValue(12.5)
 fenster.einstellungen.felder["gewinn"].editingFinished.emit()
 assert db.einstellung("gewinn") == 0.125
+# Reiter: Kunden eigener Reiter, die übrigen Stammdaten und die Vorgaben unter Einstellungen (mit Passwort)
+haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
+assert haupt == ["Start", "Angebote", "Kunden", "Einstellungen"], haupt
+b = fenster.bereich
+assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Profile", "Werkstoffe", "Oberflächen",
+                                                                 "Preise", "Maschinen", "Schneiddaten", "Gewinde",
+                                                                 "Zusatzarbeiten"]
+assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
+fenster.zeigen(seite)
+assert fenster.reiter.currentWidget() is b and b.stapel.currentIndex() == 0       # erst die Passwortabfrage
+b.passwort.setText("falsch")
+assert not b.oeffnen() and b.gesperrt() and "falsch" in b.fehler.text()
+b.passwort.setText("av")
+b.passwort.returnPressed.emit()
+assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is seite
+b.sperren()
+assert b.gesperrt() and b.stapel.currentIndex() == 0
+db.einstellung_setzen("passwort", "")             # leer = ohne Passwort
+fenster.reiter.setCurrentWidget(fenster.start)
+fenster.zeigen(fenster.einstellungen)
+assert not b.gesperrt() and b.stapel.currentIndex() == 1 and b.unter.currentWidget() is fenster.einstellungen
+db.einstellung_setzen("passwort", "av")
 fenster.close()
 db.schliessen()
 

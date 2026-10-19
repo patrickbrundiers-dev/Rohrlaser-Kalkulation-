@@ -56,6 +56,8 @@ for i in range(fenster.reiter.count()):
     if not text.startswith("Angebot "):
         pruefen.append(("Reiter", text))
 pruefen += [("Reiter im Angebot", seite.reiter.tabText(i)) for i in range(seite.reiter.count())]
+pruefen += [("Unterreiter der Einstellungen", fenster.bereich.unter.tabText(i))
+            for i in range(fenster.bereich.unter.count())]
 for w in fenster.findChildren(QPushButton) + fenster.findChildren(QCheckBox):
     if w.text():
         pruefen.append(("Knopf", w.text()))
