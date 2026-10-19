@@ -14,7 +14,9 @@ VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", No
                      ("Menge Soll", "soll_menge", 2, 85), ("Menge Ist", "ist_menge", 2, 85),
                      ("Soll [€]", "soll", 2, 90), ("Ist [€]", "ist", 2, 90), ("Abweichung [€]", "abweichung", 2, 95),
                      ("Abweichung [%]", "prozent", 1, 90), ("Ist erfasst", "erfasst", None, 70)]
-GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist")
+GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
+                 "EK-Meterpreis Soll [€/m]", "EK-Meterpreis Ist [€/m]")
+EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalten: (Schlüssel in ist, ganze Zahl)
 
 
 def _z(w, stellen=2):
@@ -37,12 +39,13 @@ class NachkalkulationSeite(QWidget):
         self.gruppen = QTableWidget(0, len(GRUPPEN_TITEL))
         self.gruppen.setHorizontalHeaderLabels(GRUPPEN_TITEL)
         self.gruppen.verticalHeader().setDefaultSectionSize(22)
-        for i, b in enumerate((110, 100, 115, 80, 80)):
+        for i, b in enumerate((110, 100, 115, 80, 80, 130, 130)):
             self.gruppen.setColumnWidth(i, b)
         self.gruppen.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                      | QAbstractItemView.AnyKeyPressed)
         self.gruppen.itemChanged.connect(self._stangen_geaendert)
-        el.addWidget(QLabel("Verbrauchte Stangen je Profil, Werkstoff und Stangenlänge:"))
+        el.addWidget(QLabel("Verbrauchte Stangen und tatsächlicher EK-Meterpreis je Profil, Werkstoff und "
+                            "Stangenlänge (Meterpreis leer = kalkulierter Meterpreis):"))
         el.addWidget(self.gruppen, 1)
         form = QFormLayout()
         self.felder = {}
@@ -105,10 +108,13 @@ class NachkalkulationSeite(QWidget):
         self.gruppen.setRowCount(len(v["gruppen"]))
         for r, g in enumerate(v["gruppen"]):
             for c, w in enumerate((g["profil"], g["werkstoff"], _z(g["stange"], 0), _z(g["soll"], 0),
-                                   "" if g["ist"] is None else _z(g["ist"], 0))):
+                                   "" if g["ist"] is None else _z(g["ist"], 0), _z(g["meterpreis"], 2),
+                                   "" if g["meterpreis_ist"] is None else _z(g["meterpreis_ist"], 2))):
                 it = QTableWidgetItem(w)
                 it.setData(Qt.UserRole, g["schluessel"])
-                if c < 4:
+                if c == 6:
+                    it.setToolTip(f"Leer = kalkulierter Meterpreis {_z(g['meterpreis'], 2)} €/m")
+                if c not in EINGABE:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     it.setBackground(QBrush(QColor("#F2F2F2")))
                 else:
@@ -151,10 +157,13 @@ class NachkalkulationSeite(QWidget):
         self.s.f.meldung("Nachkalkulation gespeichert.")
         self._platzhalter(self._rechnen())
 
-    def setzen(self, werte=None, stangen=None):
-        """Ist-Werte ohne Oberfläche setzen (Tests, Bildschirmfotos): werte {Feld: Zahl}, stangen {Gruppe: Anzahl}."""
+    def setzen(self, werte=None, stangen=None, meterpreis=None):
+        """Ist-Werte ohne Oberfläche setzen (Tests, Bildschirmfotos): werte {Feld: Zahl}, stangen {Gruppe: Anzahl},
+        meterpreis {Gruppe: €/m}."""
         self.ist.update(werte or {})
         self.ist.setdefault("stangen", {}).update(stangen or {})
+        if meterpreis:
+            self.ist.setdefault("meterpreis", {}).update(meterpreis)
         self._speichern()
         self.neu_laden()
 
@@ -190,15 +199,16 @@ class NachkalkulationSeite(QWidget):
         self._speichern()
 
     def _stangen_geaendert(self, it):
-        if self._laden or it.column() != 4:
+        if self._laden or it.column() not in EINGABE:
             return
+        name, ganz = EINGABE[it.column()]
         try:
-            wert = self._zahl(it.text(), ganz=True)
+            wert = self._zahl(it.text(), ganz=ganz)
         except ValueError as e:
             self.s.f.meldung(str(e), fehler=True)
             self.neu_laden()
             return
-        st = self.ist.setdefault("stangen", {})
+        st = self.ist.setdefault(name, {})
         if st.get(it.data(Qt.UserRole)) == wert:
             return
         st[it.data(Qt.UserRole)] = wert

@@ -18,6 +18,20 @@ KOPF = (
     Feld("zahlungsziel", "Zahlungsziel netto [Tage]", "ganz", 0, 365),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
+# Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
+# leer (ältere Angebote) = Wert der Einstellungen. Prozentwerte stehen hier in %, in den Einstellungen als Anteil.
+KALKULATION = (
+    Feld("zuschlag_material", "Zuschlag Material [%]", "zahl", 0, 500, stellen=1),
+    Feld("zuschlag_fertigung", "Zuschlag Fertigung [%]", "zahl", 0, 500, stellen=1),
+    Feld("zuschlag_fremdleistung", "Zuschlag Fremdleistung [%]", "zahl", 0, 500, stellen=1),
+    Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1),
+    Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
+    Feld("pauschale_abmessung", "Pauschale je Abmessung [€]", "zahl", 0, 100000, stellen=2),
+    Feld("programmierung_teil", "Programmierkosten je Teil [€]", "zahl", 0, 100000, stellen=2),
+    Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
+)
+KALK_PROZENT = ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn")
+KOPF = KOPF + KALKULATION
 
 GEWINDE_MUSTER = (r"(?i)\dx\s*M", "Format Anzahl x Gewinde, mehrere mit Semikolon, z. B. 4xM6; 2xM8")
 
@@ -37,7 +51,7 @@ POSITIONEN = Tabelle(
      Feld("je_satz", "Stück je Satz", "ganz", 1, 100000, breite=60),
      Feld("preis_m", "Materialpreis abweichend [€/m]", "zahl", 0, 100000, stellen=2, breite=85),
      Feld("gewinde", "Gewinde geprüft", muster=GEWINDE_MUSTER, breite=110),
-     Feld("zeit_manuell", "Schneidzeit manuell je Teil [s]", "zahl", 0, 100000, stellen=1, breite=85),
+     Feld("zeit_manuell", "Schneidzeit je Teil [s]", "zahl", 0, 100000, stellen=1, breite=85),
      # Zusatzarbeiten als JSON-Liste [{name, menge, preis, text}] (Dialog 'Zusatzarbeiten …')
      Feld("zusatz", "Zusatzarbeiten", "zusatz", breite=220),
      # STEP-Werte

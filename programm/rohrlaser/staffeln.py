@@ -52,6 +52,29 @@ def pruefen(stufe, positionen):
     return "FEHLER: Satz/Pos. nicht im Angebot"
 
 
+def auswahl(positionen):
+    """Was sich als Stufe wählen lässt: jeder Satz und jede Position ohne Satz (mit Profil).
+    Ergebnis: [(Schlüssel, Anzeigetext, aktuelle Menge in Sätzen bzw. Stück oder None)]."""
+    saetze, einzeln = {}, []
+    for p in positionen:
+        if p.get("profil_id") in (None, ""):
+            continue
+        s = txt(p.get("satz"))
+        if s:
+            saetze.setdefault(s, []).append(p)
+        elif txt(p.get("pos")):
+            menge = int(_zahl(p.get("stueck"))) if _zahl(p.get("stueck")) >= 1 else None
+            text = f"Pos. {txt(p.get('pos'))}" + "".join(f" – {p[n]}" for n in ("artikel", "bezeichnung") if p.get(n))
+            einzeln.append((txt(p.get("pos")), text, menge))
+    out = []
+    for s, ps in saetze.items():
+        mengen = {int(_zahl(p.get("stueck")) // je_satz(p)) for p in ps if _zahl(p.get("stueck")) >= 1}
+        menge = mengen.pop() if len(mengen) == 1 else None
+        pos = ", ".join(txt(p.get("pos")) for p in ps)
+        out.append((s, f"Satz {s} ({len(ps)} Pos.: {pos})", menge or None))
+    return out + einzeln
+
+
 def gueltige(stufen):
     """Stufen, die gerechnet werden: Schlüssel gefüllt und Menge ≥ 1 (höchstens MAX_STUFEN)."""
     return [s for s in stufen if txt(s.get("schluessel")) and _zahl(s.get("menge")) >= 1][:MAX_STUFEN]

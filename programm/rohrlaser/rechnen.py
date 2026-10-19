@@ -439,6 +439,43 @@ def zahl(w, stellen=2):
     return f"{w:.{stellen}f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
+def schneidzeit(p, kopf, wand, tabellen):
+    """Berechnete Schneidzeit je Teil [s] aus Schneidweg, Konturklassen, Gravur und Einstichen (ohne Einsparung
+    gemeinsamer Schnitte und ohne Zusatzzeiten). Ergebnis: (Schneiddaten-Zeile, (Vorschub groß, mittel, klein,
+    Gravur, Einstechzeit), Zeit oder None ohne Schneiddaten)."""
+    sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen)
+    if sd and sd.get("wand_bis"):
+        h = _n(sd.get("vorschub_gross"))
+        i_ = _n(sd.get("vorschub_mittel")) or h
+        j = _n(sd.get("vorschub_klein")) or i_
+        kv = _n(sd.get("vorschub_gravur")) or h
+        l = _n(sd.get("einstechzeit"))
+    else:
+        h = i_ = j = kv = l = None
+    if h is None:
+        mz = None
+    else:
+        try:
+            mz = 60 * ((_n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm"))) / h
+                       + _n(p.get("klein_mm")) / j + _n(p.get("mittel_mm")) / i_ + _n(p.get("gravur")) / kv) \
+                + _n(p.get("einstiche")) * l
+        except ZeroDivisionError:
+            mz = None
+    return sd, (h, i_, j, kv, l), mz
+
+
+def einstellungen_angebot(kopf, einst):
+    """Einstellungen mit den Kalkulationswerten des Angebots (angebot.KALKULATION); leere Werte im Angebot
+    lassen den Wert der Einstellungen stehen. Prozentwerte des Angebots werden zu Anteilen."""
+    from .angebot import KALK_PROZENT, KALKULATION
+    out = dict(einst)
+    for f in KALKULATION:
+        w = (kopf or {}).get(f.name)
+        if isinstance(w, (int, float)) and not isinstance(w, bool):
+            out[f.name] = w / 100 if f.name in KALK_PROZENT else w
+    return out
+
+
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation je Position und Summen. Ergebnis: (zeilen, summen); zeilen[i] ist None für
     Positionen ohne Profil.
@@ -516,27 +553,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                      and stange_wirksam(x, kopf) == q and not _leer(x.get("laenge")) and not _leer(x.get("stueck")))
         e = _n(w["laenge_gesamt"]) / gesamt if gesamt else 0
         f = d * e / c if c else 0
-        sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(w["wand"]), tabellen)
+        sd, (h, i_, j, kv, l), mz = schneidzeit(p, kopf, w["wand"], tabellen)
         z = dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, material_gruppe=d, anteil=e,
                  material_teil=f, wand_stufe=sd["wand_bis"] if sd else None)
-        if sd and sd.get("wand_bis"):
-            h = _n(sd.get("vorschub_gross"))
-            i_ = _n(sd.get("vorschub_mittel")) or h
-            j = _n(sd.get("vorschub_klein")) or i_
-            kv = _n(sd.get("vorschub_gravur")) or h
-            l = _n(sd.get("einstechzeit"))
-        else:
-            h = i_ = j = kv = l = None
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
-        if h is None:
-            mz = None
-        else:
-            try:
-                mz = 60 * ((_n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm"))) / h
-                           + _n(p.get("klein_mm")) / j + _n(p.get("mittel_mm")) / i_ + _n(p.get("gravur")) / kv) \
-                    + _n(p.get("einstiche")) * l
-            except ZeroDivisionError:
-                mz = None
         ein = eingespart.get(schluessel(p, i), [0, 0.0, 0])
         if h is None or c == 0 or not h:
             nz = 0

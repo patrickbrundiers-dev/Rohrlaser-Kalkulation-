@@ -143,10 +143,11 @@ con.execute("PRAGMA user_version=4")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 5 and d.con.execute("PRAGMA user_version").fetchone()[0] == 9
+assert d.anzahl("zusatzarbeiten") == 5 and d.con.execute("PRAGMA user_version").fetchone()[0] == 10
 d.schliessen()
 
 # 11) Oberfläche: Dialog liefert Gewinde und Zusatzarbeiten, Übernahme für mehrere Positionen, Tabellenspalte
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.zusatz_dialog import ZusatzDialog  # noqa: E402
@@ -179,9 +180,27 @@ m = seite.pos_modell
 c = next(i for i, (art, _) in enumerate(m.spalten) if art == "zusatz")
 assert m.data(m.index(0, c)) == "Pulverbeschichten RAL 9005; Gravur extra"
 c = next(i for i, (art, f) in enumerate(m.spalten) if art == "feld" and f.name == "zeit_manuell")
+berechnet = m.zeiten[0]
+assert berechnet and m.data(m.index(0, c)) == m.data(m.index(0, c), Qt.EditRole) != ""   # grau: berechnete Zeit
+m.setData(m.index(0, c), m.data(m.index(0, c), Qt.EditRole))
+assert seite.positionen[0]["zeit_manuell"] is None          # unverändert bestätigt = bleibt berechnet
 assert m.setData(m.index(0, c), "45")
 assert seite.positionen[0]["zeit_manuell"] == 45 and m.status[0] == "HINWEIS: Schneidzeit manuell"
 assert "Zusatzarbeiten" in seite.uebersicht.text()
+
+# Kalkulationswerte je Angebot: Vorgabe aus den Einstellungen, im Angebot änderbar
+vorg = db.kalkulation_vorgaben()
+assert all(seite.kopf[n] == w for n, w in vorg.items()) and vorg["gewinn"] == round(db.einstellung("gewinn") * 100, 4)
+e = rechnen.einstellungen_angebot(dict(gewinn=25.0, angebotsaufschlag=None), dict(gewinn=0.1, angebotsaufschlag=50))
+assert e["gewinn"] == 0.25 and e["angebotsaufschlag"] == 50
+seite.optimieren()
+vorher = seite._rechnung()[1]["verkauf"]
+db.angebot_aendern(seite.id, "gewinn", vorg["gewinn"] + 10)
+seite.neu_laden()
+assert abs(seite.einst["gewinn"] - (vorg["gewinn"] + 10) / 100) < 1e-12 and seite._rechnung()[1]["verkauf"] > vorher
+assert db.einstellung("gewinn") * 100 == vorg["gewinn"]       # Einstellungen bleiben unverändert
+assert seite.kalkulation_zuruecksetzen() and seite.kopf["gewinn"] == vorg["gewinn"]
+assert abs(seite._rechnung()[1]["verkauf"] - vorher) < 1e-9
 fenster.close()
 db.schliessen()
 print("OK: Zusatzarbeiten, Gewinde-Festpreis und manuelle Schneidzeit")

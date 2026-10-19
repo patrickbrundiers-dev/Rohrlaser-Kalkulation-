@@ -568,7 +568,13 @@ def kapitel_angebot(i):
             "<b>Skonto</b>, <b>Skontofrist</b>, <b>Zahlungsziel netto</b>: Zahlungsbedingung dieses Angebots, "
             "vorbelegt vom Kunden bzw. aus den Einstellungen und hier änderbar. Das Skonto wird in den Preis "
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
-            "genau der kalkulierte Preis. 0 % = kein Skonto.")
+            "genau der kalkulierte Preis. 0 % = kein Skonto.",
+            "<b>Kalkulation dieses Angebots</b>: Zuschlag Material, Fertigung und Fremdleistung, Gewinn, Rüstzeit und "
+            "Pauschale je Abmessung, Programmierkosten je Teil und Angebotsaufschlag. Ein neues Angebot übernimmt die "
+            "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
+            "die Einstellungen zu ändern. <b>Vorgaben aus Einstellungen</b> setzt sie wieder auf die Einstellungen. "
+            "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
+            "Beim Kopieren gehen die Werte mit.")
     i.abschnitt("Positionen")
     i.tabelle(["Spalte", "Eintrag"], [
         ["Pos., Artikelnummer, Bezeichnung", "frei; die Artikelnummer erscheint in Angebot und Werkstattpapieren"],
@@ -576,7 +582,7 @@ def kapitel_angebot(i):
                                     "Werkstoff + Stangenlänge, nie gemischt."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
         ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
-        ["Schneidzeit manuell je Teil [s]", "nur bei Bedarf: ersetzt die berechnete Schneidzeit (Kapitel 6.4)"],
+        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.4)"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz (Kapitel 9)"],
         ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
@@ -608,15 +614,18 @@ def kapitel_angebot(i):
             "Im Angebot steht jede Arbeit mit ihrem Text hinter <i>Zusatzarbeiten:</i>.",
             "Steht in einer Position eine Zusatzarbeit, die es in den Stammdaten nicht mehr gibt, zeigt der Status "
             "<b>WARNUNG: Zusatzarbeit … unbekannt</b> und sie wird nicht gerechnet.")
-    i.abschnitt("Schneidzeit manuell")
-    i.text("Ist die berechnete Laserzeit für ein Teil nicht passend (z. B. aus einer Probe oder der Maschinensoftware "
-           "bekannt), die Zeit in Sekunden in die Spalte <b>Schneidzeit manuell je Teil [s]</b> eintragen. Sie ersetzt "
+    i.abschnitt("Schneidzeit anpassen")
+    i.text("Die Spalte <b>Schneidzeit je Teil [s]</b> zeigt in Grau die berechnete Schneidzeit (Schneidweg, "
+           "Konturklassen, Gravur und Einstiche mit den Vorschüben aus den Schneiddaten; ohne Einsparung gemeinsamer "
+           "Schnitte). Ist sie nicht passend (z. B. aus einer Probe oder der Maschinensoftware bekannt), doppelt "
+           "klicken: die berechnete Zeit steht im Feld und lässt sich ändern. Die eingetragene Zeit steht dann fett "
+           "und ersetzt "
            "die berechnete Zeit ganz, auch die Einsparung durch gemeinsame Schnitte wird nicht mehr abgezogen. Zeiten "
            "aus Zusatzarbeiten (Gravur extra) kommen weiterhin dazu. Der Status zeigt <b>HINWEIS: Schneidzeit "
            "manuell</b>, die Kalkulation in der Spalte <i>Schneidzeit manuell</i> ein „ja“. Feld leeren = wieder "
            "berechnet.")
-    i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und manueller Schneidzeit", hoehe=110 * mm, legende=[
-        (1, "Spalte <b>Schneidzeit manuell je Teil [s]</b>."),
+    i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
+        (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),
         (2, "Spalte <b>Zusatzarbeiten</b>: Doppelklick öffnet die Auswahl."),
         (3, "Status <b>HINWEIS: Schneidzeit manuell</b>.")])
 
@@ -776,9 +785,12 @@ def kapitel_staffeln(i):
            "anfallen. Das eigentliche Angebot bleibt unverändert.")
     i.bild("staffeln_vorher", "Mengenstufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
         (1, "<b>Neue Stufe</b> fügt eine Zeile an; <b>Stufen löschen</b> entfernt die markierten."),
-        (2, "Je Zeile: <b>Satz oder Pos.</b> (Satzbezeichnung aus der Spalte Satz der Positionen oder eine "
-            "Positionsnummer), <b>Menge</b> in Sätzen bzw. Stück, Bemerkung. Die Prüfung zeigt, was erkannt wurde."),
-        (3, "<b>Staffelpreise rechnen</b> rechnet alle Stufen.")])
+        (2, "<b>Stufen aus Angebot</b> legt für jeden Satz und jede Position ohne Satz, die noch fehlt, eine Stufe "
+            "mit der Menge aus dem Angebot an. Weitere Mengen danach mit <b>Neue Stufe</b> ergänzen."),
+        (3, "Je Zeile: <b>Satz oder Pos.</b> per Doppelklick aus der Liste wählen; die Liste zeigt alle Sätze "
+            "(mit ihren Positionen) und alle Positionen ohne Satz dieses Angebots. Eintippen geht weiterhin. Dazu "
+            "<b>Menge</b> in Sätzen bzw. Stück und Bemerkung. Die Prüfung zeigt, was erkannt wurde."),
+        (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen.")])
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
            "8 kurze Riegel, 16 Streben, 2 Holme und 3 Traversen.")
@@ -796,8 +808,10 @@ def kapitel_nachkalkulation(i):
            "gegenüber. Verglichen werden die <b>Einzelkosten</b> ohne Zuschläge und Gewinn, denn nur sie lassen sich "
            "in der Fertigung messen. Voraussetzung ist ein aktueller Schnittplan (vorher optimieren).")
     i.bild("nachkalkulation", "Reiter Nachkalkulation nach dem Auftrag", hoehe=95 * mm, legende=[
-        (1, "<b>Stangen Ist</b> je Profil, Werkstoff und Stangenlänge: tatsächlich verbrauchte Stangen. Bewertet "
-            "mit den Kosten je Stange laut Schnittplan."),
+        (1, "<b>Stangen Ist</b> je Profil, Werkstoff und Stangenlänge: tatsächlich verbrauchte Stangen. Daneben "
+            "<b>EK-Meterpreis Soll</b> (kalkuliert laut Schnittplan) und <b>EK-Meterpreis Ist</b> [€/m] zum "
+            "Eintragen, z. B. laut Lieferantenrechnung; leer = kalkulierter Meterpreis. Material Ist = Stangen Ist "
+            "× Meterpreis × Stangenlänge."),
         (2, "<b>Laserzeit Ist</b> [h] (z. B. aus dem Maschinenprotokoll), <b>Rüsten + Stangenwechsel Ist</b> "
             "[min], beide mit dem Stundensatz der Maschine bewertet; <b>Gewinde und Zusatzarbeiten Ist</b> [€] "
             "(z. B. Rechnung der Verzinkerei), <b>Sonstige Kosten Ist</b> [€] (z. B. Nacharbeit), <b>Erlös laut "

@@ -336,13 +336,14 @@ def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True):
         inhalt.append(_p(f"Bemerkung: {ist['bemerkung']}"))
     inhalt += [Spacer(1, 4 * mm), _p("Stangen je Gruppe", S_H2)]
     daten = [_kopfzeile(["Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
-                         "Kosten je Stange [€]", "Material Soll [€]", "Material Ist [€]"])]
+                         "€/m Soll", "€/m Ist", "Material Soll [€]", "Material Ist [€]"])]
     for g in v["gruppen"]:
         daten.append([_p(g["profil"]), _p(g["werkstoff"]), _z(g["stange"], 0), _z(g["soll"], 0),
-                      _z(g["ist"], 0) if g["ist"] is not None else "–", _z(g["kosten_stange"]), _z(g["soll_kosten"]),
+                      _z(g["ist"], 0) if g["ist"] is not None else "–", _z(g["meterpreis"]),
+                      _z(g["meterpreis_ist"]) if g["meterpreis_ist"] is not None else "–", _z(g["soll_kosten"]),
                       _z(g["ist_kosten"])])
-    inhalt.append(_tabelle(daten, [30 * mm, 26 * mm, 22 * mm, 17 * mm, 17 * mm, 22 * mm, 26 * mm, 26 * mm],
-                           rechts=(2, 3, 4, 5, 6, 7)))
+    inhalt.append(_tabelle(daten, [28 * mm, 24 * mm, 20 * mm, 15 * mm, 15 * mm, 17 * mm, 17 * mm, 22 * mm, 22 * mm],
+                           rechts=(2, 3, 4, 5, 6, 7, 8)))
     inhalt += [Spacer(1, 4 * mm), _p("Soll gegen Ist (Einzelkosten ohne Zuschläge und Gewinn)", S_H2)]
     daten = [_kopfzeile(["Kostenart", "Einheit", "Menge Soll", "Menge Ist", "Soll [€]", "Ist [€]", "Abweichung [€]",
                          "Abw. [%]", "erfasst"])]
@@ -356,5 +357,6 @@ def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True):
                            rechts=(2, 3, 4, 5, 6, 7), fett_zeilen=(n, n + 2)))
     inhalt += [Spacer(1, 3 * mm),
                _p("Leere Ist-Werte zählen wie kalkuliert (Spalte erfasst = nein). Zeiten werden mit dem Stundensatz der "
-                  "Maschine bewertet, Material mit den Kosten je Stange laut Schnittplan.", S_KLEIN)]
+                  "Maschine bewertet, Material mit dem EK-Meterpreis × Stangenlänge (leer = Meterpreis laut "
+                  "Schnittplan).", S_KLEIN)]
     doc.build(inhalt, canvasmaker=leinwand)
