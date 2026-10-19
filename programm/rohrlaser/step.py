@@ -208,7 +208,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     Position mit 'Stück je Satz' = Anzahl, stueck zählt dann Sätze (Stückzahl = Sätze × Stück je Satz).
     Werte aus dem Prüfdialog je Teil (vor werkstoff/stueck): _uebernehmen (False = nicht übernehmen), _stueck,
     _werkstoff, _profil (Profil-ID statt des Abgleichs mit den Stammdaten). Bei gleichen Körpern eines Satzes
-    gelten die Werte des ersten."""
+    gelten die Werte des ersten. Aus dem Prüfdialog (Feld 'Sätze'): _saetze > 0 macht die Datei zum Satz (zusätzlich
+    zu saetze), _stueck = Sätze, _je_satz = Stück je Satz (leer = Anzahl gleicher Körper)."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
@@ -222,7 +223,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     pos_max = max((p["pos"] for p in positionen if isinstance(p.get("pos"), (int, float))), default=0)
     naechste = int(pos_max) + 10
     neu, neue_prof, protokoll, bericht = [], [], [], []
-    saetze = set(saetze or ())
+    saetze = set(saetze or ()) | {m.get("datei") for m in messwerte if m.get("_saetze")}
     gruppe_von = {}         # Index -> Index des ersten gleichen Körpers (nur in Sätzen)
     for erster, liste in gleiche_teile(messwerte).items():
         if messwerte[erster].get("datei") in saetze:
@@ -289,7 +290,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if satz:
-                anzahl = len(gruppen[i])
+                anzahl = int(m.get("_je_satz") or len(gruppen[i]))
                 p["satz"], p["je_satz"] = satz, anzahl
                 p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz"

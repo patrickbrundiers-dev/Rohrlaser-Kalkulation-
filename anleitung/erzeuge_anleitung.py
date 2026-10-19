@@ -679,12 +679,13 @@ def kapitel_step(i):
     i.liste("Im Angebot auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
             "Umschalt). Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> in das "
             "Angebotsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
-            "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Liste der Rohre aus den Dateien, "
-            "gegliedert nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Dort je Teil "
-            "festlegen, ob es übernommen wird, und Profil, Werkstoff und Stückzahl wählen. <b>Übernehmen</b> legt "
-            "die Positionen an, <b>Abbrechen</b> verwirft die Messung.",
-            "Enthält eine STEP mehrere Teile (Baugruppe), fragt das Programm, ob sie als Satz angelegt werden sollen "
-            "(siehe unten).",
+            "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
+            "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien wechseln "
+            "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
+            "übernommen wird, und Profil, Werkstoff und Stückzahl wählen. <b>Übernehmen</b> legt die Positionen "
+            "aller Dateien an, <b>Abbrechen</b> verwirft die Messung.",
+            "Enthält eine STEP mehrere Teile (Baugruppe), steht oben das Feld <b>Sätze</b>: Anzahl eintragen = als "
+            "Satz anlegen, leer lassen = jedes Teil als Einzelposition (siehe unten).",
             "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
             "(danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im Angebot, fragt es vor dem doppelten "
             "Eintragen.",
@@ -698,16 +699,18 @@ def kapitel_step(i):
             "<b>Häkchen</b> vor dem Teil: übernehmen ja/nein. Abgewählte Teile stehen nur im STEP-Protokoll.",
             "<b>Profil-ID</b>: vorgeschlagen ist das passende Profil der Stammdaten. Ein anderes wählen oder eine neue "
             "ID eintippen, z. B. wenn ein Teil aus einem anderen Rohr gefertigt wird.",
-            "<b>Werkstoff-ID</b> und <b>Stückzahl</b> je Teil; leer = später im Angebot eintragen. Bei einem Satz "
-            "zählt die Stückzahl die Sätze.",
-            "Für viele Teile auf einmal: unten Werkstoff und/oder Stückzahl wählen und <b>Für alle</b> klicken, oder "
-            "Zeilen markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> "
-            "setzen die Häkchen.",
+            "<b>Werkstoff-ID</b> (nach Kategorie gruppiert) und <b>Stückzahl</b> je Teil; leer = später im Angebot eintragen. Ist oben eine "
+            "Anzahl Sätze eingetragen, heißt die Spalte <b>Stück je Satz</b> (siehe Baugruppen als Satz).",
+            "Für viele Teile auf einmal: unten Werkstoff und/oder Stückzahl wählen und <b>Für alle</b> klicken (gilt "
+            "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
+            "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
+            "die Häkchen aller Dateien.",
             "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i> mit dem Grund.")
-    i.bild("step_pruefen", "STEP-Import prüfen: Rohrliste je Profil, Eingaben je Teil und 3D-Ansicht",
+    i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
            hoehe=100 * mm, legende=[
-               (1, "Rohrliste: Häkchen, Profil-ID, Werkstoff-ID und Stückzahl je Teil."),
-               (2, "Werkstoff und Stückzahl für alle oder die markierten Zeilen setzen.")])
+               (1, "Pfeil-Knöpfe links/rechts: zwischen den STEP-Dateien wechseln; daneben Nummer und Name der Datei."),
+               (2, "Rohrliste der Datei: Häkchen, Profil-ID, Werkstoff-ID und Stückzahl je Teil."),
+               (3, "Werkstoff und Stückzahl für alle oder die markierten Zeilen setzen.")])
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
         (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
@@ -730,16 +733,20 @@ def kapitel_step(i):
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
               "Prozessorkernen gleichzeitig.")
     i.abschnitt("Baugruppen als Satz")
-    i.text("Liegen in einer STEP-Datei mehrere Rohrteile, fragt das Programm nach der Messung, ob sie als Satz "
-           "angelegt werden sollen. Mit <b>Ja</b>:")
+    i.text("Liegen in einer STEP-Datei mehrere Rohrteile, steht im Dialog STEP-Import prüfen oben das Feld "
+           "<b>Sätze</b>. Ist eine Anzahl eingetragen:")
     i.liste("Der Satz heißt wie die Datei (ohne Endung) und steht in der Spalte <b>Satz</b> jeder Position.",
             "Gleiche Teile (gleiche Maße, Konturen und Bohrungen, Lage im Raum egal) werden eine Position; "
             "<b>Stück je Satz</b> ist ihre Anzahl in der Baugruppe.",
-            "Die Stückzahl aus dem Importdialog zählt Sätze: Stückzahl der Position = Sätze × Stück je Satz.",
+            "Die Spalte der Rohrliste heißt dann <b>Stück je Satz</b> (vorgegeben: Anzahl in der Baugruppe, "
+            "änderbar). Stückzahl der Position = Sätze × Stück je Satz.",
             "Das STEP-Protokoll zeigt weiter jeden Körper, die gleichen mit dem Hinweis <i>gleich wie …</i>.")
-    i.text("Mit <b>Nein</b> wird wie bisher jeder Körper eine eigene Position ohne Satz. Staffelpreise und Angebot "
-           "rechnen den Satz wie einen von Hand angelegten (Kapitel Staffelpreise).")
-    i.bilder_nebeneinander(["step_satz_frage"], "Rückfrage bei einer Baugruppe", hoehe=45 * mm)
+    i.text("Bleibt das Feld <b>leer</b>, wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
+           "der Rohrliste. Bei mehreren Dateien gilt das Feld je Datei. Staffelpreise und Angebot rechnen den Satz "
+           "wie einen von Hand angelegten (Kapitel Staffelpreise).")
+    i.bild("step_satz_pruefen", "Baugruppe im Prüfdialog: 4 Sätze eingetragen", hoehe=80 * mm, legende=[
+        (1, "<b>Sätze</b>: Anzahl Sätze; leer = Einzelpositionen. Rechts daneben der Satzname."),
+        (2, "Die Spalte zeigt jetzt <b>Stück je Satz</b>.")])
     i.bild("step_satz_positionen", "Baugruppe als Satz: 3 gleiche Quadratrohre und 1 Rundrohr, 4 Sätze",
            hoehe=110 * mm, legende=[(1, "Spalten <b>Satz</b>, <b>Stück je Satz</b> und <b>Stückzahl</b>.")])
     i.abschnitt("Messregeln")
