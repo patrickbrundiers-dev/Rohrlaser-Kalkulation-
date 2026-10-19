@@ -12,6 +12,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtCore import Qt  # noqa: E402
 from rohrlaser import rechnen, step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -117,6 +118,23 @@ else:
     seite.step_importieren([str(BAUGRUPPE)], "S235-10219", 2)
     assert [(x["je_satz"], x["stueck"]) for x in db.positionen(c)] == [(3, 6), (1, 2)]
     assert seite.optimieren() and all(st == "OK" or not st.startswith("FEHLER") for st in seite.pos_modell.status)
+    # 3D-Ansicht: jede importierte Position hat ein Netz, Vorschaubild, Dialog; Kopieren nimmt die Netze mit
+    from rohrlaser.ansicht3d import ARTEN, entpacken
+    netze = db.netze(c)
+    assert set(netze) == {x["id"] for x in db.positionen(c)}, netze.keys()
+    n = entpacken(netze[db.positionen(c)[0]["id"]])
+    assert len(n["p"]) > 300 and "A" in n["t"] and set(n["t"]) <= {a[0] for a in ARTEN}, (len(n["p"]), list(n["t"]))
+    assert {"EA", "EB"} <= set(n["l"]), list(n["l"])                    # Schnittkanten als Linien
+    c_art = [i for i, (art, x) in enumerate(seite.pos_modell.spalten) if art == "feld" and x.name == "artikel"][0]
+    bild = seite.pos_modell.data(seite.pos_modell.index(0, c_art), Qt.DecorationRole)
+    assert bild is not None and not bild.isNull() and bild.toImage().pixelColor(32, 9).alpha() > 0
+    d = seite.ansicht_3d(1)
+    assert d.liste.rowCount() == 2 and d.ansicht.ansicht.modell is not None
+    d.ansicht.ansicht.grab()                                            # zeichnet ohne Fehler
+    kopie = db.angebot_kopieren(c)
+    assert sorted(db.netze(kopie).values()) == sorted(netze.values())
+    db.angebot_loeschen(kopie)
+    assert not db.netze(kopie) and db.con.execute("SELECT COUNT(*) FROM netze WHERE position_id NOT IN (SELECT id FROM positionen)").fetchone()[0] == 0
     fenster.close()
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)

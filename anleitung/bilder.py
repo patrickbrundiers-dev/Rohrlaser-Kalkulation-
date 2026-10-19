@@ -144,6 +144,7 @@ def reiter_waehlen(s, text):
 
 def main(ziel):
     from rohrlaser.datenbank import Datenbank
+    from rohrlaser.step_dialog import StepPruefDialog
     from rohrlaser.fenster import Hauptfenster
     from rohrlaser.__main__ import deutsch
 
@@ -365,6 +366,12 @@ def main(ziel):
     bereit()
     s2.zeige_step.setChecked(True)
     foto.foto("step_positionen", f, [(s2.zeige_step, 1)])
+    d3 = s2.ansicht_3d(6)                                # 3D-Ansicht: T07 mit Innenkontur und Gravur
+    d3.resize(1150, 560)
+    d3.show()
+    bereit()
+    foto.foto("step_3d", d3, [(d3.ansicht.knoepfe, 1)])
+    d3.close()
     reiter_waehlen(s2, "STEP-Protokoll")
     foto.foto("step_protokoll", f, ausschnitt=reiterflaeche(s2))
     s2.optimieren()
@@ -390,6 +397,14 @@ def main(ziel):
         QTimer.singleShot(50, abschluss_schliessen)      # Abschlussmeldung „… übernommen“ schließen
     def frage_knipsen():                                 # erst nach der Messung (Fortschrittsanzeige) kommt die Frage
         d = QApplication.activeModalWidget()
+        if isinstance(d, StepPruefDialog):               # zuerst der Prüfdialog mit 3D-Ansicht
+            d.resize(1150, 560)
+            d.liste.selectRow(3)
+            bereit()
+            foto.foto("step_pruefen", d)
+            d.accept()
+            QTimer.singleShot(50, frage_knipsen)
+            return
         if not isinstance(d, QMessageBox) or "Satz" not in d.text():
             QTimer.singleShot(50, frage_knipsen)
             return

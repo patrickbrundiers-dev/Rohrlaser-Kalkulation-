@@ -7,6 +7,8 @@ Je Volumenkörper wird ermittelt:
   Innenkonturen; Gravuren (nicht durchgehend) separat
 - Anzahl Konturen (= Einstiche, ohne Gravur), Rundbohrungen je Durchmesser
 - Innenkonturen je Kontur mit Größe (größtes Hüllmaß) für die Einteilung klein/mittel/groß
+- auf Wunsch (netz=True) ein Dreiecksnetz für die 3D-Ansicht im Programm: Flächen und Schnittkonturen nach Art
+  (Außenwand, Innenwand, Anfangsschnitt, Endschnitt, Innenkontur, Gravur), Rohrachse = Z ab 0
 
 Annahmen:
 - Gerades Rohr mit konstantem Querschnitt (nicht gebogen).
@@ -77,6 +79,7 @@ class Teil:
     bohrungen: dict = field(default_factory=dict)  # Ø -> Anzahl (durchgehende Rundbohrungen)
     innen_liste: list = field(default_factory=list)  # je Innenkontur (Größe = größtes Hüllmaß, Länge) [mm]
     hinweise: list = field(default_factory=list)
+    netz: dict = None           # 3D-Ansicht: {p: [x, y, z, …], t: {Art: [i, j, k, …]}, l: {Art: [[x, y, z, …], …]}}
 
     @property
     def profil_id_vorschlag(self):
@@ -200,7 +203,7 @@ def _abstand(a, b):
     return d.Value() if d.IsDone() else float("inf")
 
 
-def analysiere(solid, datei="", koerper=1):
+def analysiere(solid, datei="", koerper=1, netz=False):
     t = Teil(datei=datei, koerper=koerper)
     achse, zentrum = _achse(solid)
     lok = _lokal(solid, achse, zentrum)
@@ -211,17 +214,22 @@ def analysiere(solid, datei="", koerper=1):
     t.laenge = zmax - zmin
 
     # Querschnitt: Lage mit größter Netto-Fläche und genau 2 Konturen (Außen/Innen)
-    best = None
-    # dicht über die ganze Länge abtasten, damit auch lange Ausschnitte umgangen werden
-    # krumme Anteile, damit die Ebene nicht genau auf einer Merkmalskante liegt
-    for anteil in [0.5037] + [(i + 0.37) / 50 for i in range(1, 49)]:
+    best, treffer = None, 0
+    # bis zu 49 Lagen über die ganze Länge, damit auch lange Ausschnitte umgangen werden; krumme Anteile, damit die
+    # Ebene nicht genau auf einer Merkmalskante liegt. Von der Mitte nach außen; sobald drei Lagen den größten
+    # Querschnitt zeigen, ist er gefunden (ein Schnitt durch ein Merkmal hat weniger Fläche oder mehr Konturen).
+    for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
         z = zmin + anteil * t.laenge
         ws = _schnitt(lok, z)
         if len(ws) != 2:
             continue
         netto = ws[0][0] - ws[1][0]
         if best is None or netto > best[0] * 1.001:
-            best = (netto, z, ws)
+            best, treffer = (netto, z, ws), 1
+        elif netto >= best[0] * 0.999:
+            treffer += 1
+        if treffer >= 3:
+            break
     if best is None:
         t.hinweise.append("Kein Rohrquerschnitt gefunden (kein Hohlprofil?)")
         return t
@@ -345,6 +353,7 @@ def analysiere(solid, datei="", koerper=1):
         laenge = sum(_kantenlaenge(e) for e in kanten)
         n = konturen_zaehlen(kanten)
         if not m["durch"]:
+            m["art"] = "G"
             t.gravur += laenge
             t.gravur_konturen += n
             continue
@@ -352,6 +361,7 @@ def analysiere(solid, datei="", koerper=1):
         for e in kanten:
             BRepBndLib.AddOptimal_s(e, bb, False, False)
         gz0, gz1 = bb.CornerMin().Z(), bb.CornerMax().Z()
+        m["art"] = "EA" if gz0 - zmin < TOL_Z else "EB" if zmax - gz1 < TOL_Z else "K"
         if gz0 - zmin < TOL_Z:
             t.ende_a += laenge
             t.ende_a_gerade = (gz1 - zmin < TOL_Z) if t.ende_a == laenge else False
@@ -382,7 +392,58 @@ def analysiere(solid, datei="", koerper=1):
         t.konturen += n
     t.bohrungen = dict(sorted(bohrungen.items()))
     t.schneidweg = t.ende_a + t.ende_b + t.innen
+    if netz:
+        art_flaeche = dict(art)
+        for m in merkmale.values():
+            for f in m["faces"]:
+                art_flaeche[f] = m.get("art", "K")
+        t.netz = dreiecksnetz(lok, faces, art_flaeche, [(m.get("art", "K"), m["kanten"]) for m in merkmale.values()],
+                              zmin, max(t.abm_a, t.abm_b))
     return t
+
+
+NETZ_ARTEN = {"A": "Außenwand", "I": "Innenwand", "EA": "Anfangsschnitt", "EB": "Endschnitt", "K": "Innenkontur",
+              "G": "Gravur"}
+
+
+def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
+    """Dreiecksnetz des Teils (lokal, Rohrachse = Z, Z ab 0) mit der Art je Fläche und den Schnittkonturen auf der
+    Außenhaut als Linienzüge. Koordinaten auf 0,01 mm gerundet."""
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopAbs import TopAbs_REVERSED
+    abw = min(0.5, max(0.02, (groesse or 40) / 250))
+    BRepMesh_IncrementalMesh(lok, abw, False, 0.35, True)
+    punkte, dreiecke = [], {}
+    for i in range(1, faces.Extent() + 1):
+        f = TopoDS.Face(faces.FindKey(i))
+        ort = TopLoc_Location()
+        tri = BRep_Tool.Triangulation_s(f, ort)
+        if tri is None:
+            continue
+        tr = ort.Transformation()
+        basis = len(punkte) // 3
+        for j in range(1, tri.NbNodes() + 1):
+            q = tri.Node(j).Transformed(tr)
+            punkte += [round(q.X(), 2), round(q.Y(), 2), round(q.Z() - zmin, 2)]
+        umdrehen = f.Orientation() == TopAbs_REVERSED
+        liste = dreiecke.setdefault(art_flaeche.get(i, "K"), [])
+        for j in range(1, tri.NbTriangles() + 1):
+            a, b, c = tri.Triangle(j).Get()
+            liste += [basis + a - 1, basis + c - 1, basis + b - 1] if umdrehen else \
+                [basis + a - 1, basis + b - 1, basis + c - 1]
+    linien = {}
+    for art_, kanten in konturen:
+        for e in kanten:
+            c = BRepAdaptor_Curve(TopoDS.Edge(e))
+            u0, u1 = c.FirstParameter(), c.LastParameter()
+            n = max(2, min(120, int(_kantenlaenge(e) / max(abw * 4, 0.5)) + 1))
+            zug = []
+            for k in range(n + 1):
+                q = c.Value(u0 + (u1 - u0) * k / n)
+                zug += [round(q.X(), 2), round(q.Y(), 2), round(q.Z() - zmin, 2)]
+            linien.setdefault(art_, []).append(zug)
+    return dict(p=punkte, t=dreiecke, l=linien)
 
 
 def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
@@ -417,7 +478,7 @@ def bohrungen_text(bohrungen):
     return "; ".join(f"{n}xØ{f'{d:g}'.replace('.', ',')}" for d, n in bohrungen.items())
 
 
-def analysiere_datei(pfad):
+def analysiere_datei(pfad, netz=False):
     from pathlib import Path
     name = Path(pfad).stem
     solids = lies_step(pfad)
@@ -425,4 +486,4 @@ def analysiere_datei(pfad):
         t = Teil(datei=name, koerper=0)
         t.hinweise.append("Kein Volumenkörper in der Datei")
         return [t]
-    return [analysiere(s, name, i) for i, s in enumerate(solids, start=1)]
+    return [analysiere(s, name, i, netz) for i, s in enumerate(solids, start=1)]

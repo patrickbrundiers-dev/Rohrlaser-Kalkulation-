@@ -51,6 +51,17 @@ def lies_messwerte(pfad):
     return [dict(zip(kopf, z.split("\t") + [""] * (len(kopf) - len(z.split("\t"))))) for z in zeilen[1:] if z]
 
 
+def lade_netze(messwerte, ordner):
+    """Dreiecksnetze der Messung (Spalte 'netz' = JSON-Datei im Ordner) als komprimierte Bytes an die Messwerte
+    hängen (Schlüssel '_netz'); fehlt die Datei (ältere STEP-Import.exe), bleibt das Teil ohne 3D-Ansicht."""
+    import zlib
+    for m in messwerte:
+        datei = Path(ordner) / m["netz"] if m.get("netz") else None
+        if datei and datei.is_file():
+            m["_netz"] = zlib.compress(datei.read_bytes(), 6)
+    return messwerte
+
+
 def _z(m, name):
     try:
         return float(m.get(name) or 0)
@@ -246,6 +257,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                      schneidweg=round(_z(m, "schneidweg"), 1), einstiche=int(_z(m, "konturen")),
                      innen=round(_z(m, "innen"), 1), gravur=round(_z(m, "gravur"), 1),
                      bohrungen=bohrungen_text(m.get("bohrungen")) or None, gewinde_vorschlag=vorschlag or None)
+            if m.get("_netz"):
+                p["_netz"] = m["_netz"]         # 3D-Ansicht; speichert der Aufrufer nach position_neu
             if _z(m, "ende_a"):
                 p["a_gerade"] = "ja" if m.get("ende_a_gerade") == "1" else "nein"
                 p["a_schnitt"] = round(_z(m, "ende_a"), 1)

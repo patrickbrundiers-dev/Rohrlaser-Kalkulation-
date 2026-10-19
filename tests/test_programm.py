@@ -327,7 +327,7 @@ con.execute("PRAGMA user_version=2")
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == 8
+assert db.con.execute("PRAGMA user_version").fetchone()[0] == 9
 tabellen_ = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
 assert "auftraege" not in tabellen_ and {"angebote", "angebote_nummer", "positionen_angebot"} <= tabellen_, tabellen_
 assert db.angebot(a_alt)["kunde"] == "Altkunde" and [p_["artikel"] for p_ in db.positionen(a_alt)] == ["ALT-1"]

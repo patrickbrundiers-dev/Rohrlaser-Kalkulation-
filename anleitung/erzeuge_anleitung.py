@@ -312,9 +312,30 @@ def kapitel_start(i):
         ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (die letzten 30)"],
         ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"]],
         [60, 205])
-    i.hinweis("Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“, auf <i>Weitere "
-              "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Das Programm ist nicht signiert.",
-              "Windows-Schutz")
+    i.abschnitt("Windows-Warnungen (SmartScreen, Defender)")
+    i.text("Das Programm ist nicht digital signiert und wird mit PyInstaller gebaut. Programme dieser Art hält "
+           "Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
+           "Administratorrechte, greift nicht auf das Internet zu und schreibt nur in seinen eigenen Ordner und in "
+           "die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
+           "jede .exe Hersteller-, Produkt- und Versionsangaben (rechte Maustaste → Eigenschaften → Details), und das "
+           "Startprogramm wird für dieses Programm eigens übersetzt.")
+    i.liste("<b>Vor dem Entpacken</b>: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
+            "<i>Zulassen</i> anhaken → OK. Sonst trägt Windows jede entpackte Datei als „aus dem Internet“ ein und "
+            "prüft sie bei jedem Start besonders.",
+            "Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“: auf <i>Weitere "
+            "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt Windows nicht mehr.",
+            "Hat der Microsoft Defender eine Datei in Quarantäne verschoben: <i>Windows-Sicherheit → Viren- &amp; "
+            "Bedrohungsschutz → Schutzverlauf</i>, den Eintrag öffnen, <i>Aktionen → Wiederherstellen</i> bzw. "
+            "<i>Auf Gerät zulassen</i>. Den Fehlalarm bitte an Microsoft melden "
+            "(www.microsoft.com/wdsi/filesubmission, Datei hochladen, „Incorrectly detected as malware“); "
+            "nach der Prüfung nimmt Microsoft die Erkennung meist innerhalb weniger Tage zurück.",
+            "Ob das ZIP unverändert von GitHub kommt, zeigt die Prüfsumme: im Release liegt "
+            "<i>Rohrlaser-Angebotskalkulation.zip.sha256</i>. In PowerShell <i>Get-FileHash "
+            "Rohrlaser-Angebotskalkulation.zip</i> eingeben; die Zahl muss gleich sein.",
+            "Wahlweise den Programmordner (z. B. <i>C:\\Rohrlaser</i>) unter <i>Viren- &amp; Bedrohungsschutz → "
+            "Einstellungen verwalten → Ausschlüsse</i> eintragen. Dann prüft der Defender die Programmdateien nicht "
+            "bei jedem Start, Programm und STEP-Import starten schneller. Nur diesen Ordner ausschließen, niemals "
+            "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT.", nummeriert=True)
     i.abschnitt("Startseite")
     i.text("Beim ersten Start legt das Programm die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in "
            "Rot, dass es sich um Beispielwerte handelt.")
@@ -612,6 +633,8 @@ def kapitel_step(i):
             "Angebotsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
             "Werkstoff und Stückzahl für alle Teile angeben oder leer lassen und später eintragen. Bei Sätzen zählt "
             "die Stückzahl die Sätze.",
+            "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> alle gemessenen Teile mit einer drehbaren "
+            "3D-Ansicht. <b>Übernehmen</b> legt die Positionen an, <b>Abbrechen</b> verwirft die Messung.",
             "Enthält eine STEP mehrere Teile (Baugruppe), fragt das Programm, ob sie als Satz angelegt werden sollen "
             "(siehe unten).",
             "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
@@ -626,6 +649,22 @@ def kapitel_step(i):
     i.hinweis("Gewinde werden nur vorgeschlagen (Status HINWEIS: Gewinde-Vorschlag prüfen). Erst wenn das Gewinde "
               "nach Prüfung der Zeichnung in die Spalte <b>Gewinde geprüft</b> eingetragen ist, wird es gerechnet.")
     i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper", hoehe=80 * mm)
+    i.abschnitt("3D-Ansicht")
+    i.text("Jedes per STEP-Import angelegte Teil wird mit seinem 3D-Modell gespeichert. In der Positionsliste steht "
+           "neben der Artikelnummer ein kleines Vorschaubild. <b>3D-Ansicht …</b> in der Knopfleiste des Angebots "
+           "öffnet alle Positionen mit großer Ansicht, beginnend mit der markierten Zeile. Beim Kopieren eines "
+           "Angebots gehen die 3D-Modelle mit.")
+    i.liste("Linke Maustaste ziehen: drehen. Rechte oder mittlere Maustaste ziehen: verschieben. Mausrad: zoomen. "
+            "Doppelklick: zurück zur Ausgangsansicht.",
+            "Farben: Außenwand grau, Innenwand dunkelgrau, <b>Anfangsschnitt orange</b>, <b>Endschnitt violett</b>, "
+            "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
+            "Schneidweg zählt.",
+            "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.")
+    i.bild("step_pruefen", "STEP-Import prüfen: Messwerte je Teil und 3D-Ansicht vor dem Übernehmen", hoehe=95 * mm)
+    i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
+        (1, "Feste Blickrichtungen: <b>Schräg</b>, <b>Vorn</b>, <b>Oben</b> und <b>Stirnseite</b>.")])
+    i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
+              "Prozessorkernen gleichzeitig.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Liegen in einer STEP-Datei mehrere Rohrteile, fragt das Programm nach der Messung, ob sie als Satz "
            "angelegt werden sollen. Mit <b>Ja</b>:")
@@ -800,6 +839,10 @@ def kapitel_fragen(i):
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>VERALTET</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Windows meldet einen <b>Virus</b> oder <b>„Der Computer wurde durch Windows geschützt“</b>",
+         "Fehlalarm bei einem nicht signierten Programm. Abschnitt <i>Windows-Warnungen</i> in Kapitel 2: ZIP vor dem "
+         "Entpacken zulassen, Trotzdem ausführen, Datei aus der Quarantäne wiederherstellen und an Microsoft "
+         "melden."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
          "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "
          "Neu aus dem ZIP entpacken."],

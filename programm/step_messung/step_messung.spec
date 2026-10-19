@@ -3,9 +3,13 @@
 # Ergebnis: dist/STEP-Import/STEP-Import.exe mit allen benötigten OpenCascade-Bibliotheken.
 import glob
 import os
+import sys
 import sysconfig
 
 from PyInstaller.utils.hooks import collect_all
+
+sys.path.insert(0, os.path.dirname(SPECPATH))
+from versionsinfo import versionsinfo  # noqa: E402
 
 # OCP lädt Teilmodule aus dem C++-Code nach, das sieht die Importanalyse nicht: alles einsammeln.
 datas, binaries, hiddenimports = collect_all("OCP")
@@ -19,5 +23,6 @@ a = Analysis([os.path.join(SPECPATH, "step_messen.py")], pathex=[SPECPATH], bina
              hiddenimports=hiddenimports, excludes=["vtk", "vtkmodules", "tkinter", "matplotlib", "numpy.tests"],
              noarchive=False)
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="STEP-Import", console=True, upx=False)
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="STEP-Import", console=True, upx=False,
+          version=versionsinfo("STEP-Import", "STEP-Messung der Rohrlaser Angebotskalkulation", workpath))
 coll = COLLECT(exe, a.binaries, a.datas, name="STEP-Import", upx=False)
