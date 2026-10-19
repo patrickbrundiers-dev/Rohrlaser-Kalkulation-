@@ -10,7 +10,7 @@ Angebot), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', '
 import hashlib
 import json
 
-from .stammdaten import ZUSATZ_EINHEIT, flaeche_berechnet, flaeche_wirksam, huellkreis
+from .stammdaten import GASE, ROH, ZUSATZ_EINHEIT, flaeche_berechnet, flaeche_wirksam, huellkreis
 from . import optimierung as opt
 
 EPS = opt.EPS
@@ -38,6 +38,31 @@ def maschine(kopf, k):
 def stange_wirksam(p, kopf):
     """Angebot Q: abweichende Stangenlänge der Position, sonst Standard aus dem Kopf."""
     return p.get("stange") if not _leer(p.get("stange")) else kopf.get("stange")
+
+
+def oberflaeche_von(p):
+    """Oberfläche einer Position; leer und 'roh' sind gleich ('')."""
+    o = str(p.get("oberflaeche") or "").strip()
+    return "" if o.lower() == ROH else o
+
+
+def gruppe_von(p, kopf):
+    """Stangengruppe einer Position: (Profil, Werkstoff, Oberfläche, Stangenlänge)."""
+    return (p.get("profil_id"), p.get("werkstoff_id"), oberflaeche_von(p), stange_wirksam(p, kopf))
+
+
+def gruppe_der_stange(s):
+    """Stangengruppe einer Stange oder Auswertungszeile (gespeicherte Ergebnisse ohne Oberfläche = roh)."""
+    return (s["profil"], s["werkstoff"], s.get("oberflaeche") or "", s["stange"])
+
+
+def material_text(werkstoff, oberflaeche):
+    """'1.4301' bzw. '1.4301 K240' für Listen und Papiere."""
+    return f"{werkstoff} {oberflaeche}" if oberflaeche else str(werkstoff or "")
+
+
+def kategorie(werkstoff_id, k):
+    return (k.werkstoffe.get(werkstoff_id) or {}).get("kategorie")
 
 
 def grenze_ueberschritten(m, profil, kgm):
@@ -93,9 +118,12 @@ def position_werte(p, kopf, k, tabellen):
                                  is not None or _n(werkstoff.get("tonnenpreis")) > 0)
     w["zusatzarbeiten"] = tabellen.get("zusatzarbeiten")
     w["vorschub"] = None
+    w["gas"] = None
     if w["wand"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
-        sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand"], tabellen)
+        sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand"], tabellen,
+                          kategorie(p["werkstoff_id"], k))
         w["vorschub"] = _n(sd.get("vorschub_gross")) if sd else None
+        w["gas"] = sd.get("gas") if sd else None
     return w
 
 
@@ -108,14 +136,21 @@ def preis_zeile(profil_id, werkstoff_id, k, tabellen):
     return None
 
 
-def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen):
-    """Zeile mit der kleinsten 'Wandstärke bis' ≥ wand, sonst None."""
-    kandidaten = [z for z in tabellen["schneiddaten"] if z.get("maschinen_id") == maschinen_id
-                  and z.get("werkstoff_id") == werkstoff_id and z.get("wand_bis") is not None
-                  and z["wand_bis"] >= wand]
-    if not kandidaten:
-        return None
-    return min(kandidaten, key=lambda z: z["wand_bis"])
+def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None):
+    """Schneiddaten-Zeile für Maschine + Werkstoff und Wandstärke, sonst None.
+    Zuerst die Zeilen des Werkstoffs, ohne passende die Zeilen seiner Kategorie (Werkstoff-ID leer). Je Schneidgas
+    gilt die Zeile mit der kleinsten 'Wandstärke bis' ≥ wand; N₂ geht vor O₂, Zeilen ohne Gas zuletzt. So endet N₂
+    dort, wo die N₂-Zeilen enden, darüber gilt O₂."""
+    zeilen = [z for z in tabellen["schneiddaten"] if z.get("maschinen_id") == maschinen_id
+              and z.get("wand_bis") is not None and z["wand_bis"] >= wand]
+    eigene = [z for z in zeilen if z.get("werkstoff_id") == werkstoff_id and not _leer(werkstoff_id)]
+    kat = [z for z in zeilen if _leer(z.get("werkstoff_id")) and not _leer(kategorie) and z.get("kategorie") == kategorie]
+    for kandidaten in (eigene, kat):
+        for gas in GASE + (None,):
+            je_gas = [z for z in kandidaten if (z.get("gas") or None) == gas]
+            if je_gas:
+                return min(je_gas, key=lambda z: z["wand_bis"])
+    return None
 
 
 # ------------------------------------------------------------------ Status
@@ -128,6 +163,9 @@ def status(p, w, kopf, k, eingeplant=None):
         return "FEHLER: Profil unbekannt"
     if p.get("werkstoff_id") not in k.werkstoffe:
         return "FEHLER: Werkstoff unbekannt"
+    ob = oberflaeche_von(p)
+    if ob and ob not in k.oberflaechen:
+        return "FEHLER: Oberfläche unbekannt"
     if w["querschnitt"] is None:
         return "FEHLER: Querschnitt fehlt (Profil)"
     if _leer(p.get("laenge")) or p["laenge"] <= 0:
@@ -147,6 +185,9 @@ def status(p, w, kopf, k, eingeplant=None):
         return "WARNUNG: nicht vollständig eingeplant"
     if w["preis_hinterlegt"] is False:
         return "WARNUNG: kein gültiger Materialpreis"
+    kat_o = (k.oberflaechen.get(ob) or {}).get("kategorie") if ob else None
+    if kat_o and kat_o != kategorie(p.get("werkstoff_id"), k):
+        return f"WARNUNG: Oberfläche {ob} ist für {kat_o}"
     if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
         return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
     unbekannt = zusatz_unbekannt(p, w.get("zusatzarbeiten"))
@@ -166,7 +207,7 @@ def status(p, w, kopf, k, eingeplant=None):
 
 # ------------------------------------------------------------------ Optimierung
 def gruppen_bilden(kopf, positionen, k):
-    """Optimierungsgruppen (Profil + Werkstoff + Stangenlänge) aus den Positionen.
+    """Optimierungsgruppen (Profil + Werkstoff + Oberfläche + Stangenlänge) aus den Positionen.
     Ergebnis: (gruppen, fehler, neue_profile). Unbekannte Profile, deren ID dem Schema entspricht
     (z. B. 'RR 42,4x2,0'), werden aus dem Namen angelegt: sie stehen in neue_profile
     und zählen hier schon als vorhanden."""
@@ -204,6 +245,9 @@ def gruppen_bilden(kopf, positionen, k):
             fehl("Profil unbekannt"); continue
         if wst not in k.werkstoffe:
             fehl("Werkstoff unbekannt"); continue
+        ob = oberflaeche_von(p)
+        if ob and ob not in k.oberflaechen:
+            fehl("Oberfläche unbekannt"); continue
         if not laenge or laenge <= 0:
             fehl("Teilelänge fehlt"); continue
         if not stk_n:
@@ -223,8 +267,8 @@ def gruppen_bilden(kopf, positionen, k):
         greif = pr["greif"] if pr["greif"] is not None else me["greif"]
         if end + laenge + me["kerf"] > stange - greif + EPS:
             fehl("Teil länger als Nutzlänge der Stange"); continue
-        key = (pid, wst, stange)
-        g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"]))
+        key = (pid, wst, ob, stange)
+        g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob))
         a_ger = p.get("a_gerade") != "nein"
         b_ger = p.get("b_gerade") != "nein"
         u = opt.umfang(pr["form"], pr["a"], pr["b"])
@@ -245,8 +289,10 @@ def eingabe_kennung(kopf, positionen, k):
         gruppen, fehler, neue = gruppen_bilden(kopf, positionen, k)
     except ValueError as e:
         return "fehler:" + str(e)
+    # Oberfläche nur, wenn gesetzt: ältere Angebote ohne Oberfläche bleiben aktuell
     daten = [[(g.profil, g.werkstoff, g.stange, g.endbeschnitt, g.greiferrest, g.kerf, g.abstand,
-               [tuple(t.__dict__.values()) for t in g.teile]) for g in gruppen],
+               [tuple(t.__dict__.values()) for t in g.teile]) + ((g.oberflaeche,) if g.oberflaeche else ())
+              for g in gruppen],
              [sorted(f.items()) for f in fehler], [sorted(n.items()) for n in neue]]
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()
 
@@ -288,11 +334,13 @@ def optimieren(kopf, positionen, k):
                 vorher = (b_ger, b_s)
                 belegung.append(f"{t.pos if t.pos is not None else t.artikel}×{t.laenge:g}")
             verlust += g.kerf
-            stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, stange=g.stange, end=g.endbeschnitt,
+            stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
+                                stange=g.stange, end=g.endbeschnitt,
                                 greif=g.greiferrest, verlust=round(verlust, 2), trennungen=len(folge),
                                 gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
         man = opt.manuell(g)
-        auswertung.append(dict(profil=g.profil, werkstoff=g.werkstoff, stange=g.stange, teile=len(g.teile),
+        auswertung.append(dict(profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche, stange=g.stange,
+                               teile=len(g.teile),
                                stangen=len(folgen), manuell=len(man), untergrenze=opt.untergrenze(g),
                                ausnutzung_manuell=(sum(t.laenge for t in g.teile) / (len(man) * g.stange)
                                                    if man else 0),
@@ -321,21 +369,22 @@ def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
 
 
 def stangenkosten(s, gewicht, kopf, positionen, k, tabellen):
-    """Materialkosten einer Stange: Preis €/m im Angebot > 'Preise' > Tonnenpreis."""
-    ab = [p["preis_m"] for p in positionen if _n(p.get("preis_m")) and p.get("profil_id") == s["profil"]
-          and p.get("werkstoff_id") == s["werkstoff"] and stange_wirksam(p, kopf) == s["stange"]]
+    """Materialkosten einer Stange: Preis €/m im Angebot > 'Preise' > Tonnenpreis; zu den beiden letzten kommt der
+    Aufpreis der Oberfläche je m."""
+    ab = [p["preis_m"] for p in positionen if _n(p.get("preis_m")) and gruppe_von(p, kopf) == gruppe_der_stange(s)]
     if ab and max(ab) > 0:
         return max(ab) * s["stange"] / 1000
+    aufpreis = _n((k.oberflaechen.get(s.get("oberflaeche") or "") or {}).get("aufpreis_m")) * s["stange"] / 1000
     z = preis_zeile(s["profil"], s["werkstoff"], k, tabellen)
     if z is not None:
         if z["basis"] == "€/kg":
-            return _n(gewicht) * z["preis"]
+            return _n(gewicht) * z["preis"] + aufpreis
         if z["basis"] == "€/m":
-            return z["preis"] * s["stange"] / 1000
+            return z["preis"] * s["stange"] / 1000 + aufpreis
         if z["basis"] == "€/Stange":
-            return z["preis"] * s["stange"] / z["lieferlaenge"]
+            return z["preis"] * s["stange"] / z["lieferlaenge"] + aufpreis
     tonne = _n((k.werkstoffe.get(s["werkstoff"]) or {}).get("tonnenpreis"))
-    return _n(gewicht) * tonne / 1000
+    return _n(gewicht) * tonne / 1000 + aufpreis
 
 
 # ------------------------------------------------------------------ Kalkulation
@@ -439,11 +488,12 @@ def zahl(w, stellen=2):
     return f"{w:.{stellen}f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
-def schneidzeit(p, kopf, wand, tabellen):
+def schneidzeit(p, kopf, wand, tabellen, k=None):
     """Berechnete Schneidzeit je Teil [s] aus Schneidweg, Konturklassen, Gravur und Einstichen (ohne Einsparung
     gemeinsamer Schnitte und ohne Zusatzzeiten). Ergebnis: (Schneiddaten-Zeile, (Vorschub groß, mittel, klein,
     Gravur, Einstechzeit), Zeit oder None ohne Schneiddaten)."""
-    sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen)
+    sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen,
+                      kategorie(p.get("werkstoff_id"), k) if k else None)
     if sd and sd.get("wand_bis"):
         h = _n(sd.get("vorschub_gross"))
         i_ = _n(sd.get("vorschub_mittel")) or h
@@ -545,17 +595,15 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         p = positionen[i]
         w = position_werte(p, kopf, k, tabellen)
         c = _n(p.get("stueck"))
-        q = stange_wirksam(p, kopf)
-        d = sum(x["kosten"] for s, x in zip(stangen, sw) if s["profil"] == p.get("profil_id")
-                and s["werkstoff"] == p.get("werkstoff_id") and s["stange"] == q)
+        gr = gruppe_von(p, kopf)
+        d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
         gesamt = sum(_n(x.get("laenge")) * _n(x.get("stueck")) for x in positionen
-                     if x.get("profil_id") == p.get("profil_id") and x.get("werkstoff_id") == p.get("werkstoff_id")
-                     and stange_wirksam(x, kopf) == q and not _leer(x.get("laenge")) and not _leer(x.get("stueck")))
+                     if gruppe_von(x, kopf) == gr and not _leer(x.get("laenge")) and not _leer(x.get("stueck")))
         e = _n(w["laenge_gesamt"]) / gesamt if gesamt else 0
         f = d * e / c if c else 0
-        sd, (h, i_, j, kv, l), mz = schneidzeit(p, kopf, w["wand"], tabellen)
+        sd, (h, i_, j, kv, l), mz = schneidzeit(p, kopf, w["wand"], tabellen, k)
         z = dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, material_gruppe=d, anteil=e,
-                 material_teil=f, wand_stufe=sd["wand_bis"] if sd else None)
+                 material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None)
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
         ein = eingespart.get(schluessel(p, i), [0, 0.0, 0])
         if h is None or c == 0 or not h:
@@ -673,7 +721,7 @@ def stangenmuster(ergebnis):
     Reihenfolge und Lage), für Werkstattpapier und Stangenbild. Ergebnis: [(Stange, [Nummern])]."""
     muster = {}
     for s in (ergebnis or {}).get("stangen", []):
-        schl = (s["profil"], s["werkstoff"], s["stange"],
+        schl = (gruppe_der_stange(s),
                 tuple((t["ref"], t["laenge"], t["lage"]) for t in s["teile"]))
         muster.setdefault(schl, (s, []))[1].append(s["nr"])
     return list(muster.values())
@@ -685,7 +733,7 @@ def auswertung_zeilen(ergebnis, sw):
     out = []
     for a in ergebnis["auswertung"]:
         st_g = [(s, w) for s, w in zip(ergebnis["stangen"], sw)
-                if (s["profil"], s["werkstoff"], s["stange"]) == (a["profil"], a["werkstoff"], a["stange"])]
+                if gruppe_der_stange(s) == gruppe_der_stange(a)]
         bedarf = sum(s["stange"] for s, _ in st_g) / 1000
         laenge = sum(w["summe"] for _, w in st_g) / 1000
         out.append(dict(a, bedarf=bedarf, laenge=laenge, verschnitt=bedarf - laenge,

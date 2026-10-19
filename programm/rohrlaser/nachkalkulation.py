@@ -28,8 +28,10 @@ def _n(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-def gruppenschluessel(profil, werkstoff, stange):
-    return f"{profil}|{werkstoff}|{int(stange) if float(stange).is_integer() else stange}"
+def gruppenschluessel(profil, werkstoff, stange, oberflaeche=""):
+    """'Profil|Werkstoff|Stangenlänge', mit Oberfläche (nicht roh) '…|Oberfläche' dahinter."""
+    return (f"{profil}|{werkstoff}|{int(stange) if float(stange).is_integer() else stange}"
+            + (f"|{oberflaeche}" if oberflaeche else ""))
 
 
 def gruppen(ergebnis, kopf, positionen, k, tabellen):
@@ -39,9 +41,11 @@ def gruppen(ergebnis, kopf, positionen, k, tabellen):
     sw = rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen)
     out = {}
     for s, w in zip(ergebnis["stangen"], sw):
-        g = out.setdefault((s["profil"], s["werkstoff"], s["stange"]),
-                           dict(schluessel=gruppenschluessel(s["profil"], s["werkstoff"], s["stange"]),
-                                profil=s["profil"], werkstoff=s["werkstoff"], stange=s["stange"], soll=0, kosten=0.0))
+        ob = s.get("oberflaeche") or ""
+        g = out.setdefault(rechnen.gruppe_der_stange(s),
+                           dict(schluessel=gruppenschluessel(s["profil"], s["werkstoff"], s["stange"], ob),
+                                profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], ob),
+                                stange=s["stange"], soll=0, kosten=0.0))
         g["soll"] += 1
         g["kosten"] += w["kosten"] or 0
     for g in out.values():

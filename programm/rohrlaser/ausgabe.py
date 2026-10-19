@@ -93,6 +93,9 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     t += f", L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else ", L =  mm"
     w = k.werkstoffe.get(p.get("werkstoff_id"))
     t += ", inkl. Material " + ((w or {}).get("angebotstext") or str(p.get("werkstoff_id") or ""))
+    ob = rechnen.oberflaeche_von(p)
+    if ob:
+        t += ", " + ((k.oberflaechen.get(ob) or {}).get("angebotstext") or ob)
     zus = []
     if p.get("gewinde"):
         zus.append(f"Gewinde {p['gewinde']}")
@@ -204,8 +207,9 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     werte = {s["nr"]: w for s, w in zip(ergebnis["stangen"], sw)}
     material = {}
     for s in ergebnis["stangen"]:
-        m = material.setdefault((s["profil"], s["werkstoff"], s["stange"]),
-                                dict(profil=s["profil"], werkstoff=s["werkstoff"], stange=s["stange"], stangen=0, gewicht=0.0))
+        m = material.setdefault(rechnen.gruppe_der_stange(s),
+                                dict(profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], s.get("oberflaeche")),
+                                     stange=s["stange"], stangen=0, gewicht=0.0))
         m["stangen"] += 1
         m["gewicht"] += _wert(werte[s["nr"]]["gewicht"])
     muster = []

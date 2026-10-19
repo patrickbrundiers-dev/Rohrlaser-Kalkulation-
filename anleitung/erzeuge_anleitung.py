@@ -270,7 +270,7 @@ def kapitel_ueberblick(i):
             "Bei Bedarf <b>Staffelpreise</b> für weitere Mengen rechnen.",
             "<b>Ausgeben</b>: Angebot, Werkstattpapiere und Kalkulation als PDF, auf Wunsch CSV-Export.",
             nummeriert=True)
-    i.text("Die Stammdaten (Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
+    i.text("Die Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
            "Einstellungen werden einmal eingerichtet (Kapitel 3 und 4): das Programm startet mit Beispielwerten, die "
            "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
@@ -386,16 +386,21 @@ def kapitel_stammdaten(i):
          "Abmessung A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). Endbeschnitt und Greiferrest nur bei "
          "Abweichung von der Maschine. Unbekannte Profile im Angebot legt das Programm aus der ID selbst an "
          "(RR/QR/RE-Schema)."],
-        ["Werkstoffe", "Werkstoff-ID, Dichte, Tonnenpreis, Text im Angebot",
-         "Der Tonnenpreis ergibt den Preis je kg, je m und je Stange, wenn unter Preise nichts steht."],
+        ["Werkstoffe", "Werkstoff-ID, Kategorie (Stahl, Edelstahl, Aluminium), Dichte, Tonnenpreis, Text im Angebot",
+         "Der Tonnenpreis ergibt den Preis je kg, je m und je Stange, wenn unter Preise nichts steht. Die Kategorie "
+         "ordnet die Auswahl im Angebot und liefert Schneiddaten, wenn der Werkstoff keine eigenen hat."],
+        ["Oberflächen", "Oberfläche (z. B. roh, K240, gestrahlt), Kategorie, Aufpreis [€/m], Text im Angebot",
+         "Je Position wählbar, leer = roh. Der Aufpreis kommt je Meter Stange auf den Materialpreis."],
         ["Preise", "Preis je Profil + Werkstoff in €/kg, €/m oder €/Stange",
          "Je Kombination höchstens eine Zeile. €/Stange bezieht sich auf die Liefer-Stangenlänge."],
         ["Maschinen", "Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge, Stundensatz, Konturgrenzen, "
                       "Rüstzeit, Stangenwechsel, max. Hüllkreis und Metergewicht",
          "Profile über dem max. Hüllkreis-Ø oder Metergewicht bekommen im Angebot FEHLER und werden nicht "
          "eingeplant (leer = keine Grenze)."],
-        ["Schneiddaten", "Vorschübe je Maschine + Werkstoff, gestaffelt nach Wandstärke; Einstechzeit",
-         "Es gilt die Zeile mit der kleinsten „Wandstärke bis“, die mindestens der Profilwandstärke entspricht."],
+        ["Schneiddaten", "Vorschübe je Maschine + Werkstoff oder Kategorie + Schneidgas (N₂/O₂), gestaffelt nach "
+                         "Wandstärke; Einstechzeit",
+         "Es gilt die Zeile mit der kleinsten „Wandstärke bis“, die mindestens der Profilwandstärke entspricht. "
+         "N₂ solange es dafür eine Zeile gibt, darüber O₂."],
         ["Gewinde", "Gewinde, Kernloch-Ø, Zeit je Gewinde, Preis je Gewinde [€]",
          "Der STEP-Import erkennt Kernlochbohrungen an diesem Durchmesser (±0,05 mm). Gerechnet wird der feste "
          "Preis je Gewinde; ist er leer, die Zeit je Gewinde mit dem Stundensatz der Maschine."],
@@ -427,11 +432,28 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
+        ["Kategorie", "Stahl, Edelstahl oder Aluminium (Liste in den Einstellungen). Im Angebot sind die Werkstoffe "
+                      "danach gruppiert; ohne eigene Schneiddaten gelten die der Kategorie."],
         ["Werkstoff, Werkstoff-Nr., Norm / Qualität", "Bezeichnung, Nummer (z. B. 1.0039) und Norm, nur zur Info"],
         ["<b>Dichte [kg/dm³]</b>", "für Gewicht und Preis je kg"],
         ["Tonnenpreis [€/t]", "Materialpreis, wenn unter Preise nichts steht"],
         ["Text im Angebot", "so steht der Werkstoff in der Bezeichnung im Angebot"],
         ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Vorbelegt sind Stahl (S235JRH, S355J2H, E235, E355), Edelstahl (1.4301, 1.4307, 1.4404, 1.4571, "
+           "1.4509) und Aluminium (EN AW-6060, 6063, 6082) mit Beispiel-Tonnenpreisen. Ältere Datendateien "
+           "bekommen beim ersten Start die fehlenden Werkstoffe dazu; vorhandene bleiben unverändert und erhalten "
+           "eine Kategorie (Dichte unter 4 = Aluminium, 1.4… = Edelstahl, sonst Stahl).")
+    i.bild("stamm_werkstoffe", "Reiter Werkstoffe mit Kategorie", hoehe=100 * mm)
+    i.tabelle(["Oberflächen", "Bedeutung"], [
+        ["<b>Oberfläche</b>", "Name, z. B. <i>roh</i>, <i>K240</i>, <i>gestrahlt</i>; Auswahl in der Position"],
+        ["Kategorie (leer = alle)", "für welche Werkstoffe die Oberfläche passt; sonst Warnung in der Position"],
+        ["Aufpreis [€/m]", "kommt je Meter Stange auf den Materialpreis (Preise bzw. Tonnenpreis). Ein abweichender "
+                           "Materialpreis in der Position ersetzt Preis und Aufpreis."],
+        ["Text im Angebot", "steht hinter dem Werkstoff in der Bezeichnung, z. B. „Oberfläche K240 geschliffen“"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
+           "Werkstoff + Oberfläche + Stangenlänge. Leer und <i>roh</i> sind gleich.")
+    i.bild("stamm_oberflaechen", "Reiter Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm)
     i.tabelle(["Preise", "Bedeutung"], [
         ["<b>Profil-ID</b>, <b>Werkstoff-ID</b>", "Kombination, für die der Preis gilt"],
         ["<b>Preisbasis</b>, <b>Preis [€]</b>", "€/kg, €/m oder €/Stange und der Betrag"],
@@ -451,14 +473,26 @@ def kapitel_stammdaten(i):
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
-        ["<b>Maschinen-ID</b>, <b>Werkstoff-ID</b>, <b>Wandstärke bis [mm]</b>",
-         "für welche Maschine, welchen Werkstoff und bis zu welcher Wandstärke die Zeile gilt"],
+        ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
+         "für welche Maschine und bis zu welcher Wandstärke die Zeile gilt"],
+        ["Werkstoff-ID oder Kategorie",
+         "eins von beiden: eine Zeile mit Werkstoff-ID gilt nur für diesen Werkstoff und geht vor; eine Zeile mit "
+         "Kategorie (Werkstoff-ID leer) gilt für alle Werkstoffe der Kategorie ohne eigene passende Zeile"],
+        ["Schneidgas", "N₂ (Stickstoff) oder O₂ (Sauerstoff); die Vorschübe gelten für dieses Gas. Das Programm "
+                       "nimmt N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂. Wo die N₂-Zeilen "
+                       "enden, legt also fest, ab welcher Wandstärke nur noch mit O₂ geschnitten wird."],
         ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für Anfangs- und Endschnitte und große Innenkonturen"],
         ["Vorschub mittel [mm/min], Vorschub klein [mm/min]",
          "für mittlere und kleine Innenkonturen; leer = nächstgrößerer Vorschub"],
         ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Vorbelegt sind Beispielwerte je Kategorie für RL-1 und RL-2 von 1 bis 10 mm: Stahl mit N₂ bis 4 mm, "
+           "Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm, darüber O₂. Eigene Schneiddaten älterer "
+           "Datendateien bleiben erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche "
+           "Wandstärke-Stufe und welches Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten "
+           "Wandstärke-Stufe und Schneidgas).")
+    i.bild("stamm_schneiddaten", "Reiter Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm)
     i.tabelle(["Gewinde", "Bedeutung"], [
         ["<b>Gewinde</b>, <b>Kernloch Ø [mm]</b>",
          "z. B. M6 mit 5,0 mm; der STEP-Import schlägt Gewinde an diesem Durchmesser vor"],
@@ -521,7 +555,9 @@ def kapitel_einstellungen(i):
         ["Ablage", "Zweiter Sicherungsordner", "zusätzliche Sicherung beim Beenden und mit <i>Datensicherung "
                                                "erstellen</i>, z. B. Netzlaufwerk oder USB-Stick; leer = keiner "
                                                "(Kapitel 2.3)"],
-        ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"]], [28, 80, 157])
+        ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
+        ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
+                                                  "(Vorgabe Stahl, Edelstahl, Aluminium)"]], [28, 80, 157])
 
 
 def kapitel_angebote(i):
@@ -578,8 +614,11 @@ def kapitel_angebot(i):
     i.abschnitt("Positionen")
     i.tabelle(["Spalte", "Eintrag"], [
         ["Pos., Artikelnummer, Bezeichnung", "frei; die Artikelnummer erscheint in Angebot und Werkstattpapieren"],
-        ["Profil-ID, Werkstoff-ID", "aus der Auswahlliste der Stammdaten (Pflicht). Optimiert wird je Profil + "
-                                    "Werkstoff + Stangenlänge, nie gemischt."],
+        ["Profil-ID, Werkstoff-ID", "aus der Auswahlliste der Stammdaten (Pflicht), Werkstoffe nach Kategorie "
+                                    "gruppiert. Optimiert wird je Profil + Werkstoff + Oberfläche + Stangenlänge, "
+                                    "nie gemischt."],
+        ["Oberfläche", "z. B. K240 oder gestrahlt (Stammdaten Oberflächen); leer = roh. Der Aufpreis kommt auf den "
+                       "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
         ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
         ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.4)"],
@@ -719,7 +758,7 @@ def kapitel_optimieren(i):
     i.text("<b>Optimieren</b> verteilt alle gültigen Positionen auf Stangen, prüft jede Stange gegen Überlast und "
            "rechnet die Kalkulation. Danach zeigt die Übersicht <b>Stand Optimierung: aktuell</b> (grün).")
     i.abschnitt("Regeln der Optimierung")
-    i.liste("Je Profil + Werkstoff + Stangenlänge getrennt, ohne Vermischung.",
+    i.liste("Je Profil + Werkstoff + Oberfläche + Stangenlänge getrennt, ohne Vermischung.",
             "Belegung einer Stange = Endbeschnitt + Teile + Trennschnitte + Schnittverlust des letzten Schnitts; "
             "der Greiferrest muss frei bleiben.",
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, ein "
@@ -746,8 +785,9 @@ def kapitel_optimieren(i):
     i.bild("erg_kalkulation", "Reiter Kalkulation", hoehe=80 * mm)
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
             "(Verschnitt ist enthalten). Preis: abweichender Preis der Position, sonst <i>Preise</i>, sonst "
-            "Tonnenpreis des Werkstoffs.",
-            "<b>Laser</b>: Schneidweg je Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
+            "Tonnenpreis des Werkstoffs; bei den beiden letzten kommt der Aufpreis der Oberfläche je m dazu.",
+            "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
+            "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
             "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu.",
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz.",
@@ -885,6 +925,14 @@ def kapitel_fragen(i):
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
         ["Zusatzarbeit kostet mehr als Menge × Preis",
          "Der Mindestbetrag je Angebot greift; er wird auf alle Teile mit dieser Zusatzarbeit verteilt."],
+        ["<b>FEHLER: Oberfläche unbekannt</b>",
+         "Die Oberfläche der Position steht nicht in den Stammdaten Oberflächen. Aus der Auswahl wählen oder anlegen."],
+        ["<b>WARNUNG: Oberfläche … ist für …</b>",
+         "Die Oberfläche passt laut Stammdaten nicht zur Kategorie des Werkstoffs, z. B. K240 bei Stahl. Gerechnet "
+         "wird trotzdem; Oberfläche oder Werkstoff prüfen."],
+        ["<b>HINWEIS: keine Schneiddaten</b>",
+         "Weder der Werkstoff noch seine Kategorie hat für Maschine und Wandstärke eine Zeile in den Schneiddaten. "
+         "Kategorie beim Werkstoff eintragen oder Schneiddaten ergänzen."],
         ["<b>WARNUNG: kein gültiger Materialpreis</b>", "Weder Preis noch Tonnenpreis für Profil + Werkstoff "
                                                         "hinterlegt. Reiter Preise oder Werkstoffe ergänzen."],
         ["<b>WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz</b>",

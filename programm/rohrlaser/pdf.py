@@ -14,7 +14,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe
+from . import ausgabe, rechnen
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
@@ -185,7 +185,7 @@ class StangenBalken(Flowable):
         y, h = 9 * mm, 11 * mm
         c.setFont(FETT, 8.5)
         c.setFillColor(colors.black)
-        c.drawString(0, 25 * mm, f"{ausgabe.muster_titel(m)}   |   {s['profil']}   |   {s['werkstoff']}   |   "
+        c.drawString(0, 25 * mm, f"{ausgabe.muster_titel(m)}   |   {s['profil']}   |   {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}   |   "
                                  f"{_z(lang, 0)} mm   |   {len(m['teile'])} Teile   |   Rest {_z(m['rest'], 1)} mm   |   "
                                  f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %")
 
@@ -249,7 +249,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
         titel = Table([[_p(ausgabe.muster_titel(m), ParagraphStyle("mt", parent=S_FETT, fontSize=11, leading=13))]],
                       colWidths=[sum(breiten)])
         titel.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), HELLBLAU)]))
-        info = _p(f"{s['profil']}  |  {s['werkstoff']}  |  Stange {_z(s['stange'], 0)} mm  |  Endbeschnitt "
+        info = _p(f"{s['profil']}  |  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  |  Stange {_z(s['stange'], 0)} mm  |  Endbeschnitt "
                   f"{_z(s['end'], 1)} mm  |  Greiferrest {_z(s['greif'], 1)} mm  |  Rest {_z(m['rest'], 1)} mm  |  "
                   f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %", S_KLEIN)
         kopfteil = [titel, info, Spacer(1, 1.5 * mm)]

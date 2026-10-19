@@ -121,8 +121,8 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst):
     erg = rechnen.optimieren(kopf, lauf, k)
     if erg["neue_profile"]:      # Profil aus dem Namen gilt für diesen Lauf als angelegt
         k = kontext_aus({"profile": list(k.profile.values()) + erg["neue_profile"],
-                         "werkstoffe": list(k.werkstoffe.values()), "maschinen": list(k.maschinen.values())},
-                        k.profilformen)
+                         "werkstoffe": list(k.werkstoffe.values()), "maschinen": list(k.maschinen.values()),
+                         "oberflaechen": list(k.oberflaechen.values())}, k.profilformen, k.kategorien)
     kz, summen = rechnen.kalkulation(kopf, lauf, erg, k, tabellen, einst)
     z.update(teile=summen["teile"], stangen=summen["stangen"], material=summen["material"], laser=summen["laser"],
              ruesten=summen["ruesten"], herstell=summen["herstell"])

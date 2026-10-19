@@ -9,6 +9,10 @@ from dataclasses import dataclass, field
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
+KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium")
+# Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
+GASE = ("N₂", "O₂")
+ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
 # Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge oder Stück; 's/Stück' = Zeit in
 # Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur, die nicht im STEP-Modell ist)
 ZUSATZARTEN = ("€/kg", "€/m²", "€/m", "€/Stück", "s/Stück")
@@ -22,7 +26,7 @@ class Feld:
     art: str = "text"       # text | zahl | ganz | datum | auswahl
     von: float = None       # zulässiger Bereich
     bis: float = None
-    auswahl: str = None     # Quelle der Auswahlliste: profilform, preisbasis, profil, werkstoff, maschine
+    auswahl: str = None     # Quelle der Auswahlliste: profilform, preisbasis, profil, werkstoff, maschine, …
     stellen: int = None     # Nachkommastellen in der Anzeige
     breite: int = 110       # Spaltenbreite in Pixeln
     pflicht: bool = False
@@ -129,6 +133,7 @@ PROFILE = Tabelle(
 WERKSTOFFE = Tabelle(
     "werkstoffe", "Werkstoffe",
     (Feld("werkstoff_id", "Werkstoff-ID", pflicht=True, breite=120),
+     Feld("kategorie", "Kategorie", "auswahl", auswahl="kategorie", breite=90),
      Feld("werkstoff", "Werkstoff", breite=130),
      Feld("werkstoff_nr", "Werkstoff-Nr."),
      Feld("norm", "Norm / Qualität", breite=220),
@@ -137,8 +142,23 @@ WERKSTOFFE = Tabelle(
      Feld("tonnenpreis", "Tonnenpreis [€/t]", "zahl", 0.01, 1000000, stellen=0),
      Feld("angebotstext", "Text im Angebot", breite=160)),
     ("werkstoff_id",),
-    "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Der Tonnenpreis ergibt "
-    "automatisch den Preis je kg, je m und je Stange; Abweichungen unter 'Preise' eintragen.")
+    "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Die Kategorie (Stahl, Edelstahl, "
+    "Aluminium) ordnet die Auswahl im Angebot und liefert Schneiddaten und Oberflächen, wenn der Werkstoff keine "
+    "eigenen hat. Der Tonnenpreis ergibt automatisch den Preis je kg, je m und je Stange; Abweichungen unter "
+    "'Preise' eintragen.")
+
+OBERFLAECHEN = Tabelle(
+    "oberflaechen", "Oberflächen",
+    (Feld("oberflaeche", "Oberfläche", pflicht=True, breite=120),
+     Feld("kategorie", "Kategorie (leer = alle)", "auswahl", auswahl="kategorie", breite=110),
+     Feld("aufpreis_m", "Aufpreis [€/m]", "zahl", 0, 10000, stellen=2, breite=80),
+     Feld("angebotstext", "Text im Angebot", breite=160),
+     Feld("bemerkung", "Bemerkung", breite=260)),
+    ("oberflaeche",),
+    "Oberfläche des Rohmaterials, je Position wählbar (leer = roh). Teile mit unterschiedlicher Oberfläche "
+    "kommen nie auf dieselbe Stange. Der Aufpreis je m kommt auf den Materialpreis der Stange; ein "
+    "abweichender Materialpreis in der Position ersetzt Preis und Aufpreis. Kategorie: für welche Werkstoffe "
+    "die Oberfläche passt (sonst Warnung im Angebot).")
 
 PREISE = Tabelle(
     "preise", "Preise",
@@ -181,7 +201,9 @@ MASCHINEN = Tabelle(
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
     (Feld("maschinen_id", "Maschinen-ID", "auswahl", auswahl="maschine", pflicht=True, breite=100),
-     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", pflicht=True, breite=120),
+     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", breite=120),
+     Feld("kategorie", "Kategorie", "auswahl", auswahl="kategorie", breite=90),
+     Feld("gas", "Schneidgas", "auswahl", auswahl="gas", breite=70),
      Feld("wand_bis", "Wandstärke bis [mm]", "zahl", 0.1, 50, stellen=1, pflicht=True),
      Feld("vorschub_gross", "Vorschub groß / Trennschnitt [mm/min]", "zahl", 1, 100000, stellen=0, pflicht=True),
      Feld("vorschub_mittel", "Vorschub mittel [mm/min]", "zahl", 1, 100000, stellen=0),
@@ -189,10 +211,12 @@ SCHNEIDDATEN = Tabelle(
      Feld("einstechzeit", "Einstechzeit [s]", "zahl", 0, 60, stellen=1),
      Feld("vorschub_gravur", "Vorschub Gravur [mm/min]", "zahl", 1, 100000, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=160)),
-    ("maschinen_id", "werkstoff_id", "wand_bis"),
-    "Je Maschine + Werkstoff gestaffelt nach Wandstärke: es gilt die Zeile mit der kleinsten "
-    "'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Leere Vorschübe mittel/klein/Gravur "
-    "nehmen den nächstgrößeren.")
+    ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"),
+    "Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärke: es gilt die Zeile mit der "
+    "kleinsten 'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Zeilen mit Werkstoff-ID gehen "
+    "vor; hat der Werkstoff keine passende Zeile, gelten die Zeilen seiner Kategorie (Werkstoff-ID leer). "
+    "Schneidgas: N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂ (so endet N₂ ab einer "
+    "gewissen Wandstärke). Leere Vorschübe mittel/klein/Gravur nehmen den nächstgrößeren.")
 
 GEWINDE = Tabelle(
     "gewinde", "Gewinde",
@@ -221,7 +245,7 @@ ZUSATZARBEITEN = Tabelle(
     "Gravur, die nicht im Teil ist). Mindestbetrag: liegt die Summe im Angebot darunter, wird auf den "
     "Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag Fremdleistung, sonst Zuschlag Fertigung.")
 
-TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN)
+TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -277,6 +301,8 @@ EINSTELLUNGEN = (
                 "Ablage", "text", ""),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(PROFILFORMEN)),
+    Einstellung("kategorien", "Werkstoff-Kategorien (eine je Zeile)", "Auswahllisten", "mehrzeilig",
+                "\n".join(KATEGORIEN)),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
 
@@ -348,28 +374,63 @@ def wert_als_text(f, w, bearbeiten=False):
 
 
 # ------------------------------------------------------------------ Prüfung
+def _leer(v):
+    return v is None or v == ""
+
+
 @dataclass
 class Kontext:
     """Nachschlagewerte für Prüfung, berechnete Spalten und Auswahllisten."""
     profile: dict = field(default_factory=dict)       # Profil-ID -> Zeile
     werkstoffe: dict = field(default_factory=dict)
     maschinen: dict = field(default_factory=dict)
+    oberflaechen: dict = field(default_factory=dict)
     profilformen: tuple = PROFILFORMEN
+    kategorien: tuple = KATEGORIEN
 
     def auswahl(self, quelle):
-        return {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS), "zusatzart": list(ZUSATZARTEN),
-                "profil": sorted(self.profile), "werkstoff": sorted(self.werkstoffe), "janein": ["ja", "nein"],
-                "maschine": sorted(self.maschinen)}[quelle]
+        return [w for _, werte in self.gruppiert(quelle) for w in werte]
+
+    def gruppiert(self, quelle):
+        """Auswahlliste in Gruppen [(Überschrift oder None, [Werte])]: Werkstoffe und Oberflächen nach Kategorie."""
+        if quelle in ("werkstoff", "oberflaeche"):
+            zeilen = self.werkstoffe if quelle == "werkstoff" else self.oberflaechen
+            reihe = {kat: i for i, kat in enumerate(self.kategorien)}
+            kat = lambda z: z.get("kategorie") or ("ohne Kategorie" if quelle == "werkstoff" else "alle Werkstoffe")
+            gruppen = {}
+            for name, z in zeilen.items():
+                gruppen.setdefault(kat(z), []).append(name)
+            # Oberflächen: 'roh' und die für alle Werkstoffe zuerst
+            erst = (lambda g: 0 if g == "alle Werkstoffe" else 1) if quelle == "oberflaeche" else (lambda g: 0)
+            folge = sorted(gruppen, key=lambda g: (erst(g), reihe.get(g, len(reihe)), g))
+            return [(g, sorted(gruppen[g], key=lambda n: (n != ROH, n.lower()))) for g in folge]
+        return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"],
+                         "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
+                         "gas": list(GASE)}[quelle])]
 
 
-def kontext_aus(daten, profilformen=PROFILFORMEN):
+def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     """Kontext aus Stammdatenzeilen {Tabelle: [Zeile]}."""
     k = Kontext()
     k.profile = {z["profil_id"]: z for z in daten.get("profile", []) if z.get("profil_id")}
     k.werkstoffe = {z["werkstoff_id"]: z for z in daten.get("werkstoffe", []) if z.get("werkstoff_id")}
     k.maschinen = {z["maschinen_id"]: z for z in daten.get("maschinen", []) if z.get("maschinen_id")}
+    k.oberflaechen = {z["oberflaeche"]: z for z in daten.get("oberflaechen", []) if z.get("oberflaeche")}
     k.profilformen = tuple(profilformen)
+    k.kategorien = tuple(kategorien)
     return k
+
+
+def kategorie_raten(z):
+    """Kategorie eines Werkstoffs ohne Angabe (ältere Datendateien): Dichte unter 4 = Aluminium,
+    Werkstoff-Nr. 1.4… = Edelstahl, sonst Stahl."""
+    texte = " ".join(str(z.get(n) or "") for n in ("werkstoff_id", "werkstoff", "werkstoff_nr"))
+    if isinstance(z.get("dichte"), (int, float)) and z["dichte"] < 4:
+        return "Aluminium"
+    if re.search(r"(?<![\d.])1\.4\d{3}", texte) or re.search(r"(?i)\bX\d+Cr", texte):
+        return "Edelstahl"
+    return "Stahl"
 
 
 def pruefen(t, z, k):
@@ -395,6 +456,13 @@ def pruefen(t, z, k):
             return "FEHLER: Querschnitt fehlt (Fläche manuell eintragen)"
     if t is PREISE and z.get("basis") == "€/Stange" and not z.get("lieferlaenge"):
         return "FEHLER: Stangenlänge fehlt"
+    if t is SCHNEIDDATEN:
+        if _leer(z.get("werkstoff_id")) == _leer(z.get("kategorie")):
+            return "FEHLER: Werkstoff-ID oder Kategorie eintragen (eins von beiden)"
+        if _leer(z.get("gas")):
+            return "WARNUNG: Schneidgas fehlt"
+    if t is WERKSTOFFE and _leer(z.get("kategorie")):
+        return "WARNUNG: Kategorie fehlt"
     if t is WERKSTOFFE and z.get("tonnenpreis") is None:
         return "WARNUNG: kein Tonnenpreis (Preis nur über 'Preise')"
     if t is MASCHINEN and z.get("stundensatz") is None:
@@ -408,13 +476,6 @@ def beispieldaten():
     def zeilen(t, werte):
         return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(t.felder)} for w in werte]
     d = datetime.date(2026, 10, 1).isoformat()
-    sd = []
-    for w, daten in (("S235-10219", [(2, 6000, 0.3), (3, 4500, 0.5), (5, 3000, 0.8)]),
-                     ("S355-10219", [(2, 5800, 0.3), (3, 4300, 0.5), (5, 2800, 0.8)]),
-                     ("1.4301", [(2, 5000, 0.4), (3, 3500, 0.6), (5, 2000, 1.0)]),
-                     ("AW6060-T66", [(2, 7000, 0.3), (3, 5000, 0.5), (5, 3200, 0.8)])):
-        for s, v, e in daten:
-            sd.append(("RL-1", w, s, v, round(v * 0.7, -1), round(v * 0.4, -1), e, 10000, "Beispiel"))
     gewinde = [("M3", 2.5, 0.60), ("M4", 3.3, 0.70), ("M5", 4.2, 0.80), ("M6", 5.0, 0.90), ("M8", 6.8, 1.10),
                ("M10", 8.5, 1.30), ("M12", 10.2, 1.60), ("M14", 12.0, 1.90), ("M16", 14.0, 2.20), ("M20", 17.5, 2.80)]
     return {
@@ -430,11 +491,8 @@ def beispieldaten():
             ("RE 60x40x3", "Rechteckrohr", 60, 40, 3.0, None, None, None, "Beispiel"),
             ("RE 120x60x4", "Rechteckrohr", 120, 60, 4.0, None, 30, 120,
              "Beispiel: profilspezifischer Endbeschnitt/Greiferrest")]),
-        "werkstoffe": zeilen(WERKSTOFFE, [
-            ("S235-10219", "S235JRH", "1.0039", "EN 10219 kaltgefertigt, geschweißt", 7.85, "Beispiel", 1000, "S235 EN10219"),
-            ("S355-10219", "S355J2H", "1.0576", "EN 10219 kaltgefertigt, geschweißt", 7.85, "Beispiel", 1050, "S355 EN10219"),
-            ("1.4301", "X5CrNi18-10", "1.4301", "EN 10217-7 / ASTM A554", 7.90, "Beispiel", 4200, "1.4301 EN10217-7"),
-            ("AW6060-T66", "EN AW-6060 T66", "3.3206", "EN 755-2", 2.70, "Beispiel", 4500, "EN AW-6060 T66")]),
+        "werkstoffe": zeilen(WERKSTOFFE, beispiel_werkstoffe()),
+        "oberflaechen": zeilen(OBERFLAECHEN, beispiel_oberflaechen()),
         "preise": zeilen(PREISE, [
             ("RR 42,4x2,0", "S235-10219", "€/kg", 1.45, 6000, d, "Beispiel-Lieferant", "Beispiel"),
             ("RR 48,3x2,6", "S235-10219", "€/kg", 1.45, 6000, d, "Beispiel-Lieferant", "Beispiel"),
@@ -444,11 +502,68 @@ def beispieldaten():
         "maschinen": zeilen(MASCHINEN, [
             ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30, "Beispielwerte"),
             ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, 10, 50, 2, 20, 40, "Beispielwerte")]),
-        "schneiddaten": zeilen(SCHNEIDDATEN, sd),
+        "schneiddaten": zeilen(SCHNEIDDATEN, beispiel_schneiddaten()),
         "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None, p)
                                     for i, (g, k, p) in enumerate(gewinde)]),
         "zusatzarbeiten": beispiel_zusatzarbeiten(),
     }
+
+
+def beispiel_werkstoffe():
+    """Werkstoffe mit Kategorie (Beispiel-Tonnenpreise, bitte durch eigene ersetzen)."""
+    st, es, al = "Stahl", "Edelstahl", "Aluminium"
+    rohr_s, praez = "EN 10219 kaltgefertigt, geschweißt", "EN 10305-3 Präzisionsstahlrohr, geschweißt, maßgewalzt"
+    rohr_e = "EN 10217-7 / ASTM A554"
+    return [
+        ("S235-10219", st, "S235JRH", "1.0039", rohr_s, 7.85, "Beispiel", 1000, "S235 EN10219"),
+        ("S355-10219", st, "S355J2H", "1.0576", rohr_s, 7.85, "Beispiel", 1050, "S355 EN10219"),
+        ("E235-10305", st, "E235", "1.0308", praez, 7.85, "Beispiel", 1150, "E235 EN10305-3"),
+        ("E355-10305", st, "E355", "1.0580", praez, 7.85, "Beispiel", 1250, "E355 EN10305-3"),
+        ("1.4301", es, "X5CrNi18-10", "1.4301", rohr_e, 7.90, "Beispiel", 4200, "1.4301 EN10217-7"),
+        ("1.4307", es, "X2CrNi18-9", "1.4307", rohr_e, 7.90, "Beispiel", 4300, "1.4307 EN10217-7"),
+        ("1.4404", es, "X2CrNiMo17-12-2", "1.4404", rohr_e, 8.00, "Beispiel", 5600, "1.4404 EN10217-7"),
+        ("1.4571", es, "X6CrNiMoTi17-12-2", "1.4571", rohr_e, 8.00, "Beispiel", 5900, "1.4571 EN10217-7"),
+        ("1.4509", es, "X2CrTiNb18", "1.4509", "EN 10296-2 (ferritisch)", 7.70, "Beispiel", 3600, "1.4509 EN10296-2"),
+        ("AW6060-T66", al, "EN AW-6060 T66", "3.3206", "EN 755-2", 2.70, "Beispiel", 4500, "EN AW-6060 T66"),
+        ("AW6063-T66", al, "EN AW-6063 T66", None, "EN 755-2", 2.70, "Beispiel", 4600, "EN AW-6063 T66"),
+        ("AW6082-T6", al, "EN AW-6082 T6", "3.2315", "EN 755-2", 2.70, "Beispiel", 4800, "EN AW-6082 T6")]
+
+
+def beispiel_oberflaechen():
+    """Oberflächen des Rohmaterials (Beispiel-Aufpreise, bitte durch eigene ersetzen)."""
+    return [(ROH, None, 0.0, None, "ohne Aufpreis; leer in der Position heißt ebenfalls roh"),
+            ("gestrahlt", None, 1.50, "gestrahlt", "Beispielpreis; Stahl SA 2½, Edelstahl glasperlgestrahlt"),
+            ("K240", "Edelstahl", 2.20, "Oberfläche K240 geschliffen", "Beispielpreis"),
+            ("K320", "Edelstahl", 2.80, "Oberfläche K320 geschliffen", "Beispielpreis"),
+            ("gebeizt", "Edelstahl", 1.20, "gebeizt und passiviert", "Beispielpreis"),
+            ("E6/EV1", "Aluminium", 3.50, "E6/EV1 eloxiert", "Beispielpreis")]
+
+
+# Beispiel-Schneiddaten je Kategorie und Gas: [(Wandstärke bis, Vorschub groß)]; N₂ endet bei Stahl über 4 mm,
+# bei Edelstahl über 8 mm, bei Aluminium über 6 mm, darüber gilt O₂
+BEISPIEL_VORSCHUB = {
+    ("Stahl", "N₂"): [(1, 9000), (1.5, 8000), (2, 7000), (3, 5000), (4, 3500)],
+    ("Stahl", "O₂"): [(1, 5500), (1.5, 5000), (2, 4500), (3, 3600), (4, 3000), (5, 2500), (6, 2100), (8, 1500),
+                      (10, 1100)],
+    ("Edelstahl", "N₂"): [(1, 8000), (1.5, 7000), (2, 6000), (3, 4000), (4, 3000), (5, 2200), (6, 1700), (8, 1000)],
+    ("Edelstahl", "O₂"): [(10, 900)],
+    ("Aluminium", "N₂"): [(1, 10000), (1.5, 9000), (2, 8000), (3, 5500), (4, 4000), (5, 3000), (6, 2300)],
+    ("Aluminium", "O₂"): [(8, 1400), (10, 1000)],
+}
+
+
+def beispiel_schneiddaten():
+    """Schneiddaten je Kategorie (Werkstoff-ID leer) für RL-1 und RL-2 (RL-2 mit 20 % mehr Leistung).
+    Einstechzeit mit O₂ länger als mit N₂."""
+    out = []
+    for m, faktor in (("RL-1", 1.0), ("RL-2", 1.2)):
+        for (kat, gas), stufen in BEISPIEL_VORSCHUB.items():
+            for wand, v in stufen:
+                v = round(v * faktor, -1)
+                ein = round(0.1 + wand * (0.18 if gas == "O₂" else 0.12), 1)
+                out.append((m, None, kat, gas, wand, v, round(v * 0.7, -1), round(v * 0.4, -1), ein,
+                            12000 if gas == "N₂" else 10000, "Beispiel"))
+    return out
 
 
 def beispiel_zusatzarbeiten():

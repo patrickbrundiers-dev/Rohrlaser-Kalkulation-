@@ -42,6 +42,7 @@ POSITIONEN = Tabelle(
      Feld("bezeichnung", "Bezeichnung", breite=150),
      Feld("profil_id", "Profil-ID", "auswahl", auswahl="profil", breite=120),
      Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", breite=105),
+     Feld("oberflaeche", "Oberfläche", "auswahl", auswahl="oberflaeche", breite=80),
      Feld("laenge", "Teilelänge [mm]", "zahl", 1, 20000, stellen=1, breite=80),
      Feld("stueck", "Stückzahl", "ganz", 1, 100000, breite=65),
      Feld("schneidweg", "Schneidweg je Teil [mm]", "zahl", 0, 1000000, stellen=1, breite=85),

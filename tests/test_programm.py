@@ -16,7 +16,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, Kontext, beispieldaten, flaeche_berechnet,  # noqa: E402
                                   preis_je_m_automatisch, pruefen, wert_aus_text, wert_als_text)
 
@@ -93,7 +93,7 @@ except ValueError as e:
     assert "gibt es schon" in str(e)
 wid = next(z["id"] for z in db.zeilen("werkstoffe") if z["werkstoff_id"] == "1.4301")
 db.aendern("werkstoffe", wid, "werkstoff_id", "1.4301-K240")
-assert sum(1 for z in db.zeilen("schneiddaten") if z["werkstoff_id"] == "1.4301-K240") == 3
+assert sum(1 for z in db.zeilen("preise") if z["werkstoff_id"] == "1.4301-K240") == 1
 neu = db.neu("preise")
 db.aendern("preise", neu, "profil_id", "QR 40x40x3")
 try:
@@ -267,7 +267,7 @@ assert staffeln.pruefen(dict(schluessel="10", menge=None), s4.positionen) == "FE
 assert s4.optimieren()
 sp = s4.staffelpreise_rechnen()
 assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
-assert [z["preis_einheit"] for z in sp] == [159.19, 149.71, 138.36, 7.31, 6.71, 6.11], sp   # Referenzwerte
+assert [z["preis_einheit"] for z in sp] == [158.96, 149.47, 138.12, 7.3, 6.7, 6.09], sp   # Referenzwerte (Schneiddaten je Kategorie, Stahl bis 4 mm mit N₂)
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
@@ -286,7 +286,7 @@ assert "VERALTET" in s4.staffel_info.text()
 assert not st_mod.setData(st_mod.index(5, 1), "0")
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 1008.16) < 1e-9 and ang["mwst"] == 191.55, ang   # Referenzwerte
+assert abs(ang["netto"] - 1005.80) < 1e-9 and ang["mwst"] == 191.10, ang   # Referenzwerte
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2, L = 1250 mm, inkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
@@ -338,7 +338,7 @@ con.execute("PRAGMA user_version=2")
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == 10
+assert db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 tabellen_ = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
 assert "auftraege" not in tabellen_ and {"angebote", "angebote_nummer", "positionen_angebot"} <= tabellen_, tabellen_
 assert db.angebot(a_alt)["kunde"] == "Altkunde" and [p_["artikel"] for p_ in db.positionen(a_alt)] == ["ALT-1"]
