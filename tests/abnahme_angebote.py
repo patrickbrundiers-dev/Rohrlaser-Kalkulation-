@@ -1,10 +1,10 @@
-"""Realistische Testaufträge für die Abnahme (tests/test_abnahme.py).
+"""Realistische Testangebote für die Abnahme (tests/test_abnahme.py).
 
-Je Auftrag: Kopf (Maschine, Standard-Stangenlänge) und Positionen wie im Blatt Auftrag.
+Je Angebot: Kopf (Maschine, Standard-Stangenlänge) und Positionen.
 Felder je Position: pos, artikel, bezeichnung, profil, werkstoff, laenge, stueck, und optional
 schneidweg, einstiche, stange (abweichend), a_gerade/b_gerade ("nein" = schräges Ende, Gehrung),
 erwartet ("nicht eingeplant" = Teil darf nicht auf eine Stange, z. B. zu lang).
-Stammdaten: Beispieldaten der Mappe v02 (RL-1: Endbeschnitt 20, Greiferrest 80, Schnittverlust 0,3,
+Stammdaten: Beispieldaten des Programms (RL-1: Endbeschnitt 20, Greiferrest 80, Schnittverlust 0,3,
 max. 6500 mm; RL-2: 15/120/0,3, max. 8500 mm; RE 120x60x4 mit Endbeschnitt 30 und Greiferrest 120).
 """
 
@@ -17,7 +17,7 @@ def pos(nr, artikel, bez, profil, werkstoff, laenge, stueck, **extra):
 RR42, RR48, QR40, RE60, RE120 = "RR 42,4x2,0", "RR 48,3x2,6", "QR 40x40x3", "RE 60x40x3", "RE 120x60x4"
 S235, S355, VA = "S235-10219", "S355-10219", "1.4301"
 
-AUFTRAEGE = [
+ANGEBOTE = [
     dict(name="Geländer Treppenhaus", nummer="ABN-01", kunde="Metallbau Krüger", maschine="RL-1", stange=6000,
          positionen=[
              pos(10, "GL-100", "Handlauf", RR42, S235, 3480, 6, schneidweg=420, einstiche=2,
@@ -69,7 +69,7 @@ AUFTRAEGE = [
              pos(50, "GM-05", "Kopfband 8 m", QR40, S235, 610, 4, schneidweg=420, einstiche=2,
                  a_gerade="nein", b_gerade="nein", stange=8000),
          ]),
-    dict(name="Grenzfälle Stangenlänge", nummer="ABN-07", kunde="Prüfauftrag", maschine="RL-1", stange=6000,
+    dict(name="Grenzfälle Stangenlänge", nummer="ABN-07", kunde="Prüfangebot", maschine="RL-1", stange=6000,
          positionen=[
              # Nutzlänge RL-1: 6000 - 20 Endbeschnitt - 80 Greiferrest = 5900, davon 0,3 Schnittverlust
              pos(10, "GF-01", "Teil genau Nutzlänge", RR42, S235, 5899.7, 2, schneidweg=270, einstiche=2),
@@ -90,21 +90,9 @@ AUFTRAEGE = [
          ]),
 ]
 
-# Spalten im Blatt Auftrag
-SPALTE = dict(pos=1, artikel=2, bezeichnung=3, profil=4, werkstoff=5, laenge=6, stueck=7, schneidweg=8,
-              einstiche=9, stange=10, a_gerade=25, b_gerade=27)
+FELD = dict(profil="profil_id", werkstoff="werkstoff_id")   # Feldnamen im Programm
 
 
-def mappe_fuellen(wb, auftrag):
-    """Auftrag in das Blatt Auftrag einer Mappe schreiben (vorhandene Positionen werden geleert)."""
-    wa = wb["Auftrag"]
-    for r in range(13, 513):
-        for c in range(1, 45):
-            if wa.cell(r, c).data_type != "f":
-                wa.cell(r, c).value = None
-    wa["C4"], wa["C5"], wa["C6"] = auftrag["nummer"], None, auftrag["kunde"]
-    wa["C8"], wa["C9"] = auftrag["maschine"], auftrag["stange"]
-    for i, p in enumerate(auftrag["positionen"]):
-        for feld, c in SPALTE.items():
-            if p.get(feld) is not None:
-                wa.cell(13 + i, c, p[feld])
+def programm_positionen(angebot):
+    """Positionen des Angebots mit den Feldnamen des Programms (ohne Testangaben wie 'erwartet')."""
+    return [{FELD.get(k, k): v for k, v in p.items() if k != "erwartet"} for p in angebot["positionen"]]

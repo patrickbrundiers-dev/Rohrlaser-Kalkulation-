@@ -1,5 +1,5 @@
 # PyInstaller-Spezifikation für STEP-Import.exe (Ordner-Variante, startet schneller als eine Einzeldatei).
-# Aufruf (Windows): pyinstaller --noconfirm --clean tools/step_import_exe.spec
+# Aufruf (Windows): pyinstaller --noconfirm --clean programm/step_messung/step_messung.spec
 # Ergebnis: dist/STEP-Import/STEP-Import.exe mit allen benötigten OpenCascade-Bibliotheken.
 import glob
 import os

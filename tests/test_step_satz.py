@@ -59,7 +59,7 @@ for p in pos:                                                # Stückzahl passt 
 assert all(p["stueck"] is None for p in step.uebernehmen(mw, [], k, gew, None, saetze=["G.step"])["positionen"])
 einzeln = step.uebernehmen(mw, [], k, gew, None, stueck=3)["positionen"]
 assert len(einzeln) == 7 and not any(p.get("satz") for p in einzeln) and all(p["stueck"] == 3 for p in einzeln)
-# schon im Auftrag: der erste Körper wird übersprungen, die gleichen mit ihm
+# schon im Angebot: der erste Körper wird übersprungen, die gleichen mit ihm
 zweit = step.uebernehmen(mw, pos, k, gew, None, saetze=["G.step"])
 assert [p["artikel"] for p in zweit["positionen"]] == []
 assert "gleich wie G-K1" in {z[1] + str(z[2]): z for z in zweit["protokoll"]}["G.step2"][-1]
@@ -71,7 +71,7 @@ for n in ("b.STEP", "a.stp", "unter/c.step", "liesmich.txt"):
     (o / n).write_text("x")
 assert step.step_dateien([o, o / "a.stp", tmp / "fehlt.txt"]) == [o / "a.stp", o / "b.STEP", o / "unter" / "c.step"]
 
-# 4) Echte Baugruppe messen und über das Auftragsfenster übernehmen (braucht OpenCascade)
+# 4) Echte Baugruppe messen und über das Angebotsfenster übernehmen (braucht OpenCascade)
 if step.messprogramm(HIER.parent / "programm") is None:
     print("HINWEIS: OpenCascade fehlt, Baugruppe nicht gemessen")
 else:
@@ -80,8 +80,8 @@ else:
     from rohrlaser.fenster import Hauptfenster  # noqa: E402
     app = QApplication.instance() or QApplication([])
     fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
-    a = db.auftrag_neu(dict(kunde="Test"))
-    seite = fenster.auftrag_oeffnen(a)
+    a = db.angebot_neu(dict(kunde="Test"))
+    seite = fenster.angebot_oeffnen(a)
 
     class Ziehen:                                            # wie ein QDropEvent mit gezogenen Dateien
         def __init__(self, pfade):
@@ -107,13 +107,13 @@ else:
         ("T08_Gestell_Baugruppe-K1", "QR 40x40x3", 600.0, "T08_Gestell_Baugruppe", 3, None),
         ("T08_Gestell_Baugruppe-K4", "RR 42,4x2,0", 900.0, "T08_Gestell_Baugruppe", 1, None)], p
     erg = seite.step_importieren([str(BAUGRUPPE)], "S235-10219", 2, als_satz=False)   # Nein: jeder Körper einzeln
-    assert [x["artikel"][-2:] for x in erg["positionen"]] == ["K2", "K3"]   # K1 und K4 stehen schon im Auftrag
-    b = db.auftrag_neu(dict(kunde="Test"))
-    seite = fenster.auftrag_oeffnen(b)
+    assert [x["artikel"][-2:] for x in erg["positionen"]] == ["K2", "K3"]   # K1 und K4 stehen schon im Angebot
+    b = db.angebot_neu(dict(kunde="Test"))
+    seite = fenster.angebot_oeffnen(b)
     seite.step_importieren([str(BAUGRUPPE)], "S235-10219", 2, als_satz=False)
     assert [(x["satz"], x["stueck"]) for x in db.positionen(b)] == [(None, 2)] * 4
-    c = db.auftrag_neu(dict(kunde="Test"))
-    seite = fenster.auftrag_oeffnen(c)
+    c = db.angebot_neu(dict(kunde="Test"))
+    seite = fenster.angebot_oeffnen(c)
     seite.step_importieren([str(BAUGRUPPE)], "S235-10219", 2)
     assert [(x["je_satz"], x["stueck"]) for x in db.positionen(c)] == [(3, 6), (1, 2)]
     assert seite.optimieren() and all(st == "OK" or not st.startswith("FEHLER") for st in seite.pos_modell.status)

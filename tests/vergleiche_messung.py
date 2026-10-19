@@ -1,4 +1,4 @@
-"""Vergleicht zwei Messwert-Dateien von tools/step_messen.py (z. B. Python gegen STEP-Import.exe).
+"""Vergleicht zwei Messwert-Dateien von programm/step_messung/step_messen.py (z. B. Python gegen STEP-Import.exe).
 
 Aufruf: python tests/vergleiche_messung.py REFERENZ.txt PRUEFLING.txt
 """

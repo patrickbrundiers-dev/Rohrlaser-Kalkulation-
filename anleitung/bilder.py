@@ -1,7 +1,8 @@
 """Bildschirmfotos für die Bedienungsanleitung, aus dem echten Programm mit Beispieldaten.
 
-Das Programm läuft unsichtbar (QT_QPA_PLATFORM=offscreen), bekommt die Stammdaten der Mappe v02 und
-einen realistischen Auftrag (Maschinengestell aus der Abnahme), wird bedient wie von Hand und
+Das Programm läuft unsichtbar (QT_QPA_PLATFORM=offscreen), startet mit den Beispiel-Stammdaten,
+bekommt
+ein realistisches Angebot (Maschinengestell aus der Abnahme), wird bedient wie von Hand und
 fotografiert Fenster, Reiter und Dialoge. Wichtige Bedienelemente bekommen rote Nummern, die der Text
 der Anleitung aufgreift. Die PDF-Ausgaben des Programms werden als Seitenbilder eingebunden.
 
@@ -27,9 +28,8 @@ from PySide6.QtCore import QLocale, QPoint, QRect, QRectF, Qt, QTimer  # noqa: E
 from PySide6.QtGui import QColor, QFont, QPainter, QPen  # noqa: E402
 from PySide6.QtWidgets import QApplication, QComboBox, QMessageBox, QPushButton, QSpinBox  # noqa: E402
 
-from abnahme_auftraege import AUFTRAEGE  # noqa: E402
+from abnahme_angebote import ANGEBOTE  # noqa: E402
 
-MAPPE = WURZEL / "mappe" / "Rohrlaser_Kalkulation_v02.xlsm"
 STEP = sorted((WURZEL / "tests" / "step").glob("*.step"))
 BAUGRUPPE = WURZEL / "tests" / "step_satz" / "T08_Gestell_Baugruppe.step"
 ROT = QColor("#D0021B")
@@ -96,9 +96,9 @@ def knopf(wurzel, text):
     raise KeyError(text)
 
 
-def auftrag_anlegen(db, vorlage, nummer, kunde, kundennr, bemerkung, saetze=None):
-    """Auftrag aus einer Vorlage der Abnahme anlegen; saetze = Anzahl Gestelle (Spalte Satz, Stück je Satz)."""
-    a = db.auftrag_neu(dict(nummer=nummer, kunde=kunde, kundennr=kundennr, maschine=vorlage["maschine"],
+def angebot_anlegen(db, vorlage, nummer, kunde, kundennr, bemerkung, saetze=None):
+    """Angebot aus einer Vorlage der Abnahme anlegen; saetze = Anzahl Gestelle (Spalte Satz, Stück je Satz)."""
+    a = db.angebot_neu(dict(nummer=nummer, kunde=kunde, kundennr=kundennr, maschine=vorlage["maschine"],
                             stange=vorlage["stange"], bemerkung=bemerkung, datum="2026-10-19"))
     for p in vorlage["positionen"]:
         werte = dict(pos=p["pos"], artikel=p["artikel"], bezeichnung=p["bezeichnung"], profil_id=p["profil"],
@@ -154,7 +154,7 @@ def main(ziel):
     app.setFont(QFont("Liberation Sans", 9))
     foto = Fotograf(ziel)
     tmp = Path(tempfile.mkdtemp(prefix="anleitung_"))
-    programmordner = tmp / "Rohrlaser-Kalkulation"
+    programmordner = tmp / "Rohrlaser-Angebotskalkulation"
     (programmordner / "Daten").mkdir(parents=True)
     db = Datenbank(programmordner / "Daten" / "rohrlaser.db")
     f = Hauptfenster(db, programmordner, stumm=True)
@@ -170,7 +170,7 @@ def main(ziel):
         f.statusBar().showMessage("Bereit")
 
     def reiterflaeche(seite):
-        """Nur die Reiter des Auftrags (Kopf und Knöpfe stehen schon auf dem ersten Bild)."""
+        """Nur die Reiter des Angebots (Kopf und Knöpfe stehen schon auf dem ersten Bild)."""
         y = seite.reiter.mapTo(f, QPoint(0, 0)).y() - 4
         return QRect(0, y, f.width(), f.height() - y)
 
@@ -180,18 +180,14 @@ def main(ziel):
 
     # 1) Start mit Beispieldaten
     start_zeigen()
-    foto.foto("start_beispiel", f, [(knopf(f.start, "Stammdaten aus Excel-Mappe übernehmen …"), 1),
-                                    (knopf(f.start, "Datensicherung erstellen"), 2),
-                                    (knopf(f.start, "Datenordner öffnen"), 3)])
+    foto.foto("start_beispiel", f, [(knopf(f.start, "Datensicherung erstellen"), 1),
+                                    (knopf(f.start, "Datenordner öffnen"), 2)])
 
-    # 2) Stammdaten aus der Mappe übernehmen (mit der echten Rückfrage)
-    mit_dialog(lambda: f.mappe_uebernehmen(str(MAPPE), nachfragen=True), foto, "uebernahme_frage", ja)
+    # 2) Eigener Briefkopf und Nummernkreis
     for i, text in enumerate(FIRMA, 1):
         db.einstellung_setzen(f"briefkopf_{i}", text)
-    db.einstellung_setzen("letzte_auftragsnummer", "A-2026-0038")
+    db.einstellung_setzen("letzte_angebotsnummer", "A-2026-0038")
     f.alles_neu_laden()
-    start_zeigen()
-    foto.foto("start_mappe", f)
 
     # 3) Stammdaten-Reiter
     for seite in f.seiten:
@@ -215,39 +211,38 @@ def main(ziel):
     foto.foto("einstellungen_unten", f)
     leiste.setValue(0)
 
-    # 5) Aufträge: Beispielauftrag Maschinengestell (2 Gestelle), dazu zwei ältere Aufträge für die Liste
-    vorlagen = {a["nummer"]: a for a in AUFTRAEGE}
-    a1 = auftrag_anlegen(db, vorlagen["ABN-01"], "A-2026-0039", "Metallbau Krüger", "10417", "Geländer Treppenhaus")
-    a2 = auftrag_anlegen(db, vorlagen["ABN-08"], "A-2026-0040", "Metallbau Krüger", "10417", "Nachbestellung")
-    haupt = auftrag_anlegen(db, vorlagen["ABN-02"], "A-2026-0041", "Anlagenbau Hessler", "10233",
+    # 5) Angebote: Beispielangebot Maschinengestell (2 Gestelle), dazu zwei ältere Angebote für die Liste
+    vorlagen = {a["nummer"]: a for a in ANGEBOTE}
+    a1 = angebot_anlegen(db, vorlagen["ABN-01"], "A-2026-0039", "Metallbau Krüger", "10417", "Geländer Treppenhaus")
+    a2 = angebot_anlegen(db, vorlagen["ABN-08"], "A-2026-0040", "Metallbau Krüger", "10417", "Nachbestellung")
+    haupt = angebot_anlegen(db, vorlagen["ABN-02"], "A-2026-0041", "Anlagenbau Hessler", "10233",
                             "Maschinengestell MG 2000", saetze=2)
-    db.einstellung_setzen("letzte_auftragsnummer", "A-2026-0041")
+    db.einstellung_setzen("letzte_angebotsnummer", "A-2026-0041")
     for a in (a1, a2):
-        f.auftrag_oeffnen(a).optimieren()
-        f.auftrag_schliessen(a)
-    f.reiter.setCurrentWidget(f.auftraege)
-    f.auftraege.neu_laden()
+        f.angebot_oeffnen(a).optimieren()
+        f.angebot_schliessen(a)
+    f.reiter.setCurrentWidget(f.angebote)
+    f.angebote.neu_laden()
     bereit()
-    au = f.auftraege
-    foto.foto("auftraege", f, [(tab_rect(f.reiter, "Aufträge"), 1), (knopf(au, "Neuer Auftrag"), 2),
-                               (knopf(au, "Kopieren"), 3), (knopf(au, "Auftrag aus Excel-Mappe übernehmen …"), 4),
-                               (au.suche, 5)])
+    au = f.angebote
+    foto.foto("angebote", f, [(tab_rect(f.reiter, "Angebote"), 1), (knopf(au, "Neues Angebot"), 2),
+                               (knopf(au, "Kopieren"), 3), (au.suche, 4)])
 
-    # 6) Auftrag öffnen: Positionen vor der Optimierung
-    s = f.auftrag_oeffnen(haupt)
+    # 6) Angebot öffnen: Positionen vor der Optimierung
+    s = f.angebot_oeffnen(haupt)
     bereit()
     kopf_box = s.felder["nummer"].parentWidget()
-    foto.foto("auftrag_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
+    foto.foto("angebot_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
                                         (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
                                         (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
                                         (s.zeige_berechnet, 8)])
     s.zeige_berechnet.setChecked(True)
-    foto.foto("auftrag_berechnet", f)
+    foto.foto("angebot_berechnet", f)
     s.zeige_berechnet.setChecked(False)
 
     # 7) Optimieren und Ergebnisse
     s.optimieren()
-    foto.foto("auftrag_optimiert", f, [(s.stand, 1)])
+    foto.foto("angebot_optimiert", f, [(s.stand, 1)])
     for text, name in (("Kalkulation", "erg_kalkulation"), ("Schnittplan", "erg_schnittplan"),
                        ("Stangenbild", "erg_stangenbild"), ("Auswertung", "erg_auswertung")):
         reiter_waehlen(s, text)
@@ -259,7 +254,7 @@ def main(ziel):
     db.position_aendern(pos[0]["id"], "stueck", 10)
     s.neu_laden()
     reiter_waehlen(s, "Positionen")
-    foto.foto("auftrag_veraltet", f, [(s.stand, 1)])
+    foto.foto("angebot_veraltet", f, [(s.stand, 1)])
     db.position_aendern(pos[0]["id"], "stueck", 8)
     s.neu_laden()
     s.optimieren()
@@ -296,7 +291,7 @@ def main(ziel):
         return (kopf, QRect(x, 0, kopf.sectionSize(c), kopf.height()))
     QApplication.processEvents()
     status = s.pos_ansicht.visualRect(m.index(1, spalte["status"]))
-    foto.foto("auftrag_zusatz", f, [(kopf_marke(spalte["zeit_manuell"]), 1), (kopf_marke(spalte["zusatz"]), 2),
+    foto.foto("angebot_zusatz", f, [(kopf_marke(spalte["zeit_manuell"]), 1), (kopf_marke(spalte["zusatz"]), 2),
                                     ((s.pos_ansicht.viewport(), status), 3)], ausschnitt=reiterflaeche(s))
     for c in versteckt:
         s.pos_ansicht.setColumnHidden(c, False)
@@ -317,11 +312,11 @@ def main(ziel):
     bereit()
     unterkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() + 34
     foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Werkstattpapiere (PDF)"), 2),
-                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "Excel-Export"), 4),
+                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "CSV-Export"), 4),
                                     (knopf(s, "Ablage öffnen"), 5)],
               ausschnitt=QRect(0, 0, f.width(), unterkante))
     pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf())
-    s.excel_export()
+    s.csv_export()
     seiten = {}
     for art, pfad in pdfs.items():
         info = subprocess.run(["pdfinfo", str(pfad)], capture_output=True, text=True, check=True).stdout
@@ -329,11 +324,11 @@ def main(ziel):
         seiten[art] = n
         for nr in range(1, n + 1):
             pdf_seite(pfad, foto, f"pdf_{art}_{nr}", nr)
-    ablage = sorted(p.name for p in (programmordner / "Aufträge").iterdir())
+    ablage = sorted(p.name for p in (programmordner / "Angebote").iterdir())
 
-    # 10) STEP-Import in einen neuen Auftrag (Testteile aus tests/step)
-    neu = db.auftrag_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Teile laut Zeichnung (STEP)"))
-    s2 = f.auftrag_oeffnen(neu)
+    # 10) STEP-Import in ein neues Angebot (Testteile aus tests/step)
+    neu = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Teile laut Zeichnung (STEP)"))
+    s2 = f.angebot_oeffnen(neu)
     s2.f.stumm = False
     def step_dialog_ausfuellen(d):
         d.findChild(QComboBox).setCurrentText("S235-10219")
@@ -356,8 +351,8 @@ def main(ziel):
     foto.foto("step_optimiert", f)
 
     # 11) Baugruppe (mehrere Teile in einer STEP) als Satz, mit der echten Rückfrage
-    gestell = db.auftrag_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Gestell als Baugruppe (STEP)"))
-    s3 = f.auftrag_oeffnen(gestell)
+    gestell = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Gestell als Baugruppe (STEP)"))
+    s3 = f.angebot_oeffnen(gestell)
     f.stumm = False
 
     def abschluss_schliessen():

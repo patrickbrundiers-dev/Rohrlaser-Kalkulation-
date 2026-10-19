@@ -1,6 +1,6 @@
 """PDF-Ausgabe: Angebot, Werkstattpapiere (Schnittpläne mit Stangenbild) und Kalkulation.
 
-Die Inhalte kommen aus ausgabe.py (gleich wie die Mappe); hier wird nur gesetzt (reportlab, A4).
+Die Inhalte kommen aus ausgabe.py; hier wird nur gesetzt (reportlab, A4).
 """
 import datetime
 from itertools import zip_longest
@@ -70,7 +70,7 @@ class _Seitenzahlen(rl_canvas.Canvas):
 
 def _dokument(pfad, titel, fuss, quer=False, auch_quer=False):
     hoch = landscape(A4) if quer else A4
-    doc = BaseDocTemplate(str(pfad), pagesize=hoch, title=titel, author="Rohrlaser-Kalkulation",
+    doc = BaseDocTemplate(str(pfad), pagesize=hoch, title=titel, author="Rohrlaser-Angebotskalkulation",
                           leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=15 * mm)
     vorlagen = [PageTemplate(id="hoch", pagesize=hoch,
                              frames=[Frame(12 * mm, 15 * mm, hoch[0] - 24 * mm, hoch[1] - 27 * mm, id="f1")])]
@@ -165,7 +165,7 @@ def angebot_pdf(pfad, kopf, ang, einst):
 # ------------------------------------------------------------------ Werkstattpapiere mit Stangenbild
 class StangenBalken(Flowable):
     """Ein Stangenmuster maßstäblich: Endbeschnitt grau, Teile farbig (Pos., Länge), dicke Linie = Schnitt,
-    Rest hellgrau, Greiferrest rot (wie Blatt 'Stangenbild' der Mappe)."""
+    Rest hellgrau, Greiferrest rot."""
     HOEHE = 30 * mm
 
     def __init__(self, m, farben):
@@ -223,9 +223,9 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
     """wp = ausgabe.werkstatt(...). Schnittpläne hochkant, danach das Stangenbild quer – eine Datei."""
     doc, leinwand = _dokument(pfad, f"Werkstattpapiere {kopf.get('nummer') or ''}",
                               f"Werkstattpapier {kopf.get('nummer') or ''}", auch_quer=True)
-    kopftext = (f"Auftrag {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   "
+    kopftext = (f"Angebot {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   "
                 f"Maschine {kopf.get('maschine') or ''}   |   erstellt {_erstellt()}")
-    achtung = "ACHTUNG: Schnittplan passt nicht zum aktuellen Auftrag (Optimierung veraltet)."
+    achtung = "ACHTUNG: Schnittplan passt nicht zum aktuellen Angebot (Optimierung veraltet)."
     inhalt = [_p("Werkstattpapiere – Schnittpläne", S_TITEL), _p(kopftext, S_KLEIN)]
     if not aktuell:
         inhalt.append(_p(achtung, ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
@@ -292,21 +292,21 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
     doc, leinwand = _dokument(pfad, f"Kalkulation {kopf.get('nummer') or ''}", f"Kalkulation {kopf.get('nummer') or ''}",
                               quer=True)
     inhalt = [_p("Kalkulation", S_TITEL),
-              _p(f"Auftrag {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   Maschine "
+              _p(f"Angebot {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   Maschine "
                  f"{kopf.get('maschine') or ''}   |   erstellt {_erstellt()}", S_KLEIN)]
     if not aktuell:
-        inhalt.append(_p("ACHTUNG: Kalkulation passt nicht zum aktuellen Auftrag (Optimierung veraltet).",
+        inhalt.append(_p("ACHTUNG: Kalkulation passt nicht zum aktuellen Angebot (Optimierung veraltet).",
                          ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
     werte = [(f"{t} [€]", _z(w)) for t, w, _ in kostenarten(summen, einst)]
-    auftrag = [("Rüstzeit [min]", _z(summen["ruestzeit"], 0)),
+    angebot = [("Rüstzeit [min]", _z(summen["ruestzeit"], 0)),
                ("Abmessungen × Rüstzeit [min]", f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"),
                ("Stangenwechsel [s]", _z(summen["stangenwechsel"], 0)),
                ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0))]
     t = Table([[_p(a, S_FETT), _p(b, S_RECHTS), "", _p(c, S_FETT), _p(d, S_RECHTS)] for (a, b), (c, d) in
-               zip_longest(werte, auftrag, fillvalue=("", ""))],
+               zip_longest(werte, angebot, fillvalue=("", ""))],
               colWidths=[75 * mm, 30 * mm, 15 * mm, 60 * mm, 25 * mm], hAlign="LEFT")
     t.setStyle(TableStyle([("LINEBELOW", (0, 0), (1, -1), 0.3, RAHMEN),
-                           ("LINEBELOW", (3, 0), (4, len(auftrag) - 1), 0.3, RAHMEN)]))
+                           ("LINEBELOW", (3, 0), (4, len(angebot) - 1), 0.3, RAHMEN)]))
     inhalt += [Spacer(1, 3 * mm), t, Spacer(1, 5 * mm)]
     klein = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
     daten = [[_p(s[0], klein) for s in KALK]]

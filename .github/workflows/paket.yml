@@ -1,7 +1,6 @@
-# Baut STEP-Import.exe (Windows, ohne Installation lauffähig), prüft sie gegen die Python-Messung
-# und packt sie mit der Mappe zu Rohrlaser-Kalkulation.zip. Baut außerdem das eigenständige Programm
-# Rohrlaser-Kalkulation.exe (Rohrlaser-Programm.zip). Auf main werden beide Pakete als
-# Release "aktuell" veröffentlicht.
+# Baut das Programm Rohrlaser-Angebotskalkulation.exe mit STEP-Import.exe (Windows, ohne Installation
+# lauffähig), prüft STEP-Import.exe gegen die Python-Messung und die fertige .exe mit dem Selbsttest und
+# packt alles zu Rohrlaser-Angebotskalkulation.zip. Auf main wird das Paket als Release "aktuell" veröffentlicht.
 name: Paket
 
 on:
@@ -18,27 +17,24 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: LibreOffice und Python-Pakete
+      - name: Python-Pakete
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-calc python3-uno python3-pip libegl1 libxkbcommon0
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
-      - name: Python-Tests
+      - name: STEP-Messung und Optimierung
         run: |
           /usr/bin/python3 tests/test_step_import.py
           /usr/bin/python3 tests/test_optimierung.py
-          /usr/bin/python3 tests/test_layout.py
       - name: Programm-Tests
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           /usr/bin/python3 tests/test_programm.py
-          /usr/bin/python3 tests/test_programm_mappe.py
-          /usr/bin/python3 tests/test_programm_ausgabe.py
           /usr/bin/python3 tests/test_zusatzarbeiten.py
           /usr/bin/python3 tests/test_step_satz.py
           /usr/bin/python3 tests/test_anleitung.py
-      - name: Abnahme (realistische Testaufträge, Kriterien und Vergleich mit der Mappe)
+      - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
@@ -60,8 +56,6 @@ jobs:
           name: Bedienungsanleitung
           path: Bedienungsanleitung-neu.pdf
           retention-days: 30
-      - name: VBA-Tests (LibreOffice)
-        run: /usr/bin/python3 tests/test_vba.py
 
   windows:
     runs-on: windows-latest
@@ -75,64 +69,62 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r programm/requirements.txt pyinstaller
       - name: STEP-Import.exe bauen
-        run: pyinstaller --noconfirm --clean tools/step_import_exe.spec
+        run: pyinstaller --noconfirm --clean programm/step_messung/step_messung.spec
       - name: STEP-Import.exe gegen Python-Messung prüfen
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "pruef ordner" | Out-Null
           Copy-Item tests/step/*.step "pruef ordner/"
           Copy-Item tests/step/T01_RR42-4x2_L1250.step "pruef ordner/Halter_äöü_Ø.step"
-          python tools/step_messen.py --ausgabe referenz.txt "pruef ordner"
+          python programm/step_messung/step_messen.py --ausgabe referenz.txt "pruef ordner"
           Set-Content -Encoding utf8 liste.txt ((Get-ChildItem "pruef ordner" -Filter *.step | Sort-Object Name).FullName)
           & "dist/STEP-Import/STEP-Import.exe" --liste liste.txt --ausgabe exe.txt
           if ($LASTEXITCODE -ne 0) { throw "STEP-Import.exe Rückgabewert $LASTEXITCODE" }
           python tests/vergleiche_messung.py referenz.txt exe.txt
-      - name: Rohrlaser-Kalkulation.exe bauen
+      - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
-      - name: Rohrlaser-Kalkulation.exe Selbsttest (mit Auftrag, Optimierung und STEP-Import)
+      - name: Rohrlaser-Angebotskalkulation.exe Selbsttest (Beispielangebot, Optimierung, Ausgaben, STEP-Import)
         shell: pwsh
         run: |
-          Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Kalkulation/STEP-Import
-          Copy-Item anleitung/Bedienungsanleitung.pdf dist/Rohrlaser-Kalkulation/
+          Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Angebotskalkulation/STEP-Import
+          Copy-Item anleitung/Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
-          $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Kalkulation/Rohrlaser-Kalkulation.exe" `
-            -ArgumentList (@("--selbsttest", "--mappe", "mappe/Rohrlaser_Kalkulation_v02.xlsm", "--ergebnis", "selbsttest.txt", "--step") + $step)
+          $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe" `
+            -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt
           if ($p.ExitCode -ne 0) { throw "Selbsttest Rückgabewert $($p.ExitCode)" }
       - name: Paket zusammenstellen
         shell: pwsh
         run: |
-          New-Item -ItemType Directory paket | Out-Null
-          Copy-Item mappe/Rohrlaser_Kalkulation_v02.xlsm paket/
-          Copy-Item -Recurse dist/STEP-Import paket/STEP-Import
-          Compress-Archive -Path paket/* -DestinationPath Rohrlaser-Kalkulation.zip
-          "{0:N0} MB" -f ((Get-Item Rohrlaser-Kalkulation.zip).Length / 1MB)
-          Compress-Archive -Path dist/Rohrlaser-Kalkulation -DestinationPath Rohrlaser-Programm.zip
-          "{0:N0} MB" -f ((Get-Item Rohrlaser-Programm.zip).Length / 1MB)
+          Compress-Archive -Path dist/Rohrlaser-Angebotskalkulation -DestinationPath Rohrlaser-Angebotskalkulation.zip
+          "{0:N0} MB" -f ((Get-Item Rohrlaser-Angebotskalkulation.zip).Length / 1MB)
       - uses: actions/upload-artifact@v4
         with:
-          name: Rohrlaser-Kalkulation
-          path: paket/
+          name: Rohrlaser-Angebotskalkulation
+          path: dist/Rohrlaser-Angebotskalkulation/
           retention-days: 30
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Rohrlaser-Programm
-          path: dist/Rohrlaser-Kalkulation/
-          retention-days: 30
+      - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP)
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          foreach ($datei in @("Rohrlaser-Kalkulation.zip", "Rohrlaser-Programm.zip")) {
+            gh release delete-asset aktuell $datei --yes --repo "${{ github.repository }}" 2>$null
+          }
+          $global:LASTEXITCODE = 0
       - name: Release "aktuell" aktualisieren
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: aktuell
-          name: Rohrlaser-Kalkulation (aktueller Stand)
+          name: Rohrlaser Angebotskalkulation (aktueller Stand)
           body: |
             Stand ${{ github.sha }}.
-            Rohrlaser-Kalkulation.zip: Mappe und STEP-Import.exe. Entpacken, Rohrlaser_Kalkulation_v02.xlsm öffnen
-            und Makros aktivieren. Der Ordner STEP-Import muss neben der Mappe liegen.
-            Rohrlaser-Programm.zip: eigenständiges Programm (Aufträge, STEP-Import, Optimierung, Staffelpreise, PDF, Excel-Export). Entpacken,
-            Rohrlaser-Kalkulation.exe starten. Bedienungsanleitung.pdf liegt daneben (auch im Programm unter Hilfe, F1).
+            Rohrlaser-Angebotskalkulation.zip: eigenständiges Programm (Angebote, STEP-Import, Optimierung,
+            Staffelpreise, PDF, CSV-Export). Entpacken, Rohrlaser-Angebotskalkulation.exe starten.
+            Bedienungsanleitung.pdf liegt daneben (auch im Programm unter Hilfe, F1).
             Die Daten liegen im Ordner Daten neben dem Programm.
           files: |
-            Rohrlaser-Kalkulation.zip
-            Rohrlaser-Programm.zip
+            Rohrlaser-Angebotskalkulation.zip
           make_latest: true

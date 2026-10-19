@@ -1,5 +1,5 @@
 """Prüft, dass die Bedienungsanleitung (anleitung/erzeuge_anleitung.py) mit dem Programm Schritt hält:
-jede Stammdatentabelle, jede Einstellung, jedes sichtbare Eingabefeld der Positionen und des Auftragskopfs,
+jede Stammdatentabelle, jede Einstellung, jedes sichtbare Eingabefeld der Positionen und des Angebotskopfs,
 jeder Reiter und jeder Knopf des Programms muss im Text der Anleitung vorkommen. Kommt etwas Neues ins
 Programm, schlägt dieser Test fehl, bis die Anleitung ergänzt ist.
 
@@ -16,8 +16,8 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QCheckBox, QPushButton  # noqa: E402
 
-from rohrlaser.auftrag import KOPF, POSITIONEN  # noqa: E402
-from rohrlaser.auftrag_fenster import SICHTBAR  # noqa: E402
+from rohrlaser.angebot import KOPF, POSITIONEN  # noqa: E402
+from rohrlaser.angebot_fenster import SICHTBAR  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.rechnen import KOSTENARTEN  # noqa: E402
@@ -41,21 +41,21 @@ def kommt_vor(text):
 
 pruefen = []
 pruefen += [("Stammdatentabelle", t.titel) for t in TABELLEN]
-pruefen += [("Feld in " + t.titel, f.titel) for t in TABELLEN for f in t.felder if t.blatt is None or not f.spalte]
+pruefen += [("Feld in " + t.titel, f.titel) for t in TABELLEN for f in t.felder]
 pruefen += [("Einstellung", e.titel) for e in EINSTELLUNGEN]
 pruefen += [("Kostenart", t) for t, _, _ in KOSTENARTEN]
-pruefen += [("Auftragskopf", f.titel) for f in KOPF]
+pruefen += [("Angebotskopf", f.titel) for f in KOPF]
 pruefen += [("Position", f.titel) for f in POSITIONEN.felder if f.name in SICHTBAR]
 
 app = QApplication.instance() or QApplication([])
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 fenster = Hauptfenster(db, stumm=True)
-seite = fenster.auftrag_oeffnen(db.auftrag_neu())
+seite = fenster.angebot_oeffnen(db.angebot_neu())
 for i in range(fenster.reiter.count()):
     text = fenster.reiter.tabText(i)
-    if not text.startswith("Auftrag "):
+    if not text.startswith("Angebot "):
         pruefen.append(("Reiter", text))
-pruefen += [("Reiter im Auftrag", seite.reiter.tabText(i)) for i in range(seite.reiter.count())]
+pruefen += [("Reiter im Angebot", seite.reiter.tabText(i)) for i in range(seite.reiter.count())]
 for w in fenster.findChildren(QPushButton) + fenster.findChildren(QCheckBox):
     if w.text():
         pruefen.append(("Knopf", w.text()))

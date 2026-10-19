@@ -1,4 +1,4 @@
-"""Startdatei für PyInstaller (Rohrlaser-Kalkulation.exe)."""
+"""Startdatei für PyInstaller (Rohrlaser-Angebotskalkulation.exe)."""
 import os
 import sys
 

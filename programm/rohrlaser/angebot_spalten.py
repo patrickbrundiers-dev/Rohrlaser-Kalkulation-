@@ -1,4 +1,4 @@
-"""Spalten der Ergebnistabellen eines Auftrags (Anzeige im Programm und Excel-Export):
+"""Spalten der Ergebnistabellen eines Angebots (Anzeige im Programm und CSV-Export):
 [(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
 
 KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Stückzahl", "stueck", 0, 60),
