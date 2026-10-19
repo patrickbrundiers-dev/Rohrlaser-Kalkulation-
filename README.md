@@ -20,6 +20,10 @@ Die bebilderte Bedienungsanleitung `anleitung/Bedienungsanleitung.pdf` liegt im 
 
 Sicherung: beim ersten Start jedes Tages und beim Beenden eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben), optional zusätzlich in einen zweiten Sicherungsordner (Einstellungen, z. B. Netzlaufwerk oder USB-Stick). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren. Eine Datendatei einer älteren Version (mit „Aufträgen“) wird beim ersten Öffnen automatisch auf Angebote umgestellt; dazu den Ordner `Daten` in den neuen Programmordner kopieren.
 
+## Windows-Warnungen (Virenscanner)
+
+Das Programm ist nicht signiert; mit PyInstaller gebaute Programme halten SmartScreen und Defender anfangs oft für verdächtig. Gegen Fehlalarme baut der Workflow den PyInstaller-Bootloader selbst (eigene Signatur statt des auch von Schadsoftware genutzten fertigen Bootloaders), gibt beiden .exe Hersteller-, Produkt- und Versionsangaben (`programm/versionsinfo.py`, im Workflow geprüft), verzichtet auf UPX und legt dem Release eine SHA256-Prüfsumme bei. Was Anwender bei einer Warnung tun (ZIP zulassen, Trotzdem ausführen, Fehlalarm an Microsoft melden), steht in der Bedienungsanleitung, Kapitel 2. Ganz verschwinden die Warnungen erst mit einer Code-Signatur.
+
 ## STEP-Import
 
 „STEP importieren“ startet `STEP-Import.exe` (Ordner `STEP-Import` neben dem Programm), das die gewählten Dateien misst und die Werte in eine Textdatei schreibt; das Programm übernimmt sie ins Angebot und protokolliert alles im Reiter STEP-Protokoll. Vor dem Übernehmen zeigt der Dialog „STEP-Import prüfen“ jedes Teil in einer drehbaren 3D-Ansicht (Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün); das 3D-Modell wird je Position gespeichert (Vorschaubild in der Positionsliste, Knopf „3D-Ansicht …“). Gezeichnet wird ohne OpenGL (`programm/rohrlaser/ansicht3d.py`). Ab 6 Dateien misst `STEP-Import.exe` auf bis zu 4 Prozessorkernen gleichzeitig. Die Messung lässt sich auch direkt aufrufen (`--netze ORDNER` schreibt zusätzlich die 3D-Netze als JSON):

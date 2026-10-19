@@ -312,9 +312,30 @@ def kapitel_start(i):
         ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (die letzten 30)"],
         ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"]],
         [60, 205])
-    i.hinweis("Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“, auf <i>Weitere "
-              "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Das Programm ist nicht signiert.",
-              "Windows-Schutz")
+    i.abschnitt("Windows-Warnungen (SmartScreen, Defender)")
+    i.text("Das Programm ist nicht digital signiert und wird mit PyInstaller gebaut. Programme dieser Art hält "
+           "Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
+           "Administratorrechte, greift nicht auf das Internet zu und schreibt nur in seinen eigenen Ordner und in "
+           "die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
+           "jede .exe Hersteller-, Produkt- und Versionsangaben (rechte Maustaste → Eigenschaften → Details), und das "
+           "Startprogramm wird für dieses Programm eigens übersetzt.")
+    i.liste("<b>Vor dem Entpacken</b>: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
+            "<i>Zulassen</i> anhaken → OK. Sonst trägt Windows jede entpackte Datei als „aus dem Internet“ ein und "
+            "prüft sie bei jedem Start besonders.",
+            "Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“: auf <i>Weitere "
+            "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt Windows nicht mehr.",
+            "Hat der Microsoft Defender eine Datei in Quarantäne verschoben: <i>Windows-Sicherheit → Viren- &amp; "
+            "Bedrohungsschutz → Schutzverlauf</i>, den Eintrag öffnen, <i>Aktionen → Wiederherstellen</i> bzw. "
+            "<i>Auf Gerät zulassen</i>. Den Fehlalarm bitte an Microsoft melden "
+            "(www.microsoft.com/wdsi/filesubmission, Datei hochladen, „Incorrectly detected as malware“); "
+            "nach der Prüfung nimmt Microsoft die Erkennung meist innerhalb weniger Tage zurück.",
+            "Ob das ZIP unverändert von GitHub kommt, zeigt die Prüfsumme: im Release liegt "
+            "<i>Rohrlaser-Angebotskalkulation.zip.sha256</i>. In PowerShell <i>Get-FileHash "
+            "Rohrlaser-Angebotskalkulation.zip</i> eingeben; die Zahl muss gleich sein.",
+            "Wahlweise den Programmordner (z. B. <i>C:\\Rohrlaser</i>) unter <i>Viren- &amp; Bedrohungsschutz → "
+            "Einstellungen verwalten → Ausschlüsse</i> eintragen. Dann prüft der Defender die Programmdateien nicht "
+            "bei jedem Start, Programm und STEP-Import starten schneller. Nur diesen Ordner ausschließen, niemals "
+            "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT.", nummeriert=True)
     i.abschnitt("Startseite")
     i.text("Beim ersten Start legt das Programm die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in "
            "Rot, dass es sich um Beispielwerte handelt.")
@@ -818,6 +839,10 @@ def kapitel_fragen(i):
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>VERALTET</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Windows meldet einen <b>Virus</b> oder <b>„Der Computer wurde durch Windows geschützt“</b>",
+         "Fehlalarm bei einem nicht signierten Programm. Abschnitt <i>Windows-Warnungen</i> in Kapitel 2: ZIP vor dem "
+         "Entpacken zulassen, Trotzdem ausführen, Datei aus der Quarantäne wiederherstellen und an Microsoft "
+         "melden."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
          "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "
          "Neu aus dem ZIP entpacken."],

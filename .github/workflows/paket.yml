@@ -67,7 +67,15 @@ jobs:
       - name: Python-Pakete
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r programm/requirements.txt pyinstaller
+          pip install -r requirements.txt -r programm/requirements.txt
+      - name: PyInstaller mit selbst übersetztem Startprogramm (Bootloader)
+        # Der fertige Bootloader von PyInstaller steckt auch in Schadsoftware, darum schlagen Virenscanner bei ihm
+        # oft Alarm. Ein selbst übersetzter Bootloader hat eine eigene Signatur und fällt viel seltener auf.
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          pip install --no-binary pyinstaller --no-cache-dir pyinstaller
+          python -c "import PyInstaller, os; b = os.path.join(os.path.dirname(PyInstaller.__file__), 'bootloader', 'Windows-64bit-intel'); print(os.listdir(b))"
       - name: STEP-Import.exe bauen
         run: pyinstaller --noconfirm --clean programm/step_messung/step_messung.spec
       - name: STEP-Import.exe gegen Python-Messung prüfen
@@ -86,6 +94,15 @@ jobs:
           if ($n -ne (Get-ChildItem netze_py -Filter *.json).Count -or $n -lt 8) { throw "STEP-Import.exe: $n 3D-Netze" }
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
+      - name: Versionsangaben der .exe prüfen (Hersteller, Produkt, Version)
+        shell: pwsh
+        run: |
+          foreach ($exe in @("dist/STEP-Import/STEP-Import.exe",
+                             "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe")) {
+            $v = (Get-Item $exe).VersionInfo
+            "{0}: {1} / {2} / {3}" -f $exe, $v.CompanyName, $v.ProductName, $v.FileVersion
+            if (-not $v.CompanyName -or -not $v.ProductName -or -not $v.FileVersion) { throw "$exe ohne Versionsangaben" }
+          }
       - name: Rohrlaser-Angebotskalkulation.exe Selbsttest (Beispielangebot, Optimierung, Ausgaben, STEP-Import)
         shell: pwsh
         run: |
@@ -101,6 +118,10 @@ jobs:
         run: |
           Compress-Archive -Path dist/Rohrlaser-Angebotskalkulation -DestinationPath Rohrlaser-Angebotskalkulation.zip
           "{0:N0} MB" -f ((Get-Item Rohrlaser-Angebotskalkulation.zip).Length / 1MB)
+          # Prüfsumme: damit lässt sich nachprüfen, dass das ZIP unverändert von GitHub kommt
+          $h = (Get-FileHash -Algorithm SHA256 Rohrlaser-Angebotskalkulation.zip).Hash
+          "$h  Rohrlaser-Angebotskalkulation.zip" | Set-Content -Encoding ascii Rohrlaser-Angebotskalkulation.zip.sha256
+          Get-Content Rohrlaser-Angebotskalkulation.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: Rohrlaser-Angebotskalkulation
@@ -128,6 +149,9 @@ jobs:
             Staffelpreise, PDF, CSV-Export). Entpacken, Rohrlaser-Angebotskalkulation.exe starten.
             Bedienungsanleitung.pdf liegt daneben (auch im Programm unter Hilfe, F1).
             Die Daten liegen im Ordner Daten neben dem Programm.
+            Warnt Windows (SmartScreen oder Defender), siehe Bedienungsanleitung Kapitel 2 „Windows-Warnungen“.
+            SHA256-Prüfsumme des ZIP: Rohrlaser-Angebotskalkulation.zip.sha256
           files: |
             Rohrlaser-Angebotskalkulation.zip
+            Rohrlaser-Angebotskalkulation.zip.sha256
           make_latest: true
