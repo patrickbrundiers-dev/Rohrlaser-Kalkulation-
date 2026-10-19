@@ -366,9 +366,10 @@ def main(ziel):
         d.alle_setzen("S235-10219", 10)                  # „Für alle“
         d.zeile_setzen("T05_RR33-7x2-6_L500", stueck=25)
         d.zeile_setzen("T04_RE60x40x3_Gehrung", werkstoff="S355-10219")
-        d.baum.setCurrentItem(d.zeilen[-1][0])
+        d.datei_waehlen(1)                               # mit ▶ zur zweiten Datei (T02 mit Bohrung)
+        d.baum.setCurrentItem(next(z.it for z in d.zeilen if z.datei == d.datei))
         bereit()
-        foto.foto("step_pruefen", d, [(d.baum, 1), (d.leiste, 2)])
+        foto.foto("step_pruefen", d, [(d.kopf, 1), (d.baum, 2), (d.leiste, 3)])
         f.stumm = True                                   # danach keine Rückfragen mehr
         d.accept()
     QTimer.singleShot(100, pruefen_ausfuellen)
@@ -391,34 +392,25 @@ def main(ziel):
     bereit()
     foto.foto("step_optimiert", f)
 
-    # 11) Baugruppe (mehrere Teile in einer STEP) als Satz, mit der echten Rückfrage
+    # 11) Baugruppe (mehrere Teile in einer STEP) als Satz: oben im Prüfdialog 4 Sätze eintragen
     gestell = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Gestell als Baugruppe (STEP)"))
     s3 = f.angebot_oeffnen(gestell)
     f.stumm = False
 
-    def abschluss_schliessen():
+    def satz_ausfuellen():                               # nach der Messung: Prüfdialog mit Feld „Sätze“
         d = QApplication.activeModalWidget()
-        if not isinstance(d, QMessageBox) or "übernommen" not in d.text():
-            QTimer.singleShot(50, abschluss_schliessen)
+        if not isinstance(d, StepPruefDialog):
+            QTimer.singleShot(50, satz_ausfuellen)
             return
+        d.resize(1300, 520)
+        d.satz_spin.setValue(4)
+        d.baum.setCurrentItem(d.zeilen[0].it)
+        bereit()
+        foto.foto("step_satz_pruefen", d, [(d.satz_feld, 1), (d.baum, 2)])
+        f.stumm = True
         d.accept()
-
-    def satz_ja(d):
-        ja(d)
-        QTimer.singleShot(50, abschluss_schliessen)      # Abschlussmeldung „… übernommen“ schließen
-    def frage_knipsen():                                 # erst nach der Messung (Fortschrittsanzeige) kommt die Frage
-        d = QApplication.activeModalWidget()
-        if isinstance(d, StepPruefDialog):               # zuerst der Prüfdialog: so übernehmen
-            d.accept()
-            QTimer.singleShot(50, frage_knipsen)
-            return
-        if not isinstance(d, QMessageBox) or "Satz" not in d.text():
-            QTimer.singleShot(50, frage_knipsen)
-            return
-        foto.foto("step_satz_frage", d)
-        satz_ja(d)
-    QTimer.singleShot(100, frage_knipsen)
-    s3.step_importieren([str(BAUGRUPPE)], werkstoff="S235-10219", stueck=4)
+    QTimer.singleShot(100, satz_ausfuellen)
+    s3.step_importieren([str(BAUGRUPPE)], werkstoff="S235-10219")
     f.stumm = True
     bereit()
     spalten = [i for i, (art, x) in enumerate(s3.pos_modell.spalten) if art == "feld" and x.name in ("satz", "je_satz", "stueck")]
