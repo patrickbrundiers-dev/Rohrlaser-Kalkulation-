@@ -6,7 +6,7 @@ from pathlib import Path
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
-from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert
 from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_EDGE
@@ -68,6 +68,17 @@ def drehe_beliebig(shape):
     return BRepBuilderAPI_Transform(BRepBuilderAPI_Transform(shape, tr, True).Shape(), tr2, True).Shape()
 
 
+def drehe_achse(shape, grad):
+    """Dreht das Teil um seine eigene Achse (Z), damit Breite/Höhe nicht mit X/Y zusammenfallen."""
+    tr = gp_Trsf(); tr.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), math.radians(grad))
+    return BRepBuilderAPI_Transform(shape, tr, True).Shape()
+
+
+def freiform(shape):
+    """Alle Flächen und Kanten als Freiformflächen/-kurven (B-Spline), wie sie manche CAD-Systeme exportieren."""
+    return BRepBuilderAPI_NurbsConvert(shape, True).Shape()
+
+
 def verschiebe(shape, x, y, z):
     tr = gp_Trsf(); tr.SetTranslation(gp_Vec(x, y, z))
     return BRepBuilderAPI_Transform(shape, tr, True).Shape()
@@ -126,4 +137,16 @@ if __name__ == "__main__":
     schreibe(baugruppe(q, verschiebe(q, 100, 0, 0), BRepBuilderAPI_Transform(verschiebe(q, 200, 0, 0), gespiegelt, True).Shape(),
                        drehe_beliebig(rundrohr(42.4, 2.0, 900))),
              "T08_Gestell_Baugruppe", ZIEL.parent / "step_satz")
-    print("Testteile geschrieben nach", ZIEL)
+    # Regressionsteile (eigener Ordner step_regression): Fehler, die die Messung früher hatte
+    reg = ZIEL.parent / "step_regression"
+    # R01 Rechteckrohr als Freiformflächen: früher Achse falsch, Außenmantel als Schnittkontur gerechnet
+    schreibe(freiform(kastenrohr(60, 40, 2, 1000, 4)), "R01_RE60x40x2_L1000_Freiform", reg)
+    # R02 Rundrohr als Freiformflächen: früher hing die Messung (Abstand gleichmittiger Kurven)
+    schreibe(freiform(rundrohr(42.4, 2.0, 1000)), "R02_RR42-4x2_L1000_Freiform", reg)
+    # R03 Rechteckrohr um die eigene Achse gedreht und schräg im Raum: früher 66,16 x 51,54 statt 60 x 40
+    schreibe(drehe_beliebig(drehe_achse(kastenrohr(60, 40, 2, 1000, 4), 23)), "R03_RE60x40x2_L1000_gedreht", reg)
+    # R04 Quadratrohr 45° um die Achse gedreht: früher 54,08 statt 40
+    schreibe(drehe_achse(kastenrohr(40, 40, 2, 800, 3), 45), "R04_QR40x2_L800_45Grad", reg)
+    # R05 Teil T07 (Bohrungen, Ausschnitt, Gravur, Ausklinkung) als Freiformflächen, gedreht und verschoben
+    schreibe(drehe_beliebig(drehe_achse(freiform(s), 30)), "R05_QR40x3_L1000_Merkmale_Freiform", reg)
+    print("Testteile geschrieben nach", ZIEL, "und", reg)
