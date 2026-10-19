@@ -26,6 +26,7 @@ jobs:
         run: |
           /usr/bin/python3 tests/test_step_import.py
           /usr/bin/python3 tests/test_step_regression.py
+          /usr/bin/python3 tests/test_step_einlesen.py
           /usr/bin/python3 tests/test_optimierung.py
       - name: Programm-Tests
         env:

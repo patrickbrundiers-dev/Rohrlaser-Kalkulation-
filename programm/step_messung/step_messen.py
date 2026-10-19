@@ -1,6 +1,8 @@
 """STEP-Messung für den STEP-Import des Programms (wird als STEP-Import.exe ausgeliefert).
 
-Misst je Volumenkörper Profil, Länge, Schneidweg und Konturen (step_geometrie.py)
+Misst je Körper Profil, Länge, Schneidweg und Konturen (step_geometrie.py), dazu Importdaten (Einheit der Datei,
+Körperart, Geometrieprüfung, Volumen, Oberfläche, Flächen-/Kantenzahl, Hüllquader, Meldungen des STEP-Lesers).
+Flächenmodelle werden zu Volumen genäht; was nicht messbar ist, steht mit Hinweis als eigene Zeile drin.
 und schreibt die Messwerte als Textdatei (UTF-8, Tabulator-getrennt, Dezimalpunkt).
 "STEP importieren" im Programm startet diese Messung und übernimmt die Werte ins Angebot.
 
@@ -27,7 +29,8 @@ PROZESSE_MAX = 4      # gleichzeitige Messprozesse bei vielen Dateien (jeder lä
 SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wandstaerke", "flaeche", "laenge",
            "schneidweg", "konturen", "ende_a", "ende_a_gerade", "ende_b", "ende_b_gerade", "innen",
            "innen_konturen", "gravur", "gravur_konturen", "bohrungen", "innen_liste", "profil_id_vorschlag",
-           "hinweise", "netz", "fehler"]
+           "hinweise", "einheit", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen", "n_kanten",
+           "huelle", "meldungen", "netz", "fehler"]
 
 
 def _z(x):
@@ -76,7 +79,10 @@ def zeilen(datei, netze=None, nr=1):
                     str(t.innen_konturen), _z(t.gravur), str(t.gravur_konturen),
                     "|".join(f"{_z(d)}:{n}" for d, n in t.bohrungen.items()),
                     "|".join(f"{_z(g)}:{_z(l)}" for g, l in t.innen_liste),
-                    t.profil_id_vorschlag, _text("; ".join(t.hinweise)), netz, ""])
+                    t.profil_id_vorschlag, _text("; ".join(t.hinweise)), t.einheit, t.koerperart,
+                    "" if t.gueltig is None else "1" if t.gueltig else "0", _z(t.volumen), _z(t.oberflaeche),
+                    str(t.n_flaechen), str(t.n_kanten), "|".join(_z(x) for x in t.huelle),
+                    _text("; ".join(t.meldungen)), netz, ""])
     return out
 
 

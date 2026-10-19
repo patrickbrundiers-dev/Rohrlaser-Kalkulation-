@@ -758,6 +758,18 @@ def kapitel_step(i):
             "<b>Gegenprobe</b>: Bei einem Rohrteil sind Schnitt- und Konturflächen viel kleiner als der Außenmantel. "
             "Ist das nicht so, war die Lage nicht eindeutig. Dann übernimmt die Messung keine Maße und meldet "
             "<i>Erkennung unsicher</i>.")
+    i.abschnitt("Einlesen: Einheiten, Flächenmodelle, defekte Dateien")
+    i.liste("<b>Einheit</b>: Die Datei darf in mm, cm, m oder Zoll gespeichert sein; gemessen wird immer in mm. Die "
+            "Einheit der Datei steht in den Messwerten.",
+            "<b>Flächenmodell</b> (nur Flächen, kein Volumenkörper): Geschlossene Flächen werden zu einem Volumen "
+            "zusammengenäht und gemessen, mit dem Hinweis <i>Flächenmodell: zu einem Volumen zusammengenäht</i>. "
+            "Offene Flächen sind nicht messbar und stehen mit Hinweis im STEP-Protokoll, statt still zu fehlen.",
+            "Jeder Körper wird mit der Geometrieprüfung von OpenCascade geprüft. Fällt er durch, steht der Hinweis "
+            "<i>Geometrie laut Prüfung ungültig</i> dabei.",
+            "Meldungen beim Lesen der Datei erscheinen als Hinweis <i>STEP-Leser meldet: …</i>. Eine defekte oder "
+            "leere Datei erscheint im Protokoll als FEHLER <i>STEP-Datei nicht lesbar</i>.",
+            "Zu jedem Körper stehen in den Messwerten zusätzlich Volumen, Oberfläche, Anzahl Flächen und Kanten und "
+            "der Hüllquader in der Lage der Datei.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Liegen in einer STEP-Datei mehrere Rohrteile, steht im Dialog STEP-Import prüfen oben das Feld "
            "<b>Sätze</b>. Ist eine Anzahl eingetragen:")

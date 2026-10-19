@@ -7,7 +7,7 @@ from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert
-from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
+from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs, STEPControl_ShellBasedSurfaceModel
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_EDGE
 from OCP.TopoDS import TopoDS, TopoDS_Compound
@@ -102,6 +102,37 @@ def schreibe(shape, name, ziel=None):
     w.Write(str(ziel / f"{name}.step"))
 
 
+def schreibe_einheit(shape, name, ziel, einheit):
+    """STEP in anderer Längeneinheit: Geometrie in diese Einheit umrechnen und die Einheit in der Datei ersetzen.
+    Gelesen muss wieder dasselbe Teil in mm herauskommen."""
+    faktor = {"inch": 25.4, "m": 1000.0}[einheit]
+    tr = gp_Trsf(); tr.SetScale(gp_Pnt(0, 0, 0), 1 / faktor)
+    schreibe(BRepBuilderAPI_Transform(shape, tr, True).Shape(), name, ziel)
+    pfad = ziel / f"{name}.step"
+    text = pfad.read_text(encoding="latin-1")
+    alt = "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )"
+    assert alt in text
+    if einheit == "m":
+        text = text.replace(alt, "( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.) )")
+    else:
+        nr = text.index(alt)
+        text = text.replace(alt, "( CONVERSION_BASED_UNIT('INCH',#900001) LENGTH_UNIT() NAMED_UNIT(#900003) )")
+        zusatz = ("#900001 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#900002);\n"
+                  "#900002 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );\n"
+                  "#900003 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n")
+        ende = text.index("ENDSEC;", nr)
+        text = text[:ende] + zusatz + text[ende:]
+    pfad.write_text(text, encoding="latin-1")
+
+
+def schreibe_flaechenmodell(shape, name, ziel):
+    """Nur die Flächen (Schalenmodell), kein Volumenkörper – wie manche CAD-Exporte."""
+    ziel.mkdir(parents=True, exist_ok=True)
+    w = STEPControl_Writer()
+    w.Transfer(shape, STEPControl_ShellBasedSurfaceModel)
+    w.Write(str(ziel / f"{name}.step"))
+
+
 if __name__ == "__main__":
     # 1 Rundrohr glatt
     schreibe(rundrohr(42.4, 2.0, 1250), "T01_RR42-4x2_L1250")
@@ -149,4 +180,15 @@ if __name__ == "__main__":
     schreibe(drehe_achse(kastenrohr(40, 40, 2, 800, 3), 45), "R04_QR40x2_L800_45Grad", reg)
     # R05 Teil T07 (Bohrungen, Ausschnitt, Gravur, Ausklinkung) als Freiformflächen, gedreht und verschoben
     schreibe(drehe_beliebig(drehe_achse(freiform(s), 30)), "R05_QR40x3_L1000_Merkmale_Freiform", reg)
-    print("Testteile geschrieben nach", ZIEL, "und", reg)
+    # Import-Teile (eigener Ordner step_import): Einheiten, Flächenmodelle, defekte Dateien
+    imp = ZIEL.parent / "step_import"
+    schreibe_einheit(kastenrohr(60, 40, 2, 1000, 4), "I01_RE60x40x2_L1000_Zoll", imp, "inch")
+    schreibe_einheit(rundrohr(42.4, 2.0, 1000), "I02_RR42-4x2_L1000_Meter", imp, "m")
+    schreibe_flaechenmodell(kastenrohr(40, 40, 2, 800, 3), "I03_QR40x2_L800_Flaechenmodell", imp)
+    # nur der Außenmantel eines Rundrohrs: offene Fläche, nicht messbar
+    schreibe_flaechenmodell(BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 21.2, 500).Cylinder()
+                            .LateralFace(), "I04_Flaechenmodell_offen", imp)
+    (imp / "I05_defekt.step").write_text("ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n#1=CARTESIAN_POINT(;\nENDSEC;\n"
+                                         "END-ISO-10303-21;\n", encoding="ascii")
+    (imp / "I06_leer.step").write_text("", encoding="ascii")
+    print("Testteile geschrieben nach", ZIEL, ",", reg, "und", imp)
