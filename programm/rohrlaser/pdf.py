@@ -319,3 +319,42 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
         daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s in KALK])
     inhalt.append(_tabelle(daten, [s[3] * mm for s in KALK], rechts=[i for i, s in enumerate(KALK) if s[2] is not None]))
     doc.build(inhalt, canvasmaker=leinwand)
+
+
+# ------------------------------------------------------------------ Nachkalkulation
+def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True):
+    """v = nachkalkulation.vergleich(...), ist = gespeicherte Ist-Werte."""
+    doc, leinwand = _dokument(pfad, f"Nachkalkulation {kopf.get('nummer') or ''}",
+                              f"Nachkalkulation {kopf.get('nummer') or ''}")
+    inhalt = [_p("Nachkalkulation", S_TITEL),
+              _p(f"Angebot {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   Maschine "
+                 f"{kopf.get('maschine') or ''} ({_z(v['satz'])} €/h)   |   erstellt {_erstellt()}", S_KLEIN)]
+    if not aktuell:
+        inhalt.append(_p("ACHTUNG: Die Optimierung ist veraltet, das Soll passt nicht zum aktuellen Angebot.",
+                         ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
+    if ist and ist.get("bemerkung"):
+        inhalt.append(_p(f"Bemerkung: {ist['bemerkung']}"))
+    inhalt += [Spacer(1, 4 * mm), _p("Stangen je Gruppe", S_H2)]
+    daten = [_kopfzeile(["Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
+                         "Kosten je Stange [€]", "Material Soll [€]", "Material Ist [€]"])]
+    for g in v["gruppen"]:
+        daten.append([_p(g["profil"]), _p(g["werkstoff"]), _z(g["stange"], 0), _z(g["soll"], 0),
+                      _z(g["ist"], 0) if g["ist"] is not None else "–", _z(g["kosten_stange"]), _z(g["soll_kosten"]),
+                      _z(g["ist_kosten"])])
+    inhalt.append(_tabelle(daten, [30 * mm, 26 * mm, 22 * mm, 17 * mm, 17 * mm, 22 * mm, 26 * mm, 26 * mm],
+                           rechts=(2, 3, 4, 5, 6, 7)))
+    inhalt += [Spacer(1, 4 * mm), _p("Soll gegen Ist (Einzelkosten ohne Zuschläge und Gewinn)", S_H2)]
+    daten = [_kopfzeile(["Kostenart", "Einheit", "Menge Soll", "Menge Ist", "Soll [€]", "Ist [€]", "Abweichung [€]",
+                         "Abw. [%]", "erfasst"])]
+    zeilen = v["zeilen"] + [v["summe"], v["erloes"], v["db"]]
+    for z in zeilen:
+        daten.append([_p(z["text"]), z["einheit"], _z(z["soll_menge"]) if z["soll_menge"] is not None else "",
+                      _z(z["ist_menge"]) if z["ist_menge"] is not None else "", _z(z["soll"]), _z(z["ist"]),
+                      _z(z["abweichung"]), _z(z["prozent"], 1) if z["prozent"] is not None else "", z["erfasst"]])
+    n = len(v["zeilen"]) + 1
+    inhalt.append(_tabelle(daten, [50 * mm, 13 * mm, 17 * mm, 17 * mm, 19 * mm, 19 * mm, 21 * mm, 15 * mm, 15 * mm],
+                           rechts=(2, 3, 4, 5, 6, 7), fett_zeilen=(n, n + 2)))
+    inhalt += [Spacer(1, 3 * mm),
+               _p("Leere Ist-Werte zählen wie kalkuliert (Spalte erfasst = nein). Zeiten werden mit dem Stundensatz der "
+                  "Maschine bewertet, Material mit den Kosten je Stange laut Schnittplan.", S_KLEIN)]
+    doc.build(inhalt, canvasmaker=leinwand)

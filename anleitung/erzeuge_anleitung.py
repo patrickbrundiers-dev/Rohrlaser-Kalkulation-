@@ -734,6 +734,32 @@ def kapitel_staffeln(i):
            "Angebot, zeigt der Reiter VERALTET; das Angebot rechnet veraltete Staffelpreise selbst neu.")
 
 
+def kapitel_nachkalkulation(i):
+    i.kapitel("Nachkalkulation")
+    i.text("Nach dem Auftrag zeigt der Reiter <i>Nachkalkulation</i>, ob die Kalkulation gestimmt hat. Eingetragen "
+           "werden die tatsächlichen Werte; das Programm stellt sie den Werten aus Schnittplan und Kalkulation (Soll) "
+           "gegenüber. Verglichen werden die <b>Einzelkosten</b> ohne Zuschläge und Gewinn, denn nur sie lassen sich "
+           "in der Fertigung messen. Voraussetzung ist ein aktueller Schnittplan (vorher optimieren).")
+    i.bild("nachkalkulation", "Reiter Nachkalkulation nach dem Auftrag", hoehe=95 * mm, legende=[
+        (1, "<b>Stangen Ist</b> je Profil, Werkstoff und Stangenlänge: tatsächlich verbrauchte Stangen. Bewertet "
+            "mit den Kosten je Stange laut Schnittplan."),
+        (2, "<b>Laserzeit Ist</b> [h] (z. B. aus dem Maschinenprotokoll), <b>Rüsten + Stangenwechsel Ist</b> "
+            "[min], beide mit dem Stundensatz der Maschine bewertet; <b>Gewinde und Zusatzarbeiten Ist</b> [€] "
+            "(z. B. Rechnung der Verzinkerei), <b>Sonstige Kosten Ist</b> [€] (z. B. Nacharbeit), <b>Erlös laut "
+            "Rechnung</b> [€] und eine <b>Bemerkung Nachkalkulation</b>. Grau steht im leeren Feld das Soll."),
+        (3, "Vergleich je Kostenart: Menge und Betrag Soll und Ist, Abweichung in € und %. Darunter Einzelkosten, "
+            "Erlös und <b>Deckungsbeitrag</b> (Erlös − Einzelkosten)."),
+        (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner. <b>Ist-Werte löschen</b> setzt "
+            "alles zurück.")])
+    i.liste("Jede Eingabe wird sofort gespeichert. Leere Felder zählen wie kalkuliert; die Spalte <i>Ist erfasst</i> "
+            "zeigt, welche Werte wirklich eingetragen sind.",
+            "Im Reiter <i>Angebote</i> zeigt die Spalte <b>Nachkalkuliert</b>, für welche Angebote Ist-Werte "
+            "vorliegen. Beim Kopieren werden die Ist-Werte nicht mitkopiert.",
+            "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
+            "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
+    i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
+
+
 def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation")
     i.text("Die Leiste <b>Ausgabe</b> im Angebot erzeugt die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
@@ -816,7 +842,8 @@ def pdf_bauen(bilder_ordner, ziel):
     titelseite(inh, stand)
     inh.f.append(PageBreak())
     for kapitel in (kapitel_ueberblick, kapitel_start, kapitel_stammdaten, kapitel_einstellungen,
-                    kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln):
+                    kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
+                    kapitel_nachkalkulation):
         kapitel(inh)
     kapitel_ausgabe(inh, daten["seiten"], daten["ablage"])
     kapitel_fragen(inh)

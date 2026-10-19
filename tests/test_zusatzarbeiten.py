@@ -143,7 +143,7 @@ con.execute("PRAGMA user_version=4")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 5 and d.con.execute("PRAGMA user_version").fetchone()[0] == 7
+assert d.anzahl("zusatzarbeiten") == 5 and d.con.execute("PRAGMA user_version").fetchone()[0] == 8
 d.schliessen()
 
 # 11) Oberfläche: Dialog liefert Gewinde und Zusatzarbeiten, Übernahme für mehrere Positionen, Tabellenspalte

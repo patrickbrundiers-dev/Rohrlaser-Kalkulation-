@@ -314,6 +314,21 @@ def main(ziel):
     s.staffelpreise_rechnen()
     foto.foto("staffeln", f, ausschnitt=reiterflaeche(s))
 
+    # 8a) Nachkalkulation nach dem Auftrag: eine Stange QR 40x40x3 mehr, Laser etwas länger, Rechnung Verzinkerei
+    reiter_waehlen(s, "Nachkalkulation")
+    nk = s.nachkalk
+    gr = {g["profil"]: g for g in __import__("rohrlaser.nachkalkulation", fromlist=["x"]).gruppen(
+        s.ergebnis, s.kopf, s.positionen, s.k, s.tabellen)}
+    soll = {z["text"]: z for z in nk.vergleich.zeilen}
+    nk.setzen(dict(laser_h=round(soll["Laserzeit"]["soll_menge"] * 1.15, 2), ruest_min=75,
+                   zusatz=round(soll["Gewinde und Zusatzarbeiten"]["soll"] + 38, 2), sonstiges=24.0,
+                   bemerkung="Stiele nachgeschnitten, Verzinkerei-Rechnung 4711"),
+              {g["schluessel"]: g["soll"] + (1 if p == "QR 40x40x3" else 0) for p, g in gr.items()})
+    bereit()
+    foto.foto("nachkalkulation", f, [(nk.gruppen, 1), (nk.felder["laser_h"].parentWidget(), 2),
+                                     (nk.vergleich_ansicht, 3), (knopf(nk, "Nachkalkulation (PDF)"), 4)],
+              ausschnitt=reiterflaeche(s))
+
     # 9) Ausgabe
     reiter_waehlen(s, "Positionen")
     bereit()
@@ -322,7 +337,8 @@ def main(ziel):
                                     (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "CSV-Export"), 4),
                                     (knopf(s, "Ablage öffnen"), 5)],
               ausschnitt=QRect(0, 0, f.width(), unterkante))
-    pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf())
+    pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf(),
+                nachkalkulation=s.nachkalk.pdf())
     s.csv_export()
     seiten = {}
     for art, pfad in pdfs.items():

@@ -13,7 +13,8 @@ als PDF ausgeben. Keine Installation nötig.
 4. Reiter **Angebote**: neues Angebot anlegen (Nummer zählt hoch), kopieren (auch für einen anderen Kunden), löschen, suchen (auch nach Artikel). Doppelklick öffnet das Angebot in einem eigenen Reiter.
 5. Im Angebot: Kopf oben, Positionen darunter. **STEP importieren** (oder Dateien hineinziehen) misst die Teile mit `STEP-Import.exe` und legt die Positionen an; Baugruppen werden als Satz übernommen. **Zusatzarbeiten …** wählt Gewinde, Verzinken, Pulverbeschichten usw. je Bauteil. **Optimieren** plant die Stangen; danach zeigen die Reiter Kalkulation, Schnittplan, Stangenbild und Auswertung die Ergebnisse. Nach jeder Änderung zeigt die Übersicht „VERALTET“, bis neu optimiert wird.
 6. Reiter **Staffeln**: je Zeile eine Mengenstufe (Satz oder Positionsnummer und Menge). **Staffelpreise rechnen** rechnet jede Stufe als eigenes Angebot neu.
-7. Leiste **Ausgabe**: **Angebot (PDF)**, **Werkstattpapiere (PDF)**, **Kalkulation (PDF)** und **CSV-Export** (Angebotskopf, Kostenarten und Kalkulation je Position; Semikolon, Dezimalkomma). Die Dateien landen im Ordner `Angebote` neben dem Programm oder im Ablageordner aus den Einstellungen.
+7. Reiter **Nachkalkulation**: nach dem Auftrag Ist-Stangen je Gruppe, Laserzeit, Rüstzeit, Zusatzkosten und Erlös eintragen; das Programm vergleicht die Einzelkosten mit der Kalkulation (Abweichung in € und %, Deckungsbeitrag) und gibt den Vergleich als PDF aus.
+8. Leiste **Ausgabe**: **Angebot (PDF)**, **Werkstattpapiere (PDF)**, **Kalkulation (PDF)** und **CSV-Export** (Angebotskopf, Kostenarten und Kalkulation je Position; Semikolon, Dezimalkomma). Die Dateien landen im Ordner `Angebote` neben dem Programm oder im Ablageordner aus den Einstellungen.
 
 Die bebilderte Bedienungsanleitung `anleitung/Bedienungsanleitung.pdf` liegt im ZIP neben der .exe und öffnet sich im Programm über **Hilfe → Bedienungsanleitung** (F1).
 

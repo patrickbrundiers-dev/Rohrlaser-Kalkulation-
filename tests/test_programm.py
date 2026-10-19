@@ -327,7 +327,7 @@ con.execute("PRAGMA user_version=2")
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == 7
+assert db.con.execute("PRAGMA user_version").fetchone()[0] == 8
 tabellen_ = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
 assert "auftraege" not in tabellen_ and {"angebote", "angebote_nummer", "positionen_angebot"} <= tabellen_, tabellen_
 assert db.angebot(a_alt)["kunde"] == "Altkunde" and [p_["artikel"] for p_ in db.positionen(a_alt)] == ["ALT-1"]
@@ -475,6 +475,49 @@ assert fehler is None and len(pf) == 2 and pf[1].parent == tmp / "e" / "USB" and
 db.einstellung_setzen("sicherung_ordner2", str(tmp / "e" / "datei" / "kein Ordner"))
 pf, fehler = db.sicherungen()
 assert len(pf) == 1 and fehler.startswith("Zweiter Sicherungsordner nicht erreichbar"), fehler
+db.schliessen()
+
+# 16) Nachkalkulation: ohne Ist-Werte Ist = Soll; Ist-Werte bewerten mit Stangenkosten und Stundensatz
+from rohrlaser import nachkalkulation as nk  # noqa: E402
+db = Datenbank(tmp / "f" / "rohrlaser.db")
+a9 = db.angebot_neu(dict(kunde="Nachkalkulation", skonto=0))
+for p_ in BEISPIEL:
+    db.position_neu(a9, p_)
+fenster = Hauptfenster(db, stumm=True)
+seite = fenster.angebot_oeffnen(a9)
+assert "Noch nicht optimiert" in seite.nachkalk.stand.text()
+seite.optimieren()
+v = nk.vergleich(seite.kopf, seite.positionen, seite.ergebnis, seite.k, seite.tabellen, seite.einst, None)
+_, s9 = rechnen.kalkulation(seite.kopf, seite.positionen, seite.ergebnis, seite.k, seite.tabellen, seite.einst)
+assert all(abs(z["abweichung"]) < 1e-9 and z["erfasst"] == "nein" for z in v["zeilen"])
+assert abs(v["summe"]["soll"] - (s9["material"] + s9["laser_schneiden"] + s9["gewinde"] + s9["ruesten_maschine"]
+                                 + s9["ruesten_abmessungen"] + s9["stangenwechsel_kosten"] + s9["zusatz"])) < 1e-6
+assert abs(v["erloes"]["soll"] - s9["verkauf"]) < 1e-9 and not nk.erfasst(None)
+satz = seite.k.maschinen["RL-1"]["stundensatz"]
+assert abs(v["zeilen"][1]["soll_menge"] * satz - v["zeilen"][1]["soll"]) < 1e-6        # Laserzeit h × Stundensatz
+g0 = v["gruppen"][0]
+seite.nachkalk.setzen(dict(laser_h=2.0, ruest_min=60, zusatz=10.0, sonstiges=25.0, erloes=900.0),
+                      {g0["schluessel"]: g0["soll"] + 1})
+a = db.angebot(a9)["nachkalkulation"]
+assert a["laser_h"] == 2.0 and a["stangen"][g0["schluessel"]] == g0["soll"] + 1
+v = nk.vergleich(seite.kopf, seite.positionen, seite.ergebnis, seite.k, seite.tabellen, seite.einst, a)
+z = {x["text"]: x for x in v["zeilen"]}
+assert abs(z["Material"]["abweichung"] - g0["kosten_stange"]) < 1e-6 and z["Material"]["ist_menge"] == s9["stangen"] + 1
+assert abs(z["Laserzeit"]["ist"] - 2.0 * satz) < 1e-9 and abs(z["Rüsten + Stangenwechsel"]["ist"] - satz) < 1e-9
+assert z["Sonstige Kosten"]["ist"] == 25.0 and z["Sonstige Kosten"]["prozent"] is None
+assert abs(v["db"]["ist"] - (900.0 - v["summe"]["ist"])) < 1e-9
+assert seite.nachkalk.vergleich.rowCount() == len(v["zeilen"]) + 3
+assert seite.nachkalk.felder["laser_h"].text() == "2,00" and seite.nachkalk.gruppen.item(0, 4).text() == str(g0["soll"] + 1)
+fenster.angebote.neu_laden()
+assert any(z_["id"] == a9 and z_["nachkalkuliert"] for z_ in fenster.angebote.modell.zeilen)
+db.einstellung_setzen("ablageordner", str(tmp / "f" / "Ablage"))
+pf = seite.nachkalk.pdf()
+assert pf and pf.stat().st_size > 1000
+kopie = db.angebot_kopieren(a9)
+assert db.angebot(kopie)["nachkalkulation"] is None            # Ist-Werte gehören zum Auftrag, nicht zur Kopie
+seite.nachkalk.loeschen()
+assert db.angebot(a9)["nachkalkulation"] is None
+fenster.close()
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)
 print("OK: Programm")
