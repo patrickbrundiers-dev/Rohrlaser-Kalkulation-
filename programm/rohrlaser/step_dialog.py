@@ -195,7 +195,7 @@ class StepPruefDialog(QDialog):
                 g.setBackground(0, QBrush(QColor("#F8CBAD")))
                 g.setExpanded(True)
             it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "",
-                                     "", "", m.get("fehler") or "kein Rohrteil erkannt"])
+                                     "", "", m.get("fehler") or m.get("hinweise") or "kein Rohrteil erkannt"])
             it.setData(1, Qt.UserRole, i)
         for c, b in enumerate((250, 55, 130, 120, 75, 80, 95, 65, 260)):
             self.baum.setColumnWidth(c, b)

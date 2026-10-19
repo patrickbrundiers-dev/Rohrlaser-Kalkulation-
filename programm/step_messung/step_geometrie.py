@@ -84,6 +84,10 @@ class Teil:
     bohrungen: dict = field(default_factory=dict)  # Ø -> Anzahl (durchgehende Rundbohrungen)
     innen_liste: list = field(default_factory=list)  # je Innenkontur (Größe = größtes Hüllmaß, Länge) [mm]
     hinweise: list = field(default_factory=list)
+    innen_a: float = 0.0        # Innenmaß Ø bzw. Breite (Hohlprofile)
+    innen_b: float = 0.0        # Innenmaß Höhe
+    wand_messungen: list = field(default_factory=list)  # je Messstelle (z, x, y, Wert, Seite) im Rohrsystem [mm]
+    sicherheit: dict = field(default_factory=dict)       # je Merkmal: sicher / wahrscheinlich / unsicher / …
     # Import (je Datei bzw. je Körper)
     einheit: str = ""           # Längeneinheit laut Datei (mm, cm, m, inch, ft); gemessen wird immer in mm
     meldungen: list = field(default_factory=list)  # Meldungen des STEP-Lesers zur Datei
@@ -105,6 +109,15 @@ class Teil:
             return f"QR {f(self.abm_a)}x{f(self.abm_a)}x{f(self.wandstaerke)}"
         if self.profilform == "Rechteckrohr":
             return f"RE {f(self.abm_a)}x{f(self.abm_b)}x{f(self.wandstaerke)}"
+        kurz = {"U-Profil": "U", "C-Profil": "C", "L-Profil": "L"}.get(self.profilform)
+        if kurz:
+            return f"{kurz} {f(self.abm_a)}x{f(self.abm_b)}x{f(self.wandstaerke)}"
+        if self.profilform == "Flachstahl":
+            return f"FL {f(self.abm_a)}x{f(self.abm_b)}"
+        if self.profilform == "Vierkantstahl":
+            return f"VK {f(self.abm_a)}"
+        if self.profilform == "Rundstahl":
+            return f"RD {f(self.abm_a)}"
         return ""
 
 
@@ -571,56 +584,298 @@ def _profilform(aussen, a, b, tol=0.05):
     return ""
 
 
+TOL_WAND_GLEICH = 0.05  # mm: Einzelmessungen der Wandstärke, die weiter auseinanderliegen, gelten als widersprüchlich
+OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl")
+
+
+def _kanten_punkte(draht):
+    """Je Kante die Punktfolge (x, y) des Polygonzugs (Teilung wie _strecken)."""
+    out = []
+    for e in _liste(draht, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        lg = _kantenlaenge(e)
+        n = max(2, min(2000, int(lg / (1.0 if c.GetType() == GeomAbs_Line else 0.5)) + 1))
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+        out.append([(q.X(), q.Y()) for q in (c.Value(u0 + (u1 - u0) * k / n) for k in range(n + 1))])
+    return out
+
+
+def _gerade(pts, tol=0.01):
+    """True, wenn alle Punkte auf der Verbindung erster–letzter Punkt liegen (auch bei Freiformkurven)."""
+    (x1, y1), (x2, y2) = pts[0], pts[-1]
+    lg = math.hypot(x2 - x1, y2 - y1)
+    return lg > 0 and all(abs((x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)) / lg < tol for x, y in pts)
+
+
+def _im_material(x, y, strecken):
+    """Punkt im Querschnitt (Gerade nach +X schneidet die Konturen ungerade oft)."""
+    n = 0
+    for x1, y1, x2, y2 in strecken:
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            n += 1
+    return n % 2 == 1
+
+
+def _strahl(x, y, dx, dy, strecken):
+    """Abstand vom Punkt in Richtung (dx, dy) bis zur nächsten Kontur (ohne den Startpunkt selbst)."""
+    best = None
+    for x1, y1, x2, y2 in strecken:
+        ex, ey = x2 - x1, y2 - y1
+        nenner = dx * ey - dy * ex
+        if abs(nenner) < 1e-12:
+            continue
+        s = ((x1 - x) * ey - (y1 - y) * ex) / nenner
+        u = ((x1 - x) * dy - (y1 - y) * dx) / nenner
+        if s > 1e-4 and -1e-9 <= u <= 1 + 1e-9 and (best is None or s < best):
+            best = s
+    return best
+
+
+def _wand_messungen(ws, kreis, z):
+    """Wandstärke an mehreren Stellen des Querschnitts: senkrecht von der Außenkontur ins Material bis zur nächsten
+    Kontur. Messstellen auf geraden Kanten bei 25/50/75 % (in Rundungen nicht, dort sind Außen- und Innenradius oft
+    nicht gleichmittig), beim Kreis an 8 Stellen rundum. Ergebnis: Liste (z, x, y, Wert, Seite)."""
+    alle = [s for w in ws for s in _strecken(w[1])]
+    stellen = []
+    kanten = _kanten_punkte(ws[0][1])
+    if kreis:
+        pts = [p for k in kanten for p in k]
+        mx = (max(p[0] for p in pts) + min(p[0] for p in pts)) / 2
+        my = (max(p[1] for p in pts) + min(p[1] for p in pts)) / 2
+        for i in range(8):
+            w = math.radians(22.5 + 45 * i)
+            # Punkt der Außenkontur in dieser Richtung: Strahl von der Mitte nach außen, letzter Schnittpunkt
+            d = max((s for s in (_strahl_alle(mx, my, math.cos(w), math.sin(w), alle))), default=None)
+            if d:
+                stellen.append((mx + d * math.cos(w), my + d * math.sin(w), -math.cos(w), -math.sin(w), "rund", None))
+    else:
+        for k in kanten:
+            if not _gerade(k):
+                continue
+            (x1, y1), (x2, y2) = k[0], k[-1]
+            lg = math.hypot(x2 - x1, y2 - y1)
+            if lg < 3:
+                continue
+            nx, ny = -(y2 - y1) / lg, (x2 - x1) / lg
+            for u in (0.25, 0.5, 0.75):
+                px, py = x1 + u * (x2 - x1), y1 + u * (y2 - y1)
+                if not _im_material(px + 0.01 * nx, py + 0.01 * ny, alle):
+                    nx, ny = -nx, -ny
+                seite = "x" if abs(nx) > abs(ny) else "y"
+                stellen.append((px, py, nx, ny, f"{seite}{'+' if (px if seite == 'x' else py) > 0 else '-'}", lg))
+    out = []
+    for px, py, nx, ny, seite, lg in stellen:
+        d = _strahl(px, py, nx, ny, alle)
+        # eine Wand ist länger als dick: kurze Kanten (Stirnseite eines Schenkels o. ä.) messen keine Wand
+        if d is not None and (lg is None or lg >= 2 * d):
+            out.append((z, px, py, d, seite))
+    return out
+
+
+def _strahl_alle(x, y, dx, dy, strecken):
+    """Alle Abstände, in denen ein Strahl die Konturen schneidet."""
+    out = []
+    for x1, y1, x2, y2 in strecken:
+        ex, ey = x2 - x1, y2 - y1
+        nenner = dx * ey - dy * ex
+        if abs(nenner) < 1e-12:
+            continue
+        s = ((x1 - x) * ey - (y1 - y) * ex) / nenner
+        u = ((x1 - x) * dy - (y1 - y) * dx) / nenner
+        if s > 0 and -1e-9 <= u <= 1 + 1e-9:
+            out.append(s)
+    return out
+
+
+def _seiten_belegung(strecken, x0, y0, x1, y1, tol=0.05):
+    """Je Seite des Hüllrechtecks (links, rechts, unten, oben) die belegten Abschnitte [(von, bis)] entlang der Seite."""
+    seiten = {"links": [], "rechts": [], "unten": [], "oben": []}
+    for ax, ay, bx, by in strecken:
+        for name, wert, koord, lauf in (("links", x0, (ax, bx), (ay, by)), ("rechts", x1, (ax, bx), (ay, by)),
+                                        ("unten", y0, (ay, by), (ax, bx)), ("oben", y1, (ay, by), (ax, bx))):
+            if abs(koord[0] - wert) < tol and abs(koord[1] - wert) < tol:
+                seiten[name].append((min(lauf), max(lauf)))
+    for name, ab in seiten.items():
+        ab.sort()
+        verbunden = []
+        for a, b in ab:
+            if verbunden and a <= verbunden[-1][1] + 0.6:
+                verbunden[-1] = (verbunden[-1][0], max(verbunden[-1][1], b))
+            else:
+                verbunden.append((a, b))
+        seiten[name] = verbunden
+    return seiten
+
+
+def _offenes_profil(draht, flaeche, x0, y0, x1, y1, je_seite):
+    """Form eines Querschnitts mit nur einer Kontur. Ergebnis (Form, A, B, Bemerkung) oder None.
+    Flachstahl/Vierkantstahl: Rechteck voll; Rundstahl: Kreis voll; L: zwei benachbarte Seiten des Hüllrechtecks voll
+    belegt, die beiden anderen nur am Ende (Schenkeldicke); U: drei Seiten voll, die vierte nur an beiden Enden in
+    Wanddicke; C: wie U, aber die vierte Seite an den Enden länger belegt (Abkantung)."""
+    w, h = x1 - x0, y1 - y0
+    st = _strecken(draht)
+    if flaeche >= 0.97 * w * h:
+        return ("Vierkantstahl" if abs(w - h) < 0.1 else "Flachstahl"), max(w, h), min(w, h), ""
+    if _profilform(draht, w, h) == "Kreis":
+        if flaeche >= 0.97 * math.pi / 4 * w * h:
+            return "Rundstahl", (w + h) / 2, 0.0, ""
+        return None
+    s = _seiten_belegung(st, x0, y0, x1, y1)
+    lang = {"links": h, "rechts": h, "unten": w, "oben": w}
+    voll = {n for n, ab in s.items() if len(ab) == 1 and ab[0][1] - ab[0][0] >= 0.6 * lang[n]}
+    gegen = {"links": "rechts", "rechts": "links", "unten": "oben", "oben": "unten"}
+    if len(voll) == 2 and not any(gegen[n] in voll for n in voll):
+        rest = [n for n in s if n not in voll]
+        if all(len(s[n]) == 1 and s[n][0][1] - s[n][0][0] < 0.5 * lang[n] for n in rest):
+            return "L-Profil", max(w, h), min(w, h), ""
+    if len(voll) == 3:
+        offen = next(n for n in s if n not in voll)
+        if gegen[offen] in voll and len(s[offen]) == 2:
+            # Ausdehnung der Enden von der Ecke des Hüllrechtecks aus (Außenradien an den Ecken zählen mit)
+            von, bis = (y0, y1) if offen in ("links", "rechts") else (x0, x1)
+            enden = [min(b - von, bis - a) for a, b in s[offen]]
+            steg = lang[offen]     # Höhe = Länge der Stegseite, Breite = Flanschlänge
+            breite = lang["unten" if offen in ("links", "rechts") else "links"]
+            # Flanschdicke: gemessen von den Flansch-Außenseiten (quer zur offenen Seite)
+            wand = je_seite.get("y" if offen in ("links", "rechts") else "x")
+            if wand and all(abs(e - wand) <= max(0.2, 0.1 * wand) for e in enden):
+                return "U-Profil", steg, breite, ""
+            if wand and all(e >= 1.5 * wand for e in enden):
+                return "C-Profil", steg, breite, f"Abkantung {min(enden):.1f} mm"
+    return None
+
+
+def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
+    """Profil mit einer Kontur im Querschnitt (U, C, L, Flach-, Vierkant-, Rundstahl): Form, Maße, Wandstärken.
+    Konturen werden bei diesen Profilen noch nicht ausgewertet (sie werden auch noch nicht kalkuliert)."""
+    messungen = []
+    for z, wsz in passend:
+        messungen += _wand_messungen(wsz, False, z)
+    werte = sorted(m[3] for m in messungen)
+    wand = werte[len(werte) // 2] if werte else 0.0
+    seiten = {}
+    for m in messungen:
+        seiten.setdefault(m[4][0], []).append(m[3])
+    je_seite = {k: sorted(v)[len(v) // 2] for k, v in seiten.items()}
+    erg = _offenes_profil(aussen, t.flaeche, x0, y0, x1, y1, je_seite)
+    if erg is None:
+        t.profilform, t.abm_a, t.abm_b = "Sonderprofil", max(x1 - x0, y1 - y0), min(x1 - x0, y1 - y0)
+        t.hinweise.append("Offenes Profil nicht erkannt, Fläche manuell prüfen")
+        t.sicherheit["profil"] = "unsicher"
+    else:
+        t.profilform, t.abm_a, t.abm_b, bemerkung = erg
+        t.sicherheit["profil"] = "sicher"
+        if bemerkung:
+            t.hinweise.append(bemerkung)
+    if t.profilform in ("Flachstahl", "Vierkantstahl", "Rundstahl"):
+        t.wandstaerke = 0.0          # Vollprofil: keine Wand
+        t.sicherheit["wandstaerke"] = "sicher"
+    elif werte:
+        t.wand_messungen = messungen
+        if max(werte) - min(werte) <= TOL_WAND_GLEICH:
+            t.wandstaerke = wand
+            t.sicherheit["wandstaerke"] = "sicher" if len(werte) >= 4 else "wahrscheinlich"
+        elif all(max(v) - min(v) <= TOL_WAND_GLEICH for v in seiten.values()):
+            t.wandstaerke = min(je_seite.values())    # z. B. Steg und Flansch verschieden dick
+            t.sicherheit["wandstaerke"] = "wahrscheinlich"
+            t.hinweise.append("Wandstärken verschieden: " + ", ".join(
+                f"{'senkrecht' if k == 'x' else 'waagerecht'} {v:.2f} mm" for k, v in sorted(je_seite.items())))
+        else:
+            t.wandstaerke = min(werte)
+            t.sicherheit["wandstaerke"] = "unsicher"
+            t.hinweise.append(f"Wandstärke nicht einheitlich: {min(werte):.2f} bis {max(werte):.2f} mm")
+    t.sicherheit["konturen"] = "nicht ausgewertet"
+    t.hinweise.append(f"{t.profilform}: wird noch nicht kalkuliert, Konturen nicht ausgewertet")
+    if netz:
+        faces = TopTools_IndexedMapOfShape()
+        TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
+        t.netz = dreiecksnetz(lok, faces, {i: "A" for i in range(1, faces.Extent() + 1)}, [], zmin,
+                              max(t.abm_a, t.abm_b))
+    return t
+
+
 def analysiere(solid, datei="", koerper=1, netz=False):
     t = Teil(datei=datei, koerper=koerper)
-    ax3, _ = _lage(solid)
+    ax3, regel = _lage(solid)
     lok = _transformiere(solid, ax3)
 
     zmin, zmax = _z_bereich(lok)
     t.laenge = zmax - zmin
 
-    # Querschnitt: Lage mit größter Netto-Fläche und genau 2 Konturen (Außen/Innen)
-    best, treffer = None, 0
-    # bis zu 49 Lagen über die ganze Länge, damit auch lange Ausschnitte umgangen werden; krumme Anteile, damit die
-    # Ebene nicht genau auf einer Merkmalskante liegt. Von der Mitte nach außen; sobald drei Lagen den größten
-    # Querschnitt zeigen, ist er gefunden (ein Schnitt durch ein Merkmal hat weniger Fläche oder mehr Konturen).
-    for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
-        z = zmin + anteil * t.laenge
-        ws = _schnitt(lok, z)
-        if len(ws) != 2:
-            continue
-        netto = ws[0][0] - ws[1][0]
-        if best is None or netto > best[0] * 1.001:
-            best, treffer = (netto, z, ws), 1
-        elif netto >= best[0] * 0.999:
-            treffer += 1
-        if treffer >= 3:
-            break
+    # Querschnitt: Lage mit größter Netto-Fläche, zuerst als Hohlprofil (genau 2 Konturen: außen/innen), sonst mit
+    # einer Kontur (U, L, C, Flach …). Bis zu 49 Lagen über die ganze Länge, damit auch lange Ausschnitte umgangen
+    # werden; krumme Anteile, damit die Ebene nicht genau auf einer Merkmalskante liegt. Von der Mitte nach außen;
+    # sobald drei Lagen den größten Querschnitt zeigen, ist er gefunden (ein Schnitt durch ein Merkmal hat weniger
+    # Fläche oder mehr Konturen). Die drei Lagen dienen auch als Messstellen der Wandstärke.
+    def suche(n_konturen):
+        best, passend = None, []
+        for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
+            z = zmin + anteil * t.laenge
+            ws = _schnitt(lok, z)
+            if len(ws) != n_konturen:
+                continue
+            netto = ws[0][0] - sum(w[0] for w in ws[1:])
+            if best is None or netto > best[0] * 1.001:
+                best, passend = (netto, z, ws), [(z, ws)]
+            elif netto >= best[0] * 0.999:
+                passend.append((z, ws))
+            if len(passend) >= 3:
+                break
+        return best, passend
+
+    t.sicherheit["achse"] = t.sicherheit["laenge"] = \
+        "sicher" if len(regel) >= 3 else "wahrscheinlich" if len(regel) == 2 else "unsicher"
+    best, passend = suche(2)
+    hohl = best is not None
+    if not hohl:
+        best, passend = suche(1)
     if best is None:
-        t.hinweise.append("Kein Rohrquerschnitt gefunden (kein Hohlprofil?)")
+        t.hinweise.append("Kein Profilquerschnitt gefunden (Querschnitt nicht über die Länge gleich?)")
+        t.sicherheit.update(achse="unsicher", laenge="unsicher", profil="unsicher")
         return t
     t.flaeche, z0, ws = best
-    aussen, innen = ws[0][1], ws[1][1]
+    aussen = ws[0][1]
+    wb = Bnd_Box()
+    BRepBndLib.AddOptimal_s(aussen, wb, False, False)
+    x0, y0, x1, y1 = wb.CornerMin().X(), wb.CornerMin().Y(), wb.CornerMax().X(), wb.CornerMax().Y()
+    bx, by = x1 - x0, y1 - y0
+    a, b = max(bx, by), min(bx, by)
+
+    if not hohl:
+        return _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz)
+
+    innen = ws[1][1]
     s_aussen, s_innen = _strecken(aussen), _strecken(innen)
     t.wandstaerke = _wandstaerke(aussen, innen, s_aussen, s_innen, z0)
+    ib = Bnd_Box()
+    BRepBndLib.AddOptimal_s(innen, ib, False, False)
+    ia, ibb = ib.CornerMax().X() - ib.CornerMin().X(), ib.CornerMax().Y() - ib.CornerMin().Y()
 
     # Profilform aus der Außenkontur (Ecken/Kreise können je nach CAD als Kreis, Ellipse, Spline oder Freiform-
     # kurve kommen, darum geometrisch statt über Kurventypen)
-    wb = Bnd_Box()
-    BRepBndLib.AddOptimal_s(aussen, wb, False, False)
-    bx = wb.CornerMax().X() - wb.CornerMin().X()
-    by = wb.CornerMax().Y() - wb.CornerMin().Y()
-    a, b = max(bx, by), min(bx, by)
     form = _profilform(aussen, bx, by)
+    t.sicherheit["profil"] = "sicher"
     if form == "Kreis" and a - b < 0.1:
-        t.profilform, t.abm_a = "Rundrohr", (a + b) / 2
+        t.profilform, t.abm_a, t.innen_a = "Rundrohr", (a + b) / 2, (ia + ibb) / 2
     elif form == "Rechteck" and a - b < 0.1:
-        t.profilform, t.abm_a = "Quadratrohr", (a + b) / 2
+        t.profilform, t.abm_a, t.innen_a, t.innen_b = "Quadratrohr", (a + b) / 2, max(ia, ibb), min(ia, ibb)
     elif form == "Rechteck":
-        t.profilform, t.abm_a, t.abm_b = "Rechteckrohr", a, b
+        t.profilform, t.abm_a, t.abm_b, t.innen_a, t.innen_b = "Rechteckrohr", a, b, max(ia, ibb), min(ia, ibb)
     else:
-        t.profilform, t.abm_a, t.abm_b = "Sonderprofil", a, b
+        t.profilform, t.abm_a, t.abm_b, t.innen_a, t.innen_b = "Sonderprofil", a, b, max(ia, ibb), min(ia, ibb)
         t.hinweise.append("Profil nicht erkannt, Fläche manuell prüfen")
+        t.sicherheit["profil"] = "unsicher"
+
+    # Wandstärke an mehreren Stellen (je Querschnittslage mehrere Messstellen) und Gegenprobe
+    for z, wsz in passend:
+        t.wand_messungen += _wand_messungen(wsz, form == "Kreis", z)
+    werte = [m[3] for m in t.wand_messungen] + [t.wandstaerke]
+    if max(werte) - min(werte) > TOL_WAND_GLEICH:
+        t.sicherheit["wandstaerke"] = "unsicher"
+        t.hinweise.append(f"Wandstärke nicht einheitlich: {min(werte):.2f} bis {max(werte):.2f} mm an "
+                          f"{len(werte)} Messstellen, Profil prüfen")
+    else:
+        t.sicherheit["wandstaerke"] = "sicher" if len(t.wand_messungen) >= 4 else "wahrscheinlich"
 
     # Wandflächen bestimmen: alle Punkte der Fläche liegen (in Z projiziert) auf Außen- bzw. Innenkontur
     def punkte(face):
