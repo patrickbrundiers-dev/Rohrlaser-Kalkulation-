@@ -40,7 +40,7 @@ from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_Transform
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
 from OCP.GCPnts import GCPnts_AbscissaPoint
-from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Line, GeomAbs_BSplineSurface, GeomAbs_BezierSurface
+from OCP.GeomAbs import GeomAbs_Plane, GeomAbs_Cylinder, GeomAbs_Cone, GeomAbs_Line, GeomAbs_BSplineSurface, GeomAbs_BezierSurface
 from OCP.ShapeAnalysis import ShapeAnalysis_FreeBounds
 try:  # OCP >= 7.8
     from OCP.collections import (IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher as TopTools_IndexedMapOfShape,
@@ -88,6 +88,7 @@ class Teil:
     innen_b: float = 0.0        # Innenmaß Höhe
     wand_messungen: list = field(default_factory=list)  # je Messstelle (z, x, y, Wert, Seite) im Rohrsystem [mm]
     sicherheit: dict = field(default_factory=dict)       # je Merkmal: sicher / wahrscheinlich / unsicher / …
+    konturen_liste: list = field(default_factory=list)  # je Kontur ein dict: Art, Lage (z, Winkel, Seite), Maße
     # Import (je Datei bzw. je Körper)
     einheit: str = ""           # Längeneinheit laut Datei (mm, cm, m, inch, ft); gemessen wird immer in mm
     meldungen: list = field(default_factory=list)  # Meldungen des STEP-Lesers zur Datei
@@ -348,6 +349,11 @@ def _achse_grob(solid):
     werte, vek = _eigen3(m)
     i = min(range(3), key=lambda k: werte[k])
     achse = gp_Vec(vek[0][i], vek[1][i], vek[2][i]).Normalized()
+    # Richtung festlegen (sonst zufällig): größter Anteil positiv. Ende A liegt damit in der Datei vorn
+    # (kleinere Koordinate in der Hauptrichtung des Rohrs).
+    k = max((achse.X(), achse.Y(), achse.Z()), key=abs)
+    if k < 0:
+        achse.Reverse()
     mitte = gp_Pnt((p0.X() + p1.X()) / 2, (p0.Y() + p1.Y()) / 2, (p0.Z() + p1.Z()) / 2)
     return achse, mitte
 
@@ -745,6 +751,145 @@ def _offenes_profil(draht, flaeche, x0, y0, x1, y1, je_seite):
     return None
 
 
+class _Abwicklung:
+    """Abwicklung der Außenkontur (konvexe Hohlprofile): Umfangswinkel und Umfangsposition eines Punkts.
+
+    Winkel: um die Rohrachse rechtsdrehend (Daumen der rechten Hand zeigt von Ende A nach Ende B), 0° = Bezugsrichtung
+    ref (Richtung im Querschnitt, siehe _bezug). Umfangsposition u: Bogenlänge auf der Außenkontur ab 0° [mm]."""
+
+    def __init__(self, s_aussen, ref):
+        xs = [s[0] for s in s_aussen] + [s[2] for s in s_aussen]
+        ys = [s[1] for s in s_aussen] + [s[3] for s in s_aussen]
+        self.cx, self.cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        self.ref = ref
+        pts = sorted({(round(self.theta(x, y), 9), x, y) for x, y in zip(xs, ys)})
+        self.th, self.s, self.xy = [], [], []
+        lauf = 0.0
+        for i, (th, x, y) in enumerate(pts):
+            if i:
+                lauf += math.hypot(x - pts[i - 1][1], y - pts[i - 1][2])
+            self.th.append(th)
+            self.s.append(lauf)
+            self.xy.append((x, y))
+        self.umfang = lauf + math.hypot(pts[0][1] - pts[-1][1], pts[0][2] - pts[-1][2])
+        self.versatz = 0.0
+        self.versatz = self._u_th(0.0)      # u = 0 genau bei 0°
+
+    def theta(self, x, y):
+        return (math.degrees(math.atan2(-(x - self.cx), y - self.cy)) - self.ref) % 360
+
+    def u(self, x, y):
+        return self._u_th(self.theta(x, y))
+
+    def _u_th(self, th):
+        import bisect
+        i = bisect.bisect_left(self.th, th)
+        if i <= 0:
+            t0, t1, s0, s1 = self.th[-1] - 360, self.th[0], self.s[-1] - self.umfang, self.s[0]
+        elif i >= len(self.th):
+            t0, t1, s0, s1 = self.th[-1], self.th[0] + 360, self.s[-1], self.umfang
+        else:
+            t0, t1, s0, s1 = self.th[i - 1], self.th[i], self.s[i - 1], self.s[i]
+        return ((s0 + (s1 - s0) * (th - t0) / (t1 - t0) if t1 > t0 else s0) - self.versatz) % self.umfang
+
+    def punkt(self, u):
+        """(Winkel, x, y) des Punkts der Außenkontur an der Umfangsposition u."""
+        import bisect
+        u = (u + self.versatz) % self.umfang
+        i = min(max(bisect.bisect_right(self.s, u), 1), len(self.s) - 1)
+        s0, s1 = self.s[i - 1], self.s[i]
+        f = (u - s0) / (s1 - s0) if s1 > s0 else 0.0
+        x = self.xy[i - 1][0] + f * (self.xy[i][0] - self.xy[i - 1][0])
+        y = self.xy[i - 1][1] + f * (self.xy[i][1] - self.xy[i - 1][1])
+        return self.theta(x, y), x, y
+
+
+def _bezug(ax3, profilform):
+    """Bezugsrichtung 0° des Umfangswinkels im Messsystem (Grad, gleiche Zählung wie _Abwicklung.theta).
+    Kastenprofile: Mitte der breiten Seite (±Y), und zwar die, die in der Datei eher nach oben (+Z) zeigt.
+    Rundrohre: die in der Datei oberste Stelle (+Z der Datei quer zur Achse; liegt das Rohr senkrecht, +Y der Datei)."""
+    def lokal(g):
+        return (g.Dot(_vec(ax3.XDirection())), g.Dot(_vec(ax3.YDirection())))
+    gx, gy = lokal(gp_Vec(0, 0, 1))
+    if math.hypot(gx, gy) < 0.1:
+        gx, gy = lokal(gp_Vec(0, 1, 0))
+    if profilform == "Rundrohr":
+        return math.degrees(math.atan2(-gx, gy))
+    return 0.0 if gy >= 0 else 180.0
+
+
+def _punkte_kanten(kanten, schritt=0.5):
+    out = []
+    for e in kanten:
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        n = max(4, min(400, int(_kantenlaenge(e) / schritt) + 1))
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+        out += [c.Value(u0 + (u1 - u0) * k / n) for k in range(n + 1)]
+    return out
+
+
+def _form_2d(uv, tol=0.05):
+    """Form einer abgewickelten Kontur: ('Kreis', Ø) / ('Langloch', L, B) / ('Rechteck', L, B) / ('Ausschnitt', L, B),
+    dazu Mittelpunkt (u, v) und Drehwinkel der Längsrichtung gegen die Rohrachse [Grad]."""
+    w = _min_rechteck(uv)
+    c, s = math.cos(w), math.sin(w)
+    p = [(x * c + y * s, -x * s + y * c) for x, y in uv]
+    p0, p1 = min(q[0] for q in p), max(q[0] for q in p)
+    q0, q1 = min(q[1] for q in p), max(q[1] for q in p)
+    lg, br = p1 - p0, q1 - q0
+    mp, mq = (p0 + p1) / 2, (q0 + q1) / 2
+    mitte = (mp * c - mq * s, mp * s + mq * c)
+    lage = math.degrees(w) % 180          # 0° = Längsrichtung der Kontur quer zur Rohrachse (entlang u)
+    rel = [(a - mp, b - mq) for a, b in p]
+    r = [math.hypot(a, b) for a, b in rel]
+    if max(r) - min(r) < 2 * tol:
+        return ("Kreis", (max(r) + min(r)), 0.0), mitte, lage
+    if lg > br + tol:
+        h = (lg - br) / 2
+        if all(abs(math.hypot(max(abs(a) - h, 0), b) - br / 2) < tol for a, b in rel):
+            return ("Langloch", lg, br), mitte, lage
+    auf_seite = sum(1 for a, b in rel if abs(abs(a) - lg / 2) < tol or abs(abs(b) - br / 2) < tol)
+    if auf_seite >= 0.6 * len(rel):
+        return ("Rechteck", lg, br), mitte, lage
+    return ("Ausschnitt", lg, br), mitte, lage
+
+
+def _ebene(face, tol=1e-4):
+    """Ebene (gp_Pln) einer Fläche oder None, auch bei ebenen Freiformflächen."""
+    from OCP.GeomLib import GeomLib_IsPlanarSurface
+    sf = BRepAdaptor_Surface(TopoDS.Face(face))
+    if sf.GetType() == GeomAbs_Plane:
+        return sf.Plane()
+    pr = GeomLib_IsPlanarSurface(BRep_Tool.Surface_s(TopoDS.Face(face)), tol)
+    return pr.Plan() if pr.IsPlanar() else None
+
+
+def _endform(flaechen, laenge, ref=0.0):
+    """Form eines Endes aus seinen Schnittflächen: gerade, Gehrung (Neigung um eine Querachse), Schrägschnitt zwei-
+    achsig oder komplex (mehrere Ebenen, gekrümmt: Ausklinkung, Sattel …). Winkel in Grad gegen den geraden Schnitt:
+    gehrung = Gesamtneigung, um_x = Neigung zur 0°-Richtung hin (Drehung um die Querachse 270°–90°), um_y = Neigung
+    zur 270°-Richtung hin (Drehung um die Querachse 0°–180°). ref: Bezugsrichtung 0° (siehe _bezug)."""
+    normalen = []
+    for f in flaechen:
+        pl = _ebene(f)
+        if pl is None:
+            return dict(form="komplex", gehrung=None, um_x=None, um_y=None, schnittlaenge=round(laenge, 2))
+        d = pl.Axis().Direction()
+        n = (d.X(), d.Y(), d.Z()) if d.Z() >= 0 else (-d.X(), -d.Y(), -d.Z())
+        if not any(sum(a * b for a, b in zip(n, m)) > 1 - 1e-6 for m in normalen):
+            normalen.append(n)
+    if len(normalen) != 1:
+        return dict(form="komplex", gehrung=None, um_x=None, um_y=None, schnittlaenge=round(laenge, 2))
+    nx0, ny0, nz = normalen[0]
+    r = math.radians(ref)      # Querachsen so drehen, dass Y in die 0°-Richtung zeigt
+    nx, ny = nx0 * math.cos(r) + ny0 * math.sin(r), -nx0 * math.sin(r) + ny0 * math.cos(r)
+    ges = math.degrees(math.acos(min(1.0, nz)))
+    um_x, um_y = math.degrees(math.atan2(abs(ny), nz)), math.degrees(math.atan2(abs(nx), nz))
+    form = "gerade" if ges < 0.05 else "Gehrung" if min(um_x, um_y) < 0.05 else "Schrägschnitt zweiachsig"
+    return dict(form=form, gehrung=round(ges, 2), um_x=round(um_x, 2), um_y=round(um_y, 2),
+                schnittlaenge=round(laenge, 2))
+
+
 def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
     """Profil mit einer Kontur im Querschnitt (U, C, L, Flach-, Vierkant-, Rundstahl): Form, Maße, Wandstärken.
     Konturen werden bei diesen Profilen noch nicht ausgewertet (sie werden auch noch nicht kalkuliert)."""
@@ -972,9 +1117,63 @@ def analysiere(solid, datei="", koerper=1, netz=False):
 
     TOL_Z = 0.01
     bohrungen = {}
+    ref = _bezug(ax3, t.profilform)
+    abw = _Abwicklung(s_aussen, ref)
+    kasten = t.profilform in ("Quadratrohr", "Rechteckrohr")
+    hx, hy = bx / 2, by / 2
+    enden = {"EA": [[], 0.0], "EB": [[], 0.0]}     # Flächen und Schnittlänge je Ende
+    liste = []
+
+    def lage_auf_rohr(zug):
+        """Abgewickelte Kontur -> Form, Maße, Mitte (z ab Ende A, Winkel, Seite), Normale der Wand dort."""
+        uv = [(abw.u(p.X(), p.Y()), p.Z() - zmin) for p in _punkte_kanten(zug)]
+        if max(u for u, _ in uv) - min(u for u, _ in uv) > abw.umfang / 2:     # über die 0°-Naht
+            uv = [(u + abw.umfang if u < abw.umfang / 2 else u, v) for u, v in uv]
+        form, (uc, vc), lage = _form_2d(uv)
+        winkel, px, py = abw.punkt(uc)
+        seite = None
+        if kasten:
+            dx, dy = px - abw.cx, py - abw.cy
+            if abs(abs(dx) - hx) < 0.05 or abs(abs(dy) - hy) < 0.05:
+                seite = f"{round(winkel / 90) % 4 * 90}°"
+            else:
+                seite = "Ecke"
+        (_, ax_, ay_), (_, bx_, by_) = abw.punkt(uc - 0.5), abw.punkt(uc + 0.5)
+        tl = math.hypot(bx_ - ax_, by_ - ay_) or 1.0
+        normale = ((by_ - ay_) / tl, -(bx_ - ax_) / tl)
+        u = uc % abw.umfang
+        d = dict(z=round(vc, 2), winkel=round(winkel % 360, 1) % 360,
+                 u=round(0.0 if abw.umfang - u < 0.005 else u, 2), seite=seite)
+        return form, lage, d, normale
+
+    def zylinder_einheitlich(fl, mit_boden=False):
+        """(gp_Cylinder, Ø), wenn alle Flächen Zylinder gleichen Radius quer zum Rohr sind (bei mit_boden dürfen
+        ebene oder kegelige Bohrungsgründe dazukommen), sonst None."""
+        zyl, radien = None, set()
+        for f in fl:
+            z_ = _zylinder(faces.FindKey(f))
+            if z_ is None:
+                if mit_boden and _ebene(faces.FindKey(f)) is not None or mit_boden and \
+                        BRepAdaptor_Surface(TopoDS.Face(faces.FindKey(f))).GetType() == GeomAbs_Cone:
+                    continue
+                return None
+            if abs(z_.Axis().Direction().Z()) > 0.99:
+                return None
+            zyl = z_
+            radien.add(round(z_.Radius(), 2))
+        return (zyl, round(2 * radien.pop(), 2)) if zyl is not None and len(radien) == 1 else None
+
+    def schraeg(zyl, normale):
+        dz = zyl.Axis().Direction()
+        c = abs(dz.X() * normale[0] + dz.Y() * normale[1])
+        return round(math.degrees(math.acos(min(1.0, c))), 2)
+
     for m in merkmale.values():
         kanten = m["kanten"]
         if not kanten:
+            liste.append(dict(art="Innenmerkmal", durchgehend=False, z=None, winkel=None, u=None, seite=None,
+                              schnittlaenge=0.0, hinweis="nur auf der Innenseite, von außen nicht sichtbar"))
+            t.hinweise.append("Merkmal nur auf der Innenseite gefunden, nicht gerechnet")
             continue
         laenge = sum(_kantenlaenge(e) for e in kanten)
         n = konturen_zaehlen(kanten)
@@ -982,6 +1181,19 @@ def analysiere(solid, datei="", koerper=1, netz=False):
             m["art"] = "G"
             t.gravur += laenge
             t.gravur_konturen += n
+            sack = zylinder_einheitlich(m["faces"], mit_boden=True)
+            for zug in konturzuege(kanten):
+                form, lage, d, normale = lage_auf_rohr(zug)
+                if sack:
+                    d.update(art="Sackbohrung", durchgehend=False, durchmesser=sack[1], schraeg=schraeg(sack[0], normale),
+                             hinweis="nicht durchgehend, mit dem Laser nicht herstellbar")
+                else:
+                    d.update(art="Gravur", durchgehend=False, laenge=round(form[1], 2), breite=round(form[2], 2),
+                             hinweis="nicht durchgehend (Markierung/Vertiefung), nicht im Schneidweg")
+                d["schnittlaenge"] = round(sum(_kantenlaenge(e) for e in zug), 2)
+                liste.append(d)
+            if sack:
+                t.hinweise.append(f"Sackbohrung Ø{sack[1]:g} gefunden (nicht laserbar), prüfen")
             continue
         bb = Bnd_Box()
         for e in kanten:
@@ -1005,17 +1217,53 @@ def analysiere(solid, datei="", koerper=1, netz=False):
                 groesse = max(mx.X() - mn.X(), mx.Y() - mn.Y(), mx.Z() - mn.Z())
                 t.innen_liste.append((groesse, sum(_kantenlaenge(e) for e in zug)))
             # Rundbohrung: nur Zylinderflächen gleichen Radius, Achse quer zum Rohr
-            radien = set()
-            for f in m["faces"]:
-                zyl = _zylinder(faces.FindKey(f))
-                if zyl is None or abs(zyl.Axis().Direction().Z()) > 0.99:
-                    radien = None
-                    break
-                radien.add(round(zyl.Radius(), 2))
-            if radien and len(radien) == 1:
-                d = round(2 * radien.pop(), 2)
+            rund = zylinder_einheitlich(m["faces"])
+            if rund:
+                d = rund[1]
                 bohrungen[d] = bohrungen.get(d, 0) + n
+            for zug in konturzuege(kanten):
+                form, lage, d, normale = lage_auf_rohr(zug)
+                d.update(durchgehend=True, schnittlaenge=round(sum(_kantenlaenge(e) for e in zug), 2),
+                         huellmass=round(t.innen_liste[-1][0] if len(konturzuege(kanten)) == 1 else max(form[1:]), 2))
+                if rund:
+                    d.update(art="Bohrung", durchmesser=rund[1], schraeg=schraeg(rund[0], normale))
+                    ax = rund[0].Axis()
+                    d["_achse"] = (ax.Location(), ax.Direction())
+                elif form[0] == "Kreis":
+                    d.update(art="Bohrung", durchmesser=round(form[1], 2))
+                elif form[0] == "Langloch":
+                    d.update(art="Langloch", laenge=round(form[1], 2), breite=round(form[2], 2),
+                             richtung=round(lage, 1))
+                elif form[0] == "Rechteck":
+                    d.update(art="Rechteckausschnitt", laenge=round(form[1], 2), breite=round(form[2], 2),
+                             richtung=round(lage, 1))
+                else:
+                    d.update(art="Ausschnitt", laenge=round(form[1], 2), breite=round(form[2], 2))
+                liste.append(d)
+        if m["art"] in enden:
+            enden[m["art"]][0] += [faces.FindKey(f) for f in m["faces"]]
+            enden[m["art"]][1] += laenge
         t.konturen += n
+    # gegenüberliegende Bohrungen (gleiche Achse, gleicher Ø): eine Bohrung durch beide Wände
+    bo = [d for d in liste if d.get("_achse")]
+    for i, a_ in enumerate(bo):
+        for b_ in bo[i + 1:]:
+            (pa, da), (pb, db) = a_["_achse"], b_["_achse"]
+            if a_["durchmesser"] == b_["durchmesser"] and abs(abs(da.Dot(db)) - 1) < 1e-6 and \
+                    gp_Vec(pa, pb).Crossed(_vec(da)).Magnitude() < 0.01:
+                a_["gegenueber"], b_["gegenueber"] = True, True
+    for d in liste:
+        d.pop("_achse", None)
+    kopf = []
+    for art_, name, z in (("EA", "Ende A", 0.0), ("EB", "Ende B", t.laenge)):
+        fl, lg = enden[art_]
+        e = _endform(fl, lg, ref) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None, um_y=None,
+                                              schnittlaenge=0.0)
+        kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
+    t.konturen_liste = kopf + sorted(liste, key=lambda d: (d["z"] is None, d["z"] or 0, d["winkel"] or 0))
+    t.sicherheit["konturen"] = "wahrscheinlich" if any(
+        d["art"] in ("Ausschnitt", "Innenmerkmal") or d.get("form") in ("komplex", "nicht erkannt") or
+        d.get("seite") == "Ecke" for d in t.konturen_liste) else "sicher"
     t.bohrungen = dict(sorted(bohrungen.items()))
     t.schneidweg = t.ende_a + t.ende_b + t.innen
     if netz:

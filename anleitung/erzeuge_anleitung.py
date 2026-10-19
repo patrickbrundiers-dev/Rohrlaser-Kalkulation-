@@ -772,6 +772,34 @@ def kapitel_step(i):
             "<b>Gegenprobe</b>: Bei einem Rohrteil sind Schnitt- und Konturflächen viel kleiner als der Außenmantel. "
             "Ist das nicht so, war die Lage nicht eindeutig. Dann übernimmt die Messung keine Maße und meldet "
             "<i>Erkennung unsicher</i>.")
+    i.abschnitt("Konturen und ihre Lage auf dem Rohr")
+    i.text("Jede Kontur wird mit Art, Maßen und Lage erfasst (Messwerte, Spalte <i>konturen_liste</i>). Die Lage gilt "
+           "im <b>Rohrkoordinatensystem</b>:")
+    i.liste("<b>z</b>: Abstand entlang der Rohrachse ab <b>Ende A</b> in mm (Mitte der Kontur). Ende A ist das Ende, "
+            "das in der Datei vorn liegt (kleinere Koordinate in der Hauptrichtung des Rohrs).",
+            "<b>Winkel</b>: Lage auf dem Umfang in Grad, rechtsdrehend um die Achse (Daumen der rechten Hand zeigt "
+            "von Ende A nach Ende B). <b>0°</b> ist bei Kastenprofilen die Mitte der breiten Seite, die in der Datei "
+            "nach oben zeigt (liegt das Rohr senkrecht: nach +Y). Bei Rundrohren ist 0° die oberste Stelle.",
+            "<b>u</b>: dieselbe Lage als abgewickelte Länge auf dem Außenumfang ab 0° in mm.",
+            "<b>Seite</b> bei Kastenprofilen: 0°, 90°, 180° oder 270°, bzw. <i>Ecke</i>, wenn die Kontur in einer "
+            "Rundung liegt.")
+    i.text("Erkannte Arten:")
+    i.liste("<b>Bohrung</b> mit Durchmesser. <i>schräg</i> gibt an, wie weit die Bohrachse von der Senkrechten "
+            "zur Wand abweicht (schräge Durchdringung). <i>gegenüber</i> kennzeichnet zwei Bohrungen auf einer Achse "
+            "(eine Bohrung durch beide Wände, zwei Konturen).",
+            "<b>Langloch</b> und <b>Rechteckausschnitt</b> mit Länge, Breite und Richtung (90° = längs zur "
+            "Rohrachse); alles andere ist ein <b>Ausschnitt</b> mit Hüllmaßen.",
+            "<b>Sackbohrung</b> (nicht durchgehend) und <b>Gravur</b> (Vertiefung, Markierung). Sie zählen nicht "
+            "zum Schneidweg. Bei einer Sackbohrung kommt der Hinweis, dass sie mit dem Laser nicht herstellbar ist.",
+            "<b>Innenmerkmal</b>: nur auf der Innenseite, von außen nicht sichtbar. Es wird gemeldet, aber nicht "
+            "gerechnet.",
+            "<b>Ende A / Ende B</b>: <i>gerade</i>, <i>Gehrung</i> (Neigung um eine Querachse), <i>Schrägschnitt "
+            "zweiachsig</i> oder <i>komplex</i> (Ausklinkung, Sattel- oder Formschnitt). Dazu kommen die "
+            "Gesamtneigung und die Neigung um beide Querachsen in Grad.")
+    i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
+              "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
+              "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
+              "keine Kontur.")
     i.abschnitt("Einlesen: Einheiten, Flächenmodelle, defekte Dateien")
     i.liste("<b>Einheit</b>: Die Datei darf in mm, cm, m oder Zoll gespeichert sein; gemessen wird immer in mm. Die "
             "Einheit der Datei steht in den Messwerten.",
