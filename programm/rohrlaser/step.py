@@ -128,6 +128,11 @@ def profil_vorschlag(m, profile):
     return finde_profil(m, profile) or m.get("profil_id_vorschlag") or None
 
 
+# Profilformen, die die Messung erkennt, das Programm aber noch nicht kalkuliert (Patrick 19.10.2026: erst erkennen
+# und melden, Stammdaten/Kalkulation später)
+NICHT_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl")
+
+
 def gewaehlt(m):
     """False, wenn das Teil im Prüfdialog abgewählt wurde (Schlüssel '_uebernehmen')."""
     return m.get("_uebernehmen", True) is not False
@@ -137,7 +142,8 @@ TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wen
 
 
 def _rohrteil(m):
-    return not m.get("fehler") and bool(m.get("profilform")) and _z(m, "laenge") > 0
+    return (not m.get("fehler") and bool(m.get("profilform")) and m.get("profilform") not in NICHT_KALKULIERT
+            and _z(m, "laenge") > 0)
 
 
 def _gleich(a, b):
@@ -189,7 +195,7 @@ def vorpruefung(messwerte, positionen, k):
     vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
     fehlend, doppelt = [], 0
     for m in messwerte:
-        if m.get("fehler") or not m.get("profilform") or not gewaehlt(m):
+        if m.get("fehler") or not m.get("profilform") or not gewaehlt(m) or m.get("profilform") in NICHT_KALKULIERT:
             continue
         pid = m.get("_profil") or m.get("profil_id_vorschlag")
         fehlt = pid not in k.profile if m.get("_profil") else finde_profil(m, k.profile) is None
@@ -243,7 +249,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         if grenz_hinweis and m.get("innen_liste"):
             hinweise.append(grenz_hinweis)
         ziel, pid = None, None
-        if m.get("profilform"):
+        if m.get("profilform") and m.get("profilform") not in NICHT_KALKULIERT:
             gemessen = profil_vorschlag(m, profile)
             pid = m.get("_profil") or finde_profil(m, profile)
             if m.get("_profil") and pid != gemessen:
@@ -271,6 +277,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):
             hinweise.append("nicht übernommen: kein Rohrteil erkannt")
+        elif m.get("profilform") in NICHT_KALKULIERT:
+            hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         else:
             wst = m.get("_werkstoff", werkstoff)
             stk = m.get("_stueck", stueck)

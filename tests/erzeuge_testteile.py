@@ -3,10 +3,11 @@ import math
 import sys
 from pathlib import Path
 
-from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox, BRepPrimAPI_MakePrism
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
-from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert
+from OCP.BRepBuilderAPI import (BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert, BRepBuilderAPI_MakePolygon,
+                                BRepBuilderAPI_MakeFace)
 from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs, STEPControl_ShellBasedSurfaceModel
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_EDGE
@@ -44,6 +45,30 @@ def kastenrohr(b, h, t, l, r_aussen):
             ex.Next()
         return f.Shape()
     return cut(box(b, h, 0, l, r_aussen), box(b - 2 * t, h - 2 * t, -1, l + 2, max(r_aussen - t, 0)))
+
+
+def profil(punkte, l, radien=None):
+    """Gerades Profil aus einem Querschnitt-Polygon (x, y), Länge l in Z; radien {(x, y): r} rundet die Längskanten
+    an diesen Ecken (Walz- bzw. Biegeradien)."""
+    p = BRepBuilderAPI_MakePolygon()
+    for x, y in punkte:
+        p.Add(gp_Pnt(x, y, 0))
+    p.Close()
+    s = BRepPrimAPI_MakePrism(BRepBuilderAPI_MakeFace(p.Wire()).Face(), gp_Vec(0, 0, l)).Shape()
+    if not radien:
+        return s
+    f = BRepFilletAPI_MakeFillet(s)
+    ex = TopExp_Explorer(s, TopAbs_EDGE)
+    while ex.More():
+        e = TopoDS.Edge(ex.Current())
+        c = BRepAdaptor_Curve(e)
+        if c.GetType() == GeomAbs_Line and abs(abs(c.Line().Direction().Z()) - 1) < 1e-9:
+            q = c.Value(c.FirstParameter())
+            for (x, y), r in radien.items():
+                if abs(q.X() - x) < 1e-6 and abs(q.Y() - y) < 1e-6:
+                    f.Add(r, e)
+        ex.Next()
+    return f.Shape()
 
 
 def bohrung_quer(shape, d, z, achse=(1, 0, 0)):
@@ -191,4 +216,25 @@ if __name__ == "__main__":
     (imp / "I05_defekt.step").write_text("ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n#1=CARTESIAN_POINT(;\nENDSEC;\n"
                                          "END-ISO-10303-21;\n", encoding="ascii")
     (imp / "I06_leer.step").write_text("", encoding="ascii")
-    print("Testteile geschrieben nach", ZIEL, ",", reg, "und", imp)
+    # Profil-Teile (eigener Ordner step_profile): offene Profile, Vollprofile, ungleiche Wände
+    pro = ZIEL.parent / "step_profile"
+    u = [(0, 0), (50, 0), (50, 30), (47, 30), (47, 3), (3, 3), (3, 30), (0, 30)]
+    schreibe(drehe_beliebig(profil(u, 800)), "P01_U50x30x3_L800", pro)
+    schreibe(profil(u, 600, {(0, 0): 6, (50, 0): 6, (3, 3): 3, (47, 3): 3}), "P02_U50x30x3_Radien_L600", pro)
+    schreibe(profil([(0, 0), (60, 0), (60, 30), (52, 30), (52, 4), (8, 4), (8, 30), (0, 30)], 500),
+             "P03_U60x30_Steg4_Flansch8_L500", pro)
+    schreibe(profil([(0, 0), (40, 0), (40, 4), (4, 4), (4, 40), (0, 40)], 800), "P04_L40x40x4_L800", pro)
+    schreibe(drehe_beliebig(drehe_achse(profil([(0, 0), (60, 0), (60, 5), (5, 5), (5, 40), (0, 40)], 600), 17)),
+             "P05_L60x40x5_gedreht_L600", pro)
+    schreibe(profil([(0, 0), (50, 0), (50, 5), (5, 5), (5, 50), (0, 50)], 600, {(5, 5): 7, (50, 5): 2.5, (5, 50): 2.5}),
+             "P06_L50x50x5_Radien_L600", pro)
+    c = [(0, 0), (50, 0), (50, 20), (47, 20), (47, 3), (3, 3), (3, 97), (47, 97), (47, 80), (50, 80), (50, 100), (0, 100)]
+    schreibe(profil(c, 700, {(0, 0): 6, (50, 0): 6, (0, 100): 6, (50, 100): 6, (3, 3): 3, (47, 3): 3, (3, 97): 3,
+                             (47, 97): 3}), "P07_C100x50x20x3_L700", pro)
+    schreibe(profil([(0, 0), (40, 0), (40, 5), (0, 5)], 800), "P08_FL40x5_L800", pro)
+    rr = cut(BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 21.2, 800).Shape(),
+             BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0.4, 0, -1), gp_Dir(0, 0, 1)), 19.2, 802).Shape())
+    schreibe(rr, "P09_RR42-4_exzentrisch_L800", pro)
+    schreibe(cut(profil([(-30, -20), (30, -20), (30, 20), (-30, 20)], 600),
+                 profil([(-28, -17), (28, -17), (28, 18), (-28, 18)], 600)), "P10_RE60x40_Wand2und3_L600", pro)
+    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, "und", pro)
