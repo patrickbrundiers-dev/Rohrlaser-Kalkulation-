@@ -84,6 +84,16 @@ class Teil:
     bohrungen: dict = field(default_factory=dict)  # Ø -> Anzahl (durchgehende Rundbohrungen)
     innen_liste: list = field(default_factory=list)  # je Innenkontur (Größe = größtes Hüllmaß, Länge) [mm]
     hinweise: list = field(default_factory=list)
+    # Import (je Datei bzw. je Körper)
+    einheit: str = ""           # Längeneinheit laut Datei (mm, cm, m, inch, ft); gemessen wird immer in mm
+    meldungen: list = field(default_factory=list)  # Meldungen des STEP-Lesers zur Datei
+    koerperart: str = ""        # Volumenkörper / aus Flächenmodell genäht / Flächenmodell offen
+    gueltig: bool = None        # Geometrieprüfung (OpenCascade) bestanden; None = nicht geprüft
+    volumen: float = 0.0        # mm³
+    oberflaeche: float = 0.0    # mm²
+    n_flaechen: int = 0
+    n_kanten: int = 0
+    huelle: tuple = ()          # Hüllquader in Dateilage (dx, dy, dz) [mm]
     netz: dict = None           # 3D-Ansicht: {p: [x, y, z, …], t: {Art: [i, j, k, …]}, l: {Art: [[x, y, z, …], …]}}
 
     @property
@@ -98,18 +108,145 @@ class Teil:
         return ""
 
 
-def lies_step(pfad):
+EINHEITEN = {".MILLI.": "mm", ".CENTI.": "cm", ".DECI.": "dm", ".KILO.": "km", "$": "m"}
+
+
+def _einheit(pfad):
+    """Längeneinheit laut STEP-Datei (nur zur Information: OpenCascade rechnet beim Lesen in mm um)."""
+    import re
+    try:
+        text = open(pfad, encoding="latin-1", errors="replace").read()
+    except OSError:
+        return ""
+    text = re.sub(r"\s+", "", text.upper())
+    m = re.search(r"CONVERSION_BASED_UNIT\('([^']*)'[^;]*LENGTH_UNIT", text) or \
+        re.search(r"LENGTH_UNIT\(\)[^;]*CONVERSION_BASED_UNIT\('([^']*)'", text)
+    if m:
+        return {"INCH": "inch", "FOOT": "ft"}.get(m.group(1), m.group(1).lower())
+    m = re.search(r"LENGTH_UNIT\(\)NAMED_UNIT\(\*\)SI_UNIT\(([^,]*),\.METRE\.\)", text) or \
+        re.search(r"SI_UNIT\(([^,]*),\.METRE\.\)[^;]*LENGTH_UNIT", text)
+    return EINHEITEN.get(m.group(1), m.group(1)) if m else "unbekannt"
+
+
+def _konsole_mitschneiden(fn):
+    """Führt fn aus und gibt (Ergebnis, Konsolenausgabe) zurück. OpenCascade schreibt Lesefehler direkt auf die
+    Konsole (Dateideskriptor 1), nicht über Python."""
+    import os
+    import re
+    import tempfile
+    sys_out = None
+    try:
+        import sys
+        sys.stdout.flush()
+        sys_out = os.dup(1)
+    except (OSError, ValueError):
+        return fn(), ""
+    with tempfile.TemporaryFile(mode="w+b") as tmp:
+        os.dup2(tmp.fileno(), 1)
+        try:
+            erg = fn()
+        finally:
+            os.dup2(sys_out, 1)
+            os.close(sys_out)
+        tmp.seek(0)
+        text = tmp.read().decode("utf-8", "replace")
+    return erg, re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+def lies_step_info(pfad):
+    """Liest eine STEP-Datei. Ergebnis: (Körper, Info). Körper = Liste (Art, Shape) mit Art 'Volumenkörper',
+    'aus Flächenmodell genäht' (geschlossene Fläche zu Volumen gemacht) oder 'Flächenmodell offen' (nicht messbar).
+    Info: einheit, meldungen (Fehler/Warnungen des Lesers), baugruppe (mehrere Körper). Nichts wird still verworfen:
+    alles, was weder Volumenkörper noch nähbar ist, kommt als 'Flächenmodell offen' zurück.
+    Wirft ValueError, wenn die Datei nicht lesbar ist."""
+    from OCP.IFSelect import IFSelect_RetVoid
     r = STEPControl_Reader()
-    if r.ReadFile(str(pfad)) != IFSelect_RetDone:
-        raise ValueError(f"STEP-Datei nicht lesbar: {pfad}")
+    status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
+    fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
+    if status != IFSelect_RetDone:
+        grund = "leer oder kein STEP" if status == IFSelect_RetVoid else "Syntaxfehler"
+        raise ValueError(f"STEP-Datei nicht lesbar ({grund})" + (": " + "; ".join(fehler[:3]) if fehler else ""))
+    meldungen = list(fehler)
+    chk = r.WS().ModelCheckList(False)
+    chk.Start()
+    while chk.More():
+        c = chk.Value()
+        meldungen += [f"Fehler: {c.CFail(i)}" for i in range(1, c.NbFails() + 1)]
+        meldungen += [f"Warnung: {c.CWarning(i)}" for i in range(1, c.NbWarnings() + 1)]
+        chk.Next()
     r.TransferRoots()
     shape = r.OneShape()
-    solids = []
-    ex = TopExp_Explorer(shape, TopAbs_SOLID)
+    koerper = [("Volumenkörper", TopoDS.Solid(x)) for x in _liste(shape, TopAbs_SOLID)]
+    # Flächen außerhalb von Volumenkörpern (Flächenmodelle): zusammennähen, geschlossene Schalen werden Volumen
+    lose = []
+    ex = TopExp_Explorer(shape, TopAbs_FACE, TopAbs_SOLID)
     while ex.More():
-        solids.append(TopoDS.Solid(ex.Current()))
+        lose.append(ex.Current())
         ex.Next()
-    return solids
+    if lose:
+        koerper += _naehen(lose)
+    meldungen = list(dict.fromkeys(m for m in meldungen if m))
+    return koerper, dict(einheit=_einheit(pfad), meldungen=meldungen[:20], baugruppe=len(koerper) > 1)
+
+
+def _naehen(flaechen, tol=0.01):
+    """Lose Flächen zu Schalen nähen; geschlossene Schalen werden Volumenkörper."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Sewing, BRepBuilderAPI_MakeSolid
+    from OCP.ShapeFix import ShapeFix_Solid
+    from OCP.TopAbs import TopAbs_SHELL
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    naht = BRepBuilderAPI_Sewing(tol)
+    for f in flaechen:
+        naht.Add(f)
+    naht.Perform()
+    erg = naht.SewedShape()
+    out = []
+    schalen = _liste(erg, TopAbs_SHELL)
+    for sh in schalen:
+        sh = TopoDS.Shell(sh)
+        if BRep_Tool.IsClosed_s(sh):
+            ms = BRepBuilderAPI_MakeSolid(sh)
+            if ms.IsDone():
+                fix = ShapeFix_Solid(ms.Solid())
+                fix.Perform()
+                sol = _liste(fix.Shape(), TopAbs_SOLID)
+                if sol and BRepCheck_Analyzer(sol[0]).IsValid():
+                    out.append(("aus Flächenmodell genäht", TopoDS.Solid(sol[0])))
+                    continue
+        out.append(("Flächenmodell offen", sh))
+    if not schalen:   # einzelne Flächen, die sich nicht zu Schalen fügen
+        out += [("Flächenmodell offen", f) for f in _liste(erg, TopAbs_FACE)]
+    return out
+
+
+def lies_step(pfad):
+    """Nur die messbaren Volumenkörper (auch aus Flächenmodellen genähte) einer STEP-Datei."""
+    return [k for art, k in lies_step_info(pfad)[0] if art != "Flächenmodell offen"]
+
+
+def _koerper_daten(t, shape, art):
+    """Kenndaten eines Körpers (in Dateilage, mm) und Geometrieprüfung."""
+    from OCP.BRepCheck import BRepCheck_Analyzer
+    t.koerperart = art
+    p = GProp_GProps()
+    if art != "Flächenmodell offen":
+        BRepGProp.VolumeProperties_s(shape, p)
+        t.volumen = abs(p.Mass())
+    t.oberflaeche = _flaeche(shape)
+    for typ, attr in ((TopAbs_FACE, "n_flaechen"), (TopAbs_EDGE, "n_kanten")):
+        m = TopTools_IndexedMapOfShape()
+        TopExp.MapShapes_s(shape, typ, m)
+        setattr(t, attr, m.Extent())
+    box = Bnd_Box()
+    BRepBndLib.AddOptimal_s(shape, box, False, False)
+    if not box.IsVoid():
+        a, b = box.CornerMin(), box.CornerMax()
+        t.huelle = (b.X() - a.X(), b.Y() - a.Y(), b.Z() - a.Z())
+    t.gueltig = BRepCheck_Analyzer(shape).IsValid()
+    if not t.gueltig:
+        t.hinweise.append("Geometrie laut Prüfung ungültig (Fehler im CAD-Modell), Messwerte prüfen")
+    if art == "aus Flächenmodell genäht":
+        t.hinweise.append("Flächenmodell: zu einem Volumen zusammengenäht, Messwerte prüfen")
 
 
 def _liste(shape, typ):
@@ -713,11 +850,30 @@ def bohrungen_text(bohrungen):
 
 
 def analysiere_datei(pfad, netz=False):
+    """Alle Körper einer STEP-Datei messen. Je Körper ein Teil, auch für nicht messbare (Flächenmodell offen,
+    Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist."""
     from pathlib import Path
     name = Path(pfad).stem
-    solids = lies_step(pfad)
-    if not solids:
-        t = Teil(datei=name, koerper=0)
-        t.hinweise.append("Kein Volumenkörper in der Datei")
+    koerper, info = lies_step_info(pfad)
+    if not koerper:
+        t = Teil(datei=name, koerper=0, einheit=info["einheit"], meldungen=info["meldungen"])
+        t.hinweise.append("Kein Körper und keine Fläche in der Datei")
         return [t]
-    return [analysiere(s, name, i, netz) for i, s in enumerate(solids, start=1)]
+    out = []
+    for i, (art, k) in enumerate(koerper, start=1):
+        if art == "Flächenmodell offen":
+            t = Teil(datei=name, koerper=i)
+            t.hinweise.append("Flächenmodell nicht geschlossen, nicht messbar")
+        else:
+            try:
+                t = analysiere(k, name, i, netz)
+            except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
+                t = Teil(datei=name, koerper=i)
+                t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")
+        t.einheit, t.meldungen = info["einheit"], info["meldungen"]
+        if t.meldungen:
+            t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
+                              + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
+        _koerper_daten(t, k, art)
+        out.append(t)
+    return out
