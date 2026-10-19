@@ -631,10 +631,10 @@ def kapitel_step(i):
     i.liste("Im Angebot auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
             "Umschalt). Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> in das "
             "Angebotsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
-            "Werkstoff und Stückzahl für alle Teile angeben oder leer lassen und später eintragen. Bei Sätzen zählt "
-            "die Stückzahl die Sätze.",
-            "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> alle gemessenen Teile mit einer drehbaren "
-            "3D-Ansicht. <b>Übernehmen</b> legt die Positionen an, <b>Abbrechen</b> verwirft die Messung.",
+            "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Liste der Rohre aus den Dateien, "
+            "gegliedert nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Dort je Teil "
+            "festlegen, ob es übernommen wird, und Profil, Werkstoff und Stückzahl wählen. <b>Übernehmen</b> legt "
+            "die Positionen an, <b>Abbrechen</b> verwirft die Messung.",
             "Enthält eine STEP mehrere Teile (Baugruppe), fragt das Programm, ob sie als Satz angelegt werden sollen "
             "(siehe unten).",
             "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
@@ -642,7 +642,24 @@ def kapitel_step(i):
             "Eintragen.",
             "Am Ende meldet es, wie viele Positionen übernommen wurden; <i>Details</i> zeigt den Bericht je Datei.",
             nummeriert=True)
-    i.bilder_nebeneinander(["step_dialog"], "Werte für alle importierten Teile", hoehe=30 * mm)
+    i.abschnitt("Rohrliste prüfen")
+    i.liste("Jede Zeile ist ein Teil. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
+            "<b>In Datei</b> zeigt, wie oft es in der Datei vorkommt.",
+            "Die Teile sind nach gemessenem Profil gruppiert. Eine rote Gruppenzeile heißt: dieses Profil steht nicht in "
+            "den Stammdaten (beim Übernehmen fragt das Programm, ob es angelegt werden soll).",
+            "<b>Häkchen</b> vor dem Teil: übernehmen ja/nein. Abgewählte Teile stehen nur im STEP-Protokoll.",
+            "<b>Profil-ID</b>: vorgeschlagen ist das passende Profil der Stammdaten. Ein anderes wählen oder eine neue "
+            "ID eintippen, z. B. wenn ein Teil aus einem anderen Rohr gefertigt wird.",
+            "<b>Werkstoff-ID</b> und <b>Stückzahl</b> je Teil; leer = später im Angebot eintragen. Bei einem Satz "
+            "zählt die Stückzahl die Sätze.",
+            "Für viele Teile auf einmal: unten Werkstoff und/oder Stückzahl wählen und <b>Für alle</b> klicken, oder "
+            "Zeilen markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> "
+            "setzen die Häkchen.",
+            "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i> mit dem Grund.")
+    i.bild("step_pruefen", "STEP-Import prüfen: Rohrliste je Profil, Eingaben je Teil und 3D-Ansicht",
+           hoehe=100 * mm, legende=[
+               (1, "Rohrliste: Häkchen, Profil-ID, Werkstoff-ID und Stückzahl je Teil."),
+               (2, "Werkstoff und Stückzahl für alle oder die markierten Zeilen setzen.")])
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
         (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
@@ -660,7 +677,6 @@ def kapitel_step(i):
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
             "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.")
-    i.bild("step_pruefen", "STEP-Import prüfen: Messwerte je Teil und 3D-Ansicht vor dem Übernehmen", hoehe=95 * mm)
     i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
         (1, "Feste Blickrichtungen: <b>Schräg</b>, <b>Vorn</b>, <b>Oben</b> und <b>Stirnseite</b>.")])
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
