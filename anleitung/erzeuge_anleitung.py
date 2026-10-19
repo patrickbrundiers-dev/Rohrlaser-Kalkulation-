@@ -831,6 +831,25 @@ def kapitel_step(i):
             "leere Datei erscheint im Protokoll als FEHLER <i>STEP-Datei nicht lesbar</i>.",
             "Zu jedem Körper stehen in den Messwerten zusätzlich Volumen, Oberfläche, Anzahl Flächen und Kanten und "
             "der Hüllquader in der Lage der Datei.")
+    i.abschnitt("Geprüfte Fälle und bekannte Grenzen")
+    i.text("Die Messung wird bei jeder Programmänderung mit Referenzteilen geprüft, deren Maße aus der Konstruktion "
+           "bekannt sind: Rechteckrohr 60x40x2, Quadratrohr 40x40x2, Rundrohr 42,4x2, Rohr mit bekannten Bohrungen, "
+           "Langloch und Ausschnitt, 45°-Gehrung, zweiachsiger Schrägschnitt, gedrehte und verschobene Teile, "
+           "Baugruppe, defekte Datei, STEP-Varianten AP203/AP214/AP242, Zoll und Meter, CAD-Toleranzen "
+           "(z. B. 60,02 statt 60) und Freiformflächen. Maße stimmen dabei auf 0,01 mm, Winkel auf 0,1°.")
+    i.text("Bekannte Grenzen:")
+    i.liste("Gebogene Rohre und Rohre mit veränderlichem Querschnitt: keine Maße, Prüfstatus <i>nicht messbar</i>.",
+            "Rohre mit Sicke oder anderem nicht konvexem Querschnitt werden über ihr umschließendes Rechteck "
+            "gemessen und stehen mit Prüfstatus <i>prüfen</i> da.",
+            "Gewinde werden nur als Kernloch erkannt; der Gewindevorschlag ist von Hand zu prüfen.",
+            "U-, L-, C-Profile und Flachstahl werden erkannt und gemeldet, aber nicht kalkuliert. Andere offene "
+            "Profile (z. B. T-Profil) erscheinen als <i>offenes Sonderprofil</i> und werden ebenfalls nicht "
+            "übernommen.",
+            "Schräge Bohrungen werden über ihre Zylinderfläche erkannt; andere schräge Durchbrüche erscheinen als "
+            "Ausschnitt.",
+            "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; "
+            "lose Flächen daneben stehen als <i>Flächenmodell offen</i> im Protokoll.",
+            "<i>plausibel</i> heißt: die Messung ist in sich stimmig. Es ist keine Fertigungsfreigabe.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Liegen in einer STEP-Datei mehrere Rohrteile, steht im Dialog STEP-Import prüfen oben das Feld "
            "<b>Sätze</b>. Ist eine Anzahl eingetragen:")

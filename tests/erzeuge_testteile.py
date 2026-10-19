@@ -8,7 +8,9 @@ from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
 from OCP.BRepBuilderAPI import (BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert, BRepBuilderAPI_MakePolygon,
                                 BRepBuilderAPI_MakeFace)
-from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs, STEPControl_ShellBasedSurfaceModel
+from OCP.STEPControl import (STEPControl_Writer, STEPControl_AsIs, STEPControl_ShellBasedSurfaceModel,
+                             STEPControl_Controller)
+from OCP.Interface import Interface_Static
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopAbs import TopAbs_EDGE
 from OCP.TopoDS import TopoDS, TopoDS_Compound
@@ -143,6 +145,17 @@ def schreibe(shape, name, ziel=None):
     w.Write(str(ziel / f"{name}.step"))
 
 
+def schreibe_schema(shape, name, ziel, schema):
+    """STEP in einem bestimmten Anwendungsprotokoll (AP203, AP214IS, AP242DIS) schreiben."""
+    STEPControl_Controller.Init_s()
+    alt = Interface_Static.CVal_s("write.step.schema")
+    Interface_Static.SetCVal_s("write.step.schema", schema)
+    try:
+        schreibe(shape, name, ziel)
+    finally:
+        Interface_Static.SetCVal_s("write.step.schema", alt)
+
+
 def schreibe_einheit(shape, name, ziel, einheit):
     """STEP in anderer Längeneinheit: Geometrie in diese Einheit umrechnen und die Einheit in der Datei ersetzen.
     Gelesen muss wieder dasselbe Teil in mm herauskommen."""
@@ -275,4 +288,49 @@ if __name__ == "__main__":
     r = cut(r, zylinder((0, 0, 450), (-1, 0, 0), 12, 40))               # Ø12 radial links (90°), z 450
     r = schraeg_ende(r, 30, 20, 10, ende_b=False)                        # Ende A: zweiachsig 20°/10° durch z 30
     schreibe(r, "K03_RR42-4x2_Konturen", kon)
-    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, "und", kon)
+    # Referenzteile (eigener Ordner step_referenz): Grundformen, STEP-Varianten (AP203/AP214/AP242), CAD-Toleranzen,
+    # gefaste Ecken
+    ref = ZIEL.parent / "step_referenz"
+    schreibe(kastenrohr(60, 40, 2, 1000, 4), "REF01_RE60x40x2_L1000", ref)
+    schreibe(kastenrohr(40, 40, 2, 1000, 3), "REF02_QR40x40x2_L1000", ref)
+    schreibe(rundrohr(42.4, 2.0, 1000), "REF03_RR42-4x2_L1000", ref)
+    for nr, schema in (("REF04", "AP203"), ("REF05", "AP214IS"), ("REF06", "AP242DIS")):
+        schreibe_schema(drehe_beliebig(kastenrohr(60, 40, 2, 1000, 4)), f"{nr}_RE60x40x2_{schema}", ref, schema)
+    # CAD-Toleranzen: Außenmaß 60,02 x 39,99, Wand 2,01 (Innenkasten 56,00 x 35,97): Maße wie modelliert, Profil
+    # passt im Programm trotzdem auf RE 60x40x2 (±0,15 mm)
+    schreibe(cut(profil([(-30.01, -19.995), (30.01, -19.995), (30.01, 19.995), (-30.01, 19.995)], 1000),
+                 profil([(-28, -17.985), (28, -17.985), (28, 17.985), (-28, 17.985)], 1000)),
+             "REF07_RE60x40x2_Toleranz", ref)
+    # Quadratrohr 40x2 mit 45°-Fasen statt Radien (außen 3 mm, innen parallel im Abstand der Wand)
+    ca, ci = 3.0, 3.0 - 4 + 2 * math.sqrt(2)
+
+    def achteck(h, c):
+        return [(-h + c, -h), (h - c, -h), (h, -h + c), (h, h - c), (h - c, h), (-h + c, h), (-h, h - c), (-h, -h + c)]
+    schreibe(cut(profil(achteck(20, ca), 800), profil(achteck(18, ci), 800)), "REF08_QR40x2_Fasen_L800", ref)
+    # Rechteckrohr 60x40x2 scharfkantig, Ende B 45° Gehrung über die 60er-Seite (Länge außen 1030)
+    schreibe(gehrung(kastenrohr(60, 40, 2, 1100, 0), 1000, 45), "REF09_RE60x40x2_Gehrung45", ref)
+    # Baugruppe aus drei Rohren, alle verschoben/gedreht
+    tr = gp_Trsf(); tr.SetTranslation(gp_Vec(300, 0, 0))
+    tr2 = gp_Trsf(); tr2.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.radians(90))
+    schreibe(baugruppe(kastenrohr(60, 40, 2, 1000, 4),
+                       BRepBuilderAPI_Transform(rundrohr(42.4, 2, 600), tr, True).Shape(),
+                       BRepBuilderAPI_Transform(kastenrohr(40, 40, 2, 500, 3), tr2, True).Shape()),
+             "REF10_Baugruppe_3Rohre", ref)
+    # Grenzfälle: gebogenes Rundrohr (90°-Bogen R200) und nicht konvexes Hohlprofil (Quadratrohr mit Sicke)
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeTorus
+    bogen = [BRepPrimAPI_MakeTorus(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 200, r, math.radians(90)).Shape()
+             for r in (21.2, 19.2)]
+    schreibe(cut(*bogen), "REF11_RR42-4x2_Bogen90", ref)
+    schreibe(cut(profil([(-20, -20), (20, -20), (20, 20), (5, 20), (0, 15), (-5, 20), (-20, 20)], 600),
+                 profil([(-18, -18), (18, -18), (18, 18), (6, 18), (0, 12), (-6, 18), (-18, 18)], 600)),
+             "REF12_QR40x2_Sicke", ref)
+    # T-Profil 50x40x5 (offen, von der Profilerkennung nicht als U/L/C erkannt): gemeldet, nie kalkuliert
+    schreibe(profil([(-25, 15), (-2.5, 15), (-2.5, -20), (2.5, -20), (2.5, 15), (25, 15), (25, 20), (-25, 20)], 600),
+             "REF13_T50x40x5_L600", ref)
+    # Flächenmodell: geschlossenes Quadratrohr und eine lose Fläche daneben (beides muss gemeldet werden)
+    tr = gp_Trsf(); tr.SetTranslation(gp_Vec(200, 0, 0))
+    lose = BRepBuilderAPI_Transform(BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 21.2, 500)
+                                    .Cylinder().LateralFace(), tr, True).Shape()
+    schreibe_flaechenmodell(baugruppe(kastenrohr(40, 40, 2, 800, 3), lose), "REF14_Flaechenmodell_mit_loser_Flaeche",
+                            ref)
+    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, "und", ref)
