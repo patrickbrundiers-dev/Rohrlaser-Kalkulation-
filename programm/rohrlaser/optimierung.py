@@ -37,6 +37,7 @@ class Gruppe:
     greiferrest: float
     kerf: float
     abstand: float
+    oberflaeche: str = ""    # leer = roh; unterschiedliche Oberflächen nie auf derselben Stange
     teile: list = field(default_factory=list)
     bewiesen: bool = False   # Stangenzahl ist nachweislich minimal
 

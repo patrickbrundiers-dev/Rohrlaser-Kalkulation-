@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .ansicht3d import Ansicht3DMitKnoepfen
+from .fenster import liste_fuellen
 from .stammdaten import zahl_als_text
 
 def _f(m, name):
@@ -135,7 +136,7 @@ class StepPruefDialog(QDialog):
         self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
         teile = step.gleiche_teile(messwerte)
         fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
-        profile, werkstoffe = k.auswahl("profil"), k.auswahl("werkstoff")
+        profile = k.auswahl("profil")
         reihe = sorted(teile.items(), key=lambda e: (self.dateien.index(messwerte[e[0]].get("datei")),
                                                      step.profil_vorschlag(messwerte[e[0]], k.profile) or ""))
         for erster, liste in reihe:
@@ -170,7 +171,7 @@ class StepPruefDialog(QDialog):
             pr.addItems(sorted(set(profile) | ({vorschlag} if vorschlag else set())))
             pr.setCurrentText(m.get("_profil") or vorschlag or "")
             ws = QComboBox()
-            ws.addItems([""] + werkstoffe)
+            liste_fuellen(ws, k, "werkstoff")
             ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
             sp = QSpinBox()
             sp.setRange(0, 100000)
@@ -205,7 +206,7 @@ class StepPruefDialog(QDialog):
         alle.setContentsMargins(0, 0, 0, 0)
         alle.addWidget(QLabel("Werte setzen:"))
         self.alle_ws = QComboBox()
-        self.alle_ws.addItems(["(Werkstoff)"] + werkstoffe)
+        liste_fuellen(self.alle_ws, k, "werkstoff", "(Werkstoff)")
         self.alle_stk = QSpinBox()
         self.alle_stk.setRange(0, 100000)
         self.alle_stk.setSpecialValueText("(Stückzahl)")

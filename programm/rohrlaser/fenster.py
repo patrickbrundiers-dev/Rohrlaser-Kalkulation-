@@ -132,6 +132,22 @@ class Sortierung(QSortFilterProxyModel):
         return str(a).lower() < str(b).lower()
 
 
+def liste_fuellen(cb, k, quelle, erster=""):
+    """Auswahlliste füllen; Werkstoffe und Oberflächen mit Überschriften je Kategorie (nicht wählbar).
+    erster: Eintrag vor der Liste (None = keiner)."""
+    if erster is not None:
+        cb.addItem(erster)
+    for titel, werte in k.gruppiert(quelle):
+        if titel:
+            cb.addItem(f"— {titel} —")
+            it = cb.model().item(cb.count() - 1)
+            it.setEnabled(False)
+            f = it.font()
+            f.setBold(True)
+            it.setFont(f)
+        cb.addItems(werte)
+
+
 class Auswahl(QStyledItemDelegate):
     """Auswahlliste für Felder mit fester Liste (Profilform, Preisbasis, Profil-ID, …)."""
 
@@ -145,7 +161,7 @@ class Auswahl(QStyledItemDelegate):
         if art == "feld" and f.art == "auswahl":
             cb = QComboBox(parent)
             cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein"))
-            cb.addItems([""] + quelle.model().k.auswahl(f.auswahl))
+            liste_fuellen(cb, quelle.model().k, f.auswahl)
             return cb
         return super().createEditor(parent, option, index)
 

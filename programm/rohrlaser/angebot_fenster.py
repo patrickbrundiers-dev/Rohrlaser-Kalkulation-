@@ -245,9 +245,9 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Länge gesamt [mm]", "laenge_gesamt", 0), ("Stangenlänge wirksam [mm]", "stange", 0),
              ("Endbeschnitt wirksam [mm]", "end", 0), ("Greiferrest wirksam [mm]", "greif", 0),
              ("Nutzlänge Stange [mm]", "nutz", 0), ("Preis hinterlegt", "preis_hinterlegt", None),
-             ("Vorschub groß [mm/min]", "vorschub", 0), ("Gewicht Position [kg]", "gewicht_position", 2),
+             ("Vorschub groß [mm/min]", "vorschub", 0), ("Schneidgas", "gas", None), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
-SICHTBAR = ["pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "laenge", "stueck", "schneidweg",
+SICHTBAR = ["pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz"]
 
 
@@ -289,7 +289,7 @@ class PositionenModell(QAbstractTableModel):
         self.werte, self.status, self.zeiten = [], [], []
         for i, p in enumerate(self.daten):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
-            self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand"), s.tabellen)[2])   # berechnet [s]
+            self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand"), s.tabellen, s.k)[2])   # berechnet [s]
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
             w["eingeplant"] = ein if p.get("profil_id") else None
             w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
@@ -547,7 +547,7 @@ class Stangenbild(QWidget):
             p.setFont(fett)
             anz = len(nummern)
             nr_text = ", ".join(map(str, nummern)) if anz <= 6 else f"{nummern[0]}–{nummern[-1]}"
-            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {s['werkstoff']}  {_z(s['stange'], 0)} mm")
+            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm")
             p.drawText(x0, y + 12, kopf)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]

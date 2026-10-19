@@ -5,9 +5,11 @@ PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 
 2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
 Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote,
 7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf,
-8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position, 10 = Kalkulationswerte je Angebot).
+8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position, 10 = Kalkulationswerte je Angebot,
+11 = Werkstoff-Kategorien, Oberflächen, Schneiddaten je Kategorie und Schneidgas).
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
-Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt.
+Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt, Dateien vor Schema 11
+bekommen Kategorien, die neuen Beispiel-Werkstoffe und -Oberflächen und Schneiddaten je Kategorie.
 """
 import datetime
 import json
@@ -16,9 +18,9 @@ from pathlib import Path
 
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
-                         beispieldaten, kontext_aus)
+                         beispieldaten, kategorie_raten, kontext_aus)
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -53,11 +55,11 @@ class Datenbank:
         with self.con:
             if 0 < version < 6:
                 self._umbenennen()
+            if 0 < version < 11:          # Schlüssel der Schneiddaten mit Kategorie und Schneidgas
+                self.con.execute('DROP INDEX IF EXISTS "schneiddaten_schluessel"')
             for t in TABELLEN:
                 spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in t.felder)
                 self.con.execute(f'CREATE TABLE IF NOT EXISTS "{t.name}" (id INTEGER PRIMARY KEY, {spalten})')
-                schl = ", ".join(f'"{s}"' for s in t.schluessel)
-                self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
             self.con.execute("CREATE TABLE IF NOT EXISTS einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
             kopf = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in KOPF)
             self.con.execute(f"CREATE TABLE IF NOT EXISTS angebote (id INTEGER PRIMARY KEY, {kopf}, angelegt TEXT, "
@@ -85,12 +87,39 @@ class Datenbank:
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
                         self.con.execute(f'ALTER TABLE "{tabelle}" ADD COLUMN "{f.name}" {SQL_ART.get(f.art, "TEXT")}')
+            for t in TABELLEN:                         # nach den neuen Spalten: Schlüssel können sie enthalten
+                # leere Felder im Schlüssel (Schneiddaten: Werkstoff-ID oder Kategorie) zählen als gleich
+                schl = ", ".join(f'"{s}"' if t.feld(s).pflicht else f"""COALESCE("{s}", '')""" for s in t.schluessel)
+                self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
             if 0 < version < 5 and not self.anzahl("zusatzarbeiten"):
                 namen = [f.name for f in TABELLE["zusatzarbeiten"].felder]
                 self.con.executemany(f'INSERT INTO zusatzarbeiten ({", ".join(namen)}) VALUES ({", ".join("?" * len(namen))})',
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
+            if 0 < version < 11:
+                self._werkstoffe_ergaenzen()
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
+
+    def _einfuegen(self, tabelle, zeilen):
+        namen = [f.name for f in TABELLE[tabelle].felder]
+        self.con.executemany(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
+                             f'VALUES ({", ".join("?" * len(namen))})', [[z.get(n) for n in namen] for z in zeilen])
+
+    def _werkstoffe_ergaenzen(self):
+        """Dateien vor Schema 11: Kategorie der vorhandenen Werkstoffe raten, fehlende Beispiel-Werkstoffe und
+        Oberflächen ergänzen (vorhandene bleiben unverändert). Schneiddaten: unveränderte Beispieldaten werden
+        ersetzt; eigene Werte bleiben und gehen vor, dazu kommen die Beispielwerte je Kategorie."""
+        neu = beispieldaten()
+        for z in self.zeilen("werkstoffe"):
+            if not z.get("kategorie"):
+                self.con.execute("UPDATE werkstoffe SET kategorie=? WHERE id=?", (kategorie_raten(z), z["id"]))
+        da = {z["werkstoff_id"] for z in self.zeilen("werkstoffe")}
+        self._einfuegen("werkstoffe", [z for z in neu["werkstoffe"] if z["werkstoff_id"] not in da])
+        if not self.anzahl("oberflaechen"):
+            self._einfuegen("oberflaechen", neu["oberflaechen"])
+        if self.einstellung("stammdaten_herkunft") == "Beispieldaten":
+            self.con.execute("DELETE FROM schneiddaten")
+        self._einfuegen("schneiddaten", neu["schneiddaten"])
 
     def _umbenennen(self):
         """Dateien vor Schema 6: Tabellen, Spalten und Einstellungen von Auftrag auf Angebot umbenennen."""
@@ -186,7 +215,9 @@ class Datenbank:
 
     def kontext(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
-        return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen")}, formen)
+        kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
+        return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen")},
+                           formen, kategorien)
 
     def tabellen(self):
         """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten)."""
