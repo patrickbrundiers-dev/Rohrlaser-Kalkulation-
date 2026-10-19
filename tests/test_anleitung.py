@@ -20,6 +20,7 @@ from rohrlaser.auftrag import KOPF, POSITIONEN  # noqa: E402
 from rohrlaser.auftrag_fenster import SICHTBAR  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
+from rohrlaser.rechnen import KOSTENARTEN  # noqa: E402
 from rohrlaser.stammdaten import EINSTELLUNGEN, TABELLEN  # noqa: E402
 
 QUELLE = (HIER.parent / "anleitung" / "erzeuge_anleitung.py").read_text(encoding="utf-8")
@@ -42,6 +43,7 @@ pruefen = []
 pruefen += [("Stammdatentabelle", t.titel) for t in TABELLEN]
 pruefen += [("Feld in " + t.titel, f.titel) for t in TABELLEN for f in t.felder if t.blatt is None or not f.spalte]
 pruefen += [("Einstellung", e.titel) for e in EINSTELLUNGEN]
+pruefen += [("Kostenart", t) for t, _, _ in KOSTENARTEN]
 pruefen += [("Auftragskopf", f.titel) for f in KOPF]
 pruefen += [("Position", f.titel) for f in POSITIONEN.felder if f.name in SICHTBAR]
 

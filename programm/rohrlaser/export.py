@@ -6,7 +6,7 @@ from openpyxl.utils import get_column_letter
 
 from .auftrag import KOPF, POSITIONEN
 from .auftrag_spalten import AUSW_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
-from .rechnen import auswertung_zeilen, zusatz_text
+from .rechnen import auswertung_zeilen, kostenarten, zusatz_text
 from .staffeln import SPALTEN as STAFFEL_SPALTEN
 
 KOPF_FUELLUNG = PatternFill("solid", fgColor="1F4E78")
@@ -34,7 +34,8 @@ def _blatt(wb, name, titel, spalten, zeilen, formate=None):
     return ws
 
 
-def auftrag_xlsx(pfad, kopf, positionen, status, kalk_zeilen, summen, ergebnis, stangen_werte, staffelpreise, ang):
+def auftrag_xlsx(pfad, kopf, positionen, status, kalk_zeilen, summen, ergebnis, stangen_werte, staffelpreise, ang,
+                 einst=None):
     wb = Workbook()
     wb.remove(wb.active)
     # Auftrag: Kopf und Positionen
@@ -49,15 +50,11 @@ def auftrag_xlsx(pfad, kopf, positionen, status, kalk_zeilen, summen, ergebnis, 
     ws.freeze_panes = f"A{len(KOPF) + 5}"
     _blatt(wb, "Kalkulation", "Kalkulation", [(t, s, w / 6) for t, s, _, w in KALK_SPALTEN], [z for z in kalk_zeilen if z])
     ks = wb["Kalkulation"]
-    ks.insert_rows(2, 11)
-    for i, (t, n) in enumerate((("Material [€]", "material"), ("Laser + Gewinde [€]", "laser"),
-                                ("Rüsten + Stangenwechsel [€]", "ruesten"), ("Zusatzarbeiten [€]", "zusatz"),
-                                ("Herstellkosten [€]", "herstell"),
-                                ("Pauschalen je Abmessung [€]", "pauschalen"), ("Programmierkosten [€]", "programmierung"),
-                                ("Auftragsaufschlag [€]", "auftragsaufschlag"),
-                                ("Fracht [€]", "fracht"), ("Verkaufspreis Auftrag [€]", "verkauf"))):
-        ks.cell(2 + i, 1, t).font = Font(bold=True)
-        ks.cell(2 + i, 3, summen[n]).number_format = "#,##0.00"
+    kosten = kostenarten(summen, einst or {})
+    ks.insert_rows(2, len(kosten) + 1)
+    for i, (t, w, _) in enumerate(kosten):
+        ks.cell(2 + i, 1, f"{t} [€]").font = Font(bold=True)
+        ks.cell(2 + i, 3, w).number_format = "#,##0.00"
     if ergebnis:
         stangen = [dict(s, **w) for s, w in zip(ergebnis["stangen"], stangen_werte)]
         _blatt(wb, "Schnittplan", "Schnittplan", [(t, s, w / 6) for t, s, _, w in STANGEN_SPALTEN], stangen)
