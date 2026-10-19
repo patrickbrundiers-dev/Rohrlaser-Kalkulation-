@@ -111,6 +111,13 @@ assert sorted(m["werkstoff"] for m in wst["material"]) == ["1.4301", "1.4301 K24
 from rohrlaser import nachkalkulation  # noqa: E402
 assert sorted(g["schluessel"] for g in nachkalkulation.gruppen(erg, kopf, pos, k, tab)) == \
     ["RR 42,4x2,0|1.4301|6000", "RR 42,4x2,0|1.4301|6000|K240"]
+# Staffelpreise veralten, wenn sich der Aufpreis einer Oberfläche ändert
+from rohrlaser import staffeln  # noqa: E402
+stufen = [dict(schluessel="20", menge=3)]
+vorher = staffeln.kennung(kopf, pos, stufen, k, tab, db.einstellungen())
+db.aendern("oberflaechen", next(o["id"] for o in db.zeilen("oberflaechen") if o["oberflaeche"] == "K240"),
+           "aufpreis_m", 3.0)
+assert staffeln.kennung(kopf, pos, stufen, db.kontext(), tab, db.einstellungen()) != vorher
 # Gespeicherte Ergebnisse älterer Versionen (ohne Oberfläche) rechnen unverändert, Kennung bleibt gleich
 alt = [dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=900, stueck=5)]
 e_alt = rechnen.optimieren(kopf, alt, k)
