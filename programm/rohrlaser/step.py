@@ -133,9 +133,15 @@ def profil_vorschlag(m, profile):
 NICHT_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl")
 
 
+def unsicher(m):
+    """Merkmale, die die Messung als unsicher bewertet (Spalte 'sicherheit', z. B. 'wandstaerke=unsicher')."""
+    return [k for k, _, v in (x.partition("=") for x in (m.get("sicherheit") or "").split(";")) if v == "unsicher"]
+
+
 def gewaehlt(m):
-    """False, wenn das Teil im Prüfdialog abgewählt wurde (Schlüssel '_uebernehmen')."""
-    return m.get("_uebernehmen", True) is not False
+    """False, wenn das Teil im Prüfdialog abgewählt wurde (Schlüssel '_uebernehmen'). Ohne Entscheidung im Dialog
+    werden Teile mit unsicherer Erkennung nicht übernommen (erst nach Bestätigung durch Anhaken)."""
+    return m.get("_uebernehmen", not unsicher(m)) is not False
 
 
 TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wenn alle Maße so nah beieinander liegen
@@ -272,7 +278,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
         elif not gewaehlt(m):
-            hinweise.append("nicht übernommen: im Prüfdialog abgewählt")
+            hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(unsicher(m))}), im Prüfdialog "
+                            "bestätigen" if "_uebernehmen" not in m else "nicht übernommen: im Prüfdialog abgewählt")
         elif art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):

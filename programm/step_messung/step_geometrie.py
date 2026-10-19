@@ -86,8 +86,10 @@ class Teil:
     hinweise: list = field(default_factory=list)
     innen_a: float = 0.0        # Innenmaß Ø bzw. Breite (Hohlprofile)
     innen_b: float = 0.0        # Innenmaß Höhe
-    wand_messungen: list = field(default_factory=list)  # je Messstelle (z, x, y, Wert, Seite) im Rohrsystem [mm]
+    wand_messungen: list = field(default_factory=list)  # je Messstelle (z ab Ende A, x, y, Wert, Seite) [mm]
     sicherheit: dict = field(default_factory=dict)       # je Merkmal: sicher / wahrscheinlich / unsicher / …
+    achse_global: tuple = ()    # Richtung der Rohrachse (Ende A -> B) in der Datei, Einheitsvektor
+    ende_a_global: tuple = ()   # Mitte von Ende A (Schwerlinie, z = 0) in der Datei [mm]
     konturen_liste: list = field(default_factory=list)  # je Kontur ein dict: Art, Lage (z, Winkel, Seite), Maße
     # Import (je Datei bzw. je Körper)
     einheit: str = ""           # Längeneinheit laut Datei (mm, cm, m, inch, ft); gemessen wird immer in mm
@@ -100,6 +102,17 @@ class Teil:
     n_kanten: int = 0
     huelle: tuple = ()          # Hüllquader in Dateilage (dx, dy, dz) [mm]
     netz: dict = None           # 3D-Ansicht: {p: [x, y, z, …], t: {Art: [i, j, k, …]}, l: {Art: [[x, y, z, …], …]}}
+
+    @property
+    def pruefstatus(self):
+        """'nicht messbar' (kein Profil erkannt), 'prüfen' (unsichere Merkmale, Hinweise, ungültige Geometrie) oder
+        'plausibel'. Plausibel heißt nur: die Messung ist in sich stimmig – keine Fertigungsfreigabe."""
+        if not self.profilform or self.laenge <= 0:
+            return "nicht messbar"
+        if self.hinweise or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
+                self.profilform == "Sonderprofil":
+            return "prüfen"
+        return "plausibel"
 
     @property
     def profil_id_vorschlag(self):
@@ -895,7 +908,7 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
     Konturen werden bei diesen Profilen noch nicht ausgewertet (sie werden auch noch nicht kalkuliert)."""
     messungen = []
     for z, wsz in passend:
-        messungen += _wand_messungen(wsz, False, z)
+        messungen += _wand_messungen(wsz, False, z - zmin)
     werte = sorted(m[3] for m in messungen)
     wand = werte[len(werte) // 2] if werte else 0.0
     seiten = {}
@@ -946,6 +959,9 @@ def analysiere(solid, datei="", koerper=1, netz=False):
 
     zmin, zmax = _z_bereich(lok)
     t.laenge = zmax - zmin
+    d, p = ax3.Direction(), _global(ax3, 0, 0, zmin)
+    t.achse_global = (d.X(), d.Y(), d.Z())
+    t.ende_a_global = (p.X(), p.Y(), p.Z())
 
     # Querschnitt: Lage mit größter Netto-Fläche, zuerst als Hohlprofil (genau 2 Konturen: außen/innen), sonst mit
     # einer Kontur (U, L, C, Flach …). Bis zu 49 Lagen über die ganze Länge, damit auch lange Ausschnitte umgangen
@@ -1013,7 +1029,7 @@ def analysiere(solid, datei="", koerper=1, netz=False):
 
     # Wandstärke an mehreren Stellen (je Querschnittslage mehrere Messstellen) und Gegenprobe
     for z, wsz in passend:
-        t.wand_messungen += _wand_messungen(wsz, form == "Kreis", z)
+        t.wand_messungen += _wand_messungen(wsz, form == "Kreis", z - zmin)
     werte = [m[3] for m in t.wand_messungen] + [t.wandstaerke]
     if max(werte) - min(werte) > TOL_WAND_GLEICH:
         t.sicherheit["wandstaerke"] = "unsicher"

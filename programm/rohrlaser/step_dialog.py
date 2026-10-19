@@ -19,13 +19,19 @@ def _f(m, name):
 
 
 def _messinfo(m):
+    from . import step
     if m.get("fehler"):
         return f"<b style='color:#C00000'>FEHLER: {m['fehler']}</b>"
     z = lambda name, st=1: zahl_als_text(_f(m, name), st)
+    status = m.get("pruefstatus") or ""
+    farbe = {"plausibel": "#375623", "prüfen": "#9C5700", "nicht messbar": "#C00000"}.get(status, "#000000")
+    unsicher = step.unsicher(m)
     return (f"<b>{m.get('artikel')}</b>: {m.get('profilform')} {m.get('profil_id_vorschlag') or ''}, Länge {z('laenge')} mm, "
             f"Schneidweg {z('schneidweg')} mm (Anfangsschnitt {z('ende_a')}, Endschnitt {z('ende_b')}, Innenkonturen "
             f"{z('innen')} mm in {m.get('innen_konturen') or 0} Konturen), Gravur {z('gravur')} mm, Einstiche "
-            f"{m.get('konturen') or 0}" + (f" · {m['hinweise']}" if m.get("hinweise") else ""))
+            f"{m.get('konturen') or 0}" + (f" · {m['hinweise']}" if m.get("hinweise") else "")
+            + (f"<br><b style='color:{farbe}'>Prüfstatus: {status}</b>" if status else "")
+            + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else ""))
 
 
 class _Mit3D(QDialog):
@@ -162,8 +168,12 @@ class StepPruefDialog(QDialog):
                 it.setText(c, zahl_als_text(w, 1))
             it.setText(7, str(int(_f(m, "konturen"))))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if step.unsicher(m):
+                hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
             hinweis += [h for h in [m.get("hinweise")] if h]
             it.setText(8, "; ".join(hinweis))
+            if m.get("pruefstatus") == "prüfen":
+                it.setBackground(8, QBrush(QColor("#FFEB9C")))
             for c in (1, 4, 5, 6, 7):
                 it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
             pr = QComboBox()

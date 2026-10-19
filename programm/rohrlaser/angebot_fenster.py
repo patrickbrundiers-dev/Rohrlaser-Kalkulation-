@@ -1254,14 +1254,15 @@ class AngebotSeite(QWidget):
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
-            netze = Path(tmp) / "netze"
-            if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze)],
-                                len(dateien)):
+            netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
+            if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
+                                          "--json", str(ergebnis)], len(dateien)):
                 return None
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
             messwerte = step.lade_netze(step.lies_messwerte(ausgabe), netze)
+            json_ablage = self._messung_ablegen(ergebnis)
         if not self.f.stumm:        # Rohre prüfen: je Teil übernehmen, Profil, Werkstoff, Stückzahl
             from .step_dialog import StepPruefDialog
             if StepPruefDialog(self, messwerte, self.k, werkstoff, stueck).exec() != QDialog.Accepted:
@@ -1290,6 +1291,8 @@ class AngebotSeite(QWidget):
                 self.db.netz_speichern(pid, netz)
         self.db.protokoll_anhaengen(self.id, erg["protokoll"])
         self.neu_laden()
+        if json_ablage:
+            erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
         self.f.meldung(text)
         if not self.f.stumm:
@@ -1297,6 +1300,21 @@ class AngebotSeite(QWidget):
             box.setDetailedText("\n".join(erg["bericht"]))
             box.exec()
         return erg
+
+    def _messung_ablegen(self, ergebnis):
+        """Messergebnis im JSON-Format (versioniert, siehe step_messung/step_ergebnis.py) in die Ablage kopieren:
+        '<Angebot> STEP-Messung <Datum Uhrzeit>.json'. Im Selbsttest (stumm) nicht. Ergebnis: Pfad oder None."""
+        if self.f.stumm or not ergebnis.exists():
+            return None
+        ziel = self._ziel(f"STEP-Messung {datetime.datetime.now():%Y-%m-%d %H%M%S}", ".json")
+        if ziel is None:
+            return None
+        try:
+            ziel.write_bytes(ergebnis.read_bytes())
+        except OSError as e:
+            self.f.meldung(f"Messergebnis (JSON) nicht gespeichert: {e}")
+            return None
+        return ziel
 
     def ansicht_3d(self, zeile=None):
         """3D-Ansicht der Positionen (Teile aus dem STEP-Import); zeigt zuerst die markierte Position."""
