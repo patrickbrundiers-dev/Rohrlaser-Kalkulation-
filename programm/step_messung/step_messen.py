@@ -7,7 +7,10 @@ und schreibt die Messwerte als Textdatei (UTF-8, Tabulator-getrennt, Dezimalpunk
 "STEP importieren" im Programm startet diese Messung und übernimmt die Werte ins Angebot.
 
 Aufruf:
-    STEP-Import.exe --ausgabe MESSWERTE.txt [--netze ORDNER] (--liste DATEILISTE.txt | DATEI_ODER_ORDNER ...)
+    STEP-Import.exe --ausgabe MESSWERTE.txt [--json ERGEBNIS.json] [--netze ORDNER]
+                    (--liste DATEILISTE.txt | DATEI_ODER_ORDNER ...)
+
+--json ERGEBNIS.json: alle Messwerte zusätzlich im versionierten JSON-Format (step_ergebnis.py, Schema-Version darin).
 
 --netze ORDNER: je Teil zusätzlich ein Dreiecksnetz für die 3D-Ansicht als JSON-Datei (Spalte "netz" = Dateiname).
 
@@ -23,6 +26,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import step_ergebnis  # noqa: E402
 from step_geometrie import analysiere_datei  # noqa: E402
 
 PROZESSE_MAX = 4      # gleichzeitige Messprozesse bei vielen Dateien (jeder lädt OpenCascade einmal)
@@ -30,8 +34,8 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "schneidweg", "konturen", "ende_a", "ende_a_gerade", "ende_b", "ende_b_gerade", "innen",
            "innen_konturen", "gravur", "gravur_konturen", "bohrungen", "innen_liste", "profil_id_vorschlag",
            "hinweise", "einheit", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen", "n_kanten",
-           "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste", "netz",
-           "fehler"]
+           "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste",
+           "pruefstatus", "netz", "fehler"]
 
 
 def _z(x):
@@ -63,10 +67,17 @@ def _analysiere(datei, netz=False):
 def zeilen(datei, netze=None, nr=1):
     """Messwerte einer Datei als Zeilen (Liste von Feldern in der Reihenfolge SPALTEN). netze: Ordner für die
     Dreiecksnetze (None = keine), nr: laufende Nummer der Datei (Name der Netzdateien)."""
+    return messen(datei, netze, nr)[0]
+
+
+def messen(datei, netze=None, nr=1):
+    """Wie zeilen, dazu das Ergebnis im versionierten JSON-Format (step_ergebnis.datei)."""
     try:
         teile = _analysiere(datei, netze is not None)
     except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
-        return [[datei.name, datei.stem] + [""] * (len(SPALTEN) - 3) + [_text(e) or type(e).__name__]]
+        text = _text(e) or type(e).__name__
+        return [[datei.name, datei.stem] + [""] * (len(SPALTEN) - 3) + [text]], step_ergebnis.datei(datei.name,
+                                                                                                    fehler=text)
     out = []
     for t in teile:
         artikel = t.datei if len(teile) == 1 else f"{t.datei}-K{t.koerper}"
@@ -86,8 +97,8 @@ def zeilen(datei, netze=None, nr=1):
                     _text("; ".join(t.meldungen)), _z(t.innen_a), _z(t.innen_b),
                     "|".join(":".join([_z(z), _z(x), _z(y), _z(w), s]) for z, x, y, w, s in t.wand_messungen),
                     ";".join(f"{k}={v}" for k, v in t.sicherheit.items()),
-                    json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), netz, ""])
-    return out
+                    json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), t.pruefstatus, netz, ""])
+    return out, step_ergebnis.datei(datei.name, teile)
 
 
 def step_dateien(pfade):
@@ -105,6 +116,7 @@ def main(argv=None):
     ap.add_argument("--ausgabe", required=True, help="Textdatei für die Messwerte")
     ap.add_argument("--liste", help="Textdatei mit einem STEP-Pfad je Zeile")
     ap.add_argument("--netze", help="Ordner für die Dreiecksnetze der 3D-Ansicht (JSON je Teil)")
+    ap.add_argument("--json", help="Ergebnis zusätzlich als JSON-Datei (versioniertes Format, siehe step_ergebnis.py)")
     ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
     a = ap.parse_args(argv)
     pfade = list(a.pfade)
@@ -120,7 +132,7 @@ def main(argv=None):
     if prozesse >= 2:       # viele Dateien: auf mehrere Prozesse verteilen, Reihenfolge der Ausgabe bleibt
         from concurrent.futures import ProcessPoolExecutor, as_completed
         with ProcessPoolExecutor(prozesse) as pool:
-            auftraege = {pool.submit(zeilen, d, a.netze, i): i for i, d in enumerate(dateien, start=1)}
+            auftraege = {pool.submit(messen, d, a.netze, i): i for i, d in enumerate(dateien, start=1)}
             for n, fertig in enumerate(as_completed(auftraege), start=1):
                 i = auftraege[fertig]
                 ergebnis[i - 1] = fertig.result()
@@ -128,11 +140,14 @@ def main(argv=None):
     else:
         for i, datei in enumerate(dateien, start=1):
             print(f"[{i}/{len(dateien)}] {datei.name}", flush=True)
-            ergebnis[i - 1] = zeilen(datei, a.netze, i)
+            ergebnis[i - 1] = messen(datei, a.netze, i)
     fehler = False
+    if a.json:
+        Path(a.json).write_text(json.dumps(step_ergebnis.gesamt([e[1] for e in ergebnis]), ensure_ascii=False,
+                                           indent=1), encoding="utf-8")
     with open(a.ausgabe, "w", encoding="utf-8", newline="\n") as f:
         f.write("\t".join(SPALTEN) + "\n")
-        for zs in ergebnis:
+        for zs, _ in ergebnis:
             for z in zs:
                 fehler = fehler or bool(z[-1])
                 f.write("\t".join(z) + "\n")
