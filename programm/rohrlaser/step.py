@@ -123,6 +123,16 @@ def finde_profil(m, profile):
     return None
 
 
+def profil_vorschlag(m, profile):
+    """Profil-ID für ein gemessenes Teil: passendes Profil der Stammdaten, sonst der Vorschlag der Messung."""
+    return finde_profil(m, profile) or m.get("profil_id_vorschlag") or None
+
+
+def gewaehlt(m):
+    """False, wenn das Teil im Prüfdialog abgewählt wurde (Schlüssel '_uebernehmen')."""
+    return m.get("_uebernehmen", True) is not False
+
+
 TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wenn alle Maße so nah beieinander liegen
 
 
@@ -179,10 +189,11 @@ def vorpruefung(messwerte, positionen, k):
     vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
     fehlend, doppelt = [], 0
     for m in messwerte:
-        if m.get("fehler") or not m.get("profilform"):
+        if m.get("fehler") or not m.get("profilform") or not gewaehlt(m):
             continue
-        pid = m.get("profil_id_vorschlag")
-        if finde_profil(m, k.profile) is None and pid and pid not in fehlend:
+        pid = m.get("_profil") or m.get("profil_id_vorschlag")
+        fehlt = pid not in k.profile if m.get("_profil") else finde_profil(m, k.profile) is None
+        if fehlt and pid and pid not in fehlend:
             fehlend.append(pid)
         if m.get("artikel") in vorhanden:
             doppelt += 1
@@ -194,7 +205,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
-    Position mit 'Stück je Satz' = Anzahl, stueck zählt dann Sätze (Stückzahl = Sätze × Stück je Satz)."""
+    Position mit 'Stück je Satz' = Anzahl, stueck zählt dann Sätze (Stückzahl = Sätze × Stück je Satz).
+    Werte aus dem Prüfdialog je Teil (vor werkstoff/stueck): _uebernehmen (False = nicht übernehmen), _stueck,
+    _werkstoff, _profil (Profil-ID statt des Abgleichs mit den Stammdaten). Bei gleichen Körpern eines Satzes
+    gelten die Werte des ersten."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
@@ -229,9 +243,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             hinweise.append(grenz_hinweis)
         ziel, pid = None, None
         if m.get("profilform"):
-            pid = finde_profil(m, profile)
-            if pid is None:
-                pid = m.get("profil_id_vorschlag") or None
+            gemessen = profil_vorschlag(m, profile)
+            pid = m.get("_profil") or finde_profil(m, profile)
+            if m.get("_profil") and pid != gemessen:
+                hinweise.append(f"Profil im Prüfdialog geändert (gemessen {gemessen or m['profilform']})")
+            if pid is None or pid not in profile:
+                pid = pid or m.get("profil_id_vorschlag") or None
                 if neue_profile and pid:
                     p = dict(profil_id=pid, form=m["profilform"], a=round(_z(m, "abm_a"), 2),
                              b=round(_z(m, "abm_b"), 2) if m["profilform"] == "Rechteckrohr" else None,
@@ -247,13 +264,17 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         if erster is not None and erster != i:
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
+        elif not gewaehlt(m):
+            hinweise.append("nicht übernommen: im Prüfdialog abgewählt")
         elif art in vorhanden and not erneut:
             hinweise.append("übersprungen: Artikel steht schon im Angebot")
         elif _z(m, "laenge") <= 0 or not m.get("profilform"):
             hinweise.append("nicht übernommen: kein Rohrteil erkannt")
         else:
-            p = dict(pos=naechste, artikel=art, profil_id=pid, werkstoff_id=werkstoff or None,
-                     laenge=round(_z(m, "laenge"), 1), stueck=stueck or None,
+            wst = m.get("_werkstoff", werkstoff)
+            stk = m.get("_stueck", stueck)
+            p = dict(pos=naechste, artikel=art, profil_id=pid, werkstoff_id=wst or None,
+                     laenge=round(_z(m, "laenge"), 1), stueck=stk or None,
                      schneidweg=round(_z(m, "schneidweg"), 1), einstiche=int(_z(m, "konturen")),
                      innen=round(_z(m, "innen"), 1), gravur=round(_z(m, "gravur"), 1),
                      bohrungen=bohrungen_text(m.get("bohrungen")) or None, gewinde_vorschlag=vorschlag or None)
@@ -270,7 +291,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if satz:
                 anzahl = len(gruppen[i])
                 p["satz"], p["je_satz"] = satz, anzahl
-                p["stueck"] = stueck * anzahl if stueck else None
+                p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz"
                                 + (f" (Körper {', '.join(messwerte[j].get('koerper') for j in gruppen[i])})" if anzahl > 1 else ""))
             neu.append(p)

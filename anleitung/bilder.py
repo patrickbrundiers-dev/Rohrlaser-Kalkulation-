@@ -353,16 +353,25 @@ def main(ziel):
     # 10) STEP-Import in ein neues Angebot (Testteile aus tests/step)
     neu = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Teile laut Zeichnung (STEP)"))
     s2 = f.angebot_oeffnen(neu)
-    s2.f.stumm = False
-    def step_dialog_ausfuellen(d):
-        d.findChild(QComboBox).setCurrentText("S235-10219")
-        d.findChild(QSpinBox).setValue(10)
-        foto.foto("step_dialog", d)
+    f.stumm = False
+
+    def pruefen_ausfuellen():                            # nach der Messung: Prüfdialog mit der Rohrliste
+        d = QApplication.activeModalWidget()
+        if not isinstance(d, StepPruefDialog):
+            QTimer.singleShot(50, pruefen_ausfuellen)
+            return
+        d.resize(1300, 620)
+        d.alle_setzen("S235-10219", 10)                  # „Für alle“
+        d.zeile_setzen("T05_RR33-7x2-6_L500", stueck=25)
+        d.zeile_setzen("T04_RE60x40x3_Gehrung", werkstoff="S355-10219")
+        d.baum.setCurrentItem(d.zeilen[-1][0])
+        bereit()
+        foto.foto("step_pruefen", d, [(d.baum, 1), (d.leiste, 2)])
+        f.stumm = True                                   # danach keine Rückfragen mehr
         d.accept()
-    QTimer.singleShot(100, lambda: _warte_modal(step_dialog_ausfuellen))
-    auswahl = s2._step_dialog()
+    QTimer.singleShot(100, pruefen_ausfuellen)
+    s2.step_importieren([str(p) for p in STEP])
     f.stumm = True
-    s2.step_importieren([str(p) for p in STEP], werkstoff=auswahl[0], stueck=auswahl[1])
     bereit()
     s2.zeige_step.setChecked(True)
     foto.foto("step_positionen", f, [(s2.zeige_step, 1)])
@@ -397,11 +406,7 @@ def main(ziel):
         QTimer.singleShot(50, abschluss_schliessen)      # Abschlussmeldung „… übernommen“ schließen
     def frage_knipsen():                                 # erst nach der Messung (Fortschrittsanzeige) kommt die Frage
         d = QApplication.activeModalWidget()
-        if isinstance(d, StepPruefDialog):               # zuerst der Prüfdialog mit 3D-Ansicht
-            d.resize(1150, 560)
-            d.liste.selectRow(3)
-            bereit()
-            foto.foto("step_pruefen", d)
+        if isinstance(d, StepPruefDialog):               # zuerst der Prüfdialog: so übernehmen
             d.accept()
             QTimer.singleShot(50, frage_knipsen)
             return

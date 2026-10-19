@@ -65,6 +65,28 @@ zweit = step.uebernehmen(mw, pos, k, gew, None, saetze=["G.step"])
 assert [p["artikel"] for p in zweit["positionen"]] == []
 assert "gleich wie G-K1" in {z[1] + str(z[2]): z for z in zweit["protokoll"]}["G.step2"][-1]
 
+# 2b) Werte je Teil aus dem Prüfdialog: abwählen, Stückzahl, Werkstoff, Profil (gilt bei Sätzen für alle gleichen)
+je = [dict(m) for m in mw]
+je[0].update(_stueck=4, _werkstoff="S355-10219")
+je[1].update(_stueck=4, _werkstoff="S355-10219")
+je[2]["_uebernehmen"] = je[3]["_uebernehmen"] = False
+je[6].update(_profil="QR 50x50x3", _stueck=7)
+e = step.uebernehmen(je, [], k, gew, None, "S235-10219", 3)
+w = {p["artikel"]: (p["werkstoff_id"], p["stueck"], p["profil_id"]) for p in e["positionen"]}
+assert w == {"G-K1": ("S355-10219", 4, "QR 40x40x3"), "G-K2": ("S355-10219", 4, "QR 40x40x3"),
+             "G-K5": ("S235-10219", 3, "QR 40x40x3"), "G-K6": ("S235-10219", 3, "QR 40x40x3"),
+             "H": ("S235-10219", 7, "QR 50x50x3")}, w
+pr = {z[1] + str(z[2]): z[-1] for z in e["protokoll"]}
+assert "im Prüfdialog abgewählt" in pr["G.step3"] and "Profil im Prüfdialog geändert (gemessen QR 40x40x3)" in pr["H.step7"]
+assert "Profil fehlt in Stammdaten" in pr["H.step7"]                 # neue ID: ohne Anlegen nur Hinweis
+assert step.vorpruefung(je, [], k)[0] == ["QR 50x50x3"]
+e = step.uebernehmen(je, [], k, gew, None, neue_profile=True, saetze=["G.step"])
+assert [x["profil_id"] for x in e["profile"]] == ["QR 50x50x3"] and e["profile"][0]["a"] == 40.0   # Maße gemessen
+assert [(p["artikel"], p["stueck"]) for p in e["positionen"] if p.get("satz")] == [("G-K1", 8), ("G-K5", None),
+                                                                                    ("G-K6", None)]
+je[6]["_profil"] = "RR 42,4x2,0"                                     # vorhandenes Profil: keine Rückfrage
+assert step.vorpruefung(je, [], k)[0] == []
+
 # 3) Dateien sammeln (Drag & Drop): Ordner mit Unterordnern, nur .step/.stp, keine doppelten
 o = tmp / "zeichnungen"
 (o / "unter").mkdir(parents=True)
@@ -118,6 +140,34 @@ else:
     seite.step_importieren([str(BAUGRUPPE)], "S235-10219", 2)
     assert [(x["je_satz"], x["stueck"]) for x in db.positionen(c)] == [(3, 6), (1, 2)]
     assert seite.optimieren() and all(st == "OK" or not st.startswith("FEHLER") for st in seite.pos_modell.status)
+    # Prüfdialog wie bei der Bedienung: Rohrliste, Werte setzen, Übernehmen
+    from PySide6.QtCore import QTimer  # noqa: E402
+    from rohrlaser.step_dialog import StepPruefDialog  # noqa: E402
+    gesehen = {}
+
+    def pruefen():
+        d = QApplication.activeModalWidget()
+        if not isinstance(d, StepPruefDialog):
+            QTimer.singleShot(20, pruefen)
+            return
+        gesehen["zeilen"] = [(it.text(0), it.text(1), pr.currentText()) for it, _, pr, *_ in d.zeilen]
+        d.alle_setzen("S355-10219", 3)
+        d.zeile_setzen("T08_Gestell_Baugruppe-K4", uebernehmen=False)
+        d.baum.setCurrentItem(d.zeilen[0][0])
+        gesehen["3d"] = d.ansicht.ansicht.modell is not None
+        fenster.stumm = True
+        d.accept()
+    ap = db.angebot_neu(dict(kunde="Test"))
+    sp = fenster.angebot_oeffnen(ap)
+    fenster.stumm = False
+    QTimer.singleShot(20, pruefen)
+    sp.step_importieren([str(BAUGRUPPE)], als_satz=True)
+    assert gesehen["zeilen"] == [("T08_Gestell_Baugruppe-K1", "3", "QR 40x40x3"),
+                                 ("T08_Gestell_Baugruppe-K4", "1", "RR 42,4x2,0")], gesehen
+    assert gesehen["3d"]
+    assert [(x["artikel"], x["werkstoff_id"], x["stueck"], x["je_satz"]) for x in db.positionen(ap)] == [
+        ("T08_Gestell_Baugruppe-K1", "S355-10219", 9, 3)], db.positionen(ap)
+
     # 3D-Ansicht: jede importierte Position hat ein Netz, Vorschaubild, Dialog; Kopieren nimmt die Netze mit
     from rohrlaser.ansicht3d import ARTEN, entpacken
     netze = db.netze(c)

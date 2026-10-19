@@ -1153,11 +1153,6 @@ class AngebotSeite(QWidget):
                                                       "STEP-Dateien (*.step *.stp *.STEP *.STP)")
             if not dateien:
                 return None
-        if werkstoff is None and stueck is None and not self.f.stumm:
-            auswahl = self._step_dialog(len(dateien))
-            if auswahl is None:
-                return None
-            werkstoff, stueck = auswahl
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
@@ -1169,9 +1164,9 @@ class AngebotSeite(QWidget):
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
             messwerte = step.lade_netze(step.lies_messwerte(ausgabe), netze)
-        if not self.f.stumm:
+        if not self.f.stumm:        # Rohre prüfen: je Teil übernehmen, Profil, Werkstoff, Stückzahl
             from .step_dialog import StepPruefDialog
-            if StepPruefDialog(self, messwerte).exec() != QDialog.Accepted:
+            if StepPruefDialog(self, messwerte, self.k, werkstoff, stueck).exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
@@ -1224,27 +1219,6 @@ class AngebotSeite(QWidget):
         if not self.f.stumm:
             d.exec()
         return d
-
-    def _step_dialog(self, anzahl=None):
-        d = QDialog(self)
-        d.setWindowTitle("STEP-Import" + (f" ({anzahl} Datei{'en' if anzahl != 1 else ''})" if anzahl else ""))
-        form = QFormLayout(d)
-        wst = QComboBox()
-        wst.addItems([""] + self.k.auswahl("werkstoff"))
-        stk = QSpinBox()
-        stk.setRange(0, 100000)
-        stk.setSpecialValueText("leer lassen")
-        form.addRow(QLabel("Werte für alle importierten Teile (leer = später eintragen):"))
-        form.addRow("Werkstoff-ID", wst)
-        form.addRow("Stückzahl", stk)
-        form.addRow(QLabel("Bei Sätzen (mehrere Teile in einer STEP) zählt die Stückzahl die Sätze."))
-        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        knoepfe.accepted.connect(d.accept)
-        knoepfe.rejected.connect(d.reject)
-        form.addRow(knoepfe)
-        if d.exec() != QDialog.Accepted:
-            return None
-        return wst.currentText() or None, stk.value() or None
 
     def _messen(self, befehl, anzahl):
         """Messung als eigener Prozess mit Fortschrittsanzeige. True = Messung beendet."""
