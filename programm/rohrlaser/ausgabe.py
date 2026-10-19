@@ -158,7 +158,31 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             staffeln.append(dict(art="teil", pos=z["schluessel"], text=z.get("bezeichnung") or "", menge=z["menge"],
                                  preis=z["preis_einheit"], gesamt=z["preis_gesamt"]))
     return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=netto + mwst, mwst_satz=satz_mwst, staffeln=staffeln,
-                hinweise=hinweise)
+                hinweise=hinweise, zahlung=zahlungstext(kopf), anschrift=[])
+
+
+def _prozent(w):
+    return f"{w:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+def zahlungstext(kopf):
+    """Zahlungsbedingung aus dem Angebotskopf, z. B. 'Zahlung innerhalb 10 Tagen mit 2 % Skonto oder innerhalb
+    30 Tagen netto.' Leer, wenn nichts eingetragen ist."""
+    skonto, tage, ziel = _wert(kopf.get("skonto")), int(_wert(kopf.get("skonto_tage"))), int(_wert(kopf.get("zahlungsziel")))
+    netto = f"innerhalb {ziel} Tagen netto" if ziel else "sofort netto"
+    if skonto > 0 and tage:
+        return f"Zahlung innerhalb {tage} Tagen mit {_prozent(skonto)} % Skonto oder {netto}."
+    return f"Zahlung {netto}." if ziel else ""
+
+
+def anschrift(kunde):
+    """Anschriftzeilen eines Kunden aus dem Kundenstamm (ohne Name)."""
+    if not kunde:
+        return []
+    zeilen = [kunde.get("strasse"), kunde.get("plz_ort")]
+    if kunde.get("ansprechpartner"):
+        zeilen.append(f"z. Hd. {kunde['ansprechpartner']}")
+    return [z for z in zeilen if z]
 
 
 def gueltig_bis(kopf, einst):

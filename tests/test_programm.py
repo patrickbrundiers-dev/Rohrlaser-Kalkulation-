@@ -166,7 +166,7 @@ from rohrlaser import rechnen, step  # noqa: E402
 from rohrlaser.angebot import naechste_nummer  # noqa: E402
 assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
 db = Datenbank(tmp / "b" / "rohrlaser.db")
-for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_teil"):   # Vergleichswerte: ohne
+for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_teil", "skonto"):   # ohne
     db.einstellung_setzen(n, 0)                                               # die Kosten aus Teil 14
 a1 = db.angebot_neu()
 a2 = db.angebot_neu()
@@ -327,7 +327,7 @@ con.execute("PRAGMA user_version=2")
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == 6
+assert db.con.execute("PRAGMA user_version").fetchone()[0] == 7
 tabellen_ = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
 assert "auftraege" not in tabellen_ and {"angebote", "angebote_nummer", "positionen_angebot"} <= tabellen_, tabellen_
 assert db.angebot(a_alt)["kunde"] == "Altkunde" and [p_["artikel"] for p_ in db.positionen(a_alt)] == ["ALT-1"]
@@ -398,6 +398,83 @@ assert any(f_["grund"] == "Metergewicht über Maschinengrenze" for f_ in erg["fe
 sp = staffeln.rechnen_alle(dict(kopf, fracht=120.0), pos, [dict(schluessel="10", menge=6)], k, tab, db.einstellungen())
 sp0 = staffeln.rechnen_alle(kopf, pos, [dict(schluessel="10", menge=6)], k, tab, null)
 assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 8.5 + 50 + 120)) < 0.1
+db.schliessen()
+
+# 15) Kunden, Skonto (eingerechnet), Zahlungsbedingung im Angebot, Kopieren für einen anderen Kunden, Sicherungen
+from rohrlaser.__main__ import BEISPIEL  # noqa: E402
+db = Datenbank(tmp / "e" / "rohrlaser.db")
+assert [kd["kundennr"] for kd in db.zeilen("kunden")] == ["K-1001", "K-1002"]
+assert db.einstellung("skonto") == 2.0 and db.zahlungsbedingungen() == dict(skonto=2.0, skonto_tage=10, zahlungsziel=30)
+assert db.zahlungsbedingungen("K-1002") == dict(skonto=3, skonto_tage=14, zahlungsziel=45)
+kd2 = db.zeilen("kunden")[1]
+db.aendern("kunden", kd2["id"], "zahlungsziel", None)          # leer = Einstellung
+assert db.zahlungsbedingungen("K-1002")["zahlungsziel"] == 30
+assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"  # Kunden ändern keine Rechenwerte
+a8 = db.angebot_neu(dict(kundennr="K-1001"))
+kopf8 = db.angebot(a8)
+assert kopf8["kunde"] == "Beispiel Metallbau GmbH" and (kopf8["skonto"], kopf8["skonto_tage"], kopf8["zahlungsziel"]) == (2, 10, 30)
+for p_ in BEISPIEL:
+    db.position_neu(a8, p_)
+k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
+pos8 = db.positionen(a8)
+erg8 = rechnen.optimieren(kopf8, pos8, k)
+z0, s0 = rechnen.kalkulation(dict(kopf8, skonto=None), pos8, erg8, k, tab, einst)
+z2, s2 = rechnen.kalkulation(kopf8, pos8, erg8, k, tab, einst)
+assert abs(s2["verkauf"] * 0.98 - s0["verkauf"]) < 1e-6        # nach 2 % Skonto bleibt der Preis ohne Skonto
+assert abs(s2["skonto"] - (s2["verkauf"] - s0["verkauf"])) < 1e-6 and s0["skonto"] == 0
+assert abs(z2[0]["preis_teil"] * 0.98 - z0[0]["preis_teil"]) < 1e-9 and z2[0]["skonto_teil"] > 0
+kosten = rechnen.kostenarten(s2, einst)
+assert ("Skonto (2 % eingerechnet)", s2["skonto"], False) in kosten and kosten[-1][0] == "Verkaufspreis"
+nach_herstell = kosten[[t_ for t_, _, _ in kosten].index("Herstellkosten") + 1:-1]
+assert abs(s2["herstell"] + sum(w for _, w, _ in nach_herstell) - s2["verkauf"]) < 1e-6
+assert ausgabe.zahlungstext(kopf8) == "Zahlung innerhalb 10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto."
+assert ausgabe.zahlungstext(dict(skonto=0, zahlungsziel=14)) == "Zahlung innerhalb 14 Tagen netto."
+assert ausgabe.zahlungstext(dict(skonto=1.5, skonto_tage=8, zahlungsziel=0)) == \
+    "Zahlung innerhalb 8 Tagen mit 1,5 % Skonto oder sofort netto."
+assert ausgabe.anschrift(db.kunde("K-1001")) == ["Musterstraße 1", "12345 Musterstadt", "z. Hd. Herr Muster"]
+# Staffelpreise werden mit Skonto neu (Kennung ändert sich)
+assert staffeln.kennung(kopf8, pos8, [], k, tab, einst) != staffeln.kennung(dict(kopf8, skonto=0), pos8, [], k, tab, einst)
+# Kunde im Angebot wechseln: Name und Zahlungsbedingungen kommen mit; unbekannte Nummer bleibt nur Nummer
+db.kunde_uebernehmen(a8, "K-1002")
+kopf8 = db.angebot(a8)
+assert kopf8["kunde"] == "Muster Anlagenbau KG" and (kopf8["skonto"], kopf8["zahlungsziel"]) == (3, 30)
+db.kunde_uebernehmen(a8, "X-99")
+assert db.angebot(a8)["kundennr"] == "X-99" and db.angebot(a8)["kunde"] == "Muster Anlagenbau KG"
+# Kundennummer umbenennen ändert sie auch in den Angeboten
+db.kunde_uebernehmen(a8, "K-1001")
+db.aendern("kunden", db.zeilen("kunden")[0]["id"], "kundennr", "K-2001")
+assert db.angebot(a8)["kundennr"] == "K-2001"
+# Kopieren: gleicher Kunde behält alles, anderer Kunde bekommt Name und Bedingungen aus dem Stamm
+db.angebot_aendern(a8, "skonto", 1.0)
+c1 = db.angebot(db.angebot_kopieren(a8))
+assert (c1["kundennr"], c1["kunde"], c1["skonto"]) == ("K-2001", "Beispiel Metallbau GmbH", 1.0)
+c2 = db.angebot(db.angebot_kopieren(a8, "K-1002"))
+assert (c2["kundennr"], c2["kunde"], c2["skonto"], c2["skonto_tage"]) == ("K-1002", "Muster Anlagenbau KG", 3, 14)
+assert len(db.positionen(c2["id"])) == len(BEISPIEL)
+c3 = db.angebot(db.angebot_kopieren(a8, ""))
+assert c3["kundennr"] is None and c3["kunde"] is None and c3["skonto"] == 2.0
+# Oberfläche: Kunde im Kopf wählen, Kopieren mit Kundennummer
+fenster = Hauptfenster(db, stumm=True)
+seite = fenster.angebot_oeffnen(a8)
+seite.kunde_waehlen("K-1002")
+assert seite.kopf["kunde"] == "Muster Anlagenbau KG" and seite.felder["kundennr"].currentData() == "K-1002"
+fenster.angebote.neu_laden()
+fenster.angebote.ansicht.setCurrentIndex(fenster.angebote.filter.index(
+    next(i for i, z in enumerate(fenster.angebote.modell.zeilen) if z["id"] == a8), 0))
+kopie = fenster.angebote.kopieren("K-2001")
+assert db.angebot(kopie)["kunde"] == "Beispiel Metallbau GmbH"
+fenster.close()
+# Sicherungen: beim Beenden eine Datei je Tag (überschrieben), zweiter Ordner, nicht erreichbarer zweiter Ordner
+pf, fehler = db.sicherungen(zusatz="beenden")
+pf2, _ = db.sicherungen(zusatz="beenden")
+assert fehler is None and pf == pf2 and len(list(pf[0].parent.glob("*_beenden.db"))) == 1
+db.einstellung_setzen("sicherung_ordner2", str(tmp / "e" / "USB"))
+pf, fehler = db.sicherungen()
+assert fehler is None and len(pf) == 2 and pf[1].parent == tmp / "e" / "USB" and pf[1].stat().st_size > 0
+(tmp / "e" / "datei").write_text("x")
+db.einstellung_setzen("sicherung_ordner2", str(tmp / "e" / "datei" / "kein Ordner"))
+pf, fehler = db.sicherungen()
+assert len(pf) == 1 and fehler.startswith("Zweiter Sicherungsordner nicht erreichbar"), fehler
 db.schliessen()
 shutil.rmtree(tmp, ignore_errors=True)
 print("OK: Programm")

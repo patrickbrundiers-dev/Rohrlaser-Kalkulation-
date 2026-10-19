@@ -187,6 +187,12 @@ def main(ziel):
     for i, text in enumerate(FIRMA, 1):
         db.einstellung_setzen(f"briefkopf_{i}", text)
     db.einstellung_setzen("letzte_angebotsnummer", "A-2026-0038")
+    for kd in (("10417", "Metallbau Krüger", "Werkstraße 3", "34117 Kassel", "Herr Krüger", "0561 12345",
+                "info@krueger-metallbau.example", 2, 10, 30, "Stammkunde"),
+               ("10233", "Anlagenbau Hessler", "Am Hafen 8", "60314 Frankfurt", "Frau Hessler", "069 987654",
+                "einkauf@hessler-anlagenbau.example", 3, 14, 45, "Rahmenvertrag")):
+        db.neu("kunden", dict(zip(("kundennr", "name", "strasse", "plz_ort", "ansprechpartner", "telefon", "email",
+                                   "skonto", "skonto_tage", "zahlungsziel", "bemerkung"), kd)))
     f.alles_neu_laden()
 
     # 3) Stammdaten-Reiter
@@ -227,6 +233,7 @@ def main(ziel):
     au = f.angebote
     foto.foto("angebote", f, [(tab_rect(f.reiter, "Angebote"), 1), (knopf(au, "Neues Angebot"), 2),
                                (knopf(au, "Kopieren"), 3), (au.suche, 4)])
+    mit_dialog(lambda: au._kunde_fuer_kopie(db.angebot(a2)), foto, "kopieren_dialog", lambda d: d.reject())
 
     # 6) Angebot öffnen: Positionen vor der Optimierung
     s = f.angebot_oeffnen(haupt)

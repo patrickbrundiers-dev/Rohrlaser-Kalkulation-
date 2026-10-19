@@ -90,6 +90,23 @@ def preis_je_m_automatisch(z, k):
 
 
 # ------------------------------------------------------------------ Tabellen
+KUNDEN = Tabelle(
+    "kunden", "Kunden",
+    (Feld("kundennr", "Kundennummer", pflicht=True, breite=100),
+     Feld("name", "Kundenname", pflicht=True, breite=200),
+     Feld("strasse", "Straße", breite=170),
+     Feld("plz_ort", "PLZ Ort", breite=150),
+     Feld("ansprechpartner", "Ansprechpartner", breite=130),
+     Feld("telefon", "Telefon", breite=110),
+     Feld("email", "E-Mail", breite=170),
+     Feld("skonto", "Skonto [%]", "zahl", 0, 20, stellen=1, breite=70),
+     Feld("skonto_tage", "Skontofrist [Tage]", "ganz", 0, 365, breite=75),
+     Feld("zahlungsziel", "Zahlungsziel netto [Tage]", "ganz", 0, 365, breite=85),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("kundennr",),
+    "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
+    "Angebot. Skonto, Skontofrist und Zahlungsziel leer = Vorgabe aus den Einstellungen.")
+
 PROFILE = Tabelle(
     "profile", "Profile",
     (Feld("profil_id", "Profil-ID", pflicht=True, breite=130),
@@ -204,11 +221,12 @@ ZUSATZARBEITEN = Tabelle(
     "Gravur, die nicht im Teil ist). Mindestbetrag: liegt die Summe im Angebot darunter, wird auf den "
     "Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag Fremdleistung, sonst Zuschlag Fertigung.")
 
-TABELLEN = (PROFILE, WERKSTOFFE, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN)
+TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
 VERWEISE = {
+    ("kunden", "kundennr"): (("angebote", "kundennr"),),
     ("profile", "profil_id"): (("preise", "profil_id"),),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("schneiddaten", "werkstoff_id")),
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"),),
@@ -242,6 +260,10 @@ EINSTELLUNGEN = (
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
+    # Zahlungsbedingungen neuer Angebote, wenn der Kunde keine eigenen hat. Skonto wird in den Preis eingerechnet.
+    Einstellung("skonto", "Skonto [%]", "Angebot", "zahl", 2.0, 0, 20),
+    Einstellung("skonto_tage", "Skontofrist [Tage]", "Angebot", "ganz", 10, 0, 365),
+    Einstellung("zahlungsziel", "Zahlungsziel netto [Tage]", "Angebot", "ganz", 30, 0, 365),
     Einstellung("briefkopf_1", "Briefkopf Zeile 1 (Firma)", "Angebots-PDF", "text", "Firmenname"),
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
@@ -249,8 +271,10 @@ EINSTELLUNGEN = (
     Einstellung("mwst", "MwSt.-Satz", "Angebots-PDF", "anteil", 0.19, 0, 1),
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
-                "Lieferzeit nach Absprache. Zahlung 30 Tage netto. Preise in Euro zuzüglich Mehrwertsteuer."),
+                "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "text", ""),
+    Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
+                "Ablage", "text", ""),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(PROFILFORMEN)),
 )
@@ -394,6 +418,11 @@ def beispieldaten():
     gewinde = [("M3", 2.5, 0.60), ("M4", 3.3, 0.70), ("M5", 4.2, 0.80), ("M6", 5.0, 0.90), ("M8", 6.8, 1.10),
                ("M10", 8.5, 1.30), ("M12", 10.2, 1.60), ("M14", 12.0, 1.90), ("M16", 14.0, 2.20), ("M20", 17.5, 2.80)]
     return {
+        "kunden": zeilen(KUNDEN, [
+            ("K-1001", "Beispiel Metallbau GmbH", "Musterstraße 1", "12345 Musterstadt", "Herr Muster", "01234 56789",
+             "info@beispiel-metallbau.de", 2, 10, 30, "Beispiel"),
+            ("K-1002", "Muster Anlagenbau KG", "Industrieweg 5", "54321 Beispielstadt", "Frau Beispiel", "05432 1234",
+             "einkauf@muster-anlagenbau.de", 3, 14, 45, "Beispiel")]),
         "profile": zeilen(PROFILE, [
             ("RR 42,4x2,0", "Rundrohr", 42.4, None, 2.0, None, None, None, "Beispiel"),
             ("RR 48,3x2,6", "Rundrohr", 48.3, None, 2.6, None, None, None, "Beispiel"),

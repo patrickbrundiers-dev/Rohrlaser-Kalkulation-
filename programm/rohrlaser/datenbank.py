@@ -3,7 +3,8 @@
 Das Schema entsteht aus stammdaten.TABELLEN und angebot.KOPF/POSITIONEN; die Schemaversion steht in
 PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 = nur Stammdaten,
 2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
-Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote).
+Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote,
+7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf).
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
 Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt.
 """
@@ -12,11 +13,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .angebot import KOPF, POSITIONEN, naechste_nummer
+from .angebot import KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispieldaten, kontext_aus)
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -108,8 +109,9 @@ class Datenbank:
         return self.con.execute(f'SELECT COUNT(*) FROM "{tabelle}"').fetchone()[0]
 
     def _stammdaten_geaendert(self, tabelle):
-        """Nach einer Änderung von Hand gelten die Stammdaten nicht mehr als Beispielwerte (Startseite)."""
-        if tabelle in TABELLE:
+        """Nach einer Änderung von Hand gelten die Stammdaten nicht mehr als Beispielwerte (Startseite).
+        Kunden zählen dabei nicht: sie ändern keine Rechenwerte."""
+        if tabelle in TABELLE and tabelle != "kunden":
             self._einstellung_schreiben("stammdaten_herkunft", "eigene Werte")
             self._einstellung_schreiben("stammdaten_stand", self._jetzt())
 
@@ -185,6 +187,31 @@ class Datenbank:
         """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten)."""
         return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde", "zusatzarbeiten")}
 
+    # -------------------------------------------------------------- Kunden
+    def kunde(self, kundennr):
+        """Kundenzeile zur Kundennummer oder None."""
+        if kundennr in (None, ""):
+            return None
+        r = self.con.execute("SELECT * FROM kunden WHERE kundennr=?", (kundennr,)).fetchone()
+        return dict(r) if r else None
+
+    def zahlungsbedingungen(self, kundennr=None):
+        """Skonto [%], Skontofrist und Zahlungsziel für ein neues Angebot: Werte des Kunden, fehlende aus den
+        Einstellungen."""
+        k = self.kunde(kundennr) or {}
+        return {n: k[n] if k.get(n) is not None else self.einstellung(n) for n in ZAHLUNG}
+
+    def kunde_uebernehmen(self, angebot_id, kundennr):
+        """Kundennummer ins Angebot; steht sie im Kundenstamm, auch Name und Zahlungsbedingungen.
+        Ergebnis: Kundenzeile oder None."""
+        k = self.kunde(kundennr)
+        self.angebot_aendern(angebot_id, "kundennr", kundennr)
+        if k:
+            self.angebot_aendern(angebot_id, "kunde", k["name"])
+            for n, w in self.zahlungsbedingungen(kundennr).items():
+                self.angebot_aendern(angebot_id, n, w)
+        return k
+
     # -------------------------------------------------------------- Angebote
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
@@ -222,6 +249,11 @@ class Datenbank:
         kopf.setdefault("datum", datetime.date.today().isoformat())
         kopf.setdefault("maschine", self.einstellung("standard_maschine"))
         kopf.setdefault("stange", self.einstellung("standard_stange"))
+        k = self.kunde(kopf.get("kundennr"))
+        if k and not kopf.get("kunde"):
+            kopf["kunde"] = k["name"]
+        for n, w in self.zahlungsbedingungen(kopf.get("kundennr")).items():
+            kopf.setdefault(n, w)
         namen = [f.name for f in KOPF if f.name in kopf]
         try:
             with self.con:
@@ -245,10 +277,17 @@ class Datenbank:
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{wert}' gibt es schon.")
 
-    def angebot_kopieren(self, angebot_id):
+    def angebot_kopieren(self, angebot_id, kundennr=None):
+        """Kopie mit neuer Nummer und heutigem Datum. kundennr: anderer Kunde (Name und Zahlungsbedingungen
+        aus dem Kundenstamm, sonst bleibt nur die Nummer); None = gleicher Kunde."""
         a = self.angebot(angebot_id)
         kopf = {f.name: a[f.name] for f in KOPF if f.name != "nummer"}
         kopf["datum"] = datetime.date.today().isoformat()
+        if kundennr is not None and kundennr != a.get("kundennr"):
+            k = self.kunde(kundennr)
+            kopf["kundennr"] = kundennr or None
+            kopf["kunde"] = k["name"] if k else None
+            kopf.update(self.zahlungsbedingungen(kundennr))
         neu = self.angebot_neu(kopf)
         for p in self.positionen(angebot_id):
             self.position_neu(neu, p)
@@ -357,16 +396,21 @@ class Datenbank:
         return {e.name: self.einstellung(e.name) for e in EINSTELLUNGEN}
 
     # -------------------------------------------------------------- Sicherung
-    def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN):
+    def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN, zusatz=None):
         """Kopie der Datendatei nach Daten/Sicherung (sqlite-Backup, auch bei offener Datei sicher).
+        zusatz: fester Namensteil statt der Uhrzeit (eine Datei, die überschrieben wird, z. B. 'beenden').
         Ältere Sicherungen über `behalten` hinaus werden gelöscht. Ergebnis: Pfad der Sicherung."""
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
         ordner.mkdir(parents=True, exist_ok=True)
-        ziel = ordner / f"{self.pfad.stem}_{datetime.datetime.now():%Y-%m-%d_%H%M%S}.db"
-        n = 1
-        while ziel.exists():
-            ziel = ordner / f"{self.pfad.stem}_{datetime.datetime.now():%Y-%m-%d_%H%M%S}_{n}.db"
-            n += 1
+        if zusatz:
+            ziel = ordner / f"{self.pfad.stem}_{datetime.date.today():%Y-%m-%d}_{zusatz}.db"
+            ziel.unlink(missing_ok=True)
+        else:
+            ziel = ordner / f"{self.pfad.stem}_{datetime.datetime.now():%Y-%m-%d_%H%M%S}.db"
+            n = 1
+            while ziel.exists():
+                ziel = ordner / f"{self.pfad.stem}_{datetime.datetime.now():%Y-%m-%d_%H%M%S}_{n}.db"
+                n += 1
         kopie = sqlite3.connect(ziel)
         with kopie:
             self.con.backup(kopie)
@@ -382,3 +426,17 @@ class Datenbank:
         if any(ordner.glob(f"{self.pfad.stem}_{datetime.date.today():%Y-%m-%d}_*.db")):
             return None
         return self.sicherung(ordner)
+
+    def sicherungen(self, zusatz=None):
+        """Sicherung nach Daten/Sicherung und, falls eingestellt, in den zweiten Sicherungsordner.
+        Ergebnis: (Pfade, Fehlertext oder None) – ein nicht erreichbarer zweiter Ordner (Netzlaufwerk,
+        USB-Stick fehlt) verhindert die erste Sicherung nicht."""
+        pfade = [self.sicherung(zusatz=zusatz)]
+        ordner2 = (self.einstellung("sicherung_ordner2") or "").strip()
+        if not ordner2:
+            return pfade, None
+        try:
+            pfade.append(self.sicherung(ordner2, zusatz=zusatz))
+        except OSError as e:
+            return pfade, f"Zweiter Sicherungsordner nicht erreichbar ({ordner2}): {e}"
+        return pfade, None

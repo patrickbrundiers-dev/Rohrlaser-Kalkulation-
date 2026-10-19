@@ -9,15 +9,15 @@ als PDF ausgeben. Keine Installation nötig.
 
 1. Unter **Releases → aktuell** `Rohrlaser-Angebotskalkulation.zip` herunterladen und in einen Ordner entpacken, in dem man schreiben darf (z. B. `C:\Rohrlaser`, nicht `C:\Programme`).
 2. `Rohrlaser-Angebotskalkulation.exe` starten. Beim ersten Start legt das Programm den Ordner `Daten` mit `rohrlaser.db` (Stammdaten, Einstellungen, Angebote) und Beispiel-Stammdaten an.
-3. Die Beispielwerte in den Stammdaten-Reitern (Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und in den Einstellungen (Zuschläge, Briefkopf, Nummernkreis) durch die eigenen ersetzen. Jede Änderung wird sofort gespeichert; die Spalte **Prüfung** zeigt OK, WARNUNG oder FEHLER.
-4. Reiter **Angebote**: neues Angebot anlegen (Nummer zählt hoch), kopieren, löschen, suchen (auch nach Artikel). Doppelklick öffnet das Angebot in einem eigenen Reiter.
+3. Die Beispielwerte in den Stammdaten-Reitern (Kunden, Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und in den Einstellungen (Zuschläge, Briefkopf, Nummernkreis) durch die eigenen ersetzen. Jede Änderung wird sofort gespeichert; die Spalte **Prüfung** zeigt OK, WARNUNG oder FEHLER.
+4. Reiter **Angebote**: neues Angebot anlegen (Nummer zählt hoch), kopieren (auch für einen anderen Kunden), löschen, suchen (auch nach Artikel). Doppelklick öffnet das Angebot in einem eigenen Reiter.
 5. Im Angebot: Kopf oben, Positionen darunter. **STEP importieren** (oder Dateien hineinziehen) misst die Teile mit `STEP-Import.exe` und legt die Positionen an; Baugruppen werden als Satz übernommen. **Zusatzarbeiten …** wählt Gewinde, Verzinken, Pulverbeschichten usw. je Bauteil. **Optimieren** plant die Stangen; danach zeigen die Reiter Kalkulation, Schnittplan, Stangenbild und Auswertung die Ergebnisse. Nach jeder Änderung zeigt die Übersicht „VERALTET“, bis neu optimiert wird.
 6. Reiter **Staffeln**: je Zeile eine Mengenstufe (Satz oder Positionsnummer und Menge). **Staffelpreise rechnen** rechnet jede Stufe als eigenes Angebot neu.
 7. Leiste **Ausgabe**: **Angebot (PDF)**, **Werkstattpapiere (PDF)**, **Kalkulation (PDF)** und **CSV-Export** (Angebotskopf, Kostenarten und Kalkulation je Position; Semikolon, Dezimalkomma). Die Dateien landen im Ordner `Angebote` neben dem Programm oder im Ablageordner aus den Einstellungen.
 
 Die bebilderte Bedienungsanleitung `anleitung/Bedienungsanleitung.pdf` liegt im ZIP neben der .exe und öffnet sich im Programm über **Hilfe → Bedienungsanleitung** (F1).
 
-Sicherung: beim ersten Start jedes Tages eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren. Eine Datendatei einer älteren Version (mit „Aufträgen“) wird beim ersten Öffnen automatisch auf Angebote umgestellt; dazu den Ordner `Daten` in den neuen Programmordner kopieren.
+Sicherung: beim ersten Start jedes Tages und beim Beenden eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben), optional zusätzlich in einen zweiten Sicherungsordner (Einstellungen, z. B. Netzlaufwerk oder USB-Stick). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren. Eine Datendatei einer älteren Version (mit „Aufträgen“) wird beim ersten Öffnen automatisch auf Angebote umgestellt; dazu den Ordner `Daten` in den neuen Programmordner kopieren.
 
 ## STEP-Import
 
@@ -53,7 +53,7 @@ Regeln:
 - Verfahren: First-Fit- und Best-Fit-Decreasing, danach werden schwach belegte Stangen aufgelöst. Liegt das Ergebnis über der Untergrenze und hat die Gruppe höchstens 60 Teile, sucht eine exakte Suche (Branch and Bound, höchstens 20.000 Suchschritte je Gruppe) eine Einteilung mit weniger Stangen. Die Auswertung zeigt je Gruppe die Untergrenze, den Abstand dazu, ob das Ergebnis nachweislich optimal ist, und den Vergleich mit einer manuellen Einteilung (Eingabereihenfolge, Stange voll, dann nächste).
 
 
-Kalkulation: Material (Stangen laut Schnittplan, nach Längenanteil verteilt), Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je Abmessung, Stangenwechsel, Zusatzarbeiten und die Zuschläge ergeben die Herstellkosten; dazu Gewinn, Pauschale je Abmessung, Programmierkosten, Angebotsaufschlag und Fracht ergeben den Verkaufspreis. Übersicht, Kalkulation, Kalkulations-PDF und CSV-Export listen jede Kostenart einzeln.
+Kalkulation: Material (Stangen laut Schnittplan, nach Längenanteil verteilt), Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je Abmessung, Stangenwechsel, Zusatzarbeiten und die Zuschläge ergeben die Herstellkosten; dazu Gewinn, Pauschale je Abmessung, Programmierkosten, Angebotsaufschlag, Fracht und Skonto ergeben den Verkaufspreis. Das Skonto aus dem Angebotskopf (Vorgabe vom Kunden bzw. aus den Einstellungen) wird eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto); das Angebots-PDF nennt die Zahlungsbedingung. Übersicht, Kalkulation, Kalkulations-PDF und CSV-Export listen jede Kostenart einzeln.
 
 ## Entwicklung
 

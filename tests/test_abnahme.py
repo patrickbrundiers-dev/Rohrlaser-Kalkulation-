@@ -166,7 +166,7 @@ def pruefen(angebot, kopf, positionen, erg, sw, zeilen, summen, stamm):
                                        "zuschlag_fertigung", "zuschlag_fremdleistung"))
     assert nahe(herstell, summen["herstell"]), f"{name}: Kostenarten {herstell} ≠ Herstellkosten {summen['herstell']}"
     verkauf = summen["herstell"] + sum(summen[n] for n in ("gewinn", "pauschalen", "programmierung",
-                                                          "angebotsaufschlag", "fracht"))
+                                                          "angebotsaufschlag", "fracht", "skonto"))
     assert nahe(verkauf, summen["verkauf"]), f"{name}: Kostenarten {verkauf} ≠ Verkaufspreis {summen['verkauf']}"
     assert nahe(summen["laser_schneiden"] + summen["gewinde"], summen["laser"])
     assert nahe(summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"],

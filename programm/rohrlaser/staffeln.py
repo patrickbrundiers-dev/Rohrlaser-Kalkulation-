@@ -122,7 +122,7 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst):
 
 def kennung(kopf, positionen, stufen, k, tabellen, einst):
     """Prüfsumme über alle Eingaben der Staffelrechnung; weicht sie ab, sind die Staffelpreise veraltet."""
-    felder = ("maschine", "stange", "fracht")
+    felder = ("maschine", "stange", "fracht", "skonto")
     daten = [{f: kopf.get(f) for f in felder},
              [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
              [(txt(s.get("schluessel")), s.get("menge")) for s in gueltige(stufen)],

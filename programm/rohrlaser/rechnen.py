@@ -456,7 +456,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     - Schneidzeit manuell (Position) ersetzt die berechnete Laserzeit netto je Teil.
     - Zusatzarbeiten je Position: Beträge je Teil (€/kg, €/m², €/m, €/Stück) mit Zuschlag Fremdleistung bzw.
       Fertigung; liegt die Summe einer Zusatzarbeit im Angebot unter ihrem Mindestbetrag, wird sie anteilig
-      angehoben. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen."""
+      angehoben. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen.
+    - Skonto aus dem Angebotskopf (%) wird eingerechnet: Verkaufspreis = Preis ohne Skonto / (1 − Skonto), so bleibt
+      nach Abzug des Skontos der Preis ohne Skonto."""
     m = maschine(kopf, k) or {}
     satz_h = _n(m.get("stundensatz"))
     stangen = ergebnis["stangen"] if ergebnis else []
@@ -491,6 +493,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                 e["teil"] = e["mindest"] / zus_teile[e["name"]]
             else:
                 e["teil"] = e["betrag"] * max(1.0, e["mindest"] / zus_summe[e["name"]])
+    skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     fracht = _n(kopf.get("fracht")) if f8 else 0
     eingespart = {}
@@ -555,7 +558,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         uz = (pausch_abm / n_abm if n_abm and c else 0) + ((aufschlag + fracht) / f8 if f8 and c else 0) \
             + (prog / c if c else 0)
         s_ = f * (1 + zm) + (qz + rz + ze) * (1 + zf) + zfr * (1 + zfl)
-        t_ = s_ * (1 + gew) + uz
+        ohne = s_ * (1 + gew) + uz
+        t_ = ohne / (1 - skonto)
         nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
         if _n(nicht) > 0:
             hinweis = "nicht vollständig eingeplant"
@@ -574,7 +578,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]))
         z.update(laser_schneiden_teil=_n(oz) / 3600 * satz_h, gewinde_teil=pz / 3600 * satz_h + gp,
                  zuschlag_material_teil=f * zm, zuschlag_fertigung_teil=(qz + rz + ze) * zf,
-                 zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew)
+                 zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew, skonto_teil=t_ - ohne)
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  herstell_teil=s_, pauschalen_teil=uz, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
@@ -595,13 +599,15 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   herstell=sum(z["herstell_position"] for z in zeilen if z),
                   verkauf=sum(z["preis_position"] for z in zeilen if z))
     # Einzelne Kostenarten (Material + Laser + Gewinde + Rüsten + Stangenwechsel + Zusatzarbeiten + Zuschläge
-    # = Herstellkosten; Herstellkosten + Gewinn + Pauschalen + Programmierung + Aufschlag + Fracht = Verkaufspreis)
+    # = Herstellkosten; Herstellkosten + Gewinn + Pauschalen + Programmierung + Aufschlag + Fracht + Skonto
+    # = Verkaufspreis)
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
                   ruesten_maschine=ruest / 60 * satz_h, ruesten_abmessungen=ruest_abm * n_abm,
                   stangenwechsel_kosten=wechsel * len(stangen) / 3600 * satz_h,
                   zuschlag_material=_summe("zuschlag_material_teil"),
                   zuschlag_fertigung=_summe("zuschlag_fertigung_teil"),
-                  zuschlag_fremdleistung=_summe("zuschlag_fremdleistung_teil"), gewinn=_summe("gewinn_teil"))
+                  zuschlag_fremdleistung=_summe("zuschlag_fremdleistung_teil"), gewinn=_summe("gewinn_teil"),
+                  skonto=_summe("skonto_teil"), skonto_satz=100 * skonto)
     return zeilen, summen
 
 
@@ -614,7 +620,7 @@ KOSTENARTEN = (
     ("Zuschlag Fremdleistung", "zuschlag_fremdleistung", False), ("Herstellkosten", "herstell", True),
     ("Gewinn", "gewinn", False), ("Pauschale je Abmessung", "pauschalen", False),
     ("Programmierkosten", "programmierung", False), ("Angebotsaufschlag", "angebotsaufschlag", False),
-    ("Fracht", "fracht", False), ("Verkaufspreis", "verkauf", True))
+    ("Fracht", "fracht", False), ("Skonto", "skonto", False), ("Verkaufspreis", "verkauf", True))
 
 
 def kostenarten(summen, einst):
@@ -628,6 +634,7 @@ def kostenarten(summen, einst):
         "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
         "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",
         "gewinn": f" ({z(100 * _n(einst.get('gewinn')))} %)",
+        "skonto": f" ({z(summen.get('skonto_satz', 0))} % eingerechnet)",
         "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)"}
     return [(t + zusatz.get(n, ""), summen[n], fett) for t, n, fett in KOSTENARTEN]
 
