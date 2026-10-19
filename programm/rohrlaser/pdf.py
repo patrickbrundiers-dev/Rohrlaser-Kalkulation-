@@ -119,7 +119,8 @@ def angebot_pdf(pfad, kopf, ang, einst):
                                                fontSize=12 if i == 1 else 9, leading=15 if i == 1 else 11)))
     inhalt += [Spacer(1, 8 * mm), _p("Angebot", S_TITEL)]
     bis = ausgabe.gueltig_bis(kopf, einst)
-    links = [("Kunde", kopf.get("kunde")), ("Kundennummer", kopf.get("kundennr"))]
+    kunde = "\n".join(str(t) for t in [kopf.get("kunde")] + list(ang.get("anschrift") or ()) if t)
+    links = [("Kunde", kunde), ("Kundennummer", kopf.get("kundennr"))]
     rechts = [("Angebotsnummer", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
               ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else "")]
     info = [[_p(links[i][0], S_FETT) if i < 2 else "", _p(links[i][1]) if i < 2 else "",
@@ -127,8 +128,9 @@ def angebot_pdf(pfad, kopf, ang, einst):
     t = Table(info, colWidths=[30 * mm, 70 * mm, 40 * mm, 46 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
     inhalt += [t, Spacer(1, 3 * mm)]
-    if einst.get("bedingungen"):
-        inhalt += [_p(einst["bedingungen"], S_KLEIN), Spacer(1, 4 * mm)]
+    bedingungen = " ".join(t for t in (ang.get("zahlung"), einst.get("bedingungen")) if t)
+    if bedingungen:
+        inhalt += [_p(bedingungen, S_KLEIN), Spacer(1, 4 * mm)]
 
     daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Menge [Stk]", "Stückpreis [€]", "Gesamtpreis [€]"])]
     fett = []
@@ -277,14 +279,15 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
 
 
 # ------------------------------------------------------------------ Kalkulation
-KALK = [("Pos.", "pos", 0, 10), ("Artikelnummer", "artikel", None, 22), ("Stück", "stueck", 0, 11),
-        ("Material je Teil [€]", "material_teil", 3, 19), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 19),
-        ("Gewindezeit je Teil [s]", "gewindezeit", 1, 17), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 19),
-        ("Zusatzarbeiten je Teil [€]", "zusatz_teil", 3, 19), ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 18),
-        ("Herstellkosten je Teil [€]", "herstell_teil", 3, 20),
+KALK = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 20), ("Stück", "stueck", 0, 10),
+        ("Material je Teil [€]", "material_teil", 3, 18), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 18),
+        ("Gewindezeit je Teil [s]", "gewindezeit", 1, 16), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 18),
+        ("Zusatzarbeiten je Teil [€]", "zusatz_teil", 3, 18), ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 18),
+        ("Herstellkosten je Teil [€]", "herstell_teil", 3, 19),
         ("Pauschalen, Programmierung, Aufschlag, Fracht je Teil [€]", "pauschalen_teil", 3, 19),
-        ("Verkaufspreis je Teil [€]", "preis_teil", 3, 20), ("Verkaufspreis Position [€]", "preis_position", 2, 19),
-        ("Herstellkosten Position [€]", "herstell_position", 2, 19), ("Hinweis", "hinweis", None, 22)]
+        ("Skonto je Teil [€]", "skonto_teil", 3, 15),
+        ("Verkaufspreis je Teil [€]", "preis_teil", 3, 19), ("Verkaufspreis Position [€]", "preis_position", 2, 18),
+        ("Herstellkosten Position [€]", "herstell_position", 2, 18), ("Hinweis", "hinweis", None, 20)]
 assert sum(s[3] for s in KALK) <= 273     # Breite A4 quer ohne Ränder [mm]
 
 

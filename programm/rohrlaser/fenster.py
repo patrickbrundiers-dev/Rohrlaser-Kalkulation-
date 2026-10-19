@@ -490,8 +490,28 @@ class Hauptfenster(QMainWindow):
         return None
 
     def sicherung_erstellen(self):
-        ziel = self.db.sicherung()
-        self.meldung(f"Sicherung erstellt: {ziel}")
+        pfade, fehler = self.db.sicherungen()
+        if fehler:
+            self.meldung(fehler, fehler=True)
+            if not self.stumm:
+                QMessageBox.warning(self, "Datensicherung", f"Sicherung erstellt: {pfade[0]}\n\n{fehler}")
+        else:
+            self.meldung("Sicherung erstellt: " + " und ".join(str(p) for p in pfade))
+        return pfade
+
+    def closeEvent(self, ereignis):
+        """Beim Beenden eine Sicherung (eine je Tag, wird überschrieben), auch in den zweiten Sicherungsordner."""
+        if not self.stumm:
+            try:
+                _, fehler = self.db.sicherungen(zusatz="beenden")
+            except OSError as e:
+                fehler = str(e)
+            if fehler and QMessageBox.warning(
+                    self, "Datensicherung", f"Die Sicherung beim Beenden ist nicht vollständig:\n\n{fehler}\n\n"
+                    "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+                ereignis.ignore()
+                return
+        super().closeEvent(ereignis)
 
     def datenordner_oeffnen(self):
         self.datei_oeffnen(self.db.pfad.parent)

@@ -319,14 +319,21 @@ def kapitel_start(i):
     i.text("Beim ersten Start legt das Programm die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in "
            "Rot, dass es sich um Beispielwerte handelt.")
     i.bild("start_beispiel", "Startseite nach dem ersten Start (Beispiel-Stammdaten)", hoehe=112 * mm, legende=[
-        (1, "<b>Datensicherung erstellen</b>: Kopie der Datendatei nach <i>Daten\\Sicherung</i>."),
+        (1, "<b>Datensicherung erstellen</b>: Kopie der Datendatei nach <i>Daten\\Sicherung</i> und, falls "
+            "eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
     i.text("Die Beispielwerte in den Stammdaten-Reitern (Kapitel 3) und den Einstellungen (Kapitel 4) durch die "
            "eigenen ersetzen: Preise, Maschinen, Schneiddaten, Briefkopf und Zuschläge. Danach rechnet das Programm "
            "mit den eigenen Werten.")
     i.abschnitt("Datensicherung und Umzug")
     i.text("Beim ersten Start jedes Tages legt das Programm "
-           "automatisch eine Kopie der Datendatei in <i>Daten\\Sicherung</i> an; die letzten 30 bleiben erhalten. "
+           "automatisch eine Kopie der Datendatei in <i>Daten\\Sicherung</i> an. Beim Beenden kommt eine weitere "
+           "Kopie dazu (eine je Tag, sie wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>). In jedem "
+           "Sicherungsordner bleiben die letzten 30 Sicherungen erhalten.",
+           "<b>Zweiter Sicherungsordner</b> (Einstellungen, Gruppe Ablage): z. B. ein Netzlaufwerk oder ein "
+           "USB-Stick. Beim Beenden und mit <i>Datensicherung erstellen</i> geht dann zusätzlich eine Kopie dorthin. "
+           "Ist der Ordner nicht erreichbar, meldet das Programm das beim Beenden und fragt, ob trotzdem beendet "
+           "werden soll; die Sicherung in <i>Daten\\Sicherung</i> ist dann trotzdem angelegt.",
            "Zurückholen: Programm schließen, <i>Daten\\rohrlaser.db</i> umbenennen und die gewünschte Sicherung als "
            "<i>rohrlaser.db</i> in den Ordner <i>Daten</i> kopieren.",
            "Für einen anderen Rechner einfach den ganzen Programmordner kopieren. Das Programm ist für einen "
@@ -351,6 +358,9 @@ def kapitel_stammdaten(i):
             "Schneiddaten mit.")
     i.abschnitt("Was in welche Tabelle gehört")
     i.tabelle(["Tabelle", "Inhalt", "Wichtig"], [
+        ["Kunden", "Kundennummer, Name, Anschrift, Ansprechpartner, Zahlungsbedingungen",
+         "Im Angebotskopf die Kundennummer wählen: Name, Anschrift (im Angebots-PDF) und Zahlungsbedingungen "
+         "kommen mit. Leere Zahlungsbedingungen = Vorgabe aus den Einstellungen."],
         ["Profile", "Profil-ID (z. B. <i>QR 40x40x3</i>), Form, Abmessungen, Wandstärke",
          "Abmessung A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). Endbeschnitt und Greiferrest nur bei "
          "Abweichung von der Maschine. Unbekannte Profile im Angebot legt das Programm aus der ID selbst an "
@@ -375,6 +385,16 @@ def kapitel_stammdaten(i):
     i.abschnitt("Felder der Tabellen")
     i.text("Die Spalten jeder Tabelle im Einzelnen. Pflichtfelder sind fett; was leer bleiben darf, rechnet das "
            "Programm wie angegeben.")
+    i.tabelle(["Kunden", "Bedeutung"], [
+        ["<b>Kundennummer</b>, <b>Kundenname</b>", "Schlüssel und Name; eine geänderte Kundennummer ändert sich auch "
+                                                   "in den Angeboten"],
+        ["Straße, PLZ Ort, Ansprechpartner", "Anschrift im Angebots-PDF (Ansprechpartner als „z. Hd.“)"],
+        ["Telefon, E-Mail", "zur Info"],
+        ["Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
+         "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
+         "den Preis eingerechnet (Kapitel 8.3)."],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>"],
         ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr oder Sonderprofil (Liste in den Einstellungen)"],
@@ -465,12 +485,21 @@ def kapitel_einstellungen(i):
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Angebot", "Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
+         "Zahlungsbedingungen neuer Angebote, wenn der Kunde im Kundenstamm keine eigenen hat (Vorgabe 2 % Skonto "
+         "bei Zahlung in 10 Tagen, 30 Tage netto). Das Skonto wird in den Preis eingerechnet. Bestehende Angebote "
+         "behalten ihre Werte."],
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
                                              "A-2026-0042)."],
         ["Angebots-PDF", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
-                    "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF"],
+                    "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF. Die Zahlungsbedingung (Skonto, "
+                    "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
+                    "dieses Feld."],
         ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export; leer = Ordner <i>Angebote</i> neben dem "
                                    "Programm. Auch ein Netzlaufwerk ist möglich."],
+        ["Ablage", "Zweiter Sicherungsordner", "zusätzliche Sicherung beim Beenden und mit <i>Datensicherung "
+                                               "erstellen</i>, z. B. Netzlaufwerk oder USB-Stick; leer = keiner "
+                                               "(Kapitel 2.3)"],
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"]], [28, 80, 157])
 
 
@@ -485,6 +514,10 @@ def kapitel_angebote(i):
         (3, "<b>Kopieren</b>: Kopie des markierten Angebots mit neuer Nummer, z. B. für eine Nachbestellung. "
             "Daneben <b>Öffnen</b> und <b>Löschen</b> (die tägliche Sicherung enthält gelöschte Angebote weiter)."),
         (4, "<b>Suchen</b> nach Angebotsnummer, Kunde, Kundennummer, Bemerkung, Artikelnummer oder Bezeichnung.")])
+    i.text("Beim Kopieren fragt das Programm nach dem Kunden der Kopie. Vorgeschlagen ist der bisherige Kunde; "
+           "wer ein Angebot für einen anderen Kunden wiederverwenden will, wählt ihn aus der Liste. Name und "
+           "Zahlungsbedingungen kommen dann aus dem Kundenstamm, Positionen und Staffeln werden mitkopiert.")
+    i.bild("kopieren_dialog", "Angebot kopieren: Kunde der Kopie wählen", hoehe=45 * mm)
 
 
 def kapitel_angebot(i):
@@ -492,8 +525,9 @@ def kapitel_angebot(i):
     i.text("Ein geöffnetes Angebot zeigt oben den Kopf und die Übersicht, darunter die Knopfleisten und die Reiter "
            "mit Positionen und Ergebnissen.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
-        (1, "<b>Angebotskopf</b>: Nummer, Kundennummer und Kundenname, Datum, Maschine, Standard-Stangenlänge, Bemerkung, Frachtkosten. "
-            "Darunter grau die Werte der gewählten Maschine."),
+        (1, "<b>Angebotskopf</b>: Nummer, Kundennummer und Kundenname, Datum, Maschine, Standard-Stangenlänge, "
+            "Bemerkung, Frachtkosten, Skonto, Skontofrist und Zahlungsziel. Darunter grau die Werte der gewählten "
+            "Maschine."),
         (2, "<b>Übersicht</b>: Stand der Optimierung, Anzahl Positionen und Fehler, Teile, Gewicht und jede "
             "Kostenart einzeln bis zum Verkaufspreis des Angebots (siehe Kalkulation)."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
@@ -506,7 +540,14 @@ def kapitel_angebot(i):
     i.liste("<b>Maschine</b> bestimmt Endbeschnitt, Greiferrest, Schnittverlust, Konturgrenzen, Stundensatz und die "
             "Schneiddaten.",
             "<b>Standard-Stangenlänge</b> gilt für alle Positionen ohne abweichende Stangenlänge.",
-            "<b>Frachtkosten</b> kommen ohne Zuschläge auf das Angebotspreis.")
+            "<b>Frachtkosten</b> kommen ohne Zuschläge auf das Angebotspreis.",
+            "<b>Kundennummer</b>: Kunden aus der Liste wählen (Nummer und Name) oder eine Nummer eintippen. Steht der "
+            "Kunde im Kundenstamm, übernimmt das Programm Kundenname und Zahlungsbedingungen; eine unbekannte Nummer "
+            "wird nur gespeichert.",
+            "<b>Skonto</b>, <b>Skontofrist</b>, <b>Zahlungsziel netto</b>: Zahlungsbedingung dieses Angebots, "
+            "vorbelegt vom Kunden bzw. aus den Einstellungen und hier änderbar. Das Skonto wird in den Preis "
+            "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
+            "genau der kalkulierte Preis. 0 % = kein Skonto.")
     i.abschnitt("Positionen")
     i.tabelle(["Spalte", "Eintrag"], [
         ["Pos., Artikelnummer, Bezeichnung", "frei; die Artikelnummer erscheint in Angebot und Werkstattpapieren"],
@@ -636,7 +677,7 @@ def kapitel_optimieren(i):
            "einzeln auf, nichts ist zusammengefasst: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
-           "Programmierkosten, Angebotsaufschlag und Fracht ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
+           "Programmierkosten, Angebotsaufschlag, Fracht und Skonto ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
            "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
     i.bild("erg_kalkulation", "Reiter Kalkulation", hoehe=80 * mm)
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
@@ -651,7 +692,9 @@ def kapitel_optimieren(i):
             "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
             "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt.",
             "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
-            "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.")
+            "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.",
+            "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis ohne Skonto "
+            "bleibt (Skonto % des Verkaufspreises). Je Teil in der Spalte <i>Skonto je Teil</i>.")
     i.abschnitt("Schnittplan")
     i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Ein Klick auf eine Stange zeigt unten ihre "
            "Teile in Schnittreihenfolge mit Lage (von/bis), Drehung und Art der Trennung.")
@@ -696,8 +739,10 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Die Leiste <b>Ausgabe</b> im Angebot erzeugt die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
            "und gleich geöffnet. Ist die Optimierung veraltet, fragt das Programm vorher.")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
-        (1, "<b>Angebot (PDF)</b>: Briefkopf, Positionen mit Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe "
-            "mit MwSt., Preistreppe der Staffeln, Bedingungen."),
+        (1, "<b>Angebot (PDF)</b>: Briefkopf, Kunde mit Anschrift aus dem Kundenstamm, Positionen mit "
+            "Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe mit MwSt., Preistreppe der Staffeln, "
+            "Zahlungsbedingung (z. B. „Zahlung innerhalb 10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“) "
+            "und Bedingungen."),
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage."),
@@ -745,6 +790,12 @@ def kapitel_fragen(i):
                                                         "hinterlegt. Reiter Preise oder Werkstoffe ergänzen."],
         ["<b>WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz</b>",
          "Stückzahl und Stück je Satz der Position passen nicht zusammen (z. B. 7 Teile bei 2 je Satz)."],
+        ["Preise sind höher als vor dem Update",
+         "Neue Angebote rechnen das Skonto ein (Vorgabe 2 %). Im Angebotskopf Skonto 0 eintragen oder in den "
+         "Einstellungen bzw. beim Kunden die Vorgabe ändern."],
+        ["Beim Beenden: <b>Sicherung nicht vollständig</b>",
+         "Der zweite Sicherungsordner ist nicht erreichbar (Netzlaufwerk getrennt, USB-Stick fehlt). Die Sicherung "
+         "in Daten\\Sicherung ist angelegt; Ordner verbinden und <i>Datensicherung erstellen</i> wählen."],
         ["Ablageordner lässt sich nicht öffnen", "Pfad in den Einstellungen prüfen (Netzlaufwerk verbunden?). Leer "
                                                  "lassen = Ordner Angebote neben dem Programm."],
         ["Daten versehentlich gelöscht oder Datendatei beschädigt",

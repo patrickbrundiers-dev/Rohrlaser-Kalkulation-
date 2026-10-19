@@ -12,7 +12,12 @@ KOPF = (
     Feld("stange", "Standard-Stangenlänge [mm]", "ganz", 500, 20000, pflicht=True),
     Feld("bemerkung", "Bemerkung"),
     Feld("fracht", "Frachtkosten [€]", "zahl", 0, 100000, stellen=2),
+    # Zahlungsbedingungen: Vorgabe aus dem Kunden bzw. den Einstellungen; Skonto wird in den Preis eingerechnet
+    Feld("skonto", "Skonto [%]", "zahl", 0, 20, stellen=1),
+    Feld("skonto_tage", "Skontofrist [Tage]", "ganz", 0, 365),
+    Feld("zahlungsziel", "Zahlungsziel netto [Tage]", "ganz", 0, 365),
 )
+ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 
 GEWINDE_MUSTER = (r"(?i)\dx\s*M", "Format Anzahl x Gewinde, mehrere mit Semikolon, z. B. 4xM6; 2xM8")
 

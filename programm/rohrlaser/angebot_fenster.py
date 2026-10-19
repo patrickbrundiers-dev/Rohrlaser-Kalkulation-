@@ -162,12 +162,48 @@ class AngeboteSeite(QWidget):
         if i:
             self.oeffnen.emit(i)
 
-    def kopieren(self):
+    def kopieren(self, kundennr=None):
+        """Angebot kopieren; im Dialog lässt sich ein anderer Kunde wählen (kundennr setzt ihn ohne Dialog)."""
         i = self._gewaehlt()
-        if i:
-            neu = self.db.angebot_kopieren(i)
-            self.neu_laden()
-            self.oeffnen.emit(neu)
+        if not i:
+            return None
+        if kundennr is None and not self.f.stumm:
+            kundennr = self._kunde_fuer_kopie(self.db.angebot(i))
+            if kundennr is False:
+                return None
+        neu = self.db.angebot_kopieren(i, kundennr)
+        self.neu_laden()
+        self.oeffnen.emit(neu)
+        return neu
+
+    def _kunde_fuer_kopie(self, a):
+        """Dialog: Kunde der Kopie. Ergebnis: Kundennummer ('' = ohne Kunde) oder False (abgebrochen)."""
+        d = QDialog(self)
+        d.setWindowTitle(f"Angebot {a['nummer']} kopieren")
+        form = QFormLayout(d)
+        kunde = QComboBox()
+        kunde.setEditable(True)
+        kunde.setInsertPolicy(QComboBox.NoInsert)
+        for kd in self.db.zeilen("kunden"):
+            if kd.get("kundennr"):
+                kunde.addItem(f"{kd['kundennr']} – {kd.get('name') or ''}", kd["kundennr"])
+        i = kunde.findData(a.get("kundennr"))
+        kunde.setCurrentIndex(i)
+        if i < 0:
+            kunde.setEditText(a.get("kundennr") or "")
+        text = QLabel("Die Kopie bekommt eine neue Nummer und das heutige Datum. Für einen anderen Kunden "
+                      "kommen Name und Zahlungsbedingungen aus dem Kundenstamm.")
+        text.setWordWrap(True)
+        d.setMinimumWidth(460)
+        form.addRow(text)
+        form.addRow("Kunde", kunde)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.accepted.connect(d.accept)
+        knoepfe.rejected.connect(d.reject)
+        form.addRow(knoepfe)
+        if d.exec() != QDialog.Accepted:
+            return False
+        return _kundennr(kunde.currentText())
 
     def loeschen(self):
         i = self._gewaehlt()
@@ -179,6 +215,11 @@ class AngeboteSeite(QWidget):
             self.f.angebot_schliessen(i)
             self.db.angebot_loeschen(i)
             self.neu_laden()
+
+
+def _kundennr(text):
+    """'K-1001 – Beispiel GmbH' (Eintrag der Kundenauswahl) -> 'K-1001'; frei eingetippt bleibt der Text."""
+    return str(text or "").split(" – ")[0].strip()
 
 
 def _datum(iso):
@@ -483,7 +524,14 @@ class AngebotSeite(QWidget):
         kopf_box = QGroupBox("Angebotskopf")
         g = QGridLayout(kopf_box)
         for i, fd in enumerate(KOPF):
-            if fd.art == "datum":
+            if fd.name == "kundennr":       # Kunde aus dem Kundenstamm wählen oder Nummer frei eintippen
+                w = QComboBox()
+                w.setEditable(True)
+                w.setInsertPolicy(QComboBox.NoInsert)
+                w.lineEdit().setPlaceholderText("Kunde wählen oder Nummer eintippen")
+                w.activated.connect(lambda i, w=w: self.kunde_waehlen(w.itemData(i)))
+                w.lineEdit().editingFinished.connect(lambda w=w: self.kunde_waehlen(_kundennr(w.currentText())))
+            elif fd.art == "datum":
                 w = QDateEdit()
                 w.setCalendarPopup(True)
                 w.setDisplayFormat("dd.MM.yyyy")
@@ -495,7 +543,7 @@ class AngebotSeite(QWidget):
                 w = QSpinBox()
                 w.setRange(int(fd.von), int(fd.bis))
                 w.setGroupSeparatorShown(True)
-                w.setSingleStep(100)
+                w.setSingleStep(100 if fd.bis > 1000 else 1)
                 w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, w.value()))
             elif fd.art == "zahl":
                 w = QDoubleSpinBox()
@@ -511,7 +559,7 @@ class AngebotSeite(QWidget):
             g.addWidget(w, i % 4, 2 * (i // 4) + 1)
         self.maschinenwerte = QLabel()
         self.maschinenwerte.setStyleSheet("color: #595959;")
-        g.addWidget(self.maschinenwerte, 4, 0, 1, 4)
+        g.addWidget(self.maschinenwerte, 4, 0, 1, 6)
         self.uebersicht = QLabel()
         self.uebersicht.setTextInteractionFlags(Qt.TextSelectableByMouse)
         summen_box = QGroupBox("Übersicht")
@@ -681,7 +729,14 @@ class AngebotSeite(QWidget):
         self._laden = True
         for fd in KOPF:
             w, v = self.felder[fd.name], self.kopf.get(fd.name)
-            if isinstance(w, QDateEdit):
+            if fd.name == "kundennr":
+                w.clear()
+                for kd in self.db.zeilen("kunden"):
+                    if kd.get("kundennr"):
+                        w.addItem(f"{kd['kundennr']} – {kd.get('name') or ''}", kd["kundennr"])
+                w.setCurrentIndex(w.findData(v) if v else -1)
+                w.setEditText(w.currentText() if v and w.findData(v) >= 0 else (v or ""))
+            elif isinstance(w, QDateEdit):
                 w.setDate(QDate.fromString(v, "yyyy-MM-dd") if v else QDate.currentDate())
             elif isinstance(w, QComboBox):
                 w.clear()
@@ -717,6 +772,16 @@ class AngebotSeite(QWidget):
             self._kopf_anzeigen()
             return
         self.f.meldung(f"{fd.titel} gespeichert.")
+        self.neu_laden()
+
+    def kunde_waehlen(self, kundennr):
+        """Kundennummer übernehmen; steht der Kunde im Kundenstamm, auch Name und Zahlungsbedingungen."""
+        kundennr = (kundennr or "").strip() or None
+        if self._laden or kundennr == self.kopf.get("kundennr"):
+            return
+        k = self.db.kunde_uebernehmen(self.id, kundennr)
+        self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen)." if k
+                       else "Kundennummer gespeichert (nicht im Kundenstamm).")
         self.neu_laden()
 
     def stand_optimierung(self):
@@ -987,7 +1052,9 @@ class AngebotSeite(QWidget):
         if sp is None:
             return None
         zeilen, _ = self._rechnung()
-        return ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp)
+        ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp)
+        ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
+        return ang
 
     def angebot_pdf(self):
         if not self._vor_ausgabe():
