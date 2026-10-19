@@ -1,6 +1,7 @@
 """Aufträge: Übersicht, Auftragsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
 import datetime
 import tempfile
+from itertools import zip_longest
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
@@ -611,6 +612,7 @@ class AuftragSeite(QWidget):
         kalk_ansicht = _tabelle(self.kalk)
         _breiten(kalk_ansicht, KALK_SPALTEN)
         self.summen = QLabel()
+        self.summen.setWordWrap(True)
         kalk_seite = QWidget()
         kl = QVBoxLayout(kalk_seite)
         kl.addWidget(self.summen)
@@ -772,37 +774,28 @@ class AuftragSeite(QWidget):
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
         laenge = sum(w["laenge_gesamt"] or 0 for w in self.pos_modell.werte) / 1000
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
-        self.uebersicht.setText(
-            f"<table cellpadding='1'>"
-            f"<tr><td>Positionen</td><td align='right'>{sum(1 for s in stat if s)}</td>"
-            f"<td width='20'></td><td>Material</td><td align='right'>{_z(summen['material'])} €</td></tr>"
-            f"<tr><td>davon FEHLER</td><td align='right'>{sum(1 for s in stat if s.startswith('FEHLER'))}</td>"
-            f"<td></td><td>Laser + Gewinde</td><td align='right'>{_z(summen['laser'])} €</td></tr>"
-            f"<tr><td>davon WARNUNG/HINWEIS</td><td align='right'>"
-            f"{sum(1 for s in stat if s.startswith(('WARNUNG', 'HINWEIS')))}</td>"
-            f"<td></td><td>Rüsten + Stangenwechsel</td><td align='right'>{_z(summen['ruesten'])} €</td></tr>"
-            f"<tr><td>Teile gesamt</td><td align='right'>{_z(teile, 0)} Stk</td>"
-            f"<td></td><td>Zusatzarbeiten</td><td align='right'>{_z(summen['zusatz'])} €</td></tr>"
-            f"<tr><td></td><td></td><td></td><td>Herstellkosten</td><td align='right'>{_z(summen['herstell'])} €</td></tr>"
-            f"<tr><td></td><td></td><td></td><td>Pauschalen, Programmierung, Aufschlag, Fracht</td><td align='right'>"
-            f"{_z(summen['pauschalen'] + summen['programmierung'] + summen['auftragsaufschlag'] + summen['fracht'])} €"
-            f"</td></tr>"
-            f"<tr><td>Teilelänge / Gewicht</td><td align='right'>{_z(laenge)} m / {_z(gewicht)} kg</td>"
-            f"<td></td><td><b>Verkaufspreis</b></td><td align='right'><b>{_z(summen['verkauf'])} €</b></td></tr>"
-            f"<tr><td>Stangen</td><td align='right'>{summen['stangen']}</td><td></td><td></td><td></td></tr></table>")
+        links = [("Positionen", str(sum(1 for s in stat if s))),
+                 ("davon FEHLER", str(sum(1 for s in stat if s.startswith("FEHLER")))),
+                 ("davon WARNUNG/HINWEIS", str(sum(1 for s in stat if s.startswith(("WARNUNG", "HINWEIS"))))),
+                 ("Teile gesamt", f"{_z(teile, 0)} Stk"), ("Teilelänge", f"{_z(laenge)} m"),
+                 ("Gewicht", f"{_z(gewicht)} kg"), ("Stangen", str(summen["stangen"]))]
+        kosten = rechnen.kostenarten(summen, self.einst)
+        teil = next(i for i, (_, _, fett) in enumerate(kosten) if fett) + 1     # bis Herstellkosten
+        mitte, rechts = kosten[:teil], kosten[teil - 1:]                         # Herstellkosten in beiden Spalten
+
+        def _k(z):
+            if not z:
+                return "<td></td><td></td>"
+            t, w, fett = z
+            return (f"<td><b>{t}</b></td><td align='right'><b>{_z(w)} €</b></td>" if fett
+                    else f"<td>{t}</td><td align='right'>{_z(w)} €</td>")
+        html = "<table cellpadding='1'>"
+        for l, m, r in zip_longest(links, mitte, rechts):
+            html += ((f"<tr><td>{l[0]}</td><td align='right'>{l[1]}</td>" if l else "<tr><td></td><td></td>")
+                     + "<td width='20'></td>" + _k(m) + "<td width='20'></td>" + _k(r) + "</tr>")
+        self.uebersicht.setText(html + "</table>")
         self.summen.setText(
-            f"Material {_z(summen['material'])} € · Laser + Gewinde {_z(summen['laser'])} € · Rüsten + Stangenwechsel "
-            f"{_z(summen['ruesten'])} € ({_z(summen['ruestzeit'], 0)} min Rüsten + {summen['abmessungen']} Abmessung(en) × "
-            f"{_z(summen['ruestzeit_abmessung'], 0)} min, {summen['stangen']} Stangen × "
-            f"{_z(summen['stangenwechsel'], 0)} s) · Zusatzarbeiten {_z(summen['zusatz'])} € · "
-            f"Herstellkosten {_z(summen['herstell'])} € · "
-            f"Pauschale {summen['abmessungen']} × {_z(self.einst.get('pauschale_abmessung') or 0)} € · "
-            f"Programmierung {_z(summen['programmierung'])} € · "
-            f"Auftragsaufschlag {_z(summen['auftragsaufschlag'])} € · Fracht {_z(summen['fracht'])} € · "
-            f"<b>Verkaufspreis {_z(summen['verkauf'])} €</b> · Zuschläge Material {_z(100 * self.einst['zuschlag_material'], 1)} %, "
-            f"Fertigung {_z(100 * self.einst['zuschlag_fertigung'], 1)} %, "
-            f"Fremdleistung {_z(100 * (self.einst.get('zuschlag_fremdleistung') or 0), 1)} %, "
-            f"Gewinn {_z(100 * self.einst['gewinn'], 1)} %")
+            " · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €" for t, w, fett in kosten))
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
             self.stangen.setzen([dict(s, **w) for s, w in zip(erg["stangen"], sw)])
@@ -1078,7 +1071,7 @@ class AuftragSeite(QWidget):
         sp = (self.kopf.get("staffelpreise") or {}).get("zeilen", [])
         return self._schreiben("Excel-Export", self._ziel("", ".xlsx", mit_kunde=True),
                                lambda p: export.auftrag_xlsx(p, self.kopf, self.positionen, self.pos_modell.status, zeilen,
-                                                             summen, self.ergebnis, sw, sp, ang))
+                                                             summen, self.ergebnis, sw, sp, ang, self.einst))
 
     # -------------------------------------------------------------- STEP-Import
     def _gezogene_dateien(self, ereignis):

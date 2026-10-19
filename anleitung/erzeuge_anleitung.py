@@ -457,8 +457,8 @@ def kapitel_auftrag(i):
     i.bild("auftrag_positionen", "Auftrag A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
         (1, "<b>Auftragskopf</b>: Nummer, Kundennummer und Kundenname, Datum, Maschine, Standard-Stangenlänge, Bemerkung, Frachtkosten. "
             "Darunter grau die Werte der gewählten Maschine."),
-        (2, "<b>Übersicht</b>: Stand der Optimierung, Anzahl Positionen und Fehler, Teile, Gewicht, Kosten und "
-            "Verkaufspreis des Auftrags."),
+        (2, "<b>Übersicht</b>: Stand der Optimierung, Anzahl Positionen und Fehler, Teile, Gewicht und jede "
+            "Kostenart einzeln bis zum Verkaufspreis des Auftrags (siehe Kalkulation)."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b> / <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.3)."),
@@ -595,6 +595,12 @@ def kapitel_optimieren(i):
     i.abschnitt("Kalkulation")
     i.text("Der Reiter <i>Kalkulation</i> zeigt oben die Summen des Auftrags und darunter je Position Material, "
            "Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position.")
+    i.text("Übersicht, Reiter Kalkulation, Kalkulations-PDF und Excel-Export führen jede Kostenart des Auftrags "
+           "einzeln auf, nichts ist zusammengefasst: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
+           "Abmessung, Stangenwechsel, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
+           "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
+           "Programmierkosten, Auftragsaufschlag und Fracht ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
+           "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
     i.bild("erg_kalkulation", "Reiter Kalkulation", hoehe=80 * mm)
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
             "(Verschnitt ist enthalten). Preis: abweichender Preis der Position, sonst <i>Preise</i>, sonst "

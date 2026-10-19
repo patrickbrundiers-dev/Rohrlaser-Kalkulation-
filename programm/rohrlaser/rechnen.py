@@ -574,12 +574,19 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z.update(zeit_manuell="ja" if manuell else "", zeit_extra=zeit_extra, gewinde_preis=gp,
                  zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c, zusatzarbeiten=zus[i],
                  zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]))
+        z.update(laser_schneiden_teil=_n(oz) / 3600 * satz_h, gewinde_teil=pz / 3600 * satz_h + gp,
+                 zuschlag_material_teil=f * zm, zuschlag_fertigung_teil=(qz + rz + ze) * zf,
+                 zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew)
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  herstell_teil=s_, pauschalen_teil=uz, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
                  nicht_eingeplant=nicht)
         zeilen[i] = z
     n_abm = len(teile_abm)
+
+    def _summe(n):
+        return sum(z[n] * z["stueck"] for z in zeilen if z)
+
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, auftragsaufschlag=aufschlag, fracht=fracht,
@@ -589,7 +596,42 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zusatz=sum(z["zusatz_position"] for z in zeilen if z),
                   herstell=sum(z["herstell_position"] for z in zeilen if z),
                   verkauf=sum(z["preis_position"] for z in zeilen if z))
+    # Einzelne Kostenarten (Material + Laser + Gewinde + Rüsten + Stangenwechsel + Zusatzarbeiten + Zuschläge
+    # = Herstellkosten; Herstellkosten + Gewinn + Pauschalen + Programmierung + Aufschlag + Fracht = Verkaufspreis)
+    summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
+                  ruesten_maschine=ruest / 60 * satz_h, ruesten_abmessungen=ruest_abm * n_abm,
+                  stangenwechsel_kosten=wechsel * len(stangen) / 3600 * satz_h,
+                  zuschlag_material=_summe("zuschlag_material_teil"),
+                  zuschlag_fertigung=_summe("zuschlag_fertigung_teil"),
+                  zuschlag_fremdleistung=_summe("zuschlag_fremdleistung_teil"), gewinn=_summe("gewinn_teil"))
     return zeilen, summen
+
+
+KOSTENARTEN = (
+    # (Bezeichnung, Schlüssel in summen, fett) in Rechenreihenfolge
+    ("Material", "material", False), ("Laser schneiden", "laser_schneiden", False), ("Gewinde", "gewinde", False),
+    ("Rüsten Maschine", "ruesten_maschine", False), ("Rüsten je Abmessung", "ruesten_abmessungen", False),
+    ("Stangenwechsel", "stangenwechsel_kosten", False), ("Zusatzarbeiten", "zusatz", False),
+    ("Zuschlag Material", "zuschlag_material", False), ("Zuschlag Fertigung", "zuschlag_fertigung", False),
+    ("Zuschlag Fremdleistung", "zuschlag_fremdleistung", False), ("Herstellkosten", "herstell", True),
+    ("Gewinn", "gewinn", False), ("Pauschale je Abmessung", "pauschalen", False),
+    ("Programmierkosten", "programmierung", False), ("Auftragsaufschlag", "auftragsaufschlag", False),
+    ("Fracht", "fracht", False), ("Verkaufspreis", "verkauf", True))
+
+
+def kostenarten(summen, einst):
+    """[(Bezeichnung mit Mengenangabe, Betrag, fett)] aller Kostenarten des Auftrags, einzeln."""
+    z = lambda w, st=1: zahl(w, st)
+    zusatz = {
+        "ruesten_maschine": f" ({z(summen['ruestzeit'])} min)",
+        "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min)",
+        "stangenwechsel_kosten": f" ({summen['stangen']} × {z(summen['stangenwechsel'])} s)",
+        "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
+        "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
+        "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",
+        "gewinn": f" ({z(100 * _n(einst.get('gewinn')))} %)",
+        "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)"}
+    return [(t + zusatz.get(n, ""), summen[n], fett) for t, n, fett in KOSTENARTEN]
 
 
 def eingeplant_je_position(ergebnis):

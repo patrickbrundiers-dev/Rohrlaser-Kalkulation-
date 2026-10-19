@@ -174,6 +174,17 @@ def pruefen(auftrag, kopf, positionen, erg, sw, zeilen, summen, stamm):
     for z in zeilen:
         if z and z["stueck"]:
             assert nahe(z["material_teil"] * z["stueck"], z["material_position"])
+    # Einzelne Kostenarten ergeben Herstellkosten und Verkaufspreis
+    herstell = sum(summen[n] for n in ("material", "laser_schneiden", "gewinde", "ruesten_maschine",
+                                       "ruesten_abmessungen", "stangenwechsel_kosten", "zusatz", "zuschlag_material",
+                                       "zuschlag_fertigung", "zuschlag_fremdleistung"))
+    assert nahe(herstell, summen["herstell"]), f"{name}: Kostenarten {herstell} ≠ Herstellkosten {summen['herstell']}"
+    verkauf = summen["herstell"] + sum(summen[n] for n in ("gewinn", "pauschalen", "programmierung",
+                                                          "auftragsaufschlag", "fracht"))
+    assert nahe(verkauf, summen["verkauf"]), f"{name}: Kostenarten {verkauf} ≠ Verkaufspreis {summen['verkauf']}"
+    assert nahe(summen["laser_schneiden"] + summen["gewinde"], summen["laser"])
+    assert nahe(summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"],
+                summen["ruesten"])
 
     # 4. Gegen manuelle Einteilung und Untergrenze
     zeilen_protokoll = []

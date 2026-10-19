@@ -15,6 +15,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
 from reportlab.pdfgen import canvas as rl_canvas
 
 from . import ausgabe
+from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
 SCHRIFT, FETT = "Helvetica", "Helvetica-Bold"
@@ -296,24 +297,16 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
     if not aktuell:
         inhalt.append(_p("ACHTUNG: Kalkulation passt nicht zum aktuellen Auftrag (Optimierung veraltet).",
                          ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
-    werte = [("Material [€]", _z(summen["material"])), ("Laser + Gewinde [€]", _z(summen["laser"])),
-             ("Rüsten + Stangenwechsel [€]", _z(summen["ruesten"])),
-             ("Zusatzarbeiten [€]", _z(summen["zusatz"])), ("Herstellkosten [€]", _z(summen["herstell"])),
-             ("Pauschalen je Abmessung [€]", _z(summen["pauschalen"])),
-             ("Programmierkosten [€]", _z(summen["programmierung"])),
-             ("Auftragsaufschlag + Fracht [€]", _z(summen["auftragsaufschlag"] + summen["fracht"])),
-             ("Verkaufspreis Auftrag [€]", _z(summen["verkauf"]))]
+    werte = [(f"{t} [€]", _z(w)) for t, w, _ in kostenarten(summen, einst)]
     auftrag = [("Rüstzeit [min]", _z(summen["ruestzeit"], 0)),
                ("Abmessungen × Rüstzeit [min]", f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"),
                ("Stangenwechsel [s]", _z(summen["stangenwechsel"], 0)),
-               ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0)),
-               ("Zuschläge M / F / Fremdl. / Gewinn", " / ".join(f"{_z(100 * (einst.get(n) or 0), 1)} %" for n in
-                                                       ("zuschlag_material", "zuschlag_fertigung",
-                                                        "zuschlag_fremdleistung", "gewinn")))]
+               ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0))]
     t = Table([[_p(a, S_FETT), _p(b, S_RECHTS), "", _p(c, S_FETT), _p(d, S_RECHTS)] for (a, b), (c, d) in
                zip_longest(werte, auftrag, fillvalue=("", ""))],
-              colWidths=[50 * mm, 30 * mm, 15 * mm, 50 * mm, 40 * mm], hAlign="LEFT")
-    t.setStyle(TableStyle([("LINEBELOW", (0, 0), (1, -1), 0.3, RAHMEN), ("LINEBELOW", (3, 0), (4, -1), 0.3, RAHMEN)]))
+              colWidths=[75 * mm, 30 * mm, 15 * mm, 60 * mm, 25 * mm], hAlign="LEFT")
+    t.setStyle(TableStyle([("LINEBELOW", (0, 0), (1, -1), 0.3, RAHMEN),
+                           ("LINEBELOW", (3, 0), (4, len(auftrag) - 1), 0.3, RAHMEN)]))
     inhalt += [Spacer(1, 3 * mm), t, Spacer(1, 5 * mm)]
     klein = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
     daten = [[_p(s[0], klein) for s in KALK]]
