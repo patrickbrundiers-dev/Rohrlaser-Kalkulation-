@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import ausgabe, export, pdf, rechnen, staffeln, step
+from .nachkalk_seite import NachkalkulationSeite
 from .zusatz_dialog import ZusatzDialog
 from .angebot import KOPF, POSITIONEN, STEP_FELDER
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
@@ -110,7 +111,8 @@ class AngeboteSeite(QWidget):
                ("Datum", lambda z: _datum(z.get("datum")), None, 85), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
                ("Optimiert am", lambda z: _zeit(z.get("optimiert_am")), None, 120),
-               ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120)]
+               ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120),
+               ("Nachkalkuliert", lambda z: "ja" if z.get("nachkalkuliert") else "", None, 85)]
 
     def __init__(self, fenster):
         super().__init__()
@@ -695,7 +697,10 @@ class AngebotSeite(QWidget):
         self.reiter.addTab(bild_rahmen, "Stangenbild")
         self.reiter.addTab(ausw_seite, "Auswertung")
         self.reiter.addTab(st_seite, "Staffeln")
+        self.nachkalk = NachkalkulationSeite(self)
+        self.reiter.addTab(self.nachkalk, "Nachkalkulation")
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
+        self.st_seite = st_seite
 
         lay = QVBoxLayout(self)
         lay.addLayout(oben)
@@ -839,6 +844,7 @@ class AngebotSeite(QWidget):
         self.prot.setzen(self.db.protokoll(self.id))
         self.staffel_modell.setzen(self.stufen)
         self._staffel_stand()
+        self.nachkalk.neu_laden()
 
     def _stange_gewaehlt(self, aktuell, _=None):
         if not aktuell.isValid() or not self.ergebnis:
@@ -929,7 +935,7 @@ class AngebotSeite(QWidget):
         self.db.staffel_neu(self.id)
         self.neu_laden()
         i = self.staffel_modell.index(len(self.stufen) - 1, 0)
-        self.reiter.setCurrentIndex(self.reiter.count() - 2)
+        self.reiter.setCurrentWidget(self.st_seite)
         self.staffel_ansicht.setCurrentIndex(i)
         self.staffel_ansicht.edit(i)
 

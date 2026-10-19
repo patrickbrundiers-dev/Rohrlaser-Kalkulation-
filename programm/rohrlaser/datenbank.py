@@ -4,7 +4,8 @@ Das Schema entsteht aus stammdaten.TABELLEN und angebot.KOPF/POSITIONEN; die Sch
 PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 = nur Stammdaten,
 2 = mit Aufträgen, 3 = mit Staffeln und Staffelpreisen, 4 = Maschinengrenzen Hüllkreis/Metergewicht und
 Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote,
-7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf).
+7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf,
+8 = Nachkalkulation je Angebot).
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
 Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt.
 """
@@ -17,7 +18,7 @@ from .angebot import KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispieldaten, kontext_aus)
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -74,6 +75,8 @@ class Datenbank:
             spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
+            if "nachkalkulation" not in spalten_a:    # Datei vor Schema 8
+                self.con.execute("ALTER TABLE angebote ADD COLUMN nachkalkulation TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder)]:
                 vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
@@ -216,6 +219,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -233,6 +237,7 @@ class Datenbank:
         a = dict(r)
         a["ergebnis"] = json.loads(a["ergebnis"]) if a["ergebnis"] else None
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
+        a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
         return a
 
     def _jetzt(self):
@@ -310,6 +315,12 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET staffelpreise=? WHERE id=?",
                              (json.dumps(staffelpreise, ensure_ascii=False) if staffelpreise else None, angebot_id))
+
+    def nachkalkulation_speichern(self, angebot_id, ist):
+        """Ist-Werte der Nachkalkulation (siehe nachkalkulation.py) oder None."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET nachkalkulation=? WHERE id=?",
+                             (json.dumps(ist, ensure_ascii=False) if ist else None, angebot_id))
 
     # -------------------------------------------------------------- Staffeln (Mengenstufen)
     def staffeln(self, angebot_id):
