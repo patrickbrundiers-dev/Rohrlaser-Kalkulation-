@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 
 from . import rechnen
 from .stammdaten import (TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORIEN, ZUSATZART_TEXT, ZUSATZARTEN,
-                         ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, wert_aus_text, zahl_als_text)
+                         ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, zahl_als_text, zahl_aus_text)
 
 TITEL = "Zusatzarbeiten"
 BREIT = 1280        # ab dieser Breite steht das Formular neben der Tabelle, darunter in einem eigenen Fenster
@@ -324,7 +324,7 @@ class ZusatzFormular(QWidget):
 
     def _formatieren(self, w, stellen):
         try:
-            v = wert_aus_text(FELD["preis"], w.text())     # nur Zahl erkennen, Bereich prüft werte()
+            v = zahl_aus_text(w.text()) if w.text().strip() else None    # Bereich prüft werte()
         except ValueError:
             return
         if v is not None:
@@ -402,7 +402,7 @@ class ZusatzFormular(QWidget):
         for n, t in titel.items():
             text = getattr(self, n).text().strip()
             try:
-                w = wert_aus_text(FELD[n], text)
+                w = zahl_aus_text(text) if text else None
             except ValueError:
                 fehler[n] = f"{t}: '{text}' ist keine Zahl."
                 continue
@@ -502,6 +502,8 @@ SPALTEN = (("Name", "name", True), ("Kategorie", "kategorie", True), ("Abrechnun
            ("Mindestbetrag", "mindest", False), ("Preis je Einheit", "preis", True),
            ("Verkaufspreis (Vorgaben)", "verkauf", True), ("Status", "status", True))
 SORTIERUNG = ("Name", "Preis", "Zeitaufwand", "Kategorie")
+# bei schmalem Fenster zuerst weggelassen (stehen im Detailbereich)
+WEGLASSEN = ("zuschlag_material", "weitere", "arbeit", "satz", "mindest", "material", "bemerkung", "zeit", "kategorie")
 
 
 class ZusatzVerwaltung(QWidget):
@@ -700,13 +702,36 @@ class ZusatzVerwaltung(QWidget):
                 if n == "art":
                     it.setToolTip(grundlage_text(z))
                 self.tabelle.setItem(r, c, it)
-        for c, (_, n, immer) in enumerate(SPALTEN):     # Nullwert-Regel: leere optionale Spalten ausblenden
-            self.tabelle.setColumnHidden(c, not immer and not any(w[n] for w in zellen))
+        self.zellen_text = zellen
+        self._einpassen()
         n_alle = len(self.daten)
         inaktiv = sum(1 for z in self.daten if not aktiv(z))
         self.anzahl.setText(f"{len(self.sichtbar)} von {n_alle} Einträgen" + (f", {inaktiv} inaktiv" if inaktiv else ""))
         self.auswaehlen(gewaehlt)
         self._auswahl()
+
+    def _einpassen(self):
+        """Nullwert-Regel: leere optionale Spalten ausblenden. Ist das Fenster zu schmal, fallen weitere
+        Detailspalten weg (sie stehen im Detailbereich), damit die Tabelle nicht waagrecht rollt."""
+        zellen = getattr(self, "zellen_text", [])
+        for c, (_, n, immer) in enumerate(SPALTEN):
+            self.tabelle.setColumnHidden(c, not immer and not any(w[n] for w in zellen))
+        platz = self.tabelle.viewport().width()
+        if platz <= 0:
+            return
+        kopf = self.tabelle.horizontalHeader()
+
+        def bedarf():
+            return sum(max(kopf.sectionSizeHint(c), self.tabelle.sizeHintForColumn(c)) if n != "bemerkung" else 60
+                       for c, (_, n, _) in enumerate(SPALTEN) if not self.tabelle.isColumnHidden(c))
+        for n in WEGLASSEN:
+            if bedarf() <= platz:
+                break
+            self.tabelle.setColumnHidden(next(c for c, x in enumerate(SPALTEN) if x[1] == n), True)
+
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self._einpassen()
 
     def spalte_sichtbar(self, titel):
         c = next(i for i, s in enumerate(SPALTEN) if s[0] == titel)
