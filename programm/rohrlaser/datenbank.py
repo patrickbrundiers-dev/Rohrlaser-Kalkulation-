@@ -38,13 +38,14 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 21     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 22     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
                         # 19: Profilformen I-/H-Träger und T-Profil in der Auswahlliste ergänzt (keine neuen Spalten)
                         # 20: Blechartikel: zukauf_artikel.artikeltyp, Maße, Werkstoff, Herkunft, STEP-Datei, Kennung
                         # 21: Positionsart (positionen.art: Rohrlaserteil/Zukaufteil) und positionen.gewicht_teil
+                        # 22: Lieferlängen (Tabelle lieferlaengen, profile.laengenvergleich, angebote.laengenwahl)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -118,6 +119,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN zeitbasis TEXT")
             if "preisbasis" not in spalten_a:         # Datei vor Schema 18 (alte Angebote: aktuelle Preise)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN preisbasis TEXT")
+            if "laengenwahl" not in spalten_a:        # Datei vor Schema 22 (alle Gruppen mit der Angebotslänge)
+                self.con.execute("ALTER TABLE angebote ADD COLUMN laengenwahl TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
@@ -604,10 +607,10 @@ class Datenbank:
         return k
 
     def tabellen(self):
-        """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
+        """Stammdaten, die die Rechnung braucht (Preise, Lieferlängen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
         Arbeitsschritte)."""
-        return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde", "zusatzarbeiten", "stundensaetze",
-                                            "arbeitsschritte")}
+        return {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
+                                            "stundensaetze", "arbeitsschritte")}
 
     def zeitbasis_vorgabe(self, maschinen_id):
         """Snapshot der Stundensätze und Zeitvorgaben für ein Angebot (rechnen.zeitbasis_aus)."""
@@ -628,6 +631,13 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET preisbasis=?, geaendert=? WHERE id=?",
                              (json.dumps(preisbasis, ensure_ascii=False) if preisbasis is not None else None,
                               self._jetzt(), angebot_id))
+
+    def laengenwahl_speichern(self, angebot_id, wahl):
+        """Übernommene Lieferlängen eines Angebots {Gruppenschlüssel: Länge} (rechnen.laengen_schluessel;
+        leer = alle Gruppen mit der Stangenlänge des Angebots)."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET laengenwahl=?, geaendert=? WHERE id=?",
+                             (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
     # -------------------------------------------------------------- Frachtkosten
     def fracht_daten(self):
@@ -782,6 +792,7 @@ class Datenbank:
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
+        a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
         return a
 
     def _jetzt(self):
@@ -851,6 +862,8 @@ class Datenbank:
             kopf["kunde"] = k["name"] if k else None
             kopf.update(self.zahlungsbedingungen(kundennr))
         neu = self.angebot_neu(kopf)
+        if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
+            self.laengenwahl_speichern(neu, a["laengenwahl"])
         netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
             i = self.position_neu(neu, p)
