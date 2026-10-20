@@ -71,7 +71,8 @@ f.resize(1920, 1000)
 f.show()
 seite = f.angebot_oeffnen(a)
 app.processEvents()
-assert [x.text() for x in seite.zukauf_knopf.menu().actions()] == ["Zukaufteile bearbeiten …", "Neuer Zukaufartikel …"]
+assert [x.text() for x in seite.zukauf_knopf.menu().actions()] == ["Zukaufteile bearbeiten …", "Neuer Zukaufartikel …",
+                                                                     "EK eintragen …"]
 
 
 def bedienen(d):

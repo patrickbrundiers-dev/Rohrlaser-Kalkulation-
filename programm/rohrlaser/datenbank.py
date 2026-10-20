@@ -397,9 +397,11 @@ class Datenbank:
             self._zukauf_protokoll(artikel_id, alt, dict(werte, bezuege=bezuege), jetzt, bemerkung)
         return artikel_id
 
-    def zukauf_ek_eintragen(self, artikel_id, preis, lieferant=None):
+    def zukauf_ek_eintragen(self, artikel_id, preis, lieferant=None, ab=None, bemerkung=None):
         """Einkaufspreis je Einheit (ab Menge 1) beim Lieferanten eintragen (fehlt er, beim bevorzugten bzw. einem neuen
-        Eintrag); weitere Staffelzeilen dieses Lieferanten werden ersetzt. Preis muss über 0 € liegen (ValueError)."""
+        Eintrag); weitere Staffelzeilen dieses Lieferanten werden ersetzt. Mit ab (Stückzahl, z. B. aus dem Angebot)
+        wird der Preis als Staffelzeile 'ab Stückzahl' eingetragen und die übrigen Zeilen über 0 € bleiben (kleinere
+        Mengen nehmen die erste Zeile). Preis muss über 0 € liegen (ValueError)."""
         p = zukauf.dez(preis)
         if p is None or p <= 0:
             raise ValueError("Bitte einen Einkaufspreis über 0 € eingeben.")
@@ -416,10 +418,17 @@ class Datenbank:
             bezuege.append(b)
         elif lieferant:
             b["lieferant"] = lieferant
-        b["preise"] = [dict(ab=1, preis=float(p))]
+        if ab is None:
+            b["preise"] = [dict(ab=1, preis=float(p))]
+        else:
+            ab = max(1, float(ab))
+            ab = int(ab) if ab.is_integer() else ab
+            bleiben = [e for e in zukauf.staffel_sortiert(b.get("preise")) if e["preis"] > 0 and float(e["ab"]) != ab]
+            b["preise"] = sorted([dict(ab=float(e["ab"]), preis=float(e["preis"])) for e in bleiben]
+                                 + [dict(ab=ab, preis=float(p))], key=lambda e: e["ab"])
         b["preiseinheit"] = b.get("preiseinheit") or 1
         a.pop("bezuege")
-        return self.zukauf_speichern(artikel_id, a, bezuege, bemerkung="EK eingetragen")
+        return self.zukauf_speichern(artikel_id, a, bezuege, bemerkung=bemerkung or "EK eingetragen")
 
     PROTOKOLL_ARTIKEL = ("aufschlag_quelle", "aufschlag_methode", "aufschlag_wert", "aufschlag_staffel")
     PROTOKOLL_BEZUG = ("preise", "preiseinheit", "rabatt", "verpackung", "mindermenge", "mindermenge_bis", "fracht",
