@@ -460,6 +460,83 @@ class Datenbank:
         return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer),
                     veraltet=sorted(veraltet))
 
+    def zukauf_betroffen(self, artikel_id):
+        """Angebote mit dem Artikel in einem älteren Preisstand: [{angebot_id, nummer, kunde, positionen, stand
+        (Datum), verbrauch, vk_alt, vk_neu}] (VK netto für den ganzen Verbrauch im Angebot, ohne Skonto)."""
+        aktuell, out = {}, {}
+        for pid, aid, nummer, liste in self.zukauf_positionen(artikel_id):
+            stueck = self.con.execute("SELECT stueck FROM positionen WHERE id=?", (pid,)).fetchone()[0] or 0
+            for n, e in enumerate(liste):
+                if e.get("artikel_id") != artikel_id:
+                    continue
+                lief = ((e.get("stand") or {}).get("bezug") or {}).get("lieferant")
+                if lief not in aktuell:
+                    aktuell[lief] = self.zukauf_stand(artikel_id, lief)
+                if zukauf.stand_kennung(e.get("stand")) == zukauf.stand_kennung(aktuell[lief]):
+                    continue
+                x = out.setdefault(aid, dict(angebot_id=aid, nummer=nummer, positionen=set(), alt=[], neu=[],
+                                             stand=set()))
+                x["positionen"].add(pid)
+                x["stand"].add((e.get("stand") or {}).get("datum") or "")
+                x["alt"].append(((pid, n), e, stueck))
+                x["neu"].append(((pid, n), dict(e, stand=aktuell[lief]), stueck))
+        ergebnis = []
+        for x in out.values():
+            alt, _ = zukauf.rechnen(x["alt"])
+            neu, _ = zukauf.rechnen(x["neu"])
+            kopf = self.con.execute("SELECT kunde FROM angebote WHERE id=?", (x["angebot_id"],)).fetchone()
+            fehlt = any(g["fehler"] for g in alt + neu)
+            ergebnis.append(dict(angebot_id=x["angebot_id"], nummer=x["nummer"], kunde=kopf[0] if kopf else None,
+                                 positionen=len(x["positionen"]), stand=", ".join(sorted(d[:10] for d in x["stand"])),
+                                 verbrauch=float(sum((g["bestellung"]["verbrauch"] for g in alt), zukauf.NULL)),
+                                 vk_alt=None if fehlt else float(sum((g["vk"] for g in alt), zukauf.NULL)),
+                                 vk_neu=None if fehlt else float(sum((g["vk"] for g in neu), zukauf.NULL))))
+        return sorted(ergebnis, key=lambda x: x["nummer"] or "")
+
+    def zukauf_angebot_aktualisieren(self, angebot_id, artikel_id):
+        """Preisstand eines Artikels in allen Positionen eines Angebots auf den aktuellen Stand setzen (gleicher
+        Lieferant). Ergebnis: Anzahl geänderter Einträge."""
+        n = 0
+        for pid, aid, _, liste in self.zukauf_positionen(artikel_id):
+            if aid != angebot_id:
+                continue
+            geaendert = False
+            for e in liste:
+                if e.get("artikel_id") != artikel_id:
+                    continue
+                neu = self.zukauf_stand(artikel_id, ((e.get("stand") or {}).get("bezug") or {}).get("lieferant"))
+                if neu is not None and zukauf.stand_kennung(neu) != zukauf.stand_kennung(e.get("stand")):
+                    e["stand"] = neu
+                    geaendert = True
+                    n += 1
+            if geaendert:
+                self.position_aendern(pid, "zukauf", json.dumps(liste, ensure_ascii=False))
+        return n
+
+    def zukauf_importieren(self, zeilen, bemerkung="CSV-Import"):
+        """Geprüfte Zeilen aus zukauf_csv.vorschau übernehmen (nur 'neu' und 'ändern'). Unbekannte Kategorien werden
+        angelegt. Ergebnis: (neu, geändert)."""
+        from .zukauf_csv import AENDERN, NEU
+        je = {}
+        for z in zeilen:
+            if z.get("aktion") in (NEU, AENDERN):
+                je[z["artikelnr"]] = z            # mehrere Lieferanten: Zeilen tragen denselben zusammengeführten Artikel
+        kategorien = set(self.zukauf_kategorien())
+        neu = geaendert = 0
+        for z in je.values():
+            kat = z["artikel"].get("kategorie")
+            if kat and kat not in kategorien:
+                self.neu("zukauf_kategorien", dict(name=kat, aktiv="ja"))
+                kategorien.add(kat)
+            vorhanden = self.con.execute("SELECT id FROM zukauf_artikel WHERE artikelnr=?",
+                                         (z["artikelnr"],)).fetchone()
+            self.zukauf_speichern(vorhanden[0] if vorhanden else None, z["artikel"], z["bezuege"], bemerkung)
+            if vorhanden:
+                geaendert += 1
+            else:
+                neu += 1
+        return neu, geaendert
+
     def stammdaten_ersetzen(self, daten, einstellungen, herkunft):
         """Alle Stammdatentabellen in einem Schritt ersetzen (z. B. Beispieldaten einer neuen Datei).
         daten: {Tabelle: [Zeile, …]}; einstellungen: {Name: Wert}, nur die genannten werden gesetzt."""

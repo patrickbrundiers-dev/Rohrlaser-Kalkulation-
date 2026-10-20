@@ -1378,8 +1378,8 @@ def kapitel_zukauf(i):
            "Frästeile von Lieferanten, fremdgefertigte Bauteile, Profile und Rohre. Jeder Artikel hat eigene "
            "Einkaufspreise je Lieferant, eine Mengeneinheit und eine eigene Aufschlagsregel. Arbeiten am Teil "
            "(Verzinken, Entgraten) bleiben Zusatzarbeiten (Kapitel 3).",
-           "Der Reiter <i>Zukaufartikel</i> ist ohne Passwort zugänglich und hat drei Unterreiter: <b>Artikel</b>, "
-           "<b>Kategorien</b> und <b>Lieferanten</b>.")
+           "Der Reiter <i>Zukaufartikel</i> ist ohne Passwort zugänglich und hat vier Unterreiter: <b>Artikel</b>, "
+           "<b>Kategorien</b>, <b>Lieferanten</b> und <b>Preisänderungen</b>.")
     i.abschnitt("Übersicht der Artikel")
     i.bild("zukauf_uebersicht", "Zukaufartikel, Unterreiter Artikel (Beispielwerte)", hoehe=105 * mm, legende=[
         (1, "Reiter <b>Zukaufartikel</b> mit den Unterreitern Artikel, Kategorien und Lieferanten"),
@@ -1389,7 +1389,7 @@ def kapitel_zukauf(i):
             "Lieferant, Artikelnummer, Bezeichnung oder EK je Einheit"),
         (5, "<b>Bearbeiten</b> (auch Doppelklick), <b>Duplizieren</b>, <b>Archivieren</b> bzw. <b>Wieder "
             "aktivieren</b> und <b>In Angebot übernehmen …</b> (Abschnitt 13.6); dieselben Befehle mit der rechten "
-            "Maustaste"),
+            "Maustaste. Rechts <b>CSV exportieren</b> und <b>CSV importieren …</b> (Abschnitt 13.8)"),
         (6, "Details des markierten Artikels: alle Lieferanten mit Staffelpreisen und die Rechnung je Einheit")])
     i.text("Die Spalten zeigen je Artikel Artikelnr., Bezeichnung, Kategorie, bevorzugten Lieferant, Einheit, "
            "<i>EK je Einheit</i> (Einkaufspreis netto bei der kleinsten Bestellmenge), <i>Bezugskosten</i> (je "
@@ -1535,6 +1535,41 @@ def kapitel_zukauf(i):
            "Gruppe <i>Zukaufteile (eigener Aufschlag statt Zuschläge und Gewinn)</i> mit <i>Einstand Zukaufteile "
            "(Einkauf + Bezugskosten)</i> und <i>Aufschlag Zukaufteile</i>. Materialzuschlag und Gewinn der Stufe "
            "wirken nicht auf Zukaufteile.")
+    i.abschnitt("Preisänderungen")
+    i.text("Jede Änderung an Einkaufspreisen, Bezugskosten, Mindestmengen, Gültigkeit oder Aufschlag eines Artikels "
+           "schreibt das Programm beim Speichern ins Protokoll: Datum, Artikel, Lieferant, Was, Alt, Neu und "
+           "Bemerkung (z. B. <i>CSV-Import</i>). Der Unterreiter <b>Preisänderungen</b> zeigt das Protokoll, neueste "
+           "zuerst, mit Suche und Filter nach Artikel.")
+    i.bild("zukauf_preise", "Unterreiter Preisänderungen: Schrauben von 12,00 auf 12,80 € je 100 Stück "
+                            "(Beispielwerte)", hoehe=100 * mm, legende=[
+        (1, "Unterreiter <b>Preisänderungen</b>"), (2, "Protokoll mit altem und neuem Wert"),
+        (3, "Angebote, die den markierten Artikel noch mit einem älteren Preisstand enthalten: Positionen, "
+            "Preisstand, Verbrauch, VK alt und neu (netto für den ganzen Verbrauch im Angebot) und Differenz"),
+        (4, "<b>Angebot öffnen</b> (auch Doppelklick)"),
+        (5, "<b>Im Angebot aktualisieren …</b>: zeigt alt und neu und setzt nach Bestätigung den aktuellen "
+            "Preisstand in allen Positionen dieses Angebots")])
+    i.text("Gespeicherte Angebote ändern sich nie von selbst. Aktualisiert wird nur ausdrücklich: hier je Angebot "
+           "oder im Dialog Zukaufteile einer Position mit <b>Aus Stammdaten aktualisieren …</b>.")
+    i.abschnitt("CSV-Import und -Export")
+    i.text("<b>CSV exportieren</b> im Unterreiter Artikel speichert alle Artikel als CSV-Datei (Semikolon, mit "
+           "Excel zu öffnen): eine Zeile je Artikel und Lieferant, Kopfzeile mit den Feldnamen wie im Formular. "
+           "Einkaufspreise stehen als Staffel <i>ab 1: 12,00 | ab 500: 9,00</i> (Preis je Preiseinheit); ein "
+           "einzelner Preis genügt (<i>12,00</i> = ab 1).",
+           "<b>CSV importieren …</b> liest eine solche Datei und zeigt zuerst eine Vorschau. Übernommen wird erst "
+           "mit <b>Importieren</b>:")
+    i.bild("zukauf_csv", "Vorschau des CSV-Imports (Beispielwerte)", hoehe=55 * mm, legende=[
+        (1, "Zusammenfassung: neu, ändern, unverändert, mit Fehler"),
+        (2, "je Zeile der Datei die Aktion mit den Änderungen bzw. Fehlern; neu grün, ändern gelb, Fehler rot"),
+        (3, "<b>Importieren</b>")])
+    i.liste("Artikel mit vorhandener Artikelnummer werden geändert: Angaben aus der Datei ersetzen die alten, der "
+            "Einkauf beim genannten Lieferanten wird ersetzt, andere Lieferanten bleiben. Mehrere Zeilen mit "
+            "derselben Artikelnummer und verschiedenen Lieferanten ergeben einen Artikel mit mehreren Lieferanten.",
+            "Fehler, die das Programm erkennt: fehlende Artikelnummer oder Bezeichnung, unlesbare oder negative "
+            "Preise, nicht aufsteigende Staffeln, doppelte Zeilen (gleiche Artikelnummer und gleicher Lieferant), "
+            "unbekannte Werte bei Status, Aufschlag aus und Methode, Einkaufsdaten ohne Lieferant. Zeilen mit Fehler "
+            "werden nie übernommen.",
+            "Unbekannte Kategorien legt der Import an (ohne Aufschlag). Preisänderungen kommen ins Protokoll; "
+            "gespeicherte Angebote behalten ihren Preisstand.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
