@@ -555,6 +555,14 @@ def kapitel_stammdaten(i):
         ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten; bei offenen "
                                    "Profilen die Blechdicke, bei Flachstahl die Dicke, bei Trägern und T-Profilen die "
                                    "Stegdicke"],
+        ["Wandstärke max. [mm]", "dickste Stelle des Profils, z. B. die Flanschdicke eines Trägers oder die dickere "
+                                 "Wand eines Sonderprofils. Die <b>Schneidzeit</b> (Vorschub, Einstechzeit, Schneidgas) "
+                                 "rechnet immer mit der größeren der beiden Wandstärken; Gewicht und Querschnitt "
+                                 "bleiben bei der Wandstärke. Leer = bei Normprofilen (IPE, HEA, HEB, HEM, IPN, UPN, "
+                                 "T) die Flanschdicke aus der Normtabelle, sonst die Wandstärke. Der STEP-Import trägt "
+                                 "bei neu angelegten Profilen die größte gemessene Wand bzw. Flanschdicke ein. Ein "
+                                 "Sonderprofil ohne beide Werte bekommt die Warnung <i>Wandstärke fehlt</i>, weil es "
+                                 "ohne sie keine Schneidzeit gibt."],
         ["Fläche manuell [mm²]", "Querschnitt vom Hersteller (Eckradien, Sonderprofile); leer = aus den Maßen. "
                                  "Beim C-Profil Pflicht, weil die Abkantung nicht in den Maßen steht (der STEP-Import "
                                  "trägt die gemessene Fläche ein). Bei I-/H-Trägern und T-Profilen kommt der "
@@ -1013,7 +1021,10 @@ def kapitel_angebot(i):
         ["Oberfläche", "z. B. K240 oder gestrahlt (Stammdaten Oberflächen); leer = roh. Der Aufpreis kommt auf den "
                        "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
-        ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
+        ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus. Anfangs- "
+                                                       "und Endschnitt zählen je nach Profil mehrere Einstiche: "
+                                                       "I-/H-Träger und U-Profil 4, T-Profil 2, alle anderen 1 "
+                                                       "(z. B. IPE 200 ohne Bohrungen: 8 Einstiche)"],
         ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.8)"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz (Kapitel 9)"],
@@ -1422,8 +1433,8 @@ def kapitel_optimieren(i):
     i.liste("Je Profil + Werkstoff + Oberfläche + Stangenlänge getrennt, ohne Vermischung.",
             "Belegung einer Stange = Endbeschnitt + Teile + Trennschnitte + Schnittverlust des letzten Schnitts; "
             "der Greiferrest muss frei bleiben.",
-            "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, ein "
-            "Einstich gespart). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Teile werden dafür "
+            "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
+            "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Teile werden dafür "
             "gedreht; schräge Enden kommen an Stangenanfang oder -ende.",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "

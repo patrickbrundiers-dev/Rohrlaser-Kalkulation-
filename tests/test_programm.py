@@ -66,7 +66,9 @@ assert abs(p - 444 * 7.85 / 1000 * 1000 / 1000) < 1e-9, p
 ok = lambda t, z: pruefen(TABELLE[t], z, k)
 assert ok("profile", dict(profil_id="RR 1", form="Rundrohr", a=20, wand=10)).startswith("FEHLER: Wandstärke")
 assert ok("profile", dict(profil_id="RE 1", form="Rechteckrohr", a=60, wand=3)) == "FEHLER: Abmessung B fehlt"
-assert ok("profile", dict(profil_id="SP 1", form="Sonderprofil", flaeche_manuell=300)) == "OK"
+assert ok("profile", dict(profil_id="SP 1", form="Sonderprofil", flaeche_manuell=300)).startswith(
+    "WARNUNG: Wandstärke fehlt")      # ohne Wandstärke keine Schneidzeit
+assert ok("profile", dict(profil_id="SP 1", form="Sonderprofil", flaeche_manuell=300, wand_max=4)) == "OK"
 assert ok("profile", dict(profil_id="SP 2", form="Sonderprofil")).startswith("FEHLER: Querschnitt")
 assert ok("profile", dict(profil_id="X", form="Dreieck", a=20, wand=2)) == "FEHLER: Profilform unbekannt"
 z = dict(profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", basis="€/kg", preis=1.2)

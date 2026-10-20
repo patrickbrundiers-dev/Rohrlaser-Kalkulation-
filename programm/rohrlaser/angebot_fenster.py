@@ -307,7 +307,7 @@ class PositionenModell(QAbstractTableModel):
         self.werte, self.status, self.zeiten = [], [], []
         for i, p in enumerate(self.daten):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
-            self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand"), s.tabellen, s.k)[2])   # berechnet [s]
+            self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand_schneiden"), s.tabellen, s.k)[2])   # berechnet [s]
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
             w["eingeplant"] = ein if p.get("profil_id") and not ist_zukaufteil(p) else None
             if ist_zukaufteil(p):
