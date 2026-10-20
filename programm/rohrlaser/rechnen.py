@@ -677,16 +677,19 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Angebot
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = {i: zusatz_werte(positionen[i], k, tabellen) for i in aktiv}
-    zus_summe, zus_teile, zus_pauschal = {}, {}, {}
+    zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
     for i in aktiv:
         c = _n(positionen[i].get("stueck"))
         for e in zus[i]:
             zus_summe[e["name"]] = zus_summe.get(e["name"], 0.0) + e["betrag"] * c
             zus_teile[e["name"]] = zus_teile.get(e["name"], 0) + c
+            # ein Mindestbetrag je Zusatzarbeit und Angebot, auch wenn Positionen verschiedene Preisstände haben
+            zus_mindest[e["name"]] = max(zus_mindest.get(e["name"], 0.0), e["mindest"])
             if e["art"] == "€/Angebot" and c:          # einmal je Angebot: der höchste Betrag gilt
                 zus_pauschal[e["name"]] = max(zus_pauschal.get(e["name"], 0.0), e["pauschal"])
     for i in aktiv:                   # Mindestbetrag je Angebot: anteilig anheben
         for e in zus[i]:
+            e["mindest"] = zus_mindest[e["name"]]
             if e["art"] == "€/Angebot":               # pauschal je Angebot: auf die Teile umgelegt
                 n = zus_teile[e["name"]]
                 e["teil"] = max(zus_pauschal.get(e["name"], 0.0), e["mindest"]) / n if n else 0.0

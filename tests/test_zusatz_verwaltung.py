@@ -266,6 +266,14 @@ assert nah(zeilen[0]["zuschlag_fertigung_teil"] - (zeilen[0]["laser_teil"] + zei
 db.zusatz_speichern(nach_name(db, "Prüfprotokoll")["id"], dict(nach_name(db, "Prüfprotokoll"), mindest=60))
 seite.neu_laden()
 assert nah(seite._rechnung()[1]["zusatz"], 60 + 3.5 * 14)                 # Mindestbetrag gilt auch pauschal
+# verschiedene Preisstände derselben Zusatzarbeit im Angebot: ein Mindestbetrag für alle (hier 100 €)
+alt_stand = dict(art="€/Stück", preis=1.0, mindest=100.0, fremd="nein", angebotstext=None, datum="2026-01-01")
+neu_stand = dict(alt_stand, preis=0.1, mindest=None, datum="2026-10-20")
+for x, st in zip(seite.positionen, (alt_stand, neu_stand)):
+    db.position_aendern(x["id"], "zusatz", json.dumps([dict(name="Altpreis", stand=st)]))
+seite.neu_laden()
+zeilen, summen = seite._rechnung()
+assert [zl["stueck"] for zl in zeilen] == [10, 4] and nah(summen["zusatz"], 100)    # 10 × 1 + 4 × 0,1 = 10,40 -> 100
 ok("8  Rechnung: 5 min × 60 €/h + 2 € + 10 % = 7,20 €; s/min/h, € und %, Basis des weiteren Zuschlags, €/Angebot "
    "einmal umgelegt, Zuschlag Fertigung einmal")
 
