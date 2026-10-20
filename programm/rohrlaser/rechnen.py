@@ -13,6 +13,7 @@ import json
 from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis)
 from . import optimierung as opt
+from .angebot import aktiv as position_aktiv, ist_zukaufteil
 from . import fracht_angebot
 from . import zukauf
 
@@ -122,6 +123,12 @@ def position_werte(p, kopf, k, tabellen):
     w["zusatzarbeiten"] = tabellen.get("zusatzarbeiten")
     w["vorschub"] = None
     w["gas"] = None
+    if ist_zukaufteil(p):        # eingekauftes Teil: nur Gewicht (Fracht), keine Fertigungswerte
+        g = p.get("gewicht_teil")
+        w["gewicht"] = g if isinstance(g, (int, float)) and g > 0 else None
+        w["gewicht_position"] = (w["gewicht"] * p["stueck"] if w["gewicht"] is not None and not _leer(p.get("stueck"))
+                                 else None)
+        return w
     if w["wand"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
         sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand"], tabellen,
                           kategorie(p["werkstoff_id"], k))
@@ -157,8 +164,25 @@ def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None):
 
 
 # ------------------------------------------------------------------ Status
+def zukaufteil_status(p):
+    """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht)."""
+    if _leer(p.get("stueck")) or p["stueck"] < 1:
+        return "FEHLER: Stückzahl fehlt"
+    eintraege = zukauf.eintraege(p)
+    if not eintraege:
+        return "FEHLER: Zukaufartikel fehlt (Zukaufteile …)"
+    for e in eintraege:
+        if zukauf.ek_fehlt(dict(bezuege=[(e.get("stand") or {}).get("bezug") or {}])):
+            return "WARNUNG: EK fehlt (Zukaufteil ohne Einkaufspreis)"
+    if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
+        return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
+    return "OK"
+
+
 def status(p, w, kopf, k, eingeplant=None):
     """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None)."""
+    if ist_zukaufteil(p):
+        return zukaufteil_status(p)
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
         return ""
     m = maschine(kopf, k)
@@ -239,7 +263,7 @@ def gruppen_bilden(kopf, positionen, k):
         r = ZEILE0 + i
         pid, wst, laenge, stk = p.get("profil_id"), p.get("werkstoff_id"), p.get("laenge"), p.get("stueck")
         laenge = laenge if isinstance(laenge, (int, float)) else None
-        if all(_leer(v) for v in (pid, wst, laenge, stk)):
+        if ist_zukaufteil(p) or all(_leer(v) for v in (pid, wst, laenge, stk)):
             continue
         name = p.get("artikel") or f"Zeile {i + 1}"
         stk_n = int(stk) if isinstance(stk, (int, float)) and stk >= 1 and int(stk) == stk else 0
@@ -786,10 +810,14 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     zm, zf, gew = (_n(einstellungen.get(n)) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn"))
     ruest, wechsel = _n(zb["maschine"].get("ruestzeit")), _n(zb["maschine"].get("stangenwechsel"))
     f7 = ruest / 60 * s_rm + wechsel * len(stangen) / 3600 * s_sw
-    aktiv = [i for i, p in enumerate(positionen) if not _leer(p.get("profil_id"))]
-    f8 = sum(_n(positionen[i].get("stueck")) for i in aktiv)
+    aktiv = [i for i, p in enumerate(positionen) if position_aktiv(p)]
+    # Zukaufteil-Positionen (z. B. Bleche) tragen nur ihre Zukaufteile und die Fracht; Rüsten, Pauschalen,
+    # Programmierung, Angebotsaufschlag und Arbeitsschritte verteilen sich auf die Rohrlaserteile
+    laser = [i for i in aktiv if not ist_zukaufteil(positionen[i])]
+    zk_pos = [i for i in aktiv if ist_zukaufteil(positionen[i])]
+    f8 = sum(_n(positionen[i].get("stueck")) for i in laser)
     teile_abm = {}
-    for i in aktiv:
+    for i in laser:
         if _n(positionen[i].get("stueck")) > 0:
             pid = positionen[i]["profil_id"]
             teile_abm[pid] = teile_abm.get(pid, 0) + _n(positionen[i]["stueck"])
@@ -798,7 +826,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
     prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Angebot
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
-    zus = {i: zusatz_werte(positionen[i], k, tabellen) for i in aktiv}
+    zus = {i: zusatz_werte(positionen[i], k, tabellen) if i in laser else [] for i in aktiv}
     zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
     for i in aktiv:
         c = _n(positionen[i].get("stueck"))
@@ -824,11 +852,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
-    fracht = fracht_angebot.wirksam(kopf) if f8 else 0
+    fracht = fracht_angebot.wirksam(kopf) if f8 or any(_n(positionen[i].get("stueck")) for i in zk_pos) else 0
     fracht_je, fracht_hinweis, fracht_umlage = fracht_angebot.anteile(positionen, werte, fracht,
                                                                       fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, len(stangen), teile_abm,
-                               sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0))
+                               sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0))
     zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, _n(positionen[i].get("stueck"))) for i in aktiv
                                         for n, e in enumerate(zukauf.eintraege(positionen[i]))])
     eingespart = {}
@@ -843,6 +871,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         p = positionen[i]
         w = werte[i]
         c = _n(p.get("stueck"))
+        if i in zk_pos:
+            zeilen[i] = _zukaufteil_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
+                                          fracht_je[i] if c else 0, skonto)
+            continue
         gr = gruppe_von(p, kopf)
         d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
         gesamt = sum(_n(x.get("laenge")) * _n(x.get("stueck")) for x in positionen
@@ -919,8 +951,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
-                  positionen=sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
-                  programmierung=prog * sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
+                  positionen=sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
+                  programmierung=prog * sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
+                  zukaufteile=sum(_n(positionen[i].get("stueck")) for i in zk_pos),
                   material=sum(z["material_position"] for z in zeilen if z),
                   laser=sum(z["laser_position"] for z in zeilen if z),
                   zusatz=sum(z["zusatz_position"] for z in zeilen if z),
@@ -942,6 +975,35 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
     summen["zeiten"] = arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, len(stangen))
     return zeilen, summen
+
+
+def _zukaufteil_zeile(p, c, zk, fr, skonto):
+    """Kalkulationszeile einer Zukaufteil-Position: alle Fertigungswerte 0, Preis je Teil = Einstand + Aufschlag der
+    Zukaufteile + Frachtanteil, mit Skonto. Fehlt der Einkaufspreis, rechnet sie ohne ihn und meldet es."""
+    zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
+    zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
+    ohne = fr + zk_einst + zk_auf
+    t_ = ohne / (1 - skonto)
+    if not zk:
+        hinweis = "Zukaufteil: kein Zukaufartikel"
+    elif any(x["fehler"] for x in zk):
+        hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
+    else:
+        hinweis = ""
+    null = dict.fromkeys(("material_gruppe", "anteil", "material_teil", "zeit_extra", "gewinde_preis",
+                          "zusatz_eigen_teil", "zusatz_fremd_teil", "zusatz_teil", "zusatz_position",
+                          "laser_schneiden_teil", "gewinde_teil", "gewinde_zeit_teil", "arbeit_teil",
+                          "zuschlag_material_teil", "zuschlag_fertigung_teil", "zuschlag_fremdleistung_teil",
+                          "gewinn_teil", "einsparung", "gewindezeit", "laser_teil", "ruesten_teil", "herstell_teil",
+                          "herstell_position", "material_position", "laser_position"), 0.0)
+    z = dict(null, pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, wand_stufe=None, gas=None,
+             vorschub_gross=None, vorschub_mittel=None, vorschub_klein=None, vorschub_gravur=None, einstechzeit=None,
+             zeit_manuell="", zusatzarbeiten=[], zusatz_text="", skonto_teil=t_ - ohne, laser_brutto=None,
+             laser_netto=None, zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf,
+             zukauf_teil=zk_einst + zk_auf, zukauf_fehlt=sum(1 for x in zk if x["fehler"]) + (0 if zk else 1),
+             pauschalen_teil=fr, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, hinweis=hinweis,
+             eingeplant=None, nicht_eingeplant=None, zukaufteil=True)
+    return z
 
 
 def weitere_schritte(zb, teile, n_stangen, teile_abm, n_positionen):

@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from . import fracht_angebot, rechnen
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
-from .angebot import KALK_PROZENT, KALKULATION, KOPF
+from .angebot import KALK_PROZENT, KALKULATION, KOPF, aktiv as position_aktiv
 from .sichtbarkeit import KOPF_ROLLEN, MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
 
@@ -428,7 +428,7 @@ class KopfBereich(QWidget):
                     if betrag else "Keine Frachtkosten eingetragen.")
         else:
             text = f"{m}: 0 € in der Kalkulation, Hinweis im Angebot."
-        werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if p.get("profil_id") else None
+        werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if position_aktiv(p) else None
                  for p in s.positionen]
         _, hinweis, _ = fracht_angebot.anteile(s.positionen, werte, betrag, u)
         if hinweis:

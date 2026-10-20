@@ -28,6 +28,7 @@ import hashlib
 import json
 
 from . import fracht_angebot, rechnen
+from .angebot import aktiv as position_aktiv
 from .ausgabe import kaufm_runden
 from .stammdaten import Feld, kontext_aus
 
@@ -169,11 +170,11 @@ def fehler(stufe, positionen, alle=None):
 
 
 def auswahl(positionen):
-    """Was sich als Stufe wählen lässt: jeder Satz und jede Position ohne Satz (mit Profil).
+    """Was sich als Stufe wählen lässt: jeder Satz und jede Position ohne Satz (mit Profil oder Zukaufteil).
     Ergebnis: [(Schlüssel, Anzeigetext, aktuelle Menge in Sätzen bzw. Stück oder None)]."""
     saetze, einzeln = {}, []
     for p in positionen:
-        if p.get("profil_id") in (None, ""):
+        if not position_aktiv(p):
             continue
         s = txt(p.get("satz"))
         if s:
@@ -201,7 +202,7 @@ def szenario(schl, menge, positionen):
     ist_satz = any(txt(p.get("satz")) == schl for p in positionen) and bool(schl)
     mengen, bez = {}, ""
     for i, p in enumerate(positionen):
-        if p.get("profil_id") in (None, ""):
+        if not position_aktiv(p):
             continue
         if (txt(p.get("satz")) == schl) if ist_satz else (txt(p.get("pos")) == schl):
             mengen[i] = menge * (je_satz(p) if ist_satz else 1)
@@ -277,8 +278,7 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
         return z
     z["bezeichnung"] = bez
     lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
-    werte = [rechnen.position_werte(p, kopf, k, tabellen) if p.get("profil_id") not in (None, "") else None
-             for p in lauf]
+    werte = [rechnen.position_werte(p, kopf, k, tabellen) if position_aktiv(p) else None for p in lauf]
     betrag, fracht_text, fracht_fehler = fracht_angebot.stufe(kopf, lauf, werte)
     if fracht_fehler:           # nie still mit 0 € Fracht rechnen
         z.update(hinweis=fracht_fehler)
@@ -299,7 +299,7 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
         if kz[i]["hinweis"]:
             hinweise += 1
         offen += _zahl(kz[i]["nicht_eingeplant"])
-        if not kz[i]["material_gruppe"]:
+        if not kz[i]["material_gruppe"] and not kz[i].get("zukaufteil"):
             ohne_preis += 1
     z["bausteine"] = bausteine(summen, ohne_preis)
     text = f"WARNUNG: {offen:.0f} Teile nicht eingeplant" if offen > 0 else ""

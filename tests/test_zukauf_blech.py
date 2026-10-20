@@ -52,7 +52,7 @@ db = Datenbank(tmp / "z.db")
 
 @fall("Schema 20: neue Spalten, Umstellung einer Datei aus Schema 19 behält Artikel")
 def _():
-    assert SCHEMA_VERSION == 20
+    assert SCHEMA_VERSION >= 20
     spalten = {r[1] for r in db.con.execute("PRAGMA table_info(zukauf_artikel)")}
     assert set(zukauf.BLECH_FELDER) <= spalten, set(zukauf.BLECH_FELDER) - spalten
     alt = tmp / "alt.db"
@@ -69,7 +69,7 @@ def _():
     assert {r[1] for r in d.con.execute("PRAGMA table_info(zukauf_artikel)")} >= set(zukauf.BLECH_FELDER)
     a = d.zukauf_artikel_liste()
     assert [x["bezeichnung"] for x in a] == ["Schraube M6"] and a[0]["artikeltyp"] is None, a
-    assert d.con.execute("PRAGMA user_version").fetchone()[0] == 20
+    assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     d.con.close()
 
 
