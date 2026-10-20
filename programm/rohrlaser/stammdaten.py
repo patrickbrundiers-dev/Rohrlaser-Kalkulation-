@@ -54,6 +54,7 @@ SCHRITTE_FEST = {
 ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
 ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
 ZUKAUF_STATUS = ("aktiv", "archiviert")
+ZUKAUF_TYPEN = ("Blech",)              # besondere Artikeltypen (leer = normaler Zukaufartikel)
 ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot"}
 
 
@@ -543,6 +544,7 @@ class Kontext:
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
+                         "zukauftyp": list(ZUKAUF_TYPEN),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
 

@@ -402,7 +402,7 @@ def kapitel_start(i):
             "Braucht eine neue Version eine erweiterte Datendatei, sichert das Programm sie vorher (Name endet auf "
             "<i>_vor_Schema_…</i>). Eine ältere Programmversion öffnet eine so erweiterte Datei nicht mehr, sondern "
             "meldet, dass sie von einer neueren Version stammt.",
-            "Das Update funktioniert ab Version 0.5.3. Ältere Versionen suchen noch im privaten Programmverzeichnis, "
+            "Das Update funktioniert ab Version 0.5.4. Ältere Versionen suchen noch im privaten Programmverzeichnis, "
             "das ohne Anmeldung nicht erreichbar ist, und melden <i>Keine Verbindung zum Update</i>. Dann einmal das "
             "neue Setup über die alte Installation installieren bzw. das neue ZIP entpacken und die Daten übernehmen "
             "(Abschnitt <i>Datensicherung und Umzug</i>); danach geht es online weiter.")
@@ -1528,10 +1528,10 @@ def kapitel_zukauf(i):
         (1, "Reiter <b>Zukaufartikel</b> mit den Unterreitern Artikel, Kategorien und Lieferanten"),
         (2, "<b>+ Neuer Artikel</b> öffnet das leere Formular"),
         (3, "Suche nach Artikelnummer, Bezeichnung, Lieferantenartikelnummer oder EAN"),
-        (4, "Filter Kategorie, Lieferant und Status (aktive, archivierte, alle), Sortieren nach Kategorie, "
+        (4, "Filter Kategorie, Lieferant und Status (aktive, <i>EK fehlt</i>, archivierte, alle), Sortieren nach Kategorie, "
             "Lieferant, Artikelnummer, Bezeichnung oder EK je Einheit"),
         (5, "<b>Bearbeiten</b> (auch Doppelklick), <b>Duplizieren</b>, <b>Archivieren</b> bzw. <b>Wieder "
-            "aktivieren</b> und <b>In Angebot übernehmen …</b> (Abschnitt 13.6); dieselben Befehle mit der rechten "
+            "aktivieren</b>, <b>EK eintragen …</b> (Abschnitt 13.9) und <b>In Angebot übernehmen …</b> (Abschnitt 13.6); dieselben Befehle mit der rechten "
             "Maustaste. Rechts <b>CSV exportieren</b> und <b>CSV importieren …</b> (Abschnitt 13.8)"),
         (6, "Details des markierten Artikels: alle Lieferanten mit Staffelpreisen und die Rechnung je Einheit")])
     i.text("Die Spalten zeigen je Artikel Artikelnr., Bezeichnung, Kategorie, bevorzugten Lieferant, Einheit, "
@@ -1559,6 +1559,8 @@ def kapitel_zukauf(i):
         ["", "Artikelbezeichnung", "Pflichtfeld"],
         ["", "Kategorie", "aus den Kategorien (Abschnitt 13.4); bestimmt den vorgeschlagenen Aufschlag"],
         ["", "Mengeneinheit", "Stück, Meter, Kilogramm, Satz oder frei eingeben"],
+        ["", "Artikeltyp", "<i>normaler Zukaufartikel</i> oder <i>Blech</i>; bei Blech zusätzlich Länge × Breite × "
+                           "Dicke in mm und Werkstoff (Abschnitt 13.9)"],
         ["", "archiviert", "im Angebot nicht mehr wählbar"],
         ["B Einkaufspreis", "Lieferanten", "Liste der Lieferanten des Artikels; ★ = bevorzugt. <b>+ Lieferant</b> "
                                            "fügt einen hinzu, <b>Entfernen</b> löscht den markierten, <b>Als "
@@ -1713,6 +1715,29 @@ def kapitel_zukauf(i):
             "werden nie übernommen.",
             "Unbekannte Kategorien legt der Import an (ohne Aufschlag). Preisänderungen kommen ins Protokoll; "
             "gespeicherte Angebote behalten ihren Preisstand.")
+    i.abschnitt("Blechartikel und fehlender Einkaufspreis")
+    i.text("Bleche schneidet der Rohrlaser nicht; sie werden als Zukaufartikel mit dem Artikeltyp <b>Blech</b> "
+           "geführt. Ein Blechartikel hat zusätzlich Länge, Breite und Dicke in mm und einen Werkstoff. Der "
+           "STEP-Import kann solche Artikel selbst anlegen (Kapitel 7); er trägt dann <i>Angelegt aus STEP-Import</i>, "
+           "den Namen der STEP-Datei und eine Geometrie-Kennung (Kontur, Bohrungen, Ausschnitte) ein. Die "
+           "Bezeichnung entsteht aus den Maßen, z. B. <i>Blech S235 500 × 300 × 5 mm</i>.")
+    i.liste("<b>Werkstoff</b>: steht er nicht fest, bleibt das Feld leer und die Bezeichnung endet auf <i>(Werkstoff "
+            "offen)</i>. Das Programm nimmt nie einen Werkstoff an (auch nicht S235); er kann im Formular aus den "
+            "Werkstoffen der Stammdaten gewählt oder eingetippt werden.",
+            "<b>EK fehlt</b>: ein Artikel ohne Einkaufspreis über 0 € hat keinen EK. 0 € gilt nie als Einkaufspreis: "
+            "die Kalkulation rechnet nicht damit, sondern meldet <i>kein Einkaufspreis</i>, und das Angebot bleibt "
+            "unvollständig, bis der Preis eingetragen ist. In der Übersicht steht in der Spalte EK rot <i>EK "
+            "fehlt</i>; der Filter <b>Status: EK fehlt</b> zeigt alle aktiven Artikel ohne Preis.",
+            "<b>EK eintragen …</b> (Knopf unter der Tabelle oder rechte Maustaste) fragt den Einkaufspreis netto je "
+            "Einheit ab und trägt ihn beim bevorzugten Lieferanten ab Menge 1 ein; ohne Lieferant bei Blechteilen "
+            "beim Lieferanten <i>Technik</i>. Die Änderung kommt ins Protokoll der Preisänderungen. Staffeln und "
+            "weitere Bedingungen werden im Formular gepflegt.",
+            "<b>Dubletten</b>: vor dem Anlegen sucht der STEP-Import vorhandene aktive Blechartikel mit gleicher Dicke "
+            "(± 0,05 mm), gleicher Länge und Breite (± 0,5 mm, auch um 90° gedreht), gleichem Werkstoff und gleicher "
+            "Geometrie-Kennung und verwendet diesen Artikel, statt einen zweiten anzulegen. Stimmen nur die Maße, "
+            "schlägt er den Artikel zur Auswahl vor. Archivierte Artikel zählen nicht.",
+            "<b>Duplizieren</b> übernimmt Maße und Werkstoff, aber nicht STEP-Datei und Kennung: die Kopie gilt als "
+            "von Hand angelegt.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
@@ -2012,7 +2037,7 @@ def kapitel_fragen(i):
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
         ["<b>Keine Verbindung zum Update</b>",
-         "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.3 liegt es an der alten "
+         "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.4 liegt es an der alten "
          "Update-Adresse (Abschnitt <i>Updates</i>). Später noch einmal versuchen; sonst das Setup "
          "(installiert) bzw. das ZIP (portabel) von Hand holen und die Daten übernehmen."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
