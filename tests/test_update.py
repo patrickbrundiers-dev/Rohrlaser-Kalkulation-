@@ -179,5 +179,11 @@ assert meldungen[-1].startswith("WARNUNG"), meldungen
 f.close()
 db.schliessen()
 
+# Adresse: öffentliches Repository (das Programm-Repository ist privat), Workflow veröffentlicht dorthin
+workflow = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "paket.yml").read_text(encoding="utf-8")
+assert f"UPDATE_REPO: {update.UPDATE_REPO}" in workflow, "UPDATE_REPO in paket.yml passt nicht zu update.py"
+assert update.ADRESSE == f"https://github.com/{update.UPDATE_REPO}/releases/download/update-dateien/Update.json"
+assert "Rohrlaser-Kalkulation-" not in update.ADRESSE
+
 shutil.rmtree(tmp, ignore_errors=True)
 print("OK: Online-Update (Pakete, nur Geändertes laden, Austausch, Zurückstellen, Aufräumen)")

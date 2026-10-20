@@ -28,8 +28,11 @@ from . import NAME, VERSION
 
 DATEILISTE = "Update.json"
 ARBEITSORDNER = "_update"           # im Programmordner: Download, Zwischenstand und alte Dateien
-# Dateiliste des aktuellen Stands (Release "aktuell"); die Pakete liegen unter "adresse" aus der Dateiliste
-ADRESSE = "https://github.com/patrickbrundiers-dev/Rohrlaser-Kalkulation-/releases/download/aktuell/" + DATEILISTE
+# Dateiliste und Pakete liegen im Release "update-dateien" des öffentlichen Repositorys Rohrlaser-Updates: das
+# Programm-Repository ist privat, seine Release-Dateien lassen sich ohne Anmeldung nicht laden (404).
+# Die Pakete liegen unter "adresse" aus der Dateiliste (bei diesem Build derselbe Ordner).
+UPDATE_REPO = "patrickbrundiers-dev/Rohrlaser-Updates"
+ADRESSE = f"https://github.com/{UPDATE_REPO}/releases/download/update-dateien/" + DATEILISTE
 GROSS = 1 << 20                     # ab 1 MB eigenes Paket
 PAKET_MAX = 8 << 20                 # kleine Dateien eines Ordners (3 Ebenen) bis etwa 8 MB je Paket
 # nie in der Dateiliste, nie angefasst; Portabel.ini liegt nur im ZIP (installiert fehlt sie, siehe orte.py)
