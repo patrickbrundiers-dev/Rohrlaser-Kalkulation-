@@ -22,10 +22,10 @@ import step_messen  # noqa: E402
 DATEIEN = [HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step", HIER / "step_konturen" / "K03_RR42-4x2_Konturen.step",
            HIER / "step_import" / "I04_Flaechenmodell_offen.step", HIER / "step_import" / "I05_defekt.step",
            HIER / "step_profile" / "P01_U50x30x3_L800.step", HIER / "step_profile" / "P10_RE60x40_Wand2und3_L600.step",
-           HIER / "step_referenz" / "REF13_T50x40x5_L600.step"]
+           HIER / "step_referenz" / "REF18_Z60x40x4_L500.step", HIER / "step_traeger" / "TR01_IPE200_L1000.step"]
 KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", "volumen_mm3", "oberflaeche_mm2",
                   "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "bauteiltyp", "profiltyp",
-                  "profil_id_vorschlag", "blech",
+                  "profil_id_vorschlag", "blech", "normprofil", "traeger",
                   "aussenmasse", "innenmasse", "querschnittsflaeche_mm2", "wandstaerke", "laenge", "laengsachse",
                   "schnittwinkel", "schneidweg", "konturen", "enden", "pruefstatus", "warnungen",
                   "erkennungssicherheit"}
@@ -86,7 +86,7 @@ def _():
     assert k["aussenmasse"] == {"durchmesser": 42.4} and k["innenmasse"] == {"durchmesser": 38.4}, k
 
 
-@fall("Unbekannte Werte sind null: offenes Flächenmodell, defekte Datei, Konturen eines T-Profils")
+@fall("Unbekannte Werte sind null: offenes Flächenmodell, defekte Datei, Konturen eines Z-Profils")
 def _():
     (k,) = NACH["I04_Flaechenmodell_offen.step"]["koerper"]
     assert k["pruefstatus"] == "nicht messbar"
@@ -95,13 +95,22 @@ def _():
         assert k[f] is None, f"{f} = {k[f]!r}"
     d = NACH["I05_defekt.step"]
     assert d["importstatus"] == "nicht lesbar" and "nicht lesbar" in d["fehler"] and d["koerper"] == []
-    (u,) = NACH["REF13_T50x40x5_L600.step"]["koerper"]
+    (u,) = NACH["REF18_Z60x40x4_L500.step"]["koerper"]
     assert u["profiltyp"] == "offenes Sonderprofil" and u["innenmasse"] is None and u["konturen"] is None and \
         u["schneidweg"] is None, u
     assert u["erkennungssicherheit"]["konturen"] == "nicht ausgewertet"
     # U-Profil: Konturen ausgewertet (seit 20.10.2026), Innenmaße bleiben null
     (u,) = NACH["P01_U50x30x3_L800.step"]["koerper"]
     assert u["profiltyp"] == "U-Profil" and u["innenmasse"] is None and u["schneidweg"]["gesamt"] > 0, u
+
+
+@fall("Träger: Normprofil und Block traeger (Steg, Flansch, symmetrisch, Ausrundung)")
+def _():
+    (k,) = NACH["TR01_IPE200_L1000.step"]["koerper"]
+    assert k["profiltyp"] == "I-/H-Träger" and k["normprofil"] == "IPE 200" and k["profil_id_vorschlag"] == "IPE 200", k
+    assert k["traeger"] == dict(stegdicke=5.6, flanschdicke=8.5, symmetrisch=True, ausrundung=12.0), k["traeger"]
+    (z,) = NACH["P01_U50x30x3_L800.step"]["koerper"]
+    assert z["traeger"] is None and z["normprofil"] is None, z
 
 
 @fall("P10: ungleiche Wand -> prüfen, Wandstärke unsicher, Einzelwerte 2 und 3 mm")

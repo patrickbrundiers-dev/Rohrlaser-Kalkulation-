@@ -350,6 +350,9 @@ if __name__ == "__main__":
     for z in (50, 250):
         fl = cut(fl, zylinder((0, -3, z), (0, 1, 0), 9, 6))
     schreibe(fl, "REF17_FL40x5_Bohrungen", ref)
+    # Z-Profil 60 x 40 x 4 (offen, keine erkannte Form): gemeldet als offenes Sonderprofil, nie kalkuliert
+    schreibe(profil([(0, 0), (40, 0), (40, 4), (4, 4), (4, 60), (-36, 60), (-36, 56), (0, 56)], 500),
+             "REF18_Z60x40x4_L500", ref)
     # Bleche (tests/step_bleche, test_step_bleche.py): Blech liegt in XY, Dicke in Z, sofern nicht gedreht
     bl = ZIEL.parent / "step_bleche"
 
@@ -397,4 +400,31 @@ if __name__ == "__main__":
     # Baugruppe: Rechteckrohr mit zwei Fußplatten
     schreibe(baugruppe(kastenrohr(60, 40, 2, 800, 4), verschiebe(blech(150, 150, 8), -75, -75, -8),
                        verschiebe(blech(150, 150, 8), -75, -75, 800)), "B14_Baugruppe_Rohr_2Bleche", bl)
-    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, ",", ref, "und", bl)
+    # Träger und T-Profile (tests/step_traeger): Querschnitt in XY, Länge in Z, Flansche waagerecht (y)
+    tg = ZIEL.parent / "step_traeger"
+
+    def i_profil(h, b, tw, tf, l, r=0, tf_oben=None, b_oben=None):
+        to, bo = tf_oben or tf, b_oben or b
+        pts = [(-b / 2, 0), (b / 2, 0), (b / 2, tf), (tw / 2, tf), (tw / 2, h - to), (bo / 2, h - to), (bo / 2, h),
+               (-bo / 2, h), (-bo / 2, h - to), (-tw / 2, h - to), (-tw / 2, tf), (-b / 2, tf)]
+        ecken = {(tw / 2, tf): r, (tw / 2, h - to): r, (-tw / 2, h - to): r, (-tw / 2, tf): r} if r else None
+        return profil(pts, l, ecken)
+
+    def t_profil(h, b, tw, tf, l, r=0):
+        pts = [(-b / 2, h - tf), (-tw / 2, h - tf), (-tw / 2, 0), (tw / 2, 0), (tw / 2, h - tf), (b / 2, h - tf),
+               (b / 2, h), (-b / 2, h)]
+        return profil(pts, l, {(-tw / 2, h - tf): r, (tw / 2, h - tf): r} if r else None)
+    schreibe(i_profil(200, 100, 5.6, 8.5, 1000, 12), "TR01_IPE200_L1000", tg)
+    schreibe(i_profil(160, 160, 8, 13, 800, 15), "TR02_HEB160_L800", tg)
+    schreibe(drehe_beliebig(i_profil(190, 200, 6.5, 10, 600, 18)), "TR03_HEA200_gedreht_L600", tg)
+    schreibe(i_profil(150, 80, 5, 7, 700), "TR04_I150x80x5x7_L700", tg)
+    schreibe(i_profil(200, 100, 6, 10, 600, tf_oben=6), "TR05_I200_unsymmetrisch_L600", tg)
+    schreibe(drehe_achse(t_profil(50, 50, 6, 6, 600), 90), "TR06_T50_L600", tg)
+    schreibe(t_profil(60, 40, 5, 7, 500, 4), "TR07_T60x40x5x7_L500", tg)
+    schreibe(profil([(0, 0), (50, 0), (50, 8.5), (6, 8.5), (6, 91.5), (50, 91.5), (50, 100), (0, 100)], 900),
+             "TR08_UPN100_L900", tg)
+    tr = i_profil(200, 100, 5.6, 8.5, 1000, 12)
+    for z in (100, 900):
+        tr = cut(tr, zylinder((-10, 100, z), (1, 0, 0), 13, 20))
+    schreibe(tr, "TR09_IPE200_Stegbohrungen_L1000", tg)
+    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, ",", ref, ",", bl, "und", tg)

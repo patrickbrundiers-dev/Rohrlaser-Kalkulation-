@@ -224,8 +224,9 @@ def gruppen_bilden(kopf, positionen, k):
             d = opt.profil_aus_name(pid)
             if d is not None:
                 profile[pid] = dict(form=d["form"], a=d["a"], b=d["b"], wand=d["wand"], end=None, greif=None,
-                                    flaeche=flaeche_berechnet(dict(d, profil_id=pid)))
+                                    flaeche=d.get("flaeche_manuell") or flaeche_berechnet(dict(d, profil_id=pid)))
                 neue_profile.append(dict(profil_id=str(pid), form=d["form"], a=d["a"], b=d["b"], wand=d["wand"],
+                                         flaeche_manuell=d.get("flaeche_manuell"),
                                          bemerkung="automatisch aus Profil-ID angelegt"))
     m = maschine(kopf, k)
     if m is None:

@@ -55,6 +55,11 @@ except ImportError:  # ältere OCP-Versionen
 from OCP.BRep import BRep_Tool
 from OCP.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Vec, gp_Ax3, gp_Trsf
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))     # programm/: Normtabellen aus rohrlaser
+from rohrlaser import normprofile  # noqa: E402
+
 # ISO-Regelgewinde: Kernlochbohrung nach DIN 336 (Vorgabe; im Programm gelten die Stammdaten 'Gewinde')
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
@@ -105,6 +110,11 @@ class Teil:
     huelle: tuple = ()          # Hüllquader in Dateilage (dx, dy, dz) [mm]
     netz: dict = None           # 3D-Ansicht: {p: [x, y, z, …], t: {Art: [i, j, k, …]}, l: {Art: [[x, y, z, …], …]}}
     bauteiltyp: str = ""        # Profil, Blech oder Blech gekantet ("" = nicht erkannt)
+    stegdicke: float = 0.0      # I-/H-Träger, T-Profil (Wandstärke = Stegdicke)
+    flanschdicke: float = 0.0   # I-/H-Träger (Mittel beider Flansche), T-Profil
+    symmetrisch: bool = None    # Träger: Steg mittig, Flansche gleich
+    radius: float = 0.0         # Träger: Ausrundung Steg/Flansch (aus der Fläche, ca.)
+    normprofil: str = ""        # zugeordnetes Normprofil (IPE 200, HEB 160, UPN 100, L 50x50x5, T 50) oder leer
     blech: dict = None          # nur Bleche: Länge, Breite, Dicke, Flächen, Kontur, Bohrungen, Fingerabdruck (_blech_daten)
 
     @property
@@ -127,6 +137,12 @@ class Teil:
             return f"QR {f(self.abm_a)}x{f(self.abm_a)}x{f(self.wandstaerke)}"
         if self.profilform == "Rechteckrohr":
             return f"RE {f(self.abm_a)}x{f(self.abm_b)}x{f(self.wandstaerke)}"
+        if self.normprofil and self.profilform in ("U-Profil",) + TRAEGER:
+            return self.normprofil
+        if self.profilform == "I-/H-Träger":
+            return f"I {f(self.abm_a)}x{f(self.abm_b)}x{f(self.stegdicke)}x{f(self.flanschdicke)}"
+        if self.profilform == "T-Profil":
+            return f"T {f(self.abm_a)}x{f(self.abm_b)}x{f(self.stegdicke)}x{f(self.flanschdicke)}"
         kurz = {"U-Profil": "U", "C-Profil": "C", "L-Profil": "L"}.get(self.profilform)
         if kurz:
             return f"{kurz} {f(self.abm_a)}x{f(self.abm_b)}x{f(self.wandstaerke)}"
@@ -611,7 +627,8 @@ def _profilform(aussen, a, b, tol=0.05):
 
 
 TOL_WAND_GLEICH = 0.05  # mm: Einzelmessungen der Wandstärke, die weiter auseinanderliegen, gelten als widersprüchlich
-OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl")
+OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl", "I-/H-Träger",
+                  "T-Profil")
 
 
 def _kanten_punkte(draht):
@@ -768,7 +785,78 @@ def _offenes_profil(draht, flaeche, x0, y0, x1, y1, je_seite):
                 return "U-Profil", steg, breite, ""
             if wand and all(e >= 1.5 * wand for e in enden):
                 return "C-Profil", steg, breite, f"Abkantung {min(enden):.1f} mm"
+    # I/H: zwei gegenüberliegende Seiten voll (Flansche außen), die beiden anderen an beiden Enden in Flanschdicke
+    # belegt. T: eine Seite voll (Flansch), die Gegenseite einmal (Stegende), die beiden anderen einmal (Flanschkante).
+    if len(voll) == 2 and all(gegen[n] in voll for n in voll):
+        quer = [n for n in s if n not in voll]
+        if all(len(s[n]) == 2 for n in quer):
+            return _traeger(st, flaeche, x0, y0, x1, y1, "oben" in voll, "I-/H-Träger")
+    if len(voll) == 1:
+        f = next(iter(voll))
+        quer = [n for n in s if n not in (f, gegen[f])]
+        if len(s[gegen[f]]) == 1 and all(len(s[n]) == 1 for n in quer):
+            return _traeger(st, flaeche, x0, y0, x1, y1, f in ("oben", "unten"), "T-Profil")
     return None
+
+
+def _traeger(st, flaeche, x0, y0, x1, y1, waagerecht, form):
+    """Maße eines I-/H-Trägers oder T-Profils. waagerecht: Flansche liegen waagerecht (sonst werden x und y
+    getauscht). Stegdicke: waagerechter Strahl durch den Steg; Flanschdicke: senkrechter Strahl bei (b − tw) / 4
+    von der Flanschkante (Messstelle der Norm, auch bei geneigten Flanschen). Ausrundung aus dem Flächenüberschuss
+    gegenüber dem scharfkantigen Querschnitt. Ergebnis (Form, h, b, Bemerkung, Zusatz) oder None."""
+    if not waagerecht:
+        st = [(ay, ax, by, bx) for ax, ay, bx, by in st]
+        x0, y0, x1, y1 = y0, x0, y1, x1
+    h, b = y1 - y0, x1 - x0
+    s = _seiten_belegung(st, x0, y0, x1, y1)
+    if form == "T-Profil":
+        oben = len(s["oben"]) == 1 and s["oben"][0][1] - s["oben"][0][0] >= 0.6 * b
+        y_steg = y0 + 0.35 * h if oben else y1 - 0.35 * h
+    else:
+        y_steg = (y0 + y1) / 2
+    def alle(x, y, dx, dy):     # Treffer an einer Teilungsstelle der Kontur nur einmal zählen
+        out = []
+        for d in sorted(_strahl_alle(x, y, dx, dy, st)):
+            if not out or d - out[-1] > 1e-6:
+                out.append(d)
+        return out
+    treffer = alle(x0 - 1, y_steg + 0.0137 * h, 1, 0)
+    if len(treffer) != 2:
+        return None
+    tw = treffer[1] - treffer[0]
+    xm = x0 - 1 + (treffer[0] + treffer[1]) / 2
+    dicken = []
+    for xs in (x0 + (b - tw) / 4, x1 - (b - tw) / 4):
+        z = alle(xs + 0.0113 * b, y0 - 1, 0, 1)
+        if len(z) % 2 or not z:
+            return None
+        dicken.append([z[k + 1] - z[k] for k in range(0, len(z), 2)])
+    if form == "T-Profil":
+        if any(len(d) != 1 for d in dicken):
+            return None
+        tf, tf2 = dicken[0][0], dicken[1][0]
+        scharf = b * tf + (h - tf) * tw
+        ecken = 2
+    else:
+        if any(len(d) != 2 for d in dicken):
+            return None
+        tf, tf2 = dicken[0][0], dicken[0][1]
+        tf = (tf + dicken[1][0]) / 2
+        tf2 = (tf2 + dicken[1][1]) / 2
+        scharf = b * (tf + tf2) + (h - tf - tf2) * tw
+        ecken = 4
+    if tw <= 0 or tf <= 0 or tw >= b or tf + (tf2 if form != "T-Profil" else 0) >= h:
+        return None
+    breiten = [ab[0][1] - ab[0][0] for ab in (s["unten"], s["oben"]) if len(ab) == 1]
+    symmetrisch = (abs(xm - (x0 + x1) / 2) <= 0.1 and abs(tf - tf2) <= 0.1 and
+                   (form == "T-Profil" or len(breiten) == 2 and abs(breiten[0] - breiten[1]) <= 0.2))
+    ueber = max(0.0, flaeche - scharf)
+    r = math.sqrt(ueber / (ecken * (1 - math.pi / 4))) if ueber > 0.5 else 0.0
+    zusatz = dict(stegdicke=tw, flanschdicke=max(tf, tf2) if form == "T-Profil" else (tf + tf2) / 2,
+                  flansch_oben=tf2, flansch_unten=tf, symmetrisch=symmetrisch, radius=r)
+    bemerkung = "" if symmetrisch else "unsymmetrisch: " + (
+        f"Flansche {tf:.1f} / {tf2:.1f} mm" if abs(tf - tf2) > 0.1 else "Steg außermittig oder Flansche ungleich breit")
+    return form, h, b, bemerkung, zusatz
 
 
 class _Abwicklung:
@@ -928,10 +1016,14 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
         t.hinweise.append("Offenes Profil nicht erkannt, Fläche manuell prüfen")
         t.sicherheit["profil"] = "unsicher"
     else:
-        t.profilform, t.abm_a, t.abm_b, bemerkung = erg
+        t.profilform, t.abm_a, t.abm_b, bemerkung = erg[:4]
+        zusatz = erg[4] if len(erg) > 4 else {}
         t.sicherheit["profil"] = "sicher"
         if bemerkung:
             t.hinweise.append(bemerkung)
+        if zusatz:
+            t.stegdicke, t.flanschdicke = zusatz["stegdicke"], zusatz["flanschdicke"]
+            t.symmetrisch, t.radius = zusatz["symmetrisch"], zusatz["radius"]
     if t.profilform in ("Flachstahl", "Vierkantstahl", "Rundstahl"):
         t.wandstaerke = 0.0          # Vollprofil: keine Wand
         t.sicherheit["wandstaerke"] = "sicher"
@@ -949,6 +1041,20 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
             t.wandstaerke = min(werte)
             t.sicherheit["wandstaerke"] = "unsicher"
             t.hinweise.append(f"Wandstärke nicht einheitlich: {min(werte):.2f} bis {max(werte):.2f} mm")
+    if t.profilform in TRAEGER:
+        # Steg und Flansch sind bei Trägern verschieden dick: Wandstärke = Stegdicke, Flanschdicke eigenes Feld
+        t.hinweise = [h for h in t.hinweise if not h.startswith("Wandstärke")]
+        t.wandstaerke = t.stegdicke
+        t.sicherheit["wandstaerke"] = "sicher"
+    if t.profilform in ("U-Profil", "L-Profil") + TRAEGER:
+        tf = t.flanschdicke or t.wandstaerke
+        if t.profilform == "U-Profil" and len(je_seite) == 2:      # Steg dünner als die Flansche (UPN)
+            tf = max(je_seite.values())
+        t.normprofil = normprofile.zuordnen(t.profilform, t.abm_a, t.abm_b, t.wandstaerke, tf, t.flaeche) or ""
+        if t.normprofil and t.profilform == "U-Profil":
+            t.stegdicke, t.flanschdicke = t.wandstaerke, tf
+            t.hinweise = [h for h in t.hinweise if not h.startswith("Wandstärken verschieden")]
+            t.sicherheit["wandstaerke"] = "sicher"
     if t.profilform in OFFEN_KALKULIERT:
         return _offen_konturen(t, lok, aussen, zmin, netz)
     t.sicherheit["konturen"] = "nicht ausgewertet"
@@ -963,7 +1069,8 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
 
 # Offene Profile, die das Programm kalkuliert (Patrick 20.10.2026: Plan Frage 2 b). Vierkant- und Rundstahl
 # (Vollmaterial) und nicht erkannte offene Profile bleiben nur gemeldet.
-OFFEN_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl")
+OFFEN_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
+TRAEGER = ("I-/H-Träger", "T-Profil")      # seit 20.10.2026 erkannt und kalkuliert (Frage 2 a)
 
 
 def _normale(face, p):

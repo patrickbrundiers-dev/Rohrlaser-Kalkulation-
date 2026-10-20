@@ -33,7 +33,12 @@ def _messinfo(m):
                 f"{b.get('innen') or 0} Innenkonturen" + (f" (Bohrungen {bo})" if bo else "")
                 + (f" · {m['hinweise']}" if m.get("hinweise") else "")
                 + (f"<br><b style='color:{farbe}'>Prüfstatus: {status}</b>" if status else ""))
-    return (f"<b>{m.get('artikel')}</b>: {m.get('profilform')} {m.get('profil_id_vorschlag') or ''}, Länge {z('laenge')} mm, "
+    traeger = (f"Steg {z('stegdicke')} mm, Flansch {z('flanschdicke')} mm"
+               + ("" if m.get("symmetrisch") != "0" else ", unsymmetrisch") + ", "
+               if _f(m, "stegdicke") > 0 else "")
+    norm = f"Normprofil {m['normprofil']}, " if m.get("normprofil") else ""
+    return (f"<b>{m.get('artikel')}</b>: {m.get('profilform')} {m.get('profil_id_vorschlag') or ''}, {norm}{traeger}"
+            f"Länge {z('laenge')} mm, "
             f"Schneidweg {z('schneidweg')} mm (Anfangsschnitt {z('ende_a')}, Endschnitt {z('ende_b')}, Innenkonturen "
             f"{z('innen')} mm in {m.get('innen_konturen') or 0} Konturen), Gravur {z('gravur')} mm, Einstiche "
             f"{m.get('konturen') or 0}" + (f" · {m['hinweise']}" if m.get("hinweise") else "")

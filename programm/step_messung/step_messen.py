@@ -37,7 +37,8 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "innen_konturen", "gravur", "gravur_konturen", "bohrungen", "innen_liste", "profil_id_vorschlag",
            "hinweise", "einheit", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen", "n_kanten",
            "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste",
-           "pruefstatus", "netz", "bauteiltyp", "blech", "fehler"]
+           "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
+           "symmetrisch", "radius", "fehler"]
 
 
 def _z(x):
@@ -100,7 +101,9 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
                     "|".join(":".join([_z(z), _z(x), _z(y), _z(w), s]) for z, x, y, w, s in t.wand_messungen),
                     ";".join(f"{k}={v}" for k, v in t.sicherheit.items()),
                     json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), t.pruefstatus, netz,
-                    t.bauteiltyp, json.dumps(t.blech, ensure_ascii=False, separators=(",", ":")) if t.blech else "", ""])
+                    t.bauteiltyp, json.dumps(t.blech, ensure_ascii=False, separators=(",", ":")) if t.blech else "",
+                    _z(t.stegdicke), _z(t.flanschdicke), t.normprofil,
+                    "" if t.symmetrisch is None else "1" if t.symmetrisch else "0", _z(t.radius), ""])
     return out, step_ergebnis.datei(datei.name, teile)
 
 

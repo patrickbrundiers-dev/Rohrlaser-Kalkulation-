@@ -11,7 +11,8 @@ Versionen von SCHEMA_VERSION:
 - 1.0 (19.10.2026): erste Fassung.
 - 1.1 (20.10.2026): "bauteiltyp" (Profil, Blech, Blech gekantet) und je Blech der Block "blech" (Länge, Breite, Dicke,
   Flächen, Volumen, Kontur, Innenkonturen, Bohrungen, Fingerabdruck). Bei Blechen sind Profilwerte (Querschnitt,
-  Wandstärke, Innenmaße) null. Felder aus 1.0 unverändert.
+  Wandstärke, Innenmaße) null. Je Profil "normprofil" (z. B. IPE 200, nur bei passenden Maßen) und bei I-/H-Trägern
+  und T-Profilen der Block "traeger" (Steg-, Flanschdicke, symmetrisch, Ausrundung). Felder aus 1.0 unverändert.
 """
 from datetime import datetime
 
@@ -96,6 +97,10 @@ def koerper(t):
         "konturen": [dict(d) for d in konturen] if konturen_ausgewertet else None,
         "enden": list(enden.values()) if konturen_ausgewertet else None,
         "blech": _blech(t.blech) if blech else None,
+        "normprofil": t.normprofil or None,
+        "traeger": dict(stegdicke=_r(t.stegdicke), flanschdicke=_r(t.flanschdicke), symmetrisch=t.symmetrisch,
+                        ausrundung=_r(t.radius, 1) if t.radius else None)
+        if gemessen and t.profilform in ("I-/H-Träger", "T-Profil") else None,
         "pruefstatus": t.pruefstatus,
         "warnungen": list(t.hinweise),
         "erkennungssicherheit": dict(t.sicherheit),
