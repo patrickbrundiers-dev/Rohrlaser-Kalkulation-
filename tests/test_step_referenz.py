@@ -41,6 +41,10 @@ GRENZEN = [
     "Ausschnitt mit Umriss.",
     "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; lose Flächen "
     "werden als 'Flächenmodell offen' gemeldet.",
+    "Bleche: Dicke = Abstand der beiden Hauptflächen, Länge × Breite = kleinstes umschreibendes Rechteck der "
+    "Außenkontur. Flach und stabförmig (Breite bis 150 mm, Länge ab 3 × Breite, gerade Längsseiten) gilt als "
+    "Flachstahl. Gekantete Bleche nur mit Biegeradien; ein Kantteil mit gleichbleibendem Querschnitt bleibt "
+    "L-/U-/C-Profil. Abwicklung gekanteter Bleche ohne Biegefaktor (immer 'prüfen').",
     "Prüfstatus 'plausibel' ist keine Fertigungsfreigabe.",
 ]
 NICHT_AUSGEFUEHRT = [
@@ -268,6 +272,84 @@ def _(f, p):
     f.wert("Schneidweg", t.schneidweg, 2 * 45 + 2 * math.pi * 9, 0.05)
     f.gleich("Lage der Bohrungen", [d["z"] for d in t.konturen_liste[2:]], [50.0, 250.0])
     f.gleich("Einstiche", t.konturen, 4)
+
+
+BL = HIER / "step_bleche"
+# Bleche (seit 20.10.2026): Bauteiltyp, Länge, Breite, Dicke, Kontur, Bohrungen; Abgrenzung zum Flachstahl
+# (Breite bis 150 mm, Länge mindestens 3 × Breite, gerade Längsseiten) und Negativfälle
+BLECHE = [  # Nr, Datei, Typ, Länge, Breite, Dicke, Kontur, Bohrungen {Ø: Anzahl}, Innenkonturen, Prüfstatus
+    ("BL01", "B01_Blech_500x300x5", "Blech", 500, 300, 5, "rechteckig", {}, 0, "plausibel"),
+    ("BL02", "B02_Blech_400x200x4_Bohrungen", "Blech", 400, 200, 4, "rechteckig", {10.0: 4, 20.0: 1}, 5, "plausibel"),
+    ("BL03", "B03_Blech_600x400x3_Ausschnitte", "Blech", 600, 400, 3, "rechteckig", {}, 2, "plausibel"),
+    ("BL04", "B04_Blech_400x250x6_Kontur", "Blech", 400, 250, 6, "frei", {}, 0, "plausibel"),
+    ("BL05", "B05_Blech_500x300x5_gedreht", "Blech", 500, 300, 5, "rechteckig", {}, 0, "plausibel"),
+    ("BL06", "B06_Blech_250x180x8_schraeg", "Blech", 250, 180, 8, "rechteckig", {16.0: 1}, 1, "plausibel"),
+    ("BL07", "B07_Blech_gekantet_Winkel", "Blech gekantet", 120, 100, 3, "gekantet", {}, 0, "prüfen"),
+    ("BL10", "B10_Blech_1000x160x8", "Blech", 1000, 160, 8, "rechteckig", {}, 0, "plausibel"),
+    ("BL11", "B11_Blech_100x40x8", "Blech", 100, 40, 8, "rechteckig", {}, 0, "plausibel"),
+    ("BL12", "B12_Blech_300x200x5_Fase", "Blech", 300, 200, 5, "rechteckig", {}, 0, "plausibel"),
+    ("BL13", "B13_Blech_30x20x3_Rest", "Blech", 30, 20, 3, "rechteckig", {}, 0, "plausibel"),
+]
+
+
+def _blech_fall(nr, datei, typ, lg, br, d, kontur, bohrungen, innen, status):
+    @fall(nr, f"{typ}: {datei.split('_', 1)[1]}", BL / f"{datei}.step")
+    def _(f, p):
+        (t,) = analysiere_datei(p)
+        f.gleich("Bauteiltyp", t.bauteiltyp, typ)
+        f.wert("Länge", t.blech and t.blech["laenge"], lg, TOL_MASS)
+        f.wert("Breite", t.blech and t.blech["breite"], br, TOL_MASS)
+        f.wert("Dicke", t.blech and t.blech["dicke"], d, TOL_MASS)
+        f.gleich("Kontur", t.blech and t.blech["kontur"], kontur)
+        f.gleich("Bohrungen", t.blech and t.blech["bohrungen"], bohrungen)
+        f.gleich("Innenkonturen", t.blech and t.blech["innen"], innen)
+        f.gleich("Prüfstatus", t.pruefstatus, status)
+        f.gleich("kein Profil-ID-Vorschlag", t.profil_id_vorschlag, "")
+
+
+for _z in BLECHE:
+    _blech_fall(*_z)
+
+
+@fall("BL08", "dünne Platte mit Tasche ist kein Blech (prüfen)", BL / "B08_Platte_mit_Tasche.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    f.gleich("kein Blech", t.bauteiltyp in ("Blech", "Blech gekantet"), False)
+    f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
+
+
+@fall("BL09", "Flachstahl 100x10 L 800 bleibt Flachstahl", BL / "B09_FL100x10_L800.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    f.gleich("Bauteiltyp", t.bauteiltyp, "Profil")
+    grundmasse(f, t, "Flachstahl", 100, 10, 0, 800)
+
+
+@fall("BL14", "Baugruppe Rechteckrohr mit zwei Fußplatten", BL / "B14_Baugruppe_Rohr_2Bleche.step")
+def _(f, p):
+    teile = analysiere_datei(p)
+    f.gleich("Bauteiltypen", [t.bauteiltyp for t in teile], ["Profil", "Blech", "Blech"])
+    grundmasse(f, teile[0], "Rechteckrohr", 60, 40, 2, 800)
+    for t in teile[1:]:
+        f.wert(f"K{t.koerper} Länge", t.blech["laenge"], 150, TOL_MASS)
+        f.wert(f"K{t.koerper} Dicke", t.blech["dicke"], 8, TOL_MASS)
+
+
+@fall("BL15", "Flachstahl-Grenze aus der Einstellung (200 mm: 160 breit ist Flachstahl)", BL / "B10_Blech_1000x160x8.step")
+def _(f, p):
+    (t,) = analysiere_datei(p, flach_bis=200)
+    f.gleich("Bauteiltyp", t.bauteiltyp, "Profil")
+    grundmasse(f, t, "Flachstahl", 160, 8, 0, 1000)
+
+
+@fall("BL16", "Profile und Rohre sind keine Bleche (alle Referenzteile)", REF)
+def _(f, p):
+    for q in sorted(list(p.glob("*.step")) + list((HIER / "step_profile").glob("*.step"))):
+        try:
+            teile = analysiere_datei(q)
+        except ValueError:
+            continue
+        f.gleich(f"{q.stem}", [t.bauteiltyp for t in teile if t.bauteiltyp in ("Blech", "Blech gekantet")], [])
 
 
 def k01_pruefen(f, t, mit_winkel):

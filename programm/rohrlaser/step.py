@@ -141,8 +141,28 @@ def profil_vorschlag(m, profile):
 
 # Profilformen, die die Messung erkennt, das Programm aber nicht kalkuliert. U-, C-, L-Profile und Flachstahl
 # werden seit 20.10.2026 kalkuliert (Patrick: Plan Frage 2 b); Vollmaterial und nicht erkannte offene Profile nicht.
-NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil")
+# Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
+BLECHE = ("Blech", "Blech gekantet")
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil") + BLECHE
 MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil")     # Profilformen mit Abmessung B
+
+
+def blech(m):
+    """Blechdaten eines gemessenen Teils (Spalte 'blech' der Messung, JSON) oder None."""
+    import json
+    if m.get("profilform") not in BLECHE or not m.get("blech"):
+        return None
+    try:
+        return json.loads(m["blech"])
+    except ValueError:
+        return None
+
+
+def blech_text(m):
+    """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
+    b = blech(m) or {}
+    f = lambda x: _dez(round(float(x or 0), 1))
+    return f"{m.get('profilform')} {f(b.get('laenge'))} × {f(b.get('breite'))} × {f(b.get('dicke'))} mm"
 
 
 def unsicher(m):
@@ -289,6 +309,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         if erster is not None and erster != i:
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
+        elif m.get("profilform") in BLECHE:
+            hinweise.append(f"nicht übernommen: {blech_text(m)} ist kein Rohrlaserteil")
         elif m.get("profilform") in NICHT_KALKULIERT:
             hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         elif not gewaehlt(m):

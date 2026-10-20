@@ -104,6 +104,8 @@ class Teil:
     n_kanten: int = 0
     huelle: tuple = ()          # Hüllquader in Dateilage (dx, dy, dz) [mm]
     netz: dict = None           # 3D-Ansicht: {p: [x, y, z, …], t: {Art: [i, j, k, …]}, l: {Art: [[x, y, z, …], …]}}
+    bauteiltyp: str = ""        # Profil, Blech oder Blech gekantet ("" = nicht erkannt)
+    blech: dict = None          # nur Bleche: Länge, Breite, Dicke, Flächen, Kontur, Bohrungen, Fingerabdruck (_blech_daten)
 
     @property
     def pruefstatus(self):
@@ -1165,7 +1167,8 @@ def _innen_liegend(innen, aussen):
             ba.CornerMin().Y() < bi.CornerMin().Y() and bi.CornerMax().Y() < ba.CornerMax().Y())
 
 
-def analysiere(solid, datei="", koerper=1, netz=False):
+def _profil_messen(solid, datei="", koerper=1, netz=False):
+    """Messung als gerades Profil (Rohr, offenes Profil, Flachstahl) mit konstantem Querschnitt."""
     t = Teil(datei=datei, koerper=koerper)
     ax3, regel = _lage(solid)
     lok = _transformiere(solid, ax3)
@@ -1505,6 +1508,289 @@ def analysiere(solid, datei="", koerper=1, netz=False):
     return t
 
 
+# ------------------------------------------------------------------ Bleche
+# Ein Körper ist ein (ebenes) Blech, wenn er zwei parallele Hauptflächen hat, das Volumen der Hauptfläche mal ihrem
+# Abstand entspricht (also überall gleich dick, keine Absätze oder Taschen) und die Dicke klein gegenüber der Breite
+# ist. Die Dicke ist der Abstand der Hauptebenen, nicht die kleinste Kante des Hüllquaders: so stimmt sie auch bei
+# gedrehten oder schräg liegenden Teilen. Länge und Breite kommen aus dem kleinsten umschreibenden Rechteck der
+# Außenkontur in der Hauptebene.
+# Flachstahl ist ein flacher Körper, der wie ein Stab aussieht (Patrick 20.10.2026, Frage 1 a): Breite bis
+# FLACHSTAHL_BIS (Einstellung im Programm), Länge mindestens FLACHSTAHL_LAENGE × Breite und beide Längsseiten
+# gerade über den größten Teil der Länge (Enden dürfen schräg oder ausgeklinkt sein). Alles andere Flache ist Blech.
+FLACHSTAHL_BIS = 150.0          # mm
+FLACHSTAHL_LAENGE = 3.0         # Länge mindestens 3 × Breite
+BLECH_DICKE_ANTEIL = 0.2        # Dicke höchstens 1/5 der Breite
+TOL_BLECH_VOLUMEN = 0.03        # Volumen = Hauptfläche × Dicke auf 3 %
+TOL_EBENE = 0.01                # mm: Flächen in derselben Ebene
+# Gleich dicke, gekantete Körper mit gleichbleibendem Querschnitt bleiben Profile (L, U, C, Kantprofil). Als
+# gekantetes Blech gelten sie, wenn das Volumen deutlich unter Querschnitt × Länge liegt (Schenkel unterschiedlich
+# lang oder ausgeschnitten, also kein Stangenmaterial).
+GEKANTET_ANTEIL = 0.85
+
+
+def _ebenen_gruppen(solid):
+    """Ebene Flächen nach Normalenrichtung (ohne Vorzeichen) und Lage gruppiert:
+    [(Richtung gp_Dir, [(Abstand, Fläche, [faces])])] – je Richtung die Ebenen, flächengrößte zuerst."""
+    gruppen = []
+    for f in _liste(solid, TopAbs_FACE):
+        pl = _ebene(f)
+        if pl is None:
+            continue
+        n, o = pl.Axis().Direction(), pl.Location()
+        for g in gruppen:
+            if abs(abs(g[0].Dot(n)) - 1) < 1e-5:
+                break
+        else:
+            g = (n, [])
+            gruppen.append(g)
+        d = g[0]
+        ab = o.X() * d.X() + o.Y() * d.Y() + o.Z() * d.Z()
+        a = _flaeche(f)
+        for e in g[1]:
+            if abs(e[0] - ab) < TOL_EBENE:
+                e[1] += a
+                e[2].append(f)
+                break
+        else:
+            g[1].append([ab, a, [f]])
+    for g in gruppen:
+        g[1].sort(key=lambda e: -e[1])
+    return gruppen
+
+
+def _zylinder_paare(solid, dicke, tol=0.02):
+    """Fläche der Zylinderflächen, die paarweise koaxial im Abstand 'dicke' liegen (Biegezonen gekanteter Bleche)."""
+    zyl = []
+    for f in _liste(solid, TopAbs_FACE):
+        sf = BRepAdaptor_Surface(TopoDS.Face(f))
+        if sf.GetType() == GeomAbs_Cylinder:
+            c = sf.Cylinder()
+            zyl.append((c.Axis(), c.Radius(), _flaeche(f)))
+    summe, benutzt = 0.0, set()
+    for i, (ax1, r1, a1) in enumerate(zyl):
+        for j in range(i + 1, len(zyl)):
+            ax2, r2, a2 = zyl[j]
+            if i in benutzt or j in benutzt or abs(abs(r1 - r2) - dicke) > tol:
+                continue
+            if abs(abs(ax1.Direction().Dot(ax2.Direction())) - 1) < 1e-5 and \
+                    gp_Vec(ax1.Location(), ax2.Location()).Crossed(_vec(ax1.Direction())).Magnitude() < tol:
+                summe += a1 + a2
+                benutzt |= {i, j}
+    return summe
+
+
+def _flach_pruefen(solid, volumen):
+    """Blechmerkmale eines Körpers oder None. Ergebnis dict: art 'eben' (Hauptflächen tragen das ganze Volumen)
+    oder 'gekantet' (gleich dicke Schenkel in mindestens zwei Richtungen, verbunden über Biegezonen), dicke,
+    hauptflaeche (Face), richtung (Normale), mitte (Punkt der Hauptebene)."""
+    gruppen = _ebenen_gruppen(solid)
+    kandidaten = [(g, g[1][0], g[1][1]) for g in gruppen if len(g[1]) >= 2]
+    if not kandidaten or volumen <= 0:
+        return None
+    g, e1, e2 = max(kandidaten, key=lambda k: k[1][1])
+    # die zweite Hauptfläche: die größte parallele Ebene in einem anderen Abstand
+    dicke = abs(e1[0] - e2[0])
+    if dicke < 0.05:
+        return None
+    haupt = max(e1[2], key=_flaeche)
+    pl = _ebene(haupt)
+    erg = dict(dicke=dicke, hauptflaeche=haupt, richtung=g[0], mitte=pl.Location(), flaeche_oben=e1[1],
+               flaeche_unten=e2[1])
+    # eben: nur diese beiden Ebenen in der Richtung (keine Absätze, Taschen oder Gravuren), Volumen = Fläche × Dicke
+    weitere = [e for e in g[1][2:] if e[1] > 1e-3 * e1[1]]
+    if not weitere and e2[1] >= 0.9 * e1[1] and \
+            abs(volumen - min(e1[1], e2[1]) * dicke) <= TOL_BLECH_VOLUMEN * volumen:
+        return dict(erg, art="eben")
+    # gekantet: alle Ebenenpaare im Abstand 'dicke' (je Richtung) und koaxiale Biegezonen tragen das Volumen
+    paare, richtungen = 0.0, 0
+    for _, ebenen in gruppen:
+        frei = sorted(ebenen, key=lambda e: e[0])
+        gefunden = False
+        while frei:
+            a = frei.pop(0)
+            b = next((x for x in frei if abs(abs(x[0] - a[0]) - dicke) < 0.02), None)
+            if b is not None:
+                frei.remove(b)
+                paare += a[1] + b[1]
+                gefunden = True
+        richtungen += gefunden
+    biegungen = _zylinder_paare(solid, dicke)
+    paare += biegungen
+    # ohne Biegezone (koaxiale Zylinder r und r + Dicke) ist es kein Kantteil, sondern z. B. ein T- oder L-Profil
+    if biegungen > 0 and richtungen >= 2 and abs(volumen - paare / 2 * dicke) <= TOL_BLECH_VOLUMEN * 1.5 * volumen:
+        return dict(erg, art="gekantet")
+    return None
+
+
+def _wire_kreis(draht):
+    """Durchmesser, wenn der Draht ein Kreis ist (Kreiskanten mit gleichem Mittelpunkt und Radius), sonst None."""
+    from OCP.GeomAbs import GeomAbs_Circle
+    kreise = []
+    for e in _liste(draht, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        if c.GetType() != GeomAbs_Circle:
+            return None
+        kreise.append(c.Circle())
+    if not kreise:
+        return None
+    r, m = kreise[0].Radius(), kreise[0].Location()
+    if all(abs(k.Radius() - r) < 1e-3 and k.Location().Distance(m) < 1e-3 for k in kreise):
+        return round(2 * r, 3)
+    return None
+
+
+def _draht_laenge(draht):
+    return sum(_kantenlaenge(e) for e in _liste(draht, TopAbs_EDGE))
+
+
+def _blech_daten(solid, fl):
+    """Maße eines ebenen Blechs in der Hauptebene: Länge/Breite (kleinstes umschreibendes Rechteck der Außenkontur),
+    Kontur rechteckig/frei, Innenkonturen und Bohrungen, Längsseiten gerade (für die Abgrenzung zum Flachstahl).
+    Dazu das System ax3 (Z = Länge, X = Breite, Y = Normale) für die 3D-Ansicht."""
+    from OCP.BRepTools import BRepTools
+    face = TopoDS.Face(fl["hauptflaeche"])
+    n = fl["richtung"]
+    ax0 = gp_Ax3(fl["mitte"], n)
+    aussen = BRepTools.OuterWire_s(face)
+    lok = _transformiere(aussen, ax0)
+    st = _strecken(lok)
+    pts = [(x, y) for x1, y1, x2, y2 in st for x, y in ((x1, y1), (x2, y2))]
+    w = _min_rechteck(pts)
+    c, s_ = math.cos(w), math.sin(w)
+    us = [x * c + y * s_ for x, y in pts]
+    vs = [-x * s_ + y * c for x, y in pts]
+    laenge, breite = max(us) - min(us), max(vs) - min(vs)
+    if breite > laenge:      # _min_rechteck liefert die Richtung der längeren Seite; zur Sicherheit
+        laenge, breite = breite, laenge
+        c, s_ = -s_, c
+        us, vs = vs, [-u for u in us]
+    # Längsseiten: gerade Abschnitte auf den beiden langen Seiten des Rechtecks
+    seiten = [0.0, 0.0]
+    for x1, y1, x2, y2 in st:
+        v1, v2 = -x1 * s_ + y1 * c, -x2 * s_ + y2 * c
+        lg = math.hypot(x2 - x1, y2 - y1)
+        for k, grenze in enumerate((min(vs), max(vs))):
+            if abs(v1 - grenze) < 0.05 and abs(v2 - grenze) < 0.05:
+                seiten[k] += lg
+    mf = BRepBuilderAPI_MakeFace(aussen, True)
+    flaeche_aussen = _flaeche(mf.Face()) if mf.IsDone() else laenge * breite
+    innen = [TopoDS.Wire(d) for d in _liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
+    bohrungen, innen_liste, innen_laenge = {}, [], 0.0
+    for d in innen:
+        lg = _draht_laenge(d)
+        innen_laenge += lg
+        dm = _wire_kreis(d)
+        if dm is not None:
+            bohrungen[dm] = bohrungen.get(dm, 0) + 1
+        b = Bnd_Box()
+        BRepBndLib.AddOptimal_s(d, b, False, False)
+        q0, q1 = b.CornerMin(), b.CornerMax()
+        innen_liste.append((round(max(q1.X() - q0.X(), q1.Y() - q0.Y(), q1.Z() - q0.Z()), 2), round(lg, 2)))
+    # System für die 3D-Ansicht und Lage in der Datei: Z = Längsrichtung, Y = Normale der Hauptfläche
+    xd, yd = ax0.XDirection(), ax0.YDirection()
+    lr = _vec(xd).Multiplied(c).Added(_vec(yd).Multiplied(s_))
+    ax3 = gp_Ax3(fl["mitte"], gp_Dir(lr.X(), lr.Y(), lr.Z()), gp_Dir(_vec(n).Crossed(lr).X(), _vec(n).Crossed(lr).Y(),
+                                                                       _vec(n).Crossed(lr).Z()))
+    rechteckig = abs(flaeche_aussen - laenge * breite) <= 0.002 * laenge * breite
+    return dict(laenge=laenge, breite=breite, dicke=fl["dicke"], flaeche_aussen=flaeche_aussen,
+                flaeche_netto=_flaeche(face), umfang_aussen=_draht_laenge(aussen), umfang_innen=innen_laenge,
+                innen=len(innen), bohrungen=dict(sorted(bohrungen.items())), innen_liste=innen_liste,
+                kontur="rechteckig" if rechteckig else "frei", laengsseiten_gerade=min(seiten) >= 0.8 * laenge,
+                ax3=ax3)
+
+
+def ist_flachstahl(laenge, breite, laengsseiten_gerade, flach_bis=FLACHSTAHL_BIS):
+    """Abgrenzung Flachstahl/Blech (Frage 1 a): stabförmig, schmal, gerade Längsseiten."""
+    return laengsseiten_gerade and breite <= flach_bis + 1e-6 and laenge >= FLACHSTAHL_LAENGE * breite - 1e-6
+
+
+def fingerabdruck(b):
+    """Geometrie-Fingerabdruck eines Blechs für den Dublettenvergleich (gerundete Kennwerte als Text)."""
+    bo = ",".join(f"{d:g}x{n}" for d, n in b.get("bohrungen", {}).items())
+    return (f"{b['dicke']:.1f}|{b['laenge']:.0f}|{b['breite']:.0f}|{b.get('flaeche_netto', 0):.0f}|"
+            f"{b.get('umfang_aussen', 0) + b.get('umfang_innen', 0):.0f}|{b.get('innen', 0)}|{bo}")
+
+
+def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
+    """Teil für ein ebenes oder gekantetes Blech."""
+    t = Teil(datei=datei, koerper=koerper)
+    d = fl["dicke"]
+    if fl["art"] == "eben":
+        b = daten or _blech_daten(solid, fl)
+        ax3 = b.pop("ax3")
+        t.bauteiltyp = t.profilform = "Blech"
+        t.abm_a, t.abm_b, t.wandstaerke, t.laenge = b["laenge"], b["breite"], d, b["laenge"]
+        t.bohrungen, t.innen_liste, t.innen_konturen = b["bohrungen"], b["innen_liste"], b["innen"]
+        t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
+        t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]
+        t.sicherheit.update(profil="sicher", laenge="sicher", wandstaerke="sicher", konturen="nicht ausgewertet")
+        b.pop("laengsseiten_gerade", None)
+    else:
+        # Außenmaße im System der Hauptfläche: Grundriss = kleinstes umschreibendes Rechteck, Höhe = senkrecht dazu
+        ax0 = gp_Ax3(fl["mitte"], fl["richtung"])
+        lok0 = _transformiere(solid, ax0)
+        pts = [(x, y) for x1, y1, x2, y2 in _strecken(lok0, 2.0) for x, y in ((x1, y1), (x2, y2))]
+        w = _min_rechteck(pts)
+        c, s_ = math.cos(w), math.sin(w)
+        us, vs = [x * c + y * s_ for x, y in pts], [-x * s_ + y * c for x, y in pts]
+        z0, z1 = _z_bereich(lok0)
+        masse = sorted((max(us) - min(us), max(vs) - min(vs), z1 - z0), reverse=True)
+        t.bauteiltyp = t.profilform = "Blech gekantet"
+        t.abm_a, t.abm_b, t.wandstaerke, t.laenge = masse[0], masse[1], d, masse[0]
+        b = dict(laenge=masse[0], breite=masse[1], hoehe=masse[2], dicke=d, kontur="gekantet",
+                 abwicklung_flaeche=volumen / d, flaeche_netto=volumen / d, umfang_aussen=0.0, umfang_innen=0.0,
+                 innen=0, bohrungen={}, innen_liste=[])
+        t.sicherheit.update(profil="wahrscheinlich", laenge="wahrscheinlich", wandstaerke="sicher",
+                            konturen="nicht ausgewertet")
+        t.hinweise.append(f"Gekantetes Blech: Außenmaße {masse[0]:.1f} × {masse[1]:.1f} × {masse[2]:.1f} mm, "
+                          f"Abwicklung ca. {volumen / d / 1e6:.4f} m² (ohne Biegefaktor), Zuschnitt prüfen")
+        lr = _vec(ax0.XDirection()).Multiplied(c).Added(_vec(ax0.YDirection()).Multiplied(s_))
+        ax3 = gp_Ax3(fl["mitte"], gp_Dir(lr.X(), lr.Y(), lr.Z()), fl["richtung"])
+    b["volumen"] = volumen
+    b["fingerabdruck"] = fingerabdruck(b)
+    t.blech = b
+    t.flaeche = 0.0       # kein Profilquerschnitt
+    lok = _transformiere(solid, ax3)
+    zmin, _ = _z_bereich(lok)
+    dz, p = ax3.Direction(), _global(ax3, 0, 0, zmin)
+    t.achse_global, t.ende_a_global = (dz.X(), dz.Y(), dz.Z()), (p.X(), p.Y(), p.Z())
+    if netz:
+        faces = TopTools_IndexedMapOfShape()
+        TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
+        t.netz = dreiecksnetz(lok, faces, {i: "A" for i in range(1, faces.Extent() + 1)}, [], zmin, t.abm_a)
+    return t
+
+
+def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
+    """Ein Körper: zuerst die Blechprüfung (ebene Bleche, die kein Flachstahl sind, werden als Blech gemessen), sonst
+    die Profilmessung. Gekantete Bleche gelten nur dann als Blech, wenn die Profilmessung keinen gleichbleibenden
+    Querschnitt findet (ein Kantprofil mit konstantem Querschnitt bleibt L/U/C-Profil)."""
+    p = GProp_GProps()
+    BRepGProp.VolumeProperties_s(solid, p)
+    volumen = abs(p.Mass())
+    try:
+        fl = _flach_pruefen(solid, volumen)
+    except Exception:  # Blechprüfung darf die Profilmessung nie verhindern
+        fl = None
+    if fl and fl["art"] == "eben":
+        daten = _blech_daten(solid, fl)
+        dicke_ok = fl["dicke"] <= BLECH_DICKE_ANTEIL * daten["breite"] + 1e-6
+        if dicke_ok and not ist_flachstahl(daten["laenge"], daten["breite"], daten["laengsseiten_gerade"], flach_bis):
+            return _blech_teil(solid, datei, koerper, fl, volumen, netz, daten)
+    t = None
+    try:
+        t = _profil_messen(solid, datei, koerper, netz)
+    except Exception:
+        if not (fl and fl["art"] == "gekantet"):
+            raise
+    if fl and fl["art"] == "gekantet" and (t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
+                                           or t.profilform == "offenes Sonderprofil" or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
+        return _blech_teil(solid, datei, koerper, fl, volumen, netz)
+    if t.profilform:
+        t.bauteiltyp = "Profil"
+    return t
+
+
 NETZ_ARTEN = {"A": "Außenwand", "I": "Innenwand", "EA": "Anfangsschnitt", "EB": "Endschnitt", "K": "Innenkontur",
               "G": "Gravur"}
 
@@ -1581,7 +1867,7 @@ def bohrungen_text(bohrungen):
     return "; ".join(f"{n}xØ{f'{d:g}'.replace('.', ',')}" for d, n in bohrungen.items())
 
 
-def analysiere_datei(pfad, netz=False):
+def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Alle Körper einer STEP-Datei messen. Je Körper ein Teil, auch für nicht messbare (Flächenmodell offen,
     Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist."""
     from pathlib import Path
@@ -1598,7 +1884,7 @@ def analysiere_datei(pfad, netz=False):
             t.hinweise.append("Flächenmodell nicht geschlossen, nicht messbar")
         else:
             try:
-                t = analysiere(k, name, i, netz)
+                t = analysiere(k, name, i, netz, flach_bis)
             except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
                 t = Teil(datei=name, koerper=i)
                 t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")

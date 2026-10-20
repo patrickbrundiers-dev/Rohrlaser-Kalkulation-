@@ -26,6 +26,13 @@ def _messinfo(m):
     status = m.get("pruefstatus") or ""
     farbe = {"plausibel": "#375623", "prüfen": "#9C5700", "nicht messbar": "#C00000"}.get(status, "#000000")
     unsicher = step.unsicher(m)
+    b = step.blech(m)
+    if b is not None:
+        bo = ", ".join(f"{n}× Ø{zahl_als_text(float(d), 1)}" for d, n in (b.get("bohrungen") or {}).items())
+        return (f"<b>{m.get('artikel')}</b>: {step.blech_text(m)}, Kontur {b.get('kontur') or ''}, "
+                f"{b.get('innen') or 0} Innenkonturen" + (f" (Bohrungen {bo})" if bo else "")
+                + (f" · {m['hinweise']}" if m.get("hinweise") else "")
+                + (f"<br><b style='color:{farbe}'>Prüfstatus: {status}</b>" if status else ""))
     return (f"<b>{m.get('artikel')}</b>: {m.get('profilform')} {m.get('profil_id_vorschlag') or ''}, Länge {z('laenge')} mm, "
             f"Schneidweg {z('schneidweg')} mm (Anfangsschnitt {z('ende_a')}, Endschnitt {z('ende_b')}, Innenkonturen "
             f"{z('innen')} mm in {m.get('innen_konturen') or 0} Konturen), Gravur {z('gravur')} mm, Einstiche "
@@ -205,7 +212,8 @@ class StepPruefDialog(QDialog):
                 g.setBackground(0, QBrush(QColor("#F8CBAD")))
                 g.setExpanded(True)
             it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "",
-                                     "", "", m.get("fehler") or m.get("hinweise") or "kein Rohrteil erkannt"])
+                                     "", "", m.get("fehler") or (step.blech_text(m) + ": kein Rohrlaserteil" if step.blech(m) else "")
+                                     or m.get("hinweise") or "kein Rohrteil erkannt"])
             it.setData(1, Qt.UserRole, i)
         for c, b in enumerate((250, 55, 130, 120, 75, 80, 95, 65, 260)):
             self.baum.setColumnWidth(c, b)
