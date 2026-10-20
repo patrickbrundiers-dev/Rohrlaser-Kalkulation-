@@ -865,7 +865,8 @@ def kapitel_angebot(i):
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.6). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
-            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, Kapitel 13.6)."),
+            "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, Kapitel 13.6) und "
+            "<i>EK eintragen …</i> (Einkaufspreis fehlender Zukaufteile direkt im Angebot, Kapitel 6)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -1054,7 +1055,18 @@ def kapitel_angebot(i):
             "Von Hand: Position anlegen, <i>Positionsart</i> = Zukaufteil, Stückzahl eintragen und unter "
             "<b>Zukaufteile … → Zukaufteile bearbeiten …</b> den Artikel wählen. Schneller mit neuem Artikel: "
             "<b>Zukaufteile … → Neuer Zukaufartikel …</b> (Abschnitt 13.6) legt Artikel und Position in einem Schritt "
-            "an.")
+            "an.",
+            "<b>EK direkt im Angebot eintragen</b> (z. B. Bleche aus dem STEP-Import, die noch keinen EK haben): "
+            "<b>Zukaufteile … → EK eintragen …</b>. Ohne Markierung listet der Dialog alle Zukaufteile des Angebots "
+            "ohne EK, mit Markierung die Zukaufteile der markierten Positionen. Je Zeile stehen Pos., Artikel, "
+            "Lieferant, Stückzahl (Verbrauch der Position) und der bisherige EK; in der letzten Spalte den "
+            "Einkaufspreis netto je Stück eintragen, leere Zeilen bleiben unverändert.",
+            "Der Preis wird im Zukaufartikel beim Lieferanten (bei Blechen ohne Lieferant <i>Technik</i>) als "
+            "Staffelzeile <i>ab Stückzahl</i> gespeichert, z. B. 40 Bleche zu 12,50 € = <i>ab 40 St 12,50 €</i>. "
+            "Vorhandene Staffelzeilen über 0 € bleiben, eine Zeile mit derselben Stückzahl wird ersetzt. Kleinere "
+            "Mengen in anderen Angeboten nehmen die erste Staffelzeile. Die Änderung steht im Protokoll der "
+            "Preisänderungen (<i>EK aus Angebot …</i>), die Position bekommt sofort den neuen Preisstand und die "
+            "Warnung <i>EK fehlt</i> verschwindet.")
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
             "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
             "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "
@@ -1294,7 +1306,8 @@ def kapitel_step(i):
             "mehrteilig: mit <i>Sätze</i> werden Rohr und Bleche ein Satz, gleiche Bleche eine Position mit "
             "Stück je Satz.",
             "Neue Zukaufartikel bekommen Kategorie Blechteile, Einheit Stück, Lieferant Technik, die STEP-Datei und "
-            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis unter Zukaufartikel mit "
+            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis direkt im Angebot mit "
+            "<b>Zukaufteile … → EK eintragen …</b> (mit Stückzahl, Kapitel 6) oder unter Zukaufartikel mit "
             "<b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>).",
             "In den Messwerten stehen die Spalten <i>bauteiltyp</i> (Profil, Blech, Blech gekantet) und <i>blech</i> "
             "(alle Blechmaße). Im JSON-Messergebnis (ab Version 1.1) steht je Blech der Block <i>blech</i>; die "
@@ -1894,7 +1907,8 @@ def kapitel_zukauf(i):
             "<b>EK eintragen …</b> (Knopf unter der Tabelle oder rechte Maustaste) fragt den Einkaufspreis netto je "
             "Einheit ab und trägt ihn beim bevorzugten Lieferanten ab Menge 1 ein; ohne Lieferant bei Blechteilen "
             "beim Lieferanten <i>Technik</i>. Die Änderung kommt ins Protokoll der Preisänderungen. Staffeln und "
-            "weitere Bedingungen werden im Formular gepflegt.",
+            "weitere Bedingungen werden im Formular gepflegt. Im Angebot trägt <b>Zukaufteile … → EK eintragen …</b> den "
+            "Preis ab der Stückzahl der Position ein (Kapitel 6, Zukaufteil-Positionen).",
             "<b>Dubletten</b>: vor dem Anlegen sucht der STEP-Import vorhandene aktive Blechartikel mit gleicher Dicke "
             "(± 0,05 mm), gleicher Länge und Breite (± 0,5 mm, auch um 90° gedreht), gleichem Werkstoff und gleicher "
             "Geometrie-Kennung und verwendet diesen Artikel, statt einen zweiten anzulegen. Stimmen nur die Maße, "
