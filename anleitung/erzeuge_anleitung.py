@@ -863,7 +863,7 @@ def kapitel_angebot(i):
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.6). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
-            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell anlegen, Kapitel 13.6)."),
+            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, Kapitel 13.6)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -1047,7 +1047,9 @@ def kapitel_angebot(i):
             "(nicht lasern, zum Auftrag bereitstellen)</i>, die <b>Nachkalkulation</b> hat die Zeile "
             "<i>Zukaufteile (Einstand)</i>.",
             "Von Hand: Position anlegen, <i>Positionsart</i> = Zukaufteil, Stückzahl eintragen und unter "
-            "<b>Zukaufteile …</b> den Artikel wählen.")
+            "<b>Zukaufteile … → Zukaufteile bearbeiten …</b> den Artikel wählen. Schneller mit neuem Artikel: "
+            "<b>Zukaufteile … → Neuer Zukaufartikel …</b> (Abschnitt 13.6) legt Artikel und Position in einem Schritt "
+            "an.")
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
             "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
             "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "
@@ -1778,15 +1780,24 @@ def kapitel_zukauf(i):
             "<b>Aus Stammdaten aktualisieren …</b> (markierte Zeilen, ohne Markierung alle) zeigt je Artikel den "
             "VK je Teil alt und neu und übernimmt den neuen Stand erst nach Bestätigung und <b>OK</b>.",
             "Mit mehreren markierten Positionen gilt die Liste nach OK für alle (sie ersetzt deren Zukaufteile).")
-    i.text("<b>Schnellanlage</b>, z. B. für Bleche: Position markieren und in der Knopfleiste des "
-           "Angebots <b>Zukaufteile … → Neuer Zukaufartikel …</b> wählen (oder <b>Neuer Artikel …</b> im Dialog Zukaufteile). Das kurze Formular "
-           "legt den Artikel in den Stammdaten an und hängt ihn an die Position; vorhandene Zukaufteile bleiben.")
+    i.text("<b>Schnellanlage</b>, z. B. für Bleche: in der Knopfleiste des Angebots <b>Zukaufteile … → Neuer "
+           "Zukaufartikel …</b> wählen. Das kurze Formular legt den Artikel in den Stammdaten an, und <b>jeder Artikel "
+           "wird eine eigene Position</b> der Art <i>Zukaufteil</i> (nicht gelasert, Preis aus Einstand + Aufschlag, "
+           "Abschnitt Zukaufteil-Positionen in Kapitel 6). Die Menge bezieht sich auf die markierte Position:")
+    i.liste("<b>je Satz</b> (vorgewählt, wenn die markierte Position zu einem Satz gehört): die neue Position kommt "
+            "in denselben Satz, <i>Stück je Satz</i> = Menge. Beispiel Rahmen: 20 Bleche je Rahmen, bei 10 Rahmen "
+            "Stückzahl 200; die Staffelstufe 50 Rahmen rechnet 1000.",
+            "<b>je Teil</b>: Stückzahl = Menge × Stückzahl der markierten Position.",
+            "Ohne markierte Position fragt das Formular nur die <b>Stückzahl</b>.",
+            "Eigene Positionen haben ganze Stückzahlen; die markierte Position bleibt unverändert.")
+    i.text("Soll ein Blech dagegen im Preis eines Rohrs enthalten sein, im Dialog Zukaufteile der Rohrposition "
+           "<b>Neuer Artikel …</b> nehmen: dort wird der neue Artikel an die Position gehängt.")
     i.bild("zukauf_schnell", "Schnellanlage eines Blechs (Beispielwerte)", hoehe=62 * mm, legende=[
         (1, "<b>Bezeichnung</b> (Pflicht) und optional Artikelnummer"),
         (2, "<b>Kategorie</b>: vorgewählt Blechteile. Bei Blechteilen oder <i>Blech</i> in der Bezeichnung ist "
             "der <b>Lieferant</b> <i>Technik</i> vorbelegt; überschreiben ist jederzeit möglich"),
         (3, "<b>EK je Stück</b> und <b>Aufschlag [%]</b>; leer = Aufschlag der Kategorie bzw. Standard"),
-        (4, "<b>Menge</b> je Teil oder je Satz"),
+        (4, "<b>Menge</b> je Teil oder je Satz der markierten Position"),
         (5, "<b>Speichern + nächster</b> leert das Formular für das nächste Blech (Kategorie, Lieferant, Aufschlag "
             "und je bleiben), <b>Speichern + schließen</b> beendet")])
     i.text("Der Artikel bekommt Einheit Stück, Preiseinheit 1 und einen bevorzugten Lieferanten. Weitere Angaben "
