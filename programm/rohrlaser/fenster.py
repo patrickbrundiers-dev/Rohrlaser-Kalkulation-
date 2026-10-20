@@ -668,6 +668,11 @@ class Hauptfenster(QMainWindow):
         if not stumm:
             self.updater.beim_start()
 
+    def starten(self):
+        """Programmstart: Fenster maximiert (mit Taskleiste) und gleich im Reiter Angebote."""
+        self.reiter.setCurrentWidget(self.angebote)
+        self.showMaximized()
+
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
         for text, ziel, taste in (("Datensicherung erstellen", self.sicherung_erstellen, None),
