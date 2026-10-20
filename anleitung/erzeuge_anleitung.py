@@ -634,9 +634,10 @@ def kapitel_stammdaten(i):
         ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
-    i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser) sowie T11 (Trumpf) "
-           "und LT7 (Adige, beide Faserlaser). Die Richtwerte stammen aus üblichen Schnitttabellen für Faserlaser "
-           "mit etwa 3 kW und CO₂-Laser mit etwa 3,2 kW, mit etwa 40 % Abschlag fürs Rohr. Es sind keine "
+    i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Die Richtwerte stammen aus üblichen Schnitttabellen "
+           "für Faserlaser mit 3 kW und CO₂-Laser mit 3,2 kW, mit etwa 40 % Abschlag fürs Rohr; T11 hat mit 4 kW "
+           "20 % mehr Vorschub. Es sind keine "
            "Herstellerwerte, bitte mit echten Schnittzeiten der Maschine vergleichen und anpassen. Faserlaser: Stahl "
            "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
            "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "

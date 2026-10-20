@@ -755,6 +755,10 @@ BEISPIEL_MASCHINEN = [
     ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "Faserlaser", 255, 36),
     ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 5, 5, 25, "Faserlaser", 214, 23)]
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
+# Laserleistung laut Patrick (20.10.2026): T03 3,2 kW, T11 4 kW, LT7 3 kW. Die Richtwerte gelten für 3 kW Faser bzw.
+# 3,2 kW CO₂; T11 mit 4 kW bekommt 20 % mehr Vorschub (nicht die vollen 33 %: am Rohr begrenzt oft die Dynamik).
+LEISTUNG = {"T03": 3.2, "T11": 4.0, "LT7": 3.0}
+FAKTOR = {"T03": 1.0, "T11": 1.2, "LT7": 1.0}
 
 # Bis 0.5.8: Beispielmaschinen RL-1/RL-2 (Werte ab 'endbeschnitt'); unverändert werden sie beim Update zu T03/T11
 ALTE_MASCHINEN = {"RL-1": ("T03", (20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30)),
@@ -763,7 +767,7 @@ MASCHINE_WERTE = ("endbeschnitt", "greiferrest", "schnittverlust", "max_stange",
                   "kontur_mittel", "abstand", "ruestzeit", "stangenwechsel")
 
 # Richtwerte Schneiddaten je Laser, Kategorie und Gas: [(Wandstärke bis, Vorschub groß, Einstechzeit)].
-# Herkunft: übliche Schnitttabellen Faserlaser ≈ 3 kW bzw. CO₂-Laser ≈ 3,2 kW (Flachbett) mit ≈ 40 % Abschlag fürs
+# Herkunft: übliche Schnitttabellen Faserlaser 3 kW bzw. CO₂-Laser 3,2 kW (Flachbett) mit ≈ 40 % Abschlag fürs
 # Rohr (Drehachse, Ecken, Beschleunigung); keine Herstellerwerte. Stahl Faser mit N₂ bis 4 mm, CO₂ bis 2 mm, darüber
 # O₂; Edelstahl und Aluminium nur N₂ (O₂ läuft an bzw. schneidet nicht sauber), CO₂-Aluminium nur bis 6 mm.
 RICHTWERTE = {
@@ -783,18 +787,21 @@ RICHTWERTE = {
         ("Aluminium", "N₂"): [(1, 5500, 0.15), (1.5, 4500, 0.2), (2, 3500, 0.3), (3, 2000, 0.5), (4, 1300, 0.8),
                               (5, 900, 1.0), (6, 600, 1.2)]}}
 GRAVUR = {"Faser": 15000, "CO₂": 10000}
-RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser ≈ 3 kW, Rohr", "CO₂": "Beispiel: Richtwert CO₂-Laser ≈ 3,2 kW, Rohr"}
+RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel: Richtwert CO₂-Laser"}
 
 
 def beispiel_schneiddaten():
-    """Schneiddaten je Kategorie (Werkstoff-ID leer) für T03 (CO₂) sowie T11 und LT7 (Faser) aus den Richtwerten.
-    Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt am Rohr die Dynamik, nicht die Leistung."""
+    """Schneiddaten je Kategorie (Werkstoff-ID leer) für T03 (CO₂) sowie T11 und LT7 (Faser) aus den Richtwerten,
+    Vorschub mit dem Leistungsfaktor der Maschine. Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt
+    am Rohr die Dynamik, nicht die Leistung."""
     out = []
     for m, laser in LASER.items():
+        text = f"{RICHTWERT_TEXT[laser]} {zahl_als_text(LEISTUNG[m])} kW, Rohr"
         for (kat, gas), stufen in RICHTWERTE[laser].items():
             for wand, v, ein in stufen:
+                v = round(v * FAKTOR[m], -1)
                 out.append((m, None, kat, gas, wand, v, round(v * 0.6, -1), round(v * 0.3, -1), ein, GRAVUR[laser],
-                            RICHTWERT_TEXT[laser]))
+                            text))
     return out
 
 

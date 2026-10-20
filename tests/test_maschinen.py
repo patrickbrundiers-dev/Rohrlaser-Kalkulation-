@@ -44,17 +44,19 @@ assert sd("T03", "AW6060-T66", 6)["gas"] == "N₂" and sd("T03", "AW6060-T66", 7
 assert sd("T11", "AW6060-T66", 8)["gas"] == "N₂"
 # CO₂ dünn langsamer als Faser, dick ähnlich; LT7 = T11
 assert sd("T03", "S235-10219", 2)["vorschub_gross"] < sd("T11", "S235-10219", 2)["vorschub_gross"] / 1.5
-assert sd("T03", "S235-10219", 10)["vorschub_gross"] >= 0.9 * sd("T11", "S235-10219", 10)["vorschub_gross"]
-assert sd("LT7", "1.4301", 3)["vorschub_gross"] == sd("T11", "1.4301", 3)["vorschub_gross"] == 4200
-z = sd("T11", "S235-10219", 3)
+assert sd("T03", "S235-10219", 10)["vorschub_gross"] >= 0.9 * sd("LT7", "S235-10219", 10)["vorschub_gross"]
+# T11 mit 4 kW: 20 % mehr Vorschub als LT7 mit 3 kW
+assert sd("LT7", "1.4301", 3)["vorschub_gross"] == 4200 and sd("T11", "1.4301", 3)["vorschub_gross"] == 5040
+z = sd("LT7", "S235-10219", 3)
 assert (z["vorschub_mittel"], z["vorschub_klein"], z["vorschub_gravur"]) == (3000, 1500, 15000), z
+assert "4 kW" in sd("T11", "S235-10219", 3)["bemerkung"] and "3,2 kW" in sd("T03", "S235-10219", 3)["bemerkung"]
 assert sd("T03", "S235-10219", 3)["einstechzeit"] > sd("T11", "S235-10219", 3)["einstechzeit"]
-assert sd("T11", "S235-10219", 12)["vorschub_gross"] == 900 and sd("T11", "S235-10219", 13) is None
+assert sd("T11", "S235-10219", 12)["vorschub_gross"] == 1080 and sd("T11", "S235-10219", 13) is None
 assert all(z["bemerkung"].startswith("Beispiel: Richtwert") for z in db.zeilen("schneiddaten"))
 
 # 2) Plausibilität in der Prüfspalte
 pz = lambda z: pruefen(TABELLE["schneiddaten"], z, db.kontext())
-i = db.neu("schneiddaten", dict(maschinen_id="T11", kategorie="Stahl", gas="N₂", wand_bis=2.5, vorschub_gross=9000))
+i = db.neu("schneiddaten", dict(maschinen_id="T11", kategorie="Stahl", gas="N₂", wand_bis=2.5, vorschub_gross=12000))
 z = next(z for z in db.zeilen("schneiddaten") if z["id"] == i)
 assert pz(z) == "WARNUNG: Vorschub höher als bei 2 mm", pz(z)
 db.aendern("schneiddaten", i, "vorschub_gross", 6000)

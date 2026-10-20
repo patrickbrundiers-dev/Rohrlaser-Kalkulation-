@@ -298,7 +298,7 @@ assert staffeln.pruefen(dict(schluessel="10", menge=None), s4.positionen) == "FE
 assert s4.optimieren()
 sp = s4.staffelpreise_rechnen()
 assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
-assert [z["preis_einheit"] for z in sp] == [148.98, 145.03, 136.42, 6.44, 6.33, 5.94], sp   # Referenzwerte (T11, Richtwerte Faserlaser; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
+assert [z["preis_einheit"] for z in sp] == [148.64, 144.68, 136.07, 6.42, 6.3, 5.92], sp   # Referenzwerte (T11, Richtwerte Faserlaser 4 kW; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
@@ -317,7 +317,7 @@ assert "VERALTET" in s4.staffel_info.text()
 assert not st_mod.setData(st_mod.index(5, 1), "0")
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 992.56) < 1e-9 and ang["mwst"] == 188.59, ang   # Referenzwerte (T11; bis 0.5.8 RL-1: 1005,80 / 191,10)
+assert abs(ang["netto"] - 989.64) < 1e-9 and ang["mwst"] == 188.03, ang   # Referenzwerte (T11; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2, L = 1250 mm, inkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
