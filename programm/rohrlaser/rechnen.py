@@ -221,6 +221,9 @@ def status(p, w, kopf, k, eingeplant=None):
     if unbekannt:
         return f"WARNUNG: Zusatzarbeit '{unbekannt}' unbekannt"
     manuell = not _leer(p.get("zeit_manuell"))
+    kontur = konturen_pruefen(p)
+    if kontur and not manuell:
+        return "WARNUNG: " + kontur
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
@@ -570,6 +573,27 @@ def zahl(w, stellen=2):
     return (t.rstrip("0").rstrip(".") if "." in t else t).replace(".", ",")
 
 
+KONTUR_TOL = 0.5     # mm, STEP-Teilwerte sind je auf 0,1 mm gerundet
+
+
+def gross_rest(p):
+    """Schneidweg mit Vorschub groß [mm]: Schneidweg − Konturen klein und mittel, nie unter 0."""
+    return max(0.0, _n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm")))
+
+
+def konturen_pruefen(p):
+    """Widerspruch zwischen Konturklassen und Schneidweg bzw. Innenkonturen (Text) oder None."""
+    km = _n(p.get("klein_mm")) + _n(p.get("mittel_mm"))
+    if km <= 0 and _n(p.get("gross_mm")) <= 0:
+        return None
+    if not _leer(p.get("schneidweg")) and km > _n(p["schneidweg"]) + KONTUR_TOL:
+        return "Konturen klein + mittel länger als Schneidweg"
+    summe = km + _n(p.get("gross_mm"))
+    if not _leer(p.get("innen")) and summe > _n(p["innen"]) + KONTUR_TOL:
+        return "Konturklassen länger als Innenkonturen"
+    return None
+
+
 def schneidzeit(p, kopf, wand, tabellen, k=None):
     """Berechnete Schneidzeit je Teil [s] aus Schneidweg, Konturklassen, Gravur und Einstichen (ohne Einsparung
     gemeinsamer Schnitte und ohne Zusatzzeiten). Ergebnis: (Schneiddaten-Zeile, (Vorschub groß, mittel, klein,
@@ -584,16 +608,25 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
         l = _n(sd.get("einstechzeit"))
     else:
         h = i_ = j = kv = l = None
-    if h is None:
-        mz = None
-    else:
-        try:
-            mz = 60 * ((_n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm"))) / h
-                       + _n(p.get("klein_mm")) / j + _n(p.get("mittel_mm")) / i_ + _n(p.get("gravur")) / kv) \
-                + _n(p.get("einstiche")) * l
-        except ZeroDivisionError:
-            mz = None
-    return sd, (h, i_, j, kv, l), mz
+    anteile = zeitanteile(p, (h, i_, j, kv, l))
+    return sd, (h, i_, j, kv, l), sum(anteile.values()) if anteile else None
+
+
+ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "einstiche")
+
+
+def zeitanteile(p, vorschuebe):
+    """Schneidzeit je Teil [s] aufgeteilt: {gross (Anfangs-/Endschnitt und große Konturen), mittel, klein, gravur,
+    einstiche}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
+    h, i_, j, kv, l = vorschuebe
+    if not h:
+        return None
+    try:
+        return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
+                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * _n(p.get("gravur")) / kv,
+                    einstiche=_n(p.get("einstiche")) * _n(l))
+    except ZeroDivisionError:
+        return None
 
 
 # ------------------------------------------------------------------ Stundensätze und Zeitvorgaben
@@ -885,6 +918,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z = dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, material_gruppe=d, anteil=e,
                  material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None)
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
+        anteile = zeitanteile(p, (h, i_, j, kv, l)) or {}
+        z.update({f"zeit_{n}": anteile.get(n) for n in ZEITANTEILE})
+        z.update(mm_gross=gross_rest(p), mm_mittel=_n(p.get("mittel_mm")), mm_klein=_n(p.get("klein_mm")),
+                 mm_gravur=_n(p.get("gravur")), einstiche_teil=_n(p.get("einstiche")))
         ein = eingespart.get(schluessel(p, i), [0, 0.0, 0])
         if h is None or c == 0 or not h:
             nz = 0
@@ -920,6 +957,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = "kein Schnittplan oder Preis"
         elif h is None and not manuell:
             hinweis = "keine Schneiddaten"
+        elif not manuell and konturen_pruefen(p):
+            hinweis = konturen_pruefen(p)
         elif zusatz_unbekannt(p, tabellen.get("zusatzarbeiten")):
             hinweis = "Zusatzarbeit unbekannt"
         elif not _leer(p.get("gewinde_vorschlag")) and _leer(p.get("gewinde")):
@@ -998,7 +1037,8 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto):
                           "herstell_position", "material_position", "laser_position"), 0.0)
     z = dict(null, pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, wand_stufe=None, gas=None,
              vorschub_gross=None, vorschub_mittel=None, vorschub_klein=None, vorschub_gravur=None, einstechzeit=None,
-             zeit_manuell="", zusatzarbeiten=[], zusatz_text="", skonto_teil=t_ - ohne, laser_brutto=None,
+             **{f"zeit_{n}": None for n in ZEITANTEILE}, mm_gross=None, mm_mittel=None, mm_klein=None,
+             mm_gravur=None, einstiche_teil=None, zeit_manuell="", zusatzarbeiten=[], zusatz_text="", skonto_teil=t_ - ohne, laser_brutto=None,
              laser_netto=None, zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf,
              zukauf_teil=zk_einst + zk_auf, zukauf_fehlt=sum(1 for x in zk if x["fehler"]) + (0 if zk else 1),
              pauschalen_teil=fr, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, hinweis=hinweis,

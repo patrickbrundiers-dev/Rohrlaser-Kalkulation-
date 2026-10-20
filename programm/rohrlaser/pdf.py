@@ -297,6 +297,18 @@ KALK = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 20), ("Stück"
         ("Verkaufspreis je Teil [€]", "preis_teil", 3, 19), ("Verkaufspreis Position [€]", "preis_position", 2, 18),
         ("Herstellkosten Position [€]", "herstell_position", 2, 18), ("Hinweis", "hinweis", None, 20)]
 assert sum(s[3] for s in KALK) <= 273     # Breite A4 quer ohne Ränder [mm]
+SCHNEID = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 22),
+           ("Trennschnitt + groß [mm]", "mm_gross", 1, 17), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 15),
+           ("Zeit groß [s]", "zeit_gross", 1, 13),
+           ("Kontur mittel [mm]", "mm_mittel", 1, 15), ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 15),
+           ("Zeit mittel [s]", "zeit_mittel", 1, 13),
+           ("Kontur klein [mm]", "mm_klein", 1, 15), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 15),
+           ("Zeit klein [s]", "zeit_klein", 1, 13),
+           ("Gravur [mm]", "mm_gravur", 1, 13), ("Zeit Gravur [s]", "zeit_gravur", 1, 13),
+           ("Einstiche", "einstiche_teil", 0, 12), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 14),
+           ("Laserzeit brutto [s]", "laser_brutto", 1, 14), ("Einsparung [s]", "einsparung", 1, 14),
+           ("Laserzeit netto [s]", "laser_netto", 1, 14)]
+assert sum(s[3] for s in SCHNEID) <= 273
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
@@ -340,6 +352,20 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
             continue
         daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s in KALK])
     inhalt.append(_tabelle(daten, [s[3] * mm for s in KALK], rechts=[i for i, s in enumerate(KALK) if s[2] is not None]))
+    # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse
+    daten = [[_p(s[0], klein) for s in SCHNEID]]
+    for z in zeilen:
+        if z is None or z.get("zukaufteil"):
+            continue
+        daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s in SCHNEID])
+    if len(daten) > 1:
+        inhalt += [Spacer(1, 5 * mm), _p("Schneidzeit je Teil nach Konturklassen", S_H2),
+                   _tabelle(daten, [s[3] * mm for s in SCHNEID],
+                            rechts=[i for i, s in enumerate(SCHNEID) if s[2] is not None]),
+                   _p("Zeit je Klasse = Schneidweg der Klasse / Vorschub der Klasse × 60. Trennschnitt + groß = "
+                      "Schneidweg − Konturen klein und mittel (Anfangs-/Endschnitt und große Innenkonturen). "
+                      "Netto = brutto − Einsparung gemeinsamer Schnitte + Zusatzzeit; bei angepasster Schneidzeit gilt "
+                      "die eingetragene Zeit.", S_KLEIN)]
     doc.build(inhalt, canvasmaker=leinwand)
 
 
