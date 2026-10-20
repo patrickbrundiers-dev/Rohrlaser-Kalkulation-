@@ -308,7 +308,7 @@ assert staffeln.pruefen(dict(schluessel="10", menge=None), s4.positionen) == "FE
 assert s4.optimieren()
 sp = s4.staffelpreise_rechnen()
 assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
-assert [z["preis_einheit"] for z in sp] == [158.96, 149.47, 138.12, 7.3, 6.7, 6.09], sp   # Referenzwerte (Schneiddaten je Kategorie, Stahl bis 4 mm mit N₂)
+assert [z["preis_einheit"] for z in sp] == [148.64, 144.68, 136.07, 6.42, 6.3, 5.92], sp   # Referenzwerte (T11, Richtwerte Faserlaser 4 kW; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
@@ -327,7 +327,7 @@ assert "VERALTET" in s4.staffel_info.text()
 assert not st_mod.setData(st_mod.index(5, 1), "0")
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 1005.80) < 1e-9 and ang["mwst"] == 191.10, ang   # Referenzwerte
+assert abs(ang["netto"] - 989.64) < 1e-9 and ang["mwst"] == 188.03, ang   # Referenzwerte (T11; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2, L = 1250 mm, inkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
@@ -404,7 +404,7 @@ db = Datenbank(tmp / "d" / "rohrlaser.db")
 assert db.einstellung("ruesten_abmessung") == 15 and db.einstellung("pauschale_abmessung") == 22.5
 assert db.einstellung("angebotsaufschlag") == 50
 k, tab = db.kontext(), db.tabellen()
-kopf = dict(maschine="RL-1", stange=6000)
+kopf = dict(maschine="T11", stange=6000)
 pos = [dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=1000, stueck=6),
        dict(pos=20, artikel="B", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=500, stueck=4),
        dict(pos=30, artikel="C", profil_id="RE 120x60x4", werkstoff_id="S235-10219", laenge=800, stueck=5),
@@ -414,7 +414,7 @@ assert not erg["fehler"] or all(f_["artikel"] == "D" for f_ in erg["fehler"])
 null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, angebotsaufschlag=0, programmierung_teil=0)
 z0, s0 = rechnen.kalkulation(kopf, pos, erg, k, tab, null)
 z1, s1 = rechnen.kalkulation(dict(kopf, fracht=120.0), pos, erg, k, tab, db.einstellungen())
-satz = k.maschinen["RL-1"]["stundensatz"]
+satz = k.maschinen["T11"]["stundensatz"]
 assert s1["abmessungen"] == 2 and s1["pauschalen"] == 45.0 and s1["angebotsaufschlag"] == 50 and s1["fracht"] == 120
 assert db.einstellung("programmierung_teil") == 8.5 and s1["programmierung"] == 3 * 8.5   # D ohne Stückzahl zählt nicht
 assert abs(s1["ruesten"] - s0["ruesten"] - 2 * 15 / 60 * satz) < 1e-9
@@ -429,7 +429,8 @@ assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15 + 8.5 / 6)) < 1e-9
 assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15 + 8.5 / 5)) < 1e-9
 assert z1[3]["pauschalen_teil"] == 0 and z1[3]["preis_position"] == 0
 # Grenzen der Maschine: RE 120x60x4 (Hüllkreis 134,2 mm, 10,9 kg/m) passt nicht mehr
-db.aendern("maschinen", db.zeilen("maschinen")[0]["id"], "max_huellkreis", 130)
+t11 = next(z["id"] for z in db.zeilen("maschinen") if z["maschinen_id"] == "T11")
+db.aendern("maschinen", t11, "max_huellkreis", 130)
 k = db.kontext()
 w = rechnen.position_werte(pos[2], kopf, k, tab)
 assert rechnen.status(pos[2], w, kopf, k) == "FEHLER: Hüllkreis größer als Maschine zulässt"
@@ -438,8 +439,8 @@ erg = rechnen.optimieren(kopf, pos, k)
 assert [(f_["artikel"], f_["grund"]) for f_ in erg["fehler"] if f_["artikel"] == "C"] == \
     [("C", "Hüllkreis größer als Maschine zulässt")]
 assert all(t["artikel"] != "C" for s_ in erg["stangen"] for t in s_["teile"])
-db.aendern("maschinen", db.zeilen("maschinen")[0]["id"], "max_huellkreis", None)
-db.aendern("maschinen", db.zeilen("maschinen")[0]["id"], "max_kg_m", 5)
+db.aendern("maschinen", t11, "max_huellkreis", None)
+db.aendern("maschinen", t11, "max_kg_m", 5)
 k = db.kontext()
 assert w["kg_m"] > 5 and rechnen.status(pos[2], w, kopf, k) == "FEHLER: Metergewicht über Maschinengrenze"
 assert rechnen.position_werte(pos[0], kopf, k, tab)["kg_m"] > 3   # QR 40x40x3 ≈ 3,3 kg/m, liegt unter 5
@@ -545,7 +546,7 @@ assert all(abs(z["abweichung"]) < 1e-9 and z["erfasst"] == "nein" for z in v["ze
 assert abs(v["summe"]["soll"] - (s9["material"] + s9["laser_schneiden"] + s9["gewinde"] + s9["ruesten_maschine"]
                                  + s9["ruesten_abmessungen"] + s9["stangenwechsel_kosten"] + s9["zusatz"])) < 1e-6
 assert abs(v["erloes"]["soll"] - s9["verkauf"]) < 1e-9 and not nk.erfasst(None)
-satz = seite.k.maschinen["RL-1"]["stundensatz"]
+satz = seite.k.maschinen["T11"]["stundensatz"]
 assert abs(v["zeilen"][1]["soll_menge"] * satz - v["zeilen"][1]["soll"]) < 1e-6        # Laserzeit h × Stundensatz
 g0 = v["gruppen"][0]
 seite.nachkalk.setzen(dict(laser_h=2.0, ruest_min=60, zusatz=10.0, sonstiges=25.0, erloes=900.0),
