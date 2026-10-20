@@ -164,7 +164,7 @@ haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
 assert haupt == ["Start", "Angebote", "Kunden", "Frachtkosten", "Zukaufartikel", "Einstellungen"], haupt
 b = fenster.bereich
 assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Profile", "Werkstoffe", "Oberflächen",
-                                                                 "Preise", "Maschinen", "Schneiddaten", "Gewinde",
+                                                                 "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Stundensätze und Zeitvorgaben"]
 assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
 fenster.zeigen(seite)

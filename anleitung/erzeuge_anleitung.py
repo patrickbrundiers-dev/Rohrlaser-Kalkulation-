@@ -271,7 +271,7 @@ def kapitel_ueberblick(i):
             "Bei Bedarf <b>Staffelpreise</b> für weitere Mengen rechnen.",
             "<b>Ausgeben</b>: Angebot, Werkstattpapiere und Kalkulation als PDF, auf Wunsch CSV-Export.",
             nummeriert=True)
-    i.text("Die Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
+    i.text("Die Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, Lieferlängen, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
            "Einstellungen werden einmal eingerichtet (Kapitel 3 und 4): das Programm startet mit Beispielwerten, die "
            "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
