@@ -1,5 +1,6 @@
 """Angebote: Übersicht, Angebotsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
 import datetime
+import json
 import tempfile
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zeiten_seite import ZeitenSeite
-from .angebot import POSITIONEN, STEP_FELDER
+from .angebot import POSITIONEN, STEP_FELDER, aktiv as position_aktiv, ist_zukaufteil
 from .angebot_oben import KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
@@ -246,10 +247,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Nutzlänge Stange [mm]", "nutz", 0), ("Preis hinterlegt", "preis_hinterlegt", None),
              ("Vorschub groß [mm/min]", "vorschub", 0), ("Schneidgas", "gas", None), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
-SICHTBAR = ["pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
-            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf"]
+SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
+            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
-OPTIONALE_SPALTEN = ("oberflaeche", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf")
+OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf",
+                     "gewicht_teil")
 EIGENE = ("zusatz", "zukauf")        # Spalten mit eigenem Dialog (Doppelklick)
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
@@ -306,7 +308,9 @@ class PositionenModell(QAbstractTableModel):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
             self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand"), s.tabellen, s.k)[2])   # berechnet [s]
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
-            w["eingeplant"] = ein if p.get("profil_id") else None
+            w["eingeplant"] = ein if p.get("profil_id") and not ist_zukaufteil(p) else None
+            if ist_zukaufteil(p):
+                ein = None              # Zukaufteile werden nicht eingeplant
             w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
             self.werte.append(w)
             self.status.append(rechnen.status(p, w, s.kopf, s.k, ein))
@@ -905,7 +909,7 @@ class AngebotSeite(QWidget):
             self._pos_eingepasst = True
         aus = sum(1 for i, (art, _) in enumerate(m.spalten) if m.name(i) in OPTIONALE_SPALTEN
                   and self.pos_ansicht.isColumnHidden(i))
-        n = sum(1 for p in self.positionen if p.get("profil_id") or p.get("artikel"))
+        n = sum(1 for p in self.positionen if position_aktiv(p) or p.get("artikel"))
         self.pos_info.setText(f"{n} {'Position' if n == 1 else 'Positionen'}"
                               + (f" · {aus} optionale Spalten ausgeblendet (Weitere Spalten)" if aus else ""))
 
@@ -1102,7 +1106,7 @@ class AngebotSeite(QWidget):
     def angebot_pdf(self):
         if not self._vor_ausgabe():
             return None
-        if not any(p.get("profil_id") for p in self.positionen):
+        if not any(position_aktiv(p) for p in self.positionen):
             QMessageBox.warning(self, "Angebot", "Das Angebot hat keine Positionen.")
             return None
         ang = self.angebot_daten()
@@ -1211,9 +1215,10 @@ class AngebotSeite(QWidget):
                 return None
             messwerte = step.lade_netze(step.lies_messwerte(ausgabe), netze)
             json_ablage = self._messung_ablegen(ergebnis)
-        if not self.f.stumm:        # Rohre prüfen: je Teil übernehmen, Profil, Werkstoff, Stückzahl
+        zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
+        if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
-            if StepPruefDialog(self, messwerte, self.k, werkstoff, stueck).exec() != QDialog.Accepted:
+            if StepPruefDialog(self, messwerte, self.k, werkstoff, stueck, zukauf_liste).exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
@@ -1225,14 +1230,24 @@ class AngebotSeite(QWidget):
         if doppelt and not self.f.stumm:
             erneut = QMessageBox.question(self, "STEP-Import", f"{doppelt} Artikel stehen schon im Angebot.\n\n"
                                           "Trotzdem noch einmal eintragen?") == QMessageBox.Yes
-        mehr = step.mehrteilig(messwerte)
+        mehr = step.mehrteilig(messwerte, mit_blechen=True)
         if als_satz is None:        # Prüfdialog: Feld „Sätze“ je Datei (leer = Einzelpositionen); ohne Dialog als Satz
             als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
-                               neue_profile, erneut, saetze=list(mehr) if als_satz else ())
+                               neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste)
         self.db.profile_anlegen(erg["profile"])
+        neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
+                    for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
+        if neue_ids:
+            erg["bericht"].append(f"{len(neue_ids)} Zukaufartikel (Blech) neu angelegt, EK fehlt: bitte unter "
+                                  "Zukaufartikel mit 'EK eintragen …' nachtragen.")
         for p in erg["positionen"]:
+            verweis = p.pop("_zukauf", None)
+            if verweis:
+                aid = verweis.get("artikel_id") or neue_ids.get(verweis.get("neu"))
+                p["zukauf"] = json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))],
+                                         ensure_ascii=False)
             netz = p.pop("_netz", None)
             pid = self.db.position_neu(self.id, p)
             if netz:

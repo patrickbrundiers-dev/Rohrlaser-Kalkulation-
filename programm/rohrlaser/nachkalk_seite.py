@@ -143,7 +143,7 @@ class NachkalkulationSeite(QWidget):
 
     def _platzhalter(self, v):
         soll = {"laser_h": (v["zeilen"][1]["soll_menge"], 2), "ruest_min": (v["zeilen"][2]["soll_menge"], 0),
-                "zusatz": (v["zeilen"][3]["soll"], 2), "sonstiges": (0, 2), "erloes": (v["erloes"]["soll"], 2)}
+                "zusatz": (v["zeilen"][3]["soll"], 2), "zukauf": (v["zeilen"][4]["soll"], 2), "sonstiges": (0, 2), "erloes": (v["erloes"]["soll"], 2)}
         for name, (w, st) in soll.items():
             self.felder[name].setPlaceholderText(f"leer = Soll {_z(w, st)}")
 

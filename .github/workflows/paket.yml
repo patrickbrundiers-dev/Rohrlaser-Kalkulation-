@@ -56,6 +56,7 @@ jobs:
           /usr/bin/python3 tests/test_zukauf_angebot.py
           /usr/bin/python3 tests/test_zukauf_preise.py
           /usr/bin/python3 tests/test_zukauf_blech.py
+          /usr/bin/python3 tests/test_blech_position.py
           /usr/bin/python3 tests/test_step_satz.py
           /usr/bin/python3 tests/test_step_bleche.py
           /usr/bin/python3 tests/test_werkstoffe.py

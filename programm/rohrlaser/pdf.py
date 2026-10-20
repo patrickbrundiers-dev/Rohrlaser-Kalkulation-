@@ -237,6 +237,13 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
     for m in wp["material"]:
         daten.append([_p(m["profil"]), _p(m["werkstoff"]), _z(m["stange"], 0), _z(m["stangen"], 0), _z(m["gewicht"], 1)])
     inhalt += [_tabelle(daten, [45 * mm, 40 * mm, 25 * mm, 25 * mm, 25 * mm], rechts=(2, 3, 4)), Spacer(1, 4 * mm)]
+    if wp.get("zukaufteile"):        # Bleche usw.: werden nicht gelasert, nur bereitgestellt
+        daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Zukaufteil", "Stück"])]
+        for z in wp["zukaufteile"]:
+            daten.append([_z(z["pos"], 0), _p(z["artikel"], S_KLEIN), _p(z["bezeichnung"], S_KLEIN),
+                          _p(z["text"], S_KLEIN), _z(z["stueck"], 0)])
+        inhalt += [_p("Zukaufteile (nicht lasern, zum Auftrag bereitstellen)", S_H2),
+                   _tabelle(daten, [12 * mm, 33 * mm, 40 * mm, 70 * mm, 15 * mm], rechts=(4,)), Spacer(1, 4 * mm)]
     breiten = [11 * mm, 11 * mm, 27 * mm, 33 * mm, 17 * mm, 17 * mm, 17 * mm, 14 * mm, 25 * mm, 14 * mm]
     for m in wp["muster"]:
         s = m["stange"]
