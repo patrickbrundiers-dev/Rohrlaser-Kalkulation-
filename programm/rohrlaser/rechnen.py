@@ -10,8 +10,8 @@ Angebot), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', '
 import hashlib
 import json
 
-from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZUSATZ_EINHEIT, flaeche_berechnet, flaeche_wirksam,
-                         huellkreis)
+from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
+                         flaeche_wirksam, huellkreis)
 from . import optimierung as opt
 
 EPS = opt.EPS
@@ -437,8 +437,54 @@ def zusatz_text(p):
 
 
 def zusatz_unbekannt(p, katalog):
+    """Erste Zusatzarbeit der Position, die weder einen gespeicherten Preisstand hat noch in den Stammdaten steht."""
     namen = {z.get("name") for z in katalog or ()}
-    return next((z["name"] for z in zusatz_liste(p) if z["name"] not in namen), None)
+    return next((z["name"] for z in zusatz_liste(p) if z["name"] not in namen and not isinstance(z.get("stand"), dict)),
+                None)
+
+
+def stundensaetze(tabellen):
+    """{Stundensatz-ID: €/h} aus den Stammdaten Stundensätze."""
+    return {z["satz_id"]: z.get("satz") for z in (tabellen.get("stundensaetze") or ()) if z.get("satz_id")}
+
+
+def zusatz_preis(z, saetze=None):
+    """Preis je Einheit einer Zusatzarbeit (Stammdatenzeile) und seine Bestandteile:
+    Preis = Festpreis + Arbeit + Material inkl. Zuschlag + weiterer Zuschlag, mit
+    Arbeit = Zeitaufwand [h] × Stundensatz (Stammdaten Stundensätze oder eigener Satz),
+    Material inkl. = Material × (1 + Zuschlag %) bzw. Material + Zuschlag €,
+    weiterer Zuschlag = % auf Arbeit, auf Material inkl. oder auf beides.
+    Leere Felder zählen 0; ohne die Felder ab Schema 15 ist der Preis der Festpreis (wie bisher). Bei s/Stück ist
+    'preis' die Zeit je Stück in s, alles andere zählt nicht.
+    Ergebnis: dict(fest, zeit_s, satz, arbeit, material, zuschlag_material, material_inkl, weitere, preis)."""
+    fest = _n(z.get("preis"))
+    if z.get("art") == "s/Stück":
+        return dict(fest=fest, zeit_s=0.0, satz=None, arbeit=0.0, material=0.0, zuschlag_material=0.0,
+                    material_inkl=0.0, weitere=0.0, preis=fest)
+    zeit_s = _n(z.get("zeit")) * ZEITEINHEITEN.get(z.get("zeit_einheit") or "min", 60)
+    if not _leer(z.get("satz_id")):
+        satz = (saetze or {}).get(z["satz_id"])
+    else:
+        satz = z.get("satz")
+    arbeit = zeit_s / 3600 * _n(satz)
+    material = _n(z.get("material"))
+    zm = _n(z.get("zuschlag_material"))
+    zuschlag_m = zm if z.get("zuschlag_material_art") == "€" else material * zm / 100
+    material_inkl = material + zuschlag_m
+    basis = {"Arbeit": arbeit, "Material": material_inkl}.get(z.get("zuschlag_weitere_basis"), arbeit + material_inkl)
+    weitere = basis * _n(z.get("zuschlag_weitere")) / 100
+    return dict(fest=fest, zeit_s=zeit_s, satz=satz, arbeit=arbeit, material=material, zuschlag_material=zuschlag_m,
+                material_inkl=material_inkl, weitere=weitere, preis=fest + arbeit + material_inkl + weitere)
+
+
+def zusatz_stand(z, saetze=None, datum=None):
+    """Preisstand einer Zusatzarbeit für die Position (beim Hinzufügen gespeichert, damit spätere Änderungen der
+    Stammdaten alte Angebote nicht verändern): Abrechnung, Preis je Einheit, Mindestbetrag, Fremdleistung,
+    Angebotstext und Datum."""
+    import datetime
+    return dict(art=z.get("art"), preis=zusatz_preis(z, saetze)["preis"], mindest=z.get("mindest"),
+                fremd=z.get("fremd"), angebotstext=z.get("angebotstext"),
+                datum=datum or datetime.date.today().isoformat())
 
 
 def oberflaeche(p, k):
@@ -467,17 +513,23 @@ def zusatz_werte(p, k, tabellen):
     angebotstext, mindest}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück).
     Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung)."""
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
+    saetze = stundensaetze(tabellen)
     out = []
     for e in zusatz_liste(p):
-        kz = katalog.get(e["name"])
+        stand = e.get("stand") if isinstance(e.get("stand"), dict) else None   # Preisstand beim Hinzufügen
+        kz = stand or katalog.get(e["name"])
         if kz is None:
             continue
         art = kz.get("art")
         menge = e.get("menge") if isinstance(e.get("menge"), (int, float)) else zusatz_menge_auto(art, p, k)
-        preis = e.get("preis") if isinstance(e.get("preis"), (int, float)) else _n(kz.get("preis"))
+        if isinstance(e.get("preis"), (int, float)):
+            preis = e["preis"]
+        else:
+            preis = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
         wert = _n(menge) * preis
         out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
-                        betrag=0.0 if art == "s/Stück" else wert, zeit=wert if art == "s/Stück" else 0.0,
+                        betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
+                        pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,
                         fremd=kz.get("fremd") == "ja", text=e.get("text"), mindest=_n(kz.get("mindest")),
                         angebotstext=kz.get("angebotstext") or e["name"]))
     return out
@@ -596,7 +648,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     - Schneidzeit manuell (Position) ersetzt die berechnete Laserzeit netto je Teil.
     - Zusatzarbeiten je Position: Beträge je Teil (€/kg, €/m², €/m, €/Stück) mit Zuschlag Fremdleistung bzw.
       Fertigung; liegt die Summe einer Zusatzarbeit im Angebot unter ihrem Mindestbetrag, wird sie anteilig
-      angehoben. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen.
+      angehoben. €/Angebot zählt einmal je Angebot (höchster Betrag der Positionen, mindestens der Mindestbetrag),
+      umgelegt auf deren Teile. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen. Preis je Einheit aus
+      dem Preisstand der Position, sonst aus den Stammdaten (zusatz_preis).
     - Skonto aus dem Angebotskopf (%) wird eingerechnet: Verkaufspreis = Preis ohne Skonto / (1 − Skonto), so bleibt
       nach Abzug des Skontos der Preis ohne Skonto."""
     zb = zeitbasis(kopf, k, tabellen)
@@ -623,15 +677,20 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Angebot
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = {i: zusatz_werte(positionen[i], k, tabellen) for i in aktiv}
-    zus_summe, zus_teile = {}, {}
+    zus_summe, zus_teile, zus_pauschal = {}, {}, {}
     for i in aktiv:
         c = _n(positionen[i].get("stueck"))
         for e in zus[i]:
             zus_summe[e["name"]] = zus_summe.get(e["name"], 0.0) + e["betrag"] * c
             zus_teile[e["name"]] = zus_teile.get(e["name"], 0) + c
+            if e["art"] == "€/Angebot" and c:          # einmal je Angebot: der höchste Betrag gilt
+                zus_pauschal[e["name"]] = max(zus_pauschal.get(e["name"], 0.0), e["pauschal"])
     for i in aktiv:                   # Mindestbetrag je Angebot: anteilig anheben
         for e in zus[i]:
-            if e["art"] == "s/Stück" or e["mindest"] <= 0 or not zus_teile[e["name"]]:
+            if e["art"] == "€/Angebot":               # pauschal je Angebot: auf die Teile umgelegt
+                n = zus_teile[e["name"]]
+                e["teil"] = max(zus_pauschal.get(e["name"], 0.0), e["mindest"]) / n if n else 0.0
+            elif e["art"] == "s/Stück" or e["mindest"] <= 0 or not zus_teile[e["name"]]:
                 e["teil"] = e["betrag"]
             elif zus_summe[e["name"]] <= 0:
                 e["teil"] = e["mindest"] / zus_teile[e["name"]]
