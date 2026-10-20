@@ -43,6 +43,8 @@ POSITION = "Position"
 # Startliste der Kategorien (nur Namen, ohne Aufschläge: die trägt der Anwender selbst ein)
 KATEGORIEN_START = ("Blechteile", "Schrauben und Muttern", "Normteile", "Kaufteile", "Fremdfertigung",
                     "Profile und Rohre", "Sonstige Zukaufartikel")
+# Menge eines Zukaufteils gilt je Teil der Position oder je Satz (z. B. 20 Bleche je Rahmen)
+JE_TEIL, JE_SATZ = "Teil", "Satz"
 
 ARTIKEL = Tabelle(
     "zukauf_artikel", "Zukaufartikel",
@@ -403,8 +405,28 @@ def stand_kennung(st):
 
 
 def eintraege(p):
-    """Zukaufteile einer Position: [{artikel_id, menge, aufschlag (Positionsaufschlag %), stand}]."""
+    """Zukaufteile einer Position: [{artikel_id, menge, je (Teil/Satz, fehlt = Teil), aufschlag
+    (Positionsaufschlag %), stand}]."""
     return [e for e in json_liste(p.get("zukauf")) if e.get("artikel_id") is not None or e.get("stand")]
+
+
+def lieferant_vorgabe(kategorie, bezeichnung=""):
+    """Vorgeschlagener Lieferant der Schnellanlage: nach Kategorie, sonst 'Blech' in der Bezeichnung."""
+    if kategorie in BLECH_LIEFERANT:
+        return BLECH_LIEFERANT[kategorie]
+    return BLECH_LIEFERANT["Blechteile"] if "blech" in (bezeichnung or "").lower() else ""
+
+
+def bezugsmenge(e, p, stueck=None):
+    """Stückzahl, mit der die Menge des Eintrags malgenommen wird: Teile der Position, bei 'je Satz' die Sätze
+    (Stückzahl / Stück je Satz; ohne Satzangabe zählt jedes Teil als ein Satz). stueck ersetzt die Stückzahl der
+    Position (Mengenstufen)."""
+    s = (p or {}).get("stueck") if stueck is None else stueck
+    s = s if isinstance(s, (int, float)) and s > 0 else 0
+    if e.get("je") != JE_SATZ:
+        return s
+    n = (p or {}).get("je_satz")
+    return s / n if isinstance(n, (int, float)) and n >= 1 else s
 
 
 def zukauf_text(p):
@@ -412,7 +434,9 @@ def zukauf_text(p):
     out = []
     for e in eintraege(p):
         st = e.get("stand") or {}
-        out.append(f"{_zahl(e.get('menge'))} {EINHEIT_KURZ.get(st.get('einheit'), st.get('einheit') or '')} "
+        einheit = EINHEIT_KURZ.get(st.get("einheit"), st.get("einheit") or "")
+        einheit += "/Satz" if e.get("je") == JE_SATZ else ""
+        out.append(f"{_zahl(e.get('menge'))} {einheit} "
                    f"{st.get('bezeichnung') or st.get('artikelnr') or '?'}".replace("  ", " "))
     return "; ".join(out)
 
@@ -447,7 +471,8 @@ def rechnen(eintraege_mit_menge, heute=None):
 
     eintraege_mit_menge: [(Schlüssel, Eintrag, Stückzahl)] — Schlüssel eindeutig je Eintrag (z. B. (Position, Nr.)),
     Eintrag wie
-    in eintraege(), Stückzahl der Position. Einträge mit gleichem Artikel und gleichem Preisstand werden zu einer
+    in eintraege(), Stückzahl = bezugsmenge() (Teile der Position bzw. Sätze bei 'je Satz'). Einträge mit gleichem
+    Artikel und gleichem Preisstand werden zu einer
     Bestellung zusammengefasst (Verbrauch addiert, Staffel und Bezugskosten einmal).
     Ergebnis: (gruppen, je_eintrag). je_eintrag[Schlüssel] = dict(verbrauch, einstand,
     aufschlag, vk, fehler, warnung) mit Beträgen für die Position (nicht je Teil)."""
