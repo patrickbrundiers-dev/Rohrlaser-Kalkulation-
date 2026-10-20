@@ -38,10 +38,11 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 18     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 19     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
+                        # 19: Profilformen I-/H-Träger und T-Profil in der Auswahlliste ergänzt (keine neuen Spalten)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -134,8 +135,8 @@ class Datenbank:
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
-            if 0 < version < 12:
-                self._profilformen_ergaenzen()
+            if 0 < version < 19:
+                self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -154,8 +155,8 @@ class Datenbank:
                              f'VALUES ({", ".join("?" * len(namen))})', [[z.get(n) for n in namen] for z in zeilen])
 
     def _profilformen_ergaenzen(self):
-        """Dateien vor Schema 12: U-, C-, L-Profil und Flachstahl in die Auswahlliste Profilformen (vor
-        'Sonderprofil'), sofern sie dort fehlen; eigene Einträge bleiben."""
+        """Dateien vor Schema 12: U-, C-, L-Profil und Flachstahl, seit 20.10.2026 auch I-/H-Träger und T-Profil, in
+        die Auswahlliste Profilformen (vor 'Sonderprofil'), sofern sie dort fehlen; eigene Einträge bleiben."""
         formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
         neu = [f for f in OFFENE_PROFILE if f not in formen]
         if neu:

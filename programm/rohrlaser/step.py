@@ -125,7 +125,7 @@ def finde_profil(m, profile):
             gr, kl = max(pa, pb), min(pa, pb)
             if abs(gr - a) <= TOL_MASS and abs(kl - b) <= TOL_MASS:
                 return pid
-        elif form in ("U-Profil", "C-Profil"):
+        elif form in ("U-Profil", "C-Profil", "I-/H-Träger", "T-Profil"):
             if abs(pa - a) <= TOL_MASS and abs(pb - b) <= TOL_MASS:
                 return pid
         elif form == "Flachstahl":
@@ -140,11 +140,12 @@ def profil_vorschlag(m, profile):
 
 
 # Profilformen, die die Messung erkennt, das Programm aber nicht kalkuliert. U-, C-, L-Profile und Flachstahl
-# werden seit 20.10.2026 kalkuliert (Patrick: Plan Frage 2 b); Vollmaterial und nicht erkannte offene Profile nicht.
+# werden seit 20.10.2026 kalkuliert (Patrick: Plan Frage 2 b), I-/H-Träger und T-Profile ebenfalls (Plan "Profile
+# und Bleche", Frage 2 a); Vollmaterial und nicht erkannte offene Profile nicht.
 # Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
 BLECHE = ("Blech", "Blech gekantet")
 NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil") + BLECHE
-MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil")     # Profilformen mit Abmessung B
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil")    # Formen mit Abmessung B
 
 
 def blech(m):

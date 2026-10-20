@@ -15,6 +15,8 @@ Gruppen die exakte Suche. Alle Grenzen sind Schrittzahlen, keine Zeiten: das Erg
 import math
 from dataclasses import dataclass, field, replace
 
+from . import normprofile
+
 EPS = 1e-6
 EXAKT_MAX_TEILE = 60     # exakte Suche nur für Gruppen bis zu so vielen Teilen
 EXAKT_MAX_KNOTEN = 20000  # Suchschritte je Gruppe, danach gilt das beste bis dahin gefundene Ergebnis
@@ -468,7 +470,7 @@ def untergrenze(g):
 
 
 # ------------------------------------------------------------------ Profile
-OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl")
+OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
 
 
 def umfang(form, a, b, wand=None, flaeche=None):
@@ -481,6 +483,10 @@ def umfang(form, a, b, wand=None, flaeche=None):
         return 4 * a
     if form == "Rechteckrohr":
         return 2 * (a + (b or a))
+    if form == "I-/H-Träger" and b:       # scharfkantig: Flansche außen und innen, Flanschkanten, Steg
+        return 2 * a + 4 * b - 2 * (wand or 0)
+    if form == "T-Profil" and b:
+        return 2 * a + 2 * b
     if form in OFFEN and wand and flaeche:
         return 2 * flaeche / wand + 2 * wand
     return 0.0
@@ -494,13 +500,16 @@ def schnittlaenge(form, a, b, wand=None, flaeche=None):
 
 
 PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr", "U": "U-Profil", "C": "C-Profil",
-              "L": "L-Profil", "FL": "Flachstahl"}
+              "L": "L-Profil", "FL": "Flachstahl", "I": "I-/H-Träger", "T": "T-Profil"}
 
 
 def profil_aus_name(pid):
     """Profilform und Maße aus der Profil-ID, z. B. 'RR 42,4x2,0', 'QR 40x40x3', 'RE 60x40x3'.
     Ergebnis dict(form, a, b, wand) oder None, wenn der Name nicht nach dem Schema aufgebaut ist.
     """
+    n = normprofile.daten(pid)
+    if n is not None and n["flaeche"]:       # Normprofil, z. B. 'IPE 200', 'HEB 160', 'UPN 100', 'T 50'
+        return dict(form=n["form"], a=n["h"], b=n["b"], wand=n["tw"], flaeche_manuell=n["flaeche"])
     kurz, _, rest = str(pid).strip().partition(" ")
     form = PROFILFORM.get(kurz.upper())
     zahlen = rest.replace(",", ".").replace("X", "x").split("x")
@@ -514,6 +523,12 @@ def profil_aus_name(pid):
         a, b, wand = z[0], None, z[2]
     elif form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") and len(z) == 3:
         a, b, wand = z[0], z[1], z[2]
+    elif form in ("I-/H-Träger", "T-Profil") and len(z) == 4:     # 'I h x b x Steg x Flansch'
+        h, b, tw, tf = z
+        if min(z) <= 0 or tw >= b or (2 if form == "I-/H-Träger" else 1) * tf >= h:
+            return None
+        fl = 2 * b * tf + (h - 2 * tf) * tw if form == "I-/H-Träger" else b * tf + (h - tf) * tw
+        return dict(form=form, a=h, b=b, wand=tw, flaeche_manuell=round(fl, 1))
     elif form == "Flachstahl" and len(z) == 2:
         a, b, wand = z[0], None, z[1]
         return dict(form=form, a=a, b=b, wand=wand) if 0 < wand < a else None

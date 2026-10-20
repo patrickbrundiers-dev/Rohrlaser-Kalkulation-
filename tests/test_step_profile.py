@@ -98,7 +98,7 @@ try:
         aus = Path(tmp) / "m.txt"
         step_messen.main(["--ausgabe", str(aus), str(ORDNER / "P01_U50x30x3_L800.step"),
                           str(HIER / "step" / "T01_RR42-4x2_L1250.step"),
-                          str(HIER / "step_referenz" / "REF13_T50x40x5_L600.step")])
+                          str(HIER / "step_referenz" / "REF18_Z60x40x4_L500.step")])
         mw = step.lies_messwerte(aus)
         db = Datenbank(Path(tmp) / "rohrlaser.db")
         k = db.kontext()
@@ -108,12 +108,35 @@ try:
             erg["positionen"]
         u = erg["positionen"][0]
         assert u["profil_id"] == "U 50x30x3" and abs(u["schneidweg"] - 2 * (50 + 60 - 3)) < 0.5, u
-        # nicht erkanntes offenes Profil (T-Profil): ohne Schneidweg, darf nie als Position entstehen
+        # nicht erkanntes offenes Profil (Z-Profil): ohne Schneidweg, darf nie als Position entstehen
         assert any("offenes Sonderprofil wird noch nicht kalkuliert" in z for z in erg["bericht"]), erg["bericht"]
         assert mw[0]["sicherheit"].startswith("achse=sicher") and mw[0]["wand_messungen"], mw[0]
     print("OK     Programm: U-Profil übernommen, offenes Sonderprofil gemeldet, nicht übernommen")
 except AssertionError as e:
     fehler += 1
     print(f"FEHLER Programm: {e}")
+
+# Programm: Träger und T-Profile werden übernommen, Profile mit gemessener Fläche neu angelegt (IPE 200 als Name)
+try:
+    with tempfile.TemporaryDirectory() as tmp:
+        aus = Path(tmp) / "m.txt"
+        tg = HIER / "step_traeger"
+        step_messen.main(["--ausgabe", str(aus), str(tg / "TR01_IPE200_L1000.step"),
+                          str(tg / "TR07_T60x40x5x7_L500.step")])
+        mw = step.lies_messwerte(aus)
+        assert [m["normprofil"] for m in mw] == ["IPE 200", ""], [m["normprofil"] for m in mw]
+        assert abs(float(mw[1]["flanschdicke"]) - 7) < 0.01 and mw[1]["symmetrisch"] == "1", mw[1]
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        k = db.kontext()
+        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, neue_profile=True)
+        assert [p["profil_id"] for p in erg["positionen"]] == ["IPE 200", "T 60x40x5x7"], erg["positionen"]
+        neu = {p["profil_id"]: p for p in erg["profile"]}
+        assert neu["IPE 200"]["form"] == "I-/H-Träger" and neu["IPE 200"]["b"] == 100, neu
+        assert abs(neu["T 60x40x5x7"]["flaeche_manuell"] - 552) < 1, neu
+        db.con.close()
+    print("OK     Programm: IPE 200 und T-Profil übernommen, Profile mit gemessener Fläche angelegt")
+except AssertionError as e:
+    fehler += 1
+    print(f"FEHLER Programm Träger: {e}")
 
 sys.exit(1 if fehler else 0)

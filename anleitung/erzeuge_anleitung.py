@@ -539,17 +539,24 @@ def kapitel_stammdaten(i):
     i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
-                             "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>"],
-        ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl oder "
-                              "Sonderprofil (Liste in den Einstellungen)"],
+                             "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>, Normprofile "
+                             "wie <i>IPE 200</i>, <i>HEB 160</i>, <i>UPN 100</i>, <i>T 50</i>, sonst Träger als "
+                             "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>)"],
+        ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl, "
+                              "I-/H-Träger, T-Profil oder Sonderprofil (Liste in den Einstellungen)"],
         ["<b>Abmessung A [mm]</b>, Abmessung B [mm]",
          "Rohre: A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, B = Flansch. "
-         "L-Profil: A und B = Schenkel. Flachstahl: A = Breite, B leer"],
+         "L-Profil: A und B = Schenkel. Flachstahl: A = Breite, B leer. I-/H-Träger und T-Profil: A = Höhe, "
+         "B = Flanschbreite"],
         ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten; bei offenen "
-                                   "Profilen die Blechdicke, bei Flachstahl die Dicke"],
+                                   "Profilen die Blechdicke, bei Flachstahl die Dicke, bei Trägern und T-Profilen die "
+                                   "Stegdicke"],
         ["Fläche manuell [mm²]", "Querschnitt vom Hersteller (Eckradien, Sonderprofile); leer = aus den Maßen. "
                                  "Beim C-Profil Pflicht, weil die Abkantung nicht in den Maßen steht (der STEP-Import "
-                                 "trägt die gemessene Fläche ein)"],
+                                 "trägt die gemessene Fläche ein). Bei I-/H-Trägern und T-Profilen kommt der "
+                                 "Querschnitt aus der Normtabelle (IPE, IPN, HEA, HEB, HEM, T nach EN 10365 und "
+                                 "EN 10055), sonst ist Fläche manuell Pflicht, weil die Flanschdicke nicht in den "
+                                 "Maßen steht"],
         ["Endbeschnitt abweichend [mm], Greiferrest abweichend [mm]",
          "nur eintragen, wenn das Profil andere Werte braucht als die Maschine"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -1114,6 +1121,16 @@ def kapitel_step(i):
             "Sie stehen im Dialog STEP-Import prüfen unter <i>Nicht übernehmbar</i> mit dem Hinweis <i>… wird noch "
             "nicht kalkuliert</i>. Bei C-Profilen steht die Länge der Abkantung im Hinweis, bei U-Profilen mit "
             "verschieden dickem Steg und Flansch beide Werte.",
+            "<b>I-/H-Träger und T-Profile</b> werden ebenfalls erkannt und kalkuliert. Gemessen werden Höhe, "
+            "Flanschbreite, Stegdicke (Strahl quer durch den Steg) und Flanschdicke (bei einem Viertel der "
+            "Flanschbreite neben dem Steg, wie die Norm misst), dazu ob das Profil <i>symmetrisch</i> ist und die "
+            "ungefähre Ausrundung zwischen Steg und Flansch. Unsymmetrische Träger (z. B. verschieden dicke "
+            "Flansche) stehen mit Prüfstatus <i>prüfen</i> und Hinweis da.",
+            "<b>Normprofile</b>: Passen alle Maße zu einem Normprofil (IPE, IPN, HEA, HEB, HEM, UPN, T, Winkel nach "
+            "EN 10056) – Höhe und Breite auf ±0,5 mm, Steg und Flansch auf ±0,3 mm (geneigte Flansche ±0,6 mm) und "
+            "die gemessene Querschnittsfläche auf 3 % –, schlägt der Import den Normnamen als Profil-ID vor, z. B. "
+            "<i>IPE 200</i>. Sonst bleibt es bei den gemessenen Maßen, z. B. <i>I 150x80x5x7</i>. Ein Normname wird "
+            "nie ohne diese Prüfung vergeben.",
             "<b>Schnitte an offenen Profilen</b>: Der Laser schneidet jede Wand einmal. Als Schnittlänge eines "
             "Endes, einer Bohrung oder eines Ausschnitts zählt darum die halbe Länge der Konturkanten (Ober- und "
             "Unterseite der Wand). Ein Merkmal, das nur eine Seite der Wand berührt, ist eine Gravur bzw. "
@@ -1224,8 +1241,11 @@ def kapitel_step(i):
             "gemessen und stehen mit Prüfstatus <i>prüfen</i> da.",
             "Gewinde werden nur als Kernloch erkannt; der Gewindevorschlag ist von Hand zu prüfen.",
             "Bei U-, L-, C-Profilen und Flachstahl steht die Lage einer Kontur nur entlang der Achse, nicht ob sie "
-            "im Steg oder im Flansch liegt. Vierkant- und Rundstahl sowie andere offene Profile (z. B. T-Profil, "
+            "im Steg oder im Flansch liegt. Vierkant- und Rundstahl sowie andere offene Profile (z. B. Z-Profil, "
             "<i>offenes Sonderprofil</i>) werden nur gemeldet, nicht übernommen.",
+            "Träger mit geneigten Flanschen (IPN, UPN) werden an der Normmessstelle gemessen; der Schneidweg gilt "
+            "für scharfkantige Flansche. Die Normtabelle bitte stichprobenartig mit der Lieferantentabelle "
+            "vergleichen.",
             "Schräge Bohrungen werden über ihre Zylinderfläche erkannt; andere schräge Durchbrüche erscheinen als "
             "Ausschnitt.",
             "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; "

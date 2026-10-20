@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from . import fracht_angebot, rechnen, zukauf
+from . import fracht_angebot, normprofile, rechnen, zukauf
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -84,7 +84,10 @@ def profiltext(pid, k, dezimal=","):
     return {"Rundrohr": f"Rundrohr Ø {a} x {wand}", "Quadratrohr": f"Quadratrohr {a} x {a} x {wand}",
             "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}", "U-Profil": f"U-Profil {a} x {b} x {wand}",
             "C-Profil": f"C-Profil {a} x {b} x {wand}", "L-Profil": f"L-Profil {a} x {b} x {wand}",
-            "Flachstahl": f"Flachstahl {a} x {wand}"}.get(z.get("form"), str(pid))
+            "Flachstahl": f"Flachstahl {a} x {wand}",
+            "I-/H-Träger": str(pid) if normprofile.daten(pid) else f"I-Träger {a} x {b} x {wand}",
+            "T-Profil": str(pid) if normprofile.daten(pid) else f"T-Profil {a} x {b} x {wand}"}.get(
+        z.get("form"), str(pid))
 
 
 def angebotstext(p, k, dezimal=",", zusatz=()):
