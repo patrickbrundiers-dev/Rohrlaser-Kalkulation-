@@ -159,6 +159,38 @@ def blech(m):
         return None
 
 
+def alternative(m):
+    """Grenzfall Flachstahl/Blech bzw. Profil/Kantteil: Messwerte des Teils in der anderen Art (Spalte
+    'alternative', JSON {Spalte: Wert}) oder None."""
+    import json
+    try:
+        return json.loads(m["alternative"]) if m.get("alternative") else None
+    except ValueError:
+        return None
+
+
+def art_text(m):
+    """Bauteilart für die Auswahl im Prüfdialog, z. B. 'Flachstahl', 'Blech', 'L-Profil', 'Kantteil (Blech gekantet)'."""
+    form = m.get("profilform") or ""
+    return ("Kantteil (Blech gekantet)" if form == "Blech gekantet" else form) + (" – Ersatzwerte" if m.get("ersatz") == "1" else "")
+
+
+def art_wechseln(m):
+    """Teil auf die andere Art umstellen (Flachstahl ↔ Blech, Profil ↔ Kantteil): die Messwerte der Spalte
+    'alternative' gelten, die bisherigen werden die Alternative. Eingaben aus dem Prüfdialog, die zur Art gehören
+    (Häkchen, Profil, Werkstoff, Zukaufartikel), fallen weg und werden für die neue Art neu vorbelegt."""
+    import json
+    alt = alternative(m)
+    if alt is None:
+        return False
+    bisher = {k: m.get(k, "") for k in alt}
+    m.update(alt)
+    m["alternative"] = json.dumps(bisher, ensure_ascii=False, separators=(",", ":"))
+    for k in ("_uebernehmen", "_profil", "_werkstoff", "_blech_artikel"):
+        m.pop(k, None)
+    return True
+
+
 def blech_text(m):
     """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
     b = blech(m) or {}
