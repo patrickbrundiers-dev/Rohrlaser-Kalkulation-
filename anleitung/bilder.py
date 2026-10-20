@@ -245,14 +245,22 @@ def main(ziel):
                                (knopf(au, "Kopieren"), 3), (au.suche, 4)])
     mit_dialog(lambda: au._kunde_fuer_kopie(db.angebot(a2)), foto, "kopieren_dialog", lambda d: d.reject())
 
-    # 6) Angebot öffnen: Positionen vor der Optimierung
+    # 6) Angebot öffnen: Positionen vor der Optimierung (breiteres Fenster: Kalkulationsgruppen nebeneinander)
+    f.resize(1680, 980)
     s = f.angebot_oeffnen(haupt)
     bereit()
     kopf_box = s.felder["nummer"].parentWidget()
     foto.foto("angebot_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
                                         (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
                                         (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
-                                        (s.zeige_berechnet, 8)])
+                                        (s.spalten_knopf.parentWidget(), 8)])
+    kb = s.kopf_bereich
+    s.kopf_bereich.erweitert_bereich.aufklappen(True)
+    s.kopf_bereich.maschinen_bereich.aufklappen(True)
+    QApplication.processEvents()
+    foto.foto("angebot_erweitert", s.teiler.widget(0).widget())     # ganzer oberer Teil, auch was gerollt wäre
+    kb.erweitert_bereich.aufklappen(False)
+    kb.maschinen_bereich.aufklappen(False)
     s.zeige_berechnet.setChecked(True)
     foto.foto("angebot_berechnet", f)
     s.zeige_berechnet.setChecked(False)
@@ -300,7 +308,7 @@ def main(ziel):
                  ("einstiche", "stange", "satz", "je_satz", "preis_m")]
     for c in versteckt:
         s.pos_ansicht.setColumnHidden(c, True)
-    spalte = {x.name if art != "status" else "status": i for i, (art, x) in enumerate(m.spalten) if art != "berechnet"}
+    spalte = {m.name(i): i for i in range(m.columnCount())}
     kopf = s.pos_ansicht.horizontalHeader()
 
     def kopf_marke(c):
@@ -310,8 +318,7 @@ def main(ziel):
     status = s.pos_ansicht.visualRect(m.index(1, spalte["status"]))
     foto.foto("angebot_zusatz", f, [(kopf_marke(spalte["zeit_manuell"]), 1), (kopf_marke(spalte["zusatz"]), 2),
                                     ((s.pos_ansicht.viewport(), status), 3)], ausschnitt=reiterflaeche(s))
-    for c in versteckt:
-        s.pos_ansicht.setColumnHidden(c, False)
+    s._spalten_zeigen()
 
     # 8) Staffeln: Gestelle als Satz
     for menge, bem in ((1, "Einzelgestell"), (2, "Anfrage"), (5, "kleine Serie"), (10, "Rahmenauftrag")):
@@ -345,10 +352,10 @@ def main(ziel):
     reiter_waehlen(s, "Positionen")
     bereit()
     unterkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() + 34
+    oberkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() - 10
     foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Werkstattpapiere (PDF)"), 2),
-                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "CSV-Export"), 4),
-                                    (knopf(s, "Ablage öffnen"), 5)],
-              ausschnitt=QRect(0, 0, f.width(), unterkante))
+                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "Weitere Aktionen"), 4)],
+              ausschnitt=QRect(0, oberkante, f.width(), unterkante - oberkante))
     pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf(),
                 nachkalkulation=s.nachkalk.pdf())
     s.csv_export()

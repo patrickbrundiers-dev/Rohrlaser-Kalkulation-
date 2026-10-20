@@ -186,7 +186,7 @@ m.setData(m.index(0, c), m.data(m.index(0, c), Qt.EditRole))
 assert seite.positionen[0]["zeit_manuell"] is None          # unverändert bestätigt = bleibt berechnet
 assert m.setData(m.index(0, c), "45")
 assert seite.positionen[0]["zeit_manuell"] == 45 and m.status[0] == "HINWEIS: Schneidzeit manuell"
-assert "Zusatzarbeiten" in seite.uebersicht.text()
+assert "Zusatzarbeiten" in seite.uebersicht_bereich.einzeln.text()
 
 # Kalkulationswerte je Angebot: Vorgabe aus den Einstellungen, im Angebot änderbar
 vorg = db.kalkulation_vorgaben()

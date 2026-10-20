@@ -408,7 +408,7 @@ def kapitel_stammdaten(i):
          "Preis je Gewinde; ist er leer, die Zeit je Gewinde mit dem Stundensatz der Maschine."],
         ["Zusatzarbeiten", "Zusatzarbeit (Name), Abrechnung, Preis [€] bzw. Zeit [s] je Einheit, Mindestbetrag je "
                            "Angebot [€], Fremdleistung, Text im Angebot",
-         "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot (Kapitel 6.3). Vorbelegt mit Beispielpreisen, "
+         "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot (Kapitel 6.5). Vorbelegt mit Beispielpreisen, "
          "bitte eigene eintragen."]], [30, 95, 140])
     i.abschnitt("Felder der Tabellen")
     i.text("Die Spalten jeder Tabelle im Einzelnen. Pflichtfelder sind fett; was leer bleiben darf, rechnet das "
@@ -601,23 +601,29 @@ def kapitel_angebote(i):
 
 def kapitel_angebot(i):
     i.kapitel("Angebot bearbeiten")
-    i.text("Ein geöffnetes Angebot zeigt oben den Kopf und die Übersicht, darunter die Knopfleisten und die Reiter "
-           "mit Positionen und Ergebnissen.")
+    i.text("Ein geöffnetes Angebot zeigt oben links den Angebotskopf und die Kalkulation dieses Angebots, rechts die "
+           "Übersicht, darunter die Aktionen und die Reiter mit Positionen und Ergebnissen. Die Trennlinie zwischen "
+           "oben und unten lässt sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
-        (1, "<b>Angebotskopf</b>: Nummer, Kundennummer und Kundenname, Datum, Maschine, Standard-Stangenlänge, "
-            "Bemerkung, Frachtkosten, Skonto, Skontofrist und Zahlungsziel. Darunter grau die Werte der gewählten "
-            "Maschine."),
-        (2, "<b>Übersicht</b>: Stand der Optimierung, Anzahl Positionen und Fehler, Teile, Gewicht und jede "
-            "Kostenart einzeln bis zum Verkaufspreis des Angebots (siehe Kalkulation)."),
+        (1, "<b>Angebotskopf</b>: Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, darunter Datum, "
+            "Kundenname, Standard-Stangenlänge und Bemerkung. Ganz unten die aufklappbaren Maschinenparameter."),
+        (2, "<b>Übersicht</b>: Stand der Optimierung, Meldungen, Kennzahlen und Kosten bis zum Verkaufspreis."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
-        (4, "<b>Neue Position</b> / <b>Positionen löschen</b> (markierte Zeilen)."),
-        (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.3)."),
+        (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
+        (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.5)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
-        (8, "<b>Berechnete Werte</b> und <b>STEP-Werte</b> blenden weitere Spalten ein.")])
+        (8, "<b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b> blenden "
+            "weitere Spalten ein.")])
+    i.text("Die blau hinterlegten Knöpfe sind die Hauptaktionen <b>Neue Position</b>, <b>STEP importieren</b>, "
+           "<b>Optimieren</b> und <b>3D-Ansicht</b>. Rechts stehen die Ausgaben; CSV-Export und Ablage öffnen liegen "
+           "unter <b>Weitere Aktionen</b> (Kapitel 11).")
     i.abschnitt("Angebotskopf")
     i.liste("<b>Maschine</b> bestimmt Endbeschnitt, Greiferrest, Schnittverlust, Konturgrenzen, Stundensatz und die "
-            "Schneiddaten.",
+            "Schneiddaten. Die Zeile <b>Maschinenparameter</b> zeigt Endbeschnitt, Greiferrest, Schnittverlust und "
+            "max. Stangenlänge auch zugeklappt (immer, auch wenn ein Wert 0 ist); aufgeklappt kommen Abstand "
+            "getrennte Schnitte, Konturgrenzen und, wenn gesetzt, max. Hüllkreis-Ø und max. Metergewicht dazu. "
+            "Geändert werden sie in den Stammdaten Maschinen.",
             "<b>Standard-Stangenlänge</b> gilt für alle Positionen ohne abweichende Stangenlänge.",
             "<b>Frachtkosten</b> kommen ohne Zuschläge auf das Angebotspreis.",
             "<b>Kundennummer</b>: Kunden aus der Liste wählen (Nummer und Name) oder eine Nummer eintippen. Steht der "
@@ -632,7 +638,43 @@ def kapitel_angebot(i):
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
             "die Einstellungen zu ändern. <b>Vorgaben aus Einstellungen</b> setzt sie wieder auf die Einstellungen. "
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
-            "Beim Kopieren gehen die Werte mit.")
+            "Beim Kopieren gehen die Werte mit.",
+            "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
+            "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel und Stundensatz der Maschine zur Information, Rüstzeit "
+            "je Abmessung), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Programmierkosten, Pauschale je "
+            "Abmessung, Frachtkosten) und <b>Zahlungsbedingungen</b>.")
+    i.abschnitt("Nullwerte und Erweiterte Einstellungen")
+    i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
+           "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
+           "Einstellungen</b> (der Titel nennt die Anzahl, z. B. „1 Wert auf 0“) und lassen sich dort jederzeit "
+           "ändern. Sobald ein Wert nicht mehr 0 ist, steht er sofort wieder oben in seiner Gruppe. Gespeichert, "
+           "gerechnet und ausgegeben wird immer alles, auch was ausgeblendet ist.")
+    i.tabelle(["Bereich", "ausgeblendet, wenn 0 oder leer", "immer sichtbar"], [
+        ["Angebotskopf", "Frachtkosten, Skonto, Skontofrist, Zahlungsziel, Zuschläge, Gewinn, Rüstzeit und Pauschale "
+                         "je Abmessung, Programmierkosten, Angebotsaufschlag",
+         "Angebotsnummer, Kunde, Datum, Maschine, Standard-Stangenlänge, Bemerkung"],
+        ["Maschinenparameter", "Abstand getrennte Schnitte, Konturgrenzen, max. Hüllkreis-Ø, max. Metergewicht",
+         "Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge"],
+        ["Übersicht", "jede Kostenart mit 0,00 €", "Material, Herstellkosten, Verkaufspreis, Kennzahlen"],
+        ["Positionen", "Oberfläche, Stangenlänge abweichend, Satz, Stück je Satz, Materialpreis abweichend, Gewinde "
+                       "geprüft, Zusatzarbeiten (solange keine Position einen Wert hat)",
+         "Pos., Artikelnummer, Bezeichnung, Profil-ID, Werkstoff-ID, Teilelänge, Stückzahl, Schneidweg, Einstiche, "
+         "Schneidzeit, Status"]], [32, 80, 70])
+    i.text("Ob ein Wert 0 ist, prüft das Programm an der Zahl, nicht am Text: „0,00 €“ und „0 %“ sind 0, "
+           "„10,00 €“ nicht.")
+    i.bild("angebot_erweitert", "Erweiterte Einstellungen und Maschinenparameter aufgeklappt (Frachtkosten 0 €)",
+           hoehe=90 * mm)
+    i.abschnitt("Übersicht")
+    i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
+            "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, Kapitel 8.2).",
+            "<b>Meldungen</b>: die Anzahl der Fehler, Warnungen und Hinweise der Positionen (rot, gelb); aufklappen "
+            "zeigt jede Meldung mit ihrer Positionsnummer.",
+            "Kennzahlen: Positionen, Stückzahl, Gesamtlänge, Gewicht und Stangen.",
+            "Kosten nach Gruppen: Material, Laser schneiden, Rüsten (Rüsten Maschine, Rüsten je Abmessung, "
+            "Stangenwechsel), Zusätzliche Bearbeitung (Gewinde, Zusatzarbeiten), Zuschläge, <b>Herstellkosten</b>, "
+            "Gewinn, Programmierkosten, Pauschalen und Aufschläge (Pauschale je Abmessung, Angebotsaufschlag, "
+            "Fracht), Skonto und <b>Verkaufspreis</b>. <b>Kostenarten einzeln</b> klappt jede Kostenart mit ihrer "
+            "Mengenangabe auf.")
     i.abschnitt("Positionen")
     i.tabelle(["Spalte", "Eintrag"], [
         ["Pos., Artikelnummer, Bezeichnung", "frei; die Artikelnummer erscheint in Angebot und Werkstattpapieren"],
@@ -643,13 +685,25 @@ def kapitel_angebot(i):
                        "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
         ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
-        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.4)"],
+        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.6)"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz (Kapitel 9)"],
         ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
-        ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.3)"]],
+        ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.5)"],
+        ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
+                                               "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
+                                               "Endschnitt + Innenkonturen aus STEP (gelb)"]],
         [75, 190])
+    i.text("Die Spalten von Oberfläche bis Zusatzarbeiten erscheinen von selbst, sobald eine Position dort einen "
+           "Wert hat. Mit <b>Weitere Spalten</b> (rechts über der Tabelle) lässt sich jede dieser Spalten fest ein- "
+           "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
+           "„(leer)“ markiert. Die Wahl gilt für alle Angebote, bis <i>Automatisch: Spalten mit Werten zeigen</i> sie "
+           "zurücksetzt. Ausgeblendete Spalten verlieren keine Werte.")
+    i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
+            "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs.",
+            "<b>Berechnete Werte (Programm)</b>: vom Programm ermittelte Werte wie Profilform, Gewicht, wirksame "
+            "Stangenlänge, Vorschub und eingeplante Teile.")
     i.bild("angebot_berechnet", "Mit Häkchen „Berechnete Werte“: Gewicht, Laserzeit, Stück- und Positionspreis je "
                                 "Zeile", hoehe=125 * mm)
 
@@ -893,7 +947,7 @@ def kapitel_step(i):
 def kapitel_optimieren(i):
     i.kapitel("Optimieren und Ergebnisse")
     i.text("<b>Optimieren</b> verteilt alle gültigen Positionen auf Stangen, prüft jede Stange gegen Überlast und "
-           "rechnet die Kalkulation. Danach zeigt die Übersicht <b>Stand Optimierung: aktuell</b> (grün).")
+           "rechnet die Kalkulation. Danach zeigt die Übersicht <b>Optimierung abgeschlossen</b> (grün).")
     i.abschnitt("Regeln der Optimierung")
     i.liste("Je Profil + Werkstoff + Oberfläche + Stangenlänge getrennt, ohne Vermischung.",
             "Belegung einer Stange = Endbeschnitt + Teile + Trennschnitte + Schnittverlust des letzten Schnitts; "
@@ -905,16 +959,18 @@ def kapitel_optimieren(i):
             "exakte Suche, die beweist, ob es mit weniger Stangen ginge.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet")
-    i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>VERALTET</b>. Die "
+    i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
            "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand fragt "
            "das Programm nach.")
-    i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand VERALTET", hoehe=125 * mm,
-           legende=[(1, "Stand der Optimierung: grün aktuell, gelb noch nicht optimiert, rot VERALTET.")])
+    i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
+           legende=[(1, "Stand der Optimierung: grün Optimierung abgeschlossen, gelb noch nicht optimiert, rot "
+                        "Veraltet.")])
     i.abschnitt("Kalkulation")
     i.text("Der Reiter <i>Kalkulation</i> zeigt oben die Summen des Angebots und darunter je Position Material, "
            "Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position.")
-    i.text("Übersicht, Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots "
-           "einzeln auf, nichts ist zusammengefasst: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
+    i.text("Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots einzeln auf "
+           "(die Übersicht nach Gruppen, einzeln unter <i>Kostenarten einzeln</i>); im Reiter fehlen Kostenarten "
+           "mit 0,00 €, PDF und CSV enthalten alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
            "Programmierkosten, Angebotsaufschlag, Fracht und Skonto ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
@@ -1008,7 +1064,7 @@ def kapitel_nachkalkulation(i):
 
 def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation")
-    i.text("Die Leiste <b>Ausgabe</b> im Angebot erzeugt die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
+    i.text("Die Knöpfe rechts neben <b>Ausgabe</b> im Angebot erzeugen die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
            "und gleich geöffnet. Ist die Optimierung veraltet, fragt das Programm vorher.")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
         (1, "<b>Angebot (PDF)</b>: Briefkopf, Kunde mit Anschrift aus dem Kundenstamm, Positionen mit "
@@ -1018,9 +1074,9 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage."),
-        (4, "<b>CSV-Export</b>: Angebotskopf, alle Kostenarten und die Kalkulation je Position als CSV-Datei "
-            "(Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer Tabellenkalkulation."),
-        (5, "<b>Ablage öffnen</b>: zeigt den Ablageordner im Explorer.")])
+        (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
+            "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
+            "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
     i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
     i.abschnitt("Angebot")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
@@ -1045,7 +1101,7 @@ def kapitel_fragen(i):
         ["Teil unter <b>nicht eingeplante Teile</b>",
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
-        ["Übersicht zeigt <b>VERALTET</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
         ["Windows meldet einen <b>Virus</b> oder <b>„Der Computer wurde durch Windows geschützt“</b>",
          "Fehlalarm bei einem nicht signierten Programm. Abschnitt <i>Windows-Warnungen</i> in Kapitel 2: ZIP vor dem "
          "Entpacken zulassen, Trotzdem ausführen, Datei aus der Quarantäne wiederherstellen und an Microsoft "

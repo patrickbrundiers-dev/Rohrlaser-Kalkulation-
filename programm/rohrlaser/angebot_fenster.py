@@ -1,15 +1,14 @@
 """Angebote: Übersicht, Angebotsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
 import datetime
 import tempfile
-from itertools import zip_longest
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFileDialog,
-    QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QFileDialog, QFrame,
+    QFormLayout, QMenu, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyledItemDelegate, QTableView,
     QTabWidget,
     QVBoxLayout, QWidget)
@@ -17,7 +16,9 @@ from PySide6.QtWidgets import (
 from . import ausgabe, export, pdf, rechnen, staffeln, step
 from .nachkalk_seite import NachkalkulationSeite
 from .zusatz_dialog import ZusatzDialog
-from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, STEP_FELDER
+from .angebot import POSITIONEN, STEP_FELDER
+from .angebot_oben import KopfBereich, UebersichtBereich, _kundennr
+from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
@@ -220,11 +221,6 @@ class AngeboteSeite(QWidget):
             self.neu_laden()
 
 
-def _kundennr(text):
-    """'K-1001 – Beispiel GmbH' (Eintrag der Kundenauswahl) -> 'K-1001'; frei eingetippt bleibt der Text."""
-    return str(text or "").split(" – ")[0].strip()
-
-
 def _datum(iso):
     try:
         return datetime.date.fromisoformat(iso).strftime("%d.%m.%Y") if iso else ""
@@ -249,6 +245,20 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz"]
+# Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
+OPTIONALE_SPALTEN = ("oberflaeche", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz")
+SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
+ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
+
+
+def schneidweg_abweichung(p):
+    """Eingetragener Schneidweg − (Anfangs- + Endschnitt + Innenkonturen aus STEP) [mm]; None ohne STEP-Werte
+    oder wenn beide gleich sind (der Schneidweg wurde nicht von Hand geändert)."""
+    teile = [p.get(n) for n in ("a_schnitt", "b_schnitt", "innen")]
+    if any(not isinstance(t, (int, float)) for t in teile) or not isinstance(p.get("schneidweg"), (int, float)):
+        return None
+    d = p["schneidweg"] - sum(teile)
+    return d if abs(d) > ABWEICHUNG_MM else None
 
 
 class PositionenModell(QAbstractTableModel):
@@ -261,7 +271,8 @@ class PositionenModell(QAbstractTableModel):
         self.spalten = ([("zusatz" if felder[n].art == "zusatz" else "feld", felder[n]) for n in SICHTBAR]
                         + [("status", None)]
                         + [("berechnet", b) for b in BERECHNET]
-                        + [("feld", f) for f in POSITIONEN.felder if f.name in STEP_FELDER])
+                        + [("feld", f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
+                        + [("abweichung", None)])
         self.daten, self.werte, self.status = [], [], []
         self.mit_netz, self.bilder = set(), {}
 
@@ -313,7 +324,13 @@ class PositionenModell(QAbstractTableModel):
         if richtung == Qt.Vertical:
             return str(abschnitt + 1)
         art, x = self.spalten[abschnitt]
-        return x.titel if art in ("feld", "zusatz") else ("Status" if art == "status" else x[0])
+        return x.titel if art in ("feld", "zusatz") else {"status": "Status",
+                                                          "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
+
+    def name(self, c):
+        """Name einer Spalte (Feldname, 'status', 'abweichung' oder 'berechnet:' + Schlüssel)."""
+        art, x = self.spalten[c]
+        return x.name if art in ("feld", "zusatz") else ("berechnet:" + x[1] if art == "berechnet" else art)
 
     def roh(self, r, c):
         art, x = self.spalten[c]
@@ -323,6 +340,8 @@ class PositionenModell(QAbstractTableModel):
             return self.status[r]
         if art == "zusatz":
             return rechnen.zusatz_text(self.daten[r])
+        if art == "abweichung":
+            return schneidweg_abweichung(self.daten[r])
         w = self.werte[r].get(x[1])
         return {True: "ja", False: "nein"}.get(w, w) if isinstance(w, bool) else w
 
@@ -353,6 +372,11 @@ class PositionenModell(QAbstractTableModel):
                 return wert_als_text(x, w)
             if art == "berechnet":
                 return _z(w, x[2]) if x[2] is not None else ("" if w is None else str(w))
+            if art == "abweichung":
+                if rolle == Qt.ToolTipRole:
+                    return ("Schneidweg von Hand geändert: eingetragen minus Summe aus Anfangsschnitt, Endschnitt und "
+                            "Innenkonturen laut STEP." if w is not None else "Schneidweg wie aus STEP gemessen.")
+                return _z(w, 1) if w is not None else ""
             if art == "zusatz" and rolle == Qt.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
             return w
@@ -362,13 +386,17 @@ class PositionenModell(QAbstractTableModel):
             return self.vorschau(index.row())
         if rolle == Qt.UserRole:
             return w
-        if rolle == Qt.TextAlignmentRole and (art == "berechnet" and x[2] is not None
+        if rolle == Qt.TextAlignmentRole and (art == "berechnet" and x[2] is not None or art == "abweichung"
                                               or art == "feld" and x.art in ("zahl", "ganz")):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         if rolle == Qt.BackgroundRole:
             if art == "status":
                 return QBrush(_farbe_status(w) or (QColor("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
+            if art == "abweichung" and w is not None:
+                return QBrush(QColor("#FFF2CC"))
             return QBrush(FARBE_EINGABE if art in ("feld", "zusatz") else FARBE_BERECHNET)
+        if rolle == Qt.ForegroundRole and art == "status":
+            return QBrush(QColor({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
         return None
 
     def flags(self, index):
@@ -590,105 +618,52 @@ class AngebotSeite(QWidget):
         self._laden = False
         self.kopf, self.positionen, self.ergebnis = {}, [], None
 
-        # Kopf
-        self.felder = {}
-        kopf_box = QGroupBox("Angebotskopf")
-        g = QGridLayout(kopf_box)
-        kalk = {f.name for f in KALKULATION}
-        for i, fd in enumerate(KOPF):
-            if fd.name == "kundennr":       # Kunde aus dem Kundenstamm wählen oder Nummer frei eintippen
-                w = QComboBox()
-                w.setEditable(True)
-                w.setInsertPolicy(QComboBox.NoInsert)
-                w.lineEdit().setPlaceholderText("Kunde wählen oder Nummer eintippen")
-                w.activated.connect(lambda i, w=w: self.kunde_waehlen(w.itemData(i)))
-                w.lineEdit().editingFinished.connect(lambda w=w: self.kunde_waehlen(_kundennr(w.currentText())))
-            elif fd.art == "datum":
-                w = QDateEdit()
-                w.setCalendarPopup(True)
-                w.setDisplayFormat("dd.MM.yyyy")
-                w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, w.date().toString("yyyy-MM-dd")))
-            elif fd.art == "auswahl":
-                w = QComboBox()
-                w.currentTextChanged.connect(lambda t, fd=fd: self._kopf_speichern(fd, t or None))
-            elif fd.art == "ganz":
-                w = QSpinBox()
-                w.setRange(int(fd.von), int(fd.bis))
-                w.setGroupSeparatorShown(True)
-                w.setSingleStep(100 if fd.bis > 1000 else 1)
-                w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, w.value()))
-            elif fd.art == "zahl":
-                w = QDoubleSpinBox()
-                w.setRange(fd.von, fd.bis)
-                w.setDecimals(fd.stellen or 2)
-                w.setGroupSeparatorShown(True)
-                if fd.name in kalk:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
-                    w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, round(w.value(), 4)))
-                else:
-                    w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, round(w.value(), 2) or None))
-            else:
-                w = QLineEdit()
-                w.editingFinished.connect(lambda fd=fd, w=w: self._kopf_speichern(fd, w.text().strip() or None))
-            self.felder[fd.name] = w
-            if fd.name in kalk:             # eigener Block unter dem Kopf, 3 Felder je Zeile
-                j = [f.name for f in KALKULATION].index(fd.name)
-                g.addWidget(QLabel(fd.titel), 6 + j // 3, 2 * (j % 3))
-                g.addWidget(w, 6 + j // 3, 2 * (j % 3) + 1)
-            else:
-                g.addWidget(QLabel(fd.titel), i % 4, 2 * (i // 4))
-                g.addWidget(w, i % 4, 2 * (i // 4) + 1)
-        self.maschinenwerte = QLabel()
-        self.maschinenwerte.setStyleSheet("color: #595959;")
-        g.addWidget(self.maschinenwerte, 4, 0, 1, 6)
-        kalk_titel = QHBoxLayout()
-        kalk_titel.addWidget(QLabel("<b>Kalkulation dieses Angebots</b> (Vorgabe aus den Einstellungen, hier änderbar)"))
-        vorgaben = QPushButton("Vorgaben aus Einstellungen")
-        vorgaben.setToolTip("Zuschläge, Gewinn, Rüstzeit und Pauschalen wieder auf die Werte der Einstellungen setzen")
-        vorgaben.clicked.connect(lambda: self.kalkulation_zuruecksetzen())
-        kalk_titel.addWidget(vorgaben)
-        kalk_titel.addStretch(1)
-        g.addLayout(kalk_titel, 5, 0, 1, 6)
-        self.uebersicht = QLabel()
-        self.uebersicht.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        summen_box = QGroupBox("Übersicht")
-        sl = QVBoxLayout(summen_box)
-        self.stand = QLabel()
-        self.stand.setAlignment(Qt.AlignCenter)
-        self.stand.setMinimumHeight(26)
-        sl.addWidget(self.stand)
-        sl.addWidget(self.uebersicht)
-        oben = QHBoxLayout()
-        oben.addWidget(kopf_box, 3)
-        oben.addWidget(summen_box, 2)
+        # Kopf und Kalkulationseinstellungen (links), Übersicht (rechts): siehe angebot_oben.py
+        self.kopf_bereich = KopfBereich(self)
+        self.felder = self.kopf_bereich.felder
+        self.maschinenwerte = self.kopf_bereich.maschinenwerte
+        self.uebersicht_bereich = UebersichtBereich()
+        self.stand = self.uebersicht_bereich.stand
+        self.uebersicht = self.uebersicht_bereich.uebersicht
+        oben_inhalt = QWidget()
+        oben = QHBoxLayout(oben_inhalt)
+        oben.setContentsMargins(0, 0, 4, 0)
+        oben.setSpacing(10)
+        oben.addWidget(self.kopf_bereich, 3)
+        oben.addWidget(self.uebersicht_bereich, 2)
+        oben_rahmen = QScrollArea()          # kleine Fenster: Kopf und Übersicht scrollen
+        oben_rahmen.setWidgetResizable(True)
+        oben_rahmen.setFrameShape(QFrame.NoFrame)
+        oben_rahmen.setWidget(oben_inhalt)
 
-        # Knöpfe
+        # Aktionen: Hauptaktionen hervorgehoben, dann Bearbeiten, rechts Ausgabe und Weitere Aktionen
         leiste = QHBoxLayout()
-        knoepfe = (("Neue Position", self.position_neu), ("Positionen löschen", self.positionen_loeschen),
-                   ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
-                   ("STEP importieren …", lambda: self.step_importieren()), ("3D-Ansicht …", lambda: self.ansicht_3d()),
-                   ("Optimieren", self.optimieren))
-        for text, ziel in knoepfe:
+        leiste.setSpacing(6)
+        for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren()),
+                           ("Optimieren", self.optimieren), ("3D-Ansicht …", lambda: self.ansicht_3d())):
             b = QPushButton(text)
-            b.clicked.connect(ziel)
-            if text == "Optimieren":
-                b.setStyleSheet("font-weight: bold;")
+            b.setObjectName("primaer")
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
-        leiste.addSpacing(20)
-        self.zeige_berechnet = QCheckBox("Berechnete Werte")
-        self.zeige_step = QCheckBox("STEP-Werte")
-        for c in (self.zeige_berechnet, self.zeige_step):
-            c.toggled.connect(self._spalten_zeigen)
-            leiste.addWidget(c)
-        leiste.addStretch(1)
-        ausgabe_leiste = QHBoxLayout()
-        ausgabe_leiste.addWidget(QLabel("Ausgabe:"))
-        for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
-                           ("Kalkulation (PDF)", self.kalkulation_pdf), ("CSV-Export", self.csv_export),
-                           ("Ablage öffnen", self.f.ablage_oeffnen)):
+        leiste.addSpacing(12)
+        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
+                           ("Positionen löschen", self.positionen_loeschen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            ausgabe_leiste.addWidget(b)
-        ausgabe_leiste.addStretch(1)
+            leiste.addWidget(b)
+        leiste.addStretch(1)
+        leiste.addWidget(QLabel("Ausgabe:"))
+        for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
+                           ("Kalkulation (PDF)", self.kalkulation_pdf)):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            leiste.addWidget(b)
+        self.weitere = QPushButton("Weitere Aktionen")
+        menue = QMenu(self.weitere)
+        for text, ziel in (("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
+            menue.addAction(text, lambda ziel=ziel: ziel())
+        self.weitere.setMenu(menue)
+        leiste.addWidget(self.weitere)
 
         # Positionen und Ergebnisse
         self.pos_modell = PositionenModell(self)
@@ -699,6 +674,7 @@ class AngebotSeite(QWidget):
                                          | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
+        self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
             self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld", "zusatz") else (240 if art == "status" else 85))
         self.pos_ansicht.doubleClicked.connect(
@@ -793,12 +769,44 @@ class AngebotSeite(QWidget):
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
         self.st_seite = st_seite
 
+        # Spaltenauswahl der Positionsliste (rechts neben den Reitern, nur bei Positionen)
+        ecke = QWidget()
+        el = QHBoxLayout(ecke)
+        el.setContentsMargins(0, 0, 0, 2)
+        self.spalten_knopf = QPushButton("Weitere Spalten")
+        self.spalten_knopf.setToolTip("Optionale Spalten der Positionsliste ein- oder ausblenden. Spalten mit Werten "
+                                      "erscheinen automatisch.")
+        self.spalten_menue = QMenu(self.spalten_knopf)
+        self.spalten_menue.aboutToShow.connect(self._spalten_menue_fuellen)
+        self.spalten_knopf.setMenu(self.spalten_menue)
+        self.zeige_step = QCheckBox("STEP-Werte (aus CAD)")
+        self.zeige_step.setToolTip("Aus dem importierten CAD-Modell (STEP) gemessene Werte: Anfangs- und Endschnitt, "
+                                   "Innenkonturen, Gravur, Bohrungen, Konturgrößen.")
+        self.zeige_berechnet = QCheckBox("Berechnete Werte (Programm)")
+        self.zeige_berechnet.setToolTip("Vom Programm ermittelte Werte: Profilform, Gewicht, wirksame Stangenlänge, "
+                                        "Vorschub, eingeplante Teile usw.")
+        for w in (self.spalten_knopf, self.zeige_step, self.zeige_berechnet):
+            el.addWidget(w)
+        for c in (self.zeige_berechnet, self.zeige_step):
+            c.toggled.connect(self._spalten_zeigen)
+        self.reiter.setCornerWidget(ecke, Qt.TopRightCorner)
+        self.reiter.currentChanged.connect(lambda i: ecke.setVisible(self.reiter.widget(i) is self.pos_ansicht))
+
+        unten = QWidget()
+        ul = QVBoxLayout(unten)
+        ul.setContentsMargins(0, 0, 0, 0)
+        ul.addLayout(leiste)
+        ul.addWidget(self.reiter, 1)
+        self.teiler = QSplitter(Qt.Vertical)
+        self.teiler.addWidget(oben_rahmen)
+        self.teiler.addWidget(unten)
+        self.teiler.setStretchFactor(0, 0)
+        self.teiler.setStretchFactor(1, 1)
+        self.teiler.setChildrenCollapsible(False)
         lay = QVBoxLayout(self)
-        lay.addLayout(oben)
-        lay.addLayout(leiste)
-        lay.addLayout(ausgabe_leiste)
-        lay.addWidget(self.reiter, 1)
-        self._spalten_zeigen()
+        lay.setContentsMargins(8, 8, 8, 4)
+        lay.addWidget(self.teiler, 1)
+        self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()
 
     # -------------------------------------------------------------- Laden und Rechnen
@@ -818,47 +826,28 @@ class AngebotSeite(QWidget):
         self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
+        self._spalten_zeigen()
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
 
     def _kopf_anzeigen(self):
         self._laden = True
-        for fd in KOPF:
-            w, v = self.felder[fd.name], self.kopf.get(fd.name)
-            if fd.name == "kundennr":
-                w.clear()
-                for kd in self.db.zeilen("kunden"):
-                    if kd.get("kundennr"):
-                        w.addItem(f"{kd['kundennr']} – {kd.get('name') or ''}", kd["kundennr"])
-                w.setCurrentIndex(w.findData(v) if v else -1)
-                w.setEditText(w.currentText() if v and w.findData(v) >= 0 else (v or ""))
-            elif isinstance(w, QDateEdit):
-                w.setDate(QDate.fromString(v, "yyyy-MM-dd") if v else QDate.currentDate())
-            elif isinstance(w, QComboBox):
-                w.clear()
-                w.addItems(self.k.auswahl("maschine"))
-                if v and v not in self.k.maschinen:
-                    w.addItem(v)
-                w.setCurrentText(v or "")
-            elif isinstance(w, QSpinBox):
-                w.setValue(int(v or 0))
-            elif isinstance(w, QDoubleSpinBox):
-                if v is None and fd.name in {f.name for f in KALKULATION}:    # älteres Angebot: Einstellungen
-                    v = (self.einst.get(fd.name) or 0) * (100 if fd.name in KALK_PROZENT else 1)
-                w.setValue(v or 0)
-            else:
-                w.setText(v or "")
-        m = rechnen.maschine(self.kopf, self.k)
-        if m:
-            self.maschinenwerte.setText(
-                f"Maschine: Endbeschnitt {_z(m.get('endbeschnitt'), 0)} mm · Greiferrest {_z(m.get('greiferrest'), 0)} mm · "
-                f"Schnittverlust {_z(m.get('schnittverlust'), 1)} mm · max. Stange {_z(m.get('max_stange'), 0)} mm · "
-                f"Stundensatz {_z(m.get('stundensatz'), 2)} €/h"
-                + (f" · max. Hüllkreis-Ø {_z(m['max_huellkreis'], 1)} mm" if m.get("max_huellkreis") else "")
-                + (f" · max. Metergewicht {_z(m['max_kg_m'], 1)} kg/m" if m.get("max_kg_m") else ""))
-        else:
-            self.maschinenwerte.setText("<span style='color:#C00000'>Maschine fehlt oder ist unbekannt.</span>")
-        self._laden = False
+        try:
+            self.kopf_bereich.anzeigen()
+        finally:
+            self._laden = False
+
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self.kopf_bereich.breite_anpassen(ereignis.size().width())
+
+    def showEvent(self, ereignis):
+        super().showEvent(ereignis)
+        if not getattr(self, "_teiler_gesetzt", False):     # Kopf so hoch wie nötig, höchstens gut die Hälfte
+            self._teiler_gesetzt = True
+            h = self.teiler.height()
+            oben = min(self.teiler.widget(0).widget().sizeHint().height() + 6, int(h * 0.55))
+            self.teiler.setSizes([oben, max(h - oben, 200)])
 
     def _kopf_speichern(self, fd, wert):
         if self._laden or wert == self.kopf.get(fd.name):
@@ -900,10 +889,7 @@ class AngebotSeite(QWidget):
         return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
 
     def _ergebnisse_anzeigen(self):
-        st = self.stand_optimierung()
-        farbe = {"aktuell": "#C6EFCE", "noch nicht optimiert": "#FFEB9C"}.get(st, "#F8CBAD")
-        self.stand.setText(f"Stand Optimierung: {st}")
-        self.stand.setStyleSheet(f"background: {farbe}; font-weight: bold; padding: 3px;")
+        self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
         self.kalk.setzen([z for z in zeilen if z])
@@ -911,28 +897,15 @@ class AngebotSeite(QWidget):
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
         laenge = sum(w["laenge_gesamt"] or 0 for w in self.pos_modell.werte) / 1000
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
-        links = [("Positionen", str(sum(1 for s in stat if s))),
-                 ("davon FEHLER", str(sum(1 for s in stat if s.startswith("FEHLER")))),
-                 ("davon WARNUNG/HINWEIS", str(sum(1 for s in stat if s.startswith(("WARNUNG", "HINWEIS"))))),
-                 ("Teile gesamt", f"{_z(teile, 0)} Stk"), ("Teilelänge", f"{_z(laenge)} m"),
-                 ("Gewicht", f"{_z(gewicht)} kg"), ("Stangen", str(summen["stangen"]))]
+        self.uebersicht_bereich.kennzahlen_setzen(dict(
+            positionen=str(sum(1 for s in stat if s)), stueck=f"{_z(teile, 0)} Stk", laenge=f"{_z(laenge)} m",
+            gewicht=f"{_z(gewicht)} kg", stangen=str(summen["stangen"]) if erg else "–"))
+        self.uebersicht_bereich.meldungen_setzen(
+            [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         kosten = rechnen.kostenarten(summen, self.einst)
-        teil = next(i for i, (_, _, fett) in enumerate(kosten) if fett) + 1     # bis Herstellkosten
-        mitte, rechts = kosten[:teil], kosten[teil - 1:]                         # Herstellkosten in beiden Spalten
-
-        def _k(z):
-            if not z:
-                return "<td></td><td></td>"
-            t, w, fett = z
-            return (f"<td><b>{t}</b></td><td align='right'><b>{_z(w)} €</b></td>" if fett
-                    else f"<td>{t}</td><td align='right'>{_z(w)} €</td>")
-        html = "<table cellpadding='1'>"
-        for l, m, r in zip_longest(links, mitte, rechts):
-            html += ((f"<tr><td>{l[0]}</td><td align='right'>{l[1]}</td>" if l else "<tr><td></td><td></td>")
-                     + "<td width='20'></td>" + _k(m) + "<td width='20'></td>" + _k(r) + "</tr>")
-        self.uebersicht.setText(html + "</table>")
-        self.summen.setText(
-            " · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €" for t, w, fett in kosten))
+        self.uebersicht_bereich.kosten_setzen(kosten)
+        self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
+                                       for t, w, fett in kosten if fett or sichtbar(w)))
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
             self.stangen.setzen([dict(s, **w) for s, w in zip(erg["stangen"], sw)])
@@ -958,11 +931,48 @@ class AngebotSeite(QWidget):
         self.teile.setzen([dict(t, platz=i) for i, t in enumerate(s["teile"], start=1)])
 
     def _spalten_zeigen(self):
-        for i, (art, x) in enumerate(self.pos_modell.spalten):
+        """Sichtbare Spalten der Positionsliste: Standardspalten immer, optionale Spalten mit Werten oder nach Wahl
+        unter 'Weitere Spalten', STEP-Werte und berechnete Werte über die Häkchen."""
+        m = self.pos_modell
+        for i, (art, x) in enumerate(m.spalten):
+            name = m.name(i)
             if art == "berechnet":
-                self.pos_ansicht.setColumnHidden(i, not self.zeige_berechnet.isChecked())
+                zeigen = self.zeige_berechnet.isChecked()
             elif art == "feld" and x.name in STEP_FELDER:
-                self.pos_ansicht.setColumnHidden(i, not self.zeige_step.isChecked())
+                zeigen = self.zeige_step.isChecked()
+            elif art == "abweichung":
+                zeigen = self.zeige_step.isChecked() or self._spalte_hat_werte(i)
+            elif name in OPTIONALE_SPALTEN:
+                zeigen = self.spalten_wahl.get(name, self._spalte_hat_werte(i))
+            else:
+                zeigen = True
+            self.pos_ansicht.setColumnHidden(i, not zeigen)
+
+    def _spalte_hat_werte(self, c):
+        return spalte_sichtbar([self.pos_modell.roh(r, c) for r in range(self.pos_modell.rowCount())])
+
+    def _spalten_menue_fuellen(self):
+        m, menue = self.pos_modell, self.spalten_menue
+        menue.clear()
+        for i, (art, x) in enumerate(m.spalten):
+            name = m.name(i)
+            if name not in OPTIONALE_SPALTEN:
+                continue
+            a = menue.addAction(x.titel + ("" if self._spalte_hat_werte(i) else "  (leer)"))
+            a.setCheckable(True)
+            a.setChecked(not self.pos_ansicht.isColumnHidden(i))
+            a.toggled.connect(lambda an, name=name: self.spalte_waehlen(name, an))
+        menue.addSeparator()
+        menue.addAction("Automatisch: Spalten mit Werten zeigen", lambda: self.spalte_waehlen(None, None))
+
+    def spalte_waehlen(self, name, zeigen):
+        """Optionale Spalte fest ein- (True) oder ausblenden (False); name=None: alle wieder automatisch."""
+        if name is None:
+            self.spalten_wahl = {}
+        else:
+            self.spalten_wahl[name] = zeigen
+        self.db.einstellung_setzen(SPALTEN_EINSTELLUNG, self.spalten_wahl)
+        self._spalten_zeigen()
 
     # -------------------------------------------------------------- Bearbeiten
     def position_neu(self):

@@ -692,6 +692,19 @@ KOSTENARTEN = (
     ("Fracht", "fracht", False), ("Skonto", "skonto", False), ("Verkaufspreis", "verkauf", True))
 
 
+# Kostenübersicht im Angebot: Gruppen aus Kostenarten (Titel, Schlüssel, Summenzeile); jede Kostenart genau einmal
+KOSTEN_GRUPPEN = (
+    ("Material", ("material",), False), ("Laser schneiden", ("laser_schneiden",), False),
+    ("Rüsten", ("ruesten_maschine", "ruesten_abmessungen", "stangenwechsel_kosten"), False),
+    ("Zusätzliche Bearbeitung", ("gewinde", "zusatz"), False),
+    ("Zuschläge", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung"), False),
+    ("Herstellkosten", ("herstell",), True), ("Gewinn", ("gewinn",), False),
+    ("Programmierkosten", ("programmierung",), False),
+    ("Pauschalen und Aufschläge", ("pauschalen", "angebotsaufschlag", "fracht"), False),
+    ("Skonto", ("skonto",), False), ("Verkaufspreis", ("verkauf",), True))
+assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n, _ in KOSTENARTEN)
+
+
 def kostenarten(summen, einst):
     """[(Bezeichnung mit Mengenangabe, Betrag, fett)] aller Kostenarten des Angebots, einzeln."""
     z = lambda w, st=1: zahl(w, st)

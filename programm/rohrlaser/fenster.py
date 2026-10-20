@@ -21,6 +21,33 @@ ANLEITUNG = "Bedienungsanleitung.pdf"
 FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
 FARBE_BERECHNET = QColor("#EDEDED")
 FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": QColor("#C6EFCE")}
+# Einheitliches Aussehen: helle, neutrale Flächen, Karten mit dünnem Rahmen, ruhige Statusfarben
+STIL = """
+QFrame#karte { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; }
+QLabel#kartentitel { font-weight: bold; color: #1F2937; }
+QLabel#gruppentitel { font-weight: bold; color: #3A4656; padding-bottom: 2px; border-bottom: 1px solid #E3E7EC; }
+QFrame#kennzahl { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; }
+QLabel#kennzahltitel { color: #5F6B7A; }
+QLabel#kennzahlwert { font-weight: bold; color: #1F2937; }
+QLabel#stand_ok { background: #E3F4E8; color: #1E6B34; border: 1px solid #B7DFC3; border-radius: 4px; font-weight: bold; }
+QLabel#stand_offen { background: #FFF6DB; color: #7A5A00; border: 1px solid #F0D98C; border-radius: 4px; font-weight: bold; }
+QLabel#stand_veraltet { background: #FDECEA; color: #8C1D18; border: 1px solid #F3B8B2; border-radius: 4px; font-weight: bold; }
+QToolButton#aufklapper { border: none; text-align: left; color: #3A4656; padding: 2px 0; }
+QToolButton#meldung_ok { border: none; color: #1E6B34; font-weight: bold; padding: 2px 0; }
+QToolButton#meldung_warnung { border: none; color: #7A5A00; font-weight: bold; padding: 2px 0; }
+QToolButton#meldung_fehler { border: none; color: #B42318; font-weight: bold; padding: 2px 0; }
+QPushButton { padding: 4px 10px; border: 1px solid #C5CCD6; border-radius: 4px; background: #FFFFFF; }
+QPushButton:hover { background: #F1F4F8; }
+QPushButton:pressed { background: #E2E8F0; }
+QPushButton:disabled { color: #9AA3AF; }
+QPushButton#primaer { background: #1F5FA8; color: #FFFFFF; border-color: #1A528F; font-weight: bold; }
+QPushButton#primaer:hover { background: #1A528F; }
+QPushButton::menu-indicator { subcontrol-position: right center; right: 4px; }
+QPushButton[menu="true"] { padding-right: 18px; }
+QTableView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selection-color: #111827; }
+QHeaderView::section { background: #F1F3F6; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
+                       border-bottom: 1px solid #C9D0D8; padding: 3px; font-weight: bold; }
+"""
 
 
 class StammdatenModell(QAbstractTableModel):
@@ -501,6 +528,7 @@ class Hauptfenster(QMainWindow):
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.offen = {}             # Angebots-ID -> AngebotSeite
         self.setWindowTitle(f"{NAME} {VERSION}")
+        self.setStyleSheet(STIL)
         self.resize(1400, 800)
         self.reiter = QTabWidget()
         self.reiter.setTabsClosable(True)
