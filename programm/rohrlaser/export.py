@@ -26,6 +26,8 @@ def angebot_csv(pfad, kopf, kalk_zeilen, summen, einst):
         w = csv.writer(datei, delimiter=";")
         w.writerow(["Angebot"])
         for f in KOPF:
+            if f.name == "fracht_sendung":      # JSON der Frachtberechnung, nicht für die Tabelle
+                continue
             w.writerow([f.titel, wert_als_text(f, kopf.get(f.name), bearbeiten=True)])
         w.writerow([])
         w.writerow(["Kostenart", "Betrag [€]"])

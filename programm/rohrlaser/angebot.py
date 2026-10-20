@@ -12,6 +12,10 @@ KOPF = (
     Feld("stange", "Standard-Stangenlänge [mm]", "ganz", 500, 20000, pflicht=True),
     Feld("bemerkung", "Bemerkung"),
     Feld("fracht", "Frachtkosten [€]", "zahl", 0, 100000, stellen=2),
+    # Fracht (fracht_angebot.py): leer = manuell bzw. je Stück wie bisher; Frachtberechnung als JSON
+    Feld("fracht_modus", "Frachtart", "auswahl", auswahl="frachtmodus"),
+    Feld("fracht_umlage", "Fracht verteilen", "auswahl", auswahl="frachtumlage"),
+    Feld("fracht_sendung", "Frachtberechnung (Eingaben und Tarif-Snapshot)"),
     # Zahlungsbedingungen: Vorgabe aus dem Kunden bzw. den Einstellungen; Skonto wird in den Preis eingerechnet
     Feld("skonto", "Skonto [%]", "zahl", 0, 20, stellen=1),
     Feld("skonto_tage", "Skontofrist [Tage]", "ganz", 0, 365),

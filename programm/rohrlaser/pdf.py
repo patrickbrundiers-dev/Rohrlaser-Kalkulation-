@@ -128,7 +128,7 @@ def angebot_pdf(pfad, kopf, ang, einst):
     t = Table(info, colWidths=[30 * mm, 70 * mm, 40 * mm, 46 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
     inhalt += [t, Spacer(1, 3 * mm)]
-    bedingungen = " ".join(t for t in (ang.get("zahlung"), einst.get("bedingungen")) if t)
+    bedingungen = " ".join(t for t in (ang.get("fracht"), ang.get("zahlung"), einst.get("bedingungen")) if t)
     if bedingungen:
         inhalt += [_p(bedingungen, S_KLEIN), Spacer(1, 4 * mm)]
 

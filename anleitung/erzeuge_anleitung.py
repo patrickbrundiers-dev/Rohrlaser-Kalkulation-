@@ -775,7 +775,8 @@ def kapitel_angebot(i):
             "getrennte Schnitte, Konturgrenzen und, wenn gesetzt, max. Hüllkreis-Ø und max. Metergewicht dazu. "
             "Geändert werden sie in den Stammdaten Maschinen.",
             "<b>Standard-Stangenlänge</b> gilt für alle Positionen ohne abweichende Stangenlänge.",
-            "<b>Frachtkosten</b> kommen ohne Zuschläge auf das Angebotspreis.",
+            "<b>Frachtkosten</b> kommen ohne Zuschläge auf den Angebotspreis; wie, steht in der Karte <b>Fracht</b> "
+            "(Abschnitt Fracht unten).",
             "<b>Kundennummer</b>: Kunden aus der Liste wählen (Nummer und Name) oder eine Nummer eintippen. Steht der "
             "Kunde im Kundenstamm, übernimmt das Programm Kundenname und Zahlungsbedingungen; eine unbekannte Nummer "
             "wird nur gespeichert.",
@@ -793,6 +794,40 @@ def kapitel_angebot(i):
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel und Stundensatz der Maschine zur Information, Rüstzeit "
             "je Abmessung), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Programmierkosten, Pauschale je "
             "Abmessung, Frachtkosten) und <b>Zahlungsbedingungen</b>.")
+    i.abschnitt("Fracht")
+    i.text("Unter der Kalkulation steht die Karte <b>Fracht</b>. Sie legt fest, wie die Fracht in dieses Angebot "
+           "eingeht.")
+    i.bild("angebot_fracht", "Karte Fracht: Frachtart berechnet, verteilt nach Gewicht", hoehe=40 * mm, legende=[
+        (1, "<b>Frachtart</b>"), (2, "<b>Fracht verteilen</b>"), (3, "<b>Fracht berechnen …</b>"),
+        (4, "Betrag, Tarif, Gewicht, Ladungsträger und Ziel der Berechnung")])
+    i.tabelle(["Frachtart", "Wirkung"], [
+        ["manuell", "wie bisher: der Betrag im Feld Frachtkosten (Gruppe Verkauf und Gewinn); in den Staffelpreisen "
+                    "gilt er für alle Mengen gleich. Ältere Angebote haben diese Frachtart."],
+        ["berechnet", "Betrag aus <b>Fracht berechnen …</b>; das Feld Frachtkosten ist dann nur zur Anzeige. In den "
+                      "Staffelpreisen rechnet jede Menge ihre eigene Fracht (Abschnitt Staffelpreise, Kapitel 9)."],
+        ["keine Fracht", "Abholung oder ab Werk: 0 € Fracht in der Kalkulation; das Angebots-PDF nennt „Lieferung ab "
+                         "Werk; Frachtkosten sind nicht enthalten.“"],
+        ["im Artikelpreis enthalten", "0 € Fracht in der Kalkulation, damit die Fracht nicht doppelt berechnet wird; "
+                                      "das Angebots-PDF nennt „Die Frachtkosten sind in den Preisen enthalten.“"]],
+        [45, 220])
+    i.liste("<b>Fracht verteilen</b>: <i>je Stück</i> (jedes Teil trägt gleich viel, wie bisher) oder <i>nach "
+            "Gewicht</i>: Fracht je Teil = Fracht gesamt × Teilegewicht ÷ Gesamtgewicht aller Teile. Beispiel: 120 € "
+            "Fracht, Pos. 1 mit 100 Stück zu 2 kg, Pos. 2 mit 10 Stück zu 20 kg: je 200 kg, also 0,60 € je Teil in "
+            "Pos. 1 und 6,00 € je Teil in Pos. 2. Neue Angebote verteilen nach Gewicht; ältere Angebote und ihre "
+            "Kopien bleiben bei je Stück, damit sich ihre Preise nicht ändern. Fehlt einer Position das Gewicht "
+            "(kein Profil oder Werkstoff mit Dichte), verteilt das Programm in diesem Angebot je Stück und zeigt den "
+            "Hinweis „Gewicht fehlt bei Pos. …“ in der Karte.",
+            "<b>Fracht berechnen …</b> öffnet den Frachtrechner (Kapitel 12.1), vorbelegt mit dem Nettogewicht und dem "
+            "längsten Teil aus den Positionen, dem Kunden (PLZ, Land, Lieferbedingung aus dem Kundenstamm), dem "
+            "Angebotsdatum und einem Packvorschlag. Eine schon gespeicherte Berechnung wird mit ihren Eingaben "
+            "wieder geöffnet; Gewicht und längstes Teil kommen immer neu aus dem Angebot. <b>Ins Angebot "
+            "übernehmen</b> schreibt den Betrag ins Feld Frachtkosten, setzt die Frachtart auf berechnet und "
+            "speichert die Eingaben mit einer Kopie aller Tarifwerte (Feld Frachtberechnung (Eingaben und "
+            "Tarif-Snapshot), nicht sichtbar) sowie einen Eintrag in der Historie der Frachtkosten. Spätere "
+            "Änderungen an Tarifen ändern das Angebot nicht; für neue Tarifwerte die Fracht neu berechnen und "
+            "übernehmen. Mit der Lieferbedingung unfrei, ab Werk oder Abholung wird die Frachtart keine Fracht.",
+            "Ist die Frachtart berechnet und der Betrag größer 0, nennt das Angebots-PDF „Die Preise enthalten die "
+            "Fracht frei Haus nach DE 25980.“ (Land und PLZ der Berechnung).")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
            "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
@@ -1258,6 +1293,15 @@ def kapitel_staffeln(i):
     i.text("Gerechnet wird ungerundet; erst der Verkaufspreis netto je Einheit wird auf Cent gerundet "
            "(kaufmännisch), der Gesamtpreis ist Stückpreis × Menge (plus einmalige Rüstkosten). Ohne Werte je Stufe "
            "ergibt das genau den Preis der Kalkulation.")
+    i.text("<b>Fracht je Menge</b>: Mit der Frachtart <i>berechnet</i> (Karte Fracht im Angebot) rechnet jede Stufe "
+           "ihre eigene Fracht: Nettogewicht und längstes Teil der Stufe, Ladungsträger per Packvorschlag, Fracht mit "
+           "der gespeicherten Tarifkopie des Angebots. Verpackungsgewicht und frachtpflichtiges Gewicht von Hand "
+           "gelten nur für die Menge des Angebots; die Stufen rechnen nach Tarif. Der Hinweis der Stufe nennt die "
+           "Fracht, das Bruttogewicht und die Ladungsträger, z. B. „Fracht 445,48 €: 1.081,5 kg brutto, 1 × LG“. "
+           "Innerhalb der Stufe wird die Fracht wie im Angebot je Stück oder nach Gewicht verteilt. Ändert sich die "
+           "Frachtberechnung, sind die Stufen veraltet und werden neu gerechnet. Fehlt die Berechnung oder ein "
+           "Gewicht, bekommt die Stufe keinen Preis und den Hinweis „Fracht nicht berechnet: …“, statt still mit "
+           "0 € zu rechnen. In den übrigen Frachtarten gilt der Frachtbetrag des Angebots für alle Mengen gleich.")
     i.bild("staffeln", "Ergebnis mit Materialzuschlag 20/15/10/5 %: der Preis je Gestell sinkt mit der Menge",
            hoehe=95 * mm, legende=[
                (1, "Wert direkt in der Stufe ändern: der Preis rechnet sofort neu, ohne neue Optimierung."),
@@ -1561,6 +1605,7 @@ def kapitel_frachtkosten(i):
             "Packvorschlag, Ladungsträger für lange Teile (Langgut)"),
         (4, "<b>Beispieldaten laden</b> fügt die Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu "
             "(BEISPIEL); vorhandene Einträge bleiben.")])
+    i.text("Fracht im Angebot und je Staffelmenge: Kapitel 6 (Abschnitt Fracht) und Kapitel 9.")
     i.text("Jede gespeicherte Kalkulation enthält eine vollständige Kopie aller verwendeten Werte: Tarif und Version, "
            "Preisstaffeln, Zone und PLZ-Regel, Zuschläge, Dieselpreis, Kurs, Gewicht und Ladehilfsmittel. Spätere "
            "Änderungen an Tarifen oder Zuschlägen ändern gespeicherte Kalkulationen nicht.")

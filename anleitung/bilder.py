@@ -583,6 +583,19 @@ def main(ziel):
     foto.foto("fracht_historie", f, [(fb.historie.tabelle, 1), (knopf(fb.historie, "Kalkulation anzeigen"), 2),
                                      (fb.historie.einstellungen, 3), (knopf(fb.historie, "Beispieldaten laden"), 4)])
 
+    # Fracht im Angebot: berechnen und übernehmen (Hauptangebot, nach allen anderen Bildern des Angebots)
+    f.resize(1680, 980)
+    s = f.angebot_oeffnen(haupt)
+    d = s.fracht_berechnen()
+    d.rechner.versandart.setCurrentText("Stückgut")
+    d.rechner.rechnen()
+    d.uebernehmen()
+    kb = s.kopf_bereich
+    bereit()
+    karte_fracht = kb.fracht_text.parentWidget()
+    foto.foto("angebot_fracht", karte_fracht, [(kb.fracht_modus, 1), (kb.fracht_umlage, 2), (kb.fracht_knopf, 3),
+                                               (kb.fracht_text, 4)])
+
     # Menü Hilfe
     f.reiter.setCurrentWidget(f.start)
     start_zeigen()

@@ -484,6 +484,34 @@ class RechnerSeite(QWidget):
                     km=_zahl(self.km.text()), max_laenge=_zahl(self.max_laenge.text()), lht=self.lht_eintraege(),
                     leistungen=leist)
 
+    def setzen(self, s):
+        """Eingaben aus einer gespeicherten Sendung übernehmen (Frachtberechnung eines Angebots)."""
+        self._laden = True
+        for w, n in ((self.abs_plz, "absender_plz"), (self.abs_land, "absender_land"), (self.plz, "plz"),
+                     (self.land, "land")):
+            if s.get(n):
+                w.setText(str(s[n]))
+        nr = s.get("kundennr")
+        k = self.kunden.get(nr)
+        self.kunde.setCurrentText(f"{nr} – {k.get('name') or ''}" if k else (nr or ""))
+        self.versandart.setCurrentText(s.get("versandart") or "")
+        self.dienstleister.setCurrentText(s.get("dienstleister") or "")
+        self.tarif.setCurrentText(s.get("tarif_id") or "automatisch")
+        self.lieferbedingung.setCurrentText(s.get("lieferbedingung") or "")
+        if s.get("datum"):
+            self.datum.setDate(QDate.fromString(s["datum"], "yyyy-MM-dd"))
+        for w, n in ((self.verpackung, "verpackung"), (self.frachtpflichtig, "frachtpflichtig"), (self.km, "km")):
+            w.setText("" if s.get(n) is None else zahl_als_text(s[n]))
+        for i, (c, sp) in self.leistungen.items():
+            c.setChecked(i in (s.get("leistungen") or {}))
+            if sp and i in (s.get("leistungen") or {}):
+                sp.setValue(s["leistungen"][i] or 1)
+        self.lht_tabelle.setRowCount(0)
+        for e in s.get("lht") or ():
+            self.lht_neu(e.get("lht_id"), e.get("anzahl"), e.get("gewicht"))
+        self._laden = False
+        self.rechnen()
+
     def geaendert(self, *_):
         if not self._laden:
             self.timer.start()
@@ -516,6 +544,87 @@ class RechnerSeite(QWidget):
         nr = self.db.fracht_kalkulation_speichern(e, self.bezeichnung.text().strip())
         self.f.meldung(f"Frachtkalkulation gespeichert ({fracht.euro(e['gesamt'])}).")
         return nr
+
+
+class FrachtDialog(QDialog):
+    """Fracht eines Angebots berechnen: Rechner mit Gewicht, längstem Teil und Kunde aus dem Angebot vorbelegt;
+    'Ins Angebot übernehmen' speichert Betrag, Eingaben und Tarif-Snapshot im Angebot (Frachtart berechnet)."""
+
+    def __init__(self, seite):
+        super().__init__(seite)
+        from . import fracht_angebot, rechnen
+        self.s = seite
+        self.setWindowTitle(f"Fracht berechnen – Angebot {seite.kopf.get('nummer') or ''}")
+        self.rechner = RechnerSeite(seite.f)
+        self.rechner.speichern_knopf.hide()          # gespeichert wird mit der Übernahme ins Angebot
+        werte = [rechnen.position_werte(p, seite.kopf, seite.k, seite.tabellen) if p.get("profil_id") else None
+                 for p in seite.positionen]
+        netto, laenge, fehlt = fracht_angebot.ware(seite.positionen, werte)
+        self.hinweis = QLabel()
+        self.hinweis.setWordWrap(True)
+        text = f"Aus dem Angebot: Nettogewicht {zahl_als_text(netto, 1)} kg, längstes Teil {zahl_als_text(laenge, 0)} mm."
+        if fehlt:
+            text += f" <span style='color:#B42318'>Gewicht fehlt bei Pos. {', '.join(fehlt)}.</span>"
+        self.hinweis.setText(text)
+        r = self.rechner
+        alt = fracht_angebot.daten(seite.kopf)
+        if alt and alt.get("sendung"):
+            r.setzen(alt["sendung"])
+        else:
+            nr = seite.kopf.get("kundennr")
+            k = r.kunden.get(nr)
+            if k:
+                r.kunde.setCurrentText(f"{nr} – {k.get('name') or ''}")
+            if seite.kopf.get("datum"):
+                r.datum.setDate(QDate.fromString(seite.kopf["datum"], "yyyy-MM-dd"))
+        r.bezeichnung.setText(f"Angebot {seite.kopf.get('nummer') or ''}")
+        r.netto.setValue(netto)
+        r.max_laenge.setText(zahl_als_text(laenge, 0) if laenge else "")
+        if not (alt and alt.get("sendung", {}).get("lht")):
+            r.packvorschlag()
+        r.rechnen()
+        knoepfe = QDialogButtonBox()
+        self.uebernehmen_knopf = knoepfe.addButton("Ins Angebot übernehmen", QDialogButtonBox.AcceptRole)
+        self.uebernehmen_knopf.setObjectName("primaer")
+        knoepfe.addButton("Abbrechen", QDialogButtonBox.RejectRole)
+        knoepfe.accepted.connect(self.uebernehmen)
+        knoepfe.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addWidget(self.hinweis)
+        lay.addWidget(r, 1)
+        lay.addWidget(knoepfe)
+        self.resize(1150, 760)
+
+    def uebernehmen(self):
+        """Ergebnis ins Angebot schreiben. Ergebnis: True, wenn übernommen."""
+        import json
+        e = self.rechner.rechnen()
+        if e.get("gesamt") is None:
+            self.s.f.meldung("Fracht nicht berechnet – nichts übernommen: " + "; ".join(e.get("fehler") or []),
+                             fehler=True)
+            return False
+        db = self.s.db
+        snap = e.get("snapshot")
+        text = fracht.zusammenfassung(e)
+        if e.get("gewicht"):
+            text += f", {zahl_als_text(e['gewicht']['brutto'], 1)} kg brutto"
+        lht = ", ".join(f"{x['anzahl']} × {x['lht_id']}" for x in (e.get("lht") or {}).get("je", []))
+        if lht:
+            text += f", {lht}"
+        if snap is None:          # Lieferbedingung ohne Fracht: 0 € ohne Tarif
+            daten = dict(sendung=e["eingaben"], snapshot=None, gesamt=0.0, text=text)
+        else:
+            daten = dict(sendung=e["eingaben"], snapshot=snap, gesamt=e["gesamt"], text=text,
+                         lht_standard=db.einstellung("fracht_lht_standard"),
+                         lht_langgut=db.einstellung("fracht_lht_langgut"))
+        db.angebot_aendern(self.s.id, "fracht_sendung", json.dumps(daten, ensure_ascii=False, default=str))
+        db.angebot_aendern(self.s.id, "fracht", e["gesamt"])
+        db.angebot_aendern(self.s.id, "fracht_modus", "berechnet" if snap is not None else "keine Fracht")
+        db.fracht_kalkulation_speichern(e, self.rechner.bezeichnung.text().strip(), self.s.id)
+        self.s.f.meldung(f"Fracht {fracht.euro(e['gesamt'])} ins Angebot übernommen.")
+        self.accept()
+        self.s.neu_laden()
+        return True
 
 
 # ------------------------------------------------------------------ 2 Zonen und PLZ
