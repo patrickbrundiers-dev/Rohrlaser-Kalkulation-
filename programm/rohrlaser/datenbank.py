@@ -38,9 +38,10 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 17     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 18     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
+                        # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -112,6 +113,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN nachkalkulation TEXT")
             if "zeitbasis" not in spalten_a:          # Datei vor Schema 13 (alte Angebote: ohne Snapshot)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN zeitbasis TEXT")
+            if "preisbasis" not in spalten_a:         # Datei vor Schema 18 (alte Angebote: aktuelle Preise)
+                self.con.execute("ALTER TABLE angebote ADD COLUMN preisbasis TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
@@ -589,6 +592,14 @@ class Datenbank:
                              (json.dumps(zeitbasis, ensure_ascii=False) if zeitbasis is not None else None,
                               self._jetzt(), angebot_id))
 
+    def preisbasis_speichern(self, angebot_id, preisbasis):
+        """Festgeschriebene Materialpreise und Schneiddaten eines Angebots setzen (rechnen.preisbasis_aus;
+        None = wieder die aktuellen Stammdaten)."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET preisbasis=?, geaendert=? WHERE id=?",
+                             (json.dumps(preisbasis, ensure_ascii=False) if preisbasis is not None else None,
+                              self._jetzt(), angebot_id))
+
     # -------------------------------------------------------------- Frachtkosten
     def fracht_daten(self):
         """Fracht-Stammdaten für den Rechenkern {Kurzname: [Zeilen]} (fracht_daten.KURZ)."""
@@ -741,6 +752,7 @@ class Datenbank:
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
+        a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         return a
 
     def _jetzt(self):

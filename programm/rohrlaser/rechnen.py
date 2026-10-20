@@ -601,6 +601,121 @@ def zeitbasis(kopf, k, tabellen):
     return out
 
 
+# ------------------------------------------------------------------ Preisbasis (festgeschriebene Preise)
+PREIS_FELDER = ("profil_id", "werkstoff_id", "basis", "preis", "lieferlaenge", "gueltig_ab", "lieferant")
+SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis", "vorschub_gross", "vorschub_mittel",
+                  "vorschub_klein", "einstechzeit", "vorschub_gravur")
+
+
+def _preis_schl(z):
+    return f"{z.get('profil_id')}|{z.get('werkstoff_id')}"
+
+
+def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
+    """Materialpreise und Schneiddaten, mit denen das Angebot rechnet (für den Snapshot im Angebot):
+    {datum, maschine, preise: [Zeile je Profil + Werkstoff der Positionen], schneiddaten: [Zeilen der Maschine für
+    die Werkstoffe und Kategorien der Positionen], tonnenpreise: {Werkstoff: €/t}, aufpreise: {Oberfläche: €/m}}.
+    k und tabellen sind die gültigen Werte (bei festgeschriebenen Angeboten nach preisbasis_anwenden)."""
+    import datetime
+    werkstoffe = {p.get("werkstoff_id") for p in positionen if not _leer(p.get("werkstoff_id"))}
+    kombis = {(p.get("profil_id"), p.get("werkstoff_id")) for p in positionen
+              if not _leer(p.get("profil_id")) and not _leer(p.get("werkstoff_id"))}
+    kats = {kategorie(w, k) for w in werkstoffe} - {None, ""}
+    preise = []
+    for pid, wid in sorted(kombis, key=str):
+        z = preis_zeile(pid, wid, k, tabellen)
+        # ohne Zeile: Merker (Preisbasis leer = Tonnenpreis), damit eine später angelegte Zeile nicht gilt
+        preise.append({n: z.get(n) for n in PREIS_FELDER} if z is not None
+                      else dict(profil_id=pid, werkstoff_id=wid, basis=None))
+    m = kopf.get("maschine")
+    sd = [{n: z.get(n) for n in SCHNEID_FELDER} for z in tabellen["schneiddaten"] if z.get("maschinen_id") == m
+          and (z.get("werkstoff_id") in werkstoffe or _leer(z.get("werkstoff_id")) and z.get("kategorie") in kats)]
+    ofl = {oberflaeche_von(p) for p in positionen} - {""}
+    return dict(datum=datum or datetime.date.today().isoformat(), maschine=m, preise=preise, schneiddaten=sd,
+                tonnenpreise={w: (k.werkstoffe.get(w) or {}).get("tonnenpreis") for w in sorted(werkstoffe, key=str)},
+                aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)})
+
+
+def preisbasis_anwenden(kopf, k, tabellen):
+    """Gültige (k, tabellen) eines Angebots: Werte aus dem Snapshot kopf['preisbasis'] gehen den aktuellen
+    Stammdaten vor; was der Snapshot nicht enthält (später hinzugefügte Profile, Werkstoffe, Oberflächen oder eine
+    andere Maschine), kommt aus den aktuellen Stammdaten. Ohne Snapshot unverändert."""
+    import dataclasses
+    pb = kopf.get("preisbasis")
+    if not isinstance(pb, dict):
+        return k, tabellen
+    # Unveränderte Zeilen bleiben die Zeilen der Stammdaten (gleiche Prüfsummen, z. B. für die Staffelpreise).
+    tab = dict(tabellen)
+    fest = {_preis_schl(z): z for z in pb.get("preise") or []}
+    gleich = lambda a, b, felder: all(a.get(n) == b.get(n) for n in felder)
+    tab["preise"] = [z if _preis_schl(z) not in fest or gleich(z, fest[_preis_schl(z)], PREIS_FELDER)
+                     else fest[_preis_schl(z)] for z in tabellen["preise"]]
+    vorhanden = {_preis_schl(z) for z in tabellen["preise"]}
+    tab["preise"] += [z for s, z in fest.items() if s not in vorhanden and z.get("basis")]
+    if pb.get("maschine") == kopf.get("maschine"):
+        sd = pb.get("schneiddaten") or []
+        werkstoffe = {z.get("werkstoff_id") for z in sd if not _leer(z.get("werkstoff_id"))} \
+            | set(pb.get("tonnenpreise") or {})
+        kats = {kategorie(w, k) for w in werkstoffe} - {None, ""}
+        # Zeilen der Maschine für die Werkstoffe und Kategorien des Snapshots kommen aus dem Snapshot
+        betroffen = lambda z: z.get("maschinen_id") == pb["maschine"] and (
+            z.get("werkstoff_id") in werkstoffe or _leer(z.get("werkstoff_id")) and z.get("kategorie") in kats)
+        aktuell = [z for z in tabellen["schneiddaten"] if betroffen(z)]
+        projektion = lambda zeilen: sorted(json.dumps({n: z.get(n) for n in SCHNEID_FELDER}, sort_keys=True)
+                                           for z in zeilen)
+        if projektion(aktuell) != projektion(sd):
+            tab["schneiddaten"] = sd + [z for z in tabellen["schneiddaten"] if not betroffen(z)]
+    ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
+          for w, z in k.werkstoffe.items()}
+    of = {o: dict(z, aufpreis_m=pb["aufpreise"][o]) if o in (pb.get("aufpreise") or {}) else z
+          for o, z in k.oberflaechen.items()}
+    return dataclasses.replace(k, werkstoffe=ws, oberflaechen=of), tab
+
+
+def _vergleich(pb):
+    """Vergleichbarer Inhalt eines Snapshots (ohne Datum), Schneiddaten unabhängig von der Reihenfolge."""
+    sd = sorted((json.dumps(z, sort_keys=True) for z in pb.get("schneiddaten") or []))
+    return dict(maschine=pb.get("maschine"), preise={_preis_schl(z): z for z in pb.get("preise") or []}, schneiddaten=sd,
+                tonnenpreise=pb.get("tonnenpreise") or {}, aufpreise=pb.get("aufpreise") or {})
+
+
+def preisbasis_gleich(a, b):
+    """Gleiche festgeschriebene Werte (Datum zählt nicht)."""
+    return _vergleich(a) == _vergleich(b)
+
+
+def preisbasis_abweichung(kopf, k, tabellen):
+    """Was sich in den aktuellen Stammdaten gegenüber den festgeschriebenen Preisen des Angebots geändert hat:
+    Liste lesbarer Texte (leer = nichts geändert oder nichts festgeschrieben). k, tabellen: aktuelle Stammdaten."""
+    pb = kopf.get("preisbasis")
+    if not isinstance(pb, dict):
+        return []
+    alt = _vergleich(pb)
+    # dieselben Profile, Werkstoffe und Oberflächen wie im Snapshot, Werte aus den aktuellen Stammdaten
+    umfang = ([dict(profil_id=z.get("profil_id"), werkstoff_id=z.get("werkstoff_id")) for z in pb.get("preise") or []]
+              + [dict(werkstoff_id=w) for w in pb.get("tonnenpreise") or {}]
+              + [dict(oberflaeche=o) for o in pb.get("aufpreise") or {}])
+    neu = _vergleich(preisbasis_aus(dict(kopf, maschine=pb.get("maschine")), umfang, k, tabellen))
+    def text(z):
+        return f"{zahl(z.get('preis'))} {z['basis']}" if z and z.get("basis") else "Tonnenpreis"
+
+    out = []
+    for s, z in alt["preise"].items():
+        n = neu["preise"].get(s) or {}
+        if (n.get("basis"), n.get("preis"), n.get("lieferlaenge")) != \
+                (z.get("basis"), z.get("preis"), z.get("lieferlaenge")):
+            out.append(f"Preis {s.replace('|', ' / ')}: {text(z)} → {text(n)}")
+    for w, t in alt["tonnenpreise"].items():
+        if neu["tonnenpreise"].get(w) != t:
+            out.append(f"Tonnenpreis {w}: {zahl(t)} → {zahl(neu['tonnenpreise'].get(w))} €/t")
+    for o, a in alt["aufpreise"].items():
+        if neu["aufpreise"].get(o) != a:
+            out.append(f"Aufpreis {o}: {zahl(a)} → {zahl(neu['aufpreise'].get(o))} €/m")
+    if alt["schneiddaten"] != neu["schneiddaten"]:
+        out.append(f"Schneiddaten der Maschine {pb.get('maschine')} geändert")
+    return out
+
+
 def _schritt_satz(zb, schritt):
     """(Stundensatz-ID, €/h) eines Arbeitsschritts; fehlt er, wie bisher der Maschinenstundensatz."""
     sid = (schritt or {}).get("satz") or SATZ_MASCHINE

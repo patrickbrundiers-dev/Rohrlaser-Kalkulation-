@@ -130,7 +130,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     fehlen), hinweise (Positionen mit Hinweis)."""
     def preis(i):
         z = kalk_zeilen[i]
-        return round(_wert(z["preis_teil"]) if z else 0, 2)
+        return kaufm_runden(_wert(z["preis_teil"]) if z else 0, 2)
 
     def _zus(i):
         return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
@@ -147,22 +147,22 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         if not satz:
             pr, menge = preis(i), _wert(p.get("stueck"))
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=angebotstext(p, k, dezimal, _zus(i)),
-                               menge=p.get("stueck"), preis=pr, gesamt=round(pr * menge, 2)))
+                               menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge, 2)))
         elif satz not in erledigt:
             erledigt.add(satz)
             teile = [(j, q) for j, q in enumerate(positionen) if _satz(q.get("satz")) == satz]
             n = max((_wert(q.get("stueck")) / je(q) for _, q in teile), default=0)
             saetze = max(1, int(n + 0.5))
-            satzpreis = round(sum(preis(j) * je(q) for j, q in teile), 2)
+            satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile), 2)
             zeilen.append(dict(art="satz", pos=None, artikel=None, text=f"Satz {satz}", menge=saetze,
-                               preis=satzpreis, gesamt=round(satzpreis * saetze, 2)))
+                               preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
                                    text=f"   {kaufm_runden(je(q), 0):.0f} x {angebotstext(q, k, dezimal, _zus(j))}",
                                    menge=None, preis=None, gesamt=None))
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if p.get("profil_id") not in (None, "") and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
-    netto = sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None)
+    netto = kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2)    # Summe ohne Gleitkommareste
     satz_mwst = _wert(einst.get("mwst"))
     mwst = kaufm_runden(netto * satz_mwst, 2)
     staffeln = []
@@ -185,7 +185,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             staffeln.append(dict(art="teil", pos=z["schluessel"], text=(z.get("bezeichnung") or "") + zus,
                                  menge=z["menge"], bereich=bereich, preis=z["preis_einheit"],
                                  gesamt=z["preis_gesamt"]))
-    return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=netto + mwst, mwst_satz=satz_mwst, staffeln=staffeln,
+    return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=kaufm_runden(netto + mwst, 2), mwst_satz=satz_mwst, staffeln=staffeln,
                 hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[])
 
 

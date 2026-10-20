@@ -8,6 +8,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import optimierung as opt  # noqa: E402
 from rohrlaser.optimierung import (Gruppe, Teil, manuell, optimiere, pruefe, untergrenze,  # noqa: E402
                          verbrauch, gemeinsame_schnitte)
 
@@ -56,5 +57,53 @@ for lauf in range(150):
     r = optimiere(g)
     pruefe([g], [r])
     assert untergrenze(g) <= len(r) <= len(manuell(g)), (lauf, untergrenze(g), len(r), len(manuell(g)))
+
+    assert untergrenze(g) <= g.schranke <= len(r), (lauf, g.schranke, len(r))
+print("OK    Zufallsangebote: nie überbelegt, Untergrenze ≤ Schranke ≤ Stangen ≤ manuell")
+
+
+# 5) Schranke der Schnittmuster ist eine echte Untergrenze: kleine Gruppen vollständig durchsuchen
+def bisher(g):
+    """Stangenzahl nur mit First-/Best-Fit (Verfahren vor den Schnittmustern)."""
+    return min(len(opt.aufloesen(g, v(g, g.teile))) for v in (opt.first_fit, opt.best_fit))
+
+
+rnd = random.Random(815)
+geprueft = 0
+for lauf in range(120):
+    tl = []
+    for z in range(rnd.randint(2, 4)):
+        tl += teile(rnd.randint(1, 4), round(rnd.uniform(150, 800), 1), a=rnd.random() < 0.8, b=rnd.random() < 0.8,
+                    zeile=13 + z)
+    g = gruppe(tl)
+    st, schranke = opt.muster_optimierung(g)
+    pruefe([g], [[opt.anordnen(s) for s in st]])
+    alt = opt.EXAKT_MAX_KNOTEN
+    opt.EXAKT_MAX_KNOTEN = 10 ** 7
+    beste, ganz = opt.exakt(g, len(st))
+    opt.EXAKT_MAX_KNOTEN = alt
+    assert ganz
+    optimum = len(beste) if beste is not None else len(st)
+    assert schranke <= optimum <= len(st), (lauf, schranke, optimum, len(st))
+    geprueft += schranke > untergrenze(g)
+print(f"OK    Schranke der Schnittmuster nie über dem Optimum (120 Gruppen vollständig durchsucht, "
+      f"{geprueft} davon mit Schranke über der einfachen Untergrenze)")
+
+# 6) Große Aufträge (40 Gruppen, 34–296 Teile, 3–12 Längen): reproduzierbar besser als First-/Best-Fit
+rnd = random.Random(1)
+summe = summe_bisher = bewiesen = 0
+for lauf in range(40):
+    laengen = [(rnd.choice([180, 250, 333, 420, 575, 780, 950, 1240, 1500, 1830, 2100, 2650]) + rnd.randint(0, 40),
+                rnd.random() < 0.7) for _ in range(rnd.randint(3, 12))]
+    g = Gruppe("P", "S", 6000, 10, 80, 2, 3)
+    g.teile = [Teil(i, i, f"A{i}", k + 1, L, ger, ger, 100, 100) for i, (L, ger) in enumerate(laengen)
+               for k in range(rnd.randint(2, 40))]
+    r = optimiere(g)
+    pruefe([g], [r])
+    b = bisher(g)
+    assert len(r) <= b, (lauf, len(r), b)
+    summe, summe_bisher, bewiesen = summe + len(r), summe_bisher + b, bewiesen + g.bewiesen
+assert (summe, summe_bisher, bewiesen) == (1250, 1271, 38), (summe, summe_bisher, bewiesen)
+print(f"OK    40 große Gruppen: {summe} statt {summe_bisher} Stangen, {bewiesen} nachweislich optimal")
 
 print("OK: Optimierung")

@@ -935,6 +935,11 @@ def kapitel_angebot(i):
     i.abschnitt("Übersicht")
     i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
             "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, Kapitel 8.2).",
+            "Darunter der <b>Preisstand</b>: <i>Materialpreise: aktuelle Stammdaten</i>, solange noch kein "
+            "Angebots-PDF erzeugt wurde, danach <i>Preise festgeschrieben am …</i>. Haben sich die Stammdaten "
+            "seitdem geändert, steht er gelb mit der Anzahl der Änderungen (Mauszeiger darauf zeigt sie einzeln), "
+            "und der Knopf <b>Aktuelle Preise übernehmen …</b> erscheint (Kapitel „Ausgabe“, Abschnitt "
+            "<i>Preise festschreiben</i>).",
             "Darunter groß <b>Herstellkosten</b> und <b>Verkaufspreis</b>, damit sie auch auf kleinen Bildschirmen "
             "ohne Rollen zu sehen sind. Vor dem Optimieren (oder wenn die Optimierung veraltet ist) stehen sie grau "
             "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
@@ -1232,8 +1237,13 @@ def kapitel_optimieren(i):
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, ein "
             "Einstich gespart). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Teile werden dafür "
             "gedreht; schräge Enden kommen an Stangenanfang oder -ende.",
-            "Verfahren: First-Fit und Best-Fit, danach Nachbesserung; bei Gruppen bis 60 Teile zusätzlich eine "
-            "exakte Suche, die beweist, ob es mit weniger Stangen ginge.",
+            "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
+            "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
+            "besten Schnittmuster je Stange und die Kombination mit den wenigsten Stangen. Sie liefert zugleich eine "
+            "Schranke, unter die es nicht gehen kann; wird sie erreicht, ist das Ergebnis nachweislich optimal, "
+            "auch bei großen Aufträgen. Bei Gruppen bis 60 Teile folgt bei Bedarf noch eine exakte Suche. Alle "
+            "Suchen sind nach Schritten begrenzt, nicht nach Zeit: dasselbe Angebot ergibt auf jedem Rechner "
+            "denselben Schnittplan.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet")
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
@@ -1657,7 +1667,8 @@ def kapitel_ausgabe(i, seiten, ablage):
         (1, "<b>Angebot (PDF)</b>: Briefkopf, Kunde mit Anschrift aus dem Kundenstamm, Positionen mit "
             "Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe mit MwSt., Preistreppe der Staffeln, "
             "Zahlungsbedingung (z. B. „Zahlung innerhalb 10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“) "
-            "und Bedingungen."),
+            "und Bedingungen. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
+            "Gesamtpreis jeder Zeile ist Stückpreis × Menge, die Summe genau die Summe der Zeilen."),
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage."),
@@ -1665,6 +1676,21 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
     i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
+    i.abschnitt("Preise festschreiben")
+    i.text("Beim Erzeugen des <b>Angebots-PDF</b> speichert das Programm im Angebot die Materialpreise und "
+           "Schneiddaten, mit denen es gerechnet hat: die Zeilen aus <i>Preise</i> je Profil + Werkstoff der "
+           "Positionen (auch, dass es keine Zeile gab und der Tonnenpreis galt), die Tonnenpreise der Werkstoffe, "
+           "die Aufpreise der Oberflächen und die Schneiddaten der gewählten Maschine. Ändern sich danach die "
+           "Stammdaten, z. B. der Stahlpreis, bleibt der Preis des Angebots wie im PDF beim Kunden.")
+    i.liste("Neue Positionen mit anderem Profil, Werkstoff oder anderer Oberfläche rechnen mit den aktuellen "
+            "Stammdaten; das nächste Angebots-PDF nimmt sie dazu, schon festgeschriebene Werte bleiben.",
+            "Wird eine andere Maschine gewählt, gelten deren aktuelle Schneiddaten.",
+            "<b>Aktuelle Preise übernehmen …</b> in der Übersicht (nur sichtbar, wenn die Stammdaten abweichen) "
+            "zeigt die Änderungen und setzt das Angebot nach Rückfrage auf die aktuellen Stammdaten; der Preis "
+            "ändert sich dann. Das nächste Angebots-PDF schreibt die neuen Werte wieder fest.",
+            "Eine <b>Kopie</b> eines Angebots rechnet mit den aktuellen Stammdaten.",
+            "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert (Kapitel „Zeiten & "
+            "Arbeitskosten“), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")
     i.abschnitt("Angebot")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
     i.abschnitt("Werkstattpapiere")
@@ -1911,6 +1937,9 @@ def kapitel_fragen(i):
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Übersicht: <b>Preise festgeschrieben am …, Stammdaten seitdem geändert</b>",
+         "Materialpreise oder Schneiddaten wurden nach dem Angebots-PDF geändert; das Angebot rechnet weiter mit den "
+         "alten Werten. Gewollt? Dann nichts tun. Sonst <b>Aktuelle Preise übernehmen …</b> (Kapitel „Ausgabe“)."],
         ["Frachtkosten: <b>keiner Zone zugeordnet</b>", "Für die PLZ gibt es keine PLZ-Zuordnung. Mit Standardzone "
          "rechnet das Programm weiter (gelb), ohne nicht (rot). Zuordnung im Unterreiter Frachtzonen und "
          "Postleitzahlen ergänzen (Kapitel 12)."],
