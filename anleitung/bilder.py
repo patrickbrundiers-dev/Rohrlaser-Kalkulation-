@@ -26,7 +26,7 @@ sys.path.insert(0, str(WURZEL / "tests"))
 
 from PySide6.QtCore import QLocale, QPoint, QRect, QRectF, Qt, QTimer  # noqa: E402
 from PySide6.QtGui import QColor, QFont, QPainter, QPen  # noqa: E402
-from PySide6.QtWidgets import QApplication, QComboBox, QMessageBox, QPushButton, QSpinBox  # noqa: E402
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QComboBox, QMessageBox, QPushButton, QSpinBox  # noqa: E402
 
 from abnahme_angebote import ANGEBOTE  # noqa: E402
 
@@ -143,6 +143,7 @@ def reiter_waehlen(s, text):
 
 
 def main(ziel):
+    from rohrlaser import staffeln
     from rohrlaser.datenbank import Datenbank
     from rohrlaser.step_dialog import StepPruefDialog
     from rohrlaser.fenster import Hauptfenster
@@ -339,11 +340,44 @@ def main(ziel):
     s.neu_laden()
     reiter_waehlen(s, "Staffeln")
     bereit()
+    st = s.st_seite
     foto.foto("staffeln_vorher", f, [(knopf(s, "Neue Stufe"), 1), (knopf(s, "Stufen aus Angebot"), 2),
-                                     (s.staffel_ansicht, 3), (knopf(s, "Staffelpreise rechnen"), 4)],
+                                     (s.staffel_ansicht, 3), (knopf(s, "Staffelpreise rechnen"), 4),
+                                     (st.erweitert, 5)],
               ausschnitt=reiterflaeche(s))
     s.staffelpreise_rechnen()
-    foto.foto("staffeln", f, ausschnitt=reiterflaeche(s))
+    spalte_st = [x.name for x in staffeln.STUFE_FELDER].index
+    for zeile, zuschlag in enumerate((20, 15, 10, 5)):      # Materialzuschlag je Stufe (Beispiel)
+        st.modell.setData(st.modell.index(zeile, spalte_st("mat_zuschlag")), str(zuschlag))
+    st.vorher = {}
+    st.stand()
+    oben_vorher = s.teiler.sizes()
+    s.teiler.setSizes([0, sum(oben_vorher)])          # Kopf des Angebots zuklappen: mehr Platz fürs Ergebnis
+    st.teiler.setSizes([140, 2000])
+    baum = st.baum
+    baum.collapseAll()
+    baum.zeile("material").setExpanded(True)
+    QApplication.processEvents()
+    def rect(schl):
+        r = baum.visualItemRect(baum.zeile(schl))
+        r.setWidth(baum.columnWidth(0))
+        return (baum.viewport(), r)
+    foto.foto("staffeln", f, [((st.ansicht.viewport(), st.ansicht.visualRect(
+        st.modell.index(0, spalte_st("mat_zuschlag")))), 1), (rect("material"), 2), (rect("selbst"), 3),
+        (rect("vk"), 4), (rect("brutto"), 5), (st.vergleich, 6), (st.info, 7)], ausschnitt=reiterflaeche(s))
+    st.modell.setData(st.modell.index(3, spalte_st("ruesten")), staffeln.SEPARAT)
+    st.modell.setData(st.modell.index(3, spalte_st("neben_einheit")), "12")
+    st.erweitert.setChecked(True)
+    for schl in ("fertigung", "ruesten", "gemeinkosten"):
+        baum.zeile(schl).setExpanded(True)
+    baum.zeile("material").setExpanded(False)
+    QApplication.processEvents()
+    baum.scrollToItem(baum.zeile("fertigung"), QAbstractItemView.PositionAtTop)
+    QApplication.processEvents()
+    foto.foto("staffeln_details", f, [(rect("fertigung"), 1), (rect("ruesten"), 2), (rect("gemeinkosten"), 3),
+                                      (rect("einmalig"), 4), (rect("aenderung"), 5)], ausschnitt=reiterflaeche(s))
+    st.erweitert.setChecked(False)
+    s.teiler.setSizes(oben_vorher)
 
     # 8a) Nachkalkulation nach dem Auftrag: eine Stange QR 40x40x3 mehr, Laser etwas länger, Rechnung Verzinkerei
     reiter_waehlen(s, "Nachkalkulation")

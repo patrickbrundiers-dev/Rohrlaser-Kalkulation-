@@ -6,7 +6,10 @@ PRAGMA user_version, damit spätere Versionen alte Dateien erweitern können (1 
 Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell, 6 = Aufträge heißen Angebote,
 7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf,
 8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position, 10 = Kalkulationswerte je Angebot,
-11 = Werkstoff-Kategorien, Oberflächen, Schneiddaten je Kategorie und Schneidgas).
+11 = Werkstoff-Kategorien, Oberflächen, Schneiddaten je Kategorie und Schneidgas, 14 = Werte je Staffel:
+Menge bis, Materialzuschlag, Gewinn, Nebenkosten usw.).
+Vor dem Erweitern einer Datei älterer Version legt das Programm eine Sicherung an (Daten/Sicherung, Zusatz
+'vor_Schema_<neu>'); mit ihr und der alten Programmversion lässt sich jede Umstellung rückgängig machen.
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
 Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt, Dateien vor Schema 11
 bekommen Kategorien, die neuen Beispiel-Werkstoffe und -Oberflächen und Schneiddaten je Kategorie.
@@ -17,11 +20,12 @@ import sqlite3
 from pathlib import Path
 
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
+from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 13     # 13: Stundensätze und Arbeitsschritte, Snapshot 'zeitbasis' je Angebot
+SCHEMA_VERSION = 14     # 14: Werte je Staffel (Materialzuschlag, Gewinn, Nebenkosten …), leer = Wert des Angebots
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -53,6 +57,8 @@ class Datenbank:
         if version > SCHEMA_VERSION:
             raise RuntimeError(f"Die Datendatei {self.pfad} stammt von einer neueren Programmversion "
                                f"(Schema {version}). Bitte das Programm aktualisieren.")
+        if 0 < version < SCHEMA_VERSION:    # Rückfall: Stand vor der Umstellung sichern
+            self.sicherung(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
         with self.con:
             if 0 < version < 6:
                 self._umbenennen()
@@ -85,7 +91,8 @@ class Datenbank:
             if "zeitbasis" not in spalten_a:          # Datei vor Schema 13 (alte Angebote: ohne Snapshot)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN zeitbasis TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in TABELLEN] + [("angebote", KOPF),
-                                                                            ("positionen", POSITIONEN.felder)]:
+                                                                            ("positionen", POSITIONEN.felder),
+                                                                            ("staffeln", STUFE_FELDER)]:
                 vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
@@ -429,13 +436,14 @@ class Datenbank:
         werte = werte or {}
         nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM staffeln WHERE angebot_id=?",
                               (angebot_id,)).fetchone()[0]
+        namen = [f.name for f in STUFE_FELDER]
         with self.con:
-            return self.con.execute("INSERT INTO staffeln (angebot_id, nr, schluessel, menge, bemerkung) VALUES "
-                                    "(?, ?, ?, ?, ?)", (angebot_id, nr, werte.get("schluessel"), werte.get("menge"),
-                                                        werte.get("bemerkung"))).lastrowid
+            return self.con.execute(f'INSERT INTO staffeln (angebot_id, nr, {", ".join(chr(34) + n + chr(34) for n in namen)}) '
+                                    f'VALUES (?, ?, {", ".join("?" * len(namen))})',
+                                    [angebot_id, nr] + [werte.get(n) for n in namen]).lastrowid
 
     def staffel_aendern(self, staffel_id, feld, wert):
-        if feld not in ("schluessel", "menge", "bemerkung"):
+        if feld not in {f.name for f in STUFE_FELDER}:
             raise KeyError(feld)
         with self.con:
             self.con.execute(f'UPDATE staffeln SET "{feld}"=? WHERE id=?', (wert, staffel_id))

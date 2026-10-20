@@ -154,11 +154,12 @@ def angebot_pdf(pfad, kopf, ang, einst):
         for z in ang["staffeln"]:
             if z["art"] == "satz":
                 fett.append(len(daten))
-            daten.append([_p(z["pos"]), _p(z["text"], S_FETT if z["art"] == "satz" else S), _z(z["menge"], 0),
+            daten.append([_p(z["pos"]), _p(z["text"], S_FETT if z["art"] == "satz" else S), z.get("bereich") or _z(z["menge"], 0),
                           _z(z["preis"]), _z(z["gesamt"])])
         inhalt += [Spacer(1, 6 * mm), KeepTogether([
             _p("Staffelpreise", S_H2),
-            _p("Je Stufe neu gerechnet: Rüsten, Stangenwechsel und Verschnitt fallen je Menge neu an.", S_KLEIN),
+            _p("Je Stufe neu gerechnet: Rüsten, Stangenwechsel und Verschnitt fallen je Menge neu an. "
+               "Gesamtpreis für die erste Menge der Stufe.", S_KLEIN),
             Spacer(1, 2 * mm),
             _tabelle(daten, [14 * mm, 98 * mm, 20 * mm, 27 * mm, 27 * mm], rechts=(2, 3, 4), fett_zeilen=fett)])]
     doc.build(inhalt, canvasmaker=leinwand)

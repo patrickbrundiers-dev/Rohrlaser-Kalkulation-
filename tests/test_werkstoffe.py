@@ -163,7 +163,7 @@ def schema10(pfad, eigene):
 
 # a) unveränderte Beispieldaten: Schneiddaten werden durch die neuen Beispielwerte ersetzt
 d = schema10(tmp / "b" / "rohrlaser.db", eigene=False)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 13
+assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 14
 assert d.anzahl("schneiddaten") == len(beispiel_schneiddaten()) and d.anzahl("oberflaechen") == 6
 assert d.anzahl("werkstoffe") == 12 and all(w["kategorie"] for w in d.zeilen("werkstoffe"))
 assert d.einstellung("stammdaten_herkunft") == "Beispieldaten"
