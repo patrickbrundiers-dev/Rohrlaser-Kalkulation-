@@ -651,6 +651,10 @@ def kapitel_einstellungen(i):
         ["Kalkulation", "Zuschlag Material, Zuschlag Fertigung, Zuschlag Fremdleistung, Gewinn",
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
          "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn)."],
+        ["Kalkulation", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)",
+         "gilt für Zukaufartikel, die weder einen eigenen Aufschlag noch einen Aufschlag ihrer Kategorie haben; "
+         "leer = kein Standardaufschlag, das Programm weist dann darauf hin. Neue Werte gelten nur für Zukaufteile, "
+         "die danach ins Angebot kommen."],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
         ["Kalkulation", "Programmierkosten je Teil (Position) [€]",

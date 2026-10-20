@@ -55,6 +55,8 @@ POSITIONEN = Tabelle(
      Feld("zeit_manuell", "Schneidzeit je Teil [s]", "zahl", 0, 100000, stellen=1, breite=85),
      # Zusatzarbeiten als JSON-Liste [{name, menge, preis, text}] (Dialog 'Zusatzarbeiten …')
      Feld("zusatz", "Zusatzarbeiten", "zusatz", breite=220),
+     # Zukaufteile als JSON-Liste [{artikel_id, menge (je Teil), aufschlag (%), stand}] (Dialog 'Zukaufteile …')
+     Feld("zukauf", "Zukaufteile", "zukauf", breite=220),
      # STEP-Werte
      Feld("a_gerade", "Anfangsschnitt gerade", "auswahl", auswahl="janein", breite=70),
      Feld("a_schnitt", "Anfangsschnitt [mm]", "zahl", 0, 100000, stellen=1, breite=75),

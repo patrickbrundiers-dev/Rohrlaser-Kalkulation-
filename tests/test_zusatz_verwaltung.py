@@ -365,8 +365,8 @@ con.execute("PRAGMA user_version=14")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 15
-assert len(list((alt.parent / "Sicherung").glob("*vor_Schema_15.db"))) == 1
+assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 15
+assert len(list((alt.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}.db"))) == 1
 nachher = d.zeilen("zusatzarbeiten")
 assert [{k: v for k, v in z.items() if k not in NEU} for z in nachher] == vorher
 assert all(z[n] is None for z in nachher for n in NEU)

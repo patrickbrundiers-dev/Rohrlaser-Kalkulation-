@@ -7,7 +7,8 @@ Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell,
 7 = Kunden und Zahlungsbedingungen mit Skonto im Kopf,
 8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position, 10 = Kalkulationswerte je Angebot,
 11 = Werkstoff-Kategorien, Oberflächen, Schneiddaten je Kategorie und Schneidgas, 14 = Werte je Staffel:
-Menge bis, Materialzuschlag, Gewinn, Nebenkosten usw.).
+Menge bis, Materialzuschlag, Gewinn, Nebenkosten usw., 15 = Zusatzarbeiten mit Arbeitszeit und Material,
+16 = Zukaufartikel mit Kategorien, Lieferanten, Einkaufspreisen und Preisänderungen, Zukaufteile je Position).
 Vor dem Erweitern einer Datei älterer Version legt das Programm eine Sicherung an (Daten/Sicherung, Zusatz
 'vor_Schema_<neu>'); mit ihr und der alten Programmversion lässt sich jede Umstellung rückgängig machen.
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
@@ -19,13 +20,14 @@ import json
 import sqlite3
 from pathlib import Path
 
+from . import zukauf
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 15     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 16     # 16: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -64,7 +66,7 @@ class Datenbank:
                 self._umbenennen()
             if 0 < version < 11:          # Schlüssel der Schneiddaten mit Kategorie und Schneidgas
                 self.con.execute('DROP INDEX IF EXISTS "schneiddaten_schluessel"')
-            for t in TABELLEN:
+            for t in TABELLEN + zukauf.TABELLEN:
                 spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in t.felder)
                 self.con.execute(f'CREATE TABLE IF NOT EXISTS "{t.name}" (id INTEGER PRIMARY KEY, {spalten})')
             self.con.execute("CREATE TABLE IF NOT EXISTS einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
@@ -90,14 +92,16 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN nachkalkulation TEXT")
             if "zeitbasis" not in spalten_a:          # Datei vor Schema 13 (alte Angebote: ohne Snapshot)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN zeitbasis TEXT")
-            for tabelle, felder in [(t.name, t.felder) for t in TABELLEN] + [("angebote", KOPF),
+            for tabelle, felder in [(t.name, t.felder) for t in TABELLEN + zukauf.TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
                 vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
                         self.con.execute(f'ALTER TABLE "{tabelle}" ADD COLUMN "{f.name}" {SQL_ART.get(f.art, "TEXT")}')
-            for t in TABELLEN:                         # nach den neuen Spalten: Schlüssel können sie enthalten
+            for t in TABELLEN + zukauf.TABELLEN:       # nach den neuen Spalten: Schlüssel können sie enthalten
+                if not t.schluessel:
+                    continue
                 # leere Felder im Schlüssel (Schneiddaten: Werkstoff-ID oder Kategorie) zählen als gleich
                 schl = ", ".join(f'"{s}"' if t.feld(s).pflicht else f"""COALESCE("{s}", '')""" for s in t.schluessel)
                 self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
@@ -114,6 +118,10 @@ class Datenbank:
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
                 if not self.anzahl("arbeitsschritte"):
                     self._einfuegen("arbeitsschritte", beispiel_arbeitsschritte())
+            self.con.execute("CREATE INDEX IF NOT EXISTS zukauf_bezug_artikel ON zukauf_bezug (artikel_id)")
+            if version < 16 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 16
+                self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
+                                     [(n,) for n in zukauf.KATEGORIEN_START])
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -171,7 +179,7 @@ class Datenbank:
     def _stammdaten_geaendert(self, tabelle):
         """Nach einer Änderung von Hand gelten die Stammdaten nicht mehr als Beispielwerte (Startseite).
         Kunden zählen dabei nicht: sie ändern keine Rechenwerte."""
-        if tabelle in TABELLE and tabelle != "kunden":
+        if tabelle in TABELLE and tabelle != "kunden" and not tabelle.startswith("zukauf_"):
             self._einstellung_schreiben("stammdaten_herkunft", "eigene Werte")
             self._einstellung_schreiben("stammdaten_stand", self._jetzt())
 
@@ -281,6 +289,164 @@ class Datenbank:
         except sqlite3.IntegrityError:
             raise ValueError(f"Eine Zusatzarbeit '{werte['name']}' gibt es schon.")
 
+    # -------------------------------------------------------------- Zukaufartikel
+    def zukauf_kategorien(self):
+        """{Name: Zeile} der Kategorien der Zukaufartikel."""
+        return {z["name"]: z for z in self.zeilen("zukauf_kategorien") if z.get("name")}
+
+    def zukauf_artikel_liste(self):
+        """Alle Zukaufartikel, je mit 'bezuege' (Einkauf je Lieferant, bevorzugter zuerst)."""
+        bezuege = {}
+        for b in self.zeilen("zukauf_bezug"):
+            bezuege.setdefault(b["artikel_id"], []).append(b)
+        out = []
+        for a in self.zeilen("zukauf_artikel"):
+            a["bezuege"] = sorted(bezuege.get(a["id"], []), key=lambda b: b.get("bevorzugt") != "ja")
+            out.append(a)
+        return out
+
+    def zukauf_artikel(self, artikel_id):
+        """Zukaufartikel mit 'bezuege' oder None."""
+        r = self.con.execute("SELECT * FROM zukauf_artikel WHERE id=?", (artikel_id,)).fetchone()
+        if r is None:
+            return None
+        a = dict(r)
+        a["bezuege"] = sorted((dict(b) for b in self.con.execute(
+            "SELECT * FROM zukauf_bezug WHERE artikel_id=? ORDER BY id", (artikel_id,))),
+            key=lambda b: b.get("bevorzugt") != "ja")
+        return a
+
+    def zukauf_speichern(self, artikel_id, werte, bezuege, bemerkung=None):
+        """Zukaufartikel anlegen (artikel_id None) oder ersetzen, mit allen Einkaufsbedingungen. Prüft Eingaben
+        (zukauf.artikel_fehler) und eindeutige Artikelnummer (ValueError). Änderungen an Einkaufspreisen und
+        Aufschlag kommen ins Protokoll der Preisänderungen. Ergebnis: ID."""
+        felder = [f.name for f in zukauf.ARTIKEL.felder if f.name not in ("angelegt", "geaendert")]
+        werte = {n: werte.get(n) for n in felder}
+        for n in ("artikelnr", "bezeichnung"):
+            if isinstance(werte[n], str):
+                werte[n] = werte[n].strip() or None
+        bezuege = [dict(b) for b in bezuege or () if any(b.get(f.name) not in (None, "", [])
+                                                         for f in zukauf.BEZUG.felder if f.name != "artikel_id")]
+        for b in bezuege:
+            if isinstance(b.get("lieferant"), str):
+                b["lieferant"] = b["lieferant"].strip() or None
+        fehler = zukauf.artikel_fehler(werte, bezuege)
+        if fehler:
+            raise ValueError("; ".join(fehler))
+        if werte["artikelnr"]:
+            r = self.con.execute("SELECT id FROM zukauf_artikel WHERE artikelnr=? AND id IS NOT ?",
+                                 (werte["artikelnr"], artikel_id)).fetchone()
+            if r:
+                raise ValueError(f"Artikelnummer '{werte['artikelnr']}' gibt es schon.")
+        if bezuege and not any(b.get("bevorzugt") == "ja" for b in bezuege):
+            bezuege[0]["bevorzugt"] = "ja"
+        for b in bezuege:
+            if isinstance(b.get("preise"), list):
+                b["preise"] = json.dumps(b["preise"], ensure_ascii=False)
+        alt = self.zukauf_artikel(artikel_id) if artikel_id is not None else None
+        jetzt = self._jetzt()
+        bekannt = {z["name"] for z in self.zeilen("zukauf_lieferanten")}
+        neue_lieferanten = sorted({b["lieferant"].strip() for b in bezuege if (b.get("lieferant") or "").strip()} - bekannt)
+        bfelder = [f.name for f in zukauf.BEZUG.felder if f.name != "artikel_id"]
+        with self.con:
+            if alt is None:
+                namen = felder + ["angelegt", "geaendert"]
+                artikel_id = self.con.execute(
+                    f'INSERT INTO zukauf_artikel ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
+                    f'VALUES ({", ".join("?" * len(namen))})', [werte[n] for n in felder] + [jetzt, jetzt]).lastrowid
+            else:
+                self.con.execute(f'UPDATE zukauf_artikel SET {", ".join(chr(34) + n + chr(34) + "=?" for n in felder)}, '
+                                 "geaendert=? WHERE id=?", [werte[n] for n in felder] + [jetzt, artikel_id])
+                self.con.execute("DELETE FROM zukauf_bezug WHERE artikel_id=?", (artikel_id,))
+            # Lieferanten, die es noch nicht gibt, werden mit Namen angelegt
+            self.con.executemany("INSERT INTO zukauf_lieferanten (name) VALUES (?)", [(n,) for n in neue_lieferanten])
+            for b in bezuege:
+                self.con.execute(f'INSERT INTO zukauf_bezug (artikel_id, {", ".join(chr(34) + n + chr(34) for n in bfelder)}) '
+                                 f'VALUES (?, {", ".join("?" * len(bfelder))})', [artikel_id] + [b.get(n) for n in bfelder])
+            self._zukauf_protokoll(artikel_id, alt, dict(werte, bezuege=bezuege), jetzt, bemerkung)
+        return artikel_id
+
+    PROTOKOLL_ARTIKEL = ("aufschlag_quelle", "aufschlag_methode", "aufschlag_wert", "aufschlag_staffel")
+    PROTOKOLL_BEZUG = ("preise", "preiseinheit", "rabatt", "verpackung", "mindermenge", "mindermenge_bis", "fracht",
+                       "fracht_einheit", "weitere", "mindestmenge", "vpe", "gueltig_von", "gueltig_bis")
+
+    def _zukauf_protokoll(self, artikel_id, alt, neu, jetzt, bemerkung):
+        """Preisänderungen protokollieren (alt None = neuer Artikel: Einkaufspreise als 'neu')."""
+        name = " ".join(x for x in (neu.get("artikelnr"), neu.get("bezeichnung")) if x)
+        zeilen = []
+        leer = lambda w: None if w in (None, "", "[]") else w
+        text = lambda w: "" if w in (None, "") else (zukauf.staffel_text(w) if isinstance(w, str) and w.startswith("[")
+                                                    else zukauf.zahl_text(w) if isinstance(w, (int, float)) else str(w))
+        if alt is not None:
+            for f in self.PROTOKOLL_ARTIKEL:
+                if leer(alt.get(f)) != leer(neu.get(f)):
+                    zeilen.append(("", zukauf.ARTIKEL.feld(f).titel, text(alt.get(f)), text(neu.get(f))))
+        alt_b = {b.get("lieferant") or "": b for b in (alt or {}).get("bezuege", ())}
+        neu_b = {b.get("lieferant") or "": b for b in neu.get("bezuege", ())}
+        for lief in list(alt_b) + [n for n in neu_b if n not in alt_b]:
+            a, b = alt_b.get(lief), neu_b.get(lief)
+            if a is None:
+                zeilen.append((lief, "Lieferant neu", "", text(b.get("preise"))))
+            elif b is None:
+                zeilen.append((lief, "Lieferant entfernt", text(a.get("preise")), ""))
+            else:
+                for f in self.PROTOKOLL_BEZUG:
+                    if leer(a.get(f)) != leer(b.get(f)):
+                        zeilen.append((lief, zukauf.BEZUG.feld(f).titel, text(a.get(f)), text(b.get(f))))
+        self.con.executemany("INSERT INTO zukauf_historie (datum, artikel_id, artikel, lieferant, feld, alt, neu, "
+                             "bemerkung) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                             [(jetzt, artikel_id, name, l, f, a, n, bemerkung) for l, f, a, n in zeilen])
+
+    def zukauf_status(self, artikel_id, status):
+        """Artikel archivieren oder wieder aktivieren (Positionen mit dem Artikel rechnen mit ihrem Preisstand weiter)."""
+        with self.con:
+            self.con.execute("UPDATE zukauf_artikel SET status=?, geaendert=? WHERE id=?",
+                             (status, self._jetzt(), artikel_id))
+
+    def zukauf_historie(self, artikel_id=None):
+        """Preisänderungen, neueste zuerst."""
+        sql = "SELECT * FROM zukauf_historie" + (" WHERE artikel_id=?" if artikel_id is not None else "")
+        return [dict(r) for r in self.con.execute(sql + " ORDER BY datum DESC, id DESC",
+                                                  (artikel_id,) if artikel_id is not None else ())]
+
+    def zukauf_stand(self, artikel_id, lieferant=None):
+        """Aktueller Preisstand eines Artikels für eine Position (zukauf.stand) oder None."""
+        a = self.zukauf_artikel(artikel_id)
+        if a is None:
+            return None
+        return zukauf.stand(a, zukauf.bezug_waehlen(a["bezuege"], lieferant), self.zukauf_kategorien(),
+                            self.einstellung("zukauf_aufschlag"))
+
+    def zukauf_positionen(self, artikel_id=None):
+        """[(Positions-ID, Angebots-ID, Angebotsnummer, Liste)] aller Positionen mit Zukaufteilen (nur mit diesem
+        Artikel, falls angegeben)."""
+        out = []
+        for pid, aid, nummer, roh in self.con.execute(
+                "SELECT p.id, p.angebot_id, a.nummer, p.zukauf FROM positionen p JOIN angebote a ON a.id = p.angebot_id "
+                "WHERE p.zukauf IS NOT NULL AND p.zukauf <> ''"):
+            liste = zukauf.json_liste(roh)
+            if artikel_id is None or any(e.get("artikel_id") == artikel_id for e in liste):
+                out.append((pid, aid, nummer, liste))
+        return out
+
+    def zukauf_verwendung(self, artikel_id):
+        """Wo ein Artikel verwendet wird: {angebote: [Nummer], positionen: Anzahl, veraltet: [Nummer] (Angebote,
+        deren gespeicherter Preisstand vom aktuellen abweicht)}."""
+        aktuell = {}
+        treffer = self.zukauf_positionen(artikel_id)
+        veraltet = set()
+        for _, _, nummer, liste in treffer:
+            for e in liste:
+                if e.get("artikel_id") != artikel_id:
+                    continue
+                lief = ((e.get("stand") or {}).get("bezug") or {}).get("lieferant")
+                if lief not in aktuell:
+                    aktuell[lief] = zukauf.stand_kennung(self.zukauf_stand(artikel_id, lief))
+                if zukauf.stand_kennung(e.get("stand")) != aktuell[lief]:
+                    veraltet.add(nummer or "")
+        return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer),
+                    veraltet=sorted(veraltet))
+
     def stammdaten_ersetzen(self, daten, einstellungen, herkunft):
         """Alle Stammdatentabellen in einem Schritt ersetzen (z. B. Beispieldaten einer neuen Datei).
         daten: {Tabelle: [Zeile, …]}; einstellungen: {Name: Wert}, nur die genannten werden gesetzt."""
@@ -303,7 +469,7 @@ class Datenbank:
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
         return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
-                                                        "stundensaetze")},
+                                                        "stundensaetze", "zukauf_kategorien", "zukauf_lieferanten")},
                            formen, kategorien)
 
     def tabellen(self):
