@@ -520,24 +520,90 @@ def kapitel_stammdaten(i):
     i.abschnitt("Zusatzarbeiten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
-           "STEP-Modell ist. Die Spalte <b>Abrechnung</b> legt fest, wonach gerechnet wird:")
+           "STEP-Modell ist. Der Unterreiter zeigt eine Übersicht; angelegt und geändert wird in einem Formular.")
+    i.bild("stamm_zusatzarbeiten", "Einstellungen, Zusatzarbeiten: Übersicht mit den Beispielwerten", hoehe=110 * mm,
+           legende=[(1, "Unterreiter <b>Zusatzarbeiten</b>"),
+                    (2, "<b>+ Zusatzarbeit hinzufügen</b> öffnet ein leeres Formular"),
+                    (3, "<b>Suchen</b> in Name, Kategorie, Beschreibung und Text im Angebot"),
+                    (4, "Filter <b>Kategorie</b> und <b>Status</b> (Alle, Aktive, Inaktive), daneben <b>Sortieren "
+                        "nach</b> Name, Preis, Zeitaufwand oder Kategorie"),
+                    (5, "<b>Bearbeiten</b>, <b>Duplizieren</b>, <b>Deaktivieren</b> bzw. <b>Aktivieren</b> und "
+                        "<b>Löschen</b> für den markierten Eintrag (auch mit der rechten Maustaste)"),
+                    (6, "Detailbereich: die vollständige Berechnung des markierten Eintrags")])
+    i.liste("Die Übersicht zeigt immer Name, Kategorie, Abrechnung, Preis je Einheit, Verkaufspreis (Vorgaben) und "
+            "Status. Spalten wie Zeitaufwand, Stundensatz, Arbeitskosten, Material, Materialzuschlag, weitere "
+            "Zuschläge oder Mindestbetrag erscheinen nur, wenn ein Eintrag dort einen Wert hat. Bei schmalem Fenster "
+            "fallen weitere Detailspalten weg; sie stehen im Detailbereich.",
+            "Doppelklick auf eine Zeile = <b>Bearbeiten</b>. Inaktive Einträge stehen grau.",
+            "<b>Verkaufspreis (Vorgaben)</b> = Preis je Einheit mit Zuschlag Fertigung bzw. Fremdleistung und Gewinn aus "
+            "den Vorgaben. Im Angebot gelten dessen Werte bzw. die der Staffel.")
+    i.abschnitt("Zusatzarbeit anlegen und bearbeiten")
+    i.text("Anlegen, Bearbeiten und Duplizieren nutzen dasselbe Formular. Es steht rechts neben der Tabelle, bei "
+           "schmalem Fenster (unter 1280 Pixel) in einem eigenen Fenster. Der Preis rechnet sich beim Tippen neu. "
+           "Gespeichert wird erst mit <b>Speichern</b>; <b>Abbrechen</b> verwirft alle Änderungen. Wer mit "
+           "ungespeicherten Änderungen einen anderen Eintrag öffnet, wird gefragt, ob sie verworfen werden sollen.")
+    i.bild("zusatz_formular", "Formular einer neuen Zusatzarbeit (schmales Fenster): 5 min × 60 €/h + 2 € Material "
+                              "+ 10 % = 7,20 €",
+           hoehe=120 * mm, legende=[
+               (1, "<b>Allgemeine Angaben</b>: Name, Kategorie, Beschreibung, Abrechnung und das Häkchen <b>aktiv "
+                   "(im Angebot auswählbar)</b>"),
+               (2, "<b>Arbeitszeit und Kosten</b>: Festpreis je Einheit, Zeitaufwand mit Zeiteinheit (s, min, h), "
+                   "Stundensatz aus den Stammdaten oder eigener Stundensatz; die Arbeitskosten rechnet das Programm"),
+               (3, "<b>Material und Zuschläge</b>: Materialkosten je Einheit und Materialzuschlag in % oder €"),
+               (4, "<b>Weitere Optionen</b> (zugeklappt): weiterer Zuschlag, Mindestbetrag, Fremdleistung, Text im "
+                   "Angebot"),
+               (5, "<b>Ergebnis</b>: Selbstkosten, Zuschläge und Verkaufspreis je Einheit, darunter die "
+                   "Berechnungsgrundlage im Angebot"),
+               (6, "<b>Speichern</b> / <b>Abbrechen</b>")])
+    i.tabelle(["Feld", "Bedeutung"], [
+        ["Zusatzarbeit (Name)", "Pflicht, eindeutig. Umbenennen ändert den Namen auch in den Positionen der Angebote."],
+        ["Kategorie", "frei wählbar, z. B. Oberfläche, Nachbearbeitung, Laser; Filter und Gruppen in der Auswahl"],
+        ["Beschreibung", "kurzer Text für die Übersicht"],
+        ["Abrechnung", "wonach gerechnet wird, siehe Tabelle unten"],
+        ["Aktiv", "nur aktive Zusatzarbeiten lassen sich im Angebot neu wählen"],
+        ["Festpreis [€] bzw. Zeit [s] je Einheit", "fester Preis je Einheit (z. B. Preis der Verzinkerei); bei "
+                                                    "s/Stück die Maschinenzeit je Stück"],
+        ["Zeitaufwand je Einheit, Zeiteinheit", "Arbeitszeit je Einheit in s, min oder h"],
+        ["Stundensatz-ID, Stundensatz eigener", "Stundensatz aus Stundensätze und Zeitvorgaben oder ein eigener Wert "
+                                                "in €/h"],
+        ["Materialkosten je Einheit", "Material, das die Zusatzarbeit selbst braucht (z. B. Schutzkappen)"],
+        ["Materialzuschlag, Materialzuschlag in", "Zuschlag nur auf dieses Material, in % oder als Betrag in €"],
+        ["Weiterer Zuschlag, Weiterer Zuschlag auf", "Zuschlag in % auf Arbeit, Material oder Arbeit und Material"],
+        ["Mindestbetrag je Angebot", "liegt die Summe dieser Zusatzarbeit im ganzen Angebot darunter, wird sie auf den "
+                                     "Mindestbetrag angehoben und anteilig auf die Teile verteilt (typisch für "
+                                     "Verzinkereien). Bei Staffelpreisen gilt er je Mengenstufe."],
+        ["Fremdleistung", "ja: Aufschlag mit dem <i>Zuschlag Fremdleistung</i> (Einstellungen), sonst mit dem "
+                          "Zuschlag Fertigung wie eigene Arbeit"],
+        ["Text im Angebot", "so erscheint die Arbeit in der Bezeichnung des Angebots, z. B. <i>…, Zusatzarbeiten: "
+                            "Gewinde 4xM6, feuerverzinkt</i>"]], [65, 200])
+    i.text("<b>Rechenweg</b> (für jede Einheit): Preis je Einheit = Festpreis + Zeitaufwand × Stundensatz + "
+           "Material mit Materialzuschlag + weiterer Zuschlag. Beispiel: 5 min × 60 €/h = 5,00 €, Material 2,00 € + "
+           "10 % = 2,20 €, Selbstkosten 7,20 € je Stück. Im Angebot kommt danach einmal der Zuschlag Fertigung "
+           "(bzw. Fremdleistung) und der Gewinn des Angebots bzw. der Staffel dazu, Skonto und Rundung wie beim übrigen "
+           "Angebot. Der Zuschlag Material des Angebots gilt nur für das Stangenmaterial, nie für Zusatzarbeiten. "
+           "Einträge, die nur einen Festpreis haben, rechnen genau wie bisher.")
     i.tabelle(["Abrechnung", "Menge je Teil (automatisch)", "Gerechnet wird"], [
+        ["€/Stück", "1", "Menge × Preis, z. B. Entgraten"],
+        ["€/Angebot", "1", "einmal je Angebot (pauschal), verteilt auf die Teile der Positionen mit dieser Arbeit, "
+                           "z. B. Prüfprotokoll"],
         ["€/kg", "Teilegewicht aus Profil, Länge und Dichte", "Menge × Preis, z. B. Feuerverzinken nach Gewicht"],
         ["€/m²", "Außenfläche = Umfang × Länge (ohne Innenseite und Stirnflächen)",
          "Menge × Preis, z. B. Pulverbeschichten"],
         ["€/m", "Teilelänge in m", "Menge × Preis"],
-        ["€/Stück", "1", "Menge × Preis, z. B. Entgraten"],
         ["s/Stück", "1 (Anzahl, z. B. 2 Gravuren)",
          "Menge × Zeit in Sekunden kommt zur Schneidzeit dazu und wird mit dem Stundensatz der Maschine gerechnet "
          "(z. B. <i>Gravur extra</i>)."]], [30, 95, 140])
-    i.liste("<b>Mindestbetrag je Angebot [€]</b>: liegt die Summe dieser Zusatzarbeit im ganzen Angebot darunter, wird "
-            "sie auf den Mindestbetrag angehoben und anteilig auf die Teile verteilt (typisch für Verzinkereien). "
-            "Bei Staffelpreisen gilt er je Mengenstufe.",
-            "<b>Fremdleistung</b> = ja: Aufschlag mit dem <i>Zuschlag Fremdleistung</i> (Einstellungen), sonst mit dem "
-            "Zuschlag Fertigung wie eigene Arbeit.",
-            "<b>Text im Angebot</b>: so erscheint die Arbeit in der Bezeichnung des Angebots, z. B. "
-            "<i>…, Zusatzarbeiten: Gewinde 4xM6, feuerverzinkt</i>.")
-    i.bild("stamm_zusatzarbeiten", "Einstellungen, Zusatzarbeiten mit den Beispielwerten", hoehe=100 * mm)
+    i.abschnitt("Duplizieren, Deaktivieren und Löschen")
+    i.liste("<b>Duplizieren</b> öffnet das Formular mit allen Werten des markierten Eintrags und dem Namen „… (Kopie)“. "
+            "Angelegt wird die Kopie erst mit <b>Speichern</b>.",
+            "<b>Deaktivieren</b>: die Zusatzarbeit ist im Angebot nicht mehr wählbar, Angebote, in denen sie schon "
+            "steht, rechnen unverändert weiter. <b>Aktivieren</b> macht das rückgängig.",
+            "<b>Löschen</b> fragt immer nach. Wird die Zusatzarbeit in Angeboten verwendet, nennt die Abfrage diese "
+            "Angebote und empfiehlt <b>Deaktivieren</b>; <b>Trotzdem löschen</b> entfernt sie aus den Stammdaten.",
+            "<b>Preisstand</b>: Beim Hinzufügen zu einer Position speichert das Programm den Preis je Einheit, die "
+            "Abrechnung, den Mindestbetrag und die Fremdleistung in der Position. Spätere Änderungen in den "
+            "Stammdaten (oder Löschen) ändern bestehende Angebote deshalb nicht. Positionen aus älteren Versionen "
+            "ohne Preisstand rechnen wie bisher mit den aktuellen Stammdaten.")
 
 
 def kapitel_einstellungen(i):
@@ -773,14 +839,19 @@ def kapitel_angebot(i):
                (3, "<b>Menge je Teil</b> und <b>Preis bzw. Zeit</b>: leer lassen = automatisch (grau angezeigt). "
                    "Ein Eintrag gilt nur für diese Position, z. B. eine andere Fläche oder ein Sonderpreis."),
                (4, "<b>Text</b> für das Angebot, z. B. die RAL-Farbe beim Pulverbeschichten."),
-               (5, "<b>Zusatzarbeit hinzufügen</b> / <b>Markierte entfernen</b>.")])
+               (5, "<b>Zusatzarbeit hinzufügen</b> / <b>Markierte entfernen</b> / <b>Preise aus Stammdaten "
+                   "übernehmen</b>.")])
     i.liste("Sind mehrere Positionen markiert, gilt die Auswahl für alle. Die automatische Menge (Gewicht, Fläche, "
             "Länge) rechnet jede Position für sich.",
             "Die Kosten erscheinen in der Kalkulation in der Spalte <i>Zusatzarbeiten je Teil</i> und in der Summe "
             "<i>Zusatzarbeiten</i>; Zeiten (s/Stück, z. B. Gravur extra) erhöhen die Laserzeit.",
             "Im Angebot steht jede Arbeit mit ihrem Text hinter <i>Zusatzarbeiten:</i>.",
-            "Steht in einer Position eine Zusatzarbeit, die es in den Stammdaten nicht mehr gibt, zeigt der Status "
-            "<b>WARNUNG: Zusatzarbeit … unbekannt</b> und sie wird nicht gerechnet.")
+            "Die Liste zeigt nur aktive Zusatzarbeiten: zuerst die häufig verwendeten, dann nach Kategorie.",
+            "Der Preis der Stammdaten wird beim Hinzufügen in der Position gespeichert (Preisstand, im Feld Preis grau "
+            "mit Datum). Haben sich die Stammdaten seitdem geändert, holt <b>Preise aus Stammdaten übernehmen</b> die "
+            "aktuellen Werte für alle Zeilen (gilt nach OK).",
+            "Steht in einer älteren Position (ohne Preisstand) eine Zusatzarbeit, die es in den Stammdaten nicht mehr "
+            "gibt, zeigt der Status <b>WARNUNG: Zusatzarbeit … unbekannt</b> und sie wird nicht gerechnet.")
     i.abschnitt("Schneidzeit anpassen")
     i.text("Die Spalte <b>Schneidzeit je Teil [s]</b> zeigt in Grau die berechnete Schneidzeit (Schneidweg, "
            "Konturklassen, Gravur und Einstiche mit den Vorschüben aus den Schneiddaten; ohne Einsparung gemeinsamer "

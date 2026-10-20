@@ -216,7 +216,30 @@ def main(ziel):
             spalte = len(seite.modell.spalten) - 1
             x = kopf.sectionViewportPosition(spalte)
             marken.append(((kopf, QRect(x, 0, min(kopf.sectionSize(spalte), kopf.width() - x), kopf.height())), 5))
+        if seite.t.name == "zusatzarbeiten":
+            z = f.zusatz
+            z.auswaehlen(next(x["id"] for x in z.sichtbar if x["name"] == "Feuerverzinken"))
+            for _ in range(3):            # Detailbereich erst nach dem Layout vollständig
+                QApplication.processEvents()
+            marken = [(tab_rect(f.bereich.unter, z.titel), 1), (knopf(z, "+ Zusatzarbeit hinzufügen"), 2),
+                      (z.suche, 3), (z.kat_filter, 4), (z.k_bearbeiten, 5), (z.detail, 6)]
         foto.foto("stamm_" + seite.t.name, f, marken)
+        if seite.t.name == "zusatzarbeiten":
+            # Formular mit dem Beispiel aus der Anleitung (nicht gespeichert)
+            fo = z.neu()
+            fo.name.setText("Entgraten von Hand")
+            fo.kategorie.setCurrentText("Nachbearbeitung")
+            fo.beschreibung.setText("Kanten nach dem Laserschneiden brechen")
+            fo.zeit.setText("5")
+            fo.satz.setText("60")
+            fo.material.setText("2")
+            fo.zuschlag_material.setText("10")
+            fo._geaendert()
+            for _ in range(3):
+                QApplication.processEvents()
+            foto.foto("zusatz_formular", fo.window(), [(fo.name, 1), (fo.zeit, 2), (fo.material, 3), (fo.mehr, 4),
+                                             (fo.ergebnis, 5), (fo.speichern_knopf, 6)])
+            fo.abbrechen()
 
     # 4) Einstellungen: Unterreiter Vorgaben
     f.zeigen(f.einstellungen)
