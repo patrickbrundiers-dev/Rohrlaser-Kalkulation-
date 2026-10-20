@@ -21,7 +21,7 @@ from rohrlaser import update  # noqa: E402
 def letzte_aenderung():
     """Titel des letzten Pull Requests (steht im Merge-Commit unter der ersten Zeile), sonst der Commit-Titel."""
     try:
-        kopf, _, rest = subprocess.run(["git", "log", "-1", "--format=%s%n%b"], capture_output=True, text=True,
+        kopf, _, rest = subprocess.run(["git", "log", "-1", "--format=%s%n%b"], capture_output=True, encoding="utf-8",
                                        check=True).stdout.strip().partition("\n")
     except (OSError, subprocess.CalledProcessError):
         return ""
