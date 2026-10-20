@@ -424,6 +424,40 @@ def main(ziel):
     foto.foto("angebot_zukaufteile", f, [(tab_rect(sz.reiter, "Zukaufteile"), 1), (sz.zukauf_info, 2),
                                          (sz.zukauf_ansicht, 3)], ausschnitt=reiterflaeche(sz))
     f.angebot_schliessen(a1)
+    # Preisänderung der Schraube (12,00 → 12,80 € je 100 St): Protokoll und betroffenes Angebot
+    art = db.zukauf_artikel(ids["Z-1001"])
+    bez = art.pop("bezuege")
+    bez[0]["preise"] = [dict(ab=1, preis=12.80), dict(ab=1000, preis=10.50)]
+    db.zukauf_speichern(ids["Z-1001"], art, bez)
+    f.reiter.setCurrentWidget(f.zukauf)
+    f.zukauf.unter.setCurrentWidget(f.zukauf.preise)
+    bereit()
+    pr = f.zukauf.preise
+    foto.foto("zukauf_preise", f, [(tab_rect(f.zukauf.unter, "Preisänderungen"), 1), (pr.tabelle, 2),
+                                   (pr.tab_betroffen, 3), (pr.k_oeffnen, 4), (pr.k_aktualisieren, 5)])
+    # CSV-Import: Vorschau mit einer geänderten, einer neuen und einer fehlerhaften Zeile
+    from rohrlaser import zukauf_csv
+    from rohrlaser.zukauf_preise import CsvImportDialog
+    text = zukauf_csv.exportieren(db.zukauf_artikel_liste()).lstrip("\ufeff").splitlines()
+    kopf_csv = text[0].split(";")
+    spalte_csv = {zukauf_csv.titel(n): n for n in zukauf_csv.ARTIKEL_SPALTEN + zukauf_csv.BEZUG_SPALTEN}
+
+    def csv_zeile(**w):
+        return ";".join(w.get(spalte_csv[t], "") for t in kopf_csv)
+    inhalt = "\n".join([text[0], text[1].replace("ab 1: 12,80", "ab 1: 13,20"),
+                        csv_zeile(artikelnr="Z-1003", bezeichnung="Unterlegscheibe 6,4 verzinkt",
+                                  kategorie="Schrauben und Muttern", einheit="Stück",
+                                  lieferant="Schraubenhandel Beispiel", preiseinheit="100", preise="ab 1: 1,90"),
+                        csv_zeile(artikelnr="Z-1004", bezeichnung="Federring M6", lieferant="Schraubenhandel Beispiel",
+                                  preise="ab 1: -0,50")])
+    v = zukauf_csv.vorschau(inhalt, db.zukauf_artikel_liste(), db.zukauf_kategorien())
+    d = CsvImportDialog(f, db, v, "Zukaufartikel.csv")
+    d.resize(1250, 330)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("zukauf_csv", d, [(d.zusammenfassung, 1), (d.tabelle, 2), (d.importieren_knopf, 3)])
+    d.reject()
+    f.zukauf.unter.setCurrentWidget(f.zukauf.artikel)
     s = f.angebot_oeffnen(haupt)
 
     # 8) Staffeln: Gestelle als Satz

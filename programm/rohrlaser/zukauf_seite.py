@@ -772,6 +772,15 @@ class ArtikelSeite(QWidget):
             k.clicked.connect(lambda _=False, f=f: f())
             self.aktionen.addWidget(k)
         self.aktionen.addStretch(1)
+        from .zukauf_preise import csv_exportieren, csv_importieren
+        self.k_export = QPushButton("CSV exportieren")
+        self.k_import = QPushButton("CSV importieren …")
+        self.k_import.setToolTip("Artikel und Einkaufspreise aus einer CSV-Datei: zuerst Vorschau mit Prüfung, "
+                                 "übernommen wird erst nach Bestätigung")
+        self.k_export.clicked.connect(lambda: self.csv_export(csv_exportieren))
+        self.k_import.clicked.connect(lambda: self.csv_import(csv_importieren))
+        self.aktionen.addWidget(self.k_export)
+        self.aktionen.addWidget(self.k_import)
         self.detail = QLabel()
         self.detail.setTextFormat(Qt.RichText)
         self.detail.setWordWrap(True)
@@ -1129,6 +1138,21 @@ class ArtikelSeite(QWidget):
                         else ""))
 
 
+    def csv_export(self, exportieren):
+        pfad = exportieren(self, self.db)
+        if pfad:
+            self.meldung(f"Zukaufartikel exportiert: {pfad}")
+
+    def csv_import(self, importieren):
+        try:
+            ergebnis, erg = importieren(self, self.db)
+        except (OSError, ValueError) as e:
+            self.meldung(f"CSV-Import: {e}", fehler=True)
+            return
+        if erg:
+            self.window().alles_neu_laden() if hasattr(self.window(), "alles_neu_laden") else self.neu_laden()
+            self.meldung(f"CSV-Import: {erg[0]} Artikel neu, {erg[1]} geändert.")
+
     def in_angebot(self, zeilen_id=None, ziel=None):
         """Artikel als Zukaufteil in eine Position übernehmen. ziel = (Positions-ID, Menge je Teil) ohne Dialog
         (Tests). Ergebnis: Positions-ID oder None."""
@@ -1219,10 +1243,13 @@ class ZukaufBereich(QWidget):
         self.artikel = ArtikelSeite(db, meldung)
         self.kategorien = StammdatenSeite(db, zukauf.KATEGORIEN, meldung)
         self.lieferanten = StammdatenSeite(db, zukauf.LIEFERANTEN, meldung)
+        from .zukauf_preise import PreisaenderungenSeite
+        self.preise = PreisaenderungenSeite(db, meldung)
         self.unter = QTabWidget()
         self.unter.addTab(self.artikel, "Artikel")
         self.unter.addTab(self.kategorien, zukauf.KATEGORIEN.titel)
         self.unter.addTab(self.lieferanten, zukauf.LIEFERANTEN.titel)
+        self.unter.addTab(self.preise, self.preise.titel)
         self.unter.currentChanged.connect(self._gewechselt)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -1232,6 +1259,6 @@ class ZukaufBereich(QWidget):
         self.neu_laden()
 
     def neu_laden(self):
-        for s in (self.kategorien, self.lieferanten):
+        for s in (self.kategorien, self.lieferanten, self.preise):
             s.neu_laden()
         self.artikel.neu_laden()
