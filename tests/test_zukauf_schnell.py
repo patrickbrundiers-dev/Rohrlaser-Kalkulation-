@@ -71,6 +71,7 @@ f.show()
 seite = f.angebot_oeffnen(a)
 app.processEvents()
 assert seite.zukauf_schnell([]) == 0, "ohne markierte Position nichts"
+assert [x.text() for x in seite.zukauf_knopf.menu().actions()] == ["Zukaufteile bearbeiten …", "Neuer Zukaufartikel …"]
 
 
 def bedienen(d):

@@ -859,8 +859,8 @@ def kapitel_angebot(i):
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.6). "
-            "Daneben <b>Zukaufteile …</b>: eingekaufte Teile je Position, und <b>+ Zukaufartikel …</b>: neue "
-            "Zukaufartikel wie Bleche schnell anlegen (Kapitel 13.6)."),
+            "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
+            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell anlegen, Kapitel 13.6)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -1725,7 +1725,7 @@ def kapitel_zukauf(i):
            "Verbrauch. Mit <i>je Satz</i> gilt die Menge je Satz: <i>Menge je Satz</i> × Sätze (Stückzahl ÷ Stück "
            "je Satz der Position). Beispiel Rahmen aus Rohren mit 20 Blechen: die Bleche an eine Rohrposition des "
            "Satzes hängen, Menge 20 je Satz; bei 10 Rahmen rechnet das Angebot 200 Bleche, die Staffelstufe 50 "
-           "Rahmen 1000. Ohne Satzangabe zählt jedes Teil als ein Satz. Position(en) markieren und <b>Zukaufteile …</b> klicken oder in der Spalte "
+           "Rahmen 1000. Ohne Satzangabe zählt jedes Teil als ein Satz. Position(en) markieren und <b>Zukaufteile … → Zukaufteile bearbeiten …</b> wählen oder in der Spalte "
            "<i>Zukaufteile</i> doppelklicken. Umgekehrt übernimmt <b>In Angebot übernehmen …</b> im Unterreiter "
            "Artikel den markierten Artikel in eine Position: Angebot und Position wählen, Menge je Teil eingeben. "
            "Archivierte Artikel lassen sich nicht übernehmen.")
@@ -1748,8 +1748,8 @@ def kapitel_zukauf(i):
             "<b>Aus Stammdaten aktualisieren …</b> (markierte Zeilen, ohne Markierung alle) zeigt je Artikel den "
             "VK je Teil alt und neu und übernimmt den neuen Stand erst nach Bestätigung und <b>OK</b>.",
             "Mit mehreren markierten Positionen gilt die Liste nach OK für alle (sie ersetzt deren Zukaufteile).")
-    i.text("<b>Schnellanlage</b>, z. B. für Bleche: Position markieren und <b>+ Zukaufartikel …</b> in der "
-           "Knopfleiste des Angebots klicken (oder <b>Neuer Artikel …</b> im Dialog Zukaufteile). Das kurze Formular "
+    i.text("<b>Schnellanlage</b>, z. B. für Bleche: Position markieren und in der Knopfleiste des "
+           "Angebots <b>Zukaufteile … → Neuer Zukaufartikel …</b> wählen (oder <b>Neuer Artikel …</b> im Dialog Zukaufteile). Das kurze Formular "
            "legt den Artikel in den Stammdaten an und hängt ihn an die Position; vorhandene Zukaufteile bleiben.")
     i.bild("zukauf_schnell", "Schnellanlage eines Blechs (Beispielwerte)", hoehe=62 * mm, legende=[
         (1, "<b>Bezeichnung</b> (Pflicht) und optional Artikelnummer"),

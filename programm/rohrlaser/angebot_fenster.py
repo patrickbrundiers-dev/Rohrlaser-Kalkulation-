@@ -598,12 +598,18 @@ class AngebotSeite(QWidget):
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addSpacing(12)
-        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
-                           ("Zukaufteile …", lambda: self.zukaufteile()),
-                           ("+ Zukaufartikel …", lambda: self.zukauf_schnell()),
+        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Zukaufteile …", None),
                            ("Positionen löschen", self.positionen_loeschen)):
             b = QPushButton(text)
-            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            if ziel is None:        # Auswahlmenü statt eines weiteren Knopfs: die Leiste wird nicht breiter
+                menue = QMenu(b)
+                menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
+                menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
+                b.setMenu(menue)
+                b.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
+                self.zukauf_knopf = b
+            else:
+                b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addStretch(1)
         leiste.addWidget(QLabel("Ausgabe:"))
