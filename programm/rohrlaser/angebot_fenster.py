@@ -19,6 +19,7 @@ from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
+from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
 from .angebot import POSITIONEN, STEP_FELDER, aktiv as position_aktiv, ist_zukaufteil
 from .angebot_oben import KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
@@ -435,6 +436,8 @@ class PositionenModell(QAbstractTableModel):
                 and self.zeiten[index.row()] is not None and abs(wert - round(self.zeiten[index.row()], 1)) < 0.05:
             return False                # berechnete Zeit unverändert bestätigt: bleibt berechnet
         self.s.db.position_aendern(p["id"], f.name, wert)
+        if f.name in ("konturen", "kontur_grenzen"):     # Konturliste geändert: beim Neuladen neu einteilen
+            self.s.db.position_aendern(p["id"], "kontur_grenzen", None)
         self.s.f.meldung(f"{f.titel} gespeichert.")
         self.geaendert.emit()
         return True
@@ -595,11 +598,18 @@ class AngebotSeite(QWidget):
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addSpacing(12)
-        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
-                           ("Zukaufteile …", lambda: self.zukaufteile()),
+        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Zukaufteile …", None),
                            ("Positionen löschen", self.positionen_loeschen)):
             b = QPushButton(text)
-            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            if ziel is None:        # Auswahlmenü statt eines weiteren Knopfs: die Leiste wird nicht breiter
+                menue = QMenu(b)
+                menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
+                menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
+                b.setMenu(menue)
+                b.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
+                self.zukauf_knopf = b
+            else:
+                b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addStretch(1)
         leiste.addWidget(QLabel("Ausgabe:"))
@@ -758,6 +768,7 @@ class AngebotSeite(QWidget):
         # festgeschriebene Materialpreise und Schneiddaten gehen den aktuellen Stammdaten vor
         self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()
         self.k, self.tabellen = rechnen.preisbasis_anwenden(a, self.k_aktuell, self.tabellen_aktuell)
+        self._konturen_einteilen()
         self.einst = rechnen.einstellungen_angebot(a, self.db.einstellungen())     # mit Werten des Angebots
         self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
@@ -765,6 +776,21 @@ class AngebotSeite(QWidget):
         self._spalten_zeigen()
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
+
+    def _konturen_einteilen(self):
+        """Konturklassen neu einteilen, wenn die Grenzen der Maschine nicht die sind, mit denen die Konturliste der
+        Position eingeteilt wurde (anderer Maschine gewählt oder Grenzen in den Stammdaten geändert)."""
+        m = rechnen.maschine(self.kopf, self.k)
+        if m is None:
+            return
+        neu = [(p, z) for p in self.positionen if (z := rechnen.konturklassen_neu(p, m))]
+        for p, z in neu:
+            for feld, wert in z.items():
+                self.db.position_aendern(p["id"], feld, wert)
+        if neu:
+            self.positionen = self.db.positionen(self.id)
+            self.f.meldung(f"Konturklassen von {len(neu)} Position(en) mit den Grenzen der Maschine "
+                           f"{self.kopf.get('maschine')} ({neu[0][1]['kontur_grenzen']} mm) neu eingeteilt.")
 
     def _kopf_anzeigen(self):
         self._laden = True
@@ -992,6 +1018,32 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"Zukaufteile für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
+
+    def zukauf_schnell(self, zeilen=None, dialog=None):
+        """Neue Zukaufartikel schnell anlegen (z. B. Bleche) und an die markierten Positionen anhängen (bestehende
+        Zukaufteile bleiben). dialog(d) bedient den Dialog statt exec (Tests). Ergebnis: Anzahl Artikel."""
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position markieren, an die die Zukaufartikel kommen (bei einem Satz "
+                           "eine Position des Satzes).", fehler=True)
+            return 0
+        d = SchnellDialog(self, self.db, bool(str(self.positionen[zeilen[0]].get("satz") or "").strip()))
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return 0
+        for r in zeilen:
+            p = self.positionen[r]
+            liste = zukauf.eintraege(p)
+            for x in d.ergebnis:
+                e = dict(artikel_id=x["artikel_id"], menge=x["menge"], aufschlag=None,
+                         stand=self.db.zukauf_stand(x["artikel_id"]))
+                if x["je"] == zukauf.JE_SATZ:
+                    e["je"] = x["je"]
+                liste.append(e)
+            self.db.position_aendern(p["id"], "zukauf", json.dumps(liste, ensure_ascii=False))
+        self.f.meldung(f"{len(d.ergebnis)} Zukaufartikel angelegt und an {len(zeilen)} Position(en) angehängt.")
+        self.neu_laden()
+        return len(d.ergebnis)
 
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})

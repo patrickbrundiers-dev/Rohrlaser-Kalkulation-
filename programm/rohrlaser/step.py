@@ -9,8 +9,9 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from . import rechnen
+
 TOL_MASS = 0.15
-KLEIN_BIS, MITTEL_BIS = 10.0, 50.0
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
 PROTOKOLL = ["Zeitpunkt", "Datei", "Körper", "Profilform", "Abm. A [mm]", "Abm. B [mm]", "Wandstärke [mm]",
@@ -96,15 +97,14 @@ def gewinde_vorschlag(text, gewinde):
     return "; ".join(out)
 
 
-def konturklassen(text, klein, mittel):
-    """[(Anzahl, Länge) klein, mittel, groß] nach größtem Hüllmaß."""
-    kl = [[0, 0.0], [0, 0.0], [0, 0.0]]
-    for groesse, laenge in _paare(text):
-        g = round(groesse, 2)   # Ø10 genau auf der Grenze zählt als klein
-        c = 0 if g <= klein else 1 if g <= mittel else 2
-        kl[c][0] += 1
-        kl[c][1] += laenge
-    return kl
+def konturen_enden(m):
+    """Anfangs- und Endschnitt als [('A' bzw. 'E', Hüllmaß, Schnittweg)] für die Konturklassen; fehlt das Hüllmaß
+    (Messung einer älteren STEP-Import.exe), bleiben die Enden ohne Klasse und laufen mit Vorschub groß."""
+    out = []
+    for art, laenge, huelle in (("A", "ende_a", "ende_a_huelle"), ("E", "ende_b", "ende_b_huelle")):
+        if _z(m, laenge) > 0 and _z(m, huelle) > 0:
+            out.append((art, _z(m, huelle), _z(m, laenge)))
+    return out
 
 
 def _wand(m):
@@ -340,11 +340,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
-    klein, mittel, grenz_hinweis = KLEIN_BIS, MITTEL_BIS, \
-        f"Konturgrenzen Vorgabe {KLEIN_BIS:g}/{MITTEL_BIS:g} mm (Maschine ohne Werte)"
-    if maschine and isinstance(maschine.get("kontur_klein"), (int, float)) and \
-            isinstance(maschine.get("kontur_mittel"), (int, float)) and 0 < maschine["kontur_klein"] < maschine["kontur_mittel"]:
-        klein, mittel, grenz_hinweis = maschine["kontur_klein"], maschine["kontur_mittel"], ""
+    (klein, mittel), vorgabe = rechnen.kontur_grenzen(maschine)
+    grenz_hinweis = f"Konturgrenzen Vorgabe {klein:g}/{mittel:g} mm (Maschine ohne Werte)" if vorgabe else ""
     profile = dict(k.profile)
     vorhanden = {str(p.get("artikel")) for p in positionen if p.get("artikel") not in (None, "")}
     pos_max = max((p["pos"] for p in positionen if isinstance(p.get("pos"), (int, float))), default=0)
@@ -368,8 +365,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         art = m.get("artikel")
         hinweise = [h for h in [m.get("hinweise")] if h]
         vorschlag = gewinde_vorschlag(m.get("bohrungen"), gewinde)
-        kl = konturklassen(m.get("innen_liste"), klein, mittel)
-        if grenz_hinweis and m.get("innen_liste"):
+        enden = konturen_enden(m)
+        kl = rechnen.konturklassen([(g, lg) for _, g, lg in enden] + _paare(m.get("innen_liste")), (klein, mittel))
+        kl = [[kl[f"{n}_n"], kl[f"{n}_mm"]] for n in ("klein", "mittel", "gross")]
+        if grenz_hinweis and (m.get("innen_liste") or enden):
             hinweise.append(grenz_hinweis)
         ziel, pid = None, None
         if m.get("profilform") and m.get("profilform") not in NICHT_KALKULIERT:
@@ -454,6 +453,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["b_schnitt"] = round(_z(m, "ende_b"), 1)
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
+            if m.get("innen_liste") or enden:
+                p["konturen"] = rechnen.konturen_text(_paare(m.get("innen_liste")), enden)
+                p["kontur_grenzen"] = rechnen.grenzen_text((klein, mittel))
             if satz:
                 anzahl = int(m.get("_je_satz") or len(gruppen[i]))
                 p["satz"], p["je_satz"] = satz, anzahl

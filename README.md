@@ -52,7 +52,7 @@ Messregeln und Annahmen:
 - Gerade Rohre mit konstantem Querschnitt (keine Biegeteile).
 - Teilelänge = größte Ausdehnung entlang der Rohrachse (bei Gehrung die lange Seite).
 - Konturen werden nach Art getrennt: Anfangsschnitt, Endschnitt, Innenkonturen (Bohrungen, Ausschnitte) und Gravuren. Eine Kontur, die bis ans Rohrende reicht (z. B. Ausklinkung), gehört zum Anfangs- bzw. Endschnitt; das Ende gilt dann als nicht gerade.
-- Konturgröße: Jede Innenkontur wird nach ihrem größten Hüllmaß als klein, mittel oder groß eingestuft. Die Grenzen stehen je Maschine in den Stammdaten Maschinen (Vorgabe klein ≤ 10 mm, mittel ≤ 50 mm). Es gilt die im Angebotskopf gewählte Maschine.
+- Konturgröße: Jede Innenkontur und auch Anfangs- und Endschnitt werden nach ihrem Hüllmaß als klein, mittel oder groß eingestuft (Bohrung = Ø, sonst größere Seite des kleinsten Rechtecks um die abgewickelte Kontur bzw. die Schnittfläche des Endes). Die Grenzen stehen je Maschine in den Stammdaten Maschinen (Vorgabe klein ≤ 10 mm, mittel ≤ 50 mm). Es gilt die im Angebotskopf gewählte Maschine; die Konturliste je Position (`konturen`, `kontur_grenzen`) wird bei anderer Maschine oder geänderten Grenzen neu eingeteilt.
 - Gravur = Kontur, die nicht durch die Wand geht. Sie wird separat ausgewiesen und ist nicht im Schneidweg enthalten.
 - Schneidweg = Anfangsschnitt + Endschnitt + Innenkonturen, gemessen auf der Außenhaut. Beide Endschnitte zählen voll je Teil.
 - Einstiche = Anzahl getrennter Schnittkonturen ohne Gravuren.

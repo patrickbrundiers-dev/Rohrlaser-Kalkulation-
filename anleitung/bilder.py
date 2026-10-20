@@ -415,10 +415,24 @@ def main(ziel):
         d.resize(1250, 330)
         QApplication.processEvents()
         foto.foto("zukauf_dialog", d, [(d.auswahl, 1), (d.menge, 2), (d.tabelle, 3),
-                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.info, 5)])
+                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.info, 5),
+                                       (knopf(d, "Neuer Artikel …"), 6)])
         d.accept()
         return QDialog.Accepted
     sz.zukaufteile([0], dialog=zukauf_ausfuellen)
+
+    def schnell_ausfuellen(d):
+        d.bezeichnung.setText("Blech Lasche 80x40x5")
+        d.ek.setText("2,50")
+        d.aufschlag.setText("20")
+        d.menge.setText("2")
+        d.show()
+        QApplication.processEvents()
+        foto.foto("zukauf_schnell", d, [(d.bezeichnung, 1), (d.kategorie, 2), (d.ek, 3), (d.menge, 4),
+                                        (d.weiter_knopf, 5)])
+        d.reject()
+        return QDialog.Rejected
+    sz.zukauf_schnell([0], dialog=schnell_ausfuellen)
     sz.optimieren()
     reiter_waehlen(sz, "Zukaufteile")
     bereit()

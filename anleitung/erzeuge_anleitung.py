@@ -600,7 +600,9 @@ def kapitel_stammdaten(i):
         ["Stundensatz [€/h]", "Stundensatz <i>Maschine</i>: für Laserzeit, Gewinde ohne Festpreis, Rüsten und "
                               "Stangenwechsel, solange unter Arbeitsschritte nichts anderes gewählt ist"],
         ["Kontur klein bis [mm], Kontur mittel bis [mm]",
-         "Grenzen der Konturklassen nach größtem Hüllmaß (Vorgabe 10 und 50 mm), je Klasse eigener Vorschub"],
+         "Grenzen der Konturklassen nach Hüllmaß für Innenkonturen, Anfangs- und Endschnitt (Vorgabe 10 und 50 mm), "
+         "je Klasse eigener Vorschub. Nach einer Änderung werden die Positionen beim nächsten Öffnen des Angebots "
+         "neu eingeteilt (Kapitel 6.9)"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
@@ -614,9 +616,10 @@ def kapitel_stammdaten(i):
         ["Schneidgas", "N₂ (Stickstoff) oder O₂ (Sauerstoff); die Vorschübe gelten für dieses Gas. Das Programm "
                        "nimmt N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂. Wo die N₂-Zeilen "
                        "enden, legt also fest, ab welcher Wandstärke nur noch mit O₂ geschnitten wird."],
-        ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für Anfangs- und Endschnitte und große Innenkonturen"],
+        ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für große Konturen und Enden sowie den Schneidweg ohne "
+                                                          "Klasse (z. B. von Hand eingetragen)"],
         ["Vorschub mittel [mm/min], Vorschub klein [mm/min]",
-         "für mittlere und kleine Innenkonturen; leer = nächstgrößerer Vorschub"],
+         "für mittlere und kleine Konturen und Enden; leer = nächstgrößerer Vorschub"],
         ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -859,7 +862,8 @@ def kapitel_angebot(i):
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.6). "
-            "Daneben <b>Zukaufteile …</b>: eingekaufte Teile je Position (Kapitel 13.6)."),
+            "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
+            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell anlegen, Kapitel 13.6)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -981,13 +985,13 @@ def kapitel_angebot(i):
                        "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
         ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
-        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.7)"],
+        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.8)"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz (Kapitel 9)"],
         ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.6)"],
-        ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil; Doppelklick öffnet die Auswahl (Kapitel 13.6)"],
+        ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl (Kapitel 13.6)"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
                                  "rechnet es aus Volumen × Dichte, wenn der Werkstoff gewählt ist; sonst leer)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
@@ -1021,7 +1025,10 @@ def kapitel_angebot(i):
             "Von Hand: Position anlegen, <i>Positionsart</i> = Zukaufteil, Stückzahl eintragen und unter "
             "<b>Zukaufteile …</b> den Artikel wählen.")
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
-            "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs.",
+            "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
+            "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "
+            "mit <i>A:</i> und <i>E:</i> vorn, z. B. <i>A:40x149,7; E:40x149,7; 10x31,4</i>) und <b>Konturgrenzen "
+            "klein/mittel [mm]</b> (mit welchen Grenzen eingeteilt wurde, z. B. <i>10/50</i>).",
             "<b>Berechnete Werte (Programm)</b>: vom Programm ermittelte Werte wie Profilform, Gewicht, wirksame "
             "Stangenlänge, Vorschub und eingeplante Teile.")
     i.bild("angebot_berechnet", "Mit Häkchen „Berechnete Werte“: Gewicht, Laserzeit, Stück- und Positionspreis je "
@@ -1064,6 +1071,37 @@ def kapitel_angebot(i):
            "aus Zusatzarbeiten (Gravur extra) kommen weiterhin dazu. Der Status zeigt <b>HINWEIS: Schneidzeit "
            "manuell</b>, die Kalkulation in der Spalte <i>Schneidzeit manuell</i> ein „ja“. Feld leeren = wieder "
            "berechnet.")
+    i.abschnitt("Konturklassen in der Schneidzeit")
+    i.text("Der STEP-Import teilt jede Innenkontur und auch den <b>Anfangs- und Endschnitt</b> nach ihrer Größe "
+           "(Hüllmaß) in <b>klein</b>, <b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den "
+           "Stammdaten Maschinen (Vorgabe 10 und 50 mm, ein Wert genau auf der Grenze zählt zur kleineren Klasse). "
+           "Gerechnet wird dann der <b>Schnittweg</b> jeder Klasse mit ihrem Vorschub aus den Schneiddaten:")
+    i.liste("Hüllmaß einer Bohrung = Durchmesser. Bei anderen Innenkonturen die größere Seite des kleinsten "
+            "Rechtecks um die abgewickelte Kontur: ein schräges Langloch zählt mit seiner wahren Länge, ein Schlitz "
+            "um ein Rundrohr mit der Bogenlänge.",
+            "Hüllmaß eines Endes = größere Seite der Schnittfläche: gerader Schnitt QR 40x40 = 40 mm, RR 42,4 = "
+            "42,4 mm, Gehrung 45° über die 60er Seite eines RE 60x40 = 84,9 mm.",
+            "Kontur klein [mm] / Vorschub klein, Kontur mittel [mm] / Vorschub mittel (leer = nächstgrößerer "
+            "Vorschub).",
+            "Der Rest des Schneidwegs (große Konturen und Enden, von Hand ergänzter Schneidweg) / Vorschub groß. Der "
+            "Rest ist nie kleiner als 0.",
+            "Gravur [mm] / Vorschub Gravur und Einstiche × Einstechzeit.",
+            "Gemeinsame Schnitte (zwei gerade Enden teilen sich einen Schnitt): die Einsparung wird mit dem Vorschub "
+            "der Klasse des geraden Endes abgezogen.")
+    i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>). "
+           "Wird im Angebotskopf eine andere Maschine gewählt oder ändern sich die Grenzen in den Stammdaten, teilt "
+           "das Programm die Positionen beim nächsten Öffnen bzw. Neuberechnen neu ein und meldet das in der "
+           "Statuszeile. Die Konturliste lässt sich auch von Hand ändern; die Klassen werden dann neu eingeteilt. "
+           "Positionen aus einem STEP-Import vor Version 0.5.7 haben keine Konturliste: dort laufen Anfangs- und "
+           "Endschnitt weiter mit Vorschub groß, bis das Teil neu importiert wird.")
+    i.text("Beispiel mit Vorschub groß 3000, mittel 2000, klein 1000 mm/min und 0,5 s je Einstich, Teil aus RE "
+           "80x60 (Enden 80 mm, groß): Anfangs- und "
+           "Endschnitt je 120 mm, 4 × Ø10 (125,7 mm, klein), ein Langloch 40×10 (91,4 mm, mittel), ein Ausschnitt "
+           "80×40 (240 mm, groß), 8 Einstiche ergeben 9,6 + 2,7 + 7,5 + 4,0 = <b>23,9 s</b>. Bei einem QR 40x40 "
+           "lägen die Enden mit 40 mm in der Klasse mittel. Die Anteile stehen im "
+           "Reiter Kalkulation (Spalten <i>davon …</i>) und im Kalkulation-PDF in der Tabelle <i>Schneidzeit je Teil "
+           "nach Konturklassen</i>. Widersprechen sich Schneidweg und Konturklassen, zeigt der Status eine WARNUNG "
+           "(Kapitel 14).")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),
         (2, "Spalte <b>Zusatzarbeiten</b>: Doppelklick öffnet die Auswahl."),
@@ -1328,8 +1366,8 @@ def kapitel_step(i):
             "Teilelänge = größte Ausdehnung entlang der Rohrachse (bei Gehrung die lange Seite).",
             "Schneidweg = Anfangsschnitt + Endschnitt + Innenkonturen auf der Außenhaut. Gravuren (nicht durch die "
             "Wand) zählen getrennt.",
-            "Innenkonturen werden nach ihrem größten Hüllmaß klein, mittel oder groß eingestuft (Grenzen je "
-            "Maschine, Vorgabe 10 und 50 mm); jede Klasse hat ihren eigenen Vorschub.",
+            "Innenkonturen, Anfangs- und Endschnitt werden nach ihrem Hüllmaß klein, mittel oder groß eingestuft "
+            "(Grenzen je Maschine, Vorgabe 10 und 50 mm; Kapitel 6.9); jede Klasse hat ihren eigenen Vorschub.",
             "Profilabgleich mit den Stammdaten über Form und Maße (±0,15 mm).")
 
 
@@ -1376,7 +1414,9 @@ def kapitel_optimieren(i):
             "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
-            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu.",
+            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
+            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i> und <i>davon Einstiche</i> "
+            "zeigen, wie sich die Laserzeit brutto zusammensetzt (Kapitel 6.9).",
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz "
             "des Arbeitsschritts Gewinde.",
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
@@ -1688,18 +1728,23 @@ def kapitel_zukauf(i):
            "Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
     i.abschnitt("Zukaufteile im Angebot")
     i.text("Zukaufteile gehören zu einer Position: <i>Menge je Teil</i> × Stückzahl der Position ergibt den "
-           "Verbrauch. Position(en) markieren und <b>Zukaufteile …</b> klicken oder in der Spalte "
+           "Verbrauch. Mit <i>je Satz</i> gilt die Menge je Satz: <i>Menge je Satz</i> × Sätze (Stückzahl ÷ Stück "
+           "je Satz der Position). Beispiel Rahmen aus Rohren mit 20 Blechen: die Bleche an eine Rohrposition des "
+           "Satzes hängen, Menge 20 je Satz; bei 10 Rahmen rechnet das Angebot 200 Bleche, die Staffelstufe 50 "
+           "Rahmen 1000. Ohne Satzangabe zählt jedes Teil als ein Satz. Position(en) markieren und <b>Zukaufteile … → Zukaufteile bearbeiten …</b> wählen oder in der Spalte "
            "<i>Zukaufteile</i> doppelklicken. Umgekehrt übernimmt <b>In Angebot übernehmen …</b> im Unterreiter "
            "Artikel den markierten Artikel in eine Position: Angebot und Position wählen, Menge je Teil eingeben. "
            "Archivierte Artikel lassen sich nicht übernehmen.")
     i.bild("zukauf_dialog", "Dialog Zukaufteile: 4 Schrauben, 4 Muttern und 2 Laschen je Teil (Beispielwerte)",
            hoehe=60 * mm, legende=[
                (1, "Artikel wählen (Artikelnummer oder Bezeichnung eintippen), dann <b>Hinzufügen</b>"),
-               (2, "Menge je Teil in der Einheit des Artikels"),
-               (3, "je Zeile Artikel, Menge je Teil und <i>Aufschlag Position</i> (änderbar), Lieferant, "
-                   "Aufschlagsregel, Einstand und VK je Teil, Preisstand"),
+               (2, "Menge in der Einheit des Artikels, <i>je Teil</i> oder <i>je Satz</i> (bei Positionen in "
+                   "einem Satz vorgewählt)"),
+               (3, "je Zeile Artikel, Menge, je Teil/je Satz und <i>Aufschlag Position</i> (änderbar), "
+                   "Lieferant, Aufschlagsregel, Einstand und VK je Teil, Preisstand"),
                (4, "<b>Entfernen</b>, <b>Duplizieren</b> und <b>Aus Stammdaten aktualisieren …</b>"),
-               (5, "Vorschau für die Stückzahl dieser Position")])
+               (5, "Vorschau für die Stückzahl dieser Position"),
+               (6, "<b>Neuer Artikel …</b>: Schnellanlage, der neue Artikel wird gleich hinzugefügt")])
     i.liste("<b>Aufschlag Position [%]</b> leer lassen: es gilt die Regel des Artikels. Eine Zahl ersetzt sie "
             "für diese Position (% auf den Einstandspreis).",
             "Beim Hinzufügen speichert das Programm den <b>Preisstand</b> des Artikels in der Position: "
@@ -1709,6 +1754,20 @@ def kapitel_zukauf(i):
             "<b>Aus Stammdaten aktualisieren …</b> (markierte Zeilen, ohne Markierung alle) zeigt je Artikel den "
             "VK je Teil alt und neu und übernimmt den neuen Stand erst nach Bestätigung und <b>OK</b>.",
             "Mit mehreren markierten Positionen gilt die Liste nach OK für alle (sie ersetzt deren Zukaufteile).")
+    i.text("<b>Schnellanlage</b>, z. B. für Bleche: Position markieren und in der Knopfleiste des "
+           "Angebots <b>Zukaufteile … → Neuer Zukaufartikel …</b> wählen (oder <b>Neuer Artikel …</b> im Dialog Zukaufteile). Das kurze Formular "
+           "legt den Artikel in den Stammdaten an und hängt ihn an die Position; vorhandene Zukaufteile bleiben.")
+    i.bild("zukauf_schnell", "Schnellanlage eines Blechs (Beispielwerte)", hoehe=62 * mm, legende=[
+        (1, "<b>Bezeichnung</b> (Pflicht) und optional Artikelnummer"),
+        (2, "<b>Kategorie</b>: vorgewählt Blechteile. Bei Blechteilen oder <i>Blech</i> in der Bezeichnung ist "
+            "der <b>Lieferant</b> <i>Technik</i> vorbelegt; überschreiben ist jederzeit möglich"),
+        (3, "<b>EK je Stück</b> und <b>Aufschlag [%]</b>; leer = Aufschlag der Kategorie bzw. Standard"),
+        (4, "<b>Menge</b> je Teil oder je Satz"),
+        (5, "<b>Speichern + nächster</b> leert das Formular für das nächste Blech (Kategorie, Lieferant, Aufschlag "
+            "und je bleiben), <b>Speichern + schließen</b> beendet")])
+    i.text("Der Artikel bekommt Einheit Stück, Preiseinheit 1 und einen bevorzugten Lieferanten. Weitere Angaben "
+           "(Mindestmenge, Bezugskosten, Preisstaffel) lassen sich später im Reiter Zukaufartikel ergänzen; das "
+           "Protokoll der Preisänderungen vermerkt <i>Schnellanlage im Angebot</i>.")
     i.text("So rechnet das Angebot (Abschnitt 8.3):")
     i.liste("Gleiche Artikel mit gleichem Preisstand aus allen Positionen werden zu <b>einer Bestellung</b> "
             "zusammengezählt. Für den ganzen Verbrauch gelten Mindestbestellmenge, Verpackungseinheit und Preisstaffel; "
@@ -1804,7 +1863,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Gesamtpreis jeder Zeile ist Stückpreis × Menge, die Summe genau die Summe der Zeilen."),
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
-        (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage."),
+        (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage, dazu die "
+            "Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
         (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
@@ -2109,6 +2169,13 @@ def kapitel_fragen(i):
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
         ["<b>HINWEIS: Schneidzeit manuell</b>",
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
+        ["<b>WARNUNG: Konturen klein + mittel länger als Schneidweg</b>",
+         "Der Schneidweg wurde von Hand kleiner eingetragen als die kleinen und mittleren Konturen zusammen. Der "
+         "Anteil mit Vorschub groß wird mit 0 gerechnet. Schneidweg oder die Spalten Kontur klein/mittel [mm] "
+         "prüfen."],
+        ["<b>WARNUNG: Konturklassen länger als Innenkonturen + Anfangs-/Endschnitt</b>",
+         "Kontur klein + mittel + groß [mm] ist größer als Innenkonturen + Anfangs- + Endschnitt [mm] (z. B. eine "
+         "Spalte von Hand geändert). Die STEP-Werte der Position prüfen."],
         ["Zusatzarbeit kostet mehr als Menge × Preis",
          "Der Mindestbetrag je Angebot greift; er wird auf alle Teile mit dieser Zusatzarbeit verteilt."],
         ["<b>FEHLER: Oberfläche unbekannt</b>",

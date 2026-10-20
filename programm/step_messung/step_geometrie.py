@@ -6,7 +6,8 @@ Je Volumenkörper wird ermittelt:
 - Schneidweg getrennt nach Anfangsschnitt (Ende A), Endschnitt (Ende B) und
   Innenkonturen; Gravuren (nicht durchgehend) separat
 - Anzahl Konturen (= Einstiche, ohne Gravur), Rundbohrungen je Durchmesser
-- Innenkonturen je Kontur mit Größe (größtes Hüllmaß) für die Einteilung klein/mittel/groß
+- Innenkonturen je Kontur mit Größe (Hüllmaß der abgewickelten Kontur, Bohrung Ø) für die Einteilung
+  klein/mittel/groß
 - auf Wunsch (netz=True) ein Dreiecksnetz für die 3D-Ansicht im Programm: Flächen und Schnittkonturen nach Art
   (Außenwand, Innenwand, Anfangsschnitt, Endschnitt, Innenkontur, Gravur), Rohrachse = Z ab 0
 
@@ -83,6 +84,8 @@ class Teil:
     ende_a: float = 0.0         # Schnittlänge Ende A (Anfang, kleineres Achsmaß) [mm]
     ende_a_gerade: bool = False # Ende A ist ein gerader Schnitt (senkrecht zur Achse)
     ende_b: float = 0.0
+    ende_a_huelle: float = 0.0  # Hüllmaß des Anfangs-/Endschnitts für die Konturklasse (_ende_huellmass) [mm]
+    ende_b_huelle: float = 0.0
     ende_b_gerade: bool = False
     innen: float = 0.0          # Schneidweg aller Innenkonturen (Bohrungen, Ausschnitte)
     innen_konturen: int = 0
@@ -936,6 +939,30 @@ def _punkte_kanten(kanten, schritt=0.5):
     return out
 
 
+def _ende_huellmass(punkte):
+    """Hüllmaß eines Anfangs- oder Endschnitts für die Konturklasse [mm]: größere Seite des kleinsten Rechtecks um die
+    Schnittkontur in ihrer Ebene. Querschnitt in XY (kleinstes umschreibendes Rechteck mit den Seiten s, t), Neigung
+    der Schnittebene aus der Ausgleichsebene z = a·s + b·t + c; die Seiten werden um √(1 + a²) bzw. √(1 + b²)
+    länger. Gerader Schnitt QR 40x40 = 40, RR 42,4 = 42,4, Gehrung 45° über die 60er Seite eines RE 60x40 = 84,9."""
+    if len(punkte) < 3:
+        return None
+    w = _min_rechteck([(p.X(), p.Y()) for p in punkte])
+    c, s_ = math.cos(w), math.sin(w)
+    q = [(p.X() * c + p.Y() * s_, -p.X() * s_ + p.Y() * c, p.Z()) for p in punkte]
+    n = len(q)
+    ms, mt, mz = (sum(x[i] for x in q) / n for i in range(3))
+    sss = sum((x[0] - ms) ** 2 for x in q)
+    stt = sum((x[1] - mt) ** 2 for x in q)
+    sst = sum((x[0] - ms) * (x[1] - mt) for x in q)
+    szs = sum((x[2] - mz) * (x[0] - ms) for x in q)
+    szt = sum((x[2] - mz) * (x[1] - mt) for x in q)
+    det = sss * stt - sst * sst
+    a, b = ((szs * stt - szt * sst) / det, (szt * sss - szs * sst) / det) if abs(det) > 1e-9 else (0.0, 0.0)
+    ds = max(x[0] for x in q) - min(x[0] for x in q)
+    dt = max(x[1] for x in q) - min(x[1] for x in q)
+    return round(max(ds * math.sqrt(1 + a * a), dt * math.sqrt(1 + b * b)), 2)
+
+
 def _form_2d(uv, tol=0.05):
     """Form einer abgewickelten Kontur: ('Kreis', Ø) / ('Langloch', L, B) / ('Rechteck', L, B) / ('Ausschnitt', L, B),
     dazu Mittelpunkt (u, v) und Drehwinkel der Längsrichtung gegen die Rohrachse [Grad]."""
@@ -1169,7 +1196,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
         return list(out.values())
 
     TOL_Z = 0.01
-    enden = {"EA": [[], 0.0], "EB": [[], 0.0]}
+    enden = {"EA": [[], 0.0, []], "EB": [[], 0.0, []]}     # Flächen, Schnittlänge, Kanten je Ende
     liste, bohrungen = [], {}
     for m in merkmale.values():
         kanten = m["kanten"]
@@ -1241,12 +1268,15 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
         if m["art"] in enden:
             enden[m["art"]][0] += [faces.FindKey(f) for f in m["faces"]]
             enden[m["art"]][1] += schnitt
+            enden[m["art"]][2] += kanten
         t.konturen += einstiche
     kopf = []
     for art_, name, z in (("EA", "Ende A", 0.0), ("EB", "Ende B", t.laenge)):
-        fl, lg = enden[art_]
+        fl, lg, kt = enden[art_]
         e = _endform(fl, lg) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None, um_y=None,
                                          schnittlaenge=0.0)
+        e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
+        setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
     t.konturen_liste = kopf + sorted(liste, key=lambda d: d["z"])
     t.bohrungen = dict(sorted(bohrungen.items()))
@@ -1460,7 +1490,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
     abw = _Abwicklung(s_aussen, ref)
     kasten = t.profilform in ("Quadratrohr", "Rechteckrohr")
     hx, hy = bx / 2, by / 2
-    enden = {"EA": [[], 0.0], "EB": [[], 0.0]}     # Flächen und Schnittlänge je Ende
+    enden = {"EA": [[], 0.0, []], "EB": [[], 0.0, []]}     # Flächen, Schnittlänge und Kanten je Ende
     liste = []
 
     def lage_auf_rohr(zug):
@@ -1548,13 +1578,6 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         else:
             t.innen += laenge
             t.innen_konturen += n
-            for zug in konturzuege(kanten):
-                zb = Bnd_Box()
-                for e in zug:
-                    BRepBndLib.AddOptimal_s(e, zb, False, False)
-                mn, mx = zb.CornerMin(), zb.CornerMax()
-                groesse = max(mx.X() - mn.X(), mx.Y() - mn.Y(), mx.Z() - mn.Z())
-                t.innen_liste.append((groesse, sum(_kantenlaenge(e) for e in zug)))
             # Rundbohrung: nur Zylinderflächen gleichen Radius, Achse quer zum Rohr
             rund = zylinder_einheitlich(m["faces"])
             if rund:
@@ -1562,8 +1585,13 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                 bohrungen[d] = bohrungen.get(d, 0) + n
             for zug in konturzuege(kanten):
                 form, lage, d, normale = lage_auf_rohr(zug)
-                d.update(durchgehend=True, schnittlaenge=round(sum(_kantenlaenge(e) for e in zug), 2),
-                         huellmass=round(t.innen_liste[-1][0] if len(konturzuege(kanten)) == 1 else max(form[1:]), 2))
+                # Hüllmaß für die Konturklasse: Bohrung = Ø, sonst größte Seite des kleinsten (gedrehten) Rechtecks
+                # um die abgewickelte Kontur. So zählen schräge Langlöcher und Schlitze um ein Rundrohr mit ihrer
+                # wahren Länge (der achsparallele Hüllquader wäre kleiner).
+                groesse = rund[1] if rund else max(form[1:])
+                schnitt = sum(_kantenlaenge(e) for e in zug)
+                t.innen_liste.append((groesse, schnitt))
+                d.update(durchgehend=True, schnittlaenge=round(schnitt, 2), huellmass=round(groesse, 2))
                 if rund:
                     d.update(art="Bohrung", durchmesser=rund[1], schraeg=schraeg(rund[0], normale))
                     ax = rund[0].Axis()
@@ -1582,6 +1610,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         if m["art"] in enden:
             enden[m["art"]][0] += [faces.FindKey(f) for f in m["faces"]]
             enden[m["art"]][1] += laenge
+            enden[m["art"]][2] += kanten
         t.konturen += n
     # gegenüberliegende Bohrungen (gleiche Achse, gleicher Ø): eine Bohrung durch beide Wände
     bo = [d for d in liste if d.get("_achse")]
@@ -1595,9 +1624,11 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         d.pop("_achse", None)
     kopf = []
     for art_, name, z in (("EA", "Ende A", 0.0), ("EB", "Ende B", t.laenge)):
-        fl, lg = enden[art_]
+        fl, lg, kt = enden[art_]
         e = _endform(fl, lg, ref) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None, um_y=None,
                                               schnittlaenge=0.0)
+        e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
+        setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
     t.konturen_liste = kopf + sorted(liste, key=lambda d: (d["z"] is None, d["z"] or 0, d["winkel"] or 0))
     t.sicherheit["konturen"] = "wahrscheinlich" if any(
