@@ -73,6 +73,7 @@ class Tabelle:
     schluessel: tuple       # eindeutige Felder (zusammen)
     hinweis: str
     berechnet: tuple = ()      # (Titel, Funktion(zeile, kontext), Nachkommastellen)
+    pruefung: object = None    # weitere Prüfung: Funktion(zeile, kontext) -> 'WARNUNG: …'/'FEHLER: …' oder None
 
     def feld(self, name):
         return next(f for f in self.felder if f.name == name)
@@ -140,16 +141,23 @@ KUNDEN = Tabelle(
      Feld("name", "Kundenname", pflicht=True, breite=200),
      Feld("strasse", "Straße", breite=170),
      Feld("plz_ort", "PLZ Ort", breite=150),
+     Feld("plz", "PLZ", breite=65),
+     Feld("land", "Land", muster=(r"^[A-Z]{2}$", "Land als zweistelliger Ländercode, z. B. DE"), breite=50),
      Feld("ansprechpartner", "Ansprechpartner", breite=130),
      Feld("telefon", "Telefon", breite=110),
      Feld("email", "E-Mail", breite=170),
      Feld("skonto", "Skonto [%]", "zahl", 0, 20, stellen=1, breite=70),
      Feld("skonto_tage", "Skontofrist [Tage]", "ganz", 0, 365, breite=75),
      Feld("zahlungsziel", "Zahlungsziel netto [Tage]", "ganz", 0, 365, breite=85),
+     Feld("liefer_plz", "Liefer-PLZ abweichend", breite=85),
+     Feld("liefer_land", "Lieferland abweichend", muster=(r"^[A-Z]{2}$", "Land als zweistelliger Ländercode, z. B. DE"),
+          breite=70),
+     Feld("lieferbedingung", "Lieferbedingung", "auswahl", auswahl="lieferbedingung", breite=110),
      Feld("bemerkung", "Bemerkung", breite=200)),
     ("kundennr",),
     "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
-    "Angebot. Skonto, Skontofrist und Zahlungsziel leer = Vorgabe aus den Einstellungen.")
+    "Angebot. Skonto, Skontofrist und Zahlungsziel leer = Vorgabe aus den Einstellungen. PLZ und Land (leer = PLZ aus "
+    "'PLZ Ort' und DE) bzw. die abweichende Lieferanschrift bestimmen die Frachtzone.")
 
 PROFILE = Tabelle(
     "profile", "Profile",
@@ -394,6 +402,13 @@ EINSTELLUNGEN = (
                 "\n".join(PROFILFORMEN)),
     Einstellung("kategorien", "Werkstoff-Kategorien (eine je Zeile)", "Auswahllisten", "mehrzeilig",
                 "\n".join(KATEGORIEN)),
+    # Frachtkosten (Reiter Frachtkosten → Historie und Einstellungen)
+    Einstellung("absender_plz", "Absender-PLZ (Versandort)", "Frachtkosten", "text", ""),
+    Einstellung("absender_land", "Absender-Land", "Frachtkosten", "text", "DE"),
+    Einstellung("fracht_lht_standard", "Ladungsträger im Packvorschlag", "Frachtkosten", "auswahl", "EUR",
+                auswahl="lht"),
+    Einstellung("fracht_lht_langgut", "Ladungsträger für lange Teile (Langgut)", "Frachtkosten", "auswahl", "LG",
+                auswahl="lht"),
     # Der Reiter Einstellungen (mit den Stammdaten außer Kunden) öffnet nur mit diesem Passwort; leer = ohne
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
 )
@@ -483,6 +498,7 @@ class Kontext:
     kategorien: tuple = KATEGORIEN
     zukauf_kategorien: tuple = ()     # Namen der Kategorien und Lieferanten der Zukaufartikel
     zukauf_lieferanten: tuple = ()
+    listen: dict = field(default_factory=dict)        # weitere Auswahllisten (Frachtkosten: Zonen, Tarife …)
 
     def auswahl(self, quelle):
         return [w for _, werte in self.gruppiert(quelle) for w in werte]
@@ -500,6 +516,11 @@ class Kontext:
             erst = (lambda g: 0 if g == "alle Werkstoffe" else 1) if quelle == "oberflaeche" else (lambda g: 0)
             folge = sorted(gruppen, key=lambda g: (erst(g), reihe.get(g, len(reihe)), g))
             return [(g, sorted(gruppen[g], key=lambda n: (n != ROH, n.lower()))) for g in folge]
+        if quelle in self.listen:
+            return [(None, list(self.listen[quelle]))]
+        from .fracht_daten import AUSWAHL_FEST
+        if quelle in AUSWAHL_FEST:
+            return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
@@ -510,7 +531,7 @@ class Kontext:
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukaufkategorie": list(self.zukauf_kategorien),
-                         "zukauflieferant": list(self.zukauf_lieferanten)}[quelle])]
+                         "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
@@ -589,6 +610,10 @@ def pruefen(t, z, k):
         return "WARNUNG: kein Tonnenpreis (Preis nur über 'Preise')"
     if t is MASCHINEN and z.get("stundensatz") is None:
         return "WARNUNG: Stundensatz fehlt"
+    if t.pruefung:
+        meldung = t.pruefung(z, k)
+        if meldung:
+            return meldung
     return "OK"
 
 
@@ -602,10 +627,10 @@ def beispieldaten():
                ("M10", 8.5, 1.30), ("M12", 10.2, 1.60), ("M14", 12.0, 1.90), ("M16", 14.0, 2.20), ("M20", 17.5, 2.80)]
     return {
         "kunden": zeilen(KUNDEN, [
-            ("K-1001", "Beispiel Metallbau GmbH", "Musterstraße 1", "12345 Musterstadt", "Herr Muster", "01234 56789",
-             "info@beispiel-metallbau.de", 2, 10, 30, "Beispiel"),
-            ("K-1002", "Muster Anlagenbau KG", "Industrieweg 5", "54321 Beispielstadt", "Frau Beispiel", "05432 1234",
-             "einkauf@muster-anlagenbau.de", 3, 14, 45, "Beispiel")]),
+            ("K-1001", "Beispiel Metallbau GmbH", "Musterstraße 1", "12345 Musterstadt", "12345", "DE", "Herr Muster",
+             "01234 56789", "info@beispiel-metallbau.de", 2, 10, 30, None, None, "frei Haus", "Beispiel"),
+            ("K-1002", "Muster Anlagenbau KG", "Industrieweg 5", "54321 Beispielstadt", "54321", "DE", "Frau Beispiel",
+             "05432 1234", "einkauf@muster-anlagenbau.de", 3, 14, 45, None, None, "frei Haus", "Beispiel")]),
         "profile": zeilen(PROFILE, [
             ("RR 42,4x2,0", "Rundrohr", 42.4, None, 2.0, None, None, None, "Beispiel"),
             ("RR 48,3x2,6", "Rundrohr", 48.3, None, 2.6, None, None, None, "Beispiel"),

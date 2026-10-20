@@ -1,9 +1,12 @@
-"""Hauptfenster: Start, Angebote (Übersicht und je offenes Angebot ein Reiter), Kunden und Einstellungen.
+"""Hauptfenster: Start, Angebote (Übersicht und je offenes Angebot ein Reiter), Kunden, Frachtkosten und
+Einstellungen.
 
 Der Reiter Einstellungen ist mit einem Passwort geschützt (Einstellung 'passwort') und enthält als Unterreiter die
-allgemeinen Vorgaben und alle Stammdaten außer den Kunden."""
+allgemeinen Vorgaben und alle Stammdaten außer den Kunden. Im Reiter Frachtkosten ist der Rechner frei, die
+Pflegebereiche öffnen mit demselben Passwort."""
 import datetime
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -159,8 +162,8 @@ class StammdatenModell(QAbstractTableModel):
         self.meldung(f"{f.titel} gespeichert.")
         return True
 
-    def zeile_neu(self):
-        self.db.neu(self.t.name)
+    def zeile_neu(self, werte=None):
+        self.db.neu(self.t.name, werte)
         self.neu_laden()
         return len(self.daten) - 1
 
@@ -170,7 +173,16 @@ class StammdatenModell(QAbstractTableModel):
 
 
 class Sortierung(QSortFilterProxyModel):
-    """Sortiert nach dem gespeicherten Wert (Zahlen als Zahlen), leere Werte zuletzt."""
+    """Sortiert nach dem gespeicherten Wert (Zahlen als Zahlen), leere Werte zuletzt. fest = (Spalte, Wert): nur
+    Zeilen mit genau diesem Wert (z. B. Preisstaffeln eines Tarifs)."""
+    fest = None
+
+    def filterAcceptsRow(self, zeile, eltern):
+        if self.fest is not None:
+            spalte, wert = self.fest
+            if self.sourceModel().roh(zeile, spalte) != wert:
+                return False
+        return super().filterAcceptsRow(zeile, eltern)
 
     def lessThan(self, links, rechts):
         a, b = links.data(Qt.UserRole), rechts.data(Qt.UserRole)
@@ -237,6 +249,7 @@ class StammdatenSeite(QWidget):
         self.filter.setFilterKeyColumn(-1)
         self.filter.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self.db, self.meldung = db, meldung
+        self.vorgabe = {}           # Werte neuer Zeilen (z. B. Tarif bei gefilterten Preisstaffeln)
 
         hinweis = QLabel(tabelle.hinweis)
         hinweis.setWordWrap(True)
@@ -282,16 +295,35 @@ class StammdatenSeite(QWidget):
         self.zaehlen()
 
     def zaehlen(self):
-        n = len(self.modell.daten)
+        n = self.filter.rowCount() if self.filter.fest is not None else len(self.modell.daten)
         fehler = sum(1 for r in range(n) if str(self.modell.roh(r, len(self.modell.spalten) - 1)).startswith("FEHLER"))
         self.anzahl.setText(f"{n} Zeilen" + (f", {fehler} mit FEHLER" if fehler else ""))
 
     def neu_laden(self):
         self.modell.neu_laden()
 
+    def nur(self, feld, wert):
+        """Nur Zeilen mit feld = wert zeigen (None = alle); neue Zeilen bekommen den Wert."""
+        spalte = next(i for i, (art, f) in enumerate(self.modell.spalten) if art == "feld" and f.name == feld)
+        self.filter.fest = None if wert is None else (spalte, wert)
+        self.vorgabe = {} if wert is None else {feld: wert}
+        self.filter.invalidateFilter()
+        self.zaehlen()
+
+    def ausgewaehlt(self):
+        """Zeile (dict) der aktuellen Auswahl oder None."""
+        idx = self.ansicht.currentIndex()
+        if not idx.isValid():
+            return None
+        return self.modell.daten[self.filter.mapToSource(idx).row()]
+
     def zeile_neu(self):
         self.suche.clear()
-        r = self.modell.zeile_neu()
+        try:
+            r = self.modell.zeile_neu(self.vorgabe or None)
+        except sqlite3.IntegrityError:
+            self.meldung("Es gibt schon eine leere neue Zeile mit diesem Schlüssel – bitte zuerst ausfüllen.", fehler=True)
+            return
         idx = self.filter.mapFromSource(self.modell.index(r, 0))
         self.ansicht.scrollTo(idx)
         self.ansicht.setCurrentIndex(idx)
@@ -320,15 +352,18 @@ class MehrzeiligEingabe(QPlainTextEdit):
 
 
 class EinstellungenSeite(QScrollArea):
-    def __init__(self, db, meldung):
+    """Einstellungen als Formular; gruppen = nur diese Gruppen, ohne = diese Gruppen nicht."""
+
+    def __init__(self, db, meldung, gruppen=None, ohne=()):
         super().__init__()
         self.db, self.meldung = db, meldung
+        self.liste = [e for e in EINSTELLUNGEN if (gruppen is None or e.gruppe in gruppen) and e.gruppe not in ohne]
         self.setWidgetResizable(True)
         innen = QWidget()
         lay = QVBoxLayout(innen)
         self.felder = {}
         gruppen = {}
-        for e in EINSTELLUNGEN:
+        for e in self.liste:
             if e.gruppe not in gruppen:
                 box = QGroupBox(e.gruppe)
                 gruppen[e.gruppe] = QFormLayout(box)
@@ -400,7 +435,7 @@ class EinstellungenSeite(QScrollArea):
     def neu_laden(self):
         self._laden = True
         k = self.db.kontext()
-        for e in EINSTELLUNGEN:
+        for e in self.liste:
             w, v = self.felder[e.name], self.db.einstellung(e.name)
             if e.art == "anteil":
                 w.setValue((v or 0) * 100)
@@ -605,7 +640,7 @@ class Hauptfenster(QMainWindow):
         for s in self.seiten:           # Kunden als eigener Reiter, die übrigen Stammdaten unter Einstellungen
             if s.t.name == "kunden":
                 self.reiter.addTab(s, s.t.titel)
-        self.einstellungen = EinstellungenSeite(db, self.meldung)
+        self.einstellungen = EinstellungenSeite(db, self.meldung, ohne=("Frachtkosten",))
         seite = {s.t.name: s for s in self.seiten}
         self.zeitvorgaben = ZeitvorgabenSeite(seite["stundensaetze"], seite["arbeitsschritte"])
         # Zusatzarbeiten: eigene Verwaltung (Übersicht, Formular, Preisvorschau) statt der Stammdatentabelle
@@ -614,6 +649,9 @@ class Hauptfenster(QMainWindow):
         unter = [self.zusatz if s.t.name == "zusatzarbeiten" else s for s in self.seiten
                  if s.t.name not in ("kunden", "stundensaetze", "arbeitsschritte")]
         self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben])
+        from .fracht_seite import FrachtBereich
+        self.fracht = FrachtBereich(self)
+        self.reiter.addTab(self.fracht, "Frachtkosten")
         self.reiter.addTab(self.bereich, "Einstellungen")
         for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
             self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
@@ -709,6 +747,7 @@ class Hauptfenster(QMainWindow):
             s.neu_laden()
         self.zusatz.neu_laden()
         self.einstellungen.neu_laden()
+        self.fracht.neu_laden()
 
     def anleitung_oeffnen(self):
         """Bedienungsanleitung.pdf neben dem Programm (liegt im ZIP), beim Entwickeln aus dem Ordner anleitung."""

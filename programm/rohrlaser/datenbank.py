@@ -8,7 +8,8 @@ Frachtkosten im Kopf, 5 = Zusatzarbeiten, Preis je Gewinde, Schneidzeit manuell,
 8 = Nachkalkulation je Angebot, 9 = 3D-Netze der STEP-Teile je Position, 10 = Kalkulationswerte je Angebot,
 11 = Werkstoff-Kategorien, Oberflächen, Schneiddaten je Kategorie und Schneidgas, 14 = Werte je Staffel:
 Menge bis, Materialzuschlag, Gewinn, Nebenkosten usw., 15 = Zusatzarbeiten mit Arbeitszeit und Material,
-16 = Zukaufartikel mit Kategorien, Lieferanten, Einkaufspreisen und Preisänderungen, Zukaufteile je Position).
+16 = Frachtkosten: Tabellen fracht_* und Historie fracht_kalkulationen; ältere Dateien bekommen sie leer,
+17 = Zukaufartikel mit Kategorien, Lieferanten, Einkaufspreisen und Preisänderungen, Zukaufteile je Position).
 Vor dem Erweitern einer Datei älterer Version legt das Programm eine Sicherung an (Daten/Sicherung, Zusatz
 'vor_Schema_<neu>'); mit ihr und der alten Programmversion lässt sich jede Umstellung rückgängig machen.
 Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Schema 5 bekommen die
@@ -21,13 +22,17 @@ import sqlite3
 from pathlib import Path
 
 from . import zukauf
+from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
+from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 16     # 16: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
+SCHEMA_VERSION = 17     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+                        # 16: Frachtkosten (Tabellen fracht_*, Historie)
+                        # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -36,6 +41,9 @@ UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), (
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN
+ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
+ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 
 
 class Datenbank:
@@ -49,6 +57,7 @@ class Datenbank:
         self._anlegen()
         if neu:
             self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
+            self.fracht_beispiele_laden()
 
     def schliessen(self):
         self.con.close()
@@ -66,7 +75,7 @@ class Datenbank:
                 self._umbenennen()
             if 0 < version < 11:          # Schlüssel der Schneiddaten mit Kategorie und Schneidgas
                 self.con.execute('DROP INDEX IF EXISTS "schneiddaten_schluessel"')
-            for t in TABELLEN + zukauf.TABELLEN:
+            for t in ALLE_TABELLEN:
                 spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in t.felder)
                 self.con.execute(f'CREATE TABLE IF NOT EXISTS "{t.name}" (id INTEGER PRIMARY KEY, {spalten})')
             self.con.execute("CREATE TABLE IF NOT EXISTS einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
@@ -82,6 +91,9 @@ class Datenbank:
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, zeile TEXT)")
             self.con.execute("CREATE TABLE IF NOT EXISTS netze (position_id INTEGER PRIMARY KEY REFERENCES "
                              "positionen(id) ON DELETE CASCADE, daten BLOB)")
+            self.con.execute("CREATE TABLE IF NOT EXISTS fracht_kalkulationen (id INTEGER PRIMARY KEY, datum TEXT, "
+                             "angebot_id INTEGER, bezeichnung TEXT, eingaben TEXT, ergebnis TEXT, gesamt REAL, "
+                             "programm TEXT)")
             self.con.execute("CREATE TABLE IF NOT EXISTS staffeln (id INTEGER PRIMARY KEY, angebot_id INTEGER "
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, schluessel TEXT, "
                              "menge INTEGER, bemerkung TEXT)")
@@ -92,14 +104,14 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN nachkalkulation TEXT")
             if "zeitbasis" not in spalten_a:          # Datei vor Schema 13 (alte Angebote: ohne Snapshot)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN zeitbasis TEXT")
-            for tabelle, felder in [(t.name, t.felder) for t in TABELLEN + zukauf.TABELLEN] + [("angebote", KOPF),
+            for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
                 vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
                         self.con.execute(f'ALTER TABLE "{tabelle}" ADD COLUMN "{f.name}" {SQL_ART.get(f.art, "TEXT")}')
-            for t in TABELLEN + zukauf.TABELLEN:       # nach den neuen Spalten: Schlüssel können sie enthalten
+            for t in ALLE_TABELLEN:                    # nach den neuen Spalten: Schlüssel können sie enthalten
                 if not t.schluessel:
                     continue
                 # leere Felder im Schlüssel (Schneiddaten: Werkstoff-ID oder Kategorie) zählen als gleich
@@ -119,14 +131,14 @@ class Datenbank:
                 if not self.anzahl("arbeitsschritte"):
                     self._einfuegen("arbeitsschritte", beispiel_arbeitsschritte())
             self.con.execute("CREATE INDEX IF NOT EXISTS zukauf_bezug_artikel ON zukauf_bezug (artikel_id)")
-            if version < 16 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 16
+            if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
     def _einfuegen(self, tabelle, zeilen):
-        namen = [f.name for f in TABELLE[tabelle].felder]
+        namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
         self.con.executemany(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
                              f'VALUES ({", ".join("?" * len(namen))})', [[z.get(n) for n in namen] for z in zeilen])
 
@@ -197,17 +209,17 @@ class Datenbank:
         """Ein Feld ändern. Ist es ein Schlüssel, auf den andere Tabellen verweisen (Profil-ID,
         Werkstoff-ID, Maschinen-ID), werden die Verweise mit umbenannt. Doppelte Schlüssel lösen
         ValueError aus."""
-        TABELLE[tabelle].feld(feld)   # unbekanntes Feld -> StopIteration
+        ALLE_TABELLE[tabelle].feld(feld)   # unbekanntes Feld -> StopIteration
         alt = self.con.execute(f'SELECT "{feld}" FROM "{tabelle}" WHERE id=?', (zeilen_id,)).fetchone()
         try:
             with self.con:
                 self._stammdaten_geaendert(tabelle)
                 self.con.execute(f'UPDATE "{tabelle}" SET "{feld}"=? WHERE id=?', (wert, zeilen_id))
                 if alt is not None and alt[0] not in (None, "") and wert not in (None, ""):
-                    for ziel, zfeld in VERWEISE.get((tabelle, feld), ()):
+                    for ziel, zfeld in ALLE_VERWEISE.get((tabelle, feld), ()):
                         self.con.execute(f'UPDATE "{ziel}" SET "{zfeld}"=? WHERE "{zfeld}"=?', (wert, alt[0]))
         except sqlite3.IntegrityError:
-            t = TABELLE[tabelle]
+            t = ALLE_TABELLE[tabelle]
             namen = " + ".join(t.feld(s).titel for s in t.schluessel)
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
@@ -215,7 +227,7 @@ class Datenbank:
     def verweise(self, tabelle, zeilen_id):
         """Anzahl der Zeilen anderer Tabellen, die auf diese Zeile verweisen (Hinweis vor dem Löschen)."""
         n = 0
-        for (quelle, feld), ziele in VERWEISE.items():
+        for (quelle, feld), ziele in ALLE_VERWEISE.items():
             if quelle != tabelle:
                 continue
             r = self.con.execute(f'SELECT "{feld}" FROM "{tabelle}" WHERE id=?', (zeilen_id,)).fetchone()
@@ -468,9 +480,11 @@ class Datenbank:
     def kontext(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
-        return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
-                                                        "stundensaetze", "zukauf_kategorien", "zukauf_lieferanten")},
-                           formen, kategorien)
+        k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
+                                                     "stundensaetze", "zukauf_kategorien", "zukauf_lieferanten")},
+                        formen, kategorien)
+        k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
+        return k
 
     def tabellen(self):
         """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
@@ -489,6 +503,94 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET zeitbasis=?, geaendert=? WHERE id=?",
                              (json.dumps(zeitbasis, ensure_ascii=False) if zeitbasis is not None else None,
                               self._jetzt(), angebot_id))
+
+    # -------------------------------------------------------------- Frachtkosten
+    def fracht_daten(self):
+        """Fracht-Stammdaten für den Rechenkern {Kurzname: [Zeilen]} (fracht_daten.KURZ)."""
+        return {kurz: self.zeilen(t) for t, kurz in KURZ.items()}
+
+    def fracht_beispiele_laden(self):
+        """Beispiel-Frachtdaten (BEISPIEL) einfügen; vorhandene Zeilen mit gleichem Schlüssel bleiben.
+        Ergebnis: Anzahl eingefügter Zeilen."""
+        n = 0
+        with self.con:
+            for tabelle, zeilen in fracht_beispieldaten().items():
+                namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
+                for z in zeilen:
+                    c = self.con.execute(f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
+                                         f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen])
+                    n += c.rowcount
+        return n
+
+    def plz_importieren(self, zeilen):
+        """PLZ-Zuordnungen übernehmen (fracht_daten.plz_csv_lesen); gleicher Schlüssel (Land, PLZ von, PLZ bis,
+        Richtung, Dienstleister, Kunde) wird ersetzt. Ergebnis: (neu, ersetzt)."""
+        namen = [f.name for f in ALLE_TABELLE["fracht_plz"].felder]
+        neu = ersetzt = 0
+        with self.con:
+            for z in zeilen:
+                alt = self.con.execute(
+                    "SELECT id FROM fracht_plz WHERE land=? AND plz_von=? AND COALESCE(plz_bis,'')=? AND "
+                    "COALESCE(richtung,'')=? AND COALESCE(dienstleister,'')=? AND COALESCE(kundennr,'')=?",
+                    [z.get("land"), z.get("plz_von")] + [z.get(x) or "" for x in ("plz_bis", "richtung", "dienstleister",
+                                                                                    "kundennr")]).fetchone()
+                if alt:
+                    self.con.execute(f'UPDATE fracht_plz SET {", ".join(chr(34) + x + chr(34) + "=?" for x in namen)} '
+                                     "WHERE id=?", [z.get(x) for x in namen] + [alt[0]])
+                    ersetzt += 1
+                else:
+                    self.con.execute(f'INSERT INTO fracht_plz ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
+                                     f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen])
+                    neu += 1
+        return neu, ersetzt
+
+    def fracht_tarif_neue_version(self, tarif_id, ab):
+        """Tarif mit Preisstaffeln kopieren: neue Tarif-ID '<alt>/<ab>', gültig ab `ab` (ISO); der alte Tarif
+        bekommt 'gültig bis' am Vortag. Ergebnis: neue Tarif-ID."""
+        alt = self.con.execute("SELECT * FROM fracht_tarife WHERE tarif_id=?", (tarif_id,)).fetchone()
+        if alt is None:
+            raise ValueError(f"Tarif {tarif_id} unbekannt.")
+        alt = dict(alt)
+        if alt.get("gueltig_ab") and ab <= alt["gueltig_ab"]:
+            raise ValueError("Die neue Version muss nach dem Beginn der alten gelten.")
+        basis = tarif_id.split("/")[0]
+        neu_id, i = f"{basis}/{ab}", 2
+        while self.con.execute("SELECT 1 FROM fracht_tarife WHERE tarif_id=?", (neu_id,)).fetchone():
+            neu_id, i = f"{basis}/{ab}-{i}", i + 1
+        vortag = (datetime.date.fromisoformat(ab) - datetime.timedelta(days=1)).isoformat()
+        with self.con:
+            werte = {k: v for k, v in alt.items() if k != "id"}
+            werte.update(tarif_id=neu_id, gueltig_ab=ab, gueltig_bis=alt.get("gueltig_bis") if (
+                alt.get("gueltig_bis") or "") > ab else None, version=ab[:7])
+            self.con.execute(f'INSERT INTO fracht_tarife ({", ".join(chr(34) + k + chr(34) for k in werte)}) '
+                             f'VALUES ({", ".join("?" * len(werte))})', list(werte.values()))
+            self.con.execute("UPDATE fracht_tarife SET gueltig_bis=? WHERE id=?", (vortag, alt["id"]))
+            for p in self.con.execute("SELECT * FROM fracht_preise WHERE tarif_id=?", (tarif_id,)).fetchall():
+                w = {k: v for k, v in dict(p).items() if k != "id"}
+                w["tarif_id"] = neu_id
+                self.con.execute(f'INSERT INTO fracht_preise ({", ".join(chr(34) + k + chr(34) for k in w)}) '
+                                 f'VALUES ({", ".join("?" * len(w))})', list(w.values()))
+        return neu_id
+
+    def fracht_kalkulation_speichern(self, ergebnis, bezeichnung="", angebot_id=None):
+        """Abgeschlossene Frachtkalkulation mit allen verwendeten Tarifwerten (Snapshot) in die Historie."""
+        from . import VERSION
+        with self.con:
+            return self.con.execute(
+                "INSERT INTO fracht_kalkulationen (datum, angebot_id, bezeichnung, eingaben, ergebnis, gesamt, programm) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (self._jetzt(), angebot_id, bezeichnung, json.dumps(ergebnis.get("eingaben"), ensure_ascii=False),
+                 json.dumps(ergebnis, ensure_ascii=False, default=str), ergebnis.get("gesamt"), VERSION)).lastrowid
+
+    def fracht_kalkulationen(self):
+        """Historie, neueste zuerst: id, datum, bezeichnung, angebot_id, gesamt und das gespeicherte Ergebnis."""
+        out = []
+        for r in self.con.execute("SELECT * FROM fracht_kalkulationen ORDER BY datum DESC, id DESC"):
+            z = dict(r)
+            z["ergebnis"] = json.loads(z["ergebnis"]) if z.get("ergebnis") else {}
+            z["eingaben"] = json.loads(z["eingaben"]) if z.get("eingaben") else {}
+            out.append(z)
+        return out
 
     # -------------------------------------------------------------- Kunden
     def kunde(self, kundennr):

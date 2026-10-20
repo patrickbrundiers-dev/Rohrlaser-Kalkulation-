@@ -274,7 +274,8 @@ def kapitel_ueberblick(i):
            "Einstellungen werden einmal eingerichtet (Kapitel 3 und 4): das Programm startet mit Beispielwerten, die "
            "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
-    i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, <i>Kunden</i> "
+    i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, "
+           "<i>Frachtkosten</i> (Kapitel 12) "
            "und <i>Einstellungen</i> (mit Passwort; darin die Vorgaben und die übrigen Stammdaten als Unterreiter). Jedes geöffnete Angebot bekommt einen eigenen Reiter "
            "(<i>Angebot A-2026-0041</i>), der sich mit dem kleinen × schließen lässt. Unten in der Statuszeile "
            "meldet das Programm, was es gerade gespeichert oder gerechnet hat; Fehlermeldungen erscheinen dort rot.")
@@ -448,6 +449,12 @@ def kapitel_stammdaten(i):
         ["<b>Kundennummer</b>, <b>Kundenname</b>", "Schlüssel und Name; eine geänderte Kundennummer ändert sich auch "
                                                    "in den Angeboten"],
         ["Straße, PLZ Ort, Ansprechpartner", "Anschrift im Angebots-PDF (Ansprechpartner als „z. Hd.“)"],
+        ["PLZ, Land", "Postleitzahl und Ländercode (z. B. DE) für die Frachtzone (Kapitel 12); PLZ leer = Zahl aus "
+                      "„PLZ Ort“, Land leer = DE"],
+        ["Liefer-PLZ abweichend, Lieferland abweichend", "abweichende Lieferanschrift; wenn ausgefüllt, gilt sie für "
+                                                         "die Fracht statt PLZ und Land"],
+        ["Lieferbedingung", "frei Haus, frei Frachtführer, unfrei, ab Werk oder Abholung; bei unfrei, ab Werk und "
+                            "Abholung trägt der Kunde die Fracht (Frachtkosten 0 €)"],
         ["Telefon, E-Mail", "zur Info"],
         ["Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
@@ -681,7 +688,11 @@ def kapitel_einstellungen(i):
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
-        ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen; leer = ohne Passwort"]],
+        ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Ladungsträger im Packvorschlag, Ladungsträger für "
+                         "lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
+                         "Einstellungen</i> (Kapitel 12.7), nicht unter Vorgaben"],
+        ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
+                                                    "Frachtkosten; leer = ohne Passwort"]],
         [28, 80, 157])
     i.abschnitt("Stundensätze und Zeitvorgaben")
     i.text("Der Unterreiter <i>Stundensätze und Zeitvorgaben</i> zeigt links die <b>Stundensätze</b> und rechts die "
@@ -1338,6 +1349,227 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
 
 
+def kapitel_frachtkosten(i):
+    i.kapitel("Frachtkosten")
+    i.text("Der Reiter <i>Frachtkosten</i> rechnet Frachtkosten aus Postleitzahl, Gewicht, Ladehilfsmitteln, Tarif und "
+           "Zuschlägen. Alle Preise, Zonen und Zuschläge werden selbst gepflegt; das Programm erfindet keine Tarife und "
+           "holt keine Dieselpreise aus dem Internet. Eine neue Datendatei bringt Beispielwerte mit, die mit "
+           "<b>BEISPIEL</b> gekennzeichnet sind; jede Rechnung damit zeigt die Warnung <i>Beispieltarif – keine "
+           "echten Preise</i>. Ältere Datendateien bekommen die Frachttabellen leer.")
+    i.text("Der Reiter hat sieben Unterreiter: <i>Fracht kalkulieren</i>, <i>Frachtzonen und Postleitzahlen</i>, "
+           "<i>Tarifverwaltung</i>, <i>Paletten und Ladehilfsmittel</i>, <i>Zuschläge</i>, <i>Dienstleister und "
+           "Kundentarife</i> sowie <i>Historie und Einstellungen</i>. Der Rechner ist frei; die übrigen sechs öffnen "
+           "mit dem Passwort der Einstellungen (Passwort eintippen, <b>Frachtdaten öffnen</b>). Einmal geöffnet gilt "
+           "das für beide Reiter, bis <i>Einstellungen sperren</i> gedrückt wird.")
+    i.bild("fracht_gesperrt", "Pflegebereich der Frachtkosten gesperrt", hoehe=45 * mm, legende=[
+        (1, "Reiter Frachtkosten"), (2, "Passwort der Einstellungen"), (3, "<b>Frachtdaten öffnen</b>")])
+
+    i.abschnitt("Fracht kalkulieren")
+    i.bild("fracht_rechner", "Fracht kalkulieren: Eingabe links, aufgeschlüsselte Kostenübersicht rechts "
+           "(Beispieltarif)", hoehe=115 * mm, legende=[
+        (1, "Unterreiter <i>Fracht kalkulieren</i>"), (2, "Versanddaten"), (3, "erkannte Frachtzone"),
+        (4, "Gewicht"), (5, "Ladehilfsmittel"), (6, "<b>Packvorschlag</b>"), (7, "Zusatzleistungen"),
+        (8, "Ergebnis"), (9, "<b>In Historie speichern</b>")])
+    i.tabelle(["Nr.", "Bereich", "Bedeutung"], [
+        ["2", "Versanddaten", "Absender-PLZ (Vorgabe aus den Einstellungen) und Empfänger-PLZ mit Land, Versandart, "
+                              "Kunde (optional; füllt PLZ, Land und Lieferbedingung aus dem Kundenstamm), Frachtführer "
+                              "(optional), Tarif (<i>automatisch</i> oder von Hand), Lieferbedingung, Datum (entscheidet "
+                              "über gültige Tarife und den Dieselpreis) und eine Bezeichnung für die Historie"],
+        ["3", "Frachtzone", "erscheint sofort unter der PLZ: grün mit der verwendeten Regel, gelb <i>keiner Zone "
+                            "zugeordnet – Standardzone …</i>, rot ohne Zone oder bei mehrdeutigen Regeln"],
+        ["4", "Gewicht", "Nettogewicht der Ware; darunter das Gesamtbruttogewicht = Netto + Verpackung (Eigengewicht "
+                         "der Ladungsträger)"],
+        ["5", "Ladehilfsmittel", "je Zeile Ladungsträger, Anzahl und optional Brutto je Stück (dann gilt die Summe als "
+                                 "Bruttogewicht). <b>+ Ladungsträger</b> fügt eine Zeile an, <b>Ladungsträger "
+                                 "entfernen</b> löscht die markierte. Darunter Anzahl, Stellplätze, Eigengewicht und "
+                                 "Volumen."],
+        ["6", "Packvorschlag", "füllt die Liste aus Nettogewicht und längstem Teil: Anzahl = Gewicht ÷ Nutzlast "
+                               "(aufgerundet); Teile länger als die max. Teillänge des Ladungsträgers kommen auf "
+                               "Langgut. Danach von Hand änderbar."],
+        ["7", "Zusatzleistungen", "Zuschläge mit der Bedingung „nur wenn gewählt“ zum Ankreuzen (im Beispiel "
+                                  "Avisierung, Hebebühne, Wartezeit mit Stunden). Ohne solche Zuschläge ist der Bereich "
+                                  "ausgeblendet."],
+        ["8", "Ergebnis", "verwendeter Frachtführer und Tarif mit dem Grund der Auswahl, Frachtzone, Gewicht und "
+                          "frachtpflichtiges Gewicht mit Rechenweg, Ladehilfsmittel, verwendete Preisstaffel, jede "
+                          "Position mit Betrag und Rechnung, Gesamtfrachtkosten, dazu Fehler, Warnungen, Hinweise, "
+                          "nicht angewendete Zuschläge und weitere passende Tarife mit ihrem Preis"],
+        ["9", "In Historie speichern", "legt die Kalkulation mit allen verwendeten Tarifwerten ab"]], [12, 40, 213])
+    i.text("Unter <i>Erweiterte Einstellungen</i> (zugeklappt) stehen Verpackungsgewicht [kg] (leer = Eigengewicht der "
+           "Ladungsträger), frachtpflichtiges Gewicht [kg] (leer = nach Tarif), Entfernung [km] (leer = Entfernung "
+           "der Zone) und längstes Teil [mm] (für Langgut- und Überlängenzuschläge und den Packvorschlag).")
+    i.text("Im schmalen Fenster (unter 1.100 Pixel Breite) steht das Ergebnis unter der Eingabe; ab 1.024 × 700 "
+           "Pixel ist alles ohne waagrechtes Scrollen bedienbar. Das Programm läuft unter Windows, nicht auf dem "
+           "Smartphone.")
+    i.bild("fracht_schmal", "Rechner im Fenster 1024 × 700", hoehe=95 * mm)
+    i.abschnitt("So rechnet das Programm")
+    i.liste("<b>Zone</b> der Empfänger-PLZ aus den PLZ-Zuordnungen (Regeln unten), sonst die Standardzone des Landes "
+            "mit Warnung.",
+            "<b>Tarif</b>: aktiv, am Datum gültig, Land, Zone, Versandart, Frachtführer und Kunde passen. Vorrang: "
+            "Kundentarif vor Rahmenvertrag vor Sondertarif vor Standardtarif, dann die kleinere Priorität. Passen "
+            "zwei gleich gut, rechnet das Programm nicht still mit einem davon: es zeigt <i>Tarif wählen</i> und alle "
+            "Kandidaten mit Preis. Interne Verrechnungstarife gelten nur, wenn sie von Hand gewählt sind.",
+            "<b>Frachtpflichtiges Gewicht</b>: das Bruttogewicht oder, wenn der Tarif Faktoren hat, der größte Wert "
+            "aus Volumen × kg je m³, Stellplätzen × kg je Stellplatz und Lademetern × kg je Lademeter; danach "
+            "aufgerundet nach dem Tarif. Volumen und Stellplätze zählen nur, wenn der Tarif sie verwendet.",
+            "<b>Grundfracht</b> aus den Preisstaffeln des Tarifs (Abschnitt Tarifverwaltung).",
+            "<b>Rabatt</b> des Tarifs, danach <b>Anhebung auf Mindestfracht</b> als eigene Zeile.",
+            "<b>Zuschläge</b>: erst die Beträge in Euro (je Sendung, kg, 100 kg, Ladungsträger, Stellplatz, Stunde), "
+            "dann die Prozentzuschläge auf ihre Grundlage. Ein Prozentzuschlag rechnet nie auf sich selbst oder einen "
+            "anderen Prozentzuschlag; so entstehen keine doppelten Zuschläge.",
+            "<b>Währung</b>: Tarife in fremder Währung werden mit dem gepflegten Kurs in Euro umgerechnet.",
+            "<b>Rundung</b>: jede Zeile kaufmännisch auf Cent; Gesamtfrachtkosten = Summe der Zeilen.",
+            nummeriert=True)
+
+    i.abschnitt("Frachtzonen und Postleitzahlen")
+    i.bild("fracht_zonen", "Frachtzonen und Postleitzahlen (Beispielwerte)", hoehe=110 * mm, legende=[
+        (1, "<b>PLZ testen</b>: Land und PLZ eintippen, daneben steht die Zone und die Regel."),
+        (2, "<b>CSV exportieren</b> schreibt alle PLZ-Zuordnungen als CSV (Semikolon, für Excel)."),
+        (3, "<b>CSV importieren</b> liest eine solche Datei. Gleiche Regeln (Land, PLZ von, PLZ bis, Richtung, "
+            "Dienstleister, Kunde) werden ersetzt, neue angefügt. Fehlerhafte Zeilen (unbekannte Zone, PLZ bis vor "
+            "PLZ von …) meldet das Programm mit Zeilennummer und übernimmt sie nicht. Nötig sind die Spalten PLZ von "
+            "und Zone; Land leer = DE."),
+        (4, "Unterreiter <i>Länder</i> neben <i>Frachtzonen</i>")])
+    i.tabelle(["Frachtzonen", "Bedeutung"], [
+        ["<b>Zone</b>, <b>Bezeichnung</b>", "Kurzname und freie Bezeichnung, z. B. Z1 Nahbereich"],
+        ["<b>Land</b>", "Ländercode aus den Ländern"],
+        ["Zonenart", "normal, Insel, Randgebiet, Sondergebiet oder Ausland; Insel, Randgebiet und Sondergebiet lösen "
+                     "Zuschläge mit der Bedingung „Zonenart …“ aus"],
+        ["Standardzone", "ja = gilt für PLZ des Landes ohne Zuordnung (mit Warnung); je Land höchstens eine"],
+        ["Entfernung [km]", "für Tarife mit Preisen je km"],
+        ["Aktiv", "nein = Zone deaktiviert, wird nicht mehr zugeordnet (leer = ja)"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.tabelle(["PLZ-Zuordnungen", "Bedeutung"], [
+        ["<b>Land</b>, <b>PLZ von</b>, PLZ bis", "eine PLZ (nur PLZ von), ein Bereich (01067 bis 01099) oder ein Präfix "
+                                                 "(80*). Mehrere Bereiche je Zone sind mehrere Zeilen."],
+        ["<b>Zone</b>", "Zone, in die die PLZ fällt"],
+        ["Richtung", "beide, Empfang oder Versand (unterschiedliche Zonen für Versand und Empfang); leer = beide"],
+        ["Dienstleister, Kundennummer", "Regel gilt nur für diesen Frachtführer bzw. Kunden (Ausnahmen)"],
+        ["Priorität (1 = zuerst)", "entscheidet, wenn sonst zwei Regeln gleich gut passen"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("<b>Rangfolge</b>, wenn mehrere Regeln passen: Kunde + Dienstleister vor Kunde vor Dienstleister vor "
+           "allgemein; dann einzelne PLZ vor dem engsten Bereich vor dem kürzesten Präfix; dann die kleinere "
+           "Priorität. Bleibt ein Gleichstand mit verschiedenen Zonen, meldet das Programm <i>mehrdeutig</i> und "
+           "rechnet nicht.")
+    i.tabelle(["Länder", "Bedeutung"], [
+        ["<b>Land</b>", "zweistelliger Ländercode, z. B. DE, AT, CH"],
+        ["Bezeichnung, PLZ-Stellen, Währung", "Name, Stellenzahl der PLZ (für die Prüfung), Währung (leer = EUR)"],
+        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+
+    i.abschnitt("Tarifverwaltung")
+    i.bild("fracht_tarife", "Tarifverwaltung: Tarife oben, Preisstaffeln des markierten Tarifs unten", hoehe=110 * mm,
+           legende=[
+        (1, "<b>Neue Version …</b> kopiert den markierten Tarif mit allen Preisen und neuem „Gültig ab“; der alte "
+            "Tarif gilt bis zum Vortag. So bleiben Tarifwechsel lückenlos und nachvollziehbar."),
+        (2, "Unten stehen nur die Preisstaffeln des markierten Tarifs; neue Zeilen bekommen ihn automatisch."),
+        (3, "<b>Preise aller Tarife zeigen</b> hebt den Filter auf.")])
+    i.tabelle(["Tarife", "Bedeutung"], [
+        ["<b>Tarif</b>, Bezeichnung", "Kurzname und Klartext"],
+        ["Dienstleister, Tarifart", "Frachtführer; Standardtarif, Rahmenvertrag, Sondertarif, Kundentarif oder interner "
+                                    "Verrechnungstarif (leer = Standardtarif)"],
+        ["<b>Tarifmodell</b>", "Gewichtstarif (Preise nach kg), Palettentarif und Gitterboxtarif (nach Ladungsträgern "
+                               "oder Stellplätzen), Kombinationstarif und Individueller Tarif (alle Bezugseinheiten, "
+                               "z. B. Grundpreis je Sendung + kg + Paletten)"],
+        ["Versandart, Länder, Zonen, Kundennummer", "wofür der Tarif gilt; leer = alle. Mehrere Länder oder Zonen mit "
+                                                    "Komma trennen."],
+        ["Gültig ab, Gültig bis, Währung", "Gültigkeitszeitraum (leer = unbegrenzt) und Währung (leer = EUR)"],
+        ["Mindestfracht, Rabatt", "Mindestbetrag der Grundfracht; Rabatt in % auf die Grundfracht (vor der "
+                                  "Mindestfracht)"],
+        ["Frachtpfl. Gewicht je m³ [kg], Frachtpfl. Gewicht je Stellplatz [kg], Frachtpfl. Gewicht je Lademeter [kg]", "Faktoren für das frachtpflichtige Gewicht; leer = "
+                                                                   "nicht verwendet"],
+        ["Gewicht aufrunden auf", "z. B. 1 oder 10 kg"],
+        ["Priorität (1 = zuerst), Version, Aktiv, Bemerkung", "Vorrang bei gleicher Tarifart, Versionsangabe, "
+                                                             "aktiv/inaktiv, freier Text"]], [75, 190])
+    i.tabelle(["Preisstaffeln", "Bedeutung"], [
+        ["<b>Tarif</b>, Zone", "zu welchem Tarif die Zeile gehört; Zone leer = alle Zonen (eine Zeile für die Zone "
+                               "geht vor)"],
+        ["<b>Bezugseinheit</b>", "Sendung, kg, 100 kg, Ladungsträger, Stellplatz, km oder Lademeter: worauf sich der "
+                                 "Preis bezieht"],
+        ["Ladehilfsmittel", "Art, für die die Zeile gilt (z. B. Gitterbox mit eigenem Preis); leer = alle übrigen"],
+        ["bis Menge", "Obergrenze der Stufe in der Bezugseinheit (bei kg und 100 kg immer in kg, beide bilden eine "
+                      "Gewichtsstaffel); leer = ohne Obergrenze. Es gilt die erste Stufe, in die die Menge fällt "
+                      "(genau auf der Grenze gehört zur Stufe)."],
+        ["Preis, Preisart", "Festpreis = Preis der ganzen Stufe; je Einheit = Preis × Menge (bei 100 kg: Preis × kg ÷ "
+                            "100). Preis leer = individuelle Berechnung: das Programm rechnet diese Stufe nicht und "
+                            "meldet es."],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Beispiel Gewichtstarif: Zeilen kg bis 100, 250, 500, 1.000 mit Festpreis und eine Zeile 100 kg ohne "
+           "Obergrenze je Einheit. Beispiel Palettentarif: Stellplatz bis 1, bis 3, bis 6 je Einheit und eine Zeile "
+           "ohne Preis („mehr als 6 Paletten individuell“). In einer gemischten Sendung braucht jede Art von "
+           "Ladungsträger eine passende Zeile, sonst meldet das Programm <i>Tarif ohne Preis für …</i> statt mit 0 € "
+           "zu rechnen.")
+
+    i.abschnitt("Paletten und Ladehilfsmittel")
+    i.bild("fracht_lht", "Paletten und Ladehilfsmittel (Beispielwerte)", hoehe=90 * mm)
+    i.tabelle(["Ladehilfsmittel", "Bedeutung"], [
+        ["<b>Ladehilfsmittel</b>, Bezeichnung", "Kurzname und Klartext"],
+        ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut oder "
+                       "Sonderladung"],
+        ["Länge, Breite, Höhe [mm]", "für Volumen und Lademeter; fehlt ein Maß, rechnet das Programm ohne Volumen"],
+        ["Eigengewicht, Nutzlast [kg]", "Eigengewicht = Verpackungsgewicht; Nutzlast für Packvorschlag und Warnung"],
+        ["Max. Teillänge [mm]", "längere Teile kommen im Packvorschlag auf Langgut"],
+        ["Stapelbar, Stapelfaktor", "wie viele übereinander einen Stellplatz teilen"],
+        ["Stellplätze je Stück", "z. B. 1 für eine Europalette, 3 für Langgut (leer = 1)"],
+        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+
+    i.abschnitt("Zuschläge")
+    i.bild("fracht_zuschlaege", "Zuschläge, darunter Dieselpreise, Dieselstaffel und Währungen", hoehe=105 * mm,
+           legende=[(1, "Unterreiter <i>Dieselpreise</i>"), (2, "Unterreiter <i>Dieselstaffel</i>"),
+                    (3, "Unterreiter <i>Währungen</i>")])
+    i.tabelle(["Zuschläge", "Bedeutung"], [
+        ["<b>Zuschlag</b>, Bezeichnung", "Kurzname und Text in der Kostenübersicht"],
+        ["<b>Typ</b>", "Diesel, Maut, Energie, Gefahrgut, Langgut / Überlänge, Sperrgut, Insel- und Randgebiet, "
+                       "Avisierung, Hebebühne, Express, Fixtermin, Mindermenge, Wartezeit, Be- und Entladung, "
+                       "Sonderhandling oder sonstiger Zuschlag. Je Typ gilt nur ein Zuschlag: der speziellere (Kunde vor "
+                       "Dienstleister vor Tarif vor allgemein); die anderen stehen unter „nicht angewendet“."],
+        ["<b>Berechnungsart</b>", "%, € je Sendung, € je kg, € je 100 kg, € je Ladungsträger, € je Stellplatz, € je "
+                                  "Stunde oder Dieselstaffel"],
+        ["Berechnungsgrundlage, Grundlage Zuschläge", "für Prozentzuschläge: Grundfracht, Grundfracht + "
+                                                      "Leistungszuschläge oder gewählte Zuschläge (Kurznamen mit Komma, "
+                                                      "auch „Grundfracht“). Die Kostenübersicht nennt die Grundlage."],
+        ["Wert [% bzw. €]", "Prozentsatz oder Betrag"],
+        ["Mindestbetrag, Höchstbetrag", "Grenzen des Zuschlags"],
+        ["Gültig ab, Gültig bis", "Zeitraum; außerhalb wirkt der Zuschlag nicht"],
+        ["Länder, Zonen, Tarife, Dienstleister, Kundennummer", "wofür der Zuschlag gilt; leer = alle"],
+        ["Bedingung, Grenze", "immer, nur wenn gewählt (Zusatzleistung im Rechner), Gewicht unter / über Grenze [kg] "
+                              "(z. B. Mindermengenzuschlag), Teillänge über Grenze [mm] (Überlänge) oder Zonenart "
+                              "Insel/Randgebiet/Sondergebiet"],
+        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+    i.text("<b>Dieselzuschlag</b>: als Prozent auf die Grundfracht oder eine andere Grundlage, als Festbetrag je "
+           "Sendung oder über die Dieselstaffel. Für die Dieselstaffel trägt man unter <i>Dieselpreise</i> den "
+           "Dieselpreis mit Datum ein (Gültig ab, Dieselpreis [€/l], Quelle) und unter <i>Dieselstaffel</i> die "
+           "Schwellen (Zuschlag, Dieselpreis ab [€/l], Zuschlag [% bzw. €]). Es gilt der letzte Dieselpreis bis zum "
+           "Datum der Kalkulation und die höchste erreichte Schwelle. Fehlt ein Dieselpreis, rechnet das Programm "
+           "den Zuschlag nicht und warnt.")
+    i.tabelle(["Währungen", "Bedeutung"], [
+        ["<b>Währung</b>", "z. B. CHF"],
+        ["Kurs (1 Einheit = … €), Stand", "Umrechnungskurs und Datum; ohne Kurs rechnet ein Tarif in dieser Währung nicht"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+
+    i.abschnitt("Dienstleister und Kundentarife")
+    i.bild("fracht_dienstleister", "Dienstleister und Kundentarife", hoehe=95 * mm, legende=[
+        (1, "<b>Kundentarif anlegen</b> legt einen Tarif mit Tarifart Kundentarif an und öffnet die Tarifverwaltung; "
+            "dort Tarif-ID, Kundennummer und Preise eintragen."),
+        (2, "Übersicht aller Kundentarife, Rahmenverträge und Sondertarife; Doppelklick öffnet den Tarif.")])
+    i.tabelle(["Dienstleister", "Bedeutung"], [
+        ["<b>Dienstleister</b>, Name", "Kurzname und Name des Frachtführers"],
+        ["Versandarten", "mit Komma getrennt, erscheinen im Rechner zur Auswahl"],
+        ["Unsere Kundennummer beim Dienstleister", "zur Info"],
+        ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+
+    i.abschnitt("Historie und Einstellungen")
+    i.bild("fracht_historie", "Historie und Einstellungen", hoehe=100 * mm, legende=[
+        (1, "Gespeicherte Kalkulationen: Datum, Bezeichnung, Empfänger, Zone, Tarif, frachtpflichtiges Gewicht, "
+            "Gesamt"),
+        (2, "<b>Kalkulation anzeigen</b> (oder Doppelklick) zeigt die Kostenübersicht wie beim Speichern."),
+        (3, "Einstellungen der Frachtkosten: Absender-PLZ (Versandort), Absender-Land, Ladungsträger im "
+            "Packvorschlag, Ladungsträger für lange Teile (Langgut)"),
+        (4, "<b>Beispieldaten laden</b> fügt die Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu "
+            "(BEISPIEL); vorhandene Einträge bleiben.")])
+    i.text("Jede gespeicherte Kalkulation enthält eine vollständige Kopie aller verwendeten Werte: Tarif und Version, "
+           "Preisstaffeln, Zone und PLZ-Regel, Zuschläge, Dieselpreis, Kurs, Gewicht und Ladehilfsmittel. Spätere "
+           "Änderungen an Tarifen oder Zuschlägen ändern gespeicherte Kalkulationen nicht.")
+
+
 def kapitel_fragen(i):
     i.kapitel("Häufige Fragen und Meldungen")
     i.tabelle(["Meldung / Frage", "Ursache und Abhilfe"], [
@@ -1351,6 +1583,13 @@ def kapitel_fragen(i):
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Frachtkosten: <b>keiner Zone zugeordnet</b>", "Für die PLZ gibt es keine PLZ-Zuordnung. Mit Standardzone "
+         "rechnet das Programm weiter (gelb), ohne nicht (rot). Zuordnung im Unterreiter Frachtzonen und "
+         "Postleitzahlen ergänzen (Kapitel 12)."],
+        ["Frachtkosten: <b>Tarif wählen</b> / <b>mehrdeutig</b>", "Mehrere Tarife oder PLZ-Regeln passen gleich gut. "
+         "Tarif im Rechner von Hand wählen oder eine Priorität vergeben."],
+        ["Frachtkosten: <b>individuelle Berechnung nötig</b>", "Die Menge liegt über der letzten Stufe oder die Stufe "
+         "hat keinen Preis. Preis beim Frachtführer anfragen oder die Preisstaffel ergänzen."],
         ["Windows meldet einen <b>Virus</b> oder <b>„Der Computer wurde durch Windows geschützt“</b>",
          "Fehlalarm bei einem nicht signierten Programm. Abschnitt <i>Windows-Warnungen</i> in Kapitel 2: ZIP vor dem "
          "Entpacken zulassen, Trotzdem ausführen, Datei aus der Quarantäne wiederherstellen und an Microsoft "
@@ -1420,6 +1659,7 @@ def pdf_bauen(bilder_ordner, ziel):
                     kapitel_nachkalkulation):
         kapitel(inh)
     kapitel_ausgabe(inh, daten["seiten"], daten["ablage"])
+    kapitel_frachtkosten(inh)
     kapitel_fragen(inh)
     # die erste Kapitelüberschrift soll keinen zusätzlichen Seitenumbruch erzeugen
     inh.f = [x for k, x in enumerate(inh.f) if not (isinstance(x, PageBreak) and k > 0

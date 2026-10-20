@@ -146,7 +146,7 @@ ok("11 Bezugskosten einmal je Bestellung, nach Verbrauch verteilt; Preisstände 
 
 # ------------------------------------------------------------------ Datenbank: Speichern und Prüfung
 db = Datenbank(tmp / "z.db")
-gleich(SCHEMA_VERSION, 16, "Schema")
+gleich(SCHEMA_VERSION, 17, "Schema")
 gleich(list(db.zukauf_kategorien()), list(zukauf.KATEGORIEN_START), "Kategorien nur mit Namen")
 assert all(z.get("aufschlag_wert") is None for z in db.zukauf_kategorien().values()), "keine erfundenen Aufschläge"
 gleich(db.einstellung("zukauf_aufschlag"), None, "Standardaufschlag leer")
@@ -198,7 +198,7 @@ gleich(db.zukauf_stand(a2)["regeln"][0]["wert"], 40.0, "Kategorieaufschlag für 
 gleich(db.einstellung("stammdaten_herkunft"), "Beispieldaten", "Zukauf ändert die Stammdaten-Herkunft nicht")
 ok("Kategorie: Umbenennen ändert Artikel mit, neuer Kategorieaufschlag überschreibt individuelle Artikel nicht")
 
-# ------------------------------------------------------------------ Datei der Vorversion (Schema 15)
+# ------------------------------------------------------------------ Datei der Vorversion (Schema 16)
 alt = tmp / "alt.db"
 shutil.copy(tmp / "z.db", alt)
 db.schliessen()
@@ -206,15 +206,15 @@ con = sqlite3.connect(alt)
 for t in zukauf.TABELLEN:
     con.execute(f'DROP TABLE "{t.name}"')
 con.execute("ALTER TABLE positionen DROP COLUMN zukauf")
-con.execute("PRAGMA user_version=15")
+con.execute("PRAGMA user_version=16")
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-gleich(db2.con.execute("PRAGMA user_version").fetchone()[0], 16, "Schema 16")
+gleich(db2.con.execute("PRAGMA user_version").fetchone()[0], 17, "Schema 17")
 gleich(len(db2.zukauf_kategorien()), 7, "Kategorien ergänzt")
 assert "zukauf" in {r[1] for r in db2.con.execute("PRAGMA table_info(positionen)")}
-assert db2.sicherungen(zusatz="vor_Schema_16"), "Sicherung vor der Umstellung"
+assert db2.sicherungen(zusatz="vor_Schema_17"), "Sicherung vor der Umstellung"
 db2.schliessen()
-ok("Datei Schema 15: Sicherung, neue Tabellen und Spalte, Kategorien ergänzt")
+ok("Datei Schema 16: Sicherung, neue Tabellen und Spalte, Kategorien ergänzt")
 
 print("OK: Zukaufartikel (Rechenkern und Daten)")
