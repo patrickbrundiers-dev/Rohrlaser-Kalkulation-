@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox, BRepPrimAPI_MakePrism
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
 from OCP.BRepBuilderAPI import (BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert, BRepBuilderAPI_MakePolygon,
                                 BRepBuilderAPI_MakeFace)
@@ -350,4 +350,81 @@ if __name__ == "__main__":
     for z in (50, 250):
         fl = cut(fl, zylinder((0, -3, z), (0, 1, 0), 9, 6))
     schreibe(fl, "REF17_FL40x5_Bohrungen", ref)
-    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, "und", ref)
+    # Z-Profil 60 x 40 x 4 (offen, keine erkannte Form): gemeldet als offenes Sonderprofil, nie kalkuliert
+    schreibe(profil([(0, 0), (40, 0), (40, 4), (4, 4), (4, 60), (-36, 60), (-36, 56), (0, 56)], 500),
+             "REF18_Z60x40x4_L500", ref)
+    # Bleche (tests/step_bleche, test_step_bleche.py): Blech liegt in XY, Dicke in Z, sofern nicht gedreht
+    bl = ZIEL.parent / "step_bleche"
+
+    def blech(lx, ly, d):
+        return BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), lx, ly, d).Shape()
+
+    def loch(shape, x, y, durchm, d):
+        return cut(shape, zylinder((x, y, -1), (0, 0, 1), durchm, d + 2))
+    schreibe(blech(500, 300, 5), "B01_Blech_500x300x5", bl)
+    b2 = blech(400, 200, 4)
+    for x, y in ((30, 30), (370, 30), (30, 170), (370, 170)):
+        b2 = loch(b2, x, y, 10, 4)
+    schreibe(loch(b2, 200, 100, 20, 4), "B02_Blech_400x200x4_Bohrungen", bl)
+    # Ausschnitt 100x50 und Langloch 40x12 (zwei Halbkreise) im Blech 600x400x3
+    b3 = cut(blech(600, 400, 3), BRepPrimAPI_MakeBox(gp_Pnt(100, 100, -1), 100, 50, 5).Shape())
+    lang = profil([(400, 194), (420, 194), (420, 206), (400, 206)], 5)
+    lang = BRepAlgoAPI_Fuse(BRepAlgoAPI_Fuse(lang, zylinder((400, 200, 0), (0, 0, 1), 12, 5)).Shape(),
+                            zylinder((420, 200, 0), (0, 0, 1), 12, 5)).Shape()
+    schreibe(cut(b3, verschiebe(lang, 0, 0, -1)), "B03_Blech_600x400x3_Ausschnitte", bl)
+    # unregelmäßige Kontur (Fünfeck mit schräger Ecke), Hüllrechteck 400 x 250
+    schreibe(profil([(0, 0), (400, 0), (400, 120), (250, 250), (0, 250)], 6), "B04_Blech_400x250x6_Kontur", bl)
+    schreibe(drehe_beliebig(blech(500, 300, 5)), "B05_Blech_500x300x5_gedreht", bl)
+    # schräg liegend: um X um 30° gekippt, mit Bohrung Ø16
+    tr = gp_Trsf(); tr.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.radians(30))
+    schreibe(BRepBuilderAPI_Transform(loch(blech(250, 180, 8), 125, 90, 16, 8), tr, True).Shape(),
+             "B06_Blech_250x180x8_schraeg", bl)
+    # gekantet: Grundplatte 120 x 100 x 3, Schenkel 60 hoch, Biegeradius innen 3 / außen 6, Schenkel nur 50 breit
+    # (z 25 bis 75), dadurch kein gleichbleibender Querschnitt
+    w = profil([(0, 0), (120, 0), (120, 3), (3, 3), (3, 60), (0, 60)], 100, {(0, 0): 6, (3, 3): 3})
+    w = cut(w, BRepPrimAPI_MakeBox(gp_Pnt(-1, 10, -1), 5, 60, 26).Shape())
+    w = cut(w, BRepPrimAPI_MakeBox(gp_Pnt(-1, 10, 75), 5, 60, 26).Shape())
+    schreibe(w, "B07_Blech_gekantet_Winkel", bl)
+    # dünnes Vollmaterial, kein Blech: Platte 200 x 100 x 8 mit Tasche 50 x 30, 4 tief
+    schreibe(cut(blech(200, 100, 8), BRepPrimAPI_MakeBox(gp_Pnt(75, 35, 4), 50, 30, 5).Shape()),
+             "B08_Platte_mit_Tasche", bl)
+    # Abgrenzung Flachstahl: 100 x 10 L 800 bleibt Flachstahl, 160 x 8 L 1000 ist breiter als 150 -> Blech,
+    # 40 x 8 L 100 ist kürzer als 3 × Breite -> Blech
+    schreibe(blech(800, 100, 10), "B09_FL100x10_L800", bl)
+    schreibe(blech(1000, 160, 8), "B10_Blech_1000x160x8", bl)
+    schreibe(blech(100, 40, 8), "B11_Blech_100x40x8", bl)
+    # Fase 2 x 45° an einer Längskante, kleines Reststück
+    fase = profil([(0, 0), (300, 0), (300, 3), (298, 5), (0, 5)], 200)
+    schreibe(fase, "B12_Blech_300x200x5_Fase", bl)
+    schreibe(blech(30, 20, 3), "B13_Blech_30x20x3_Rest", bl)
+    # Baugruppe: Rechteckrohr mit zwei Fußplatten
+    schreibe(baugruppe(kastenrohr(60, 40, 2, 800, 4), verschiebe(blech(150, 150, 8), -75, -75, -8),
+                       verschiebe(blech(150, 150, 8), -75, -75, 800)), "B14_Baugruppe_Rohr_2Bleche", bl)
+    # Träger und T-Profile (tests/step_traeger): Querschnitt in XY, Länge in Z, Flansche waagerecht (y)
+    tg = ZIEL.parent / "step_traeger"
+
+    def i_profil(h, b, tw, tf, l, r=0, tf_oben=None, b_oben=None):
+        to, bo = tf_oben or tf, b_oben or b
+        pts = [(-b / 2, 0), (b / 2, 0), (b / 2, tf), (tw / 2, tf), (tw / 2, h - to), (bo / 2, h - to), (bo / 2, h),
+               (-bo / 2, h), (-bo / 2, h - to), (-tw / 2, h - to), (-tw / 2, tf), (-b / 2, tf)]
+        ecken = {(tw / 2, tf): r, (tw / 2, h - to): r, (-tw / 2, h - to): r, (-tw / 2, tf): r} if r else None
+        return profil(pts, l, ecken)
+
+    def t_profil(h, b, tw, tf, l, r=0):
+        pts = [(-b / 2, h - tf), (-tw / 2, h - tf), (-tw / 2, 0), (tw / 2, 0), (tw / 2, h - tf), (b / 2, h - tf),
+               (b / 2, h), (-b / 2, h)]
+        return profil(pts, l, {(-tw / 2, h - tf): r, (tw / 2, h - tf): r} if r else None)
+    schreibe(i_profil(200, 100, 5.6, 8.5, 1000, 12), "TR01_IPE200_L1000", tg)
+    schreibe(i_profil(160, 160, 8, 13, 800, 15), "TR02_HEB160_L800", tg)
+    schreibe(drehe_beliebig(i_profil(190, 200, 6.5, 10, 600, 18)), "TR03_HEA200_gedreht_L600", tg)
+    schreibe(i_profil(150, 80, 5, 7, 700), "TR04_I150x80x5x7_L700", tg)
+    schreibe(i_profil(200, 100, 6, 10, 600, tf_oben=6), "TR05_I200_unsymmetrisch_L600", tg)
+    schreibe(drehe_achse(t_profil(50, 50, 6, 6, 600), 90), "TR06_T50_L600", tg)
+    schreibe(t_profil(60, 40, 5, 7, 500, 4), "TR07_T60x40x5x7_L500", tg)
+    schreibe(profil([(0, 0), (50, 0), (50, 8.5), (6, 8.5), (6, 91.5), (50, 91.5), (50, 100), (0, 100)], 900),
+             "TR08_UPN100_L900", tg)
+    tr = i_profil(200, 100, 5.6, 8.5, 1000, 12)
+    for z in (100, 900):
+        tr = cut(tr, zylinder((-10, 100, z), (1, 0, 0), 13, 20))
+    schreibe(tr, "TR09_IPE200_Stegbohrungen_L1000", tg)
+    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, ",", ref, ",", bl, "und", tg)

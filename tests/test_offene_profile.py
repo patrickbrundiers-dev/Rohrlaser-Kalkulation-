@@ -97,7 +97,7 @@ def _():
 tmp = Path(tempfile.mkdtemp())
 
 
-@fall("Ältere Datendatei: Profilformen um U, C, L, Flachstahl ergänzt, eigene Einträge bleiben")
+@fall("Ältere Datendatei: Profilformen um U, C, L, Flachstahl, I-/H-Träger, T-Profil ergänzt, eigene bleiben")
 def _():
     pfad = tmp / "alt" / "rohrlaser.db"
     Datenbank(pfad).schliessen()
@@ -110,8 +110,49 @@ def _():
     d = Datenbank(pfad)
     assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     assert d.einstellung("profilformen").splitlines() == ["Rundrohr", "Ovalrohr", "U-Profil", "C-Profil", "L-Profil",
-                                                          "Flachstahl", "Sonderprofil"], d.einstellung("profilformen")
+                                                          "Flachstahl", "I-/H-Träger", "T-Profil", "Sonderprofil"], \
+        d.einstellung("profilformen")
     d.schliessen()
+    # Datei mit Schema 18: nur die Träger kommen dazu, U/C/L/Flachstahl sind schon da
+    con = sqlite3.connect(pfad)
+    con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('profilformen', ?)",
+                ('"Rundrohr\\nU-Profil\\nC-Profil\\nL-Profil\\nFlachstahl\\nSonderprofil"',))
+    con.execute("PRAGMA user_version=18")
+    con.commit()
+    con.close()
+    d = Datenbank(pfad)
+    assert d.einstellung("profilformen").splitlines()[-3:] == ["I-/H-Träger", "T-Profil", "Sonderprofil"], \
+        d.einstellung("profilformen")
+    d.schliessen()
+
+
+IPE = dict(profil_id="IPE 200", form="I-/H-Träger", a=200, b=100, wand=5.6)
+TG = dict(profil_id="T 60x40x5x7", form="T-Profil", a=60, b=40, wand=5)
+
+
+@fall("Träger: Querschnitt aus der Normtabelle, sonst Fläche manuell; Umfang, Hüllkreis, Profil-ID aus dem Namen")
+def _():
+    nah(flaeche_berechnet(IPE), 2850)
+    assert flaeche_berechnet(TG) is None and flaeche_berechnet(dict(IPE, profil_id="I 200x100x5,6x8,5")) is None
+    nah(flaeche_wirksam(dict(TG, flaeche_manuell=552)), 552)
+    nah(huellkreis(IPE), math.hypot(200, 100))
+    nah(opt.umfang("I-/H-Träger", 200, 100, 5.6), 2 * 200 + 4 * 100 - 2 * 5.6)
+    nah(opt.schnittlaenge("I-/H-Träger", 200, 100, 5.6), 200 + 2 * 100 - 5.6)
+    nah(opt.schnittlaenge("T-Profil", 60, 40, 5), 100)
+    assert opt.profil_aus_name("HEB 160") == dict(form="I-/H-Träger", a=160, b=160, wand=8, flaeche_manuell=5430)
+    assert opt.profil_aus_name("UPN 100") == dict(form="U-Profil", a=100, b=50, wand=6, flaeche_manuell=1350)
+    assert opt.profil_aus_name("I 150x80x5x7") == dict(form="I-/H-Träger", a=150, b=80, wand=5,
+                                                       flaeche_manuell=2 * 80 * 7 + 136 * 5)
+    assert opt.profil_aus_name("T 60x40x5x7") == dict(form="T-Profil", a=60, b=40, wand=5,
+                                                      flaeche_manuell=40 * 7 + 53 * 5)
+    assert opt.profil_aus_name("I 150x80x5") is None and opt.profil_aus_name("I 10x80x5x7") is None
+
+    class K:
+        def auswahl(self, quelle):
+            return ["I-/H-Träger", "T-Profil"]
+    assert pruefen(PROFILE, IPE, K()) == "OK"
+    assert pruefen(PROFILE, TG, K()).startswith("FEHLER: Querschnitt fehlt"), pruefen(PROFILE, TG, K())
+    assert pruefen(PROFILE, dict(TG, flaeche_manuell=552), K()) == "OK"
 
 
 @fall("Kalkulation mit U-Profil, L-Profil (aus dem Namen angelegt) und Flachstahl")
@@ -147,6 +188,36 @@ def _():
         assert z and z["material_position"] > 0 and z["preis_position"] > 0, z
     assert zeilen[0]["laser_position"] > 0, zeilen[0]          # nur U hat einen Schneidweg (wie bei Rohren)
     nah(rechnen.oberflaeche(pos[0], k), 214 * 800 / 1e6)
+    db.schliessen()
+
+
+@fall("Kalkulation mit IPE 200 (aus dem Namen angelegt) und T-Profil mit Fläche manuell")
+def _():
+    db = Datenbank(tmp / "t" / "rohrlaser.db")
+    db.neu("profile", dict(TG, flaeche_manuell=552))
+    k, tab = db.kontext(), db.tabellen()
+    assert profiltext("T 60x40x5x7", k) == "T-Profil 60 x 40 x 5"
+    kopf = dict(maschine="RL-1", stange=6000)
+    pos = [dict(pos=10, artikel="I", profil_id="IPE 200", werkstoff_id="S235-10219", laenge=1000, stueck=2,
+                schneidweg=2 * 394.4, einstiche=2),
+           dict(pos=20, artikel="T", profil_id="T 60x40x5x7", werkstoff_id="S235-10219", laenge=500, stueck=3,
+                schneidweg=200, einstiche=2)]
+    gruppen, fehl, neue = rechnen.gruppen_bilden(kopf, pos, k)
+    assert not fehl and neue == [dict(profil_id="IPE 200", form="I-/H-Träger", a=200, b=100, wand=5.6,
+                                      flaeche_manuell=2850, bemerkung="automatisch aus Profil-ID angelegt")], neue
+    for p in neue:
+        db.neu("profile", p)
+    k = db.kontext()
+    assert profiltext("IPE 200", k) == "IPE 200"
+    erg = rechnen.optimieren(kopf, pos, k)
+    assert not erg["fehler"], erg["fehler"]
+    zeilen, summen = rechnen.kalkulation(kopf, pos, erg, k, tab, db.einstellungen())
+    dichte = k.werkstoffe["S235-10219"]["dichte"]
+    w = rechnen.position_werte(pos[0], kopf, k, tab)
+    nah(w["kg_m"], 2850 * dichte / 1000, 1e-9)
+    nah(rechnen.position_werte(pos[1], kopf, k, tab)["kg_m"], 552 * dichte / 1000, 1e-9)
+    for z in zeilen:
+        assert z and z["material_position"] > 0 and z["laser_position"] > 0 and z["preis_position"] > 0, z
     db.schliessen()
 
 

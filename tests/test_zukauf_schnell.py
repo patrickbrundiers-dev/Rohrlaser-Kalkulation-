@@ -85,6 +85,8 @@ def bedienen(d):
     d.bezeichnung.setText("Blech Knotenblech")
     d.ek.setText("abc")
     assert d.fertig() is False and "keine Zahl" in d.info.text()
+    d.ek.setText("0")
+    assert d.fertig() is False and "größer als 0" in d.info.text(), "0 € ist nie ein Einkaufspreis"
     d.ek.setText("4")
     d.aufschlag.clear()                      # Regel der Kategorie (keine Werte vorbelegt)
     d.menge.setText("2")
@@ -94,7 +96,7 @@ def bedienen(d):
 
 assert seite.zukauf_schnell([0], dialog=bedienen) == 2
 lasche = next(x for x in db.zukauf_artikel_liste() if x["bezeichnung"] == "Blech Lasche 80x40x5")
-assert lasche["kategorie"] == "Blechteile" and lasche["bezuege"][0]["lieferant"] == "Technik"
+assert lasche["herkunft"] == "Schnellanlage" and lasche["kategorie"] == "Blechteile" and lasche["bezuege"][0]["lieferant"] == "Technik"
 assert lasche["aufschlag_quelle"] == zukauf.INDIVIDUELL and lasche["aufschlag_wert"] == 20
 assert "Technik" in {z["name"] for z in db.zeilen("zukauf_lieferanten")}
 assert db.zukauf_historie(lasche["id"])[0]["bemerkung"] == "Schnellanlage im Angebot"

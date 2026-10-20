@@ -7,7 +7,8 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from . import fracht_angebot, rechnen, zukauf
+from . import fracht_angebot, normprofile, rechnen, zukauf
+from .angebot import aktiv as position_aktiv, ist_zukaufteil
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -47,9 +48,10 @@ def dateiname(kopf, zusatz="", mit_kunde=False):
     return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", s).strip()
 
 
-def ablageordner(einstellung, programmordner):
-    """Ablage: eingestellter Ordner, sonst 'Angebote' neben dem Programm. Wird angelegt."""
-    ordner = Path(einstellung) if einstellung else Path(programmordner) / ABLAGE
+def ablageordner(einstellung, vorgabe):
+    """Ablage: eingestellter Ordner, sonst die Vorgabe (portabel 'Angebote' neben dem Programm, installiert
+    Dokumente\\Rohrlaser Angebote). Wird angelegt."""
+    ordner = Path(einstellung) if einstellung else Path(vorgabe)
     ordner.mkdir(parents=True, exist_ok=True)
     return ordner
 
@@ -83,13 +85,18 @@ def profiltext(pid, k, dezimal=","):
     return {"Rundrohr": f"Rundrohr Ø {a} x {wand}", "Quadratrohr": f"Quadratrohr {a} x {a} x {wand}",
             "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}", "U-Profil": f"U-Profil {a} x {b} x {wand}",
             "C-Profil": f"C-Profil {a} x {b} x {wand}", "L-Profil": f"L-Profil {a} x {b} x {wand}",
-            "Flachstahl": f"Flachstahl {a} x {wand}"}.get(z.get("form"), str(pid))
+            "Flachstahl": f"Flachstahl {a} x {wand}",
+            "I-/H-Träger": str(pid) if normprofile.daten(pid) else f"I-Träger {a} x {b} x {wand}",
+            "T-Profil": str(pid) if normprofile.daten(pid) else f"T-Profil {a} x {b} x {wand}"}.get(
+        z.get("form"), str(pid))
 
 
 def angebotstext(p, k, dezimal=",", zusatz=()):
     """Bezeichnung einer Position im Angebot, z. B. 'Rechteckrohr 80 x 40 x 5, L = 1500 mm, inkl. Material
     S235 EN10219, Zusatzarbeiten: Gewinde 4xM6, Gravur, feuerverzinkt'. zusatz: Zusatzarbeiten der Position
     aus der Kalkulation (Text im Angebot aus den Stammdaten, dazu der Text der Position, z. B. RAL 7016)."""
+    if ist_zukaufteil(p):
+        return zukaufteil_text(p)
     laenge = p.get("laenge")
     t = profiltext(p.get("profil_id"), k, dezimal)
     t += f", L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else ", L =  mm"
@@ -122,6 +129,21 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     return t
 
 
+def zukaufteil_text(p):
+    """Text einer Zukaufteil-Position im Angebot: Bezeichnung der Zukaufartikel (bei mehreren mit Menge je Teil),
+    sonst die Bezeichnung der Position, z. B. 'Blech S235 500 × 300 × 5 mm'."""
+    namen = []
+    eintraege = zukauf.eintraege(p)
+    for e in eintraege:
+        st = e.get("stand") or {}
+        name = st.get("bezeichnung") or st.get("artikelnr") or ""
+        m = _wert(e.get("menge"))
+        if len(eintraege) > 1 or m != 1:
+            name = f"{kaufm_runden(m, 3):g}".replace(".", ",") + f" {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}"
+        namen.append(name)
+    return ", ".join(n for n in namen if n) or str(p.get("bezeichnung") or p.get("artikel") or "Zukaufteil")
+
+
 def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=","):
     """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
     zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt}], netto, mwst, brutto,
@@ -129,7 +151,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     fehlen), hinweise (Positionen mit Hinweis)."""
     def preis(i):
         z = kalk_zeilen[i]
-        return round(_wert(z["preis_teil"]) if z else 0, 2)
+        return kaufm_runden(_wert(z["preis_teil"]) if z else 0, 2)
 
     def _zus(i):
         return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
@@ -140,28 +162,28 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
 
     zeilen, erledigt = [], set()
     for i, p in enumerate(positionen):
-        if p.get("profil_id") in (None, ""):
+        if not position_aktiv(p):
             continue
         satz = _satz(p.get("satz"))
         if not satz:
             pr, menge = preis(i), _wert(p.get("stueck"))
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=angebotstext(p, k, dezimal, _zus(i)),
-                               menge=p.get("stueck"), preis=pr, gesamt=round(pr * menge, 2)))
+                               menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge, 2)))
         elif satz not in erledigt:
             erledigt.add(satz)
             teile = [(j, q) for j, q in enumerate(positionen) if _satz(q.get("satz")) == satz]
             n = max((_wert(q.get("stueck")) / je(q) for _, q in teile), default=0)
             saetze = max(1, int(n + 0.5))
-            satzpreis = round(sum(preis(j) * je(q) for j, q in teile), 2)
+            satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile), 2)
             zeilen.append(dict(art="satz", pos=None, artikel=None, text=f"Satz {satz}", menge=saetze,
-                               preis=satzpreis, gesamt=round(satzpreis * saetze, 2)))
+                               preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
                                    text=f"   {kaufm_runden(je(q), 0):.0f} x {angebotstext(q, k, dezimal, _zus(j))}",
                                    menge=None, preis=None, gesamt=None))
     hinweise = sum(1 for i, p in enumerate(positionen)
-                   if p.get("profil_id") not in (None, "") and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
-    netto = sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None)
+                   if position_aktiv(p) and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
+    netto = kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2)    # Summe ohne Gleitkommareste
     satz_mwst = _wert(einst.get("mwst"))
     mwst = kaufm_runden(netto * satz_mwst, 2)
     staffeln = []
@@ -184,7 +206,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             staffeln.append(dict(art="teil", pos=z["schluessel"], text=(z.get("bezeichnung") or "") + zus,
                                  menge=z["menge"], bereich=bereich, preis=z["preis_einheit"],
                                  gesamt=z["preis_gesamt"]))
-    return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=netto + mwst, mwst_satz=satz_mwst, staffeln=staffeln,
+    return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=kaufm_runden(netto + mwst, 2), mwst_satz=satz_mwst, staffeln=staffeln,
                 hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[])
 
 
@@ -224,9 +246,12 @@ def gueltig_bis(kopf, einst):
 def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     """Materialliste und je Stangenmuster ein Block (WerkstattpapierFuellen).
     Ergebnis: dict(material=[{profil, werkstoff, stange, stangen, gewicht}],
-                   muster=[{nummern, anzahl, stange (Schnittplanzeile), rest, ausnutzung, teile=[…]}])."""
+                   muster=[{nummern, anzahl, stange (Schnittplanzeile), rest, ausnutzung, teile=[…]}],
+                   zukaufteile=[{pos, artikel, bezeichnung, stueck, text}] (Zukaufteil-Positionen, nicht gelasert))."""
+    zk = [dict(pos=p.get("pos"), artikel=p.get("artikel"), bezeichnung=p.get("bezeichnung"), stueck=p.get("stueck"),
+               text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
     if not ergebnis or not ergebnis.get("stangen"):
-        return dict(material=[], muster=[])
+        return dict(material=[], muster=[], zukaufteile=zk)
     sw = rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen)
     werte = {s["nr"]: w for s, w in zip(ergebnis["stangen"], sw)}
     material = {}
@@ -246,7 +271,7 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                               laenge=t["laenge"], von=t["von"], bis=t["bis"], lage=t["lage"], trennung=t["trennung"]))
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile))
-    return dict(material=list(material.values()), muster=muster)
+    return dict(material=list(material.values()), muster=muster, zukaufteile=zk)
 
 
 def muster_titel(m):

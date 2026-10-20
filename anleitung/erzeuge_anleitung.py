@@ -256,8 +256,9 @@ def titelseite(inh, stand):
 def kapitel_ueberblick(i):
     i.kapitel("Überblick")
     i.text("Die Rohrlaser Angebotskalkulation plant für ein Angebot, wie die Teile aus Stangen geschnitten werden, und "
-           "rechnet daraus Materialbedarf, Laserzeit und Angebotspreis. Alles liegt in einer Datendatei neben dem "
-           "Programm; eine Installation ist nicht nötig.",
+           "rechnet daraus Materialbedarf, Laserzeit und Angebotspreis. Alles liegt in einer Datendatei. Das Programm "
+           "gibt es zum Installieren (für den eigenen Benutzer, ohne Administratorrechte) und als portable Version "
+           "ohne Installation; beide rechnen gleich (Kapitel 2).",
            "Der normale Arbeitsablauf für ein Angebot:")
     i.liste("<b>Angebot anlegen</b> (Reiter <i>Angebote</i> → <i>Neues Angebot</i>) und den Kopf ausfüllen: Kunde, "
             "Maschine, Stangenlänge.",
@@ -296,52 +297,90 @@ def kapitel_ueberblick(i):
 
 def kapitel_start(i):
     i.kapitel("Installation und erster Start")
-    i.abschnitt("Programm entpacken")
-    i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
+    i.abschnitt("Installieren oder portabel")
+    i.text("Es gibt das Programm in zwei Formen. Beide enthalten dieselben Programmdateien, rechnen gleich und "
+           "werden über dasselbe Online-Update aktuell gehalten. Sie unterscheiden sich nur darin, wo die Daten "
+           "liegen.")
+    i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
+        ["Datei im Release <i>aktuell</i>", "Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalkulation.zip"],
+        ["Gedacht für", "den Arbeitsplatz, an dem dauerhaft kalkuliert wird",
+         "Tests, einen Rechner ohne Erlaubnis für Setup-Programme, Mitnahme auf einem USB-Stick"],
+        ["Programm", "%LOCALAPPDATA%\\Programs\\Rohrlaser Angebotskalkulation", "beliebiger Ordner, z. B. C:\\Rohrlaser"],
+        ["Daten", "%LOCALAPPDATA%\\Rohrlaser Angebotskalkulation\\Daten", "Ordner <i>Daten</i> neben dem Programm"],
+        ["PDF und CSV", "Dokumente\\Rohrlaser Angebote", "Ordner <i>Angebote</i> neben dem Programm"],
+        ["Startmenü, Desktop", "ja", "Verknüpfung selbst anlegen"],
+        ["Entfernen", "Einstellungen → Apps; die Daten bleiben", "Ordner löschen; <b>die Daten sind dann mit weg</b>"]],
+        [40, 112, 112])
+    i.text("Administratorrechte braucht keine der beiden Formen. Die Daten der installierten Version liegen bewusst "
+           "nicht unter <i>Dokumente</i>: diesen Ordner gleicht OneDrive oft ab, und eine geöffnete Datendatei verträgt "
+           "das schlecht. Für eine Kopie auf OneDrive oder ein Netzlaufwerk ist der <b>zweite Sicherungsordner</b> da "
+           "(Abschnitt <i>Datensicherung und Umzug</i>).")
+    i.abschnitt("Programm installieren")
+    i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation-Setup.exe</b> "
+            "herunterladen und starten.",
+            "Warnt Windows, siehe Abschnitt <i>Windows-Warnungen</i>. Das Setup fragt nach der Desktop-Verknüpfung "
+            "und installiert nur für den angemeldeten Benutzer.",
+            "Das Programm aus dem Startmenü starten (<i>Rohrlaser Angebotskalkulation</i>; daneben liegt die "
+            "Bedienungsanleitung).",
+            "Eine neue Version des Setups lässt sich jederzeit über die alte installieren; die Daten bleiben. Meist "
+            "reicht aber das Online-Update (Abschnitt <i>Updates</i>).", nummeriert=True)
+    i.text("Deinstallieren: <i>Einstellungen → Apps → Rohrlaser Angebotskalkulation → Deinstallieren</i>. Entfernt "
+           "werden nur die Programmdateien. Datendatei, Sicherungen und PDF bleiben, eine spätere Installation findet "
+           "sie wieder.")
+    i.abschnitt("Portable Version entpacken")
+    i.liste("Unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
             "In einen Ordner entpacken, in dem man schreiben darf, z. B. <i>C:\\Rohrlaser</i>. Nicht nach "
             "<i>C:\\Programme</i>, dort darf das Programm seine Daten nicht ablegen.",
             "<b>Rohrlaser-Angebotskalkulation.exe</b> starten. Wer will, legt sich eine Verknüpfung auf den Desktop "
             "(rechte Maustaste → Senden an → Desktop).", nummeriert=True)
-    i.text("Der Programmordner sieht danach so aus:")
+    i.text("Der Programmordner der portablen Version sieht danach so aus (die installierte Version hat dieselben "
+           "Programmdateien, aber keine <i>Portabel.ini</i>, keinen Ordner <i>Daten</i> und keinen Ordner "
+           "<i>Angebote</i>):")
     i.tabelle(["Datei / Ordner", "Inhalt"], [
         ["Rohrlaser-Angebotskalkulation.exe", "das Programm"],
         ["Bedienungsanleitung.pdf", "diese Anleitung (auch über <i>Hilfe → Bedienungsanleitung</i> oder F1)"],
+        ["Portabel.ini", "macht das Programm portabel: Daten im Ordner daneben. Darin lässt sich auch ein anderer "
+                         "Datenordner eintragen (Zeile <i>daten = …</i>). Nicht löschen, sonst sucht das Programm "
+                         "die Daten im Benutzerprofil."],
         ["STEP-Import\\", "Messprogramm für STEP-Dateien. Muss neben der .exe liegen bleiben."],
         ["_internal\\", "Programmbibliotheken, nicht verändern"],
         ["Daten\\rohrlaser.db", "Datendatei: Stammdaten, Einstellungen, alle Angebote. Wird beim ersten Start "
                                 "angelegt."],
-        ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (die letzten 30)"],
+        ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (Abschnitt <i>Datensicherung und Umzug</i>)"],
         ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"],
         ["Update.json", "Liste der Programmdateien des installierten Stands (für das Update, Abschnitt "
                         "<i>Updates</i>)"]],
         [60, 205])
+    i.text("Eine ältere portable Version ohne <i>Portabel.ini</i> erkennt das Programm am Ordner <i>Daten</i> neben "
+           "der .exe und arbeitet dort weiter wie bisher.")
     i.abschnitt("Windows-Warnungen (SmartScreen, Defender)")
-    i.text("Das Programm ist nicht digital signiert und wird mit PyInstaller gebaut. Programme dieser Art hält "
-           "Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
+    i.text("Programm und Setup sind nicht digital signiert und werden mit PyInstaller gebaut. Programme dieser Art "
+           "hält Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
            "Administratorrechte, geht nur für die Suche nach Updates ins Internet (Abschnitt <i>Updates</i>) und "
-           "schreibt nur in seinen eigenen Ordner und in die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
+           "schreibt nur in seinen Programm- und Datenordner und in die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
            "jede .exe Hersteller-, Produkt- und Versionsangaben (rechte Maustaste → Eigenschaften → Details), und das "
            "Startprogramm wird für dieses Programm eigens übersetzt.")
-    i.liste("<b>Vor dem Entpacken</b>: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
+    i.liste("<b>Vor dem Entpacken</b> des ZIP: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
             "<i>Zulassen</i> anhaken → OK. Sonst trägt Windows jede entpackte Datei als „aus dem Internet“ ein und "
             "prüft sie bei jedem Start besonders.",
-            "Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“: auf <i>Weitere "
-            "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt Windows nicht mehr.",
+            "Meldet Windows beim ersten Start des Programms oder des Setups „Der Computer wurde durch Windows "
+            "geschützt“: auf <i>Weitere Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt "
+            "Windows nicht mehr.",
             "Hat der Microsoft Defender eine Datei in Quarantäne verschoben: <i>Windows-Sicherheit → Viren- &amp; "
             "Bedrohungsschutz → Schutzverlauf</i>, den Eintrag öffnen, <i>Aktionen → Wiederherstellen</i> bzw. "
             "<i>Auf Gerät zulassen</i>. Den Fehlalarm bitte an Microsoft melden "
             "(www.microsoft.com/wdsi/filesubmission, Datei hochladen, „Incorrectly detected as malware“); "
             "nach der Prüfung nimmt Microsoft die Erkennung meist innerhalb weniger Tage zurück.",
-            "Ob das ZIP unverändert von GitHub kommt, zeigt die Prüfsumme: im Release liegt "
-            "<i>Rohrlaser-Angebotskalkulation.zip.sha256</i>. In PowerShell <i>Get-FileHash "
-            "Rohrlaser-Angebotskalkulation.zip</i> eingeben; die Zahl muss gleich sein.",
-            "Wahlweise den Programmordner (z. B. <i>C:\\Rohrlaser</i>) unter <i>Viren- &amp; Bedrohungsschutz → "
+            "Ob ZIP oder Setup unverändert von GitHub kommen, zeigt die Prüfsumme: im Release liegen "
+            "<i>Rohrlaser-Angebotskalkulation.zip.sha256</i> und <i>Rohrlaser-Angebotskalkulation-Setup.exe.sha256</i>. "
+            "In PowerShell <i>Get-FileHash</i> mit dem Dateinamen eingeben; die Zahl muss gleich sein.",
+            "Wahlweise den Programmordner unter <i>Viren- &amp; Bedrohungsschutz → "
             "Einstellungen verwalten → Ausschlüsse</i> eintragen. Dann prüft der Defender die Programmdateien nicht "
             "bei jedem Start, Programm und STEP-Import starten schneller. Nur diesen Ordner ausschließen, niemals "
             "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT.", nummeriert=True)
     i.abschnitt("Updates")
-    i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (Release <i>aktuell</i> auf "
-           "GitHub). Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
+    i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (öffentliches Verzeichnis "
+           "<i>Rohrlaser-Updates</i> auf GitHub, ohne Anmeldung), installiert wie portabel. Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
            "Änderung. Ohne Internet oder bei einem Fehler meldet sich das Programm beim Start nicht. Von Hand: "
            "<b>Hilfe → Nach Updates suchen …</b>; dort steht auch, wenn das Programm schon aktuell ist. Welcher Stand "
            "installiert ist, zeigen Fenstertitel, Startseite und <i>Hilfe → Über …</i>.")
@@ -351,39 +390,78 @@ def kapitel_start(i):
     i.liste("Das Programm vergleicht jede Programmdatei über ihre Prüfsumme mit der neuen Version und lädt <b>nur die "
             "geänderten Dateien</b>. Meist sind das wenige MB statt des ganzen ZIP mit rund 180 MB. Beschädigte oder "
             "fehlende Programmdateien werden dabei gleich mit ersetzt.",
-            "Vor dem Austausch legt es eine Sicherung der Datendatei an (<i>Daten\\Sicherung</i>, Name endet auf "
-            "<i>_vor_update</i>), danach startet es neu.",
+            "Vor dem Austausch legt es eine geprüfte Sicherung der Datendatei an (Ordner <i>Sicherung</i> im "
+            "Datenordner, Name endet auf <i>_vor_update</i>), danach startet es neu. Scheitert diese Sicherung, "
+            "bricht das Update ab.",
             "Klappt der Austausch einer Datei nicht (z. B. weil die Bedienungsanleitung gerade in einem PDF-Programm "
             "offen ist), stellt das Programm alle Dateien zurück und bleibt, wie es war. Datei schließen und noch "
             "einmal versuchen.",
-            "Angefasst werden nur die Programmdateien: <i>Daten</i>, <i>Angebote</i> und eigene Dateien im "
+            "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
-            "Das Update funktioniert ab Version 0.3.0. Wer eine ältere Version hat, holt sich einmal das neue ZIP "
-            "(Abschnitt <i>Programm entpacken</i>) und kopiert den Ordner <i>Daten</i> hinüber.")
+            "Braucht eine neue Version eine erweiterte Datendatei, sichert das Programm sie vorher (Name endet auf "
+            "<i>_vor_Schema_…</i>). Eine ältere Programmversion öffnet eine so erweiterte Datei nicht mehr, sondern "
+            "meldet, dass sie von einer neueren Version stammt.",
+            "Das Update funktioniert ab Version 0.5.5. Ältere Versionen suchen noch im privaten Programmverzeichnis, "
+            "das ohne Anmeldung nicht erreichbar ist, und melden <i>Keine Verbindung zum Update</i>. Dann einmal das "
+            "neue Setup über die alte Installation installieren bzw. das neue ZIP entpacken und die Daten übernehmen "
+            "(Abschnitt <i>Datensicherung und Umzug</i>); danach geht es online weiter.")
     i.abschnitt("Startseite")
-    i.text("Beim ersten Start legt das Programm die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in "
-           "Rot, dass es sich um Beispielwerte handelt.")
+    i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
+           "portablen Version oder einer Export-Datei, siehe unten). Ohne Übernahme legt es die Datendatei mit "
+           "Beispiel-Stammdaten an. Die Startseite zeigt in Rot, dass es sich um Beispielwerte handelt, und hinter "
+           "der Datendatei, ob das Programm installiert oder portabel läuft.")
     i.bild("start_beispiel", "Startseite nach dem ersten Start (Beispiel-Stammdaten)", hoehe=112 * mm, legende=[
-        (1, "<b>Datensicherung erstellen</b>: Kopie der Datendatei nach <i>Daten\\Sicherung</i> und, falls "
-            "eingestellt, in den zweiten Sicherungsordner."),
-        (2, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
+        (1, "<b>Datensicherung erstellen</b>: geprüfte Kopie der Datendatei in den Ordner <i>Sicherung</i> und, "
+            "falls eingestellt, in den zweiten Sicherungsordner."),
+        (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen (siehe unten)."),
+        (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
     i.text("Die Beispielwerte in den Stammdaten (Kapitel 3) und den Vorgaben (Kapitel 4) im Reiter Einstellungen durch die "
            "eigenen ersetzen: Preise, Maschinen, Schneiddaten, Briefkopf und Zuschläge. Danach rechnet das Programm "
            "mit den eigenen Werten.")
     i.abschnitt("Datensicherung und Umzug")
-    i.text("Beim ersten Start jedes Tages legt das Programm "
-           "automatisch eine Kopie der Datendatei in <i>Daten\\Sicherung</i> an. Beim Beenden kommt eine weitere "
-           "Kopie dazu (eine je Tag, sie wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>). In jedem "
-           "Sicherungsordner bleiben die letzten 30 Sicherungen erhalten.",
-           "<b>Zweiter Sicherungsordner</b> (Einstellungen, Gruppe Ablage): z. B. ein Netzlaufwerk oder ein "
-           "USB-Stick. Beim Beenden und mit <i>Datensicherung erstellen</i> geht dann zusätzlich eine Kopie dorthin. "
-           "Ist der Ordner nicht erreichbar, meldet das Programm das beim Beenden und fragt, ob trotzdem beendet "
-           "werden soll; die Sicherung in <i>Daten\\Sicherung</i> ist dann trotzdem angelegt.",
-           "Zurückholen: Programm schließen, <i>Daten\\rohrlaser.db</i> umbenennen und die gewünschte Sicherung als "
-           "<i>rohrlaser.db</i> in den Ordner <i>Daten</i> kopieren.",
-           "Für einen anderen Rechner einfach den ganzen Programmordner kopieren. Das Programm ist für einen "
-           "Arbeitsplatz gedacht; nicht von zwei Rechnern gleichzeitig mit derselben Datendatei arbeiten.")
+    i.text("Das Programm sichert die Datendatei in den Ordner <i>Sicherung</i> im Datenordner:")
+    i.liste("beim ersten Start jedes Tages,",
+            "beim Beenden (eine je Tag, wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>),",
+            "mit <b>Datensicherung erstellen</b> (Startseite oder Menü <i>Datei</i>),",
+            "vor einem Update (<i>_vor_update</i>), vor dem Erweitern der Datendatei (<i>_vor_Schema_…</i>), vor dem "
+            "Wiederherstellen (<i>_vor_Wiederherstellung</i>) und vor einem Import (<i>_vor_Import</i>).")
+    i.text("Jede Sicherung wird gleich nach dem Schreiben geprüft: die Datei muss unbeschädigt sein und gleich viele "
+           "Angebote und Positionen enthalten wie die Datendatei. Daneben liegt eine gleichnamige <i>.json</i>-Datei "
+           "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben die "
+           "letzten 30, von jeder Art der Sicherungen „vor …“ die letzten 10; sie werden also nicht von den "
+           "täglichen Sicherungen verdrängt. Gelöscht werden nur ältere Sicherungen, nie Angebote oder Stammdaten.",
+           "<b>Zweiter Sicherungsordner</b> (Einstellungen, Gruppe Ablage): z. B. ein Netzlaufwerk, OneDrive oder ein "
+           "USB-Stick. Beim Beenden, mit <i>Datensicherung erstellen</i> und vor Updates geht dann zusätzlich eine "
+           "Kopie dorthin. Ist der Ordner nicht erreichbar, meldet das Programm das beim Beenden und fragt, ob "
+           "trotzdem beendet werden soll; die Sicherung im Datenordner ist dann trotzdem angelegt. Für die "
+           "installierte Version ist ein zweiter Ordner besonders zu empfehlen.")
+    i.bild("sicherung_wiederherstellen", "Sicherung wiederherstellen", hoehe=80 * mm, legende=[
+        (1, "Sicherungen aus dem Datenordner und dem zweiten Sicherungsordner, neueste oben, mit Art, Anzahl "
+            "Angebote und Positionen. Grau: beschädigt oder von einer neueren Programmversion."),
+        (2, "<b>Wiederherstellen</b>: ersetzt alle Daten durch die gewählte Sicherung (Doppelklick geht auch). "
+            "<b>Andere Datei …</b>: eine Sicherung, Datendatei oder Export-Datei von woanders wählen.")])
+    i.liste("<b>Sicherung wiederherstellen …</b> (Startseite oder Menü <i>Datei</i>): Das Programm prüft die "
+            "gewählte Sicherung, sichert vorher den jetzigen Stand (<i>_vor_Wiederherstellung</i>, damit lässt sich "
+            "das Wiederherstellen selbst rückgängig machen), schließt offene Angebote und lädt alles neu. Eine "
+            "Sicherung einer neueren Programmversion wird abgelehnt; erst das Programm aktualisieren.",
+            "<b>Datei → Daten exportieren …</b> schreibt alle Daten in eine Export-Datei (ZIP mit Datendatei und "
+            "Beschreibung). <b>Datei → Daten importieren …</b> liest eine Export-Datei, eine Sicherung oder eine "
+            "Datendatei <i>rohrlaser.db</i> ein und ersetzt damit alle Daten; vorher sichert es den jetzigen Stand "
+            "(<i>_vor_Import</i>). Eine beschädigte Export-Datei erkennt das Programm an der Prüfsumme.",
+            "Lässt sich die Datendatei beim Start nicht öffnen (beschädigt, von einer neueren Version), bietet das "
+            "Programm an, eine Sicherung zu wählen. Die nicht lesbare Datei wird dabei nicht gelöscht, sondern in den "
+            "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
+    i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
+           "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
+           "ersten Start der neuen Version: auf die Frage nach vorhandenen Daten <b>Daten übernehmen …</b> wählen "
+           "und die Datei <i>Daten\\rohrlaser.db</i> der portablen Version, eine Sicherung oder eine Export-Datei "
+           "angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Danach mit der neuen Version "
+           "weiterarbeiten und die alte nicht mehr benutzen, sonst laufen zwei Datenbestände auseinander.",
+           "Das Programm ist für einen Arbeitsplatz gedacht. Solange es läuft, sperrt es seine Datendatei: Ein "
+           "zweites Programm mit derselben Datendatei (die andere Version, ein zweites Fenster oder ein anderer "
+           "Rechner auf einem Netzlaufwerk) meldet <b>„schon in einem anderen Programm geöffnet“</b> mit Rechner und "
+           "Benutzer und startet nicht.")
 
 
 def kapitel_stammdaten(i):
@@ -463,17 +541,24 @@ def kapitel_stammdaten(i):
     i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
-                             "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>"],
-        ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl oder "
-                              "Sonderprofil (Liste in den Einstellungen)"],
+                             "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>, Normprofile "
+                             "wie <i>IPE 200</i>, <i>HEB 160</i>, <i>UPN 100</i>, <i>T 50</i>, sonst Träger als "
+                             "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>)"],
+        ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl, "
+                              "I-/H-Träger, T-Profil oder Sonderprofil (Liste in den Einstellungen)"],
         ["<b>Abmessung A [mm]</b>, Abmessung B [mm]",
          "Rohre: A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, B = Flansch. "
-         "L-Profil: A und B = Schenkel. Flachstahl: A = Breite, B leer"],
+         "L-Profil: A und B = Schenkel. Flachstahl: A = Breite, B leer. I-/H-Träger und T-Profil: A = Höhe, "
+         "B = Flanschbreite"],
         ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten; bei offenen "
-                                   "Profilen die Blechdicke, bei Flachstahl die Dicke"],
+                                   "Profilen die Blechdicke, bei Flachstahl die Dicke, bei Trägern und T-Profilen die "
+                                   "Stegdicke"],
         ["Fläche manuell [mm²]", "Querschnitt vom Hersteller (Eckradien, Sonderprofile); leer = aus den Maßen. "
                                  "Beim C-Profil Pflicht, weil die Abkantung nicht in den Maßen steht (der STEP-Import "
-                                 "trägt die gemessene Fläche ein)"],
+                                 "trägt die gemessene Fläche ein). Bei I-/H-Trägern und T-Profilen kommt der "
+                                 "Querschnitt aus der Normtabelle (IPE, IPN, HEA, HEB, HEM, T nach EN 10365 und "
+                                 "EN 10055), sonst ist Fläche manuell Pflicht, weil die Flanschdicke nicht in den "
+                                 "Maßen steht"],
         ["Endbeschnitt abweichend [mm], Greiferrest abweichend [mm]",
          "nur eintragen, wenn das Profil andere Werte braucht als die Maschine"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -515,7 +600,9 @@ def kapitel_stammdaten(i):
         ["Stundensatz [€/h]", "Stundensatz <i>Maschine</i>: für Laserzeit, Gewinde ohne Festpreis, Rüsten und "
                               "Stangenwechsel, solange unter Arbeitsschritte nichts anderes gewählt ist"],
         ["Kontur klein bis [mm], Kontur mittel bis [mm]",
-         "Grenzen der Konturklassen nach größtem Hüllmaß (Vorgabe 10 und 50 mm), je Klasse eigener Vorschub"],
+         "Grenzen der Konturklassen nach Hüllmaß für Innenkonturen, Anfangs- und Endschnitt (Vorgabe 10 und 50 mm), "
+         "je Klasse eigener Vorschub. Nach einer Änderung werden die Positionen beim nächsten Öffnen des Angebots "
+         "neu eingeteilt (Kapitel 6.9)"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
@@ -529,9 +616,10 @@ def kapitel_stammdaten(i):
         ["Schneidgas", "N₂ (Stickstoff) oder O₂ (Sauerstoff); die Vorschübe gelten für dieses Gas. Das Programm "
                        "nimmt N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂. Wo die N₂-Zeilen "
                        "enden, legt also fest, ab welcher Wandstärke nur noch mit O₂ geschnitten wird."],
-        ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für Anfangs- und Endschnitte und große Innenkonturen"],
+        ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für große Konturen und Enden sowie den Schneidweg ohne "
+                                                          "Klasse (z. B. von Hand eingetragen)"],
         ["Vorschub mittel [mm/min], Vorschub klein [mm/min]",
-         "für mittlere und kleine Innenkonturen; leer = nächstgrößerer Vorschub"],
+         "für mittlere und kleine Konturen und Enden; leer = nächstgrößerer Vorschub"],
         ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -677,15 +765,20 @@ def kapitel_einstellungen(i):
          "behalten ihre Werte."],
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
                                              "A-2026-0042)."],
+        ["Angebot", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
+         "Grenze zwischen Flachstahl und Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
+         "Flachstahl, wenn es höchstens so breit ist, mindestens dreimal so lang wie breit ist und gerade "
+         "Längsseiten hat. Alles andere Flache ist ein Blech (Kapitel STEP-Import)."],
         ["Angebots-PDF", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
                     "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF. Die Zahlungsbedingung (Skonto, "
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
                     "dieses Feld."],
         ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export; leer = Ordner <i>Angebote</i> neben dem "
-                                   "Programm. Auch ein Netzlaufwerk ist möglich."],
+                                   "Programm (portabel) bzw. <i>Dokumente\\Rohrlaser Angebote</i> (installiert). "
+                                   "Auch ein Netzlaufwerk ist möglich."],
         ["Ablage", "Zweiter Sicherungsordner", "zusätzliche Sicherung beim Beenden und mit <i>Datensicherung "
-                                               "erstellen</i>, z. B. Netzlaufwerk oder USB-Stick; leer = keiner "
-                                               "(Kapitel 2.3)"],
+                                               "erstellen</i>, z. B. Netzlaufwerk, OneDrive oder USB-Stick; leer = "
+                                               "keiner (Kapitel 2, Datensicherung und Umzug)"],
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
@@ -859,6 +952,11 @@ def kapitel_angebot(i):
     i.abschnitt("Übersicht")
     i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
             "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, Kapitel 8.2).",
+            "Darunter der <b>Preisstand</b>: <i>Materialpreise: aktuelle Stammdaten</i>, solange noch kein "
+            "Angebots-PDF erzeugt wurde, danach <i>Preise festgeschrieben am …</i>. Haben sich die Stammdaten "
+            "seitdem geändert, steht er gelb mit der Anzahl der Änderungen (Mauszeiger darauf zeigt sie einzeln), "
+            "und der Knopf <b>Aktuelle Preise übernehmen …</b> erscheint (Kapitel „Ausgabe“, Abschnitt "
+            "<i>Preise festschreiben</i>).",
             "Darunter groß <b>Herstellkosten</b> und <b>Verkaufspreis</b>, damit sie auch auf kleinen Bildschirmen "
             "ohne Rollen zu sehen sind. Vor dem Optimieren (oder wenn die Optimierung veraltet ist) stehen sie grau "
             "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
@@ -873,6 +971,10 @@ def kapitel_angebot(i):
     i.abschnitt("Positionen")
     i.tabelle(["Spalte", "Eintrag"], [
         ["Pos., Artikelnummer, Bezeichnung", "frei; die Artikelnummer erscheint in Angebot und Werkstattpapieren"],
+        ["Positionsart", "leer bzw. <i>Rohrlaserteil</i> = Teil aus Profil, wird optimiert und gelasert; "
+                         "<i>Zukaufteil</i> = eingekauftes Teil ohne Fertigung, z. B. ein Blech aus dem STEP-Import "
+                         "(Abschnitt „Zukaufteil-Positionen“ unten). Die Spalte erscheint, sobald eine Position eine "
+                         "Art hat"],
         ["Profil-ID, Werkstoff-ID", "aus der Auswahlliste der Stammdaten (Pflicht), Werkstoffe nach Kategorie "
                                     "gruppiert. Optimiert wird je Profil + Werkstoff + Oberfläche + Stangenlänge, "
                                     "nie gemischt."],
@@ -880,13 +982,15 @@ def kapitel_angebot(i):
                        "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
         ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
-        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.7)"],
+        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.8)"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz (Kapitel 9)"],
         ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.6)"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl (Kapitel 13.6)"],
+        ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
+                                 "rechnet es aus Volumen × Dichte, wenn der Werkstoff gewählt ist; sonst leer)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
                                                "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
@@ -896,8 +1000,32 @@ def kapitel_angebot(i):
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
            "„(leer)“ markiert. Die Wahl gilt für alle Angebote, bis <i>Automatisch: Spalten mit Werten zeigen</i> sie "
            "zurücksetzt. Ausgeblendete Spalten verlieren keine Werte.")
+    i.abschnitt("Zukaufteil-Positionen")
+    i.text("Eine Position der Art <b>Zukaufteil</b> ist ein eingekauftes Teil, das mit dem Auftrag geliefert wird, "
+           "z. B. ein Blech, das der STEP-Import erkannt hat. Sie braucht kein Profil und keinen Werkstoff, nur "
+           "Stückzahl und einen Zukaufartikel (Spalte <i>Zukaufteile</i>, Menge 1 je Teil).")
+    i.liste("<b>Preis je Teil</b> = Einstand + Aufschlag des Zukaufartikels (Kapitel 13) + Frachtanteil, mit "
+            "Skonto. Material, Laser, Rüsten, Zuschläge, Gewinn, Pauschalen, Programmierkosten und Angebotsaufschlag "
+            "gibt es für Zukaufteile nicht; sie verteilen sich weiter nur auf die Rohrlaserteile.",
+            "Zukaufteile kommen nicht in den Schnittplan. Die Kennzahl <i>Teile</i> zählt nur Rohrlaserteile.",
+            "<b>Fracht</b>: Zukaufteile tragen ihren Anteil wie die anderen Teile, je Stück oder nach Gewicht (Spalte "
+            "<i>Gewicht je Teil</i>; fehlt es, wird je Stück verteilt und die Kalkulation nennt die Position).",
+            "<b>Status</b>: <i>FEHLER: Zukaufartikel fehlt</i> ohne Zukaufartikel, <i>WARNUNG: EK fehlt</i>, solange "
+            "der Artikel keinen Einkaufspreis über 0 € hat. Dann steht in der Kalkulation der Hinweis <i>Zukaufteil: "
+            "kein Einkaufspreis</i>, der Preis ist ohne Zukaufteil gerechnet und die Staffelpreise melden "
+            "<i>Zukaufteil ohne Einkaufspreis</i>. 0 € gilt nie als Einkaufspreis.",
+            "Im <b>Angebot</b> steht die Bezeichnung des Zukaufartikels, z. B. <i>Blech S235 500 × 300 × 5 mm</i>; in "
+            "einem Satz als Teil des Satzes. In den <b>Staffelpreisen</b> zählen Zukaufteil-Positionen wie die "
+            "anderen (je Satz oder als eigene Position). Die <b>Werkstattpapiere</b> listen sie unter <i>Zukaufteile "
+            "(nicht lasern, zum Auftrag bereitstellen)</i>, die <b>Nachkalkulation</b> hat die Zeile "
+            "<i>Zukaufteile (Einstand)</i>.",
+            "Von Hand: Position anlegen, <i>Positionsart</i> = Zukaufteil, Stückzahl eintragen und unter "
+            "<b>Zukaufteile …</b> den Artikel wählen.")
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
-            "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs.",
+            "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
+            "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "
+            "mit <i>A:</i> und <i>E:</i> vorn, z. B. <i>A:40x149,7; E:40x149,7; 10x31,4</i>) und <b>Konturgrenzen "
+            "klein/mittel [mm]</b> (mit welchen Grenzen eingeteilt wurde, z. B. <i>10/50</i>).",
             "<b>Berechnete Werte (Programm)</b>: vom Programm ermittelte Werte wie Profilform, Gewicht, wirksame "
             "Stangenlänge, Vorschub und eingeplante Teile.")
     i.bild("angebot_berechnet", "Mit Häkchen „Berechnete Werte“: Gewicht, Laserzeit, Stück- und Positionspreis je "
@@ -940,6 +1068,37 @@ def kapitel_angebot(i):
            "aus Zusatzarbeiten (Gravur extra) kommen weiterhin dazu. Der Status zeigt <b>HINWEIS: Schneidzeit "
            "manuell</b>, die Kalkulation in der Spalte <i>Schneidzeit manuell</i> ein „ja“. Feld leeren = wieder "
            "berechnet.")
+    i.abschnitt("Konturklassen in der Schneidzeit")
+    i.text("Der STEP-Import teilt jede Innenkontur und auch den <b>Anfangs- und Endschnitt</b> nach ihrer Größe "
+           "(Hüllmaß) in <b>klein</b>, <b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den "
+           "Stammdaten Maschinen (Vorgabe 10 und 50 mm, ein Wert genau auf der Grenze zählt zur kleineren Klasse). "
+           "Gerechnet wird dann der <b>Schnittweg</b> jeder Klasse mit ihrem Vorschub aus den Schneiddaten:")
+    i.liste("Hüllmaß einer Bohrung = Durchmesser. Bei anderen Innenkonturen die größere Seite des kleinsten "
+            "Rechtecks um die abgewickelte Kontur: ein schräges Langloch zählt mit seiner wahren Länge, ein Schlitz "
+            "um ein Rundrohr mit der Bogenlänge.",
+            "Hüllmaß eines Endes = größere Seite der Schnittfläche: gerader Schnitt QR 40x40 = 40 mm, RR 42,4 = "
+            "42,4 mm, Gehrung 45° über die 60er Seite eines RE 60x40 = 84,9 mm.",
+            "Kontur klein [mm] / Vorschub klein, Kontur mittel [mm] / Vorschub mittel (leer = nächstgrößerer "
+            "Vorschub).",
+            "Der Rest des Schneidwegs (große Konturen und Enden, von Hand ergänzter Schneidweg) / Vorschub groß. Der "
+            "Rest ist nie kleiner als 0.",
+            "Gravur [mm] / Vorschub Gravur und Einstiche × Einstechzeit.",
+            "Gemeinsame Schnitte (zwei gerade Enden teilen sich einen Schnitt): die Einsparung wird mit dem Vorschub "
+            "der Klasse des geraden Endes abgezogen.")
+    i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>). "
+           "Wird im Angebotskopf eine andere Maschine gewählt oder ändern sich die Grenzen in den Stammdaten, teilt "
+           "das Programm die Positionen beim nächsten Öffnen bzw. Neuberechnen neu ein und meldet das in der "
+           "Statuszeile. Die Konturliste lässt sich auch von Hand ändern; die Klassen werden dann neu eingeteilt. "
+           "Positionen aus einem STEP-Import vor Version 0.5.7 haben keine Konturliste: dort laufen Anfangs- und "
+           "Endschnitt weiter mit Vorschub groß, bis das Teil neu importiert wird.")
+    i.text("Beispiel mit Vorschub groß 3000, mittel 2000, klein 1000 mm/min und 0,5 s je Einstich, Teil aus RE "
+           "80x60 (Enden 80 mm, groß): Anfangs- und "
+           "Endschnitt je 120 mm, 4 × Ø10 (125,7 mm, klein), ein Langloch 40×10 (91,4 mm, mittel), ein Ausschnitt "
+           "80×40 (240 mm, groß), 8 Einstiche ergeben 9,6 + 2,7 + 7,5 + 4,0 = <b>23,9 s</b>. Bei einem QR 40x40 "
+           "lägen die Enden mit 40 mm in der Klasse mittel. Die Anteile stehen im "
+           "Reiter Kalkulation (Spalten <i>davon …</i>) und im Kalkulation-PDF in der Tabelle <i>Schneidzeit je Teil "
+           "nach Konturklassen</i>. Widersprechen sich Schneidweg und Konturklassen, zeigt der Status eine WARNUNG "
+           "(Kapitel 14).")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),
         (2, "Spalte <b>Zusatzarbeiten</b>: Doppelklick öffnet die Auswahl."),
@@ -1029,6 +1188,16 @@ def kapitel_step(i):
             "Sie stehen im Dialog STEP-Import prüfen unter <i>Nicht übernehmbar</i> mit dem Hinweis <i>… wird noch "
             "nicht kalkuliert</i>. Bei C-Profilen steht die Länge der Abkantung im Hinweis, bei U-Profilen mit "
             "verschieden dickem Steg und Flansch beide Werte.",
+            "<b>I-/H-Träger und T-Profile</b> werden ebenfalls erkannt und kalkuliert. Gemessen werden Höhe, "
+            "Flanschbreite, Stegdicke (Strahl quer durch den Steg) und Flanschdicke (bei einem Viertel der "
+            "Flanschbreite neben dem Steg, wie die Norm misst), dazu ob das Profil <i>symmetrisch</i> ist und die "
+            "ungefähre Ausrundung zwischen Steg und Flansch. Unsymmetrische Träger (z. B. verschieden dicke "
+            "Flansche) stehen mit Prüfstatus <i>prüfen</i> und Hinweis da.",
+            "<b>Normprofile</b>: Passen alle Maße zu einem Normprofil (IPE, IPN, HEA, HEB, HEM, UPN, T, Winkel nach "
+            "EN 10056) – Höhe und Breite auf ±0,5 mm, Steg und Flansch auf ±0,3 mm (geneigte Flansche ±0,6 mm) und "
+            "die gemessene Querschnittsfläche auf 3 % –, schlägt der Import den Normnamen als Profil-ID vor, z. B. "
+            "<i>IPE 200</i>. Sonst bleibt es bei den gemessenen Maßen, z. B. <i>I 150x80x5x7</i>. Ein Normname wird "
+            "nie ohne diese Prüfung vergeben.",
             "<b>Schnitte an offenen Profilen</b>: Der Laser schneidet jede Wand einmal. Als Schnittlänge eines "
             "Endes, einer Bohrung oder eines Ausschnitts zählt darum die halbe Länge der Konturkanten (Ober- und "
             "Unterseite der Wand). Ein Merkmal, das nur eine Seite der Wand berührt, ist eine Gravur bzw. "
@@ -1039,6 +1208,50 @@ def kapitel_step(i):
             "<b>Gegenprobe</b>: Bei einem Rohrteil sind Schnitt- und Konturflächen viel kleiner als der Außenmantel. "
             "Ist das nicht so, war die Lage nicht eindeutig. Dann übernimmt die Messung keine Maße und meldet "
             "<i>Erkennung unsicher</i>.")
+    i.abschnitt("Bleche erkennen")
+    i.text("Vor der Profilmessung prüft der STEP-Import, ob ein Körper ein <b>Blech</b> ist. Ein Blech hat zwei "
+           "parallele Hauptflächen, ist überall gleich dick (das Volumen entspricht Hauptfläche × Dicke) und ist "
+           "höchstens ein Fünftel so dick wie breit. Bohrungen, Ausschnitte, Langlöcher, Fasen und eine freie "
+           "Außenkontur sind erlaubt.")
+    i.liste("<b>Dicke</b> = Abstand der beiden Hauptflächen. Sie stimmt auch, wenn das Blech im Modell gedreht "
+            "oder schräg liegt (nicht einfach die kleinste Kante des Hüllquaders).",
+            "<b>Länge und Breite</b> = kleinstes Rechteck, das die Außenkontur umschließt. Die Kontur heißt "
+            "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen Anzahl der Innenkonturen und die "
+            "Bohrungen je Durchmesser.",
+            "<b>Flachstahl oder Blech</b>: Ein flaches Teil ist Flachstahl, wenn es höchstens so breit ist wie in "
+            "der Einstellung <i>STEP-Import: Flachstahl bis Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang "
+            "wie breit ist und gerade Längsseiten hat. Die Enden dürfen schräg oder ausgeklinkt sein. Flachstahl wird "
+            "wie bisher übernommen und kalkuliert. Alles andere Flache ist ein Blech.",
+            "<b>Gekantete Bleche</b> (gleich dicke Schenkel mit Biegeradien) heißen <i>Blech gekantet</i>, immer mit "
+            "Prüfstatus <i>prüfen</i>. Der Hinweis nennt die Außenmaße und die ungefähre Abwicklungsfläche ohne "
+            "Biegefaktor. Ein Kantteil mit gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder "
+            "C-Profil, weil es als Stangenmaterial auf dem Rohrlaser geschnitten werden kann.",
+            "Eine dünne Platte mit Tasche oder Absatz ist <b>kein Blech</b> (nicht überall gleich dick) und steht mit "
+            "Prüfstatus <i>prüfen</i> da.",
+            "Bleche sind keine Rohrlaserteile und werden nie als Profil übernommen. Sie werden <b>Zukaufteil-"
+            "Positionen</b> (Kapitel 6) mit einem Zukaufartikel vom Typ Blech (Abschnitt 13.9). Rohre derselben "
+            "Baugruppe werden wie gewohnt übernommen.",
+            "Im Dialog STEP-Import prüfen stehen die Bleche je Datei in der grünen Gruppe <b>Bleche (Zukaufteile, "
+            "nicht lasern)</b>; gleiche Bleche einer Datei stehen in einer Zeile. In der Spalte Profil-ID wird hier "
+            "der <b>Zukaufartikel</b> gewählt: <i>automatisch</i> nimmt einen gleichen vorhandenen Blechartikel "
+            "(Dubletten: gleiche Maße, Dicke, Werkstoff und Kontur) oder legt einen neuen ohne Einkaufspreis an; "
+            "darunter stehen gleiche und ähnliche Artikel zur Wahl. Die Hinweis-Spalte nennt <i>vorhanden</i>, "
+            "<i>ähnlich</i> oder <i>neuer Zukaufartikel, EK fehlt</i>.",
+            "Der <b>Werkstoff</b> eines Blechs ist leer (offen), bis er in der Zeile gewählt wird; die Vorgabe für "
+            "die Rohre gilt nicht für Bleche. Ohne Werkstoff heißt der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm "
+            "(Werkstoff offen)</i> und die Position hat kein Gewicht.",
+            "Bleche mit Prüfstatus <i>prüfen</i> (z. B. gekantete) sind nicht angehakt und werden erst nach "
+            "Anhaken übernommen. Ein Blech, dessen Artikelnummer schon im Angebot steht, wird übersprungen; ein "
+            "erneuter Import legt keinen zweiten Zukaufartikel an.",
+            "Ist die STEP-Datei eine Baugruppe (z. B. Rohr mit zwei Laschen), zählt sie mit den Blechen als "
+            "mehrteilig: mit <i>Sätze</i> werden Rohr und Bleche ein Satz, gleiche Bleche eine Position mit "
+            "Stück je Satz.",
+            "Neue Zukaufartikel bekommen Kategorie Blechteile, Einheit Stück, Lieferant Technik, die STEP-Datei und "
+            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis unter Zukaufartikel mit "
+            "<b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>).",
+            "In den Messwerten stehen die Spalten <i>bauteiltyp</i> (Profil, Blech, Blech gekantet) und <i>blech</i> "
+            "(alle Blechmaße). Im JSON-Messergebnis (ab Version 1.1) steht je Blech der Block <i>blech</i>; die "
+            "Profilwerte (Querschnitt, Wandstärke) sind dort <i>null</i>.")
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
     i.liste("Jedes Teil bekommt einen <b>Prüfstatus</b>. <i>plausibel</i> heißt, dass die Messung in sich stimmig "
             "ist; eine Fertigungsfreigabe ist das nicht. <i>prüfen</i> bedeutet, dass es Hinweise gibt, ein Merkmal "
@@ -1103,19 +1316,26 @@ def kapitel_step(i):
            "bekannt sind: Rechteckrohr 60x40x2, Quadratrohr 40x40x2, Rundrohr 42,4x2, Rohr mit bekannten Bohrungen, "
            "Langloch und Ausschnitt, 45°-Gehrung, zweiachsiger Schrägschnitt, gedrehte und verschobene Teile, "
            "Baugruppe, defekte Datei, STEP-Varianten AP203/AP214/AP242, Zoll und Meter, CAD-Toleranzen "
-           "(z. B. 60,02 statt 60) und Freiformflächen. Maße stimmen dabei auf 0,01 mm, Winkel auf 0,1°.")
+           "(z. B. 60,02 statt 60) und Freiformflächen. Dazu Bleche: rechteckig, mit Bohrungen, mit Ausschnitt und "
+           "Langloch, freie Kontur, gedreht, schräg liegend, mit Fase, kleines Reststück, gekantet, Baugruppe aus "
+           "Rohr und Blechen, Abgrenzung zum Flachstahl und eine Platte mit Tasche als Gegenbeispiel. Maße stimmen "
+           "dabei auf 0,01 mm, Winkel auf 0,1°.")
     i.text("Bekannte Grenzen:")
     i.liste("Gebogene Rohre und Rohre mit veränderlichem Querschnitt: keine Maße, Prüfstatus <i>nicht messbar</i>.",
             "Rohre mit Sicke oder anderem nicht konvexem Querschnitt werden über ihr umschließendes Rechteck "
             "gemessen und stehen mit Prüfstatus <i>prüfen</i> da.",
             "Gewinde werden nur als Kernloch erkannt; der Gewindevorschlag ist von Hand zu prüfen.",
             "Bei U-, L-, C-Profilen und Flachstahl steht die Lage einer Kontur nur entlang der Achse, nicht ob sie "
-            "im Steg oder im Flansch liegt. Vierkant- und Rundstahl sowie andere offene Profile (z. B. T-Profil, "
+            "im Steg oder im Flansch liegt. Vierkant- und Rundstahl sowie andere offene Profile (z. B. Z-Profil, "
             "<i>offenes Sonderprofil</i>) werden nur gemeldet, nicht übernommen.",
+            "Träger mit geneigten Flanschen (IPN, UPN) werden an der Normmessstelle gemessen; der Schneidweg gilt "
+            "für scharfkantige Flansche. Die Normtabelle bitte stichprobenartig mit der Lieferantentabelle "
+            "vergleichen.",
             "Schräge Bohrungen werden über ihre Zylinderfläche erkannt; andere schräge Durchbrüche erscheinen als "
             "Ausschnitt.",
             "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; "
             "lose Flächen daneben stehen als <i>Flächenmodell offen</i> im Protokoll.",
+            "Gekantete Bleche: die Abwicklung ist eine Näherung ohne Biegefaktor; den Zuschnitt bitte prüfen.",
             "<i>plausibel</i> heißt: die Messung ist in sich stimmig. Es ist keine Fertigungsfreigabe.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Liegen in einer STEP-Datei mehrere Rohrteile, steht im Dialog STEP-Import prüfen oben das Feld "
@@ -1140,8 +1360,8 @@ def kapitel_step(i):
             "Teilelänge = größte Ausdehnung entlang der Rohrachse (bei Gehrung die lange Seite).",
             "Schneidweg = Anfangsschnitt + Endschnitt + Innenkonturen auf der Außenhaut. Gravuren (nicht durch die "
             "Wand) zählen getrennt.",
-            "Innenkonturen werden nach ihrem größten Hüllmaß klein, mittel oder groß eingestuft (Grenzen je "
-            "Maschine, Vorgabe 10 und 50 mm); jede Klasse hat ihren eigenen Vorschub.",
+            "Innenkonturen, Anfangs- und Endschnitt werden nach ihrem Hüllmaß klein, mittel oder groß eingestuft "
+            "(Grenzen je Maschine, Vorgabe 10 und 50 mm; Kapitel 6.9); jede Klasse hat ihren eigenen Vorschub.",
             "Profilabgleich mit den Stammdaten über Form und Maße (±0,15 mm).")
 
 
@@ -1156,8 +1376,13 @@ def kapitel_optimieren(i):
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, ein "
             "Einstich gespart). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Teile werden dafür "
             "gedreht; schräge Enden kommen an Stangenanfang oder -ende.",
-            "Verfahren: First-Fit und Best-Fit, danach Nachbesserung; bei Gruppen bis 60 Teile zusätzlich eine "
-            "exakte Suche, die beweist, ob es mit weniger Stangen ginge.",
+            "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
+            "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
+            "besten Schnittmuster je Stange und die Kombination mit den wenigsten Stangen. Sie liefert zugleich eine "
+            "Schranke, unter die es nicht gehen kann; wird sie erreicht, ist das Ergebnis nachweislich optimal, "
+            "auch bei großen Aufträgen. Bei Gruppen bis 60 Teile folgt bei Bedarf noch eine exakte Suche. Alle "
+            "Suchen sind nach Schritten begrenzt, nicht nach Zeit: dasselbe Angebot ergibt auf jedem Rechner "
+            "denselben Schnittplan.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet")
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
@@ -1183,7 +1408,9 @@ def kapitel_optimieren(i):
             "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
-            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu.",
+            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
+            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i> und <i>davon Einstiche</i> "
+            "zeigen, wie sich die Laserzeit brutto zusammensetzt (Kapitel 6.9).",
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz "
             "des Arbeitsschritts Gewinde.",
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
@@ -1357,7 +1584,8 @@ def kapitel_nachkalkulation(i):
             "× Meterpreis × Stangenlänge."),
         (2, "<b>Laserzeit Ist</b> [h] (z. B. aus dem Maschinenprotokoll), <b>Rüsten + Stangenwechsel Ist</b> "
             "[min], beide mit dem Stundensatz der Maschine bewertet; <b>Gewinde und Zusatzarbeiten Ist</b> [€] "
-            "(z. B. Rechnung der Verzinkerei), <b>Sonstige Kosten Ist</b> [€] (z. B. Nacharbeit), <b>Erlös laut "
+            "(z. B. Rechnung der Verzinkerei), <b>Zukaufteile Ist (Einkauf + Bezugskosten)</b> [€] (Rechnung "
+            "des Lieferanten, z. B. für Bleche), <b>Sonstige Kosten Ist</b> [€] (z. B. Nacharbeit), <b>Erlös laut "
             "Rechnung</b> [€] und eine <b>Bemerkung Nachkalkulation</b>. Grau steht im leeren Feld das Soll."),
         (3, "Vergleich je Kostenart: Menge und Betrag Soll und Ist, Abweichung in € und %. Darunter Einzelkosten, "
             "Erlös und <b>Deckungsbeitrag</b> (Erlös − Einzelkosten)."),
@@ -1386,10 +1614,10 @@ def kapitel_zukauf(i):
         (1, "Reiter <b>Zukaufartikel</b> mit den Unterreitern Artikel, Kategorien und Lieferanten"),
         (2, "<b>+ Neuer Artikel</b> öffnet das leere Formular"),
         (3, "Suche nach Artikelnummer, Bezeichnung, Lieferantenartikelnummer oder EAN"),
-        (4, "Filter Kategorie, Lieferant und Status (aktive, archivierte, alle), Sortieren nach Kategorie, "
+        (4, "Filter Kategorie, Lieferant und Status (aktive, <i>EK fehlt</i>, archivierte, alle), Sortieren nach Kategorie, "
             "Lieferant, Artikelnummer, Bezeichnung oder EK je Einheit"),
         (5, "<b>Bearbeiten</b> (auch Doppelklick), <b>Duplizieren</b>, <b>Archivieren</b> bzw. <b>Wieder "
-            "aktivieren</b> und <b>In Angebot übernehmen …</b> (Abschnitt 13.6); dieselben Befehle mit der rechten "
+            "aktivieren</b>, <b>EK eintragen …</b> (Abschnitt 13.9) und <b>In Angebot übernehmen …</b> (Abschnitt 13.6); dieselben Befehle mit der rechten "
             "Maustaste. Rechts <b>CSV exportieren</b> und <b>CSV importieren …</b> (Abschnitt 13.8)"),
         (6, "Details des markierten Artikels: alle Lieferanten mit Staffelpreisen und die Rechnung je Einheit")])
     i.text("Die Spalten zeigen je Artikel Artikelnr., Bezeichnung, Kategorie, bevorzugten Lieferant, Einheit, "
@@ -1417,6 +1645,8 @@ def kapitel_zukauf(i):
         ["", "Artikelbezeichnung", "Pflichtfeld"],
         ["", "Kategorie", "aus den Kategorien (Abschnitt 13.4); bestimmt den vorgeschlagenen Aufschlag"],
         ["", "Mengeneinheit", "Stück, Meter, Kilogramm, Satz oder frei eingeben"],
+        ["", "Artikeltyp", "<i>normaler Zukaufartikel</i> oder <i>Blech</i>; bei Blech zusätzlich Länge × Breite × "
+                           "Dicke in mm und Werkstoff (Abschnitt 13.9)"],
         ["", "archiviert", "im Angebot nicht mehr wählbar"],
         ["B Einkaufspreis", "Lieferanten", "Liste der Lieferanten des Artikels; ★ = bevorzugt. <b>+ Lieferant</b> "
                                            "fügt einen hinzu, <b>Entfernen</b> löscht den markierten, <b>Als "
@@ -1590,6 +1820,29 @@ def kapitel_zukauf(i):
             "werden nie übernommen.",
             "Unbekannte Kategorien legt der Import an (ohne Aufschlag). Preisänderungen kommen ins Protokoll; "
             "gespeicherte Angebote behalten ihren Preisstand.")
+    i.abschnitt("Blechartikel und fehlender Einkaufspreis")
+    i.text("Bleche schneidet der Rohrlaser nicht; sie werden als Zukaufartikel mit dem Artikeltyp <b>Blech</b> "
+           "geführt. Ein Blechartikel hat zusätzlich Länge, Breite und Dicke in mm und einen Werkstoff. Der "
+           "STEP-Import kann solche Artikel selbst anlegen (Kapitel 7); er trägt dann <i>Angelegt aus STEP-Import</i>, "
+           "den Namen der STEP-Datei und eine Geometrie-Kennung (Kontur, Bohrungen, Ausschnitte) ein. Die "
+           "Bezeichnung entsteht aus den Maßen, z. B. <i>Blech S235 500 × 300 × 5 mm</i>.")
+    i.liste("<b>Werkstoff</b>: steht er nicht fest, bleibt das Feld leer und die Bezeichnung endet auf <i>(Werkstoff "
+            "offen)</i>. Das Programm nimmt nie einen Werkstoff an (auch nicht S235); er kann im Formular aus den "
+            "Werkstoffen der Stammdaten gewählt oder eingetippt werden.",
+            "<b>EK fehlt</b>: ein Artikel ohne Einkaufspreis über 0 € hat keinen EK. 0 € gilt nie als Einkaufspreis: "
+            "die Kalkulation rechnet nicht damit, sondern meldet <i>kein Einkaufspreis</i>, und das Angebot bleibt "
+            "unvollständig, bis der Preis eingetragen ist. In der Übersicht steht in der Spalte EK rot <i>EK "
+            "fehlt</i>; der Filter <b>Status: EK fehlt</b> zeigt alle aktiven Artikel ohne Preis.",
+            "<b>EK eintragen …</b> (Knopf unter der Tabelle oder rechte Maustaste) fragt den Einkaufspreis netto je "
+            "Einheit ab und trägt ihn beim bevorzugten Lieferanten ab Menge 1 ein; ohne Lieferant bei Blechteilen "
+            "beim Lieferanten <i>Technik</i>. Die Änderung kommt ins Protokoll der Preisänderungen. Staffeln und "
+            "weitere Bedingungen werden im Formular gepflegt.",
+            "<b>Dubletten</b>: vor dem Anlegen sucht der STEP-Import vorhandene aktive Blechartikel mit gleicher Dicke "
+            "(± 0,05 mm), gleicher Länge und Breite (± 0,5 mm, auch um 90° gedreht), gleichem Werkstoff und gleicher "
+            "Geometrie-Kennung und verwendet diesen Artikel, statt einen zweiten anzulegen. Stimmen nur die Maße, "
+            "schlägt er den Artikel zur Auswahl vor. Archivierte Artikel zählen nicht.",
+            "<b>Duplizieren</b> übernimmt Maße und Werkstoff, aber nicht STEP-Datei und Kennung: die Kopie gilt als "
+            "von Hand angelegt.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
@@ -1600,14 +1853,31 @@ def kapitel_ausgabe(i, seiten, ablage):
         (1, "<b>Angebot (PDF)</b>: Briefkopf, Kunde mit Anschrift aus dem Kundenstamm, Positionen mit "
             "Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe mit MwSt., Preistreppe der Staffeln, "
             "Zahlungsbedingung (z. B. „Zahlung innerhalb 10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“) "
-            "und Bedingungen."),
+            "und Bedingungen. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
+            "Gesamtpreis jeder Zeile ist Stückpreis × Menge, die Summe genau die Summe der Zeilen."),
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
-        (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage."),
+        (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage, dazu die "
+            "Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
         (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
     i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
+    i.abschnitt("Preise festschreiben")
+    i.text("Beim Erzeugen des <b>Angebots-PDF</b> speichert das Programm im Angebot die Materialpreise und "
+           "Schneiddaten, mit denen es gerechnet hat: die Zeilen aus <i>Preise</i> je Profil + Werkstoff der "
+           "Positionen (auch, dass es keine Zeile gab und der Tonnenpreis galt), die Tonnenpreise der Werkstoffe, "
+           "die Aufpreise der Oberflächen und die Schneiddaten der gewählten Maschine. Ändern sich danach die "
+           "Stammdaten, z. B. der Stahlpreis, bleibt der Preis des Angebots wie im PDF beim Kunden.")
+    i.liste("Neue Positionen mit anderem Profil, Werkstoff oder anderer Oberfläche rechnen mit den aktuellen "
+            "Stammdaten; das nächste Angebots-PDF nimmt sie dazu, schon festgeschriebene Werte bleiben.",
+            "Wird eine andere Maschine gewählt, gelten deren aktuelle Schneiddaten.",
+            "<b>Aktuelle Preise übernehmen …</b> in der Übersicht (nur sichtbar, wenn die Stammdaten abweichen) "
+            "zeigt die Änderungen und setzt das Angebot nach Rückfrage auf die aktuellen Stammdaten; der Preis "
+            "ändert sich dann. Das nächste Angebots-PDF schreibt die neuen Werte wieder fest.",
+            "Eine <b>Kopie</b> eines Angebots rechnet mit den aktuellen Stammdaten.",
+            "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert (Kapitel „Zeiten & "
+            "Arbeitskosten“), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")
     i.abschnitt("Angebot")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
     i.abschnitt("Werkstattpapiere")
@@ -1615,6 +1885,9 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bilder_nebeneinander(["pdf_werkstatt_1", letzte],
                            "Werkstattpapiere: Materialliste und Schnittpläne (links), Stangenbild (rechts)",
                            hoehe=150 * mm)
+    i.text("Hat das Angebot Zukaufteil-Positionen (z. B. Bleche), steht unter der Materialliste die Liste "
+           "<i>Zukaufteile (nicht lasern, zum Auftrag bereitstellen)</i> mit Pos., Artikelnummer, Bezeichnung, "
+           "Zukaufartikel und Stückzahl.")
     i.abschnitt("Kalkulation")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
 
@@ -1854,6 +2127,9 @@ def kapitel_fragen(i):
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Übersicht: <b>Preise festgeschrieben am …, Stammdaten seitdem geändert</b>",
+         "Materialpreise oder Schneiddaten wurden nach dem Angebots-PDF geändert; das Angebot rechnet weiter mit den "
+         "alten Werten. Gewollt? Dann nichts tun. Sonst <b>Aktuelle Preise übernehmen …</b> (Kapitel „Ausgabe“)."],
         ["Frachtkosten: <b>keiner Zone zugeordnet</b>", "Für die PLZ gibt es keine PLZ-Zuordnung. Mit Standardzone "
          "rechnet das Programm weiter (gelb), ohne nicht (rot). Zuordnung im Unterreiter Frachtzonen und "
          "Postleitzahlen ergänzen (Kapitel 12)."],
@@ -1870,11 +2146,12 @@ def kapitel_fragen(i):
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
         ["<b>Keine Verbindung zum Update</b>",
-         "Kein Internet, oder eine Firewall sperrt github.com. Später noch einmal versuchen; sonst das ZIP von Hand "
-         "holen und den Ordner <i>Daten</i> hinüberkopieren."],
+         "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.5 liegt es an der alten "
+         "Update-Adresse (Abschnitt <i>Updates</i>). Später noch einmal versuchen; sonst das Setup "
+         "(installiert) bzw. das ZIP (portabel) von Hand holen und die Daten übernehmen."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
          "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "
-         "Neu aus dem ZIP entpacken."],
+         "Setup neu installieren bzw. neu aus dem ZIP entpacken."],
         ["STEP: <b>Erkennung unsicher</b> oder <b>kein Rohrteil erkannt</b>",
          "Die Messung konnte Achse oder Querschnitt nicht eindeutig bestimmen und übernimmt bewusst keine Maße. "
          "Modell im CAD prüfen (ein Volumenkörper je Rohr, konstanter Querschnitt) oder die Position von Hand "
@@ -1886,6 +2163,13 @@ def kapitel_fragen(i):
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
         ["<b>HINWEIS: Schneidzeit manuell</b>",
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
+        ["<b>WARNUNG: Konturen klein + mittel länger als Schneidweg</b>",
+         "Der Schneidweg wurde von Hand kleiner eingetragen als die kleinen und mittleren Konturen zusammen. Der "
+         "Anteil mit Vorschub groß wird mit 0 gerechnet. Schneidweg oder die Spalten Kontur klein/mittel [mm] "
+         "prüfen."],
+        ["<b>WARNUNG: Konturklassen länger als Innenkonturen + Anfangs-/Endschnitt</b>",
+         "Kontur klein + mittel + groß [mm] ist größer als Innenkonturen + Anfangs- + Endschnitt [mm] (z. B. eine "
+         "Spalte von Hand geändert). Die STEP-Werte der Position prüfen."],
         ["Zusatzarbeit kostet mehr als Menge × Preis",
          "Der Mindestbetrag je Angebot greift; er wird auf alle Teile mit dieser Zusatzarbeit verteilt."],
         ["<b>FEHLER: Oberfläche unbekannt</b>",
@@ -1905,11 +2189,24 @@ def kapitel_fragen(i):
          "Einstellungen bzw. beim Kunden die Vorgabe ändern."],
         ["Beim Beenden: <b>Sicherung nicht vollständig</b>",
          "Der zweite Sicherungsordner ist nicht erreichbar (Netzlaufwerk getrennt, USB-Stick fehlt). Die Sicherung "
-         "in Daten\\Sicherung ist angelegt; Ordner verbinden und <i>Datensicherung erstellen</i> wählen."],
+         "im Datenordner ist angelegt; Ordner verbinden und <i>Datensicherung erstellen</i> wählen."],
         ["Ablageordner lässt sich nicht öffnen", "Pfad in den Einstellungen prüfen (Netzlaufwerk verbunden?). Leer "
-                                                 "lassen = Ordner Angebote neben dem Programm."],
+                                                 "lassen = Vorgabe (portabel Ordner Angebote neben dem Programm, "
+                                                 "installiert Dokumente\\Rohrlaser Angebote)."],
         ["Daten versehentlich gelöscht oder Datendatei beschädigt",
-         "Programm schließen, Sicherung aus <i>Daten\\Sicherung</i> zurückkopieren (Kapitel 2.3)."]], [85, 180])
+         "<i>Sicherung wiederherstellen …</i> (Startseite oder Menü Datei) und einen Stand vor dem Fehler wählen "
+         "(Kapitel 2, Datensicherung und Umzug). Startet das Programm wegen einer beschädigten Datei nicht, bietet "
+         "es das Wiederherstellen beim Start an."],
+        ["<b>Die Datendatei … ist schon in einem anderen Programm geöffnet</b>",
+         "Ein zweites Programm (die andere Version, ein zweites Fenster oder ein anderer Rechner) arbeitet mit "
+         "derselben Datendatei. Dort beenden. Nach einem Absturz verschwindet die Sperre von selbst."],
+        ["Nach dem Installieren sind die <b>Angebote weg</b>",
+         "Die installierte Version hat ihre Daten im Benutzerprofil, die portable im Ordner Daten neben dem "
+         "Programm. In der installierten Version <i>Datei → Daten importieren …</i> und die Datei "
+         "<i>Daten\\rohrlaser.db</i> der portablen Version wählen."],
+        ["<b>Sicherung … stammt von einer neueren Programmversion</b>",
+         "Die Datei wurde schon mit einer neueren Version bearbeitet. Erst das Programm aktualisieren "
+         "(<i>Hilfe → Nach Updates suchen …</i>), dann wiederherstellen bzw. importieren."]], [85, 180])
 
 
 # ---------------------------------------------------------------- Ablauf

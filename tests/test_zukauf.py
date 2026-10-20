@@ -146,7 +146,7 @@ ok("11 Bezugskosten einmal je Bestellung, nach Verbrauch verteilt; Preisstände 
 
 # ------------------------------------------------------------------ Datenbank: Speichern und Prüfung
 db = Datenbank(tmp / "z.db")
-gleich(SCHEMA_VERSION, 17, "Schema")
+assert SCHEMA_VERSION >= 17, "Schema"
 gleich(list(db.zukauf_kategorien()), list(zukauf.KATEGORIEN_START), "Kategorien nur mit Namen")
 assert all(z.get("aufschlag_wert") is None for z in db.zukauf_kategorien().values()), "keine erfundenen Aufschläge"
 gleich(db.einstellung("zukauf_aufschlag"), None, "Standardaufschlag leer")
@@ -210,10 +210,10 @@ con.execute("PRAGMA user_version=16")
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-gleich(db2.con.execute("PRAGMA user_version").fetchone()[0], 17, "Schema 17")
+gleich(db2.con.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION, "Schema aktuell")
 gleich(len(db2.zukauf_kategorien()), 7, "Kategorien ergänzt")
 assert "zukauf" in {r[1] for r in db2.con.execute("PRAGMA table_info(positionen)")}
-assert db2.sicherungen(zusatz="vor_Schema_17"), "Sicherung vor der Umstellung"
+assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}"), "Sicherung vor der Umstellung"
 db2.schliessen()
 ok("Datei Schema 16: Sicherung, neue Tabellen und Spalte, Kategorien ergänzt")
 

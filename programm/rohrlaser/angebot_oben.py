@@ -11,8 +11,9 @@ from PySide6.QtWidgets import (
     QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 from . import fracht_angebot, rechnen
+from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
-from .angebot import KALK_PROZENT, KALKULATION, KOPF
+from .angebot import KALK_PROZENT, KALKULATION, KOPF, aktiv as position_aktiv
 from .sichtbarkeit import KOPF_ROLLEN, MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
 
@@ -427,7 +428,7 @@ class KopfBereich(QWidget):
                     if betrag else "Keine Frachtkosten eingetragen.")
         else:
             text = f"{m}: 0 € in der Kalkulation, Hinweis im Angebot."
-        werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if p.get("profil_id") else None
+        werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if position_aktiv(p) else None
                  for p in s.positionen]
         _, hinweis, _ = fracht_angebot.anteile(s.positionen, werte, betrag, u)
         if hinweis:
@@ -495,6 +496,17 @@ class UebersichtBereich(QWidget):
         self.stand.setAlignment(Qt.AlignCenter)
         self.stand.setMinimumHeight(28)
         kl.addWidget(self.stand)
+        # festgeschriebene Materialpreise und Schneiddaten (beim Angebots-PDF gespeichert)
+        zeile = QHBoxLayout()
+        self.preisstand = QLabel()
+        self.preisstand.setWordWrap(True)
+        self.preisstand.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        zeile.addWidget(self.preisstand, 1)
+        self.preise_knopf = QPushButton("Aktuelle Preise übernehmen …")
+        self.preise_knopf.setToolTip("Materialpreise und Schneiddaten dieses Angebots auf die aktuellen Stammdaten "
+                                     "setzen")
+        zeile.addWidget(self.preise_knopf)
+        kl.addLayout(zeile)
         # Herstellkosten und Verkaufspreis groß, ohne Rollen sichtbar
         preise = QHBoxLayout()
         preise.setSpacing(6)
@@ -572,6 +584,24 @@ class UebersichtBereich(QWidget):
             w.setToolTip("" if aktuell else "Ohne aktuelle Optimierung fehlen Material, Stangenwechsel und "
                                             "Verschnitt. Bitte optimieren.")
         self._stand_text(stand)
+
+    def preisstand_setzen(self, preisbasis, abweichungen):
+        """Hinweis, ob Materialpreise und Schneiddaten festgeschrieben sind und ob die Stammdaten seitdem
+        abweichen; der Knopf erscheint nur bei Abweichungen."""
+        if not isinstance(preisbasis, dict):
+            self.preisstand.setText("<span style='color:#5F6B7A'>Materialpreise: aktuelle Stammdaten (werden beim "
+                                    "Angebots-PDF festgeschrieben)</span>")
+            self.preisstand.setToolTip("")
+        elif abweichungen:
+            self.preisstand.setText(f"<span style='color:#8A5A00'><b>Preise festgeschrieben am "
+                                    f"{datum_text(preisbasis.get('datum'))}</b>, Stammdaten seitdem geändert "
+                                    f"({len(abweichungen)})</span>")
+            self.preisstand.setToolTip("\n".join(abweichungen))
+        else:
+            self.preisstand.setText(f"<span style='color:#5F6B7A'>Preise festgeschrieben am "
+                                    f"{datum_text(preisbasis.get('datum'))}</span>")
+            self.preisstand.setToolTip("Materialpreise und Schneiddaten stimmen mit den Stammdaten überein.")
+        self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):
         text, name = self.STAND.get(stand, ("Veraltet – Angebot oder Stammdaten geändert, bitte neu optimieren",

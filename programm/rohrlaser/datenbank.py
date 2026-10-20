@@ -16,9 +16,16 @@ Fehlende Spalten älterer Dateien werden beim Öffnen ergänzt; Dateien vor Sche
 Beispiel-Zusatzarbeiten, Dateien vor Schema 6 werden von Auftrag auf Angebot umbenannt, Dateien vor Schema 11
 bekommen Kategorien, die neuen Beispiel-Werkstoffe und -Oberflächen und Schneiddaten je Kategorie.
 """
+import contextlib
 import datetime
+import hashlib
 import json
+import os
+import re
+import shutil
 import sqlite3
+import tempfile
+import zipfile
 from pathlib import Path
 
 from . import zukauf
@@ -31,9 +38,13 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 17     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 21     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
+                        # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
+                        # 19: Profilformen I-/H-Träger und T-Profil in der Auswahlliste ergänzt (keine neuen Spalten)
+                        # 20: Blechartikel: zukauf_artikel.artikeltyp, Maße, Werkstoff, Herkunft, STEP-Datei, Kennung
+                        # 21: Positionsart (positionen.art: Rohrlaserteil/Zukaufteil) und positionen.gewicht_teil
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -105,6 +116,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN nachkalkulation TEXT")
             if "zeitbasis" not in spalten_a:          # Datei vor Schema 13 (alte Angebote: ohne Snapshot)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN zeitbasis TEXT")
+            if "preisbasis" not in spalten_a:         # Datei vor Schema 18 (alte Angebote: aktuelle Preise)
+                self.con.execute("ALTER TABLE angebote ADD COLUMN preisbasis TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
@@ -124,8 +137,8 @@ class Datenbank:
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
-            if 0 < version < 12:
-                self._profilformen_ergaenzen()
+            if 0 < version < 19:
+                self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -144,8 +157,8 @@ class Datenbank:
                              f'VALUES ({", ".join("?" * len(namen))})', [[z.get(n) for n in namen] for z in zeilen])
 
     def _profilformen_ergaenzen(self):
-        """Dateien vor Schema 12: U-, C-, L-Profil und Flachstahl in die Auswahlliste Profilformen (vor
-        'Sonderprofil'), sofern sie dort fehlen; eigene Einträge bleiben."""
+        """Dateien vor Schema 12: U-, C-, L-Profil und Flachstahl, seit 20.10.2026 auch I-/H-Träger und T-Profil, in
+        die Auswahlliste Profilformen (vor 'Sonderprofil'), sofern sie dort fehlen; eigene Einträge bleiben."""
         formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
         neu = [f for f in OFFENE_PROFILE if f not in formen]
         if neu:
@@ -334,7 +347,10 @@ class Datenbank:
         (zukauf.artikel_fehler) und eindeutige Artikelnummer (ValueError). Änderungen an Einkaufspreisen und
         Aufschlag kommen ins Protokoll der Preisänderungen. Ergebnis: ID."""
         felder = [f.name for f in zukauf.ARTIKEL.felder if f.name not in ("angelegt", "geaendert")]
-        werte = {n: werte.get(n) for n in felder}
+        alt = self.zukauf_artikel(artikel_id) if artikel_id is not None else None
+        # Blechdaten (Maße, STEP-Datei, Kennung) bleiben erhalten, wenn der Aufrufer sie nicht mitgibt
+        werte = {n: alt.get(n) if alt is not None and n in zukauf.BLECH_FELDER and n not in werte else werte.get(n)
+                 for n in felder}
         for n in ("artikelnr", "bezeichnung"):
             if isinstance(werte[n], str):
                 werte[n] = werte[n].strip() or None
@@ -356,7 +372,6 @@ class Datenbank:
         for b in bezuege:
             if isinstance(b.get("preise"), list):
                 b["preise"] = json.dumps(b["preise"], ensure_ascii=False)
-        alt = self.zukauf_artikel(artikel_id) if artikel_id is not None else None
         jetzt = self._jetzt()
         bekannt = {z["name"] for z in self.zeilen("zukauf_lieferanten")}
         neue_lieferanten = sorted({b["lieferant"].strip() for b in bezuege if (b.get("lieferant") or "").strip()} - bekannt)
@@ -378,6 +393,30 @@ class Datenbank:
                                  f'VALUES (?, {", ".join("?" * len(bfelder))})', [artikel_id] + [b.get(n) for n in bfelder])
             self._zukauf_protokoll(artikel_id, alt, dict(werte, bezuege=bezuege), jetzt, bemerkung)
         return artikel_id
+
+    def zukauf_ek_eintragen(self, artikel_id, preis, lieferant=None):
+        """Einkaufspreis je Einheit (ab Menge 1) beim Lieferanten eintragen (fehlt er, beim bevorzugten bzw. einem neuen
+        Eintrag); weitere Staffelzeilen dieses Lieferanten werden ersetzt. Preis muss über 0 € liegen (ValueError)."""
+        p = zukauf.dez(preis)
+        if p is None or p <= 0:
+            raise ValueError("Bitte einen Einkaufspreis über 0 € eingeben.")
+        a = self.zukauf_artikel(artikel_id)
+        if a is None:
+            raise ValueError("Artikel nicht gefunden.")
+        bezuege = [dict(b) for b in a["bezuege"]]
+        for b in bezuege:
+            b.pop("id", None)
+            b.pop("artikel_id", None)
+        b = zukauf.bezug_waehlen(bezuege, lieferant)
+        if b is None or (lieferant and b.get("lieferant") != lieferant and b.get("lieferant")):
+            b = dict(lieferant=lieferant or None, bevorzugt="nein" if bezuege else "ja", preiseinheit=1)
+            bezuege.append(b)
+        elif lieferant:
+            b["lieferant"] = lieferant
+        b["preise"] = [dict(ab=1, preis=float(p))]
+        b["preiseinheit"] = b.get("preiseinheit") or 1
+        a.pop("bezuege")
+        return self.zukauf_speichern(artikel_id, a, bezuege, bemerkung="EK eingetragen")
 
     PROTOKOLL_ARTIKEL = ("aufschlag_quelle", "aufschlag_methode", "aufschlag_wert", "aufschlag_staffel")
     PROTOKOLL_BEZUG = ("preise", "preiseinheit", "rabatt", "verpackung", "mindermenge", "mindermenge_bis", "fracht",
@@ -583,6 +622,14 @@ class Datenbank:
                              (json.dumps(zeitbasis, ensure_ascii=False) if zeitbasis is not None else None,
                               self._jetzt(), angebot_id))
 
+    def preisbasis_speichern(self, angebot_id, preisbasis):
+        """Festgeschriebene Materialpreise und Schneiddaten eines Angebots setzen (rechnen.preisbasis_aus;
+        None = wieder die aktuellen Stammdaten)."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET preisbasis=?, geaendert=? WHERE id=?",
+                             (json.dumps(preisbasis, ensure_ascii=False) if preisbasis is not None else None,
+                              self._jetzt(), angebot_id))
+
     # -------------------------------------------------------------- Frachtkosten
     def fracht_daten(self):
         """Fracht-Stammdaten für den Rechenkern {Kurzname: [Zeilen]} (fracht_daten.KURZ)."""
@@ -735,6 +782,7 @@ class Datenbank:
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
+        a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         return a
 
     def _jetzt(self):
@@ -943,27 +991,52 @@ class Datenbank:
 
     # -------------------------------------------------------------- Sicherung
     def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN, zusatz=None):
-        """Kopie der Datendatei nach Daten/Sicherung (sqlite-Backup, auch bei offener Datei sicher).
-        zusatz: fester Namensteil statt der Uhrzeit (eine Datei, die überschrieben wird, z. B. 'beenden').
-        Ältere Sicherungen über `behalten` hinaus werden gelöscht. Ergebnis: Pfad der Sicherung."""
+        """Kopie der Datendatei nach Daten/Sicherung (sqlite-Backup, auch bei offener Datei sicher), danach geprüft
+        (Integrität, gleiche Anzahl Angebote und Positionen wie das Original) und mit einer Beschreibung
+        <name>.json daneben (Version, Schema, Zeit, Anzahlen, Prüfsumme). Scheitert die Prüfung, wird die Kopie
+        gelöscht und SicherungFehler (ein OSError) ausgelöst.
+        zusatz: 'beenden' u. ä. = eine Datei je Tag, die überschrieben wird; 'vor_…' (vor_update, vor_Schema_N,
+        vor_Wiederherstellung) = geschützte Sicherung mit Uhrzeit, wird nie überschrieben.
+        Aufräumen: von den laufenden Sicherungen bleiben `behalten`, von jeder Art geschützter Sicherungen
+        GESCHUETZT_BEHALTEN; die Datendatei selbst wird nie gelöscht. Ergebnis: Pfad der Sicherung."""
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
         ordner.mkdir(parents=True, exist_ok=True)
-        if zusatz:
-            ziel = ordner / f"{self.pfad.stem}_{datetime.date.today():%Y-%m-%d}_{zusatz}.db"
-            ziel.unlink(missing_ok=True)
+        jetzt = datetime.datetime.now()
+        if zusatz and not zusatz.startswith("vor_"):
+            ziel = ordner / f"{self.pfad.stem}_{jetzt:%Y-%m-%d}_{zusatz}.db"
+            _sicherung_loeschen(ziel)
         else:
-            ziel = ordner / f"{self.pfad.stem}_{datetime.datetime.now():%Y-%m-%d_%H%M%S}.db"
-            n = 1
+            name = f"{self.pfad.stem}_{jetzt:%Y-%m-%d_%H%M%S}" + (f"_{zusatz}" if zusatz else "")
+            ziel, n = ordner / f"{name}.db", 1
             while ziel.exists():
-                ziel = ordner / f"{self.pfad.stem}_{datetime.datetime.now():%Y-%m-%d_%H%M%S}_{n}.db"
+                ziel = ordner / f"{name}_{n}.db"
                 n += 1
         kopie = sqlite3.connect(ziel)
-        with kopie:
-            self.con.backup(kopie)
-        kopie.close()
-        alte = sorted(ordner.glob(f"{self.pfad.stem}_*.db"))
-        for p in alte[:max(0, len(alte) - behalten)]:
-            p.unlink()
+        try:
+            with kopie:
+                self.con.backup(kopie)
+        finally:
+            kopie.close()
+        soll = _anzahlen(self.con)
+        try:
+            info = datei_pruefen(ziel)
+            if info["anzahl"] != soll:
+                raise SicherungFehler(f"Die Sicherung {ziel} ist unvollständig: {info['anzahl']} statt {soll}")
+        except SicherungFehler:
+            _sicherung_loeschen(ziel)
+            raise
+        info.update(art=zusatz or "", erstellt=jetzt.isoformat(timespec="seconds"), quelle=str(self.pfad))
+        ziel.with_suffix(".json").write_text(json.dumps(info, indent=1, ensure_ascii=False), encoding="utf-8")
+        # nach Zeit (mehrere Sicherungen in einer Sekunde heißen _1, _2 … _10 und sortieren nach Namen falsch)
+        alle = sorted(ordner.glob(f"{self.pfad.stem}_*.db"), key=lambda p: (p.stat().st_mtime_ns, p.name))
+        laufend = [p for p in alle if _geschuetzt(p) is None]
+        weg = laufend[:max(0, len(laufend) - behalten)]
+        for art in {_geschuetzt(p) for p in alle} - {None}:
+            gleich = [p for p in alle if _geschuetzt(p) == art]
+            weg += gleich[:max(0, len(gleich) - GESCHUETZT_BEHALTEN)]
+        for p in weg:
+            if p != ziel:
+                _sicherung_loeschen(p)
         return ziel
 
     def sicherung_heute(self, ordner=None):
@@ -986,3 +1059,178 @@ class Datenbank:
         except OSError as e:
             return pfade, f"Zweiter Sicherungsordner nicht erreichbar ({ordner2}): {e}"
         return pfade, None
+
+    def sicherungsordner(self):
+        """Ordner mit Sicherungen: Daten/Sicherung und, falls eingestellt und vorhanden, der zweite Ordner."""
+        ordner = [self.pfad.parent / "Sicherung"]
+        ordner2 = (self.einstellung("sicherung_ordner2") or "").strip()
+        if ordner2 and Path(ordner2).is_dir():
+            ordner.append(Path(ordner2))
+        return ordner
+
+    def wiederherstellen(self, quelle, zusatz="vor_Wiederherstellung"):
+        """Datendatei durch eine Sicherung, eine Datendatei oder eine Export-Datei (.zip) ersetzen. Vorher wird die
+        Quelle geprüft (Integrität, nicht von einer neueren Programmversion) und der jetzige Stand gesichert
+        (Sicherung mit `zusatz`, geschützt). Der Inhalt wird in die offene Datei kopiert, danach werden ältere
+        Schemas wie beim Öffnen erweitert. Ergebnis: (Beschreibung der Quelle, Pfad der Sicherung des alten Stands)."""
+        with _quelle_entpacken(quelle) as datei:
+            info = datei_pruefen(datei)
+            if info["schema"] > SCHEMA_VERSION:
+                raise SicherungFehler(f"{Path(quelle).name} stammt von einer neueren Programmversion (Schema "
+                                      f"{info['schema']}, dieses Programm kennt {SCHEMA_VERSION}). Bitte zuerst das "
+                                      "Programm aktualisieren.")
+            vorher = self.sicherung(zusatz=zusatz)
+            quelle_con = _nur_lesen(datei)
+            try:
+                quelle_con.backup(self.con)
+            finally:
+                quelle_con.close()
+        self._anlegen()
+        return info, vorher
+
+    def exportieren(self, ziel):
+        """Alle Daten in eine Export-Datei (ZIP mit rohrlaser.db und info.json: Version, Schema, Anzahlen, Prüfsumme)
+        zum Umziehen zwischen portabler und installierter Version oder auf einen anderen Rechner. Ergebnis: info."""
+        ziel = Path(ziel)
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            kopie_pfad = Path(tmp) / "rohrlaser.db"
+            kopie = sqlite3.connect(kopie_pfad)
+            try:
+                with kopie:
+                    self.con.backup(kopie)
+            finally:
+                kopie.close()
+            info = datei_pruefen(kopie_pfad)
+            info.update(art="Export", erstellt=datetime.datetime.now().isoformat(timespec="seconds"),
+                        quelle=str(self.pfad))
+            neu = ziel.with_name(ziel.name + ".neu")
+            with zipfile.ZipFile(neu, "w", zipfile.ZIP_DEFLATED) as z:
+                z.write(kopie_pfad, EXPORT_DATEI)
+                z.writestr(EXPORT_INFO, json.dumps(info, indent=1, ensure_ascii=False))
+            os.replace(neu, ziel)
+        return info
+
+
+GESCHUETZT_BEHALTEN = 10       # je Art geschützter Sicherungen (vor_update, vor_Schema, vor_Wiederherstellung …)
+EXPORT_DATEI = "rohrlaser.db"
+EXPORT_INFO = "info.json"
+
+
+class SicherungFehler(OSError):
+    pass
+
+
+def _geschuetzt(pfad):
+    """Art einer geschützten Sicherung ('update', 'Schema', 'Wiederherstellung', 'Import') oder None."""
+    name = Path(pfad).stem
+    if "_vor_" not in name:
+        return None
+    art = name.split("_vor_", 1)[1]
+    return re.sub(r"(_\d+)+$", "", art)
+
+
+def _nur_lesen(pfad):
+    """Datei zum Lesen öffnen (nur SELECT/PRAGMA). Ohne URI-Modus, damit auch UNC-Pfade und Sonderzeichen gehen;
+    eine fehlende Datei wird nicht angelegt."""
+    if not Path(pfad).is_file():
+        raise SicherungFehler(f"{pfad} gibt es nicht.")
+    return sqlite3.connect(Path(pfad))
+
+
+def _sicherung_loeschen(pfad):
+    Path(pfad).unlink(missing_ok=True)
+    Path(pfad).with_suffix(".json").unlink(missing_ok=True)
+
+
+def _anzahlen(con):
+    """Anzahl Zeilen der wichtigsten Tabellen (Angebote heißen in Dateien vor Schema 6 noch 'auftraege')."""
+    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    anzahl = {}
+    for t in ("angebote", "auftraege", "positionen", "kunden", "preise"):
+        if t in tabellen:
+            anzahl["angebote" if t == "auftraege" else t] = con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+    return anzahl
+
+
+def datei_info(pfad):
+    """Version und Inhalt einer Datendatei oder Sicherung, ohne sie zu verändern (für Listen; ohne Prüfung)."""
+    con = _nur_lesen(pfad)
+    try:
+        schema = con.execute("PRAGMA user_version").fetchone()[0]
+        tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        anzahl = _anzahlen(con)
+        letzte = None
+        if "angebote" in tabellen:
+            letzte = con.execute("SELECT MAX(geaendert) FROM angebote").fetchone()[0]
+    finally:
+        con.close()
+    return dict(schema=schema, anzahl=anzahl, letzte_aenderung=letzte, groesse=Path(pfad).stat().st_size)
+
+
+def datei_pruefen(pfad):
+    """Prüft eine Datendatei oder Sicherung (lesbar, Integrität, Tabellen des Programms). Ergebnis: info wie
+    datei_info, dazu Programmversion und Prüfsumme; sonst SicherungFehler."""
+    from . import VERSION
+    pfad = Path(pfad)
+    try:
+        con = _nur_lesen(pfad)
+        try:
+            ergebnis = con.execute("PRAGMA integrity_check").fetchone()[0]
+        finally:
+            con.close()
+        if ergebnis != "ok":
+            raise SicherungFehler(f"{pfad.name} ist beschädigt: {ergebnis}")
+        info = datei_info(pfad)
+    except sqlite3.DatabaseError as e:
+        raise SicherungFehler(f"{pfad.name} ist keine lesbare Datendatei: {e}") from e
+    if "angebote" not in info["anzahl"] or "preise" not in info["anzahl"]:
+        raise SicherungFehler(f"{pfad.name} ist keine Datendatei dieses Programms.")
+    h = hashlib.sha256()
+    with open(pfad, "rb") as f:
+        for teil in iter(lambda: f.read(1 << 20), b""):
+            h.update(teil)
+    info.update(version=VERSION, sha256=h.hexdigest())
+    return info
+
+
+@contextlib.contextmanager
+def _quelle_entpacken(quelle):
+    """Pfad einer .db direkt; aus einer Export-Datei (.zip) die Datendatei in einen temporären Ordner, mit
+    Vergleich der Prüfsumme aus info.json."""
+    quelle = Path(quelle)
+    if not zipfile.is_zipfile(quelle):
+        yield quelle
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            with zipfile.ZipFile(quelle) as z:
+                info = json.loads(z.read(EXPORT_INFO).decode("utf-8"))
+                z.extract(EXPORT_DATEI, tmp)
+        except (KeyError, ValueError, zipfile.BadZipFile) as e:
+            raise SicherungFehler(f"{quelle.name} ist keine Export-Datei dieses Programms: {e}") from e
+        datei = Path(tmp) / EXPORT_DATEI
+        if datei_pruefen(datei)["sha256"] != info.get("sha256"):
+            raise SicherungFehler(f"{quelle.name}: Prüfsumme stimmt nicht, die Datei ist beschädigt.")
+        yield datei
+
+
+def datei_uebernehmen(quelle, ziel):
+    """Ohne offene Datenbank (erster Start, Datendatei lässt sich nicht öffnen): Quelle (.db oder Export .zip)
+    prüfen und als `ziel` ablegen. Eine vorhandene Zieldatei wird nicht gelöscht, sondern nach Sicherung/
+    <name>_<Zeit>_vor_Uebernahme.db verschoben. Ergebnis: info der Quelle."""
+    ziel = Path(ziel)
+    with _quelle_entpacken(quelle) as datei:
+        info = datei_pruefen(datei)
+        if info["schema"] > SCHEMA_VERSION:
+            raise SicherungFehler(f"{Path(quelle).name} stammt von einer neueren Programmversion (Schema "
+                                  f"{info['schema']}). Bitte zuerst das Programm aktualisieren.")
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        neu = ziel.with_name(ziel.name + ".neu")
+        shutil.copyfile(datei, neu)
+        if ziel.exists():
+            alt = ziel.parent / "Sicherung" / f"{ziel.stem}_{datetime.datetime.now():%Y-%m-%d_%H%M%S}_vor_Uebernahme.db"
+            alt.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(ziel, alt)
+        os.replace(neu, ziel)
+    return info

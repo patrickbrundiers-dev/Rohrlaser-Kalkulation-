@@ -183,7 +183,8 @@ def main(ziel):
     # 1) Start mit Beispieldaten
     start_zeigen()
     foto.foto("start_beispiel", f, [(knopf(f.start, "Datensicherung erstellen"), 1),
-                                    (knopf(f.start, "Datenordner öffnen"), 2)])
+                                    (knopf(f.start, "Sicherung wiederherstellen …"), 2),
+                                    (knopf(f.start, "Datenordner öffnen"), 3)])
 
     # 2) Eigener Briefkopf und Nummernkreis
     for i, text in enumerate(FIRMA, 1):
@@ -620,6 +621,20 @@ def main(ziel):
     s3.pos_ansicht.scrollTo(s3.pos_modell.index(0, max(spalten)))
     QApplication.processEvents()
     foto.foto("step_satz_positionen", f, [(s3.pos_ansicht, 1)])
+
+    # Sicherung wiederherstellen: einige Sicherungen verschiedener Art, Ordner wie unter Windows
+    from rohrlaser.sicherung_dialog import WiederherstellenDialog
+    for zusatz in (None, "vor_update", None, "beenden"):
+        db.sicherung(zusatz=zusatz)
+    w = WiederherstellenDialog(f)
+    for r in range(w.tabelle.rowCount()):
+        w.tabelle.item(r, 5).setText(r"C:\Rohrlaser\Daten\Sicherung")
+    w.tabelle.resizeColumnsToContents()
+    w.resize(860, 330)
+    w.show()
+    QApplication.processEvents()
+    foto.foto("sicherung_wiederherstellen", w, [(w.tabelle, 1), (w.ok, 2)])
+    w.close()
 
     # Online-Update: Hinweis auf einen neuen Stand (Stände nur als Beispiel)
     from rohrlaser import update_fenster

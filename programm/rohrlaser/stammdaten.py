@@ -7,14 +7,20 @@ import math
 import re
 from dataclasses import dataclass, field
 
+from . import normprofile
+
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
-                "Sonderprofil")
+                "I-/H-Träger", "T-Profil", "Sonderprofil")
 # Offene Profile: A = Höhe (U, C: Steg; L: längerer Schenkel; Flachstahl: Breite), B = Breite (U, C: Flansch; L:
 # kürzerer Schenkel; Flachstahl leer), Wandstärke = Blechdicke. C-Profil: Querschnitt über 'Fläche manuell'
 # (Abkantung nicht in den Maßen).
-OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl")
-MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil")
+# I-/H-Träger und T-Profil (seit 20.10.2026): A = Höhe, B = Flanschbreite, Wandstärke = Stegdicke; Querschnitt aus
+# der Normtabelle (Profil-ID wie 'IPE 200', 'HEB 160', 'T 50'), sonst über 'Fläche manuell' (der STEP-Import trägt
+# sie ein), weil die Flanschdicke nicht in den Maßen steht.
+TRAEGER = ("I-/H-Träger", "T-Profil")
+OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl") + TRAEGER
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") + TRAEGER
 KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium")
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
@@ -48,6 +54,7 @@ SCHRITTE_FEST = {
 ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
 ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
 ZUKAUF_STATUS = ("aktiv", "archiviert")
+ZUKAUF_TYPEN = ("Blech",)              # besondere Artikeltypen (leer = normaler Zukaufartikel)
 ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot"}
 
 
@@ -96,6 +103,9 @@ def flaeche_berechnet(p):
         return s * (a + b - s)
     if form == "Flachstahl":
         return a * s
+    if form in TRAEGER:
+        n = normprofile.daten(p.get("profil_id"))
+        return n["flaeche"] if n and n["form"] == form and n["flaeche"] else None
     return None
 
 
@@ -109,7 +119,7 @@ def huellkreis(p):
         return a
     if form == "Quadratrohr":
         return a * math.sqrt(2)
-    if form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") and b is not None:
+    if form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") + TRAEGER and b is not None:
         return math.hypot(a, b)
     if form == "Flachstahl" and p.get("wand") is not None:
         return math.hypot(a, p["wand"])
@@ -172,7 +182,9 @@ PROFILE = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=220)),
     ("profil_id",),
     "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
-    "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke. Endbeschnitt und "
+    "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
+    "T-Profil: A = Höhe, B = Flanschbreite, Wandstärke = Stegdicke (Querschnitt aus der Normtabelle bei IPE, IPN, "
+    "HEA, HEB, HEM, T, sonst Fläche manuell). Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
     "(Eckradien, Sonderprofile, C-Profil).",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
@@ -383,6 +395,8 @@ EINSTELLUNGEN = (
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
+    Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
+                "Angebot", "zahl", 150.0, 1, 10000),
     # Zahlungsbedingungen neuer Angebote, wenn der Kunde keine eigenen hat. Skonto wird in den Preis eingerechnet.
     Einstellung("skonto", "Skonto [%]", "Angebot", "zahl", 2.0, 0, 20),
     Einstellung("skonto_tage", "Skontofrist [Tage]", "Angebot", "ganz", 10, 0, 365),
@@ -530,6 +544,7 @@ class Kontext:
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
+                         "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
 

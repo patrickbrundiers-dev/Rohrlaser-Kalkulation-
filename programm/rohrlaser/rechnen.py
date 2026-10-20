@@ -13,6 +13,7 @@ import json
 from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis)
 from . import optimierung as opt
+from .angebot import aktiv as position_aktiv, ist_zukaufteil
 from . import fracht_angebot
 from . import zukauf
 
@@ -122,6 +123,12 @@ def position_werte(p, kopf, k, tabellen):
     w["zusatzarbeiten"] = tabellen.get("zusatzarbeiten")
     w["vorschub"] = None
     w["gas"] = None
+    if ist_zukaufteil(p):        # eingekauftes Teil: nur Gewicht (Fracht), keine Fertigungswerte
+        g = p.get("gewicht_teil")
+        w["gewicht"] = g if isinstance(g, (int, float)) and g > 0 else None
+        w["gewicht_position"] = (w["gewicht"] * p["stueck"] if w["gewicht"] is not None and not _leer(p.get("stueck"))
+                                 else None)
+        return w
     if w["wand"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
         sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand"], tabellen,
                           kategorie(p["werkstoff_id"], k))
@@ -157,8 +164,25 @@ def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None):
 
 
 # ------------------------------------------------------------------ Status
+def zukaufteil_status(p):
+    """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht)."""
+    if _leer(p.get("stueck")) or p["stueck"] < 1:
+        return "FEHLER: Stückzahl fehlt"
+    eintraege = zukauf.eintraege(p)
+    if not eintraege:
+        return "FEHLER: Zukaufartikel fehlt (Zukaufteile …)"
+    for e in eintraege:
+        if zukauf.ek_fehlt(dict(bezuege=[(e.get("stand") or {}).get("bezug") or {}])):
+            return "WARNUNG: EK fehlt (Zukaufteil ohne Einkaufspreis)"
+    if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
+        return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
+    return "OK"
+
+
 def status(p, w, kopf, k, eingeplant=None):
     """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None)."""
+    if ist_zukaufteil(p):
+        return zukaufteil_status(p)
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
         return ""
     m = maschine(kopf, k)
@@ -197,6 +221,9 @@ def status(p, w, kopf, k, eingeplant=None):
     if unbekannt:
         return f"WARNUNG: Zusatzarbeit '{unbekannt}' unbekannt"
     manuell = not _leer(p.get("zeit_manuell"))
+    kontur = konturen_pruefen(p)
+    if kontur and not manuell:
+        return "WARNUNG: " + kontur
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
@@ -224,8 +251,9 @@ def gruppen_bilden(kopf, positionen, k):
             d = opt.profil_aus_name(pid)
             if d is not None:
                 profile[pid] = dict(form=d["form"], a=d["a"], b=d["b"], wand=d["wand"], end=None, greif=None,
-                                    flaeche=flaeche_berechnet(dict(d, profil_id=pid)))
+                                    flaeche=d.get("flaeche_manuell") or flaeche_berechnet(dict(d, profil_id=pid)))
                 neue_profile.append(dict(profil_id=str(pid), form=d["form"], a=d["a"], b=d["b"], wand=d["wand"],
+                                         flaeche_manuell=d.get("flaeche_manuell"),
                                          bemerkung="automatisch aus Profil-ID angelegt"))
     m = maschine(kopf, k)
     if m is None:
@@ -238,7 +266,7 @@ def gruppen_bilden(kopf, positionen, k):
         r = ZEILE0 + i
         pid, wst, laenge, stk = p.get("profil_id"), p.get("werkstoff_id"), p.get("laenge"), p.get("stueck")
         laenge = laenge if isinstance(laenge, (int, float)) else None
-        if all(_leer(v) for v in (pid, wst, laenge, stk)):
+        if ist_zukaufteil(p) or all(_leer(v) for v in (pid, wst, laenge, stk)):
             continue
         name = p.get("artikel") or f"Zeile {i + 1}"
         stk_n = int(stk) if isinstance(stk, (int, float)) and stk >= 1 and int(stk) == stk else 0
@@ -545,6 +573,114 @@ def zahl(w, stellen=2):
     return (t.rstrip("0").rstrip(".") if "." in t else t).replace(".", ",")
 
 
+KONTUR_TOL = 0.5     # mm, STEP-Teilwerte sind je auf 0,1 mm gerundet
+KONTUR_GRENZEN = (10.0, 50.0)       # Vorgabe klein bis / mittel bis [mm], wenn die Maschine keine Werte hat
+KLASSEN_FELDER = ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")
+
+
+def kontur_grenzen(m):
+    """(klein bis, mittel bis) [mm] der Maschine; ohne gültige Werte die Vorgabe. Zweites Ergebnis: True = Vorgabe."""
+    kl, mi = (m or {}).get("kontur_klein"), (m or {}).get("kontur_mittel")
+    if isinstance(kl, (int, float)) and isinstance(mi, (int, float)) and 0 < kl < mi:
+        return (float(kl), float(mi)), False
+    return KONTUR_GRENZEN, True
+
+
+def grenzen_text(grenzen):
+    return "/".join(zahl(g, 1) for g in grenzen)
+
+
+def konturen_text(liste, enden=()):
+    """[(Hüllmaß, Schnittweg)] -> '10x31,4; 40x91,4' (Spalte Konturen der Position); enden = [('A' oder 'E',
+    Hüllmaß, Schnittweg)] für Anfangs- und Endschnitt stehen vorn: 'A:40x149,7; E:40x149,7; 10x31,4'."""
+    teile = [f"{a}:{zahl(round(g, 2))}x{zahl(round(lg, 1), 1)}" for a, g, lg in enden]
+    return "; ".join(teile + [f"{zahl(round(g, 2))}x{zahl(round(lg, 1), 1)}" for g, lg in liste])
+
+
+def konturen_lesen(text, mit_art=False):
+    """'A:40x149,7; 10x31,4' -> [(40.0, 149.7), (10.0, 31.4)], mit_art: [('A', 40.0, 149.7), ('', 10.0, 31.4)]
+    (A = Anfangsschnitt, E = Endschnitt, '' = Innenkontur); unlesbare Teile werden übergangen."""
+    out = []
+    for teil in str(text or "").replace("×", "x").split(";"):
+        art, _, rest = teil.strip().rpartition(":")
+        a, _, b = rest.partition("x")
+        try:
+            g, lg = float(a.replace(",", ".")), float(b.replace(",", "."))
+        except ValueError:
+            continue
+        art = art.strip().upper()
+        out.append((art if art in ("A", "E") else "", g, lg) if mit_art else (g, lg))
+    return out
+
+
+def grenzen_lesen(text):
+    """'8/45' -> (8.0, 45.0) oder None."""
+    try:
+        a, b = (float(x.replace(",", ".")) for x in str(text or "").split("/"))
+        return (a, b) if 0 < a < b else None
+    except ValueError:
+        return None
+
+
+def ende_vorschub(p, vorschuebe, grenzen):
+    """Vorschub für eingesparte gemeinsame Schnitte: Klasse des Endes aus der Konturliste (gerades Ende zuerst, nur
+    gerade Enden werden geteilt); ohne Enden in der Konturliste Vorschub groß. vorschuebe = (groß, mittel, klein)."""
+    h, i_, j = vorschuebe
+    enden = {a: g for a, g, _ in konturen_lesen(p.get("konturen"), True) if a}
+    if not enden:
+        return h
+    seite = "A" if p.get("a_gerade") == "ja" or "E" not in enden else "E" if p.get("b_gerade") == "ja" else "A"
+    g = round(enden.get(seite, next(iter(enden.values()))), 2)
+    grenzen = grenzen_lesen(p.get("kontur_grenzen")) or grenzen
+    return j if g <= grenzen[0] else i_ if g <= grenzen[1] else h
+
+
+def konturklassen(liste, grenzen):
+    """Innenkonturen [(Hüllmaß, Schnittweg)] nach Hüllmaß einteilen: klein ≤ klein bis < mittel ≤ mittel bis < groß.
+    Ergebnis: Felder klein_n, klein_mm, mittel_n, mittel_mm, gross_n, gross_mm (mm auf 0,1 gerundet)."""
+    kl = [[0, 0.0], [0, 0.0], [0, 0.0]]
+    for groesse, laenge in liste:
+        g = round(groesse, 2)   # Ø10 genau auf der Grenze zählt als klein
+        c = 0 if g <= grenzen[0] else 1 if g <= grenzen[1] else 2
+        kl[c][0] += 1
+        kl[c][1] += laenge
+    out = {}
+    for name, (n, lg) in zip(("klein", "mittel", "gross"), kl):
+        out[f"{name}_n"], out[f"{name}_mm"] = n, round(lg, 1)
+    return out
+
+
+def konturklassen_neu(p, m):
+    """Neue Einteilung einer Position, deren Konturliste mit anderen Grenzen eingeteilt wurde als die der Maschine:
+    dict mit den Klassenfeldern und kontur_grenzen, sonst None (keine Konturliste oder Grenzen gleich)."""
+    if _leer(p.get("konturen")) or ist_zukaufteil(p):
+        return None
+    grenzen = kontur_grenzen(m)[0]
+    if p.get("kontur_grenzen") == grenzen_text(grenzen):
+        return None
+    return dict(konturklassen(konturen_lesen(p["konturen"]), grenzen), kontur_grenzen=grenzen_text(grenzen))
+
+
+def gross_rest(p):
+    """Schneidweg mit Vorschub groß [mm]: Schneidweg − Konturen klein und mittel, nie unter 0 (große Konturen,
+    Anfangs-/Endschnitt ohne Klasse und von Hand ergänzter Schneidweg)."""
+    return max(0.0, _n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm")))
+
+
+def konturen_pruefen(p):
+    """Widerspruch zwischen Konturklassen und Schneidweg bzw. Innenkonturen (Text) oder None."""
+    km = _n(p.get("klein_mm")) + _n(p.get("mittel_mm"))
+    if km <= 0 and _n(p.get("gross_mm")) <= 0:
+        return None
+    if not _leer(p.get("schneidweg")) and km > _n(p["schneidweg"]) + KONTUR_TOL:
+        return "Konturen klein + mittel länger als Schneidweg"
+    summe = km + _n(p.get("gross_mm"))
+    if not _leer(p.get("innen")) and summe > _n(p["innen"]) + _n(p.get("a_schnitt")) + _n(p.get("b_schnitt")) \
+            + KONTUR_TOL:
+        return "Konturklassen länger als Innenkonturen + Anfangs-/Endschnitt"
+    return None
+
+
 def schneidzeit(p, kopf, wand, tabellen, k=None):
     """Berechnete Schneidzeit je Teil [s] aus Schneidweg, Konturklassen, Gravur und Einstichen (ohne Einsparung
     gemeinsamer Schnitte und ohne Zusatzzeiten). Ergebnis: (Schneiddaten-Zeile, (Vorschub groß, mittel, klein,
@@ -559,16 +695,25 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
         l = _n(sd.get("einstechzeit"))
     else:
         h = i_ = j = kv = l = None
-    if h is None:
-        mz = None
-    else:
-        try:
-            mz = 60 * ((_n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm"))) / h
-                       + _n(p.get("klein_mm")) / j + _n(p.get("mittel_mm")) / i_ + _n(p.get("gravur")) / kv) \
-                + _n(p.get("einstiche")) * l
-        except ZeroDivisionError:
-            mz = None
-    return sd, (h, i_, j, kv, l), mz
+    anteile = zeitanteile(p, (h, i_, j, kv, l))
+    return sd, (h, i_, j, kv, l), sum(anteile.values()) if anteile else None
+
+
+ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "einstiche")
+
+
+def zeitanteile(p, vorschuebe):
+    """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur,
+    einstiche}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
+    h, i_, j, kv, l = vorschuebe
+    if not h:
+        return None
+    try:
+        return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
+                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * _n(p.get("gravur")) / kv,
+                    einstiche=_n(p.get("einstiche")) * _n(l))
+    except ZeroDivisionError:
+        return None
 
 
 # ------------------------------------------------------------------ Stundensätze und Zeitvorgaben
@@ -598,6 +743,121 @@ def zeitbasis(kopf, k, tabellen):
                vorgabe_schritte=aktuell["schritte"])
     m = zb.get("maschine") or {}
     out["maschine"] = m if m.get("maschinen_id") == kopf.get("maschine") else aktuell["maschine"]
+    return out
+
+
+# ------------------------------------------------------------------ Preisbasis (festgeschriebene Preise)
+PREIS_FELDER = ("profil_id", "werkstoff_id", "basis", "preis", "lieferlaenge", "gueltig_ab", "lieferant")
+SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis", "vorschub_gross", "vorschub_mittel",
+                  "vorschub_klein", "einstechzeit", "vorschub_gravur")
+
+
+def _preis_schl(z):
+    return f"{z.get('profil_id')}|{z.get('werkstoff_id')}"
+
+
+def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
+    """Materialpreise und Schneiddaten, mit denen das Angebot rechnet (für den Snapshot im Angebot):
+    {datum, maschine, preise: [Zeile je Profil + Werkstoff der Positionen], schneiddaten: [Zeilen der Maschine für
+    die Werkstoffe und Kategorien der Positionen], tonnenpreise: {Werkstoff: €/t}, aufpreise: {Oberfläche: €/m}}.
+    k und tabellen sind die gültigen Werte (bei festgeschriebenen Angeboten nach preisbasis_anwenden)."""
+    import datetime
+    werkstoffe = {p.get("werkstoff_id") for p in positionen if not _leer(p.get("werkstoff_id"))}
+    kombis = {(p.get("profil_id"), p.get("werkstoff_id")) for p in positionen
+              if not _leer(p.get("profil_id")) and not _leer(p.get("werkstoff_id"))}
+    kats = {kategorie(w, k) for w in werkstoffe} - {None, ""}
+    preise = []
+    for pid, wid in sorted(kombis, key=str):
+        z = preis_zeile(pid, wid, k, tabellen)
+        # ohne Zeile: Merker (Preisbasis leer = Tonnenpreis), damit eine später angelegte Zeile nicht gilt
+        preise.append({n: z.get(n) for n in PREIS_FELDER} if z is not None
+                      else dict(profil_id=pid, werkstoff_id=wid, basis=None))
+    m = kopf.get("maschine")
+    sd = [{n: z.get(n) for n in SCHNEID_FELDER} for z in tabellen["schneiddaten"] if z.get("maschinen_id") == m
+          and (z.get("werkstoff_id") in werkstoffe or _leer(z.get("werkstoff_id")) and z.get("kategorie") in kats)]
+    ofl = {oberflaeche_von(p) for p in positionen} - {""}
+    return dict(datum=datum or datetime.date.today().isoformat(), maschine=m, preise=preise, schneiddaten=sd,
+                tonnenpreise={w: (k.werkstoffe.get(w) or {}).get("tonnenpreis") for w in sorted(werkstoffe, key=str)},
+                aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)})
+
+
+def preisbasis_anwenden(kopf, k, tabellen):
+    """Gültige (k, tabellen) eines Angebots: Werte aus dem Snapshot kopf['preisbasis'] gehen den aktuellen
+    Stammdaten vor; was der Snapshot nicht enthält (später hinzugefügte Profile, Werkstoffe, Oberflächen oder eine
+    andere Maschine), kommt aus den aktuellen Stammdaten. Ohne Snapshot unverändert."""
+    import dataclasses
+    pb = kopf.get("preisbasis")
+    if not isinstance(pb, dict):
+        return k, tabellen
+    # Unveränderte Zeilen bleiben die Zeilen der Stammdaten (gleiche Prüfsummen, z. B. für die Staffelpreise).
+    tab = dict(tabellen)
+    fest = {_preis_schl(z): z for z in pb.get("preise") or []}
+    gleich = lambda a, b, felder: all(a.get(n) == b.get(n) for n in felder)
+    tab["preise"] = [z if _preis_schl(z) not in fest or gleich(z, fest[_preis_schl(z)], PREIS_FELDER)
+                     else fest[_preis_schl(z)] for z in tabellen["preise"]]
+    vorhanden = {_preis_schl(z) for z in tabellen["preise"]}
+    tab["preise"] += [z for s, z in fest.items() if s not in vorhanden and z.get("basis")]
+    if pb.get("maschine") == kopf.get("maschine"):
+        sd = pb.get("schneiddaten") or []
+        werkstoffe = {z.get("werkstoff_id") for z in sd if not _leer(z.get("werkstoff_id"))} \
+            | set(pb.get("tonnenpreise") or {})
+        kats = {kategorie(w, k) for w in werkstoffe} - {None, ""}
+        # Zeilen der Maschine für die Werkstoffe und Kategorien des Snapshots kommen aus dem Snapshot
+        betroffen = lambda z: z.get("maschinen_id") == pb["maschine"] and (
+            z.get("werkstoff_id") in werkstoffe or _leer(z.get("werkstoff_id")) and z.get("kategorie") in kats)
+        aktuell = [z for z in tabellen["schneiddaten"] if betroffen(z)]
+        projektion = lambda zeilen: sorted(json.dumps({n: z.get(n) for n in SCHNEID_FELDER}, sort_keys=True)
+                                           for z in zeilen)
+        if projektion(aktuell) != projektion(sd):
+            tab["schneiddaten"] = sd + [z for z in tabellen["schneiddaten"] if not betroffen(z)]
+    ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
+          for w, z in k.werkstoffe.items()}
+    of = {o: dict(z, aufpreis_m=pb["aufpreise"][o]) if o in (pb.get("aufpreise") or {}) else z
+          for o, z in k.oberflaechen.items()}
+    return dataclasses.replace(k, werkstoffe=ws, oberflaechen=of), tab
+
+
+def _vergleich(pb):
+    """Vergleichbarer Inhalt eines Snapshots (ohne Datum), Schneiddaten unabhängig von der Reihenfolge."""
+    sd = sorted((json.dumps(z, sort_keys=True) for z in pb.get("schneiddaten") or []))
+    return dict(maschine=pb.get("maschine"), preise={_preis_schl(z): z for z in pb.get("preise") or []}, schneiddaten=sd,
+                tonnenpreise=pb.get("tonnenpreise") or {}, aufpreise=pb.get("aufpreise") or {})
+
+
+def preisbasis_gleich(a, b):
+    """Gleiche festgeschriebene Werte (Datum zählt nicht)."""
+    return _vergleich(a) == _vergleich(b)
+
+
+def preisbasis_abweichung(kopf, k, tabellen):
+    """Was sich in den aktuellen Stammdaten gegenüber den festgeschriebenen Preisen des Angebots geändert hat:
+    Liste lesbarer Texte (leer = nichts geändert oder nichts festgeschrieben). k, tabellen: aktuelle Stammdaten."""
+    pb = kopf.get("preisbasis")
+    if not isinstance(pb, dict):
+        return []
+    alt = _vergleich(pb)
+    # dieselben Profile, Werkstoffe und Oberflächen wie im Snapshot, Werte aus den aktuellen Stammdaten
+    umfang = ([dict(profil_id=z.get("profil_id"), werkstoff_id=z.get("werkstoff_id")) for z in pb.get("preise") or []]
+              + [dict(werkstoff_id=w) for w in pb.get("tonnenpreise") or {}]
+              + [dict(oberflaeche=o) for o in pb.get("aufpreise") or {}])
+    neu = _vergleich(preisbasis_aus(dict(kopf, maschine=pb.get("maschine")), umfang, k, tabellen))
+    def text(z):
+        return f"{zahl(z.get('preis'))} {z['basis']}" if z and z.get("basis") else "Tonnenpreis"
+
+    out = []
+    for s, z in alt["preise"].items():
+        n = neu["preise"].get(s) or {}
+        if (n.get("basis"), n.get("preis"), n.get("lieferlaenge")) != \
+                (z.get("basis"), z.get("preis"), z.get("lieferlaenge")):
+            out.append(f"Preis {s.replace('|', ' / ')}: {text(z)} → {text(n)}")
+    for w, t in alt["tonnenpreise"].items():
+        if neu["tonnenpreise"].get(w) != t:
+            out.append(f"Tonnenpreis {w}: {zahl(t)} → {zahl(neu['tonnenpreise'].get(w))} €/t")
+    for o, a in alt["aufpreise"].items():
+        if neu["aufpreise"].get(o) != a:
+            out.append(f"Aufpreis {o}: {zahl(a)} → {zahl(neu['aufpreise'].get(o))} €/m")
+    if alt["schneiddaten"] != neu["schneiddaten"]:
+        out.append(f"Schneiddaten der Maschine {pb.get('maschine')} geändert")
     return out
 
 
@@ -671,10 +931,14 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     zm, zf, gew = (_n(einstellungen.get(n)) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn"))
     ruest, wechsel = _n(zb["maschine"].get("ruestzeit")), _n(zb["maschine"].get("stangenwechsel"))
     f7 = ruest / 60 * s_rm + wechsel * len(stangen) / 3600 * s_sw
-    aktiv = [i for i, p in enumerate(positionen) if not _leer(p.get("profil_id"))]
-    f8 = sum(_n(positionen[i].get("stueck")) for i in aktiv)
+    aktiv = [i for i, p in enumerate(positionen) if position_aktiv(p)]
+    # Zukaufteil-Positionen (z. B. Bleche) tragen nur ihre Zukaufteile und die Fracht; Rüsten, Pauschalen,
+    # Programmierung, Angebotsaufschlag und Arbeitsschritte verteilen sich auf die Rohrlaserteile
+    laser = [i for i in aktiv if not ist_zukaufteil(positionen[i])]
+    zk_pos = [i for i in aktiv if ist_zukaufteil(positionen[i])]
+    f8 = sum(_n(positionen[i].get("stueck")) for i in laser)
     teile_abm = {}
-    for i in aktiv:
+    for i in laser:
         if _n(positionen[i].get("stueck")) > 0:
             pid = positionen[i]["profil_id"]
             teile_abm[pid] = teile_abm.get(pid, 0) + _n(positionen[i]["stueck"])
@@ -683,7 +947,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
     prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Angebot
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
-    zus = {i: zusatz_werte(positionen[i], k, tabellen) for i in aktiv}
+    zus = {i: zusatz_werte(positionen[i], k, tabellen) if i in laser else [] for i in aktiv}
     zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
     for i in aktiv:
         c = _n(positionen[i].get("stueck"))
@@ -709,11 +973,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
-    fracht = fracht_angebot.wirksam(kopf) if f8 else 0
+    fracht = fracht_angebot.wirksam(kopf) if f8 or any(_n(positionen[i].get("stueck")) for i in zk_pos) else 0
     fracht_je, fracht_hinweis, fracht_umlage = fracht_angebot.anteile(positionen, werte, fracht,
                                                                       fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, len(stangen), teile_abm,
-                               sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0))
+                               sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0))
     zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
                                         for i in aktiv for n, e in enumerate(zukauf.eintraege(positionen[i]))])
     eingespart = {}
@@ -728,6 +992,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         p = positionen[i]
         w = werte[i]
         c = _n(p.get("stueck"))
+        if i in zk_pos:
+            zeilen[i] = _zukaufteil_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
+                                          fracht_je[i] if c else 0, skonto)
+            continue
         gr = gruppe_von(p, kopf)
         d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
         gesamt = sum(_n(x.get("laenge")) * _n(x.get("stueck")) for x in positionen
@@ -738,11 +1006,15 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z = dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, material_gruppe=d, anteil=e,
                  material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None)
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
+        anteile = zeitanteile(p, (h, i_, j, kv, l)) or {}
+        z.update({f"zeit_{n}": anteile.get(n) for n in ZEITANTEILE})
+        z.update(mm_gross=gross_rest(p), mm_mittel=_n(p.get("mittel_mm")), mm_klein=_n(p.get("klein_mm")),
+                 mm_gravur=_n(p.get("gravur")), einstiche_teil=_n(p.get("einstiche")))
         ein = eingespart.get(schluessel(p, i), [0, 0.0, 0])
         if h is None or c == 0 or not h:
             nz = 0
         else:
-            nz = (60 * ein[1] / h + ein[2] * l) / c
+            nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_grenzen(maschine(kopf, k))[0]) + ein[2] * l) / c
         manuell = not _leer(p.get("zeit_manuell"))
         zeit_extra = sum(e["zeit"] for e in zus[i])
         if manuell:
@@ -773,6 +1045,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = "kein Schnittplan oder Preis"
         elif h is None and not manuell:
             hinweis = "keine Schneiddaten"
+        elif not manuell and konturen_pruefen(p):
+            hinweis = konturen_pruefen(p)
         elif zusatz_unbekannt(p, tabellen.get("zusatzarbeiten")):
             hinweis = "Zusatzarbeit unbekannt"
         elif not _leer(p.get("gewinde_vorschlag")) and _leer(p.get("gewinde")):
@@ -804,8 +1078,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
-                  positionen=sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
-                  programmierung=prog * sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
+                  positionen=sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
+                  programmierung=prog * sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
+                  zukaufteile=sum(_n(positionen[i].get("stueck")) for i in zk_pos),
                   material=sum(z["material_position"] for z in zeilen if z),
                   laser=sum(z["laser_position"] for z in zeilen if z),
                   zusatz=sum(z["zusatz_position"] for z in zeilen if z),
@@ -827,6 +1102,36 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
     summen["zeiten"] = arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, len(stangen))
     return zeilen, summen
+
+
+def _zukaufteil_zeile(p, c, zk, fr, skonto):
+    """Kalkulationszeile einer Zukaufteil-Position: alle Fertigungswerte 0, Preis je Teil = Einstand + Aufschlag der
+    Zukaufteile + Frachtanteil, mit Skonto. Fehlt der Einkaufspreis, rechnet sie ohne ihn und meldet es."""
+    zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
+    zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
+    ohne = fr + zk_einst + zk_auf
+    t_ = ohne / (1 - skonto)
+    if not zk:
+        hinweis = "Zukaufteil: kein Zukaufartikel"
+    elif any(x["fehler"] for x in zk):
+        hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
+    else:
+        hinweis = ""
+    null = dict.fromkeys(("material_gruppe", "anteil", "material_teil", "zeit_extra", "gewinde_preis",
+                          "zusatz_eigen_teil", "zusatz_fremd_teil", "zusatz_teil", "zusatz_position",
+                          "laser_schneiden_teil", "gewinde_teil", "gewinde_zeit_teil", "arbeit_teil",
+                          "zuschlag_material_teil", "zuschlag_fertigung_teil", "zuschlag_fremdleistung_teil",
+                          "gewinn_teil", "einsparung", "gewindezeit", "laser_teil", "ruesten_teil", "herstell_teil",
+                          "herstell_position", "material_position", "laser_position"), 0.0)
+    z = dict(null, pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, wand_stufe=None, gas=None,
+             vorschub_gross=None, vorschub_mittel=None, vorschub_klein=None, vorschub_gravur=None, einstechzeit=None,
+             **{f"zeit_{n}": None for n in ZEITANTEILE}, mm_gross=None, mm_mittel=None, mm_klein=None,
+             mm_gravur=None, einstiche_teil=None, zeit_manuell="", zusatzarbeiten=[], zusatz_text="", skonto_teil=t_ - ohne, laser_brutto=None,
+             laser_netto=None, zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf,
+             zukauf_teil=zk_einst + zk_auf, zukauf_fehlt=sum(1 for x in zk if x["fehler"]) + (0 if zk else 1),
+             pauschalen_teil=fr, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, hinweis=hinweis,
+             eingeplant=None, nicht_eingeplant=None, zukaufteil=True)
+    return z
 
 
 def weitere_schritte(zb, teile, n_stangen, teile_abm, n_positionen):

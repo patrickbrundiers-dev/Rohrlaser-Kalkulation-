@@ -3,12 +3,14 @@ Lieferant, EK je Stück, Aufschlag und Menge je Teil bzw. je Satz in einem kurze
 
 Der Artikel wird wie im Reiter Zukaufartikel gespeichert (Einheit Stück, Preiseinheit 1, ein Lieferant) und kann
 dort später ergänzt werden. Bei Kategorie Blechteile (oder 'Blech' in der Bezeichnung) ist der Lieferant
-zukauf.LIEFERANT_VORGABE vorbelegt. Ein leerer Aufschlag nimmt die Regel der Kategorie bzw. den Standard."""
+zukauf.BLECH_LIEFERANT vorbelegt. Ein leerer Aufschlag nimmt die Regel der Kategorie bzw. den Standard."""
 from PySide6.QtWidgets import (QComboBox, QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QVBoxLayout)
 
 from . import zukauf
 from .stammdaten import zahl_aus_text
+
+HERKUNFT = "Schnellanlage"
 
 
 def _zahl(text, titel, leer_erlaubt=True):
@@ -29,7 +31,8 @@ def _zahl(text, titel, leer_erlaubt=True):
 def artikel_werte(bezeichnung, artikelnr, kategorie, lieferant, ek, aufschlag):
     """(Artikel, [Einkauf]) für db.zukauf_speichern; aufschlag None = Regel der Kategorie."""
     werte = dict(artikelnr=artikelnr or None, bezeichnung=bezeichnung, kategorie=kategorie or None, einheit="Stück",
-                 status="aktiv", aufschlag_quelle=zukauf.KATEGORIE if aufschlag is None else zukauf.INDIVIDUELL,
+                 status="aktiv", herkunft=HERKUNFT,
+                 aufschlag_quelle=zukauf.KATEGORIE if aufschlag is None else zukauf.INDIVIDUELL,
                  aufschlag_methode=None if aufschlag is None else zukauf.PROZENT, aufschlag_wert=aufschlag)
     return werte, [dict(lieferant=lieferant, bevorzugt="ja", preiseinheit=1, preise=[dict(ab=1, preis=ek)])]
 
@@ -121,6 +124,8 @@ class SchnellDialog(QDialog):
             if not lief:
                 raise ValueError("Bitte einen Lieferanten eingeben.")
             ek = _zahl(self.ek.text(), "EK je Stück", False)
+            if ek <= 0:
+                raise ValueError("EK je Stück muss größer als 0 € sein.")
             auf = _zahl(self.aufschlag.text(), "Aufschlag")
             menge = _zahl(self.menge.text(), "Menge", False)
             if menge <= 0:

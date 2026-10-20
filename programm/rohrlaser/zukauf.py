@@ -23,7 +23,8 @@ import json
 import math
 from decimal import Decimal, ROUND_HALF_UP
 
-from .stammdaten import (TABELLE, VERWEISE, ZUKAUF_METHODEN, ZUKAUF_QUELLEN, ZUKAUF_STATUS, Feld, Tabelle)
+from .stammdaten import (TABELLE, VERWEISE, ZUKAUF_METHODEN, ZUKAUF_QUELLEN, ZUKAUF_STATUS, ZUKAUF_TYPEN, Feld,
+                         Tabelle)
 
 # ------------------------------------------------------------------ Auswahllisten
 EINHEITEN = ("Stück", "Meter", "Kilogramm", "Satz")
@@ -42,8 +43,6 @@ POSITION = "Position"
 # Startliste der Kategorien (nur Namen, ohne Aufschläge: die trägt der Anwender selbst ein)
 KATEGORIEN_START = ("Blechteile", "Schrauben und Muttern", "Normteile", "Kaufteile", "Fremdfertigung",
                     "Profile und Rohre", "Sonstige Zukaufartikel")
-# Schnellanlage im Angebot: vorgeschlagener Lieferant je Kategorie (Patrick: Bleche kommen von "Technik")
-LIEFERANT_VORGABE = {"Blechteile": "Technik"}
 # Menge eines Zukaufteils gilt je Teil der Position oder je Satz (z. B. 20 Bleche je Rahmen)
 JE_TEIL, JE_SATZ = "Teil", "Satz"
 
@@ -64,6 +63,15 @@ ARTIKEL = Tabelle(
      Feld("rest_lager", "Mehrmenge geht ins Lager", "auswahl", auswahl="janein", breite=80),
      Feld("angebotstext", "Im Angebotstext nennen", "auswahl", auswahl="janein", breite=80),
      Feld("bemerkung", "Bemerkung", breite=200),
+     # Blechteile (Schema 20): Maße, Werkstoff und Herkunft; vom STEP-Import angelegt oder von Hand eingetragen
+     Feld("artikeltyp", "Artikeltyp", "auswahl", auswahl="zukauftyp", breite=70),
+     Feld("laenge", "Länge [mm]", "zahl", 0, 100000, stellen=1, breite=70),
+     Feld("breite", "Breite [mm]", "zahl", 0, 100000, stellen=1, breite=70),
+     Feld("dicke", "Dicke [mm]", "zahl", 0, 1000, stellen=2, breite=60),
+     Feld("werkstoff", "Werkstoff", breite=110),
+     Feld("herkunft", "Angelegt aus", breite=90),
+     Feld("step_datei", "STEP-Datei", breite=200),
+     Feld("fingerabdruck", "Geometrie-Kennung", breite=120),
      Feld("angelegt", "Angelegt", breite=130),
      Feld("geaendert", "Geändert", breite=130)),
     (),
@@ -404,9 +412,9 @@ def eintraege(p):
 
 def lieferant_vorgabe(kategorie, bezeichnung=""):
     """Vorgeschlagener Lieferant der Schnellanlage: nach Kategorie, sonst 'Blech' in der Bezeichnung."""
-    if kategorie in LIEFERANT_VORGABE:
-        return LIEFERANT_VORGABE[kategorie]
-    return LIEFERANT_VORGABE["Blechteile"] if "blech" in (bezeichnung or "").lower() else ""
+    if kategorie in BLECH_LIEFERANT:
+        return BLECH_LIEFERANT[kategorie]
+    return BLECH_LIEFERANT["Blechteile"] if "blech" in (bezeichnung or "").lower() else ""
 
 
 def bezugsmenge(e, p, stueck=None):
@@ -445,7 +453,7 @@ def bestellung(st, verbrauch, heute=None):
     bestellt = bestellmenge(v, bezug.get("mindestmenge"), bezug.get("vpe"))
     ek, zeile = ek_je_einheit(bezug, bestellt)
     out.update(bestellt=bestellt, mehrmenge=bestellt - v)
-    if ek is None:
+    if ek is None or ek <= 0:          # 0 € ist kein Einkaufspreis, sondern ein fehlender (EK fehlt)
         out["fehler"] = "kein Einkaufspreis"
         return out
     lager = st.get("rest_lager") == "ja"
@@ -576,3 +584,83 @@ def artikel_fehler(artikel, bezuege=()):
     if len(lief) != len(set(lief)):
         out.append("Lieferant doppelt")
     return out
+
+
+# ------------------------------------------------------------------ Blechteile
+BLECH = "Blech"
+STEP_IMPORT = "STEP-Import"
+BLECH_FELDER = ("artikeltyp", "laenge", "breite", "dicke", "werkstoff", "herkunft", "step_datei", "fingerabdruck")
+TOL_MASS = Decimal("0.5")       # Dubletten: Länge und Breite ± 0,5 mm (auch um 90° gedreht)
+TOL_DICKE = Decimal("0.05")     # Dicke ± 0,05 mm
+
+
+def ek_fehlt(artikel):
+    """True, wenn kein Lieferant des Artikels einen Einkaufspreis über 0 € hat (0 € gilt nie als echter EK)."""
+    return not any(e["preis"] > 0 for b in artikel.get("bezuege") or () for e in staffel_sortiert(b.get("preise")))
+
+
+def _mm(x):
+    t = _zahl(round(float(x), 1)) if isinstance(x, (int, float, Decimal)) else "?"
+    return t
+
+
+def blech_bezeichnung(laenge, breite, dicke, werkstoff=None):
+    """Bezeichnung eines Blechartikels, z. B. 'Blech S235 500 × 300 × 5 mm'; ohne Werkstoff mit Hinweis
+    '(Werkstoff offen)' — ein unbekannter Werkstoff wird nie angenommen."""
+    masse = f"{_mm(laenge)} × {_mm(breite)} × {_mm(dicke)} mm"
+    return f"Blech {werkstoff} {masse}" if werkstoff else f"Blech {masse} (Werkstoff offen)"
+
+
+def blech_artikel(b, werkstoff=None, step_datei=None, kategorie="Blechteile", lieferant=None):
+    """Neuer Zukaufartikel (Werte, Einkaufsbedingungen) für ein gemessenes Blech b (step.blech): Einheit Stück,
+    Lieferant nach Vorgabe, ohne Einkaufspreis (EK fehlt, bis er eingetragen ist)."""
+    werte = dict(bezeichnung=blech_bezeichnung(b.get("laenge"), b.get("breite"), b.get("dicke"), werkstoff),
+                 kategorie=kategorie, einheit="Stück", status="aktiv", aufschlag_quelle=KATEGORIE,
+                 angebotstext="nein", rest_lager="nein", kombiniert="nein", artikeltyp=BLECH,
+                 laenge=b.get("laenge"), breite=b.get("breite"), dicke=b.get("dicke"), werkstoff=werkstoff or None,
+                 herkunft=STEP_IMPORT, step_datei=step_datei or None, fingerabdruck=b.get("fingerabdruck") or None,
+                 beschreibung=_blech_beschreibung(b))
+    if lieferant is None:
+        lieferant = BLECH_LIEFERANT.get(kategorie, "")
+    return werte, [dict(lieferant=lieferant or None, bevorzugt="ja", preiseinheit=1, preise=[])]
+
+
+def _blech_beschreibung(b):
+    if b.get("kontur") == "gekantet":
+        return (f"gekantet, Außenmaße {_mm(b.get('laenge'))} × {_mm(b.get('breite'))} × {_mm(b.get('hoehe'))} mm, "
+                "Zuschnitt prüfen")
+    return "freie Kontur" if b.get("kontur") == "frei" else None
+
+
+# vorgeschlagener Lieferant für neue Blechartikel (Patrick: Bleche kommen von "Technik")
+BLECH_LIEFERANT = {"Blechteile": "Technik"}
+
+
+def _nahe(a, b, tol):
+    return dez(a) is not None and dez(b) is not None and abs(dez(a) - dez(b)) <= tol
+
+
+def blech_dubletten(b, werkstoff, artikel_liste):
+    """Vorhandene Blechartikel zu einem gemessenen Blech b: (gleich, ähnlich), je Liste von Artikeln.
+
+    gleich: gleiche Dicke (± 0,05 mm), Länge und Breite ± 0,5 mm (auch vertauscht), gleicher Werkstoff (beide leer
+    zählt als gleich) und gleiche Geometrie-Kennung (Kontur, Bohrungen, Ausschnitte; Artikel ohne Kennung zählen nur
+    über die Maße). ähnlich: gleiche Maße, aber anderer bzw. offener Werkstoff oder andere Kontur (Wahl von Hand).
+    Archivierte Artikel zählen nicht."""
+    gleich, aehnlich = [], []
+    for a in artikel_liste:
+        if a.get("artikeltyp") != BLECH or a.get("status") == "archiviert":
+            continue
+        if not _nahe(a.get("dicke"), b.get("dicke"), TOL_DICKE):
+            continue
+        l, br = a.get("laenge"), a.get("breite")
+        if not (_nahe(l, b.get("laenge"), TOL_MASS) and _nahe(br, b.get("breite"), TOL_MASS)
+                or _nahe(l, b.get("breite"), TOL_MASS) and _nahe(br, b.get("laenge"), TOL_MASS)):
+            continue
+        # Kennung: Bohrungen, Ausschnitte und Kontur; ein von Hand angelegter Artikel ohne Kennung zählt nur über die Maße
+        kennung_ok = not a.get("fingerabdruck") or a.get("fingerabdruck") == b.get("fingerabdruck")
+        if (a.get("werkstoff") or "") == (werkstoff or "") and kennung_ok:
+            gleich.append(a)
+        else:
+            aehnlich.append(a)
+    return gleich, aehnlich

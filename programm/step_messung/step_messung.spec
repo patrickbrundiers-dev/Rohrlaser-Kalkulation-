@@ -19,7 +19,8 @@ site = sysconfig.get_paths()["purelib"]
 for ordner in glob.glob(os.path.join(site, "*ocp*.libs")):
     binaries += [(f, ".") for f in glob.glob(os.path.join(ordner, "*")) if os.path.isfile(f)]
 
-a = Analysis([os.path.join(SPECPATH, "step_messen.py")], pathex=[SPECPATH], binaries=binaries, datas=datas,
+a = Analysis([os.path.join(SPECPATH, "step_messen.py")], pathex=[SPECPATH, os.path.dirname(SPECPATH)],
+             binaries=binaries, datas=datas,
              hiddenimports=hiddenimports, excludes=["vtk", "vtkmodules", "tkinter", "matplotlib", "numpy.tests"],
              noarchive=False)
 pyz = PYZ(a.pure)

@@ -19,6 +19,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
 from step_geometrie import analysiere_datei  # noqa: E402
+sys.path.insert(0, str(HIER.parent / "programm"))
 import step_ergebnis  # noqa: E402
 
 REF = HIER / "step_referenz"
@@ -33,14 +34,18 @@ GRENZEN = [
     "Gewinde werden nur als Kernloch erkannt; ein Gewindevorschlag kommt aus dem Kernloch-Ø und muss geprüft werden.",
     "Offene Profile (U, L, C, Flachstahl): Konturen mit Lage entlang der Achse (z), aber ohne Lage um das Profil "
     "(Steg/Flansch). Schnittlänge = halbe Länge der Konturkanten (Laser schneidet jede Wand einmal). Vierkant- und "
-    "Rundstahl sowie nicht erkannte offene Profile (z. B. T-Profil, 'offenes Sonderprofil') werden nur gemeldet, "
-    "nicht kalkuliert.",
+    "Rundstahl sowie nicht erkannte offene Profile (z. B. Z-Profil, 'offenes Sonderprofil') werden nur gemeldet, "
+    "nicht kalkuliert. I-/H-Träger und T-Profile seit 20.10.2026 erkannt; Normname nur bei passenden Maßen.",
     "Nicht konvexe Hohlprofile (z. B. Rohre mit Sicke) werden über ihr umschließendes Rechteck gemessen; sie "
     "erscheinen als Rechteck-/Quadratrohr mit Prüfstatus 'prüfen' (Wandstärke uneinheitlich), nicht als Sonderprofil.",
     "Schräge Bohrungen werden über die Zylinderfläche erkannt; nicht zylindrische schräge Durchbrüche erscheinen als "
     "Ausschnitt mit Umriss.",
     "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; lose Flächen "
     "werden als 'Flächenmodell offen' gemeldet.",
+    "Bleche: Dicke = Abstand der beiden Hauptflächen, Länge × Breite = kleinstes umschreibendes Rechteck der "
+    "Außenkontur. Flach und stabförmig (Breite bis 150 mm, Länge ab 3 × Breite, gerade Längsseiten) gilt als "
+    "Flachstahl. Gekantete Bleche nur mit Biegeradien; ein Kantteil mit gleichbleibendem Querschnitt bleibt "
+    "L-/U-/C-Profil. Abwicklung gekanteter Bleche ohne Biegefaktor (immer 'prüfen').",
     "Prüfstatus 'plausibel' ist keine Fertigungsfreigabe.",
 ]
 NICHT_AUSGEFUEHRT = [
@@ -208,12 +213,20 @@ def _(f, p):
     f.gleich("Hinweis Wandstärke uneinheitlich", any("nicht einheitlich" in h for h in t.hinweise), True)
 
 
-@fall("REF13", "T-Profil (offen, nicht erkannt): gemeldet, nie kalkuliert", REF / "REF13_T50x40x5_L600.step")
+@fall("REF13", "T-Profil 40 hoch, Flansch 50 x 5, Steg 5 (seit 20.10.2026 erkannt)", REF / "REF13_T50x40x5_L600.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    grundmasse(f, t, "T-Profil", 40, 50, 5, 600)
+    f.wert("Flanschdicke", t.flanschdicke, 5, TOL_MASS)
+    f.gleich("Profil-ID-Vorschlag", t.profil_id_vorschlag, "T 40x50x5x5")
+
+
+@fall("REF18", "Z-Profil (offen, nicht erkannt): gemeldet, nie kalkuliert", REF / "REF18_Z60x40x4_L500.step")
 def _(f, p):
     (t,) = analysiere_datei(p)
     f.gleich("Profilform", t.profilform, "offenes Sonderprofil")
     f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
-    f.wert("Länge", t.laenge, 600, TOL_MASS)
+    f.wert("Länge", t.laenge, 500, TOL_MASS)
 
 
 @fall("REF14", "Flächenmodell mit loser Fläche: Rohr gemessen, lose Fläche gemeldet",
@@ -268,6 +281,146 @@ def _(f, p):
     f.wert("Schneidweg", t.schneidweg, 2 * 45 + 2 * math.pi * 9, 0.05)
     f.gleich("Lage der Bohrungen", [d["z"] for d in t.konturen_liste[2:]], [50.0, 250.0])
     f.gleich("Einstiche", t.konturen, 4)
+
+
+BL = HIER / "step_bleche"
+# Bleche (seit 20.10.2026): Bauteiltyp, Länge, Breite, Dicke, Kontur, Bohrungen; Abgrenzung zum Flachstahl
+# (Breite bis 150 mm, Länge mindestens 3 × Breite, gerade Längsseiten) und Negativfälle
+BLECHE = [  # Nr, Datei, Typ, Länge, Breite, Dicke, Kontur, Bohrungen {Ø: Anzahl}, Innenkonturen, Prüfstatus
+    ("BL01", "B01_Blech_500x300x5", "Blech", 500, 300, 5, "rechteckig", {}, 0, "plausibel"),
+    ("BL02", "B02_Blech_400x200x4_Bohrungen", "Blech", 400, 200, 4, "rechteckig", {10.0: 4, 20.0: 1}, 5, "plausibel"),
+    ("BL03", "B03_Blech_600x400x3_Ausschnitte", "Blech", 600, 400, 3, "rechteckig", {}, 2, "plausibel"),
+    ("BL04", "B04_Blech_400x250x6_Kontur", "Blech", 400, 250, 6, "frei", {}, 0, "plausibel"),
+    ("BL05", "B05_Blech_500x300x5_gedreht", "Blech", 500, 300, 5, "rechteckig", {}, 0, "plausibel"),
+    ("BL06", "B06_Blech_250x180x8_schraeg", "Blech", 250, 180, 8, "rechteckig", {16.0: 1}, 1, "plausibel"),
+    ("BL07", "B07_Blech_gekantet_Winkel", "Blech gekantet", 120, 100, 3, "gekantet", {}, 0, "prüfen"),
+    ("BL10", "B10_Blech_1000x160x8", "Blech", 1000, 160, 8, "rechteckig", {}, 0, "plausibel"),
+    ("BL11", "B11_Blech_100x40x8", "Blech", 100, 40, 8, "rechteckig", {}, 0, "plausibel"),
+    ("BL12", "B12_Blech_300x200x5_Fase", "Blech", 300, 200, 5, "rechteckig", {}, 0, "plausibel"),
+    ("BL13", "B13_Blech_30x20x3_Rest", "Blech", 30, 20, 3, "rechteckig", {}, 0, "plausibel"),
+]
+
+
+def _blech_fall(nr, datei, typ, lg, br, d, kontur, bohrungen, innen, status):
+    @fall(nr, f"{typ}: {datei.split('_', 1)[1]}", BL / f"{datei}.step")
+    def _(f, p):
+        (t,) = analysiere_datei(p)
+        f.gleich("Bauteiltyp", t.bauteiltyp, typ)
+        f.wert("Länge", t.blech and t.blech["laenge"], lg, TOL_MASS)
+        f.wert("Breite", t.blech and t.blech["breite"], br, TOL_MASS)
+        f.wert("Dicke", t.blech and t.blech["dicke"], d, TOL_MASS)
+        f.gleich("Kontur", t.blech and t.blech["kontur"], kontur)
+        f.gleich("Bohrungen", t.blech and t.blech["bohrungen"], bohrungen)
+        f.gleich("Innenkonturen", t.blech and t.blech["innen"], innen)
+        f.gleich("Prüfstatus", t.pruefstatus, status)
+        f.gleich("kein Profil-ID-Vorschlag", t.profil_id_vorschlag, "")
+
+
+for _z in BLECHE:
+    _blech_fall(*_z)
+
+
+@fall("BL08", "dünne Platte mit Tasche ist kein Blech (prüfen)", BL / "B08_Platte_mit_Tasche.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    f.gleich("kein Blech", t.bauteiltyp in ("Blech", "Blech gekantet"), False)
+    f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
+
+
+@fall("BL09", "Flachstahl 100x10 L 800 bleibt Flachstahl", BL / "B09_FL100x10_L800.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    f.gleich("Bauteiltyp", t.bauteiltyp, "Profil")
+    grundmasse(f, t, "Flachstahl", 100, 10, 0, 800)
+
+
+@fall("BL14", "Baugruppe Rechteckrohr mit zwei Fußplatten", BL / "B14_Baugruppe_Rohr_2Bleche.step")
+def _(f, p):
+    teile = analysiere_datei(p)
+    f.gleich("Bauteiltypen", [t.bauteiltyp for t in teile], ["Profil", "Blech", "Blech"])
+    grundmasse(f, teile[0], "Rechteckrohr", 60, 40, 2, 800)
+    for t in teile[1:]:
+        f.wert(f"K{t.koerper} Länge", t.blech["laenge"], 150, TOL_MASS)
+        f.wert(f"K{t.koerper} Dicke", t.blech["dicke"], 8, TOL_MASS)
+
+
+@fall("BL15", "Flachstahl-Grenze aus der Einstellung (200 mm: 160 breit ist Flachstahl)", BL / "B10_Blech_1000x160x8.step")
+def _(f, p):
+    (t,) = analysiere_datei(p, flach_bis=200)
+    f.gleich("Bauteiltyp", t.bauteiltyp, "Profil")
+    grundmasse(f, t, "Flachstahl", 160, 8, 0, 1000)
+
+
+@fall("BL16", "Profile und Rohre sind keine Bleche (alle Referenzteile)", REF)
+def _(f, p):
+    for q in sorted(list(p.glob("*.step")) + list((HIER / "step_profile").glob("*.step"))):
+        try:
+            teile = analysiere_datei(q)
+        except ValueError:
+            continue
+        f.gleich(f"{q.stem}", [t.bauteiltyp for t in teile if t.bauteiltyp in ("Blech", "Blech gekantet")], [])
+
+
+TG = HIER / "step_traeger"
+# Träger und T-Profile (seit 20.10.2026): Höhe, Breite, Steg, Flansch, Symmetrie, Normprofil nur bei passenden Maßen
+TRAEGER = [  # Nr, Datei, Form, h, b, Steg, Flansch, symmetrisch, Normprofil, Profil-ID, Prüfstatus
+    ("TR01", "TR01_IPE200_L1000", "I-/H-Träger", 200, 100, 5.6, 8.5, True, "IPE 200", "IPE 200", "plausibel"),
+    ("TR02", "TR02_HEB160_L800", "I-/H-Träger", 160, 160, 8, 13, True, "HEB 160", "HEB 160", "plausibel"),
+    ("TR03", "TR03_HEA200_gedreht_L600", "I-/H-Träger", 190, 200, 6.5, 10, True, "HEA 200", "HEA 200", "plausibel"),
+    ("TR04", "TR04_I150x80x5x7_L700", "I-/H-Träger", 150, 80, 5, 7, True, "", "I 150x80x5x7", "plausibel"),
+    ("TR05", "TR05_I200_unsymmetrisch_L600", "I-/H-Träger", 200, 100, 6, 8, False, "", "I 200x100x6x8", "prüfen"),
+    ("TR06", "TR06_T50_L600", "T-Profil", 50, 50, 6, 6, True, "T 50", "T 50", "plausibel"),
+    ("TR07", "TR07_T60x40x5x7_L500", "T-Profil", 60, 40, 5, 7, True, "", "T 60x40x5x7", "plausibel"),
+    ("TR09", "TR09_IPE200_Stegbohrungen_L1000", "I-/H-Träger", 200, 100, 5.6, 8.5, True, "IPE 200", "IPE 200",
+     "plausibel"),
+]
+
+
+def _traeger_fall(nr, datei, form, h, b, tw, tf, sym, norm, pid, status):
+    @fall(nr, f"{form}: {datei.split('_', 1)[1]}", TG / f"{datei}.step")
+    def _(f, p):
+        (t,) = analysiere_datei(p)
+        f.gleich("Profilform", t.profilform, form)
+        f.wert("Höhe", t.abm_a, h, TOL_MASS)
+        f.wert("Breite", t.abm_b, b, TOL_MASS)
+        f.wert("Stegdicke", t.stegdicke, tw, TOL_MASS)
+        f.wert("Flanschdicke", t.flanschdicke, tf, TOL_MASS)
+        f.gleich("Wandstärke = Steg", round(t.wandstaerke, 3), round(t.stegdicke, 3))
+        f.gleich("symmetrisch", t.symmetrisch, sym)
+        f.gleich("Normprofil", t.normprofil, norm)
+        f.gleich("Profil-ID-Vorschlag", t.profil_id_vorschlag, pid)
+        f.gleich("Prüfstatus", t.pruefstatus, status)
+        f.gleich("Enden gerade", [k["form"] for k in t.konturen_liste[:2]], ["gerade", "gerade"])
+
+
+for _z in TRAEGER:
+    _traeger_fall(*_z)
+
+
+@fall("TR08", "U-Profil mit Normmaßen UPN 100 (Steg 6, Flansch 8,5)", TG / "TR08_UPN100_L900.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    grundmasse(f, t, "U-Profil", 100, 50, 6, 900)
+    f.gleich("Normprofil", t.normprofil, "UPN 100")
+    f.wert("Flanschdicke", t.flanschdicke, 8.5, TOL_MASS)
+
+
+@fall("TR10", "Bohrungen im IPE-Steg: zwei Konturen mit Schneidweg", TG / "TR09_IPE200_Stegbohrungen_L1000.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    f.gleich("Innenkonturen", t.innen_konturen, 2)
+    f.wert("Schnittlänge Bohrungen", t.innen, 2 * 13 * math.pi, 0.1)
+
+
+@fall("TR11", "Normprofil nur bei passenden Maßen (Tabelle)", TG)
+def _(f, p):
+    from rohrlaser import normprofile
+    f.gleich("IPE 200", normprofile.zuordnen("I-/H-Träger", 200, 100, 5.6, 8.5, 2848), "IPE 200")
+    f.gleich("Steg 0,5 mm dicker: kein IPE", normprofile.zuordnen("I-/H-Träger", 200, 100, 6.1, 8.5), None)
+    f.gleich("Fläche 5 % größer: kein IPE", normprofile.zuordnen("I-/H-Träger", 200, 100, 5.6, 8.5, 2990), None)
+    f.gleich("HEB 300", normprofile.zuordnen("I-/H-Träger", 300, 300, 11, 19, 14910), "HEB 300")
+    f.gleich("L 50x50x5", normprofile.zuordnen("L-Profil", 50, 50, 5, 5), "L 50x50x5")
+    f.gleich("L 55x50x5 kein Normwinkel", normprofile.zuordnen("L-Profil", 55, 50, 5, 5), None)
 
 
 def k01_pruefen(f, t, mit_winkel):

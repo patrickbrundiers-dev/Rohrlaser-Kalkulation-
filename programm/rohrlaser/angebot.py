@@ -37,11 +37,28 @@ KALKULATION = (
 KALK_PROZENT = ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn")
 KOPF = KOPF + KALKULATION
 
+# Positionsart: leer = Rohrlaserteil (Profil, Optimierung, Laser); Zukaufteil = eingekauftes Teil ohne Fertigung
+# (z. B. Blech aus dem STEP-Import), Preis nur aus den Zukaufteilen der Position (Einstand + Aufschlag) und Fracht
+ROHRLASERTEIL, ZUKAUFTEIL = "Rohrlaserteil", "Zukaufteil"
+POSITIONSARTEN = (ROHRLASERTEIL, ZUKAUFTEIL)
+
+
+def ist_zukaufteil(p):
+    """True für eine Position der Art Zukaufteil (ohne Profil, wird nicht optimiert und nicht gelasert)."""
+    return (p or {}).get("art") == ZUKAUFTEIL
+
+
+def aktiv(p):
+    """Position, die kalkuliert wird: Rohrlaserteil mit Profil oder Zukaufteil."""
+    return ist_zukaufteil(p) or (p or {}).get("profil_id") not in (None, "")
+
+
 GEWINDE_MUSTER = (r"(?i)\dx\s*M", "Format Anzahl x Gewinde, mehrere mit Semikolon, z. B. 4xM6; 2xM8")
 
 POSITIONEN = Tabelle(
     "positionen", "Positionen",
     (Feld("pos", "Pos.", "ganz", 1, 99999, breite=50),
+     Feld("art", "Positionsart", "auswahl", auswahl="positionsart", breite=90),
      Feld("artikel", "Artikelnummer", breite=140),
      Feld("bezeichnung", "Bezeichnung", breite=150),
      Feld("profil_id", "Profil-ID", "auswahl", auswahl="profil", breite=120),
@@ -61,6 +78,8 @@ POSITIONEN = Tabelle(
      Feld("zusatz", "Zusatzarbeiten", "zusatz", breite=220),
      # Zukaufteile als JSON-Liste [{artikel_id, menge (je Teil), aufschlag (%), stand}] (Dialog 'Zukaufteile …')
      Feld("zukauf", "Zukaufteile", "zukauf", breite=220),
+     # Zukaufteil-Position: Gewicht je Teil für die Fracht nach Gewicht (STEP-Import: Volumen × Dichte, sonst leer)
+     Feld("gewicht_teil", "Gewicht je Teil [kg]", "zahl", 0, 100000, stellen=3, breite=75),
      # STEP-Werte
      Feld("a_gerade", "Anfangsschnitt gerade", "auswahl", auswahl="janein", breite=70),
      Feld("a_schnitt", "Anfangsschnitt [mm]", "zahl", 0, 100000, stellen=1, breite=75),
@@ -75,12 +94,15 @@ POSITIONEN = Tabelle(
      Feld("mittel_n", "Kontur mittel [Stk]", "ganz", 0, 10000, breite=60),
      Feld("mittel_mm", "Kontur mittel [mm]", "zahl", 0, 1000000, stellen=1, breite=70),
      Feld("gross_n", "Kontur groß [Stk]", "ganz", 0, 10000, breite=60),
-     Feld("gross_mm", "Kontur groß [mm]", "zahl", 0, 1000000, stellen=1, breite=70)),
+     Feld("gross_mm", "Kontur groß [mm]", "zahl", 0, 1000000, stellen=1, breite=70),
+     # je Innenkontur Hüllmaß x Schnittweg (STEP-Import) und die Grenzen, mit denen eingeteilt wurde
+     Feld("konturen", "Konturen Hüllmaß x Schnittweg [mm]", breite=200),
+     Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")
 STEP_FELDER = {"a_gerade", "a_schnitt", "b_gerade", "b_schnitt", "innen", "gravur", "bohrungen", "gewinde_vorschlag",
-               "klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm"}
+               "klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm", "konturen", "kontur_grenzen"}
 assert STEP_FELDER <= {f.name for f in POSITIONEN.felder}
 
 
