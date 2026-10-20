@@ -435,6 +435,8 @@ class PositionenModell(QAbstractTableModel):
                 and self.zeiten[index.row()] is not None and abs(wert - round(self.zeiten[index.row()], 1)) < 0.05:
             return False                # berechnete Zeit unverändert bestätigt: bleibt berechnet
         self.s.db.position_aendern(p["id"], f.name, wert)
+        if f.name in ("konturen", "kontur_grenzen"):     # Konturliste geändert: beim Neuladen neu einteilen
+            self.s.db.position_aendern(p["id"], "kontur_grenzen", None)
         self.s.f.meldung(f"{f.titel} gespeichert.")
         self.geaendert.emit()
         return True
@@ -758,6 +760,7 @@ class AngebotSeite(QWidget):
         # festgeschriebene Materialpreise und Schneiddaten gehen den aktuellen Stammdaten vor
         self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()
         self.k, self.tabellen = rechnen.preisbasis_anwenden(a, self.k_aktuell, self.tabellen_aktuell)
+        self._konturen_einteilen()
         self.einst = rechnen.einstellungen_angebot(a, self.db.einstellungen())     # mit Werten des Angebots
         self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
@@ -765,6 +768,21 @@ class AngebotSeite(QWidget):
         self._spalten_zeigen()
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
+
+    def _konturen_einteilen(self):
+        """Konturklassen neu einteilen, wenn die Grenzen der Maschine nicht die sind, mit denen die Konturliste der
+        Position eingeteilt wurde (anderer Maschine gewählt oder Grenzen in den Stammdaten geändert)."""
+        m = rechnen.maschine(self.kopf, self.k)
+        if m is None:
+            return
+        neu = [(p, z) for p in self.positionen if (z := rechnen.konturklassen_neu(p, m))]
+        for p, z in neu:
+            for feld, wert in z.items():
+                self.db.position_aendern(p["id"], feld, wert)
+        if neu:
+            self.positionen = self.db.positionen(self.id)
+            self.f.meldung(f"Konturklassen von {len(neu)} Position(en) mit den Grenzen der Maschine "
+                           f"{self.kopf.get('maschine')} ({neu[0][1]['kontur_grenzen']} mm) neu eingeteilt.")
 
     def _kopf_anzeigen(self):
         self._laden = True

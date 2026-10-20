@@ -574,10 +574,96 @@ def zahl(w, stellen=2):
 
 
 KONTUR_TOL = 0.5     # mm, STEP-Teilwerte sind je auf 0,1 mm gerundet
+KONTUR_GRENZEN = (10.0, 50.0)       # Vorgabe klein bis / mittel bis [mm], wenn die Maschine keine Werte hat
+KLASSEN_FELDER = ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")
+
+
+def kontur_grenzen(m):
+    """(klein bis, mittel bis) [mm] der Maschine; ohne gültige Werte die Vorgabe. Zweites Ergebnis: True = Vorgabe."""
+    kl, mi = (m or {}).get("kontur_klein"), (m or {}).get("kontur_mittel")
+    if isinstance(kl, (int, float)) and isinstance(mi, (int, float)) and 0 < kl < mi:
+        return (float(kl), float(mi)), False
+    return KONTUR_GRENZEN, True
+
+
+def grenzen_text(grenzen):
+    return "/".join(zahl(g, 1) for g in grenzen)
+
+
+def konturen_text(liste, enden=()):
+    """[(Hüllmaß, Schnittweg)] -> '10x31,4; 40x91,4' (Spalte Konturen der Position); enden = [('A' oder 'E',
+    Hüllmaß, Schnittweg)] für Anfangs- und Endschnitt stehen vorn: 'A:40x149,7; E:40x149,7; 10x31,4'."""
+    teile = [f"{a}:{zahl(round(g, 2))}x{zahl(round(lg, 1), 1)}" for a, g, lg in enden]
+    return "; ".join(teile + [f"{zahl(round(g, 2))}x{zahl(round(lg, 1), 1)}" for g, lg in liste])
+
+
+def konturen_lesen(text, mit_art=False):
+    """'A:40x149,7; 10x31,4' -> [(40.0, 149.7), (10.0, 31.4)], mit_art: [('A', 40.0, 149.7), ('', 10.0, 31.4)]
+    (A = Anfangsschnitt, E = Endschnitt, '' = Innenkontur); unlesbare Teile werden übergangen."""
+    out = []
+    for teil in str(text or "").replace("×", "x").split(";"):
+        art, _, rest = teil.strip().rpartition(":")
+        a, _, b = rest.partition("x")
+        try:
+            g, lg = float(a.replace(",", ".")), float(b.replace(",", "."))
+        except ValueError:
+            continue
+        art = art.strip().upper()
+        out.append((art if art in ("A", "E") else "", g, lg) if mit_art else (g, lg))
+    return out
+
+
+def grenzen_lesen(text):
+    """'8/45' -> (8.0, 45.0) oder None."""
+    try:
+        a, b = (float(x.replace(",", ".")) for x in str(text or "").split("/"))
+        return (a, b) if 0 < a < b else None
+    except ValueError:
+        return None
+
+
+def ende_vorschub(p, vorschuebe, grenzen):
+    """Vorschub für eingesparte gemeinsame Schnitte: Klasse des Endes aus der Konturliste (gerades Ende zuerst, nur
+    gerade Enden werden geteilt); ohne Enden in der Konturliste Vorschub groß. vorschuebe = (groß, mittel, klein)."""
+    h, i_, j = vorschuebe
+    enden = {a: g for a, g, _ in konturen_lesen(p.get("konturen"), True) if a}
+    if not enden:
+        return h
+    seite = "A" if p.get("a_gerade") == "ja" or "E" not in enden else "E" if p.get("b_gerade") == "ja" else "A"
+    g = round(enden.get(seite, next(iter(enden.values()))), 2)
+    grenzen = grenzen_lesen(p.get("kontur_grenzen")) or grenzen
+    return j if g <= grenzen[0] else i_ if g <= grenzen[1] else h
+
+
+def konturklassen(liste, grenzen):
+    """Innenkonturen [(Hüllmaß, Schnittweg)] nach Hüllmaß einteilen: klein ≤ klein bis < mittel ≤ mittel bis < groß.
+    Ergebnis: Felder klein_n, klein_mm, mittel_n, mittel_mm, gross_n, gross_mm (mm auf 0,1 gerundet)."""
+    kl = [[0, 0.0], [0, 0.0], [0, 0.0]]
+    for groesse, laenge in liste:
+        g = round(groesse, 2)   # Ø10 genau auf der Grenze zählt als klein
+        c = 0 if g <= grenzen[0] else 1 if g <= grenzen[1] else 2
+        kl[c][0] += 1
+        kl[c][1] += laenge
+    out = {}
+    for name, (n, lg) in zip(("klein", "mittel", "gross"), kl):
+        out[f"{name}_n"], out[f"{name}_mm"] = n, round(lg, 1)
+    return out
+
+
+def konturklassen_neu(p, m):
+    """Neue Einteilung einer Position, deren Konturliste mit anderen Grenzen eingeteilt wurde als die der Maschine:
+    dict mit den Klassenfeldern und kontur_grenzen, sonst None (keine Konturliste oder Grenzen gleich)."""
+    if _leer(p.get("konturen")) or ist_zukaufteil(p):
+        return None
+    grenzen = kontur_grenzen(m)[0]
+    if p.get("kontur_grenzen") == grenzen_text(grenzen):
+        return None
+    return dict(konturklassen(konturen_lesen(p["konturen"]), grenzen), kontur_grenzen=grenzen_text(grenzen))
 
 
 def gross_rest(p):
-    """Schneidweg mit Vorschub groß [mm]: Schneidweg − Konturen klein und mittel, nie unter 0."""
+    """Schneidweg mit Vorschub groß [mm]: Schneidweg − Konturen klein und mittel, nie unter 0 (große Konturen,
+    Anfangs-/Endschnitt ohne Klasse und von Hand ergänzter Schneidweg)."""
     return max(0.0, _n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm")))
 
 
@@ -589,8 +675,9 @@ def konturen_pruefen(p):
     if not _leer(p.get("schneidweg")) and km > _n(p["schneidweg"]) + KONTUR_TOL:
         return "Konturen klein + mittel länger als Schneidweg"
     summe = km + _n(p.get("gross_mm"))
-    if not _leer(p.get("innen")) and summe > _n(p["innen"]) + KONTUR_TOL:
-        return "Konturklassen länger als Innenkonturen"
+    if not _leer(p.get("innen")) and summe > _n(p["innen"]) + _n(p.get("a_schnitt")) + _n(p.get("b_schnitt")) \
+            + KONTUR_TOL:
+        return "Konturklassen länger als Innenkonturen + Anfangs-/Endschnitt"
     return None
 
 
@@ -616,7 +703,7 @@ ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "einstiche")
 
 
 def zeitanteile(p, vorschuebe):
-    """Schneidzeit je Teil [s] aufgeteilt: {gross (Anfangs-/Endschnitt und große Konturen), mittel, klein, gravur,
+    """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur,
     einstiche}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
     h, i_, j, kv, l = vorschuebe
     if not h:
@@ -926,7 +1013,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if h is None or c == 0 or not h:
             nz = 0
         else:
-            nz = (60 * ein[1] / h + ein[2] * l) / c
+            nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_grenzen(maschine(kopf, k))[0]) + ein[2] * l) / c
         manuell = not _leer(p.get("zeit_manuell"))
         zeit_extra = sum(e["zeit"] for e in zus[i])
         if manuell:

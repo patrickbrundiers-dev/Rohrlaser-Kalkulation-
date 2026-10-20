@@ -298,7 +298,7 @@ KALK = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 20), ("Stück"
         ("Herstellkosten Position [€]", "herstell_position", 2, 18), ("Hinweis", "hinweis", None, 20)]
 assert sum(s[3] for s in KALK) <= 273     # Breite A4 quer ohne Ränder [mm]
 SCHNEID = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 22),
-           ("Trennschnitt + groß [mm]", "mm_gross", 1, 17), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 15),
+           ("groß + Rest [mm]", "mm_gross", 1, 17), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 15),
            ("Zeit groß [s]", "zeit_gross", 1, 13),
            ("Kontur mittel [mm]", "mm_mittel", 1, 15), ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 15),
            ("Zeit mittel [s]", "zeit_mittel", 1, 13),
@@ -362,10 +362,10 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
         inhalt += [Spacer(1, 5 * mm), _p("Schneidzeit je Teil nach Konturklassen", S_H2),
                    _tabelle(daten, [s[3] * mm for s in SCHNEID],
                             rechts=[i for i, s in enumerate(SCHNEID) if s[2] is not None]),
-                   _p("Zeit je Klasse = Schneidweg der Klasse / Vorschub der Klasse × 60. Trennschnitt + groß = "
-                      "Schneidweg − Konturen klein und mittel (Anfangs-/Endschnitt und große Innenkonturen). "
-                      "Netto = brutto − Einsparung gemeinsamer Schnitte + Zusatzzeit; bei angepasster Schneidzeit gilt "
-                      "die eingetragene Zeit.", S_KLEIN)]
+                   _p("Zeit je Klasse = Schneidweg der Klasse / Vorschub der Klasse × 60. Anfangs- und Endschnitt sind "
+                      "wie die Innenkonturen nach Hüllmaß eingeteilt. groß + Rest = Schneidweg − Konturen klein und "
+                      "mittel. Netto = brutto − Einsparung gemeinsamer Schnitte (mit dem Vorschub der Klasse des "
+                      "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit.", S_KLEIN)]
     doc.build(inhalt, canvasmaker=leinwand)
 
 

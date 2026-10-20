@@ -223,7 +223,10 @@ else:
     assert [p["pos"] for p in erg["positionen"]] == [20, 30, 40, 50, 60, 70, 80], erg["positionen"]
     t07 = erg["positionen"][-1]
     assert t07["gewinde_vorschlag"] == "4xM6" and t07["bohrungen"] == "4xØ5" and t07["gravur"] == 58.0, t07
-    assert [t07[x] for x in ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")] == [4, 62.8, 1, 60.0, 0, 0.0]
+    # Konturklassen nach Hüllmaß (10/50 mm) mit Anfangs- und Endschnitt (QR 40: 40 bzw. 40,5 mm = mittel)
+    assert [t07[x] for x in ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")] == \
+        [4, 62.8, 3, 389.4, 0, 0.0], t07
+    assert t07["konturen"].startswith("A:40x149,7; E:40,5x179,7; ") and t07["kontur_grenzen"] == "10/50", t07
     assert "gewinde" not in t07     # geprüftes Gewinde trägt nur der Mensch ein
     t05 = [z for z in erg["protokoll"] if str(z[1]).startswith("T05")][0]
     assert "Profil fehlt" in t05[-1] and len(t05) == len(step.PROTOKOLL), t05
@@ -236,7 +239,7 @@ else:
     assert neu["profile"][0]["profil_id"] == "RR 33,7x2,6" and "neu in Stammdaten" in neu["bericht"][0]
     t05p = neu["positionen"][0]
     assert t05p["profil_id"] == "RR 33,7x2,6" and t05p["a_gerade"] == "ja" and abs(t05p["a_schnitt"] - 105.9) < 0.05
-    assert "Konturgrenzen Vorgabe" not in neu["bericht"][0]   # T05 hat keine Innenkonturen
+    assert "Konturgrenzen Vorgabe" in neu["bericht"][0]   # ohne Maschine: Enden mit den Vorgabegrenzen eingeteilt
 
 # 11) Angebotsfenster: Optimieren speichert das Ergebnis, Ändern macht es veraltet, Status und Summen stehen
 app = QApplication.instance() or QApplication([])
