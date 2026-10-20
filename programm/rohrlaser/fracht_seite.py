@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QTextBrowser, QVBoxLayout, QWidget)
 
 from . import fracht
+from .angebot import aktiv as position_aktiv
 from .angebot_oben import Aufklapper
 from .fenster import EinstellungenSeite, StammdatenSeite
 from .fracht_daten import (DIENSTLEISTER, DIESELPREISE, DIESELSTAFFEL, LAENDER, LHT, LIEFERBEDINGUNGEN, PLZ, PREISE,
@@ -557,7 +558,7 @@ class FrachtDialog(QDialog):
         self.setWindowTitle(f"Fracht berechnen – Angebot {seite.kopf.get('nummer') or ''}")
         self.rechner = RechnerSeite(seite.f)
         self.rechner.speichern_knopf.hide()          # gespeichert wird mit der Übernahme ins Angebot
-        werte = [rechnen.position_werte(p, seite.kopf, seite.k, seite.tabellen) if p.get("profil_id") else None
+        werte = [rechnen.position_werte(p, seite.kopf, seite.k, seite.tabellen) if position_aktiv(p) else None
                  for p in seite.positionen]
         netto, laenge, fehlt = fracht_angebot.ware(seite.positionen, werte)
         self.hinweis = QLabel()

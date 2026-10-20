@@ -10,7 +10,7 @@ Verglichen werden die Einzelkosten ohne Zuschläge und Gewinn, weil nur sie sich
 Erlös: Ist laut Rechnung, leer = Verkaufspreis des Angebots. Deckungsbeitrag = Erlös − Einzelkosten.
 Nicht erfasste Ist-Werte (leer) zählen wie das Soll und sind in der Spalte 'erfasst' als 'nein' markiert.
 
-ist (gespeichert je Angebot): {stangen: {Gruppenschlüssel: Anzahl}, meterpreis: {Gruppenschlüssel: €/m}, laser_h, ruest_min, zusatz, sonstiges, erloes,
+ist (gespeichert je Angebot): {stangen: {Gruppenschlüssel: Anzahl}, meterpreis: {Gruppenschlüssel: €/m}, laser_h, ruest_min, zusatz, zukauf, sonstiges, erloes,
 bemerkung, am}; Gruppenschlüssel = 'Profil|Werkstoff|Stangenlänge'.
 """
 from . import rechnen
@@ -19,6 +19,7 @@ FELDER = (  # (Name, Titel, Nachkommastellen)
     ("laser_h", "Laserzeit Ist [h]", 2),
     ("ruest_min", "Rüsten + Stangenwechsel Ist [min]", 0),
     ("zusatz", "Gewinde und Zusatzarbeiten Ist [€]", 2),
+    ("zukauf", "Zukaufteile Ist (Einkauf + Bezugskosten) [€]", 2),
     ("sonstiges", "Sonstige Kosten Ist [€]", 2),
     ("erloes", "Erlös laut Rechnung [€]", 2),
 )
@@ -93,6 +94,7 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist):
         zeilen.append(zeile(text, einheit, soll_menge, m if m is not None else soll_menge, soll,
                             m * faktor if m is not None else soll, m is not None))
     for name, text, soll in (("zusatz", "Gewinde und Zusatzarbeiten", summen["gewinde"] + summen["zusatz"]),
+                             ("zukauf", "Zukaufteile (Einstand)", summen.get("zukauf_einstand", 0.0)),
                              ("sonstiges", "Sonstige Kosten", 0.0)):
         b = _n(ist.get(name))
         zeilen.append(zeile(text, "€", None, None, soll, b if b is not None else soll, b is not None))

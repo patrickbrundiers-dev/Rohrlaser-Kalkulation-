@@ -199,6 +199,41 @@ def _gleich(a, b):
     return all(ga == gb and abs(la - lb) <= TOL_GLEICH for (ga, la), (gb, lb) in zip(*enden))
 
 
+def _blechteil(m):
+    return not m.get("fehler") and blech(m) is not None
+
+
+def _gleiches_blech(a, b):
+    """Zwei gemessene Bleche sind dasselbe Teil: gleiche Art, Geometrie-Kennung und Maße (± TOL_GLEICH)."""
+    ba, bb = blech(a), blech(b)
+    return (a.get("profilform") == b.get("profilform") and ba.get("fingerabdruck") == bb.get("fingerabdruck")
+            and all(abs(float(ba.get(n) or 0) - float(bb.get(n) or 0)) <= TOL_GLEICH
+                    for n in ("laenge", "breite", "dicke")))
+
+
+def gleiche_bleche(messwerte):
+    """Gruppen gleicher Bleche je Datei: {Index des ersten Körpers: [Indizes aller gleichen Körper]}."""
+    gruppen = {}
+    for i, m in enumerate(messwerte):
+        if not _blechteil(m):
+            continue
+        for erster, liste in gruppen.items():
+            if messwerte[erster].get("datei") == m.get("datei") and _gleiches_blech(messwerte[erster], m):
+                liste.append(i)
+                break
+        else:
+            gruppen[i] = [i]
+    return gruppen
+
+
+def teile_gruppen(messwerte, mit_blechen=True):
+    """Rohrteile (gleiche_teile) und, mit_blechen, Bleche (gleiche_bleche) zusammen, nach erstem Index sortiert."""
+    g = dict(gleiche_teile(messwerte))
+    if mit_blechen:
+        g.update(gleiche_bleche(messwerte))
+    return dict(sorted(g.items()))
+
+
 def gleiche_teile(messwerte):
     """Gruppen gleicher Rohrteile je Datei: {Index des ersten Körpers: [Indizes aller gleichen Körper]}."""
     gruppen = {}
@@ -214,10 +249,11 @@ def gleiche_teile(messwerte):
     return gruppen
 
 
-def mehrteilig(messwerte):
-    """STEP-Dateien mit mehreren Rohrteilen: {Datei: (Anzahl Körper, Anzahl verschiedene Teile)}."""
+def mehrteilig(messwerte, mit_blechen=False):
+    """STEP-Dateien mit mehreren Rohrteilen (mit_blechen: auch Blechen): {Datei: (Anzahl Körper, Anzahl verschiedene
+    Teile)}."""
     out = {}
-    for erster, liste in gleiche_teile(messwerte).items():
+    for erster, liste in teile_gruppen(messwerte, mit_blechen).items():
         d = messwerte[erster].get("datei")
         n, v = out.get(d, (0, 0))
         out[d] = (n + len(liste), v + 1)
@@ -245,8 +281,46 @@ def vorpruefung(messwerte, positionen, k):
     return fehlend, doppelt
 
 
+def blech_gewicht(b, werkstoff_id, k):
+    """Gewicht je Blech [kg] aus Volumen × Dichte des Werkstoffs (Stammdaten); None ohne bekannten Werkstoff."""
+    dichte = ((k.werkstoffe.get(werkstoff_id) or {}).get("dichte")) if werkstoff_id else None
+    vol = b.get("volumen") or (b.get("flaeche_netto") or 0) * (b.get("dicke") or 0)
+    if not isinstance(dichte, (int, float)) or dichte <= 0 or not vol:
+        return None
+    return round(vol * dichte / 1e6, 3)          # mm³ × g/cm³ / 10⁶ = kg
+
+
+def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k):
+    """Zukaufartikel für ein Blech: im Prüfdialog gewählter Artikel (_blech_artikel), sonst eine Dublette (gleich)
+    aus den vorhandenen bzw. in diesem Import neu angelegten Artikeln, sonst ein neuer Artikel (ohne EK).
+    Ergebnis: (Verweis {artikel_id} bzw. {neu: Schlüssel}, Hinweistext)."""
+    from . import zukauf
+    gewaehlt_id = m.get("_blech_artikel")
+    if isinstance(gewaehlt_id, int):
+        a = next((x for x in zukauf_liste if x.get("id") == gewaehlt_id), None)
+        if a is not None:
+            return dict(artikel_id=gewaehlt_id), f"Zukaufartikel {a.get('bezeichnung')} (im Prüfdialog gewählt)" + (
+                ", EK fehlt" if zukauf.ek_fehlt(a) else "")
+    vorhandene = [x for x in zukauf_liste if x.get("id") is not None]
+    gleich, aehnlich = zukauf.blech_dubletten(b, wst, vorhandene)
+    if gleich:
+        a = gleich[0]
+        return dict(artikel_id=a["id"]), f"vorhandener Zukaufartikel {a.get('bezeichnung')}" + (
+            ", EK fehlt" if zukauf.ek_fehlt(a) else "")
+    neu_gleich, _ = zukauf.blech_dubletten(b, wst, [dict(x[0], status="aktiv", _schl=s_) for s_, x in neue_artikel.items()])
+    if neu_gleich:
+        return dict(neu=neu_gleich[0]["_schl"]), f"Zukaufartikel {neu_gleich[0].get('bezeichnung')} (neu, EK fehlt)"
+    werte, bezuege = zukauf.blech_artikel(b, wst, m.get("datei"))
+    schl = f"neu{len(neue_artikel) + 1}"
+    neue_artikel[schl] = (werte, bezuege)
+    text = f"neuer Zukaufartikel {werte['bezeichnung']}, EK fehlt"
+    if aehnlich:
+        text += f" (ähnlich: {', '.join(a.get('bezeichnung') or '' for a in aehnlich[:3])})"
+    return dict(neu=schl), text
+
+
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
-                neue_profile=False, erneut=False, jetzt=None, saetze=()):
+                neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -254,7 +328,15 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     Werte aus dem Prüfdialog je Teil (vor werkstoff/stueck): _uebernehmen (False = nicht übernehmen), _stueck,
     _werkstoff, _profil (Profil-ID statt des Abgleichs mit den Stammdaten). Bei gleichen Körpern eines Satzes
     gelten die Werte des ersten. Aus dem Prüfdialog (Feld 'Sätze'): _saetze > 0 macht die Datei zum Satz (zusätzlich
-    zu saetze), _stueck = Sätze, _je_satz = Stück je Satz (leer = Anzahl gleicher Körper)."""
+    zu saetze), _stueck = Sätze, _je_satz = Stück je Satz (leer = Anzahl gleicher Körper).
+
+    Bleche (Plan 4 b): mit zukauf_liste (Zukaufartikel der Datenbank, z. B. db.zukauf_artikel_liste()) wird jedes
+    gewählte Blech eine Position der Art Zukaufteil mit einem Zukaufartikel (vorhandene Dublette oder neu, ohne EK).
+    Der Werkstoff kommt nur aus dem Prüfdialog (_werkstoff), nie aus der Vorgabe für die Rohre. Bleche mit
+    Prüfstatus 'prüfen' (z. B. gekantet) werden erst nach Bestätigung im Prüfdialog übernommen. Die Positionen tragen
+    _zukauf = {artikel_id} bzw. {neu: Schlüssel}; neue Artikel stehen im Ergebnis unter zukauf_neu {Schlüssel:
+    (Werte, Einkaufsbedingungen)}, der Aufrufer legt sie an und trägt die Zukaufteile ein (Menge 1 je Teil).
+    Ohne zukauf_liste werden Bleche wie bisher nicht übernommen."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
@@ -269,8 +351,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     naechste = int(pos_max) + 10
     neu, neue_prof, protokoll, bericht = [], [], [], []
     saetze = set(saetze or ()) | {m.get("datei") for m in messwerte if m.get("_saetze")}
+    mit_blechen = zukauf_liste is not None
+    neue_artikel = {}
     gruppe_von = {}         # Index -> Index des ersten gleichen Körpers (nur in Sätzen)
-    for erster, liste in gleiche_teile(messwerte).items():
+    for erster, liste in teile_gruppen(messwerte, mit_blechen).items():
         if messwerte[erster].get("datei") in saetze:
             for i in liste:
                 gruppe_von[i] = erster
@@ -310,8 +394,39 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         if erster is not None and erster != i:
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
-        elif m.get("profilform") in BLECHE:
+        elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):
             hinweise.append(f"nicht übernommen: {blech_text(m)} ist kein Rohrlaserteil")
+        elif m.get("profilform") in BLECHE and (m.get("_uebernehmen") is False or (
+                m.get("pruefstatus") == "prüfen" and m.get("_uebernehmen") is not True)):
+            hinweise.append(f"nicht übernommen: {blech_text(m)}" + (" im Prüfdialog abgewählt" if "_uebernehmen" in m
+                                                                     else " ungeprüft (Prüfstatus prüfen), im Prüfdialog bestätigen"))
+        elif m.get("profilform") in BLECHE and art in vorhanden and not erneut:
+            hinweise.append("übersprungen: Artikel steht schon im Angebot")
+        elif m.get("profilform") in BLECHE:
+            from .angebot import ZUKAUFTEIL
+            b = blech(m)
+            wst = m.get("_werkstoff") or None       # nur, wenn im Prüfdialog gewählt
+            verweis, text = _blech_position(m, b, wst, zukauf_liste, neue_artikel, k)
+            stk = m.get("_stueck", stueck)
+            from .zukauf import blech_bezeichnung
+            p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art,
+                     bezeichnung=blech_bezeichnung(b.get("laenge"), b.get("breite"), b.get("dicke"), wst),
+                     werkstoff_id=wst if wst in k.werkstoffe else None, laenge=round(float(b.get("laenge") or 0), 1),
+                     stueck=stk or None, gewicht_teil=blech_gewicht(b, wst, k), _zukauf=verweis)
+            if m.get("_netz"):
+                p["_netz"] = m["_netz"]
+            hinweise.append(f"Zukaufteil: {text}")
+            if not wst:
+                hinweise.append("Werkstoff offen")
+            if satz:
+                anzahl = int(m.get("_je_satz") or len(gruppen[i]))
+                p["satz"], p["je_satz"] = satz, anzahl
+                p["stueck"] = stk * anzahl if stk else None
+                hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
+            neu.append(p)
+            ziel = naechste
+            vorhanden.add(art)
+            naechste += 10
         elif m.get("profilform") in NICHT_KALKULIERT:
             hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         elif not gewaehlt(m):
@@ -363,4 +478,4 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                           pid, ziel, "; ".join(hinweise) or None])
         bericht.append(f"{art}: " + (f"Pos. {ziel}" if ziel else "nicht übernommen") +
                        (", " + "; ".join(hinweise) if hinweise else ", OK"))
-    return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht)
+    return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel)

@@ -82,9 +82,10 @@ class _Zeile:
     """Eine Zeile der Rohrliste: gleiche Teile einer Datei. werte = Stückzahl je Modus ('einzeln' bzw. 'satz' =
     Stück je Satz); der Spin zeigt den Wert des Modus der Datei."""
 
-    def __init__(self, it, liste, pr, ws, sp, vorschlag, datei, stueck, je_satz):
+    def __init__(self, it, liste, pr, ws, sp, vorschlag, datei, stueck, je_satz, blech=False):
         self.it, self.liste, self.pr, self.ws, self.sp, self.vorschlag, self.datei = it, liste, pr, ws, sp, vorschlag, datei
         self.werte = {"einzeln": stueck or 0, "satz": je_satz}
+        self.blech = blech      # Blech: pr = Wahl des Zukaufartikels (Daten: Artikel-ID, None = automatisch)
 
 
 class StepPruefDialog(QDialog):
@@ -92,18 +93,24 @@ class StepPruefDialog(QDialog):
     mit mehreren Teilen das Feld 'Sätze' (leer = Einzelpositionen). Je Teil übernehmen ja/nein, Profil, Werkstoff
     und Stückzahl (bei einem Satz: Stück je Satz); gleiche Teile einer Datei stehen in einer Zeile (Spalte
     'In Datei'). OK schreibt die Werte als _uebernehmen, _profil, _werkstoff, _stueck, _saetze, _je_satz in die
-    Messwerte (step.uebernehmen liest sie)."""
-    SPALTEN = ("Teil", "In Datei", "Profil-ID", "Werkstoff-ID", "Stückzahl", "Länge [mm]", "Schneidweg [mm]",
+    Messwerte (step.uebernehmen liest sie).
+    Mit zukauf_liste stehen Bleche je Datei in der Gruppe 'Bleche (Zukaufteile)': statt des Profils wird der
+    Zukaufartikel gewählt (automatisch = vorhandene Dublette oder neu anlegen; _blech_artikel), der Werkstoff ist
+    leer (offen), bis er gewählt wird, und Bleche mit Prüfstatus 'prüfen' sind erst nach Anhaken gewählt."""
+    BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
+    AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
+    SPALTEN = ("Teil", "In Datei", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl", "Länge [mm]", "Schneidweg [mm]",
                "Konturen", "Hinweis")
 
-    def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None):
-        from . import step
+    def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None):
+        from . import step, zukauf
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
+        mit_blechen = zukauf_liste is not None
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
         self.resize(1350, 720)
         self.dateien = list(dict.fromkeys(m.get("datei") for m in messwerte))
-        self.mehrteilig = step.mehrteilig(messwerte)
+        self.mehrteilig = step.mehrteilig(messwerte, mit_blechen)
         self.saetze = {d: 0 for d in self.dateien}      # Datei -> Sätze (0 = leer = Einzelpositionen)
         for m in messwerte:
             if m.get("_saetze") and m.get("datei") in self.mehrteilig:
@@ -152,7 +159,7 @@ class StepPruefDialog(QDialog):
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
         self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
         self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
-        teile = step.gleiche_teile(messwerte)
+        teile = step.teile_gruppen(messwerte, mit_blechen)
         fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
         profile = k.auswahl("profil")
         reihe = sorted(teile.items(), key=lambda e: (self.dateien.index(messwerte[e[0]].get("datei")),
@@ -160,8 +167,9 @@ class StepPruefDialog(QDialog):
         for erster, liste in reihe:
             m = messwerte[erster]
             datei = m.get("datei")
-            vorschlag = step.profil_vorschlag(m, k.profile)
-            fehlt = vorschlag not in k.profile
+            ist_blech = step.blech(m) is not None
+            vorschlag = self.BLECHGRUPPE if ist_blech else step.profil_vorschlag(m, k.profile)
+            fehlt = not ist_blech and vorschlag not in k.profile
             g = self.gruppen.get((datei, vorschlag))
             if g is None:
                 g = self.gruppen[(datei, vorschlag)] = QTreeWidgetItem(self.baum)
@@ -170,16 +178,22 @@ class StepPruefDialog(QDialog):
                 f = g.font(0)
                 f.setBold(True)
                 g.setFont(0, f)
-                g.setBackground(0, QBrush(QColor("#FCE4D6" if fehlt else "#DDEBF7")))
+                g.setBackground(0, QBrush(QColor("#FCE4D6" if fehlt else "#E2EFDA" if ist_blech else "#DDEBF7")))
                 g.setExpanded(True)
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
-            it.setCheckState(0, Qt.Checked if step.gewaehlt(m) else Qt.Unchecked)
+            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen") is not False) if ist_blech \
+                else step.gewaehlt(m)
+            it.setCheckState(0, Qt.Checked if gewaehlt else Qt.Unchecked)
             it.setText(1, str(len(liste)))
             for c, w in ((5, _f(m, "laenge")), (6, _f(m, "schneidweg"))):
                 it.setText(c, zahl_als_text(w, 1))
             it.setText(7, str(int(_f(m, "konturen"))))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if ist_blech:
+                hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
+                if m.get("pruefstatus") == "prüfen":
+                    hinweis.append("PRÜFEN – zum Übernehmen anhaken")
             if step.unsicher(m):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
             hinweis += [h for h in [m.get("hinweise")] if h]
@@ -189,12 +203,31 @@ class StepPruefDialog(QDialog):
             for c in (1, 4, 5, 6, 7):
                 it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
             pr = QComboBox()
-            pr.setEditable(True)            # neue Profil-ID eintippen: wird beim Übernehmen angelegt (Rückfrage)
-            pr.addItems(sorted(set(profile) | ({vorschlag} if vorschlag else set())))
-            pr.setCurrentText(m.get("_profil") or vorschlag or "")
             ws = QComboBox()
             liste_fuellen(ws, k, "werkstoff")
-            ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
+            if ist_blech:                   # Zukaufartikel: automatisch oder ein vorhandener Blechartikel
+                pr.addItem(self.AUTOMATISCH, None)
+                gleich, aehnlich = zukauf.blech_dubletten(step.blech(m), m.get("_werkstoff"), zukauf_liste)
+                for a, art in [(a, "gleich") for a in gleich] + [(a, "ähnlich") for a in aehnlich]:
+                    pr.addItem(f"{a.get('bezeichnung')} ({art}" + (", EK fehlt)" if zukauf.ek_fehlt(a) else ")"),
+                               a["id"])
+                if gleich:
+                    hinweis.append(f"vorhanden: {gleich[0].get('bezeichnung')}")
+                elif aehnlich:
+                    hinweis.append(f"ähnlich: {aehnlich[0].get('bezeichnung')} (Werkstoff/Kontur prüfen)")
+                else:
+                    hinweis.append("neuer Zukaufartikel, EK fehlt")
+                pr.setCurrentIndex(max(pr.findData(m.get("_blech_artikel")), 0) if m.get("_blech_artikel") else 0)
+                pr.setToolTip("Zukaufartikel des Blechs: automatisch = gleicher vorhandener Artikel, sonst neu anlegen "
+                              "(ohne Einkaufspreis)")
+                ws.setCurrentText(m.get("_werkstoff") or "")     # Werkstoff wird bei Blechen nie angenommen
+                ws.setToolTip("Werkstoff des Blechs; leer = offen (wird nicht angenommen)")
+            else:
+                pr.setEditable(True)        # neue Profil-ID eintippen: wird beim Übernehmen angelegt (Rückfrage)
+                pr.addItems(sorted(set(profile) | ({vorschlag} if vorschlag else set())))
+                pr.setCurrentText(m.get("_profil") or vorschlag or "")
+                ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
+            it.setText(8, "; ".join(hinweis))
             sp = QSpinBox()
             sp.setRange(0, 100000)
             sp.setSpecialValueText("leer")
@@ -203,7 +236,7 @@ class StepPruefDialog(QDialog):
             it.setData(0, Qt.UserRole, len(self.zeilen))
             z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
                        m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
-                       m.get("_je_satz") or len(liste))
+                       m.get("_je_satz") or len(liste), ist_blech)
             sp.setValue(z.werte[self._modus(datei)])
             sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
             self.zeilen.append(z)
@@ -302,7 +335,8 @@ class StepPruefDialog(QDialog):
             if datei == d:
                 anz = g.childCount()
                 g.setText(0, f"{vorschlag or 'ohne Profil'} – {anz} Teil{'e' if anz != 1 else ''}"
-                          + ("  (Profil fehlt in den Stammdaten)" if vorschlag not in self.k.profile else ""))
+                          + ("  (Profil fehlt in den Stammdaten)" if vorschlag not in self.k.profile
+                             and vorschlag != self.BLECHGRUPPE else ""))
         for datei, g in self.fehler_gruppen.items():
             g.setHidden(datei != d)
         self.satz_feld.setVisible(d in self.mehrteilig)
@@ -418,7 +452,9 @@ class StepPruefDialog(QDialog):
                     m["_saetze"] = 0           # leer = Einzelpositionen (auch ohne Rückfrage)
                     m.pop("_je_satz", None)
                     m["_stueck"] = z.werte["einzeln"] or None
-                if profil and profil != z.vorschlag:
+                if z.blech:
+                    m["_blech_artikel"] = z.pr.currentData()
+                elif profil and profil != z.vorschlag:
                     m["_profil"] = profil
                 else:
                     m.pop("_profil", None)

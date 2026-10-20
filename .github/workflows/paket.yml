@@ -56,6 +56,7 @@ jobs:
           /usr/bin/python3 tests/test_zukauf_angebot.py
           /usr/bin/python3 tests/test_zukauf_preise.py
           /usr/bin/python3 tests/test_zukauf_blech.py
+          /usr/bin/python3 tests/test_blech_position.py
           /usr/bin/python3 tests/test_step_satz.py
           /usr/bin/python3 tests/test_step_bleche.py
           /usr/bin/python3 tests/test_werkstoffe.py
@@ -284,7 +285,7 @@ jobs:
             Umziehen zwischen beiden: Datei → Daten exportieren … / Daten importieren …
             Warnt Windows (SmartScreen oder Defender), siehe Bedienungsanleitung Kapitel 2 „Windows-Warnungen“.
             SHA256-Prüfsummen: Rohrlaser-Angebotskalkulation.zip.sha256, Rohrlaser-Angebotskalkulation-Setup.exe.sha256
-            Online-Update (Hilfe → Nach Updates suchen): ab Version 0.5.4 holt das Programm Dateiliste und Pakete ohne
+            Online-Update (Hilfe → Nach Updates suchen): ab Version 0.5.5 holt das Programm Dateiliste und Pakete ohne
             Anmeldung aus dem öffentlichen Repository Rohrlaser-Updates und lädt nur geänderte Dateien. Ältere
             Versionen einmal mit diesem Setup bzw. ZIP ersetzen.
           files: |

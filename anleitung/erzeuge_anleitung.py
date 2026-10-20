@@ -402,7 +402,7 @@ def kapitel_start(i):
             "Braucht eine neue Version eine erweiterte Datendatei, sichert das Programm sie vorher (Name endet auf "
             "<i>_vor_Schema_…</i>). Eine ältere Programmversion öffnet eine so erweiterte Datei nicht mehr, sondern "
             "meldet, dass sie von einer neueren Version stammt.",
-            "Das Update funktioniert ab Version 0.5.4. Ältere Versionen suchen noch im privaten Programmverzeichnis, "
+            "Das Update funktioniert ab Version 0.5.5. Ältere Versionen suchen noch im privaten Programmverzeichnis, "
             "das ohne Anmeldung nicht erreichbar ist, und melden <i>Keine Verbindung zum Update</i>. Dann einmal das "
             "neue Setup über die alte Installation installieren bzw. das neue ZIP entpacken und die Daten übernehmen "
             "(Abschnitt <i>Datensicherung und Umzug</i>); danach geht es online weiter.")
@@ -967,6 +967,10 @@ def kapitel_angebot(i):
     i.abschnitt("Positionen")
     i.tabelle(["Spalte", "Eintrag"], [
         ["Pos., Artikelnummer, Bezeichnung", "frei; die Artikelnummer erscheint in Angebot und Werkstattpapieren"],
+        ["Positionsart", "leer bzw. <i>Rohrlaserteil</i> = Teil aus Profil, wird optimiert und gelasert; "
+                         "<i>Zukaufteil</i> = eingekauftes Teil ohne Fertigung, z. B. ein Blech aus dem STEP-Import "
+                         "(Abschnitt „Zukaufteil-Positionen“ unten). Die Spalte erscheint, sobald eine Position eine "
+                         "Art hat"],
         ["Profil-ID, Werkstoff-ID", "aus der Auswahlliste der Stammdaten (Pflicht), Werkstoffe nach Kategorie "
                                     "gruppiert. Optimiert wird je Profil + Werkstoff + Oberfläche + Stangenlänge, "
                                     "nie gemischt."],
@@ -981,6 +985,8 @@ def kapitel_angebot(i):
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.6)"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil; Doppelklick öffnet die Auswahl (Kapitel 13.6)"],
+        ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
+                                 "rechnet es aus Volumen × Dichte, wenn der Werkstoff gewählt ist; sonst leer)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
                                                "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
@@ -990,6 +996,27 @@ def kapitel_angebot(i):
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
            "„(leer)“ markiert. Die Wahl gilt für alle Angebote, bis <i>Automatisch: Spalten mit Werten zeigen</i> sie "
            "zurücksetzt. Ausgeblendete Spalten verlieren keine Werte.")
+    i.abschnitt("Zukaufteil-Positionen")
+    i.text("Eine Position der Art <b>Zukaufteil</b> ist ein eingekauftes Teil, das mit dem Auftrag geliefert wird, "
+           "z. B. ein Blech, das der STEP-Import erkannt hat. Sie braucht kein Profil und keinen Werkstoff, nur "
+           "Stückzahl und einen Zukaufartikel (Spalte <i>Zukaufteile</i>, Menge 1 je Teil).")
+    i.liste("<b>Preis je Teil</b> = Einstand + Aufschlag des Zukaufartikels (Kapitel 13) + Frachtanteil, mit "
+            "Skonto. Material, Laser, Rüsten, Zuschläge, Gewinn, Pauschalen, Programmierkosten und Angebotsaufschlag "
+            "gibt es für Zukaufteile nicht; sie verteilen sich weiter nur auf die Rohrlaserteile.",
+            "Zukaufteile kommen nicht in den Schnittplan. Die Kennzahl <i>Teile</i> zählt nur Rohrlaserteile.",
+            "<b>Fracht</b>: Zukaufteile tragen ihren Anteil wie die anderen Teile, je Stück oder nach Gewicht (Spalte "
+            "<i>Gewicht je Teil</i>; fehlt es, wird je Stück verteilt und die Kalkulation nennt die Position).",
+            "<b>Status</b>: <i>FEHLER: Zukaufartikel fehlt</i> ohne Zukaufartikel, <i>WARNUNG: EK fehlt</i>, solange "
+            "der Artikel keinen Einkaufspreis über 0 € hat. Dann steht in der Kalkulation der Hinweis <i>Zukaufteil: "
+            "kein Einkaufspreis</i>, der Preis ist ohne Zukaufteil gerechnet und die Staffelpreise melden "
+            "<i>Zukaufteil ohne Einkaufspreis</i>. 0 € gilt nie als Einkaufspreis.",
+            "Im <b>Angebot</b> steht die Bezeichnung des Zukaufartikels, z. B. <i>Blech S235 500 × 300 × 5 mm</i>; in "
+            "einem Satz als Teil des Satzes. In den <b>Staffelpreisen</b> zählen Zukaufteil-Positionen wie die "
+            "anderen (je Satz oder als eigene Position). Die <b>Werkstattpapiere</b> listen sie unter <i>Zukaufteile "
+            "(nicht lasern, zum Auftrag bereitstellen)</i>, die <b>Nachkalkulation</b> hat die Zeile "
+            "<i>Zukaufteile (Einstand)</i>.",
+            "Von Hand: Position anlegen, <i>Positionsart</i> = Zukaufteil, Stückzahl eintragen und unter "
+            "<b>Zukaufteile …</b> den Artikel wählen.")
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
             "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs.",
             "<b>Berechnete Werte (Programm)</b>: vom Programm ermittelte Werte wie Profilform, Gewicht, wirksame "
@@ -1163,9 +1190,27 @@ def kapitel_step(i):
             "C-Profil, weil es als Stangenmaterial auf dem Rohrlaser geschnitten werden kann.",
             "Eine dünne Platte mit Tasche oder Absatz ist <b>kein Blech</b> (nicht überall gleich dick) und steht mit "
             "Prüfstatus <i>prüfen</i> da.",
-            "Bleche sind keine Rohrlaserteile und werden nie als Profil übernommen. Im Dialog STEP-Import prüfen "
-            "stehen sie unter <i>Nicht übernehmbar</i> mit ihren Maßen, z. B. <i>Blech 400 × 200 × 4 mm: kein "
-            "Rohrlaserteil</i>. Rohre derselben Baugruppe werden wie gewohnt übernommen.",
+            "Bleche sind keine Rohrlaserteile und werden nie als Profil übernommen. Sie werden <b>Zukaufteil-"
+            "Positionen</b> (Kapitel 6) mit einem Zukaufartikel vom Typ Blech (Abschnitt 13.9). Rohre derselben "
+            "Baugruppe werden wie gewohnt übernommen.",
+            "Im Dialog STEP-Import prüfen stehen die Bleche je Datei in der grünen Gruppe <b>Bleche (Zukaufteile, "
+            "nicht lasern)</b>; gleiche Bleche einer Datei stehen in einer Zeile. In der Spalte Profil-ID wird hier "
+            "der <b>Zukaufartikel</b> gewählt: <i>automatisch</i> nimmt einen gleichen vorhandenen Blechartikel "
+            "(Dubletten: gleiche Maße, Dicke, Werkstoff und Kontur) oder legt einen neuen ohne Einkaufspreis an; "
+            "darunter stehen gleiche und ähnliche Artikel zur Wahl. Die Hinweis-Spalte nennt <i>vorhanden</i>, "
+            "<i>ähnlich</i> oder <i>neuer Zukaufartikel, EK fehlt</i>.",
+            "Der <b>Werkstoff</b> eines Blechs ist leer (offen), bis er in der Zeile gewählt wird; die Vorgabe für "
+            "die Rohre gilt nicht für Bleche. Ohne Werkstoff heißt der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm "
+            "(Werkstoff offen)</i> und die Position hat kein Gewicht.",
+            "Bleche mit Prüfstatus <i>prüfen</i> (z. B. gekantete) sind nicht angehakt und werden erst nach "
+            "Anhaken übernommen. Ein Blech, dessen Artikelnummer schon im Angebot steht, wird übersprungen; ein "
+            "erneuter Import legt keinen zweiten Zukaufartikel an.",
+            "Ist die STEP-Datei eine Baugruppe (z. B. Rohr mit zwei Laschen), zählt sie mit den Blechen als "
+            "mehrteilig: mit <i>Sätze</i> werden Rohr und Bleche ein Satz, gleiche Bleche eine Position mit "
+            "Stück je Satz.",
+            "Neue Zukaufartikel bekommen Kategorie Blechteile, Einheit Stück, Lieferant Technik, die STEP-Datei und "
+            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis unter Zukaufartikel mit "
+            "<b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>).",
             "In den Messwerten stehen die Spalten <i>bauteiltyp</i> (Profil, Blech, Blech gekantet) und <i>blech</i> "
             "(alle Blechmaße). Im JSON-Messergebnis (ab Version 1.1) steht je Blech der Block <i>blech</i>; die "
             "Profilwerte (Querschnitt, Wandstärke) sind dort <i>null</i>.")
@@ -1499,7 +1544,8 @@ def kapitel_nachkalkulation(i):
             "× Meterpreis × Stangenlänge."),
         (2, "<b>Laserzeit Ist</b> [h] (z. B. aus dem Maschinenprotokoll), <b>Rüsten + Stangenwechsel Ist</b> "
             "[min], beide mit dem Stundensatz der Maschine bewertet; <b>Gewinde und Zusatzarbeiten Ist</b> [€] "
-            "(z. B. Rechnung der Verzinkerei), <b>Sonstige Kosten Ist</b> [€] (z. B. Nacharbeit), <b>Erlös laut "
+            "(z. B. Rechnung der Verzinkerei), <b>Zukaufteile Ist (Einkauf + Bezugskosten)</b> [€] (Rechnung "
+            "des Lieferanten, z. B. für Bleche), <b>Sonstige Kosten Ist</b> [€] (z. B. Nacharbeit), <b>Erlös laut "
             "Rechnung</b> [€] und eine <b>Bemerkung Nachkalkulation</b>. Grau steht im leeren Feld das Soll."),
         (3, "Vergleich je Kostenart: Menge und Betrag Soll und Ist, Abweichung in € und %. Darunter Einzelkosten, "
             "Erlös und <b>Deckungsbeitrag</b> (Erlös − Einzelkosten)."),
@@ -1779,6 +1825,9 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bilder_nebeneinander(["pdf_werkstatt_1", letzte],
                            "Werkstattpapiere: Materialliste und Schnittpläne (links), Stangenbild (rechts)",
                            hoehe=150 * mm)
+    i.text("Hat das Angebot Zukaufteil-Positionen (z. B. Bleche), steht unter der Materialliste die Liste "
+           "<i>Zukaufteile (nicht lasern, zum Auftrag bereitstellen)</i> mit Pos., Artikelnummer, Bezeichnung, "
+           "Zukaufartikel und Stückzahl.")
     i.abschnitt("Kalkulation")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
 
@@ -2037,7 +2086,7 @@ def kapitel_fragen(i):
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
         ["<b>Keine Verbindung zum Update</b>",
-         "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.4 liegt es an der alten "
+         "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.5 liegt es an der alten "
          "Update-Adresse (Abschnitt <i>Updates</i>). Später noch einmal versuchen; sonst das Setup "
          "(installiert) bzw. das ZIP (portabel) von Hand holen und die Daten übernehmen."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",

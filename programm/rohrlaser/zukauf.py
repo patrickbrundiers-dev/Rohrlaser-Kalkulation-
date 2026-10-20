@@ -594,10 +594,17 @@ def blech_artikel(b, werkstoff=None, step_datei=None, kategorie="Blechteile", li
                  angebotstext="nein", rest_lager="nein", kombiniert="nein", artikeltyp=BLECH,
                  laenge=b.get("laenge"), breite=b.get("breite"), dicke=b.get("dicke"), werkstoff=werkstoff or None,
                  herkunft=STEP_IMPORT, step_datei=step_datei or None, fingerabdruck=b.get("fingerabdruck") or None,
-                 beschreibung=("freie Kontur" if b.get("kontur") == "frei" else None))
+                 beschreibung=_blech_beschreibung(b))
     if lieferant is None:
         lieferant = BLECH_LIEFERANT.get(kategorie, "")
     return werte, [dict(lieferant=lieferant or None, bevorzugt="ja", preiseinheit=1, preise=[])]
+
+
+def _blech_beschreibung(b):
+    if b.get("kontur") == "gekantet":
+        return (f"gekantet, Außenmaße {_mm(b.get('laenge'))} × {_mm(b.get('breite'))} × {_mm(b.get('hoehe'))} mm, "
+                "Zuschnitt prüfen")
+    return "freie Kontur" if b.get("kontur") == "frei" else None
 
 
 # vorgeschlagener Lieferant für neue Blechartikel (Patrick: Bleche kommen von "Technik")
