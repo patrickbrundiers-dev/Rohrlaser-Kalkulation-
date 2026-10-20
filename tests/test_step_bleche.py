@@ -1,4 +1,4 @@
-"""Prüft Bleche beim STEP-Import im Programm: Messung über step_messen (Textdatei und JSON 1.1), Grenze Flachstahl aus
+"""Prüft Bleche beim STEP-Import im Programm: Messung über step_messen (Textdatei und JSON 1.2), Grenze Flachstahl aus
 der Einstellung, Bleche werden nie als Rohrlaserteil (Profil) übernommen, Rohre derselben Baugruppe schon.
 
 Die Geometrie der Bleche prüft tests/test_step_referenz.py (Fälle BL01 bis BL16) gegen die Konstruktionsmaße.
@@ -59,7 +59,7 @@ def _():
 
 @fall("JSON 1.1: bauteiltyp, Block blech, keine Profilwerte bei Blechen")
 def _():
-    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.1", JS["schema_version"]
+    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.2", JS["schema_version"]
     k = JS["dateien"][1]["koerper"][0]
     assert k["bauteiltyp"] == "Blech" and k["profiltyp"] == "Blech", k
     assert k["blech"]["dicke"] == 4 and k["blech"]["kontur"] == "rechteckig", k["blech"]
@@ -219,9 +219,9 @@ def _():
         assert rohr.ws.currentText() == "S235-10219"
         z02 = next(z for z in bl if z.datei.startswith("B02"))
         assert z02.pr.count() == 2 and z02.pr.itemData(1) == i and "gleich, EK fehlt" in z02.pr.itemText(1)
-        assert "vorhanden" in z02.it.text(8), z02.it.text(8)
+        assert "vorhanden" in z02.it.text(9), z02.it.text(9)
         z07 = next(z for z in bl if z.datei.startswith("B07"))
-        assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(8), z07.it.text(8)
+        assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(9), z07.it.text(9)
         z02.pr.setCurrentIndex(1)
         z02.ws.setCurrentText("S235-10219")
         d.werte_schreiben()
@@ -231,6 +231,60 @@ def _():
                                zukauf_liste=db.zukauf_artikel_liste())
         assert erg["positionen"][-1]["_zukauf"] == {"artikel_id": i}, erg["positionen"][-1]
         assert len(erg["positionen"]) == 4, [p["artikel"] for p in erg["positionen"]]
+        d.close()
+        app.processEvents()
+        db.con.close()
+
+
+@fall("Art wählbar: Flachstahl/Blech und Kantteil/Profil gemessen, im Prüfdialog umstellbar (Ersatzwerte = prüfen)")
+def _():
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser.step_dialog import StepPruefDialog
+    app = QApplication.instance() or QApplication([])
+    mw, js = messen("B09_FL100x10_L800", "B10_Blech_1000x160x8", "B07_Blech_gekantet_Winkel", "B14_Baugruppe_Rohr_2Bleche")
+    fl, bl, kant, rohr = mw[0], mw[1], mw[2], mw[3]
+    # Messung: Grenzfälle mit Alternative, Rohr ohne
+    assert step.art_text(fl) == "Flachstahl" and step.alternative(fl)["profilform"] == "Blech", fl.get("alternative")
+    assert step.alternative(bl)["profil_id_vorschlag"] == "FL 160x8", bl.get("alternative")
+    alt = step.alternative(kant)
+    assert step.art_text(kant) == "Kantteil (Blech gekantet)" and alt["profilform"] == "L-Profil" and alt["ersatz"] == "1"
+    assert alt["pruefstatus"] == "prüfen" and "konturen" in step.unsicher(alt), alt
+    assert step.alternative(rohr) is None
+    k_js = js["dateien"][2]["koerper"][0]
+    assert k_js["alternative"]["profiltyp"] == "L-Profil" and k_js["alternative"]["ersatzwerte"] is True, k_js["alternative"]
+    assert js["dateien"][3]["koerper"][0]["alternative"] is None
+    # Umstellen in den Messwerten: hin und zurück gibt dieselben Werte
+    m = dict(bl)
+    assert step.art_wechseln(m) and m["profilform"] == "Flachstahl" and step.alternative(m)["profilform"] == "Blech"
+    assert step.art_wechseln(m) and {k_: m[k_] for k_ in bl} == bl
+    # Prüfdialog: Art vorbelegt, Wechsel verschiebt die Zeile in die andere Gruppe
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
+        zfl = next(z for z in d.zeilen if z.liste == [0])
+        art = d.baum.itemWidget(zfl.it, d.SP_ART)
+        assert [art.itemText(n) for n in range(art.count())] == ["Flachstahl", "Blech"] and not zfl.blech
+        assert d.baum.itemWidget(next(z for z in d.zeilen if z.liste == [3]).it, d.SP_ART) is None
+        zfl.sp.setValue(4)
+        art.setCurrentIndex(1)                                   # Flachstahl -> Blech
+        z = next(z for z in d.zeilen if z.liste == [0])
+        assert z.blech and z.ws.currentText() == "" and z.sp.value() == 4, (z.blech, z.ws.currentText())
+        assert z.it.parent().data(0, 0x0100) == d.BLECHGRUPPE
+        d.datei_waehlen(1)
+        d.art_wechseln(1)                                        # Blech -> Flachstahl
+        z = next(z for z in d.zeilen if z.liste == [1])
+        assert not z.blech and z.pr.currentText() == "FL 160x8" and z.ws.currentText() == "S235-10219", z.pr.currentText()
+        d.datei_waehlen(2)
+        z = d.art_wechseln(2)                                    # Kantteil -> L-Profil (Ersatzwerte)
+        assert not z.blech and z.it.checkState(0).name == "Unchecked" and "UNSICHER" in z.it.text(d.SP_HINWEIS)
+        z.it.setCheckState(0, z.it.checkState(0).Checked)
+        d.werte_schreiben()
+        erg = step.uebernehmen(mw, [], db.kontext(), db.zeilen("gewinde"), None, None, 1, neue_profile=True,
+                               zukauf_liste=db.zukauf_artikel_liste())
+        arten = {p["artikel"]: (p.get("art"), p.get("profil_id")) for p in erg["positionen"]}
+        assert arten["B09_FL100x10_L800"] == ("Zukaufteil", None), arten
+        assert arten["B10_Blech_1000x160x8"] == (None, "FL 160x8"), arten
+        assert arten["B07_Blech_gekantet_Winkel"][1].startswith("L "), arten
         d.close()
         app.processEvents()
         db.con.close()

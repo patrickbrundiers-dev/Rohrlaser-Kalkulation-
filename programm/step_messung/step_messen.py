@@ -38,7 +38,10 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "hinweise", "einheit", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen", "n_kanten",
            "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste",
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
-           "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "fehler"]
+           "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "ersatz", "alternative", "fehler"]
+# Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, als
+# JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
+OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "alternative", "fehler")
 
 
 def _z(x):
@@ -88,24 +91,34 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
         if netze is not None and t.netz:
             netz = f"{nr:05d}_{t.koerper}.json"
             (Path(netze) / netz).write_text(json.dumps(t.netz, separators=(",", ":")), encoding="utf-8")
-        out.append([datei.name, artikel, str(t.koerper), t.profilform, _z(t.abm_a), _z(t.abm_b), _z(t.wandstaerke),
-                    _z(t.flaeche), _z(t.laenge), _z(t.schneidweg), str(t.konturen), _z(t.ende_a),
-                    "1" if t.ende_a_gerade else "0", _z(t.ende_b), "1" if t.ende_b_gerade else "0", _z(t.innen),
-                    str(t.innen_konturen), _z(t.gravur), str(t.gravur_konturen),
-                    "|".join(f"{_z(d)}:{n}" for d, n in t.bohrungen.items()),
-                    "|".join(f"{_z(g)}:{_z(l)}" for g, l in t.innen_liste),
-                    t.profil_id_vorschlag, _text("; ".join(t.hinweise)), t.einheit, t.koerperart,
-                    "" if t.gueltig is None else "1" if t.gueltig else "0", _z(t.volumen), _z(t.oberflaeche),
-                    str(t.n_flaechen), str(t.n_kanten), "|".join(_z(x) for x in t.huelle),
-                    _text("; ".join(t.meldungen)), _z(t.innen_a), _z(t.innen_b),
-                    "|".join(":".join([_z(z), _z(x), _z(y), _z(w), s]) for z, x, y, w, s in t.wand_messungen),
-                    ";".join(f"{k}={v}" for k, v in t.sicherheit.items()),
-                    json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), t.pruefstatus, netz,
-                    t.bauteiltyp, json.dumps(t.blech, ensure_ascii=False, separators=(",", ":")) if t.blech else "",
-                    _z(t.stegdicke), _z(t.flanschdicke), t.normprofil,
-                    "" if t.symmetrisch is None else "1" if t.symmetrisch else "0", _z(t.radius),
-                    _z(t.ende_a_huelle), _z(t.ende_b_huelle), ""])
+        z = _zeile(t, datei.name, artikel, netz)
+        if t.alternative is not None:
+            alt = dict(zip(SPALTEN, _zeile(t.alternative, datei.name, artikel, netz)))
+            z[SPALTEN.index("alternative")] = json.dumps({k: v for k, v in alt.items() if k not in OHNE_ALTERNATIVE},
+                                                         ensure_ascii=False, separators=(",", ":"))
+        out.append(z)
     return out, step_ergebnis.datei(datei.name, teile)
+
+
+def _zeile(t, name, artikel, netz):
+    """Messwerte eines Teils als Felder in der Reihenfolge SPALTEN (Spalte alternative leer)."""
+    return ([name, artikel, str(t.koerper), t.profilform, _z(t.abm_a), _z(t.abm_b), _z(t.wandstaerke),
+            _z(t.flaeche), _z(t.laenge), _z(t.schneidweg), str(t.konturen), _z(t.ende_a),
+            "1" if t.ende_a_gerade else "0", _z(t.ende_b), "1" if t.ende_b_gerade else "0", _z(t.innen),
+            str(t.innen_konturen), _z(t.gravur), str(t.gravur_konturen),
+            "|".join(f"{_z(d)}:{n}" for d, n in t.bohrungen.items()),
+            "|".join(f"{_z(g)}:{_z(l)}" for g, l in t.innen_liste),
+            t.profil_id_vorschlag, _text("; ".join(t.hinweise)), t.einheit, t.koerperart,
+            "" if t.gueltig is None else "1" if t.gueltig else "0", _z(t.volumen), _z(t.oberflaeche),
+            str(t.n_flaechen), str(t.n_kanten), "|".join(_z(x) for x in t.huelle),
+            _text("; ".join(t.meldungen)), _z(t.innen_a), _z(t.innen_b),
+            "|".join(":".join([_z(z), _z(x), _z(y), _z(w), s]) for z, x, y, w, s in t.wand_messungen),
+            ";".join(f"{k}={v}" for k, v in t.sicherheit.items()),
+            json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), t.pruefstatus, netz,
+            t.bauteiltyp, json.dumps(t.blech, ensure_ascii=False, separators=(",", ":")) if t.blech else "",
+            _z(t.stegdicke), _z(t.flanschdicke), t.normprofil,
+            "" if t.symmetrisch is None else "1" if t.symmetrisch else "0", _z(t.radius),
+            _z(t.ende_a_huelle), _z(t.ende_b_huelle), "1" if t.ersatz else "", "", ""])
 
 
 def step_dateien(pfade):

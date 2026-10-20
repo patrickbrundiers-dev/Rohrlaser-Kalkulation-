@@ -13,11 +13,14 @@ Versionen von SCHEMA_VERSION:
   Flächen, Volumen, Kontur, Innenkonturen, Bohrungen, Fingerabdruck). Bei Blechen sind Profilwerte (Querschnitt,
   Wandstärke, Innenmaße) null. Je Profil "normprofil" (z. B. IPE 200, nur bei passenden Maßen) und bei I-/H-Trägern
   und T-Profilen der Block "traeger" (Steg-, Flanschdicke, symmetrisch, Ausrundung). Felder aus 1.0 unverändert.
+- 1.2 (20.10.2026): Grenzfälle Flachstahl/Blech und Profil/Kantteil: "alternative" = derselbe Körper in der anderen
+  Art (gleicher Aufbau wie ein Körper, ohne "nr"), sonst null. "ersatzwerte" = true, wenn die Werte nicht gemessen,
+  sondern aus der anderen Messung abgeleitet sind (Prüfstatus dann "prüfen"). Felder aus 1.1 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -104,6 +107,8 @@ def koerper(t):
         "pruefstatus": t.pruefstatus,
         "warnungen": list(t.hinweise),
         "erkennungssicherheit": dict(t.sicherheit),
+        "ersatzwerte": bool(t.ersatz),
+        "alternative": {k: v for k, v in koerper(t.alternative).items() if k != "nr"} if t.alternative else None,
     }
 
 

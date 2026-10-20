@@ -93,8 +93,7 @@ seite = fenster.angebot_oeffnen(aid)
 seite.fracht_ziel_setzen("25", "")        # unveränderte PLZ: nichts zu tun
 assert "Mehrere Tarife" in fracht_angebot.daten(db.angebot(aid))["fehler"]
 seite.fracht_ziel_setzen("25 ", "de")     # gleiche Eingabe, normalisiert: ebenfalls nichts
-seite._fracht_auto_rechnen()
-seite.neu_laden()
+seite.neu_laden()                         # jede Änderung lädt neu: ohne Tarifkopie wird ganz neu gerechnet
 kb = seite.kopf_bereich
 a = db.angebot(aid)
 d = fracht_angebot.daten(a)
@@ -128,8 +127,14 @@ d2 = fracht_angebot.daten(a)
 neu_tarif = fracht.rechnen(db.fracht_daten(), dict(d2["sendung"], netto=fracht_angebot.ware(pos, werte)[0],
                                                      lht=[]))
 assert not f2 and g2 > g1, (g2, g1)
+assert a["fracht"] == g1                  # noch nicht nachgeführt (Änderung ohne Angebotsseite)
+seite = fenster.angebot_oeffnen(aid)
+seite.neu_laden()                         # wie nach einer Eingabe in der Positionsliste
+assert abs(db.angebot(aid)["fracht"] - g2) < 0.005 and db.fracht_auto_nachfuehren(aid) is False
+assert "Automatisch" in seite.kopf_bereich.fracht_text.text()
 assert neu_tarif["gesamt"] is None or g2 < neu_tarif["gesamt"], (g2, neu_tarif["gesamt"])
-ok(f"2A: Menge ×10 rechnet mit der Tarifkopie neu ({g2:.2f} €), der verdreifachte Tarif wirkt erst beim Neusetzen")
+ok(f"2A: Menge ×10 rechnet mit der Tarifkopie neu und schreibt {g2:.2f} € ins Feld Frachtkosten; der verdreifachte "
+   "Tarif wirkt erst beim Neusetzen")
 
 # PLZ ändern -> neue Tarifkopie (dann mit dem neuen Tarif)
 seite = fenster.angebot_oeffnen(aid)
@@ -155,10 +160,24 @@ assert fracht_angebot.daten(a)["fehler"] == "Ziel-PLZ fehlt"
 erg = rechnen.optimieren(a, pos, k)
 _, summen = rechnen.kalkulation(a, pos, erg, k, tab, einst)
 assert summen["fracht"] == 0 and "Ziel-PLZ fehlt" in summen["fracht_fehler"], summen.get("fracht_fehler")
+assert a["fracht"] is None                # Feld Frachtkosten leer statt alter Betrag
 seite = fenster.angebot_oeffnen(aid)
 assert "Ziel-PLZ fehlt" in seite.kopf_bereich.fracht_text.text()
 assert seite._vor_ausgabe()          # stumm: Meldung, dann weiter
 ok("Ziel-PLZ fehlt: Kalkulation ohne Fracht, Fehler rot im Angebot, Warnung vor der PDF-Ausgabe (kein stilles 0 €)")
+
+# Fehler behoben (Gewicht wieder da) -> nächste Änderung rechnet ganz neu
+seite.fracht_ziel_setzen("40", "DE")
+p1 = db.positionen(aid)[0]
+db.position_aendern(p1["id"], "werkstoff_id", "UNBEKANNT")
+seite.fracht_auto_setzen(False)
+seite.fracht_auto_setzen(True)
+assert "Gewicht fehlt" in (fracht_angebot.daten(db.angebot(aid)).get("fehler") or ""), fracht_angebot.daten(db.angebot(aid))
+db.position_aendern(p1["id"], "werkstoff_id", p1["werkstoff_id"])
+seite.neu_laden()
+a = db.angebot(aid)
+assert not fracht_angebot.daten(a).get("fehler") and a["fracht"], fracht_angebot.daten(a)
+ok(f"Gewicht fehlte, Werkstoff wieder eingetragen: Fracht automatisch neu berechnet ({a['fracht']:.2f} €)")
 
 # Haken aus: letzter Betrag bleibt, Frachtart wieder wählbar
 seite.fracht_ziel_setzen("40", "DE")
