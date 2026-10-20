@@ -826,9 +826,10 @@ class HistorieSeite(QWidget):
         ul.addWidget(self.einstellungen, 1)
         z = QHBoxLayout()
         z.addWidget(beispiele)
-        z.addWidget(QLabel("fügt Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu (BEISPIEL, keine "
-                           "echten Preise); vorhandene Einträge bleiben"))
-        z.addStretch(1)
+        erkl = QLabel("fügt Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu (BEISPIEL, keine "
+                      "echten Preise); vorhandene Einträge bleiben")
+        erkl.setWordWrap(True)
+        z.addWidget(erkl, 1)
         ul.addLayout(z)
         teiler = QSplitter(Qt.Vertical)
         teiler.addWidget(_box("Historie", oben))
@@ -909,6 +910,11 @@ class FrachtBereich(QWidget):
         self.unter.addTab(self.rechner, self.rechner.titel)
         for s in self.pflege:
             self.unter.addTab(self.gesperrt[s], s.titel)
+        # alle sieben immer sichtbar, unabhängig von der Schrift: zu lange Titel werden gekürzt (voller Titel im Tooltip)
+        self.unter.setUsesScrollButtons(False)
+        self.unter.setElideMode(Qt.ElideRight)
+        for i in range(self.unter.count()):
+            self.unter.setTabToolTip(i, self.unter.tabText(i))
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
