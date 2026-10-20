@@ -256,8 +256,9 @@ def titelseite(inh, stand):
 def kapitel_ueberblick(i):
     i.kapitel("Überblick")
     i.text("Die Rohrlaser Angebotskalkulation plant für ein Angebot, wie die Teile aus Stangen geschnitten werden, und "
-           "rechnet daraus Materialbedarf, Laserzeit und Angebotspreis. Alles liegt in einer Datendatei neben dem "
-           "Programm; eine Installation ist nicht nötig.",
+           "rechnet daraus Materialbedarf, Laserzeit und Angebotspreis. Alles liegt in einer Datendatei. Das Programm "
+           "gibt es zum Installieren (für den eigenen Benutzer, ohne Administratorrechte) und als portable Version "
+           "ohne Installation; beide rechnen gleich (Kapitel 2).",
            "Der normale Arbeitsablauf für ein Angebot:")
     i.liste("<b>Angebot anlegen</b> (Reiter <i>Angebote</i> → <i>Neues Angebot</i>) und den Kopf ausfüllen: Kunde, "
             "Maschine, Stangenlänge.",
@@ -295,52 +296,90 @@ def kapitel_ueberblick(i):
 
 def kapitel_start(i):
     i.kapitel("Installation und erster Start")
-    i.abschnitt("Programm entpacken")
-    i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
+    i.abschnitt("Installieren oder portabel")
+    i.text("Es gibt das Programm in zwei Formen. Beide enthalten dieselben Programmdateien, rechnen gleich und "
+           "werden über dasselbe Online-Update aktuell gehalten. Sie unterscheiden sich nur darin, wo die Daten "
+           "liegen.")
+    i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
+        ["Datei im Release <i>aktuell</i>", "Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalkulation.zip"],
+        ["Gedacht für", "den Arbeitsplatz, an dem dauerhaft kalkuliert wird",
+         "Tests, einen Rechner ohne Erlaubnis für Setup-Programme, Mitnahme auf einem USB-Stick"],
+        ["Programm", "%LOCALAPPDATA%\\Programs\\Rohrlaser Angebotskalkulation", "beliebiger Ordner, z. B. C:\\Rohrlaser"],
+        ["Daten", "%LOCALAPPDATA%\\Rohrlaser Angebotskalkulation\\Daten", "Ordner <i>Daten</i> neben dem Programm"],
+        ["PDF und CSV", "Dokumente\\Rohrlaser Angebote", "Ordner <i>Angebote</i> neben dem Programm"],
+        ["Startmenü, Desktop", "ja", "Verknüpfung selbst anlegen"],
+        ["Entfernen", "Einstellungen → Apps; die Daten bleiben", "Ordner löschen; <b>die Daten sind dann mit weg</b>"]],
+        [40, 112, 112])
+    i.text("Administratorrechte braucht keine der beiden Formen. Die Daten der installierten Version liegen bewusst "
+           "nicht unter <i>Dokumente</i>: diesen Ordner gleicht OneDrive oft ab, und eine geöffnete Datendatei verträgt "
+           "das schlecht. Für eine Kopie auf OneDrive oder ein Netzlaufwerk ist der <b>zweite Sicherungsordner</b> da "
+           "(Abschnitt <i>Datensicherung und Umzug</i>).")
+    i.abschnitt("Programm installieren")
+    i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation-Setup.exe</b> "
+            "herunterladen und starten.",
+            "Warnt Windows, siehe Abschnitt <i>Windows-Warnungen</i>. Das Setup fragt nach der Desktop-Verknüpfung "
+            "und installiert nur für den angemeldeten Benutzer.",
+            "Das Programm aus dem Startmenü starten (<i>Rohrlaser Angebotskalkulation</i>; daneben liegt die "
+            "Bedienungsanleitung).",
+            "Eine neue Version des Setups lässt sich jederzeit über die alte installieren; die Daten bleiben. Meist "
+            "reicht aber das Online-Update (Abschnitt <i>Updates</i>).", nummeriert=True)
+    i.text("Deinstallieren: <i>Einstellungen → Apps → Rohrlaser Angebotskalkulation → Deinstallieren</i>. Entfernt "
+           "werden nur die Programmdateien. Datendatei, Sicherungen und PDF bleiben, eine spätere Installation findet "
+           "sie wieder.")
+    i.abschnitt("Portable Version entpacken")
+    i.liste("Unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
             "In einen Ordner entpacken, in dem man schreiben darf, z. B. <i>C:\\Rohrlaser</i>. Nicht nach "
             "<i>C:\\Programme</i>, dort darf das Programm seine Daten nicht ablegen.",
             "<b>Rohrlaser-Angebotskalkulation.exe</b> starten. Wer will, legt sich eine Verknüpfung auf den Desktop "
             "(rechte Maustaste → Senden an → Desktop).", nummeriert=True)
-    i.text("Der Programmordner sieht danach so aus:")
+    i.text("Der Programmordner der portablen Version sieht danach so aus (die installierte Version hat dieselben "
+           "Programmdateien, aber keine <i>Portabel.ini</i>, keinen Ordner <i>Daten</i> und keinen Ordner "
+           "<i>Angebote</i>):")
     i.tabelle(["Datei / Ordner", "Inhalt"], [
         ["Rohrlaser-Angebotskalkulation.exe", "das Programm"],
         ["Bedienungsanleitung.pdf", "diese Anleitung (auch über <i>Hilfe → Bedienungsanleitung</i> oder F1)"],
+        ["Portabel.ini", "macht das Programm portabel: Daten im Ordner daneben. Darin lässt sich auch ein anderer "
+                         "Datenordner eintragen (Zeile <i>daten = …</i>). Nicht löschen, sonst sucht das Programm "
+                         "die Daten im Benutzerprofil."],
         ["STEP-Import\\", "Messprogramm für STEP-Dateien. Muss neben der .exe liegen bleiben."],
         ["_internal\\", "Programmbibliotheken, nicht verändern"],
         ["Daten\\rohrlaser.db", "Datendatei: Stammdaten, Einstellungen, alle Angebote. Wird beim ersten Start "
                                 "angelegt."],
-        ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (die letzten 30)"],
+        ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (Abschnitt <i>Datensicherung und Umzug</i>)"],
         ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"],
         ["Update.json", "Liste der Programmdateien des installierten Stands (für das Update, Abschnitt "
                         "<i>Updates</i>)"]],
         [60, 205])
+    i.text("Eine ältere portable Version ohne <i>Portabel.ini</i> erkennt das Programm am Ordner <i>Daten</i> neben "
+           "der .exe und arbeitet dort weiter wie bisher.")
     i.abschnitt("Windows-Warnungen (SmartScreen, Defender)")
-    i.text("Das Programm ist nicht digital signiert und wird mit PyInstaller gebaut. Programme dieser Art hält "
-           "Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
+    i.text("Programm und Setup sind nicht digital signiert und werden mit PyInstaller gebaut. Programme dieser Art "
+           "hält Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
            "Administratorrechte, geht nur für die Suche nach Updates ins Internet (Abschnitt <i>Updates</i>) und "
-           "schreibt nur in seinen eigenen Ordner und in die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
+           "schreibt nur in seinen Programm- und Datenordner und in die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
            "jede .exe Hersteller-, Produkt- und Versionsangaben (rechte Maustaste → Eigenschaften → Details), und das "
            "Startprogramm wird für dieses Programm eigens übersetzt.")
-    i.liste("<b>Vor dem Entpacken</b>: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
+    i.liste("<b>Vor dem Entpacken</b> des ZIP: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
             "<i>Zulassen</i> anhaken → OK. Sonst trägt Windows jede entpackte Datei als „aus dem Internet“ ein und "
             "prüft sie bei jedem Start besonders.",
-            "Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“: auf <i>Weitere "
-            "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt Windows nicht mehr.",
+            "Meldet Windows beim ersten Start des Programms oder des Setups „Der Computer wurde durch Windows "
+            "geschützt“: auf <i>Weitere Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt "
+            "Windows nicht mehr.",
             "Hat der Microsoft Defender eine Datei in Quarantäne verschoben: <i>Windows-Sicherheit → Viren- &amp; "
             "Bedrohungsschutz → Schutzverlauf</i>, den Eintrag öffnen, <i>Aktionen → Wiederherstellen</i> bzw. "
             "<i>Auf Gerät zulassen</i>. Den Fehlalarm bitte an Microsoft melden "
             "(www.microsoft.com/wdsi/filesubmission, Datei hochladen, „Incorrectly detected as malware“); "
             "nach der Prüfung nimmt Microsoft die Erkennung meist innerhalb weniger Tage zurück.",
-            "Ob das ZIP unverändert von GitHub kommt, zeigt die Prüfsumme: im Release liegt "
-            "<i>Rohrlaser-Angebotskalkulation.zip.sha256</i>. In PowerShell <i>Get-FileHash "
-            "Rohrlaser-Angebotskalkulation.zip</i> eingeben; die Zahl muss gleich sein.",
-            "Wahlweise den Programmordner (z. B. <i>C:\\Rohrlaser</i>) unter <i>Viren- &amp; Bedrohungsschutz → "
+            "Ob ZIP oder Setup unverändert von GitHub kommen, zeigt die Prüfsumme: im Release liegen "
+            "<i>Rohrlaser-Angebotskalkulation.zip.sha256</i> und <i>Rohrlaser-Angebotskalkulation-Setup.exe.sha256</i>. "
+            "In PowerShell <i>Get-FileHash</i> mit dem Dateinamen eingeben; die Zahl muss gleich sein.",
+            "Wahlweise den Programmordner unter <i>Viren- &amp; Bedrohungsschutz → "
             "Einstellungen verwalten → Ausschlüsse</i> eintragen. Dann prüft der Defender die Programmdateien nicht "
             "bei jedem Start, Programm und STEP-Import starten schneller. Nur diesen Ordner ausschließen, niemals "
             "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT.", nummeriert=True)
     i.abschnitt("Updates")
     i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (Release <i>aktuell</i> auf "
-           "GitHub). Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
+           "GitHub), installiert wie portabel. Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
            "Änderung. Ohne Internet oder bei einem Fehler meldet sich das Programm beim Start nicht. Von Hand: "
            "<b>Hilfe → Nach Updates suchen …</b>; dort steht auch, wenn das Programm schon aktuell ist. Welcher Stand "
            "installiert ist, zeigen Fenstertitel, Startseite und <i>Hilfe → Über …</i>.")
@@ -350,39 +389,76 @@ def kapitel_start(i):
     i.liste("Das Programm vergleicht jede Programmdatei über ihre Prüfsumme mit der neuen Version und lädt <b>nur die "
             "geänderten Dateien</b>. Meist sind das wenige MB statt des ganzen ZIP mit rund 180 MB. Beschädigte oder "
             "fehlende Programmdateien werden dabei gleich mit ersetzt.",
-            "Vor dem Austausch legt es eine Sicherung der Datendatei an (<i>Daten\\Sicherung</i>, Name endet auf "
-            "<i>_vor_update</i>), danach startet es neu.",
+            "Vor dem Austausch legt es eine geprüfte Sicherung der Datendatei an (Ordner <i>Sicherung</i> im "
+            "Datenordner, Name endet auf <i>_vor_update</i>), danach startet es neu. Scheitert diese Sicherung, "
+            "bricht das Update ab.",
             "Klappt der Austausch einer Datei nicht (z. B. weil die Bedienungsanleitung gerade in einem PDF-Programm "
             "offen ist), stellt das Programm alle Dateien zurück und bleibt, wie es war. Datei schließen und noch "
             "einmal versuchen.",
-            "Angefasst werden nur die Programmdateien: <i>Daten</i>, <i>Angebote</i> und eigene Dateien im "
+            "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
-            "Das Update funktioniert ab Version 0.3.0. Wer eine ältere Version hat, holt sich einmal das neue ZIP "
-            "(Abschnitt <i>Programm entpacken</i>) und kopiert den Ordner <i>Daten</i> hinüber.")
+            "Braucht eine neue Version eine erweiterte Datendatei, sichert das Programm sie vorher (Name endet auf "
+            "<i>_vor_Schema_…</i>). Eine ältere Programmversion öffnet eine so erweiterte Datei nicht mehr, sondern "
+            "meldet, dass sie von einer neueren Version stammt.",
+            "Das Update funktioniert ab Version 0.3.0. Wer eine ältere Version hat, holt sich einmal das neue Setup "
+            "oder ZIP und übernimmt die Daten (Abschnitt <i>Datensicherung und Umzug</i>).")
     i.abschnitt("Startseite")
-    i.text("Beim ersten Start legt das Programm die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in "
-           "Rot, dass es sich um Beispielwerte handelt.")
+    i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
+           "portablen Version oder einer Export-Datei, siehe unten). Ohne Übernahme legt es die Datendatei mit "
+           "Beispiel-Stammdaten an. Die Startseite zeigt in Rot, dass es sich um Beispielwerte handelt, und hinter "
+           "der Datendatei, ob das Programm installiert oder portabel läuft.")
     i.bild("start_beispiel", "Startseite nach dem ersten Start (Beispiel-Stammdaten)", hoehe=112 * mm, legende=[
-        (1, "<b>Datensicherung erstellen</b>: Kopie der Datendatei nach <i>Daten\\Sicherung</i> und, falls "
-            "eingestellt, in den zweiten Sicherungsordner."),
-        (2, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
+        (1, "<b>Datensicherung erstellen</b>: geprüfte Kopie der Datendatei in den Ordner <i>Sicherung</i> und, "
+            "falls eingestellt, in den zweiten Sicherungsordner."),
+        (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen (siehe unten)."),
+        (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
     i.text("Die Beispielwerte in den Stammdaten (Kapitel 3) und den Vorgaben (Kapitel 4) im Reiter Einstellungen durch die "
            "eigenen ersetzen: Preise, Maschinen, Schneiddaten, Briefkopf und Zuschläge. Danach rechnet das Programm "
            "mit den eigenen Werten.")
     i.abschnitt("Datensicherung und Umzug")
-    i.text("Beim ersten Start jedes Tages legt das Programm "
-           "automatisch eine Kopie der Datendatei in <i>Daten\\Sicherung</i> an. Beim Beenden kommt eine weitere "
-           "Kopie dazu (eine je Tag, sie wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>). In jedem "
-           "Sicherungsordner bleiben die letzten 30 Sicherungen erhalten.",
-           "<b>Zweiter Sicherungsordner</b> (Einstellungen, Gruppe Ablage): z. B. ein Netzlaufwerk oder ein "
-           "USB-Stick. Beim Beenden und mit <i>Datensicherung erstellen</i> geht dann zusätzlich eine Kopie dorthin. "
-           "Ist der Ordner nicht erreichbar, meldet das Programm das beim Beenden und fragt, ob trotzdem beendet "
-           "werden soll; die Sicherung in <i>Daten\\Sicherung</i> ist dann trotzdem angelegt.",
-           "Zurückholen: Programm schließen, <i>Daten\\rohrlaser.db</i> umbenennen und die gewünschte Sicherung als "
-           "<i>rohrlaser.db</i> in den Ordner <i>Daten</i> kopieren.",
-           "Für einen anderen Rechner einfach den ganzen Programmordner kopieren. Das Programm ist für einen "
-           "Arbeitsplatz gedacht; nicht von zwei Rechnern gleichzeitig mit derselben Datendatei arbeiten.")
+    i.text("Das Programm sichert die Datendatei in den Ordner <i>Sicherung</i> im Datenordner:")
+    i.liste("beim ersten Start jedes Tages,",
+            "beim Beenden (eine je Tag, wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>),",
+            "mit <b>Datensicherung erstellen</b> (Startseite oder Menü <i>Datei</i>),",
+            "vor einem Update (<i>_vor_update</i>), vor dem Erweitern der Datendatei (<i>_vor_Schema_…</i>), vor dem "
+            "Wiederherstellen (<i>_vor_Wiederherstellung</i>) und vor einem Import (<i>_vor_Import</i>).")
+    i.text("Jede Sicherung wird gleich nach dem Schreiben geprüft: die Datei muss unbeschädigt sein und gleich viele "
+           "Angebote und Positionen enthalten wie die Datendatei. Daneben liegt eine gleichnamige <i>.json</i>-Datei "
+           "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben die "
+           "letzten 30, von jeder Art der Sicherungen „vor …“ die letzten 10; sie werden also nicht von den "
+           "täglichen Sicherungen verdrängt. Gelöscht werden nur ältere Sicherungen, nie Angebote oder Stammdaten.",
+           "<b>Zweiter Sicherungsordner</b> (Einstellungen, Gruppe Ablage): z. B. ein Netzlaufwerk, OneDrive oder ein "
+           "USB-Stick. Beim Beenden, mit <i>Datensicherung erstellen</i> und vor Updates geht dann zusätzlich eine "
+           "Kopie dorthin. Ist der Ordner nicht erreichbar, meldet das Programm das beim Beenden und fragt, ob "
+           "trotzdem beendet werden soll; die Sicherung im Datenordner ist dann trotzdem angelegt. Für die "
+           "installierte Version ist ein zweiter Ordner besonders zu empfehlen.")
+    i.bild("sicherung_wiederherstellen", "Sicherung wiederherstellen", hoehe=80 * mm, legende=[
+        (1, "Sicherungen aus dem Datenordner und dem zweiten Sicherungsordner, neueste oben, mit Art, Anzahl "
+            "Angebote und Positionen. Grau: beschädigt oder von einer neueren Programmversion."),
+        (2, "<b>Wiederherstellen</b>: ersetzt alle Daten durch die gewählte Sicherung (Doppelklick geht auch). "
+            "<b>Andere Datei …</b>: eine Sicherung, Datendatei oder Export-Datei von woanders wählen.")])
+    i.liste("<b>Sicherung wiederherstellen …</b> (Startseite oder Menü <i>Datei</i>): Das Programm prüft die "
+            "gewählte Sicherung, sichert vorher den jetzigen Stand (<i>_vor_Wiederherstellung</i>, damit lässt sich "
+            "das Wiederherstellen selbst rückgängig machen), schließt offene Angebote und lädt alles neu. Eine "
+            "Sicherung einer neueren Programmversion wird abgelehnt; erst das Programm aktualisieren.",
+            "<b>Datei → Daten exportieren …</b> schreibt alle Daten in eine Export-Datei (ZIP mit Datendatei und "
+            "Beschreibung). <b>Datei → Daten importieren …</b> liest eine Export-Datei, eine Sicherung oder eine "
+            "Datendatei <i>rohrlaser.db</i> ein und ersetzt damit alle Daten; vorher sichert es den jetzigen Stand "
+            "(<i>_vor_Import</i>). Eine beschädigte Export-Datei erkennt das Programm an der Prüfsumme.",
+            "Lässt sich die Datendatei beim Start nicht öffnen (beschädigt, von einer neueren Version), bietet das "
+            "Programm an, eine Sicherung zu wählen. Die nicht lesbare Datei wird dabei nicht gelöscht, sondern in den "
+            "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
+    i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
+           "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
+           "ersten Start der neuen Version: auf die Frage nach vorhandenen Daten <b>Daten übernehmen …</b> wählen "
+           "und die Datei <i>Daten\\rohrlaser.db</i> der portablen Version, eine Sicherung oder eine Export-Datei "
+           "angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Danach mit der neuen Version "
+           "weiterarbeiten und die alte nicht mehr benutzen, sonst laufen zwei Datenbestände auseinander.",
+           "Das Programm ist für einen Arbeitsplatz gedacht. Solange es läuft, sperrt es seine Datendatei: Ein "
+           "zweites Programm mit derselben Datendatei (die andere Version, ein zweites Fenster oder ein anderer "
+           "Rechner auf einem Netzlaufwerk) meldet <b>„schon in einem anderen Programm geöffnet“</b> mit Rechner und "
+           "Benutzer und startet nicht.")
 
 
 def kapitel_stammdaten(i):
@@ -670,10 +746,11 @@ def kapitel_einstellungen(i):
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
                     "dieses Feld."],
         ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export; leer = Ordner <i>Angebote</i> neben dem "
-                                   "Programm. Auch ein Netzlaufwerk ist möglich."],
+                                   "Programm (portabel) bzw. <i>Dokumente\\Rohrlaser Angebote</i> (installiert). "
+                                   "Auch ein Netzlaufwerk ist möglich."],
         ["Ablage", "Zweiter Sicherungsordner", "zusätzliche Sicherung beim Beenden und mit <i>Datensicherung "
-                                               "erstellen</i>, z. B. Netzlaufwerk oder USB-Stick; leer = keiner "
-                                               "(Kapitel 2.3)"],
+                                               "erstellen</i>, z. B. Netzlaufwerk, OneDrive oder USB-Stick; leer = "
+                                               "keiner (Kapitel 2, Datensicherung und Umzug)"],
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
@@ -1356,11 +1433,11 @@ def kapitel_fragen(i):
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
         ["<b>Keine Verbindung zum Update</b>",
-         "Kein Internet, oder eine Firewall sperrt github.com. Später noch einmal versuchen; sonst das ZIP von Hand "
-         "holen und den Ordner <i>Daten</i> hinüberkopieren."],
+         "Kein Internet, oder eine Firewall sperrt github.com. Später noch einmal versuchen; sonst das Setup "
+         "(installiert) bzw. das ZIP (portabel) von Hand holen und die Daten übernehmen."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
          "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "
-         "Neu aus dem ZIP entpacken."],
+         "Setup neu installieren bzw. neu aus dem ZIP entpacken."],
         ["STEP: <b>Erkennung unsicher</b> oder <b>kein Rohrteil erkannt</b>",
          "Die Messung konnte Achse oder Querschnitt nicht eindeutig bestimmen und übernimmt bewusst keine Maße. "
          "Modell im CAD prüfen (ein Volumenkörper je Rohr, konstanter Querschnitt) oder die Position von Hand "
@@ -1391,11 +1468,24 @@ def kapitel_fragen(i):
          "Einstellungen bzw. beim Kunden die Vorgabe ändern."],
         ["Beim Beenden: <b>Sicherung nicht vollständig</b>",
          "Der zweite Sicherungsordner ist nicht erreichbar (Netzlaufwerk getrennt, USB-Stick fehlt). Die Sicherung "
-         "in Daten\\Sicherung ist angelegt; Ordner verbinden und <i>Datensicherung erstellen</i> wählen."],
+         "im Datenordner ist angelegt; Ordner verbinden und <i>Datensicherung erstellen</i> wählen."],
         ["Ablageordner lässt sich nicht öffnen", "Pfad in den Einstellungen prüfen (Netzlaufwerk verbunden?). Leer "
-                                                 "lassen = Ordner Angebote neben dem Programm."],
+                                                 "lassen = Vorgabe (portabel Ordner Angebote neben dem Programm, "
+                                                 "installiert Dokumente\\Rohrlaser Angebote)."],
         ["Daten versehentlich gelöscht oder Datendatei beschädigt",
-         "Programm schließen, Sicherung aus <i>Daten\\Sicherung</i> zurückkopieren (Kapitel 2.3)."]], [85, 180])
+         "<i>Sicherung wiederherstellen …</i> (Startseite oder Menü Datei) und einen Stand vor dem Fehler wählen "
+         "(Kapitel 2, Datensicherung und Umzug). Startet das Programm wegen einer beschädigten Datei nicht, bietet "
+         "es das Wiederherstellen beim Start an."],
+        ["<b>Die Datendatei … ist schon in einem anderen Programm geöffnet</b>",
+         "Ein zweites Programm (die andere Version, ein zweites Fenster oder ein anderer Rechner) arbeitet mit "
+         "derselben Datendatei. Dort beenden. Nach einem Absturz verschwindet die Sperre von selbst."],
+        ["Nach dem Installieren sind die <b>Angebote weg</b>",
+         "Die installierte Version hat ihre Daten im Benutzerprofil, die portable im Ordner Daten neben dem "
+         "Programm. In der installierten Version <i>Datei → Daten importieren …</i> und die Datei "
+         "<i>Daten\\rohrlaser.db</i> der portablen Version wählen."],
+        ["<b>Sicherung … stammt von einer neueren Programmversion</b>",
+         "Die Datei wurde schon mit einer neueren Version bearbeitet. Erst das Programm aktualisieren "
+         "(<i>Hilfe → Nach Updates suchen …</i>), dann wiederherstellen bzw. importieren."]], [85, 180])
 
 
 # ---------------------------------------------------------------- Ablauf
