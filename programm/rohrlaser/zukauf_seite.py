@@ -19,6 +19,7 @@ BREIT = 1280        # ab dieser Breite steht das Formular neben der Tabelle, dar
 GRAU, ROT, GELB = "#5F6B7A", "#B42318", "#8A5A00"
 ROTER_RAHMEN = "border: 1px solid #B42318; border-radius: 3px; background: #FDECEA;"
 OHNE_KATEGORIE = "ohne Kategorie"
+EK_FEHLT = "EK fehlt"
 QUELLE_TEXT = {zukauf.KATEGORIE: "Standard der Kategorie", zukauf.INDIVIDUELL: "individuell für diesen Artikel",
                zukauf.STANDARD: "Standard der Anwendung (Einstellungen)"}
 
@@ -171,6 +172,19 @@ class ZukaufFormular(QWidget):
         self.bemerkung = QLineEdit()
         self.angebotstext = QCheckBox("im Angebotstext der Position nennen")
         self.rest_lager = QCheckBox("Mehrmenge geht ins Lager (nur Verbrauch berechnen)")
+        # Blechteile: Maße und Werkstoff (vom STEP-Import vorbelegt); Herkunft, STEP-Datei und Kennung nur zur Ansicht
+        self.artikeltyp = QComboBox()
+        self.artikeltyp.addItem("normaler Zukaufartikel", "")
+        for t in zukauf.ZUKAUF_TYPEN:
+            self.artikeltyp.addItem(t, t)
+        self.b_laenge, self.b_breite, self.b_dicke = self._zahl("Länge"), self._zahl("Breite"), self._zahl("Dicke")
+        self.werkstoff = QComboBox()
+        self.werkstoff.setEditable(True)
+        self.werkstoff.lineEdit().setPlaceholderText("offen (wird nie angenommen)")
+        self.blech_info = QLabel()
+        self.blech_info.setWordWrap(True)
+        self.blech_info.setStyleSheet(f"color: {GRAU};")
+        self._blech_extra = {}
         # B Einkauf
         self.lieferanten = QListWidget()
         self.lieferanten.setMaximumHeight(62)
@@ -243,7 +257,14 @@ class ZukaufFormular(QWidget):
         fa.addRow("Artikelbezeichnung *", self.bezeichnung)
         fa.addRow("Kategorie", self.kategorie)
         fa.addRow("Mengeneinheit", self.einheit)
+        fa.addRow("Artikeltyp", self.artikeltyp)
+        self.zeile_masse = self._zeile(self.b_laenge, QLabel("×"), self.b_breite, QLabel("×"), self.b_dicke,
+                                       QLabel("mm"))
+        fa.addRow("Blech L × B × D", self.zeile_masse)
+        fa.addRow("Werkstoff", self.werkstoff)
+        fa.addRow("", self.blech_info)
         fa.addRow("", self.archiv)
+        self.fa = fa
         fb = self._bereich(lay, "B  Einkaufspreis")
         fb.addRow("Lieferanten", self.lieferanten)
         fb.addRow("", self._zeile(self.k_lief_neu, self.k_lief_weg, self.k_lief_bev))
@@ -307,16 +328,16 @@ class ZukaufFormular(QWidget):
         self.setMinimumWidth(460)
 
         for w in (self.artikelnr, self.bezeichnung, self.beschreibung, self.ean, self.bemerkung, self.wert,
-                  self.verbrauch):
+                  self.verbrauch, self.b_laenge, self.b_breite, self.b_dicke):
             w.textEdited.connect(self._geaendert)
         for w in self._bezug_eingaben():
             w.textEdited.connect(self._bezug_geaendert)
         self.lieferant.editTextChanged.connect(self._bezug_geaendert)
         self.preise.geaendert.connect(self._bezug_geaendert)
         self.auf_staffel.geaendert.connect(self._geaendert)
-        for w in (self.kategorie, self.einheit):
+        for w in (self.kategorie, self.einheit, self.werkstoff):
             w.editTextChanged.connect(self._geaendert)
-        for w in (self.quelle, self.methode):
+        for w in (self.quelle, self.methode, self.artikeltyp):
             w.currentIndexChanged.connect(self._geaendert)
         for w in (self.archiv, self.angebotstext, self.rest_lager, self.kombiniert):
             w.toggled.connect(self._geaendert)
@@ -389,6 +410,18 @@ class ZukaufFormular(QWidget):
         for n in ("artikelnr", "bezeichnung", "beschreibung", "ean", "bemerkung"):
             getattr(self, n).setText(a.get(n) or "")
         self.einheit.setCurrentText(a.get("einheit") or "Stück")
+        self.artikeltyp.setCurrentIndex(max(self.artikeltyp.findData(a.get("artikeltyp") or ""), 0))
+        for n, w in (("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke)):
+            x = a.get(n)
+            w.setText(zahl_als_text(x, None, tausender=False) if isinstance(x, (int, float)) else "")
+        self.werkstoff.clear()
+        self.werkstoff.addItems([""] + sorted(z["werkstoff_id"] for z in self.db.zeilen("werkstoffe")
+                                              if z.get("werkstoff_id")))
+        self.werkstoff.setCurrentText(a.get("werkstoff") or "")
+        self._blech_extra = {n: a.get(n) for n in ("herkunft", "step_datei", "fingerabdruck")}
+        info = [f"angelegt aus {a['herkunft']}" if a.get("herkunft") else "",
+                f"STEP-Datei {a['step_datei']}" if a.get("step_datei") else ""]
+        self.blech_info.setText(" · ".join(x for x in info if x))
         self.archiv.setChecked(archiviert(a))
         self.angebotstext.setChecked(a.get("angebotstext") == "ja")
         self.rest_lager.setChecked(a.get("rest_lager") == "ja")
@@ -530,7 +563,11 @@ class ZukaufFormular(QWidget):
                      angebotstext="ja" if self.angebotstext.isChecked() else "nein",
                      rest_lager="ja" if self.rest_lager.isChecked() else "nein",
                      aufschlag_quelle=self.quelle.currentData(), aufschlag_methode=None, aufschlag_wert=None,
-                     aufschlag_staffel=None, kombiniert="nein")
+                     aufschlag_staffel=None, kombiniert="nein", artikeltyp=self.artikeltyp.currentData() or None,
+                     werkstoff=self.werkstoff.currentText().strip() or None, **self._blech_extra)
+        for n, w in (("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke)):
+            werte[n] = _zahl_oder_none(w.text(), zukauf.ARTIKEL.feld(n).titel, fehler, n, groesser_null=True) \
+                if werte["artikeltyp"] else None
         if werte["aufschlag_quelle"] == zukauf.INDIVIDUELL:
             m = self.methode.currentData()
             werte["aufschlag_methode"] = m
@@ -558,6 +595,9 @@ class ZukaufFormular(QWidget):
         self.fc.setRowVisible(self.zeile_wert, individuell and m != zukauf.STAFFEL)
         self.fc.setRowVisible(self.auf_staffel, individuell and m == zukauf.STAFFEL)
         self.fc.setRowVisible(self.kombiniert, individuell)
+        blech = werte["artikeltyp"] == zukauf.BLECH
+        for w in (self.zeile_masse, self.werkstoff, self.blech_info):
+            self.fa.setRowVisible(w, blech)
         self.wert_einheit.setText("€" if m in (zukauf.JE_EINHEIT, zukauf.JE_BESTELLUNG) else "%")
         kat = self.kategorien.get(werte["kategorie"]) or {}
         r_kat = zukauf.aufschlagsregeln(dict(kategorie=werte["kategorie"]), self.kategorien, None)
@@ -574,7 +614,8 @@ class ZukaufFormular(QWidget):
         self.methode_info.setText(zukauf.METHODE_TEXT.get(m, "") + (
             ". Achtung: Aufschlag ist nicht Marge (20 % Aufschlag auf 10,00 € = 12,00 €, 20 % Marge = 12,50 €)."
             if m in (zukauf.PROZENT, zukauf.MARGE, zukauf.STAFFEL) else "") if individuell else "")
-        for n, w in (("wert", self.wert), ("preise", self.preise), ("auf_staffel", self.auf_staffel)) + tuple(
+        for n, w in (("wert", self.wert), ("preise", self.preise), ("auf_staffel", self.auf_staffel),
+                     ("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke)) + tuple(
                 (n, getattr(self, n)) for n in self.BEZUG_ZAHLEN + ("gueltig_von", "gueltig_bis")):
             w.setStyleSheet(ROTER_RAHMEN if n in fehler else "")
         verbrauch = _zahl_oder_none(self.verbrauch.text(), "Verbrauch", fehler, "verbrauch", groesser_null=True) or 1
@@ -719,7 +760,9 @@ class ArtikelSeite(QWidget):
         self.kat_filter = QComboBox()
         self.lief_filter = QComboBox()
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["Aktive", "Archivierte", "Alle"])
+        self.status_filter.addItems(["Aktive", EK_FEHLT, "Archivierte", "Alle"])
+        self.status_filter.setToolTip(f"{EK_FEHLT}: aktive Artikel ohne Einkaufspreis über 0 € (z. B. Bleche aus dem "
+                                      "STEP-Import), Preis mit 'EK eintragen …' nachtragen")
         self.sortierung = QComboBox()
         self.sortierung.addItems(list(SORTIERUNG))
         for cb in (self.kat_filter, self.lief_filter, self.status_filter, self.sortierung):
@@ -763,12 +806,16 @@ class ArtikelSeite(QWidget):
         self.k_bearbeiten = QPushButton("Bearbeiten")
         self.k_duplizieren = QPushButton("Duplizieren")
         self.k_archiv = QPushButton("Archivieren")
+        self.k_ek = QPushButton("EK eintragen …")
+        self.k_ek.setToolTip("Einkaufspreis je Einheit beim bevorzugten Lieferanten eintragen (z. B. für Bleche aus "
+                             "dem STEP-Import, die noch keinen Preis haben)")
         self.k_angebot = QPushButton("In Angebot übernehmen …")
         self.k_angebot.setToolTip("Artikel mit aktuellem Preisstand als Zukaufteil in eine Position eines Angebots "
                                   "übernehmen")
         self.aktionen = QHBoxLayout()
         for k, f in ((self.k_bearbeiten, self.bearbeiten), (self.k_duplizieren, self.duplizieren),
-                     (self.k_archiv, self.archiv_umschalten), (self.k_angebot, self.in_angebot)):
+                     (self.k_archiv, self.archiv_umschalten), (self.k_ek, self.ek_eintragen),
+                     (self.k_angebot, self.in_angebot)):
             k.clicked.connect(lambda _=False, f=f: f())
             self.aktionen.addWidget(k)
         self.aktionen.addStretch(1)
@@ -867,7 +914,9 @@ class ArtikelSeite(QWidget):
                 continue
             if lief not in ("", "Alle") and lief not in {b.get("lieferant") for b in a["bezuege"]}:
                 continue
-            if status == "Aktive" and archiviert(a) or status == "Archivierte" and not archiviert(a):
+            if status in ("Aktive", EK_FEHLT) and archiviert(a) or status == "Archivierte" and not archiviert(a):
+                continue
+            if status == EK_FEHLT and not zukauf.ek_fehlt(a):
                 continue
             out.append(a)
         art = self.sortierung.currentText()
@@ -897,7 +946,7 @@ class ArtikelSeite(QWidget):
         return dict(artikelnr=a.get("artikelnr") or "", bezeichnung=a.get("bezeichnung") or "",
                     kategorie=a.get("kategorie") or "", lieferant=a["_bezug"].get("lieferant") or "",
                     einheit=zukauf.EINHEIT_KURZ.get(a.get("einheit"), a.get("einheit") or ""),
-                    ek=euro_einheit(v["je_einheit"]["ek"]) if ok else "kein Preis",
+                    ek=euro_einheit(v["je_einheit"]["ek"]) if ok else (EK_FEHLT if zukauf.ek_fehlt(a) else "kein Preis"),
                     bezug=" + ".join(x for x in (
                         f"{euro(a['_je_bestellung'])} je Best." if a["_je_bestellung"] else "",
                         f"{euro_einheit(v['je_einheit']['bezug'])} je {zukauf.EINHEIT_KURZ.get(a.get('einheit'), 'Einh.')}"
@@ -923,7 +972,7 @@ class ArtikelSeite(QWidget):
                     it.setFont(f)
                 if archiviert(a):
                     it.setForeground(Qt.gray)
-                elif (n == "ek" and w[n] == "kein Preis") or (n == "aufschlag" and w[n] == "kein Aufschlag"):
+                elif (n == "ek" and w[n] in ("kein Preis", EK_FEHLT)) or (n == "aufschlag" and w[n] == "kein Aufschlag"):
                     it.setForeground(Qt.red)
                 elif n == "status" and w[n] == "Preis abgelaufen":
                     it.setForeground(Qt.darkYellow)
@@ -978,7 +1027,7 @@ class ArtikelSeite(QWidget):
 
     def _auswahl(self):
         a = self.zeile(self.gewaehlt())
-        for k in (self.k_bearbeiten, self.k_duplizieren, self.k_archiv):
+        for k in (self.k_bearbeiten, self.k_duplizieren, self.k_archiv, self.k_ek):
             k.setEnabled(a is not None)
         self.k_archiv.setText("Wieder aktivieren" if a and archiviert(a) else "Archivieren")
         if not a:
@@ -993,6 +1042,10 @@ class ArtikelSeite(QWidget):
         extra = [x for x in (a.get("kategorie"), a.get("beschreibung")) if x]
         if a.get("ean"):
             extra.append(f"EAN {a['ean']}")
+        if a.get("artikeltyp") == zukauf.BLECH:
+            extra.append(zukauf.blech_bezeichnung(a.get("laenge"), a.get("breite"), a.get("dicke"), a.get("werkstoff"))
+                         + (f", aus {a['herkunft']}" if a.get("herkunft") else "")
+                         + (f" ({a['step_datei']})" if a.get("step_datei") else ""))
         teile = [f"<b>{kopf}</b> &nbsp; <span style='color:{GRAU}'>{' · '.join(extra)}</span>"]
         for b in a["bezuege"]:
             z = [("★ " if b.get("bevorzugt") == "ja" else "") + (b.get("lieferant") or "ohne Lieferant")]
@@ -1016,6 +1069,9 @@ class ArtikelSeite(QWidget):
                          f"{euro_einheit(je['aufschlag'])}; <b>Verkaufspreis {euro_einheit(je['vk'])}</b>")
             if v["warnung"]:
                 teile.append(f"<span style='color:{GELB}'>{v['warnung']}</span>")
+        if zukauf.ek_fehlt(a) and not archiviert(a):
+            teile.append(f"<span style='color:{ROT}; font-weight:bold'>{EK_FEHLT}: Angebote mit diesem Artikel sind "
+                         "unvollständig, bis ein Einkaufspreis über 0 € eingetragen ist (EK eintragen …).</span>")
         verw = self.db.zukauf_verwendung(a["id"])
         if verw["positionen"]:
             teile.append(f"verwendet in {verw['positionen']} Position(en), Angebote {', '.join(verw['angebote'][:8])}")
@@ -1027,7 +1083,8 @@ class ArtikelSeite(QWidget):
         self.tabelle.selectRow(self.tabelle.itemAt(pos).row())
         m = QMenu(self)
         for t, f in (("Bearbeiten", self.bearbeiten), ("Duplizieren", self.duplizieren),
-                     (self.k_archiv.text(), self.archiv_umschalten), ("In Angebot übernehmen …", self.in_angebot)):
+                     (self.k_archiv.text(), self.archiv_umschalten), ("EK eintragen …", self.ek_eintragen),
+                     ("In Angebot übernehmen …", self.in_angebot)):
             m.addAction(t, f)
         m.exec(self.tabelle.viewport().mapToGlobal(pos))
 
@@ -1119,9 +1176,43 @@ class ArtikelSeite(QWidget):
         kopie["artikelnr"] = kopie_nummer(kopie.get("artikelnr"), [x.get("artikelnr") for x in self.daten])
         kopie["bezeichnung"] = f"{kopie.get('bezeichnung') or ''} (Kopie)"
         kopie["status"] = "aktiv"
+        for n in ("herkunft", "step_datei", "fingerabdruck"):     # eine Kopie ist kein Ergebnis des STEP-Imports
+            kopie[n] = None
         for b in kopie["bezuege"]:
             b.pop("id", None)
         return self._oeffnen(kopie, None, f"Kopie von {a.get('bezeichnung')} (wird erst mit Speichern angelegt)")
+
+    def ek_eintragen(self, zeilen_id=None, preis=None):
+        """Einkaufspreis je Einheit beim bevorzugten Lieferanten eintragen (Abfrage, preis für Tests)."""
+        a = self.zeile(zeilen_id or self.gewaehlt())
+        if not a:
+            self.meldung("Bitte zuerst einen Artikel markieren.", fehler=True)
+            return False
+        if not self._verwerfen_ok():
+            return False
+        b = a["_bezug"]
+        lief = b.get("lieferant") or zukauf.BLECH_LIEFERANT.get(a.get("kategorie")) or None
+        if preis is None:
+            from PySide6.QtWidgets import QInputDialog
+            alt = (zukauf.staffel_sortiert(b.get("preise")) or [{}])[0].get("preis")
+            preis, ok = QInputDialog.getDouble(
+                self, "EK eintragen", f"{a.get('bezeichnung')}\nEinkaufspreis netto je "
+                f"{zukauf.EINHEIT_KURZ.get(a.get('einheit'), a.get('einheit') or 'Einheit')}"
+                + (f" bei {lief}" if lief else "") + " [€]:", float(alt or 0), 0, 1e7, 4)
+            if not ok:
+                return False
+        try:
+            self.db.zukauf_ek_eintragen(a["id"], preis, lief)
+        except ValueError as e:
+            self.meldung(str(e), fehler=True)
+            return False
+        self._formular_zu()
+        self.neu_laden()
+        if not self.auswaehlen(a["id"]):
+            self.status_filter.setCurrentText("Alle")
+            self.auswaehlen(a["id"])
+        self.meldung(f"Einkaufspreis für '{a.get('bezeichnung')}' eingetragen: {euro_einheit(zukauf.dez(preis))}.")
+        return True
 
     def archiv_umschalten(self, zeilen_id=None):
         a = self.zeile(zeilen_id or self.gewaehlt())
