@@ -18,9 +18,10 @@ from pathlib import Path
 
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+                         beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 12     # 12: offene Profile (U, C, L, Flachstahl) in der Auswahlliste Profilformen
+SCHEMA_VERSION = 13     # 13: Stundensätze und Arbeitsschritte, Snapshot 'zeitbasis' je Angebot
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -81,6 +82,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
             if "nachkalkulation" not in spalten_a:    # Datei vor Schema 8
                 self.con.execute("ALTER TABLE angebote ADD COLUMN nachkalkulation TEXT")
+            if "zeitbasis" not in spalten_a:          # Datei vor Schema 13 (alte Angebote: ohne Snapshot)
+                self.con.execute("ALTER TABLE angebote ADD COLUMN zeitbasis TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder)]:
                 vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
@@ -99,6 +102,11 @@ class Datenbank:
                 self._werkstoffe_ergaenzen()
             if 0 < version < 12:
                 self._profilformen_ergaenzen()
+            if 0 < version < 13:
+                if not self.anzahl("stundensaetze"):
+                    self._einfuegen("stundensaetze", beispiel_stundensaetze())
+                if not self.anzahl("arbeitsschritte"):
+                    self._einfuegen("arbeitsschritte", beispiel_arbeitsschritte())
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -227,12 +235,27 @@ class Datenbank:
     def kontext(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
-        return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen")},
+        return kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
+                                                        "stundensaetze")},
                            formen, kategorien)
 
     def tabellen(self):
-        """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten)."""
-        return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde", "zusatzarbeiten")}
+        """Stammdaten, die die Rechnung braucht (Preise, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
+        Arbeitsschritte)."""
+        return {t: self.zeilen(t) for t in ("preise", "schneiddaten", "gewinde", "zusatzarbeiten", "stundensaetze",
+                                            "arbeitsschritte")}
+
+    def zeitbasis_vorgabe(self, maschinen_id):
+        """Snapshot der Stundensätze und Zeitvorgaben für ein Angebot (rechnen.zeitbasis_aus)."""
+        from .rechnen import zeitbasis_aus
+        return zeitbasis_aus(maschinen_id, self.kontext(), self.tabellen())
+
+    def zeitbasis_speichern(self, angebot_id, zeitbasis):
+        """Stundensätze und Zeitvorgaben eines Angebots setzen (None = wieder die aktuellen Stammdaten)."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET zeitbasis=?, geaendert=? WHERE id=?",
+                             (json.dumps(zeitbasis, ensure_ascii=False) if zeitbasis is not None else None,
+                              self._jetzt(), angebot_id))
 
     # -------------------------------------------------------------- Kunden
     def kunde(self, kundennr):
@@ -258,9 +281,10 @@ class Datenbank:
         return out
 
     def kalkulation_zuruecksetzen(self, angebot_id):
-        """Kalkulationswerte des Angebots wieder auf die Einstellungen setzen."""
+        """Kalkulationswerte, Stundensätze und Zeitvorgaben des Angebots wieder auf die Einstellungen setzen."""
         for n, w in self.kalkulation_vorgaben().items():
             self.angebot_aendern(angebot_id, n, w)
+        self.zeitbasis_speichern(angebot_id, self.zeitbasis_vorgabe(self.angebot(angebot_id).get("maschine")))
 
     def kunde_uebernehmen(self, angebot_id, kundennr):
         """Kundennummer ins Angebot; steht sie im Kundenstamm, auch Name und Zahlungsbedingungen.
@@ -296,6 +320,7 @@ class Datenbank:
         a["ergebnis"] = json.loads(a["ergebnis"]) if a["ergebnis"] else None
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
+        a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         return a
 
     def _jetzt(self):
@@ -320,11 +345,13 @@ class Datenbank:
         for n, w in self.kalkulation_vorgaben().items():
             kopf.setdefault(n, w)
         namen = [f.name for f in KOPF if f.name in kopf]
+        zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
         try:
             with self.con:
                 i = self.con.execute(
-                    f'INSERT INTO angebote ({", ".join(namen)}, angelegt, geaendert) VALUES '
-                    f'({", ".join("?" * len(namen))}, ?, ?)', [kopf[n] for n in namen] + [self._jetzt()] * 2).lastrowid
+                    f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
+                    f'({", ".join("?" * len(namen))}, ?, ?, ?)',
+                    [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
                 self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
@@ -339,6 +366,13 @@ class Datenbank:
             with self.con:
                 self.con.execute(f'UPDATE angebote SET "{feld}"=?, geaendert=? WHERE id=?',
                                  (wert, self._jetzt(), angebot_id))
+                if feld == "maschine":          # andere Maschine: deren Stundensatz, Rüstzeit, Stangenwechsel
+                    zb = self.con.execute("SELECT zeitbasis FROM angebote WHERE id=?", (angebot_id,)).fetchone()[0]
+                    if zb:
+                        zb = json.loads(zb)
+                        zb["maschine"] = self.zeitbasis_vorgabe(wert)["maschine"]
+                        self.con.execute("UPDATE angebote SET zeitbasis=? WHERE id=?",
+                                         (json.dumps(zb, ensure_ascii=False), angebot_id))
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{wert}' gibt es schon.")
 
@@ -348,6 +382,7 @@ class Datenbank:
         a = self.angebot(angebot_id)
         kopf = {f.name: a[f.name] for f in KOPF if f.name != "nummer"}
         kopf["datum"] = datetime.date.today().isoformat()
+        kopf["zeitbasis"] = a.get("zeitbasis")      # gleiche Stundensätze; ältere Angebote: aktuelle Vorgaben
         if kundennr is not None and kundennr != a.get("kundennr"):
             k = self.kunde(kundennr)
             kopf["kundennr"] = kundennr or None

@@ -7,7 +7,7 @@ import csv
 
 from .angebot import KOPF
 from .angebot_spalten import KALK_SPALTEN
-from .rechnen import kostenarten
+from .rechnen import kostenarten, schritt_sichtbar, schritt_texte
 from .stammdaten import wert_als_text, zahl_als_text
 
 
@@ -31,6 +31,15 @@ def angebot_csv(pfad, kopf, kalk_zeilen, summen, einst):
         w.writerow(["Kostenart", "Betrag [€]"])
         for t, betrag, _ in kostenarten(summen, einst):
             w.writerow([t, _zelle(betrag, 2)])
+        w.writerow([])
+        w.writerow(["Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit [min]",
+                    "Stundensatz [€/h]", "Kosten [€]", "Quelle", "Berechnung"])
+        for z in summen["zeiten"]:
+            if schritt_sichtbar(z):
+                menge, ruest, zeit, _, satz = schritt_texte(z)
+                w.writerow([z["schritt"], z["art"] + (" (parallel)" if z["parallel"] and z["art"] != "Maschine" else ""),
+                            menge, ruest, zeit, _zelle(z["gesamt_min"], 2), _zelle(z["satz"], 2), _zelle(z["kosten"], 2),
+                            z["quelle"], z["formel"]])
         w.writerow([])
         w.writerow([t for t, _, _, _ in KALK_SPALTEN])
         for z in kalk_zeilen:

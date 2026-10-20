@@ -22,6 +22,21 @@ ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfal
 # Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge oder Stück; 's/Stück' = Zeit in
 # Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur, die nicht im STEP-Modell ist)
 ZUSATZARTEN = ("€/kg", "€/m²", "€/m", "€/Stück", "s/Stück")
+# Arbeitsschritte: Stundensatz 'Maschine' = Stundensatz der im Angebot gewählten Maschine (Stammdaten Maschinen)
+SATZ_MASCHINE = "Maschine"
+ZEITARTEN = ("Maschine", "Personal")
+RUESTBEZUG = ("Angebot", "Abmessung")
+ZEITBEZUG = ("Teil", "Stange", "Position")
+# Arbeitsschritte, deren Zeit das Programm selbst ermittelt (Schneiddaten, Gewinde, Maschinen, Einstellungen):
+# in der Tabelle Arbeitsschritte zählen für sie nur Stundensatz, Art und 'parallel'
+SCHRITTE_FEST = {
+    "Laser schneiden": "Schneidweg, Konturen und Einstiche mit den Schneiddaten bzw. Schneidzeit von Hand, dazu "
+                       "Zusatzarbeiten in s/Stück",
+    "Gewinde": "Anzahl Gewinde × Zeit je Gewinde (Stammdaten Gewinde); Gewinde mit Festpreis ohne Zeit",
+    "Rüsten Maschine": "Rüstzeit je Angebot der Maschine (Stammdaten Maschinen)",
+    "Rüsten je Abmessung": "Rüstzeit je Abmessung aus dem Angebot (Vorgabe Einstellungen)",
+    "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen",
+}
 ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk"}
 
 
@@ -260,7 +275,37 @@ ZUSATZARBEITEN = Tabelle(
     "Gravur, die nicht im Teil ist). Mindestbetrag: liegt die Summe im Angebot darunter, wird auf den "
     "Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag Fremdleistung, sonst Zuschlag Fertigung.")
 
-TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN)
+STUNDENSAETZE = Tabelle(
+    "stundensaetze", "Stundensätze",
+    (Feld("satz_id", "Stundensatz-ID", pflicht=True, breite=130),
+     Feld("bezeichnung", "Bezeichnung", breite=180),
+     Feld("satz", "Stundensatz [€/h]", "zahl", 0, 10000, stellen=2, pflicht=True, breite=90),
+     Feld("bemerkung", "Bemerkung", breite=300)),
+    ("satz_id",),
+    "Stundensätze für die Arbeitsschritte. Der Satz 'Maschine' steht nicht hier: er ist immer der Stundensatz der "
+    "im Angebot gewählten Maschine (Stammdaten Maschinen). Neue Angebote übernehmen die Sätze beim Anlegen; "
+    "spätere Änderungen wirken nur auf neue Angebote (oder im Angebot nach 'Stundensätze aus Einstellungen').")
+
+ARBEITSSCHRITTE = Tabelle(
+    "arbeitsschritte", "Arbeitsschritte",
+    (Feld("schritt", "Arbeitsschritt", pflicht=True, breite=170),
+     Feld("satz", "Stundensatz", "auswahl", auswahl="stundensatz", pflicht=True, breite=130),
+     Feld("art", "Art", "auswahl", auswahl="zeitart", pflicht=True, breite=75),
+     Feld("parallel", "Parallel zur Maschine", "auswahl", auswahl="janein", breite=75),
+     Feld("ruestzeit", "Rüstzeit [min]", "zahl", 0, 100000, stellen=1, breite=70),
+     Feld("ruest_bezug", "Rüstzeit je", "auswahl", auswahl="ruestbezug", breite=80),
+     Feld("zeit", "Zeit je Einheit [s]", "zahl", 0, 100000, stellen=1, breite=75),
+     Feld("bezug", "Einheit", "auswahl", auswahl="zeitbezug", breite=70),
+     Feld("bemerkung", "Bemerkung", breite=330)),
+    ("schritt",),
+    "Zeitvorgaben je Arbeitsschritt. Gesamtzeit = Rüstzeit × Anzahl (je Angebot einmal, je Abmessung je Profil-ID) "
+    "+ Zeit je Einheit × Menge (je Teil = Stückzahl, je Stange, je Position); Kosten = Gesamtzeit / 60 × "
+    "Stundensatz, mit Zuschlag Fertigung in die Herstellkosten. Laser schneiden, Gewinde, Rüsten Maschine, "
+    "Rüsten je Abmessung und Stangenwechsel rechnet das Programm selbst; bei ihnen zählen nur Stundensatz, Art "
+    "und Parallel. Art Personal mit Parallel = ja läuft neben der Maschine und verlängert die Durchlaufzeit nicht.")
+
+TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN,
+            STUNDENSAETZE, ARBEITSSCHRITTE)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -269,6 +314,7 @@ VERWEISE = {
     ("profile", "profil_id"): (("preise", "profil_id"),),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("schneiddaten", "werkstoff_id")),
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"),),
+    ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"),),
 }
 
 
@@ -402,6 +448,7 @@ class Kontext:
     werkstoffe: dict = field(default_factory=dict)
     maschinen: dict = field(default_factory=dict)
     oberflaechen: dict = field(default_factory=dict)
+    stundensaetze: dict = field(default_factory=dict)
     profilformen: tuple = PROFILFORMEN
     kategorien: tuple = KATEGORIEN
 
@@ -424,7 +471,9 @@ class Kontext:
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
-                         "gas": list(GASE)}[quelle])]
+                         "gas": list(GASE), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
+                         "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),
+                         "zeitbezug": list(ZEITBEZUG)}[quelle])]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
@@ -434,6 +483,7 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.werkstoffe = {z["werkstoff_id"]: z for z in daten.get("werkstoffe", []) if z.get("werkstoff_id")}
     k.maschinen = {z["maschinen_id"]: z for z in daten.get("maschinen", []) if z.get("maschinen_id")}
     k.oberflaechen = {z["oberflaeche"]: z for z in daten.get("oberflaechen", []) if z.get("oberflaeche")}
+    k.stundensaetze = {z["satz_id"]: z for z in daten.get("stundensaetze", []) if z.get("satz_id")}
     k.profilformen = tuple(profilformen)
     k.kategorien = tuple(kategorien)
     return k
@@ -463,6 +513,11 @@ def pruefen(t, z, k):
             return f"FEHLER: {f.titel} außerhalb {zahl_als_text(f.von)}–{zahl_als_text(f.bis)}"
         if w not in (None, "") and f.art == "auswahl" and w not in k.auswahl(f.auswahl):
             return f"FEHLER: {f.titel} unbekannt"
+    if t is ARBEITSSCHRITTE:
+        if z.get("schritt") in SCHRITTE_FEST and (z.get("ruestzeit") or z.get("zeit")):
+            return "WARNUNG: Zeit rechnet das Programm selbst, Rüstzeit und Zeit je Einheit hier werden nicht verwendet"
+        if z.get("zeit") and not z.get("bezug"):
+            return "FEHLER: Einheit fehlt"
     if t is PROFILE:
         a, s = z.get("a"), z.get("wand")
         if z.get("form") == "Flachstahl":
@@ -526,6 +581,8 @@ def beispieldaten():
         "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None, p)
                                     for i, (g, k, p) in enumerate(gewinde)]),
         "zusatzarbeiten": beispiel_zusatzarbeiten(),
+        "stundensaetze": beispiel_stundensaetze(),
+        "arbeitsschritte": beispiel_arbeitsschritte(),
     }
 
 
@@ -584,6 +641,32 @@ def beispiel_schneiddaten():
                 out.append((m, None, kat, gas, wand, v, round(v * 0.7, -1), round(v * 0.4, -1), ein,
                             12000 if gas == "N₂" else 10000, "Beispiel"))
     return out
+
+
+def beispiel_stundensaetze():
+    """Vorbelegung der Stundensätze (Beispielwerte, bitte durch eigene ersetzen)."""
+    werte = [("Programmierung", "Programmierung / CAD", 60.0), ("Rüstpersonal", "Rüsten und Materialbereitstellung", 48.0),
+             ("Nachbearbeitung", "Entgraten, manuelle Nacharbeit", 45.0), ("Qualitätskontrolle", "Prüfen, Messen", 50.0),
+             ("Verpackung", "Verpacken, Kommissionieren", 40.0), ("Sonstige", "Sonstige Arbeitsplätze", 45.0)]
+    return [dict(satz_id=i, bezeichnung=b, satz=w, bemerkung="Beispielwert, bitte anpassen") for i, b, w in werte]
+
+
+def beispiel_arbeitsschritte():
+    """Vorbelegung der Arbeitsschritte: die vom Programm gerechneten mit dem Maschinenstundensatz (wie bisher),
+    weitere Schritte mit Zeit 0 (rechnen erst, wenn eine Zeit eingetragen ist)."""
+    fest = [dict(schritt=n, satz=SATZ_MASCHINE, art="Maschine", parallel="nein", bemerkung="Zeit: " + t)
+            for n, t in SCHRITTE_FEST.items()]
+    weitere = [("Materialbereitstellung", "Rüstpersonal", "Personal", "ja", "Angebot", "Stange",
+                "Stangen holen und auflegen, soweit nicht im Stangenwechsel enthalten"),
+               ("Entgraten / Nachbearbeitung", "Nachbearbeitung", "Personal", "ja", "Angebot", "Teil",
+                "nicht zusätzlich zur Zusatzarbeit Entgraten ansetzen"),
+               ("Qualitätskontrolle", "Qualitätskontrolle", "Personal", "ja", "Angebot", "Position",
+                "z. B. Erstteilprüfung je Position"),
+               ("Verpackung", "Verpackung", "Personal", "nein", "Angebot", "Teil", ""),
+               ("Sonstige Arbeiten", "Sonstige", "Personal", "nein", "Angebot", "Teil", "")]
+    zeilen = fest + [dict(schritt=n, satz=s, art=a, parallel=p, ruestzeit=0.0, ruest_bezug=rb, zeit=0.0, bezug=b,
+                          bemerkung=bem or None) for n, s, a, p, rb, b, bem in weitere]
+    return [{f.name: z.get(f.name) for f in ARBEITSSCHRITTE.felder} for z in zeilen]
 
 
 def beispiel_zusatzarbeiten():
