@@ -9,13 +9,30 @@ Regeln: Was nicht gemessen wurde, ist null (nie 0 oder ein Ersatzwert); der Grun
 
 Versionen von SCHEMA_VERSION:
 - 1.0 (19.10.2026): erste Fassung.
+- 1.1 (20.10.2026): "bauteiltyp" (Profil, Blech, Blech gekantet) und je Blech der Block "blech" (Länge, Breite, Dicke,
+  Flächen, Volumen, Kontur, Innenkonturen, Bohrungen, Fingerabdruck). Bei Blechen sind Profilwerte (Querschnitt,
+  Wandstärke, Innenmaße) null. Felder aus 1.0 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
+BLECH = ("Blech", "Blech gekantet")
+
+
+def _blech(b):
+    """Blechblock fürs JSON (nur Bleche)."""
+    if not b:
+        return None
+    out = {k: _r(b.get(k), 2) for k in ("laenge", "breite", "hoehe", "dicke", "flaeche_aussen", "flaeche_netto",
+                                         "abwicklung_flaeche", "volumen", "umfang_aussen", "umfang_innen")
+           if b.get(k) is not None}
+    out.update(kontur=b.get("kontur"), innenkonturen=b.get("innen", 0),
+               bohrungen=[dict(durchmesser=_r(d), anzahl=n) for d, n in (b.get("bohrungen") or {}).items()],
+               fingerabdruck=b.get("fingerabdruck"))
+    return out
 
 
 def _r(x, n=3):
@@ -28,7 +45,11 @@ def koerper(t):
     hohl = t.profilform in HOHL and t.innen_a > 0
     konturen = [k for k in t.konturen_liste if not k["art"].startswith("Ende ")]
     enden = {k["art"]: k for k in t.konturen_liste if k["art"].startswith("Ende ")}
-    if t.profilform in ("Rundrohr", "Rundstahl"):
+    blech = t.profilform in BLECH
+    if blech:
+        aussen = dict(laenge=_r(t.blech.get("laenge")), breite=_r(t.blech.get("breite")),
+                      dicke=_r(t.blech.get("dicke")))
+    elif t.profilform in ("Rundrohr", "Rundstahl"):
         aussen = dict(durchmesser=_r(t.abm_a))
     elif t.profilform in ("Quadratrohr", "Vierkantstahl"):
         aussen = dict(a=_r(t.abm_a), b=_r(t.abm_a))
@@ -39,7 +60,7 @@ def koerper(t):
                                                                                          b=_r(t.innen_b))
     else:
         innen = None
-    if gemessen and t.profilform not in VOLL:
+    if gemessen and t.profilform not in VOLL and not blech:
         wand = dict(wert=_r(t.wandstaerke), minimum=_r(min([m[3] for m in t.wand_messungen] + [t.wandstaerke])),
                     maximum=_r(max([m[3] for m in t.wand_messungen] + [t.wandstaerke])),
                     einzelmessungen=[dict(z=_r(z), x=_r(x), y=_r(y), wert=_r(w), seite=s)
@@ -57,11 +78,12 @@ def koerper(t):
         "anzahl_flaechen": t.n_flaechen,
         "anzahl_kanten": t.n_kanten,
         "huellquader_datei": list(map(_r, t.huelle)) if t.huelle else None,
+        "bauteiltyp": t.bauteiltyp or None,
         "profiltyp": t.profilform or None,
         "profil_id_vorschlag": t.profil_id_vorschlag or None,
         "aussenmasse": aussen if gemessen else None,
         "innenmasse": innen,
-        "querschnittsflaeche_mm2": _r(t.flaeche, 2) if gemessen else None,
+        "querschnittsflaeche_mm2": _r(t.flaeche, 2) if gemessen and not blech else None,
         "wandstaerke": wand,
         "laenge": _r(t.laenge) if gemessen else None,
         "laengsachse": dict(richtung=list(map(lambda x: _r(x, 6), t.achse_global)),
@@ -73,6 +95,7 @@ def koerper(t):
         if konturen_ausgewertet else None,
         "konturen": [dict(d) for d in konturen] if konturen_ausgewertet else None,
         "enden": list(enden.values()) if konturen_ausgewertet else None,
+        "blech": _blech(t.blech) if blech else None,
         "pruefstatus": t.pruefstatus,
         "warnungen": list(t.hinweise),
         "erkennungssicherheit": dict(t.sicherheit),

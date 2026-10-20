@@ -7,10 +7,12 @@ und schreibt die Messwerte als Textdatei (UTF-8, Tabulator-getrennt, Dezimalpunk
 "STEP importieren" im Programm startet diese Messung und übernimmt die Werte ins Angebot.
 
 Aufruf:
-    STEP-Import.exe --ausgabe MESSWERTE.txt [--json ERGEBNIS.json] [--netze ORDNER]
+    STEP-Import.exe --ausgabe MESSWERTE.txt [--json ERGEBNIS.json] [--netze ORDNER] [--flachstahl-bis MM]
                     (--liste DATEILISTE.txt | DATEI_ODER_ORDNER ...)
 
 --json ERGEBNIS.json: alle Messwerte zusätzlich im versionierten JSON-Format (step_ergebnis.py, Schema-Version darin).
+
+--flachstahl-bis MM: größte Breite eines Flachstahls (Vorgabe 150); breitere oder kurze flache Teile gelten als Blech.
 
 --netze ORDNER: je Teil zusätzlich ein Dreiecksnetz für die 3D-Ansicht als JSON-Datei (Spalte "netz" = Dateiname).
 
@@ -27,7 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import step_ergebnis  # noqa: E402
-from step_geometrie import analysiere_datei  # noqa: E402
+from step_geometrie import FLACHSTAHL_BIS, analysiere_datei  # noqa: E402
 
 PROZESSE_MAX = 4      # gleichzeitige Messprozesse bei vielen Dateien (jeder lädt OpenCascade einmal)
 SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wandstaerke", "flaeche", "laenge",
@@ -35,7 +37,7 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "innen_konturen", "gravur", "gravur_konturen", "bohrungen", "innen_liste", "profil_id_vorschlag",
            "hinweise", "einheit", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen", "n_kanten",
            "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste",
-           "pruefstatus", "netz", "fehler"]
+           "pruefstatus", "netz", "bauteiltyp", "blech", "fehler"]
 
 
 def _z(x):
@@ -46,11 +48,11 @@ def _text(s):
     return str(s).replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
 
-def _analysiere(datei, netz=False):
+def _analysiere(datei, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Wie analysiere_datei; Pfade mit Umlauten o. ä. über eine Kopie mit einfachem Namen lesen,
     weil OpenCascade solche Pfade unter Windows nicht in jeder Version öffnet."""
     if str(datei).isascii() or not datei.is_file():
-        return analysiere_datei(datei, netz)
+        return analysiere_datei(datei, netz, flach_bis)
     ordner = None   # auch der Temp-Ordner kann Umlaute enthalten (Benutzername)
     if not tempfile.gettempdir().isascii():
         ordner = next((p for p in (os.environ.get("PUBLIC"), os.environ.get("SystemDrive", "C:") + "\\")
@@ -58,22 +60,22 @@ def _analysiere(datei, netz=False):
     with tempfile.TemporaryDirectory(dir=ordner) as tmp:
         kopie = Path(tmp) / "teil.step"
         shutil.copyfile(datei, kopie)
-        teile = analysiere_datei(kopie, netz)
+        teile = analysiere_datei(kopie, netz, flach_bis)
     for t in teile:
         t.datei = datei.stem
     return teile
 
 
-def zeilen(datei, netze=None, nr=1):
+def zeilen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
     """Messwerte einer Datei als Zeilen (Liste von Feldern in der Reihenfolge SPALTEN). netze: Ordner für die
     Dreiecksnetze (None = keine), nr: laufende Nummer der Datei (Name der Netzdateien)."""
-    return messen(datei, netze, nr)[0]
+    return messen(datei, netze, nr, flach_bis)[0]
 
 
-def messen(datei, netze=None, nr=1):
+def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
     """Wie zeilen, dazu das Ergebnis im versionierten JSON-Format (step_ergebnis.datei)."""
     try:
-        teile = _analysiere(datei, netze is not None)
+        teile = _analysiere(datei, netze is not None, flach_bis)
     except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
         text = _text(e) or type(e).__name__
         return [[datei.name, datei.stem] + [""] * (len(SPALTEN) - 3) + [text]], step_ergebnis.datei(datei.name,
@@ -97,7 +99,8 @@ def messen(datei, netze=None, nr=1):
                     _text("; ".join(t.meldungen)), _z(t.innen_a), _z(t.innen_b),
                     "|".join(":".join([_z(z), _z(x), _z(y), _z(w), s]) for z, x, y, w, s in t.wand_messungen),
                     ";".join(f"{k}={v}" for k, v in t.sicherheit.items()),
-                    json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), t.pruefstatus, netz, ""])
+                    json.dumps(t.konturen_liste, ensure_ascii=False, separators=(",", ":")), t.pruefstatus, netz,
+                    t.bauteiltyp, json.dumps(t.blech, ensure_ascii=False, separators=(",", ":")) if t.blech else "", ""])
     return out, step_ergebnis.datei(datei.name, teile)
 
 
@@ -117,6 +120,8 @@ def main(argv=None):
     ap.add_argument("--liste", help="Textdatei mit einem STEP-Pfad je Zeile")
     ap.add_argument("--netze", help="Ordner für die Dreiecksnetze der 3D-Ansicht (JSON je Teil)")
     ap.add_argument("--json", help="Ergebnis zusätzlich als JSON-Datei (versioniertes Format, siehe step_ergebnis.py)")
+    ap.add_argument("--flachstahl-bis", type=float, default=FLACHSTAHL_BIS,
+                    help="größte Breite [mm], bis zu der ein flaches, stabförmiges Teil als Flachstahl gilt (sonst Blech)")
     ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
     a = ap.parse_args(argv)
     pfade = list(a.pfade)
@@ -132,7 +137,7 @@ def main(argv=None):
     if prozesse >= 2:       # viele Dateien: auf mehrere Prozesse verteilen, Reihenfolge der Ausgabe bleibt
         from concurrent.futures import ProcessPoolExecutor, as_completed
         with ProcessPoolExecutor(prozesse) as pool:
-            auftraege = {pool.submit(messen, d, a.netze, i): i for i, d in enumerate(dateien, start=1)}
+            auftraege = {pool.submit(messen, d, a.netze, i, a.flachstahl_bis): i for i, d in enumerate(dateien, start=1)}
             for n, fertig in enumerate(as_completed(auftraege), start=1):
                 i = auftraege[fertig]
                 ergebnis[i - 1] = fertig.result()
@@ -140,7 +145,7 @@ def main(argv=None):
     else:
         for i, datei in enumerate(dateien, start=1):
             print(f"[{i}/{len(dateien)}] {datei.name}", flush=True)
-            ergebnis[i - 1] = messen(datei, a.netze, i)
+            ergebnis[i - 1] = messen(datei, a.netze, i, a.flachstahl_bis)
     fehler = False
     if a.json:
         Path(a.json).write_text(json.dumps(step_ergebnis.gesamt([e[1] for e in ergebnis]), ensure_ascii=False,

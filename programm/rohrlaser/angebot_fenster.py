@@ -1203,7 +1203,8 @@ class AngebotSeite(QWidget):
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
             netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
-                                          "--json", str(ergebnis)], len(dateien)):
+                                          "--json", str(ergebnis), "--flachstahl-bis",
+                                          str(self.db.einstellung("flachstahl_bis") or 150)], len(dateien)):
                 return None
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox, BRepPrimAPI_MakePrism
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
 from OCP.BRepBuilderAPI import (BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert, BRepBuilderAPI_MakePolygon,
                                 BRepBuilderAPI_MakeFace)
@@ -350,4 +350,51 @@ if __name__ == "__main__":
     for z in (50, 250):
         fl = cut(fl, zylinder((0, -3, z), (0, 1, 0), 9, 6))
     schreibe(fl, "REF17_FL40x5_Bohrungen", ref)
-    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, "und", ref)
+    # Bleche (tests/step_bleche, test_step_bleche.py): Blech liegt in XY, Dicke in Z, sofern nicht gedreht
+    bl = ZIEL.parent / "step_bleche"
+
+    def blech(lx, ly, d):
+        return BRepPrimAPI_MakeBox(gp_Pnt(0, 0, 0), lx, ly, d).Shape()
+
+    def loch(shape, x, y, durchm, d):
+        return cut(shape, zylinder((x, y, -1), (0, 0, 1), durchm, d + 2))
+    schreibe(blech(500, 300, 5), "B01_Blech_500x300x5", bl)
+    b2 = blech(400, 200, 4)
+    for x, y in ((30, 30), (370, 30), (30, 170), (370, 170)):
+        b2 = loch(b2, x, y, 10, 4)
+    schreibe(loch(b2, 200, 100, 20, 4), "B02_Blech_400x200x4_Bohrungen", bl)
+    # Ausschnitt 100x50 und Langloch 40x12 (zwei Halbkreise) im Blech 600x400x3
+    b3 = cut(blech(600, 400, 3), BRepPrimAPI_MakeBox(gp_Pnt(100, 100, -1), 100, 50, 5).Shape())
+    lang = profil([(400, 194), (420, 194), (420, 206), (400, 206)], 5)
+    lang = BRepAlgoAPI_Fuse(BRepAlgoAPI_Fuse(lang, zylinder((400, 200, 0), (0, 0, 1), 12, 5)).Shape(),
+                            zylinder((420, 200, 0), (0, 0, 1), 12, 5)).Shape()
+    schreibe(cut(b3, verschiebe(lang, 0, 0, -1)), "B03_Blech_600x400x3_Ausschnitte", bl)
+    # unregelmäßige Kontur (Fünfeck mit schräger Ecke), Hüllrechteck 400 x 250
+    schreibe(profil([(0, 0), (400, 0), (400, 120), (250, 250), (0, 250)], 6), "B04_Blech_400x250x6_Kontur", bl)
+    schreibe(drehe_beliebig(blech(500, 300, 5)), "B05_Blech_500x300x5_gedreht", bl)
+    # schräg liegend: um X um 30° gekippt, mit Bohrung Ø16
+    tr = gp_Trsf(); tr.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.radians(30))
+    schreibe(BRepBuilderAPI_Transform(loch(blech(250, 180, 8), 125, 90, 16, 8), tr, True).Shape(),
+             "B06_Blech_250x180x8_schraeg", bl)
+    # gekantet: Grundplatte 120 x 100 x 3, Schenkel 60 hoch, Biegeradius innen 3 / außen 6, Schenkel nur 50 breit
+    # (z 25 bis 75), dadurch kein gleichbleibender Querschnitt
+    w = profil([(0, 0), (120, 0), (120, 3), (3, 3), (3, 60), (0, 60)], 100, {(0, 0): 6, (3, 3): 3})
+    w = cut(w, BRepPrimAPI_MakeBox(gp_Pnt(-1, 10, -1), 5, 60, 26).Shape())
+    w = cut(w, BRepPrimAPI_MakeBox(gp_Pnt(-1, 10, 75), 5, 60, 26).Shape())
+    schreibe(w, "B07_Blech_gekantet_Winkel", bl)
+    # dünnes Vollmaterial, kein Blech: Platte 200 x 100 x 8 mit Tasche 50 x 30, 4 tief
+    schreibe(cut(blech(200, 100, 8), BRepPrimAPI_MakeBox(gp_Pnt(75, 35, 4), 50, 30, 5).Shape()),
+             "B08_Platte_mit_Tasche", bl)
+    # Abgrenzung Flachstahl: 100 x 10 L 800 bleibt Flachstahl, 160 x 8 L 1000 ist breiter als 150 -> Blech,
+    # 40 x 8 L 100 ist kürzer als 3 × Breite -> Blech
+    schreibe(blech(800, 100, 10), "B09_FL100x10_L800", bl)
+    schreibe(blech(1000, 160, 8), "B10_Blech_1000x160x8", bl)
+    schreibe(blech(100, 40, 8), "B11_Blech_100x40x8", bl)
+    # Fase 2 x 45° an einer Längskante, kleines Reststück
+    fase = profil([(0, 0), (300, 0), (300, 3), (298, 5), (0, 5)], 200)
+    schreibe(fase, "B12_Blech_300x200x5_Fase", bl)
+    schreibe(blech(30, 20, 3), "B13_Blech_30x20x3_Rest", bl)
+    # Baugruppe: Rechteckrohr mit zwei Fußplatten
+    schreibe(baugruppe(kastenrohr(60, 40, 2, 800, 4), verschiebe(blech(150, 150, 8), -75, -75, -8),
+                       verschiebe(blech(150, 150, 8), -75, -75, 800)), "B14_Baugruppe_Rohr_2Bleche", bl)
+    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, ",", ref, "und", bl)
