@@ -36,6 +36,7 @@ jobs:
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         if: always()
         with:
           name: STEP-Testbericht
@@ -62,6 +63,7 @@ jobs:
           /usr/bin/python3 tests/test_abnahme.py --protokoll Abnahmeprotokoll.md
           cat Abnahmeprotokoll.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Abnahmeprotokoll
           path: Abnahmeprotokoll.md
@@ -73,6 +75,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends poppler-utils
           /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung-neu.pdf
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Bedienungsanleitung
           path: Bedienungsanleitung-neu.pdf
@@ -170,10 +173,11 @@ jobs:
           "$h  Rohrlaser-Angebotskalkulation.zip" | Set-Content -Encoding ascii Rohrlaser-Angebotskalkulation.zip.sha256
           Get-Content Rohrlaser-Angebotskalkulation.zip.sha256
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Rohrlaser-Angebotskalkulation
           path: dist/Rohrlaser-Angebotskalkulation/
-          retention-days: 30
+          retention-days: 3           # rund 500 MB; das fertige Paket liegt ohnehin im Release
       - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP)
         if: github.ref == 'refs/heads/main'
         shell: pwsh
