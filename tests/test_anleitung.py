@@ -3,6 +3,9 @@ jede Stammdatentabelle, jede Einstellung, jedes sichtbare Eingabefeld der Positi
 jeder Reiter und jeder Knopf des Programms muss im Text der Anleitung vorkommen. Kommt etwas Neues ins
 Programm, schlägt dieser Test fehl, bis die Anleitung ergänzt ist.
 
+Außerdem: Verweise stehen nur als [[marke]] im Text (keine fest geschriebenen Kapitelnummern, die beim
+Umordnen veralten), und jede Marke gehört zu genau einer Überschrift.
+
 Aufruf: python tests/test_anleitung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
@@ -27,6 +30,17 @@ from rohrlaser.staffeln import STUFE_FELDER  # noqa: E402
 from rohrlaser.stammdaten import EINSTELLUNGEN, TABELLEN  # noqa: E402
 
 QUELLE = (HIER.parent / "anleitung" / "erzeuge_anleitung.py").read_text(encoding="utf-8")
+
+
+# Verweise: [[marke]] statt „Kapitel 6.7“; jede Marke genau einmal an einer Überschrift
+TEXTTEIL = QUELLE[QUELLE.index("# ---------------------------------------------------------------- Inhalt der Anleitung"):]
+fest = [z.strip() for z in TEXTTEIL.splitlines() if re.search(r"\b(Kapitel|Abschnitt)\s*(\d|„)", z)]
+assert not fest, "Fest geschriebene Kapitelnummern, bitte [[marke]] verwenden:\n  " + "\n  ".join(fest)
+marken = re.findall(r'marke="([a-z0-9_]+)"', TEXTTEIL)
+doppelt = sorted({m for m in marken if marken.count(m) > 1})
+assert not doppelt, f"Marken doppelt vergeben: {doppelt}"
+unbekannt = sorted(set(re.findall(r"\[\[([a-z0-9_]+)\]\]", TEXTTEIL)) - set(marken))
+assert not unbekannt, f"Verweise auf unbekannte Marken: {unbekannt}"
 
 
 def kern(text):
