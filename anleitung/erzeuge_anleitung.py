@@ -558,7 +558,10 @@ def kapitel_angebot(i):
         ["Oberfläche", "z. B. K240 oder gestrahlt (Stammdaten Oberflächen); leer = roh. Der Aufpreis kommt auf den "
                        "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
-        ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
+        ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus. Anfangs- "
+                                                       "und Endschnitt zählen je nach Profil mehrere Einstiche: "
+                                                       "I-/H-Träger und U-Profil 4, T-Profil 2, alle anderen 1 "
+                                                       "(z. B. IPE 200 ohne Bohrungen: 8 Einstiche)"],
         ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit ([[schneidzeit]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
@@ -788,8 +791,8 @@ def kapitel_optimieren(i):
     i.liste("Je Profil + Werkstoff + Oberfläche + Stangenlänge getrennt, ohne Vermischung.",
             "Belegung einer Stange = Endbeschnitt + Teile + Trennschnitte + Schnittverlust des letzten Schnitts; "
             "der Greiferrest muss frei bleiben.",
-            "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, ein "
-            "Einstich gespart). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Teile werden dafür "
+            "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
+            "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Teile werden dafür "
             "gedreht; schräge Enden kommen an Stangenanfang oder -ende.",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
@@ -1624,6 +1627,14 @@ def kapitel_stammdaten(i):
                                  "Maßen steht"],
         ["Endbeschnitt abweichend [mm], Greiferrest abweichend [mm]",
          "nur eintragen, wenn das Profil andere Werte braucht als die Maschine"],
+        ["Wandstärke max. [mm]", "dickste Stelle des Profils, z. B. die Flanschdicke eines Trägers oder die dickere "
+                                 "Wand eines Sonderprofils. Die <b>Schneidzeit</b> (Vorschub, Einstechzeit, Schneidgas) "
+                                 "rechnet immer mit der größeren der beiden Wandstärken; Gewicht und Querschnitt "
+                                 "bleiben bei der Wandstärke. Leer = bei Normprofilen (IPE, HEA, HEB, HEM, IPN, UPN, "
+                                 "T) die Flanschdicke aus der Normtabelle, sonst die Wandstärke. Der STEP-Import trägt "
+                                 "bei neu angelegten Profilen die größte gemessene Wand bzw. Flanschdicke ein. Ein "
+                                 "Sonderprofil ohne beide Werte bekommt die Warnung <i>Wandstärke fehlt</i>, weil es "
+                                 "ohne sie keine Schneidzeit gibt."],
         ["Lieferlängen vergleichen", "leer oder ja = Lieferlängen aus der Tabelle Lieferlängen werden verglichen; "
                                      "nein = das Profil wird nur mit der Stangenlänge des Angebots geplant (z. B. "
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
@@ -2457,8 +2468,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.5.12", "Lieferlängen: 6-m- gegen 12-m-Stangen vergleichen, 12 m nur als vom Lieferanten geschnittene "
+    ["0.5.13", "Lieferlängen: 6-m- gegen 12-m-Stangen vergleichen, 12 m nur als vom Lieferanten geschnittene "
                "Werkstücke bis zur Beladelänge, Übernahme per Klick, Staffeln wählen selbst ([[lieferlaengen]])."],
+    ["0.5.12", "Schneidzeit mit der größten Wandstärke (neues Feld <i>Wandstärke max.</i> bei den Profilen, "
+               "Normprofile mit der Flanschdicke) und mehrere Einstiche je Anfangs-/Endschnitt: I-/H-Träger und "
+               "U-Profil 4, T-Profil 2 ([[optimieren]])."],
     ["0.5.11", "Einkaufspreis fehlender Zukaufteile direkt im Angebot eintragen (<i>Zukaufteile … → EK eintragen …</i>), "
                "gespeichert ab der Stückzahl der Position ([[zukauf_positionen]])."],
     ["0.5.10", "Automatische Fracht rechnet nach jeder Änderung am Angebot sofort neu und schreibt den Betrag ins "
