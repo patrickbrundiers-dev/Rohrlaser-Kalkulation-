@@ -514,6 +514,75 @@ def main(ziel):
     foto.foto("update_hinweis", m, [(m.jetzt, 1)])
     m.close()
 
+    # 12) Frachtkosten (Beispieldaten BEISPIEL)
+    fb = f.fracht
+    f.bereich.sperren()
+    fb.zeigen(fb.zonen)
+    bereit()
+    foto.foto("fracht_gesperrt", f, [(tab_rect(f.reiter, "Frachtkosten"), 1), (fb.gesperrt[fb.zonen].passwort, 2),
+                                     (knopf(fb.gesperrt[fb.zonen], "Frachtdaten öffnen"), 3)],
+              ausschnitt=QRect(0, 0, 820, fb.gesperrt[fb.zonen].passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    f.bereich.oeffnen(db.einstellung("passwort"))
+    db.einstellung_setzen("absender_plz", "34117")
+    fb.zeigen(fb.rechner)
+    r = fb.rechner
+    r.abs_plz.setText("34117")
+    r.kunde.setCurrentText("10233 – Anlagenbau Hessler")
+    r.plz.setText("25980")
+    r.versandart.setCurrentText("Stückgut")
+    r.netto.setValue(486)
+    r.erweitert.aufklappen(True)
+    r.max_laenge.setText("2150")
+    r.packvorschlag()
+    r.leistungen["AVIS-BSP"][0].setChecked(True)
+    r.rechnen()
+    bereit()
+    foto.foto("fracht_rechner", f, [(tab_rect(fb.unter, "Fracht kalkulieren"), 1), (r.plz, 2), (r.zone, 3),
+                                    (r.netto, 4), (r.lht_tabelle, 5), (knopf(r, "Packvorschlag"), 6),
+                                    (r.leistungen_box, 7), (r.anzeige, 8), (r.speichern_knopf, 9)])
+    r.speichern()
+    r.versandart.setCurrentText("Palettenversand")
+    r.plz.setText("81241")
+    r.lht_tabelle.setRowCount(0)
+    r.lht_neu("EUR", 2)
+    r.lht_neu("GB", 1)
+    r.rechnen()
+    r.bezeichnung.setText("Gestelle Hessler")
+    r.speichern()
+    f.resize(1024, 700)
+    QApplication.processEvents()
+    bereit()
+    foto.foto("fracht_schmal", f)
+    f.resize(1280, 760)
+    QApplication.processEvents()
+    fb.zeigen(fb.zonen)
+    fb.zonen.test_plz.setText("25980")
+    bereit()
+    foto.foto("fracht_zonen", f, [(fb.zonen.test_plz, 1), (knopf(fb.zonen, "CSV exportieren"), 2),
+                                  (knopf(fb.zonen, "CSV importieren"), 3), (tab_rect(fb.zonen.oben, "Länder"), 4)])
+    fb.zeigen(fb.tarife)
+    t = fb.tarife.tarife
+    t.ansicht.setCurrentIndex(t.filter.index(1, 0))
+    bereit()
+    foto.foto("fracht_tarife", f, [(knopf(fb.tarife, "Neue Version …"), 1), (fb.tarife.preis_titel, 2),
+                                   (fb.tarife.alle, 3)])
+    fb.zeigen(fb.lht)
+    bereit()
+    foto.foto("fracht_lht", f)
+    fb.zeigen(fb.zuschlaege)
+    bereit()
+    foto.foto("fracht_zuschlaege", f, [(tab_rect(fb.zuschlaege.unter, "Dieselpreise"), 1),
+                                       (tab_rect(fb.zuschlaege.unter, "Dieselstaffel"), 2),
+                                       (tab_rect(fb.zuschlaege.unter, "Währungen"), 3)])
+    fb.zeigen(fb.dienstleister)
+    bereit()
+    foto.foto("fracht_dienstleister", f, [(knopf(fb.dienstleister, "Kundentarif anlegen"), 1),
+                                          (fb.dienstleister.kundentarife, 2)])
+    fb.zeigen(fb.historie)
+    bereit()
+    foto.foto("fracht_historie", f, [(fb.historie.tabelle, 1), (knopf(fb.historie, "Kalkulation anzeigen"), 2),
+                                     (fb.historie.einstellungen, 3), (knopf(fb.historie, "Beispieldaten laden"), 4)])
+
     # Menü Hilfe
     f.reiter.setCurrentWidget(f.start)
     start_zeigen()

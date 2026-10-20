@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QApplication, QCheckBox, QPushButton  # noqa: E402
 from rohrlaser.angebot import KOPF, POSITIONEN  # noqa: E402
 from rohrlaser.angebot_fenster import SICHTBAR  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.fracht_daten import FRACHT_TABELLEN  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.rechnen import KOSTENARTEN  # noqa: E402
 from rohrlaser.staffel_seite import ERGEBNIS  # noqa: E402
@@ -44,6 +45,8 @@ def kommt_vor(text):
 pruefen = []
 pruefen += [("Stammdatentabelle", t.titel) for t in TABELLEN]
 pruefen += [("Feld in " + t.titel, f.titel) for t in TABELLEN for f in t.felder]
+pruefen += [("Fracht-Tabelle", t.titel) for t in FRACHT_TABELLEN]
+pruefen += [("Feld in " + t.titel, f.titel) for t in FRACHT_TABELLEN for f in t.felder]
 pruefen += [("Einstellung", e.titel) for e in EINSTELLUNGEN]
 pruefen += [("Kostenart", t) for t, _, _ in KOSTENARTEN]
 pruefen += [("Angebotskopf", f.titel) for f in KOPF]
@@ -62,6 +65,9 @@ for i in range(fenster.reiter.count()):
 pruefen += [("Reiter im Angebot", seite.reiter.tabText(i)) for i in range(seite.reiter.count())]
 pruefen += [("Unterreiter der Einstellungen", fenster.bereich.unter.tabText(i))
             for i in range(fenster.bereich.unter.count())]
+pruefen += [("Unterreiter der Frachtkosten", fenster.fracht.unter.tabText(i)) for i in range(fenster.fracht.unter.count())]
+pruefen += [("Unterreiter der Zuschläge", fenster.fracht.zuschlaege.unter.tabText(i))
+            for i in range(fenster.fracht.zuschlaege.unter.count())]
 for w in fenster.findChildren(QPushButton) + fenster.findChildren(QCheckBox):
     if w.text():
         pruefen.append(("Knopf", w.text()))
