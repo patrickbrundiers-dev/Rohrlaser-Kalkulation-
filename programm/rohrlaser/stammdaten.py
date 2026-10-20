@@ -109,6 +109,18 @@ def flaeche_berechnet(p):
     return None
 
 
+def wand_schneiden(p):
+    """Wandstärke für die Schneiddaten (Schneidzeit, Vorschub, Gas): die größte Wandstärke des Profils, also die
+    größere von Wandstärke und Wandstärke max.; ohne Wandstärke max. bei Normprofilen die Flanschdicke der Tabelle
+    (Träger, T, UPN). None ohne beide Werte."""
+    werte = [w for w in (p.get("wand"), p.get("wand_max")) if isinstance(w, (int, float))]
+    if not isinstance(p.get("wand_max"), (int, float)):
+        n = normprofile.daten(p.get("profil_id"))
+        if n and n.get("tf") and n["form"] == p.get("form"):
+            werte.append(n["tf"])
+    return max(werte) if werte else None
+
+
 def huellkreis(p):
     """Durchmesser des Kreises um den Profilquerschnitt: Rundrohr Ø, Quadrat-/Rechteckrohr Diagonale.
     Sonderprofile ohne Angabe (None)."""
@@ -179,12 +191,15 @@ PROFILE = Tabelle(
      Feld("flaeche_manuell", "Fläche manuell [mm²]", "zahl", 1, 100000, stellen=1),
      Feld("endbeschnitt", "Endbeschnitt abweichend [mm]", "zahl", 0, 2000, stellen=0),
      Feld("greiferrest", "Greiferrest abweichend [mm]", "zahl", 0, 2000, stellen=0),
-     Feld("bemerkung", "Bemerkung", breite=220)),
+     Feld("bemerkung", "Bemerkung", breite=220),
+     # hinten angefügt: Beispieldaten und Import älterer Dateien zählen die Felder nach Reihenfolge
+     Feld("wand_max", "Wandstärke max. [mm]", "zahl", 0, 500, stellen=2)),
     ("profil_id",),
     "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
     "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
     "T-Profil: A = Höhe, B = Flanschbreite, Wandstärke = Stegdicke (Querschnitt aus der Normtabelle bei IPE, IPN, "
-    "HEA, HEB, HEM, T, sonst Fläche manuell). Endbeschnitt und "
+    "HEA, HEB, HEM, T, sonst Fläche manuell). Wandstärke max. = dickste Stelle (z. B. Flanschdicke): die "
+    "Schneidzeit rechnet mit der größeren der beiden Wandstärken; leer = Normtabelle bzw. Wandstärke. Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
     "(Eckradien, Sonderprofile, C-Profil).",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
@@ -627,6 +642,11 @@ def pruefen(t, z, k):
             return "FEHLER: Abmessung B fehlt"
         if flaeche_wirksam(z) is None:
             return "FEHLER: Querschnitt fehlt (Fläche manuell eintragen)"
+        wm = z.get("wand_max")
+        if wm is not None and s is not None and wm < s:
+            return "FEHLER: Wandstärke max. kleiner als die Wandstärke"
+        if wand_schneiden(z) is None:
+            return "WARNUNG: Wandstärke fehlt, ohne sie keine Schneidzeit (Wandstärke max. eintragen)"
     if t is PREISE and z.get("basis") == "€/Stange" and not z.get("lieferlaenge"):
         return "FEHLER: Stangenlänge fehlt"
     if t is SCHNEIDDATEN:

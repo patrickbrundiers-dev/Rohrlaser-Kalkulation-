@@ -112,6 +112,21 @@ def _wand(m):
     return _z(m, "abm_b") if m.get("profilform") == "Flachstahl" else _z(m, "wandstaerke")
 
 
+def wand_max(m):
+    """Größte gemessene Wandstärke für die Schneidzeit (Profil neu aus dem STEP-Import): Flanschdicke bei Trägern
+    und T-Profilen, sonst die dickste Einzelmessung der Wand; None, wenn sie nicht dicker als die Wandstärke ist."""
+    werte = [_z(m, "flanschdicke")]
+    for teil in (m.get("wand_messungen") or "").split("|"):
+        f = teil.split(":")
+        if len(f) >= 4:
+            try:
+                werte.append(float(f[3]))
+            except ValueError:
+                pass
+    w = max(werte)
+    return round(w, 2) if w > _wand(m) + 0.05 else None
+
+
 def finde_profil(m, profile):
     form, a, b, t = m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b"), _wand(m)
     for pid, p in profile.items():
@@ -413,7 +428,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 if neue_profile and pid:
                     p = dict(profil_id=pid, form=m["profilform"], a=round(_z(m, "abm_a"), 2),
                              b=round(_z(m, "abm_b"), 2) if m["profilform"] in MIT_B else None,
-                             wand=round(_wand(m), 2), flaeche_manuell=round(_z(m, "flaeche"), 1),
+                             wand=round(_wand(m), 2), wand_max=wand_max(m), flaeche_manuell=round(_z(m, "flaeche"), 1),
                              bemerkung="aus STEP-Import angelegt, bitte prüfen")
                     neue_prof.append(p)
                     profile[pid] = p
@@ -470,9 +485,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         else:
             wst = m.get("_werkstoff", werkstoff)
             stk = m.get("_stueck", stueck)
+            form = (profile.get(pid) or {}).get("form") or m.get("profilform")
+            enden_n = sum(1 for n in ("ende_a", "ende_b") if _z(m, n) > 0)
             p = dict(pos=naechste, artikel=art, profil_id=pid, werkstoff_id=wst or None,
                      laenge=round(_z(m, "laenge"), 1), stueck=stk or None,
-                     schneidweg=round(_z(m, "schneidweg"), 1), einstiche=int(_z(m, "konturen")),
+                     schneidweg=round(_z(m, "schneidweg"), 1),
+                     einstiche=int(_z(m, "konturen")) + (rechnen.einstiche_ende(form) - 1) * enden_n,
                      innen=round(_z(m, "innen"), 1), gravur=round(_z(m, "gravur"), 1),
                      bohrungen=bohrungen_text(m.get("bohrungen")) or None, gewinde_vorschlag=vorschlag or None)
             if m.get("_netz"):
