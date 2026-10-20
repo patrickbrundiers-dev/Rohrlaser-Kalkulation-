@@ -21,6 +21,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0             # volle Historie für die Prüfung „Anleitung angepasst?“
+      - name: Programm geändert, Anleitung auch? (sonst Begründung in einer Commit-Nachricht)
+        if: github.event_name == 'pull_request'
+        run: python3 tests/pruefe_anleitung_geaendert.py "origin/${{ github.base_ref }}"
       - name: Python-Pakete
         run: |
           sudo apt-get update
@@ -88,21 +93,31 @@ jobs:
           name: Abnahmeprotokoll
           path: Abnahmeprotokoll.md
           retention-days: 90
-      - name: Bedienungsanleitung erzeugen (prüft, dass alle Bildschirmfotos noch entstehen)
+
+  # Die Bedienungsanleitung entsteht nur hier, aus dem aktuellen Programm (Bildschirmfotos) und
+  # anleitung/erzeuge_anleitung.py; sie liegt nicht im Repository. Das Windows-Paket nimmt genau diese PDF.
+  anleitung:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python-Pakete
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
+      - name: Bedienungsanleitung erzeugen (Verweise, Bildschirmfotos, alle Fotos verwendet)
         env:
           QT_QPA_PLATFORM: offscreen
-        run: |
-          sudo apt-get install -y --no-install-recommends poppler-utils
-          /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung-neu.pdf
+        run: /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung.pdf
       - uses: actions/upload-artifact@v4
-        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Bedienungsanleitung
-          path: Bedienungsanleitung-neu.pdf
+          path: Bedienungsanleitung.pdf
           retention-days: 30
 
   windows:
     runs-on: windows-latest
+    needs: anleitung
     # Veröffentlichungen auf main nacheinander, damit Dateiliste und Pakete zusammenpassen
     concurrency:
       group: paket-${{ github.ref }}
@@ -156,11 +171,14 @@ jobs:
             "{0}: {1} / {2} / {3}" -f $exe, $v.CompanyName, $v.ProductName, $v.FileVersion
             if (-not $v.CompanyName -or -not $v.ProductName -or -not $v.FileVersion) { throw "$exe ohne Versionsangaben" }
           }
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bedienungsanleitung
       - name: Rohrlaser-Angebotskalkulation.exe Selbsttest (Beispielangebot, Optimierung, Ausgaben, STEP-Import)
         shell: pwsh
         run: |
           Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Angebotskalkulation/STEP-Import
-          Copy-Item anleitung/Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
+          Copy-Item Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
           $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe" `
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
@@ -288,7 +306,7 @@ jobs:
             Daten liegen im Ordner Daten neben dem Programm.
             Bedienungsanleitung.pdf liegt im Programmordner (auch im Programm unter Hilfe, F1).
             Umziehen zwischen beiden: Datei → Daten exportieren … / Daten importieren …
-            Warnt Windows (SmartScreen oder Defender), siehe Bedienungsanleitung Kapitel 2 „Windows-Warnungen“.
+            Warnt Windows (SmartScreen oder Defender), siehe Bedienungsanleitung, Abschnitt „Windows-Warnungen“.
             SHA256-Prüfsummen: Rohrlaser-Angebotskalkulation.zip.sha256, Rohrlaser-Angebotskalkulation-Setup.exe.sha256
             Online-Update (Hilfe → Nach Updates suchen): ab Version 0.5.5 holt das Programm Dateiliste und Pakete ohne
             Anmeldung aus dem öffentlichen Repository Rohrlaser-Updates und lädt nur geänderte Dateien. Ältere
@@ -299,6 +317,7 @@ jobs:
             Rohrlaser-Angebotskalkulation.zip
             Rohrlaser-Angebotskalkulation.zip.sha256
             update_dateien/Update.json
+            Bedienungsanleitung.pdf
           make_latest: true
       - name: Update-Pakete hochladen (Repository Rohrlaser-Updates, Release "update-dateien", nur neue Pakete)
         if: github.ref == 'refs/heads/main'
