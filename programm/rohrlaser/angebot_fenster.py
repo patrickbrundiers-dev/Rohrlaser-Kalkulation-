@@ -13,10 +13,11 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QVBoxLayout, QWidget)
 
-from . import ausgabe, export, pdf, rechnen, step
+from . import ausgabe, export, pdf, rechnen, step, zukauf
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
+from .zukauf_dialog import ZukaufDialog, datum_text
 from .zeiten_seite import ZeitenSeite
 from .angebot import POSITIONEN, STEP_FELDER
 from .angebot_oben import KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
@@ -246,9 +247,10 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Vorschub groß [mm/min]", "vorschub", 0), ("Schneidgas", "gas", None), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
-            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz"]
+            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
-OPTIONALE_SPALTEN = ("oberflaeche", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz")
+OPTIONALE_SPALTEN = ("oberflaeche", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf")
+EIGENE = ("zusatz", "zukauf")        # Spalten mit eigenem Dialog (Doppelklick)
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
 
@@ -270,7 +272,7 @@ class PositionenModell(QAbstractTableModel):
         super().__init__()
         self.s = seite
         felder = {f.name: f for f in POSITIONEN.felder}
-        self.spalten = ([("zusatz" if felder[n].art == "zusatz" else "feld", felder[n]) for n in SICHTBAR]
+        self.spalten = ([(felder[n].art if felder[n].art in EIGENE else "feld", felder[n]) for n in SICHTBAR]
                         + [("status", None)]
                         + [("berechnet", b) for b in BERECHNET]
                         + [("feld", f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
@@ -326,13 +328,13 @@ class PositionenModell(QAbstractTableModel):
         if richtung == Qt.Vertical:
             return str(abschnitt + 1)
         art, x = self.spalten[abschnitt]
-        return x.titel if art in ("feld", "zusatz") else {"status": "Status",
+        return x.titel if art in ("feld",) + EIGENE else {"status": "Status",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
 
     def name(self, c):
         """Name einer Spalte (Feldname, 'status', 'abweichung' oder 'berechnet:' + Schlüssel)."""
         art, x = self.spalten[c]
-        return x.name if art in ("feld", "zusatz") else ("berechnet:" + x[1] if art == "berechnet" else art)
+        return x.name if art in ("feld",) + EIGENE else ("berechnet:" + x[1] if art == "berechnet" else art)
 
     def roh(self, r, c):
         art, x = self.spalten[c]
@@ -342,6 +344,8 @@ class PositionenModell(QAbstractTableModel):
             return self.status[r]
         if art == "zusatz":
             return rechnen.zusatz_text(self.daten[r])
+        if art == "zukauf":
+            return zukauf.zukauf_text(self.daten[r])
         if art == "abweichung":
             return schneidweg_abweichung(self.daten[r])
         w = self.werte[r].get(x[1])
@@ -381,6 +385,8 @@ class PositionenModell(QAbstractTableModel):
                 return _z(w, 1) if w is not None else ""
             if art == "zusatz" and rolle == Qt.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
+            if art == "zukauf" and rolle == Qt.ToolTipRole:
+                return (w + "\n" if w else "") + "Doppelklick: Zukaufteile wählen"
             return w
         if rolle == Qt.EditRole and art == "feld":
             return wert_als_text(x, w, bearbeiten=True)
@@ -396,7 +402,7 @@ class PositionenModell(QAbstractTableModel):
                 return QBrush(_farbe_status(w) or (QColor("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
             if art == "abweichung" and w is not None:
                 return QBrush(QColor("#FFF2CC"))
-            return QBrush(FARBE_EINGABE if art in ("feld", "zusatz") else FARBE_BERECHNET)
+            return QBrush(FARBE_EINGABE if art in ("feld",) + EIGENE else FARBE_BERECHNET)
         if rolle == Qt.ForegroundRole and art == "status":
             return QBrush(QColor({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
         return None
@@ -501,6 +507,50 @@ class Stangenbild(QWidget):
 
 
 # ------------------------------------------------------------------ Angebot
+def _d(w):
+    return float(w) if w is not None else None
+
+
+def zukauf_zeilen(gruppen):
+    """Zeilen der Tabelle Zukaufteile aus summen['zukauf'] (zukauf.rechnen): eine Zeile je Artikel und Preisstand."""
+    out = []
+    for g in gruppen:
+        st, b = g["stand"], g["bestellung"]
+        out.append(dict(artikel=st.get("artikelnr"), bezeichnung=st.get("bezeichnung"),
+                        einheit=zukauf.EINHEIT_KURZ.get(st.get("einheit"), st.get("einheit")),
+                        lieferant=b.get("lieferant"), positionen=g["positionen"], verbrauch=_d(b["verbrauch"]),
+                        bestellt=_d(b["bestellt"]), mehrmenge=_d(b["mehrmenge"]) or None,
+                        staffel=f"ab {zahl_als_text(float(b['staffel']['ab']), 0)}" if b.get("staffel") else None,
+                        ek=_d(b["ek"]), einkauf=_d(b["einkauf"]), bezug=_d(b["bezug"]), einstand=_d(g["einstand"]),
+                        regel=g["regel"], aufschlag=_d(g["aufschlag"]), vk=_d(g["vk"]),
+                        db_pct=_d(g["aufschlag"] / g["vk"] * 100) if g["vk"] else None,
+                        stand=datum_text(st.get("datum")),
+                        hinweis=("FEHLER: " + g["fehler"]) if g["fehler"]
+                        else ("WARNUNG: " + g["warnung"]) if g["warnung"] else ""))
+    return out
+
+
+def zukauf_info(summen):
+    n = len(summen["zukauf"])
+    if not n:
+        return ("Keine Zukaufteile. Zukaufteile einer Position: Position markieren, dann 'Zukaufteile …' "
+                "(oder Doppelklick in die Spalte Zukaufteile).")
+    e, a = summen["zukauf_einstand"], summen["zukauf_aufschlag"]
+    return (f"{n} Artikel · Einstand {_z(e)} € · Aufschlag {_z(a)} € · Verkauf {_z(e + a)} € (netto, ohne Skonto). "
+            "Gleiche Artikel aller Positionen werden zusammen bestellt; gerechnet wird mit dem Preisstand, der in "
+            "den Positionen gespeichert ist.")
+
+
+ZUKAUF_SPALTEN = [("Artikelnr.", "artikel", None, 90), ("Bezeichnung", "bezeichnung", None, 180),
+                  ("Einheit", "einheit", None, 50), ("Lieferant", "lieferant", None, 120),
+                  ("Positionen", "positionen", 0, 70), ("Verbrauch", "verbrauch", 2, 75),
+                  ("Bestellmenge", "bestellt", 2, 95), ("Mehrmenge", "mehrmenge", 2, 75),
+                  ("Preisstaffel", "staffel", None, 75), ("EK je Einheit [€]", "ek", 4, 85),
+                  ("Einkauf [€]", "einkauf", 2, 80), ("Bezugskosten [€]", "bezug", 2, 95),
+                  ("Einstand [€]", "einstand", 2, 80), ("Aufschlagsregel", "regel", None, 170),
+                  ("Aufschlag [€]", "aufschlag", 2, 80), ("Verkauf netto [€]", "vk", 2, 85),
+                  ("Deckungsbeitrag [% vom VK]", "db_pct", 1, 110), ("Preisstand", "stand", None, 80),
+                  ("Hinweis", "hinweis", None, 220)]
 PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None, 90) for i, t in enumerate(step.PROTOKOLL)]
 
 
@@ -541,6 +591,7 @@ class AngebotSeite(QWidget):
             leiste.addWidget(b)
         leiste.addSpacing(12)
         for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
+                           ("Zukaufteile …", lambda: self.zukaufteile()),
                            ("Positionen löschen", self.positionen_loeschen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
@@ -570,9 +621,10 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
         self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
-            self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld", "zusatz") else (240 if art == "status" else 85))
+            self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld",) + EIGENE else (240 if art == "status" else 85))
         self.pos_ansicht.doubleClicked.connect(
-            lambda i: self.zusatzarbeiten([i.row()]) if self.pos_modell.spalten[i.column()][0] == "zusatz" else None)
+            lambda i: {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile}.get(
+                self.pos_modell.spalten[i.column()][0], lambda _: None)([i.row()]))
 
         self.kalk = Liste(KALK_SPALTEN)
         self.stangen = Liste(STANGEN_SPALTEN)
@@ -580,6 +632,7 @@ class AngebotSeite(QWidget):
         self.ausw = Liste(AUSW_SPALTEN)
         self.fehler = Liste(FEHLER_SPALTEN)
         self.prot = Liste(PROT_SPALTEN)
+        self.zukauf = Liste(ZUKAUF_SPALTEN)
         kalk_ansicht = self.kalk_ansicht = _tabelle(self.kalk)
         _breiten(kalk_ansicht, KALK_SPALTEN)
         self.summen = QLabel()
@@ -609,6 +662,14 @@ class AngebotSeite(QWidget):
         al.addWidget(ausw_ansicht, 2)
         al.addWidget(QLabel("<b>Nicht eingeplante Teile</b>"))
         al.addWidget(fehler_ansicht, 1)
+        zk_seite = QWidget()            # Zukaufteile: Bestellung je Artikel und Preisstand (ganzes Angebot)
+        zl = QVBoxLayout(zk_seite)
+        self.zukauf_info = QLabel()
+        self.zukauf_info.setWordWrap(True)
+        zl.addWidget(self.zukauf_info)
+        self.zukauf_ansicht = _tabelle(self.zukauf)
+        _breiten(self.zukauf_ansicht, ZUKAUF_SPALTEN)
+        zl.addWidget(self.zukauf_ansicht, 1)
         prot_ansicht = _tabelle(self.prot)
         _breiten(prot_ansicht, PROT_SPALTEN)
         # Staffeln: Mengenstufen mit Werten je Stufe (Eingabe) und Kosten je Stufe (Ergebnis), siehe staffel_seite.py
@@ -628,6 +689,7 @@ class AngebotSeite(QWidget):
         self.reiter.addTab(kalk_seite, "Kalkulation")
         self.zeiten_seite = ZeitenSeite(self)
         self.reiter.addTab(self.zeiten_seite, "Zeiten && Arbeitskosten")
+        self.reiter.addTab(zk_seite, "Zukaufteile")
         self.reiter.addTab(plan, "Schnittplan")
         self.reiter.addTab(bild_rahmen, "Stangenbild")
         self.reiter.addTab(ausw_seite, "Auswertung")
@@ -787,6 +849,8 @@ class AngebotSeite(QWidget):
         self.uebersicht_bereich.kosten_setzen(kosten)
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
         self.zeiten_seite.setzen(summen)
+        self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
+        self.zukauf_info.setText(zukauf_info(summen))
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
         if erg:
@@ -899,6 +963,25 @@ class AngebotSeite(QWidget):
             self.db.position_aendern(p["id"], "gewinde", gewinde)
             self.db.position_aendern(p["id"], "zusatz", zusatz)
         self.f.meldung(f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
+        self.neu_laden()
+        return True
+
+    def zukaufteile(self, zeilen=None, werte=None, dialog=None):
+        """Zukaufteile der markierten Positionen wählen (Dialog). werte = JSON (oder None) setzt sie ohne Dialog;
+        dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return False
+        if werte is None:
+            d = ZukaufDialog(self, self.db, self.positionen[zeilen[0]], len(zeilen))
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return False
+            werte = d.ergebnis
+        for r in zeilen:
+            self.db.position_aendern(self.positionen[r]["id"], "zukauf", werte)
+        self.f.meldung(f"Zukaufteile für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
 

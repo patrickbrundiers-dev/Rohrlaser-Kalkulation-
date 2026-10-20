@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from . import fracht_angebot, rechnen
+from . import fracht_angebot, rechnen, zukauf
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -109,6 +109,16 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
             zus.append(t_e)
     if zus:
         t += ", Zusatzarbeiten: " + ", ".join(zus)
+    zk = []                 # Zukaufteile mit 'Im Angebotstext nennen': Menge je Teil und Bezeichnung
+    for e in zukauf.eintraege(p):
+        st = e.get("stand") or {}
+        name = st.get("bezeichnung") or st.get("artikelnr")
+        if name and st.get("angebotstext") == "ja":
+            m = _wert(e.get("menge"))
+            menge = f"{kaufm_runden(m, 3):g}".replace(".", dezimal)
+            zk.append(f"{menge} {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}" if m else name)
+    if zk:
+        t += ", inkl. Zukaufteile: " + ", ".join(zk)
     return t
 
 

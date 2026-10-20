@@ -434,7 +434,7 @@ def kapitel_stammdaten(i):
          "Preis je Gewinde; ist er leer, die Zeit je Gewinde mit dem Stundensatz der Maschine."],
         ["Zusatzarbeiten", "Zusatzarbeit (Name), Abrechnung, Preis [€] bzw. Zeit [s] je Einheit, Mindestbetrag je "
                            "Angebot [€], Fremdleistung, Text im Angebot",
-         "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot (Kapitel 6.5). Vorbelegt mit Beispielpreisen, "
+         "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot (Kapitel 6.6). Vorbelegt mit Beispielpreisen, "
          "bitte eigene eintragen."],
         ["Stundensätze", "Stundensatz-ID, Bezeichnung, Stundensatz [€/h]",
          "Sätze für Personal und Arbeitsplätze (Programmierung, Rüstpersonal, Nachbearbeitung …). Der Satz der "
@@ -765,7 +765,8 @@ def kapitel_angebot(i):
             "Kennzahlen und Kosten nach Gruppen."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
-        (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.5)."),
+        (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.6). "
+            "Daneben <b>Zukaufteile …</b>: eingekaufte Teile je Position (Kapitel 13.6)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -878,12 +879,13 @@ def kapitel_angebot(i):
                        "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
         ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus"],
-        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.6)"],
+        ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit (Kapitel 6.7)"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz (Kapitel 9)"],
         ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
-        ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.5)"],
+        ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.6)"],
+        ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil; Doppelklick öffnet die Auswahl (Kapitel 13.6)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
                                                "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
@@ -1192,6 +1194,8 @@ def kapitel_optimieren(i):
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
             "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
             "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.",
+            "<b>Zukaufteile</b>: Einstand und Aufschlag der Zukaufteile der Position (Kapitel 13.6), nach dem "
+            "Gewinn und ohne Zuschläge (Spalte <i>Zukaufteile je Teil</i>).",
             "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis ohne Skonto "
             "bleibt (Skonto % des Verkaufspreises). Je Teil in der Spalte <i>Skonto je Teil</i>.")
     i.abschnitt("Zeiten & Arbeitskosten")
@@ -1384,7 +1388,8 @@ def kapitel_zukauf(i):
         (4, "Filter Kategorie, Lieferant und Status (aktive, archivierte, alle), Sortieren nach Kategorie, "
             "Lieferant, Artikelnummer, Bezeichnung oder EK je Einheit"),
         (5, "<b>Bearbeiten</b> (auch Doppelklick), <b>Duplizieren</b>, <b>Archivieren</b> bzw. <b>Wieder "
-            "aktivieren</b>; dieselben Befehle mit der rechten Maustaste"),
+            "aktivieren</b> und <b>In Angebot übernehmen …</b> (Abschnitt 13.6); dieselben Befehle mit der rechten "
+            "Maustaste"),
         (6, "Details des markierten Artikels: alle Lieferanten mit Staffelpreisen und die Rechnung je Einheit")])
     i.text("Die Spalten zeigen je Artikel Artikelnr., Bezeichnung, Kategorie, bevorzugten Lieferant, Einheit, "
            "<i>EK je Einheit</i> (Einkaufspreis netto bei der kleinsten Bestellmenge), <i>Bezugskosten</i> (je "
@@ -1484,6 +1489,52 @@ def kapitel_zukauf(i):
            "Lieferzeit und Bemerkung. Lieferanten, die im Artikelformular neu eingetippt werden, legt das Programm "
            "hier mit ihrem Namen an. Beim Umbenennen ändert sich der Name in allen Artikeln mit. Preise, "
            "Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
+    i.abschnitt("Zukaufteile im Angebot")
+    i.text("Zukaufteile gehören zu einer Position: <i>Menge je Teil</i> × Stückzahl der Position ergibt den "
+           "Verbrauch. Position(en) markieren und <b>Zukaufteile …</b> klicken oder in der Spalte "
+           "<i>Zukaufteile</i> doppelklicken. Umgekehrt übernimmt <b>In Angebot übernehmen …</b> im Unterreiter "
+           "Artikel den markierten Artikel in eine Position: Angebot und Position wählen, Menge je Teil eingeben. "
+           "Archivierte Artikel lassen sich nicht übernehmen.")
+    i.bild("zukauf_dialog", "Dialog Zukaufteile: 4 Schrauben, 4 Muttern und 2 Laschen je Teil (Beispielwerte)",
+           hoehe=60 * mm, legende=[
+               (1, "Artikel wählen (Artikelnummer oder Bezeichnung eintippen), dann <b>Hinzufügen</b>"),
+               (2, "Menge je Teil in der Einheit des Artikels"),
+               (3, "je Zeile Artikel, Menge je Teil und <i>Aufschlag Position</i> (änderbar), Lieferant, "
+                   "Aufschlagsregel, Einstand und VK je Teil, Preisstand"),
+               (4, "<b>Entfernen</b>, <b>Duplizieren</b> und <b>Aus Stammdaten aktualisieren …</b>"),
+               (5, "Vorschau für die Stückzahl dieser Position")])
+    i.liste("<b>Aufschlag Position [%]</b> leer lassen: es gilt die Regel des Artikels. Eine Zahl ersetzt sie "
+            "für diese Position (% auf den Einstandspreis).",
+            "Beim Hinzufügen speichert das Programm den <b>Preisstand</b> des Artikels in der Position: "
+            "Einkaufspreise und Bezugskosten des bevorzugten Lieferanten und die Aufschlagsregel. Spätere "
+            "Änderungen am Artikel, an der Kategorie oder am Standardaufschlag ändern gespeicherte Angebote nicht. "
+            "Hat sich der Artikel geändert, steht in der Spalte Preisstand <i>neuer Stand in den Stammdaten</i>.",
+            "<b>Aus Stammdaten aktualisieren …</b> (markierte Zeilen, ohne Markierung alle) zeigt je Artikel den "
+            "VK je Teil alt und neu und übernimmt den neuen Stand erst nach Bestätigung und <b>OK</b>.",
+            "Mit mehreren markierten Positionen gilt die Liste nach OK für alle (sie ersetzt deren Zukaufteile).")
+    i.text("So rechnet das Angebot (Abschnitt 8.3):")
+    i.liste("Gleiche Artikel mit gleichem Preisstand aus allen Positionen werden zu <b>einer Bestellung</b> "
+            "zusammengezählt. Für den ganzen Verbrauch gelten Mindestbestellmenge, Verpackungseinheit und Preisstaffel; "
+            "Bezugskosten je Bestellung fallen einmal an und werden nach Verbrauch auf die Positionen verteilt.",
+            "Der Verkaufspreis der Zukaufteile (Einstand + Aufschlag) kommt <b>nach dem Gewinn</b> in den "
+            "Stückpreis: ohne Zuschlag Fertigung, Fremdleistung und ohne Gewinn des Angebots, denn der Aufschlag des "
+            "Artikels ersetzt sie. Nur das Skonto wird eingerechnet. Die Herstellkosten enthalten keine Zukaufteile.",
+            "Die Kosten zeigen <i>Zukaufteile (Einstand)</i> und <i>Aufschlag Zukaufteile</i> getrennt.",
+            "Fehlt ein Einkaufspreis, zeigt die Position den Hinweis <i>Zukaufteil: kein Einkaufspreis</i>; die "
+            "Staffelpreise melden <i>Zukaufteil ohne Einkaufspreis</i> statt eines Preises.",
+            "Artikel mit <i>im Angebotstext der Position nennen</i> erscheinen im Angebots-PDF im Text der Position "
+            "nach <i>inkl. Zukaufteile:</i> mit Menge je Teil und Bezeichnung, z. B. <i>inkl. Zukaufteile: 4 St "
+            "Sechskantschraube M6x20</i>.")
+    i.bild("angebot_zukaufteile", "Reiter Zukaufteile im Angebot (Beispielwerte)", hoehe=70 * mm, legende=[
+        (1, "Reiter <b>Zukaufteile</b>"), (2, "Summen: Einstand, Aufschlag, Verkauf"),
+        (3, "je Artikel und Preisstand: Positionen, Verbrauch, Bestellmenge, Mehrmenge, Preisstaffel, EK je "
+            "Einheit, Einkauf, Bezugskosten, Einstand, Aufschlagsregel, Aufschlag, Verkauf netto, Deckungsbeitrag "
+            "[% vom VK], Preisstand und Hinweis")])
+    i.text("In den <b>Staffelpreisen</b> (Kapitel 9) rechnet jede Mengenstufe die Zukaufteile mit ihrem eigenen "
+           "Verbrauch neu: 10 Baugruppen bestellen andere Mengen (und Staffelpreise) als 500. Das Ergebnis zeigt die "
+           "Gruppe <i>Zukaufteile (eigener Aufschlag statt Zuschläge und Gewinn)</i> mit <i>Einstand Zukaufteile "
+           "(Einkauf + Bezugskosten)</i> und <i>Aufschlag Zukaufteile</i>. Materialzuschlag und Gewinn der Stufe "
+           "wirken nicht auf Zukaufteile.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):

@@ -26,7 +26,7 @@ sys.path.insert(0, str(WURZEL / "tests"))
 
 from PySide6.QtCore import QLocale, QPoint, QRect, QRectF, Qt, QTimer  # noqa: E402
 from PySide6.QtGui import QColor, QFont, QPainter, QPen  # noqa: E402
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QComboBox, QMessageBox, QPushButton, QSpinBox  # noqa: E402
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QComboBox, QDialog, QMessageBox, QPushButton, QSpinBox  # noqa: E402
 
 from abnahme_angebote import ANGEBOTE  # noqa: E402
 
@@ -401,6 +401,30 @@ def main(ziel):
     foto.foto("angebot_zusatz", f, [(kopf_marke(spalte["zeit_manuell"]), 1), (kopf_marke(spalte["zusatz"]), 2),
                                     ((s.pos_ansicht.viewport(), status), 3)], ausschnitt=reiterflaeche(s))
     s._spalten_zeigen()
+
+    # 7b) Zukaufteile in einem eigenen Angebot (A-2026-0039), damit die Preise der übrigen Bilder bleiben
+    ids = {x["artikelnr"]: x["id"] for x in db.zukauf_artikel_liste()}
+    sz = f.angebot_oeffnen(a1)
+    bereit()
+
+    def zukauf_ausfuellen(d):
+        d.hinzufuegen(ids["Z-1001"], 4)
+        d.hinzufuegen(ids["Z-1002"], 4)
+        d.hinzufuegen(ids["Z-2001"], 2)
+        d.resize(1250, 330)
+        QApplication.processEvents()
+        foto.foto("zukauf_dialog", d, [(d.auswahl, 1), (d.menge, 2), (d.tabelle, 3),
+                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.info, 5)])
+        d.accept()
+        return QDialog.Accepted
+    sz.zukaufteile([0], dialog=zukauf_ausfuellen)
+    sz.optimieren()
+    reiter_waehlen(sz, "Zukaufteile")
+    bereit()
+    foto.foto("angebot_zukaufteile", f, [(tab_rect(sz.reiter, "Zukaufteile"), 1), (sz.zukauf_info, 2),
+                                         (sz.zukauf_ansicht, 3)], ausschnitt=reiterflaeche(sz))
+    f.angebot_schliessen(a1)
+    s = f.angebot_oeffnen(haupt)
 
     # 8) Staffeln: Gestelle als Satz
     for menge, bem in ((1, "Einzelgestell"), (2, "Anfrage"), (5, "kleine Serie"), (10, "Rahmenauftrag")):

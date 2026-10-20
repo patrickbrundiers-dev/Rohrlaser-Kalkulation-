@@ -263,6 +263,10 @@ ERGEBNIS = (
     ("selbst", "Selbstkosten", lambda z: _p(z).get("selbst"), "summe"),
     ("gewinn", "Gewinn", lambda z: _p(z).get("gewinn"), "gruppe"),
     ("marge", "Gewinnmarge (vom Nettopreis)", lambda z: _p(z).get("marge"), "prozent"),
+    ("zukauf", "Zukaufteile (eigener Aufschlag statt Zuschläge und Gewinn)", lambda z: (
+        (_p(z).get("zukauf_einstand") or 0) + (_p(z).get("zukauf_aufschlag") or 0)) if _p(z) else None, "gruppe"),
+    ("zukauf_einstand", "Einstand Zukaufteile (Einkauf + Bezugskosten)", lambda z: _p(z).get("zukauf_einstand"), "kind"),
+    ("zukauf_aufschlag", "Aufschlag Zukaufteile", lambda z: _p(z).get("zukauf_aufschlag"), "kind"),
     ("weitere", "Weitere Kosten (ohne Zuschläge)", lambda z: sum(_p(z).get(n) or 0 for n in (
         "pauschalen", "programmierung", "angebotsaufschlag", "fracht", "skonto")) if _p(z) else None, "gruppe"),
     ("pauschalen", "Pauschale je Abmessung", lambda z: _p(z).get("pauschalen"), "kind"),
