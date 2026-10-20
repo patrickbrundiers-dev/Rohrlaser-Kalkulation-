@@ -762,6 +762,8 @@ class AngebotSeite(QWidget):
         a = self.db.angebot(self.id)
         if a is None:
             return
+        if self.db.fracht_auto_nachfuehren(self.id):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
+            a = self.db.angebot(self.id)
         self.kopf = a
         self.ergebnis = a["ergebnis"]
         self.positionen = self.db.positionen(self.id)
