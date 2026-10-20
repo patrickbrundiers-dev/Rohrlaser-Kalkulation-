@@ -733,7 +733,7 @@ def main(ziel):
 
     # Lieferlängen: 6 m gegen 12 m (eigenes Angebot, nach allen anderen Bildern)
     f.angebot_schliessen(haupt)
-    rahmen = db.angebot_neu(dict(nummer="A-2026-0042", kunde="Metallbau Krüger", kundennr="10417", maschine="RL-1",
+    rahmen = db.angebot_neu(dict(nummer="A-2026-0050", kunde="Metallbau Krüger", kundennr="10417", maschine="RL-1",
                                  stange=6000, bemerkung="Stützen Halle 3", datum="2026-10-20"))
     db.position_neu(rahmen, dict(pos=10, artikel="ST-3100", bezeichnung="Stütze", profil_id="RR 48,3x2,6",
                                  werkstoff_id="S235-10219", laenge=3100, stueck=30, schneidweg=320, einstiche=2))
