@@ -26,7 +26,7 @@ Zwei Rechenschichten:
 import hashlib
 import json
 
-from . import rechnen
+from . import fracht_angebot, rechnen
 from .ausgabe import kaufm_runden
 from .stammdaten import Feld, kontext_aus
 
@@ -218,7 +218,9 @@ def szenario(schl, menge, positionen):
 def _gemeinsam(kopf, positionen, k, tabellen, einst):
     """Eingaben, die für alle Stufen gleich in den Mengenlauf eingehen."""
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
-    return [{f: kopf.get(f) for f in felder},
+    # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
+    fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung")
+    return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder if kopf.get(n) is not None)},
             [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
             [k.profile, k.werkstoffe, k.maschinen, k.oberflaechen], tabellen, {n: einst.get(n) for n in EINST_LAUF},
             VERSION]
@@ -274,6 +276,13 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
         return z
     z["bezeichnung"] = bez
     lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
+    werte = [rechnen.position_werte(p, kopf, k, tabellen) if p.get("profil_id") not in (None, "") else None
+             for p in lauf]
+    betrag, fracht_text, fracht_fehler = fracht_angebot.stufe(kopf, lauf, werte)
+    if fracht_fehler:           # nie still mit 0 € Fracht rechnen
+        z.update(hinweis=fracht_fehler)
+        return z
+    kopf = dict(kopf, fracht=betrag)
     erg = rechnen.optimieren(kopf, lauf, k)
     if erg["neue_profile"]:      # Profil aus dem Namen gilt für diesen Lauf als angelegt
         k = kontext_aus({"profile": list(k.profile.values()) + erg["neue_profile"],
@@ -295,6 +304,10 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
     text = f"WARNUNG: {offen:.0f} Teile nicht eingeplant" if offen > 0 else ""
     if hinweise:
         text += ("; " if text else "") + f"{hinweise} Hinweis(e) in der Kalkulation"
+    if summen.get("fracht_hinweis"):
+        text += ("; " if text else "") + summen["fracht_hinweis"]
+    if fracht_text:
+        text += ("; " if text else "") + fracht_text
     z["hinweis"] = text or None
     return preise_anwenden(z, stufe or {}, einst) if mit_preis else z
 

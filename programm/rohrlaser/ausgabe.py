@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from . import rechnen
+from . import fracht_angebot, rechnen
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -175,7 +175,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                  menge=z["menge"], bereich=bereich, preis=z["preis_einheit"],
                                  gesamt=z["preis_gesamt"]))
     return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=netto + mwst, mwst_satz=satz_mwst, staffeln=staffeln,
-                hinweise=hinweise, zahlung=zahlungstext(kopf), anschrift=[])
+                hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[])
 
 
 def _prozent(w):

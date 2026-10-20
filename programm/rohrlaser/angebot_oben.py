@@ -10,7 +10,8 @@ from PySide6.QtWidgets import (
     QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
-from . import rechnen
+from . import fracht_angebot, rechnen
+from .fracht_angebot import MODI, UMLAGEN
 from .angebot import KALK_PROZENT, KALKULATION, KOPF
 from .sichtbarkeit import KOPF_ROLLEN, MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
@@ -242,6 +243,34 @@ class KopfBereich(QWidget):
         self.erweitert_bereich = Aufklapper("Erweiterte Einstellungen", er)
         kal.addWidget(self.erweitert_bereich)
         lay.addWidget(kalk)
+
+        # Fracht: Frachtart, Verteilung und Berechnung (fracht_angebot.py)
+        self.fracht_knopf = QPushButton("Fracht berechnen …")
+        self.fracht_knopf.setToolTip("Frachtkosten aus PLZ, Gewicht, Ladehilfsmitteln und Tarif berechnen "
+                                     "(Reiter Frachtkosten) und ins Angebot übernehmen")
+        self.fracht_knopf.clicked.connect(lambda: seite.fracht_berechnen())
+        fr, frl = karte("Fracht", self.fracht_knopf)
+        zeile = QHBoxLayout()
+        self.fracht_modus, self.fracht_umlage = QComboBox(), QComboBox()
+        self.fracht_modus.addItems(MODI)
+        self.fracht_umlage.addItems(UMLAGEN)
+        self.fracht_modus.setToolTip("manuell: Betrag „Frachtkosten“ von Hand; berechnet: aus „Fracht berechnen …“, "
+                                     "in den Staffelpreisen je Menge neu; keine Fracht (Abholung, ab Werk) und im "
+                                     "Artikelpreis enthalten: 0 € in der Kalkulation, Hinweis im Angebot")
+        self.fracht_umlage.setToolTip("je Stück: jedes Teil trägt gleich viel; nach Gewicht: Anteil des Teilegewichts "
+                                      "am Gesamtgewicht")
+        for titel, cb, name in (("Frachtart", self.fracht_modus, "fracht_modus"),
+                                ("Fracht verteilen", self.fracht_umlage, "fracht_umlage")):
+            zeile.addWidget(QLabel(titel))
+            zeile.addWidget(cb)
+            cb.currentTextChanged.connect(lambda t, name=name: seite._kopf_speichern(KOPF_FELD[name], t or None))
+        zeile.addStretch(1)
+        frl.addLayout(zeile)
+        self.fracht_text = QLabel()
+        self.fracht_text.setWordWrap(True)
+        self.fracht_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        frl.addWidget(self.fracht_text)
+        lay.addWidget(fr)
         offen = self.s.db.einstellung(KALK_OFFEN_EINSTELLUNG)
         self.kalkulation_aufklappen(offen if isinstance(offen, bool) else True)
         lay.addStretch(1)
@@ -372,6 +401,38 @@ class KopfBereich(QWidget):
         self.sichtbarkeit()
         self._kurzfassung()
         self._maschine_anzeigen()
+        self._fracht_anzeigen()
+
+    def _fracht_anzeigen(self):
+        s = self.s
+        m, u = fracht_angebot.modus(s.kopf), fracht_angebot.umlage(s.kopf)
+        self.fracht_modus.setCurrentText(m)
+        self.fracht_umlage.setCurrentText(u)
+        for ablage in (self.felder, self.erweitert):     # berechnet: Betrag kommt aus der Frachtberechnung
+            w = ablage.get("fracht")
+            if w is not None:
+                w.setReadOnly(m == fracht_angebot.BERECHNET)
+                w.setToolTip("aus „Fracht berechnen …“ (Frachtart berechnet)" if m == fracht_angebot.BERECHNET
+                             else "")
+        betrag = fracht_angebot.wirksam(s.kopf)
+        d = fracht_angebot.daten(s.kopf) or {}
+        if m == fracht_angebot.BERECHNET:
+            text = f"Berechnet: {d.get('text') or _z(betrag) + ' €'}"
+            sd = d.get("sendung") or {}
+            if sd.get("plz"):
+                text += f", nach {(sd.get('land') or 'DE')} {sd['plz']}"
+            text += ". In den Staffelpreisen rechnet jede Menge ihre eigene Fracht."
+        elif m == fracht_angebot.MANUELL:
+            text = (f"Von Hand: {_z(betrag)} € (Feld Frachtkosten), in den Staffelpreisen für alle Mengen gleich."
+                    if betrag else "Keine Frachtkosten eingetragen.")
+        else:
+            text = f"{m}: 0 € in der Kalkulation, Hinweis im Angebot."
+        werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if p.get("profil_id") else None
+                 for p in s.positionen]
+        _, hinweis, _ = fracht_angebot.anteile(s.positionen, werte, betrag, u)
+        if hinweis:
+            text += f"<br><span style='color:#7A5A00'>{hinweis}.</span>"
+        self.fracht_text.setText(text)
 
     def sichtbarkeit(self):
         """Optionale Felder mit 0 in die Erweiterten Einstellungen, alle anderen in die Hauptansicht."""

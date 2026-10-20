@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
+from .fracht_angebot import UMLAGE_NEU
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
@@ -512,6 +513,7 @@ class Datenbank:
             kopf.setdefault(n, w)
         for n, w in self.kalkulation_vorgaben().items():
             kopf.setdefault(n, w)
+        kopf.setdefault("fracht_umlage", UMLAGE_NEU)     # neue Angebote: nach Gewicht; Kopien behalten ihren Wert
         namen = [f.name for f in KOPF if f.name in kopf]
         zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
         try:

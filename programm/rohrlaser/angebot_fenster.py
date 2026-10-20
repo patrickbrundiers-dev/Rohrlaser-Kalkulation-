@@ -742,6 +742,14 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
+    def fracht_berechnen(self):
+        """Dialog 'Fracht berechnen' (fracht_seite.FrachtDialog); im stummen Betrieb (Tests) nur anlegen."""
+        from .fracht_seite import FrachtDialog
+        d = FrachtDialog(self)
+        if not self.f.stumm:
+            d.exec()
+        return d
+
     def kunde_waehlen(self, kundennr):
         """Kundennummer übernehmen; steht der Kunde im Kundenstamm, auch Name und Zahlungsbedingungen."""
         kundennr = (kundennr or "").strip() or None

@@ -13,6 +13,7 @@ import json
 from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis)
 from . import optimierung as opt
+from . import fracht_angebot
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -639,9 +640,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     - Rüstzeit je Abmessung (Einstellung, min) für jede Abmessung (Profil-ID) mit Stückzahl, mit dem
       Maschinenstundensatz bewertet, umgelegt auf die Teile dieser Abmessung; zählt zu Rüsten und damit zu
       den Herstellkosten (mit Zuschlag Fertigung und Gewinn).
-    - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Angebotsaufschlag (€) und
-      Frachtkosten aus dem Angebotskopf (€), umgelegt auf alle Teile; gehen ohne Zuschläge in den
-      Verkaufspreis ein.
+    - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Angebotsaufschlag (€), umgelegt auf
+      alle Teile, und Frachtkosten (fracht_angebot.wirksam: 0 bei 'keine Fracht' und 'im Artikelpreis enthalten'),
+      je Stück oder nach Gewicht verteilt (fracht_angebot.anteile); gehen ohne Zuschläge in den Verkaufspreis ein.
     - Programmierkosten je Teil (Einstellung, €) für jede Position mit Stückzahl, umgelegt auf deren
       Stückzahl, ohne Zuschläge in den Verkaufspreis.
     - Gewinde mit festem Preis (Stammdaten Gewinde) zählen mit dem Preis statt mit der Zeit.
@@ -701,7 +702,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                 e["teil"] = e["betrag"] * max(1.0, e["mindest"] / zus_summe[e["name"]])
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
-    fracht = _n(kopf.get("fracht")) if f8 else 0
+    werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
+    fracht = fracht_angebot.wirksam(kopf) if f8 else 0
+    fracht_je, fracht_hinweis, fracht_umlage = fracht_angebot.anteile(positionen, werte, fracht,
+                                                                      fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, len(stangen), teile_abm,
                                sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0))
     eingespart = {}
@@ -714,7 +718,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     zeilen = [None] * len(positionen)
     for i in aktiv:
         p = positionen[i]
-        w = position_werte(p, kopf, k, tabellen)
+        w = werte[i]
         c = _n(p.get("stueck"))
         gr = gruppe_von(p, kopf)
         d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
@@ -745,7 +749,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         n_abm = teile_abm.get(p.get("profil_id"), 0)
         rz = (f7 / f8 if f8 else 0) + (ruest_abm / n_abm if n_abm and c else 0)
         az = sum(e["teil"](p, c) for e in weitere) if c else 0      # weitere Arbeitsschritte je Teil
-        uz = (pausch_abm / n_abm if n_abm and c else 0) + ((aufschlag + fracht) / f8 if f8 and c else 0) \
+        fr = fracht_je[i] if c else 0
+        uz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) + fr \
             + (prog / c if c else 0)
         s_ = f * (1 + zm) + (qz + rz + az + ze) * (1 + zf) + zfr * (1 + zfl)
         ohne = s_ * (1 + gew) + uz
@@ -771,7 +776,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zuschlag_material_teil=f * zm, zuschlag_fertigung_teil=(qz + rz + az + ze) * zf,
                  zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew, skonto_teil=t_ - ohne)
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
-                 herstell_teil=s_, pauschalen_teil=uz, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
+                 herstell_teil=s_, pauschalen_teil=uz, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
                  nicht_eingeplant=nicht)
         zeilen[i] = z
@@ -783,6 +788,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
+                  fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
                   positionen=sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
                   programmierung=prog * sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0),
                   material=sum(z["material_position"] for z in zeilen if z),
