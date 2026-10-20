@@ -1676,13 +1676,13 @@ def kapitel_stammdaten(i):
             "Gibt es für Profil + Werkstoff Zeilen, ist die Stangenlänge des Angebots (meist 6.000 mm) nur lieferbar, "
             "wenn sie hier oder als Liefer-Stangenlänge in <i>Preise</i> steht. Steht dort nur 12.000, plant das "
             "Programm keine künstliche 6-m-Variante.",
+            "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
+            "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Werkstücklängen zu.")
     i.tabelle(["Maschinen", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, Bezeichnung", "Kurzname (Auswahl im Angebotskopf) und Klartext"],
         ["Endbeschnitt [mm], Greiferrest [mm]", "Anschnitt am Stangenanfang und nicht nutzbares Ende im Greifer"],
         ["Schnittverlust je Schnitt [mm]", "Materialverlust je Trennschnitt (Schnittbreite)"],
         ["Abstand getrennte Schnitte [mm]", "Steg zwischen zwei Teilen, wenn sich die Enden keinen Schnitt teilen"],
-            "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
-            "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Werkstücklängen zu.")
         ["Max. Stangenlänge [mm]", "längste Stange, die die Maschine laden kann (Beladelänge); auch die Grenze für "
                                    "Werkstücke aus längeren Lieferstangen"],
         ["Stundensatz [€/h]", "Stundensatz <i>Maschine</i>: für Laserzeit, Gewinde ohne Festpreis, Rüsten und "
