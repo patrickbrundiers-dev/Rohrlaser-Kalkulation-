@@ -24,7 +24,8 @@ DATEIEN = [HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step", HIER / "step_
            HIER / "step_profile" / "P01_U50x30x3_L800.step", HIER / "step_profile" / "P10_RE60x40_Wand2und3_L600.step",
            HIER / "step_referenz" / "REF13_T50x40x5_L600.step"]
 KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", "volumen_mm3", "oberflaeche_mm2",
-                  "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "profiltyp", "profil_id_vorschlag",
+                  "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "bauteiltyp", "profiltyp",
+                  "profil_id_vorschlag", "blech",
                   "aussenmasse", "innenmasse", "querschnittsflaeche_mm2", "wandstaerke", "laenge", "laengsachse",
                   "schnittwinkel", "schneidweg", "konturen", "enden", "pruefstatus", "warnungen",
                   "erkennungssicherheit"}
