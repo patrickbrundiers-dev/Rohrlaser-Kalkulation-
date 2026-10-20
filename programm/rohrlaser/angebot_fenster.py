@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QVBoxLayout, QWidget)
 
-from . import fracht_angebot, ausgabe, export, pdf, rechnen, step, zukauf
+from . import fracht_angebot, ausgabe, export, pdf, rechnen, step, zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
@@ -605,6 +605,7 @@ class AngebotSeite(QWidget):
                 menue = QMenu(b)
                 menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
                 menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
+                menue.addAction("EK eintragen …", lambda: self.zukauf_ek())
                 b.setMenu(menue)
                 b.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
                 self.zukauf_knopf = b
@@ -1097,6 +1098,44 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"{len(d.ergebnis)} Zukaufartikel angelegt, je als eigene Position (Zukaufteil).")
         self.neu_laden()
         return len(d.ergebnis)
+
+    def zukauf_ek(self, zeilen=None, preise=None, dialog=None):
+        """Einkaufspreise der Zukaufteile im Angebot eintragen (z. B. Bleche aus dem STEP-Import ohne EK): markierte
+        Positionen, ohne Markierung alle Zukaufteile ohne EK. Der Preis wird im Artikel beim Lieferanten des
+        Preisstands (sonst zukauf.BLECH_LIEFERANT) als Staffelzeile 'ab Stückzahl der Position' gespeichert und die
+        Position bekommt den neuen Preisstand. preise = [Preis je Zeile oder None] statt Dialog; dialog(d) bedient den
+        Dialog statt exec (Tests). Ergebnis: Anzahl eingetragener Preise."""
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        liste = zukauf_ek.zeilen([(r, self.positionen[r]) for r in (zeilen or range(len(self.positionen)))],
+                                 nur_fehlend=not zeilen)
+        if not liste:
+            self.f.meldung("Keine Zukaufteile ohne EK gefunden." if not zeilen
+                           else "Die markierten Positionen haben keine Zukaufteile.", fehler=True)
+            return 0
+        if preise is None:
+            d = zukauf_ek.EkDialog(self, liste)
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return 0
+            paare = d.ergebnis
+        else:
+            paare = [(z, w) for z, w in zip(liste, preise) if w]
+        nummer = self.kopf.get("nummer") or ""
+        geaendert = {}
+        for z, preis in paare:
+            menge = float(z["menge"])
+            menge = int(menge) if menge.is_integer() else menge
+            lief = z["lieferant"] or zukauf.BLECH_LIEFERANT["Blechteile"]
+            self.db.zukauf_ek_eintragen(z["artikel_id"], preis, lief, ab=menge,
+                                        bemerkung=f"EK aus Angebot {nummer} (ab {menge} St)".replace("  ", " "))
+            p = self.positionen[z["zeile"]]
+            liste_p = geaendert.setdefault(z["zeile"], zukauf.json_liste(p.get("zukauf")))
+            liste_p[z["nr"]]["stand"] = self.db.zukauf_stand(z["artikel_id"], lief)
+        for r, liste_p in geaendert.items():
+            self.db.position_aendern(self.positionen[r]["id"], "zukauf", json.dumps(liste_p, ensure_ascii=False))
+        self.f.meldung(f"EK für {len(paare)} Zukaufteil(e) eingetragen und im Artikel gespeichert.")
+        self.neu_laden()
+        return len(paare)
 
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
