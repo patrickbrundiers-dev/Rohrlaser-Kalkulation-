@@ -107,8 +107,13 @@ def konturklassen(text, klein, mittel):
     return kl
 
 
+def _wand(m):
+    """Wand- bzw. Blechdicke eines gemessenen Teils (Flachstahl: Dicke = Abmessung B der Messung)."""
+    return _z(m, "abm_b") if m.get("profilform") == "Flachstahl" else _z(m, "wandstaerke")
+
+
 def finde_profil(m, profile):
-    form, a, b, t = m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b"), _z(m, "wandstaerke")
+    form, a, b, t = m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b"), _wand(m)
     for pid, p in profile.items():
         if p.get("form") != form or abs((p.get("wand") or 0) - t) > TOL_MASS:
             continue
@@ -116,9 +121,15 @@ def finde_profil(m, profile):
         if form in ("Rundrohr", "Quadratrohr"):
             if abs(pa - a) <= TOL_MASS:
                 return pid
-        elif form == "Rechteckrohr":
+        elif form in ("Rechteckrohr", "L-Profil"):
             gr, kl = max(pa, pb), min(pa, pb)
             if abs(gr - a) <= TOL_MASS and abs(kl - b) <= TOL_MASS:
+                return pid
+        elif form in ("U-Profil", "C-Profil"):
+            if abs(pa - a) <= TOL_MASS and abs(pb - b) <= TOL_MASS:
+                return pid
+        elif form == "Flachstahl":
+            if abs(pa - a) <= TOL_MASS:
                 return pid
     return None
 
@@ -128,10 +139,10 @@ def profil_vorschlag(m, profile):
     return finde_profil(m, profile) or m.get("profil_id_vorschlag") or None
 
 
-# Profilformen, die die Messung erkennt, das Programm aber noch nicht kalkuliert (Patrick 19.10.2026: erst erkennen
-# und melden, Stammdaten/Kalkulation später)
-NICHT_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "Vierkantstahl", "Rundstahl",
-                    "offenes Sonderprofil")
+# Profilformen, die die Messung erkennt, das Programm aber nicht kalkuliert. U-, C-, L-Profile und Flachstahl
+# werden seit 20.10.2026 kalkuliert (Patrick: Plan Frage 2 b); Vollmaterial und nicht erkannte offene Profile nicht.
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil")
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil")     # Profilformen mit Abmessung B
 
 
 def unsicher(m):
@@ -265,8 +276,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 pid = pid or m.get("profil_id_vorschlag") or None
                 if neue_profile and pid:
                     p = dict(profil_id=pid, form=m["profilform"], a=round(_z(m, "abm_a"), 2),
-                             b=round(_z(m, "abm_b"), 2) if m["profilform"] == "Rechteckrohr" else None,
-                             wand=round(_z(m, "wandstaerke"), 2), flaeche_manuell=round(_z(m, "flaeche"), 1),
+                             b=round(_z(m, "abm_b"), 2) if m["profilform"] in MIT_B else None,
+                             wand=round(_wand(m), 2), flaeche_manuell=round(_z(m, "flaeche"), 1),
                              bemerkung="aus STEP-Import angelegt, bitte prüfen")
                     neue_prof.append(p)
                     profile[pid] = p

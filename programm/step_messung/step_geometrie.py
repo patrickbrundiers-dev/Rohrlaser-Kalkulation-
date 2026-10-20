@@ -23,6 +23,8 @@ Annahmen:
   (Enden, Bohrungen, Ausschnitte), sonst eine Gravur.
 - Der Schneidweg wird auf der Außenhaut gemessen. Beide Endschnitte zählen
   voll je Teil (kein gemeinsamer Trennschnitt).
+- Offene Profile (U, C, L, Flachstahl): eine Kontur im Querschnitt; Schnittlänge = halbe Länge der Konturkanten
+  (der Laser schneidet jede Wand einmal), siehe _offen_konturen.
 """
 import math
 from dataclasses import dataclass, field
@@ -945,6 +947,8 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
             t.wandstaerke = min(werte)
             t.sicherheit["wandstaerke"] = "unsicher"
             t.hinweise.append(f"Wandstärke nicht einheitlich: {min(werte):.2f} bis {max(werte):.2f} mm")
+    if t.profilform in OFFEN_KALKULIERT:
+        return _offen_konturen(t, lok, aussen, zmin, netz)
     t.sicherheit["konturen"] = "nicht ausgewertet"
     t.hinweise.append(f"{t.profilform}: wird noch nicht kalkuliert, Konturen nicht ausgewertet")
     if netz:
@@ -953,6 +957,212 @@ def _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz):
         t.netz = dreiecksnetz(lok, faces, {i: "A" for i in range(1, faces.Extent() + 1)}, [], zmin,
                               max(t.abm_a, t.abm_b))
     return t
+
+
+# Offene Profile, die das Programm kalkuliert (Patrick 20.10.2026: Plan Frage 2 b). Vierkant- und Rundstahl
+# (Vollmaterial) und nicht erkannte offene Profile bleiben nur gemeldet.
+OFFEN_KALKULIERT = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl")
+
+
+def _normale(face, p):
+    """Nach außen zeigende Flächennormale (x, y, z) im Punkt p (auf der Fläche) oder None."""
+    from OCP.ShapeAnalysis import ShapeAnalysis_Surface
+    from OCP.BRepGProp import BRepGProp_Face
+    f = TopoDS.Face(face)
+    uv = ShapeAnalysis_Surface(BRep_Tool.Surface_s(f)).ValueOfUV(p, 1e-3)
+    q, v = gp_Pnt(), gp_Vec()
+    BRepGProp_Face(f).Normal(uv.X(), uv.Y(), q, v)
+    m = v.Magnitude()
+    return (v.X() / m, v.Y() / m, v.Z() / m) if m > 1e-12 else None
+
+
+def _offen_konturen(t, lok, aussen, zmin, netz):
+    """Schnitte an offenen Profilen (U, C, L, Flachstahl). Profil und Wand liegen auf einer einzigen Kontur; eine
+    Fläche, die nicht auf ihr liegt, gehört zu einem Merkmal (Ende, Bohrung, Ausschnitt). Ein Merkmal geht durch,
+    wenn es Wandflächen beider Seiten der Wand berührt (Normalen entgegengesetzt), sonst ist es eine Gravur oder
+    Sackbohrung. Der Laser schneidet von einer Seite: Schnittlänge = halbe Länge der Kanten zur Wand (oben und
+    unten je einmal), Einstiche = halbe Anzahl Konturzüge (aufgerundet). Lage: z ab Ende A; die Lage um das Profil
+    (Steg/Flansch) wird nicht angegeben."""
+    zmax = zmin + t.laenge
+    s_aussen = _strecken(aussen)
+    faces = TopTools_IndexedMapOfShape()
+    TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
+
+    def punkte(face):
+        pts = [BRep_Tool.Pnt_s(TopoDS.Vertex(v)) for v in _liste(face, TopAbs_VERTEX)]
+        for e in _liste(face, TopAbs_EDGE):
+            c = BRepAdaptor_Curve(TopoDS.Edge(e))
+            for u in (0.25, 0.5, 0.75):
+                pts.append(c.Value(c.FirstParameter() + u * (c.LastParameter() - c.FirstParameter())))
+        return pts
+
+    art, fl_art = {}, {"A": 0.0, "S": 0.0}
+    for i in range(1, faces.Extent() + 1):
+        f = faces.FindKey(i)
+        # Wandflächen liegen auf der Kontur und laufen längs; eine Stirnfläche hat ihren Rand auch auf der Kontur
+        pl = _ebene(f)
+        laengs = pl is None or abs(pl.Axis().Direction().Z()) < 1e-3
+        art[i] = "A" if laengs and all(_nah_zug(p.X(), p.Y(), s_aussen, TOL_WAND) for p in punkte(f)) else "S"
+        fl_art[art[i]] += _flaeche(f)
+    if fl_art["S"] > fl_art["A"]:
+        t.hinweise.append("Erkennung unsicher: Schnittflächen größer als die Profilflächen, Konturen nicht "
+                          "ausgewertet. Teil bitte prüfen.")
+        t.sicherheit["konturen"] = "unsicher"
+        return t
+    kf = TopTools_IndexedDataMapOfShapeListOfShape()
+    TopExp.MapShapesAndAncestors_s(lok, TopAbs_EDGE, TopAbs_FACE, kf)
+    vmap = TopTools_IndexedMapOfShape()
+    TopExp.MapShapes_s(lok, TopAbs_VERTEX, vmap)
+    eltern = {}
+
+    def finde(x):
+        while eltern.setdefault(x, x) != x:
+            eltern[x] = eltern[eltern[x]]
+            x = eltern[x]
+        return x
+    kanten_info = []
+    for i in range(1, kf.Extent() + 1):
+        fi = {faces.FindIndex(f) for f in kf.FindFromIndex(i)}
+        kanten_info.append((kf.FindKey(i), fi))
+        sf = [f for f in fi if art[f] == "S"]
+        for f in sf[1:]:
+            eltern[finde(f)] = finde(sf[0])
+    merkmale = {}
+    for f, a_ in art.items():
+        if a_ == "S":
+            merkmale.setdefault(finde(f), dict(faces=[], kanten=[], normalen=[]))["faces"].append(f)
+    for e, fi in kanten_info:
+        s_f = [f for f in fi if art[f] == "S"]
+        a_f = [f for f in fi if art[f] == "A"]
+        if s_f and a_f:
+            m = merkmale[finde(s_f[0])]
+            m["kanten"].append(e)
+            c = BRepAdaptor_Curve(TopoDS.Edge(e))
+            n = _normale(faces.FindKey(a_f[0]), c.Value((c.FirstParameter() + c.LastParameter()) / 2))
+            if n:
+                m["normalen"].append(n)
+
+    def zuege(kanten):
+        ve = {}
+
+        def fv(x):
+            while ve.setdefault(x, x) != x:
+                ve[x] = ve[ve[x]]
+                x = ve[x]
+            return x
+        for e in kanten:
+            vs = [vmap.FindIndex(v) for v in _liste(e, TopAbs_VERTEX)]
+            for v in vs:
+                ve[fv(v)] = fv(vs[0])
+        out = {}
+        for e in kanten:
+            out.setdefault(fv(vmap.FindIndex(_liste(e, TopAbs_VERTEX)[0])), []).append(e)
+        return list(out.values())
+
+    TOL_Z = 0.01
+    enden = {"EA": [[], 0.0], "EB": [[], 0.0]}
+    liste, bohrungen = [], {}
+    for m in merkmale.values():
+        kanten = m["kanten"]
+        if not kanten:
+            continue
+        laenge = sum(_kantenlaenge(e) for e in kanten)
+        zg = zuege(kanten)
+        nm = m["normalen"]
+        durch = any(sum(p * q for p, q in zip(a_, b_)) < -0.5 for i, a_ in enumerate(nm) for b_ in nm[i + 1:])
+        bb = Bnd_Box()
+        for e in kanten:
+            BRepBndLib.AddOptimal_s(e, bb, False, False)
+        gz0, gz1 = bb.CornerMin().Z(), bb.CornerMax().Z()
+        # Rundbohrung: nur Zylinderflächen gleichen Radius quer zur Achse (Sackbohrung: dazu ein ebener/kegeliger
+        # Grund)
+        radien, andere = set(), False
+        for f in m["faces"]:
+            fk = faces.FindKey(f)
+            z_ = _zylinder(fk)
+            if z_ is not None and abs(z_.Axis().Direction().Z()) < 0.99:
+                radien.add(round(z_.Radius(), 2))
+            elif durch or not (_ebene(fk) is not None or
+                               BRepAdaptor_Surface(TopoDS.Face(fk)).GetType() == GeomAbs_Cone):
+                andere = True
+        rund = (None, round(2 * radien.pop(), 2)) if len(radien) == 1 and not andere else None
+        if not durch:
+            m["art"] = "G"
+            t.gravur += laenge
+            t.gravur_konturen += len(zg)
+            d = dict(durchgehend=False, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
+                     schnittlaenge=round(laenge, 2))
+            if rund:
+                d.update(art="Sackbohrung", durchmesser=rund[1], hinweis="nicht durchgehend, mit dem Laser nicht "
+                         "herstellbar")
+                t.hinweise.append(f"Sackbohrung Ø{rund[1]:g} gefunden (nicht laserbar), prüfen")
+            else:
+                d.update(art="Gravur", hinweis="nicht durchgehend (Markierung/Vertiefung), nicht im Schneidweg")
+            liste.append(d)
+            continue
+        schnitt = laenge / 2
+        einstiche = (len(zg) + 1) // 2
+        if gz0 - zmin < TOL_Z:
+            m["art"] = "EA"
+            t.ende_a += schnitt
+            t.ende_a_gerade = gz1 - zmin < TOL_Z
+        elif zmax - gz1 < TOL_Z:
+            m["art"] = "EB"
+            t.ende_b += schnitt
+            t.ende_b_gerade = zmax - gz0 < TOL_Z
+        else:
+            m["art"] = "K"
+            t.innen += schnitt
+            t.innen_konturen += einstiche
+            mn, mx = bb.CornerMin(), bb.CornerMax()
+            dz = mx.Z() - mn.Z()
+            quer = max(mx.X() - mn.X(), mx.Y() - mn.Y())
+            d = dict(durchgehend=True, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
+                     schnittlaenge=round(schnitt, 2))
+            if rund:
+                bohrungen[rund[1]] = bohrungen.get(rund[1], 0) + 1
+                d.update(art="Bohrung", durchmesser=rund[1], huellmass=rund[1])
+                t.innen_liste.append((rund[1], schnitt))
+            else:
+                # Maße in der Wandebene: entlang der Achse (dz) und quer dazu; die Wanddicke steckt mit im Hüllmaß
+                d.update(art="Ausschnitt", laenge=round(max(dz, quer), 2), breite=round(min(dz, quer), 2),
+                         huellmass=round(max(dz, quer), 2))
+                t.innen_liste.append((max(dz, quer), schnitt))
+            liste.append(d)
+        if m["art"] in enden:
+            enden[m["art"]][0] += [faces.FindKey(f) for f in m["faces"]]
+            enden[m["art"]][1] += schnitt
+        t.konturen += einstiche
+    kopf = []
+    for art_, name, z in (("EA", "Ende A", 0.0), ("EB", "Ende B", t.laenge)):
+        fl, lg = enden[art_]
+        e = _endform(fl, lg) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None, um_y=None,
+                                         schnittlaenge=0.0)
+        kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
+    t.konturen_liste = kopf + sorted(liste, key=lambda d: d["z"])
+    t.bohrungen = dict(sorted(bohrungen.items()))
+    t.schneidweg = t.ende_a + t.ende_b + t.innen
+    t.sicherheit["konturen"] = "wahrscheinlich" if any(
+        d["art"] == "Ausschnitt" or d.get("form") in ("komplex", "nicht erkannt") for d in t.konturen_liste) \
+        else "sicher"
+    if netz:
+        art_flaeche = dict(art)
+        for m in merkmale.values():
+            for f in m["faces"]:
+                art_flaeche[f] = m.get("art", "K")
+        t.netz = dreiecksnetz(lok, faces, art_flaeche, [(m.get("art", "K"), m["kanten"]) for m in merkmale.values()],
+                              zmin, max(t.abm_a, t.abm_b))
+    return t
+
+
+def _innen_liegend(innen, aussen):
+    """True, wenn der Hüllquader von innen in dem von aussen liegt (Hohlprofil). Zwei nebeneinanderliegende
+    Konturen (z. B. U-Profil im Schnitt durch eine Stegbohrung) sind kein Hohlprofil."""
+    bi, ba = Bnd_Box(), Bnd_Box()
+    BRepBndLib.AddOptimal_s(innen, bi, False, False)
+    BRepBndLib.AddOptimal_s(aussen, ba, False, False)
+    return (ba.CornerMin().X() < bi.CornerMin().X() and bi.CornerMax().X() < ba.CornerMax().X() and
+            ba.CornerMin().Y() < bi.CornerMin().Y() and bi.CornerMax().Y() < ba.CornerMax().Y())
 
 
 def analysiere(solid, datei="", koerper=1, netz=False):
@@ -976,7 +1186,7 @@ def analysiere(solid, datei="", koerper=1, netz=False):
         for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
             z = zmin + anteil * t.laenge
             ws = _schnitt(lok, z)
-            if len(ws) != n_konturen:
+            if len(ws) != n_konturen or n_konturen == 2 and not _innen_liegend(ws[1][1], ws[0][1]):
                 continue
             netto = ws[0][0] - sum(w[0] for w in ws[1:])
             if best is None or netto > best[0] * 1.001:

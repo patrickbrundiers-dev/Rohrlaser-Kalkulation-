@@ -81,7 +81,9 @@ def profiltext(pid, k, dezimal=","):
         return str(pid or "")
     a, b, wand = (zahl_kurz(z.get(n), dezimal) for n in ("a", "b", "wand"))
     return {"Rundrohr": f"Rundrohr Ø {a} x {wand}", "Quadratrohr": f"Quadratrohr {a} x {a} x {wand}",
-            "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}"}.get(z.get("form"), str(pid))
+            "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}", "U-Profil": f"U-Profil {a} x {b} x {wand}",
+            "C-Profil": f"C-Profil {a} x {b} x {wand}", "L-Profil": f"L-Profil {a} x {b} x {wand}",
+            "Flachstahl": f"Flachstahl {a} x {wand}"}.get(z.get("form"), str(pid))
 
 
 def angebotstext(p, k, dezimal=",", zusatz=()):

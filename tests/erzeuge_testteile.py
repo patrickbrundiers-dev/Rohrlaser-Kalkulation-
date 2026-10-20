@@ -333,4 +333,21 @@ if __name__ == "__main__":
                                     .Cylinder().LateralFace(), tr, True).Shape()
     schreibe_flaechenmodell(baugruppe(kastenrohr(40, 40, 2, 800, 3), lose), "REF14_Flaechenmodell_mit_loser_Flaeche",
                             ref)
+    # Offene Profile mit Konturen (kalkuliert seit 20.10.2026): U 50x30x3 (Steg 50 in Y, Flansche nach +X, Steg
+    # außen bei x=0), Ø8 durch den Steg bei z 200, Ø6 durch einen Flansch bei z 400, Ausschnitt 20x10 im Steg bei
+    # z 600, Sackbohrung Ø5 (2 mm tief) im Steg bei z 700, Ende B 45° Gehrung (um Y, über die Flanschbreite)
+    u = profil([(0, -25), (30, -25), (30, -22), (3, -22), (3, 22), (30, 22), (30, 25), (0, 25)], 900)
+    u = cut(u, zylinder((-1, 0, 200), (1, 0, 0), 8, 5))
+    u = cut(u, zylinder((15, 20, 400), (0, 1, 0), 6, 10))
+    u = cut(u, BRepPrimAPI_MakeBox(gp_Pnt(-1, -5, 590), 5, 10, 20).Shape())
+    u = cut(u, zylinder((-1, 0, 700), (1, 0, 0), 5, 3))
+    schreibe(gehrung(u, 800, 45), "REF15_U50x30x3_Konturen", ref)
+    # L 40x40x4 mit Ø10 durch einen Schenkel bei z 150, gerade Enden, L 500
+    lp = profil([(0, 0), (40, 0), (40, 4), (4, 4), (4, 40), (0, 40)], 500)
+    schreibe(cut(lp, zylinder((20, -1, 150), (0, 1, 0), 10, 6)), "REF16_L40x40x4_Bohrung", ref)
+    # Flachstahl 40x5 L 300 mit zwei Bohrungen Ø9 bei z 50 und 250
+    fl = profil([(-20, -2.5), (20, -2.5), (20, 2.5), (-20, 2.5)], 300)
+    for z in (50, 250):
+        fl = cut(fl, zylinder((0, -3, z), (0, 1, 0), 9, 6))
+    schreibe(fl, "REF17_FL40x5_Bohrungen", ref)
     print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, "und", ref)

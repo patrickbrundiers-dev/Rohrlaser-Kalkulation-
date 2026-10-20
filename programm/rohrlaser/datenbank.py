@@ -18,9 +18,9 @@ from pathlib import Path
 
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
-                         beispieldaten, kategorie_raten, kontext_aus)
+                         beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12     # 12: offene Profile (U, C, L, Flachstahl) in der Auswahlliste Profilformen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -97,6 +97,8 @@ class Datenbank:
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
+            if 0 < version < 12:
+                self._profilformen_ergaenzen()
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -104,6 +106,15 @@ class Datenbank:
         namen = [f.name for f in TABELLE[tabelle].felder]
         self.con.executemany(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
                              f'VALUES ({", ".join("?" * len(namen))})', [[z.get(n) for n in namen] for z in zeilen])
+
+    def _profilformen_ergaenzen(self):
+        """Dateien vor Schema 12: U-, C-, L-Profil und Flachstahl in die Auswahlliste Profilformen (vor
+        'Sonderprofil'), sofern sie dort fehlen; eigene Einträge bleiben."""
+        formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+        neu = [f for f in OFFENE_PROFILE if f not in formen]
+        if neu:
+            i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
+            self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
 
     def _werkstoffe_ergaenzen(self):
         """Dateien vor Schema 11: Kategorie der vorhandenen Werkstoffe raten, fehlende Beispiel-Werkstoffe und

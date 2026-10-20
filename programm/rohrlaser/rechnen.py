@@ -211,15 +211,16 @@ def gruppen_bilden(kopf, positionen, k):
     Ergebnis: (gruppen, fehler, neue_profile). Unbekannte Profile, deren ID dem Schema entspricht
     (z. B. 'RR 42,4x2,0'), werden aus dem Namen angelegt: sie stehen in neue_profile
     und zählen hier schon als vorhanden."""
-    profile = {pid: dict(form=z.get("form"), a=_n(z.get("a")), b=z.get("b"), end=z.get("endbeschnitt"),
-                         greif=z.get("greiferrest"), flaeche=flaeche_wirksam(z)) for pid, z in k.profile.items()}
+    profile = {pid: dict(form=z.get("form"), a=_n(z.get("a")), b=z.get("b"), wand=z.get("wand"),
+                         end=z.get("endbeschnitt"), greif=z.get("greiferrest"), flaeche=flaeche_wirksam(z))
+               for pid, z in k.profile.items()}
     neue_profile = []
     for p in positionen:
         pid = p.get("profil_id")
         if not _leer(pid) and pid not in profile:
             d = opt.profil_aus_name(pid)
             if d is not None:
-                profile[pid] = dict(form=d["form"], a=d["a"], b=d["b"], end=None, greif=None,
+                profile[pid] = dict(form=d["form"], a=d["a"], b=d["b"], wand=d["wand"], end=None, greif=None,
                                     flaeche=flaeche_berechnet(dict(d, profil_id=pid)))
                 neue_profile.append(dict(profil_id=str(pid), form=d["form"], a=d["a"], b=d["b"], wand=d["wand"],
                                          bemerkung="automatisch aus Profil-ID angelegt"))
@@ -271,7 +272,7 @@ def gruppen_bilden(kopf, positionen, k):
         g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob))
         a_ger = p.get("a_gerade") != "nein"
         b_ger = p.get("b_gerade") != "nein"
-        u = opt.umfang(pr["form"], pr["a"], pr["b"])
+        u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"])
         h = p.get("schneidweg")
         if h:
             u = min(u, h / 2)
@@ -444,7 +445,7 @@ def oberflaeche(p, k):
     pr = k.profile.get(p.get("profil_id"))
     if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
         return None
-    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"))
+    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr))
     return u * p["laenge"] / 1e6 if u else None
 
 
