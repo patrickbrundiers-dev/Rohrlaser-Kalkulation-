@@ -946,14 +946,17 @@ def kapitel_angebot(i):
             "das Programm nicht, sondern meldet es. Zuschläge gelten nur mit der Bedingung <i>immer</i> bzw. über "
             "Zone und Gewicht, keine Zusatzleistungen wie Avis oder Hebebühne.",
             "Tarifkopie: Zone und alle Tarifwerte werden beim Setzen des Hakens und beim Ändern der Ziel-PLZ "
-            "festgehalten. Ändert sich danach die Stückzahl, rechnet das Programm mit dieser Kopie neu; spätere "
+            "festgehalten. Jede Änderung am Angebot (Stückzahl, Länge, Profil, Werkstoff, neue oder gelöschte "
+            "Position) rechnet die Fracht sofort mit dieser Kopie neu und schreibt sie ins Feld Frachtkosten. Spätere "
             "Tarifänderungen wirken erst, wenn die Ziel-PLZ neu eingegeben oder der Haken neu gesetzt wird.",
             "Liegt der PLZ-Bereich in mehreren Zonen (z. B. 25 mit Festland und Inseln), rechnet das Programm jede "
             "Zone und nimmt die teurere; die Karte nennt alle Zonen mit ihrem Betrag.",
             "In den Staffelpreisen rechnet jede Menge ihre eigene Fracht (Kapitel 9).",
             "Kann das Programm nicht rechnen (Ziel-PLZ fehlt, Gewicht fehlt, kein Tarif), steht der Grund rot in der "
-            "Karte, die Kalkulation rechnet bis dahin ohne Fracht und vor dem Angebots-PDF fragt das Programm nach. "
-            "Es setzt nie still 0 € ein.",
+            "Karte, das Feld Frachtkosten ist leer, die Kalkulation rechnet bis dahin ohne Fracht und vor dem "
+            "Angebots-PDF fragt das Programm nach. Es setzt nie still 0 € ein. Ist der Grund behoben (Gewicht "
+            "eingetragen, Versandart in den Einstellungen gesetzt), rechnet die nächste Änderung oder das Zurückkehren "
+            "ins Angebot die Fracht von selbst neu.",
             "Solange der Haken gesetzt ist, ist die Frachtart fest auf berechnet. Haken aus: der letzte Betrag bleibt "
             "stehen und die Frachtart ist wieder wählbar. <b>Fracht berechnen …</b> und <b>Ins Angebot übernehmen</b> "
             "nimmt den Haken heraus, damit die Automatik den Betrag von Hand nicht überschreibt.")
