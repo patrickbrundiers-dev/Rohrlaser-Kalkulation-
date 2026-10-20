@@ -698,9 +698,8 @@ class Datenbank:
                                  f'VALUES ({", ".join("?" * len(w))})', list(w.values()))
         return neu_id
 
-    def fracht_auto_aktualisieren(self, angebot_id):
-        """'Fracht automatisch berechnen': Zone, Tarif und Tarifkopie mit den aktuellen Frachtdaten neu festhalten
-        (beim Setzen des Hakens, Ändern der Ziel-PLZ oder des Kunden). Ergebnis: Frachtberechnung (dict)."""
+    def _fracht_auto(self, angebot_id):
+        """Angebot, Positionen, Positionswerte und neue automatische Frachtberechnung (ohne zu speichern)."""
         from . import fracht_angebot
         from .angebot import aktiv
         from .rechnen import position_werte
@@ -710,12 +709,45 @@ class Datenbank:
         werte = [position_werte(p, a, k, tab) if aktiv(p) else None for p in pos]
         einst = {n: self.einstellung(n) for n in ("absender_plz", "absender_land", "fracht_versandart",
                                                   "fracht_lht_standard", "fracht_lht_langgut")}
-        d = fracht_angebot.auto_rechnen(self.fracht_daten(), a, pos, werte, self.kunde(a.get("kundennr")), einst)
+        return a, pos, werte, lambda: fracht_angebot.auto_rechnen(self.fracht_daten(), a, pos, werte,
+                                                                  self.kunde(a.get("kundennr")), einst)
+
+    def _fracht_auto_speichern(self, angebot_id, d):
+        from . import fracht_angebot
         self.angebot_aendern(angebot_id, "fracht_sendung", json.dumps(d, ensure_ascii=False, default=str))
         self.angebot_aendern(angebot_id, "fracht_modus", fracht_angebot.BERECHNET)
-        if d.get("gesamt") is not None:
-            self.angebot_aendern(angebot_id, "fracht", d["gesamt"])
+        self.angebot_aendern(angebot_id, "fracht", d.get("gesamt"))
+
+    def fracht_auto_aktualisieren(self, angebot_id):
+        """'Fracht automatisch berechnen': Zone, Tarif und Tarifkopie mit den aktuellen Frachtdaten neu festhalten
+        (beim Setzen des Hakens, Ändern der Ziel-PLZ oder des Kunden). Ergebnis: Frachtberechnung (dict)."""
+        d = self._fracht_auto(angebot_id)[3]()
+        self._fracht_auto_speichern(angebot_id, d)
         return d
+
+    def fracht_auto_nachfuehren(self, angebot_id):
+        """Nach jeder Änderung am Angebot (Haken gesetzt): Fracht mit der Tarifkopie neu rechnen und ins Feld
+        Frachtkosten schreiben (leer, solange sie nicht berechnet werden kann). Ohne Tarifkopie (noch nicht
+        berechnet, Fehler) wird ganz neu gerechnet, z. B. sobald Gewicht oder Versandart da sind.
+        Gespeichert wird nur, was sich ändert. Ergebnis: True = geändert."""
+        from . import fracht_angebot
+        a = self.angebot(angebot_id)
+        if not a or not fracht_angebot.auto(a) or fracht_angebot.modus(a) != fracht_angebot.BERECHNET:
+            return False
+        a, pos, werte, neu = self._fracht_auto(angebot_id)
+        d = fracht_angebot.daten(a)
+        if not d or not d.get("snapshot"):
+            d2 = json.loads(json.dumps(neu(), ensure_ascii=False, default=str))
+            if d2 == d and d2.get("gesamt") == a.get("fracht"):
+                return False
+            self._fracht_auto_speichern(angebot_id, d2)
+            return True
+        b, _, _ = fracht_angebot.stufe(a, pos, werte)
+        b = round(b, 2) if b is not None else None
+        if b == a.get("fracht"):
+            return False
+        self.angebot_aendern(angebot_id, "fracht", b)
+        return True
 
     def fracht_kalkulation_speichern(self, ergebnis, bezeichnung="", angebot_id=None):
         """Abgeschlossene Frachtkalkulation mit allen verwendeten Tarifwerten (Snapshot) in die Historie."""
