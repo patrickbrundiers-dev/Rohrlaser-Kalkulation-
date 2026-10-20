@@ -397,6 +397,9 @@ EINSTELLUNGEN = (
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "Angebot", "zahl", 150.0, 1, 10000),
+    # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
+    Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)", "Angebot",
+                "auswahl", "S235-10219", auswahl="werkstoff"),
     # Zahlungsbedingungen neuer Angebote, wenn der Kunde keine eigenen hat. Skonto wird in den Preis eingerechnet.
     Einstellung("skonto", "Skonto [%]", "Angebot", "zahl", 2.0, 0, 20),
     Einstellung("skonto_tage", "Skontofrist [Tage]", "Angebot", "ganz", 10, 0, 365),

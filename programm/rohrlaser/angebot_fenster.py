@@ -1293,6 +1293,9 @@ class AngebotSeite(QWidget):
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
         """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
+        if werkstoff is None:       # Vorgabe für Rohre und Profile (Einstellung), Bleche bleiben offen
+            werkstoff = self.db.einstellung("step_werkstoff") or None
+            werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
         befehl = step.messprogramm(self.f.programmordner)
         if befehl is None:
             QMessageBox.warning(self, "STEP-Import", "STEP-Import.exe wurde nicht gefunden.\n\nDer Ordner 'STEP-Import' "
@@ -1319,7 +1322,9 @@ class AngebotSeite(QWidget):
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
-            if StepPruefDialog(self, messwerte, self.k, werkstoff, stueck, zukauf_liste).exec() != QDialog.Accepted:
+            # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe leer)
+            if StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
+                               zukauf_liste).exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
