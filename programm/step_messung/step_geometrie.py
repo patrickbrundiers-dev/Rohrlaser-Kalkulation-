@@ -119,6 +119,10 @@ class Teil:
     radius: float = 0.0         # Träger: Ausrundung Steg/Flansch (aus der Fläche, ca.)
     normprofil: str = ""        # zugeordnetes Normprofil (IPE 200, HEB 160, UPN 100, L 50x50x5, T 50) oder leer
     blech: dict = None          # nur Bleche: Länge, Breite, Dicke, Flächen, Kontur, Bohrungen, Fingerabdruck (_blech_daten)
+    # Grenzfälle Flachstahl/Blech und Profil/Kantteil: dasselbe Teil in der anderen Art gemessen (ohne Netz), im
+    # Prüfdialog wählbar; ersatz = nicht so messbar, Werte aus der ersten Messung abgeleitet
+    alternative: object = None
+    ersatz: bool = False
 
     @property
     def pruefstatus(self):
@@ -1910,11 +1914,14 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         fl = _flach_pruefen(solid, volumen)
     except Exception:  # Blechprüfung darf die Profilmessung nie verhindern
         fl = None
+    daten = None
     if fl and fl["art"] == "eben":
         daten = _blech_daten(solid, fl)
         dicke_ok = fl["dicke"] <= BLECH_DICKE_ANTEIL * daten["breite"] + 1e-6
         if dicke_ok and not ist_flachstahl(daten["laenge"], daten["breite"], daten["laengsseiten_gerade"], flach_bis):
-            return _blech_teil(solid, datei, koerper, fl, volumen, netz, daten)
+            b = _blech_teil(solid, datei, koerper, fl, volumen, netz, dict(daten))
+            b.alternative = _als_profil(solid, b, "Flachstahl")
+            return b
     t = None
     try:
         t = _profil_messen(solid, datei, koerper, netz)
@@ -1923,10 +1930,55 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
             raise
     if fl and fl["art"] == "gekantet" and (t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
                                            or t.profilform == "offenes Sonderprofil" or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
-        return _blech_teil(solid, datei, koerper, fl, volumen, netz)
+        b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
+        b.alternative = _als_profil(solid, b, None, t)
+        return b
     if t.profilform:
         t.bauteiltyp = "Profil"
+        if fl and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
+            try:      # Grenzfall: auch als (gekantetes) Blech messen, im Prüfdialog wählbar
+                t.alternative = _blech_teil(solid, datei, koerper, fl, volumen, False, daten and dict(daten))
+            except Exception:  # Zweitmessung darf die Messung nie verhindern
+                t.alternative = None
     return t
+
+
+def _als_profil(solid, b, form=None, t=None):
+    """Ein als Blech gemessenes Teil als Profil (Flachstahl bzw. L-/U-/C-Profil): die Profilmessung, wenn sie diese
+    Form liefert, sonst Ersatzwerte aus den Blechmaßen (Länge × Breite) mit Prüfstatus 'prüfen'."""
+    if t is None:
+        try:
+            t = _profil_messen(solid, b.datei, b.koerper, False)
+        except Exception:  # nicht als Profil messbar: Ersatzwerte
+            t = None
+    passt = t is not None and t.laenge > 0 and (t.profilform == form if form else
+                                                t.profilform in ("L-Profil", "U-Profil", "C-Profil"))
+    if passt:
+        t.bauteiltyp = "Profil"
+        if not form:
+            t.hinweise.append("als Profil gemessen, Volumen kleiner als Querschnitt × Länge (Ausschnitte?) – prüfen")
+        return t
+    bl = b.blech
+    d = bl["dicke"]
+    e = Teil(datei=b.datei, koerper=b.koerper, bauteiltyp="Profil", ersatz=True, laenge=bl["laenge"], konturen=2)
+    if form == "Flachstahl":
+        e.profilform, e.abm_a, e.abm_b, e.wandstaerke = "Flachstahl", bl["breite"], d, d
+        e.flaeche = bl["breite"] * d
+        e.ende_a = e.ende_b = e.ende_a_huelle = e.ende_b_huelle = bl["breite"]
+        e.innen, e.innen_konturen = bl.get("umfang_innen", 0.0), bl.get("innen", 0)
+        e.bohrungen, e.innen_liste = dict(bl.get("bohrungen") or {}), list(bl.get("innen_liste") or [])
+        e.konturen += e.innen_konturen
+    else:
+        e.profilform, e.abm_a, e.abm_b, e.wandstaerke = "L-Profil", bl["breite"], bl.get("hoehe", 0.0), d
+        e.flaeche = bl["volumen"] / bl["laenge"] if bl["laenge"] else 0.0
+        e.ende_a = e.ende_b = e.ende_a_huelle = e.ende_b_huelle = bl["breite"] + bl.get("hoehe", 0.0)
+    e.ende_a_gerade = e.ende_b_gerade = True
+    e.schneidweg = e.ende_a + e.ende_b + e.innen
+    e.achse_global, e.ende_a_global = b.achse_global, b.ende_a_global
+    e.sicherheit.update(profil="unsicher", laenge="wahrscheinlich", wandstaerke="sicher", konturen="unsicher")
+    e.hinweise.append(f"Ersatzwerte aus der Blechmessung ({form or 'L-Profil'} aus Länge × Breite), Schnitte "
+                      "und Profil prüfen")
+    return e
 
 
 NETZ_ARTEN = {"A": "Außenwand", "I": "Innenwand", "EA": "Anfangsschnitt", "EB": "Endschnitt", "K": "Innenkontur",
@@ -2031,5 +2083,9 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
             t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
                               + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
         _koerper_daten(t, k, art)
+        if t.alternative is not None:       # Importdaten gelten für beide Arten
+            for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
+                      "n_kanten", "huelle"):
+                setattr(t.alternative, n, getattr(t, n))
         out.append(t)
     return out
