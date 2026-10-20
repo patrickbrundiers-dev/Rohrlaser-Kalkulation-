@@ -16,7 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QScrollArea  # noqa: E402
 
 from rohrlaser import fracht  # noqa: E402
-from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.fracht_daten import FRACHT_TABELLE, plz_csv, plz_csv_lesen  # noqa: E402
 from rohrlaser.stammdaten import Kontext, pruefen  # noqa: E402
@@ -457,9 +457,9 @@ db2.con.execute("PRAGMA user_version=14")
 db2.con.commit()
 db2.schliessen()
 db3 = Datenbank(alt)
-assert db3.con.execute("PRAGMA user_version").fetchone()[0] == 16
+assert db3.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 16
 assert db3.anzahl("fracht_tarife") == 0 and db3.anzahl("fracht_kalkulationen") == 0, "alte Datei: leere Tabellen"
-assert any("vor_Schema_16" in p.name for p in (alt.parent / "Sicherung").glob("*.db")), "Sicherung vor Umstellung"
+assert any(f"vor_Schema_{SCHEMA_VERSION}" in p.name for p in (alt.parent / "Sicherung").glob("*.db")), "Sicherung vor Umstellung"
 assert {"plz", "land", "lieferbedingung"} <= {r[1] for r in db3.con.execute("PRAGMA table_info(kunden)")}
 e = fracht.rechnen(db3.fracht_daten(), s(netto=10))
 assert e["gesamt"] is None and e["fehler"]

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import NAME, ausgabe, update
-from .stammdaten import TABELLEN, EINSTELLUNGEN, pruefen, wert_aus_text, wert_als_text, zahl_als_text
+from .stammdaten import TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
@@ -388,6 +388,11 @@ class EinstellungenSeite(QScrollArea):
             w.setDecimals(2)
             w.setGroupSeparatorShown(True)
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, round(w.value(), 2)))
+        elif e.art == "zahl_leer":          # Zahl, die auch leer bleiben darf (leer = keine Vorgabe)
+            w = QLineEdit()
+            w.setPlaceholderText("leer")
+            w.setMaximumWidth(160)
+            w.editingFinished.connect(lambda e=e, w=w: self._zahl_leer(e, w))
         elif e.art == "ganz":
             w = QSpinBox()
             w.setRange(int(e.von), int(e.bis))
@@ -410,6 +415,17 @@ class EinstellungenSeite(QScrollArea):
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
         return w
 
+    def _zahl_leer(self, e, w):
+        try:
+            wert = wert_aus_text(Feld(e.name, e.titel, "zahl", e.von, e.bis), w.text())
+        except ValueError as fehler:
+            self.meldung(str(fehler), fehler=True)
+            v = self.db.einstellung(e.name)
+            w.setText(zahl_als_text(v, None, tausender=False) if v is not None else "")
+            return
+        self._speichern(e, wert)
+        w.setText(zahl_als_text(wert, None, tausender=False) if wert is not None else "")
+
     def _speichern(self, e, wert):
         if getattr(self, "_laden", False) or self.db.einstellung(e.name) == wert:
             return
@@ -425,6 +441,8 @@ class EinstellungenSeite(QScrollArea):
                 w.setValue((v or 0) * 100)
             elif e.art == "zahl":
                 w.setValue(v or 0)
+            elif e.art == "zahl_leer":
+                w.setText(zahl_als_text(v, None, tausender=False) if isinstance(v, (int, float)) else "")
             elif e.art == "ganz":
                 w.setValue(int(v or 0))
             elif e.art == "mehrzeilig":

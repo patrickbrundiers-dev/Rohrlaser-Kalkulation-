@@ -44,6 +44,10 @@ SCHRITTE_FEST = {
     "Rüsten je Abmessung": "Rüstzeit je Abmessung aus dem Angebot (Vorgabe Einstellungen)",
     "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen",
 }
+# Zukaufartikel (Rechnung in zukauf.py): Aufschlagsmethoden, Herkunft des Aufschlags am Artikel, Status
+ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
+ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
+ZUKAUF_STATUS = ("aktiv", "archiviert")
 ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot"}
 
 
@@ -366,6 +370,10 @@ EINSTELLUNGEN = (
     Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0.15, 0, 5),
     Einstellung("zuschlag_fremdleistung", "Zuschlag Fremdleistung", "Kalkulation", "anteil", 0.10, 0, 5),
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, 0, 5),
+    # Standardaufschlag der Anwendung für Zukaufteile (gilt, wenn weder Artikel noch Kategorie einen haben);
+    # leer = keiner (das Programm warnt dann)
+    Einstellung("zukauf_aufschlag", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)", "Kalkulation",
+                "zahl_leer", None, 0, 1000),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, 0, 1440),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, 0, 100000),
     Einstellung("programmierung_teil", "Programmierkosten je Teil (Position) [€]", "Kalkulation", "zahl", 8.50, 0,
@@ -488,6 +496,8 @@ class Kontext:
     stundensaetze: dict = field(default_factory=dict)
     profilformen: tuple = PROFILFORMEN
     kategorien: tuple = KATEGORIEN
+    zukauf_kategorien: tuple = ()     # Namen der Kategorien und Lieferanten der Zukaufartikel
+    zukauf_lieferanten: tuple = ()
     listen: dict = field(default_factory=dict)        # weitere Auswahllisten (Frachtkosten: Zonen, Tarife …)
 
     def auswahl(self, quelle):
@@ -518,11 +528,14 @@ class Kontext:
                          "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
-                         "zuschlagbasis": list(ZUSCHLAG_BASIS)}.get(quelle, []))]
+                         "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
+                         "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
+                         "zukaufkategorie": list(self.zukauf_kategorien),
+                         "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
-    """Kontext aus Stammdatenzeilen {Tabelle: [Zeile]}."""
+    """Kontext aus Stammdatenzeilen {Tabelle: [Zeile]} (Zukaufartikel: zukauf_kategorien, zukauf_lieferanten)."""
     k = Kontext()
     k.profile = {z["profil_id"]: z for z in daten.get("profile", []) if z.get("profil_id")}
     k.werkstoffe = {z["werkstoff_id"]: z for z in daten.get("werkstoffe", []) if z.get("werkstoff_id")}
@@ -531,6 +544,8 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.stundensaetze = {z["satz_id"]: z for z in daten.get("stundensaetze", []) if z.get("satz_id")}
     k.profilformen = tuple(profilformen)
     k.kategorien = tuple(kategorien)
+    k.zukauf_kategorien = tuple(z["name"] for z in daten.get("zukauf_kategorien", []) if z.get("name"))
+    k.zukauf_lieferanten = tuple(z["name"] for z in daten.get("zukauf_lieferanten", []) if z.get("name"))
     return k
 
 
