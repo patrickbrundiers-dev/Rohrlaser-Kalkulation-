@@ -29,9 +29,13 @@ QLabel#gruppentitel { font-weight: bold; color: #3A4656; padding-bottom: 2px; bo
 QFrame#kennzahl { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; }
 QLabel#kennzahltitel { color: #5F6B7A; }
 QLabel#kennzahlwert { font-weight: bold; color: #1F2937; }
+QFrame#preis { background: #EEF4FB; border: 1px solid #C9DAEE; border-radius: 4px; }
+QLabel#preiswert { font-weight: bold; font-size: 13pt; color: #1F5FA8; }
+QLabel#preiswert_klein { font-weight: bold; font-size: 11pt; color: #1F2937; }
 QLabel#stand_ok { background: #E3F4E8; color: #1E6B34; border: 1px solid #B7DFC3; border-radius: 4px; font-weight: bold; }
 QLabel#stand_offen { background: #FFF6DB; color: #7A5A00; border: 1px solid #F0D98C; border-radius: 4px; font-weight: bold; }
 QLabel#stand_veraltet { background: #FDECEA; color: #8C1D18; border: 1px solid #F3B8B2; border-radius: 4px; font-weight: bold; }
+QToolButton#kartenknopf { border: none; font-weight: bold; color: #1F2937; padding: 2px 0; }
 QToolButton#aufklapper { border: none; text-align: left; color: #3A4656; padding: 2px 0; }
 QToolButton#meldung_ok { border: none; color: #1E6B34; font-weight: bold; padding: 2px 0; }
 QToolButton#meldung_warnung { border: none; color: #7A5A00; font-weight: bold; padding: 2px 0; }
@@ -48,6 +52,21 @@ QTableView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selec
 QHeaderView::section { background: #F1F3F6; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
                        border-bottom: 1px solid #C9D0D8; padding: 3px; font-weight: bold; }
 """
+
+
+def spalten_einpassen(ansicht, nur=None, max_breite=260):
+    """Sichtbare Spalten so breit wie Inhalt bzw. Kopf (Kopf höchstens zweizeilig, kein Wort abgeschnitten),
+    höchstens max_breite. nur = Menge von Spalten, sonst alle."""
+    modell, kopf = ansicht.model(), ansicht.horizontalHeader()
+    fm = kopf.fontMetrics()
+    for c in range(modell.columnCount()):
+        if ansicht.isColumnHidden(c) or (nur is not None and c not in nur):
+            continue
+        titel = str(modell.headerData(c, Qt.Horizontal, Qt.DisplayRole) or "")
+        woerter = [fm.horizontalAdvance(w) for w in titel.split()] or [0]
+        kopfbreite = max(max(woerter), fm.horizontalAdvance(titel) / 2) + 20
+        inhalt = ansicht.sizeHintForColumn(c) + 8
+        ansicht.setColumnWidth(c, int(min(max(kopfbreite, inhalt, 40), max_breite)))
 
 
 class StammdatenModell(QAbstractTableModel):

@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFrame, QHBoxLayout
                                QScrollArea, QSplitter, QTableView, QVBoxLayout, QWidget)
 
 from . import rechnen
-from .fenster import FARBE_BERECHNET, FARBE_EINGABE
+from .fenster import FARBE_BERECHNET, FARBE_EINGABE, spalten_einpassen
 from .sichtbarkeit import ohne_wert
 from .stammdaten import SATZ_MASCHINE, Feld, wert_aus_text, zahl_als_text
 
@@ -121,6 +121,7 @@ class ZeitenSeite(QWidget):
         self.ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                      | QAbstractItemView.AnyKeyPressed)
         self.ansicht.verticalHeader().setDefaultSectionSize(22)
+        self.ansicht.verticalHeader().hide()        # Zeilennummern wären wegen ausgeblendeter Schritte lückenhaft
         kopf = self.ansicht.horizontalHeader()
         kopf.setStretchLastSection(True)
         for i, (_, b) in enumerate(SPALTEN):
@@ -162,6 +163,9 @@ class ZeitenSeite(QWidget):
         zeiten = summen["zeiten"]
         self.modell.setzen(zeiten)
         self._zeilen_zeigen()
+        if not getattr(self, "_eingepasst", False):
+            spalten_einpassen(self.ansicht, max_breite=420)
+            self._eingepasst = True
         gespeichert = summen.get("zeitbasis_gespeichert")
         self.hinweis.setText(
             "Stundensätze und Zeitvorgaben sind in diesem Angebot gespeichert; spätere Änderungen in den "

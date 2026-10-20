@@ -12,6 +12,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from rohrlaser import rechnen  # noqa: E402
@@ -189,6 +190,34 @@ fenster.resize(1920, 1080)
 QApplication.processEvents()
 assert kb._spalten_gruppen == 4
 ok("Fall 9: 203 Positionen mit allen optionalen Spalten, 1920 × 1080 und 1280 × 720 bedienbar")
+
+# Kalkulation zuklappen, Preise oben in der Übersicht, Zeile über der Positionsliste, Spaltenbreiten
+from rohrlaser.angebot_oben import KALK_OFFEN_EINSTELLUNG  # noqa: E402
+ub = s.uebersicht_bereich
+_, summen = rechnen.kalkulation(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst)
+assert ub.preis["verkauf"].text().endswith(" €") and summen["verkauf"] > 0
+assert ub.preis["verkauf"].text() in ub.uebersicht.text() and ub.preis["herstell"].text() in ub.uebersicht.text()
+assert kb.kalk_offen() and kb.kalk_kurz.isHidden()
+kb.kalk_knopf.click()
+assert not kb.kalk_offen() and kb.kalk_inhalt.isHidden() and not kb.kalk_kurz.isHidden()
+assert "Zuschlag Material 10,0 %" in kb.kalk_kurz.text() and "Fremdleistung" not in kb.kalk_kurz.text() and "Skontofrist 10 Tage" in kb.kalk_kurz.text()
+assert db.einstellung(KALK_OFFEN_EINSTELLUNG) is False
+s2 = fenster.angebot_oeffnen(db.angebot_neu(dict(kunde="Zweites")))
+assert not s2.kopf_bereich.kalk_offen(), "Wahl gilt für alle Angebote"
+assert "vorläufig" in s2.uebersicht_bereich.preis_titel["verkauf"][0].text()
+assert ub.preis_titel["verkauf"][0].text() == "Verkaufspreis"
+kb.kalk_knopf.click()
+assert kb.kalk_offen() and db.einstellung(KALK_OFFEN_EINSTELLUNG) is True
+assert s.pos_info.text().startswith("203 Positionen")
+assert s.reiter.cornerWidget(Qt.TopRightCorner) is None and s.spalten_knopf.isVisibleTo(s.pos_seite)
+kopf = s.pos_ansicht.horizontalHeader()
+fm = kopf.fontMetrics()
+for c in range(s.pos_modell.columnCount()):
+    if not s.pos_ansicht.isColumnHidden(c) and c < s.pos_modell.columnCount() - 1:
+        titel = str(s.pos_modell.headerData(c, Qt.Horizontal, Qt.DisplayRole))
+        assert s.pos_ansicht.columnWidth(c) >= min(max(fm.horizontalAdvance(w) for w in titel.split()), 240), titel
+ok("Kalkulation zuklappbar mit Kurzfassung (Wahl gespeichert), Preise groß in der Übersicht, Spaltenauswahl über "
+   "der Liste statt neben den Reitern, kein Wort im Spaltenkopf abgeschnitten")
 fenster.close()
 db.schliessen()
 print("OK: Anzeige der Angebotsseite (Nullwerte, Spalten, Übersicht)")
