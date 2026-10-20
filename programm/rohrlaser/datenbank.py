@@ -504,7 +504,8 @@ class Datenbank:
         (Datum), verbrauch, vk_alt, vk_neu}] (VK netto für den ganzen Verbrauch im Angebot, ohne Skonto)."""
         aktuell, out = {}, {}
         for pid, aid, nummer, liste in self.zukauf_positionen(artikel_id):
-            stueck = self.con.execute("SELECT stueck FROM positionen WHERE id=?", (pid,)).fetchone()[0] or 0
+            stueck, je_satz = self.con.execute("SELECT stueck, je_satz FROM positionen WHERE id=?", (pid,)).fetchone()
+            pos = dict(stueck=stueck or 0, je_satz=je_satz)
             for n, e in enumerate(liste):
                 if e.get("artikel_id") != artikel_id:
                     continue
@@ -517,8 +518,8 @@ class Datenbank:
                                              stand=set()))
                 x["positionen"].add(pid)
                 x["stand"].add((e.get("stand") or {}).get("datum") or "")
-                x["alt"].append(((pid, n), e, stueck))
-                x["neu"].append(((pid, n), dict(e, stand=aktuell[lief]), stueck))
+                x["alt"].append(((pid, n), e, zukauf.bezugsmenge(e, pos)))
+                x["neu"].append(((pid, n), dict(e, stand=aktuell[lief]), zukauf.bezugsmenge(e, pos)))
         ergebnis = []
         for x in out.values():
             alt, _ = zukauf.rechnen(x["alt"])

@@ -913,7 +913,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
       angehoben. €/Angebot zählt einmal je Angebot (höchster Betrag der Positionen, mindestens der Mindestbetrag),
       umgelegt auf deren Teile. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen. Preis je Einheit aus
       dem Preisstand der Position, sonst aus den Stammdaten (zusatz_preis).
-    - Zukaufteile je Position (positionen.zukauf mit Preisstand): Verbrauch = Menge je Teil × Stückzahl, gleiche
+    - Zukaufteile je Position (positionen.zukauf mit Preisstand): Verbrauch = Menge je Teil × Stückzahl (bzw. Menge
+      je Satz × Sätze = Stückzahl / Stück je Satz), gleiche
       Artikel mit gleichem Preisstand werden im Angebot zu einer Bestellung zusammengefasst (Staffel, Mindestmenge,
       VPE und Bezugskosten einmal; zukauf.rechnen). Einstandspreis + Aufschlag nach der Regel des Artikels gehen
       je Teil ohne Zuschläge und ohne Gewinn in den Verkaufspreis ein (der Aufschlag ersetzt beides).
@@ -977,8 +978,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                                                       fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, len(stangen), teile_abm,
                                sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0))
-    zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, _n(positionen[i].get("stueck"))) for i in aktiv
-                                        for n, e in enumerate(zukauf.eintraege(positionen[i]))])
+    zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
+                                        for i in aktiv for n, e in enumerate(zukauf.eintraege(positionen[i]))])
     eingespart = {}
     for s in stangen:
         for t in s["teile"]:

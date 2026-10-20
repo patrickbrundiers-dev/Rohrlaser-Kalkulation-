@@ -859,7 +859,8 @@ def kapitel_angebot(i):
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.6). "
-            "Daneben <b>Zukaufteile …</b>: eingekaufte Teile je Position (Kapitel 13.6)."),
+            "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
+            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell anlegen, Kapitel 13.6)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -987,7 +988,7 @@ def kapitel_angebot(i):
         ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl (Kapitel 6.6)"],
-        ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil; Doppelklick öffnet die Auswahl (Kapitel 13.6)"],
+        ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl (Kapitel 13.6)"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
                                  "rechnet es aus Volumen × Dichte, wenn der Werkstoff gewählt ist; sonst leer)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
@@ -1721,18 +1722,23 @@ def kapitel_zukauf(i):
            "Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
     i.abschnitt("Zukaufteile im Angebot")
     i.text("Zukaufteile gehören zu einer Position: <i>Menge je Teil</i> × Stückzahl der Position ergibt den "
-           "Verbrauch. Position(en) markieren und <b>Zukaufteile …</b> klicken oder in der Spalte "
+           "Verbrauch. Mit <i>je Satz</i> gilt die Menge je Satz: <i>Menge je Satz</i> × Sätze (Stückzahl ÷ Stück "
+           "je Satz der Position). Beispiel Rahmen aus Rohren mit 20 Blechen: die Bleche an eine Rohrposition des "
+           "Satzes hängen, Menge 20 je Satz; bei 10 Rahmen rechnet das Angebot 200 Bleche, die Staffelstufe 50 "
+           "Rahmen 1000. Ohne Satzangabe zählt jedes Teil als ein Satz. Position(en) markieren und <b>Zukaufteile … → Zukaufteile bearbeiten …</b> wählen oder in der Spalte "
            "<i>Zukaufteile</i> doppelklicken. Umgekehrt übernimmt <b>In Angebot übernehmen …</b> im Unterreiter "
            "Artikel den markierten Artikel in eine Position: Angebot und Position wählen, Menge je Teil eingeben. "
            "Archivierte Artikel lassen sich nicht übernehmen.")
     i.bild("zukauf_dialog", "Dialog Zukaufteile: 4 Schrauben, 4 Muttern und 2 Laschen je Teil (Beispielwerte)",
            hoehe=60 * mm, legende=[
                (1, "Artikel wählen (Artikelnummer oder Bezeichnung eintippen), dann <b>Hinzufügen</b>"),
-               (2, "Menge je Teil in der Einheit des Artikels"),
-               (3, "je Zeile Artikel, Menge je Teil und <i>Aufschlag Position</i> (änderbar), Lieferant, "
-                   "Aufschlagsregel, Einstand und VK je Teil, Preisstand"),
+               (2, "Menge in der Einheit des Artikels, <i>je Teil</i> oder <i>je Satz</i> (bei Positionen in "
+                   "einem Satz vorgewählt)"),
+               (3, "je Zeile Artikel, Menge, je Teil/je Satz und <i>Aufschlag Position</i> (änderbar), "
+                   "Lieferant, Aufschlagsregel, Einstand und VK je Teil, Preisstand"),
                (4, "<b>Entfernen</b>, <b>Duplizieren</b> und <b>Aus Stammdaten aktualisieren …</b>"),
-               (5, "Vorschau für die Stückzahl dieser Position")])
+               (5, "Vorschau für die Stückzahl dieser Position"),
+               (6, "<b>Neuer Artikel …</b>: Schnellanlage, der neue Artikel wird gleich hinzugefügt")])
     i.liste("<b>Aufschlag Position [%]</b> leer lassen: es gilt die Regel des Artikels. Eine Zahl ersetzt sie "
             "für diese Position (% auf den Einstandspreis).",
             "Beim Hinzufügen speichert das Programm den <b>Preisstand</b> des Artikels in der Position: "
@@ -1742,6 +1748,20 @@ def kapitel_zukauf(i):
             "<b>Aus Stammdaten aktualisieren …</b> (markierte Zeilen, ohne Markierung alle) zeigt je Artikel den "
             "VK je Teil alt und neu und übernimmt den neuen Stand erst nach Bestätigung und <b>OK</b>.",
             "Mit mehreren markierten Positionen gilt die Liste nach OK für alle (sie ersetzt deren Zukaufteile).")
+    i.text("<b>Schnellanlage</b>, z. B. für Bleche: Position markieren und in der Knopfleiste des "
+           "Angebots <b>Zukaufteile … → Neuer Zukaufartikel …</b> wählen (oder <b>Neuer Artikel …</b> im Dialog Zukaufteile). Das kurze Formular "
+           "legt den Artikel in den Stammdaten an und hängt ihn an die Position; vorhandene Zukaufteile bleiben.")
+    i.bild("zukauf_schnell", "Schnellanlage eines Blechs (Beispielwerte)", hoehe=62 * mm, legende=[
+        (1, "<b>Bezeichnung</b> (Pflicht) und optional Artikelnummer"),
+        (2, "<b>Kategorie</b>: vorgewählt Blechteile. Bei Blechteilen oder <i>Blech</i> in der Bezeichnung ist "
+            "der <b>Lieferant</b> <i>Technik</i> vorbelegt; überschreiben ist jederzeit möglich"),
+        (3, "<b>EK je Stück</b> und <b>Aufschlag [%]</b>; leer = Aufschlag der Kategorie bzw. Standard"),
+        (4, "<b>Menge</b> je Teil oder je Satz"),
+        (5, "<b>Speichern + nächster</b> leert das Formular für das nächste Blech (Kategorie, Lieferant, Aufschlag "
+            "und je bleiben), <b>Speichern + schließen</b> beendet")])
+    i.text("Der Artikel bekommt Einheit Stück, Preiseinheit 1 und einen bevorzugten Lieferanten. Weitere Angaben "
+           "(Mindestmenge, Bezugskosten, Preisstaffel) lassen sich später im Reiter Zukaufartikel ergänzen; das "
+           "Protokoll der Preisänderungen vermerkt <i>Schnellanlage im Angebot</i>.")
     i.text("So rechnet das Angebot (Abschnitt 8.3):")
     i.liste("Gleiche Artikel mit gleichem Preisstand aus allen Positionen werden zu <b>einer Bestellung</b> "
             "zusammengezählt. Für den ganzen Verbrauch gelten Mindestbestellmenge, Verpackungseinheit und Preisstaffel; "
