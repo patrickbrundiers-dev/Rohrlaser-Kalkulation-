@@ -14,6 +14,7 @@ from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN,
                          flaeche_wirksam, huellkreis)
 from . import optimierung as opt
 from . import fracht_angebot
+from . import zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -652,6 +653,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
       angehoben. €/Angebot zählt einmal je Angebot (höchster Betrag der Positionen, mindestens der Mindestbetrag),
       umgelegt auf deren Teile. Zeiten (s/Stück) kommen zur Laserzeit, auch zur manuellen. Preis je Einheit aus
       dem Preisstand der Position, sonst aus den Stammdaten (zusatz_preis).
+    - Zukaufteile je Position (positionen.zukauf mit Preisstand): Verbrauch = Menge je Teil × Stückzahl, gleiche
+      Artikel mit gleichem Preisstand werden im Angebot zu einer Bestellung zusammengefasst (Staffel, Mindestmenge,
+      VPE und Bezugskosten einmal; zukauf.rechnen). Einstandspreis + Aufschlag nach der Regel des Artikels gehen
+      je Teil ohne Zuschläge und ohne Gewinn in den Verkaufspreis ein (der Aufschlag ersetzt beides).
     - Skonto aus dem Angebotskopf (%) wird eingerechnet: Verkaufspreis = Preis ohne Skonto / (1 − Skonto), so bleibt
       nach Abzug des Skontos der Preis ohne Skonto."""
     zb = zeitbasis(kopf, k, tabellen)
@@ -708,6 +713,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                                                       fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, len(stangen), teile_abm,
                                sum(1 for i in aktiv if _n(positionen[i].get("stueck")) > 0))
+    zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, _n(positionen[i].get("stueck"))) for i in aktiv
+                                        for n, e in enumerate(zukauf.eintraege(positionen[i]))])
     eingespart = {}
     for s in stangen:
         for t in s["teile"]:
@@ -752,8 +759,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         fr = fracht_je[i] if c else 0
         uz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) + fr \
             + (prog / c if c else 0)
+        zk = [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))]
+        zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
+        zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
         s_ = f * (1 + zm) + (qz + rz + az + ze) * (1 + zf) + zfr * (1 + zfl)
-        ohne = s_ * (1 + gew) + uz
+        ohne = s_ * (1 + gew) + uz + zk_einst + zk_auf
         t_ = ohne / (1 - skonto)
         nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
         if _n(nicht) > 0:
@@ -766,6 +776,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = "Zusatzarbeit unbekannt"
         elif not _leer(p.get("gewinde_vorschlag")) and _leer(p.get("gewinde")):
             hinweis = "Gewinde ungeprüft"
+        elif any(x["fehler"] for x in zk):
+            hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
         else:
             hinweis = ""
         z.update(zeit_manuell="ja" if manuell else "", zeit_extra=zeit_extra, gewinde_preis=gp,
@@ -776,6 +788,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zuschlag_material_teil=f * zm, zuschlag_fertigung_teil=(qz + rz + az + ze) * zf,
                  zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew, skonto_teil=t_ - ohne)
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
+                 zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf, zukauf_teil=zk_einst + zk_auf,
+                 zukauf_fehlt=sum(1 for x in zk if x["fehler"]),
                  herstell_teil=s_, pauschalen_teil=uz, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
                  nicht_eingeplant=nicht)
@@ -797,8 +811,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   herstell=sum(z["herstell_position"] for z in zeilen if z),
                   verkauf=sum(z["preis_position"] for z in zeilen if z))
     # Einzelne Kostenarten (Material + Laser + Gewinde + Rüsten + Stangenwechsel + Zusatzarbeiten + Zuschläge
-    # = Herstellkosten; Herstellkosten + Gewinn + Pauschalen + Programmierung + Aufschlag + Fracht + Skonto
-    # = Verkaufspreis)
+    # = Herstellkosten; Herstellkosten + Gewinn + Pauschalen + Programmierung + Aufschlag + Fracht + Zukaufteile
+    # + Skonto = Verkaufspreis)
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
                   ruesten_maschine=ruest / 60 * s_rm, ruesten_abmessungen=ruest_abm * n_abm,
                   stangenwechsel_kosten=wechsel * len(stangen) / 3600 * s_sw,
@@ -806,7 +820,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zuschlag_fertigung=_summe("zuschlag_fertigung_teil"),
                   zuschlag_fremdleistung=_summe("zuschlag_fremdleistung_teil"), gewinn=_summe("gewinn_teil"),
                   skonto=_summe("skonto_teil"), skonto_satz=100 * skonto, arbeitsschritte=_summe("arbeit_teil"),
-                  zusatz_eigen=_summe("zusatz_eigen_teil"), zusatz_fremd=_summe("zusatz_fremd_teil"))
+                  zusatz_eigen=_summe("zusatz_eigen_teil"), zusatz_fremd=_summe("zusatz_fremd_teil"),
+                  zukauf_einstand=_summe("zukauf_einstand_teil"), zukauf_aufschlag=_summe("zukauf_aufschlag_teil"),
+                  zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
     summen["zeiten"] = arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, len(stangen))
     return zeilen, summen
@@ -960,7 +976,9 @@ KOSTENARTEN = (
     ("Zuschlag Fremdleistung", "zuschlag_fremdleistung", False), ("Herstellkosten", "herstell", True),
     ("Gewinn", "gewinn", False), ("Pauschale je Abmessung", "pauschalen", False),
     ("Programmierkosten", "programmierung", False), ("Angebotsaufschlag", "angebotsaufschlag", False),
-    ("Fracht", "fracht", False), ("Skonto", "skonto", False), ("Verkaufspreis", "verkauf", True))
+    ("Fracht", "fracht", False), ("Zukaufteile (Einstand)", "zukauf_einstand", False),
+    ("Aufschlag Zukaufteile", "zukauf_aufschlag", False), ("Skonto", "skonto", False),
+    ("Verkaufspreis", "verkauf", True))
 
 
 # Kostenübersicht im Angebot: Gruppen aus Kostenarten (Titel, Schlüssel, Summenzeile); jede Kostenart genau einmal
@@ -972,6 +990,7 @@ KOSTEN_GRUPPEN = (
     ("Herstellkosten", ("herstell",), True), ("Gewinn", ("gewinn",), False),
     ("Programmierkosten", ("programmierung",), False),
     ("Pauschalen und Aufschläge", ("pauschalen", "angebotsaufschlag", "fracht"), False),
+    ("Zukaufteile", ("zukauf_einstand", "zukauf_aufschlag"), False),
     ("Skonto", ("skonto",), False), ("Verkaufspreis", ("verkauf",), True))
 assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n, _ in KOSTENARTEN)
 

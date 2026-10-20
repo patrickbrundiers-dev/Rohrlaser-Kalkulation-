@@ -19,8 +19,9 @@ Zwei Rechenschichten:
     5 Gemeinkosten = (Fertigung + Rüsten) × Zuschlag Fertigung, Fremdleistung × Zuschlag Fremdleistung
     6 Selbstkosten = M2 + Fertigung + Rüsten + Gemeinkosten + Fremdleistung + Nebenkosten
     7 Gewinn = Selbstkosten × Gewinn
-    8 Netto = Selbstkosten + Gewinn + Pauschalen, Programmierung, Aufschlag, Fracht (ohne Zuschläge), Skonto
-      eingerechnet; MwSt = Netto gesamt × MwSt-Satz
+    8 Netto = Selbstkosten + Gewinn + Pauschalen, Programmierung, Aufschlag, Fracht (ohne Zuschläge)
+      + Zukaufteile (Einstand + Aufschlag nach der Regel des Artikels, Staffel nach dem Verbrauch der Stufe),
+      Skonto eingerechnet; MwSt = Netto gesamt × MwSt-Satz
   Ohne Werte in der Stufe ergibt das genau den Verkaufspreis der Kalkulation (rechnen.kalkulation).
 """
 import hashlib
@@ -338,7 +339,8 @@ def bausteine(summen, ohne_materialpreis=0):
                 fremd=summen["zusatz_fremd"], pauschalen=summen["pauschalen"],
                 programmierung=summen["programmierung"], angebotsaufschlag=summen["angebotsaufschlag"],
                 fracht=summen["fracht"], skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
-                verkauf=summen["verkauf"])
+                zukauf_einstand=summen.get("zukauf_einstand", 0), zukauf_aufschlag=summen.get("zukauf_aufschlag", 0),
+                zukauf_fehlt=summen.get("zukauf_fehlt", 0), verkauf=summen["verkauf"])
 
 
 # ------------------------------------------------------------------ Preisschicht
@@ -368,6 +370,8 @@ def preise(b, menge, w):
     Fehler (Materialpreis fehlt, Rabatt zu groß): dict mit 'fehler' und ohne Preise."""
     if b["material_fehlt"] and w["mat_grundpreis"] is None:
         return dict(fehler="Materialpreis fehlt (kein Preis in den Stammdaten oder kein Schnittplan)")
+    if b.get("zukauf_fehlt"):
+        return dict(fehler="Zukaufteil ohne Einkaufspreis")
     m0 = b["material"] if w["mat_grundpreis"] is None else w["mat_grundpreis"] * menge
     verlust = m0 * w["verlust"]
     m1 = m0 + verlust
@@ -390,8 +394,9 @@ def preise(b, menge, w):
     selbst = m0 + verlust + mz + f_sum + r_sum + gk_f + b["fremd"] + gk_fl + neben
     gewinn = selbst * w["gewinn"]
     weitere = b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + b["fracht"]
+    zk_e, zk_a = b.get("zukauf_einstand", 0), b.get("zukauf_aufschlag", 0)     # fehlt in älteren Mengenläufen
     sk = min(max(b["skonto_satz"], 0), 50) / 100
-    ohne = selbst + gewinn + weitere
+    ohne = selbst + gewinn + weitere + zk_e + zk_a
     netto = ohne / (1 - sk)
     einmalig = 0.0
     if w["ruesten"] == SEPARAT:     # Rüsten mit Gemeinkosten, Gewinn und Skonto als einmalige Position
@@ -404,6 +409,7 @@ def preise(b, menge, w):
                 gk_fremd=gk_fl, neben=neben, selbst=selbst, gewinn=gewinn,
                 marge=gewinn / netto if netto else None, pauschalen=b["pauschalen"],
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
+                zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
                 skonto=netto - ohne, netto=netto, einmalig=einmalig, preis_einheit=preis_einheit,
                 preis_gesamt=gesamt, mwst=mwst, brutto=kaufm_runden(gesamt + mwst, 2))
 

@@ -6,9 +6,9 @@ Die Vorschau rechnet mit zukauf.vorschau, also genau wie das Angebot; die Oberfl
 import json
 
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QGridLayout,
-                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu,
-                               QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+                               QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
+                               QListWidgetItem, QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 from . import zukauf
@@ -763,9 +763,12 @@ class ArtikelSeite(QWidget):
         self.k_bearbeiten = QPushButton("Bearbeiten")
         self.k_duplizieren = QPushButton("Duplizieren")
         self.k_archiv = QPushButton("Archivieren")
+        self.k_angebot = QPushButton("In Angebot übernehmen …")
+        self.k_angebot.setToolTip("Artikel mit aktuellem Preisstand als Zukaufteil in eine Position eines Angebots "
+                                  "übernehmen")
         self.aktionen = QHBoxLayout()
         for k, f in ((self.k_bearbeiten, self.bearbeiten), (self.k_duplizieren, self.duplizieren),
-                     (self.k_archiv, self.archiv_umschalten)):
+                     (self.k_archiv, self.archiv_umschalten), (self.k_angebot, self.in_angebot)):
             k.clicked.connect(lambda _=False, f=f: f())
             self.aktionen.addWidget(k)
         self.aktionen.addStretch(1)
@@ -1015,7 +1018,7 @@ class ArtikelSeite(QWidget):
         self.tabelle.selectRow(self.tabelle.itemAt(pos).row())
         m = QMenu(self)
         for t, f in (("Bearbeiten", self.bearbeiten), ("Duplizieren", self.duplizieren),
-                     (self.k_archiv.text(), self.archiv_umschalten)):
+                     (self.k_archiv.text(), self.archiv_umschalten), ("In Angebot übernehmen …", self.in_angebot)):
             m.addAction(t, f)
         m.exec(self.tabelle.viewport().mapToGlobal(pos))
 
@@ -1124,6 +1127,85 @@ class ArtikelSeite(QWidget):
         self.meldung(f"Zukaufartikel '{a.get('bezeichnung')}' {'archiviert' if neu == 'archiviert' else 'wieder aktiv'}."
                      + (" Bestehende Angebote rechnen mit ihrem gespeicherten Preisstand weiter." if neu == "archiviert"
                         else ""))
+
+
+    def in_angebot(self, zeilen_id=None, ziel=None):
+        """Artikel als Zukaufteil in eine Position übernehmen. ziel = (Positions-ID, Menge je Teil) ohne Dialog
+        (Tests). Ergebnis: Positions-ID oder None."""
+        a = self.zeile(zeilen_id or self.gewaehlt())
+        if not a:
+            self.meldung("Bitte zuerst einen Artikel markieren.", fehler=True)
+            return None
+        if archiviert(a):
+            self.meldung("Archivierte Artikel lassen sich nicht in Angebote übernehmen.", fehler=True)
+            return None
+        if ziel is None:
+            d = UebernahmeDialog(self, self.db, a)
+            if d.exec() != QDialog.Accepted or d.ziel is None:
+                return None
+            ziel = d.ziel
+        pid, menge = ziel
+        p = self.db.con.execute("SELECT angebot_id, pos, zukauf FROM positionen WHERE id=?", (pid,)).fetchone()
+        liste = zukauf.json_liste(p["zukauf"])
+        liste.append(dict(artikel_id=a["id"], menge=menge, aufschlag=None, stand=self.db.zukauf_stand(a["id"])))
+        self.db.position_aendern(pid, "zukauf", json.dumps(liste, ensure_ascii=False))
+        seite = getattr(self.window(), "offen", {}).get(p["angebot_id"])
+        if seite is not None:
+            seite.neu_laden()
+        nummer = (self.db.angebot(p["angebot_id"]) or {}).get("nummer") or ""
+        self.meldung(f"'{a.get('bezeichnung')}' als Zukaufteil in Angebot {nummer}, Pos. {p['pos'] or ''} übernommen.")
+        return pid
+
+
+class UebernahmeDialog(QDialog):
+    """Angebot und Position wählen, Menge je Teil eingeben."""
+
+    def __init__(self, parent, db, artikel):
+        super().__init__(parent)
+        self.db, self.ziel = db, None
+        self.setWindowTitle(f"In Angebot übernehmen: {artikel.get('bezeichnung') or ''}")
+        self.angebot = QComboBox()
+        offen = getattr(parent.window(), "offen", {})
+        liste = sorted(db.angebote(), key=lambda x: (x["id"] not in offen, -(x["id"] or 0)))
+        for x in liste:
+            self.angebot.addItem(" · ".join(t for t in (x.get("nummer"), x.get("kunde")) if t)
+                                 + (" (geöffnet)" if x["id"] in offen else ""), x["id"])
+        self.position = QComboBox()
+        self.menge = QLineEdit("1")
+        self.fehler = QLabel()
+        self.fehler.setStyleSheet("color: #8C1D18;")
+        form = QFormLayout(self)
+        form.addRow("Angebot", self.angebot)
+        form.addRow("Position", self.position)
+        form.addRow(f"Menge je Teil [{zukauf.EINHEIT_KURZ.get(artikel.get('einheit'), 'St')}]", self.menge)
+        form.addRow(self.fehler)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.accepted.connect(self._ok)
+        knoepfe.rejected.connect(self.reject)
+        form.addRow(knoepfe)
+        self.angebot.currentIndexChanged.connect(self._positionen)
+        self._positionen()
+
+    def _positionen(self, *_):
+        self.position.clear()
+        aid = self.angebot.currentData()
+        for p in self.db.positionen(aid) if aid is not None else ():
+            self.position.addItem(" ".join(str(t) for t in (p.get("pos"), p.get("artikel"), p.get("bezeichnung"))
+                                           if t not in (None, "")) or "(leer)", p["id"])
+
+    def _ok(self):
+        if self.position.currentData() is None:
+            self.fehler.setText("Bitte eine Position wählen.")
+            return
+        try:
+            m = zahl_aus_text(self.menge.text())
+        except ValueError:
+            m = None
+        if not m or m <= 0:
+            self.fehler.setText("Menge je Teil muss größer als 0 sein.")
+            return
+        self.ziel = (self.position.currentData(), m)
+        self.accept()
 
 
 class ZukaufBereich(QWidget):
