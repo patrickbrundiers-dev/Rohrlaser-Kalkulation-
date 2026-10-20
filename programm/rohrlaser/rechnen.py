@@ -11,7 +11,7 @@ import hashlib
 import json
 
 from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
-                         flaeche_wirksam, huellkreis)
+                         flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
 from .angebot import aktiv as position_aktiv, ist_zukaufteil
 from . import fracht_angebot
@@ -100,6 +100,7 @@ def position_werte(p, kopf, k, tabellen):
     w["querschnitt"] = flaeche_wirksam(pr) if pr else None
     w["huellkreis"] = huellkreis(pr) if pr else None
     w["wand"] = (_n(pr.get("wand")) if pr else None)
+    w["wand_schneiden"] = wand_schneiden(pr) if pr else None     # größte Wandstärke: Schneiddaten
     kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if w["querschnitt"] is not None else None
     w["kg_m"] = kgm
     w["gewicht"] = kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
@@ -129,8 +130,8 @@ def position_werte(p, kopf, k, tabellen):
         w["gewicht_position"] = (w["gewicht"] * p["stueck"] if w["gewicht"] is not None and not _leer(p.get("stueck"))
                                  else None)
         return w
-    if w["wand"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
-        sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand"], tabellen,
+    if w["wand_schneiden"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
+        sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand_schneiden"], tabellen,
                           kategorie(p["werkstoff_id"], k))
         w["vorschub"] = _n(sd.get("vorschub_gross")) if sd else None
         w["gas"] = sd.get("gas") if sd else None
@@ -681,6 +682,16 @@ def konturen_pruefen(p):
     return None
 
 
+# Einstiche je Anfangs- bzw. Endschnitt (Patrick 20.10.2026): Träger und U-Profil werden von 4 Seiten, das T-Profil
+# von 2 Seiten angeschnitten; alle anderen Profile 1. Der STEP-Import zählt sie in die Einstiche der Position, ein
+# gemeinsamer Schnitt spart sie alle.
+EINSTICHE_ENDE = {"I-/H-Träger": 4, "U-Profil": 4, "T-Profil": 2}
+
+
+def einstiche_ende(form):
+    return EINSTICHE_ENDE.get(form, 1)
+
+
 def schneidzeit(p, kopf, wand, tabellen, k=None):
     """Berechnete Schneidzeit je Teil [s] aus Schneidweg, Konturklassen, Gravur und Einstichen (ohne Einsparung
     gemeinsamer Schnitte und ohne Zusatzzeiten). Ergebnis: (Schneiddaten-Zeile, (Vorschub groß, mittel, klein,
@@ -1005,7 +1016,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                      if gruppe_von(x, kopf) == gr and not _leer(x.get("laenge")) and not _leer(x.get("stueck")))
         e = _n(w["laenge_gesamt"]) / gesamt if gesamt else 0
         f = d * e / c if c else 0
-        sd, (h, i_, j, kv, l), mz = schneidzeit(p, kopf, w["wand"], tabellen, k)
+        sd, (h, i_, j, kv, l), mz = schneidzeit(p, kopf, w["wand_schneiden"], tabellen, k)
         z = dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, material_gruppe=d, anteil=e,
                  material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None)
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
@@ -1017,7 +1028,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if h is None or c == 0 or not h:
             nz = 0
         else:
-            nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_grenzen(maschine(kopf, k))[0]) + ein[2] * l) / c
+            nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_grenzen(maschine(kopf, k))[0])
+                  + ein[2] * einstiche_ende(w["profilform"]) * l) / c
         manuell = not _leer(p.get("zeit_manuell"))
         zeit_extra = sum(e["zeit"] for e in zus[i])
         if manuell:

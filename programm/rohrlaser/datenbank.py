@@ -38,13 +38,14 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 21     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 22     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
                         # 19: Profilformen I-/H-Träger und T-Profil in der Auswahlliste ergänzt (keine neuen Spalten)
                         # 20: Blechartikel: zukauf_artikel.artikeltyp, Maße, Werkstoff, Herkunft, STEP-Datei, Kennung
                         # 21: Positionsart (positionen.art: Rohrlaserteil/Zukaufteil) und positionen.gewicht_teil
+                        # 22: profile.wand_max (größte Wandstärke für die Schneidzeit), Normprofile aus der Tabelle
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -139,6 +140,8 @@ class Datenbank:
                 self._werkstoffe_ergaenzen()
             if 0 < version < 19:
                 self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
+            if 0 < version < 22:
+                self._wand_max_ergaenzen()
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -164,6 +167,16 @@ class Datenbank:
         if neu:
             i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
             self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+
+    def _wand_max_ergaenzen(self):
+        """Dateien vor Schema 22: Wandstärke max. der Normprofile (Träger, T, UPN) aus der Flanschdicke der
+        Normtabelle, wo sie dicker als die eingetragene Wandstärke ist; andere Profile bleiben leer."""
+        from . import normprofile
+        for pid, form, wand in self.con.execute("SELECT profil_id, form, wand FROM profile WHERE wand_max IS NULL")\
+                .fetchall():
+            n = normprofile.daten(pid)
+            if n and n["form"] == form and n.get("tf") and (wand is None or n["tf"] > wand):
+                self.con.execute("UPDATE profile SET wand_max=? WHERE profil_id=?", (n["tf"], pid))
 
     def _werkstoffe_ergaenzen(self):
         """Dateien vor Schema 11: Kategorie der vorhandenen Werkstoffe raten, fehlende Beispiel-Werkstoffe und
