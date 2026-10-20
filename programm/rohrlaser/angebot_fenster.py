@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QVBoxLayout, QWidget)
 
-from . import ausgabe, export, pdf, rechnen, step, zukauf
+from . import fracht_angebot, ausgabe, export, pdf, rechnen, step, zukauf
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
@@ -844,6 +844,41 @@ class AngebotSeite(QWidget):
             d.exec()
         return d
 
+    def fracht_auto_setzen(self, an):
+        """Haken 'Fracht automatisch berechnen': an = Ziel-PLZ (leer: aus dem Kunden) und Tarifkopie festhalten."""
+        if self._laden or an == fracht_angebot.auto(self.kopf):
+            return
+        if an:
+            if not self.kopf.get("fracht_plz"):
+                plz, land = fracht_angebot.ziel_aus_kunde(self.db.kunde(self.kopf.get("kundennr")))
+                self.db.angebot_aendern(self.id, "fracht_plz", plz or None)
+                self.db.angebot_aendern(self.id, "fracht_land", land)
+            self.db.angebot_aendern(self.id, "fracht_auto", "ja")
+            self._fracht_auto_rechnen()
+        else:
+            self.db.angebot_aendern(self.id, "fracht_auto", None)
+            self.f.meldung("Fracht wird nicht mehr automatisch berechnet (letzter Betrag bleibt).")
+        self.neu_laden()
+
+    def fracht_ziel_setzen(self, plz, land):
+        """Ziel-PLZ und Land der automatischen Fracht ändern (neue Zone und Tarifkopie)."""
+        plz = "".join(str(plz or "").split()).upper() or None
+        land = (land or "").strip().upper() or "DE"
+        if self._laden or (plz == self.kopf.get("fracht_plz") and land == (self.kopf.get("fracht_land") or "DE")):
+            return
+        self.db.angebot_aendern(self.id, "fracht_plz", plz)
+        self.db.angebot_aendern(self.id, "fracht_land", land)
+        if fracht_angebot.auto(self.kopf):
+            self._fracht_auto_rechnen()
+        self.neu_laden()
+
+    def _fracht_auto_rechnen(self):
+        d = self.db.fracht_auto_aktualisieren(self.id)
+        if d.get("fehler"):
+            self.f.meldung("Fracht nicht berechnet: " + d["fehler"], fehler=True)
+        else:
+            self.f.meldung(f"Fracht automatisch berechnet: {d.get('text')}.")
+
     def kunde_waehlen(self, kundennr):
         """Kundennummer übernehmen; steht der Kunde im Kundenstamm, auch Name und Zahlungsbedingungen."""
         kundennr = (kundennr or "").strip() or None
@@ -852,6 +887,12 @@ class AngebotSeite(QWidget):
         k = self.db.kunde_uebernehmen(self.id, kundennr)
         self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen)." if k
                        else "Kundennummer gespeichert (nicht im Kundenstamm).")
+        if k and fracht_angebot.auto(self.kopf):     # automatische Fracht: Ziel des neuen Kunden
+            plz, land = fracht_angebot.ziel_aus_kunde(k)
+            if plz:
+                self.db.angebot_aendern(self.id, "fracht_plz", plz)
+                self.db.angebot_aendern(self.id, "fracht_land", land)
+            self._fracht_auto_rechnen()
         self.neu_laden()
 
     def stand_optimierung(self):
@@ -1116,7 +1157,15 @@ class AngebotSeite(QWidget):
 
     # -------------------------------------------------------------- Ausgabe (PDF, CSV)
     def _vor_ausgabe(self):
-        """Bei veralteter Optimierung fragen. True = weiter."""
+        """Bei veralteter Optimierung fragen, bei nicht berechneter automatischer Fracht warnen. True = weiter."""
+        if fracht_angebot.auto(self.kopf):
+            _, summen = self._rechnung()
+            if summen.get("fracht_fehler"):
+                if self.f.stumm:
+                    self.f.meldung(summen["fracht_fehler"] + " – Angebot ohne Fracht.", fehler=True)
+                elif QMessageBox.question(self, "Fracht", f"{summen['fracht_fehler']}.\n\nDas Angebot enthält dann "
+                                          "keine Fracht. Trotzdem weiter?") != QMessageBox.Yes:
+                    return False
         if self.stand_optimierung() == "aktuell":
             return True
         if self.f.stumm:

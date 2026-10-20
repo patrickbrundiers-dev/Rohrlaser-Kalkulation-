@@ -7,6 +7,10 @@ Angebotskopf:
 - fracht_umlage: je Stück (leer, wie bisher) oder nach Gewicht (Anteil des Teilegewichts am Gesamtgewicht; fehlt
   einer Position das Gewicht, wird im ganzen Angebot je Stück verteilt, mit Hinweis). Neue Angebote: nach Gewicht.
 - fracht_sendung: JSON {sendung, snapshot, gesamt, text, lht_standard, lht_langgut} aus der Frachtberechnung.
+- fracht_auto = ja ('Fracht automatisch berechnen', Vorgabe aus): Ziel-PLZ (zwei Stellen reichen) und Land
+  (fracht_plz, fracht_land), Gewicht aus den Positionen, Ladungsträger per Packvorschlag, Tarif automatisch,
+  Versandart aus den Einstellungen, nur Zuschläge mit Bedingung 'immer'. Zone und Tarif werden beim Setzen des
+  Hakens bzw. beim Ändern der PLZ festgehalten (Tarifkopie); jede Änderung der Positionen rechnet damit neu.
 
 Staffelpreise: Im Modus 'berechnet' rechnet jede Mengenstufe Nettogewicht, Ladungsträger (Packvorschlag) und
 Fracht mit dem gespeicherten Tarif-Snapshot neu; in den übrigen Modi gilt der Betrag des Angebots für alle Mengen.
@@ -45,6 +49,61 @@ def wirksam(kopf):
         return 0.0
     w = kopf.get("fracht")
     return float(w) if isinstance(w, (int, float)) and not isinstance(w, bool) else 0.0
+
+
+def auto(kopf):
+    return kopf.get("fracht_auto") == "ja"
+
+
+def betrag_angebot(kopf, positionen, werte):
+    """Fracht des Angebots für die Kalkulation: (Betrag, Text, Fehler). Automatisch: aus den aktuellen Positionen
+    mit der Tarifkopie (wie eine Staffelstufe); sonst der Betrag aus dem Kopf (wirksam)."""
+    if auto(kopf) and modus(kopf) == BERECHNET:
+        return stufe(kopf, positionen, werte)
+    return wirksam(kopf), "", ""
+
+
+def ziel_aus_kunde(kunde):
+    """(PLZ-Bereich mit zwei Stellen, Land) aus der Lieferanschrift bzw. Anschrift des Kunden, sonst ('', 'DE')."""
+    from . import fracht
+    if not kunde:
+        return "", "DE"
+    if kunde.get("liefer_plz"):
+        plz, land = kunde["liefer_plz"], kunde.get("liefer_land")
+    else:
+        plz, land = kunde.get("plz") or fracht.plz_aus_text(kunde.get("plz_ort")), kunde.get("land")
+    plz = "".join(c for c in str(plz or "") if c.isdigit())[:2]
+    return plz, (land or "DE").upper()
+
+
+def auto_rechnen(fdaten, kopf, positionen, werte, kunde, einst):
+    """Frachtberechnung für 'Fracht automatisch berechnen' mit den aktuellen Frachtdaten (fdaten) und Einstellungen
+    (einst: absender_plz, absender_land, fracht_versandart, fracht_lht_standard, fracht_lht_langgut).
+    Ergebnis: dict für fracht_sendung (mit snapshot, gesamt, text oder fehler)."""
+    from . import fracht
+    netto, laenge, fehlt = ware(positionen, werte)
+    s = dict(datum=kopf.get("datum") or fracht.heute(), land=(kopf.get("fracht_land") or "DE").upper(),
+             plz=(kopf.get("fracht_plz") or "").strip(), absender_plz=einst.get("absender_plz"),
+             absender_land=einst.get("absender_land") or "DE", versandart=einst.get("fracht_versandart") or None,
+             kundennr=kopf.get("kundennr"), lieferbedingung=(kunde or {}).get("lieferbedingung"),
+             netto=netto, max_laenge=laenge or None, leistungen={}, auto=True)
+    d = dict(sendung=s, snapshot=None, gesamt=None, text="", lht_standard=einst.get("fracht_lht_standard"),
+             lht_langgut=einst.get("fracht_lht_langgut"))
+    if not s["plz"]:
+        d["fehler"] = "Ziel-PLZ fehlt"
+        return d
+    if fehlt:
+        d["fehler"] = f"Gewicht fehlt bei Pos. {', '.join(fehlt)}"
+        return d
+    s["lht"], _ = fracht.packvorschlag([(netto, laenge)], fdaten.get("lht", []), d["lht_standard"], d["lht_langgut"])
+    e = fracht.rechnen(fdaten, s)
+    d.update(snapshot=e.get("snapshot"), gesamt=e.get("gesamt"), text=fracht.zusammenfassung(e),
+             zone=(e.get("zone_empfang") or {}).get("text"), hinweise=e.get("hinweise", []) + e.get("warnungen", []))
+    if e.get("gesamt") is None:
+        d["fehler"] = "; ".join(e.get("fehler") or ["nicht berechnet"])
+        if not s["versandart"] and "Mehrere Tarife" in d["fehler"]:
+            d["fehler"] += " (Einstellungen › Frachtkosten: 'Versandart für automatische Fracht' festlegen)"
+    return d
 
 
 def ware(positionen, werte):
@@ -108,6 +167,10 @@ def stufe(kopf, positionen, werte):
     if modus(kopf) != BERECHNET:
         return wirksam(kopf), "", ""
     d = daten(kopf)
+    if d and d.get("fehler"):
+        return None, "", "Fracht nicht berechnet: " + d["fehler"]
+    if d and not d.get("snapshot") and d.get("gesamt") == 0:      # Lieferbedingung ohne Fracht (unfrei, ab Werk …)
+        return 0.0, d.get("text") or "", ""
     if not d or not d.get("snapshot"):
         return None, "", "Fracht nicht berechnet: im Angebot 'Fracht berechnen …' ausführen"
     netto, laenge, fehlt = ware(positionen, werte)

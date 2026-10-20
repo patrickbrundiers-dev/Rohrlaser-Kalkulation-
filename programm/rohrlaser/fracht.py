@@ -79,12 +79,22 @@ def plz_aus_text(text):
     return m.group(1) if m else ""
 
 
+def praefix(r):
+    """Präfix der Regel ('80' für '80*' und für eine kurze PLZ von 1–3 Stellen ohne PLZ bis), sonst None."""
+    von = plz_norm(r.get("plz_von"))
+    if von.endswith("*"):
+        return von[:-1]
+    if von.isdigit() and len(von) <= 3 and not plz_norm(r.get("plz_bis")):
+        return von
+    return None
+
+
 def regel_passt(r, plz):
     von = plz_norm(r.get("plz_von"))
     if not von or not plz:
         return False
-    if von.endswith("*"):
-        return plz.startswith(von[:-1])
+    if praefix(r) is not None:
+        return plz.startswith(praefix(r))
     bis = plz_norm(r.get("plz_bis")) or von
     if len(plz) != len(von):
         return False
@@ -96,8 +106,8 @@ def regel_rang(r):
     allgemein), Art (einzelne PLZ, Bereich nach Breite, Präfix nach Länge), Priorität."""
     ebene = (0 if r.get("dienstleister") else 1) if r.get("kundennr") else (2 if r.get("dienstleister") else 3)
     von, bis = plz_norm(r.get("plz_von")), plz_norm(r.get("plz_bis"))
-    if von.endswith("*"):
-        art, weite = 2, -len(von)
+    if praefix(r) is not None:
+        art, weite = 2, -len(praefix(r))
     elif not bis or bis == von:
         art, weite = 0, 0
     else:
@@ -108,23 +118,51 @@ def regel_rang(r):
 
 def regel_text(r):
     von, bis = r.get("plz_von"), r.get("plz_bis")
-    t = f"PLZ {von}–{bis}" if bis and bis != von else ("PLZ-Präfix " + von if str(von).endswith("*") else f"PLZ {von}")
+    t = f"PLZ {von}–{bis}" if bis and bis != von else (f"PLZ-Präfix {praefix(r)}*" if praefix(r) is not None
+                                                       else f"PLZ {von}")
     extra = [x for x in (("Kunde " + r["kundennr"]) if r.get("kundennr") else "",
                          ("Dienstleister " + r["dienstleister"]) if r.get("dienstleister") else "",
                          r.get("richtung") if r.get("richtung") not in (None, "", "beide") else "") if x]
     return t + (f" ({', '.join(extra)})" if extra else "")
 
 
+def plz_stellen(daten, land):
+    """Stellenzahl der PLZ im Land (Länder, Spalte PLZ-Stellen), sonst 5 für DE und 4 für andere Länder."""
+    for z in daten.get("laender", []):
+        if (z.get("land") or "").upper() == land and z.get("plz_laenge"):
+            return int(z["plz_laenge"])
+    return 5 if land == "DE" else 4
+
+
+def regel_im_bereich(r, bereich):
+    """Lage einer PLZ-Regel zum PLZ-Bereich (z. B. '25' = alle PLZ mit 25…): 'ganz' (Regel deckt den ganzen
+    Bereich), 'teil' (ein Teil des Bereichs) oder None."""
+    p = praefix(r)
+    if p is not None:
+        return "ganz" if bereich.startswith(p) else ("teil" if p.startswith(bereich) else None)
+    von, bis = plz_norm(r.get("plz_von")), plz_norm(r.get("plz_bis")) or plz_norm(r.get("plz_von"))
+    if not von.isdigit() or not bis.isdigit() or len(von) <= len(bereich):
+        return None
+    lo, hi = bereich.ljust(len(von), "0"), bereich.ljust(len(von), "9")
+    if von <= lo and bis >= hi:
+        return "ganz"
+    return "teil" if von <= hi and bis >= lo else None
+
+
 def zone_finden(daten, land, plz, richtung="Empfang", kundennr=None, dienstleister=None):
     """Zone einer PLZ. Ergebnis: {zone (Zeile oder None), regel, status ('ok', 'standard', 'mehrdeutig', 'fehler'),
-    text, hinweise}."""
+    text, hinweise, bereich_zonen}. Eine kürzere PLZ als im Land üblich (z. B. '25') ist ein PLZ-Bereich: es zählen
+    alle Regeln, die in den Bereich fallen; liegt er in mehreren Zonen, stehen sie in bereich_zonen (rechnen() nimmt
+    dann die teurere)."""
     plz = plz_norm(plz)
     land = (land or "DE").strip().upper()
     zonen = {z["zone_id"]: z for z in daten.get("zonen", []) if z.get("zone_id")}
-    out = dict(zone=None, regel=None, status="fehler", text="", hinweise=[], land=land, plz=plz)
+    out = dict(zone=None, regel=None, status="fehler", text="", hinweise=[], land=land, plz=plz, bereich_zonen=[])
     if not plz:
         out["text"] = "PLZ fehlt"
         return out
+    if plz.isdigit() and len(plz) < plz_stellen(daten, land):
+        return _bereich_finden(daten, land, plz, richtung, kundennr, dienstleister, zonen, out)
     kand, inaktiv = [], []
     for r in daten.get("plz", []):
         if (r.get("land") or "DE") != land or r.get("richtung") not in (None, "", "beide", richtung):
@@ -162,6 +200,70 @@ def zone_finden(daten, land, plz, richtung="Empfang", kundennr=None, dienstleist
             z["zone_id"] for z in std)
     else:
         out["text"] = f"PLZ {plz} ({land}) keiner Zone zugeordnet und keine Standardzone für {land}"
+    return out
+
+
+def _regeln(daten, land, richtung, kundennr, dienstleister):
+    for r in daten.get("plz", []):
+        if (r.get("land") or "DE") != land or r.get("richtung") not in (None, "", "beide", richtung):
+            continue
+        if r.get("dienstleister") and r["dienstleister"] != dienstleister:
+            continue
+        if r.get("kundennr") and r["kundennr"] != kundennr:
+            continue
+        yield r
+
+
+def _standardzonen(zonen, land):
+    return [z for z in zonen.values() if (z.get("land") or "DE") == land and z.get("standard") == "ja" and aktiv(z)]
+
+
+def _bereich_finden(daten, land, bereich, richtung, kundennr, dienstleister, zonen, out):
+    """Zone(n) eines PLZ-Bereichs: Regeln der vorrangigen Ebene (Kunde + Dienstleister, Kunde, Dienstleister,
+    allgemein), die den Bereich ganz oder teilweise abdecken; deckt keine den ganzen Bereich, gilt für den Rest die
+    Standardzone. Mehrere Zonen -> bereich_zonen (teurere gewinnt in rechnen())."""
+    kand = []
+    for r in _regeln(daten, land, richtung, kundennr, dienstleister):
+        lage = regel_im_bereich(r, bereich)
+        if not lage:
+            continue
+        z = zonen.get(r.get("zone_id"))
+        if z and aktiv(z):
+            kand.append((r, lage))
+        else:
+            out["hinweise"].append(f"{regel_text(r)}: Zone {r.get('zone_id')} inaktiv oder unbekannt, nicht verwendet")
+    if kand:
+        ebene = min(regel_rang(r)[0] for r, _ in kand)
+        kand = sorted([(r, lage) for r, lage in kand if regel_rang(r)[0] == ebene], key=lambda x: regel_rang(x[0]))
+    ganz = [r for r, lage in kand if lage == "ganz"]
+    teil = [r for r, lage in kand if lage == "teil"]
+    if ganz:     # die engste Regel über den ganzen Bereich, dazu abweichende Teilbereiche
+        regeln = [ganz[0]] + teil
+    else:
+        regeln = teil
+    ids = []
+    for r in regeln:
+        if r["zone_id"] not in ids:
+            ids.append(r["zone_id"])
+    rest = ""
+    if not ganz:
+        std = _standardzonen(zonen, land)
+        if len(std) == 1 and (std[0]["zone_id"] not in ids):
+            ids.append(std[0]["zone_id"])
+            rest = f" (Rest des Bereichs: Standardzone {std[0]['zone_id']})"
+    if not ids:
+        out["text"] = f"PLZ-Bereich {bereich}… ({land}) keiner Zone zugeordnet und keine Standardzone für {land}"
+        return out
+    erst = zonen[ids[0]]
+    regel = next((r for r in regeln if r["zone_id"] == ids[0]), None)
+    out.update(zone=erst, regel=regel, status="ok" if regel else "standard", bereich_zonen=[zonen[i] for i in ids])
+    if len(ids) == 1:
+        out["text"] = (f"PLZ-Bereich {bereich}…: Zone {erst['zone_id']} {erst.get('bezeichnung') or ''} "
+                       f"({regel_text(regel)})" if regel else
+                       f"PLZ-Bereich {bereich}… keiner Zone zugeordnet – Standardzone {erst['zone_id']} "
+                       f"{erst.get('bezeichnung') or ''}").replace("  ", " ")
+    else:
+        out["text"] = f"PLZ-Bereich {bereich}… liegt in den Zonen {', '.join(ids)}{rest}: es gilt die teurere"
     return out
 
 
@@ -671,13 +773,38 @@ def kalkulieren(snap, s):
 
 
 def rechnen(daten, sendung):
+    """Frachtkosten einer Sendung (siehe _rechnen). Liegt ein PLZ-Bereich in mehreren Zonen, wird mit jeder Zone
+    gerechnet und die teurere genommen (Hinweis mit allen Beträgen)."""
+    s = dict(sendung)
+    s["land"] = (s.get("land") or "DE").upper()
+    ze = zone_finden(daten, s["land"], s.get("plz"), "Empfang", s.get("kundennr"), s.get("dienstleister"))
+    if len(ze["bereich_zonen"]) < 2:
+        return _rechnen(daten, s, ze)
+    ergebnisse = []
+    for z in ze["bereich_zonen"]:
+        zi = dict(ze, zone=z, status="ok", bereich_zonen=[], text=f"{ze['text']}: Zone {z['zone_id']} "
+                  f"{z.get('bezeichnung') or ''}".rstrip())
+        ergebnisse.append(_rechnen(daten, s, zi))
+    gerechnet = [e for e in ergebnisse if e.get("gesamt") is not None]
+    if not gerechnet:
+        return ergebnisse[0]
+    out = max(gerechnet, key=lambda e: e["gesamt"])
+    out["hinweise"].append("PLZ-Bereich in mehreren Zonen, die teurere gilt: " + "; ".join(
+        f"Zone {e['zone_empfang']['zone']['zone_id']} {euro(e['gesamt'])}" if e.get("gesamt") is not None
+        else f"Zone {e['zone_empfang']['zone']['zone_id']} nicht berechnet" for e in ergebnisse))
+    if len(gerechnet) < len(ergebnisse):
+        out["warnungen"].append("In einem Teil des PLZ-Bereichs ist die Fracht nicht berechenbar (siehe Hinweise)")
+        out["status"] = "fehler" if out["fehler"] else "warnung"
+    return out
+
+
+def _rechnen(daten, sendung, ze):
     """Frachtkosten einer Sendung. Ergebnis: dict mit status ('ok', 'warnung', 'fehler', 'auswahl'), gesamt (€ oder
     None), zeilen [{text, betrag, erklaerung}], zone_empfang, zone_versand, tarif, tarif_grund, weitere_tarife,
     gewicht, lht, staffeln, zuschlaege, nicht_angewendet, warnungen, fehler, hinweise, snapshot, eingaben."""
     s = dict(sendung)
     s.setdefault("datum", heute())
     s["land"] = (s.get("land") or "DE").upper()
-    ze = zone_finden(daten, s["land"], s.get("plz"), "Empfang", s.get("kundennr"), s.get("dienstleister"))
     zv = zone_finden(daten, s.get("absender_land") or "DE", s.get("absender_plz"), "Versand", s.get("kundennr"),
                      s.get("dienstleister")) if s.get("absender_plz") else None
     out = dict(status="fehler", gesamt=None, zeilen=[], zone_empfang=ze, zone_versand=zv, tarif=None, tarif_grund="",

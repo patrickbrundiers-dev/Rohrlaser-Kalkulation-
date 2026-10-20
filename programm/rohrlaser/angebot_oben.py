@@ -7,7 +7,7 @@ Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerech
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 from . import fracht_angebot, rechnen
@@ -267,6 +267,30 @@ class KopfBereich(QWidget):
             cb.currentTextChanged.connect(lambda t, name=name: seite._kopf_speichern(KOPF_FELD[name], t or None))
         zeile.addStretch(1)
         frl.addLayout(zeile)
+        # automatisch: Ziel-PLZ (zwei Stellen reichen) und Land; Gewicht, Ladungsträger und Tarif rechnet das Programm
+        zeile = QHBoxLayout()
+        self.fracht_auto = QCheckBox("Fracht automatisch berechnen")
+        self.fracht_auto.setToolTip("Fracht bei jeder Änderung aus Ziel-PLZ, Gewicht der Positionen, Packvorschlag und "
+                                    "automatisch gewähltem Tarif rechnen (Tarifkopie beim Setzen des Hakens bzw. "
+                                    "Ändern der PLZ)")
+        self.fracht_plz, self.fracht_land = QLineEdit(), QLineEdit()
+        self.fracht_plz.setPlaceholderText("z. B. 25")
+        self.fracht_plz.setMaxLength(10)
+        self.fracht_plz.setMaximumWidth(80)
+        self.fracht_land.setMaxLength(2)
+        self.fracht_land.setMaximumWidth(40)
+        self.fracht_auto.toggled.connect(lambda an: seite.fracht_auto_setzen(an))
+        self.fracht_plz.editingFinished.connect(lambda: seite.fracht_ziel_setzen(self.fracht_plz.text(),
+                                                                                  self.fracht_land.text()))
+        self.fracht_land.editingFinished.connect(lambda: seite.fracht_ziel_setzen(self.fracht_plz.text(),
+                                                                                   self.fracht_land.text()))
+        zeile.addWidget(self.fracht_auto)
+        zeile.addWidget(QLabel("Ziel-PLZ"))
+        zeile.addWidget(self.fracht_plz)
+        zeile.addWidget(QLabel("Land"))
+        zeile.addWidget(self.fracht_land)
+        zeile.addStretch(1)
+        frl.addLayout(zeile)
         self.fracht_text = QLabel()
         self.fracht_text.setWordWrap(True)
         self.fracht_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -409,6 +433,13 @@ class KopfBereich(QWidget):
         m, u = fracht_angebot.modus(s.kopf), fracht_angebot.umlage(s.kopf)
         self.fracht_modus.setCurrentText(m)
         self.fracht_umlage.setCurrentText(u)
+        an = fracht_angebot.auto(s.kopf)
+        for w, v in ((self.fracht_auto, an), (self.fracht_plz, s.kopf.get("fracht_plz") or ""),
+                     (self.fracht_land, s.kopf.get("fracht_land") or "")):
+            w.blockSignals(True)
+            w.setChecked(v) if isinstance(w, QCheckBox) else w.setText(v)
+            w.blockSignals(False)
+        self.fracht_modus.setEnabled(not an)
         for ablage in (self.felder, self.erweitert):     # berechnet: Betrag kommt aus der Frachtberechnung
             w = ablage.get("fracht")
             if w is not None:
@@ -417,7 +448,22 @@ class KopfBereich(QWidget):
                              else "")
         betrag = fracht_angebot.wirksam(s.kopf)
         d = fracht_angebot.daten(s.kopf) or {}
-        if m == fracht_angebot.BERECHNET:
+        werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if position_aktiv(p) else None
+                 for p in s.positionen]
+        if an:
+            b, info, fehler = fracht_angebot.betrag_angebot(s.kopf, s.positionen, werte)
+            betrag = b or 0
+            if fehler:
+                text = f"<span style='color:#B42318'><b>{fehler}.</b> Die Kalkulation rechnet bis dahin ohne Fracht.</span>"
+            else:
+                text = f"Automatisch: {info or _z(betrag) + ' €'}"
+                if d.get("zone"):
+                    text += f"; {d['zone']}"
+                text += ". In den Staffelpreisen rechnet jede Menge ihre eigene Fracht."
+            for h in d.get("hinweise") or ():
+                if "teurere" in h or "Beispieltarif" in h:
+                    text += f"<br><span style='color:#7A5A00'>{h}</span>"
+        elif m == fracht_angebot.BERECHNET:
             text = f"Berechnet: {d.get('text') or _z(betrag) + ' €'}"
             sd = d.get("sendung") or {}
             if sd.get("plz"):
@@ -428,8 +474,6 @@ class KopfBereich(QWidget):
                     if betrag else "Keine Frachtkosten eingetragen.")
         else:
             text = f"{m}: 0 € in der Kalkulation, Hinweis im Angebot."
-        werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if position_aktiv(p) else None
-                 for p in s.positionen]
         _, hinweis, _ = fracht_angebot.anteile(s.positionen, werte, betrag, u)
         if hinweis:
             text += f"<br><span style='color:#7A5A00'>{hinweis}.</span>"

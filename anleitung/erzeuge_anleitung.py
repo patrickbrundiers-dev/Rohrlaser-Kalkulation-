@@ -782,8 +782,8 @@ def kapitel_einstellungen(i):
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
-        ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Ladungsträger im Packvorschlag, Ladungsträger für "
-                         "lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
+        ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Versandart für automatische Fracht, "
+                         "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
                          "Einstellungen</i> (Kapitel 12.7), nicht unter Vorgaben"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten; leer = ohne Passwort"]],
@@ -899,7 +899,8 @@ def kapitel_angebot(i):
            "eingeht.")
     i.bild("angebot_fracht", "Karte Fracht: Frachtart berechnet, verteilt nach Gewicht", hoehe=40 * mm, legende=[
         (1, "<b>Frachtart</b>"), (2, "<b>Fracht verteilen</b>"), (3, "<b>Fracht berechnen …</b>"),
-        (4, "Betrag, Tarif, Gewicht, Ladungsträger und Ziel der Berechnung")])
+        (4, "Betrag, Tarif, Gewicht, Ladungsträger und Ziel der Berechnung"),
+        (5, "<b>Fracht automatisch berechnen</b> mit Ziel-PLZ und Land (unten)")])
     i.tabelle(["Frachtart", "Wirkung"], [
         ["manuell", "wie bisher: der Betrag im Feld Frachtkosten (Gruppe Verkauf und Gewinn); in den Staffelpreisen "
                     "gilt er für alle Mengen gleich. Ältere Angebote haben diese Frachtart."],
@@ -928,6 +929,29 @@ def kapitel_angebot(i):
             "übernehmen. Mit der Lieferbedingung unfrei, ab Werk oder Abholung wird die Frachtart keine Fracht.",
             "Ist die Frachtart berechnet und der Betrag größer 0, nennt das Angebots-PDF „Die Preise enthalten die "
             "Fracht frei Haus nach DE 25980.“ (Land und PLZ der Berechnung).")
+    i.text("<b>Fracht automatisch berechnen</b> (Haken in der Karte Fracht, bei neuen Angeboten aus): Das Programm "
+           "rechnet die Fracht selbst und hält sie bei jeder Änderung der Positionen aktuell. Daneben stehen "
+           "<b>Ziel-PLZ</b> und <b>Land</b> (Felder Ziel-PLZ (Fracht) und Zielland (Fracht)); die ersten zwei Ziffern "
+           "reichen, z. B. 25 für alle PLZ, die mit 25 beginnen.")
+    i.liste("Beim Setzen des Hakens kommen Ziel-PLZ (zwei Stellen) und Land aus dem Kunden: abweichende "
+            "Lieferanschrift, sonst PLZ bzw. PLZ Ort der Anschrift. Wechselt der Kunde, wechselt auch das Ziel.",
+            "Gewicht und längstes Teil kommen aus den Positionen, die Ladungsträger aus dem Packvorschlag, der Tarif "
+            "wird automatisch gewählt. Die Versandart steht in den Einstellungen der Frachtkosten (<b>Versandart für "
+            "automatische Fracht</b>, z. B. Stückgut). Ohne sie können zwei Tarife gleich gut passen; dann rechnet "
+            "das Programm nicht, sondern meldet es. Zuschläge gelten nur mit der Bedingung <i>immer</i> bzw. über "
+            "Zone und Gewicht, keine Zusatzleistungen wie Avis oder Hebebühne.",
+            "Tarifkopie: Zone und alle Tarifwerte werden beim Setzen des Hakens und beim Ändern der Ziel-PLZ "
+            "festgehalten. Ändert sich danach die Stückzahl, rechnet das Programm mit dieser Kopie neu; spätere "
+            "Tarifänderungen wirken erst, wenn die Ziel-PLZ neu eingegeben oder der Haken neu gesetzt wird.",
+            "Liegt der PLZ-Bereich in mehreren Zonen (z. B. 25 mit Festland und Inseln), rechnet das Programm jede "
+            "Zone und nimmt die teurere; die Karte nennt alle Zonen mit ihrem Betrag.",
+            "In den Staffelpreisen rechnet jede Menge ihre eigene Fracht (Kapitel 9).",
+            "Kann das Programm nicht rechnen (Ziel-PLZ fehlt, Gewicht fehlt, kein Tarif), steht der Grund rot in der "
+            "Karte, die Kalkulation rechnet bis dahin ohne Fracht und vor dem Angebots-PDF fragt das Programm nach. "
+            "Es setzt nie still 0 € ein.",
+            "Solange der Haken gesetzt ist, ist die Frachtart fest auf berechnet. Haken aus: der letzte Betrag bleibt "
+            "stehen und die Frachtart ist wieder wählbar. <b>Fracht berechnen …</b> und <b>Ins Angebot übernehmen</b> "
+            "nimmt den Haken heraus, damit die Automatik den Betrag von Hand nicht überschreibt.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
            "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
@@ -1994,7 +2018,8 @@ def kapitel_frachtkosten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["PLZ-Zuordnungen", "Bedeutung"], [
         ["<b>Land</b>, <b>PLZ von</b>, PLZ bis", "eine PLZ (nur PLZ von), ein Bereich (01067 bis 01099) oder ein Präfix "
-                                                 "(80*). Mehrere Bereiche je Zone sind mehrere Zeilen."],
+                                                 "(80* oder kurz 80: bis drei Ziffern ohne PLZ bis gelten als Präfix, "
+                                                 "auch im CSV-Import). Mehrere Bereiche je Zone sind mehrere Zeilen."],
         ["<b>Zone</b>", "Zone, in die die PLZ fällt"],
         ["Richtung", "beide, Empfang oder Versand (unterschiedliche Zonen für Versand und Empfang); leer = beide"],
         ["Dienstleister, Kundennummer", "Regel gilt nur für diesen Frachtführer bzw. Kunden (Ausnahmen)"],
@@ -2004,6 +2029,11 @@ def kapitel_frachtkosten(i):
            "allgemein; dann einzelne PLZ vor dem engsten Bereich vor dem kürzesten Präfix; dann die kleinere "
            "Priorität. Bleibt ein Gleichstand mit verschiedenen Zonen, meldet das Programm <i>mehrdeutig</i> und "
            "rechnet nicht.")
+    i.text("<b>Zweistellige PLZ</b> (im Rechner, beim PLZ testen und im Angebot): Kürzere Eingaben als die PLZ-Länge "
+           "des Landes stehen für den ganzen Bereich, z. B. 40 für 40000–40999. Liegt er ganz in einer Zuordnung, "
+           "gilt deren Zone. Berührt er mehrere Zonen, rechnet das Programm jede davon und nimmt die teurere (mit "
+           "Hinweis); Teile des Bereichs ohne Zuordnung gehören zur Standardzone. Beispiel mit den Beispielwerten: "
+           "25 liegt in Z5 (Inseln 25938–25999) und für den Rest in der Standardzone Z3; es gilt Z5.")
     i.tabelle(["Länder", "Bedeutung"], [
         ["<b>Land</b>", "zweistelliger Ländercode, z. B. DE, AT, CH"],
         ["Bezeichnung, PLZ-Stellen, Währung", "Name, Stellenzahl der PLZ (für die Prüfung), Währung (leer = EUR)"],
@@ -2115,8 +2145,9 @@ def kapitel_frachtkosten(i):
         (1, "Gespeicherte Kalkulationen: Datum, Bezeichnung, Empfänger, Zone, Tarif, frachtpflichtiges Gewicht, "
             "Gesamt"),
         (2, "<b>Kalkulation anzeigen</b> (oder Doppelklick) zeigt die Kostenübersicht wie beim Speichern."),
-        (3, "Einstellungen der Frachtkosten: Absender-PLZ (Versandort), Absender-Land, Ladungsträger im "
-            "Packvorschlag, Ladungsträger für lange Teile (Langgut)"),
+        (3, "Einstellungen der Frachtkosten: Absender-PLZ (Versandort), Absender-Land, Versandart für automatische "
+            "Fracht (Kapitel 6, Abschnitt Fracht), Ladungsträger im Packvorschlag, Ladungsträger für lange Teile "
+            "(Langgut)"),
         (4, "<b>Beispieldaten laden</b> fügt die Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu "
             "(BEISPIEL); vorhandene Einträge bleiben.")])
     i.text("Fracht im Angebot und je Staffelmenge: Kapitel 6 (Abschnitt Fracht) und Kapitel 9.")
