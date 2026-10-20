@@ -275,6 +275,8 @@ def kapitel_ueberblick(i):
            "Einstellungen werden einmal eingerichtet (Kapitel 3 und 4): das Programm startet mit Beispielwerten, die "
            "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
+    i.text("Das Programm öffnet sich immer maximiert (bildschirmfüllend, die Taskleiste bleibt sichtbar) und gleich "
+           "im Reiter <i>Angebote</i>. Die übrigen Reiter sind von dort mit einem Klick erreichbar.")
     i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, "
            "<i>Frachtkosten</i> (Kapitel 12), <i>Zukaufartikel</i> (Kapitel 13) "
            "und <i>Einstellungen</i> (mit Passwort; darin die Vorgaben und die übrigen Stammdaten als Unterreiter). Jedes geöffnete Angebot bekommt einen eigenen Reiter "
@@ -808,6 +810,9 @@ def kapitel_einstellungen(i):
          "Grenze zwischen Flachstahl und Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
          "Flachstahl, wenn es höchstens so breit ist, mindestens dreimal so lang wie breit ist und gerade "
          "Längsseiten hat. Alles andere Flache ist ein Blech (Kapitel STEP-Import)."],
+        ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
+         "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
+         "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
         ["Angebots-PDF", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
                     "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF. Die Zahlungsbedingung (Skonto, "
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
@@ -821,8 +826,8 @@ def kapitel_einstellungen(i):
         ["Auswahllisten", "Profilformen", "Einträge der Auswahl „Profilform“ in den Profilen"],
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
-        ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Ladungsträger im Packvorschlag, Ladungsträger für "
-                         "lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
+        ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Versandart für automatische Fracht, "
+                         "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
                          "Einstellungen</i> (Kapitel 12.7), nicht unter Vorgaben"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten; leer = ohne Passwort"]],
@@ -899,7 +904,7 @@ def kapitel_angebot(i):
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.6). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
-            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell anlegen, Kapitel 13.6)."),
+            "und <i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, Kapitel 13.6)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
@@ -938,7 +943,8 @@ def kapitel_angebot(i):
            "eingeht.")
     i.bild("angebot_fracht", "Karte Fracht: Frachtart berechnet, verteilt nach Gewicht", hoehe=40 * mm, legende=[
         (1, "<b>Frachtart</b>"), (2, "<b>Fracht verteilen</b>"), (3, "<b>Fracht berechnen …</b>"),
-        (4, "Betrag, Tarif, Gewicht, Ladungsträger und Ziel der Berechnung")])
+        (4, "Betrag, Tarif, Gewicht, Ladungsträger und Ziel der Berechnung"),
+        (5, "<b>Fracht automatisch berechnen</b> mit Ziel-PLZ und Land (unten)")])
     i.tabelle(["Frachtart", "Wirkung"], [
         ["manuell", "wie bisher: der Betrag im Feld Frachtkosten (Gruppe Verkauf und Gewinn); in den Staffelpreisen "
                     "gilt er für alle Mengen gleich. Ältere Angebote haben diese Frachtart."],
@@ -967,6 +973,32 @@ def kapitel_angebot(i):
             "übernehmen. Mit der Lieferbedingung unfrei, ab Werk oder Abholung wird die Frachtart keine Fracht.",
             "Ist die Frachtart berechnet und der Betrag größer 0, nennt das Angebots-PDF „Die Preise enthalten die "
             "Fracht frei Haus nach DE 25980.“ (Land und PLZ der Berechnung).")
+    i.text("<b>Fracht automatisch berechnen</b> (Haken in der Karte Fracht, bei neuen Angeboten aus): Das Programm "
+           "rechnet die Fracht selbst und hält sie bei jeder Änderung der Positionen aktuell. Daneben stehen "
+           "<b>Ziel-PLZ</b> und <b>Land</b> (Felder Ziel-PLZ (Fracht) und Zielland (Fracht)); die ersten zwei Ziffern "
+           "reichen, z. B. 25 für alle PLZ, die mit 25 beginnen.")
+    i.liste("Beim Setzen des Hakens kommen Ziel-PLZ (zwei Stellen) und Land aus dem Kunden: abweichende "
+            "Lieferanschrift, sonst PLZ bzw. PLZ Ort der Anschrift. Wechselt der Kunde, wechselt auch das Ziel.",
+            "Gewicht und längstes Teil kommen aus den Positionen, die Ladungsträger aus dem Packvorschlag, der Tarif "
+            "wird automatisch gewählt. Die Versandart steht in den Einstellungen der Frachtkosten (<b>Versandart für "
+            "automatische Fracht</b>, z. B. Stückgut). Ohne sie können zwei Tarife gleich gut passen; dann rechnet "
+            "das Programm nicht, sondern meldet es. Zuschläge gelten nur mit der Bedingung <i>immer</i> bzw. über "
+            "Zone und Gewicht, keine Zusatzleistungen wie Avis oder Hebebühne.",
+            "Tarifkopie: Zone und alle Tarifwerte werden beim Setzen des Hakens und beim Ändern der Ziel-PLZ "
+            "festgehalten. Jede Änderung am Angebot (Stückzahl, Länge, Profil, Werkstoff, neue oder gelöschte "
+            "Position) rechnet die Fracht sofort mit dieser Kopie neu und schreibt sie ins Feld Frachtkosten. Spätere "
+            "Tarifänderungen wirken erst, wenn die Ziel-PLZ neu eingegeben oder der Haken neu gesetzt wird.",
+            "Liegt der PLZ-Bereich in mehreren Zonen (z. B. 25 mit Festland und Inseln), rechnet das Programm jede "
+            "Zone und nimmt die teurere; die Karte nennt alle Zonen mit ihrem Betrag.",
+            "In den Staffelpreisen rechnet jede Menge ihre eigene Fracht (Kapitel 9).",
+            "Kann das Programm nicht rechnen (Ziel-PLZ fehlt, Gewicht fehlt, kein Tarif), steht der Grund rot in der "
+            "Karte, das Feld Frachtkosten ist leer, die Kalkulation rechnet bis dahin ohne Fracht und vor dem "
+            "Angebots-PDF fragt das Programm nach. Es setzt nie still 0 € ein. Ist der Grund behoben (Gewicht "
+            "eingetragen, Versandart in den Einstellungen gesetzt), rechnet die nächste Änderung oder das Zurückkehren "
+            "ins Angebot die Fracht von selbst neu.",
+            "Solange der Haken gesetzt ist, ist die Frachtart fest auf berechnet. Haken aus: der letzte Betrag bleibt "
+            "stehen und die Frachtart ist wieder wählbar. <b>Fracht berechnen …</b> und <b>Ins Angebot übernehmen</b> "
+            "nimmt den Haken heraus, damit die Automatik den Betrag von Hand nicht überschreibt.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
            "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
@@ -1059,7 +1091,9 @@ def kapitel_angebot(i):
             "(nicht lasern, zum Auftrag bereitstellen)</i>, die <b>Nachkalkulation</b> hat die Zeile "
             "<i>Zukaufteile (Einstand)</i>.",
             "Von Hand: Position anlegen, <i>Positionsart</i> = Zukaufteil, Stückzahl eintragen und unter "
-            "<b>Zukaufteile …</b> den Artikel wählen.")
+            "<b>Zukaufteile … → Zukaufteile bearbeiten …</b> den Artikel wählen. Schneller mit neuem Artikel: "
+            "<b>Zukaufteile … → Neuer Zukaufartikel …</b> (Abschnitt 13.6) legt Artikel und Position in einem Schritt "
+            "an.")
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
             "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
             "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "
@@ -1169,13 +1203,18 @@ def kapitel_step(i):
     i.abschnitt("Rohrliste prüfen")
     i.liste("Jede Zeile ist ein Teil. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
             "<b>In Datei</b> zeigt, wie oft es in der Datei vorkommt.",
+            "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart. Bei Flachstahl/Blech und Profil/Kantteil ist sie "
+            "eine Auswahl (siehe Bleche beim STEP-Import).",
             "Die Teile sind nach gemessenem Profil gruppiert. Eine rote Gruppenzeile heißt: dieses Profil steht nicht in "
             "den Stammdaten (beim Übernehmen fragt das Programm, ob es angelegt werden soll).",
             "<b>Häkchen</b> vor dem Teil: übernehmen ja/nein. Abgewählte Teile stehen nur im STEP-Protokoll.",
             "<b>Profil-ID</b>: vorgeschlagen ist das passende Profil der Stammdaten. Ein anderes wählen oder eine neue "
             "ID eintippen, z. B. wenn ein Teil aus einem anderen Rohr gefertigt wird.",
-            "<b>Werkstoff-ID</b> (nach Kategorie gruppiert) und <b>Stückzahl</b> je Teil; leer = später im Angebot eintragen. Ist oben eine "
-            "Anzahl Sätze eingetragen, heißt die Spalte <b>Stück je Satz</b> (siehe Baugruppen als Satz).",
+            "<b>Werkstoff-ID</b> (nach Kategorie gruppiert) und <b>Stückzahl</b> je Teil; leer = später im Angebot eintragen. "
+            "Vorbelegt sind bei Rohren und Profilen der Werkstoff aus der Einstellung <i>STEP-Import: Standard-Werkstoff</i> "
+            "(Vorgabe S235-10219 = S235 EN10219) und bei Einzelteilen die Stückzahl 1. Bleche bekommen keinen Werkstoff "
+            "vorbelegt. Ist oben eine Anzahl Sätze eingetragen, heißt die Spalte <b>Stück je Satz</b> (siehe Baugruppen "
+            "als Satz).",
             "Für viele Teile auf einmal: unten Werkstoff und/oder Stückzahl wählen und <b>Für alle</b> klicken (gilt "
             "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
             "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
@@ -1265,6 +1304,14 @@ def kapitel_step(i):
             "Prüfstatus <i>prüfen</i>. Der Hinweis nennt die Außenmaße und die ungefähre Abwicklungsfläche ohne "
             "Biegefaktor. Ein Kantteil mit gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder "
             "C-Profil, weil es als Stangenmaterial auf dem Rohrlaser geschnitten werden kann.",
+            "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
+            "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
+            "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "
+            "dem Erkannten. Wird die andere Art gewählt, wandert die Zeile in die passende Gruppe. Profil bzw. "
+            "Zukaufartikel und Werkstoff werden neu vorbelegt (Blech: Werkstoff leer), die Stückzahl bleibt. Lässt "
+            "sich ein Teil in der anderen Art nicht messen, z. B. ein Kantteil mit ungleichen Schenkeln als "
+            "L-Profil, steht <i>Ersatzwerte</i> dabei. Die Werte kommen dann aus den Blechmaßen (Länge × Breite, "
+            "Schnitte nur an den Enden), das Teil ist nicht angehakt und muss geprüft werden.",
             "Eine dünne Platte mit Tasche oder Absatz ist <b>kein Blech</b> (nicht überall gleich dick) und steht mit "
             "Prüfstatus <i>prüfen</i> da.",
             "Bleche sind keine Rohrlaserteile und werden nie als Profil übernommen. Sie werden <b>Zukaufteil-"
@@ -1290,7 +1337,9 @@ def kapitel_step(i):
             "<b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>).",
             "In den Messwerten stehen die Spalten <i>bauteiltyp</i> (Profil, Blech, Blech gekantet) und <i>blech</i> "
             "(alle Blechmaße). Im JSON-Messergebnis (ab Version 1.1) steht je Blech der Block <i>blech</i>; die "
-            "Profilwerte (Querschnitt, Wandstärke) sind dort <i>null</i>.")
+            "Profilwerte (Querschnitt, Wandstärke) sind dort <i>null</i>. Ab Version 1.2 steht bei Grenzfällen der "
+            "Block <i>alternative</i> (das Teil in der anderen Art) und <i>ersatzwerte</i> (true = abgeleitet, "
+            "nicht gemessen).")
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
     i.liste("Jedes Teil bekommt einen <b>Prüfstatus</b>. <i>plausibel</i> heißt, dass die Messung in sich stimmig "
             "ist; eine Fertigungsfreigabe ist das nicht. <i>prüfen</i> bedeutet, dass es Hinweise gibt, ein Merkmal "
@@ -1850,15 +1899,24 @@ def kapitel_zukauf(i):
             "<b>Aus Stammdaten aktualisieren …</b> (markierte Zeilen, ohne Markierung alle) zeigt je Artikel den "
             "VK je Teil alt und neu und übernimmt den neuen Stand erst nach Bestätigung und <b>OK</b>.",
             "Mit mehreren markierten Positionen gilt die Liste nach OK für alle (sie ersetzt deren Zukaufteile).")
-    i.text("<b>Schnellanlage</b>, z. B. für Bleche: Position markieren und in der Knopfleiste des "
-           "Angebots <b>Zukaufteile … → Neuer Zukaufartikel …</b> wählen (oder <b>Neuer Artikel …</b> im Dialog Zukaufteile). Das kurze Formular "
-           "legt den Artikel in den Stammdaten an und hängt ihn an die Position; vorhandene Zukaufteile bleiben.")
+    i.text("<b>Schnellanlage</b>, z. B. für Bleche: in der Knopfleiste des Angebots <b>Zukaufteile … → Neuer "
+           "Zukaufartikel …</b> wählen. Das kurze Formular legt den Artikel in den Stammdaten an, und <b>jeder Artikel "
+           "wird eine eigene Position</b> der Art <i>Zukaufteil</i> (nicht gelasert, Preis aus Einstand + Aufschlag, "
+           "Abschnitt Zukaufteil-Positionen in Kapitel 6). Die Menge bezieht sich auf die markierte Position:")
+    i.liste("<b>je Satz</b> (vorgewählt, wenn die markierte Position zu einem Satz gehört): die neue Position kommt "
+            "in denselben Satz, <i>Stück je Satz</i> = Menge. Beispiel Rahmen: 20 Bleche je Rahmen, bei 10 Rahmen "
+            "Stückzahl 200; die Staffelstufe 50 Rahmen rechnet 1000.",
+            "<b>je Teil</b>: Stückzahl = Menge × Stückzahl der markierten Position.",
+            "Ohne markierte Position fragt das Formular nur die <b>Stückzahl</b>.",
+            "Eigene Positionen haben ganze Stückzahlen; die markierte Position bleibt unverändert.")
+    i.text("Soll ein Blech dagegen im Preis eines Rohrs enthalten sein, im Dialog Zukaufteile der Rohrposition "
+           "<b>Neuer Artikel …</b> nehmen: dort wird der neue Artikel an die Position gehängt.")
     i.bild("zukauf_schnell", "Schnellanlage eines Blechs (Beispielwerte)", hoehe=62 * mm, legende=[
         (1, "<b>Bezeichnung</b> (Pflicht) und optional Artikelnummer"),
         (2, "<b>Kategorie</b>: vorgewählt Blechteile. Bei Blechteilen oder <i>Blech</i> in der Bezeichnung ist "
             "der <b>Lieferant</b> <i>Technik</i> vorbelegt; überschreiben ist jederzeit möglich"),
         (3, "<b>EK je Stück</b> und <b>Aufschlag [%]</b>; leer = Aufschlag der Kategorie bzw. Standard"),
-        (4, "<b>Menge</b> je Teil oder je Satz"),
+        (4, "<b>Menge</b> je Teil oder je Satz der markierten Position"),
         (5, "<b>Speichern + nächster</b> leert das Formular für das nächste Blech (Kategorie, Lieferant, Aufschlag "
             "und je bleiben), <b>Speichern + schließen</b> beendet")])
     i.text("Der Artikel bekommt Einheit Stück, Preiseinheit 1 und einen bevorzugten Lieferanten. Weitere Angaben "
@@ -2085,7 +2143,8 @@ def kapitel_frachtkosten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["PLZ-Zuordnungen", "Bedeutung"], [
         ["<b>Land</b>, <b>PLZ von</b>, PLZ bis", "eine PLZ (nur PLZ von), ein Bereich (01067 bis 01099) oder ein Präfix "
-                                                 "(80*). Mehrere Bereiche je Zone sind mehrere Zeilen."],
+                                                 "(80* oder kurz 80: bis drei Ziffern ohne PLZ bis gelten als Präfix, "
+                                                 "auch im CSV-Import). Mehrere Bereiche je Zone sind mehrere Zeilen."],
         ["<b>Zone</b>", "Zone, in die die PLZ fällt"],
         ["Richtung", "beide, Empfang oder Versand (unterschiedliche Zonen für Versand und Empfang); leer = beide"],
         ["Dienstleister, Kundennummer", "Regel gilt nur für diesen Frachtführer bzw. Kunden (Ausnahmen)"],
@@ -2095,6 +2154,11 @@ def kapitel_frachtkosten(i):
            "allgemein; dann einzelne PLZ vor dem engsten Bereich vor dem kürzesten Präfix; dann die kleinere "
            "Priorität. Bleibt ein Gleichstand mit verschiedenen Zonen, meldet das Programm <i>mehrdeutig</i> und "
            "rechnet nicht.")
+    i.text("<b>Zweistellige PLZ</b> (im Rechner, beim PLZ testen und im Angebot): Kürzere Eingaben als die PLZ-Länge "
+           "des Landes stehen für den ganzen Bereich, z. B. 40 für 40000–40999. Liegt er ganz in einer Zuordnung, "
+           "gilt deren Zone. Berührt er mehrere Zonen, rechnet das Programm jede davon und nimmt die teurere (mit "
+           "Hinweis); Teile des Bereichs ohne Zuordnung gehören zur Standardzone. Beispiel mit den Beispielwerten: "
+           "25 liegt in Z5 (Inseln 25938–25999) und für den Rest in der Standardzone Z3; es gilt Z5.")
     i.tabelle(["Länder", "Bedeutung"], [
         ["<b>Land</b>", "zweistelliger Ländercode, z. B. DE, AT, CH"],
         ["Bezeichnung, PLZ-Stellen, Währung", "Name, Stellenzahl der PLZ (für die Prüfung), Währung (leer = EUR)"],
@@ -2206,8 +2270,9 @@ def kapitel_frachtkosten(i):
         (1, "Gespeicherte Kalkulationen: Datum, Bezeichnung, Empfänger, Zone, Tarif, frachtpflichtiges Gewicht, "
             "Gesamt"),
         (2, "<b>Kalkulation anzeigen</b> (oder Doppelklick) zeigt die Kostenübersicht wie beim Speichern."),
-        (3, "Einstellungen der Frachtkosten: Absender-PLZ (Versandort), Absender-Land, Ladungsträger im "
-            "Packvorschlag, Ladungsträger für lange Teile (Langgut)"),
+        (3, "Einstellungen der Frachtkosten: Absender-PLZ (Versandort), Absender-Land, Versandart für automatische "
+            "Fracht (Kapitel 6, Abschnitt Fracht), Ladungsträger im Packvorschlag, Ladungsträger für lange Teile "
+            "(Langgut)"),
         (4, "<b>Beispieldaten laden</b> fügt die Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu "
             "(BEISPIEL); vorhandene Einträge bleiben.")])
     i.text("Fracht im Angebot und je Staffelmenge: Kapitel 6 (Abschnitt Fracht) und Kapitel 9.")

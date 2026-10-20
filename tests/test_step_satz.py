@@ -160,9 +160,10 @@ else:
         gesehen["zeilen"] = [(z.it.text(0), z.it.text(1), z.pr.currentText()) for z in d.zeilen]
         gesehen["satzfeld"] = d.satz_feld.isVisibleTo(d) and d.satz_spin.value() == 0
         gesehen["einzeln"] = [z.sp.value() for z in d.zeilen]
+        gesehen["vorgabe"] = [(z.ws.currentText(), z.sp.value()) for z in d.zeilen]   # Einstellung, 1 Stück
         d.alle_setzen("S355-10219", 3)
         d.satz_spin.setValue(4)                                       # oben 4 Sätze eintragen
-        gesehen["kopf"] = d.baum.headerItem().text(4)
+        gesehen["kopf"] = d.baum.headerItem().text(5)
         gesehen["je_satz"] = [z.sp.value() for z in d.zeilen]          # Spalte zeigt jetzt Stück je Satz
         d.zeile_setzen("T08_Gestell_Baugruppe-K4", uebernehmen=False)
         d.baum.setCurrentItem(d.zeilen[0].it)
@@ -178,6 +179,7 @@ else:
                                  ("T08_Gestell_Baugruppe-K4", "1", "RR 42,4x2,0")], gesehen
     assert gesehen["3d"] and gesehen["satzfeld"] and gesehen["kopf"] == "Stück je Satz", gesehen
     assert gesehen["je_satz"] == [3, 1], gesehen
+    assert gesehen["vorgabe"] == [("S235-10219", 1)] * 2, gesehen
     assert [(x["artikel"], x["werkstoff_id"], x["stueck"], x["je_satz"], x["satz"]) for x in db.positionen(ap)] == [
         ("T08_Gestell_Baugruppe-K1", "S355-10219", 12, 3, "T08_Gestell_Baugruppe")], db.positionen(ap)
 

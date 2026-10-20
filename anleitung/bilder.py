@@ -729,7 +729,7 @@ def main(ziel):
     bereit()
     karte_fracht = kb.fracht_text.parentWidget()
     foto.foto("angebot_fracht", karte_fracht, [(kb.fracht_modus, 1), (kb.fracht_umlage, 2), (kb.fracht_knopf, 3),
-                                               (kb.fracht_text, 4)])
+                                               (kb.fracht_text, 4), (kb.fracht_auto, 5)])
 
     # Lieferlängen: 6 m gegen 12 m (eigenes Angebot, nach allen anderen Bildern)
     f.angebot_schliessen(haupt)
