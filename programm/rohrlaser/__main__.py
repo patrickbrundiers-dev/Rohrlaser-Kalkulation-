@@ -6,6 +6,9 @@ Die Datendatei liegt im Ordner 'Daten' neben dem Programm (portabel, keine Insta
                    Staffelpreise, PDFs und CSV-Export erzeugen, beenden (Rückgabewert 0 = in Ordnung);
                    mit --step DATEI … zusätzlich STEP-Dateien messen und übernehmen, mit --ergebnis DATEI
                    das Protokoll in eine Textdatei schreiben (die .exe hat keine Konsole).
+--update-test QUELLE  Online-Update aus QUELLE (Dateiliste Update.json, Adresse oder Pfad) bei offenem
+                   Hauptfenster einspielen und beenden; --alle tauscht jede Programmdatei aus (prüft im Build,
+                   dass sich die laufende .exe und alle geladenen Bibliotheken austauschen lassen).
 """
 import argparse
 import sys
@@ -109,13 +112,55 @@ def selbsttest(app, ergebnis, step_dateien=()):
     return code
 
 
+def update_test(app, quelle, ergebnis, alle):
+    from .datenbank import Datenbank
+    from .fenster import Hauptfenster
+    from . import update
+    protokoll = []
+    try:
+        if not getattr(sys, "frozen", False):
+            raise RuntimeError("--update-test nur im fertigen Programm (sonst würde der Quellordner ausgetauscht)")
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Datenbank(Path(tmp) / "rohrlaser.db")
+            f = Hauptfenster(db, programmordner(), stumm=True)
+            f.show()
+            f.angebot_oeffnen(db.angebot_neu(dict(kunde="Update-Test")))
+            app.processEvents()
+            protokoll.append(f"Installiert: {update.stand_text(update.lokale_liste(programmordner()))}")
+            online, plan = update.aktualisieren(programmordner(), quelle, alle=alle)
+            protokoll.append(f"Online: {update.stand_text(online)}")
+            if plan:
+                protokoll.append(f"Ausgetauscht: {len(plan['neu'])} Dateien aus {len(plan['pakete'])} Paketen "
+                                 f"({plan['groesse'] / 1e6:.1f} MB), entfernt: {len(plan['weg'])}")
+            protokoll.append(f"Jetzt: {update.stand_text(update.lokale_liste(programmordner()))}")
+            f.close()
+            db.schliessen()
+        protokoll.append("UPDATE OK")
+        code = 0
+    except Exception:
+        protokoll.append(traceback.format_exc())
+        protokoll.append("UPDATE FEHLER")
+        code = 1
+    text = "\n".join(protokoll)
+    if ergebnis:
+        Path(ergebnis).write_text(text, encoding="utf-8")
+    else:
+        print(text)
+    return code
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog=NAME)
     ap.add_argument("--daten", help="Datenordner (Vorgabe: Ordner 'Daten' neben dem Programm)")
     ap.add_argument("--selbsttest", action="store_true")
     ap.add_argument("--ergebnis")
     ap.add_argument("--step", nargs="*", default=[])
+    ap.add_argument("--update-test")
+    ap.add_argument("--alle", action="store_true")
     a = ap.parse_args(argv)
+
+    from . import update
+    update.aufraeumen(programmordner())        # Reste eines Updates (alte Dateien sind jetzt frei)
 
     from PySide6.QtCore import QLocale
     from PySide6.QtWidgets import QApplication, QMessageBox
@@ -126,6 +171,8 @@ def main(argv=None):
     deutsch(app)
     if a.selbsttest:
         return selbsttest(app, a.ergebnis, a.step)
+    if a.update_test:
+        return update_test(app, a.update_test, a.ergebnis, a.alle)
 
     from .datenbank import Datenbank
     from .fenster import Hauptfenster

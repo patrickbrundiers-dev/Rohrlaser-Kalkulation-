@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import NAME, VERSION, ausgabe
+from . import NAME, ausgabe, update
 from .stammdaten import TABELLEN, EINSTELLUNGEN, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
@@ -522,7 +522,7 @@ class StartSeite(QWidget):
     def __init__(self, fenster):
         super().__init__()
         self.f = fenster
-        titel = QLabel(f"<h2>{NAME}</h2><p>Version {VERSION}</p>")
+        titel = QLabel(f"<h2>{NAME}</h2><p>Version {update.stand_text(fenster.updater.lokal)}</p>")
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -570,7 +570,9 @@ class Hauptfenster(QMainWindow):
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.offen = {}             # Angebots-ID -> AngebotSeite
-        self.setWindowTitle(f"{NAME} {VERSION}")
+        from .update_fenster import Updater
+        self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
+        self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
         self.setStyleSheet(STIL)
         self.resize(1400, 800)
         self.reiter = QTabWidget()
@@ -601,6 +603,8 @@ class Hauptfenster(QMainWindow):
         self.setCentralWidget(self.reiter)
         self._menue()
         self.statusBar().showMessage("Bereit")
+        if not stumm:
+            self.updater.beim_start()
 
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
@@ -622,9 +626,12 @@ class Hauptfenster(QMainWindow):
         a.setShortcut(QKeySequence.HelpContents)
         a.triggered.connect(self.anleitung_oeffnen)
         hilfe.addAction(a)
+        a = QAction("Nach Updates suchen …", self)
+        a.triggered.connect(lambda: self.updater.suchen())
+        hilfe.addAction(a)
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
-            self, NAME, f"<b>{NAME}</b> {VERSION}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
+            self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
                         f"Daten: {self.db.pfad}"))
         hilfe.addAction(a)
 

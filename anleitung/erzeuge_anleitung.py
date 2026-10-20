@@ -310,13 +310,15 @@ def kapitel_start(i):
         ["Daten\\rohrlaser.db", "Datendatei: Stammdaten, Einstellungen, alle Angebote. Wird beim ersten Start "
                                 "angelegt."],
         ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei (die letzten 30)"],
-        ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"]],
+        ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"],
+        ["Update.json", "Liste der Programmdateien des installierten Stands (für das Update, Abschnitt "
+                        "<i>Updates</i>)"]],
         [60, 205])
     i.abschnitt("Windows-Warnungen (SmartScreen, Defender)")
     i.text("Das Programm ist nicht digital signiert und wird mit PyInstaller gebaut. Programme dieser Art hält "
            "Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
-           "Administratorrechte, greift nicht auf das Internet zu und schreibt nur in seinen eigenen Ordner und in "
-           "die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
+           "Administratorrechte, geht nur für die Suche nach Updates ins Internet (Abschnitt <i>Updates</i>) und "
+           "schreibt nur in seinen eigenen Ordner und in die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
            "jede .exe Hersteller-, Produkt- und Versionsangaben (rechte Maustaste → Eigenschaften → Details), und das "
            "Startprogramm wird für dieses Programm eigens übersetzt.")
     i.liste("<b>Vor dem Entpacken</b>: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
@@ -336,6 +338,28 @@ def kapitel_start(i):
             "Einstellungen verwalten → Ausschlüsse</i> eintragen. Dann prüft der Defender die Programmdateien nicht "
             "bei jedem Start, Programm und STEP-Import starten schneller. Nur diesen Ordner ausschließen, niemals "
             "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT.", nummeriert=True)
+    i.abschnitt("Updates")
+    i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (Release <i>aktuell</i> auf "
+           "GitHub). Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
+           "Änderung. Ohne Internet oder bei einem Fehler meldet sich das Programm beim Start nicht. Von Hand: "
+           "<b>Hilfe → Nach Updates suchen …</b>; dort steht auch, wenn das Programm schon aktuell ist. Welcher Stand "
+           "installiert ist, zeigen Fenstertitel, Startseite und <i>Hilfe → Über …</i>.")
+    i.bild("update_hinweis", "Hinweis auf eine neue Version", hoehe=55 * mm, legende=[
+        (1, "<b>Jetzt aktualisieren</b>: lädt die neue Version und startet das Programm neu. <b>Später</b>: "
+            "nichts ändern, beim nächsten Start kommt der Hinweis wieder.")])
+    i.liste("Das Programm vergleicht jede Programmdatei über ihre Prüfsumme mit der neuen Version und lädt <b>nur die "
+            "geänderten Dateien</b>. Meist sind das wenige MB statt des ganzen ZIP mit rund 180 MB. Beschädigte oder "
+            "fehlende Programmdateien werden dabei gleich mit ersetzt.",
+            "Vor dem Austausch legt es eine Sicherung der Datendatei an (<i>Daten\\Sicherung</i>, Name endet auf "
+            "<i>_vor_update</i>), danach startet es neu.",
+            "Klappt der Austausch einer Datei nicht (z. B. weil die Bedienungsanleitung gerade in einem PDF-Programm "
+            "offen ist), stellt das Programm alle Dateien zurück und bleibt, wie es war. Datei schließen und noch "
+            "einmal versuchen.",
+            "Angefasst werden nur die Programmdateien: <i>Daten</i>, <i>Angebote</i> und eigene Dateien im "
+            "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
+            "<i>_update</i> und werden dann gelöscht.",
+            "Das Update funktioniert ab Version 0.3.0. Wer eine ältere Version hat, holt sich einmal das neue ZIP "
+            "(Abschnitt <i>Programm entpacken</i>) und kopiert den Ordner <i>Daten</i> hinüber.")
     i.abschnitt("Startseite")
     i.text("Beim ersten Start legt das Programm die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in "
            "Rot, dass es sich um Beispielwerte handelt.")
@@ -1327,6 +1351,13 @@ def kapitel_fragen(i):
          "Fehlalarm bei einem nicht signierten Programm. Abschnitt <i>Windows-Warnungen</i> in Kapitel 2: ZIP vor dem "
          "Entpacken zulassen, Trotzdem ausführen, Datei aus der Quarantäne wiederherstellen und an Microsoft "
          "melden."],
+        ["<b>Das Update ist nicht gelungen</b>",
+         "Eine Programmdatei ließ sich nicht austauschen, meist weil sie gerade offen ist (Bedienungsanleitung im "
+         "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
+         "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
+        ["<b>Keine Verbindung zum Update</b>",
+         "Kein Internet, oder eine Firewall sperrt github.com. Später noch einmal versuchen; sonst das ZIP von Hand "
+         "holen und den Ordner <i>Daten</i> hinüberkopieren."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
          "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "
          "Neu aus dem ZIP entpacken."],

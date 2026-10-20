@@ -504,6 +504,16 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("step_satz_positionen", f, [(s3.pos_ansicht, 1)])
 
+    # Online-Update: Hinweis auf einen neuen Stand (Stände nur als Beispiel)
+    from rohrlaser import update_fenster
+    m = update_fenster.frage(f, dict(version="0.3.0", stand=64, datum="2026-10-22",
+                                     aenderung="Online-Update: nur geänderte Dateien laden"),
+                             dict(version="0.3.0", stand=61, datum="2026-10-20"))
+    m.show()
+    QApplication.processEvents()
+    foto.foto("update_hinweis", m, [(m.jetzt, 1)])
+    m.close()
+
     # Menü Hilfe
     f.reiter.setCurrentWidget(f.start)
     start_zeigen()
