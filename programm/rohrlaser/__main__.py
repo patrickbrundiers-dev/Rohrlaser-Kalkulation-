@@ -285,7 +285,7 @@ def main(argv=None):
                 if not oeffnen_fehlgeschlagen(o, e):
                     return 1
         f = Hauptfenster(db, programmordner(), orte=o)
-        f.show()
+        f.starten()
         code = app.exec()
         db.schliessen()
         return code

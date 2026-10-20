@@ -130,6 +130,10 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db)
+assert fenster.reiter.currentWidget() is fenster.start
+fenster.starten()                                   # Programmstart: maximiert, Reiter Angebote
+assert fenster.reiter.currentWidget() is fenster.angebote
+assert fenster.windowState() & Qt.WindowMaximized
 seite = next(s for s in fenster.seiten if s.t.name == "profile")
 mod = seite.modell
 r = next(i for i, z in enumerate(mod.daten) if z["profil_id"] == "QR 40x40x3")

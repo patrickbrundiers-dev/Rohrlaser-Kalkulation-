@@ -275,6 +275,8 @@ def kapitel_ueberblick(i):
            "Einstellungen werden einmal eingerichtet (Kapitel 3 und 4): das Programm startet mit Beispielwerten, die "
            "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
+    i.text("Das Programm öffnet sich immer maximiert (bildschirmfüllend, die Taskleiste bleibt sichtbar) und gleich "
+           "im Reiter <i>Angebote</i>. Die übrigen Reiter sind von dort mit einem Klick erreichbar.")
     i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, "
            "<i>Frachtkosten</i> (Kapitel 12), <i>Zukaufartikel</i> (Kapitel 13) "
            "und <i>Einstellungen</i> (mit Passwort; darin die Vorgaben und die übrigen Stammdaten als Unterreiter). Jedes geöffnete Angebot bekommt einen eigenen Reiter "
