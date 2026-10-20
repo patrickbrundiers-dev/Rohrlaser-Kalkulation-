@@ -248,7 +248,15 @@ else:
 # 11) Angebotsfenster: Optimieren speichert das Ergebnis, Ändern macht es veraltet, Status und Summen stehen
 app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
-assert fenster.anleitung_oeffnen() == HIER.parent / "anleitung" / "Bedienungsanleitung.pdf"   # Hilfe-Menü
+anleitung_pdf = HIER.parent / "anleitung" / "Bedienungsanleitung.pdf"   # erzeugt erst der Build, nicht im Repository
+ohne_pdf = not anleitung_pdf.is_file()
+if ohne_pdf:
+    anleitung_pdf.write_bytes(b"%PDF-1.4")
+fenster.datei_oeffnen = lambda pfad: None
+assert fenster.anleitung_oeffnen() == anleitung_pdf   # Hilfe-Menü
+if ohne_pdf:
+    anleitung_pdf.unlink()
+del fenster.datei_oeffnen
 seite = fenster.angebot_oeffnen(a1)
 assert seite.stand_optimierung() == "noch nicht optimiert"
 assert seite.optimieren()
