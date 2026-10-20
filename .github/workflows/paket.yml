@@ -1,6 +1,8 @@
 # Baut das Programm Rohrlaser-Angebotskalkulation.exe mit STEP-Import.exe (Windows, ohne Installation
 # lauffähig), prüft STEP-Import.exe gegen die Python-Messung und die fertige .exe mit dem Selbsttest und
-# packt alles zu Rohrlaser-Angebotskalkulation.zip. Auf main wird das Paket als Release "aktuell" veröffentlicht.
+# packt alles zu Rohrlaser-Angebotskalkulation.zip. Auf main wird das Paket als Release "aktuell" veröffentlicht,
+# dazu für das Online-Update die Dateiliste Update.json und die Pakete im Release "update-dateien" (nur neue Pakete
+# werden hochgeladen, das Programm lädt nur Pakete mit geänderten Dateien).
 name: Paket
 
 on:
@@ -34,6 +36,7 @@ jobs:
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         if: always()
         with:
           name: STEP-Testbericht
@@ -51,6 +54,7 @@ jobs:
           /usr/bin/python3 tests/test_ansicht.py
           /usr/bin/python3 tests/test_zeiten.py
           /usr/bin/python3 tests/test_staffelpreise.py
+          /usr/bin/python3 tests/test_update.py
           /usr/bin/python3 tests/test_anleitung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
@@ -59,6 +63,7 @@ jobs:
           /usr/bin/python3 tests/test_abnahme.py --protokoll Abnahmeprotokoll.md
           cat Abnahmeprotokoll.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Abnahmeprotokoll
           path: Abnahmeprotokoll.md
@@ -70,6 +75,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends poppler-utils
           /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung-neu.pdf
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Bedienungsanleitung
           path: Bedienungsanleitung-neu.pdf
@@ -77,6 +83,12 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    # Veröffentlichungen auf main nacheinander, damit Dateiliste und Pakete zusammenpassen
+    concurrency:
+      group: paket-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+    env:
+      RL_STAND: ${{ github.run_number }}     # Stand des Online-Updates, auch 4. Stelle der Dateiversion
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -131,6 +143,26 @@ jobs:
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt
           if ($p.ExitCode -ne 0) { throw "Selbsttest Rückgabewert $($p.ExitCode)" }
+      - name: Update-Dateien erzeugen (Dateiliste Update.json mit Prüfsummen, Pakete)
+        run: >
+          python programm/update_paket.py --programm dist/Rohrlaser-Angebotskalkulation --ziel update_dateien
+          --stand ${{ github.run_number }} --commit ${{ github.sha }} --in-programm
+          --adresse "https://github.com/${{ github.repository }}/releases/download/update-dateien/"
+      - name: Online-Update testen (laufendes Programm tauscht alle eigenen Dateien aus, startet danach)
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse dist/Rohrlaser-Angebotskalkulation update_alt
+          python tests/update_windows.py vorbereiten update_alt
+          $p = Start-Process -Wait -PassThru -FilePath "update_alt/Rohrlaser-Angebotskalkulation.exe" `
+            -ArgumentList @("--update-test", "`"$PWD/update_dateien/Update.json`"", "--alle", "--ergebnis", "update.txt")
+          Get-Content -Encoding utf8 update.txt
+          if ($p.ExitCode -ne 0) { throw "Update-Test Rückgabewert $($p.ExitCode)" }
+          $p = Start-Process -Wait -PassThru -FilePath "update_alt/Rohrlaser-Angebotskalkulation.exe" `
+            -ArgumentList @("--selbsttest", "--ergebnis", "selbsttest_update.txt")
+          Get-Content -Encoding utf8 selbsttest_update.txt
+          if ($p.ExitCode -ne 0) { throw "Selbsttest nach dem Update Rückgabewert $($p.ExitCode)" }
+          python tests/update_windows.py pruefen update_alt update_dateien/Update.json
+          if ($LASTEXITCODE -ne 0) { throw "Update-Prüfung fehlgeschlagen" }
       - name: Paket zusammenstellen
         shell: pwsh
         run: |
@@ -141,10 +173,11 @@ jobs:
           "$h  Rohrlaser-Angebotskalkulation.zip" | Set-Content -Encoding ascii Rohrlaser-Angebotskalkulation.zip.sha256
           Get-Content Rohrlaser-Angebotskalkulation.zip.sha256
       - uses: actions/upload-artifact@v4
+        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Rohrlaser-Angebotskalkulation
           path: dist/Rohrlaser-Angebotskalkulation/
-          retention-days: 30
+          retention-days: 3           # rund 500 MB; das fertige Paket liegt ohnehin im Release
       - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP)
         if: github.ref == 'refs/heads/main'
         shell: pwsh
@@ -155,6 +188,28 @@ jobs:
             gh release delete-asset aktuell $datei --yes --repo "${{ github.repository }}" 2>$null
           }
           $global:LASTEXITCODE = 0
+      - name: Update-Pakete hochladen (Release "update-dateien", nur Pakete, die es noch nicht gibt)
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = "${{ github.repository }}"
+          gh release view update-dateien --repo $repo *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create update-dateien --repo $repo --prerelease --latest=false `
+              --title "Update-Dateien (für Hilfe → Nach Updates suchen)" `
+              --notes "Pakete für das Online-Update des Programms. Nicht von Hand herunterladen: das Programm gibt es im Release aktuell."
+            if ($LASTEXITCODE -ne 0) { throw "Release update-dateien lässt sich nicht anlegen" }
+          }
+          $id = gh api "repos/$repo/releases/tags/update-dateien" --jq ".id"
+          $vorhanden = @(gh api --paginate "repos/$repo/releases/$id/assets?per_page=100" --jq ".[].name")
+          $neu = @(Get-ChildItem update_dateien -Filter *.zip | Where-Object { $vorhanden -notcontains $_.Name })
+          "{0} Pakete schon vorhanden, {1} neu ({2:N1} MB)" -f $vorhanden.Count, $neu.Count, (($neu | Measure-Object Length -Sum).Sum / 1MB)
+          foreach ($datei in $neu) {
+            gh release upload update-dateien $datei.FullName --repo $repo --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Hochladen von $($datei.Name) fehlgeschlagen" }
+          }
       - name: Release "aktuell" aktualisieren
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
@@ -162,14 +217,30 @@ jobs:
           tag_name: aktuell
           name: Rohrlaser Angebotskalkulation (aktueller Stand)
           body: |
-            Stand ${{ github.sha }}.
+            Stand ${{ github.run_number }} (${{ github.sha }}).
             Rohrlaser-Angebotskalkulation.zip: eigenständiges Programm (Angebote, STEP-Import, Optimierung,
             Staffelpreise, PDF, CSV-Export). Entpacken, Rohrlaser-Angebotskalkulation.exe starten.
             Bedienungsanleitung.pdf liegt daneben (auch im Programm unter Hilfe, F1).
             Die Daten liegen im Ordner Daten neben dem Programm.
             Warnt Windows (SmartScreen oder Defender), siehe Bedienungsanleitung Kapitel 2 „Windows-Warnungen“.
             SHA256-Prüfsumme des ZIP: Rohrlaser-Angebotskalkulation.zip.sha256
+            Update.json: Dateiliste für das Online-Update (Hilfe → Nach Updates suchen); ab Version 0.3.0 lädt das
+            Programm nur geänderte Dateien, das ZIP braucht man dann nur noch für eine neue Installation.
           files: |
             Rohrlaser-Angebotskalkulation.zip
             Rohrlaser-Angebotskalkulation.zip.sha256
+            update_dateien/Update.json
           make_latest: true
+      - name: Nicht mehr gebrauchte Update-Pakete löschen
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = "${{ github.repository }}"
+          $gebraucht = (Get-Content -Raw -Encoding utf8 update_dateien/Update.json | ConvertFrom-Json).pakete.PSObject.Properties.Name
+          $id = gh api "repos/$repo/releases/tags/update-dateien" --jq ".id"
+          foreach ($name in @(gh api --paginate "repos/$repo/releases/$id/assets?per_page=100" --jq ".[].name")) {
+            if ($gebraucht -notcontains $name) { gh release delete-asset update-dateien $name --yes --repo $repo }
+          }
+          $global:LASTEXITCODE = 0

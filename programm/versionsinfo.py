@@ -19,6 +19,9 @@ def version():
 def versionsinfo(dateiname, beschreibung, ordner):
     """Versionsdatei im Textformat von PyInstaller (EXE(version=Pfad)) in ordner schreiben, Pfad zurückgeben."""
     v = version()
+    stand = os.environ.get("RL_STAND", "")     # Build-Nummer (GitHub Actions), auch Stand des Online-Updates
+    if stand.isdigit():
+        v = f"{v}.{stand}"
     zahlen = tuple((list(int(z) for z in re.findall(r"\d+", v)) + [0, 0, 0, 0])[:4])
     werte = [("CompanyName", HERSTELLER), ("FileDescription", beschreibung), ("FileVersion", v),
              ("InternalName", dateiname), ("LegalCopyright", f"© {HERSTELLER}"),
