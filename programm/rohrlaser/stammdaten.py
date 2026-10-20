@@ -254,8 +254,9 @@ LIEFERLAENGEN = Tabelle(
     "Lieferlängen). Längen über der max. Stangenlänge der Maschine schneidet der Lieferant auf die geplanten "
     "Werkstücklängen zu. Preis leer = €/kg- bzw. €/m-Preis aus 'Preise', ohne Zeile dort der Tonnenpreis. Gibt es "
     "für Profil + Werkstoff Zeilen, ist die Stangenlänge des Angebots nur lieferbar, wenn sie hier oder als "
-    "Liefer-Stangenlänge in 'Preise' steht. Ohne Zeile wird nichts verglichen (kleine Profile einfach nicht "
-    "eintragen).")
+    "Liefer-Stangenlänge in 'Preise' steht. Ohne Zeile gelten Profile über dem Hüllkreis-Ø aus den Einstellungen "
+    "(Vorgabe 70 mm) zusätzlich als 12 m lieferbar, Preis wie 'Preise'; kleinere ohne Zeile nie. Profile: "
+    "Lieferlängen vergleichen = nein schließt ein Profil ganz aus.")
 
 MASCHINEN = Tabelle(
     "maschinen", "Maschinen",
@@ -419,6 +420,10 @@ EINSTELLUNGEN = (
                 0, 100000),
     Einstellung("laenge_mindest_anteil", "Lieferlängen: Mindestersparnis je Gruppe in %", "Lieferlängen", "anteil",
                 0.03, 0, 1),
+    Einstellung("laenge_auto_huellkreis", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus)",
+                "Lieferlängen", "zahl", 70.0, 0, 2000),
+    Einstellung("laenge_auto", "Lieferlängen: Länge für Profile ab diesem Hüllkreis-Ø [mm]", "Lieferlängen", "ganz",
+                12000, 500, 30000),
     Einstellung("zuschnitt_verlust", "Lieferlängen: Schnittverlust je Zuschnitt beim Lieferanten [mm]",
                 "Lieferlängen", "zahl", 3.0, 0, 50),
     Einstellung("zuschnitt_kosten", "Lieferlängen: Kosten je Zuschnitt beim Lieferanten [€]", "Lieferlängen", "zahl",

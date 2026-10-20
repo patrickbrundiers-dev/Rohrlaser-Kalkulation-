@@ -67,7 +67,8 @@ ERWEITERT = ("bis", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten"
 AUSWAHL = {"zuschlag_art": [PROZENT, EURO], "ruesten": [UMLEGEN, SEPARAT], "janein": ["ja", "nein"]}
 # Einstellungen, die in den Mengenlauf eingehen (Zuschläge und Gewinn wirken erst in der Preisschicht)
 EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag")
-EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_kosten")
+EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_kosten",
+                 "laenge_auto_huellkreis", "laenge_auto")
 
 
 def txt(v):
@@ -223,16 +224,10 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung")
-    # Lieferlängen nur, wenn es welche gibt: ohne sie bleibt die Prüfsumme wie vor den Lieferlängen
-    mit_laengen = bool((tabellen or {}).get("lieferlaengen")) or bool(kopf.get("laengenwahl"))
-    tab = {n: z for n, z in (tabellen or {}).items() if n != "lieferlaengen" or mit_laengen}
-    ein = {n: einst.get(n) for n in EINST_LAUF + (EINST_LAENGEN if mit_laengen else ())}
-    profile = {pid: {a: b for a, b in z.items() if a != "laengenvergleich" or b is not None}
-               for pid, z in k.profile.items()}
-    return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder if kopf.get(n) is not None)
-             + (("laengenwahl",) if kopf.get("laengenwahl") else ())},
+    return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder if kopf.get(n) is not None)},
             [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
-            [profile, k.werkstoffe, k.maschinen, k.oberflaechen], tab, ein, VERSION]
+            [k.profile, k.werkstoffe, k.maschinen, k.oberflaechen], tabellen,
+            {n: einst.get(n) for n in EINST_LAUF + EINST_LAENGEN}, VERSION]
 
 
 def _hash(daten):
@@ -291,7 +286,7 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
         z.update(hinweis=fracht_fehler)
         return z
     kopf = dict(kopf, fracht=betrag)
-    erg = rechnen.optimieren(kopf, lauf, k)
+    erg = rechnen.optimieren(kopf, lauf, k, tabellen, einst, auto=True)     # Lieferlänge je Menge automatisch
     if erg["neue_profile"]:      # Profil aus dem Namen gilt für diesen Lauf als angelegt
         k = kontext_aus({"profile": list(k.profile.values()) + erg["neue_profile"],
                          "werkstoffe": list(k.werkstoffe.values()), "maschinen": list(k.maschinen.values()),

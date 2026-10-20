@@ -218,4 +218,90 @@ assert "Lieferlängen geändert" in rechnen.preisbasis_abweichung(dict(kopf, pre
 alt_pb = {n: w for n, w in pb.items() if n != "lieferlaengen"}       # Snapshot vor den Lieferlängen
 assert rechnen.preisbasis_abweichung(dict(kopf, preisbasis=alt_pb), db.kontext(), db.tabellen()) == []
 print("Preisbasis OK")
+
+# ------------------------------------------------------------------ Übernahme einer Lieferlänge
+db.aendern("lieferlaengen", z12, "preis", 1.50)
+k, tab = db.kontext(), db.tabellen()
+P = [pos(3100, 30)]
+ohne = rechnen.optimieren(kopf, P, k, tab, einst)
+schl = ohne["laengen"][0]["schluessel"]
+assert schl == "QR 40x40x3|S235-10219||6000" and ohne["laengen"][0]["gewaehlt"] is None
+kopf12 = dict(kopf, laengenwahl={schl: 12000})
+erg = rechnen.optimieren(kopf12, P, k, tab, einst)
+assert erg["kennung"] != ohne["kennung"] and erg["laengen"][0]["gewaehlt"] == 12000
+assert len(erg["stangen"]) == 10 and all(s["stange"] == 12000 and s["grundlaenge"] == 6000 for s in erg["stangen"])
+s0 = erg["stangen"][0]
+assert [w["laenge"] for w in s0["werkstuecke"]] == [3201] * 3 and [t["werkstueck"] for t in s0["teile"]] == [1, 2, 3]
+assert [w["von"] for w in s0["werkstuecke"]] == [0, 3204, 6408], s0["werkstuecke"]
+assert s0["teile"][1]["von"] == 3204 + 20 and s0["zuschnitt"].startswith("Zuschnitt beim Lieferanten: 3.201 + 3.201")
+assert rechnen.beladungen(erg["stangen"]) == 30
+sw = rechnen.stangen_werte(erg, kopf12, P, k, tab)
+assert all(w["pruefung"] == "OK" for w in sw), sw
+assert abs(sum(w["rest"] for w in sw) - (120000 - 93000 - sum(s["end"] + s["verlust"] for s in erg["stangen"]))) < 1e-6
+zk, su = rechnen.kalkulation(kopf12, P, erg, k, tab, einst)
+_, su6 = rechnen.kalkulation(kopf, P, ohne, k, tab, einst)
+b = rechnen.laengen_bewerten(ohne["laengen"][0], kopf, P, k, tab, einst)
+assert abs(su["material"] - b["varianten"][1]["material"]) < 0.01 and abs(su6["material"] - b["varianten"][0]["material"]) < 0.01
+assert (su["stangen"], su["beladungen"], su6["beladungen"]) == (10, 30, 30)
+assert su["stangenwechsel_kosten"] == su6["stangenwechsel_kosten"] and su["verkauf"] < su6["verkauf"]
+assert zk[0]["eingeplant"] == 30 and not zk[0]["nicht_eingeplant"]
+a = erg["auswertung"][0]
+assert (a["stange"], a["grundlaenge"], a["stangen"]) == (12000, 6000, 10) and "Zuschnitt" in a["bewertung"]
+z = rechnen.auswertung_zeilen(erg, sw)[0]
+assert z["bedarf"] == 120 and z["laenge"] == 93
+# Stückzahl ändern: Wahl bleibt (Schlüssel = Gruppe), Planung neu
+erg = rechnen.optimieren(kopf12, [pos(3100, 31)], k, tab, einst)
+assert len(erg["stangen"]) == 11 and sum(len(s["werkstuecke"]) for s in erg["stangen"]) == 31
+# übernommene Länge, die es nicht mehr gibt: wieder die Stangenlänge des Angebots
+erg = rechnen.optimieren(dict(kopf, laengenwahl={schl: 9000}), P, k, tab, einst)
+assert all(s["stange"] == 6000 and "grundlaenge" not in s for s in erg["stangen"])
+# Lieferlänge bis zur Beladelänge (6.500 mm bei RL-1): ohne Zuschnitt direkt geladen
+db.neu("lieferlaengen", dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=6500))
+k, tab = db.kontext(), db.tabellen()
+erg = rechnen.optimieren(dict(kopf, laengenwahl={schl: 6500}), [pos(3100, 4)], k, tab, einst)
+assert all(s["stange"] == 6500 and not s.get("werkstuecke") for s in erg["stangen"]) and len(erg["stangen"]) == 2
+assert all(w["pruefung"] == "OK" for w in rechnen.stangen_werte(erg, kopf, [pos(3100, 4)], k, tab))
+# Staffelpreise (auto): je Menge die empfohlene Lieferlänge; 6,5 m (2 Teile je Stange, 97,5 m) schlägt hier 12 m
+erg = rechnen.optimieren(kopf, P, k, tab, einst, auto=True)
+assert erg["laengen"][0]["gewaehlt"] == 6500 and len(erg["stangen"]) == 15
+for z in db.zeilen("lieferlaengen"):
+    if z["laenge"] == 6500:
+        db.loeschen("lieferlaengen", [z["id"]])
+k, tab = db.kontext(), db.tabellen()
+erg = rechnen.optimieren(kopf, P, k, tab, einst, auto=True)
+assert erg["laengen"][0]["gewaehlt"] == 12000 and len(erg["stangen"]) == 10
+erg = rechnen.optimieren(kopf, [pos(2900, 20)], k, tab, einst, auto=True)       # kein Vorteil: 6 m
+assert erg["laengen"][0]["gewaehlt"] is None and all(s["stange"] == 6000 for s in erg["stangen"])
+# nur 12 m lieferbar: ohne Übernahme mit 12 m geplant
+db.aendern("preise", preis["id"], "lieferlaenge", None)
+k, tab = db.kontext(), db.tabellen()
+erg = rechnen.optimieren(kopf, P, k, tab, einst)
+assert erg["laengen"][0]["gewaehlt"] == 12000 and all(s["stange"] == 12000 for s in erg["stangen"])
+db.aendern("preise", preis["id"], "lieferlaenge", 6000)
+print("Übernahme OK")
+
+# ------------------------------------------------------------------ ohne Eintrag: ab Hüllkreis-Ø 70 mm auch 12 m
+k, tab = db.kontext(), db.tabellen()
+gross = [pos(3100, 30, profil="RE 120x60x4", werkstoff="S355-10219")]      # Hüllkreis 134 mm, keine Zeile
+assert not [z for z in db.zeilen("lieferlaengen") if z["profil_id"] == "RE 120x60x4"]
+erg = rechnen.optimieren(kopf, gross, k, tab, einst)
+(vg,) = erg["laengen"]
+assert vg["automatisch"] and vg["basis_lieferbar"] and [v["laenge"] for v in vg["varianten"]] == [6000, 12000]
+b = rechnen.laengen_bewerten(vg, kopf, gross, k, tab, einst)
+assert b["empfehlung"] == rechnen.LAENGE_ALTERNATIVE, b                  # Preis wie 'Preise' bzw. Tonnenpreis
+assert all(s["stange"] == 6000 for s in erg["stangen"])                 # geplant erst nach Übernahme
+# Einstellung 0 = aus, andere Grenze, Profil ausgenommen; kleine Profile (RR 48,3, QR 40) nie automatisch
+assert "laengen" not in rechnen.optimieren(kopf, gross, k, tab, dict(einst, laenge_auto_huellkreis=0))
+assert "laengen" not in rechnen.optimieren(kopf, gross, k, tab, dict(einst, laenge_auto_huellkreis=150))
+assert "laengen" not in rechnen.optimieren(kopf, [pos(3100, 30, profil="RR 48,3x2,6")], k, tab, einst)
+pid = next(z["id"] for z in db.zeilen("profile") if z["profil_id"] == "RE 120x60x4")
+db.aendern("profile", pid, "laengenvergleich", "nein")
+(vg,) = rechnen.optimieren(kopf, gross, db.kontext(), db.tabellen(), einst)["laengen"]
+assert vg["ausgenommen"] and [v["laenge"] for v in vg["varianten"]] == [6000]
+db.aendern("profile", pid, "laengenvergleich", None)
+# eigene Zeile geht vor: nur die eingetragenen Längen
+db.neu("lieferlaengen", dict(profil_id="RE 120x60x4", werkstoff_id="S355-10219", laenge=8000))
+(vg,) = rechnen.optimieren(kopf, gross, db.kontext(), db.tabellen(), einst)["laengen"]
+assert not vg["automatisch"] and [v["laenge"] for v in vg["varianten"]] == [8000]     # 6 m nicht eingetragen
+print("Hüllkreis-Regel OK")
 print("Alle Tests Lieferlängen OK")
