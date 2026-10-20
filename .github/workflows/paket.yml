@@ -69,6 +69,7 @@ jobs:
           /usr/bin/python3 tests/test_update.py
           /usr/bin/python3 tests/test_fracht.py
           /usr/bin/python3 tests/test_fracht_angebot.py
+          /usr/bin/python3 tests/test_fracht_auto.py
           /usr/bin/python3 tests/test_sicherung.py
           /usr/bin/python3 tests/test_preisbasis.py
           /usr/bin/python3 tests/test_rundung.py

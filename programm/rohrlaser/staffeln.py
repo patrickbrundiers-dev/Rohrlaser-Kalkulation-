@@ -221,7 +221,7 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     """Eingaben, die für alle Stufen gleich in den Mengenlauf eingehen."""
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
-    fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung")
+    fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land")
     return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder if kopf.get(n) is not None)},
             [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
             [k.profile, k.werkstoffe, k.maschinen, k.oberflaechen], tabellen, {n: einst.get(n) for n in EINST_LAUF},

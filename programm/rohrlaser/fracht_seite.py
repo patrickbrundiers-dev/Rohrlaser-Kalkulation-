@@ -621,6 +621,8 @@ class FrachtDialog(QDialog):
         db.angebot_aendern(self.s.id, "fracht_sendung", json.dumps(daten, ensure_ascii=False, default=str))
         db.angebot_aendern(self.s.id, "fracht", e["gesamt"])
         db.angebot_aendern(self.s.id, "fracht_modus", "berechnet" if snap is not None else "keine Fracht")
+        if self.s.kopf.get("fracht_auto"):        # von Hand übernommen: Automatik aus, sonst würde sie überschreiben
+            db.angebot_aendern(self.s.id, "fracht_auto", None)
         db.fracht_kalkulation_speichern(e, self.rechner.bezeichnung.text().strip(), self.s.id)
         self.s.f.meldung(f"Fracht {fracht.euro(e['gesamt'])} ins Angebot übernommen.")
         self.accept()

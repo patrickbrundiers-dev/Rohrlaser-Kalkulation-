@@ -53,7 +53,8 @@ def _plz_pruefung(z, k):
         if plz_schluessel(bis) < plz_schluessel(von):
             return "FEHLER: PLZ bis liegt vor PLZ von"
     laenge = (k.listen.get("plz_laenge") or {}).get(z.get("land"))
-    if laenge and von and not von.endswith("*") and len(von) != laenge:
+    kurz = von and von.isdigit() and len(von) <= 3 and not bis      # '25' gilt wie '25*' (PLZ-Bereich)
+    if laenge and von and not von.endswith("*") and not kurz and len(von) != laenge:
         return f"WARNUNG: PLZ hat in {z.get('land')} {laenge} Stellen"
     return None
 
@@ -448,6 +449,9 @@ def plz_csv_lesen(text, zonen, laender):
                 meldung = str(e)
                 break
         z.setdefault("land", "DE")
+        von = z.get("plz_von") or ""
+        if von.isdigit() and len(von) <= 3 and not z.get("plz_bis"):      # '25' = alle PLZ mit 25… (Präfix)
+            z["plz_von"] = von + "*"
         if not meldung:
             if not z.get("plz_von"):
                 meldung = "PLZ von fehlt"
