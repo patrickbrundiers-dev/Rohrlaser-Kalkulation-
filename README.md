@@ -3,23 +3,37 @@
 Eigenständiges Windows-Programm zur Angebotskalkulation und Materialoptimierung von Rohrlaserteilen:
 Angebote erfassen (von Hand oder per STEP-Import), Teile auf möglichst wenige Stangen verteilen,
 Kosten je Kostenart kalkulieren, Staffelpreise rechnen und Angebot, Werkstattpapiere und Kalkulation
-als PDF ausgeben. Keine Installation nötig.
+als PDF ausgeben. Zum Installieren (ohne Administratorrechte) oder portabel ohne Installation.
 
-## Benutzung (ohne Installation)
+## Installation oder portabel
 
-1. Unter **Releases → aktuell** `Rohrlaser-Angebotskalkulation.zip` herunterladen und in einen Ordner entpacken, in dem man schreiben darf (z. B. `C:\Rohrlaser`, nicht `C:\Programme`).
-2. `Rohrlaser-Angebotskalkulation.exe` starten. Beim ersten Start legt das Programm den Ordner `Daten` mit `rohrlaser.db` (Stammdaten, Einstellungen, Angebote) und Beispiel-Stammdaten an.
+Beide Formen kommen aus demselben Build und enthalten dieselben Programmdateien (der Build prüft die Prüfsummen und vergleicht die Rechenergebnisse); sie unterscheiden sich nur im Datenort (`programm/rohrlaser/orte.py`):
+
+| | Installation | Portabel |
+|---|---|---|
+| Release „aktuell“ | `Rohrlaser-Angebotskalkulation-Setup.exe` (Inno Setup, `programm/installer/rohrlaser.iss`) | `Rohrlaser-Angebotskalkulation.zip` |
+| Programm | `%LOCALAPPDATA%\Programs\Rohrlaser Angebotskalkulation` (nur für den Benutzer, keine Adminrechte) | beliebiger beschreibbarer Ordner |
+| Daten | `%LOCALAPPDATA%\Rohrlaser Angebotskalkulation\Daten` | `Daten` neben der .exe (`Portabel.ini` im ZIP; ältere ZIP-Stände am vorhandenen Ordner `Daten` erkannt) |
+| PDF/CSV | `Dokumente\Rohrlaser Angebote` | `Angebote` neben der .exe |
+| Deinstallieren | entfernt nur Programmdateien, Daten bleiben | Ordner löschen |
+
+Das Online-Update funktioniert in beiden gleich (der Programmordner ist beschreibbar). Umziehen: **Datei → Daten exportieren …** / **Daten importieren …** oder beim ersten Start „Daten übernehmen …“. Solange das Programm läuft, sperrt es die Datendatei (`rohrlaser.db.sperre`), damit nie zwei Programme gleichzeitig damit arbeiten.
+
+## Benutzung
+
+1. Unter **Releases → aktuell** `Rohrlaser-Angebotskalkulation-Setup.exe` herunterladen und starten, oder `Rohrlaser-Angebotskalkulation.zip` in einen Ordner entpacken, in dem man schreiben darf (z. B. `C:\Rohrlaser`, nicht `C:\Programme`).
+2. Programm starten (Startmenü bzw. `Rohrlaser-Angebotskalkulation.exe`). Beim ersten Start fragt es, ob vorhandene Daten übernommen werden sollen; sonst legt es `rohrlaser.db` (Stammdaten, Einstellungen, Angebote) mit Beispiel-Stammdaten an.
 3. Die Beispielwerte in den Stammdaten-Reitern (Kunden, Profile, Werkstoffe, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und in den Einstellungen (Zuschläge, Briefkopf, Nummernkreis) durch die eigenen ersetzen. Jede Änderung wird sofort gespeichert; die Spalte **Prüfung** zeigt OK, WARNUNG oder FEHLER.
 4. Reiter **Angebote**: neues Angebot anlegen (Nummer zählt hoch), kopieren (auch für einen anderen Kunden), löschen, suchen (auch nach Artikel). Doppelklick öffnet das Angebot in einem eigenen Reiter.
 5. Im Angebot: Kopf oben, Positionen darunter. **STEP importieren** (oder Dateien hineinziehen) misst die Teile mit `STEP-Import.exe` und legt die Positionen an; Baugruppen werden als Satz übernommen. **Zusatzarbeiten …** wählt Gewinde, Verzinken, Pulverbeschichten usw. je Bauteil. **Optimieren** plant die Stangen; danach zeigen die Reiter Kalkulation, Schnittplan, Stangenbild und Auswertung die Ergebnisse. Nach jeder Änderung zeigt die Übersicht „VERALTET“, bis neu optimiert wird.
 6. Reiter **Staffeln**: je Zeile eine Mengenstufe (Satz oder Position aus der Liste des Angebots und Menge); **Stufen aus Angebot** legt je Satz und Position eine Stufe an. **Staffelpreise rechnen** rechnet jede Stufe als eigenes Angebot neu.
 7. Reiter **Nachkalkulation**: nach dem Auftrag Ist-Stangen und EK-Meterpreis je Gruppe (leer = kalkuliert), Laserzeit, Rüstzeit, Zusatzkosten und Erlös eintragen; das Programm vergleicht die Einzelkosten mit der Kalkulation (Abweichung in € und %, Deckungsbeitrag) und gibt den Vergleich als PDF aus.
 8. Reiter **Frachtkosten**: Frachtrechner (Empfänger-PLZ, Gewicht, Ladehilfsmittel mit Packvorschlag, Zusatzleistungen) mit aufgeschlüsselter Kostenübersicht und Historie. Frachtzonen und PLZ-Zuordnungen (CSV-Import/-Export), Tarife mit Preisstaffeln und Versionen, Ladehilfsmittel, Zuschläge mit Dieselpreisen und Dieselstaffel, Währungen sowie Dienstleister und Kundentarife werden selbst gepflegt (hinter dem Passwort der Einstellungen). Mitgelieferte Werte sind als BEISPIEL gekennzeichnet; das Programm erfindet keine Tarife oder Dieselzuschläge. Im Angebot legt die Karte **Fracht** Frachtart (manuell, berechnet, keine Fracht, im Artikelpreis enthalten) und Verteilung (je Stück oder nach Gewicht) fest; **Fracht berechnen …** übernimmt Betrag und Tarifkopie, und die Staffelpreise rechnen dann je Menge ihre eigene Fracht.
-9. Leiste **Ausgabe**: **Angebot (PDF)**, **Werkstattpapiere (PDF)**, **Kalkulation (PDF)** und **CSV-Export** (Angebotskopf, Kostenarten und Kalkulation je Position; Semikolon, Dezimalkomma). Die Dateien landen im Ordner `Angebote` neben dem Programm oder im Ablageordner aus den Einstellungen.
+9. Leiste **Ausgabe**: **Angebot (PDF)**, **Werkstattpapiere (PDF)**, **Kalkulation (PDF)** und **CSV-Export** (Angebotskopf, Kostenarten und Kalkulation je Position; Semikolon, Dezimalkomma). Die Dateien landen im Ablageordner aus den Einstellungen, sonst in der Vorgabe (siehe Tabelle oben).
 
 Die bebilderte Bedienungsanleitung `anleitung/Bedienungsanleitung.pdf` liegt im ZIP neben der .exe und öffnet sich im Programm über **Hilfe → Bedienungsanleitung** (F1).
 
-Sicherung: beim ersten Start jedes Tages und beim Beenden eine Kopie nach `Daten/Sicherung` (die letzten 30 bleiben), optional zusätzlich in einen zweiten Sicherungsordner (Einstellungen, z. B. Netzlaufwerk oder USB-Stick). Zum Umziehen auf einen anderen Rechner den ganzen Programmordner kopieren. Eine Datendatei einer älteren Version (mit „Aufträgen“) wird beim ersten Öffnen automatisch auf Angebote umgestellt; dazu den Ordner `Daten` in den neuen Programmordner kopieren.
+Sicherung: beim ersten Start jedes Tages, beim Beenden, auf Knopfdruck, vor Updates, vor Schema-Umstellungen, vor Wiederherstellen und Import eine Kopie nach `Daten/Sicherung`, optional zusätzlich in einen zweiten Sicherungsordner (Einstellungen, z. B. Netzlaufwerk, OneDrive oder USB-Stick). Jede Sicherung wird nach dem Schreiben geprüft (`PRAGMA integrity_check`, gleiche Anzahl Angebote/Positionen) und bekommt eine `.json` mit Version, Schema, Anzahlen und SHA256. Es bleiben die letzten 30 laufenden Sicherungen und je Art die letzten 10 „vor …“-Sicherungen. **Sicherung wiederherstellen …** (Startseite, Menü Datei) prüft die gewählte Datei, lehnt Dateien einer neueren Programmversion ab und sichert vorher den jetzigen Stand. Lässt sich die Datendatei beim Start nicht öffnen, bietet das Programm das Wiederherstellen an. Eine Datendatei einer älteren Version (mit „Aufträgen“) wird beim ersten Öffnen automatisch auf Angebote umgestellt.
 
 ## Windows-Warnungen (Virenscanner)
 
@@ -66,9 +80,9 @@ Kalkulation: Material (Stangen laut Schnittplan, nach Längenanteil verteilt), L
 - `programm/rohrlaser/`: das Programm (PySide6). `optimierung.py` Stangenoptimierung, `rechnen.py` Positionswerte, Status und Kalkulation, `staffeln.py`, `fracht.py` (Frachtrechnung) + `fracht_angebot.py` (Fracht im Angebot und je Staffelmenge) + `fracht_daten.py` (Frachttabellen) + `fracht_seite.py` (Reiter Frachtkosten), `step.py` (Übernahme der Messwerte), `ausgabe.py` + `pdf.py` (PDF), `export.py` (CSV), `datenbank.py` (SQLite, Schema-Erweiterung alter Dateien).
 - `programm/step_messung/`: STEP-Messung mit OpenCascade (`step_geometrie.py`, `step_messen.py`), wird als eigene `STEP-Import.exe` gebaut.
 - Start: `pip install -r requirements.txt -r programm/requirements.txt`, dann im Ordner `programm` `python -m rohrlaser`.
-- Tests (Oberfläche ohne Bildschirm mit `QT_QPA_PLATFORM=offscreen`): `tests/test_programm.py`, `tests/test_zusatzarbeiten.py`, `tests/test_step_satz.py`, `tests/test_fracht.py`, `tests/test_fracht_angebot.py`, `tests/test_optimierung.py`, `tests/test_step_import.py`, `tests/test_anleitung.py` (jede Tabelle, jedes Feld, jede Einstellung und jeder Knopf steht in der Anleitung) und `tests/test_abnahme.py`.
+- Tests (Oberfläche ohne Bildschirm mit `QT_QPA_PLATFORM=offscreen`): `tests/test_programm.py`, `tests/test_sicherung.py` (Datenort, Sperre, Sicherung, Wiederherstellen, Export/Import), `tests/test_zusatzarbeiten.py`, `tests/test_step_satz.py`, `tests/test_fracht.py`, `tests/test_fracht_angebot.py`, `tests/test_optimierung.py`, `tests/test_step_import.py`, `tests/test_anleitung.py` (jede Tabelle, jedes Feld, jede Einstellung und jeder Knopf steht in der Anleitung) und `tests/test_abnahme.py`.
 - Abnahme: `tests/test_abnahme.py` rechnet 8 realistische Testangebote (`tests/abnahme_angebote.py`) auf dem Weg des Programms und prüft das Ergebnis unabhängig nach: jede Position mit voller Stückzahl eingeplant und nichts vermischt, Lage jedes Teils gegen Endbeschnitt, Trennschnitte und Greiferrest (keine Stange überlastet), Belegung, Rest, Gewicht und Materialkosten, nie mehr Stangen als die einfache manuelle Einteilung und nie weniger als die Untergrenze. GitHub Actions legt bei jedem Lauf das `Abnahmeprotokoll.md` ab.
 - Bedienungsanleitung neu erzeugen: `python anleitung/erzeuge_anleitung.py` (braucht `pdftoppm` aus Poppler); die Bildschirmfotos stammen aus dem echten Programm.
-- `.github/workflows/paket.yml` baut auf Windows `STEP-Import.exe` und `Rohrlaser-Angebotskalkulation.exe` (PyInstaller), prüft beide (Messung gegen Python, `--selbsttest` der fertigen .exe) und veröffentlicht auf `main` das ZIP als Release „aktuell“.
+- `.github/workflows/paket.yml` baut auf Windows `STEP-Import.exe` und `Rohrlaser-Angebotskalkulation.exe` (PyInstaller), prüft beide (Messung gegen Python, `--selbsttest` der fertigen .exe, Online-Update), baut daraus das Setup (Inno Setup) und prüft Installation, Datenort, Deinstallation ohne Datenverlust, Neuinstallation und die portable Version mit gleichen Rechenergebnissen (`tests/installer_windows.py`). Auf `main` gehen Setup und ZIP als Release „aktuell“ hinaus.
 
 Alle Stammdaten im Programm sind Beispielwerte.

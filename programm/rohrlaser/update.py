@@ -32,7 +32,8 @@ ARBEITSORDNER = "_update"           # im Programmordner: Download, Zwischenstand
 ADRESSE = "https://github.com/patrickbrundiers-dev/Rohrlaser-Kalkulation-/releases/download/aktuell/" + DATEILISTE
 GROSS = 1 << 20                     # ab 1 MB eigenes Paket
 PAKET_MAX = 8 << 20                 # kleine Dateien eines Ordners (3 Ebenen) bis etwa 8 MB je Paket
-NIE = (DATEILISTE, ARBEITSORDNER, "Daten", "Angebote")      # nie in der Dateiliste, nie angefasst
+# nie in der Dateiliste, nie angefasst; Portabel.ini liegt nur im ZIP (installiert fehlt sie, siehe orte.py)
+NIE = (DATEILISTE, ARBEITSORDNER, "Daten", "Angebote", "Portabel.ini")
 STUECK = 1 << 16
 
 
