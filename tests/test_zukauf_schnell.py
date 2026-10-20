@@ -1,6 +1,6 @@
 """Prüft die Schnellanlage von Zukaufartikeln im Angebot und die Menge je Satz: Rahmen aus Rohren (Satz) mit
-20 Blechen je Rahmen, Lieferant 'Technik' bei Blech vorbelegt, Rechnung mit Sätzen statt Teilen, Staffelpreise je
-Satz, Dialog Zukaufteile mit 'Neuer Artikel …' und Umschalten je Teil/je Satz. Alle Preise sind Testwerte.
+20 Blechen je Rahmen, Lieferant 'Technik' bei Blech vorbelegt, jedes Blech eine eigene Zukaufteil-Position im Satz,
+Rechnung mit Sätzen statt Teilen, Staffelpreise je Satz, Dialog Zukaufteile mit 'Neuer Artikel …' und Umschalten je Teil/je Satz. Alle Preise sind Testwerte.
 
 Aufruf: python tests/test_zukauf_schnell.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -16,6 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
 
 from rohrlaser import rechnen, staffeln, zukauf  # noqa: E402
+from rohrlaser.angebot import ZUKAUFTEIL  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import STIL, Hauptfenster  # noqa: E402
 from rohrlaser.zukauf_dialog import JE, ZukaufDialog  # noqa: E402
@@ -70,7 +71,6 @@ f.resize(1920, 1000)
 f.show()
 seite = f.angebot_oeffnen(a)
 app.processEvents()
-assert seite.zukauf_schnell([]) == 0, "ohne markierte Position nichts"
 assert [x.text() for x in seite.zukauf_knopf.menu().actions()] == ["Zukaufteile bearbeiten …", "Neuer Zukaufartikel …"]
 
 
@@ -81,6 +81,8 @@ def bedienen(d):
     d.bezeichnung.setText("Blech Lasche 80x40x5")
     d.ek.setText("2,50")
     d.aufschlag.setText("20")
+    d.menge.setText("2,5")
+    assert d.fertig() is False and "ganze Zahl" in d.info.text(), "eigene Position: ganze Stück"
     d.menge.setText("20")
     assert d.weiter() and d.bezeichnung.text() == "" and d.lieferant.currentText() == "Technik"
     d.bezeichnung.setText("Blech Knotenblech")
@@ -97,13 +99,18 @@ def bedienen(d):
 
 assert seite.zukauf_schnell([0], dialog=bedienen) == 2
 lasche = next(x for x in db.zukauf_artikel_liste() if x["bezeichnung"] == "Blech Lasche 80x40x5")
-assert lasche["herkunft"] == "Schnellanlage" and lasche["kategorie"] == "Blechteile" and lasche["bezuege"][0]["lieferant"] == "Technik"
+assert lasche["herkunft"] == "Schnellanlage" and lasche["kategorie"] == "Blechteile" \
+    and lasche["bezuege"][0]["lieferant"] == "Technik"
 assert lasche["aufschlag_quelle"] == zukauf.INDIVIDUELL and lasche["aufschlag_wert"] == 20
 assert "Technik" in {z["name"] for z in db.zeilen("zukauf_lieferanten")}
 assert db.zukauf_historie(lasche["id"])[0]["bemerkung"] == "Schnellanlage im Angebot"
-liste = zukauf.eintraege(db.positionen(a)[0])
-assert [(e["menge"], e.get("je")) for e in liste] == [(20, "Satz"), (2, "Satz")]
-assert zukauf.eintraege(db.positionen(a)[1]) == []
+ps = db.positionen(a)
+assert len(ps) == 4 and zukauf.eintraege(ps[0]) == [], "die markierte Rohrposition bleibt unverändert"
+l, kn = ps[2], ps[3]
+assert (l["pos"], l["art"], l["bezeichnung"], l["satz"], l["je_satz"], l["stueck"]) \
+    == (30, ZUKAUFTEIL, "Blech Lasche 80x40x5", "Rahmen", 20, 200), l
+assert (kn["pos"], kn["je_satz"], kn["stueck"]) == (40, 2, 20)
+assert [(e["artikel_id"], e["menge"]) for e in zukauf.eintraege(l)] == [(lasche["id"], 1)]
 
 kopf, pos, einst, (z, s) = rechnung()
 # 10 Rahmen × 20 Laschen à 2,50 € + 20 % = 500 € Einstand, 100 € Aufschlag; Knotenblech 10 × 2 × 4 € ohne Aufschlag
@@ -111,14 +118,53 @@ nah(s["zukauf_einstand"], 500 + 80, "Einstand")
 nah(s["zukauf_aufschlag"], 100, "Aufschlag")
 gr = {g["stand"]["bezeichnung"]: g for g in s["zukauf"]}
 nah(gr["Blech Lasche 80x40x5"]["bestellung"]["verbrauch"], 200, "Verbrauch 20 je Rahmen")
-nah(z[0]["zukauf_teil"] * 40, 680, "VK über die 40 Rohre der Position verteilt")
-ok("Schnellanlage: 2 Bleche nacheinander, Lieferant Technik, Menge je Satz; Angebot rechnet 10 Rahmen × 20")
+nah(z[2]["zukauf_teil"] * 200, 600, "VK in der eigenen Position")
+ok("Schnellanlage: 2 Bleche nacheinander, Lieferant Technik, je als eigene Zukaufteil-Position im Satz Rahmen")
 
 # Staffel je Satz: 50 Rahmen = 1000 Laschen
 st = staffeln.stufe_rechnen(kopf, pos, "Rahmen", 50, k, tab, einst)
 nah(st["preis"]["zukauf_einstand"], 1000 * 2.5 + 100 * 4, "Stufe 50 Rahmen: Einstand")
 nah(st["preis"]["zukauf_aufschlag"], 1000 * 2.5 * 0.2, "Stufe 50 Rahmen: Aufschlag")
 ok("Staffelpreise: 50 Rahmen rechnen 1000 Laschen")
+
+
+def je_teil(d):
+    d.je.setCurrentIndex(0)
+    d.bezeichnung.setText("Blech Abdeckung")
+    d.ek.setText("3")
+    d.menge.setText("2")
+    return QDialog.Accepted if d.fertig() else QDialog.Rejected
+
+
+def ohne_bezug(d):
+    assert not d.je.isVisibleTo(d), "ohne markierte Position nur Stückzahl"
+    d.bezeichnung.setText("Typenschild")
+    d.kategorie.setCurrentText("Kaufteile")
+    d.lieferant.setCurrentText("Schilder GmbH")
+    d.ek.setText("1,20")
+    d.menge.setText("5")
+    return QDialog.Accepted if d.fertig() else QDialog.Rejected
+
+
+assert seite.zukauf_schnell([1], dialog=je_teil) == 1
+assert seite.zukauf_schnell([], dialog=ohne_bezug) == 1
+ps = db.positionen(a)
+assert (ps[4]["pos"], ps[4]["stueck"], ps[4]["satz"]) == (50, 120, None), "je Teil: 2 × 60 Rohre, ohne Satz"
+assert (ps[5]["pos"], ps[5]["stueck"], ps[5]["art"]) == (60, 5, ZUKAUFTEIL)
+ok("je Teil = Menge × Stückzahl der markierten Position; ohne Markierung Stückzahl direkt")
+for p in ps[2:]:
+    db.positionen_loeschen([p["id"]])
+
+# Menge je Satz direkt an einer Rohrposition (Dialog Zukaufteile)
+kn_id = next(x["id"] for x in db.zukauf_artikel_liste() if x["bezeichnung"] == "Blech Knotenblech")
+db.position_aendern(p1, "zukauf", json.dumps([dict(artikel_id=lasche["id"], menge=20, je="Satz",
+                                                   stand=db.zukauf_stand(lasche["id"])),
+                                              dict(artikel_id=kn_id, menge=2, je="Satz", stand=db.zukauf_stand(kn_id))]))
+kopf, pos, einst, (z, s) = rechnung()
+nah(s["zukauf_einstand"], 500 + 80, "je Satz an der Rohrposition: Einstand")
+nah(z[0]["zukauf_teil"] * 40, 680, "VK über die 40 Rohre der Position verteilt")
+seite.neu_laden()
+ok("Menge je Satz an einer Rohrposition: 10 Rahmen × 20")
 
 # ------------------------------------------------------------------ Dialog Zukaufteile
 d = ZukaufDialog(seite, db, db.positionen(a)[0])

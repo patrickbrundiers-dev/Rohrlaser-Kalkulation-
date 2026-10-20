@@ -38,11 +38,13 @@ def artikel_werte(bezeichnung, artikelnr, kategorie, lieferant, ek, aufschlag):
 
 
 class SchnellDialog(QDialog):
-    """Neue Zukaufartikel nacheinander anlegen. ergebnis: [{artikel_id, menge, je}] der angelegten Artikel."""
+    """Neue Zukaufartikel nacheinander anlegen. ergebnis: [{artikel_id, bezeichnung, artikelnr, menge, je}] der
+    angelegten Artikel. ganz: Menge nur ganzzahlig (eigene Positionen im Angebot); hinweis: Text unter dem Formular,
+    der sagt, worauf sich die Menge bezieht; ohne_je: nur Stückzahl, ohne Wahl je Teil/je Satz."""
 
-    def __init__(self, parent, db, satz=False):
+    def __init__(self, parent, db, satz=False, ganz=False, hinweis="", ohne_je=False):
         super().__init__(parent)
-        self.db = db
+        self.db, self.ganz = db, ganz
         self.ergebnis = []
         self._lief_von_hand = False
         self.setWindowTitle("Neuer Zukaufartikel")
@@ -81,8 +83,14 @@ class SchnellDialog(QDialog):
         form.addRow("Lieferant *", self.lieferant)
         form.addRow("EK je Stück [€] *", self.ek)
         form.addRow("Aufschlag [%]", self.aufschlag)
-        form.addRow("Menge", menge)
+        form.addRow("Stückzahl" if ohne_je else "Menge", menge)
+        self.je.setVisible(not ohne_je)
         lay.addLayout(form)
+        if hinweis:
+            h = QLabel(hinweis)
+            h.setWordWrap(True)
+            h.setStyleSheet("color: #595959;")
+            lay.addWidget(h)
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setStyleSheet("color: #8C1D18;")
@@ -130,6 +138,8 @@ class SchnellDialog(QDialog):
             menge = _zahl(self.menge.text(), "Menge", False)
             if menge <= 0:
                 raise ValueError("Menge muss größer als 0 sein.")
+            if self.ganz and menge != int(menge):
+                raise ValueError("Menge muss eine ganze Zahl sein (Stück).")
             werte, bezuege = artikel_werte(bez, self.artikelnr.text().strip(), self.kategorie.currentText(), lief, ek,
                                            auf)
             aid = self.db.zukauf_speichern(None, werte, bezuege, "Schnellanlage im Angebot")
@@ -137,7 +147,8 @@ class SchnellDialog(QDialog):
             self.info.setStyleSheet("color: #8C1D18;")
             self.info.setText(str(e))
             return None
-        self.ergebnis.append(dict(artikel_id=aid, menge=menge, je=self.je.currentData()))
+        self.ergebnis.append(dict(artikel_id=aid, bezeichnung=werte["bezeichnung"], artikelnr=werte["artikelnr"],
+                                  menge=menge, je=self.je.currentData()))
         return aid
 
     def weiter(self):

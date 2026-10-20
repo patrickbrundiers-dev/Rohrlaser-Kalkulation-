@@ -21,7 +21,7 @@ from .zusatz_dialog import ZusatzDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
-from .angebot import POSITIONEN, STEP_FELDER, aktiv as position_aktiv, ist_zukaufteil
+from .angebot import POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
 from .angebot_oben import KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
@@ -1020,28 +1020,40 @@ class AngebotSeite(QWidget):
         return True
 
     def zukauf_schnell(self, zeilen=None, dialog=None):
-        """Neue Zukaufartikel schnell anlegen (z. B. Bleche) und an die markierten Positionen anhängen (bestehende
-        Zukaufteile bleiben). dialog(d) bedient den Dialog statt exec (Tests). Ergebnis: Anzahl Artikel."""
+        """Neue Zukaufartikel schnell anlegen (z. B. Bleche): jeder wird eine eigene Position der Art Zukaufteil.
+        Die Menge bezieht sich auf die erste markierte Position: 'je Satz' = gleicher Satz mit Menge als Stück je
+        Satz, 'je Teil' = Menge × Stückzahl der markierten Position; ohne Markierung ist sie die Stückzahl.
+        dialog(d) bedient den Dialog statt exec (Tests). Ergebnis: Anzahl neuer Positionen."""
         if zeilen is None:
             zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
-        if not zeilen:
-            self.f.meldung("Bitte zuerst die Position markieren, an die die Zukaufartikel kommen (bei einem Satz "
-                           "eine Position des Satzes).", fehler=True)
-            return 0
-        d = SchnellDialog(self, self.db, bool(str(self.positionen[zeilen[0]].get("satz") or "").strip()))
+        bezug = self.positionen[zeilen[0]] if zeilen else None
+        satz = str((bezug or {}).get("satz") or "").strip()
+        if bezug is None:
+            hinweis = "Jeder Artikel wird eine eigene Position (Zukaufteil) mit dieser Stückzahl."
+        else:
+            hinweis = (f"Jeder Artikel wird eine eigene Position (Zukaufteil). Bezug Pos. {bezug.get('pos') or ''}: "
+                       + (f"je Satz = Stück je Satz {satz}, " if satz else "")
+                       + "je Teil = Menge × Stückzahl dieser Position.")
+        d = SchnellDialog(self, self.db, bool(satz), ganz=True, hinweis=hinweis, ohne_je=bezug is None)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return 0
-        for r in zeilen:
-            p = self.positionen[r]
-            liste = zukauf.eintraege(p)
-            for x in d.ergebnis:
-                e = dict(artikel_id=x["artikel_id"], menge=x["menge"], aufschlag=None,
-                         stand=self.db.zukauf_stand(x["artikel_id"]))
-                if x["je"] == zukauf.JE_SATZ:
-                    e["je"] = x["je"]
-                liste.append(e)
-            self.db.position_aendern(p["id"], "zukauf", json.dumps(liste, ensure_ascii=False))
-        self.f.meldung(f"{len(d.ergebnis)} Zukaufartikel angelegt und an {len(zeilen)} Position(en) angehängt.")
+        nr = int(max((p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))), default=0))
+        for x in d.ergebnis:
+            nr += 10
+            menge = int(x["menge"])
+            p = dict(pos=nr, art=ZUKAUFTEIL, artikel=x["artikelnr"] or x["bezeichnung"], bezeichnung=x["bezeichnung"],
+                     zukauf=json.dumps([dict(artikel_id=x["artikel_id"], menge=1, stand=self.db.zukauf_stand(
+                         x["artikel_id"]))], ensure_ascii=False))
+            if bezug is None:
+                p["stueck"] = menge
+            elif x["je"] == zukauf.JE_SATZ and satz:
+                saetze = zukauf.bezugsmenge(dict(je=zukauf.JE_SATZ), bezug)
+                p.update(satz=bezug.get("satz"), je_satz=menge, stueck=round(saetze * menge) or None)
+            else:
+                s = bezug.get("stueck")
+                p["stueck"] = round(s * menge) if isinstance(s, (int, float)) and s > 0 else None
+            self.db.position_neu(self.id, p)
+        self.f.meldung(f"{len(d.ergebnis)} Zukaufartikel angelegt, je als eigene Position (Zukaufteil).")
         self.neu_laden()
         return len(d.ergebnis)
 
