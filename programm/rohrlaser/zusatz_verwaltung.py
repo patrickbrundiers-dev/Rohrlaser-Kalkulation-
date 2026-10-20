@@ -6,7 +6,7 @@ Die Vorschau rechnet mit rechnen.zusatz_preis, also genau wie das Angebot. Der V
 Zuschlag Fertigung bzw. Fremdleistung und Gewinn aus den Einstellungen; im Angebot gelten dessen Werte bzw. die der
 Staffel. Der Materialzuschlag des Angebots gilt nur für das Stangenmaterial, nie für Zusatzarbeiten.
 """
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton,
                                QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QToolButton, QVBoxLayout,
@@ -564,6 +564,7 @@ class ZusatzVerwaltung(QWidget):
         kopf.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.tabelle.itemSelectionChanged.connect(self._auswahl)
         self.tabelle.itemDoubleClicked.connect(lambda _: self.bearbeiten())
+        self.tabelle.viewport().installEventFilter(self)
         self.tabelle.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tabelle.customContextMenuRequested.connect(self._kontextmenue)
 
@@ -725,13 +726,15 @@ class ZusatzVerwaltung(QWidget):
             return sum(max(kopf.sectionSizeHint(c), self.tabelle.sizeHintForColumn(c)) if n != "bemerkung" else 60
                        for c, (_, n, _) in enumerate(SPALTEN) if not self.tabelle.isColumnHidden(c))
         for n in WEGLASSEN:
-            if bedarf() <= platz:
+            if bedarf() + 12 <= platz:      # Reserve für Rahmen und Abstände der Kopfzeile
                 break
             self.tabelle.setColumnHidden(next(c for c, x in enumerate(SPALTEN) if x[1] == n), True)
 
-    def resizeEvent(self, ereignis):
-        super().resizeEvent(ereignis)
-        self._einpassen()
+    def eventFilter(self, objekt, ereignis):
+        # Tabelle ändert ihre Breite (Fenster, Formular daneben, Teiler verschoben): Spalten neu einpassen
+        if objekt is self.tabelle.viewport() and ereignis.type() == QEvent.Resize:
+            self._einpassen()
+        return super().eventFilter(objekt, ereignis)
 
     def spalte_sichtbar(self, titel):
         c = next(i for i, s in enumerate(SPALTEN) if s[0] == titel)

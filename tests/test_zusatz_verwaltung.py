@@ -305,6 +305,12 @@ fo = s.neu()
 app.processEvents()
 assert fo is s.formular and s.rechts.isVisible() and s.dialog is None
 assert s.tabelle.horizontalScrollBar().maximum() == 0
+f.resize(1300, 800)                                    # knapp breit genug: Formular daneben, Tabelle schmal
+app.processEvents()
+assert not s.schmal() and s.rechts.isVisible()
+assert s.tabelle.horizontalScrollBar().maximum() == 0, s.tabelle.horizontalScrollBar().maximum()
+f.resize(1920, 1080)
+app.processEvents()
 s.formular.abbrechen()
 f.resize(1024, 700)
 app.processEvents()
