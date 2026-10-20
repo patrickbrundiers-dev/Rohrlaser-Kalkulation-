@@ -70,13 +70,13 @@ KATEGORIEN = Tabelle(
     (Feld("name", "Kategorie", pflicht=True, breite=180),
      Feld("aufschlag_methode", "Standard-Aufschlagsmethode", "auswahl", auswahl="zukaufmethode", breite=140),
      Feld("aufschlag_wert", "Standardaufschlag [% bzw. €]", "zahl", 0, 1000000, stellen=2, breite=100),
-     Feld("aufschlag_staffel", "Aufschlagsstaffel", breite=150),           # JSON [{ab, wert}]
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
      Feld("beschreibung", "Beschreibung", breite=300)),
     ("name",),
     "Kategorien der Zukaufartikel mit Standardaufschlag. Neue Artikel übernehmen den Aufschlag ihrer Kategorie; "
     "Artikel mit individuellem Aufschlag ändern sich nicht, wenn hier ein Wert geändert wird. Leer = es gilt der "
-    "Standardaufschlag der Einstellungen. Gespeicherte Angebote behalten ihren Preisstand.")
+    "Standardaufschlag der Einstellungen. Methoden: % auf Einstand, € je Einheit, € je Bestellung, Zielmarge % "
+    "(Mengenstaffeln nur am Artikel). Gespeicherte Angebote behalten ihren Preisstand.")
 
 LIEFERANTEN = Tabelle(
     "zukauf_lieferanten", "Lieferanten",
@@ -207,7 +207,10 @@ def staffel_fehler(roh, wert="preis"):
 
 def staffel_text(roh, wert="preis"):
     """Staffel als Text, z. B. 'ab 1: 1,20 | ab 100: 0,95' (Protokoll, Übersicht)."""
-    return " | ".join(f"ab {_zahl(e['ab'])}: {_zahl(e[wert])}" for e in staffel_sortiert(roh, wert))
+    def w(x):
+        t = _zahl(x)
+        return t + (",00" if "," not in t else "0" if len(t.split(",")[1]) == 1 else "") if wert == "preis" else t
+    return " | ".join(f"ab {_zahl(e['ab'])}: {w(e[wert])}" for e in staffel_sortiert(roh, wert))
 
 
 def staffel_wahl(staffel, menge):
@@ -296,10 +299,9 @@ def aufschlagsregeln(artikel, kategorien=None, standard=None):
     kat = (kategorien or {}).get(artikel.get("kategorie")) or {}
     if kat.get("aktiv") == "nein":
         kat = {}
-    r_kat = (regel(kat.get("aufschlag_methode") or PROZENT, kat.get("aufschlag_wert"), kat.get("aufschlag_staffel"),
-                   KATEGORIE, kat.get("name"))
-             if _hat_regel(kat.get("aufschlag_methode") or PROZENT, kat.get("aufschlag_wert"),
-                           kat.get("aufschlag_staffel")) else None)
+    km = kat.get("aufschlag_methode") or PROZENT
+    r_kat = (regel(km, kat.get("aufschlag_wert"), quelle=KATEGORIE, name=kat.get("name"))
+             if km != STAFFEL and _hat_regel(km, kat.get("aufschlag_wert"), None) else None)
     r_std = regel(PROZENT, standard, quelle=STANDARD) if dez(standard) is not None else None
     quelle = artikel.get("aufschlag_quelle") or KATEGORIE
     if quelle == INDIVIDUELL and _hat_regel(artikel.get("aufschlag_methode"), artikel.get("aufschlag_wert"),

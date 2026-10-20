@@ -581,6 +581,14 @@ def pruefen(t, z, k):
             return "FEHLER: Festpreis, Zeitaufwand oder Materialkosten fehlen"
         if z.get("zeit") and z.get("satz_id") in (None, "") and z.get("satz") in (None, ""):
             return "FEHLER: Stundensatz fehlt"
+    if t.name == "zukauf_kategorien":
+        m = z.get("aufschlag_methode")
+        if m == "Mengenstaffel %":
+            return "FEHLER: Mengenstaffeln nur am Artikel"
+        if m == "Zielmarge %" and (z.get("aufschlag_wert") or 0) >= 100:
+            return "FEHLER: Zielmarge muss unter 100 % liegen"
+        if z.get("aufschlag_wert") is not None and not m:
+            return "WARNUNG: Methode fehlt, es gilt % auf Einstand"
     if t is ARBEITSSCHRITTE:
         if z.get("schritt") in SCHRITTE_FEST and (z.get("ruestzeit") or z.get("zeit")):
             return "WARNUNG: Zeit rechnet das Programm selbst, Rüstzeit und Zeit je Einheit hier werden nicht verwendet"

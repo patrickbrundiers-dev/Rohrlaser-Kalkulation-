@@ -1,5 +1,5 @@
-"""Hauptfenster: Start, Angebote (Übersicht und je offenes Angebot ein Reiter), Kunden, Frachtkosten und
-Einstellungen.
+"""Hauptfenster: Start, Angebote (Übersicht und je offenes Angebot ein Reiter), Kunden, Frachtkosten,
+Zukaufartikel und Einstellungen.
 
 Der Reiter Einstellungen ist mit einem Passwort geschützt (Einstellung 'passwort') und enthält als Unterreiter die
 allgemeinen Vorgaben und alle Stammdaten außer den Kunden. Im Reiter Frachtkosten ist der Rechner frei, die
@@ -652,6 +652,10 @@ class Hauptfenster(QMainWindow):
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
         self.reiter.addTab(self.fracht, "Frachtkosten")
+        # Zukaufartikel: eigener Reiter (Artikel, Kategorien, Lieferanten), tägliche Arbeit ohne Passwort
+        from .zukauf_seite import ZukaufBereich
+        self.zukauf = ZukaufBereich(db, self.meldung)
+        self.reiter.addTab(self.zukauf, self.zukauf.titel)
         self.reiter.addTab(self.bereich, "Einstellungen")
         for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
             self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
@@ -745,6 +749,7 @@ class Hauptfenster(QMainWindow):
             seite.neu_laden()
         for s in self.seiten:
             s.neu_laden()
+        self.zukauf.neu_laden()
         self.zusatz.neu_laden()
         self.einstellungen.neu_laden()
         self.fracht.neu_laden()

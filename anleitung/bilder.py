@@ -241,6 +241,51 @@ def main(ziel):
                                              (fo.ergebnis, 5), (fo.speichern_knopf, 6)])
             fo.abbrechen()
 
+    # 3b) Zukaufartikel (Beispielwerte aus der Aufgabenstellung, keine echten Preise)
+    from rohrlaser import zukauf
+    k = db.zukauf_kategorien()["Schrauben und Muttern"]
+    db.aendern("zukauf_kategorien", k["id"], "aufschlag_methode", zukauf.PROZENT)
+    db.aendern("zukauf_kategorien", k["id"], "aufschlag_wert", 30)
+    for werte, bezuege in (
+            (dict(artikelnr="Z-1001", bezeichnung="Sechskantschraube M6x20 8.8 verzinkt", kategorie="Schrauben und Muttern",
+                  einheit="Stück", aufschlag_quelle=zukauf.INDIVIDUELL, aufschlag_methode=zukauf.PROZENT, aufschlag_wert=25),
+             [dict(lieferant="Schraubenhandel Beispiel", lieferanten_artnr="DIN933-M6-20", preiseinheit=100, vpe=100,
+                   preise=[dict(ab=1, preis=12.0)], fracht=5.0)]),
+            (dict(artikelnr="Z-1002", bezeichnung="Sechskantmutter M6 verzinkt", kategorie="Schrauben und Muttern",
+                  einheit="Stück"),
+             [dict(lieferant="Schraubenhandel Beispiel", preiseinheit=100, preise=[dict(ab=1, preis=4.5)])]),
+            (dict(artikelnr="Z-2001", bezeichnung="Lasche 40x60x3 S235, gelasert", kategorie="Blechteile", einheit="Stück",
+                  aufschlag_quelle=zukauf.INDIVIDUELL, aufschlag_methode=zukauf.MARGE, aufschlag_wert=20),
+             [dict(lieferant="Blechbearbeitung Beispiel", preiseinheit=1,
+                   preise=[dict(ab=1, preis=1.20), dict(ab=100, preis=0.95), dict(ab=500, preis=0.80)])]),
+            (dict(artikelnr="Z-3001", bezeichnung="Drehteil Distanzhülse Ø20x30", kategorie="Fremdfertigung",
+                  einheit="Stück"), [])):
+        db.zukauf_speichern(None, werte, bezuege)
+    f.alles_neu_laden()
+    f.reiter.setCurrentWidget(f.zukauf)
+    zs = f.zukauf.artikel
+    zs.neu_laden()
+    zs.auswaehlen(next(x["id"] for x in zs.sichtbar if x["artikelnr"] == "Z-1001"))
+    for _ in range(3):
+        QApplication.processEvents()
+    foto.foto("zukauf_uebersicht", f, [(tab_rect(f.reiter, "Zukaufartikel"), 1), (zs.neu_knopf, 2), (zs.suche, 3),
+                                       (zs.kat_filter, 4), (zs.k_bearbeiten, 5), (zs.detail, 6)])
+    fo = zs.bearbeiten()
+    fo.verbrauch.setText("100")
+    fo._geaendert()
+    fo.geaendert = False
+    if zs.dialog is not None:
+        zs.dialog.resize(620, 1700)
+    for _ in range(3):
+        QApplication.processEvents()
+    foto.foto("zukauf_formular", fo.window(), [(fo.bezeichnung, 1), (fo.lieferanten, 2), (fo.quelle, 3),
+                                               (fo.mehr, 4), (fo.ergebnis, 5), (fo.speichern_knopf, 6)])
+    fo.abbrechen()
+    f.zukauf.unter.setCurrentWidget(f.zukauf.kategorien)
+    QApplication.processEvents()
+    foto.foto("zukauf_kategorien", f, [(tab_rect(f.zukauf.unter, "Kategorien"), 1)])
+    f.zukauf.unter.setCurrentWidget(zs)
+
     # 4) Einstellungen: Unterreiter Vorgaben
     f.zeigen(f.einstellungen)
     QApplication.processEvents()
