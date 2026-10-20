@@ -973,7 +973,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
-    fracht = fracht_angebot.wirksam(kopf) if f8 or any(_n(positionen[i].get("stueck")) for i in zk_pos) else 0
+    fracht, fracht_text, fracht_fehler = (fracht_angebot.betrag_angebot(kopf, positionen, werte)
+                                          if f8 or any(_n(positionen[i].get("stueck")) for i in zk_pos)
+                                          else (0, "", ""))
+    fracht = fracht or 0
     fracht_je, fracht_hinweis, fracht_umlage = fracht_angebot.anteile(positionen, werte, fracht,
                                                                       fracht_angebot.umlage(kopf))
     weitere = weitere_schritte(zb, f8, len(stangen), teile_abm,
@@ -1078,6 +1081,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
+                  fracht_text=fracht_text, fracht_fehler=fracht_fehler,
                   positionen=sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
                   programmierung=prog * sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
                   zukaufteile=sum(_n(positionen[i].get("stueck")) for i in zk_pos),

@@ -419,6 +419,7 @@ EINSTELLUNGEN = (
     # Frachtkosten (Reiter Frachtkosten → Historie und Einstellungen)
     Einstellung("absender_plz", "Absender-PLZ (Versandort)", "Frachtkosten", "text", ""),
     Einstellung("absender_land", "Absender-Land", "Frachtkosten", "text", "DE"),
+    Einstellung("fracht_versandart", "Versandart für automatische Fracht", "Frachtkosten", "text", None),
     Einstellung("fracht_lht_standard", "Ladungsträger im Packvorschlag", "Frachtkosten", "auswahl", "EUR",
                 auswahl="lht"),
     Einstellung("fracht_lht_langgut", "Ladungsträger für lange Teile (Langgut)", "Frachtkosten", "auswahl", "LG",

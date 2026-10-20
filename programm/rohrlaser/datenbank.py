@@ -698,6 +698,25 @@ class Datenbank:
                                  f'VALUES ({", ".join("?" * len(w))})', list(w.values()))
         return neu_id
 
+    def fracht_auto_aktualisieren(self, angebot_id):
+        """'Fracht automatisch berechnen': Zone, Tarif und Tarifkopie mit den aktuellen Frachtdaten neu festhalten
+        (beim Setzen des Hakens, Ändern der Ziel-PLZ oder des Kunden). Ergebnis: Frachtberechnung (dict)."""
+        from . import fracht_angebot
+        from .angebot import aktiv
+        from .rechnen import position_werte
+        a = self.angebot(angebot_id)
+        pos = self.positionen(angebot_id)
+        k, tab = self.kontext(), self.tabellen()
+        werte = [position_werte(p, a, k, tab) if aktiv(p) else None for p in pos]
+        einst = {n: self.einstellung(n) for n in ("absender_plz", "absender_land", "fracht_versandart",
+                                                  "fracht_lht_standard", "fracht_lht_langgut")}
+        d = fracht_angebot.auto_rechnen(self.fracht_daten(), a, pos, werte, self.kunde(a.get("kundennr")), einst)
+        self.angebot_aendern(angebot_id, "fracht_sendung", json.dumps(d, ensure_ascii=False, default=str))
+        self.angebot_aendern(angebot_id, "fracht_modus", fracht_angebot.BERECHNET)
+        if d.get("gesamt") is not None:
+            self.angebot_aendern(angebot_id, "fracht", d["gesamt"])
+        return d
+
     def fracht_kalkulation_speichern(self, ergebnis, bezeichnung="", angebot_id=None):
         """Abgeschlossene Frachtkalkulation mit allen verwendeten Tarifwerten (Snapshot) in die Historie."""
         from . import VERSION
