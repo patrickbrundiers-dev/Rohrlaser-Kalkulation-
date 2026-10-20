@@ -30,7 +30,8 @@ for name, zeilen in beispieldaten().items():
     assert gelesen == zeilen, name
 assert db.einstellung("zuschlag_fertigung") == 0.15 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19
-assert db.einstellung("profilformen").splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil"]
+assert db.einstellung("profilformen").splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil",
+                                                       "L-Profil", "Flachstahl", "Sonderprofil"]
 
 # 2) Eingabe: deutsche Zahlen, Bereiche, ganze Zahlen, Datum
 f = PROFILE.feld("a")

@@ -424,11 +424,18 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
     i.tabelle(["Profile", "Bedeutung"], [
-        ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>"],
-        ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr oder Sonderprofil (Liste in den Einstellungen)"],
-        ["<b>Abmessung A [mm]</b>, Abmessung B [mm]", "A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr)"],
-        ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten"],
-        ["Fläche manuell [mm²]", "Querschnitt vom Hersteller (Eckradien, Sonderprofile); leer = aus den Maßen"],
+        ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
+                             "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>"],
+        ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl oder "
+                              "Sonderprofil (Liste in den Einstellungen)"],
+        ["<b>Abmessung A [mm]</b>, Abmessung B [mm]",
+         "Rohre: A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, B = Flansch. "
+         "L-Profil: A und B = Schenkel. Flachstahl: A = Breite, B leer"],
+        ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten; bei offenen "
+                                   "Profilen die Blechdicke, bei Flachstahl die Dicke"],
+        ["Fläche manuell [mm²]", "Querschnitt vom Hersteller (Eckradien, Sonderprofile); leer = aus den Maßen. "
+                                 "Beim C-Profil Pflicht, weil die Abkantung nicht in den Maßen steht (der STEP-Import "
+                                 "trägt die gemessene Fläche ein)"],
         ["Endbeschnitt abweichend [mm], Greiferrest abweichend [mm]",
          "nur eintragen, wenn das Profil andere Werte braucht als die Maschine"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -762,10 +769,15 @@ def kapitel_step(i):
             "prüfen.",
             "Neben den Außenmaßen misst die Messung auch die <b>Innenmaße</b> (Innen-Ø bzw. innere Breite und Höhe).",
             "Erkannt werden <b>Rundrohr, Quadratrohr und Rechteckrohr</b>, dazu <b>U-, C- und L-Profile</b> sowie "
-            "<b>Flach-, Vierkant- und Rundstahl</b>, auch gedreht und mit Walz- oder Biegeradien. Offene Profile und "
-            "Vollprofile werden vorerst nur erkannt und gemeldet: Sie stehen im Dialog STEP-Import prüfen unter "
-            "<i>Nicht übernehmbar</i> mit dem Hinweis <i>… wird noch nicht kalkuliert</i>. Bei C-Profilen steht die "
-            "Länge der Abkantung im Hinweis, bei U-Profilen mit verschieden dickem Steg und Flansch beide Werte.",
+            "<b>Flach-, Vierkant- und Rundstahl</b>, auch gedreht und mit Walz- oder Biegeradien. U-, C-, L-Profile "
+            "und Flachstahl werden wie Rohre übernommen und kalkuliert. Vierkant- und Rundstahl werden nur gemeldet: "
+            "Sie stehen im Dialog STEP-Import prüfen unter <i>Nicht übernehmbar</i> mit dem Hinweis <i>… wird noch "
+            "nicht kalkuliert</i>. Bei C-Profilen steht die Länge der Abkantung im Hinweis, bei U-Profilen mit "
+            "verschieden dickem Steg und Flansch beide Werte.",
+            "<b>Schnitte an offenen Profilen</b>: Der Laser schneidet jede Wand einmal. Als Schnittlänge eines "
+            "Endes, einer Bohrung oder eines Ausschnitts zählt darum die halbe Länge der Konturkanten (Ober- und "
+            "Unterseite der Wand). Ein Merkmal, das nur eine Seite der Wand berührt, ist eine Gravur bzw. "
+            "Sackbohrung. Die Lage steht entlang der Achse (z ab Ende A), aber nicht um das Profil herum.",
             "Je Merkmal (Achse, Länge, Profil, Wandstärke) bewertet die Messung, wie <b>sicher</b> das Ergebnis ist: "
             "<i>sicher</i>, <i>wahrscheinlich</i> oder <i>unsicher</i>. Die Bewertung steht in den Messwerten "
             "(Spalte <i>sicherheit</i>).",
@@ -842,9 +854,9 @@ def kapitel_step(i):
             "Rohre mit Sicke oder anderem nicht konvexem Querschnitt werden über ihr umschließendes Rechteck "
             "gemessen und stehen mit Prüfstatus <i>prüfen</i> da.",
             "Gewinde werden nur als Kernloch erkannt; der Gewindevorschlag ist von Hand zu prüfen.",
-            "U-, L-, C-Profile und Flachstahl werden erkannt und gemeldet, aber nicht kalkuliert. Andere offene "
-            "Profile (z. B. T-Profil) erscheinen als <i>offenes Sonderprofil</i> und werden ebenfalls nicht "
-            "übernommen.",
+            "Bei U-, L-, C-Profilen und Flachstahl steht die Lage einer Kontur nur entlang der Achse, nicht ob sie "
+            "im Steg oder im Flansch liegt. Vierkant- und Rundstahl sowie andere offene Profile (z. B. T-Profil, "
+            "<i>offenes Sonderprofil</i>) werden nur gemeldet, nicht übernommen.",
             "Schräge Bohrungen werden über ihre Zylinderfläche erkannt; andere schräge Durchbrüche erscheinen als "
             "Ausschnitt.",
             "Flächenmodelle werden nur gemessen, wenn sie sich zu einem geschlossenen Körper vernähen lassen; "

@@ -288,17 +288,33 @@ def untergrenze(g):
 
 
 # ------------------------------------------------------------------ Profile
-def umfang(form, a, b):
+OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl")
+
+
+def umfang(form, a, b, wand=None, flaeche=None):
+    """Umfang des Querschnitts (Außenfläche je m Länge). Offene Profile: beide Seiten, aus Querschnittsfläche und
+    Blechdicke (dünnwandig: 2 × Fläche / Dicke + 2 × Dicke an den Kanten), damit gilt es auch für C-Profile mit
+    Abkantung und Profile mit Radien."""
     if form == "Rundrohr":
         return math.pi * a
     if form == "Quadratrohr":
         return 4 * a
     if form == "Rechteckrohr":
         return 2 * (a + (b or a))
+    if form in OFFEN and wand and flaeche:
+        return 2 * flaeche / wand + 2 * wand
     return 0.0
 
 
-PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr"}
+def schnittlaenge(form, a, b, wand=None, flaeche=None):
+    """Länge eines geraden Trennschnitts: Rohre = Außenumfang, offene Profile = halber Umfang (der Laser schneidet
+    jede Wand nur einmal)."""
+    u = umfang(form, a, b, wand, flaeche)
+    return u / 2 if form in OFFEN else u
+
+
+PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr", "U": "U-Profil", "C": "C-Profil",
+              "L": "L-Profil", "FL": "Flachstahl"}
 
 
 def profil_aus_name(pid):
@@ -316,8 +332,11 @@ def profil_aus_name(pid):
         a, b, wand = z[0], None, z[1]
     elif form == "Quadratrohr" and len(z) == 3 and z[0] == z[1]:
         a, b, wand = z[0], None, z[2]
-    elif form == "Rechteckrohr" and len(z) == 3:
+    elif form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") and len(z) == 3:
         a, b, wand = z[0], z[1], z[2]
+    elif form == "Flachstahl" and len(z) == 2:
+        a, b, wand = z[0], None, z[1]
+        return dict(form=form, a=a, b=b, wand=wand) if 0 < wand < a else None
     else:
         return None
     if a <= 0 or wand <= 0 or 2 * wand >= a:

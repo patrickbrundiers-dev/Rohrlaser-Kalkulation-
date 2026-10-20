@@ -40,6 +40,7 @@ assert step.satzname("Gestell 12.stp") == "Gestell 12"
 
 # 2) Übernahme als Satz: Satz = Dateiname, Stück je Satz = Anzahl gleicher Körper, Stückzahl = Sätze × Stück je Satz
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))     # Messergebnis-JSON nicht neben das Programm
 k, gew = db.kontext(), db.zeilen("gewinde")
 erg = step.uebernehmen(mw, [], k, gew, None, "S235-10219", 3, saetze=["G.step"])
 pos = erg["positionen"]

@@ -47,6 +47,7 @@ jobs:
           /usr/bin/python3 tests/test_zusatzarbeiten.py
           /usr/bin/python3 tests/test_step_satz.py
           /usr/bin/python3 tests/test_werkstoffe.py
+          /usr/bin/python3 tests/test_offene_profile.py
           /usr/bin/python3 tests/test_anleitung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:

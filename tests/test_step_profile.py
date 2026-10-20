@@ -60,8 +60,9 @@ for name, (form, a, b, w, fl, lg, sich, hinweis) in SOLL.items():
         if hinweis:
             assert any(hinweis in h for h in t.hinweise), f"{name}: Hinweis fehlt: {t.hinweise}"
         if form in OFFEN:
-            assert any("noch nicht kalkuliert" in h for h in t.hinweise), f"{name}: {t.hinweise}"
-            assert t.sicherheit.get("konturen") == "nicht ausgewertet"
+            assert not any("noch nicht kalkuliert" in h for h in t.hinweise), f"{name}: {t.hinweise}"
+            assert t.sicherheit.get("konturen") == "sicher", f"{name}: {t.sicherheit}"
+            assert t.konturen_liste[0]["form"] == t.konturen_liste[1]["form"] == "gerade", t.konturen_liste[:2]
         if form not in ("Flachstahl",):
             assert len(t.wand_messungen) >= 6, f"{name}: nur {len(t.wand_messungen)} Wandmessungen"
             assert len({round(m[0], 1) for m in t.wand_messungen}) >= 2, f"{name}: Wand nur an einer Stelle der Länge"
@@ -101,14 +102,16 @@ try:
         mw = step.lies_messwerte(aus)
         db = Datenbank(Path(tmp) / "rohrlaser.db")
         k = db.kontext()
-        assert step.gleiche_teile(mw) == {1: [1]}, step.gleiche_teile(mw)
+        assert step.gleiche_teile(mw) == {0: [0], 1: [1]}, step.gleiche_teile(mw)
         erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1)
-        assert [p["artikel"] for p in erg["positionen"]] == ["T01_RR42-4x2_L1250"], erg["positionen"]
-        assert any("U-Profil wird noch nicht kalkuliert" in z for z in erg["bericht"]), erg["bericht"]
+        assert [p["artikel"] for p in erg["positionen"]] == ["P01_U50x30x3_L800", "T01_RR42-4x2_L1250"], \
+            erg["positionen"]
+        u = erg["positionen"][0]
+        assert u["profil_id"] == "U 50x30x3" and abs(u["schneidweg"] - 2 * (50 + 60 - 3)) < 0.5, u
         # nicht erkanntes offenes Profil (T-Profil): ohne Schneidweg, darf nie als Position entstehen
         assert any("offenes Sonderprofil wird noch nicht kalkuliert" in z for z in erg["bericht"]), erg["bericht"]
         assert mw[0]["sicherheit"].startswith("achse=sicher") and mw[0]["wand_messungen"], mw[0]
-    print("OK     Programm: U-Profil und offenes Sonderprofil gemeldet, nicht übernommen")
+    print("OK     Programm: U-Profil übernommen, offenes Sonderprofil gemeldet, nicht übernommen")
 except AssertionError as e:
     fehler += 1
     print(f"FEHLER Programm: {e}")

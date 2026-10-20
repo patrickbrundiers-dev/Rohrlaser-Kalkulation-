@@ -8,7 +8,13 @@ import re
 from dataclasses import dataclass, field
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
-PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
+PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
+                "Sonderprofil")
+# Offene Profile: A = Höhe (U, C: Steg; L: längerer Schenkel; Flachstahl: Breite), B = Breite (U, C: Flansch; L:
+# kürzerer Schenkel; Flachstahl leer), Wandstärke = Blechdicke. C-Profil: Querschnitt über 'Fläche manuell'
+# (Abkantung nicht in den Maßen).
+OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl")
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil")
 KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium")
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
@@ -57,6 +63,12 @@ def flaeche_berechnet(p):
     if form == "Quadratrohr" or (form == "Rechteckrohr" and b is not None):
         hb = a if form == "Quadratrohr" else b
         return a * hb - (a - 2 * s) * (hb - 2 * s)
+    if form == "U-Profil" and b is not None:
+        return s * (a + 2 * (b - s))
+    if form == "L-Profil" and b is not None:
+        return s * (a + b - s)
+    if form == "Flachstahl":
+        return a * s
     return None
 
 
@@ -70,8 +82,10 @@ def huellkreis(p):
         return a
     if form == "Quadratrohr":
         return a * math.sqrt(2)
-    if form == "Rechteckrohr" and b is not None:
+    if form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") and b is not None:
         return math.hypot(a, b)
+    if form == "Flachstahl" and p.get("wand") is not None:
+        return math.hypot(a, p["wand"])
     return None
 
 
@@ -123,9 +137,10 @@ PROFILE = Tabelle(
      Feld("greiferrest", "Greiferrest abweichend [mm]", "zahl", 0, 2000, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=220)),
     ("profil_id",),
-    "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). Endbeschnitt und "
+    "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
+    "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke. Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
-    "(Eckradien, Sonderprofile).",
+    "(Eckradien, Sonderprofile, C-Profil).",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
                ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1),
                ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1)))
@@ -450,9 +465,12 @@ def pruefen(t, z, k):
             return f"FEHLER: {f.titel} unbekannt"
     if t is PROFILE:
         a, s = z.get("a"), z.get("wand")
-        if a is not None and s is not None and not (0 < s and 2 * s < a):
+        if z.get("form") == "Flachstahl":
+            if a is not None and s is not None and not 0 < s < a:
+                return "FEHLER: Dicke muss kleiner als die Breite sein"
+        elif a is not None and s is not None and not (0 < s and 2 * s < a):
             return "FEHLER: Wandstärke muss kleiner als die halbe Abmessung A sein"
-        if z.get("form") == "Rechteckrohr" and z.get("b") is None and z.get("flaeche_manuell") is None:
+        if z.get("form") in MIT_B and z.get("b") is None and z.get("flaeche_manuell") is None:
             return "FEHLER: Abmessung B fehlt"
         if flaeche_wirksam(z) is None:
             return "FEHLER: Querschnitt fehlt (Fläche manuell eintragen)"

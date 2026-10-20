@@ -31,9 +31,10 @@ GRENZEN = [
     "Gebogene Rohre und Rohre mit veränderlichem Querschnitt werden nicht gemessen (Prüfstatus 'nicht messbar' "
     "oder 'prüfen').",
     "Gewinde werden nur als Kernloch erkannt; ein Gewindevorschlag kommt aus dem Kernloch-Ø und muss geprüft werden.",
-    "Offene Profile (U, L, C, Flachstahl) werden erkannt und gemeldet, aber nicht kalkuliert; ihre Konturen werden "
-    "nicht ausgewertet. Nicht erkannte offene Profile (z. B. T-Profil) heißen 'offenes Sonderprofil' und werden "
-    "ebenfalls nicht kalkuliert.",
+    "Offene Profile (U, L, C, Flachstahl): Konturen mit Lage entlang der Achse (z), aber ohne Lage um das Profil "
+    "(Steg/Flansch). Schnittlänge = halbe Länge der Konturkanten (Laser schneidet jede Wand einmal). Vierkant- und "
+    "Rundstahl sowie nicht erkannte offene Profile (z. B. T-Profil, 'offenes Sonderprofil') werden nur gemeldet, "
+    "nicht kalkuliert.",
     "Nicht konvexe Hohlprofile (z. B. Rohre mit Sicke) werden über ihr umschließendes Rechteck gemessen; sie "
     "erscheinen als Rechteck-/Quadratrohr mit Prüfstatus 'prüfen' (Wandstärke uneinheitlich), nicht als Sonderprofil.",
     "Schräge Bohrungen werden über die Zylinderfläche erkannt; nicht zylindrische schräge Durchbrüche erscheinen als "
@@ -223,6 +224,50 @@ def _(f, p):
     f.gleich("Profilform Körper 1", teile[0].profilform, "Quadratrohr")
     f.wert("Seite Körper 1", teile[0].abm_a, 40, TOL_MASS)
     f.gleich("Prüfstatus lose Fläche", teile[1].pruefstatus, "nicht messbar")
+
+
+@fall("REF15", "U 50x30x3 mit Bohrungen in Steg und Flansch, Ausschnitt, Sackbohrung, 45°-Gehrung",
+      REF / "REF15_U50x30x3_Konturen.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    f.gleich("Profilform", t.profilform, "U-Profil")
+    for was, ist, soll in (("Steg", t.abm_a, 50), ("Flansch", t.abm_b, 30), ("Wand", t.wandstaerke, 3),
+                           ("Länge", t.laenge, 800), ("Querschnitt", t.flaeche, 312)):
+        f.wert(was, ist, soll, TOL_MASS)
+    a, b = t.konturen_liste[:2]
+    f.gleich("Ende A Form", a["form"], "gerade")
+    f.wert("Ende A Schnittlänge (halber Umfang)", a["schnittlaenge"], 107, 0.05)
+    f.gleich("Ende B Form", b["form"], "Gehrung")
+    f.winkel("Ende B Gehrungswinkel", b["gehrung"], 45)
+    f.wert("Ende B Schnittlänge", b["schnittlaenge"], (100 + 114 * math.sqrt(2)) / 2, 0.05)
+    soll = [("Bohrung", 200, dict(durchmesser=8)), ("Bohrung", 400, dict(durchmesser=6)),
+            ("Ausschnitt", 600, dict(laenge=20, breite=10)), ("Sackbohrung", 700, dict(durchmesser=5))]
+    f.gleich("Konturarten", [d["art"] for d in t.konturen_liste[2:]], [x[0] for x in soll])
+    for i, (d, (art, z, masse)) in enumerate(zip(t.konturen_liste[2:], soll), 1):
+        f.wert(f"{i} {art} z", d["z"], z, TOL_LAGE)
+        for k, v in masse.items():
+            f.wert(f"{i} {art} {k}", d[k], v, TOL_MASS)
+    f.wert("Schneidweg", t.schneidweg, 107 + (100 + 114 * math.sqrt(2)) / 2 + math.pi * 14 + 60, 0.1)
+    f.gleich("Einstiche", t.konturen, 5)
+    f.gleich("Prüfstatus (Sackbohrung)", t.pruefstatus, "prüfen")
+
+
+@fall("REF16", "L 40x40x4 mit Bohrung Ø10", REF / "REF16_L40x40x4_Bohrung.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    grundmasse(f, t, "L-Profil", 40, 40, 4, 500)
+    f.wert("Schneidweg", t.schneidweg, 2 * 80 + math.pi * 10, 0.05)
+    f.gleich("Bohrungen", t.bohrungen, {10.0: 1})
+    f.wert("Bohrung z", t.konturen_liste[2]["z"], 150, TOL_LAGE)
+
+
+@fall("REF17", "Flachstahl 40x5 mit zwei Bohrungen Ø9", REF / "REF17_FL40x5_Bohrungen.step")
+def _(f, p):
+    (t,) = analysiere_datei(p)
+    grundmasse(f, t, "Flachstahl", 40, 5, 0, 300)
+    f.wert("Schneidweg", t.schneidweg, 2 * 45 + 2 * math.pi * 9, 0.05)
+    f.gleich("Lage der Bohrungen", [d["z"] for d in t.konturen_liste[2:]], [50.0, 250.0])
+    f.gleich("Einstiche", t.konturen, 4)
 
 
 def k01_pruefen(f, t, mit_winkel):
