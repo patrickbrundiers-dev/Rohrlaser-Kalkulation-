@@ -13,8 +13,9 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QVBoxLayout, QWidget)
 
-from . import ausgabe, export, pdf, rechnen, staffeln, step
+from . import ausgabe, export, pdf, rechnen, step
 from .nachkalk_seite import NachkalkulationSeite
+from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
 from .zeiten_seite import ZeitenSeite
 from .angebot import POSITIONEN, STEP_FELDER
@@ -429,114 +430,6 @@ class PositionenModell(QAbstractTableModel):
         return True
 
 
-# ------------------------------------------------------------------ Staffeln
-STAFFEL_TITEL = ("Satz oder Pos.", "Menge [Sätze bzw. Stück]", "Bemerkung", "Prüfung")
-STAFFELPREIS_SPALTEN = [("Satz oder Pos.", "schluessel", None, 100), ("Bezeichnung", "bezeichnung", None, 180),
-                        ("Einheit", "einheit", None, 55), ("Menge", "menge", 0, 60), ("Teile gesamt [Stk]", "teile", 0, 70),
-                        ("Stangen", "stangen", 0, 60), ("Material [€]", "material", 2, 80),
-                        ("Laser + Gewinde [€]", "laser", 2, 80), ("Rüsten + Stangenwechsel [€]", "ruesten", 2, 95),
-                        ("Herstellkosten [€]", "herstell", 2, 90), ("Herstellkosten je Einheit [€]", "herstell_einheit", 3, 95),
-                        ("Verkaufspreis je Einheit [€]", "preis_einheit", 2, 95),
-                        ("Verkaufspreis gesamt [€]", "preis_gesamt", 2, 95), ("Hinweis", "hinweis", None, 260)]
-
-
-class StaffelAuswahl(QStyledItemDelegate):
-    """Spalte 'Satz oder Pos.': Auswahl der Sätze und Positionen des Angebots (Eintippen geht weiter)."""
-
-    def __init__(self, seite, parent):
-        super().__init__(parent)
-        self.s = seite
-
-    def createEditor(self, parent, option, index):
-        cb = QComboBox(parent)
-        cb.setEditable(True)
-        cb.setInsertPolicy(QComboBox.NoInsert)
-        for schl, text, _ in staffeln.auswahl(self.s.positionen):
-            cb.addItem(text, schl)
-        return cb
-
-    def setEditorData(self, editor, index):
-        w = index.data(Qt.EditRole) or ""
-        i = editor.findData(w)
-        editor.setCurrentIndex(i)
-        if i < 0:
-            editor.setEditText(w)
-
-    def setModelData(self, editor, modell, index):
-        i = editor.currentIndex()
-        text = editor.currentText()
-        wert = editor.itemData(i) if i >= 0 and editor.itemText(i) == text else text
-        modell.setData(index, wert, Qt.EditRole)
-
-
-class StaffelnModell(QAbstractTableModel):
-    """Mengenstufen eines Angebots: Schlüssel, Menge, Bemerkung, Prüfung."""
-    geaendert = Signal()
-    FELDER = ("schluessel", "menge", "bemerkung")
-
-    def __init__(self, seite):
-        super().__init__()
-        self.s, self.daten = seite, []
-
-    def setzen(self, daten):
-        self.beginResetModel()
-        self.daten = daten
-        self.endResetModel()
-
-    def rowCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else len(self.daten)
-
-    def columnCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else 4
-
-    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
-        if rolle == Qt.DisplayRole:
-            return STAFFEL_TITEL[abschnitt] if richtung == Qt.Horizontal else str(abschnitt + 1)
-        return None
-
-    def data(self, index, rolle=Qt.DisplayRole):
-        if not index.isValid():
-            return None
-        z, c = self.daten[index.row()], index.column()
-        w = staffeln.pruefen(z, self.s.positionen) if c == 3 else z.get(self.FELDER[c])
-        if rolle in (Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole):
-            return _z(w, 0) if c == 1 and rolle != Qt.EditRole else ("" if w is None else str(w))
-        if rolle == Qt.TextAlignmentRole and c == 1:
-            return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole:
-            if c == 3:
-                return QBrush(FARBE_STATUS["FEHLER"] if str(w).startswith("FEHLER") else FARBE_BERECHNET)
-            return QBrush(FARBE_EINGABE)
-        return None
-
-    def flags(self, index):
-        f = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-        return f | Qt.ItemIsEditable if index.column() < 3 else f
-
-    def setData(self, index, text, rolle=Qt.EditRole):
-        if rolle != Qt.EditRole or not index.isValid() or index.column() > 2:
-            return False
-        feld = self.FELDER[index.column()]
-        t = str(text).strip()
-        wert = t or None
-        if feld == "menge" and t:
-            try:
-                wert = int(t.replace(".", ""))
-                if wert < 1:
-                    raise ValueError
-            except ValueError:
-                self.s.f.meldung("Menge: bitte eine ganze Zahl ab 1 eingeben (Sätze bzw. Stück).", fehler=True)
-                return False
-        z = self.daten[index.row()]
-        if wert == z.get(feld):
-            return False
-        self.s.db.staffel_aendern(z["id"], feld, wert)
-        z[feld] = wert
-        self.dataChanged.emit(self.index(index.row(), 0), self.index(index.row(), 3))
-        self.geaendert.emit()
-        return True
-
-
 # ------------------------------------------------------------------ Stangenbild
 class Stangenbild(QWidget):
     """Je Stangenmuster ein maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Pos. und Länge,
@@ -718,45 +611,9 @@ class AngebotSeite(QWidget):
         al.addWidget(fehler_ansicht, 1)
         prot_ansicht = _tabelle(self.prot)
         _breiten(prot_ansicht, PROT_SPALTEN)
-        # Staffeln: Mengenstufen (Eingabe) und Staffelpreise (Ergebnis)
-        self.staffel_modell = StaffelnModell(self)
-        self.staffel_modell.geaendert.connect(self._staffel_stand)
-        self.staffel_ansicht = _tabelle(self.staffel_modell, sortieren=False)
-        self.staffel_ansicht.setItemDelegateForColumn(0, StaffelAuswahl(self, self.staffel_ansicht))
-        self.staffel_ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                             | QAbstractItemView.AnyKeyPressed)
-        for i, b in enumerate((120, 110, 220, 260)):
-            self.staffel_ansicht.setColumnWidth(i, b)
-        self.staffelpreise = Liste(STAFFELPREIS_SPALTEN)
-        sp_ansicht = _tabelle(self.staffelpreise, sortieren=False)
-        _breiten(sp_ansicht, STAFFELPREIS_SPALTEN)
-        self.staffel_info = QLabel()
-        st_seite = QWidget()
-        stl = QVBoxLayout(st_seite)
-        st_leiste = QHBoxLayout()
-        for text, ziel in (("Neue Stufe", self.staffel_neu), ("Stufen aus Angebot", self.staffeln_aus_angebot),
-                           ("Stufen löschen", self.staffeln_loeschen),
-                           ("Staffelpreise rechnen", self.staffelpreise_rechnen)):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            st_leiste.addWidget(b)
-        st_leiste.addSpacing(20)
-        hinweis = QLabel("Je Zeile eine Mengenstufe: Satz oder Position aus der Liste wählen (Doppelklick) und Menge "
-                         "eintragen. Jede Stufe wird "
-                         "als eigenes Angebot neu gerechnet; die Preise stehen im Angebot unter den Positionen.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
-        st_leiste.addWidget(hinweis, 1)
-        stl.addLayout(st_leiste)
-        st_split = QSplitter(Qt.Vertical)
-        st_split.addWidget(self.staffel_ansicht)
-        unten = QWidget()
-        ul = QVBoxLayout(unten)
-        ul.setContentsMargins(0, 0, 0, 0)
-        ul.addWidget(self.staffel_info)
-        ul.addWidget(sp_ansicht, 1)
-        st_split.addWidget(unten)
-        stl.addWidget(st_split, 1)
+        # Staffeln: Mengenstufen mit Werten je Stufe (Eingabe) und Kosten je Stufe (Ergebnis), siehe staffel_seite.py
+        st_seite = StaffelSeite(self)
+        self.staffel_modell, self.staffel_ansicht, self.staffel_info = st_seite.modell, st_seite.ansicht, st_seite.info
 
         self.reiter = QTabWidget()
         self.pos_seite = QWidget()            # Positionsliste mit Spaltenauswahl darüber
@@ -937,8 +794,7 @@ class AngebotSeite(QWidget):
         self.teile.setzen([])
         self.bild.setzen(erg)
         self.prot.setzen(self.db.protokoll(self.id))
-        self.staffel_modell.setzen(self.stufen)
-        self._staffel_stand()
+        self.st_seite.setzen()
         self.nachkalk.neu_laden()
 
     def _stange_gewaehlt(self, aktuell, _=None):
@@ -1073,98 +929,26 @@ class AngebotSeite(QWidget):
         self.f.meldung(text + ".")
         return True
 
-    # -------------------------------------------------------------- Staffeln
+    # -------------------------------------------------------------- Staffeln (staffel_seite.py)
     def staffel_neu(self):
-        self.db.staffel_neu(self.id)
-        self.neu_laden()
-        i = self.staffel_modell.index(len(self.stufen) - 1, 0)
-        self.reiter.setCurrentWidget(self.st_seite)
-        self.staffel_ansicht.setCurrentIndex(i)
-        self.staffel_ansicht.edit(i)
+        self.st_seite.neu()
 
     def staffeln_aus_angebot(self):
-        """Je Satz und je Position ohne Satz eine Stufe mit der aktuellen Menge anlegen (nur, was noch fehlt)."""
-        da = {staffeln.txt(s.get("schluessel")) for s in self.stufen}
-        neu = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.positionen) if schl not in da]
-        if not neu:
-            self.f.meldung("Alle Sätze und Positionen stehen schon in den Staffeln.", fehler=not self.stufen)
-            return 0
-        for schl, menge in neu:
-            self.db.staffel_neu(self.id, dict(schluessel=schl, menge=menge))
-        self.neu_laden()
-        self.reiter.setCurrentWidget(self.st_seite)
-        self.f.meldung(f"{len(neu)} Stufe(n) angelegt. Weitere Mengen mit Neue Stufe ergänzen.")
-        return len(neu)
+        return self.st_seite.aus_angebot()
 
     def staffeln_loeschen(self):
-        zeilen = sorted({i.row() for i in self.staffel_ansicht.selectionModel().selectedIndexes()})
-        if not zeilen:
-            self.f.meldung("Bitte zuerst die Stufen markieren, die gelöscht werden sollen.", fehler=True)
-            return
-        self.db.staffeln_loeschen([self.stufen[r]["id"] for r in zeilen])
-        self.neu_laden()
-
-    def _staffel_kennung(self):
-        return staffeln.kennung(self.kopf, self.positionen, self.stufen, self.k, self.tabellen, self.einst)
+        self.st_seite.loeschen()
 
     def _staffel_stand(self):
-        sp = self.kopf.get("staffelpreise")
-        self.staffelpreise.setzen(sp["zeilen"] if sp else [])
-        if not staffeln.gueltige(self.stufen):
-            text, farbe = "Keine Mengenstufen eingetragen.", "#595959"
-        elif not sp:
-            text, farbe = "Staffelpreise noch nicht gerechnet.", "#9C5700"
-        elif sp.get("kennung") != self._staffel_kennung():
-            text, farbe = ("VERALTET – Angebot, Stufen oder Stammdaten geändert. Das Angebot rechnet sie neu.", "#C00000")
-        else:
-            text, farbe = f"Staffelpreise aktuell (gerechnet {_zeit(sp.get('am'))}).", "#375623"
-        self.staffel_info.setText(f"<b style='color:{farbe}'>{text}</b>")
+        self.st_seite.stand()
 
     def staffelpreise_rechnen(self):
-        """Alle Stufen neu rechnen und speichern. Ergebnis: Zeilen oder None (abgebrochen)."""
-        stufen = staffeln.gueltige(self.stufen)
-        if not stufen:
-            self.f.meldung("Keine Mengenstufe eingetragen (Reiter Staffeln).", fehler=True)
-            self.staffelpreise_speichern([])
-            return []
-        fortschritt = QProgressDialog("Staffelpreise werden gerechnet …", "Abbrechen", 0, len(stufen), self)
-        fortschritt.setWindowModality(Qt.WindowModal)
-        fortschritt.setMinimumDuration(500)
-
-        def weiter(i, n):
-            fortschritt.setValue(i)
-            QApplication.processEvents()
-            return not fortschritt.wasCanceled()
-        try:
-            zeilen = staffeln.rechnen_alle(self.kopf, self.positionen, stufen, self.k, self.tabellen, self.einst, weiter)
-        except (ValueError, AssertionError) as e:
-            fortschritt.close()
-            QMessageBox.warning(self, "Staffelpreise", f"Staffelpreise abgebrochen:\n{e}")
-            return None
-        abgebrochen = fortschritt.wasCanceled()
-        fortschritt.close()
-        if abgebrochen:
-            self.f.meldung("Staffelpreise abgebrochen.", fehler=True)
-            return None
-        self.staffelpreise_speichern(zeilen)
-        self.f.meldung(f"{len(zeilen)} Mengenstufe(n) gerechnet.")
-        return zeilen
-
-    def staffelpreise_speichern(self, zeilen):
-        sp = dict(zeilen=zeilen, kennung=self._staffel_kennung(),
-                  am=datetime.datetime.now().isoformat(timespec="seconds")) if zeilen else None
-        self.db.staffelpreise_speichern(self.id, sp)
-        self.kopf["staffelpreise"] = sp
-        self._staffel_stand()
+        """Alle Stufen neu rechnen und speichern. Ergebnis: bepreiste Zeilen oder None (abgebrochen)."""
+        return self.st_seite.rechnen()
 
     def staffelpreise_aktuell(self):
         """Staffelpreise fürs Angebot; veraltete werden vorher neu gerechnet. None = abgebrochen."""
-        if not staffeln.gueltige(self.stufen):
-            return []
-        sp = self.kopf.get("staffelpreise")
-        if sp and sp.get("kennung") == self._staffel_kennung():
-            return sp["zeilen"]
-        return self.staffelpreise_rechnen()
+        return self.st_seite.aktuell()
 
     # -------------------------------------------------------------- Ausgabe (PDF, CSV)
     def _vor_ausgabe(self):

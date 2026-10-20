@@ -1095,23 +1095,93 @@ def kapitel_staffeln(i):
     i.kapitel("Staffelpreise")
     i.text("Im Reiter <i>Staffeln</i> rechnet das Programm Preise für andere Mengen. Jede Mengenstufe wird als "
            "eigenes Angebot neu optimiert und kalkuliert, weil Rüsten, Stangenwechsel und Verschnitt je Menge neu "
-           "anfallen. Das eigentliche Angebot bleibt unverändert.")
+           "anfallen. Das eigentliche Angebot bleibt unverändert. Jede Stufe kann eigene Werte haben "
+           "(Materialzuschlag, Gewinn, Nebenkosten …); leere Felder nehmen den Wert des Angebots.")
     i.bild("staffeln_vorher", "Mengenstufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
         (1, "<b>Neue Stufe</b> fügt eine Zeile an; <b>Stufen löschen</b> entfernt die markierten."),
         (2, "<b>Stufen aus Angebot</b> legt für jeden Satz und jede Position ohne Satz, die noch fehlt, eine Stufe "
             "mit der Menge aus dem Angebot an. Weitere Mengen danach mit <b>Neue Stufe</b> ergänzen."),
         (3, "Je Zeile: <b>Satz oder Pos.</b> per Doppelklick aus der Liste wählen; die Liste zeigt alle Sätze "
             "(mit ihren Positionen) und alle Positionen ohne Satz dieses Angebots. Eintippen geht weiterhin. Dazu "
-            "<b>Menge</b> in Sätzen bzw. Stück und Bemerkung. Die Prüfung zeigt, was erkannt wurde."),
-        (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen.")])
+            "<b>Menge ab</b> in Sätzen bzw. Stück, <b>Materialzuschlag</b>, <b>Zuschlag in</b> (% oder €/Einheit), "
+            "<b>Gewinn</b> und Bemerkung. Graue Werte gelten, solange das Feld leer ist. Die Prüfung zeigt, was "
+            "erkannt wurde, oder den Fehler."),
+        (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Nötig ist das selten: Zuschläge wirken sofort, "
+            "neue Mengen und Änderungen am Angebot rechnet das Programm nach kurzer Zeit im Hintergrund nach."),
+        (5, "<b>Erweiterte Einstellungen</b> zeigt die übrigen Felder je Stufe (Tabelle unten). Spalten, in denen "
+            "eine Stufe einen Wert hat, bleiben immer sichtbar.")])
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
            "8 kurze Riegel, 16 Streben, 2 Holme und 3 Traversen.")
-    i.bild("staffeln", "Ergebnis: der Preis je Gestell sinkt mit der Menge, weil Rüsten und Verschnitt sich "
-                       "auf mehr Teile verteilen",
-           hoehe=85 * mm)
-    i.text("Die Staffelpreise erscheinen im Angebot als Preistreppe unter den Positionen. Ändert sich danach etwas am "
-           "Angebot, zeigt der Reiter VERALTET; das Angebot rechnet veraltete Staffelpreise selbst neu.")
+    i.abschnitt("Werte je Stufe")
+    i.tabelle(["Feld", "Bedeutung (leer = …)"], [
+        ["Menge ab", "Kalkulationsmenge der Stufe (Mindestmenge) in Sätzen bzw. Stück; Pflicht"],
+        ["Menge bis", "Höchstmenge; leer = bis zur nächsten Stufe desselben Satzes bzw. derselben Position − 1, "
+                      "bei der höchsten Stufe offen („ab …“)"],
+        ["Materialzuschlag, Zuschlag in", "Zuschlag auf die Materialkosten nach Verlust, in % oder als fester "
+                                          "Betrag €/Einheit. Ersetzt für diese Stufe den Zuschlag Material des "
+                                          "Angebots (leer = Zuschlag Material des Angebots)"],
+        ["Gewinn", "in % auf die Selbstkosten (leer = Gewinn des Angebots)"],
+        ["Materialverlust / Ausschuss", "in % auf die Material-Grundkosten, zusätzlich zum echten Verschnitt der "
+                                        "Stangen (der steckt schon in den Grundkosten); leer = 0"],
+        ["Material-Grundpreis abweichend", "fester Material-Grundpreis €/Einheit statt der gerechneten "
+                                           "Stangenkosten"],
+        ["Gemeinkosten Fertigung", "in % auf Fertigung und Rüsten, nicht auf Material (leer = Zuschlag "
+                                   "Fertigung des Angebots)"],
+        ["Rüstkosten", "umlegen (leer) = im Stückpreis; separat = als einmalige Rüstkosten neben dem Stückpreis"],
+        ["Zusätzlicher Arbeitsgang", "Bezeichnung, Arbeitsgang [min/Einheit] mit Arbeitsgang Stundensatz "
+                                     "(leer = Maschinenstundensatz) und/oder Arbeitsgang [€/Einheit]"],
+        ["Verpackung / Nebenkosten", "€/Einheit und Nebenkosten pauschal € für die Stufe; zählen zu den "
+                                     "Selbstkosten"],
+        ["Rabatt erlaubt", "ja = negativer Materialzuschlag und negativer Gewinn sind erlaubt (sonst abgelehnt)"],
+    ], [55 * mm, 200 * mm])
+    i.abschnitt("Rechenweg je Stufe")
+    i.liste("<b>Material-Grundkosten</b>: Stangenkosten dieser Menge inkl. echtem Verschnitt (oder Grundpreis "
+            "abweichend × Menge).",
+            "<b>Materialverlust</b>: Grundkosten × Verlust %.",
+            "<b>Materialzuschlag</b>: (Grundkosten + Verlust) × Zuschlag % oder Zuschlag € × Menge.",
+            "<b>Fertigungskosten</b>: je Arbeitsschritt Zeit × Stundensatz (Reiter Zeiten &amp; Arbeitskosten) plus "
+            "zusätzlicher Arbeitsgang; <b>Rüsten</b> (Rüstzeiten × Stundensatz) einmal je Stufe, getrennt davon.",
+            "<b>Gemeinkosten</b>: (Fertigung + Rüsten) × Gemeinkosten Fertigung; Fremdleistung × Zuschlag "
+            "Fremdleistung.",
+            "<b>Selbstkosten</b> = Material + Fertigung + Rüsten + Gemeinkosten + Fremdleistung + Verpackung / "
+            "Nebenkosten.",
+            "<b>Gewinn</b> = Selbstkosten × Gewinn %; dazu als <b>Weitere Kosten</b> Pauschalen, Programmierkosten, "
+            "Angebotsaufschlag und Fracht ohne Zuschläge, Skonto eingerechnet = <b>Gesamtpreis netto</b>; dazu Umsatzsteuer = "
+            "<b>Gesamtpreis brutto</b>.", nummeriert=True)
+    i.text("Gerechnet wird ungerundet; erst der Verkaufspreis netto je Einheit wird auf Cent gerundet "
+           "(kaufmännisch), der Gesamtpreis ist Stückpreis × Menge (plus einmalige Rüstkosten). Ohne Werte je Stufe "
+           "ergibt das genau den Preis der Kalkulation.")
+    i.bild("staffeln", "Ergebnis mit Materialzuschlag 20/15/10/5 %: der Preis je Gestell sinkt mit der Menge",
+           hoehe=95 * mm, legende=[
+               (1, "Wert direkt in der Stufe ändern: der Preis rechnet sofort neu, ohne neue Optimierung."),
+               (2, "Kostenpositionen in Gruppen; ▸ klappt sie auf (<b>Alle aufklappen</b> öffnet alle). Je Stufe "
+                   "zwei Spalten: € je Einheit und gesamt."),
+               (3, "<b>Selbstkosten</b>"),
+               (4, "<b>Verkaufspreis netto je Einheit</b>, darunter Gewinn und Gewinnmarge (vom Nettopreis)."),
+               (5, "<b>Gesamtpreis netto</b>, <b>Umsatzsteuer</b> und <b>Gesamtpreis brutto</b>."),
+               (6, "Vergleich: Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position."),
+               (7, "Stand: aktuell, VERALTET (wird im Hintergrund neu gerechnet) oder Stufen mit FEHLER.")])
+    i.bild("staffeln_details", "Aufgeklappt mit erweiterten Einstellungen: Arbeitsschritte, Rüsten separat, "
+                               "Nebenkosten", hoehe=95 * mm, legende=[
+               (1, "Fertigung je Arbeitsschritt; der Tooltip zeigt Zeit und Stundensatz."),
+               (2, "Rüsten Maschine, Rüsten je Abmessung und Rüstzeiten weiterer Arbeitsschritte."),
+               (3, "Gemeinkosten mit ihrer Basis."),
+               (4, "Einmalige Rüstkosten (Rüstkosten = separat): nicht im Stückpreis, aber im Gesamtpreis."),
+               (5, "Änderung des Preises je Einheit zur letzten Eingabe, in € und %.")])
+    i.abschnitt("Prüfung und Fehler")
+    i.liste("Rot markiert und mit FEHLER in der Prüfung: Menge fehlt, Menge doppelt (gleicher Satz bzw. Position), "
+            "Menge bis kleiner als Menge ab, sich überschneidende Mengenbereiche, Prozentwerte außerhalb des "
+            "zulässigen Bereichs, negative Werte ohne „Rabatt erlaubt“.",
+            "Fehlt der Materialpreis (keine Preise in den Stammdaten, kein Schnittplan), rechnet das Programm nicht "
+            "mit 0: die Stufe zeigt „FEHLER: Materialpreis fehlt“ und bekommt keinen Preis.",
+            "Stufen mit FEHLER kommen nicht ins Angebot.")
+    i.text("Die Staffelpreise erscheinen im Angebot als Preistreppe unter den Positionen, mit Mengenbereich "
+           "(z. B. „1“, „2–4“, „ab 10“) und gegebenenfalls einmaligen Rüstkosten. Ändert sich etwas am "
+           "Angebot, zeigt der Reiter VERALTET und rechnet nach; das Angebot rechnet veraltete Staffelpreise "
+           "vor dem Drucken ebenfalls selbst neu. Ältere Angebote rechnen unverändert weiter: ihre Stufen haben "
+           "leere Felder, also die Werte des Angebots. Vor dem Umstellen einer älteren Datendatei legt das "
+           "Programm eine Sicherung „vor_Schema_14“ im Ordner Sicherung an.")
 
 
 def kapitel_nachkalkulation(i):

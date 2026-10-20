@@ -115,7 +115,8 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
 def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=","):
     """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
     zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt}], netto, mwst, brutto,
-    mwst_satz, staffeln [{art, pos, text, menge, preis, gesamt}], hinweise (Positionen mit Hinweis)."""
+    mwst_satz, staffeln [{art, pos, text, menge, bereich ('ab 10' bzw. '10–49'), preis, gesamt}] (Stufen mit FEHLER
+    fehlen), hinweise (Positionen mit Hinweis)."""
     def preis(i):
         z = kalk_zeilen[i]
         return round(_wert(z["preis_teil"]) if z else 0, 2)
@@ -155,13 +156,24 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     mwst = kaufm_runden(netto * satz_mwst, 2)
     staffeln = []
     for z in staffelpreise or ():
+        if z.get("preis_einheit") is None:      # Stufe mit FEHLER (z. B. Materialpreis fehlt): nicht ins Angebot
+            continue
+        bis = z.get("bis")
+        if not isinstance(bis, (int, float)):
+            bereich = f"ab {z['menge']:.0f}"
+        else:
+            bereich = f"{z['menge']:.0f}–{bis:.0f}" if bis > z["menge"] else f"{z['menge']:.0f}"
+        einmalig = ((z.get("preis") or {}).get("einmalig")) or 0
+        zus = f", zzgl. einmalige Rüstkosten {f'{einmalig:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')} €" \
+            if einmalig else ""
         if z.get("einheit") == "Satz":
             bez = z.get("bezeichnung") or ""
-            staffeln.append(dict(art="satz", pos=None, text=f"Satz {z['schluessel']}" + (f" ({bez})" if bez else ""),
-                                 menge=z["menge"], preis=z["preis_einheit"], gesamt=z["preis_gesamt"]))
+            staffeln.append(dict(art="satz", pos=None, text=f"Satz {z['schluessel']}" + (f" ({bez})" if bez else "") + zus,
+                                 menge=z["menge"], bereich=bereich, preis=z["preis_einheit"], gesamt=z["preis_gesamt"]))
         else:
-            staffeln.append(dict(art="teil", pos=z["schluessel"], text=z.get("bezeichnung") or "", menge=z["menge"],
-                                 preis=z["preis_einheit"], gesamt=z["preis_gesamt"]))
+            staffeln.append(dict(art="teil", pos=z["schluessel"], text=(z.get("bezeichnung") or "") + zus,
+                                 menge=z["menge"], bereich=bereich, preis=z["preis_einheit"],
+                                 gesamt=z["preis_gesamt"]))
     return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=netto + mwst, mwst_satz=satz_mwst, staffeln=staffeln,
                 hinweise=hinweise, zahlung=zahlungstext(kopf), anschrift=[])
 
