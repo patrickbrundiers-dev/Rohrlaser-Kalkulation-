@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 import beispiel_angebot  # noqa: E402
 from abnahme_angebote import ANGEBOTE  # noqa: E402
 from rohrlaser import ausgabe, rechnen, staffeln  # noqa: E402
-from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
 EPS = 1e-9
@@ -256,8 +256,8 @@ con.execute("PRAGMA user_version=13")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == 14
-sicherung = list((alt.parent / "Sicherung").glob("*vor_Schema_14.db"))
+assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+sicherung = list((alt.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}.db"))
 assert len(sicherung) == 1
 alt_con = sqlite3.connect(sicherung[0])
 assert alt_con.execute("PRAGMA user_version").fetchone()[0] == 13 and alt_con.execute(

@@ -165,9 +165,12 @@ r = dlg.zeile_neu()
 dlg.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
 dlg.tabelle.cellWidget(r, 3).setText("12,5")
 werte = dlg.werte()
-assert werte[0] == "2xM8" and json.loads(werte[1]) == [
+liste = json.loads(werte[1])
+staende = [e.pop("stand") for e in liste]      # Preisstand der Stammdaten beim Hinzufügen
+assert werte[0] == "2xM8" and liste == [
     dict(name="Pulverbeschichten", menge=None, preis=None, text="RAL 9005"),
     dict(name="Gravur extra", menge=None, preis=12.5, text=None)]
+assert [(s["art"], s["preis"]) for s in staende] == [("€/m²", 18.0), ("s/Stück", 20.0)]
 dlg.tabelle.cellWidget(r, 2).setText("abc")
 try:
     dlg.werte()

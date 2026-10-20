@@ -1,7 +1,13 @@
 """Dialog 'Zusatzarbeiten …' einer oder mehrerer Positionen: Gewinde (Anzahl x Größe) und Zusatzarbeiten
-aus den Stammdaten (Verzinken, Pulverbeschichten, Gravur extra …) mit Menge, Preis bzw. Zeit und Text."""
+aus den Stammdaten (Verzinken, Pulverbeschichten, Gravur extra …) mit Menge, Preis bzw. Zeit und Text.
+
+Zur Auswahl stehen nur aktive Zusatzarbeiten, häufig verwendete zuerst, dann nach Kategorie. Beim Hinzufügen wird
+der Preisstand (Abrechnung, Preis je Einheit, Mindestbetrag, Fremdleistung) in der Position gespeichert; spätere
+Änderungen der Stammdaten ändern das Angebot erst nach 'Preise aus Stammdaten übernehmen'."""
 import json
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QVBoxLayout)
 
@@ -25,10 +31,13 @@ def _zahl(text, titel):
 class ZusatzDialog(QDialog):
     """p: erste gewählte Position (für Vorgaben und automatische Mengen), anzahl: gewählte Positionen."""
 
-    def __init__(self, parent, p, anzahl, k, tabellen):
+    def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None):
         super().__init__(parent)
         self.p, self.k = p, k
         self.katalog = {z["name"]: z for z in tabellen.get("zusatzarbeiten") or () if z.get("name")}
+        self.saetze = rechnen.stundensaetze(tabellen)
+        self.haeufig = haeufig or {}
+        self.stand = {}         # Auswahlfeld -> (Name beim Öffnen, gespeicherter Preisstand)
         self.gewinde_tab = tabellen.get("gewinde") or []
         self.setWindowTitle("Zusatzarbeiten" + (f" für {anzahl} Positionen" if anzahl > 1 else
                                                f" Pos. {p.get('pos') or ''} {p.get('artikel') or ''}"))
@@ -57,8 +66,13 @@ class ZusatzDialog(QDialog):
         neu.clicked.connect(lambda: self.zeile_neu())
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(self._entfernen)
+        self.stammdaten_knopf = QPushButton("Preise aus Stammdaten übernehmen")
+        self.stammdaten_knopf.setToolTip("Gespeicherten Preisstand der Zeilen durch die aktuellen Werte der "
+                                         "Stammdaten ersetzen (gilt beim Klick auf OK)")
+        self.stammdaten_knopf.clicked.connect(self.stand_verwerfen)
         leiste.addWidget(neu)
         leiste.addWidget(weg)
+        leiste.addWidget(self.stammdaten_knopf)
         leiste.addStretch(1)
         lay.addLayout(leiste)
         text = ("Menge und Preis leer lassen = automatisch: Menge aus der Position (Gewicht, Außenfläche, Länge "
@@ -68,6 +82,8 @@ class ZusatzDialog(QDialog):
                      "automatische Mengen rechnet jede Position selbst.")
         if not self.katalog:
             text += " Unter Einstellungen (Zusatzarbeiten) ist noch keine Zusatzarbeit angelegt."
+        text += (" Der Preis der Stammdaten wird beim Hinzufügen in der Position gespeichert (Preisstand); spätere "
+                 "Änderungen der Stammdaten gelten erst nach 'Preise aus Stammdaten übernehmen'.")
         hinweis = QLabel(text)
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #595959;")
@@ -90,12 +106,10 @@ class ZusatzDialog(QDialog):
         r = self.tabelle.rowCount()
         self.tabelle.insertRow(r)
         cb = QComboBox()
-        namen = list(self.katalog)
-        if e.get("name") and e["name"] not in self.katalog:
-            namen.append(e["name"])
-        cb.addItems(namen)
+        self._auswahl_fuellen(cb, e.get("name"))
         if e.get("name"):
             cb.setCurrentText(e["name"])
+        self.stand[cb] = (e.get("name"), e.get("stand") if isinstance(e.get("stand"), dict) else None)
         self.tabelle.setCellWidget(r, 0, cb)
         self.tabelle.setCellWidget(r, 1, QLabel())
         menge = QLineEdit(zahl_als_text(e.get("menge"), tausender=False) if e.get("menge") is not None else "")
@@ -110,10 +124,59 @@ class ZusatzDialog(QDialog):
     def _zeile_von(self, widget):
         return next(r for r in range(self.tabelle.rowCount()) if self.tabelle.cellWidget(r, 0) is widget)
 
+    def _auswahl_fuellen(self, cb, name=None):
+        """Aktive Zusatzarbeiten: häufig verwendete zuerst, dann nach Kategorie (Überschriften nicht wählbar).
+        Ein inaktiver oder gelöschter Name der Position bleibt am Ende wählbar."""
+        modell = QStandardItemModel(cb)
+
+        def ueberschrift(t):
+            it = QStandardItem(f"— {t} —")
+            it.setFlags(Qt.NoItemFlags)
+            modell.appendRow(it)
+
+        aktive = [z for z in self.katalog.values() if z.get("aktiv") != "nein"]
+        oft = sorted((z["name"] for z in aktive if self.haeufig.get(z["name"])),
+                     key=lambda n: (-self.haeufig[n], n.lower()))[:5]
+        if oft and len(aktive) > 5:
+            ueberschrift("Häufig verwendet")
+            for n in oft:
+                modell.appendRow(QStandardItem(n))
+        gruppen = {}
+        for z in aktive:
+            gruppen.setdefault(z.get("kategorie") or "ohne Kategorie", []).append(z["name"])
+        for g in sorted(gruppen, key=lambda g: (g == "ohne Kategorie", g.lower())):
+            if len(gruppen) > 1 or oft and len(aktive) > 5:
+                ueberschrift(g)
+            for n in sorted(gruppen[g], key=str.lower):
+                modell.appendRow(QStandardItem(n))
+        if name and name not in {z["name"] for z in aktive}:
+            ueberschrift("nicht mehr aktiv" if name in self.katalog else "nicht in den Stammdaten")
+            modell.appendRow(QStandardItem(name))
+        cb.setModel(modell)
+        erster = next((i for i in range(modell.rowCount()) if modell.item(i).isEnabled()), -1)
+        cb.setCurrentIndex(erster)
+
+    def stand_verwerfen(self):
+        """Preisstand aller Zeilen verwerfen: beim OK gelten die aktuellen Stammdaten."""
+        for cb in list(self.stand):
+            self.stand[cb] = (self.stand[cb][0], None)
+            self._vorgaben(cb)
+
+    def eintrag(self, cb):
+        """(Stammdaten-ähnliche Zeile mit Preis je Einheit, Preisstand oder None) der gewählten Zusatzarbeit: der
+        gespeicherte Preisstand, solange der Name nicht geändert wurde, sonst die Stammdaten."""
+        name0, stand = self.stand.get(cb, (None, None))
+        if stand and cb.currentText() == name0:
+            return stand, stand
+        kz = self.katalog.get(cb.currentText())
+        if kz is None:
+            return None, None
+        return rechnen.zusatz_stand(kz, self.saetze), None
+
     def _vorgaben(self, cb):
         """Abrechnung und Vorgabewerte (grau) der gewählten Zusatzarbeit anzeigen."""
         r = self._zeile_von(cb)
-        kz = self.katalog.get(cb.currentText())
+        kz, stand = self.eintrag(cb)
         art = (kz or {}).get("art")
         self.tabelle.cellWidget(r, 1).setText(art or "unbekannt")
         auto = rechnen.zusatz_menge_auto(art, self.p, self.k) if art else None
@@ -121,8 +184,9 @@ class ZusatzDialog(QDialog):
         self.tabelle.cellWidget(r, 2).setPlaceholderText(
             f"auto: {rechnen.zahl(auto, 3)} {einheit}" if auto is not None else f"{einheit} je Teil")
         einheit_preis = "s" if art == "s/Stück" else "€"
+        quelle = "Preisstand " + ".".join(reversed((stand.get("datum") or "").split("-"))) if stand else "Stammdaten"
         self.tabelle.cellWidget(r, 3).setPlaceholderText(
-            f"Stammdaten: {rechnen.zahl((kz or {}).get('preis'))} {einheit_preis}" if kz else "")
+            f"{quelle}: {rechnen.zahl((kz or {}).get('preis'))} {einheit_preis}" if kz else "")
 
     def _entfernen(self):
         for r in sorted({i.row() for i in self.tabelle.selectedIndexes()}, reverse=True):
@@ -151,6 +215,9 @@ class ZusatzDialog(QDialog):
             e = dict(name=name, menge=_zahl(self.tabelle.cellWidget(r, 2).text(), f"Zeile {r + 1}: Menge"),
                      preis=_zahl(self.tabelle.cellWidget(r, 3).text(), f"Zeile {r + 1}: Preis bzw. Zeit"),
                      text=self.tabelle.cellWidget(r, 4).text().strip() or None)
+            stand = self.eintrag(self.tabelle.cellWidget(r, 0))[0]
+            if stand:
+                e["stand"] = stand
             for n in ("menge", "preis"):
                 if e[n] is not None and e[n] < 0:
                     raise ValueError(f"Zeile {r + 1}: negative Werte sind nicht zulässig.")

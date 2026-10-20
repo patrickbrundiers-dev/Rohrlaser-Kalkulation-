@@ -25,7 +25,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 14     # 14: Werte je Staffel (Materialzuschlag, Gewinn, Nebenkosten …), leer = Wert des Angebots
+SCHEMA_VERSION = 15     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -220,6 +220,66 @@ class Datenbank:
         with self.con:
             self._stammdaten_geaendert(tabelle)
             self.con.executemany(f'DELETE FROM "{tabelle}" WHERE id=?', [(i,) for i in ids])
+
+    # -------------------------------------------------------------- Zusatzarbeiten
+    def _zusatz_positionen(self, name=None):
+        """[(Positions-ID, Angebots-ID, Angebotsnummer, Liste)] aller Positionen mit Zusatzarbeiten (nur mit
+        diesem Namen, falls angegeben)."""
+        out = []
+        for pid, aid, nummer, roh in self.con.execute(
+                "SELECT p.id, p.angebot_id, a.nummer, p.zusatz FROM positionen p JOIN angebote a ON a.id = p.angebot_id "
+                "WHERE p.zusatz IS NOT NULL AND p.zusatz <> ''"):
+            try:
+                liste = json.loads(roh)
+            except ValueError:
+                continue
+            if not isinstance(liste, list):
+                continue
+            if name is None or any(isinstance(e, dict) and e.get("name") == name for e in liste):
+                out.append((pid, aid, nummer, liste))
+        return out
+
+    def zusatz_verwendung(self, name):
+        """Wo eine Zusatzarbeit verwendet wird: {angebote: [Nummer], positionen: Anzahl, ohne_stand: Anzahl
+        Positionen ohne gespeicherten Preisstand (rechnen nach dem Löschen nicht mehr)}."""
+        treffer = self._zusatz_positionen(name)
+        ohne = sum(1 for *_, liste in treffer if any(isinstance(e, dict) and e.get("name") == name
+                                                     and not isinstance(e.get("stand"), dict) for e in liste))
+        return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer), ohne_stand=ohne)
+
+    def zusatz_haeufigkeit(self):
+        """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten)."""
+        n = {}
+        for *_, liste in self._zusatz_positionen():
+            for name in {e.get("name") for e in liste if isinstance(e, dict) and e.get("name")}:
+                n[name] = n.get(name, 0) + 1
+        return n
+
+    def zusatz_speichern(self, zeilen_id, werte):
+        """Zusatzarbeit anlegen (zeilen_id None) oder alle Felder ersetzen. Wird der Name geändert, ändern sich die
+        Namen in den Positionen mit (Preise bleiben). Ergebnis: ID. Doppelter Name -> ValueError."""
+        felder = [f.name for f in TABELLE["zusatzarbeiten"].felder]
+        werte = {n: werte.get(n) for n in felder}
+        try:
+            with self.con:
+                self._stammdaten_geaendert("zusatzarbeiten")
+                if zeilen_id is None:
+                    return self.con.execute(
+                        f'INSERT INTO zusatzarbeiten ({", ".join(chr(34) + n + chr(34) for n in felder)}) '
+                        f'VALUES ({", ".join("?" * len(felder))})', [werte[n] for n in felder]).lastrowid
+                alt = self.con.execute("SELECT name FROM zusatzarbeiten WHERE id=?", (zeilen_id,)).fetchone()
+                self.con.execute(f'UPDATE zusatzarbeiten SET {", ".join(chr(34) + n + chr(34) + "=?" for n in felder)} '
+                                 "WHERE id=?", [werte[n] for n in felder] + [zeilen_id])
+                if alt and alt[0] and werte["name"] and alt[0] != werte["name"]:
+                    for pid, _, _, liste in self._zusatz_positionen(alt[0]):
+                        for e in liste:
+                            if isinstance(e, dict) and e.get("name") == alt[0]:
+                                e["name"] = werte["name"]
+                        self.con.execute("UPDATE positionen SET zusatz=? WHERE id=?",
+                                         (json.dumps(liste, ensure_ascii=False), pid))
+                return zeilen_id
+        except sqlite3.IntegrityError:
+            raise ValueError(f"Eine Zusatzarbeit '{werte['name']}' gibt es schon.")
 
     def stammdaten_ersetzen(self, daten, einstellungen, herkunft):
         """Alle Stammdatentabellen in einem Schritt ersetzen (z. B. Beispieldaten einer neuen Datei).

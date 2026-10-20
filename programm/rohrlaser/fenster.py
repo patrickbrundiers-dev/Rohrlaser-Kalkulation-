@@ -590,7 +590,11 @@ class Hauptfenster(QMainWindow):
         self.einstellungen = EinstellungenSeite(db, self.meldung)
         seite = {s.t.name: s for s in self.seiten}
         self.zeitvorgaben = ZeitvorgabenSeite(seite["stundensaetze"], seite["arbeitsschritte"])
-        unter = [s for s in self.seiten if s.t.name not in ("kunden", "stundensaetze", "arbeitsschritte")]
+        # Zusatzarbeiten: eigene Verwaltung (Übersicht, Formular, Preisvorschau) statt der Stammdatentabelle
+        from .zusatz_verwaltung import ZusatzVerwaltung
+        self.zusatz = ZusatzVerwaltung(db, self.meldung)
+        unter = [self.zusatz if s.t.name == "zusatzarbeiten" else s for s in self.seiten
+                 if s.t.name not in ("kunden", "stundensaetze", "arbeitsschritte")]
         self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben])
         self.reiter.addTab(self.bereich, "Einstellungen")
         for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
@@ -666,6 +670,8 @@ class Hauptfenster(QMainWindow):
         """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage)."""
         if seite in (self.zeitvorgaben.saetze, self.zeitvorgaben.schritte):
             seite = self.zeitvorgaben
+        if getattr(seite, "t", None) is not None and seite.t.name == "zusatzarbeiten":
+            seite = self.zusatz
         if self.bereich.unter.indexOf(seite) >= 0:
             self.bereich.zeigen(seite)
             seite = self.bereich
@@ -683,6 +689,7 @@ class Hauptfenster(QMainWindow):
             seite.neu_laden()
         for s in self.seiten:
             s.neu_laden()
+        self.zusatz.neu_laden()
         self.einstellungen.neu_laden()
 
     def anleitung_oeffnen(self):

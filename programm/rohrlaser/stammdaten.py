@@ -19,9 +19,16 @@ KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium")
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
 ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
-# Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge oder Stück; 's/Stück' = Zeit in
-# Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur, die nicht im STEP-Modell ist)
-ZUSATZARTEN = ("€/kg", "€/m²", "€/m", "€/Stück", "s/Stück")
+# Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge, Stück oder einmal je Angebot (pauschal,
+# auf die Teile umgelegt); 's/Stück' = Zeit in Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur,
+# die nicht im STEP-Modell ist)
+ZUSATZARTEN = ("€/kg", "€/m²", "€/m", "€/Stück", "s/Stück", "€/Angebot")
+ZUSATZART_TEXT = {"€/Stück": "pro Stück", "€/Angebot": "pauschal je Angebot", "€/kg": "nach Gewicht",
+                  "€/m²": "nach Außenfläche", "€/m": "nach Länge", "s/Stück": "Maschinenzeit zur Laserzeit"}
+ZEITEINHEITEN = {"s": 1, "min": 60, "h": 3600}
+ZUSCHLAG_ARTEN = ("%", "€")
+ZUSCHLAG_BASIS = ("Arbeit", "Material", "Arbeit und Material")
+ZUSATZ_KATEGORIEN = ("Oberfläche", "Nachbearbeitung", "Laser", "Montage", "Prüfung", "Verpackung", "Sonstiges")
 # Arbeitsschritte: Stundensatz 'Maschine' = Stundensatz der im Angebot gewählten Maschine (Stammdaten Maschinen)
 SATZ_MASCHINE = "Maschine"
 ZEITARTEN = ("Maschine", "Personal")
@@ -37,7 +44,7 @@ SCHRITTE_FEST = {
     "Rüsten je Abmessung": "Rüstzeit je Abmessung aus dem Angebot (Vorgabe Einstellungen)",
     "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen",
 }
-ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk"}
+ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot"}
 
 
 @dataclass(frozen=True)
@@ -264,16 +271,31 @@ ZUSATZARBEITEN = Tabelle(
     "zusatzarbeiten", "Zusatzarbeiten",
     (Feld("name", "Zusatzarbeit", pflicht=True, breite=160),
      Feld("art", "Abrechnung", "auswahl", auswahl="zusatzart", pflicht=True, breite=80),
-     Feld("preis", "Preis [€] bzw. Zeit [s] je Einheit", "zahl", 0, 100000, stellen=2, pflicht=True, breite=95),
+     Feld("preis", "Festpreis [€] bzw. Zeit [s] je Einheit", "zahl", 0, 100000, stellen=2, breite=95),
      Feld("mindest", "Mindestbetrag je Angebot [€]", "zahl", 0, 100000, stellen=2, breite=95),
      Feld("fremd", "Fremdleistung", "auswahl", auswahl="janein", breite=80),
      Feld("angebotstext", "Text im Angebot", breite=170),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Beschreibung", breite=260),
+     # Schema 15 (alle leer = wie bisher nur Festpreis): Kategorie, Status, Arbeitszeit × Stundensatz, Material mit
+     # Zuschlag, weiterer Zuschlag; rechnen.zusatz_preis bildet daraus den Preis je Einheit
+     Feld("kategorie", "Kategorie", breite=110),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("zeit", "Zeitaufwand je Einheit", "zahl", 0, 100000, stellen=2, breite=80),
+     Feld("zeit_einheit", "Zeiteinheit", "auswahl", auswahl="zeiteinheit", breite=60),
+     Feld("satz_id", "Stundensatz-ID", "auswahl", auswahl="zusatzsatz", breite=110),
+     Feld("satz", "Stundensatz eigener [€/h]", "zahl", 0, 10000, stellen=2, breite=80),
+     Feld("material", "Materialkosten je Einheit [€]", "zahl", 0, 100000, stellen=2, breite=80),
+     Feld("zuschlag_material", "Materialzuschlag", "zahl", 0, 100000, stellen=2, breite=80),
+     Feld("zuschlag_material_art", "Materialzuschlag in", "auswahl", auswahl="zuschlagart", breite=60),
+     Feld("zuschlag_weitere", "Weiterer Zuschlag [%]", "zahl", 0, 1000, stellen=2, breite=80),
+     Feld("zuschlag_weitere_basis", "Weiterer Zuschlag auf", "auswahl", auswahl="zuschlagbasis", breite=110)),
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
-    "Umfang × Länge), €/m (Teilelänge), €/Stück, s/Stück (Zeit je Stück, wird zur Schneidzeit addiert, z. B. "
-    "Gravur, die nicht im Teil ist). Mindestbetrag: liegt die Summe im Angebot darunter, wird auf den "
-    "Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag Fremdleistung, sonst Zuschlag Fertigung.")
+    "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
+    "(Zeit je Stück, wird zur Schneidzeit addiert, z. B. Gravur, die nicht im Teil ist). Preis je Einheit = "
+    "Festpreis + Zeitaufwand × Stundensatz + Material mit Materialzuschlag + weiterer Zuschlag. Mindestbetrag: "
+    "liegt die Summe im Angebot darunter, wird auf den Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag "
+    "Fremdleistung, sonst Zuschlag Fertigung.")
 
 STUNDENSAETZE = Tabelle(
     "stundensaetze", "Stundensätze",
@@ -314,7 +336,7 @@ VERWEISE = {
     ("profile", "profil_id"): (("preise", "profil_id"),),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("schneiddaten", "werkstoff_id")),
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"),),
-    ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"),),
+    ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id")),
 }
 
 
@@ -473,7 +495,9 @@ class Kontext:
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),
-                         "zeitbezug": list(ZEITBEZUG)}[quelle])]
+                         "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
+                         "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
+                         "zuschlagbasis": list(ZUSCHLAG_BASIS)}[quelle])]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
@@ -513,6 +537,14 @@ def pruefen(t, z, k):
             return f"FEHLER: {f.titel} außerhalb {zahl_als_text(f.von)}–{zahl_als_text(f.bis)}"
         if w not in (None, "") and f.art == "auswahl" and w not in k.auswahl(f.auswahl):
             return f"FEHLER: {f.titel} unbekannt"
+    if t is ZUSATZARBEITEN:
+        if z.get("art") == "s/Stück":
+            if z.get("preis") in (None, ""):
+                return "FEHLER: Zeit je Stück fehlt"
+        elif all(z.get(n) in (None, "", 0) for n in ("preis", "zeit", "material")):
+            return "FEHLER: Festpreis, Zeitaufwand oder Materialkosten fehlen"
+        if z.get("zeit") and z.get("satz_id") in (None, "") and z.get("satz") in (None, ""):
+            return "FEHLER: Stundensatz fehlt"
     if t is ARBEITSSCHRITTE:
         if z.get("schritt") in SCHRITTE_FEST and (z.get("ruestzeit") or z.get("zeit")):
             return "WARNUNG: Zeit rechnet das Programm selbst, Rüstzeit und Zeit je Einheit hier werden nicht verwendet"
@@ -671,11 +703,12 @@ def beispiel_arbeitsschritte():
 
 def beispiel_zusatzarbeiten():
     """Vorbelegung der Zusatzarbeiten (Beispielpreise, bitte durch eigene ersetzen)."""
-    werte = [("Feuerverzinken", "€/kg", 0.65, 120.0, "ja", "feuerverzinkt", "Beispielpreis; Mindestbetrag der Verzinkerei"),
-             ("Galvanisch verzinken", "€/kg", 1.20, 80.0, "ja", "galvanisch verzinkt", "Beispielpreis"),
+    werte = [("Feuerverzinken", "€/kg", 0.65, 120.0, "ja", "feuerverzinkt", "Beispielpreis; Mindestbetrag der Verzinkerei",
+              "Oberfläche"),
+             ("Galvanisch verzinken", "€/kg", 1.20, 80.0, "ja", "galvanisch verzinkt", "Beispielpreis", "Oberfläche"),
              ("Pulverbeschichten", "€/m²", 18.00, 90.0, "ja", "pulverbeschichtet",
-              "Beispielpreis; Farbe je Position als Text eintragen, z. B. RAL 7016"),
-             ("Entgraten", "€/Stück", 0.50, None, "nein", "entgratet", "Beispielpreis"),
+              "Beispielpreis; Farbe je Position als Text eintragen, z. B. RAL 7016", "Oberfläche"),
+             ("Entgraten", "€/Stück", 0.50, None, "nein", "entgratet", "Beispielpreis", "Nachbearbeitung"),
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
-              "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)")]
+              "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte]

@@ -880,7 +880,8 @@ class AngebotSeite(QWidget):
             self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
             return False
         if werte is None:
-            d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen)
+            d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen,
+                            self.db.zusatz_haeufigkeit())
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
