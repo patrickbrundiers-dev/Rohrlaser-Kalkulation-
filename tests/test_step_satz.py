@@ -163,7 +163,7 @@ else:
         gesehen["vorgabe"] = [(z.ws.currentText(), z.sp.value()) for z in d.zeilen]   # Einstellung, 1 Stück
         d.alle_setzen("S355-10219", 3)
         d.satz_spin.setValue(4)                                       # oben 4 Sätze eintragen
-        gesehen["kopf"] = d.baum.headerItem().text(4)
+        gesehen["kopf"] = d.baum.headerItem().text(5)
         gesehen["je_satz"] = [z.sp.value() for z in d.zeilen]          # Spalte zeigt jetzt Stück je Satz
         d.zeile_setzen("T08_Gestell_Baugruppe-K4", uebernehmen=False)
         d.baum.setCurrentItem(d.zeilen[0].it)

@@ -99,13 +99,15 @@ class StepPruefDialog(QDialog):
     leer (offen), bis er gewählt wird, und Bleche mit Prüfstatus 'prüfen' sind erst nach Anhaken gewählt."""
     BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
     AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
-    SPALTEN = ("Teil", "In Datei", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl", "Länge [mm]", "Schneidweg [mm]",
-               "Konturen", "Hinweis")
+    SPALTEN = ("Teil", "In Datei", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl", "Länge [mm]",
+               "Schneidweg [mm]", "Konturen", "Hinweis")
+    SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_HINWEIS = range(2, 10)
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None):
-        from . import step, zukauf
+        from . import step
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
+        self.werkstoff, self.stueck, self.zukauf_liste = werkstoff, stueck, zukauf_liste
         mit_blechen = zukauf_liste is not None
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
         self.resize(1350, 720)
@@ -157,103 +159,8 @@ class StepPruefDialog(QDialog):
         self.baum.setUniformRowHeights(True)
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
-        self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
-        self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
-        teile = step.teile_gruppen(messwerte, mit_blechen)
-        fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
-        profile = k.auswahl("profil")
-        reihe = sorted(teile.items(), key=lambda e: (self.dateien.index(messwerte[e[0]].get("datei")),
-                                                     step.profil_vorschlag(messwerte[e[0]], k.profile) or ""))
-        for erster, liste in reihe:
-            m = messwerte[erster]
-            datei = m.get("datei")
-            ist_blech = step.blech(m) is not None
-            vorschlag = self.BLECHGRUPPE if ist_blech else step.profil_vorschlag(m, k.profile)
-            fehlt = not ist_blech and vorschlag not in k.profile
-            g = self.gruppen.get((datei, vorschlag))
-            if g is None:
-                g = self.gruppen[(datei, vorschlag)] = QTreeWidgetItem(self.baum)
-                g.setFirstColumnSpanned(True)
-                g.setData(0, Qt.UserRole, vorschlag)
-                f = g.font(0)
-                f.setBold(True)
-                g.setFont(0, f)
-                g.setBackground(0, QBrush(QColor("#FCE4D6" if fehlt else "#E2EFDA" if ist_blech else "#DDEBF7")))
-                g.setExpanded(True)
-            it = QTreeWidgetItem(g)
-            it.setText(0, m.get("artikel") or m.get("datei") or "")
-            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen") is not False) if ist_blech \
-                else step.gewaehlt(m)
-            it.setCheckState(0, Qt.Checked if gewaehlt else Qt.Unchecked)
-            it.setText(1, str(len(liste)))
-            for c, w in ((5, _f(m, "laenge")), (6, _f(m, "schneidweg"))):
-                it.setText(c, zahl_als_text(w, 1))
-            it.setText(7, str(int(_f(m, "konturen"))))
-            hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
-            if ist_blech:
-                hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
-                if m.get("pruefstatus") == "prüfen":
-                    hinweis.append("PRÜFEN – zum Übernehmen anhaken")
-            if step.unsicher(m):
-                hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
-            hinweis += [h for h in [m.get("hinweise")] if h]
-            it.setText(8, "; ".join(hinweis))
-            if m.get("pruefstatus") == "prüfen":
-                it.setBackground(8, QBrush(QColor("#FFEB9C")))
-            for c in (1, 4, 5, 6, 7):
-                it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
-            pr = QComboBox()
-            ws = QComboBox()
-            liste_fuellen(ws, k, "werkstoff")
-            if ist_blech:                   # Zukaufartikel: automatisch oder ein vorhandener Blechartikel
-                pr.addItem(self.AUTOMATISCH, None)
-                gleich, aehnlich = zukauf.blech_dubletten(step.blech(m), m.get("_werkstoff"), zukauf_liste)
-                for a, art in [(a, "gleich") for a in gleich] + [(a, "ähnlich") for a in aehnlich]:
-                    pr.addItem(f"{a.get('bezeichnung')} ({art}" + (", EK fehlt)" if zukauf.ek_fehlt(a) else ")"),
-                               a["id"])
-                if gleich:
-                    hinweis.append(f"vorhanden: {gleich[0].get('bezeichnung')}")
-                elif aehnlich:
-                    hinweis.append(f"ähnlich: {aehnlich[0].get('bezeichnung')} (Werkstoff/Kontur prüfen)")
-                else:
-                    hinweis.append("neuer Zukaufartikel, EK fehlt")
-                pr.setCurrentIndex(max(pr.findData(m.get("_blech_artikel")), 0) if m.get("_blech_artikel") else 0)
-                pr.setToolTip("Zukaufartikel des Blechs: automatisch = gleicher vorhandener Artikel, sonst neu anlegen "
-                              "(ohne Einkaufspreis)")
-                ws.setCurrentText(m.get("_werkstoff") or "")     # Werkstoff wird bei Blechen nie angenommen
-                ws.setToolTip("Werkstoff des Blechs; leer = offen (wird nicht angenommen)")
-            else:
-                pr.setEditable(True)        # neue Profil-ID eintippen: wird beim Übernehmen angelegt (Rückfrage)
-                pr.addItems(sorted(set(profile) | ({vorschlag} if vorschlag else set())))
-                pr.setCurrentText(m.get("_profil") or vorschlag or "")
-                ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
-            it.setText(8, "; ".join(hinweis))
-            sp = QSpinBox()
-            sp.setRange(0, 100000)
-            sp.setSpecialValueText("leer")
-            for c, w in ((2, pr), (3, ws), (4, sp)):
-                self.baum.setItemWidget(it, c, w)
-            it.setData(0, Qt.UserRole, len(self.zeilen))
-            z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
-                       m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
-                       m.get("_je_satz") or len(liste), ist_blech)
-            sp.setValue(z.werte[self._modus(datei)])
-            sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
-            self.zeilen.append(z)
-        self.fehler_gruppen = {}
-        for i in fehler:
-            m = messwerte[i]
-            g = self.fehler_gruppen.get(m.get("datei"))
-            if g is None:
-                g = self.fehler_gruppen[m.get("datei")] = QTreeWidgetItem(self.baum, ["Nicht übernehmbar"])
-                g.setFirstColumnSpanned(True)
-                g.setBackground(0, QBrush(QColor("#F8CBAD")))
-                g.setExpanded(True)
-            it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "",
-                                     "", "", m.get("fehler") or (step.blech_text(m) + ": kein Rohrlaserteil" if step.blech(m) else "")
-                                     or m.get("hinweise") or "kein Rohrteil erkannt"])
-            it.setData(1, Qt.UserRole, i)
-        for c, b in enumerate((250, 55, 130, 120, 75, 80, 95, 65, 260)):
+        self._baum_fuellen()
+        for c, b in enumerate((250, 55, 150, 130, 120, 75, 80, 95, 65, 260)):
             self.baum.setColumnWidth(c, b)
 
         # Werte für mehrere Teile auf einmal
@@ -296,7 +203,8 @@ class StepPruefDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.addWidget(teil, 1)
         hinweis = QLabel("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
-                         "eintragen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
+                         "eintragen. Art: bei Flachstahl/Blech und Profil/Kantteil die andere Art wählen, wenn das "
+                         "Teil falsch erkannt wurde. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
                          "Enthält eine Datei mehrere Teile, oben die Anzahl Sätze eintragen (leer = Einzelpositionen); "
                          "die Spalte zeigt dann Stück je Satz, Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
                          "markieren (Strg/Umschalt) und unten Werte setzen; „Für alle“ gilt für alle Dateien. In der "
@@ -310,6 +218,122 @@ class StepPruefDialog(QDialog):
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
         self.datei_waehlen(0)
+
+    def _baum_fuellen(self):
+        """Rohrliste aufbauen (auch nach einem Wechsel der Art): je Datei und Profil eine Gruppe, je Gruppe gleicher
+        Teile eine Zeile; Eingaben stehen in den Messwerten (_uebernehmen, _werkstoff, _stueck …)."""
+        from . import step, zukauf
+        messwerte, k, werkstoff, stueck, zukauf_liste = (self.messwerte, self.k, self.werkstoff, self.stueck,
+                                                         self.zukauf_liste)
+        mit_blechen = zukauf_liste is not None
+        self.baum.clear()
+        self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
+        self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
+        teile = step.teile_gruppen(messwerte, mit_blechen)
+        fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
+        profile = k.auswahl("profil")
+        reihe = sorted(teile.items(), key=lambda e: (self.dateien.index(messwerte[e[0]].get("datei")),
+                                                     step.profil_vorschlag(messwerte[e[0]], k.profile) or ""))
+        for erster, liste in reihe:
+            m = messwerte[erster]
+            datei = m.get("datei")
+            ist_blech = step.blech(m) is not None
+            vorschlag = self.BLECHGRUPPE if ist_blech else step.profil_vorschlag(m, k.profile)
+            fehlt = not ist_blech and vorschlag not in k.profile
+            g = self.gruppen.get((datei, vorschlag))
+            if g is None:
+                g = self.gruppen[(datei, vorschlag)] = QTreeWidgetItem(self.baum)
+                g.setFirstColumnSpanned(True)
+                g.setData(0, Qt.UserRole, vorschlag)
+                f = g.font(0)
+                f.setBold(True)
+                g.setFont(0, f)
+                g.setBackground(0, QBrush(QColor("#FCE4D6" if fehlt else "#E2EFDA" if ist_blech else "#DDEBF7")))
+                g.setExpanded(True)
+            it = QTreeWidgetItem(g)
+            it.setText(0, m.get("artikel") or m.get("datei") or "")
+            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen") is not False) if ist_blech \
+                else step.gewaehlt(m)
+            it.setCheckState(0, Qt.Checked if gewaehlt else Qt.Unchecked)
+            it.setText(1, str(len(liste)))
+            for c, w in ((self.SP_LAENGE, _f(m, "laenge")), (self.SP_SCHNEIDWEG, _f(m, "schneidweg"))):
+                it.setText(c, zahl_als_text(w, 1))
+            it.setText(self.SP_KONTUREN, str(int(_f(m, "konturen"))))
+            hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if ist_blech:
+                hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
+                if m.get("pruefstatus") == "prüfen":
+                    hinweis.append("PRÜFEN – zum Übernehmen anhaken")
+            if step.unsicher(m):
+                hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
+            hinweis += [h for h in [m.get("hinweise")] if h]
+            it.setText(self.SP_HINWEIS, "; ".join(hinweis))
+            if m.get("pruefstatus") == "prüfen":
+                it.setBackground(self.SP_HINWEIS, QBrush(QColor("#FFEB9C")))
+            for c in (1, self.SP_STUECK, self.SP_LAENGE, self.SP_SCHNEIDWEG, self.SP_KONTUREN):
+                it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
+            pr = QComboBox()
+            ws = QComboBox()
+            liste_fuellen(ws, k, "werkstoff")
+            if ist_blech:                   # Zukaufartikel: automatisch oder ein vorhandener Blechartikel
+                pr.addItem(self.AUTOMATISCH, None)
+                gleich, aehnlich = zukauf.blech_dubletten(step.blech(m), m.get("_werkstoff"), zukauf_liste)
+                for a, art in [(a, "gleich") for a in gleich] + [(a, "ähnlich") for a in aehnlich]:
+                    pr.addItem(f"{a.get('bezeichnung')} ({art}" + (", EK fehlt)" if zukauf.ek_fehlt(a) else ")"),
+                               a["id"])
+                if gleich:
+                    hinweis.append(f"vorhanden: {gleich[0].get('bezeichnung')}")
+                elif aehnlich:
+                    hinweis.append(f"ähnlich: {aehnlich[0].get('bezeichnung')} (Werkstoff/Kontur prüfen)")
+                else:
+                    hinweis.append("neuer Zukaufartikel, EK fehlt")
+                pr.setCurrentIndex(max(pr.findData(m.get("_blech_artikel")), 0) if m.get("_blech_artikel") else 0)
+                pr.setToolTip("Zukaufartikel des Blechs: automatisch = gleicher vorhandener Artikel, sonst neu anlegen "
+                              "(ohne Einkaufspreis)")
+                ws.setCurrentText(m.get("_werkstoff") or "")     # Werkstoff wird bei Blechen nie angenommen
+                ws.setToolTip("Werkstoff des Blechs; leer = offen (wird nicht angenommen)")
+            else:
+                pr.setEditable(True)        # neue Profil-ID eintippen: wird beim Übernehmen angelegt (Rückfrage)
+                pr.addItems(sorted(set(profile) | ({vorschlag} if vorschlag else set())))
+                pr.setCurrentText(m.get("_profil") or vorschlag or "")
+                ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
+            it.setText(self.SP_HINWEIS, "; ".join(hinweis))
+            sp = QSpinBox()
+            sp.setRange(0, 100000)
+            sp.setSpecialValueText("leer")
+            for c, w in ((self.SP_PROFIL, pr), (self.SP_WERKSTOFF, ws), (self.SP_STUECK, sp)):
+                self.baum.setItemWidget(it, c, w)
+            alt = step.alternative(m)
+            if alt:     # Grenzfall: Art wählbar (Flachstahl/Blech, Profil/Kantteil), vorbelegt das Erkannte
+                art = QComboBox()
+                art.addItems([step.art_text(m), step.art_text(alt)])
+                art.setToolTip("Erkannte Art; die andere wählen, wenn das Teil falsch erkannt wurde (Ersatzwerte = "
+                               "nicht so messbar, aus der anderen Messung abgeleitet: bitte prüfen)")
+                art.currentIndexChanged.connect(lambda n, i=erster: n and self.art_wechseln(i))
+                self.baum.setItemWidget(it, self.SP_ART, art)
+            else:
+                it.setText(self.SP_ART, step.art_text(m))
+            it.setData(0, Qt.UserRole, len(self.zeilen))
+            z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
+                       m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
+                       m.get("_je_satz") or len(liste), ist_blech)
+            sp.setValue(z.werte[self._modus(datei)])
+            sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
+            self.zeilen.append(z)
+        self.fehler_gruppen = {}
+        for i in fehler:
+            m = messwerte[i]
+            g = self.fehler_gruppen.get(m.get("datei"))
+            if g is None:
+                g = self.fehler_gruppen[m.get("datei")] = QTreeWidgetItem(self.baum, ["Nicht übernehmbar"])
+                g.setFirstColumnSpanned(True)
+                g.setBackground(0, QBrush(QColor("#F8CBAD")))
+                g.setExpanded(True)
+            it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "", "",
+                                     "", "", m.get("fehler") or (step.blech_text(m) + ": kein Rohrlaserteil" if step.blech(m) else "")
+                                     or m.get("hinweise") or "kein Rohrteil erkannt"])
+            it.setData(1, Qt.UserRole, i)
+
 
     def _modus(self, datei):
         return "satz" if self.saetze.get(datei) else "einzeln"
@@ -357,7 +381,7 @@ class StepPruefDialog(QDialog):
     def _satz_anzeigen(self):
         d = self.datei
         satz = bool(self.saetze.get(d))
-        self.baum.headerItem().setText(4, "Stück je Satz" if satz else "Stückzahl")
+        self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
             koerper = self.mehrteilig[d][0]
             from .step import satzname
@@ -414,6 +438,23 @@ class StepPruefDialog(QDialog):
                 z.werte["einzeln"] = stueck
                 if not self.saetze.get(z.datei):
                     z.sp.setValue(stueck)
+
+    def art_wechseln(self, index):
+        """Art der Zeile mit dem Teil Nr. index umstellen (Flachstahl ↔ Blech, Profil ↔ Kantteil): alle gleichen
+        Teile der Zeile bekommen die Messwerte der anderen Art; die Liste wird neu aufgebaut, die Eingaben der
+        anderen Zeilen bleiben. Profil bzw. Zukaufartikel und Werkstoff werden für die neue Art neu vorbelegt
+        (Blech: Werkstoff leer), die Stückzahl bleibt."""
+        from . import step
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            step.art_wechseln(self.messwerte[i])
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        neu = next((x for x in self.zeilen if index in x.liste), None)
+        if neu:
+            self.baum.setCurrentItem(neu.it)
+        return neu
 
     def alle_waehlen(self, an):
         for z in self.zeilen:
