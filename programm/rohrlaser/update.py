@@ -17,6 +17,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import shutil
 import urllib.request
 import zipfile
@@ -174,7 +175,17 @@ def online_liste(quelle=ADRESSE, timeout=15):
         raise UpdateFehler(f"Die Dateiliste {quelle} ist beschädigt: {e}") from e
     if liste.get("format") != 1 or not liste.get("dateien"):
         raise UpdateFehler(f"Die Dateiliste {quelle} hat ein unbekanntes Format.")
+    for rel, d in liste["dateien"].items():
+        if not sicherer_pfad(rel) or not re.fullmatch(r"[dp]-[0-9a-f]{40}\.zip", str(d.get("paket"))):
+            raise UpdateFehler(f"Die Dateiliste {quelle} enthält einen ungültigen Eintrag: {rel}")
     return liste
+
+
+def sicherer_pfad(rel):
+    """Nur Pfade innerhalb des Programmordners, nie Daten, Angebote oder der Update-Ordner."""
+    teile = str(rel).split("/")
+    return (bool(rel) and "\\" not in rel and ":" not in rel and not rel.startswith("/")
+            and all(t not in ("", ".", "..") for t in teile) and teile[0] not in NIE)
 
 
 def neuer(online, lokal):

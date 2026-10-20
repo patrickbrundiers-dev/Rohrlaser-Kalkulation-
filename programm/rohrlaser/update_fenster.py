@@ -185,6 +185,6 @@ class Updater:
         return True
 
     def neu_starten(self):
-        if getattr(sys, "frozen", False):
+        """Erst schließen (der Benutzer kann beim Beenden noch abbrechen), dann die neue Version starten."""
+        if self.f.close() and getattr(sys, "frozen", False):
             QProcess.startDetached(sys.executable, [])
-        self.f.close()

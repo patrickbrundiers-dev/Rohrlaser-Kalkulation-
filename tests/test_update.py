@@ -120,6 +120,19 @@ assert not (v1 / update.ARBEITSORDNER).exists()
 assert update.planen(v1, online, update.lokale_liste(v1))["neu"] == ["_internal/PySide6/translations/qt_03.qm"]
 assert len(update.planen(v1, online, alle=True)["neu"]) == len(online["dateien"])
 
+# Pfade außerhalb des Programmordners oder in Daten werden abgelehnt
+for rel in ("../Daten/rohrlaser.db", "Daten/rohrlaser.db", "/etc/x", "C:/x", "a/../../x", "a\\..\\x", "_update/x"):
+    assert not update.sicherer_pfad(rel), rel
+assert update.sicherer_pfad("_internal/PySide6/Qt6Core.dll")
+boese = json.loads((tmp / "pakete2" / update.DATEILISTE).read_text(encoding="utf-8"))
+boese["dateien"]["../Daten/rohrlaser.db"] = boese["dateien"]["Bedienungsanleitung.pdf"]
+(tmp / "boese.json").write_text(json.dumps(boese), encoding="utf-8")
+try:
+    update.online_liste(str(tmp / "boese.json"))
+    raise AssertionError("Fehler erwartet")
+except update.UpdateFehler as e:
+    assert "ungültigen Eintrag" in str(e)
+
 # Nicht erreichbar / beschädigt -> verständlicher Fehler
 for quelle in (str(tmp / "fehlt" / update.DATEILISTE), str(tmp / "pakete2" / "Rohrlaser-Angebotskalkulation.exe")):
     try:
