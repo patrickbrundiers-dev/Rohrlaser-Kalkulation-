@@ -600,7 +600,9 @@ def kapitel_stammdaten(i):
         ["Stundensatz [€/h]", "Stundensatz <i>Maschine</i>: für Laserzeit, Gewinde ohne Festpreis, Rüsten und "
                               "Stangenwechsel, solange unter Arbeitsschritte nichts anderes gewählt ist"],
         ["Kontur klein bis [mm], Kontur mittel bis [mm]",
-         "Grenzen der Konturklassen nach größtem Hüllmaß (Vorgabe 10 und 50 mm), je Klasse eigener Vorschub"],
+         "Grenzen der Konturklassen nach Hüllmaß für Innenkonturen, Anfangs- und Endschnitt (Vorgabe 10 und 50 mm), "
+         "je Klasse eigener Vorschub. Nach einer Änderung werden die Positionen beim nächsten Öffnen des Angebots "
+         "neu eingeteilt (Kapitel 6.9)"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
@@ -614,9 +616,10 @@ def kapitel_stammdaten(i):
         ["Schneidgas", "N₂ (Stickstoff) oder O₂ (Sauerstoff); die Vorschübe gelten für dieses Gas. Das Programm "
                        "nimmt N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂. Wo die N₂-Zeilen "
                        "enden, legt also fest, ab welcher Wandstärke nur noch mit O₂ geschnitten wird."],
-        ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für Anfangs- und Endschnitte und große Innenkonturen"],
+        ["<b>Vorschub groß / Trennschnitt [mm/min]</b>", "für große Konturen und Enden sowie den Schneidweg ohne "
+                                                          "Klasse (z. B. von Hand eingetragen)"],
         ["Vorschub mittel [mm/min], Vorschub klein [mm/min]",
-         "für mittlere und kleine Innenkonturen; leer = nächstgrößerer Vorschub"],
+         "für mittlere und kleine Konturen und Enden; leer = nächstgrößerer Vorschub"],
         ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -1018,7 +1021,10 @@ def kapitel_angebot(i):
             "Von Hand: Position anlegen, <i>Positionsart</i> = Zukaufteil, Stückzahl eintragen und unter "
             "<b>Zukaufteile …</b> den Artikel wählen.")
     i.liste("<b>STEP-Werte (aus CAD)</b>: aus dem importierten CAD-Modell gemessene Werte (Anfangs- und Endschnitt, "
-            "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs.",
+            "Innenkonturen, Gravur, Bohrungen, Konturgrößen) und die Abweichung des Schneidwegs. Dazu gehören "
+            "<b>Konturen Hüllmaß x Schnittweg [mm]</b> (je Kontur Hüllmaß und Schnittweg, Anfangs- und Endschnitt "
+            "mit <i>A:</i> und <i>E:</i> vorn, z. B. <i>A:40x149,7; E:40x149,7; 10x31,4</i>) und <b>Konturgrenzen "
+            "klein/mittel [mm]</b> (mit welchen Grenzen eingeteilt wurde, z. B. <i>10/50</i>).",
             "<b>Berechnete Werte (Programm)</b>: vom Programm ermittelte Werte wie Profilform, Gewicht, wirksame "
             "Stangenlänge, Vorschub und eingeplante Teile.")
     i.bild("angebot_berechnet", "Mit Häkchen „Berechnete Werte“: Gewicht, Laserzeit, Stück- und Positionspreis je "
@@ -1062,18 +1068,33 @@ def kapitel_angebot(i):
            "manuell</b>, die Kalkulation in der Spalte <i>Schneidzeit manuell</i> ein „ja“. Feld leeren = wieder "
            "berechnet.")
     i.abschnitt("Konturklassen in der Schneidzeit")
-    i.text("Der STEP-Import teilt jede Innenkontur nach ihrer Größe (größtes Hüllmaß) in <b>klein</b>, "
-           "<b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den Stammdaten Maschinen "
-           "(Vorgabe 10 und 50 mm). Gerechnet wird dann der <b>Schnittweg</b> jeder Klasse mit ihrem Vorschub aus den "
-           "Schneiddaten:")
-    i.liste("Kontur klein [mm] / Vorschub klein, Kontur mittel [mm] / Vorschub mittel (leer = nächstgrößerer "
+    i.text("Der STEP-Import teilt jede Innenkontur und auch den <b>Anfangs- und Endschnitt</b> nach ihrer Größe "
+           "(Hüllmaß) in <b>klein</b>, <b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den "
+           "Stammdaten Maschinen (Vorgabe 10 und 50 mm, ein Wert genau auf der Grenze zählt zur kleineren Klasse). "
+           "Gerechnet wird dann der <b>Schnittweg</b> jeder Klasse mit ihrem Vorschub aus den Schneiddaten:")
+    i.liste("Hüllmaß einer Bohrung = Durchmesser. Bei anderen Innenkonturen die größere Seite des kleinsten "
+            "Rechtecks um die abgewickelte Kontur: ein schräges Langloch zählt mit seiner wahren Länge, ein Schlitz "
+            "um ein Rundrohr mit der Bogenlänge.",
+            "Hüllmaß eines Endes = größere Seite der Schnittfläche: gerader Schnitt QR 40x40 = 40 mm, RR 42,4 = "
+            "42,4 mm, Gehrung 45° über die 60er Seite eines RE 60x40 = 84,9 mm.",
+            "Kontur klein [mm] / Vorschub klein, Kontur mittel [mm] / Vorschub mittel (leer = nächstgrößerer "
             "Vorschub).",
-            "Der Rest des Schneidwegs (Anfangs- und Endschnitt und große Innenkonturen) / Vorschub groß. Der Rest ist "
-            "nie kleiner als 0.",
-            "Gravur [mm] / Vorschub Gravur und Einstiche × Einstechzeit.")
-    i.text("Beispiel mit Vorschub groß 3000, mittel 2000, klein 1000 mm/min und 0,5 s je Einstich: Anfangs- und "
+            "Der Rest des Schneidwegs (große Konturen und Enden, von Hand ergänzter Schneidweg) / Vorschub groß. Der "
+            "Rest ist nie kleiner als 0.",
+            "Gravur [mm] / Vorschub Gravur und Einstiche × Einstechzeit.",
+            "Gemeinsame Schnitte (zwei gerade Enden teilen sich einen Schnitt): die Einsparung wird mit dem Vorschub "
+            "der Klasse des geraden Endes abgezogen.")
+    i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>). "
+           "Wird im Angebotskopf eine andere Maschine gewählt oder ändern sich die Grenzen in den Stammdaten, teilt "
+           "das Programm die Positionen beim nächsten Öffnen bzw. Neuberechnen neu ein und meldet das in der "
+           "Statuszeile. Die Konturliste lässt sich auch von Hand ändern; die Klassen werden dann neu eingeteilt. "
+           "Positionen aus einem STEP-Import vor Version 0.5.7 haben keine Konturliste: dort laufen Anfangs- und "
+           "Endschnitt weiter mit Vorschub groß, bis das Teil neu importiert wird.")
+    i.text("Beispiel mit Vorschub groß 3000, mittel 2000, klein 1000 mm/min und 0,5 s je Einstich, Teil aus RE "
+           "80x60 (Enden 80 mm, groß): Anfangs- und "
            "Endschnitt je 120 mm, 4 × Ø10 (125,7 mm, klein), ein Langloch 40×10 (91,4 mm, mittel), ein Ausschnitt "
-           "80×40 (240 mm, groß), 8 Einstiche ergeben 9,6 + 2,7 + 7,5 + 4,0 = <b>23,9 s</b>. Die Anteile stehen im "
+           "80×40 (240 mm, groß), 8 Einstiche ergeben 9,6 + 2,7 + 7,5 + 4,0 = <b>23,9 s</b>. Bei einem QR 40x40 "
+           "lägen die Enden mit 40 mm in der Klasse mittel. Die Anteile stehen im "
            "Reiter Kalkulation (Spalten <i>davon …</i>) und im Kalkulation-PDF in der Tabelle <i>Schneidzeit je Teil "
            "nach Konturklassen</i>. Widersprechen sich Schneidweg und Konturklassen, zeigt der Status eine WARNUNG "
            "(Kapitel 14).")
@@ -1338,8 +1359,8 @@ def kapitel_step(i):
             "Teilelänge = größte Ausdehnung entlang der Rohrachse (bei Gehrung die lange Seite).",
             "Schneidweg = Anfangsschnitt + Endschnitt + Innenkonturen auf der Außenhaut. Gravuren (nicht durch die "
             "Wand) zählen getrennt.",
-            "Innenkonturen werden nach ihrem größten Hüllmaß klein, mittel oder groß eingestuft (Grenzen je "
-            "Maschine, Vorgabe 10 und 50 mm); jede Klasse hat ihren eigenen Vorschub.",
+            "Innenkonturen, Anfangs- und Endschnitt werden nach ihrem Hüllmaß klein, mittel oder groß eingestuft "
+            "(Grenzen je Maschine, Vorgabe 10 und 50 mm; Kapitel 6.9); jede Klasse hat ihren eigenen Vorschub.",
             "Profilabgleich mit den Stammdaten über Form und Maße (±0,15 mm).")
 
 
@@ -1386,7 +1407,7 @@ def kapitel_optimieren(i):
             "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
-            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Trennschnitt + Kontur groß</i>, "
+            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
             "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i> und <i>davon Einstiche</i> "
             "zeigen, wie sich die Laserzeit brutto zusammensetzt (Kapitel 6.9).",
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz "
@@ -2126,9 +2147,9 @@ def kapitel_fragen(i):
          "Der Schneidweg wurde von Hand kleiner eingetragen als die kleinen und mittleren Konturen zusammen. Der "
          "Anteil mit Vorschub groß wird mit 0 gerechnet. Schneidweg oder die Spalten Kontur klein/mittel [mm] "
          "prüfen."],
-        ["<b>WARNUNG: Konturklassen länger als Innenkonturen</b>",
-         "Kontur klein + mittel + groß [mm] ist größer als Innenkonturen [mm] (z. B. eine Spalte von Hand geändert). "
-         "Die STEP-Werte der Position prüfen."],
+        ["<b>WARNUNG: Konturklassen länger als Innenkonturen + Anfangs-/Endschnitt</b>",
+         "Kontur klein + mittel + groß [mm] ist größer als Innenkonturen + Anfangs- + Endschnitt [mm] (z. B. eine "
+         "Spalte von Hand geändert). Die STEP-Werte der Position prüfen."],
         ["Zusatzarbeit kostet mehr als Menge × Preis",
          "Der Mindestbetrag je Angebot greift; er wird auf alle Teile mit dieser Zusatzarbeit verteilt."],
         ["<b>FEHLER: Oberfläche unbekannt</b>",

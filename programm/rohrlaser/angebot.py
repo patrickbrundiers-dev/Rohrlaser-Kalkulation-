@@ -94,12 +94,15 @@ POSITIONEN = Tabelle(
      Feld("mittel_n", "Kontur mittel [Stk]", "ganz", 0, 10000, breite=60),
      Feld("mittel_mm", "Kontur mittel [mm]", "zahl", 0, 1000000, stellen=1, breite=70),
      Feld("gross_n", "Kontur groß [Stk]", "ganz", 0, 10000, breite=60),
-     Feld("gross_mm", "Kontur groß [mm]", "zahl", 0, 1000000, stellen=1, breite=70)),
+     Feld("gross_mm", "Kontur groß [mm]", "zahl", 0, 1000000, stellen=1, breite=70),
+     # je Innenkontur Hüllmaß x Schnittweg (STEP-Import) und die Grenzen, mit denen eingeteilt wurde
+     Feld("konturen", "Konturen Hüllmaß x Schnittweg [mm]", breite=200),
+     Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")
 STEP_FELDER = {"a_gerade", "a_schnitt", "b_gerade", "b_schnitt", "innen", "gravur", "bohrungen", "gewinde_vorschlag",
-               "klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm"}
+               "klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm", "konturen", "kontur_grenzen"}
 assert STEP_FELDER <= {f.name for f in POSITIONEN.felder}
 
 
