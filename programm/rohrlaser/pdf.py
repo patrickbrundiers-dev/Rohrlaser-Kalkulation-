@@ -312,6 +312,20 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
                            ("LINEBELOW", (3, 0), (4, len(angebot) - 1), 0.3, RAHMEN)]))
     inhalt += [Spacer(1, 3 * mm), t, Spacer(1, 5 * mm)]
     klein = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
+    # Zeiten und Kosten je Arbeitsschritt (Schritte ohne Zeit und Kosten ausgeblendet)
+    daten = [[_p(t, klein) for t in ("Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit",
+                                     "Stundensatz [€/h]", "Kosten [€]", "Quelle", "Berechnung")]]
+    for z in summen["zeiten"]:
+        if rechnen.schritt_sichtbar(z):
+            daten.append([_p(z["schritt"], S_KLEIN), _p(z["art"], S_KLEIN), *rechnen.schritt_texte(z),
+                          _z(z["kosten"]), _p(z["quelle"], S_KLEIN), _p(z["formel"], S_KLEIN)])
+    k = rechnen.zeit_summen(summen["zeiten"])
+    inhalt += [_p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2),
+               _tabelle(daten, [w * mm for w in (40, 20, 22, 18, 18, 18, 22, 18, 40, 57)], rechts=(2, 3, 4, 5, 6, 7)),
+               _p(f"Maschinenzeit {rechnen.zeit_text(k['maschine_min'])} · Personalzeit "
+                  f"{rechnen.zeit_text(k['personal_min'])} · Durchlaufzeit {rechnen.zeit_text(k['durchlauf_min'])} "
+                  f"(parallele Personalzeit nicht addiert) · Arbeitskosten {_z(k['arbeitskosten'])} €", S_KLEIN),
+               Spacer(1, 5 * mm)]
     daten = [[_p(s[0], klein) for s in KALK]]
     for z in zeilen:
         if z is None:

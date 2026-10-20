@@ -365,7 +365,8 @@ def kapitel_stammdaten(i):
     i.kapitel("Stammdaten")
     i.abschnitt("Tabellen bearbeiten")
     i.text("Die Kunden haben einen eigenen Reiter. Alle anderen Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, "
-           "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) stehen als Unterreiter im Reiter <i>Einstellungen</i>, "
+           "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze und Arbeitsschritte) stehen als Unterreiter "
+           "im Reiter <i>Einstellungen</i>, "
            "der mit einem Passwort geschützt ist (Kapitel 4). Alle Tabellen sind gleich aufgebaut:")
     i.bild("stamm_profile", "Einstellungen, Unterreiter Profile", hoehe=125 * mm, legende=[
         (1, "Unterreiter der Tabelle. Oben steht ein kurzer Hinweis, was in die Spalten gehört."),
@@ -409,7 +410,13 @@ def kapitel_stammdaten(i):
         ["Zusatzarbeiten", "Zusatzarbeit (Name), Abrechnung, Preis [€] bzw. Zeit [s] je Einheit, Mindestbetrag je "
                            "Angebot [€], Fremdleistung, Text im Angebot",
          "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot (Kapitel 6.5). Vorbelegt mit Beispielpreisen, "
-         "bitte eigene eintragen."]], [30, 95, 140])
+         "bitte eigene eintragen."],
+        ["Stundensätze", "Stundensatz-ID, Bezeichnung, Stundensatz [€/h]",
+         "Sätze für Personal und Arbeitsplätze (Programmierung, Rüstpersonal, Nachbearbeitung …). Der Satz der "
+         "Maschine steht bei der Maschine (Kapitel 4.3)."],
+        ["Arbeitsschritte", "Arbeitsschritt, Stundensatz, Art, Rüstzeit, Zeit je Einheit",
+         "Welcher Arbeitsschritt mit welchem Stundensatz und welcher Zeitvorgabe gerechnet wird (Kapitel 4.3)."]],
+        [30, 95, 140])
     i.abschnitt("Felder der Tabellen")
     i.text("Die Spalten jeder Tabelle im Einzelnen. Pflichtfelder sind fett; was leer bleiben darf, rechnet das "
            "Programm wie angegeben.")
@@ -474,7 +481,8 @@ def kapitel_stammdaten(i):
         ["Schnittverlust je Schnitt [mm]", "Materialverlust je Trennschnitt (Schnittbreite)"],
         ["Abstand getrennte Schnitte [mm]", "Steg zwischen zwei Teilen, wenn sich die Enden keinen Schnitt teilen"],
         ["Max. Stangenlänge [mm]", "längste Stange, die die Maschine laden kann"],
-        ["Stundensatz [€/h]", "für Laserzeit, Gewinde ohne Festpreis, Rüsten und Stangenwechsel"],
+        ["Stundensatz [€/h]", "Stundensatz <i>Maschine</i>: für Laserzeit, Gewinde ohne Festpreis, Rüsten und "
+                              "Stangenwechsel, solange unter Arbeitsschritte nichts anderes gewählt ist"],
         ["Kontur klein bis [mm], Kontur mittel bis [mm]",
          "Grenzen der Konturklassen nach größtem Hüllmaß (Vorgabe 10 und 50 mm), je Klasse eigener Vorschub"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
@@ -545,7 +553,8 @@ def kapitel_einstellungen(i):
     i.bild("einstellungen_gesperrt", "Reiter Einstellungen gesperrt", hoehe=45 * mm, legende=[
         (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
     i.abschnitt("Vorgaben")
-    i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung.")
+    i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
+           "Ausnahme: Stundensätze und Zeitvorgaben (Kapitel 4.3) speichert jedes Angebot beim Anlegen.")
     i.bild("einstellungen", "Einstellungen, Unterreiter Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
         (1, "Unterreiter Vorgaben, daneben die Stammdaten"), (2, "<b>Einstellungen sperren</b>")])
     i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
@@ -580,6 +589,40 @@ def kapitel_einstellungen(i):
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen; leer = ohne Passwort"]],
         [28, 80, 157])
+    i.abschnitt("Stundensätze und Zeitvorgaben")
+    i.text("Der Unterreiter <i>Stundensätze und Zeitvorgaben</i> zeigt links die <b>Stundensätze</b> und rechts die "
+           "<b>Arbeitsschritte</b>. Jeder Arbeitsschritt wird mit genau einem Stundensatz gerechnet; der Satz "
+           "<i>Maschine</i> ist der Stundensatz der gewählten Maschine (Kapitel 3).")
+    i.bild("stamm_arbeitsschritte", "Einstellungen, Stundensätze und Zeitvorgaben (Beispielwerte)", hoehe=95 * mm)
+    i.tabelle(["Stundensätze", "Bedeutung"], [
+        ["<b>Stundensatz-ID</b>", "Kurzname, z. B. <i>Rüstpersonal</i>; Auswahl in den Arbeitsschritten"],
+        ["Bezeichnung", "Klartext, z. B. Arbeitsplatz oder Kostenstelle"],
+        ["<b>Stundensatz [€/h]</b>", "Kosten je Stunde; vorbelegt mit Beispielwerten, bitte eigene eintragen"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.tabelle(["Arbeitsschritte", "Bedeutung"], [
+        ["<b>Arbeitsschritt</b>", "Name. Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je Abmessung und "
+                                  "Stangenwechsel rechnet das Programm selbst (Zeit aus Schneiddaten, Gewinde, "
+                                  "Maschine und Vorgaben); dort wird nur der Stundensatz gewählt."],
+        ["<b>Stundensatz</b>", "<i>Maschine</i> oder eine Stundensatz-ID. Vorgabe für Gewinde, Rüsten und "
+                               "Stangenwechsel ist Maschine (wie bisher), umstellbar z. B. auf Rüstpersonal."],
+        ["<b>Art</b>", "Maschine oder Personal: für Maschinenzeit, Personalzeit und Durchlaufzeit"],
+        ["Parallel zur Maschine", "ja = die Personalzeit läuft während die Maschine schneidet (z. B. Entgraten); "
+                                  "sie kostet, verlängert aber die Durchlaufzeit nicht"],
+        ["Rüstzeit [min], Rüstzeit je", "einmal je Angebot oder je Abmessung (Profil)"],
+        ["Zeit je Einheit [s], Einheit", "Zeit je Teil, je Stange oder je Position"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Gerechnet wird je Arbeitsschritt <b>Gesamtzeit = Rüstzeit × Anzahl Rüstvorgänge + Zeit je Einheit × "
+           "Menge</b> und <b>Kosten = Gesamtzeit in Minuten / 60 × Stundensatz</b>. Die weiteren Arbeitsschritte "
+           "(Materialbereitstellung, Entgraten / Nachbearbeitung, Qualitätskontrolle, Verpackung, Sonstige "
+           "Arbeiten) sind mit Zeit 0 vorbelegt und kosten erst etwas, wenn eine Zeit eingetragen ist. Ihre Kosten "
+           "stehen als Kostenart <i>Weitere Arbeitsschritte</i> in der Kalkulation, mit Zuschlag Fertigung.")
+    i.text("Die Programmierung bleibt ein Betrag je Position (<i>Programmierkosten je Teil (Position)</i> unter "
+           "Vorgaben), ohne Zeit. Zusatzarbeiten und Gewinde mit Festpreis werden über ihren Preis gerechnet.")
+    i.text("<b>Snapshot im Angebot</b>: Ein neues Angebot speichert beim Anlegen alle Stundensätze, die "
+           "Arbeitsschritte und Stundensatz, Rüstzeit und Stangenwechsel der Maschine. Spätere Änderungen hier "
+           "ändern bestehende Angebote nicht; im Angebot holt sie der Knopf <i>Stundensätze aus Einstellungen</i> "
+           "(Kapitel 8.4). Eine Kopie übernimmt die Werte des Originals. Wird die Maschine eines Angebots "
+           "gewechselt, gelten deren aktuelle Werte.")
 
 
 def kapitel_angebote(i):
@@ -971,7 +1014,7 @@ def kapitel_optimieren(i):
     i.text("Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots einzeln auf "
            "(die Übersicht nach Gruppen, einzeln unter <i>Kostenarten einzeln</i>); im Reiter fehlen Kostenarten "
            "mit 0,00 €, PDF und CSV enthalten alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
-           "Abmessung, Stangenwechsel, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
+           "Abmessung, Stangenwechsel, Weitere Arbeitsschritte, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
            "Programmierkosten, Angebotsaufschlag, Fracht und Skonto ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
            "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
@@ -983,15 +1026,43 @@ def kapitel_optimieren(i):
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
             "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu.",
-            "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz.",
+            "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz "
+            "des Arbeitsschritts Gewinde.",
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
             "dem Zuschlag Fremdleistung.",
             "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
-            "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt.",
+            "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt, je mit dem Stundensatz ihres "
+            "Arbeitsschritts.",
+            "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten (Kapitel 4.3) × Stundensatz, auf die "
+            "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
             "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
             "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.",
             "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis ohne Skonto "
             "bleibt (Skonto % des Verkaufspreises). Je Teil in der Spalte <i>Skonto je Teil</i>.")
+    i.abschnitt("Zeiten & Arbeitskosten")
+    i.text("Der Reiter <i>Zeiten & Arbeitskosten</i> zeigt je Arbeitsschritt Art, Menge, Rüstzeit, Zeit je Einheit, "
+           "Gesamtzeit, Stundensatz, Kosten, Quelle und die Berechnung. Die Beträge sind dieselben wie in der "
+           "Kalkulation; jede Kostenart kommt genau einmal vor. Programmierung, Gewinde mit Festpreis und "
+           "Zusatzarbeiten stehen als Betrag <i>ohne Zeit</i> darin.")
+    i.bild("erg_zeiten", "Reiter Zeiten & Arbeitskosten mit Beispielzeiten (Beispielwerte, keine gemessenen Zeiten)",
+           hoehe=95 * mm, legende=[
+               (1, "<b>Alle Arbeitsschritte zeigen</b>: auch Schritte ohne Zeit und Kosten (sonst ausgeblendet, "
+                   "Laser schneiden immer sichtbar)."),
+               (2, "<b>Stundensätze aus Einstellungen</b>: Stundensätze und Zeitvorgaben dieses Angebots auf die "
+                   "aktuellen Einstellungen setzen (eigene Werte des Angebots gehen verloren)."),
+               (3, "Summen: Maschinenzeit, Personalzeit, Rüstzeit, Bearbeitungszeit, Durchlaufzeit (parallele "
+                   "Personalzeit nicht addiert), Arbeitskosten, Material, Zuschläge, Herstellkosten, Gewinn, "
+                   "Verkaufspreis. Werte mit 0 sind ausgeblendet.")])
+    i.liste("Gelbe Felder gelten nur für dieses Angebot: Rüstzeit und Zeit je Einheit der weiteren Arbeitsschritte "
+            "und der Stundensatz (er gilt dann für alle Schritte dieses Angebots mit demselben Satz). Die Quelle "
+            "zeigt dann <i>von Hand (Angebot)</i>.",
+            "Ältere Angebote ohne gespeicherte Stundensätze rechnen mit den aktuellen Einstellungen; der Reiter "
+            "sagt das. Die erste Änderung oder <i>Stundensätze aus Einstellungen</i> speichert sie im Angebot.",
+            "Die Übersicht rechts oben zeigt Maschinenzeit, Personalzeit, Rüstzeit, Durchlaufzeit und "
+            "Arbeitskosten; das Kalkulations-PDF und der CSV-Export enthalten die Tabelle der Arbeitsschritte mit "
+            "Zeit oder Kosten.",
+            "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
+            "Zeiten. Ist-Zeiten gehören in die Nachkalkulation (Kapitel 10).")
     i.abschnitt("Schnittplan")
     i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Ein Klick auf eine Stange zeigt unten ihre "
            "Teile in Schnittreihenfolge mit Lage (von/bis), Drehung und Art der Trennung.")

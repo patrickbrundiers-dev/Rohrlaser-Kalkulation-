@@ -414,6 +414,11 @@ class UebersichtBereich(QWidget):
         self.einzeln.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.einzeln_bereich = Aufklapper("Kostenarten einzeln", self.einzeln)
         kl.addWidget(self.einzeln_bereich)
+        # Zeiten je Arbeitsschritt (Reiter 'Zeiten & Arbeitskosten'), Zeilen mit 0 ausgeblendet
+        self.zeiten = QLabel()
+        self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.zeiten.setToolTip("Einzelheiten je Arbeitsschritt im Reiter „Zeiten & Arbeitskosten“")
+        kl.addWidget(self.zeiten)
         kl.addStretch(1)
         lay.addWidget(k)
 
@@ -472,3 +477,19 @@ class UebersichtBereich(QWidget):
             elif sichtbar(w):
                 html += f"<tr><td style='color:{GRAU}'>{t}</td><td align='right' style='color:{GRAU}'>{_z(w)} €</td></tr>"
         self.einzeln.setText(html + "</table>")
+
+    def zeiten_setzen(self, k):
+        """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten; Zeilen mit 0 ausgeblendet."""
+        zeilen = (("Maschinenzeit", k["maschine_min"], True), ("Personalzeit", k["personal_min"], True),
+                  ("Rüstzeit", k["ruest_min"], True), ("Durchlaufzeit", k["durchlauf_min"], True),
+                  ("Arbeitskosten", k["arbeitskosten"], False))
+        linie = "border-top:1px solid #C9D0D8"
+        html = f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>" \
+               f"<b>Zeiten</b></td></tr>"
+        n = 0
+        for t, w, zeit in zeilen:
+            if sichtbar(w):
+                n += 1
+                html += f"<tr><td>{t}</td><td align='right'>{rechnen.zeit_text(w) if zeit else _z(w) + ' €'}</td></tr>"
+        self.zeiten.setText(html + "</table>")
+        self.zeiten.setVisible(bool(n))

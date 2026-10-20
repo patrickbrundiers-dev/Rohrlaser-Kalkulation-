@@ -33,7 +33,7 @@ def kern(text):
 
 
 def kommt_vor(text):
-    norm = re.sub(r"</?[a-zA-Z][^<>\n]*>", "", QUELLE).replace("&nbsp;", " ")
+    norm = re.sub(r"</?[a-zA-Z][^<>\n]*>", "", QUELLE).replace("&nbsp;", " ").replace("&", " ")
     norm = re.sub(r'"\s*\n\s*"', "", norm)          # im Quelltext umgebrochene Zeichenketten
     norm = re.sub(r"\s+", " ", re.sub(r"\s*\[[^\[\]\n]{1,12}\]", "", norm))     # Einheiten [mm], [€] …
     return kern(text).lower() in norm.lower()

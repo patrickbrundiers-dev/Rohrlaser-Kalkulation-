@@ -12,7 +12,7 @@ from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QKeySequenc
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QSpinBox, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import NAME, VERSION, ausgabe
 from .stammdaten import TABELLEN, EINSTELLUNGEN, pruefen, wert_aus_text, wert_als_text, zahl_als_text
@@ -384,6 +384,30 @@ class EinstellungenSeite(QScrollArea):
         self._laden = False
 
 
+class ZeitvorgabenSeite(QWidget):
+    """Unterreiter 'Stundensätze und Zeitvorgaben': Stundensätze oben, Arbeitsschritte darunter."""
+    titel = "Stundensätze und Zeitvorgaben"
+
+    def __init__(self, saetze, schritte):
+        super().__init__()
+        self.saetze, self.schritte = saetze, schritte
+        teiler = QSplitter(Qt.Vertical)
+        for s in (saetze, schritte):
+            box = QGroupBox(s.t.titel)
+            bl = QVBoxLayout(box)
+            bl.setContentsMargins(4, 4, 4, 4)
+            bl.addWidget(s)
+            teiler.addWidget(box)
+        teiler.setSizes([260, 420])
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(teiler)
+
+    def neu_laden(self):
+        self.saetze.neu_laden()
+        self.schritte.neu_laden()
+
+
 class EinstellungenBereich(QWidget):
     """Reiter Einstellungen: erst Passwort, dann Unterreiter Vorgaben und Stammdaten (ohne Kunden).
     Einmal geöffnet bleibt er offen, bis 'Sperren' gedrückt oder das Programm beendet wird."""
@@ -420,7 +444,7 @@ class EinstellungenBereich(QWidget):
         self.unter = QTabWidget()
         self.unter.addTab(vorgaben, "Vorgaben")
         for s in seiten:
-            self.unter.addTab(s, s.t.titel)
+            self.unter.addTab(s, getattr(s, "titel", None) or s.t.titel)
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         sperren = QPushButton("Einstellungen sperren")
         sperren.clicked.connect(self.sperren)
@@ -543,7 +567,10 @@ class Hauptfenster(QMainWindow):
             if s.t.name == "kunden":
                 self.reiter.addTab(s, s.t.titel)
         self.einstellungen = EinstellungenSeite(db, self.meldung)
-        self.bereich = EinstellungenBereich(db, self.einstellungen, [s for s in self.seiten if s.t.name != "kunden"])
+        seite = {s.t.name: s for s in self.seiten}
+        self.zeitvorgaben = ZeitvorgabenSeite(seite["stundensaetze"], seite["arbeitsschritte"])
+        unter = [s for s in self.seiten if s.t.name not in ("kunden", "stundensaetze", "arbeitsschritte")]
+        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben])
         self.reiter.addTab(self.bereich, "Einstellungen")
         for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
             self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
@@ -611,6 +638,8 @@ class Hauptfenster(QMainWindow):
 
     def zeigen(self, seite):
         """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage)."""
+        if seite in (self.zeitvorgaben.saetze, self.zeitvorgaben.schritte):
+            seite = self.zeitvorgaben
         if self.bereich.unter.indexOf(seite) >= 0:
             self.bereich.zeigen(seite)
             seite = self.bereich

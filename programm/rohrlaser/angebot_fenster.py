@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from . import ausgabe, export, pdf, rechnen, staffeln, step
 from .nachkalk_seite import NachkalkulationSeite
 from .zusatz_dialog import ZusatzDialog
+from .zeiten_seite import ZeitenSeite
 from .angebot import POSITIONEN, STEP_FELDER
 from .angebot_oben import KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
@@ -760,6 +761,8 @@ class AngebotSeite(QWidget):
         self.reiter = QTabWidget()
         self.reiter.addTab(self.pos_ansicht, "Positionen")
         self.reiter.addTab(kalk_seite, "Kalkulation")
+        self.zeiten_seite = ZeitenSeite(self)
+        self.reiter.addTab(self.zeiten_seite, "Zeiten && Arbeitskosten")
         self.reiter.addTab(plan, "Schnittplan")
         self.reiter.addTab(bild_rahmen, "Stangenbild")
         self.reiter.addTab(ausw_seite, "Auswertung")
@@ -904,6 +907,8 @@ class AngebotSeite(QWidget):
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
+        self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
+        self.zeiten_seite.setzen(summen)
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
         if erg:

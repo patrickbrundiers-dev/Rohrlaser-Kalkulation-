@@ -59,7 +59,7 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist):
     soll_menge, ist_menge, soll, ist, abweichung, prozent, erfasst}], summe=…, erloes=…, db=…, satz=Stundensatz)."""
     ist = ist or {}
     zeilen_k, summen = rechnen.kalkulation(kopf, positionen, ergebnis, k, tabellen, einst)
-    satz = _n((rechnen.maschine(kopf, k) or {}).get("stundensatz")) or 0
+    satz = summen["satz_laser"]       # Stundensatz des Laserschneidens (Vorgabe: Maschine; Snapshot des Angebots)
     gr = gruppen(ergebnis, kopf, positionen, k, tabellen)
     ist_st, ist_mp = ist.get("stangen") or {}, ist.get("meterpreis") or {}
     for g in gr:
@@ -84,7 +84,11 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist):
     for name, text, einheit, soll_menge, soll, faktor in (
             ("laser_h", "Laserzeit", "h", laser_h, summen["laser_schneiden"], satz),
             ("ruest_min", "Rüsten + Stangenwechsel", "min", ruest_min,
-             summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"], satz / 60)):
+             summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"],
+             # Ist-Minuten mit dem mittleren Satz des Solls bewerten (Rüsten und Stangenwechsel können
+             # verschiedene Stundensätze haben)
+             (summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"]) / ruest_min
+             if ruest_min else satz / 60)):
         m = _n(ist.get(name))
         zeilen.append(zeile(text, einheit, soll_menge, m if m is not None else soll_menge, soll,
                             m * faktor if m is not None else soll, m is not None))

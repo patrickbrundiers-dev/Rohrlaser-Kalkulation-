@@ -274,6 +274,19 @@ def main(ziel):
         if text == "Schnittplan":
             s.stangen_ansicht.selectRow(2)
         foto.foto(name, f, ausschnitt=reiterflaeche(s))
+    # Zeiten & Arbeitskosten mit Beispielzeiten, danach wieder die Vorgaben (Preise der übrigen Bilder unverändert)
+    zb = db.zeitbasis_vorgabe(s.kopf.get("maschine"))
+    beispiel = {"Materialbereitstellung": dict(ruestzeit=10), "Entgraten / Nachbearbeitung": dict(zeit=20),
+                "Qualitätskontrolle": dict(ruestzeit=5, zeit=10), "Verpackung": dict(zeit=120, bezug="Stange")}
+    for x in zb["schritte"]:
+        x.update(beispiel.get(x["schritt"], {}))
+    db.zeitbasis_speichern(haupt, zb)
+    s.neu_laden()
+    reiter_waehlen(s, "Zeiten && Arbeitskosten")
+    zs = s.zeiten_seite
+    foto.foto("erg_zeiten", f, [(zs.alle, 1), (zs.uebernehmen, 2), (zs.summen, 3)], ausschnitt=reiterflaeche(s))
+    db.zeitbasis_speichern(haupt, db.zeitbasis_vorgabe(s.kopf.get("maschine")))
+    s.neu_laden()
     # veraltet nach einer Änderung
     pos = db.positionen(haupt)
     db.position_aendern(pos[0]["id"], "stueck", 10)
