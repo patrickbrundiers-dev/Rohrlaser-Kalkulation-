@@ -196,6 +196,9 @@ def main(ziel):
                 "einkauf@hessler-anlagenbau.example", 3, 14, 45, "Rahmenvertrag")):
         db.neu("kunden", dict(zip(("kundennr", "name", "strasse", "plz_ort", "ansprechpartner", "telefon", "email",
                                    "skonto", "skonto_tage", "zahlungsziel", "bemerkung"), kd)))
+    # Lieferlängen: 12-m-Stangen nur für ein Profil, das in den übrigen Beispielangeboten nicht vorkommt
+    db.neu("lieferlaengen", dict(profil_id="RR 48,3x2,6", werkstoff_id="S235-10219", laenge=12000,
+                                 lieferant="Beispiel-Lieferant", bemerkung="geschnitten nach Werkstücklängen"))
     f.alles_neu_laden()
 
     # 3) Einstellungen gesperrt, dann mit Passwort geöffnet; Stammdaten als Unterreiter (Kunden eigener Reiter)
@@ -727,6 +730,25 @@ def main(ziel):
     karte_fracht = kb.fracht_text.parentWidget()
     foto.foto("angebot_fracht", karte_fracht, [(kb.fracht_modus, 1), (kb.fracht_umlage, 2), (kb.fracht_knopf, 3),
                                                (kb.fracht_text, 4), (kb.fracht_auto, 5)])
+
+    # Lieferlängen: 6 m gegen 12 m (eigenes Angebot, nach allen anderen Bildern)
+    f.angebot_schliessen(haupt)
+    rahmen = db.angebot_neu(dict(nummer="A-2026-0050", kunde="Metallbau Krüger", kundennr="10417", maschine="T03",
+                                 stange=6000, bemerkung="Stützen Halle 3", datum="2026-10-20"))
+    db.position_neu(rahmen, dict(pos=10, artikel="ST-3100", bezeichnung="Stütze", profil_id="RR 48,3x2,6",
+                                 werkstoff_id="S235-10219", laenge=3100, stueck=30, schneidweg=320, einstiche=2))
+    s = f.angebot_oeffnen(rahmen)
+    s.optimieren()
+    reiter_waehlen(s, "Auswertung")
+    bereit()
+    foto.foto("erg_lieferlaengen", f, [(s.laengen_ansicht, 1)], ausschnitt=reiterflaeche(s))
+    s.laenge_waehlen("laenge:0:12000")
+    reiter_waehlen(s, "Stangenbild")
+    bereit()
+    foto.foto("erg_lieferlaengen_bild", f, ausschnitt=reiterflaeche(s))
+    reiter_waehlen(s, "Auswertung")
+    bereit()
+    foto.foto("erg_lieferlaengen_geplant", f, [(s.laengen_ansicht, 1)], ausschnitt=reiterflaeche(s))
 
     # Menü Hilfe
     f.reiter.setCurrentWidget(f.start)

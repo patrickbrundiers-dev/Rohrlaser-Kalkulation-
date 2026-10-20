@@ -196,10 +196,13 @@ class StangenBalken(Flowable):
             c.setLineWidth(rand)
             c.rect(von * f, y, max(0.5, (bis - von) * f), h, fill=1, stroke=1)
         rechteck(0, lang, colors.HexColor("#F2F2F2"))
-        if s["end"]:
-            rechteck(0, s["end"], colors.HexColor("#7F7F7F"))
-        if s["greif"]:
-            rechteck(lang - s["greif"], lang, colors.HexColor("#FF9999"))
+        for w in s.get("werkstuecke") or [dict(von=0, bis=lang, end=s["end"], greif=s["greif"])]:
+            if s.get("werkstuecke"):       # zugeschnittene Lieferstange: Werkstücke hell, dazwischen Zuschnitt
+                rechteck(w["von"], w["bis"], colors.HexColor("#FAFAFA"), rand=0.8)
+            if w["end"]:
+                rechteck(w["von"], w["von"] + w["end"], colors.HexColor("#7F7F7F"))
+            if w["greif"]:
+                rechteck(w["bis"] - w["greif"], w["bis"], colors.HexColor("#FF9999"))
         for t in m["teile"]:
             rechteck(t["von"], t["bis"], colors.HexColor(self.farben.get(t["pos"], TEILFARBEN[0])))
             c.setStrokeColor(colors.black)
@@ -251,7 +254,9 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
                              "Lage", "Trennung zum Vorgänger", "erledigt"])]
         for t in m["teile"]:
             daten.append([_z(t["platz"], 0), _z(t["pos"], 0), _p(t["artikel"], S_KLEIN), _p(t["bezeichnung"], S_KLEIN),
-                          _z(t["laenge"], 1), _z(t["von"], 1), _z(t["bis"], 1), t["lage"], _p(t["trennung"], S_KLEIN), ""])
+                          _z(t["laenge"], 1), _z(t["von"], 1), _z(t["bis"], 1),
+                          _p(f"W{t['werkstueck']} {t['lage']}", S_KLEIN) if t.get("werkstueck") else t["lage"],
+                          _p(t["trennung"], S_KLEIN), ""])
         tab = _tabelle(daten, breiten, rechts=(4, 5, 6), wiederholen=True)
         tab.setStyle(TableStyle([("ALIGN", (0, 1), (1, -1), "CENTER"), ("ALIGN", (7, 1), (7, -1), "CENTER")]))
         titel = Table([[_p(ausgabe.muster_titel(m), ParagraphStyle("mt", parent=S_FETT, fontSize=11, leading=13))]],
@@ -261,6 +266,9 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
                   f"{_z(s['end'], 1)} mm  |  Greiferrest {_z(s['greif'], 1)} mm  |  Rest {_z(m['rest'], 1)} mm  |  "
                   f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %", S_KLEIN)
         kopfteil = [titel, info, Spacer(1, 1.5 * mm)]
+        if s.get("zuschnitt"):            # Lieferstange, vom Lieferanten in Werkstücke geschnitten
+            kopfteil[2:2] = [_p(f"{s['zuschnitt']}. Je Werkstück eine Beladung; Von/Bis gelten im Werkstück, "
+                                "Lage mit Werkstück-Nr. (W1, W2 …).", S_KLEIN)]
         if len(m["teile"]) <= 30:
             inhalt.append(KeepTogether(kopfteil + [tab, Spacer(1, 5 * mm)]))
         else:
@@ -278,7 +286,9 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
             inhalt.append(_p(achtung.replace("Schnittplan", "Stangenbild"), ParagraphStyle("rot2", parent=S_FETT,
                                                                                               textColor=ROT)))
         inhalt += [_p("Grau = Endbeschnitt, farbig = Teil (Pos., Länge in mm; Farbe je Position), hellgrau = Rest / "
-                      "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange.", S_KLEIN),
+                      "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange. "
+                      "Zugeschnittene Lieferstangen (z. B. 12 m): je Werkstück eigener Endbeschnitt und Greiferrest, "
+                      "dazwischen der Zuschnitt des Lieferanten.", S_KLEIN),
                    Spacer(1, 3 * mm)]
         inhalt += [StangenBalken(m, farben) for m in wp["muster"]]
     else:

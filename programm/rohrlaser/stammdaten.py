@@ -193,7 +193,8 @@ PROFILE = Tabelle(
      Feld("greiferrest", "Greiferrest abweichend [mm]", "zahl", 0, 2000, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=220),
      # hinten angefügt: Beispieldaten und Import älterer Dateien zählen die Felder nach Reihenfolge
-     Feld("wand_max", "Wandstärke max. [mm]", "zahl", 0, 500, stellen=2)),
+     Feld("wand_max", "Wandstärke max. [mm]", "zahl", 0, 500, stellen=2),
+     Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85)),
     ("profil_id",),
     "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
     "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
@@ -201,7 +202,8 @@ PROFILE = Tabelle(
     "HEA, HEB, HEM, T, sonst Fläche manuell). Wandstärke max. = dickste Stelle (z. B. Flanschdicke): die "
     "Schneidzeit rechnet mit der größeren der beiden Wandstärken; leer = Normtabelle bzw. Wandstärke. Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
-    "(Eckradien, Sonderprofile, C-Profil).",
+    "(Eckradien, Sonderprofile, C-Profil). Lieferlängen vergleichen = nein: das Profil wird nur mit der "
+    "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen.",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
                ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1),
                ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1)))
@@ -250,6 +252,26 @@ PREISE = Tabelle(
     "Je Kombination Profil + Werkstoff höchstens eine Zeile. Preisbasis €/kg, €/m oder €/Stange "
     "(bezogen auf die Liefer-Stangenlänge). Ohne Zeile gilt der Tonnenpreis des Werkstoffs.",
     berechnet=(("Preis €/m automatisch", preis_je_m_automatisch, 2),))
+
+LIEFERLAENGEN = Tabelle(
+    "lieferlaengen", "Lieferlängen",
+    (Feld("profil_id", "Profil-ID", "auswahl", auswahl="profil", pflicht=True, breite=130),
+     Feld("werkstoff_id", "Werkstoff-ID", "auswahl", auswahl="werkstoff", pflicht=True, breite=120),
+     Feld("laenge", "Lieferlänge [mm]", "ganz", 500, 30000, pflicht=True, breite=90),
+     Feld("basis", "Preisbasis (leer = wie Preise)", "auswahl", auswahl="preisbasis", breite=95),
+     Feld("preis", "Preis [€]", "zahl", 0.01, 100000, stellen=2, breite=80),
+     Feld("gueltig_ab", "Gültig ab", "datum", breite=90),
+     Feld("lieferant", "Lieferant", breite=140),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("profil_id", "werkstoff_id", "laenge"),
+    "Weitere lieferbare Stangenlängen je Profil + Werkstoff (z. B. 12.000 mm). Das Angebot vergleicht sie mit der "
+    "Stangenlänge des Angebots und empfiehlt sie nur bei ausreichender Kostenersparnis (Einstellungen, Gruppe "
+    "Lieferlängen). Längen über der max. Stangenlänge der Maschine schneidet der Lieferant auf die geplanten "
+    "Werkstücklängen zu. Preis leer = €/kg- bzw. €/m-Preis aus 'Preise', ohne Zeile dort der Tonnenpreis. Gibt es "
+    "für Profil + Werkstoff Zeilen, ist die Stangenlänge des Angebots nur lieferbar, wenn sie hier oder als "
+    "Liefer-Stangenlänge in 'Preise' steht. Ohne Zeile gelten Profile über dem Hüllkreis-Ø aus den Einstellungen "
+    "(Vorgabe 70 mm) zusätzlich als 12 m lieferbar, Preis wie 'Preise'; kleinere ohne Zeile nie. Profile: "
+    "Lieferlängen vergleichen = nein schließt ein Profil ganz aus.")
 
 MASCHINEN = Tabelle(
     "maschinen", "Maschinen",
@@ -365,15 +387,16 @@ ARBEITSSCHRITTE = Tabelle(
     "Rüsten je Abmessung und Stangenwechsel rechnet das Programm selbst; bei ihnen zählen nur Stundensatz, Art "
     "und Parallel. Art Personal mit Parallel = ja läuft neben der Maschine und verlängert die Durchlaufzeit nicht.")
 
-TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, MASCHINEN, SCHNEIDDATEN, GEWINDE, ZUSATZARBEITEN,
-            STUNDENSAETZE, ARBEITSSCHRITTE)
+TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
+            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
 VERWEISE = {
     ("kunden", "kundennr"): (("angebote", "kundennr"),),
-    ("profile", "profil_id"): (("preise", "profil_id"),),
-    ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("schneiddaten", "werkstoff_id")),
+    ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id")),
+    ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
+                                     ("schneiddaten", "werkstoff_id")),
     # Angebote: dazu die Snapshots im Angebot und die Standard-Maschine (Datenbank._maschine_umbenannt)
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine")),
     ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id")),
@@ -407,6 +430,20 @@ EINSTELLUNGEN = (
     Einstellung("programmierung_teil", "Programmierkosten je Teil (Position) [€]", "Kalkulation", "zahl", 8.50, 0,
                 100000),
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
+    # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
+    # Mindestwerte erreicht sind
+    Einstellung("laenge_mindest_eur", "Lieferlängen: Mindestersparnis je Gruppe in €", "Lieferlängen", "zahl", 20.0,
+                0, 100000),
+    Einstellung("laenge_mindest_anteil", "Lieferlängen: Mindestersparnis je Gruppe in %", "Lieferlängen", "anteil",
+                0.03, 0, 1),
+    Einstellung("laenge_auto_huellkreis", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus)",
+                "Lieferlängen", "zahl", 70.0, 0, 2000),
+    Einstellung("laenge_auto", "Lieferlängen: Länge für Profile ab diesem Hüllkreis-Ø [mm]", "Lieferlängen", "ganz",
+                12000, 500, 30000),
+    Einstellung("zuschnitt_verlust", "Lieferlängen: Schnittverlust je Zuschnitt beim Lieferanten [mm]",
+                "Lieferlängen", "zahl", 3.0, 0, 50),
+    Einstellung("zuschnitt_kosten", "Lieferlängen: Kosten je Zuschnitt beim Lieferanten [€]", "Lieferlängen", "zahl",
+                0.0, 0, 10000),
     Einstellung("standard_maschine", "Standard-Maschine", "Angebot", "auswahl", "T03",
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
@@ -649,6 +686,9 @@ def pruefen(t, z, k):
             return "WARNUNG: Wandstärke fehlt, ohne sie keine Schneidzeit (Wandstärke max. eintragen)"
     if t is PREISE and z.get("basis") == "€/Stange" and not z.get("lieferlaenge"):
         return "FEHLER: Stangenlänge fehlt"
+    if t is LIEFERLAENGEN:
+        if _leer(z.get("basis")) != _leer(z.get("preis")):
+            return "FEHLER: Preisbasis und Preis nur zusammen (beide leer = Preis wie 'Preise')"
     if t is SCHNEIDDATEN:
         if _leer(z.get("werkstoff_id")) == _leer(z.get("kategorie")):
             return "FEHLER: Werkstoff-ID oder Kategorie eintragen (eins von beiden)"

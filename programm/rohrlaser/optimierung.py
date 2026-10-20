@@ -469,6 +469,78 @@ def untergrenze(g):
     return math.ceil(sum(t.laenge + g.kerf for t in g.teile) / nutz - EPS) if g.teile else 0
 
 
+# ------------------------------------------------------------------ Zuschnitt langer Lieferstangen
+# Eine Lieferstange, die länger ist als die Maschine laden kann (z. B. 12.000 mm bei 6.500 mm), wird vom Lieferanten
+# in Werkstücke geschnitten, die einzeln geladen werden. Werkstück = Endbeschnitt + Teile + Trennungen + letzter
+# Schnittverlust + Greiferrest, auf ganze mm aufgerundet, höchstens die max. Stangenlänge der Maschine. Zwischen zwei
+# Werkstücken geht der Schnittverlust des Zuschnitts verloren, der Rest der Lieferstange ist Verschnitt.
+ZUSCHNITT_TEILUNG = 6    # Ziel-Werkstücklängen: Lieferlänge geteilt durch 1 … 6 (Schritte, keine Zeit)
+
+
+def werkstueck_laenge(g, folge):
+    """Länge des Werkstücks für eine Folge (ganze mm)."""
+    return math.ceil(verbrauch(g, folge) + g.greiferrest - EPS)
+
+
+def zuschnitt_belegt(laengen, saege):
+    """Belegte Länge einer Lieferstange: Werkstücke + Zuschnitte dazwischen."""
+    return sum(laengen) + saege * max(len(laengen) - 1, 0)
+
+
+def zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege):
+    """Ziel-Werkstücklängen, die ausprobiert werden: die max. Werkstücklänge und die Lieferlänge geteilt durch 2 … n
+    (abzüglich der Zuschnitte), soweit das längste Teil hineinpasst. Längste zuerst."""
+    noetig = g.endbeschnitt + max(t.laenge for t in g.teile) + g.kerf + g.greiferrest
+    ziele = {int(min(max_werkstueck, math.floor((lieferlaenge - (n - 1) * saege) / n + EPS)))
+             for n in range(1, ZUSCHNITT_TEILUNG + 1)}
+    return sorted((z for z in ziele if z + EPS >= noetig), reverse=True)
+
+
+def zuschnitt(g, lieferlaenge, max_werkstueck, saege):
+    """Zweistufige Planung: Teile zu Werkstücken (Optimierung wie bei normalen Stangen, Stangenlänge = Ziel-
+    Werkstücklänge), dann die Werkstücke auf Lieferstangen verteilen (dieselbe Optimierung: Werkstücke als Teile mit
+    geraden Enden, Schnittverlust = Zuschnitt, ohne Endbeschnitt und Greiferrest). Je Ziel-Werkstücklänge eine
+    Planung, es gilt die mit den wenigsten Lieferstangen, dann den wenigsten Werkstücken (Beladungen), dann den
+    meisten gemeinsamen Schnitten. Ergebnis: Liste der Lieferstangen, je Lieferstange [(Werkstücklänge, Folge)];
+    None, wenn ein Teil in kein Werkstück passt."""
+    if not g.teile:
+        return []
+    beste = None
+    for ziel in zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege):
+        h = replace(g, stange=ziel, teile=list(g.teile))
+        folgen = optimiere(h)
+        laengen = [werkstueck_laenge(g, f) for f in folgen]
+        # Stange um einen Zuschnitt länger: verbrauch() zählt nach dem letzten Werkstück noch einen Schnitt
+        p = Gruppe(g.profil, g.werkstoff, lieferlaenge + saege, 0, 0, saege, 0, g.oberflaeche)
+        p.teile = [Teil(i, None, "", 1, float(l), True, True, 0, 0) for i, l in enumerate(laengen)]
+        if any(l > lieferlaenge + EPS for l in laengen):
+            continue
+        verteilt = optimiere(p)
+        stangen = [[(laengen[t.zeile], folgen[t.zeile]) for t, _ in sorted(f, key=lambda x: (-x[0].laenge,
+                                                                                            x[0].zeile))]
+                   for f in verteilt]
+        wert = (len(stangen), len(folgen), -sum(gemeinsame_schnitte(f) for f in folgen), -ziel)
+        if beste is None or wert < beste[0]:
+            beste = (wert, stangen)
+    return beste[1] if beste else None
+
+
+def pruefe_zuschnitt(g, stangen, lieferlaenge, max_werkstueck, saege):
+    """Unabhängige Kontrolle des Zuschnitts: jedes Teil genau einmal, kein Werkstück über der max.
+    Werkstücklänge oder kürzer als seine Belegung + Greiferrest, keine Lieferstange überbelegt."""
+    ids = sorted((t.zeile, t.nr) for s in stangen for _, f in s for t, _ in f)
+    if ids != sorted((t.zeile, t.nr) for t in g.teile):
+        raise AssertionError(f"{g.profil}: Teile fehlen oder doppelt (Zuschnitt)")
+    for s in stangen:
+        for laenge, f in s:
+            if laenge > max_werkstueck + EPS:
+                raise AssertionError(f"{g.profil}: Werkstück {laenge:g} mm länger als die Maschine laden kann")
+            if verbrauch(g, f) + g.greiferrest > laenge + EPS:
+                raise AssertionError(f"{g.profil}: Werkstück überbelegt")
+        if zuschnitt_belegt([l for l, _ in s], saege) > lieferlaenge + EPS:
+            raise AssertionError(f"{g.profil}: Lieferstange überbelegt")
+
+
 # ------------------------------------------------------------------ Profile
 OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
 

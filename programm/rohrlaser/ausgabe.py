@@ -265,10 +265,14 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     for s, nummern in rechnen.stangenmuster(ergebnis):
         w = werte[s["nr"]]
         teile = []
+        ws = {w["nr"]: w for w in s.get("werkstuecke") or []}
         for platz, t in enumerate(s["teile"], start=1):
             p = positionen[t["index"]] if 0 <= t["index"] < len(positionen) else {}
+            # zugeschnittene Lieferstange: Lage im Werkstück (so wird es geladen)
+            w0 = ws[t["werkstueck"]]["von"] if t.get("werkstueck") in ws else 0
             teile.append(dict(platz=platz, pos=t["pos"], artikel=t["artikel"], bezeichnung=p.get("bezeichnung"),
-                              laenge=t["laenge"], von=t["von"], bis=t["bis"], lage=t["lage"], trennung=t["trennung"]))
+                              laenge=t["laenge"], von=t["von"] - w0, bis=t["bis"] - w0, lage=t["lage"],
+                              trennung=t["trennung"], werkstueck=t.get("werkstueck")))
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile))
     return dict(material=list(material.values()), muster=muster, zukaufteile=zk)

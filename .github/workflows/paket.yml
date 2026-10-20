@@ -40,6 +40,7 @@ jobs:
           /usr/bin/python3 tests/test_step_konturen.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_ergebnis.py
           /usr/bin/python3 tests/test_optimierung.py
+          /usr/bin/python3 tests/test_lieferlaengen.py
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

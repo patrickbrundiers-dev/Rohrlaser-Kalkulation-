@@ -304,7 +304,7 @@ def kapitel_ueberblick(i):
             "Bei Bedarf <b>Staffelpreise</b> für weitere Mengen rechnen.",
             "<b>Ausgeben</b>: Angebot, Werkstattpapiere und Kalkulation als PDF, auf Wunsch CSV-Export.",
             nummeriert=True)
-    i.text("Die Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
+    i.text("Die Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, Lieferlängen, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
            "Einstellungen werden einmal eingerichtet ([[stammdaten]] und [[einstellungen]]): das Programm startet mit Beispielwerten, die "
            "durch die eigenen ersetzt werden.")
     i.text("<b>Aufbau dieser Anleitung:</b> [[start]] richtet das Programm ein. [[angebote]] bis [[nachkalkulation]] "
@@ -920,6 +920,65 @@ def kapitel_optimieren(i):
            "Stange, Profil über der Maschinengrenze oder fehlende Angaben. Diese Teile fehlen in Schnittplan, "
            "Kalkulation und Angebot, bis der Grund behoben ist.")
     i.bild("erg_auswertung", "Reiter Auswertung", hoehe=85 * mm)
+    i.abschnitt("Lieferlängen: 6 m gegen 12 m", marke="lieferlaengen")
+    i.text("Gibt es für ein Profil + Werkstoff weitere Lieferlängen (Stammdaten <i>Lieferlängen</i>, z. B. "
+           "12.000 mm), plant das Programm beim Optimieren jede Länge unter gleichen Bedingungen (gleiche Teile, "
+           "Endbeschnitt, Greiferrest, Schnittverlust, gemeinsame Schnitte) und vergleicht sie im Reiter "
+           "<i>Auswertung</i> unter <b>Lieferlängen: 6 m gegen 12 m</b>. Ohne Eintrag gilt das für Profile mit "
+           "Hüllkreis-Ø über 70 mm (Einstellung). Kleinere Profile ohne Eintrag und Profile mit "
+           "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant.")
+    i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
+            "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
+            "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
+            "Werkstück ist länger als die Beladelänge.",
+            "Ein Werkstück = Endbeschnitt + Teile + Trennschnitte + Schnittverlust + Greiferrest, auf ganze mm "
+            "aufgerundet. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
+            "Vorgabe 3 mm). Passen Werkstücke deshalb nicht mehr zusammen in die Stange, kommen sie auf die nächste.",
+            "Gerechnet wird zweistufig: erst die Teile zu Werkstücken (dieselbe Optimierung wie bei normalen "
+            "Stangen, mit mehreren Ziel-Längen: Beladelänge, Lieferlänge / 2, / 3 …), dann die Werkstücke auf die "
+            "Lieferstangen. Es gilt die Planung mit den wenigsten Stangen, dann den wenigsten Beladungen. Eine "
+            "eigene Kontrolle prüft, dass kein Werkstück und keine Stange überbelegt ist und jedes Teil genau einmal "
+            "vorkommt.",
+            "Längen bis zur Beladelänge (z. B. 6.500 mm) werden direkt geladen, ohne Zuschnitt.",
+            "Reste bleiben Verschnitt. Es gibt keine Reststückverwaltung: nichts wird gespeichert oder in einem "
+            "späteren Angebot wiederverwendet; ein Reststückwert wird nicht angerechnet.")
+    i.text("<b>Gesamtkosten je Variante</b> = Materialkosten (Stangen × Preis der Lieferlänge) + Stangenwechsel und "
+           "Arbeitsschritte je Stange für jede Beladung + Kosten je Zuschnitt beim Lieferanten (Vorgabe 0 €: die "
+           "12-m-Stangen kommen geschnitten ohne Zusatzkosten). Laserzeit und Schnittwege sind in allen Varianten "
+           "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Werkstücklängen, Materiallänge, "
+           "Materialkosten, Stangenwechsel, Zuschnittkosten, Reststückwert (nicht angerechnet), Gesamtkosten, "
+           "Verschnitt in mm und % und fehlende Angaben.")
+    i.bild("erg_lieferlaengen", "Reiter Auswertung, Lieferlängen: 30 Stützen 3.100 mm, 12 m spart ein Drittel "
+                                "Material", hoehe=110 * mm,
+           legende=[(1, "Vergleich je Gruppe mit Empfehlung, Begründung und Link zum Übernehmen")])
+    i.tabelle(["Empfehlung", "Wann"], [
+        ["<b>6-m-Stangen empfohlen</b>", "Profil ausgenommen oder keine ausführbare andere Lieferlänge"],
+        ["<b>12-m-Stangen wirtschaftlich sinnvoll</b>",
+         "die Ersparnis erreicht beide Mindestwerte aus den Einstellungen (Vorgabe 20 € und 3 % je Gruppe)"],
+        ["<b>Kein ausreichender Kostenvorteil für 12 m</b>", "Ersparnis unter einem Mindestwert, gleiche Kosten "
+                                                             "oder 12 m teurer (z. B. durch einen Längenzuschlag)"],
+        ["<b>Vergleich nicht möglich – Angaben fehlen</b>",
+         "ein Preis fehlt (z. B. Preise in €/Stange für 6 m, aber kein Preis für 12 m) oder der Stangenwechsel der "
+         "Maschine fehlt, obwohl die Varianten verschieden viele Beladungen haben. Fehlende Werte zählen nie als 0."],
+        ["<b>6 m nicht lieferbar – 12-m-Stangen verwenden</b>",
+         "für Profil + Werkstoff ist die Stangenlänge des Angebots nicht als Lieferlänge hinterlegt; es gibt keine "
+         "künstliche 6-m-Variante, das Programm plant gleich mit 12 m"]], [70, 195])
+    i.text("<b>Übernehmen erst auf Klick:</b> Die Planung bleibt bei der Stangenlänge des Angebots, bis unter dem "
+           "Vergleich <i>12-m-Stangen übernehmen</i> geklickt wird. Dann optimiert das Programm neu: Schnittplan, "
+           "Stangenbild, Material, Stangenwechsel (je Beladung), Kalkulation, Werkstattpapiere und Nachkalkulation "
+           "rechnen mit den 12-m-Stangen. <i>Wieder 6-m-Stangen verwenden</i> macht es rückgängig. Die Wahl gilt je "
+           "Gruppe und bleibt bei Kopien des Angebots erhalten.")
+    i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: je 12-m-Stange drei Werkstücke mit eigenem "
+                                     "Endbeschnitt und Greiferrest", hoehe=80 * mm)
+    i.liste("Schnittplan: Spalten <i>Werkstücke (Beladungen)</i> und <i>Zuschnitt beim Lieferanten</i> (z. B. "
+            "„Zuschnitt beim Lieferanten: 3.253 + 3.253 + 3.253 mm, Rest 2.235 mm“); je Teil die Spalte "
+            "<i>Werkstück</i>.",
+            "Werkstattpapiere: Materialliste mit den 12-m-Stangen, je Stange der Zuschnitt; Von/Bis der Teile gelten "
+            "im Werkstück, die Lage nennt das Werkstück (W1, W2 …).",
+            "Staffelpreise: je Mengenstufe vergleicht das Programm selbst und nimmt die empfohlene Lieferlänge "
+            "([[staffeln]]).")
+    i.bild("erg_lieferlaengen_geplant", "Nach dem Übernehmen: 12-m-Variante geplant, Link zurück auf 6 m",
+           hoehe=90 * mm)
 
 
 def kapitel_staffeln(i):
@@ -928,6 +987,10 @@ def kapitel_staffeln(i):
            "eigenes Angebot neu optimiert und kalkuliert, weil Rüsten, Stangenwechsel und Verschnitt je Menge neu "
            "anfallen. Das eigentliche Angebot bleibt unverändert. Jede Stufe kann eigene Werte haben "
            "(Materialzuschlag, Gewinn, Nebenkosten …); leere Felder nehmen den Wert des Angebots.")
+    i.text("Gibt es für ein Profil weitere Lieferlängen (z. B. 12 m, [[lieferlaengen]]), "
+           "vergleicht das Programm sie für jede Mengenstufe neu und nimmt automatisch die empfohlene, also nur bei "
+           "ausreichender Ersparnis die längere. Bei kleinen Mengen bleibt es so oft bei 6 m, bei großen kann es 12 m "
+           "sein; die Spalte Stangen zeigt die Anzahl der geplanten Stangen.")
     i.bild("staffeln_vorher", "Mengenstufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
         (1, "<b>Neue Stufe</b> fügt eine Zeile an; <b>Stufen löschen</b> entfernt die markierten."),
         (2, "<b>Stufen aus Angebot</b> legt für jeden Satz und jede Position ohne Satz, die noch fehlt, eine Stufe "
@@ -1385,6 +1448,17 @@ def kapitel_einstellungen(i):
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Lieferlängen", "Lieferlängen: Mindestersparnis je Gruppe in €, Lieferlängen: Mindestersparnis je Gruppe in %",
+         "Eine andere Lieferlänge (z. B. 12 m) wird nur empfohlen, wenn sie gegenüber der Stangenlänge des Angebots "
+         "mindestens so viel spart, in € und in % (Vorgabe 20 € und 3 %)."],
+        ["Lieferlängen", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus), Lieferlängen: Länge "
+                         "für Profile ab diesem Hüllkreis-Ø [mm]",
+         "Profile ohne Zeile in Lieferlängen mit größerem Hüllkreis-Ø gelten zusätzlich in dieser Länge als lieferbar "
+         "(Vorgabe 70 mm und 12.000 mm), Preis wie unter Preise; 0 = aus."],
+        ["Lieferlängen", "Lieferlängen: Schnittverlust je Zuschnitt beim Lieferanten [mm], Lieferlängen: Kosten je "
+                         "Zuschnitt beim Lieferanten [€]",
+         "Materialverlust und Kosten, wenn der Lieferant eine lange Stange in Werkstücke schneidet (Vorgabe 3 mm und "
+         "0 €: die Stangen kommen geschnitten ohne Zusatzkosten)."],
         ["Angebot", "Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen neuer Angebote, wenn der Kunde im Kundenstamm keine eigenen hat (Vorgabe 2 % Skonto "
          "bei Zahlung in 10 Tagen, 30 Tage netto). Das Skonto wird in den Preis eingerechnet. Bestehende Angebote "
@@ -1489,6 +1563,9 @@ def kapitel_stammdaten(i):
          "Je Position wählbar, leer = roh. Der Aufpreis kommt je Meter Stange auf den Materialpreis."],
         ["Preise", "Preis je Profil + Werkstoff in €/kg, €/m oder €/Stange",
          "Je Kombination höchstens eine Zeile. €/Stange bezieht sich auf die Liefer-Stangenlänge."],
+        ["Lieferlängen", "weitere lieferbare Stangenlängen je Profil + Werkstoff (z. B. 12.000 mm), Preis",
+         "Das Angebot vergleicht sie mit der Stangenlänge des Angebots ([[lieferlaengen]]). Kleine Profile, die es nicht in 12 m gibt, einfach "
+         "nicht eintragen."],
         ["Maschinen", "Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge, Stundensatz, Konturgrenzen, "
                       "Rüstzeit, Stangenwechsel, max. Hüllkreis und Metergewicht",
          "Profile über dem max. Hüllkreis-Ø oder Metergewicht bekommen im Angebot FEHLER und werden nicht "
@@ -1559,6 +1636,9 @@ def kapitel_stammdaten(i):
                                  "bei neu angelegten Profilen die größte gemessene Wand bzw. Flanschdicke ein. Ein "
                                  "Sonderprofil ohne beide Werte bekommt die Warnung <i>Wandstärke fehlt</i>, weil es "
                                  "ohne sie keine Schneidzeit gibt."],
+        ["Lieferlängen vergleichen", "leer oder ja = Lieferlängen aus der Tabelle Lieferlängen werden verglichen; "
+                                     "nein = das Profil wird nur mit der Stangenlänge des Angebots geplant (z. B. "
+                                     "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
@@ -1590,6 +1670,26 @@ def kapitel_stammdaten(i):
         ["<b>Preisbasis</b>, <b>Preis [€]</b>", "€/kg, €/m oder €/Stange und der Betrag"],
         ["Liefer-Stangenlänge [mm]", "Pflicht bei €/Stange: Länge, auf die sich der Stangenpreis bezieht"],
         ["Gültig ab, Lieferant, Bemerkung", "zur Info, z. B. Datum des Lieferantenangebots"]], [75, 190])
+    i.tabelle(["Lieferlängen", "Bedeutung"], [
+        ["<b>Profil-ID</b>, <b>Werkstoff-ID</b>, <b>Lieferlänge [mm]</b>",
+         "Kombination und Länge, in der das Material zusätzlich lieferbar ist, z. B. <i>QR 40x40x3</i>, "
+         "<i>S235-10219</i>, 12.000. Je Kombination beliebig viele Längen."],
+        ["Preisbasis (leer = wie Preise), Preis [€]",
+         "eigener Preis dieser Länge in €/kg, €/m oder €/Stange (je Stange dieser Länge), z. B. mit "
+         "Längenzuschlag. Beide leer = €/kg- bzw. €/m-Preis aus <i>Preise</i>, ohne Zeile dort der Tonnenpreis. Steht "
+         "in Preise ein Preis je Stange einer anderen Länge, ist hier ein eigener Preis nötig, sonst meldet der "
+         "Vergleich <i>Angaben fehlen</i>."],
+        ["Gültig ab, Lieferant, Bemerkung", "zur Info"]], [75, 190])
+    i.bild("stamm_lieferlaengen", "Einstellungen, Lieferlängen: 12-m-Stangen für ein Rundrohr", hoehe=70 * mm)
+    i.liste("Ohne Zeile in Lieferlängen gelten Profile mit Hüllkreis-Ø über 70 mm (Einstellung, 0 = aus) "
+            "zusätzlich als 12 m lieferbar, zum Preis aus <i>Preise</i> bzw. zum Tonnenpreis. Kleinere Profile ohne "
+            "Zeile werden nie mit 12 m geplant. Eine eigene Zeile geht immer vor; <i>Lieferlängen vergleichen = "
+            "nein</i> am Profil schließt es ganz aus.",
+            "Gibt es für Profil + Werkstoff Zeilen, ist die Stangenlänge des Angebots (meist 6.000 mm) nur lieferbar, "
+            "wenn sie hier oder als Liefer-Stangenlänge in <i>Preise</i> steht. Steht dort nur 12.000, plant das "
+            "Programm keine künstliche 6-m-Variante.",
+            "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
+            "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Werkstücklängen zu.")
     i.text("Vorbelegt sind die Maschinen T03 (Trumpf, CO₂-Laser), T11 (Trumpf, Faserlaser) und LT7 (Adige, "
            "Faserlaser): Endbeschnitt 10 mm, Schnittverlust 0,2 mm, max. Stangenlänge 6.500 mm, 150 €/h, Konturgrenzen "
            "10 und 50 mm, Abstand getrennte Schnitte 5 mm, Rüstzeit 5 min; Greiferrest 142 mm (LT7 120 mm), "
@@ -1603,7 +1703,8 @@ def kapitel_stammdaten(i):
         ["Endbeschnitt [mm], Greiferrest [mm]", "Anschnitt am Stangenanfang und nicht nutzbares Ende im Greifer"],
         ["Schnittverlust je Schnitt [mm]", "Materialverlust je Trennschnitt (Schnittbreite)"],
         ["Abstand getrennte Schnitte [mm]", "Steg zwischen zwei Teilen, wenn sich die Enden keinen Schnitt teilen"],
-        ["Max. Stangenlänge [mm]", "längste Stange, die die Maschine laden kann"],
+        ["Max. Stangenlänge [mm]", "längste Stange, die die Maschine laden kann (Beladelänge); auch die Grenze für "
+                                   "Werkstücke aus längeren Lieferstangen"],
         ["Stundensatz [€/h]", "Stundensatz <i>Maschine</i>: für Laserzeit, Gewinde ohne Festpreis, Rüsten und "
                               "Stangenwechsel, solange unter Arbeitsschritte nichts anderes gewählt ist"],
         ["Kontur klein bis [mm], Kontur mittel bis [mm]",
@@ -2385,6 +2486,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.5.14", "Lieferlängen: 6-m- gegen 12-m-Stangen vergleichen, 12 m nur als vom Lieferanten geschnittene "
+               "Werkstücke bis zur Beladelänge, Übernahme per Klick, Staffeln wählen selbst ([[lieferlaengen]])."],
     ["0.5.13", "Maschinen T03 (Trumpf, CO₂ 3,2 kW), T11 (Trumpf, Faser 4 kW) und LT7 (Adige, Faser 3 kW) statt RL-1/RL-2, "
                "neue Schneiddaten-Richtwerte je Laser, Prüfspalte warnt bei unplausiblen Vorschüben; beim Umbenennen "
                "einer Maschine ziehen Angebote und Standard-Maschine mit ([[stammdaten]])."],

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QFrame,
     QFormLayout, QMenu, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyledItemDelegate, QTableView,
-    QTabWidget,
+    QTabWidget, QTextBrowser,
     QVBoxLayout, QWidget)
 
 from . import fracht_angebot, ausgabe, export, pdf, rechnen, step, zukauf, zukauf_ek
@@ -482,7 +482,8 @@ class Stangenbild(QWidget):
             p.setFont(fett)
             anz = len(nummern)
             nr_text = ", ".join(map(str, nummern)) if anz <= 6 else f"{nummern[0]}–{nummern[-1]}"
-            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm")
+            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm"
+                    + (f"  ·  {len(s['werkstuecke'])} Werkstücke" if s.get("werkstuecke") else ""))
             p.drawText(x0, y + 12, kopf)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]
@@ -499,8 +500,12 @@ class Stangenbild(QWidget):
                 p.drawRect(r)
                 return r
             rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
-            rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
-            rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
+            # zugeschnittene Lieferstange (z. B. 12 m): je Werkstück Endbeschnitt und Greiferrest
+            for w in s.get("werkstuecke") or [dict(von=0, bis=s["stange"], end=s["end"], greif=s["greif"])]:
+                if s.get("werkstuecke"):
+                    rechteck(w["von"], w["bis"], QColor("#F8F8F8"), QColor("#404040"))
+                rechteck(w["von"], w["von"] + w["end"], QColor("#A6A6A6"))                 # Endbeschnitt
+                rechteck(w["bis"] - w["greif"], w["bis"], QColor("#E06666"))               # Greiferrest
             for t in s["teile"]:
                 r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], QColor("#4E79A7")))
                 p.setPen(QPen(QColor("#202020"), 2))
@@ -511,6 +516,64 @@ class Stangenbild(QWidget):
                     p.setPen(QColor("white"))
                     p.drawText(r, Qt.AlignCenter, text if r.width() > 46 else str(t["pos"] or ""))
         p.end()
+
+
+def laengen_html(erg, kopf, positionen, k, tabellen, einst):
+    """Vergleich der Lieferlängen je Gruppe als HTML: Kennzahlen je Variante, Empfehlung mit Begründung und Links
+    zum Übernehmen (laenge:<Gruppe>:<Länge>, 0 = Stangenlänge des Angebots)."""
+    if not erg:
+        return "<i>Noch nicht optimiert.</i>"
+    if not erg.get("laengen"):
+        return ("Für die Profile dieses Angebots gibt es keine weitere Lieferlänge: verglichen wird, was unter "
+                "Einstellungen → Lieferlängen steht, und ohne Eintrag Profile über dem Hüllkreis-Ø aus den "
+                "Einstellungen (Vorgabe 70 mm) mit 12 m. Kleinere Profile ohne Eintrag werden nie mit 12 m geplant.")
+    zeilen = [("Benötigte Stangen", lambda v: _z(v["lieferstangen"], 0)),
+              ("Beladungen der Maschine (Werkstücke)", lambda v: _z(v["werkstuecke"], 0)),
+              ("Zuschnitte beim Lieferanten", lambda v: _z(v["zuschnitte"], 0) if v["zuschnitt"] else "–"),
+              ("Werkstücklängen [mm]", lambda v: ", ".join(_z(l, 0) for l in v["werkstueck_laengen"]) or "–"),
+              ("Materiallänge [m]", lambda v: _z(v["material_mm"] / 1000, 1)),
+              ("Materialkosten [€]", lambda v: _z(v["material"])),
+              ("Stangenwechsel / je Beladung [€]", lambda v: _z(v["werkstueck_kosten"])),
+              ("Zuschnittkosten [€]", lambda v: _z(v["zuschnitt_kosten"]) if v["zuschnitt"] else "–"),
+              ("Reststückwert [€]", lambda v: "nicht angerechnet"),
+              ("<b>Gesamtkosten [€]</b>", lambda v: f"<b>{_z(v['gesamt'])}</b>"),
+              ("Verschnitt [mm]", lambda v: _z(v["verschnitt_mm"], 0)),
+              ("Verschnitt [%]", lambda v: _z(100 * v["verschnitt_anteil"], 1)),
+              ("Angaben fehlen", lambda v: ", ".join(v["fehlt"]) or "–")]
+    farbe = {rechnen.LAENGE_ALTERNATIVE: "#1E7B34", rechnen.LAENGE_NUR_ALTERNATIVE: "#1E7B34",
+             rechnen.LAENGE_ANGABEN_FEHLEN: "#B45F06"}
+    teile = []
+    for i, vg in enumerate(erg["laengen"]):
+        b = rechnen.laengen_bewerten(vg, kopf, positionen, k, tabellen, einst)
+        geplant = vg.get("gewaehlt") or vg["stange"]
+        kopfz = "".join(f"<th align='right'>{rechnen.m_text(v['laenge'])}-m-Variante"
+                        + (" (geplant)" if v["laenge"] == geplant else "") + "</th>" for v in b["varianten"])
+        if not vg["basis_lieferbar"]:
+            kopfz = f"<th align='right'>{rechnen.m_text(vg['stange'])} m: nicht lieferbar</th>" + kopfz
+        html = [f"<p><b>{vg['profil']} · {rechnen.material_text(vg['werkstoff'], vg.get('oberflaeche'))}</b> "
+                f"(Stangenlänge des Angebots {_z(vg['stange'], 0)} mm, max. Beladelänge "
+                f"{_z(vg.get('max_werkstueck'), 0) if vg.get('max_werkstueck') else '–'} mm)"
+                + ("<br><i>12 m ohne Eintrag in Lieferlängen angenommen (Hüllkreis-Ø über der Grenze in den "
+                   "Einstellungen), Preis wie unter Preise.</i>" if vg.get("automatisch") else "") + "</p>",
+                "<table border='1' cellspacing='0' cellpadding='3'><tr><th align='left'>Kennzahl</th>" + kopfz + "</tr>"]
+        for n, (titel, f) in enumerate(zeilen):
+            # nicht ausführbare Variante: Grund in der ersten Zeile, sonst leer
+            wert = lambda v: f(v) if not v["fehler"] else ("nicht ausführbar: " + v["fehler"] if n == 0 else "")
+            zellen = "".join(f"<td align='right'>{wert(v)}</td>" for v in b["varianten"])
+            if not vg["basis_lieferbar"]:
+                zellen = "<td></td>" + zellen
+            html.append(f"<tr><td>{titel}</td>{zellen}</tr>")
+        html.append("</table>")
+        html.append(f"<p><span style='color:{farbe.get(b['empfehlung'], '#202020')}'><b>{b['titel']}</b></span><br>"
+                    f"{b['begruendung']}</p>")
+        links = [f"<a href='laenge:{i}:{v['laenge']}'>{rechnen.m_text(v['laenge'])}-m-Stangen übernehmen</a>"
+                 for v in b["varianten"] if v["laenge"] != geplant and v["laenge"] != vg["stange"] and not v["fehler"]]
+        if geplant != vg["stange"] and vg["basis_lieferbar"]:
+            links.append(f"<a href='laenge:{i}:0'>wieder {rechnen.m_text(vg['stange'])}-m-Stangen verwenden</a>")
+        if links:
+            html.append("<p>Geplant: " + f"{rechnen.m_text(geplant)} m. " + " · ".join(links) + "</p>")
+        teile.append("".join(html))
+    return "<hr>".join(teile)
 
 
 # ------------------------------------------------------------------ Angebot
@@ -678,6 +741,11 @@ class AngebotSeite(QWidget):
         al.addWidget(ausw_ansicht, 2)
         al.addWidget(QLabel("<b>Nicht eingeplante Teile</b>"))
         al.addWidget(fehler_ansicht, 1)
+        al.addWidget(QLabel("<b>Lieferlängen: 6 m gegen 12 m</b> (Vergleich je Gruppe, Stammdaten Lieferlängen)"))
+        self.laengen_ansicht = QTextBrowser()
+        self.laengen_ansicht.setOpenLinks(False)
+        self.laengen_ansicht.anchorClicked.connect(lambda url: self.laenge_waehlen(url.toString()))
+        al.addWidget(self.laengen_ansicht, 2)
         zk_seite = QWidget()            # Zukaufteile: Bestellung je Artikel und Preisstand (ganzes Angebot)
         zl = QVBoxLayout(zk_seite)
         self.zukauf_info = QLabel()
@@ -901,7 +969,8 @@ class AngebotSeite(QWidget):
     def stand_optimierung(self):
         if not self.ergebnis:
             return "noch nicht optimiert"
-        aktuell = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k) == self.ergebnis.get("kennung")
+        aktuell = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst) \
+            == self.ergebnis.get("kennung")
         return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
 
     def _ergebnisse_anzeigen(self):
@@ -942,6 +1011,7 @@ class AngebotSeite(QWidget):
             self.ausw.setzen([])
             self.fehler.setzen([])
         self.teile.setzen([])
+        self.laengen_ansicht.setHtml(laengen_html(erg, self.kopf, self.positionen, self.k, self.tabellen, self.einst))
         self.bild.setzen(erg)
         self.prot.setzen(self.db.protokoll(self.id))
         self.st_seite.setzen()
@@ -1151,7 +1221,7 @@ class AngebotSeite(QWidget):
     def optimieren(self):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            erg = rechnen.optimieren(self.kopf, self.positionen, self.k)
+            erg = rechnen.optimieren(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
         except ValueError as e:
             QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "Optimieren", str(e))
@@ -1163,7 +1233,8 @@ class AngebotSeite(QWidget):
         QApplication.restoreOverrideCursor()
         if erg["neue_profile"]:
             self.db.profile_anlegen(erg["neue_profile"])
-            erg["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.db.kontext())
+            erg["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.db.kontext(), self.tabellen,
+                                                     self.einst)
         self.db.ergebnis_speichern(self.id, erg)
         self.neu_laden()
         n_teile = sum(len(s["teile"]) for s in erg["stangen"])
@@ -1174,6 +1245,29 @@ class AngebotSeite(QWidget):
             text += f", {len(erg['neue_profile'])} Profil(e) aus dem Namen angelegt"
         self.f.meldung(text + ".")
         return True
+
+    def laenge_waehlen(self, link):
+        """Link 'laenge:<Gruppe>:<Länge>' aus dem Vergleich der Lieferlängen: Länge für die Gruppe übernehmen (0 = wieder
+        die Stangenlänge des Angebots), speichern und neu optimieren."""
+        try:
+            _, i, laenge = link.split(":")
+            vg = self.ergebnis["laengen"][int(i)]
+            laenge = int(laenge)
+        except (ValueError, IndexError, KeyError, TypeError):
+            return False
+        wahl = dict(self.kopf.get("laengenwahl") or {})
+        if laenge:
+            wahl[vg["schluessel"]] = laenge
+        else:
+            wahl.pop(vg["schluessel"], None)
+        self.db.laengenwahl_speichern(self.id, wahl)
+        self.neu_laden()
+        ok = self.optimieren()
+        if ok:
+            self.f.meldung(f"{vg['profil']} / {vg['werkstoff']}: " + (
+                f"{rechnen.m_text(laenge)}-m-Stangen übernommen, Schnittplan neu optimiert." if laenge else
+                f"wieder mit {rechnen.m_text(vg['stange'])}-m-Stangen geplant, Schnittplan neu optimiert."))
+        return ok
 
     # -------------------------------------------------------------- Staffeln (staffel_seite.py)
     def staffel_neu(self):
