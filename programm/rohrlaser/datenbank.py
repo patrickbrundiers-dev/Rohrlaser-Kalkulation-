@@ -38,11 +38,12 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 19     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 20     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
                         # 19: Profilformen I-/H-Träger und T-Profil in der Auswahlliste ergänzt (keine neuen Spalten)
+                        # 20: Blechartikel: zukauf_artikel.artikeltyp, Maße, Werkstoff, Herkunft, STEP-Datei, Kennung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -345,7 +346,10 @@ class Datenbank:
         (zukauf.artikel_fehler) und eindeutige Artikelnummer (ValueError). Änderungen an Einkaufspreisen und
         Aufschlag kommen ins Protokoll der Preisänderungen. Ergebnis: ID."""
         felder = [f.name for f in zukauf.ARTIKEL.felder if f.name not in ("angelegt", "geaendert")]
-        werte = {n: werte.get(n) for n in felder}
+        alt = self.zukauf_artikel(artikel_id) if artikel_id is not None else None
+        # Blechdaten (Maße, STEP-Datei, Kennung) bleiben erhalten, wenn der Aufrufer sie nicht mitgibt
+        werte = {n: alt.get(n) if alt is not None and n in zukauf.BLECH_FELDER and n not in werte else werte.get(n)
+                 for n in felder}
         for n in ("artikelnr", "bezeichnung"):
             if isinstance(werte[n], str):
                 werte[n] = werte[n].strip() or None
@@ -367,7 +371,6 @@ class Datenbank:
         for b in bezuege:
             if isinstance(b.get("preise"), list):
                 b["preise"] = json.dumps(b["preise"], ensure_ascii=False)
-        alt = self.zukauf_artikel(artikel_id) if artikel_id is not None else None
         jetzt = self._jetzt()
         bekannt = {z["name"] for z in self.zeilen("zukauf_lieferanten")}
         neue_lieferanten = sorted({b["lieferant"].strip() for b in bezuege if (b.get("lieferant") or "").strip()} - bekannt)
@@ -389,6 +392,30 @@ class Datenbank:
                                  f'VALUES (?, {", ".join("?" * len(bfelder))})', [artikel_id] + [b.get(n) for n in bfelder])
             self._zukauf_protokoll(artikel_id, alt, dict(werte, bezuege=bezuege), jetzt, bemerkung)
         return artikel_id
+
+    def zukauf_ek_eintragen(self, artikel_id, preis, lieferant=None):
+        """Einkaufspreis je Einheit (ab Menge 1) beim Lieferanten eintragen (fehlt er, beim bevorzugten bzw. einem neuen
+        Eintrag); weitere Staffelzeilen dieses Lieferanten werden ersetzt. Preis muss über 0 € liegen (ValueError)."""
+        p = zukauf.dez(preis)
+        if p is None or p <= 0:
+            raise ValueError("Bitte einen Einkaufspreis über 0 € eingeben.")
+        a = self.zukauf_artikel(artikel_id)
+        if a is None:
+            raise ValueError("Artikel nicht gefunden.")
+        bezuege = [dict(b) for b in a["bezuege"]]
+        for b in bezuege:
+            b.pop("id", None)
+            b.pop("artikel_id", None)
+        b = zukauf.bezug_waehlen(bezuege, lieferant)
+        if b is None or (lieferant and b.get("lieferant") != lieferant and b.get("lieferant")):
+            b = dict(lieferant=lieferant or None, bevorzugt="nein" if bezuege else "ja", preiseinheit=1)
+            bezuege.append(b)
+        elif lieferant:
+            b["lieferant"] = lieferant
+        b["preise"] = [dict(ab=1, preis=float(p))]
+        b["preiseinheit"] = b.get("preiseinheit") or 1
+        a.pop("bezuege")
+        return self.zukauf_speichern(artikel_id, a, bezuege, bemerkung="EK eingetragen")
 
     PROTOKOLL_ARTIKEL = ("aufschlag_quelle", "aufschlag_methode", "aufschlag_wert", "aufschlag_staffel")
     PROTOKOLL_BEZUG = ("preise", "preiseinheit", "rabatt", "verpackung", "mindermenge", "mindermenge_bis", "fracht",
