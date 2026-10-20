@@ -179,7 +179,7 @@ ok("Speichern: eindeutige Artikelnummer (leer erlaubt), negative Preise, doppelt
 db.zukauf_speichern(a1, dict(a, aufschlag_quelle="individuell", aufschlag_methode=zukauf.PROZENT, aufschlag_wert=25),
                     [dict(a["bezuege"][0], preise=[dict(ab=1, preis=13.0)])], bemerkung="Preiserhöhung")
 h = db.zukauf_historie(a1)
-assert any(x["feld"] == "Einkaufspreise" and x["alt"] == "ab 1: 12" and x["neu"] == "ab 1: 13"
+assert any(x["feld"] == "Einkaufspreise" and x["alt"] == "ab 1: 12,00" and x["neu"] == "ab 1: 13,00"
            and x["bemerkung"] == "Preiserhöhung" for x in h), h
 assert any(x["feld"] == "Aufschlag [% bzw. €]" and x["neu"] == "25" for x in h), h
 db.zukauf_status(a1, "archiviert")

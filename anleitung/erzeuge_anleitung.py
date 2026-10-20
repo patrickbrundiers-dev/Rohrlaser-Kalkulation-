@@ -275,7 +275,7 @@ def kapitel_ueberblick(i):
            "durch die eigenen ersetzt werden.")
     i.abschnitt("Aufbau des Fensters")
     i.text("Das Hauptfenster besteht aus Reitern. Die festen Reiter sind <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, "
-           "<i>Frachtkosten</i> (Kapitel 12) "
+           "<i>Frachtkosten</i> (Kapitel 12), <i>Zukaufartikel</i> (Kapitel 13) "
            "und <i>Einstellungen</i> (mit Passwort; darin die Vorgaben und die übrigen Stammdaten als Unterreiter). Jedes geöffnete Angebot bekommt einen eigenen Reiter "
            "(<i>Angebot A-2026-0041</i>), der sich mit dem kleinen × schließen lässt. Unten in der Statuszeile "
            "meldet das Programm, was es gerade gespeichert oder gerechnet hat; Fehlermeldungen erscheinen dort rot.")
@@ -659,7 +659,8 @@ def kapitel_einstellungen(i):
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
          "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn)."],
         ["Kalkulation", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)",
-         "gilt für Zukaufartikel, die weder einen eigenen Aufschlag noch einen Aufschlag ihrer Kategorie haben; "
+         "gilt für Zukaufartikel, die weder einen eigenen Aufschlag noch einen Aufschlag ihrer Kategorie haben "
+         "(Kapitel 13.4); "
          "leer = kein Standardaufschlag, das Programm weist dann darauf hin. Neue Werte gelten nur für Zukaufteile, "
          "die danach ins Angebot kommen."],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
@@ -1366,6 +1367,125 @@ def kapitel_nachkalkulation(i):
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
 
 
+def kapitel_zukauf(i):
+    i.kapitel("Zukaufartikel")
+    i.text("Zukaufartikel sind Teile, die eingekauft und mit dem Bauteil geliefert oder verbaut werden: Blechteile und "
+           "Laserzuschnitte, Schrauben, Muttern und Unterlegscheiben, Normteile, Kaufteile und Handelsware, Dreh- und "
+           "Frästeile von Lieferanten, fremdgefertigte Bauteile, Profile und Rohre. Jeder Artikel hat eigene "
+           "Einkaufspreise je Lieferant, eine Mengeneinheit und eine eigene Aufschlagsregel. Arbeiten am Teil "
+           "(Verzinken, Entgraten) bleiben Zusatzarbeiten (Kapitel 3).",
+           "Der Reiter <i>Zukaufartikel</i> ist ohne Passwort zugänglich und hat drei Unterreiter: <b>Artikel</b>, "
+           "<b>Kategorien</b> und <b>Lieferanten</b>.")
+    i.abschnitt("Übersicht der Artikel")
+    i.bild("zukauf_uebersicht", "Zukaufartikel, Unterreiter Artikel (Beispielwerte)", hoehe=105 * mm, legende=[
+        (1, "Reiter <b>Zukaufartikel</b> mit den Unterreitern Artikel, Kategorien und Lieferanten"),
+        (2, "<b>+ Neuer Artikel</b> öffnet das leere Formular"),
+        (3, "Suche nach Artikelnummer, Bezeichnung, Lieferantenartikelnummer oder EAN"),
+        (4, "Filter Kategorie, Lieferant und Status (aktive, archivierte, alle), Sortieren nach Kategorie, "
+            "Lieferant, Artikelnummer, Bezeichnung oder EK je Einheit"),
+        (5, "<b>Bearbeiten</b> (auch Doppelklick), <b>Duplizieren</b>, <b>Archivieren</b> bzw. <b>Wieder "
+            "aktivieren</b>; dieselben Befehle mit der rechten Maustaste"),
+        (6, "Details des markierten Artikels: alle Lieferanten mit Staffelpreisen und die Rechnung je Einheit")])
+    i.text("Die Spalten zeigen je Artikel Artikelnr., Bezeichnung, Kategorie, bevorzugten Lieferant, Einheit, "
+           "<i>EK je Einheit</i> (Einkaufspreis netto bei der kleinsten Bestellmenge), <i>Bezugskosten</i> (je "
+           "Bestellung und je Einheit; die Spalte erscheint nur, wenn ein Artikel welche hat), <i>Aufschlag</i> mit "
+           "seiner Herkunft (Kat. = Kategorie, indiv. = individuell, Std. = Standard der Einstellungen), <i>VK je "
+           "Einheit</i> und Status. <b>kein Preis</b> und <b>kein Aufschlag</b> stehen rot, ein abgelaufener "
+           "Einkaufspreis gelb (<i>Preis abgelaufen</i>).")
+    i.liste("<b>Duplizieren</b> legt eine Kopie mit allen Lieferanten und Preisen an; die Artikelnummer bekommt "
+            "<i>-K</i> (Z-1001-K, dann Z-1001-K2), die Bezeichnung <i>(Kopie)</i>. Angelegt wird sie erst mit "
+            "<b>Speichern</b>.",
+            "<b>Archivieren</b> nimmt den Artikel aus der Auswahl im Angebot. Angebote, die ihn schon enthalten, "
+            "rechnen mit ihrem gespeicherten Preisstand weiter. Gelöscht werden Artikel nicht.")
+    i.abschnitt("Artikel anlegen und bearbeiten")
+    i.text("Neu, Bearbeiten und Duplizieren öffnen dasselbe Formular, bei breitem Fenster rechts neben der Tabelle, "
+           "sonst als eigenes Fenster. Gespeichert wird erst mit <b>Speichern</b>; <b>Abbrechen</b> verwirft alle "
+           "Eingaben. Ungültige Eingaben werden rot umrandet und unten im Formular genannt.")
+    i.bild("zukauf_formular", "Formular mit Preisvorschau: Schrauben, 12,00 € je 100 Stück, 5,00 € Eingangsfracht, "
+                              "25 % Aufschlag (Beispielwerte)", hoehe=200 * mm, legende=[
+        (1, "A Stammdaten"), (2, "B Einkaufspreis: Lieferanten des Artikels, Preiseinheit und Staffelpreise"),
+        (3, "C Aufschlag: Herkunft und Methode"), (4, "<b>Weitere Details</b> aufklappen"),
+        (5, "Preisvorschau für eine Verbrauchsmenge"), (6, "<b>Speichern</b>")])
+    i.tabelle(["Bereich", "Feld", "Bedeutung"], [
+        ["A Stammdaten", "Artikelnummer", "eindeutig, darf leer bleiben"],
+        ["", "Artikelbezeichnung", "Pflichtfeld"],
+        ["", "Kategorie", "aus den Kategorien (Abschnitt 13.4); bestimmt den vorgeschlagenen Aufschlag"],
+        ["", "Mengeneinheit", "Stück, Meter, Kilogramm, Satz oder frei eingeben"],
+        ["", "archiviert", "im Angebot nicht mehr wählbar"],
+        ["B Einkaufspreis", "Lieferanten", "Liste der Lieferanten des Artikels; ★ = bevorzugt. <b>+ Lieferant</b> "
+                                           "fügt einen hinzu, <b>Entfernen</b> löscht den markierten, <b>Als "
+                                           "bevorzugt</b> macht ihn zum Standard für neue Angebote"],
+        ["", "Lieferant", "aus der Liste wählen oder neu eintippen (wird beim Speichern unter Lieferanten angelegt)"],
+        ["", "Preis gilt für", "Preiseinheit: 100 bei einem Preis je 100 Stück. 12,00 € je 100 Stück ergeben "
+                               "0,12 € je Stück"],
+        ["", "Einkaufspreise", "Staffel: <i>ab Menge</i> und <i>Einkaufspreis netto</i> je Preiseinheit, z. B. ab 1: "
+                               "1,20 €, ab 100: 0,95 €, ab 500: 0,80 €. Es gilt die Zeile mit der größten Menge, die "
+                               "die Bestellmenge erreicht. Ohne Zeile: <b>kein Preis</b>"],
+        ["", "Verpackung je Bestellung, Eingangsfracht, Weitere Bezugskosten",
+         "Bezugskosten des Lieferanten, je Bestellung (einmal je Angebot bzw. Staffel) oder je Einheit"],
+        ["C Aufschlag", "Aufschlag aus", "<i>Standard der Kategorie</i> (Vorgabe), <i>individuell für diesen "
+                                         "Artikel</i> oder <i>Standard der Anwendung (Einstellungen)</i>"],
+        ["", "Methode, Aufschlag", "nur bei individuell: % auf Einstand, € je Einheit, € je Bestellung, Mengenstaffel "
+                                   "% (Staffel nach Verbrauch) oder Zielmarge %"],
+        ["", "zusätzlich zum Kategorieaufschlag", "beide Aufschläge addieren statt ersetzen"],
+        ["Weitere Details", "Beschreibung, EAN / Referenzcode, Lieferantenartikelnummer, Bemerkung", "zur Information"],
+        ["", "Mindestbestellmenge, Verpackungseinheit", "die Bestellmenge ist mindestens die Mindestbestellmenge und "
+                                                        "wird auf ganze Verpackungseinheiten aufgerundet"],
+        ["", "Lieferzeit", "in Tagen, zur Information"],
+        ["", "Mindermengenzuschlag", "€ je Bestellung, wenn die Bestellmenge unter der genannten Menge liegt"],
+        ["", "Mengenrabatt", "% auf den Einkaufspreis"],
+        ["", "Preis gültig von … bis", "außerhalb des Zeitraums warnt das Programm (Preis abgelaufen bzw. noch nicht "
+                                       "gültig)"],
+        ["", "Mehrmenge geht ins Lager", "ohne Haken trägt der Auftrag die ganze Bestellmenge; mit Haken nur den "
+                                         "Verbrauch, die Bezugskosten anteilig"],
+        ["", "im Angebotstext der Position nennen", "der Artikel erscheint im Text der Position im Angebot"]],
+              [28, 55, 92])
+    i.abschnitt("Preisvorschau und Rechenweg")
+    i.text("Die Vorschau rechnet bei jeder Eingabe mit derselben Rechnung wie das Angebot, für die eingetragene "
+           "Verbrauchsmenge (Vorgabe: kleinste Bestellmenge). Sie zeigt je Einheit und für die ganze Menge:")
+    i.tabelle(["Position", "Rechnung (Beispielwerte)"], [
+        ["Einkaufspreis netto", "Staffelpreis für die Bestellmenge ÷ Preiseinheit × (1 − Mengenrabatt); 12,00 € ÷ "
+                                "100 = 0,12 € je Stück"],
+        ["Bezugskostenanteil", "Verpackung + Eingangsfracht + weitere Bezugskosten + ggf. Mindermengenzuschlag, "
+                               "einmal je Bestellung; 5,00 € bei 100 Stück = 0,05 € je Stück"],
+        ["Einstandspreis", "Einkauf + Bezugskosten; 0,17 € je Stück"],
+        ["Aufschlag", "nach der Regel, z. B. 25 % auf Einstand = 0,0425 €"],
+        ["Verkaufspreis netto", "Einstand + Aufschlag = 0,2125 € je Stück"],
+        ["MwSt., Bruttopreis", "mit dem MwSt.-Satz der Einstellungen, nur zur Information"],
+        ["Deckungsbeitrag", "Verkaufspreis − Einstand"],
+        ["Aufschlag auf Einstand / Marge vom Verkaufspreis", "25 % / 20 %"]], [55, 120])
+    i.hinweis("Ein Aufschlag ist nicht dasselbe wie eine Marge. Bei 10,00 € Einstand ergeben 20 % Aufschlag "
+              "12,00 €, 20 % Zielmarge dagegen 12,50 € (10,00 € ÷ 0,80). Die Vorschau nennt die verwendete Methode "
+              "und zeigt beide Prozentwerte.", "Aufschlag und Marge")
+    i.text("Liegt die Bestellmenge über dem Verbrauch (Mindestbestellmenge, Verpackungseinheit), nennt die Vorschau "
+           "beide Mengen. Fehlt der Einkaufspreis, steht dort rot <i>Kein Einkaufspreis</i>; gerechnet wird dann "
+           "nicht mit 0 €.")
+    i.abschnitt("Kategorien und Aufschlagsregeln")
+    i.text("Unter <b>Kategorien</b> steht je Kategorie ein Standardaufschlag: Kategorie, Standard-Aufschlagsmethode "
+           "(% auf Einstand, € je Einheit, € je Bestellung oder Zielmarge %), Standardaufschlag [% bzw. €], Aktiv "
+           "und Beschreibung. Mengenstaffeln gibt es nur am Artikel. Die Kategorien sind mit Namen vorbelegt "
+           "(Blechteile, Schrauben und Muttern, Normteile, Kaufteile, Fremdfertigung, Profile und Rohre, Sonstige "
+           "Zukaufartikel), aber <b>ohne Aufschläge</b>: die Werte trägt der Betrieb selbst ein. Bedient wird die "
+           "Tabelle wie die Stammdaten (Kapitel 3).",
+           "Welcher Aufschlag gilt, entscheidet diese Reihenfolge; die höhere Stufe ersetzt die niedrigere:")
+    i.bild("zukauf_kategorien", "Zukaufartikel, Unterreiter Kategorien (Beispiel: 30 % für Schrauben und Muttern)",
+           hoehe=80 * mm, legende=[(1, "Unterreiter <b>Kategorien</b>")])
+    i.liste("Positionsaufschlag im Angebot (nur für diese Position)",
+            "individueller Artikelaufschlag",
+            "Aufschlag der Kategorie",
+            "Standardaufschlag Zukaufteile der Einstellungen (Kapitel 4); leer = keiner, das Programm zeigt dann "
+            "<i>kein Aufschlag hinterlegt</i>", nummeriert=True)
+    i.text("Nur wenn am Artikel <i>zusätzlich zum Kategorieaufschlag</i> angehakt ist, werden Kategorie und "
+           "individueller Aufschlag addiert; die Vorschau zeigt dann beide. Wird der Aufschlag einer Kategorie "
+           "geändert, ändert das Artikel mit individuellem Aufschlag nicht. Beim Umbenennen einer Kategorie "
+           "ändert sich der Name in allen Artikeln mit.")
+    i.abschnitt("Lieferanten")
+    i.text("Unter <b>Lieferanten</b> stehen Lieferant, Lieferantennummer, Ansprechpartner, Telefon, E-Mail, "
+           "Lieferzeit und Bemerkung. Lieferanten, die im Artikelformular neu eingetippt werden, legt das Programm "
+           "hier mit ihrem Namen an. Beim Umbenennen ändert sich der Name in allen Artikeln mit. Preise, "
+           "Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
+
+
 def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation")
     i.text("Die Knöpfe rechts neben <b>Ausgabe</b> im Angebot erzeugen die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
@@ -1705,6 +1825,7 @@ def pdf_bauen(bilder_ordner, ziel):
         kapitel(inh)
     kapitel_ausgabe(inh, daten["seiten"], daten["ablage"])
     kapitel_frachtkosten(inh)
+    kapitel_zukauf(inh)
     kapitel_fragen(inh)
     # die erste Kapitelüberschrift soll keinen zusätzlichen Seitenumbruch erzeugen
     inh.f = [x for k, x in enumerate(inh.f) if not (isinstance(x, PageBreak) and k > 0
