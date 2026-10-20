@@ -1192,6 +1192,11 @@ class AngebotSeite(QWidget):
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
         """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
+        if werkstoff is None:       # Vorgabe für Rohre und Profile (Einstellung), Bleche bleiben offen
+            werkstoff = self.db.einstellung("step_werkstoff") or None
+            werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
+        if stueck is None:          # Einzelteile: 1 Stück (bei einem Satz zählt das Feld „Sätze“)
+            stueck = 1
         befehl = step.messprogramm(self.f.programmordner)
         if befehl is None:
             QMessageBox.warning(self, "STEP-Import", "STEP-Import.exe wurde nicht gefunden.\n\nDer Ordner 'STEP-Import' "
