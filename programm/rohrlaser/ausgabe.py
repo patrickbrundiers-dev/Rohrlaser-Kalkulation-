@@ -47,9 +47,10 @@ def dateiname(kopf, zusatz="", mit_kunde=False):
     return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", s).strip()
 
 
-def ablageordner(einstellung, programmordner):
-    """Ablage: eingestellter Ordner, sonst 'Angebote' neben dem Programm. Wird angelegt."""
-    ordner = Path(einstellung) if einstellung else Path(programmordner) / ABLAGE
+def ablageordner(einstellung, vorgabe):
+    """Ablage: eingestellter Ordner, sonst die Vorgabe (portabel 'Angebote' neben dem Programm, installiert
+    Dokumente\\Rohrlaser Angebote). Wird angelegt."""
+    ordner = Path(einstellung) if einstellung else Path(vorgabe)
     ordner.mkdir(parents=True, exist_ok=True)
     return ordner
 

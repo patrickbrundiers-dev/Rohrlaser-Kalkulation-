@@ -528,6 +528,7 @@ class StartSeite(QWidget):
         self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
         knoepfe = QHBoxLayout()
         for text, ziel in (("Datensicherung erstellen", fenster.sicherung_erstellen),
+                           ("Sicherung wiederherstellen …", fenster.wiederherstellen_dialog),
                            ("Datenordner öffnen", fenster.datenordner_oeffnen)):
             b = QPushButton(text)
             b.clicked.connect(ziel)
@@ -558,16 +559,17 @@ class StartSeite(QWidget):
         if herkunft == "Beispieldaten":
             warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Bitte im Reiter "
                        "Einstellungen durch die eigenen Werte ersetzen.</p>")
-        self.info.setText(f"<p>Datendatei: {db.pfad}</p><p>Stammdaten: {herkunft} (Stand {stand})</p>{warnung}"
+        self.info.setText(f"<p>Datendatei: {db.pfad}{self.f.datenort_text()}</p><p>Stammdaten: {herkunft} (Stand {stand})</p>{warnung}"
                           f"<table cellpadding='2'>{zeilen}</table>")
 
 
 class Hauptfenster(QMainWindow):
-    def __init__(self, db, programmordner=None, stumm=False):
+    def __init__(self, db, programmordner=None, stumm=False, orte=None):
         from .angebot_fenster import AngeboteSeite
         super().__init__()
         self.db = db
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
+        self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.offen = {}             # Angebots-ID -> AngebotSeite
         from .update_fenster import Updater
@@ -609,6 +611,11 @@ class Hauptfenster(QMainWindow):
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
         for text, ziel, taste in (("Datensicherung erstellen", self.sicherung_erstellen, None),
+                                  ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
+                                  (None, None, None),
+                                  ("Daten exportieren …", self.daten_exportieren, None),
+                                  ("Daten importieren …", self.daten_importieren, None),
+                                  (None, None, None),
                                   ("Datenordner öffnen", self.datenordner_oeffnen, None),
                                   ("Ablageordner öffnen (PDF, CSV)", self.ablage_oeffnen, None),
                                   (None, None, None),
@@ -632,7 +639,7 @@ class Hauptfenster(QMainWindow):
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
             self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
-                        f"Daten: {self.db.pfad}"))
+                        f"Daten: {self.db.pfad}{self.datenort_text()}"))
         hilfe.addAction(a)
 
     def angebot_oeffnen(self, angebot_id):
@@ -726,12 +733,90 @@ class Hauptfenster(QMainWindow):
                 return
         super().closeEvent(ereignis)
 
+    def datenort_text(self):
+        """' (portabel)' bzw. ' (installiert)' hinter dem Pfad der Datendatei."""
+        return f" ({self.orte.art})" if self.orte else ""
+
+    def wiederherstellen_dialog(self):
+        from .sicherung_dialog import WiederherstellenDialog
+        d = WiederherstellenDialog(self)
+        if d.exec() and d.gewaehlt:
+            self.daten_ersetzen(d.gewaehlt)
+
+    def daten_exportieren(self):
+        from PySide6.QtWidgets import QFileDialog
+        vorschlag = self.ablage() / f"Rohrlaser-Daten {datetime.date.today():%Y-%m-%d}.zip"
+        ziel, _ = QFileDialog.getSaveFileName(self, "Daten exportieren", str(vorschlag), "Export-Datei (*.zip)")
+        if ziel:
+            self.export_schreiben(ziel)
+
+    def export_schreiben(self, ziel):
+        try:
+            info = self.db.exportieren(ziel)
+        except (OSError, RuntimeError) as e:
+            self.meldung(f"Export nicht gelungen: {e}", fehler=True)
+            if not self.stumm:
+                QMessageBox.warning(self, "Daten exportieren", f"Der Export ist nicht gelungen:\n\n{e}")
+            return None
+        self.meldung(f"Daten exportiert: {ziel} ({info['anzahl'].get('angebote', 0)} Angebote)")
+        if not self.stumm:
+            QMessageBox.information(self, "Daten exportieren",
+                                    f"Alle Daten stehen in\n{ziel}\n\n{info['anzahl'].get('angebote', 0)} Angebote, "
+                                    f"{info['anzahl'].get('positionen', 0)} Positionen. Mit „Daten importieren …“ "
+                                    "lassen sie sich in der portablen oder installierten Version oder auf einem "
+                                    "anderen Rechner einlesen.")
+        return info
+
+    def daten_importieren(self):
+        from PySide6.QtWidgets import QFileDialog
+        datei, _ = QFileDialog.getOpenFileName(self, "Daten importieren", str(self.ablage()),
+                                               "Export, Sicherung oder Datendatei (*.zip *.db)")
+        if datei:
+            self.daten_ersetzen(datei, zusatz="vor_Import")
+
+    def daten_ersetzen(self, quelle, zusatz="vor_Wiederherstellung"):
+        """Alle Daten durch eine Sicherung, Datendatei oder Export-Datei ersetzen (vorher Sicherung des jetzigen
+        Stands). Offene Angebote werden geschlossen und alles neu geladen. Ergebnis: info oder None."""
+        from .datenbank import datei_info
+        if Path(quelle).resolve() == self.db.pfad.resolve():
+            self.meldung("Das ist die Datendatei, mit der das Programm gerade arbeitet.", fehler=True)
+            return None
+        if not self.stumm:
+            try:
+                i = datei_info(quelle) if Path(quelle).suffix.lower() == ".db" else None
+            except Exception:
+                i = None
+            inhalt = (f"\n\nInhalt: {i['anzahl'].get('angebote', 0)} Angebote, letzte Änderung "
+                      f"{i.get('letzte_aenderung') or '–'}." if i else "")
+            if QMessageBox.question(
+                    self, "Daten ersetzen", f"Alle Daten (Stammdaten, Einstellungen, Angebote) durch\n{quelle}\n"
+                    f"ersetzen?{inhalt}\n\nDer jetzige Stand wird vorher gesichert (Sicherung …_{zusatz}) und lässt "
+                    "sich damit zurückholen.", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+                return None
+        for aid in list(self.offen):
+            self.angebot_schliessen(aid)
+        try:
+            info, vorher = self.db.wiederherstellen(quelle, zusatz=zusatz)
+        except (OSError, RuntimeError) as e:
+            self.meldung(f"Nicht ersetzt: {e}", fehler=True)
+            if not self.stumm:
+                QMessageBox.warning(self, "Daten ersetzen", f"Die Daten wurden nicht ersetzt:\n\n{e}")
+            return None
+        self.alles_neu_laden()
+        self.meldung(f"Daten ersetzt aus {Path(quelle).name}; der vorige Stand liegt in {vorher.name}.")
+        if not self.stumm:
+            QMessageBox.information(self, "Daten ersetzt", f"Die Daten stammen jetzt aus\n{quelle}\n\n"
+                                    f"Der vorige Stand ist gesichert:\n{vorher}")
+        return info
+
     def datenordner_oeffnen(self):
         self.datei_oeffnen(self.db.pfad.parent)
 
     def ablage(self):
-        """Ordner für PDF und CSV-Export (Einstellung 'Ablageordner', sonst 'Angebote' neben dem Programm)."""
-        return ausgabe.ablageordner(self.db.einstellung("ablageordner"), self.programmordner)
+        """Ordner für PDF und CSV-Export (Einstellung 'Ablageordner', sonst portabel 'Angebote' neben dem Programm,
+        installiert Dokumente\\Rohrlaser Angebote)."""
+        vorgabe = self.orte.ablage if self.orte else self.programmordner / ausgabe.ABLAGE
+        return ausgabe.ablageordner(self.db.einstellung("ablageordner"), vorgabe)
 
     def ablage_oeffnen(self):
         try:
