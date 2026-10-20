@@ -99,7 +99,7 @@ class StepPruefDialog(QDialog):
     leer (offen), bis er gewählt wird, und Bleche mit Prüfstatus 'prüfen' sind erst nach Anhaken gewählt."""
     BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
     AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
-    SPALTEN = ("Teil", "In Datei", "Profil-ID", "Werkstoff-ID", "Stückzahl", "Länge [mm]", "Schneidweg [mm]",
+    SPALTEN = ("Teil", "In Datei", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl", "Länge [mm]", "Schneidweg [mm]",
                "Konturen", "Hinweis")
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None):
