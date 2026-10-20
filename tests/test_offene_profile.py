@@ -163,7 +163,7 @@ def _():
     k, tab = db.kontext(), db.tabellen()
     assert profiltext("U 50x30x3", k) == "U-Profil 50 x 30 x 3"
     assert profiltext("FL 40x5", k) == "Flachstahl 40 x 5"
-    kopf = dict(maschine="RL-1", stange=6000)
+    kopf = dict(maschine="T11", stange=6000)
     pos = [dict(pos=10, artikel="U", profil_id="U 50x30x3", werkstoff_id="S235-10219", laenge=800, stueck=4,
                 schneidweg=2 * 107 + 25.13 + 18.85, einstiche=4),
            dict(pos=20, artikel="L", profil_id="L 40x40x4", werkstoff_id="S235-10219", laenge=500, stueck=2),
@@ -197,7 +197,7 @@ def _():
     db.neu("profile", dict(TG, flaeche_manuell=552))
     k, tab = db.kontext(), db.tabellen()
     assert profiltext("T 60x40x5x7", k) == "T-Profil 60 x 40 x 5"
-    kopf = dict(maschine="RL-1", stange=6000)
+    kopf = dict(maschine="T11", stange=6000)
     pos = [dict(pos=10, artikel="I", profil_id="IPE 200", werkstoff_id="S235-10219", laenge=1000, stueck=2,
                 schneidweg=2 * 394.4, einstiche=2),
            dict(pos=20, artikel="T", profil_id="T 60x40x5x7", werkstoff_id="S235-10219", laenge=500, stueck=3,

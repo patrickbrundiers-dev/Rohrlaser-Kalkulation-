@@ -150,7 +150,7 @@ assert kopie["id"] not in [x["id"] for x in s.sichtbar]
 s.status_filter.setCurrentText("Inaktive")
 assert [x["id"] for x in s.sichtbar] == [kopie["id"]]
 s.status_filter.setCurrentText("Alle")
-a = db.angebot_neu(dict(kunde="Test", skonto=0, maschine="RL-1"))
+a = db.angebot_neu(dict(kunde="Test", skonto=0, maschine="T11"))
 db.position_neu(a, dict(pos=1, artikel="T1", profil_id=db.zeilen("profile")[0]["profil_id"],
                         werkstoff_id=db.zeilen("werkstoffe")[0]["werkstoff_id"], laenge=500, stueck=10))
 seite = f.angebot_oeffnen(a)

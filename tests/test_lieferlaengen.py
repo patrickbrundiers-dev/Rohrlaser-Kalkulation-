@@ -13,12 +13,17 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 
 from rohrlaser import optimierung as opt, rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
-from rohrlaser.stammdaten import TABELLE, pruefen  # noqa: E402
+from rohrlaser.stammdaten import ALTE_MASCHINEN, MASCHINE_WERTE, TABELLE, pruefen  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+# T03 mit den Werten der früheren Beispielmaschine RL-1 (die Rechenbeispiele unten beziehen sich darauf):
+# Endbeschnitt 20, Greiferrest 80, Schnittverlust 0,3, max. 6.500, Stangenwechsel 30 s
+_t03 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T03")
+for _feld, _wert in zip(MASCHINE_WERTE, ALTE_MASCHINEN["RL-1"][1]):
+    db.aendern("maschinen", _t03["id"], _feld, _wert)
 einst = db.einstellungen()
-kopf = dict(maschine="RL-1", stange=6000)     # RL-1: Endbeschnitt 20, Greiferrest 80, Schnittverlust 0,3, max. 6.500
+kopf = dict(maschine="T03", stange=6000)
 
 
 def teile(n, laenge, a=True, b=True):
@@ -64,7 +69,7 @@ g = gruppe(teile(3, 3899.7))
 st = opt.zuschnitt(g, 12000, 6500, 3)
 assert len(st) == 2 and sum(len(s) for s in st) == 3, werkstuecke(st)
 opt.pruefe_zuschnitt(g, st, 12000, 6500, 3)
-# kein Werkstück länger als die Maschine: RL-2 lädt 8.500 mm
+# kein Werkstück länger als die Maschine: eine Maschine mit 8.500 mm Beladelänge
 g = gruppe(teile(4, 2700))
 st = opt.zuschnitt(g, 12000, 8500, 3)
 assert max(l for s in st for l, _ in s) <= 8500
@@ -175,7 +180,7 @@ db.aendern("lieferlaengen", z["id"], "preis", 130.0)
 _, (b,) = vergleich([pos(3100, 30, profil="RR 42,4x2,0", werkstoff="1.4301")])
 assert b["empfehlung"] == rechnen.LAENGE_ALTERNATIVE and abs(b["varianten"][1]["material"] - 10 * 130) < 1e-6, b
 # fehlender Stangenwechsel der Maschine, wenn die Beladungen sich unterscheiden: nie still mit 0 rechnen
-m = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "RL-1")
+m = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T03")
 db.aendern("maschinen", m["id"], "stangenwechsel", None)
 _, (b,) = vergleich([pos(2000, 6)])         # 6 m: 3 Stangen à 2 Teile; 12 m: 2 Stangen mit je 1 Werkstück à 3 Teilen
 assert [(v["lieferstangen"], v["werkstuecke"]) for v in b["varianten"]] == [(3, 3), (2, 2)], b["varianten"]
@@ -255,7 +260,7 @@ assert len(erg["stangen"]) == 11 and sum(len(s["werkstuecke"]) for s in erg["sta
 # übernommene Länge, die es nicht mehr gibt: wieder die Stangenlänge des Angebots
 erg = rechnen.optimieren(dict(kopf, laengenwahl={schl: 9000}), P, k, tab, einst)
 assert all(s["stange"] == 6000 and "grundlaenge" not in s for s in erg["stangen"])
-# Lieferlänge bis zur Beladelänge (6.500 mm bei RL-1): ohne Zuschnitt direkt geladen
+# Lieferlänge bis zur Beladelänge (6.500 mm bei T03): ohne Zuschnitt direkt geladen
 db.neu("lieferlaengen", dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=6500))
 k, tab = db.kontext(), db.tabellen()
 erg = rechnen.optimieren(dict(kopf, laengenwahl={schl: 6500}), [pos(3100, 4)], k, tab, einst)

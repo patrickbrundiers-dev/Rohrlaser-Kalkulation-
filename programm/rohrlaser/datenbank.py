@@ -35,6 +35,7 @@ from .fracht_angebot import UMLAGE_NEU
 from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+                         ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
@@ -58,6 +59,7 @@ SICHERUNGEN_BEHALTEN = 30
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
+MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 
 
 class Datenbank:
@@ -72,6 +74,7 @@ class Datenbank:
         if neu:
             self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
             self.fracht_beispiele_laden()
+            self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
 
     def schliessen(self):
         self.con.close()
@@ -84,6 +87,8 @@ class Datenbank:
                                f"(Schema {version}). Bitte das Programm aktualisieren.")
         if 0 < version < SCHEMA_VERSION:    # Rückfall: Stand vor der Umstellung sichern
             self.sicherung(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
+        elif version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
+            self.sicherung(zusatz="vor_Maschinen_T03_T11_LT7")
         with self.con:
             if 0 < version < 6:
                 self._umbenennen()
@@ -154,13 +159,72 @@ class Datenbank:
             if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
+            if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
+                self._maschinen_anpassen()
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
-    def _einfuegen(self, tabelle, zeilen):
+    def _einfuegen(self, tabelle, zeilen, ergaenzen=False):
+        """Zeilen einfügen; ergaenzen=True überspringt Zeilen, deren Schlüssel es schon gibt."""
         namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
-        self.con.executemany(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
+        self.con.executemany(f'INSERT {"OR IGNORE " if ergaenzen else ""}INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
                              f'VALUES ({", ".join("?" * len(namen))})', [[z.get(n) for n in namen] for z in zeilen])
+
+    def _maschinen_anpassen(self):
+        """Dateien bis 0.5.8 (einmalig, ohne neues Schema): Beispielmaschinen RL-1/RL-2 werden T03/T11, LT7 kommt
+        dazu. Unverändertes RL-1/RL-2 wird mit Schneiddaten, Angeboten und Standard-Maschine umbenannt; wurde es von
+        Hand umbenannt, ziehen die Angebote nach. Neue Werte nur, wo noch die alten Beispielwerte stehen, eigene
+        Maschinen bleiben. Schneiddaten: unveränderte alte Beispielzeilen gehen, die neuen Richtwerte kommen für
+        T03, T11 und LT7 dazu, wo es die Zeile (Maschine, Kategorie, Gas, Wandstärke) noch nicht gibt."""
+        neu = {z["maschinen_id"]: z for z in beispieldaten()["maschinen"]}
+        da = {z["maschinen_id"]: z for z in self.zeilen("maschinen") if z.get("maschinen_id")}
+        beispiel = lambda z, werte: all(z.get(n) == w for n, w in zip(MASCHINE_WERTE, werte))
+        for alt, (ziel, werte) in ALTE_MASCHINEN.items():
+            z = da.get(alt)
+            if z is not None and ziel not in da and beispiel(z, werte):
+                for tabelle, feld in (("maschinen", "maschinen_id"),) + VERWEISE[("maschinen", "maschinen_id")]:
+                    self.con.execute(f'UPDATE "{tabelle}" SET "{feld}"=? WHERE "{feld}"=?', (ziel, alt))
+                self._maschine_umbenannt(alt, ziel)
+                da[ziel] = da.pop(alt)
+            elif z is None and ziel in da:
+                self.con.execute("UPDATE angebote SET maschine=? WHERE maschine=?", (ziel, alt))
+                self._maschine_umbenannt(alt, ziel)
+            z = da.get(ziel)
+            if z is not None and beispiel(z, werte):
+                felder = [n for n in neu[ziel] if n != "maschinen_id"]
+                self.con.execute(f'UPDATE maschinen SET {", ".join(chr(34) + n + chr(34) + "=?" for n in felder)} '
+                                 "WHERE id=?", [neu[ziel][n] for n in felder] + [z["id"]])
+        self._einfuegen("maschinen", [z for m, z in neu.items() if m not in da])
+        alte = alte_beispiel_schneiddaten()
+        werte = lambda z: (z.get("kategorie"), z.get("gas")) + tuple(
+            float(z[n]) if isinstance(z.get(n), (int, float)) else z.get(n)
+            for n in ("wand_bis", "vorschub_gross", "vorschub_mittel", "vorschub_klein", "einstechzeit", "vorschub_gravur"))
+        for z in self.zeilen("schneiddaten"):
+            if not z.get("werkstoff_id") and z.get("bemerkung") == "Beispiel" and werte(z) in alte:
+                self.con.execute("DELETE FROM schneiddaten WHERE id=?", (z["id"],))
+        self._einfuegen("schneiddaten", beispieldaten()["schneiddaten"], ergaenzen=True)
+        self._einstellung_schreiben("maschinen_stand", MASCHINEN_STAND)
+
+    def _maschine_umbenannt(self, alt, neu):
+        """Nach dem Umbenennen einer Maschine (Spalte angebote.maschine ist schon umbenannt): Maschinen-ID in den
+        festgeschriebenen Zeitvorgaben und Schneiddaten der Angebote und in der Standard-Maschine mitziehen, damit
+        alte Angebote unverändert weiterrechnen."""
+        for r in self.con.execute("SELECT id, zeitbasis, preisbasis FROM angebote WHERE maschine=?", (neu,)).fetchall():
+            zb = json.loads(r["zeitbasis"]) if r["zeitbasis"] else None
+            pb = json.loads(r["preisbasis"]) if r["preisbasis"] else None
+            if isinstance(zb, dict) and (zb.get("maschine") or {}).get("maschinen_id") == alt:
+                zb["maschine"]["maschinen_id"] = neu
+            if isinstance(pb, dict) and pb.get("maschine") == alt:
+                pb["maschine"] = neu
+                for z in pb.get("schneiddaten") or []:
+                    if z.get("maschinen_id") == alt:
+                        z["maschinen_id"] = neu
+            self.con.execute("UPDATE angebote SET zeitbasis=?, preisbasis=? WHERE id=?",
+                             (json.dumps(zb, ensure_ascii=False) if zb is not None else None,
+                              json.dumps(pb, ensure_ascii=False) if pb is not None else None, r["id"]))
+        r = self.con.execute("SELECT wert FROM einstellungen WHERE name='standard_maschine'").fetchone()
+        if r is not None and json.loads(r[0]) == alt:
+            self._einstellung_schreiben("standard_maschine", neu)
 
     def _profilformen_ergaenzen(self):
         """Dateien vor Schema 12: U-, C-, L-Profil und Flachstahl, seit 20.10.2026 auch I-/H-Träger und T-Profil, in
@@ -248,6 +312,8 @@ class Datenbank:
                 if alt is not None and alt[0] not in (None, "") and wert not in (None, ""):
                     for ziel, zfeld in ALLE_VERWEISE.get((tabelle, feld), ()):
                         self.con.execute(f'UPDATE "{ziel}" SET "{zfeld}"=? WHERE "{zfeld}"=?', (wert, alt[0]))
+                    if (tabelle, feld) == ("maschinen", "maschinen_id"):
+                        self._maschine_umbenannt(alt[0], wert)
         except sqlite3.IntegrityError:
             t = ALLE_TABELLE[tabelle]
             namen = " + ".join(t.feld(s).titel for s in t.schluessel)
@@ -624,7 +690,8 @@ class Datenbank:
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
-                                                     "stundensaetze", "zukauf_kategorien", "zukauf_lieferanten")},
+                                                     "stundensaetze", "schneiddaten", "zukauf_kategorien",
+                                                     "zukauf_lieferanten")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
         return k

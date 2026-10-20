@@ -928,7 +928,7 @@ def kapitel_optimieren(i):
            "Hüllkreis-Ø über 70 mm (Einstellung). Kleinere Profile ohne Eintrag und Profile mit "
            "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
-            "Stangenlänge</i> der Maschine (Beladelänge, RL-1: 6.500 mm), schneidet der Lieferant jede Stange in "
+            "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
             "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
             "Werkstück ist länger als die Beladelänge.",
             "Ein Werkstück = Endbeschnitt + Teile + Trennschnitte + Schnittverlust + Greiferrest, auf ganze mm "
@@ -971,7 +971,7 @@ def kapitel_optimieren(i):
     i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: je 12-m-Stange drei Werkstücke mit eigenem "
                                      "Endbeschnitt und Greiferrest", hoehe=80 * mm)
     i.liste("Schnittplan: Spalten <i>Werkstücke (Beladungen)</i> und <i>Zuschnitt beim Lieferanten</i> (z. B. "
-            "„Zuschnitt beim Lieferanten: 3.201 + 3.201 + 3.201 mm, Rest 2.388 mm“); je Teil die Spalte "
+            "„Zuschnitt beim Lieferanten: 3.253 + 3.253 + 3.253 mm, Rest 2.235 mm“); je Teil die Spalte "
             "<i>Werkstück</i>.",
             "Werkstattpapiere: Materialliste mit den 12-m-Stangen, je Stange der Zuschnitt; Von/Bis der Teile gelten "
             "im Werkstück, die Lage nennt das Werkstück (W1, W2 …).",
@@ -1545,7 +1545,8 @@ def kapitel_stammdaten(i):
             "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste.",
             "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite: Trennlinie im Kopf ziehen.",
             "Wird eine Profil-, Werkstoff- oder Maschinen-ID umbenannt, ändern sich die Verweise in Preisen und "
-            "Schneiddaten mit.")
+            "Schneiddaten mit. Bei einer Maschinen-ID ändern sich auch die Angebote (mit ihren festgeschriebenen "
+            "Werten) und die Standard-Maschine mit.")
     i.abschnitt("Was in welche Tabelle gehört")
     i.tabelle(["Tabelle", "Inhalt", "Wichtig"], [
         ["Kunden", "Kundennummer, Name, Anschrift, Ansprechpartner, Zahlungsbedingungen",
@@ -1689,6 +1690,14 @@ def kapitel_stammdaten(i):
             "Programm keine künstliche 6-m-Variante.",
             "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
             "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Werkstücklängen zu.")
+    i.text("Vorbelegt sind die Maschinen T03 (Trumpf, CO₂-Laser), T11 (Trumpf, Faserlaser) und LT7 (Adige, "
+           "Faserlaser): Endbeschnitt 10 mm, Schnittverlust 0,2 mm, max. Stangenlänge 6.500 mm, 150 €/h, Konturgrenzen "
+           "10 und 50 mm, Abstand getrennte Schnitte 5 mm, Rüstzeit 5 min; Greiferrest 142 mm (LT7 120 mm), "
+           "Stangenwechsel 29 s (LT7 25 s), Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m (LT7 23 kg/m). "
+           "Standard-Maschine ist T03. Beim Update einer älteren Datendatei werden unveränderte Beispielmaschinen "
+           "RL-1 und RL-2 zu T03 und T11 (mit ihren Angeboten), LT7 kommt dazu, unveränderte alte "
+           "Beispiel-Schneiddaten werden durch die neuen Richtwerte ersetzt; eigene Werte bleiben, vorher wird eine "
+           "Sicherung angelegt.")
     i.tabelle(["Maschinen", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, Bezeichnung", "Kurzname (Auswahl im Angebotskopf) und Klartext"],
         ["Endbeschnitt [mm], Greiferrest [mm]", "Anschnitt am Stangenanfang und nicht nutzbares Ende im Greifer"],
@@ -1722,11 +1731,20 @@ def kapitel_stammdaten(i):
         ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
-    i.text("Vorbelegt sind Beispielwerte je Kategorie für RL-1 und RL-2 von 1 bis 10 mm: Stahl mit N₂ bis 4 mm, "
-           "Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm, darüber O₂. Eigene Schneiddaten älterer "
-           "Datendateien bleiben erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche "
-           "Wandstärke-Stufe und welches Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten "
-           "Wandstärke-Stufe und Schneidgas).")
+    i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Die Richtwerte stammen aus üblichen Schnitttabellen "
+           "für Faserlaser mit 3 kW und CO₂-Laser mit 3,2 kW, mit etwa 40 % Abschlag fürs Rohr; T11 hat mit 4 kW "
+           "20 % mehr Vorschub. Es sind keine "
+           "Herstellerwerte, bitte mit echten Schnittzeiten der Maschine vergleichen und anpassen. Faserlaser: Stahl "
+           "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
+           "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "
+           "Vorschub mittel ist 60 %, klein 30 % von groß. Eigene Schneiddaten älterer Datendateien bleiben "
+           "erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche Wandstärke-Stufe und welches "
+           "Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten Wandstärke-Stufe und Schneidgas).")
+    i.text("Die Prüfspalte warnt, wenn ein Vorschub nicht passt: Vorschub mittel oder klein größer als groß, oder "
+           "ein höherer Vorschub als bei der nächstdünneren Wandstärke derselben Maschine, desselben Werkstoffs "
+           "bzw. derselben Kategorie und desselben Gases. In den Maschinen warnt sie, wenn einer Maschine "
+           "Schneiddaten ganz oder für eine Kategorie fehlen.")
     i.bild("stamm_schneiddaten", "Einstellungen, Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm)
     i.bild("stamm_gewinde", "Einstellungen, Gewinde mit Kernloch, Zeit und Preis", hoehe=95 * mm)
     i.tabelle(["Gewinde", "Bedeutung"], [
@@ -2470,6 +2488,9 @@ def kapitel_fragen(i):
 NEUERUNGEN = [
     ["0.5.14", "Lieferlängen: 6-m- gegen 12-m-Stangen vergleichen, 12 m nur als vom Lieferanten geschnittene "
                "Werkstücke bis zur Beladelänge, Übernahme per Klick, Staffeln wählen selbst ([[lieferlaengen]])."],
+    ["0.5.13", "Maschinen T03 (Trumpf, CO₂ 3,2 kW), T11 (Trumpf, Faser 4 kW) und LT7 (Adige, Faser 3 kW) statt RL-1/RL-2, "
+               "neue Schneiddaten-Richtwerte je Laser, Prüfspalte warnt bei unplausiblen Vorschüben; beim Umbenennen "
+               "einer Maschine ziehen Angebote und Standard-Maschine mit ([[stammdaten]])."],
     ["0.5.12", "Schneidzeit mit der größten Wandstärke (neues Feld <i>Wandstärke max.</i> bei den Profilen, "
                "Normprofile mit der Flanschdicke) und mehrere Einstiche je Anfangs-/Endschnitt: I-/H-Träger und "
                "U-Profil 4, T-Profil 2 ([[optimieren]])."],

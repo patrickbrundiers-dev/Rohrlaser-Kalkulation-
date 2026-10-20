@@ -397,7 +397,8 @@ VERWEISE = {
     ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id")),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
                                      ("schneiddaten", "werkstoff_id")),
-    ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"),),
+    # Angebote: dazu die Snapshots im Angebot und die Standard-Maschine (Datenbank._maschine_umbenannt)
+    ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine")),
     ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id")),
 }
 
@@ -443,7 +444,7 @@ EINSTELLUNGEN = (
                 "Lieferlängen", "zahl", 3.0, 0, 50),
     Einstellung("zuschnitt_kosten", "Lieferlängen: Kosten je Zuschnitt beim Lieferanten [€]", "Lieferlängen", "zahl",
                 0.0, 0, 10000),
-    Einstellung("standard_maschine", "Standard-Maschine", "Angebot", "auswahl", "RL-1",
+    Einstellung("standard_maschine", "Standard-Maschine", "Angebot", "auswahl", "T03",
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
@@ -564,6 +565,7 @@ class Kontext:
     maschinen: dict = field(default_factory=dict)
     oberflaechen: dict = field(default_factory=dict)
     stundensaetze: dict = field(default_factory=dict)
+    schneiddaten: tuple = ()        # Zeilen der Schneiddaten (Plausibilität in der Prüfspalte)
     profilformen: tuple = PROFILFORMEN
     kategorien: tuple = KATEGORIEN
     zukauf_kategorien: tuple = ()     # Namen der Kategorien und Lieferanten der Zukaufartikel
@@ -613,6 +615,7 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.maschinen = {z["maschinen_id"]: z for z in daten.get("maschinen", []) if z.get("maschinen_id")}
     k.oberflaechen = {z["oberflaeche"]: z for z in daten.get("oberflaechen", []) if z.get("oberflaeche")}
     k.stundensaetze = {z["satz_id"]: z for z in daten.get("stundensaetze", []) if z.get("satz_id")}
+    k.schneiddaten = tuple(daten.get("schneiddaten", []))
     k.profilformen = tuple(profilformen)
     k.kategorien = tuple(kategorien)
     k.zukauf_kategorien = tuple(z["name"] for z in daten.get("zukauf_kategorien", []) if z.get("name"))
@@ -691,17 +694,49 @@ def pruefen(t, z, k):
             return "FEHLER: Werkstoff-ID oder Kategorie eintragen (eins von beiden)"
         if _leer(z.get("gas")):
             return "WARNUNG: Schneidgas fehlt"
+        meldung = schneiddaten_plausibel(z, k)
+        if meldung:
+            return meldung
     if t is WERKSTOFFE and _leer(z.get("kategorie")):
         return "WARNUNG: Kategorie fehlt"
     if t is WERKSTOFFE and z.get("tonnenpreis") is None:
         return "WARNUNG: kein Tonnenpreis (Preis nur über 'Preise')"
     if t is MASCHINEN and z.get("stundensatz") is None:
         return "WARNUNG: Stundensatz fehlt"
+    if t is MASCHINEN and k.schneiddaten:
+        da = {s.get("kategorie") or (k.werkstoffe.get(s.get("werkstoff_id")) or {}).get("kategorie")
+              for s in k.schneiddaten if s.get("maschinen_id") == z.get("maschinen_id")}
+        fehlt = [kat for kat in k.kategorien if kat not in da]
+        if len(fehlt) == len(k.kategorien):
+            return "WARNUNG: keine Schneiddaten"
+        if fehlt:
+            return "WARNUNG: keine Schneiddaten für " + ", ".join(fehlt)
     if t.pruefung:
         meldung = t.pruefung(z, k)
         if meldung:
             return meldung
     return "OK"
+
+
+def schneiddaten_plausibel(z, k):
+    """Warnung, wenn der Vorschub nicht zur Wandstärke passt: mittel/klein schneller als groß, oder schneller als
+    eine dünnere Stufe derselben Maschine, desselben Werkstoffs bzw. derselben Kategorie und desselben Gases."""
+    g = z.get("vorschub_gross")
+    if g is None:
+        return None
+    for name, titel in (("vorschub_mittel", "mittel"), ("vorschub_klein", "klein")):
+        if z.get(name) is not None and z[name] > g:
+            return f"WARNUNG: Vorschub {titel} größer als groß"
+    if z.get("wand_bis") is None:
+        return None
+    schl = lambda s: tuple(s.get(n) or None for n in ("maschinen_id", "werkstoff_id", "kategorie", "gas"))
+    duenner = [s for s in k.schneiddaten if schl(s) == schl(z) and s.get("wand_bis") is not None
+               and s["wand_bis"] < z["wand_bis"] and s.get("vorschub_gross") is not None]
+    if duenner:
+        s = max(duenner, key=lambda s: s["wand_bis"])
+        if g > s["vorschub_gross"]:
+            return f"WARNUNG: Vorschub höher als bei {zahl_als_text(s['wand_bis'])} mm"
+    return None
 
 
 # ------------------------------------------------------------------ Beispieldaten
@@ -734,8 +769,7 @@ def beispieldaten():
             ("RE 60x40x3", "S355-10219", "€/kg", 1.60, 6000, d, "Beispiel-Lieferant", "Beispiel"),
             ("RR 42,4x2,0", "1.4301", "€/Stange", 62.00, 6000, d, "Beispiel-Lieferant", "Beispiel")]),
         "maschinen": zeilen(MASCHINEN, [
-            ("RL-1", "Rohrlaser 1 (Beispiel)", 20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30, "Beispielwerte"),
-            ("RL-2", "Rohrlaser 2 (Beispiel)", 15, 120, 0.3, 8500, 140.00, 10, 50, 2, 20, 40, "Beispielwerte")]),
+            *BEISPIEL_MASCHINEN]),
         "schneiddaten": zeilen(SCHNEIDDATEN, beispiel_schneiddaten()),
         "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None, p)
                                     for i, (g, k, p) in enumerate(gewinde)]),
@@ -775,9 +809,64 @@ def beispiel_oberflaechen():
             ("E6/EV1", "Aluminium", 3.50, "E6/EV1 eloxiert", "Beispielpreis")]
 
 
-# Beispiel-Schneiddaten je Kategorie und Gas: [(Wandstärke bis, Vorschub groß)]; N₂ endet bei Stahl über 4 mm,
-# bei Edelstahl über 8 mm, bei Aluminium über 6 mm, darüber gilt O₂
-BEISPIEL_VORSCHUB = {
+# Maschinen (Werte von Patrick, 20.10.2026): T03 Trumpf CO₂-Laser, T11 Trumpf und LT7 Adige Faserlaser
+BEISPIEL_MASCHINEN = [
+    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "CO₂-Laser", 255, 36),
+    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "Faserlaser", 255, 36),
+    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 5, 5, 25, "Faserlaser", 214, 23)]
+LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
+# Laserleistung laut Patrick (20.10.2026): T03 3,2 kW, T11 4 kW, LT7 3 kW. Die Richtwerte gelten für 3 kW Faser bzw.
+# 3,2 kW CO₂; T11 mit 4 kW bekommt 20 % mehr Vorschub (nicht die vollen 33 %: am Rohr begrenzt oft die Dynamik).
+LEISTUNG = {"T03": 3.2, "T11": 4.0, "LT7": 3.0}
+FAKTOR = {"T03": 1.0, "T11": 1.2, "LT7": 1.0}
+
+# Bis 0.5.8: Beispielmaschinen RL-1/RL-2 (Werte ab 'endbeschnitt'); unverändert werden sie beim Update zu T03/T11
+ALTE_MASCHINEN = {"RL-1": ("T03", (20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30)),
+                  "RL-2": ("T11", (15, 120, 0.3, 8500, 140.00, 10, 50, 2, 20, 40))}
+MASCHINE_WERTE = ("endbeschnitt", "greiferrest", "schnittverlust", "max_stange", "stundensatz", "kontur_klein",
+                  "kontur_mittel", "abstand", "ruestzeit", "stangenwechsel")
+
+# Richtwerte Schneiddaten je Laser, Kategorie und Gas: [(Wandstärke bis, Vorschub groß, Einstechzeit)].
+# Herkunft: übliche Schnitttabellen Faserlaser 3 kW bzw. CO₂-Laser 3,2 kW (Flachbett) mit ≈ 40 % Abschlag fürs
+# Rohr (Drehachse, Ecken, Beschleunigung); keine Herstellerwerte. Stahl Faser mit N₂ bis 4 mm, CO₂ bis 2 mm, darüber
+# O₂; Edelstahl und Aluminium nur N₂ (O₂ läuft an bzw. schneidet nicht sauber), CO₂-Aluminium nur bis 6 mm.
+RICHTWERTE = {
+    "Faser": {
+        ("Stahl", "N₂"): [(1, 12000, 0.1), (1.5, 10000, 0.15), (2, 8000, 0.2), (3, 5000, 0.3), (4, 3200, 0.5)],
+        ("Stahl", "O₂"): [(5, 2600, 0.8), (6, 2200, 1.0), (8, 1600, 1.5), (10, 1200, 2.0), (12, 900, 3.0)],
+        ("Edelstahl", "N₂"): [(1, 11000, 0.1), (1.5, 9000, 0.15), (2, 7000, 0.2), (3, 4200, 0.3), (4, 2800, 0.5),
+                              (5, 1900, 0.7), (6, 1300, 0.8), (8, 700, 1.2), (10, 450, 1.6)],
+        ("Aluminium", "N₂"): [(1, 10000, 0.1), (1.5, 8500, 0.15), (2, 7000, 0.2), (3, 4000, 0.3), (4, 2600, 0.5),
+                              (5, 1700, 0.7), (6, 1100, 0.8), (8, 550, 1.2)]},
+    "CO₂": {
+        ("Stahl", "N₂"): [(1, 6000, 0.15), (1.5, 5000, 0.2), (2, 4000, 0.3)],
+        ("Stahl", "O₂"): [(3, 3000, 0.5), (4, 2600, 0.7), (5, 2300, 1.0), (6, 2000, 1.3), (8, 1500, 1.8),
+                          (10, 1100, 2.5), (12, 850, 3.5)],
+        ("Edelstahl", "N₂"): [(1, 6000, 0.15), (1.5, 5000, 0.2), (2, 4000, 0.3), (3, 2500, 0.5), (4, 1700, 0.8),
+                              (5, 1200, 1.0), (6, 900, 1.2), (8, 500, 1.8)],
+        ("Aluminium", "N₂"): [(1, 5500, 0.15), (1.5, 4500, 0.2), (2, 3500, 0.3), (3, 2000, 0.5), (4, 1300, 0.8),
+                              (5, 900, 1.0), (6, 600, 1.2)]}}
+GRAVUR = {"Faser": 15000, "CO₂": 10000}
+RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel: Richtwert CO₂-Laser"}
+
+
+def beispiel_schneiddaten():
+    """Schneiddaten je Kategorie (Werkstoff-ID leer) für T03 (CO₂) sowie T11 und LT7 (Faser) aus den Richtwerten,
+    Vorschub mit dem Leistungsfaktor der Maschine. Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt
+    am Rohr die Dynamik, nicht die Leistung."""
+    out = []
+    for m, laser in LASER.items():
+        text = f"{RICHTWERT_TEXT[laser]} {zahl_als_text(LEISTUNG[m])} kW, Rohr"
+        for (kat, gas), stufen in RICHTWERTE[laser].items():
+            for wand, v, ein in stufen:
+                v = round(v * FAKTOR[m], -1)
+                out.append((m, None, kat, gas, wand, v, round(v * 0.6, -1), round(v * 0.3, -1), ein, GRAVUR[laser],
+                            text))
+    return out
+
+
+# Bis 0.5.8: Beispiel-Schneiddaten (RL-1, RL-2 = RL-1 × 1,2); unveränderte Zeilen ersetzt das Update
+ALTE_VORSCHUB = {
     ("Stahl", "N₂"): [(1, 9000), (1.5, 8000), (2, 7000), (3, 5000), (4, 3500)],
     ("Stahl", "O₂"): [(1, 5500), (1.5, 5000), (2, 4500), (3, 3600), (4, 3000), (5, 2500), (6, 2100), (8, 1500),
                       (10, 1100)],
@@ -788,17 +877,17 @@ BEISPIEL_VORSCHUB = {
 }
 
 
-def beispiel_schneiddaten():
-    """Schneiddaten je Kategorie (Werkstoff-ID leer) für RL-1 und RL-2 (RL-2 mit 20 % mehr Leistung).
-    Einstechzeit mit O₂ länger als mit N₂."""
-    out = []
-    for m, faktor in (("RL-1", 1.0), ("RL-2", 1.2)):
-        for (kat, gas), stufen in BEISPIEL_VORSCHUB.items():
+def alte_beispiel_schneiddaten():
+    """Werte (kategorie, gas, wand_bis, vorschub groß, mittel, klein, einstechzeit, gravur) der Beispielzeilen bis
+    0.5.8, unabhängig von der Maschinen-ID (RL-1/RL-2 können von Hand umbenannt sein)."""
+    out = set()
+    for faktor in (1.0, 1.2):
+        for (kat, gas), stufen in ALTE_VORSCHUB.items():
             for wand, v in stufen:
                 v = round(v * faktor, -1)
                 ein = round(0.1 + wand * (0.18 if gas == "O₂" else 0.12), 1)
-                out.append((m, None, kat, gas, wand, v, round(v * 0.7, -1), round(v * 0.4, -1), ein,
-                            12000 if gas == "N₂" else 10000, "Beispiel"))
+                out.add((kat, gas, float(wand), float(v), float(round(v * 0.7, -1)), float(round(v * 0.4, -1)),
+                         float(ein), float(12000 if gas == "N₂" else 10000)))
     return out
 
 

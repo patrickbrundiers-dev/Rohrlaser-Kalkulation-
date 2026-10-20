@@ -1,6 +1,6 @@
 """Beispielangebot mit Satz und Staffeln für die Tests (Kopf, Positionen, Mengenstufen)."""
 
-KOPF = dict(nummer="A-2026-0001", kundennr="K-10045", kunde="Beispiel GmbH", datum="2026-10-15", maschine="RL-1",
+KOPF = dict(nummer="A-2026-0001", kundennr="K-10045", kunde="Beispiel GmbH", datum="2026-10-15", maschine="T11",
             stange=6000)
 POSITIONEN = [
     dict(pos=10, artikel="4711-001", bezeichnung="Holm links", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219",

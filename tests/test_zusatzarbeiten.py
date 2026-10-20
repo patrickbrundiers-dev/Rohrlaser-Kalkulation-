@@ -33,7 +33,7 @@ p1 = db.position_neu(a, dict(pos=10, artikel="A", profil_id="RR 42,4x2,0", werks
 p2 = db.position_neu(a, dict(pos=20, artikel="B", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=500,
                              stueck=4, schneidweg=200, einstiche=2))
 k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
-satz_h = k.maschinen["RL-1"]["stundensatz"]
+satz_h = k.maschinen["T11"]["stundensatz"]
 zf, zfl, gew = einst["zuschlag_fertigung"], einst["zuschlag_fremdleistung"], einst["gewinn"]
 
 
