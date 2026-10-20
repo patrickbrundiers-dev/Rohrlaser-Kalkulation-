@@ -379,8 +379,8 @@ def kapitel_start(i):
             "bei jedem Start, Programm und STEP-Import starten schneller. Nur diesen Ordner ausschließen, niemals "
             "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT.", nummeriert=True)
     i.abschnitt("Updates")
-    i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (Release <i>aktuell</i> auf "
-           "GitHub), installiert wie portabel. Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
+    i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (öffentliches Verzeichnis "
+           "<i>Rohrlaser-Updates</i> auf GitHub, ohne Anmeldung), installiert wie portabel. Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
            "Änderung. Ohne Internet oder bei einem Fehler meldet sich das Programm beim Start nicht. Von Hand: "
            "<b>Hilfe → Nach Updates suchen …</b>; dort steht auch, wenn das Programm schon aktuell ist. Welcher Stand "
            "installiert ist, zeigen Fenstertitel, Startseite und <i>Hilfe → Über …</i>.")
@@ -402,8 +402,10 @@ def kapitel_start(i):
             "Braucht eine neue Version eine erweiterte Datendatei, sichert das Programm sie vorher (Name endet auf "
             "<i>_vor_Schema_…</i>). Eine ältere Programmversion öffnet eine so erweiterte Datei nicht mehr, sondern "
             "meldet, dass sie von einer neueren Version stammt.",
-            "Das Update funktioniert ab Version 0.3.0. Wer eine ältere Version hat, holt sich einmal das neue Setup "
-            "oder ZIP und übernimmt die Daten (Abschnitt <i>Datensicherung und Umzug</i>).")
+            "Das Update funktioniert ab Version 0.5.5. Ältere Versionen suchen noch im privaten Programmverzeichnis, "
+            "das ohne Anmeldung nicht erreichbar ist, und melden <i>Keine Verbindung zum Update</i>. Dann einmal das "
+            "neue Setup über die alte Installation installieren bzw. das neue ZIP entpacken und die Daten übernehmen "
+            "(Abschnitt <i>Datensicherung und Umzug</i>); danach geht es online weiter.")
     i.abschnitt("Startseite")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, siehe unten). Ohne Übernahme legt es die Datendatei mit "
@@ -2084,7 +2086,8 @@ def kapitel_fragen(i):
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
         ["<b>Keine Verbindung zum Update</b>",
-         "Kein Internet, oder eine Firewall sperrt github.com. Später noch einmal versuchen; sonst das Setup "
+         "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.5 liegt es an der alten "
+         "Update-Adresse (Abschnitt <i>Updates</i>). Später noch einmal versuchen; sonst das Setup "
          "(installiert) bzw. das ZIP (portabel) von Hand holen und die Daten übernehmen."],
         ["<b>STEP-Import.exe wurde nicht gefunden</b>",
          "Der Ordner <i>STEP-Import</i> muss im Programmordner neben <i>Rohrlaser-Angebotskalkulation.exe</i> liegen. "

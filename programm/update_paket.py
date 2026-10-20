@@ -3,7 +3,7 @@
 Aufruf:
   python programm/update_paket.py --programm dist/Rohrlaser-Angebotskalkulation --ziel update_dateien
          --stand 57 [--commit SHA] [--adresse URL] [--in-programm]
---adresse      Adresse der Pakete (Release update-dateien), steht in der Dateiliste
+--adresse      Adresse der Pakete (Release update-dateien im Repository Rohrlaser-Updates), steht in der Dateiliste
 --in-programm  Dateiliste zusätzlich in den Programmordner legen (kommt so ins ZIP: installierter Stand)
 --aenderung    Text "Was ist neu"; ohne Angabe der Titel des letzten Pull Requests bzw. Commits
 """
@@ -36,7 +36,7 @@ def main(argv=None):
     ap.add_argument("--ziel", required=True)
     ap.add_argument("--stand", required=True, type=int)
     ap.add_argument("--commit", default="")
-    ap.add_argument("--adresse", default="")
+    ap.add_argument("--adresse", default=update.ADRESSE.rpartition("/")[0] + "/")   # Ordner der Dateiliste
     ap.add_argument("--aenderung")
     ap.add_argument("--in-programm", action="store_true")
     a = ap.parse_args(argv)
