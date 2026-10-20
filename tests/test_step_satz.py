@@ -53,7 +53,7 @@ prot = {z[1] + str(z[2]): z for z in erg["protokoll"]}
 assert prot["G.step2"][-2] == 10 and "gleich wie G-K1 (Satz G)" in prot["G.step2"][-1]
 assert "Satz G, 2 Stück je Satz (Körper 1, 2)" in prot["G.step1"][-1]
 assert len(erg["protokoll"]) == len(mw) and all(len(z) == len(step.PROTOKOLL) for z in erg["protokoll"])
-kopf = dict(maschine="RL-1", stange=6000)
+kopf = dict(maschine="T11", stange=6000)
 for p in pos:                                                # Stückzahl passt zum Satz
     st = rechnen.status(p, rechnen.position_werte(p, kopf, k, db.tabellen()), kopf, k)
     assert "FEHLER" not in st and "Vielfaches" not in st, st
