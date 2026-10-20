@@ -569,6 +569,7 @@ class AngebotSeite(QWidget):
         self.uebersicht_bereich = UebersichtBereich()
         self.stand = self.uebersicht_bereich.stand
         self.uebersicht = self.uebersicht_bereich.uebersicht
+        self.uebersicht_bereich.preise_knopf.clicked.connect(lambda _=False: self.preise_aktualisieren())
         oben_inhalt = QWidget()
         oben = QHBoxLayout(oben_inhalt)
         oben.setContentsMargins(0, 0, 4, 0)
@@ -750,8 +751,9 @@ class AngebotSeite(QWidget):
         self.kopf = a
         self.ergebnis = a["ergebnis"]
         self.positionen = self.db.positionen(self.id)
-        self.k = self.db.kontext()
-        self.tabellen = self.db.tabellen()
+        # festgeschriebene Materialpreise und Schneiddaten gehen den aktuellen Stammdaten vor
+        self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()
+        self.k, self.tabellen = rechnen.preisbasis_anwenden(a, self.k_aktuell, self.tabellen_aktuell)
         self.einst = rechnen.einstellungen_angebot(a, self.db.einstellungen())     # mit Werten des Angebots
         self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
@@ -830,6 +832,8 @@ class AngebotSeite(QWidget):
 
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
+        self.uebersicht_bereich.preisstand_setzen(
+            self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell))
         erg = self.ergebnis
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
         self.kalk.setzen([z for z in zeilen if z])
@@ -1109,8 +1113,36 @@ class AngebotSeite(QWidget):
                 "Preis oder nicht eingeplant.\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
             self.reiter.setCurrentIndex(1)
             return None
-        return self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
+        pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
                                lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
+        if pfad is not None:
+            self.preise_festschreiben()
+        return pfad
+
+    def preise_festschreiben(self):
+        """Materialpreise und Schneiddaten, mit denen das Angebot gerade rechnet, im Angebot speichern (nach dem
+        Angebots-PDF). Schon festgeschriebene Werte bleiben, neue Profile, Werkstoffe und Oberflächen kommen dazu."""
+        pb = rechnen.preisbasis_aus(self.kopf, self.positionen, self.k, self.tabellen)
+        alt = self.kopf.get("preisbasis")
+        if isinstance(alt, dict) and rechnen.preisbasis_gleich(alt, pb):
+            return
+        self.db.preisbasis_speichern(self.id, pb)
+        self.neu_laden()
+
+    def preise_aktualisieren(self):
+        """Festgeschriebene Preise auf die aktuellen Stammdaten setzen (nach Rückfrage)."""
+        abw = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
+        if not self.f.stumm and QMessageBox.question(
+                self, "Aktuelle Preise übernehmen",
+                "Materialpreise und Schneiddaten dieses Angebots auf die aktuellen Stammdaten setzen?\n\n"
+                + "\n".join(abw[:15]) + ("\n…" if len(abw) > 15 else "")
+                + "\n\nDer Preis des Angebots ändert sich dadurch. Ein bereits verschicktes Angebots-PDF bleibt "
+                "unverändert; erst das nächste Angebots-PDF schreibt die neuen Preise wieder fest.") != QMessageBox.Yes:
+            return False
+        self.db.preisbasis_speichern(self.id, None)
+        self.f.meldung("Aktuelle Materialpreise und Schneiddaten übernommen.")
+        self.neu_laden()
+        return True
 
     def werkstatt_pdf(self):
         if not self._vor_ausgabe():

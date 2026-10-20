@@ -6,13 +6,20 @@ Regeln:
 - Trennung zwischen zwei Teilen: beide zugewandten Enden gerade = 1 gemeinsamer Schnitt
   (1 × Schnittverlust), sonst 2 Schnitte (2 × Schnittverlust + Abstand getrennte Schnitte).
 - Teile dürfen gedreht werden. Keine Restlagerverwaltung: Reste sind Verschnitt.
+
+Verfahren: First-Fit- und Best-Fit-Decreasing mit Auflösen schwach belegter Stangen; ist das nicht nachweislich
+optimal, rechnet die Schnittmuster-Optimierung (Spaltengenerierung nach Gilmore-Gomory: gleiche Teile als Typ,
+Schnittmuster je Stange, lineares Programm über die Muster) eine Einteilung und eine Schranke; danach für kleine
+Gruppen die exakte Suche. Alle Grenzen sind Schrittzahlen, keine Zeiten: das Ergebnis ist auf jedem Rechner gleich.
 """
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 EPS = 1e-6
 EXAKT_MAX_TEILE = 60     # exakte Suche nur für Gruppen bis zu so vielen Teilen
 EXAKT_MAX_KNOTEN = 20000  # Suchschritte je Gruppe, danach gilt das beste bis dahin gefundene Ergebnis
+MUSTER_MAX_RUNDEN = 300    # neue Schnittmuster je Gruppe
+MUSTER_MAX_KNOTEN = 50000  # Suchschritte je Suche nach dem besten Schnittmuster
 
 
 @dataclass(frozen=True)
@@ -40,6 +47,7 @@ class Gruppe:
     oberflaeche: str = ""    # leer = roh; unterschiedliche Oberflächen nie auf derselben Stange
     teile: list = field(default_factory=list)
     bewiesen: bool = False   # Stangenzahl ist nachweislich minimal
+    schranke: int = 0        # nachgewiesene Mindestzahl Stangen (Untergrenze oder Schranke der Schnittmuster)
 
     @property
     def nutzbar_bis(self):
@@ -249,8 +257,16 @@ def optimiere(g):
         kandidaten.append((len(folgen), -sum(gemeinsame_schnitte(f) for f in folgen), folgen))
     kandidaten.sort(key=lambda k: (k[0], k[1]))
     folgen = kandidaten[0][2]
-    ug = untergrenze(g)
-    g.bewiesen = len(folgen) <= ug
+    g.schranke = untergrenze(g)
+    g.bewiesen = len(folgen) <= g.schranke
+    if not g.bewiesen:
+        st, schranke = muster_optimierung(g)
+        g.schranke = max(g.schranke, schranke)
+        neu = [anordnen(s) for s in st]
+        if sum(len(s) for s in st) == len(g.teile) and (len(neu), -sum(gemeinsame_schnitte(f) for f in neu)) < \
+                (len(folgen), -sum(gemeinsame_schnitte(f) for f in folgen)):
+            folgen = neu
+        g.bewiesen = len(folgen) <= g.schranke
     if not g.bewiesen and len(g.teile) <= EXAKT_MAX_TEILE:
         st, g.bewiesen = exakt(g, len(folgen))
         if st is not None:
@@ -264,9 +280,173 @@ def bewertung(g, n_stangen):
     """Text für die Auswertung: wie nah das Ergebnis am Optimum liegt."""
     if n_stangen <= untergrenze(g):
         return "optimal (Untergrenze erreicht)"
+    if n_stangen <= g.schranke:
+        return "optimal (Schranke der Schnittmuster erreicht)"
     if g.bewiesen:
         return "optimal (alle Einteilungen geprüft)"
     return "nicht bewiesen (Suche begrenzt)"
+
+
+# ------------------------------------------------------------------ Schnittmuster (Spaltengenerierung)
+def typ(t):
+    """Gleiche Teile (Länge, Enden, Schnittlängen) sind für die Schnittmuster ein Typ."""
+    return (t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt)
+
+
+def bestes_muster(g, typen, bedarf, wert):
+    """Schnittmuster (Anzahl je Typ, höchstens der Bedarf) mit dem größten Gesamtwert, das auf eine Stange passt.
+    Tiefensuche, je Typ zuerst die größte mögliche Anzahl; abgeschnitten wird, wenn selbst die freie Länge mit dem
+    besten Wert je mm nicht mehr reicht. Ergebnis: (Muster, Suche vollständig)."""
+    n = len(typen)
+    beste, zahl, knoten = [None, -1.0], [0] * n, [0]
+    q_ab = [max([wert[j] / typen[j].laenge for j in range(i, n) if bedarf[j]] or [0.0]) for i in range(n + 1)]
+    # Die Trennungen hängen nur davon ab, wie viele Teile beide, ein oder kein gerades Ende haben (anordnen ordnet
+    # danach); der Verbrauch ist also Länge der Teile + Zuschlag je (Anzahl gerade-gerade, gerade-schräg, schräg).
+    art = [2 if t.a_gerade and t.b_gerade else (1 if t.a_gerade or t.b_gerade else 0) for t in typen]
+    vertreter = {a: next(t for t in typen if art[typen.index(t)] == a) for a in set(art)}
+    zuschlag = {}
+
+    def passt_zahl(anz, laenge):
+        if anz not in zuschlag:
+            null = [replace(vertreter[a], laenge=0.0) for a in (2, 1, 0) for _ in range(anz[2 - a])]
+            zuschlag[anz] = verbrauch(g, anordnen(null))
+        return zuschlag[anz] + laenge <= g.nutzbar_bis + EPS
+
+    def suche(i, w, laenge):
+        knoten[0] += 1
+        if w > beste[1] + 1e-9:
+            beste[0], beste[1] = list(zahl), w
+        if i == n or knoten[0] > MUSTER_MAX_KNOTEN:
+            return
+        if w + q_ab[i] * (g.nutzbar_bis - g.endbeschnitt - laenge) <= beste[1] + 1e-9:
+            return
+        anz = [0, 0, 0]
+        for j in range(i):
+            anz[2 - art[j]] += zahl[j]
+        while zahl[i] < bedarf[i]:
+            anz[2 - art[i]] += 1
+            if not passt_zahl(tuple(anz), laenge + typen[i].laenge * (zahl[i] + 1)):
+                break
+            zahl[i] += 1
+        while True:
+            suche(i + 1, w + wert[i] * zahl[i], laenge + typen[i].laenge * zahl[i])
+            if zahl[i] == 0:
+                break
+            zahl[i] -= 1
+
+    suche(0, 0.0, 0.0)
+    return beste[0], knoten[0] <= MUSTER_MAX_KNOTEN
+
+
+def simplex_max(c, a, b):
+    """Lineares Programm max c·y unter a·y <= b, y >= 0 mit b >= 0 (Simplex mit Tableau, Regel von Bland gegen
+    Kreisen). Ergebnis: (y, Zielwert, Schattenpreise der Zeilen, gelöst)."""
+    m, n = len(a), len(c)
+    tab = [list(a[i]) + [1.0 if j == i else 0.0 for j in range(m)] + [b[i]] for i in range(m)]
+    z = [-x for x in c] + [0.0] * (m + 1)
+    basis = [n + i for i in range(m)]
+    geloest = False
+    for _ in range(20 * (m + n) + 100):
+        e = next((j for j in range(n + m) if z[j] < -1e-9), None)
+        if e is None:
+            geloest = True
+            break
+        r, best = None, None
+        for i in range(m):
+            if tab[i][e] > 1e-9:
+                q = tab[i][-1] / tab[i][e]
+                if best is None or q < best - 1e-12 or (abs(q - best) <= 1e-12 and basis[i] < basis[r]):
+                    r, best = i, q
+        if r is None:       # unbeschränkt: kommt bei Schnittmustern nicht vor (jeder Typ hat ein Muster)
+            break
+        p = tab[r][e]
+        tab[r] = [x / p for x in tab[r]]
+        for i in range(m):
+            if i != r and abs(tab[i][e]) > 1e-12:
+                f = tab[i][e]
+                tab[i] = [x - f * y for x, y in zip(tab[i], tab[r])]
+        f = z[e]
+        z = [x - f * y for x, y in zip(z, tab[r])]
+        basis[r] = e
+    y = [0.0] * n
+    for i, bi in enumerate(basis):
+        if bi < n:
+            y[bi] = tab[i][-1]
+    return y, z[-1], z[n:n + m], geloest
+
+
+def muster_optimierung(g):
+    """Schnittmuster-Optimierung (Gilmore-Gomory). Das lineare Programm „möglichst wenige Stangen, jeder Typ
+    mindestens so oft wie gebraucht“ wird über seine duale Form gelöst; neue Muster liefert bestes_muster mit den
+    Schattenpreisen als Wert. Die abgerundete Lösung legt ganze Stangen fest, den Rest teilen Best-Fit, First-Fit
+    und das beste Muster je Schritt auf. Ergebnis: (Stangen als Teilelisten, Schranke): die Schranke ist die
+    aufgerundete LP-Lösung, wenn alle Suchen vollständig waren, sonst 0."""
+    gruppen = {}
+    for t in sortiert(g.teile):
+        gruppen.setdefault(typ(t), []).append(t)
+    keys = sorted(gruppen, key=lambda k: (-k[0], k))
+    typen = [gruppen[k][0] for k in keys]
+    bedarf = [len(gruppen[k]) for k in keys]
+    n = len(typen)
+    muster = []
+    for i in range(n):              # Startmuster: je Typ so viele wie auf eine Stange passen
+        k = 0
+        while k < bedarf[i] and passt(g, [typen[i]] * (k + 1)):
+            k += 1
+        if k == 0:
+            return [], 0            # passt nicht auf eine Stange (wird vorher aussortiert)
+        muster.append(tuple(k if j == i else 0 for j in range(n)))
+    vollstaendig = False
+    for _ in range(MUSTER_MAX_RUNDEN):
+        y, wert, x, geloest = simplex_max([float(d) for d in bedarf], [[float(v) for v in m] for m in muster],
+                                          [1.0] * len(muster))
+        if not geloest:
+            break
+        m, ganz = bestes_muster(g, typen, bedarf, [max(v, 0.0) for v in y])
+        if m is None or sum(y[i] * m[i] for i in range(n)) <= 1 + 1e-7:
+            vollstaendig = ganz
+            break
+        if tuple(m) in muster:
+            break
+        muster.append(tuple(m))
+    schranke = math.ceil(wert - 1e-6) if vollstaendig and geloest else 0
+    # ganze Stangen aus der LP-Lösung, Rest heuristisch
+    rest, vorrat, stangen = list(bedarf), {k: list(v) for k, v in gruppen.items()}, []
+    for m, xp in sorted(zip(muster, x), key=lambda a: (-a[1], a[0])):
+        for _ in range(int(math.floor(xp + 1e-9))):
+            if any(rest[i] < m[i] for i in range(n)):
+                break
+            stangen.append([vorrat[keys[i]].pop() for i in range(n) for _ in range(m[i])])
+            rest = [r - c for r, c in zip(rest, m)]
+    uebrig = [t for k in keys for t in vorrat[k]]
+    if uebrig:
+        h = Gruppe(g.profil, g.werkstoff, g.stange, g.endbeschnitt, g.greiferrest, g.kerf, g.abstand, g.oberflaeche,
+                   uebrig)
+        stangen += min((aufloesen(h, best_fit(h, uebrig)), aufloesen(h, first_fit(h, uebrig)), muster_folge(h)),
+                       key=len)
+    return aufloesen(g, stangen), schranke
+
+
+def muster_folge(g):
+    """Schritt für Schritt das Muster mit der größten belegten Länge (lange Teile etwas bevorzugt) so oft wie
+    möglich schneiden."""
+    gruppen = {}
+    for t in sortiert(g.teile):
+        gruppen.setdefault(typ(t), []).append(t)
+    keys = sorted(gruppen, key=lambda k: (-k[0], k))
+    typen = [gruppen[k][0] for k in keys]
+    bedarf = [len(gruppen[k]) for k in keys]
+    wert = [t.laenge ** 1.2 for t in typen]
+    stangen = []
+    while sum(bedarf):
+        m, _ = bestes_muster(g, typen, bedarf, wert)
+        if not m or not sum(m):         # kommt nicht vor (jedes Teil passt allein auf eine Stange)
+            stangen += [[t] for k in keys for t in gruppen[k]]
+            break
+        for _ in range(min(bedarf[i] // m[i] for i in range(len(m)) if m[i])):
+            stangen.append([gruppen[keys[i]].pop() for i in range(len(m)) for _ in range(m[i])])
+            bedarf = [b - c for b, c in zip(bedarf, m)]
+    return aufloesen(g, stangen)
 
 
 def manuell(g):
