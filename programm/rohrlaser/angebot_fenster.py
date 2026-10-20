@@ -18,10 +18,10 @@ from .nachkalk_seite import NachkalkulationSeite
 from .zusatz_dialog import ZusatzDialog
 from .zeiten_seite import ZeitenSeite
 from .angebot import POSITIONEN, STEP_FELDER
-from .angebot_oben import KopfBereich, UebersichtBereich, _kundennr
+from .angebot_oben import KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
-from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
+from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung, spalten_einpassen
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
 FARBE_TEILE = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F",
@@ -687,7 +687,7 @@ class AngebotSeite(QWidget):
         self.ausw = Liste(AUSW_SPALTEN)
         self.fehler = Liste(FEHLER_SPALTEN)
         self.prot = Liste(PROT_SPALTEN)
-        kalk_ansicht = _tabelle(self.kalk)
+        kalk_ansicht = self.kalk_ansicht = _tabelle(self.kalk)
         _breiten(kalk_ansicht, KALK_SPALTEN)
         self.summen = QLabel()
         self.summen.setWordWrap(True)
@@ -759,7 +759,15 @@ class AngebotSeite(QWidget):
         stl.addWidget(st_split, 1)
 
         self.reiter = QTabWidget()
-        self.reiter.addTab(self.pos_ansicht, "Positionen")
+        self.pos_seite = QWidget()            # Positionsliste mit Spaltenauswahl darüber
+        self.pos_leiste = QHBoxLayout()
+        self.pos_leiste.setContentsMargins(0, 0, 0, 0)
+        pl = QVBoxLayout(self.pos_seite)
+        pl.setContentsMargins(0, 4, 0, 0)
+        pl.setSpacing(4)
+        pl.addLayout(self.pos_leiste)
+        pl.addWidget(self.pos_ansicht, 1)
+        self.reiter.addTab(self.pos_seite, "Positionen")
         self.reiter.addTab(kalk_seite, "Kalkulation")
         self.zeiten_seite = ZeitenSeite(self)
         self.reiter.addTab(self.zeiten_seite, "Zeiten && Arbeitskosten")
@@ -772,10 +780,10 @@ class AngebotSeite(QWidget):
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
         self.st_seite = st_seite
 
-        # Spaltenauswahl der Positionsliste (rechts neben den Reitern, nur bei Positionen)
-        ecke = QWidget()
-        el = QHBoxLayout(ecke)
-        el.setContentsMargins(0, 0, 0, 2)
+        # Spaltenauswahl der Positionsliste (Zeile über der Liste, Reiter behalten die volle Breite)
+        el = self.pos_leiste
+        self.pos_info = QLabel()
+        self.pos_info.setStyleSheet("color: #5F6B7A;")
         self.spalten_knopf = QPushButton("Weitere Spalten")
         self.spalten_knopf.setToolTip("Optionale Spalten der Positionsliste ein- oder ausblenden. Spalten mit Werten "
                                       "erscheinen automatisch.")
@@ -788,12 +796,11 @@ class AngebotSeite(QWidget):
         self.zeige_berechnet = QCheckBox("Berechnete Werte (Programm)")
         self.zeige_berechnet.setToolTip("Vom Programm ermittelte Werte: Profilform, Gewicht, wirksame Stangenlänge, "
                                         "Vorschub, eingeplante Teile usw.")
+        el.addWidget(self.pos_info, 1)
         for w in (self.spalten_knopf, self.zeige_step, self.zeige_berechnet):
             el.addWidget(w)
         for c in (self.zeige_berechnet, self.zeige_step):
             c.toggled.connect(self._spalten_zeigen)
-        self.reiter.setCornerWidget(ecke, Qt.TopRightCorner)
-        self.reiter.currentChanged.connect(lambda i: ecke.setVisible(self.reiter.widget(i) is self.pos_ansicht))
 
         unten = QWidget()
         ul = QVBoxLayout(unten)
@@ -810,6 +817,7 @@ class AngebotSeite(QWidget):
         lay.setContentsMargins(8, 8, 8, 4)
         lay.addWidget(self.teiler, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
+        self._pos_eingepasst = self._kalk_eingepasst = False
         self.neu_laden()
 
     # -------------------------------------------------------------- Laden und Rechnen
@@ -849,6 +857,8 @@ class AngebotSeite(QWidget):
         if not getattr(self, "_teiler_gesetzt", False):     # Kopf so hoch wie nötig, höchstens gut die Hälfte
             self._teiler_gesetzt = True
             h = self.teiler.height()
+            if h < 700 and self.db.einstellung(KALK_OFFEN_EINSTELLUNG) is None:     # kleiner Bildschirm
+                self.kopf_bereich.kalkulation_aufklappen(False)
             oben = min(self.teiler.widget(0).widget().sizeHint().height() + 6, int(h * 0.55))
             self.teiler.setSizes([oben, max(h - oben, 200)])
 
@@ -896,6 +906,9 @@ class AngebotSeite(QWidget):
         erg = self.ergebnis
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
         self.kalk.setzen([z for z in zeilen if z])
+        if not self._kalk_eingepasst and any(zeilen):
+            spalten_einpassen(self.kalk_ansicht)
+            self._kalk_eingepasst = True
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
         laenge = sum(w["laenge_gesamt"] or 0 for w in self.pos_modell.werte) / 1000
@@ -939,6 +952,7 @@ class AngebotSeite(QWidget):
         """Sichtbare Spalten der Positionsliste: Standardspalten immer, optionale Spalten mit Werten oder nach Wahl
         unter 'Weitere Spalten', STEP-Werte und berechnete Werte über die Häkchen."""
         m = self.pos_modell
+        neu = set()
         for i, (art, x) in enumerate(m.spalten):
             name = m.name(i)
             if art == "berechnet":
@@ -951,7 +965,17 @@ class AngebotSeite(QWidget):
                 zeigen = self.spalten_wahl.get(name, self._spalte_hat_werte(i))
             else:
                 zeigen = True
+            if zeigen and self.pos_ansicht.isColumnHidden(i):
+                neu.add(i)
             self.pos_ansicht.setColumnHidden(i, not zeigen)
+        if self.positionen:            # Breiten einmal je geöffnetem Angebot, danach nur neu gezeigte Spalten
+            spalten_einpassen(self.pos_ansicht, None if not self._pos_eingepasst else neu)
+            self._pos_eingepasst = True
+        aus = sum(1 for i, (art, _) in enumerate(m.spalten) if m.name(i) in OPTIONALE_SPALTEN
+                  and self.pos_ansicht.isColumnHidden(i))
+        n = sum(1 for p in self.positionen if p.get("profil_id") or p.get("artikel"))
+        self.pos_info.setText(f"{n} {'Position' if n == 1 else 'Positionen'}"
+                              + (f" · {aus} optionale Spalten ausgeblendet (Weitere Spalten)" if aus else ""))
 
     def _spalte_hat_werte(self, c):
         return spalte_sichtbar([self.pos_modell.roh(r, c) for r in range(self.pos_modell.rowCount())])

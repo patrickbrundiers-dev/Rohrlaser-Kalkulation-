@@ -17,6 +17,7 @@ from .stammdaten import zahl_als_text
 
 KOPF_FELD = {f.name: f for f in KOPF}
 KALK_NAMEN = {f.name for f in KALKULATION}
+KALK_OFFEN_EINSTELLUNG = "ansicht_kalkulation_offen"     # Karte Kalkulation auf- oder zugeklappt (alle Angebote)
 # Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs)
 GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung")),
@@ -146,7 +147,29 @@ class KopfBereich(QWidget):
         vorgaben = QPushButton("Vorgaben aus Einstellungen")
         vorgaben.setToolTip("Zuschläge, Gewinn, Rüstzeit und Pauschalen wieder auf die Werte der Einstellungen setzen")
         vorgaben.clicked.connect(lambda: seite.kalkulation_zuruecksetzen())
-        kalk, kal = karte("Kalkulation dieses Angebots", vorgaben)
+        kalk, kal0 = karte()
+        titelzeile = QHBoxLayout()
+        self.kalk_knopf = QToolButton()
+        self.kalk_knopf.setObjectName("kartenknopf")
+        self.kalk_knopf.setText("Kalkulation dieses Angebots")
+        self.kalk_knopf.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.kalk_knopf.setCheckable(True)
+        self.kalk_knopf.setAutoRaise(True)
+        self.kalk_knopf.setToolTip("Kalkulationswerte ein- oder ausklappen (zugeklappt: Kurzfassung der Werte)")
+        self.kalk_knopf.clicked.connect(lambda offen: self.kalkulation_aufklappen(offen, merken=True))
+        self.kalk_kurz = QLabel()
+        self.kalk_kurz.setStyleSheet(f"color: {GRAU};")
+        self.kalk_kurz.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        titelzeile.addWidget(self.kalk_knopf)
+        titelzeile.addWidget(self.kalk_kurz, 1)
+        titelzeile.addStretch(0)            # aufgeklappt (Kurzfassung weg): Knopf bleibt rechts und schmal
+        titelzeile.addWidget(vorgaben)
+        kal0.addLayout(titelzeile)
+        self.kalk_inhalt = QWidget()
+        kal = QVBoxLayout(self.kalk_inhalt)
+        kal.setContentsMargins(0, 0, 0, 0)
+        kal.setSpacing(6)
+        kal0.addWidget(self.kalk_inhalt)
         hinweis = QLabel("Vorgabe aus den Einstellungen, hier änderbar. Werte mit 0 stehen unter "
                          "„Erweiterte Einstellungen“.")
         hinweis.setStyleSheet(f"color: {GRAU};")
@@ -219,7 +242,38 @@ class KopfBereich(QWidget):
         self.erweitert_bereich = Aufklapper("Erweiterte Einstellungen", er)
         kal.addWidget(self.erweitert_bereich)
         lay.addWidget(kalk)
+        offen = self.s.db.einstellung(KALK_OFFEN_EINSTELLUNG)
+        self.kalkulation_aufklappen(offen if isinstance(offen, bool) else True)
         lay.addStretch(1)
+
+    def kalkulation_aufklappen(self, offen=True, merken=False):
+        """Karte Kalkulation auf- oder zuklappen; zugeklappt steht die Kurzfassung in der Titelzeile.
+        merken = Wahl des Benutzers für alle Angebote speichern."""
+        self.kalk_knopf.setChecked(offen)
+        self.kalk_knopf.setArrowType(Qt.DownArrow if offen else Qt.RightArrow)
+        self.kalk_inhalt.setVisible(offen)
+        self.kalk_kurz.setVisible(not offen)
+        if merken:
+            self.s.db.einstellung_setzen(KALK_OFFEN_EINSTELLUNG, offen)
+
+    def kalk_offen(self):
+        return self.kalk_knopf.isChecked()
+
+    def _kurzfassung(self):
+        """Kalkulationswerte ungleich 0 in einer Zeile, z. B. 'Zuschlag Material 10 % · Gewinn 10 % · …'."""
+        teile = []
+        for _, namen in GRUPPEN:
+            for name in namen:
+                v = self.wert(name)
+                if kopf_sichtbar(name, v):
+                    fd = KOPF_FELD[name]
+                    titel, einheit = fd.titel, ""
+                    if "[" in titel:
+                        titel, einheit = titel.split("[", 1)
+                        einheit = einheit.rstrip("]")
+                    teile.append(f"{titel.strip()} {_z(v, fd.stellen if fd.stellen is not None else (0 if fd.art == "ganz" else 2))} {einheit}".strip())
+        self.kalk_kurz.setText("   " + " · ".join(teile))
+        self.kalk_kurz.setToolTip("\n".join(teile))
 
     def _gruppen_anordnen(self, spalten):
         """Gruppen nebeneinander (breites Fenster) oder 2 × 2 (schmales Fenster)."""
@@ -316,6 +370,7 @@ class KopfBereich(QWidget):
                 else:
                     w.setText(v or "")
         self.sichtbarkeit()
+        self._kurzfassung()
         self._maschine_anzeigen()
 
     def sichtbarkeit(self):
@@ -379,6 +434,29 @@ class UebersichtBereich(QWidget):
         self.stand.setAlignment(Qt.AlignCenter)
         self.stand.setMinimumHeight(28)
         kl.addWidget(self.stand)
+        # Herstellkosten und Verkaufspreis groß, ohne Rollen sichtbar
+        preise = QHBoxLayout()
+        preise.setSpacing(6)
+        self.preis, self.preis_titel = {}, {}
+        for name, titel, stil in (("herstell", "Herstellkosten", "preiswert_klein"),
+                                  ("verkauf", "Verkaufspreis", "preiswert")):
+            box = QFrame()
+            box.setObjectName("preis")
+            bl = QVBoxLayout(box)
+            bl.setContentsMargins(8, 4, 8, 4)
+            bl.setSpacing(0)
+            t = QLabel(titel)
+            t.setObjectName("kennzahltitel")
+            w = QLabel()
+            w.setObjectName(stil)
+            w.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            w.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            bl.addWidget(t)
+            bl.addWidget(w)
+            self.preis[name] = w
+            self.preis_titel[name] = (t, titel)
+            preise.addWidget(box, 1)
+        kl.addLayout(preise)
         # Meldungen: Anzahl als Etikett, einzelne Meldungen aufklappbar
         self.meldungen = QLabel()
         self.meldungen.setWordWrap(True)
@@ -423,6 +501,18 @@ class UebersichtBereich(QWidget):
         lay.addWidget(k)
 
     def stand_setzen(self, stand):
+        """Stand der Optimierung; ohne aktuelle Optimierung fehlen Material und Stangen, die Preise sind dann
+        als vorläufig gekennzeichnet."""
+        aktuell = stand == "aktuell"
+        for name, (t, titel) in self.preis_titel.items():
+            t.setText(titel if aktuell else f"{titel} (vorläufig)")
+            w = self.preis[name]
+            w.setStyleSheet("" if aktuell else "color: #7F8A99;")
+            w.setToolTip("" if aktuell else "Ohne aktuelle Optimierung fehlen Material, Stangenwechsel und "
+                                            "Verschnitt. Bitte optimieren.")
+        self._stand_text(stand)
+
+    def _stand_text(self, stand):
         text, name = self.STAND.get(stand, ("Veraltet – Angebot oder Stammdaten geändert, bitte neu optimieren",
                                             "stand_veraltet"))
         self.stand.setText(text)
@@ -459,6 +549,8 @@ class UebersichtBereich(QWidget):
         """kosten: rechnen.kostenarten(...). Oben die Gruppen (rechnen.KOSTEN_GRUPPEN), aufklappbar jede Kostenart
         einzeln. Zeilen mit 0,00 € sind ausgeblendet, Herstellkosten und Verkaufspreis immer sichtbar."""
         betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
+        for name, w in self.preis.items():
+            w.setText(f"{_z(betrag[name][1])} €")
         linie = "border-top:1px solid #C9D0D8"
         html = "<table width='100%' cellpadding='1' cellspacing='0'>"
         for titel, namen, summe in rechnen.KOSTEN_GRUPPEN:

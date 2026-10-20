@@ -253,7 +253,7 @@ def main(ziel):
     foto.foto("angebot_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
                                         (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
                                         (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
-                                        (s.spalten_knopf.parentWidget(), 8)])
+                                        ((s.pos_seite, QRect(0, 0, s.pos_seite.width(), s.pos_ansicht.y() - 2)), 8)])
     kb = s.kopf_bereich
     s.kopf_bereich.erweitert_bereich.aufklappen(True)
     s.kopf_bereich.maschinen_bereich.aufklappen(True)

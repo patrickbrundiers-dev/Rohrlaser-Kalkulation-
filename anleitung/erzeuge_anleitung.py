@@ -647,17 +647,23 @@ def kapitel_angebot(i):
     i.text("Ein geöffnetes Angebot zeigt oben links den Angebotskopf und die Kalkulation dieses Angebots, rechts die "
            "Übersicht, darunter die Aktionen und die Reiter mit Positionen und Ergebnissen. Die Trennlinie zwischen "
            "oben und unten lässt sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil.")
+    i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
+           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Zuschlag Material 10,0 % · "
+           "Gewinn 10,0 % · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
+           "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. Spaltenbreiten der "
+           "Positionsliste, der Kalkulation und der Zeiten richten sich beim Öffnen nach Inhalt und Spaltenkopf.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
         (1, "<b>Angebotskopf</b>: Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, darunter Datum, "
             "Kundenname, Standard-Stangenlänge und Bemerkung. Ganz unten die aufklappbaren Maschinenparameter."),
-        (2, "<b>Übersicht</b>: Stand der Optimierung, Meldungen, Kennzahlen und Kosten bis zum Verkaufspreis."),
+        (2, "<b>Übersicht</b>: Stand der Optimierung, Herstellkosten und Verkaufspreis groß, Meldungen, "
+            "Kennzahlen und Kosten nach Gruppen."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen (Kapitel 6.5)."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten (Kapitel 7)."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen (Kapitel 8)."),
-        (8, "<b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b> blenden "
-            "weitere Spalten ein.")])
+        (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
+            "rechts <b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b>.")])
     i.text("Die blau hinterlegten Knöpfe sind die Hauptaktionen <b>Neue Position</b>, <b>STEP importieren</b>, "
            "<b>Optimieren</b> und <b>3D-Ansicht</b>. Rechts stehen die Ausgaben; CSV-Export und Ablage öffnen liegen "
            "unter <b>Weitere Aktionen</b> (Kapitel 11).")
@@ -710,6 +716,9 @@ def kapitel_angebot(i):
     i.abschnitt("Übersicht")
     i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
             "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, Kapitel 8.2).",
+            "Darunter groß <b>Herstellkosten</b> und <b>Verkaufspreis</b>, damit sie auch auf kleinen Bildschirmen "
+            "ohne Rollen zu sehen sind. Vor dem Optimieren (oder wenn die Optimierung veraltet ist) stehen sie grau "
+            "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
             "<b>Meldungen</b>: die Anzahl der Fehler, Warnungen und Hinweise der Positionen (rot, gelb); aufklappen "
             "zeigt jede Meldung mit ihrer Positionsnummer.",
             "Kennzahlen: Positionen, Stückzahl, Gesamtlänge, Gewicht und Stangen.",
@@ -739,7 +748,7 @@ def kapitel_angebot(i):
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
         [75, 190])
     i.text("Die Spalten von Oberfläche bis Zusatzarbeiten erscheinen von selbst, sobald eine Position dort einen "
-           "Wert hat. Mit <b>Weitere Spalten</b> (rechts über der Tabelle) lässt sich jede dieser Spalten fest ein- "
+           "Wert hat. Mit <b>Weitere Spalten</b> (in der Zeile über der Tabelle) lässt sich jede dieser Spalten fest ein- "
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
            "„(leer)“ markiert. Die Wahl gilt für alle Angebote, bis <i>Automatisch: Spalten mit Werten zeigen</i> sie "
            "zurücksetzt. Ausgeblendete Spalten verlieren keine Werte.")
