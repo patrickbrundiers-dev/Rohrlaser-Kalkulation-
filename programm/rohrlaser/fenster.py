@@ -15,12 +15,12 @@ from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
+    QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import NAME, ausgabe, tastatur, update
 from .spaltenbreite import AutoGroesse
-from .stammdaten import TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
+from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
@@ -256,6 +256,12 @@ class StammdatenSeite(QWidget):
         leiste = QHBoxLayout()
         for w in (neu, weg):
             leiste.addWidget(w)
+        if tabelle.name == "schneiddaten":
+            standard = QPushButton("Auf Standard zurücksetzen …")
+            standard.setToolTip("Schneiddaten einer Maschine oder aller Maschinen durch die mitgelieferten "
+                                "Richtwerte ersetzen")
+            standard.clicked.connect(self.schneiddaten_zuruecksetzen)
+            leiste.addWidget(standard)
         leiste.addSpacing(20)
         leiste.addWidget(self.suche, 1)
         leiste.addWidget(self.anzahl)
@@ -332,6 +338,30 @@ class StammdatenSeite(QWidget):
         if QMessageBox.question(self, "Löschen", text) == QMessageBox.Yes:
             self.modell.zeilen_loeschen(zeilen)
             self.meldung(f"{len(zeilen)} Zeile(n) gelöscht.")
+
+    def schneiddaten_zuruecksetzen(self):
+        """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage
+        auf die mitgelieferten Standardwerte zurücksetzen (Datenbank.schneiddaten_zuruecksetzen)."""
+        alle = f"Alle Maschinen ({', '.join(LASER)})"
+        wahl, ok = QInputDialog.getItem(
+            self, "Schneiddaten auf Standard zurücksetzen",
+            "Für welche Maschine sollen die mitgelieferten Standard-Schneiddaten wiederhergestellt werden?",
+            [alle] + [f"{m} ({laser}-Laser)" for m, laser in LASER.items()], 0, False)
+        if not ok:
+            return
+        maschinen = list(LASER) if wahl == alle else [wahl.split(" ")[0]]
+        n = sum(1 for z in self.modell.daten if z.get("maschinen_id") in maschinen)
+        text = (f"Alle {n} Schneiddaten-Zeilen von {', '.join(maschinen)} werden gelöscht, auch eigene Werte und "
+                "Zeilen je Werkstoff, und durch die mitgelieferten Standardwerte ersetzt.\n\n"
+                "Bereits gerechnete Angebote mit festgeschriebenen Preisen bleiben unverändert. "
+                "Das lässt sich nicht rückgängig machen (nur über eine Datensicherung).\n\nWirklich zurücksetzen?")
+        if QMessageBox.question(self, "Schneiddaten zurücksetzen", text,
+                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        weg, neu = self.db.schneiddaten_zuruecksetzen(maschinen)
+        self.neu_laden()
+        self.meldung(f"Schneiddaten {', '.join(maschinen)} auf Standard zurückgesetzt: {weg} Zeile(n) entfernt, "
+                     f"{neu} Standardzeile(n) eingefügt.")
 
 
 class MehrzeiligEingabe(QPlainTextEdit):

@@ -897,7 +897,7 @@ _CO2 = {
     ("Aluminium", "N₂"): [(1, 5500, 0.15), (1.5, 4500, 0.2), (2, 3500, 0.3), (3, 2000, 0.5), (4, 1300, 0.8),
                           (5, 900, 1.0), (6, 600, 1.2)]}
 RICHTWERTE = {"T03": _CO2, "T11": _FASER_4KW, "LT7": _FASER_3KW}
-# Richtwerte 0.5.13 bis 0.6.17 (Flachbett-Tabellen mit ≈ 40 % Rohrabschlag, T11 = Faser × 1,2); unveränderte Zeilen
+# Richtwerte 0.5.13 bis 0.6.18 (Flachbett-Tabellen mit ≈ 40 % Rohrabschlag, T11 = Faser × 1,2); unveränderte Zeilen
 # dieser Fassung ersetzt das Update einmalig (Datenbank._richtwerte_anpassen)
 _ALTE_FAKTOR = {"T03": 1.0, "T11": 1.2, "LT7": 1.0}
 _ALTE_RICHTWERTE = {
@@ -937,7 +937,7 @@ def beispiel_schneiddaten():
 
 def alte_richtwerte():
     """{(Maschine, Kategorie, Gas, Wandstärke bis): (Vorschub groß, mittel, klein, Einstechzeit)} der Richtwerte 0.5.13
-    bis 0.6.17."""
+    bis 0.6.18."""
     out = {}
     for m, laser in LASER.items():
         for (kat, gas), stufen in _ALTE_RICHTWERTE[laser].items():
