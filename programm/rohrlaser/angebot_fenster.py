@@ -251,7 +251,7 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
-OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf",
+OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "gewinde", "zusatz", "zukauf",
                      "gewicht_teil")
 EIGENE = ("zusatz", "zukauf")        # Spalten mit eigenem Dialog (Doppelklick)
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
@@ -304,9 +304,10 @@ class PositionenModell(QAbstractTableModel):
         self.bilder = {pid: b for pid, b in self.bilder.items() if pid in self.mit_netz}
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
-        self.werte, self.status, self.zeiten = [], [], []
+        self.werte, self.status, self.zeiten, self.meterpreise = [], [], [], []
         for i, p in enumerate(self.daten):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
+            self.meterpreise.append(rechnen.meterpreis(p, s.kopf, self.daten, s.k, s.tabellen))  # (berechnet, wirksam, fehlt)
             self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand_schneiden"), s.tabellen, s.k)[2])   # berechnet [s]
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
             w["eingeplant"] = ein if p.get("profil_id") and not ist_zukaufteil(p) else None
@@ -378,6 +379,36 @@ class PositionenModell(QAbstractTableModel):
                 f = QFont()
                 f.setBold(True)
                 return f
+        if art == "feld" and x.name == "preis_m":           # Meterpreis: berechnet, von Hand überschreibbar
+            berechnet, wirksam, fehlt = self.meterpreise[index.row()]
+            eigen = rechnen._n(w) > 0
+            # Preis von Hand einer anderen Position derselben Stangengruppe gilt für alle Stangen der Gruppe
+            fremd = not eigen and wirksam is not None and berechnet is not None and abs(wirksam - berechnet) > 0.005
+            anzeige = wirksam if fremd else berechnet
+            if rolle in (Qt.DisplayRole, Qt.EditRole) and not eigen:
+                return _z(anzeige, 2) if anzeige is not None else ""
+            if rolle == Qt.ToolTipRole:
+                if ist_zukaufteil(self.daten[index.row()]):
+                    return "Zukaufteil: kein Materialpreis je m."
+                t = (f"Berechnet: {_z(berechnet, 2)} €/m (Lieferlänge, Preise bzw. Tonnenpreis, mit Aufpreis der "
+                     "Oberfläche). " if berechnet is not None else "Kein berechneter Meterpreis: Preis von Hand "
+                                                                    "eintragen. ")
+                if fehlt and berechnet is not None:
+                    t += f"Achtung: {fehlt}. "
+                if eigen:
+                    return t + ("Von Hand eingetragen, gilt für alle Positionen mit gleichem Profil, Werkstoff, "
+                                "Oberfläche und Stangenlänge; leeren = wieder berechnet.")
+                if fremd:
+                    return t + (f"Es gilt {_z(wirksam, 2)} €/m, von Hand bei einer anderen Position mit gleichem "
+                                "Profil, Werkstoff, Oberfläche und Stangenlänge eingetragen.")
+                return t + "Doppelklick zum Anpassen (günstiger oder teurer)."
+            if rolle == Qt.ForegroundRole:
+                return QBrush(QColor("#000000" if eigen else "#7F7F7F"))
+            if rolle == Qt.FontRole and (eigen or fremd):
+                f = QFont()
+                f.setBold(eigen)
+                f.setItalic(fremd)
+                return f
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
             if art == "feld":
                 return wert_als_text(x, w)
@@ -435,6 +466,15 @@ class PositionenModell(QAbstractTableModel):
         if f.name == "zeit_manuell" and p.get(f.name) is None and wert is not None \
                 and self.zeiten[index.row()] is not None and abs(wert - round(self.zeiten[index.row()], 1)) < 0.05:
             return False                # berechnete Zeit unverändert bestätigt: bleibt berechnet
+        if f.name == "preis_m":
+            if wert is not None and wert <= 0:
+                wert = None             # 0 = kein Preis von Hand
+            berechnet = self.meterpreise[index.row()][0]
+            if wert is not None and rechnen._n(p.get(f.name)) <= 0 and berechnet is not None \
+                    and abs(wert - round(berechnet, 2)) < 0.005:
+                return False            # berechneter Meterpreis unverändert bestätigt: bleibt berechnet
+            if wert == p.get(f.name):
+                return False
         self.s.db.position_aendern(p["id"], f.name, wert)
         if f.name in ("konturen", "kontur_grenzen"):     # Konturliste geändert: beim Neuladen neu einteilen
             self.s.db.position_aendern(p["id"], "kontur_grenzen", None)

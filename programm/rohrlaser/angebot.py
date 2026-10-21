@@ -74,7 +74,7 @@ POSITIONEN = Tabelle(
      Feld("stange", "Stangenlänge abweichend [mm]", "ganz", 500, 20000, breite=85),
      Feld("satz", "Satz", breite=90),
      Feld("je_satz", "Stück je Satz", "ganz", 1, 100000, breite=60),
-     Feld("preis_m", "Materialpreis abweichend [€/m]", "zahl", 0, 100000, stellen=2, breite=85),
+     Feld("preis_m", "Materialpreis [€/m]", "zahl", 0, 100000, stellen=2, breite=85),
      Feld("gewinde", "Gewinde geprüft", muster=GEWINDE_MUSTER, breite=110),
      Feld("zeit_manuell", "Schneidzeit je Teil [s]", "zahl", 0, 100000, stellen=1, breite=85),
      # Zusatzarbeiten als JSON-Liste [{name, menge, preis, text}] (Dialog 'Zusatzarbeiten …')

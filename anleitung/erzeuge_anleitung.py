@@ -518,10 +518,10 @@ def kapitel_angebot(i):
         ["Maschinenparameter", "Abstand getrennte Schnitte, Konturgrenzen, max. Hüllkreis-Ø, max. Metergewicht",
          "Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge"],
         ["Übersicht", "jede Kostenart mit 0,00 €", "Material, Herstellkosten, Verkaufspreis, Kennzahlen"],
-        ["Positionen", "Oberfläche, Stangenlänge abweichend, Satz, Stück je Satz, Materialpreis abweichend, Gewinde "
+        ["Positionen", "Oberfläche, Stangenlänge abweichend, Satz, Stück je Satz, Gewinde "
                        "geprüft, Zusatzarbeiten (solange keine Position einen Wert hat)",
          "Pos., Artikelnummer, Bezeichnung, Profil-ID, Werkstoff-ID, Teilelänge, Stückzahl, Schneidweg, Einstiche, "
-         "Schneidzeit, Status"]], [32, 80, 70])
+         "Schneidzeit, Materialpreis, Status"]], [32, 80, 70])
     i.text("Ob ein Wert 0 ist, prüft das Programm an der Zahl, nicht am Text: „0,00 €“ und „0 %“ sind 0, "
            "„10,00 €“ nicht.")
     i.bild("angebot_erweitert", "Erweiterte Einstellungen und Maschinenparameter aufgeklappt (Frachtkosten 0 €)",
@@ -565,7 +565,8 @@ def kapitel_angebot(i):
         ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit ([[schneidzeit]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
-        ["Materialpreis abweichend [€/m]", "Sonderpreis nur für dieses Angebot; geht vor Preise und Tonnenpreis"],
+        ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
+                                "([[meterpreis]])"],
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl ([[zusatzarbeiten_angebot]])"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl ([[zukauf_angebot]])"],
@@ -575,7 +576,8 @@ def kapitel_angebot(i):
                                                "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
         [75, 190])
-    i.text("Die Spalten von Oberfläche bis Zusatzarbeiten erscheinen von selbst, sobald eine Position dort einen "
+    i.text("Die Spalten Oberfläche, Stangenlänge abweichend, Satz, Stück je Satz, Gewinde geprüft, Zusatzarbeiten und "
+           "Zukaufteile erscheinen von selbst, sobald eine Position dort einen "
            "Wert hat. Mit <b>Weitere Spalten</b> (in der Zeile über der Tabelle) lässt sich jede dieser Spalten fest ein- "
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
            "„(leer)“ markiert. Die Wahl gilt für alle Angebote, bis <i>Automatisch: Spalten mit Werten zeigen</i> sie "
@@ -616,6 +618,19 @@ def kapitel_angebot(i):
            "aus Zusatzarbeiten (Gravur extra) kommen weiterhin dazu. Der Status zeigt <b>HINWEIS: Schneidzeit "
            "manuell</b>, die Kalkulation in der Spalte <i>Schneidzeit manuell</i> ein „ja“. Feld leeren = wieder "
            "berechnet.")
+    i.abschnitt("Meterpreis anpassen", marke="meterpreis")
+    i.text("Die Spalte <b>Materialpreis [€/m]</b> zeigt in Grau den berechneten Einkaufspreis je Meter für Profil, "
+           "Werkstoff und Stangenlänge der Position: Preis der Lieferlänge, sonst <i>Preise</i>, sonst Tonnenpreis des "
+           "Werkstoffs, jeweils mit dem Aufpreis der Oberfläche. Bei festgeschriebenen Preisen gilt der Stand des "
+           "Angebots ([[preise_festschreiben]]). Ist der Preis günstiger oder teurer zu bekommen (z. B. ein aktuelles "
+           "Lieferantenangebot), doppelt klicken: der berechnete Preis steht im Feld und lässt sich ändern.")
+    i.liste("Der eingetragene Preis steht fett und ersetzt Preis und Oberflächen-Aufpreis. Er gilt für alle Stangen "
+            "mit gleichem Profil, Werkstoff, Oberfläche und Stangenlänge, weil diese Positionen gemeinsam aus "
+            "denselben Stangen geschnitten werden. Die anderen Positionen dieser Gruppe zeigen ihn kursiv.",
+            "Die Kalkulation, der Lieferlängen-Vergleich und die Staffelpreise rechnen mit dem eingetragenen Preis; "
+            "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
+            "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
+            "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
 
 
 def kapitel_step(i):
@@ -2438,6 +2453,9 @@ def kapitel_fragen(i):
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
         ["<b>HINWEIS: Schneidzeit manuell</b>",
          "Für die Position ist eine Schneidzeit von Hand eingetragen; sie ersetzt die berechnete Zeit."],
+        ["<b>HINWEIS: Meterpreis manuell</b>",
+         "Für die Position ist ein Materialpreis je m von Hand eingetragen; er ersetzt den berechneten Preis "
+         "([[meterpreis]])."],
         ["<b>WARNUNG: Konturen klein + mittel länger als Schneidweg</b>",
          "Der Schneidweg wurde von Hand kleiner eingetragen als die kleinen und mittleren Konturen zusammen. Der "
          "Anteil mit Vorschub groß wird mit 0 gerechnet. Schneidweg oder die Spalten Kontur klein/mittel [mm] "
@@ -2486,6 +2504,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.5.15", "Angebot: Spalte <i>Materialpreis [€/m]</i> zeigt den berechneten Meterpreis grau und lässt ihn wie die "
+               "Schneidzeit günstiger oder teurer überschreiben ([[meterpreis]])."],
     ["0.5.14", "Lieferlängen: 6-m- gegen 12-m-Stangen vergleichen, 12 m nur als vom Lieferanten geschnittene "
                "Werkstücke bis zur Beladelänge, Übernahme per Klick, Staffeln wählen selbst ([[lieferlaengen]])."],
     ["0.5.13", "Maschinen T03 (Trumpf, CO₂ 3,2 kW), T11 (Trumpf, Faser 4 kW) und LT7 (Adige, Faser 3 kW) statt RL-1/RL-2, "

@@ -134,22 +134,22 @@ m = s.pos_modell
 spalte = {m.name(i): i for i in range(m.columnCount())}
 sichtbar_ = lambda n: not s.pos_ansicht.isColumnHidden(spalte[n])
 for n in ("pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "laenge", "stueck", "schneidweg", "einstiche",
-          "zeit_manuell", "status"):
+          "zeit_manuell", "preis_m", "status"):
     assert sichtbar_(n), n
 assert not any(sichtbar_(n) for n in OPTIONALE_SPALTEN) and not sichtbar_("abweichung")
 db.position_aendern(s.positionen[1]["id"], "satz", "MG 1")
 s.neu_laden()
 assert sichtbar_("satz") and not sichtbar_("je_satz")
-s.spalte_waehlen("preis_m", True)
+s.spalte_waehlen("gewinde", True)
 s.spalte_waehlen("satz", False)
-assert sichtbar_("preis_m") and not sichtbar_("satz") and db.einstellung(SPALTEN_EINSTELLUNG) == {"preis_m": True,
-                                                                                                    "satz": False}
+assert sichtbar_("gewinde") and not sichtbar_("satz") and db.einstellung(SPALTEN_EINSTELLUNG) == {"gewinde": True,
+                                                                                                     "satz": False}
 assert db.positionen(a)[1]["satz"] == "MG 1", "Ausblenden darf keine Werte löschen"
 s._spalten_menue_fuellen()
 texte = [x.text() for x in s.spalten_menue.actions()]
 assert any(t.startswith("Satz") for t in texte) and any(t.startswith("Automatisch") for t in texte)
 s.spalte_waehlen(None, None)
-assert sichtbar_("satz") and not sichtbar_("preis_m") and db.einstellung(SPALTEN_EINSTELLUNG) == {}
+assert sichtbar_("satz") and not sichtbar_("gewinde") and db.einstellung(SPALTEN_EINSTELLUNG) == {}
 s.zeige_berechnet.setChecked(True)
 assert all(sichtbar_(n) for (art, x), n in zip(m.spalten, (m.name(i) for i in range(m.columnCount())))
            if art == "berechnet")

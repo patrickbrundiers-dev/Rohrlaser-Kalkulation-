@@ -240,6 +240,8 @@ def status(p, w, kopf, k, eingeplant=None):
         return "HINWEIS: Gewinde-Vorschlag prüfen"
     if manuell:
         return "HINWEIS: Schneidzeit manuell"
+    if _n(p.get("preis_m")) > 0:
+        return "HINWEIS: Meterpreis manuell"
     return "OK"
 
 
@@ -568,6 +570,26 @@ def lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen, einst
     tonne = (k.werkstoffe.get(werkstoff) or {}).get("tonnenpreis")
     return _n(gewicht) * _n(tonne) / 1000 + aufpreis, None if _n(tonne) > 0 and gewicht is not None \
         else f"kein Materialpreis für {profil} / {werkstoff}"
+
+
+def meterpreis(p, kopf, positionen, k, tabellen):
+    """Materialpreis €/m einer Position für die Anzeige im Angebot: (berechnet, wirksam, fehlt). berechnet = aus
+    Lieferlängen/Preise/Tonnenpreis + Aufpreis der Oberfläche für die wirksame Stangenlänge (ohne Preise von Hand),
+    wirksam = womit die Stangen der Gruppe rechnen (höchster Preis von Hand einer Position der Gruppe, sonst
+    berechnet). None ohne Profil, Werkstoff oder Stangenlänge und bei Zukaufteilen."""
+    if ist_zukaufteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
+        return None, None, None
+    gr = gruppe_von(p, kopf)
+    laenge = gr[3]
+    if not laenge or laenge <= 0:
+        return None, None, None
+    kgm = kg_je_m(p["profil_id"], p["werkstoff_id"], k)
+    gewicht = laenge / 1000 * kgm if kgm is not None else None
+    preis, fehlt = lieferstange_preis(gr, laenge, gewicht, kopf, [], k, tabellen)
+    # 'Preis für … fehlt': €/Stange einer anderen Länge anteilig umgerechnet, als Richtwert anzeigen
+    berechnet = preis * 1000 / laenge if preis > 0 and (fehlt is None or fehlt.startswith("Preis für")) else None
+    wirksam = lieferstange_preis(gr, laenge, gewicht, kopf, positionen, k, tabellen)[0] * 1000 / laenge
+    return berechnet, (wirksam if wirksam > 0 else None), fehlt
 
 
 # ------------------------------------------------------------------ Lieferlängen (z. B. 6 m gegen 12 m)
