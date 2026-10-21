@@ -39,7 +39,9 @@ class SchneidwegDialog(QDialog):
     def __init__(self, parent, p, profil, kopf, k, tabellen):
         super().__init__(parent)
         self.p, self.profil, self.kopf, self.k, self.tabellen = p, profil, kopf, k, tabellen
-        self.grenzen, vorgabe = rechnen.kontur_grenzen(rechnen.maschine(kopf, k))
+        m = rechnen.maschine(kopf, k)
+        vorgabe = rechnen.kontur_grenzen(m)[1]
+        self.grenzen = rechnen.kontur_regel(m, rechnen.wand_schneiden(profil))
         self.gewinde = gewinde_liste(tabellen)
         self.ergebnis = None
         e = sw.lesen(p.get("technik"))
@@ -49,7 +51,10 @@ class SchneidwegDialog(QDialog):
         form = profil.get("form")
         info = QLabel(f"Profil {p.get('profil_id')} ({form}), Werkstoff {p.get('werkstoff_id') or '–'}, Maschine "
                       f"{kopf.get('maschine') or '–'}, Konturgrenzen klein bis {rechnen.zahl(self.grenzen[0])} mm, "
-                      f"mittel bis {rechnen.zahl(self.grenzen[1])} mm" + (" (Vorgabe)" if vorgabe else ""))
+                      f"mittel bis {rechnen.zahl(self.grenzen[1])} mm" + (" (Vorgabe)" if vorgabe else "")
+                      + (f", zusätzlich klein bis {rechnen.zahl(self.grenzen[2], 1)} × und mittel bis "
+                         f"{rechnen.zahl(self.grenzen[3], 1)} × Wandstärke {rechnen.zahl(self.grenzen[4])} mm"
+                         if len(self.grenzen) >= 5 else ""))
         info.setWordWrap(True)
         lay.addWidget(info)
 

@@ -182,11 +182,12 @@ def kontur(e):
 
 
 def rechnen(eingaben, profil, grenzen, gewinde=None):
-    """Schneidweg je Teil aus den Eingaben. profil = Stammdaten-Zeile, grenzen = (klein bis, mittel bis) der Maschine.
+    """Schneidweg je Teil aus den Eingaben. profil = Stammdaten-Zeile, grenzen = Regel der Konturklassen
+    (rechnen.kontur_regel: Grenzen der Maschine, mit Wandstärke auch die Faktoren × Wand).
     Ergebnis dict(schritte=[{text, anzahl, laenge_stueck, laenge, einstiche, huelle, klasse, schaetzung}],
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
-    from .rechnen import einstiche_ende, grenzen_text, konturen_text, konturklassen, zahl
+    from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
     schritte, fehler, liste, enden = [], [], [], []
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
@@ -215,8 +216,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
             continue
         masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
-        klasse = ("groß" if hk is None else "klein" if round(hk, 2) <= grenzen[0] else
-                  "mittel" if round(hk, 2) <= grenzen[1] else "groß")
+        klasse = "groß" if hk is None else ("klein", "mittel", "groß")[kontur_klasse(hk, grenzen)]
         schritte.append(dict(text=f"{n} × {e.get('art')} {masse}".strip() + (f" ({e['text']})" if e.get("text") else ""),
                              anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=n, huelle=hk, klasse=klasse,
                              schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))

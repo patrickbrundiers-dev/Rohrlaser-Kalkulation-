@@ -35,6 +35,8 @@ MASCHINENPARAMETER = (
     ("max_stange", "Max. Stangenlänge", "mm", 0, MASCHINE),
     ("abstand", "Abstand getrennte Schnitte", "mm", 1, OPTIONAL),
     ("kontur_klein", "Kontur klein bis", "mm", 1, OPTIONAL), ("kontur_mittel", "Kontur mittel bis", "mm", 1, OPTIONAL),
+    ("kontur_klein_wand", "Kontur klein bis", "× Wand", 1, OPTIONAL),
+    ("kontur_mittel_wand", "Kontur mittel bis", "× Wand", 1, OPTIONAL),
     ("max_huellkreis", "Max. Hüllkreis-Ø", "mm", 1, OPTIONAL), ("max_kg_m", "Max. Metergewicht", "kg/m", 1, OPTIONAL),
     ("min_stange", "Min. Stangenlänge Zuschnitt", "mm", 0, OPTIONAL),
 )

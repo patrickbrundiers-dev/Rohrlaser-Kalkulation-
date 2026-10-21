@@ -14,7 +14,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 
 from rohrlaser import rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
-from rohrlaser.stammdaten import (ALTE_VORSCHUB, TABELLE, beispiel_schneiddaten, pruefen)  # noqa: E402
+from rohrlaser.stammdaten import (ALTE_VORSCHUB, TABELLE, alte_richtwerte, beispiel_schneiddaten, pruefen)  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 
@@ -45,13 +45,18 @@ assert sd("T11", "AW6060-T66", 8)["gas"] == "N₂"
 # CO₂ dünn langsamer als Faser, dick ähnlich; LT7 = T11
 assert sd("T03", "S235-10219", 2)["vorschub_gross"] < sd("T11", "S235-10219", 2)["vorschub_gross"] / 1.5
 assert sd("T03", "S235-10219", 10)["vorschub_gross"] >= 0.9 * sd("LT7", "S235-10219", 10)["vorschub_gross"]
-# T11 mit 4 kW: 20 % mehr Vorschub als LT7 mit 3 kW
-assert sd("LT7", "1.4301", 3)["vorschub_gross"] == 4200 and sd("T11", "1.4301", 3)["vorschub_gross"] == 5040
+# Rohr-Richtwerte (21.10.2026): dünn höchstens 8.000 mm/min; T11 (4 kW) bis 2 mm gleich LT7 (3 kW), ab 3 mm schneller
+assert max(z[5] for z in beispiel_schneiddaten() if z[4] <= 2) == 8000
+assert all(sd("LT7", w, s)["vorschub_gross"] == sd("T11", w, s)["vorschub_gross"]
+           for w in ("S235-10219", "1.4301", "AW6060-T66") for s in (1, 1.5, 2))
+assert sd("LT7", "1.4301", 3)["vorschub_gross"] == 4500 and sd("T11", "1.4301", 3)["vorschub_gross"] == 5800
+assert sd("LT7", "S235-10219", 8)["vorschub_gross"] == 1300 and sd("T11", "S235-10219", 8)["vorschub_gross"] == 2100
 z = sd("LT7", "S235-10219", 3)
-assert (z["vorschub_mittel"], z["vorschub_klein"], z["vorschub_gravur"]) == (3000, 1500, 3000), z   # Gravur 3.000 mm/min (Patrick, 21.10.2026)
+assert (z["gas"], z["vorschub_gross"], z["vorschub_mittel"], z["vorschub_klein"], z["vorschub_gravur"]) \
+    == ("N₂", 4500, 2700, 1350, 3000), z   # Gravur 3.000 mm/min (Patrick, 21.10.2026)   # Gravur 3.000 mm/min (Patrick, 21.10.2026)
 assert "4 kW" in sd("T11", "S235-10219", 3)["bemerkung"] and "3,2 kW" in sd("T03", "S235-10219", 3)["bemerkung"]
 assert sd("T03", "S235-10219", 3)["einstechzeit"] > sd("T11", "S235-10219", 3)["einstechzeit"]
-assert sd("T11", "S235-10219", 12)["vorschub_gross"] == 1080 and sd("T11", "S235-10219", 13) is None
+assert sd("T11", "S235-10219", 12)["vorschub_gross"] == 1100 and sd("T11", "S235-10219", 13) is None
 assert all(z["bemerkung"].startswith("Beispiel: Richtwert") for z in db.zeilen("schneiddaten"))
 
 # 2) Plausibilität in der Prüfspalte
@@ -187,7 +192,7 @@ d = Datenbank(p)
 k, tb = d.kontext(), d.tabellen()
 assert sorted(k.maschinen) == ["LT7", "T03", "T11"] and k.maschinen["LT7"]["stundensatz"] == 155
 assert d.anzahl("schneiddaten") == len(beispiel_schneiddaten())
-assert rechnen.schneiddaten("LT7", "S235-10219", 3, tb, "Stahl")["vorschub_gross"] == 5000
+assert rechnen.schneiddaten("LT7", "S235-10219", 3, tb, "Stahl")["vorschub_gross"] == 4500
 assert rechnen.schneiddaten("T03", "S235-10219", 3, tb, "Stahl")["gas"] == "O₂"
 pruefe_neu(d, a)
 d.schliessen()
@@ -242,6 +247,35 @@ d = Datenbank(p)
 gr = [z["vorschub_gravur"] for z in d.zeilen("schneiddaten")]
 assert gr[0] == 4444 and set(gr[1:]) == {3000}, set(gr)
 assert d.einstellung("gravur_stand") == "2026-10-21"
+d.schliessen()
+
+# f) Datei mit Richtwerten 0.5.13 bis 0.6.15: unveränderte Zeilen bekommen die Rohr-Richtwerte, von Hand geänderte
+#    und werkstoffgenaue bleiben
+p = tmp / "f" / "rohrlaser.db"
+d = Datenbank(p)
+d.neu("schneiddaten", dict(maschinen_id="LT7", werkstoff_id="S235-10219", gas="N₂", wand_bis=1, vorschub_gross=12000,
+                           bemerkung="Beispiel: Richtwert Faserlaser 3 kW, Rohr"))
+d.schliessen()
+con = sqlite3.connect(p)
+for (m, kat, gas, wand), (g, mi, kl, ein) in alte_richtwerte().items():
+    con.execute("UPDATE schneiddaten SET vorschub_gross=?, vorschub_mittel=?, vorschub_klein=?, einstechzeit=? "
+                "WHERE maschinen_id=? AND kategorie=? AND gas=? AND wand_bis=? AND werkstoff_id IS NULL",
+                (g, mi, kl, ein, m, kat, gas, wand))
+con.execute("UPDATE schneiddaten SET vorschub_gross=9999 WHERE maschinen_id='T11' AND kategorie='Stahl' AND gas='N₂' "
+            "AND wand_bis=1")
+con.execute("DELETE FROM einstellungen WHERE name='richtwerte_stand'")
+con.commit()
+con.close()
+tb = Datenbank(p).tabellen()
+assert rechnen.schneiddaten("LT7", "S235-10219", 1, tb, "Stahl")["vorschub_gross"] == 12000   # werkstoffgenau
+assert rechnen.schneiddaten("LT7", "S355-10219", 1, tb, "Stahl")["vorschub_gross"] == 8000
+assert rechnen.schneiddaten("T11", "S355-10219", 1, tb, "Stahl")["vorschub_gross"] == 9999    # von Hand
+assert rechnen.schneiddaten("T11", "1.4301", 3, tb, "Edelstahl")["vorschub_gross"] == 5800
+z = rechnen.schneiddaten("T11", "S355-10219", 12, tb, "Stahl")
+assert (z["vorschub_gross"], z["vorschub_mittel"], z["vorschub_klein"]) == (1100, 660, 330), z
+d = Datenbank(p)
+assert d.einstellung("richtwerte_stand") == "2026-10-21"
+assert len(list((p.parent / "Sicherung").glob("*vor_Richtwerte*.db"))) == 1
 d.schliessen()
 
 print("OK: Maschinen und Schneiddaten")

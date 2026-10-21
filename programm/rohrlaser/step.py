@@ -413,7 +413,11 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         hinweise = [h for h in [m.get("hinweise")] if h]
         vorschlag = gewinde_vorschlag(m.get("bohrungen"), gewinde)
         enden = konturen_enden(m)
-        kl = rechnen.konturklassen([(g, lg) for _, g, lg in enden] + _paare(m.get("innen_liste")), (klein, mittel))
+        # Wandstärke für die Konturklassen wie später im Angebot: Profil der Stammdaten, sonst die Messung
+        pr = profile.get(m.get("_profil") or finde_profil(m, profile))
+        regel = rechnen.kontur_regel(maschine, rechnen.wand_schneiden(pr) if pr else
+                                     max(_wand(m), wand_max(m) or 0) or None)
+        kl = rechnen.konturklassen([(g, lg) for _, g, lg in enden] + _paare(m.get("innen_liste")), regel)
         kl = [[kl[f"{n}_n"], kl[f"{n}_mm"]] for n in ("klein", "mittel", "gross")]
         if grenz_hinweis and (m.get("innen_liste") or enden):
             hinweise.append(grenz_hinweis)
@@ -509,7 +513,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if m.get("innen_liste") or enden:
                 p["konturen"] = rechnen.konturen_text(_paare(m.get("innen_liste")), enden)
-                p["kontur_grenzen"] = rechnen.grenzen_text((klein, mittel))
+                p["kontur_grenzen"] = rechnen.grenzen_text(regel)
             if satz:
                 anzahl = int(m.get("_je_satz") or len(gruppen[i]))
                 p["satz"], p["je_satz"] = satz, anzahl
