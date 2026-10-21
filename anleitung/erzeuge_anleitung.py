@@ -1142,8 +1142,10 @@ def kapitel_optimieren(i):
     i.abschnitt("Lieferlängen: 6 m gegen 12 m", marke="lieferlaengen")
     i.text("Gibt es für ein Profil + Werkstoff weitere Lieferlängen (Stammdaten <i>Lieferlängen</i>, z. B. "
            "12.000 mm), plant das Programm beim Optimieren jede Länge unter gleichen Bedingungen (gleiche Teile, "
-           "Endbeschnitt, Greiferrest, Schnittverlust, gemeinsame Schnitte) und vergleicht sie im Reiter "
-           "<i>Auswertung</i> unter <b>Lieferlängen: 6 m gegen 12 m</b>. Ohne Eintrag gilt das für Profile mit "
+           "Endbeschnitt, Greiferrest, Schnittverlust, gemeinsame Schnitte) und vergleicht sie. <b>Nur wenn eine "
+           "sinnvolle Lösung gefunden wurde</b> (12 m empfohlen, nur 12 m lieferbar oder 12 m schon geplant), "
+           "erscheint im Reiter <i>Auswertung</i> unten der Knopf <b>12-m-Lösung ansehen …</b> mit einem Kurztext; er "
+           "öffnet den Vergleich <b>Lieferlängen: 6 m gegen 12 m</b> groß in einem eigenen Fenster. Ohne Eintrag gilt das für Profile mit "
            "Hüllkreis-Ø über 70 mm (Einstellung). Kleinere Profile ohne Eintrag und Profile mit "
            "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
@@ -1154,10 +1156,15 @@ def kapitel_optimieren(i):
             "(Vorgabe 2.500 mm), damit die automatische Stangenladung sie nimmt. Eine kürzere Stange (z. B. für die "
             "letzten Teile einer Abmessung) wird auf die Mindestlänge verlängert, der Mehrbedarf ist Verschnitt. "
             "Ziel-Längen "
-            "unter der Mindestlänge (z. B. 12 m / 5) werden nicht ausprobiert. Was am Ende einer 12-m-Stange "
-            "übrig bleibt, ist ebenfalls Verschnitt.",
+            "unter der Mindestlänge (z. B. 12 m / 5) werden nicht ausprobiert.",
+            "<b>Die Restlänge der 12-m-Stange kommt an die letzte Stange</b>, solange diese dadurch nicht länger als "
+            "die Beladelänge wird. Das spart einen Sägeschnitt. Beispiel (T03, 50 mm Puffer): 2 × 4.000 + 1 × 2.900 "
+            "mm werden zu 4.203 + 4.203 + 3.588 mm statt 4.203 + 4.203 + 3.103 mm + Abfall – eine 12-m-Stange statt "
+            "drei 6-m-Stangen. "
+            "Passt die Restlänge nicht dran, ist sie Abfall und erscheint nicht als Stange.",
             "Ein Werkstück = Endbeschnitt + Teile + Trennschnitte + Schnittverlust + Greiferrest, auf ganze mm "
-            "aufgerundet. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
+            "aufgerundet, plus <b>Puffer</b> (Einstellung, Vorgabe 50 mm), damit nicht auf den Millimeter genau "
+            "zugeschnitten wird; der Puffer ist Verschnitt. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
             "Vorgabe 3 mm). Passen Werkstücke deshalb nicht mehr zusammen in die Stange, kommen sie auf die nächste.",
             "Gerechnet wird zweistufig: erst die Teile zu Werkstücken (dieselbe Optimierung wie bei normalen "
             "Stangen, mit mehreren Ziel-Längen: Beladelänge, Lieferlänge / 2, / 3 …), dann die Werkstücke auf die "
@@ -1173,8 +1180,8 @@ def kapitel_optimieren(i):
            "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Stangenlängen nach Zuschnitt, Materiallänge, "
            "Materialkosten, Stangenwechsel, Zuschnittkosten, Reststückwert (nicht angerechnet), Gesamtkosten, "
            "Verschnitt in mm und % und fehlende Angaben.")
-    i.bild("erg_lieferlaengen", "Reiter Auswertung, Lieferlängen: 30 Stützen 3.100 mm, 12 m spart ein Drittel "
-                                "Material", hoehe=110 * mm,
+    i.bild("erg_lieferlaengen", "Fenster Lieferlängen (Knopf 12-m-Lösung ansehen …): 30 Stützen 3.100 mm, 12 m "
+                                "spart ein Drittel Material", hoehe=110 * mm,
            legende=[(1, "Vergleich je Gruppe mit Empfehlung, Begründung und Link zum Übernehmen")])
     i.tabelle(["Empfehlung", "Wann"], [
         ["<b>6-m-Stangen empfohlen</b>", "Profil ausgenommen oder keine ausführbare andere Lieferlänge"],
@@ -1197,8 +1204,14 @@ def kapitel_optimieren(i):
            "jedes zugeschnittene Stück erscheint als eigene Stange mit Endbeschnitt, Teilen, Schnittverlust und "
            "Greiferrest, genau wie eine normale Stange. Der Zuschnitt der 12-m-Stange selbst wird dort nicht gezeigt. "
            "Gerechnet wird er trotzdem: Material und Kosten zählen die 12-m-Stangen, der Schnittverlust des Zuschnitts "
-           "(Einstellung, Vorgabe 3 mm) ist eingerechnet. Die Materialkosten einer 12-m-Stange werden nach Länge auf "
-           "ihre Stücke verteilt.")
+           "(Einstellung, Vorgabe 3 mm) ist eingerechnet. Es wird immer die ganze 12-m- bzw. 6-m-Stange berechnet; "
+           "Abfall verteilt sich gleichmäßig nach Länge auf alle Teile und Stücke der Gruppe – auch ein Stück, das "
+           "allein auf einer 12-m-Stange liegt, trägt nur seinen Längenanteil.")
+    i.text("<b>Händler-Mehrlänge:</b> Der Händler berechnet je Stange etwas mehr Länge, als geliefert wird (Vorgabe "
+           "+50 mm bis 6.500 mm, z. B. 6 m, und +100 mm darüber, z. B. 12 m; Einstellungen, Gruppe Lieferlängen). "
+           "Das gilt nur für den Materialpreis nach Länge oder Gewicht (€/m, €/kg, Tonnenpreis), nicht für die "
+           "Längenplanung und nicht für Preise je Stange. Der angezeigte Meterpreis im Angebot bleibt ohne "
+           "Mehrlänge.")
     i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: jedes zugeschnittene Stück als eigene Stange mit "
                                      "Endbeschnitt und Greiferrest", hoehe=80 * mm)
     i.liste("Schnittplan: je Stück eine Zeile mit seiner Länge (z. B. 3.253 mm), Von/Bis der Teile im Stück.",
@@ -1746,6 +1759,14 @@ def kapitel_einstellungen(i):
                          "Zuschnitt beim Lieferanten [€]",
          "Materialverlust und Kosten, wenn der Lieferant eine lange Stange in Werkstücke schneidet (Vorgabe 3 mm und "
          "0 €: die Stangen kommen geschnitten ohne Zusatzkosten)."],
+        ["Lieferlängen", "Materialpreis: Mehrlänge je Stange, die der Händler berechnet, bis zur Grenze (z. B. 6 m) "
+                         "[mm], Materialpreis: Mehrlänge je Stange über der Grenze (z. B. 12 m) [mm], "
+                         "Materialpreis: Grenze kurze/lange Stange [mm]",
+         "Länge, die der Händler je Stange zusätzlich berechnet (Vorgabe 50 mm bis 6.500 mm, 100 mm darüber); nur "
+         "im Materialpreis, nicht in der Längenplanung ([[lieferlaengen]])."],
+        ["Lieferlängen", "Lieferlängen: Puffer je zugeschnittener Stange [mm]",
+         "So viel länger als rechnerisch nötig wird jede zugeschnittene Stange bestellt (Vorgabe 50 mm, 0 = auf den "
+         "mm genau) ([[lieferlaengen]])."],
         ["Angebot", "Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen neuer Angebote, wenn der Kunde im Kundenstamm keine eigenen hat (Vorgabe 2 % Skonto "
          "bei Zahlung in 10 Tagen, 30 Tage netto). Das Skonto wird in den Preis eingerechnet. Bestehende Angebote "
@@ -2828,6 +2849,13 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.15", "Lieferlängen: Die Restlänge einer zugeschnittenen 12-m-Stange kommt an die letzte Stange (bis zur "
+              "Beladelänge), das spart einen Sägeschnitt; sonst ist sie Abfall. Der Vergleich öffnet sich groß über den "
+              "Knopf <i>12-m-Lösung ansehen …</i> im Reiter Auswertung, den es nur bei einer sinnvollen Lösung gibt. "
+              "Händler-Mehrlänge im Materialpreis (Einstellungen, Vorgabe +50 mm je Stange bis 6,5 m, +100 mm "
+              "darüber), nicht in der Längenplanung. Neue Einstellung <i>Puffer je "
+              "zugeschnittener Stange</i> (Vorgabe 50 mm): Zuschnitte nicht mehr auf den Millimeter genau. Material "
+              "zählt weiter die ganzen Lieferstangen, nach Länge auf alle Teile verteilt ([[lieferlaengen]])."],
     ["0.6.14", "Spaltenbreite und Zeilenhöhe automatisch in allen Tabellen: Spalten passend zum Inhalt (Höchstbreite), "
               "lange Texte umgebrochen bis drei Zeilen, kurze Zeilen bleiben einzeilig; von Hand gezogene Spalten "
               "bleiben ([[angebot]])."],
