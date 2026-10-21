@@ -93,6 +93,7 @@ jobs:
           /usr/bin/python3 tests/test_angebot_einstellungen.py
           /usr/bin/python3 tests/test_kundenmaterial.py
           /usr/bin/python3 tests/test_schneidweg.py
+          /usr/bin/python3 tests/test_materialanfrage.py
           /usr/bin/python3 tests/test_anleitung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
