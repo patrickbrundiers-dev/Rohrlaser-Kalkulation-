@@ -17,7 +17,7 @@ from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN,
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_zukaufteil
 from . import fracht_angebot
-from . import zukauf
+from . import naht, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -226,6 +226,9 @@ def status(p, w, kopf, k, eingeplant=None):
         return "FEHLER: " + grenze
     if w["nutz"] is None or p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"]:
         return "FEHLER: Teil länger als Nutzlänge"
+    naht_status = naht.pruefen(p, k.profile.get(p.get("profil_id")))
+    if naht_status and naht_status.startswith("FEHLER"):
+        return naht_status
     if eingeplant is not None and _n(p.get("stueck")) - eingeplant > 0:
         return "WARNUNG: nicht vollständig eingeplant"
     if w["preis_hinterlegt"] is False:
@@ -238,6 +241,8 @@ def status(p, w, kopf, k, eingeplant=None):
     unbekannt = zusatz_unbekannt(p, w.get("zusatzarbeiten"))
     if unbekannt:
         return f"WARNUNG: Zusatzarbeit '{unbekannt}' unbekannt"
+    if naht_status:
+        return naht_status
     manuell = not _leer(p.get("zeit_manuell"))
     kontur = konturen_pruefen(p, w.get("wand_schneiden"))
     if kontur and not manuell:

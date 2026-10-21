@@ -210,7 +210,12 @@ POSITIONEN = Tabelle(
      Feld("konturen", "Konturen Hüllmaß x Schnittweg [mm]", breite=200),
      Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80),
      # Eingaben des Schneidweg-Rechners als JSON (Enden, Konturen; siehe schneidweg.py), keine eigene Spalte
-     Feld("technik", "Schneidweg-Rechner", breite=120)),
+     Feld("technik", "Schneidweg-Rechner", breite=120),
+     # Schweißnaht (naht.py): Vorgabe leer = keine Vorgabe; Winkel im Bezug 'Breitseite oben', Blick von Ende A
+     Feld("naht_vorgabe", "Schweißnaht", "naht", breite=190),
+     Feld("naht_winkel", "Nahtwinkel [°]", "zahl", 0, 359.9, stellen=1, breite=70),
+     Feld("naht_quelle", "Quelle Naht", "auswahl", auswahl="nahtquelle", breite=80),
+     Feld("querschnitt_lage", "Querschnittslage", "auswahl", auswahl="querschnittlage", breite=110)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")
