@@ -1,13 +1,19 @@
 """Prüft, dass die Bedienungsanleitung (anleitung/erzeuge_anleitung.py) mit dem Programm Schritt hält:
 jede Stammdatentabelle, jede Einstellung, jedes sichtbare Eingabefeld der Positionen und des Angebotskopfs,
-jeder Reiter und jeder Knopf des Programms muss im Text der Anleitung vorkommen. Kommt etwas Neues ins
-Programm, schlägt dieser Test fehl, bis die Anleitung ergänzt ist.
+jeder Reiter und jeder Knopf des Programms muss im Text der Anleitung vorkommen, dazu die Spalten der
+Zukauf-CSV und alle Knöpfe, Menüpunkte, Kontrollkästchen und Fenstertitel aus dem Quelltext aller Module
+(auch der Dialoge, die beim Test nicht geöffnet werden). Kommt etwas Neues ins Programm, schlägt dieser Test
+fehl, bis die Anleitung ergänzt ist.
+
+Aufbau: jedes Kapitel steht in genau einem Teil (TEILE) und hat einen Kasten „Wofür / Wo im Programm“
+(STECKBRIEFE).
 
 Außerdem: Verweise stehen nur als [[marke]] im Text (keine fest geschriebenen Kapitelnummern, die beim
 Umordnen veralten), und jede Marke gehört zu genau einer Überschrift.
 
 Aufruf: python tests/test_anleitung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
+import ast
 import os
 import re
 import sys
@@ -28,6 +34,7 @@ from rohrlaser.rechnen import KOSTENARTEN  # noqa: E402
 from rohrlaser.staffel_seite import ERGEBNIS  # noqa: E402
 from rohrlaser.staffeln import STUFE_FELDER  # noqa: E402
 from rohrlaser.stammdaten import EINSTELLUNGEN, TABELLEN  # noqa: E402
+from rohrlaser import zukauf, zukauf_csv  # noqa: E402
 
 QUELLE = (HIER.parent / "anleitung" / "erzeuge_anleitung.py").read_text(encoding="utf-8")
 
@@ -47,6 +54,23 @@ from rohrlaser import VERSION  # noqa: E402
 neuerungen = re.findall(r'^    \["([0-9. –]+)"', TEXTTEIL[TEXTTEIL.index("NEUERUNGEN = ["):], re.MULTILINE)
 assert any(VERSION in v.split(" – ") for v in neuerungen), \
     f"Version {VERSION} fehlt in NEUERUNGEN (Anleitung, Kapitel „Was ist neu“)"
+
+
+# Aufbau: jedes Kapitel in genau einem Teil, jedes Kapitel mit Steckbrief
+sys.path.insert(0, str(HIER.parent / "anleitung"))
+import erzeuge_anleitung as anl  # noqa: E402
+
+kapitel_fn = [n for n in vars(anl) if n.startswith("kapitel_") and callable(getattr(anl, n))]
+in_teilen = [k.__name__ for _, _, _, liste in anl.TEILE for k in liste]
+assert sorted(in_teilen) == sorted(set(in_teilen)), "Kapitel mehrfach in TEILE"
+fehlt_teil = sorted(set(kapitel_fn) - set(in_teilen))
+assert not fehlt_teil, f"Kapitel ohne Teil (in TEILE einsortieren): {fehlt_teil}"
+kapitel_marken = re.findall(r'i\.kapitel\("[^"]+", marke="([a-z0-9_]+)"', TEXTTEIL)
+assert len(kapitel_marken) == len(kapitel_fn), "Jedes Kapitel braucht eine Marke (i.kapitel(..., marke=...))"
+ohne = sorted(set(kapitel_marken) - set(anl.STECKBRIEFE))
+assert not ohne, f"Kapitel ohne Kasten „Wofür / Wo im Programm“ (STECKBRIEFE): {ohne}"
+uebrig = sorted(set(anl.STECKBRIEFE) - set(kapitel_marken))
+assert not uebrig, f"STECKBRIEFE für unbekannte Kapitel: {uebrig}"
 
 
 def kern(text):
@@ -73,6 +97,20 @@ pruefen += [("Angebotskopf", f.titel) for f in KOPF]
 pruefen += [("Feld der Staffeln", f.titel) for f in STUFE_FELDER]
 pruefen += [("Ergebnis der Staffeln", t) for _, t, _, _ in ERGEBNIS if t[:1].isupper()]
 pruefen += [("Position", f.titel) for f in POSITIONEN.felder if f.name in SICHTBAR]
+pruefen += [("Zukauf-Tabelle", t.titel) for t in zukauf.TABELLEN]
+pruefen += [("Spalte der Zukauf-CSV", zukauf_csv.titel(n)) for n in zukauf_csv.ARTIKEL_SPALTEN + zukauf_csv.BEZUG_SPALTEN]
+pruefen += [("Feld der Zukaufartikel", f.titel) for f in zukauf.ARTIKEL.felder]
+
+# Texte aus dem Quelltext aller Module: Knöpfe, Kontrollkästchen, Gruppen, Menüs, Reiter, Fenstertitel.
+# So zählen auch Dialoge mit, die der Test nicht öffnet. Reine Symbole (◀ ▶) haben keinen Text.
+AUFRUFE = re.compile(r"(^|\.)(QPushButton|QToolButton|QCheckBox|QRadioButton|QGroupBox|QAction|addAction|addTab|"
+                     r"addMenu|addButton|setWindowTitle)$")
+for datei in sorted((HIER.parent / "programm" / "rohrlaser").glob("*.py")):
+    for knoten in ast.walk(ast.parse(datei.read_text(encoding="utf-8"))):
+        if isinstance(knoten, ast.Call) and AUFRUFE.search(ast.unparse(knoten.func)):
+            texte = [a.value for a in knoten.args if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+            if texte and re.search(r"[A-Za-zÄÖÜäöü]", texte[0]):
+                pruefen.append((f"Text in {datei.name}", texte[0]))
 
 app = QApplication.instance() or QApplication([])
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")

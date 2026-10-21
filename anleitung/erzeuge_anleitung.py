@@ -23,8 +23,9 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame, PageBreak,
+from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame, KeepTogether, PageBreak,
                                 PageTemplate, Paragraph, Spacer, Table, TableStyle)
+from reportlab.platypus.flowables import HRFlowable
 from reportlab.platypus.tableofcontents import TableOfContents
 
 HIER = Path(__file__).resolve().parent
@@ -35,23 +36,36 @@ from rohrlaser.tastatur import UEBERSICHT as TASTENKUERZEL  # noqa: E402
 SEITE = landscape(A4)
 RAND = 14 * mm
 BREITE = SEITE[0] - 2 * RAND
+# Farben wie im Angebots-PDF (programm/rohrlaser/pdf.py): Dunkelblau als einzige Akzentfarbe, keine Gitter
 BLAU = colors.HexColor("#1F4E78")
-HELLBLAU = colors.HexColor("#DDEBF7")
+HELLBLAU = colors.HexColor("#EAF1F8")
+MITTELBLAU = colors.HexColor("#8EA9C1")
 ROT = colors.HexColor("#D0021B")
 GRAU = colors.HexColor("#595959")
+LINIE = colors.HexColor("#D9D9D9")
+KOPF_H = 7 * mm              # Kopfzeile mit Teil und Kapitel
+TITEL_BAND = 78 * mm         # dunkelblaues Band oben auf der Titelseite
 
 S = ParagraphStyle("text", fontName="Helvetica", fontSize=10, leading=13.5, spaceAfter=4)
 S_LISTE = ParagraphStyle("liste", parent=S, leftIndent=12, bulletIndent=2, spaceAfter=2)
-S_H1 = ParagraphStyle("h1", parent=S, fontName="Helvetica-Bold", fontSize=18, leading=22, textColor=BLAU,
-                      spaceBefore=0, spaceAfter=8)
+S_H1 = ParagraphStyle("h1", parent=S, fontName="Helvetica-Bold", fontSize=20, leading=24, textColor=BLAU,
+                      spaceBefore=0, spaceAfter=3)
+S_TEIL = ParagraphStyle("teil", parent=S_H1, fontSize=30, leading=36, spaceAfter=4)
+S_TEIL_NR = ParagraphStyle("teil_nr", parent=S, fontName="Helvetica-Bold", fontSize=13, leading=16,
+                           textColor=MITTELBLAU, spaceAfter=2)
 S_H2 = ParagraphStyle("h2", parent=S, fontName="Helvetica-Bold", fontSize=12.5, leading=16, textColor=BLAU,
                       spaceBefore=8, spaceAfter=4)
 S_BILD = ParagraphStyle("bild", parent=S, fontSize=8.5, leading=10.5, textColor=GRAU, alignment=TA_CENTER,
                         spaceBefore=2, spaceAfter=8)
 S_LEGENDE = ParagraphStyle("legende", parent=S, fontSize=9.5, leading=12.5, spaceAfter=0)
 S_TIPP = ParagraphStyle("tipp", parent=S, fontSize=9.5, leading=12.5, spaceAfter=0)
-S_TOC1 = ParagraphStyle("toc1", parent=S, fontName="Helvetica-Bold", fontSize=11, leading=16, leftIndent=0)
-S_TOC2 = ParagraphStyle("toc2", parent=S, fontSize=10, leading=13, leftIndent=16)
+S_TOC0 = ParagraphStyle("toc0", parent=S, fontName="Helvetica-Bold", fontSize=12, leading=16, textColor=BLAU,
+                        spaceBefore=8, spaceAfter=2, leftIndent=0)
+S_TOC1 = ParagraphStyle("toc1", parent=S, fontName="Helvetica-Bold", fontSize=10.5, leading=15, leftIndent=8,
+                        spaceBefore=2)
+S_TOC2 = ParagraphStyle("toc2", parent=S, fontSize=9.5, leading=12.5, leftIndent=24, textColor=colors.HexColor("#404040"))
+S_KASTEN = ParagraphStyle("kasten", parent=S, fontSize=9.5, leading=12.5, spaceAfter=0)
+S_KASTEN_KOPF = ParagraphStyle("kasten_kopf", parent=S_KASTEN, fontName="Helvetica-Bold", textColor=BLAU)
 
 
 # ---------------------------------------------------------------- Bausteine
@@ -112,7 +126,7 @@ class BildBlock(Flowable):
         x = (self.breite - gesamt) / 2
         for pfad, w, h in self.liste:
             c.drawImage(str(pfad), x, y - h, w, h)
-            c.setStrokeColor(colors.HexColor("#A6A6A6"))
+            c.setStrokeColor(LINIE)
             c.setLineWidth(0.6)
             c.rect(x, y - h, w, h)
             x += w + self.ABSTAND
@@ -125,43 +139,79 @@ class BildBlock(Flowable):
 
 
 class Anleitung(BaseDocTemplate):
+    """Seiten wie das Angebots-PDF: Titelseite mit dunkelblauem Band, sonst Kopfzeile (Teil, Kapitel) und Fuß
+    (Programm, Seite) mit feiner Linie."""
+
     def __init__(self, ziel):
         super().__init__(str(ziel), pagesize=SEITE, leftMargin=RAND, rightMargin=RAND, topMargin=RAND,
                          bottomMargin=RAND + 4 * mm, title=f"{NAME} – Bedienungsanleitung",
                          author=NAME, subject=f"Bedienungsanleitung Version {VERSION}")
-        rahmen = Frame(RAND, RAND + 4 * mm, BREITE, SEITE[1] - 2 * RAND - 4 * mm, id="text",
+        titel = Frame(RAND, RAND + 4 * mm, BREITE, SEITE[1] - RAND - 4 * mm - TITEL_BAND - 8 * mm, id="titel",
+                      leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+        rahmen = Frame(RAND, RAND + 4 * mm, BREITE, SEITE[1] - 2 * RAND - 4 * mm - KOPF_H, id="text",
                        leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
-        self.addPageTemplates([PageTemplate("titel", [rahmen]),
-                               PageTemplate("normal", [rahmen], onPageEnd=self._fuss)])
-        self._kapitel = ""
+        self.addPageTemplates([PageTemplate("titel", [titel], onPage=self._titelband),
+                               PageTemplate("normal", [rahmen], onPageEnd=self._kopf_fuss)])
+        self._kapitel = self._teil = ""
 
     def beforeDocument(self):
-        self._kapitel = ""     # multiBuild läuft mehrmals; sonst stünde das letzte Kapitel im Fuß des Inhaltsverzeichnisses
+        # multiBuild läuft mehrmals; sonst stünde das letzte Kapitel im Kopf des Inhaltsverzeichnisses
+        self._kapitel = self._teil = ""
 
-    def _fuss(self, c, doc):
+    def _titelband(self, c, doc):
         c.saveState()
-        c.setStrokeColor(colors.HexColor("#BFBFBF"))
+        c.setFillColor(BLAU)
+        c.rect(0, SEITE[1] - TITEL_BAND, SEITE[0], TITEL_BAND, stroke=0, fill=1)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 32)
+        c.drawString(RAND + 4 * mm, SEITE[1] - 34 * mm, NAME)
+        c.setFont("Helvetica", 20)
+        c.drawString(RAND + 4 * mm, SEITE[1] - 47 * mm, "Bedienungsanleitung")
+        c.setFillColor(colors.HexColor("#C9D7E5"))
+        c.setFont("Helvetica", 11)
+        c.drawString(RAND + 4 * mm, SEITE[1] - 62 * mm, "Angebotskalkulation und Materialoptimierung für Rohrlaserteile")
+        c.drawRightString(SEITE[0] - RAND - 4 * mm, SEITE[1] - 62 * mm, f"Programmversion {VERSION} · Stand {doc.stand}")
+        c.restoreState()
+
+    def _kopf_fuss(self, c, doc):
+        c.saveState()
+        oben = SEITE[1] - RAND
+        c.setFont("Helvetica", 8)
+        c.setFillColor(GRAU)
+        c.drawString(RAND, oben - 3 * mm, self._teil)
+        c.setFillColor(BLAU)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawRightString(SEITE[0] - RAND, oben - 3 * mm, self._kapitel)
+        c.setStrokeColor(BLAU)
+        c.setLineWidth(0.8)
+        c.line(RAND, oben - 5 * mm, SEITE[0] - RAND, oben - 5 * mm)
+        c.setStrokeColor(LINIE)
+        c.setLineWidth(0.5)
         c.line(RAND, RAND + 1 * mm, SEITE[0] - RAND, RAND + 1 * mm)
         c.setFont("Helvetica", 8)
         c.setFillColor(GRAU)
         c.drawString(RAND, RAND - 3 * mm, f"{NAME} {VERSION} – Bedienungsanleitung")
-        c.drawCentredString(SEITE[0] / 2, RAND - 3 * mm, self._kapitel)
+        c.setFillColor(BLAU)
+        c.setFont("Helvetica-Bold", 8)
         c.drawRightString(SEITE[0] - RAND, RAND - 3 * mm, f"Seite {doc.page}")
         c.restoreState()
 
     def afterFlowable(self, f):
-        if isinstance(f, BildBlock):
-            for x in f.oben:
+        if isinstance(f, (BildBlock, KeepTogether)):
+            for x in (f.oben if isinstance(f, BildBlock) else f._content):
                 self.afterFlowable(x)
             return
-        if isinstance(f, Paragraph) and f.style.name in ("h1", "h2"):
-            text = f.getPlainText()
-            stufe = 0 if f.style.name == "h1" else 1
+        stufen = {"teil": 0, "h1": 1, "h2": 2}
+        if isinstance(f, Paragraph) and f.style.name in stufen:
+            text = getattr(f, "toc_text", None) or f.getPlainText()
+            stufe = stufen[f.style.name]
             if stufe == 0:
+                self._teil, self._kapitel = text, ""
+            elif stufe == 1:
                 self._kapitel = text
             schluessel = f"k{id(f)}"
             self.canv.bookmarkPage(schluessel)
-            self.canv.addOutlineEntry(text, schluessel, level=stufe, closed=stufe == 0)
+            self.canv.addOutlineEntry(text, schluessel, level=stufe, closed=stufe == 1)
             self.notify("TOCEntry", (stufe, text, self.page, schluessel))
 
 
@@ -174,10 +224,14 @@ class Inhalt:
 
     VERWEIS = re.compile(r"\[\[([a-z0-9_]+)\]\]")
 
-    def __init__(self, bilder, marken=None):
+    def __init__(self, bilder, vorlauf=None):
+        """vorlauf: das Inhalt-Objekt des 1. Durchlaufs (Kapitelnummern, Titel und Kapitel je Teil)."""
         self.bilder, self.f, self.kapitel_nr, self.abschnitt_nr = bilder, [], 0, 0
-        self.marken, self.verweise = marken, {}
-        self.neue_marken, self.benutzte_bilder = {}, set()
+        self.marken = vorlauf.neue_marken if vorlauf else None
+        self.titel = vorlauf.neue_titel if vorlauf else {}
+        self.teile = vorlauf.neue_teile if vorlauf else {}
+        self.neue_marken, self.neue_titel, self.neue_teile, self.benutzte_bilder = {}, {}, {}, set()
+        self.verweise, self._teil = {}, None
 
     def _marke(self, marke, nummer):
         if not marke:
@@ -197,13 +251,62 @@ class Inhalt:
             return f'<a href="#{m.group(1)}" color="#1F4E78">Kapitel {self.marken[m.group(1)]}</a>'
         return self.VERWEIS.sub(ersetzen, str(text))
 
+    def teil(self, buchstabe, titel, text):
+        """Trennseite eines Teils: Titel, ein Satz dazu und die Kapitel mit „Wofür“ aus STECKBRIEFE (im
+        1. Durchlauf noch leer: welche Kapitel dazugehören, steht erst danach fest)."""
+        self._teil = buchstabe
+        self.neue_teile[buchstabe] = []
+        marken = self.teile.get(buchstabe, [])
+        if self.f:
+            self.f.append(PageBreak())
+        self.f.append(Spacer(1, 30 * mm))
+        name = f"Teil {buchstabe}" if len(buchstabe) == 1 else buchstabe
+        self.f.append(Paragraph(name, S_TEIL_NR))
+        kopf = Paragraph(titel, S_TEIL)
+        kopf.toc_text = f"{name} · {titel}"          # so im Inhaltsverzeichnis und in der Kopfzeile
+        self.f.append(kopf)
+        self.f.append(HRFlowable(width="100%", thickness=1.2, color=BLAU, spaceBefore=2, spaceAfter=8))
+        self.f.append(Paragraph(self._t(text), S))
+        self.f.append(Spacer(1, 4 * mm))
+        zeilen = []
+        for m in marken:
+            nr = self.marken.get(m, "?") if self.marken else "?"
+            zeilen.append([Paragraph(f'<a href="#{m}" color="#1F4E78"><b>{nr}</b></a>', S_KASTEN_KOPF),
+                           Paragraph(f'<a href="#{m}" color="#1F4E78"><b>{self.titel.get(m, "")}</b></a>', S_KASTEN),
+                           Paragraph(self._t(STECKBRIEFE[m][0]), S_KASTEN)])
+        if not zeilen:
+            zeilen = [["", "", ""]]
+        t = Table(zeilen, colWidths=[12 * mm, 75 * mm, BREITE - 87 * mm])
+        t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                               ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                               ("LINEBELOW", (0, 0), (-1, -2), 0.5, LINIE), ("LINEBELOW", (0, -1), (-1, -1), 1, BLAU)]))
+        self.f.append(t)
+        self.f.append(PageBreak())
+
     def kapitel(self, titel, marke=None):
         self.kapitel_nr += 1
         self.abschnitt_nr = 0
-        if self.f:
+        if self.f and not isinstance(self.f[-1], PageBreak):
             self.f.append(PageBreak())
         anker = self._marke(marke, f"{self.kapitel_nr}")
-        self.f.append(Paragraph(f"{anker}{self.kapitel_nr}&nbsp;&nbsp;{titel}", S_H1))
+        if marke:
+            self.neue_titel[marke] = titel
+            if self._teil:
+                self.neue_teile[self._teil].append(marke)
+        self.f.append(Paragraph(f'{anker}<font color="#8EA9C1">{self.kapitel_nr}</font>&nbsp;&nbsp;{titel}', S_H1))
+        self.f.append(HRFlowable(width="100%", thickness=1.2, color=BLAU, spaceBefore=1, spaceAfter=7))
+        if marke in STECKBRIEFE:
+            self.steckbrief(*STECKBRIEFE[marke])
+
+    def steckbrief(self, wofuer, wo):
+        """Kurzer Kasten unter der Kapitelüberschrift: wofür das Kapitel ist und wo es im Programm steht."""
+        t = Table([[Paragraph("Wofür", S_KASTEN_KOPF), Paragraph(self._t(wofuer), S_KASTEN),
+                    Paragraph("Wo im Programm", S_KASTEN_KOPF), Paragraph(self._t(wo), S_KASTEN)]],
+                  colWidths=[17 * mm, BREITE / 2 - 17 * mm - 5 * mm, 34 * mm, BREITE / 2 - 34 * mm + 5 * mm])
+        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), HELLBLAU), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                               ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                               ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6)]))
+        self.f.extend([t, Spacer(1, 8)])
 
     def abschnitt(self, titel, marke=None):
         self.abschnitt_nr += 1
@@ -252,38 +355,44 @@ class Inhalt:
         self.f.extend([Spacer(1, 3), t, Spacer(1, 6)])
 
     def tabelle(self, kopf, zeilen, breiten):
-        daten = [[Paragraph(f"<b>{k}</b>", S_LEGENDE) for k in kopf]]
+        """Tabelle wie im Angebots-PDF: ohne Gitter, blaue Linie unter dem Kopf und am Ende, dazwischen fein grau."""
+        daten = [[Paragraph(f'<font color="#1F4E78"><b>{k}</b></font>', S_LEGENDE) for k in kopf]]
         daten += [[Paragraph(self._t(z), S_LEGENDE) for z in zeile] for zeile in zeilen]
         t = Table(daten, colWidths=[b * mm for b in breiten], repeatRows=1)
-        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), HELLBLAU),
-                               ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BFBFBF")),
-                               ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                               ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+        t.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, 0), 1, BLAU),
+                               ("LINEBELOW", (0, 1), (-1, -2), 0.5, LINIE),
+                               ("LINEBELOW", (0, -1), (-1, -1), 1, BLAU),
+                               ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                               ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5)]))
         self.f.extend([t, Spacer(1, 6)])
 
 
 # ---------------------------------------------------------------- Inhalt der Anleitung
 def titelseite(inh, stand):
+    """Titelseite: Name, Version und Stand stehen im blauen Band (Anleitung._titelband), darunter das Stangenbild
+    und die drei Teile der Anleitung; danach das Inhaltsverzeichnis."""
     f = inh.f
-    f.append(Spacer(1, 22 * mm))
-    f.append(Paragraph(NAME, ParagraphStyle("t1", parent=S_H1, fontSize=30, leading=36)))
-    f.append(Paragraph("Bedienungsanleitung", ParagraphStyle("t2", parent=S_H1, fontSize=20, leading=26,
-                                                              textColor=GRAU)))
-    f.append(Spacer(1, 4 * mm))
-    f.append(Paragraph(f"Angebotskalkulation und Materialoptimierung für Rohrlaserteile<br/>Programmversion {VERSION} · "
-                       f"Stand {stand}", S))
-    f.append(Spacer(1, 8 * mm))
-    inh.bild("erg_stangenbild", hoehe=95 * mm)
-    f.append(Spacer(1, 4 * mm))
+    inh.bild("erg_stangenbild", hoehe=64 * mm)
+    zellen = [Paragraph(f'<font color="#8EA9C1"><b>{"TEIL " + b if len(b) == 1 else b.upper()}</b></font><br/>'
+                        f'<font color="#1F4E78"><b>{titel}</b></font><br/>{text}', S_KASTEN)
+              for b, titel, text, _ in TEILE]
+    t = Table([zellen], colWidths=[BREITE / len(zellen)] * len(zellen))
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                           ("RIGHTPADDING", (0, 0), (-1, -1), 10), ("TOPPADDING", (0, 0), (-1, -1), 5),
+                           ("LINEABOVE", (0, 0), (-1, 0), 1, BLAU)]))
+    f.append(t)
+    f.append(Spacer(1, 3 * mm))
     f.append(Paragraph("Alle Bildschirmfotos stammen aus dem Programm selbst. Firmen, Kunden, Angebote und Preise sind "
-                       "Beispielwerte.", ParagraphStyle("klein", parent=S, fontSize=8.5, textColor=GRAU)))
+                       "Beispielwerte. Blaue Kapitelverweise sind im PDF anklickbar.",
+                       ParagraphStyle("klein", parent=S, fontSize=8.5, textColor=GRAU)))
     from reportlab.platypus.doctemplate import NextPageTemplate
     f.append(NextPageTemplate("normal"))
     f.append(PageBreak())
     f.append(Paragraph("Inhalt", ParagraphStyle("inhalt", parent=S_H1)))
+    f.append(HRFlowable(width="100%", thickness=1.2, color=BLAU, spaceBefore=1, spaceAfter=4))
     toc = TableOfContents()
-    toc.levelStyles = [S_TOC1, S_TOC2]
-    toc.dotsMinLevel = 0
+    toc.levelStyles = [S_TOC0, S_TOC1, S_TOC2]
+    toc.dotsMinLevel = 99          # keine Punktreihen: die Seitenzahl steht rechtsbündig
     f.append(toc)
 
 
@@ -293,27 +402,20 @@ def kapitel_ueberblick(i):
            "rechnet daraus Materialbedarf, Laserzeit und Angebotspreis. Alles liegt in einer Datendatei. Das Programm "
            "gibt es zum Installieren (für den eigenen Benutzer, ohne Administratorrechte) und als portable Version "
            "ohne Installation; beide rechnen gleich ([[start]]).",
-           "Der normale Arbeitsablauf für ein Angebot:")
-    i.liste("<b>Angebot anlegen</b> (Reiter <i>Angebote</i> → <i>Neues Angebot</i>) und den Kopf ausfüllen: Kunde, "
-            "Maschine, Stangenlänge.",
-            "<b>Positionen erfassen</b>: von Hand eintippen oder Konstruktionsdaten per <i>STEP importieren</i> "
-            "einlesen (Länge, Profil, Schneidweg, Einstiche, Gewinde-Vorschlag).",
-            "<b>Zusatzarbeiten</b> wählen, wo nötig: Gewinde, Verzinken, Pulverbeschichten, Gravur extra u. a.",
-            "<b>Optimieren</b>: das Programm verteilt die Teile auf möglichst wenige Stangen und rechnet die "
-            "Kalkulation.",
-            "<b>Ergebnis prüfen</b>: Schnittplan, Stangenbild, Auswertung, nicht eingeplante Teile.",
-            "Bei Bedarf <b>Staffelpreise</b> für weitere Mengen rechnen.",
-            "<b>Ausgeben</b>: Angebot, Werkstattpapiere und Kalkulation als PDF, auf Wunsch CSV-Export.",
-            nummeriert=True)
-    i.text("Die Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, Lieferlängen, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) und die "
-           "Einstellungen werden einmal eingerichtet ([[stammdaten]] und [[einstellungen]]): das Programm startet mit Beispielwerten, die "
-           "durch die eigenen ersetzt werden.")
-    i.text("<b>Aufbau dieser Anleitung:</b> [[start]] richtet das Programm ein. [[angebote]] bis [[nachkalkulation]] "
-           "folgen dem Arbeitsablauf eines Angebots: anlegen, Positionen per STEP einlesen, optimieren, Staffelpreise, "
-           "Fracht, Zukaufteile, Ausgabe und Nachkalkulation. [[einstellungen]] bis [[pflege]] beschreiben, was "
-           "einmal eingerichtet und gepflegt wird: Einstellungen, Stammdaten, Zukaufartikel, Frachtkosten, Updates und "
-           "Datensicherung. Im Anhang stehen die Einzelheiten der STEP-Messung ([[step_messung]]), die Tastenkürzel "
-           "([[tastenkuerzel]]), häufige Fragen ([[fragen]]) und was sich je Programmversion geändert hat ([[neu]]).")
+           "Ein Angebot entsteht immer in derselben Reihenfolge: anlegen, Positionen erfassen (von Hand oder per "
+           "STEP-Import), optimieren, Ergebnis prüfen, bei Bedarf Staffelpreise, Fracht und Zukaufteile, dann "
+           "ausgeben. Wer gleich loslegen will, folgt dem Schnellstart ([[schnellstart]]).")
+    i.text("Die Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, Lieferlängen, Maschinen, Schneiddaten, Gewinde, "
+           "Zusatzarbeiten) und die Einstellungen werden einmal eingerichtet ([[stammdaten]] und [[einstellungen]]): "
+           "das Programm startet mit Beispielwerten, die durch die eigenen ersetzt werden.")
+    i.text("<b>Aufbau dieser Anleitung:</b> <b>Teil A</b> (bis [[schnellstart]]) richtet das Programm ein und führt "
+           "einmal durch ein ganzes Angebot. <b>Teil B</b> ([[angebote]] bis [[nachkalkulation]]) folgt dem "
+           "Arbeitsablauf eines Angebots: anlegen, Positionen per STEP einlesen, optimieren, Staffelpreise, Fracht, "
+           "Zukaufteile, Ausgabe und Nachkalkulation. <b>Teil C</b> ([[einstellungen]] bis [[pflege]]) beschreibt, "
+           "was einmal eingerichtet und gepflegt wird. Im <b>Anhang</b> stehen die Einzelheiten der STEP-Messung "
+           "([[step_messung]]), die Tastenkürzel ([[tastenkuerzel]]), häufige Fragen ([[fragen]]) und was sich je "
+           "Programmversion geändert hat ([[neu]]). Jedes Kapitel beginnt mit einem Kasten: wofür es da ist und wo "
+           "die Funktion im Programm steht.")
     i.abschnitt("Aufbau des Fensters")
     i.text("Das Programm öffnet sich immer maximiert (bildschirmfüllend, die Taskleiste bleibt sichtbar) und gleich "
            "im Reiter <i>Angebote</i>. Die übrigen Reiter sind von dort mit einem Klick erreichbar.")
@@ -458,8 +560,8 @@ def kapitel_start(i):
             nummeriert=True)
     i.abschnitt("Startseite")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
-           "portablen Version oder einer Export-Datei, [[datensicherung]]). Ohne Übernahme legt es die Datendatei mit "
-           "Beispiel-Stammdaten an. Die Startseite zeigt in Rot, dass es sich um Beispielwerte handelt, und hinter "
+           "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
+           "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in Rot, dass es sich um Beispielwerte handelt, und hinter "
            "der Datendatei, ob das Programm installiert oder portabel läuft.")
     i.bild("start_beispiel", "Startseite nach dem ersten Start (Beispiel-Stammdaten)", hoehe=112 * mm, legende=[
         (1, "<b>Datensicherung erstellen</b>: geprüfte Kopie der Datendatei in den Ordner <i>Sicherung</i> und, "
@@ -1679,7 +1781,7 @@ def kapitel_ausgabe(i, seiten, ablage):
 def kapitel_nachkalkulation(i):
     i.kapitel("Nachkalkulation", marke="nachkalkulation")
     i.text("Nach dem Auftrag zeigt der Reiter <i>Nachkalkulation</i>, ob die Kalkulation gestimmt hat. Eingetragen "
-           "werden die tatsächlichen Werte; das Programm stellt sie den Werten aus Schnittplan und Kalkulation (Soll) "
+           "werden die tatsächlichen Werte im Feld <b>Ist-Werte nach dem Auftrag</b> (leer = wie kalkuliert); das Programm stellt sie den Werten aus Schnittplan und Kalkulation (Soll) "
            "gegenüber. Verglichen werden die <b>Einzelkosten</b> ohne Zuschläge und Gewinn, denn nur sie lassen sich "
            "in der Fertigung messen. Voraussetzung ist ein aktueller Schnittplan (vorher optimieren).")
     i.bild("nachkalkulation", "Reiter Nachkalkulation nach dem Auftrag", hoehe=95 * mm, legende=[
@@ -2323,6 +2425,27 @@ def kapitel_zukauf(i):
             "werden nie übernommen.",
             "Unbekannte Kategorien legt der Import an (ohne Aufschlag). Preisänderungen kommen ins Protokoll; "
             "gespeicherte Angebote behalten ihren Preisstand.")
+    i.text("Die Spalten der CSV-Datei, in dieser Reihenfolge (Kopfzeile mit diesen Namen, Groß-/Kleinschreibung egal). "
+           "Pflicht sind nur <i>Artikelnummer</i> und <i>Artikelbezeichnung</i>, die übrigen Spalten dürfen fehlen:")
+    i.tabelle(["Spalten", "Inhalt"], [
+        ["Artikelnummer, Artikelbezeichnung, Kategorie, Mengeneinheit, Status, Beschreibung, EAN / Referenzcode",
+         "Stammdaten des Artikels wie im Formular (Bereich A)"],
+        ["Aufschlag aus, Aufschlagsmethode, Aufschlag [% bzw. €]",
+         "Aufschlagsregel ([[zukauf_kategorien]]): Kategorie, individuell oder Standard; Methode und Wert"],
+        ["Mehrmenge geht ins Lager, Im Angebotstext nennen, Bemerkung", "ja/nein bzw. freier Text"],
+        ["Lieferant, Lieferantenartikelnummer, Preiseinheit [Menge], Einkaufspreise (ab Menge: Preis je Preiseinheit)",
+         "Einkauf bei diesem Lieferanten; die Preise als Staffel <i>ab 1: 12,00 | ab 500: 9,00</i>"],
+        ["Mindestbestellmenge, Verpackungseinheit, Lieferzeit [Tage]", "Bestellregeln des Lieferanten"],
+        ["Verpackung je Bestellung [€], Mindermengenzuschlag [€], Mindermengenzuschlag unter [Menge], "
+         "Eingangsfracht je Bestellung [€], Eingangsfracht je Einheit [€], Weitere Bezugskosten je Bestellung [€]",
+         "Bezugskosten; der Mindermengenzuschlag gilt, wenn die Bestellmenge unter der genannten Menge liegt"],
+        ["Mengenrabatt [%], Preis gültig von, Preis gültig bis", "Rabatt auf den Staffelpreis und Gültigkeit"]],
+        [150, 115])
+    i.text("Im Formular und in der Artikeltabelle heißen zwei Angaben etwas anders: die Mengenstaffel der Methode "
+           "<i>Mengenstaffel %</i> ist die <b>Aufschlagsstaffel</b>, und <i>zusätzlich zum Kategorieaufschlag</i> "
+           "steht in der Tabelle als <b>Kategorie + individuell kombinieren</b>. Im Protokoll der Preisänderungen "
+           "verweist die <b>Artikel-ID</b> auf den Artikel; <b>Einkauf je Lieferant</b> ist die Tabelle mit den "
+           "Einkaufsdaten je Lieferant.")
     i.abschnitt("Blechartikel und fehlender Einkaufspreis", marke="blechartikel")
     i.text("Bleche schneidet der Rohrlaser nicht; sie werden als Zukaufartikel mit dem Artikeltyp <b>Blech</b> "
            "geführt. Ein Blechartikel hat zusätzlich Länge, Breite und Dicke in mm und einen Werkstoff. Der "
@@ -2554,7 +2677,7 @@ def kapitel_pflege(i):
            "wie beides geht und wie die Daten auf einen anderen Rechner umziehen.")
     i.abschnitt("Updates", marke="updates")
     i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (öffentliches Verzeichnis "
-           "<i>Rohrlaser-Updates</i> auf GitHub, ohne Anmeldung), installiert wie portabel. Gibt es eine, erscheint ein Hinweis mit dem installierten und dem neuen Stand und der letzten "
+           "<i>Rohrlaser-Updates</i> auf GitHub, ohne Anmeldung), installiert wie portabel. Gibt es eine, erscheint das Fenster <b>Update verfügbar</b> mit dem installierten und dem neuen Stand und der letzten "
            "Änderung. Ohne Internet oder bei einem Fehler meldet sich das Programm beim Start nicht. Von Hand: "
            "<b>Hilfe → Nach Updates suchen …</b>; dort steht auch, wenn das Programm schon aktuell ist. Welcher Stand "
            "installiert ist, zeigen Fenstertitel, Startseite und <i>Hilfe → Über …</i>.")
@@ -2969,25 +3092,113 @@ def bilder_erzeugen(ordner):
 OHNE_STELLE = {"stamm_stundensaetze"}     # gleiche Seite wie stamm_arbeitsschritte
 
 
-def inhalt_sammeln(daten, bilder, marken=None):
+def kapitel_schnellstart(i):
+    i.kapitel("Schnellstart: das erste Angebot in 10 Schritten", marke="schnellstart")
+    i.text("So entsteht ein vollständiges Angebot. Jeder Schritt verweist auf das Kapitel mit den Einzelheiten; für "
+           "das erste Angebot reichen die fett gedruckten Handgriffe.")
+    i.tabelle(["Schritt", "Was tun", "Mehr dazu"], [
+        ["1  Angebot anlegen", "Reiter <i>Angebote</i> → <b>Neues Angebot</b> (Strg+N). Das Angebot öffnet sich in "
+                               "einem eigenen Reiter.", "[[angebote]]"],
+        ["2  Kopf ausfüllen", "<b>Kunde</b> wählen; Maschine, Stangenlänge, Lieferzeit und Zahlungsbedingungen sind "
+                              "vorbelegt und nur bei Bedarf zu ändern.", "[[angebot]], [[lieferzeit]]"],
+        ["3  Positionen einlesen", "<b>STEP importieren …</b> (Strg+I) oder die STEP-Dateien ins Fenster ziehen. In "
+                                   "der Rohrliste Werkstoff und Stückzahl prüfen, dann <b>Übernehmen</b>.",
+         "[[step]], [[bleche]]"],
+        ["4  … oder von Hand", "Im Reiter <i>Positionen</i> <b>Neue Zeile</b>: Profil, Werkstoff, Länge, Stückzahl. "
+                               "Gelbe Felder sind Eingaben, graue rechnet das Programm.", "[[angebot]]"],
+        ["5  Arbeiten je Teil", "Position markieren → <b>Zusatzarbeiten …</b> (Gewinde, Verzinken, Pulvern …), bei "
+                                "Bedarf Oberfläche und Kundenmaterial.",
+         "[[zusatzarbeiten_angebot]], [[kundenmaterial]]"],
+        ["6  Zukaufteile", "Schrauben, Bleche u. Ä.: <b>Zukaufteile …</b> an der Position oder eine eigene "
+                           "Zukaufteil-Position.", "[[zukauf_im_angebot]]"],
+        ["7  Optimieren", "<b>Optimieren</b> (F9). Die Übersicht zeigt grün <i>Optimierung abgeschlossen</i>; "
+                          "Positionen mit FEHLER (rot) zuerst beheben.", "[[optimieren]], [[veraltet]]"],
+        ["8  Ergebnis prüfen", "Reiter <i>Kalkulation</i>, <i>Schnittplan</i>, <i>Stangenbild</i> und "
+                               "<i>Auswertung</i> ansehen; bei langen Profilen den Vorschlag 6 m gegen 12 m.",
+         "[[kalkulation]], [[lieferlaengen]]"],
+        ["9  Staffeln und Fracht", "Reiter <i>Staffeln</i>: weitere Mengen. Karte <b>Fracht</b>: manuell, "
+                                   "berechnet oder automatisch.", "[[staffeln]], [[fracht]]"],
+        ["10  Ausgeben", "<b>Angebot (PDF)</b> (Strg+P) an den Kunden. Bei Auftrag <b>Werkstattpapiere (PDF)</b>; "
+                         "danach im Reiter <i>Nachkalkulation</i> die Ist-Werte eintragen.",
+         "[[ausgabe]], [[nachkalkulation]]"]], [42, 170, 53])
+    i.hinweis("Das Programm speichert jede Eingabe sofort; einen Speichern-Knopf gibt es nicht. Strg+Z nimmt im Angebot "
+              "die letzte Änderung zurück ([[rueckgaengig]]).", titel="Gut zu wissen")
+    i.hinweis("Vor dem ersten echten Angebot die Beispielwerte durch die eigenen ersetzen: Preise, Maschinen, "
+              "Schneiddaten, Stundensätze, Briefkopf und Zuschläge ([[einstellungen]], [[stammdaten]]).",
+              titel="Vorher einmal")
+
+
+# Je Kapitel (Marke): wofür es da ist und wo es im Programm steht. Erscheint als Kasten unter der Überschrift und
+# auf der Trennseite des Teils; test_anleitung.py prüft, dass jedes Kapitel einen Eintrag hat.
+STECKBRIEFE = {
+    "ueberblick": ("Was das Programm kann, wie ein Angebot abläuft und was die Farben bedeuten.",
+                   "Hauptfenster mit den Reitern Start, Angebote, Kunden, Frachtkosten, Zukaufartikel, Einstellungen"),
+    "start": ("Programm installieren oder portabel entpacken, Windows-Warnungen, erster Start.",
+              "Release <i>aktuell</i> auf GitHub; im Programm der Reiter <i>Start</i>"),
+    "schnellstart": ("Einmal durch ein ganzes Angebot, vom Anlegen bis zum PDF.",
+                     "Reiter <i>Angebote</i> und das geöffnete Angebot"),
+    "angebote": ("Angebote finden, öffnen, kopieren und löschen.", "Reiter <i>Angebote</i>"),
+    "angebot": ("Kopf, Positionen, Zusatzarbeiten und Einzelwerte eines Angebots eingeben.",
+                "Geöffnetes Angebot: Kopf, Übersicht, Reiter <i>Positionen</i>"),
+    "step": ("Positionen aus Konstruktionsdaten (.step/.stp) einlesen, auch Bleche und Baugruppen.",
+             "Im Angebot <b>STEP importieren …</b> (Strg+I) oder Dateien ins Fenster ziehen"),
+    "optimieren": ("Teile auf Stangen verteilen, Kalkulation, Zeiten, Schnittplan und Lieferlängen prüfen.",
+                   "Im Angebot <b>Optimieren</b> (F9); Reiter Kalkulation, Zeiten, Schnittplan, Stangenbild, "
+                   "Auswertung"),
+    "staffeln": ("Preise für weitere Mengen, je Stufe mit eigenen Zuschlägen.", "Im Angebot Reiter <i>Staffeln</i>"),
+    "fracht": ("Frachtkosten ins Angebot bringen: manuell, berechnet oder automatisch.",
+               "Im Angebot Karte <b>Fracht</b>; Reiter <i>Frachtkosten</i> → Frachtrechner"),
+    "zukauf_im_angebot": ("Eingekaufte Teile als eigene Position oder an einer Position mitkalkulieren.",
+                          "Im Angebot <b>Zukaufteile …</b> bzw. <b>Weitere Aktionen</b>"),
+    "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Zeichnungen, Materialanfrage.",
+                "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
+    "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
+                        "Im Angebot Reiter <i>Nachkalkulation</i>"),
+    "einstellungen": ("Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
+                      "Reiter <i>Einstellungen</i> (Passwort) → <i>Vorgaben</i>"),
+    "stammdaten": ("Kunden, Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen pflegen.",
+                   "Reiter <i>Kunden</i>; Reiter <i>Einstellungen</i> mit den Unterreitern"),
+    "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
+    "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
+                     "Reiter <i>Frachtkosten</i>"),
+    "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
+               "<i>Hilfe → Nach Updates suchen …</i>; Reiter <i>Start</i>"),
+    "step_messung": ("Für Fachleute: wie die STEP-Messung Rohr, Schnitte und Konturen erkennt.",
+                     "<i>STEP-Import.exe</i> im Programmordner"),
+    "tastenkuerzel": ("Alle Tastenkürzel auf einen Blick.", "<i>Hilfe → Tastenkürzel …</i>"),
+    "fragen": ("Meldungen des Programms und was dagegen hilft.", "Statuszeile und Meldungsfenster"),
+    "neu": ("Was sich je Programmversion geändert hat.", "<i>Hilfe → Über …</i> zeigt die installierte Version"),
+}
+
+# Teile der Anleitung: Buchstabe, Titel, ein Satz dazu, Kapitel in der Reihenfolge der Arbeit.
+# Ein neues Kapitel hier an der passenden Stelle einsortieren und in STECKBRIEFE eintragen.
+TEILE = [
+    ("A", "Erste Schritte", "Installieren, das Fenster kennenlernen und einmal ein ganzes Angebot rechnen.",
+     [kapitel_ueberblick, kapitel_start, kapitel_schnellstart]),
+    ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
+     "Nachkalkulation.",
+     [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_ausgabe, kapitel_nachkalkulation]),
+    ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
+     "Stammdaten, Zukaufartikel, Frachtkosten, Updates und Datensicherung.",
+     [kapitel_einstellungen, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten, kapitel_pflege]),
+    ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
+     "Version.",
+     [kapitel_step_messung, kapitel_tastenkuerzel, kapitel_fragen, kapitel_neu]),
+]
+
+
+def inhalt_sammeln(daten, bilder, vorlauf=None):
     stand = datetime.date.today().strftime("%d.%m.%Y")
-    inh = Inhalt(bilder, marken)
+    inh = Inhalt(bilder, vorlauf)
     titelseite(inh, stand)
-    inh.f.append(PageBreak())
-    for kapitel in (kapitel_ueberblick, kapitel_start,
-                    # Teil B: ein Angebot rechnen, in der Reihenfolge der Arbeit
-                    kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-                    kapitel_fracht, kapitel_zukauf_angebot):
-        kapitel(inh)
-    kapitel_ausgabe(inh, daten["seiten"], daten["ablage"])
-    # Teil C: einrichten und pflegen; danach der Anhang
-    for kapitel in (kapitel_nachkalkulation, kapitel_einstellungen, kapitel_stammdaten, kapitel_zukauf,
-                    kapitel_frachtkosten, kapitel_pflege, kapitel_step_messung, kapitel_tastenkuerzel, kapitel_fragen,
-                    kapitel_neu):
-        kapitel(inh)
-    # die erste Kapitelüberschrift soll keinen zusätzlichen Seitenumbruch erzeugen
-    inh.f = [x for k, x in enumerate(inh.f) if not (isinstance(x, PageBreak) and k > 0
-                                                     and isinstance(inh.f[k - 1], PageBreak))]
+    for buchstabe, name, text, kapitel_liste in TEILE:
+        inh.teil(buchstabe, name, text)
+        for kapitel in kapitel_liste:
+            if kapitel is kapitel_ausgabe:
+                kapitel(inh, daten["seiten"], daten["ablage"])
+            else:
+                kapitel(inh)
     return inh
 
 
@@ -2995,13 +3206,14 @@ def pdf_bauen(bilder_ordner, ziel):
     daten = json.loads((Path(bilder_ordner) / "bilder.json").read_text(encoding="utf-8"))
     bilder = dict(daten["bilder"], _ordner=Path(bilder_ordner))
     # 1. Durchlauf: Kapitelnummern der Marken, 2. Durchlauf: Verweise einsetzen
-    inh = inhalt_sammeln(daten, bilder, inhalt_sammeln(daten, bilder).neue_marken)
+    inh = inhalt_sammeln(daten, bilder, inhalt_sammeln(daten, bilder))
     ungenutzt = sorted(n for n in set(daten["bilder"]) - inh.benutzte_bilder - OHNE_STELLE
                        if not n.startswith("pdf_"))      # Seitenbilder der PDF-Ausgaben: nur einzelne Seiten gezeigt
     if ungenutzt:
         raise ValueError("Bildschirmfotos ohne Stelle in der Anleitung (bilder.py erzeugt sie umsonst): "
                          + ", ".join(ungenutzt))
     doc = Anleitung(ziel)
+    doc.stand = datetime.date.today().strftime("%d.%m.%Y")
     doc.multiBuild(inh.f)
     return ziel
 
