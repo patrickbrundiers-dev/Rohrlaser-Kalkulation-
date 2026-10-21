@@ -14,10 +14,11 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser,
     QVBoxLayout, QWidget)
 
-from . import fracht_angebot, ausgabe, export, pdf, rechnen, step, zukauf, zukauf_ek
+from . import fracht_angebot, ausgabe, export, pdf, rechnen, schneidweg, step, zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
+from .schneidweg_dialog import SchneidwegDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
@@ -734,7 +735,8 @@ class AngebotSeite(QWidget):
             leiste.addWidget(b)
         self.weitere = QPushButton("Weitere Aktionen")
         menue = QMenu(self.weitere)
-        for text, ziel in (("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
+        for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
+                           ("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
             menue.addAction(text, lambda ziel=ziel: ziel())
         self.weitere.setMenu(menue)
         leiste.addWidget(self.weitere)
@@ -751,6 +753,16 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
             self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld",) + EIGENE else (240 if art == "status" else 85))
+        # Rechtsklick auf eine Position: Bearbeiten-Aktionen ohne weitere Knöpfe in der Leiste
+        self.pos_ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.pos_menue = QMenu(self.pos_ansicht)
+        for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
+                           ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
+                           ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
+                           ("Positionen löschen", self.positionen_loeschen)):
+            self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
+        self.pos_ansicht.customContextMenuRequested.connect(
+            lambda punkt: self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(
             lambda i: {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile}.get(
                 self.pos_modell.spalten[i.column()][0], lambda _: None)([i.row()]))
@@ -1196,6 +1208,48 @@ class AngebotSeite(QWidget):
             self.db.position_aendern(p["id"], "gewinde", gewinde)
             self.db.position_aendern(p["id"], "zusatz", zusatz)
         self.f.meldung(f"Zusatzarbeiten für {len(zeilen)} Position(en) gespeichert.")
+        self.neu_laden()
+        return True
+
+    def schneidweg_berechnen(self, zeile=None, eingaben=None, dialog=None, ueberschreiben=None):
+        """Schneidweg-Rechner für die markierte Position (Dialog): Enden, Konturen und Gravur eingeben, Werte in die
+        Position übernehmen. eingaben = dict setzt sie ohne Dialog, dialog(d) bedient den Dialog statt exec,
+        ueberschreiben = True/False beantwortet die Rückfrage bei STEP-Werten (Tests). Ergebnis: True = gespeichert."""
+        if zeile is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+            if len(zeilen) != 1:
+                self.f.meldung("Bitte genau eine Position markieren.", fehler=True)
+                return False
+            zeile = zeilen[0]
+        p = self.positionen[zeile]
+        profil = self.k.profile.get(p.get("profil_id"))
+        if ist_zukaufteil(p) or not profil:
+            self.f.meldung("Schneidweg-Rechner: Die Position braucht ein Profil aus den Stammdaten (kein Zukaufteil).",
+                           fehler=True)
+            return False
+        if eingaben is None:
+            d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen)
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return False
+            eingaben = d.eingaben()
+        grenzen = rechnen.kontur_grenzen(rechnen.maschine(self.kopf, self.k))[0]
+        erg = schneidweg.rechnen(eingaben, profil, grenzen)
+        if erg["fehler"]:
+            self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
+            return False
+        step_werte = p.get("a_schnitt") is not None and schneidweg.lesen(p.get("technik")).get("quelle") != \
+            schneidweg.QUELLE
+        if step_werte:
+            if ueberschreiben is None:
+                ueberschreiben = self.f.stumm or QMessageBox.question(
+                    self, "Schneidweg", "Die Position hat Werte aus dem STEP-Import (Schneidweg, Enden, Konturen). "
+                    "Durch die Werte des Schneidweg-Rechners ersetzen?") == QMessageBox.Yes
+            if not ueberschreiben:
+                return False
+        for name, wert in dict(erg["felder"], technik=schneidweg.speichern(eingaben)).items():
+            self.db.position_aendern(p["id"], name, wert)
+        self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
+                       f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen.")
         self.neu_laden()
         return True
 

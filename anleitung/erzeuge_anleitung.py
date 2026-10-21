@@ -670,7 +670,8 @@ def kapitel_angebot(i):
         ["Oberfläche", "z. B. K240 oder gestrahlt (Stammdaten Oberflächen); leer = roh. Der Aufpreis kommt auf den "
                        "Materialpreis, der Text ins Angebot."],
         ["Teilelänge [mm], Stückzahl", "Pflicht"],
-        ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import füllt sie aus. Anfangs- "
+        ["Schneidweg je Teil [mm], Einstiche je Teil", "für die Laserzeit; der STEP-Import oder der "
+                                                       "Schneidweg-Rechner ([[schneidweg_rechner]]) füllt sie aus. Anfangs- "
                                                        "und Endschnitt zählen je nach Profil mehrere Einstiche: "
                                                        "I-/H-Träger und U-Profil 4, T-Profil 2, alle anderen 1 "
                                                        "(z. B. IPE 200 ohne Bohrungen: 8 Einstiche)"],
@@ -996,6 +997,39 @@ def kapitel_optimieren(i):
             "Zeit oder Kosten.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
+    i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
+    i.text("Für Teile ohne STEP-Datei rechnet der <b>Schneidweg-Rechner</b> Schneidweg, Einstiche und Konturklassen "
+           "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
+           "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen.")
+    i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen, Langlöcher und ein Rechteck",
+           hoehe=110 * mm, legende=[
+               (1, "<b>Gehrung</b> je Ende in Grad (0 = gerade), bei Quadrat-/Rechteckrohr mit Richtung."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße; der Tooltip jeder Zelle nennt das Maß."),
+               (3, "<b>+ Bohrung</b>, <b>+ Langloch</b> … fügt eine Zeile hinzu, <b>Markierte entfernen</b> löscht."),
+               (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
+               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe.")])
+    i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
+            "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse; Quadrat- und Rechteckrohr: wählbar, ob die "
+            "Gehrung <i>über Höhe</i> oder <i>über Breite</i> läuft (2 × gekippte Seite / cos Winkel + 2 × andere "
+            "Seite). Bei anderen Profilen (Träger, U, Winkel, Flach) ist die Gehrung eine <i>Schätzung</i>: gerade "
+            "Schnittlänge / cos Winkel; der Dialog kennzeichnet sie. Je Ende zählen die Einstiche wie beim "
+            "STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Langloch</i> (Länge, Breite: "
+            "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
+            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b) und <i>sonstige Kontur</i> mit Schnittlänge "
+            "von Hand und Hüllmaß (leer = groß). Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
+            "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
+            "gesperrt.",
+            "<b>Gravur</b>: Länge in mm, wird mit dem Vorschub Gravur gerechnet.",
+            "Unter <i>Ergebnis je Teil</i> stehen sofort alle Schnitte mit Länge, Einstichen, Hüllmaß und Klasse "
+            "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
+            "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
+            "Hinweis; das Programm erfindet keine Werte, die Schneidzeit wird dann von Hand eingetragen.",
+            "<b>In Position übernehmen</b> schreibt Schneidweg, Einstiche, Anfangs-/Endschnitt (gerade ja/nein), "
+            "Innenkonturen, Gravur, Konturliste und Konturklassen in die Position, also dieselben Felder wie der "
+            "STEP-Import. Hat die Position schon Werte aus dem STEP-Import, fragt das Programm vorher. Die Eingaben "
+            "bleiben gespeichert und erscheinen beim nächsten Öffnen wieder.",
+            "Eine von Hand eingetragene Schneidzeit gilt weiter, bis sie in der Positionsliste gelöscht wird.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.text("Der STEP-Import teilt jede Innenkontur und auch den <b>Anfangs- und Endschnitt</b> nach ihrer Größe "
            "(Hüllmaß) in <b>klein</b>, <b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den "
@@ -1886,7 +1920,7 @@ def kapitel_stammdaten(i):
            "Herstellerwerte, bitte mit echten Schnittzeiten der Maschine vergleichen und anpassen. Faserlaser: Stahl "
            "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
            "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "
-           "Vorschub mittel ist 60 %, klein 30 % von groß. Eigene Schneiddaten älterer Datendateien bleiben "
+           "Vorschub mittel ist 60 %, klein 30 % von groß, Vorschub Gravur 3.000 mm/min. Eigene Schneiddaten älterer Datendateien bleiben "
            "erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche Wandstärke-Stufe und welches "
            "Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten Wandstärke-Stufe und Schneidgas).")
     i.text("Die Prüfspalte warnt, wenn ein Vorschub nicht passt: Vorschub mittel oder klein größer als groß, oder "
@@ -2640,9 +2674,14 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.3", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
+    ["0.6.5", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
               "statt mit <i>HTTP Error 404</i> abzubrechen; die Pakete des vorigen Stands bleiben länger liegen "
               "([[updates]])."],
+    ["0.6.4", "Vorschub Gravur der Richtwerte auf 3.000 mm/min gesenkt (bisher Faser 15.000, CO₂ 10.000); ältere "
+              "Datendateien werden einmalig angepasst, von Hand geänderte Werte bleiben ([[stammdaten]])."],
+    ["0.6.3", "Schneidweg-Rechner für Teile ohne STEP-Datei: Gehrungen, Bohrungen, Langlöcher, Rechtecke, Schlitze "
+              "und sonstige Konturen eingeben, Schneidweg, Einstiche, Konturklassen und Schneidzeit sofort sehen und "
+              "in die Position übernehmen (Rechtsklick auf die Position, [[schneidweg_rechner]])."],
     ["0.6.2", "Kundenmaterial: Spalte <i>Material</i> je Position (Eigenmaterial / Kunde beigestellt), Vorgabe im "
               "Angebotskopf, eigene Stangengruppe ohne Materialkosten, optional Handling je kg, Hinweis mit "
               "Stangenbedarf im Angebot ([[kundenmaterial]])."],

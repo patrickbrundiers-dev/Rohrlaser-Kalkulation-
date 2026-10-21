@@ -388,6 +388,18 @@ def main(ziel):
     s.zusatzarbeiten([0])
     db.position_aendern(s.positionen[1]["id"], "zeit_manuell", 45.0)
     s.neu_laden()
+
+    # 7a2) Schneidweg-Rechner: Gehrung, Bohrungen, Langloch (nur Foto, Abbrechen: Position bleibt unverändert)
+    def schneidweg_ausfuellen(d):
+        d.winkel["a"].setValue(45)
+        d.zeile_neu(dict(art="Bohrung", anzahl=4, d=8.5))
+        d.zeile_neu(dict(art="Langloch", anzahl=2, l=30, b=10))
+        d.zeile_neu(dict(art="Rechteck", anzahl=1, b=20, h=60, r=2))
+        QApplication.processEvents()
+        foto.foto("schneidweg_dialog", d, [(d.winkel["a"], 1), (d.tabelle, 2), (knopf(d, "+ Bohrung"), 3),
+                                           (d.ergebnis_tabelle, 4), (d.summe, 5)])
+        return QDialog.Rejected
+    s.schneidweg_berechnen(0, dialog=schneidweg_ausfuellen)
     bereit()
     m = s.pos_modell
     versteckt = [i for i, (art, x) in enumerate(m.spalten) if art == "feld" and x.name in

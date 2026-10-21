@@ -36,11 +36,11 @@ from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONE
                       naechste_nummer)
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
-                         ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten,
+                         ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 25     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 26     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -51,6 +51,7 @@ SCHEMA_VERSION = 25     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 23: Lieferlängen (Tabelle lieferlaengen, profile.laengenvergleich, angebote.laengenwahl)
                         # 24: Kundenreferenz, Lieferzeit und Mindestpreis im Angebot (ältere Angebote: Mindestpreis 0)
                         # 25: Kundenmaterial (positionen.material_herkunft, Kopf material_vorgabe, Handling je kg)
+                        # 26: Schneidweg-Rechner (positionen.technik, Eingaben als JSON; ältere Positionen leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -63,6 +64,7 @@ ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
+GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 
 
 class Datenbank:
@@ -78,6 +80,7 @@ class Datenbank:
             self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
             self.fracht_beispiele_laden()
             self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
+            self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
 
     def schliessen(self):
         self.con.close()
@@ -166,6 +169,8 @@ class Datenbank:
                 self.con.execute("UPDATE angebote SET mindestpreis=0 WHERE mindestpreis IS NULL")
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
+            if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
+                self._gravur_anpassen()
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -209,6 +214,14 @@ class Datenbank:
                 self.con.execute("DELETE FROM schneiddaten WHERE id=?", (z["id"],))
         self._einfuegen("schneiddaten", beispieldaten()["schneiddaten"], ergaenzen=True)
         self._einstellung_schreiben("maschinen_stand", MASCHINEN_STAND)
+
+    def _gravur_anpassen(self):
+        """Einmalig: Vorschub Gravur der Richtwert-Zeilen (Bemerkung 'Beispiel: Richtwert …') mit dem alten Wert
+        (Faser 15.000, CO₂ 10.000 mm/min) auf 3.000 mm/min; von Hand geänderte Werte bleiben."""
+        self.con.execute(f"UPDATE schneiddaten SET vorschub_gravur=? WHERE bemerkung LIKE 'Beispiel: Richtwert%' "
+                         f"AND vorschub_gravur IN ({', '.join('?' * len(ALTE_GRAVUR))})",
+                         (GRAVUR["Faser"],) + ALTE_GRAVUR)
+        self._einstellung_schreiben("gravur_stand", GRAVUR_STAND)
 
     def _maschine_umbenannt(self, alt, neu):
         """Nach dem Umbenennen einer Maschine (Spalte angebote.maschine ist schon umbenannt): Maschinen-ID in den
