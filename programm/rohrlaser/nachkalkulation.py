@@ -44,8 +44,10 @@ def gruppen(ergebnis, kopf, positionen, k, tabellen):
     for s, w in zip(ergebnis["stangen"], sw):
         ob = s.get("oberflaeche") or ""
         g = out.setdefault(rechnen.gruppe_der_stange(s),
-                           dict(schluessel=gruppenschluessel(s["profil"], s["werkstoff"], s["stange"], ob),
-                                profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], ob),
+                           dict(schluessel=gruppenschluessel(s["profil"], s["werkstoff"], s["stange"], ob)
+                                + ("|Kunde" if s.get("beistellung") else ""),
+                                profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], ob)
+                                + (" – Kundenmaterial" if s.get("beistellung") else ""),
                                 stange=s["stange"], soll=0, kosten=0.0))
         g["soll"] += 1
         g["kosten"] += w["kosten"] or 0

@@ -576,6 +576,28 @@ def kapitel_angebot(i):
             "„Lieferzeit nach Absprache.“) weg, damit sich das Angebot nicht widerspricht.",
             "Angebote aus älteren Programmversionen haben keine eigene Lieferzeit: dort gilt wie bisher nur der "
             "Text der Bedingungen.")
+    i.abschnitt("Kundenmaterial", marke="kundenmaterial")
+    i.text("Stellt der Kunde das Material bei, steht in der Spalte <b>Material</b> der Position <i>Kunde "
+           "beigestellt</i> statt <i>Eigenmaterial</i> (leer = Eigenmaterial, wie bisher). Im Angebotskopf legt "
+           "<b>Material neuer Positionen</b> fest, was neue Positionen (auch aus dem STEP-Import) bekommen; "
+           "<b>Für alle Positionen</b> trägt die Auswahl in alle Rohrlaserteil-Positionen ein. Jede Position bleibt "
+           "einzeln änderbar, so können in einem Angebot beigestellte und eigene Teile stehen.")
+    i.liste("Optimierung: Kundenmaterial ist eine eigene Stangengruppe und kommt nie mit eigenem Material auf eine "
+            "Stange. Der Stangenbedarf wird wie sonst optimiert: so viele Stangen muss der Kunde liefern. Einen "
+            "Vergleich der Lieferlängen gibt es für Kundenmaterial nicht.",
+            "Kalkulation: keine Materialkosten, kein Zuschlag Material, kein Verschnittwert und kein Meterpreis. "
+            "Laser, Gewinde, Rüsten, Stangenwechsel, Arbeitsschritte, Zusatzarbeiten, Programmierung und "
+            "Pauschalen bleiben. Materialkosten anderer Positionen ändern sich nicht. Spalte <i>Kundenmaterial</i> "
+            "im Reiter Kalkulation, Status „HINWEIS: Material vom Kunden beigestellt“.",
+            "<b>Handling Kundenmaterial</b> [€/kg]: optional für Prüfen, Einlagern und Transport, je kg der "
+            "beigestellten Stangen, mit Zuschlag Fertigung und Gewinn (Kostenart <i>Handling Kundenmaterial</i>). "
+            "Vorgabe 0 = keins; Einstellung in der Gruppe Kalkulation, je Angebot änderbar.",
+            "Angebot: Die Position heißt „Material S235 EN10219 vom Kunden beigestellt“ statt „inkl. Material …“; "
+            "vor den Bedingungen steht „Material wird vom Kunden beigestellt: 2 Stangen Quadratrohr 40 x 40 x 3, "
+            "S235 EN10219, à 6.000 mm.“ (abschaltbar mit der Einstellung <i>Angebots-PDF: Hinweis zum "
+            "Kundenmaterial mit Stangenbedarf</i>). Werkstattpapier und Nachkalkulation führen das Kundenmaterial "
+            "als eigene Zeile.",
+            "Staffelpreise rechnen das Kundenmaterial in jeder Stufe ohne Materialkosten.")
     i.abschnitt("Mindestpreis", marke="mindestpreis")
     i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis Angebot netto</b> (Vorgabe 200,00 €), "
            "hebt das Programm alle Stückpreise im gleichen Verhältnis an, bis die Angebotssumme den Mindestpreis "
@@ -1561,6 +1583,11 @@ def kapitel_einstellungen(i):
          "Preis; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
+        ["Kalkulation", "Handling Kundenmaterial je kg Stangengewicht [€/kg] (0 = keins)",
+         "Kosten für beigestelltes Material je kg der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
+         "Vorgabe 0."],
+        ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
+         "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
         ["Kalkulation", "Mindestpreis je Angebot netto [€] (0 = keiner)",
          "Vorgabe 200,00 € für neue Angebote; darunter werden die Stückpreise anteilig angehoben ([[mindestpreis]]). "
          "Bestehende Angebote behalten ihren Wert."],
@@ -2610,6 +2637,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.2", "Kundenmaterial: Spalte <i>Material</i> je Position (Eigenmaterial / Kunde beigestellt), Vorgabe im "
+              "Angebotskopf, eigene Stangengruppe ohne Materialkosten, optional Handling je kg, Hinweis mit "
+              "Stangenbedarf im Angebot ([[kundenmaterial]])."],
     ["0.6.1", "Angebot: Kalkulationswerte, die von den Einstellungen abweichen, sind gelb markiert und aufgelistet "
               "(auch Stundensätze), Preisänderung nach jeder Änderung in der Statuszeile, <i>Vorgaben aus "
               "Einstellungen</i> nennt jede Änderung ([[angebot]])."],
