@@ -653,10 +653,15 @@ class ZonenSeite(QWidget):
         oben.addWidget(self.test_land)
         oben.addWidget(self.test_plz)
         oben.addWidget(self.test_ergebnis, 1)
-        for text, ziel in (("CSV exportieren", self.csv_exportieren), ("CSV importieren", self.csv_importieren)):
+        for text, ziel in (("CSV exportieren", self.csv_exportieren), ("CSV importieren", self.csv_importieren),
+                           ("Auf Standard zurücksetzen …", self.zuruecksetzen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, z=ziel: z())
             oben.addWidget(b)
+            if ziel == self.zuruecksetzen:
+                b.setToolTip("Frachtzonen und PLZ-Zuordnungen durch die Standardzonen (Richtwerte nach Entfernung "
+                             "vom Versandort) ersetzen; vorher wird eine Datensicherung angelegt")
+                self.standard_knopf = b
         self.oben = QTabWidget()
         self.oben.addTab(self.zonen, "Frachtzonen")
         self.oben.addTab(self.laender, "Länder")
@@ -682,6 +687,36 @@ class ZonenSeite(QWidget):
         farbe = {"ok": "#1E6B34", "standard": "#7A5A00"}.get(z["status"], "#B42318")
         self.test_ergebnis.setText(f"<span style='color:{farbe}'>{_e(z['text'])}</span>")
         return z
+
+    def zuruecksetzen(self):
+        """Frachtzonen und PLZ-Zuordnungen nach Sicherheitsabfrage auf Standard zurücksetzen
+        (Datenbank.fracht_zonen_zuruecksetzen, vorher Datensicherung). Ergebnis: (entfernt, eingefügt) oder None."""
+        plz = (self.db.einstellung("absender_plz") or "").strip()
+        if not plz and not self.f.stumm:
+            plz, ok = QInputDialog.getText(self, "Frachtzonen zurücksetzen", "Absender-PLZ (Versandort):")
+            if not ok:
+                return None
+        fremd = self.db.fracht_zonen_fremd()
+        text = (f"Alle {len(self.db.zeilen('fracht_zonen'))} Frachtzonen und {len(self.db.zeilen('fracht_plz'))} "
+                "PLZ-Zuordnungen werden gelöscht, auch eigene, und durch die Standardzonen ersetzt (Palette bis "
+                f"200 / 450 / 650 / über 650 km ab PLZ {plz.strip()} und Inseln). Die Preise des Richtwert-Tarifs "
+                "werden passend neu geschrieben.\n\n"
+                + (f"{fremd} Preiszeile(n) anderer Tarife verweisen auf Zonen, die es danach nicht mehr gibt; "
+                   "diese Preise gelten dann nicht mehr.\n\n" if fremd else "")
+                + "Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie. Vorher wird eine "
+                "Datensicherung angelegt (zurückholen mit „Sicherung wiederherstellen …“ auf der Startseite).\n\nWirklich zurücksetzen?")
+        if not self.f.stumm and QMessageBox.question(self, "Frachtzonen auf Standard zurücksetzen", text,
+                                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return None
+        try:
+            weg, neu, pfad = self.db.fracht_zonen_zuruecksetzen(plz)
+        except (ValueError, OSError) as e:
+            self.f.meldung(str(e), fehler=True)
+            return None
+        self.f.fracht.neu_laden_alle()
+        self.f.meldung(f"Frachtzonen auf Standard zurückgesetzt: {weg} Zeile(n) entfernt, {neu} eingefügt; "
+                       f"Sicherung {Path(pfad).name}.")
+        return weg, neu
 
     def csv_exportieren(self, pfad=None):
         if pfad is None:
