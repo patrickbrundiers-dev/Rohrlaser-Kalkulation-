@@ -695,6 +695,8 @@ def kapitel_angebot(i):
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl ([[zusatzarbeiten_angebot]])"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl ([[zukauf_angebot]])"],
+        ["Zeichnungen", "angehängte Zeichnungen und Modelle der Position (z. B. <i>Z-100.pdf</i> oder <i>2 Dateien</i>); "
+                        "Doppelklick öffnet die Liste ([[zeichnungen]])"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
                                  "rechnet es aus Volumen × Dichte, wenn der Werkstoff gewählt ist; sonst leer)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
@@ -1597,6 +1599,42 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zukaufartikel und Stückzahl.")
     i.abschnitt("Kalkulation (PDF)")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
+    i.abschnitt("Zeichnungen je Position", marke="zeichnungen")
+    i.text("Zeichnungen (PDF, DXF, DWG), Modelle (STEP) und Bilder gehören zur Position: Dateien aus dem Explorer "
+           "direkt <b>auf die Position</b> in der Positionsliste ziehen, oder Rechtsklick auf die Position → "
+           "<b>Zeichnungen …</b> (auch Doppelklick auf die Spalte <i>Zeichnungen</i>) und <b>Hinzufügen …</b>.")
+    i.liste("Das Programm kopiert jede Datei in den Ordner des Angebots: <i>Ablageordner\\&lt;Angebotsnummer&gt;</i> "
+            "(z. B. <i>Angebote\\A-2026-0041</i>). In der Position steht nur der Dateiname. So bleibt das Angebot "
+            "vollständig, auch wenn die Originaldatei verschoben wird.",
+            "Dieselbe Datei zweimal angehängt bleibt eine Datei; eine andere Datei mit gleichem Namen bekommt "
+            "„ (2)“ angehängt.",
+            "Der STEP-Import hängt die STEP-Datei automatisch an die übernommenen Positionen.",
+            "Im Fenster <i>Zeichnungen</i>: <b>Öffnen</b> zeigt die Datei im zugehörigen Programm, <b>Entfernen</b> "
+            "löst nur die Zuordnung (die Datei bleibt im Ordner), <b>Ordner öffnen</b> zeigt den Ordner des "
+            "Angebots. Fehlt eine Datei im Ordner, steht „(fehlt im Ordner)“ dahinter.")
+    i.abschnitt("Material per Outlook anfragen", marke="materialanfrage")
+    i.text("<i>Weitere Aktionen → Material per Outlook anfragen …</i> bereitet eine Anfrage an den Lieferanten vor. "
+           "Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst <b>Optimieren</b>.")
+    i.bild("materialanfrage", "Materialanfrage an einen Lieferanten mit Zeichnung als Anhang", hoehe=120 * mm,
+           legende=[(1, "<b>Anfrage an Lieferant</b>: Lieferanten aus <i>Lieferlängen</i> bzw. <i>Preise</i> (Spalte "
+                        "Lieferant); die E-Mail-Adresse kommt aus den Lieferanten der Zukaufartikel."),
+                    (2, "Bedarf je Profil, Werkstoff, Oberfläche und Lieferlänge mit Anzahl Stangen (änderbar) und "
+                        "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde."),
+                    (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Der Text wird bei jeder Änderung der Zeilen "
+                        "neu erstellt, bis er von Hand geändert wurde."),
+                    (4, "<b>Anhänge</b>: die Zeichnungen der angefragten Positionen ([[zeichnungen]]), einzeln "
+                        "abwählbar."),
+                    (5, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
+    i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff, Text "
+            "und Anhängen im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
+            "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "
+            "das Programm eine E-Mail-Datei (<i>&lt;Angebot&gt; Materialanfrage.eml</i>) in der Ablage und öffnet sie "
+            "im Standard-Mailprogramm. Sie ist als Entwurf markiert; dort prüfen und senden. "
+            "<b>Als E-Mail-Datei speichern</b> geht diesen Weg direkt.",
+            "Mehrere Lieferanten: je Lieferant eine Anfrage (oben wählen, öffnen, dann den nächsten). Zeilen ohne "
+            "Lieferant stehen unter „(ohne Lieferant)“; die Adresse dann von Hand eintragen.",
+            "Lieferanten und ihre E-Mail-Adressen pflegen: Zukaufartikel → Lieferanten; den Lieferanten eines "
+            "Profils in den Stammdaten <i>Preise</i> bzw. <i>Lieferlängen</i>.")
 
 
 def kapitel_nachkalkulation(i):
@@ -2766,10 +2804,14 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.10", "Windows-Tastenkürzel: Strg+Z/Strg+Y (Rückgängig/Wiederholen im Angebot, bis 100 Schritte), "
+    ["0.6.12", "Windows-Tastenkürzel: Strg+Z/Strg+Y (Rückgängig/Wiederholen im Angebot, bis 100 Schritte), "
               "Strg+C/V/X für Zellen und Blöcke aus Excel, Entf löscht mit Rückfrage, Strg+N, Strg+F, Strg+S, Strg+P, "
               "Strg+I, F5, F9, Strg+W, Strg+Tab, Strg+Bild↓/↑; neue Menüs Bearbeiten und Ansicht, "
               "<i>Hilfe → Tastenkürzel …</i> ([[rueckgaengig]], [[tastenkuerzel]])."],
+    ["0.6.10", "Zeichnungen je Position (Dateien auf die Position ziehen, Kopie im Ordner des Angebots, STEP-Datei "
+              "automatisch, [[zeichnungen]]) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
+              "Optimierung, Lieferant und E-Mail-Adresse, Zeichnungen als Anhang; gesendet wird nur in Outlook "
+              "([[materialanfrage]])."],
     ["0.6.9", "Frachtkosten: <b>Richtwerte laden</b> für den Palettenversand (Marktpreise 10/2026 + 10 % Puffer, "
               "Maut und Diesel enthalten, Zonen nach Entfernung vom Versandort, schwere Paletten, Langgut, Inseln; "
               "[[fracht_richtwerte]]). Automatische Fracht übernimmt die volle PLZ des Kunden."],

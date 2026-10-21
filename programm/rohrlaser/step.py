@@ -461,6 +461,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                      stueck=stk or None, gewicht_teil=blech_gewicht(b, wst, k), _zukauf=verweis)
             if m.get("_netz"):
                 p["_netz"] = m["_netz"]
+            if m.get("datei"):
+                p["_datei"] = m["datei"]
             hinweise.append(f"Zukaufteil: {text}")
             if not wst:
                 hinweise.append("Werkstoff offen")
@@ -495,6 +497,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                      bohrungen=bohrungen_text(m.get("bohrungen")) or None, gewinde_vorschlag=vorschlag or None)
             if m.get("_netz"):
                 p["_netz"] = m["_netz"]         # 3D-Ansicht; speichert der Aufrufer nach position_neu
+            if m.get("datei"):
+                p["_datei"] = m["datei"]        # STEP-Datei als Zeichnung; hängt der Aufrufer an
             if _z(m, "ende_a"):
                 p["a_gerade"] = "ja" if m.get("ende_a_gerade") == "1" else "nein"
                 p["a_schnitt"] = round(_z(m, "ende_a"), 1)
