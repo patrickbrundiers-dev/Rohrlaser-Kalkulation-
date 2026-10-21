@@ -358,8 +358,10 @@ def kapitel_start(i):
            "([[datensicherung]]).")
     i.abschnitt("Programm installieren")
     i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation-Setup.exe</b> "
-            "herunterladen und starten.",
-            "Warnt Windows, siehe [[windows_warnungen]]. Das Setup fragt nach der Desktop-Verknüpfung "
+            "herunterladen.",
+            "Beim ersten Mal: rechte Maustaste auf die Datei → <i>Eigenschaften</i> → unten <i>Zulassen</i> anhaken → "
+            "OK ([[windows_warnungen]]). Dann das Setup starten.",
+            "Warnt Windows trotzdem, siehe [[windows_warnungen]]. Das Setup fragt nach der Desktop-Verknüpfung "
             "und installiert nur für den angemeldeten Benutzer.",
             "Das Programm aus dem Startmenü starten (<i>Rohrlaser Angebotskalkulation</i>; daneben liegt die "
             "Bedienungsanleitung).",
@@ -370,6 +372,8 @@ def kapitel_start(i):
            "sie wieder.")
     i.abschnitt("Portable Version entpacken")
     i.liste("Unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
+            "<b>Vor dem Entpacken</b>: rechte Maustaste auf das ZIP → <i>Eigenschaften</i> → unten <i>Zulassen</i> "
+            "anhaken → OK ([[windows_warnungen]]).",
             "In einen Ordner entpacken, in dem man schreiben darf, z. B. <i>C:\\Rohrlaser</i>. Nicht nach "
             "<i>C:\\Programme</i>, dort darf das Programm seine Daten nicht ablegen.",
             "<b>Rohrlaser-Angebotskalkulation.exe</b> starten. Wer will, legt sich eine Verknüpfung auf den Desktop "
@@ -380,6 +384,8 @@ def kapitel_start(i):
     i.tabelle(["Datei / Ordner", "Inhalt"], [
         ["Rohrlaser-Angebotskalkulation.exe", "das Programm"],
         ["Bedienungsanleitung.pdf", "diese Anleitung (auch über <i>Hilfe → Bedienungsanleitung</i> oder F1)"],
+        ["Windows-Vertrauen-einrichten.cmd", "gibt Programmdateien frei und trägt das Signatur-Zertifikat ein "
+                                             "([[windows_vertrauen]])"],
         ["Portabel.ini", "macht das Programm portabel: Daten im Ordner daneben. Darin lässt sich auch ein anderer "
                          "Datenordner eintragen (Zeile <i>daten = …</i>). Nicht löschen, sonst sucht das Programm "
                          "die Daten im Benutzerprofil."],
@@ -395,18 +401,45 @@ def kapitel_start(i):
     i.text("Eine ältere portable Version ohne <i>Portabel.ini</i> erkennt das Programm am Ordner <i>Daten</i> neben "
            "der .exe und arbeitet dort weiter wie bisher.")
     i.abschnitt("Windows-Warnungen (SmartScreen, Defender)", marke="windows_warnungen")
-    i.text("Programm und Setup sind nicht digital signiert und werden mit PyInstaller gebaut. Programme dieser Art "
-           "hält Windows anfangs oft für verdächtig, obwohl nichts Schädliches darin ist. Das Programm braucht keine "
-           "Administratorrechte, geht nur für die Suche nach Updates ins Internet ([[updates]]) und "
-           "schreibt nur in seinen Programm- und Datenordner und in die eingestellten Ablage- und Sicherungsordner. Damit Virenscanner möglichst selten anschlagen, enthält "
-           "jede .exe Hersteller-, Produkt- und Versionsangaben (rechte Maustaste → Eigenschaften → Details), und das "
-           "Startprogramm wird für dieses Programm eigens übersetzt.")
-    i.liste("<b>Vor dem Entpacken</b> des ZIP: rechte Maustaste auf das heruntergeladene ZIP → <i>Eigenschaften</i> → unten "
-            "<i>Zulassen</i> anhaken → OK. Sonst trägt Windows jede entpackte Datei als „aus dem Internet“ ein und "
-            "prüft sie bei jedem Start besonders.",
-            "Meldet Windows beim ersten Start des Programms oder des Setups „Der Computer wurde durch Windows "
-            "geschützt“: auf <i>Weitere Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt "
-            "Windows nicht mehr.",
+    i.text("Windows merkt sich bei jeder heruntergeladenen Datei, dass sie „aus dem Internet“ stammt. Beim Entpacken "
+           "eines ZIP bekommt jede der rund 800 Programmdateien diese Markierung, und der Microsoft Defender prüft dann "
+           "jede einzeln besonders gründlich; ein Setup mit der Markierung meldet beim Start „Der Computer wurde durch "
+           "Windows geschützt“. Das Programm braucht keine Administratorrechte, geht nur für die Suche nach Updates ins "
+           "Internet ([[updates]]) und schreibt nur in seinen Programm- und Datenordner und in die eingestellten "
+           "Ablage- und Sicherungsordner. Updates aus dem Programm haben die Markierung nicht, die Warnungen betreffen "
+           "also nur das erste Herunterladen.")
+    i.text("<b>Der einfachste Weg, ganz ohne Adminrechte:</b> die heruntergeladene Datei <b>vor</b> dem Entpacken bzw. "
+           "Starten freigeben.")
+    i.liste("Im Explorer (meist Ordner <i>Downloads</i>) mit der rechten Maustaste auf "
+            "<i>Rohrlaser-Angebotskalkulation.zip</i> bzw. <i>Rohrlaser-Angebotskalkulation-Setup.exe</i> klicken → "
+            "<i>Eigenschaften</i>.",
+            "Im Reiter <i>Allgemein</i> steht unten bei <i>Sicherheit</i>: „Die Datei stammt von einem anderen "
+            "Computer …“. Dort <b>Zulassen</b> anhaken → <i>OK</i>. Fehlt das Kästchen, ist die Datei schon "
+            "freigegeben.",
+            "Erst jetzt das ZIP entpacken bzw. das Setup starten. Die entpackten Dateien haben dann keine Markierung, "
+            "Windows warnt nicht und der Defender prüft wie bei jeder anderen Datei.", nummeriert=True)
+    i.abschnitt("Windows-Vertrauen einrichten (Signatur)", marke="windows_vertrauen")
+    i.text("Programm, STEP-Import, Setup und Deinstallationsprogramm sind mit dem eigenen, kostenlosen Zertifikat "
+           "<b>Patrick Brundiers</b> digital signiert (rechte Maustaste → <i>Eigenschaften → Digitale Signaturen</i>). "
+           "Ein solches Zertifikat kennt Windows nicht von sich aus. Die Datei <b>Windows-Vertrauen-einrichten.cmd</b> "
+           "trägt es für den angemeldeten Benutzer ein und gibt gleich die Dateien frei. Sie braucht <b>keine "
+           "Administratorrechte</b> und ist einmal je PC und Benutzer nötig.")
+    i.liste("Unter <b>Releases → aktuell</b> <i>Windows-Vertrauen-einrichten.cmd</i> in denselben Ordner laden wie "
+            "Setup bzw. ZIP (z. B. <i>Downloads</i>).",
+            "Doppelklick auf die Datei. Fragt Windows „Möchten Sie diese Datei ausführen?“ oder zeigt „Der Computer "
+            "wurde durch Windows geschützt“: <i>Ausführen</i> bzw. <i>Weitere Informationen → Trotzdem ausführen</i>.",
+            "Die Datei gibt Setup und ZIP im selben Ordner frei (wie <i>Zulassen</i> oben). Windows fragt einmal "
+            "„Möchten Sie dieses Zertifikat installieren?“ für <i>Patrick Brundiers</i>: mit <b>Ja</b> bestätigen.",
+            "Mit der Eingabetaste schließen, dann Setup starten bzw. ZIP entpacken.", nummeriert=True)
+    i.text("Dieselbe Datei liegt auch im Programmordner. Dort gestartet gibt sie alle Programmdateien frei, z. B. "
+           "wenn ein ZIP ohne <i>Zulassen</i> entpackt wurde. Rückgängig machen: in der Eingabeaufforderung "
+           "<i>Windows-Vertrauen-einrichten.cmd entfernen</i> eingeben; das Zertifikat wird wieder ausgetragen.")
+    i.text("Ganz ohne Warnung auf jedem fremden PC ginge es nur mit einem gekauften Zertifikat einer anerkannten "
+           "Stelle. Das kostenlose Programm SignPath für Open Source scheidet aus, weil dafür der Quellcode öffentlich "
+           "sein müsste.")
+    i.abschnitt("Wenn der Defender trotzdem anschlägt")
+    i.liste("Meldet Windows beim ersten Start „Der Computer wurde durch Windows geschützt“: auf <i>Weitere "
+            "Informationen</i> und dann <i>Trotzdem ausführen</i> klicken. Danach fragt Windows nicht mehr.",
             "Hat der Microsoft Defender eine Datei in Quarantäne verschoben: <i>Windows-Sicherheit → Viren- &amp; "
             "Bedrohungsschutz → Schutzverlauf</i>, den Eintrag öffnen, <i>Aktionen → Wiederherstellen</i> bzw. "
             "<i>Auf Gerät zulassen</i>. Den Fehlalarm bitte an Microsoft melden "
@@ -415,10 +448,11 @@ def kapitel_start(i):
             "Ob ZIP oder Setup unverändert von GitHub kommen, zeigt die Prüfsumme: im Release liegen "
             "<i>Rohrlaser-Angebotskalkulation.zip.sha256</i> und <i>Rohrlaser-Angebotskalkulation-Setup.exe.sha256</i>. "
             "In PowerShell <i>Get-FileHash</i> mit dem Dateinamen eingeben; die Zahl muss gleich sein.",
-            "Wahlweise den Programmordner unter <i>Viren- &amp; Bedrohungsschutz → "
+            "Wer Adminrechte hat, kann zusätzlich den Programmordner unter <i>Viren- &amp; Bedrohungsschutz → "
             "Einstellungen verwalten → Ausschlüsse</i> eintragen. Dann prüft der Defender die Programmdateien nicht "
             "bei jedem Start, Programm und STEP-Import starten schneller. Nur diesen Ordner ausschließen, niemals "
-            "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT.", nummeriert=True)
+            "<i>Downloads</i> oder ganze Laufwerke; in Firmen entscheidet das die IT. Nötig ist das nicht.",
+            nummeriert=True)
     i.abschnitt("Startseite")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]). Ohne Übernahme legt es die Datendatei mit "
@@ -2504,6 +2538,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.5.16", "Programm und Setup sind mit dem eigenen Zertifikat <i>Patrick Brundiers</i> signiert; neue Datei "
+               "<i>Windows-Vertrauen-einrichten.cmd</i> (ohne Adminrechte) gibt Setup/ZIP frei und trägt das Zertifikat "
+               "ein, Anleitung zu „Zulassen“ vor dem Entpacken ([[windows_warnungen]], [[windows_vertrauen]])."],
     ["0.5.15", "Angebot: Spalte <i>Materialpreis [€/m]</i> zeigt den berechneten Meterpreis grau und lässt ihn wie die "
                "Schneidzeit günstiger oder teurer überschreiben ([[meterpreis]])."],
     ["0.5.14", "Lieferlängen: 6-m- gegen 12-m-Stangen vergleichen, 12 m nur als vom Lieferanten geschnittene "

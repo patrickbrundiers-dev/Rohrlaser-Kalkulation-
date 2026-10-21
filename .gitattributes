@@ -1,1 +1,2 @@
 *.step -diff
+*.cmd text eol=crlf
