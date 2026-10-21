@@ -49,15 +49,19 @@ assert nah(sw.ellipse(10, 10), 2 * math.pi * 10, 1e-9) and nah(sw.ellipse(10, 20
 assert sw.ende(QR) == (160.0, False) and nah(sw.ende(QR, 45)[0], 2 * 40 / math.cos(math.radians(45)) + 80)
 assert nah(sw.ende(RE, 30, "über Höhe")[0], 2 * 60 / math.cos(math.radians(30)) + 2 * 40)
 assert nah(sw.ende(RE, 30, "über Breite")[0], 2 * 40 / math.cos(math.radians(30)) + 2 * 60)
-g = sw.ende(IPE)[0]
+g = sw.ende(IPE)[0]                                     # 200 + 2 × 100 − 5,6 (halber Umfang, scharfkantig)
+c20 = math.cos(math.radians(20))
+assert nah(g, 394.4) and sw.zerlegung(IPE) == (200, g - 200)
 lg, sch = sw.ende(IPE, 20)
-assert sch and nah(lg, g / math.cos(math.radians(20)))
+assert not sch and nah(lg, 200 / c20 + 194.4)                                  # Steg gekippt
+assert nah(sw.ende(IPE, 20, "über Breite")[0], 200 + 194.4 / c20)              # Flansche gekippt
+assert sw.ende(dict(form="Sonderform", a=50), 20) == (0.0, False) or sw.ende(dict(form="Sonderform", a=50), 20)[1]
 try:
     sw.ende(QR, 85)
     raise AssertionError("85° muss abgelehnt werden")
 except ValueError:
     pass
-ok("S1 Enden: gerade wie Optimierung, Gehrung Rundrohr Ellipse, Quadrat/Rechteck je Achse, Träger als Schätzung")
+ok("S1 Enden: gerade wie Optimierung, Gehrung Rundrohr Ellipse, Quadrat/Rechteck/Träger je Richtung (Höhe, Breite)")
 
 # ------------------------------------------------------------------ S2 Konturen
 assert nah(sw.kontur(dict(art="Bohrung", anzahl=4, d=10))[0], math.pi * 10)
@@ -162,8 +166,52 @@ dlg2 = SchneidwegDialog(s, dict(p, werkstoff_id="gibt es nicht"), QR, s.kopf, s.
 assert "Keine Schneiddaten" in dlg2.summe.text()
 dlg3 = SchneidwegDialog(s, dict(p, technik=None), IPE, s.kopf, s.k, s.tabellen)
 dlg3.winkel["a"].setValue(15)
-assert "geschätzt" in dlg3.summe.text() and "(Schätzung)" in dlg3.ergebnis_tabelle.item(0, 0).text() and not dlg3.achse["a"].isEnabled()
-ok("S5 Dialog: gespeicherte Eingaben, Ergebnis je Schnitt und Schneidzeit sofort, falsche Maße sperren OK, Schätzung")
+assert dlg3.achse["a"].isEnabled() and not dlg3.sattel["a"].isEnabled()
+assert "Gehrung 15° über Höhe" in dlg3.ergebnis_tabelle.item(0, 0).text() and "geschätzt" not in dlg3.summe.text()
+ok("S5 Dialog: gespeicherte Eingaben, Ergebnis je Schnitt und Schneidzeit sofort, falsche Maße sperren OK, Richtung")
+
+# ------------------------------------------------------------------ S7 Ausklinkung, Polygon, Gewinde-Vorschlag, Skizze
+assert nah(sw.sattel(42.4, 1e6), math.pi * 42.4, 0.01)          # riesiges Gegenrohr: fast gerader Schnitt
+s_gl = sw.sattel(42.4, 42.4)             # gleich groß: zwei halbe Ellipsen wie zwei 45°-Gehrungen
+assert nah(s_gl, sw.ellipse(21.2 * math.sqrt(2), 21.2), 0.05), s_gl
+assert sw.sattel(42.4, 60.3) > math.pi * 42.4
+for falsch in (lambda: sw.sattel(42.4, 30), lambda: sw.ende(QR, 0, gegenrohr=60),
+               lambda: sw.ende(RR, 30, gegenrohr=60)):
+    try:
+        falsch()
+        raise AssertionError("muss abgelehnt werden")
+    except ValueError:
+        pass
+e7 = dict(a=dict(sattel=60.3), b={}, konturen=[
+    dict(art="Polygon", anzahl=1, punkte="0,0; 40,0; 40,20; 0,20", x=300),
+    dict(art="Bohrung", anzahl=4, d=8.5), dict(art="Bohrung", anzahl=2, d=6.8), dict(art="Bohrung", anzahl=1, d=13)])
+e7r = sw.rechnen(e7, RR, (10, 50))
+f7 = e7r["felder"]
+assert not e7r["fehler"] and f7["a_gerade"] == "nein" and nah(f7["a_schnitt"], sw.sattel(42.4, 60.3), 0.1)
+assert "Ausklinkung auf Rundrohr Ø 60,3" in e7r["schritte"][0]["text"]
+pol = next(x for x in e7r["schritte"] if "Polygon" in x["text"])
+assert pol["laenge"] == 120 and pol["huelle"] == 40 and pol["klasse"] == "mittel" and "4 Eckpunkte" in pol["text"]
+assert f7["bohrungen"] == "2xØ6,8; 4xØ8,5; 1xØ13" and f7["gewinde_vorschlag"] == "2xM8; 4xM10", f7
+assert "Polygon" in sw.rechnen(dict(a={}, b={}, konturen=[dict(art="Polygon", anzahl=1, punkte="0,0; 1")]), RR,
+                               (10, 50))["fehler"][0]
+s2 = s
+db.position_neu(a, dict(pos=40, artikel="Geländerpfosten", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219",
+                        laenge=1000, stueck=6))
+s2.neu_laden()
+assert s2.schneidweg_berechnen(3, e7)
+p4 = db.positionen(a)[3]
+assert p4["gewinde_vorschlag"] == "2xM8; 4xM10" and p4["gewinde"] is None
+assert s2.pos_modell.status[3].startswith("HINWEIS: Gewinde-Vorschlag prüfen"), s2.pos_modell.status[3]
+dlg7 = SchneidwegDialog(s2, p4, RR, s2.kopf, s2.k, s2.tabellen)
+assert dlg7.sattel["a"].value() == 60.3 and dlg7.tabelle.item(0, 2).text() == "0,0; 40,0; 40,20; 0,20"
+assert dlg7.tabelle.item(0, 5).text() == "300" and "Vorschlag" in dlg7.summe.text() and "M10" in dlg7.summe.text()
+formen = dlg7.skizze.formen()
+assert len(formen) == 8 and formen[0][0] == 300 and formen[0][2] == "Polygon"
+dlg7.resize(1000, 760)
+bild = dlg7.skizze.grab()
+assert bild.width() > 100 and bild.height() >= 130
+assert dlg7.eingaben()["konturen"][0] == dict(art="Polygon", anzahl=1, punkte="0,0; 40,0; 40,20; 0,20", x=300)
+ok("S7 Ausklinkung auf Rundrohr, Polygon aus Koordinaten, Lage, Gewinde-Vorschlag (HINWEIS), Skizze")
 
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()
