@@ -218,6 +218,19 @@ for c in range(s.pos_modell.columnCount()):
         assert s.pos_ansicht.columnWidth(c) >= min(max(fm.horizontalAdvance(w) for w in titel.split()), 240), titel
 ok("Kalkulation zuklappbar mit Kurzfassung (Wahl gespeichert), Preise groß in der Übersicht, Spaltenauswahl über "
    "der Liste statt neben den Reitern, kein Wort im Spaltenkopf abgeschnitten")
+# 1366-px-Bildschirm: die Knopfleiste bricht um, das Fenster passt (kein abgeschnittener Knopf rechts)
+assert fenster.minimumSizeHint().width() <= 1366, fenster.minimumSizeHint()
+fenster.show()
+fenster.resize(1366, 728)
+QApplication.processEvents()
+fenster.reiter.setCurrentWidget(s)
+QApplication.processEvents()
+assert s.leiste.zweizeilig and s.weitere.isVisible(), (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
+assert s.weitere.mapTo(fenster, s.weitere.rect().bottomRight()).x() <= fenster.width()
+fenster.resize(1920, 1040)
+QApplication.processEvents()
+assert not s.leiste.zweizeilig
+ok("Angebot bei 1366 px: Ausgabe und Weitere Aktionen in zweiter Zeile, bei 1920 px eine Zeile")
 fenster.close()
 db.schliessen()
 print("OK: Anzeige der Angebotsseite (Nullwerte, Spalten, Übersicht)")

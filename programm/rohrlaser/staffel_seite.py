@@ -8,7 +8,7 @@ import copy
 import datetime
 import threading
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QHBoxLayout, QLabel,
                                QMessageBox, QProgressDialog, QPushButton, QSplitter, QStyledItemDelegate, QTableView,
@@ -24,6 +24,7 @@ from .stammdaten import wert_aus_text, zahl_als_text
 PRUEFUNG = len(STUFE_FELDER)          # letzte Spalte der Stufentabelle
 GRAU = QColor("#7F7F7F")
 FARBE_SUMME = QColor("#DDEBF7")
+ZEILENHOEHE = 20
 
 
 def _z(w, stellen=2):
@@ -332,6 +333,7 @@ class ErgebnisBaum(QTreeWidget):
 
         def neu(eltern, titel, art, schl=None):
             it = QTreeWidgetItem([titel])
+            it.setSizeHint(0, QSize(-1, ZEILENHOEHE))       # sonst stoßen die Zeilen aneinander
             (eltern.addChild if eltern is not None else self.addTopLevelItem)(it)
             if schl:
                 it.setData(0, Qt.UserRole, schl)

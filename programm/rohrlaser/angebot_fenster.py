@@ -28,6 +28,7 @@ from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv a
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
+from .leiste import UmbruchLeiste
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
 from .verlauf import Verlauf
@@ -763,8 +764,8 @@ class AngebotSeite(QWidget):
         oben_rahmen.setWidget(oben_inhalt)
 
         # Aktionen: Hauptaktionen hervorgehoben, dann Bearbeiten, rechts Ausgabe und Weitere Aktionen
-        leiste = QHBoxLayout()
-        leiste.setSpacing(6)
+        self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
+        leiste = self.leiste.links_layout
         for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren()),
                            ("Optimieren", self.optimieren), ("3D-Ansicht …", lambda: self.ansicht_3d())):
             b = QPushButton(text)
@@ -786,7 +787,7 @@ class AngebotSeite(QWidget):
             else:
                 b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
-        leiste.addStretch(1)
+        leiste = self.leiste.rechts_layout
         leiste.addWidget(QLabel("Ausgabe:"))
         for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
                            ("Kalkulation (PDF)", self.kalkulation_pdf)):
@@ -943,7 +944,7 @@ class AngebotSeite(QWidget):
         unten = QWidget()
         ul = QVBoxLayout(unten)
         ul.setContentsMargins(0, 0, 0, 0)
-        ul.addLayout(leiste)
+        ul.addWidget(self.leiste)
         ul.addWidget(self.reiter, 1)
         self.teiler = QSplitter(Qt.Vertical)
         self.teiler.addWidget(oben_rahmen)

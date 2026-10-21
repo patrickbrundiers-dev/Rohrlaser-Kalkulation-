@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QGroupBox, QHBoxL
                                QWidget)
 
 from . import nachkalkulation as nk
+from .spaltenbreite import AutoGroesse
 from .stammdaten import zahl_als_text, zahl_aus_text
 
 VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", None, 60),
@@ -44,6 +45,7 @@ class NachkalkulationSeite(QWidget):
         self.gruppen.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                      | QAbstractItemView.AnyKeyPressed)
         self.gruppen.itemChanged.connect(self._stangen_geaendert)
+        AutoGroesse(self.gruppen)
         el.addWidget(QLabel("Verbrauchte Stangen und tatsächlicher EK-Meterpreis je Profil, Werkstoff und "
                             "Stangenlänge (Meterpreis leer = kalkulierter Meterpreis):"))
         el.addWidget(self.gruppen, 1)
@@ -106,6 +108,10 @@ class NachkalkulationSeite(QWidget):
                                   if am else ""))
         v = self._rechnen()
         self.gruppen.setRowCount(len(v["gruppen"]))
+        # bis zu 5 Gruppen ohne Rollen sichtbar (sonst drückt das Formular die Tabelle auf eine Zeile zusammen)
+        kopf = self.gruppen.horizontalHeader().sizeHint().height()
+        leiste = self.gruppen.horizontalScrollBar().sizeHint().height()
+        self.gruppen.setMinimumHeight(kopf + leiste + 4 + 22 * max(2, min(len(v["gruppen"]), 5)))
         for r, g in enumerate(v["gruppen"]):
             for c, w in enumerate((g["profil"], g["werkstoff"], _z(g["stange"], 0), _z(g["soll"], 0),
                                    "" if g["ist"] is None else _z(g["ist"], 0), _z(g["meterpreis"], 2),
