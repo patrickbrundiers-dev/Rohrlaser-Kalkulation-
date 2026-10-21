@@ -1091,7 +1091,7 @@ def kapitel_optimieren(i):
     i.text("Der STEP-Import teilt jede Innenkontur und auch den <b>Anfangs- und Endschnitt</b> nach ihrer Größe "
            "(Hüllmaß) in <b>klein</b>, <b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den "
            "Stammdaten Maschinen (Vorgabe 10 und 50 mm, ein Wert genau auf der Grenze zählt zur kleineren Klasse). "
-           "Seit Version 0.6.16 zählt zusätzlich das Verhältnis <b>Hüllmaß ÷ Wandstärke</b>: klein bis 3 × Wand, "
+           "Seit Version 0.6.17 zählt zusätzlich das Verhältnis <b>Hüllmaß ÷ Wandstärke</b>: klein bis 3 × Wand, "
            "mittel bis 8 × Wand (Faktoren je Maschine änderbar). Es gilt die <b>strengere</b> (kleinere) der beiden "
            "Klassen, denn eine Kontur, die kaum größer als die Wand ist, schneidet sich langsam (Leistungsrampe, "
            "Einstich nah am Schnitt). Beispiel: Ø 20 bei 8 mm Wand = 2,5 × Wand, also klein statt mittel; Ø 20 bei "
@@ -1274,7 +1274,8 @@ def kapitel_staffeln(i):
                                            "Stangenkosten"],
         ["Gemeinkosten Fertigung", "in % auf Fertigung und Rüsten, nicht auf Material (leer = Zuschlag "
                                    "Fertigung des Angebots)"],
-        ["Rüstkosten", "umlegen (leer) = im Stückpreis; separat = als einmalige Rüstkosten neben dem Stückpreis"],
+        ["Rüstkosten", "umlegen (leer) = im Stückpreis; separat = im Reiter als einmalige Rüstkosten neben dem "
+                       "Stückpreis (im Angebots-PDF trotzdem im Preis je Einheit enthalten)"],
         ["Zusätzlicher Arbeitsgang", "Bezeichnung, Arbeitsgang [min/Einheit] mit Arbeitsgang Stundensatz "
                                      "(leer = Maschinenstundensatz) und/oder Arbeitsgang [€/Einheit]"],
         ["Verpackung / Nebenkosten", "€/Einheit und Nebenkosten pauschal € für die Stufe; zählen zu den "
@@ -1297,7 +1298,8 @@ def kapitel_staffeln(i):
             "<b>Gesamtpreis brutto</b>.", nummeriert=True)
     i.text("Gerechnet wird ungerundet; erst der Verkaufspreis netto je Einheit wird auf Cent gerundet "
            "(kaufmännisch), der Gesamtpreis ist Stückpreis × Menge (plus einmalige Rüstkosten). Ohne Werte je Stufe "
-           "ergibt das genau den Preis der Kalkulation.")
+           "ergibt das genau den Preis der Kalkulation. Im Angebots-PDF stehen keine Extra-Kosten: einmalige "
+           "Rüstkosten sind dort in den Preis je Einheit eingerechnet (auf den Cent aufgerundet).")
     i.text("<b>Fracht je Menge</b>: Mit der Frachtart <i>berechnet</i> (Karte Fracht im Angebot) rechnet jede Stufe "
            "ihre eigene Fracht: Nettogewicht und längstes Teil der Stufe, Ladungsträger per Packvorschlag, Fracht mit "
            "der gespeicherten Tarifkopie des Angebots. Verpackungsgewicht und frachtpflichtiges Gewicht von Hand "
@@ -1331,8 +1333,11 @@ def kapitel_staffeln(i):
             "Fehlt der Materialpreis (keine Preise in den Stammdaten, kein Schnittplan), rechnet das Programm nicht "
             "mit 0: die Stufe zeigt „FEHLER: Materialpreis fehlt“ und bekommt keinen Preis.",
             "Stufen mit FEHLER kommen nicht ins Angebot.")
-    i.text("Die Staffelpreise erscheinen im Angebot als Preistreppe unter den Positionen, mit Mengenbereich "
-           "(z. B. „1“, „2–4“, „ab 10“) und gegebenenfalls einmaligen Rüstkosten. Ändert sich etwas am "
+    i.text("Die Staffelpreise erscheinen im Angebots-PDF direkt in ihrer Position: unter der Zeile mit "
+           "Menge und Preis je Einheit eingerückt je Stufe eine Zeile „Ab 50 Stk. je“ (bei Sätzen „Ab 4 Sätze je“) "
+           "mit dem Staffelpreis, aufsteigend nach Menge, danach der übrige Positionstext. Staffelzeilen haben keinen "
+           "Gesamtpreis und zählen nicht zur Summe. Eine Stufe mit gleicher Menge und gleichem Preis wie die "
+           "Position entfällt dort. Ändert sich etwas am "
            "Angebot, zeigt der Reiter VERALTET und rechnet nach; das Angebot rechnet veraltete Staffelpreise "
            "vor dem Drucken ebenfalls selbst neu. Ältere Angebote rechnen unverändert weiter: ihre Stufen haben "
            "leere Felder, also die Werte des Angebots. Vor dem Umstellen einer älteren Datendatei legt das "
@@ -1593,11 +1598,13 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Die Knöpfe rechts neben <b>Ausgabe</b> im Angebot erzeugen die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
            "und gleich geöffnet. Ist die Optimierung veraltet, fragt das Programm vorher.")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
-        (1, "<b>Angebot (PDF)</b>: Briefkopf, Kunde mit Anschrift aus dem Kundenstamm, Positionen mit "
-            "Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe mit MwSt., Preistreppe der Staffeln, "
-            "Ihre Anfrage (Kundenreferenz), Lieferzeit ([[lieferzeit]]), Zahlungsbedingung (z. B. „Zahlung innerhalb "
+        (1, "<b>Angebot (PDF)</b>: Briefkopf mit Firmenlogo (Einstellung <i>Firmenlogo</i>), Anschriftfeld "
+            "links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), Positionen "
+            "ohne Gitterlinien mit Bezeichnung, Menge, Einheit, Preis je Einheit und Gesamtpreis, darunter die "
+            "Staffelpreise der Position „Ab 50 Stk. je“ ([[staffeln]]), Sätze, Summe mit MwSt. und Gesamtbetrag, "
+            "darunter die Konditionen: Lieferzeit ([[lieferzeit]]), Zahlungsbedingung (z. B. „Zahlung innerhalb "
             "10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“), ggf. „Mindestauftragswert 200,00 € netto.“ "
-            "([[mindestpreis]]) und Bedingungen. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
+            "([[mindestpreis]]) und Bedingungen, jede Angabe in einer eigenen Zeile. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
             "Gesamtpreis jeder Zeile ist Stückpreis × Menge, die Summe genau die Summe der Zeilen."),
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
@@ -1790,8 +1797,13 @@ def kapitel_einstellungen(i):
         ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["Angebots-PDF", "Firmenlogo (rechts oben im Angebot)",
+         "<b>Bild wählen …</b> nimmt eine PNG- oder JPG-Datei (große Bilder werden verkleinert); das Logo steht im "
+         "Angebots-PDF rechts oben im Briefkopf, eingepasst in 55 × 24 mm. Es wird in der Datendatei gespeichert, "
+         "wandert also mit Sicherung und Export mit. <b>Entfernen</b> = Angebot ohne Logo."],
         ["Angebots-PDF", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
-                    "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF. Die Zahlungsbedingung (Skonto, "
+                    "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF; Zeile 1 bis 3 stehen klein als "
+                    "Absenderzeile über der Anschrift, alle Zeilen in der Fußzeile. Die Zahlungsbedingung (Skonto, "
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
                     "dieses Feld."],
         ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export; leer = Ordner <i>Angebote</i> neben dem "
@@ -2058,7 +2070,7 @@ def kapitel_stammdaten(i):
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
-           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.16 stammen die Faserlaser-Werte aus "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.17 stammen die Faserlaser-Werte aus "
            "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "
            "8.000 mm/min bis 2 mm Wand (Stahl 1 mm 8.000, 2 mm 7.000, 3 mm 4.500 mm/min mit N₂ auf LT7). Mehr "
            "Leistung hilft erst ab 3 mm: T11 hat bis 2 mm dieselben Werte wie LT7, darüber rund 30 % mehr (z. B. "
@@ -2067,7 +2079,7 @@ def kapitel_stammdaten(i):
            "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
            "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "
            "Vorschub mittel ist 60 %, klein 30 % von groß, Vorschub Gravur 3.000 mm/min. Beim ersten Start von "
-           "0.6.16 bekommen unveränderte Richtwert-Zeilen älterer Datendateien die neuen Werte (vorher wird eine "
+           "0.6.17 bekommen unveränderte Richtwert-Zeilen älterer Datendateien die neuen Werte (vorher wird eine "
            "Sicherung angelegt); von Hand geänderte Zeilen bleiben. Eigene Schneiddaten älterer Datendateien bleiben "
            "erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche Wandstärke-Stufe und welches "
            "Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten Wandstärke-Stufe und Schneidgas).")
@@ -2867,11 +2879,15 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.16", "Schneiddaten: neue Rohr-Richtwerte für die Faserlaser (dünne Wände höchstens 8.000 mm/min, Stahl mit "
+    ["0.6.17", "Schneiddaten: neue Rohr-Richtwerte für die Faserlaser (dünne Wände höchstens 8.000 mm/min, Stahl mit "
                "N₂ bis 4 mm, T11 erst ab 3 mm schneller als LT7); unveränderte Richtwert-Zeilen älterer Dateien "
                "werden einmalig angepasst ([[stammdaten]]). Konturklassen zählen zusätzlich nach Hüllmaß ÷ "
                "Wandstärke (klein bis 3 ×, mittel bis 8 × Wand, je Maschine änderbar), die strengere Klasse gilt; "
                "Kontur kleiner als die Wand gibt eine Warnung ([[konturklassen]])."],
+    ["0.6.16", "Angebots-PDF moderner: ohne Gitterlinien, Briefkopf mit Firmenlogo (neue Einstellung <i>Firmenlogo</i>), "
+              "Anschrift links und Angebotsdaten rechts, Summenblock mit Gesamtbetrag, Konditionen zeilenweise. "
+              "Staffelpreise stehen jetzt in ihrer Position („Ab 50 Stk. je“) statt als eigene Tabelle; einmalige "
+              "Rüstkosten sind im Stufenpreis enthalten ([[ausgabe]], [[staffeln]])."],
     ["0.6.15", "Lieferlängen: Die Restlänge einer zugeschnittenen 12-m-Stange kommt an die letzte Stange (bis zur "
               "Beladelänge), das spart einen Sägeschnitt; sonst ist sie Abfall. Der Vergleich öffnet sich groß über den "
               "Knopf <i>12-m-Lösung ansehen …</i> im Reiter Auswertung, den es nur bei einer sinnvollen Lösung gibt. "

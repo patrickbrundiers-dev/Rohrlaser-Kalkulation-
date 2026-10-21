@@ -425,7 +425,7 @@ class Einstellung:
     name: str
     titel: str
     gruppe: str
-    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort
+    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort | bild
     vorgabe: object
     von: float = None
     bis: float = None
@@ -502,6 +502,8 @@ EINSTELLUNGEN = (
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
     Einstellung("briefkopf_4", "Briefkopf Zeile 4", "Angebots-PDF", "text", "Telefon / E-Mail"),
+    # Bild als Base64-PNG in der Datendatei (wandert mit Sicherung und Export mit); leer = ohne Logo
+    Einstellung("logo", "Firmenlogo (rechts oben im Angebot)", "Angebots-PDF", "bild", ""),
     Einstellung("mwst", "MwSt.-Satz", "Angebots-PDF", "anteil", 0.19, 0, 1),
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
@@ -895,7 +897,7 @@ _CO2 = {
     ("Aluminium", "N₂"): [(1, 5500, 0.15), (1.5, 4500, 0.2), (2, 3500, 0.3), (3, 2000, 0.5), (4, 1300, 0.8),
                           (5, 900, 1.0), (6, 600, 1.2)]}
 RICHTWERTE = {"T03": _CO2, "T11": _FASER_4KW, "LT7": _FASER_3KW}
-# Richtwerte 0.5.13 bis 0.6.15 (Flachbett-Tabellen mit ≈ 40 % Rohrabschlag, T11 = Faser × 1,2); unveränderte Zeilen
+# Richtwerte 0.5.13 bis 0.6.16 (Flachbett-Tabellen mit ≈ 40 % Rohrabschlag, T11 = Faser × 1,2); unveränderte Zeilen
 # dieser Fassung ersetzt das Update einmalig (Datenbank._richtwerte_anpassen)
 _ALTE_FAKTOR = {"T03": 1.0, "T11": 1.2, "LT7": 1.0}
 _ALTE_RICHTWERTE = {
@@ -935,7 +937,7 @@ def beispiel_schneiddaten():
 
 def alte_richtwerte():
     """{(Maschine, Kategorie, Gas, Wandstärke bis): (Vorschub groß, mittel, klein, Einstechzeit)} der Richtwerte 0.5.13
-    bis 0.6.15."""
+    bis 0.6.16."""
     out = {}
     for m, laser in LASER.items():
         for (kat, gas), stufen in _ALTE_RICHTWERTE[laser].items():
