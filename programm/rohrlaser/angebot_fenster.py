@@ -587,9 +587,9 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst):
                 "Einstellungen → Lieferlängen steht, und ohne Eintrag Profile über dem Hüllkreis-Ø aus den "
                 "Einstellungen (Vorgabe 70 mm) mit 12 m. Kleinere Profile ohne Eintrag werden nie mit 12 m geplant.")
     zeilen = [("Benötigte Stangen", lambda v: _z(v["lieferstangen"], 0)),
-              ("Beladungen der Maschine (Werkstücke)", lambda v: _z(v["werkstuecke"], 0)),
+              ("Beladungen der Maschine (Stangen)", lambda v: _z(v["werkstuecke"], 0)),
               ("Zuschnitte beim Lieferanten", lambda v: _z(v["zuschnitte"], 0) if v["zuschnitt"] else "–"),
-              ("Werkstücklängen [mm]", lambda v: ", ".join(_z(l, 0) for l in v["werkstueck_laengen"]) or "–"),
+              ("Stangenlängen nach Zuschnitt [mm]", lambda v: ", ".join(_z(l, 0) for l in v["werkstueck_laengen"]) or "–"),
               ("Materiallänge [m]", lambda v: _z(v["material_mm"] / 1000, 1)),
               ("Materialkosten [€]", lambda v: _z(v["material"])),
               ("Stangenwechsel / je Beladung [€]", lambda v: _z(v["werkstueck_kosten"])),
