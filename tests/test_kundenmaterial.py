@@ -41,7 +41,8 @@ POS = [dict(pos=10, artikel="E1", profil_id="QR 40x40x3", werkstoff_id="S235-102
 
 
 def angebot(kunde_bei=(), **kopf):
-    a = db.angebot_neu(dict(dict(kunde="Test", skonto=0, mindestpreis=0), **kopf))
+    db.einstellung_setzen("mindestpreis", 0)      # Mindestpreis: eigener Test (test_angebot_vorgaben)
+    a = db.angebot_neu(dict(dict(kunde="Test", skonto=0), **kopf))
     for p in POS:
         db.position_neu(a, dict(p, material_herkunft=KUNDENMATERIAL if p["pos"] in kunde_bei else None))
     return a

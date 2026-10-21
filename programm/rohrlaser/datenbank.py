@@ -65,6 +65,7 @@ ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
+ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 
 
 class Datenbank:
@@ -81,6 +82,7 @@ class Datenbank:
             self.fracht_beispiele_laden()
             self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
             self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
+            self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
 
     def schliessen(self):
         self.con.close()
@@ -165,12 +167,14 @@ class Datenbank:
             if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
-            if 0 < version < 24:      # gespeicherte Angebote behalten ihren Preis: kein Mindestpreis
-                self.con.execute("UPDATE angebote SET mindestpreis=0 WHERE mindestpreis IS NULL")
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
                 self._gravur_anpassen()
+            if version > 0 and self.einstellung("zuschlaege_stand") != ZUSCHLAEGE_STAND:
+                for n in ("zuschlag_material", "zuschlag_fertigung"):
+                    self._einstellung_schreiben(n, 0)
+                self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
