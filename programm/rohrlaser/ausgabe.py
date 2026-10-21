@@ -305,28 +305,26 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
     if not ergebnis or not ergebnis.get("stangen"):
         return dict(material=[], muster=[], zukaufteile=zk)
-    sw = rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen)
-    werte = {s["nr"]: w for s, w in zip(ergebnis["stangen"], sw)}
+    # so, wie die Maschine lädt: zugeschnittene Lieferstangen als ihre Werkstücke (rechnen.anzeige_stangen)
+    paare = rechnen.anzeige_stangen(ergebnis, rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen))
+    werte = {s["nr"]: w for s, w in paare}
     material = {}
-    for s in ergebnis["stangen"]:
-        m = material.setdefault(rechnen.gruppe_der_stange(s),
+    for s, w in paare:
+        m = material.setdefault((rechnen.gruppe_der_stange(s), s["stange"]),
                                 dict(profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], s.get("oberflaeche"))
                                      + (" – Kundenmaterial" if s.get("beistellung") else ""),
                                      stange=s["stange"], stangen=0, gewicht=0.0))
         m["stangen"] += 1
-        m["gewicht"] += _wert(werte[s["nr"]]["gewicht"])
+        m["gewicht"] += _wert(w["gewicht"])
     muster = []
-    for s, nummern in rechnen.stangenmuster(ergebnis):
+    for s, nummern in rechnen.stangenmuster(dict(stangen=[s for s, _ in paare])):
         w = werte[s["nr"]]
         teile = []
-        ws = {w["nr"]: w for w in s.get("werkstuecke") or []}
         for platz, t in enumerate(s["teile"], start=1):
             p = positionen[t["index"]] if 0 <= t["index"] < len(positionen) else {}
-            # zugeschnittene Lieferstange: Lage im Werkstück (so wird es geladen)
-            w0 = ws[t["werkstueck"]]["von"] if t.get("werkstueck") in ws else 0
             teile.append(dict(platz=platz, pos=t["pos"], artikel=t["artikel"], bezeichnung=p.get("bezeichnung"),
-                              laenge=t["laenge"], von=t["von"] - w0, bis=t["bis"] - w0, lage=t["lage"],
-                              trennung=t["trennung"], werkstueck=t.get("werkstueck")))
+                              laenge=t["laenge"], von=t["von"], bis=t["bis"], lage=t["lage"],
+                              trennung=t["trennung"]))
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile))
     return dict(material=list(material.values()), muster=muster, zukaufteile=zk)

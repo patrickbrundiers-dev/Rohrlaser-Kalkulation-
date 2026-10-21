@@ -546,8 +546,7 @@ class Stangenbild(QWidget):
             p.setFont(fett)
             anz = len(nummern)
             nr_text = ", ".join(map(str, nummern)) if anz <= 6 else f"{nummern[0]}–{nummern[-1]}"
-            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm"
-                    + (f"  ·  {len(s['werkstuecke'])} Werkstücke" if s.get("werkstuecke") else ""))
+            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm")
             p.drawText(x0, y + 12, kopf)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]
@@ -564,12 +563,8 @@ class Stangenbild(QWidget):
                 p.drawRect(r)
                 return r
             rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
-            # zugeschnittene Lieferstange (z. B. 12 m): je Werkstück Endbeschnitt und Greiferrest
-            for w in s.get("werkstuecke") or [dict(von=0, bis=s["stange"], end=s["end"], greif=s["greif"])]:
-                if s.get("werkstuecke"):
-                    rechteck(w["von"], w["bis"], QColor("#F8F8F8"), QColor("#404040"))
-                rechteck(w["von"], w["von"] + w["end"], QColor("#A6A6A6"))                 # Endbeschnitt
-                rechteck(w["bis"] - w["greif"], w["bis"], QColor("#E06666"))               # Greiferrest
+            rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
+            rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
             for t in s["teile"]:
                 r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], QColor("#4E79A7")))
                 p.setPen(QPen(QColor("#202020"), 2))
@@ -1123,7 +1118,8 @@ class AngebotSeite(QWidget):
                                        for t, w, fett in kosten if fett or sichtbar(w)))
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
-            self.stangen.setzen([dict(s, **w) for s, w in zip(erg["stangen"], sw)])
+            # Schnittplan wie geladen: zugeschnittene Lieferstangen als ihre Werkstücke
+            self.stangen.setzen([dict(s, **w) for s, w in rechnen.anzeige_stangen(erg, sw)])
             ausw = rechnen.auswertung_zeilen(erg, sw)
             self.ausw.setzen(ausw)
             self.fehler.setzen(erg["fehler"] or [dict(grund="keine")])
@@ -1133,7 +1129,7 @@ class AngebotSeite(QWidget):
             self.fehler.setzen([])
         self.teile.setzen([])
         self.laengen_ansicht.setHtml(laengen_html(erg, self.kopf, self.positionen, self.k, self.tabellen, self.einst))
-        self.bild.setzen(erg)
+        self.bild.setzen(dict(erg, stangen=rechnen.anzeige_stangen(erg)) if erg else erg)
         self.prot.setzen(self.db.protokoll(self.id))
         self.st_seite.setzen()
         self.nachkalk.neu_laden()
@@ -1142,7 +1138,7 @@ class AngebotSeite(QWidget):
         if not aktuell.isValid() or not self.ergebnis:
             self.teile.setzen([])
             return
-        s = self.ergebnis["stangen"][aktuell.row()]     # in der Liste ist 'teile' die Anzahl
+        s = rechnen.anzeige_stangen(self.ergebnis)[aktuell.row()]     # in der Liste ist 'teile' die Anzahl
         self.teile.setzen([dict(t, platz=i) for i, t in enumerate(s["teile"], start=1)])
 
     def _spalten_zeigen(self):

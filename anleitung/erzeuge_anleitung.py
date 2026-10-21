@@ -1178,13 +1178,17 @@ def kapitel_optimieren(i):
            "Stangenbild, Material, Stangenwechsel (je Beladung), Kalkulation, Werkstattpapiere und Nachkalkulation "
            "rechnen mit den 12-m-Stangen. <i>Wieder 6-m-Stangen verwenden</i> macht es rückgängig. Die Wahl gilt je "
            "Gruppe und bleibt bei Kopien des Angebots erhalten.")
-    i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: je 12-m-Stange drei Werkstücke mit eigenem "
+    i.text("<b>Schnittplan, Stangenbild und Werkstattpapiere zeigen die Stangen so, wie die Maschine sie lädt:</b> "
+           "jedes zugeschnittene Stück erscheint als eigene Stange mit Endbeschnitt, Teilen, Schnittverlust und "
+           "Greiferrest, genau wie eine normale Stange. Der Zuschnitt der 12-m-Stange selbst wird dort nicht gezeigt. "
+           "Gerechnet wird er trotzdem: Material und Kosten zählen die 12-m-Stangen, der Schnittverlust des Zuschnitts "
+           "(Einstellung, Vorgabe 3 mm) ist eingerechnet. Die Materialkosten einer 12-m-Stange werden nach Länge auf "
+           "ihre Stücke verteilt.")
+    i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: jedes zugeschnittene Stück als eigene Stange mit "
                                      "Endbeschnitt und Greiferrest", hoehe=80 * mm)
-    i.liste("Schnittplan: Spalten <i>Werkstücke (Beladungen)</i> und <i>Zuschnitt beim Lieferanten</i> (z. B. "
-            "„Zuschnitt beim Lieferanten: 3.253 + 3.253 + 3.253 mm, Rest 2.235 mm“); je Teil die Spalte "
-            "<i>Werkstück</i>.",
-            "Werkstattpapiere: Materialliste mit den 12-m-Stangen, je Stange der Zuschnitt; Von/Bis der Teile gelten "
-            "im Werkstück, die Lage nennt das Werkstück (W1, W2 …).",
+    i.liste("Schnittplan: je Stück eine Zeile mit seiner Länge (z. B. 3.253 mm), Von/Bis der Teile im Stück.",
+            "Werkstattpapiere: die Materialliste nennt die zu ladenden Stücke (Länge und Anzahl), die Schnittpläne "
+            "gelten je Stück.",
             "Staffelpreise: je Mengenstufe vergleicht das Programm selbst und nimmt die empfohlene Lieferlänge "
             "([[staffeln]]).")
     i.bild("erg_lieferlaengen_geplant", "Nach dem Übernehmen: 12-m-Variante geplant, Link zurück auf 6 m",
@@ -2808,6 +2812,9 @@ NEUERUNGEN = [
               "Strg+C/V/X für Zellen und Blöcke aus Excel, Entf löscht mit Rückfrage, Strg+N, Strg+F, Strg+S, Strg+P, "
               "Strg+I, F5, F9, Strg+W, Strg+Tab, Strg+Bild↓/↑; neue Menüs Bearbeiten und Ansicht, "
               "<i>Hilfe → Tastenkürzel …</i> ([[rueckgaengig]], [[tastenkuerzel]])."],
+    ["0.6.11", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
+              "ihre Stücke (eigene Stangen mit Endbeschnitt und Greiferrest), ohne den Zuschnitt; gerechnet wird weiter "
+              "mit den 12-m-Stangen ([[lieferlaengen]])."],
     ["0.6.10", "Zeichnungen je Position (Dateien auf die Position ziehen, Kopie im Ordner des Angebots, STEP-Datei "
               "automatisch, [[zeichnungen]]) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
               "Optimierung, Lieferant und E-Mail-Adresse, Zeichnungen als Anhang; gesendet wird nur in Outlook "
