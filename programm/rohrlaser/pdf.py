@@ -2,7 +2,9 @@
 
 Die Inhalte kommen aus ausgabe.py; hier wird nur gesetzt (reportlab, A4).
 """
+import base64
 import datetime
+import io
 from itertools import zip_longest
 
 from reportlab.lib import colors
@@ -10,8 +12,9 @@ from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame, KeepTogether, LongTable,
-                                NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
+                                Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
 from . import ausgabe, rechnen
@@ -46,6 +49,7 @@ def _p(text, stil=S):
 class _Seitenzahlen(rl_canvas.Canvas):
     """Canvas mit 'Seite x von y' und Fußzeilentext auf jeder Seite."""
     fuss = ""
+    linie = None        # Farbe einer feinen Linie über der Fußzeile (Angebot), None = keine
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -60,6 +64,10 @@ class _Seitenzahlen(rl_canvas.Canvas):
         for i, zustand in enumerate(self._seiten, start=1):
             self.__dict__.update(zustand)
             breite = self._pagesize[0]
+            if self.linie is not None:
+                self.setStrokeColor(self.linie)
+                self.setLineWidth(0.5)
+                self.line(12 * mm, 11.5 * mm, breite - 12 * mm, 11.5 * mm)
             self.setFont(SCHRIFT, 7.5)
             self.setFillColor(colors.HexColor("#595959"))
             self.drawString(12 * mm, 8 * mm, self.fuss)
@@ -108,65 +116,165 @@ def _erstellt():
 
 
 # ------------------------------------------------------------------ Angebot
+GRAU = colors.HexColor("#595959")
+LINIE = colors.HexColor("#D9D9D9")
+S_A = ParagraphStyle("a", parent=S, fontSize=9, leading=11.5)
+S_A_FETT = ParagraphStyle("a_fett", parent=S_A, fontName=FETT)
+S_A_GRAU = ParagraphStyle("a_grau", parent=S_A, textColor=GRAU)
+S_A_RECHTS = ParagraphStyle("a_rechts", parent=S_A, alignment=TA_RIGHT)
+S_A_STAFFEL = ParagraphStyle("a_staffel", parent=S_A_RECHTS, textColor=colors.HexColor("#404040"))
+S_A_KOPF = ParagraphStyle("a_kopf", parent=S_A, fontName=FETT, textColor=BLAU, fontSize=8.5)
+S_A_KOPF_R = ParagraphStyle("a_kopf_r", parent=S_A_KOPF, alignment=TA_RIGHT)
+S_A_TITEL = ParagraphStyle("a_titel", parent=S, fontName=FETT, fontSize=18, leading=22, textColor=BLAU)
+S_A_FIRMA = ParagraphStyle("a_firma", parent=S, fontName=FETT, fontSize=13, leading=16, textColor=BLAU)
+S_A_ABSENDER = ParagraphStyle("a_absender", parent=S, fontSize=6.5, leading=8, textColor=GRAU)
+S_A_ANSCHRIFT = ParagraphStyle("a_anschrift", parent=S, fontSize=10, leading=13)
+
+
+def logo_bild(einst, breite=55 * mm, hoehe=24 * mm):
+    """Firmenlogo aus der Einstellung 'logo' (Bilddaten als Base64) in die Box breite x hoehe eingepasst;
+    None ohne oder mit unlesbarem Logo."""
+    daten = (einst or {}).get("logo") or ""
+    if not daten:
+        return None
+    try:
+        roh = io.BytesIO(base64.b64decode(daten.split(",", 1)[-1]))
+        b, h = ImageReader(roh).getSize()
+        f = min(breite / b, hoehe / h)
+        roh.seek(0)
+        bild = Image(roh, width=b * f, height=h * f, mask="auto")
+    except Exception:       # beschädigte Einstellung: Angebot ohne Logo statt Abbruch
+        return None
+    bild.hAlign = "RIGHT"
+    return bild
+
+
+def _staffel_text(st, satz=False):
+    n = _z(st["menge"], 0)
+    return f"Ab {n} {('Satz' if st['menge'] == 1 else 'Sätze') if satz else 'Stk.'} je"
+
+
+def _angebot_kopf(kopf, ang, einst):
+    """Briefkopf mit Logo, Anschriftfeld links und Angebotsdaten rechts, Titel (Breite 182 mm = Rahmen ohne
+    Innenabstand)."""
+    firma = [einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)]
+    links = [_p(firma[0], S_A_FIRMA)] if firma[0] else []
+    links += [_p(t, S_A_GRAU) for t in firma[1:] if t]
+    logo = logo_bild(einst)
+    t = Table([[links or "", logo or ""]], colWidths=[116 * mm, 66 * mm])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                           ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEBELOW", (0, 0), (-1, 0), 1.2, BLAU)]))
+    inhalt = [t, Spacer(1, 12 * mm)]
+
+    absender = " · ".join(x for x in firma[:3] if x)
+    kunde = [kopf.get("kunde")] + list(ang.get("anschrift") or ())
+    anschrift = ([_p(absender, S_A_ABSENDER), Spacer(1, 2 * mm)] if absender else []) + \
+        [_p("\n".join(str(x) for x in kunde if x), S_A_ANSCHRIFT)]
+    bis = ausgabe.gueltig_bis(kopf, einst)
+    daten = [("Angebots-Nr.", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
+             ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
+    if ang.get("kundenreferenz"):
+        daten.append(("Ihre Anfrage", ang["kundenreferenz"]))
+    rechts = Table([[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")] or [[""]],
+                   colWidths=[28 * mm, 38 * mm])
+    rechts.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                                ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]))
+    t = Table([[anschrift, rechts]], colWidths=[116 * mm, 66 * mm])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                           ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+    inhalt += [t, Spacer(1, 14 * mm), _p(f"Angebot {kopf.get('nummer') or ''}".strip(), S_A_TITEL),
+               Spacer(1, 5 * mm)]
+    return inhalt
+
+
+def _angebot_positionen(ang):
+    """Positionstabelle ohne Raster: je Position Hauptzeile (Menge, Einheit, Preis, Gesamt), darunter eingerückt
+    die Staffelpreise 'Ab 10 Stk. je', danach die übrigen Zeilen des Positionstexts; feine Linie zwischen Positionen."""
+    kopf = ["Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Einh.", "Preis/Einh. €", "Gesamt €"]
+    daten = [[_p(t, S_A_KOPF_R if i in (3, 5, 6) else S_A_KOPF) for i, t in enumerate(kopf)]]
+    stil = [("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 3), ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1), ("LINEBELOW", (0, 0), (-1, 0), 1, BLAU),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 4), ("ALIGN", (4, 1), (4, -1), "CENTER")]
+
+    def zeile(werte):
+        daten.append(werte)
+        return len(daten) - 1
+
+    def staffeln(liste, satz=False):
+        for st in liste:
+            r = zeile(["", "", _p(_staffel_text(st, satz), S_A_STAFFEL), "", "", _p(_z(st["preis"]), S_A_STAFFEL), ""])
+            stil.append(("SPAN", (2, r), (3, r)))
+
+    def text_zeilen(text, stil_text=S_A_GRAU):
+        if text:
+            r = zeile(["", "", _p(text, stil_text), "", "", "", ""])
+            stil.append(("SPAN", (2, r), (4, r)))
+
+    gruppen, start = [], None
+    for z in ang["zeilen"]:
+        if z["art"] != "satzteil":
+            if start is not None:
+                gruppen.append((start, len(daten) - 1))
+            start = len(daten)
+        if z["art"] == "satzteil":
+            r = zeile([_p(_z(z["pos"], 0), S_A_GRAU), _p(z["artikel"], S_A_GRAU), _p(z["text"], S_A_GRAU), "", "", "", ""])
+            stil.append(("SPAN", (2, r), (4, r)))
+            continue
+        erste, _, rest = (z["text"] or "").partition("\n")
+        zeile([_p(_z(z["pos"], 0)), _p(z["artikel"]), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
+               _p("Satz" if z["art"] == "satz" else "Stk."), _p(_z(z["preis"]), S_A_RECHTS),
+               _p(_z(z["gesamt"]), S_A_RECHTS)])
+        staffeln(z.get("staffeln") or (), z["art"] == "satz")
+        text_zeilen(rest)
+    ohne = [st for st in ang.get("staffeln") or () if not st.get("zugeordnet", True)]
+    for st in ohne:            # Stufe ohne passende Angebotszeile: mit eigener Bezeichnung anhängen
+        if start is not None:
+            gruppen.append((start, len(daten) - 1))
+        start = zeile([_p(st.get("pos")), "", _p(st.get("text"), S_A_FETT), "", "", "", ""])
+        stil.append(("SPAN", (2, start), (4, start)))
+        staffeln([st], st["art"] == "satz")
+    if start is not None:
+        gruppen.append((start, len(daten) - 1))
+    for i, (von, bis) in enumerate(gruppen):
+        stil += [("NOSPLIT", (0, von), (-1, bis)), ("TOPPADDING", (0, von), (-1, von), 5),
+                 ("BOTTOMPADDING", (0, bis), (-1, bis), 5)]
+        if i < len(gruppen) - 1:
+            stil.append(("LINEBELOW", (0, bis), (-1, bis), 0.5, LINIE))
+    stil.append(("LINEBELOW", (0, -1), (-1, -1), 1, BLAU))
+    t = LongTable(daten, colWidths=[11 * mm, 25 * mm, 72 * mm, 15 * mm, 12 * mm, 23 * mm, 24 * mm], repeatRows=1)
+    t.setStyle(TableStyle(stil))
+    return t
+
+
 def angebot_pdf(pfad, kopf, ang, einst):
     """ang = ausgabe.angebot(...)."""
-    doc, leinwand = _dokument(pfad, f"Angebot {kopf.get('nummer') or ''}", f"Angebot {kopf.get('nummer') or ''}")
-    inhalt = []
-    for i in range(1, 5):
-        t = einst.get(f"briefkopf_{i}") or ""
-        if t:
-            inhalt.append(_p(t, ParagraphStyle("bk", parent=S, fontName=FETT if i == 1 else SCHRIFT,
-                                               fontSize=12 if i == 1 else 9, leading=15 if i == 1 else 11)))
-    inhalt += [Spacer(1, 8 * mm), _p("Angebot", S_TITEL)]
-    bis = ausgabe.gueltig_bis(kopf, einst)
-    kunde = "\n".join(str(t) for t in [kopf.get("kunde")] + list(ang.get("anschrift") or ()) if t)
-    links = [("Kunde", kunde), ("Kundennummer", kopf.get("kundennr"))]
-    if ang.get("kundenreferenz"):
-        links.append(("Ihre Anfrage", ang["kundenreferenz"]))
-    rechts = [("Angebotsnummer", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
-              ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else "")]
-    info = [[_p(links[i][0], S_FETT) if i < len(links) else "", _p(links[i][1]) if i < len(links) else "",
-             _p(rechts[i][0], S_FETT), _p(rechts[i][1], S_RECHTS)] for i in range(3)]
-    t = Table(info, colWidths=[30 * mm, 70 * mm, 40 * mm, 46 * mm])
-    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
-    inhalt += [t, Spacer(1, 3 * mm)]
-    # Lieferzeit des Angebots vor den Bedingungen; ältere Angebote ohne Lieferzeit: nur der Text der Bedingungen
-    bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
-    bedingungen = " ".join(t for t in (ang.get("lieferzeit"), ang.get("beistellung"), ang.get("fracht"), ang.get("zahlung"),
-                                       ang.get("mindestpreis"), bed) if t)
-    if bedingungen:
-        inhalt += [_p(bedingungen, S_KLEIN), Spacer(1, 4 * mm)]
+    firma = " · ".join(t for t in (einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)) if t)
+    fuss = "   |   ".join(t for t in (firma, f"Angebot {kopf.get('nummer') or ''}".strip()) if t)
+    doc, leinwand = _dokument(pfad, f"Angebot {kopf.get('nummer') or ''}", fuss)
+    leinwand.linie = BLAU
+    inhalt = _angebot_kopf(kopf, ang, einst)
+    inhalt.append(_angebot_positionen(ang))
 
-    daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Menge [Stk]", "Stückpreis [€]", "Gesamtpreis [€]"])]
-    fett = []
-    for z in ang["zeilen"]:
-        if z["art"] == "satz":
-            fett.append(len(daten))
-        daten.append([_z(z["pos"], 0), _p(z["artikel"]), _p(z["text"], S_FETT if z["art"] == "satz" else S),
-                      _z(z["menge"], 0), _z(z["preis"]), _z(z["gesamt"])])
-    inhalt.append(_tabelle(daten, [12 * mm, 27 * mm, 89 * mm, 17 * mm, 20 * mm, 21 * mm], rechts=(3, 4, 5),
-                           fett_zeilen=fett))
     satz = _z(100 * ang["mwst_satz"], 0 if float(100 * ang["mwst_satz"]).is_integer() else 1)
-    summen = [["Summe netto [€]", _z(ang["netto"])], [f"zzgl. MwSt. {satz} % [€]", _z(ang["mwst"])],
-              ["Gesamtbetrag [€]", _z(ang["brutto"])]]
-    t = Table(summen, colWidths=[60 * mm, 26 * mm], hAlign="RIGHT")
-    t.setStyle(TableStyle([("FONT", (0, 0), (-1, -1), FETT, 9), ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-                           ("LINEABOVE", (0, 2), (-1, 2), 0.8, colors.black)]))
+    summen = [[_p("Summe netto", S_A), _p(_z(ang["netto"]) + " €", S_A_RECHTS)],
+              [_p(f"zzgl. MwSt. {satz} %", S_A), _p(_z(ang["mwst"]) + " €", S_A_RECHTS)],
+              [_p("Gesamtbetrag", ParagraphStyle("g", parent=S_A_FETT, textColor=BLAU, fontSize=10)),
+               _p(_z(ang["brutto"]) + " €", ParagraphStyle("gr", parent=S_A_FETT, alignment=TA_RIGHT, textColor=BLAU,
+                                                            fontSize=10))]]
+    t = Table(summen, colWidths=[52 * mm, 30 * mm], hAlign="RIGHT")
+    t.setStyle(TableStyle([("BACKGROUND", (0, 2), (-1, 2), HELLBLAU), ("TOPPADDING", (0, 2), (-1, 2), 4),
+                           ("BOTTOMPADDING", (0, 2), (-1, 2), 4), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
     inhalt += [Spacer(1, 3 * mm), KeepTogether(t)]
-    if ang["staffeln"]:
-        daten = [_kopfzeile(["Pos.", "Satz / Position", "Menge", "Preis je Einheit [€]", "Gesamtpreis [€]"])]
-        fett = []
-        for z in ang["staffeln"]:
-            if z["art"] == "satz":
-                fett.append(len(daten))
-            daten.append([_p(z["pos"]), _p(z["text"], S_FETT if z["art"] == "satz" else S), z.get("bereich") or _z(z["menge"], 0),
-                          _z(z["preis"]), _z(z["gesamt"])])
-        inhalt += [Spacer(1, 6 * mm), KeepTogether([
-            _p("Staffelpreise", S_H2),
-            _p("Je Stufe neu gerechnet: Rüsten, Stangenwechsel und Verschnitt fallen je Menge neu an. "
-               "Gesamtpreis für die erste Menge der Stufe.", S_KLEIN),
-            Spacer(1, 2 * mm),
-            _tabelle(daten, [14 * mm, 98 * mm, 20 * mm, 27 * mm, 27 * mm], rechts=(2, 3, 4), fett_zeilen=fett)])]
+
+    # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen
+    bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
+    texte = [t for t in (ang.get("lieferzeit"), ang.get("beistellung"), ang.get("fracht"), ang.get("zahlung"),
+                         ang.get("mindestpreis"), bed) if t]
+    if texte:
+        inhalt += [Spacer(1, 8 * mm), KeepTogether([_p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)]
+                                                   + [_p(t, S_A_GRAU) for t in texte])]
     doc.build(inhalt, canvasmaker=leinwand)
 
 

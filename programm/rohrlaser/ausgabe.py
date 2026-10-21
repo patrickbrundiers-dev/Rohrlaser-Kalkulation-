@@ -189,9 +189,10 @@ def beistellung_text(positionen, ergebnis, k, einst, dezimal=","):
 
 def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=",", ergebnis=None):
     """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
-    zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt}], netto, mwst, brutto,
-    mwst_satz, staffeln [{art, pos, text, menge, bereich ('ab 10' bzw. '10–49'), preis, gesamt}] (Stufen mit FEHLER
-    fehlen), hinweise (Positionen mit Hinweis)."""
+    zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt, staffeln}], netto, mwst, brutto,
+    mwst_satz, staffeln [{art, pos, satz, text, menge, bereich ('ab 10'), preis, gesamt}] (Stufen mit FEHLER fehlen;
+    jede Stufe steht auch unter 'staffeln' ihrer Teil- bzw. Satzzeile, Stufen ohne passende Zeile nur hier),
+    hinweise (Positionen mit Hinweis)."""
     def preis(i):
         z = kalk_zeilen[i]
         if z and _wert(z.get("mindestpreis_teil")) > 0:      # auf Mindestpreis angehoben: aufrunden, damit die
@@ -220,7 +221,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             n = max((_wert(q.get("stueck")) / je(q) for _, q in teile), default=0)
             saetze = max(1, int(n + 0.5))
             satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile), 2)
-            zeilen.append(dict(art="satz", pos=None, artikel=None, text=f"Satz {satz}", menge=saetze,
+            zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}", menge=saetze,
                                preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
@@ -236,22 +237,19 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     for z in staffelpreise or ():
         if z.get("preis_einheit") is None:      # Stufe mit FEHLER (z. B. Materialpreis fehlt): nicht ins Angebot
             continue
-        bis = z.get("bis")
-        if not isinstance(bis, (int, float)):
-            bereich = f"ab {z['menge']:.0f}"
-        else:
-            bereich = f"{z['menge']:.0f}–{bis:.0f}" if bis > z["menge"] else f"{z['menge']:.0f}"
-        einmalig = ((z.get("preis") or {}).get("einmalig")) or 0
-        zus = f", zzgl. einmalige Rüstkosten {f'{einmalig:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')} €" \
-            if einmalig else ""
+        # Rüstkosten 'separat' stehen nicht extra im Angebot: der Stufenpreis enthält sie (aufgerundet, damit
+        # Menge x Preis den Stufenpreis nicht unterschreitet)
+        einmalig, menge = ((z.get("preis") or {}).get("einmalig")) or 0, _wert(z["menge"]) or 1
+        pr = aufrunden(_wert(z["preis_gesamt"]) / menge) if einmalig else z["preis_einheit"]
+        eintrag = dict(menge=z["menge"], bereich=f"ab {z['menge']:.0f}", preis=pr,
+                       gesamt=kaufm_runden(pr * menge, 2) if einmalig else z["preis_gesamt"])
         if z.get("einheit") == "Satz":
             bez = z.get("bezeichnung") or ""
-            staffeln.append(dict(art="satz", pos=None, text=f"Satz {z['schluessel']}" + (f" ({bez})" if bez else "") + zus,
-                                 menge=z["menge"], bereich=bereich, preis=z["preis_einheit"], gesamt=z["preis_gesamt"]))
+            staffeln.append(dict(art="satz", pos=None, satz=str(z["schluessel"]),
+                                 text=f"Satz {z['schluessel']}" + (f" ({bez})" if bez else ""), **eintrag))
         else:
-            staffeln.append(dict(art="teil", pos=z["schluessel"], text=(z.get("bezeichnung") or "") + zus,
-                                 menge=z["menge"], bereich=bereich, preis=z["preis_einheit"],
-                                 gesamt=z["preis_gesamt"]))
+            staffeln.append(dict(art="teil", pos=z["schluessel"], text=z.get("bezeichnung") or "", **eintrag))
+    _staffeln_zuordnen(zeilen, staffeln)
     mindest = _wert(einst.get("mindestpreis"))
     gilt = any(z and _wert(z.get("mindestpreis_teil")) > 0 for z in kalk_zeilen) or any(
         _wert((z.get("preis") or {}).get("mindest_anhebung")) > 0 for z in staffelpreise or ())
@@ -261,6 +259,26 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 mindestpreis=f"Mindestauftragswert {euro_text(mindest)} € netto." if gilt and mindest > 0 else "",
                 kundenreferenz=kopf.get("kundenreferenz") or "",
                 beistellung=beistellung_text(positionen, ergebnis, k, einst, dezimal))
+
+
+def _staffeln_zuordnen(zeilen, staffeln):
+    """Staffelstufen unter ihre Angebotszeile hängen (Teil über die Pos., Satz über den Namen), aufsteigend nach
+    Menge; eine Stufe mit Menge und Preis der Zeile selbst wäre doppelt und entfällt dort."""
+    def schl(v):
+        return str(int(v)) if isinstance(v, float) and v.is_integer() else _satz(v)
+
+    for z in zeilen:
+        z["staffeln"] = []
+    teil = {schl(z["pos"]): z for z in zeilen if z["art"] == "teil" and z.get("pos") not in (None, "")}
+    satz = {schl(z["satz"]): z for z in zeilen if z["art"] == "satz"}
+    for st in staffeln:
+        z = satz.get(schl(st["satz"])) if st["art"] == "satz" else teil.get(schl(st["pos"]))
+        st["zugeordnet"] = z is not None
+        if z is None or (_wert(st["menge"]) == _wert(z["menge"]) and st["preis"] == z["preis"]):
+            continue
+        z["staffeln"].append(st)
+    for z in zeilen:
+        z["staffeln"].sort(key=lambda st: _wert(st["menge"]))
 
 
 def _prozent(w):

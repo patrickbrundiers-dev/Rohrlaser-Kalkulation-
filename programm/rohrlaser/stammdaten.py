@@ -422,7 +422,7 @@ class Einstellung:
     name: str
     titel: str
     gruppe: str
-    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort
+    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort | bild
     vorgabe: object
     von: float = None
     bis: float = None
@@ -499,6 +499,8 @@ EINSTELLUNGEN = (
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
     Einstellung("briefkopf_4", "Briefkopf Zeile 4", "Angebots-PDF", "text", "Telefon / E-Mail"),
+    # Bild als Base64-PNG in der Datendatei (wandert mit Sicherung und Export mit); leer = ohne Logo
+    Einstellung("logo", "Firmenlogo (rechts oben im Angebot)", "Angebots-PDF", "bild", ""),
     Einstellung("mwst", "MwSt.-Satz", "Angebots-PDF", "anteil", 0.19, 0, 1),
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",

@@ -75,9 +75,13 @@ def pruefen(name, ang, kalk_zeilen):
     assert cent(ang["mwst"]) == kaufm_cent(ang["netto"] * ang["mwst_satz"]), name
     assert cent(ang["brutto"]) == cent(ang["netto"]) + cent(ang["mwst"]), name
     for z in ang["staffeln"]:
-        st = next(x for x in staffeln if x.get("preis_einheit") == z["preis"] and x["menge"] == z["menge"])
+        st = next(x for x in staffeln if x["menge"] == z["menge"] and x.get("preis_gesamt") is not None and (
+            x.get("preis_einheit") == z["preis"] or (x.get("preis") or {}).get("einmalig")))
         einmalig = (st.get("preis") or {}).get("einmalig") or 0
-        assert cent(z["gesamt"]) == cent(z["preis"]) * int(z["menge"]) + cent(einmalig), (name, z)
+        if einmalig:        # Rüsten separat: im Angebot im Stufenpreis enthalten (aufgerundet)
+            assert cent(z["gesamt"]) == cent(z["preis"]) * int(z["menge"]) >= cent(st["preis_gesamt"]), (name, z)
+            continue
+        assert cent(z["gesamt"]) == cent(z["preis"]) * int(z["menge"]), (name, z)
         pr = st["preis"]
         assert cent(pr["mwst"]) == kaufm_cent(z["gesamt"] * pr_mwst(st)), (name, pr)
         assert cent(pr["brutto"]) == cent(z["gesamt"]) + cent(pr["mwst"]), (name, pr)
