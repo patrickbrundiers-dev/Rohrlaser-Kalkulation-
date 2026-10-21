@@ -23,11 +23,9 @@ KALK_NAMEN = {f.name for f in KALKULATION}
 KALK_OFFEN_EINSTELLUNG = "ansicht_kalkulation_offen"     # Karte Kalkulation auf- oder zugeklappt (alle Angebote)
 # Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs)
 GRUPPEN = (
-    ("Material und Fertigung", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung",
-                                "handling_beistellung")),
+    ("Material und Fertigung", ("zuschlag_fremdleistung", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung",)),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht",
-                            "mindestpreis")),
+    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)
@@ -38,6 +36,7 @@ MASCHINENPARAMETER = (
     ("abstand", "Abstand getrennte Schnitte", "mm", 1, OPTIONAL),
     ("kontur_klein", "Kontur klein bis", "mm", 1, OPTIONAL), ("kontur_mittel", "Kontur mittel bis", "mm", 1, OPTIONAL),
     ("max_huellkreis", "Max. Hüllkreis-Ø", "mm", 1, OPTIONAL), ("max_kg_m", "Max. Metergewicht", "kg/m", 1, OPTIONAL),
+    ("min_stange", "Min. Stangenlänge Zuschnitt", "mm", 0, OPTIONAL),
 )
 # Werte der gewählten Maschine, die in die Kalkulation eingehen (Gruppe Zeit und Rüsten)
 MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
@@ -590,7 +589,7 @@ class KopfBereich(QWidget):
                     text += f"; {d['zone']}"
                 text += ". In den Staffelpreisen rechnet jede Menge ihre eigene Fracht."
             for h in d.get("hinweise") or ():
-                if "teurere" in h or "Beispieltarif" in h:
+                if "teurere" in h or "Beispieltarif" in h or "Richtwert" in h:
                     text += f"<br><span style='color:#7A5A00'>{h}</span>"
         elif m == fracht_angebot.BERECHNET:
             text = f"Berechnet: {d.get('text') or _z(betrag) + ' €'}"
@@ -717,9 +716,9 @@ class UebersichtBereich(QWidget):
         self.kennzahlen = QGridLayout()
         self.kennzahlen.setHorizontalSpacing(6)
         self.kennzahl = {}
+        # ohne Gesamtlänge und Stangen: über verschiedene Abmessungen summiert nicht aussagekräftig
         for i, (name, titel) in enumerate((("positionen", "Positionen"), ("stueck", "Stückzahl"),
-                                           ("laenge", "Gesamtlänge"), ("gewicht", "Gewicht"),
-                                           ("stangen", "Stangen"))):
+                                           ("gewicht", "Gewicht"))):
             box = QFrame()
             box.setObjectName("kennzahl")
             bl = QVBoxLayout(box)

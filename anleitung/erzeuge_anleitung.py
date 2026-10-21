@@ -30,6 +30,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 from rohrlaser import NAME, VERSION  # noqa: E402
+from rohrlaser.tastatur import UEBERSICHT as TASTENKUERZEL  # noqa: E402
 
 SEITE = landscape(A4)
 RAND = 14 * mm
@@ -311,8 +312,8 @@ def kapitel_ueberblick(i):
            "folgen dem Arbeitsablauf eines Angebots: anlegen, Positionen per STEP einlesen, optimieren, Staffelpreise, "
            "Fracht, Zukaufteile, Ausgabe und Nachkalkulation. [[einstellungen]] bis [[pflege]] beschreiben, was "
            "einmal eingerichtet und gepflegt wird: Einstellungen, Stammdaten, Zukaufartikel, Frachtkosten, Updates und "
-           "Datensicherung. Im Anhang stehen die Einzelheiten der STEP-Messung ([[step_messung]]), häufige Fragen "
-           "([[fragen]]) und was sich je Programmversion geändert hat ([[neu]]).")
+           "Datensicherung. Im Anhang stehen die Einzelheiten der STEP-Messung ([[step_messung]]), die Tastenkürzel "
+           "([[tastenkuerzel]]), häufige Fragen ([[fragen]]) und was sich je Programmversion geändert hat ([[neu]]).")
     i.abschnitt("Aufbau des Fensters")
     i.text("Das Programm öffnet sich immer maximiert (bildschirmfüllend, die Taskleiste bleibt sichtbar) und gleich "
            "im Reiter <i>Angebote</i>. Die übrigen Reiter sind von dort mit einem Klick erreichbar.")
@@ -324,7 +325,9 @@ def kapitel_ueberblick(i):
     i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=125 * mm)
     i.abschnitt("Farben in den Tabellen")
     i.text("Zahlen werden mit Komma eingegeben (1385,5). Jede Änderung wird sofort gespeichert; einen "
-           "Speichern-Knopf gibt es nicht. Die Farben zeigen, was eingegeben werden kann und was geprüft werden "
+           "Speichern-Knopf gibt es nicht. Die üblichen Windows-Tastenkürzel wirken auch hier: Strg+C/Strg+V "
+           "kopieren und fügen Zellen ein (auch Blöcke aus Excel), Entf löscht markierte Zeilen nach Rückfrage, "
+           "Strg+Z nimmt im Angebot die letzte Änderung zurück ([[tastenkuerzel]]). Die Farben zeigen, was eingegeben werden kann und was geprüft werden "
            "sollte:")
     i.tabelle(["Farbe", "Bedeutung"], [
         ["hellgelb", "Eingabefeld: hier wird eingetragen (Doppelklick oder einfach lostippen)."],
@@ -483,6 +486,10 @@ def kapitel_angebote(i):
            "wer ein Angebot für einen anderen Kunden wiederverwenden will, wählt ihn aus der Liste. Name und "
            "Zahlungsbedingungen kommen dann aus dem Kundenstamm, Positionen und Staffeln werden mitkopiert.")
     i.bild("kopieren_dialog", "Angebot kopieren: Kunde der Kopie wählen", hoehe=45 * mm)
+    i.text("Mit der Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, "
+           "<b>Entf</b> löscht das markierte nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld und <b>Esc</b> leert "
+           "es. Zwischen den offenen Angeboten wechselt <b>Strg+Tab</b>, <b>Strg+W</b> schließt das aktuelle "
+           "([[tastenkuerzel]]).")
 
 
 def kapitel_angebot(i):
@@ -491,10 +498,19 @@ def kapitel_angebot(i):
            "Übersicht, darunter die Aktionen und die Reiter mit Positionen und Ergebnissen. Die Trennlinie zwischen "
            "oben und unten lässt sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil.")
     i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
-           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Zuschlag Material 10,0 % · "
-           "Gewinn 10,0 % · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
-           "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. Spaltenbreiten der "
-           "Positionsliste, der Kalkulation und der Zeiten richten sich beim Öffnen nach Inhalt und Spaltenkopf.")
+           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · "
+           "Rüstzeit je Abmessung 15,0 min · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
+           "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. ")
+    i.text("<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen (Positionen, Ergebnisse, Zeiten, "
+           "Staffeln, Stammdaten) automatisch an den Inhalt an: eine Spalte ist so breit wie ihr längster Eintrag "
+           "bzw. ihr Spaltenkopf, höchstens etwa 260 Punkte (Zeiten: 420); die letzte Spalte füllt den Rest. Langer "
+           "Text, z. B. eine lange Bezeichnung oder ein Status mit mehreren Hinweisen, wird umgebrochen und macht nur "
+           "diese Zeile höher, höchstens drei Textzeilen; der Rest steht mit „…“ gekürzt da und vollständig im "
+           "Tooltip (Maus auf die Zelle). Zeilen mit kurzem Text bleiben einzeilig, damit wenig gerollt werden muss. "
+           "Beim Tippen werden Spalten nur breiter, nie schmaler, damit die Tabelle nicht springt. Eine Spalte, "
+           "deren Trennlinie im Kopf von Hand gezogen wurde, behält ihre Breite, bis das Angebot neu geöffnet wird; "
+           "ein Doppelklick auf die Trennlinie passt sie wieder an den Inhalt an. Bei mehr als 500 Zeilen bleiben "
+           "die Zeilen einzeilig.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
         (1, "<b>Angebotskopf</b>: Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, darunter Datum, "
             "Kundenname, Standard-Stangenlänge und Bemerkung. Ganz unten die aufklappbaren Maschinenparameter."),
@@ -534,8 +550,9 @@ def kapitel_angebot(i):
             "vorbelegt vom Kunden bzw. aus den Einstellungen und hier änderbar. Das Skonto wird in den Preis "
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
             "genau der kalkulierte Preis. 0 % = kein Skonto.",
-            "<b>Kalkulation dieses Angebots</b>: Zuschlag Material, Fertigung und Fremdleistung, Gewinn, Rüstzeit und "
-            "Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag und Mindestpreis Angebot netto "
+            "<b>Kalkulation dieses Angebots</b>: Zuschlag Fremdleistung, Gewinn, Rüstzeit und "
+            "Pauschale je Abmessung, Programmierkosten je Teil und Angebotsaufschlag. Mindestpreis, Zuschlag "
+            "Material und Zuschlag Fertigung gelten immer aus den Einstellungen und sind im Angebot nicht änderbar "
             "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
             "die Einstellungen zu ändern. Werte, die von den Einstellungen abweichen, sind <b>gelb</b> hinterlegt "
@@ -599,7 +616,8 @@ def kapitel_angebot(i):
             "als eigene Zeile.",
             "Staffelpreise rechnen das Kundenmaterial in jeder Stufe ohne Materialkosten.")
     i.abschnitt("Mindestpreis", marke="mindestpreis")
-    i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis Angebot netto</b> (Vorgabe 200,00 €), "
+    i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis</b> (Mindestauftragswert, Vorgabe "
+           "200,00 € netto), "
            "hebt das Programm alle Stückpreise im gleichen Verhältnis an, bis die Angebotssumme den Mindestpreis "
            "erreicht. Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie "
            "kalkuliert. Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
@@ -614,9 +632,11 @@ def kapitel_angebot(i):
             "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
             "Staffelpreise: jede Mengenstufe ist ein eigenes Angebot und wird für sich mit dem Mindestpreis "
             "verglichen ([[staffeln]]).",
-            "Vorgabe in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt), je Angebot unter "
-            "<b>Kalkulation dieses Angebots</b> änderbar; 0 = kein Mindestpreis. Angebote aus älteren "
-            "Programmversionen haben Mindestpreis 0, damit sich ihre Preise nicht ändern.")
+            "Der Wert steht nur in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt) und gilt für "
+            "alle Angebote, auch für ältere; im Angebot selbst lässt er sich nicht ändern. 0 = kein Mindestpreis.",
+            "Die Prüfung läuft bei jeder Änderung neu (Position, Stückzahl, Zuschläge, Staffelstufe, PDF). Die "
+            "Werte des Angebots (Gewinn, Zuschläge …) bleiben dabei unverändert; steigt der Preis über den "
+            "Mindestpreis, entfällt die Anhebung von selbst.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
            "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
@@ -651,7 +671,8 @@ def kapitel_angebot(i):
             "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
             "<b>Meldungen</b>: die Anzahl der Fehler, Warnungen und Hinweise der Positionen (rot, gelb); aufklappen "
             "zeigt jede Meldung mit ihrer Positionsnummer.",
-            "Kennzahlen: Positionen, Stückzahl, Gesamtlänge, Gewicht und Stangen.",
+            "Kennzahlen: Positionen, Stückzahl und Gewicht. Stangenbedarf und Längen stehen je Abmessung in den "
+            "Reitern <i>Schnittplan</i> und <i>Stangenbild</i>.",
             "Kosten nach Gruppen: Material, Laser schneiden, Rüsten (Rüsten Maschine, Rüsten je Abmessung, "
             "Stangenwechsel), Zusätzliche Bearbeitung (Gewinde, Zusatzarbeiten), Zuschläge, <b>Herstellkosten</b>, "
             "Gewinn, Programmierkosten, Pauschalen und Aufschläge (Pauschale je Abmessung, Angebotsaufschlag, "
@@ -683,6 +704,8 @@ def kapitel_angebot(i):
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl ([[zusatzarbeiten_angebot]])"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl ([[zukauf_angebot]])"],
+        ["Zeichnungen", "angehängte Zeichnungen und Modelle der Position (z. B. <i>Z-100.pdf</i> oder <i>2 Dateien</i>); "
+                        "Doppelklick öffnet die Liste ([[zeichnungen]])"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
                                  "rechnet es aus Volumen × Dichte, wenn der Werkstoff gewählt ist; sonst leer)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
@@ -744,6 +767,26 @@ def kapitel_angebot(i):
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
             "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
+    i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
+    i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
+           "zurück, <b>Strg+Y</b> stellt sie wieder her. Das gilt für jede Änderung: Eingaben in Positionen und Kopf, "
+           "neue oder gelöschte Positionen (samt 3D-Ansicht), STEP-Import, Zusatzarbeiten, Zukaufteile, Staffeln, "
+           "Zeiten und Optimierung. Die Statuszeile nennt, was zurückgenommen wurde (z. B. „Rückgängig: Teilelänge "
+           "[mm] Pos. 20“). Bis zu 100 Schritte gehen zurück, solange das Angebot geöffnet ist; nach dem Schließen "
+           "beginnt der Verlauf neu. Stammdaten und Einstellungen haben kein Rückgängig.")
+    i.liste("<b>Strg+C</b> kopiert die markierten Zellen, auch mehrere Zeilen und Spalten, so wie sie angezeigt "
+            "werden; in Excel lassen sie sich direkt einfügen.",
+            "<b>Strg+V</b> fügt ab der markierten Zelle ein. Ein Block aus Excel füllt die Zellen nach rechts und "
+            "unten; ein einzelner Wert füllt alle markierten Zellen (z. B. dieselbe Stückzahl für mehrere "
+            "Positionen). Grau berechnete Zellen bleiben unverändert, falsche Werte meldet die Statuszeile. Ein "
+            "Einfügen ist ein Schritt für Strg+Z.",
+            "<b>Strg+X</b> kopiert und leert die markierten Eingabezellen.",
+            "<b>Entf</b> in der Positionsliste löscht die markierten Positionen nach Rückfrage, <b>Strg+N</b> legt "
+            "eine neue Position an, <b>Strg+I</b> startet den STEP-Import, <b>F9</b> optimiert und <b>Strg+P</b> "
+            "erzeugt das Angebots-PDF.")
+    i.text("In Textfeldern (Kopf, Suchfelder, eine Zelle in Bearbeitung) wirken Strg+Z, Strg+C, Strg+V und Entf wie "
+           "gewohnt nur im Text. Alle Kürzel stehen im Anhang ([[tastenkuerzel]]) und im Programm unter "
+           "<i>Hilfe → Tastenkürzel …</i>.")
 
 
 def kapitel_step(i):
@@ -1002,25 +1045,39 @@ def kapitel_optimieren(i):
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
            "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen, Langlöcher und ein Rechteck",
-           hoehe=110 * mm, legende=[
-               (1, "<b>Gehrung</b> je Ende in Grad (0 = gerade), bei Quadrat-/Rechteckrohr mit Richtung."),
+           hoehe=125 * mm, legende=[
+               (1, "<b>Gehrung</b> je Ende in Grad (gerade = 0) mit Richtung, beim Rundrohr wahlweise Ausklinkung."),
                (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße; der Tooltip jeder Zelle nennt das Maß."),
                (3, "<b>+ Bohrung</b>, <b>+ Langloch</b> … fügt eine Zeile hinzu, <b>Markierte entfernen</b> löscht."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
-               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe.")])
+               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
+                   "in Farbe."),
+               (6, "<b>Skizze</b> des Teils mit Enden und Konturen.")])
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
-            "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse; Quadrat- und Rechteckrohr: wählbar, ob die "
-            "Gehrung <i>über Höhe</i> oder <i>über Breite</i> läuft (2 × gekippte Seite / cos Winkel + 2 × andere "
-            "Seite). Bei anderen Profilen (Träger, U, Winkel, Flach) ist die Gehrung eine <i>Schätzung</i>: gerade "
-            "Schnittlänge / cos Winkel; der Dialog kennzeichnet sie. Je Ende zählen die Einstiche wie beim "
-            "STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
+            "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
+            "mit 1 / cos Winkel gestreckt (Quadratrohr 40 × 40, 45°: 2 × 40 / cos 45° + 2 × 40 = 193,1 mm; beim "
+            "Träger Steg bzw. Flansche). Nur bei einer unbekannten Profilform ist die Gehrung eine "
+            "<i>Schätzung</i> (gerade Schnittlänge / cos Winkel); der Dialog kennzeichnet sie. Je Ende zählen die "
+            "Einstiche wie beim STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
+            "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
+            "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
-            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b) und <i>sonstige Kontur</i> mit Schnittlänge "
-            "von Hand und Hüllmaß (leer = groß). Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
+            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Polygon</i> aus Eckpunkten in Maß 1 "
+            "(<i>x,y; x,y; …</i> in mm, geschlossen, z. B. 0,0; 40,0; 40,20; 0,20 = 120 mm, Hüllmaß 40) und "
+            "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). <b>Lage ab Anfang</b> "
+            "(optional) setzt die Kontur in der Skizze an ihre Stelle, ohne Lage wird sie gleichmäßig verteilt. Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
             "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
             "gesperrt.",
             "<b>Gravur</b>: Länge in mm, wird mit dem Vorschub Gravur gerechnet.",
+            "<b>Skizze</b>: Seitenansicht mit Gehrung bzw. Ausklinkung und den Konturen, zur Kontrolle der Eingaben "
+            "(in der Höhe nicht maßstäblich).",
+            "<b>Gewinde-Vorschlag</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes aus den Stammdaten (z. B. Ø 8,5 "
+            "für M10) ergeben wie beim STEP-Import einen Vorschlag (Spalten <i>Bohrungen</i> und "
+            "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Gewinde-Vorschlag prüfen“). Gerechnet wird ein Gewinde erst, "
+            "wenn es nach Prüfung unter <i>Gewinde geprüft</i> steht.",
             "Unter <i>Ergebnis je Teil</i> stehen sofort alle Schnitte mit Länge, Einstichen, Hüllmaß und Klasse "
             "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
             "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
@@ -1093,6 +1150,12 @@ def kapitel_optimieren(i):
             "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
             "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
             "Werkstück ist länger als die Beladelänge.",
+            "<b>Keine zugeschnittene Stange ist kürzer als die <i>Min. Stangenlänge Zuschnitt</i> der Maschine</b> "
+            "(Vorgabe 2.500 mm), damit die automatische Stangenladung sie nimmt. Eine kürzere Stange (z. B. für die "
+            "letzten Teile einer Abmessung) wird auf die Mindestlänge verlängert, der Mehrbedarf ist Verschnitt. "
+            "Ziel-Längen "
+            "unter der Mindestlänge (z. B. 12 m / 5) werden nicht ausprobiert. Was am Ende einer 12-m-Stange "
+            "übrig bleibt, ist ebenfalls Verschnitt.",
             "Ein Werkstück = Endbeschnitt + Teile + Trennschnitte + Schnittverlust + Greiferrest, auf ganze mm "
             "aufgerundet. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
             "Vorgabe 3 mm). Passen Werkstücke deshalb nicht mehr zusammen in die Stange, kommen sie auf die nächste.",
@@ -1107,7 +1170,7 @@ def kapitel_optimieren(i):
     i.text("<b>Gesamtkosten je Variante</b> = Materialkosten (Stangen × Preis der Lieferlänge) + Stangenwechsel und "
            "Arbeitsschritte je Stange für jede Beladung + Kosten je Zuschnitt beim Lieferanten (Vorgabe 0 €: die "
            "12-m-Stangen kommen geschnitten ohne Zusatzkosten). Laserzeit und Schnittwege sind in allen Varianten "
-           "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Werkstücklängen, Materiallänge, "
+           "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Stangenlängen nach Zuschnitt, Materiallänge, "
            "Materialkosten, Stangenwechsel, Zuschnittkosten, Reststückwert (nicht angerechnet), Gesamtkosten, "
            "Verschnitt in mm und % und fehlende Angaben.")
     i.bild("erg_lieferlaengen", "Reiter Auswertung, Lieferlängen: 30 Stützen 3.100 mm, 12 m spart ein Drittel "
@@ -1130,13 +1193,17 @@ def kapitel_optimieren(i):
            "Stangenbild, Material, Stangenwechsel (je Beladung), Kalkulation, Werkstattpapiere und Nachkalkulation "
            "rechnen mit den 12-m-Stangen. <i>Wieder 6-m-Stangen verwenden</i> macht es rückgängig. Die Wahl gilt je "
            "Gruppe und bleibt bei Kopien des Angebots erhalten.")
-    i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: je 12-m-Stange drei Werkstücke mit eigenem "
+    i.text("<b>Schnittplan, Stangenbild und Werkstattpapiere zeigen die Stangen so, wie die Maschine sie lädt:</b> "
+           "jedes zugeschnittene Stück erscheint als eigene Stange mit Endbeschnitt, Teilen, Schnittverlust und "
+           "Greiferrest, genau wie eine normale Stange. Der Zuschnitt der 12-m-Stange selbst wird dort nicht gezeigt. "
+           "Gerechnet wird er trotzdem: Material und Kosten zählen die 12-m-Stangen, der Schnittverlust des Zuschnitts "
+           "(Einstellung, Vorgabe 3 mm) ist eingerechnet. Die Materialkosten einer 12-m-Stange werden nach Länge auf "
+           "ihre Stücke verteilt.")
+    i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: jedes zugeschnittene Stück als eigene Stange mit "
                                      "Endbeschnitt und Greiferrest", hoehe=80 * mm)
-    i.liste("Schnittplan: Spalten <i>Werkstücke (Beladungen)</i> und <i>Zuschnitt beim Lieferanten</i> (z. B. "
-            "„Zuschnitt beim Lieferanten: 3.253 + 3.253 + 3.253 mm, Rest 2.235 mm“); je Teil die Spalte "
-            "<i>Werkstück</i>.",
-            "Werkstattpapiere: Materialliste mit den 12-m-Stangen, je Stange der Zuschnitt; Von/Bis der Teile gelten "
-            "im Werkstück, die Lage nennt das Werkstück (W1, W2 …).",
+    i.liste("Schnittplan: je Stück eine Zeile mit seiner Länge (z. B. 3.253 mm), Von/Bis der Teile im Stück.",
+            "Werkstattpapiere: die Materialliste nennt die zu ladenden Stücke (Länge und Anzahl), die Schnittpläne "
+            "gelten je Stück.",
             "Staffelpreise: je Mengenstufe vergleicht das Programm selbst und nimmt die empfohlene Lieferlänge "
             "([[staffeln]]).")
     i.bild("erg_lieferlaengen_geplant", "Nach dem Übernehmen: 12-m-Variante geplant, Link zurück auf 6 m",
@@ -1175,8 +1242,8 @@ def kapitel_staffeln(i):
         ["Menge bis", "Höchstmenge; leer = bis zur nächsten Stufe desselben Satzes bzw. derselben Position − 1, "
                       "bei der höchsten Stufe offen („ab …“)"],
         ["Materialzuschlag, Zuschlag in", "Zuschlag auf die Materialkosten nach Verlust, in % oder als fester "
-                                          "Betrag €/Einheit. Ersetzt für diese Stufe den Zuschlag Material des "
-                                          "Angebots (leer = Zuschlag Material des Angebots)"],
+                                          "Betrag €/Einheit. Ersetzt für diese Stufe den Zuschlag Material der "
+                                          "Einstellungen (leer = Zuschlag Material der Einstellungen)"],
         ["Gewinn", "in % auf die Selbstkosten (leer = Gewinn des Angebots)"],
         ["Materialverlust / Ausschuss", "in % auf die Material-Grundkosten, zusätzlich zum echten Verschnitt der "
                                         "Stangen (der steckt schon in den Grundkosten); leer = 0"],
@@ -1294,8 +1361,8 @@ def kapitel_fracht(i):
            "rechnet die Fracht selbst und hält sie bei jeder Änderung der Positionen aktuell. Daneben stehen "
            "<b>Ziel-PLZ</b> und <b>Land</b> (Felder Ziel-PLZ (Fracht) und Zielland (Fracht)); die ersten zwei Ziffern "
            "reichen, z. B. 25 für alle PLZ, die mit 25 beginnen.")
-    i.liste("Beim Setzen des Hakens kommen Ziel-PLZ (zwei Stellen) und Land aus dem Kunden: abweichende "
-            "Lieferanschrift, sonst PLZ bzw. PLZ Ort der Anschrift. Wechselt der Kunde, wechselt auch das Ziel.",
+    i.liste("Beim Setzen des Hakens kommen Ziel-PLZ (volle PLZ, damit die Zone genau stimmt) und Land aus dem "
+            "Kunden: abweichende Lieferanschrift, sonst PLZ bzw. PLZ Ort der Anschrift. Wechselt der Kunde, wechselt auch das Ziel.",
             "Gewicht und längstes Teil kommen aus den Positionen, die Ladungsträger aus dem Packvorschlag, der Tarif "
             "wird automatisch gewählt. Die Versandart steht in den Einstellungen der Frachtkosten (<b>Versandart für "
             "automatische Fracht</b>, z. B. Stückgut). Ohne sie können zwei Tarife gleich gut passen; dann rechnet "
@@ -1551,6 +1618,42 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zukaufartikel und Stückzahl.")
     i.abschnitt("Kalkulation (PDF)")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
+    i.abschnitt("Zeichnungen je Position", marke="zeichnungen")
+    i.text("Zeichnungen (PDF, DXF, DWG), Modelle (STEP) und Bilder gehören zur Position: Dateien aus dem Explorer "
+           "direkt <b>auf die Position</b> in der Positionsliste ziehen, oder Rechtsklick auf die Position → "
+           "<b>Zeichnungen …</b> (auch Doppelklick auf die Spalte <i>Zeichnungen</i>) und <b>Hinzufügen …</b>.")
+    i.liste("Das Programm kopiert jede Datei in den Ordner des Angebots: <i>Ablageordner\\&lt;Angebotsnummer&gt;</i> "
+            "(z. B. <i>Angebote\\A-2026-0041</i>). In der Position steht nur der Dateiname. So bleibt das Angebot "
+            "vollständig, auch wenn die Originaldatei verschoben wird.",
+            "Dieselbe Datei zweimal angehängt bleibt eine Datei; eine andere Datei mit gleichem Namen bekommt "
+            "„ (2)“ angehängt.",
+            "Der STEP-Import hängt die STEP-Datei automatisch an die übernommenen Positionen.",
+            "Im Fenster <i>Zeichnungen</i>: <b>Öffnen</b> zeigt die Datei im zugehörigen Programm, <b>Entfernen</b> "
+            "löst nur die Zuordnung (die Datei bleibt im Ordner), <b>Ordner öffnen</b> zeigt den Ordner des "
+            "Angebots. Fehlt eine Datei im Ordner, steht „(fehlt im Ordner)“ dahinter.")
+    i.abschnitt("Material per Outlook anfragen", marke="materialanfrage")
+    i.text("<i>Weitere Aktionen → Material per Outlook anfragen …</i> bereitet eine Anfrage an den Lieferanten vor. "
+           "Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst <b>Optimieren</b>.")
+    i.bild("materialanfrage", "Materialanfrage an einen Lieferanten mit Zeichnung als Anhang", hoehe=120 * mm,
+           legende=[(1, "<b>Anfrage an Lieferant</b>: Lieferanten aus <i>Lieferlängen</i> bzw. <i>Preise</i> (Spalte "
+                        "Lieferant); die E-Mail-Adresse kommt aus den Lieferanten der Zukaufartikel."),
+                    (2, "Bedarf je Profil, Werkstoff, Oberfläche und Lieferlänge mit Anzahl Stangen (änderbar) und "
+                        "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde."),
+                    (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Der Text wird bei jeder Änderung der Zeilen "
+                        "neu erstellt, bis er von Hand geändert wurde."),
+                    (4, "<b>Anhänge</b>: die Zeichnungen der angefragten Positionen ([[zeichnungen]]), einzeln "
+                        "abwählbar."),
+                    (5, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
+    i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff, Text "
+            "und Anhängen im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
+            "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "
+            "das Programm eine E-Mail-Datei (<i>&lt;Angebot&gt; Materialanfrage.eml</i>) in der Ablage und öffnet sie "
+            "im Standard-Mailprogramm. Sie ist als Entwurf markiert; dort prüfen und senden. "
+            "<b>Als E-Mail-Datei speichern</b> geht diesen Weg direkt.",
+            "Mehrere Lieferanten: je Lieferant eine Anfrage (oben wählen, öffnen, dann den nächsten). Zeilen ohne "
+            "Lieferant stehen unter „(ohne Lieferant)“; die Adresse dann von Hand eintragen.",
+            "Lieferanten und ihre E-Mail-Adressen pflegen: Zukaufartikel → Lieferanten; den Lieferanten eines "
+            "Profils in den Stammdaten <i>Preise</i> bzw. <i>Lieferlängen</i>.")
 
 
 def kapitel_nachkalkulation(i):
@@ -1604,7 +1707,9 @@ def kapitel_einstellungen(i):
     i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
         ["Kalkulation", "Zuschlag Material, Zuschlag Fertigung, Zuschlag Fremdleistung, Gewinn",
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
-         "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn)."],
+         "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn). Zuschlag Material "
+         "und Zuschlag Fertigung (Vorgabe je 0 %) gelten für alle Angebote und sind im Angebot nicht änderbar; "
+         "beim Update auf 0.6.5 einmalig auf 0 gesetzt."],
         ["Kalkulation", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)",
          "gilt für Zukaufartikel, die weder einen eigenen Aufschlag noch einen Aufschlag ihrer Kategorie haben "
          "([[zukauf_kategorien]]); "
@@ -1623,8 +1728,8 @@ def kapitel_einstellungen(i):
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
         ["Kalkulation", "Mindestpreis je Angebot netto [€] (0 = keiner)",
-         "Vorgabe 200,00 € für neue Angebote; darunter werden die Stückpreise anteilig angehoben ([[mindestpreis]]). "
-         "Bestehende Angebote behalten ihren Wert."],
+         "Vorgabe 200,00 €; gilt für alle Angebote, darunter werden die Stückpreise anteilig angehoben "
+         "([[mindestpreis]])."],
         ["Angebot", "Lieferzeit neuer Angebote: Angabe als, Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, "
                     "KW/Jahr oder Datum), Lieferzeit neuer Angebote: Freitext",
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
@@ -1725,7 +1830,8 @@ def kapitel_stammdaten(i):
         (5, "<b>Prüfung</b>: OK, WARNUNG oder FEHLER mit Begründung.")])
     i.liste("Bearbeiten: Zelle doppelklicken oder einfach lostippen, mit Enter bestätigen. Felder mit fester Auswahl "
             "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste.",
-            "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite: Trennlinie im Kopf ziehen.",
+            "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite und Zeilenhöhe passen sich dem Inhalt an "
+            "([[angebot]]); von Hand ändern: Trennlinie im Kopf ziehen.",
             "Wird eine Profil-, Werkstoff- oder Maschinen-ID umbenannt, ändern sich die Verweise in Preisen und "
             "Schneiddaten mit. Bei einer Maschinen-ID ändern sich auch die Angebote (mit ihren festgeschriebenen "
             "Werten) und die Standard-Maschine mit.")
@@ -1871,11 +1977,12 @@ def kapitel_stammdaten(i):
             "wenn sie hier oder als Liefer-Stangenlänge in <i>Preise</i> steht. Steht dort nur 12.000, plant das "
             "Programm keine künstliche 6-m-Variante.",
             "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
-            "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Werkstücklängen zu.")
+            "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Stangenlängen zu.")
     i.text("Vorbelegt sind die Maschinen T03 (Trumpf, CO₂-Laser), T11 (Trumpf, Faserlaser) und LT7 (Adige, "
            "Faserlaser): Endbeschnitt 10 mm, Schnittverlust 0,2 mm, max. Stangenlänge 6.500 mm, 150 €/h, Konturgrenzen "
            "10 und 50 mm, Abstand getrennte Schnitte 5 mm, Rüstzeit 5 min; Greiferrest 142 mm (LT7 120 mm), "
-           "Stangenwechsel 29 s (LT7 25 s), Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m (LT7 23 kg/m). "
+           "Stangenwechsel 29 s (LT7 25 s), Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m (LT7 23 kg/m), "
+           "min. Stangenlänge im Zuschnitt 2.500 mm. "
            "Standard-Maschine ist T03. Beim Update einer älteren Datendatei werden unveränderte Beispielmaschinen "
            "RL-1 und RL-2 zu T03 und T11 (mit ihren Angeboten), LT7 kommt dazu, unveränderte alte "
            "Beispiel-Schneiddaten werden durch die neuen Richtwerte ersetzt; eigene Werte bleiben, vorher wird eine "
@@ -1893,6 +2000,9 @@ def kapitel_stammdaten(i):
          "Grenzen der Konturklassen nach Hüllmaß für Innenkonturen, Anfangs- und Endschnitt (Vorgabe 10 und 50 mm), "
          "je Klasse eigener Vorschub. Nach einer Änderung werden die Positionen beim nächsten Öffnen des Angebots "
          "neu eingeteilt ([[konturklassen]])"],
+        ["Min. Stangenlänge Zuschnitt [mm]", "kürzeste Stange, die die automatische Stangenladung nimmt (Vorgabe "
+                                             "2.500 mm); keine aus einer Lieferstange zugeschnittene Stange "
+                                             "wird kürzer ([[lieferlaengen]]), leer oder 0 = keine Grenze"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
@@ -2013,7 +2123,7 @@ def kapitel_stammdaten(i):
            "Material mit Materialzuschlag + weiterer Zuschlag. Beispiel: 5 min × 60 €/h = 5,00 €, Material 2,00 € + "
            "10 % = 2,20 €, Selbstkosten 7,20 € je Stück. Im Angebot kommt danach einmal der Zuschlag Fertigung "
            "(bzw. Fremdleistung) und der Gewinn des Angebots bzw. der Staffel dazu, Skonto und Rundung wie beim übrigen "
-           "Angebot. Der Zuschlag Material des Angebots gilt nur für das Stangenmaterial, nie für Zusatzarbeiten. "
+           "Angebot. Der Zuschlag Material (Einstellungen) gilt nur für das Stangenmaterial, nie für Zusatzarbeiten. "
            "Einträge, die nur einen Festpreis haben, rechnen genau wie bisher.")
     i.tabelle(["Abrechnung", "Menge je Teil (automatisch)", "Gerechnet wird"], [
         ["€/Stück", "1", "Menge × Preis, z. B. Entgraten"],
@@ -2348,7 +2458,8 @@ def kapitel_frachtkosten(i):
         ["Gültig ab, Gültig bis", "Zeitraum; außerhalb wirkt der Zuschlag nicht"],
         ["Länder, Zonen, Tarife, Dienstleister, Kundennummer", "wofür der Zuschlag gilt; leer = alle"],
         ["Bedingung, Grenze", "immer, nur wenn gewählt (Zusatzleistung im Rechner), Gewicht unter / über Grenze [kg] "
-                              "(z. B. Mindermengenzuschlag), Teillänge über Grenze [mm] (Überlänge) oder Zonenart "
+                              "(z. B. Mindermengenzuschlag), Gewicht je Stellplatz über Grenze [kg] (schwere "
+                              "Paletten; meist mit € je Stellplatz), Teillänge über Grenze [mm] (Überlänge) oder Zonenart "
                               "Insel/Randgebiet/Sondergebiet"],
         ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
     i.text("<b>Dieselzuschlag</b>: als Prozent auf die Grundfracht oder eine andere Grundlage, als Festbetrag je "
@@ -2380,7 +2491,38 @@ def kapitel_frachtkosten(i):
             "Fracht ([[fracht_angebot]]), Ladungsträger im Packvorschlag, Ladungsträger für lange Teile "
             "(Langgut)"),
         (4, "<b>Beispieldaten laden</b> fügt die Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu "
-            "(BEISPIEL); vorhandene Einträge bleiben.")])
+            "(BEISPIEL); vorhandene Einträge bleiben."),
+        (5, "<b>Richtwerte laden</b> ersetzt die Beispielwerte durch Richtwerte für den Palettenversand (unten).")])
+    i.abschnitt("Richtwerte Palettenversand", marke="fracht_richtwerte")
+    i.text("Solange keine Preise der eigenen Spedition vorliegen, rechnet das Programm mit <b>Richtwerten</b>: "
+           "Marktpreise aus Online-Frachtrechnern (Stand 10/2026, netto, Maut und Diesel enthalten), angesetzt an der "
+           "Obergrenze der üblichen Spanne plus 10 % Puffer, also eher etwas zu teuer als zu günstig. Alle Zeilen "
+           "tragen RICHTWERT in der Bemerkung, jede Rechnung damit zeigt den Hinweis <i>Richtwert – kein "
+           "Speditionsangebot</i>. <b>Richtwerte laden</b> fragt nach (ohne Absender-PLZ zuerst nach dem Versandort), "
+           "löscht alle Zeilen mit BEISPIEL oder RICHTWERT in der Bemerkung und lädt die Richtwerte neu; eigene "
+           "Einträge bleiben. Leere Absender-PLZ und die Versandart (Palettenversand statt Stückgut) werden gesetzt. "
+           "Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie, bis die Ziel-PLZ neu eingegeben "
+           "oder der Haken neu gesetzt wird.")
+    i.tabelle(["Zone (Straßen-km ab Versandort)", "1 Palette", "2–3 Paletten je Stück", "4–6 Paletten je Stück"], [
+        ["RW1 bis 200 km", "100,00 €", "85,00 €", "70,00 €"],
+        ["RW2 200–450 km", "115,00 €", "97,75 €", "80,50 €"],
+        ["RW3 450–650 km", "125,00 €", "106,25 €", "87,50 €"],
+        ["RW4 über 650 km und RW-INSEL", "140,00 €", "119,00 €", "98,00 €"]], [70, 45, 75, 75])
+    i.liste("Die Zone kommt aus den ersten zwei Ziffern der Ziel-PLZ: Entfernung vom Versandort zum Mittelpunkt der "
+            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Bielefeld und Dortmund in RW1, Hamburg, "
+            "Berlin, Frankfurt und Stuttgart in RW2, Dresden und München in RW3. Inseln ohne Brücke (Sylt, Föhr, "
+            "Amrum, Pellworm, Halligen, Ostfriesische Inseln, Helgoland, Hiddensee) sind die Zone RW-INSEL.",
+            "Mehr als 6 Stellplätze: Teilladung, Preis anfragen (das Programm rechnet nicht still weiter).",
+            "Paletten: Europalette und Einwegpalette bis 800 kg Nutzlast im Packvorschlag, Industriepalette 1,25 "
+            "Stellplätze, Sonderpalette bis 2,40 m 2 Stellplätze, Langgut bis 6,5 m 3 Stellplätze.",
+            "Zuschläge: schwere Palette 40 € je Stellplatz ab 300 kg je Stellplatz, Überlänge (Teile über 2,40 m) "
+            "60 €, Inselzuschlag 60 €; nur wenn gewählt: Avisierung 25 €, Hebebühne 40 €, Wartezeit 60 € je Stunde "
+            "(Hebebühne und Wartezeit geschätzt). Kein Diesel- und kein Mautzuschlag, beide sind im Preis enthalten.",
+            "Beispiele ab Delbrück: 1 Palette 190 kg nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
+            "nach Hamburg 155 €; Langgut 6 m mit 500 kg nach Hamburg 353,25 €; Sylt 200 €.",
+            "Der Dienstleister SLH (Spedition u. Logistik Haaren, Keimeier u. Finke) ist angelegt; öffentliche "
+            "Preise gibt es nicht. Liegt ein Angebot vor, die Preise als eigenen Tarif für SLH eintragen; er gilt "
+            "dann vor dem Richtwert, wenn er eine kleinere Priorität hat (Richtwert: 50).")
     i.text("Fracht im Angebot und je Staffelmenge: [[fracht_angebot]] und [[staffeln]].")
     i.text("Jede gespeicherte Kalkulation enthält eine vollständige Kopie aller verwendeten Werte: Tarif und Version, "
            "Preisstaffeln, Zone und PLZ-Regel, Zuschläge, Dieselpreis, Kurs, Gewicht und Ladehilfsmittel. Spätere "
@@ -2409,6 +2551,9 @@ def kapitel_pflege(i):
             "Klappt der Austausch einer Datei nicht (z. B. weil die Bedienungsanleitung gerade in einem PDF-Programm "
             "offen ist), stellt das Programm alle Dateien zurück und bleibt, wie es war. Datei schließen und noch "
             "einmal versuchen.",
+            "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
+            "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
+            "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
             "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
@@ -2585,6 +2730,18 @@ def kapitel_step_messung(i):
             "<i>plausibel</i> heißt: die Messung ist in sich stimmig. Es ist keine Fertigungsfreigabe.")
 
 
+def kapitel_tastenkuerzel(i):
+    i.kapitel("Anhang: Tastenkürzel", marke="tastenkuerzel")
+    i.text("Das Programm kennt die üblichen Windows-Tastenkürzel. Sie stehen auch in den Menüs <i>Bearbeiten</i> "
+           "und <i>Ansicht</i> und unter <i>Hilfe → Tastenkürzel …</i>. Welche Seite ein Kürzel ausführt, richtet "
+           "sich danach, wo der Cursor steht: Strg+N in der Angebotsliste legt ein Angebot an, im Angebot eine "
+           "Position, in den Staffeln eine Stufe, in den Stammdaten eine Zeile. Rückgängig und Wiederholen sind in "
+           "[[rueckgaengig]] beschrieben.")
+    i.tabelle(["Taste", "Wirkung", "Wo"], [list(z) for z in TASTENKUERZEL], [28, 170, 67])
+    i.text("In Textfeldern wirken Strg+Z, Strg+C, Strg+V, Strg+X und Entf wie gewohnt im Text. Gespeichert wird jede "
+           "Eingabe sofort; Strg+S schließt nur eine offene Eingabe ab.")
+
+
 def kapitel_fragen(i):
     i.kapitel("Anhang: Häufige Fragen und Meldungen", marke="fragen")
     i.tabelle(["Meldung / Frage", "Ursache und Abhilfe"], [
@@ -2685,9 +2842,40 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.5", "Schneiddaten: Schaltfläche <i>Auf Standard zurücksetzen …</i> stellt für eine Maschine oder alle "
+    ["0.6.15", "Schneiddaten: Schaltfläche <i>Auf Standard zurücksetzen …</i> stellt für eine Maschine oder alle "
               "(T03, T11, LT7) nach Sicherheitsabfrage die mitgelieferten Richtwerte wieder her "
               "([[schneiddaten_standard]])."],
+    ["0.6.14", "Spaltenbreite und Zeilenhöhe automatisch in allen Tabellen: Spalten passend zum Inhalt (Höchstbreite), "
+              "lange Texte umgebrochen bis drei Zeilen, kurze Zeilen bleiben einzeilig; von Hand gezogene Spalten "
+              "bleiben ([[angebot]])."],
+    ["0.6.13", "Maschinen: neues Feld <i>Min. Stangenlänge Zuschnitt</i> (Vorgabe 2.500 mm, auch für vorhandene "
+              "Maschinen). Beim Zuschnitt einer 12-m-Stange wird keine Stange kürzer, damit die automatische "
+              "Stangenladung sie nimmt; eine kürzere wird verlängert, der Mehrbedarf ist Verschnitt ([[lieferlaengen]])."],
+    ["0.6.12", "Windows-Tastenkürzel: Strg+Z/Strg+Y (Rückgängig/Wiederholen im Angebot, bis 100 Schritte), "
+              "Strg+C/V/X für Zellen und Blöcke aus Excel, Entf löscht mit Rückfrage, Strg+N, Strg+F, Strg+S, Strg+P, "
+              "Strg+I, F5, F9, Strg+W, Strg+Tab, Strg+Bild↓/↑; neue Menüs Bearbeiten und Ansicht, "
+              "<i>Hilfe → Tastenkürzel …</i> ([[rueckgaengig]], [[tastenkuerzel]])."],
+    ["0.6.11", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
+              "ihre Stücke (eigene Stangen mit Endbeschnitt und Greiferrest), ohne den Zuschnitt; gerechnet wird weiter "
+              "mit den 12-m-Stangen ([[lieferlaengen]])."],
+    ["0.6.10", "Zeichnungen je Position (Dateien auf die Position ziehen, Kopie im Ordner des Angebots, STEP-Datei "
+              "automatisch, [[zeichnungen]]) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
+              "Optimierung, Lieferant und E-Mail-Adresse, Zeichnungen als Anhang; gesendet wird nur in Outlook "
+              "([[materialanfrage]])."],
+    ["0.6.9", "Frachtkosten: <b>Richtwerte laden</b> für den Palettenversand (Marktpreise 10/2026 + 10 % Puffer, "
+              "Maut und Diesel enthalten, Zonen nach Entfernung vom Versandort, schwere Paletten, Langgut, Inseln; "
+              "[[fracht_richtwerte]]). Automatische Fracht übernimmt die volle PLZ des Kunden."],
+    ["0.6.8", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
+              "statt mit <i>HTTP Error 404</i> abzubrechen; die Pakete des vorigen Stands bleiben länger liegen "
+              "([[updates]])."],
+    ["0.6.7", "Übersicht im Angebot ohne die Kennzahlen Gesamtlänge und Stangen, weil diese Summen über "
+              "verschiedene Abmessungen nicht aussagekräftig sind. Stangen je Abmessung zeigt das Stangenbild."],
+    ["0.6.6", "Schneidweg-Rechner ausgebaut: Gehrung bei allen Profilen über Höhe oder Breite, Ausklinkung "
+              "(Sattelschnitt) auf ein Rundrohr, Polygon aus Koordinaten, Skizze mit Lage der Konturen, "
+              "Gewinde-Vorschlag aus den Bohrungen ([[schneidweg_rechner]])."],
+    ["0.6.5", "Mindestpreis: gilt immer aus den Einstellungen für alle Angebote, auch ältere (dort stand bisher 0 €), "
+              "und wird bei jeder Änderung geprüft; im Angebot nicht mehr änderbar ([[mindestpreis]]). Zuschlag "
+              "Material und Zuschlag Fertigung ebenso nur noch in den Einstellungen, dort einmalig auf 0 % gesetzt."],
     ["0.6.4", "Vorschub Gravur der Richtwerte auf 3.000 mm/min gesenkt (bisher Faser 15.000, CO₂ 10.000); ältere "
               "Datendateien werden einmalig angepasst, von Hand geänderte Werte bleiben ([[stammdaten]])."],
     ["0.6.3", "Schneidweg-Rechner für Teile ohne STEP-Datei: Gehrungen, Bohrungen, Langlöcher, Rechtecke, Schlitze "
@@ -2767,7 +2955,8 @@ def inhalt_sammeln(daten, bilder, marken=None):
     kapitel_ausgabe(inh, daten["seiten"], daten["ablage"])
     # Teil C: einrichten und pflegen; danach der Anhang
     for kapitel in (kapitel_nachkalkulation, kapitel_einstellungen, kapitel_stammdaten, kapitel_zukauf,
-                    kapitel_frachtkosten, kapitel_pflege, kapitel_step_messung, kapitel_fragen, kapitel_neu):
+                    kapitel_frachtkosten, kapitel_pflege, kapitel_step_messung, kapitel_tastenkuerzel, kapitel_fragen,
+                    kapitel_neu):
         kapitel(inh)
     # die erste Kapitelüberschrift soll keinen zusätzlichen Seitenumbruch erzeugen
     inh.f = [x for k, x in enumerate(inh.f) if not (isinstance(x, PageBreak) and k > 0

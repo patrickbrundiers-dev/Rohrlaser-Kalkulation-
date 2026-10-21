@@ -150,11 +150,24 @@ class Updater:
                 raise update.Abbruch()
 
         try:
-            plan = update.planen(self.ordner, online, self.lokal, fortschritt=pruefen)
-            # auch ohne geänderte Dateien einspielen: dann wird nur die Dateiliste (der Stand) erneuert
-            fortschritt.setRange(0, max(1, plan["groesse"]))
-            geladen(0)
-            neu_ordner = update.laden(self.ordner, self.quelle, online, plan, geladen)
+            for versuch in range(2):
+                fortschritt.setRange(0, len(online["dateien"]))
+                fortschritt.setLabelText("Programmdateien prüfen …")
+                plan = update.planen(self.ordner, online, self.lokal, fortschritt=pruefen)
+                # auch ohne geänderte Dateien einspielen: dann wird nur die Dateiliste (der Stand) erneuert
+                fortschritt.setRange(0, max(1, plan["groesse"]))
+                stand[0] = 0
+                geladen(0)
+                try:
+                    neu_ordner = update.laden(self.ordner, self.quelle, online, plan, geladen)
+                    break
+                except update.UpdateFehler:
+                    # Paket fehlt: seit der Suche hat ein neuerer Stand die Dateiliste ersetzt -> mit der neuen
+                    update.verwerfen(self.ordner)
+                    frisch = update.neuere_liste(self.quelle, online) if versuch == 0 else None
+                    if frisch is None:
+                        raise
+                    online = frisch
             fortschritt.setCancelButton(None)        # ab hier nicht mehr abbrechen
             fortschritt.setLabelText("Datendatei sichern …")
             QApplication.processEvents()

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import staffeln
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS
+from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
 from .staffeln import ERWEITERT, EURO, PROZENT, STUFE_FELDER, UMLEGEN
 from .stammdaten import wert_aus_text, zahl_als_text
@@ -106,13 +107,13 @@ class StaffelnModell(QAbstractTableModel):
         """Grauer Text für ein leeres Feld: der Wert, der gilt."""
         e = self.s.s.einst
         if name == "mat_zuschlag":
-            return f"{_z(100 * (e.get('zuschlag_material') or 0), 1)} % (Angebot)"
+            return f"{_z(100 * (e.get('zuschlag_material') or 0), 1)} % (Einstellungen)"
         if name == "mat_art":
             return PROZENT
         if name == "gewinn":
             return f"{_z(100 * (e.get('gewinn') or 0), 1)} % (Angebot)"
         if name == "zuschlag_fertigung":
-            return f"{_z(100 * (e.get('zuschlag_fertigung') or 0), 1)} % (Angebot)"
+            return f"{_z(100 * (e.get('zuschlag_fertigung') or 0), 1)} % (Einstellungen)"
         if name == "ruesten":
             return UMLEGEN
         if name == "bis":
@@ -215,14 +216,14 @@ class StaffelnModell(QAbstractTableModel):
 TIPPS = {
     "menge": "Kalkulationsmenge der Stufe (Mindestmenge), in Sätzen bzw. Stück",
     "bis": "Höchstmenge; leer = bis zur nächsten Stufe desselben Satzes bzw. derselben Position",
-    "mat_zuschlag": "Zuschlag auf die Materialkosten nach Verlust; leer = 'Zuschlag Material' des Angebots. "
+    "mat_zuschlag": "Zuschlag auf die Materialkosten nach Verlust; leer = 'Zuschlag Material' der Einstellungen. "
                     "Ersetzt den Zuschlag Material des Angebots für diese Stufe.",
     "mat_art": "% = Prozent auf die Materialkosten nach Verlust, €/Einheit = fester Betrag je Satz bzw. Stück",
     "gewinn": "Gewinn in % auf die Selbstkosten; leer = Gewinn des Angebots",
     "verlust": "Materialverlust / Ausschuss in % auf die Material-Grundkosten (zusätzlich zum echten Verschnitt "
                "der Stangen, der schon in den Grundkosten steckt)",
     "mat_grundpreis": "Fester Material-Grundpreis je Satz bzw. Stück statt der gerechneten Stangenkosten",
-    "zuschlag_fertigung": "Gemeinkosten in % auf Fertigung und Rüsten (nicht auf Material); leer = Angebot",
+    "zuschlag_fertigung": "Gemeinkosten in % auf Fertigung und Rüsten (nicht auf Material); leer = Einstellungen",
     "ruesten": "umlegen = Rüstkosten im Stückpreis; separat = einmalige Position, nicht im Stückpreis",
     "arbeitsgang_min": "Zeit des zusätzlichen Arbeitsgangs je Satz bzw. Stück, mit dem Stundensatz bewertet",
     "arbeitsgang_satz": "Stundensatz des zusätzlichen Arbeitsgangs; leer = Maschinenstundensatz",
@@ -461,6 +462,8 @@ class _Bote(QObject):
 
 # ------------------------------------------------------------------ Reiter
 class StaffelSeite(QWidget):
+    KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
+
     def __init__(self, seite):
         super().__init__()
         self.s = seite
@@ -480,6 +483,7 @@ class StaffelSeite(QWidget):
                 self.ansicht.setItemDelegateForColumn(i, auswahl)
         self.ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                      | QAbstractItemView.AnyKeyPressed)
+        AutoGroesse(self.ansicht)        # Breite und Höhe passend zum Inhalt (spaltenbreite.py)
         self.erweitert = QCheckBox("Erweiterte Einstellungen")
         self.erweitert.setToolTip("Höchstmenge, Materialverlust, Grundpreis, Gemeinkosten, Rüstkosten separat, "
                                   "zusätzlicher Arbeitsgang, Nebenkosten und Rabatt je Stufe. Spalten mit Werten "
@@ -596,6 +600,7 @@ class StaffelSeite(QWidget):
         self.vorher = {z.get("stufe_id"): z.get("preis_einheit") for z in self.zeilen}
         self._spalten_zeigen()
         self.stand(speichern=feld not in ("schluessel", "menge"))
+        self.s.verlauf.merken()         # Schritt für Rückgängig
 
     # -------------------------------------------------------------- Stufen
     def neu(self):

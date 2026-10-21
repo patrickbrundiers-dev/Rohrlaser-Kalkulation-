@@ -41,12 +41,8 @@ STANGEN_SPALTEN = [("Stange Nr.", "nr", 0, 55), ("Profil-ID", "profil", None, 11
                    ("Rest / Verschnitt inkl. Greiferrest [mm]", "rest", 1, 100), ("Ausnutzung [%]", lambda z: 100 * z["ausnutzung"], 1, 75),
                    ("Prüfung", "pruefung", None, 85), ("Trennungen [Stk]", "trennungen", 0, 85),
                    ("davon gemeinsamer Schnitt", "gemeinsam", 0, 95), ("Stangengewicht [kg]", "gewicht", 2, 100),
-                   ("Materialkosten Stange [€]", "kosten", 2, 105),
-                   ("Werkstücke (Beladungen)", lambda z: len(z.get("werkstuecke") or [None]), 0, 85),
-                   ("Zuschnitt beim Lieferanten", lambda z: z.get("zuschnitt") or "", None, 260),
-                   ("Belegung (Pos. × Länge)", "belegung", None, 400)]
-TEIL_SPALTEN = [("Platz", "platz", 0, 45), ("Werkstück", lambda z: z.get("werkstueck") or "", None, 65),
-                ("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 140),
+                   ("Materialkosten Stange [€]", "kosten", 2, 105), ("Belegung (Pos. × Länge)", "belegung", None, 400)]
+TEIL_SPALTEN = [("Platz", "platz", 0, 45), ("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 140),
                 ("Teilelänge [mm]", "laenge", 1, 80), ("Von [mm]", "von", 2, 80), ("Bis [mm]", "bis", 2, 80),
                 ("Lage", "lage", None, 70), ("Trennung zum Vorgänger", "trennung", None, 140),
                 ("Eingesparter Schneidweg [mm]", "eingespart_mm", 1, 90), ("Eingesparte Einstiche", "eingespart_e", 0, 80)]

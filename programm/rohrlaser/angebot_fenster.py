@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFileDialog, QFrame,
@@ -14,11 +14,12 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser,
     QVBoxLayout, QWidget)
 
-from . import fracht_angebot, ausgabe, export, pdf, rechnen, schneidweg, step, zukauf, zukauf_ek
+from . import fracht_angebot, ausgabe, dokumente, export, materialanfrage, pdf, rechnen, schneidweg, step, tastatur, zukauf, \
+    zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
-from .schneidweg_dialog import SchneidwegDialog
+from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
@@ -26,7 +27,9 @@ from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv a
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
-from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung, spalten_einpassen
+from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
+from .spaltenbreite import AutoGroesse
+from .verlauf import Verlauf
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
 FARBE_TEILE = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F",
@@ -64,6 +67,7 @@ def _tabelle(modell, sortieren=True):
     kopf.setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
     kopf.setMinimumHeight(48)
     v.verticalHeader().setDefaultSectionSize(22)
+    AutoGroesse(v)                  # Breite und Höhe passend zum Inhalt (spaltenbreite.py)
     return v
 
 
@@ -123,6 +127,7 @@ def _breiten(ansicht, spalten):
 # ------------------------------------------------------------------ Übersicht der Angebote
 class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
+    KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85), ("Maschine", "maschine", None, 70),
@@ -145,6 +150,10 @@ class AngeboteSeite(QWidget):
         self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel …")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
+        tastatur.suche_esc(self.suche)
+        for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
+            k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
+            k.setContext(Qt.WidgetShortcut)
         leiste = QHBoxLayout()
         for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
                            ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
@@ -260,11 +269,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
-            "gewicht_teil"]
+            "dokumente", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "gewicht_teil")
-EIGENE = ("zusatz", "zukauf")        # Spalten mit eigenem Dialog (Doppelklick)
+                     "zukauf", "dokumente", "gewicht_teil")
+EIGENE = ("zusatz", "zukauf", "dokumente")        # Spalten mit eigenem Dialog (Doppelklick)
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
 
@@ -363,6 +372,8 @@ class PositionenModell(QAbstractTableModel):
             return rechnen.zusatz_text(self.daten[r])
         if art == "zukauf":
             return zukauf.zukauf_text(self.daten[r])
+        if art == "dokumente":
+            return dokumente.kurz(self.daten[r].get("dokumente"))
         if art == "abweichung":
             return schneidweg_abweichung(self.daten[r])
         w = self.werte[r].get(x[1])
@@ -434,6 +445,10 @@ class PositionenModell(QAbstractTableModel):
                 return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
             if art == "zukauf" and rolle == Qt.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Zukaufteile wählen"
+            if art == "dokumente" and rolle == Qt.ToolTipRole:
+                namen = dokumente.liste(self.daten[index.row()].get("dokumente"))
+                return "\n".join(namen + ["Doppelklick: Zeichnungen anhängen, öffnen, entfernen; Dateien auf die "
+                                           "Position ziehen hängt sie an"])
             return w
         if rolle == Qt.EditRole and art == "feld":
             return wert_als_text(x, w, bearbeiten=True)
@@ -533,8 +548,7 @@ class Stangenbild(QWidget):
             p.setFont(fett)
             anz = len(nummern)
             nr_text = ", ".join(map(str, nummern)) if anz <= 6 else f"{nummern[0]}–{nummern[-1]}"
-            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm"
-                    + (f"  ·  {len(s['werkstuecke'])} Werkstücke" if s.get("werkstuecke") else ""))
+            kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm")
             p.drawText(x0, y + 12, kopf)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]
@@ -551,12 +565,8 @@ class Stangenbild(QWidget):
                 p.drawRect(r)
                 return r
             rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
-            # zugeschnittene Lieferstange (z. B. 12 m): je Werkstück Endbeschnitt und Greiferrest
-            for w in s.get("werkstuecke") or [dict(von=0, bis=s["stange"], end=s["end"], greif=s["greif"])]:
-                if s.get("werkstuecke"):
-                    rechteck(w["von"], w["bis"], QColor("#F8F8F8"), QColor("#404040"))
-                rechteck(w["von"], w["von"] + w["end"], QColor("#A6A6A6"))                 # Endbeschnitt
-                rechteck(w["bis"] - w["greif"], w["bis"], QColor("#E06666"))               # Greiferrest
+            rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
+            rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
             for t in s["teile"]:
                 r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], QColor("#4E79A7")))
                 p.setPen(QPen(QColor("#202020"), 2))
@@ -579,9 +589,9 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst):
                 "Einstellungen → Lieferlängen steht, und ohne Eintrag Profile über dem Hüllkreis-Ø aus den "
                 "Einstellungen (Vorgabe 70 mm) mit 12 m. Kleinere Profile ohne Eintrag werden nie mit 12 m geplant.")
     zeilen = [("Benötigte Stangen", lambda v: _z(v["lieferstangen"], 0)),
-              ("Beladungen der Maschine (Werkstücke)", lambda v: _z(v["werkstuecke"], 0)),
+              ("Beladungen der Maschine (Stangen)", lambda v: _z(v["werkstuecke"], 0)),
               ("Zuschnitte beim Lieferanten", lambda v: _z(v["zuschnitte"], 0) if v["zuschnitt"] else "–"),
-              ("Werkstücklängen [mm]", lambda v: ", ".join(_z(l, 0) for l in v["werkstueck_laengen"]) or "–"),
+              ("Stangenlängen nach Zuschnitt [mm]", lambda v: ", ".join(_z(l, 0) for l in v["werkstueck_laengen"]) or "–"),
               ("Materiallänge [m]", lambda v: _z(v["material_mm"] / 1000, 1)),
               ("Materialkosten [€]", lambda v: _z(v["material"])),
               ("Stangenwechsel / je Beladung [€]", lambda v: _z(v["werkstueck_kosten"])),
@@ -676,10 +686,17 @@ PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None,
 
 
 class AngebotSeite(QWidget):
+    # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
+    KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
+               "rueckgaengig": "rueckgaengig", "wiederholen": "wiederholen", "einfuegen": "_einfuegen",
+               "ausschneiden": "_ausschneiden", "optimieren": "optimieren", "drucken": "angebot_pdf",
+               "importieren": "step_importieren"}
+
     def __init__(self, fenster, angebot_id):
         super().__init__()
         self.setAcceptDrops(True)       # STEP-Dateien und Ordner per Drag & Drop importieren
         self.f, self.db, self.id = fenster, fenster.db, angebot_id
+        self.verlauf = Verlauf(self.db, angebot_id)     # Rückgängig/Wiederholen
         self._laden = False
         self.kopf, self.positionen, self.ergebnis = {}, [], None
 
@@ -735,7 +752,9 @@ class AngebotSeite(QWidget):
             leiste.addWidget(b)
         self.weitere = QPushButton("Weitere Aktionen")
         menue = QMenu(self.weitere)
-        for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
+        for text, ziel in (("Material per Outlook anfragen …", lambda: self.material_anfragen()),
+                           ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
+                           ("Zeichnungen …", lambda: self.zeichnungen()),
                            ("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
             menue.addAction(text, lambda ziel=ziel: ziel())
         self.weitere.setMenu(menue)
@@ -757,6 +776,7 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.pos_menue = QMenu(self.pos_ansicht)
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
+                           ("Zeichnungen …", lambda: self.zeichnungen()),
                            ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
                            ("Positionen löschen", self.positionen_loeschen)):
@@ -764,7 +784,8 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.customContextMenuRequested.connect(
             lambda punkt: self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(
-            lambda i: {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile}.get(
+            lambda i: {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile,
+                       "dokumente": lambda z: self.zeichnungen(z[0])}.get(
                 self.pos_modell.spalten[i.column()][0], lambda _: None)([i.row()]))
 
         self.kalk = Liste(KALK_SPALTEN)
@@ -882,7 +903,6 @@ class AngebotSeite(QWidget):
         lay.setContentsMargins(8, 8, 8, 4)
         lay.addWidget(self.teiler, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
-        self._pos_eingepasst = self._kalk_eingepasst = False
         self.neu_laden()
 
     # -------------------------------------------------------------- Laden und Rechnen
@@ -909,6 +929,7 @@ class AngebotSeite(QWidget):
         self._spalten_zeigen()
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
+        self.verlauf.merken()
 
     def _konturen_einteilen(self):
         """Konturklassen neu einteilen, wenn die Grenzen der Maschine nicht die sind, mit denen die Konturliste der
@@ -1077,16 +1098,12 @@ class AngebotSeite(QWidget):
         erg = self.ergebnis
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
         self.kalk.setzen([z for z in zeilen if z])
-        if not self._kalk_eingepasst and any(zeilen):
-            spalten_einpassen(self.kalk_ansicht)
-            self._kalk_eingepasst = True
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
-        laenge = sum(w["laenge_gesamt"] or 0 for w in self.pos_modell.werte) / 1000
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
         self.uebersicht_bereich.kennzahlen_setzen(dict(
-            positionen=str(sum(1 for s in stat if s)), stueck=f"{_z(teile, 0)} Stk", laenge=f"{_z(laenge)} m",
-            gewicht=f"{_z(gewicht)} kg", stangen=str(summen["stangen"]) if erg else "–"))
+            positionen=str(sum(1 for s in stat if s)), stueck=f"{_z(teile, 0)} Stk",
+            gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         kosten = rechnen.kostenarten(summen, self.einst)
@@ -1099,7 +1116,8 @@ class AngebotSeite(QWidget):
                                        for t, w, fett in kosten if fett or sichtbar(w)))
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
-            self.stangen.setzen([dict(s, **w) for s, w in zip(erg["stangen"], sw)])
+            # Schnittplan wie geladen: zugeschnittene Lieferstangen als ihre Werkstücke
+            self.stangen.setzen([dict(s, **w) for s, w in rechnen.anzeige_stangen(erg, sw)])
             ausw = rechnen.auswertung_zeilen(erg, sw)
             self.ausw.setzen(ausw)
             self.fehler.setzen(erg["fehler"] or [dict(grund="keine")])
@@ -1109,7 +1127,7 @@ class AngebotSeite(QWidget):
             self.fehler.setzen([])
         self.teile.setzen([])
         self.laengen_ansicht.setHtml(laengen_html(erg, self.kopf, self.positionen, self.k, self.tabellen, self.einst))
-        self.bild.setzen(erg)
+        self.bild.setzen(dict(erg, stangen=rechnen.anzeige_stangen(erg)) if erg else erg)
         self.prot.setzen(self.db.protokoll(self.id))
         self.st_seite.setzen()
         self.nachkalk.neu_laden()
@@ -1118,7 +1136,7 @@ class AngebotSeite(QWidget):
         if not aktuell.isValid() or not self.ergebnis:
             self.teile.setzen([])
             return
-        s = self.ergebnis["stangen"][aktuell.row()]     # in der Liste ist 'teile' die Anzahl
+        s = rechnen.anzeige_stangen(self.ergebnis)[aktuell.row()]     # in der Liste ist 'teile' die Anzahl
         self.teile.setzen([dict(t, platz=i) for i, t in enumerate(s["teile"], start=1)])
 
     def _spalten_zeigen(self):
@@ -1141,9 +1159,8 @@ class AngebotSeite(QWidget):
             if zeigen and self.pos_ansicht.isColumnHidden(i):
                 neu.add(i)
             self.pos_ansicht.setColumnHidden(i, not zeigen)
-        if self.positionen:            # Breiten einmal je geöffnetem Angebot, danach nur neu gezeigte Spalten
-            spalten_einpassen(self.pos_ansicht, None if not self._pos_eingepasst else neu)
-            self._pos_eingepasst = True
+        if neu and self.pos_ansicht.auto_groesse.eingepasst:     # neu gezeigte Spalten einpassen (sonst beim Füllen)
+            self.pos_ansicht.auto_groesse.einpassen(neu)
         aus = sum(1 for i, (art, _) in enumerate(m.spalten) if m.name(i) in OPTIONALE_SPALTEN
                   and self.pos_ansicht.isColumnHidden(i))
         n = sum(1 for p in self.positionen if position_aktiv(p) or p.get("artikel"))
@@ -1233,7 +1250,7 @@ class AngebotSeite(QWidget):
                 return False
             eingaben = d.eingaben()
         grenzen = rechnen.kontur_grenzen(rechnen.maschine(self.kopf, self.k))[0]
-        erg = schneidweg.rechnen(eingaben, profil, grenzen)
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False
@@ -1347,6 +1364,51 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"EK für {len(paare)} Zukaufteil(e) eingetragen und im Artikel gespeichert.")
         self.neu_laden()
         return len(paare)
+
+    # -------------------------------------------------------------- Rückgängig, Einfügen (Tastenkürzel)
+    def rueckgaengig(self):
+        return self._verlauf_schritt(self.verlauf.rueckgaengig, "Rückgängig", "Nichts mehr rückgängig zu machen.")
+
+    def wiederholen(self):
+        return self._verlauf_schritt(self.verlauf.wiederholen, "Wiederholt", "Nichts zu wiederholen.")
+
+    def _verlauf_schritt(self, schritt, wort, nichts):
+        was = schritt()
+        if was is None:
+            self.f.meldung(nichts, fehler=True)
+            return None
+        aktuell = self.pos_ansicht.currentIndex()
+        self.pos_modell.bilder.clear()
+        self.neu_laden()
+        if aktuell.isValid() and aktuell.row() < self.pos_modell.rowCount():
+            self.pos_ansicht.setCurrentIndex(self.pos_modell.index(aktuell.row(), aktuell.column()))
+        self.f.meldung(f"{wort}: {was}")
+        return was
+
+    def _gesammelt(self, aendern):
+        """Mehrere Zellen ändern, einmal neu rechnen, ein Schritt für Rückgängig."""
+        self.verlauf.pause += 1
+        self.pos_modell.blockSignals(True)
+        try:
+            n = aendern(self.pos_ansicht)
+        finally:
+            self.pos_modell.blockSignals(False)
+            self.verlauf.pause -= 1
+        if n:
+            self.neu_laden()
+        self.f.meldung(f"{n} Zelle(n) geändert." if n else "Keine bearbeitbare Zelle.", fehler=not n)
+        return n
+
+    def _einfuegen(self, text=None):
+        if QApplication.focusWidget() is not self.pos_ansicht and text is None:
+            return False                        # andere Tabelle: allgemeines Einfügen im Hauptfenster
+        return self._gesammelt(lambda v: tastatur.einfuegen(v, text))
+
+    def _ausschneiden(self):
+        if QApplication.focusWidget() is not self.pos_ansicht:
+            return False
+        tastatur.kopieren(self.pos_ansicht)
+        return self._gesammelt(tastatur.leeren)
 
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
@@ -1561,20 +1623,112 @@ class AngebotSeite(QWidget):
         return self._schreiben("CSV-Export", self._ziel("Kalkulation", ".csv", mit_kunde=True),
                                lambda p: export.angebot_csv(p, self.kopf, zeilen, summen, self.einst))
 
+    # -------------------------------------------------------------- Zeichnungen und Materialanfrage
+    def dokumente_ordner(self):
+        """Ordner der Zeichnungen dieses Angebots (Ablage/<Angebotsnummer>) oder None, wenn die Ablage fehlt."""
+        try:
+            return dokumente.ordner(self.f.ablage(), self.kopf)
+        except OSError as e:
+            QMessageBox.warning(self, "Zeichnungen", f"Der Ablageordner lässt sich nicht anlegen:\n{e}")
+            return None
+
+    def dokumente_anhaengen(self, zeile, dateien):
+        """Dateien (PDF, DXF, STEP, Bilder) in den Ordner des Angebots kopieren und an die Position hängen.
+        Ergebnis: Anzahl angehängter Dateien."""
+        dateien = dokumente.passend(dateien)
+        ordner = self.dokumente_ordner() if dateien else None
+        if not dateien or ordner is None:
+            return 0
+        p = self.positionen[zeile]
+        try:
+            neu = dokumente.anhaengen(ordner, p.get("dokumente"), dateien)
+        except OSError as e:
+            QMessageBox.warning(self, "Zeichnungen", f"Die Datei lässt sich nicht kopieren:\n{e}")
+            return 0
+        self.db.position_aendern(p["id"], "dokumente", neu)
+        self.f.meldung(f"Pos. {p.get('pos') or ''}: {len(dateien)} Datei(en) angehängt ({ordner}).")
+        self.neu_laden()
+        return len(dateien)
+
+    def zeichnungen(self, zeile=None, dialog=None):
+        """Zeichnungen der markierten Position: anhängen, öffnen, entfernen (Dialog). dialog(d) bedient den Dialog
+        statt exec (Tests). Ergebnis: True = gespeichert."""
+        from .dokumente_dialog import DokumenteDialog
+        if zeile is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+            if len(zeilen) != 1:
+                self.f.meldung("Bitte genau eine Position markieren.", fehler=True)
+                return False
+            zeile = zeilen[0]
+        ordner = self.dokumente_ordner()
+        if ordner is None:
+            return False
+        p = self.positionen[zeile]
+        d = DokumenteDialog(self, p, ordner, self.f.datei_oeffnen)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+            return False
+        self.db.position_aendern(p["id"], "dokumente", dokumente.text(d.namen))
+        self.neu_laden()
+        return True
+
+    def material_anfragen(self, dialog=None, ausfuehren=None):
+        """Materialanfrage an den Lieferanten (Dialog): Bedarf aus der Optimierung, Lieferant, Text und Zeichnungen
+        prüfen, dann 'In Outlook öffnen' (gesendet wird nur in Outlook) oder 'Als E-Mail-Datei speichern'.
+        dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests)."""
+        from .dokumente_dialog import AnfrageDialog
+        if not self.ergebnis or not self.ergebnis.get("stangen"):
+            self.f.meldung("Materialanfrage: bitte zuerst optimieren (der Stangenbedarf kommt aus der Optimierung).",
+                           fehler=True)
+            return None
+        werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+        zeilen = materialanfrage.bedarf(self.positionen, self.ergebnis, self.k, self.tabellen, werte)
+        if not zeilen:
+            self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
+                           fehler=True)
+            return None
+        ordner = self.dokumente_ordner()
+        if ordner is None:
+            return None
+        d = AnfrageDialog(self, self.kopf, zeilen, self.k, self.einst,
+                          materialanfrage.lieferanten(self.db.zeilen("zukauf_lieferanten")), ordner,
+                          self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren)
+        (dialog(d) if dialog else d.exec())
+        if d.meldung:
+            self.f.meldung(d.meldung)
+        return d
+
     # -------------------------------------------------------------- STEP-Import
     def _gezogene_dateien(self, ereignis):
         urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
         return step.step_dateien([u.toLocalFile() for u in urls if u.isLocalFile()])
 
+    def _gezogene_dokumente(self, ereignis):
+        urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
+        return [d for d in dokumente.passend([u.toLocalFile() for u in urls if u.isLocalFile()])
+                if d.suffix.lower() not in (".step", ".stp")]
+
     def dragEnterEvent(self, ereignis):
-        if self._gezogene_dateien(ereignis):
+        if self._gezogene_dateien(ereignis) or self._gezogene_dokumente(ereignis):
             ereignis.acceptProposedAction()
 
+    def dragMoveEvent(self, ereignis):
+        ereignis.acceptProposedAction()
+
     def dropEvent(self, ereignis):
-        dateien = self._gezogene_dateien(ereignis)
+        dateien, docs = self._gezogene_dateien(ereignis), self._gezogene_dokumente(ereignis)
+        if docs:        # Zeichnungen: an die Position unter der Maus hängen
+            vp = self.pos_ansicht.viewport()
+            punkt = vp.mapFrom(self, ereignis.position().toPoint())
+            zeile = self.pos_ansicht.indexAt(punkt).row() if vp.rect().contains(punkt) else -1
+            if zeile >= 0:
+                self.dokumente_anhaengen(zeile, docs)
+            else:
+                self.f.meldung("Zeichnungen bitte direkt auf die Position ziehen, zu der sie gehören.", fehler=True)
         if dateien:
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
+        elif docs:
+            ereignis.acceptProposedAction()
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
         """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
@@ -1634,6 +1788,10 @@ class AngebotSeite(QWidget):
         if neue_ids:
             erg["bericht"].append(f"{len(neue_ids)} Zukaufartikel (Blech) neu angelegt, EK fehlt: bitte unter "
                                   "Zukaufartikel mit 'EK eintragen …' nachtragen.")
+        # STEP-Dateien an die Positionen hängen (im Selbsttest nur mit eingestelltem Ablageordner)
+        anhaengen_ordner = self.dokumente_ordner() if not self.f.stumm or self.db.einstellung("ablageordner") \
+            else None
+        quellen = {Path(d).name: Path(d) for d in dateien}
         for p in erg["positionen"]:
             verweis = p.pop("_zukauf", None)
             if verweis:
@@ -1641,6 +1799,12 @@ class AngebotSeite(QWidget):
                 p["zukauf"] = json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))],
                                          ensure_ascii=False)
             netz = p.pop("_netz", None)
+            quelle = quellen.get(p.pop("_datei", None))      # Messung nennt nur den Dateinamen
+            if quelle and anhaengen_ordner is not None and Path(quelle).is_file():
+                try:        # STEP-Datei als Zeichnung der Position (Kopie im Ordner des Angebots)
+                    p["dokumente"] = dokumente.anhaengen(anhaengen_ordner, None, [quelle])
+                except OSError:
+                    pass
             pid = self.db.position_neu(self.id, p)
             if netz:
                 self.db.netz_speichern(pid, netz)

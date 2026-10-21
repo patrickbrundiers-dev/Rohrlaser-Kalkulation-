@@ -40,7 +40,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 26     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 28     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -49,9 +49,11 @@ SCHEMA_VERSION = 26     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 21: Positionsart (positionen.art: Rohrlaserteil/Zukaufteil) und positionen.gewicht_teil
                         # 22: profile.wand_max (größte Wandstärke für die Schneidzeit), Normprofile aus der Tabelle
                         # 23: Lieferlängen (Tabelle lieferlaengen, profile.laengenvergleich, angebote.laengenwahl)
-                        # 24: Kundenreferenz, Lieferzeit und Mindestpreis im Angebot (ältere Angebote: Mindestpreis 0)
+                        # 24: Kundenreferenz, Lieferzeit und Mindestpreis im Angebot (seit 0.6.4 Mindestpreis nur aus den Einstellungen)
                         # 25: Kundenmaterial (positionen.material_herkunft, Kopf material_vorgabe, Handling je kg)
                         # 26: Schneidweg-Rechner (positionen.technik, Eingaben als JSON; ältere Positionen leer)
+                        # 27: Zeichnungen je Position (positionen.dokumente, Dateinamen im Ordner des Angebots)
+                        # 28: maschinen.min_stange (kürzeste Stange der Stangenladung im Zuschnitt, Vorgabe 2.500 mm)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -65,6 +67,7 @@ ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
+ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 
 
 class Datenbank:
@@ -81,6 +84,7 @@ class Datenbank:
             self.fracht_beispiele_laden()
             self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
             self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
+            self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
 
     def schliessen(self):
         self.con.close()
@@ -156,6 +160,8 @@ class Datenbank:
                 self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
             if 0 < version < 22:
                 self._wand_max_ergaenzen()
+            if 0 < version < 28:
+                self.con.execute("UPDATE maschinen SET min_stange=2500 WHERE min_stange IS NULL")
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -165,12 +171,14 @@ class Datenbank:
             if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
-            if 0 < version < 24:      # gespeicherte Angebote behalten ihren Preis: kein Mindestpreis
-                self.con.execute("UPDATE angebote SET mindestpreis=0 WHERE mindestpreis IS NULL")
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
                 self._gravur_anpassen()
+            if version > 0 and self.einstellung("zuschlaege_stand") != ZUSCHLAEGE_STAND:
+                for n in ("zuschlag_material", "zuschlag_fertigung"):
+                    self._einstellung_schreiben(n, 0)
+                self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -782,6 +790,33 @@ class Datenbank:
                     n += c.rowcount
         return n
 
+    def fracht_richtwerte_laden(self, absender_plz=None):
+        """Richtwerte Palettenversand (fracht_richtwerte.py) übernehmen: alle Zeilen mit BEISPIEL oder RICHTWERT in
+        der Bemerkung werden ersetzt, eigene Einträge bleiben (gleicher Schlüssel: der eigene gilt). Absender-PLZ
+        (leer = Einstellung) muss eine deutsche PLZ sein; leere Absender-PLZ und Versandart werden gesetzt.
+        Ergebnis: (entfernt, eingefügt)."""
+        from .fracht_richtwerte import TARIF, VERSANDART, richtwerte
+        absender_plz = (absender_plz or self.einstellung("absender_plz") or "").strip()
+        daten = richtwerte(absender_plz)              # ValueError bei unbekannter PLZ, vor jeder Änderung
+        weg = neu = 0
+        with self.con:
+            for tabelle in KURZ:
+                if "bemerkung" in [f.name for f in ALLE_TABELLE[tabelle].felder]:
+                    weg += self.con.execute(f'DELETE FROM "{tabelle}" WHERE bemerkung LIKE \'BEISPIEL%\' '
+                                            "OR bemerkung LIKE 'RICHTWERT%'").rowcount
+            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (TARIF,)).rowcount
+            for tabelle, zeilen in daten.items():
+                namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
+                for z in zeilen:
+                    neu += self.con.execute(
+                        f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
+                        f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen]).rowcount
+        if not self.einstellung("absender_plz"):
+            self.einstellung_setzen("absender_plz", absender_plz)
+        if (self.einstellung("fracht_versandart") or "Stückgut") == "Stückgut":
+            self.einstellung_setzen("fracht_versandart", VERSANDART)
+        return weg, neu
+
     def plz_importieren(self, zeilen):
         """PLZ-Zuordnungen übernehmen (fracht_daten.plz_csv_lesen); gleicher Schlüssel (Land, PLZ von, PLZ bis,
         Richtung, Dienstleister, Kunde) wird ersetzt. Ergebnis: (neu, ersetzt)."""
@@ -1179,6 +1214,59 @@ class Datenbank:
         with self.con:
             self.con.executemany("INSERT INTO step_protokoll (angebot_id, zeile) VALUES (?, ?)",
                                  [(angebot_id, json.dumps(z, default=str, ensure_ascii=False)) for z in zeilen])
+
+    # -------------------------------------------------------------- Stand eines Angebots (Rückgängig/Wiederholen)
+    def angebot_stand(self, angebot_id):
+        """Alles, was zu einem Angebot gehört, als Werte (Kopf, Positionen, Staffeln, STEP-Protokoll) plus
+        {Positions-ID: Länge} der 3D-Netze. Die Netze selbst holt verlauf.Verlauf nur bei Bedarf. None = gelöscht."""
+        a = self.con.execute("SELECT * FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        if a is None:
+            return None
+        def zeilen(sql):
+            return tuple(tuple(r) for r in self.con.execute(sql, (angebot_id,)))
+        return dict(
+            angebot=tuple((k, a[k]) for k in a.keys() if k not in ("id", "geaendert")),
+            positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
+            staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
+            protokoll=zeilen("SELECT * FROM step_protokoll WHERE angebot_id=? ORDER BY id"),
+            netze=dict(zeilen("SELECT n.position_id, length(n.daten) FROM netze n JOIN positionen p ON "
+                              "p.id = n.position_id WHERE p.angebot_id=?")))
+
+    def angebot_stand_setzen(self, angebot_id, stand, netze):
+        """Angebot auf einen mit angebot_stand gelesenen Stand zurücksetzen (eine Transaktion). netze:
+        {Positions-ID: Netz-Bytes} für alle Netze des Stands."""
+        spalten = {t: [r[1] for r in self.con.execute(f"PRAGMA table_info({t})")]
+                   for t in ("positionen", "staffeln", "step_protokoll")}
+        def einsetzen(tabelle, zeilen):
+            namen = ", ".join(f'"{n}"' for n in spalten[tabelle])
+            self.con.executemany(f'INSERT INTO {tabelle} ({namen}) VALUES ({", ".join("?" * len(spalten[tabelle]))})',
+                                 zeilen)
+        with self.con:
+            werte = dict(stand["angebot"])
+            self.con.execute(f'UPDATE angebote SET {", ".join(chr(34) + n + chr(34) + "=?" for n in werte)}, '
+                             'geaendert=? WHERE id=?', list(werte.values()) + [self._jetzt(), angebot_id])
+            ids = {z[0] for z in stand["positionen"]}
+            weg = [r[0] for r in self.con.execute("SELECT id FROM positionen WHERE angebot_id=?", (angebot_id,))
+                   if r[0] not in ids]
+            self.con.executemany("DELETE FROM positionen WHERE id=?", [(i,) for i in weg])
+            namen = spalten["positionen"]
+            for z in stand["positionen"]:          # vorhandene ändern (ihre 3D-Netze bleiben), fehlende anlegen
+                if self.con.execute("SELECT 1 FROM positionen WHERE id=?", (z[0],)).fetchone():
+                    self.con.execute(f'UPDATE positionen SET {", ".join(chr(34) + n + chr(34) + "=?" for n in namen[1:])} '
+                                     'WHERE id=?', list(z[1:]) + [z[0]])
+                else:
+                    einsetzen("positionen", [z])
+            for pid in ids:
+                if pid in netze:
+                    alt = self.con.execute("SELECT length(daten) FROM netze WHERE position_id=?", (pid,)).fetchone()
+                    if alt is None or alt[0] != len(netze[pid]):
+                        self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)",
+                                         (pid, netze[pid]))
+                else:
+                    self.con.execute("DELETE FROM netze WHERE position_id=?", (pid,))
+            for tabelle, schl in (("staffeln", "staffeln"), ("step_protokoll", "protokoll")):
+                self.con.execute(f"DELETE FROM {tabelle} WHERE angebot_id=?", (angebot_id,))
+                einsetzen(tabelle, stand[schl])
 
     def profile_anlegen(self, profile):
         """Profile aus Optimierung (Name) oder STEP-Import anlegen, vorhandene IDs bleiben unverändert."""

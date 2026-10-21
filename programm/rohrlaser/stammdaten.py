@@ -267,7 +267,7 @@ LIEFERLAENGEN = Tabelle(
     "Weitere lieferbare Stangenlängen je Profil + Werkstoff (z. B. 12.000 mm). Das Angebot vergleicht sie mit der "
     "Stangenlänge des Angebots und empfiehlt sie nur bei ausreichender Kostenersparnis (Einstellungen, Gruppe "
     "Lieferlängen). Längen über der max. Stangenlänge der Maschine schneidet der Lieferant auf die geplanten "
-    "Werkstücklängen zu. Preis leer = €/kg- bzw. €/m-Preis aus 'Preise', ohne Zeile dort der Tonnenpreis. Gibt es "
+    "Stangenlängen zu. Preis leer = €/kg- bzw. €/m-Preis aus 'Preise', ohne Zeile dort der Tonnenpreis. Gibt es "
     "für Profil + Werkstoff Zeilen, ist die Stangenlänge des Angebots nur lieferbar, wenn sie hier oder als "
     "Liefer-Stangenlänge in 'Preise' steht. Ohne Zeile gelten Profile über dem Hüllkreis-Ø aus den Einstellungen "
     "(Vorgabe 70 mm) zusätzlich als 12 m lieferbar, Preis wie 'Preise'; kleinere ohne Zeile nie. Profile: "
@@ -289,12 +289,15 @@ MASCHINEN = Tabelle(
      Feld("stangenwechsel", "Stangenwechsel je Stange [s]", "zahl", 0, 3600, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=160),
      Feld("max_huellkreis", "Max. Hüllkreis-Ø [mm]", "zahl", 1, 2000, stellen=1),
-     Feld("max_kg_m", "Max. Metergewicht [kg/m]", "zahl", 0.1, 1000, stellen=1)),
+     Feld("max_kg_m", "Max. Metergewicht [kg/m]", "zahl", 0.1, 1000, stellen=1),
+     Feld("min_stange", "Min. Stangenlänge Zuschnitt [mm]", "ganz", 0, 20000)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. "
     "Max. Hüllkreis-Ø und max. Metergewicht: größere oder schwerere Profile bekommen im Angebot FEHLER "
-    "und werden nicht eingeplant (leer = keine Grenze).")
+    "und werden nicht eingeplant (leer = keine Grenze). Min. Stangenlänge Zuschnitt: kürzeste Stange, die die "
+    "automatische Stangenladung nimmt; keine aus einer Lieferstange (z. B. 12 m) zugeschnittene Stange wird kürzer "
+    "(leer oder 0 = keine Grenze).")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -427,8 +430,8 @@ class Einstellung:
 
 
 EINSTELLUNGEN = (
-    Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0.10, 0, 5),
-    Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0.15, 0, 5),
+    Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0, 0, 5),
+    Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0, 0, 5),
     Einstellung("zuschlag_fremdleistung", "Zuschlag Fremdleistung", "Kalkulation", "anteil", 0.10, 0, 5),
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, 0, 5),
     # Standardaufschlag der Anwendung für Zukaufteile (gilt, wenn weder Artikel noch Kategorie einen haben);
@@ -839,9 +842,9 @@ def beispiel_oberflaechen():
 
 # Maschinen (Werte von Patrick, 20.10.2026): T03 Trumpf CO₂-Laser, T11 Trumpf und LT7 Adige Faserlaser
 BEISPIEL_MASCHINEN = [
-    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "CO₂-Laser", 255, 36),
-    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "Faserlaser", 255, 36),
-    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 5, 5, 25, "Faserlaser", 214, 23)]
+    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "CO₂-Laser", 255, 36, 2500),
+    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "Faserlaser", 255, 36, 2500),
+    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 5, 5, 25, "Faserlaser", 214, 23, 2500)]
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
 # Laserleistung laut Patrick (20.10.2026): T03 3,2 kW, T11 4 kW, LT7 3 kW. Die Richtwerte gelten für 3 kW Faser bzw.
 # 3,2 kW CO₂; T11 mit 4 kW bekommt 20 % mehr Vorschub (nicht die vollen 33 %: am Rohr begrenzt oft die Dynamik).

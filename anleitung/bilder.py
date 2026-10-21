@@ -393,13 +393,27 @@ def main(ziel):
     def schneidweg_ausfuellen(d):
         d.winkel["a"].setValue(45)
         d.zeile_neu(dict(art="Bohrung", anzahl=4, d=8.5))
-        d.zeile_neu(dict(art="Langloch", anzahl=2, l=30, b=10))
+        d.zeile_neu(dict(art="Langloch", anzahl=2, l=30, b=10, x=600))
         d.zeile_neu(dict(art="Rechteck", anzahl=1, b=20, h=60, r=2))
+        d.resize(1000, 760)
         QApplication.processEvents()
         foto.foto("schneidweg_dialog", d, [(d.winkel["a"], 1), (d.tabelle, 2), (knopf(d, "+ Bohrung"), 3),
-                                           (d.ergebnis_tabelle, 4), (d.summe, 5)])
+                                           (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6)])
         return QDialog.Rejected
     s.schneidweg_berechnen(0, dialog=schneidweg_ausfuellen)
+
+    # 7a3) Zeichnung an Pos. 1 und Materialanfrage (nur Foto, Schließen: nichts geöffnet)
+    zeichnung = Path(tempfile.mkdtemp()) / "Z-4711 Rahmen.pdf"
+    zeichnung.write_bytes(b"%PDF-1.4")
+    s.dokumente_anhaengen(0, [zeichnung])
+
+    def anfrage_foto(d):
+        d.resize(900, 680)
+        QApplication.processEvents()
+        foto.foto("materialanfrage", d, [(d.lieferant, 1), (d.tabelle, 2), (d.text, 3), (d.anhaenge, 4),
+                                         (d.outlook_knopf, 5)])
+        return QDialog.Rejected
+    s.material_anfragen(dialog=anfrage_foto)
     bereit()
     m = s.pos_modell
     versteckt = [i for i, (art, x) in enumerate(m.spalten) if art == "feld" and x.name in
@@ -728,7 +742,8 @@ def main(ziel):
     fb.zeigen(fb.historie)
     bereit()
     foto.foto("fracht_historie", f, [(fb.historie.tabelle, 1), (knopf(fb.historie, "Kalkulation anzeigen"), 2),
-                                     (fb.historie.einstellungen, 3), (knopf(fb.historie, "Beispieldaten laden"), 4)])
+                                     (fb.historie.einstellungen, 3), (knopf(fb.historie, "Beispieldaten laden"), 4),
+                                     (knopf(fb.historie, "Richtwerte laden"), 5)])
 
     # Fracht im Angebot: berechnen und übernehmen (Hauptangebot, nach allen anderen Bildern des Angebots)
     f.resize(1680, 980)

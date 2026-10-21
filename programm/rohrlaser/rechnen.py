@@ -348,7 +348,8 @@ def laengen_eingaben(gruppen, kopf, k, tabellen, einst):
     if not daten and not kopf.get("laengenwahl"):
         return []
     m = maschine(kopf, k) or {}
-    return [daten, m.get("max_stange"), einstellung_wert(einst, "zuschnitt_verlust"), kopf.get("laengenwahl") or {}]
+    return [daten, m.get("max_stange"), einstellung_wert(einst, "zuschnitt_verlust"), kopf.get("laengenwahl") or {},
+            m.get("min_stange")]
 
 
 def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
@@ -525,10 +526,9 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False):
                                ausnutzung_manuell=(sum(t.laenge for t in g.teile) / (len(man) * gewaehlt)
                                                    if man else 0),
                                gemeinsam=n_gem_gruppe,
-                               bewertung=(f"Lieferlänge {m_text(gewaehlt)} m, Zuschnitt beim Lieferanten in "
-                                          f"{sum(len(s) for s in v['stangen'])} Werkstücke" if v["zuschnitt"]
-                                          else f"Lieferlänge {m_text(gewaehlt)} m"
-                                               + (", optimal (Untergrenze erreicht)" if n <= untergrenze else ""))))
+                               bewertung=f"Lieferlänge {m_text(gewaehlt)} m"
+                                         + (", optimal (Untergrenze erreicht)"
+                                            if not v["zuschnitt"] and n <= untergrenze else "")))
         _beistellung_markieren(g, stangen[s0:] + auswertung[a0:])
     out = dict(stangen=stangen, auswertung=auswertung, fehler=fehler, neue_profile=neue_profile,
                kennung=eingabe_kennung(kopf, positionen, k, tabellen, einst))
@@ -558,6 +558,45 @@ def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
                         pruefung="ÜBERBELEGT" if ueber else "OK",
                         gewicht=gewicht, kosten=stangenkosten(s, gewicht, kopf, positionen, k, tabellen)))
     return out
+
+
+def anzeige_stangen(ergebnis, sw=None):
+    """Stangen so, wie die Maschine sie lädt (Schnittplan, Stangenbild, Werkstattpapiere): eine vom Lieferanten
+    zugeschnittene Lieferstange (z. B. 12 m) erscheint als ihre Werkstücke, jedes wie eine eigene Stange mit
+    Endbeschnitt, Teilen und Greiferrest; der Zuschnitt selbst wird nicht gezeigt. Gerechnet wird weiter mit den
+    Lieferstangen (ergebnis['stangen']). Ergebnis: [Stange], mit sw = stangen_werte(...) [(Stange, Werte)]; Gewicht
+    und Kosten einer Lieferstange werden nach Werkstücklänge auf ihre Werkstücke verteilt."""
+    stangen = (ergebnis or {}).get("stangen", [])
+    mit_werten = sw is not None
+    sw = sw if mit_werten else [None] * len(stangen)
+    out = []
+    for s, w in zip(stangen, sw):
+        if not s.get("werkstuecke"):
+            out.append((dict(s, nr=len(out) + 1), w))
+            continue
+        summe_ws = sum(x["laenge"] for x in s["werkstuecke"])
+        belegung = dict(b.split(": ", 1) for b in s.get("belegung", "").split(" || ") if ": " in b)
+        for x in s["werkstuecke"]:
+            teile = [dict({n: v for n, v in t.items() if n != "werkstueck"}, von=round(t["von"] - x["von"], 2),
+                          bis=round(t["bis"] - x["von"], 2)) for t in s["teile"] if t.get("werkstueck") == x["nr"]]
+            summe = sum(t["laenge"] for t in teile)
+            verlust = round(x["laenge"] - x["end"] - summe - x["greif"], 2)     # Trennschnitte und Aufrundung
+            st = dict(nr=len(out) + 1, profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=s.get("oberflaeche"),
+                      stange=x["laenge"], grundlaenge=s.get("grundlaenge"), end=x["end"], greif=x["greif"],
+                      verlust=verlust, trennungen=len(teile), gemeinsam=sum(1 for t in teile if t.get("eingespart_mm")),
+                      belegung=belegung.get(f"W{x['nr']} {mm_text(x['laenge'])}", ""), teile=teile)
+            if s.get("beistellung"):
+                st["beistellung"] = s["beistellung"]
+            wx = None
+            if mit_werten:
+                anteil = x["laenge"] / summe_ws if summe_ws else 0
+                belegt = x["end"] + summe + verlust
+                wx = dict(teile=len(teile), summe=summe, belegt=belegt, rest=x["laenge"] - belegt,
+                          ausnutzung=summe / x["laenge"], pruefung=w["pruefung"],
+                          gewicht=w["gewicht"] * x["laenge"] / s["stange"] if w["gewicht"] is not None else None,
+                          kosten=w["kosten"] * anteil if w["kosten"] is not None else None)
+            out.append((st, wx))
+    return out if mit_werten else [s for s, _ in out]
 
 
 def stangenkosten(s, gewicht, kopf, positionen, k, tabellen):
@@ -707,11 +746,12 @@ def variante_planen(g, laenge, m, saege):
         opt.pruefe([h], [folgen])
         out["stangen"] = [[(laenge, f)] for f in folgen]
         return out
-    st = opt.zuschnitt(g, laenge, maxw, saege)
+    minw = min(_n((m or {}).get("min_stange")), maxw)
+    st = opt.zuschnitt(g, laenge, maxw, saege, minw)
     if st is None:
         out["fehler"] = f"Teil passt in kein Werkstück bis {mm_text(maxw)} mm"
         return out
-    opt.pruefe_zuschnitt(g, st, laenge, maxw, saege)
+    opt.pruefe_zuschnitt(g, st, laenge, maxw, saege, minw)
     out["stangen"] = st
     return out
 
@@ -1844,7 +1884,7 @@ def stangenmuster(ergebnis):
     Reihenfolge und Lage), für Werkstattpapier und Stangenbild. Ergebnis: [(Stange, [Nummern])]."""
     muster = {}
     for s in (ergebnis or {}).get("stangen", []):
-        schl = (gruppe_der_stange(s),
+        schl = (gruppe_der_stange(s), s["stange"],
                 tuple((t["ref"], t["laenge"], t["lage"]) for t in s["teile"]))
         muster.setdefault(schl, (s, []))[1].append(s["nr"])
     return list(muster.values())

@@ -64,7 +64,8 @@ def betrag_angebot(kopf, positionen, werte):
 
 
 def ziel_aus_kunde(kunde):
-    """(PLZ-Bereich mit zwei Stellen, Land) aus der Lieferanschrift bzw. Anschrift des Kunden, sonst ('', 'DE')."""
+    """(PLZ, Land) aus der Lieferanschrift bzw. Anschrift des Kunden, sonst ('', 'DE'). Die volle PLZ trifft die Zone
+    genau; von Hand reichen zwei Ziffern (dann gilt bei mehreren Zonen im Bereich die teurere)."""
     from . import fracht
     if not kunde:
         return "", "DE"
@@ -72,7 +73,7 @@ def ziel_aus_kunde(kunde):
         plz, land = kunde["liefer_plz"], kunde.get("liefer_land")
     else:
         plz, land = kunde.get("plz") or fracht.plz_aus_text(kunde.get("plz_ort")), kunde.get("land")
-    plz = "".join(c for c in str(plz or "") if c.isdigit())[:2]
+    plz = "".join(c for c in str(plz or "") if c.isdigit())
     return plz, (land or "DE").upper()
 
 

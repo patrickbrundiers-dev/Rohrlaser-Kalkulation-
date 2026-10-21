@@ -38,20 +38,20 @@ ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
 # leer (ältere Angebote) = Wert der Einstellungen. Prozentwerte stehen hier in %, in den Einstellungen als Anteil.
 KALKULATION = (
-    Feld("zuschlag_material", "Zuschlag Material [%]", "zahl", 0, 500, stellen=1),
-    Feld("zuschlag_fertigung", "Zuschlag Fertigung [%]", "zahl", 0, 500, stellen=1),
+    # Zuschlag Material und Zuschlag Fertigung gelten immer aus den Einstellungen (Vorgabe 0, Patrick 21.10.2026);
+    # die Spalten älterer Dateien werden nicht mehr gelesen.
     Feld("zuschlag_fremdleistung", "Zuschlag Fremdleistung [%]", "zahl", 0, 500, stellen=1),
     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1),
     Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
     Feld("pauschale_abmessung", "Pauschale je Abmessung [€]", "zahl", 0, 100000, stellen=2),
     Feld("programmierung_teil", "Programmierkosten je Teil [€]", "zahl", 0, 100000, stellen=2),
     Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
-    # Mindestangebotspreis netto (nach Skonto, vor MwSt); 0 = keiner. Ältere Angebote bekommen 0 (Schema 24).
-    Feld("mindestpreis", "Mindestpreis Angebot netto [€]", "zahl", 0, 1000000, stellen=2),
+    # Mindestpreis (Mindestauftragswert) gilt immer aus den Einstellungen, für alle Angebote (Patrick 21.10.2026);
+    # die Spalte angebote.mindestpreis älterer Dateien wird nicht mehr gelesen.
     # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je kg der beigestellten Stangen; 0 = keins
     Feld("handling_beistellung", "Handling Kundenmaterial [€/kg]", "zahl", 0, 1000, stellen=3),
 )
-KALK_PROZENT = ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn")
+KALK_PROZENT = ("zuschlag_fremdleistung", "gewinn")
 KOPF = KOPF + KALKULATION
 
 
@@ -187,6 +187,8 @@ POSITIONEN = Tabelle(
      Feld("zusatz", "Zusatzarbeiten", "zusatz", breite=220),
      # Zukaufteile als JSON-Liste [{artikel_id, menge (je Teil), aufschlag (%), stand}] (Dialog 'Zukaufteile …')
      Feld("zukauf", "Zukaufteile", "zukauf", breite=220),
+     # Zeichnungen/Dokumente als JSON-Liste der Dateinamen im Ordner des Angebots (dokumente.py, Doppelklick)
+     Feld("dokumente", "Zeichnungen", "dokumente", breite=130),
      # Zukaufteil-Position: Gewicht je Teil für die Fracht nach Gewicht (STEP-Import: Volumen × Dichte, sonst leer)
      Feld("gewicht_teil", "Gewicht je Teil [kg]", "zahl", 0, 100000, stellen=3, breite=75),
      # STEP-Werte

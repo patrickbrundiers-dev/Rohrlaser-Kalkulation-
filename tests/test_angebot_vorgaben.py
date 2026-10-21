@@ -81,7 +81,7 @@ ok("L2 Text: Arbeitstage, Wochen, KW, Datum, Freitext; Satz 'Lieferzeit …' der
 a = db.angebot_neu(dict(kunde="Kunde A", skonto=0))
 kopf = db.angebot(a)
 assert (kopf["lieferzeit_art"], kopf["lieferzeit_wert"], kopf["lieferzeit_zusatz"]) == ("nur Text", None, "nach Absprache")
-assert kopf["mindestpreis"] == 200.0
+assert "mindestpreis" not in kopf            # Mindestpreis gilt aus den Einstellungen, nicht je Angebot
 db.einstellung_setzen("lieferzeit_art", "Arbeitstage")
 db.einstellung_setzen("lieferzeit_wert", "12")
 db.einstellung_setzen("lieferzeit_zusatz", "")
@@ -242,15 +242,15 @@ kb.lz_zusatz.setText("ab Lager")
 kb.lz_zusatz.editingFinished.emit()
 assert db.angebot(a)["lieferzeit_zusatz"] == "ab Lager" and kb.lz_vorschau.text() == "Im Angebot: Lieferzeit: ab Lager."
 assert kb.felder["kundenreferenz"].text() == "Anfrage 4711 vom 20.10.2026"
-assert "mindestpreis" in kb.felder and kb.wert("mindestpreis") == 200
-ok("L6 Angebotsseite: Lieferzeit (Art, Wert, Freitext, Vorschau), ungültiges Datum abgelehnt, Kundenreferenz, Mindestpreis")
+assert "mindestpreis" not in kb.felder           # nicht je Angebot änderbar (nur Einstellungen)
+ok("L6 Angebotsseite: Lieferzeit (Art, Wert, Freitext, Vorschau), ungültiges Datum abgelehnt, Kundenreferenz, kein Mindestpreisfeld")
 
 # ------------------------------------------------------------------ S1 ältere Datei (Schema 23)
 db.schliessen()
 alt = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
-for spalte in ("mindestpreis", "lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz", "kundenreferenz"):
+for spalte in ("lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz", "kundenreferenz"):
     con.execute(f"ALTER TABLE angebote DROP COLUMN {spalte}")
 con.execute("PRAGMA user_version=23")
 con.commit()
@@ -258,13 +258,13 @@ con.close()
 db2 = Datenbank(alt)
 assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 alt_a = db2.angebot(a)
-assert alt_a["mindestpreis"] == 0 and alt_a["lieferzeit_art"] is None and alt_a["kundenreferenz"] is None
-e2 = rechnen.einstellungen_angebot(alt_a, db2.einstellungen())
-assert e2["mindestpreis"] == 0
+assert alt_a["lieferzeit_art"] is None and alt_a["kundenreferenz"] is None
+# Mindestpreis aus den Einstellungen gilt auch für ältere Angebote, auch wenn dort noch 0 gespeichert ist
+e2 = rechnen.einstellungen_angebot(dict(alt_a, mindestpreis=0), db2.einstellungen())
+assert e2["mindestpreis"] == 200
 _, s_alt = rechnen.kalkulation(alt_a, pos, erg, k, tab, e2)
-assert nah(s_alt["verkauf"], kalk)                                            # gespeicherter Preis bleibt
-assert db2.angebot(db2.angebot_neu())["mindestpreis"] == 200                  # neue Angebote: Vorgabe
+assert nah(s_alt["verkauf"], 200) and s_alt["mindestpreis_gilt"]
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()
-ok("S1 Datei Schema 23: Spalten ergänzt, alte Angebote ohne Mindestpreis (Preis unverändert) und ohne Lieferzeit, Sicherung")
+ok("S1 Datei Schema 23: Spalten ergänzt, alte Angebote ohne Lieferzeit, Mindestpreis aus den Einstellungen gilt, Sicherung")
 print("OK: Lieferzeit, Kundenreferenz und Mindestpreis je Angebot")

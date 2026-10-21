@@ -11,7 +11,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 
-from rohrlaser import optimierung as opt, rechnen  # noqa: E402
+from rohrlaser import ausgabe, optimierung as opt, rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import ALTE_MASCHINEN, MASCHINE_WERTE, TABELLE, pruefen  # noqa: E402
 
@@ -251,9 +251,22 @@ assert (su["stangen"], su["beladungen"], su6["beladungen"]) == (10, 30, 30)
 assert su["stangenwechsel_kosten"] == su6["stangenwechsel_kosten"] and su["verkauf"] < su6["verkauf"]
 assert zk[0]["eingeplant"] == 30 and not zk[0]["nicht_eingeplant"]
 a = erg["auswertung"][0]
-assert (a["stange"], a["grundlaenge"], a["stangen"]) == (12000, 6000, 10) and "Zuschnitt" in a["bewertung"]
+assert (a["stange"], a["grundlaenge"], a["stangen"]) == (12000, 6000, 10) and a["bewertung"] == "Lieferlänge 12 m"
 z = rechnen.auswertung_zeilen(erg, sw)[0]
 assert z["bedarf"] == 120 and z["laenge"] == 93
+# Schnittplan, Stangenbild, Werkstattpapiere: jedes Werkstück wie eine eigene Stange, kein Zuschnitt sichtbar
+anz = rechnen.anzeige_stangen(erg, sw)
+assert len(anz) == 30 and [s["nr"] for s, _ in anz] == list(range(1, 31))
+for s, w in anz:
+    assert s["stange"] == 3201 and (s["end"], s["greif"]) == (20, 80) and "zuschnitt" not in s and "werkstuecke" not in s
+    assert len(s["teile"]) == 1 and s["teile"][0]["von"] == 20 and "werkstueck" not in s["teile"][0]
+    assert w["pruefung"] == "OK" and abs(w["rest"] - 80) < 1e-6 and abs(w["belegt"] + w["rest"] - 3201) < 1e-6
+assert abs(sum(w["kosten"] for _, w in anz) - sum(w["kosten"] for w in sw)) < 1e-6
+assert abs(sum(w["gewicht"] for _, w in anz) * 12000 / 3201 / 3 - sum(w["gewicht"] for w in sw)) < 1e-6
+assert [s["nr"] for s in rechnen.anzeige_stangen(ohne)] == list(range(1, 31))      # normale Stangen unverändert
+wp = ausgabe.werkstatt(kopf12, P, erg, k, tab)
+assert [(m["stange"], m["stangen"]) for m in wp["material"]] == [(3201, 30)], wp["material"]
+assert len(wp["muster"]) == 1 and wp["muster"][0]["anzahl"] == 30 and wp["muster"][0]["teile"][0]["von"] == 20
 # Stückzahl ändern: Wahl bleibt (Schlüssel = Gruppe), Planung neu
 erg = rechnen.optimieren(kopf12, [pos(3100, 31)], k, tab, einst)
 assert len(erg["stangen"]) == 11 and sum(len(s["werkstuecke"]) for s in erg["stangen"]) == 31
@@ -309,4 +322,26 @@ db.neu("lieferlaengen", dict(profil_id="RE 120x60x4", werkstoff_id="S355-10219",
 (vg,) = rechnen.optimieren(kopf, gross, db.kontext(), db.tabellen(), einst)["laengen"]
 assert not vg["automatisch"] and [v["laenge"] for v in vg["varianten"]] == [8000]     # 6 m nicht eingetragen
 print("Hüllkreis-Regel OK")
+
+# ------------------------------------------------------------------ Mindest-Stangenlänge der Stangenladung
+# Patrick 21.10.2026: kein Stück aus dem Zuschnitt kürzer als 2.500 mm (je Maschine, Vorgabe 2.500)
+assert all(z["min_stange"] == 2500 for z in db.zeilen("maschinen"))
+g = gruppe(teile(6, 2100) + teile(2, 980))     # 2 × (3 × 2.100) + kurzes Stück mit 2 × 980
+st = opt.zuschnitt(g, 12000, 6500, 3)
+assert min(l for s in werkstuecke(st) for l in s) < 2500, werkstuecke(st)
+st = opt.zuschnitt(g, 12000, 6500, 3, 2500)
+assert min(l for s in werkstuecke(st) for l in s) == 2500, werkstuecke(st)
+opt.pruefe_zuschnitt(g, st, 12000, 6500, 3, 2500)
+try:
+    opt.pruefe_zuschnitt(g, [[(2400, [(t, False) for t in g.teile[-2:]])]] + st[:-1], 12000, 6500, 3, 2500)
+    raise SystemExit("Kontrolle hätte das zu kurze Werkstück finden müssen")
+except AssertionError:
+    pass
+# Ziel-Werkstücklängen unter der Mindestlänge (12 m / 5 und / 6) werden nicht ausprobiert
+assert min(opt.zuschnitt_ziele(gruppe(teile(1, 500)), 12000, 6500, 3, 2500)) >= 2500
+v = rechnen.variante_planen(g, 12000, dict(max_stange=6500, min_stange=2500), 3)
+assert not v["fehler"] and min(l for s in v["stangen"] for l, _ in s) == 2500, v
+v = rechnen.variante_planen(g, 12000, dict(max_stange=6500), 3)          # leer = keine Grenze
+assert min(l for s in v["stangen"] for l, _ in s) < 2500, v
+print("Mindest-Stangenlänge OK")
 print("Alle Tests Lieferlängen OK")
