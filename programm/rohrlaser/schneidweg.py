@@ -34,6 +34,7 @@ from . import naht, optimierung as opt
 from .stammdaten import flaeche_wirksam
 
 QUELLE = "Schneidweg-Rechner"
+QUELLE_STEP = "STEP-Import"         # Konturen aus der STEP-Messung (Lage, gemessene Schnittlängen)
 BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE = ("Bohrung", "Langloch", "Rechteck", "Schlitz", "Polygon",
                                                           "sonstige Kontur")
 SENKUNG, AUSKLINKUNG = "Senkung", "Ausklinkung"
@@ -174,6 +175,9 @@ def kontur(e):
     art, n = e.get("art"), int(_z(e.get("anzahl")) or 0)
     if n < 1:
         raise ValueError(f"{art}: Anzahl fehlt.")
+    if _z(e.get("gemessen")) > 0:       # aus der STEP-Messung, Maße unverändert: gemessene Länge
+        lg, hk, _ = kontur(dict(e, gemessen=None, laenge=e.get("laenge") or e["gemessen"]))
+        return _z(e["gemessen"]), (_z(e.get("huelle_gemessen")) or hk), n
     if art == BOHRUNG:
         d = _z(e.get("d"))
         if d <= 0:
@@ -244,8 +248,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
         text = titel + (f" Ausklinkung auf Rundrohr Ø {zahl(sat, 1)}" if sat else
                         f" Gehrung {zahl(w, 1)}°" + (f" {e.get('achse') or ACHSEN[0]}" if form != "Rundrohr" else "")
                         if w else " gerade")
-        schritte.append(dict(text=text, anzahl=1, laenge_stueck=lg, laenge=lg, einstiche=n_ende, huelle=hk_ende,
-                             klasse="Ende", schaetzung=sch, gerade=not w and not sat))
+        gerade = not w and not sat
+        if _z(e.get("gemessen")) > 0:       # aus der STEP-Messung: gemessene Länge und Form
+            lg, sch, gerade = _z(e["gemessen"]), False, e.get("form") == "gerade"
+            text = f"{titel} {e.get('form') or ''}".rstrip() + (f" {zahl(w, 1)}°" if w else "") + " (STEP gemessen)"
+        schritte.append(dict(text=text, anzahl=1, laenge_stueck=lg, laenge=lg, einstiche=n_ende,
+                             huelle=_z(e.get("huelle_gemessen")) or hk_ende, klasse="Ende", schaetzung=sch,
+                             gerade=gerade))
         gehrung[seite] = None
         if w and not sat and e.get("richtung") is not None and form in MIT_RICHTUNG:
             f_ = richtung_pruefen(profil, e.get("richtung"), e.get("achse") or ACHSEN[0])
@@ -253,7 +262,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
                 fehler.append(f"{titel}: {f_}")
             else:
                 gehrung[seite] = naht.ende_text(w, e["richtung"])
-        enden.append(("A" if seite == "a" else "E", hk_ende, lg))
+        enden.append(("A" if seite == "a" else "E", schritte[-1]["huelle"], lg))
     for e in eingaben.get("konturen") or ():
         try:
             lg, hk, n = kontur(e)
@@ -263,6 +272,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
         masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
         klasse = "groß" if hk is None else ("klein", "mittel", "groß")[kontur_klasse(hk, grenzen)]
+        if _z(e.get("gemessen")) > 0:
+            masse = (masse + " (STEP gemessen)").strip()
         schritte.append(dict(text=f"{n} × {e.get('art')} {masse}".strip() + (f" ({e['text']})" if e.get("text") else ""),
                              anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=n, huelle=hk, klasse=klasse,
                              schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))

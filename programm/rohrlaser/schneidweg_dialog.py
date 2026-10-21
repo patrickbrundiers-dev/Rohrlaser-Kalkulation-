@@ -4,6 +4,7 @@ Skizze, Schnittlängen, Einstiche, Konturklassen, Gewinde-Vorschlag und die Schn
 Maschine stehen sofort daneben. Die Formeln stehen in schneidweg.py; OK schreibt die Werte in die Position
 (Angebotsseite.schneidweg_berechnen)."""
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
                                QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPushButton,
                                QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
@@ -50,6 +51,7 @@ class SchneidwegDialog(QDialog):
         self.gewinde = gewinde_liste(tabellen)
         self.ergebnis = None
         e = sw.lesen(p.get("technik"))
+        self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
         self.setWindowTitle(f"Schneidweg berechnen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
         self.resize(1200, 900)
         self.qs = sk.Querschnitt(profil)
@@ -69,6 +71,12 @@ class SchneidwegDialog(QDialog):
                          if len(self.grenzen) >= 5 else ""))
         info.setWordWrap(True)
         lay.addWidget(info)
+        if any(sw._z(z.get("gemessen")) for z in e["konturen"] + [e["a"], e["b"]]):
+            step_info = QLabel("Werte aus dem <b>STEP-Import</b> (grün): Es gelten die gemessenen Schnittlängen, "
+                               "solange Art und Maße einer Zeile bzw. eines Endes unverändert bleiben.")
+            step_info.setWordWrap(True)
+            step_info.setStyleSheet("color: #1E6B35;")
+            lay.addWidget(step_info)
 
         enden = QGridLayout()
         self.winkel, self.achse, self.sattel, self.richtung = {}, {}, {}, {}
@@ -105,6 +113,11 @@ class SchneidwegDialog(QDialog):
                           "Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen ineinander.")
             ri.currentTextChanged.connect(self.rechnen)
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
+            if sw._z(e[seite].get("gemessen")):
+                self._ende_step[seite] = (self._ende_werte(seite), {k_: e[seite][k_] for k_ in
+                                                                    ("gemessen", "huelle_gemessen", "form")
+                                                                    if e[seite].get(k_) is not None})
+                w.setStyleSheet("background: #E8F5E9;")
             enden.addWidget(QLabel(titel + ": Gehrung"), r, 0)
             enden.addWidget(w, r, 1)
             enden.addWidget(a, r, 2)
@@ -244,9 +257,23 @@ class SchneidwegDialog(QDialog):
         self.tabelle.setItem(r, QUER_SPALTE, quer)
         self.tabelle.setItem(r, TEXT_SPALTE, QTableWidgetItem(z.get("text") or ""))
         self._kopf_hinweise(r)
+        art.quer = bool(z.get("quer"))
+        if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
+            art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
+                                                                 if z.get(k_) is not None})
+            art.setToolTip(f"aus dem STEP-Import: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm (gilt, "
+                           "solange Art und Maße unverändert bleiben)")
+            self.tabelle.item(r, 1).setBackground(QColor("#E8F5E9"))
         self.tabelle.blockSignals(False)
         if rechnen_:
             self.rechnen()
+
+    def _mass_texte(self, r):
+        return tuple(self.tabelle.item(r, 2 + i).text() for i in range(3))
+
+    def _ende_werte(self, s):
+        return (self.winkel[s].value(), self.achse[s].currentText(), self.sattel[s].value(),
+                self.richtung[s].currentText())
 
     def _art_geaendert(self, combo):
         for r in range(self.tabelle.rowCount()):
@@ -297,10 +324,19 @@ class SchneidwegDialog(QDialog):
             t = self.tabelle.item(r, TEXT_SPALTE).text().strip()
             if t:
                 z["text"] = t
+            combo = self.tabelle.cellWidget(r, 0)
+            if getattr(combo, "quer", False):
+                z["quer"] = True
+            step = getattr(combo, "step", None)
+            if step and step[0] == art and step[1] == self._mass_texte(r):
+                z.update(step[2])
             konturen.append(z)
         enden = {s: dict(winkel=self.winkel[s].value(), achse=self.achse[s].currentText(),
                          sattel=self.sattel[s].value() or None,
                          richtung=sw.RICHTUNGEN.get(self.richtung[s].currentText())) for s in ("a", "b")}
+        for s, (werte, gemessen) in self._ende_step.items():
+            if self._ende_werte(s) == werte:
+                enden[s].update(gemessen)
         return dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
 
     # ------------------------------------------------------------------ Ergebnis
@@ -351,8 +387,9 @@ class SchneidwegDialog(QDialog):
     # ------------------------------------------------------------------ Vorlagen und Kopieren
     def eingaben_setzen(self, e, anhaengen=False):
         """Enden, Gravur und Konturen setzen (anhaengen: nur Konturen dazu)."""
-        e = sw.lesen(sw.speichern(e)) if isinstance(e, dict) else sw.lesen(e)
+        e = sw.lesen(sw.speichern(ohne_messung(e))) if isinstance(e, dict) else sw.lesen(e)
         if not anhaengen:
+            self._ende_step = {}
             for s in ("a", "b"):
                 x = e.get(s) or {}
                 self.winkel[s].setValue(sw._z(x.get("winkel")))
@@ -376,7 +413,7 @@ class SchneidwegDialog(QDialog):
         if not name or self.db is None:
             return False
         v = self.vorlagen()
-        v[name] = dict(self.eingaben(), profilform=self.profil.get("form"))
+        v[name] = dict(ohne_messung(self.eingaben()), profilform=self.profil.get("form"))
         self.db.einstellung_setzen(VORLAGEN, v)
         return True
 
@@ -485,6 +522,17 @@ class SchneidwegDialog(QDialog):
         self.rechnen()
         if not self.ergebnis["fehler"]:
             self.accept()
+
+
+def ohne_messung(e):
+    """Eingaben ohne gemessene Werte des STEP-Imports (Vorlagen und kopierte Konturen rechnen mit den Formeln)."""
+    weg = ("gemessen", "huelle_gemessen", "form")
+    out = {k_: v for k_, v in e.items() if k_ not in ("a", "b", "konturen", "quelle")}
+    for s in ("a", "b"):
+        if isinstance(e.get(s), dict):
+            out[s] = {k_: v for k_, v in e[s].items() if k_ not in weg}
+    out["konturen"] = [{k_: v for k_, v in z.items() if k_ not in weg} for z in e.get("konturen") or ()]
+    return out
 
 
 def gewinde_liste(tabellen):

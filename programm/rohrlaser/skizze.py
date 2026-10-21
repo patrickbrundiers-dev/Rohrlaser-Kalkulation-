@@ -5,7 +5,7 @@ und Abwicklung. Die Zeichnung zeigt nur, was eingegeben ist; Maße, die das Prof
 Normprofil), werden zum Zeichnen mit der Wandstärke angenommen und rechnen nirgends mit.
 
 Koordinaten: x entlang des Teils ab Ende A [mm], Querschnitt u (quer, + = vorne) und v (+ = oben), Mitte des
-Hüllrechtecks = 0. Blick von Ende A: oben 0°, vorne 90° (rechts), unten 180°, hinten 270° wie die Gehrungsrichtung.
+Hüllrechtecks = 0. Rechteckrohre liegen mit der Breitseite oben (wie Schweißnaht und Gehrungsrichtung). Blick von Ende A: oben 0°, vorne 90° (rechts), unten 180°, hinten 270° wie die Gehrungsrichtung.
 Draufsicht = Blick von oben (vorne unten im Bild), Seitenansicht = Blick auf vorne.
 
 Eine Kontur steht auf einer Fläche (Seite): Rundrohr mit dem Winkel (0° oben, 90° vorne …), alle anderen Profile
@@ -43,6 +43,7 @@ class Querschnitt:
         form = profil.get("form")
         a, b, t = _z(profil.get("a")) or 40.0, _z(profil.get("b")), _z(profil.get("wand"))
         self.form, self.r, self.flaechen, self.umriss = form, None, [], []
+        self.a_waagrecht = False        # Maß a liegt waagrecht (Gehrung "über Höhe" kippt dann über u)
         if form == "Rundrohr":
             self.r = a / 2
             self.B = self.H = a
@@ -90,8 +91,10 @@ class Querschnitt:
         else:
             if form == "Flachstahl":
                 self.B, self.H = a, (t or max(1.0, a / 10))
-            else:                       # Quadrat-, Rechteckrohr, unbekannte Form: Rechteck a hoch, b breit
-                self.B, self.H = (b or a), a
+                self.a_waagrecht = True
+            else:                       # Quadrat-, Rechteckrohr, unbekannte Form: Breitseite oben (wie die Naht)
+                self.B, self.H = max(a, b or a), min(a, b or a)
+                self.a_waagrecht = a > (b or a)
             u1, v1 = self.B / 2, self.H / 2
             self.umriss = [[(-u1, v1), (u1, v1), (u1, -v1), (-u1, -v1)]]
             if form in ("Quadratrohr", "Rechteckrohr") and 0 < t < min(u1, v1):
@@ -193,15 +196,16 @@ def schnitt_x(qs, e, u, v):
 
 
 def _richtung(qs, e):
-    """Richtung (0 = oben, 90 = vorne …), in der das Teil an diesem Ende am längsten ist. Ohne Angabe: Gehrung
-    über Höhe -> oben, über Breite -> vorne. Bei Profilen außer Rundrohr legt die Achse die Kipprichtung fest, die
-    Richtung nur die Seite (+/−)."""
+    """Richtung (0 = oben, 90 = vorne …), in der das Teil an diesem Ende am längsten ist. Mit Angabe (Rund-,
+    Quadrat-, Rechteckrohr, Breitseite oben) genau diese; ohne Angabe nach der Gehrungsachse: über Höhe kippt über
+    Maß a, über Breite über Maß b, länger auf der Seite oben bzw. vorne."""
     r = e.get("richtung")
-    ueber_breite = (e.get("achse") or "").endswith("Breite")
+    if isinstance(r, (int, float)) and not isinstance(r, bool):
+        return float(r) % 360
     if qs.r:
-        return float(r) % 360 if isinstance(r, (int, float)) else 0.0
-    plus = not (isinstance(r, (int, float)) and r % 360 in (180, 270))
-    return (90.0 if ueber_breite else 0.0) + (0 if plus else 180)
+        return 0.0
+    ueber_a = not (e.get("achse") or "").endswith("Breite")
+    return 90.0 if ueber_a == qs.a_waagrecht else 0.0
 
 
 def schnittpunkte(qs, w, ansicht):

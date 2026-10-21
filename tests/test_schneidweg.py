@@ -11,6 +11,7 @@
 
 Aufruf: python tests/test_schneidweg.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
+import json
 import math
 import os
 import shutil
@@ -22,7 +23,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
+from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 from rohrlaser import optimierung as opt, rechnen, schneidweg as sw  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -229,19 +230,21 @@ for form, seiten in (("U-Profil", ["Flansch oben", "Steg", "Flansch unten"]), ("
                      ("T-Profil", ["Flansch", "Steg"]), ("Flachstahl", ["oben", "vorne", "unten", "hinten"])):
     q_ = sk.Querschnitt(dict(form=form, a=60, b=40, wand=5))
     assert q_.seiten() == seiten and q_.umfang > 0 and len(q_.abwicklung_streifen()) == len(seiten), form
-# Gehrung 45° über Höhe an RE 60x40 (länger oben): unten 60 mm zurück, oben 0; über Breite (länger vorne) hinten 40
+# RE 60x40 liegt mit der Breitseite (60) oben. Gehrung 45° über Breite (Maß b = 40, senkrecht): oben 0, unten 40
+# zurück; über Höhe (Maß a = 60, waagrecht): vorne 0, hinten 60; Richtung 180°: oben 40 zurück
 qs = sk.Querschnitt(RE)
-e45 = dict(winkel=45, achse="über Höhe")
-assert nah(sk.schnitt_x(qs, e45, 0, 30), 0) and nah(sk.schnitt_x(qs, e45, 0, -30), 60)
-assert nah(sk.schnitt_x(qs, dict(e45, richtung=180), 0, 30), 60)
-assert nah(sk.schnitt_x(qs, dict(winkel=45, achse="über Breite"), -20, 0), 40)
+assert (qs.B, qs.H) == (60, 40)
+e45 = dict(winkel=45, achse="über Breite")
+assert nah(sk.schnitt_x(qs, e45, 0, 20), 0) and nah(sk.schnitt_x(qs, e45, 0, -20), 40)
+assert nah(sk.schnitt_x(qs, dict(e45, richtung=180), 0, 20), 40)
+assert nah(sk.schnitt_x(qs, dict(winkel=45, achse="über Höhe"), -30, 0), 60)
 # Abwicklung: Schnittlinie des Endes; Seitenansicht zeigt die Schräge, Draufsicht nur die verdeckte Kante
 linie = dict(sk.ende_abwicklung(qs, e45, 200))
-assert nah(linie[0], 0) and nah(max(linie.values()), 60)
+assert nah(linie[0], 0) and nah(max(linie.values()), 40)
 sil_v = sk.silhouette(qs, e45, {}, 800, "vorne")
-assert nah(sil_v[0][1], 60) and nah(sil_v[-1][1], 0) and nah(sil_v[0][4], 800)        # schräg in der Seitenansicht
+assert nah(sil_v[0][1], 40) and nah(sil_v[-1][1], 0) and nah(sil_v[0][4], 800)        # schräg in der Seitenansicht
 sil_o = sk.silhouette(qs, e45, {}, 800, "oben")
-assert all(nah(z[1], 0) and nah(z[2], 0) and nah(z[3], 60) for z in sil_o)        # oben gerade, unten verdeckt bei 60
+assert all(nah(z[1], 0) and nah(z[2], 0) and nah(z[3], 40) for z in sil_o)        # oben gerade, unten verdeckt bei 40
 # Ausklinkung Rundrohr: Sattel R − √(R² − v²)
 qr_ = sk.Querschnitt(RR)
 assert nah(sk.schnitt_x(qr_, dict(sattel=60.3), 0, 21.2), 30.15 - math.sqrt(30.15 ** 2 - 21.2 ** 2), 0.01)
@@ -255,10 +258,10 @@ lg = sk.lagen([dict(art="Bohrung", anzahl=3, d=8, x=100, abstand=50), dict(art="
                dict(art="Schlitz", anzahl=1, l=40, b=6)], 1000)
 assert [d["x"] for d in lg] == [100, 150, 200, 500, 20] and lg[3]["verteilt"]
 pk, n_ = sk.platzieren(qs, dict(lg[0], eingabe=dict(art="Bohrung", anzahl=1, d=8, seite="vorne", q=10)))
-assert n_ == (1, 0) and all(nah(u, 20) for _, u, _ in pk) and nah(sum(v for *_, v in pk) / len(pk), -10, 0.01)
+assert n_ == (1, 0) and all(nah(u, 30) for _, u, _ in pk) and nah(sum(v for *_, v in pk) / len(pk), -10, 0.01)
 
 # Dialog: Spalten Abstand/Seite/Versatz, Muster in der Rechnung unverändert, Klick und Ziehen in der Skizze
-p8 = dict(db.positionen(a)[0], technik=sw.speichern(dict(a=dict(winkel=45, achse="über Höhe"), b={}, konturen=[
+p8 = dict(db.positionen(a)[0], technik=sw.speichern(dict(a=dict(winkel=45, achse="über Breite"), b={}, konturen=[
     dict(art="Bohrung", anzahl=4, d=6.6, x=200, abstand=100, seite="vorne"),
     dict(art="Langloch", anzahl=1, l=30, b=10, x=600, seite="unten", q=5)])), laenge=800, profil_id="RE 60x40x3")
 dlg8 = SchneidwegDialog(s, p8, RE, s.kopf, s.k, s.tabellen)
@@ -354,6 +357,74 @@ dlg10.ansicht_wahl.setCurrentText("Abwicklung")
 assert not dlg10.skizze.grab().isNull() and any(d["art"] == "Ausklinkung" for _, d, _ in dlg10.skizze.treffer)
 ok("S9 Editor: Senkung (Bohrung geschnitten, Hinweis Zusatzarbeit), Ausklinkung am Ende, Vorlagen speichern/laden/"
    "löschen, Konturen aus einer anderen Position anhängen")
+
+# ------------------------------------------------------------------ S10 Konturen aus dem STEP-Import (4b)
+from rohrlaser import step  # noqa: E402
+m10 = dict(konturen_liste=json.dumps([
+    dict(art="Ende A", durchgehend=True, z=0, form="Gehrung", gehrung=45.0, richtung=90.0, schnittlaenge=230.5,
+         huellmass=84.9),
+    dict(art="Ende B", durchgehend=True, z=800, form="gerade", gehrung=None, richtung=None, schnittlaenge=200.0,
+         huellmass=60.0),
+    dict(art="Bohrung", durchgehend=True, z=120.0, winkel=0.0, u=0.0, seite="0°", durchmesser=8.5,
+         schnittlaenge=26.6, huellmass=8.5),
+    dict(art="Langloch", durchgehend=True, z=400.0, winkel=90.0, u=55.0, seite="90°", laenge=30.0, breite=10.0,
+         richtung=90.0, schnittlaenge=72.6, huellmass=30.0),
+    dict(art="Rechteckausschnitt", durchgehend=True, z=600.0, winkel=180.0, u=100.0, seite="180°", laenge=40.0,
+         breite=20.0, richtung=0.0, schnittlaenge=119.0, huellmass=40.0),
+    dict(art="Ausschnitt", durchgehend=True, z=700.0, winkel=270.0, u=150.0, seite="270°", laenge=25.0, breite=12.0,
+         schnittlaenge=80.0, huellmass=25.0),
+    dict(art="Gravur", durchgehend=False, z=300.0, schnittlaenge=50.0)]))
+e10 = step.rechner_eingaben(m10, "Rechteckrohr", 60, 40)
+assert e10["quelle"] == "STEP-Import" and len(e10["konturen"]) == 4                 # Gravur nicht
+assert e10["a"]["gemessen"] == 230.5 and e10["a"]["winkel"] == 45 and e10["a"]["richtung"] == 90
+assert e10["a"]["achse"] == "über Höhe" and e10["b"]["form"] == "gerade"           # 90°: über die Breitseite (a=60)
+k10 = e10["konturen"]
+assert k10[0] == dict(anzahl=1, x=120.0, gemessen=26.6, huelle_gemessen=8.5, art="Bohrung", d=8.5)
+assert k10[1]["seite"] == "vorne" and k10[1]["art"] == "Langloch" and "quer" not in k10[1] and k10[1]["q"] == 5
+assert k10[2]["seite"] == "unten" and (k10[2]["b"], k10[2]["h"]) == (20, 40)       # quer liegendes Rechteck
+assert k10[3]["art"] == "sonstige Kontur" and k10[3]["laenge"] == 80 and k10[3]["seite"] == "hinten"
+assert "q" not in k10[0] and "q" not in k10[2] and "q" not in k10[3]               # Flächenmitte (u 0/100/150)
+r10 = sw.rechnen(e10, RE, (10, 50))
+assert not r10["fehler"] and nah(r10["schneidweg"], 230.5 + 200 + 26.6 + 72.6 + 119 + 80, 0.11)
+assert "STEP gemessen" in r10["schritte"][0]["text"] and r10["felder"]["a_gerade"] == "nein"
+assert r10["felder"]["b_gerade"] == "ja"
+assert step.rechner_eingaben(dict(konturen_liste=""), "Rundrohr", 42.4) is None
+e_rr = step.rechner_eingaben(dict(konturen_liste=json.dumps([dict(art="Bohrung", durchgehend=True, z=50, winkel=135.0,
+                                                                  durchmesser=6, schnittlaenge=18.8)])), "Rundrohr", 42.4)
+assert e_rr["konturen"][0]["seite"] == 135.0
+# Dialog: STEP-Zeilen mit gemessener Länge; Maß ändern -> Formel; Ende ändern -> Formel
+p10 = dict(p8, technik=json.dumps(e10), laenge=800)
+d10 = SchneidwegDialog(s, p10, RE, s.kopf, s.k, s.tabellen, db, [])
+assert nah(d10.ergebnis["schneidweg"], r10["schneidweg"], 0.01)
+assert any("STEP-Import" in x.text() for x in d10.findChildren(QLabel))
+assert d10.tabelle.cellWidget(2, SEITE_SPALTE).currentText() == "unten"
+d10.tabelle.item(0, 2).setText("9")                 # Bohrung Ø 9 statt 8,5: gerechnet
+assert nah(d10.ergebnis["schritte"][2]["laenge"], math.pi * 9) and "gemessen" not in d10.eingaben()["konturen"][0]
+assert d10.eingaben()["konturen"][1]["gemessen"] == 72.6
+d10.winkel["a"].setValue(30)
+assert "gemessen" not in d10.eingaben()["a"] and "STEP" not in d10.ergebnis["schritte"][0]["text"]
+assert d10.vorlage_speichern("aus STEP") and "gemessen" not in json.dumps(db.einstellung("rechner_vorlagen"))
+d10.vorlage_loeschen("aus STEP")
+ok("S10 STEP-Konturen im Rechner: Art, Maße, Lage, Seite aus der Messung, gemessene Längen bis zur Änderung, "
+   "Vorlagen ohne Messwerte")
+
+# echte STEP-Datei (braucht OpenCascade): Rechner zeigt die Konturen, Schneidweg wie gemessen
+if step.messprogramm(HIER.parent / "programm") is None:
+    print("HINWEIS: OpenCascade fehlt, K01 nicht gemessen")
+else:
+    k01 = db.angebot_neu(dict(kunde="STEP", maschine="T03"))
+    sk01 = fenster.angebot_oeffnen(k01)
+    sk01.step_importieren([str(HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step")], "S235-10219", 1,
+                          als_satz=False)
+    pk = db.positionen(k01)[0]
+    ek = sw.lesen(pk["technik"])
+    assert ek["quelle"] == "STEP-Import" and ek["konturen"] and all(sw._z(z.get("gemessen")) for z in ek["konturen"])
+    dk = SchneidwegDialog(sk01, pk, sk01.k.profile[pk["profil_id"]], sk01.kopf, sk01.k, sk01.tabellen, db, [])
+    assert not dk.ergebnis["fehler"], dk.ergebnis["fehler"]
+    assert nah(dk.ergebnis["schneidweg"], pk["schneidweg"], 0.6), (dk.ergebnis["schneidweg"], pk["schneidweg"])
+    assert dk.tabelle.rowCount() == len(ek["konturen"]) and not dk.skizze.grab().isNull()
+    assert all(d["x"] == z["x"] for d, z in zip(dk.skizze.lagen(), ek["konturen"]) if z.get("anzahl") == 1)
+    ok(f"S10 K01 aus STEP: {len(ek['konturen'])} Konturen im Rechner, Schneidweg {pk['schneidweg']} mm wie gemessen")
 
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()

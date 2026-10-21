@@ -1184,7 +1184,9 @@ def kapitel_optimieren(i):
     i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
     i.text("Für Teile ohne STEP-Datei rechnet der <b>Schneidweg-Rechner</b> Schneidweg, Einstiche und Konturklassen "
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
-           "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen.")
+           "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen. Bei Teilen aus dem "
+           "STEP-Import zeigt er die gemessenen Konturen in Tabelle und Skizze; dort lassen sie sich prüfen und "
+           "ändern.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck; maßstäbliche Skizze (vergrößert auf die erste Hälfte) mit Draufsicht, Seitenansicht und "
            "Ansicht von A",
@@ -1239,7 +1241,8 @@ def kapitel_optimieren(i):
             "Mitte der Kontur in mm ab Ende A (leer = gleichmäßig verteilt, Schlitz ohne Lage am Ende A). "
             "<i>Abstand</i> macht aus der Anzahl ein <b>Muster</b>: 4 Bohrungen, Lage 200, Abstand 100 liegen bei "
             "200, 300, 400 und 500 mm. <i>Seite</i> ist die Fläche, auf der die Kontur sitzt: Rechteckrohr, "
-            "Quadratrohr und Flachstahl <i>oben, vorne, unten, hinten</i>; U-/C-Profil und Träger <i>Flansch oben, "
+            "Quadratrohr und Flachstahl <i>oben, vorne, unten, hinten</i> (Rechteckrohr mit der Breitseite oben, "
+            "wie bei Schweißnaht und Gehrungsrichtung); U-/C-Profil und Träger <i>Flansch oben, "
             "Steg, Flansch unten</i>; T-Profil <i>Flansch, Steg</i>; L-Profil <i>Schenkel a, Schenkel b</i>. Beim "
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
@@ -1264,6 +1267,15 @@ def kapitel_optimieren(i):
             "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
             "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
             "Hinweis; das Programm erfindet keine Werte, die Schneidzeit wird dann von Hand eingetragen.",
+            "<b>Teile aus dem STEP-Import</b> (seit 0.6.29): Der Import legt die gemessenen Konturen und Enden im "
+            "Rechner ab. Beim Öffnen stehen sie mit Art, Maßen, Lage ab Anfang und Seite (Rundrohr Winkel, "
+            "Rechteckrohr Fläche und Versatz) in der Tabelle und in der Skizze; grün markierte Zeilen und Enden "
+            "rechnen mit der <b>gemessenen</b> Schnittlänge. Ändert man Art oder Maße einer Zeile bzw. Winkel, "
+            "Achse oder Richtung eines Endes, rechnet sie mit den Formeln. Nicht erkannte Ausschnitte erscheinen als "
+            "<i>sonstige Kontur</i> mit gemessener Länge und Hüllmaß; Gravuren und Merkmale nur auf der Innenseite "
+            "fehlen (nicht im Schneidweg). Bei offenen Profilen und Blechen kennt die Messung die Fläche nicht, die "
+            "Konturen liegen dann auf der ersten Fläche. Positionen, die vor 0.6.29 importiert wurden, haben diese "
+            "Angaben nicht (erneut importieren).",
             "<b>In Position übernehmen</b> schreibt Schneidweg, Einstiche, Anfangs-/Endschnitt (gerade ja/nein), "
             "Innenkonturen, Gravur, Konturliste und Konturklassen in die Position, also dieselben Felder wie der "
             "STEP-Import. Hat die Position schon Werte aus dem STEP-Import, fragt das Programm vorher. Die Eingaben "
@@ -3135,7 +3147,8 @@ NEUERUNGEN = [
                "<b>Abwicklung</b> für alle Profilformen, Bemaßung, Zoom; Konturen anklicken (Zeile wird markiert) "
                "und mit der Maus verschieben. Neu je Kontur: Seite bzw. Winkel, Versatz quer und Abstand für Muster; "
                "neue Konturarten Senkung und Ausklinkung am Ende; Vorlagen speichern und laden, Konturen aus einer "
-               "anderen Position kopieren ([[schneidweg_rechner]])."],
+               "anderen Position kopieren. Der STEP-Import legt die gemessenen Konturen im Rechner ab: sie erscheinen "
+               "in Tabelle und Skizze und lassen sich bearbeiten ([[schneidweg_rechner]])."],
     ["0.6.28", "Zeichnungen je Position wieder entfernt (Spalte, Ziehen von Dateien auf eine Position, automatisches "
                "Anhängen der STEP-Datei). Bereits in den Ordner des Angebots kopierte Zeichnungen löscht das Programm "
                "beim ersten Start einmalig; andere Dateien im Ordner bleiben. Die "

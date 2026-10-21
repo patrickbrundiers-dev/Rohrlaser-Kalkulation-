@@ -114,6 +114,82 @@ def gehrungen(m):
     return out
 
 
+SEITE_KASTEN = {"0°": "oben", "90°": "vorne", "180°": "unten", "270°": "hinten"}
+
+
+def rechner_eingaben(m, form, a=None, b=None):
+    """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
+    'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
+    Schnittlänge und Hüllmaß ('gemessen', 'huelle_gemessen'). Solange die Maße einer Zeile unverändert bleiben, rechnet
+    der Rechner mit der gemessenen Länge. Gravuren und nur innen liegende Merkmale fehlen (nicht im Schneidweg);
+    ohne Konturliste (ältere STEP-Import.exe) None."""
+    from .schneidweg import ACHSEN, QUELLE_STEP
+    try:
+        liste = json.loads(m.get("konturen_liste") or "[]")
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(liste, list) or not liste:
+        return None
+    a_, b_ = float(a or 0), float(b or a or 0)
+    breit, schmal = max(a_, b_), min(a_, b_)
+    kasten = form in ("Quadratrohr", "Rechteckrohr")
+    eing = dict(quelle=QUELLE_STEP, a={}, b={}, konturen=[])
+    for d in liste:
+        if not isinstance(d, dict):
+            continue
+        art = d.get("art")
+        if art in ("Ende A", "Ende B"):
+            e = dict(gemessen=round(float(d.get("schnittlaenge") or 0), 2), form=d.get("form"))
+            if d.get("huellmass"):
+                e["huelle_gemessen"] = round(float(d["huellmass"]), 2)
+            if d.get("form") in ("Gehrung", "Schrägschnitt zweiachsig") and d.get("gehrung"):
+                e["winkel"] = round(float(d["gehrung"]), 2)
+                r = d.get("richtung")
+                if r is not None:
+                    e["richtung"] = float(r) % 360
+                    # Achse passend zur Richtung (Breitseite oben: 0°/180° kippt über die kürzere Seite)
+                    quer = schmal if e["richtung"] % 180 == 0 else breit
+                    e["achse"] = ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1]
+            if e["gemessen"] > 0:
+                eing["a" if art == "Ende A" else "b"] = e
+            continue
+        if not d.get("durchgehend") or d.get("z") is None or not d.get("schnittlaenge"):
+            continue
+        k = dict(anzahl=1, x=round(float(d["z"]), 1), gemessen=round(float(d["schnittlaenge"]), 2))
+        if d.get("huellmass"):
+            k["huelle_gemessen"] = round(float(d["huellmass"]), 2)
+        lage = float(d.get("richtung") or 0)
+        laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
+        if art == "Bohrung" and d.get("durchmesser"):
+            k.update(art="Bohrung", d=float(d["durchmesser"]))
+        elif art == "Langloch" and d.get("laenge") and d.get("breite"):
+            k.update(art="Langloch", l=float(d["laenge"]), b=float(d["breite"]))
+            if not laengs:
+                k["quer"] = True
+        elif art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite"):
+            lg, br = float(d["laenge"]), float(d["breite"])
+            k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
+        else:
+            k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
+        if form == "Rundrohr" and d.get("winkel") is not None:
+            k["seite"] = round(float(d["winkel"]) % 360, 1)
+        elif kasten and d.get("seite") in SEITE_KASTEN:
+            seite = SEITE_KASTEN[d["seite"]]
+            breite_f = breit if seite in ("oben", "unten") else schmal
+            mitte = {"oben": 0.0, "vorne": (breit + schmal) / 2, "unten": breit + schmal,
+                     "hinten": 1.5 * (breit + schmal)}[seite]
+            if d.get("u") is not None:
+                u = float(d["u"])
+                umfang = 2 * (breit + schmal)
+                q = (u - mitte + umfang / 2) % umfang - umfang / 2
+                if abs(q) <= breite_f / 2 + 1e-6 and abs(q) > 0.05:
+                    k["q"] = round(q, 1)
+            if seite != "oben":
+                k["seite"] = seite
+        eing["konturen"].append(k)
+    return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
+
+
 def konturen_enden(m):
     """Anfangs- und Endschnitt als [('A' bzw. 'E', Hüllmaß, Schnittweg)] für die Konturklassen; fehlt das Hüllmaß
     (Messung einer älteren STEP-Import.exe), bleiben die Enden ohne Klasse und laufen mit Vorschub groß."""
@@ -517,6 +593,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = m["_netz"]         # 3D-Ansicht; speichert der Aufrufer nach position_neu
             p.update(gehrungen(m))
+            rechner = rechner_eingaben(m, form, (profile.get(pid) or {}).get("a") or m.get("abm_a"),
+                                       (profile.get(pid) or {}).get("b") or m.get("abm_b"))
+            if rechner:
+                p["technik"] = json.dumps(rechner, ensure_ascii=False)     # Konturen für Skizze und Rechner
             if _z(m, "ende_a"):
                 p["a_gerade"] = "ja" if m.get("ende_a_gerade") == "1" else "nein"
                 p["a_schnitt"] = round(_z(m, "ende_a"), 1)
