@@ -14,6 +14,7 @@ querschnitt_lage (nur Anzeige und Eingabe). Die Drehfreigabe wird abgeleitet: ke
 Position und unbekannt = gesperrt. Gedreht wird nur um die eigene Achse, nie gewendet (Ende A bleibt vorn).
 Die Nahtlage der Lieferstange (profile.naht_stange) gilt nur für Rechteckrohr.
 """
+import json
 import math
 
 KEINE, FEST, UNBEKANNT = "keine Vorgabe", "feste Position", "unbekannt"
@@ -172,3 +173,20 @@ def pruefen(p, profil):
 
 def _z(w):
     return f"{w:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+# ------------------------------------------------------------------ ebene schräge Enden (Gehrung)
+def ende_text(winkel, richtung):
+    """Gehrung eines Endes für positionen.a_ende/b_ende: Winkel gegen den geraden Schnitt und Richtung, in der das
+    Teil an diesem Ende am längsten ist (Umfangswinkel wie die Naht, Bezug 'Breitseite oben')."""
+    return json.dumps(dict(winkel=round(float(winkel), 2), richtung=normieren(richtung)))
+
+
+def ende_lesen(text):
+    """(Winkel, Richtung) aus positionen.a_ende/b_ende oder None (leer, gerade, ungültig)."""
+    try:
+        d = json.loads(text) if text else None
+        w, r = float(d["winkel"]), normieren(d["richtung"])
+    except (TypeError, ValueError, KeyError):
+        return None
+    return (w, r) if 0 < w < 80 else None

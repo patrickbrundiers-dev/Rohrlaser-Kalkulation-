@@ -170,4 +170,30 @@ assert seite2.schweissnaht([0], werte=dict(naht_vorgabe=naht.UNBEKANNT, naht_win
 assert seite2.pos_modell.roh(0, spalte) == "unbekannt – Drehung gesperrt" and seite2.pos_modell.status[0] != "" \
     and not seite2.pos_modell.status[0].startswith(("FEHLER: Naht", "WARNUNG: Naht"))
 ok("N6 Dialog 'Schweißnaht …': Klick in den Querschnitt, Lage hochkant, Speichern, Spalte und Status")
+
+# ------------------------------------------------------------------ N7 Gehrungsrichtung (Schneidweg-Rechner, STEP)
+import json  # noqa: E402
+from rohrlaser import schneidweg as sw, step  # noqa: E402
+assert naht.ende_lesen(naht.ende_text(45, 450)) == (45.0, 90.0)
+for falsch in (None, "", "kaputt", json.dumps(dict(winkel=0, richtung=0)), json.dumps(dict(winkel=45))):
+    assert naht.ende_lesen(falsch) is None, falsch
+re60 = db.kontext().profile["RE 60x40x3"]           # A = 60 (Breitseite oben), B = 40
+regel = (10, 50)
+ein = dict(a=dict(winkel=45, achse="über Breite", richtung=0), b=dict(winkel=45, achse="über Höhe", richtung=90),
+           konturen=[])
+erg = sw.rechnen(ein, re60, regel)
+assert not erg["fehler"] and naht.ende_lesen(erg["felder"]["a_ende"]) == (45, 0) \
+    and naht.ende_lesen(erg["felder"]["b_ende"]) == (45, 90)
+falsch = sw.rechnen(dict(ein, a=dict(winkel=45, achse="über Höhe", richtung=0)), re60, regel)
+assert falsch["fehler"] and "passt nicht" in falsch["fehler"][0] and falsch["felder"]["a_ende"] is None
+ohne = sw.rechnen(dict(ein, b=dict(winkel=45, achse="über Höhe")), re60, regel)
+assert not ohne["fehler"] and ohne["felder"]["b_ende"] is None                  # ohne Richtung: nicht teilbar
+assert sw.rechnen(dict(a=dict(winkel=30, richtung=200), b={}, konturen=[]), dict(form="Rundrohr", a=42.4, wand=2),
+                  regel)["felder"]["a_ende"] == naht.ende_text(30, 200)
+liste = [dict(art="Ende A", form="gerade", gehrung=0.0, richtung=None),
+         dict(art="Ende B", form="Gehrung", gehrung=45.0, richtung=90.0)]
+assert step.gehrungen(dict(konturen_liste=json.dumps(liste))) == dict(b_ende=naht.ende_text(45, 90))
+liste[1].pop("richtung")                            # ältere STEP-Import.exe ohne Richtung
+assert step.gehrungen(dict(konturen_liste=json.dumps(liste))) == {} and step.gehrungen({}) == {}
+ok("N7 Gehrungsrichtung: Schneidweg-Rechner (mit Prüfung gegen die Achse), STEP-Konturliste, ohne Richtung leer")
 print("Alle Schweißnaht-Tests bestanden.")

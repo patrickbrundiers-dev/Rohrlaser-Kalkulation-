@@ -59,7 +59,7 @@ class SchneidwegDialog(QDialog):
         lay.addWidget(info)
 
         enden = QGridLayout()
-        self.winkel, self.achse, self.sattel = {}, {}, {}
+        self.winkel, self.achse, self.sattel, self.richtung = {}, {}, {}, {}
         for r, (seite, titel) in enumerate((("a", "Anfangsschnitt"), ("b", "Endschnitt"))):
             w = QDoubleSpinBox()
             w.setRange(0, 79.9)
@@ -84,12 +84,21 @@ class SchneidwegDialog(QDialog):
             sa.setEnabled(form == "Rundrohr")
             sa.setToolTip("Ausklinkung (Sattelschnitt): Ø des Rundrohrs, auf das dieses Ende rechtwinklig gesetzt wird")
             sa.valueChanged.connect(self.rechnen)
-            self.winkel[seite], self.achse[seite], self.sattel[seite] = w, a, sa
+            ri = QComboBox()
+            ri.addItems(list(sw.RICHTUNGEN))
+            ri.setCurrentText(next((t for t, v in sw.RICHTUNGEN.items() if v == e[seite].get("richtung")),
+                                   "nicht angegeben"))
+            ri.setEnabled(form in sw.MIT_RICHTUNG)
+            ri.setToolTip("Gehrung: Seite, an der das Teil an diesem Ende am längsten ist (Blick von Ende A, "
+                          "Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen ineinander.")
+            ri.currentTextChanged.connect(self.rechnen)
+            self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
             enden.addWidget(QLabel(titel + ": Gehrung"), r, 0)
             enden.addWidget(w, r, 1)
             enden.addWidget(a, r, 2)
             enden.addWidget(QLabel("Ausklinkung auf Rundrohr Ø"), r, 3)
             enden.addWidget(sa, r, 4)
+            enden.addWidget(ri, r, 5)
         self.gravur = QDoubleSpinBox()
         self.gravur.setRange(0, 100000)
         self.gravur.setDecimals(1)
@@ -208,7 +217,8 @@ class SchneidwegDialog(QDialog):
                 z["text"] = t
             konturen.append(z)
         enden = {s: dict(winkel=self.winkel[s].value(), achse=self.achse[s].currentText(),
-                         sattel=self.sattel[s].value() or None) for s in ("a", "b")}
+                         sattel=self.sattel[s].value() or None,
+                         richtung=sw.RICHTUNGEN.get(self.richtung[s].currentText())) for s in ("a", "b")}
         return dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
 
     # ------------------------------------------------------------------ Ergebnis

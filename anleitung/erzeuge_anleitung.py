@@ -1186,6 +1186,12 @@ def kapitel_optimieren(i):
             "Träger Steg bzw. Flansche). Nur bei einer unbekannten Profilform ist die Gehrung eine "
             "<i>Schätzung</i> (gerade Schnittlänge / cos Winkel); der Dialog kennzeichnet sie. Je Ende zählen die "
             "Einstiche wie beim STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
+            "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
+            "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
+            "Optimierung Gehrungen benachbarter Teile ineinanderlegen; <i>nicht angegeben</i> = das Ende bleibt "
+            "wie bisher getrennt. Beim Rechteckrohr muss die Richtung zur Gehrungsachse passen (0°/180° kippt über "
+            "die kürzere Seite, 90°/270° über die längere), sonst meldet der Dialog einen Fehler.",
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
@@ -2890,7 +2896,10 @@ def kapitel_step_messung(i):
             "gerechnet.",
             "<b>Ende A / Ende B</b>: <i>gerade</i>, <i>Gehrung</i> (Neigung um eine Querachse), <i>Schrägschnitt "
             "zweiachsig</i> oder <i>komplex</i> (Ausklinkung, Sattel- oder Formschnitt). Dazu kommen die "
-            "Gesamtneigung und die Neigung um beide Querachsen in Grad.")
+            "Gesamtneigung und die Neigung um beide Querachsen in Grad. Bei ebenen schrägen Enden kommt die "
+            "<i>Richtung</i> dazu: der Umfangswinkel (von Ende A gesehen, 0° oben, 90° rechts), in dem das Teil an "
+            "diesem Ende am längsten ist. Der Import übernimmt Winkel und Richtung in die Position, damit die "
+            "Optimierung Gehrungen ineinanderlegen kann.")
     i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
               "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
               "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
@@ -3057,6 +3066,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.22", "Gehrungen mit Richtung: der STEP-Import misst, an welcher Seite ein schräges Ende am längsten ist "
+               "([[step_messung]]), im Schneidweg-Rechner wird sie gewählt ([[schneidweg_rechner]]). Grundlage für "
+               "das Ineinanderlegen von Gehrungen in der Optimierung."],
     ["0.6.21", "Schweißnaht je Position: Vorgabe (keine, feste Position, unbekannt), Winkel am Querschnitt (Blick von "
                "Ende A, 0° oben, 90° rechts), Querschnittslage bei Rechteckrohr, Breit- oder Schmalseite; Profil mit "
                "<i>Naht der Lieferstange</i> und Prüfung im Status ([[schweissnaht]])."],

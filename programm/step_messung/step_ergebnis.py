@@ -93,7 +93,7 @@ def koerper(t):
         "laengsachse": dict(richtung=list(map(lambda x: _r(x, 6), t.achse_global)),
                             ende_a=list(map(_r, t.ende_a_global))) if gemessen and t.achse_global else None,
         "schnittwinkel": {name: dict(form=e.get("form"), gesamt=e.get("gehrung"), um_x=e.get("um_x"),
-                                     um_y=e.get("um_y")) for name, e in enden.items()} if konturen_ausgewertet else None,
+                                     um_y=e.get("um_y"), richtung=e.get("richtung")) for name, e in enden.items()} if konturen_ausgewertet else None,
         "schneidweg": dict(gesamt=_r(t.schneidweg, 2), ende_a=_r(t.ende_a, 2), ende_b=_r(t.ende_b, 2),
                            innen=_r(t.innen, 2), gravur=_r(t.gravur, 2), einstiche=t.konturen)
         if konturen_ausgewertet else None,
