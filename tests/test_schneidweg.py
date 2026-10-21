@@ -5,6 +5,8 @@
 - Übernahme in die Position: Schneidweg, Einstiche, Enden, Innenkonturen, Konturliste, Klassen; Schneidzeit danach
   aus den Schneiddaten wie beim STEP-Import; Eingaben bleiben gespeichert (erneut öffnen), STEP-Werte nur nach
   Rückfrage ersetzt; Dialog zeigt Ergebnis und Schneidzeit sofort.
+- Skizze (S8): maßstäbliche Draufsicht, Seitenansicht und Abwicklung je Profilform, Lage der Konturen (Seite,
+  Versatz, Muster), Klick markiert die Zeile, Ziehen verschiebt die Kontur, Zoom.
 - Ältere Datei (Schema 25) bekommt die Spalte technik leer.
 
 Aufruf: python tests/test_schneidweg.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -212,6 +214,107 @@ bild = dlg7.skizze.grab()
 assert bild.width() > 100 and bild.height() >= 130
 assert dlg7.eingaben()["konturen"][0] == dict(art="Polygon", anzahl=1, punkte="0,0; 40,0; 40,20; 0,20", x=300)
 ok("S7 Ausklinkung auf Rundrohr, Polygon aus Koordinaten, Lage, Gewinde-Vorschlag (HINWEIS), Skizze")
+
+# ------------------------------------------------------------------ S8 Skizze maßstäblich (0.6.26)
+from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
+from rohrlaser import skizze as sk  # noqa: E402
+from rohrlaser.schneidweg_dialog import ABSTAND_SPALTE, LAGE_SPALTE, QUER_SPALTE, SEITE_SPALTE  # noqa: E402
+
+# Querschnitt und Abwicklung je Profilform: Flächen, Umfang der Abwicklung
+assert sk.Querschnitt(RE).seiten() == ["oben", "vorne", "unten", "hinten"] and nah(sk.Querschnitt(RE).umfang, 200)
+assert sk.Querschnitt(RR).seiten()[1] == "vorne (90°)" and nah(sk.Querschnitt(RR).umfang, math.pi * 42.4, 0.01)
+assert sk.Querschnitt(IPE).seiten() == ["Flansch oben", "Steg", "Flansch unten"]
+for form, seiten in (("U-Profil", ["Flansch oben", "Steg", "Flansch unten"]), ("L-Profil", ["Schenkel a", "Schenkel b"]),
+                     ("T-Profil", ["Flansch", "Steg"]), ("Flachstahl", ["oben", "vorne", "unten", "hinten"])):
+    q_ = sk.Querschnitt(dict(form=form, a=60, b=40, wand=5))
+    assert q_.seiten() == seiten and q_.umfang > 0 and len(q_.abwicklung_streifen()) == len(seiten), form
+# Gehrung 45° über Höhe an RE 60x40 (länger oben): unten 60 mm zurück, oben 0; über Breite (länger vorne) hinten 40
+qs = sk.Querschnitt(RE)
+e45 = dict(winkel=45, achse="über Höhe")
+assert nah(sk.schnitt_x(qs, e45, 0, 30), 0) and nah(sk.schnitt_x(qs, e45, 0, -30), 60)
+assert nah(sk.schnitt_x(qs, dict(e45, richtung=180), 0, 30), 60)
+assert nah(sk.schnitt_x(qs, dict(winkel=45, achse="über Breite"), -20, 0), 40)
+# Abwicklung: Schnittlinie des Endes; Seitenansicht zeigt die Schräge, Draufsicht nur die verdeckte Kante
+linie = dict(sk.ende_abwicklung(qs, e45, 200))
+assert nah(linie[0], 0) and nah(max(linie.values()), 60)
+sil_v = sk.silhouette(qs, e45, {}, 800, "vorne")
+assert nah(sil_v[0][1], 60) and nah(sil_v[-1][1], 0) and nah(sil_v[0][4], 800)        # schräg in der Seitenansicht
+sil_o = sk.silhouette(qs, e45, {}, 800, "oben")
+assert all(nah(z[1], 0) and nah(z[2], 0) and nah(z[3], 60) for z in sil_o)        # oben gerade, unten verdeckt bei 60
+# Ausklinkung Rundrohr: Sattel R − √(R² − v²)
+qr_ = sk.Querschnitt(RR)
+assert nah(sk.schnitt_x(qr_, dict(sattel=60.3), 0, 21.2), 30.15 - math.sqrt(30.15 ** 2 - 21.2 ** 2), 0.01)
+# Lage auf dem Teil und zurück (Abwicklung)
+for seite, q in (("oben", 0), ("vorne", 12.5), ("hinten", -20)):
+    assert sk.s_zu_seite(qs, sk.s_lage(qs, dict(seite=seite, q=q))) == (seite, q)
+assert sk.s_zu_seite(qr_, sk.s_lage(qr_, dict(seite=90)))[0] == "vorne (90°)"
+assert sk.winkel_aus_text("vorne (90°)") == 90 and sk.winkel_aus_text("45°") == 45 and sk.winkel_aus_text("x") is None
+# Muster längs: Anzahl im Abstand ab Lage; ohne Lage verteilt; Schlitz ohne Lage am Ende A
+lg = sk.lagen([dict(art="Bohrung", anzahl=3, d=8, x=100, abstand=50), dict(art="Bohrung", anzahl=1, d=8),
+               dict(art="Schlitz", anzahl=1, l=40, b=6)], 1000)
+assert [d["x"] for d in lg] == [100, 150, 200, 500, 20] and lg[3]["verteilt"]
+pk, n_ = sk.platzieren(qs, dict(lg[0], eingabe=dict(art="Bohrung", anzahl=1, d=8, seite="vorne", q=10)))
+assert n_ == (1, 0) and all(nah(u, 20) for _, u, _ in pk) and nah(sum(v for *_, v in pk) / len(pk), -10, 0.01)
+
+# Dialog: Spalten Abstand/Seite/Versatz, Muster in der Rechnung unverändert, Klick und Ziehen in der Skizze
+p8 = dict(db.positionen(a)[0], technik=sw.speichern(dict(a=dict(winkel=45, achse="über Höhe"), b={}, konturen=[
+    dict(art="Bohrung", anzahl=4, d=6.6, x=200, abstand=100, seite="vorne"),
+    dict(art="Langloch", anzahl=1, l=30, b=10, x=600, seite="unten", q=5)])), laenge=800, profil_id="RE 60x40x3")
+dlg8 = SchneidwegDialog(s, p8, RE, s.kopf, s.k, s.tabellen)
+dlg8.resize(1300, 950)
+dlg8.show()
+app.processEvents()
+t8 = dlg8.tabelle
+assert t8.item(0, ABSTAND_SPALTE).text() == "100" and t8.cellWidget(0, SEITE_SPALTE).currentText() == "vorne"
+assert t8.cellWidget(1, SEITE_SPALTE).currentText() == "unten" and t8.item(1, QUER_SPALTE).text() == "5"
+e8 = dlg8.eingaben()
+assert e8["konturen"][0] == dict(art="Bohrung", anzahl=4, d=6.6, x=200, abstand=100, seite="vorne")
+assert nah(dlg8.ergebnis["felder"]["innen"], 4 * math.pi * 6.6 + 2 * 20 + math.pi * 10, 0.1)    # Lage zählt nicht
+sk8 = dlg8.skizze
+sk8.grab()
+assert [round(x) for x, _, _ in sk8.formen()] == [200, 300, 400, 500, 600]
+treffer = [(poly, d, an) for poly, d, an in sk8.treffer if d["zeile"] == 0 and d["nr"] == 1 and an[0] == "vorne"]
+assert len(treffer) == 1                        # vorne nur in der Seitenansicht, nicht in der Draufsicht
+assert not [1 for _, d, an in sk8.treffer if d["zeile"] == 0 and an[0] == "oben"]
+start = treffer[0][0].boundingRect().center().toPoint()
+QTest.mouseClick(sk8, Qt.LeftButton, Qt.NoModifier, start)
+assert sorted({i.row() for i in t8.selectedIndexes()}) == [0] and sk8.markiert == 0
+t8.selectRow(1)
+assert sk8.markiert == 1
+m = sk8.massstab()
+QTest.mousePress(sk8, Qt.LeftButton, Qt.NoModifier, start)
+QTest.mouseMove(sk8, start + QPoint(round(50 * m), 0))
+QTest.mouseRelease(sk8, Qt.LeftButton, Qt.NoModifier, start + QPoint(round(50 * m), 0))
+x_neu = float(t8.item(0, LAGE_SPALTE).text().replace(",", "."))
+assert abs(x_neu - 250) <= 1.5 / m + 0.2, x_neu       # ganzes Muster um 50 mm verschoben
+assert t8.item(0, ABSTAND_SPALTE).text() == "100" and dlg8.eingaben()["konturen"][0]["x"] == x_neu
+# Abwicklung: Ziehen quer wechselt die Seite (vorne -> unten)
+dlg8.ansicht_wahl.setCurrentText("Abwicklung")
+sk8.grab()
+tr = next(poly for poly, d, an in sk8.treffer if d["zeile"] == 0 and d["nr"] == 0)
+st = tr.boundingRect().center().toPoint()
+m = sk8.massstab()
+QTest.mousePress(sk8, Qt.LeftButton, Qt.NoModifier, st)
+QTest.mouseMove(sk8, st + QPoint(0, round(50 * m)))
+QTest.mouseRelease(sk8, Qt.LeftButton, Qt.NoModifier, st + QPoint(0, round(50 * m)))
+assert t8.cellWidget(0, SEITE_SPALTE).currentText() == "unten", t8.cellWidget(0, SEITE_SPALTE).currentText()
+# Zoom mit dem Mausrad, Doppelklick passt ein
+alt = sk8.massstab()
+sk8.zoom = 4.0
+assert nah(sk8.massstab(), 4 * alt, 1e-6)
+QTest.mouseDClick(sk8, Qt.LeftButton, Qt.NoModifier, QPoint(5, 5))
+assert sk8.zoom == 1.0
+for name in ("U 100x50x6", "L 50x30x5", "T 50x50x6", "FL 40x5"):    # jede Profilform zeichnet ohne Fehler
+    pr = dict(profil_id=name, **(opt.profil_aus_name(name) or {}))
+    d_ = SchneidwegDialog(s, dict(p8, technik=None, profil_id=name), pr, s.kopf, s.k, s.tabellen)
+    d_.zeile_neu(dict(art="Bohrung", anzahl=2, d=8, x=100, abstand=200, seite=sk.Querschnitt(pr).seiten()[-1]))
+    for modus in ("Abwicklung", "Draufsicht und Seitenansicht"):
+        d_.ansicht_wahl.setCurrentText(modus)
+        assert not d_.skizze.grab().isNull() and d_.skizze.treffer, (name, modus)
+dlg8.close()
+ok("S8 Skizze maßstäblich: Querschnitt und Abwicklung je Profil, Gehrung/Ausklinkung, Seite und Muster, Klick "
+   "markiert die Zeile, Ziehen verschiebt Lage bzw. Seite, Zoom")
 
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()

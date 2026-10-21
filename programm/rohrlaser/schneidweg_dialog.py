@@ -3,23 +3,24 @@ Innenkonturen (Bohrung, Langloch, Rechteck, Schlitz, Polygon aus Koordinaten, so
 Skizze, Schnittlängen, Einstiche, Konturklassen, Gewinde-Vorschlag und die Schneidzeit mit den Schneiddaten der
 Maschine stehen sofort daneben. Die Formeln stehen in schneidweg.py; OK schreibt die Werte in die Position
 (Angebotsseite.schneidweg_berechnen)."""
-import math
-
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
-                               QHBoxLayout, QHeaderView, QLabel, QPushButton, QSizePolicy, QTableWidget,
+                               QHBoxLayout, QHeaderView, QLabel, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import rechnen, schneidweg as sw
+from . import rechnen, schneidweg as sw, skizze as sk
+from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
 
-KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", "Lage ab Anfang [mm]", "Text")
-TEXT_SPALTE, LAGE_SPALTE = 6, 5
+KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", "Lage ab Anfang [mm]", "Abstand [mm]",
+                  "Seite", "Versatz quer [mm]", "Text")
+LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, TEXT_SPALTE = 5, 6, 7, 8, 9
 ERGEBNIS_SPALTEN = ("Schnitt", "Anzahl", "je Stück [mm]", "gesamt [mm]", "Einstiche", "Hüllmaß [mm]", "Klasse")
 MASS_HILFE = ("Maße: Bohrung Ø · Langloch Länge, Breite · Rechteck Breite, Höhe, Eckradius · Schlitz (offen, vom "
               "Rand) Tiefe, Breite · Polygon Eckpunkte in Maß 1, z. B. 0,0; 40,0; 40,20; 0,20 · sonstige Kontur "
-              "Schnittlänge, Hüllmaß (leer = groß). Lage ab Anfang nur für die Skizze (leer = verteilt).")
+              "Schnittlänge, Hüllmaß (leer = groß). Lage ab Anfang = Mitte der (ersten) Kontur, leer = verteilt; Abstand = "
+              "Muster längs (Anzahl Konturen im Abstand); Seite und Versatz quer zur Flächenmitte bzw. beim Rundrohr der "
+              "Winkel (0° oben, 90° vorne). Lage, Seite und Versatz zählen nur für die Skizze, nicht für den Schneidweg.")
 
 
 def _zahl(text):
@@ -46,8 +47,15 @@ class SchneidwegDialog(QDialog):
         self.ergebnis = None
         e = sw.lesen(p.get("technik"))
         self.setWindowTitle(f"Schneidweg berechnen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
-        self.resize(1000, 760)
-        lay = QVBoxLayout(self)
+        self.resize(1200, 900)
+        self.qs = sk.Querschnitt(profil)
+        haupt = QVBoxLayout(self)
+        teiler = QSplitter(Qt.Vertical)
+        haupt.addWidget(teiler, 1)
+        oben = QWidget()
+        lay = QVBoxLayout(oben)
+        lay.setContentsMargins(0, 0, 0, 0)
+        teiler.addWidget(oben)
         form = profil.get("form")
         info = QLabel(f"Profil {p.get('profil_id')} ({form}), Werkstoff {p.get('werkstoff_id') or '–'}, Maschine "
                       f"{kopf.get('maschine') or '–'}, Konturgrenzen klein bis {rechnen.zahl(self.grenzen[0])} mm, "
@@ -115,10 +123,11 @@ class SchneidwegDialog(QDialog):
         self.tabelle.setHorizontalHeaderLabels(KONTUR_SPALTEN)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabelle.verticalHeader().setDefaultSectionSize(26)
-        for i, b in enumerate((130, 60, 150, 80, 80, 140)):
+        for i, b in enumerate((130, 60, 150, 80, 80, 130, 90, 120, 120)):
             self.tabelle.setColumnWidth(i, b)
         self.tabelle.horizontalHeader().setSectionResizeMode(TEXT_SPALTE, QHeaderView.Stretch)
         self.tabelle.itemChanged.connect(self.rechnen)
+        self.tabelle.itemSelectionChanged.connect(self._auswahl_tabelle)
         lay.addWidget(self.tabelle, 1)
         hilfe = QLabel(MASS_HILFE)
         hilfe.setWordWrap(True)
@@ -135,8 +144,29 @@ class SchneidwegDialog(QDialog):
         leiste.addWidget(weg)
         lay.addLayout(leiste)
 
+        mitte = QWidget()
+        ml = QVBoxLayout(mitte)
+        ml.setContentsMargins(0, 0, 0, 0)
+        kopfzeile = QHBoxLayout()
+        kopfzeile.addWidget(QLabel("<b>Skizze</b> (maßstäblich)"))
+        self.ansicht_wahl = QComboBox()
+        self.ansicht_wahl.addItems(MODI)
+        self.ansicht_wahl.currentTextChanged.connect(lambda m: self.skizze.modus_setzen(m))
+        kopfzeile.addWidget(self.ansicht_wahl)
+        einpassen = QPushButton("Einpassen")
+        einpassen.clicked.connect(lambda: self.skizze.einpassen())
+        kopfzeile.addWidget(einpassen)
+        kopfzeile.addStretch(1)
+        ml.addLayout(kopfzeile)
         self.skizze = Skizze(profil, p.get("laenge"))
-        lay.addWidget(self.skizze)
+        self.skizze.gewaehlt.connect(self._auswahl_skizze)
+        self.skizze.verschoben.connect(self._verschoben)
+        ml.addWidget(self.skizze, 1)
+        teiler.addWidget(mitte)
+        unten = QWidget()
+        lay = QVBoxLayout(unten)
+        lay.setContentsMargins(0, 0, 0, 0)
+        teiler.addWidget(unten)
         lay.addWidget(QLabel("<b>Ergebnis je Teil</b>"))
         self.ergebnis_tabelle = QTableWidget(0, len(ERGEBNIS_SPALTEN))
         self.ergebnis_tabelle.setHorizontalHeaderLabels(ERGEBNIS_SPALTEN)
@@ -148,6 +178,11 @@ class SchneidwegDialog(QDialog):
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
         lay.addWidget(self.summe)
+        teiler.setStretchFactor(0, 3)
+        teiler.setStretchFactor(1, 4)
+        teiler.setStretchFactor(2, 2)
+        teiler.setSizes([330, 380, 190])
+        lay = haupt
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.button(QDialogButtonBox.Ok).setText("In Position übernehmen")
         knoepfe.accepted.connect(self._ok)
@@ -169,10 +204,29 @@ class SchneidwegDialog(QDialog):
         art.currentTextChanged.connect(lambda _=None, art=art: self._art_geaendert(art))
         self.tabelle.setCellWidget(r, 0, art)
         werte = [z.get("anzahl")] + [z.get(k_) for k_, _ in sw.MASSE.get(art.currentText(), ())]
-        werte += [None] * (4 - len(werte)) + [z.get("x")]
+        werte += [None] * (4 - len(werte)) + [z.get("x"), z.get("abstand")]
         for c, v in enumerate(werte, start=1):
             self.tabelle.setItem(r, c, QTableWidgetItem(rechnen.zahl(v, 3) if isinstance(v, (int, float)) else
                                                         v if isinstance(v, str) else ""))
+        seite = QComboBox()
+        seite.addItems(self.qs.seiten())
+        if self.qs.r:
+            seite.setEditable(True)         # Rundrohr: auch freier Winkel, z. B. 45°
+            seite.setToolTip("Winkel am Umfang, Blick von Ende A: 0° oben, 90° vorne, 180° unten, 270° hinten")
+            w = sk.winkel_aus_text(z.get("seite"))
+            seite.setCurrentText(sk.winkel_text(w) if w is not None else self.qs.seiten()[0])
+        else:
+            seite.setToolTip("Fläche, auf der die Kontur liegt (siehe Ansicht von A in der Skizze)")
+            seite.setCurrentText(z.get("seite") if z.get("seite") in self.qs.seiten() else self.qs.seiten()[0])
+        seite.currentTextChanged.connect(self.rechnen)
+        self.tabelle.setCellWidget(r, SEITE_SPALTE, seite)
+        quer = QTableWidgetItem(rechnen.zahl(z["q"], 3) if isinstance(z.get("q"), (int, float)) else "")
+        if self.qs.r:
+            quer.setFlags(quer.flags() & ~Qt.ItemIsEditable)
+            quer.setToolTip("Rundrohr: Lage am Umfang über den Winkel in der Spalte Seite")
+        else:
+            quer.setToolTip("Versatz quer zur Mitte der Fläche [mm] (+ in Richtung der nächsten Fläche)")
+        self.tabelle.setItem(r, QUER_SPALTE, quer)
         self.tabelle.setItem(r, TEXT_SPALTE, QTableWidgetItem(z.get("text") or ""))
         self._kopf_hinweise(r)
         self.tabelle.blockSignals(False)
@@ -212,6 +266,19 @@ class SchneidwegDialog(QDialog):
             x = _zahl(self.tabelle.item(r, LAGE_SPALTE).text())
             if x is not None:
                 z["x"] = x
+            ab = _zahl(self.tabelle.item(r, ABSTAND_SPALTE).text())
+            if ab:
+                z["abstand"] = ab
+            seite = self.tabelle.cellWidget(r, SEITE_SPALTE).currentText()
+            if self.qs.r:
+                w = sk.winkel_aus_text(seite)
+                if w:
+                    z["seite"] = w
+            elif seite != self.qs.seiten()[0]:
+                z["seite"] = seite
+            q = _zahl(self.tabelle.item(r, QUER_SPALTE).text())
+            if q and not self.qs.r:
+                z["q"] = q
             t = self.tabelle.item(r, TEXT_SPALTE).text().strip()
             if t:
                 z["text"] = t
@@ -260,8 +327,39 @@ class SchneidwegDialog(QDialog):
         self.summe.setText("<br>".join(teile))
         if hasattr(self, "skizze"):
             self.skizze.zeigen(eingaben, erg)
+            self._auswahl_tabelle()
         if hasattr(self, "ok_knopf"):
             self.ok_knopf.setEnabled(not erg["fehler"])
+
+    # ------------------------------------------------------------------ Skizze <-> Tabelle
+    def _auswahl_tabelle(self):
+        zeilen = sorted({i.row() for i in self.tabelle.selectedIndexes()})
+        self.skizze.markieren(zeilen[0] if zeilen else None)
+
+    def _auswahl_skizze(self, zeile):
+        if 0 <= zeile < self.tabelle.rowCount():
+            self.tabelle.selectRow(zeile)
+
+    def _verschoben(self, zeile, neu):
+        """Kontur in der Skizze gezogen: Lage, Abstand, Seite und Versatz in die Tabelle schreiben."""
+        if not 0 <= zeile < self.tabelle.rowCount():
+            return
+        self.tabelle.blockSignals(True)
+        for name, spalte in (("x", LAGE_SPALTE), ("abstand", ABSTAND_SPALTE), ("q", QUER_SPALTE)):
+            if name in neu and not (name == "q" and self.qs.r):
+                v = neu[name]
+                self.tabelle.item(zeile, spalte).setText(rechnen.zahl(v, 3) if v is not None else "")
+        if "seite" in neu:
+            cb = self.tabelle.cellWidget(zeile, SEITE_SPALTE)
+            cb.blockSignals(True)
+            if self.qs.r:
+                cb.setCurrentText(sk.winkel_text(neu["seite"] or 0.0))
+            else:
+                cb.setCurrentText(neu["seite"] or self.qs.seiten()[0])
+            cb.blockSignals(False)
+        self.tabelle.blockSignals(False)
+        self.tabelle.selectRow(zeile)
+        self.rechnen()
 
     def schneidzeit(self):
         """Schneidzeit je Teil [s] mit den neuen Werten oder None ohne Schneiddaten."""
@@ -278,82 +376,3 @@ def gewinde_liste(tabellen):
     """[(Gewinde, Kernloch-Ø)] aus den Stammdaten Gewinde (leer: übliche Kernlöcher, wie der STEP-Import)."""
     return [(g["gewinde"], g["kernloch"]) for g in (tabellen.get("gewinde") or ())
             if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or None
-
-
-class Skizze(QWidget):
-    """Seitenansicht des Teils (nicht maßstäblich in der Höhe): Enden mit Gehrung bzw. Ausklinkung, Innenkonturen an
-    ihrer Lage (ohne Lage gleichmäßig verteilt), Hüllmaß als Größe. Nur zur Kontrolle der Eingaben."""
-
-    def __init__(self, profil, laenge):
-        super().__init__()
-        self.profil, self.laenge = profil, laenge if isinstance(laenge, (int, float)) and laenge > 0 else None
-        self.eingaben, self.ergebnis = {}, None
-        self.setMinimumHeight(130)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-    def zeigen(self, eingaben, ergebnis):
-        self.eingaben, self.ergebnis = eingaben, ergebnis
-        self.update()
-
-    def formen(self):
-        """[(x Mitte ab Anfang, Hüllmaß, Art, Text)] je Kontur (Anzahl einzeln), x aus der Eingabe oder verteilt."""
-        L = self.laenge or 1000.0
-        liste = []
-        for e in self.eingaben.get("konturen") or ():
-            try:
-                _, hk, n = sw.kontur(e)
-            except ValueError:
-                continue
-            liste += [(e.get("x"), hk, e.get("art"))] * n
-        frei = [i for i, (x, _, _) in enumerate(liste) if x is None]
-        out = []
-        for i, (x, hk, art) in enumerate(liste):
-            if x is None:
-                x = L * (frei.index(i) + 1) / (len(frei) + 1)
-            out.append((x, hk, art))
-        return out
-
-    def paintEvent(self, _):
-        g = QPainter(self)
-        g.setRenderHint(QPainter.Antialiasing)
-        g.fillRect(self.rect(), QColor("#FFFFFF"))
-        L = self.laenge or 1000.0
-        hoehe = sw._z(self.profil.get("a")) or 40.0
-        rand = 30
-        breite = max(50, self.width() - 2 * rand)
-        m = breite / L                                    # mm -> Pixel in der Länge
-        hp = min(self.height() - 50, max(30, hoehe * m))  # Höhe: mindestens lesbar
-        y0 = (self.height() - hp) / 2
-        stift = QPen(QColor("#1F3864"), 1.5)
-        g.setPen(stift)
-
-        def ende_x(seite):
-            e = self.eingaben.get(seite) or {}
-            w = abs(sw._z(e.get("winkel")))
-            return min(hp * math.tan(math.radians(w)), breite / 3) if w < 80 else 0, sw._z(e.get("sattel"))
-        da, sa = ende_x("a")
-        db, sb = ende_x("b")
-        links, rechts = rand, rand + breite
-        umriss = QPolygonF([QPointF(links + da, y0), QPointF(rechts - db, y0), QPointF(rechts, y0 + hp),
-                            QPointF(links, y0 + hp)])
-        g.drawPolygon(umriss)
-        for x, s_ in ((links, sa), (rechts, sb)):
-            if s_:      # Ausklinkung als Bogen des Gegenrohrs
-                r = max(s_ / 2 * m, hp / 2)
-                mitte = x - r if x == links else x + r
-                g.drawEllipse(QRectF(mitte - r, y0 + hp / 2 - r, 2 * r, 2 * r))
-        g.setPen(QPen(QColor("#B42318"), 1.2))
-        for x, hk, art in self.formen():
-            d = max(6.0, min(hp * 0.8, (hk if hk and hk < sw.OHNE_HUELLE else hoehe * 0.6) * m))
-            box = QRectF(rand + x * m - d / 2, y0 + hp / 2 - d / 2, d, d)
-            if art == sw.BOHRUNG:
-                g.drawEllipse(box)
-            elif art == sw.LANGLOCH:
-                g.drawRoundedRect(QRectF(box.x(), box.y() + d / 4, d, d / 2), d / 4, d / 4)
-            else:
-                g.drawRect(box)
-        g.setPen(QColor("#595959"))
-        txt = f"Länge {rechnen.zahl(L, 1)} mm" if self.laenge else "Teilelänge fehlt: Skizze mit 1000 mm"
-        g.drawText(QRectF(rand, y0 + hp + 4, breite, 18), Qt.AlignHCenter, txt)
-        g.drawText(QRectF(rand, 4, breite, 18), Qt.AlignLeft, "Skizze (nicht maßstäblich in der Höhe)")
-        g.end()

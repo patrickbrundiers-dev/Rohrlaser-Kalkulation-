@@ -1185,15 +1185,21 @@ def kapitel_optimieren(i):
     i.text("Für Teile ohne STEP-Datei rechnet der <b>Schneidweg-Rechner</b> Schneidweg, Einstiche und Konturklassen "
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
            "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen.")
-    i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen, Langlöcher und ein Rechteck",
-           hoehe=125 * mm, legende=[
+    i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
+           "und ein Rechteck; maßstäbliche Skizze (vergrößert auf die erste Hälfte) mit Draufsicht, Seitenansicht und "
+           "Ansicht von A",
+           hoehe=150 * mm, legende=[
                (1, "<b>Gehrung</b> je Ende in Grad (gerade = 0) mit Richtung, beim Rundrohr wahlweise Ausklinkung."),
-               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße; der Tooltip jeder Zelle nennt das Maß."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße (der Tooltip jeder Zelle nennt das Maß), "
+                   "dazu Lage ab Anfang, Abstand (Muster), Seite und Versatz quer."),
                (3, "<b>+ Bohrung</b>, <b>+ Langloch</b> … fügt eine Zeile hinzu, <b>Markierte entfernen</b> löscht."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
                (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
                    "in Farbe."),
-               (6, "<b>Skizze</b> des Teils mit Enden und Konturen.")])
+               (6, "<b>Skizze</b> maßstäblich: Draufsicht und Seitenansicht oder Abwicklung, Bemaßung, Ansicht "
+                   "von A mit den Flächennamen; Konturen anklicken und ziehen.")])
+    i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
+           "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
             "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
             "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
@@ -1214,13 +1220,31 @@ def kapitel_optimieren(i):
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
             "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Polygon</i> aus Eckpunkten in Maß 1 "
             "(<i>x,y; x,y; …</i> in mm, geschlossen, z. B. 0,0; 40,0; 40,20; 0,20 = 120 mm, Hüllmaß 40) und "
-            "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). <b>Lage ab Anfang</b> "
-            "(optional) setzt die Kontur in der Skizze an ihre Stelle, ohne Lage wird sie gleichmäßig verteilt. Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
+            "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
             "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
             "gesperrt.",
             "<b>Gravur</b>: Länge in mm, wird mit dem Vorschub Gravur gerechnet.",
-            "<b>Skizze</b>: Seitenansicht mit Gehrung bzw. Ausklinkung und den Konturen, zur Kontrolle der Eingaben "
-            "(in der Höhe nicht maßstäblich).",
+            "<b>Lage der Konturen</b> (nur für die Skizze, ändert den Schneidweg nicht): <i>Lage ab Anfang</i> = "
+            "Mitte der Kontur in mm ab Ende A (leer = gleichmäßig verteilt, Schlitz ohne Lage am Ende A). "
+            "<i>Abstand</i> macht aus der Anzahl ein <b>Muster</b>: 4 Bohrungen, Lage 200, Abstand 100 liegen bei "
+            "200, 300, 400 und 500 mm. <i>Seite</i> ist die Fläche, auf der die Kontur sitzt: Rechteckrohr, "
+            "Quadratrohr und Flachstahl <i>oben, vorne, unten, hinten</i>; U-/C-Profil und Träger <i>Flansch oben, "
+            "Steg, Flansch unten</i>; T-Profil <i>Flansch, Steg</i>; L-Profil <i>Schenkel a, Schenkel b</i>. Beim "
+            "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
+            "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
+            "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
+            "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
+            "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
+            "Rundrohr der Umfang in Vierteln). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
+            "hellblau; verdeckte Kanten und Konturen auf der Rückseite sind gestrichelt, verteilte Konturen ohne "
+            "Lage blasser. Oben stehen die Lagen ab Anfang, unten die Länge; rechts oben die <i>Ansicht von A</i> "
+            "mit den Flächennamen. <b>Mausrad</b> = Zoom an der Mausposition, Ziehen auf freier Fläche verschiebt "
+            "das Bild, <b>Doppelklick</b> oder <i>Einpassen</i> zeigt wieder alles. Ein <b>Klick auf eine Kontur</b> "
+            "markiert ihre Zeile in der Tabelle (und umgekehrt), <b>Ziehen</b> verschiebt sie: längs ändert die "
+            "Lage (ein Muster wandert als Ganzes), quer ändert in der Abwicklung Seite und Versatz, in Draufsicht "
+            "und Seitenansicht den Versatz bzw. beim Rundrohr den Winkel. Die Werte stehen danach in der Tabelle. "
+            "Fehlt die Teilelänge, zeichnet die Skizze mit 1000 mm. Flanschdicken, die das Profil nicht hat "
+            "(kein Normprofil), zeichnet sie mit der Wandstärke; gerechnet wird damit nichts.",
             "<b>Gewinde-Vorschlag</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes aus den Stammdaten (z. B. Ø 8,5 "
             "für M10) ergeben wie beim STEP-Import einen Vorschlag (Spalten <i>Bohrungen</i> und "
             "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Gewinde-Vorschlag prüfen“). Gerechnet wird ein Gewinde erst, "
@@ -3096,6 +3120,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.29", "Schneidweg-Rechner: <b>maßstäbliche Skizze</b> mit Draufsicht, Seitenansicht, Ansicht von A und "
+               "<b>Abwicklung</b> für alle Profilformen, Bemaßung, Zoom; Konturen anklicken (Zeile wird markiert) "
+               "und mit der Maus verschieben. Neu je Kontur: Seite bzw. Winkel, Versatz quer und Abstand für Muster "
+               "([[schneidweg_rechner]])."],
     ["0.6.28", "Zeichnungen je Position wieder entfernt (Spalte, Ziehen von Dateien auf eine Position, automatisches "
                "Anhängen der STEP-Datei). Bereits in den Ordner des Angebots kopierte Zeichnungen löscht das Programm "
                "beim ersten Start einmalig; andere Dateien im Ordner bleiben. Die "

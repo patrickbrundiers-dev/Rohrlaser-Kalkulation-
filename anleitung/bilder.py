@@ -392,13 +392,19 @@ def main(ziel):
     # 7a2) Schneidweg-Rechner: Gehrung, Bohrungen, Langloch (nur Foto, Abbrechen: Position bleibt unverändert)
     def schneidweg_ausfuellen(d):
         d.winkel["a"].setValue(45)
-        d.zeile_neu(dict(art="Bohrung", anzahl=4, d=8.5))
-        d.zeile_neu(dict(art="Langloch", anzahl=2, l=30, b=10, x=600))
-        d.zeile_neu(dict(art="Rechteck", anzahl=1, b=20, h=60, r=2))
-        d.resize(1000, 760)
+        d.zeile_neu(dict(art="Bohrung", anzahl=4, d=8.5, x=300, abstand=150))
+        d.zeile_neu(dict(art="Langloch", anzahl=2, l=30, b=10, x=600, abstand=1200, seite=d.qs.seiten()[1]))
+        d.zeile_neu(dict(art="Rechteck", anzahl=1, b=60, h=20, r=2, x=1500))
+        d.resize(1250, 980)
         QApplication.processEvents()
+        d.skizze.zoom = 2.0                 # Ausschnitt: erste Hälfte des Teils
         foto.foto("schneidweg_dialog", d, [(d.winkel["a"], 1), (d.tabelle, 2), (knopf(d, "+ Bohrung"), 3),
                                            (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6)])
+        d.ansicht_wahl.setCurrentText("Abwicklung")
+        d.skizze.resize(d.skizze.width(), 300)
+        d.skizze.zoom = 2.0
+        QApplication.processEvents()
+        foto.foto("schneidweg_abwicklung", d.skizze, [])
         return QDialog.Rejected
     s.schneidweg_berechnen(0, dialog=schneidweg_ausfuellen)
 
