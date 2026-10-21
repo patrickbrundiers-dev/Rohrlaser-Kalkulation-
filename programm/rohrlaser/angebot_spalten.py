@@ -44,8 +44,10 @@ STANGEN_SPALTEN = [("Stange Nr.", "nr", 0, 55), ("Profil-ID", "profil", None, 11
                    ("Materialkosten Stange [€]", "kosten", 2, 105), ("Belegung (Pos. × Länge)", "belegung", None, 400)]
 TEIL_SPALTEN = [("Platz", "platz", 0, 45), ("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 140),
                 ("Teilelänge [mm]", "laenge", 1, 80), ("Von [mm]", "von", 2, 80), ("Bis [mm]", "bis", 2, 80),
-                ("Lage", "lage", None, 70), ("Trennung zum Vorgänger", "trennung", None, 140),
-                ("Eingesparter Schneidweg [mm]", "eingespart_mm", 1, 90), ("Eingesparte Einstiche", "eingespart_e", 0, 80)]
+                ("Lage", "lage", None, 70), ("Schweißnaht", "naht_text", None, 120),
+                ("Trennung zum Vorgänger", "trennung", None, 140),
+                ("Eingesparter Schneidweg [mm]", "eingespart_mm", 1, 90), ("Eingesparte Einstiche", "eingespart_e", 0, 80),
+                ("Eingespartes Material [mm]", lambda z: z.get("material_gespart") or None, 1, 90)]
 AUSW_SPALTEN = [("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100),
                 ("Oberfläche", lambda z: z.get("oberflaeche") or "roh", None, 75), ("Stangenlänge [mm]", "stange", 0, 90),
                 ("Teile [Stk]", "teile", 0, 55), ("Stangen optimiert", "stangen", 0, 70), ("Stangen manuell", "manuell", 0, 70),
@@ -53,7 +55,8 @@ AUSW_SPALTEN = [("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff"
                 ("Materialbedarf [m]", "bedarf", 2, 90), ("Teilelänge [m]", "laenge", 2, 75), ("Verschnitt [m]", "verschnitt", 2, 75),
                 ("Ausnutzung optimiert [%]", lambda z: 100 * z["ausnutzung"], 1, 80),
                 ("Ausnutzung manuell [%]", lambda z: 100 * z["ausnutzung_manuell"], 1, 80),
-                ("Gemeinsame Schnitte", "gemeinsam", 0, 85), ("Über Untergrenze [Stangen]", lambda z: z["stangen"] - z["untergrenze"], 0, 80),
+                ("Gemeinsame Schnitte", "gemeinsam", 0, 85), ("Stangen ohne Drehen", "ohne_drehung", 0, 75),
+                ("Gehrungen ineinander [mm]", "gehrung_mm", 1, 85), ("Über Untergrenze [Stangen]", lambda z: z["stangen"] - z["untergrenze"], 0, 80),
                 ("Bewertung", "bewertung", None, 230)]
 FEHLER_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 150), ("Anzahl", "anzahl", 0, 60),
                   ("Grund", "grund", None, 300)]
