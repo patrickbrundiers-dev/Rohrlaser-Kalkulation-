@@ -284,6 +284,8 @@ MASCHINEN = Tabelle(
      Feld("stundensatz", "Stundensatz [€/h]", "zahl", 0, 10000, stellen=2),
      Feld("kontur_klein", "Kontur klein bis [mm]", "zahl", 0.1, 5000, stellen=1),
      Feld("kontur_mittel", "Kontur mittel bis [mm]", "zahl", 0.1, 5000, stellen=1),
+     Feld("kontur_klein_wand", "Kontur klein bis [× Wand]", "zahl", 0.1, 1000, stellen=1),
+     Feld("kontur_mittel_wand", "Kontur mittel bis [× Wand]", "zahl", 0.1, 1000, stellen=1),
      Feld("abstand", "Abstand getrennte Schnitte [mm]", "zahl", 0, 100, stellen=1),
      Feld("ruestzeit", "Rüstzeit je Angebot [min]", "zahl", 0, 1440, stellen=0),
      Feld("stangenwechsel", "Stangenwechsel je Stange [s]", "zahl", 0, 3600, stellen=0),
@@ -293,7 +295,8 @@ MASCHINEN = Tabelle(
      Feld("min_stange", "Min. Stangenlänge Zuschnitt [mm]", "ganz", 0, 20000)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
-    "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. "
+    "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
+    "klein/mittel bis × Wand: zusätzlich nach Hüllmaß ÷ Wandstärke (Vorgabe 3 und 8), die strengere Klasse gilt. "
     "Max. Hüllkreis-Ø und max. Metergewicht: größere oder schwerere Profile bekommen im Angebot FEHLER "
     "und werden nicht eingeplant (leer = keine Grenze). Min. Stangenlänge Zuschnitt: kürzeste Stange, die die "
     "automatische Stangenladung nimmt; keine aus einer Lieferstange (z. B. 12 m) zugeschnittene Stange wird kürzer "
@@ -852,14 +855,12 @@ def beispiel_oberflaechen():
 
 # Maschinen (Werte von Patrick, 20.10.2026): T03 Trumpf CO₂-Laser, T11 Trumpf und LT7 Adige Faserlaser
 BEISPIEL_MASCHINEN = [
-    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "CO₂-Laser", 255, 36, 2500),
-    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 5, 5, 29, "Faserlaser", 255, 36, 2500),
-    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 5, 5, 25, "Faserlaser", 214, 23, 2500)]
+    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 29, "CO₂-Laser", 255, 36, 2500),
+    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 29, "Faserlaser", 255, 36, 2500),
+    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 25, "Faserlaser", 214, 23, 2500)]
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
-# Laserleistung laut Patrick (20.10.2026): T03 3,2 kW, T11 4 kW, LT7 3 kW. Die Richtwerte gelten für 3 kW Faser bzw.
-# 3,2 kW CO₂; T11 mit 4 kW bekommt 20 % mehr Vorschub (nicht die vollen 33 %: am Rohr begrenzt oft die Dynamik).
+# Laserleistung laut Patrick (20.10.2026): T03 3,2 kW, T11 4 kW, LT7 3 kW
 LEISTUNG = {"T03": 3.2, "T11": 4.0, "LT7": 3.0}
-FAKTOR = {"T03": 1.0, "T11": 1.2, "LT7": 1.0}
 
 # Bis 0.5.8: Beispielmaschinen RL-1/RL-2 (Werte ab 'endbeschnitt'); unverändert werden sie beim Update zu T03/T11
 ALTE_MASCHINEN = {"RL-1": ("T03", (20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30)),
@@ -867,11 +868,39 @@ ALTE_MASCHINEN = {"RL-1": ("T03", (20, 80, 0.3, 6500, 120.00, 10, 50, 2, 15, 30)
 MASCHINE_WERTE = ("endbeschnitt", "greiferrest", "schnittverlust", "max_stange", "stundensatz", "kontur_klein",
                   "kontur_mittel", "abstand", "ruestzeit", "stangenwechsel")
 
-# Richtwerte Schneiddaten je Laser, Kategorie und Gas: [(Wandstärke bis, Vorschub groß, Einstechzeit)].
-# Herkunft: übliche Schnitttabellen Faserlaser 3 kW bzw. CO₂-Laser 3,2 kW (Flachbett) mit ≈ 40 % Abschlag fürs
-# Rohr (Drehachse, Ecken, Beschleunigung); keine Herstellerwerte. Stahl Faser mit N₂ bis 4 mm, CO₂ bis 2 mm, darüber
-# O₂; Edelstahl und Aluminium nur N₂ (O₂ läuft an bzw. schneidet nicht sauber), CO₂-Aluminium nur bis 6 mm.
-RICHTWERTE = {
+# Richtwerte Schneiddaten je Maschine, Kategorie und Gas: [(Wandstärke bis, Vorschub groß, Einstechzeit)].
+# Herkunft (Stand 21.10.2026): Rohr-Schnitttabellen Faserlaser 3 und 4 kW (GWEIKE, Fiber Laser Tube Cutting
+# Parameters), keine Trumpf- oder Adige-Werte. Am Rohr begrenzt bei dünnen Wänden die Drehachse (bis 2 mm höchstens
+# 7.000–8.000 mm/min), mehr Leistung hilft erst ab 3 mm: T11 (4 kW) hat bis 2 mm die Werte von LT7 (3 kW), darüber
+# rund 30 % mehr. Stahl mit N₂ bis 4 mm (Patrick 21.10.2026: saubere Kante), darüber O₂; Edelstahl und Aluminium nur
+# N₂. CO₂ (T03): Schätzwerte (keine öffentliche Tabelle), Stahl mit N₂ bis 2 mm, Aluminium nur bis 6 mm.
+_FASER_3KW = {
+    ("Stahl", "N₂"): [(1, 8000, 0.1), (1.5, 7500, 0.15), (2, 7000, 0.2), (3, 4500, 0.3), (4, 3500, 0.5)],
+    ("Stahl", "O₂"): [(5, 2200, 0.8), (6, 2000, 1.0), (8, 1300, 1.5), (10, 1200, 2.0), (12, 800, 3.0)],
+    ("Edelstahl", "N₂"): [(1, 7000, 0.1), (1.5, 6500, 0.15), (2, 6000, 0.2), (3, 4500, 0.3), (4, 3500, 0.5),
+                          (5, 2200, 0.7), (6, 1500, 0.8), (8, 800, 1.2), (10, 500, 1.6)],
+    ("Aluminium", "N₂"): [(1, 7000, 0.1), (1.5, 6500, 0.15), (2, 6000, 0.2), (3, 4000, 0.3), (4, 3000, 0.5),
+                          (5, 2000, 0.7), (6, 1100, 0.8), (8, 550, 1.2)]}
+_FASER_4KW = {
+    ("Stahl", "N₂"): [(1, 8000, 0.1), (1.5, 7500, 0.15), (2, 7000, 0.2), (3, 5800, 0.3), (4, 4500, 0.5)],
+    ("Stahl", "O₂"): [(5, 2700, 0.8), (6, 2600, 1.0), (8, 2100, 1.5), (10, 1300, 2.0), (12, 1100, 3.0)],
+    ("Edelstahl", "N₂"): [(1, 7000, 0.1), (1.5, 6500, 0.15), (2, 6000, 0.2), (3, 5800, 0.3), (4, 4500, 0.5),
+                          (5, 2900, 0.7), (6, 2000, 0.8), (8, 1000, 1.2), (10, 650, 1.6)],
+    ("Aluminium", "N₂"): [(1, 7000, 0.1), (1.5, 6500, 0.15), (2, 6000, 0.2), (3, 5200, 0.3), (4, 3900, 0.5),
+                          (5, 2600, 0.7), (6, 1400, 0.8), (8, 700, 1.2)]}
+_CO2 = {
+    ("Stahl", "N₂"): [(1, 6000, 0.15), (1.5, 5000, 0.2), (2, 4000, 0.3)],
+    ("Stahl", "O₂"): [(3, 3000, 0.5), (4, 2600, 0.7), (5, 2300, 1.0), (6, 2000, 1.3), (8, 1500, 1.8),
+                      (10, 1100, 2.5), (12, 850, 3.5)],
+    ("Edelstahl", "N₂"): [(1, 6000, 0.15), (1.5, 5000, 0.2), (2, 4000, 0.3), (3, 2500, 0.5), (4, 1700, 0.8),
+                          (5, 1200, 1.0), (6, 900, 1.2), (8, 500, 1.8)],
+    ("Aluminium", "N₂"): [(1, 5500, 0.15), (1.5, 4500, 0.2), (2, 3500, 0.3), (3, 2000, 0.5), (4, 1300, 0.8),
+                          (5, 900, 1.0), (6, 600, 1.2)]}
+RICHTWERTE = {"T03": _CO2, "T11": _FASER_4KW, "LT7": _FASER_3KW}
+# Richtwerte 0.5.13 bis 0.6.18 (Flachbett-Tabellen mit ≈ 40 % Rohrabschlag, T11 = Faser × 1,2); unveränderte Zeilen
+# dieser Fassung ersetzt das Update einmalig (Datenbank._richtwerte_anpassen)
+_ALTE_FAKTOR = {"T03": 1.0, "T11": 1.2, "LT7": 1.0}
+_ALTE_RICHTWERTE = {
     "Faser": {
         ("Stahl", "N₂"): [(1, 12000, 0.1), (1.5, 10000, 0.15), (2, 8000, 0.2), (3, 5000, 0.3), (4, 3200, 0.5)],
         ("Stahl", "O₂"): [(5, 2600, 0.8), (6, 2200, 1.0), (8, 1600, 1.5), (10, 1200, 2.0), (12, 900, 3.0)],
@@ -894,17 +923,28 @@ RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel:
 
 
 def beispiel_schneiddaten():
-    """Schneiddaten je Kategorie (Werkstoff-ID leer) für T03 (CO₂) sowie T11 und LT7 (Faser) aus den Richtwerten,
-    Vorschub mit dem Leistungsfaktor der Maschine. Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt
-    am Rohr die Dynamik, nicht die Leistung."""
+    """Schneiddaten je Kategorie (Werkstoff-ID leer) für T03 (CO₂) sowie T11 und LT7 (Faser) aus den Richtwerten.
+    Vorschub mittel 60 %, klein 30 % von groß: kleine Konturen begrenzt am Rohr die Dynamik, nicht die Leistung."""
     out = []
     for m, laser in LASER.items():
         text = f"{RICHTWERT_TEXT[laser]} {zahl_als_text(LEISTUNG[m])} kW, Rohr"
-        for (kat, gas), stufen in RICHTWERTE[laser].items():
+        for (kat, gas), stufen in RICHTWERTE[m].items():
             for wand, v, ein in stufen:
-                v = round(v * FAKTOR[m], -1)
                 out.append((m, None, kat, gas, wand, v, round(v * 0.6, -1), round(v * 0.3, -1), ein, GRAVUR[laser],
                             text))
+    return out
+
+
+def alte_richtwerte():
+    """{(Maschine, Kategorie, Gas, Wandstärke bis): (Vorschub groß, mittel, klein, Einstechzeit)} der Richtwerte 0.5.13
+    bis 0.6.18."""
+    out = {}
+    for m, laser in LASER.items():
+        for (kat, gas), stufen in _ALTE_RICHTWERTE[laser].items():
+            for wand, v, ein in stufen:
+                v = round(v * _ALTE_FAKTOR[m], -1)
+                out[(m, kat, gas, float(wand))] = (float(v), float(round(v * 0.6, -1)), float(round(v * 0.3, -1)),
+                                                   float(ein))
     return out
 
 

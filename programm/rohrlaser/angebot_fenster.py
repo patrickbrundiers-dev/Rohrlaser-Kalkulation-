@@ -972,19 +972,21 @@ class AngebotSeite(QWidget):
         self.verlauf.merken()
 
     def _konturen_einteilen(self):
-        """Konturklassen neu einteilen, wenn die Grenzen der Maschine nicht die sind, mit denen die Konturliste der
-        Position eingeteilt wurde (anderer Maschine gewählt oder Grenzen in den Stammdaten geändert)."""
+        """Konturklassen neu einteilen, wenn die Regel (Grenzen und Faktoren der Maschine, Wandstärke des Profils) nicht
+        die ist, mit der die Konturliste der Position eingeteilt wurde (andere Maschine oder anderes Profil gewählt,
+        Grenzen in den Stammdaten geändert)."""
         m = rechnen.maschine(self.kopf, self.k)
         if m is None:
             return
-        neu = [(p, z) for p in self.positionen if (z := rechnen.konturklassen_neu(p, m))]
+        neu = [(p, z) for p in self.positionen
+               if (z := rechnen.konturklassen_neu(p, m, rechnen.wand_position(p, self.k)))]
         for p, z in neu:
             for feld, wert in z.items():
                 self.db.position_aendern(p["id"], feld, wert)
         if neu:
             self.positionen = self.db.positionen(self.id)
             self.f.meldung(f"Konturklassen von {len(neu)} Position(en) mit den Grenzen der Maschine "
-                           f"{self.kopf.get('maschine')} ({neu[0][1]['kontur_grenzen']} mm) neu eingeteilt.")
+                           f"{self.kopf.get('maschine')} ({neu[0][1]['kontur_grenzen']}) neu eingeteilt.")
 
     def _kopf_anzeigen(self):
         self._laden = True
@@ -1293,7 +1295,7 @@ class AngebotSeite(QWidget):
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
-        grenzen = rechnen.kontur_grenzen(rechnen.maschine(self.kopf, self.k))[0]
+        grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
         erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)

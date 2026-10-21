@@ -47,9 +47,9 @@ assert pruefen(TABELLE["schneiddaten"], dict(z, kategorie="Stahl", gas=None), k)
 
 # 2) Schneiddaten: N₂ solange es eine N₂-Zeile gibt, darüber O₂; Kategorie, wenn der Werkstoff keine eigene hat
 sd = lambda m, w, s: rechnen.schneiddaten(m, w, s, tab, rechnen.kategorie(w, k))
-assert (sd("LT7", "S235-10219", 3)["gas"], sd("LT7", "S235-10219", 3)["vorschub_gross"]) == ("N₂", 5000)
+assert (sd("LT7", "S235-10219", 3)["gas"], sd("LT7", "S235-10219", 3)["vorschub_gross"]) == ("N₂", 4500)
 assert (sd("LT7", "S235-10219", 4)["gas"], sd("LT7", "S235-10219", 4.5)["gas"]) == ("N₂", "O₂")
-assert sd("LT7", "E355-10305", 5)["vorschub_gross"] == 2600 and sd("LT7", "S355-10219", 10)["wand_bis"] == 10
+assert sd("LT7", "E355-10305", 5)["vorschub_gross"] == 2200 and sd("LT7", "S355-10219", 10)["wand_bis"] == 10
 assert sd("LT7", "S235-10219", 13) is None
 assert (sd("LT7", "1.4404", 9)["gas"], sd("LT7", "1.4404", 11)) == ("N₂", None)       # Edelstahl nur N₂
 assert (sd("LT7", "AW6060-T66", 6)["gas"], sd("LT7", "AW6082-T6", 8.5)) == ("N₂", None)
@@ -59,7 +59,7 @@ assert sd("LT7", "S235-10219", 3)["einstechzeit"] < sd("LT7", "S235-10219", 5)["
 db.neu("schneiddaten", dict(maschinen_id="LT7", werkstoff_id="S235-10219", gas="O₂", wand_bis=3,
                             vorschub_gross=4000, einstechzeit=0.5))
 tab = db.tabellen()
-assert sd("LT7", "S235-10219", 2)["vorschub_gross"] == 4000 and sd("LT7", "S355-10219", 2)["vorschub_gross"] == 8000
+assert sd("LT7", "S235-10219", 2)["vorschub_gross"] == 4000 and sd("LT7", "S355-10219", 2)["vorschub_gross"] == 7000
 assert sd("LT7", "S235-10219", 4)["kategorie"] == "Stahl"
 # Werkstoff ohne Kategorie und ohne eigene Zeilen: keine Schneiddaten
 db.neu("werkstoffe", dict(werkstoff_id="CuZn37", dichte=8.4, tonnenpreis=9000))
@@ -72,7 +72,7 @@ p0 = dict(pos=10, artikel="A", profil_id="RE 120x60x4", werkstoff_id="1.4301", l
           einstiche=2)
 erg = rechnen.optimieren(kopf, [p0], k)
 zk, _ = rechnen.kalkulation(kopf, [p0], erg, k, tab, db.einstellungen())
-assert (zk[0]["wand_stufe"], zk[0]["gas"], zk[0]["vorschub_gross"]) == (4, "N₂", 2800), zk[0]
+assert (zk[0]["wand_stufe"], zk[0]["gas"], zk[0]["vorschub_gross"]) == (4, "N₂", 3500), zk[0]
 assert rechnen.position_werte(p0, kopf, k, tab)["gas"] == "N₂"
 
 # 3) Oberfläche: eigene Stangen, Aufpreis je m, Text im Angebot, Prüfungen
@@ -176,7 +176,7 @@ assert d.anzahl("schneiddaten") == len(beispiel_schneiddaten()) + 1
 eigen = rechnen.schneiddaten("LT7", "1.4301", 2, tb, "Edelstahl")
 assert eigen["vorschub_gross"] == 3333 and eigen["gas"] is None
 assert rechnen.schneiddaten("LT7", "1.4301", 5, tb, "Edelstahl")["gas"] == "N₂"
-assert rechnen.schneiddaten("LT7", "AlMg3", 2, tb, "Aluminium")["vorschub_gross"] == 7000
+assert rechnen.schneiddaten("LT7", "AlMg3", 2, tb, "Aluminium")["vorschub_gross"] == 6000
 try:
     d.neu("schneiddaten", dict(maschinen_id="LT7", kategorie="Stahl", gas="N₂", wand_bis=2, vorschub_gross=1))
     raise AssertionError("doppelte Schneiddaten angenommen")

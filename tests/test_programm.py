@@ -237,10 +237,11 @@ else:
     assert [p["pos"] for p in erg["positionen"]] == [20, 30, 40, 50, 60, 70, 80], erg["positionen"]
     t07 = erg["positionen"][-1]
     assert t07["gewinde_vorschlag"] == "4xM6" and t07["bohrungen"] == "4xØ5" and t07["gravur"] == 58.0, t07
-    # Konturklassen nach Hüllmaß (10/50 mm) mit Anfangs- und Endschnitt (QR 40: 40 bzw. 40,5 mm = mittel)
+    # Konturklassen nach Hüllmaß (10/50 mm) und Hüllmaß ÷ Wand (3×/8× bei 3 mm) mit Anfangs- und Endschnitt
+    # (QR 40: 40 bzw. 40,5 mm = mittel nach mm, groß nach Wand -> mittel)
     assert [t07[x] for x in ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")] == \
         [4, 62.8, 3, 389.4, 0, 0.0], t07
-    assert t07["konturen"].startswith("A:40x149,7; E:40,5x179,7; ") and t07["kontur_grenzen"] == "10/50", t07
+    assert t07["konturen"].startswith("A:40x149,7; E:40,5x179,7; ") and t07["kontur_grenzen"] == "10/50; 3×/8× Wand 3", t07
     assert "gewinde" not in t07     # geprüftes Gewinde trägt nur der Mensch ein
     t05 = [z for z in erg["protokoll"] if str(z[1]).startswith("T05")][0]
     assert "Profil fehlt" in t05[-1] and len(t05) == len(step.PROTOKOLL), t05
@@ -318,7 +319,7 @@ sp = s4.staffelpreise_rechnen()
 assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
 # Stufe 24 Stück: 154,08 € netto liegt unter dem Mindestpreis 200 € (ab 0.6.0) -> 200 / 24 auf den Cent aufgerundet
 # 8,34 € (ohne Mindestpreis 6,42 €)
-assert [z["preis_einheit"] for z in sp] == [149.75, 145.8, 137.14, 8.34, 6.35, 5.96], sp   # Referenzwerte (T11, Richtwerte Faserlaser 4 kW, Händler +50 mm je 6-m-Stange; bis 0.6.13: 148,64 144,68 136,07 8,34 6,30 5,92; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
+assert [z["preis_einheit"] for z in sp] == [149.81, 145.86, 137.2, 8.34, 6.39, 6.0], sp   # Referenzwerte (T11, Rohr-Richtwerte Faserlaser 4 kW ab 0.6.19, Händler +50 mm je 6-m-Stange; bis 0.6.18: 149,75 145,80 137,14 8,34 6,35 5,96; bis 0.6.13: 148,64 144,68 136,07 8,34 6,30 5,92; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
@@ -337,7 +338,7 @@ assert "VERALTET" in s4.staffel_info.text()
 assert not st_mod.setData(st_mod.index(5, 1), "0")
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 997.52) < 1e-9 and ang["mwst"] == 189.53, ang   # Referenzwerte (T11, Händler +50 mm; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
+assert abs(ang["netto"] - 999.4) < 1e-9 and ang["mwst"] == 189.89, ang   # Referenzwerte (T11, Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),

@@ -108,6 +108,35 @@ assert rechnen.kontur_grenzen(dict(kontur_klein=12, kontur_mittel=60)) == ((12.0
 assert rechnen.kontur_grenzen(dict(kontur_klein=60, kontur_mittel=12))[1] is True
 ok("Grenzen der Maschine, ungültige oder fehlende Werte = Vorgabe 10/50 mm")
 
+# Hüllmaß ÷ Wandstärke (Patrick 21.10.2026, B1a/B2a): die strengere Klasse gilt, Faktoren je Maschine (Vorgabe 3/8)
+assert rechnen.kontur_faktoren(None) == (3.0, 8.0)
+assert rechnen.kontur_faktoren(dict(kontur_klein_wand=2, kontur_mittel_wand=6)) == (2.0, 6.0)
+assert rechnen.kontur_faktoren(dict(kontur_klein_wand=6, kontur_mittel_wand=2)) == (3.0, 8.0)
+assert rechnen.kontur_regel(None, None) == (10.0, 50.0) and rechnen.kontur_regel(None, 0) == (10.0, 50.0)
+r8, r2 = rechnen.kontur_regel(None, 8), rechnen.kontur_regel(None, 2)
+assert r8 == (10.0, 50.0, 3.0, 8.0, 8.0)
+assert rechnen.kontur_klasse(20, r8) == 0 and rechnen.kontur_klasse(20, r2) == 1     # Ø20: 8 mm klein, 2 mm mittel
+assert rechnen.kontur_klasse(24, r8) == 0 and rechnen.kontur_klasse(24.1, r8) == 1    # genau 3 × Wand = klein
+assert rechnen.kontur_klasse(60, r8) == 1 and rechnen.kontur_klasse(64.1, r8) == 2    # über 8 × Wand und 50 mm
+assert rechnen.kontur_klasse(8, r2) == 0 and rechnen.kontur_klasse(45, r2) == 1       # dünn: mm-Grenzen gelten
+kl = rechnen.konturklassen([(20, 62.8), (30, 94.2), (70, 220)], r8)
+assert (kl["klein_n"], kl["mittel_n"], kl["gross_n"]) == (1, 1, 1), kl
+assert rechnen.grenzen_text(r8) == "10/50; 3×/8× Wand 8" and rechnen.grenzen_lesen("10/50; 3×/8× Wand 8") == r8
+assert rechnen.grenzen_text((10, 50, 2.5, 7, 1.5)) == "10/50; 2,5×/7× Wand 1,5"
+assert rechnen.grenzen_lesen("10/50; Unsinn") is None and rechnen.grenzen_lesen("10/50") == (10.0, 50.0)
+txt8 = rechnen.konturen_text([(20, 62.8)], [("A", 40, 160)])
+assert rechnen.ende_vorschub(dict(konturen=txt8, a_gerade="ja"), (3000, 2000, 1000), r8) == 2000   # 40 ≤ 64 mittel
+assert rechnen.ende_vorschub(dict(konturen=txt8, a_gerade="ja", kontur_grenzen="10/50; 3×/8× Wand 15"),
+                             (3000, 2000, 1000), r8) == 1000                                       # 40 ≤ 45 klein
+ok("Hüllmaß ÷ Wandstärke: Ø20 bei 8 mm Wand klein, bei 2 mm mittel; strengere Klasse, Text der Regel")
+# Kontur kleiner als 0,7 × Wandstärke: Warnung, gerechnet wird weiter (B3a; Patrick: ab 0,7 × Wand meist kein Problem)
+q = dict(schneidweg=400, konturen="A:40x160; 5,5x17,3", klein_n=1, klein_mm=17.3)
+assert rechnen.konturen_pruefen(q, 8) == "Kontur kleiner als 0,7 × Wandstärke, Schneidbarkeit prüfen (ggf. nur " \
+                                        "gravieren und aufbohren)"
+assert rechnen.konturen_pruefen(q, 7.8) is None      # 5,5 ≥ 0,7 × 7,8 = 5,46
+assert rechnen.konturen_pruefen(q, 6) is None and rechnen.konturen_pruefen(q) is None
+ok("Kontur kleiner als 0,7 × Wandstärke: Warnung 'Schneidbarkeit prüfen'")
+
 # Anfangs- und Endschnitt in der Konturliste
 txt = rechnen.konturen_text([(10, 31.4)], [("A", 40, 149.7), ("E", 84.85, 249.7)])
 assert txt == "A:40x149,7; E:84,85x249,7; 10x31,4", txt
@@ -139,12 +168,12 @@ db.aendern("maschinen", zeile["id"], "kontur_mittel", 45.0)
 s.neu_laden()
 p30 = next(x for x in s.positionen if x["artikel"] == "K30")
 p40 = next(x for x in s.positionen if x["artikel"] == "K40")
-assert (p30["klein_n"], p30["mittel_n"], p30["gross_n"], p30["kontur_grenzen"]) == (1, 2, 1, "8/45"), p30
+assert (p30["klein_n"], p30["mittel_n"], p30["gross_n"], p30["kontur_grenzen"]) == (1, 2, 1, "8/45; 3×/8× Wand 3"), p30
 assert p30["klein_mm"] == 25.1 and p30["mittel_mm"] == 122.8
 assert (p40["klein_n"], p40["klein_mm"]) == (1, 20.0)
 ok(f"Grenzen der Maschine auf 8/45 mm geändert: Pos. 30 neu eingeteilt, Pos. 40 ohne Konturliste unverändert")
 s.neu_laden()
-assert next(x for x in s.positionen if x["artikel"] == "K30")["kontur_grenzen"] == "8/45"
+assert next(x for x in s.positionen if x["artikel"] == "K30")["kontur_grenzen"] == "8/45; 3×/8× Wand 3"
 # Konturliste von Hand geändert -> beim Neuladen neu eingeteilt
 r = s.positionen.index(next(x for x in s.positionen if x["artikel"] == "K30"))
 spalte = next(i for i, (art, f) in enumerate(s.pos_modell.spalten) if art == "feld" and f.name == "konturen")
