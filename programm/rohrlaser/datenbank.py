@@ -743,6 +743,29 @@ class Datenbank:
                 neu += 1
         return neu, geaendert
 
+    def kunden_importieren(self, zeilen):
+        """Geprüfte Zeilen aus kunden_csv.vorschau übernehmen (nur 'neu' und 'ändern'), vorher geschützte Sicherung
+        '_vor_Kundenimport'. Ergebnis: (neu, geändert, Pfad der Sicherung)."""
+        from .kunden_csv import AENDERN, NEU, SPALTEN
+        uebernehmen = [z for z in zeilen if z.get("aktion") in (NEU, AENDERN)]
+        if not uebernehmen:
+            return 0, 0, None
+        pfad = self.sicherung(zusatz="vor_Kundenimport")
+        neu = geaendert = 0
+        with self.con:
+            for z in uebernehmen:
+                k = z["kunde"]
+                vorhanden = self.con.execute("SELECT id FROM kunden WHERE kundennr=?", (k["kundennr"],)).fetchone()
+                if vorhanden:
+                    self.con.execute(f'UPDATE kunden SET {", ".join(chr(34) + n + chr(34) + "=?" for n in SPALTEN)} '
+                                     "WHERE id=?", [k.get(n) for n in SPALTEN] + [vorhanden[0]])
+                    geaendert += 1
+                else:
+                    self.con.execute(f'INSERT INTO kunden ({", ".join(chr(34) + n + chr(34) for n in SPALTEN)}) '
+                                     f'VALUES ({", ".join("?" * len(SPALTEN))})', [k.get(n) for n in SPALTEN])
+                    neu += 1
+        return neu, geaendert, pfad
+
     def stammdaten_ersetzen(self, daten, einstellungen, herkunft):
         """Alle Stammdatentabellen in einem Schritt ersetzen (z. B. Beispieldaten einer neuen Datei).
         daten: {Tabelle: [Zeile, …]}; einstellungen: {Name: Wert}, nur die genannten werden gesetzt."""
