@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import staffeln
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS
+from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
 from .staffeln import ERWEITERT, EURO, PROZENT, STUFE_FELDER, UMLEGEN
 from .stammdaten import wert_aus_text, zahl_als_text
@@ -482,6 +483,7 @@ class StaffelSeite(QWidget):
                 self.ansicht.setItemDelegateForColumn(i, auswahl)
         self.ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                      | QAbstractItemView.AnyKeyPressed)
+        AutoGroesse(self.ansicht)        # Breite und Höhe passend zum Inhalt (spaltenbreite.py)
         self.erweitert = QCheckBox("Erweiterte Einstellungen")
         self.erweitert.setToolTip("Höchstmenge, Materialverlust, Grundpreis, Gemeinkosten, Rüstkosten separat, "
                                   "zusätzlicher Arbeitsgang, Nebenkosten und Rabatt je Stufe. Spalten mit Werten "
