@@ -1936,6 +1936,20 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)
+    i.abschnitt("Schneiddaten auf Standard zurücksetzen", marke="schneiddaten_standard")
+    i.text("Im Unterreiter <i>Schneiddaten</i> stellt die Schaltfläche <b>Auf Standard zurücksetzen …</b> (rechts "
+           "neben <i>Zeilen löschen</i>) die mitgelieferten Richtwerte wieder her, z. B. wenn eigene Versuche die "
+           "Tabelle durcheinandergebracht haben:")
+    i.liste("In der Auswahl <i>Alle Maschinen (T03, T11, LT7)</i> oder eine einzelne Maschine wählen.",
+            "Die Sicherheitsabfrage nennt, wie viele Zeilen gelöscht werden. Erst mit <b>Ja</b> wird zurückgesetzt; "
+            "vorgewählt ist <b>Nein</b>.",
+            "Alle Zeilen der gewählten Maschine(n) werden gelöscht, auch eigene Werte und Zeilen je Werkstoff, und "
+            "durch die Richtwerte je Kategorie ersetzt. Die Statuszeile meldet, wie viele Zeilen entfernt und "
+            "eingefügt wurden.", nummeriert=True)
+    i.hinweis("Schneiddaten anderer, selbst angelegter Maschinen bleiben unverändert, für sie gibt es keine "
+              "Richtwerte. Angebote mit festgeschriebenen Preisen rechnen mit ihren Schneiddaten weiter "
+              "([[preise_festschreiben]]). Rückgängig machen geht nur über eine Datensicherung ([[datensicherung]]), "
+              "deshalb vor dem Zurücksetzen eigene Werte bei Bedarf sichern.")
     i.abschnitt("Zusatzarbeiten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
@@ -2671,6 +2685,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.4", "Schneiddaten: Schaltfläche <i>Auf Standard zurücksetzen …</i> stellt für eine Maschine oder alle "
+              "(T03, T11, LT7) nach Sicherheitsabfrage die mitgelieferten Richtwerte wieder her "
+              "([[schneiddaten_standard]])."],
     ["0.6.3", "Schneidweg-Rechner für Teile ohne STEP-Datei: Gehrungen, Bohrungen, Langlöcher, Rechtecke, Schlitze "
               "und sonstige Konturen eingeben, Schneidweg, Einstiche, Konturklassen und Schneidzeit sofort sehen und "
               "in die Position übernehmen (Rechtsklick auf die Position, [[schneidweg_rechner]])."],
