@@ -115,7 +115,8 @@ db.aendern("gewinde", g6["id"], "zeit", 12)
 tab = db.tabellen()
 pos, (z, s) = rechnung()
 assert nah(z[0]["gewinde_preis"], 2.2) and z[0]["gewindezeit"] == 48
-assert "Gewinde 4xM6; 2xM8" in ausgabe.angebotstext(pos[0], k)
+t = ausgabe.angebotstext(pos[0], k)
+assert "\ninkl. Gewinde 4xM6; 2xM8" in t and ", " not in t, t       # jede Angabe in einer eigenen Zeile
 
 # 7) Unbekannte Zusatzarbeit: Warnung im Status, Hinweis in der Kalkulation, keine Kosten
 db.position_aendern(p1, "zusatz", json.dumps([dict(name="Vergolden")]))

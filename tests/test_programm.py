@@ -328,7 +328,7 @@ assert not st_mod.setData(st_mod.index(5, 1), "0")
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
 assert abs(ang["netto"] - 989.64) < 1e-9 and ang["mwst"] == 188.03, ang   # Referenzwerte (T11; bis 0.5.8 RL-1: 1005,80 / 191,10)
-assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2, L = 1250 mm, inkl. Material S235 EN10219"
+assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
                      (s4.kalkulation_pdf, "Kalkulation.pdf"), (s4.csv_export, "Kalkulation.csv")):
