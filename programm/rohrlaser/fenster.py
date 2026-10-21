@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProx
 from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
+    QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
@@ -703,13 +703,65 @@ class EinstellungenBereich(QWidget):
 
 
 class StartSeite(QWidget):
+    """Startseite als Übersicht: Angebote (neu, zuletzt bearbeitet), Stand der Stammdaten, Datensicherung."""
+    ZULETZT = 8         # so viele zuletzt geänderte Angebote
+
     def __init__(self, fenster):
+        from .angebot_fenster import AngeboteListe, _tabelle, _zeit, angebot_status
+        from .angebot_oben import karte
         super().__init__()
         self.f = fenster
-        titel = QLabel(f"<h2>{NAME}</h2><p>Version {update.stand_text(fenster.updater.lokal)}</p>")
+        titel = QLabel(f"<h2 style='color:{AKZENT}'>{NAME}</h2>")
+        version = QLabel(f"Version {update.stand_text(fenster.updater.lokal)}")
+        version.setStyleSheet("color: #5F6B7A;")
+
+        # Angebote: neu anlegen, Liste öffnen, zuletzt bearbeitete mit Doppelklick öffnen
+        angebote, al = karte("Angebote")
+        zeile = QHBoxLayout()
+        for text, ziel, primaer in (("Neues Angebot", lambda: fenster.angebote.neu(), True),
+                                    ("Alle Angebote", lambda: fenster.reiter.setCurrentWidget(fenster.angebote), False)):
+            b = QPushButton(text)
+            if primaer:
+                b.setObjectName("primaer")
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            zeile.addWidget(b)
+        zeile.addStretch(1)
+        al.addLayout(zeile)
+        al.addWidget(QLabel("<b>Zuletzt bearbeitet</b> (Doppelklick öffnet)"))
+        self.zuletzt = AngeboteListe([("Angebot", "nummer", None, 110), ("Kunde", "kunde", None, 180),
+                                      ("Status", angebot_status, None, 110),
+                                      ("Verkaufspreis netto [€]", "vk_netto", 2, 110),
+                                      ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120)])
+        self.zuletzt_ansicht = _tabelle(self.zuletzt, sortieren=False)
+        self.zuletzt_ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(True)
+        self.zuletzt_ansicht.doubleClicked.connect(
+            lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
+        al.addWidget(self.zuletzt_ansicht, 1)
+        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an.")
+        self.keine.setStyleSheet("color: #5F6B7A;")
+        al.addWidget(self.keine)
+
+        # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
+        stamm, sl = karte("Stammdaten")
+        self.stamm = QLabel()
+        self.stamm.setWordWrap(True)
+        self.stamm.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        sl.addWidget(self.stamm)
+        b = QPushButton("Einstellungen öffnen")
+        b.clicked.connect(lambda: fenster.reiter.setCurrentWidget(fenster.bereich))
+        zeile = QHBoxLayout()
+        zeile.addWidget(b)
+        zeile.addStretch(1)
+        sl.addLayout(zeile)
+        sl.addStretch(1)
+
+        # Datensicherung und Datendatei
+        sicherung, dl = karte("Daten und Sicherung")
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        dl.addWidget(self.info)
         knoepfe = QHBoxLayout()
         for text, ziel in (("Datensicherung erstellen", fenster.sicherung_erstellen),
                            ("Sicherung wiederherstellen …", fenster.wiederherstellen_dialog),
@@ -718,23 +770,28 @@ class StartSeite(QWidget):
             b.clicked.connect(ziel)
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
-        hinweis = QLabel("Angebote werden im Reiter 'Angebote' angelegt. "
-                         "Im Angebot: Staffelpreise im Reiter 'Staffeln', Angebot, Werkstattpapiere und Kalkulation als PDF sowie "
-                         "CSV-Export über die Leiste 'Ausgabe'. Die Dateien landen im Ablageordner (Einstellungen).")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
+        dl.addLayout(knoepfe)
+
+        raster = QGridLayout()
+        raster.setSpacing(10)
+        raster.addWidget(angebote, 0, 0, 2, 1)
+        raster.addWidget(stamm, 0, 1)
+        raster.addWidget(sicherung, 1, 1)
+        raster.setColumnStretch(0, 3)
+        raster.setColumnStretch(1, 2)
+        raster.setRowStretch(0, 1)
         lay = QVBoxLayout(self)
-        lay.addWidget(titel)
-        lay.addWidget(self.info)
-        lay.addLayout(knoepfe)
-        lay.addSpacing(20)
-        lay.addWidget(hinweis)
-        lay.addStretch(1)
+        kopf = QHBoxLayout()
+        kopf.addWidget(titel)
+        kopf.addSpacing(12)
+        kopf.addWidget(version, 0, Qt.AlignBottom)
+        kopf.addStretch(1)
+        lay.addLayout(kopf)
+        lay.addLayout(raster, 1)
         self.neu_laden()
 
     def neu_laden(self):
         db = self.f.db
-        zeilen = "".join(f"<tr><td>{t.titel}</td><td align='right'>{db.anzahl(t.name)}</td></tr>" for t in TABELLEN)
         herkunft = db.einstellung("stammdaten_herkunft") or "–"
         stand = db.einstellung("stammdaten_stand") or ""
         if stand:
@@ -743,8 +800,18 @@ class StartSeite(QWidget):
         if herkunft == "Beispieldaten":
             warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Bitte im Reiter "
                        "Einstellungen durch die eigenen Werte ersetzen.</p>")
-        self.info.setText(f"<p>Datendatei: {db.pfad}{self.f.datenort_text()}</p><p>Stammdaten: {herkunft} (Stand {stand})</p>{warnung}"
-                          f"<table cellpadding='2'>{zeilen}</table>")
+        tabellen = [(t.titel, db.anzahl(t.name)) for t in TABELLEN]
+        haelfte = (len(tabellen) + 1) // 2           # zwei Spalten: kurze Liste statt einer langen
+        zeilen = "".join(
+            "<tr>" + "".join(f"<td>{t}</td><td align='right' style='padding-right:18px'><b>{n}</b></td>"
+                             for t, n in tabellen[i::haelfte]) + "</tr>" for i in range(haelfte))
+        self.stamm.setText(f"<p>{herkunft} (Stand {stand})</p>{warnung}<table cellpadding='2'>{zeilen}</table>")
+        self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
+                          f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
+        zuletzt = sorted(db.angebote(), key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
+        self.zuletzt.setzen(zuletzt)
+        self.zuletzt_ansicht.setVisible(bool(zuletzt))
+        self.keine.setVisible(not zuletzt)
 
 
 class Hauptfenster(QMainWindow):

@@ -161,12 +161,37 @@ def _breiten(ansicht, spalten):
 
 
 # ------------------------------------------------------------------ Übersicht der Angebote
+# Stand eines Angebots in der Liste: Text und Farbe (wie die Etiketten in der Übersicht des Angebots)
+STATUS_FARBE = {"Nachkalkuliert": "#DDEBF7", "Optimiert": "#E3F4E8", "Veraltet": "#FDECEA",
+                "Nicht optimiert": "#FFF6DB"}
+
+
+def angebot_status(z):
+    """'Nachkalkuliert', 'Optimiert', 'Veraltet' oder 'Nicht optimiert'; ohne gemerkten Stand (Angebot seit dem
+    Update nicht geöffnet) zählt, ob es ein Optimierungsergebnis gibt."""
+    if z.get("nachkalkuliert"):
+        return "Nachkalkuliert"
+    if not z.get("optimiert_am") or z.get("stand") == "offen":
+        return "Nicht optimiert"
+    return "Veraltet" if z.get("stand") == "veraltet" else "Optimiert"
+
+
+class AngeboteListe(Liste):
+    def data(self, index, rolle=Qt.DisplayRole):
+        if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] == "Status":
+            farbe = STATUS_FARBE.get(self.wert(index.row(), index.column()))
+            return QBrush(QColor(farbe)) if farbe else None
+        return super().data(index, rolle)
+
+
 class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
-               ("Datum", lambda z: _datum(z.get("datum")), None, 85), ("Maschine", "maschine", None, 70),
+               ("Datum", lambda z: _datum(z.get("datum")), None, 85),
+               ("Status", lambda z: angebot_status(z), None, 120),
+               ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
                ("Optimiert am", lambda z: _zeit(z.get("optimiert_am")), None, 120),
                ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120),
@@ -175,7 +200,7 @@ class AngeboteSeite(QWidget):
     def __init__(self, fenster):
         super().__init__()
         self.f, self.db = fenster, fenster.db
-        self.modell = Liste(self.SPALTEN)
+        self.modell = AngeboteListe(self.SPALTEN)
         self.filter = Sortierung()
         self.filter.setSourceModel(self.modell)
         self.ansicht = _tabelle(self.filter)
@@ -194,6 +219,8 @@ class AngeboteSeite(QWidget):
         for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
                            ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
             b = QPushButton(text)
+            if text == "Neues Angebot":
+                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addSpacing(20)
@@ -1243,6 +1270,10 @@ class AngebotSeite(QWidget):
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
+        vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
+        stand = self.stand_optimierung()
+        self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
+                                  "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))

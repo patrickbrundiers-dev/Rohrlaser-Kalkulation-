@@ -561,8 +561,13 @@ def kapitel_start(i):
     i.abschnitt("Startseite")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
-           "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in Rot, dass es sich um Beispielwerte handelt, und hinter "
-           "der Datendatei, ob das Programm installiert oder portabel läuft.")
+           "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an.")
+    i.text("Die Startseite ist eine Übersicht in drei Karten. <b>Angebote</b>: <b>Neues Angebot</b> legt gleich ein "
+           "Angebot an, <b>Alle Angebote</b> wechselt in den Reiter Angebote ([[angebote]]); darunter die zuletzt "
+           "bearbeiteten Angebote mit Status und Verkaufspreis, Doppelklick öffnet eines. <b>Stammdaten</b>: Herkunft "
+           "und Stand, in Rot der Hinweis auf Beispielwerte, die Anzahl der Einträge je Tabelle und <b>Einstellungen "
+           "öffnen</b>. <b>Daten und Sicherung</b>: die Datendatei (dahinter, ob das Programm installiert oder "
+           "portabel läuft) und die Knöpfe zur Datensicherung.")
     i.bild("start_beispiel", "Startseite nach dem ersten Start (Beispiel-Stammdaten)", hoehe=112 * mm, legende=[
         (1, "<b>Datensicherung erstellen</b>: geprüfte Kopie der Datendatei in den Ordner <i>Sicherung</i> und, "
             "falls eingestellt, in den zweiten Sicherungsordner."),
@@ -576,7 +581,11 @@ def kapitel_start(i):
 def kapitel_angebote(i):
     i.kapitel("Angebote verwalten", marke="angebote")
     i.text("Der Reiter <i>Angebote</i> listet alle Angebote, die neuesten oben. Doppelklick öffnet ein Angebot in "
-           "einem eigenen Reiter.")
+           "einem eigenen Reiter. Die Spalte <b>Status</b> zeigt farbig, wie weit ein Angebot ist: <i>Nicht "
+           "optimiert</i> (gelb), <i>Optimiert</i> (grün), <i>Veraltet</i> (rot: nach der Optimierung geändert, "
+           "bitte neu optimieren) und <i>Nachkalkuliert</i> (blau). <b>Verkaufspreis netto</b> ist der Preis aus der "
+           "Übersicht des Angebots; das Programm merkt ihn sich beim Anzeigen eines Angebots. Ältere Angebote, die "
+           "seit dem Update noch nicht geöffnet wurden, haben dort noch keinen Wert.")
     i.bild("angebote", "Reiter Angebote", hoehe=125 * mm, legende=[
         (1, "Reiter <b>Angebote</b>: Übersicht mit Positionen, Teilen und Zeitpunkt der letzten Optimierung."),
         (2, "<b>Neues Angebot</b>: legt ein Angebot mit der nächsten Nummer, dem heutigen Datum, der "
@@ -3183,6 +3192,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.32", "Startseite als Übersicht (Neues Angebot, zuletzt bearbeitete Angebote, Stammdaten, Sicherung); "
+               "Angebotsliste mit farbigem Status und Verkaufspreis ([[angebote]])."],
     ["0.6.31", "Angebot übersichtlicher: Übersicht rechts über die ganze Höhe, Angebotskopf und Fracht klappen auf "
                "eine Zeile zu ([[angebot]]); Kalkulation ohne leere Spalten mit 2 Nachkommastellen "
                "([[kalkulation]]), Schnittplan zeigt Gleiches einmal und gleich die erste Stange, Auswertung "

@@ -258,6 +258,18 @@ assert s.stangen_ansicht.currentIndex().row() == 0 and s.teile.zeilen and "Stang
 sp = {x[1]: c for c, x in enumerate(s.stangen.spalten)}
 assert s.stangen_ansicht.isColumnHidden(sp["stange"]) and "6.000" in s.plan_info.text()
 assert "Alle Teile eingeplant" in s.fehler_titel.text() and not s.fehler_ansicht.isVisibleTo(s)
+# Angebotsliste und Startseite: Status und Verkaufspreis werden beim Anzeigen gemerkt, ohne Rückgängig-Schritt
+from rohrlaser.angebot_fenster import angebot_status  # noqa: E402
+schritte = len(s.verlauf.zurueck)
+s.neu_laden()
+assert len(s.verlauf.zurueck) == schritte
+zeile = next(z for z in db.angebote() if z["id"] == a)
+assert zeile["stand"] == "aktuell" and zeile["vk_netto"] > 0 and angebot_status(zeile) == "Optimiert"
+assert angebot_status(dict(optimiert_am=None)) == "Nicht optimiert"
+assert angebot_status(dict(optimiert_am="x", stand="veraltet")) == "Veraltet"
+fenster.start.neu_laden()
+assert any(z["id"] == a for z in fenster.start.zuletzt.zeilen) and fenster.start.zuletzt_ansicht.isVisibleTo(fenster.start)
+ok("Angebotsliste: Status Optimiert und Verkaufspreis gemerkt (kein Rückgängig-Schritt), Startseite zeigt es")
 ok("Kalkulation ohne Nullspalten mit 2 Stellen, Schnittplan: Gleiches einmal oben, Stange 1 gewählt; "
    "Auswertung: Alle Teile eingeplant")
 fenster.close()
