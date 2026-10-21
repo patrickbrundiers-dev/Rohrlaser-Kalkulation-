@@ -243,7 +243,7 @@ class Datenbank:
 
     def _richtwerte_anpassen(self):
         """Einmalig: Richtwert-Zeilen (Werkstoff-ID leer, Bemerkung 'Beispiel: Richtwert …') mit den Werten 0.5.13 bis
-        0.6.16 bekommen die Rohr-Richtwerte vom 21.10.2026 (Vorschub groß, mittel, klein, Einstechzeit); von Hand
+        0.6.17 bekommen die Rohr-Richtwerte vom 21.10.2026 (Vorschub groß, mittel, klein, Einstechzeit); von Hand
         geänderte Zeilen und eigene Maschinen bleiben."""
         alte = alte_richtwerte()
         neu = {(z["maschinen_id"], z["kategorie"], z["gas"], float(z["wand_bis"])): z

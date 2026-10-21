@@ -1091,7 +1091,7 @@ def kapitel_optimieren(i):
     i.text("Der STEP-Import teilt jede Innenkontur und auch den <b>Anfangs- und Endschnitt</b> nach ihrer Größe "
            "(Hüllmaß) in <b>klein</b>, <b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den "
            "Stammdaten Maschinen (Vorgabe 10 und 50 mm, ein Wert genau auf der Grenze zählt zur kleineren Klasse). "
-           "Seit Version 0.6.17 zählt zusätzlich das Verhältnis <b>Hüllmaß ÷ Wandstärke</b>: klein bis 3 × Wand, "
+           "Seit Version 0.6.18 zählt zusätzlich das Verhältnis <b>Hüllmaß ÷ Wandstärke</b>: klein bis 3 × Wand, "
            "mittel bis 8 × Wand (Faktoren je Maschine änderbar). Es gilt die <b>strengere</b> (kleinere) der beiden "
            "Klassen, denn eine Kontur, die kaum größer als die Wand ist, schneidet sich langsam (Leistungsrampe, "
            "Einstich nah am Schnitt). Beispiel: Ø 20 bei 8 mm Wand = 2,5 × Wand, also klein statt mittel; Ø 20 bei "
@@ -1606,10 +1606,12 @@ def kapitel_ausgabe(i, seiten, ablage):
             "10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“), ggf. „Mindestauftragswert 200,00 € netto.“ "
             "([[mindestpreis]]) und Bedingungen, jede Angabe in einer eigenen Zeile. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
             "Gesamtpreis jeder Zeile ist Stückpreis × Menge, die Summe genau die Summe der Zeilen."),
-        (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
-            "danach das Stangenbild."),
-        (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage, dazu die "
-            "Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
+        (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan mit Kästchen zum "
+            "Abhaken, danach das Stangenbild."),
+        (3, "<b>Kalkulation (PDF)</b>: oben die Kennzahlen (Verkaufspreis, Herstellkosten, Gewinn, Material, "
+            "Maschinenzeit, Stangen, Teile), darunter die Kostenarten (ohne 0,00 €, Herstellkosten und Verkaufspreis "
+            "hervorgehoben), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die interne Ablage und "
+            "die Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
         (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
@@ -1643,9 +1645,15 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bilder_nebeneinander(["pdf_werkstatt_1", letzte],
                            "Werkstattpapiere: Materialliste und Schnittpläne (links), Stangenbild (rechts)",
                            hoehe=150 * mm)
+    i.text("Alle PDFs haben dasselbe Aussehen wie das Angebot: Firmenname und kleines Firmenlogo oben, Titel in "
+           "Dunkelblau, darunter Angebot, Kunde, Maschine und Erstellzeit, Listen ohne Gitter mit feinen Linien und "
+           "jeder zweiten Zeile leicht hinterlegt, Fußzeile mit Firmenname und Seitenzahl.")
+    i.text("Je Stangenmuster steht eine Kopfzeile mit Stangennummern, Profil, Werkstoff und Anzahl gleicher "
+           "Stangen, darunter Stangenlänge, Endbeschnitt, Greiferrest, Rest und Ausnutzung. In der Liste sind Pos. "
+           "und Länge fett, die Spalte <i>erl.</i> hat ein Kästchen zum Abhaken.")
     i.text("Hat das Angebot Zukaufteil-Positionen (z. B. Bleche), steht unter der Materialliste die Liste "
            "<i>Zukaufteile (nicht lasern, zum Auftrag bereitstellen)</i> mit Pos., Artikelnummer, Bezeichnung, "
-           "Zukaufartikel und Stückzahl.")
+           "Zukaufartikel, Stückzahl und Kästchen <i>bereit</i>.")
     i.abschnitt("Kalkulation (PDF)")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
     i.abschnitt("Zeichnungen je Position", marke="zeichnungen")
@@ -1704,7 +1712,9 @@ def kapitel_nachkalkulation(i):
             "Rechnung</b> [€] und eine <b>Bemerkung Nachkalkulation</b>. Grau steht im leeren Feld das Soll."),
         (3, "Vergleich je Kostenart: Menge und Betrag Soll und Ist, Abweichung in € und %. Darunter Einzelkosten, "
             "Erlös und <b>Deckungsbeitrag</b> (Erlös − Einzelkosten)."),
-        (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner. <b>Ist-Werte löschen</b> setzt "
+        (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner: oben Kacheln mit Erlös, "
+            "Einzelkosten Ist, Abweichung und Deckungsbeitrag Ist/Soll, Abweichungen farbig (rot = teurer bzw. "
+            "schlechter als kalkuliert, grün = günstiger bzw. besser). <b>Ist-Werte löschen</b> setzt "
             "alles zurück.")])
     i.liste("Jede Eingabe wird sofort gespeichert. Leere Felder zählen wie kalkuliert; die Spalte <i>Ist erfasst</i> "
             "zeigt, welche Werte wirklich eingetragen sind.",
@@ -1799,7 +1809,8 @@ def kapitel_einstellungen(i):
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
         ["Angebots-PDF", "Firmenlogo (rechts oben im Angebot)",
          "<b>Bild wählen …</b> nimmt eine PNG- oder JPG-Datei (große Bilder werden verkleinert); das Logo steht im "
-         "Angebots-PDF rechts oben im Briefkopf, eingepasst in 55 × 24 mm. Es wird in der Datendatei gespeichert, "
+         "Angebots-PDF rechts oben im Briefkopf, eingepasst in 55 × 24 mm, klein (32 × 13 mm) auch auf "
+         "Werkstattpapieren, Kalkulation und Nachkalkulation. Es wird in der Datendatei gespeichert, "
          "wandert also mit Sicherung und Export mit. <b>Entfernen</b> = Angebot ohne Logo."],
         ["Angebots-PDF", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
                     "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF; Zeile 1 bis 3 stehen klein als "
@@ -2070,7 +2081,7 @@ def kapitel_stammdaten(i):
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
-           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.17 stammen die Faserlaser-Werte aus "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.18 stammen die Faserlaser-Werte aus "
            "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "
            "8.000 mm/min bis 2 mm Wand (Stahl 1 mm 8.000, 2 mm 7.000, 3 mm 4.500 mm/min mit N₂ auf LT7). Mehr "
            "Leistung hilft erst ab 3 mm: T11 hat bis 2 mm dieselben Werte wie LT7, darüber rund 30 % mehr (z. B. "
@@ -2079,7 +2090,7 @@ def kapitel_stammdaten(i):
            "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
            "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "
            "Vorschub mittel ist 60 %, klein 30 % von groß, Vorschub Gravur 3.000 mm/min. Beim ersten Start von "
-           "0.6.17 bekommen unveränderte Richtwert-Zeilen älterer Datendateien die neuen Werte (vorher wird eine "
+           "0.6.18 bekommen unveränderte Richtwert-Zeilen älterer Datendateien die neuen Werte (vorher wird eine "
            "Sicherung angelegt); von Hand geänderte Zeilen bleiben. Eigene Schneiddaten älterer Datendateien bleiben "
            "erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche Wandstärke-Stufe und welches "
            "Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten Wandstärke-Stufe und Schneidgas).")
@@ -2879,11 +2890,15 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.17", "Schneiddaten: neue Rohr-Richtwerte für die Faserlaser (dünne Wände höchstens 8.000 mm/min, Stahl mit "
+    ["0.6.18", "Schneiddaten: neue Rohr-Richtwerte für die Faserlaser (dünne Wände höchstens 8.000 mm/min, Stahl mit "
                "N₂ bis 4 mm, T11 erst ab 3 mm schneller als LT7); unveränderte Richtwert-Zeilen älterer Dateien "
                "werden einmalig angepasst ([[stammdaten]]). Konturklassen zählen zusätzlich nach Hüllmaß ÷ "
                "Wandstärke (klein bis 3 ×, mittel bis 8 × Wand, je Maschine änderbar), die strengere Klasse gilt; "
                "Kontur kleiner als die Wand gibt eine Warnung ([[konturklassen]])."],
+    ["0.6.17", "Werkstattpapiere, Kalkulation und Nachkalkulation im Design des Angebots ([[ausgabe]]): Firmenname, "
+              "kleines Logo, Listen ohne Gitter. Werkstattpapiere mit Kästchen zum Abhaken und fetter Kopfzeile je "
+              "Stangenmuster; Kalkulation mit Kennzahlen oben und ohne Kostenarten mit 0,00 €; Nachkalkulation mit "
+              "Kennzahlen und farbigen Abweichungen (rot = teurer, grün = günstiger)."],
     ["0.6.16", "Angebots-PDF moderner: ohne Gitterlinien, Briefkopf mit Firmenlogo (neue Einstellung <i>Firmenlogo</i>), "
               "Anschrift links und Angebotsdaten rechts, Summenblock mit Gesamtbetrag, Konditionen zeilenweise. "
               "Staffelpreise stehen jetzt in ihrer Position („Ab 50 Stk. je“) statt als eigene Tabelle; einmalige "
