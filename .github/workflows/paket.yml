@@ -5,6 +5,11 @@
 # Repositorys Rohrlaser-Updates (nur neue Pakete werden hochgeladen, das Programm lädt nur Pakete mit geänderten Dateien).
 # Aus demselben Programmordner entsteht Rohrlaser-Angebotskalkulation-Setup.exe (Inno Setup, Installation nur für den
 # Benutzer); das ZIP unterscheidet sich nur durch Portabel.ini (Daten neben dem Programm statt im Benutzerprofil).
+#
+# Actions-Minuten sparen: Pull Requests und Pushes auf main prüfen nur unter Linux (Tests, Anleitung bei PRs).
+# Der Windows-Build mit Release und Online-Update läuft nur, wenn der Workflow von Hand gestartet wird
+# (Actions > Paket > Run workflow, Zweig main) – einmal nach mehreren zusammen gemergten Pull Requests.
+# Von einem anderen Zweig gestartet, baut und prüft er das Paket nur, ohne zu veröffentlichen.
 name: Paket
 
 on:
@@ -106,6 +111,7 @@ jobs:
   # anleitung/erzeuge_anleitung.py; sie liegt nicht im Repository. Das Windows-Paket nimmt genau diese PDF.
   anleitung:
     runs-on: ubuntu-24.04
+    if: github.event_name != 'push'   # auf main nach dem Merge schon im PR geprüft, gebraucht nur für Windows
     steps:
       - uses: actions/checkout@v4
       - name: Python-Pakete
@@ -125,7 +131,8 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    needs: anleitung
+    needs: [tests, anleitung]
+    if: github.event_name == 'workflow_dispatch'   # Windows-Minuten zählen doppelt: nur von Hand (Sammel-Release)
     # Veröffentlichungen auf main nacheinander, damit Dateiliste und Pakete zusammenpassen
     concurrency:
       group: paket-${{ github.ref }}
@@ -445,6 +452,9 @@ jobs:
             gh release upload update-dateien $datei.FullName --repo $repo --clobber
             if ($LASTEXITCODE -ne 0) { throw "Hochladen von $($datei.Name) fehlgeschlagen" }
           }
+          # bisherige Dateiliste merken: ihre Pakete bleiben einen Stand länger liegen (siehe nächster Schritt)
+          gh release download update-dateien -p Update.json -O update_vorher.json --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { "{}" | Set-Content update_vorher.json; $global:LASTEXITCODE = 0 }
           # Dateiliste erst, wenn alle ihre Pakete da sind
           gh release upload update-dateien update_dateien/Update.json --repo $repo --clobber
           if ($LASTEXITCODE -ne 0) { throw "Hochladen von Update.json fehlgeschlagen" }
@@ -466,7 +476,13 @@ jobs:
           GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
         run: |
           $repo = $env:UPDATE_REPO
-          $gebraucht = @((Get-Content -Raw -Encoding utf8 update_dateien/Update.json | ConvertFrom-Json).pakete.PSObject.Properties.Name) + "Update.json"
+          # Pakete des neuen und des vorigen Stands bleiben: ein Programm, das die vorige Dateiliste schon geholt hat,
+          # findet seine Pakete noch (und holt sonst die neue Liste, update.neuere_liste)
+          $gebraucht = @("Update.json")
+          foreach ($liste in @("update_dateien/Update.json", "update_vorher.json")) {
+            $pakete = (Get-Content -Raw -Encoding utf8 $liste | ConvertFrom-Json).pakete
+            if ($pakete) { $gebraucht += @($pakete.PSObject.Properties.Name) }
+          }
           $id = gh api "repos/$repo/releases/tags/update-dateien" --jq ".id"
           foreach ($name in @(gh api --paginate "repos/$repo/releases/$id/assets?per_page=100" --jq ".[].name")) {
             if ($gebraucht -notcontains $name) { gh release delete-asset update-dateien $name --yes --repo $repo }

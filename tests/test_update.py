@@ -115,6 +115,28 @@ assert update.aktualisieren(v1, str(tmp / "pakete2" / update.DATEILISTE))[1] is 
 update.aufraeumen(v1)
 assert not (v1 / update.ARBEITSORDNER).exists()
 
+# Überholte Dateiliste: ein neuerer Build hat Update.json ersetzt und die alten Pakete gelöscht, nachdem das
+# Programm die Liste geholt hatte -> fehlendes Paket, einmal mit der neuen Liste weiter (Stand 3)
+v5 = programm_anlegen(tmp / "v5", aenderung=b"-v3")
+ort = tmp / "ort"
+l3 = update.erstellen(v5, ort, 3)
+veraltet = update.online_liste(str(tmp / "pakete2" / update.DATEILISTE))
+assert not (ort / veraltet["dateien"]["Rohrlaser-Angebotskalkulation.exe"]["paket"]).exists()
+v4 = programm_anlegen(tmp / "v4")
+shutil.copyfile(tmp / "pakete1" / update.DATEILISTE, v4 / update.DATEILISTE)
+online4, plan4 = update.aktualisieren(v4, str(ort / update.DATEILISTE), online=veraltet)
+assert online4["stand"] == 3 and update.lokale_liste(v4)["stand"] == 3
+stimmt(v4, l3)
+# fehlt ein Paket der aktuellen Liste, bleibt es beim Fehler (kein Endlosversuch)
+(ort / l3["dateien"]["Bedienungsanleitung.pdf"]["paket"]).unlink()
+(v4 / "Bedienungsanleitung.pdf").write_bytes(b"kaputt")
+try:
+    update.aktualisieren(v4, str(ort / update.DATEILISTE))
+    raise AssertionError("Fehler erwartet")
+except update.UpdateFehler as e:
+    assert "nicht laden" in str(e), e
+assert not (v4 / update.ARBEITSORDNER / "neu").exists()
+
 # Beschädigte Datei wird erkannt und neu geladen, auch ohne neuen Stand (alle=True tauscht jede Datei)
 (v1 / "_internal" / "PySide6" / "translations" / "qt_03.qm").write_bytes(b"kaputt")
 assert update.planen(v1, online, update.lokale_liste(v1))["neu"] == ["_internal/PySide6/translations/qt_03.qm"]
