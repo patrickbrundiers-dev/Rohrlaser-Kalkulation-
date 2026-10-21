@@ -48,7 +48,7 @@ assert sd("T03", "S235-10219", 10)["vorschub_gross"] >= 0.9 * sd("LT7", "S235-10
 # T11 mit 4 kW: 20 % mehr Vorschub als LT7 mit 3 kW
 assert sd("LT7", "1.4301", 3)["vorschub_gross"] == 4200 and sd("T11", "1.4301", 3)["vorschub_gross"] == 5040
 z = sd("LT7", "S235-10219", 3)
-assert (z["vorschub_mittel"], z["vorschub_klein"], z["vorschub_gravur"]) == (3000, 1500, 15000), z
+assert (z["vorschub_mittel"], z["vorschub_klein"], z["vorschub_gravur"]) == (3000, 1500, 3000), z   # Gravur 3.000 mm/min (Patrick, 21.10.2026)
 assert "4 kW" in sd("T11", "S235-10219", 3)["bemerkung"] and "3,2 kW" in sd("T03", "S235-10219", 3)["bemerkung"]
 assert sd("T03", "S235-10219", 3)["einstechzeit"] > sd("T11", "S235-10219", 3)["einstechzeit"]
 assert sd("T11", "S235-10219", 12)["vorschub_gross"] == 1080 and sd("T11", "S235-10219", 13) is None
@@ -202,6 +202,22 @@ assert k.maschinen["T03"]["greiferrest"] == 142 and d.angebot(a)["maschine"] == 
 assert d.einstellung("standard_maschine") == "RL-1"
 rl1 = [z for z in d.zeilen("schneiddaten") if z["maschinen_id"] == "RL-1"]
 assert len(rl1) == 1 and rl1[0]["vorschub_gross"] == 4444
+d.schliessen()
+
+# e) Datei mit Richtwerten bis 0.6.3: Gravur 15.000/10.000 wird einmalig 3.000, von Hand geänderte bleibt
+p = tmp / "e" / "rohrlaser.db"
+d = Datenbank(p)
+d.schliessen()
+con = sqlite3.connect(p)
+con.execute("UPDATE schneiddaten SET vorschub_gravur=CASE WHEN maschinen_id='T03' THEN 10000 ELSE 15000 END")
+con.execute("UPDATE schneiddaten SET vorschub_gravur=4444 WHERE id=(SELECT MIN(id) FROM schneiddaten)")
+con.execute("DELETE FROM einstellungen WHERE name='gravur_stand'")
+con.commit()
+con.close()
+d = Datenbank(p)
+gr = [z["vorschub_gravur"] for z in d.zeilen("schneiddaten")]
+assert gr[0] == 4444 and set(gr[1:]) == {3000}, set(gr)
+assert d.einstellung("gravur_stand") == "2026-10-21"
 d.schliessen()
 
 print("OK: Maschinen und Schneiddaten")
