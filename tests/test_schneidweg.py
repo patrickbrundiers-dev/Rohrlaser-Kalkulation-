@@ -114,8 +114,8 @@ fenster.resize(1920, 1080)
 s = fenster.angebot_oeffnen(a)
 assert s.schneidweg_berechnen(0, EIN)
 p = db.positionen(a)[0]
-for n, w in f.items():
-    assert p[n] == w, (n, p[n], w)
+for n, w in f.items():       # im Angebot mit der Wandstärke des Profils (3 mm), gleiche Klassen
+    assert p[n] == (w if n != "kontur_grenzen" else "10/50; 3×/8× Wand 3"), (n, p[n], w)
 assert sw.lesen(p["technik"])["quelle"] == sw.QUELLE and sw.lesen(p["technik"])["konturen"][0]["d"] == 8.5
 w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
 sd, _, zeit = rechnen.schneidzeit(p, s.kopf, w["wand_schneiden"], s.tabellen, s.k)

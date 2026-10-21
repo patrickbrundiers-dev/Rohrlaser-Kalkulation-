@@ -1091,7 +1091,13 @@ def kapitel_optimieren(i):
     i.text("Der STEP-Import teilt jede Innenkontur und auch den <b>Anfangs- und Endschnitt</b> nach ihrer Größe "
            "(Hüllmaß) in <b>klein</b>, <b>mittel</b> oder <b>groß</b> ein; die Grenzen stehen je Maschine in den "
            "Stammdaten Maschinen (Vorgabe 10 und 50 mm, ein Wert genau auf der Grenze zählt zur kleineren Klasse). "
-           "Gerechnet wird dann der <b>Schnittweg</b> jeder Klasse mit ihrem Vorschub aus den Schneiddaten:")
+           "Seit Version 0.6.16 zählt zusätzlich das Verhältnis <b>Hüllmaß ÷ Wandstärke</b>: klein bis 3 × Wand, "
+           "mittel bis 8 × Wand (Faktoren je Maschine änderbar). Es gilt die <b>strengere</b> (kleinere) der beiden "
+           "Klassen, denn eine Kontur, die kaum größer als die Wand ist, schneidet sich langsam (Leistungsrampe, "
+           "Einstich nah am Schnitt). Beispiel: Ø 20 bei 8 mm Wand = 2,5 × Wand, also klein statt mittel; Ø 20 bei "
+           "2 mm Wand = 10 × Wand, bleibt mittel. Die Wandstärke ist die größte Wandstärke des Profils (wie bei den "
+           "Schneiddaten). Gerechnet wird dann der <b>Schnittweg</b> jeder Klasse mit ihrem Vorschub aus den "
+           "Schneiddaten:")
     i.liste("Hüllmaß einer Bohrung = Durchmesser. Bei anderen Innenkonturen die größere Seite des kleinsten "
             "Rechtecks um die abgewickelte Kontur: ein schräges Langloch zählt mit seiner wahren Länge, ein Schlitz "
             "um ein Rundrohr mit der Bogenlänge.",
@@ -1103,9 +1109,13 @@ def kapitel_optimieren(i):
             "Rest ist nie kleiner als 0.",
             "Gravur [mm] / Vorschub Gravur und Einstiche × Einstechzeit.",
             "Gemeinsame Schnitte (zwei gerade Enden teilen sich einen Schnitt): die Einsparung wird mit dem Vorschub "
-            "der Klasse des geraden Endes abgezogen.")
-    i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>). "
-           "Wird im Angebotskopf eine andere Maschine gewählt oder ändern sich die Grenzen in den Stammdaten, teilt "
+            "der Klasse des geraden Endes abgezogen.",
+            "Ist eine Innenkontur <b>kleiner als die Wandstärke</b> (z. B. Bohrung Ø 5 in 8 mm Wand), zeigt die "
+            "Position die Warnung <i>Kontur kleiner als Wandstärke, Schneidbarkeit prüfen</i>; gerechnet wird weiter.")
+    i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>), die "
+           "Regel, mit der sie eingeteilt wurde, in der Spalte <i>Konturgrenzen</i> (z. B. <i>10/50; 3×/8× Wand "
+           "4</i>). Wird im Angebotskopf eine andere Maschine oder in der Position ein anderes Profil gewählt oder "
+           "ändern sich Grenzen oder Faktoren in den Stammdaten, teilt "
            "das Programm die Positionen beim nächsten Öffnen bzw. Neuberechnen neu ein und meldet das in der "
            "Statuszeile. Die Konturliste lässt sich auch von Hand ändern; die Klassen werden dann neu eingeteilt. "
            "Positionen aus einem STEP-Import vor Version 0.5.7 haben keine Konturliste: dort laufen Anfangs- und "
@@ -2021,6 +2031,9 @@ def kapitel_stammdaten(i):
          "Grenzen der Konturklassen nach Hüllmaß für Innenkonturen, Anfangs- und Endschnitt (Vorgabe 10 und 50 mm), "
          "je Klasse eigener Vorschub. Nach einer Änderung werden die Positionen beim nächsten Öffnen des Angebots "
          "neu eingeteilt ([[konturklassen]])"],
+        ["Kontur klein bis [× Wand], Kontur mittel bis [× Wand]",
+         "zusätzliche Grenzen nach Hüllmaß ÷ Wandstärke (Vorgabe 3 und 8); es gilt die strengere Klasse aus mm- und "
+         "Wand-Grenze ([[konturklassen]])"],
         ["Min. Stangenlänge Zuschnitt [mm]", "kürzeste Stange, die die automatische Stangenladung nimmt (Vorgabe "
                                              "2.500 mm); keine aus einer Lieferstange zugeschnittene Stange "
                                              "wird kürzer ([[lieferlaengen]]), leer oder 0 = keine Grenze"],
@@ -2045,13 +2058,17 @@ def kapitel_stammdaten(i):
         ["Einstechzeit [s]", "Zeit je Einstich"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
-           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Die Richtwerte stammen aus üblichen Schnitttabellen "
-           "für Faserlaser mit 3 kW und CO₂-Laser mit 3,2 kW, mit etwa 40 % Abschlag fürs Rohr; T11 hat mit 4 kW "
-           "20 % mehr Vorschub. Es sind keine "
+           "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.16 stammen die Faserlaser-Werte aus "
+           "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "
+           "8.000 mm/min bis 2 mm Wand (Stahl 1 mm 8.000, 2 mm 7.000, 3 mm 4.500 mm/min mit N₂ auf LT7). Mehr "
+           "Leistung hilft erst ab 3 mm: T11 hat bis 2 mm dieselben Werte wie LT7, darüber rund 30 % mehr (z. B. "
+           "Stahl 8 mm mit O₂ 2.100 statt 1.300 mm/min). Die CO₂-Werte sind Schätzwerte. Es sind keine "
            "Herstellerwerte, bitte mit echten Schnittzeiten der Maschine vergleichen und anpassen. Faserlaser: Stahl "
            "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
            "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "
-           "Vorschub mittel ist 60 %, klein 30 % von groß, Vorschub Gravur 3.000 mm/min. Eigene Schneiddaten älterer Datendateien bleiben "
+           "Vorschub mittel ist 60 %, klein 30 % von groß, Vorschub Gravur 3.000 mm/min. Beim ersten Start von "
+           "0.6.16 bekommen unveränderte Richtwert-Zeilen älterer Datendateien die neuen Werte (vorher wird eine "
+           "Sicherung angelegt); von Hand geänderte Zeilen bleiben. Eigene Schneiddaten älterer Datendateien bleiben "
            "erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche Wandstärke-Stufe und welches "
            "Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten Wandstärke-Stufe und Schneidgas).")
     i.text("Die Prüfspalte warnt, wenn ein Vorschub nicht passt: Vorschub mittel oder klein größer als groß, oder "
@@ -2695,7 +2712,8 @@ def kapitel_step_messung(i):
             "Schneidweg = Anfangsschnitt + Endschnitt + Innenkonturen auf der Außenhaut. Gravuren (nicht durch die "
             "Wand) zählen getrennt.",
             "Innenkonturen, Anfangs- und Endschnitt werden nach ihrem Hüllmaß klein, mittel oder groß eingestuft "
-            "(Grenzen je Maschine, Vorgabe 10 und 50 mm; [[konturklassen]]); jede Klasse hat ihren eigenen Vorschub.",
+            "(Grenzen je Maschine, Vorgabe 10 und 50 mm, zusätzlich 3 und 8 × Wandstärke; [[konturklassen]]); jede "
+            "Klasse hat ihren eigenen Vorschub.",
             "Profilabgleich mit den Stammdaten über Form und Maße (±0,15 mm).")
     i.abschnitt("Einlesen: Einheiten, Flächenmodelle, defekte Dateien")
     i.liste("<b>Einheit</b>: Die Datei darf in mm, cm, m oder Zoll gespeichert sein; gemessen wird immer in mm. Die "
@@ -2849,6 +2867,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.16", "Schneiddaten: neue Rohr-Richtwerte für die Faserlaser (dünne Wände höchstens 8.000 mm/min, Stahl mit "
+               "N₂ bis 4 mm, T11 erst ab 3 mm schneller als LT7); unveränderte Richtwert-Zeilen älterer Dateien "
+               "werden einmalig angepasst ([[stammdaten]]). Konturklassen zählen zusätzlich nach Hüllmaß ÷ "
+               "Wandstärke (klein bis 3 ×, mittel bis 8 × Wand, je Maschine änderbar), die strengere Klasse gilt; "
+               "Kontur kleiner als die Wand gibt eine Warnung ([[konturklassen]])."],
     ["0.6.15", "Lieferlängen: Die Restlänge einer zugeschnittenen 12-m-Stange kommt an die letzte Stange (bis zur "
               "Beladelänge), das spart einen Sägeschnitt; sonst ist sie Abfall. Der Vergleich öffnet sich groß über den "
               "Knopf <i>12-m-Lösung ansehen …</i> im Reiter Auswertung, den es nur bei einer sinnvollen Lösung gibt. "

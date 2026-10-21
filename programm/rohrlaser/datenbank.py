@@ -36,11 +36,11 @@ from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONE
                       naechste_nummer)
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
-                         ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten, ALTE_GRAVUR, GRAVUR,
+                         ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten, alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 28     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 29     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -54,6 +54,7 @@ SCHEMA_VERSION = 28     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 26: Schneidweg-Rechner (positionen.technik, Eingaben als JSON; ältere Positionen leer)
                         # 27: Zeichnungen je Position (positionen.dokumente, Dateinamen im Ordner des Angebots)
                         # 28: maschinen.min_stange (kürzeste Stange der Stangenladung im Zuschnitt, Vorgabe 2.500 mm)
+                        # 29: maschinen.kontur_klein_wand/kontur_mittel_wand (Konturklasse nach Hüllmaß ÷ Wand, 3 und 8)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -67,6 +68,7 @@ ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
+RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 
 
@@ -84,6 +86,7 @@ class Datenbank:
             self.fracht_beispiele_laden()
             self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
             self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
+            self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
 
     def schliessen(self):
@@ -99,6 +102,8 @@ class Datenbank:
             self.sicherung(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
         elif version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
             self.sicherung(zusatz="vor_Maschinen_T03_T11_LT7")
+        elif version > 0 and self.einstellung("richtwerte_stand") != RICHTWERTE_STAND:
+            self.sicherung(zusatz="vor_Richtwerte_Rohr")
         with self.con:
             if 0 < version < 6:
                 self._umbenennen()
@@ -162,6 +167,9 @@ class Datenbank:
                 self._wand_max_ergaenzen()
             if 0 < version < 28:
                 self.con.execute("UPDATE maschinen SET min_stange=2500 WHERE min_stange IS NULL")
+            if 0 < version < 29:
+                self.con.execute("UPDATE maschinen SET kontur_klein_wand=3, kontur_mittel_wand=8 "
+                                 "WHERE kontur_klein_wand IS NULL AND kontur_mittel_wand IS NULL")
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -175,6 +183,8 @@ class Datenbank:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
                 self._gravur_anpassen()
+            if version > 0 and self.einstellung("richtwerte_stand") != RICHTWERTE_STAND:
+                self._richtwerte_anpassen()
             if version > 0 and self.einstellung("zuschlaege_stand") != ZUSCHLAEGE_STAND:
                 for n in ("zuschlag_material", "zuschlag_fertigung"):
                     self._einstellung_schreiben(n, 0)
@@ -230,6 +240,26 @@ class Datenbank:
                          f"AND vorschub_gravur IN ({', '.join('?' * len(ALTE_GRAVUR))})",
                          (GRAVUR["Faser"],) + ALTE_GRAVUR)
         self._einstellung_schreiben("gravur_stand", GRAVUR_STAND)
+
+    def _richtwerte_anpassen(self):
+        """Einmalig: Richtwert-Zeilen (Werkstoff-ID leer, Bemerkung 'Beispiel: Richtwert …') mit den Werten 0.5.13 bis
+        0.6.15 bekommen die Rohr-Richtwerte vom 21.10.2026 (Vorschub groß, mittel, klein, Einstechzeit); von Hand
+        geänderte Zeilen und eigene Maschinen bleiben."""
+        alte = alte_richtwerte()
+        neu = {(z["maschinen_id"], z["kategorie"], z["gas"], float(z["wand_bis"])): z
+               for z in beispieldaten()["schneiddaten"]}
+        zahl = lambda w: float(w) if isinstance(w, (int, float)) else w
+        for z in self.zeilen("schneiddaten"):
+            k = (z.get("maschinen_id"), z.get("kategorie"), z.get("gas"), zahl(z.get("wand_bis")))
+            if (z.get("werkstoff_id") or not str(z.get("bemerkung") or "").startswith("Beispiel: Richtwert")
+                    or k not in neu or alte.get(k) != tuple(zahl(z.get(n)) for n in (
+                        "vorschub_gross", "vorschub_mittel", "vorschub_klein", "einstechzeit"))):
+                continue
+            n = neu[k]
+            self.con.execute("UPDATE schneiddaten SET vorschub_gross=?, vorschub_mittel=?, vorschub_klein=?, "
+                             "einstechzeit=? WHERE id=?", (n["vorschub_gross"], n["vorschub_mittel"],
+                                                          n["vorschub_klein"], n["einstechzeit"], z["id"]))
+        self._einstellung_schreiben("richtwerte_stand", RICHTWERTE_STAND)
 
     def _maschine_umbenannt(self, alt, neu):
         """Nach dem Umbenennen einer Maschine (Spalte angebote.maschine ist schon umbenannt): Maschinen-ID in den

@@ -10,6 +10,7 @@ Angebot), k (stammdaten.Kontext), tabellen (dict mit 'preise', 'schneiddaten', '
 import hashlib
 import math
 import json
+import re
 
 from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
@@ -238,7 +239,7 @@ def status(p, w, kopf, k, eingeplant=None):
     if unbekannt:
         return f"WARNUNG: Zusatzarbeit '{unbekannt}' unbekannt"
     manuell = not _leer(p.get("zeit_manuell"))
-    kontur = konturen_pruefen(p)
+    kontur = konturen_pruefen(p, w.get("wand_schneiden"))
     if kontur and not manuell:
         return "WARNUNG: " + kontur
     if _leer(p.get("schneidweg")) and not manuell:
@@ -1069,6 +1070,7 @@ def zahl(w, stellen=2):
 
 KONTUR_TOL = 0.5     # mm, STEP-Teilwerte sind je auf 0,1 mm gerundet
 KONTUR_GRENZEN = (10.0, 50.0)       # Vorgabe klein bis / mittel bis [mm], wenn die Maschine keine Werte hat
+KONTUR_FAKTOREN = (3.0, 8.0)        # Vorgabe klein bis / mittel bis [× Wandstärke] (Patrick 21.10.2026, B1a/B2a)
 KLASSEN_FELDER = ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")
 
 
@@ -1080,8 +1082,46 @@ def kontur_grenzen(m):
     return KONTUR_GRENZEN, True
 
 
+def kontur_faktoren(m):
+    """(klein bis, mittel bis) [× Wandstärke] der Maschine; ohne gültige Werte die Vorgabe 3 und 8."""
+    kl, mi = (m or {}).get("kontur_klein_wand"), (m or {}).get("kontur_mittel_wand")
+    if isinstance(kl, (int, float)) and isinstance(mi, (int, float)) and 0 < kl < mi:
+        return float(kl), float(mi)
+    return KONTUR_FAKTOREN
+
+
+def kontur_regel(m, wand):
+    """Regel der Konturklassen für eine Position: (klein bis, mittel bis [mm], klein bis, mittel bis [× Wand],
+    Wandstärke); ohne Wandstärke nur die mm-Grenzen (klein bis, mittel bis)."""
+    grenzen = kontur_grenzen(m)[0]
+    if not isinstance(wand, (int, float)) or wand <= 0:
+        return grenzen
+    return grenzen + kontur_faktoren(m) + (round(float(wand), 2),)
+
+
+def wand_position(p, k):
+    """Wandstärke für Schneiddaten und Konturklassen einer Position (größte Wandstärke des Profils) oder None."""
+    pr = k.profile.get(p.get("profil_id")) if k and not _leer(p.get("profil_id")) else None
+    return wand_schneiden(pr) if pr else None
+
+
+def kontur_klasse(groesse, regel):
+    """0 = klein, 1 = mittel, 2 = groß: die strengere (kleinere, langsamere) Einteilung nach Hüllmaß (mm-Grenzen) und
+    nach Hüllmaß ÷ Wandstärke (Faktoren, nur wenn die Regel eine Wandstärke hat), z. B. Ø 20 bei 8 mm Wand: 20 ≤ 3 × 8,
+    also klein statt mittel. Genau auf der Grenze zählt die kleinere Klasse."""
+    g = round(groesse, 2)   # Ø10 genau auf der Grenze zählt als klein
+    c = 0 if g <= regel[0] else 1 if g <= regel[1] else 2
+    if len(regel) >= 5 and regel[4] > 0:
+        c = min(c, 0 if g <= round(regel[2] * regel[4], 2) else 1 if g <= round(regel[3] * regel[4], 2) else 2)
+    return c
+
+
 def grenzen_text(grenzen):
-    return "/".join(zahl(g, 1) for g in grenzen)
+    """(10, 50) -> '10/50'; mit Faktoren und Wandstärke (10, 50, 3, 8, 4) -> '10/50; 3×/8× Wand 4'."""
+    text = "/".join(zahl(g, 1) for g in grenzen[:2])
+    if len(grenzen) >= 5:
+        text += f"; {zahl(grenzen[2], 1)}×/{zahl(grenzen[3], 1)}× Wand {zahl(grenzen[4])}"
+    return text
 
 
 def konturen_text(liste, enden=()):
@@ -1108,12 +1148,18 @@ def konturen_lesen(text, mit_art=False):
 
 
 def grenzen_lesen(text):
-    """'8/45' -> (8.0, 45.0) oder None."""
+    """'8/45' -> (8.0, 45.0), '10/50; 3×/8× Wand 4' -> (10.0, 50.0, 3.0, 8.0, 4.0), sonst None."""
+    zahlen = re.fullmatch(r"\s*([\d.,]+)\s*/\s*([\d.,]+)\s*(?:;\s*([\d.,]+)\s*×\s*/\s*([\d.,]+)\s*×\s*Wand\s*"
+                          r"([\d.,]+)\s*)?", str(text or ""))
+    if not zahlen:
+        return None
     try:
-        a, b = (float(x.replace(",", ".")) for x in str(text or "").split("/"))
-        return (a, b) if 0 < a < b else None
+        werte = [float(x.replace(",", ".")) for x in zahlen.groups() if x is not None]
     except ValueError:
         return None
+    if not 0 < werte[0] < werte[1] or (len(werte) == 5 and not (0 < werte[2] < werte[3] and werte[4] > 0)):
+        return None
+    return tuple(werte)
 
 
 def ende_vorschub(p, vorschuebe, grenzen):
@@ -1124,18 +1170,17 @@ def ende_vorschub(p, vorschuebe, grenzen):
     if not enden:
         return h
     seite = "A" if p.get("a_gerade") == "ja" or "E" not in enden else "E" if p.get("b_gerade") == "ja" else "A"
-    g = round(enden.get(seite, next(iter(enden.values()))), 2)
-    grenzen = grenzen_lesen(p.get("kontur_grenzen")) or grenzen
-    return j if g <= grenzen[0] else i_ if g <= grenzen[1] else h
+    c = kontur_klasse(enden.get(seite, next(iter(enden.values()))), grenzen_lesen(p.get("kontur_grenzen")) or grenzen)
+    return (j, i_, h)[c]
 
 
 def konturklassen(liste, grenzen):
-    """Innenkonturen [(Hüllmaß, Schnittweg)] nach Hüllmaß einteilen: klein ≤ klein bis < mittel ≤ mittel bis < groß.
+    """Innenkonturen [(Hüllmaß, Schnittweg)] einteilen (kontur_klasse): klein ≤ klein bis < mittel ≤ mittel bis <
+    groß, mit Wandstärke in der Regel (kontur_regel) zusätzlich nach Hüllmaß ÷ Wandstärke, die strengere Klasse gilt.
     Ergebnis: Felder klein_n, klein_mm, mittel_n, mittel_mm, gross_n, gross_mm (mm auf 0,1 gerundet)."""
     kl = [[0, 0.0], [0, 0.0], [0, 0.0]]
     for groesse, laenge in liste:
-        g = round(groesse, 2)   # Ø10 genau auf der Grenze zählt als klein
-        c = 0 if g <= grenzen[0] else 1 if g <= grenzen[1] else 2
+        c = kontur_klasse(groesse, grenzen)
         kl[c][0] += 1
         kl[c][1] += laenge
     out = {}
@@ -1144,12 +1189,13 @@ def konturklassen(liste, grenzen):
     return out
 
 
-def konturklassen_neu(p, m):
-    """Neue Einteilung einer Position, deren Konturliste mit anderen Grenzen eingeteilt wurde als die der Maschine:
-    dict mit den Klassenfeldern und kontur_grenzen, sonst None (keine Konturliste oder Grenzen gleich)."""
+def konturklassen_neu(p, m, wand=None):
+    """Neue Einteilung einer Position, deren Konturliste mit einer anderen Regel eingeteilt wurde als der aktuellen
+    (Grenzen und Faktoren der Maschine, Wandstärke des Profils): dict mit den Klassenfeldern und kontur_grenzen,
+    sonst None (keine Konturliste oder Regel gleich)."""
     if _leer(p.get("konturen")) or ist_zukaufteil(p):
         return None
-    grenzen = kontur_grenzen(m)[0]
+    grenzen = kontur_regel(m, wand)
     if p.get("kontur_grenzen") == grenzen_text(grenzen):
         return None
     return dict(konturklassen(konturen_lesen(p["konturen"]), grenzen), kontur_grenzen=grenzen_text(grenzen))
@@ -1161,9 +1207,13 @@ def gross_rest(p):
     return max(0.0, _n(p.get("schneidweg")) - _n(p.get("klein_mm")) - _n(p.get("mittel_mm")))
 
 
-def konturen_pruefen(p):
-    """Widerspruch zwischen Konturklassen und Schneidweg bzw. Innenkonturen (Text) oder None."""
+def konturen_pruefen(p, wand=None):
+    """Widerspruch zwischen Konturklassen und Schneidweg bzw. Innenkonturen oder eine Innenkontur kleiner als die
+    Wandstärke (Text) oder None."""
     km = _n(p.get("klein_mm")) + _n(p.get("mittel_mm"))
+    if isinstance(wand, (int, float)) and wand > 0 and any(
+            not a and round(g, 2) < round(wand, 2) for a, g, _ in konturen_lesen(p.get("konturen"), True)):
+        return "Kontur kleiner als Wandstärke, Schneidbarkeit prüfen"
     if km <= 0 and _n(p.get("gross_mm")) <= 0:
         return None
     if not _leer(p.get("schneidweg")) and km > _n(p["schneidweg"]) + KONTUR_TOL:
@@ -1571,7 +1621,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if h is None or c == 0 or not h:
             nz = 0
         else:
-            nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_grenzen(maschine(kopf, k))[0])
+            nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_regel(maschine(kopf, k), w["wand_schneiden"]))
                   + ein[2] * einstiche_ende(w["profilform"]) * l) / c
         manuell = not _leer(p.get("zeit_manuell"))
         zeit_extra = sum(e["zeit"] for e in zus[i])
@@ -1603,8 +1653,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = "kein Schnittplan oder Preis"
         elif h is None and not manuell:
             hinweis = "keine Schneiddaten"
-        elif not manuell and konturen_pruefen(p):
-            hinweis = konturen_pruefen(p)
+        elif not manuell and konturen_pruefen(p, w["wand_schneiden"]):
+            hinweis = konturen_pruefen(p, w["wand_schneiden"])
         elif zusatz_unbekannt(p, tabellen.get("zusatzarbeiten")):
             hinweis = "Zusatzarbeit unbekannt"
         elif not _leer(p.get("gewinde_vorschlag")) and _leer(p.get("gewinde")):
