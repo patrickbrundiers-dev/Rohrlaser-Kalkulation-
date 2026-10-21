@@ -219,7 +219,7 @@ class ZukaufDialog(QDialog):
             e["je"] = je
         else:
             e.pop("je", None)
-        QTimer.singleShot(0, self._zeigen)      # das Auswahlfeld wird dabei ersetzt: erst nach seinem Signal
+        QTimer.singleShot(0, self._zeigen)      # erst nach dem Signal des Auswahlfelds neu zeigen
 
     def _geaendert(self, it):
         if self._fuellen or it.column() not in EDIT:
@@ -277,9 +277,14 @@ class ZukaufDialog(QDialog):
                         it.setToolTip("leer = Regel des Artikels (Kategorie bzw. individuell); eine Zahl ersetzt "
                                       "sie für diese Position (% auf den Einstandspreis)")
                     self.tabelle.setItem(r, c, it)
-                feld = _je_feld(e.get("je") == zukauf.JE_SATZ)
-                feld.currentIndexChanged.connect(lambda _=0, r=r, feld=feld: self.je_setzen(r, feld.currentData()))
-                self.tabelle.setCellWidget(r, JE, feld)
+                feld = self.tabelle.cellWidget(r, JE)
+                if feld is None:      # Auswahlfeld je Zeile nur einmal anlegen: ein ersetztes Feld bliebe bis zum
+                    feld = _je_feld()  # Löschen sichtbar und läge über anderen Zellen
+                    feld.currentIndexChanged.connect(lambda _=0, r=r, feld=feld: self.je_setzen(r, feld.currentData()))
+                    self.tabelle.setCellWidget(r, JE, feld)
+                feld.blockSignals(True)
+                feld.setCurrentIndex(1 if e.get("je") == zukauf.JE_SATZ else 0)
+                feld.blockSignals(False)
             gesamt = sum((w["vk"] for w in werte if not w["fehler"]), zukauf.NULL)
             fehler = sum(1 for w in werte if w["fehler"])
             self.info.setText(

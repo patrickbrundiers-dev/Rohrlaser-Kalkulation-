@@ -321,8 +321,9 @@ def main(ziel):
     # 6) Angebot öffnen: Positionen vor der Optimierung (breiteres Fenster: Kalkulationsgruppen nebeneinander)
     f.resize(1680, 980)
     s = f.angebot_oeffnen(haupt)
+    s.kopf_bereich.kopf_aufklappen(True)        # ausgefülltes Angebot öffnet mit zugeklapptem Kopf; hier alle Felder
     bereit()
-    kopf_box = s.felder["nummer"].parentWidget()
+    kopf_box = s.kopf_bereich.kopf_inhalt.parentWidget()
     foto.foto("angebot_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
                                         (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
                                         (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
@@ -330,15 +331,18 @@ def main(ziel):
     kb = s.kopf_bereich
     s.kopf_bereich.erweitert_bereich.aufklappen(True)
     s.kopf_bereich.maschinen_bereich.aufklappen(True)
+    kb.fracht_aufklappen(True)
     QApplication.processEvents()
     foto.foto("angebot_erweitert", s.teiler.widget(0).widget())     # ganzer oberer Teil, auch was gerollt wäre
     kb.erweitert_bereich.aufklappen(False)
     kb.maschinen_bereich.aufklappen(False)
+    kb.fracht_aufklappen(False)
     s.zeige_berechnet.setChecked(True)
     foto.foto("angebot_berechnet", f)
     s.zeige_berechnet.setChecked(False)
 
-    # 7) Optimieren und Ergebnisse
+    # 7) Optimieren und Ergebnisse (Angebotskopf zugeklappt auf eine Zeile, wie beim Öffnen eines fertigen Angebots)
+    kb.kopf_aufklappen(False)
     s.optimieren()
     foto.foto("angebot_optimiert", f, [(s.stand, 1)])
     for text, name in (("Kalkulation", "erg_kalkulation"), ("Schnittplan", "erg_schnittplan"),
@@ -757,7 +761,9 @@ def main(ziel):
     d.uebernehmen()
     kb = s.kopf_bereich
     bereit()
-    karte_fracht = kb.fracht_text.parentWidget()
+    kb.fracht_aufklappen(True)
+    QApplication.processEvents()
+    karte_fracht = kb.fracht_karte
     foto.foto("angebot_fracht", karte_fracht, [(kb.fracht_modus, 1), (kb.fracht_umlage, 2), (kb.fracht_knopf, 3),
                                                (kb.fracht_text, 4), (kb.fracht_auto, 5)])
 

@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProx
 from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
+    QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
@@ -26,21 +26,24 @@ ANLEITUNG = "Bedienungsanleitung.pdf"
 FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
 FARBE_BERECHNET = QColor("#EDEDED")
 FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": QColor("#C6EFCE")}
-# Einheitliches Aussehen: helle, neutrale Flächen, Karten mit dünnem Rahmen, ruhige Statusfarben
+# Einheitliches Aussehen angelehnt an die PDF-Ausgaben: Dunkelblau #1F4E78 als Akzent (aktiver Reiter, Titel,
+# Hauptknöpfe, Linie unter Tabellenköpfen), helle neutrale Flächen, Karten mit dünnem Rahmen, Zebra-Zeilen
+AKZENT = "#1F4E78"
 STIL = """
 QFrame#karte { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; }
-QLabel#kartentitel { font-weight: bold; color: #1F2937; }
+QLabel#kartentitel { font-weight: bold; color: #1F4E78; }
 QLabel#gruppentitel { font-weight: bold; color: #3A4656; padding-bottom: 2px; border-bottom: 1px solid #E3E7EC; }
 QFrame#kennzahl { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; }
 QLabel#kennzahltitel { color: #5F6B7A; }
 QLabel#kennzahlwert { font-weight: bold; color: #1F2937; }
+QLabel#summenzeile { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; padding: 6px; }
 QFrame#preis { background: #EEF4FB; border: 1px solid #C9DAEE; border-radius: 4px; }
-QLabel#preiswert { font-weight: bold; font-size: 13pt; color: #1F5FA8; }
+QLabel#preiswert { font-weight: bold; font-size: 13pt; color: #1F4E78; }
 QLabel#preiswert_klein { font-weight: bold; font-size: 11pt; color: #1F2937; }
 QLabel#stand_ok { background: #E3F4E8; color: #1E6B34; border: 1px solid #B7DFC3; border-radius: 4px; font-weight: bold; }
 QLabel#stand_offen { background: #FFF6DB; color: #7A5A00; border: 1px solid #F0D98C; border-radius: 4px; font-weight: bold; }
 QLabel#stand_veraltet { background: #FDECEA; color: #8C1D18; border: 1px solid #F3B8B2; border-radius: 4px; font-weight: bold; }
-QToolButton#kartenknopf { border: none; font-weight: bold; color: #1F2937; padding: 2px 0; }
+QToolButton#kartenknopf { border: none; font-weight: bold; color: #1F4E78; padding: 2px 0; }
 QToolButton#aufklapper { border: none; text-align: left; color: #3A4656; padding: 2px 0; }
 QToolButton#meldung_ok { border: none; color: #1E6B34; font-weight: bold; padding: 2px 0; }
 QToolButton#meldung_warnung { border: none; color: #7A5A00; font-weight: bold; padding: 2px 0; }
@@ -49,13 +52,23 @@ QPushButton { padding: 4px 10px; border: 1px solid #C5CCD6; border-radius: 4px; 
 QPushButton:hover { background: #F1F4F8; }
 QPushButton:pressed { background: #E2E8F0; }
 QPushButton:disabled { color: #9AA3AF; }
-QPushButton#primaer { background: #1F5FA8; color: #FFFFFF; border-color: #1A528F; font-weight: bold; }
-QPushButton#primaer:hover { background: #1A528F; }
+QPushButton#primaer { background: #1F4E78; color: #FFFFFF; border-color: #183E60; font-weight: bold; }
+QPushButton#primaer:hover { background: #183E60; }
 QPushButton::menu-indicator { subcontrol-position: right center; right: 4px; }
 QPushButton[menu="true"] { padding-right: 18px; }
-QTableView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selection-color: #111827; }
-QHeaderView::section { background: #F1F3F6; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
-                       border-bottom: 1px solid #C9D0D8; padding: 3px; font-weight: bold; }
+QTabWidget::pane { border: 1px solid #D5DBE3; top: -1px; }
+QTabBar::tab { background: #EEF1F5; color: #3A4656; border: 1px solid #D5DBE3; border-bottom: none;
+               border-top-left-radius: 4px; border-top-right-radius: 4px; padding: 4px 10px; margin-right: 1px; }
+QTabBar::tab:selected { background: #FFFFFF; color: #1F4E78; border-top: 3px solid #1F4E78; padding-top: 2px; }
+QTabBar::tab:hover:!selected { background: #F7F9FB; }
+QGroupBox { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; margin-top: 16px; padding-top: 6px; }
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 8px; padding: 0 4px;
+                   color: #1F4E78; font-weight: bold; }
+QTableView, QTreeView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selection-color: #111827;
+                        alternate-background-color: #F5F8FB; }
+QHeaderView::section { background: #F3F6FA; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
+                       border-bottom: 2px solid #1F4E78; padding: 3px; font-weight: bold; }
+QHeaderView::section:vertical { border-bottom: 1px solid #E3E7EC; border-right: 1px solid #C9D0D8; font-weight: normal; }
 """
 
 
@@ -690,13 +703,65 @@ class EinstellungenBereich(QWidget):
 
 
 class StartSeite(QWidget):
+    """Startseite als Übersicht: Angebote (neu, zuletzt bearbeitet), Stand der Stammdaten, Datensicherung."""
+    ZULETZT = 8         # so viele zuletzt geänderte Angebote
+
     def __init__(self, fenster):
+        from .angebot_fenster import AngeboteListe, _tabelle, _zeit, angebot_status
+        from .angebot_oben import karte
         super().__init__()
         self.f = fenster
-        titel = QLabel(f"<h2>{NAME}</h2><p>Version {update.stand_text(fenster.updater.lokal)}</p>")
+        titel = QLabel(f"<h2 style='color:{AKZENT}'>{NAME}</h2>")
+        version = QLabel(f"Version {update.stand_text(fenster.updater.lokal)}")
+        version.setStyleSheet("color: #5F6B7A;")
+
+        # Angebote: neu anlegen, Liste öffnen, zuletzt bearbeitete mit Doppelklick öffnen
+        angebote, al = karte("Angebote")
+        zeile = QHBoxLayout()
+        for text, ziel, primaer in (("Neues Angebot", lambda: fenster.angebote.neu(), True),
+                                    ("Alle Angebote", lambda: fenster.reiter.setCurrentWidget(fenster.angebote), False)):
+            b = QPushButton(text)
+            if primaer:
+                b.setObjectName("primaer")
+            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+            zeile.addWidget(b)
+        zeile.addStretch(1)
+        al.addLayout(zeile)
+        al.addWidget(QLabel("<b>Zuletzt bearbeitet</b> (Doppelklick öffnet)"))
+        self.zuletzt = AngeboteListe([("Angebot", "nummer", None, 110), ("Kunde", "kunde", None, 180),
+                                      ("Status", angebot_status, None, 110),
+                                      ("Verkaufspreis netto [€]", "vk_netto", 2, 110),
+                                      ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120)])
+        self.zuletzt_ansicht = _tabelle(self.zuletzt, sortieren=False)
+        self.zuletzt_ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(True)
+        self.zuletzt_ansicht.doubleClicked.connect(
+            lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
+        al.addWidget(self.zuletzt_ansicht, 1)
+        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an.")
+        self.keine.setStyleSheet("color: #5F6B7A;")
+        al.addWidget(self.keine)
+
+        # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
+        stamm, sl = karte("Stammdaten")
+        self.stamm = QLabel()
+        self.stamm.setWordWrap(True)
+        self.stamm.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        sl.addWidget(self.stamm)
+        b = QPushButton("Einstellungen öffnen")
+        b.clicked.connect(lambda: fenster.reiter.setCurrentWidget(fenster.bereich))
+        zeile = QHBoxLayout()
+        zeile.addWidget(b)
+        zeile.addStretch(1)
+        sl.addLayout(zeile)
+        sl.addStretch(1)
+
+        # Datensicherung und Datendatei
+        sicherung, dl = karte("Daten und Sicherung")
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.info.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        dl.addWidget(self.info)
         knoepfe = QHBoxLayout()
         for text, ziel in (("Datensicherung erstellen", fenster.sicherung_erstellen),
                            ("Sicherung wiederherstellen …", fenster.wiederherstellen_dialog),
@@ -705,23 +770,28 @@ class StartSeite(QWidget):
             b.clicked.connect(ziel)
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
-        hinweis = QLabel("Angebote werden im Reiter 'Angebote' angelegt. "
-                         "Im Angebot: Staffelpreise im Reiter 'Staffeln', Angebot, Werkstattpapiere und Kalkulation als PDF sowie "
-                         "CSV-Export über die Leiste 'Ausgabe'. Die Dateien landen im Ablageordner (Einstellungen).")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
+        dl.addLayout(knoepfe)
+
+        raster = QGridLayout()
+        raster.setSpacing(10)
+        raster.addWidget(angebote, 0, 0, 2, 1)
+        raster.addWidget(stamm, 0, 1)
+        raster.addWidget(sicherung, 1, 1)
+        raster.setColumnStretch(0, 3)
+        raster.setColumnStretch(1, 2)
+        raster.setRowStretch(0, 1)
         lay = QVBoxLayout(self)
-        lay.addWidget(titel)
-        lay.addWidget(self.info)
-        lay.addLayout(knoepfe)
-        lay.addSpacing(20)
-        lay.addWidget(hinweis)
-        lay.addStretch(1)
+        kopf = QHBoxLayout()
+        kopf.addWidget(titel)
+        kopf.addSpacing(12)
+        kopf.addWidget(version, 0, Qt.AlignBottom)
+        kopf.addStretch(1)
+        lay.addLayout(kopf)
+        lay.addLayout(raster, 1)
         self.neu_laden()
 
     def neu_laden(self):
         db = self.f.db
-        zeilen = "".join(f"<tr><td>{t.titel}</td><td align='right'>{db.anzahl(t.name)}</td></tr>" for t in TABELLEN)
         herkunft = db.einstellung("stammdaten_herkunft") or "–"
         stand = db.einstellung("stammdaten_stand") or ""
         if stand:
@@ -730,8 +800,18 @@ class StartSeite(QWidget):
         if herkunft == "Beispieldaten":
             warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Bitte im Reiter "
                        "Einstellungen durch die eigenen Werte ersetzen.</p>")
-        self.info.setText(f"<p>Datendatei: {db.pfad}{self.f.datenort_text()}</p><p>Stammdaten: {herkunft} (Stand {stand})</p>{warnung}"
-                          f"<table cellpadding='2'>{zeilen}</table>")
+        tabellen = [(t.titel, db.anzahl(t.name)) for t in TABELLEN]
+        haelfte = (len(tabellen) + 1) // 2           # zwei Spalten: kurze Liste statt einer langen
+        zeilen = "".join(
+            "<tr>" + "".join(f"<td>{t}</td><td align='right' style='padding-right:18px'><b>{n}</b></td>"
+                             for t, n in tabellen[i::haelfte]) + "</tr>" for i in range(haelfte))
+        self.stamm.setText(f"<p>{herkunft} (Stand {stand})</p>{warnung}<table cellpadding='2'>{zeilen}</table>")
+        self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
+                          f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
+        zuletzt = sorted(db.angebote(), key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
+        self.zuletzt.setzen(zuletzt)
+        self.zuletzt_ansicht.setVisible(bool(zuletzt))
+        self.keine.setVisible(not zuletzt)
 
 
 class Hauptfenster(QMainWindow):

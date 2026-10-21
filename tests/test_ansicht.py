@@ -218,6 +218,62 @@ for c in range(s.pos_modell.columnCount()):
         assert s.pos_ansicht.columnWidth(c) >= min(max(fm.horizontalAdvance(w) for w in titel.split()), 240), titel
 ok("Kalkulation zuklappbar mit Kurzfassung (Wahl gespeichert), Preise groß in der Übersicht, Spaltenauswahl über "
    "der Liste statt neben den Reitern, kein Wort im Spaltenkopf abgeschnitten")
+# 1366-px-Bildschirm: die Knopfleiste bricht um, das Fenster passt (kein abgeschnittener Knopf rechts)
+assert fenster.minimumSizeHint().width() <= 1366, fenster.minimumSizeHint()
+fenster.show()
+fenster.resize(1366, 728)
+QApplication.processEvents()
+fenster.reiter.setCurrentWidget(s)
+QApplication.processEvents()
+assert s.leiste.zweizeilig and s.weitere.isVisible(), (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
+assert s.weitere.mapTo(fenster, s.weitere.rect().bottomRight()).x() <= fenster.width()
+fenster.resize(1920, 1040)
+QApplication.processEvents()
+# eine Zeile, sobald die Breite reicht (wie breit die Knöpfe sind, hängt von der Schrift des Systems ab)
+assert s.leiste.width() > 1366 - 400 and s.leiste.zweizeilig == (s.leiste.width() < s.leiste._bedarf()), \
+    (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
+ok("Angebot bei 1366 px: Ausgabe und Weitere Aktionen in zweiter Zeile, bei 1920 px eine Zeile, wenn die Breite reicht")
+# Übersicht rechts über die ganze Höhe, Angebotskopf mit Kunde und Positionen zugeklappt auf eine Zeile
+kb = s.kopf_bereich
+assert s.spalten.widget(1) is s.uebersicht_rahmen and s.uebersicht_rahmen.widget() is s.uebersicht_bereich
+assert kb.kopf_ausgefuellt() and not kb.kopf_offen() and not kb.kopf_inhalt.isVisibleTo(kb)
+assert "Test" in kb.kopf_kurz.text() and "4711" in kb.kopf_kurz.text()
+kb.kopf_aufklappen(True)
+s.neu_laden()
+assert kb.kopf_offen(), "Wahl von Hand bleibt beim Neuladen"
+neu_id = db.angebot_neu(dict(kunde=""))
+s2 = fenster.angebot_oeffnen(neu_id)
+assert s2.kopf_bereich.kopf_offen(), "neues Angebot: Kopf offen"
+fenster.angebot_schliessen(neu_id)
+assert not kb.fracht_inhalt.isVisibleTo(kb) and "Fracht" in kb.fracht_klapp.text()
+ok("Übersicht als rechte Spalte, Angebotskopf ausgefüllt zugeklappt (Kurzzeile), neues Angebot offen, Fracht zu")
+# Ergebnisreiter: leere Spalten der Kalkulation weg, Schnittplan mit gewählter Stange, Auswertung ohne Leertabelle
+assert s.optimieren()
+QApplication.processEvents()
+km = s.kalk
+spalte = {sp[1]: c for c, sp in enumerate(km.spalten)}
+assert s.kalk_ansicht.isColumnHidden(spalte["gewindezeit"]) and not s.kalk_ansicht.isColumnHidden(spalte["preis_teil"])
+assert km.data(km.index(0, spalte["material_teil"])).count(",") == 1
+assert len(km.data(km.index(0, spalte["material_teil"])).split(",")[1]) == 2
+assert "ausgeblendet" in s.kalk_info.text()
+assert s.stangen_ansicht.currentIndex().row() == 0 and s.teile.zeilen and "Stange" in s.teile_titel.text()
+sp = {x[1]: c for c, x in enumerate(s.stangen.spalten)}
+assert s.stangen_ansicht.isColumnHidden(sp["stange"]) and "6.000" in s.plan_info.text()
+assert "Alle Teile eingeplant" in s.fehler_titel.text() and not s.fehler_ansicht.isVisibleTo(s)
+# Angebotsliste und Startseite: Status und Verkaufspreis werden beim Anzeigen gemerkt, ohne Rückgängig-Schritt
+from rohrlaser.angebot_fenster import angebot_status  # noqa: E402
+schritte = len(s.verlauf.zurueck)
+s.neu_laden()
+assert len(s.verlauf.zurueck) == schritte
+zeile = next(z for z in db.angebote() if z["id"] == a)
+assert zeile["stand"] == "aktuell" and zeile["vk_netto"] > 0 and angebot_status(zeile) == "Optimiert"
+assert angebot_status(dict(optimiert_am=None)) == "Nicht optimiert"
+assert angebot_status(dict(optimiert_am="x", stand="veraltet")) == "Veraltet"
+fenster.start.neu_laden()
+assert any(z["id"] == a for z in fenster.start.zuletzt.zeilen) and fenster.start.zuletzt_ansicht.isVisibleTo(fenster.start)
+ok("Angebotsliste: Status Optimiert und Verkaufspreis gemerkt (kein Rückgängig-Schritt), Startseite zeigt es")
+ok("Kalkulation ohne Nullspalten mit 2 Stellen, Schnittplan: Gleiches einmal oben, Stange 1 gewählt; "
+   "Auswertung: Alle Teile eingeplant")
 fenster.close()
 db.schliessen()
 print("OK: Anzeige der Angebotsseite (Nullwerte, Spalten, Übersicht)")

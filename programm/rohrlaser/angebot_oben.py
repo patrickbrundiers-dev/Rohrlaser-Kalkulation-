@@ -21,6 +21,7 @@ from .stammdaten import zahl_als_text
 KOPF_FELD = {f.name: f for f in KOPF}
 KALK_NAMEN = {f.name for f in KALKULATION}
 KALK_OFFEN_EINSTELLUNG = "ansicht_kalkulation_offen"     # Karte Kalkulation auf- oder zugeklappt (alle Angebote)
+FRACHT_OFFEN_EINSTELLUNG = "ansicht_fracht_offen"        # Karte Fracht auf- oder zugeklappt (alle Angebote)
 # Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs)
 GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "handling_beistellung")),
@@ -141,8 +142,30 @@ class KopfBereich(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
 
-        # Angebotskopf: Nummer, Kunde und Maschine vorn und hervorgehoben
-        kopf, kl = karte("Angebotskopf")
+        # Angebotskopf: Nummer, Kunde und Maschine vorn und hervorgehoben; ausgefüllt zugeklappt auf eine Zeile
+        kopf, kl0 = karte()
+        titelzeile = QHBoxLayout()
+        self.kopf_knopf = QToolButton()
+        self.kopf_knopf.setObjectName("kartenknopf")
+        self.kopf_knopf.setText("Angebotskopf")
+        self.kopf_knopf.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.kopf_knopf.setCheckable(True)
+        self.kopf_knopf.setAutoRaise(True)
+        self.kopf_knopf.setToolTip("Angebotskopf ein- oder ausklappen (zugeklappt: Nummer, Kunde, Maschine, Stange)")
+        self.kopf_knopf.clicked.connect(lambda offen: self.kopf_aufklappen(offen))
+        self.kopf_kurz = QLabel()
+        self.kopf_kurz.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.kopf_kurz.setCursor(Qt.PointingHandCursor)
+        self.kopf_kurz.mousePressEvent = lambda _e: self.kopf_aufklappen(True)
+        titelzeile.addWidget(self.kopf_knopf, 0, Qt.AlignLeft)     # aufgeklappt (ohne Kurzzeile) links, nicht mittig
+        titelzeile.addWidget(self.kopf_kurz, 1)
+        kl0.addLayout(titelzeile)
+        self.kopf_inhalt = QWidget()
+        kl = QVBoxLayout(self.kopf_inhalt)
+        kl.setContentsMargins(0, 0, 0, 0)
+        kl.setSpacing(6)
+        kl0.addWidget(self.kopf_inhalt)
+        self._kopf_gewaehlt = None          # None = automatisch (zu, sobald Kunde und Positionen da sind)
         g = QGridLayout()
         g.setHorizontalSpacing(10)
         g.setVerticalSpacing(5)
@@ -326,7 +349,30 @@ class KopfBereich(QWidget):
         self.fracht_knopf.setToolTip("Frachtkosten aus PLZ, Gewicht, Ladehilfsmitteln und Tarif berechnen "
                                      "(Reiter Frachtkosten) und ins Angebot übernehmen")
         self.fracht_knopf.clicked.connect(lambda: seite.fracht_berechnen())
-        fr, frl = karte("Fracht", self.fracht_knopf)
+        fr, fr0 = karte()
+        titelzeile = QHBoxLayout()
+        self.fracht_klapp = QToolButton()
+        self.fracht_klapp.setObjectName("kartenknopf")
+        self.fracht_klapp.setText("Fracht")
+        self.fracht_klapp.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.fracht_klapp.setCheckable(True)
+        self.fracht_klapp.setAutoRaise(True)
+        self.fracht_klapp.setToolTip("Fracht ein- oder ausklappen (zugeklappt: Frachtart und Betrag)")
+        self.fracht_klapp.clicked.connect(lambda offen: self.fracht_aufklappen(offen, merken=True))
+        self.fracht_kurz = QLabel()
+        self.fracht_kurz.setStyleSheet(f"color: {GRAU};")
+        self.fracht_kurz.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        titelzeile.addWidget(self.fracht_klapp)
+        titelzeile.addWidget(self.fracht_kurz, 1)
+        titelzeile.addStretch(0)
+        titelzeile.addWidget(self.fracht_knopf)
+        fr0.addLayout(titelzeile)
+        self.fracht_inhalt = QWidget()
+        frl = QVBoxLayout(self.fracht_inhalt)
+        frl.setContentsMargins(0, 0, 0, 0)
+        frl.setSpacing(6)
+        fr0.addWidget(self.fracht_inhalt)
+        self.fracht_karte = fr
         zeile = QHBoxLayout()
         self.fracht_modus, self.fracht_umlage = QComboBox(), QComboBox()
         self.fracht_modus.addItems(MODI)
@@ -374,6 +420,8 @@ class KopfBereich(QWidget):
         lay.addWidget(fr)
         offen = self.s.db.einstellung(KALK_OFFEN_EINSTELLUNG)
         self.kalkulation_aufklappen(offen if isinstance(offen, bool) else True)
+        offen = self.s.db.einstellung(FRACHT_OFFEN_EINSTELLUNG)
+        self.fracht_aufklappen(offen if isinstance(offen, bool) else False)
         lay.addStretch(1)
 
     def kalkulation_aufklappen(self, offen=True, merken=False):
@@ -385,6 +433,52 @@ class KopfBereich(QWidget):
         self.kalk_kurz.setVisible(not offen)
         if merken:
             self.s.db.einstellung_setzen(KALK_OFFEN_EINSTELLUNG, offen)
+            self.s.oben_anpassen()
+
+    def kopf_aufklappen(self, offen=True, automatisch=False):
+        """Angebotskopf auf- oder zuklappen; zugeklappt steht die Kurzfassung in der Titelzeile. Eine Wahl von Hand
+        gilt für dieses Angebot, solange es offen ist; automatisch klappt nur, solange nichts gewählt wurde."""
+        if automatisch and (self._kopf_gewaehlt is not None or offen == self.kopf_inhalt.isVisibleTo(self)
+                            and self.kopf_knopf.isChecked() == offen):
+            return
+        if not automatisch:
+            self._kopf_gewaehlt = offen
+        self.kopf_knopf.setChecked(offen)
+        self.kopf_knopf.setArrowType(Qt.DownArrow if offen else Qt.RightArrow)
+        self.kopf_inhalt.setVisible(offen)
+        self.kopf_kurz.setVisible(not offen)
+        self.s.oben_anpassen()
+
+    def kopf_offen(self):
+        return self.kopf_knopf.isChecked()
+
+    def _kopf_kurzfassung(self):
+        """'A-2026-0041 · 10233 Anlagenbau Hessler · T03 · 6.000 mm · Lieferzeit …' für den zugeklappten Kopf."""
+        k = self.s.kopf
+        kunde = " ".join(str(x) for x in (k.get("kundennr"), k.get("kunde")) if x)
+        teile = [f"<b>{k.get('nummer') or 'ohne Nummer'}</b>", kunde or "<i>kein Kunde</i>",
+                 k.get("maschine") or "", f"{_z(k.get('stange'), 0)} mm" if k.get("stange") else "",
+                 datum_text(k.get("datum")) if k.get("datum") else ""]
+        lz = lieferzeit_text(k)
+        if lz:
+            teile.append(lz.rstrip("."))
+        if k.get("bemerkung"):
+            teile.append(str(k["bemerkung"]))
+        self.kopf_kurz.setText("   " + " · ".join(t for t in teile if t))
+        self.kopf_kurz.setToolTip("Klicken zum Aufklappen")
+
+    def kopf_ausgefuellt(self):
+        return bool(self.s.kopf.get("kunde") and self.s.positionen)
+
+    def fracht_aufklappen(self, offen=True, merken=False):
+        """Karte Fracht auf- oder zuklappen; zugeklappt steht Frachtart und Betrag in der Titelzeile."""
+        self.fracht_klapp.setChecked(offen)
+        self.fracht_klapp.setArrowType(Qt.DownArrow if offen else Qt.RightArrow)
+        self.fracht_inhalt.setVisible(offen)
+        self.fracht_kurz.setVisible(not offen)
+        if merken:
+            self.s.db.einstellung_setzen(FRACHT_OFFEN_EINSTELLUNG, offen)
+            self.s.oben_anpassen()
 
     def kalk_offen(self):
         return self.kalk_knopf.isChecked()
@@ -507,6 +601,7 @@ class KopfBereich(QWidget):
         self._abweichungen_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()
+        self._kopf_kurzfassung()
         self._maschine_anzeigen()
         self._fracht_anzeigen()
 
@@ -608,6 +703,9 @@ class KopfBereich(QWidget):
         if hinweis:
             text += f"<br><span style='color:#7A5A00'>{hinweis}.</span>"
         self.fracht_text.setText(text)
+        kurz = text.split("<br>")[0]
+        self.fracht_kurz.setText("   " + kurz + (" ⚠" if hinweis else ""))
+        self.fracht_kurz.setToolTip(text)
 
     def sichtbarkeit(self):
         """Optionale Felder mit 0 in die Erweiterten Einstellungen, alle anderen in die Hauptansicht."""

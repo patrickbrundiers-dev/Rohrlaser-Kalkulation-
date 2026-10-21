@@ -40,7 +40,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 31     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 32     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -57,6 +57,7 @@ SCHEMA_VERSION = 31     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 29: maschinen.kontur_klein_wand/kontur_mittel_wand (Konturklasse nach Hüllmaß ÷ Wand, 3 und 8)
                         # 30: Schweißnaht (positionen.naht_vorgabe/naht_winkel/naht_quelle/querschnitt_lage, profile.naht_stange; leer = keine Vorgabe)
                         # 31: Gehrung mit Richtung (positionen.a_ende/b_ende als JSON; ältere Positionen leer)
+                        # 32: Angebotsliste mit Verkaufspreis und Stand (angebote.vk_netto/stand, beim Anzeigen gemerkt)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -144,6 +145,9 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN preisbasis TEXT")
             if "laengenwahl" not in spalten_a:        # Datei vor Schema 23 (alle Gruppen mit der Angebotslänge)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN laengenwahl TEXT")
+            if "vk_netto" not in spalten_a:           # Datei vor Schema 32 (leer, bis das Angebot geöffnet wird)
+                self.con.execute("ALTER TABLE angebote ADD COLUMN vk_netto REAL")
+                self.con.execute("ALTER TABLE angebote ADD COLUMN stand TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
@@ -1088,7 +1092,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1213,6 +1217,13 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=? WHERE id=?",
                              (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None,
                               self._jetzt() if ergebnis else None, angebot_id))
+
+    def kennzahlen_merken(self, angebot_id, vk_netto, stand):
+        """Verkaufspreis netto und Stand der Optimierung für die Angebotsliste (nur Anzeige; ändert 'geändert am'
+        nicht). Wird beim Anzeigen eines Angebots geschrieben, nur wenn sich etwas geändert hat."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET vk_netto=?, stand=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ?)",
+                             (vk_netto, stand, angebot_id, vk_netto, stand))
 
     def staffelpreise_speichern(self, angebot_id, staffelpreise):
         """staffelpreise: {'zeilen': [...], 'kennung': str, 'am': Zeitpunkt} oder None"""
@@ -1362,7 +1373,8 @@ class Datenbank:
         def zeilen(sql):
             return tuple(tuple(r) for r in self.con.execute(sql, (angebot_id,)))
         return dict(
-            angebot=tuple((k, a[k]) for k in a.keys() if k not in ("id", "geaendert")),
+            angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, stand) ist kein Schritt
+                          if k not in ("id", "geaendert", "vk_netto", "stand")),
             positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
             staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
             protokoll=zeilen("SELECT * FROM step_protokoll WHERE angebot_id=? ORDER BY id"),

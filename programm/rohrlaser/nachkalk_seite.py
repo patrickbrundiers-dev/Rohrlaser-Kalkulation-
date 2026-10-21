@@ -3,11 +3,12 @@ import datetime
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+                               QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
 from . import nachkalkulation as nk
+from .spaltenbreite import AutoGroesse
 from .stammdaten import zahl_als_text, zahl_aus_text
 
 VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", None, 60),
@@ -44,8 +45,11 @@ class NachkalkulationSeite(QWidget):
         self.gruppen.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
                                      | QAbstractItemView.AnyKeyPressed)
         self.gruppen.itemChanged.connect(self._stangen_geaendert)
-        el.addWidget(QLabel("Verbrauchte Stangen und tatsächlicher EK-Meterpreis je Profil, Werkstoff und "
-                            "Stangenlänge (Meterpreis leer = kalkulierter Meterpreis):"))
+        AutoGroesse(self.gruppen)
+        text = QLabel("Verbrauchte Stangen und tatsächlicher EK-Meterpreis je Profil, Werkstoff und "
+                      "Stangenlänge (Meterpreis leer = kalkulierter Meterpreis):")
+        text.setWordWrap(True)          # sonst bestimmt die Zeile die Mindestbreite der ganzen Angebotsseite
+        el.addWidget(text)
         el.addWidget(self.gruppen, 1)
         form = QFormLayout()
         self.felder = {}
@@ -80,7 +84,11 @@ class NachkalkulationSeite(QWidget):
         rl.addWidget(ansicht, 1)
         rl.addWidget(self.ergebnis)
         teil = QSplitter(Qt.Horizontal)
-        teil.addWidget(eingabe)
+        eingabe_rahmen = QScrollArea()      # rollt auf kleinen Bildschirmen, statt den Angebotskopf zu verdrängen
+        eingabe_rahmen.setWidgetResizable(True)
+        eingabe_rahmen.setFrameShape(QFrame.NoFrame)
+        eingabe_rahmen.setWidget(eingabe)
+        teil.addWidget(eingabe_rahmen)
         teil.addWidget(rechts)
         teil.setSizes([430, 870])
         lay = QVBoxLayout(self)
@@ -106,6 +114,10 @@ class NachkalkulationSeite(QWidget):
                                   if am else ""))
         v = self._rechnen()
         self.gruppen.setRowCount(len(v["gruppen"]))
+        # bis zu 5 Gruppen ohne Rollen sichtbar (sonst drückt das Formular die Tabelle auf eine Zeile zusammen)
+        kopf = self.gruppen.horizontalHeader().sizeHint().height()
+        leiste = self.gruppen.horizontalScrollBar().sizeHint().height()
+        self.gruppen.setMinimumHeight(kopf + leiste + 4 + 22 * max(2, min(len(v["gruppen"]), 5)))
         for r, g in enumerate(v["gruppen"]):
             for c, w in enumerate((g["profil"], g["werkstoff"], _z(g["stange"], 0), _z(g["soll"], 0),
                                    "" if g["ist"] is None else _z(g["ist"], 0), _z(g["meterpreis"], 2),

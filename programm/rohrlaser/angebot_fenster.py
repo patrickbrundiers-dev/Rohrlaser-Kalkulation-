@@ -4,7 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
@@ -28,6 +28,7 @@ from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv a
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
+from .leiste import UmbruchLeiste
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
 from .verlauf import Verlauf
@@ -75,9 +76,10 @@ def _tabelle(modell, sortieren=True):
 class Liste(QAbstractTableModel):
     """Nur-Lese-Tabelle aus dicts. spalten: [(Titel, Schlüssel oder Funktion(zeile), Nachkommastellen, Breite)]."""
 
-    def __init__(self, spalten, zeilen=()):
+    def __init__(self, spalten, zeilen=(), max_stellen=None):
         super().__init__()
         self.spalten, self.zeilen = spalten, list(zeilen)
+        self.max_stellen = max_stellen      # Anzeige höchstens so viele Nachkommastellen, Tooltip genau
 
     def setzen(self, zeilen):
         self.beginResetModel()
@@ -108,6 +110,8 @@ class Liste(QAbstractTableModel):
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
             if isinstance(w, datetime.datetime):
                 return w.strftime("%d.%m.%Y %H:%M")
+            if stellen is not None and self.max_stellen is not None and rolle == Qt.DisplayRole:
+                stellen = min(stellen, self.max_stellen)
             return _z(w, stellen) if stellen is not None else ("" if w is None else str(w))
         if rolle == Qt.UserRole:
             return w
@@ -120,18 +124,74 @@ class Liste(QAbstractTableModel):
         return None
 
 
+def leere_ausblenden(ansicht, liste, immer=()):
+    """Spalten ohne Wert in allen Zeilen (0, leer) ausblenden wie in der Positionsliste (sichtbarkeit.py); Spalten
+    mit Schlüssel in immer bleiben. Ergebnis: Anzahl ausgeblendeter Spalten."""
+    n = 0
+    for c, sp in enumerate(liste.spalten):
+        zeigen = (not liste.zeilen or sp[1] in immer
+                  or spalte_sichtbar([liste.wert(r, c) for r in range(len(liste.zeilen))]))
+        ansicht.setColumnHidden(c, not zeigen)
+        n += not zeigen
+    return n
+
+
+def gleiche_ausblenden(ansicht, liste, schluessel):
+    """Spalten (Schlüssel aus schluessel), die in allen Zeilen denselben Wert haben, ausblenden; Ergebnis: Text
+    'Titel Wert' je ausgeblendeter Spalte für eine Zeile über der Tabelle (Gleiches steht nur einmal da)."""
+    teile = []
+    for c, sp in enumerate(liste.spalten):
+        if sp[1] not in schluessel:
+            continue
+        werte = {liste.data(liste.index(r, c)) for r in range(len(liste.zeilen))}
+        gleich = len(liste.zeilen) > 1 and len(werte) == 1
+        ansicht.setColumnHidden(c, gleich)
+        if gleich:
+            titel, einheit = sp[0], ""
+            if "[" in titel:
+                titel, einheit = titel.split("[", 1)
+                einheit = " " + einheit.rstrip("]")
+            teile.append(f"{titel.strip()} <b>{werte.pop()}{einheit}</b>")
+    return teile
+
+
 def _breiten(ansicht, spalten):
     for i, s in enumerate(spalten):
         ansicht.setColumnWidth(i, s[3] if len(s) > 3 else 90)
 
 
 # ------------------------------------------------------------------ Übersicht der Angebote
+# Stand eines Angebots in der Liste: Text und Farbe (wie die Etiketten in der Übersicht des Angebots)
+STATUS_FARBE = {"Nachkalkuliert": "#DDEBF7", "Optimiert": "#E3F4E8", "Veraltet": "#FDECEA",
+                "Nicht optimiert": "#FFF6DB"}
+
+
+def angebot_status(z):
+    """'Nachkalkuliert', 'Optimiert', 'Veraltet' oder 'Nicht optimiert'; ohne gemerkten Stand (Angebot seit dem
+    Update nicht geöffnet) zählt, ob es ein Optimierungsergebnis gibt."""
+    if z.get("nachkalkuliert"):
+        return "Nachkalkuliert"
+    if not z.get("optimiert_am") or z.get("stand") == "offen":
+        return "Nicht optimiert"
+    return "Veraltet" if z.get("stand") == "veraltet" else "Optimiert"
+
+
+class AngeboteListe(Liste):
+    def data(self, index, rolle=Qt.DisplayRole):
+        if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] == "Status":
+            farbe = STATUS_FARBE.get(self.wert(index.row(), index.column()))
+            return QBrush(QColor(farbe)) if farbe else None
+        return super().data(index, rolle)
+
+
 class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
-               ("Datum", lambda z: _datum(z.get("datum")), None, 85), ("Maschine", "maschine", None, 70),
+               ("Datum", lambda z: _datum(z.get("datum")), None, 85),
+               ("Status", lambda z: angebot_status(z), None, 120),
+               ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
                ("Optimiert am", lambda z: _zeit(z.get("optimiert_am")), None, 120),
                ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120),
@@ -140,7 +200,7 @@ class AngeboteSeite(QWidget):
     def __init__(self, fenster):
         super().__init__()
         self.f, self.db = fenster, fenster.db
-        self.modell = Liste(self.SPALTEN)
+        self.modell = AngeboteListe(self.SPALTEN)
         self.filter = Sortierung()
         self.filter.setSourceModel(self.modell)
         self.ansicht = _tabelle(self.filter)
@@ -159,6 +219,8 @@ class AngeboteSeite(QWidget):
         for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
                            ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
             b = QPushButton(text)
+            if text == "Neues Angebot":
+                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addSpacing(20)
@@ -728,6 +790,11 @@ ZUKAUF_SPALTEN = [("Artikelnr.", "artikel", None, 90), ("Bezeichnung", "bezeichn
 PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None, 90) for i, t in enumerate(step.PROTOKOLL)]
 
 
+KALK_IMMER = {"pos", "artikel", "stueck", "material_teil", "herstell_teil", "preis_teil", "preis_position"}
+PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}   # einmal über dem Schnittplan
+UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
+
+
 class AngebotSeite(QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
@@ -751,20 +818,21 @@ class AngebotSeite(QWidget):
         self.stand = self.uebersicht_bereich.stand
         self.uebersicht = self.uebersicht_bereich.uebersicht
         self.uebersicht_bereich.preise_knopf.clicked.connect(lambda _=False: self.preise_aktualisieren())
-        oben_inhalt = QWidget()
-        oben = QHBoxLayout(oben_inhalt)
-        oben.setContentsMargins(0, 0, 4, 0)
-        oben.setSpacing(10)
-        oben.addWidget(self.kopf_bereich, 3)
-        oben.addWidget(self.uebersicht_bereich, 2)
-        oben_rahmen = QScrollArea()          # kleine Fenster: Kopf und Übersicht scrollen
+        oben_rahmen = QScrollArea()          # kleine Fenster: Kopf und Kalkulation scrollen
         oben_rahmen.setWidgetResizable(True)
         oben_rahmen.setFrameShape(QFrame.NoFrame)
-        oben_rahmen.setWidget(oben_inhalt)
+        oben_rahmen.setWidget(self.kopf_bereich)
+        # Übersicht als rechte Spalte über die ganze Höhe: Preise immer im Blick, die Reiter bekommen mehr Höhe
+        self.uebersicht_rahmen = QScrollArea()
+        self.uebersicht_rahmen.setWidgetResizable(True)
+        self.uebersicht_rahmen.setFrameShape(QFrame.NoFrame)
+        self.uebersicht_rahmen.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.uebersicht_rahmen.setWidget(self.uebersicht_bereich)
+        self.uebersicht_rahmen.setMinimumWidth(UEBERSICHT_MIN)
 
         # Aktionen: Hauptaktionen hervorgehoben, dann Bearbeiten, rechts Ausgabe und Weitere Aktionen
-        leiste = QHBoxLayout()
-        leiste.setSpacing(6)
+        self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
+        leiste = self.leiste.links_layout
         for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren()),
                            ("Optimieren", self.optimieren), ("3D-Ansicht …", lambda: self.ansicht_3d())):
             b = QPushButton(text)
@@ -786,7 +854,7 @@ class AngebotSeite(QWidget):
             else:
                 b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
-        leiste.addStretch(1)
+        leiste = self.leiste.rechts_layout
         leiste.addWidget(QLabel("Ausgabe:"))
         for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
                            ("Kalkulation (PDF)", self.kalkulation_pdf)):
@@ -831,7 +899,7 @@ class AngebotSeite(QWidget):
                        "naht": self.schweissnaht}.get(
                 self.pos_modell.spalten[i.column()][0], lambda _: None)([i.row()]))
 
-        self.kalk = Liste(KALK_SPALTEN)
+        self.kalk = Liste(KALK_SPALTEN, max_stellen=2)
         self.stangen = Liste(STANGEN_SPALTEN)
         self.teile = Liste(TEIL_SPALTEN)
         self.ausw = Liste(AUSW_SPALTEN)
@@ -842,18 +910,35 @@ class AngebotSeite(QWidget):
         _breiten(kalk_ansicht, KALK_SPALTEN)
         self.summen = QLabel()
         self.summen.setWordWrap(True)
+        self.summen.setObjectName("summenzeile")
+        self.kalk_info = QLabel()
+        self.kalk_info.setStyleSheet("color: #5F6B7A;")
         kalk_seite = QWidget()
         kl = QVBoxLayout(kalk_seite)
         kl.addWidget(self.summen)
+        kl.addWidget(self.kalk_info)
         kl.addWidget(kalk_ansicht, 1)
         self.stangen_ansicht = _tabelle(self.stangen, sortieren=False)
         _breiten(self.stangen_ansicht, STANGEN_SPALTEN)
         self.stangen_ansicht.selectionModel().currentRowChanged.connect(self._stange_gewaehlt)
-        teile_ansicht = _tabelle(self.teile, sortieren=False)
+        teile_ansicht = self.teile_ansicht = _tabelle(self.teile, sortieren=False)
         _breiten(teile_ansicht, TEIL_SPALTEN)
         plan = QSplitter(Qt.Vertical)
-        plan.addWidget(self.stangen_ansicht)
-        plan.addWidget(teile_ansicht)
+        plan_oben = QWidget()
+        po = QVBoxLayout(plan_oben)
+        po.setContentsMargins(0, 4, 0, 0)
+        self.plan_info = QLabel()           # was für alle Stangen gleich ist, steht nur hier einmal
+        self.plan_info.setWordWrap(True)
+        po.addWidget(self.plan_info)
+        po.addWidget(self.stangen_ansicht, 1)
+        plan_unten = QWidget()
+        pu = QVBoxLayout(plan_unten)
+        pu.setContentsMargins(0, 4, 0, 0)
+        self.teile_titel = QLabel()
+        pu.addWidget(self.teile_titel)
+        pu.addWidget(teile_ansicht, 1)
+        plan.addWidget(plan_oben)
+        plan.addWidget(plan_unten)
         self.bild = Stangenbild()
         bild_rahmen = QScrollArea()
         bild_rahmen.setWidgetResizable(True)
@@ -865,7 +950,10 @@ class AngebotSeite(QWidget):
         fehler_ansicht = _tabelle(self.fehler)
         _breiten(fehler_ansicht, FEHLER_SPALTEN)
         al.addWidget(ausw_ansicht, 2)
-        al.addWidget(QLabel("<b>Nicht eingeplante Teile</b>"))
+        self.fehler_titel = QLabel()
+        self.fehler_titel.setWordWrap(True)
+        al.addWidget(self.fehler_titel)
+        self.fehler_ansicht = fehler_ansicht
         al.addWidget(fehler_ansicht, 1)
         # Lieferlängen: Knopf nur bei einer sinnvollen Lösung, der Vergleich selbst groß im eigenen Fenster
         self.laengen_dialog = LaengenDialog(self)
@@ -943,7 +1031,7 @@ class AngebotSeite(QWidget):
         unten = QWidget()
         ul = QVBoxLayout(unten)
         ul.setContentsMargins(0, 0, 0, 0)
-        ul.addLayout(leiste)
+        ul.addWidget(self.leiste)
         ul.addWidget(self.reiter, 1)
         self.teiler = QSplitter(Qt.Vertical)
         self.teiler.addWidget(oben_rahmen)
@@ -951,9 +1039,15 @@ class AngebotSeite(QWidget):
         self.teiler.setStretchFactor(0, 0)
         self.teiler.setStretchFactor(1, 1)
         self.teiler.setChildrenCollapsible(False)
+        self.spalten = QSplitter(Qt.Horizontal)       # links Kopf und Reiter, rechts die Übersicht
+        self.spalten.addWidget(self.teiler)
+        self.spalten.addWidget(self.uebersicht_rahmen)
+        self.spalten.setStretchFactor(0, 1)
+        self.spalten.setStretchFactor(1, 0)
+        self.spalten.setChildrenCollapsible(False)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
-        lay.addWidget(self.teiler, 1)
+        lay.addWidget(self.spalten, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()
 
@@ -1004,6 +1098,7 @@ class AngebotSeite(QWidget):
         self._laden = True
         try:
             self.kopf_bereich.anzeigen()
+            self.kopf_bereich.kopf_aufklappen(not self.kopf_bereich.kopf_ausgefuellt(), automatisch=True)
         finally:
             self._laden = False
 
@@ -1013,13 +1108,26 @@ class AngebotSeite(QWidget):
 
     def showEvent(self, ereignis):
         super().showEvent(ereignis)
-        if not getattr(self, "_teiler_gesetzt", False):     # Kopf so hoch wie nötig, höchstens gut die Hälfte
+        if not getattr(self, "_teiler_gesetzt", False):
             self._teiler_gesetzt = True
-            h = self.teiler.height()
-            if h < 700 and self.db.einstellung(KALK_OFFEN_EINSTELLUNG) is None:     # kleiner Bildschirm
+            b = self.spalten.width()
+            rechts = UEBERSICHT_BREIT if b >= 1700 else UEBERSICHT_MIN
+            self.spalten.setSizes([max(b - rechts, 400), rechts])
+            if self.teiler.height() < 700 and self.db.einstellung(KALK_OFFEN_EINSTELLUNG) is None:   # kleiner Bildschirm
                 self.kopf_bereich.kalkulation_aufklappen(False)
-            oben = min(self.teiler.widget(0).widget().sizeHint().height() + 6, int(h * 0.55))
-            self.teiler.setSizes([oben, max(h - oben, 200)])
+            self._oben_anpassen_jetzt()
+
+    def oben_anpassen(self):
+        """Oberen Teil (Kopf, Kalkulation, Fracht) so hoch wie nötig, höchstens gut die Hälfte; nach dem Auf- oder
+        Zuklappen des Angebotskopfs."""
+        if getattr(self, "_teiler_gesetzt", False):
+            QTimer.singleShot(0, self._oben_anpassen_jetzt)      # erst nach dem Layout des Auf- oder Zuklappens
+
+    def _oben_anpassen_jetzt(self):
+        h = self.teiler.height()
+        self.kopf_bereich.adjustSize()
+        oben = min(self.kopf_bereich.sizeHint().height() + 6, int(h * 0.55))
+        self.teiler.setSizes([oben, max(h - oben, 200)])
 
     def _kopf_speichern(self, fd, wert):
         if self._laden or wert == self.kopf.get(fd.name):
@@ -1162,23 +1270,39 @@ class AngebotSeite(QWidget):
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
+        vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
+        stand = self.stand_optimierung()
+        self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
+                                  "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
+        n = leere_ausblenden(self.kalk_ansicht, self.kalk, KALK_IMMER)
+        self.kalk_info.setText(f"{len(self.kalk.zeilen)} Positionen · Beträge auf 2 Stellen (genauer Wert im "
+                               f"Tooltip)" + (f" · {n} Spalten ohne Werte ausgeblendet" if n else ""))
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
             # Schnittplan wie geladen: zugeschnittene Lieferstangen als ihre Werkstücke
             self.stangen.setzen([dict(s, **w) for s, w in rechnen.anzeige_stangen(erg, sw)])
             ausw = rechnen.auswertung_zeilen(erg, sw)
             self.ausw.setzen(ausw)
-            self.fehler.setzen(erg["fehler"] or [dict(grund="keine")])
+            self.fehler.setzen(erg["fehler"])
         else:
             self.stangen.setzen([])
             self.ausw.setzen([])
             self.fehler.setzen([])
+        gleich = gleiche_ausblenden(self.stangen_ansicht, self.stangen, PLAN_GLEICH)
+        self.plan_info.setText(f"{len(self.stangen.zeilen)} Stangen" + (" · für alle gleich: " + " · ".join(gleich)
+                                                                          if gleich else "")
+                               if self.stangen.zeilen else "Noch nicht optimiert.")
+        self.fehler_titel.setText(
+            "" if not erg else "<span style='color:#1E6B34'><b>✓ Alle Teile eingeplant.</b></span>"
+            if not erg["fehler"] else f"<span style='color:#B42318'><b>Nicht eingeplante Teile "
+                                      f"({len(erg['fehler'])})</b></span>")
+        self.fehler_ansicht.setVisible(bool(erg and erg["fehler"]))
         self.teile.setzen([])
         self.laengen_ansicht.setHtml(laengen_html(erg, self.kopf, self.positionen, self.k, self.tabellen, self.einst))
         hinweis = laengen_sinnvoll(erg, self.kopf, self.positionen, self.k, self.tabellen, self.einst)
@@ -1189,13 +1313,22 @@ class AngebotSeite(QWidget):
         self.prot.setzen(self.db.protokoll(self.id))
         self.st_seite.setzen()
         self.nachkalk.neu_laden()
+        if self.stangen.zeilen:          # Teile der ersten Stange gleich zeigen, nicht erst nach einem Klick
+            zeile = max(self.stangen_ansicht.currentIndex().row(), 0)
+            self.stangen_ansicht.selectRow(min(zeile, len(self.stangen.zeilen) - 1))
+            self._stange_gewaehlt(self.stangen_ansicht.currentIndex())
 
     def _stange_gewaehlt(self, aktuell, _=None):
         if not aktuell.isValid() or not self.ergebnis:
             self.teile.setzen([])
+            self.teile_titel.setText("")
             return
-        s = rechnen.anzeige_stangen(self.ergebnis)[aktuell.row()]     # in der Liste ist 'teile' die Anzahl
+        zeile = self.stangen_ansicht.model().mapToSource(aktuell).row() if hasattr(
+            self.stangen_ansicht.model(), "mapToSource") else aktuell.row()
+        s = rechnen.anzeige_stangen(self.ergebnis)[zeile]     # in der Liste ist 'teile' die Anzahl
         self.teile.setzen([dict(t, platz=i) for i, t in enumerate(s["teile"], start=1)])
+        leere_ausblenden(self.teile_ansicht, self.teile, {"platz", "pos", "artikel", "laenge", "von", "bis"})
+        self.teile_titel.setText(f"<b>Teile auf Stange {s.get('nr') or zeile + 1}</b> (Stange oben wählen)")
 
     def _spalten_zeigen(self):
         """Sichtbare Spalten der Positionsliste: Standardspalten immer, optionale Spalten mit Werten oder nach Wahl

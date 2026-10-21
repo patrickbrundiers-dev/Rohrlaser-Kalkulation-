@@ -11,7 +11,7 @@ Regeln (für alle Tabellen gleich, damit das Layout ruhig und übersichtlich ble
 - Bei sehr vielen Zeilen (über MAX_ANZAHL) bleiben die Zeilen einzeilig (Geschwindigkeit).
 """
 from PySide6.QtCore import QObject, Qt, QTimer
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QFont, QFontMetrics, QGuiApplication
 
 MAX_BREITE = 260
 MIN_BREITE = 40
@@ -21,7 +21,9 @@ MAX_ANZAHL = 500
 
 def kopfbreite(ansicht, c):
     """Breite, die der Spaltenkopf mindestens braucht: höchstens zweizeilig, kein Wort abgeschnitten."""
-    fm = ansicht.horizontalHeader().fontMetrics()
+    schrift = QFont(ansicht.horizontalHeader().font())
+    schrift.setBold(True)           # Spaltenköpfe sind fett (STIL), sonst wird der Kopf abgeschnitten
+    fm = QFontMetrics(schrift)
     titel = str(ansicht.model().headerData(c, Qt.Horizontal, Qt.DisplayRole) or "")
     woerter = [fm.horizontalAdvance(w) for w in titel.split()] or [0]
     return max(max(woerter), fm.horizontalAdvance(titel) / 2) + 20
@@ -47,8 +49,13 @@ class AutoGroesse(QObject):
         self._timer.setInterval(0)
         self._timer.timeout.connect(self.anpassen)
         ansicht.setWordWrap(True)
+        ansicht.setAlternatingRowColors(True)      # Zebra-Zeilen wie in den PDF-Listen
         ansicht.setTextElideMode(Qt.ElideRight)
-        ansicht.horizontalHeader().sectionResized.connect(self._gezogen)
+        kopf = ansicht.horizontalHeader()
+        kopf.sectionResized.connect(self._gezogen)
+        # Köpfe zweizeilig (Regel oben), sonst wird ein langer Kopf trotz passender Breite abgeschnitten
+        kopf.setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
+        kopf.setMinimumHeight(max(kopf.minimumHeight(), 2 * kopf.fontMetrics().lineSpacing() + 12))
         m = ansicht.model()
         for signal in (m.modelReset, m.layoutChanged, m.rowsInserted, m.rowsRemoved, m.dataChanged, m.columnsInserted):
             signal.connect(self.spaeter)
@@ -84,7 +91,10 @@ class AutoGroesse(QObject):
 
     def anpassen(self):
         self._timer.stop()
-        if self.ansicht.model() is None or self.ansicht.model().rowCount() == 0:
+        if self.ansicht.model() is None:
+            return
+        if self.ansicht.model().rowCount() == 0:      # leere Tabelle: wenigstens die Spaltenköpfe ganz zeigen
+            self._koepfe()
             return
         self._breiten(None, wachsen=self.eingepasst)
         self.eingepasst = True
@@ -103,6 +113,21 @@ class AutoGroesse(QObject):
                 if wachsen:
                     b = max(b, a.columnWidth(c))
                 if b != a.columnWidth(c):
+                    a.setColumnWidth(c, b)
+        finally:
+            self._selbst = False
+
+    def _koepfe(self):
+        a = self.ansicht
+        kopf = a.horizontalHeader()
+        letzte = kopf.logicalIndex(kopf.count() - 1) if kopf.stretchLastSection() else None
+        self._selbst = True
+        try:
+            for c in range(a.model().columnCount()):
+                if a.isColumnHidden(c) or c in self.von_hand or c == letzte:
+                    continue
+                b = int(min(max(kopfbreite(a, c), MIN_BREITE), self.max_breite))
+                if b > a.columnWidth(c):
                     a.setColumnWidth(c, b)
         finally:
             self._selbst = False

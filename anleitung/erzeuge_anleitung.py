@@ -561,8 +561,13 @@ def kapitel_start(i):
     i.abschnitt("Startseite")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
-           "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an. Die Startseite zeigt in Rot, dass es sich um Beispielwerte handelt, und hinter "
-           "der Datendatei, ob das Programm installiert oder portabel läuft.")
+           "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an.")
+    i.text("Die Startseite ist eine Übersicht in drei Karten. <b>Angebote</b>: <b>Neues Angebot</b> legt gleich ein "
+           "Angebot an, <b>Alle Angebote</b> wechselt in den Reiter Angebote ([[angebote]]); darunter die zuletzt "
+           "bearbeiteten Angebote mit Status und Verkaufspreis, Doppelklick öffnet eines. <b>Stammdaten</b>: Herkunft "
+           "und Stand, in Rot der Hinweis auf Beispielwerte, die Anzahl der Einträge je Tabelle und <b>Einstellungen "
+           "öffnen</b>. <b>Daten und Sicherung</b>: die Datendatei (dahinter, ob das Programm installiert oder "
+           "portabel läuft) und die Knöpfe zur Datensicherung.")
     i.bild("start_beispiel", "Startseite nach dem ersten Start (Beispiel-Stammdaten)", hoehe=112 * mm, legende=[
         (1, "<b>Datensicherung erstellen</b>: geprüfte Kopie der Datendatei in den Ordner <i>Sicherung</i> und, "
             "falls eingestellt, in den zweiten Sicherungsordner."),
@@ -576,7 +581,11 @@ def kapitel_start(i):
 def kapitel_angebote(i):
     i.kapitel("Angebote verwalten", marke="angebote")
     i.text("Der Reiter <i>Angebote</i> listet alle Angebote, die neuesten oben. Doppelklick öffnet ein Angebot in "
-           "einem eigenen Reiter.")
+           "einem eigenen Reiter. Die Spalte <b>Status</b> zeigt farbig, wie weit ein Angebot ist: <i>Nicht "
+           "optimiert</i> (gelb), <i>Optimiert</i> (grün), <i>Veraltet</i> (rot: nach der Optimierung geändert, "
+           "bitte neu optimieren) und <i>Nachkalkuliert</i> (blau). <b>Verkaufspreis netto</b> ist der Preis aus der "
+           "Übersicht des Angebots; das Programm merkt ihn sich beim Anzeigen eines Angebots. Ältere Angebote, die "
+           "seit dem Update noch nicht geöffnet wurden, haben dort noch keinen Wert.")
     i.bild("angebote", "Reiter Angebote", hoehe=125 * mm, legende=[
         (1, "Reiter <b>Angebote</b>: Übersicht mit Positionen, Teilen und Zeitpunkt der letzten Optimierung."),
         (2, "<b>Neues Angebot</b>: legt ein Angebot mit der nächsten Nummer, dem heutigen Datum, der "
@@ -596,9 +605,17 @@ def kapitel_angebote(i):
 
 def kapitel_angebot(i):
     i.kapitel("Angebot anlegen und bearbeiten", marke="angebot")
-    i.text("Ein geöffnetes Angebot zeigt oben links den Angebotskopf und die Kalkulation dieses Angebots, rechts die "
-           "Übersicht, darunter die Aktionen und die Reiter mit Positionen und Ergebnissen. Die Trennlinie zwischen "
-           "oben und unten lässt sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil.")
+    i.text("Ein geöffnetes Angebot zeigt links oben die Karten <b>Angebotskopf</b>, <b>Kalkulation dieses "
+           "Angebots</b> und <b>Fracht</b>, darunter die Aktionen und die Reiter mit Positionen und Ergebnissen. Die "
+           "<b>Übersicht</b> (Stand, Herstellkosten, Verkaufspreis, Meldungen, Kosten, Zeiten) steht rechts über die "
+           "ganze Höhe und bleibt in jedem Reiter sichtbar. Die Trennlinien zwischen oben und unten und zwischen links "
+           "und Übersicht lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil.")
+    i.text("Der <b>Angebotskopf</b> ist bei einem neuen Angebot aufgeklappt. Sobald Kunde und Positionen eingetragen "
+           "sind, klappt er beim Öffnen auf eine Zeile zu: „A-2026-0041 · 10233 Anlagenbau Hessler · T03 · 6.000 mm · "
+           "Datum · Lieferzeit · Bemerkung“. Ein Klick auf den Titel oder die Zeile klappt ihn wieder auf; diese Wahl "
+           "gilt, solange das Angebot offen ist. Die Karte <b>Fracht</b> ist zugeklappt und zeigt Frachtart und Betrag "
+           "in der Titelzeile; <b>Fracht berechnen …</b> steht auch zugeklappt bereit. Auf- oder Zuklappen der Fracht "
+           "gilt für alle Angebote.")
     i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
            "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · "
            "Rüstzeit je Abmessung 15,0 min · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
@@ -614,10 +631,11 @@ def kapitel_angebot(i):
            "ein Doppelklick auf die Trennlinie passt sie wieder an den Inhalt an. Bei mehr als 500 Zeilen bleiben "
            "die Zeilen einzeilig.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
-        (1, "<b>Angebotskopf</b>: Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, darunter Datum, "
-            "Kundenname, Standard-Stangenlänge und Bemerkung. Ganz unten die aufklappbaren Maschinenparameter."),
-        (2, "<b>Übersicht</b>: Stand der Optimierung, Herstellkosten und Verkaufspreis groß, Meldungen, "
-            "Kennzahlen und Kosten nach Gruppen."),
+        (1, "<b>Angebotskopf</b> (aufgeklappt): Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, "
+            "darunter Datum, Kundenname, Standard-Stangenlänge und Bemerkung. Ganz unten die aufklappbaren "
+            "Maschinenparameter."),
+        (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
+            "groß, Meldungen, Kennzahlen, Kosten nach Gruppen und Zeiten."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
@@ -1122,8 +1140,12 @@ def kapitel_optimieren(i):
            legende=[(1, "Stand der Optimierung: grün Optimierung abgeschlossen, gelb noch nicht optimiert, rot "
                         "Veraltet.")])
     i.abschnitt("Kalkulation", marke="kalkulation")
-    i.text("Der Reiter <i>Kalkulation</i> zeigt oben die Summen des Angebots und darunter je Position Material, "
-           "Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position.")
+    i.text("Der Reiter <i>Kalkulation</i> zeigt oben in einem Kasten die Summen des Angebots und darunter je Position "
+           "Material, Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position. Beträge "
+           "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; Kalkulations-PDF und "
+           "CSV-Export rechnen weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
+           "Zusatzarbeiten, Handling Kundenmaterial), sind ausgeblendet; die Zeile über der Tabelle nennt ihre "
+           "Anzahl. Pos., Artikelnummer, Stückzahl, Material, Herstellkosten und Verkaufspreis bleiben immer.")
     i.text("Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots einzeln auf "
            "(die Übersicht nach Gruppen, einzeln unter <i>Kostenarten einzeln</i>); im Reiter fehlen Kostenarten "
            "mit 0,00 €, PDF und CSV enthalten alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
@@ -1329,8 +1351,11 @@ def kapitel_optimieren(i):
         (2, "Spalte <b>Zusatzarbeiten</b>: Doppelklick öffnet die Auswahl."),
         (3, "Status <b>HINWEIS: Schneidzeit manuell</b>.")])
     i.abschnitt("Schnittplan")
-    i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Ein Klick auf eine Stange zeigt unten ihre "
-           "Teile in Schnittreihenfolge mit Lage (von/bis), Drehung und Art der Trennung.")
+    i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Was für alle Stangen gleich ist (z. B. "
+           "Stangenlänge, Endbeschnitt, Greiferrest, Profil), steht nur einmal in der Zeile darüber („für alle gleich: "
+           "Stangenlänge 6.000 mm · Endbeschnitt 10 mm · …“) und nicht in jeder Zeile. Unten stehen die Teile der "
+           "gewählten Stange in Schnittreihenfolge mit Lage (von/bis), Drehung und Art der Trennung; nach dem "
+           "Optimieren ist die erste Stange schon gewählt, ein Klick auf eine andere Stange zeigt deren Teile.")
     i.text("Bei Gehrungen zeigt die Spalte <b>Lage</b>, ob das Teil um die eigene Achse gedreht liegt (<i>normal</i> "
            "oder <i>gedreht 180°</i>), die Spalte <b>Schweißnaht</b> eine feste oder unbekannte Naht "
            "(<i>Naht 90° fest</i>, <i>Naht unbekannt, nicht drehen</i>; leer = frei drehbar, [[schweissnaht]]). "
@@ -1354,9 +1379,10 @@ def kapitel_optimieren(i):
            "<b>Stangen ohne Drehen</b> und <b>Gehrungen ineinander [mm]</b> zeigen den Unterschied, die Bewertung "
            "nennt ihn (<i>Drehen spart 1 Stange …</i>, <i>… Drehen spart keine Stange</i> oder <i>Drehen bringt "
            "keine Verbesserung</i>).",
-           "Darunter stehen die <b>nicht eingeplanten Teile</b> mit Grund, z. B. Teil länger als die Nutzlänge der "
-           "Stange, Profil über der Maschinengrenze oder fehlende Angaben. Diese Teile fehlen in Schnittplan, "
-           "Kalkulation und Angebot, bis der Grund behoben ist.")
+           "Darunter steht grün <b>✓ Alle Teile eingeplant.</b> oder rot <b>Nicht eingeplante Teile</b> mit einer "
+           "Tabelle: je Teil der Grund, z. B. Teil länger als die Nutzlänge der Stange, Profil über der "
+           "Maschinengrenze oder fehlende Angaben. Diese Teile fehlen in Schnittplan, Kalkulation und Angebot, bis "
+           "der Grund behoben ist.")
     i.bild("erg_auswertung", "Reiter Auswertung", hoehe=85 * mm)
     i.abschnitt("Lieferlängen: 6 m gegen 12 m", marke="lieferlaengen")
     i.text("Gibt es für ein Profil + Werkstoff weitere Lieferlängen (Stammdaten <i>Lieferlängen</i>, z. B. "
@@ -1805,7 +1831,9 @@ def kapitel_zukauf_angebot(i):
 def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation", marke="ausgabe")
     i.text("Die Knöpfe rechts neben <b>Ausgabe</b> im Angebot erzeugen die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
-           "und gleich geöffnet. Ist die Optimierung veraltet, fragt das Programm vorher.")
+           "und gleich geöffnet. Ist die Optimierung veraltet, fragt das Programm vorher. Bei schmalem Fenster (z. B. "
+           "1366 px Bildschirmbreite) rücken <b>Ausgabe</b> und <b>Weitere Aktionen</b> rechtsbündig in eine zweite "
+           "Zeile unter die Arbeitsknöpfe, damit nichts abgeschnitten wird.")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
         (1, "<b>Angebot (PDF)</b>: Briefkopf mit Firmenlogo (Einstellung <i>Firmenlogo</i>), Anschriftfeld "
             "links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), Positionen "
@@ -3164,6 +3192,16 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.32", "Startseite als Übersicht (Neues Angebot, zuletzt bearbeitete Angebote, Stammdaten, Sicherung); "
+               "Angebotsliste mit farbigem Status und Verkaufspreis ([[angebote]])."],
+    ["0.6.31", "Angebot übersichtlicher: Übersicht rechts über die ganze Höhe, Angebotskopf und Fracht klappen auf "
+               "eine Zeile zu ([[angebot]]); Kalkulation ohne leere Spalten mit 2 Nachkommastellen "
+               "([[kalkulation]]), Schnittplan zeigt Gleiches einmal und gleich die erste Stange, Auswertung "
+               "„Alle Teile eingeplant“."],
+    ["0.6.30", "Einheitliches Aussehen wie die PDFs (dunkelblaue Akzente, Reiter, Tabellenköpfe mit Linie, "
+               "Zebra-Zeilen); Angebot passt auf 1366-px-Bildschirme ([[ausgabe]]); Spaltenköpfe nicht mehr "
+               "abgeschnitten, Staffel-Kostentabelle mit lesbarem Zeilenabstand, Nachkalkulation zeigt alle "
+               "Stangengruppen."],
     ["0.6.29", "Schneidweg-Rechner: <b>maßstäbliche Skizze</b> mit Draufsicht, Seitenansicht, Ansicht von A und "
                "<b>Abwicklung</b> für alle Profilformen, Bemaßung, Zoom; Konturen anklicken (Zeile wird markiert) "
                "und mit der Maus verschieben. Neu je Kontur: Seite bzw. Winkel, Versatz quer und Abstand für Muster; "
