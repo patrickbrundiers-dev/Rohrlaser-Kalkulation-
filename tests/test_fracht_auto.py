@@ -74,11 +74,11 @@ kb = seite.kopf_bereich
 assert not kb.fracht_auto.isChecked()
 ok("1B: neues Angebot ohne Haken 'Fracht automatisch berechnen'")
 
-# Kunde mit Lieferanschrift 25980 -> Ziel '25', DE
+# Kunde mit Lieferanschrift 25980 -> Ziel '25980', DE (volle PLZ aus dem Kunden, zwei Ziffern reichen bei der Eingabe)
 db.neu("kunden", dict(kundennr="K-77", name="Insel GmbH", plz_ort="40210 Düsseldorf", liefer_plz="25980",
                       liefer_land="DE"))
-assert fracht_angebot.ziel_aus_kunde(db.kunde("K-77")) == ("25", "DE")
-assert fracht_angebot.ziel_aus_kunde(dict(plz_ort="40210 Düsseldorf")) == ("40", "DE")
+assert fracht_angebot.ziel_aus_kunde(db.kunde("K-77")) == ("25980", "DE")
+assert fracht_angebot.ziel_aus_kunde(dict(plz_ort="40210 Düsseldorf")) == ("40210", "DE")
 seite.kunde_waehlen("K-77")
 seite = fenster.angebot_oeffnen(aid)
 kb = seite.kopf_bereich
@@ -90,10 +90,12 @@ assert fracht_angebot.auto(a) and "Mehrere Tarife" in d["fehler"] and d["gesamt"
 ok("Ohne Versandart in den Einstellungen: zwei Tarife passen gleich gut, Fehler statt geratenem Tarif")
 db.einstellung_setzen("fracht_versandart", "Stückgut")
 seite = fenster.angebot_oeffnen(aid)
-seite.fracht_ziel_setzen("25", "")        # unveränderte PLZ: nichts zu tun
+assert db.angebot(aid)["fracht_plz"] == "25980"
+seite.fracht_ziel_setzen("25980", "")     # unveränderte PLZ: nichts zu tun
 assert "Mehrere Tarife" in fracht_angebot.daten(db.angebot(aid))["fehler"]
-seite.fracht_ziel_setzen("25 ", "de")     # gleiche Eingabe, normalisiert: ebenfalls nichts
 seite.neu_laden()                         # jede Änderung lädt neu: ohne Tarifkopie wird ganz neu gerechnet
+assert not fracht_angebot.daten(db.angebot(aid)).get("fehler")
+seite.fracht_ziel_setzen("25 ", "de")     # zwei Ziffern reichen: ganzer Bereich 25…
 kb = seite.kopf_bereich
 a = db.angebot(aid)
 d = fracht_angebot.daten(a)

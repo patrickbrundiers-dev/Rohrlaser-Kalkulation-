@@ -943,6 +943,16 @@ class HistorieSeite(QWidget):
         erkl.setWordWrap(True)
         z.addWidget(erkl, 1)
         ul.addLayout(z)
+        richtwerte = QPushButton("Richtwerte laden")
+        richtwerte.clicked.connect(lambda: self.richtwerte())
+        z = QHBoxLayout()
+        z.addWidget(richtwerte)
+        erkl = QLabel("ersetzt alle BEISPIEL-Werte durch Richtwerte für den Palettenversand in Deutschland (Recherche "
+                      "10/2026, Marktpreise + 10 % Puffer, Zonen nach Entfernung von der Absender-PLZ); eigene "
+                      "Einträge bleiben")
+        erkl.setWordWrap(True)
+        z.addWidget(erkl, 1)
+        ul.addLayout(z)
         teiler = QSplitter(Qt.Vertical)
         teiler.addWidget(_box("Historie", oben))
         teiler.addWidget(_box("Einstellungen", unten))
@@ -992,6 +1002,27 @@ class HistorieSeite(QWidget):
         lay.addWidget(knoepfe)
         d.exec()
         return text
+
+    def richtwerte(self):
+        plz = (self.db.einstellung("absender_plz") or "").strip()
+        if not plz and not self.f.stumm:
+            plz, ok = QInputDialog.getText(self, "Richtwerte laden", "Absender-PLZ (Versandort):")
+            if not ok:
+                return None
+        if not self.f.stumm and QMessageBox.question(
+                self, "Richtwerte laden", "Alle Frachtdaten mit BEISPIEL in der Bemerkung werden durch Richtwerte für "
+                "den Palettenversand ersetzt (Zonen nach Entfernung von PLZ " + plz.strip() + "). Eigene Einträge "
+                "bleiben. Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie.\n\nFortfahren?"
+                ) != QMessageBox.Yes:
+            return None
+        try:
+            weg, neu = self.db.fracht_richtwerte_laden(plz)
+        except ValueError as e:
+            self.f.meldung(str(e), fehler=True)
+            return None
+        self.f.fracht.neu_laden_alle()
+        self.f.meldung(f"Richtwerte Palettenversand geladen: {neu} Zeilen eingefügt, {weg} Beispielzeilen ersetzt.")
+        return weg, neu
 
     def beispiele(self):
         n = self.db.fracht_beispiele_laden()
