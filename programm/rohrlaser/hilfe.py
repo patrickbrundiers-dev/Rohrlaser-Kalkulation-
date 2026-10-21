@@ -20,6 +20,11 @@ _SATZENDE = re.compile(r"(?<=[\wäöüß)\]]{2})[.!]\s+(?=[A-ZÄÖÜ0-9'„])")
 _ABKUERZUNGEN = ("bzw", "inkl", "ggf", "evtl", "usw", "ca", "Nr", "zzgl", "max", "min", "vgl", "Stk")
 
 _alle = weakref.WeakSet()
+_standard = {"db": None}           # Datenbank des Hauptfensters (einrichten), wenn ein Hinweis keine eigene bekommt
+
+
+def einrichten(db):
+    _standard["db"] = db
 
 
 def kurztext(text):
@@ -49,7 +54,7 @@ class Hinweis(QWidget):
 
     def __init__(self, text, db=None, schluessel=None, parent=None):
         super().__init__(parent)
-        self.db, self.schluessel = db, schluessel
+        self.db, self.schluessel = db if db is not None else _standard["db"], schluessel
         self.label = QLabel()
         self.label.setWordWrap(True)
         self.label.setTextFormat(Qt.PlainText)

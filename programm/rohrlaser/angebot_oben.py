@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
-from . import fracht_angebot, rechnen
+from . import fracht_angebot, hilfe, rechnen
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
@@ -266,10 +266,10 @@ class KopfBereich(QWidget):
         kal.setContentsMargins(0, 0, 0, 0)
         kal.setSpacing(6)
         kal0.addWidget(self.kalk_inhalt)
-        hinweis = QLabel("Vorgabe aus den Einstellungen, hier änderbar; gilt nur für dieses Angebot. Gelb = weicht von "
-                         "den Einstellungen ab. Werte mit 0 stehen unter „Erweiterte Einstellungen“.")
-        hinweis.setStyleSheet(f"color: {GRAU};")
-        hinweis.setWordWrap(True)
+        hinweis = hilfe.Hinweis("Vorgabe aus den Einstellungen, hier änderbar; gilt nur für dieses Angebot. Gelb = "
+                                "weicht von den Einstellungen ab. Werte mit 0 stehen unter „Erweiterte "
+                                "Einstellungen“.",
+                                schluessel="angebot_kalkulation")
         kal.addWidget(hinweis)
         self.abweichung_text = QLabel()            # welche Werte vom Standard abweichen (auch Stundensätze)
         self.abweichung_text.setWordWrap(True)

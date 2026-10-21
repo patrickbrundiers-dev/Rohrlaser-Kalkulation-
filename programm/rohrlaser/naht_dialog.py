@@ -11,7 +11,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel,
                                QVBoxLayout, QWidget)
 
-from . import naht
+from . import hilfe, naht
 
 GRAU = "#595959"
 NAHT_FARBE = "#C0392B"
@@ -151,10 +151,10 @@ class NahtDialog(QDialog):
         self.info = QLabel()
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
-        hinweis = QLabel("0° oben, 90° rechts, 180° unten, 270° links, von Ende A in Richtung Ende B gesehen. "
-                         "Klick in das Bild setzt den Winkel. Gedreht wird nur um die eigene Achse, nie gewendet.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet(f"color: {GRAU};")
+        hinweis = hilfe.Hinweis("0° oben, 90° rechts, 180° unten, 270° links, von Ende A in Richtung Ende B gesehen. "
+                                "Klick in das Bild setzt den Winkel. Gedreht wird nur um die eigene Achse, nie "
+                                "gewendet.",
+                                schluessel="naht")
         lay.addWidget(hinweis)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self.accept)

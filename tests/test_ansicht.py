@@ -322,6 +322,22 @@ assert e.spalten[1].count() == 1 and e.spalten[0].count() == len(e.boxen) + 1   
 assert all(w.maximumWidth() <= e.BREITE_TEXT + 160 for n, w in e.felder.items() if n != "logo")
 ok("Einstellungen: Hilfetext kurz mit ⓘ mehr (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
    "Warnungen, Vorgaben bei 1920 px zweispaltig, bei schmalem Fenster einspaltig")
+# Teil 5: Fracht, Zukauf, Dialoge mit kurzen Hilfetexten; Zukauf-Formular in Abschnitten zum Aufklappen
+schluessel = {h.schluessel for h in hilfe._alle}
+assert {"fracht_dienstleister", "fracht_historie", "zukauf_artikel", "zukauf_preise", "zusatzarbeiten"} <= schluessel
+zs = fenster.zukauf.artikel
+zs.neu()
+fo = zs.formular
+assert set(fo.abschnitte) == {"A  Stammdaten", "B  Einkaufspreis", "C  Aufschlag", "Preisvorschau"}
+assert fo.abschnitt_offen("A  Stammdaten") and not fo.abschnitt_offen("C  Aufschlag")
+assert fo.abschnitte["C  Aufschlag"][2].text()             # Kurzfassung neben dem zugeklappten Titel
+fo.abschnitte["C  Aufschlag"][0].click()
+assert fo.abschnitt_offen("C  Aufschlag") and "C  Aufschlag" not in db.einstellung(fo.ZU_EINSTELLUNG)
+fo.abschnitte["Preisvorschau"][0].click()
+assert not fo.abschnitt_offen("Preisvorschau") and "Preisvorschau" in db.einstellung(fo.ZU_EINSTELLUNG)
+fo.abschnitte["Preisvorschau"][0].click()
+fo.abbrechen()
+ok("Fracht, Zukauf und Dialoge mit kurzen Hilfetexten; Zukauf-Formular mit Abschnitten zum Aufklappen (gemerkt)")
 fenster.close()
 db.schliessen()
 print("OK: Anzeige der Angebotsseite (Nullwerte, Spalten, Übersicht)")

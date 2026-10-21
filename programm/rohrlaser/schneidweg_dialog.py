@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPushButton,
                                QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import rechnen, schneidweg as sw, skizze as sk
+from . import hilfe, rechnen, schneidweg as sw, skizze as sk
 from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
 
@@ -146,10 +146,7 @@ class SchneidwegDialog(QDialog):
         self.tabelle.itemChanged.connect(self.rechnen)
         self.tabelle.itemSelectionChanged.connect(self._auswahl_tabelle)
         lay.addWidget(self.tabelle, 1)
-        hilfe = QLabel(MASS_HILFE)
-        hilfe.setWordWrap(True)
-        hilfe.setStyleSheet("color: #595959;")
-        lay.addWidget(hilfe)
+        lay.addWidget(hilfe.Hinweis(MASS_HILFE, schluessel="schneidweg"))
         leiste = QHBoxLayout()
         for art in sw.ARTEN:
             b = QPushButton(f"+ {art}")

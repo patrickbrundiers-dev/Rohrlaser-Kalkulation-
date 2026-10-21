@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import tastatur, zukauf_csv
+from . import hilfe, tastatur, zukauf_csv
 from .stammdaten import zahl_als_text
 from .zukauf_dialog import datum_text
 
@@ -99,11 +99,10 @@ class PreisaenderungenSeite(QWidget):
         teiler.setStretchFactor(0, 3)
         teiler.setStretchFactor(1, 2)
         teiler.setChildrenCollapsible(False)
-        hinweis = QLabel("Jede Änderung an Einkaufspreisen, Bezugskosten und Aufschlag eines Artikels wird hier "
-                         "protokolliert. Gespeicherte Angebote rechnen mit ihrem Preisstand weiter; unten stehen die "
-                         "Angebote mit älterem Stand des markierten Artikels.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet(f"color: {GRAU};")
+        hinweis = hilfe.Hinweis("Jede Änderung an Einkaufspreisen, Bezugskosten und Aufschlag eines Artikels wird "
+                                "hier protokolliert. Gespeicherte Angebote rechnen mit ihrem Preisstand weiter; unten"
+                                " stehen die Angebote mit älterem Stand des markierten Artikels.",
+                                schluessel="zukauf_preise")
         lay = QVBoxLayout(self)
         lay.addWidget(hinweis)
         lay.addLayout(oben)

@@ -2504,7 +2504,10 @@ def kapitel_zukauf(i):
     i.abschnitt("Artikel anlegen und bearbeiten")
     i.text("Neu, Bearbeiten und Duplizieren öffnen dasselbe Formular, bei breitem Fenster rechts neben der Tabelle, "
            "sonst als eigenes Fenster. Gespeichert wird erst mit <b>Speichern</b>; <b>Abbrechen</b> verwirft alle "
-           "Eingaben. Ungültige Eingaben werden rot umrandet und unten im Formular genannt.")
+           "Eingaben. Ungültige Eingaben werden rot umrandet und unten im Formular genannt. Die Abschnitte A, B, C "
+           "und Preisvorschau klappen mit einem Klick auf ihre Überschrift zu und auf; zugeklappt steht daneben eine "
+           "Kurzfassung (z. B. bei C <i>Standard der Kategorie</i>). C Aufschlag ist anfangs zu, weil meist die "
+           "Kategorie den Aufschlag liefert; das Programm merkt sich, welche Abschnitte offen sind.")
     i.bild("zukauf_formular", "Formular mit Preisvorschau: Schrauben, 12,00 € je 100 Stück, 5,00 € Eingangsfracht, "
                               "25 % Aufschlag (Beispielwerte)", hoehe=200 * mm, legende=[
         (1, "A Stammdaten"), (2, "B Einkaufspreis: Lieferanten des Artikels, Preiseinheit und Staffelpreise"),
@@ -3205,6 +3208,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.34", "Frachtkosten, Zukauf und Dialoge mit kurzen Hilfetexten (ⓘ mehr, wie [[stammdaten]]); Zukauf-Formular "
+               "mit Abschnitten zum Auf- und Zuklappen ([[zukauf]])."],
     ["0.6.33", "Einstellungen übersichtlicher: Hilfetexte kurz mit ⓘ mehr oder nur als Tooltip (Einstellung), "
                "Prüfung OK grau statt grün, Filter „Nur Fehler und Warnungen“ ([[stammdaten]]); Vorgaben als "
                "Karten, bei breitem Fenster zweispaltig ([[vorgaben]])."],

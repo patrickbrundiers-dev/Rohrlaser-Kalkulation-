@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget,
     QTextBrowser, QVBoxLayout, QWidget)
 
-from . import fracht
+from . import fracht, hilfe
 from .angebot import aktiv as position_aktiv
 from .angebot_oben import Aufklapper
 from .fenster import EinstellungenSeite, StammdatenSeite
@@ -876,11 +876,10 @@ class DienstleisterSeite(QWidget):
         self.kundentarife.doubleClicked.connect(self.tarif_zeigen)
         neu = QPushButton("Kundentarif anlegen")
         neu.clicked.connect(lambda: self.kundentarif_anlegen())
-        hinweis = QLabel("Kundentarife, Rahmenverträge und Sondertarife sind Tarife mit Tarifart und (bei "
-                         "Kundentarifen) Kundennummer. Sie gehen bei der automatischen Auswahl vor dem Standardtarif. "
-                         "Doppelklick öffnet den Tarif in der Tarifverwaltung.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
+        hinweis = hilfe.Hinweis("Kundentarife, Rahmenverträge und Sondertarife sind Tarife mit Tarifart und (bei "
+                                "Kundentarifen) Kundennummer. Sie gehen bei der automatischen Auswahl vor dem "
+                                "Standardtarif. Doppelklick öffnet den Tarif in der Tarifverwaltung.",
+                                schluessel="fracht_dienstleister")
         unten = QWidget()
         ul = QVBoxLayout(unten)
         ul.setContentsMargins(0, 0, 0, 0)
@@ -951,10 +950,9 @@ class HistorieSeite(QWidget):
         self.tabelle.doubleClicked.connect(lambda *_: self.anzeigen())
         anzeigen = QPushButton("Kalkulation anzeigen")
         anzeigen.clicked.connect(lambda: self.anzeigen())
-        hinweis = QLabel("Jede gespeicherte Kalkulation enthält alle verwendeten Tarif-, Zonen- und Zuschlagswerte. "
-                         "Spätere Änderungen an den Frachtdaten ändern sie nicht.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
+        hinweis = hilfe.Hinweis("Jede gespeicherte Kalkulation enthält alle verwendeten Tarif-, Zonen- und "
+                                "Zuschlagswerte. Spätere Änderungen an den Frachtdaten ändern sie nicht.",
+                                schluessel="fracht_historie")
         oben = QWidget()
         ol = QVBoxLayout(oben)
         ol.setContentsMargins(0, 0, 0, 0)
