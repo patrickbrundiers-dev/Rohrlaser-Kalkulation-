@@ -231,6 +231,35 @@ fenster.resize(1920, 1040)
 QApplication.processEvents()
 assert not s.leiste.zweizeilig
 ok("Angebot bei 1366 px: Ausgabe und Weitere Aktionen in zweiter Zeile, bei 1920 px eine Zeile")
+# Übersicht rechts über die ganze Höhe, Angebotskopf mit Kunde und Positionen zugeklappt auf eine Zeile
+kb = s.kopf_bereich
+assert s.spalten.widget(1) is s.uebersicht_rahmen and s.uebersicht_rahmen.widget() is s.uebersicht_bereich
+assert kb.kopf_ausgefuellt() and not kb.kopf_offen() and not kb.kopf_inhalt.isVisibleTo(kb)
+assert "Test" in kb.kopf_kurz.text() and "4711" in kb.kopf_kurz.text()
+kb.kopf_aufklappen(True)
+s.neu_laden()
+assert kb.kopf_offen(), "Wahl von Hand bleibt beim Neuladen"
+neu_id = db.angebot_neu(dict(kunde=""))
+s2 = fenster.angebot_oeffnen(neu_id)
+assert s2.kopf_bereich.kopf_offen(), "neues Angebot: Kopf offen"
+fenster.angebot_schliessen(neu_id)
+assert not kb.fracht_inhalt.isVisibleTo(kb) and "Fracht" in kb.fracht_klapp.text()
+ok("Übersicht als rechte Spalte, Angebotskopf ausgefüllt zugeklappt (Kurzzeile), neues Angebot offen, Fracht zu")
+# Ergebnisreiter: leere Spalten der Kalkulation weg, Schnittplan mit gewählter Stange, Auswertung ohne Leertabelle
+assert s.optimieren()
+QApplication.processEvents()
+km = s.kalk
+spalte = {sp[1]: c for c, sp in enumerate(km.spalten)}
+assert s.kalk_ansicht.isColumnHidden(spalte["gewindezeit"]) and not s.kalk_ansicht.isColumnHidden(spalte["preis_teil"])
+assert km.data(km.index(0, spalte["material_teil"])).count(",") == 1
+assert len(km.data(km.index(0, spalte["material_teil"])).split(",")[1]) == 2
+assert "ausgeblendet" in s.kalk_info.text()
+assert s.stangen_ansicht.currentIndex().row() == 0 and s.teile.zeilen and "Stange" in s.teile_titel.text()
+sp = {x[1]: c for c, x in enumerate(s.stangen.spalten)}
+assert s.stangen_ansicht.isColumnHidden(sp["stange"]) and "6.000" in s.plan_info.text()
+assert "Alle Teile eingeplant" in s.fehler_titel.text() and not s.fehler_ansicht.isVisibleTo(s)
+ok("Kalkulation ohne Nullspalten mit 2 Stellen, Schnittplan: Gleiches einmal oben, Stange 1 gewählt; "
+   "Auswertung: Alle Teile eingeplant")
 fenster.close()
 db.schliessen()
 print("OK: Anzeige der Angebotsseite (Nullwerte, Spalten, Übersicht)")

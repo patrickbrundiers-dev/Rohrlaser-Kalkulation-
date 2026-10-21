@@ -36,6 +36,7 @@ QLabel#gruppentitel { font-weight: bold; color: #3A4656; padding-bottom: 2px; bo
 QFrame#kennzahl { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; }
 QLabel#kennzahltitel { color: #5F6B7A; }
 QLabel#kennzahlwert { font-weight: bold; color: #1F2937; }
+QLabel#summenzeile { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; padding: 6px; }
 QFrame#preis { background: #EEF4FB; border: 1px solid #C9DAEE; border-radius: 4px; }
 QLabel#preiswert { font-weight: bold; font-size: 13pt; color: #1F4E78; }
 QLabel#preiswert_klein { font-weight: bold; font-size: 11pt; color: #1F2937; }

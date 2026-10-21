@@ -3,8 +3,8 @@ import datetime
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+                               QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
 from . import nachkalkulation as nk
@@ -46,8 +46,10 @@ class NachkalkulationSeite(QWidget):
                                      | QAbstractItemView.AnyKeyPressed)
         self.gruppen.itemChanged.connect(self._stangen_geaendert)
         AutoGroesse(self.gruppen)
-        el.addWidget(QLabel("Verbrauchte Stangen und tatsächlicher EK-Meterpreis je Profil, Werkstoff und "
-                            "Stangenlänge (Meterpreis leer = kalkulierter Meterpreis):"))
+        text = QLabel("Verbrauchte Stangen und tatsächlicher EK-Meterpreis je Profil, Werkstoff und "
+                      "Stangenlänge (Meterpreis leer = kalkulierter Meterpreis):")
+        text.setWordWrap(True)          # sonst bestimmt die Zeile die Mindestbreite der ganzen Angebotsseite
+        el.addWidget(text)
         el.addWidget(self.gruppen, 1)
         form = QFormLayout()
         self.felder = {}
@@ -82,7 +84,11 @@ class NachkalkulationSeite(QWidget):
         rl.addWidget(ansicht, 1)
         rl.addWidget(self.ergebnis)
         teil = QSplitter(Qt.Horizontal)
-        teil.addWidget(eingabe)
+        eingabe_rahmen = QScrollArea()      # rollt auf kleinen Bildschirmen, statt den Angebotskopf zu verdrängen
+        eingabe_rahmen.setWidgetResizable(True)
+        eingabe_rahmen.setFrameShape(QFrame.NoFrame)
+        eingabe_rahmen.setWidget(eingabe)
+        teil.addWidget(eingabe_rahmen)
         teil.addWidget(rechts)
         teil.setSizes([430, 870])
         lay = QVBoxLayout(self)
