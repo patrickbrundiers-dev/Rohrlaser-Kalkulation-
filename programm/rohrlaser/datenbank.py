@@ -1151,6 +1151,59 @@ class Datenbank:
             self.con.executemany("INSERT INTO step_protokoll (angebot_id, zeile) VALUES (?, ?)",
                                  [(angebot_id, json.dumps(z, default=str, ensure_ascii=False)) for z in zeilen])
 
+    # -------------------------------------------------------------- Stand eines Angebots (Rückgängig/Wiederholen)
+    def angebot_stand(self, angebot_id):
+        """Alles, was zu einem Angebot gehört, als Werte (Kopf, Positionen, Staffeln, STEP-Protokoll) plus
+        {Positions-ID: Länge} der 3D-Netze. Die Netze selbst holt verlauf.Verlauf nur bei Bedarf. None = gelöscht."""
+        a = self.con.execute("SELECT * FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        if a is None:
+            return None
+        def zeilen(sql):
+            return tuple(tuple(r) for r in self.con.execute(sql, (angebot_id,)))
+        return dict(
+            angebot=tuple((k, a[k]) for k in a.keys() if k not in ("id", "geaendert")),
+            positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
+            staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
+            protokoll=zeilen("SELECT * FROM step_protokoll WHERE angebot_id=? ORDER BY id"),
+            netze=dict(zeilen("SELECT n.position_id, length(n.daten) FROM netze n JOIN positionen p ON "
+                              "p.id = n.position_id WHERE p.angebot_id=?")))
+
+    def angebot_stand_setzen(self, angebot_id, stand, netze):
+        """Angebot auf einen mit angebot_stand gelesenen Stand zurücksetzen (eine Transaktion). netze:
+        {Positions-ID: Netz-Bytes} für alle Netze des Stands."""
+        spalten = {t: [r[1] for r in self.con.execute(f"PRAGMA table_info({t})")]
+                   for t in ("positionen", "staffeln", "step_protokoll")}
+        def einsetzen(tabelle, zeilen):
+            namen = ", ".join(f'"{n}"' for n in spalten[tabelle])
+            self.con.executemany(f'INSERT INTO {tabelle} ({namen}) VALUES ({", ".join("?" * len(spalten[tabelle]))})',
+                                 zeilen)
+        with self.con:
+            werte = dict(stand["angebot"])
+            self.con.execute(f'UPDATE angebote SET {", ".join(chr(34) + n + chr(34) + "=?" for n in werte)}, '
+                             'geaendert=? WHERE id=?', list(werte.values()) + [self._jetzt(), angebot_id])
+            ids = {z[0] for z in stand["positionen"]}
+            weg = [r[0] for r in self.con.execute("SELECT id FROM positionen WHERE angebot_id=?", (angebot_id,))
+                   if r[0] not in ids]
+            self.con.executemany("DELETE FROM positionen WHERE id=?", [(i,) for i in weg])
+            namen = spalten["positionen"]
+            for z in stand["positionen"]:          # vorhandene ändern (ihre 3D-Netze bleiben), fehlende anlegen
+                if self.con.execute("SELECT 1 FROM positionen WHERE id=?", (z[0],)).fetchone():
+                    self.con.execute(f'UPDATE positionen SET {", ".join(chr(34) + n + chr(34) + "=?" for n in namen[1:])} '
+                                     'WHERE id=?', list(z[1:]) + [z[0]])
+                else:
+                    einsetzen("positionen", [z])
+            for pid in ids:
+                if pid in netze:
+                    alt = self.con.execute("SELECT length(daten) FROM netze WHERE position_id=?", (pid,)).fetchone()
+                    if alt is None or alt[0] != len(netze[pid]):
+                        self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)",
+                                         (pid, netze[pid]))
+                else:
+                    self.con.execute("DELETE FROM netze WHERE position_id=?", (pid,))
+            for tabelle, schl in (("staffeln", "staffeln"), ("step_protokoll", "protokoll")):
+                self.con.execute(f"DELETE FROM {tabelle} WHERE angebot_id=?", (angebot_id,))
+                einsetzen(tabelle, stand[schl])
+
     def profile_anlegen(self, profile):
         """Profile aus Optimierung (Name) oder STEP-Import anlegen, vorhandene IDs bleiben unverändert."""
         for p in profile:

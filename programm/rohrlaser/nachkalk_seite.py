@@ -155,6 +155,7 @@ class NachkalkulationSeite(QWidget):
         self.s.db.nachkalkulation_speichern(self.s.id, self.ist or None)
         self.s.kopf["nachkalkulation"] = self.ist or None
         self.s.f.meldung("Nachkalkulation gespeichert.")
+        self.s.verlauf.merken()
         self._platzhalter(self._rechnen())
 
     def setzen(self, werte=None, stangen=None, meterpreis=None):

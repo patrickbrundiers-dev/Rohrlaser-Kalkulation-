@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QListWidgetItem, QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from . import zukauf
+from . import tastatur, zukauf
 from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
 TITEL = "Zukaufartikel"
@@ -741,6 +741,7 @@ WEGLASSEN = ("bezug", "einheit", "lieferant", "kategorie")
 class ArtikelSeite(QWidget):
     """Unterreiter 'Artikel': Übersicht und Formular."""
     titel = "Artikel"
+    KUERZEL = {"neu": "neu"}        # Tastenkürzel, siehe tastatur.py
 
     def __init__(self, db, meldung):
         super().__init__()
@@ -756,6 +757,7 @@ class ArtikelSeite(QWidget):
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen (Artikelnummer, Bezeichnung, Lieferantenartikelnummer, EAN) …")
         self.suche.setClearButtonEnabled(True)
+        tastatur.suche_esc(self.suche)
         self.suche.textChanged.connect(self.anzeigen)
         self.kat_filter = QComboBox()
         self.lief_filter = QComboBox()

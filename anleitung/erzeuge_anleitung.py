@@ -30,6 +30,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 from rohrlaser import NAME, VERSION  # noqa: E402
+from rohrlaser.tastatur import UEBERSICHT as TASTENKUERZEL  # noqa: E402
 
 SEITE = landscape(A4)
 RAND = 14 * mm
@@ -311,8 +312,8 @@ def kapitel_ueberblick(i):
            "folgen dem Arbeitsablauf eines Angebots: anlegen, Positionen per STEP einlesen, optimieren, Staffelpreise, "
            "Fracht, Zukaufteile, Ausgabe und Nachkalkulation. [[einstellungen]] bis [[pflege]] beschreiben, was "
            "einmal eingerichtet und gepflegt wird: Einstellungen, Stammdaten, Zukaufartikel, Frachtkosten, Updates und "
-           "Datensicherung. Im Anhang stehen die Einzelheiten der STEP-Messung ([[step_messung]]), häufige Fragen "
-           "([[fragen]]) und was sich je Programmversion geändert hat ([[neu]]).")
+           "Datensicherung. Im Anhang stehen die Einzelheiten der STEP-Messung ([[step_messung]]), die Tastenkürzel "
+           "([[tastenkuerzel]]), häufige Fragen ([[fragen]]) und was sich je Programmversion geändert hat ([[neu]]).")
     i.abschnitt("Aufbau des Fensters")
     i.text("Das Programm öffnet sich immer maximiert (bildschirmfüllend, die Taskleiste bleibt sichtbar) und gleich "
            "im Reiter <i>Angebote</i>. Die übrigen Reiter sind von dort mit einem Klick erreichbar.")
@@ -324,7 +325,9 @@ def kapitel_ueberblick(i):
     i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=125 * mm)
     i.abschnitt("Farben in den Tabellen")
     i.text("Zahlen werden mit Komma eingegeben (1385,5). Jede Änderung wird sofort gespeichert; einen "
-           "Speichern-Knopf gibt es nicht. Die Farben zeigen, was eingegeben werden kann und was geprüft werden "
+           "Speichern-Knopf gibt es nicht. Die üblichen Windows-Tastenkürzel wirken auch hier: Strg+C/Strg+V "
+           "kopieren und fügen Zellen ein (auch Blöcke aus Excel), Entf löscht markierte Zeilen nach Rückfrage, "
+           "Strg+Z nimmt im Angebot die letzte Änderung zurück ([[tastenkuerzel]]). Die Farben zeigen, was eingegeben werden kann und was geprüft werden "
            "sollte:")
     i.tabelle(["Farbe", "Bedeutung"], [
         ["hellgelb", "Eingabefeld: hier wird eingetragen (Doppelklick oder einfach lostippen)."],
@@ -483,6 +486,10 @@ def kapitel_angebote(i):
            "wer ein Angebot für einen anderen Kunden wiederverwenden will, wählt ihn aus der Liste. Name und "
            "Zahlungsbedingungen kommen dann aus dem Kundenstamm, Positionen und Staffeln werden mitkopiert.")
     i.bild("kopieren_dialog", "Angebot kopieren: Kunde der Kopie wählen", hoehe=45 * mm)
+    i.text("Mit der Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, "
+           "<b>Entf</b> löscht das markierte nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld und <b>Esc</b> leert "
+           "es. Zwischen den offenen Angeboten wechselt <b>Strg+Tab</b>, <b>Strg+W</b> schließt das aktuelle "
+           "([[tastenkuerzel]]).")
 
 
 def kapitel_angebot(i):
@@ -744,6 +751,26 @@ def kapitel_angebot(i):
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
             "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
+    i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
+    i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
+           "zurück, <b>Strg+Y</b> stellt sie wieder her. Das gilt für jede Änderung: Eingaben in Positionen und Kopf, "
+           "neue oder gelöschte Positionen (samt 3D-Ansicht), STEP-Import, Zusatzarbeiten, Zukaufteile, Staffeln, "
+           "Zeiten und Optimierung. Die Statuszeile nennt, was zurückgenommen wurde (z. B. „Rückgängig: Teilelänge "
+           "[mm] Pos. 20“). Bis zu 100 Schritte gehen zurück, solange das Angebot geöffnet ist; nach dem Schließen "
+           "beginnt der Verlauf neu. Stammdaten und Einstellungen haben kein Rückgängig.")
+    i.liste("<b>Strg+C</b> kopiert die markierten Zellen, auch mehrere Zeilen und Spalten, so wie sie angezeigt "
+            "werden; in Excel lassen sie sich direkt einfügen.",
+            "<b>Strg+V</b> fügt ab der markierten Zelle ein. Ein Block aus Excel füllt die Zellen nach rechts und "
+            "unten; ein einzelner Wert füllt alle markierten Zellen (z. B. dieselbe Stückzahl für mehrere "
+            "Positionen). Grau berechnete Zellen bleiben unverändert, falsche Werte meldet die Statuszeile. Ein "
+            "Einfügen ist ein Schritt für Strg+Z.",
+            "<b>Strg+X</b> kopiert und leert die markierten Eingabezellen.",
+            "<b>Entf</b> in der Positionsliste löscht die markierten Positionen nach Rückfrage, <b>Strg+N</b> legt "
+            "eine neue Position an, <b>Strg+I</b> startet den STEP-Import, <b>F9</b> optimiert und <b>Strg+P</b> "
+            "erzeugt das Angebots-PDF.")
+    i.text("In Textfeldern (Kopf, Suchfelder, eine Zelle in Bearbeitung) wirken Strg+Z, Strg+C, Strg+V und Entf wie "
+           "gewohnt nur im Text. Alle Kürzel stehen im Anhang ([[tastenkuerzel]]) und im Programm unter "
+           "<i>Hilfe → Tastenkürzel …</i>.")
 
 
 def kapitel_step(i):
@@ -2571,6 +2598,18 @@ def kapitel_step_messung(i):
             "<i>plausibel</i> heißt: die Messung ist in sich stimmig. Es ist keine Fertigungsfreigabe.")
 
 
+def kapitel_tastenkuerzel(i):
+    i.kapitel("Anhang: Tastenkürzel", marke="tastenkuerzel")
+    i.text("Das Programm kennt die üblichen Windows-Tastenkürzel. Sie stehen auch in den Menüs <i>Bearbeiten</i> "
+           "und <i>Ansicht</i> und unter <i>Hilfe → Tastenkürzel …</i>. Welche Seite ein Kürzel ausführt, richtet "
+           "sich danach, wo der Cursor steht: Strg+N in der Angebotsliste legt ein Angebot an, im Angebot eine "
+           "Position, in den Staffeln eine Stufe, in den Stammdaten eine Zeile. Rückgängig und Wiederholen sind in "
+           "[[rueckgaengig]] beschrieben.")
+    i.tabelle(["Taste", "Wirkung", "Wo"], [list(z) for z in TASTENKUERZEL], [28, 170, 67])
+    i.text("In Textfeldern wirken Strg+Z, Strg+C, Strg+V, Strg+X und Entf wie gewohnt im Text. Gespeichert wird jede "
+           "Eingabe sofort; Strg+S schließt nur eine offene Eingabe ab.")
+
+
 def kapitel_fragen(i):
     i.kapitel("Anhang: Häufige Fragen und Meldungen", marke="fragen")
     i.tabelle(["Meldung / Frage", "Ursache und Abhilfe"], [
@@ -2671,6 +2710,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.4", "Windows-Tastenkürzel: Strg+Z/Strg+Y (Rückgängig/Wiederholen im Angebot, bis 100 Schritte), "
+              "Strg+C/V/X für Zellen und Blöcke aus Excel, Entf löscht mit Rückfrage, Strg+N, Strg+F, Strg+S, Strg+P, "
+              "Strg+I, F5, F9, Strg+W, Strg+Tab, Strg+Bild↓/↑; neue Menüs Bearbeiten und Ansicht, "
+              "<i>Hilfe → Tastenkürzel …</i> ([[rueckgaengig]], [[tastenkuerzel]])."],
     ["0.6.3", "Schneidweg-Rechner für Teile ohne STEP-Datei: Gehrungen, Bohrungen, Langlöcher, Rechtecke, Schlitze "
               "und sonstige Konturen eingeben, Schneidweg, Einstiche, Konturklassen und Schneidzeit sofort sehen und "
               "in die Position übernehmen (Rechtsklick auf die Position, [[schneidweg_rechner]])."],
@@ -2748,7 +2791,8 @@ def inhalt_sammeln(daten, bilder, marken=None):
     kapitel_ausgabe(inh, daten["seiten"], daten["ablage"])
     # Teil C: einrichten und pflegen; danach der Anhang
     for kapitel in (kapitel_nachkalkulation, kapitel_einstellungen, kapitel_stammdaten, kapitel_zukauf,
-                    kapitel_frachtkosten, kapitel_pflege, kapitel_step_messung, kapitel_fragen, kapitel_neu):
+                    kapitel_frachtkosten, kapitel_pflege, kapitel_step_messung, kapitel_tastenkuerzel, kapitel_fragen,
+                    kapitel_neu):
         kapitel(inh)
     # die erste Kapitelüberschrift soll keinen zusätzlichen Seitenumbruch erzeugen
     inh.f = [x for k, x in enumerate(inh.f) if not (isinstance(x, PageBreak) and k > 0

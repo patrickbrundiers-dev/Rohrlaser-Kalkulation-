@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import NAME, ausgabe, update
+from . import NAME, ausgabe, tastatur, update
 from .stammdaten import TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
@@ -240,6 +240,8 @@ class Auswahl(QStyledItemDelegate):
 
 
 class StammdatenSeite(QWidget):
+    KUERZEL = {"neu": "zeile_neu", "loeschen": ("zeilen_loeschen", "ansicht")}     # siehe tastatur.py
+
     def __init__(self, db, tabelle, meldung):
         super().__init__()
         self.t = tabelle
@@ -262,6 +264,7 @@ class StammdatenSeite(QWidget):
         self.suche.setPlaceholderText("Suchen …")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.filter.setFilterFixedString)
+        tastatur.suche_esc(self.suche)
         self.anzahl = QLabel()
         leiste = QHBoxLayout()
         for w in (neu, weg):
@@ -693,10 +696,49 @@ class Hauptfenster(QMainWindow):
             if taste:
                 a.setShortcut(taste)
             datei.addAction(a)
+        bearbeiten = self.menuBar().addMenu("&Bearbeiten")
+        self.kuerzel_aktionen = {}
+        for name, text, tasten in (("rueckgaengig", "Rückgängig", [QKeySequence.Undo]),
+                                   ("wiederholen", "Wiederholen", ["Ctrl+Y", "Ctrl+Shift+Z"]),
+                                   (None, None, None),
+                                   ("ausschneiden", "Ausschneiden", [QKeySequence.Cut]),
+                                   ("kopieren", "Kopieren", [QKeySequence.Copy]),
+                                   ("einfuegen", "Einfügen", [QKeySequence.Paste]),
+                                   ("loeschen", "Löschen …", [QKeySequence.Delete]),
+                                   (None, None, None),
+                                   ("neu", "Neu", [QKeySequence.New]),
+                                   ("suchen", "Suchen", [QKeySequence.Find]),
+                                   ("speichern", "Eingabe speichern", [QKeySequence.Save]),
+                                   ("aktualisieren", "Aktualisieren", ["F5"]),
+                                   (None, None, None),
+                                   ("optimieren", "Optimieren", ["F9"]),
+                                   ("importieren", "STEP importieren …", ["Ctrl+I"]),
+                                   ("drucken", "Angebot (PDF)", [QKeySequence.Print]),
+                                   ("schliessen", "Angebot schließen", ["Ctrl+W", "Ctrl+F4"])):
+            if name is None:
+                bearbeiten.addSeparator()
+                continue
+            a = QAction(text, self)
+            a.setShortcuts([QKeySequence(t) for t in tasten])
+            a.triggered.connect(lambda _=False, name=name: self.kuerzel(name))
+            bearbeiten.addAction(a)
+            self.kuerzel_aktionen[name] = a
+        ansicht = self.menuBar().addMenu("&Ansicht")
+        for text, taste, schritt, innen in (("Nächster Reiter", "Ctrl+Tab", 1, False),
+                                            ("Vorheriger Reiter", "Ctrl+Shift+Tab", -1, False),
+                                            ("Nächster Unterreiter", "Ctrl+PgDown", 1, True),
+                                            ("Vorheriger Unterreiter", "Ctrl+PgUp", -1, True)):
+            a = QAction(text, self)
+            a.setShortcut(QKeySequence(taste))
+            a.triggered.connect(lambda _=False, schritt=schritt, innen=innen: self.reiter_weiter(schritt, innen))
+            ansicht.addAction(a)
         hilfe = self.menuBar().addMenu("&Hilfe")
         a = QAction("Bedienungsanleitung (PDF)", self)
         a.setShortcut(QKeySequence.HelpContents)
         a.triggered.connect(self.anleitung_oeffnen)
+        hilfe.addAction(a)
+        a = QAction("Tastenkürzel …", self)
+        a.triggered.connect(self.kuerzel_zeigen)
         hilfe.addAction(a)
         a = QAction("Nach Updates suchen …", self)
         a.triggered.connect(lambda: self.updater.suchen())
@@ -706,6 +748,135 @@ class Hauptfenster(QMainWindow):
             self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
                         f"Daten: {self.db.pfad}{self.datenort_text()}"))
         hilfe.addAction(a)
+
+    # -------------------------------------------------------------- Tastenkürzel
+    def _seite(self):
+        """Innerste sichtbare Seite des aktuellen Reiters (Unterreiter von Einstellungen, Zukauf, Fracht)."""
+        w = self.reiter.currentWidget()
+        while hasattr(getattr(w, "unter", None), "currentWidget") and w.unter.currentWidget() is not None:
+            w = w.unter.currentWidget()
+        return w
+
+    def kuerzel(self, name):
+        """Tastenkürzel ausführen: zuerst die Seite, in der der Fokus steht (von innen nach außen), sonst die
+        sichtbare Seite. Ergebnis: True, wenn eine Seite das Kürzel ausgeführt hat."""
+        from PySide6.QtWidgets import QApplication
+        fokus = QApplication.focusWidget()
+        if fokus is not None and not self.isAncestorOf(fokus):
+            fokus = None
+        if name == "speichern":
+            return self._eingabe_abschliessen(fokus)
+        if name == "kopieren" and tastatur.ist_tabelle(fokus):
+            n = len(tastatur.kopieren(fokus).splitlines())
+            self.meldung(f"{n} Zeile(n) kopiert." if n else "Nichts markiert.")
+            return bool(n)
+        if name == "schliessen":
+            seite = self.reiter.currentWidget()
+            for aid, s in list(self.offen.items()):
+                if s is seite:
+                    self.angebot_schliessen(aid)
+                    return True
+            return False
+        kette, w = [], fokus
+        while w is not None and w is not self:
+            kette.append(w)
+            w = w.parentWidget()
+        w = self._seite()               # danach die sichtbare Seite (Fokus z. B. auf der Reiterleiste)
+        while w is not None and w is not self:
+            if w not in kette:
+                kette.append(w)
+            w = w.parentWidget()
+        for w in kette:
+            if self._kuerzel_auf(w, name, fokus):
+                return True
+        if name in ("einfuegen", "ausschneiden") and tastatur.ist_tabelle(fokus):
+            if name == "ausschneiden":
+                tastatur.kopieren(fokus)
+            n = tastatur.einfuegen(fokus) if name == "einfuegen" else tastatur.leeren(fokus)
+            self.meldung(f"{n} Zelle(n) geändert." if n else "Keine bearbeitbare Zelle.", fehler=not n)
+            return bool(n)
+        if name == "aktualisieren":
+            for w in kette:
+                if hasattr(w, "neu_laden"):
+                    w.neu_laden()
+                    self.meldung("Aktualisiert.")
+                    return True
+        if name == "suchen":
+            for w in kette:
+                if isinstance(getattr(w, "suche", None), QLineEdit):
+                    w.suche.setFocus()
+                    w.suche.selectAll()
+                    return True
+        hinweis = {"rueckgaengig": "Rückgängig gibt es im geöffneten Angebot.",
+                   "wiederholen": "Wiederholen gibt es im geöffneten Angebot.",
+                   "loeschen": "Bitte zuerst in einer Tabelle markieren, was gelöscht werden soll."}
+        self.meldung(hinweis.get(name, "Dieses Tastenkürzel gilt hier nicht."), fehler=True)
+        return False
+
+    def reiter_weiter(self, schritt, innen=False):
+        """Strg+Tab: Hauptreiter wechseln; Strg+Bild↓/↑ (wie Blätter in Excel): Unterreiter der Seite, in der
+        der Fokus steht (z. B. Positionen, Kalkulation, Staffeln im Angebot)."""
+        from PySide6.QtWidgets import QApplication
+        reiter = self.reiter
+        if innen:
+            w = QApplication.focusWidget()
+            if w is None or not self.reiter.currentWidget().isAncestorOf(w):
+                w = self._seite()
+            ziel = None
+            while w is not None and w is not self.reiter:
+                if isinstance(w, QTabWidget):
+                    ziel = w
+                    break
+                w = w.parentWidget()
+            if ziel is None:            # Fokus außerhalb: erster Unterreiter der sichtbaren Seite
+                ziel = next((t for t in self.reiter.currentWidget().findChildren(QTabWidget) if t.isVisible()), None)
+            if ziel is None:
+                return None
+            reiter = ziel
+        if reiter.count():
+            reiter.setCurrentIndex((reiter.currentIndex() + schritt) % reiter.count())
+        return reiter
+
+    def _kuerzel_auf(self, w, name, fokus):
+        ziel = getattr(w, "KUERZEL", {}).get(name)
+        if ziel is None:
+            return False
+        if isinstance(ziel, tuple):             # nur, wenn der Fokus in dieser Tabelle steht
+            ziel, tabelle = ziel
+            if fokus is None or fokus is not getattr(w, tabelle, None):
+                return False
+        ergebnis = getattr(w, ziel)()
+        return ergebnis is not False
+
+    def _eingabe_abschliessen(self, fokus):
+        """Strg+S: offene Eingabe übernehmen (Zelle, Textfeld). Gespeichert wird ohnehin jede Eingabe sofort."""
+        if fokus is not None:
+            ansicht = fokus.parentWidget()
+            while ansicht is not None and not tastatur.ist_tabelle(ansicht):
+                ansicht = ansicht.parentWidget()
+            fokus.clearFocus()          # Zelleneditor und Textfelder speichern beim Verlassen
+            (ansicht or fokus).setFocus()
+        self.meldung("Gespeichert – das Programm speichert jede Eingabe sofort.")
+        return True
+
+    def kuerzel_zeigen(self):
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox
+        d = QDialog(self)
+        d.setWindowTitle("Tastenkürzel")
+        zeilen = "".join(f"<tr><td><b>{t}</b></td><td>{w}</td><td style='color:#5F6B7A'>{o}</td></tr>"
+                         for t, w, o in tastatur.UEBERSICHT)
+        text = QLabel(f"<table cellpadding='3'><tr><th align='left'>Taste</th><th align='left'>Wirkung</th>"
+                      f"<th align='left'>Wo</th></tr>{zeilen}</table><p>In Textfeldern wirken Strg+Z, Strg+C, "
+                      "Strg+V, Strg+X und Entf wie gewohnt im Text.</p>")
+        text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        lay.addWidget(text)
+        lay.addWidget(knoepfe)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def angebot_oeffnen(self, angebot_id):
         from .angebot_fenster import AngebotSeite
