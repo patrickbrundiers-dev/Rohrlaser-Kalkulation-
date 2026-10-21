@@ -874,7 +874,9 @@ RICHTWERTE = {
                               (5, 1200, 1.0), (6, 900, 1.2), (8, 500, 1.8)],
         ("Aluminium", "N₂"): [(1, 5500, 0.15), (1.5, 4500, 0.2), (2, 3500, 0.3), (3, 2000, 0.5), (4, 1300, 0.8),
                               (5, 900, 1.0), (6, 600, 1.2)]}}
-GRAVUR = {"Faser": 15000, "CO₂": 10000}
+# Vorschub Gravur: 3.000 mm/min für alle Maschinen (Patrick, 21.10.2026); bis 0.6.3 Faser 15.000, CO₂ 10.000
+GRAVUR = {"Faser": 3000, "CO₂": 3000}
+ALTE_GRAVUR = (15000, 10000)
 RICHTWERT_TEXT = {"Faser": "Beispiel: Richtwert Faserlaser", "CO₂": "Beispiel: Richtwert CO₂-Laser"}
 
 
