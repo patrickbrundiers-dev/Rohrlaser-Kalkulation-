@@ -1071,6 +1071,8 @@ def zahl(w, stellen=2):
 KONTUR_TOL = 0.5     # mm, STEP-Teilwerte sind je auf 0,1 mm gerundet
 KONTUR_GRENZEN = (10.0, 50.0)       # Vorgabe klein bis / mittel bis [mm], wenn die Maschine keine Werte hat
 KONTUR_FAKTOREN = (3.0, 8.0)        # Vorgabe klein bis / mittel bis [× Wandstärke] (Patrick 21.10.2026, B1a/B2a)
+KONTUR_MIN_WAND = 0.7               # Kontur ab 0,7 × Wandstärke meist schneidbar, darunter prüfen (Patrick 21.10.2026)
+KONTUR_ZU_KLEIN = "Kontur kleiner als 0,7 × Wandstärke, Schneidbarkeit prüfen (ggf. nur gravieren und aufbohren)"
 KLASSEN_FELDER = ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")
 
 
@@ -1208,12 +1210,13 @@ def gross_rest(p):
 
 
 def konturen_pruefen(p, wand=None):
-    """Widerspruch zwischen Konturklassen und Schneidweg bzw. Innenkonturen oder eine Innenkontur kleiner als die
-    Wandstärke (Text) oder None."""
+    """Widerspruch zwischen Konturklassen und Schneidweg bzw. Innenkonturen oder eine Innenkontur kleiner als
+    0,7 × Wandstärke (Text) oder None."""
     km = _n(p.get("klein_mm")) + _n(p.get("mittel_mm"))
     if isinstance(wand, (int, float)) and wand > 0 and any(
-            not a and round(g, 2) < round(wand, 2) for a, g, _ in konturen_lesen(p.get("konturen"), True)):
-        return "Kontur kleiner als Wandstärke, Schneidbarkeit prüfen"
+            not a and round(g, 2) < round(KONTUR_MIN_WAND * wand, 2)
+            for a, g, _ in konturen_lesen(p.get("konturen"), True)):
+        return KONTUR_ZU_KLEIN
     if km <= 0 and _n(p.get("gross_mm")) <= 0:
         return None
     if not _leer(p.get("schneidweg")) and km > _n(p["schneidweg"]) + KONTUR_TOL:

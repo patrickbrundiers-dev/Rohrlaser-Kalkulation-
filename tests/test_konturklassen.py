@@ -129,11 +129,13 @@ assert rechnen.ende_vorschub(dict(konturen=txt8, a_gerade="ja"), (3000, 2000, 10
 assert rechnen.ende_vorschub(dict(konturen=txt8, a_gerade="ja", kontur_grenzen="10/50; 3×/8× Wand 15"),
                              (3000, 2000, 1000), r8) == 1000                                       # 40 ≤ 45 klein
 ok("Hüllmaß ÷ Wandstärke: Ø20 bei 8 mm Wand klein, bei 2 mm mittel; strengere Klasse, Text der Regel")
-# Kontur kleiner als die Wandstärke: Warnung, gerechnet wird weiter (B3a)
-q = dict(schneidweg=400, konturen="A:40x160; 6x18,8", klein_n=1, klein_mm=18.8)
-assert rechnen.konturen_pruefen(q, 8) == "Kontur kleiner als Wandstärke, Schneidbarkeit prüfen"
+# Kontur kleiner als 0,7 × Wandstärke: Warnung, gerechnet wird weiter (B3a; Patrick: ab 0,7 × Wand meist kein Problem)
+q = dict(schneidweg=400, konturen="A:40x160; 5,5x17,3", klein_n=1, klein_mm=17.3)
+assert rechnen.konturen_pruefen(q, 8) == "Kontur kleiner als 0,7 × Wandstärke, Schneidbarkeit prüfen (ggf. nur " \
+                                        "gravieren und aufbohren)"
+assert rechnen.konturen_pruefen(q, 7.8) is None      # 5,5 ≥ 0,7 × 7,8 = 5,46
 assert rechnen.konturen_pruefen(q, 6) is None and rechnen.konturen_pruefen(q) is None
-ok("Kontur kleiner als die Wandstärke: Warnung 'Schneidbarkeit prüfen'")
+ok("Kontur kleiner als 0,7 × Wandstärke: Warnung 'Schneidbarkeit prüfen'")
 
 # Anfangs- und Endschnitt in der Konturliste
 txt = rechnen.konturen_text([(10, 31.4)], [("A", 40, 149.7), ("E", 84.85, 249.7)])
