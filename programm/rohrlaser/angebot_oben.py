@@ -717,9 +717,9 @@ class UebersichtBereich(QWidget):
         self.kennzahlen = QGridLayout()
         self.kennzahlen.setHorizontalSpacing(6)
         self.kennzahl = {}
+        # ohne Gesamtlänge und Stangen: über verschiedene Abmessungen summiert nicht aussagekräftig
         for i, (name, titel) in enumerate((("positionen", "Positionen"), ("stueck", "Stückzahl"),
-                                           ("laenge", "Gesamtlänge"), ("gewicht", "Gewicht"),
-                                           ("stangen", "Stangen"))):
+                                           ("gewicht", "Gewicht"))):
             box = QFrame()
             box.setObjectName("kennzahl")
             bl = QVBoxLayout(box)
