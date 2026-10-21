@@ -407,11 +407,39 @@ def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()
 
 
+def drehung_text(ohne, stangen, gespart):
+    """Zusatz zur Bewertung einer Gruppe: Ersparnis durch Drehen und Ineinanderlegen der Gehrungen."""
+    if ohne is None:
+        return f"; Gehrungen ineinander: {mm_text(gespart)} mm gespart" if gespart > EPS else ""
+    if ohne > stangen:
+        n = ohne - stangen
+        return f"; Drehen spart {n} Stange{'n' if n > 1 else ''}, Gehrungen ineinander {mm_text(gespart)} mm"
+    if gespart > EPS:
+        return f"; Gehrungen ineinander {mm_text(gespart)} mm, Drehen spart keine Stange"
+    return "; Drehen bringt keine Verbesserung"
+
+
+def naht_text(t):
+    """Nahtvorgabe eines Teils für Schnittplan und Werkstattpapiere ('' = frei drehbar)."""
+    if t.drehung == opt.UNBEKANNT:
+        return "Naht unbekannt, nicht drehen"
+    if t.drehung == opt.FEST:
+        return f"Naht {t.naht:g}° fest".replace(".", ",") if t.naht is not None else "Naht fest"
+    return ""
+
+
+def umriss(t):
+    """x-Werte eines Teils im Stangenbild: (oben links, oben rechts, unten rechts, unten links) [mm]."""
+    ka, kb = t.get("kante_a") or (0, 0), t.get("kante_b") or (0, 0)
+    return t["von"] + ka[0], t["bis"] - kb[0], t["bis"] - kb[1], t["von"] + ka[1]
+
+
 def _folge_teile(g, folge, positionen, start=0.0):
     """Teile einer Stange bzw. eines Werkstücks ab Position start: (teile, verlust inkl. letztem Schnitt,
     gemeinsame Schnitte, Belegungstexte)."""
     pos = start + g.endbeschnitt
     vorher, verlust, teile, belegung, n_gem = None, 0.0, [], [], 0
+    oben = opt.ansicht(g, folge)
     for t, drehung in folge:
         a_ger, b_ger, a_s, b_s = opt.lage(t, drehung)
         eingespart_mm, eingespart_e, ueberlappung = 0.0, 0, 0.0
@@ -435,7 +463,11 @@ def _folge_teile(g, folge, positionen, start=0.0):
                           lage=f"gedreht {drehung:g}°" if drehung else "normal", drehung=drehung,
                           drehfreigabe=t.drehung, naht=t.naht, trennung=art,
                           eingespart_mm=round(eingespart_mm, 1), eingespart_e=eingespart_e,
-                          material_gespart=round(ueberlappung, 1)))
+                          material_gespart=round(ueberlappung, 1), naht_text=naht_text(t)))
+        if t.a_gehrung or t.b_gehrung:      # Schräge Enden im Stangenbild (Rücksprung oben/unten)
+            teile[-1].update(ansicht="von oben" if oben else "von der Seite",
+                             kante_a=[round(x, 1) for x in opt.kante(g, t.a_gehrung, drehung, oben)],
+                             kante_b=[round(x, 1) for x in opt.kante(g, t.b_gehrung, drehung, oben)])
         pos += t.laenge
         vorher = (b_ger, b_s, t, drehung)
         belegung.append(f"{t.pos if t.pos is not None else t.artikel}×{t.laenge:g}")
@@ -472,7 +504,9 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False):
      'laengen': [Vergleich der Lieferlängen je Gruppe (laengen_vergleich_gruppe) mit 'gewaehlt' = geplante
      Lieferlänge oder None, nur wenn es Lieferlängen gibt]}
     Je Stange: nr, profil, werkstoff, stange, end, greif, verlust, trennungen, gemeinsam, belegung (Text),
-    teile: [{index, pos, artikel, laenge, von, bis, lage, trennung, eingespart_mm, eingespart_e}].
+    teile: [{index, pos, artikel, laenge, von, bis, lage, trennung, eingespart_mm, eingespart_e, drehung,
+    drehfreigabe, naht, naht_text, material_gespart}], bei schrägen Enden mit Richtung zusätzlich ansicht, kante_a
+    und kante_b (Rücksprung der Schnittkante oben/unten im Stangenbild, umriss).
     Mit einer anderen Lieferlänge geplante Stangen haben dazu grundlaenge (Stangenlänge des Angebots, Schlüssel der
     Gruppe); kommen sie vom Lieferanten zugeschnitten, zusätzlich werkstuecke [{nr, von, bis, laenge, end, greif}]
     (je Werkstück eine Beladung der Maschine), zuschnitt (Text) und je Teil werkstueck (Nummer).
@@ -510,13 +544,16 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False):
                                     greif=g.greiferrest, verlust=round(verlust, 2), trennungen=len(folge),
                                     gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
             man = opt.manuell(g)
+            ohne = opt.ohne_drehung(g)
+            gespart = sum(t.get("material_gespart") or 0 for s in stangen[s0:] for t in s["teile"])
             auswertung.append(dict(profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche, stange=g.stange,
                                    teile=len(g.teile),
                                    stangen=len(folgen), manuell=len(man), untergrenze=opt.untergrenze(g),
                                    ausnutzung_manuell=(sum(t.laenge for t in g.teile) / (len(man) * g.stange)
                                                        if man else 0),
                                    gemeinsam=sum(opt.gemeinsame_schnitte(f) for f in folgen),
-                                   bewertung=opt.bewertung(g, len(folgen))))
+                                   bewertung=opt.bewertung(g, len(folgen)) + drehung_text(ohne, len(folgen), gespart),
+                                   ohne_drehung=ohne, gehrung_mm=round(gespart, 1) if gespart else None))
             _beistellung_markieren(g, stangen[s0:] + auswertung[a0:])
             continue
         v = plaene[gewaehlt]

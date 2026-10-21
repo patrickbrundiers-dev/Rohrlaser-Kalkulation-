@@ -398,11 +398,24 @@ class StangenBalken(Flowable):
         if s["greif"]:
             rechteck(lang - s["greif"], lang, colors.HexColor("#FF9999"))
         for t in m["teile"]:
-            rechteck(t["von"], t["bis"], colors.HexColor(self.farben.get(t["pos"], TEILFARBEN[0])))
-            c.setStrokeColor(colors.black)
-            c.setLineWidth(1.2)
-            for x in (t["von"], t["bis"]):
-                c.line(x * f, y - 1, x * f, y + h + 1)
+            if t.get("kante_a") or t.get("kante_b"):        # schräge Enden: Umriss mit Schnittkanten
+                ol, or_, ur, ul = rechnen.umriss(t)
+                c.setFillColor(colors.HexColor(self.farben.get(t["pos"], TEILFARBEN[0])))
+                c.setStrokeColor(colors.black)
+                c.setLineWidth(1.2)
+                pfad = c.beginPath()
+                pfad.moveTo(ol * f, y + h)
+                pfad.lineTo(or_ * f, y + h)
+                pfad.lineTo(ur * f, y)
+                pfad.lineTo(ul * f, y)
+                pfad.close()
+                c.drawPath(pfad, fill=1, stroke=1)
+            else:
+                rechteck(t["von"], t["bis"], colors.HexColor(self.farben.get(t["pos"], TEILFARBEN[0])))
+                c.setStrokeColor(colors.black)
+                c.setLineWidth(1.2)
+                for x in (t["von"], t["bis"]):
+                    c.line(x * f, y - 1, x * f, y + h + 1)
             breite = (t["bis"] - t["von"]) * f
             c.setFillColor(colors.black)
             pos = "" if t["pos"] is None else _z(t["pos"], 0)
@@ -455,7 +468,10 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
             daten.append([_z(t["platz"], 0), _p(_z(t["pos"], 0), ParagraphStyle("pz", parent=S_FETT, alignment=1)),
                           _p(t["artikel"], S_KLEIN), _p(t["bezeichnung"], S_KLEIN),
                           _p(_z(t["laenge"], 1), ParagraphStyle("lg", parent=S_FETT, alignment=TA_RIGHT)),
-                          _z(t["von"], 1), _z(t["bis"], 1), t["lage"], _p(t["trennung"], S_KLEIN), Kaestchen()])
+                          _z(t["von"], 1), _z(t["bis"], 1),
+                          _p(t["lage"] + (f"<br/><b>{t['naht_text']}</b>" if t.get("naht_text") else ""),
+                             ParagraphStyle("la", parent=S_KLEIN, alignment=1)),
+                          _p(t["trennung"], S_KLEIN), Kaestchen()])
         tab = _tabelle(daten, breiten, rechts=(4, 5, 6), wiederholen=True)
         tab.setStyle(TableStyle([
             ("ALIGN", (0, 0), (1, -1), "CENTER"), ("ALIGN", (7, 0), (7, -1), "CENTER"),
@@ -488,7 +504,9 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         inhalt += _dok_kopf("Stangenbild – Verschachtelung je Stange", kopf, einst, 273 * mm,
                             warnung=None if aktuell else achtung.replace("Schnittplan", "Stangenbild"))
         inhalt += [_p("Grau = Endbeschnitt, farbig = Teil (Pos., Länge in mm; Farbe je Position), hellgrau = Rest / "
-                      "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange.",
+                      "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange. "
+                      "Schräge Linie = Gehrung (Ansicht von der Seite, 0° oben; bei Gehrungen über die Seitenflächen "
+                      "von oben).",
                       ParagraphStyle("le", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 3 * mm)]
         inhalt += [StangenBalken(m, farben) for m in wp["muster"]]
     else:

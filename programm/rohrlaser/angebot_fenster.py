@@ -4,8 +4,8 @@ import json
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QShortcut
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFileDialog, QFrame,
@@ -555,6 +555,8 @@ class Stangenbild(QWidget):
             anz = len(nummern)
             nr_text = ", ".join(map(str, nummern)) if anz <= 6 else f"{nummern[0]}–{nummern[-1]}"
             kopf = (f"{anz} × Stange {nr_text}: {s['profil']}  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  {_z(s['stange'], 0)} mm")
+            if any(t.get("ansicht") == "von oben" for t in s["teile"]):
+                kopf += "  (Ansicht von oben)"
             p.drawText(x0, y + 12, kopf)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]
@@ -574,10 +576,20 @@ class Stangenbild(QWidget):
             rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
             rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
             for t in s["teile"]:
-                r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], QColor("#4E79A7")))
-                p.setPen(QPen(QColor("#202020"), 2))
-                p.drawLine(r.topLeft(), r.bottomLeft())
-                p.drawLine(r.topRight(), r.bottomRight())
+                if t.get("kante_a") or t.get("kante_b"):        # schräge Enden: Umriss mit Schnittkanten
+                    ol, or_, ur, ul = rechnen.umriss(t)
+                    form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb),
+                                      QPointF(x0 + ur * m, yb + hb), QPointF(x0 + ul * m, yb + hb)])
+                    p.setPen(QPen(QColor("#202020"), 2))
+                    p.setBrush(self.farben.get(t["ref"], QColor("#4E79A7")))
+                    p.drawPolygon(form)
+                    p.setBrush(Qt.NoBrush)
+                    r = QRectF(x0 + max(ol, ul) * m, yb, max(1.0, (min(or_, ur) - max(ol, ul)) * m), hb)
+                else:
+                    r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], QColor("#4E79A7")))
+                    p.setPen(QPen(QColor("#202020"), 2))
+                    p.drawLine(r.topLeft(), r.bottomLeft())
+                    p.drawLine(r.topRight(), r.bottomRight())
                 text = f"{t['pos'] if t['pos'] is not None else t['artikel']}\n{_z(t['laenge'], 1)}"
                 if r.width() > 28:
                     p.setPen(QColor("white"))
