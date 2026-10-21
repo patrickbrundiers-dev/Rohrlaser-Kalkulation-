@@ -100,6 +100,7 @@ class Teil:
     sicherheit: dict = field(default_factory=dict)       # je Merkmal: sicher / wahrscheinlich / unsicher / …
     achse_global: tuple = ()    # Richtung der Rohrachse (Ende A -> B) in der Datei, Einheitsvektor
     ende_a_global: tuple = ()   # Mitte von Ende A (Schwerlinie, z = 0) in der Datei [mm]
+    x_global: tuple = ()        # lokale X-Richtung (Breite) in der Datei: mit Achse und Ende A die Einbaulage
     konturen_liste: list = field(default_factory=list)  # je Kontur ein dict: Art, Lage (z, Winkel, Seite), Maße
     # Import (je Datei bzw. je Körper)
     einheit: str = ""           # Längeneinheit laut Datei (mm, cm, m, inch, ft); gemessen wird immer in mm
@@ -1328,6 +1329,8 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
     d, p = ax3.Direction(), _global(ax3, 0, 0, zmin)
     t.achse_global = (d.X(), d.Y(), d.Z())
     t.ende_a_global = (p.X(), p.Y(), p.Z())
+    x = ax3.XDirection()
+    t.x_global = (x.X(), x.Y(), x.Z())
 
     # Querschnitt: Lage mit größter Netto-Fläche, zuerst als Hohlprofil (genau 2 Konturen: außen/innen), sonst mit
     # einer Kontur (U, L, C, Flach …). Bis zu 49 Lagen über die ganze Länge, damit auch lange Ausschnitte umgangen
@@ -1905,6 +1908,8 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
     zmin, _ = _z_bereich(lok)
     dz, p = ax3.Direction(), _global(ax3, 0, 0, zmin)
     t.achse_global, t.ende_a_global = (dz.X(), dz.Y(), dz.Z()), (p.X(), p.Y(), p.Z())
+    x = ax3.XDirection()
+    t.x_global = (x.X(), x.Y(), x.Z())
     if netz:
         faces = TopTools_IndexedMapOfShape()
         TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
@@ -1983,7 +1988,7 @@ def _als_profil(solid, b, form=None, t=None):
         e.ende_a = e.ende_b = e.ende_a_huelle = e.ende_b_huelle = bl["breite"] + bl.get("hoehe", 0.0)
     e.ende_a_gerade = e.ende_b_gerade = True
     e.schneidweg = e.ende_a + e.ende_b + e.innen
-    e.achse_global, e.ende_a_global = b.achse_global, b.ende_a_global
+    e.achse_global, e.ende_a_global, e.x_global = b.achse_global, b.ende_a_global, b.x_global
     e.sicherheit.update(profil="unsicher", laenge="wahrscheinlich", wandstaerke="sicher", konturen="unsicher")
     e.hinweise.append(f"Ersatzwerte aus der Blechmessung ({form or 'L-Profil'} aus Länge × Breite), Schnitte "
                       "und Profil prüfen")

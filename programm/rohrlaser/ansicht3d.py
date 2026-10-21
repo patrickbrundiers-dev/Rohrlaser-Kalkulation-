@@ -7,7 +7,8 @@ die Innenwand nur durch Öffnungen zu sehen, die in der Außenhaut ausgespart si
 der Außenhaut als kräftige Linien. Farben nach Art der Fläche.
 
 Netz: {p: [x, y, z, …], t: {Art: [i, j, k, …]}, l: {Art: [[x, y, z, …], …]}} mit Rohrachse = Z ab 0 (siehe
-step_messung/step_geometrie.py). Gespeichert wird es zlib-komprimiert je Position.
+step_messung/step_geometrie.py). Gespeichert wird es zlib-komprimiert je Position. Neuere Messungen haben dazu
+lage = [Ende A, Rohrachse, X-Richtung] in der STEP-Datei; damit setzt baugruppe() die Teile einer Datei zusammen.
 """
 import json
 import math
@@ -24,8 +25,15 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("EB", "Endschnitt", "#B07AA1", "#8E4F80"),
     ("K", "Innenkonturen", "#E15759", "#C00000"),
     ("G", "Gravur", "#59A14F", "#2E7D32"),
+    ("S", "gewählte Teile", "#2E75B6", None),       # nur in der Baugruppen-Ansicht
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
+REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
+# Baugruppen-Ansicht: je Teil (Zeile gleicher Teile) eine Farbe, ohne Eintrag in der Legende
+TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
+              "#BAB0AC", "#2F4B7C", "#A05195")
+FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
+FARBE["X"] = QColor("#D9DDE2")         # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 HINTERGRUND = QColor("#FFFFFF")
 
@@ -42,6 +50,36 @@ def entpacken(daten):
         return json.loads(zlib.decompress(daten).decode("utf-8"))
     except (zlib.error, ValueError):
         return None
+
+
+def baugruppe(netze, hervor=(), farben=None):
+    """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
+    gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
+    hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden. Ohne Innenwände und
+    Schnittlinien (bei vielen Teilen verdeckt bzw. zu unruhig). Ergebnis: (Netz oder None, Anzahl Teile ohne
+    Einbaulage, z. B. aus einer älteren Messung)."""
+    punkte, dreiecke, ohne = [], {}, 0
+    for nr, netz in enumerate(netze):
+        if isinstance(netz, (bytes, bytearray, memoryview)):
+            netz = entpacken(bytes(netz))
+        lage = (netz or {}).get("lage")
+        if not netz or not netz.get("p") or not lage or len(lage) != 9:
+            ohne += 1
+            continue
+        o, z, x = lage[0:3], lage[3:6], lage[6:9]
+        y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
+        p = netz["p"]
+        basis = len(punkte) // 3
+        for i in range(0, len(p) - 2, 3):
+            a, b, c = p[i], p[i + 1], p[i + 2]
+            punkte += [round(o[k] + a * x[k] + b * y[k] + c * z[k], 2) for k in range(3)]
+        for art, idx in (netz.get("t") or {}).items():
+            if art == "I":
+                continue
+            art = ("S" if nr in hervor else "X") if hervor else \
+                f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
+            dreiecke.setdefault(art, []).extend(basis + i for i in idx)
+    return (dict(p=punkte, t=dreiecke, l={}) if punkte else None), ohne
 
 
 class Modell:
@@ -69,7 +107,7 @@ class Modell:
                     r = math.hypot(m[0], m[1]) or 1.0
                     self.linien.append((a, b, art, (m[0] / r, m[1] / r, 0.0)))
         self.arten = sorted({d[3] for d in self.dreiecke} | {l[2] for l in self.linien},
-                            key=lambda a: [x[0] for x in ARTEN].index(a) if a in FARBE else 99)
+                            key=lambda a: REIHE.index(a) if a in REIHE else 99)
         self.laenge = laenge
 
     def _dreieck(self, i, j, k, art):
