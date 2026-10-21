@@ -308,14 +308,34 @@ def aufraeumen(ordner):
     (Path(ordner) / (DATEILISTE + ".neu")).unlink(missing_ok=True)
 
 
+def neuere_liste(quelle, online):
+    """Fehlt beim Laden ein Paket, hat meist ein neuerer Build die Dateiliste ersetzt und die alten Pakete gelöscht,
+    nachdem das Programm die Liste geholt hatte. Dann die aktuelle Liste holen: Ergebnis die neue Dateiliste, wenn
+    sie einen anderen Stand hat, sonst None (der Fehler ist dann ein anderer)."""
+    try:
+        frisch = online_liste(quelle)
+    except UpdateFehler:
+        return None
+    return frisch if frisch.get("stand") != online.get("stand") else None
+
+
 def aktualisieren(ordner, quelle=ADRESSE, alle=False, fortschritt=None, online=None):
     """Prüfen, laden, einspielen in einem Zug (ohne Rückfragen). Ergebnis: (Dateiliste, Plan) bzw. Plan None,
-    wenn nichts zu tun ist."""
+    wenn nichts zu tun ist. Ist die Dateiliste inzwischen überholt (Paket fehlt), einmal mit der neuen."""
     online = online or online_liste(quelle)
     lokal = lokale_liste(ordner)
-    plan = planen(ordner, online, lokal, alle=alle)
-    if not plan["neu"] and not plan["weg"]:
-        return online, None
-    neu_ordner = laden(ordner, quelle, online, plan, fortschritt)
+    for versuch in range(2):
+        plan = planen(ordner, online, lokal, alle=alle)
+        if not plan["neu"] and not plan["weg"]:
+            return online, None
+        try:
+            neu_ordner = laden(ordner, quelle, online, plan, fortschritt)
+            break
+        except UpdateFehler:
+            verwerfen(ordner)
+            frisch = neuere_liste(quelle, online) if versuch == 0 else None
+            if frisch is None:
+                raise
+            online = frisch
     einspielen(ordner, online, plan, neu_ordner)
     return online, plan
