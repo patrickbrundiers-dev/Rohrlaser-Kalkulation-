@@ -22,7 +22,7 @@ from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
 from .angebot import POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
-from .angebot_oben import KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
+from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung, spalten_einpassen
@@ -30,6 +30,15 @@ from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
 FARBE_TEILE = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F",
                "#E15759", "#BAB0AC"]
+
+
+def preis_aenderung(vorher, nachher):
+    """Kurztext zur Preisänderung, z. B. 'Verkaufspreis netto 1.234,00 € → 1.290,50 €.'"""
+    if vorher is None or nachher is None:
+        return ""
+    if abs(vorher - nachher) < 0.005:
+        return f"Verkaufspreis netto unverändert {zahl_als_text(vorher, 2)} €."
+    return f"Verkaufspreis netto {zahl_als_text(vorher, 2)} € → {zahl_als_text(nachher, 2)} €."
 
 
 def _z(w, stellen=2):
@@ -927,6 +936,7 @@ class AngebotSeite(QWidget):
     def _kopf_speichern(self, fd, wert):
         if self._laden or wert == self.kopf.get(fd.name):
             return
+        vorher = self._verkauf() if fd.name in KALK_NAMEN else None
         try:
             self.db.angebot_aendern(self.id, fd.name, wert)
         except ValueError as e:
@@ -938,18 +948,35 @@ class AngebotSeite(QWidget):
         if fd.name.startswith("lieferzeit") and a.get("lieferzeit_art") == "Lieferdatum" and a.get("lieferzeit_wert") \
                 and a["lieferzeit_wert"] < (a.get("datum") or ""):
             meldung += " Achtung: Das Lieferdatum liegt vor dem Angebotsdatum."
-        self.f.meldung(meldung)
         self.neu_laden()
+        if vorher is not None:          # Kalkulationswert: was sich am Preis ändert, in der Statuszeile
+            meldung += f" {preis_aenderung(vorher, self._verkauf())}"
+        self.f.meldung(meldung)
+
+    def _verkauf(self):
+        """Verkaufspreis netto des Angebots mit den gespeicherten Werten (None ohne Positionen)."""
+        if not any(position_aktiv(p) for p in self.positionen):
+            return None
+        return self._rechnung()[1]["verkauf"]
 
     def kalkulation_zuruecksetzen(self):
-        """Kalkulationswerte des Angebots auf die Einstellungen setzen (nach Rückfrage)."""
-        if not self.f.stumm and QMessageBox.question(
-                self, "Kalkulation", "Zuschläge, Gewinn, Rüstzeit und Pauschalen dieses Angebots auf die Werte der "
-                "Einstellungen setzen?") != QMessageBox.Yes:
+        """Kalkulationswerte, Stundensätze und Zeitvorgaben des Angebots auf die Einstellungen setzen; die Rückfrage
+        nennt, was sich ändert."""
+        kalk, zeiten = self.kopf_bereich.abweichungen()
+        if not kalk and not zeiten:
+            self.f.meldung("Alle Kalkulationswerte, Stundensätze und Zeitvorgaben entsprechen den Einstellungen.")
             return False
+        liste = [f"{f.titel.split('[')[0].strip()}: {zahl_als_text(w, f.stellen)} → {zahl_als_text(std, f.stellen)}"
+                 for f, w, std in kalk] + zeiten
+        if not self.f.stumm and QMessageBox.question(
+                self, "Kalkulation", "Diese Werte des Angebots auf die Einstellungen bzw. Stammdaten setzen?\n\n"
+                + "\n".join(liste) + "\n\nVon Hand eingetragene Werte an den Positionen (Meterpreis, Schneidzeit, "
+                "Zukaufteile) bleiben.") != QMessageBox.Yes:
+            return False
+        vorher = self._verkauf()
         self.db.kalkulation_zuruecksetzen(self.id)
-        self.f.meldung("Kalkulationswerte aus den Einstellungen übernommen.")
         self.neu_laden()
+        self.f.meldung(f"{len(liste)} Werte aus den Einstellungen übernommen. {preis_aenderung(vorher, self._verkauf())}")
         return True
 
     def fracht_berechnen(self):

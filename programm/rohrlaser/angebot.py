@@ -50,6 +50,18 @@ KALKULATION = (
 KALK_PROZENT = ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn")
 KOPF = KOPF + KALKULATION
 
+
+def kalk_abweichungen(kopf, vorgaben):
+    """Kalkulationswerte des Angebots, die von den Einstellungen abweichen: [(Feld, Wert im Angebot, Standard)].
+    vorgaben = Datenbank.kalkulation_vorgaben() (Prozent in %). Leere Werte (ältere Angebote) rechnen mit den
+    Einstellungen und weichen nicht ab."""
+    out = []
+    for f in KALKULATION:
+        w, std = (kopf or {}).get(f.name), vorgaben.get(f.name)
+        if isinstance(w, (int, float)) and isinstance(std, (int, float)) and abs(w - std) > 1e-9:
+            out.append((f, w, std))
+    return out
+
 # Positionsart: leer = Rohrlaserteil (Profil, Optimierung, Laser); Zukaufteil = eingekauftes Teil ohne Fertigung
 # (z. B. Blech aus dem STEP-Import), Preis nur aus den Zukaufteilen der Position (Einstand + Aufschlag) und Fracht
 ROHRLASERTEIL, ZUKAUFTEIL = "Rohrlaserteil", "Zukaufteil"

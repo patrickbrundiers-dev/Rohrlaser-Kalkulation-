@@ -14,7 +14,7 @@ from . import fracht_angebot, rechnen
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, LIEFERZEIT_HILFE, NUR_TEXT,
-                      aktiv as position_aktiv, lieferzeit_text)
+                      aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
 from .sichtbarkeit import KOPF_ROLLEN, MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
 
@@ -44,10 +44,27 @@ MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
 
 GRAU = "#5F6B7A"
+GELB, GELB_TEXT = "#FFF4CE", "#7A5A00"        # Wert weicht von den Einstellungen ab
 
 
 def _z(w, stellen=2):
     return zahl_als_text(w, stellen) if isinstance(w, (int, float)) and not isinstance(w, bool) else ""
+
+
+def _kurz(titel):
+    """'Zuschlag Material [%]' -> 'Zuschlag Material'"""
+    return titel.split("[")[0].strip()
+
+
+def _wert_text(fd, w):
+    """Wert eines Kalkulationsfelds mit Einheit, z. B. '12 %' oder '200,00 €'."""
+    einheit = fd.titel.split("[", 1)[1].rstrip("]") if "[" in fd.titel else ""
+    stellen = fd.stellen if fd.stellen is not None else 2
+    if einheit in ("%", "min"):
+        t = rechnen.zahl(w, stellen)
+    else:
+        t = _z(w, stellen)
+    return f"{t} {einheit}".strip()
 
 
 def _lz_anzeige(art, wert):
@@ -207,11 +224,16 @@ class KopfBereich(QWidget):
         kal.setContentsMargins(0, 0, 0, 0)
         kal.setSpacing(6)
         kal0.addWidget(self.kalk_inhalt)
-        hinweis = QLabel("Vorgabe aus den Einstellungen, hier änderbar. Werte mit 0 stehen unter "
-                         "„Erweiterte Einstellungen“.")
+        hinweis = QLabel("Vorgabe aus den Einstellungen, hier änderbar; gilt nur für dieses Angebot. Gelb = weicht von "
+                         "den Einstellungen ab. Werte mit 0 stehen unter „Erweiterte Einstellungen“.")
         hinweis.setStyleSheet(f"color: {GRAU};")
         hinweis.setWordWrap(True)
         kal.addWidget(hinweis)
+        self.abweichung_text = QLabel()            # welche Werte vom Standard abweichen (auch Stundensätze)
+        self.abweichung_text.setWordWrap(True)
+        self.abweichung_text.setStyleSheet(f"color: {GELB_TEXT};")
+        self.abweichung_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        kal.addWidget(self.abweichung_text)
         gruppen = QGridLayout()
         gruppen.setHorizontalSpacing(18)
         self.gruppen_leer = {}
@@ -361,7 +383,8 @@ class KopfBereich(QWidget):
                         titel, einheit = titel.split("[", 1)
                         einheit = einheit.rstrip("]")
                     teile.append(f"{titel.strip()} {_z(v, fd.stellen if fd.stellen is not None else (0 if fd.art == "ganz" else 2))} {einheit}".strip())
-        self.kalk_kurz.setText("   " + " · ".join(teile))
+        n = getattr(self, "_n_abweichend", 0)
+        self.kalk_kurz.setText("   " + " · ".join(teile) + (f"   ({n} abweichend)" if n else ""))
         self.kalk_kurz.setToolTip("\n".join(teile))
 
     def _gruppen_anordnen(self, spalten):
@@ -459,10 +482,41 @@ class KopfBereich(QWidget):
                 else:
                     w.setText(v or "")
         self._lieferzeit_anzeigen()
+        self._abweichungen_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()
         self._maschine_anzeigen()
         self._fracht_anzeigen()
+
+    def abweichungen(self):
+        """[(Feld, Wert, Standard)] der Kalkulationswerte und Texte der Stundensätze/Zeitvorgaben, die von den
+        Einstellungen bzw. Stammdaten abweichen."""
+        s = self.s
+        kalk = kalk_abweichungen(s.kopf, s.db.kalkulation_vorgaben())
+        zeiten = rechnen.zeitbasis_abweichungen(s.kopf.get("zeitbasis"), s.db.zeitbasis_vorgabe(s.kopf.get("maschine")))
+        return kalk, zeiten
+
+    def _abweichungen_anzeigen(self):
+        kalk, zeiten = self.abweichungen()
+        abw = {f.name: std for f, _, std in kalk}
+        for ablage in (self.felder, self.erweitert):
+            for name, w in ablage.items():
+                if name not in KALK_NAMEN:
+                    continue
+                fd = KOPF_FELD[name]
+                if name in abw:
+                    w.setStyleSheet(f"background: {GELB};")
+                    w.setToolTip(f"Weicht ab: Standard (Einstellungen) {_wert_text(fd, abw[name])}")
+                else:
+                    w.setStyleSheet("")
+                    w.setToolTip("wie in den Einstellungen")
+        teile = [f"{_kurz(f.titel)} {_wert_text(f, w)} statt {_wert_text(f, std)}" for f, w, std in kalk] + zeiten
+        n = len(teile)
+        self.abweichung_text.setVisible(bool(n))
+        self.abweichung_text.setText(
+            f"{n} {'Wert weicht' if n == 1 else 'Werte weichen'} von den Einstellungen ab: " + "; ".join(teile) + "."
+            if n else "")
+        self._n_abweichend = n
 
     def _lieferzeit_anzeigen(self):
         k = self.s.kopf
