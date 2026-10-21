@@ -27,7 +27,8 @@ from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv a
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
-from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung, spalten_einpassen
+from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
+from .spaltenbreite import AutoGroesse
 from .verlauf import Verlauf
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
@@ -66,6 +67,7 @@ def _tabelle(modell, sortieren=True):
     kopf.setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
     kopf.setMinimumHeight(48)
     v.verticalHeader().setDefaultSectionSize(22)
+    AutoGroesse(v)                  # Breite und Höhe passend zum Inhalt (spaltenbreite.py)
     return v
 
 
@@ -941,7 +943,6 @@ class AngebotSeite(QWidget):
         lay.setContentsMargins(8, 8, 8, 4)
         lay.addWidget(self.teiler, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
-        self._pos_eingepasst = self._kalk_eingepasst = False
         self.neu_laden()
 
     # -------------------------------------------------------------- Laden und Rechnen
@@ -1137,9 +1138,6 @@ class AngebotSeite(QWidget):
         erg = self.ergebnis
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
         self.kalk.setzen([z for z in zeilen if z])
-        if not self._kalk_eingepasst and any(zeilen):
-            spalten_einpassen(self.kalk_ansicht)
-            self._kalk_eingepasst = True
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
@@ -1205,9 +1203,8 @@ class AngebotSeite(QWidget):
             if zeigen and self.pos_ansicht.isColumnHidden(i):
                 neu.add(i)
             self.pos_ansicht.setColumnHidden(i, not zeigen)
-        if self.positionen:            # Breiten einmal je geöffnetem Angebot, danach nur neu gezeigte Spalten
-            spalten_einpassen(self.pos_ansicht, None if not self._pos_eingepasst else neu)
-            self._pos_eingepasst = True
+        if neu and self.pos_ansicht.auto_groesse.eingepasst:     # neu gezeigte Spalten einpassen (sonst beim Füllen)
+            self.pos_ansicht.auto_groesse.einpassen(neu)
         aus = sum(1 for i, (art, _) in enumerate(m.spalten) if m.name(i) in OPTIONALE_SPALTEN
                   and self.pos_ansicht.isColumnHidden(i))
         n = sum(1 for p in self.positionen if position_aktiv(p) or p.get("artikel"))

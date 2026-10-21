@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import NAME, ausgabe, tastatur, update
+from .spaltenbreite import AutoGroesse
 from .stammdaten import TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
@@ -55,21 +56,6 @@ QTableView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selec
 QHeaderView::section { background: #F1F3F6; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
                        border-bottom: 1px solid #C9D0D8; padding: 3px; font-weight: bold; }
 """
-
-
-def spalten_einpassen(ansicht, nur=None, max_breite=260):
-    """Sichtbare Spalten so breit wie Inhalt bzw. Kopf (Kopf höchstens zweizeilig, kein Wort abgeschnitten),
-    höchstens max_breite. nur = Menge von Spalten, sonst alle."""
-    modell, kopf = ansicht.model(), ansicht.horizontalHeader()
-    fm = kopf.fontMetrics()
-    for c in range(modell.columnCount()):
-        if ansicht.isColumnHidden(c) or (nur is not None and c not in nur):
-            continue
-        titel = str(modell.headerData(c, Qt.Horizontal, Qt.DisplayRole) or "")
-        woerter = [fm.horizontalAdvance(w) for w in titel.split()] or [0]
-        kopfbreite = max(max(woerter), fm.horizontalAdvance(titel) / 2) + 20
-        inhalt = ansicht.sizeHintForColumn(c) + 8
-        ansicht.setColumnWidth(c, int(min(max(kopfbreite, inhalt, 40), max_breite)))
 
 
 class StammdatenModell(QAbstractTableModel):
@@ -289,6 +275,7 @@ class StammdatenSeite(QWidget):
         for i, (art, s) in enumerate(self.modell.spalten):
             self.ansicht.setColumnWidth(i, s.breite if art == "feld" else (110 if art == "berechnet" else 260))
         self.ansicht.verticalHeader().setDefaultSectionSize(24)
+        AutoGroesse(self.ansicht)        # Breite und Höhe passend zum Inhalt, Vorgabebreiten bis zum ersten Füllen
 
         lay = QVBoxLayout(self)
         lay.addWidget(hinweis)
