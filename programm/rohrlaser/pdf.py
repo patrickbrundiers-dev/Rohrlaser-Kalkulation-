@@ -5,7 +5,6 @@ Die Inhalte kommen aus ausgabe.py; hier wird nur gesetzt (reportlab, A4).
 import base64
 import datetime
 import io
-from itertools import zip_longest
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT
@@ -24,21 +23,30 @@ from .stammdaten import zahl_als_text
 SCHRIFT, FETT = "Helvetica", "Helvetica-Bold"
 BLAU = colors.HexColor("#1F4E78")
 HELLBLAU = colors.HexColor("#DDEBF7")
-RAHMEN = colors.HexColor("#BFBFBF")
 ROT = colors.HexColor("#C00000")
 TEILFARBEN = ["#BDD7EE", "#C6E0B4", "#FFE699", "#D9D2E9", "#B4C6E7", "#F8CBAD", "#CCECFF", "#E2EFDA", "#EDEDBE"]
 
 S = ParagraphStyle("normal", fontName=SCHRIFT, fontSize=9, leading=11)
 S_KLEIN = ParagraphStyle("klein", parent=S, fontSize=8, leading=9.5)
 S_FETT = ParagraphStyle("fett", parent=S, fontName=FETT)
-S_KOPF = ParagraphStyle("kopf", parent=S, fontName=FETT, textColor=colors.white, fontSize=8, leading=9.5)
+S_KOPF = ParagraphStyle("kopf", parent=S, fontName=FETT, textColor=BLAU, fontSize=8, leading=9.5)
 S_RECHTS = ParagraphStyle("rechts", parent=S, alignment=TA_RIGHT)
-S_TITEL = ParagraphStyle("titel", parent=S, fontName=FETT, fontSize=16, leading=20, spaceAfter=4)
-S_H2 = ParagraphStyle("h2", parent=S, fontName=FETT, fontSize=11, leading=14, spaceBefore=6, spaceAfter=3)
+S_TITEL = ParagraphStyle("titel", parent=S, fontName=FETT, fontSize=18, leading=22, textColor=BLAU)
+S_H2 = ParagraphStyle("h2", parent=S, fontName=FETT, fontSize=11, leading=14, spaceBefore=6, spaceAfter=3,
+                      textColor=BLAU)
+S_ROT = ParagraphStyle("rot", parent=S_FETT, textColor=ROT)
+ZEBRA = colors.HexColor("#F3F7FB")
+LINIE = colors.HexColor("#D9D9D9")
+GRAU = colors.HexColor("#595959")
+GRUEN = colors.HexColor("#2E7D32")
 
 
 def _z(w, stellen=2):
-    return zahl_als_text(w, stellen) if isinstance(w, (int, float)) and not isinstance(w, bool) else ("" if w is None else str(w))
+    if not isinstance(w, (int, float)) or isinstance(w, bool):
+        return "" if w is None else str(w)
+    if stellen is not None and round(w, stellen) == 0:      # kein "-0,00" aus Gleitkommaresten
+        w = 0
+    return zahl_als_text(w, stellen)
 
 
 def _p(text, stil=S):
@@ -49,7 +57,7 @@ def _p(text, stil=S):
 class _Seitenzahlen(rl_canvas.Canvas):
     """Canvas mit 'Seite x von y' und Fußzeilentext auf jeder Seite."""
     fuss = ""
-    linie = None        # Farbe einer feinen Linie über der Fußzeile (Angebot), None = keine
+    linie = None        # Farbe einer feinen Linie über der Fußzeile, None = keine
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -76,35 +84,110 @@ class _Seitenzahlen(rl_canvas.Canvas):
         super().save()
 
 
+OHNE_RAND = dict(leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+
+
 def _dokument(pfad, titel, fuss, quer=False, auch_quer=False):
     hoch = landscape(A4) if quer else A4
     doc = BaseDocTemplate(str(pfad), pagesize=hoch, title=titel, author="Rohrlaser-Angebotskalkulation",
                           leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=15 * mm)
     vorlagen = [PageTemplate(id="hoch", pagesize=hoch,
-                             frames=[Frame(12 * mm, 15 * mm, hoch[0] - 24 * mm, hoch[1] - 27 * mm, id="f1")])]
+                             frames=[Frame(12 * mm, 15 * mm, hoch[0] - 24 * mm, hoch[1] - 27 * mm, id="f1", **OHNE_RAND)])]
     if auch_quer:
         q = landscape(A4)
         vorlagen.append(PageTemplate(id="quer", pagesize=q,
-                                     frames=[Frame(12 * mm, 15 * mm, q[0] - 24 * mm, q[1] - 27 * mm, id="f2")]))
+                                     frames=[Frame(12 * mm, 15 * mm, q[0] - 24 * mm, q[1] - 27 * mm, id="f2", **OHNE_RAND)]))
     doc.addPageTemplates(vorlagen)
-    leinwand = type("Leinwand", (_Seitenzahlen,), {"fuss": fuss})
+    leinwand = type("Leinwand", (_Seitenzahlen,), {"fuss": fuss, "linie": BLAU})
     return doc, leinwand
 
 
-def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederholen=True):
+def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederholen=True, zebra=True):
+    """Liste im Stil des Angebots: ohne Gitter, Kopf dunkelblau mit Linie, feine Linien zwischen den Zeilen, jede
+    zweite Zeile leicht hinterlegt; fett_zeilen (Summen) hellblau."""
+    for zeile in daten[:kopfzeilen]:       # Kopf über Zahlenspalten rechtsbündig wie die Werte
+        for c in rechts:
+            if isinstance(zeile[c], Paragraph):
+                zeile[c].style = ParagraphStyle(zeile[c].style.name + "_r", parent=zeile[c].style, alignment=TA_RIGHT)
     t = LongTable(daten, colWidths=breiten, repeatRows=kopfzeilen if wiederholen else 0)
     stil = [("FONT", (0, 0), (-1, -1), SCHRIFT, 8.5), ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("GRID", (0, 0), (-1, -1), 0.4, RAHMEN), ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2), ("LEFTPADDING", (0, 0), (-1, -1), 3),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 3)]
+            ("TOPPADDING", (0, 0), (-1, -1), 2.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+            ("LINEBELOW", (0, kopfzeilen), (-1, -1), 0.3, LINIE)]
     if kopfzeilen:
-        stil += [("BACKGROUND", (0, 0), (-1, kopfzeilen - 1), BLAU), ("VALIGN", (0, 0), (-1, kopfzeilen - 1), "MIDDLE")]
+        stil += [("LINEBELOW", (0, kopfzeilen - 1), (-1, kopfzeilen - 1), 1, BLAU),
+                 ("VALIGN", (0, 0), (-1, kopfzeilen - 1), "BOTTOM"), ("FONT", (0, 0), (-1, kopfzeilen - 1), FETT, 8)]
+    if zebra:
+        stil.append(("ROWBACKGROUNDS", (0, kopfzeilen), (-1, -1), [colors.white, ZEBRA]))
     for c in rechts:
         stil.append(("ALIGN", (c, kopfzeilen), (c, -1), "RIGHT"))
     for r in fett_zeilen:
-        stil.append(("FONT", (0, r), (-1, r), FETT, 8.5))
+        stil += [("FONT", (0, r), (-1, r), FETT, 8.5), ("BACKGROUND", (0, r), (-1, r), HELLBLAU)]
     t.setStyle(TableStyle(stil))
     return t
+
+
+def _dok_kopf(titel, kopf, einst, breite, angaben=None, warnung=None):
+    """Kopf der internen PDFs: Firmenname klein, Titel groß, kleines Logo rechts, Linie; darunter die Angaben
+    (Bezeichnung grau über dem Wert) und ggf. eine rote Warnung."""
+    firma = (einst or {}).get("briefkopf_1") or ""
+    links = ([_p(firma, ParagraphStyle("fk", parent=S, fontSize=8, textColor=GRAU))] if firma else []) + \
+        [_p(titel, S_TITEL)]
+    logo = logo_bild(einst, 32 * mm, 13 * mm)
+    t = Table([[links, logo or ""]], colWidths=[breite - 40 * mm, 40 * mm])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "BOTTOM"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                           ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEBELOW", (0, 0), (-1, 0), 1.2, BLAU)]))
+    if angaben is None:
+        angaben = [("Angebot", kopf.get("nummer")), ("Kunde", kopf.get("kunde")), ("Maschine", kopf.get("maschine")),
+                   ("erstellt", _erstellt())]
+    angaben = [(a, b) for a, b in angaben if b not in (None, "")]
+    inhalt = [t, Spacer(1, 3 * mm)]
+    if angaben:
+        grau = ParagraphStyle("ag", parent=S, fontSize=7, leading=8.5, textColor=GRAU)
+        a = Table([[_p(x, grau) for x, _ in angaben], [_p(y, S_FETT) for _, y in angaben]],
+                  colWidths=[min(55 * mm, breite / len(angaben))] * len(angaben), hAlign="LEFT")
+        a.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
+                               ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]))
+        inhalt.append(a)
+    if warnung:
+        inhalt += [Spacer(1, 2 * mm), _p(warnung, S_ROT)]
+    return inhalt + [Spacer(1, 4 * mm)]
+
+
+def _kacheln(werte, breite, je_zeile=None):
+    """Kennzahlen als Kacheln: [(Bezeichnung, Wert[, Farbe])] nebeneinander, hellblau hinterlegt."""
+    n = je_zeile or len(werte)
+    abstand = 3 * mm
+    w = (breite - abstand * (n - 1)) / n
+    grau = ParagraphStyle("kg", parent=S, fontSize=7.5, leading=9, textColor=GRAU)
+    zellen, spalten = [], []
+    for i, x in enumerate(werte):
+        farbe = x[2] if len(x) > 2 and x[2] is not None else BLAU
+        zellen.append([_p(x[0], grau), _p(x[1], ParagraphStyle("kw", parent=S_FETT, fontSize=12.5, leading=15,
+                                                              textColor=farbe))])
+        spalten.append(w)
+        if i < len(werte) - 1:
+            zellen.append("")
+            spalten.append(abstand)
+    stil = [("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6), ("VALIGN", (0, 0), (-1, -1), "TOP")]
+    stil += [("BACKGROUND", (2 * i, 0), (2 * i, 0), HELLBLAU) for i in range(len(werte))]
+    t = Table([zellen], colWidths=spalten, hAlign="LEFT")
+    t.setStyle(TableStyle(stil))
+    return t
+
+
+class Kaestchen(Flowable):
+    """Leeres Kästchen zum Abhaken (Werkstattpapiere)."""
+
+    def wrap(self, breite, hoehe):
+        return 4.5 * mm, 4.5 * mm
+
+    def draw(self):
+        self.canv.setStrokeColor(colors.HexColor("#404040"))
+        self.canv.setLineWidth(0.8)
+        self.canv.rect(0, 0.3 * mm, 4.2 * mm, 4.2 * mm, fill=0, stroke=1)
 
 
 def _kopfzeile(texte):
@@ -116,8 +199,6 @@ def _erstellt():
 
 
 # ------------------------------------------------------------------ Angebot
-GRAU = colors.HexColor("#595959")
-LINIE = colors.HexColor("#D9D9D9")
 S_A = ParagraphStyle("a", parent=S, fontSize=9, leading=11.5)
 S_A_FETT = ParagraphStyle("a_fett", parent=S_A, fontName=FETT)
 S_A_GRAU = ParagraphStyle("a_grau", parent=S_A, textColor=GRAU)
@@ -155,13 +236,12 @@ def _staffel_text(st, satz=False):
 
 
 def _angebot_kopf(kopf, ang, einst):
-    """Briefkopf mit Logo, Anschriftfeld links und Angebotsdaten rechts, Titel (Breite 182 mm = Rahmen ohne
-    Innenabstand)."""
+    """Briefkopf mit Logo, Anschriftfeld links und Angebotsdaten rechts, Titel (Breite 186 mm)."""
     firma = [einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)]
     links = [_p(firma[0], S_A_FIRMA)] if firma[0] else []
     links += [_p(t, S_A_GRAU) for t in firma[1:] if t]
     logo = logo_bild(einst)
-    t = Table([[links or "", logo or ""]], colWidths=[116 * mm, 66 * mm])
+    t = Table([[links or "", logo or ""]], colWidths=[120 * mm, 66 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
                            ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                            ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEBELOW", (0, 0), (-1, 0), 1.2, BLAU)]))
@@ -180,7 +260,7 @@ def _angebot_kopf(kopf, ang, einst):
                    colWidths=[28 * mm, 38 * mm])
     rechts.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                                 ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]))
-    t = Table([[anschrift, rechts]], colWidths=[116 * mm, 66 * mm])
+    t = Table([[anschrift, rechts]], colWidths=[120 * mm, 66 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                            ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
     inhalt += [t, Spacer(1, 14 * mm), _p(f"Angebot {kopf.get('nummer') or ''}".strip(), S_A_TITEL),
@@ -243,7 +323,7 @@ def _angebot_positionen(ang):
         if i < len(gruppen) - 1:
             stil.append(("LINEBELOW", (0, bis), (-1, bis), 0.5, LINIE))
     stil.append(("LINEBELOW", (0, -1), (-1, -1), 1, BLAU))
-    t = LongTable(daten, colWidths=[11 * mm, 25 * mm, 72 * mm, 15 * mm, 12 * mm, 23 * mm, 24 * mm], repeatRows=1)
+    t = LongTable(daten, colWidths=[11 * mm, 25 * mm, 74 * mm, 16 * mm, 12 * mm, 24 * mm, 24 * mm], repeatRows=1)
     t.setStyle(TableStyle(stil))
     return t
 
@@ -253,7 +333,6 @@ def angebot_pdf(pfad, kopf, ang, einst):
     firma = " · ".join(t for t in (einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)) if t)
     fuss = "   |   ".join(t for t in (firma, f"Angebot {kopf.get('nummer') or ''}".strip()) if t)
     doc, leinwand = _dokument(pfad, f"Angebot {kopf.get('nummer') or ''}", fuss)
-    leinwand.linie = BLAU
     inhalt = _angebot_kopf(kopf, ang, einst)
     inhalt.append(_angebot_positionen(ang))
 
@@ -297,11 +376,16 @@ class StangenBalken(Flowable):
         lang = s["stange"] or 1
         f = self.breite / lang
         y, h = 9 * mm, 11 * mm
-        c.setFont(FETT, 8.5)
+        c.setFont(FETT, 9)
+        c.setFillColor(BLAU)
+        titel = ausgabe.muster_titel(m)
+        c.drawString(0, 25 * mm, titel)
+        c.setFont(SCHRIFT, 8.5)
         c.setFillColor(colors.black)
-        c.drawString(0, 25 * mm, f"{ausgabe.muster_titel(m)}   |   {s['profil']}   |   {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}   |   "
-                                 f"{_z(lang, 0)} mm   |   {len(m['teile'])} Teile   |   Rest {_z(m['rest'], 1)} mm   |   "
-                                 f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %")
+        c.drawString(c.stringWidth(titel, FETT, 9) + 4 * mm, 25 * mm,
+                     f"{s['profil']}  ·  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  ·  "
+                     f"{_z(lang, 0)} mm  ·  {len(m['teile'])} Teile  ·  Rest {_z(m['rest'], 1)} mm  ·  "
+                     f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %")
 
         def rechteck(von, bis, farbe, rand=0.3):
             c.setFillColor(farbe)
@@ -335,51 +419,64 @@ class StangenBalken(Flowable):
         c.drawRightString(self.breite, y - 8, f"{_z(lang, 0)} mm")
 
 
-def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
+def _fuss(einst, text):
+    firma = (einst or {}).get("briefkopf_1") or ""
+    return "   |   ".join(t for t in (firma, text) if t)
+
+
+def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     """wp = ausgabe.werkstatt(...). Schnittpläne hochkant, danach das Stangenbild quer – eine Datei."""
-    doc, leinwand = _dokument(pfad, f"Werkstattpapiere {kopf.get('nummer') or ''}",
-                              f"Werkstattpapier {kopf.get('nummer') or ''}", auch_quer=True)
-    kopftext = (f"Angebot {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   "
-                f"Maschine {kopf.get('maschine') or ''}   |   erstellt {_erstellt()}")
+    nr = kopf.get("nummer") or ""
+    doc, leinwand = _dokument(pfad, f"Werkstattpapiere {nr}", _fuss(einst, f"Werkstattpapier {nr}"), auch_quer=True)
     achtung = "ACHTUNG: Schnittplan passt nicht zum aktuellen Angebot (Optimierung veraltet)."
-    inhalt = [_p("Werkstattpapiere – Schnittpläne", S_TITEL), _p(kopftext, S_KLEIN)]
-    if not aktuell:
-        inhalt.append(_p(achtung, ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
-    inhalt += [Spacer(1, 4 * mm), _p("Materialliste", S_H2)]
-    daten = [_kopfzeile(["Profil-ID", "Werkstoff-ID", "Stange [mm]", "Stangen [Stk]", "Gewicht [kg]"])]
+    inhalt = _dok_kopf("Werkstattpapiere – Schnittpläne", kopf, einst, 186 * mm, warnung=None if aktuell else achtung)
+    inhalt.append(_p("Materialliste", S_H2))
+    daten = [_kopfzeile(["Profil", "Werkstoff", "Stange [mm]", "Stangen", "Gewicht [kg]"])]
     for m in wp["material"]:
-        daten.append([_p(m["profil"]), _p(m["werkstoff"]), _z(m["stange"], 0), _z(m["stangen"], 0), _z(m["gewicht"], 1)])
-    inhalt += [_tabelle(daten, [45 * mm, 40 * mm, 25 * mm, 25 * mm, 25 * mm], rechts=(2, 3, 4)), Spacer(1, 4 * mm)]
+        daten.append([_p(m["profil"], S_FETT), _p(m["werkstoff"]), _z(m["stange"], 0), _z(m["stangen"], 0),
+                      _z(m["gewicht"], 1)])
+    tab = _tabelle(daten, [55 * mm, 55 * mm, 25 * mm, 25 * mm, 26 * mm], rechts=(2, 3, 4))
+    tab.setStyle(TableStyle([("FONT", (3, 1), (3, -1), FETT, 8.5)]))
+    inhalt += [tab, Spacer(1, 4 * mm)]
     if wp.get("zukaufteile"):        # Bleche usw.: werden nicht gelasert, nur bereitgestellt
-        daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Zukaufteil", "Stück"])]
+        daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Zukaufteil", "Stück", "bereit"])]
         for z in wp["zukaufteile"]:
-            daten.append([_z(z["pos"], 0), _p(z["artikel"], S_KLEIN), _p(z["bezeichnung"], S_KLEIN),
-                          _p(z["text"], S_KLEIN), _z(z["stueck"], 0)])
-        inhalt += [_p("Zukaufteile (nicht lasern, zum Auftrag bereitstellen)", S_H2),
-                   _tabelle(daten, [12 * mm, 33 * mm, 40 * mm, 70 * mm, 15 * mm], rechts=(4,)), Spacer(1, 4 * mm)]
-    breiten = [11 * mm, 11 * mm, 27 * mm, 33 * mm, 17 * mm, 17 * mm, 17 * mm, 14 * mm, 25 * mm, 14 * mm]
+            daten.append([_p(_z(z["pos"], 0), S_FETT), _p(z["artikel"], S_KLEIN), _p(z["bezeichnung"], S_KLEIN),
+                          _p(z["text"], S_KLEIN), _z(z["stueck"], 0), Kaestchen()])
+        tab = _tabelle(daten, [12 * mm, 33 * mm, 45 * mm, 69 * mm, 14 * mm, 13 * mm], rechts=(4,))
+        tab.setStyle(TableStyle([("ALIGN", (5, 0), (5, -1), "CENTER")]))
+        inhalt += [_p("Zukaufteile (nicht lasern, zum Auftrag bereitstellen)", S_H2), tab, Spacer(1, 4 * mm)]
+    breiten = [11 * mm, 12 * mm, 27 * mm, 36 * mm, 18 * mm, 17 * mm, 17 * mm, 13 * mm, 24 * mm, 11 * mm]
     for m in wp["muster"]:
         s = m["stange"]
         daten = [_kopfzeile(["Platz", "Pos.", "Artikelnummer", "Bezeichnung", "Länge [mm]", "Von [mm]", "Bis [mm]",
-                             "Lage", "Trennung zum Vorgänger", "erledigt"])]
+                             "Lage", "Trennung zum Vorgänger", "erl."])]
         for t in m["teile"]:
-            daten.append([_z(t["platz"], 0), _z(t["pos"], 0), _p(t["artikel"], S_KLEIN), _p(t["bezeichnung"], S_KLEIN),
-                          _z(t["laenge"], 1), _z(t["von"], 1), _z(t["bis"], 1),
-                          t["lage"],
-                          _p(t["trennung"], S_KLEIN), ""])
+            daten.append([_z(t["platz"], 0), _p(_z(t["pos"], 0), ParagraphStyle("pz", parent=S_FETT, alignment=1)),
+                          _p(t["artikel"], S_KLEIN), _p(t["bezeichnung"], S_KLEIN),
+                          _p(_z(t["laenge"], 1), ParagraphStyle("lg", parent=S_FETT, alignment=TA_RIGHT)),
+                          _z(t["von"], 1), _z(t["bis"], 1), t["lage"], _p(t["trennung"], S_KLEIN), Kaestchen()])
         tab = _tabelle(daten, breiten, rechts=(4, 5, 6), wiederholen=True)
-        tab.setStyle(TableStyle([("ALIGN", (0, 1), (1, -1), "CENTER"), ("ALIGN", (7, 1), (7, -1), "CENTER")]))
-        titel = Table([[_p(ausgabe.muster_titel(m), ParagraphStyle("mt", parent=S_FETT, fontSize=11, leading=13))]],
-                      colWidths=[sum(breiten)])
-        titel.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), HELLBLAU)]))
-        info = _p(f"{s['profil']}  |  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  |  Stange {_z(s['stange'], 0)} mm  |  Endbeschnitt "
-                  f"{_z(s['end'], 1)} mm  |  Greiferrest {_z(s['greif'], 1)} mm  |  Rest {_z(m['rest'], 1)} mm  |  "
-                  f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %", S_KLEIN)
-        kopfteil = [titel, info, Spacer(1, 1.5 * mm)]
+        tab.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (1, -1), "CENTER"), ("ALIGN", (7, 0), (7, -1), "CENTER"),
+            ("ALIGN", (9, 0), (9, -1), "CENTER"), ("VALIGN", (0, 1), (-1, -1), "MIDDLE")]))
+        gross = ParagraphStyle("mt", parent=S_FETT, fontSize=11, leading=13, textColor=BLAU)
+        anzahl = "1 Stange" if m["anzahl"] == 1 else f"{m['anzahl']} Stangen gleich"
+        titel = Table([[_p(ausgabe.muster_titel(m), gross),
+                        _p(f"{s['profil']}  ·  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  ·  "
+                           f"{anzahl}", ParagraphStyle("mp", parent=S_FETT, fontSize=10, leading=13,
+                                                        alignment=TA_RIGHT))]],
+                      colWidths=[80 * mm, sum(breiten) - 80 * mm])
+        titel.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), HELLBLAU), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                   ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
+        info = _p(f"Stange {_z(s['stange'], 0)} mm  ·  Endbeschnitt {_z(s['end'], 1)} mm  ·  Greiferrest "
+                  f"{_z(s['greif'], 1)} mm  ·  Rest {_z(m['rest'], 1)} mm  ·  Ausnutzung "
+                  f"{_z(100 * m['ausnutzung'], 1)} %", ParagraphStyle("mi", parent=S_KLEIN, textColor=GRAU))
+        kopfteil = [titel, Spacer(1, 1 * mm), info, Spacer(1, 1 * mm)]
         if len(m["teile"]) <= 30:
-            inhalt.append(KeepTogether(kopfteil + [tab, Spacer(1, 5 * mm)]))
+            inhalt.append(KeepTogether(kopfteil + [tab, Spacer(1, 6 * mm)]))
         else:
-            inhalt += [CondPageBreak(60 * mm)] + kopfteil + [tab, Spacer(1, 5 * mm)]
+            inhalt += [CondPageBreak(60 * mm)] + kopfteil + [tab, Spacer(1, 6 * mm)]
     if wp["muster"]:
         farben, n = {}, 0
         for m in wp["muster"]:
@@ -387,14 +484,12 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True):
                 if t["pos"] not in farben:
                     farben[t["pos"]] = TEILFARBEN[n % len(TEILFARBEN)]
                     n += 1
-        inhalt += [NextPageTemplate("quer"), PageBreak(), _p("Stangenbild – Verschachtelung je Stange", S_TITEL),
-                   _p(kopftext, S_KLEIN)]
-        if not aktuell:
-            inhalt.append(_p(achtung.replace("Schnittplan", "Stangenbild"), ParagraphStyle("rot2", parent=S_FETT,
-                                                                                              textColor=ROT)))
+        inhalt += [NextPageTemplate("quer"), PageBreak()]
+        inhalt += _dok_kopf("Stangenbild – Verschachtelung je Stange", kopf, einst, 273 * mm,
+                            warnung=None if aktuell else achtung.replace("Schnittplan", "Stangenbild"))
         inhalt += [_p("Grau = Endbeschnitt, farbig = Teil (Pos., Länge in mm; Farbe je Position), hellgrau = Rest / "
-                      "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange.", S_KLEIN),
-                   Spacer(1, 3 * mm)]
+                      "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange.",
+                      ParagraphStyle("le", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 3 * mm)]
         inhalt += [StangenBalken(m, farben) for m in wp["muster"]]
     else:
         inhalt.append(_p("Der Schnittplan ist leer. Bitte zuerst optimieren.", S_FETT))
@@ -427,25 +522,37 @@ assert sum(s[3] for s in SCHNEID) <= 273
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
-    doc, leinwand = _dokument(pfad, f"Kalkulation {kopf.get('nummer') or ''}", f"Kalkulation {kopf.get('nummer') or ''}",
-                              quer=True)
-    inhalt = [_p("Kalkulation", S_TITEL),
-              _p(f"Angebot {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   Maschine "
-                 f"{kopf.get('maschine') or ''}   |   erstellt {_erstellt()}", S_KLEIN)]
-    if not aktuell:
-        inhalt.append(_p("ACHTUNG: Kalkulation passt nicht zum aktuellen Angebot (Optimierung veraltet).",
-                         ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
-    werte = [(f"{t} [€]", _z(w)) for t, w, _ in kostenarten(summen, einst)]
-    angebot = [("Rüstzeit [min]", _z(summen["ruestzeit"], 0)),
-               ("Abmessungen × Rüstzeit [min]", f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"),
-               ("Stangenwechsel [s]", _z(summen["stangenwechsel"], 0)),
-               ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0))]
-    t = Table([[_p(a, S_FETT), _p(b, S_RECHTS), "", _p(c, S_FETT), _p(d, S_RECHTS)] for (a, b), (c, d) in
-               zip_longest(werte, angebot, fillvalue=("", ""))],
-              colWidths=[75 * mm, 30 * mm, 15 * mm, 60 * mm, 25 * mm], hAlign="LEFT")
-    t.setStyle(TableStyle([("LINEBELOW", (0, 0), (1, -1), 0.3, RAHMEN),
-                           ("LINEBELOW", (3, 0), (4, len(angebot) - 1), 0.3, RAHMEN)]))
-    inhalt += [Spacer(1, 3 * mm), t, Spacer(1, 5 * mm)]
+    nr = kopf.get("nummer") or ""
+    doc, leinwand = _dokument(pfad, f"Kalkulation {nr}", _fuss(einst, f"Kalkulation {nr}"), quer=True)
+    breite = 273 * mm
+    inhalt = _dok_kopf("Kalkulation", kopf, einst, breite, warnung=None if aktuell else
+                       "ACHTUNG: Kalkulation passt nicht zum aktuellen Angebot (Optimierung veraltet).")
+    k = rechnen.zeit_summen(summen["zeiten"])
+    verkauf, herstell = summen.get("verkauf") or 0, summen.get("herstell") or 0
+    inhalt += [_kacheln([("Verkaufspreis netto", _z(verkauf) + " €"), ("Herstellkosten", _z(herstell) + " €"),
+                         ("Gewinn", _z(summen.get("gewinn") or 0) + " €"), ("Material", _z(summen.get("material") or 0) + " €"),
+                         ("Maschinenzeit", rechnen.zeit_text(k["maschine_min"])),
+                         ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0))], breite),
+               Spacer(1, 5 * mm)]
+    # Kostenarten ohne 0,00 € (Summenzeilen immer), Summen hellblau
+    daten, fett = [_kopfzeile(["Kostenart", "Betrag [€]"])], []
+    for t, w, f in kostenarten(summen, einst):
+        if not f and not round(w or 0, 2):
+            continue
+        if f:
+            fett.append(len(daten))
+        daten.append([_p(t, S_FETT if f else S), _z(w)])
+    kosten = _tabelle(daten, [95 * mm, 30 * mm], rechts=(1,), fett_zeilen=fett, zebra=False)
+    angebot = [_kopfzeile(["Rüsten und Mengen", ""]),
+               [_p("Rüstzeit Maschine [min]"), _z(summen["ruestzeit"], 0)],
+               [_p("Abmessungen × Rüstzeit [min]"), f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"],
+               [_p("Stangenwechsel [s]"), _z(summen["stangenwechsel"], 0)],
+               [_p("Stangen"), _z(summen["stangen"], 0)], [_p("Teile"), _z(summen["teile"], 0)]]
+    t = Table([[kosten, "", _tabelle(angebot, [65 * mm, 30 * mm], rechts=(1,), zebra=False)]],
+              colWidths=[125 * mm, 15 * mm, 95 * mm], hAlign="LEFT")
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                           ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+    inhalt += [t, Spacer(1, 5 * mm)]
     klein = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
     # Zeiten und Kosten je Arbeitsschritt (Schritte ohne Zeit und Kosten ausgeblendet)
     daten = [[_p(t, klein) for t in ("Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit",
@@ -454,19 +561,23 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
         if rechnen.schritt_sichtbar(z):
             daten.append([_p(z["schritt"], S_KLEIN), _p(z["art"], S_KLEIN), *rechnen.schritt_texte(z),
                           _z(z["kosten"]), _p(z["quelle"], S_KLEIN), _p(z["formel"], S_KLEIN)])
-    k = rechnen.zeit_summen(summen["zeiten"])
-    inhalt += [_p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2),
+    inhalt += [CondPageBreak(40 * mm), _p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2),
                _tabelle(daten, [w * mm for w in (40, 20, 22, 18, 18, 18, 22, 18, 40, 57)], rechts=(2, 3, 4, 5, 6, 7)),
+               Spacer(1, 1.5 * mm),
                _p(f"Maschinenzeit {rechnen.zeit_text(k['maschine_min'])} · Personalzeit "
                   f"{rechnen.zeit_text(k['personal_min'])} · Durchlaufzeit {rechnen.zeit_text(k['durchlauf_min'])} "
-                  f"(parallele Personalzeit nicht addiert) · Arbeitskosten {_z(k['arbeitskosten'])} €", S_KLEIN),
+                  f"(parallele Personalzeit nicht addiert) · Arbeitskosten {_z(k['arbeitskosten'])} €",
+                  ParagraphStyle("zs", parent=S_KLEIN, textColor=GRAU)),
                Spacer(1, 5 * mm)]
     daten = [[_p(s[0], klein) for s in KALK]]
     for z in zeilen:
         if z is None:
             continue
         daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s in KALK])
-    inhalt.append(_tabelle(daten, [s[3] * mm for s in KALK], rechts=[i for i, s in enumerate(KALK) if s[2] is not None]))
+    tab = _tabelle(daten, [s[3] * mm for s in KALK], rechts=[i for i, s in enumerate(KALK) if s[2] is not None])
+    preis = [i for i, s in enumerate(KALK) if s[1] in ("preis_teil", "preis_position", "pos")]
+    tab.setStyle(TableStyle([("FONT", (c, 1), (c, -1), FETT, 8.5) for c in preis]))
+    inhalt += [CondPageBreak(40 * mm), _p("Kalkulation je Position", S_H2), tab]
     # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse
     daten = [[_p(s[0], klein) for s in SCHNEID]]
     for z in zeilen:
@@ -474,52 +585,82 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
             continue
         daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s in SCHNEID])
     if len(daten) > 1:
-        inhalt += [Spacer(1, 5 * mm), _p("Schneidzeit je Teil nach Konturklassen", S_H2),
+        inhalt += [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Schneidzeit je Teil nach Konturklassen", S_H2),
                    _tabelle(daten, [s[3] * mm for s in SCHNEID],
                             rechts=[i for i, s in enumerate(SCHNEID) if s[2] is not None]),
+                   Spacer(1, 1.5 * mm),
                    _p("Zeit je Klasse = Schneidweg der Klasse / Vorschub der Klasse × 60. Anfangs- und Endschnitt sind "
                       "wie die Innenkonturen nach Hüllmaß eingeteilt. groß + Rest = Schneidweg − Konturen klein und "
                       "mittel. Netto = brutto − Einsparung gemeinsamer Schnitte (mit dem Vorschub der Klasse des "
-                      "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit.", S_KLEIN)]
+                      "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit.",
+                      ParagraphStyle("sh", parent=S_KLEIN, textColor=GRAU))]
     doc.build(inhalt, canvasmaker=leinwand)
 
 
 # ------------------------------------------------------------------ Nachkalkulation
-def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True):
+def _abw_farbe(abweichung, erloes=False):
+    """Kosten: mehr als kalkuliert = rot, weniger = grün; Erlös und Deckungsbeitrag umgekehrt."""
+    w = round(abweichung or 0, 2)
+    if not w:
+        return None
+    return (GRUEN if w > 0 else ROT) if erloes else (ROT if w > 0 else GRUEN)
+
+
+def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True, einst=None):
     """v = nachkalkulation.vergleich(...), ist = gespeicherte Ist-Werte."""
-    doc, leinwand = _dokument(pfad, f"Nachkalkulation {kopf.get('nummer') or ''}",
-                              f"Nachkalkulation {kopf.get('nummer') or ''}")
-    inhalt = [_p("Nachkalkulation", S_TITEL),
-              _p(f"Angebot {kopf.get('nummer') or ''}   |   Kunde {kopf.get('kunde') or ''}   |   Maschine "
-                 f"{kopf.get('maschine') or ''} ({_z(v['satz'])} €/h)   |   erstellt {_erstellt()}", S_KLEIN)]
-    if not aktuell:
-        inhalt.append(_p("ACHTUNG: Die Optimierung ist veraltet, das Soll passt nicht zum aktuellen Angebot.",
-                         ParagraphStyle("rot", parent=S_FETT, textColor=ROT)))
+    nr = kopf.get("nummer") or ""
+    doc, leinwand = _dokument(pfad, f"Nachkalkulation {nr}", _fuss(einst, f"Nachkalkulation {nr}"))
+    breite = 186 * mm
+    angaben = [("Angebot", nr), ("Kunde", kopf.get("kunde")),
+               ("Maschine", f"{kopf.get('maschine') or ''} ({_z(v['satz'])} €/h)"), ("erstellt", _erstellt())]
+    inhalt = _dok_kopf("Nachkalkulation", kopf, einst, breite, angaben, None if aktuell else
+                       "ACHTUNG: Die Optimierung ist veraltet, das Soll passt nicht zum aktuellen Angebot.")
     if ist and ist.get("bemerkung"):
-        inhalt.append(_p(f"Bemerkung: {ist['bemerkung']}"))
-    inhalt += [Spacer(1, 4 * mm), _p("Stangen je Gruppe", S_H2)]
-    daten = [_kopfzeile(["Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
+        inhalt += [_p(f"Bemerkung: {ist['bemerkung']}"), Spacer(1, 3 * mm)]
+    summe, db = v["summe"], v["db"]
+    inhalt += [_kacheln([("Erlös", _z(v["erloes"]["ist"]) + " €"),
+                         ("Einzelkosten Ist", _z(summe["ist"]) + " €", _abw_farbe(summe["abweichung"])),
+                         ("Abweichung Kosten", _z(summe["abweichung"]) + " €", _abw_farbe(summe["abweichung"])),
+                         ("Deckungsbeitrag Ist", _z(db["ist"]) + " €", _abw_farbe(db["abweichung"], True)),
+                         ("Deckungsbeitrag Soll", _z(db["soll"]) + " €")], breite),
+               Spacer(1, 1.5 * mm),
+               _p("Rot = teurer bzw. schlechter als kalkuliert, grün = günstiger bzw. besser.",
+                  ParagraphStyle("nl", parent=S_KLEIN, textColor=GRAU)),
+               Spacer(1, 3 * mm), _p("Stangen je Gruppe", S_H2)]
+    daten = [_kopfzeile(["Profil", "Werkstoff", "Stange [mm]", "Stangen Soll", "Stangen Ist",
                          "€/m Soll", "€/m Ist", "Material Soll [€]", "Material Ist [€]"])]
+    stil = []
     for g in v["gruppen"]:
-        daten.append([_p(g["profil"]), _p(g["werkstoff"]), _z(g["stange"], 0), _z(g["soll"], 0),
+        r = len(daten)
+        daten.append([_p(g["profil"], S_FETT), _p(g["werkstoff"]), _z(g["stange"], 0), _z(g["soll"], 0),
                       _z(g["ist"], 0) if g["ist"] is not None else "–", _z(g["meterpreis"]),
                       _z(g["meterpreis_ist"]) if g["meterpreis_ist"] is not None else "–", _z(g["soll_kosten"]),
                       _z(g["ist_kosten"])])
-    inhalt.append(_tabelle(daten, [28 * mm, 24 * mm, 20 * mm, 15 * mm, 15 * mm, 17 * mm, 17 * mm, 22 * mm, 22 * mm],
-                           rechts=(2, 3, 4, 5, 6, 7, 8)))
-    inhalt += [Spacer(1, 4 * mm), _p("Soll gegen Ist (Einzelkosten ohne Zuschläge und Gewinn)", S_H2)]
+        farbe = _abw_farbe((g["ist_kosten"] or 0) - (g["soll_kosten"] or 0))
+        if farbe is not None:
+            stil.append(("TEXTCOLOR", (8, r), (8, r), farbe))
+    tab = _tabelle(daten, [28 * mm, 26 * mm, 20 * mm, 16 * mm, 16 * mm, 17 * mm, 17 * mm, 23 * mm, 23 * mm],
+                   rechts=(2, 3, 4, 5, 6, 7, 8))
+    tab.setStyle(TableStyle(stil))
+    inhalt += [tab, Spacer(1, 5 * mm), _p("Soll gegen Ist (Einzelkosten ohne Zuschläge und Gewinn)", S_H2)]
     daten = [_kopfzeile(["Kostenart", "Einheit", "Menge Soll", "Menge Ist", "Soll [€]", "Ist [€]", "Abweichung [€]",
                          "Abw. [%]", "erfasst"])]
     zeilen = v["zeilen"] + [v["summe"], v["erloes"], v["db"]]
-    for z in zeilen:
+    n = len(v["zeilen"]) + 1
+    stil = []
+    for i, z in enumerate(zeilen):
+        r = len(daten)
         daten.append([_p(z["text"]), z["einheit"], _z(z["soll_menge"]) if z["soll_menge"] is not None else "",
                       _z(z["ist_menge"]) if z["ist_menge"] is not None else "", _z(z["soll"]), _z(z["ist"]),
                       _z(z["abweichung"]), _z(z["prozent"], 1) if z["prozent"] is not None else "", z["erfasst"]])
-    n = len(v["zeilen"]) + 1
-    inhalt.append(_tabelle(daten, [50 * mm, 13 * mm, 17 * mm, 17 * mm, 19 * mm, 19 * mm, 21 * mm, 15 * mm, 15 * mm],
-                           rechts=(2, 3, 4, 5, 6, 7), fett_zeilen=(n, n + 2)))
-    inhalt += [Spacer(1, 3 * mm),
+        farbe = _abw_farbe(z["abweichung"], erloes=r > n)
+        if farbe is not None:
+            stil += [("TEXTCOLOR", (6, r), (7, r), farbe), ("FONT", (6, r), (7, r), FETT, 8.5)]
+    tab = _tabelle(daten, [50 * mm, 13 * mm, 18 * mm, 18 * mm, 19 * mm, 19 * mm, 21 * mm, 15 * mm, 13 * mm],
+                   rechts=(2, 3, 4, 5, 6, 7), fett_zeilen=(n, n + 2))
+    tab.setStyle(TableStyle([("ALIGN", (8, 0), (8, -1), "CENTER")] + stil))
+    inhalt += [tab, Spacer(1, 3 * mm),
                _p("Leere Ist-Werte zählen wie kalkuliert (Spalte erfasst = nein). Zeiten werden mit dem Stundensatz der "
                   "Maschine bewertet, Material mit dem EK-Meterpreis × Stangenlänge (leer = Meterpreis laut "
-                  "Schnittplan).", S_KLEIN)]
+                  "Schnittplan).", ParagraphStyle("nh", parent=S_KLEIN, textColor=GRAU))]
     doc.build(inhalt, canvasmaker=leinwand)

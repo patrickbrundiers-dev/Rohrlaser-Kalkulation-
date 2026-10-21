@@ -1656,7 +1656,7 @@ class AngebotSeite(QWidget):
         wp = ausgabe.werkstatt(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
         aktuell = self.stand_optimierung() == "aktuell"
         return self._schreiben("Werkstattpapiere", self._ziel("Werkstattpapiere", ".pdf"),
-                               lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell))
+                               lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
 
     def kalkulation_pdf(self):
         if not self._vor_ausgabe():

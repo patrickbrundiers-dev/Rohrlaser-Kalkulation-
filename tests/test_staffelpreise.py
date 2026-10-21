@@ -271,6 +271,14 @@ assert pfad and pfad.stat().st_size > 2000
 s.einst = dict(s.einst, logo="beschädigt")
 assert s.angebot_pdf()
 ok("Firmenlogo: auf 55 × 24 mm eingepasst, kein Bild = Fehlermeldung, beschädigte Einstellung = Angebot ohne Logo")
+
+# Interne PDFs im Design des Angebots: kleines Logo, kein "-0,00", Abweichungen farbig
+s.einst = dict(s.einst, logo=logo)
+assert pdf._z(-0.001) == "0,00" and pdf._z(-0.006) == "-0,01" and pdf._z(None) == ""
+assert pdf._abw_farbe(5) == pdf.ROT and pdf._abw_farbe(-5) == pdf.GRUEN and pdf._abw_farbe(0.001) is None
+assert pdf._abw_farbe(5, erloes=True) == pdf.GRUEN
+assert s.werkstatt_pdf() and s.kalkulation_pdf() and s.nachkalk.pdf()
+ok("Werkstattpapiere, Kalkulation und Nachkalkulation mit Logo; rot = teurer, grün = günstiger; kein −0,00")
 fenster.close()
 db.schliessen()
 
