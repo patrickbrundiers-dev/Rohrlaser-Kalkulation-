@@ -21,7 +21,7 @@ from .zusatz_dialog import ZusatzDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
-from .angebot import POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
+from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
@@ -258,10 +258,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Vorschub groß [mm/min]", "vorschub", 0), ("Schneidgas", "gas", None), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
-            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "gewinde", "zusatz", "zukauf", "gewicht_teil"]
+            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
+            "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
-OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "gewinde", "zusatz", "zukauf",
-                     "gewicht_teil")
+OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
+                     "zukauf", "gewicht_teil")
 EIGENE = ("zusatz", "zukauf")        # Spalten mit eigenem Dialog (Doppelklick)
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
@@ -959,6 +960,18 @@ class AngebotSeite(QWidget):
             return None
         return self._rechnung()[1]["verkauf"]
 
+    def material_fuer_alle(self, herkunft):
+        """Material (Eigenmaterial / Kunde beigestellt) für alle Rohrlaserteil-Positionen setzen."""
+        n = 0
+        for p in self.positionen:
+            if not ist_zukaufteil(p) and (p.get("material_herkunft") or EIGENMATERIAL) != herkunft:
+                self.db.position_aendern(p["id"], "material_herkunft", herkunft)
+                n += 1
+        self.neu_laden()
+        self.f.meldung(f"Material „{herkunft}“ für {n} Position(en) gesetzt." if n else
+                       f"Alle Positionen haben schon „{herkunft}“.")
+        return n
+
     def kalkulation_zuruecksetzen(self):
         """Kalkulationswerte, Stundensätze und Zeitvorgaben des Angebots auf die Einstellungen setzen; die Rückfrage
         nennt, was sich ändert."""
@@ -1419,7 +1432,7 @@ class AngebotSeite(QWidget):
         if sp is None:
             return None
         zeilen, _ = self._rechnung()
-        ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp)
+        ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp, ergebnis=self.ergebnis)
         ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
         return ang
 

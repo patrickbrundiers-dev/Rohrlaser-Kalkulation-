@@ -407,6 +407,10 @@ VERWEISE = {
 ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT = (
     "Arbeitstage", "Wochen", "Kalenderwoche", "Lieferdatum", "nur Text")
 LIEFERZEIT_ARTEN = (ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT)
+# Herkunft des Materials je Position (angebot.POSITIONEN 'material_herkunft'): leer = Eigenmaterial (wie bisher);
+# Kundenmaterial: keine Materialkosten, eigene Stangengruppe, Bearbeitung wie sonst
+EIGENMATERIAL, KUNDENMATERIAL = "Eigenmaterial", "Kunde beigestellt"
+MATERIAL_HERKUNFT = (EIGENMATERIAL, KUNDENMATERIAL)
 
 
 # ------------------------------------------------------------------ Einstellungen
@@ -438,6 +442,13 @@ EINSTELLUNGEN = (
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
     # angehoben. 0 = keiner.
+    # Kundenmaterial (Spalte Material: Kunde beigestellt): keine Materialkosten; optional Handling je kg der
+    # beigestellten Stangen mit Zuschlag Fertigung und Gewinn. Vorgabe 0 = aus
+    Einstellung("handling_beistellung", "Handling Kundenmaterial je kg Stangengewicht [€/kg] (0 = keins)",
+                "Kalkulation", "zahl", 0.0, 0, 1000),
+    # im Angebots-PDF: Hinweis, welche Stangen der Kunde beistellen muss
+    Einstellung("beistellung_hinweis", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf", "Angebots-PDF",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("mindestpreis", "Mindestpreis je Angebot netto [€] (0 = keiner)", "Kalkulation", "zahl", 200.0, 0,
                 1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
@@ -619,7 +630,7 @@ class Kontext:
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
-                         "lieferzeitart": list(LIEFERZEIT_ARTEN),
+                         "lieferzeitart": list(LIEFERZEIT_ARTEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
 

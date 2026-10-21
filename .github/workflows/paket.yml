@@ -85,6 +85,7 @@ jobs:
           /usr/bin/python3 tests/test_rundung.py
           /usr/bin/python3 tests/test_angebot_vorgaben.py
           /usr/bin/python3 tests/test_angebot_einstellungen.py
+          /usr/bin/python3 tests/test_kundenmaterial.py
           /usr/bin/python3 tests/test_anleitung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:

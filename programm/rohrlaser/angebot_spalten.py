@@ -2,11 +2,13 @@
 [(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
 
 KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Stückzahl", "stueck", 0, 60),
+                ("Kundenmaterial", "kundenmaterial", None, 70),
                 ("Material je Teil [€]", "material_teil", 3, 80), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 80),
                 ("Gewindezeit je Teil [s]", "gewindezeit", 1, 75), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 80),
                 ("Zusatzarbeiten je Teil [€]", "zusatz_teil", 3, 85),
                 ("Weitere Arbeitsschritte je Teil [€]", "arbeit_teil", 3, 100),
                 ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 110),
+                ("Handling Kundenmaterial je Teil [€]", "handling_teil", 3, 100),
                 ("Herstellkosten je Teil [€]", "herstell_teil", 3, 85),
                 ("Pauschalen, Programmierung, Aufschlag, Fracht je Teil [€]", "pauschalen_teil", 3, 120),
                 ("Zukaufteile je Teil [€]", "zukauf_teil", 3, 85),

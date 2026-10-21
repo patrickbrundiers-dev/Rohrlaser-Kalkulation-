@@ -302,7 +302,8 @@ def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=T
         if kz[i]["hinweis"]:
             hinweise += 1
         offen += _zahl(kz[i]["nicht_eingeplant"])
-        if not kz[i]["material_gruppe"] and not kz[i].get("zukaufteil"):
+        if not kz[i]["material_gruppe"] and not kz[i].get("zukaufteil") and not (
+                kz[i].get("kundenmaterial") and kz[i]["eingeplant"]):     # Kundenmaterial: 0 € ist richtig
             ohne_preis += 1
     z["bausteine"] = bausteine(summen, ohne_preis)
     text = f"WARNUNG: {offen:.0f} Teile nicht eingeplant" if offen > 0 else ""
@@ -338,6 +339,8 @@ def bausteine(summen, ohne_materialpreis=0):
                 fert.append((z["schritt"], z["kosten"] - r, f"{texte[0]} × {texte[2]}, {texte[4]} €/h"))
     if abs(summen["zusatz_eigen"]) >= 0.005:
         fert.append(("Zusatzarbeiten", summen["zusatz_eigen"], "Stammdaten Zusatzarbeiten"))
+    if abs(summen.get("handling_beistellung", 0)) >= 0.005:
+        fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/kg × Stangengewicht Kundenmaterial"))
     return dict(material=summen["material"], material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
                 fremd=summen["zusatz_fremd"], pauschalen=summen["pauschalen"],
                 programmierung=summen["programmierung"], angebotsaufschlag=summen["angebotsaufschlag"],
