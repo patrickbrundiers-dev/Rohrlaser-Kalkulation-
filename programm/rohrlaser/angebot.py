@@ -206,7 +206,9 @@ POSITIONEN = Tabelle(
      Feld("gross_mm", "Kontur groß [mm]", "zahl", 0, 1000000, stellen=1, breite=70),
      # je Innenkontur Hüllmaß x Schnittweg (STEP-Import) und die Grenzen, mit denen eingeteilt wurde
      Feld("konturen", "Konturen Hüllmaß x Schnittweg [mm]", breite=200),
-     Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80)),
+     Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80),
+     # Eingaben des Schneidweg-Rechners als JSON (Enden, Konturen; siehe schneidweg.py), keine eigene Spalte
+     Feld("technik", "Schneidweg-Rechner", breite=120)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")
