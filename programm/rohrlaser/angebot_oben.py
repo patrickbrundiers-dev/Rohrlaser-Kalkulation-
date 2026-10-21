@@ -23,11 +23,9 @@ KALK_NAMEN = {f.name for f in KALKULATION}
 KALK_OFFEN_EINSTELLUNG = "ansicht_kalkulation_offen"     # Karte Kalkulation auf- oder zugeklappt (alle Angebote)
 # Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs)
 GRUPPEN = (
-    ("Material und Fertigung", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung",
-                                "handling_beistellung")),
+    ("Material und Fertigung", ("zuschlag_fremdleistung", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung",)),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht",
-                            "mindestpreis")),
+    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)

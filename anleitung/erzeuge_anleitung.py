@@ -491,8 +491,8 @@ def kapitel_angebot(i):
            "Übersicht, darunter die Aktionen und die Reiter mit Positionen und Ergebnissen. Die Trennlinie zwischen "
            "oben und unten lässt sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil.")
     i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
-           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Zuschlag Material 10,0 % · "
-           "Gewinn 10,0 % · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
+           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · "
+           "Rüstzeit je Abmessung 15,0 min · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
            "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. Spaltenbreiten der "
            "Positionsliste, der Kalkulation und der Zeiten richten sich beim Öffnen nach Inhalt und Spaltenkopf.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
@@ -534,8 +534,9 @@ def kapitel_angebot(i):
             "vorbelegt vom Kunden bzw. aus den Einstellungen und hier änderbar. Das Skonto wird in den Preis "
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
             "genau der kalkulierte Preis. 0 % = kein Skonto.",
-            "<b>Kalkulation dieses Angebots</b>: Zuschlag Material, Fertigung und Fremdleistung, Gewinn, Rüstzeit und "
-            "Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag und Mindestpreis Angebot netto "
+            "<b>Kalkulation dieses Angebots</b>: Zuschlag Fremdleistung, Gewinn, Rüstzeit und "
+            "Pauschale je Abmessung, Programmierkosten je Teil und Angebotsaufschlag. Mindestpreis, Zuschlag "
+            "Material und Zuschlag Fertigung gelten immer aus den Einstellungen und sind im Angebot nicht änderbar "
             "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
             "die Einstellungen zu ändern. Werte, die von den Einstellungen abweichen, sind <b>gelb</b> hinterlegt "
@@ -599,7 +600,8 @@ def kapitel_angebot(i):
             "als eigene Zeile.",
             "Staffelpreise rechnen das Kundenmaterial in jeder Stufe ohne Materialkosten.")
     i.abschnitt("Mindestpreis", marke="mindestpreis")
-    i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis Angebot netto</b> (Vorgabe 200,00 €), "
+    i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis</b> (Mindestauftragswert, Vorgabe "
+           "200,00 € netto), "
            "hebt das Programm alle Stückpreise im gleichen Verhältnis an, bis die Angebotssumme den Mindestpreis "
            "erreicht. Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie "
            "kalkuliert. Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
@@ -614,9 +616,11 @@ def kapitel_angebot(i):
             "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
             "Staffelpreise: jede Mengenstufe ist ein eigenes Angebot und wird für sich mit dem Mindestpreis "
             "verglichen ([[staffeln]]).",
-            "Vorgabe in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt), je Angebot unter "
-            "<b>Kalkulation dieses Angebots</b> änderbar; 0 = kein Mindestpreis. Angebote aus älteren "
-            "Programmversionen haben Mindestpreis 0, damit sich ihre Preise nicht ändern.")
+            "Der Wert steht nur in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt) und gilt für "
+            "alle Angebote, auch für ältere; im Angebot selbst lässt er sich nicht ändern. 0 = kein Mindestpreis.",
+            "Die Prüfung läuft bei jeder Änderung neu (Position, Stückzahl, Zuschläge, Staffelstufe, PDF). Die "
+            "Werte des Angebots (Gewinn, Zuschläge …) bleiben dabei unverändert; steigt der Preis über den "
+            "Mindestpreis, entfällt die Anhebung von selbst.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
            "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
@@ -1175,8 +1179,8 @@ def kapitel_staffeln(i):
         ["Menge bis", "Höchstmenge; leer = bis zur nächsten Stufe desselben Satzes bzw. derselben Position − 1, "
                       "bei der höchsten Stufe offen („ab …“)"],
         ["Materialzuschlag, Zuschlag in", "Zuschlag auf die Materialkosten nach Verlust, in % oder als fester "
-                                          "Betrag €/Einheit. Ersetzt für diese Stufe den Zuschlag Material des "
-                                          "Angebots (leer = Zuschlag Material des Angebots)"],
+                                          "Betrag €/Einheit. Ersetzt für diese Stufe den Zuschlag Material der "
+                                          "Einstellungen (leer = Zuschlag Material der Einstellungen)"],
         ["Gewinn", "in % auf die Selbstkosten (leer = Gewinn des Angebots)"],
         ["Materialverlust / Ausschuss", "in % auf die Material-Grundkosten, zusätzlich zum echten Verschnitt der "
                                         "Stangen (der steckt schon in den Grundkosten); leer = 0"],
@@ -1604,7 +1608,9 @@ def kapitel_einstellungen(i):
     i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
         ["Kalkulation", "Zuschlag Material, Zuschlag Fertigung, Zuschlag Fremdleistung, Gewinn",
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
-         "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn)."],
+         "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn). Zuschlag Material "
+         "und Zuschlag Fertigung (Vorgabe je 0 %) gelten für alle Angebote und sind im Angebot nicht änderbar; "
+         "beim Update auf 0.6.5 einmalig auf 0 gesetzt."],
         ["Kalkulation", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)",
          "gilt für Zukaufartikel, die weder einen eigenen Aufschlag noch einen Aufschlag ihrer Kategorie haben "
          "([[zukauf_kategorien]]); "
@@ -1623,8 +1629,8 @@ def kapitel_einstellungen(i):
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
         ["Kalkulation", "Mindestpreis je Angebot netto [€] (0 = keiner)",
-         "Vorgabe 200,00 € für neue Angebote; darunter werden die Stückpreise anteilig angehoben ([[mindestpreis]]). "
-         "Bestehende Angebote behalten ihren Wert."],
+         "Vorgabe 200,00 €; gilt für alle Angebote, darunter werden die Stückpreise anteilig angehoben "
+         "([[mindestpreis]])."],
         ["Angebot", "Lieferzeit neuer Angebote: Angabe als, Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, "
                     "KW/Jahr oder Datum), Lieferzeit neuer Angebote: Freitext",
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
@@ -1999,7 +2005,7 @@ def kapitel_stammdaten(i):
            "Material mit Materialzuschlag + weiterer Zuschlag. Beispiel: 5 min × 60 €/h = 5,00 €, Material 2,00 € + "
            "10 % = 2,20 €, Selbstkosten 7,20 € je Stück. Im Angebot kommt danach einmal der Zuschlag Fertigung "
            "(bzw. Fremdleistung) und der Gewinn des Angebots bzw. der Staffel dazu, Skonto und Rundung wie beim übrigen "
-           "Angebot. Der Zuschlag Material des Angebots gilt nur für das Stangenmaterial, nie für Zusatzarbeiten. "
+           "Angebot. Der Zuschlag Material (Einstellungen) gilt nur für das Stangenmaterial, nie für Zusatzarbeiten. "
            "Einträge, die nur einen Festpreis haben, rechnen genau wie bisher.")
     i.tabelle(["Abrechnung", "Menge je Teil (automatisch)", "Gerechnet wird"], [
         ["€/Stück", "1", "Menge × Preis, z. B. Entgraten"],
@@ -2674,9 +2680,12 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.5", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
+    ["0.6.6", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
               "statt mit <i>HTTP Error 404</i> abzubrechen; die Pakete des vorigen Stands bleiben länger liegen "
               "([[updates]])."],
+    ["0.6.5", "Mindestpreis: gilt immer aus den Einstellungen für alle Angebote, auch ältere (dort stand bisher 0 €), "
+              "und wird bei jeder Änderung geprüft; im Angebot nicht mehr änderbar ([[mindestpreis]]). Zuschlag "
+              "Material und Zuschlag Fertigung ebenso nur noch in den Einstellungen, dort einmalig auf 0 % gesetzt."],
     ["0.6.4", "Vorschub Gravur der Richtwerte auf 3.000 mm/min gesenkt (bisher Faser 15.000, CO₂ 10.000); ältere "
               "Datendateien werden einmalig angepasst, von Hand geänderte Werte bleiben ([[stammdaten]])."],
     ["0.6.3", "Schneidweg-Rechner für Teile ohne STEP-Datei: Gehrungen, Bohrungen, Langlöcher, Rechtecke, Schlitze "

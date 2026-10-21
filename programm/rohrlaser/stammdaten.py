@@ -427,8 +427,8 @@ class Einstellung:
 
 
 EINSTELLUNGEN = (
-    Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0.10, 0, 5),
-    Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0.15, 0, 5),
+    Einstellung("zuschlag_material", "Zuschlag Material", "Kalkulation", "anteil", 0, 0, 5),
+    Einstellung("zuschlag_fertigung", "Zuschlag Fertigung", "Kalkulation", "anteil", 0, 0, 5),
     Einstellung("zuschlag_fremdleistung", "Zuschlag Fremdleistung", "Kalkulation", "anteil", 0.10, 0, 5),
     Einstellung("gewinn", "Gewinn", "Kalkulation", "anteil", 0.10, 0, 5),
     # Standardaufschlag der Anwendung für Zukaufteile (gilt, wenn weder Artikel noch Kategorie einen haben);

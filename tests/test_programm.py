@@ -22,13 +22,20 @@ from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, Kontext, beispieldat
 
 tmp = Path(tempfile.mkdtemp())
 
+
+def zuschlaege_wie_bisher(db):
+    """Referenzwerte unten gelten mit den Zuschlägen, die bis 0.6.4 Vorgabe waren (seit 0.6.5 Vorgabe 0)."""
+    db.einstellung_setzen("zuschlag_material", 0.10)
+    db.einstellung_setzen("zuschlag_fertigung", 0.15)
+
+
 # 1) Neue Datenbank: Beispieldaten und Vorgaben der Einstellungen
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"
 for name, zeilen in beispieldaten().items():
     gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)]
     assert gelesen == zeilen, name
-assert db.einstellung("zuschlag_fertigung") == 0.15 and db.einstellung("standard_stange") == 6000
+assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_material") == 0 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19
 assert db.einstellung("profilformen").splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil",
                                                        "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil",
@@ -196,6 +203,7 @@ from rohrlaser import rechnen, step  # noqa: E402
 from rohrlaser.angebot import naechste_nummer  # noqa: E402
 assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
 db = Datenbank(tmp / "b" / "rohrlaser.db")
+zuschlaege_wie_bisher(db)
 for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_teil", "skonto"):   # ohne
     db.einstellung_setzen(n, 0)                                               # die Kosten aus Teil 14
 a1 = db.angebot_neu()
@@ -403,6 +411,7 @@ assert abs(huellkreis(dict(form="Quadratrohr", a=40)) - 56.5685) < 1e-3
 assert abs(huellkreis(dict(form="Rechteckrohr", a=120, b=60)) - 134.164) < 1e-3
 assert huellkreis(dict(form="Sonderprofil", a=50)) is None
 db = Datenbank(tmp / "d" / "rohrlaser.db")
+zuschlaege_wie_bisher(db)
 assert db.einstellung("ruesten_abmessung") == 15 and db.einstellung("pauschale_abmessung") == 22.5
 assert db.einstellung("angebotsaufschlag") == 50
 k, tab = db.kontext(), db.tabellen()
@@ -460,6 +469,7 @@ db.schliessen()
 # 15) Kunden, Skonto (eingerechnet), Zahlungsbedingung im Angebot, Kopieren für einen anderen Kunden, Sicherungen
 from rohrlaser.__main__ import BEISPIEL  # noqa: E402
 db = Datenbank(tmp / "e" / "rohrlaser.db")
+zuschlaege_wie_bisher(db)
 assert [kd["kundennr"] for kd in db.zeilen("kunden")] == ["K-1001", "K-1002"]
 assert db.einstellung("skonto") == 2.0 and db.zahlungsbedingungen() == dict(skonto=2.0, skonto_tage=10, zahlungsziel=30)
 assert db.zahlungsbedingungen("K-1002") == dict(skonto=3, skonto_tage=14, zahlungsziel=45)
@@ -537,6 +547,7 @@ db.schliessen()
 # 16) Nachkalkulation: ohne Ist-Werte Ist = Soll; Ist-Werte bewerten mit Stangenkosten und Stundensatz
 from rohrlaser import nachkalkulation as nk  # noqa: E402
 db = Datenbank(tmp / "f" / "rohrlaser.db")
+zuschlaege_wie_bisher(db)
 a9 = db.angebot_neu(dict(kunde="Nachkalkulation", skonto=0))
 for p_ in BEISPIEL:
     db.position_neu(a9, p_)
