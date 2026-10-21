@@ -54,7 +54,7 @@ def eintrag(aid, menge=1):
     return json.dumps([dict(artikel_id=aid, menge=menge, stand=db.zukauf_stand(aid))])
 
 
-a = db.angebot_neu(dict(kunde="Test", skonto=2))
+a = db.angebot_neu(dict(kunde="Test", skonto=2, mindestpreis=0))   # Mindestpreis: eigener Test (test_angebot_vorgaben)
 rohr = db.position_neu(a, dict(pos=10, artikel="R", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,
                                stueck=10, schneidweg=300, einstiche=2, satz="BG", je_satz=1))
 k, tab = db.kontext(), db.tabellen()

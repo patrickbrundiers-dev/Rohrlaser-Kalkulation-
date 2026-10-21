@@ -933,7 +933,12 @@ class AngebotSeite(QWidget):
             self.f.meldung(str(e), fehler=True)
             self._kopf_anzeigen()
             return
-        self.f.meldung(f"{fd.titel} gespeichert.")
+        meldung = f"{fd.titel} gespeichert."
+        a = self.db.angebot(self.id) or {}
+        if fd.name.startswith("lieferzeit") and a.get("lieferzeit_art") == "Lieferdatum" and a.get("lieferzeit_wert") \
+                and a["lieferzeit_wert"] < (a.get("datum") or ""):
+            meldung += " Achtung: Das Lieferdatum liegt vor dem Angebotsdatum."
+        self.f.meldung(meldung)
         self.neu_laden()
 
     def kalkulation_zuruecksetzen(self):

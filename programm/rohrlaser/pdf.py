@@ -121,14 +121,19 @@ def angebot_pdf(pfad, kopf, ang, einst):
     bis = ausgabe.gueltig_bis(kopf, einst)
     kunde = "\n".join(str(t) for t in [kopf.get("kunde")] + list(ang.get("anschrift") or ()) if t)
     links = [("Kunde", kunde), ("Kundennummer", kopf.get("kundennr"))]
+    if ang.get("kundenreferenz"):
+        links.append(("Ihre Anfrage", ang["kundenreferenz"]))
     rechts = [("Angebotsnummer", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
               ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else "")]
-    info = [[_p(links[i][0], S_FETT) if i < 2 else "", _p(links[i][1]) if i < 2 else "",
+    info = [[_p(links[i][0], S_FETT) if i < len(links) else "", _p(links[i][1]) if i < len(links) else "",
              _p(rechts[i][0], S_FETT), _p(rechts[i][1], S_RECHTS)] for i in range(3)]
     t = Table(info, colWidths=[30 * mm, 70 * mm, 40 * mm, 46 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
     inhalt += [t, Spacer(1, 3 * mm)]
-    bedingungen = " ".join(t for t in (ang.get("fracht"), ang.get("zahlung"), einst.get("bedingungen")) if t)
+    # Lieferzeit des Angebots vor den Bedingungen; ältere Angebote ohne Lieferzeit: nur der Text der Bedingungen
+    bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
+    bedingungen = " ".join(t for t in (ang.get("lieferzeit"), ang.get("fracht"), ang.get("zahlung"),
+                                       ang.get("mindestpreis"), bed) if t)
     if bedingungen:
         inhalt += [_p(bedingungen, S_KLEIN), Spacer(1, 4 * mm)]
 

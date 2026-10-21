@@ -21,7 +21,8 @@ Zwei Rechenschichten:
     7 Gewinn = Selbstkosten × Gewinn
     8 Netto = Selbstkosten + Gewinn + Pauschalen, Programmierung, Aufschlag, Fracht (ohne Zuschläge)
       + Zukaufteile (Einstand + Aufschlag nach der Regel des Artikels, Staffel nach dem Verbrauch der Stufe),
-      Skonto eingerechnet; MwSt = Netto gesamt × MwSt-Satz
+      Skonto eingerechnet; liegt Netto unter dem Mindestpreis, gilt der Mindestpreis (Stückpreis aufgerundet);
+      MwSt = Netto gesamt × MwSt-Satz
   Ohne Werte in der Stufe ergibt das genau den Verkaufspreis der Kalkulation (rechnen.kalkulation).
 """
 import hashlib
@@ -29,7 +30,7 @@ import json
 
 from . import fracht_angebot, rechnen
 from .angebot import aktiv as position_aktiv
-from .ausgabe import kaufm_runden
+from .ausgabe import aufrunden, kaufm_runden
 from .stammdaten import Feld, kontext_aus
 
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
@@ -363,7 +364,8 @@ def wirksam(stufe, einst):
                 ruesten=w("ruesten") or UMLEGEN, arbeitsgang=w("arbeitsgang"),
                 arbeitsgang_min=_zahl(w("arbeitsgang_min")), arbeitsgang_satz=w("arbeitsgang_satz"),
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
-                neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")))
+                neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")),
+                mindestpreis=_zahl(einst.get("mindestpreis")))
 
 
 def preise(b, menge, w):
@@ -400,10 +402,15 @@ def preise(b, menge, w):
     sk = min(max(b["skonto_satz"], 0), 50) / 100
     ohne = selbst + gewinn + weitere + zk_e + zk_a
     netto = ohne / (1 - sk)
+    # Mindestpreis netto je Stufe (jede Stufe ist ein eigenes Angebot): Stückpreis anheben, auf den Cent aufgerundet
+    mindest = _zahl(w.get("mindestpreis"))
+    anhebung = mindest - netto if mindest > 0 and 0 < netto < mindest else 0.0
+    netto += anhebung
     einmalig = 0.0
     if w["ruesten"] == SEPARAT:     # Rüsten mit Gemeinkosten, Gewinn und Skonto als einmalige Position
         einmalig = kaufm_runden(r_sum * (1 + w["zuschlag_fertigung"]) * (1 + w["gewinn"]) / (1 - sk), 2)
-    preis_einheit = kaufm_runden((netto - einmalig) / menge, 2)
+    preis_einheit = (aufrunden((netto - einmalig) / menge) if anhebung
+                     else kaufm_runden((netto - einmalig) / menge, 2))
     gesamt = kaufm_runden(preis_einheit * menge + einmalig, 2)
     mwst = kaufm_runden(gesamt * w["mwst"], 2)
     return dict(fehler=None, m_grund=m0, m_verlust=verlust, m_zuschlag=mz, m_gesamt=m1 + mz, fertigung=fert,
@@ -412,7 +419,7 @@ def preise(b, menge, w):
                 marge=gewinn / netto if netto else None, pauschalen=b["pauschalen"],
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
-                skonto=netto - ohne, netto=netto, einmalig=einmalig, preis_einheit=preis_einheit,
+                skonto=netto - anhebung - ohne, mindest_anhebung=anhebung, netto=netto, einmalig=einmalig, preis_einheit=preis_einheit,
                 preis_gesamt=gesamt, mwst=mwst, brutto=kaufm_runden(gesamt + mwst, 2))
 
 
