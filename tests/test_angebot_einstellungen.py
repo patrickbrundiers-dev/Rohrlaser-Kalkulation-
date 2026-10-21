@@ -41,7 +41,6 @@ def neues_angebot(kunde):
 
 a, b = neues_angebot("A"), neues_angebot("B")
 db.angebot_aendern(a, "gewinn", 12.0)
-db.angebot_aendern(a, "mindestpreis", 0.0)
 zb = copy.deepcopy(db.angebot(a)["zeitbasis"])
 zb["maschine"]["stundensatz"] = 160.0
 db.zeitbasis_speichern(a, zb)
@@ -49,50 +48,57 @@ db.zeitbasis_speichern(a, zb)
 # ------------------------------------------------------------------ E1 Abweichungen
 vorg = db.kalkulation_vorgaben()
 abw = [(f.name, w, std) for f, w, std in kalk_abweichungen(db.angebot(a), vorg)]
-assert abw == [("gewinn", 12.0, 10.0), ("mindestpreis", 0.0, 200.0)], abw
+assert abw == [("gewinn", 12.0, 10.0)], abw
 assert kalk_abweichungen(db.angebot(b), vorg) == []
 assert kalk_abweichungen(dict(gewinn=None), vorg) == []        # älteres Angebot ohne Wert: wie Einstellungen
 zt = rechnen.zeitbasis_abweichungen(db.angebot(a)["zeitbasis"], db.zeitbasis_vorgabe(db.angebot(a)["maschine"]))
 assert zt == ["Stundensatz Maschine 160 statt 150 €/h"], zt
 assert rechnen.zeitbasis_abweichungen(db.angebot(b)["zeitbasis"], db.zeitbasis_vorgabe("T03")) == []
 assert rechnen.zeitbasis_abweichungen(None, db.zeitbasis_vorgabe("T03")) == []
-ok("E1 Abweichungen: Gewinn 12 statt 10 %, Mindestpreis 0 statt 200 €, Stundensatz 160 statt 150 €/h; B ohne")
+ok("E1 Abweichungen: Gewinn 12 statt 10 %, Stundensatz 160 statt 150 €/h; B ohne")
 
 # ------------------------------------------------------------------ E2 Einstellungen ändern
 kopf_a, kopf_b = db.angebot(a), db.angebot(b)
 db.einstellung_setzen("gewinn", 0.20)
 db.einstellung_setzen("mindestpreis", 300.0)
-db.einstellung_setzen("zuschlag_material", 0.05)
+db.einstellung_setzen("zuschlag_fremdleistung", 0.05)
+db.einstellung_setzen("zuschlag_material", 0.07)
 satz = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T03")
 db.aendern("maschinen", satz["id"], "stundensatz", 175.0)
 for x, alt in ((a, kopf_a), (b, kopf_b)):
     neu = db.angebot(x)
-    for n in ("gewinn", "mindestpreis", "zuschlag_material", "zuschlag_fertigung", "angebotsaufschlag", "zeitbasis"):
+    for n in ("gewinn", "zuschlag_fremdleistung", "angebotsaufschlag", "zeitbasis"):
         assert neu[n] == alt[n], (x, n, neu[n], alt[n])
 c = db.angebot_neu(dict(kunde="C"))
 kc = db.angebot(c)
-assert kc["gewinn"] == 20.0 and kc["mindestpreis"] == 300.0 and kc["zuschlag_material"] == 5.0
+assert kc["gewinn"] == 20.0 and kc["zuschlag_fremdleistung"] == 5.0
+# Zuschlag Material und Fertigung: nicht je Angebot, immer aus den Einstellungen (auch für ältere Angebote)
+assert "zuschlag_material" not in kc and "zuschlag_fertigung" not in kc
+assert rechnen.einstellungen_angebot(dict(kopf_a, zuschlag_material=10.0), db.einstellungen())["zuschlag_material"] == 0.07
+assert rechnen.einstellungen_angebot(kopf_a, db.einstellungen())["mindestpreis"] == 300.0   # gilt für alle Angebote
 assert kc["zeitbasis"]["maschine"]["stundensatz"] == 175.0
 # B weicht jetzt vom neuen Standard ab (es behält seine Werte), A weiterhin
 assert {f.name for f, _, _ in kalk_abweichungen(db.angebot(b), db.kalkulation_vorgaben())} == \
-    {"gewinn", "mindestpreis", "zuschlag_material"}
+    {"gewinn", "zuschlag_fremdleistung"}
 ok("E2 Einstellungen geändert: A und B behalten ihre Werte und Stundensätze, neues Angebot C übernimmt den neuen Standard")
 
 # ------------------------------------------------------------------ E3 Oberfläche
 assert preis_aenderung(100.0, 112.5) == "Verkaufspreis netto 100,00 € → 112,50 €."
 assert preis_aenderung(100.0, 100.001) == "Verkaufspreis netto unverändert 100,00 €." and preis_aenderung(None, 5) == ""
+db.einstellung_setzen("mindestpreis", 0.0)      # sonst hebt der Mindestpreis (300 €) den Preis an: E3 prüft Gewinn
 app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db, stumm=True)
 s = fenster.angebot_oeffnen(a)
 kb = s.kopf_bereich
 assert kb.felder["gewinn"].value() == 12.0
 assert "background" in kb.felder["gewinn"].styleSheet() and "Standard (Einstellungen) 20 %" in kb.felder["gewinn"].toolTip()
-assert kb.felder["zuschlag_fertigung"].styleSheet() == ""
+assert kb.felder["angebotsaufschlag"].styleSheet() == "" and "mindestpreis" not in kb.felder
+assert "zuschlag_material" not in kb.felder and "zuschlag_fertigung" not in kb.felder
 text = kb.abweichung_text.text()
-assert text.startswith("4 Werte weichen von den Einstellungen ab") and "Gewinn 12 % statt 20 %" in text, text
-assert "Stundensatz Maschine 160 statt 175 €/h" in text and "Mindestpreis Angebot netto 0,00 € statt 300,00 €" in text
+assert text.startswith("3 Werte weichen von den Einstellungen ab") and "Gewinn 12 % statt 20 %" in text, text
+assert "Stundensatz Maschine 160 statt 175 €/h" in text and "Mindestpreis" not in text
 s.kopf_bereich.kalkulation_aufklappen(False)
-assert "(4 abweichend)" in kb.kalk_kurz.text()
+assert "(3 abweichend)" in kb.kalk_kurz.text()
 vorher = s._verkauf()
 kb.felder["gewinn"].setValue(25.0)
 kb.felder["gewinn"].editingFinished.emit()
@@ -107,7 +113,7 @@ ok("E3 Angebotsseite: abweichende Werte gelb mit Standard im Tooltip, Liste und 
 p_alt = db.positionen(a)[0]
 assert s.kalkulation_zuruecksetzen()
 kopf = db.angebot(a)
-assert kalk_abweichungen(kopf, db.kalkulation_vorgaben()) == [] and kopf["mindestpreis"] == 300.0
+assert kalk_abweichungen(kopf, db.kalkulation_vorgaben()) == []
 assert rechnen.zeitbasis_abweichungen(kopf["zeitbasis"], db.zeitbasis_vorgabe(kopf["maschine"])) == []
 p_neu = db.positionen(a)[0]
 assert p_neu["zeit_manuell"] == p_alt["zeit_manuell"] == 12.5 and p_neu["preis_m"] == 9.5   # Positionen bleiben
@@ -127,4 +133,20 @@ assert kb2["angebotsaufschlag"] == 75.0 and kb2["gewinn"] == 10.0 and kb2["liefe
 assert kb2["zeitbasis"]["maschine"]["stundensatz"] == 150.0
 db2.schliessen()
 ok("E5 Datei neu geöffnet: Werte je Angebot (Aufschlag, Gewinn, Lieferzeit, Stundensatz) unverändert geladen")
+
+# ------------------------------------------------------------------ E6 Update auf 0.6.5: Zuschläge einmalig auf 0
+db3 = Datenbank(tmp / "alt" / "rohrlaser.db")
+db3.einstellung_setzen("zuschlag_material", 0.10)
+db3.einstellung_setzen("zuschlag_fertigung", 0.15)
+db3.con.execute("DELETE FROM einstellungen WHERE name='zuschlaege_stand'")    # Datei aus 0.6.4
+db3.con.commit()
+db3.schliessen()
+db3 = Datenbank(tmp / "alt" / "rohrlaser.db")
+assert db3.einstellung("zuschlag_material") == 0 and db3.einstellung("zuschlag_fertigung") == 0
+db3.einstellung_setzen("zuschlag_material", 0.08)          # danach in den Einstellungen frei änderbar
+db3.schliessen()
+db3 = Datenbank(tmp / "alt" / "rohrlaser.db")
+assert db3.einstellung("zuschlag_material") == 0.08 and db3.einstellung("zuschlag_fertigung") == 0
+db3.schliessen()
+ok("E6 Update: Zuschlag Material und Fertigung einmalig auf 0, danach in den Einstellungen änderbar")
 print("OK: Einstellungen und Werte je Angebot getrennt")

@@ -191,7 +191,7 @@ assert st.baum.zeile("aenderung").text(1 + 2 * 3).startswith("+")
 assert "aktuell" in s.staffel_info.text()
 assert st.baum.zeile("m_zuschlag") is not None and st.baum.zeile("brutto") is not None
 assert m.data(m.index(3, spalte("mat_zuschlag"))) == "40,00 %"
-assert m.data(m.index(4, spalte("mat_zuschlag"))).endswith("(Angebot)")          # leer = Wert des Angebots
+assert m.data(m.index(4, spalte("mat_zuschlag"))).endswith("(Einstellungen)")    # leer = Wert der Einstellungen
 assert m.setData(m.index(3, spalte("mat_art")), staffeln.EURO) and m.data(m.index(3, spalte("mat_zuschlag"))) == "40,00 €/Einheit"
 assert not m.setData(m.index(3, spalte("gewinn")), "-5")                          # ohne Rabatt abgelehnt
 assert not m.setData(m.index(3, spalte("mat_zuschlag")), "abc")
