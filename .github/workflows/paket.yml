@@ -5,6 +5,11 @@
 # Repositorys Rohrlaser-Updates (nur neue Pakete werden hochgeladen, das Programm lädt nur Pakete mit geänderten Dateien).
 # Aus demselben Programmordner entsteht Rohrlaser-Angebotskalkulation-Setup.exe (Inno Setup, Installation nur für den
 # Benutzer); das ZIP unterscheidet sich nur durch Portabel.ini (Daten neben dem Programm statt im Benutzerprofil).
+#
+# Actions-Minuten sparen: Pull Requests und Pushes auf main prüfen nur unter Linux (Tests, Anleitung bei PRs).
+# Der Windows-Build mit Release und Online-Update läuft nur, wenn der Workflow von Hand gestartet wird
+# (Actions > Paket > Run workflow, Zweig main) – einmal nach mehreren zusammen gemergten Pull Requests.
+# Von einem anderen Zweig gestartet, baut und prüft er das Paket nur, ohne zu veröffentlichen.
 name: Paket
 
 on:
@@ -105,6 +110,7 @@ jobs:
   # anleitung/erzeuge_anleitung.py; sie liegt nicht im Repository. Das Windows-Paket nimmt genau diese PDF.
   anleitung:
     runs-on: ubuntu-24.04
+    if: github.event_name != 'push'   # auf main nach dem Merge schon im PR geprüft, gebraucht nur für Windows
     steps:
       - uses: actions/checkout@v4
       - name: Python-Pakete
@@ -124,7 +130,8 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    needs: anleitung
+    needs: [tests, anleitung]
+    if: github.event_name == 'workflow_dispatch'   # Windows-Minuten zählen doppelt: nur von Hand (Sammel-Release)
     # Veröffentlichungen auf main nacheinander, damit Dateiliste und Pakete zusammenpassen
     concurrency:
       group: paket-${{ github.ref }}
