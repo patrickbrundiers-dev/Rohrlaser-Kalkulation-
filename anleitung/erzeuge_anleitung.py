@@ -525,12 +525,18 @@ def kapitel_angebot(i):
             "<b>Kundennummer</b>: Kunden aus der Liste wählen (Nummer und Name) oder eine Nummer eintippen. Steht der "
             "Kunde im Kundenstamm, übernimmt das Programm Kundenname und Zahlungsbedingungen; eine unbekannte Nummer "
             "wird nur gespeichert.",
+            "<b>Ihre Anfrage / Zeichen</b>: Anfragenummer oder Zeichen des Kunden (z. B. „Anfrage 4711 vom "
+            "20.10.2026“); steht im Angebots-PDF unter der Kundennummer als <i>Ihre Anfrage</i>. Leer = keine Zeile.",
+            "<b>Lieferzeit</b> dieses Angebots ([[lieferzeit]]): Angabe als <i>Arbeitstage</i>, <i>Wochen</i>, "
+            "<i>Kalenderwoche</i>, <i>Lieferdatum</i> oder <i>nur Text</i>, dazu der passende Wert und ein Freitext "
+            "für <b>Lieferbedingungen</b>. Darunter steht, wie es im Angebot erscheint.",
             "<b>Skonto</b>, <b>Skontofrist</b>, <b>Zahlungsziel netto</b>: Zahlungsbedingung dieses Angebots, "
             "vorbelegt vom Kunden bzw. aus den Einstellungen und hier änderbar. Das Skonto wird in den Preis "
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
             "genau der kalkulierte Preis. 0 % = kein Skonto.",
             "<b>Kalkulation dieses Angebots</b>: Zuschlag Material, Fertigung und Fremdleistung, Gewinn, Rüstzeit und "
-            "Pauschale je Abmessung, Programmierkosten je Teil und Angebotsaufschlag. Ein neues Angebot übernimmt die "
+            "Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag und Mindestpreis Angebot netto "
+            "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
             "die Einstellungen zu ändern. <b>Vorgaben aus Einstellungen</b> setzt sie wieder auf die Einstellungen. "
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
@@ -538,7 +544,49 @@ def kapitel_angebot(i):
             "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel und Stundensatz der Maschine zur Information, Rüstzeit "
             "je Abmessung), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Programmierkosten, Pauschale je "
-            "Abmessung, Frachtkosten) und <b>Zahlungsbedingungen</b>.")
+            "Abmessung, Frachtkosten, Mindestpreis) und <b>Zahlungsbedingungen</b>.")
+    i.abschnitt("Lieferzeit im Angebot", marke="lieferzeit")
+    i.text("Jedes Angebot hat seine eigene Lieferzeit. Ein neues Angebot übernimmt die Vorgabe aus den Einstellungen "
+           "(Gruppe Angebot, [[einstellungen]]); eine Änderung gilt nur für dieses Angebot. Bestehende Angebote "
+           "ändern sich nicht, wenn die Vorgabe geändert wird. Die Lieferzeit ändert keine Preise und macht die "
+           "Optimierung nicht veraltet.")
+    i.tabelle(["Lieferzeit als", "Wert", "im Angebot"], [
+        ["Arbeitstage", "ganze Zahl, z. B. 10", "Lieferzeit: ca. 10 Arbeitstage nach Auftragseingang."],
+        ["Wochen", "ganze Zahl, z. B. 3", "Lieferzeit: ca. 3 Wochen nach Auftragseingang."],
+        ["Kalenderwoche", "KW/Jahr, z. B. 46/2026 (ohne Jahr: Jahr des Angebotsdatums)", "Lieferzeit: KW 46/2026."],
+        ["Lieferdatum", "Datum TT.MM.JJJJ", "Lieferzeit: bis 15.11.2026."],
+        ["nur Text", "– (Feld gesperrt)", "Lieferzeit: und der Freitext, z. B. „nach Absprache“"]], [30, 60, 90])
+    i.liste("Der Freitext (<b>Lieferbedingungen</b>) steht hinter dem Wert, z. B. „…, Teillieferung möglich.“",
+            "Ungültige Eingaben weist das Programm ab und behält den alten Wert: keine ganze Zahl bei Arbeitstagen "
+            "und Wochen, eine Kalenderwoche, die es im Jahr nicht gibt (1 bis 52 bzw. 53), ein ungültiges Datum. "
+            "Ein Freitext wird nie als Datum gelesen. Liegt das Lieferdatum vor dem Angebotsdatum, kommt ein "
+            "Hinweis.",
+            "Wechselt die Art, bleibt der Wert nur, wenn er weiter passt (10 Arbeitstage → 10 Wochen), sonst wird "
+            "er leer.",
+            "Im Angebots-PDF steht die Lieferzeit vor Fracht, Zahlungsbedingung und den Bedingungen. Hat das Angebot "
+            "eine eigene Lieferzeit, lässt das Programm einen Satz über die Lieferzeit in den Bedingungen (z. B. "
+            "„Lieferzeit nach Absprache.“) weg, damit sich das Angebot nicht widerspricht.",
+            "Angebote aus älteren Programmversionen haben keine eigene Lieferzeit: dort gilt wie bisher nur der "
+            "Text der Bedingungen.")
+    i.abschnitt("Mindestpreis", marke="mindestpreis")
+    i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis Angebot netto</b> (Vorgabe 200,00 €), "
+           "hebt das Programm alle Stückpreise im gleichen Verhältnis an, bis die Angebotssumme den Mindestpreis "
+           "erreicht. Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie "
+           "kalkuliert. Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
+    i.liste("Beispiel: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis × 200 ÷ 148; "
+            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation, Kalkulations-PDF und CSV steht die "
+            "Differenz als Kostenart <b>Anhebung auf Mindestpreis</b> (mit kalkuliertem Preis und Mindestpreis), "
+            "je Position in der Spalte <i>Mindestpreis je Teil</i>.",
+            "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
+            "200,00 € netto.“. Die angehobenen Stückpreise sind auf den Cent aufgerundet, damit die Summe nie unter "
+            "dem Mindestpreis liegt (200 € bei 7 Stück: 28,58 € je Stück = 200,06 €).",
+            "Genau beim Mindestpreis oder darüber ändert sich nichts. Der Mindestpreis gilt einmal je Angebot, nicht "
+            "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
+            "Staffelpreise: jede Mengenstufe ist ein eigenes Angebot und wird für sich mit dem Mindestpreis "
+            "verglichen ([[staffeln]]).",
+            "Vorgabe in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt), je Angebot unter "
+            "<b>Kalkulation dieses Angebots</b> änderbar; 0 = kein Mindestpreis. Angebote aus älteren "
+            "Programmversionen haben Mindestpreis 0, damit sich ihre Preise nicht ändern.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
            "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
@@ -866,7 +914,8 @@ def kapitel_optimieren(i):
            "mit 0,00 €, PDF und CSV enthalten alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Weitere Arbeitsschritte, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
-           "Programmierkosten, Angebotsaufschlag, Fracht und Skonto ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
+           "Programmierkosten, Angebotsaufschlag, Fracht, Skonto und ggf. die Anhebung auf Mindestpreis "
+           "([[mindestpreis]]) ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
            "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
     i.bild("erg_kalkulation", "Reiter Kalkulation", hoehe=80 * mm)
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
@@ -1392,8 +1441,9 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
         (1, "<b>Angebot (PDF)</b>: Briefkopf, Kunde mit Anschrift aus dem Kundenstamm, Positionen mit "
             "Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe mit MwSt., Preistreppe der Staffeln, "
-            "Zahlungsbedingung (z. B. „Zahlung innerhalb 10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“) "
-            "und Bedingungen. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
+            "Ihre Anfrage (Kundenreferenz), Lieferzeit ([[lieferzeit]]), Zahlungsbedingung (z. B. „Zahlung innerhalb "
+            "10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“), ggf. „Mindestauftragswert 200,00 € netto.“ "
+            "([[mindestpreis]]) und Bedingungen. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
             "Gesamtpreis jeder Zeile ist Stückpreis × Menge, die Summe genau die Summe der Zeilen."),
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
             "danach das Stangenbild."),
@@ -1503,6 +1553,13 @@ def kapitel_einstellungen(i):
          "Preis; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
+        ["Kalkulation", "Mindestpreis je Angebot netto [€] (0 = keiner)",
+         "Vorgabe 200,00 € für neue Angebote; darunter werden die Stückpreise anteilig angehoben ([[mindestpreis]]). "
+         "Bestehende Angebote behalten ihren Wert."],
+        ["Angebot", "Lieferzeit neuer Angebote: Angabe als, Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, "
+                    "KW/Jahr oder Datum), Lieferzeit neuer Angebote: Freitext",
+         "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
+         "Wert bleibt im neuen Angebot leer ([[lieferzeit]])."],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
         ["Lieferlängen", "Lieferlängen: Mindestersparnis je Gruppe in €, Lieferlängen: Mindestersparnis je Gruppe in %",
          "Eine andere Lieferlänge (z. B. 12 m) wird nur empfohlen, wenn sie gegenüber der Stangenlänge des Angebots "
@@ -2545,6 +2602,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.0", "Angebot: eigene <b>Lieferzeit</b> je Angebot (Arbeitstage, Wochen, KW, Datum oder Text, [[lieferzeit]]), "
+              "<b>Ihre Anfrage / Zeichen</b> im Kopf und im PDF, <b>Mindestpreis</b> 200 € netto: Stückpreise "
+              "werden anteilig angehoben, Hinweis „Mindestauftragswert“ ([[mindestpreis]])."],
     ["0.5.17", "Angebot: Der Angebotstext jeder Position steht zeilenweise (Profil, Länge, Material, Oberfläche, je "
                "Zusatzarbeit und Zukaufteil eine Zeile <i>inkl. …</i>) statt hintereinander ([[ausgabe]])."],
     ["0.5.16", "Programm und Setup sind mit dem eigenen Zertifikat <i>Patrick Brundiers</i> signiert; neue Datei "

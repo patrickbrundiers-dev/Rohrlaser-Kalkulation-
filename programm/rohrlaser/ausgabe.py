@@ -4,11 +4,11 @@ Die Funktionen liefern nur Daten (Zeilen und Summen); pdf.py setzt sie als PDF.
 """
 import datetime
 import re
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
 from . import fracht_angebot, normprofile, rechnen, zukauf
-from .angebot import aktiv as position_aktiv, ist_zukaufteil
+from .angebot import aktiv as position_aktiv, bedingungen_text, ist_zukaufteil, lieferzeit_text
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -20,6 +20,20 @@ def kaufm_runden(x, stellen=2):
         return None
     q = Decimal(1).scaleb(-stellen)
     return float(Decimal(repr(float(x))).quantize(q, rounding=ROUND_HALF_UP))
+
+
+def aufrunden(x, stellen=2):
+    """Auf die Stelle aufrunden (Cent), Gleitkommareste unter 1e-6 zählen nicht: 66,666… -> 66,67; 66,67000000001 -> 66,67.
+    Für Preise, die einen Mindestpreis erreichen müssen."""
+    if x is None:
+        return None
+    q = Decimal(1).scaleb(-stellen)
+    return float(Decimal(repr(float(x))).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP).quantize(q, rounding=ROUND_CEILING))
+
+
+def euro_text(x):
+    """Betrag deutsch mit zwei Stellen, z. B. 1.234,50"""
+    return f"{kaufm_runden(x, 2):,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
 
 
 def zahl_kurz(x, dezimal=","):
@@ -155,6 +169,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     fehlen), hinweise (Positionen mit Hinweis)."""
     def preis(i):
         z = kalk_zeilen[i]
+        if z and _wert(z.get("mindestpreis_teil")) > 0:      # auf Mindestpreis angehoben: aufrunden, damit die
+            return aufrunden(_wert(z["preis_teil"]))           # Summe den Mindestpreis nicht unterschreitet
         return kaufm_runden(_wert(z["preis_teil"]) if z else 0, 2)
 
     def _zus(i):
@@ -211,8 +227,14 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             staffeln.append(dict(art="teil", pos=z["schluessel"], text=(z.get("bezeichnung") or "") + zus,
                                  menge=z["menge"], bereich=bereich, preis=z["preis_einheit"],
                                  gesamt=z["preis_gesamt"]))
+    mindest = _wert(einst.get("mindestpreis"))
+    gilt = any(z and _wert(z.get("mindestpreis_teil")) > 0 for z in kalk_zeilen) or any(
+        _wert((z.get("preis") or {}).get("mindest_anhebung")) > 0 for z in staffelpreise or ())
     return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=kaufm_runden(netto + mwst, 2), mwst_satz=satz_mwst, staffeln=staffeln,
-                hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[])
+                hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[],
+                lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen")),
+                mindestpreis=f"Mindestauftragswert {euro_text(mindest)} € netto." if gilt and mindest > 0 else "",
+                kundenreferenz=kopf.get("kundenreferenz") or "")
 
 
 def _prozent(w):

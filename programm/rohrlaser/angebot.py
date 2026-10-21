@@ -1,7 +1,8 @@
 """Aufbau eines Angebots: Kopf und Positionen."""
 import re
 
-from .stammdaten import Feld, Tabelle
+from .stammdaten import (ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, LIEFERZEIT_ARTEN, NUR_TEXT, WOCHEN,  # noqa: F401
+                         Feld, Tabelle)
 
 KOPF = (
     Feld("nummer", "Angebotsnummer", pflicht=True),
@@ -23,6 +24,13 @@ KOPF = (
     Feld("skonto", "Skonto [%]", "zahl", 0, 20, stellen=1),
     Feld("skonto_tage", "Skontofrist [Tage]", "ganz", 0, 365),
     Feld("zahlungsziel", "Zahlungsziel netto [Tage]", "ganz", 0, 365),
+    # Anfrage des Kunden (Zeichen, Anfragenummer), im Angebots-PDF und in der Materialanfrage
+    Feld("kundenreferenz", "Ihre Anfrage / Zeichen"),
+    # Lieferzeit je Angebot (lieferzeit_text): Art + Wert + Zusatz; leer (ältere Angebote) = wie bisher nur der Text
+    # der Einstellung 'Bedingungen'. Ändert keine Preise.
+    Feld("lieferzeit_art", "Lieferzeit als", "auswahl", auswahl="lieferzeitart"),
+    Feld("lieferzeit_wert", "Lieferzeit"),
+    Feld("lieferzeit_zusatz", "Lieferbedingungen (Freitext)"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
@@ -36,6 +44,8 @@ KALKULATION = (
     Feld("pauschale_abmessung", "Pauschale je Abmessung [€]", "zahl", 0, 100000, stellen=2),
     Feld("programmierung_teil", "Programmierkosten je Teil [€]", "zahl", 0, 100000, stellen=2),
     Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
+    # Mindestangebotspreis netto (nach Skonto, vor MwSt); 0 = keiner. Ältere Angebote bekommen 0 (Schema 24).
+    Feld("mindestpreis", "Mindestpreis Angebot netto [€]", "zahl", 0, 1000000, stellen=2),
 )
 KALK_PROZENT = ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn")
 KOPF = KOPF + KALKULATION
@@ -54,6 +64,82 @@ def ist_zukaufteil(p):
 def aktiv(p):
     """Position, die kalkuliert wird: Rohrlaserteil mit Profil oder Zukaufteil."""
     return ist_zukaufteil(p) or (p or {}).get("profil_id") not in (None, "")
+
+
+# ------------------------------------------------------------------ Lieferzeit
+LIEFERZEIT_HILFE = {ARBEITSTAGE: "Anzahl Arbeitstage, z. B. 10", WOCHEN: "Anzahl Wochen, z. B. 3",
+                    KALENDERWOCHE: "KW/Jahr, z. B. 46/2026 (ohne Jahr: Jahr des Angebots)",
+                    LIEFERDATUM: "Datum, z. B. 15.11.2026", NUR_TEXT: "kein Wert, nur der Freitext"}
+
+
+def lieferzeit_wert(art, text, datum=None):
+    """Eingabe der Lieferzeit prüfen und als gespeicherten Text liefern: Arbeitstage/Wochen = ganze Zahl,
+    Kalenderwoche = 'KW/JJJJ' (Jahr fehlt: Jahr von datum bzw. heute), Lieferdatum = ISO-Datum, nur Text = None.
+    Leer = None. ValueError mit Meldung bei ungültiger Eingabe (Freitext wird nie als Datum gelesen)."""
+    import datetime
+    t = "" if text is None else str(text).strip()
+    if art in (None, "", NUR_TEXT) or t == "":
+        return None
+    if art in (ARBEITSTAGE, WOCHEN):
+        if not re.fullmatch(r"\d{1,3}", t) or int(t) < 1:
+            raise ValueError(f"Lieferzeit: {art} als ganze Zahl ab 1 eingeben (z. B. 10).")
+        return str(int(t))
+    if art == KALENDERWOCHE:
+        m = re.fullmatch(r"(?i)(?:KW\s*)?(\d{1,2})(?:\s*[/.\-]\s*(\d{4}))?", t)
+        if not m:
+            raise ValueError("Lieferzeit: Kalenderwoche als KW/Jahr eingeben, z. B. 46/2026.")
+        kw = int(m.group(1))
+        try:
+            jahr = int(m.group(2)) if m.group(2) else datetime.date.fromisoformat(datum or "").year
+        except ValueError:
+            jahr = datetime.date.today().year
+        letzte = datetime.date(jahr, 12, 28).isocalendar()[1]
+        if not 1 <= kw <= letzte:
+            raise ValueError(f"Lieferzeit: Kalenderwoche {kw} gibt es {jahr} nicht (1 bis {letzte}).")
+        return f"{kw}/{jahr}"
+    if art == LIEFERDATUM:
+        for fmt in ("%d.%m.%Y", "%d.%m.%y", "%Y-%m-%d"):
+            try:
+                return datetime.datetime.strptime(t, fmt).date().isoformat()
+            except ValueError:
+                pass
+        raise ValueError(f"Lieferzeit: '{t}' ist kein gültiges Datum (TT.MM.JJJJ).")
+    raise ValueError(f"Lieferzeit: unbekannte Art '{art}'.")
+
+
+def lieferzeit_text(kopf):
+    """Lieferzeit des Angebots als Satz für Angebot, Druck und E-Mail, z. B. 'Lieferzeit: ca. 10 Arbeitstage nach
+    Auftragseingang.' bzw. '… KW 46/2026.' / '… bis 15.11.2026.' / '… nach Absprache.'; mit Freitext dahinter.
+    Leer, wenn das Angebot keine Lieferzeit hat (ältere Angebote: es gilt der Text der Bedingungen)."""
+    import datetime
+    kopf = kopf or {}
+    art, w = kopf.get("lieferzeit_art"), kopf.get("lieferzeit_wert")
+    zusatz = (kopf.get("lieferzeit_zusatz") or "").strip()
+    teil = ""
+    if w and art == ARBEITSTAGE:
+        teil = f"ca. {w} Arbeitstag{'' if w == '1' else 'e'} nach Auftragseingang"
+    elif w and art == WOCHEN:
+        teil = f"ca. {w} Woche{'' if w == '1' else 'n'} nach Auftragseingang"
+    elif w and art == KALENDERWOCHE:
+        teil = f"KW {w}"
+    elif w and art == LIEFERDATUM:
+        try:
+            teil = "bis " + datetime.date.fromisoformat(w).strftime("%d.%m.%Y")
+        except ValueError:
+            teil = ""
+    if not teil and not zusatz:
+        return ""
+    text = "Lieferzeit: " + ", ".join(x for x in (teil, zusatz) if x)
+    return text if text.endswith((".", "!", "?")) else text + "."
+
+
+def bedingungen_text(kopf, bedingungen):
+    """Text der Einstellung 'Bedingungen' für ein Angebot: hat das Angebot eine eigene Lieferzeit, fallen Sätze
+    über die Lieferzeit ('Lieferzeit nach Absprache.') weg, damit das Angebot sich nicht widerspricht."""
+    t = (bedingungen or "").strip()
+    if lieferzeit_text(kopf):
+        t = re.sub(r"(?i)(^|(?<=[.!?]))\s*Lieferzeit[^.!?]*[.!?]?", "", t).strip()
+    return t
 
 
 GEWINDE_MUSTER = (r"(?i)\dx\s*M", "Format Anzahl x Gewinde, mehrere mit Semikolon, z. B. 4xM6; 2xM8")

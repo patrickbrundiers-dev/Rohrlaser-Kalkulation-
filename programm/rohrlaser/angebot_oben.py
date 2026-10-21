@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
 from . import fracht_angebot, rechnen
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
-from .angebot import KALK_PROZENT, KALKULATION, KOPF, aktiv as position_aktiv
+from .angebot import (KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, LIEFERZEIT_HILFE, NUR_TEXT,
+                      aktiv as position_aktiv, lieferzeit_text)
 from .sichtbarkeit import KOPF_ROLLEN, MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
 
@@ -24,7 +25,8 @@ KALK_OFFEN_EINSTELLUNG = "ansicht_kalkulation_offen"     # Karte Kalkulation auf
 GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung")),
     ("Zeit und Rüsten", ("ruesten_abmessung",)),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht")),
+    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht",
+                            "mindestpreis")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)
@@ -46,6 +48,13 @@ GRAU = "#5F6B7A"
 
 def _z(w, stellen=2):
     return zahl_als_text(w, stellen) if isinstance(w, (int, float)) and not isinstance(w, bool) else ""
+
+
+def _lz_anzeige(art, wert):
+    """Gespeicherten Lieferzeit-Wert anzeigen: Datum als TT.MM.JJJJ, sonst wie gespeichert."""
+    if wert and art == "Lieferdatum":
+        return datum_text(wert)
+    return wert or ""
 
 
 def karte(titel=None, rechts=None):
@@ -131,9 +140,35 @@ class KopfBereich(QWidget):
             b = QLabel(fd.titel)
             g.addWidget(b, zeile, 2 * spalte)
             g.addWidget(w, zeile, 2 * spalte + 1)
-        w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
-        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 2, 0)
+        w = self._eingabe(KOPF_FELD["kundenreferenz"], self.felder)
+        w.setPlaceholderText("z. B. Anfrage 4711 vom 20.10.2026")
+        g.addWidget(QLabel(KOPF_FELD["kundenreferenz"].titel), 2, 0)
         g.addWidget(w, 2, 1, 1, 5)
+        # Lieferzeit dieses Angebots: Art, Wert passend zur Art und Freitext (ändert keine Preise)
+        self.lz_art, self.lz_wert, self.lz_zusatz = QComboBox(), QLineEdit(), QLineEdit()
+        self.lz_art.addItems(LIEFERZEIT_ARTEN)
+        self.lz_art.setToolTip("Arbeitstage und Wochen zählen ab Auftragseingang; Kalenderwoche und Lieferdatum sind "
+                               "feste Termine; „nur Text“ zeigt nur den Freitext")
+        self.lz_wert.setMaximumWidth(130)
+        self.lz_zusatz.setPlaceholderText("Freitext, z. B. nach Absprache, Teillieferung möglich")
+        self.lz_art.currentTextChanged.connect(lambda t: seite._kopf_speichern(KOPF_FELD["lieferzeit_art"], t or None))
+        self.lz_wert.editingFinished.connect(
+            lambda: seite._kopf_speichern(KOPF_FELD["lieferzeit_wert"], self.lz_wert.text().strip() or None))
+        self.lz_zusatz.editingFinished.connect(
+            lambda: seite._kopf_speichern(KOPF_FELD["lieferzeit_zusatz"], self.lz_zusatz.text().strip() or None))
+        lz = QHBoxLayout()
+        lz.setContentsMargins(0, 0, 0, 0)
+        lz.addWidget(self.lz_art)
+        lz.addWidget(self.lz_wert)
+        lz.addWidget(self.lz_zusatz, 1)
+        g.addWidget(QLabel("Lieferzeit"), 3, 0)
+        g.addLayout(lz, 3, 1, 1, 5)
+        self.lz_vorschau = QLabel()
+        self.lz_vorschau.setStyleSheet(f"color: {GRAU};")
+        g.addWidget(self.lz_vorschau, 4, 1, 1, 5)
+        w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
+        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 5, 0)
+        g.addWidget(w, 5, 1, 1, 5)
         for c in (1, 3, 5):
             g.setColumnStretch(c, 1)
         kl.addLayout(g)
@@ -423,10 +458,29 @@ class KopfBereich(QWidget):
                     w.setValue(v or 0)
                 else:
                     w.setText(v or "")
+        self._lieferzeit_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()
         self._maschine_anzeigen()
         self._fracht_anzeigen()
+
+    def _lieferzeit_anzeigen(self):
+        k = self.s.kopf
+        art = k.get("lieferzeit_art") or ""
+        for w, v in ((self.lz_art, art), (self.lz_wert, _lz_anzeige(art, k.get("lieferzeit_wert"))),
+                     (self.lz_zusatz, k.get("lieferzeit_zusatz") or "")):
+            w.blockSignals(True)
+            if isinstance(w, QComboBox):
+                w.setCurrentIndex(w.findText(v))
+            else:
+                w.setText(v)
+            w.blockSignals(False)
+        self.lz_wert.setEnabled(art not in ("", NUR_TEXT))
+        self.lz_wert.setPlaceholderText(LIEFERZEIT_HILFE.get(art, ""))
+        self.lz_wert.setToolTip(LIEFERZEIT_HILFE.get(art, ""))
+        text = lieferzeit_text(k)
+        self.lz_vorschau.setText(f"Im Angebot: {text}" if text else
+                                 "Keine Lieferzeit im Angebot: es gilt der Text der Bedingungen (Einstellungen).")
 
     def _fracht_anzeigen(self):
         s = self.s

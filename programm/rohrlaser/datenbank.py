@@ -32,14 +32,14 @@ from . import zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
-from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, naechste_nummer
+from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, lieferzeit_wert, naechste_nummer
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 23     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 24     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -48,6 +48,7 @@ SCHEMA_VERSION = 23     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 21: Positionsart (positionen.art: Rohrlaserteil/Zukaufteil) und positionen.gewicht_teil
                         # 22: profile.wand_max (größte Wandstärke für die Schneidzeit), Normprofile aus der Tabelle
                         # 23: Lieferlängen (Tabelle lieferlaengen, profile.laengenvergleich, angebote.laengenwahl)
+                        # 24: Kundenreferenz, Lieferzeit und Mindestpreis im Angebot (ältere Angebote: Mindestpreis 0)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -159,6 +160,8 @@ class Datenbank:
             if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
+            if 0 < version < 24:      # gespeicherte Angebote behalten ihren Preis: kein Mindestpreis
+                self.con.execute("UPDATE angebote SET mindestpreis=0 WHERE mindestpreis IS NULL")
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
@@ -891,6 +894,16 @@ class Datenbank:
                 out[f.name] = round(w * 100, 4) if f.name in KALK_PROZENT else w
         return out
 
+    def lieferzeit_vorgabe(self, datum=None):
+        """Lieferzeit für ein neues Angebot aus den Einstellungen; ein ungültiger Wert dort bleibt leer."""
+        art = self.einstellung("lieferzeit_art") or None
+        try:
+            wert = lieferzeit_wert(art, self.einstellung("lieferzeit_wert"), datum)
+        except ValueError:
+            wert = None
+        return dict(lieferzeit_art=art, lieferzeit_wert=wert,
+                    lieferzeit_zusatz=(self.einstellung("lieferzeit_zusatz") or "").strip() or None)
+
     def kalkulation_zuruecksetzen(self, angebot_id):
         """Kalkulationswerte, Stundensätze und Zeitvorgaben des Angebots wieder auf die Einstellungen setzen."""
         for n, w in self.kalkulation_vorgaben().items():
@@ -957,6 +970,8 @@ class Datenbank:
             kopf.setdefault(n, w)
         for n, w in self.kalkulation_vorgaben().items():
             kopf.setdefault(n, w)
+        for n, w in self.lieferzeit_vorgabe(kopf.get("datum")).items():
+            kopf.setdefault(n, w)
         kopf.setdefault("fracht_umlage", UMLAGE_NEU)     # neue Angebote: nach Gewicht; Kopien behalten ihren Wert
         namen = [f.name for f in KOPF if f.name in kopf]
         zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
@@ -976,6 +991,18 @@ class Datenbank:
             raise KeyError(feld)
         if feld == "nummer" and not wert:
             raise ValueError("Die Angebotsnummer darf nicht leer sein.")
+        if feld in ("lieferzeit_art", "lieferzeit_wert"):     # Wert passend zur Art prüfen (ValueError mit Meldung)
+            a = self.con.execute("SELECT lieferzeit_art, lieferzeit_wert, datum FROM angebote WHERE id=?",
+                                 (angebot_id,)).fetchone()
+            if feld == "lieferzeit_wert":
+                wert = lieferzeit_wert(a["lieferzeit_art"], wert, a["datum"])
+            else:
+                try:                                       # andere Art: alter Wert nur, wenn er weiter passt
+                    neu = lieferzeit_wert(wert, a["lieferzeit_wert"], a["datum"])
+                except ValueError:
+                    neu = None
+                with self.con:
+                    self.con.execute("UPDATE angebote SET lieferzeit_wert=? WHERE id=?", (neu, angebot_id))
         try:
             with self.con:
                 self.con.execute(f'UPDATE angebote SET "{feld}"=?, geaendert=? WHERE id=?',

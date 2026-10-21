@@ -1343,7 +1343,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
       VPE und Bezugskosten einmal; zukauf.rechnen). Einstandspreis + Aufschlag nach der Regel des Artikels gehen
       je Teil ohne Zuschläge und ohne Gewinn in den Verkaufspreis ein (der Aufschlag ersetzt beides).
     - Skonto aus dem Angebotskopf (%) wird eingerechnet: Verkaufspreis = Preis ohne Skonto / (1 − Skonto), so bleibt
-      nach Abzug des Skontos der Preis ohne Skonto."""
+      nach Abzug des Skontos der Preis ohne Skonto.
+    - Mindestpreis (Einstellung bzw. Angebot, netto): liegt der Verkaufspreis des Angebots darunter, werden alle
+      Stückpreise anteilig angehoben (zeilen 'mindestpreis_teil', summen 'mindestpreis_anhebung')."""
     zb = zeitbasis(kopf, k, tabellen)
     satz_h = _n(zb["maschine"].get("stundensatz"))
     schritt = {z.get("schritt"): z for z in zb["schritte"]}
@@ -1499,6 +1501,16 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  nicht_eingeplant=nicht)
         zeilen[i] = z
     n_abm = len(teile_abm)
+    # Mindestpreis netto je Angebot (nach Skonto, vor MwSt): liegt die Summe darunter, steigen alle Stückpreise
+    # im gleichen Verhältnis, bis der Mindestpreis erreicht ist (einmal je Angebot, keine zusätzliche Position)
+    mindest = _n(einstellungen.get("mindestpreis"))
+    kalkuliert = sum(z["preis_position"] for z in zeilen if z)
+    faktor = mindest / kalkuliert if mindest > 0 and 0 < kalkuliert < mindest else 1.0
+    for z in zeilen:
+        if z:
+            alt = z["preis_teil"]
+            z.update(preis_teil=alt * faktor, preis_position=alt * faktor * z["stueck"],
+                     mindestpreis_teil=alt * (faktor - 1))
 
     def _summe(n):
         return sum(z[n] * z["stueck"] for z in zeilen if z)
@@ -1529,6 +1541,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zusatz_eigen=_summe("zusatz_eigen_teil"), zusatz_fremd=_summe("zusatz_fremd_teil"),
                   zukauf_einstand=_summe("zukauf_einstand_teil"), zukauf_aufschlag=_summe("zukauf_aufschlag_teil"),
                   zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen)
+    summen.update(verkauf_kalkuliert=kalkuliert, mindestpreis=mindest, mindestpreis_gilt=faktor > 1,
+                  mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
     summen["zeiten"] = arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_lad)
     return zeilen, summen
@@ -1714,7 +1728,7 @@ KOSTENARTEN = (
     ("Programmierkosten", "programmierung", False), ("Angebotsaufschlag", "angebotsaufschlag", False),
     ("Fracht", "fracht", False), ("Zukaufteile (Einstand)", "zukauf_einstand", False),
     ("Aufschlag Zukaufteile", "zukauf_aufschlag", False), ("Skonto", "skonto", False),
-    ("Verkaufspreis", "verkauf", True))
+    ("Anhebung auf Mindestpreis", "mindestpreis_anhebung", False), ("Verkaufspreis", "verkauf", True))
 
 
 # Kostenübersicht im Angebot: Gruppen aus Kostenarten (Titel, Schlüssel, Summenzeile); jede Kostenart genau einmal
@@ -1727,7 +1741,8 @@ KOSTEN_GRUPPEN = (
     ("Programmierkosten", ("programmierung",), False),
     ("Pauschalen und Aufschläge", ("pauschalen", "angebotsaufschlag", "fracht"), False),
     ("Zukaufteile", ("zukauf_einstand", "zukauf_aufschlag"), False),
-    ("Skonto", ("skonto",), False), ("Verkaufspreis", ("verkauf",), True))
+    ("Skonto", ("skonto",), False), ("Mindestpreis", ("mindestpreis_anhebung",), False),
+    ("Verkaufspreis", ("verkauf",), True))
 assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n, _ in KOSTENARTEN)
 
 
@@ -1743,8 +1758,11 @@ def kostenarten(summen, einst):
         "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",
         "gewinn": f" ({z(100 * _n(einst.get('gewinn')))} %)",
         "skonto": f" ({z(summen.get('skonto_satz', 0))} % eingerechnet)",
-        "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)"}
-    return [(t + zusatz.get(n, ""), summen[n], fett) for t, n, fett in KOSTENARTEN]
+        "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)",
+        "mindestpreis_anhebung": (f" (kalkuliert {z(summen.get('verkauf_kalkuliert', 0), 2)} €, Mindestpreis "
+                                  f"{z(summen.get('mindestpreis', 0), 2)} € netto)" if summen.get("mindestpreis_gilt")
+                                  else "")}
+    return [(t + zusatz.get(n, ""), summen.get(n, 0.0), fett) for t, n, fett in KOSTENARTEN]
 
 
 def eingeplant_je_position(ergebnis):

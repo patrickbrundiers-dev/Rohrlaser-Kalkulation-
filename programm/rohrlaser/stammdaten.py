@@ -403,6 +403,12 @@ VERWEISE = {
 }
 
 
+# Lieferzeit im Angebot (angebot.lieferzeit_wert / lieferzeit_text): Art der Angabe
+ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT = (
+    "Arbeitstage", "Wochen", "Kalenderwoche", "Lieferdatum", "nur Text")
+LIEFERZEIT_ARTEN = (ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT)
+
+
 # ------------------------------------------------------------------ Einstellungen
 @dataclass(frozen=True)
 class Einstellung:
@@ -430,6 +436,10 @@ EINSTELLUNGEN = (
     Einstellung("programmierung_teil", "Programmierkosten je Teil (Position) [€]", "Kalkulation", "zahl", 8.50, 0,
                 100000),
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
+    # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
+    # angehoben. 0 = keiner.
+    Einstellung("mindestpreis", "Mindestpreis je Angebot netto [€] (0 = keiner)", "Kalkulation", "zahl", 200.0, 0,
+                1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
     # Mindestwerte erreicht sind
     Einstellung("laenge_mindest_eur", "Lieferlängen: Mindestersparnis je Gruppe in €", "Lieferlängen", "zahl", 20.0,
@@ -457,6 +467,12 @@ EINSTELLUNGEN = (
     Einstellung("skonto", "Skonto [%]", "Angebot", "zahl", 2.0, 0, 20),
     Einstellung("skonto_tage", "Skontofrist [Tage]", "Angebot", "ganz", 10, 0, 365),
     Einstellung("zahlungsziel", "Zahlungsziel netto [Tage]", "Angebot", "ganz", 30, 0, 365),
+    # Lieferzeit neuer Angebote (im Angebot änderbar); 'nur Text' + 'nach Absprache' entspricht dem bisherigen Satz
+    Einstellung("lieferzeit_art", "Lieferzeit neuer Angebote: Angabe als", "Angebot", "auswahl", "nur Text",
+                auswahl="lieferzeitart"),
+    Einstellung("lieferzeit_wert", "Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, KW/Jahr oder Datum)",
+                "Angebot", "text", ""),
+    Einstellung("lieferzeit_zusatz", "Lieferzeit neuer Angebote: Freitext", "Angebot", "text", "nach Absprache"),
     Einstellung("briefkopf_1", "Briefkopf Zeile 1 (Firma)", "Angebots-PDF", "text", "Firmenname"),
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
@@ -603,6 +619,7 @@ class Kontext:
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
+                         "lieferzeitart": list(LIEFERZEIT_ARTEN),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
 

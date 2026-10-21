@@ -308,7 +308,9 @@ assert staffeln.pruefen(dict(schluessel="10", menge=None), s4.positionen) == "FE
 assert s4.optimieren()
 sp = s4.staffelpreise_rechnen()
 assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
-assert [z["preis_einheit"] for z in sp] == [148.64, 144.68, 136.07, 6.42, 6.3, 5.92], sp   # Referenzwerte (T11, Richtwerte Faserlaser 4 kW; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
+# Stufe 24 Stück: 154,08 € netto liegt unter dem Mindestpreis 200 € (ab 0.6.0) -> 200 / 24 auf den Cent aufgerundet
+# 8,34 € (ohne Mindestpreis 6,42 €)
+assert [z["preis_einheit"] for z in sp] == [148.64, 144.68, 136.07, 8.34, 6.3, 5.92], sp   # Referenzwerte (T11, Richtwerte Faserlaser 4 kW; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
@@ -411,9 +413,11 @@ pos = [dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-1021
        dict(pos=40, artikel="D", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=700)]   # ohne Stückzahl
 erg = rechnen.optimieren(kopf, pos, k)
 assert not erg["fehler"] or all(f_["artikel"] == "D" for f_ in erg["fehler"])
-null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, angebotsaufschlag=0, programmierung_teil=0)
+# ohne Mindestpreis (eigener Test), sonst hebt er den kleinen Vergleichspreis s0 an
+null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, angebotsaufschlag=0, programmierung_teil=0,
+            mindestpreis=0)
 z0, s0 = rechnen.kalkulation(kopf, pos, erg, k, tab, null)
-z1, s1 = rechnen.kalkulation(dict(kopf, fracht=120.0), pos, erg, k, tab, db.einstellungen())
+z1, s1 = rechnen.kalkulation(dict(kopf, fracht=120.0), pos, erg, k, tab, dict(db.einstellungen(), mindestpreis=0))
 satz = k.maschinen["T11"]["stundensatz"]
 assert s1["abmessungen"] == 2 and s1["pauschalen"] == 45.0 and s1["angebotsaufschlag"] == 50 and s1["fracht"] == 120
 assert db.einstellung("programmierung_teil") == 8.5 and s1["programmierung"] == 3 * 8.5   # D ohne Stückzahl zählt nicht
