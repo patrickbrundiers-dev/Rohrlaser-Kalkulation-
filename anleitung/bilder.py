@@ -401,6 +401,19 @@ def main(ziel):
                                            (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6)])
         return QDialog.Rejected
     s.schneidweg_berechnen(0, dialog=schneidweg_ausfuellen)
+
+    # 7a3) Zeichnung an Pos. 1 und Materialanfrage (nur Foto, Schließen: nichts geöffnet)
+    zeichnung = Path(tempfile.mkdtemp()) / "Z-4711 Rahmen.pdf"
+    zeichnung.write_bytes(b"%PDF-1.4")
+    s.dokumente_anhaengen(0, [zeichnung])
+
+    def anfrage_foto(d):
+        d.resize(900, 680)
+        QApplication.processEvents()
+        foto.foto("materialanfrage", d, [(d.lieferant, 1), (d.tabelle, 2), (d.text, 3), (d.anhaenge, 4),
+                                         (d.outlook_knopf, 5)])
+        return QDialog.Rejected
+    s.material_anfragen(dialog=anfrage_foto)
     bereit()
     m = s.pos_modell
     versteckt = [i for i, (art, x) in enumerate(m.spalten) if art == "feld" and x.name in

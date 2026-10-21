@@ -108,7 +108,9 @@ else:
     from PySide6.QtCore import QMimeData, QUrl  # noqa: E402
     from PySide6.QtWidgets import QApplication  # noqa: E402
     from rohrlaser.fenster import Hauptfenster  # noqa: E402
+    from rohrlaser import dokumente  # noqa: E402
     app = QApplication.instance() or QApplication([])
+    db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))      # STEP-Datei wird als Zeichnung abgelegt
     fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
     a = db.angebot_neu(dict(kunde="Test"))
     seite = fenster.angebot_oeffnen(a)
@@ -136,6 +138,9 @@ else:
     assert [(x["artikel"], x["profil_id"], x["laenge"], x["satz"], x["je_satz"], x["stueck"]) for x in p] == [
         ("T08_Gestell_Baugruppe-K1", "QR 40x40x3", 600.0, "T08_Gestell_Baugruppe", 3, None),
         ("T08_Gestell_Baugruppe-K4", "RR 42,4x2,0", 900.0, "T08_Gestell_Baugruppe", 1, None)], p
+    # seit 0.6.5: die STEP-Datei hängt als Zeichnung an jeder Position (Kopie im Ordner des Angebots)
+    assert all(dokumente.liste(x["dokumente"]) == [BAUGRUPPE.name] for x in p), [x["dokumente"] for x in p]
+    assert (dokumente.ordner(fenster.ablage(), seite.kopf) / BAUGRUPPE.name).is_file()
     erg = seite.step_importieren([str(BAUGRUPPE)], "S235-10219", 2, als_satz=False)   # Nein: jeder Körper einzeln
     assert [x["artikel"][-2:] for x in erg["positionen"]] == ["K2", "K3"]   # K1 und K4 stehen schon im Angebot
     b = db.angebot_neu(dict(kunde="Test"))
