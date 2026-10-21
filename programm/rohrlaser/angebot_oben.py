@@ -36,6 +36,7 @@ MASCHINENPARAMETER = (
     ("abstand", "Abstand getrennte Schnitte", "mm", 1, OPTIONAL),
     ("kontur_klein", "Kontur klein bis", "mm", 1, OPTIONAL), ("kontur_mittel", "Kontur mittel bis", "mm", 1, OPTIONAL),
     ("max_huellkreis", "Max. Hüllkreis-Ø", "mm", 1, OPTIONAL), ("max_kg_m", "Max. Metergewicht", "kg/m", 1, OPTIONAL),
+    ("min_stange", "Min. Stangenlänge Zuschnitt", "mm", 0, OPTIONAL),
 )
 # Werte der gewählten Maschine, die in die Kalkulation eingehen (Gruppe Zeit und Rüsten)
 MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),

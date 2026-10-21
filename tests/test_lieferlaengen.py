@@ -322,4 +322,26 @@ db.neu("lieferlaengen", dict(profil_id="RE 120x60x4", werkstoff_id="S355-10219",
 (vg,) = rechnen.optimieren(kopf, gross, db.kontext(), db.tabellen(), einst)["laengen"]
 assert not vg["automatisch"] and [v["laenge"] for v in vg["varianten"]] == [8000]     # 6 m nicht eingetragen
 print("Hüllkreis-Regel OK")
+
+# ------------------------------------------------------------------ Mindest-Stangenlänge der Stangenladung
+# Patrick 21.10.2026: kein Stück aus dem Zuschnitt kürzer als 2.500 mm (je Maschine, Vorgabe 2.500)
+assert all(z["min_stange"] == 2500 for z in db.zeilen("maschinen"))
+g = gruppe(teile(6, 2100) + teile(2, 980))     # 2 × (3 × 2.100) + kurzes Stück mit 2 × 980
+st = opt.zuschnitt(g, 12000, 6500, 3)
+assert min(l for s in werkstuecke(st) for l in s) < 2500, werkstuecke(st)
+st = opt.zuschnitt(g, 12000, 6500, 3, 2500)
+assert min(l for s in werkstuecke(st) for l in s) == 2500, werkstuecke(st)
+opt.pruefe_zuschnitt(g, st, 12000, 6500, 3, 2500)
+try:
+    opt.pruefe_zuschnitt(g, [[(2400, [(t, False) for t in g.teile[-2:]])]] + st[:-1], 12000, 6500, 3, 2500)
+    raise SystemExit("Kontrolle hätte das zu kurze Werkstück finden müssen")
+except AssertionError:
+    pass
+# Ziel-Werkstücklängen unter der Mindestlänge (12 m / 5 und / 6) werden nicht ausprobiert
+assert min(opt.zuschnitt_ziele(gruppe(teile(1, 500)), 12000, 6500, 3, 2500)) >= 2500
+v = rechnen.variante_planen(g, 12000, dict(max_stange=6500, min_stange=2500), 3)
+assert not v["fehler"] and min(l for s in v["stangen"] for l, _ in s) == 2500, v
+v = rechnen.variante_planen(g, 12000, dict(max_stange=6500), 3)          # leer = keine Grenze
+assert min(l for s in v["stangen"] for l, _ in s) < 2500, v
+print("Mindest-Stangenlänge OK")
 print("Alle Tests Lieferlängen OK")

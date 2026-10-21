@@ -348,7 +348,8 @@ def laengen_eingaben(gruppen, kopf, k, tabellen, einst):
     if not daten and not kopf.get("laengenwahl"):
         return []
     m = maschine(kopf, k) or {}
-    return [daten, m.get("max_stange"), einstellung_wert(einst, "zuschnitt_verlust"), kopf.get("laengenwahl") or {}]
+    return [daten, m.get("max_stange"), einstellung_wert(einst, "zuschnitt_verlust"), kopf.get("laengenwahl") or {},
+            m.get("min_stange")]
 
 
 def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
@@ -745,11 +746,12 @@ def variante_planen(g, laenge, m, saege):
         opt.pruefe([h], [folgen])
         out["stangen"] = [[(laenge, f)] for f in folgen]
         return out
-    st = opt.zuschnitt(g, laenge, maxw, saege)
+    minw = min(_n((m or {}).get("min_stange")), maxw)
+    st = opt.zuschnitt(g, laenge, maxw, saege, minw)
     if st is None:
         out["fehler"] = f"Teil passt in kein Werkstück bis {mm_text(maxw)} mm"
         return out
-    opt.pruefe_zuschnitt(g, st, laenge, maxw, saege)
+    opt.pruefe_zuschnitt(g, st, laenge, maxw, saege, minw)
     out["stangen"] = st
     return out
 
