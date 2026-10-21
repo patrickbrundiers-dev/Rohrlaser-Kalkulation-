@@ -720,7 +720,8 @@ def main(ziel):
     fb.zonen.test_plz.setText("25980")
     bereit()
     foto.foto("fracht_zonen", f, [(fb.zonen.test_plz, 1), (knopf(fb.zonen, "CSV exportieren"), 2),
-                                  (knopf(fb.zonen, "CSV importieren"), 3), (tab_rect(fb.zonen.oben, "Länder"), 4)])
+                                  (knopf(fb.zonen, "CSV importieren"), 3), (tab_rect(fb.zonen.oben, "Länder"), 4),
+                                  (fb.zonen.standard_knopf, 5)])
     fb.zeigen(fb.tarife)
     t = fb.tarife.tarife
     t.ansicht.setCurrentIndex(t.filter.index(1, 0))
