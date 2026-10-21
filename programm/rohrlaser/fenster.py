@@ -14,18 +14,19 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProx
 from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
+    QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import NAME, ausgabe, tastatur, update
+from . import NAME, ausgabe, hilfe, tastatur, update
 from .spaltenbreite import AutoGroesse
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
 FARBE_BERECHNET = QColor("#EDEDED")
-FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": QColor("#C6EFCE")}
+# Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
+FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": FARBE_BERECHNET}
 # Einheitliches Aussehen angelehnt an die PDF-Ausgaben: Dunkelblau #1F4E78 als Akzent (aktiver Reiter, Titel,
 # Hauptknöpfe, Linie unter Tabellenköpfen), helle neutrale Flächen, Karten mit dünnem Rahmen, Zebra-Zeilen
 AKZENT = "#1F4E78"
@@ -174,13 +175,18 @@ class StammdatenModell(QAbstractTableModel):
 
 class Sortierung(QSortFilterProxyModel):
     """Sortiert nach dem gespeicherten Wert (Zahlen als Zahlen), leere Werte zuletzt. fest = (Spalte, Wert): nur
-    Zeilen mit genau diesem Wert (z. B. Preisstaffeln eines Tarifs)."""
+    Zeilen mit genau diesem Wert (z. B. Preisstaffeln eines Tarifs). nur_auffaellig = Spalte der Prüfung: nur Zeilen
+    mit FEHLER oder WARNUNG."""
     fest = None
+    nur_auffaellig = None
 
     def filterAcceptsRow(self, zeile, eltern):
         if self.fest is not None:
             spalte, wert = self.fest
             if self.sourceModel().roh(zeile, spalte) != wert:
+                return False
+        if self.nur_auffaellig is not None:
+            if not str(self.sourceModel().roh(zeile, self.nur_auffaellig) or "").startswith(("FEHLER", "WARNUNG")):
                 return False
         return super().filterAcceptsRow(zeile, eltern)
 
@@ -253,9 +259,7 @@ class StammdatenSeite(QWidget):
         self.db, self.meldung = db, meldung
         self.vorgabe = {}           # Werte neuer Zeilen (z. B. Tarif bei gefilterten Preisstaffeln)
 
-        hinweis = QLabel(tabelle.hinweis)
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
+        self.hinweis = hilfe.Hinweis(tabelle.hinweis, db, f"tabelle:{tabelle.name}")
         neu = QPushButton("Neue Zeile")
         neu.clicked.connect(self.zeile_neu)
         weg = QPushButton("Zeilen löschen")
@@ -266,6 +270,11 @@ class StammdatenSeite(QWidget):
         self.suche.textChanged.connect(self.filter.setFilterFixedString)
         tastatur.suche_esc(self.suche)
         self.anzahl = QLabel()
+        self.pruefspalte = next((i for i, (art, _) in enumerate(self.modell.spalten) if art == "pruefung"), None)
+        self.nur_fehler = QCheckBox("Nur Fehler und Warnungen")
+        self.nur_fehler.setToolTip("Nur Zeilen zeigen, deren Prüfung FEHLER oder WARNUNG meldet")
+        self.nur_fehler.toggled.connect(self.fehler_filtern)
+        self.nur_fehler.setVisible(self.pruefspalte is not None)
         leiste = QHBoxLayout()
         for w in (neu, weg):
             leiste.addWidget(w)
@@ -287,6 +296,7 @@ class StammdatenSeite(QWidget):
             leiste.addWidget(einlesen)
         leiste.addSpacing(20)
         leiste.addWidget(self.suche, 1)
+        leiste.addWidget(self.nur_fehler)
         leiste.addWidget(self.anzahl)
 
         self.ansicht = QTableView()
@@ -308,16 +318,28 @@ class StammdatenSeite(QWidget):
         AutoGroesse(self.ansicht)        # Breite und Höhe passend zum Inhalt, Vorgabebreiten bis zum ersten Füllen
 
         lay = QVBoxLayout(self)
-        lay.addWidget(hinweis)
+        lay.addWidget(self.hinweis)
         lay.addLayout(leiste)
         lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
         self.zaehlen()
 
     def zaehlen(self):
-        n = self.filter.rowCount() if self.filter.fest is not None else len(self.modell.daten)
-        fehler = sum(1 for r in range(n) if str(self.modell.roh(r, len(self.modell.spalten) - 1)).startswith("FEHLER"))
-        self.anzahl.setText(f"{n} Zeilen" + (f", {fehler} mit FEHLER" if fehler else ""))
+        if self.filter.fest is not None:
+            spalte, wert = self.filter.fest
+            zeilen = [r for r in range(len(self.modell.daten)) if self.modell.roh(r, spalte) == wert]
+        else:
+            zeilen = range(len(self.modell.daten))
+        status = [str(self.modell.roh(r, self.pruefspalte)) if self.pruefspalte is not None else "" for r in zeilen]
+        fehler = sum(1 for t in status if t.startswith("FEHLER"))
+        warnung = sum(1 for t in status if t.startswith("WARNUNG"))
+        teile = [f"{fehler} mit FEHLER"] * bool(fehler) + [f"{warnung} mit WARNUNG"] * bool(warnung)
+        self.anzahl.setText(f"{len(status)} Zeilen" + "".join(", " + t for t in teile))
+
+    def fehler_filtern(self, an):
+        """Nur Zeilen mit FEHLER oder WARNUNG zeigen (an) oder wieder alle."""
+        self.filter.nur_auffaellig = self.pruefspalte if an else None
+        self.filter.invalidateFilter()
 
     def neu_laden(self):
         self.modell.neu_laden()
@@ -478,7 +500,10 @@ class LogoEingabe(QWidget):
 
 
 class EinstellungenSeite(QScrollArea):
-    """Einstellungen als Formular; gruppen = nur diese Gruppen, ohne = diese Gruppen nicht."""
+    """Einstellungen als Formular; gruppen = nur diese Gruppen, ohne = diese Gruppen nicht. Jede Gruppe ist eine
+    Karte; ab ZWEI_SPALTEN px Breite stehen die Karten in zwei Spalten (auf die kürzere Spalte verteilt)."""
+    ZWEI_SPALTEN = 1150
+    BREITE_ZAHL, BREITE_TEXT, BREITE_TITEL = 160, 380, 300
 
     def __init__(self, db, meldung, gruppen=None, ohne=()):
         super().__init__()
@@ -486,20 +511,50 @@ class EinstellungenSeite(QScrollArea):
         self.liste = [e for e in EINSTELLUNGEN if (gruppen is None or e.gruppe in gruppen) and e.gruppe not in ohne]
         self.setWidgetResizable(True)
         innen = QWidget()
-        lay = QVBoxLayout(innen)
+        lay = QHBoxLayout(innen)
+        self.spalten = [QVBoxLayout(), QVBoxLayout()]
+        for sp in self.spalten:
+            sp.setSpacing(10)
+            lay.addLayout(sp, 1)
         self.felder = {}
         gruppen = {}
+        self.boxen = []
         for e in self.liste:
             if e.gruppe not in gruppen:
                 box = QGroupBox(e.gruppe)
                 gruppen[e.gruppe] = QFormLayout(box)
-                lay.addWidget(box)
+                gruppen[e.gruppe].setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                self.boxen.append(box)
             w = self._eingabe(e)
             self.felder[e.name] = w
-            gruppen[e.gruppe].addRow(e.titel, w)
-        lay.addStretch(1)
+            titel = QLabel(e.titel)
+            titel.setWordWrap(True)
+            titel.setFixedWidth(self.BREITE_TITEL)
+            gruppen[e.gruppe].addRow(titel, w)
+        self.zweispaltig = None
+        self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
+
+    def _anordnen(self, zwei):
+        """Karten auf eine oder zwei Spalten verteilen (Reihenfolge bleibt, je Karte in die kürzere Spalte)."""
+        if zwei == self.zweispaltig:
+            return
+        self.zweispaltig = zwei
+        for sp in self.spalten:
+            while sp.count():
+                sp.takeAt(0)
+        hoehe = [0, 0]
+        for box in self.boxen:
+            i = hoehe.index(min(hoehe)) if zwei else 0
+            self.spalten[i].addWidget(box)
+            hoehe[i] += box.sizeHint().height()
+        for sp in self.spalten:
+            sp.addStretch(1)
+
+    def resizeEvent(self, e):
+        self._anordnen(self.viewport().width() >= self.ZWEI_SPALTEN)
+        super().resizeEvent(e)
 
     def _eingabe(self, e):
         if e.art == "anteil":
@@ -530,7 +585,7 @@ class EinstellungenSeite(QScrollArea):
             w.fertig.connect(lambda e=e, w=w: self._speichern(e, w.toPlainText().strip()))
         elif e.art == "auswahl":
             w = QComboBox()
-            w.setEditable(True)
+            w.setEditable(e.auswahl != "hilfeart")
             w.currentTextChanged.connect(lambda text, e=e: self._speichern(e, text.strip()))
         elif e.art == "passwort":
             w = QLineEdit()
@@ -542,6 +597,12 @@ class EinstellungenSeite(QScrollArea):
         else:
             w = QLineEdit()
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
+        if e.art in ("anteil", "zahl", "zahl_leer", "ganz"):
+            w.setMaximumWidth(self.BREITE_ZAHL)
+        elif e.art in ("text", "auswahl", "passwort"):
+            w.setMaximumWidth(self.BREITE_TEXT)
+        elif e.art == "mehrzeilig":
+            w.setMaximumWidth(self.BREITE_TEXT + 160)
         return w
 
     def _zahl_leer(self, e, w):
@@ -559,6 +620,8 @@ class EinstellungenSeite(QScrollArea):
         if getattr(self, "_laden", False) or self.db.einstellung(e.name) == wert:
             return
         self.db.einstellung_setzen(e.name, wert)
+        if e.name == hilfe.HILFE_EINSTELLUNG:
+            hilfe.alle_aktualisieren()
         self.meldung(f"{e.titel} gespeichert.")
 
     def neu_laden(self):
