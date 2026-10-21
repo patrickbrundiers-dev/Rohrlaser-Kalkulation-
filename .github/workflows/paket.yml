@@ -165,6 +165,52 @@ jobs:
           if ($n -ne (Get-ChildItem netze_py -Filter *.json).Count -or $n -lt 8) { throw "STEP-Import.exe: $n 3D-Netze" }
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
+      - name: Programm signieren (eigenes Zertifikat aus dem Secret SIGNATUR_PFX)
+        # Selbst ausgestelltes Zertifikat „Patrick Brundiers“ (kostenlos). Windows vertraut ihm, sobald
+        # Windows-Vertrauen-einrichten.cmd es eingetragen hat (ohne Adminrechte, je Benutzer). Fehlt das Secret,
+        # bleibt alles unsigniert und der Build läuft trotzdem.
+        # Secret einmalig auf dem eigenen PC erzeugen (PowerShell, keine Adminrechte), Inhalt der Zwischenablage als
+        # Repository-Secret SIGNATUR_PFX speichern:
+        #   $z = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Patrick Brundiers" -KeyLength 3072 `
+        #        -NotAfter (Get-Date).AddYears(10) -CertStoreLocation Cert:\CurrentUser\My
+        #   $d = "$env:TEMP\signatur.pfx"
+        #   Export-PfxCertificate -Cert $z -FilePath $d -Password (ConvertTo-SecureString rohrlaser-signatur -AsPlainText -Force)
+        #   [Convert]::ToBase64String([IO.File]::ReadAllBytes($d)) | Set-Clipboard; Remove-Item $d, $z.PSPath
+        shell: pwsh
+        env:
+          SIGNATUR_PFX: ${{ secrets.SIGNATUR_PFX }}
+        run: |
+          # Windows-Vertrauen-einrichten.cmd bekommt den öffentlichen Teil des Zertifikats (ohne Secret: nur Freigabe)
+          $cmd = Get-Content -Raw programm/installer/Windows-Vertrauen-einrichten.cmd
+          if (-not $env:SIGNATUR_PFX) {
+            [IO.File]::WriteAllText("$PWD\Windows-Vertrauen-einrichten.cmd", $cmd, [Text.UTF8Encoding]::new($false))
+            "::warning::Secret SIGNATUR_PFX fehlt: Programm und Setup bleiben unsigniert"
+            exit 0
+          }
+          $pfx = "$env:RUNNER_TEMP\signatur.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNATUR_PFX))
+          # Kennwort wie beim Erzeugen festgelegt; es schützt nichts, geheim ist das Secret selbst
+          $z = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, "rohrlaser-signatur")
+          "Zertifikat: $($z.Subject), $($z.Thumbprint), gültig bis $($z.NotAfter)"
+          if (-not $z.HasPrivateKey) { throw "SIGNATUR_PFX ohne privaten Schlüssel" }
+          $oeffentlich = [Convert]::ToBase64String($z.Export("Cert"))
+          [IO.File]::WriteAllText("$PWD\Windows-Vertrauen-einrichten.cmd", $cmd.Replace("@ZERTIFIKAT@", $oeffentlich),
+                                  [Text.UTF8Encoding]::new($false))
+          "SIGNATUR_FP=$($z.Thumbprint)" >> $env:GITHUB_ENV
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object FullName -like "*\x64\*" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw "signtool.exe nicht gefunden" }
+          "SIGNTOOL=$signtool" >> $env:GITHUB_ENV
+          "SIGNATUR_DATEI=$pfx" >> $env:GITHUB_ENV
+          $dateien = @("dist/STEP-Import/STEP-Import.exe", "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe")
+          # Zeitstempel: die Signatur bleibt auch nach Ablauf des Zertifikats gültig; Zeitstempeldienst notfalls erneut
+          for ($i = 1; $i -le 3; $i++) {
+            & $signtool sign /f $pfx /p rohrlaser-signatur /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d "Rohrlaser Angebotskalkulation" @dateien
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds (10 * $i)
+          }
+          if ($LASTEXITCODE -ne 0) { throw "signtool Rückgabewert $LASTEXITCODE" }
+          "SIGNIERT=1" >> $env:GITHUB_ENV
       - name: Versionsangaben der .exe prüfen (Hersteller, Produkt, Version)
         shell: pwsh
         run: |
@@ -182,6 +228,7 @@ jobs:
         run: |
           Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Angebotskalkulation/STEP-Import
           Copy-Item Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
+          Copy-Item Windows-Vertrauen-einrichten.cmd dist/Rohrlaser-Angebotskalkulation/
           $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
           $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe" `
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
@@ -216,7 +263,11 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Inno Setup lässt sich nicht installieren" }
           }
           $v = python -c "import sys; sys.path.insert(0, 'programm'); from versionsinfo import version; print(version())"
-          & $iscc "/DVersion=$v.${{ github.run_number }}" "/DQuelle=$PWD\dist\Rohrlaser-Angebotskalkulation" "/DAusgabe=$PWD" programm\installer\rohrlaser.iss
+          $signieren = @()
+          if ($env:SIGNIERT) {          # Setup und Uninstaller mit demselben Zertifikat ($f = Datei, $q = Anführungszeichen)
+            $signieren = @("/DSignieren", "/Ssignieren=`$q$env:SIGNTOOL`$q sign /f `$q$env:SIGNATUR_DATEI`$q /p rohrlaser-signatur /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d `$qRohrlaser Angebotskalkulation Setup`$q `$f")
+          }
+          & $iscc "/DVersion=$v.${{ github.run_number }}" "/DQuelle=$PWD\dist\Rohrlaser-Angebotskalkulation" "/DAusgabe=$PWD" @signieren programm\installer\rohrlaser.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC Rückgabewert $LASTEXITCODE" }
           "{0:N0} MB" -f ((Get-Item Rohrlaser-Angebotskalkulation-Setup.exe).Length / 1MB)
       - name: Installation und portable Version testen (Datenort, gleiche Dateien und Ergebnisse, Deinstallation behält Daten)
@@ -263,6 +314,34 @@ jobs:
           # aufräumen, damit spätere Schritte nichts davon sehen
           Starten "$app\unins000.exe" $still
           Warten "$app\unins000.exe"
+      - name: Windows-Vertrauen testen (Markierung „aus dem Internet“ weg, Zertifikat eingetragen, Signaturen gültig, entfernen)
+        shell: pwsh
+        run: |
+          $t = (New-Item -ItemType Directory -Force vertrauen_test).FullName
+          Copy-Item Windows-Vertrauen-einrichten.cmd, Rohrlaser-Angebotskalkulation-Setup.exe $t
+          $setup = "$t\Rohrlaser-Angebotskalkulation-Setup.exe"
+          Set-Content -LiteralPath $setup -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+          if ((Get-Content -Raw -LiteralPath "$t\Windows-Vertrauen-einrichten.cmd") -notmatch "\r\n") { throw ".cmd ohne CRLF" }
+          & "$t\Windows-Vertrauen-einrichten.cmd" /still
+          if ($LASTEXITCODE -ne 0) { throw "Einrichten Rückgabewert $LASTEXITCODE" }
+          if (Get-Item -LiteralPath $setup -Stream Zone.Identifier -ErrorAction SilentlyContinue) { throw "Markierung noch da" }
+          $fp = $env:SIGNATUR_FP
+          if ($env:SIGNIERT) {
+            # Der Build läuft mit Adminrechten, darum trägt die Datei für den ganzen PC ein (beim Benutzer: CurrentUser)
+            foreach ($n in @("Root", "TrustedPublisher")) {
+              if (-not (Get-ChildItem "Cert:\LocalMachine\$n" | Where-Object Thumbprint -eq $fp)) { throw "Zertifikat fehlt in $n" }
+            }
+            foreach ($d in @($setup, "dist/STEP-Import/STEP-Import.exe",
+                             "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe",
+                             "dist/Rohrlaser-Angebotskalkulation/STEP-Import/STEP-Import.exe")) {
+              $s = Get-AuthenticodeSignature -LiteralPath $d
+              "{0}: {1}, {2}, Zeitstempel {3}" -f $d, $s.Status, $s.SignerCertificate.Subject, [bool]$s.TimeStamperCertificate
+              if ($s.Status -ne "Valid" -or $s.SignerCertificate.Thumbprint -ne $fp) { throw "$d nicht gültig signiert" }
+            }
+          }
+          & "$t\Windows-Vertrauen-einrichten.cmd" entfernen /still
+          if ($LASTEXITCODE -ne 0) { throw "Entfernen Rückgabewert $LASTEXITCODE" }
+          if ($fp -and (Get-ChildItem Cert:\LocalMachine\Root | Where-Object Thumbprint -eq $fp)) { throw "Zertifikat nicht entfernt" }
       - name: Paket zusammenstellen
         shell: pwsh
         run: |
@@ -309,7 +388,10 @@ jobs:
             Daten liegen im Ordner Daten neben dem Programm.
             Bedienungsanleitung.pdf liegt im Programmordner (auch im Programm unter Hilfe, F1).
             Umziehen zwischen beiden: Datei → Daten exportieren … / Daten importieren …
-            Warnt Windows (SmartScreen oder Defender), siehe Bedienungsanleitung, Abschnitt „Windows-Warnungen“.
+            Vor dem ersten Start bzw. Entpacken: Rechtsklick auf Setup.exe bzw. ZIP → Eigenschaften → „Zulassen“ → OK.
+            Dann warnt Windows nicht und prüft beim Entpacken nicht jede Datei einzeln. Windows-Vertrauen-einrichten.cmd
+            (in denselben Ordner laden, Doppelklick, keine Adminrechte) erledigt das und trägt das Zertifikat ein, mit dem
+            Programm und Setup signiert sind. Mehr in der Bedienungsanleitung, Abschnitt „Windows-Warnungen“.
             SHA256-Prüfsummen: Rohrlaser-Angebotskalkulation.zip.sha256, Rohrlaser-Angebotskalkulation-Setup.exe.sha256
             Online-Update (Hilfe → Nach Updates suchen): ab Version 0.5.5 holt das Programm Dateiliste und Pakete ohne
             Anmeldung aus dem öffentlichen Repository Rohrlaser-Updates und lädt nur geänderte Dateien. Ältere
@@ -321,6 +403,7 @@ jobs:
             Rohrlaser-Angebotskalkulation.zip.sha256
             update_dateien/Update.json
             Bedienungsanleitung.pdf
+            Windows-Vertrauen-einrichten.cmd
           make_latest: true
       - name: Update-Pakete hochladen (Repository Rohrlaser-Updates, Release "update-dateien", nur neue Pakete)
         if: github.ref == 'refs/heads/main'

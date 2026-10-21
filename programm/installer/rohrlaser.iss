@@ -6,6 +6,7 @@
 ; außerhalb des Programmordners: Deinstallieren und Neuinstallieren lassen sie unberührt.
 ; Aufruf im Build (paket.yml):
 ;   ISCC.exe /DVersion=0.4.0.123 /DQuelle=dist\Rohrlaser-Angebotskalkulation /DAusgabe=. programm\installer\rohrlaser.iss
+; Mit /DSignieren und /Ssignieren="signtool.exe sign … $f" signiert Inno Setup das Setup und den Uninstaller.
 
 #ifndef Version
   #define Version "0.0.0"
@@ -49,6 +50,9 @@ CloseApplications=yes
 RestartApplications=no
 ShowLanguageDialog=no
 SetupLogging=yes
+#ifdef Signieren
+SignTool=signieren
+#endif
 
 [Languages]
 Name: "de"; MessagesFile: "compiler:Languages\German.isl"
