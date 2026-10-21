@@ -5,8 +5,8 @@ Maschine stehen sofort daneben. Die Formeln stehen in schneidweg.py; OK schreibt
 (Angebotsseite.schneidweg_berechnen)."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
-                               QHBoxLayout, QHeaderView, QLabel, QPushButton, QSplitter, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget)
+                               QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPushButton,
+                               QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import rechnen, schneidweg as sw, skizze as sk
 from .skizze_widget import MODI, Skizze
@@ -16,8 +16,10 @@ KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", 
                   "Seite", "Versatz quer [mm]", "Text")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, TEXT_SPALTE = 5, 6, 7, 8, 9
 ERGEBNIS_SPALTEN = ("Schnitt", "Anzahl", "je Stück [mm]", "gesamt [mm]", "Einstiche", "Hüllmaß [mm]", "Klasse")
-MASS_HILFE = ("Maße: Bohrung Ø · Langloch Länge, Breite · Rechteck Breite, Höhe, Eckradius · Schlitz (offen, vom "
-              "Rand) Tiefe, Breite · Polygon Eckpunkte in Maß 1, z. B. 0,0; 40,0; 40,20; 0,20 · sonstige Kontur "
+VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
+MASS_HILFE = ("Maße: Bohrung Ø · Senkung Bohrung Ø, Senk-Ø · Langloch Länge, Breite · Rechteck Breite, Höhe, "
+              "Eckradius · Schlitz (offen, vom Rand) Tiefe, Breite · Ausklinkung am Ende Länge, Breite, Eckradius · "
+              "Polygon Eckpunkte in Maß 1, z. B. 0,0; 40,0; 40,20; 0,20 · sonstige Kontur "
               "Schnittlänge, Hüllmaß (leer = groß). Lage ab Anfang = Mitte der (ersten) Kontur, leer = verteilt; Abstand = "
               "Muster längs (Anzahl Konturen im Abstand); Seite und Versatz quer zur Flächenmitte bzw. beim Rundrohr der "
               "Winkel (0° oben, 90° vorne). Lage, Seite und Versatz zählen nur für die Skizze, nicht für den Schneidweg.")
@@ -35,11 +37,13 @@ def _zahl(text):
 
 class SchneidwegDialog(QDialog):
     """p: Position, profil: Stammdaten-Zeile des Profils, kopf/k/tabellen: Angebot und Stammdaten (Maschine,
-    Konturgrenzen, Schneiddaten). Nach OK: self.eingaben (dict) und self.ergebnis (schneidweg.rechnen)."""
+    Konturgrenzen, Schneiddaten), db: Datenbank für Vorlagen, positionen: Positionen des Angebots zum Kopieren von
+    Konturen. Nach OK: self.eingaben (dict) und self.ergebnis (schneidweg.rechnen)."""
 
-    def __init__(self, parent, p, profil, kopf, k, tabellen):
+    def __init__(self, parent, p, profil, kopf, k, tabellen, db=None, positionen=None):
         super().__init__(parent)
         self.p, self.profil, self.kopf, self.k, self.tabellen = p, profil, kopf, k, tabellen
+        self.db, self.positionen = db, [x for x in (positionen or ()) if x.get("id") != p.get("id")]
         m = rechnen.maschine(kopf, k)
         vorgabe = rechnen.kontur_grenzen(m)[1]
         self.grenzen = rechnen.kontur_regel(m, rechnen.wand_schneiden(profil))
@@ -141,6 +145,17 @@ class SchneidwegDialog(QDialog):
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(self._entfernen)
         leiste.addStretch(1)
+        kopieren = QPushButton("Aus Position kopieren …")
+        kopieren.setToolTip("Konturen einer anderen Position dieses Angebots anhängen")
+        kopieren.clicked.connect(self._kopieren_waehlen)
+        kopieren.setEnabled(bool(self.positionen))
+        leiste.addWidget(kopieren)
+        self.vorlagen_knopf = QPushButton("Vorlagen")
+        self.vorlagen_knopf.setToolTip("Enden, Konturen und Gravur als Vorlage speichern oder laden (für alle Angebote)")
+        self.vorlagen_knopf.setMenu(QMenu(self.vorlagen_knopf))
+        self.vorlagen_knopf.menu().aboutToShow.connect(self._vorlagen_menue)
+        self.vorlagen_knopf.setEnabled(self.db is not None)
+        leiste.addWidget(self.vorlagen_knopf)
         leiste.addWidget(weg)
         lay.addLayout(leiste)
 
@@ -316,6 +331,8 @@ class SchneidwegDialog(QDialog):
             teile.append(f"<span style='color:#7A5A00'>Vorschlag: Bohrungen {f['bohrungen']} passen zu Kernlöchern "
                          f"für <b>{f['gewinde_vorschlag']}</b>. Erst nach Prüfung in <i>Gewinde geprüft</i> "
                          "eintragen (Zusatzarbeiten …).</span>")
+        for h in erg.get("hinweise") or ():
+            teile.append(f"<span style='color:#7A5A00'>{h}</span>")
         if erg["schaetzung"]:
             teile.append("<span style='color:#7A5A00'>Gehrung an diesem Profil: Schnittlänge geschätzt (gerade "
                          "Schnittlänge / cos Winkel).</span>")
@@ -330,6 +347,104 @@ class SchneidwegDialog(QDialog):
             self._auswahl_tabelle()
         if hasattr(self, "ok_knopf"):
             self.ok_knopf.setEnabled(not erg["fehler"])
+
+    # ------------------------------------------------------------------ Vorlagen und Kopieren
+    def eingaben_setzen(self, e, anhaengen=False):
+        """Enden, Gravur und Konturen setzen (anhaengen: nur Konturen dazu)."""
+        e = sw.lesen(sw.speichern(e)) if isinstance(e, dict) else sw.lesen(e)
+        if not anhaengen:
+            for s in ("a", "b"):
+                x = e.get(s) or {}
+                self.winkel[s].setValue(sw._z(x.get("winkel")))
+                if x.get("achse") in sw.ACHSEN:
+                    self.achse[s].setCurrentText(x["achse"])
+                self.sattel[s].setValue(sw._z(x.get("sattel")) if self.sattel[s].isEnabled() else 0)
+                self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
+                                                      if v == x.get("richtung")), "nicht angegeben"))
+            self.gravur.setValue(sw._z(e.get("gravur")))
+            self.tabelle.setRowCount(0)
+        for z in e.get("konturen") or ():
+            self.zeile_neu(z, rechnen_=False)
+        self.rechnen()
+
+    def vorlagen(self):
+        v = self.db.einstellung(VORLAGEN) if self.db is not None else None
+        return v if isinstance(v, dict) else {}
+
+    def vorlage_speichern(self, name):
+        name = (name or "").strip()
+        if not name or self.db is None:
+            return False
+        v = self.vorlagen()
+        v[name] = dict(self.eingaben(), profilform=self.profil.get("form"))
+        self.db.einstellung_setzen(VORLAGEN, v)
+        return True
+
+    def vorlage_laden(self, name):
+        e = self.vorlagen().get(name)
+        if not e:
+            return False
+        self.eingaben_setzen(e)
+        return True
+
+    def vorlage_loeschen(self, name):
+        v = self.vorlagen()
+        if v.pop(name, None) is None:
+            return False
+        self.db.einstellung_setzen(VORLAGEN, v)
+        return True
+
+    def _vorlagen_menue(self):
+        m = self.vorlagen_knopf.menu()
+        m.clear()
+        m.addAction("Als Vorlage speichern …", self._vorlage_speichern_fragen)
+        namen = sorted(self.vorlagen(), key=str.lower)
+        laden, loeschen = m.addMenu("Vorlage laden"), m.addMenu("Vorlage löschen")
+        for n in namen:
+            form = self.vorlagen()[n].get("profilform")
+            laden.addAction(n + (f"  ({form})" if form and form != self.profil.get("form") else ""),
+                            lambda n=n: self.vorlage_laden(n))
+            loeschen.addAction(n, lambda n=n: self._vorlage_loeschen_fragen(n))
+        laden.setEnabled(bool(namen))
+        loeschen.setEnabled(bool(namen))
+
+    def _vorlage_speichern_fragen(self):
+        name, ok = QInputDialog.getText(self, "Vorlage speichern", "Name der Vorlage (gleicher Name ersetzt sie):")
+        if ok and name.strip():
+            self.vorlage_speichern(name)
+
+    def _vorlage_loeschen_fragen(self, name):
+        if QMessageBox.question(self, "Vorlage löschen", f"Vorlage „{name}“ löschen?") == QMessageBox.Yes:
+            self.vorlage_loeschen(name)
+
+    def kopierbare(self):
+        """[(Text, Position)] der anderen Positionen mit Konturen im Rechner."""
+        out = []
+        for x in self.positionen:
+            k_ = sw.lesen(x.get("technik")).get("konturen")
+            if k_:
+                out.append((f"Pos. {x.get('pos') or ''} {x.get('artikel') or ''} – {x.get('profil_id') or ''}, "
+                            f"{len(k_)} Zeile(n)".replace("  ", " "), x))
+        return out
+
+    def konturen_kopieren(self, position):
+        """Konturen einer anderen Position anhängen (Seiten, die das Profil nicht hat, fallen auf die erste)."""
+        k_ = sw.lesen(position.get("technik")).get("konturen")
+        if not k_:
+            return 0
+        self.eingaben_setzen(dict(konturen=k_), anhaengen=True)
+        return len(k_)
+
+    def _kopieren_waehlen(self):
+        liste = self.kopierbare()
+        if not liste:
+            QMessageBox.information(self, "Konturen kopieren", "Keine andere Position dieses Angebots hat Konturen im "
+                                    "Schneidweg-Rechner.")
+            return
+        text, ok = QInputDialog.getItem(self, "Konturen kopieren", "Konturen anhängen von:", [t for t, _ in liste], 0,
+                                        False)
+        if ok:
+            self.konturen_kopieren(dict(liste)[text])
 
     # ------------------------------------------------------------------ Skizze <-> Tabelle
     def _auswahl_tabelle(self):

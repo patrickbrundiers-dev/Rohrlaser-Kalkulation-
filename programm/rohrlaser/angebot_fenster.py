@@ -1303,7 +1303,7 @@ class AngebotSeite(QWidget):
                            fehler=True)
             return False
         if eingaben is None:
-            d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen)
+            d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen)
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()

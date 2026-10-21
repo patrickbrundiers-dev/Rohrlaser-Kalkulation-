@@ -6,8 +6,9 @@ rechnen.schneidzeit mit den Schneiddaten der Maschine; einen eigenen Zeitansatz 
 
 Die Eingaben stehen als JSON in positionen.technik, damit der Dialog sie wieder anzeigt:
   {quelle: 'Schneidweg-Rechner', a: {winkel, achse, sattel, richtung}, b: {…}, gravur,
-   konturen: [{art, anzahl, d | l, b | b, h, r | laenge, huelle | punkte, x, text}]}
-x = Lage der Kontur ab Anfang [mm], nur für die Skizze.
+   konturen: [{art, anzahl, d | d, D | l, b | b, h, r | laenge, huelle | punkte, x, abstand, seite, q, text}]}
+x = Lage der (ersten) Kontur ab Anfang [mm], abstand = Muster längs, seite = Fläche bzw. Winkel (Rundrohr),
+q = Versatz quer zur Flächenmitte [mm]; alles nur für die Skizze (skizze.py), nicht für den Schneidweg.
 
 Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader Schnitt):
 - gerades Ende: optimierung.schnittlaenge (Rohre Außenumfang, offene Profile halber Umfang)
@@ -16,10 +17,12 @@ Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader 
   die gekippte Richtung wird mit 1 / cos α gestreckt: über Höhe H / cos α + W, über Breite H + W / cos α.
   Unbekannte Profilform: gerade Schnittlänge / cos α (Schätzung, als solche gekennzeichnet)
 - Ausklinkung (Sattelschnitt) Rundrohr Ø d rechtwinklig auf Rundrohr Ø D: Länge der Schnittkurve numerisch
-- Bohrung π × d; Langloch 2 × (l − b) + π × b; Rechteck 2 × (b + h) − 8 r + 2 π r; Schlitz (offen, vom Rand)
-  2 × l + b; sonstige Kontur: Länge wie eingegeben. Jede Innenkontur 1 Einstich, jedes Ende
+- Bohrung π × d; Senkung π × d (der Laser schneidet die Bohrung, das Senken auf Ø D ist eine Zusatzarbeit);
+  Langloch 2 × (l − b) + π × b; Rechteck 2 × (b + h) − 8 r + 2 π r; Schlitz (offen, vom Rand) 2 × l + b;
+  Ausklinkung am Ende (Rechteck, offen zum Ende, Ecken innen mit r) 2 × (l − r) + (b − 2 r) + π r, der Endschnitt
+  wird dafür nicht gekürzt (zur sicheren Seite); sonstige Kontur: Länge wie eingegeben. Jede Innenkontur 1 Einstich, jedes Ende
   rechnen.einstiche_ende(Profilform) Einstiche.
-Hüllmaß (für die Konturklassen klein/mittel/groß): Bohrung d, Langloch l, Rechteck max(b, h), Schlitz max(l, b),
+Hüllmaß (für die Konturklassen klein/mittel/groß): Bohrung und Senkung d, Ausklinkung max(l, b), Langloch l, Rechteck max(b, h), Schlitz max(l, b),
 sonstige Kontur wie eingegeben (leer = groß), Polygon größte Ausdehnung in x oder y.
 Vorschlag: Bohrungen mit dem Kernloch-Ø eines Gewindes ergeben einen Gewinde-Vorschlag (wie beim STEP-Import); er
 gilt erst, wenn der Benutzer ihn in 'Gewinde geprüft' einträgt.
@@ -33,11 +36,14 @@ from .stammdaten import flaeche_wirksam
 QUELLE = "Schneidweg-Rechner"
 BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE = ("Bohrung", "Langloch", "Rechteck", "Schlitz", "Polygon",
                                                           "sonstige Kontur")
-ARTEN = (BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE)
+SENKUNG, AUSKLINKUNG = "Senkung", "Ausklinkung"
+ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONSTIGE)
 # Maße je Art: (Schlüssel, Titel) in der Eingabetabelle
-MASSE = {BOHRUNG: (("d", "Ø d"),), LANGLOCH: (("l", "Länge l"), ("b", "Breite b")),
+MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"), ("D", "Senk-Ø D (Zusatzarbeit)")),
+         LANGLOCH: (("l", "Länge l"), ("b", "Breite b")),
          RECHTECK: (("b", "Breite b"), ("h", "Höhe h"), ("r", "Eckradius r")),
          SCHLITZ: (("l", "Tiefe l"), ("b", "Breite b")),
+         AUSKLINKUNG: (("l", "Länge l ab Ende"), ("b", "Breite b"), ("r", "Eckradius r")),
          POLYGON: (("punkte", "Eckpunkte x,y; x,y; … [mm]"),),
          SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß"))}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
@@ -173,6 +179,18 @@ def kontur(e):
         if d <= 0:
             raise ValueError("Bohrung: Ø fehlt.")
         return math.pi * d, d, n
+    if art == SENKUNG:
+        d, D = _z(e.get("d")), _z(e.get("D"))
+        if d <= 0:
+            raise ValueError("Senkung: Bohrung Ø fehlt.")
+        if D and D <= d:
+            raise ValueError("Senkung: Senk-Ø muss größer als die Bohrung sein.")
+        return math.pi * d, d, n
+    if art == AUSKLINKUNG:
+        l_, b_, r = _z(e.get("l")), _z(e.get("b")), _z(e.get("r"))
+        if l_ <= 0 or b_ <= 0 or 2 * r > b_ or r > l_:
+            raise ValueError("Ausklinkung: Länge und Breite > 0, Eckradius höchstens halbe Breite.")
+        return 2 * (l_ - r) + (b_ - 2 * r) + math.pi * r, max(l_, b_), n
     if art == LANGLOCH:
         l_, b_ = _z(e.get("l")), _z(e.get("b"))
         if b_ <= 0 or l_ < b_:
@@ -270,8 +288,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
     paare = "|".join(f"{d}:{n}" for d, n in sorted(bohr.items()))
     felder["bohrungen"] = "; ".join(f"{n}xØ{zahl(d, 2)}" for d, n in sorted(bohr.items())) or None
     felder["gewinde_vorschlag"] = gewinde_vorschlag(paare, gewinde or KERNLOCH) or None
+    senk = sum(s_["anzahl"] for s_ in schritte[2:] if s_.get("art") == SENKUNG)
+    hinweise = [f"{senk} Senkung(en): der Laser schneidet nur die Bohrung; das Senken als Zusatzarbeit erfassen "
+                "(Zusatzarbeiten …)."] if senk else []
     return dict(schritte=schritte, felder=felder, schneidweg=felder["schneidweg"], einstiche=einstiche,
-                schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler)
+                schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise)
 
 
 def speichern(eingaben):

@@ -234,6 +234,12 @@ class Skizze(QWidget):
                 g.drawEllipse(r.center(), 2.5, 2.5)
             else:
                 g.drawPolygon(poly)
+            e = d["eingabe"]
+            if e.get("art") == "Senkung" and _z(e.get("D")) > _z(e.get("d")) > 0:      # Senk-Ø dünn
+                f, c = _z(e.get("D")) / _z(e.get("d")), r.center()
+                g.setPen(QPen(farbe, 0.8, Qt.DotLine))
+                g.setBrush(Qt.NoBrush)
+                g.drawPolygon(QPolygonF([c + (pt - c) * f for pt in poly]))
             g.setBrush(Qt.NoBrush)
             self.treffer.append((poly, d, a))
 

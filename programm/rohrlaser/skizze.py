@@ -14,7 +14,8 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 import math
 
 from . import normprofile
-from .schneidweg import (BOHRUNG, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ, SONSTIGE, _z, kontur, punkte)
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ, SENKUNG, _z, kontur,
+                         punkte)
 
 RUND_SEITEN = {"oben (0°)": 0.0, "vorne (90°)": 90.0, "unten (180°)": 180.0, "hinten (270°)": 270.0}
 KASTEN = ("Quadratrohr", "Rechteckrohr", "Flachstahl")
@@ -295,7 +296,7 @@ def umriss_kontur(e, n=36):
         _, hk, _ = kontur(dict(e, anzahl=1))
     except ValueError:
         return None
-    if art == BOHRUNG or art == "Senkung":
+    if art in (BOHRUNG, SENKUNG):
         r = _z(e.get("d")) / 2
         pts = [(r * math.cos(2 * math.pi * i / n), r * math.sin(2 * math.pi * i / n)) for i in range(n)]
     elif art == LANGLOCH:
@@ -303,9 +304,9 @@ def umriss_kontur(e, n=36):
         r, m = b_ / 2, (l_ - b_) / 2
         pts = [(m + r * math.cos(a), r * math.sin(a)) for a in _bogen(-90, 90, n // 2)]
         pts += [(-m + r * math.cos(a), r * math.sin(a)) for a in _bogen(90, 270, n // 2)]
-    elif art in (RECHTECK, SCHLITZ):
+    elif art in (RECHTECK, SCHLITZ, AUSKLINKUNG):
         b_, h_ = (_z(e.get("b")), _z(e.get("h"))) if art == RECHTECK else (_z(e.get("l")), _z(e.get("b")))
-        r = _z(e.get("r")) if art == RECHTECK else 0.0
+        r = _z(e.get("r")) if art in (RECHTECK, AUSKLINKUNG) else 0.0
         pts = _rechteck(b_, h_, r)
     elif art == POLYGON:
         pk = punkte(e.get("punkte"))
@@ -344,7 +345,7 @@ def laenge_x(e):
 def lagen(konturen, L):
     """Jede Kontur einzeln mit Lage: [dict(zeile, nr, art, x, eingabe)]. x aus der Eingabe (Mitte der ersten),
     Muster mit Abstand längs (x + i × Abstand); ohne Lage gleichmäßig über die Länge verteilt (wie bisher), Schlitze
-    ohne Lage am Ende A."""
+    und Ausklinkungen ohne Lage am Ende A."""
     liste = []
     for z, e in enumerate(konturen or ()):
         try:
@@ -352,7 +353,7 @@ def lagen(konturen, L):
         except ValueError:
             continue
         x0, ab = e.get("x"), _z(e.get("abstand"))
-        if x0 is None and e.get("art") == SCHLITZ:
+        if x0 is None and e.get("art") in (SCHLITZ, AUSKLINKUNG):
             x0 = laenge_x(e) / 2
         for i in range(n):
             x = None if x0 is None else (x0 + i * ab if ab else x0)

@@ -316,6 +316,45 @@ dlg8.close()
 ok("S8 Skizze maßstäblich: Querschnitt und Abwicklung je Profil, Gehrung/Ausklinkung, Seite und Muster, Klick "
    "markiert die Zeile, Ziehen verschiebt Lage bzw. Seite, Zoom")
 
+# ------------------------------------------------------------------ S9 Editor: Senkung, Ausklinkung, Vorlagen, Kopieren
+s9 = sw.rechnen(dict(a={}, b={}, konturen=[dict(art="Senkung", anzahl=2, d=6.6, D=12),
+                                           dict(art="Ausklinkung", anzahl=1, l=30, b=20, r=5)]), RE, (10, 50))
+assert not s9["fehler"] and s9["einstiche"] == 2 + 3
+sen, aus = s9["schritte"][2], s9["schritte"][3]
+assert nah(sen["laenge"], 2 * math.pi * 6.6) and sen["huelle"] == 6.6 and sen["klasse"] == "klein"
+assert nah(aus["laenge"], 2 * 25 + 10 + math.pi * 5) and aus["huelle"] == 30 and aus["klasse"] == "mittel"
+assert s9["hinweise"] and "Senkung" in s9["hinweise"][0] and s9["felder"]["bohrungen"] is None   # kein Gewinde-Vorschlag
+for falsch in (dict(art="Senkung", anzahl=1, d=8, D=6), dict(art="Ausklinkung", anzahl=1, l=10, b=8, r=5)):
+    assert sw.rechnen(dict(a={}, b={}, konturen=[falsch]), RE, (10, 50))["fehler"], falsch
+assert [d["x"] for d in sk.lagen([dict(art="Ausklinkung", anzahl=1, l=30, b=20)], 800)] == [15]   # am Ende A
+dlg9 = SchneidwegDialog(s, dict(p8, technik=None), RE, s.kopf, s.k, s.tabellen, db, db.positionen(a))
+assert {"Senkung", "Ausklinkung"} <= set(sw.ARTEN) and dlg9.tabelle.rowCount() == 0
+dlg9.zeile_neu(dict(art="Senkung", anzahl=2, d=6.6, D=12, x=100, abstand=50, seite="oben"))
+assert "Senkung" in dlg9.summe.text() and dlg9.ok_knopf.isEnabled()
+dlg9.winkel["a"].setValue(30)
+assert dlg9.vorlage_speichern("Halter 2 Senkungen") and not dlg9.vorlage_speichern("  ")
+v = db.einstellung("rechner_vorlagen")
+assert v["Halter 2 Senkungen"]["profilform"] == "Rechteckrohr" and v["Halter 2 Senkungen"]["a"]["winkel"] == 30
+dlg10 = SchneidwegDialog(s, dict(p8, technik=None), RE, s.kopf, s.k, s.tabellen, db, db.positionen(a))
+assert dlg10.tabelle.rowCount() == 0 and dlg10.vorlage_laden("Halter 2 Senkungen")
+assert dlg10.winkel["a"].value() == 30 and dlg10.eingaben()["konturen"] == dlg9.eingaben()["konturen"]
+assert not dlg10.vorlage_laden("gibt es nicht")
+dlg10._vorlagen_menue()
+assert [x.text() for x in dlg10.vorlagen_knopf.menu().actions()][0] == "Als Vorlage speichern …"
+# Konturen einer anderen Position anhängen (Position 1 hat Konturen aus S4/S5)
+kop = dlg10.kopierbare()
+assert kop and all("Zeile" in t_ for t_, _ in kop)
+n_vor = dlg10.tabelle.rowCount()
+n_k = dlg10.konturen_kopieren(kop[0][1])
+assert n_k > 0 and dlg10.tabelle.rowCount() == n_vor + n_k and dlg10.winkel["a"].value() == 30   # Enden bleiben
+assert dlg10.vorlage_loeschen("Halter 2 Senkungen") and dlg10.vorlagen() == {}
+# Senkung und Ausklinkung zeichnen
+dlg10.zeile_neu(dict(art="Ausklinkung", anzahl=1, l=30, b=20, r=5))
+dlg10.ansicht_wahl.setCurrentText("Abwicklung")
+assert not dlg10.skizze.grab().isNull() and any(d["art"] == "Ausklinkung" for _, d, _ in dlg10.skizze.treffer)
+ok("S9 Editor: Senkung (Bohrung geschnitten, Hinweis Zusatzarbeit), Ausklinkung am Ende, Vorlagen speichern/laden/"
+   "löschen, Konturen aus einer anderen Position anhängen")
+
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()
 alt = tmp / "alt.db"

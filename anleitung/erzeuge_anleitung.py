@@ -1192,7 +1192,8 @@ def kapitel_optimieren(i):
                (1, "<b>Gehrung</b> je Ende in Grad (gerade = 0) mit Richtung, beim Rundrohr wahlweise Ausklinkung."),
                (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße (der Tooltip jeder Zelle nennt das Maß), "
                    "dazu Lage ab Anfang, Abstand (Muster), Seite und Versatz quer."),
-               (3, "<b>+ Bohrung</b>, <b>+ Langloch</b> … fügt eine Zeile hinzu, <b>Markierte entfernen</b> löscht."),
+               (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; <b>Aus Position kopieren …</b>, "
+                   "<b>Vorlagen</b> und <b>Markierte entfernen</b> daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
                (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
                    "in Farbe."),
@@ -1216,14 +1217,24 @@ def kapitel_optimieren(i):
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
-            "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Langloch</i> (Länge, Breite: "
+            "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Senkung</i> (Bohrung Ø d und "
+            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; der Dialog erinnert daran, das Senken als Zusatzarbeit "
+            "zu erfassen, [[zusatzarbeiten_angebot]]), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
-            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Polygon</i> aus Eckpunkten in Maß 1 "
+            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Ausklinkung</i> am Ende als Rechteck "
+            "(Länge ab Ende, Breite, Eckradius innen: 2 × (l − r) + (b − 2 r) + π × r; ohne Lage an Ende A, für "
+            "Ende B Lage = Teilelänge − l/2; der Endschnitt wird dafür nicht gekürzt, das ist die sichere Seite), "
+            "<i>Polygon</i> aus Eckpunkten in Maß 1 "
             "(<i>x,y; x,y; …</i> in mm, geschlossen, z. B. 0,0; 40,0; 40,20; 0,20 = 120 mm, Hüllmaß 40) und "
             "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
             "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
             "gesperrt.",
             "<b>Gravur</b>: Länge in mm, wird mit dem Vorschub Gravur gerechnet.",
+            "<b>Vorlagen</b>: <i>Vorlagen → Als Vorlage speichern …</i> merkt sich Enden, Konturen (mit Lage, Seite, "
+            "Muster) und Gravur unter einem Namen, für alle Angebote; <i>Vorlage laden</i> ersetzt damit die "
+            "Eingaben, <i>Vorlage löschen</i> entfernt sie. Eine Vorlage eines anderen Profils trägt die Profilform "
+            "im Namen; Seiten, die das Profil nicht hat, landen auf der ersten Fläche. <b>Aus Position kopieren …</b> "
+            "hängt die Konturen einer anderen Position dieses Angebots an (Enden bleiben).",
             "<b>Lage der Konturen</b> (nur für die Skizze, ändert den Schneidweg nicht): <i>Lage ab Anfang</i> = "
             "Mitte der Kontur in mm ab Ende A (leer = gleichmäßig verteilt, Schlitz ohne Lage am Ende A). "
             "<i>Abstand</i> macht aus der Anzahl ein <b>Muster</b>: 4 Bohrungen, Lage 200, Abstand 100 liegen bei "
@@ -3122,8 +3133,9 @@ def kapitel_fragen(i):
 NEUERUNGEN = [
     ["0.6.29", "Schneidweg-Rechner: <b>maßstäbliche Skizze</b> mit Draufsicht, Seitenansicht, Ansicht von A und "
                "<b>Abwicklung</b> für alle Profilformen, Bemaßung, Zoom; Konturen anklicken (Zeile wird markiert) "
-               "und mit der Maus verschieben. Neu je Kontur: Seite bzw. Winkel, Versatz quer und Abstand für Muster "
-               "([[schneidweg_rechner]])."],
+               "und mit der Maus verschieben. Neu je Kontur: Seite bzw. Winkel, Versatz quer und Abstand für Muster; "
+               "neue Konturarten Senkung und Ausklinkung am Ende; Vorlagen speichern und laden, Konturen aus einer "
+               "anderen Position kopieren ([[schneidweg_rechner]])."],
     ["0.6.28", "Zeichnungen je Position wieder entfernt (Spalte, Ziehen von Dateien auf eine Position, automatisches "
                "Anhängen der STEP-Datei). Bereits in den Ordner des Angebots kopierte Zeichnungen löscht das Programm "
                "beim ersten Start einmalig; andere Dateien im Ordner bleiben. Die "
