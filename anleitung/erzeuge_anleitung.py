@@ -2416,6 +2416,9 @@ def kapitel_pflege(i):
             "Klappt der Austausch einer Datei nicht (z. B. weil die Bedienungsanleitung gerade in einem PDF-Programm "
             "offen ist), stellt das Programm alle Dateien zurück und bleibt, wie es war. Datei schließen und noch "
             "einmal versuchen.",
+            "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
+            "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
+            "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
             "Angefasst werden nur die Programmdateien: Daten, Ablage, <i>Portabel.ini</i> und eigene Dateien im "
             "Programmordner bleiben, wie sie sind. Die alten Programmdateien liegen bis zum nächsten Start in "
             "<i>_update</i> und werden dann gelöscht.",
@@ -2692,6 +2695,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.8", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
+              "statt mit <i>HTTP Error 404</i> abzubrechen; die Pakete des vorigen Stands bleiben länger liegen "
+              "([[updates]])."],
     ["0.6.7", "Übersicht im Angebot ohne die Kennzahlen Gesamtlänge und Stangen, weil diese Summen über "
               "verschiedene Abmessungen nicht aussagekräftig sind. Stangen je Abmessung zeigt das Stangenbild."],
     ["0.6.6", "Schneidweg-Rechner ausgebaut: Gehrung bei allen Profilen über Höhe oder Breite, Ausklinkung "
