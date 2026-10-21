@@ -1145,8 +1145,11 @@ def kapitel_optimieren(i):
             "(Vorgabe 2.500 mm), damit die automatische Stangenladung sie nimmt. Eine kürzere Stange (z. B. für die "
             "letzten Teile einer Abmessung) wird auf die Mindestlänge verlängert, der Mehrbedarf ist Verschnitt. "
             "Ziel-Längen "
-            "unter der Mindestlänge (z. B. 12 m / 5) werden nicht ausprobiert. Was am Ende einer 12-m-Stange "
-            "übrig bleibt, ist ebenfalls Verschnitt.",
+            "unter der Mindestlänge (z. B. 12 m / 5) werden nicht ausprobiert.",
+            "<b>Die Restlänge der 12-m-Stange kommt an die letzte Stange</b>, solange diese dadurch nicht länger als "
+            "die Beladelänge wird. Das spart einen Sägeschnitt. Beispiel (T03): 2 × 4.000 + 1 × 2.900 mm werden zu "
+            "4.153 + 4.153 + 3.688 mm statt 4.153 + 4.153 + 3.053 mm + Abfall – eine 12-m-Stange statt drei 6-m-Stangen. "
+            "Passt die Restlänge nicht dran, ist sie Abfall und erscheint nicht als Stange.",
             "Ein Werkstück = Endbeschnitt + Teile + Trennschnitte + Schnittverlust + Greiferrest, auf ganze mm "
             "aufgerundet. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
             "Vorgabe 3 mm). Passen Werkstücke deshalb nicht mehr zusammen in die Stange, kommen sie auf die nächste.",
@@ -2818,6 +2821,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.14", "Lieferlängen: Die Restlänge einer zugeschnittenen 12-m-Stange kommt an die letzte Stange (bis zur "
+              "Beladelänge), das spart einen Sägeschnitt; sonst ist sie Abfall ([[lieferlaengen]])."],
     ["0.6.13", "Maschinen: neues Feld <i>Min. Stangenlänge Zuschnitt</i> (Vorgabe 2.500 mm, auch für vorhandene "
               "Maschinen). Beim Zuschnitt einer 12-m-Stange wird keine Stange kürzer, damit die automatische "
               "Stangenladung sie nimmt; eine kürzere wird verlängert, der Mehrbedarf ist Verschnitt ([[lieferlaengen]])."],

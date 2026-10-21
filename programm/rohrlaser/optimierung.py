@@ -503,7 +503,8 @@ def zuschnitt(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0):
     Werkstücklänge), dann die Werkstücke auf Lieferstangen verteilen (dieselbe Optimierung: Werkstücke als Teile mit
     geraden Enden, Schnittverlust = Zuschnitt, ohne Endbeschnitt und Greiferrest). Je Ziel-Werkstücklänge eine
     Planung, es gilt die mit den wenigsten Lieferstangen, dann den wenigsten Werkstücken (Beladungen), dann den
-    meisten gemeinsamen Schnitten. Ein Werkstück (zugeschnittene Stange) ist mindestens min_werkstueck lang
+    meisten gemeinsamen Schnitten. Die Restlänge der Lieferstange kommt an das kürzeste Werkstück, wenn es dadurch
+    nicht zu lang wird (restlaenge_anhaengen). Ein Werkstück (zugeschnittene Stange) ist mindestens min_werkstueck lang
     (Min. Stangenlänge der automatischen Stangenladung), ein kürzeres wird bis dahin verlängert, der Mehrbedarf ist Verschnitt.
     Ergebnis: Liste der Lieferstangen, je Lieferstange [(Werkstücklänge, Folge)]; None, wenn ein Teil in kein
     Werkstück passt."""
@@ -527,7 +528,23 @@ def zuschnitt(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0):
         wert = (len(stangen), len(folgen), -sum(gemeinsame_schnitte(f) for f in folgen), -ziel)
         if beste is None or wert < beste[0]:
             beste = (wert, stangen)
-    return beste[1] if beste else None
+    return restlaenge_anhaengen(beste[1], lieferlaenge, max_werkstueck, saege) if beste else None
+
+
+def restlaenge_anhaengen(stangen, lieferlaenge, max_werkstueck, saege):
+    """Restlänge der Lieferstange an das kürzeste Werkstück hängen, solange es dadurch nicht länger als die max.
+    Werkstücklänge wird: spart den letzten Sägeschnitt (Patrick 21.10.2026: 2 × 4.200 + Restlänge statt
+    2 × 4.200 + 3.100 + Abfall). Passt der Rest nicht dran, bleibt er Abfall (keine Stange)."""
+    out = []
+    for s in stangen:
+        rest = lieferlaenge - zuschnitt_belegt([l for l, _ in s], saege)
+        if s and rest > EPS:
+            l, f = s[-1]
+            neu = math.floor(l + rest + EPS)
+            if neu <= max_werkstueck + EPS:
+                s = s[:-1] + [(neu, f)]
+        out.append(s)
+    return out
 
 
 def pruefe_zuschnitt(g, stangen, lieferlaenge, max_werkstueck, saege, min_werkstueck=0):
