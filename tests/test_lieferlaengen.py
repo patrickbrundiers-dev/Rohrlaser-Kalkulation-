@@ -108,8 +108,9 @@ assert erg["stangen"] == erg0["stangen"]                        # Planung selbst
 basis, alt = b["varianten"]
 assert (basis["laenge"], basis["lieferstangen"], basis["werkstuecke"]) == (6000, 30, 30), basis
 assert (alt["laenge"], alt["zuschnitt"], alt["lieferstangen"], alt["werkstuecke"]) == (12000, True, 10, 30), alt
-# 2 Schnitte je Lieferstange, die Restlänge hängt an der letzten Stange (12.000 − 2 × 3.201 − 2 × 3 = 5.592)
-assert alt["werkstueck_laengen"] == [5592, 3201] and alt["zuschnitte"] == 20, alt
+# Stange 3.201 + 50 mm Puffer; 2 Schnitte je Lieferstange, die Restlänge hängt an der letzten Stange
+# (12.000 − 2 × 3.251 − 2 × 3 = 5.492)
+assert alt["werkstueck_laengen"] == [5492, 3251] and alt["zuschnitte"] == 20, alt
 assert abs(alt["material"] - basis["material"] * 2 / 3) < 0.01 and not alt["fehlt"]
 assert b["empfehlung"] == rechnen.LAENGE_ALTERNATIVE and b["titel"] == "12-m-Stangen wirtschaftlich sinnvoll", b
 assert "Grenzen 20 € und 3 % erreicht" in b["begruendung"], b["begruendung"]
@@ -237,9 +238,9 @@ erg = rechnen.optimieren(kopf12, P, k, tab, einst)
 assert erg["kennung"] != ohne["kennung"] and erg["laengen"][0]["gewaehlt"] == 12000
 assert len(erg["stangen"]) == 10 and all(s["stange"] == 12000 and s["grundlaenge"] == 6000 for s in erg["stangen"])
 s0 = erg["stangen"][0]
-assert [w["laenge"] for w in s0["werkstuecke"]] == [3201, 3201, 5592] and [t["werkstueck"] for t in s0["teile"]] == [1, 2, 3]
-assert [w["von"] for w in s0["werkstuecke"]] == [0, 3204, 6408], s0["werkstuecke"]
-assert s0["teile"][1]["von"] == 3204 + 20 and s0["zuschnitt"].startswith("Zuschnitt beim Lieferanten: 3.201 + 3.201")
+assert [w["laenge"] for w in s0["werkstuecke"]] == [3251, 3251, 5492] and [t["werkstueck"] for t in s0["teile"]] == [1, 2, 3]
+assert [w["von"] for w in s0["werkstuecke"]] == [0, 3254, 6508], s0["werkstuecke"]
+assert s0["teile"][1]["von"] == 3254 + 20 and s0["zuschnitt"].startswith("Zuschnitt beim Lieferanten: 3.251 + 3.251")
 assert rechnen.beladungen(erg["stangen"]) == 30
 sw = rechnen.stangen_werte(erg, kopf12, P, k, tab)
 assert all(w["pruefung"] == "OK" for w in sw), sw
@@ -258,7 +259,7 @@ assert z["bedarf"] == 120 and z["laenge"] == 93
 # Schnittplan, Stangenbild, Werkstattpapiere: jedes Werkstück wie eine eigene Stange, kein Zuschnitt sichtbar
 anz = rechnen.anzeige_stangen(erg, sw)
 assert len(anz) == 30 and [s["nr"] for s, _ in anz] == list(range(1, 31))
-assert sorted(s["stange"] for s, _ in anz) == [3201] * 20 + [5592] * 10
+assert sorted(s["stange"] for s, _ in anz) == [3251] * 20 + [5492] * 10
 for s, w in anz:
     assert (s["end"], s["greif"]) == (20, 80) and "zuschnitt" not in s and "werkstuecke" not in s
     assert len(s["teile"]) == 1 and s["teile"][0]["von"] == 20 and "werkstueck" not in s["teile"][0]
@@ -269,7 +270,7 @@ assert abs(sum(w["kosten"] for _, w in anz) - sum(w["kosten"] for w in sw)) < 1e
 assert abs(sum(w["gewicht"] for _, w in anz) * 12000 / 11994 - sum(w["gewicht"] for w in sw)) < 1e-6
 assert [s["nr"] for s in rechnen.anzeige_stangen(ohne)] == list(range(1, 31))      # normale Stangen unverändert
 wp = ausgabe.werkstatt(kopf12, P, erg, k, tab)
-assert sorted((m["stange"], m["stangen"]) for m in wp["material"]) == [(3201, 20), (5592, 10)], wp["material"]
+assert sorted((m["stange"], m["stangen"]) for m in wp["material"]) == [(3251, 20), (5492, 10)], wp["material"]
 assert sorted(m["anzahl"] for m in wp["muster"]) == [10, 20] and all(m["teile"][0]["von"] == 20 for m in wp["muster"])
 # Stückzahl ändern: Wahl bleibt (Schlüssel = Gruppe), Planung neu
 erg = rechnen.optimieren(kopf12, [pos(3100, 31)], k, tab, einst)
@@ -350,6 +351,11 @@ assert werkstuecke(st) == [[4153, 4153, 3688]] and opt.zuschnitt_belegt(werkstue
 opt.pruefe_zuschnitt(gr, st, 12000, 6500, 3, 2500)
 v = rechnen.variante_kennzahlen(gr, dict(laenge=12000, zuschnitt=True, stangen=st, fehler=None), 3)
 assert v["zuschnitte"] == 2 and v["lieferstangen"] == 1, v      # kein Schnitt für einen Abfall-Rest
+# mit 50 mm Puffer (Vorgabe): 4.203 + 4.203 + Restlänge 3.588 (Patrick: 2 × 4.200 + ca. 3.600)
+st = opt.zuschnitt(gr, 12000, 6500, 3, 2500, 50)
+assert werkstuecke(st) == [[4203, 4203, 3588]], st
+opt.pruefe_zuschnitt(gr, st, 12000, 6500, 3, 2500)
+assert rechnen.einstellung_wert({}, "zuschnitt_puffer") == 50
 # passt der Rest nicht dran (Stange würde länger als 6.500), bleibt er Abfall
 assert opt.restlaenge_anhaengen([[(6401, None), (2061, None)]], 12000, 6500, 3) == [[(6401, None), (5596, None)]]
 assert opt.restlaenge_anhaengen([[(6401, None)]], 12000, 6500, 3) == [[(6401, None)]]

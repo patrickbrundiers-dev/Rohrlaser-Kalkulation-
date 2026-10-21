@@ -488,23 +488,24 @@ def zuschnitt_belegt(laengen, saege):
     return sum(laengen) + saege * max(len(laengen) - 1, 0)
 
 
-def zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0):
+def zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, puffer=0):
     """Ziel-Werkstücklängen, die ausprobiert werden: die max. Werkstücklänge und die Lieferlänge geteilt durch 2 … n
     (abzüglich der Zuschnitte), soweit das längste Teil hineinpasst und die Mindestlänge erreicht ist. Längste
     zuerst."""
-    noetig = max(g.endbeschnitt + max(t.laenge for t in g.teile) + g.kerf + g.greiferrest, min_werkstueck or 0)
+    noetig = max(g.endbeschnitt + max(t.laenge for t in g.teile) + g.kerf + g.greiferrest + puffer, min_werkstueck or 0)
     ziele = {int(min(max_werkstueck, math.floor((lieferlaenge - (n - 1) * saege) / n + EPS)))
              for n in range(1, ZUSCHNITT_TEILUNG + 1)}
     return sorted((z for z in ziele if z + EPS >= noetig), reverse=True)
 
 
-def zuschnitt(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0):
+def zuschnitt(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, puffer=0):
     """Zweistufige Planung: Teile zu Werkstücken (Optimierung wie bei normalen Stangen, Stangenlänge = Ziel-
     Werkstücklänge), dann die Werkstücke auf Lieferstangen verteilen (dieselbe Optimierung: Werkstücke als Teile mit
     geraden Enden, Schnittverlust = Zuschnitt, ohne Endbeschnitt und Greiferrest). Je Ziel-Werkstücklänge eine
     Planung, es gilt die mit den wenigsten Lieferstangen, dann den wenigsten Werkstücken (Beladungen), dann den
     meisten gemeinsamen Schnitten. Die Restlänge der Lieferstange kommt an das kürzeste Werkstück, wenn es dadurch
-    nicht zu lang wird (restlaenge_anhaengen). Ein Werkstück (zugeschnittene Stange) ist mindestens min_werkstueck lang
+    nicht zu lang wird (restlaenge_anhaengen). Jedes Werkstück bekommt den Puffer (Einstellung) dazu, damit nicht
+    auf den Millimeter genau zugeschnitten wird. Ein Werkstück (zugeschnittene Stange) ist mindestens min_werkstueck lang
     (Min. Stangenlänge der automatischen Stangenladung), ein kürzeres wird bis dahin verlängert, der Mehrbedarf ist Verschnitt.
     Ergebnis: Liste der Lieferstangen, je Lieferstange [(Werkstücklänge, Folge)]; None, wenn ein Teil in kein
     Werkstück passt."""
@@ -512,10 +513,11 @@ def zuschnitt(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0):
         return []
     beste = None
     mindest = math.ceil((min_werkstueck or 0) - EPS)
-    for ziel in zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, mindest):
-        h = replace(g, stange=ziel, teile=list(g.teile))
+    puffer = math.ceil((puffer or 0) - EPS)
+    for ziel in zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, mindest, puffer):
+        h = replace(g, stange=ziel - puffer, teile=list(g.teile))
         folgen = optimiere(h)
-        laengen = [max(werkstueck_laenge(g, f), mindest) for f in folgen]
+        laengen = [max(werkstueck_laenge(g, f) + puffer, mindest) for f in folgen]
         # Stange um einen Zuschnitt länger: verbrauch() zählt nach dem letzten Werkstück noch einen Schnitt
         p = Gruppe(g.profil, g.werkstoff, lieferlaenge + saege, 0, 0, saege, 0, g.oberflaeche)
         p.teile = [Teil(i, None, "", 1, float(l), True, True, 0, 0) for i, l in enumerate(laengen)]

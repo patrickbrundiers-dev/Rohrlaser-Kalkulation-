@@ -75,7 +75,8 @@ assert m.data(m.index(1, c)) == "12,53"               # andere Oberfläche = and
 s.optimieren()
 zeilen, summen = s._rechnung()
 kosten_neu = zeilen[0]["material_position"] + zeilen[2]["material_position"]
-assert nah(kosten_neu, kosten_roh * 8.5 / (62 / 6), 1e-6), (kosten_neu, kosten_roh)
+# 62 € je Stange (ohne Mehrlänge) gegen 8,50 €/m für 6,05 m (Händler +50 mm je 6-m-Stange)
+assert nah(kosten_neu, kosten_roh * 8.5 * 6.05 / 62, 1e-6), (kosten_neu, kosten_roh)
 assert summen["material"] < material_vorher
 assert m.setData(m.index(0, c), "15")                 # teurer
 s.optimieren()
