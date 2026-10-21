@@ -2,12 +2,12 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
                                QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .ansicht3d import Ansicht3DMitKnoepfen
+from .ansicht3d import TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
 from .stammdaten import zahl_als_text
 
@@ -90,7 +90,8 @@ class _Zeile:
 
 class StepPruefDialog(QDialog):
     """Gemessene Rohre je STEP-Datei und Profil mit 3D-Ansicht. Oben Pfeile zum Wechseln der Datei und bei Dateien
-    mit mehreren Teilen das Feld 'Sätze' (leer = Einzelpositionen). Je Teil übernehmen ja/nein, Profil, Werkstoff
+    mit mehreren Teilen (Baugruppe) das Feld 'Sätze' (Vorgabe 1 Satz, leer = Einzelpositionen); ihre Teile stehen
+    unter einem Knoten 'Baugruppe'. Je Teil übernehmen ja/nein, Profil, Werkstoff
     und Stückzahl (bei einem Satz: Stück je Satz); gleiche Teile einer Datei stehen in einer Zeile (Spalte
     'In Datei'). OK schreibt die Werte als _uebernehmen, _profil, _werkstoff, _stueck, _saetze, _je_satz in die
     Messwerte (step.uebernehmen liest sie).
@@ -113,10 +114,11 @@ class StepPruefDialog(QDialog):
         self.resize(1350, 720)
         self.dateien = list(dict.fromkeys(m.get("datei") for m in messwerte))
         self.mehrteilig = step.mehrteilig(messwerte, mit_blechen)
-        self.saetze = {d: 0 for d in self.dateien}      # Datei -> Sätze (0 = leer = Einzelpositionen)
+        # Datei -> Sätze (0 = leer = Einzelpositionen); Baugruppen sind als 1 Satz vorbelegt
+        self.saetze = {d: 1 if d in self.mehrteilig else 0 for d in self.dateien}
         for m in messwerte:
-            if m.get("_saetze") and m.get("datei") in self.mehrteilig:
-                self.saetze[m["datei"]] = int(m["_saetze"])
+            if "_saetze" in m and m.get("datei") in self.mehrteilig:
+                self.saetze[m["datei"]] = int(m["_saetze"] or 0)
         self.datei_nr = 0
 
         # Kopfzeile: Datei wechseln, Sätze
@@ -139,7 +141,8 @@ class StepPruefDialog(QDialog):
         self.satz_spin = QSpinBox()
         self.satz_spin.setRange(0, 100000)
         self.satz_spin.setSpecialValueText("leer")
-        self.satz_spin.setToolTip("Anzahl Sätze dieser Baugruppe. Leer = jedes Teil als Einzelposition laden.")
+        self.satz_spin.setToolTip("Anzahl Sätze dieser Baugruppe (Vorgabe 1). Leer = jedes Teil als Einzelposition "
+                                  "laden.")
         self.satz_spin.valueChanged.connect(lambda n: self.saetze_setzen(n))
         sl.addWidget(self.satz_spin)
         self.satz_info = QLabel()
@@ -205,8 +208,9 @@ class StepPruefDialog(QDialog):
         hinweis = QLabel("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
                          "eintragen. Art: bei Flachstahl/Blech und Profil/Kantteil die andere Art wählen, wenn das "
                          "Teil falsch erkannt wurde. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
-                         "Enthält eine Datei mehrere Teile, oben die Anzahl Sätze eintragen (leer = Einzelpositionen); "
-                         "die Spalte zeigt dann Stück je Satz, Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
+                         "Enthält eine Datei mehrere Teile, steht sie als Baugruppe da und wird ein Satz: oben die "
+                         "Anzahl Sätze eintragen (Vorgabe 1; leer = Einzelpositionen); die Spalte zeigt Stück je Satz, "
+                         "Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
                          "markieren (Strg/Umschalt) und unten Werte setzen; „Für alle“ gilt für alle Dateien. In der "
                          "3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün.")
         hinweis.setWordWrap(True)
@@ -229,6 +233,16 @@ class StepPruefDialog(QDialog):
         self.baum.clear()
         self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
         self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
+        self.baugruppen = {}    # Datei mit mehreren Teilen -> Knoten 'Baugruppe' über ihren Gruppen
+        for d in self.dateien:
+            if d in self.mehrteilig:
+                b = self.baugruppen[d] = QTreeWidgetItem(self.baum)
+                b.setFirstColumnSpanned(True)
+                f = b.font(0)
+                f.setBold(True)
+                b.setFont(0, f)
+                b.setBackground(0, QBrush(QColor("#FFF2CC")))
+                b.setExpanded(True)
         teile = step.teile_gruppen(messwerte, mit_blechen)
         fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
         profile = k.auswahl("profil")
@@ -242,7 +256,7 @@ class StepPruefDialog(QDialog):
             fehlt = not ist_blech and vorschlag not in k.profile
             g = self.gruppen.get((datei, vorschlag))
             if g is None:
-                g = self.gruppen[(datei, vorschlag)] = QTreeWidgetItem(self.baum)
+                g = self.gruppen[(datei, vorschlag)] = QTreeWidgetItem(self.baugruppen.get(datei) or self.baum)
                 g.setFirstColumnSpanned(True)
                 g.setData(0, Qt.UserRole, vorschlag)
                 f = g.font(0)
@@ -319,13 +333,18 @@ class StepPruefDialog(QDialog):
                        m.get("_je_satz") or len(liste), ist_blech)
             sp.setValue(z.werte[self._modus(datei)])
             sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
+            if datei in self.baugruppen:       # Farbe des Teils in der Baugruppen-Ansicht
+                punkt = QPixmap(12, 12)
+                punkt.fill(QColor(TEILFARBEN[len(self.zeilen) % len(TEILFARBEN)]))
+                it.setIcon(0, QIcon(punkt))
             self.zeilen.append(z)
         self.fehler_gruppen = {}
         for i in fehler:
             m = messwerte[i]
             g = self.fehler_gruppen.get(m.get("datei"))
             if g is None:
-                g = self.fehler_gruppen[m.get("datei")] = QTreeWidgetItem(self.baum, ["Nicht übernehmbar"])
+                g = self.fehler_gruppen[m.get("datei")] = QTreeWidgetItem(self.baugruppen.get(m.get("datei"))
+                                                                          or self.baum, ["Nicht übernehmbar"])
                 g.setFirstColumnSpanned(True)
                 g.setBackground(0, QBrush(QColor("#F8CBAD")))
                 g.setExpanded(True)
@@ -363,6 +382,8 @@ class StepPruefDialog(QDialog):
                              and vorschlag != self.BLECHGRUPPE else ""))
         for datei, g in self.fehler_gruppen.items():
             g.setHidden(datei != d)
+        for datei, b in self.baugruppen.items():
+            b.setHidden(datei != d)
         self.satz_feld.setVisible(d in self.mehrteilig)
         self.satz_info.setVisible(d in self.mehrteilig)
         self.satz_spin.blockSignals(True)
@@ -371,7 +392,9 @@ class StepPruefDialog(QDialog):
         self._satz_anzeigen()
         self.baum.clearSelection()
         erste = [z for z in self.zeilen if z.datei == d]
-        if erste:
+        if d in self.baugruppen:
+            self._zeigen(self.baugruppen[d])     # Baugruppe zusammengebaut, ohne sie zu markieren
+        elif erste:
             self._zeigen(erste[0].it)      # 3D des ersten Teils, ohne es zu markieren
         else:
             fg = self.fehler_gruppen.get(d)
@@ -383,9 +406,12 @@ class StepPruefDialog(QDialog):
         satz = bool(self.saetze.get(d))
         self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
-            koerper = self.mehrteilig[d][0]
+            koerper, verschieden = self.mehrteilig[d]
             from .step import satzname
+            n = self.saetze[d]
             self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"leer = {koerper} Einzelteile")
+            self.baugruppen[d].setText(0, f"Baugruppe „{satzname(d)}“ – {koerper} Teile, {verschieden} verschieden – "
+                                       + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if satz else "als Einzelteile"))
 
     def saetze_setzen(self, n, datei=None):
         """Anzahl Sätze einer Datei (Vorgabe: die gezeigte); 0 = Einzelpositionen. Wechselt die Spalte Stückzahl
@@ -412,7 +438,32 @@ class StepPruefDialog(QDialog):
         n = it.data(0, Qt.UserRole)
         return self.zeilen[n] if isinstance(n, int) and 0 <= n < len(self.zeilen) and self.zeilen[n].it is it else None
 
+    def baugruppe_zeigen(self, datei, hervor=()):
+        """Alle Teile der Datei in Einbaulage in der 3D-Ansicht; hervor = Indizes der Messwerte, die farbig
+        hervorgehoben werden."""
+        from .ansicht3d import baugruppe
+        from .step import satzname
+        teile = [i for i, m in enumerate(self.messwerte) if m.get("datei") == datei and m.get("_netz")]
+        zeile = {i: n for n, z in enumerate(self.zeilen) for i in z.liste}      # gleiche Teile = gleiche Farbe
+        netz, ohne = baugruppe([self.messwerte[i]["_netz"] for i in teile],
+                               {n for n, i in enumerate(teile) if i in set(hervor)},
+                               [zeile.get(i, len(self.zeilen) + n) for n, i in enumerate(teile)])
+        info = (f"Baugruppe „{satzname(datei)}“ mit {len(teile) - ohne} Teilen in Einbaulage"
+                + (", blau: die gewählten Teile" if hervor else ", gleiche Teile in gleicher Farbe")
+                + ". Teil in der Liste anklicken = Einzelteil "
+                "mit Schnitten und Konturen.")
+        if ohne:
+            info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne Einbaulage (ältere Messung) fehlen."
+        self.ansicht.setzen(netz, f"Baugruppe {satzname(datei)}", info)
+
     def _zeigen(self, it):
+        if it is not None and it in self.baugruppen.values():
+            self.baugruppe_zeigen(next(d for d, b in self.baugruppen.items() if b is it))
+            return
+        gruppe = next((k for k, g in self.gruppen.items() if g is it), None)
+        if gruppe and gruppe[0] in self.baugruppen:      # Profilgruppe einer Baugruppe: ihre Teile hervorheben
+            self.baugruppe_zeigen(gruppe[0], [i for z in self.zeilen if z.it.parent() is it for i in z.liste])
+            return
         z = self._zeile(it)
         if z:
             m = self.messwerte[z.liste[0]]
@@ -422,7 +473,8 @@ class StepPruefDialog(QDialog):
             self.ansicht.setzen(None, m.get("datei") or "", _messinfo(m))
 
     def _markiert(self):
-        z = [self._zeile(it) for it in self.baum.selectedItems() if not it.isHidden() and not it.parent().isHidden()]
+        z = [self._zeile(it) for it in self.baum.selectedItems()
+             if not it.isHidden() and it.parent() is not None and not it.parent().isHidden()]
         return [x for x in z if x]
 
     def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False):

@@ -1844,7 +1844,7 @@ class AngebotSeite(QWidget):
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
-            # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe leer)
+            # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
             if StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
                                zukauf_liste).exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")

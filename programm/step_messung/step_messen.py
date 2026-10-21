@@ -14,7 +14,8 @@ Aufruf:
 
 --flachstahl-bis MM: größte Breite eines Flachstahls (Vorgabe 150); breitere oder kurze flache Teile gelten als Blech.
 
---netze ORDNER: je Teil zusätzlich ein Dreiecksnetz für die 3D-Ansicht als JSON-Datei (Spalte "netz" = Dateiname).
+--netze ORDNER: je Teil zusätzlich ein Dreiecksnetz für die 3D-Ansicht als JSON-Datei (Spalte "netz" = Dateiname);
+  "lage" = Einbaulage in der Datei (Ende A, Rohrachse, X-Richtung), damit Baugruppen zusammengesetzt gezeigt werden.
 
 DATEILISTE.txt: ein Pfad je Zeile (UTF-8). Rückgabewert 0 = alle Dateien gelesen,
 1 = mindestens eine Datei mit Fehler (steht in der Spalte "fehler"), 2 = Aufruf falsch.
@@ -90,6 +91,8 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
         netz = ""
         if netze is not None and t.netz:
             netz = f"{nr:05d}_{t.koerper}.json"
+            if t.ende_a_global and t.achse_global and t.x_global:    # Einbaulage für die Baugruppen-Ansicht
+                t.netz["lage"] = [round(v, 6) for v in (*t.ende_a_global, *t.achse_global, *t.x_global)]
             (Path(netze) / netz).write_text(json.dumps(t.netz, separators=(",", ":")), encoding="utf-8")
         z = _zeile(t, datei.name, artikel, netz)
         if t.alternative is not None:
