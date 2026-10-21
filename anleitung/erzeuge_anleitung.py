@@ -1033,25 +1033,39 @@ def kapitel_optimieren(i):
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
            "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen, Langlöcher und ein Rechteck",
-           hoehe=110 * mm, legende=[
-               (1, "<b>Gehrung</b> je Ende in Grad (0 = gerade), bei Quadrat-/Rechteckrohr mit Richtung."),
+           hoehe=125 * mm, legende=[
+               (1, "<b>Gehrung</b> je Ende in Grad (gerade = 0) mit Richtung, beim Rundrohr wahlweise Ausklinkung."),
                (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße; der Tooltip jeder Zelle nennt das Maß."),
                (3, "<b>+ Bohrung</b>, <b>+ Langloch</b> … fügt eine Zeile hinzu, <b>Markierte entfernen</b> löscht."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
-               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe.")])
+               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
+                   "in Farbe."),
+               (6, "<b>Skizze</b> des Teils mit Enden und Konturen.")])
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
-            "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse; Quadrat- und Rechteckrohr: wählbar, ob die "
-            "Gehrung <i>über Höhe</i> oder <i>über Breite</i> läuft (2 × gekippte Seite / cos Winkel + 2 × andere "
-            "Seite). Bei anderen Profilen (Träger, U, Winkel, Flach) ist die Gehrung eine <i>Schätzung</i>: gerade "
-            "Schnittlänge / cos Winkel; der Dialog kennzeichnet sie. Je Ende zählen die Einstiche wie beim "
-            "STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
+            "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
+            "mit 1 / cos Winkel gestreckt (Quadratrohr 40 × 40, 45°: 2 × 40 / cos 45° + 2 × 40 = 193,1 mm; beim "
+            "Träger Steg bzw. Flansche). Nur bei einer unbekannten Profilform ist die Gehrung eine "
+            "<i>Schätzung</i> (gerade Schnittlänge / cos Winkel); der Dialog kennzeichnet sie. Je Ende zählen die "
+            "Einstiche wie beim STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
+            "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
+            "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
-            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b) und <i>sonstige Kontur</i> mit Schnittlänge "
-            "von Hand und Hüllmaß (leer = groß). Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
+            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Polygon</i> aus Eckpunkten in Maß 1 "
+            "(<i>x,y; x,y; …</i> in mm, geschlossen, z. B. 0,0; 40,0; 40,20; 0,20 = 120 mm, Hüllmaß 40) und "
+            "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). <b>Lage ab Anfang</b> "
+            "(optional) setzt die Kontur in der Skizze an ihre Stelle, ohne Lage wird sie gleichmäßig verteilt. Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
             "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
             "gesperrt.",
             "<b>Gravur</b>: Länge in mm, wird mit dem Vorschub Gravur gerechnet.",
+            "<b>Skizze</b>: Seitenansicht mit Gehrung bzw. Ausklinkung und den Konturen, zur Kontrolle der Eingaben "
+            "(in der Höhe nicht maßstäblich).",
+            "<b>Gewinde-Vorschlag</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes aus den Stammdaten (z. B. Ø 8,5 "
+            "für M10) ergeben wie beim STEP-Import einen Vorschlag (Spalten <i>Bohrungen</i> und "
+            "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Gewinde-Vorschlag prüfen“). Gerechnet wird ein Gewinde erst, "
+            "wenn es nach Prüfung unter <i>Gewinde geprüft</i> steht.",
             "Unter <i>Ergebnis je Teil</i> stehen sofort alle Schnitte mit Länge, Einstichen, Hüllmaß und Klasse "
             "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
             "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
@@ -2716,10 +2730,13 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.6", "Windows-Tastenkürzel: Strg+Z/Strg+Y (Rückgängig/Wiederholen im Angebot, bis 100 Schritte), "
+    ["0.6.9", "Windows-Tastenkürzel: Strg+Z/Strg+Y (Rückgängig/Wiederholen im Angebot, bis 100 Schritte), "
               "Strg+C/V/X für Zellen und Blöcke aus Excel, Entf löscht mit Rückfrage, Strg+N, Strg+F, Strg+S, Strg+P, "
               "Strg+I, F5, F9, Strg+W, Strg+Tab, Strg+Bild↓/↑; neue Menüs Bearbeiten und Ansicht, "
               "<i>Hilfe → Tastenkürzel …</i> ([[rueckgaengig]], [[tastenkuerzel]])."],
+    ["0.6.6", "Schneidweg-Rechner ausgebaut: Gehrung bei allen Profilen über Höhe oder Breite, Ausklinkung "
+              "(Sattelschnitt) auf ein Rundrohr, Polygon aus Koordinaten, Skizze mit Lage der Konturen, "
+              "Gewinde-Vorschlag aus den Bohrungen ([[schneidweg_rechner]])."],
     ["0.6.5", "Mindestpreis: gilt immer aus den Einstellungen für alle Angebote, auch ältere (dort stand bisher 0 €), "
               "und wird bei jeder Änderung geprüft; im Angebot nicht mehr änderbar ([[mindestpreis]]). Zuschlag "
               "Material und Zuschlag Fertigung ebenso nur noch in den Einstellungen, dort einmalig auf 0 % gesetzt."],
