@@ -1317,8 +1317,8 @@ def kapitel_fracht(i):
            "rechnet die Fracht selbst und hält sie bei jeder Änderung der Positionen aktuell. Daneben stehen "
            "<b>Ziel-PLZ</b> und <b>Land</b> (Felder Ziel-PLZ (Fracht) und Zielland (Fracht)); die ersten zwei Ziffern "
            "reichen, z. B. 25 für alle PLZ, die mit 25 beginnen.")
-    i.liste("Beim Setzen des Hakens kommen Ziel-PLZ (zwei Stellen) und Land aus dem Kunden: abweichende "
-            "Lieferanschrift, sonst PLZ bzw. PLZ Ort der Anschrift. Wechselt der Kunde, wechselt auch das Ziel.",
+    i.liste("Beim Setzen des Hakens kommen Ziel-PLZ (volle PLZ, damit die Zone genau stimmt) und Land aus dem "
+            "Kunden: abweichende Lieferanschrift, sonst PLZ bzw. PLZ Ort der Anschrift. Wechselt der Kunde, wechselt auch das Ziel.",
             "Gewicht und längstes Teil kommen aus den Positionen, die Ladungsträger aus dem Packvorschlag, der Tarif "
             "wird automatisch gewählt. Die Versandart steht in den Einstellungen der Frachtkosten (<b>Versandart für "
             "automatische Fracht</b>, z. B. Stückgut). Ohne sie können zwei Tarife gleich gut passen; dann rechnet "
@@ -2359,7 +2359,8 @@ def kapitel_frachtkosten(i):
         ["Gültig ab, Gültig bis", "Zeitraum; außerhalb wirkt der Zuschlag nicht"],
         ["Länder, Zonen, Tarife, Dienstleister, Kundennummer", "wofür der Zuschlag gilt; leer = alle"],
         ["Bedingung, Grenze", "immer, nur wenn gewählt (Zusatzleistung im Rechner), Gewicht unter / über Grenze [kg] "
-                              "(z. B. Mindermengenzuschlag), Teillänge über Grenze [mm] (Überlänge) oder Zonenart "
+                              "(z. B. Mindermengenzuschlag), Gewicht je Stellplatz über Grenze [kg] (schwere "
+                              "Paletten; meist mit € je Stellplatz), Teillänge über Grenze [mm] (Überlänge) oder Zonenart "
                               "Insel/Randgebiet/Sondergebiet"],
         ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
     i.text("<b>Dieselzuschlag</b>: als Prozent auf die Grundfracht oder eine andere Grundlage, als Festbetrag je "
@@ -2391,7 +2392,38 @@ def kapitel_frachtkosten(i):
             "Fracht ([[fracht_angebot]]), Ladungsträger im Packvorschlag, Ladungsträger für lange Teile "
             "(Langgut)"),
         (4, "<b>Beispieldaten laden</b> fügt die Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu "
-            "(BEISPIEL); vorhandene Einträge bleiben.")])
+            "(BEISPIEL); vorhandene Einträge bleiben."),
+        (5, "<b>Richtwerte laden</b> ersetzt die Beispielwerte durch Richtwerte für den Palettenversand (unten).")])
+    i.abschnitt("Richtwerte Palettenversand", marke="fracht_richtwerte")
+    i.text("Solange keine Preise der eigenen Spedition vorliegen, rechnet das Programm mit <b>Richtwerten</b>: "
+           "Marktpreise aus Online-Frachtrechnern (Stand 10/2026, netto, Maut und Diesel enthalten), angesetzt an der "
+           "Obergrenze der üblichen Spanne plus 10 % Puffer, also eher etwas zu teuer als zu günstig. Alle Zeilen "
+           "tragen RICHTWERT in der Bemerkung, jede Rechnung damit zeigt den Hinweis <i>Richtwert – kein "
+           "Speditionsangebot</i>. <b>Richtwerte laden</b> fragt nach (ohne Absender-PLZ zuerst nach dem Versandort), "
+           "löscht alle Zeilen mit BEISPIEL oder RICHTWERT in der Bemerkung und lädt die Richtwerte neu; eigene "
+           "Einträge bleiben. Leere Absender-PLZ und die Versandart (Palettenversand statt Stückgut) werden gesetzt. "
+           "Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie, bis die Ziel-PLZ neu eingegeben "
+           "oder der Haken neu gesetzt wird.")
+    i.tabelle(["Zone (Straßen-km ab Versandort)", "1 Palette", "2–3 Paletten je Stück", "4–6 Paletten je Stück"], [
+        ["RW1 bis 200 km", "100,00 €", "85,00 €", "70,00 €"],
+        ["RW2 200–450 km", "115,00 €", "97,75 €", "80,50 €"],
+        ["RW3 450–650 km", "125,00 €", "106,25 €", "87,50 €"],
+        ["RW4 über 650 km und RW-INSEL", "140,00 €", "119,00 €", "98,00 €"]], [70, 45, 75, 75])
+    i.liste("Die Zone kommt aus den ersten zwei Ziffern der Ziel-PLZ: Entfernung vom Versandort zum Mittelpunkt der "
+            "PLZ-Region (Luftlinie × 1,25). Ab 33129 Delbrück liegen z. B. Bielefeld und Dortmund in RW1, Hamburg, "
+            "Berlin, Frankfurt und Stuttgart in RW2, Dresden und München in RW3. Inseln ohne Brücke (Sylt, Föhr, "
+            "Amrum, Pellworm, Halligen, Ostfriesische Inseln, Helgoland, Hiddensee) sind die Zone RW-INSEL.",
+            "Mehr als 6 Stellplätze: Teilladung, Preis anfragen (das Programm rechnet nicht still weiter).",
+            "Paletten: Europalette und Einwegpalette bis 800 kg Nutzlast im Packvorschlag, Industriepalette 1,25 "
+            "Stellplätze, Sonderpalette bis 2,40 m 2 Stellplätze, Langgut bis 6,5 m 3 Stellplätze.",
+            "Zuschläge: schwere Palette 40 € je Stellplatz ab 300 kg je Stellplatz, Überlänge (Teile über 2,40 m) "
+            "60 €, Inselzuschlag 60 €; nur wenn gewählt: Avisierung 25 €, Hebebühne 40 €, Wartezeit 60 € je Stunde "
+            "(Hebebühne und Wartezeit geschätzt). Kein Diesel- und kein Mautzuschlag, beide sind im Preis enthalten.",
+            "Beispiele ab Delbrück: 1 Palette 190 kg nach Hamburg 115 €, nach München 125 €; schwere Palette 450 kg "
+            "nach Hamburg 155 €; Langgut 6 m mit 500 kg nach Hamburg 353,25 €; Sylt 200 €.",
+            "Der Dienstleister SLH (Spedition u. Logistik Haaren, Keimeier u. Finke) ist angelegt; öffentliche "
+            "Preise gibt es nicht. Liegt ein Angebot vor, die Preise als eigenen Tarif für SLH eintragen; er gilt "
+            "dann vor dem Richtwert, wenn er eine kleinere Priorität hat (Richtwert: 50).")
     i.text("Fracht im Angebot und je Staffelmenge: [[fracht_angebot]] und [[staffeln]].")
     i.text("Jede gespeicherte Kalkulation enthält eine vollständige Kopie aller verwendeten Werte: Tarif und Version, "
            "Preisstaffeln, Zone und PLZ-Regel, Zuschläge, Dieselpreis, Kurs, Gewicht und Ladehilfsmittel. Spätere "
@@ -2702,6 +2734,9 @@ NEUERUNGEN = [
     ["0.6.10", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
               "ihre Stücke (eigene Stangen mit Endbeschnitt und Greiferrest), ohne den Zuschnitt; gerechnet wird weiter "
               "mit den 12-m-Stangen ([[lieferlaengen]])."],
+    ["0.6.9", "Frachtkosten: <b>Richtwerte laden</b> für den Palettenversand (Marktpreise 10/2026 + 10 % Puffer, "
+              "Maut und Diesel enthalten, Zonen nach Entfernung vom Versandort, schwere Paletten, Langgut, Inseln; "
+              "[[fracht_richtwerte]]). Automatische Fracht übernimmt die volle PLZ des Kunden."],
     ["0.6.8", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
               "statt mit <i>HTTP Error 404</i> abzubrechen; die Pakete des vorigen Stands bleiben länger liegen "
               "([[updates]])."],
