@@ -71,7 +71,8 @@ nah(opt.trennung_teile(g, gerade, 0, gerade, 0), KERF)
 r = gruppe(q=("Rund", 21.2))
 nah(opt.gehrung_trennung(r, (30, 0), 0, (30, 180), 0), D / math.cos(math.radians(30)) - 2 * 21.2 * math.tan(
     math.radians(30)))
-nah(opt.gehrung_tiefe(g, (45, 90)), 30) and nah(opt.gehrung_tiefe(g, (45, 0)), 20)
+nah(opt.gehrung_tiefe(g, (45, 90)), 30)
+nah(opt.gehrung_tiefe(g, (45, 0)), 20)
 ok("G1 Gehrungen ineinander: 45/45 (60 bzw. 40 mm), 45/20, gleiche Lage ohne Gewinn, gerade wie bisher, Rundrohr")
 
 # ------------------------------------------------------------------ G2 Drehungen und Naht
@@ -188,4 +189,40 @@ einseitig = [dict(alt[0], a_gerade="nein")]
 gr, _, _ = rechnen.gruppen_bilden(kopf, einseitig, k)
 assert all(rechnen.teil_kennung(t)[-1] == "nie wenden" for t in gr[0].teile)
 ok("G6 Angebot: Drehung, Nahtvorgabe und eingespartes Material im Ergebnis, keine Stange überbelegt, Prüfsumme")
+
+# ------------------------------------------------------------------ G7 Anzeige
+g = gruppe()
+nah(opt.kante(g, (45, 0), 0)[0], 0)
+nah(opt.kante(g, (45, 0), 0)[1], 40)                                         # oben am längsten: unten zurück
+nah(opt.kante(g, (45, 180), 0)[0], 40)
+nah(opt.kante(g, (45, 180), 180)[1], 40)                                    # 180° gedreht = wie 0°
+assert max(opt.kante(g, (45, 90), 0)) < 1e-9                                  # Schräge seitlich: von der Seite gerade
+nah(opt.kante(g, (45, 90), 0, 270)[0], 60)                                     # von oben sichtbar (Breite 60)
+assert opt.ansicht(g, [(t1, 0)]) == 270 and opt.ansicht(g, [(rahmen(1, a=(45, 0), b=(45, 0))[0], 0)]) == 0
+for s_ in erg["stangen"]:
+    for t1_, t2_ in zip(s_["teile"], s_["teile"][1:]):
+        u1, u2 = rechnen.umriss(t1_), rechnen.umriss(t2_)
+        assert u1[1] <= u2[0] + 0.1 and u1[2] <= u2[3] + 0.1, (t1_, t2_)       # gezeichnet ohne Überlappung
+assert all(t.get("kante_a") and t["ansicht"] == "von oben" for t in teile if t["pos"] in (10, 20))
+assert all("kante_a" not in t for t in teile if t["pos"] == 30)
+assert all(t["naht_text"] == "Naht 0° fest" for t in teile if t["pos"] == 20)
+aw = {a["profil"]: a for a in erg["auswertung"]}
+assert aw["RE 60x40x3"]["gehrung_mm"] > 0 and aw["QR 40x40x3"]["ohne_drehung"] is None
+assert aw["RE 60x40x3"]["ohne_drehung"] is not None and "Gehrungen ineinander" in aw["RE 60x40x3"]["bewertung"]
+assert rechnen.drehung_text(3, 2, 90.4) == "; Drehen spart 1 Stange, Gehrungen ineinander 90 mm"
+assert rechnen.drehung_text(2, 2, 0) == "; Drehen bringt keine Verbesserung"
+from rohrlaser import ausgabe, pdf  # noqa: E402
+wp = ausgabe.werkstatt(kopf, pos, erg, k, db.tabellen())
+assert any(t["naht_text"] for m in wp["muster"] for t in m["teile"])
+ziel = Path(tempfile.mkdtemp()) / "Werkstattpapiere.pdf"
+pdf.werkstatt_pdf(ziel, kopf, wp)
+assert ziel.stat().st_size > 5000
+from PySide6.QtWidgets import QApplication  # noqa: E402
+from rohrlaser.angebot_fenster import Stangenbild  # noqa: E402
+app = QApplication.instance() or QApplication([])
+bild = Stangenbild()
+bild.resize(1200, 400)
+bild.setzen(erg)
+bild.grab()
+ok("G7 Anzeige: Schnittkanten im Stangenbild ohne Überlappung, Naht im Schnittplan, Vergleich ohne Drehen, PDF")
 print("OK: Gehrungen ineinander")

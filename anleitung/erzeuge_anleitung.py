@@ -1275,16 +1275,29 @@ def kapitel_optimieren(i):
     i.abschnitt("Schnittplan")
     i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Ein Klick auf eine Stange zeigt unten ihre "
            "Teile in Schnittreihenfolge mit Lage (von/bis), Drehung und Art der Trennung.")
+    i.text("Bei Gehrungen zeigt die Spalte <b>Lage</b>, ob das Teil um die eigene Achse gedreht liegt (<i>normal</i> "
+           "oder <i>gedreht 180°</i>), die Spalte <b>Schweißnaht</b> eine feste oder unbekannte Naht "
+           "(<i>Naht 90° fest</i>, <i>Naht unbekannt, nicht drehen</i>; leer = frei drehbar, [[schweissnaht]]). "
+           "Liegen zwei Gehrungen ineinander, steht als Trennung <i>Gehrung ineinander</i> und in "
+           "<b>Eingespartes Material [mm]</b>, wie viel kürzer die Belegung gegenüber zwei Schnitten mit Abstand ist. "
+           "Die Werkstattpapiere zeigen Lage und Naht in derselben Spalte.")
     i.bild("erg_schnittplan", "Reiter Schnittplan, Stange 3 gewählt", hoehe=85 * mm)
     i.abschnitt("Stangenbild")
     i.text("Jede Stange als maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Positionsnummer und Länge, "
            "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot. Gleich belegte Stangen stehen einmal da "
-           "(<i>2 × Stange 1, 2</i>).")
+           "(<i>2 × Stange 1, 2</i>). Schräge Enden mit bekannter Richtung erscheinen als schräge Linie, "
+           "ineinanderliegende Gehrungen also als verzahnte Trapeze. Gezeigt wird die Ansicht von der Seite (0° "
+           "oben); sind die Gehrungen über die Seitenflächen geschnitten, die Ansicht von oben (Hinweis "
+           "<i>Ansicht von oben</i> in der Kopfzeile).")
     i.bild("erg_stangenbild", "Reiter Stangenbild", hoehe=85 * mm)
     i.abschnitt("Auswertung und nicht eingeplante Teile")
     i.text("Je Gruppe (Profil + Werkstoff + Stangenlänge): Stangen optimiert gegen eine einfache manuelle Einteilung "
            "(Eingabereihenfolge, Stange voll, dann nächste), die rechnerische Untergrenze, Ersparnis, Verschnitt, "
            "Ausnutzung und eine Bewertung, ob das Ergebnis nachweislich optimal ist.",
+           "Mit drehbaren Gehrungen rechnet die Optimierung die Gruppe zum Vergleich noch einmal ohne Drehen: "
+           "<b>Stangen ohne Drehen</b> und <b>Gehrungen ineinander [mm]</b> zeigen den Unterschied, die Bewertung "
+           "nennt ihn (<i>Drehen spart 1 Stange …</i>, <i>… Drehen spart keine Stange</i> oder <i>Drehen bringt "
+           "keine Verbesserung</i>).",
            "Darunter stehen die <b>nicht eingeplanten Teile</b> mit Grund, z. B. Teil länger als die Nutzlänge der "
            "Stange, Profil über der Maschinengrenze oder fehlende Angaben. Diese Teile fehlen in Schnittplan, "
            "Kalkulation und Angebot, bis der Grund behoben ist.")
@@ -3062,6 +3075,8 @@ NEUERUNGEN = [
                "Anhängen der STEP-Datei). Bereits in den Ordner des Angebots kopierte Zeichnungen löscht das Programm "
                "beim ersten Start einmalig; andere Dateien im Ordner bleiben. Die "
                "Materialanfrage per Outlook bleibt, ohne Zeichnungsanhang ([[materialanfrage]])."],
+    ["0.6.24", "Schnittplan, Stangenbild und Werkstattpapiere zeigen Drehung, Schweißnaht und ineinanderliegende "
+               "Gehrungen (schräge Kanten), die Auswertung den Vergleich ohne Drehen ([[optimieren]])."],
     ["0.6.23", "Optimierung legt Gehrungen ineinander: Teile werden um die eigene Achse gedreht, nie gewendet; feste "
                "oder unbekannte Schweißnaht sperrt die Drehung ([[optimieren]], [[schweissnaht]])."],
     ["0.6.22", "Gehrungen mit Richtung: der STEP-Import misst, an welcher Seite ein schräges Ende am längsten ist "
@@ -3110,7 +3125,7 @@ NEUERUNGEN = [
     ["0.6.11", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
               "ihre Stücke (eigene Stangen mit Endbeschnitt und Greiferrest), ohne den Zuschnitt; gerechnet wird weiter "
               "mit den 12-m-Stangen ([[lieferlaengen]])."],
-    ["0.6.10", "Zeichnungen je Position (seit 0.6.24 wieder entfernt) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
+    ["0.6.10", "Zeichnungen je Position (seit 0.6.25 wieder entfernt) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
               "Optimierung, Lieferant und E-Mail-Adresse, gesendet wird nur in Outlook ([[materialanfrage]])."],
     ["0.6.9", "Frachtkosten: <b>Richtwerte laden</b> für den Palettenversand (Marktpreise 10/2026 + 10 % Puffer, "
               "Maut und Diesel enthalten, Zonen nach Entfernung vom Versandort, schwere Paletten, Langgut, Inseln; "

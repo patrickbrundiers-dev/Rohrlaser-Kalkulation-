@@ -150,6 +150,34 @@ def gehrung_trennung(g, b_geh, r1, a_geh, r2):
             - t2 * _stuetz(g, x2, y2))
 
 
+def kante(g, geh, drehung, oben=0):
+    """Rücksprung der Schnittkante eines schrägen Endes in der Ansicht der Stange gegenüber seiner Spitze [mm]:
+    (oben, unten) im Bild. oben: Winkel der Stange, der im Bild oben liegt (0 = Blick von der Seite, 270 = Blick
+    von oben). (0, 0) = gerades Ende oder die Schräge ist in dieser Ansicht nicht zu sehen."""
+    if not geh or not g.querschnitt:
+        return 0.0, 0.0
+    t = math.tan(math.radians(geh[0]))
+    c = math.cos(math.radians(geh[1] + drehung - oben))
+    q = g.querschnitt
+    if q[0] == "Rund":
+        return t * q[1] * (1 - c), t * q[1] * (1 + c)
+    hh = (q[2] if oben % 180 == 0 else q[1]) / 2
+    return t * hh * (abs(c) - c), t * hh * (abs(c) + c)
+
+
+def ansicht(g, folge):
+    """Ansicht für das Stangenbild: 0 (von der Seite, 0° oben) oder 270 (von oben), je nachdem, in welcher die
+    Schrägen der Gehrungen stärker zu sehen sind."""
+    if not g.querschnitt or g.querschnitt[0] == "Rund":
+        return 0
+    w = {0: 0.0, 270: 0.0}
+    for t, d in folge:
+        for geh in (t.a_gehrung, t.b_gehrung):
+            for oben in w:
+                w[oben] += sum(kante(g, geh, d, oben))
+    return 270 if w[270] > w[0] + EPS else 0
+
+
 def verschachtelbar(g, t):
     """Kann das Teil an einem Ende mit einem Nachbarn ineinandergelegt werden?"""
     return bool(g.querschnitt) and (t.a_gehrung is not None or t.b_gehrung is not None)
@@ -676,6 +704,16 @@ def manuell(g):
     if aktuell:
         stangen.append(aktuell)
     return stangen
+
+
+def ohne_drehung(g):
+    """Stangen, wenn kein Teil gedreht werden dürfte (Vergleich für die Auswertung); None = in dieser Gruppe gibt es
+    keine drehbaren Teile mit Gehrung."""
+    if not any(verschachtelbar(g, t) and len(drehungen(g, t)) > 1 for t in g.teile):
+        return None
+    h = replace(g, teile=[replace(t, drehung=UNBEKANNT) if t.drehung == FREI else t for t in g.teile],
+                bewiesen=False, schranke=0)
+    return len(optimiere(h))
 
 
 def untergrenze(g):
