@@ -1,100 +1,26 @@
-"""Dialoge 'Zeichnungen …' (Dateien einer Position) und 'Material per Outlook anfragen …' (Vorschau der Anfrage).
+"""Dialog 'Material per Outlook anfragen …' (Vorschau der Anfrage).
 
 Die Materialanfrage wird nie vom Programm gesendet: 'In Outlook öffnen' zeigt die fertige E-Mail in Outlook, gesendet
 wird dort mit einem Klick des Benutzers. Geht das nicht (kein klassisches Outlook), entsteht eine E-Mail-Datei."""
-from pathlib import Path
-
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout)
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QFormLayout, QHBoxLayout, QHeaderView, QLabel,
+                               QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
+                               QVBoxLayout)
 
-from . import dokumente, materialanfrage as ma
-
-GRAU = "#595959"
-
-
-class DokumenteDialog(QDialog):
-    """Zeichnungen einer Position. Nach OK: self.namen (Dateinamen im Ordner des Angebots)."""
-
-    def __init__(self, parent, p, ordner, oeffnen):
-        super().__init__(parent)
-        self.ordner, self.oeffnen = Path(ordner), oeffnen
-        self.namen = dokumente.liste(p.get("dokumente"))
-        self.setWindowTitle(f"Zeichnungen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
-        self.resize(620, 360)
-        lay = QVBoxLayout(self)
-        info = QLabel(f"Dateien liegen als Kopie im Ordner des Angebots:<br>{self.ordner}")
-        info.setStyleSheet(f"color: {GRAU};")
-        info.setWordWrap(True)
-        lay.addWidget(info)
-        self.liste = QListWidget()
-        self.liste.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.liste.itemDoubleClicked.connect(lambda _: self._oeffnen())
-        lay.addWidget(self.liste, 1)
-        leiste = QHBoxLayout()
-        for text, ziel in (("Hinzufügen …", self._hinzufuegen), ("Öffnen", self._oeffnen),
-                           ("Entfernen", self._entfernen), ("Ordner öffnen", lambda: self.oeffnen(self.ordner))):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            leiste.addWidget(b)
-        leiste.addStretch(1)
-        lay.addLayout(leiste)
-        hinweis = QLabel("Tipp: Dateien direkt aus dem Explorer auf die Position in der Positionsliste ziehen. "
-                         "Entfernen löst nur die Zuordnung, die Datei bleibt im Ordner.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet(f"color: {GRAU};")
-        lay.addWidget(hinweis)
-        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        knoepfe.accepted.connect(self.accept)
-        knoepfe.rejected.connect(self.reject)
-        lay.addWidget(knoepfe)
-        self._anzeigen()
-
-    def _anzeigen(self):
-        self.liste.clear()
-        for n in self.namen:
-            it = QListWidgetItem(n if (self.ordner / n).is_file() else f"{n}  (fehlt im Ordner)")
-            it.setData(Qt.UserRole, n)
-            self.liste.addItem(it)
-
-    def hinzufuegen(self, dateien):
-        for q in dokumente.passend(dateien):
-            n = dokumente.kopieren(self.ordner, q)
-            if n not in self.namen:
-                self.namen.append(n)
-        self._anzeigen()
-
-    def _hinzufuegen(self):
-        dateien, _ = QFileDialog.getOpenFileNames(self, "Zeichnungen wählen", str(Path.home()),
-                                                  "Zeichnungen (" + " ".join("*" + e for e in dokumente.ENDUNGEN) + ")")
-        self.hinzufuegen(dateien)
-
-    def _markiert(self):
-        return [it.data(Qt.UserRole) for it in self.liste.selectedItems()]
-
-    def _oeffnen(self):
-        for n in self._markiert():
-            if (self.ordner / n).is_file():
-                self.oeffnen(self.ordner / n)
-
-    def _entfernen(self):
-        weg = set(self._markiert())
-        self.namen = [n for n in self.namen if n not in weg]
-        self._anzeigen()
+from . import materialanfrage as ma
 
 
 class AnfrageDialog(QDialog):
-    """Vorschau der Materialanfrage. zeilen = materialanfrage.bedarf, lieferanten = {Name: E-Mail}, ordner = Ordner
-    der Zeichnungen, eml_ziel = Pfad der E-Mail-Datei, oeffnen(pfad) öffnet Dateien, ausfuehren ersetzt den
+    """Vorschau der Materialanfrage. zeilen = materialanfrage.bedarf, lieferanten = {Name: E-Mail},
+    eml_ziel = Pfad der E-Mail-Datei, oeffnen(pfad) öffnet Dateien, ausfuehren ersetzt den
     Outlook-Aufruf (Tests). Nach einer Aktion: self.meldung (Text für die Statuszeile), self.ergebnis
     ('outlook', 'eml' oder None)."""
     SPALTEN = ("Anfragen", "Material", "Stangen", "Lieferant", "Pos.")
 
-    def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, ordner, eml_ziel, oeffnen, ausfuehren=None):
+    def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, eml_ziel, oeffnen, ausfuehren=None):
         super().__init__(parent)
         self.kopf, self.zeilen, self.k, self.einst = kopf, zeilen, k, einst
-        self.lieferanten, self.ordner, self.eml_ziel = lieferanten, Path(ordner), eml_ziel
+        self.lieferanten, self.eml_ziel = lieferanten, eml_ziel
         self.oeffnen, self.ausfuehren = oeffnen, ausfuehren
         self.meldung, self.ergebnis, self._setzen = "", None, False
         self.text_von_hand = False
@@ -148,10 +74,6 @@ class AnfrageDialog(QDialog):
         self.text = QPlainTextEdit()
         self.text.textChanged.connect(self._text_geaendert)
         lay.addWidget(self.text, 1)
-        lay.addWidget(QLabel("Anhänge (Zeichnungen der angefragten Positionen)"))
-        self.anhaenge = QListWidget()
-        self.anhaenge.setMaximumHeight(110)
-        lay.addWidget(self.anhaenge)
         self.hinweis = QLabel()
         self.hinweis.setWordWrap(True)
         self.hinweis.setStyleSheet("color: #7A5A00;")
@@ -197,19 +119,6 @@ class AnfrageDialog(QDialog):
             self.text.setPlainText(ma.anschreiben(self.kopf, [self.zeilen[r] for r in auswahl], self.einst, self.k,
                                                   {i: self.mengen[r].value() for i, r in enumerate(auswahl)}))
             self._setzen = False
-        alt = {self.anhaenge.item(i).data(Qt.UserRole): self.anhaenge.item(i).checkState()
-               for i in range(self.anhaenge.count())}
-        self.anhaenge.clear()
-        for r in auswahl:
-            for n in self.zeilen[r]["dokumente"]:
-                if any(self.anhaenge.item(i).data(Qt.UserRole) == n for i in range(self.anhaenge.count())):
-                    continue
-                da = (self.ordner / n).is_file()
-                it = QListWidgetItem(n if da else f"{n}  (fehlt im Ordner)")
-                it.setData(Qt.UserRole, n)
-                it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable if da else Qt.NoItemFlags)
-                it.setCheckState(alt.get(n, Qt.Checked) if da else Qt.Unchecked)
-                self.anhaenge.addItem(it)
         hinweise = []
         if not auswahl:
             hinweise.append("Keine Zeile angehakt.")
@@ -223,13 +132,9 @@ class AnfrageDialog(QDialog):
         if not self._setzen:
             self.text_von_hand = True
 
-    def anhang_pfade(self):
-        return [self.ordner / self.anhaenge.item(i).data(Qt.UserRole) for i in range(self.anhaenge.count())
-                if self.anhaenge.item(i).checkState() == Qt.Checked]
-
     def mail(self):
-        """(An, Betreff, Text, Anhänge) wie sie in die E-Mail gehen."""
-        return self.an.text().strip(), self.betreff.text().strip(), self.text.toPlainText(), self.anhang_pfade()
+        """(An, Betreff, Text) wie sie in die E-Mail gehen."""
+        return self.an.text().strip(), self.betreff.text().strip(), self.text.toPlainText()
 
     # ------------------------------------------------------------------ Aktionen
     def als_datei(self, oeffnen=True):

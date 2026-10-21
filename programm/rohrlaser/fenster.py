@@ -708,6 +708,10 @@ class Hauptfenster(QMainWindow):
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.offen = {}             # Angebots-ID -> AngebotSeite
+        try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.25 entfernt)
+            db.zeichnungen_entfernen(self.ablage())
+        except OSError:
+            pass
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")

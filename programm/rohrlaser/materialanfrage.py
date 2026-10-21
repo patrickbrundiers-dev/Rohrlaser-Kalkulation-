@@ -2,7 +2,7 @@
 Oberfläche + Lieferlänge, Lieferant aus 'Lieferlängen' bzw. 'Preise', E-Mail-Adresse aus den Lieferanten.
 
 Versand: Das Programm sendet nie selbst. 'In Outlook öffnen' legt über PowerShell (COM, klassisches Outlook) eine
-E-Mail mit Empfänger, Betreff, Text und Anhängen an und zeigt sie an; gesendet wird nur mit dem Klick in Outlook.
+E-Mail mit Empfänger, Betreff und Text an und zeigt sie an; gesendet wird nur mit dem Klick in Outlook.
 Ohne klassisches Outlook (z. B. neues Outlook, keine COM-Schnittstelle) entsteht eine E-Mail-Datei (.eml, als
 Entwurf markiert) in der Ablage, die das Standard-Mailprogramm öffnet.
 """
@@ -15,7 +15,7 @@ from email.utils import formatdate
 from pathlib import Path
 import mimetypes
 
-from . import dokumente, rechnen
+from . import rechnen
 from .ausgabe import kaufm_runden, profiltext
 from .angebot import ist_zukaufteil
 
@@ -35,7 +35,7 @@ def _lieferant(profil, werkstoff, laenge, tabellen):
 
 def bedarf(positionen, ergebnis, k, tabellen, werte=None):
     """Zeilen der Anfrage aus der Optimierung: [{profil, werkstoff, oberflaeche, laenge, stangen, gewicht, lieferant,
-    pos (Positionsnummern), dokumente (Dateinamen der Positionen), text}]. Kundenmaterial fehlt (der Kunde liefert
+    pos (Positionsnummern), text}]. Kundenmaterial fehlt (der Kunde liefert
     es). werte = stangen_werte (Gewicht je Stange), sonst ohne Gewicht."""
     zeilen = {}
     gewichte = {s["nr"]: w.get("gewicht") for s, w in zip((ergebnis or {}).get("stangen") or (), werte or ())}
@@ -44,7 +44,7 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None):
             continue
         schl = (s["profil"], s["werkstoff"], s.get("oberflaeche") or "", s["stange"])
         z = zeilen.setdefault(schl, dict(profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=s.get("oberflaeche")
-                                         or "", laenge=s["stange"], stangen=0, gewicht=0.0, pos=[], dokumente=[],
+                                         or "", laenge=s["stange"], stangen=0, gewicht=0.0, pos=[],
                                          lieferant=_lieferant(s["profil"], s["werkstoff"], s["stange"], tabellen)))
         z["stangen"] += 1
         g = gewichte.get(s["nr"])
@@ -56,9 +56,6 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None):
                 nr = str(p.get("pos") or p.get("artikel") or i + 1)
                 if nr not in z["pos"]:
                     z["pos"].append(nr)
-                for d in dokumente.liste(p.get("dokumente")):
-                    if d not in z["dokumente"]:
-                        z["dokumente"].append(d)
     out = list(zeilen.values())
     for z in out:
         z["text"] = zeile_text(z, k)
@@ -95,8 +92,7 @@ def anschreiben(kopf, zeilen, einst, k, mengen=None):
                          if t and t not in ("Firmenname", "Straße Nr.", "PLZ Ort", "Telefon / E-Mail"))
     return ("Sehr geehrte Damen und Herren,\n\n"
             f"bitte senden Sie uns ein Angebot für folgendes Material{ref}:\n\n{liste_}\n\n"
-            "Bitte mit Preis, Lieferzeit und Angabe der Lieferlänge."
-            + (" Zeichnungen hängen an." if any(z.get("dokumente") for z in zeilen) else "") + "\n\n"
+            "Bitte mit Preis, Lieferzeit und Angabe der Lieferlänge.\n\n"
             "Mit freundlichen Grüßen" + (f"\n{absender}" if absender else ""))
 
 
