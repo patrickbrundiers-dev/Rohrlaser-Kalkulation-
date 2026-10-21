@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFrame, QHBoxLayout
                                QScrollArea, QSplitter, QTableView, QVBoxLayout, QWidget)
 
 from . import rechnen
-from .fenster import FARBE_BERECHNET, FARBE_EINGABE, spalten_einpassen
+from .fenster import FARBE_BERECHNET, FARBE_EINGABE
+from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
 from .stammdaten import SATZ_MASCHINE, Feld, wert_aus_text, zahl_als_text
 
@@ -126,6 +127,7 @@ class ZeitenSeite(QWidget):
         kopf.setStretchLastSection(True)
         for i, (_, b) in enumerate(SPALTEN):
             self.ansicht.setColumnWidth(i, b)
+        AutoGroesse(self.ansicht, max_breite=420)
         self.alle = QCheckBox("Alle Arbeitsschritte zeigen")
         self.alle.setToolTip("Auch Arbeitsschritte ohne Zeit und Kosten zeigen, z. B. um eine Zeit einzutragen")
         self.alle.toggled.connect(self._zeilen_zeigen)
@@ -163,9 +165,6 @@ class ZeitenSeite(QWidget):
         zeiten = summen["zeiten"]
         self.modell.setzen(zeiten)
         self._zeilen_zeigen()
-        if not getattr(self, "_eingepasst", False):
-            spalten_einpassen(self.ansicht, max_breite=420)
-            self._eingepasst = True
         gespeichert = summen.get("zeitbasis_gespeichert")
         self.hinweis.setText(
             "Stundensätze und Zeitvorgaben sind in diesem Angebot gespeichert; spätere Änderungen in den "
@@ -203,6 +202,7 @@ class ZeitenSeite(QWidget):
     def _zeilen_zeigen(self):
         for r, z in enumerate(self.modell.zeilen):
             self.ansicht.setRowHidden(r, not (self.alle.isChecked() or zeile_sichtbar(z)))
+        self.ansicht.auto_groesse.spaeter()
 
     # -------------------------------------------------------------- Ändern (Snapshot des Angebots)
     def _zeitbasis(self):

@@ -500,8 +500,17 @@ def kapitel_angebot(i):
     i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
            "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · "
            "Rüstzeit je Abmessung 15,0 min · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
-           "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. Spaltenbreiten der "
-           "Positionsliste, der Kalkulation und der Zeiten richten sich beim Öffnen nach Inhalt und Spaltenkopf.")
+           "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. ")
+    i.text("<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen (Positionen, Ergebnisse, Zeiten, "
+           "Staffeln, Stammdaten) automatisch an den Inhalt an: eine Spalte ist so breit wie ihr längster Eintrag "
+           "bzw. ihr Spaltenkopf, höchstens etwa 260 Punkte (Zeiten: 420); die letzte Spalte füllt den Rest. Langer "
+           "Text, z. B. eine lange Bezeichnung oder ein Status mit mehreren Hinweisen, wird umgebrochen und macht nur "
+           "diese Zeile höher, höchstens drei Textzeilen; der Rest steht mit „…“ gekürzt da und vollständig im "
+           "Tooltip (Maus auf die Zelle). Zeilen mit kurzem Text bleiben einzeilig, damit wenig gerollt werden muss. "
+           "Beim Tippen werden Spalten nur breiter, nie schmaler, damit die Tabelle nicht springt. Eine Spalte, "
+           "deren Trennlinie im Kopf von Hand gezogen wurde, behält ihre Breite, bis das Angebot neu geöffnet wird; "
+           "ein Doppelklick auf die Trennlinie passt sie wieder an den Inhalt an. Bei mehr als 500 Zeilen bleiben "
+           "die Zeilen einzeilig.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
         (1, "<b>Angebotskopf</b>: Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, darunter Datum, "
             "Kundenname, Standard-Stangenlänge und Bemerkung. Ganz unten die aufklappbaren Maschinenparameter."),
@@ -1821,7 +1830,8 @@ def kapitel_stammdaten(i):
         (5, "<b>Prüfung</b>: OK, WARNUNG oder FEHLER mit Begründung.")])
     i.liste("Bearbeiten: Zelle doppelklicken oder einfach lostippen, mit Enter bestätigen. Felder mit fester Auswahl "
             "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste.",
-            "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite: Trennlinie im Kopf ziehen.",
+            "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite und Zeilenhöhe passen sich dem Inhalt an "
+            "([[angebot]]); von Hand ändern: Trennlinie im Kopf ziehen.",
             "Wird eine Profil-, Werkstoff- oder Maschinen-ID umbenannt, ändern sich die Verweise in Preisen und "
             "Schneiddaten mit. Bei einer Maschinen-ID ändern sich auch die Angebote (mit ihren festgeschriebenen "
             "Werten) und die Standard-Maschine mit.")
@@ -2818,6 +2828,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.14", "Spaltenbreite und Zeilenhöhe automatisch in allen Tabellen: Spalten passend zum Inhalt (Höchstbreite), "
+              "lange Texte umgebrochen bis drei Zeilen, kurze Zeilen bleiben einzeilig; von Hand gezogene Spalten "
+              "bleiben ([[angebot]])."],
     ["0.6.13", "Maschinen: neues Feld <i>Min. Stangenlänge Zuschnitt</i> (Vorgabe 2.500 mm, auch für vorhandene "
               "Maschinen). Beim Zuschnitt einer 12-m-Stange wird keine Stange kürzer, damit die automatische "
               "Stangenladung sie nimmt; eine kürzere wird verlängert, der Mehrbedarf ist Verschnitt ([[lieferlaengen]])."],
