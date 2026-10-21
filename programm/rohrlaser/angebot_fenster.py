@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QProcess, QRectF, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFileDialog, QFrame,
@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser,
     QVBoxLayout, QWidget)
 
-from . import fracht_angebot, ausgabe, dokumente, export, materialanfrage, pdf, rechnen, schneidweg, step, zukauf, zukauf_ek
+from . import fracht_angebot, ausgabe, dokumente, export, materialanfrage, pdf, rechnen, schneidweg, step, tastatur, zukauf, \
+    zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
@@ -27,6 +28,7 @@ from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, Ueber
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung, spalten_einpassen
+from .verlauf import Verlauf
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
 
 FARBE_TEILE = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F",
@@ -123,6 +125,7 @@ def _breiten(ansicht, spalten):
 # ------------------------------------------------------------------ Übersicht der Angebote
 class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
+    KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85), ("Maschine", "maschine", None, 70),
@@ -145,6 +148,10 @@ class AngeboteSeite(QWidget):
         self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel …")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
+        tastatur.suche_esc(self.suche)
+        for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
+            k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
+            k.setContext(Qt.WidgetShortcut)
         leiste = QHBoxLayout()
         for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
                            ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
@@ -677,10 +684,17 @@ PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None,
 
 
 class AngebotSeite(QWidget):
+    # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
+    KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
+               "rueckgaengig": "rueckgaengig", "wiederholen": "wiederholen", "einfuegen": "_einfuegen",
+               "ausschneiden": "_ausschneiden", "optimieren": "optimieren", "drucken": "angebot_pdf",
+               "importieren": "step_importieren"}
+
     def __init__(self, fenster, angebot_id):
         super().__init__()
         self.setAcceptDrops(True)       # STEP-Dateien und Ordner per Drag & Drop importieren
         self.f, self.db, self.id = fenster, fenster.db, angebot_id
+        self.verlauf = Verlauf(self.db, angebot_id)     # Rückgängig/Wiederholen
         self._laden = False
         self.kopf, self.positionen, self.ergebnis = {}, [], None
 
@@ -914,6 +928,7 @@ class AngebotSeite(QWidget):
         self._spalten_zeigen()
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
+        self.verlauf.merken()
 
     def _konturen_einteilen(self):
         """Konturklassen neu einteilen, wenn die Grenzen der Maschine nicht die sind, mit denen die Konturliste der
@@ -1352,6 +1367,51 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"EK für {len(paare)} Zukaufteil(e) eingetragen und im Artikel gespeichert.")
         self.neu_laden()
         return len(paare)
+
+    # -------------------------------------------------------------- Rückgängig, Einfügen (Tastenkürzel)
+    def rueckgaengig(self):
+        return self._verlauf_schritt(self.verlauf.rueckgaengig, "Rückgängig", "Nichts mehr rückgängig zu machen.")
+
+    def wiederholen(self):
+        return self._verlauf_schritt(self.verlauf.wiederholen, "Wiederholt", "Nichts zu wiederholen.")
+
+    def _verlauf_schritt(self, schritt, wort, nichts):
+        was = schritt()
+        if was is None:
+            self.f.meldung(nichts, fehler=True)
+            return None
+        aktuell = self.pos_ansicht.currentIndex()
+        self.pos_modell.bilder.clear()
+        self.neu_laden()
+        if aktuell.isValid() and aktuell.row() < self.pos_modell.rowCount():
+            self.pos_ansicht.setCurrentIndex(self.pos_modell.index(aktuell.row(), aktuell.column()))
+        self.f.meldung(f"{wort}: {was}")
+        return was
+
+    def _gesammelt(self, aendern):
+        """Mehrere Zellen ändern, einmal neu rechnen, ein Schritt für Rückgängig."""
+        self.verlauf.pause += 1
+        self.pos_modell.blockSignals(True)
+        try:
+            n = aendern(self.pos_ansicht)
+        finally:
+            self.pos_modell.blockSignals(False)
+            self.verlauf.pause -= 1
+        if n:
+            self.neu_laden()
+        self.f.meldung(f"{n} Zelle(n) geändert." if n else "Keine bearbeitbare Zelle.", fehler=not n)
+        return n
+
+    def _einfuegen(self, text=None):
+        if QApplication.focusWidget() is not self.pos_ansicht and text is None:
+            return False                        # andere Tabelle: allgemeines Einfügen im Hauptfenster
+        return self._gesammelt(lambda v: tastatur.einfuegen(v, text))
+
+    def _ausschneiden(self):
+        if QApplication.focusWidget() is not self.pos_ansicht:
+            return False
+        tastatur.kopieren(self.pos_ansicht)
+        return self._gesammelt(tastatur.leeren)
 
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})

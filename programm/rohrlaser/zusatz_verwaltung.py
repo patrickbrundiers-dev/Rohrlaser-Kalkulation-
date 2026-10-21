@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QToolButton, QVBoxLayout,
                                QWidget)
 
-from . import rechnen
+from . import rechnen, tastatur
 from .stammdaten import (TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORIEN, ZUSATZART_TEXT, ZUSATZARTEN,
                          ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, zahl_als_text, zahl_aus_text)
 
@@ -508,6 +508,7 @@ WEGLASSEN = ("zuschlag_material", "weitere", "arbeit", "satz", "mindest", "mater
 
 class ZusatzVerwaltung(QWidget):
     titel = TITEL
+    KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "tabelle")}     # Tastenkürzel, siehe tastatur.py
 
     def __init__(self, db, meldung):
         super().__init__()
@@ -523,6 +524,7 @@ class ZusatzVerwaltung(QWidget):
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen (Name, Kategorie, Beschreibung) …")
         self.suche.setClearButtonEnabled(True)
+        tastatur.suche_esc(self.suche)
         self.suche.textChanged.connect(self.anzeigen)
         self.kat_filter = QComboBox()
         self.status_filter = QComboBox()

@@ -461,6 +461,8 @@ class _Bote(QObject):
 
 # ------------------------------------------------------------------ Reiter
 class StaffelSeite(QWidget):
+    KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
+
     def __init__(self, seite):
         super().__init__()
         self.s = seite
@@ -596,6 +598,7 @@ class StaffelSeite(QWidget):
         self.vorher = {z.get("stufe_id"): z.get("preis_einheit") for z in self.zeilen}
         self._spalten_zeigen()
         self.stand(speichern=feld not in ("schluessel", "menge"))
+        self.s.verlauf.merken()         # Schritt für Rückgängig
 
     # -------------------------------------------------------------- Stufen
     def neu(self):

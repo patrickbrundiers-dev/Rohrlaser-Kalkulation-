@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import zukauf_csv
+from . import tastatur, zukauf_csv
 from .stammdaten import zahl_als_text
 from .zukauf_dialog import datum_text
 
@@ -62,6 +62,7 @@ class PreisaenderungenSeite(QWidget):
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen (Artikel, Lieferant, Feld) …")
         self.suche.setClearButtonEnabled(True)
+        tastatur.suche_esc(self.suche)
         self.suche.textChanged.connect(self.anzeigen)
         self.artikel_filter = QComboBox()
         self.artikel_filter.currentIndexChanged.connect(self.anzeigen)
