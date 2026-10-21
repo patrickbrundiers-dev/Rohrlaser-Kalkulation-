@@ -50,6 +50,7 @@ class Gruppe:
     teile: list = field(default_factory=list)
     bewiesen: bool = False   # Stangenzahl ist nachweislich minimal
     schranke: int = 0        # nachgewiesene Mindestzahl Stangen (Untergrenze oder Schranke der Schnittmuster)
+    beistellung: str = ""    # 'Kunde' = vom Kunden beigestelltes Material; nie mit eigenem Material auf einer Stange
 
     @property
     def nutzbar_bis(self):
@@ -423,7 +424,7 @@ def muster_optimierung(g):
     uebrig = [t for k in keys for t in vorrat[k]]
     if uebrig:
         h = Gruppe(g.profil, g.werkstoff, g.stange, g.endbeschnitt, g.greiferrest, g.kerf, g.abstand, g.oberflaeche,
-                   uebrig)
+                   uebrig, beistellung=g.beistellung)
         stangen += min((aufloesen(h, best_fit(h, uebrig)), aufloesen(h, first_fit(h, uebrig)), muster_folge(h)),
                        key=len)
     return aufloesen(g, stangen), schranke

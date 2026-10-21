@@ -1,7 +1,7 @@
 """Aufbau eines Angebots: Kopf und Positionen."""
 import re
 
-from .stammdaten import (ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, LIEFERZEIT_ARTEN, NUR_TEXT, WOCHEN,  # noqa: F401
+from .stammdaten import (ARBEITSTAGE, EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, KALENDERWOCHE, LIEFERDATUM, LIEFERZEIT_ARTEN, NUR_TEXT, WOCHEN,  # noqa: F401
                          Feld, Tabelle)
 
 KOPF = (
@@ -31,6 +31,8 @@ KOPF = (
     Feld("lieferzeit_art", "Lieferzeit als", "auswahl", auswahl="lieferzeitart"),
     Feld("lieferzeit_wert", "Lieferzeit"),
     Feld("lieferzeit_zusatz", "Lieferbedingungen (Freitext)"),
+    # Vorgabe der Spalte Material für neue Positionen (leer = Eigenmaterial); jede Position bleibt änderbar
+    Feld("material_vorgabe", "Material neuer Positionen", "auswahl", auswahl="materialherkunft"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
@@ -46,6 +48,8 @@ KALKULATION = (
     Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt); 0 = keiner. Ältere Angebote bekommen 0 (Schema 24).
     Feld("mindestpreis", "Mindestpreis Angebot netto [€]", "zahl", 0, 1000000, stellen=2),
+    # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je kg der beigestellten Stangen; 0 = keins
+    Feld("handling_beistellung", "Handling Kundenmaterial [€/kg]", "zahl", 0, 1000, stellen=3),
 )
 KALK_PROZENT = ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn")
 KOPF = KOPF + KALKULATION
@@ -65,6 +69,9 @@ def kalk_abweichungen(kopf, vorgaben):
 # Positionsart: leer = Rohrlaserteil (Profil, Optimierung, Laser); Zukaufteil = eingekauftes Teil ohne Fertigung
 # (z. B. Blech aus dem STEP-Import), Preis nur aus den Zukaufteilen der Position (Einstand + Aufschlag) und Fracht
 ROHRLASERTEIL, ZUKAUFTEIL = "Rohrlaserteil", "Zukaufteil"
+# Herkunft des Materials je Position: leer = Eigenmaterial (wie bisher); Kundenmaterial: keine Materialkosten,
+# eigene Stangengruppe, Bearbeitung wie sonst
+
 POSITIONSARTEN = (ROHRLASERTEIL, ZUKAUFTEIL)
 
 
@@ -173,6 +180,7 @@ POSITIONEN = Tabelle(
      Feld("satz", "Satz", breite=90),
      Feld("je_satz", "Stück je Satz", "ganz", 1, 100000, breite=60),
      Feld("preis_m", "Materialpreis [€/m]", "zahl", 0, 100000, stellen=2, breite=85),
+     Feld("material_herkunft", "Material", "auswahl", auswahl="materialherkunft", breite=110),
      Feld("gewinde", "Gewinde geprüft", muster=GEWINDE_MUSTER, breite=110),
      Feld("zeit_manuell", "Schneidzeit je Teil [s]", "zahl", 0, 100000, stellen=1, breite=85),
      # Zusatzarbeiten als JSON-Liste [{name, menge, preis, text}] (Dialog 'Zusatzarbeiten …')
@@ -198,7 +206,9 @@ POSITIONEN = Tabelle(
      Feld("gross_mm", "Kontur groß [mm]", "zahl", 0, 1000000, stellen=1, breite=70),
      # je Innenkontur Hüllmaß x Schnittweg (STEP-Import) und die Grenzen, mit denen eingeteilt wurde
      Feld("konturen", "Konturen Hüllmaß x Schnittweg [mm]", breite=200),
-     Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80)),
+     Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80),
+     # Eingaben des Schneidweg-Rechners als JSON (Enden, Konturen; siehe schneidweg.py), keine eigene Spalte
+     Feld("technik", "Schneidweg-Rechner", breite=120)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

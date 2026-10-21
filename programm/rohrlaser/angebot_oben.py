@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from . import fracht_angebot, rechnen
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
-from .angebot import (KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, LIEFERZEIT_HILFE, NUR_TEXT,
+from .angebot import (EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
                       aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
 from .sichtbarkeit import KOPF_ROLLEN, MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
@@ -23,7 +23,8 @@ KALK_NAMEN = {f.name for f in KALKULATION}
 KALK_OFFEN_EINSTELLUNG = "ansicht_kalkulation_offen"     # Karte Kalkulation auf- oder zugeklappt (alle Angebote)
 # Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs)
 GRUPPEN = (
-    ("Material und Fertigung", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung")),
+    ("Material und Fertigung", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung",
+                                "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung",)),
     ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht",
                             "mindestpreis")),
@@ -183,9 +184,26 @@ class KopfBereich(QWidget):
         self.lz_vorschau = QLabel()
         self.lz_vorschau.setStyleSheet(f"color: {GRAU};")
         g.addWidget(self.lz_vorschau, 4, 1, 1, 5)
+        # Material neuer Positionen: Eigenmaterial oder vom Kunden beigestellt; je Position änderbar
+        self.mat_vorgabe = QComboBox()
+        self.mat_vorgabe.addItems(MATERIAL_HERKUNFT)
+        self.mat_vorgabe.setToolTip("Vorgabe der Spalte Material für neue Positionen (auch STEP-Import); jede Position "
+                                    "bleibt einzeln änderbar")
+        self.mat_vorgabe.currentTextChanged.connect(
+            lambda t: seite._kopf_speichern(KOPF_FELD["material_vorgabe"], None if t == EIGENMATERIAL else t))
+        self.mat_alle = QPushButton("Für alle Positionen")
+        self.mat_alle.setToolTip("Die gewählte Materialherkunft in alle Positionen (Rohrlaserteile) eintragen")
+        self.mat_alle.clicked.connect(lambda: seite.material_fuer_alle(self.mat_vorgabe.currentText()))
+        mz = QHBoxLayout()
+        mz.setContentsMargins(0, 0, 0, 0)
+        mz.addWidget(self.mat_vorgabe)
+        mz.addWidget(self.mat_alle)
+        mz.addStretch(1)
+        g.addWidget(QLabel(KOPF_FELD["material_vorgabe"].titel), 5, 0)
+        g.addLayout(mz, 5, 1, 1, 5)
         w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
-        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 5, 0)
-        g.addWidget(w, 5, 1, 1, 5)
+        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 6, 0)
+        g.addWidget(w, 6, 1, 1, 5)
         for c in (1, 3, 5):
             g.setColumnStretch(c, 1)
         kl.addLayout(g)
@@ -482,6 +500,9 @@ class KopfBereich(QWidget):
                 else:
                     w.setText(v or "")
         self._lieferzeit_anzeigen()
+        self.mat_vorgabe.blockSignals(True)
+        self.mat_vorgabe.setCurrentText(s.kopf.get("material_vorgabe") or EIGENMATERIAL)
+        self.mat_vorgabe.blockSignals(False)
         self._abweichungen_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()
@@ -590,14 +611,18 @@ class KopfBereich(QWidget):
     def sichtbarkeit(self):
         """Optionale Felder mit 0 in die Erweiterten Einstellungen, alle anderen in die Hauptansicht."""
         versteckt = 0
+        # Handling Kundenmaterial nur, wenn es Kundenmaterial gibt (Position oder Vorgabe) oder ein Wert eingetragen ist
+        kunde = any(rechnen.beigestellt(p) for p in self.s.positionen) or \
+            self.s.kopf.get("material_vorgabe") == KUNDENMATERIAL
         for name, (b, w) in self.zeilen.items():
             zeigen = kopf_sichtbar(name, self.wert(name))
+            weg = name == "handling_beistellung" and not zeigen and not kunde
             b.setVisible(zeigen)
             w.setVisible(zeigen)
             be, we = self.zeilen_erweitert[name]
-            be.setVisible(not zeigen)
-            we.setVisible(not zeigen)
-            versteckt += not zeigen
+            be.setVisible(not zeigen and not weg)
+            we.setVisible(not zeigen and not weg)
+            versteckt += not zeigen and not weg
         for titel, (leer, namen) in self.gruppen_leer.items():
             leer.setVisible(not any(kopf_sichtbar(n, self.wert(n)) for n in namen) and titel != "Zeit und Rüsten")
         self.erweitert_leer.setVisible(versteckt == 0)

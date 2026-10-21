@@ -32,14 +32,15 @@ from . import zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
-from .angebot import KALK_PROZENT, KALKULATION, KOPF, POSITIONEN, ZAHLUNG, lieferzeit_wert, naechste_nummer
+from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, lieferzeit_wert,
+                      naechste_nummer)
 from .staffeln import STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 24     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 26     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -49,6 +50,8 @@ SCHEMA_VERSION = 24     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 22: profile.wand_max (größte Wandstärke für die Schneidzeit), Normprofile aus der Tabelle
                         # 23: Lieferlängen (Tabelle lieferlaengen, profile.laengenvergleich, angebote.laengenwahl)
                         # 24: Kundenreferenz, Lieferzeit und Mindestpreis im Angebot (ältere Angebote: Mindestpreis 0)
+                        # 25: Kundenmaterial (positionen.material_herkunft, Kopf material_vorgabe, Handling je kg)
+                        # 26: Schneidweg-Rechner (positionen.technik, Eingaben als JSON; ältere Positionen leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -1094,6 +1097,10 @@ class Datenbank:
 
     def position_neu(self, angebot_id, werte=None):
         werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
+        if "material_herkunft" not in werte:      # Vorgabe des Angebots (Material neuer Positionen)
+            r = self.con.execute("SELECT material_vorgabe FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+            if r and r[0] == KUNDENMATERIAL and werte.get("art") != ZUKAUFTEIL:
+                werte["material_herkunft"] = KUNDENMATERIAL
         nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM positionen WHERE angebot_id=?",
                               (angebot_id,)).fetchone()[0]
         namen = ["angebot_id", "nr"] + list(werte)

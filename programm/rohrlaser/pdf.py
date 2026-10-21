@@ -132,7 +132,7 @@ def angebot_pdf(pfad, kopf, ang, einst):
     inhalt += [t, Spacer(1, 3 * mm)]
     # Lieferzeit des Angebots vor den Bedingungen; ältere Angebote ohne Lieferzeit: nur der Text der Bedingungen
     bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
-    bedingungen = " ".join(t for t in (ang.get("lieferzeit"), ang.get("fracht"), ang.get("zahlung"),
+    bedingungen = " ".join(t for t in (ang.get("lieferzeit"), ang.get("beistellung"), ang.get("fracht"), ang.get("zahlung"),
                                        ang.get("mindestpreis"), bed) if t)
     if bedingungen:
         inhalt += [_p(bedingungen, S_KLEIN), Spacer(1, 4 * mm)]

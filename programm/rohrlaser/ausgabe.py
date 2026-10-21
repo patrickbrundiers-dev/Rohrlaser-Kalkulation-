@@ -116,7 +116,8 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     zeilen = [profiltext(p.get("profil_id"), k, dezimal),
               f"L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else "L =  mm"]
     w = k.werkstoffe.get(p.get("werkstoff_id"))
-    zeilen.append("inkl. Material " + ((w or {}).get("angebotstext") or str(p.get("werkstoff_id") or "")))
+    material = (w or {}).get("angebotstext") or str(p.get("werkstoff_id") or "")
+    zeilen.append(f"Material {material} vom Kunden beigestellt" if rechnen.beigestellt(p) else "inkl. Material " + material)
     ob = rechnen.oberflaeche_von(p)
     if ob:
         zeilen.append((k.oberflaechen.get(ob) or {}).get("angebotstext") or ob)
@@ -162,7 +163,31 @@ def _einruecken(vorsatz, text):
     return "\n".join(["   " + vorsatz + erste] + ["\u00a0" * round(1.5 * len(vorsatz)) + z for z in rest])
 
 
-def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=","):
+def beistellung_text(positionen, ergebnis, k, einst, dezimal=","):
+    """Hinweis im Angebot, wenn der Kunde Material beistellt, mit dem Stangenbedarf aus der Optimierung, z. B.
+    'Material wird vom Kunden beigestellt: 3 Stangen Quadratrohr 40 x 40 x 3, S235 EN10219, à 6.000 mm.'
+    Leer ohne Kundenmaterial oder wenn die Einstellung 'beistellung_hinweis' nein ist."""
+    pos = [p for p in positionen if rechnen.beigestellt(p) and position_aktiv(p) and not ist_zukaufteil(p)]
+    if not pos or (einst or {}).get("beistellung_hinweis") == "nein":
+        return ""
+    bedarf = {}
+    for s in (ergebnis or {}).get("stangen") or ():
+        if s.get("beistellung"):
+            schl = (s["profil"], s["werkstoff"], s.get("oberflaeche") or "", s["stange"])
+            bedarf[schl] = bedarf.get(schl, 0) + 1
+    if not bedarf:
+        nr = ", ".join(str(p.get("pos") or p.get("artikel") or "") for p in pos)
+        return f"Das Material der Pos. {nr} wird vom Kunden beigestellt."
+    teile = []
+    for (profil, werkstoff, ob, stange), n in bedarf.items():
+        w = (k.werkstoffe.get(werkstoff) or {}).get("angebotstext") or werkstoff
+        laenge = f"{kaufm_runden(stange, 0):,.0f}".replace(",", ".")
+        teile.append(f"{n} {'Stange' if n == 1 else 'Stangen'} {profiltext(profil, k, dezimal)}, {w}"
+                     + (f", {ob}" if ob else "") + f", à {laenge} mm")
+    return "Material wird vom Kunden beigestellt: " + "; ".join(teile) + "."
+
+
+def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=",", ergebnis=None):
     """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
     zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt}], netto, mwst, brutto,
     mwst_satz, staffeln [{art, pos, text, menge, bereich ('ab 10' bzw. '10–49'), preis, gesamt}] (Stufen mit FEHLER
@@ -234,7 +259,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[],
                 lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen")),
                 mindestpreis=f"Mindestauftragswert {euro_text(mindest)} € netto." if gilt and mindest > 0 else "",
-                kundenreferenz=kopf.get("kundenreferenz") or "")
+                kundenreferenz=kopf.get("kundenreferenz") or "",
+                beistellung=beistellung_text(positionen, ergebnis, k, einst, dezimal))
 
 
 def _prozent(w):
@@ -285,7 +311,8 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     material = {}
     for s, w in paare:
         m = material.setdefault((rechnen.gruppe_der_stange(s), s["stange"]),
-                                dict(profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], s.get("oberflaeche")),
+                                dict(profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], s.get("oberflaeche"))
+                                     + (" – Kundenmaterial" if s.get("beistellung") else ""),
                                      stange=s["stange"], stangen=0, gewicht=0.0))
         m["stangen"] += 1
         m["gewicht"] += _wert(w["gewicht"])
