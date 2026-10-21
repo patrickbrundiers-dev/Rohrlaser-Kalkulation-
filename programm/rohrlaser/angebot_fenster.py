@@ -637,6 +637,37 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst):
     return "<hr>".join(teile)
 
 
+def laengen_sinnvoll(erg, kopf, positionen, k, tabellen, einst):
+    """Kurztext, wenn der Vergleich der Lieferlängen eine sinnvolle Lösung zeigt (eine andere Länge ist empfohlen
+    oder nur sie ist lieferbar) oder schon eine andere Länge geplant ist; sonst None (Knopf ausgeblendet)."""
+    texte = []
+    for vg in (erg or {}).get("laengen") or []:
+        b = rechnen.laengen_bewerten(vg, kopf, positionen, k, tabellen, einst)
+        if vg.get("gewaehlt") and vg["gewaehlt"] != vg["stange"]:
+            texte.append(f"{vg['profil']}: {rechnen.m_text(vg['gewaehlt'])} m geplant")
+        elif b["empfehlung"] in (rechnen.LAENGE_ALTERNATIVE, rechnen.LAENGE_NUR_ALTERNATIVE):
+            texte.append(f"{vg['profil']}: {b['titel']}")
+    return " · ".join(texte) or None
+
+
+class LaengenDialog(QDialog):
+    """Vergleich der Lieferlängen (6 m gegen 12 m) groß in einem eigenen Fenster; Links übernehmen eine Länge."""
+
+    def __init__(self, seite):
+        super().__init__(seite)
+        self.setWindowTitle("Lieferlängen: 6 m gegen 12 m")
+        self.resize(1250, 820)
+        lay = QVBoxLayout(self)
+        self.ansicht = QTextBrowser()
+        self.ansicht.setOpenLinks(False)
+        self.ansicht.zoomIn(4)          # groß: bessere Übersicht als im Reiter
+        self.ansicht.anchorClicked.connect(lambda url: seite.laenge_waehlen(url.toString()))
+        lay.addWidget(self.ansicht, 1)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(self.reject)
+        lay.addWidget(knoepfe)
+
+
 # ------------------------------------------------------------------ Angebot
 def _d(w):
     return float(w) if w is not None else None
@@ -824,11 +855,20 @@ class AngebotSeite(QWidget):
         al.addWidget(ausw_ansicht, 2)
         al.addWidget(QLabel("<b>Nicht eingeplante Teile</b>"))
         al.addWidget(fehler_ansicht, 1)
-        al.addWidget(QLabel("<b>Lieferlängen: 6 m gegen 12 m</b> (Vergleich je Gruppe, Stammdaten Lieferlängen)"))
-        self.laengen_ansicht = QTextBrowser()
-        self.laengen_ansicht.setOpenLinks(False)
-        self.laengen_ansicht.anchorClicked.connect(lambda url: self.laenge_waehlen(url.toString()))
-        al.addWidget(self.laengen_ansicht, 2)
+        # Lieferlängen: Knopf nur bei einer sinnvollen Lösung, der Vergleich selbst groß im eigenen Fenster
+        self.laengen_dialog = LaengenDialog(self)
+        self.laengen_ansicht = self.laengen_dialog.ansicht
+        lz = QHBoxLayout()
+        self.laengen_knopf = QPushButton("12-m-Lösung ansehen …")
+        self.laengen_knopf.setToolTip("Lieferlängen: 6 m gegen 12 m – Vergleich je Gruppe in einem großen Fenster")
+        self.laengen_knopf.clicked.connect(self.laengen_zeigen)
+        self.laengen_hinweis = QLabel()
+        self.laengen_hinweis.setWordWrap(True)
+        lz.addWidget(self.laengen_knopf)
+        lz.addWidget(self.laengen_hinweis, 1)
+        al.addLayout(lz)
+        self.laengen_knopf.setVisible(False)
+        self.laengen_hinweis.setVisible(False)
         zk_seite = QWidget()            # Zukaufteile: Bestellung je Artikel und Preisstand (ganzes Angebot)
         zl = QVBoxLayout(zk_seite)
         self.zukauf_info = QLabel()
@@ -1127,6 +1167,10 @@ class AngebotSeite(QWidget):
             self.fehler.setzen([])
         self.teile.setzen([])
         self.laengen_ansicht.setHtml(laengen_html(erg, self.kopf, self.positionen, self.k, self.tabellen, self.einst))
+        hinweis = laengen_sinnvoll(erg, self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        self.laengen_knopf.setVisible(bool(hinweis))
+        self.laengen_hinweis.setVisible(bool(hinweis))
+        self.laengen_hinweis.setText(f"<b>Lieferlängen:</b> {hinweis}" if hinweis else "")
         self.bild.setzen(dict(erg, stangen=rechnen.anzeige_stangen(erg)) if erg else erg)
         self.prot.setzen(self.db.protokoll(self.id))
         self.st_seite.setzen()
@@ -1447,6 +1491,12 @@ class AngebotSeite(QWidget):
         self.f.meldung(text + ".")
         return True
 
+    def laengen_zeigen(self):
+        """Vergleich der Lieferlängen im großen Fenster öffnen."""
+        self.laengen_dialog.show()
+        self.laengen_dialog.raise_()
+        self.laengen_dialog.activateWindow()
+
     def laenge_waehlen(self, link):
         """Link 'laenge:<Gruppe>:<Länge>' aus dem Vergleich der Lieferlängen: Länge für die Gruppe übernehmen (0 = wieder
         die Stangenlänge des Angebots), speichern und neu optimieren."""
@@ -1606,7 +1656,7 @@ class AngebotSeite(QWidget):
         wp = ausgabe.werkstatt(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
         aktuell = self.stand_optimierung() == "aktuell"
         return self._schreiben("Werkstattpapiere", self._ziel("Werkstattpapiere", ".pdf"),
-                               lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell))
+                               lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
 
     def kalkulation_pdf(self):
         if not self._vor_ausgabe():

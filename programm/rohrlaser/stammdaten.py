@@ -422,7 +422,7 @@ class Einstellung:
     name: str
     titel: str
     gruppe: str
-    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort
+    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort | bild
     vorgabe: object
     von: float = None
     bis: float = None
@@ -466,6 +466,14 @@ EINSTELLUNGEN = (
                 12000, 500, 30000),
     Einstellung("zuschnitt_verlust", "Lieferlängen: Schnittverlust je Zuschnitt beim Lieferanten [mm]",
                 "Lieferlängen", "zahl", 3.0, 0, 50),
+    Einstellung("zuschnitt_puffer", "Lieferlängen: Puffer je zugeschnittener Stange [mm]", "Lieferlängen", "ganz",
+                50, 0, 1000),
+    Einstellung("haendler_mehr_kurz", "Materialpreis: Mehrlänge je Stange, die der Händler berechnet, bis zur "
+                "Grenze (z. B. 6 m) [mm]", "Lieferlängen", "ganz", 50, 0, 1000),
+    Einstellung("haendler_mehr_lang", "Materialpreis: Mehrlänge je Stange über der Grenze (z. B. 12 m) [mm]",
+                "Lieferlängen", "ganz", 100, 0, 1000),
+    Einstellung("haendler_mehr_grenze", "Materialpreis: Grenze kurze/lange Stange [mm]", "Lieferlängen", "ganz",
+                6500, 0, 30000),
     Einstellung("zuschnitt_kosten", "Lieferlängen: Kosten je Zuschnitt beim Lieferanten [€]", "Lieferlängen", "zahl",
                 0.0, 0, 10000),
     Einstellung("standard_maschine", "Standard-Maschine", "Angebot", "auswahl", "T03",
@@ -491,6 +499,8 @@ EINSTELLUNGEN = (
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
     Einstellung("briefkopf_4", "Briefkopf Zeile 4", "Angebots-PDF", "text", "Telefon / E-Mail"),
+    # Bild als Base64-PNG in der Datendatei (wandert mit Sicherung und Export mit); leer = ohne Logo
+    Einstellung("logo", "Firmenlogo (rechts oben im Angebot)", "Angebots-PDF", "bild", ""),
     Einstellung("mwst", "MwSt.-Satz", "Angebots-PDF", "anteil", 0.19, 0, 1),
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",

@@ -11,7 +11,8 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QUrl, Signal
-from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QKeySequence
+from PySide6.QtCore import QBuffer, QByteArray
+from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
@@ -371,6 +372,63 @@ class MehrzeiligEingabe(QPlainTextEdit):
         self.fertig.emit()
 
 
+def logo_aus_datei(pfad, groesste=1200):
+    """Bilddatei (PNG, JPG, BMP …) als Base64-PNG für die Einstellung 'logo', auf höchstens `groesste` Pixel
+    verkleinert. ValueError, wenn die Datei kein lesbares Bild ist."""
+    bild = QImage(str(pfad))
+    if bild.isNull():
+        raise ValueError(f"{Path(pfad).name} ist kein lesbares Bild (PNG oder JPG wählen).")
+    if max(bild.width(), bild.height()) > groesste:
+        bild = bild.scaled(groesste, groesste, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    roh = QByteArray()
+    puffer = QBuffer(roh)
+    puffer.open(QBuffer.WriteOnly)
+    bild.save(puffer, "PNG")
+    return bytes(roh.toBase64()).decode("ascii")
+
+
+class LogoEingabe(QWidget):
+    """Einstellung 'bild': Vorschau, 'Bild wählen …' und 'Entfernen'. geaendert(daten) mit Base64-PNG oder ''."""
+    geaendert = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.vorschau = QLabel("kein Logo")
+        self.vorschau.setFixedSize(160, 60)
+        self.vorschau.setAlignment(Qt.AlignCenter)
+        self.vorschau.setStyleSheet("border: 1px solid #BFBFBF; background: white;")
+        waehlen, weg = QPushButton("Bild wählen …"), QPushButton("Entfernen")
+        waehlen.clicked.connect(self._waehlen)
+        weg.clicked.connect(lambda: self._setzen(""))
+        for w in (self.vorschau, waehlen, weg):
+            lay.addWidget(w)
+        lay.addStretch(1)
+
+    def anzeigen(self, daten):
+        bild = QPixmap()
+        if daten and bild.loadFromData(QByteArray.fromBase64(daten.encode("ascii"))):
+            self.vorschau.setPixmap(bild.scaled(156, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            self.vorschau.clear()
+            self.vorschau.setText("kein Logo")
+
+    def _waehlen(self):
+        from PySide6.QtWidgets import QFileDialog
+        pfad, _ = QFileDialog.getOpenFileName(self, "Firmenlogo wählen", "", "Bilder (*.png *.jpg *.jpeg *.bmp *.gif)")
+        if not pfad:
+            return
+        try:
+            self._setzen(logo_aus_datei(pfad))
+        except ValueError as fehler:
+            QMessageBox.warning(self, "Firmenlogo", str(fehler))
+
+    def _setzen(self, daten):
+        self.anzeigen(daten)
+        self.geaendert.emit(daten)
+
+
 class EinstellungenSeite(QScrollArea):
     """Einstellungen als Formular; gruppen = nur diese Gruppen, ohne = diese Gruppen nicht."""
 
@@ -430,6 +488,9 @@ class EinstellungenSeite(QScrollArea):
             w = QLineEdit()
             w.setEchoMode(QLineEdit.PasswordEchoOnEdit)
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text()))
+        elif e.art == "bild":
+            w = LogoEingabe()
+            w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
         else:
             w = QLineEdit()
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
@@ -471,6 +532,8 @@ class EinstellungenSeite(QScrollArea):
                 w.clear()
                 w.addItems(k.auswahl(e.auswahl))
                 w.setCurrentText(v or "")
+            elif e.art == "bild":
+                w.anzeigen(v or "")
             else:
                 w.setText(v or "")
         self._laden = False

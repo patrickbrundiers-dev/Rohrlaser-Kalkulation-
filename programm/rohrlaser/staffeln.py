@@ -68,8 +68,9 @@ ERWEITERT = ("bis", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten"
 AUSWAHL = {"zuschlag_art": [PROZENT, EURO], "ruesten": [UMLEGEN, SEPARAT], "janein": ["ja", "nein"]}
 # Einstellungen, die in den Mengenlauf eingehen (Zuschläge und Gewinn wirken erst in der Preisschicht)
 EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag")
-EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_kosten",
-                 "laenge_auto_huellkreis", "laenge_auto")
+EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_puffer", "zuschnitt_kosten",
+                 "haendler_mehr_kurz", "haendler_mehr_lang", "haendler_mehr_grenze", "laenge_auto_huellkreis",
+                 "laenge_auto")
 
 
 def txt(v):

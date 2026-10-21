@@ -742,8 +742,10 @@ class Datenbank:
     def tabellen(self):
         """Stammdaten, die die Rechnung braucht (Preise, Lieferlängen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
         Arbeitsschritte)."""
-        return {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
-                                            "stundensaetze", "arbeitsschritte")}
+        tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
+                                           "stundensaetze", "arbeitsschritte")}
+        tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
+        return tab
 
     def zeitbasis_vorgabe(self, maschinen_id):
         """Snapshot der Stundensätze und Zeitvorgaben für ein Angebot (rechnen.zeitbasis_aus)."""

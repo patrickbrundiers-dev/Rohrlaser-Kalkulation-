@@ -1142,8 +1142,10 @@ def kapitel_optimieren(i):
     i.abschnitt("Lieferlängen: 6 m gegen 12 m", marke="lieferlaengen")
     i.text("Gibt es für ein Profil + Werkstoff weitere Lieferlängen (Stammdaten <i>Lieferlängen</i>, z. B. "
            "12.000 mm), plant das Programm beim Optimieren jede Länge unter gleichen Bedingungen (gleiche Teile, "
-           "Endbeschnitt, Greiferrest, Schnittverlust, gemeinsame Schnitte) und vergleicht sie im Reiter "
-           "<i>Auswertung</i> unter <b>Lieferlängen: 6 m gegen 12 m</b>. Ohne Eintrag gilt das für Profile mit "
+           "Endbeschnitt, Greiferrest, Schnittverlust, gemeinsame Schnitte) und vergleicht sie. <b>Nur wenn eine "
+           "sinnvolle Lösung gefunden wurde</b> (12 m empfohlen, nur 12 m lieferbar oder 12 m schon geplant), "
+           "erscheint im Reiter <i>Auswertung</i> unten der Knopf <b>12-m-Lösung ansehen …</b> mit einem Kurztext; er "
+           "öffnet den Vergleich <b>Lieferlängen: 6 m gegen 12 m</b> groß in einem eigenen Fenster. Ohne Eintrag gilt das für Profile mit "
            "Hüllkreis-Ø über 70 mm (Einstellung). Kleinere Profile ohne Eintrag und Profile mit "
            "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
@@ -1154,10 +1156,15 @@ def kapitel_optimieren(i):
             "(Vorgabe 2.500 mm), damit die automatische Stangenladung sie nimmt. Eine kürzere Stange (z. B. für die "
             "letzten Teile einer Abmessung) wird auf die Mindestlänge verlängert, der Mehrbedarf ist Verschnitt. "
             "Ziel-Längen "
-            "unter der Mindestlänge (z. B. 12 m / 5) werden nicht ausprobiert. Was am Ende einer 12-m-Stange "
-            "übrig bleibt, ist ebenfalls Verschnitt.",
+            "unter der Mindestlänge (z. B. 12 m / 5) werden nicht ausprobiert.",
+            "<b>Die Restlänge der 12-m-Stange kommt an die letzte Stange</b>, solange diese dadurch nicht länger als "
+            "die Beladelänge wird. Das spart einen Sägeschnitt. Beispiel (T03, 50 mm Puffer): 2 × 4.000 + 1 × 2.900 "
+            "mm werden zu 4.203 + 4.203 + 3.588 mm statt 4.203 + 4.203 + 3.103 mm + Abfall – eine 12-m-Stange statt "
+            "drei 6-m-Stangen. "
+            "Passt die Restlänge nicht dran, ist sie Abfall und erscheint nicht als Stange.",
             "Ein Werkstück = Endbeschnitt + Teile + Trennschnitte + Schnittverlust + Greiferrest, auf ganze mm "
-            "aufgerundet. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
+            "aufgerundet, plus <b>Puffer</b> (Einstellung, Vorgabe 50 mm), damit nicht auf den Millimeter genau "
+            "zugeschnitten wird; der Puffer ist Verschnitt. Zwischen zwei Werkstücken geht der Schnittverlust des Zuschnitts verloren (Einstellung, "
             "Vorgabe 3 mm). Passen Werkstücke deshalb nicht mehr zusammen in die Stange, kommen sie auf die nächste.",
             "Gerechnet wird zweistufig: erst die Teile zu Werkstücken (dieselbe Optimierung wie bei normalen "
             "Stangen, mit mehreren Ziel-Längen: Beladelänge, Lieferlänge / 2, / 3 …), dann die Werkstücke auf die "
@@ -1173,8 +1180,8 @@ def kapitel_optimieren(i):
            "gleich. Die Tabelle zeigt je Variante Stangen, Beladungen, Zuschnitte, Stangenlängen nach Zuschnitt, Materiallänge, "
            "Materialkosten, Stangenwechsel, Zuschnittkosten, Reststückwert (nicht angerechnet), Gesamtkosten, "
            "Verschnitt in mm und % und fehlende Angaben.")
-    i.bild("erg_lieferlaengen", "Reiter Auswertung, Lieferlängen: 30 Stützen 3.100 mm, 12 m spart ein Drittel "
-                                "Material", hoehe=110 * mm,
+    i.bild("erg_lieferlaengen", "Fenster Lieferlängen (Knopf 12-m-Lösung ansehen …): 30 Stützen 3.100 mm, 12 m "
+                                "spart ein Drittel Material", hoehe=110 * mm,
            legende=[(1, "Vergleich je Gruppe mit Empfehlung, Begründung und Link zum Übernehmen")])
     i.tabelle(["Empfehlung", "Wann"], [
         ["<b>6-m-Stangen empfohlen</b>", "Profil ausgenommen oder keine ausführbare andere Lieferlänge"],
@@ -1197,8 +1204,14 @@ def kapitel_optimieren(i):
            "jedes zugeschnittene Stück erscheint als eigene Stange mit Endbeschnitt, Teilen, Schnittverlust und "
            "Greiferrest, genau wie eine normale Stange. Der Zuschnitt der 12-m-Stange selbst wird dort nicht gezeigt. "
            "Gerechnet wird er trotzdem: Material und Kosten zählen die 12-m-Stangen, der Schnittverlust des Zuschnitts "
-           "(Einstellung, Vorgabe 3 mm) ist eingerechnet. Die Materialkosten einer 12-m-Stange werden nach Länge auf "
-           "ihre Stücke verteilt.")
+           "(Einstellung, Vorgabe 3 mm) ist eingerechnet. Es wird immer die ganze 12-m- bzw. 6-m-Stange berechnet; "
+           "Abfall verteilt sich gleichmäßig nach Länge auf alle Teile und Stücke der Gruppe – auch ein Stück, das "
+           "allein auf einer 12-m-Stange liegt, trägt nur seinen Längenanteil.")
+    i.text("<b>Händler-Mehrlänge:</b> Der Händler berechnet je Stange etwas mehr Länge, als geliefert wird (Vorgabe "
+           "+50 mm bis 6.500 mm, z. B. 6 m, und +100 mm darüber, z. B. 12 m; Einstellungen, Gruppe Lieferlängen). "
+           "Das gilt nur für den Materialpreis nach Länge oder Gewicht (€/m, €/kg, Tonnenpreis), nicht für die "
+           "Längenplanung und nicht für Preise je Stange. Der angezeigte Meterpreis im Angebot bleibt ohne "
+           "Mehrlänge.")
     i.bild("erg_lieferlaengen_bild", "Stangenbild nach dem Übernehmen: jedes zugeschnittene Stück als eigene Stange mit "
                                      "Endbeschnitt und Greiferrest", hoehe=80 * mm)
     i.liste("Schnittplan: je Stück eine Zeile mit seiner Länge (z. B. 3.253 mm), Von/Bis der Teile im Stück.",
@@ -1251,7 +1264,8 @@ def kapitel_staffeln(i):
                                            "Stangenkosten"],
         ["Gemeinkosten Fertigung", "in % auf Fertigung und Rüsten, nicht auf Material (leer = Zuschlag "
                                    "Fertigung des Angebots)"],
-        ["Rüstkosten", "umlegen (leer) = im Stückpreis; separat = als einmalige Rüstkosten neben dem Stückpreis"],
+        ["Rüstkosten", "umlegen (leer) = im Stückpreis; separat = im Reiter als einmalige Rüstkosten neben dem "
+                       "Stückpreis (im Angebots-PDF trotzdem im Preis je Einheit enthalten)"],
         ["Zusätzlicher Arbeitsgang", "Bezeichnung, Arbeitsgang [min/Einheit] mit Arbeitsgang Stundensatz "
                                      "(leer = Maschinenstundensatz) und/oder Arbeitsgang [€/Einheit]"],
         ["Verpackung / Nebenkosten", "€/Einheit und Nebenkosten pauschal € für die Stufe; zählen zu den "
@@ -1274,7 +1288,8 @@ def kapitel_staffeln(i):
             "<b>Gesamtpreis brutto</b>.", nummeriert=True)
     i.text("Gerechnet wird ungerundet; erst der Verkaufspreis netto je Einheit wird auf Cent gerundet "
            "(kaufmännisch), der Gesamtpreis ist Stückpreis × Menge (plus einmalige Rüstkosten). Ohne Werte je Stufe "
-           "ergibt das genau den Preis der Kalkulation.")
+           "ergibt das genau den Preis der Kalkulation. Im Angebots-PDF stehen keine Extra-Kosten: einmalige "
+           "Rüstkosten sind dort in den Preis je Einheit eingerechnet (auf den Cent aufgerundet).")
     i.text("<b>Fracht je Menge</b>: Mit der Frachtart <i>berechnet</i> (Karte Fracht im Angebot) rechnet jede Stufe "
            "ihre eigene Fracht: Nettogewicht und längstes Teil der Stufe, Ladungsträger per Packvorschlag, Fracht mit "
            "der gespeicherten Tarifkopie des Angebots. Verpackungsgewicht und frachtpflichtiges Gewicht von Hand "
@@ -1308,8 +1323,11 @@ def kapitel_staffeln(i):
             "Fehlt der Materialpreis (keine Preise in den Stammdaten, kein Schnittplan), rechnet das Programm nicht "
             "mit 0: die Stufe zeigt „FEHLER: Materialpreis fehlt“ und bekommt keinen Preis.",
             "Stufen mit FEHLER kommen nicht ins Angebot.")
-    i.text("Die Staffelpreise erscheinen im Angebot als Preistreppe unter den Positionen, mit Mengenbereich "
-           "(z. B. „1“, „2–4“, „ab 10“) und gegebenenfalls einmaligen Rüstkosten. Ändert sich etwas am "
+    i.text("Die Staffelpreise erscheinen im Angebots-PDF direkt in ihrer Position: unter der Zeile mit "
+           "Menge und Preis je Einheit eingerückt je Stufe eine Zeile „Ab 50 Stk. je“ (bei Sätzen „Ab 4 Sätze je“) "
+           "mit dem Staffelpreis, aufsteigend nach Menge, danach der übrige Positionstext. Staffelzeilen haben keinen "
+           "Gesamtpreis und zählen nicht zur Summe. Eine Stufe mit gleicher Menge und gleichem Preis wie die "
+           "Position entfällt dort. Ändert sich etwas am "
            "Angebot, zeigt der Reiter VERALTET und rechnet nach; das Angebot rechnet veraltete Staffelpreise "
            "vor dem Drucken ebenfalls selbst neu. Ältere Angebote rechnen unverändert weiter: ihre Stufen haben "
            "leere Felder, also die Werte des Angebots. Vor dem Umstellen einer älteren Datendatei legt das "
@@ -1570,16 +1588,20 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Die Knöpfe rechts neben <b>Ausgabe</b> im Angebot erzeugen die Unterlagen. Jede Datei wird im Ablageordner gespeichert "
            "und gleich geöffnet. Ist die Optimierung veraltet, fragt das Programm vorher.")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
-        (1, "<b>Angebot (PDF)</b>: Briefkopf, Kunde mit Anschrift aus dem Kundenstamm, Positionen mit "
-            "Bezeichnung, Stück- und Gesamtpreis, Sätze, Summe mit MwSt., Preistreppe der Staffeln, "
-            "Ihre Anfrage (Kundenreferenz), Lieferzeit ([[lieferzeit]]), Zahlungsbedingung (z. B. „Zahlung innerhalb "
+        (1, "<b>Angebot (PDF)</b>: Briefkopf mit Firmenlogo (Einstellung <i>Firmenlogo</i>), Anschriftfeld "
+            "links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), Positionen "
+            "ohne Gitterlinien mit Bezeichnung, Menge, Einheit, Preis je Einheit und Gesamtpreis, darunter die "
+            "Staffelpreise der Position „Ab 50 Stk. je“ ([[staffeln]]), Sätze, Summe mit MwSt. und Gesamtbetrag, "
+            "darunter die Konditionen: Lieferzeit ([[lieferzeit]]), Zahlungsbedingung (z. B. „Zahlung innerhalb "
             "10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“), ggf. „Mindestauftragswert 200,00 € netto.“ "
-            "([[mindestpreis]]) und Bedingungen. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
+            "([[mindestpreis]]) und Bedingungen, jede Angabe in einer eigenen Zeile. Stückpreise sind kaufmännisch auf den Cent gerundet (2,675 € → 2,68 €); der "
             "Gesamtpreis jeder Zeile ist Stückpreis × Menge, die Summe genau die Summe der Zeilen."),
-        (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan zum Abhaken, "
-            "danach das Stangenbild."),
-        (3, "<b>Kalkulation (PDF)</b>: alle Kalkulationswerte je Position für die interne Ablage, dazu die "
-            "Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
+        (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan mit Kästchen zum "
+            "Abhaken, danach das Stangenbild."),
+        (3, "<b>Kalkulation (PDF)</b>: oben die Kennzahlen (Verkaufspreis, Herstellkosten, Gewinn, Material, "
+            "Maschinenzeit, Stangen, Teile), darunter die Kostenarten (ohne 0,00 €, Herstellkosten und Verkaufspreis "
+            "hervorgehoben), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die interne Ablage und "
+            "die Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
         (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
@@ -1613,9 +1635,15 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.bilder_nebeneinander(["pdf_werkstatt_1", letzte],
                            "Werkstattpapiere: Materialliste und Schnittpläne (links), Stangenbild (rechts)",
                            hoehe=150 * mm)
+    i.text("Alle PDFs haben dasselbe Aussehen wie das Angebot: Firmenname und kleines Firmenlogo oben, Titel in "
+           "Dunkelblau, darunter Angebot, Kunde, Maschine und Erstellzeit, Listen ohne Gitter mit feinen Linien und "
+           "jeder zweiten Zeile leicht hinterlegt, Fußzeile mit Firmenname und Seitenzahl.")
+    i.text("Je Stangenmuster steht eine Kopfzeile mit Stangennummern, Profil, Werkstoff und Anzahl gleicher "
+           "Stangen, darunter Stangenlänge, Endbeschnitt, Greiferrest, Rest und Ausnutzung. In der Liste sind Pos. "
+           "und Länge fett, die Spalte <i>erl.</i> hat ein Kästchen zum Abhaken.")
     i.text("Hat das Angebot Zukaufteil-Positionen (z. B. Bleche), steht unter der Materialliste die Liste "
            "<i>Zukaufteile (nicht lasern, zum Auftrag bereitstellen)</i> mit Pos., Artikelnummer, Bezeichnung, "
-           "Zukaufartikel und Stückzahl.")
+           "Zukaufartikel, Stückzahl und Kästchen <i>bereit</i>.")
     i.abschnitt("Kalkulation (PDF)")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
     i.abschnitt("Zeichnungen je Position", marke="zeichnungen")
@@ -1674,7 +1702,9 @@ def kapitel_nachkalkulation(i):
             "Rechnung</b> [€] und eine <b>Bemerkung Nachkalkulation</b>. Grau steht im leeren Feld das Soll."),
         (3, "Vergleich je Kostenart: Menge und Betrag Soll und Ist, Abweichung in € und %. Darunter Einzelkosten, "
             "Erlös und <b>Deckungsbeitrag</b> (Erlös − Einzelkosten)."),
-        (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner. <b>Ist-Werte löschen</b> setzt "
+        (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner: oben Kacheln mit Erlös, "
+            "Einzelkosten Ist, Abweichung und Deckungsbeitrag Ist/Soll, Abweichungen farbig (rot = teurer bzw. "
+            "schlechter als kalkuliert, grün = günstiger bzw. besser). <b>Ist-Werte löschen</b> setzt "
             "alles zurück.")])
     i.liste("Jede Eingabe wird sofort gespeichert. Leere Felder zählen wie kalkuliert; die Spalte <i>Ist erfasst</i> "
             "zeigt, welche Werte wirklich eingetragen sind.",
@@ -1746,6 +1776,14 @@ def kapitel_einstellungen(i):
                          "Zuschnitt beim Lieferanten [€]",
          "Materialverlust und Kosten, wenn der Lieferant eine lange Stange in Werkstücke schneidet (Vorgabe 3 mm und "
          "0 €: die Stangen kommen geschnitten ohne Zusatzkosten)."],
+        ["Lieferlängen", "Materialpreis: Mehrlänge je Stange, die der Händler berechnet, bis zur Grenze (z. B. 6 m) "
+                         "[mm], Materialpreis: Mehrlänge je Stange über der Grenze (z. B. 12 m) [mm], "
+                         "Materialpreis: Grenze kurze/lange Stange [mm]",
+         "Länge, die der Händler je Stange zusätzlich berechnet (Vorgabe 50 mm bis 6.500 mm, 100 mm darüber); nur "
+         "im Materialpreis, nicht in der Längenplanung ([[lieferlaengen]])."],
+        ["Lieferlängen", "Lieferlängen: Puffer je zugeschnittener Stange [mm]",
+         "So viel länger als rechnerisch nötig wird jede zugeschnittene Stange bestellt (Vorgabe 50 mm, 0 = auf den "
+         "mm genau) ([[lieferlaengen]])."],
         ["Angebot", "Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen neuer Angebote, wenn der Kunde im Kundenstamm keine eigenen hat (Vorgabe 2 % Skonto "
          "bei Zahlung in 10 Tagen, 30 Tage netto). Das Skonto wird in den Preis eingerechnet. Bestehende Angebote "
@@ -1759,8 +1797,14 @@ def kapitel_einstellungen(i):
         ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["Angebots-PDF", "Firmenlogo (rechts oben im Angebot)",
+         "<b>Bild wählen …</b> nimmt eine PNG- oder JPG-Datei (große Bilder werden verkleinert); das Logo steht im "
+         "Angebots-PDF rechts oben im Briefkopf, eingepasst in 55 × 24 mm, klein (32 × 13 mm) auch auf "
+         "Werkstattpapieren, Kalkulation und Nachkalkulation. Es wird in der Datendatei gespeichert, "
+         "wandert also mit Sicherung und Export mit. <b>Entfernen</b> = Angebot ohne Logo."],
         ["Angebots-PDF", "Briefkopf Zeile 1 (Firma), Briefkopf Zeile 2, Briefkopf Zeile 3, Briefkopf Zeile 4, MwSt.-Satz, "
-                    "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF. Die Zahlungsbedingung (Skonto, "
+                    "Gültigkeit, Bedingungen", "Kopf und Text des Angebots-PDF; Zeile 1 bis 3 stehen klein als "
+                    "Absenderzeile über der Anschrift, alle Zeilen in der Fußzeile. Die Zahlungsbedingung (Skonto, "
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
                     "dieses Feld."],
         ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export; leer = Ordner <i>Angebote</i> neben dem "
@@ -2842,9 +2886,24 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.15", "Schneiddaten: Schaltfläche <i>Auf Standard zurücksetzen …</i> stellt für eine Maschine oder alle "
+    ["0.6.18", "Schneiddaten: Schaltfläche <i>Auf Standard zurücksetzen …</i> stellt für eine Maschine oder alle "
               "(T03, T11, LT7) nach Sicherheitsabfrage die mitgelieferten Richtwerte wieder her "
               "([[schneiddaten_standard]])."],
+    ["0.6.17", "Werkstattpapiere, Kalkulation und Nachkalkulation im Design des Angebots ([[ausgabe]]): Firmenname, "
+              "kleines Logo, Listen ohne Gitter. Werkstattpapiere mit Kästchen zum Abhaken und fetter Kopfzeile je "
+              "Stangenmuster; Kalkulation mit Kennzahlen oben und ohne Kostenarten mit 0,00 €; Nachkalkulation mit "
+              "Kennzahlen und farbigen Abweichungen (rot = teurer, grün = günstiger)."],
+    ["0.6.16", "Angebots-PDF moderner: ohne Gitterlinien, Briefkopf mit Firmenlogo (neue Einstellung <i>Firmenlogo</i>), "
+              "Anschrift links und Angebotsdaten rechts, Summenblock mit Gesamtbetrag, Konditionen zeilenweise. "
+              "Staffelpreise stehen jetzt in ihrer Position („Ab 50 Stk. je“) statt als eigene Tabelle; einmalige "
+              "Rüstkosten sind im Stufenpreis enthalten ([[ausgabe]], [[staffeln]])."],
+    ["0.6.15", "Lieferlängen: Die Restlänge einer zugeschnittenen 12-m-Stange kommt an die letzte Stange (bis zur "
+              "Beladelänge), das spart einen Sägeschnitt; sonst ist sie Abfall. Der Vergleich öffnet sich groß über den "
+              "Knopf <i>12-m-Lösung ansehen …</i> im Reiter Auswertung, den es nur bei einer sinnvollen Lösung gibt. "
+              "Händler-Mehrlänge im Materialpreis (Einstellungen, Vorgabe +50 mm je Stange bis 6,5 m, +100 mm "
+              "darüber), nicht in der Längenplanung. Neue Einstellung <i>Puffer je "
+              "zugeschnittener Stange</i> (Vorgabe 50 mm): Zuschnitte nicht mehr auf den Millimeter genau. Material "
+              "zählt weiter die ganzen Lieferstangen, nach Länge auf alle Teile verteilt ([[lieferlaengen]])."],
     ["0.6.14", "Spaltenbreite und Zeilenhöhe automatisch in allen Tabellen: Spalten passend zum Inhalt (Höchstbreite), "
               "lange Texte umgebrochen bis drei Zeilen, kurze Zeilen bleiben einzeilig; von Hand gezogene Spalten "
               "bleiben ([[angebot]])."],

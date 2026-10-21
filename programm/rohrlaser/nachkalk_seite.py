@@ -234,4 +234,4 @@ class NachkalkulationSeite(QWidget):
         v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist)
         aktuell = s.stand_optimierung() == "aktuell"
         return s._schreiben("Nachkalkulation", s._ziel("Nachkalkulation", ".pdf"),
-                            lambda p: pdf.nachkalkulation_pdf(p, s.kopf, v, self.ist, aktuell))
+                            lambda p: pdf.nachkalkulation_pdf(p, s.kopf, v, self.ist, aktuell, s.einst))

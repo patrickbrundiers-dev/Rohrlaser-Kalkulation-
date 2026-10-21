@@ -226,17 +226,59 @@ ang = s.angebot_daten()
 assert [x["menge"] for x in ang["staffeln"] if x["pos"] == "10"] == [200]      # beide doppelten Stufen fehlen
 assert m.setData(m.index(4, spalte("menge")), "50")
 ang = s.angebot_daten()
-assert [x["bereich"] for x in ang["staffeln"]] == ["2–3", "4–7", "ab 8", "24–49", "50–199", "ab 200"], ang["staffeln"]
-ok("Doppelte Menge rot markiert und nicht im Angebot; Mengenbereiche im Angebot (2–3, 4–7, ab 8 …)")
+assert [x["bereich"] for x in ang["staffeln"]] == ["ab 2", "ab 4", "ab 8", "ab 24", "ab 50", "ab 200"], ang["staffeln"]
+# jede Stufe steht unter ihrer Angebotszeile (Satz bzw. Pos.), aufsteigend nach Menge; Summe nur aus den Hauptzeilen
+unter = [st for z in ang["zeilen"] for st in z["staffeln"]]
+assert all(st["zugeordnet"] for st in ang["staffeln"]) and sorted(map(id, unter)) == sorted(map(id, ang["staffeln"]))
+for z in ang["zeilen"]:
+    assert [st["menge"] for st in z["staffeln"]] == sorted(st["menge"] for st in z["staffeln"])
+    assert all((st["art"] == "satz") == (z["art"] == "satz") for st in z["staffeln"])
+assert ang["netto"] == round(sum(z["gesamt"] for z in ang["zeilen"] if z["gesamt"] is not None), 2)
+ok("Doppelte Menge rot markiert und nicht im Angebot; Stufen im Angebot 'ab 2, ab 4, ab 8 …' unter ihrer Position")
 
 # Rüstkosten separat: im Angebot als einmalige Rüstkosten
 assert m.setData(m.index(0, spalte("ruesten")), staffeln.SEPARAT)
 z0 = st.zeilen[0]
 assert z0["preis"]["einmalig"] > 0 and z0["preis_gesamt"] == round(z0["preis_einheit"] * z0["menge"] + z0["preis"]["einmalig"], 2)
 ang = s.angebot_daten()
-assert "einmalige Rüstkosten" in ang["staffeln"][0]["text"]
+a0 = next(x for x in ang["staffeln"] if x["menge"] == z0["menge"] and x["art"] == ("satz" if z0["einheit"] == "Satz" else "teil"))
+assert "Rüstkosten" not in a0["text"] and a0["preis"] > z0["preis_einheit"]
+assert a0["preis"] * z0["menge"] >= z0["preis_gesamt"] - 1e-9 and a0["gesamt"] == round(a0["preis"] * z0["menge"], 2)
 assert s.angebot_pdf()
-ok("Rüstkosten separat: einmalige Position, im Angebots-PDF ausgewiesen")
+ok("Rüstkosten separat: im Angebots-PDF im Stufenpreis enthalten, keine extra Kosten")
+
+# Firmenlogo: Bilddatei -> Base64-PNG in der Einstellung, im PDF eingepasst; beschädigte Daten = ohne Logo
+from PySide6.QtGui import QImage  # noqa: E402
+from rohrlaser import pdf  # noqa: E402
+from rohrlaser.fenster import logo_aus_datei  # noqa: E402
+bild = QImage(3000, 1000, QImage.Format_ARGB32)
+bild.fill(0xFF1F4E78)
+bild.save(str(tmp / "logo.jpg"))
+logo = logo_aus_datei(tmp / "logo.jpg")
+lb = pdf.logo_bild(dict(logo=logo))
+assert lb is not None and abs(lb.drawWidth - 55 * pdf.mm) < 0.01 and lb.drawHeight <= 24 * pdf.mm + 0.01
+assert pdf.logo_bild(dict(logo="kein Bild")) is None and pdf.logo_bild({}) is None
+(tmp / "kaputt.png").write_text("x")
+try:
+    logo_aus_datei(tmp / "kaputt.png")
+    raise AssertionError("kaputtes Bild angenommen")
+except ValueError:
+    pass
+db.einstellung_setzen("logo", logo)
+s.einst = dict(s.einst, logo=logo)
+pfad = s.angebot_pdf()
+assert pfad and pfad.stat().st_size > 2000
+s.einst = dict(s.einst, logo="beschädigt")
+assert s.angebot_pdf()
+ok("Firmenlogo: auf 55 × 24 mm eingepasst, kein Bild = Fehlermeldung, beschädigte Einstellung = Angebot ohne Logo")
+
+# Interne PDFs im Design des Angebots: kleines Logo, kein "-0,00", Abweichungen farbig
+s.einst = dict(s.einst, logo=logo)
+assert pdf._z(-0.001) == "0,00" and pdf._z(-0.006) == "-0,01" and pdf._z(None) == ""
+assert pdf._abw_farbe(5) == pdf.ROT and pdf._abw_farbe(-5) == pdf.GRUEN and pdf._abw_farbe(0.001) is None
+assert pdf._abw_farbe(5, erloes=True) == pdf.GRUEN
+assert s.werkstatt_pdf() and s.kalkulation_pdf() and s.nachkalk.pdf()
+ok("Werkstattpapiere, Kalkulation und Nachkalkulation mit Logo; rot = teurer, grün = günstiger; kein −0,00")
 fenster.close()
 db.schliessen()
 
