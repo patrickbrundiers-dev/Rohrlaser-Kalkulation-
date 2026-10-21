@@ -363,6 +363,23 @@ class Datenbank:
             self._stammdaten_geaendert(tabelle)
             self.con.executemany(f'DELETE FROM "{tabelle}" WHERE id=?', [(i,) for i in ids])
 
+    def schneiddaten_zuruecksetzen(self, maschinen=None):
+        """Schneiddaten der Maschinen (None = alle mit mitgelieferten Richtwerten, stammdaten.LASER) auf die
+        Standardwerte zurücksetzen: alle Zeilen dieser Maschinen (auch eigene und werkstoffgenaue) löschen, die
+        Richtwerte neu einfügen. Andere Maschinen und festgeschriebene Angebote bleiben unverändert.
+        Ergebnis: (gelöscht, eingefügt)."""
+        standard = [z for z in beispieldaten()["schneiddaten"]
+                    if maschinen is None or z["maschinen_id"] in maschinen]
+        ids = sorted({z["maschinen_id"] for z in standard})
+        if not ids:
+            return 0, 0
+        with self.con:
+            self._stammdaten_geaendert("schneiddaten")
+            weg = self.con.execute(f'DELETE FROM schneiddaten WHERE maschinen_id IN ({", ".join("?" * len(ids))})',
+                                   ids).rowcount
+            self._einfuegen("schneiddaten", standard)
+        return weg, len(standard)
+
     # -------------------------------------------------------------- Zusatzarbeiten
     def _zusatz_positionen(self, name=None):
         """[(Positions-ID, Angebots-ID, Angebotsnummer, Liste)] aller Positionen mit Zusatzarbeiten (nur mit

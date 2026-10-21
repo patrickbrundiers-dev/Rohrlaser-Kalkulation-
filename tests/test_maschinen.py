@@ -204,6 +204,30 @@ rl1 = [z for z in d.zeilen("schneiddaten") if z["maschinen_id"] == "RL-1"]
 assert len(rl1) == 1 and rl1[0]["vorschub_gross"] == 4444
 d.schliessen()
 
+# d) Schneiddaten auf Standard zurücksetzen: eine Maschine bzw. alle mit Richtwerten, eigene Maschine bleibt
+d = Datenbank(p)
+t11 = [z for z in d.zeilen("schneiddaten") if z["maschinen_id"] == "T11"]
+d.aendern("schneiddaten", t11[0]["id"], "vorschub_gross", 1)
+d.neu("schneiddaten", {"maschinen_id": "T11", "werkstoff_id": "S235-10219", "gas": "N₂", "wand_bis": 2,
+                       "vorschub_gross": 999})
+lt7 = [z for z in d.zeilen("schneiddaten") if z["maschinen_id"] == "LT7"]
+d.aendern("schneiddaten", lt7[0]["id"], "vorschub_gross", 2)
+weg, neu = d.schneiddaten_zuruecksetzen(["T11"])
+std = [z for z in beispiel_schneiddaten() if z[0] == "T11"]
+assert (weg, neu) == (len(t11) + 1, len(std)), (weg, neu)
+werte = lambda m: sorted((z["kategorie"], z["gas"], z["wand_bis"], z["vorschub_gross"], z["vorschub_mittel"],
+                          z["vorschub_klein"], z["einstechzeit"], z["vorschub_gravur"], z["bemerkung"])
+                         for z in d.zeilen("schneiddaten") if z["maschinen_id"] == m)
+assert werte("T11") == sorted(z[2:] for z in std)
+assert 2 in [z[3] for z in werte("LT7")]                       # LT7 nicht angefasst
+assert d.einstellung("stammdaten_herkunft") == "eigene Werte"
+weg, neu = d.schneiddaten_zuruecksetzen()
+assert neu == len(beispiel_schneiddaten()) and 2 not in [z[3] for z in werte("LT7")]
+rl1 = [z for z in d.zeilen("schneiddaten") if z["maschinen_id"] == "RL-1"]
+assert len(rl1) == 1 and rl1[0]["vorschub_gross"] == 4444     # eigene Maschine ohne Richtwerte bleibt
+assert d.schneiddaten_zuruecksetzen(["RL-1"]) == (0, 0)
+d.schliessen()
+
 # e) Datei mit Richtwerten bis 0.6.3: Gravur 15.000/10.000 wird einmalig 3.000, von Hand geänderte bleibt
 p = tmp / "e" / "rohrlaser.db"
 d = Datenbank(p)
