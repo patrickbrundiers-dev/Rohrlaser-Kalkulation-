@@ -11,7 +11,7 @@ from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QVBoxLayout)
 
-from . import rechnen
+from . import hilfe, rechnen
 from .angebot import POSITIONEN
 from .stammdaten import ZUSATZ_EINHEIT, wert_aus_text, zahl_als_text, zahl_aus_text
 
@@ -84,9 +84,7 @@ class ZusatzDialog(QDialog):
             text += " Unter Einstellungen (Zusatzarbeiten) ist noch keine Zusatzarbeit angelegt."
         text += (" Der Preis der Stammdaten wird beim Hinzufügen in der Position gespeichert (Preisstand); spätere "
                  "Änderungen der Stammdaten gelten erst nach 'Preise aus Stammdaten übernehmen'.")
-        hinweis = QLabel(text)
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
+        hinweis = hilfe.Hinweis(text, schluessel="zusatz_dialog")
         lay.addWidget(hinweis)
         self.fehler = QLabel()
         self.fehler.setStyleSheet("color: #C00000;")

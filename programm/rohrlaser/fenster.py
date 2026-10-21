@@ -882,6 +882,7 @@ class Hauptfenster(QMainWindow):
         from .angebot_fenster import AngeboteSeite
         super().__init__()
         self.db = db
+        hilfe.einrichten(db)
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster

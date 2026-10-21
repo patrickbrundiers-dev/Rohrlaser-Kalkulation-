@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QListWidgetItem, QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from . import tastatur, zukauf
+from . import hilfe, tastatur, zukauf
 from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
 TITEL = "Zukaufartikel"
@@ -252,7 +252,8 @@ class ZukaufFormular(QWidget):
         lay = QVBoxLayout(inhalt)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self.titel)
-        fa = self._bereich(lay, "A  Stammdaten")
+        self.abschnitte = {}        # Titel -> (Knopf, Inhalt, Kurzfassung); auf-/zugeklappt gemerkt (ZU_EINSTELLUNG)
+        fa = self._bereich(lay, "A  Stammdaten", klappbar=True)
         fa.addRow("Artikelnummer", self.artikelnr)
         fa.addRow("Artikelbezeichnung *", self.bezeichnung)
         fa.addRow("Kategorie", self.kategorie)
@@ -265,7 +266,7 @@ class ZukaufFormular(QWidget):
         fa.addRow("", self.blech_info)
         fa.addRow("", self.archiv)
         self.fa = fa
-        fb = self._bereich(lay, "B  Einkaufspreis")
+        fb = self._bereich(lay, "B  Einkaufspreis", klappbar=True)
         fb.addRow("Lieferanten", self.lieferanten)
         fb.addRow("", self._zeile(self.k_lief_neu, self.k_lief_weg, self.k_lief_bev))
         fb.addRow("Lieferant", self.lieferant)
@@ -275,7 +276,7 @@ class ZukaufFormular(QWidget):
         fb.addRow("Eingangsfracht", self._zeile(self.fracht, QLabel("€ je Bestellung +"), self.fracht_einheit,
                                                 QLabel("€ je Einheit")))
         fb.addRow("Weitere Bezugskosten", self._zeile(self.weitere, QLabel("€ je Bestellung")))
-        fc = self._bereich(lay, "C  Aufschlag")
+        fc = self._bereich(lay, "C  Aufschlag", klappbar=True)
         fc.addRow("Aufschlag aus", self.quelle)
         fc.addRow("", self.quelle_info)
         self.zeile_methode = self._zeile(self.methode)
@@ -306,7 +307,7 @@ class ZukaufFormular(QWidget):
         fm.addRow("", self.rest_lager)
         fm.addRow("", self.angebotstext)
         fm.addRow("Bemerkung", self.bemerkung)
-        fv = self._bereich(lay, "Preisvorschau")
+        fv = self._bereich(lay, "Preisvorschau", klappbar=True)
         fv.addRow("Verbrauch", self._zeile(self.verbrauch, self.verbrauch_einheit))
         fv.addRow(self.ergebnis)
         fv.addRow(self.hinweis)
@@ -346,8 +347,50 @@ class ZukaufFormular(QWidget):
         self.k_lief_weg.clicked.connect(self.lieferant_entfernen)
         self.k_lief_bev.clicked.connect(self.lieferant_bevorzugt)
         self._mehr_zeigen(False)
+        for w in (self.quelle, self.methode):
+            w.currentIndexChanged.connect(self._kurz_aktualisieren)
+        self.wert.textChanged.connect(self._kurz_aktualisieren)
+        self.bezeichnung.textChanged.connect(self._kurz_aktualisieren)
+        self.kategorie.editTextChanged.connect(self._kurz_aktualisieren)
+        self.lieferant.editTextChanged.connect(self._kurz_aktualisieren)
+        zu = self.db.einstellung(self.ZU_EINSTELLUNG)
+        for titel in self.abschnitte:
+            self.abschnitt_aufklappen(titel, titel not in (self.ZU_VORGABE if zu is None else zu))
+        self._kurz_aktualisieren()
 
     # -------------------------------------------------------------- Aufbau
+    ZU_EINSTELLUNG = "ansicht_zukauf_zu"        # Liste der zugeklappten Abschnitte des Formulars (alle Artikel)
+    ZU_VORGABE = ("C  Aufschlag",)
+
+    def abschnitt_aufklappen(self, titel, offen, merken=False):
+        knopf, inhalt, kurz = self.abschnitte[titel]
+        inhalt.setVisible(offen)
+        kurz.setVisible(not offen)
+        knopf.blockSignals(True)
+        knopf.setChecked(offen)
+        knopf.blockSignals(False)
+        knopf.setText(("▾ " if offen else "▸ ") + titel)
+        if merken:
+            zu = self.db.einstellung(self.ZU_EINSTELLUNG)
+            zu = set(self.ZU_VORGABE if zu is None else zu)
+            (zu.discard if offen else zu.add)(titel)
+            self.db.einstellung_setzen(self.ZU_EINSTELLUNG, sorted(zu))
+
+    def abschnitt_offen(self, titel):
+        return self.abschnitte[titel][1].isVisibleTo(self)
+
+    def _kurz_aktualisieren(self, *_):
+        """Kurzfassung zugeklappter Abschnitte (eine Zeile neben dem Titel)."""
+        if not getattr(self, "abschnitte", None):
+            return
+        teile = {"A  Stammdaten": [self.bezeichnung.text().strip() or "ohne Bezeichnung", self.kategorie.currentText()],
+                 "B  Einkaufspreis": [self.lieferant.currentText().strip() or "kein Lieferant"],
+                 "C  Aufschlag": [self.quelle.currentText()],
+                 "Preisvorschau": ["aufklappen für Einstand und Verkaufspreis"]}
+        if self.quelle.currentData() == "artikel":
+            teile["C  Aufschlag"].append(f"{self.methode.currentText()} {self.wert.text()} {self.wert_einheit.text()}")
+        for titel, (_, _, kurz) in self.abschnitte.items():
+            kurz.setText(" · ".join(t for t in teile.get(titel, []) if t and t.strip()))
     def _zahl(self, platzhalter):
         e = QLineEdit()
         e.setPlaceholderText(platzhalter)
@@ -365,17 +408,38 @@ class ZukaufFormular(QWidget):
         h.addStretch(1)
         return w
 
-    @staticmethod
-    def _bereich(lay, titel, behaelter=None):
+    def _bereich(self, lay, titel, behaelter=None, klappbar=False):
+        """Abschnitt mit Überschrift; klappbar: Überschrift ist ein Knopf, zugeklappt steht daneben eine
+        Kurzfassung."""
         behaelter = behaelter or QWidget()
         v = QVBoxLayout(behaelter)
         v.setContentsMargins(0, 6, 0, 0)
-        t = QLabel(titel)
-        t.setObjectName("gruppentitel")
-        v.addWidget(t)
         f = QFormLayout()
         f.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        v.addLayout(f)
+        if not klappbar:
+            t = QLabel(titel)
+            t.setObjectName("gruppentitel")
+            v.addWidget(t)
+            v.addLayout(f)
+        else:
+            kopf = QHBoxLayout()
+            knopf = QToolButton()
+            knopf.setObjectName("kartenknopf")
+            knopf.setCheckable(True)
+            knopf.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            knopf.toggled.connect(lambda offen, t=titel: self.abschnitt_aufklappen(t, offen, merken=True))
+            kurz = QLabel()
+            kurz.setStyleSheet(f"color: {GRAU};")
+            kurz.setMinimumWidth(1)
+            kopf.addWidget(knopf, 0, Qt.AlignLeft)
+            kopf.addWidget(kurz, 1)
+            kopf.addStretch(0)
+            v.addLayout(kopf)
+            inhalt = QWidget()
+            inhalt.setLayout(f)
+            f.setContentsMargins(0, 0, 0, 0)
+            v.addWidget(inhalt)
+            self.abschnitte[titel] = (knopf, inhalt, kurz)
         lay.addWidget(behaelter)
         return f
 
@@ -858,12 +922,12 @@ class ArtikelSeite(QWidget):
         self.teiler.setChildrenCollapsible(False)
         self.rechts.hide()
 
-        hinweis = QLabel("Zukaufartikel mit Einkaufspreisen je Lieferant und eigener Aufschlagsregel. Verkaufspreis = "
-                         "Einkaufspreis + Bezugskosten (Einstand) + Aufschlag. Die Spalten zeigen den Preis für eine "
-                         "Einheit beim bevorzugten Lieferanten und der kleinsten Bestellmenge, ohne Bezugskosten je Bestellung (eigene "
-                         "Spalte); Staffeln, Mengen und Bezugskosten zusammen zeigt die Vorschau im Formular.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet(f"color: {GRAU};")
+        hinweis = hilfe.Hinweis("Zukaufartikel mit Einkaufspreisen je Lieferant und eigener Aufschlagsregel. "
+                                "Verkaufspreis = Einkaufspreis + Bezugskosten (Einstand) + Aufschlag. Die Spalten "
+                                "zeigen den Preis für eine Einheit beim bevorzugten Lieferanten und der kleinsten "
+                                "Bestellmenge, ohne Bezugskosten je Bestellung (eigene Spalte); Staffeln, Mengen und "
+                                "Bezugskosten zusammen zeigt die Vorschau im Formular.",
+                                schluessel="zukauf_artikel")
         lay = QVBoxLayout(self)
         lay.addWidget(hinweis)
         lay.addLayout(leiste)

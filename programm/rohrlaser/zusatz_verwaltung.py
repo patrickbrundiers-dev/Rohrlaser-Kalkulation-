@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QToolButton, QVBoxLayout,
                                QWidget)
 
-from . import rechnen, tastatur
+from . import hilfe, rechnen, tastatur
 from .stammdaten import (TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORIEN, ZUSATZART_TEXT, ZUSATZARTEN,
                          ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, zahl_als_text, zahl_aus_text)
 
@@ -610,12 +610,11 @@ class ZusatzVerwaltung(QWidget):
         self.teiler.setChildrenCollapsible(False)
         self.rechts.hide()
 
-        hinweis = QLabel("Zusatzarbeiten für 'Zusatzarbeiten …' im Angebot. Preis je Einheit = Festpreis + Zeitaufwand "
-                         "× Stundensatz + Material mit Zuschlag + weiterer Zuschlag; im Angebot kommen Zuschlag "
-                         "Fertigung bzw. Fremdleistung und Gewinn dazu. Leere oder nicht verwendete Spalten sind "
-                         "ausgeblendet.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet(f"color: {GRAU};")
+        hinweis = hilfe.Hinweis("Zusatzarbeiten für 'Zusatzarbeiten …' im Angebot. Preis je Einheit = Festpreis + "
+                                "Zeitaufwand × Stundensatz + Material mit Zuschlag + weiterer Zuschlag; im Angebot "
+                                "kommen Zuschlag Fertigung bzw. Fremdleistung und Gewinn dazu. Leere oder nicht "
+                                "verwendete Spalten sind ausgeblendet.",
+                                schluessel="zusatzarbeiten")
         lay = QVBoxLayout(self)
         lay.addWidget(hinweis)
         lay.addLayout(leiste)

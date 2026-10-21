@@ -278,6 +278,8 @@ def main(ziel):
     fo.verbrauch.setText("100")
     fo._geaendert()
     fo.geaendert = False
+    for titel in fo.abschnitte:          # für das Foto alle Abschnitte offen (C Aufschlag ist sonst zu)
+        fo.abschnitt_aufklappen(titel, True)
     if zs.dialog is not None:
         zs.dialog.resize(620, 1700)
     for _ in range(3):
