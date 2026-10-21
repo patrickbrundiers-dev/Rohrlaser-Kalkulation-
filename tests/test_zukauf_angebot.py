@@ -110,7 +110,7 @@ nah(sum(w for n, w in kosten.items() if n not in ("herstell", "verkauf", "materi
     + kosten["herstell"], kosten["verkauf"], "Kostenarten ergeben den Verkaufspreis", 1e-6)
 assert not z[0]["hinweis"].startswith("Zukauf")
 text = ausgabe.angebotstext(pos[0], k)
-assert "inkl. Zukaufteile: 4 St Schraube M6x20, 1 St Lasche" in text and "Mutter" not in text, text
+assert "\ninkl. 4 St Schraube M6x20\ninkl. 1 St Lasche" in text and "Mutter" not in text, text
 ok("9 Mehrere Positionen: 4 Schrauben + 2 Muttern + 1 Lasche je Baugruppe, gleicher Artikel zusammen bestellt, "
    "VK nach Gewinn nur mit Skonto, Kostenarten, Angebotstext")
 

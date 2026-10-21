@@ -97,7 +97,7 @@ assert abs(zk[1]["material_gruppe"] - kosten["K240"]) < 1e-9 and abs(zk[0]["ante
 pos_ab = [dict(p, preis_m=20.0) if p["artikel"] == "K240" else p for p in pos]
 sw_ab = rechnen.stangen_werte(erg, kopf, pos_ab, k, tab)
 assert abs({s["oberflaeche"]: w["kosten"] for s, w in zip(erg["stangen"], sw_ab)}["K240"] - 120.0) < 1e-9
-assert ausgabe.angebotstext(pos[1], k).endswith("inkl. Material 1.4301 EN10217-7, Oberfläche K240 geschliffen")
+assert ausgabe.angebotstext(pos[1], k).endswith("\ninkl. Material 1.4301 EN10217-7\nOberfläche K240 geschliffen")
 assert ausgabe.angebotstext(pos[2], k).endswith("inkl. Material 1.4301 EN10217-7")
 st = lambda p: rechnen.status(p, rechnen.position_werte(p, kopf, k, tab), kopf, k)
 assert st(dict(pos[1], oberflaeche="K999")) == "FEHLER: Oberfläche unbekannt"

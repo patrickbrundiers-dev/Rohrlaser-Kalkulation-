@@ -92,19 +92,20 @@ def profiltext(pid, k, dezimal=","):
 
 
 def angebotstext(p, k, dezimal=",", zusatz=()):
-    """Bezeichnung einer Position im Angebot, z. B. 'Rechteckrohr 80 x 40 x 5, L = 1500 mm, inkl. Material
-    S235 EN10219, Zusatzarbeiten: Gewinde 4xM6, Gravur, feuerverzinkt'. zusatz: Zusatzarbeiten der Position
-    aus der Kalkulation (Text im Angebot aus den Stammdaten, dazu der Text der Position, z. B. RAL 7016)."""
+    """Bezeichnung einer Position im Angebot, jede Angabe in einer eigenen Zeile, z. B.
+    'Rechteckrohr 80 x 40 x 5\nL = 1500 mm\ninkl. Material S235 EN10219\nfeuerverzinkt\ninkl. Gewinde 4xM6\n
+    inkl. Gravur'. zusatz: Zusatzarbeiten der Position aus der Kalkulation (Text im Angebot aus den Stammdaten, dazu
+    der Text der Position, z. B. RAL 7016). Zukaufteile mit 'Im Angebotstext nennen' je Zeile mit Menge je Teil."""
     if ist_zukaufteil(p):
         return zukaufteil_text(p)
     laenge = p.get("laenge")
-    t = profiltext(p.get("profil_id"), k, dezimal)
-    t += f", L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else ", L =  mm"
+    zeilen = [profiltext(p.get("profil_id"), k, dezimal),
+              f"L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else "L =  mm"]
     w = k.werkstoffe.get(p.get("werkstoff_id"))
-    t += ", inkl. Material " + ((w or {}).get("angebotstext") or str(p.get("werkstoff_id") or ""))
+    zeilen.append("inkl. Material " + ((w or {}).get("angebotstext") or str(p.get("werkstoff_id") or "")))
     ob = rechnen.oberflaeche_von(p)
     if ob:
-        t += ", " + ((k.oberflaechen.get(ob) or {}).get("angebotstext") or ob)
+        zeilen.append((k.oberflaechen.get(ob) or {}).get("angebotstext") or ob)
     zus = []
     if p.get("gewinde"):
         zus.append(f"Gewinde {p['gewinde']}")
@@ -114,19 +115,15 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
         t_e = e["angebotstext"] + (f" {e['text']}" if e.get("text") else "")
         if t_e not in zus:
             zus.append(t_e)
-    if zus:
-        t += ", Zusatzarbeiten: " + ", ".join(zus)
-    zk = []                 # Zukaufteile mit 'Im Angebotstext nennen': Menge je Teil und Bezeichnung
-    for e in zukauf.eintraege(p):
+    zeilen += ["inkl. " + z for z in zus]
+    for e in zukauf.eintraege(p):        # Zukaufteile mit 'Im Angebotstext nennen': Menge je Teil und Bezeichnung
         st = e.get("stand") or {}
         name = st.get("bezeichnung") or st.get("artikelnr")
         if name and st.get("angebotstext") == "ja":
             m = _wert(e.get("menge"))
             menge = f"{kaufm_runden(m, 3):g}".replace(".", dezimal)
-            zk.append(f"{menge} {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}" if m else name)
-    if zk:
-        t += ", inkl. Zukaufteile: " + ", ".join(zk)
-    return t
+            zeilen.append("inkl. " + (f"{menge} {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}" if m else name))
+    return "\n".join(zeilen)
 
 
 def zukaufteil_text(p):
@@ -142,6 +139,13 @@ def zukaufteil_text(p):
             name = f"{kaufm_runden(m, 3):g}".replace(".", ",") + f" {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}"
         namen.append(name)
     return ", ".join(n for n in namen if n) or str(p.get("bezeichnung") or p.get("artikel") or "Zukaufteil")
+
+
+def _einruecken(vorsatz, text):
+    """Satzteil im Angebot: '   2 x ' vor der ersten Zeile, Folgezeilen eingerückt unter die Bezeichnung
+    (geschützte Leerzeichen, damit der PDF-Absatz sie nicht entfernt)."""
+    erste, *rest = text.split("\n")
+    return "\n".join(["   " + vorsatz + erste] + ["\u00a0" * round(1.5 * len(vorsatz)) + z for z in rest])
 
 
 def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=","):
@@ -179,7 +183,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
-                                   text=f"   {kaufm_runden(je(q), 0):.0f} x {angebotstext(q, k, dezimal, _zus(j))}",
+                                   text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
+                                                   angebotstext(q, k, dezimal, _zus(j))),
                                    menge=None, preis=None, gesamt=None))
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if position_aktiv(p) and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])

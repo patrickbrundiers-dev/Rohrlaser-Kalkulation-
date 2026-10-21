@@ -1371,8 +1371,8 @@ def kapitel_zukauf_angebot(i):
             "Fehlt ein Einkaufspreis, zeigt die Position den Hinweis <i>Zukaufteil: kein Einkaufspreis</i>; die "
             "Staffelpreise melden <i>Zukaufteil ohne Einkaufspreis</i> statt eines Preises.",
             "Artikel mit <i>im Angebotstext der Position nennen</i> erscheinen im Angebots-PDF im Text der Position "
-            "nach <i>inkl. Zukaufteile:</i> mit Menge je Teil und Bezeichnung, z. B. <i>inkl. Zukaufteile: 4 St "
-            "Sechskantschraube M6x20</i>.")
+            "in einer eigenen Zeile mit Menge je Teil und Bezeichnung, z. B. <i>inkl. 4 St "
+            "Sechskantschraube M6x20</i> ([[ausgabe]]).")
     i.bild("angebot_zukaufteile", "Reiter Zukaufteile im Angebot (Beispielwerte)", hoehe=70 * mm, legende=[
         (1, "Reiter <b>Zukaufteile</b>"), (2, "Summen: Einstand, Aufschlag, Verkauf"),
         (3, "je Artikel und Preisstand: Positionen, Verbrauch, Bestellmenge, Mehrmenge, Preisstaffel, EK je "
@@ -1402,6 +1402,13 @@ def kapitel_ausgabe(i, seiten, ablage):
         (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
+    i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
+           "Reihenfolge: Profil, Länge, Werkstoff (<i>inkl. Material</i> mit dem Text im Angebot des Werkstoffs), "
+           "Oberfläche, dann je Zusatzarbeit, Gewinde oder Gravur eine Zeile <i>inkl. …</i> und je Zukaufteil mit "
+           "<i>im Angebotstext der Position nennen</i> eine Zeile mit Menge je Teil, z. B.:<br/>"
+           "<i>Quadratrohr 40 x 40 x 3<br/>L = 550 mm<br/>inkl. Material S235 EN10219<br/>inkl. Gewinde 4xM6<br/>"
+           "inkl. Senken</i><br/>"
+           "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile.")
     i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
     i.abschnitt("Preise festschreiben", marke="preise_festschreiben")
     i.text("Beim Erzeugen des <b>Angebots-PDF</b> speichert das Programm im Angebot die Materialpreise und "
@@ -1860,8 +1867,8 @@ def kapitel_stammdaten(i):
                                      "Verzinkereien). Bei Staffelpreisen gilt er je Mengenstufe."],
         ["Fremdleistung", "ja: Aufschlag mit dem <i>Zuschlag Fremdleistung</i> (Einstellungen), sonst mit dem "
                           "Zuschlag Fertigung wie eigene Arbeit"],
-        ["Text im Angebot", "so erscheint die Arbeit in der Bezeichnung des Angebots, z. B. <i>…, Zusatzarbeiten: "
-                            "Gewinde 4xM6, feuerverzinkt</i>"]], [65, 200])
+        ["Text im Angebot", "so erscheint die Arbeit im Angebotstext der Position, je Arbeit eine eigene Zeile, "
+                            "z. B. <i>inkl. feuerverzinkt</i> ([[ausgabe]])"]], [65, 200])
     i.text("<b>Rechenweg</b> (für jede Einheit): Preis je Einheit = Festpreis + Zeitaufwand × Stundensatz + "
            "Material mit Materialzuschlag + weiterer Zuschlag. Beispiel: 5 min × 60 €/h = 5,00 €, Material 2,00 € + "
            "10 % = 2,20 €, Selbstkosten 7,20 € je Stück. Im Angebot kommt danach einmal der Zuschlag Fertigung "
@@ -2538,6 +2545,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.5.17", "Angebot: Der Angebotstext jeder Position steht zeilenweise (Profil, Länge, Material, Oberfläche, je "
+               "Zusatzarbeit und Zukaufteil eine Zeile <i>inkl. …</i>) statt hintereinander ([[ausgabe]])."],
     ["0.5.16", "Programm und Setup sind mit dem eigenen Zertifikat <i>Patrick Brundiers</i> signiert; neue Datei "
                "<i>Windows-Vertrauen-einrichten.cmd</i> (ohne Adminrechte) gibt Setup/ZIP frei und trägt das Zertifikat "
                "ein, Anleitung zu „Zulassen“ vor dem Entpacken ([[windows_warnungen]], [[windows_vertrauen]])."],
