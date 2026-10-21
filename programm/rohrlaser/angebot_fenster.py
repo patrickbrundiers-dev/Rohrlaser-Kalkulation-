@@ -14,12 +14,13 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser,
     QVBoxLayout, QWidget)
 
-from . import fracht_angebot, ausgabe, dokumente, export, materialanfrage, pdf, rechnen, schneidweg, step, tastatur, zukauf, \
-    zukauf_ek
+from . import fracht_angebot, ausgabe, dokumente, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+    zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
+from .naht_dialog import NahtDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
@@ -269,11 +270,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
-            "dokumente", "gewicht_teil"]
+            "dokumente", "naht_vorgabe", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "dokumente", "gewicht_teil")
-EIGENE = ("zusatz", "zukauf", "dokumente")        # Spalten mit eigenem Dialog (Doppelklick)
+                     "zukauf", "dokumente", "naht_vorgabe", "gewicht_teil")
+EIGENE = ("zusatz", "zukauf", "dokumente", "naht")        # Spalten mit eigenem Dialog (Doppelklick)
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
 
@@ -374,6 +375,8 @@ class PositionenModell(QAbstractTableModel):
             return zukauf.zukauf_text(self.daten[r])
         if art == "dokumente":
             return dokumente.kurz(self.daten[r].get("dokumente"))
+        if art == "naht":
+            return naht.text(self.daten[r], self.k.profile.get(self.daten[r].get("profil_id")))
         if art == "abweichung":
             return schneidweg_abweichung(self.daten[r])
         w = self.werte[r].get(x[1])
@@ -445,6 +448,9 @@ class PositionenModell(QAbstractTableModel):
                 return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
             if art == "zukauf" and rolle == Qt.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Zukaufteile wählen"
+            if art == "naht" and rolle == Qt.ToolTipRole:
+                return (w + "\n" if w else "Keine Vorgabe: frei drehbar\n") + \
+                    "Doppelklick: Schweißnaht am Querschnitt wählen (Blick von Ende A, 0° oben, 90° rechts)"
             if art == "dokumente" and rolle == Qt.ToolTipRole:
                 namen = dokumente.liste(self.daten[index.row()].get("dokumente"))
                 return "\n".join(namen + ["Doppelklick: Zeichnungen anhängen, öffnen, entfernen; Dateien auf die "
@@ -786,6 +792,7 @@ class AngebotSeite(QWidget):
         for text, ziel in (("Material per Outlook anfragen …", lambda: self.material_anfragen()),
                            ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Zeichnungen …", lambda: self.zeichnungen()),
+                           ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
             menue.addAction(text, lambda ziel=ziel: ziel())
         self.weitere.setMenu(menue)
@@ -808,6 +815,7 @@ class AngebotSeite(QWidget):
         self.pos_menue = QMenu(self.pos_ansicht)
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Zeichnungen …", lambda: self.zeichnungen()),
+                           ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
                            ("Positionen löschen", self.positionen_loeschen)):
@@ -816,7 +824,7 @@ class AngebotSeite(QWidget):
             lambda punkt: self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(
             lambda i: {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile,
-                       "dokumente": lambda z: self.zeichnungen(z[0])}.get(
+                       "dokumente": lambda z: self.zeichnungen(z[0]), "naht": self.schweissnaht}.get(
                 self.pos_modell.spalten[i.column()][0], lambda _: None)([i.row()]))
 
         self.kalk = Liste(KALK_SPALTEN)
@@ -1313,6 +1321,28 @@ class AngebotSeite(QWidget):
             self.db.position_aendern(p["id"], name, wert)
         self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
                        f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen.")
+        self.neu_laden()
+        return True
+
+    def schweissnaht(self, zeilen=None, werte=None, dialog=None):
+        """Schweißnaht der markierten Positionen wählen (Dialog mit Querschnitt). werte = dict der Nahtfelder setzt
+        sie ohne Dialog; dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        zeilen = [z for z in zeilen if not ist_zukaufteil(self.positionen[z])]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Rohrlaserteil-Position(en) markieren.", fehler=True)
+            return False
+        p = self.positionen[zeilen[0]]
+        if werte is None:
+            d = NahtDialog(self, p, self.k.profile.get(p.get("profil_id")), len(zeilen))
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return False
+            werte = d.werte()
+        for z in zeilen:
+            for name, wert in werte.items():
+                self.db.position_aendern(self.positionen[z]["id"], name, wert)
+        self.f.meldung(f"Schweißnaht für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
 

@@ -869,6 +869,30 @@ def kapitel_angebot(i):
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
             "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
+    i.abschnitt("Schweißnaht", marke="schweissnaht")
+    i.text("Fordert der Kunde eine bestimmte Lage der Schweißnaht, wird sie je Position eingetragen: Position(en) "
+           "markieren und <b>Schweißnaht …</b> wählen (Rechtsklick, <i>Weitere Aktionen</i> oder Doppelklick in die "
+           "Spalte <b>Schweißnaht</b>). Das Fenster <i>Schweißnaht – Pos. …</i> zeigt den Rohrquerschnitt.")
+    i.liste("<b>Winkel</b>: der Querschnitt wird immer <b>von Ende A in Richtung Ende B</b> gesehen; 0° oben, 90° "
+            "rechts, 180° unten, 270° links (im Uhrzeigersinn). Ein Klick in das Bild setzt den Winkel, oder er wird "
+            "in das Zahlenfeld eingegeben; 360° wird zu 0°, −90° zu 270°. Bei Rechteck- und Quadratrohr rastet der "
+            "Klick auf 5° ein.",
+            "<b>Nahtvorgabe</b>: <i>keine Vorgabe</i> (Standard, auch für ältere und per STEP importierte "
+            "Positionen) = die Optimierung darf das Teil um die eigene Achse drehen (Rechteckrohr 0° und 180°, "
+            "Quadrat- und Rundrohr 0°, 90°, 180°, 270°); <i>feste Position</i> = Winkel und Quelle (Kunde, "
+            "Zeichnung, manuell, Import) werden gespeichert, das Teil wird nicht gedreht; <i>unbekannt</i> = das "
+            "Teil wird ebenfalls nicht gedreht. Gewendet (Ende B nach vorn) wird ein Teil nie.",
+            "<b>Querschnittslage</b> (nur Rechteckrohr): <i>Breitseite oben</i> ist der Standard. Liegt das Rohr in "
+            "der Zeichnung hochkant, <i>Schmalseite oben</i> wählen und den Winkel so eingeben, wie er in der "
+            "Zeichnung steht. Beim Umschalten bleibt die Naht an derselben Stelle des Rohrs, nur der Winkel der "
+            "Ansicht ändert sich.",
+            "Das Fenster nennt die getroffene Seite: bei Rechteckrohr <i>Breitseite</i> (die längere Seite) oder "
+            "<i>Schmalseite</i>, bei Quadratrohr nur die Richtung, bei Rundrohr nur den Winkel. Liegt der Winkel auf "
+            "einer Ecke, ist die Seite nicht eindeutig (Warnung).",
+            "Status: <b>FEHLER: Naht auf … gefordert, Lieferstange hat sie auf der …</b>, wenn die Seite nicht zur "
+            "<i>Naht der Lieferstange</i> im Profil passt ([[stammdaten]]); <b>WARNUNG: Nahtlage der Lieferstange im "
+            "Profil eintragen</b>, wenn sie dort fehlt; <b>FEHLER: Nahtwinkel fehlt</b> bei fester Position ohne "
+            "Winkel. Die Schweißnaht steht nicht in STEP-Dateien und wird nie automatisch erkannt.")
     i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
            "zurück, <b>Strg+Y</b> stellt sie wieder her. Das gilt für jede Änderung: Eingaben in Positionen und Kopf, "
@@ -2085,6 +2109,10 @@ def kapitel_stammdaten(i):
         ["Lieferlängen vergleichen", "leer oder ja = Lieferlängen aus der Tabelle Lieferlängen werden verglichen; "
                                      "nein = das Profil wird nur mit der Stangenlänge des Angebots geplant (z. B. "
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
+        ["Naht der Lieferstange", "nur Rechteckrohr: <i>Breitseite</i> oder <i>Schmalseite</i>, je nachdem wo der "
+                                  "Lieferant die Schweißnaht hat. Damit prüft das Programm Positionen mit fester "
+                                  "Nahtlage ([[schweissnaht]]); leer = Warnung, sobald eine Position eine feste Naht "
+                                  "verlangt"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
@@ -3029,6 +3057,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.21", "Schweißnaht je Position: Vorgabe (keine, feste Position, unbekannt), Winkel am Querschnitt (Blick von "
+               "Ende A, 0° oben, 90° rechts), Querschnittslage bei Rechteckrohr, Breit- oder Schmalseite; Profil mit "
+               "<i>Naht der Lieferstange</i> und Prüfung im Status ([[schweissnaht]])."],
     ["0.6.20", "Bedienungsanleitung neu gegliedert: Teil A Erste Schritte mit neuem Schnellstart in 10 Schritten "
                "([[schnellstart]]), Teil B Ein Angebot rechnen (jetzt bis zur Nachkalkulation), Teil C Einrichten und "
                "pflegen, Anhang; jedes Kapitel beginnt mit dem Kasten <i>Wofür / Wo im Programm</i>. Aussehen wie das "

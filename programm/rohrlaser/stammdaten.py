@@ -7,7 +7,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import normprofile
+from . import naht, normprofile
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
@@ -194,7 +194,8 @@ PROFILE = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=220),
      # hinten angefügt: Beispieldaten und Import älterer Dateien zählen die Felder nach Reihenfolge
      Feld("wand_max", "Wandstärke max. [mm]", "zahl", 0, 500, stellen=2),
-     Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85)),
+     Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85),
+     Feld("naht_stange", "Naht der Lieferstange", "auswahl", auswahl="nahtstange", breite=95)),
     ("profil_id",),
     "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
     "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
@@ -203,7 +204,9 @@ PROFILE = Tabelle(
     "Schneidzeit rechnet mit der größeren der beiden Wandstärken; leer = Normtabelle bzw. Wandstärke. Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
     "(Eckradien, Sonderprofile, C-Profil). Lieferlängen vergleichen = nein: das Profil wird nur mit der "
-    "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen.",
+    "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen. Naht der "
+    "Lieferstange (nur Rechteckrohr): auf welcher Seite der Lieferant die Schweißnaht hat; damit prüft das Programm "
+    "Positionen mit fester Nahtlage.",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
                ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1),
                ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1)))
@@ -647,6 +650,8 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
+                         "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
 
