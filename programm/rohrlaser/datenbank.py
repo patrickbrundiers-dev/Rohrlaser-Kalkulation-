@@ -52,7 +52,7 @@ SCHEMA_VERSION = 31     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 24: Kundenreferenz, Lieferzeit und Mindestpreis im Angebot (seit 0.6.4 Mindestpreis nur aus den Einstellungen)
                         # 25: Kundenmaterial (positionen.material_herkunft, Kopf material_vorgabe, Handling je kg)
                         # 26: Schneidweg-Rechner (positionen.technik, Eingaben als JSON; ältere Positionen leer)
-                        # 27: Zeichnungen je Position (positionen.dokumente; seit 0.6.25 entfernt, beim Start einmalig geleert)
+                        # 27: Zeichnungen je Position (positionen.dokumente; seit 0.6.28 entfernt, beim Start einmalig geleert)
                         # 28: maschinen.min_stange (kürzeste Stange der Stangenladung im Zuschnitt, Vorgabe 2.500 mm)
                         # 29: maschinen.kontur_klein_wand/kontur_mittel_wand (Konturklasse nach Hüllmaß ÷ Wand, 3 und 8)
                         # 30: Schweißnaht (positionen.naht_vorgabe/naht_winkel/naht_quelle/querschnitt_lage, profile.naht_stange; leer = keine Vorgabe)
@@ -850,6 +850,45 @@ class Datenbank:
         if (self.einstellung("fracht_versandart") or "Stückgut") == "Stückgut":
             self.einstellung_setzen("fracht_versandart", VERSANDART)
         return weg, neu
+
+    def fracht_zonen_zuruecksetzen(self, absender_plz=None):
+        """Frachtzonen und PLZ-Zuordnungen auf Standard (Richtwert-Zonen RW1–4 und Inseln ab der Absender-PLZ,
+        fracht_richtwerte.py) zurücksetzen: vorher geschützte Sicherung 'vor_Frachtzonen_Standard', dann alle Zonen
+        und PLZ-Zuordnungen löschen (auch eigene) und die Standardzeilen einfügen. Die Preise des Richtwert-Tarifs
+        werden passend neu geschrieben (Land DE, Dienstleister und Tarif angelegt, falls sie fehlen); andere Tarife,
+        Zuschläge, Ladehilfsmittel und Angebote mit gespeicherter Tarifkopie bleiben unverändert.
+        Ergebnis: (entfernt, eingefügt, Pfad der Sicherung)."""
+        from .fracht_richtwerte import TARIF, richtwerte
+        absender_plz = (absender_plz or self.einstellung("absender_plz") or "").strip()
+        daten = richtwerte(absender_plz)              # ValueError bei unbekannter PLZ, vor jeder Änderung
+        pfad = self.sicherung(zusatz="vor_Frachtzonen_Standard")
+        weg = neu = 0
+
+        def einfuegen(tabelle, zeilen):
+            namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
+            return sum(self.con.execute(
+                f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
+                f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen]).rowcount for z in zeilen)
+        with self.con:
+            for tabelle in ("fracht_plz", "fracht_zonen"):
+                weg += self.con.execute(f'DELETE FROM "{tabelle}"').rowcount
+            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (TARIF,)).rowcount
+            for tabelle in ("fracht_laender", "fracht_dienstleister", "fracht_tarife"):
+                einfuegen(tabelle, daten[tabelle])
+            for tabelle in ("fracht_zonen", "fracht_plz", "fracht_preise"):
+                neu += einfuegen(tabelle, daten[tabelle])
+        if not self.einstellung("absender_plz"):
+            self.einstellung_setzen("absender_plz", absender_plz)
+        return weg, neu, pfad
+
+    def fracht_zonen_fremd(self):
+        """Preiszeilen anderer Tarife (nicht Richtwert), deren Zone es nach dem Zurücksetzen nicht mehr gäbe: Anzahl
+        (für die Sicherheitsabfrage)."""
+        from .fracht_richtwerte import RINGE, TARIF
+        standard = [z for z, *_ in RINGE] + ["RW-INSEL"]
+        return self.con.execute(
+            f'SELECT COUNT(*) FROM fracht_preise WHERE tarif_id<>? AND COALESCE(zone_id,\'\')<>\'\' AND zone_id NOT IN '
+            f'({", ".join("?" * len(standard))})', [TARIF] + standard).fetchone()[0]
 
     def plz_importieren(self, zeilen):
         """PLZ-Zuordnungen übernehmen (fracht_daten.plz_csv_lesen); gleicher Schlüssel (Land, PLZ von, PLZ bis,

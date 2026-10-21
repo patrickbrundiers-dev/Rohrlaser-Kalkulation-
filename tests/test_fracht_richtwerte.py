@@ -5,6 +5,7 @@
 - Preise ab 33129 Delbrück: 1 Palette je Ring 100 / 115 / 125 €, mehrere Paletten günstiger je Stück, schwere
   Palette +40 € je Stellplatz, Langgut 6 m = 3 Stellplätze + Überlänge, Insel = teuerster Ring + Inselzuschlag;
   Diesel und Maut sind im Preis (keine eigenen Zuschläge).
+- Frachtzonen auf Standard zurücksetzen: Zonen und PLZ-Zuordnungen wie nach dem Laden, eigene weg, Sicherung vorher.
 """
 import os
 import sys
@@ -110,6 +111,24 @@ a = db.angebot(aid)
 d = fracht_angebot.daten(a)
 assert not d.get("fehler") and a["fracht"] and d["snapshot"]["tarif"]["tarif_id"] == fracht_richtwerte.TARIF, d
 ok(f"Angebot mit 'Fracht automatisch berechnen' nach München: {a['fracht']:.2f} € aus dem Richtwert-Tarif")
+
+# Frachtzonen auf Standard zurücksetzen: eigene Zone und verbogene Zuordnung weg, Sicherung vorher
+with db.con:
+    db.con.execute("UPDATE fracht_plz SET zone_id='EIGEN', bemerkung='von Hand' WHERE plz_von='80*'")
+assert fracht.zone_finden(db.fracht_daten(), "DE", "80331")["zone"]["zone_id"] == "EIGEN"
+sicherung = db.pfad.parent / "Sicherung"
+vorher = set(sicherung.glob("*_vor_Frachtzonen_Standard*.db"))
+assert db.fracht_zonen_fremd() == 0
+weg, neu = fenster.fracht.zonen.zuruecksetzen()       # Knopf 'Auf Standard zurücksetzen …' (stumm: ohne Rückfrage)
+assert weg > 0 and neu > 50, (weg, neu)
+assert len(set(sicherung.glob("*_vor_Frachtzonen_Standard*.db")) - vorher) == 1
+zonen = {z["zone_id"] for z in db.zeilen("fracht_zonen")}
+assert zonen == {"RW1", "RW2", "RW3", "RW4", "RW-INSEL"}, zonen
+assert not [z for z in db.zeilen("fracht_plz") if z["zone_id"] == "EIGEN"]
+assert len(db.zeilen("fracht_plz")) == n_plz
+assert preis("80331", 190, eur(1))["gesamt"] == 125.0
+ok("Frachtzonen auf Standard zurückgesetzt: eigene Zone und Zuordnung entfernt, Richtwert-Zonen wieder da, "
+   "Sicherung vor_Frachtzonen_Standard angelegt, München wieder 125 €")
 
 fenster.close()
 db.schliessen()

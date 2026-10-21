@@ -1,4 +1,4 @@
-"""Prüft die Materialanfrage (die Zeichnungsablage je Position ist seit 0.6.25 entfernt):
+"""Prüft die Materialanfrage (die Zeichnungsablage je Position ist seit 0.6.28 entfernt):
 - Materialanfrage: Bedarf aus der Optimierung je Profil + Werkstoff + Lieferlänge (ohne Kundenmaterial), Lieferant
   aus 'Preise', E-Mail aus den Lieferanten, Text mit Stangen, Mengen änderbar, Zeilen
   abwählbar; Outlook wird nur zum Anzeigen aufgerufen (Display, nie Send); ohne Outlook E-Mail-Datei (.eml, Entwurf).
@@ -56,7 +56,7 @@ s = fenster.angebot_oeffnen(a)
 
 geoeffnet = []
 s.f.datei_oeffnen = geoeffnet.append
-assert not hasattr(s, "zeichnungen") and not hasattr(s, "dokumente_anhaengen")       # seit 0.6.25 entfernt
+assert not hasattr(s, "zeichnungen") and not hasattr(s, "dokumente_anhaengen")       # seit 0.6.28 entfernt
 assert all(getattr(f, "name", None) != "dokumente" for _, f in s.pos_modell.spalten)
 assert "dokumente" not in db.positionen(a)[0]
 ok("D Zeichnungsablage entfernt: keine Spalte Zeichnungen, keine Ablage-Funktionen")

@@ -708,7 +708,7 @@ class Hauptfenster(QMainWindow):
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.offen = {}             # Angebots-ID -> AngebotSeite
-        try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.25 entfernt)
+        try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.28 entfernt)
             db.zeichnungen_entfernen(self.ablage())
         except OSError:
             pass
