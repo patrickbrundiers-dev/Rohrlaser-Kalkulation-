@@ -637,9 +637,9 @@ def main(ziel):
             return
         d.resize(1300, 520)
         d.satz_spin.setValue(4)
-        d.baum.setCurrentItem(d.zeilen[0].it)
+        d.baugruppe_zeigen(d.datei)                      # 3D: ganze Baugruppe
         bereit()
-        foto.foto("step_satz_pruefen", d, [(d.satz_feld, 1), (d.baum, 2)])
+        foto.foto("step_satz_pruefen", d, [(d.satz_feld, 1), (d.baum, 2), (d.ansicht, 3)])
         f.stumm = True
         d.accept()
     QTimer.singleShot(100, satz_ausfuellen)

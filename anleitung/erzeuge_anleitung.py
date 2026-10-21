@@ -930,8 +930,9 @@ def kapitel_step(i):
             "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
             "übernommen wird, und Profil, Werkstoff und Stückzahl wählen. <b>Übernehmen</b> legt die Positionen "
             "aller Dateien an, <b>Abbrechen</b> verwirft die Messung.",
-            "Enthält eine STEP mehrere Teile (Baugruppe), steht oben das Feld <b>Sätze</b>: Anzahl eintragen = als "
-            "Satz anlegen, leer lassen = jedes Teil als Einzelposition (siehe unten).",
+            "Enthält eine STEP mehrere Teile, steht sie als <b>Baugruppe</b> in der Liste und die 3D-Ansicht zeigt "
+            "sie zusammengebaut. Oben steht das Feld <b>Sätze</b>, vorbelegt mit 1: die Baugruppe wird ein Satz; "
+            "leer = jedes Teil als Einzelposition (siehe Baugruppen als Satz).",
             "Fehlen Profile in den Stammdaten, fragt das Programm, ob sie aus den Messwerten angelegt werden sollen "
             "(danach im Reiter <i>Profile</i> prüfen). Stehen Artikel schon im Angebot, fragt es vor dem doppelten "
             "Eintragen.",
@@ -1041,20 +1042,28 @@ def kapitel_step(i):
             "Block <i>alternative</i> (das Teil in der anderen Art) und <i>ersatzwerte</i> (true = abgeleitet, "
             "nicht gemessen).")
     i.abschnitt("Baugruppen als Satz")
-    i.text("Liegen in einer STEP-Datei mehrere Rohrteile, steht im Dialog STEP-Import prüfen oben das Feld "
-           "<b>Sätze</b>. Ist eine Anzahl eingetragen:")
+    i.text("Liegen in einer STEP-Datei mehrere Teile, zeigt der Dialog STEP-Import prüfen sie als Baugruppe:")
+    i.liste("Oberste Zeile <b>Baugruppe „Name“</b> mit Anzahl Teile, Anzahl verschiedener Teile und Sätzen; "
+            "darunter die Teile nach Profil gruppiert (Bleche in ihrer eigenen Gruppe).",
+            "Die 3D-Ansicht zeigt die ganze Baugruppe zusammengebaut. Die Lage jedes Teils kommt aus der STEP-Datei. "
+            "Gleiche Teile haben dieselbe Farbe; das farbige Quadrat vor dem Teil in der Liste zeigt sie.",
+            "Klick auf eine Profilgruppe: die Baugruppe mit diesen Teilen blau, den Rest hellgrau. Klick auf ein "
+            "Teil: das Einzelteil mit Schnitten und Konturen. Klick auf die Baugruppen-Zeile: wieder alles.")
+    i.text("Das Feld <b>Sätze</b> oben ist mit <b>1</b> vorbelegt, die Baugruppe wird also ein Satz. Ist eine "
+           "Anzahl eingetragen:")
     i.liste("Der Satz heißt wie die Datei (ohne Endung) und steht in der Spalte <b>Satz</b> jeder Position.",
             "Gleiche Teile (gleiche Maße, Konturen und Bohrungen, Lage im Raum egal) werden eine Position; "
             "<b>Stück je Satz</b> ist ihre Anzahl in der Baugruppe.",
             "Die Spalte der Rohrliste heißt dann <b>Stück je Satz</b> (vorgegeben: Anzahl in der Baugruppe, "
             "änderbar). Stückzahl der Position = Sätze × Stück je Satz.",
             "Das STEP-Protokoll zeigt weiter jeden Körper, die gleichen mit dem Hinweis <i>gleich wie …</i>.")
-    i.text("Bleibt das Feld <b>leer</b>, wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
+    i.text("Wird das Feld <b>geleert</b> (auf 0), wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
            "der Rohrliste. Bei mehreren Dateien gilt das Feld je Datei. Staffelpreise und Angebot rechnen den Satz "
            "wie einen von Hand angelegten ([[staffeln]]).")
     i.bild("step_satz_pruefen", "Baugruppe im Prüfdialog: 4 Sätze eingetragen", hoehe=80 * mm, legende=[
-        (1, "<b>Sätze</b>: Anzahl Sätze; leer = Einzelpositionen. Rechts daneben der Satzname."),
-        (2, "Die Spalte zeigt jetzt <b>Stück je Satz</b>.")])
+        (1, "<b>Sätze</b>: Anzahl Sätze (Vorgabe 1); leer = Einzelpositionen. Rechts daneben der Satzname."),
+        (2, "Die Baugruppe mit ihren Teilen; die Spalte zeigt <b>Stück je Satz</b>."),
+        (3, "3D-Ansicht der zusammengebauten Baugruppe, gleiche Teile in gleicher Farbe.")])
     i.bild("step_satz_positionen", "Baugruppe als Satz: 3 gleiche Quadratrohre und 1 Rundrohr, 4 Sätze",
            hoehe=110 * mm, legende=[(1, "Spalten <b>Satz</b>, <b>Stück je Satz</b> und <b>Stückzahl</b>.")])
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
@@ -3124,8 +3133,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.26", "Reiter Kunden: <b>CSV exportieren</b> und <b>CSV importieren …</b> mit Vorschau, Prüfung, Wahl "
+    ["0.6.27", "Reiter Kunden: <b>CSV exportieren</b> und <b>CSV importieren …</b> mit Vorschau, Prüfung, Wahl "
                "„nur neue anlegen“ und Datensicherung vorher ([[kunden_csv]])."],
+    ["0.6.26", "STEP-Import von Baugruppen: im Prüfdialog steht eine Datei mit mehreren Teilen als Baugruppe, die "
+               "3D-Ansicht zeigt sie zusammengebaut (Lage aus der STEP, gleiche Teile gleiche Farbe), und sie wird "
+               "standardmäßig ein Satz (Sätze = 1) ([[step]])."],
     ["0.6.25", "Frachtzonen: <b>Auf Standard zurücksetzen …</b> stellt die Standardzonen und PLZ-Zuordnungen der "
                "Richtwerte wieder her, mit Rückfrage und Datensicherung vorher ([[fracht_zonen_standard]])."],
     ["0.6.24", "Schnittplan, Stangenbild und Werkstattpapiere zeigen Drehung, Schweißnaht und ineinanderliegende "

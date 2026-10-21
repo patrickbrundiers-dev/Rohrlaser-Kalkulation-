@@ -210,7 +210,9 @@ def _():
         db = Datenbank(Path(tmp) / "rohrlaser.db")
         i = db.zukauf_speichern(None, *zukauf.blech_artikel(step.blech(MW[3]), None, "alt.step"))
         d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
-        gruppen = [d.baum.topLevelItem(n).text(0) for n in range(d.baum.topLevelItemCount())]
+        bg = d.baum.topLevelItem(0)        # B14 (Rohr + 2 gleiche Bleche) steht als Baugruppe, Vorgabe 1 Satz
+        assert bg.text(0) == "Baugruppe „B14_Baugruppe_Rohr_2Bleche“ – 3 Teile, 2 verschieden – 1 Satz", bg.text(0)
+        gruppen = [bg.child(n).text(0) for n in range(bg.childCount())]
         assert gruppen[0] == d.BLECHGRUPPE + " – 1 Teil" and not any("Nicht übernehmbar" in g for g in gruppen), gruppen
         bl = [z for z in d.zeilen if z.blech]
         assert len(bl) == 3 and [len(z.liste) for z in bl] == [2, 1, 1], [len(z.liste) for z in bl]
@@ -230,7 +232,9 @@ def _():
         erg = step.uebernehmen(mw, [], db.kontext(), db.zeilen("gewinde"), None, None, 1,
                                zukauf_liste=db.zukauf_artikel_liste())
         assert erg["positionen"][-1]["_zukauf"] == {"artikel_id": i}, erg["positionen"][-1]
-        assert len(erg["positionen"]) == 4, [p["artikel"] for p in erg["positionen"]]
+        # B14 ist als Baugruppe 1 Satz vorbelegt: die 2 gleichen Bleche sind eine Position (2 Stück je Satz)
+        assert len(erg["positionen"]) == 3, [p["artikel"] for p in erg["positionen"]]
+        assert erg["positionen"][1].get("je_satz") == 2, erg["positionen"][1]
         d.close()
         app.processEvents()
         db.con.close()
