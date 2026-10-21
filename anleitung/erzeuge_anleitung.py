@@ -2143,6 +2143,26 @@ def kapitel_stammdaten(i):
          "den Preis eingerechnet ([[kalkulation]])."],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
+    i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
+    i.text("Im Reiter <i>Kunden</i> speichert <b>CSV exportieren</b> alle Kunden als CSV-Datei (Semikolon, mit Excel "
+           "zu öffnen): eine Zeile je Kunde, Kopfzeile mit den Spaltentiteln wie im Reiter, Zahlen mit Komma. So "
+           "lässt sich die Liste in Excel bearbeiten oder aus einem anderen Programm übernehmen.",
+           "<b>CSV importieren …</b> liest eine solche Datei und zeigt zuerst eine Vorschau: je Zeile <i>neu</i> "
+           "(grün), <i>ändern</i> (gelb, mit alt → neu), <i>unverändert</i>, <i>übersprungen</i> (grau) oder "
+           "<i>Fehler</i> (rot). Übernommen wird erst mit <b>Importieren</b>.")
+    i.liste("Pflicht sind die Spalten Kundennummer und Kundenname; die Reihenfolge der Spalten ist egal, fehlende "
+            "Spalten bleiben beim Kunden unverändert. Auch Kopfzeilen wie <i>Kundennr.</i>, <i>Name</i> oder "
+            "<i>Ort</i> werden erkannt.",
+            "Gibt es die Kundennummer schon, ändert der Import diesen Kunden: die Werte aus der Datei ersetzen die "
+            "alten (eine leere Zelle leert das Feld). Mit dem Häkchen <b>Vorhandene Kunden nicht ändern (nur neue "
+            "anlegen)</b> bleiben sie unverändert und stehen als <i>übersprungen</i> in der Vorschau.",
+            "Nicht übernommen werden Zeilen mit Fehler: Pflichtfeld leer, Kundennummer doppelt in der Datei, Zahl "
+            "außerhalb des Bereichs (z. B. Skonto über 20 %), unbekannte Lieferbedingung, Land nicht als Ländercode.",
+            "Excel entfernt führende Nullen. Eine deutsche PLZ mit vier Ziffern (z. B. 1067) ergänzt der Import "
+            "wieder zu 01067 und sagt das in der Vorschau. Kundennummern mit führender Null in Excel als Text "
+            "formatieren.",
+            "Vor dem Import legt das Programm eine Datensicherung an (Name endet auf <i>_vor_Kundenimport</i>), "
+            "der alte Stand lässt sich zurückholen ([[datensicherung]]).")
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
                              "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>, Normprofile "
@@ -2866,8 +2886,9 @@ def kapitel_pflege(i):
             "beim Beenden (eine je Tag, wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>),",
             "mit <b>Datensicherung erstellen</b> (Startseite oder Menü <i>Datei</i>),",
             "vor einem Update (<i>_vor_update</i>), vor dem Erweitern der Datendatei (<i>_vor_Schema_…</i>), vor dem "
-            "Wiederherstellen (<i>_vor_Wiederherstellung</i>), vor einem Import (<i>_vor_Import</i>) und vor dem "
-            "Zurücksetzen der Frachtzonen (<i>_vor_Frachtzonen_Standard</i>, [[fracht_zonen_standard]]).")
+            "Wiederherstellen (<i>_vor_Wiederherstellung</i>), vor einem Import (<i>_vor_Import</i>), vor dem "
+            "Zurücksetzen der Frachtzonen (<i>_vor_Frachtzonen_Standard</i>, [[fracht_zonen_standard]]) und vor dem "
+            "CSV-Import der Kunden (<i>_vor_Kundenimport</i>, [[kunden_csv]]).")
     i.text("Jede Sicherung wird gleich nach dem Schreiben geprüft: die Datei muss unbeschädigt sein und gleich viele "
            "Angebote und Positionen enthalten wie die Datendatei. Daneben liegt eine gleichnamige <i>.json</i>-Datei "
            "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben die "
@@ -3153,6 +3174,8 @@ NEUERUNGEN = [
                "Anhängen der STEP-Datei). Bereits in den Ordner des Angebots kopierte Zeichnungen löscht das Programm "
                "beim ersten Start einmalig; andere Dateien im Ordner bleiben. Die "
                "Materialanfrage per Outlook bleibt, ohne Zeichnungsanhang ([[materialanfrage]])."],
+    ["0.6.27", "Reiter Kunden: <b>CSV exportieren</b> und <b>CSV importieren …</b> mit Vorschau, Prüfung, Wahl "
+               "„nur neue anlegen“ und Datensicherung vorher ([[kunden_csv]])."],
     ["0.6.26", "STEP-Import von Baugruppen: im Prüfdialog steht eine Datei mit mehreren Teilen als Baugruppe, die "
                "3D-Ansicht zeigt sie zusammengebaut (Lage aus der STEP, gleiche Teile gleiche Farbe), und sie wird "
                "standardmäßig ein Satz (Sätze = 1) ([[step]])."],
@@ -3354,7 +3377,8 @@ STECKBRIEFE = {
                         "Im Angebot Reiter <i>Nachkalkulation</i>"),
     "einstellungen": ("Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
                       "Reiter <i>Einstellungen</i> (Passwort) → <i>Vorgaben</i>"),
-    "stammdaten": ("Kunden, Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen pflegen.",
+    "stammdaten": ("Kunden (auch per CSV), Profile, Werkstoffe, Preise, Maschinen, Schneiddaten und weitere Tabellen "
+                   "pflegen.",
                    "Reiter <i>Kunden</i>; Reiter <i>Einstellungen</i> mit den Unterreitern"),
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",

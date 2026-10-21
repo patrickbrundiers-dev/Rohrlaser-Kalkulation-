@@ -262,6 +262,16 @@ class StammdatenSeite(QWidget):
                                 "Richtwerte ersetzen")
             standard.clicked.connect(self.schneiddaten_zuruecksetzen)
             leiste.addWidget(standard)
+        if tabelle.name == "kunden":
+            export = QPushButton("CSV exportieren")
+            export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
+            export.clicked.connect(self.kunden_exportieren)
+            einlesen = QPushButton("CSV importieren …")
+            einlesen.setToolTip("Kunden aus einer CSV-Datei: zuerst Vorschau mit Prüfung, vorhandene Kundennummern "
+                                "werden geändert, vorher Datensicherung")
+            einlesen.clicked.connect(self.kunden_importieren)
+            leiste.addWidget(export)
+            leiste.addWidget(einlesen)
         leiste.addSpacing(20)
         leiste.addWidget(self.suche, 1)
         leiste.addWidget(self.anzahl)
@@ -338,6 +348,31 @@ class StammdatenSeite(QWidget):
         if QMessageBox.question(self, "Löschen", text) == QMessageBox.Yes:
             self.modell.zeilen_loeschen(zeilen)
             self.meldung(f"{len(zeilen)} Zeile(n) gelöscht.")
+
+    def kunden_exportieren(self, pfad=None):
+        from .kunden_csv_dialog import csv_exportieren
+        try:
+            pfad = csv_exportieren(self, self.db, pfad)
+        except OSError as e:
+            self.meldung(f"CSV-Export: {e}", fehler=True)
+            return None
+        if pfad:
+            self.meldung(f"Kunden exportiert: {pfad}")
+        return pfad
+
+    def kunden_importieren(self, pfad=None, bestaetigt=None, nur_neue=False):
+        """CSV-Import mit Vorschau (kunden_csv_dialog). Ergebnis: (neu, geändert, Sicherung) oder None."""
+        from .kunden_csv_dialog import csv_importieren
+        try:
+            _, erg = csv_importieren(self, self.db, pfad, bestaetigt, nur_neue)
+        except (OSError, ValueError) as e:
+            self.meldung(f"CSV-Import: {e}", fehler=True)
+            return None
+        if erg and erg[2]:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+            self.meldung(f"CSV-Import: {erg[0]} Kunden neu, {erg[1]} geändert. Sicherung vorher: {erg[2]}")
+        return erg
 
     def schneiddaten_zuruecksetzen(self):
         """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage
