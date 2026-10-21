@@ -2593,7 +2593,8 @@ def kapitel_frachtkosten(i):
             "Dienstleister, Kunde) werden ersetzt, neue angefügt. Fehlerhafte Zeilen (unbekannte Zone, PLZ bis vor "
             "PLZ von …) meldet das Programm mit Zeilennummer und übernimmt sie nicht. Nötig sind die Spalten PLZ von "
             "und Zone; Land leer = DE."),
-        (4, "Unterreiter <i>Länder</i> neben <i>Frachtzonen</i>")])
+        (4, "Unterreiter <i>Länder</i> neben <i>Frachtzonen</i>"),
+        (5, "<b>Auf Standard zurücksetzen …</b> stellt die Standardzonen wieder her ([[fracht_zonen_standard]]).")])
     i.tabelle(["Frachtzonen", "Bedeutung"], [
         ["<b>Zone</b>, <b>Bezeichnung</b>", "Kurzname und freie Bezeichnung, z. B. Z1 Nahbereich"],
         ["<b>Land</b>", "Ländercode aus den Ländern"],
@@ -2625,6 +2626,20 @@ def kapitel_frachtkosten(i):
         ["<b>Land</b>", "zweistelliger Ländercode, z. B. DE, AT, CH"],
         ["Bezeichnung, PLZ-Stellen, Währung", "Name, Stellenzahl der PLZ (für die Prüfung), Währung (leer = EUR)"],
         ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
+    i.abschnitt("Frachtzonen auf Standard zurücksetzen", marke="fracht_zonen_standard")
+    i.text("Sind die Zonen oder PLZ-Zuordnungen durcheinandergeraten, stellt <b>Auf Standard zurücksetzen …</b> "
+           "(oben rechts auf dem Unterreiter <i>Frachtzonen und Postleitzahlen</i>) den mitgelieferten Stand wieder "
+           "her. Der Standard sind die Zonen der Richtwerte Palettenversand ([[fracht_richtwerte]]): vier Zonen nach "
+           "Entfernung vom Versandort (Absender-PLZ in den Einstellungen) und die Inselzone.")
+    i.liste("Vorher fragt das Programm nach und nennt, wie viele Zonen und PLZ-Zuordnungen gelöscht werden. Auch "
+            "eigene Zonen und Zuordnungen verschwinden.",
+            "Vor dem Zurücksetzen legt das Programm eine Datensicherung an (Name endet auf "
+            "<i>_vor_Frachtzonen_Standard</i>). Mit <b>Sicherung wiederherstellen …</b> lässt sich der alte Stand "
+            "zurückholen ([[datensicherung]]).",
+            "Die Preise des Richtwert-Tarifs werden passend zu den Zonen neu geschrieben. Andere Tarife, Zuschläge "
+            "und Ladehilfsmittel bleiben. Verweisen Preise anderer Tarife auf Zonen, die es danach nicht mehr gibt, "
+            "sagt das die Rückfrage; diese Preise gelten dann nicht mehr.",
+            "Angebote mit gespeicherter Frachtberechnung behalten ihre Tarifkopie.")
     i.abschnitt("Tarifverwaltung", marke="tarife")
     i.bild("fracht_tarife", "Tarifverwaltung: Tarife oben, Preisstaffeln des markierten Tarifs unten", hoehe=110 * mm,
            legende=[
@@ -2811,7 +2826,8 @@ def kapitel_pflege(i):
             "beim Beenden (eine je Tag, wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>),",
             "mit <b>Datensicherung erstellen</b> (Startseite oder Menü <i>Datei</i>),",
             "vor einem Update (<i>_vor_update</i>), vor dem Erweitern der Datendatei (<i>_vor_Schema_…</i>), vor dem "
-            "Wiederherstellen (<i>_vor_Wiederherstellung</i>) und vor einem Import (<i>_vor_Import</i>).")
+            "Wiederherstellen (<i>_vor_Wiederherstellung</i>), vor einem Import (<i>_vor_Import</i>) und vor dem "
+            "Zurücksetzen der Frachtzonen (<i>_vor_Frachtzonen_Standard</i>, [[fracht_zonen_standard]]).")
     i.text("Jede Sicherung wird gleich nach dem Schreiben geprüft: die Datei muss unbeschädigt sein und gleich viele "
            "Angebote und Positionen enthalten wie die Datendatei. Daneben liegt eine gleichnamige <i>.json</i>-Datei "
            "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben die "
@@ -3087,6 +3103,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.25", "Frachtzonen: <b>Auf Standard zurücksetzen …</b> stellt die Standardzonen und PLZ-Zuordnungen der "
+               "Richtwerte wieder her, mit Rückfrage und Datensicherung vorher ([[fracht_zonen_standard]])."],
     ["0.6.24", "Schnittplan, Stangenbild und Werkstattpapiere zeigen Drehung, Schweißnaht und ineinanderliegende "
                "Gehrungen (schräge Kanten), die Auswertung den Vergleich ohne Drehen ([[optimieren]])."],
     ["0.6.23", "Optimierung legt Gehrungen ineinander: Teile werden um die eigene Achse gedreht, nie gewendet; feste "
