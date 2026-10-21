@@ -43,7 +43,7 @@ assert not sichtbar("0,00 €", OPTIONAL) and sichtbar("12,50 €", OPTIONAL)   
 assert not sichtbar(None, OPTIONAL) and not sichtbar("", OPTIONAL)
 assert all(sichtbar(w, r) for w in (0, "0,00 €", None, "") for r in (PFLICHT, STAMM, MASCHINE, SUMME))  # Fall 5
 assert kopf_sichtbar("nummer", "") and kopf_sichtbar("stange", 0) and kopf_sichtbar("bemerkung", None)
-assert not kopf_sichtbar("fracht", 0) and kopf_sichtbar("fracht", 120) and not kopf_sichtbar("zuschlag_material", 0.0)
+assert not kopf_sichtbar("fracht", 0) and kopf_sichtbar("fracht", 120) and not kopf_sichtbar("zuschlag_fremdleistung", 0.0)
 assert spalte_sichtbar([None, "", 0]) is False and spalte_sichtbar([None, "MG 1"]) and spalte_sichtbar([None], PFLICHT)
 ok("Regeln: optionale Werte mit 0 oder leer ausgeblendet, Pflicht, Stammdaten, Maschine und Summen immer sichtbar")
 
@@ -68,7 +68,7 @@ def zu_sehen(name):
 
 vorher = dict(db.angebot(a))
 assert zu_sehen("zuschlag_fremdleistung") == (False, True)                                  # Fall 1: 0 % weg
-assert zu_sehen("zuschlag_material") == (True, False)                                       # Fall 2: 10 % da
+assert zu_sehen("gewinn") == (True, False)                                                  # Fall 2: 10 % da
 assert zu_sehen("fracht") == (False, True)                                                  # Fall 3: 0,00 € weg
 assert "Fracht" not in s.uebersicht_bereich.einzeln.text() and "Zuschlag Fremdleistung" not in s.uebersicht.text()
 assert "1 Wert" not in kb.erweitert_bereich.knopf.text() and "2 Werte auf 0" in kb.erweitert_bereich.knopf.text()
@@ -200,7 +200,7 @@ assert ub.preis["verkauf"].text() in ub.uebersicht.text() and ub.preis["herstell
 assert kb.kalk_offen() and kb.kalk_kurz.isHidden()
 kb.kalk_knopf.click()
 assert not kb.kalk_offen() and kb.kalk_inhalt.isHidden() and not kb.kalk_kurz.isHidden()
-assert "Zuschlag Material 10,0 %" in kb.kalk_kurz.text() and "Fremdleistung" not in kb.kalk_kurz.text() and "Skontofrist 10 Tage" in kb.kalk_kurz.text()
+assert "Gewinn 10,0 %" in kb.kalk_kurz.text() and "Fremdleistung" not in kb.kalk_kurz.text() and "Skontofrist 10 Tage" in kb.kalk_kurz.text()
 assert db.einstellung(KALK_OFFEN_EINSTELLUNG) is False
 s2 = fenster.angebot_oeffnen(db.angebot_neu(dict(kunde="Zweites")))
 assert not s2.kopf_bereich.kalk_offen(), "Wahl gilt für alle Angebote"

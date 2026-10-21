@@ -491,8 +491,8 @@ def kapitel_angebot(i):
            "Übersicht, darunter die Aktionen und die Reiter mit Positionen und Ergebnissen. Die Trennlinie zwischen "
            "oben und unten lässt sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil.")
     i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
-           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Zuschlag Material 10,0 % · "
-           "Gewinn 10,0 % · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
+           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · "
+           "Rüstzeit je Abmessung 15,0 min · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
            "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. Spaltenbreiten der "
            "Positionsliste, der Kalkulation und der Zeiten richten sich beim Öffnen nach Inhalt und Spaltenkopf.")
     i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
@@ -534,8 +534,9 @@ def kapitel_angebot(i):
             "vorbelegt vom Kunden bzw. aus den Einstellungen und hier änderbar. Das Skonto wird in den Preis "
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
             "genau der kalkulierte Preis. 0 % = kein Skonto.",
-            "<b>Kalkulation dieses Angebots</b>: Zuschlag Material, Fertigung und Fremdleistung, Gewinn, Rüstzeit und "
-            "Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag und Mindestpreis Angebot netto "
+            "<b>Kalkulation dieses Angebots</b>: Zuschlag Fremdleistung, Gewinn, Rüstzeit und "
+            "Pauschale je Abmessung, Programmierkosten je Teil und Angebotsaufschlag. Mindestpreis, Zuschlag "
+            "Material und Zuschlag Fertigung gelten immer aus den Einstellungen und sind im Angebot nicht änderbar "
             "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
             "die Einstellungen zu ändern. Werte, die von den Einstellungen abweichen, sind <b>gelb</b> hinterlegt "
@@ -599,7 +600,8 @@ def kapitel_angebot(i):
             "als eigene Zeile.",
             "Staffelpreise rechnen das Kundenmaterial in jeder Stufe ohne Materialkosten.")
     i.abschnitt("Mindestpreis", marke="mindestpreis")
-    i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis Angebot netto</b> (Vorgabe 200,00 €), "
+    i.text("Liegt der Verkaufspreis eines Angebots unter dem <b>Mindestpreis</b> (Mindestauftragswert, Vorgabe "
+           "200,00 € netto), "
            "hebt das Programm alle Stückpreise im gleichen Verhältnis an, bis die Angebotssumme den Mindestpreis "
            "erreicht. Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie "
            "kalkuliert. Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
@@ -614,9 +616,11 @@ def kapitel_angebot(i):
             "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
             "Staffelpreise: jede Mengenstufe ist ein eigenes Angebot und wird für sich mit dem Mindestpreis "
             "verglichen ([[staffeln]]).",
-            "Vorgabe in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt), je Angebot unter "
-            "<b>Kalkulation dieses Angebots</b> änderbar; 0 = kein Mindestpreis. Angebote aus älteren "
-            "Programmversionen haben Mindestpreis 0, damit sich ihre Preise nicht ändern.")
+            "Der Wert steht nur in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt) und gilt für "
+            "alle Angebote, auch für ältere; im Angebot selbst lässt er sich nicht ändern. 0 = kein Mindestpreis.",
+            "Die Prüfung läuft bei jeder Änderung neu (Position, Stückzahl, Zuschläge, Staffelstufe, PDF). Die "
+            "Werte des Angebots (Gewinn, Zuschläge …) bleiben dabei unverändert; steigt der Preis über den "
+            "Mindestpreis, entfällt die Anhebung von selbst.")
     i.abschnitt("Nullwerte und Erweiterte Einstellungen")
     i.text("Damit das Angebot übersichtlich bleibt, zeigt das Programm Werte, die 0 sind und nur optional etwas "
            "kosten würden, nicht in der Hauptansicht. Sie stehen im aufklappbaren Bereich <b>Erweiterte "
@@ -1002,25 +1006,39 @@ def kapitel_optimieren(i):
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
            "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen, Langlöcher und ein Rechteck",
-           hoehe=110 * mm, legende=[
-               (1, "<b>Gehrung</b> je Ende in Grad (0 = gerade), bei Quadrat-/Rechteckrohr mit Richtung."),
+           hoehe=125 * mm, legende=[
+               (1, "<b>Gehrung</b> je Ende in Grad (gerade = 0) mit Richtung, beim Rundrohr wahlweise Ausklinkung."),
                (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße; der Tooltip jeder Zelle nennt das Maß."),
                (3, "<b>+ Bohrung</b>, <b>+ Langloch</b> … fügt eine Zeile hinzu, <b>Markierte entfernen</b> löscht."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
-               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe.")])
+               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
+                   "in Farbe."),
+               (6, "<b>Skizze</b> des Teils mit Enden und Konturen.")])
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
-            "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse; Quadrat- und Rechteckrohr: wählbar, ob die "
-            "Gehrung <i>über Höhe</i> oder <i>über Breite</i> läuft (2 × gekippte Seite / cos Winkel + 2 × andere "
-            "Seite). Bei anderen Profilen (Träger, U, Winkel, Flach) ist die Gehrung eine <i>Schätzung</i>: gerade "
-            "Schnittlänge / cos Winkel; der Dialog kennzeichnet sie. Je Ende zählen die Einstiche wie beim "
-            "STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
+            "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
+            "mit 1 / cos Winkel gestreckt (Quadratrohr 40 × 40, 45°: 2 × 40 / cos 45° + 2 × 40 = 193,1 mm; beim "
+            "Träger Steg bzw. Flansche). Nur bei einer unbekannten Profilform ist die Gehrung eine "
+            "<i>Schätzung</i> (gerade Schnittlänge / cos Winkel); der Dialog kennzeichnet sie. Je Ende zählen die "
+            "Einstiche wie beim STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
+            "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
+            "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
-            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b) und <i>sonstige Kontur</i> mit Schnittlänge "
-            "von Hand und Hüllmaß (leer = groß). Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
+            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Polygon</i> aus Eckpunkten in Maß 1 "
+            "(<i>x,y; x,y; …</i> in mm, geschlossen, z. B. 0,0; 40,0; 40,20; 0,20 = 120 mm, Hüllmaß 40) und "
+            "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). <b>Lage ab Anfang</b> "
+            "(optional) setzt die Kontur in der Skizze an ihre Stelle, ohne Lage wird sie gleichmäßig verteilt. Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
             "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
             "gesperrt.",
             "<b>Gravur</b>: Länge in mm, wird mit dem Vorschub Gravur gerechnet.",
+            "<b>Skizze</b>: Seitenansicht mit Gehrung bzw. Ausklinkung und den Konturen, zur Kontrolle der Eingaben "
+            "(in der Höhe nicht maßstäblich).",
+            "<b>Gewinde-Vorschlag</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes aus den Stammdaten (z. B. Ø 8,5 "
+            "für M10) ergeben wie beim STEP-Import einen Vorschlag (Spalten <i>Bohrungen</i> und "
+            "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Gewinde-Vorschlag prüfen“). Gerechnet wird ein Gewinde erst, "
+            "wenn es nach Prüfung unter <i>Gewinde geprüft</i> steht.",
             "Unter <i>Ergebnis je Teil</i> stehen sofort alle Schnitte mit Länge, Einstichen, Hüllmaß und Klasse "
             "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
             "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
@@ -1179,8 +1197,8 @@ def kapitel_staffeln(i):
         ["Menge bis", "Höchstmenge; leer = bis zur nächsten Stufe desselben Satzes bzw. derselben Position − 1, "
                       "bei der höchsten Stufe offen („ab …“)"],
         ["Materialzuschlag, Zuschlag in", "Zuschlag auf die Materialkosten nach Verlust, in % oder als fester "
-                                          "Betrag €/Einheit. Ersetzt für diese Stufe den Zuschlag Material des "
-                                          "Angebots (leer = Zuschlag Material des Angebots)"],
+                                          "Betrag €/Einheit. Ersetzt für diese Stufe den Zuschlag Material der "
+                                          "Einstellungen (leer = Zuschlag Material der Einstellungen)"],
         ["Gewinn", "in % auf die Selbstkosten (leer = Gewinn des Angebots)"],
         ["Materialverlust / Ausschuss", "in % auf die Material-Grundkosten, zusätzlich zum echten Verschnitt der "
                                         "Stangen (der steckt schon in den Grundkosten); leer = 0"],
@@ -1608,7 +1626,9 @@ def kapitel_einstellungen(i):
     i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
         ["Kalkulation", "Zuschlag Material, Zuschlag Fertigung, Zuschlag Fremdleistung, Gewinn",
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
-         "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn)."],
+         "Fertigung) + Fremdleistungen × (1 + Zuschlag Fremdleistung); Verkaufspreis = Herstellkosten × (1 + Gewinn). Zuschlag Material "
+         "und Zuschlag Fertigung (Vorgabe je 0 %) gelten für alle Angebote und sind im Angebot nicht änderbar; "
+         "beim Update auf 0.6.5 einmalig auf 0 gesetzt."],
         ["Kalkulation", "Standardaufschlag Zukaufteile [% auf Einstand] (leer = keiner)",
          "gilt für Zukaufartikel, die weder einen eigenen Aufschlag noch einen Aufschlag ihrer Kategorie haben "
          "([[zukauf_kategorien]]); "
@@ -1627,8 +1647,8 @@ def kapitel_einstellungen(i):
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
         ["Kalkulation", "Mindestpreis je Angebot netto [€] (0 = keiner)",
-         "Vorgabe 200,00 € für neue Angebote; darunter werden die Stückpreise anteilig angehoben ([[mindestpreis]]). "
-         "Bestehende Angebote behalten ihren Wert."],
+         "Vorgabe 200,00 €; gilt für alle Angebote, darunter werden die Stückpreise anteilig angehoben "
+         "([[mindestpreis]])."],
         ["Angebot", "Lieferzeit neuer Angebote: Angabe als, Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, "
                     "KW/Jahr oder Datum), Lieferzeit neuer Angebote: Freitext",
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
@@ -1924,7 +1944,7 @@ def kapitel_stammdaten(i):
            "Herstellerwerte, bitte mit echten Schnittzeiten der Maschine vergleichen und anpassen. Faserlaser: Stahl "
            "mit N₂ bis 4 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 10 mm, Aluminium mit N₂ bis 8 mm. CO₂-Laser: "
            "Stahl mit N₂ bis 2 mm, darüber O₂ bis 12 mm, Edelstahl mit N₂ bis 8 mm, Aluminium mit N₂ bis 6 mm. "
-           "Vorschub mittel ist 60 %, klein 30 % von groß. Eigene Schneiddaten älterer Datendateien bleiben "
+           "Vorschub mittel ist 60 %, klein 30 % von groß, Vorschub Gravur 3.000 mm/min. Eigene Schneiddaten älterer Datendateien bleiben "
            "erhalten und gehen vor; ohne Schneidgas zählen sie nach N₂ und O₂. Welche Wandstärke-Stufe und welches "
            "Gas eine Position nutzt, zeigt der Reiter Kalkulation (Spalten Wandstärke-Stufe und Schneidgas).")
     i.text("Die Prüfspalte warnt, wenn ein Vorschub nicht passt: Vorschub mittel oder klein größer als groß, oder "
@@ -2003,7 +2023,7 @@ def kapitel_stammdaten(i):
            "Material mit Materialzuschlag + weiterer Zuschlag. Beispiel: 5 min × 60 €/h = 5,00 €, Material 2,00 € + "
            "10 % = 2,20 €, Selbstkosten 7,20 € je Stück. Im Angebot kommt danach einmal der Zuschlag Fertigung "
            "(bzw. Fremdleistung) und der Gewinn des Angebots bzw. der Staffel dazu, Skonto und Rundung wie beim übrigen "
-           "Angebot. Der Zuschlag Material des Angebots gilt nur für das Stangenmaterial, nie für Zusatzarbeiten. "
+           "Angebot. Der Zuschlag Material (Einstellungen) gilt nur für das Stangenmaterial, nie für Zusatzarbeiten. "
            "Einträge, die nur einen Festpreis haben, rechnen genau wie bisher.")
     i.tabelle(["Abrechnung", "Menge je Teil (automatisch)", "Gerechnet wird"], [
         ["€/Stück", "1", "Menge × Preis, z. B. Entgraten"],
@@ -2675,9 +2695,17 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.6.4", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
+    ["0.6.7", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
               "ihre Stücke (eigene Stangen mit Endbeschnitt und Greiferrest), ohne den Zuschnitt; gerechnet wird weiter "
               "mit den 12-m-Stangen ([[lieferlaengen]])."],
+    ["0.6.6", "Schneidweg-Rechner ausgebaut: Gehrung bei allen Profilen über Höhe oder Breite, Ausklinkung "
+              "(Sattelschnitt) auf ein Rundrohr, Polygon aus Koordinaten, Skizze mit Lage der Konturen, "
+              "Gewinde-Vorschlag aus den Bohrungen ([[schneidweg_rechner]])."],
+    ["0.6.5", "Mindestpreis: gilt immer aus den Einstellungen für alle Angebote, auch ältere (dort stand bisher 0 €), "
+              "und wird bei jeder Änderung geprüft; im Angebot nicht mehr änderbar ([[mindestpreis]]). Zuschlag "
+              "Material und Zuschlag Fertigung ebenso nur noch in den Einstellungen, dort einmalig auf 0 % gesetzt."],
+    ["0.6.4", "Vorschub Gravur der Richtwerte auf 3.000 mm/min gesenkt (bisher Faser 15.000, CO₂ 10.000); ältere "
+              "Datendateien werden einmalig angepasst, von Hand geänderte Werte bleiben ([[stammdaten]])."],
     ["0.6.3", "Schneidweg-Rechner für Teile ohne STEP-Datei: Gehrungen, Bohrungen, Langlöcher, Rechtecke, Schlitze "
               "und sonstige Konturen eingeben, Schneidweg, Einstiche, Konturklassen und Schneidzeit sofort sehen und "
               "in die Position übernehmen (Rechtsklick auf die Position, [[schneidweg_rechner]])."],

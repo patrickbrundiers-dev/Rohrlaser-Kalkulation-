@@ -18,7 +18,7 @@ from . import fracht_angebot, ausgabe, export, pdf, rechnen, schneidweg, step, z
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
-from .schneidweg_dialog import SchneidwegDialog
+from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
@@ -1229,7 +1229,7 @@ class AngebotSeite(QWidget):
                 return False
             eingaben = d.eingaben()
         grenzen = rechnen.kontur_grenzen(rechnen.maschine(self.kopf, self.k))[0]
-        erg = schneidweg.rechnen(eingaben, profil, grenzen)
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False
