@@ -1082,11 +1082,10 @@ class AngebotSeite(QWidget):
             self._kalk_eingepasst = True
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
-        laenge = sum(w["laenge_gesamt"] or 0 for w in self.pos_modell.werte) / 1000
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
         self.uebersicht_bereich.kennzahlen_setzen(dict(
-            positionen=str(sum(1 for s in stat if s)), stueck=f"{_z(teile, 0)} Stk", laenge=f"{_z(laenge)} m",
-            gewicht=f"{_z(gewicht)} kg", stangen=str(summen["stangen"]) if erg else "–"))
+            positionen=str(sum(1 for s in stat if s)), stueck=f"{_z(teile, 0)} Stk",
+            gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         kosten = rechnen.kostenarten(summen, self.einst)

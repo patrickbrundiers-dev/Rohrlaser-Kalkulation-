@@ -655,7 +655,8 @@ def kapitel_angebot(i):
             "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
             "<b>Meldungen</b>: die Anzahl der Fehler, Warnungen und Hinweise der Positionen (rot, gelb); aufklappen "
             "zeigt jede Meldung mit ihrer Positionsnummer.",
-            "Kennzahlen: Positionen, Stückzahl, Gesamtlänge, Gewicht und Stangen.",
+            "Kennzahlen: Positionen, Stückzahl und Gewicht. Stangenbedarf und Längen stehen je Abmessung in den "
+            "Reitern <i>Schnittplan</i> und <i>Stangenbild</i>.",
             "Kosten nach Gruppen: Material, Laser schneiden, Rüsten (Rüsten Maschine, Rüsten je Abmessung, "
             "Stangenwechsel), Zusätzliche Bearbeitung (Gewinde, Zusatzarbeiten), Zuschläge, <b>Herstellkosten</b>, "
             "Gewinn, Programmierkosten, Pauschalen und Aufschläge (Pauschale je Abmessung, Angebotsaufschlag, "
@@ -2691,6 +2692,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.7", "Übersicht im Angebot ohne die Kennzahlen Gesamtlänge und Stangen, weil diese Summen über "
+              "verschiedene Abmessungen nicht aussagekräftig sind. Stangen je Abmessung zeigt das Stangenbild."],
     ["0.6.6", "Schneidweg-Rechner ausgebaut: Gehrung bei allen Profilen über Höhe oder Breite, Ausklinkung "
               "(Sattelschnitt) auf ein Rundrohr, Polygon aus Koordinaten, Skizze mit Lage der Konturen, "
               "Gewinde-Vorschlag aus den Bohrungen ([[schneidweg_rechner]])."],
