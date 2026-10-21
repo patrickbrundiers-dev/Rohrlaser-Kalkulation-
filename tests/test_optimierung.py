@@ -1,4 +1,4 @@
-"""Prüft die Stangenoptimierung: Schnittregel, Drehen, Überbelegung, Zufallsangebote.
+"""Prüft die Stangenoptimierung: Schnittregel, nie wenden, Überbelegung, Zufallsangebote.
 
 Aufruf: python tests/test_optimierung.py
 """
@@ -33,12 +33,14 @@ assert abs(verbrauch(g, r[0]) - 918.6) < 1e-6, verbrauch(g, r[0])
 g = gruppe(teile(2, 449, a=False, b=False))
 assert len(optimiere(g)) == 2
 
-# 2) Drehen: Teile mit einem schrägen Ende (A schräg). Ohne Drehen liegt schräg an gerade -> 2 Stangen;
-#    gedreht liegen die geraden Enden aneinander -> 1 Stange
+# 2) Nie wenden (Patrick 21.10.2026): Teile mit schrägem Ende A liegen schräg an gerade -> 2 Stangen (früher wurde
+#    ein Teil gewendet); Ende A gerade + Ende B schräg vor Ende A gerade ... schräg + gerade passt dagegen
 g = gruppe(teile(2, 449, a=False, b=True))
 r = optimiere(g)
-assert len(r) == 1 and gemeinsame_schnitte(r[0]) == 1, r
-assert len(manuell(g)) == 2
+assert len(r) == 2 and all(d == 0 for f in r for _, d in f), r
+g = gruppe(teile(1, 449, a=False, b=True, zeile=13) + teile(1, 449, a=True, b=False, zeile=14))
+r = optimiere(g)
+assert len(r) == 1 and gemeinsame_schnitte(r[0]) == 1 and [t.zeile for t, _ in r[0]] == [13, 14], r
 
 # 3) Gemischt: schräge Enden an Stangenanfang/-ende, gerade in der Mitte
 g = gruppe(teile(1, 200, a=False, b=True, zeile=13) + teile(3, 150, zeile=14) + teile(1, 200, a=True, b=False, zeile=15))

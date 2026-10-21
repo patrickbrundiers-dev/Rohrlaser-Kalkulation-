@@ -329,7 +329,7 @@ def gruppen_bilden(kopf, positionen, k):
         bs = "Kunde" if beigestellt(p) else ""
         key = (pid, wst, ob, stange) + ((bs,) if bs else ())
         g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob,
-                                               beistellung=bs))
+                                               beistellung=bs, querschnitt=querschnitt_gehrung(pr)))
         a_ger = p.get("a_gerade") != "nein"
         b_ger = p.get("b_gerade") != "nein"
         u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"])
@@ -338,9 +338,39 @@ def gruppen_bilden(kopf, positionen, k):
             u = min(u, h / 2)
         a_s = p.get("a_schnitt") or u
         b_s = p.get("b_schnitt") or u
+        geh = dict(a_gehrung=None if a_ger else naht.ende_lesen(p.get("a_ende")),
+                   b_gehrung=None if b_ger else naht.ende_lesen(p.get("b_ende")),
+                   drehung={naht.FEST: opt.FEST, naht.UNBEKANNT: opt.UNBEKANNT}.get(naht.vorgabe(p), opt.FREI))
+        if geh["drehung"] == opt.FEST:
+            try:
+                geh["naht"] = naht.normieren(p.get("naht_winkel"))
+            except ValueError:
+                geh["drehung"] = opt.UNBEKANNT      # feste Naht ohne Winkel (FEHLER im Status): nicht drehen
         for n in range(1, stk_n + 1):
-            g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s))
+            g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, **geh))
     return list(gruppen.values()), fehler, neue_profile
+
+
+def querschnitt_gehrung(pr):
+    """Querschnitt für das Ineinanderlegen von Gehrungen (optimierung.Gruppe.querschnitt): Rechteck- und
+    Quadratrohr als Kasten mit der Breitseite oben, Rundrohr als Kreis, andere Profile () = nicht ineinanderlegen."""
+    form = naht.form_von(pr)
+    if form == "Rundrohr":
+        return ("Rund", pr["a"] / 2)
+    if form in ("Quadratrohr", "Rechteckrohr"):
+        return ("Kasten",) + naht.seitenmasse(pr)
+    return ()
+
+
+def teil_kennung(t):
+    """Werte eines Teils für die Prüfsumme. Teile ohne Gehrung, ohne Nahtvorgabe und mit zwei gleichen Enden wie vor
+    0.6.23 (ältere Angebote bleiben aktuell); ein schräges und ein gerades Ende zählt mit, weil seit 0.6.23 nie mehr
+    gewendet wird."""
+    alt = (t.zeile, t.pos, t.artikel, t.nr, t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt)
+    neu = (t.a_gehrung, t.b_gehrung, t.drehung, t.naht)
+    if neu == (None, None, opt.FREI, None) and t.a_gerade == t.b_gerade:
+        return alt
+    return alt + neu + ("nie wenden",)
 
 
 def laengen_eingaben(gruppen, kopf, k, tabellen, einst):
@@ -367,7 +397,7 @@ def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
         return "fehler:" + str(e)
     # Oberfläche nur, wenn gesetzt: ältere Angebote ohne Oberfläche bleiben aktuell
     daten = [[(g.profil, g.werkstoff, g.stange, g.endbeschnitt, g.greiferrest, g.kerf, g.abstand,
-               [tuple(t.__dict__.values()) for t in g.teile]) + ((g.oberflaeche,) if g.oberflaeche else ())
+               [teil_kennung(t) for t in g.teile]) + ((g.oberflaeche,) if g.oberflaeche else ())
               + ((g.beistellung,) if g.beistellung else ())
               for g in gruppen],
              [sorted(f.items()) for f in fehler], [sorted(n.items()) for n in neue]]
@@ -382,27 +412,32 @@ def _folge_teile(g, folge, positionen, start=0.0):
     gemeinsame Schnitte, Belegungstexte)."""
     pos = start + g.endbeschnitt
     vorher, verlust, teile, belegung, n_gem = None, 0.0, [], [], 0
-    for t, gedreht in folge:
-        a_ger, b_ger, a_s, b_s = opt.lage(t, gedreht)
-        eingespart_mm, eingespart_e = 0.0, 0
+    for t, drehung in folge:
+        a_ger, b_ger, a_s, b_s = opt.lage(t, drehung)
+        eingespart_mm, eingespart_e, ueberlappung = 0.0, 0, 0.0
         if vorher is None:
             art = "Stangenanfang"
         else:
-            gap = opt.trennung(g.kerf, g.abstand, vorher[0], a_ger)
+            gap = opt.trennung_teile(g, vorher[2], vorher[3], t, drehung)
             gemeinsam = vorher[0] and a_ger
             art = "gemeinsamer Schnitt" if gemeinsam else "2 Schnitte"
             if gemeinsam:
                 n_gem += 1
                 eingespart_mm, eingespart_e = min(vorher[1], a_s), 1
+            elif opt.ineinander(g, vorher[2], vorher[3], t, drehung):
+                art = "Gehrung ineinander"
+                ueberlappung = opt.trennung(g.kerf, g.abstand, False, False) - gap
             pos += gap
             verlust += gap
         teile.append(dict(index=t.zeile - ZEILE0, ref=schluessel(positionen[t.zeile - ZEILE0], t.zeile - ZEILE0),
                           pos=t.pos, artikel=t.artikel, laenge=t.laenge,
                           von=round(pos, 2), bis=round(pos + t.laenge, 2),
-                          lage="gedreht" if gedreht else "normal", trennung=art,
-                          eingespart_mm=round(eingespart_mm, 1), eingespart_e=eingespart_e))
+                          lage=f"gedreht {drehung:g}°" if drehung else "normal", drehung=drehung,
+                          drehfreigabe=t.drehung, naht=t.naht, trennung=art,
+                          eingespart_mm=round(eingespart_mm, 1), eingespart_e=eingespart_e,
+                          material_gespart=round(ueberlappung, 1)))
         pos += t.laenge
-        vorher = (b_ger, b_s)
+        vorher = (b_ger, b_s, t, drehung)
         belegung.append(f"{t.pos if t.pos is not None else t.artikel}×{t.laenge:g}")
     return teile, verlust + g.kerf, n_gem, belegung
 
@@ -524,7 +559,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False):
                                           f" mm, Rest {mm_text(max(rest - (saege if rest > saege else rest), 0))} mm"))
         n = len(v["stangen"])
         untergrenze = opt.untergrenze(h) if not v["zuschnitt"] else math.ceil(
-            (sum(t.laenge + g.kerf for t in g.teile) + g.endbeschnitt + g.greiferrest) / gewaehlt - EPS)
+            (sum(opt.mindestbedarf(g, t) for t in g.teile) + g.endbeschnitt + g.greiferrest) / gewaehlt - EPS)
         man = opt.manuell(h) if not v["zuschnitt"] else []
         auswertung.append(dict(profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche, stange=gewaehlt,
                                grundlaenge=g.stange, teile=len(g.teile), stangen=n, manuell=len(man) if man else n,
