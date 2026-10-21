@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QMessageBox, QProgressDialog, QPushButton, QSplitter, QStyledItemDelegate, QTableView,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import staffeln
+from . import hilfe, staffeln
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS
 from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
@@ -505,13 +505,11 @@ class StaffelSeite(QWidget):
             self.knoepfe[text] = b
         leiste.addSpacing(12)
         leiste.addWidget(self.erweitert)
-        leiste.addSpacing(12)
-        hinweis = QLabel("Je Zeile eine Mengenstufe: Satz oder Position wählen, Menge eintragen. Leere Felder "
-                         "(grau) nehmen den Wert des Angebots. Zuschläge wirken sofort, neue Mengen werden "
-                         "automatisch neu gerechnet.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #595959;")
-        leiste.addWidget(hinweis, 1)
+        leiste.addStretch(1)
+        self.hinweis = hilfe.Hinweis("Je Zeile eine Mengenstufe: Satz oder Position wählen, Menge eintragen. Leere "
+                                     "Felder (grau) nehmen den Wert des Angebots. Zuschläge wirken sofort, neue "
+                                     "Mengen werden automatisch neu gerechnet.", getattr(self.s, "db", None),
+                                     "staffeln")
         aufklappen = QPushButton("Alle aufklappen")
         aufklappen.clicked.connect(lambda: self.baum.expandAll())
         unten = QWidget()
@@ -535,6 +533,7 @@ class StaffelSeite(QWidget):
         self.teiler.setStretchFactor(1, 1)
         self.teiler.setSizes([150, 600])
         lay = QVBoxLayout(self)
+        lay.addWidget(self.hinweis)
         lay.addLayout(leiste)
         lay.addWidget(self.teiler, 1)
         self.zeilen, self.vorher = [], {}

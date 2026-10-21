@@ -434,7 +434,8 @@ def kapitel_ueberblick(i):
     i.tabelle(["Farbe", "Bedeutung"], [
         ["hellgelb", "Eingabefeld: hier wird eingetragen (Doppelklick oder einfach lostippen)."],
         ["hellgrau", "Berechneter Wert, nicht änderbar."],
-        ["grün <b>OK</b>", "Zeile ist vollständig und stimmig."],
+        ["grau <b>OK</b>", "Zeile ist vollständig und stimmig; bewusst nicht farbig, damit Warnungen und Fehler "
+                           "auffallen."],
         ["gelb <b>WARNUNG / HINWEIS</b>", "Zeile wird gerechnet, sollte aber geprüft werden (z. B. Gewinde-Vorschlag "
                                           "aus dem STEP-Import)."],
         ["rot <b>FEHLER</b>", "Zeile kann nicht gerechnet werden; der Text sagt, was fehlt. Teile mit FEHLER werden "
@@ -1962,7 +1963,9 @@ def kapitel_einstellungen(i):
         (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
     i.abschnitt("Vorgaben", marke="vorgaben")
     i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
-           "Ausnahme: Stundensätze und Zeitvorgaben ([[stundensaetze]]) speichert jedes Angebot beim Anlegen.")
+           "Ausnahme: Stundensätze und Zeitvorgaben ([[stundensaetze]]) speichert jedes Angebot beim Anlegen. "
+           "Jede Gruppe steht in einer eigenen Karte; bei breitem Fenster (z. B. 1920 px) in zwei Spalten, bei "
+           "schmalem untereinander.")
     i.bild("einstellungen", "Einstellungen, Unterreiter Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
         (1, "Unterreiter Vorgaben, daneben die Stammdaten"), (2, "<b>Einstellungen sperren</b>")])
     i.bild("einstellungen_unten", "Einstellungen, Unterreiter Vorgaben (unterer Teil): Briefkopf, Ablage, "
@@ -1998,6 +2001,10 @@ def kapitel_einstellungen(i):
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
          "Wert bleibt im neuen Angebot leer ([[lieferzeit]])."],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Ansicht", "Hilfetexte über Tabellen und Seiten",
+         "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
+         "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen "
+         "([[stammdaten]]) und die Staffeln."],
         ["Lieferlängen", "Lieferlängen: Mindestersparnis je Gruppe in €, Lieferlängen: Mindestersparnis je Gruppe in %",
          "Eine andere Lieferlänge (z. B. 12 m) wird nur empfohlen, wenn sie gegenüber der Stangenlänge des Angebots "
          "mindestens so viel spart, in € und in % (Vorgabe 20 € und 3 %)."],
@@ -2099,14 +2106,20 @@ def kapitel_stammdaten(i):
            "im Reiter <i>Einstellungen</i>, "
            "der mit einem Passwort geschützt ist ([[passwort]]). Alle Tabellen sind gleich aufgebaut:")
     i.bild("stamm_profile", "Einstellungen, Unterreiter Profile", hoehe=125 * mm, legende=[
-        (1, "Unterreiter der Tabelle. Oben steht ein kurzer Hinweis, was in die Spalten gehört."),
+        (1, "Unterreiter der Tabelle. Oben steht der erste Satz des Hilfetextes, was in die Spalten gehört; "
+            "<b>ⓘ mehr</b> zeigt den ganzen Text, <b>ⓘ weniger</b> klappt ihn wieder zu (bleibt je Tabelle so)."),
         (2, "<b>Neue Zeile</b> hängt eine leere Zeile an und springt hinein."),
         (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen (vorher Rückfrage; verweisen andere Tabellen "
             "darauf, sagt das Programm wie viele)."),
         (4, "<b>Suchen</b> filtert die Tabelle nach jedem Text in jeder Spalte."),
-        (5, "<b>Prüfung</b>: OK, WARNUNG oder FEHLER mit Begründung.")])
+        (5, "<b>Prüfung</b>: OK (grau), WARNUNG (gelb) oder FEHLER (rot) mit Begründung.")])
     i.liste("Bearbeiten: Zelle doppelklicken oder einfach lostippen, mit Enter bestätigen. Felder mit fester Auswahl "
             "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste.",
+            "<b>Nur Fehler und Warnungen</b> (rechts neben der Suche) zeigt nur die Zeilen, die geprüft werden "
+            "müssen; rechts daneben steht, wie viele Zeilen FEHLER und WARNUNG haben.",
+            "Hilfetexte: unter Vorgaben, Gruppe Ansicht, <i>Hilfetexte über Tabellen und Seiten</i> = "
+            "<i>aufklappbar</i> (erster Satz und ⓘ mehr) oder <i>nur Tooltip</i> (nur <b>ⓘ Hilfe</b>, der Text "
+            "erscheint beim Zeigen mit der Maus) ([[vorgaben]]).",
             "Sortieren: auf den Spaltenkopf klicken. Spaltenbreite und Zeilenhöhe passen sich dem Inhalt an "
             "([[angebot]]); von Hand ändern: Trennlinie im Kopf ziehen.",
             "Wird eine Profil-, Werkstoff- oder Maschinen-ID umbenannt, ändern sich die Verweise in Preisen und "
@@ -3192,6 +3205,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.33", "Einstellungen übersichtlicher: Hilfetexte kurz mit ⓘ mehr oder nur als Tooltip (Einstellung), "
+               "Prüfung OK grau statt grün, Filter „Nur Fehler und Warnungen“ ([[stammdaten]]); Vorgaben als "
+               "Karten, bei breitem Fenster zweispaltig ([[vorgaben]])."],
     ["0.6.32", "Startseite als Übersicht (Neues Angebot, zuletzt bearbeitete Angebote, Stammdaten, Sicherung); "
                "Angebotsliste mit farbigem Status und Verkaufspreis ([[angebote]])."],
     ["0.6.31", "Angebot übersichtlicher: Übersicht rechts über die ganze Höhe, Angebotskopf und Fracht klappen auf "

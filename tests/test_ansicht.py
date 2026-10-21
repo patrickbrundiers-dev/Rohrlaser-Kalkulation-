@@ -274,6 +274,54 @@ assert any(z["id"] == a for z in fenster.start.zuletzt.zeilen) and fenster.start
 ok("Angebotsliste: Status Optimiert und Verkaufspreis gemerkt (kein Rückgängig-Schritt), Startseite zeigt es")
 ok("Kalkulation ohne Nullspalten mit 2 Stellen, Schnittplan: Gleiches einmal oben, Stange 1 gewählt; "
    "Auswertung: Alle Teile eingeplant")
+# Einstellungen und Stammdaten: Hilfetext kurz/aufklappbar/Tooltip, Prüfung OK neutral, Filter, Vorgaben zweispaltig
+from rohrlaser import hilfe  # noqa: E402
+from rohrlaser.fenster import FARBE_BERECHNET, FARBE_STATUS  # noqa: E402
+assert hilfe.kurztext("Abmessung A = Ø bzw. Breite (z. B. 40). Zweiter Satz.") == "Abmessung A = Ø bzw. Breite (z. B. 40)."
+assert hilfe.kurztext("Nur ein Satz.") == "Nur ein Satz."
+profile = next(x for x in fenster.seiten if x.t.name == "profile")
+h = profile.hinweis
+assert h.label.text() == hilfe.kurztext(profile.t.hinweis) and h.knopf.text() == "ⓘ mehr" and not h.offen
+h.knopf.click()
+assert h.offen and h.label.text() == h.text and h.knopf.text() == "ⓘ weniger"
+assert (db.einstellung(hilfe.OFFEN_EINSTELLUNG) or {}).get("tabelle:profile")
+neu_h = hilfe.Hinweis(profile.t.hinweis, db, "tabelle:profile")
+assert neu_h.offen                                  # gemerkt, auch für neu gebaute Seiten
+h.knopf.click()
+assert not h.offen and not (db.einstellung(hilfe.OFFEN_EINSTELLUNG) or {}).get("tabelle:profile")
+e = fenster.einstellungen
+cb = e.felder[hilfe.HILFE_EINSTELLUNG]
+assert not cb.isEditable() and [cb.itemText(i) for i in range(cb.count())] == list(hilfe.HILFE_ARTEN)
+cb.setCurrentText("nur Tooltip")
+assert db.einstellung(hilfe.HILFE_EINSTELLUNG) == "nur Tooltip"
+assert not h.label.isVisibleTo(h) and h.knopf.text() == "ⓘ Hilfe" and h.knopf.toolTip() == h.text
+cb.setCurrentText("aufklappbar")
+assert h.label.isVisibleTo(h) and h.knopf.text() == "ⓘ mehr"
+assert FARBE_STATUS["OK"] == FARBE_BERECHNET and FARBE_STATUS["FEHLER"] != FARBE_BERECHNET
+alle = profile.filter.rowCount()
+db.aendern("profile", profile.modell.daten[0]["id"], "a", None)
+profile.neu_laden()
+profile.nur_fehler.setChecked(True)
+auffaellig = [r for r in range(len(profile.modell.daten))
+              if str(profile.modell.roh(r, profile.pruefspalte)).startswith(("FEHLER", "WARNUNG"))]
+assert auffaellig and profile.filter.rowCount() == len(auffaellig) < len(profile.modell.daten)
+assert "mit FEHLER" in profile.anzahl.text() or "mit WARNUNG" in profile.anzahl.text()
+profile.nur_fehler.setChecked(False)
+assert profile.filter.rowCount() == len(profile.modell.daten) >= alle
+fenster.bereich.oeffnen(db.einstellung("passwort"))
+fenster.reiter.setCurrentWidget(fenster.bereich)
+fenster.bereich.zeigen(e)
+fenster.resize(1920, 1040)
+QApplication.processEvents()
+assert e.zweispaltig and all(sp.count() > 1 for sp in e.spalten)
+fenster.resize(1100, 728)
+QApplication.processEvents()
+assert e.zweispaltig == (e.viewport().width() >= e.ZWEI_SPALTEN)
+e._anordnen(False)
+assert e.spalten[1].count() == 1 and e.spalten[0].count() == len(e.boxen) + 1     # rechts nur der Abstandhalter
+assert all(w.maximumWidth() <= e.BREITE_TEXT + 160 for n, w in e.felder.items() if n != "logo")
+ok("Einstellungen: Hilfetext kurz mit ⓘ mehr (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
+   "Warnungen, Vorgaben bei 1920 px zweispaltig, bei schmalem Fenster einspaltig")
 fenster.close()
 db.schliessen()
 print("OK: Anzeige der Angebotsseite (Nullwerte, Spalten, Übersicht)")

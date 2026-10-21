@@ -527,6 +527,9 @@ EINSTELLUNGEN = (
     Einstellung("fracht_lht_langgut", "Ladungsträger für lange Teile (Langgut)", "Frachtkosten", "auswahl", "LG",
                 auswahl="lht"),
     # Der Reiter Einstellungen (mit den Stammdaten außer Kunden) öffnet nur mit diesem Passwort; leer = ohne
+    # Hilfetexte über den Tabellen: aufklappbar (erster Satz, 'ⓘ mehr') oder nur als Tooltip (siehe hilfe.py)
+    Einstellung("ansicht_hilfe", "Hilfetexte über Tabellen und Seiten", "Ansicht", "auswahl", "aufklappbar",
+                auswahl="hilfeart"),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
 )
 EINSTELLUNG = {e.name: e for e in EINSTELLUNGEN}
@@ -640,7 +643,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),
