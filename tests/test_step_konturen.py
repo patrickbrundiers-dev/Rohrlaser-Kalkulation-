@@ -50,6 +50,8 @@ def k01(t, mit_winkel=True):
     nah(b["gehrung"], 30, 0.05, "Gehrung")
     nah(b["um_x"], 30, 0.05, "Gehrung um X")
     nah(b["um_y"], 0, 0.05, "Gehrung um Y")
+    if mit_winkel:
+        winkel_nah(b["richtung"], 0, 0.2, "Ende B am längsten oben (0°)")
     nah(b["z"], 850 + 20 * math.tan(math.radians(30)), 0.02, "Länge")
     nah(b["schnittlaenge"], 120 + 80 / math.cos(math.radians(30)), 0.05, "Ende B Schnittlänge")
     rest = kl[2:]
@@ -100,6 +102,9 @@ def _():
     nah(a["gehrung"], math.degrees(math.acos(n[2])), 0.02, "Gesamtneigung")
     nah(a["um_x"], math.degrees(math.atan(math.tan(a20) / math.cos(a10))), 0.02, "Neigung um X")
     nah(a["um_y"], 10, 0.02, "Neigung um Y")
+    # am längsten in Richtung +(nx, ny) (Ende A): Umfangswinkel atan2(−nx, ny) = 205,5° (unten, nach links)
+    winkel_nah(a["richtung"], math.degrees(math.atan2(-n[0], n[1])) % 360, 0.2, "Ende A Richtung")
+    assert a["richtung"] is not None and kl[1]["richtung"] is None
     nah(t.laenge, 700 - zmin, 0.02, "Länge")
     b = kl[2:]
     assert [d["art"] for d in b] == ["Bohrung"] * 3, b

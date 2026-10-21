@@ -5,11 +5,12 @@ einer defekten Datei trifft nur die Messung. Die Übernahme der Messwerte: Profi
 Gewinde-Vorschlag, Konturklassen, Protokoll.
 """
 import datetime
+import json
 import importlib.util
 import sys
 from pathlib import Path
 
-from . import rechnen
+from . import naht, rechnen
 
 TOL_MASS = 0.15
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -95,6 +96,22 @@ def gewinde_vorschlag(text, gewinde):
                 out.append(f"{int(n)}x{g}")
                 break
     return "; ".join(out)
+
+
+def gehrungen(m):
+    """Ebene schräge Enden aus der Konturliste der Messung als Felder a_ende/b_ende (JSON {winkel, richtung});
+    ohne Richtung (ältere STEP-Import.exe) oder bei geraden und komplexen Enden leer."""
+    try:
+        liste = json.loads(m.get("konturen_liste") or "[]")
+    except (TypeError, ValueError):
+        liste = []
+    out = {}
+    for d in liste if isinstance(liste, list) else ():
+        feld = {"Ende A": "a_ende", "Ende B": "b_ende"}.get(d.get("art")) if isinstance(d, dict) else None
+        if feld and d.get("form") in ("Gehrung", "Schrägschnitt zweiachsig") and d.get("richtung") is not None \
+                and d.get("gehrung"):
+            out[feld] = naht.ende_text(d["gehrung"], d["richtung"])
+    return out
 
 
 def konturen_enden(m):
@@ -503,6 +520,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["_netz"] = m["_netz"]         # 3D-Ansicht; speichert der Aufrufer nach position_neu
             if m.get("datei"):
                 p["_datei"] = m["datei"]        # STEP-Datei als Zeichnung; hängt der Aufrufer an
+            p.update(gehrungen(m))
             if _z(m, "ende_a"):
                 p["a_gerade"] = "ja" if m.get("ende_a_gerade") == "1" else "nein"
                 p["a_schnitt"] = round(_z(m, "ende_a"), 1)

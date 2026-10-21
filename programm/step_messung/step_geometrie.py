@@ -1003,29 +1003,38 @@ def _ebene(face, tol=1e-4):
     return pr.Plan() if pr.IsPlanar() else None
 
 
-def _endform(flaechen, laenge, ref=0.0):
+def _endform(flaechen, laenge, ref=0.0, ende="B"):
     """Form eines Endes aus seinen Schnittflächen: gerade, Gehrung (Neigung um eine Querachse), Schrägschnitt zwei-
     achsig oder komplex (mehrere Ebenen, gekrümmt: Ausklinkung, Sattel …). Winkel in Grad gegen den geraden Schnitt:
     gehrung = Gesamtneigung, um_x = Neigung zur 0°-Richtung hin (Drehung um die Querachse 270°–90°), um_y = Neigung
-    zur 270°-Richtung hin (Drehung um die Querachse 0°–180°). ref: Bezugsrichtung 0° (siehe _bezug)."""
+    zur 270°-Richtung hin (Drehung um die Querachse 0°–180°). ref: Bezugsrichtung 0° (siehe _bezug).
+    richtung (nur ebene schräge Enden): Umfangswinkel (Zählung wie _Abwicklung.theta: von Ende A gesehen 0° oben,
+    90° rechts), in dem das Teil an diesem Ende am längsten ist; ende = 'A' oder 'B'."""
     normalen = []
     for f in flaechen:
         pl = _ebene(f)
         if pl is None:
-            return dict(form="komplex", gehrung=None, um_x=None, um_y=None, schnittlaenge=round(laenge, 2))
+            return dict(form="komplex", gehrung=None, um_x=None, um_y=None, richtung=None,
+                        schnittlaenge=round(laenge, 2))
         d = pl.Axis().Direction()
         n = (d.X(), d.Y(), d.Z()) if d.Z() >= 0 else (-d.X(), -d.Y(), -d.Z())
         if not any(sum(a * b for a, b in zip(n, m)) > 1 - 1e-6 for m in normalen):
             normalen.append(n)
     if len(normalen) != 1:
-        return dict(form="komplex", gehrung=None, um_x=None, um_y=None, schnittlaenge=round(laenge, 2))
+        return dict(form="komplex", gehrung=None, um_x=None, um_y=None, richtung=None,
+                    schnittlaenge=round(laenge, 2))
     nx0, ny0, nz = normalen[0]
     r = math.radians(ref)      # Querachsen so drehen, dass Y in die 0°-Richtung zeigt
     nx, ny = nx0 * math.cos(r) + ny0 * math.sin(r), -nx0 * math.sin(r) + ny0 * math.cos(r)
     ges = math.degrees(math.acos(min(1.0, nz)))
     um_x, um_y = math.degrees(math.atan2(abs(ny), nz)), math.degrees(math.atan2(abs(nx), nz))
     form = "gerade" if ges < 0.05 else "Gehrung" if min(um_x, um_y) < 0.05 else "Schrägschnitt zweiachsig"
-    return dict(form=form, gehrung=round(ges, 2), um_x=round(um_x, 2), um_y=round(um_y, 2),
+    # Ebene z = c − (nx·x + ny·y) / nz: Ende B ist in Richtung −(nx, ny) am längsten, Ende A in Richtung +(nx, ny)
+    richtung = None
+    if form != "gerade":
+        dx, dy = (-nx0, -ny0) if ende == "B" else (nx0, ny0)
+        richtung = round((math.degrees(math.atan2(-dx, dy)) - ref) % 360, 1) % 360
+    return dict(form=form, gehrung=round(ges, 2), um_x=round(um_x, 2), um_y=round(um_y, 2), richtung=richtung,
                 schnittlaenge=round(laenge, 2))
 
 
@@ -1277,8 +1286,8 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
     kopf = []
     for art_, name, z in (("EA", "Ende A", 0.0), ("EB", "Ende B", t.laenge)):
         fl, lg, kt = enden[art_]
-        e = _endform(fl, lg) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None, um_y=None,
-                                         schnittlaenge=0.0)
+        e = _endform(fl, lg, ende=art_[1]) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None,
+                                                         um_y=None, richtung=None, schnittlaenge=0.0)
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
@@ -1629,8 +1638,8 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
     kopf = []
     for art_, name, z in (("EA", "Ende A", 0.0), ("EB", "Ende B", t.laenge)):
         fl, lg, kt = enden[art_]
-        e = _endform(fl, lg, ref) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None, um_y=None,
-                                              schnittlaenge=0.0)
+        e = _endform(fl, lg, ref, art_[1]) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None,
+                                                          um_y=None, richtung=None, schnittlaenge=0.0)
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))

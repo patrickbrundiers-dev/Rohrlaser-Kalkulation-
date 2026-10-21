@@ -40,7 +40,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 30     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 31     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -56,6 +56,7 @@ SCHEMA_VERSION = 30     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 28: maschinen.min_stange (kürzeste Stange der Stangenladung im Zuschnitt, Vorgabe 2.500 mm)
                         # 29: maschinen.kontur_klein_wand/kontur_mittel_wand (Konturklasse nach Hüllmaß ÷ Wand, 3 und 8)
                         # 30: Schweißnaht (positionen.naht_vorgabe/naht_winkel/naht_quelle/querschnitt_lage, profile.naht_stange; leer = keine Vorgabe)
+                        # 31: Gehrung mit Richtung (positionen.a_ende/b_ende als JSON; ältere Positionen leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

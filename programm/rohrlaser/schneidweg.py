@@ -5,7 +5,7 @@ Anfangs-/Endschnitt, Innenkonturen, Konturliste und Konturklassen). Die Schneidz
 rechnen.schneidzeit mit den Schneiddaten der Maschine; einen eigenen Zeitansatz gibt es hier nicht.
 
 Die Eingaben stehen als JSON in positionen.technik, damit der Dialog sie wieder anzeigt:
-  {quelle: 'Schneidweg-Rechner', a: {winkel, achse, sattel}, b: {winkel, achse, sattel}, gravur,
+  {quelle: 'Schneidweg-Rechner', a: {winkel, achse, sattel, richtung}, b: {…}, gravur,
    konturen: [{art, anzahl, d | l, b | b, h, r | laenge, huelle | punkte, x, text}]}
 x = Lage der Kontur ab Anfang [mm], nur für die Skizze.
 
@@ -27,7 +27,7 @@ gilt erst, wenn der Benutzer ihn in 'Gewinde geprüft' einträgt.
 import json
 import math
 
-from . import optimierung as opt
+from . import naht, optimierung as opt
 from .stammdaten import flaeche_wirksam
 
 QUELLE = "Schneidweg-Rechner"
@@ -41,6 +41,12 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), LANGLOCH: (("l", "Länge l"), ("b", "Breite 
          POLYGON: (("punkte", "Eckpunkte x,y; x,y; … [mm]"),),
          SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß"))}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
+# Gehrung bei Rund-, Quadrat- und Rechteckrohr: Seite, an der das Teil an diesem Ende am längsten ist (Blick von
+# Ende A, 0° oben, 90° rechts; Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen
+# ineinander (positionen.a_ende/b_ende); ohne Angabe nicht.
+RICHTUNGEN = {"nicht angegeben": None, "länger oben (0°)": 0, "länger rechts (90°)": 90,
+              "länger unten (180°)": 180, "länger links (270°)": 270}
+MIT_RICHTUNG = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
 OHNE_HUELLE = 9999.0        # sonstige Kontur ohne Hüllmaß: in der Konturliste als groß
 
 
@@ -125,6 +131,21 @@ def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None):
     return gerade / c, True
 
 
+def richtung_pruefen(profil, richtung, achse):
+    """Passt die Richtung (am längsten …) zur Gehrungsachse? Beim Rechteckrohr liegt die Breitseite oben: 0°/180°
+    kippt über die kürzere Seite, 90°/270° über die längere. Ergebnis: Fehlertext oder None."""
+    from .rechnen import zahl
+    form, a, b = profil.get("form"), _z(profil.get("a")), _z(profil.get("b")) or _z(profil.get("a"))
+    if form != "Rechteckrohr" or abs(a - b) < 1e-9 or richtung % 90:
+        return None
+    quer = a if achse != ACHSEN[1] else b            # Maß, über das die Gehrung läuft
+    soll = min(a, b) if richtung % 180 == 0 else max(a, b)
+    if abs(quer - soll) > 1e-9:
+        return (f"Richtung {int(richtung)}° passt nicht zur Gehrung {achse} (Breitseite oben: 0°/180° über "
+                f"{zahl(min(a, b), 1)} mm, 90°/270° über {zahl(max(a, b), 1)} mm)")
+    return None
+
+
 def punkte(text):
     """'0,0; 40,0; 40,20' -> [(0, 0), (40, 0), (40, 20)] (Komma oder Leerzeichen zwischen x und y)."""
     out = []
@@ -188,7 +209,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
-    schritte, fehler, liste, enden = [], [], [], []
+    schritte, fehler, liste, enden, gehrung = [], [], [], [], {}
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
     n_ende = einstiche_ende(form)
@@ -207,6 +228,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
                         if w else " gerade")
         schritte.append(dict(text=text, anzahl=1, laenge_stueck=lg, laenge=lg, einstiche=n_ende, huelle=hk_ende,
                              klasse="Ende", schaetzung=sch, gerade=not w and not sat))
+        gehrung[seite] = None
+        if w and not sat and e.get("richtung") is not None and form in MIT_RICHTUNG:
+            f_ = richtung_pruefen(profil, e.get("richtung"), e.get("achse") or ACHSEN[0])
+            if f_:
+                fehler.append(f"{titel}: {f_}")
+            else:
+                gehrung[seite] = naht.ende_text(w, e["richtung"])
         enden.append(("A" if seite == "a" else "E", hk_ende, lg))
     for e in eingaben.get("konturen") or ():
         try:
@@ -231,7 +259,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
                   b_gerade="ja" if schritte[1]["gerade"] else "nein", innen=round(innen, 1),
                   gravur=round(gravur, 1) if gravur else None,
                   konturen=konturen_text(liste, enden),
-                  kontur_grenzen=grenzen_text(grenzen), **kl)
+                  kontur_grenzen=grenzen_text(grenzen), a_ende=gehrung["a"], b_ende=gehrung["b"], **kl)
     # Bohrungen und Gewinde-Vorschlag wie beim STEP-Import ('4xØ8,5', '4xM10')
     from .step import KERNLOCH, gewinde_vorschlag
     bohr = {}

@@ -180,6 +180,7 @@ def _(f, p):
     f.wert("Ende A Schnittlänge", a["schnittlaenge"], 200, 0.05)
     f.gleich("Ende B Form", b["form"], "Gehrung")
     f.winkel("Ende B Gehrungswinkel", b["gehrung"], 45)
+    f.winkel("Ende B Richtung (am längsten rechts, 90°)", b["richtung"], 90)
     f.winkel("Ende B um Y", b["um_y"], 45)
     f.winkel("Ende B um X", b["um_x"], 0)
     f.wert("Ende B Schnittlänge", b["schnittlaenge"], 2 * (60 * math.sqrt(2) + 40), 0.05)

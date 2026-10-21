@@ -72,7 +72,8 @@ def _():
     assert k["laengsachse"]["richtung"] == [0.0, 0.0, 1.0] and k["laengsachse"]["ende_a"] == [0.0, 0.0, 0.0], k
     w = k["wandstaerke"]
     assert w["wert"] == 3.0 and w["minimum"] == 3.0 and w["maximum"] == 3.0 and len(w["einzelmessungen"]) >= 12, w
-    assert k["schnittwinkel"]["Ende B"] == {"form": "Gehrung", "gesamt": 30.0, "um_x": 30.0, "um_y": 0.0}
+    assert k["schnittwinkel"]["Ende B"] == {"form": "Gehrung", "gesamt": 30.0, "um_x": 30.0, "um_y": 0.0,
+                                                 "richtung": 0.0}
     assert [c["art"] for c in k["konturen"]] == ["Bohrung", "Bohrung", "Langloch", "Rechteckausschnitt",
                                                  "Sackbohrung"], k["konturen"]
     assert k["pruefstatus"] == "prüfen" and any("Sackbohrung" in x for x in k["warnungen"])   # Sackbohrung: prüfen

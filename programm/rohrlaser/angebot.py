@@ -215,7 +215,11 @@ POSITIONEN = Tabelle(
      Feld("naht_vorgabe", "Schweißnaht", "naht", breite=190),
      Feld("naht_winkel", "Nahtwinkel [°]", "zahl", 0, 359.9, stellen=1, breite=70),
      Feld("naht_quelle", "Quelle Naht", "auswahl", auswahl="nahtquelle", breite=80),
-     Feld("querschnitt_lage", "Querschnittslage", "auswahl", auswahl="querschnittlage", breite=110)),
+     Feld("querschnitt_lage", "Querschnittslage", "auswahl", auswahl="querschnittlage", breite=110),
+     # ebene schräge Enden (Gehrung) für das Ineinanderlegen: JSON {winkel, richtung}, richtung = Umfangswinkel, in
+     # dem das Teil an diesem Ende am längsten ist (naht.py-Zählung); STEP-Import oder Schneidweg-Rechner
+     Feld("a_ende", "Gehrung Anfang", breite=90),
+     Feld("b_ende", "Gehrung Ende", breite=90)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")
