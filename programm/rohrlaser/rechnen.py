@@ -1140,6 +1140,33 @@ def zeitbasis_aus(maschinen_id, k, tabellen):
                           if z.get("schritt")])
 
 
+def zeitbasis_abweichungen(zb, vorgabe):
+    """Stundensätze und Zeitvorgaben eines Angebots (Snapshot zb), die von den aktuellen Stammdaten (vorgabe =
+    zeitbasis_aus) abweichen, als Texte, z. B. 'Stundensatz Maschine 160 statt 150 €/h'. Ohne Snapshot: []."""
+    if not isinstance(zb, dict):
+        return []
+    out = []
+    m, mv = zb.get("maschine") or {}, vorgabe.get("maschine") or {}
+    if m.get("maschinen_id") == mv.get("maschinen_id"):
+        for n, titel, einheit in (("stundensatz", "Stundensatz Maschine", "€/h"), ("ruestzeit", "Rüstzeit Maschine", "min"),
+                                  ("stangenwechsel", "Stangenwechsel", "s")):
+            if _n(m.get(n)) != _n(mv.get(n)):
+                out.append(f"{titel} {zahl(_n(m.get(n)))} statt {zahl(_n(mv.get(n)))} {einheit}")
+    s, sv = zb.get("saetze") or {}, vorgabe.get("saetze") or {}
+    for sid in sorted(set(s) | set(sv)):
+        if _n(s.get(sid)) != _n(sv.get(sid)):
+            out.append(f"Stundensatz {sid} {zahl(_n(s.get(sid)))} statt {zahl(_n(sv.get(sid)))} €/h")
+    schr = {z.get("schritt"): z for z in zb.get("schritte") or ()}
+    for z in vorgabe.get("schritte") or ():
+        a = schr.get(z.get("schritt"))
+        if a is None:
+            continue
+        for n, titel, einheit in (("ruestzeit", "Rüstzeit", "min"), ("zeit", "Zeit je Einheit", "s")):
+            if _n(a.get(n)) != _n(z.get(n)):
+                out.append(f"{z['schritt']}: {titel} {zahl(_n(a.get(n)))} statt {zahl(_n(z.get(n)))} {einheit}")
+    return out
+
+
 def zeitbasis(kopf, k, tabellen):
     """Gültige Stundensätze und Zeitvorgaben eines Angebots: der beim Anlegen gespeicherte Snapshot
     (kopf['zeitbasis']), sonst (ältere Angebote) die aktuellen Stammdaten. Gehört der Snapshot zu einer anderen

@@ -538,7 +538,15 @@ def kapitel_angebot(i):
             "Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag und Mindestpreis Angebot netto "
             "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
-            "die Einstellungen zu ändern. <b>Vorgaben aus Einstellungen</b> setzt sie wieder auf die Einstellungen. "
+            "die Einstellungen zu ändern. Werte, die von den Einstellungen abweichen, sind <b>gelb</b> hinterlegt "
+            "(Tooltip: Standardwert); darunter steht, welche Werte abweichen, auch Stundensätze und Zeitvorgaben aus "
+            "dem Reiter Zeiten & Arbeitskosten, und zugeklappt zeigt die Kurzfassung die Anzahl („3 abweichend“). "
+            "Nach jeder Änderung eines Kalkulationswerts nennt die Statuszeile den Verkaufspreis vorher und nachher "
+            "(z. B. „Verkaufspreis netto 1.234,00 € → 1.290,50 €.“). Ändert jemand die Einstellungen, bleiben "
+            "bestehende Angebote unverändert; nur neue Angebote übernehmen die neuen Werte. "
+            "<b>Vorgaben aus Einstellungen</b> setzt Kalkulationswerte, Stundensätze und Zeitvorgaben wieder auf die "
+            "Einstellungen bzw. Stammdaten; die Rückfrage nennt jede Änderung (alt → neu). Von Hand eingetragene "
+            "Werte an den Positionen (Meterpreis, Schneidzeit, Zukaufteile) bleiben. "
             "Angebote aus älteren Programmversionen rechnen mit den Einstellungen, bis hier ein Wert geändert wird. "
             "Beim Kopieren gehen die Werte mit.",
             "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
@@ -2602,6 +2610,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.1", "Angebot: Kalkulationswerte, die von den Einstellungen abweichen, sind gelb markiert und aufgelistet "
+              "(auch Stundensätze), Preisänderung nach jeder Änderung in der Statuszeile, <i>Vorgaben aus "
+              "Einstellungen</i> nennt jede Änderung ([[angebot]])."],
     ["0.6.0", "Angebot: eigene <b>Lieferzeit</b> je Angebot (Arbeitstage, Wochen, KW, Datum oder Text, [[lieferzeit]]), "
               "<b>Ihre Anfrage / Zeichen</b> im Kopf und im PDF, <b>Mindestpreis</b> 200 € netto: Stückpreise "
               "werden anteilig angehoben, Hinweis „Mindestauftragswert“ ([[mindestpreis]])."],
