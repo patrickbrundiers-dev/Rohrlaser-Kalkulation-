@@ -1,10 +1,8 @@
-"""Prüft Zeichnungen je Position und die Materialanfrage:
-- Zeichnungen: Kopie im Ordner des Angebots, gleiche Datei nicht doppelt, gleicher Name mit anderem Inhalt ' (2)',
-  Spalte Zeichnungen, Dialog (Entfernen löst nur die Zuordnung), Ziehen auf eine Position.
+"""Prüft die Materialanfrage (die Zeichnungsablage je Position ist seit 0.6.28 entfernt):
 - Materialanfrage: Bedarf aus der Optimierung je Profil + Werkstoff + Lieferlänge (ohne Kundenmaterial), Lieferant
-  aus 'Preise', E-Mail aus den Lieferanten, Text mit Stangen, Zeichnungen als Anhang, Mengen änderbar, Zeilen
+  aus 'Preise', E-Mail aus den Lieferanten, Text mit Stangen, Mengen änderbar, Zeilen
   abwählbar; Outlook wird nur zum Anzeigen aufgerufen (Display, nie Send); ohne Outlook E-Mail-Datei (.eml, Entwurf).
-- Ältere Datei (Schema 26) bekommt die Spalte dokumente leer.
+- Ältere Datei (Schema 26) lässt sich weiter öffnen; früher abgelegte Zeichnungen werden einmalig gelöscht.
 
 Aufruf: python tests/test_materialanfrage.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -22,9 +20,8 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtCore import QMimeData, QPoint, QPointF, QUrl, Qt  # noqa: E402
-from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
-from rohrlaser import dokumente, materialanfrage as ma  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+from rohrlaser import materialanfrage as ma  # noqa: E402
 from rohrlaser.angebot import KUNDENMATERIAL  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -35,14 +32,7 @@ def ok(t):
 
 
 tmp = Path(tempfile.mkdtemp())
-quelle = tmp / "Kunde"
-quelle.mkdir()
-(quelle / "Z-100.pdf").write_bytes(b"%PDF-1.4 Zeichnung 100")
-(quelle / "Z-200.dxf").write_text("0\nSECTION\n")
-(quelle / "liesmich.txt").write_text("kein Anhang")
-anders = tmp / "anders"
-anders.mkdir()
-(anders / "Z-100.pdf").write_bytes(b"%PDF-1.4 andere Zeichnung")
+(tmp / "Z-100.pdf").write_bytes(b"%PDF-1.4 Zeichnung 100")
 
 db = Datenbank(tmp / "rohrlaser.db")
 db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))
@@ -63,72 +53,13 @@ app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db, stumm=True)
 fenster.resize(1920, 1080)
 s = fenster.angebot_oeffnen(a)
-ordner = dokumente.ordner(fenster.ablage(), s.kopf)
-assert ordner == tmp / "Ablage" / "A-2026-0100"
 
-# ------------------------------------------------------------------ D1 Zeichnungen anhängen
-assert s.dokumente_anhaengen(0, [quelle / "Z-100.pdf", quelle / "Z-200.dxf", quelle / "liesmich.txt"]) == 2
-p0 = db.positionen(a)[0]
-assert dokumente.liste(p0["dokumente"]) == ["Z-100.pdf", "Z-200.dxf"] and (ordner / "Z-100.pdf").is_file()
-assert s.dokumente_anhaengen(0, [quelle / "Z-100.pdf"]) == 1                    # gleiche Datei: nicht doppelt
-assert dokumente.liste(db.positionen(a)[0]["dokumente"]) == ["Z-100.pdf", "Z-200.dxf"]
-assert s.dokumente_anhaengen(1, [anders / "Z-100.pdf"]) == 1                    # gleicher Name, anderer Inhalt
-assert dokumente.liste(db.positionen(a)[1]["dokumente"]) == ["Z-100 (2).pdf"]
-assert (ordner / "Z-100 (2).pdf").read_bytes() == b"%PDF-1.4 andere Zeichnung"
-m = s.pos_modell
-c = next(i for i, (art, f) in enumerate(m.spalten) if f is not None and getattr(f, "name", None) == "dokumente")
-assert m.data(m.index(0, c)) == "2 Dateien" and m.data(m.index(1, c)) == "Z-100 (2).pdf"
-assert "Z-200.dxf" in m.data(m.index(0, c), Qt.ToolTipRole) and not s.pos_ansicht.isColumnHidden(c)
-ok("D1 Zeichnungen: Kopie im Ordner des Angebots, keine Dubletten, gleicher Name mit anderem Inhalt ' (2)', Spalte")
-
-# ------------------------------------------------------------------ D2 Dialog und Ziehen
 geoeffnet = []
 s.f.datei_oeffnen = geoeffnet.append
-
-
-def bedienen(d):
-    assert d.liste.count() == 2
-    d.liste.item(1).setSelected(True)
-    d._oeffnen()
-    d._entfernen()                      # nur die Zuordnung, die Datei bleibt
-    d.hinzufuegen([quelle / "liesmich.txt"])          # falsche Endung: nichts
-    return QDialog.Accepted
-
-
-assert s.zeichnungen(0, dialog=bedienen)
-assert geoeffnet == [ordner / "Z-200.dxf"] and (ordner / "Z-200.dxf").is_file()
-assert dokumente.liste(db.positionen(a)[0]["dokumente"]) == ["Z-100.pdf"]
-
-
-class Ziehen:                           # wie ein QDropEvent mit gezogenen Dateien an einer Stelle
-    def __init__(self, pfade, punkt):
-        self.m = QMimeData()
-        self.m.setUrls([QUrl.fromLocalFile(str(p)) for p in pfade])
-        self.punkt, self.angenommen = punkt, False
-
-    def mimeData(self):
-        return self.m
-
-    def position(self):
-        return QPointF(self.punkt)
-
-    def acceptProposedAction(self):
-        self.angenommen = True
-
-
-s.show()
-app.processEvents()
-vp = s.pos_ansicht.viewport()
-mitte = s.pos_ansicht.visualRect(m.index(2, 2)).center()
-z = Ziehen([quelle / "Z-200.dxf"], vp.mapTo(s, mitte))
-s.dragEnterEvent(z)
-assert z.angenommen
-s.dropEvent(z)
-assert dokumente.liste(db.positionen(a)[2]["dokumente"]) == ["Z-200.dxf"]
-daneben = Ziehen([quelle / "Z-200.dxf"], QPoint(2, 2))                # nicht auf einer Position: Hinweis
-s.dropEvent(daneben)
-assert "direkt auf die Position" in fenster.statusBar().currentMessage()
-ok("D2 Dialog (öffnen, entfernen), Datei auf eine Position ziehen hängt sie an, daneben nur Hinweis")
+assert not hasattr(s, "zeichnungen") and not hasattr(s, "dokumente_anhaengen")       # seit 0.6.28 entfernt
+assert all(getattr(f, "name", None) != "dokumente" for _, f in s.pos_modell.spalten)
+assert "dokumente" not in db.positionen(a)[0]
+ok("D Zeichnungsablage entfernt: keine Spalte Zeichnungen, keine Ablage-Funktionen")
 
 # ------------------------------------------------------------------ M1 Bedarf
 assert s.material_anfragen() is None and "zuerst optimieren" in fenster.statusBar().currentMessage()
@@ -140,10 +71,10 @@ assert set(schl) == {("QR 40x40x3", 6000), ("RR 42,4x2,0", 6000)}, set(schl)    
 qr, rr = schl[("QR 40x40x3", 6000)], schl[("RR 42,4x2,0", 6000)]
 n_qr = sum(1 for st in s.ergebnis["stangen"] if st["profil"] == "QR 40x40x3")
 assert qr["stangen"] == n_qr >= 3 and qr["lieferant"] == "Stahlhandel Nord" and rr["lieferant"] is None
-assert qr["pos"] == ["10", "20"] and qr["dokumente"] == ["Z-100.pdf", "Z-100 (2).pdf"] and rr["dokumente"] == ["Z-200.dxf"]
+assert qr["pos"] == ["10", "20"] and "dokumente" not in qr
 assert qr["text"].startswith(f"{n_qr} Stangen Quadratrohr 40 x 40 x 3") and "à 6.000 mm (ca." in qr["text"], qr["text"]
 assert ma.lieferanten(db.zeilen("zukauf_lieferanten")) == {"Stahlhandel Nord": "anfrage@stahl-nord.example"}
-ok("M1 Bedarf: Stangen je Profil + Werkstoff + Lieferlänge aus der Optimierung, Kundenmaterial nicht, Lieferant, Zeichnungen")
+ok("M1 Bedarf: Stangen je Profil + Werkstoff + Lieferlänge aus der Optimierung, Kundenmaterial nicht, Lieferant")
 
 # ------------------------------------------------------------------ M2 Dialog und Outlook (nur anzeigen)
 aufrufe = []
@@ -162,7 +93,7 @@ gesehen = {}
 
 def anfrage_bedienen(d):
     gesehen["lieferant"] = d.lieferant.currentText()
-    gesehen["an"], _, gesehen["text"], gesehen["anhaenge"] = d.mail()
+    gesehen["an"], _, gesehen["text"] = d.mail()
     gesehen["gewaehlt"] = d.gewaehlt()
     d.mengen[d.gewaehlt()[0]].setValue(qr["stangen"] + 2)                # Menge ändern -> Text neu
     gesehen["text2"] = d.text.toPlainText()
@@ -174,15 +105,14 @@ d = s.material_anfragen(dialog=anfrage_bedienen, ausfuehren=outlook_ok)
 assert gesehen["lieferant"] == "Stahlhandel Nord" and gesehen["an"] == "anfrage@stahl-nord.example"
 assert len(gesehen["gewaehlt"]) == 1 and "Quadratrohr 40 x 40 x 3" in gesehen["text"] and "Rundrohr" not in gesehen["text"]
 assert "Angebot A-2026-0100" in gesehen["text"] and "Muster Laser GmbH" in gesehen["text"]
-assert "Zeichnungen hängen an" in gesehen["text"]
-assert [p.name for p in gesehen["anhaenge"]] == ["Z-100.pdf", "Z-100 (2).pdf"]
+assert "Zeichnung" not in gesehen["text"]
 assert f"{qr['stangen'] + 2} Stangen Quadratrohr" in gesehen["text2"]
 prog, skript, daten = aufrufe[0]
 assert prog == "powershell" and "Display" in skript and ".Send" not in skript and "Send(" not in skript
 assert daten["an"] == "anfrage@stahl-nord.example" and daten["betreff"] == "Materialanfrage zu Angebot A-2026-0100"
-assert [Path(x).name for x in daten["anhaenge"]] == ["Z-100.pdf", "Z-100 (2).pdf"] and "Stangen" in daten["text"]
+assert not daten.get("anhaenge") and "Stangen" in daten["text"]
 assert d.ergebnis == "outlook" and "in Outlook geöffnet" in fenster.statusBar().currentMessage()
-ok("M2 Vorschau: Lieferant mit E-Mail, nur seine Zeilen, Menge änderbar, Zeichnungen; Outlook nur Display, nie Send")
+ok("M2 Vorschau: Lieferant mit E-Mail, nur seine Zeilen, Menge änderbar, ohne Anhang; Outlook nur Display, nie Send")
 
 # ------------------------------------------------------------------ M3 ohne Outlook: E-Mail-Datei
 def outlook_fehlt(befehl):
@@ -192,8 +122,6 @@ def outlook_fehlt(befehl):
 def ohne_lieferant(d):
     d.lieferant.setCurrentText(ma.OHNE_LIEFERANT)        # Rundrohr ohne Lieferant, Adresse von Hand
     d.an.setText("einkauf@rohr.example")
-    for i in range(d.anhaenge.count()):
-        d.anhaenge.item(i).setCheckState(Qt.Unchecked)      # Zeichnung abwählen
     d.in_outlook()
     return d.result()
 
@@ -205,11 +133,11 @@ mail = email.message_from_bytes(geoeffnet[0].read_bytes(), policy=policy.default
 assert mail["To"] == "einkauf@rohr.example" and mail["X-Unsent"] == "1"
 assert "Rundrohr Ø 42,4 x 2" in mail.get_body().get_content() and "Quadratrohr" not in mail.get_body().get_content()
 assert not list(mail.iter_attachments())
-pfad = ma.eml(tmp / "mit.eml", "a@b.example", "Test", "Text", [ordner / "Z-100.pdf"])
+pfad = ma.eml(tmp / "mit.eml", "a@b.example", "Test", "Text", [tmp / "Z-100.pdf"])
 anh = list(email.message_from_bytes(pfad.read_bytes(), policy=policy.default).iter_attachments())
 assert [x.get_filename() for x in anh] == ["Z-100.pdf"] and anh[0].get_content() == b"%PDF-1.4 Zeichnung 100"
 assert ma.outlook_oeffnen("a", "b", "c") == (False, "Outlook gibt es nur unter Windows.") or sys.platform == "win32"
-ok("M3 Ohne Outlook: E-Mail-Datei als Entwurf (X-Unsent) mit Empfänger, Text und gewählten Anhängen, geöffnet")
+ok("M3 Ohne Outlook: E-Mail-Datei als Entwurf (X-Unsent) mit Empfänger und Text, geöffnet; eml kann weiter Anhänge")
 
 # ------------------------------------------------------------------ M4 Kundenmaterial allein, ältere Datei
 b = db.angebot_neu(dict(kunde="Nur Kunde"))
@@ -221,13 +149,41 @@ db.schliessen()
 alt = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
-con.execute("ALTER TABLE positionen DROP COLUMN dokumente")
 con.execute("PRAGMA user_version=26")
 con.commit()
 con.close()
 db2 = Datenbank(alt)
 assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
-assert all(p["dokumente"] is None for p in db2.positionen(a)) and db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
+assert len(db2.positionen(a)) == 4 and db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()
-ok("M4 Nur Kundenmaterial: keine Anfrage; Datei mit Schema 26: Spalte dokumente leer ergänzt, Sicherung vorher")
-print("OK: Zeichnungen und Materialanfrage")
+ok("M4 Nur Kundenmaterial: keine Anfrage; Datei mit Schema 26 öffnet, Sicherung vorher")
+
+# ------------------------------------------------------------------ Z Frühere Zeichnungsablage einmalig löschen (Freigabe 1b)
+db3 = Datenbank(alt)
+if "dokumente" not in {r[1] for r in db3.con.execute("PRAGMA table_info(positionen)")}:
+    db3.con.execute("ALTER TABLE positionen ADD COLUMN dokumente TEXT")
+db3.einstellung_setzen("zeichnungen_entfernt", None)
+ablage = tmp / "Ablage2"
+o = ablage / "A-2026-0100"
+o.mkdir(parents=True)
+(o / "Z-100.pdf").write_bytes(b"x")
+(o / "Z-100 (2).pdf").write_bytes(b"y")
+o2 = ablage / db3.angebot(b)["nummer"]
+o2.mkdir()
+(o2 / "Z-9.pdf").write_bytes(b"z")
+(o2 / "Angebot.pdf").write_bytes(b"bleibt")           # nicht eingetragen: bleibt liegen
+(ablage / "fremd.pdf").write_bytes(b"bleibt")
+pos = db3.positionen(a)
+db3.con.execute("UPDATE positionen SET dokumente=? WHERE id=?", ('["Z-100.pdf", "Z-100 (2).pdf"]', pos[0]["id"]))
+db3.con.execute("UPDATE positionen SET dokumente=? WHERE id=?", ('["../fremd.pdf", "fehlt.pdf"]', pos[1]["id"]))
+db3.con.execute("UPDATE positionen SET dokumente=? WHERE id=?", ('["Z-9.pdf"]', db3.positionen(b)[0]["id"]))
+db3.con.commit()
+assert db3.zeichnungen_entfernen(ablage) == 3
+assert not o.exists() and not (o2 / "Z-9.pdf").exists() and (o2 / "Angebot.pdf").is_file()
+assert (ablage / "fremd.pdf").is_file()
+assert db3.con.execute("SELECT COUNT(*) FROM positionen WHERE dokumente IS NOT NULL").fetchone()[0] == 0
+(o2 / "Z-9.pdf").write_bytes(b"neu")
+assert db3.zeichnungen_entfernen(ablage) == 0 and (o2 / "Z-9.pdf").is_file()        # nur einmal
+db3.schliessen()
+ok("Z Frühere Zeichnungen: eingetragene Dateien gelöscht, leerer Ordner entfernt, Fremdes bleibt, nur einmal")
+print("OK: Materialanfrage")

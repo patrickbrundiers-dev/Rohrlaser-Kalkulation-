@@ -187,8 +187,6 @@ POSITIONEN = Tabelle(
      Feld("zusatz", "Zusatzarbeiten", "zusatz", breite=220),
      # Zukaufteile als JSON-Liste [{artikel_id, menge (je Teil), aufschlag (%), stand}] (Dialog 'Zukaufteile …')
      Feld("zukauf", "Zukaufteile", "zukauf", breite=220),
-     # Zeichnungen/Dokumente als JSON-Liste der Dateinamen im Ordner des Angebots (dokumente.py, Doppelklick)
-     Feld("dokumente", "Zeichnungen", "dokumente", breite=130),
      # Zukaufteil-Position: Gewicht je Teil für die Fracht nach Gewicht (STEP-Import: Volumen × Dichte, sonst leer)
      Feld("gewicht_teil", "Gewicht je Teil [kg]", "zahl", 0, 100000, stellen=3, breite=75),
      # STEP-Werte

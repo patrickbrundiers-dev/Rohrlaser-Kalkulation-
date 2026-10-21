@@ -806,8 +806,6 @@ def kapitel_angebot(i):
         ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl ([[zusatzarbeiten_angebot]])"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl ([[zukauf_angebot]])"],
-        ["Zeichnungen", "angehängte Zeichnungen und Modelle der Position (z. B. <i>Z-100.pdf</i> oder <i>2 Dateien</i>); "
-                        "Doppelklick öffnet die Liste ([[zeichnungen]])"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
                                  "rechnet es aus Volumen × Dichte, wenn der Werkstoff gewählt ist; sonst leer)"],
         ["Abweichung Schneidweg zu STEP [mm]", "nur sichtbar, wenn der Schneidweg einer importierten Position von Hand "
@@ -1186,16 +1184,25 @@ def kapitel_optimieren(i):
     i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
     i.text("Für Teile ohne STEP-Datei rechnet der <b>Schneidweg-Rechner</b> Schneidweg, Einstiche und Konturklassen "
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
-           "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen.")
-    i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen, Langlöcher und ein Rechteck",
-           hoehe=125 * mm, legende=[
+           "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen. Bei Teilen aus dem "
+           "STEP-Import zeigt er die gemessenen Konturen in Tabelle und Skizze; dort lassen sie sich prüfen und "
+           "ändern.")
+    i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
+           "und ein Rechteck; maßstäbliche Skizze (vergrößert auf die erste Hälfte) mit Draufsicht, Seitenansicht und "
+           "Ansicht von A",
+           hoehe=150 * mm, legende=[
                (1, "<b>Gehrung</b> je Ende in Grad (gerade = 0) mit Richtung, beim Rundrohr wahlweise Ausklinkung."),
-               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße; der Tooltip jeder Zelle nennt das Maß."),
-               (3, "<b>+ Bohrung</b>, <b>+ Langloch</b> … fügt eine Zeile hinzu, <b>Markierte entfernen</b> löscht."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße (der Tooltip jeder Zelle nennt das Maß), "
+                   "dazu Lage ab Anfang, Abstand (Muster), Seite und Versatz quer."),
+               (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; <b>Aus Position kopieren …</b>, "
+                   "<b>Vorlagen</b> und <b>Markierte entfernen</b> daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
                (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
                    "in Farbe."),
-               (6, "<b>Skizze</b> des Teils mit Enden und Konturen.")])
+               (6, "<b>Skizze</b> maßstäblich: Draufsicht und Seitenansicht oder Abwicklung, Bemaßung, Ansicht "
+                   "von A mit den Flächennamen; Konturen anklicken und ziehen.")])
+    i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
+           "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
             "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
             "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
@@ -1212,17 +1219,46 @@ def kapitel_optimieren(i):
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
-            "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Langloch</i> (Länge, Breite: "
+            "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Senkung</i> (Bohrung Ø d und "
+            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; der Dialog erinnert daran, das Senken als Zusatzarbeit "
+            "zu erfassen, [[zusatzarbeiten_angebot]]), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
-            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Polygon</i> aus Eckpunkten in Maß 1 "
+            "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Ausklinkung</i> am Ende als Rechteck "
+            "(Länge ab Ende, Breite, Eckradius innen: 2 × (l − r) + (b − 2 r) + π × r; ohne Lage an Ende A, für "
+            "Ende B Lage = Teilelänge − l/2; der Endschnitt wird dafür nicht gekürzt, das ist die sichere Seite), "
+            "<i>Polygon</i> aus Eckpunkten in Maß 1 "
             "(<i>x,y; x,y; …</i> in mm, geschlossen, z. B. 0,0; 40,0; 40,20; 0,20 = 120 mm, Hüllmaß 40) und "
-            "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). <b>Lage ab Anfang</b> "
-            "(optional) setzt die Kontur in der Skizze an ihre Stelle, ohne Lage wird sie gleichmäßig verteilt. Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
+            "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß). Jede Kontur ist ein Einstich. Unmögliche Maße (Langloch kürzer als "
             "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
             "gesperrt.",
             "<b>Gravur</b>: Länge in mm, wird mit dem Vorschub Gravur gerechnet.",
-            "<b>Skizze</b>: Seitenansicht mit Gehrung bzw. Ausklinkung und den Konturen, zur Kontrolle der Eingaben "
-            "(in der Höhe nicht maßstäblich).",
+            "<b>Vorlagen</b>: <i>Vorlagen → Als Vorlage speichern …</i> merkt sich Enden, Konturen (mit Lage, Seite, "
+            "Muster) und Gravur unter einem Namen, für alle Angebote; <i>Vorlage laden</i> ersetzt damit die "
+            "Eingaben, <i>Vorlage löschen</i> entfernt sie. Eine Vorlage eines anderen Profils trägt die Profilform "
+            "im Namen; Seiten, die das Profil nicht hat, landen auf der ersten Fläche. <b>Aus Position kopieren …</b> "
+            "hängt die Konturen einer anderen Position dieses Angebots an (Enden bleiben).",
+            "<b>Lage der Konturen</b> (nur für die Skizze, ändert den Schneidweg nicht): <i>Lage ab Anfang</i> = "
+            "Mitte der Kontur in mm ab Ende A (leer = gleichmäßig verteilt, Schlitz ohne Lage am Ende A). "
+            "<i>Abstand</i> macht aus der Anzahl ein <b>Muster</b>: 4 Bohrungen, Lage 200, Abstand 100 liegen bei "
+            "200, 300, 400 und 500 mm. <i>Seite</i> ist die Fläche, auf der die Kontur sitzt: Rechteckrohr, "
+            "Quadratrohr und Flachstahl <i>oben, vorne, unten, hinten</i> (Rechteckrohr mit der Breitseite oben, "
+            "wie bei Schweißnaht und Gehrungsrichtung); U-/C-Profil und Träger <i>Flansch oben, "
+            "Steg, Flansch unten</i>; T-Profil <i>Flansch, Steg</i>; L-Profil <i>Schenkel a, Schenkel b</i>. Beim "
+            "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
+            "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
+            "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
+            "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
+            "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
+            "Rundrohr der Umfang in Vierteln). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
+            "hellblau; verdeckte Kanten und Konturen auf der Rückseite sind gestrichelt, verteilte Konturen ohne "
+            "Lage blasser. Oben stehen die Lagen ab Anfang, unten die Länge; rechts oben die <i>Ansicht von A</i> "
+            "mit den Flächennamen. <b>Mausrad</b> = Zoom an der Mausposition, Ziehen auf freier Fläche verschiebt "
+            "das Bild, <b>Doppelklick</b> oder <i>Einpassen</i> zeigt wieder alles. Ein <b>Klick auf eine Kontur</b> "
+            "markiert ihre Zeile in der Tabelle (und umgekehrt), <b>Ziehen</b> verschiebt sie: längs ändert die "
+            "Lage (ein Muster wandert als Ganzes), quer ändert in der Abwicklung Seite und Versatz, in Draufsicht "
+            "und Seitenansicht den Versatz bzw. beim Rundrohr den Winkel. Die Werte stehen danach in der Tabelle. "
+            "Fehlt die Teilelänge, zeichnet die Skizze mit 1000 mm. Flanschdicken, die das Profil nicht hat "
+            "(kein Normprofil), zeichnet sie mit der Wandstärke; gerechnet wird damit nichts.",
             "<b>Gewinde-Vorschlag</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes aus den Stammdaten (z. B. Ø 8,5 "
             "für M10) ergeben wie beim STEP-Import einen Vorschlag (Spalten <i>Bohrungen</i> und "
             "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Gewinde-Vorschlag prüfen“). Gerechnet wird ein Gewinde erst, "
@@ -1231,6 +1267,15 @@ def kapitel_optimieren(i):
             "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
             "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
             "Hinweis; das Programm erfindet keine Werte, die Schneidzeit wird dann von Hand eingetragen.",
+            "<b>Teile aus dem STEP-Import</b> (seit 0.6.29): Der Import legt die gemessenen Konturen und Enden im "
+            "Rechner ab. Beim Öffnen stehen sie mit Art, Maßen, Lage ab Anfang und Seite (Rundrohr Winkel, "
+            "Rechteckrohr Fläche und Versatz) in der Tabelle und in der Skizze; grün markierte Zeilen und Enden "
+            "rechnen mit der <b>gemessenen</b> Schnittlänge. Ändert man Art oder Maße einer Zeile bzw. Winkel, "
+            "Achse oder Richtung eines Endes, rechnet sie mit den Formeln. Nicht erkannte Ausschnitte erscheinen als "
+            "<i>sonstige Kontur</i> mit gemessener Länge und Hüllmaß; Gravuren und Merkmale nur auf der Innenseite "
+            "fehlen (nicht im Schneidweg). Bei offenen Profilen und Blechen kennt die Messung die Fläche nicht, die "
+            "Konturen liegen dann auf der ersten Fläche. Positionen, die vor 0.6.29 importiert wurden, haben diese "
+            "Angaben nicht (erneut importieren).",
             "<b>In Position übernehmen</b> schreibt Schneidweg, Einstiche, Anfangs-/Endschnitt (gerade ja/nein), "
             "Innenkonturen, Gravur, Konturliste und Konturklassen in die Position, also dieselben Felder wie der "
             "STEP-Import. Hat die Position schon Werte aus dem STEP-Import, fragt das Programm vorher. Die Eingaben "
@@ -1820,34 +1865,20 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zukaufartikel, Stückzahl und Kästchen <i>bereit</i>.")
     i.abschnitt("Kalkulation (PDF)")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
-    i.abschnitt("Zeichnungen je Position", marke="zeichnungen")
-    i.text("Zeichnungen (PDF, DXF, DWG), Modelle (STEP) und Bilder gehören zur Position: Dateien aus dem Explorer "
-           "direkt <b>auf die Position</b> in der Positionsliste ziehen, oder Rechtsklick auf die Position → "
-           "<b>Zeichnungen …</b> (auch Doppelklick auf die Spalte <i>Zeichnungen</i>) und <b>Hinzufügen …</b>.")
-    i.liste("Das Programm kopiert jede Datei in den Ordner des Angebots: <i>Ablageordner\\&lt;Angebotsnummer&gt;</i> "
-            "(z. B. <i>Angebote\\A-2026-0041</i>). In der Position steht nur der Dateiname. So bleibt das Angebot "
-            "vollständig, auch wenn die Originaldatei verschoben wird.",
-            "Dieselbe Datei zweimal angehängt bleibt eine Datei; eine andere Datei mit gleichem Namen bekommt "
-            "„ (2)“ angehängt.",
-            "Der STEP-Import hängt die STEP-Datei automatisch an die übernommenen Positionen.",
-            "Im Fenster <i>Zeichnungen</i>: <b>Öffnen</b> zeigt die Datei im zugehörigen Programm, <b>Entfernen</b> "
-            "löst nur die Zuordnung (die Datei bleibt im Ordner), <b>Ordner öffnen</b> zeigt den Ordner des "
-            "Angebots. Fehlt eine Datei im Ordner, steht „(fehlt im Ordner)“ dahinter.")
     i.abschnitt("Material per Outlook anfragen", marke="materialanfrage")
     i.text("<i>Weitere Aktionen → Material per Outlook anfragen …</i> bereitet eine Anfrage an den Lieferanten vor. "
            "Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst <b>Optimieren</b>.")
-    i.bild("materialanfrage", "Materialanfrage an einen Lieferanten mit Zeichnung als Anhang", hoehe=120 * mm,
+    i.bild("materialanfrage", "Materialanfrage an einen Lieferanten", hoehe=120 * mm,
            legende=[(1, "<b>Anfrage an Lieferant</b>: Lieferanten aus <i>Lieferlängen</i> bzw. <i>Preise</i> (Spalte "
                         "Lieferant); die E-Mail-Adresse kommt aus den Lieferanten der Zukaufartikel."),
                     (2, "Bedarf je Profil, Werkstoff, Oberfläche und Lieferlänge mit Anzahl Stangen (änderbar) und "
                         "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde."),
                     (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Der Text wird bei jeder Änderung der Zeilen "
                         "neu erstellt, bis er von Hand geändert wurde."),
-                    (4, "<b>Anhänge</b>: die Zeichnungen der angefragten Positionen ([[zeichnungen]]), einzeln "
-                        "abwählbar."),
-                    (5, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
-    i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff, Text "
-            "und Anhängen im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
+                    (4, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>. Zeichnungen bei Bedarf in "
+                        "Outlook selbst anhängen.")])
+    i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff und Text "
+            "im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
             "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "
             "das Programm eine E-Mail-Datei (<i>&lt;Angebot&gt; Materialanfrage.eml</i>) in der Ablage und öffnet sie "
             "im Standard-Mailprogramm. Sie ist als Entwurf markiert; dort prüfen und senden. "
@@ -3133,6 +3164,16 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.29", "Schneidweg-Rechner: <b>maßstäbliche Skizze</b> mit Draufsicht, Seitenansicht, Ansicht von A und "
+               "<b>Abwicklung</b> für alle Profilformen, Bemaßung, Zoom; Konturen anklicken (Zeile wird markiert) "
+               "und mit der Maus verschieben. Neu je Kontur: Seite bzw. Winkel, Versatz quer und Abstand für Muster; "
+               "neue Konturarten Senkung und Ausklinkung am Ende; Vorlagen speichern und laden, Konturen aus einer "
+               "anderen Position kopieren. Der STEP-Import legt die gemessenen Konturen im Rechner ab: sie erscheinen "
+               "in Tabelle und Skizze und lassen sich bearbeiten ([[schneidweg_rechner]])."],
+    ["0.6.28", "Zeichnungen je Position wieder entfernt (Spalte, Ziehen von Dateien auf eine Position, automatisches "
+               "Anhängen der STEP-Datei). Bereits in den Ordner des Angebots kopierte Zeichnungen löscht das Programm "
+               "beim ersten Start einmalig; andere Dateien im Ordner bleiben. Die "
+               "Materialanfrage per Outlook bleibt, ohne Zeichnungsanhang ([[materialanfrage]])."],
     ["0.6.27", "Reiter Kunden: <b>CSV exportieren</b> und <b>CSV importieren …</b> mit Vorschau, Prüfung, Wahl "
                "„nur neue anlegen“ und Datensicherung vorher ([[kunden_csv]])."],
     ["0.6.26", "STEP-Import von Baugruppen: im Prüfdialog steht eine Datei mit mehreren Teilen als Baugruppe, die "
@@ -3190,10 +3231,8 @@ NEUERUNGEN = [
     ["0.6.11", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
               "ihre Stücke (eigene Stangen mit Endbeschnitt und Greiferrest), ohne den Zuschnitt; gerechnet wird weiter "
               "mit den 12-m-Stangen ([[lieferlaengen]])."],
-    ["0.6.10", "Zeichnungen je Position (Dateien auf die Position ziehen, Kopie im Ordner des Angebots, STEP-Datei "
-              "automatisch, [[zeichnungen]]) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
-              "Optimierung, Lieferant und E-Mail-Adresse, Zeichnungen als Anhang; gesendet wird nur in Outlook "
-              "([[materialanfrage]])."],
+    ["0.6.10", "Zeichnungen je Position (seit 0.6.28 wieder entfernt) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
+              "Optimierung, Lieferant und E-Mail-Adresse, gesendet wird nur in Outlook ([[materialanfrage]])."],
     ["0.6.9", "Frachtkosten: <b>Richtwerte laden</b> für den Palettenversand (Marktpreise 10/2026 + 10 % Puffer, "
               "Maut und Diesel enthalten, Zonen nach Entfernung vom Versandort, schwere Paletten, Langgut, Inseln; "
               "[[fracht_richtwerte]]). Automatische Fracht übernimmt die volle PLZ des Kunden."],
@@ -3332,7 +3371,7 @@ STECKBRIEFE = {
                "Im Angebot Karte <b>Fracht</b>; Reiter <i>Frachtkosten</i> → Frachtrechner"),
     "zukauf_im_angebot": ("Eingekaufte Teile als eigene Position oder an einer Position mitkalkulieren.",
                           "Im Angebot <b>Zukaufteile …</b> bzw. <b>Weitere Aktionen</b>"),
-    "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Zeichnungen, Materialanfrage.",
+    "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Materialanfrage.",
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
                         "Im Angebot Reiter <i>Nachkalkulation</i>"),

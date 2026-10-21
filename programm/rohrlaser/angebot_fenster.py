@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser,
     QVBoxLayout, QWidget)
 
-from . import fracht_angebot, ausgabe, dokumente, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+from . import fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
     zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -270,11 +270,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
-            "dokumente", "naht_vorgabe", "gewicht_teil"]
+            "naht_vorgabe", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "dokumente", "naht_vorgabe", "gewicht_teil")
-EIGENE = ("zusatz", "zukauf", "dokumente", "naht")        # Spalten mit eigenem Dialog (Doppelklick)
+                     "zukauf", "naht_vorgabe", "gewicht_teil")
+EIGENE = ("zusatz", "zukauf", "naht")        # Spalten mit eigenem Dialog (Doppelklick)
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
 
@@ -373,8 +373,6 @@ class PositionenModell(QAbstractTableModel):
             return rechnen.zusatz_text(self.daten[r])
         if art == "zukauf":
             return zukauf.zukauf_text(self.daten[r])
-        if art == "dokumente":
-            return dokumente.kurz(self.daten[r].get("dokumente"))
         if art == "naht":
             return naht.text(self.daten[r], self.k.profile.get(self.daten[r].get("profil_id")))
         if art == "abweichung":
@@ -451,10 +449,6 @@ class PositionenModell(QAbstractTableModel):
             if art == "naht" and rolle == Qt.ToolTipRole:
                 return (w + "\n" if w else "Keine Vorgabe: frei drehbar\n") + \
                     "Doppelklick: Schweißnaht am Querschnitt wählen (Blick von Ende A, 0° oben, 90° rechts)"
-            if art == "dokumente" and rolle == Qt.ToolTipRole:
-                namen = dokumente.liste(self.daten[index.row()].get("dokumente"))
-                return "\n".join(namen + ["Doppelklick: Zeichnungen anhängen, öffnen, entfernen; Dateien auf die "
-                                           "Position ziehen hängt sie an"])
             return w
         if rolle == Qt.EditRole and art == "feld":
             return wert_als_text(x, w, bearbeiten=True)
@@ -803,7 +797,6 @@ class AngebotSeite(QWidget):
         menue = QMenu(self.weitere)
         for text, ziel in (("Material per Outlook anfragen …", lambda: self.material_anfragen()),
                            ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
-                           ("Zeichnungen …", lambda: self.zeichnungen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
             menue.addAction(text, lambda ziel=ziel: ziel())
@@ -826,7 +819,6 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.pos_menue = QMenu(self.pos_ansicht)
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
-                           ("Zeichnungen …", lambda: self.zeichnungen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
@@ -836,7 +828,7 @@ class AngebotSeite(QWidget):
             lambda punkt: self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(
             lambda i: {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile,
-                       "dokumente": lambda z: self.zeichnungen(z[0]), "naht": self.schweissnaht}.get(
+                       "naht": self.schweissnaht}.get(
                 self.pos_modell.spalten[i.column()][0], lambda _: None)([i.row()]))
 
         self.kalk = Liste(KALK_SPALTEN)
@@ -1311,7 +1303,7 @@ class AngebotSeite(QWidget):
                            fehler=True)
             return False
         if eingaben is None:
-            d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen)
+            d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen)
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
@@ -1717,59 +1709,11 @@ class AngebotSeite(QWidget):
         return self._schreiben("CSV-Export", self._ziel("Kalkulation", ".csv", mit_kunde=True),
                                lambda p: export.angebot_csv(p, self.kopf, zeilen, summen, self.einst))
 
-    # -------------------------------------------------------------- Zeichnungen und Materialanfrage
-    def dokumente_ordner(self):
-        """Ordner der Zeichnungen dieses Angebots (Ablage/<Angebotsnummer>) oder None, wenn die Ablage fehlt."""
-        try:
-            return dokumente.ordner(self.f.ablage(), self.kopf)
-        except OSError as e:
-            QMessageBox.warning(self, "Zeichnungen", f"Der Ablageordner lässt sich nicht anlegen:\n{e}")
-            return None
-
-    def dokumente_anhaengen(self, zeile, dateien):
-        """Dateien (PDF, DXF, STEP, Bilder) in den Ordner des Angebots kopieren und an die Position hängen.
-        Ergebnis: Anzahl angehängter Dateien."""
-        dateien = dokumente.passend(dateien)
-        ordner = self.dokumente_ordner() if dateien else None
-        if not dateien or ordner is None:
-            return 0
-        p = self.positionen[zeile]
-        try:
-            neu = dokumente.anhaengen(ordner, p.get("dokumente"), dateien)
-        except OSError as e:
-            QMessageBox.warning(self, "Zeichnungen", f"Die Datei lässt sich nicht kopieren:\n{e}")
-            return 0
-        self.db.position_aendern(p["id"], "dokumente", neu)
-        self.f.meldung(f"Pos. {p.get('pos') or ''}: {len(dateien)} Datei(en) angehängt ({ordner}).")
-        self.neu_laden()
-        return len(dateien)
-
-    def zeichnungen(self, zeile=None, dialog=None):
-        """Zeichnungen der markierten Position: anhängen, öffnen, entfernen (Dialog). dialog(d) bedient den Dialog
-        statt exec (Tests). Ergebnis: True = gespeichert."""
-        from .dokumente_dialog import DokumenteDialog
-        if zeile is None:
-            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
-            if len(zeilen) != 1:
-                self.f.meldung("Bitte genau eine Position markieren.", fehler=True)
-                return False
-            zeile = zeilen[0]
-        ordner = self.dokumente_ordner()
-        if ordner is None:
-            return False
-        p = self.positionen[zeile]
-        d = DokumenteDialog(self, p, ordner, self.f.datei_oeffnen)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
-            return False
-        self.db.position_aendern(p["id"], "dokumente", dokumente.text(d.namen))
-        self.neu_laden()
-        return True
-
+    # -------------------------------------------------------------- Materialanfrage
     def material_anfragen(self, dialog=None, ausfuehren=None):
-        """Materialanfrage an den Lieferanten (Dialog): Bedarf aus der Optimierung, Lieferant, Text und Zeichnungen
-        prüfen, dann 'In Outlook öffnen' (gesendet wird nur in Outlook) oder 'Als E-Mail-Datei speichern'.
+        """Materialanfrage an den Lieferanten (Dialog): Bedarf aus der Optimierung, Lieferant und Text prüfen, dann 'In Outlook öffnen' (gesendet wird nur in Outlook) oder 'Als E-Mail-Datei speichern'.
         dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests)."""
-        from .dokumente_dialog import AnfrageDialog
+        from .materialanfrage_dialog import AnfrageDialog
         if not self.ergebnis or not self.ergebnis.get("stangen"):
             self.f.meldung("Materialanfrage: bitte zuerst optimieren (der Stangenbedarf kommt aus der Optimierung).",
                            fehler=True)
@@ -1780,11 +1724,8 @@ class AngebotSeite(QWidget):
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
                            fehler=True)
             return None
-        ordner = self.dokumente_ordner()
-        if ordner is None:
-            return None
         d = AnfrageDialog(self, self.kopf, zeilen, self.k, self.einst,
-                          materialanfrage.lieferanten(self.db.zeilen("zukauf_lieferanten")), ordner,
+                          materialanfrage.lieferanten(self.db.zeilen("zukauf_lieferanten")),
                           self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren)
         (dialog(d) if dialog else d.exec())
         if d.meldung:
@@ -1796,33 +1737,15 @@ class AngebotSeite(QWidget):
         urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
         return step.step_dateien([u.toLocalFile() for u in urls if u.isLocalFile()])
 
-    def _gezogene_dokumente(self, ereignis):
-        urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
-        return [d for d in dokumente.passend([u.toLocalFile() for u in urls if u.isLocalFile()])
-                if d.suffix.lower() not in (".step", ".stp")]
-
     def dragEnterEvent(self, ereignis):
-        if self._gezogene_dateien(ereignis) or self._gezogene_dokumente(ereignis):
+        if self._gezogene_dateien(ereignis):
             ereignis.acceptProposedAction()
 
-    def dragMoveEvent(self, ereignis):
-        ereignis.acceptProposedAction()
-
     def dropEvent(self, ereignis):
-        dateien, docs = self._gezogene_dateien(ereignis), self._gezogene_dokumente(ereignis)
-        if docs:        # Zeichnungen: an die Position unter der Maus hängen
-            vp = self.pos_ansicht.viewport()
-            punkt = vp.mapFrom(self, ereignis.position().toPoint())
-            zeile = self.pos_ansicht.indexAt(punkt).row() if vp.rect().contains(punkt) else -1
-            if zeile >= 0:
-                self.dokumente_anhaengen(zeile, docs)
-            else:
-                self.f.meldung("Zeichnungen bitte direkt auf die Position ziehen, zu der sie gehören.", fehler=True)
+        dateien = self._gezogene_dateien(ereignis)
         if dateien:
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
-        elif docs:
-            ereignis.acceptProposedAction()
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
         """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
@@ -1882,10 +1805,6 @@ class AngebotSeite(QWidget):
         if neue_ids:
             erg["bericht"].append(f"{len(neue_ids)} Zukaufartikel (Blech) neu angelegt, EK fehlt: bitte unter "
                                   "Zukaufartikel mit 'EK eintragen …' nachtragen.")
-        # STEP-Dateien an die Positionen hängen (im Selbsttest nur mit eingestelltem Ablageordner)
-        anhaengen_ordner = self.dokumente_ordner() if not self.f.stumm or self.db.einstellung("ablageordner") \
-            else None
-        quellen = {Path(d).name: Path(d) for d in dateien}
         for p in erg["positionen"]:
             verweis = p.pop("_zukauf", None)
             if verweis:
@@ -1893,12 +1812,6 @@ class AngebotSeite(QWidget):
                 p["zukauf"] = json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))],
                                          ensure_ascii=False)
             netz = p.pop("_netz", None)
-            quelle = quellen.get(p.pop("_datei", None))      # Messung nennt nur den Dateinamen
-            if quelle and anhaengen_ordner is not None and Path(quelle).is_file():
-                try:        # STEP-Datei als Zeichnung der Position (Kopie im Ordner des Angebots)
-                    p["dokumente"] = dokumente.anhaengen(anhaengen_ordner, None, [quelle])
-                except OSError:
-                    pass
             pid = self.db.position_neu(self.id, p)
             if netz:
                 self.db.netz_speichern(pid, netz)

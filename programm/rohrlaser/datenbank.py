@@ -52,7 +52,7 @@ SCHEMA_VERSION = 31     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 24: Kundenreferenz, Lieferzeit und Mindestpreis im Angebot (seit 0.6.4 Mindestpreis nur aus den Einstellungen)
                         # 25: Kundenmaterial (positionen.material_herkunft, Kopf material_vorgabe, Handling je kg)
                         # 26: Schneidweg-Rechner (positionen.technik, Eingaben als JSON; ältere Positionen leer)
-                        # 27: Zeichnungen je Position (positionen.dokumente, Dateinamen im Ordner des Angebots)
+                        # 27: Zeichnungen je Position (positionen.dokumente; seit 0.6.28 entfernt, beim Start einmalig geleert)
                         # 28: maschinen.min_stange (kürzeste Stange der Stangenladung im Zuschnitt, Vorgabe 2.500 mm)
                         # 29: maschinen.kontur_klein_wand/kontur_mittel_wand (Konturklasse nach Hüllmaß ÷ Wand, 3 und 8)
                         # 30: Schweißnaht (positionen.naht_vorgabe/naht_winkel/naht_quelle/querschnitt_lage, profile.naht_stange; leer = keine Vorgabe)
@@ -1310,6 +1310,47 @@ class Datenbank:
         with self.con:
             self.con.executemany("INSERT INTO step_protokoll (angebot_id, zeile) VALUES (?, ?)",
                                  [(angebot_id, json.dumps(z, default=str, ensure_ascii=False)) for z in zeilen])
+
+    # -------------------------------------------------------------- Zeichnungsablage (0.6.10 bis 0.6.23) entfernen
+    def zeichnungen_entfernen(self, ablage):
+        """Einmalig (Marke 'zeichnungen_entfernt'): die mit der früheren Zeichnungsablage in den Ordner des Angebots
+        (<Ablage>/<Angebotsnummer>) kopierten Dateien löschen und positionen.dokumente leeren. Gelöscht werden nur
+        die dort eingetragenen Dateinamen, der Ordner nur, wenn er danach leer ist. Ergebnis: Anzahl gelöschter Dateien."""
+        from .ausgabe import dateiname
+        if self.einstellung("zeichnungen_entfernt"):
+            return 0
+        spalten = {r[1] for r in self.con.execute("PRAGMA table_info(positionen)")}
+        geloescht = 0
+        if "dokumente" in spalten:
+            treffer = self.con.execute(
+                "SELECT p.id, p.dokumente, a.nummer FROM positionen p JOIN angebote a ON a.id = p.angebot_id "
+                "WHERE p.dokumente IS NOT NULL AND p.dokumente <> ''").fetchall()
+            ordner = set()
+            for _, text, nummer in treffer:
+                try:
+                    namen = json.loads(text)
+                except (TypeError, ValueError):
+                    namen = []
+                o = Path(ablage) / dateiname(dict(nummer=nummer))
+                for n in namen if isinstance(namen, list) else []:
+                    if not n or Path(str(n)).name != str(n):        # nur einfache Dateinamen im Ordner des Angebots
+                        continue
+                    datei = o / str(n)
+                    try:
+                        if datei.is_file():
+                            datei.unlink()
+                            geloescht += 1
+                    except OSError:
+                        pass
+                ordner.add(o)
+            for o in ordner:
+                with contextlib.suppress(OSError):
+                    if o.is_dir() and not any(o.iterdir()):
+                        o.rmdir()
+            with self.con:
+                self.con.execute("UPDATE positionen SET dokumente = NULL")
+        self.einstellung_setzen("zeichnungen_entfernt", datetime.date.today().isoformat())
+        return geloescht
 
     # -------------------------------------------------------------- Stand eines Angebots (Rückgängig/Wiederholen)
     def angebot_stand(self, angebot_id):
