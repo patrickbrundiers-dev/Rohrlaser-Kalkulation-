@@ -729,7 +729,8 @@ def main(ziel):
     fb.zeigen(fb.historie)
     bereit()
     foto.foto("fracht_historie", f, [(fb.historie.tabelle, 1), (knopf(fb.historie, "Kalkulation anzeigen"), 2),
-                                     (fb.historie.einstellungen, 3), (knopf(fb.historie, "Beispieldaten laden"), 4)])
+                                     (fb.historie.einstellungen, 3), (knopf(fb.historie, "Beispieldaten laden"), 4),
+                                     (knopf(fb.historie, "Richtwerte laden"), 5)])
 
     # Fracht im Angebot: berechnen und übernehmen (Hauptangebot, nach allen anderen Bildern des Angebots)
     f.resize(1680, 980)

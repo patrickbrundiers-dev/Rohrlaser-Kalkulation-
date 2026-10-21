@@ -560,7 +560,7 @@ def zuschlag_kandidat(z, s, tarif, zone):
     return None
 
 
-def bedingung_erfuellt(z, s, kg, zone):
+def bedingung_erfuellt(z, s, kg, zone, stellplaetze=None):
     """(ja/nein, Text) für die Bedingung des Zuschlags."""
     b = z.get("bedingung") or "immer"
     leist = s.get("leistungen") or {}
@@ -573,6 +573,10 @@ def bedingung_erfuellt(z, s, kg, zone):
         return kg < g - EPS, f"Gewicht {z2(kg, 1)} kg nicht unter {z2(g, 1)} kg"
     if b == "Gewicht über":
         return kg > g + EPS, f"Gewicht {z2(kg, 1)} kg nicht über {z2(g, 1)} kg"
+    if b == "Gewicht je Stellplatz über":
+        sp = _n(stellplaetze)
+        je = kg / sp if sp else kg
+        return je > g + EPS, f"{z2(je, 1)} kg je Stellplatz nicht über {z2(g, 1)} kg"
     if b == "Teillänge über":
         lang = _n(s.get("max_laenge"))
         return lang > g + EPS, f"längstes Teil {z2(lang, 0)} mm nicht über {z2(g, 0)} mm"
@@ -594,7 +598,7 @@ def zuschlaege(snap, s, kg, lw, grund, leistung_basis=None):
     leist = s.get("leistungen") or {}
     kand, nicht, warnungen = [], [], []
     for z in snap.get("zuschlaege", []):
-        ok, grund_n = bedingung_erfuellt(z, s, kg, zone)
+        ok, grund_n = bedingung_erfuellt(z, s, kg, zone, lw.get("stellplaetze"))
         if not ok:
             if (z.get("bedingung") or "immer") != "nur wenn gewählt":
                 nicht.append(f"{z.get('bezeichnung') or z['zuschlag_id']}: {grund_n}")
@@ -729,6 +733,8 @@ def kalkulieren(snap, s):
                zuschlaege=[], nicht_angewendet=[], gesamt=None, waehrung=snap.get("waehrung"), kurs=snap.get("kurs"))
     if "BEISPIEL" in (tarif.get("tarif_id") or "") + (tarif.get("bemerkung") or ""):
         warnungen.append("Beispieltarif – keine echten Preise")
+    elif "RICHTWERT" in (tarif.get("bemerkung") or ""):
+        warnungen.append("Richtwert (Marktpreise 10/2026 + Puffer) – kein Speditionsangebot")
     kurs = 1.0
     if snap.get("waehrung") not in (None, "EUR"):
         if not _zahl(snap.get("kurs")) or snap["kurs"] <= 0:

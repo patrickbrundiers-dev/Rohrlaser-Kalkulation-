@@ -588,7 +588,7 @@ class KopfBereich(QWidget):
                     text += f"; {d['zone']}"
                 text += ". In den Staffelpreisen rechnet jede Menge ihre eigene Fracht."
             for h in d.get("hinweise") or ():
-                if "teurere" in h or "Beispieltarif" in h:
+                if "teurere" in h or "Beispieltarif" in h or "Richtwert" in h:
                     text += f"<br><span style='color:#7A5A00'>{h}</span>"
         elif m == fracht_angebot.BERECHNET:
             text = f"Berechnet: {d.get('text') or _z(betrag) + ' €'}"

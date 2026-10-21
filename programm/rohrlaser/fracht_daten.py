@@ -29,8 +29,8 @@ ZUSCHLAGTYPEN = ("Diesel", "Maut", "Energie", "Gefahrgut", "Langgut / Überläng
 BERECHNUNGEN = ("%", "€ je Sendung", "€ je kg", "€ je 100 kg", "€ je Ladungsträger", "€ je Stellplatz",
                 "€ je Stunde", "Dieselstaffel")
 BASEN = ("Grundfracht", "Grundfracht + Leistungszuschläge", "gewählte Zuschläge")
-BEDINGUNGEN = ("immer", "nur wenn gewählt", "Gewicht unter", "Gewicht über", "Teillänge über",
-               "Zonenart Insel/Randgebiet/Sondergebiet")
+BEDINGUNGEN = ("immer", "nur wenn gewählt", "Gewicht unter", "Gewicht über", "Gewicht je Stellplatz über",
+               "Teillänge über", "Zonenart Insel/Randgebiet/Sondergebiet")
 
 # feste Auswahllisten (stammdaten.Kontext.gruppiert fragt hier nach, wenn eine Quelle dort fehlt)
 AUSWAHL_FEST = {"zonenart": ZONENARTEN, "richtung": RICHTUNGEN, "tarifart": TARIFARTEN, "modell": MODELLE,
@@ -90,7 +90,8 @@ def _zuschlag_pruefung(z, k):
         return "FEHLER: Basis 'gewählte Zuschläge' ohne Zuschläge"
     if z.get("zuschlag_id") and z.get("zuschlag_id") in liste(z.get("basis_liste")):
         return "FEHLER: Zuschlag kann nicht auf sich selbst rechnen"
-    if z.get("bedingung") in ("Gewicht unter", "Gewicht über", "Teillänge über") and z.get("grenze") is None:
+    if z.get("bedingung") in ("Gewicht unter", "Gewicht über", "Gewicht je Stellplatz über", "Teillänge über") and \
+            z.get("grenze") is None:
         return "FEHLER: Bedingung braucht eine Grenze"
     if z.get("mindest") is not None and z.get("hoechst") is not None and z["hoechst"] < z["mindest"]:
         return "FEHLER: Höchstbetrag kleiner als Mindestbetrag"

@@ -769,6 +769,33 @@ class Datenbank:
                     n += c.rowcount
         return n
 
+    def fracht_richtwerte_laden(self, absender_plz=None):
+        """Richtwerte Palettenversand (fracht_richtwerte.py) übernehmen: alle Zeilen mit BEISPIEL oder RICHTWERT in
+        der Bemerkung werden ersetzt, eigene Einträge bleiben (gleicher Schlüssel: der eigene gilt). Absender-PLZ
+        (leer = Einstellung) muss eine deutsche PLZ sein; leere Absender-PLZ und Versandart werden gesetzt.
+        Ergebnis: (entfernt, eingefügt)."""
+        from .fracht_richtwerte import TARIF, VERSANDART, richtwerte
+        absender_plz = (absender_plz or self.einstellung("absender_plz") or "").strip()
+        daten = richtwerte(absender_plz)              # ValueError bei unbekannter PLZ, vor jeder Änderung
+        weg = neu = 0
+        with self.con:
+            for tabelle in KURZ:
+                if "bemerkung" in [f.name for f in ALLE_TABELLE[tabelle].felder]:
+                    weg += self.con.execute(f'DELETE FROM "{tabelle}" WHERE bemerkung LIKE \'BEISPIEL%\' '
+                                            "OR bemerkung LIKE 'RICHTWERT%'").rowcount
+            weg += self.con.execute("DELETE FROM fracht_preise WHERE tarif_id=?", (TARIF,)).rowcount
+            for tabelle, zeilen in daten.items():
+                namen = [f.name for f in ALLE_TABELLE[tabelle].felder]
+                for z in zeilen:
+                    neu += self.con.execute(
+                        f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(chr(34) + x + chr(34) for x in namen)}) '
+                        f'VALUES ({", ".join("?" * len(namen))})', [z.get(x) for x in namen]).rowcount
+        if not self.einstellung("absender_plz"):
+            self.einstellung_setzen("absender_plz", absender_plz)
+        if (self.einstellung("fracht_versandart") or "Stückgut") == "Stückgut":
+            self.einstellung_setzen("fracht_versandart", VERSANDART)
+        return weg, neu
+
     def plz_importieren(self, zeilen):
         """PLZ-Zuordnungen übernehmen (fracht_daten.plz_csv_lesen); gleicher Schlüssel (Land, PLZ von, PLZ bis,
         Richtung, Dienstleister, Kunde) wird ersetzt. Ergebnis: (neu, ersetzt)."""
