@@ -3355,7 +3355,7 @@ def kapitel_step_messung(i):
 
 
 def kapitel_tastenkuerzel(i):
-    i.kapitel("Anhang: Tastenkürzel und Doppelklick", marke="tastenkuerzel")
+    i.kapitel("Anhang: Tastenkürzel, Doppelklick und Mausrad", marke="tastenkuerzel")
     i.text("Das Programm kennt die üblichen Windows-Tastenkürzel. Sie stehen auch in den Menüs <i>Bearbeiten</i> "
            "und <i>Ansicht</i> und unter <i>Hilfe → Tastenkürzel …</i>. Welche Seite ein Kürzel ausführt, richtet "
            "sich danach, wo der Cursor steht: Strg+N in der Angebotsliste legt ein Angebot an, im Angebot eine "
@@ -3393,6 +3393,15 @@ def kapitel_tastenkuerzel(i):
         ["Kunden", "Kunde", "Reiter Angebote, gefiltert auf diesen Kunden"],
         ["Start", "zuletzt bearbeitetes Angebot", "öffnet das Angebot"],
     ], [38, 62, 165])
+
+
+    i.abschnitt("Mausrad", marke="mausrad")
+    i.text("Das Mausrad rollt immer die Seite, Tabelle oder Liste unter dem Mauszeiger. Über Zahlen- und "
+           "Datumsfeldern, Auswahllisten und Schiebereglern verstellt es <b>keine Werte</b> – auch nicht, wenn der "
+           "Cursor im Feld steht, und auch nicht in Dialogen oder in Tabellenzellen. So ändert sich beim Blättern "
+           "nichts aus Versehen. Werte ändern Sie mit der Tastatur (Eintippen, Pfeiltasten ↑/↓) oder mit den "
+           "kleinen Pfeilen am Feld; eine aufgeklappte Auswahlliste rollt wie gewohnt. In Skizzen und in der 3D-Ansicht "
+           "zoomt das Rad weiterhin.")
 
 
 def kapitel_fragen(i):
@@ -3511,6 +3520,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.4", "Mausrad ändert keine Werte mehr: Über Zahlen- und Datumsfeldern, Auswahllisten und Schiebereglern "
+              "rollt das Rad immer die Seite oder Tabelle, auch in Dialogen und Tabellenzellen ([[mausrad]])."],
     ["0.8.3", "Stangenbild und Werkstattpapiere: Schweißnaht als roter Strich auf jedem Teil, dazu je Stange "
               "Querschnitt mit rotem Punkt und Anzahl gedrehter Teile; Gehrungen ineinander mit grünen Schnittkanten, "
               "gespartes Material einmal je Stange (in Rest und Ausnutzung enthalten); Tooltip je Teil "
@@ -3791,7 +3802,7 @@ STECKBRIEFE = {
                "<i>Hilfe → Nach Updates suchen …</i>; Reiter <i>Start</i>"),
     "step_messung": ("Für Fachleute: wie die STEP-Messung Rohr, Schnitte und Konturen erkennt.",
                      "<i>STEP-Import.exe</i> im Programmordner"),
-    "tastenkuerzel": ("Alle Tastenkürzel und Doppelklicks auf einen Blick.", "<i>Hilfe → Tastenkürzel …</i>"),
+    "tastenkuerzel": ("Alle Tastenkürzel und Doppelklicks auf einen Blick, dazu das Mausrad.", "<i>Hilfe → Tastenkürzel …</i>"),
     "fragen": ("Meldungen des Programms und was dagegen hilft.", "Statuszeile und Meldungsfenster"),
     "neu": ("Was sich je Programmversion geändert hat.", "<i>Hilfe → Über …</i> zeigt die installierte Version"),
 }

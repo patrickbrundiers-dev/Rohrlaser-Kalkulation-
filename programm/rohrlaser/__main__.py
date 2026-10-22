@@ -253,6 +253,8 @@ def main(argv=None):
     app.setStyle("Fusion")
     from .stil import ziffern_tabellarisch
     ziffern_tabellarisch(app)
+    from . import mausrad
+    mausrad.einrichten(app)
     deutsch(app)
     if a.selbsttest:
         return selbsttest(app, a.ergebnis, a.step)
