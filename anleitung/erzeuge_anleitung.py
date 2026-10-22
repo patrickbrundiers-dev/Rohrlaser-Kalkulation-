@@ -587,8 +587,16 @@ def kapitel_angebote(i):
            "einem eigenen Reiter. Die Spalte <b>Status</b> zeigt farbig, wie weit ein Angebot ist: <i>Nicht "
            "optimiert</i> (gelb), <i>Optimiert</i> (grün), <i>Veraltet</i> (rot: nach der Optimierung geändert, "
            "bitte neu optimieren) und <i>Nachkalkuliert</i> (blau). <b>Verkaufspreis netto</b> ist der Preis aus der "
-           "Übersicht des Angebots; das Programm merkt ihn sich beim Anzeigen eines Angebots. Ältere Angebote, die "
-           "seit dem Update noch nicht geöffnet wurden, haben dort noch keinen Wert.")
+           "Übersicht des Angebots; das Programm merkt ihn sich beim Anzeigen eines Angebots (Mauszeiger darauf: "
+           "<i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch nicht geöffnet wurden, haben dort noch "
+           "keinen Wert.")
+    i.text("Die Spalte <b>Vorgang</b> zeigt, wo ein Angebot beim Kunden steht: <i>Entwurf</i> (neu), "
+           "<i>Verschickt</i> (setzt das Angebots-PDF selbst; blau), <i>Beauftragt</i> (grün) und <i>Abgelehnt</i> "
+           "(grau). <b>Vorgang ▾</b> setzt ihn für das markierte Angebot von Hand. <b>Gültig bis</b> ist das "
+           "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF); ist ein verschicktes Angebot "
+           "darüber hinaus, steht „Verschickt (abgelaufen)“ rot da. Die Auswahl links neben der Suche zeigt nur "
+           "Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i> oder <i>Verschickt und abgelaufen</i> "
+           "zum Nachfassen. Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt.")
     i.bild("angebote", "Reiter Angebote", hoehe=125 * mm, legende=[
         (1, "Reiter <b>Angebote</b>: Übersicht mit Positionen, Teilen und Zeitpunkt der letzten Optimierung."),
         (2, "<b>Neues Angebot</b>: legt ein Angebot mit der nächsten Nummer, dem heutigen Datum, der "

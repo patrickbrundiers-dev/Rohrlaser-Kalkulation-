@@ -26,6 +26,7 @@ from .naht_dialog import NahtDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
+from .datenbank import VORGAENGE
 from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
@@ -166,6 +167,30 @@ def _breiten(ansicht, spalten):
 # Stand eines Angebots in der Liste: Text und Farbe (wie die Etiketten in der Übersicht des Angebots)
 STATUS_FARBE = {"Nachkalkuliert": "#DDEBF7", "Optimiert": "#E3F4E8", "Veraltet": "#FDECEA",
                 "Nicht optimiert": "#FFF6DB"}
+VORGANG_FARBE = {"Verschickt": "#DDEBF7", "Beauftragt": "#E3F4E8", "Abgelehnt": "#ECEEF1", "Abgelaufen": "#FDECEA"}
+# Filter der Angebotsliste: Titel -> Prüfung je Zeile (Vorgang, abgelaufen)
+VORGANG_FILTER = {"Alle Angebote": lambda v, ab: True, "Offen (Entwurf, Verschickt)": lambda v, ab: v in ("Entwurf", "Verschickt"),
+                  "Entwurf": lambda v, ab: v == "Entwurf", "Verschickt": lambda v, ab: v == "Verschickt",
+                  "Verschickt und abgelaufen": lambda v, ab: v == "Verschickt" and ab,
+                  "Beauftragt": lambda v, ab: v == "Beauftragt", "Abgelehnt": lambda v, ab: v == "Abgelehnt"}
+
+
+def vorgang(z):
+    return z.get("vorgang") or VORGAENGE[0]
+
+
+def gueltig_bis(z, tage):
+    """Datum, bis zu dem das Angebot gilt (Angebotsdatum + Gültigkeit in Tagen), None ohne Datum."""
+    try:
+        return datetime.date.fromisoformat(z.get("datum") or "") + datetime.timedelta(days=int(tage or 0))
+    except (ValueError, TypeError):
+        return None
+
+
+def abgelaufen(z, tage, heute=None):
+    """Verschicktes Angebot, dessen Gültigkeit vorbei ist (Entwurf, Beauftragt, Abgelehnt laufen nicht ab)."""
+    g = gueltig_bis(z, tage)
+    return vorgang(z) == "Verschickt" and g is not None and g < (heute or datetime.date.today())
 
 
 def angebot_status(z):
@@ -180,9 +205,14 @@ def angebot_status(z):
 
 class AngeboteListe(Liste):
     def data(self, index, rolle=Qt.DisplayRole):
-        if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] == "Status":
-            farbe = STATUS_FARBE.get(self.wert(index.row(), index.column()))
+        if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] in ("Status", "Vorgang"):
+            w = self.wert(index.row(), index.column())
+            farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
             return QBrush(QColor(farbe)) if farbe else None
+        if rolle == Qt.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
+            am = self.zeilen[index.row()].get("vk_am")
+            return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
+                    "Wird beim Öffnen des Angebots gerechnet")
         return super().data(index, rolle)
 
 
@@ -192,6 +222,8 @@ class AngeboteSeite(QWidget):
 
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
+               ("Vorgang", lambda z: vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else ""), None, 140),
+               ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
@@ -214,6 +246,17 @@ class AngeboteSeite(QWidget):
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
         tastatur.suche_esc(self.suche)
+        self.vorgang_filter = QComboBox()
+        self.vorgang_filter.addItems(list(VORGANG_FILTER))
+        self.vorgang_filter.setToolTip("Angebote nach Vorgang zeigen; abgelaufen = verschickt und Gültigkeit vorbei")
+        self.vorgang_filter.currentTextChanged.connect(self.neu_laden)
+        self.vorgang_knopf = QPushButton("Vorgang ▾")
+        self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
+                                      "Angebots-PDF selbst), Beauftragt, Abgelehnt")
+        menue = QMenu(self.vorgang_knopf)
+        for v in VORGAENGE:
+            menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
+        self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
             k.setContext(Qt.WidgetShortcut)
@@ -225,7 +268,9 @@ class AngeboteSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+        leiste.addWidget(self.vorgang_knopf)
         leiste.addSpacing(20)
+        leiste.addWidget(self.vorgang_filter)
         leiste.addWidget(self.suche, 1)
         lay = QVBoxLayout(self)
         lay.addLayout(leiste)
@@ -233,7 +278,24 @@ class AngeboteSeite(QWidget):
         self.neu_laden()
 
     def neu_laden(self, *_):
-        self.modell.setzen(self.db.angebote(self.suche.text().strip()))
+        tage = self.db.einstellung("gueltigkeit")
+        passt = VORGANG_FILTER.get(self.vorgang_filter.currentText(), VORGANG_FILTER["Alle Angebote"])
+        zeilen = []
+        for z in self.db.angebote(self.suche.text().strip()):
+            z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
+            if passt(vorgang(z), z["_abgelaufen"]):
+                zeilen.append(z)
+        self.modell.setzen(zeilen)
+
+    def vorgang_setzen(self, v, angebot_id=None):
+        """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …)."""
+        i = angebot_id or self._gewaehlt()
+        if not i:
+            return False
+        self.db.vorgang_setzen(i, v)
+        self.neu_laden()
+        self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}.")
+        return True
 
     def _id(self, index):
         return self.modell.zeilen[self.filter.mapToSource(index).row()]["id"]
@@ -2028,6 +2090,9 @@ class AngebotSeite(QWidget):
                                lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
         if pfad is not None:
             self.preise_festschreiben()
+            if not (self.db.angebot(self.id) or {}).get("vorgang"):     # Entwurf -> Verschickt (sonst bleibt er)
+                self.db.vorgang_setzen(self.id, "Verschickt")
+                self.f.angebote.neu_laden()
         return pfad
 
     def preise_festschreiben(self):
