@@ -1216,11 +1216,16 @@ class Hauptfenster(QMainWindow):
     def angebot_oeffnen(self, angebot_id):
         from .angebot_fenster import AngebotSeite
         seite = self.offen.get(angebot_id)
-        if seite is None:
-            seite = AngebotSeite(self, angebot_id)
+        neu = seite is None
+        if neu:
+            seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
             self.offen[angebot_id] = seite
             self.reiter.addTab(seite, seite.titel())
-        self.reiter.setCurrentWidget(seite)
+        self._frisch = seite if neu else None           # gerade geladen: beim Reiterwechsel nicht noch einmal
+        try:
+            self.reiter.setCurrentWidget(seite)
+        finally:
+            self._frisch = None
         return seite
 
     def angebot_schliessen(self, angebot_id):
@@ -1281,7 +1286,7 @@ class Hauptfenster(QMainWindow):
 
     def reiter_gewechselt(self, _):
         w = self.reiter.currentWidget()
-        if hasattr(w, "neu_laden"):
+        if hasattr(w, "neu_laden") and w is not getattr(self, "_frisch", None):
             w.neu_laden()
 
     def alles_neu_laden(self):

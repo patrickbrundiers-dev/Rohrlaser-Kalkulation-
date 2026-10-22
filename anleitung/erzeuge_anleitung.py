@@ -2403,6 +2403,9 @@ def kapitel_einstellungen(i):
          "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
+        ["Kalkulation", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]",
+         "eigener Zeitanteil der Laserzeit (Stundensatz Laser) je Teil, dessen Anbauteile aus dem STEP-Import "
+         "unsicher erkannt und nicht ausgeschlossen sind ([[anbauteile]]); Vorgabe 0 = aus."],
         ["Kalkulation", "Handling Kundenmaterial je m Stangenlänge [€/m] (0 = keins)",
          "Kosten für beigestelltes Material je Meter der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
          "Vorgabe 0."],
@@ -3652,9 +3655,12 @@ def kapitel_step_messung(i):
             "Laschen, Bleche, Muttern und Sonstiges den Umriss der Aufstandsfläche, Kopfplatten nichts. Die Gravur "
             "zählt zur Gravurlänge der Position (Vorschub Gravur), nie zum Schneidweg; im Prüfdialog steht sie "
             "getrennt als <i>Gravur</i> der Anbauteile. Geschweißt wird nicht kalkuliert.",
-            "<b>Eigene Körper</b> einer Baugruppe (Bleche, Bolzen als Rundstahl), die ein Rohr berühren, bleiben "
-            "eigene Positionen wie bisher. Das Rohr bekommt zusätzlich die Gravur an ihrer Stelle. Rohre, die "
-            "andere Rohre berühren (Gestell), bleiben unberührt.",
+            "<b>Eigene Körper</b> einer Baugruppe (Bleche, Bolzen als Rundstahl), die ein Rohr berühren: Das Rohr "
+            "bekommt die Gravur an ihrer Stelle. Im Prüfdialog ist dann <b>Anbauteile nicht ins Angebot "
+            "übernehmen</b> angehakt (Vorgabe): Diese Körper werden nicht als eigene Positionen übernommen, ihre "
+            "Zeile ist abgewählt mit dem Hinweis <i>Anbauteil von …</i>. Einzelne lassen sich trotzdem anhaken; ohne "
+            "Haken an der Option werden sie wie andere Teile übernommen (Bleche als Zukaufteil). Rohre, die andere "
+            "Rohre berühren (Gestell), bleiben unberührt.",
             "<b>Unsicher</b> (Prüfstatus <i>prüfen</i>, Übernahme nur mit Häkchen): Anbauteil an einer Ecke oder "
             "der Art <i>Sonstiges</i>, Anbau über (fast) die ganze Länge (das Rohr wird dann aus Innenkontur und "
             "Wandstärke angenommen), Anbauteile schwerer als das Rohr. Zum Vergleich steht im Prüfdialog, was ohne "
@@ -3699,6 +3705,22 @@ def kapitel_step_messung(i):
                (4, "Auswirkung je Teil: Gravur vorher → nachher und offene Anbauteile.")])
     i.bild("anbau_gravur", "Vorschau Gravurkonturen: Rohr ohne Anbauteile mit den Gravurlinien (türkis)",
            hoehe=55 * mm, legende=[(1, "Vorschau umschalten.")])
+    i.text("<b>Im Angebot</b> stehen die Anbauteile in der Spalte <i>Anbauteile</i> der Positionen (erscheint, "
+           "sobald eine Position welche hat). Solange ein unsicher erkanntes Anbauteil offen ist, zeigt der Status "
+           "<b>HINWEIS: Anbauteile prüfen (Doppelklick)</b>, und <i>Prüfen vor Freigabe</i> meldet „Anbauteile "
+           "ungeprüft“. Ein <b>Doppelklick</b> auf die Spalte oder den Status (oder Rechtsklick, <i>Anbauteile prüfen "
+           "…</i>) öffnet dasselbe Fenster; <b>Übernehmen</b> ändert die Gravur der Position um den Unterschied.")
+    i.bild("anbau_position", "Position mit Anbauteilen im Angebot: Spalte Anbauteile (hier alle geprüft)",
+           hoehe=28 * mm)
+    i.liste("<b>Gravur Anbauteile</b> ist ein Teil der Gravur und wird nicht doppelt gezählt: In den Spalten der "
+            "Kalkulation steht <i>davon Gravur Anbauteile [s]</i>, im Preisaufbau bei <i>Laser schneiden</i> "
+            "„davon Gravur Anbauteile … €“, in der Kalkulation-PDF die Spalte <i>davon Anbauteile [s]</i> und im "
+            "Schneidweg-Rechner unter der Gravur „davon Anbauteile … mm“.",
+            "<b>Prüfzeit</b>: Mit der Einstellung <i>Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]</i> "
+            "(Vorgabe 0) kommt je Teil, dessen Anbauteile unsicher erkannt und nicht ausgeschlossen sind, diese Zeit "
+            "zur Laserzeit. Sie steht als <i>Prüfzeit Anbauteile je Teil [s]</i> in der Kalkulation und im "
+            "Preisaufbau bei <i>Laser schneiden</i>.",
+            "Schweißen wird nicht kalkuliert.")
     i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
               "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
               "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
@@ -3923,11 +3945,21 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.29", "<b>Mehrere Arbeitsplätze</b>: Name und Kürzel je Benutzer, das Kürzel steht vorn in der "
+    ["0.8.30", "<b>Mehrere Arbeitsplätze</b>: Name und Kürzel je Benutzer, das Kürzel steht vorn in der "
                "Angebotsnummer (PB-2026-0001); Bearbeiter im Angebotskopf und als Ansprechpartner im Angebots-PDF. "
                "Über einen <b>gemeinsamen Ordner</b> sieht jeder die Angebote der Kollegen (nur ansehen, als Kopie "
                "übernehmen) und alle teilen die Stammdaten; Abgleich beim Start, beim Beenden und mit dem Knopf "
                "<i>Abgleichen</i> ([[mehrere_arbeitsplaetze]])."],
+    ["0.8.29", "<b>Schneller</b>, ohne Änderung an Bedienung und Ergebnissen: große Angebote öffnen und rechnen "
+               "deutlich schneller (Angebots-PDF mit Staffeln bei 200 Positionen 5 s statt 22 s, Optimieren 3 s statt "
+               "8 s), der Programmstart ist kürzer und die STEP-Messung großer Baugruppen etwa 12 % schneller. Preise, "
+               "Zeiten und Messwerte bleiben gleich."],
+    ["0.8.28", "Anbauteile im Angebot: Spalte <b>Anbauteile</b> der Positionen mit Doppelklick auf <i>Anbauteile "
+              "prüfen</i>, Status und Freigabe-Hinweis, Gravur Anbauteile getrennt ausgewiesen (Kalkulation, "
+              "Preisaufbau, PDF, Schneidweg-Rechner), Einstellung <i>Prüfzeit je Teil mit unsicher erkannten "
+              "Anbauteilen</i>. Im STEP-Prüfdialog die Option <b>Anbauteile nicht ins Angebot übernehmen</b> "
+              "(Vorgabe an): angeschweißte eigene Körper einer Baugruppe werden keine eigenen Positionen "
+              "([[anbauteile]])."],
     ["0.8.27", "<b>Fasen im STEP-Import</b>: Fasen an den Rohrenden werden erkannt und nicht gelasert; Hinweis im "
                "Bericht, Länge und Schneidweg an der längsten Stelle (gerader Schnitt). Bisher zählte eine Fase als "
                "Innenkontur und das Ende als „nicht erkannt“."],

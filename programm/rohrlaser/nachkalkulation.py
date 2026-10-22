@@ -57,11 +57,11 @@ def gruppen(ergebnis, kopf, positionen, k, tabellen):
     return list(out.values())
 
 
-def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist):
+def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
     """Soll/Ist je Kostenart. Ergebnis: dict(gruppen=[… mit ist, soll_kosten, ist_kosten], zeilen=[{text, einheit,
     soll_menge, ist_menge, soll, ist, abweichung, prozent, erfasst}], summe=…, erloes=…, db=…, satz=Stundensatz)."""
     ist = ist or {}
-    zeilen_k, summen = rechnen.kalkulation(kopf, positionen, ergebnis, k, tabellen, einst)
+    zeilen_k, summen = kalk or rechnen.kalkulation(kopf, positionen, ergebnis, k, tabellen, einst)
     satz = summen["satz_laser"]       # Stundensatz des Laserschneidens (Vorgabe: Maschine; Snapshot des Angebots)
     gr = gruppen(ergebnis, kopf, positionen, k, tabellen)
     ist_st, ist_mp = ist.get("stangen") or {}, ist.get("meterpreis") or {}

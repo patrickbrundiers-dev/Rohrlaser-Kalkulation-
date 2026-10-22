@@ -512,6 +512,9 @@ EINSTELLUNGEN = (
     Einstellung("programmierung_zeit", "Programmierzeit je Position [min]", "Kalkulation", "zahl", 5.0, 0, 1440),
     Einstellung("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "Kalkulation", "zahl", 0.5, 0, 1440),
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
+    # Patrick 22.10.2026 (F4 a): eigene Zeit je Teil, dessen Anbauteile unsicher erkannt sind (Stundensatz Laser)
+    Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
+                "zahl", 0.0, 0, 1000),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
     # angehoben. 0 = keiner.
     # Kundenmaterial (Spalte Material: Kunde beigestellt): keine Materialkosten; optional Handling je m der

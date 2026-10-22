@@ -1,4 +1,5 @@
 """Angebote: Übersicht, Angebotsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
+import copy
 import datetime
 import json
 import tempfile
@@ -16,7 +17,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
-from . import blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+from . import anbau, blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
     teilen, vorschau, zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -228,7 +229,7 @@ FREMD_FARBE = "#6B7280"
 
 
 def bearbeiter(z):
-    """Kürzel des Bearbeiters; Angebote eines Kollegen ohne Kürzel (vor 0.8.29 angelegt): das Kürzel seiner Datei."""
+    """Kürzel des Bearbeiters; Angebote eines Kollegen ohne Kürzel (vor 0.8.30 angelegt): das Kürzel seiner Datei."""
     return z.get("bearbeiter") or z.get("fremd") or ""
 MEINE, ALLE = "Meine Angebote", "Alle Mitarbeiter"
 
@@ -456,11 +457,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "prog_zeit", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
-            "naht_vorgabe", "gewicht_teil"]
+            "naht_vorgabe", "anbauteile", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "naht_vorgabe", "gewicht_teil")
-EIGENE = ("zusatz", "zukauf", "naht", "bohrbild")        # Spalten mit eigenem Dialog (Doppelklick)
+                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil")
+EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelklick: Schneidweg-Rechner
 # Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
 VORSCHAU_FELDER = ("technik", "laenge", "profil_id", "art", "konturen", "a_ende", "b_ende", "a_schnitt", "b_schnitt")
@@ -469,6 +470,7 @@ BOHRBILD_SPALTEN = ("gewinde", "bohrungen", "gewinde_vorschlag")     # Doppelkli
 # Angebotsseite (bekommt die Zeile) oder "feld:" + Spalte (Zelle zum Eintragen öffnen, Spalte notfalls einblenden).
 STATUS_ZIELE = (
     ("Bohrungen prüfen", "bohrungen_pruefen", "Bohrungen prüfen"),
+    ("Anbauteile prüfen", "anbauteile_pruefen", "Anbauteile prüfen"),
     ("Zukaufartikel fehlt", "zukaufteile", "Zukaufteile wählen"),
     ("EK fehlt", "zukauf_ek", "Einkaufspreis eintragen"),
     ("Zusatzarbeit", "zusatzarbeiten", "Zusatzarbeiten wählen"),
@@ -617,6 +619,8 @@ class PositionenModell(QAbstractTableModel):
             return zukauf.zukauf_text(self.daten[r])
         if art == "naht":
             return naht.text(self.daten[r], self.k.profile.get(self.daten[r].get("profil_id")))
+        if art == "anbau":
+            return anbau.kurz(anbau.lesen(self.daten[r].get("anbauteile")))
         if art == "abweichung":
             return schneidweg_abweichung(self.daten[r])
         w = self.werte[r].get(x[1])
@@ -726,6 +730,8 @@ class PositionenModell(QAbstractTableModel):
                 return (w + "\n" if w else "") + "Doppelklick: Gewinde und Zusatzarbeiten wählen"
             if art == "zukauf" and rolle == Qt.ToolTipRole:
                 return (w + "\n" if w else "") + "Doppelklick: Zukaufteile wählen"
+            if art == "anbau" and rolle == Qt.ToolTipRole:
+                return (w + "\n" if w else "") + "Doppelklick: Anbauteile prüfen (aufgeschweißte Teile, nur Gravur)"
             if art == "naht" and rolle == Qt.ToolTipRole:
                 return (w + "\n" if w else "Keine Vorgabe: frei drehbar\n") + \
                     "Doppelklick: Schweißnaht am Querschnitt wählen (Blick von Ende A, 0° oben, 90° rechts)"
@@ -1314,6 +1320,7 @@ class AngebotSeite(QWidget):
                            ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
                            ("Material …", lambda: self.material_einstellen()),
                            ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen()),
+                           ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
                            ("Blech-Editor …", lambda: self.blech_bearbeiten()),
                            ("Positionen löschen", self.positionen_loeschen)):
@@ -1527,6 +1534,14 @@ class AngebotSeite(QWidget):
         return neu
 
     def neu_laden(self, *_):
+        # Kalkulation nur einmal je Neuladen rechnen (Übersicht, Staffeln, Nachkalkulation; Performance-Audit 22.10.2026)
+        self._kalk_merken = {}
+        try:
+            self._neu_laden()
+        finally:
+            self._kalk_merken = None
+
+    def _neu_laden(self):
         a = self.db.angebot(self.id)
         if a is None:
             return
@@ -1749,7 +1764,7 @@ class AngebotSeite(QWidget):
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
-        zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
+        zeilen, summen = self._rechnung()
         self.uebersicht_bereich.preisstand_setzen(
             self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell),
             rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")),
@@ -2060,7 +2075,7 @@ class AngebotSeite(QWidget):
             self.status_beheben(r)
             return
         ziel = {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile, "naht": self.schweissnaht,
-                "bohrbild": self.bohrungen_pruefen}.get(art)
+                "bohrbild": self.bohrungen_pruefen, "anbau": self.anbauteile_pruefen}.get(art)
         if ziel:
             ziel([r])
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
@@ -2184,6 +2199,34 @@ class AngebotSeite(QWidget):
                        + (f", {bohrbild.offen(liste)} noch offen" if bohrbild.offen(liste) else "") + "."
                        + (f" Zusatzarbeit {', '.join(fehlt)} fehlt in den Stammdaten (Einstellungen › Zusatzarbeiten)."
                           if fehlt else ""), fehler=bool(fehlt))
+        self.neu_laden()
+        return True
+
+    def anbauteile_pruefen(self, zeilen=None, werte=None):
+        """Anbauteile der (ersten) markierten Position aus dem STEP-Import prüfen (AnbauDialog): Art, Bearbeitung,
+        Gravur, bestätigen oder ausschließen. werte = neue Liste setzt sie ohne Dialog (Tests). Ergebnis: True =
+        gespeichert."""
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        zeilen = [r for r in zeilen if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst eine Position markieren.", fehler=True)
+            return False
+        p = self.positionen[zeilen[0]]
+        if not anbau.lesen(p.get("anbauteile")):
+            self.f.meldung(f"Pos. {p.get('pos') or ''} hat keine Anbauteile aus dem STEP-Import.", fehler=True)
+            return False
+        if werte is None:
+            from .anbau_dialog import AnbauDialog
+            titel = " ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") else "", p.get("artikel")) if x)
+            d = AnbauDialog(self, p.get("anbauteile"), titel, p.get("gravur"))
+            if d.exec() != QDialog.Accepted:
+                return False
+            werte = d.ergebnis
+        for name, wert in anbau.position_anwenden(p, werte).items():
+            self.db.position_aendern(p["id"], name, wert)
+        n = anbau.offen(werte)
+        self.f.meldung(f"Anbauteile von Pos. {p.get('pos') or ''} gespeichert" + (f", {n} noch offen." if n else "."))
         self.neu_laden()
         return True
 
@@ -2607,8 +2650,15 @@ class AngebotSeite(QWidget):
         return pfad
 
     def _rechnung(self):
-        zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
-        return zeilen, summen
+        """rechnen.kalkulation für dieses Angebot. Während neu_laden wird sie nur einmal gerechnet; jeder Aufrufer
+        bekommt eine eigene Kopie (die Eingaben ändern sich innerhalb eines Neuladens nicht)."""
+        merken = getattr(self, "_kalk_merken", None)
+        if merken is None:
+            return rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+        if "ergebnis" not in merken:
+            merken["ergebnis"] = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
+                                                     self.einst)
+        return copy.deepcopy(merken["ergebnis"])
 
     def angebot_daten(self):
         """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen)."""
