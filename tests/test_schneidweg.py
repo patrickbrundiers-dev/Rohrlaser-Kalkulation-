@@ -566,6 +566,40 @@ assert s.position_neu(np_.ROHR, dialog=lambda d: QDialog.Rejected) is None and l
 ok("S12 Neue Position: erst Typ (Rohr / Profil, Blech / Kantteil, Zukaufteil, leere Zeile), Rohr im Rechner mit "
    "Kopfzeile (Profilwechsel, Länge Pflicht, Naht, Konturen)")
 
+# ------------------------------------------------------------------ S13 Profilform vorwählen, Profil neu anlegen
+from rohrlaser import profil_neu as pn_  # noqa: E402
+assert pn_.profil_id("Quadratrohr", 40, None, 3) == "QR 40x40x3" and pn_.profil_id("Rundrohr", 48.3, None, 2.6) == \
+    "RR 48,3x2,6" and pn_.profil_id("Rechteckrohr", 60, 40, 3) == "RE 60x40x3"
+gesehen13 = {}
+
+
+def rohr_neues_profil(d):
+    d.k_form.setCurrentText("Rechteckrohr")
+    liste = [d.k_profil.itemText(i) for i in range(d.k_profil.count())]
+    gesehen13["nur_re"] = bool(liste) and all(s.k.profile[x]["form"] == "Rechteckrohr" for x in liste)
+    nd = pn_.ProfilNeuDialog(d, d.k.profile, "Rechteckrohr")
+    nd.a.setValue(70)
+    nd.b.setValue(35)
+    nd.wand.setValue(2.5)
+    gesehen13["pid"], gesehen13["fehler"] = nd.pid.text(), nd.fehler()
+    nd.b.setValue(0)
+    gesehen13["ohne_b"] = nd.fehler()
+    gesehen13["neu"] = d.profil_neu(dict(nd.werte(), b=35.0, profil_id="RE 70x35x2,5"))
+    gesehen13["gewaehlt"] = (d.k_profil.currentText(), d.profil.get("profil_id"), d.k_form.currentText())
+    d.k_artikel.setText("NEU-2")
+    d.k_laenge.setValue(500)
+    return QDialog.Accepted
+
+
+assert s.position_neu(np_.ROHR, dialog=rohr_neues_profil) == np_.ROHR
+assert gesehen13["nur_re"] and gesehen13["pid"] == "RE 70x35x2,5" and gesehen13["fehler"] == "", gesehen13
+assert gesehen13["ohne_b"] == "Abmessung B eingeben." and gesehen13["neu"] == "RE 70x35x2,5"
+assert gesehen13["gewaehlt"] == ("RE 70x35x2,5", "RE 70x35x2,5", "Rechteckrohr"), gesehen13
+pr13 = next(z for z in db.zeilen("profile") if z["profil_id"] == "RE 70x35x2,5")
+assert (pr13["form"], pr13["a"], pr13["b"], pr13["wand"]) == ("Rechteckrohr", 70, 35, 2.5)
+assert db.positionen(a)[-1]["profil_id"] == "RE 70x35x2,5" and db.positionen(a)[-1]["artikel"] == "NEU-2"
+ok("S13 Rohr-Editor: Profilform vorwählen filtert die Profile, fehlendes Profil direkt anlegen (ID aus den Maßen)")
+
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()
 alt = tmp / "alt.db"
