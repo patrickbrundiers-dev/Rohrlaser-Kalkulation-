@@ -45,7 +45,7 @@ KALKULATION = (
     Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
     Feld("pauschale_abmessung", "Pauschale je Abmessung [€]", "zahl", 0, 100000, stellen=2),
     # Programmierung: (Grundzeit je Position + Zeit je Innenkontur) × Stundensatz 'Programmierung'. Der Betrag je
-    # Position (bis 0.8.19) zählt nur noch in vorher verschickten Angeboten (festgeschriebene Preisbasis)
+    # Position (bis 0.8.20) zählt nur noch in vorher verschickten Angeboten (festgeschriebene Preisbasis)
     Feld("programmierung_zeit", "Programmierzeit je Position [min]", "zahl", 0, 1440, stellen=1),
     Feld("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "zahl", 0, 1440, stellen=2),
     Feld("programmierung_teil", "Programmierkosten je Position (alt) [€]", "zahl", 0, 100000, stellen=2),

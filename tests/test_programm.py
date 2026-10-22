@@ -33,13 +33,14 @@ def zuschlaege_wie_bisher(db):
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"
 for name, zeilen in beispieldaten().items():
-    gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)]
+    gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)
+               if not (name == "profile" and z["form"] == "RP-Profil")]     # RP-Bibliothek kommt dazu (rp_profile)
     assert gelesen == zeilen, name
 assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_material") == 0 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19
 assert db.einstellung("profilformen").splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil",
                                                        "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil",
-                                                       "Sonderprofil"]
+                                                       "RP-Profil", "Sonderprofil"]
 
 # 2) Eingabe: deutsche Zahlen, Bereiche, ganze Zahlen, Datum
 f = PROFILE.feld("a")

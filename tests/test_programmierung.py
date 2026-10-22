@@ -1,4 +1,4 @@
-"""Prüft die Programmierung als Zeit × Stundensatz (Patrick 22.10.2026, bis 0.8.19: 8,50 € je Position):
+"""Prüft die Programmierung als Zeit × Stundensatz (Patrick 22.10.2026, bis 0.8.20: 8,50 € je Position):
 - G1 Vorgaben neuer Dateien: 5 min je Position + 0,5 min je Innenkontur, Stundensatz/Arbeitsschritt 'Programmierung'
 - G2 Angebot: Zeit je Position = Grundzeit + Konturen × Zeit, × Stundensatz, Zeile in Zeiten & Arbeitskosten
 - G3 Zeit von Hand je Position, Werte und Stundensatz je Angebot; Stammdaten nur für neue Angebote
@@ -144,7 +144,7 @@ assert s2.optimieren()
 s2.preise_festschreiben()                       # a2 wurde verschickt (Angebots-PDF)
 d.schliessen()
 con = sqlite3.connect(pfad)
-# wie eine Datei aus 0.8.19: Betrag je Position 12 € in den Einstellungen und im Angebot, festgeschrieben bei a2
+# wie eine Datei aus 0.8.20: Betrag je Position 12 € in den Einstellungen und im Angebot, festgeschrieben bei a2
 pb = json.loads(con.execute("SELECT preisbasis FROM angebote WHERE id=?", (a2,)).fetchone()[0])
 for n in ("programmierung_zeit", "programmierung_kontur"):
     pb["einstellungen"].pop(n, None)

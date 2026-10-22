@@ -7,11 +7,11 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import naht, normprofile
+from . import naht, normprofile, rp_profile
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
-                "I-/H-Träger", "T-Profil", "Sonderprofil")
+                "I-/H-Träger", "T-Profil", rp_profile.FORM, "Sonderprofil")
 # Offene Profile: A = Höhe (U, C: Steg; L: längerer Schenkel; Flachstahl: Breite), B = Breite (U, C: Flansch; L:
 # kürzerer Schenkel; Flachstahl leer), Wandstärke = Blechdicke. C-Profil: Querschnitt über 'Fläche manuell'
 # (Abkantung nicht in den Maßen).
@@ -20,7 +20,7 @@ PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil
 # sie ein), weil die Flanschdicke nicht in den Maßen steht.
 TRAEGER = ("I-/H-Träger", "T-Profil")
 OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl") + TRAEGER
-MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") + TRAEGER
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", rp_profile.FORM) + TRAEGER
 KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium")
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
@@ -111,6 +111,9 @@ def flaeche_berechnet(p):
     if form in TRAEGER:
         n = normprofile.daten(p.get("profil_id"))
         return n["flaeche"] if n and n["form"] == form and n["flaeche"] else None
+    if form == rp_profile.FORM:       # aus der Kontur (MegaCAD-Makro), mit Radien und Anschlägen
+        r = rp_profile.daten(p.get("profil_id"))
+        return r["flaeche"] if r else None
     return None
 
 
@@ -127,8 +130,8 @@ def wand_schneiden(p):
 
 
 def huellkreis(p):
-    """Durchmesser des Kreises um den Profilquerschnitt: Rundrohr Ø, Quadrat-/Rechteckrohr Diagonale.
-    Sonderprofile ohne Angabe (None)."""
+    """Durchmesser des Kreises um den Profilquerschnitt: Rundrohr Ø, Quadrat-/Rechteckrohr Diagonale, RP-Profil
+    Diagonale des Hüllmaßes. Sonderprofile ohne Angabe (None)."""
     form, a, b = p.get("form"), p.get("a"), p.get("b")
     if a is None:
         return None
@@ -136,7 +139,7 @@ def huellkreis(p):
         return a
     if form == "Quadratrohr":
         return a * math.sqrt(2)
-    if form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") + TRAEGER and b is not None:
+    if form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", rp_profile.FORM) + TRAEGER and b is not None:
         return math.hypot(a, b)
     if form == "Flachstahl" and p.get("wand") is not None:
         return math.hypot(a, p["wand"])
@@ -207,7 +210,9 @@ PROFILE = Tabelle(
     "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
     "T-Profil: A = Höhe, B = Flanschbreite, Wandstärke = Stegdicke (Querschnitt aus der Normtabelle bei IPE, IPN, "
     "HEA, HEB, HEM, T, sonst Fläche manuell). Wandstärke max. = dickste Stelle (z. B. Flanschdicke): die "
-    "Schneidzeit rechnet mit der größeren der beiden Wandstärken; leer = Normtabelle bzw. Wandstärke. Endbeschnitt und "
+    "Schneidzeit rechnet mit der größeren der beiden Wandstärken; leer = Normtabelle bzw. Wandstärke. RP-Profil (Rohr "
+    "mit Anschlag, Profil-ID 'RP 0106-35'): A = Breite, B = Höhe, Wandstärke = Blechdicke; Fläche, Umfang und "
+    "Schnittlänge aus der Kontur der RP-Bibliothek bzw. des geladenen MegaCAD-Makros. Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
     "(Eckradien, Sonderprofile, C-Profil). Lieferlängen vergleichen = nein: das Profil wird nur mit der "
     "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen. Naht der "
@@ -505,7 +510,7 @@ EINSTELLUNGEN = (
                 "zahl_leer", None, 0, 1000),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, 0, 1440),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, 0, 100000),
-    # Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026; bis 0.8.19: 8,50 € je Position):
+    # Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026; bis 0.8.20: 8,50 € je Position):
     # Grundzeit je Position + Zeit je Innenkontur, je Position von Hand überschreibbar
     Einstellung("programmierung_zeit", "Programmierzeit je Position [min]", "Kalkulation", "zahl", 5.0, 0, 1440),
     Einstellung("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "Kalkulation", "zahl", 0.5, 0, 1440),

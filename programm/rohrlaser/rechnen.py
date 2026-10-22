@@ -442,7 +442,7 @@ def gruppen_bilden(kopf, positionen, k):
                                                beistellung=bs, querschnitt=querschnitt_gehrung(pr)))
         a_ger = p.get("a_gerade") != "nein"
         b_ger = p.get("b_gerade") != "nein"
-        u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"])
+        u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"], pid)
         h = p.get("schneidweg")
         if h:
             u = min(u, h / 2)
@@ -1391,7 +1391,7 @@ def oberflaeche(p, k):
     pr = k.profile.get(p.get("profil_id"))
     if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
         return None
-    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr))
+    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), p.get("profil_id"))
     return u * p["laenge"] / 1e6 if u else None
 
 
@@ -1853,7 +1853,7 @@ def preisbasis_anwenden(kopf, k, tabellen):
         e = dict(tabellen.get("einstellungen") or {})
         e.update(pb["einstellungen"])
         if "programmierung_teil" in pb["einstellungen"] and "programmierung_zeit" not in pb["einstellungen"]:
-            e["programmierung_zeit"] = None     # vor 0.8.20 festgeschrieben: Betrag je Position statt Zeit
+            e["programmierung_zeit"] = None     # vor 0.8.21 festgeschrieben: Betrag je Position statt Zeit
         tab["einstellungen"] = e
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
@@ -2043,7 +2043,7 @@ def konturen_anzahl(p):
 def programmier_zeit(p, einstellungen):
     """Programmierzeit einer Position [min] und ob sie von Hand eingetragen ist: Spalte Programmierzeit der Position,
     sonst Grundzeit je Position + Zeit je Innenkontur × Anzahl Innenkonturen (Einstellungen bzw. Angebot).
-    (None, False) = verschicktes Angebot vor 0.8.20, das mit seinem festgeschriebenen Betrag je Position rechnet."""
+    (None, False) = verschicktes Angebot vor 0.8.21, das mit seinem festgeschriebenen Betrag je Position rechnet."""
     if not _leer(p.get("prog_zeit")):
         return _n(p["prog_zeit"]), True
     grund = einstellungen.get("programmierung_zeit")
@@ -2107,7 +2107,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
       je Stück oder nach Gewicht verteilt (fracht_angebot.anteile); gehen ohne Zuschläge in den Verkaufspreis ein.
     - Programmierung je Position mit Stückzahl: Programmierzeit (programmier_zeit: von Hand, sonst Grundzeit + Zeit
       je Innenkontur) × Stundensatz des Arbeitsschritts 'Programmierung' (Vorgabe Satz 'Programmierung'), bei
-      verschickten Angeboten vor 0.8.20 der festgeschriebene Betrag je Position (programmierung_teil); umgelegt auf
+      verschickten Angeboten vor 0.8.21 der festgeschriebene Betrag je Position (programmierung_teil); umgelegt auf
       deren Stückzahl, ohne Zuschläge in den Verkaufspreis.
     - Gewinde mit festem Preis (Stammdaten Gewinde) zählen mit dem Preis statt mit der Zeit.
     - Schneidzeit manuell (Position) ersetzt die berechnete Laserzeit netto je Teil.
@@ -2155,7 +2155,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
     ruest_abm = ruest_abm_min / 60 * s_ra              # € je Abmessung
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
-    # Programmierung je Position mit Stückzahl, einmal je Angebot: Zeit × Stundensatz (verschickt vor 0.8.20: € je Pos.)
+    # Programmierung je Position mit Stückzahl, einmal je Angebot: Zeit × Stundensatz (verschickt vor 0.8.21: € je Pos.)
     s_prog = satz["Programmierung"][1]
     prog_zeit = {i: programmier_zeit(positionen[i], einstellungen) for i in laser}
     prog_pos = {i: (_n(positionen[i].get("stueck")) > 0) * (m * s_prog / 60 if m is not None
@@ -2475,10 +2475,10 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
                          sid=e["satz_id"], satz_=e["satz"], parallel=e["parallel"], fest=False))
         out[-1].update(ruest_einzeln=e["ruest_einzeln"], n_ruest=e["n_ruest"], ruest_bezug=e["ruest_bezug"])
     n_pos, prog_min = summen["positionen"], summen.get("programmierung_min")
-    if prog_min is None:        # verschicktes Angebot vor 0.8.20: festgeschriebener Betrag je Position ohne Zeit
+    if prog_min is None:        # verschicktes Angebot vor 0.8.21: festgeschriebener Betrag je Position ohne Zeit
         out.append(zeile("Programmierung", n_pos, "Positionen", None, None, None, summen["programmierung"],
                          f"{n_pos} × {zahl(summen.get('programmierung_position', 0), 2)} € je Position (ohne Zuschläge)",
-                         "festgeschrieben: Betrag je Position (vor 0.8.20)", art_="Pauschale"))
+                         "festgeschrieben: Betrag je Position (vor 0.8.21)", art_="Pauschale"))
     else:
         sid, sp = satz["Programmierung"]
         hand = summen.get("programmierung_hand", 0)
