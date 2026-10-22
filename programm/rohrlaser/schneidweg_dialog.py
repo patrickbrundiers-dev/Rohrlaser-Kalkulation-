@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QCompleter, QDialog
                                QVBoxLayout, QWidget)
 
 from . import hilfe, naht, rechnen, schneidweg as sw, skizze as sk
+from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
 
@@ -45,7 +46,7 @@ ART_HILFE = {
 LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitte, Seite = Fläche von Ende A gesehen, "
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, TEXT_SPALTE = 5, 6, 7, 8, 9
-ERGEBNIS_SPALTEN = ("Schnitt", "Anzahl", "je Stück [mm]", "gesamt [mm]", "Einstiche", "Hüllmaß [mm]", "Klasse")
+ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
 MASS_HILFE = ("Maße: Bohrung Ø · Senkung Bohrung Ø, Senk-Ø · Langloch Länge, Breite · Rechteck Breite, Höhe, "
               "Eckradius · Schlitz (offen, vom Rand) Tiefe, Breite · Ausklinkung am Ende Länge, Breite, Eckradius · "
@@ -87,7 +88,7 @@ class SchneidwegDialog(QDialog):
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
         self.setWindowTitle(f"Neue Position {p.get('pos') or ''} – Rohr / Profil".strip() if neu else
                             f"Schneidweg berechnen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
-        self.resize(1200, 900)
+        self._groesse_setzen()
         self.qs = sk.Querschnitt(profil)
         self.kasten = profil.get("form") in ("Quadratrohr", "Rechteckrohr")
         haupt = QVBoxLayout(self)
@@ -216,20 +217,23 @@ class SchneidwegDialog(QDialog):
             self.tabelle.horizontalHeaderItem(c).setToolTip(t)
         self.tabelle.itemChanged.connect(self.rechnen)
         self.tabelle.itemSelectionChanged.connect(self._auswahl_tabelle)
+        self.tabelle.setMinimumHeight(self.tabelle.horizontalHeader().sizeHint().height() + 5 * 26 + 6)
         lay.addWidget(self.tabelle, 1)
         self.erklaerung = QLabel()
         self.erklaerung.setWordWrap(True)
         self.erklaerung.setTextFormat(Qt.RichText)
         lay.addWidget(self.erklaerung)
         lay.addWidget(hilfe.Hinweis(MASS_HILFE, schluessel="schneidweg"))
-        leiste = QHBoxLayout()
+        # Knopfleiste: Konturarten links, Kopieren/Vorlagen/Entfernen rechts (bei schmalem Fenster zweite Zeile)
+        umbruch = UmbruchLeiste()
+        leiste = umbruch.links_layout
         for art in sw.ARTEN:
             b = QPushButton(f"+ {art}")
             b.clicked.connect(lambda _=False, art=art: self.zeile_neu(dict(art=art, anzahl=1)))
             leiste.addWidget(b)
+        leiste = umbruch.rechts_layout
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(self._entfernen)
-        leiste.addStretch(1)
         kopieren = QPushButton("Aus Position kopieren …")
         kopieren.setToolTip("Konturen einer anderen Position dieses Angebots anhängen")
         kopieren.clicked.connect(self._kopieren_waehlen)
@@ -242,7 +246,7 @@ class SchneidwegDialog(QDialog):
         self.vorlagen_knopf.setEnabled(self.db is not None)
         leiste.addWidget(self.vorlagen_knopf)
         leiste.addWidget(weg)
-        lay.addLayout(leiste)
+        lay.addWidget(umbruch)
 
         mitte = QWidget()
         ml = QVBoxLayout(mitte)
@@ -273,26 +277,38 @@ class SchneidwegDialog(QDialog):
         self.skizze.gewaehlt.connect(self._auswahl_skizze)
         self.skizze.verschoben.connect(self._verschoben)
         ml.addWidget(self.skizze, 1)
-        teiler.addWidget(mitte)
+        # unten nebeneinander: Skizze (breit, das Rohr ist lang) und Ergebnis je Teil; die Eingaben oben behalten
+        # die Höhe für die Konturtabelle (Patrick 22.10.2026: ab der 2. Bohrung musste gescrollt werden)
+        self.teiler_unten = QSplitter(Qt.Horizontal)
+        self.teiler_unten.addWidget(mitte)
+        teiler.addWidget(self.teiler_unten)
         unten = QWidget()
         lay = QVBoxLayout(unten)
         lay.setContentsMargins(0, 0, 0, 0)
-        teiler.addWidget(unten)
+        self.teiler_unten.addWidget(unten)
         lay.addWidget(QLabel("<b>Ergebnis je Teil</b>"))
         self.ergebnis_tabelle = QTableWidget(0, len(ERGEBNIS_SPALTEN))
         self.ergebnis_tabelle.setHorizontalHeaderLabels(ERGEBNIS_SPALTEN)
         self.ergebnis_tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.ergebnis_tabelle.verticalHeader().setVisible(False)
+        self.ergebnis_tabelle.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.ergebnis_tabelle.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.ergebnis_tabelle.verticalHeader().setDefaultSectionSize(22)
         lay.addWidget(self.ergebnis_tabelle, 1)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
         lay.addWidget(self.summe)
-        teiler.setStretchFactor(0, 3)
+        teiler.setStretchFactor(0, 5)
         teiler.setStretchFactor(1, 4)
-        teiler.setStretchFactor(2, 2)
-        teiler.setSizes([330, 380, 190])
+        teiler.setChildrenCollapsible(False)
+        self.teiler = teiler
+        hoehe = self.height() - 60
+        teiler.setSizes([int(hoehe * 0.56), hoehe - int(hoehe * 0.56)])
+        self.teiler_unten.setStretchFactor(0, 1)
+        self.teiler_unten.setStretchFactor(1, 1)
+        breite = self.width() - 30
+        self.teiler_unten.setSizes([int(breite * 0.57), breite - int(breite * 0.57)])
         lay = haupt
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.button(QDialogButtonBox.Ok).setText("Position anlegen" if neu else "In Position übernehmen")
@@ -356,6 +372,13 @@ class SchneidwegDialog(QDialog):
             raster.addWidget(w, 1, c)
         raster.setColumnStretch(1, 1)
         return raster
+
+    def _groesse_setzen(self):
+        """Fenster so groß, wie der Bildschirm erlaubt (höchstens 1600 × 1000), damit Konturtabelle, Skizze und
+        Ergebnis ohne Scrollen Platz haben."""
+        frei = self.screen().availableGeometry() if self.screen() else None
+        breite, hoehe = (frei.width() - 40, frei.height() - 70) if frei else (1400, 900)
+        self.resize(min(1600, breite), min(1000, hoehe))
 
     def kopf_werte(self):
         """Felder der neuen Position aus der Kopfzeile (leer ohne Kopfzeile)."""
@@ -707,6 +730,8 @@ class SchneidwegDialog(QDialog):
                 it = QTableWidgetItem(v)
                 if c:
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                else:
+                    it.setToolTip(v)        # schmale Spalte: ganzer Text beim Zeigen
                 t.setItem(r, c, it)
         f = erg["felder"]
         zeit = self.schneidzeit()
@@ -855,13 +880,14 @@ class SchneidwegDialog(QDialog):
             titel = (f"{masse[i][1]} [mm]" if masse[i][0] != "punkte" else masse[i][1]) if i < len(masse) else \
                 ("–" if art else KONTUR_SPALTEN[2 + i])
             self.tabelle.horizontalHeaderItem(2 + i).setText(titel)
+        # eine Zeile unter der Tabelle (Platz für die Konturen); Lage, Seite und Versatz im Tooltip
+        self.erklaerung.setToolTip(LAGE_HILFE)
         if art:
-            self.erklaerung.setText(f"<b>Zeile {zeile + 1}, {art}</b>: {ART_HILFE.get(art, '')} "
-                                    f"<span style='color:#595959'>{LAGE_HILFE}</span>")
+            self.erklaerung.setText(f"<b>Zeile {zeile + 1}, {art}</b>: {ART_HILFE.get(art, '')}")
         else:
             self.erklaerung.setText("<span style='color:#595959'>Zeile markieren: die Überschriften Maß 1–3 zeigen dann, "
                                     "welches Maß die Konturart braucht (z. B. Bohrung Maß 1 = Ø d, Langloch Maß 1 = "
-                                    f"Länge l, Maß 2 = Breite b). {LAGE_HILFE}</span>")
+                                    "Länge l, Maß 2 = Breite b).</span>")
 
     def _auswahl_skizze(self, zeile):
         if 0 <= zeile < self.tabelle.rowCount():
