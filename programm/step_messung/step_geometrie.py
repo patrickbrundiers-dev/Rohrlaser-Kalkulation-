@@ -126,6 +126,12 @@ class Teil:
     # Prüfdialog wählbar; ersatz = nicht so messbar, Werte aus der ersten Messung abgeleitet
     alternative: object = None
     ersatz: bool = False
+    # Anbauteile (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten): nicht Teil der Rohrlaser-Geometrie,
+    # je Teil Art, Lage, Aufstandsfläche und Gravur (_anbau_beschreiben); trennung: Regelanteil, Vertrauen und die
+    # Messung ohne Trennung (Kurzfassung) – leer, wenn nichts abgetrennt wurde
+    anbauteile: list = field(default_factory=list)
+    trennung: dict = None
+    gravur_anbau: float = 0.0   # Gravur an den Anbauteilen [mm], in gravur enthalten
 
     @property
     def pruefstatus(self):
@@ -377,7 +383,7 @@ def _eigen3(m):
     return [a[i][i] for i in range(3)], v
 
 
-def _achse_grob(solid):
+def _achse_grob(solid, alle=False):
     """Rohrachse aus den Flächennormalen: Mantelflächen (außen, innen) stehen parallel zur Achse, ihre Normalen
     also senkrecht dazu. Die Achse ist die Richtung, zu der die Normalen (flächengewichtet) am wenigsten zeigen
     = Eigenvektor zum kleinsten Eigenwert von Σ Fläche·n·nᵀ. Funktioniert auch bei Freiformflächen."""
@@ -393,15 +399,19 @@ def _achse_grob(solid):
             for j in range(3):
                 m[i][j] += fl * k[i] * k[j]
     werte, vek = _eigen3(m)
-    i = min(range(3), key=lambda k: werte[k])
-    achse = gp_Vec(vek[0][i], vek[1][i], vek[2][i]).Normalized()
-    # Richtung festlegen (sonst zufällig): größter Anteil positiv. Ende A liegt damit in der Datei vorn
-    # (kleinere Koordinate in der Hauptrichtung des Rohrs).
-    k = max((achse.X(), achse.Y(), achse.Z()), key=abs)
-    if k < 0:
-        achse.Reverse()
+    achsen = []
+    for i in sorted(range(3), key=lambda k: werte[k]):
+        achse = gp_Vec(vek[0][i], vek[1][i], vek[2][i]).Normalized()
+        # Richtung festlegen (sonst zufällig): größter Anteil positiv. Ende A liegt damit in der Datei vorn
+        # (kleinere Koordinate in der Hauptrichtung des Rohrs).
+        k = max((achse.X(), achse.Y(), achse.Z()), key=abs)
+        if k < 0:
+            achse.Reverse()
+        achsen.append(achse)
     mitte = gp_Pnt((p0.X() + p1.X()) / 2, (p0.Y() + p1.Y()) / 2, (p0.Z() + p1.Z()) / 2)
-    return achse, mitte
+    # alle=True: alle drei Eigenvektoren als Achskandidaten (bester zuerst), z. B. wenn große Anbauteile die
+    # Normalenverteilung verschieben
+    return (achsen, mitte) if alle else (achsen[0], mitte)
 
 
 def _transformiere(shape, ax3):
@@ -578,13 +588,14 @@ def _wandstaerke(aussen, innen, s_aussen, s_innen, z0):
     return min(werte) if werte else 0.0
 
 
-def _lage(solid):
+def _lage(solid, start=None):
     """Lokales Rohrkoordinatensystem: Z = Rohrachse, Ursprung auf der Schwerlinie des Regelquerschnitts,
     X = Richtung der längeren Seite des kleinsten umschreibenden Rechtecks (Breite), Y = Höhe.
     1. grobe Achse aus den Flächennormalen, 2. zweimal nachschärfen über die Schwerpunkte von zwei weit
     auseinanderliegenden Regelquerschnitten (bei konstantem Querschnitt liegen sie auf einer achsparallelen Linie),
-    3. Drehung um die Achse aus dem Querschnitt. Ergebnis: (gp_Ax3, Regelquerschnitt im neuen System)."""
-    achse, mitte = _achse_grob(solid)
+    3. Drehung um die Achse aus dem Querschnitt. Ergebnis: (gp_Ax3, Regelquerschnitt im neuen System).
+    start: (Achse, Mitte) statt der groben Achse (Achskandidaten der Anbauteil-Trennung)."""
+    achse, mitte = start or _achse_grob(solid)
     ax3 = gp_Ax3(mitte, gp_Dir(achse.X(), achse.Y(), achse.Z()))
     gruppe = []
     for _ in range(3):
@@ -1445,6 +1456,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
     TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
     art = {}   # Index -> "A" außen, "I" innen, "S" Schnitt
     flaeche_art = {"A": 0.0, "I": 0.0, "S": 0.0}
+    verdacht, wand_z = False, (math.inf, -math.inf)
     for i in range(1, faces.Extent() + 1):
         f = faces.FindKey(i)
         pts = punkte(f)
@@ -1454,7 +1466,19 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
             art[i] = "I"
         else:
             art[i] = "S"
+            # Anbauteil-Verdacht: Merkmalsfläche ragt über die Außenkontur hinaus (Bearbeitungen liegen immer innerhalb;
+            # y minimal versetzt, damit der Strahl der Innenprüfung nicht genau durch Teilungspunkte der Kontur läuft)
+            verdacht = verdacht or any(not _im_material(p.X(), p.Y() + 1.37e-6, s_aussen) and
+                                       _abstand_zug(p.X(), p.Y(), s_aussen) > TOL_WAND for p in pts)
+        if art[i] != "S":
+            b_ = Bnd_Box()
+            BRepBndLib.AddOptimal_s(f, b_, False, False)
+            wand_z = (min(wand_z[0], b_.CornerMin().Z()), max(wand_z[1], b_.CornerMax().Z()))
         flaeche_art[art[i]] += _flaeche(f)
+    # … oder Material jenseits der Wandflächen (Kopfplatte) oder eine eingebuchtete Außenkontur (Schnitt durch ein
+    # Anbauteil); dann versucht analysiere die Trennung (_getrennt_messen)
+    t._anbau_verdacht = verdacht or wand_z[0] - zmin > 0.01 or zmax - wand_z[1] > 0.01 or \
+        ws[0][0] < 0.98 * _huellflaeche(s_aussen)
     # Gegenprobe: Schnitt- und Merkmalsflächen sind bei einem Rohrteil viel kleiner als der Außenmantel. Sonst ist
     # die Lage falsch erkannt (z. B. der Mantel als Schnittkontur) – dann lieber keine Maße als falsche.
     if flaeche_art["S"] > flaeche_art["A"]:
@@ -1694,6 +1718,11 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
     t.konturen_liste = kopf + sorted(liste, key=lambda d: (d["z"] is None, d["z"] or 0, d["winkel"] or 0))
+    # für die Anbauteile (_anbau_beschreiben): Abwicklung und Außenkontur im System ab Ende A (XY wie lok, z − zmin)
+    tr = gp_Trsf()
+    tr.SetTranslation(gp_Vec(0, 0, -z0))
+    t._rahmen = dict(abw=abw, s_aussen=s_aussen, kasten=kasten, hx=hx, hy=hy, solid=solid,
+                     aussen=TopoDS.Wire(BRepBuilderAPI_Transform(aussen, tr, True).Shape()))
     t.sicherheit["konturen"] = "wahrscheinlich" if any(
         d["art"] in ("Ausschnitt", "Innenmerkmal") or d.get("form") in ("komplex", "nicht erkannt") or
         d.get("seite") == "Ecke" for d in t.konturen_liste) else "sicher"
@@ -2022,12 +2051,23 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
             b = _blech_teil(solid, datei, koerper, fl, volumen, netz, dict(daten))
             b.alternative = _als_profil(solid, b, "Flachstahl")
             return b
-    t = None
+    t = fehler = None
     try:
         t = _profil_messen(solid, datei, koerper, netz)
-    except Exception:
-        if not (fl and fl["art"] == "gekantet"):
-            raise
+    except Exception as e:
+        fehler = e
+    # aufgesetzte Teile (Bolzen, Laschen, Kopfplatten …): nur bei Verdacht trennen und neu messen (sonst bleibt alles
+    # wie bisher); Rohrlaser-Geometrie ohne Anbauteile, die Messung ohne Trennung steht kurz in t.trennung
+    if t is None or not t.profilform or getattr(t, "_anbau_verdacht", False) or t.profilform == "Sonderprofil" or \
+            t.sicherheit.get("wandstaerke") == "unsicher":
+        try:
+            g = _getrennt_messen(solid, datei, koerper, netz, t)
+        except Exception:  # Trennung gescheitert: Messung ohne Trennung gilt
+            g = None
+        if g is not None:
+            t, fehler = g, None
+    if fehler is not None and not (fl and fl["art"] == "gekantet"):
+        raise fehler
     if fl and fl["art"] == "gekantet" and (t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
                                            or t.profilform == "offenes Sonderprofil" or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
@@ -2081,8 +2121,458 @@ def _als_profil(solid, b, form=None, t=None):
     return e
 
 
+# ------------------------------------------------------------------ Anbauteile
+# Aufgeschweißte Bolzen, Laschen, Bleche, Muttern oder Kopfplatten, die der Kunde zusammen mit dem Rohr als EINEN Körper
+# konstruiert hat, oder als eigenen Körper, der das Rohr berührt (Plan "STEP-Import Anbauteile", Patrick 22.10.2026).
+# Grundidee: Bearbeitungen (Bohrungen, Schlitze, Gehrungen, Gravuren) nehmen Material weg und liegen in der Rohrhülle,
+# Anbauteile ergänzen Material außerhalb. Rohrhülle = Prisma aus der Außenkontur des häufigsten Querschnitts über den
+# Bereich der Wandflächen. Körper ∩ Hülle = Rohrlaser-Geometrie (bisherige Messung), Körper − Hülle = Anbauteile.
+# Unter einem Anbauteil bleibt die Rohrwand in der Schnittmenge geschlossen: keine künstlichen Konturen.
+FUZZY = 1e-3                 # mm, Toleranz der Booleschen Operationen (die Hülle liegt genau auf dem Außenmantel)
+ANBAU_DICKE_MIN = 0.05       # mm, mittlere Dicke 2·V/A darunter: Rechenrest der Booleschen Operation, kein Teil
+ANBAU_KONTAKT = 0.05         # mm, ein eigener Körper gilt als aufgesetzt, wenn er das Rohr so nah berührt
+REGEL_MIN = 0.4              # Anteil der Schnitte im Regelquerschnitt, ab dem getrennt wird
+REGEL_SICHER = 0.6           # darunter: Trennung unsicher (Prüfstatus prüfen)
+MARKE_KREUZ = 10.0           # mm, Strichlänge der Positionsmarke (Kreuz aus zwei Strichen)
+# Vorgabe-Bearbeitung je Art (Patrick 22.10.2026, Frage F1 a); im Programm je Anbauteil änderbar
+ANBAU_BEARBEITUNG = {"Bolzen": "Positionsmarke", "Mutter": "Umriss", "Lasche": "Umriss", "Blech": "Umriss",
+                     "Kopfplatte": "keine", "Sonstiges": "Umriss"}
+
+
+def _volumen(shape):
+    p = GProp_GProps()
+    BRepGProp.VolumeProperties_s(shape, p)
+    return abs(p.Mass())
+
+
+def _flaechen_punkte(face):
+    """Eckpunkte und je Kante drei Punkte einer Fläche (wie die Wandflächenprüfung in _profil_messen)."""
+    pts = [BRep_Tool.Pnt_s(TopoDS.Vertex(v)) for v in _liste(face, TopAbs_VERTEX)]
+    for e in _liste(face, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        for u in (0.25, 0.5, 0.75):
+            pts.append(c.Value(c.FirstParameter() + u * (c.LastParameter() - c.FirstParameter())))
+    return pts
+
+
+def _boolesch(art, a, b):
+    """Schnittmenge ('common') bzw. Differenz ('cut') mit Fuzzy-Toleranz; None, wenn OpenCascade scheitert."""
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut
+    try:  # OCP >= 7.8
+        from OCP.collections import List_TopoDS_Shape as Liste
+    except ImportError:
+        from OCP.TopTools import TopTools_ListOfShape as Liste
+    op = (BRepAlgoAPI_Common if art == "common" else BRepAlgoAPI_Cut)()
+    la, lb = Liste(), Liste()
+    la.Append(a)
+    lb.Append(b)
+    op.SetArguments(la)
+    op.SetTools(lb)
+    op.SetFuzzyValue(FUZZY)
+    op.Build()
+    return op.Shape() if op.IsDone() else None
+
+
+def _hohl_regel(lok, zmin, zmax, n=25):
+    """Häufigster Hohlquerschnitt (zwei Konturen, innen liegend) an n Stellen. Bohrungen machen einzelne Schnitte
+    kleiner, Anbauteile größer: die Mehrheit ist das Rohr (bei Gleichstand die kleinere Außenkontur).
+    Ergebnis (Anteil der Schnitte, Konturen, z) oder (0, None, None)."""
+    gruppen = []
+    for i in range(n):
+        z = zmin + (i + 0.537) / (n + 0.1) * (zmax - zmin)
+        ws = _schnitt(lok, z)
+        if len(ws) != 2 or not _innen_liegend(ws[1][1], ws[0][1]):
+            continue
+        s = (ws[0][0] - ws[1][0], ws[0][0], ws, z)
+        for g in gruppen:
+            if abs(g[0][0] - s[0]) <= 0.002 * g[0][0] and abs(g[0][1] - s[1]) <= 0.002 * g[0][1]:
+                g.append(s)
+                break
+        else:
+            gruppen.append([s])
+    if not gruppen:
+        return 0.0, None, None
+    g = max(gruppen, key=lambda g: (len(g), -g[0][1]))
+    mitte = min(g, key=lambda s: abs(s[3] - (zmin + zmax) / 2))
+    return len(g) / n, mitte[2], mitte[3]
+
+
+def _huellflaeche(strecken):
+    """Fläche der konvexen Hülle eines Polygonzugs."""
+    pts = sorted({(round(x, 6), round(y, 6)) for st in strecken for x, y in ((st[0], st[1]), (st[2], st[3]))})
+    if len(pts) < 3:
+        return 0.0
+
+    def kreuz(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    unten, oben = [], []
+    for p in pts:
+        while len(unten) >= 2 and kreuz(unten[-2], unten[-1], p) <= 0:
+            unten.pop()
+        unten.append(p)
+    for p in reversed(pts):
+        while len(oben) >= 2 and kreuz(oben[-2], oben[-1], p) <= 0:
+            oben.pop()
+        oben.append(p)
+    h = unten[:-1] + oben[:-1]
+    return abs(sum(h[i][0] * h[(i + 1) % len(h)][1] - h[(i + 1) % len(h)][0] * h[i][1] for i in range(len(h)))) / 2
+
+
+def _laengsanbau_kontur(aussen, innen, wand):
+    """Anbau über (fast) die ganze Länge: Außenkontur des Rohrs als Innenkontur + Wandstärke, wenn das eine Grundform
+    (Kreis/Rechteck) ergibt und in der gemessenen Außenkontur liegt. Sonst None (Sonderprofil bleibt Sonderprofil)."""
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_MakeOffset
+    from OCP.GeomAbs import GeomAbs_Intersection
+    if wand <= 0:
+        return None
+    ab = Bnd_Box()
+    BRepBndLib.AddOptimal_s(aussen, ab, False, False)
+    best = None
+    for vz in (1, -1):
+        try:
+            mo = BRepOffsetAPI_MakeOffset(innen, GeomAbs_Intersection)
+            mo.Perform(vz * wand)
+            if not mo.IsDone():
+                continue
+            for w in _liste(mo.Shape(), TopAbs_WIRE):
+                mf = BRepBuilderAPI_MakeFace(TopoDS.Wire(w), True)
+                if mf.IsDone() and (best is None or _flaeche(mf.Face()) > best[0]):
+                    best = (_flaeche(mf.Face()), TopoDS.Wire(w))
+        except Exception:  # Versatz nicht möglich: kein Längsanbau-Kandidat
+            continue
+    if best is None:
+        return None
+    w = best[1]
+    wb = Bnd_Box()
+    BRepBndLib.AddOptimal_s(w, wb, False, False)
+    if any(wb.CornerMin().Coord(i) < ab.CornerMin().Coord(i) - 0.05 or
+           wb.CornerMax().Coord(i) > ab.CornerMax().Coord(i) + 0.05 for i in (1, 2)):
+        return None
+    if not _profilform(w, wb.CornerMax().X() - wb.CornerMin().X(), wb.CornerMax().Y() - wb.CornerMin().Y()):
+        return None
+    return w
+
+
+def _anbau_trennen(solid):
+    """Trennt Anbauteile von einem Hohlprofil (ein Körper). Ergebnis None (kein Hohlprofil, nichts abzutrennen oder
+    unplausibel) oder dict(rohr=Solid, anbau=[Solid], regelanteil, laengsanbau, rest) – alles in Dateilage, das
+    Original bleibt unverändert. Achse: wie die Messung; trägt der häufigste Querschnitt weniger als die Hälfte der
+    Schnitte, werden die beiden anderen Hauptrichtungen der Flächennormalen als Achse versucht."""
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism
+    achsen, mitte = _achse_grob(solid, alle=True)
+    best = None
+    for nr, achse in enumerate(achsen):
+        ax3, _ = _lage(solid, (achse, mitte))
+        lok = _transformiere(solid, ax3)
+        zmin, zmax = _z_bereich(lok)
+        anteil, ws, z = _hohl_regel(lok, zmin, zmax)
+        if ws and (best is None or anteil > best[0]):
+            best = (anteil, ws, z, ax3, lok)
+        if best is None and nr == 0 or best and best[0] >= 0.5:
+            break          # kein Hohlprofil (Blech, offenes Profil) oder Achse eindeutig
+    if best is None or best[0] < REGEL_MIN:
+        return None
+    anteil, ws, z, ax3, lok = best
+    aussen, innen = ws[0][1], ws[1][1]
+    s_a, s_i = _strecken(aussen), _strecken(innen)
+    ab = Bnd_Box()
+    BRepBndLib.AddOptimal_s(aussen, ab, False, False)
+    laengs = False
+    form = _profilform(aussen, ab.CornerMax().X() - ab.CornerMin().X(), ab.CornerMax().Y() - ab.CornerMin().Y())
+    # Rohre sind außen konvex; eine eingebuchtete Außenkontur (z. B. Blech längs auf dem Rohr) oder keine Grundform:
+    # Rohrkontur aus Innenkontur + Wandstärke versuchen
+    if not form or ws[0][0] < 0.98 * _huellflaeche(s_a):
+        kand = _laengsanbau_kontur(aussen, innen, _wandstaerke(aussen, innen, s_a, s_i, z))
+        if kand is not None:
+            aussen, s_a, laengs = kand, _strecken(kand), True
+        elif not form:
+            return None
+    # Wandbereich entlang der Achse: Flächen auf der Außen- oder Innenkontur (nicht der Hüllquader des Körpers – eine
+    # Kopfplatte jenseits des Endes gehört nicht zur Rohrlänge)
+    z0 = z1 = None
+    for f in _liste(lok, TopAbs_FACE):
+        pts = _flaechen_punkte(f)
+        if all(_nah_zug(p.X(), p.Y(), s_a, TOL_WAND) for p in pts) or \
+                all(_nah_zug(p.X(), p.Y(), s_i, TOL_WAND) for p in pts):
+            b = Bnd_Box()
+            BRepBndLib.AddOptimal_s(f, b, False, False)
+            z0 = b.CornerMin().Z() if z0 is None else min(z0, b.CornerMin().Z())
+            z1 = b.CornerMax().Z() if z1 is None else max(z1, b.CornerMax().Z())
+    if z0 is None or z1 - z0 < 1.0:
+        return None
+    tr = gp_Trsf()
+    tr.SetTranslation(gp_Vec(0, 0, z0 - z))
+    mf = BRepBuilderAPI_MakeFace(TopoDS.Wire(BRepBuilderAPI_Transform(aussen, tr, True).Shape()), True)
+    if not mf.IsDone():
+        return None
+    huelle = BRepPrimAPI_MakePrism(mf.Face(), gp_Vec(0, 0, z1 - z0)).Shape()
+    weg = _boolesch("cut", lok, huelle)
+    if weg is None:
+        return None
+    anbau = [TopoDS.Solid(x) for x in _liste(weg, TopAbs_SOLID)
+             if 2 * _volumen(x) / max(_flaeche(x), 1e-9) >= ANBAU_DICKE_MIN]
+    if not anbau:
+        return None
+    rohr = _boolesch("common", lok, huelle)
+    teile = sorted(_liste(rohr, TopAbs_SOLID), key=_volumen, reverse=True) if rohr is not None else []
+    anteil_anbau = sum(_volumen(a) for a in anbau) / _volumen(teile[0]) if teile else 0.0
+    if not teile or anteil_anbau > 3:
+        return None        # weit mehr Anbau als Rohr: so nicht plausibel, Teil wie bisher messen
+    inv = gp_Trsf()
+    inv.SetTransformation(ax3)
+    inv.Invert()
+
+    def zurueck(s):
+        return TopoDS.Solid(BRepBuilderAPI_Transform(s, inv, True).Shape())
+    return dict(rohr=zurueck(teile[0]), anbau=[zurueck(a) for a in anbau], regelanteil=anteil, laengsanbau=laengs,
+                rest=len(teile) - 1, mehr_anbau=anteil_anbau > 1)
+
+
+def _flach_dicke(lok):
+    """Dicke, wenn der Körper eine Platte ist: die größte ebene Fläche mal dem Abstand zur parallelen Gegenfläche
+    ergibt das Volumen (±10 %) und die Dicke ist klein gegen die Fläche; sonst None."""
+    vol = _volumen(lok)
+    best = None
+    for _, ebenen in _ebenen_gruppen(lok):
+        groesste = max(ebenen, key=lambda e: e[1])
+        for e in ebenen:
+            d = abs(e[0] - groesste[0])
+            if d > 0.05 and (best is None or groesste[1] > best[0]):
+                best = (groesste[1], d)
+    if best is None:
+        return None
+    flaeche, d = best
+    return d if abs(flaeche * d - vol) <= 0.1 * vol and d <= math.sqrt(flaeche) / 2 else None
+
+
+def _aufstand_huelle(r, lok, s_a, lg):
+    """Aufstandsflächen eines Körpers, dessen anliegende Flächen über das Rohr hinausragen: Flächen mit Punkten auf
+    der Außenkontur, geschnitten mit der Rohrhülle (Prisma aus der Außenkontur über die Länge, im System ab Ende A)."""
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism
+    if "huelle" not in r:
+        mf = BRepBuilderAPI_MakeFace(r["aussen"], True)
+        r["huelle"] = BRepPrimAPI_MakePrism(mf.Face(), gp_Vec(0, 0, lg)).Shape() if mf.IsDone() else None
+    if r["huelle"] is None:
+        return []
+    out = []
+    for f in _liste(lok, TopAbs_FACE):
+        if not any(_abstand_zug(p.X(), p.Y(), s_a) < TOL_WAND for p in _flaechen_punkte(f)):
+            continue
+        teil = _boolesch("common", f, r["huelle"])
+        if teil is None:
+            continue
+        out += [g for g in _liste(teil, TopAbs_FACE) if _flaeche(g) > 0.01 and
+                all(_nah_zug(p.X(), p.Y(), s_a, TOL_WAND) for p in _flaechen_punkte(g))]
+    return out
+
+
+def _rohr_ax3(t):
+    """System des Rohrs: Ursprung Ende A auf der Schwerlinie, Z = Achse, X = Breite (wie das Netz der 3D-Ansicht)."""
+    return gp_Ax3(gp_Pnt(*t.ende_a_global), gp_Dir(*t.achse_global), gp_Dir(*t.x_global))
+
+
+def _linienzug(kante, schritt=1.0):
+    c = BRepAdaptor_Curve(TopoDS.Edge(kante))
+    u0, u1 = c.FirstParameter(), c.LastParameter()
+    n = max(2, min(120, int(_kantenlaenge(kante) / schritt) + 1))
+    zug = []
+    for k in range(n + 1):
+        q = c.Value(u0 + (u1 - u0) * k / n)
+        zug += [round(q.X(), 2), round(q.Y(), 2), round(q.Z(), 2)]
+    return zug
+
+
+def _netz_anhaengen(netz, dazu):
+    basis = len(netz["p"]) // 3
+    netz["p"] += dazu["p"]
+    for art_, idx in dazu["t"].items():
+        netz["t"].setdefault(art_, []).extend(basis + i for i in idx)
+    for art_, zuege in dazu["l"].items():
+        netz["l"].setdefault(art_, []).extend(zuege)
+
+
+def _anbau_beschreiben(t, teile, quelle, netz=False, mit_flaechen=True):
+    """Je Anbauteil (Solid in Dateilage) einen Eintrag in t.anbauteile: Art, Lage am Rohr (z ab Ende A, Winkel und
+    Seite wie Bohrungen, siehe _Abwicklung), Aufstandsfläche, Höhe, Volumen, Vorgabe-Bearbeitung und Gravurlänge,
+    Vertrauen. Die Gravur geht in t.gravur (nie in den Schneidweg). mit_flaechen: das Anbauteil ins Netz (Art AN);
+    eigene Körper der Baugruppe haben ein eigenes Netz, dort nur die Gravurlinien (GA)."""
+    r = t._rahmen
+    abw, s_a, lg = r["abw"], r["s_aussen"], t.laenge
+    ax3 = _rohr_ax3(t)
+    tol = 0.01
+    for teil in teile:
+        lok = _transformiere(teil, ax3)
+        za, zb = _z_bereich(lok)
+        alle_pkt = [p for f in _liste(lok, TopAbs_FACE) for p in _flaechen_punkte(f)]
+        d = dict(nr=len(t.anbauteile) + 1, art="Sonstiges", quelle=quelle, z=None, winkel=None, u=None, seite=None,
+                 aufstand=None, hoehe=None, volumen=round(_volumen(lok), 1), bearbeitung=None, gravur_laenge=0.0,
+                 vertrauen="sicher", hinweis="")
+        rand, gravur_linien = [], []
+        if zb <= tol or za >= lg - tol:
+            # jenseits eines Endes: Kopf- bzw. Fußplatte, kein Eingriff in die Rohrwand
+            ende = "A" if zb <= tol else "B"
+            d.update(art="Kopfplatte", z=0.0 if ende == "A" else round(lg, 2), seite=f"Ende {ende}",
+                     hoehe=round(-za if ende == "A" else zb - lg, 2))
+        else:
+            auf = [f for f in _liste(lok, TopAbs_FACE)
+                   if all(_nah_zug(p.X(), p.Y(), s_a, TOL_WAND) and -tol <= p.Z() <= lg + tol
+                          for p in _flaechen_punkte(f))]
+            from OCP.BRepTools import BRepTools
+            karte, zahl, loch = TopTools_IndexedMapOfShape(), {}, False
+            for f in auf:
+                loch |= len(_liste(f, TopAbs_WIRE)) > 1
+                for e in _liste(BRepTools.OuterWire_s(TopoDS.Face(f)), TopAbs_EDGE):
+                    i = karte.Add(e)
+                    zahl[i] = zahl.get(i, 0) + 1
+            if not auf:     # Fläche größer als die Auflage (Blech steht über): Teil der Fläche auf der Rohrhülle
+                auf = _aufstand_huelle(r, lok, s_a, lg)
+                for f in auf:
+                    loch |= len(_liste(f, TopAbs_WIRE)) > 1
+                    for e in _liste(BRepTools.OuterWire_s(TopoDS.Face(f)), TopAbs_EDGE):
+                        i = karte.Add(e)
+                        zahl[i] = zahl.get(i, 0) + 1
+            rand = [karte.FindKey(i) for i, n in zahl.items() if n == 1]
+            if rand:
+                pts = _punkte_kanten(rand)
+            else:   # nur Linien- oder Punktberührung (eigener Körper): Punkte nahe am Mantel
+                pts = [p for p in alle_pkt if _abstand_zug(p.X(), p.Y(), s_a) < 0.1 and -tol <= p.Z() <= lg + tol]
+                d["vertrauen"] = "prüfen"
+                d["hinweis"] = "keine Aufstandsfläche, nur Berührung"
+            if not pts:
+                continue
+            uv = [(abw.u(p.X(), p.Y()), p.Z()) for p in pts]
+            if max(u for u, _ in uv) - min(u for u, _ in uv) > abw.umfang / 2:      # über die 0°-Naht
+                uv = [(u + abw.umfang if u < abw.umfang / 2 else u, v) for u, v in uv]
+            form, (uc, vc), _ = _form_2d(uv) if len(uv) >= 3 else (("Punkt", 0.0, 0.0), uv[0], 0.0)
+            winkel, px, py = abw.punkt(uc)
+            if r["kasten"]:
+                # Seite je Punkt über die Wand, auf der er liegt (Mitte dieser Wand gibt den Winkel)
+                seiten, ecke = set(), False
+                for p in pts:
+                    dx, dy = p.X() - abw.cx, p.Y() - abw.cy
+                    auf_x, auf_y = abs(abs(dx) - r["hx"]) < 0.05, abs(abs(dy) - r["hy"]) < 0.05
+                    if auf_x and auf_y:
+                        continue                       # genau auf einer Kante: zählt zu beiden Seiten
+                    if not (auf_x or auf_y):
+                        ecke = True                    # in der Eckrundung
+                    elif auf_x:
+                        seiten.add(round(abw.theta(abw.cx + math.copysign(r["hx"], dx), abw.cy) / 90) % 4)
+                    else:
+                        seiten.add(round(abw.theta(abw.cx, abw.cy + math.copysign(r["hy"], dy)) / 90) % 4)
+                d["seite"] = f"{seiten.pop() * 90}°" if len(seiten) == 1 and not ecke else "Ecke"
+            u = uc % abw.umfang
+            umfang = sum(_kantenlaenge(e) for e in rand)
+            aufstand = dict(form=form[0], umfang=round(umfang, 2), flaeche=round(sum(_flaeche(f) for f in auf), 2))
+            if form[0] == "Kreis":
+                aufstand["durchmesser"] = round(form[1], 2)
+            else:
+                aufstand.update(laenge=round(form[1], 2), breite=round(form[2], 2))
+            aussen_pkt = [p for p in alle_pkt if not _im_material(p.X(), p.Y() + 1.37e-6, s_a)]
+            d.update(z=round(vc, 2), winkel=round(winkel % 360, 1) % 360,
+                     u=round(0.0 if abw.umfang - u < 0.005 else u, 2), aufstand=aufstand,
+                     hoehe=round(max([_abstand_zug(p.X(), p.Y(), s_a) for p in aussen_pkt] + [0.0]), 2))
+            dicke = _flach_dicke(lok)
+            if rand and form[0] == "Kreis" and (loch or d["hoehe"] >= 0.5 * form[1]):
+                d["art"] = "Mutter" if loch else "Bolzen"      # flache runde Scheibe: Blech (Ronde)
+            elif rand and loch and dicke is None:
+                d["art"] = "Mutter"
+            elif dicke is not None and rand:
+                breite = form[1] if form[0] == "Kreis" else min(form[1:])
+                d["art"] = "Lasche" if abs(breite - dicke) <= max(0.2, 0.2 * dicke) else "Blech"
+            # Positionsmarke: Kreuz in der Mitte, ein Strich längs, einer quer (Sehne auf der Wand)
+            (_, ax_, ay_), (_, bx_, by_) = abw.punkt(uc - 0.5), abw.punkt(uc + 0.5)
+            tl = math.hypot(bx_ - ax_, by_ - ay_) or 1.0
+            tx, ty, h = (bx_ - ax_) / tl, (by_ - ay_) / tl, MARKE_KREUZ / 2
+            gravur_linien = [[round(v, 2) for v in (px, py, vc - h, px, py, vc + h)],
+                             [round(v, 2) for v in (px - h * tx, py - h * ty, vc, px + h * tx, py + h * ty, vc)]]
+        art_ = d["art"]
+        if art_ == "Sonstiges" or d["seite"] == "Ecke" or (t.trennung or {}).get("laengsanbau"):
+            d["vertrauen"] = "prüfen"
+        bearbeitung = ANBAU_BEARBEITUNG[art_]
+        if bearbeitung == "Umriss" and not rand:
+            bearbeitung = "Positionsmarke"
+        d["bearbeitung"] = bearbeitung
+        d["gravur_laenge"] = round(sum(_kantenlaenge(e) for e in rand), 2) if bearbeitung == "Umriss" else \
+            2 * MARKE_KREUZ if bearbeitung == "Positionsmarke" else 0.0
+        if d["vertrauen"] != "sicher":
+            t.hinweise.append(f"Anbauteil {d['nr']} ({art_}) bei z = {d['z'] or 0:.0f} mm nicht sicher erkannt, prüfen")
+            t.sicherheit["anbauteile"] = "unsicher"
+        t.sicherheit.setdefault("anbauteile", "sicher")
+        t.gravur += d["gravur_laenge"]
+        t.gravur_anbau += d["gravur_laenge"]
+        t.gravur_konturen += 1 if d["gravur_laenge"] > 0 else 0
+        t.anbauteile.append(d)
+        if netz and t.netz is not None:
+            dazu = dict(p=[], t={}, l={})
+            if mit_flaechen:
+                faces = TopTools_IndexedMapOfShape()
+                TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
+                dazu = dreiecksnetz(lok, faces, {i: "AN" for i in range(1, faces.Extent() + 1)}, [], 0.0,
+                                    max(t.abm_a, t.abm_b))
+            if bearbeitung == "Umriss":
+                dazu["l"]["GA"] = [_linienzug(e) for e in rand]
+            elif bearbeitung == "Positionsmarke":
+                dazu["l"]["GA"] = gravur_linien
+            _netz_anhaengen(t.netz, dazu)
+
+
+def _getrennt_messen(solid, datei, koerper, netz, ohne=None):
+    """Messung mit abgetrennten Anbauteilen oder None (nichts abzutrennen). Die Profilmessung läuft unverändert auf
+    der Rohrlaser-Geometrie; 'trennung' enthält Regelanteil, Längsanbau und die Messung ohne Trennung (ohne, kurz)."""
+    tr = _anbau_trennen(solid)
+    if tr is None:
+        return None
+    t = _profil_messen(tr["rohr"], datei, koerper, netz)
+    if not t.profilform or getattr(t, "_rahmen", None) is None:
+        return None
+    o = ohne
+    ohne = dict(profil_id=o.profil_id_vorschlag or o.profilform or None, laenge=round(o.laenge, 2),
+                schneidweg=round(o.schneidweg, 2), pruefstatus=o.pruefstatus) if o is not None else None
+    t.trennung = dict(regelanteil=round(tr["regelanteil"], 2), laengsanbau=tr["laengsanbau"], ohne_trennung=ohne)
+    if tr["laengsanbau"]:
+        t.hinweise.append("Anbau über (fast) die ganze Länge angenommen: Rohrprofil aus Innenkontur + Wandstärke, "
+                          "prüfen")
+        t.sicherheit["profil"] = "unsicher"
+    elif tr["regelanteil"] < REGEL_SICHER:
+        t.hinweise.append(f"Rohrquerschnitt nur in {tr['regelanteil']:.0%} der Schnitte gleich, Trennung prüfen")
+        t.sicherheit["profil"] = "unsicher"
+    if tr["mehr_anbau"]:
+        t.hinweise.append("Anbauteile schwerer als das Rohr, Trennung prüfen")
+        t.sicherheit["profil"] = "unsicher"
+    if tr["rest"]:
+        t.hinweise.append(f"{tr['rest']} weitere Restkörper in der Rohrhülle nicht gemessen, prüfen")
+    _anbau_beschreiben(t, tr["anbau"], "verschmolzen", netz)
+    return t
+
+
+def _beruehrende_anbauteile(teile, koerper, netz):
+    """Baugruppe: eigene Körper (Bleche, Rundstahl/Bolzen, nicht messbare), die ein gemessenes Hohlprofil berühren,
+    sind dessen Anbauteile (Patrick 22.10.2026, F2 a: sie bleiben zusätzlich eigene Positionen). Rohre, die andere
+    Rohre berühren (Gestell), bleiben unberührt."""
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    rohre = [t for t in teile if getattr(t, "_rahmen", None) is not None]
+    andere = [(t, k) for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and
+              getattr(t, "_rahmen", None) is None and (t.bauteiltyp in ("Blech", "Blech gekantet") or
+                                                       t.profilform in ("Rundstahl", "Vierkantstahl", ""))]
+    for t in rohre:
+        rb = Bnd_Box()
+        BRepBndLib.Add_s(t._rahmen["solid"], rb, False)
+        rb.Enlarge(ANBAU_KONTAKT)
+        for ta, ka in andere:
+            kb = Bnd_Box()
+            BRepBndLib.Add_s(ka, kb, False)
+            if rb.IsOut(kb):
+                continue
+            dist = BRepExtrema_DistShapeShape(t._rahmen["solid"], ka)
+            if dist.IsDone() and dist.Value() <= ANBAU_KONTAKT:
+                try:
+                    _anbau_beschreiben(t, [TopoDS.Solid(ka)], f"Körper {ta.koerper}", netz, mit_flaechen=False)
+                except Exception:  # Beschreibung gescheitert: Teil bleibt wie gemessen
+                    t.hinweise.append(f"Körper {ta.koerper} berührt das Rohr, Lage nicht bestimmbar, prüfen")
+
+
 NETZ_ARTEN = {"A": "Außenwand", "I": "Innenwand", "EA": "Anfangsschnitt", "EB": "Endschnitt", "K": "Innenkontur",
-              "G": "Gravur"}
+              "G": "Gravur", "AN": "Anbauteil", "GA": "Gravur Anbauteil"}
 
 
 def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
@@ -2188,4 +2678,12 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
                       "n_kanten", "huelle"):
                 setattr(t.alternative, n, getattr(t, n))
         out.append(t)
+    try:
+        _beruehrende_anbauteile(out, koerper, netz)
+    except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
+        pass
+    for t in out:
+        t.__dict__.pop("_rahmen", None)
+        if t.alternative is not None:
+            t.alternative.__dict__.pop("_rahmen", None)
     return out
