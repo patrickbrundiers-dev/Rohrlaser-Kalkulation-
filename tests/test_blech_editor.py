@@ -200,6 +200,18 @@ assert text.endswith("EK Einkauf ab 50 St")
 neu, text = staffeln.blech_stand(p, 30, daten)              # unter 50 Stück: kein EK, Richtpreis für 30 Stück
 assert "Richtpreis" in text and neu[0]["stand"]["bezug"]["preise"][0]["preis"] == \
     blech.rechnen(dict(eingabe, stueck=30), werkstoffe, laser, daten["einst"])["richtpreis"]
+# Richtpreis ersetzt Preiseinheit und Rabatt des Lieferanten; EK mit gleichem Preis wie ein Richtpreis bleibt EK
+p2 = dict(p, zukauf=json.dumps([dict(liste[0], stand=dict(liste[0]["stand"], bezug=dict(
+    liste[0]["stand"]["bezug"], preiseinheit=100, rabatt=10)))]))
+bz = staffeln.blech_stand(p2, 30, daten)[0][0]["stand"]["bezug"]
+assert bz["preiseinheit"] == 1 and not bz["rabatt"]
+rp1 = eingabe["richtpreise"][0]["preis"]
+db.zukauf_ek_eintragen(aid, rp1, "Technik", ab=80)
+liste2 = json.loads(p["zukauf"])
+liste2[0]["stand"] = db.zukauf_stand(aid, "Technik")
+neu, text = staffeln.blech_stand(dict(p, zukauf=json.dumps(liste2)), 100, daten)
+assert text.endswith("EK Einkauf ab 80 St") and (80.0, rp1) in [(float(x["ab"]), x["preis"])
+                                                               for x in neu[0]["stand"]["bezug"]["preise"]]
 # ganze Stufe: Angebot × 5 (100 St) nimmt den EK, × 1 ergibt den Angebotspreis
 s.neu_laden()
 s.optimieren()

@@ -480,10 +480,11 @@ def _bausteine_teil(kz, idx, summen):
 
 def richtpreis_zeilen(e, p, daten):
     """Staffelzeilen (ab, Preis) des Preisstands, die vom Blech-Editor stammen: die beim Übernehmen gemerkten
-    (e['richtpreise']) und der Richtpreis für die Stückzahl der Position (ältere Positionen ohne Merkliste)."""
+    (e['richtpreise']); ältere Positionen ohne Merkliste: (None, Richtpreis für die Stückzahl der Position) = jede
+    Zeile mit diesem Preis."""
     out = {(float(r["ab"]), round(float(r["preis"]), 2)) for r in e.get("richtpreise") or ()
            if isinstance(r, dict) and isinstance(r.get("ab"), (int, float)) and isinstance(r.get("preis"), (int, float))}
-    if daten:
+    if not out and daten:
         rp = blech.rechnen(dict(e, stueck=p.get("stueck") or e.get("stueck")), daten.get("werkstoffe") or {},
                            daten.get("laser") or [], daten.get("einst")).get("richtpreis")
         if rp:
@@ -503,7 +504,7 @@ def blech_stand(p, stueck, daten):
     st = dict(liste[0].get("stand") or {})
     bezug = dict(st.get("bezug") or {})
     richt = richtpreis_zeilen(e, p, daten)
-    preise_rp = {pr for _, pr in richt}
+    preise_rp = {pr for ab, pr in richt if ab is None}         # nur ältere Positionen: am Preis erkannt
 
     def vom_editor(z):
         return (float(z["ab"]), round(float(z["preis"]), 2)) in richt or round(float(z["preis"]), 2) in preise_rp
@@ -521,7 +522,8 @@ def blech_stand(p, stueck, daten):
                             daten.get("einst"))
         if not erg.get("richtpreis"):
             return None, None
-        bezug["preise"] = [dict(ab=1, preis=erg["richtpreis"])]
+        # Richtpreis je Stück: ohne Preiseinheit und Rabatt des Lieferanten
+        bezug.update(preise=[dict(ab=1, preis=erg["richtpreis"])], preiseinheit=1, rabatt=None)
         text = f"Pos. {pos} Blech: Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € für {stueck:g} St"
     st["bezug"] = bezug
     return [dict(liste[0], stand=st)] + liste[1:], text
