@@ -49,6 +49,12 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"
          POLYGON: (("punkte", "Eckpunkte x,y; x,y; … [mm]"),),
          SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß"))}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
+# Schrägschnitt zweiachsig: die Schnittebene kippt über Höhe und Breite zugleich (winkel_h, winkel_b); winkel ist dann
+# der Gesamtwinkel der Ebene (Kopf in 3D, Skizze), gesamtwinkel
+ACHSE_ZWEI = "über Höhe und Breite"
+ACHSEN_WAHL = ACHSEN + (ACHSE_ZWEI,)
+# 3D-Ende aus dem STEP-Import (mehrere Ebenen, Zylinder): Flächen der Messung (flaechen, huelle), ende_3d
+FORM_3D = "komplex"
 # Gehrung bei Rund-, Quadrat- und Rechteckrohr: Seite, an der das Teil an diesem Ende am längsten ist (Blick von
 # Ende A, 0° oben, 90° rechts; Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen
 # ineinander (positionen.a_ende/b_ende). "automatisch" (gespeichert None): die Richtung folgt aus "gekippt über"
@@ -116,11 +122,45 @@ def sattel(d, D, schritte=720):
     return lg
 
 
-def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None):
+def gesamtwinkel(w_h, w_b):
+    """Neigung der Schnittebene gegen den geraden Schnitt [Grad] aus den Winkeln über Höhe und über Breite."""
+    th, tb = math.tan(math.radians(abs(_z(w_h)))), math.tan(math.radians(abs(_z(w_b))))
+    return math.degrees(math.atan(math.hypot(th, tb)))
+
+
+def schraeg(profil, th, tb):
+    """Schnittlänge eines ebenen Endes, dessen Ebene mit der Steigung th über Höhe (Maß a) und tb über Breite (Maß b)
+    kippt: (mm, schaetzung). Rundrohr: Ellipse mit der Gesamtneigung; RP-Profil: Kontur der Bibliothek je Richtung
+    gestreckt; Rohre und offene Profile: Anteil Höhe × √(1 + th²) + Anteil Breite × √(1 + tb²) (zerlegung, exakt für
+    achsparallele Kanten); unbekannte Form: gerade Schnittlänge × √(1 + th² + tb²) (Schätzung)."""
+    form, a = profil.get("form"), _z(profil.get("a"))
+    gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
+                               profil.get("profil_id"))
+    if not th and not tb:
+        return gerade, False
+    if form == "Rundrohr":
+        return ellipse(a / 2, a / 2 * math.sqrt(1 + th * th + tb * tb)), False
+    rp = rp_profile.daten(profil.get("profil_id")) if form == rp_profile.FORM else None
+    if rp:          # über Höhe = Maß A = Breite x des Querschnitts
+        return rp_profile.schnitt_schraeg(rp, th, tb), False
+    hw = zerlegung(profil)
+    if hw:
+        return hw[0] * math.sqrt(1 + th * th) + hw[1] * math.sqrt(1 + tb * tb), False
+    return gerade * math.sqrt(1 + th * th + tb * tb), True
+
+
+def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None, kipp=None):
     """Schnittlänge eines Endes: (mm, schaetzung). profil = Stammdaten-Zeile (form, a, b, wand, Fläche);
-    gegenrohr = Ø des Rundrohrs, auf das das Ende ausgeklinkt wird (nur Rundrohr, rechtwinklig)."""
-    form, a, b, wand = profil.get("form"), _z(profil.get("a")), profil.get("b"), profil.get("wand")
-    gerade = opt.schnittlaenge(form, a, b, wand, flaeche_wirksam(profil), profil.get("profil_id"))
+    gegenrohr = Ø des Rundrohrs, auf das das Ende ausgeklinkt wird (nur Rundrohr, rechtwinklig); kipp = (Winkel über
+    Höhe, Winkel über Breite) beim zweiachsigen Schrägschnitt (achse ACHSE_ZWEI), winkel ist dann ohne Bedeutung."""
+    form, a = profil.get("form"), _z(profil.get("a"))
+    if achse == ACHSE_ZWEI and kipp is not None:
+        w_h, w_b = abs(_z(kipp[0])), abs(_z(kipp[1]))
+        if max(w_h, w_b) >= 80:
+            raise ValueError("Schrägschnitt: Winkel unter 80° eingeben.")
+        if _z(gegenrohr):
+            raise ValueError("Ausklinkung nur rechtwinklig (Gehrung 0°).")
+        return schraeg(profil, math.tan(math.radians(w_h)), math.tan(math.radians(w_b)))
     w = abs(_z(winkel))
     if _z(gegenrohr):
         if form != "Rundrohr":
@@ -128,21 +168,112 @@ def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None):
         if w:
             raise ValueError("Ausklinkung nur rechtwinklig (Gehrung 0°).")
         return sattel(a, _z(gegenrohr)), False
-    if w < 1e-9:
-        return gerade, False
     if w >= 80:
         raise ValueError("Gehrung: Winkel unter 80° eingeben (0° = gerader Schnitt).")
-    c = math.cos(math.radians(w))
-    if form == "Rundrohr":
-        return ellipse(a / 2, a / 2 / c), False
-    rp = rp_profile.daten(profil.get("profil_id")) if form == rp_profile.FORM else None
-    if rp:          # Kontur in der gekippten Richtung gestreckt (über Höhe = Maß A = Breite des Querschnitts)
-        return rp_profile.schnitt_gehrung(rp, w, "x" if achse != ACHSEN[1] else "y"), False
-    hw = zerlegung(profil)
-    if hw:
-        h_, w_ = hw
-        return (h_ / c + w_ if achse != ACHSEN[1] else h_ + w_ / c), False
-    return gerade / c, True
+    t = math.tan(math.radians(w))
+    return schraeg(profil, t, 0.0) if achse != ACHSEN[1] else schraeg(profil, 0.0, t)
+
+
+GESCHLOSSEN_3D = ("Rundrohr", "Quadratrohr", "Rechteckrohr", rp_profile.FORM)   # 3D-Ende neu rechenbar
+
+
+def _hoehe(f, x, y):
+    """Höhe z einer Fläche der Messung über dem Punkt (x, y) des Querschnitts oder None (außerhalb des Zylinders).
+    Ebene ['E', gx, gy, c]: z = c + gx·x + gy·y; Zylinder quer zur Rohrachse ['Z', ux, uy, ax, ay, az, r, vz]:
+    z = az + vz·√(r² − s²), s = Abstand von der Zylinderachse in der Querschnittsebene."""
+    if f[0] == "E":
+        return f[3] + f[1] * x + f[2] * y
+    _, ux, uy, ax, ay, az, r, vz = f
+    s = -(x - ax) * uy + (y - ay) * ux
+    if abs(s) > r:
+        return None
+    return az + vz * math.sqrt(r * r - s * s)
+
+
+def ende_3d(profil, flaechen, huelle, schritt=0.5):
+    """Schnittlänge eines 3D-Endes (mehrere Ebenen, Zylinder; aus der STEP-Messung, Felder flaechen und huelle) am
+    Profil profil: die Außenkontur des Querschnitts (skizze.Querschnitt, Blick von Ende A: u = −x, v = y der Messung)
+    wird fein unterteilt, jeder Punkt bekommt die Höhe der Schnittfläche (Hülle 'min' bzw. 'max' über alle Flächen),
+    und die gerade Schnittlänge des Profils wird im Verhältnis Länge der Raumkurve / Länge der Kontur gestreckt.
+    Nur geschlossene Profile (GESCHLOSSEN_3D); None, wenn das nicht geht (Fläche über einem Punkt nicht definiert)."""
+    from . import skizze as sk
+    if profil.get("form") not in GESCHLOSSEN_3D or not flaechen or huelle not in ("min", "max"):
+        return None
+    try:
+        um = sk.Querschnitt(profil).umriss[0]
+    except (ValueError, TypeError, ZeroDivisionError, IndexError):
+        return None
+    wahl = min if huelle == "min" else max
+    pts = []
+    for (u0, v0), (u1, v1) in zip(um, um[1:] + um[:1]):
+        n = max(1, int(math.hypot(u1 - u0, v1 - v0) / schritt))
+        pts += [(u0 + (u1 - u0) * i / n, v0 + (v1 - v0) * i / n) for i in range(n)]
+    hoehen = []
+    for u, v in pts:
+        z = [h for h in (_hoehe(f, -u, v) for f in flaechen) if h is not None]
+        if not z:
+            return None
+        hoehen.append(wahl(z))
+    eben = raum = 0.0
+    for i, (u, v) in enumerate(pts):
+        u1, v1 = pts[(i + 1) % len(pts)]
+        d = math.hypot(u1 - u, v1 - v)
+        eben += d
+        raum += math.sqrt(d * d + (hoehen[(i + 1) % len(pts)] - hoehen[i]) ** 2)
+    gerade = ende(profil)[0]
+    return gerade * raum / eben if eben > 0 and gerade > 0 else None
+
+
+def messprofil_text(form, a, b, wand):
+    """Kennung des gemessenen Querschnitts (Form, Maße, Wand) für ein Ende aus dem STEP-Import: daran erkennt der
+    Rechner, dass das Profil der Position ein anderes ist als gemessen (anderes_profil)."""
+    def f(x):
+        try:
+            return float(x or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    return f"{form}|{f(a):.2f}|{f(b):.2f}|{f(wand):.2f}"
+
+
+def _masse(form, a, b):
+    a, b = _z(a), _z(b)
+    return (a,) if form == "Flachstahl" else (max(a, b or a), min(a, b or a))
+
+
+def anderes_profil(e, profil):
+    """Gilt die gemessene Länge des Endes e für das Profil profil nicht (mehr)? Ja, wenn das Ende auf einem anderen
+    Querschnitt gemessen wurde (messprofil: Form, Maße ±0,3 mm, Wand ±0,15 mm) und beim RP-Profil immer (die Messung
+    zählt den Anschlag doppelt)."""
+    if profil.get("form") == rp_profile.FORM and rp_profile.daten(profil.get("profil_id")):
+        return True
+    try:
+        form, a, b, wand = str(e.get("messprofil") or "").split("|")
+        a, b, wand = float(a), float(b), float(wand)
+    except ValueError:
+        return False
+    if form != profil.get("form") or abs(wand - _z(profil.get("wand"))) > 0.15:
+        return True
+    return any(abs(x - y) > 0.3 for x, y in zip(_masse(form, a, b), _masse(form, profil.get("a"), profil.get("b"))))
+
+
+def ende_neu(profil, e):
+    """Schnittlänge eines gemessenen Endes e (Eingaben des Rechners aus dem STEP-Import) für das Profil profil neu
+    gerechnet (Patrick 22.10.2026: Profil im Import geändert): gerade = Schnittlänge des Profils, Gehrung und
+    Schrägschnitt zweiachsig exakt mit Winkel und Achse, 3D-Ende aus den Flächen der Messung (ende_3d).
+    Ergebnis (mm, Art) oder None, wenn es nicht geht (komplexes Ende ohne Flächen, offenes Profil)."""
+    form = e.get("form")
+    if form == "gerade":
+        return ende(profil)[0], "gerade"
+    if e.get("flaechen"):
+        lg = ende_3d(profil, e["flaechen"], e.get("huelle"))
+        return (lg, "3D") if lg else None
+    if form in ("Gehrung", "Schrägschnitt zweiachsig") and _z(e.get("winkel")):
+        try:
+            return ende(profil, e.get("winkel"), e.get("achse") or ACHSEN[0], None,
+                        (e.get("winkel_h"), e.get("winkel_b")))[0], form
+        except ValueError:
+            return None
+    return None
 
 
 def richtung_pruefen(profil, richtung, achse):
@@ -243,28 +374,44 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
     schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
     richtung_fehlt_text = []
-    hinweise_3d = []
+    hinweise_3d, hinweise_ende = [], []
     mit_3d = eingaben.get("d3") is True
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
     n_ende = einstiche_ende(form)
     for seite, titel in (("a", "Anfangsschnitt"), ("b", "Endschnitt")):
         e = eingaben.get(seite) or {}
+        zwei = e.get("achse") == ACHSE_ZWEI
+        kipp = (e.get("winkel_h"), e.get("winkel_b")) if zwei else None
         try:
-            lg, sch = ende(profil, e.get("winkel"), e.get("achse") or ACHSEN[0], e.get("sattel"))
+            lg, sch = ende(profil, e.get("winkel"), e.get("achse") or ACHSEN[0], e.get("sattel"), kipp)
             sat = _z(e.get("sattel"))
         except ValueError as f:
             fehler.append(f"{titel}: {f}")
             lg, sch = ende(profil)
             sat = 0
-        w = abs(_z(e.get("winkel")))
-        text = titel + (f" Ausklinkung auf Rundrohr Ø {zahl(sat, 1)}" if sat else
-                        f" Gehrung {zahl(w, 1)}°" + (f" {e.get('achse') or ACHSEN[0]}" if form != "Rundrohr" else "")
-                        if w else " gerade")
+        w = gesamtwinkel(*kipp) if zwei else abs(_z(e.get("winkel")))
+        if zwei:
+            text = (f"{titel} Schrägschnitt {zahl(abs(_z(kipp[0])), 1)}° über Höhe und {zahl(abs(_z(kipp[1])), 1)}° "
+                    f"über Breite (gesamt {zahl(w, 1)}°)" if w else f"{titel} gerade")
+        else:
+            text = titel + (f" Ausklinkung auf Rundrohr Ø {zahl(sat, 1)}" if sat else
+                            f" Gehrung {zahl(w, 1)}°" + (f" {e.get('achse') or ACHSEN[0]}" if form != "Rundrohr"
+                                                          else "") if w else " gerade")
         gerade = not w and not sat
         if _z(e.get("gemessen")) > 0:       # aus der STEP-Messung: gemessene Länge und Form
-            lg, sch, gerade = _z(e["gemessen"]), False, e.get("form") == "gerade"
-            text = f"{titel} {e.get('form') or ''}".rstrip() + (f" {zahl(w, 1)}°" if w else "") + " (STEP gemessen)"
+            neu = ende_neu(profil, e) if anderes_profil(e, profil) else None
+            text = f"{titel} {e.get('form') or ''}".rstrip() + (f" {zahl(w, 1)}°" if w else "")
+            if neu:             # anderes Profil als gemessen (oder RP): mit der gemessenen Form neu gerechnet
+                lg, sch, gerade = neu[0], False, e.get("form") == "gerade"
+                text += f" (STEP-Form, für {profil.get('profil_id') or 'das Profil'} gerechnet)"
+            else:
+                lg, sch, gerade = _z(e["gemessen"]), False, e.get("form") == "gerade"
+                text += " (STEP gemessen)"
+                if anderes_profil(e, profil):
+                    hinweise_ende.append(f"{titel}: gemessen an einem anderen Querschnitt "
+                                         f"({str(e.get('messprofil')).split('|')[0]}), Form {e.get('form') or '?'} "
+                                         "nicht neu rechenbar: gemessene Länge gilt, bitte prüfen")
         if mit_3d and e.get("d3") and w and not sat:
             v, h_ = dreid.gehrung_begrenzen(w, maschine)
             text += f", in 3D (Kopf {zahl(v, 1)}°)"
@@ -274,12 +421,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
                              huelle=_z(e.get("huelle_gemessen")) or hk_ende, klasse="Ende", schaetzung=sch,
                              gerade=gerade))
         gehrung[seite] = None
-        if w and not sat and e.get("richtung") is None and form in MIT_RICHTUNG and not _z(e.get("gemessen")):
+        if w and not sat and e.get("richtung") is None and form in MIT_RICHTUNG and not _z(e.get("gemessen")) \
+                and not zwei:
             richtung_fehlt.append(titel)
             r_ = angenommene_richtung(profil, e.get("achse"))
             richtung_fehlt_text.append(next(t for t, v in RICHTUNGEN.items() if v == r_))
         if w and not sat and e.get("richtung") is not None and form in MIT_RICHTUNG:
-            f_ = richtung_pruefen(profil, e.get("richtung"), e.get("achse") or ACHSEN[0])
+            f_ = None if zwei else richtung_pruefen(profil, e.get("richtung"), e.get("achse") or ACHSEN[0])
             if f_:
                 fehler.append(f"{titel}: {f_}")
             else:
@@ -341,7 +489,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
                         f"({', '.join(richtung_fehlt_text)}). Bei frei drehbaren Teilen (Schweißnaht ohne Vorgabe) "
                         "dreht die Optimierung das Teil passend und legt die Gehrungen ineinander. Nur wenn die Lage "
                         "fest ist (Werkstattpapiere, Bohrbild), die längste Seite von Hand wählen.")
-    hinweise += hinweise_3d
+    hinweise += hinweise_ende + hinweise_3d
     return dict(schritte=schritte, felder=felder, schneidweg=felder["schneidweg"], einstiche=einstiche,
                 schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise,
                 hinweise_3d=hinweise_3d)

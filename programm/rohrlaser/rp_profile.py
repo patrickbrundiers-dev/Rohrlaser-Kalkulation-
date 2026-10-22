@@ -383,18 +383,34 @@ def schnitt_gehrung(e, winkel, ueber="x"):
     """Länge eines Trennschnitts unter Gehrung (winkel in Grad gegen den geraden Schnitt): die Kontur wird in der
     gekippten Richtung um 1 / cos(winkel) gestreckt (ueber 'x' = Breite, 'y' = Höhe des Querschnitts). Doppellagen
     und Umschläge wie beim geraden Schnitt abgezogen."""
-    c = math.cos(math.radians(abs(winkel or 0.0)))
-    sx, sy = (1 / c, 1.0) if ueber == "x" else (1.0, 1 / c)
+    t = math.tan(math.radians(abs(winkel or 0.0)))
+    return schnitt_schraeg(e, t, 0.0) if ueber == "x" else schnitt_schraeg(e, 0.0, t)
+
+
+def schnitt_schraeg(e, tx, ty):
+    """Länge eines ebenen Trennschnitts z = tx·x + ty·y (zweiachsiger Schrägschnitt, tx, ty = Steigung über Breite
+    bzw. Höhe): jedes Konturstück der Richtung w wird um √(1 + (tx·cos w + ty·sin w)²) länger. Doppellagen und
+    Umschläge wie beim geraden Schnitt abgezogen (Umschläge mit der mittleren Streckung)."""
+    def f(w):
+        return math.sqrt(1 + (tx * math.cos(math.radians(int(w))) + ty * math.sin(math.radians(int(w)))) ** 2)
 
     def lang(d):
-        return sum(v * math.hypot(math.cos(math.radians(int(w))) * sx, math.sin(math.radians(int(w))) * sy)
-                   for w, v in (d or {}).items())
+        return sum(v * f(w) for w, v in (d or {}).items())
     r = e.get("richtung") or {}
     if not r:
-        return e["schnitt"] / c
-    s = max(lang(r.get("aussen")) - lang(r.get("doppel")) - e["doppellagen"] * math.pi * e["wand"] * (sx + sy) / 2,
-            0.0)
+        return e["schnitt"] * math.sqrt(1 + tx * tx + ty * ty)
+    mittel = (math.sqrt(1 + tx * tx) + math.sqrt(1 + ty * ty)) / 2
+    s = max(lang(r.get("aussen")) - lang(r.get("doppel")) - e["doppellagen"] * math.pi * e["wand"] * mittel, 0.0)
     return s / 2 if not e.get("kammern") else s
+
+
+def doppel_anteil(e, gemessen=None):
+    """Länge des Trennschnitts durch die Doppellage (Anschlag) [mm]: gerade schnitt_doppel, bei einem schrägen Ende
+    (gemessen = Schnittlänge des Endes) im Verhältnis gemessen / gerader Schnitt gestreckt."""
+    d = float(e.get("schnitt_doppel") or 0)
+    if d <= 0 or not gemessen or not e.get("schnitt"):
+        return d
+    return d * max(1.0, gemessen / e["schnitt"])
 
 
 def _laeufe(kanten):

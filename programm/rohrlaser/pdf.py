@@ -600,16 +600,17 @@ KALK = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 20), ("Stück"
         ("Verkaufspreis je Teil [€]", "preis_teil", 3, 19), ("Verkaufspreis Position [€]", "preis_position", 2, 18),
         ("Herstellkosten Position [€]", "herstell_position", 2, 18), ("Hinweis", "hinweis", None, 20)]
 assert sum(s[3] for s in KALK) <= 273     # Breite A4 quer ohne Ränder [mm]
-SCHNEID = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 22),
-           ("groß + Rest [mm]", "mm_gross", 1, 17), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 15),
+SCHNEID = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 20),
+           ("groß + Rest [mm]", "mm_gross", 1, 15), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 13),
            ("Zeit groß [s]", "zeit_gross", 1, 13),
-           ("Kontur mittel [mm]", "mm_mittel", 1, 15), ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 15),
+           ("Kontur mittel [mm]", "mm_mittel", 1, 14), ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 13),
            ("Zeit mittel [s]", "zeit_mittel", 1, 13),
-           ("Kontur klein [mm]", "mm_klein", 1, 15), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 15),
+           ("Kontur klein [mm]", "mm_klein", 1, 14), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 13),
            ("Zeit klein [s]", "zeit_klein", 1, 13),
            ("Gravur [mm]", "mm_gravur", 1, 13), ("Zeit Gravur [s]", "zeit_gravur", 1, 13),
-           ("Einstiche", "einstiche_teil", 0, 12), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 14),
-           ("Mehrzeit 3D [s]", "zeit_d3", 1, 14), ("Laserzeit brutto [s]", "laser_brutto", 1, 14), ("Einsparung [s]", "einsparung", 1, 14),
+           ("Einstiche", "einstiche_teil", 0, 10), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 14),
+           ("Mehrzeit 3D [s]", "zeit_d3", 1, 14), ("Ecken + Anschlag [s]", "zeit_enden", 1, 14),
+           ("Laserzeit brutto [s]", "laser_brutto", 1, 14), ("Einsparung [s]", "einsparung", 1, 14),
            ("Laserzeit netto [s]", "laser_netto", 1, 14)]
 assert sum(s[3] for s in SCHNEID) <= 273
 

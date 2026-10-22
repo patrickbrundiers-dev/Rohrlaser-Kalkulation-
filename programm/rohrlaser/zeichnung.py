@@ -46,6 +46,9 @@ def ende_text(e, profil):
     w = sw._z(e.get("winkel"))
     if not w:
         return "gerade" if e.get("form") in (None, "gerade") else str(e.get("form"))
+    if e.get("achse") == sw.ACHSE_ZWEI:
+        return (f"Schrägschnitt zweiachsig {rechnen.zahl(sw._z(e.get('winkel_h')), 1)}° über Höhe, "
+                f"{rechnen.zahl(sw._z(e.get('winkel_b')), 1)}° über Breite")
     t = f"Gehrung {rechnen.zahl(w, 1)}°"
     if profil.get("form") != "Rundrohr":
         t += f" {e.get('achse') or sw.ACHSEN[0]}"

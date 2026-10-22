@@ -289,6 +289,12 @@ def _richtung(qs, e):
         return float(r) % 360
     if qs.r:
         return 0.0
+    if e.get("achse") == "über Höhe und Breite":     # zweiachsig: Richtung der steilsten Neigung
+        th, tb = (math.tan(math.radians(abs(_z(e.get(k))))) for k in ("winkel_h", "winkel_b"))
+        ra, rb = (90.0, 0.0) if qs.a_waagrecht else (0.0, 90.0)
+        x = th * math.sin(math.radians(ra)) + tb * math.sin(math.radians(rb))
+        y = th * math.cos(math.radians(ra)) + tb * math.cos(math.radians(rb))
+        return math.degrees(math.atan2(x, y)) % 360
     ueber_a = not (e.get("achse") or "").endswith("Breite")
     return 90.0 if ueber_a == qs.a_waagrecht else 0.0
 
