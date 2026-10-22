@@ -1610,9 +1610,24 @@ class AngebotSeite(QWidget):
         self._spalten_zeigen()
 
     # -------------------------------------------------------------- Bearbeiten
-    def position_neu(self):
-        vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
-        self.db.position_neu(self.id, {"pos": int(max(vorher, default=0)) + 10})
+    def position_neu(self, typ=None, dialog=None):
+        """Neue Position: zuerst der Typ (neue_position.TypDialog), dann Rohr / Profil = Schneidweg-Rechner mit
+        Kopfzeile, Blech / Kantteil bzw. Zukaufteil = Schnellanlage Zukaufartikel, leere Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
+        leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
+        from .neue_position import BLECH, LEER, ROHR, ZUKAUF, TypDialog
+        if typ is None:
+            if self.f.stumm:
+                typ = LEER
+            else:
+                d = TypDialog(self)
+                if d.exec() != QDialog.Accepted or not d.typ:
+                    return None
+                typ = d.typ
+        if typ in (BLECH, ZUKAUF):
+            return typ if self.zukauf_schnell(zeilen=[], blech=typ == BLECH) else None
+        if typ == ROHR:
+            return typ if self.rohr_neu(dialog=dialog) else None
+        self.db.position_neu(self.id, {"pos": self._naechste_pos()})
         self.neu_laden()
         r = len(self.positionen) - 1
         i = self.pos_modell.index(r, 1)
@@ -1620,6 +1635,43 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.scrollTo(i)
         self.pos_ansicht.setCurrentIndex(i)
         self.pos_ansicht.edit(i)
+        return typ
+
+    def _naechste_pos(self):
+        vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
+        return int(max(vorher, default=0)) + 10
+
+    def rohr_neu(self, dialog=None):
+        """Neue Rohr-/Profilposition im Schneidweg-Rechner mit Kopfzeile anlegen. Vorbelegt: Profil und Werkstoff der
+        letzten Rohrposition (sonst erstes Profil, Werkstoff aus der Einstellung step_werkstoff), Stückzahl 1.
+        Ergebnis: True = angelegt."""
+        if not self.k.profile:
+            QMessageBox.information(self, "Neue Position", "Es gibt noch keine Profile in den Stammdaten.")
+            return False
+        letzte = next((p for p in reversed(self.positionen) if not ist_zukaufteil(p)
+                       and p.get("profil_id") in self.k.profile), {})
+        pid = letzte.get("profil_id") or sorted(self.k.profile, key=str.lower)[0]
+        wst = letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff") or None
+        p = dict(pos=self._naechste_pos(), profil_id=pid, werkstoff_id=wst if wst in self.k.werkstoffe else None,
+                 stueck=1)
+        d = SchneidwegDialog(self, p, self.k.profile[pid], self.kopf, self.k, self.tabellen, self.db, self.positionen,
+                             neu=True)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+            return False
+        eingaben = d.eingaben()
+        grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(d.profil))
+        erg = schneidweg.rechnen(eingaben, d.profil, grenzen, gewinde_liste(self.tabellen))
+        if erg["fehler"] or d.kopf_fehler():
+            self.f.meldung("Neue Position: " + " ".join(erg["fehler"] + d.kopf_fehler()), fehler=True)
+            return False
+        werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
+        werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
+        pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
+        self.neu_laden()
+        self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
+                       f"{rechnen.zahl(erg['schneidweg'], 1)} mm.")
+        self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid_neu), None))
+        return True
 
     def zusatzarbeiten(self, zeilen=None, werte=None):
         """Gewinde und Zusatzarbeiten der markierten Positionen wählen (Dialog). werte = (Gewinde, JSON) setzt
@@ -1854,7 +1906,7 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
-    def zukauf_schnell(self, zeilen=None, dialog=None):
+    def zukauf_schnell(self, zeilen=None, dialog=None, blech=True):
         """Neue Zukaufartikel schnell anlegen (z. B. Bleche): jeder wird eine eigene Position der Art Zukaufteil.
         Die Menge bezieht sich auf die erste markierte Position: 'je Satz' = gleicher Satz mit Menge als Stück je
         Satz, 'je Teil' = Menge × Stückzahl der markierten Position; ohne Markierung ist sie die Stückzahl.
@@ -1869,7 +1921,7 @@ class AngebotSeite(QWidget):
             hinweis = (f"Jeder Artikel wird eine eigene Position (Zukaufteil). Bezug Pos. {bezug.get('pos') or ''}: "
                        + (f"je Satz = Stück je Satz {satz}, " if satz else "")
                        + "je Teil = Menge × Stückzahl dieser Position.")
-        d = SchnellDialog(self, self.db, bool(satz), ganz=True, hinweis=hinweis, ohne_je=bezug is None)
+        d = SchnellDialog(self, self.db, bool(satz), ganz=True, hinweis=hinweis, ohne_je=bezug is None, blech=blech)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return 0
         nr = int(max((p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))), default=0))

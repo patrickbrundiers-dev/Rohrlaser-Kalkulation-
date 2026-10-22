@@ -649,7 +649,8 @@ def kapitel_angebot(i):
         (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
             "groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer."),
-        (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
+        (4, "<b>Neue Position</b> (fragt zuerst den Typ, [[neue_position]]); daneben <b>Positionen löschen</b> "
+            "(markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
@@ -661,6 +662,22 @@ def kapitel_angebot(i):
     i.text("Die blau hinterlegten Knöpfe sind die Hauptaktionen <b>Neue Position</b>, <b>STEP importieren</b>, "
            "<b>Optimieren</b> und <b>3D-Ansicht</b>. Rechts stehen die Ausgaben; CSV-Export und Ablage öffnen liegen "
            "unter <b>Weitere Aktionen</b> ([[ausgabe]]).")
+    i.abschnitt("Neue Position: erst der Typ", marke="neue_position")
+    i.text("<b>Neue Position</b> (oder Strg+N) öffnet das Fenster <i>Neue Position</i> mit der Frage <i>Welche Art "
+           "von Position?</i>. Nach der Wahl öffnet sich das passende Fenster:")
+    i.tabelle(["Typ", "Was passiert"], [
+               ["<b>Rohr / Profil</b>", "Der Schneidweg-Rechner ([[schneidweg_rechner]]) öffnet mit einer Kopfzeile: "
+                "Artikel, Bezeichnung, Profil (Eintippen sucht, z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. "
+                "Profil und Werkstoff sind von der letzten Rohrposition vorbelegt. Ein anderes Profil baut Skizze, "
+                "Enden und Naht sofort neu auf. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
+                "<b>Position anlegen</b> gesperrt. Danach steht die Position mit Schneidweg, Einstichen und Naht in "
+                "der Liste."],
+               ["<b>Blech / Kantteil</b>", "Schnellanlage eines Zukaufartikels mit Kategorie Blechteile "
+                "([[zukauf_angebot]]): Bezeichnung, Lieferant, Einkaufspreis und Menge."],
+               ["<b>Zukaufteil</b>", "Dieselbe Schnellanlage ohne vorgewählte Kategorie (Normteile, Schrauben, "
+                "Handelsware)."],
+               ["<b>Leere Zeile</b>", "Wie bisher: eine leere Zeile in der Positionsliste, alle Werte von Hand."]],
+              [38, 132])
     i.abschnitt("Angebotskopf")
     i.liste("<b>Maschine</b> bestimmt Endbeschnitt, Greiferrest, Schnittverlust, Konturgrenzen, Stundensatz und die "
             "Schneiddaten. Die Zeile <b>Maschinenparameter</b> zeigt Endbeschnitt, Greiferrest, Schnittverlust und "
@@ -3407,6 +3424,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.2", "<b>Neue Position</b> fragt zuerst den Typ: Rohr / Profil öffnet den Schneidweg-Rechner mit Kopfzeile "
+              "(Artikel, Profil, Werkstoff, Länge, Stückzahl), Blech / Kantteil und Zukaufteil die Schnellanlage, "
+              "Leere Zeile wie bisher ([[neue_position]])."],
     ["0.8.1", "Schneidweg-Rechner: Werte aus dem STEP-Import auch bei älteren Positionen (Enden, Bohrungen, Konturen, "
               "Gravur), <b>STEP neu einlesen …</b>, Schweißnaht wählbar, Rechteck-/Quadratrohr bei Naht und Seite nur "
               "0°/90°/180°/270°, beschriftete Enden und Maße je Konturart, Maße und Naht in der Skizze, "
