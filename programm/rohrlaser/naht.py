@@ -12,7 +12,9 @@ die Ansicht ist der Bezug um 90° gegen den Uhrzeigersinn gedreht, oben in der A
 Gespeichert wird je Position: naht_vorgabe (leer = keine Vorgabe), naht_winkel (im Bezug), naht_quelle und
 querschnitt_lage (nur Anzeige und Eingabe). Die Drehfreigabe wird abgeleitet: keine Vorgabe = frei drehbar, feste
 Position und unbekannt = gesperrt. Gedreht wird nur um die eigene Achse, nie gewendet (Ende A bleibt vorn).
-Die Nahtlage der Lieferstange (profile.naht_stange) gilt nur für Rechteckrohr.
+Die Nahtlage der Lieferstange (nur Rechteckrohr: Breit- oder Schmalseite) ist angebotsbezogen (Patrick 22.10.2026):
+sie steht je Stangengruppe Profil + Werkstoff im Angebot (angebote.naht_stangen, JSON), leer = aus den Teilen mit
+fester Naht abgeleitet, und geht in die Materialanfrage ein. Das frühere Profilfeld naht_stange wird nicht mehr gelesen.
 """
 import json
 import math
@@ -147,8 +149,9 @@ def text(p, profil):
     return f"fest {s['text']}"
 
 
-def pruefen(p, profil):
-    """Prüfung der Nahtangaben einer Position: 'FEHLER: …', 'WARNUNG: …' oder None."""
+def pruefen(p, profil, stange=None):
+    """Prüfung der Nahtangaben einer Position: 'FEHLER: …', 'WARNUNG: …' oder None. stange = Nahtlage der
+    Lieferstange aus dem Angebot (Breitseite/Schmalseite), leer = nicht vorgegeben (keine Prüfung, kein Hinweis)."""
     v = (p or {}).get("naht_vorgabe")
     if v != FEST:
         return None
@@ -162,13 +165,50 @@ def pruefen(p, profil):
     s = seite(profil, p.get("naht_winkel"), p.get("querschnitt_lage") or BREIT_OBEN)
     if not s["eindeutig"]:
         return "WARNUNG: Schweißnaht auf der Ecke – Seite nicht eindeutig"
-    if form == "Rechteckrohr":
-        stange = profil.get("naht_stange")
-        if stange not in NAHT_STANGE:
-            return "WARNUNG: Nahtlage der Lieferstange im Profil eintragen"
+    if form == "Rechteckrohr" and stange in NAHT_STANGE:
         if stange != s["flaeche"]:
             return f"FEHLER: Naht auf {s['flaeche']} gefordert, Lieferstange hat sie auf der {stange}"
     return None
+
+
+def gruppe_schluessel(profil_id, werkstoff_id):
+    """Schlüssel der Stangengruppe in angebote.naht_stangen."""
+    return f"{profil_id or ''}|{werkstoff_id or ''}"
+
+
+def stange_gefordert(positionen, profil_id, werkstoff_id, profile):
+    """Seiten (Breitseite/Schmalseite), die die Positionen mit fester Naht dieser Gruppe auf Rechteckrohr verlangen:
+    set, leer = keine Position mit fester Naht (oder kein Rechteckrohr)."""
+    profil = (profile or {}).get(profil_id)
+    if form_von(profil) != "Rechteckrohr":
+        return set()
+    seiten = set()
+    for p in positionen or ():
+        if p.get("profil_id") != profil_id or p.get("werkstoff_id") != werkstoff_id or vorgabe(p) != FEST:
+            continue
+        s = seite(profil, p.get("naht_winkel"), p.get("querschnitt_lage") or BREIT_OBEN)
+        if s["flaeche"] in NAHT_STANGE:
+            seiten.add(s["flaeche"])
+    return seiten
+
+
+def stange_eingetragen(kopf, profil_id, werkstoff_id):
+    """Im Angebot eingetragene Nahtlage der Lieferstange dieser Gruppe oder None."""
+    w = ((kopf or {}).get("naht_stangen") or {}).get(gruppe_schluessel(profil_id, werkstoff_id))
+    return w if w in NAHT_STANGE else None
+
+
+def stange_lage(kopf, positionen, profil_id, werkstoff_id, profile):
+    """Nahtlage der Lieferstange für Prüfung und Materialanfrage: (Seite, Quelle). Quelle 'Angebot' (eingetragen)
+    oder 'Teile' (eindeutig aus den Positionen mit fester Naht); (None, None), wenn die Gruppe keine Position mit
+    fester Naht auf Rechteckrohr hat oder die Teile beide Seiten verlangen und nichts eingetragen ist."""
+    gefordert = stange_gefordert(positionen, profil_id, werkstoff_id, profile)
+    if not gefordert:
+        return None, None
+    eingetragen = stange_eingetragen(kopf, profil_id, werkstoff_id)
+    if eingetragen:
+        return eingetragen, "Angebot"
+    return (next(iter(gefordert)), "Teile") if len(gefordert) == 1 else (None, None)
 
 
 def _z(w):

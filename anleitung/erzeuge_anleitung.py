@@ -957,10 +957,15 @@ def kapitel_angebot(i):
             "Das Fenster nennt die getroffene Seite: bei Rechteckrohr <i>Breitseite</i> (die längere Seite) oder "
             "<i>Schmalseite</i>, bei Quadratrohr nur die Richtung, bei Rundrohr nur den Winkel. Liegt der Winkel auf "
             "einer Ecke, ist die Seite nicht eindeutig (Warnung).",
-            "Status: <b>FEHLER: Naht auf … gefordert, Lieferstange hat sie auf der …</b>, wenn die Seite nicht zur "
-            "<i>Naht der Lieferstange</i> im Profil passt ([[stammdaten]]); <b>WARNUNG: Nahtlage der Lieferstange im "
-            "Profil eintragen</b>, wenn sie dort fehlt; <b>FEHLER: Nahtwinkel fehlt</b> bei fester Position ohne "
-            "Winkel. Die Schweißnaht steht nicht in STEP-Dateien und wird nie automatisch erkannt.",
+            "<b>Naht der Lieferstange</b> (nur Rechteckrohr, bei fester Position): auf welcher Seite die bestellte "
+            "Stange ihre Schweißnaht hat, <i>Breitseite</i> oder <i>Schmalseite</i>. Das ist eine Angabe des "
+            "<b>Angebots</b>, nicht der Stammdaten: sie gilt in diesem Angebot für alle Positionen mit gleichem "
+            "Profil und Werkstoff. <i>aus den Teilen</i> (Standard) = die Seite, die die Teile mit fester Naht "
+            "verlangen. Sie steht in der Materialanfrage und lässt sich dort auch ändern ([[materialanfrage]]).",
+            "Status: <b>FEHLER: Naht auf … gefordert, Lieferstange hat sie auf der …</b>, wenn eine im Angebot "
+            "eingetragene Naht der Lieferstange nicht zur Seite der Position passt; <b>FEHLER: Nahtwinkel fehlt</b> "
+            "bei fester Position ohne Winkel. Ohne Eintrag gibt es keinen Hinweis. Die Schweißnaht steht nicht in "
+            "STEP-Dateien und wird nie automatisch erkannt.",
             "<b>Stangenwechsel SN</b>: jede Stange, auf der mindestens ein Teil die Nahtvorgabe <i>feste Position</i> "
             "hat, rechnet mit dem <i>Stangenwechsel SN</i> der Maschine (Vorgabe 29 s, die Naht wird ausgerichtet), "
             "alle anderen Stangen mit dem normalen <i>Stangenwechsel</i> (Vorgabe 24 s). Beide Zeiten stehen je "
@@ -2160,7 +2165,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Maschinenzeit, Stangen, Teile), darunter die Kostenarten (ohne 0,00 €, Herstellkosten und Verkaufspreis "
             "hervorgehoben), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die interne Ablage und "
             "die Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
-        (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
+        (4, "<b>Materialanfrage (E-Mail)</b>: Stangenbedarf beim Lieferanten anfragen ([[materialanfrage]])."),
+        (5, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
@@ -2211,16 +2217,18 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zukaufartikel, Stückzahl und Kästchen <i>bereit</i>.")
     i.abschnitt("Kalkulation (PDF)")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
-    i.abschnitt("Material per Outlook anfragen", marke="materialanfrage")
-    i.text("<i>Weitere Aktionen → Material per Outlook anfragen …</i> bereitet eine Anfrage an den Lieferanten vor. "
-           "Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst <b>Optimieren</b>.")
+    i.abschnitt("Materialanfrage per E-Mail", marke="materialanfrage")
+    i.text("Der Knopf <b>Materialanfrage (E-Mail)</b> rechts neben den Ausgaben im Angebot (immer sichtbar) bereitet "
+           "eine Anfrage an den Lieferanten vor. Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst "
+           "<b>Optimieren</b>.")
     i.bild("materialanfrage", "Materialanfrage an einen Lieferanten", hoehe=120 * mm,
            legende=[(1, "<b>Anfrage an Lieferant</b>: Lieferanten aus <i>Lieferlängen</i> bzw. <i>Preise</i> (Spalte "
                         "Lieferant); die E-Mail-Adresse kommt aus den Lieferanten der Zukaufartikel."),
                     (2, "Bedarf je Profil, Werkstoff, Oberfläche und Lieferlänge mit Anzahl Stangen (änderbar) und "
                         "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde. "
                         "Spalte <b>Zuschnitt</b>: nur bei Stangen, die der Lieferant nach der Planung zuschneidet "
-                        "(z. B. 12 m); Häkchen = Zuschnitt mit anfragen."),
+                        "(z. B. 12 m); Häkchen = Zuschnitt mit anfragen. Spalte <b>Schweißnaht</b>: nur bei "
+                        "Rechteckrohr mit Teilen fester Naht, Seite der Naht der Lieferstange (änderbar)."),
                     (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Betreff und Text kommen aus den Vorlagen "
                         "in den Einstellungen; der Text wird bei jeder Änderung der Zeilen neu erstellt, bis er von "
                         "Hand geändert wurde. Darunter steht, woher die Signatur kommt."),
@@ -2243,6 +2251,11 @@ def kapitel_ausgabe(i, seiten, ablage):
            "(mit Puffer, siehe Einstellungen <i>Lieferlängen</i>). Ohne Häkchen in der Spalte Zuschnitt wird nur die "
            "ganze Stange angefragt. Wird die Anzahl Stangen von Hand geändert, bleibt der Zuschnitt der Planung "
            "stehen; dann den Text prüfen.")
+    i.text("<b>Schweißnaht der Lieferstange.</b> Hat eine Gruppe Rechteckrohr Teile mit fester Schweißnaht "
+           "([[schweissnaht]]), steht unter der Materialzeile z. B. <i>Schweißnaht auf der Breitseite</i>. "
+           "Vorgabe ist die Seite aus dem Angebot bzw. aus den Teilen; in der Spalte <b>Schweißnaht</b> geändert, "
+           "gilt die neue Seite auch im Angebot (Profil und Werkstoff). Quadrat- und Rundrohr bekommen keine Angabe, "
+           "dort passt jede Seite.")
     i.text("<b>Anforderungen je Werkstoff.</b> In den Stammdaten <i>Werkstoffe</i> lassen sich je Werkstoff "
            "<i>Anfrage: Prüfbescheinigung</i> (2.2, 3.1 oder 3.2 nach EN 10204), <i>Anfrage: Herkunft EU</i> und "
            "<i>Anfrage: Maßtoleranzen nach Norm</i> ankreuzen. Sie stehen eingerückt unter jeder Materialzeile "
@@ -2605,10 +2618,6 @@ def kapitel_stammdaten(i):
         ["Lieferlängen vergleichen", "leer oder ja = Lieferlängen aus der Tabelle Lieferlängen werden verglichen; "
                                      "nein = das Profil wird nur mit der Stangenlänge des Angebots geplant (z. B. "
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
-        ["Naht der Lieferstange", "nur Rechteckrohr: <i>Breitseite</i> oder <i>Schmalseite</i>, je nachdem wo der "
-                                  "Lieferant die Schweißnaht hat. Damit prüft das Programm Positionen mit fester "
-                                  "Nahtlage ([[schweissnaht]]); leer = Warnung, sobald eine Position eine feste Naht "
-                                  "verlangt"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
@@ -3744,6 +3753,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.20", "<b>Naht der Lieferstange im Angebot</b> statt in den Stammdaten: je Profil und Werkstoff im Fenster "
+               "Schweißnaht oder in der Materialanfrage, Vorgabe aus den Teilen, kein Hinweis mehr ohne Eintrag "
+               "([[schweissnaht]]); die Materialanfrage nennt die Seite („Schweißnaht auf der Breitseite“) und hat "
+               "einen eigenen, immer sichtbaren Knopf <b>Materialanfrage (E-Mail)</b> ([[materialanfrage]])."],
     ["0.8.19", "<b>STEP-Import mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i> im Prüfdialog; "
                "Gehrungen und schräge Bohrungen (mit gemessener Neigung längs/quer) werden in 3D übernommen, ohne "
                "Häkchen erscheint bei schrägen Bohrungen „3D prüfen“."],
