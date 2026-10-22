@@ -275,8 +275,8 @@ def _():
         (e,) = rechnen.zusatz_liste(p)
         assert e["name"] == "Bohren" and e["menge"] == 2 and e["stand"]["preis"] > 0, e
         assert nah(p["schneidweg"], 330 - 2 * PI * 2, 0.1) and p["einstiche"] == 4, p
-        (w,) = rechnen.zusatz_werte(p, seite.k, seite.tabellen)      # 2 × 0,5 min × 45 €/h
-        assert w["menge"] == 2 and nah(w["betrag"], 2 * 0.5 / 60 * 45, 0.01), w
+        (w,) = rechnen.zusatz_werte(p, seite.k, seite.tabellen)      # 2 × 0,40 € (Einstellungen)
+        assert w["menge"] == 2 and nah(w["betrag"], 2 * 0.40, 0.001), w
         # Schneidweg-Rechner: Bohrbild aus den Eingaben, Bohren bleibt bestätigt, Zusatzarbeit bleibt
         assert seite.schneidweg_berechnen(0, eingaben=dict(a={}, b={}, konturen=[dict(art="Bohrung", anzahl=2, d=2)]),
                                           ueberschreiben=True)
@@ -286,6 +286,57 @@ def _():
         assert [e["name"] for e in rechnen.zusatz_liste(p)] == ["Bohren"]
         rw = 2 * 160 + 2 * PI * 2           # Enden QR 40x40 (Umfang) + 2 Bohrungen, dann ohne die Bohrungen
         assert nah(p["schneidweg"] + 2 * PI * 2, rw, 2), p["schneidweg"]
+        seite.close()
+        db.con.close()
+
+
+@fall("Preise je Stück: Gewinde, Senken, Flowdrill, Bohren aus den Einstellungen, je Position in Bohrungen prüfen änderbar")
+def _():
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser.bohrbild_dialog import BohrbildDialog
+    from rohrlaser.fenster import Hauptfenster
+    app = QApplication.instance() or QApplication([])  # noqa: F841
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        zs = {z["name"]: z for z in db.zeilen("zusatzarbeiten")}
+        assert all(zs[n]["art"] == "€/Stück" and zs[n]["zeit"] is None and zs[n]["preis"] > 0
+                   for n in ("Senken", "Flowdrill", "Bohren")), zs
+        fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+        a = db.angebot_neu(dict(kunde="Test"))
+        db.position_neu(a, dict(pos=10, artikel="Winkel", profil_id="QR 40x40x3", werkstoff_id="S235-10219",
+                                laenge=1000, stueck=4, schneidweg=330, einstiche=6, bohrungen="4xØ5",
+                                gewinde_vorschlag="4xM6"))
+        seite = fenster.angebot_oeffnen(a)
+        p = db.positionen(a)[0]
+        p["bohrbild"] = bohrbild.schreiben([dict(art="Bohrung", d=5.0, anzahl=4, gewinde="M6", status="offen"),
+                                            dict(art="Senkung", d=6.6, D=12.4, anzahl=2, status="offen")])
+        tab = seite.tabellen
+        gp = {g["gewinde"]: g.get("preis") for g in tab["gewinde"]}
+        d = BohrbildDialog(None, p, [(g["gewinde"], g["kernloch"]) for g in tab["gewinde"]], 3, None,
+                           tab["zusatzarbeiten"], rechnen.stundensaetze(tab), gp)
+        assert d.preise[0][0].placeholderText() == "0,90" and d.preise[0][1] is None
+        assert d.preise[1][0] is None and d.preise[1][1].placeholderText() == "0,40"
+        d.setzen(0, "bestätigt", gewinde_preis="1,25")
+        d.setzen(1, "bestätigt", preis="0,75")
+        t = d.auswirkung.text()
+        assert "4xM6 = 5,00 €" in t and "2× Senken à 0,75 €" in t, t
+        d.accept()
+        assert seite.bohrungen_pruefen([0], werte=d.ergebnis)
+        p = db.positionen(a)[0]
+        (e,) = rechnen.zusatz_liste(p)
+        assert e["name"] == "Senken" and e["menge"] == 2 and e["preis"] == 0.75, e
+        assert rechnen.gewinde_preise_position(p) == {"M6": 1.25}
+        w = rechnen.gewinde_preis(p["gewinde"], tab["gewinde"], rechnen.gewinde_preise_position(p))
+        assert nah(w, 5.0), w
+        (zw,) = rechnen.zusatz_werte(p, seite.k, tab)
+        assert nah(zw["betrag"], 1.5), zw
+        # Preis wieder leeren: Einstellungen gelten
+        liste = [dict(x, preis=None, gewinde_preis=None) for x in bohrbild.lesen(p["bohrbild"])]
+        assert seite.bohrungen_pruefen([0], werte=(liste, ""))
+        p = db.positionen(a)[0]
+        assert rechnen.gewinde_preise_position(p) == {} and rechnen.zusatz_liste(p)[0]["preis"] is None
+        (zw,) = rechnen.zusatz_werte(p, seite.k, tab)
+        assert nah(zw["betrag"], 0.8), zw
         seite.close()
         db.con.close()
 

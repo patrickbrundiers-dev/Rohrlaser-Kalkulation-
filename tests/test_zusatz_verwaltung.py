@@ -345,7 +345,7 @@ s.sortierung.setCurrentText("Preis")
 preise = [x["_preis"]["preis"] for x in s.sichtbar if x["art"] != "s/Stück"]
 assert preise == sorted(preise, reverse=True)
 s.sortierung.setCurrentText("Zeitaufwand")
-assert [x["name"] for x in s.sichtbar[:2]] == ["Montage", "Flowdrill"]     # 120 s vor 45 s
+assert [x["name"] for x in s.sichtbar[:2]] == ["Montage", "Gravur extra"]     # 120 s vor 20 s
 s.sortierung.setCurrentText("Name")
 assert [x["name"].lower() for x in s.sichtbar] == sorted(x["name"].lower() for x in s.sichtbar)
 ok("   Suche, Filter Kategorie/Status und Sortierung nach Name, Preis, Zeitaufwand")
