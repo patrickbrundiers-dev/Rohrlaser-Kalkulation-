@@ -2562,7 +2562,8 @@ def kapitel_mehrere(i):
             "<b>Ansprechpartner</b> mit Telefon und E-Mail. Eine Kopie bekommt immer das eigene Kürzel.")
     i.abschnitt("Gemeinsamer Ordner")
     i.text("Ein Ordner, den alle erreichen: ein Netzlaufwerk, eine NAS oder ein OneDrive-/SharePoint-Ordner, den "
-           "alle synchronisieren. Jeder trägt denselben Ordner ein. Darin legt jedes Programm genau eine Datei an, "
+           "alle synchronisieren. Jeder trägt denselben Ordner ein (im Dialog oder in den Einstellungen, Gruppe "
+           "Benutzer: <i>Gemeinsamer Ordner der Mitarbeiter</i>; leer = nicht teilen). Darin legt jedes Programm genau eine Datei an, "
            "<i>Rohrlaser_PB.sqlite</i>, <i>Rohrlaser_MK.sqlite</i> …, und schreibt nur in seine eigene. Deshalb kann "
            "nichts kaputtgehen, wenn zwei gleichzeitig abgleichen, auch nicht über OneDrive. Die eigene Datei enthält "
            "alle eigenen Angebote (mit Positionen, Staffeln, STEP-Protokoll und 3D-Ansicht), die Stammdaten und die "
