@@ -197,7 +197,7 @@ TIPPS.update({
     "programmierung_zeit": "Programmierzeit je Position mit Stückzahl × Stundensatz Programmierung; leer = Wert des "
                            "Angebots",
     "programmierung_kontur": "Programmierzeit je Innenkontur, zur Zeit je Position; leer = Wert des Angebots",
-    "programmierung_teil": "Betrag je Position verschickter Angebote vor 0.8.21; zählt nur ohne Programmierzeit",
+    "programmierung_teil": "Betrag je Position verschickter Angebote vor 0.8.22; zählt nur ohne Programmierzeit",
     "angebotsaufschlag": "Angebotsaufschlag einmal je Stufe; leer = Wert des Angebots",
     "handling_beistellung": "Handling Kundenmaterial je kg; leer = Wert des Angebots",
     "fracht": "Fester Frachtbetrag für die ganze Stufe; leer = Fracht wie im Angebot (berechnet für die Mengen der Stufe)",

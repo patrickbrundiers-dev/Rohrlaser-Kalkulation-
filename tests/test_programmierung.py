@@ -1,9 +1,9 @@
-"""Prüft die Programmierung als Zeit × Stundensatz (Patrick 22.10.2026, bis 0.8.20: 8,50 € je Position):
+"""Prüft die Programmierung als Zeit × Stundensatz (Patrick 22.10.2026, bis 0.8.21: 8,50 € je Position):
 - G1 Vorgaben neuer Dateien: 5 min je Position + 0,5 min je Innenkontur, Stundensatz/Arbeitsschritt 'Programmierung'
 - G2 Angebot: Zeit je Position = Grundzeit + Konturen × Zeit, × Stundensatz, Zeile in Zeiten & Arbeitskosten
 - G3 Zeit von Hand je Position, Werte und Stundensatz je Angebot; Stammdaten nur für neue Angebote
 - G4 Staffel-Stufe mit eigener Programmierzeit; Stufe ohne Wert = Angebot
-- G5 Schema 40: alle Angebote rechnen mit der Zeit, verschickte (festgeschriebene) behalten ihren Betrag je Position;
+- G5 Schema 41: alle Angebote rechnen mit der Zeit, verschickte (festgeschriebene) behalten ihren Betrag je Position;
   fehlender Stundensatz/Arbeitsschritt ergänzt
 
 Aufruf: python tests/test_programmierung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -128,7 +128,7 @@ _, su_st = rechnen.kalkulation(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen
 assert abs(su_st["programmierung_min"] - ((20 + 4) + 12 + (20 + 2))) < EPS
 ok("G4 Staffel-Stufe mit eigener Programmierzeit (20 min), leere Stufe = Wert des Angebots")
 
-# ------------------------------------------------------------------ G5 Schema 40: bestehende Angebote
+# ------------------------------------------------------------------ G5 Schema 41: bestehende Angebote
 pfad = tmp / "alt" / "rohrlaser.db"
 d = Datenbank(pfad)
 ids = []
@@ -144,7 +144,7 @@ assert s2.optimieren()
 s2.preise_festschreiben()                       # a2 wurde verschickt (Angebots-PDF)
 d.schliessen()
 con = sqlite3.connect(pfad)
-# wie eine Datei aus 0.8.20: Betrag je Position 12 € in den Einstellungen und im Angebot, festgeschrieben bei a2
+# wie eine Datei aus 0.8.21: Betrag je Position 12 € in den Einstellungen und im Angebot, festgeschrieben bei a2
 pb = json.loads(con.execute("SELECT preisbasis FROM angebote WHERE id=?", (a2,)).fetchone()[0])
 for n in ("programmierung_zeit", "programmierung_kontur"):
     pb["einstellungen"].pop(n, None)
@@ -154,7 +154,7 @@ con.execute("UPDATE angebote SET programmierung_zeit=NULL, programmierung_kontur
 con.execute("DELETE FROM einstellungen WHERE name IN ('programmierung_zeit', 'programmierung_kontur')")
 con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('programmierung_teil', ?)", (json.dumps(12.0),))
 con.execute("DELETE FROM arbeitsschritte WHERE schritt='Programmierung'")
-con.execute("PRAGMA user_version=39")
+con.execute("PRAGMA user_version=40")
 con.commit()
 con.close()
 d = Datenbank(pfad)
@@ -182,6 +182,6 @@ s2.neu_laden()
 _, su = rechnen.kalkulation(s2.kopf, s2.positionen, s2.ergebnis, s2.k, s2.tabellen, s2.einst)
 assert abs(su["programmierung"] - 6) < EPS
 d.schliessen()
-ok("G5 Schema 40: nicht verschicktes Angebot rechnet 5 min × 60 €/h statt 12 €, verschicktes behält 12 € je "
+ok("G5 Schema 41: nicht verschicktes Angebot rechnet 5 min × 60 €/h statt 12 €, verschicktes behält 12 € je "
    "Position (Stufen ebenso), Arbeitsschritt ergänzt")
 print("Alle Programmierzeit-Tests bestanden.")

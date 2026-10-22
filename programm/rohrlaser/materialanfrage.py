@@ -24,7 +24,7 @@ from datetime import date
 from pathlib import Path
 import mimetypes
 
-from . import rechnen
+from . import naht, rechnen
 from .stammdaten import EINSTELLUNG
 from .ausgabe import kaufm_runden, profiltext
 from .angebot import ist_zukaufteil
@@ -43,10 +43,12 @@ def _lieferant(profil, werkstoff, laenge, tabellen):
     return None
 
 
-def bedarf(positionen, ergebnis, k, tabellen, werte=None):
+def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
     """Zeilen der Anfrage aus der Optimierung: [{profil, werkstoff, oberflaeche, laenge, stangen, gewicht, lieferant,
-    pos (Positionsnummern), text, zuschnitte (je zugeschnittener Stange die Stangenlängen), anforderungen (Text)}]. Kundenmaterial fehlt (der Kunde liefert
-    es). werte = stangen_werte (Gewicht je Stange), sonst ohne Gewicht."""
+    pos (Positionsnummern), text, zuschnitte (je zugeschnittener Stange die Stangenlängen), anforderungen (Text),
+    naht_noetig (Gruppe hat Rechteckrohr-Teile mit fester Naht), naht (Seite der Schweißnaht der Lieferstange oder
+    None, naht.stange_lage)}]. Kundenmaterial fehlt (der Kunde liefert es). werte = stangen_werte (Gewicht je
+    Stange), sonst ohne Gewicht. kopf = Angebot (eingetragene Nahtlage der Lieferstangen)."""
     zeilen = {}
     gewichte = {s["nr"]: w.get("gewicht") for s, w in zip((ergebnis or {}).get("stangen") or (), werte or ())}
     for s in (ergebnis or {}).get("stangen") or ():
@@ -72,6 +74,8 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None):
     for z in out:
         z.setdefault("zuschnitte", [])
         z["anforderungen"] = anforderungen(z["werkstoff"], k)
+        z["naht_noetig"] = bool(naht.stange_gefordert(positionen, z["profil"], z["werkstoff"], k.profile))
+        z["naht"] = naht.stange_lage(kopf, positionen, z["profil"], z["werkstoff"], k.profile)[0]
         z["text"] = zeile_text(z, k)
     return out
 
@@ -126,11 +130,18 @@ def zuschnitt_text(z):
                                 for m, n in sorted(muster.items(), key=lambda x: -x[1]))
 
 
+def naht_text(z):
+    """'Schweißnaht auf der Breitseite' bzw. '' ohne Nahtvorgabe der Lieferstange."""
+    return f"Schweißnaht auf der {z['naht']}" if z.get("naht") in naht.NAHT_STANGE else ""
+
+
 def zeile_block(z, k, stangen=None, zuschnitt=True):
-    """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt und Anforderungen."""
+    """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt, Schweißnaht und Anforderungen."""
     zeilen = [f"- {zeile_text(z, k, stangen)}"]
     if zuschnitt and zuschnitt_text(z):
         zeilen.append(f"  {zuschnitt_text(z)}")
+    if naht_text(z):
+        zeilen.append(f"  {naht_text(z)}")
     if z.get("anforderungen"):
         zeilen.append(f"  {z['anforderungen']}")
     return "\n".join(zeilen)
