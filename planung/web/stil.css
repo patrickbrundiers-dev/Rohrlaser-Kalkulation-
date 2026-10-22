@@ -1,0 +1,105 @@
+:root {
+  --grund: #f4f5f7; --flaeche: #ffffff; --linie: #d5d9e0; --text: #1d2430; --leise: #5d6878;
+  --akzent: #1f5fae; --akzent-hell: #e3edf9;
+  --belegt: #4a5a70; --frei: #ffffff; --aus: #e6e8ec;
+  --risiko: #d97a00; --konflikt: #c62828; --ok: #2e7d32;
+  --still: repeating-linear-gradient(135deg, #b8bec8 0 4px, #e6e8ec 4px 8px);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 14px; color: var(--text);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--grund); }
+button, input, select, textarea { font: inherit; }
+button { border: 1px solid var(--akzent); background: var(--akzent); color: #fff; border-radius: 6px; padding: 6px 12px;
+  cursor: pointer; }
+button.leise { background: transparent; color: var(--akzent); }
+button.gefahr { background: var(--konflikt); border-color: var(--konflikt); }
+button:disabled { opacity: .5; cursor: default; }
+input, select, textarea { border: 1px solid var(--linie); border-radius: 6px; padding: 5px 8px; background: #fff; }
+label { display: grid; gap: 3px; color: var(--leise); font-size: 12px; }
+label.haken { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; }
+label.haken > input { width: auto; flex: none; }
+label > input, label > select, label > textarea { color: var(--text); font-size: 14px; width: 100%; min-width: 0; }
+.raster > label { min-width: 0; }
+h1 { font-size: 20px; margin: 0 0 12px; }
+h2 { font-size: 16px; margin: 0 0 8px; }
+table { border-collapse: collapse; width: 100%; background: var(--flaeche); }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--linie); vertical-align: top; }
+th { font-size: 12px; color: var(--leise); font-weight: 600; }
+td.zahl, th.zahl { text-align: right; font-variant-numeric: tabular-nums; }
+tr.klickbar { cursor: pointer; }
+tr.klickbar:hover { background: var(--akzent-hell); }
+
+header { display: flex; align-items: center; gap: 16px; padding: 8px 16px; background: var(--flaeche);
+  border-bottom: 1px solid var(--linie); position: sticky; top: 0; z-index: 5; }
+header .marke { font-size: 16px; }
+nav { display: flex; gap: 4px; flex: 1; }
+nav a { padding: 6px 10px; border-radius: 6px; color: var(--text); text-decoration: none; }
+nav a.aktiv { background: var(--akzent-hell); color: var(--akzent); font-weight: 600; }
+.live { color: var(--konflikt); font-size: 12px; }
+.live.an { color: var(--ok); }
+#wer { color: var(--leise); }
+main { padding: 16px; max-width: 1600px; margin: 0 auto; }
+.hinweis { margin: 8px 16px 0; padding: 8px 12px; border-radius: 6px; background: #fff4e0; border: 1px solid var(--risiko); }
+.hinweis.fehler { background: #fdecec; border-color: var(--konflikt); }
+.hinweis.gut { background: #e7f3e8; border-color: var(--ok); }
+.leiste { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-bottom: 12px; }
+.leiste .rechts { margin-left: auto; }
+.karten { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 12px; }
+.gross { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.klein { font-size: 12px; color: var(--leise); }
+.warn { color: var(--risiko); }
+.rot { color: var(--konflikt); }
+.offen { color: var(--risiko); font-weight: 600; }
+.balken { height: 8px; background: var(--aus); border-radius: 4px; overflow: hidden; }
+.balken > div { height: 100%; background: var(--belegt); }
+.balken.ueber > div { background: var(--konflikt); }
+.wochen { display: grid; grid-template-columns: 56px 1fr 64px 64px; gap: 4px 8px; align-items: center; font-size: 12px; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 12px; background: var(--aus); }
+.badge.kritisch { background: #fff0d6; color: #8a4d00; }
+.badge.überschritten { background: #fdecec; color: var(--konflikt); }
+.badge.ok { background: #e7f3e8; color: var(--ok); }
+
+/* Plantafel */
+.tafel-rahmen { display: grid; grid-template-columns: 1fr 260px; gap: 12px; }
+.tafel { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; overflow-x: auto; }
+.zeile { display: grid; grid-template-columns: 150px 1fr; border-bottom: 1px solid var(--linie); align-items: stretch; }
+.zeile:last-child { border-bottom: 0; }
+.zeile .name { padding: 8px; border-right: 1px solid var(--linie); }
+.zeile .name strong { font-size: 15px; }
+.spur { position: relative; min-height: 96px; background: var(--aus); min-width: 700px; }
+.spur.ziel { outline: 2px dashed var(--akzent); outline-offset: -2px; }
+.achse { position: relative; height: 28px; min-width: 700px; }
+.strich { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--linie); font-size: 11px; color: var(--leise);
+  padding-left: 3px; white-space: nowrap; }
+.fenster { position: absolute; top: 0; bottom: 0; background: var(--frei); }
+.stillstand { position: absolute; top: 0; bottom: 0; background: var(--still); opacity: .9; }
+.jetzt { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--akzent); z-index: 2; }
+.beleg { position: absolute; top: 14px; bottom: 14px; background: var(--belegt); color: #fff; border-radius: 5px; padding: 3px 6px;
+  font-size: 12px; overflow: hidden; white-space: nowrap; cursor: grab; z-index: 3; border: 2px solid transparent; }
+.beleg.kritisch { border-color: var(--risiko); box-shadow: inset 4px 0 0 var(--risiko); }
+.beleg.überschritten { border-color: var(--konflikt); box-shadow: inset 4px 0 0 var(--konflikt); }
+.beleg.fix { background: #263445; }
+.beleg.warnung::after { content: "!"; position: absolute; right: 4px; top: 2px; background: var(--risiko); color: #fff;
+  border-radius: 50%; width: 15px; height: 15px; text-align: center; line-height: 15px; font-weight: 700; }
+.beleg .z2 { opacity: .8; }
+.vorrat { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 8px; max-height: 70vh; overflow: auto; }
+.vorrat .auftrag { border: 1px solid var(--linie); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; cursor: grab; background: #fff; }
+.vorrat .auftrag:hover { border-color: var(--akzent); }
+.legende { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--leise); margin-top: 8px; }
+.legende i { display: inline-block; width: 14px; height: 10px; vertical-align: middle; margin-right: 4px; border: 1px solid var(--linie); }
+
+dialog { border: 1px solid var(--linie); border-radius: 10px; padding: 0; width: min(720px, 95vw); }
+dialog:has(#schichten) { width: min(1000px, 96vw); }
+#schichten input, #schichten select { width: 100%; min-width: 0; }
+dialog::backdrop { background: rgba(20, 28, 40, .35); }
+dialog form { padding: 16px; display: grid; gap: 10px; }
+.raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.knoepfe { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.knoepfe .links { margin-right: auto; }
+ul.meldungen { margin: 0; padding-left: 18px; }
+ul.meldungen li.fehler { color: var(--konflikt); }
+ul.meldungen li.warnung { color: #8a4d00; }
+.anmeldung { max-width: 360px; margin: 10vh auto; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 10px;
+  padding: 20px; display: grid; gap: 12px; }
+@media (max-width: 900px) { .tafel-rahmen { grid-template-columns: 1fr; } header { flex-wrap: wrap; } }
