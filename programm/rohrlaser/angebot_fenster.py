@@ -2019,9 +2019,6 @@ class AngebotSeite(QWidget):
     def staffeln_loeschen(self):
         self.st_seite.loeschen()
 
-    def _staffel_stand(self):
-        self.st_seite.stand()
-
     def staffelpreise_rechnen(self):
         """Alle Stufen neu rechnen und speichern. Ergebnis: bepreiste Zeilen oder None (abgebrochen)."""
         return self.st_seite.rechnen()

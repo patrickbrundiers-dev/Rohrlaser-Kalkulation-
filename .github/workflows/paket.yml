@@ -98,7 +98,6 @@ jobs:
           /usr/bin/python3 tests/test_kundenmaterial.py
           /usr/bin/python3 tests/test_schneidweg.py
           /usr/bin/python3 tests/test_naht.py
-          /usr/bin/python3 tests/test_gehrung.py
           /usr/bin/python3 tests/test_tastatur.py
           /usr/bin/python3 tests/test_materialanfrage.py
           /usr/bin/python3 tests/test_plausibel.py
@@ -107,6 +106,11 @@ jobs:
           /usr/bin/python3 tests/test_hintergrund.py
           /usr/bin/python3 tests/test_vorgang.py
           /usr/bin/python3 tests/test_anleitung.py
+      - name: Gehrungen (langsamer Test, nur auf main bzw. von Hand, nicht bei jedem Pull Request)
+        if: github.event_name != 'pull_request'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: /usr/bin/python3 tests/test_gehrung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen

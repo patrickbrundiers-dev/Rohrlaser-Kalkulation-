@@ -1765,6 +1765,48 @@ def einstellungen_angebot(kopf, einst):
     return out
 
 
+def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen):
+    """Zusatzarbeiten je Position (Teil von kalkulation): Beträge je Teil mit Mindestbetrag je Zusatzarbeit und
+    Angebot (anteilig angehoben) und €/Angebot einmal je Angebot, auf die Teile umgelegt. Ergebnis {Index: [Einträge
+    mit 'teil']}."""
+    zus = {i: zusatz_werte(positionen[i], k, tabellen) if i in laser else [] for i in aktiv}
+    zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
+    for i in aktiv:
+        c = _n(positionen[i].get("stueck"))
+        for e in zus[i]:
+            zus_summe[e["name"]] = zus_summe.get(e["name"], 0.0) + e["betrag"] * c
+            zus_teile[e["name"]] = zus_teile.get(e["name"], 0) + c
+            # ein Mindestbetrag je Zusatzarbeit und Angebot, auch wenn Positionen verschiedene Preisstände haben
+            zus_mindest[e["name"]] = max(zus_mindest.get(e["name"], 0.0), e["mindest"])
+            if e["art"] == "€/Angebot" and c:          # einmal je Angebot: der höchste Betrag gilt
+                zus_pauschal[e["name"]] = max(zus_pauschal.get(e["name"], 0.0), e["pauschal"])
+    for i in aktiv:                   # Mindestbetrag je Angebot: anteilig anheben
+        for e in zus[i]:
+            e["mindest"] = zus_mindest[e["name"]]
+            if e["art"] == "€/Angebot":               # pauschal je Angebot: auf die Teile umgelegt
+                n = zus_teile[e["name"]]
+                e["teil"] = max(zus_pauschal.get(e["name"], 0.0), e["mindest"]) / n if n else 0.0
+            elif e["art"] == "s/Stück" or e["mindest"] <= 0 or not zus_teile[e["name"]]:
+                e["teil"] = e["betrag"]
+            elif zus_summe[e["name"]] <= 0:
+                e["teil"] = e["mindest"] / zus_teile[e["name"]]
+            else:
+                e["teil"] = e["betrag"] * max(1.0, e["mindest"] / zus_summe[e["name"]])
+    return zus
+
+
+def _eingespart(stangen):
+    """Je Teil-Referenz [Anzahl, eingespart mm, eingesparte Einstiche] aus dem Schnittplan (Teil von kalkulation)."""
+    eingespart = {}
+    for s in stangen:
+        for t in s["teile"]:
+            e = eingespart.setdefault(t["ref"], [0, 0.0, 0])
+            e[0] += 1
+            e[1] += t["eingespart_mm"]
+            e[2] += t["eingespart_e"]
+    return eingespart
+
+
 def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     """Kalkulation je Position und Summen. Ergebnis: (zeilen, summen); zeilen[i] ist None für
     Positionen ohne Profil.
@@ -1825,29 +1867,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Angebot
     handling_kg = _n(einstellungen.get("handling_beistellung"))     # € je kg Kundenmaterial (Stangengewicht)
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
-    zus = {i: zusatz_werte(positionen[i], k, tabellen) if i in laser else [] for i in aktiv}
-    zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
-    for i in aktiv:
-        c = _n(positionen[i].get("stueck"))
-        for e in zus[i]:
-            zus_summe[e["name"]] = zus_summe.get(e["name"], 0.0) + e["betrag"] * c
-            zus_teile[e["name"]] = zus_teile.get(e["name"], 0) + c
-            # ein Mindestbetrag je Zusatzarbeit und Angebot, auch wenn Positionen verschiedene Preisstände haben
-            zus_mindest[e["name"]] = max(zus_mindest.get(e["name"], 0.0), e["mindest"])
-            if e["art"] == "€/Angebot" and c:          # einmal je Angebot: der höchste Betrag gilt
-                zus_pauschal[e["name"]] = max(zus_pauschal.get(e["name"], 0.0), e["pauschal"])
-    for i in aktiv:                   # Mindestbetrag je Angebot: anteilig anheben
-        for e in zus[i]:
-            e["mindest"] = zus_mindest[e["name"]]
-            if e["art"] == "€/Angebot":               # pauschal je Angebot: auf die Teile umgelegt
-                n = zus_teile[e["name"]]
-                e["teil"] = max(zus_pauschal.get(e["name"], 0.0), e["mindest"]) / n if n else 0.0
-            elif e["art"] == "s/Stück" or e["mindest"] <= 0 or not zus_teile[e["name"]]:
-                e["teil"] = e["betrag"]
-            elif zus_summe[e["name"]] <= 0:
-                e["teil"] = e["mindest"] / zus_teile[e["name"]]
-            else:
-                e["teil"] = e["betrag"] * max(1.0, e["mindest"] / zus_summe[e["name"]])
+    zus = _zusatz_umlegen(positionen, aktiv, laser, k, tabellen)
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
@@ -1861,13 +1881,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0))
     zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
                                         for i in aktiv for n, e in enumerate(zukauf.eintraege(positionen[i]))])
-    eingespart = {}
-    for s in stangen:
-        for t in s["teile"]:
-            e = eingespart.setdefault(t["ref"], [0, 0.0, 0])
-            e[0] += 1
-            e[1] += t["eingespart_mm"]
-            e[2] += t["eingespart_e"]
+    eingespart = _eingespart(stangen)
     zeilen = [None] * len(positionen)
     for i in aktiv:
         p = positionen[i]
