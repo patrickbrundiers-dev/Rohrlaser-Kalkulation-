@@ -80,6 +80,7 @@ jobs:
           /usr/bin/python3 tests/test_step_ablage.py
           /usr/bin/python3 tests/test_bohrbild.py
           /usr/bin/python3 tests/test_rp_profile.py
+          /usr/bin/python3 tests/test_step_rp.py
           /usr/bin/python3 tests/test_doppelklick.py
           /usr/bin/python3 tests/test_mausrad.py
           /usr/bin/python3 tests/test_step_bleche.py

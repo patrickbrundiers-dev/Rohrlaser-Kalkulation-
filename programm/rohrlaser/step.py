@@ -11,7 +11,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, bohrbild, naht, rechnen
+from . import anbau, bohrbild, naht, rechnen, rp_profile
 
 TOL_MASS = 0.15
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -331,8 +331,26 @@ def wand_max(m):
     return round(w, 2) if w > _wand(m) + 0.05 else None
 
 
+def finde_rp(m, profile):
+    """RP-Profil der Stammdaten zu einer Messung: die erkannte Profil-ID (Spalte normprofil), sonst per Fingerabdruck
+    (Maße, Fläche, Außenkontur, Kammern) unter den RP-Profilen der Stammdaten mit bekannter Kontur (Bibliothek oder
+    selbst geladen). Damit findet auch ein als Sonderprofil gemessenes Teil sein selbst geladenes RP-Profil."""
+    if m.get("normprofil") in profile and (profile[m["normprofil"]].get("form") == rp_profile.FORM):
+        return m["normprofil"]
+    if not _z(m, "kontur_umfang"):
+        return None
+    eintraege = {pid: rp_profile.daten(pid) for pid, p in profile.items() if p.get("form") == rp_profile.FORM}
+    treffer = rp_profile.erkennen(_z(m, "abm_a"), _z(m, "abm_b"), _z(m, "flaeche"), _z(m, "kontur_umfang"),
+                                  int(_z(m, "kammern") or 1), _wand(m), {k: v for k, v in eintraege.items() if v})
+    return treffer[0] if treffer else None
+
+
 def finde_profil(m, profile):
     form, a, b, t = m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b"), _wand(m)
+    if form in (rp_profile.FORM, "Sonderprofil"):
+        pid = finde_rp(m, profile)
+        if pid or form == rp_profile.FORM:
+            return pid
     for pid, p in profile.items():
         if p.get("form") != form or abs((p.get("wand") or 0) - t) > TOL_MASS:
             continue
@@ -363,8 +381,8 @@ def profil_vorschlag(m, profile):
 # und Bleche", Frage 2 a); Vollmaterial und nicht erkannte offene Profile nicht.
 # Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
 BLECHE = ("Blech", "Blech gekantet")
-NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil") + BLECHE
-MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil")    # Formen mit Abmessung B
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern") + BLECHE
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM)    # Formen mit Abmessung B
 
 
 def blech(m):
@@ -783,7 +801,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 hinweise.append(f"Profil im Prüfdialog geändert (gemessen {gemessen or m['profilform']})")
             if pid is None or pid not in profile:
                 pid = pid or m.get("profil_id_vorschlag") or None
-                if neue_profile and pid:
+                if neue_profile and pid and rp_profile.daten(pid):
+                    p = rp_profile.stammdaten_zeile(rp_profile.daten(pid))
+                    neue_prof.append(p)
+                    profile[pid] = p
+                    hinweise.append("RP-Profil aus der Bibliothek in Stammdaten angelegt")
+                elif neue_profile and pid:
                     p = dict(profil_id=pid, form=m["profilform"], a=round(_z(m, "abm_a"), 2),
                              b=round(_z(m, "abm_b"), 2) if m["profilform"] in MIT_B else None,
                              wand=round(_wand(m), 2), wand_max=wand_max(m), flaeche_manuell=round(_z(m, "flaeche"), 1),
@@ -878,6 +901,18 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if _z(m, "ende_b"):
                 p["b_gerade"] = "ja" if m.get("ende_b_gerade") == "1" else "nein"
                 p["b_schnitt"] = round(_z(m, "ende_b"), 1)
+            rp = rp_profile.daten(pid) if form == rp_profile.FORM else None
+            if rp:      # die Messung zählt die Doppellage als zwei Wände, der Laser trennt sie mit einem Schnitt
+                vorher = 0.0
+                for x, ende in (("a", "ende_a"), ("b", "ende_b")):
+                    if _z(m, ende):
+                        vorher += _z(m, ende)
+                        p[f"{x}_schnitt"] = round(rp_profile.schnitt_aus_messung(
+                            rp, _z(m, ende), m.get(f"{ende}_gerade") == "1"), 1)
+                weniger = vorher - p.get("a_schnitt", 0) - p.get("b_schnitt", 0)
+                p["schneidweg"] = round(p["schneidweg"] - weniger, 1)
+                hinweise.append(f"RP-Profil {pid}: Anschlag (Doppellage) einmal geschnitten, Schneidweg "
+                                f"{dez(round(weniger, 1))} mm kürzer als gemessen")
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if m.get("innen_liste") or enden:

@@ -3487,6 +3487,19 @@ def kapitel_step_messung(i):
             "Sie stehen im Dialog STEP-Import prüfen unter <i>Nicht übernehmbar</i> mit dem Hinweis <i>… wird noch "
             "nicht kalkuliert</i>. Bei C-Profilen steht die Länge der Abkantung im Hinweis, bei U-Profilen mit "
             "verschieden dickem Steg und Flansch beide Werte.",
+            "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech) erkennt die Messung per <i>Fingerabdruck</i> "
+            "aus der RP-Bibliothek: Breite, Höhe, Fläche, Länge der Außenkontur und Zahl der Kammern müssen passen "
+            "(Maße ±0,3 mm, Fläche und Kontur ±1,5 %). Das Teil bekommt Profilform <i>RP-Profil</i> und die "
+            "Profil-ID der Bibliothek (z. B. <i>RP 0106-35</i>); haben mehrere RP-Profile denselben Querschnitt, "
+            "nennt der Hinweis die anderen. Der doppelt liegende Anschlag gilt nicht als ungleiche Wand. Beim "
+            "Übernehmen wird die Doppellage nur einmal geschnitten: Ein gerades Ende bekommt die Schnittlänge der "
+            "Kontur, ein schräges die gemessene Länge anteilig; der Bericht nennt, um wie viel der Schneidweg kürzer "
+            "ist. Selbst geladene RP-Profile ([[rp_profile]]) findet der Import ebenso, wenn die Messung ein "
+            "<i>Sonderprofil</i> meldet; von Hand: Art <i>RP-Profil</i> wählen, dann die Profil-ID.",
+            "<b>Mehrkammerprofile</b> (mehrere Kammern in einer Außenkontur) werden gemessen und als Sonderprofil zum "
+            "Prüfen gemeldet; die Zwischenwände kommen näherungsweise zum Schnitt der Enden dazu (Hinweis). "
+            "<b>Verbundprofile</b>: Liegt ein zweiter Körper ganz in der Kammer (Kern aus Kunststoff o. ä.), wird "
+            "er als <i>Verbundkern</i> nicht übernommen und das Profil mit Hinweis zum Prüfen gemeldet.",
             "<b>I-/H-Träger und T-Profile</b> werden ebenfalls erkannt und kalkuliert. Gemessen werden Höhe, "
             "Flanschbreite, Stegdicke (Strahl quer durch den Steg) und Flanschdicke (bei einem Viertel der "
             "Flanschbreite neben dem Steg, wie die Norm misst), dazu ob das Profil <i>symmetrisch</i> ist und die "
@@ -3827,6 +3840,10 @@ NEUERUNGEN = [
                "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
                "ohne Wert ausgeblendet, Stangenbild am Ende. Handling Kundenmaterial in €/m statt €/kg. "
                "Träger, T- und U-Profile im Angebotstext mit Normbezeichnung (IPE, HEA, HEB, UPN …)."],
+    ["0.8.24", "STEP-Import erkennt <b>RP-Profile</b> per Fingerabdruck (Bibliothek und selbst geladene), schneidet "
+               "die Doppellage des Anschlags nur einmal, misst <b>Mehrkammerprofile</b> und meldet "
+               "<b>Verbundprofile</b> mit Kern ([[step_messung]]). Die Skizze im Schneidweg-Rechner zeigt die "
+               "RP-Kontur."],
     ["0.8.23", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
                "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
                "([[blech_editor]]). U-, C-, L-, T-Profile, Träger und Flachstahl: jede Kontur auf ihrer Fläche (Steg, "
