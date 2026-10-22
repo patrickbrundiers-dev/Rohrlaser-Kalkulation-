@@ -69,6 +69,7 @@ jobs:
           /usr/bin/python3 tests/test_zukauf_angebot.py
           /usr/bin/python3 tests/test_zukauf_preise.py
           /usr/bin/python3 tests/test_kunden_csv.py
+          /usr/bin/python3 tests/test_handy_export.py
           /usr/bin/python3 tests/test_zukauf_schnell.py
           /usr/bin/python3 tests/test_zukauf_ek.py
           /usr/bin/python3 tests/test_zukauf_blech.py

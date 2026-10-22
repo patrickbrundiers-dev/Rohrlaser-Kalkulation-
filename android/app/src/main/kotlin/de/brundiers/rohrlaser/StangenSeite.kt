@@ -12,22 +12,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -45,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import de.brundiers.rohrlaser.kern.Stammdaten
 import de.brundiers.rohrlaser.kern.Stangenplan
 import de.brundiers.rohrlaser.kern.Stangenplanung
 import de.brundiers.rohrlaser.kern.Stangenwerte
@@ -62,16 +62,21 @@ class Zeile(bez: String = "", laenge: String = "", stueck: String = "1", a: Bool
     var bGerade by mutableStateOf(b)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StangenSeite() {
+fun StangenSeite(stammdaten: Stammdaten?, zurueck: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var stange by remember { mutableStateOf("6000") }
-    var end by remember { mutableStateOf("10") }
-    var greifer by remember { mutableStateOf("142") }
-    var kerf by remember { mutableStateOf("0,2") }
-    var abstand by remember { mutableStateOf("2") }
+    val maschinen = remember(stammdaten) { stammdaten?.maschinen().orEmpty() }
+    // Vorgabe: Standard-Maschine aus den Stammdaten, ohne Stammdaten die Werte der Beispielmaschine T11
+    val start = remember(stammdaten) {
+        maschinen.firstOrNull { it.id == stammdaten?.standardMaschine }?.let { stammdaten!!.stangenwerte(it) } ?: Stangenwerte()
+    }
+    var maschine by remember(stammdaten) { mutableStateOf(maschinen.firstOrNull { it.id == stammdaten?.standardMaschine }?.id) }
+    var stange by remember(stammdaten) { mutableStateOf(zahl(start.stange, 0).replace(".", "")) }
+    var end by remember(stammdaten) { mutableStateOf(zahl(start.endbeschnitt, 3)) }
+    var greifer by remember(stammdaten) { mutableStateOf(zahl(start.greiferrest, 3)) }
+    var kerf by remember(stammdaten) { mutableStateOf(zahl(start.schnittverlust, 3)) }
+    var abstand by remember(stammdaten) { mutableStateOf(zahl(start.abstand, 3)) }
     val zeilen = remember {
         mutableStateListOf(
             Zeile("Handlauf", "3480", "6", a = false, b = false),
@@ -84,16 +89,7 @@ fun StangenSeite() {
     var fehler by remember { mutableStateOf("") }
     var rechnet by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Stangen optimieren") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = BLAU, titleContentColor = Color.White
-                )
-            )
-        }
-    ) { innen ->
+    Rahmen("Stangen optimieren", zurueck) { innen ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(innen).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -101,6 +97,21 @@ fun StangenSeite() {
             item {
                 Spacer(Modifier.height(8.dp))
                 Text("Stange und Maschine [mm]", style = MaterialTheme.typography.titleMedium)
+                if (maschinen.isNotEmpty()) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (m in maschinen) {
+                            FilterChip(selected = maschine == m.id, label = { Text(m.id) }, onClick = {
+                                val w = stammdaten!!.stangenwerte(m)
+                                maschine = m.id
+                                stange = zahl(w.stange, 0).replace(".", "")
+                                end = zahl(w.endbeschnitt, 3)
+                                greifer = zahl(w.greiferrest, 3)
+                                kerf = zahl(w.schnittverlust, 3)
+                                abstand = zahl(w.abstand, 3)
+                            })
+                        }
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Feld("Stangenlänge", stange, Modifier.weight(1f)) { stange = it }
                     Feld("Endbeschnitt", end, Modifier.weight(1f)) { end = it }
@@ -151,7 +162,7 @@ fun StangenSeite() {
                         Text("rechnet …")
                     }
                 }
-                if (fehler.isNotEmpty()) Text(fehler, color = Color(0xFFB00020))
+                if (fehler.isNotEmpty()) Text(fehler, color = ROT)
             }
             plan?.let { p ->
                 item { Auswertung(p, onTeilen = { teilePdf(context, p) }) }
@@ -208,7 +219,7 @@ private fun Auswertung(p: Stangenplan, onTeilen: () -> Unit) {
             Text("Materialausnutzung ${prozent(p.ausnutzung)}")
             if (p.nichtEingeplant.isNotEmpty()) {
                 Text("Nicht eingeplant (passt nicht auf eine Stange): " +
-                    p.nichtEingeplant.joinToString { it.bezeichnung }, color = Color(0xFFB00020))
+                    p.nichtEingeplant.joinToString { it.bezeichnung }, color = ROT)
             }
             Button(onClick = onTeilen, modifier = Modifier.fillMaxWidth()) { Text("Schnittplan als PDF teilen") }
         }

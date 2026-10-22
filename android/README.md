@@ -22,5 +22,8 @@ Gleichstände zwischen zwei gleich guten Einteilungen.
 
 ## Stand
 
-Schritt 1 (Machbarkeitsprobe): Stangenoptimierung samt Zuschnitt langer Lieferstangen, Seite „Stangen optimieren“,
-Schnittplan als PDF teilen.
+- Schritt 1 (Machbarkeitsprobe): Stangenoptimierung samt Zuschnitt langer Lieferstangen, Seite „Stangen optimieren“,
+  Schnittplan als PDF teilen.
+- Schritt 2: Stammdaten vom PC (Datei → Stammdaten fürs Handy exportieren …, `programm/rohrlaser/handy_export.py`)
+  einlesen und ansehen (nur lesen), Maschine im Stangenrechner wählen. Testdatei
+  `kern/src/test/resources/stammdaten_beispiel.json` schreibt `python tests/android_paritaet.py --schreiben`.
