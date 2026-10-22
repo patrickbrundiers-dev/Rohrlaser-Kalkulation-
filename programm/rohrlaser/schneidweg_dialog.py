@@ -1,20 +1,48 @@
-"""Dialog 'Schneidweg berechnen …' einer Position ohne STEP-Datei: Enden (gerade, Gehrung oder Ausklinkung),
-Innenkonturen (Bohrung, Langloch, Rechteck, Schlitz, Polygon aus Koordinaten, sonstige Kontur) und Gravur eingeben;
+"""Dialog 'Schneidweg berechnen …' einer Position: Enden (gerade, Gehrung oder Ausklinkung), Innenkonturen (Bohrung,
+Langloch, Rechteck, Schlitz, Polygon aus Koordinaten, sonstige Kontur), Gravur und Schweißnaht eingeben;
 Skizze, Schnittlängen, Einstiche, Konturklassen, Gewinde-Vorschlag und die Schneidzeit mit den Schneiddaten der
-Maschine stehen sofort daneben. Die Formeln stehen in schneidweg.py; OK schreibt die Werte in die Position
-(Angebotsseite.schneidweg_berechnen)."""
+Maschine stehen sofort daneben. Teile aus dem STEP-Import zeigen die gemessenen Werte (auch ältere Positionen aus
+den gespeicherten Feldern, STEP neu einlesen holt Lage und Maße aus der Datei). Die Formeln stehen in schneidweg.py;
+OK schreibt die Werte in die Position (Angebotsseite.schneidweg_berechnen), Zeichnung als PDF in zeichnung.py."""
+import json
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
                                QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMenu, QMessageBox, QPushButton,
                                QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import hilfe, rechnen, schneidweg as sw, skizze as sk
+from . import hilfe, naht, rechnen, schneidweg as sw, skizze as sk
 from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
 
-KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", "Lage ab Anfang [mm]", "Abstand [mm]",
-                  "Seite", "Versatz quer [mm]", "Text")
+KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", "Lage ab Ende A [mm]",
+                  "Abstand Muster [mm]", "Seite", "Versatz quer [mm]", "Bemerkung")
+SPALTEN_HILFE = (
+    "Art der Innenkontur (Bohrung, Senkung, Langloch …)",
+    "Anzahl gleicher Konturen je Teil",
+    "erstes Maß der Konturart (markierte Zeile: Name steht in der Überschrift)",
+    "zweites Maß der Konturart (markierte Zeile: Name steht in der Überschrift)",
+    "drittes Maß der Konturart (markierte Zeile: Name steht in der Überschrift)",
+    "Mitte der (ersten) Kontur in mm ab Ende A; leer = gleichmäßig verteilt",
+    "Muster längs: Abstand von Mitte zu Mitte; die Anzahl Konturen folgt im Abstand",
+    "Fläche, auf der die Kontur sitzt, von Ende A gesehen (Rechteck-/Quadratrohr 0° oben, 90° vorne = rechts, 180° "
+    "unten, 270° hinten = links; Rundrohr Winkel am Umfang)",
+    "Versatz der Kontur quer zur Flächenmitte in mm (+ zur nächsten Fläche hin)",
+    "freier Text (erscheint in der Skizze und der Zeichnung)")
+# Bedeutung der Maße je Konturart (Erklärung unter der Tabelle für die markierte Zeile)
+ART_HILFE = {
+    sw.BOHRUNG: "Maß 1 = Durchmesser Ø d. Schnittlänge π × d.",
+    sw.SENKUNG: "Maß 1 = Bohrung Ø d (wird geschnitten), Maß 2 = Senk-Ø D außen (Senken ist eine Zusatzarbeit).",
+    sw.LANGLOCH: "Maß 1 = Gesamtlänge l außen (längs zum Teil), Maß 2 = Breite b (= Ø der Rundungen).",
+    sw.RECHTECK: "Maß 1 = Breite b (längs zum Teil), Maß 2 = Höhe h (quer), Maß 3 = Eckradius r (0 = scharfkantig).",
+    sw.SCHLITZ: "Schlitz offen vom Rand: Maß 1 = Tiefe l, Maß 2 = Breite b.",
+    sw.AUSKLINKUNG: "Ausklinkung am Ende: Maß 1 = Länge l ab Ende, Maß 2 = Breite b, Maß 3 = Eckradius r innen; "
+                    "ohne Lage an Ende A, für Ende B Lage = Teilelänge − l/2.",
+    sw.POLYGON: "Maß 1 = Eckpunkte x,y in mm, getrennt mit Semikolon, z. B. 0,0; 40,0; 40,20; 0,20.",
+    sw.SONSTIGE: "Maß 1 = Schnittlänge in mm, Maß 2 = Hüllmaß (größte Ausdehnung, leer = groß) für die Konturklasse."}
+LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitte, Seite = Fläche von Ende A gesehen, "
+              "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, TEXT_SPALTE = 5, 6, 7, 8, 9
 ERGEBNIS_SPALTEN = ("Schnitt", "Anzahl", "je Stück [mm]", "gesamt [mm]", "Einstiche", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -23,7 +51,9 @@ MASS_HILFE = ("Maße: Bohrung Ø · Senkung Bohrung Ø, Senk-Ø · Langloch Län
               "Polygon Eckpunkte in Maß 1, z. B. 0,0; 40,0; 40,20; 0,20 · sonstige Kontur "
               "Schnittlänge, Hüllmaß (leer = groß). Lage ab Anfang = Mitte der (ersten) Kontur, leer = verteilt; Abstand = "
               "Muster längs (Anzahl Konturen im Abstand); Seite und Versatz quer zur Flächenmitte bzw. beim Rundrohr der "
-              "Winkel (0° oben, 90° vorne). Lage, Seite und Versatz zählen nur für die Skizze, nicht für den Schneidweg.")
+              "Winkel (0° oben, 90° vorne). Rechteck- und Quadratrohr: Seite nur 0°, 90°, 180° oder 270°. Lage, Seite "
+              "und Versatz zählen nur für die Skizze, nicht für den Schneidweg.")
+NAHT_WAHL = {"0° oben": 0.0, "90° vorne (rechts)": 90.0, "180° unten": 180.0, "270° hinten (links)": 270.0}
 
 
 def _zahl(text):
@@ -41,20 +71,22 @@ class SchneidwegDialog(QDialog):
     Konturgrenzen, Schneiddaten), db: Datenbank für Vorlagen, positionen: Positionen des Angebots zum Kopieren von
     Konturen. Nach OK: self.eingaben (dict) und self.ergebnis (schneidweg.rechnen)."""
 
-    def __init__(self, parent, p, profil, kopf, k, tabellen, db=None, positionen=None):
+    def __init__(self, parent, p, profil, kopf, k, tabellen, db=None, positionen=None, step_lesen=None):
         super().__init__(parent)
         self.p, self.profil, self.kopf, self.k, self.tabellen = p, profil, kopf, k, tabellen
         self.db, self.positionen = db, [x for x in (positionen or ()) if x.get("id") != p.get("id")]
+        self.step_lesen = step_lesen    # Funktion: STEP-Datei wählen und messen -> [Messwerte] oder None
         m = rechnen.maschine(kopf, k)
         vorgabe = rechnen.kontur_grenzen(m)[1]
         self.grenzen = rechnen.kontur_regel(m, rechnen.wand_schneiden(profil))
         self.gewinde = gewinde_liste(tabellen)
         self.ergebnis = None
-        e = sw.lesen(p.get("technik"))
+        e, self.aus_position = sw.aus_position(sw.lesen(p.get("technik")), p, profil)
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
         self.setWindowTitle(f"Schneidweg berechnen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
         self.resize(1200, 900)
         self.qs = sk.Querschnitt(profil)
+        self.kasten = profil.get("form") in ("Quadratrohr", "Rechteckrohr")
         haupt = QVBoxLayout(self)
         teiler = QSplitter(Qt.Vertical)
         haupt.addWidget(teiler, 1)
@@ -63,24 +95,37 @@ class SchneidwegDialog(QDialog):
         lay.setContentsMargins(0, 0, 0, 0)
         teiler.addWidget(oben)
         form = profil.get("form")
-        info = QLabel(f"Profil {p.get('profil_id')} ({form}), Werkstoff {p.get('werkstoff_id') or '–'}, Maschine "
-                      f"{kopf.get('maschine') or '–'}, Konturgrenzen klein bis {rechnen.zahl(self.grenzen[0])} mm, "
+        info = QLabel(f"Profil {p.get('profil_id')} ({form}), Werkstoff {p.get('werkstoff_id') or '–'}, Teilelänge "
+                      f"{rechnen.zahl(p['laenge'], 1) + ' mm' if isinstance(p.get('laenge'), (int, float)) else '–'}, "
+                      f"Maschine {kopf.get('maschine') or '–'}, Konturgrenzen klein bis "
+                      f"{rechnen.zahl(self.grenzen[0])} mm, "
                       f"mittel bis {rechnen.zahl(self.grenzen[1])} mm" + (" (Vorgabe)" if vorgabe else "")
                       + (f", zusätzlich klein bis {rechnen.zahl(self.grenzen[2], 1)} × und mittel bis "
                          f"{rechnen.zahl(self.grenzen[3], 1)} × Wandstärke {rechnen.zahl(self.grenzen[4])} mm"
                          if len(self.grenzen) >= 5 else ""))
         info.setWordWrap(True)
         lay.addWidget(info)
-        if any(sw._z(z.get("gemessen")) for z in e["konturen"] + [e["a"], e["b"]]):
-            step_info = QLabel("Werte aus dem <b>STEP-Import</b> (grün): Es gelten die gemessenen Schnittlängen, "
-                               "solange Art und Maße einer Zeile bzw. eines Endes unverändert bleiben.")
-            step_info.setWordWrap(True)
-            step_info.setStyleSheet("color: #1E6B35;")
-            lay.addWidget(step_info)
+        self.step_info = QLabel()
+        self.step_info.setWordWrap(True)
+        self.step_info.setStyleSheet("color: #1E6B35;")
+        lay.addWidget(self.step_info)
 
         enden = QGridLayout()
-        self.winkel, self.achse, self.sattel, self.richtung = {}, {}, {}, {}
-        for r, (seite, titel) in enumerate((("a", "Anfangsschnitt"), ("b", "Endschnitt"))):
+        self.winkel, self.achse, self.sattel, self.richtung, self.gemessen_text = {}, {}, {}, {}, {}
+        rund = form == "Rundrohr"
+        for c, (titel, tipp) in enumerate((
+                ("Gehrungswinkel", "Abweichung vom rechtwinkligen Schnitt in Grad (gerade = 0°)"),
+                ("gekippt über", "Richtung, über die die Gehrung kippt: Höhe = Maß a, Breite = Maß b des Profils"),
+                ("längste Seite (Gehrungsrichtung)", "Seite, an der das Teil an diesem Ende am längsten ist, von "
+                 "Ende A gesehen; damit legt die Optimierung Gehrungen ineinander"),
+                ("Ausklinkung auf Rundrohr Ø", "nur Rundrohr: Ende rechtwinklig auf ein Rundrohr mit diesem Ø "
+                 "(Sattelschnitt)"),
+                ("aus dem STEP-Import", "gemessene Schnittlänge des Endes; gilt, solange das Ende unverändert bleibt")),
+                start=1):
+            kopf_ = QLabel(f"<span style='color:#595959'>{titel}</span>")
+            kopf_.setToolTip(tipp)
+            enden.addWidget(kopf_, 0, c)
+        for r, (seite, titel) in enumerate((("a", "Anfangsschnitt (Ende A)"), ("b", "Endschnitt (Ende B)")), start=1):
             w = QDoubleSpinBox()
             w.setRange(0, 79.9)
             w.setDecimals(1)
@@ -92,8 +137,8 @@ class SchneidwegDialog(QDialog):
             a = QComboBox()
             a.addItems(sw.ACHSEN)
             a.setCurrentText(e[seite].get("achse") or sw.ACHSEN[0])
-            a.setEnabled(form != "Rundrohr")
-            a.setToolTip("Richtung, in die die Gehrung läuft (Höhe = Maß a, Breite = Maß b des Profils)")
+            a.setEnabled(not rund)
+            a.setToolTip("Richtung, in die die Gehrung kippt (Höhe = Maß a, Breite = Maß b des Profils)")
             a.currentTextChanged.connect(self.rechnen)
             sa = QDoubleSpinBox()
             sa.setRange(0, 2000)
@@ -101,8 +146,9 @@ class SchneidwegDialog(QDialog):
             sa.setSuffix(" mm")
             sa.setSpecialValueText("keine")
             sa.setValue(sw._z(e[seite].get("sattel")))
-            sa.setEnabled(form == "Rundrohr")
-            sa.setToolTip("Ausklinkung (Sattelschnitt): Ø des Rundrohrs, auf das dieses Ende rechtwinklig gesetzt wird")
+            sa.setEnabled(rund)
+            sa.setToolTip("Ausklinkung (Sattelschnitt): Ø des Rundrohrs, auf das dieses Ende rechtwinklig gesetzt wird"
+                          + ("" if rund else " – nur beim Rundrohr"))
             sa.valueChanged.connect(self.rechnen)
             ri = QComboBox()
             ri.addItems(list(sw.RICHTUNGEN))
@@ -112,26 +158,65 @@ class SchneidwegDialog(QDialog):
             ri.setToolTip("Gehrung: Seite, an der das Teil an diesem Ende am längsten ist (Blick von Ende A, "
                           "Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen ineinander.")
             ri.currentTextChanged.connect(self.rechnen)
+            gm = QLabel()
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
-            if sw._z(e[seite].get("gemessen")):
-                self._ende_step[seite] = (self._ende_werte(seite), {k_: e[seite][k_] for k_ in
-                                                                    ("gemessen", "huelle_gemessen", "form")
-                                                                    if e[seite].get(k_) is not None})
-                w.setStyleSheet("background: #E8F5E9;")
-            enden.addWidget(QLabel(titel + ": Gehrung"), r, 0)
+            self.gemessen_text[seite] = gm
+            enden.addWidget(QLabel(titel), r, 0)
             enden.addWidget(w, r, 1)
             enden.addWidget(a, r, 2)
-            enden.addWidget(QLabel("Ausklinkung auf Rundrohr Ø"), r, 3)
+            enden.addWidget(ri, r, 3)
             enden.addWidget(sa, r, 4)
-            enden.addWidget(ri, r, 5)
+            enden.addWidget(gm, r, 5)
+        self._step_enden(e)
         self.gravur = QDoubleSpinBox()
         self.gravur.setRange(0, 100000)
         self.gravur.setDecimals(1)
         self.gravur.setSuffix(" mm")
         self.gravur.setValue(sw._z(e.get("gravur")))
+        self.gravur.setToolTip("Länge aller Gravurlinien je Teil (Beschriftung, Markierung); Vorschub Gravur, nicht "
+                               "im Schneidweg")
         self.gravur.valueChanged.connect(self.rechnen)
-        enden.addWidget(QLabel("Gravur (Länge)"), 2, 0)
-        enden.addWidget(self.gravur, 2, 1)
+        enden.addWidget(QLabel("Gravur (Länge je Teil)"), 3, 0)
+        enden.addWidget(self.gravur, 3, 1)
+        # Schweißnaht (SN): wie im Dialog Schweißnaht, Winkel im Bezug Breitseite oben
+        self.naht_form = naht.form_von(profil)
+        self.naht_vorgabe = QComboBox()
+        self.naht_vorgabe.addItems(naht.VORGABEN)
+        self.naht_vorgabe.setCurrentText(naht.vorgabe(p))
+        self.naht_vorgabe.setToolTip("feste Position = Naht muss an dieser Stelle liegen (Drehen gesperrt); keine "
+                                     "Vorgabe = die Optimierung darf das Teil um die eigene Achse drehen")
+        w0 = p.get("naht_winkel")
+        if self.naht_form in ("Quadratrohr", "Rechteckrohr"):
+            self.naht_winkel = QComboBox()        # nur 0°/90°/180°/270° (Patrick 22.10.2026)
+            self.naht_winkel.addItems(list(NAHT_WAHL))
+            if isinstance(w0, (int, float)):
+                n90 = round(float(w0) / 90) % 4 * 90.0
+                self.naht_winkel.setCurrentText(next(t for t, v in NAHT_WAHL.items() if v == n90))
+            self.naht_winkel.currentTextChanged.connect(self.rechnen)
+        else:
+            self.naht_winkel = QDoubleSpinBox()
+            self.naht_winkel.setRange(0, 359.9)
+            self.naht_winkel.setDecimals(1)
+            self.naht_winkel.setSuffix(" °")
+            self.naht_winkel.setWrapping(True)
+            self.naht_winkel.setValue(float(w0) if isinstance(w0, (int, float)) else 0.0)
+            self.naht_winkel.valueChanged.connect(self.rechnen)
+        self.naht_winkel.setToolTip("Lage der Naht von Ende A gesehen: 0° oben, 90° vorne (rechts), 180° unten, "
+                                    "270° hinten (links); Rechteckrohr mit der Breitseite oben")
+        self.naht_quelle = QComboBox()
+        self.naht_quelle.addItems(naht.QUELLEN)
+        self.naht_quelle.setCurrentText(p.get("naht_quelle") or "Kunde")
+        self.naht_quelle.setToolTip("Woher die Vorgabe der Naht kommt")
+        self.naht_vorgabe.currentTextChanged.connect(self.rechnen)
+        self.naht_info = QLabel()
+        for w_ in (self.naht_vorgabe, self.naht_winkel, self.naht_quelle):
+            w_.setEnabled(self.naht_form is not None)
+        enden.addWidget(QLabel("Schweißnaht (SN)"), 4, 0)
+        enden.addWidget(self.naht_vorgabe, 4, 1)
+        enden.addWidget(self.naht_winkel, 4, 2)
+        enden.addWidget(self.naht_quelle, 4, 3)
+        enden.addWidget(self.naht_info, 4, 4, 1, 2)
+        self._naht_start = self.naht_werte()
         enden.setColumnStretch(5, 1)
         lay.addLayout(enden)
 
@@ -140,12 +225,18 @@ class SchneidwegDialog(QDialog):
         self.tabelle.setHorizontalHeaderLabels(KONTUR_SPALTEN)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabelle.verticalHeader().setDefaultSectionSize(26)
-        for i, b in enumerate((130, 60, 150, 80, 80, 130, 90, 120, 120)):
+        for i, b in enumerate((130, 60, 150, 80, 80, 140, 140, 120, 120)):
             self.tabelle.setColumnWidth(i, b)
         self.tabelle.horizontalHeader().setSectionResizeMode(TEXT_SPALTE, QHeaderView.Stretch)
+        for c, t in enumerate(SPALTEN_HILFE):
+            self.tabelle.horizontalHeaderItem(c).setToolTip(t)
         self.tabelle.itemChanged.connect(self.rechnen)
         self.tabelle.itemSelectionChanged.connect(self._auswahl_tabelle)
         lay.addWidget(self.tabelle, 1)
+        self.erklaerung = QLabel()
+        self.erklaerung.setWordWrap(True)
+        self.erklaerung.setTextFormat(Qt.RichText)
+        lay.addWidget(self.erklaerung)
         lay.addWidget(hilfe.Hinweis(MASS_HILFE, schluessel="schneidweg"))
         leiste = QHBoxLayout()
         for art in sw.ARTEN:
@@ -182,6 +273,17 @@ class SchneidwegDialog(QDialog):
         einpassen.clicked.connect(lambda: self.skizze.einpassen())
         kopfzeile.addWidget(einpassen)
         kopfzeile.addStretch(1)
+        self.step_knopf = QPushButton("STEP neu einlesen …")
+        self.step_knopf.setToolTip("STEP-Datei dieses Teils messen und Konturen, Bohrungen, Enden und Gravur mit Lage "
+                                   "und Maßen in den Rechner holen (ersetzt die Eingaben)")
+        self.step_knopf.clicked.connect(lambda: self.step_einlesen())
+        self.step_knopf.setEnabled(self.step_lesen is not None)
+        kopfzeile.addWidget(self.step_knopf)
+        zeichnung = QPushButton("Zeichnung als PDF …")
+        zeichnung.setToolTip("Maßstäbliche Zeichnung des Teils mit Ansichten, Abwicklung, Bemaßung, Konturliste und "
+                             "Schweißnaht als PDF in der Ablage des Angebots")
+        zeichnung.clicked.connect(lambda: self.zeichnung_pdf())
+        kopfzeile.addWidget(zeichnung)
         ml.addLayout(kopfzeile)
         self.skizze = Skizze(profil, p.get("laenge"))
         self.skizze.gewaehlt.connect(self._auswahl_skizze)
@@ -216,7 +318,134 @@ class SchneidwegDialog(QDialog):
         self.ok_knopf = knoepfe.button(QDialogButtonBox.Ok)
         for z in e["konturen"]:
             self.zeile_neu(z, rechnen_=False)
+        self._step_hinweis()
         self.rechnen()
+
+    # ------------------------------------------------------------------ STEP und Schweißnaht
+    def _step_enden(self, e):
+        """Gemessene Enden merken (gelten, solange Winkel, Achse, Sattel und Richtung bleiben) und anzeigen."""
+        self._ende_step = {}
+        for s in ("a", "b"):
+            x = e.get(s) or {}
+            gm = self.gemessen_text[s]
+            if sw._z(x.get("gemessen")):
+                self._ende_step[s] = (self._ende_werte(s), {k_: x[k_] for k_ in ("gemessen", "huelle_gemessen", "form")
+                                                            if x.get(k_) is not None})
+                self.winkel[s].setStyleSheet("background: #E8F5E9;")
+                gm.setText(f"<span style='color:#1E6B35'>gemessen {rechnen.zahl(x['gemessen'], 1)} mm"
+                           + (f", {x['form']}" if x.get("form") else "") + "</span>")
+            else:
+                self.winkel[s].setStyleSheet("")
+                gm.setText("<span style='color:#595959'>–</span>")
+
+    def _step_hinweis(self):
+        konturen = [self.tabelle.cellWidget(r, 0) for r in range(self.tabelle.rowCount())]
+        step = self._ende_step or any(getattr(c, "step", None) for c in konturen)
+        if not step:
+            self.step_info.setVisible(False)
+            return
+        text = ("Werte aus dem <b>STEP-Import</b> (grün): Es gelten die gemessenen Schnittlängen, solange Art und Maße "
+                "einer Zeile bzw. eines Endes unverändert bleiben.")
+        if self.aus_position:
+            text += (" <span style='color:#7A5A00'>Diese Position wurde ohne Konturliste importiert (vor Version "
+                     "0.6.29): Bohrungen und Konturen stehen mit Größe und Länge da, ihre Lage ist unbekannt (in der "
+                     "Skizze verteilt). <b>STEP neu einlesen …</b> holt Lage, Seite und Maße aus der Datei.</span>")
+        self.step_info.setText(text)
+        self.step_info.setVisible(True)
+
+    def naht_werte(self):
+        """Nahtfelder der Position wie im Dialog Schweißnaht (Winkel im Bezug Breitseite oben)."""
+        if self.naht_form is None:
+            return {}
+        v = self.naht_vorgabe.currentText()
+        if v == naht.KEINE:
+            return dict(naht_vorgabe=None, naht_winkel=None, naht_quelle=None)
+        if v == naht.UNBEKANNT:
+            return dict(naht_vorgabe=v, naht_winkel=None, naht_quelle=None)
+        w = NAHT_WAHL[self.naht_winkel.currentText()] if isinstance(self.naht_winkel, QComboBox) else \
+            naht.normieren(self.naht_winkel.value())
+        return dict(naht_vorgabe=v, naht_winkel=w, naht_quelle=self.naht_quelle.currentText())
+
+    def naht_geaendert(self):
+        """Nahtfelder, wenn sie im Dialog geändert wurden (sonst leer: bestehende Werte bleiben unangetastet)."""
+        neu = self.naht_werte()
+        if neu == self._naht_start:
+            return {}
+        if not neu.get("naht_vorgabe"):
+            neu["querschnitt_lage"] = None
+        return neu
+
+    def _naht_anzeigen(self):
+        if not hasattr(self, "naht_info"):
+            return None
+        fest = self.naht_vorgabe.currentText() == naht.FEST and self.naht_form is not None
+        self.naht_winkel.setEnabled(fest)
+        self.naht_quelle.setEnabled(fest)
+        if self.naht_form is None:
+            self.naht_info.setText("<span style='color:#595959'>nur Rund-, Quadrat- und Rechteckrohr</span>")
+            return None
+        w = self.naht_werte()
+        if fest:
+            s = naht.seite(self.profil, w["naht_winkel"])
+            self.naht_info.setText(f"<span style='color:#C0392B'>SN: {s['text']}</span> – Drehen gesperrt")
+            return w["naht_winkel"]
+        self.naht_info.setText("<span style='color:#595959'>" + (
+            "unbekannt: wird nicht gedreht" if self.naht_vorgabe.currentText() == naht.UNBEKANNT else
+            "frei: Optimierung darf um die eigene Achse drehen") + "</span>")
+        return None
+
+    def step_einlesen(self, messwerte=None):
+        """STEP-Datei messen (oder fertige Messwerte) und die Eingaben daraus setzen. Mehrere Rohrteile: Auswahl,
+        das Teil mit der Artikelnummer der Position zuerst. Ergebnis: True = übernommen."""
+        if messwerte is None:
+            if self.step_lesen is None:
+                return False
+            messwerte = self.step_lesen()
+        teile = [m for m in messwerte or () if m.get("profilform") and float(m.get("laenge") or 0) > 0
+                 and m.get("konturen_liste")]
+        if not teile:
+            QMessageBox.information(self, "STEP neu einlesen", "In der Datei wurde kein Rohrteil mit Konturliste "
+                                    "gemessen.")
+            return False
+        teile.sort(key=lambda m: str(m.get("artikel")) != str(self.p.get("artikel")))
+        m = teile[0]
+        if len(teile) > 1 and str(m.get("artikel")) != str(self.p.get("artikel")):
+            namen = [f"{t.get('artikel')} ({t.get('profilform')}, {t.get('laenge')} mm)" for t in teile]
+            text, ok = QInputDialog.getItem(self, "STEP neu einlesen", "Welches Teil?", namen, 0, False)
+            if not ok:
+                return False
+            m = teile[namen.index(text)]
+        e = step_eingaben(m, self.profil)
+        if not e:
+            QMessageBox.information(self, "STEP neu einlesen", "Die Messung enthält keine Konturen und Enden.")
+            return False
+        self.aus_position = False
+        self.eingaben_setzen(e, mit_messung=True)
+        laenge = float(m.get("laenge") or 0)
+        if isinstance(self.p.get("laenge"), (int, float)) and abs(laenge - self.p["laenge"]) > 0.5:
+            QMessageBox.information(self, "STEP neu einlesen", f"Hinweis: Die Datei misst {rechnen.zahl(laenge, 1)} mm, "
+                                    f"die Position hat {rechnen.zahl(self.p['laenge'], 1)} mm Teilelänge.")
+        return True
+
+    def zeichnung_pdf(self, pfad=None):
+        """Zeichnung als PDF (zeichnung.py). Ohne pfad: in die Ablage des Angebots schreiben und öffnen."""
+        from . import zeichnung
+        self.rechnen()
+        einst = getattr(self.parent(), "einst", None) or {}
+        eingaben = self.eingaben()
+        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde)
+
+        def schreiben(ziel):
+            zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil, eingaben, erg, self.naht_werte(), einst,
+                                    self.schneidzeit())
+        if pfad is not None:
+            schreiben(pfad)
+            return pfad
+        seite = self.parent()
+        if not hasattr(seite, "_ziel"):
+            return None
+        ziel = seite._ziel(f"Zeichnung Pos {self.p.get('pos') or ''} {self.p.get('artikel') or ''}".strip(), ".pdf")
+        return seite._schreiben("Zeichnung", ziel, schreiben)
 
     # ------------------------------------------------------------------ Eingaben
     def zeile_neu(self, z, rechnen_=True):
@@ -234,15 +463,17 @@ class SchneidwegDialog(QDialog):
             self.tabelle.setItem(r, c, QTableWidgetItem(rechnen.zahl(v, 3) if isinstance(v, (int, float)) else
                                                         v if isinstance(v, str) else ""))
         seite = QComboBox()
-        seite.addItems(self.qs.seiten())
+        seite.addItems(sk.seiten_anzeige(self.qs))
         if self.qs.r:
             seite.setEditable(True)         # Rundrohr: auch freier Winkel, z. B. 45°
             seite.setToolTip("Winkel am Umfang, Blick von Ende A: 0° oben, 90° vorne, 180° unten, 270° hinten")
             w = sk.winkel_aus_text(z.get("seite"))
             seite.setCurrentText(sk.winkel_text(w) if w is not None else self.qs.seiten()[0])
         else:
-            seite.setToolTip("Fläche, auf der die Kontur liegt (siehe Ansicht von A in der Skizze)")
-            seite.setCurrentText(z.get("seite") if z.get("seite") in self.qs.seiten() else self.qs.seiten()[0])
+            seite.setToolTip("Fläche, auf der die Kontur liegt, von Ende A gesehen (siehe Ansicht von A in der Skizze)"
+                             + ("; Rechteck- und Quadratrohr nur 0°, 90°, 180°, 270°" if self.kasten else ""))
+            seite.setCurrentText(sk.seite_anzeige(self.qs, z.get("seite") if z.get("seite") in self.qs.seiten()
+                                                  else self.qs.seiten()[0]))
         seite.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, SEITE_SPALTE, seite)
         quer = QTableWidgetItem(rechnen.zahl(z["q"], 3) if isinstance(z.get("q"), (int, float)) else "")
@@ -308,7 +539,7 @@ class SchneidwegDialog(QDialog):
             ab = _zahl(self.tabelle.item(r, ABSTAND_SPALTE).text())
             if ab:
                 z["abstand"] = ab
-            seite = self.tabelle.cellWidget(r, SEITE_SPALTE).currentText()
+            seite = sk.seite_name(self.qs, self.tabelle.cellWidget(r, SEITE_SPALTE).currentText())
             if self.qs.r:
                 w = sk.winkel_aus_text(seite)
                 if w:
@@ -376,17 +607,18 @@ class SchneidwegDialog(QDialog):
             teile.append("<span style='color:#B42318'>" + "<br>".join(erg["fehler"]) + "</span>")
         self.summe.setText("<br>".join(teile))
         if hasattr(self, "skizze"):
+            self.skizze.naht = self._naht_anzeigen()
             self.skizze.zeigen(eingaben, erg)
             self._auswahl_tabelle()
         if hasattr(self, "ok_knopf"):
             self.ok_knopf.setEnabled(not erg["fehler"])
 
     # ------------------------------------------------------------------ Vorlagen und Kopieren
-    def eingaben_setzen(self, e, anhaengen=False):
-        """Enden, Gravur und Konturen setzen (anhaengen: nur Konturen dazu)."""
-        e = sw.lesen(sw.speichern(ohne_messung(e))) if isinstance(e, dict) else sw.lesen(e)
+    def eingaben_setzen(self, e, anhaengen=False, mit_messung=False):
+        """Enden, Gravur und Konturen setzen (anhaengen: nur Konturen dazu; mit_messung: gemessene Werte des
+        STEP-Imports behalten)."""
+        e = sw.lesen(json.dumps(e if mit_messung else ohne_messung(e))) if isinstance(e, dict) else sw.lesen(e)
         if not anhaengen:
-            self._ende_step = {}
             for s in ("a", "b"):
                 x = e.get(s) or {}
                 self.winkel[s].setValue(sw._z(x.get("winkel")))
@@ -396,9 +628,11 @@ class SchneidwegDialog(QDialog):
                 self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
                                                       if v == x.get("richtung")), "nicht angegeben"))
             self.gravur.setValue(sw._z(e.get("gravur")))
+            self._step_enden(e)
             self.tabelle.setRowCount(0)
         for z in e.get("konturen") or ():
             self.zeile_neu(z, rechnen_=False)
+        self._step_hinweis()
         self.rechnen()
 
     def vorlagen(self):
@@ -484,6 +718,24 @@ class SchneidwegDialog(QDialog):
     def _auswahl_tabelle(self):
         zeilen = sorted({i.row() for i in self.tabelle.selectedIndexes()})
         self.skizze.markieren(zeilen[0] if zeilen else None)
+        self._spalten_erklaeren(zeilen[0] if zeilen else None)
+
+    def _spalten_erklaeren(self, zeile):
+        """Überschriften Maß 1–3 und Erklärung unter der Tabelle für die Art der markierten Zeile."""
+        art = self.tabelle.cellWidget(zeile, 0).currentText() if zeile is not None and \
+            0 <= zeile < self.tabelle.rowCount() else None
+        masse = sw.MASSE.get(art, ())
+        for i in range(3):
+            titel = (f"{masse[i][1]} [mm]" if masse[i][0] != "punkte" else masse[i][1]) if i < len(masse) else \
+                ("–" if art else KONTUR_SPALTEN[2 + i])
+            self.tabelle.horizontalHeaderItem(2 + i).setText(titel)
+        if art:
+            self.erklaerung.setText(f"<b>Zeile {zeile + 1}, {art}</b>: {ART_HILFE.get(art, '')} "
+                                    f"<span style='color:#595959'>{LAGE_HILFE}</span>")
+        else:
+            self.erklaerung.setText("<span style='color:#595959'>Zeile markieren: die Überschriften Maß 1–3 zeigen dann, "
+                                    "welches Maß die Konturart braucht (z. B. Bohrung Maß 1 = Ø d, Langloch Maß 1 = "
+                                    f"Länge l, Maß 2 = Breite b). {LAGE_HILFE}</span>")
 
     def _auswahl_skizze(self, zeile):
         if 0 <= zeile < self.tabelle.rowCount():
@@ -504,7 +756,7 @@ class SchneidwegDialog(QDialog):
             if self.qs.r:
                 cb.setCurrentText(sk.winkel_text(neu["seite"] or 0.0))
             else:
-                cb.setCurrentText(neu["seite"] or self.qs.seiten()[0])
+                cb.setCurrentText(sk.seite_anzeige(self.qs, neu["seite"] or self.qs.seiten()[0]))
             cb.blockSignals(False)
         self.tabelle.blockSignals(False)
         self.tabelle.selectRow(zeile)
@@ -519,6 +771,13 @@ class SchneidwegDialog(QDialog):
         self.rechnen()
         if not self.ergebnis["fehler"]:
             self.accept()
+
+
+def step_eingaben(m, profil):
+    """Eingaben des Rechners aus einer STEP-Messung (Messwerte einer Datei) für dieses Profil."""
+    from .step import rechner_eingaben
+    return rechner_eingaben(m, profil.get("form") or m.get("profilform"), profil.get("a") or m.get("abm_a"),
+                            profil.get("b") or m.get("abm_b"))
 
 
 def ohne_messung(e):

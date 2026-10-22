@@ -411,11 +411,17 @@ def main(ziel):
         d.zeile_neu(dict(art="Bohrung", anzahl=4, d=8.5, x=300, abstand=150))
         d.zeile_neu(dict(art="Langloch", anzahl=2, l=30, b=10, x=600, abstand=1200, seite=d.qs.seiten()[1]))
         d.zeile_neu(dict(art="Rechteck", anzahl=1, b=60, h=20, r=2, x=1500))
+        d.naht_vorgabe.setCurrentText("feste Position")
+        if hasattr(d.naht_winkel, "setCurrentIndex"):
+            d.naht_winkel.setCurrentIndex(2)        # 180° unten
         d.resize(1250, 980)
         QApplication.processEvents()
+        d.tabelle.selectRow(1)
         d.skizze.zoom = 2.0                 # Ausschnitt: erste Hälfte des Teils
         foto.foto("schneidweg_dialog", d, [(d.winkel["a"], 1), (d.tabelle, 2), (knopf(d, "+ Bohrung"), 3),
-                                           (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6)])
+                                           (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6),
+                                           (d.naht_vorgabe, 7), (d.erklaerung, 8),
+                                           (knopf(d, "Zeichnung als PDF …"), 9)])
         d.ansicht_wahl.setCurrentText("Abwicklung")
         d.skizze.resize(d.skizze.width(), 300)
         d.skizze.zoom = 2.0

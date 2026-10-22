@@ -269,8 +269,8 @@ dlg8.resize(1300, 950)
 dlg8.show()
 app.processEvents()
 t8 = dlg8.tabelle
-assert t8.item(0, ABSTAND_SPALTE).text() == "100" and t8.cellWidget(0, SEITE_SPALTE).currentText() == "vorne"
-assert t8.cellWidget(1, SEITE_SPALTE).currentText() == "unten" and t8.item(1, QUER_SPALTE).text() == "5"
+assert t8.item(0, ABSTAND_SPALTE).text() == "100" and t8.cellWidget(0, SEITE_SPALTE).currentText() == "90° vorne"
+assert t8.cellWidget(1, SEITE_SPALTE).currentText() == "180° unten" and t8.item(1, QUER_SPALTE).text() == "5"
 e8 = dlg8.eingaben()
 assert e8["konturen"][0] == dict(art="Bohrung", anzahl=4, d=6.6, x=200, abstand=100, seite="vorne")
 assert nah(dlg8.ergebnis["felder"]["innen"], 4 * math.pi * 6.6 + 2 * 20 + math.pi * 10, 0.1)    # Lage zählt nicht
@@ -301,7 +301,7 @@ m = sk8.massstab()
 QTest.mousePress(sk8, Qt.LeftButton, Qt.NoModifier, st)
 QTest.mouseMove(sk8, st + QPoint(0, round(50 * m)))
 QTest.mouseRelease(sk8, Qt.LeftButton, Qt.NoModifier, st + QPoint(0, round(50 * m)))
-assert t8.cellWidget(0, SEITE_SPALTE).currentText() == "unten", t8.cellWidget(0, SEITE_SPALTE).currentText()
+assert t8.cellWidget(0, SEITE_SPALTE).currentText() == "180° unten", t8.cellWidget(0, SEITE_SPALTE).currentText()
 # Zoom mit dem Mausrad, Doppelklick passt ein
 alt = sk8.massstab()
 sk8.zoom = 4.0
@@ -330,7 +330,8 @@ assert s9["hinweise"] and "Senkung" in s9["hinweise"][0] and s9["felder"]["bohru
 for falsch in (dict(art="Senkung", anzahl=1, d=8, D=6), dict(art="Ausklinkung", anzahl=1, l=10, b=8, r=5)):
     assert sw.rechnen(dict(a={}, b={}, konturen=[falsch]), RE, (10, 50))["fehler"], falsch
 assert [d["x"] for d in sk.lagen([dict(art="Ausklinkung", anzahl=1, l=30, b=20)], 800)] == [15]   # am Ende A
-dlg9 = SchneidwegDialog(s, dict(p8, technik=None), RE, s.kopf, s.k, s.tabellen, db, db.positionen(a))
+p_leer = dict(p8, technik=None, konturen=None, a_schnitt=None, b_schnitt=None, gravur=None)    # ohne Werte
+dlg9 = SchneidwegDialog(s, p_leer, RE, s.kopf, s.k, s.tabellen, db, db.positionen(a))
 assert {"Senkung", "Ausklinkung"} <= set(sw.ARTEN) and dlg9.tabelle.rowCount() == 0
 dlg9.zeile_neu(dict(art="Senkung", anzahl=2, d=6.6, D=12, x=100, abstand=50, seite="oben"))
 assert "Senkung" in dlg9.summe.text() and dlg9.ok_knopf.isEnabled()
@@ -338,7 +339,7 @@ dlg9.winkel["a"].setValue(30)
 assert dlg9.vorlage_speichern("Halter 2 Senkungen") and not dlg9.vorlage_speichern("  ")
 v = db.einstellung("rechner_vorlagen")
 assert v["Halter 2 Senkungen"]["profilform"] == "Rechteckrohr" and v["Halter 2 Senkungen"]["a"]["winkel"] == 30
-dlg10 = SchneidwegDialog(s, dict(p8, technik=None), RE, s.kopf, s.k, s.tabellen, db, db.positionen(a))
+dlg10 = SchneidwegDialog(s, p_leer, RE, s.kopf, s.k, s.tabellen, db, db.positionen(a))
 assert dlg10.tabelle.rowCount() == 0 and dlg10.vorlage_laden("Halter 2 Senkungen")
 assert dlg10.winkel["a"].value() == 30 and dlg10.eingaben()["konturen"] == dlg9.eingaben()["konturen"]
 assert not dlg10.vorlage_laden("gibt es nicht")
@@ -397,7 +398,7 @@ p10 = dict(p8, technik=json.dumps(e10), laenge=800)
 d10 = SchneidwegDialog(s, p10, RE, s.kopf, s.k, s.tabellen, db, [])
 assert nah(d10.ergebnis["schneidweg"], r10["schneidweg"], 0.01)
 assert any("STEP-Import" in x.text() for x in d10.findChildren(QLabel))
-assert d10.tabelle.cellWidget(2, SEITE_SPALTE).currentText() == "unten"
+assert d10.tabelle.cellWidget(2, SEITE_SPALTE).currentText() == "180° unten"
 d10.tabelle.item(0, 2).setText("9")                 # Bohrung Ø 9 statt 8,5: gerechnet
 assert nah(d10.ergebnis["schritte"][2]["laenge"], math.pi * 9) and "gemessen" not in d10.eingaben()["konturen"][0]
 assert d10.eingaben()["konturen"][1]["gemessen"] == 72.6
@@ -425,6 +426,99 @@ else:
     assert dk.tabelle.rowCount() == len(ek["konturen"]) and not dk.skizze.grab().isNull()
     assert all(d["x"] == z["x"] for d, z in zip(dk.skizze.lagen(), ek["konturen"]) if z.get("anzahl") == 1)
     ok(f"S10 K01 aus STEP: {len(ek['konturen'])} Konturen im Rechner, Schneidweg {pk['schneidweg']} mm wie gemessen")
+
+# ------------------------------------------------------------------ S11 STEP-Werte älterer Positionen, Naht, Seite, Zeichnung
+from rohrlaser import naht as naht_  # noqa: E402
+from rohrlaser.schneidweg_dialog import NAHT_WAHL  # noqa: E402
+alt_p = dict(id=999, pos=70, artikel="alt importiert", profil_id="RE 60x40x3", werkstoff_id="S235-10219", laenge=420,
+             stueck=5, technik=None, schneidweg=500.0, einstiche=6, a_schnitt=193.1, b_schnitt=226.3, a_gerade="ja",
+             b_gerade="nein", b_ende=naht_.ende_text(30, 90), innen=80.0, gravur=58.0,
+             konturen="A:60x193,1; E:69,3x226,3; 8,5x26,7; 8,5x26,7; 20x60")
+e11, aus = sw.aus_position(sw.lesen(None), alt_p, RE)
+assert aus and e11["gravur"] == 58 and e11["a"]["gemessen"] == 193.1 and e11["a"]["form"] == "gerade"
+assert e11["b"]["winkel"] == 30 and e11["b"]["richtung"] == 90 and e11["b"]["achse"] == "über Höhe"
+bohr = [z for z in e11["konturen"] if z["art"] == "Bohrung"]
+assert len(bohr) == 1 and bohr[0]["anzahl"] == 2 and bohr[0]["d"] == 8.5 and bohr[0]["gemessen"] == 26.7
+assert any(z["art"] == "sonstige Kontur" and z["laenge"] == 60 and z["huelle"] == 20 for z in e11["konturen"])
+r11 = sw.rechnen(e11, RE, (10, 50))
+assert nah(r11["schneidweg"], 193.1 + 226.3 + 2 * 26.7 + 60, 0.2) and r11["einstiche"] == 2 + 3, r11["felder"]
+assert sw.aus_position(dict(sw.lesen(None), quelle=sw.QUELLE), alt_p, RE) == (dict(sw.lesen(None), quelle=sw.QUELLE),
+                                                                                False)       # Rechner bleibt
+d11 = SchneidwegDialog(s, dict(alt_p, naht_vorgabe=naht_.FEST, naht_winkel=93.0, naht_quelle="Kunde"), RE, s.kopf,
+                       s.k, s.tabellen, db, [])
+assert d11.tabelle.rowCount() == 2 and d11.gravur.value() == 58 and d11.step_info.isVisibleTo(d11)
+assert "vor Version" in d11.step_info.text() and "gemessen 193,1" in d11.gemessen_text["a"].text()
+assert nah(d11.ergebnis["schneidweg"], r11["schneidweg"], 0.05)
+# Rechteckrohr: Naht und Seite nur 0°/90°/180°/270°; 93° wird als 90° angezeigt, ohne Änderung nichts gespeichert
+assert [d11.naht_winkel.itemText(i) for i in range(d11.naht_winkel.count())] == list(NAHT_WAHL)
+assert d11.naht_winkel.currentText().startswith("90°") and d11.naht_geaendert() == {}
+seiten = d11.tabelle.cellWidget(0, SEITE_SPALTE)
+assert [seiten.itemText(i) for i in range(seiten.count())] == ["0° oben", "90° vorne", "180° unten", "270° hinten"]
+assert not seiten.isEditable()
+seiten.setCurrentText("270° hinten")
+assert d11.eingaben()["konturen"][0]["seite"] == "hinten"
+d11.naht_winkel.setCurrentText("180° unten")
+assert d11.naht_geaendert() == dict(naht_vorgabe=naht_.FEST, naht_winkel=180.0, naht_quelle="Kunde")
+assert d11.skizze.naht == 180.0 and "unten" in d11.naht_info.text()
+d11.naht_vorgabe.setCurrentText(naht_.KEINE)
+assert d11.naht_geaendert() == dict(naht_vorgabe=None, naht_winkel=None, naht_quelle=None, querschnitt_lage=None)
+assert d11.skizze.naht is None and not d11.naht_winkel.isEnabled()
+d11.naht_vorgabe.setCurrentText(naht_.FEST)
+# Erklärung der Maße: Überschrift und Text je Art der markierten Zeile
+d11.tabelle.selectRow(0)
+assert d11.tabelle.horizontalHeaderItem(2).text() == "Ø d [mm]" and "Durchmesser" in d11.erklaerung.text()
+d11.tabelle.selectRow(1)
+assert d11.tabelle.horizontalHeaderItem(2).text() == "Schnittlänge [mm]" and "Hüllmaß" in d11.erklaerung.text()
+assert all(d11.tabelle.horizontalHeaderItem(c).toolTip() for c in range(d11.tabelle.columnCount()))
+# Rundrohr: Naht frei im Winkel, Seite weiter frei eingebbar
+d_rr = SchneidwegDialog(s, dict(alt_p, profil_id="RR 42,4x2,0", konturen=None, b_ende=None), RR, s.kopf, s.k,
+                        s.tabellen, db, [])
+assert not isinstance(d_rr.naht_winkel, type(d11.naht_winkel))
+d_rr.zeile_neu(dict(art="Bohrung", anzahl=1, d=5, seite=45))
+assert d_rr.tabelle.cellWidget(0, SEITE_SPALTE).isEditable()
+# Skizze: Maße an den Konturen, SN; Zeichnung als PDF
+assert not d11.skizze.grab().isNull() and sk.kurz(dict(art="Langloch", l=30, b=10)) == "LL 30 × 10"
+assert sk.naht_punkt(sk.Querschnitt(RE), 90) == (30.0, 0.0) and nah(sk.naht_s(sk.Querschnitt(RE), 180), 60 + 40 + 30)
+pdf_pfad = tmp / "zeichnung.pdf"
+assert d11.zeichnung_pdf(pdf_pfad) == pdf_pfad and pdf_pfad.stat().st_size > 20000
+try:                                    # Text prüfen, wo pypdf installiert ist (nicht in der CI)
+    from pypdf import PdfReader  # noqa: E402
+except ImportError:
+    PdfReader = None
+if PdfReader is not None:
+    text = "\n".join(seite_.extract_text() for seite_ in PdfReader(str(pdf_pfad)).pages)
+    for wort in ("Zeichnung", "alt importiert", "RE 60x40x3", "Abwicklung", "Innenkonturen", "Ø 8,5", "Maßstab 1 :",
+                 "Gehrung 30°", "Schweißnaht"):
+        assert wort in text, wort
+assert pdf_pfad.read_bytes().count(b"/Type /Page") - pdf_pfad.read_bytes().count(b"/Type /Pages") == 2
+# Übernehmen mit Naht: Felder der Position
+pid11 = db.position_neu(a, dict(alt_p, id=None, pos=80))
+s.neu_laden()
+z11 = next(r for r, x in enumerate(s.positionen) if x["id"] == pid11)
+
+
+def naht_unten(d):
+    d.naht_vorgabe.setCurrentText(naht_.FEST)
+    d.naht_winkel.setCurrentText("180° unten")
+    return QDialog.Accepted
+
+
+assert s.schneidweg_berechnen(z11, dialog=naht_unten, ueberschreiben=True)
+p11 = next(x for x in db.positionen(a) if x["id"] == pid11)
+assert (p11["naht_vorgabe"], p11["naht_winkel"]) == (naht_.FEST, 180.0) and p11["gravur"] == 58
+ok("S11 Ältere STEP-Positionen zeigen Enden, Bohrungen, Konturen und Gravur; Naht im Rechner (Rechteckrohr 0/90/180/"
+   "270°), Seite nur 0/90/180/270°, Maße je Art erklärt, Zeichnung als PDF")
+
+if step.messprogramm(HIER.parent / "programm") is not None:
+    gem = sk01.step_messen([str(HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step")])
+    d12 = SchneidwegDialog(sk01, dict(pk, technik=None), sk01.k.profile[pk["profil_id"]], sk01.kopf, sk01.k,
+                           sk01.tabellen, db, [], step_lesen=lambda: gem)
+    assert d12.aus_position and "vor Version" in d12.step_info.text()
+    assert d12.step_knopf.isEnabled() and d12.step_einlesen()
+    assert not d12.aus_position and "vor Version" not in d12.step_info.text()
+    assert d12.tabelle.rowCount() == len(ek["konturen"]) and nah(d12.ergebnis["schneidweg"], pk["schneidweg"], 0.6)
+    assert all(z.get("x") is not None for z in d12.eingaben()["konturen"])
+    ok("S11 STEP neu einlesen: Konturen mit Lage und Seite aus der Datei, Schneidweg wie gemessen")
 
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()

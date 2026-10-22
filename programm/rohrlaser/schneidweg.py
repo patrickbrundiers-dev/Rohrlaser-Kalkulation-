@@ -306,6 +306,58 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
                 schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise)
 
 
+def aus_position(e, p, profil):
+    """Eingaben e (positionen.technik) um die gespeicherten Werte der Position ergänzen, wenn der Rechner sie noch
+    nicht kennt (STEP-Import vor 0.6.29 oder ohne Konturliste, Gravur aus dem Import): Enden mit der gemessenen Länge
+    (a_schnitt/b_schnitt) und der Gehrung aus a_ende/b_ende, Gravur, Innenkonturen aus der Konturliste (Hüllmaß ×
+    Schnittlänge): Bohrung, wenn die Länge π × Hüllmaß ist, sonst sonstige Kontur; gleiche Konturen als eine Zeile mit
+    Anzahl, Lage unbekannt (in der Skizze verteilt). Eingaben des Rechners selbst (Quelle Schneidweg-Rechner) bleiben,
+    wie sie sind. Ergebnis: neue Eingaben (Kopie) und ob etwas aus der Position kam."""
+    from .rechnen import konturen_lesen
+    e = json.loads(json.dumps(e))
+    if e.get("quelle") == QUELLE:
+        return e, False
+    liste = konturen_lesen(p.get("konturen"), True)
+    huelle_ende = {a: hk for a, hk, _ in liste if a}
+    neu = False
+    for s, schnitt, gerade, feld, kenn in (("a", "a_schnitt", "a_gerade", "a_ende", "A"),
+                                           ("b", "b_schnitt", "b_gerade", "b_ende", "E")):
+        if _z(e[s].get("gemessen")) or e[s].get("winkel") or _z(p.get(schnitt)) <= 0:
+            continue
+        x = dict(gemessen=round(_z(p[schnitt]), 2), form="gerade" if p.get(gerade) == "ja" else "nicht gerade")
+        if huelle_ende.get(kenn):
+            x["huelle_gemessen"] = huelle_ende[kenn]
+        g = naht.ende_lesen(p.get(feld))
+        if g:
+            x.update(winkel=g[0], richtung=g[1], form="Gehrung", achse=achse_zu_richtung(profil, g[1]))
+        e[s], neu = x, True
+    if not e.get("gravur") and _z(p.get("gravur")) > 0:
+        e["gravur"], neu = round(_z(p["gravur"]), 1), True
+    if not e["konturen"] and e.get("quelle") != QUELLE_STEP:
+        zeilen = {}
+        for art, hk, lg in liste:
+            if not art and lg > 0:
+                zeilen[(hk, lg)] = zeilen.get((hk, lg), 0) + 1
+        for (hk, lg), n in zeilen.items():
+            k = dict(anzahl=n, gemessen=round(lg, 2), text="aus STEP, Lage unbekannt")
+            if hk < OHNE_HUELLE:
+                k["huelle_gemessen"] = hk
+            if hk > 0 and abs(lg - math.pi * hk) <= max(0.15, 0.01 * lg):
+                k.update(art=BOHRUNG, d=hk)
+            else:
+                k.update(art=SONSTIGE, laenge=round(lg, 2), huelle=hk if hk < OHNE_HUELLE else None)
+            e["konturen"].append(k)
+            neu = True
+    return e, neu
+
+
+def achse_zu_richtung(profil, richtung):
+    """Gehrungsachse passend zur Richtung (Rechteckrohr Breitseite oben: 0°/180° kippt über die kürzere Seite)."""
+    a, b = _z(profil.get("a")), _z(profil.get("b")) or _z(profil.get("a"))
+    quer = min(a, b) if float(richtung) % 180 == 0 else max(a, b)
+    return ACHSEN[0] if abs(quer - a) < 1e-6 else ACHSEN[1]
+
+
 def speichern(eingaben):
     """Eingaben als JSON für positionen.technik (mit Quelle)."""
     return json.dumps(dict(eingaben, quelle=QUELLE), ensure_ascii=False)

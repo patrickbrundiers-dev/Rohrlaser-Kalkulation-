@@ -120,8 +120,8 @@ SEITE_KASTEN = {"0°": "oben", "90°": "vorne", "180°": "unten", "270°": "hint
 def rechner_eingaben(m, form, a=None, b=None):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
-    Schnittlänge und Hüllmaß ('gemessen', 'huelle_gemessen'). Solange die Maße einer Zeile unverändert bleiben, rechnet
-    der Rechner mit der gemessenen Länge. Gravuren und nur innen liegende Merkmale fehlen (nicht im Schneidweg);
+    Schnittlänge und Hüllmaß ('gemessen', 'huelle_gemessen'), Gravur als Länge. Solange die Maße einer Zeile
+    unverändert bleiben, rechnet der Rechner mit der gemessenen Länge. Nur innen liegende Merkmale fehlen;
     ohne Konturliste (ältere STEP-Import.exe) None."""
     from .schneidweg import ACHSEN, QUELLE_STEP
     try:
@@ -189,6 +189,8 @@ def rechner_eingaben(m, form, a=None, b=None):
             if seite != "oben":
                 k["seite"] = seite
         eing["konturen"].append(k)
+    if _z(m, "gravur") > 0:                     # Gravur nur als Länge (nicht im Schneidweg)
+        eing["gravur"] = round(_z(m, "gravur"), 1)
     return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
 
 

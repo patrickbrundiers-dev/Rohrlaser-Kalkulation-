@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
+from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFileDialog, QFrame,
@@ -606,7 +606,8 @@ class PositionenModell(QAbstractTableModel):
             p = self.daten[index.row()]
             text = wert_als_text(x, w)
             if x.name == "artikel" and p.get("id") in self.mit_netz:
-                return (text + "\n" if text else "") + "Doppelklick: 3D-Ansicht · Tippen oder F2: Artikelnummer ändern"
+                return (text + "\n" if text else "") + "Doppelklick aufs Bild: Schneidweg-Rechner · Doppelklick auf die Nummer: " \
+                                                       "3D-Ansicht · Tippen oder F2: Artikelnummer ändern"
             if x.name in RECHNER_SPALTEN and not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
@@ -1647,10 +1648,11 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
-    def _doppelklick(self, i):
+    def _doppelklick(self, i, auf_bild=None):
         """Doppelklick in der Positionsliste: Spalten mit eigenem Dialog; Status führt zur Lösung (STATUS_ZIELE);
-        Schneidweg, Einstiche und STEP-Werte öffnen den Schneidweg-Rechner, die Artikelnummer eines Teils mit 3D-Daten
-        die 3D-Ansicht; sonst wird die Zelle bearbeitet."""
+        Schneidweg, Einstiche und STEP-Werte öffnen den Schneidweg-Rechner, bei einem Teil mit 3D-Daten das kleine
+        STEP-Bild der Artikelnummer ebenfalls (auf_bild, ohne Angabe aus der Mausposition), die Nummer daneben die
+        3D-Ansicht; sonst wird die Zelle bearbeitet."""
         if not i.isValid() or i.row() >= len(self.positionen):
             return
         art, name, r = self.pos_modell.spalten[i.column()][0], self.pos_modell.name(i.column()), i.row()
@@ -1666,7 +1668,14 @@ class AngebotSeite(QWidget):
                 and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)
         elif name == "artikel" and p.get("id") in self.pos_modell.mit_netz:
-            self.ansicht_3d(r)
+            if auf_bild is None:
+                maus = self.pos_ansicht.viewport().mapFromGlobal(QCursor.pos())
+                zelle = self.pos_ansicht.visualRect(i)
+                auf_bild = zelle.contains(maus) and maus.x() <= zelle.left() + self.pos_ansicht.iconSize().width() + 8
+            if auf_bild and not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile:
+                self.schneidweg_berechnen(r)
+            else:
+                self.ansicht_3d(r)
         elif self.pos_modell.flags(i) & Qt.ItemIsEditable:
             self.pos_ansicht.edit(i)
 
@@ -1775,10 +1784,14 @@ class AngebotSeite(QWidget):
                            fehler=True)
             return False
         if eingaben is None:
-            d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen)
+            d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
+                                 step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
+            naht_neu = d.naht_geaendert()
+        else:
+            naht_neu = {}
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
         erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen))
         if erg["fehler"]:
@@ -1793,7 +1806,7 @@ class AngebotSeite(QWidget):
                     "Durch die Werte des Schneidweg-Rechners ersetzen?") == QMessageBox.Yes
             if not ueberschreiben:
                 return False
-        for name, wert in dict(erg["felder"], technik=schneidweg.speichern(eingaben)).items():
+        for name, wert in dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu).items():
             self.db.position_aendern(p["id"], name, wert)
         self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
                        f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen.")
@@ -2281,19 +2294,16 @@ class AngebotSeite(QWidget):
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
 
-    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
-        """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
-        Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
-        if werkstoff is None:       # Vorgabe für Rohre und Profile (Einstellung), Bleche bleiben offen
-            werkstoff = self.db.einstellung("step_werkstoff") or None
-            werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
+    def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen"):
+        """STEP-Dateien wählen (ohne dateien) und mit STEP-Import.exe messen. Ergebnis: Messwerte (mit_ablage:
+        (Messwerte, Pfad des abgelegten JSON-Ergebnisses)) oder None (abgebrochen, Fehler gemeldet)."""
         befehl = step.messprogramm(self.f.programmordner)
         if befehl is None:
             QMessageBox.warning(self, "STEP-Import", "STEP-Import.exe wurde nicht gefunden.\n\nDer Ordner 'STEP-Import' "
                                 f"muss im Programmordner liegen:\n{self.f.programmordner}")
             return None
         if not dateien:
-            dateien, _ = QFileDialog.getOpenFileNames(self, "STEP-Dateien wählen", str(Path.home()),
+            dateien, _ = QFileDialog.getOpenFileNames(self, titel, str(Path.home()),
                                                       "STEP-Dateien (*.step *.stp *.STEP *.STP)")
             if not dateien:
                 return None
@@ -2309,7 +2319,19 @@ class AngebotSeite(QWidget):
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
             messwerte = step.lade_netze(step.lies_messwerte(ausgabe), netze)
-            json_ablage = self._messung_ablegen(ergebnis)
+            json_ablage = self._messung_ablegen(ergebnis) if mit_ablage else None
+        return (messwerte, json_ablage) if mit_ablage else messwerte
+
+    def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
+        """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
+        Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
+        if werkstoff is None:       # Vorgabe für Rohre und Profile (Einstellung), Bleche bleiben offen
+            werkstoff = self.db.einstellung("step_werkstoff") or None
+            werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
+        gemessen = self.step_messen(dateien, mit_ablage=True)
+        if gemessen is None:
+            return None
+        messwerte, json_ablage = gemessen
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog

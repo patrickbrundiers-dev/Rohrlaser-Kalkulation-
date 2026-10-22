@@ -109,8 +109,8 @@ class Querschnitt(QWidget):
         if math.hypot(dx, dy) < 4:
             return
         w = naht.normieren(round(math.degrees(math.atan2(dx, -dy))))
-        if self.form != "Rundrohr":          # Rechteck/Quadrat: auf 5° runden, die Seitenmitte rastet ein
-            w = naht.normieren(round(w / 5) * 5)
+        if self.form != "Rundrohr":          # Rechteck/Quadrat: nur 0°/90°/180°/270° (Patrick 22.10.2026)
+            w = naht.normieren(round(w / 90) * 90)
         self.gewaehlt.emit(w)
 
 
@@ -146,14 +146,20 @@ class NahtDialog(QDialog):
         self.quelle.setCurrentText(p.get("naht_quelle") or "Kunde")
         form.addRow("Quelle", self.quelle)
         lay.addLayout(form)
+        self.kasten = naht.form_von(profil) in ("Quadratrohr", "Rechteckrohr")
+        if self.kasten:                     # nur Seitenmitten 0°/90°/180°/270°, Pfeile springen um 90°
+            self.winkel.setRange(-90, 360)
+            self.winkel.setSingleStep(90)
+            self.winkel.setDecimals(0)
+            self.winkel.setValue(naht.normieren(round(self.winkel.value() / 90) * 90))
         self.bild = Querschnitt()
         lay.addWidget(self.bild, 1)
         self.info = QLabel()
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
         hinweis = hilfe.Hinweis("0° oben, 90° rechts, 180° unten, 270° links, von Ende A in Richtung Ende B gesehen. "
-                                "Klick in das Bild setzt den Winkel. Gedreht wird nur um die eigene Achse, nie "
-                                "gewendet.",
+                                "Klick in das Bild setzt den Winkel; Rechteck- und Quadratrohr nur 0°, 90°, 180° "
+                                "oder 270°. Gedreht wird nur um die eigene Achse, nie gewendet.",
                                 schluessel="naht")
         lay.addWidget(hinweis)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -171,7 +177,7 @@ class NahtDialog(QDialog):
         self._anzeigen()
 
     def _winkel_geaendert(self):
-        w = naht.normieren(self.winkel.value())
+        w = naht.normieren(round(self.winkel.value() / 90) * 90 if self.kasten else self.winkel.value())
         if abs(w - self.winkel.value()) > 1e-9:
             self.winkel.setValue(w)
             return
