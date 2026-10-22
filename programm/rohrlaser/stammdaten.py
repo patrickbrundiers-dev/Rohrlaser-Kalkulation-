@@ -505,6 +505,11 @@ EINSTELLUNGEN = (
                 1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
     # Mindestwerte erreicht sind
+    # Vergleich mit anderen Lieferlängen (z. B. 12 m) beim Optimieren: kostet bei großen Gruppen Zeit, daher
+    # Vorgabe aus (Patrick 22.10.2026). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer
+    # lieferbaren Länge geplant.
+    Einstellung("laenge_vergleich", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
+                "Lieferlängen", "auswahl", "nein", auswahl="janein"),
     Einstellung("laenge_mindest_eur", "Lieferlängen: Mindestersparnis je Gruppe in €", "Lieferlängen", "zahl", 20.0,
                 0, 100000),
     Einstellung("laenge_mindest_anteil", "Lieferlängen: Mindestersparnis je Gruppe in %", "Lieferlängen", "anteil",

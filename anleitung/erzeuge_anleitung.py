@@ -1239,7 +1239,10 @@ def kapitel_optimieren(i):
             "verschiedenen Winkeln (z. B. 45° neben 20°), es spart dann weniger. Teile mit fester oder unbekannter "
             "Schweißnaht ([[schweissnaht]]) werden nicht frei gedreht; Teile mit fester Naht auf der Breitseite und "
             "auf der Schmalseite eines Rechteckrohrs kommen nie auf dieselbe Stange. Im Schnittplan steht dann "
-            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>).",
+            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>). Ist im "
+            "Schneidweg-Rechner keine Richtung angegeben, legt die Optimierung frei drehbare Teile (Schweißnaht ohne "
+            "Vorgabe) trotzdem ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
+            "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>).",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
             "besten Schnittmuster je Stange und die Kombination mit den wenigsten Stangen. Sie liefert zugleich eine "
@@ -1359,8 +1362,10 @@ def kapitel_optimieren(i):
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
-            "Optimierung Gehrungen benachbarter Teile ineinanderlegen; <i>nicht angegeben</i> = das Ende bleibt "
-            "wie bisher getrennt. Beim Rechteckrohr muss die Richtung zur Gehrungsachse passen (0°/180° kippt über "
+            "Optimierung Gehrungen benachbarter Teile ineinanderlegen. <i>Nicht angegeben</i>: frei drehbare Teile "
+            "(Schweißnaht ohne Vorgabe) legt die Optimierung mit angenommener Richtung trotzdem ineinander, Teile mit "
+            "Nahtvorgabe bleiben getrennt; der Dialog weist darauf hin. Für richtige Drehangaben in den "
+            "Werkstattpapieren die Richtung eintragen. Beim Rechteckrohr muss die Richtung zur Gehrungsachse passen (0°/180° kippt über "
             "die kürzere Seite, 90°/270° über die längere), sonst meldet der Dialog einen Fehler.",
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
@@ -1548,7 +1553,10 @@ def kapitel_optimieren(i):
            "erscheint im Reiter <i>Auswertung</i> unten der Knopf <b>12-m-Lösung ansehen …</b> mit einem Kurztext; er "
            "öffnet den Vergleich <b>Lieferlängen: 6 m gegen 12 m</b> groß in einem eigenen Fenster. Ohne Eintrag gilt das für Profile mit "
            "Hüllkreis-Ø über 70 mm (Einstellung). Kleinere Profile ohne Eintrag und Profile mit "
-           "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant.")
+           "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant. <b>Verglichen wird nur, wenn es in den "
+           "Einstellungen (Gruppe Lieferlängen) eingeschaltet ist</b>: <i>beim Optimieren andere Lieferlängen "
+           "vergleichen</i> = ja. Vorgabe ist <i>nein</i>, weil der Vergleich bei großen Gruppen Zeit kostet; "
+           "dann wird nur mit der Stangenlänge des Angebots geplant, außer sie ist für ein Profil nicht lieferbar.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
             "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
             "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
@@ -2277,6 +2285,10 @@ def kapitel_einstellungen(i):
          "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
          "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen "
          "([[stammdaten]]) und die Staffeln."],
+        ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
+         "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
+         "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
+         "geplant."],
         ["Lieferlängen", "Lieferlängen: Mindestersparnis je Gruppe in €, Lieferlängen: Mindestersparnis je Gruppe in %",
          "Eine andere Lieferlänge (z. B. 12 m) wird nur empfohlen, wenn sie gegenüber der Stangenlänge des Angebots "
          "mindestens so viel spart, in € und in % (Vorgabe 20 € und 3 %)."],
@@ -3656,6 +3668,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.13", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
+              "Gehrungen: wenige Sekunden statt mehrerer Minuten), gleiche Ergebnisse. Vergleich mit 12 m nur noch, wenn "
+              "in den Einstellungen eingeschaltet (Vorgabe aus, [[lieferlaengen]]). Gehrungen ohne angegebene "
+              "Richtung werden bei frei drehbaren Teilen trotzdem ineinandergelegt, der Schneidweg-Rechner weist "
+              "darauf hin ([[schneidweg_rechner]])."],
     ["0.8.12", "Bohrungen prüfen schlägt wie die Gewinde jetzt auch die Arbeitsschritte vor: <b>Senken</b> für "
                "Senkungen, <b>Flowdrill</b> für Fließlochbohrungen und <b>Bohren</b> für Bohrungen kleiner als 0,7 × "
                "Wandstärke (Laser markiert nur, danach aufbohren). Nach dem Bestätigen stehen sie mit der Anzahl je "

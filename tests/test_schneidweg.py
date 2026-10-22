@@ -581,4 +581,31 @@ assert all(p["technik"] is None for p in db2.positionen(a)) and db2.positionen(a
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()
 ok("S6 Datei mit Schema 25: Spalte technik leer ergänzt, Werte unverändert, Sicherung vorher")
+# S10 Gehrung ohne Richtung (Patrick 22.10.2026): Hinweis im Rechner; frei drehbare Teile werden mit angenommener
+# Richtung ineinandergelegt, mit Nahtvorgabe nicht
+ohne = dict(a=dict(winkel=45, achse="über Breite"), b=dict(winkel=40, achse="über Breite"), konturen=[])
+h = sw.rechnen(ohne, RE, (10, 50))["hinweise"]
+assert any("längste Seite der Gehrung nicht angegeben" in x and "Anfangsschnitt und Endschnitt" in x for x in h), h
+assert sw.rechnen(dict(ohne, a=dict(ohne["a"], richtung=90), b=dict(ohne["b"], richtung=90)), RE, (10, 50))[
+    "hinweise"] == []
+assert sw.gehrung_ohne_richtung(sw.speichern(ohne), "a", RE) == (45, 0)        # passend zu achse_zu_richtung
+assert sw.gehrung_ohne_richtung(sw.speichern(dict(ohne, a=dict(winkel=45, achse="über Höhe"))), "a", RE) == (45, 90)
+assert sw.gehrung_ohne_richtung(sw.speichern(ohne), "a", IPE) is None
+p110 = dict(pos=110, artikel="P110", profil_id="RE 60x40x3", werkstoff_id="S235-10219", laenge=370, stueck=64,
+            a_gerade="nein", b_gerade="nein", technik=sw.speichern(ohne))
+kopf110 = dict(maschine="T03", stange=6000)
+(g110,), _, _ = rechnen.gruppen_bilden(kopf110, [p110], k)
+assert g110.teile[0].a_gehrung == (45, 0) and g110.teile[0].b_gehrung == (40, 0) and g110.teile[0].angenommen
+e_frei = rechnen.optimieren(kopf110, [p110], k)
+p_fest = dict(p110, naht_vorgabe="unbekannt")
+(g_f,), _, _ = rechnen.gruppen_bilden(kopf110, [p_fest], k)
+assert g_f.teile[0].a_gehrung is None and not g_f.teile[0].angenommen
+e_fest = rechnen.optimieren(kopf110, [p_fest], k)
+assert len(e_frei["stangen"]) < len(e_fest["stangen"]), (len(e_frei["stangen"]), len(e_fest["stangen"]))
+tz = [t for s_ in e_frei["stangen"] for t in s_["teile"] if t.get("drehung")]
+assert tz and all(t["richtung_angenommen"] for t in tz)
+assert "Gehrungsrichtung angenommen" in rechnen.teil_zeichen(tz[0])[1]
+assert e_frei["kennung"] != e_fest["kennung"]
+ok(f"S10 Gehrung ohne Richtung: Hinweis, angenommen ineinander ({len(e_frei['stangen'])} statt "
+   f"{len(e_fest['stangen'])} Stangen), mit Nahtvorgabe nicht")
 print("OK: Schneidweg-Rechner")

@@ -231,7 +231,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
-    schritte, fehler, liste, enden, gehrung = [], [], [], [], {}
+    schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
     n_ende = einstiche_ende(form)
@@ -256,6 +256,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
                              huelle=_z(e.get("huelle_gemessen")) or hk_ende, klasse="Ende", schaetzung=sch,
                              gerade=gerade))
         gehrung[seite] = None
+        if w and not sat and e.get("richtung") is None and form in MIT_RICHTUNG and not _z(e.get("gemessen")):
+            richtung_fehlt.append(titel)
         if w and not sat and e.get("richtung") is not None and form in MIT_RICHTUNG:
             f_ = richtung_pruefen(profil, e.get("richtung"), e.get("achse") or ACHSEN[0])
             if f_:
@@ -302,6 +304,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
     senk = sum(s_["anzahl"] for s_ in schritte[2:] if s_.get("art") == SENKUNG)
     hinweise = [f"{senk} Senkung(en): der Laser schneidet nur die Bohrung; das Senken als Zusatzarbeit erfassen "
                 "(Zusatzarbeiten …)."] if senk else []
+    if richtung_fehlt:
+        hinweise.append(f"{' und '.join(richtung_fehlt)}: längste Seite der Gehrung nicht angegeben. Bei frei drehbaren "
+                        "Teilen (Schweißnaht ohne Vorgabe) nimmt die Optimierung eine Richtung an und legt die "
+                        "Gehrungen trotzdem ineinander; die Drehangaben im Stangenbild sind dann angenommen. Für "
+                        "richtige Werkstattpapiere die längste Seite eintragen.")
     return dict(schritte=schritte, felder=felder, schneidweg=felder["schneidweg"], einstiche=einstiche,
                 schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise)
 
@@ -361,3 +368,25 @@ def achse_zu_richtung(profil, richtung):
 def speichern(eingaben):
     """Eingaben als JSON für positionen.technik (mit Quelle)."""
     return json.dumps(dict(eingaben, quelle=QUELLE), ensure_ascii=False)
+
+
+def angenommene_richtung(profil, achse):
+    """Richtung (am längsten …) für eine Gehrung ohne Angabe: die erste, die zur Gehrungsachse passt (Rechteckrohr:
+    0° kippt über die kürzere Seite, 90° über die längere). Nur für frei drehbare Teile (rechnen.gruppen_bilden):
+    dort legt die Optimierung mit Drehung um 180° bzw. 90° jede Lage gleich gut ineinander."""
+    for r in (0, 90):
+        if achse_zu_richtung(profil, r) == (achse or ACHSEN[0]):
+            return r
+    return 0
+
+
+def gehrung_ohne_richtung(technik, seite, profil):
+    """(Winkel, angenommene Richtung) für ein Ende, das im Schneidweg-Rechner eine Gehrung ohne Richtung hat
+    (Rund-, Quadrat-, Rechteckrohr, keine Ausklinkung), sonst None."""
+    if (profil or {}).get("form") not in MIT_RICHTUNG:
+        return None
+    e = lesen(technik).get(seite) or {}
+    if not isinstance(e, dict) or e.get("richtung") is not None or _z(e.get("sattel")) or _z(e.get("gemessen")):
+        return None
+    w = abs(_z(e.get("winkel")))
+    return (w, angenommene_richtung(profil, e.get("achse"))) if 0 < w < 80 else None

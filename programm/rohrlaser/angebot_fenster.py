@@ -907,6 +907,10 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst):
     zum Übernehmen (laenge:<Gruppe>:<Länge>, 0 = Stangenlänge des Angebots)."""
     if not erg:
         return "<i>Noch nicht optimiert.</i>"
+    if not erg.get("laengen") and not rechnen.laengen_vergleichen(einst):
+        return ("Der Vergleich mit anderen Lieferlängen (z. B. 12 m) ist ausgeschaltet: Einstellungen → Vorgaben → "
+                "Lieferlängen, „beim Optimieren andere Lieferlängen vergleichen“ = ja. Ist die Stangenlänge des "
+                "Angebots für ein Profil nicht lieferbar, wird trotzdem mit einer lieferbaren Länge geplant.")
     if not erg.get("laengen"):
         return ("Für die Profile dieses Angebots gibt es keine weitere Lieferlänge: verglichen wird, was unter "
                 "Einstellungen → Lieferlängen steht, und ohne Eintrag Profile über dem Hüllkreis-Ø aus den "
