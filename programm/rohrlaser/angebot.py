@@ -209,6 +209,8 @@ POSITIONEN = Tabelle(
      Feld("kontur_grenzen", "Konturgrenzen klein/mittel [mm]", breite=80),
      # Eingaben des Schneidweg-Rechners als JSON (Enden, Konturen; siehe schneidweg.py), keine eigene Spalte
      Feld("technik", "Schneidweg-Rechner", breite=120),
+     # Bohrbild (bohrbild.py): Gewinde-Vorschläge, Senkungen, Fließlochbohrungen mit Prüfstatus als JSON, keine Spalte
+     Feld("bohrbild", "Bohrungen prüfen", breite=120),
      # Schweißnaht (naht.py): Vorgabe leer = keine Vorgabe; Winkel im Bezug 'Breitseite oben', Blick von Ende A
      Feld("naht_vorgabe", "Schweißnaht", "naht", breite=190),
      Feld("naht_winkel", "Nahtwinkel [°]", "zahl", 0, 359.9, stellen=1, breite=70),

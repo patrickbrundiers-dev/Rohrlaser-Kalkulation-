@@ -27,7 +27,7 @@ KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", 
                   "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "bauteiltyp", "profiltyp",
                   "profil_id_vorschlag", "blech", "normprofil", "traeger",
                   "aussenmasse", "innenmasse", "querschnittsflaeche_mm2", "wandstaerke", "laenge", "laengsachse",
-                  "schnittwinkel", "schneidweg", "konturen", "enden", "pruefstatus", "warnungen",
+                  "schnittwinkel", "schneidweg", "konturen", "enden", "senkungen", "fliessloecher", "pruefstatus", "warnungen",
                   "erkennungssicherheit", "ersatzwerte", "alternative"}
 fehler = 0
 

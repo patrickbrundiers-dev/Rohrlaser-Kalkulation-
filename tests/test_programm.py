@@ -242,7 +242,7 @@ else:
     assert [t07[x] for x in ("klein_n", "klein_mm", "mittel_n", "mittel_mm", "gross_n", "gross_mm")] == \
         [4, 62.8, 3, 389.4, 0, 0.0], t07
     assert t07["konturen"].startswith("A:40x149,7; E:40,5x179,7; ") and t07["kontur_grenzen"] == "10/50; 3×/8× Wand 3", t07
-    assert "gewinde" not in t07     # geprüftes Gewinde trägt nur der Mensch ein
+    assert not t07.get("gewinde")   # geprüftes Gewinde erst nach Bestätigen im Dialog Bohrungen prüfen
     t05 = [z for z in erg["protokoll"] if str(z[1]).startswith("T05")][0]
     assert "Profil fehlt" in t05[-1] and len(t05) == len(step.PROTOKOLL), t05
     assert step.vorpruefung(mw, pos, k) == (["RR 33,7x2,6"], 0)
@@ -280,7 +280,7 @@ nicht = sum(f_["anzahl"] for f_ in e["fehler"])
 assert eingeplant + nicht == sum(p["stueck"] or 0 for p in db.positionen(a1)), (eingeplant, nicht)
 pm = seite.pos_modell
 assert pm.rowCount() == len(db.positionen(a1)) and pm.status[0] == "HINWEIS: Schneidweg fehlt", pm.status
-assert pm.status[-1] == "HINWEIS: Gewinde-Vorschlag prüfen" and pm.status[1] == "OK", pm.status
+assert pm.status[-1] == "HINWEIS: Bohrungen prüfen (Doppelklick)" and pm.status[1] == "OK", pm.status
 c_stk = next(i for i, (art, f_) in enumerate(pm.spalten) if art == "feld" and f_.name == "stueck")
 assert pm.setData(pm.index(0, c_stk), "8")
 assert seite.stand_optimierung().startswith("VERALTET")

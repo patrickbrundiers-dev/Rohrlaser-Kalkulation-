@@ -822,7 +822,8 @@ def kapitel_angebot(i):
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
         ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
                                 "([[meterpreis]])"],
-        ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet."],
+        ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet. Doppelklick "
+                            "öffnet <i>Bohrungen prüfen</i> ([[bohrungen_pruefen]])."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl ([[zusatzarbeiten_angebot]])"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl ([[zukauf_angebot]])"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
@@ -983,8 +984,33 @@ def kapitel_step(i):
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
         (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
-    i.hinweis("Gewinde werden nur vorgeschlagen (Status HINWEIS: Gewinde-Vorschlag prüfen). Erst wenn das Gewinde "
-              "nach Prüfung der Zeichnung in die Spalte <b>Gewinde geprüft</b> eingetragen ist, wird es gerechnet.")
+    i.hinweis("Gewinde, Senkungen und Fließlochbohrungen werden nur vorgeschlagen (Status HINWEIS: Bohrungen prüfen "
+              "(Doppelklick)). Gerechnet wird ein Gewinde erst, wenn es im Fenster <b>Bohrungen prüfen</b> bestätigt "
+              "ist ([[bohrungen_pruefen]]).")
+    i.abschnitt("Bohrungen prüfen: Gewinde, Senkungen, Flowdrill", marke="bohrungen_pruefen")
+    i.text("Der STEP-Import erkennt drei Arten von Bohrungen, die nach der Zeichnung geprüft werden müssen:")
+    i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
+            "(z. B. Ø 5 → M6). Der Laser schneidet die Bohrung; das Gewinde wird erst nach dem Bestätigen gerechnet.",
+            "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4). Der Laser schneidet die Bohrung Ø 6,6, die "
+            "Senkung selbst ist Nacharbeit. Auf Wunsch wird der Senk-Ø als Gravur eingerechnet (Häkchen "
+            "<i>Senk-Ø gravieren</i>, je Senkung π × Senk-Ø).",
+            "<b>Flowdrill (Fließlochbohrung)</b>: Bohrung mit Kragen. Der Laser macht nur eine Markierung, je nach "
+            "Auswahl eine <i>Gravur Ø0,5</i> oder ein <i>Loch Ø0,5</i> (Schneidweg und Einstich). Die Vorgabe steht in "
+            "der Einstellung <i>STEP-Import: Flowdrill-Bohrung am Laser</i>. Das Gewinde wird nach dem "
+            "Kernloch fürs Gewindeformen vorgeschlagen (z. B. Ø 7,3 → M8). <b>Ablehnen</b> heißt: es ist eine "
+            "normale Bohrung, die der Laser schneidet.")
+    i.text("Positionen mit offenen Bohrungen zeigen den Status <b>HINWEIS: Bohrungen prüfen (Doppelklick)</b>. Ein "
+           "<b>Doppelklick</b> auf den Status, die Spalte <i>Gewinde geprüft</i>, <i>Bohrungen</i> oder "
+           "<i>Gewinde-Vorschlag</i> öffnet das Fenster (auch Rechtsklick, <i>Bohrungen prüfen …</i>). Je Zeile "
+           "<b>Bestätigen</b> oder <b>Ablehnen</b>; <b>Übernehmen</b> ändert Schneidweg, Einstiche, Gravur, "
+           "Konturklassen und <i>Gewinde geprüft</i> der Position. Das Fenster lässt sich jederzeit wieder öffnen "
+           "und die Wahl ändern.")
+    i.bild("bohrbild_dialog", "Fenster Bohrungen prüfen: Senkung und Flowdrill eines Rechteckrohrs", hoehe=70 * mm,
+           legende=[
+               (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), was der Laser macht und Bestätigen/Ablehnen."),
+               (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
+               (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
+               (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher.")])
     i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper", hoehe=80 * mm)
     i.bild("step_optimiert", "Aus STEP übernommene Positionen nach dem Optimieren: Schneidweg, Einstiche und "
            "Schneidzeit kommen aus der Messung", hoehe=110 * mm)
@@ -1284,8 +1310,8 @@ def kapitel_optimieren(i):
             "(kein Normprofil), zeichnet sie mit der Wandstärke; gerechnet wird damit nichts.",
             "<b>Gewinde-Vorschlag</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes aus den Stammdaten (z. B. Ø 8,5 "
             "für M10) ergeben wie beim STEP-Import einen Vorschlag (Spalten <i>Bohrungen</i> und "
-            "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Gewinde-Vorschlag prüfen“). Gerechnet wird ein Gewinde erst, "
-            "wenn es nach Prüfung unter <i>Gewinde geprüft</i> steht.",
+            "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Bohrungen prüfen (Doppelklick)“). Gerechnet wird ein Gewinde erst, "
+            "wenn es im Fenster <i>Bohrungen prüfen</i> bestätigt ist ([[bohrungen_pruefen]]).",
             "Unter <i>Ergebnis je Teil</i> stehen sofort alle Schnitte mit Länge, Einstichen, Hüllmaß und Klasse "
             "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
             "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
@@ -2057,6 +2083,9 @@ def kapitel_einstellungen(i):
          "Grenze zwischen Flachstahl und Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
          "Flachstahl, wenn es höchstens so breit ist, mindestens dreimal so lang wie breit ist und gerade "
          "Längsseiten hat. Alles andere Flache ist ein Blech ([[bleche]])."],
+        ["Angebot", "STEP-Import: Flowdrill-Bohrung am Laser",
+         "Was der Laser bei einer erkannten Fließlochbohrung macht: Gravur Ø0,5 (Vorgabe) oder Loch Ø0,5. Im Fenster "
+         "Bohrungen prüfen je Zeile änderbar ([[bohrungen_pruefen]])."],
         ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
@@ -3185,7 +3214,8 @@ def kapitel_fragen(i):
          "anlegen."],
         ["STEP: <b>Profil fehlt in den Stammdaten</b>",
          "Mit Ja aus den Messwerten anlegen lassen, danach unter Einstellungen, Profile prüfen (Bemerkung, Preis)."],
-        ["Gewinde wird nicht gerechnet", "Nur Einträge in <b>Gewinde geprüft</b> zählen, nicht der Vorschlag."],
+        ["Gewinde wird nicht gerechnet", "Nur bestätigte Gewinde (<b>Gewinde geprüft</b>) zählen, nicht der "
+                                         "Vorschlag. Doppelklick auf die Position: Bohrungen prüfen."],
         ["<b>WARNUNG: Zusatzarbeit … unbekannt</b>",
          "Die Zusatzarbeit wurde in den Stammdaten umbenannt oder gelöscht. Über <i>Zusatzarbeiten …</i> neu wählen."],
         ["<b>HINWEIS: Schneidzeit manuell</b>",
@@ -3241,6 +3271,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.36", "STEP-Import erkennt Senkungen und Flowdrill (Fließlochbohrungen). Gewinde, Senkungen und Flowdrill "
+               "werden per Doppelklick auf die Position im Fenster Bohrungen prüfen bestätigt oder abgelehnt; Senk-Ø "
+               "auf Wunsch als Gravur, Flowdrill als Gravur oder Loch Ø0,5 ([[bohrungen_pruefen]])."],
     ["0.6.35", "Materialanfrage: Zuschnitt der 12-m-Stange je Zeile („geschnitten auf …“, abwählbar), Anforderungen "
                "je Werkstoff zum Ankreuzen (Prüfbescheinigung, Herkunft EU, Maßtoleranzen), Betreff und Text als "
                "Vorlage in den Einstellungen, Signatur aus Outlook bzw. eigene Signatur ([[materialanfrage]])."],

@@ -3,7 +3,7 @@ import math
 import sys
 from pathlib import Path
 
-from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox, BRepPrimAPI_MakePrism
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeBox, BRepPrimAPI_MakePrism, BRepPrimAPI_MakeCone
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
 from OCP.BRepBuilderAPI import (BRepBuilderAPI_Transform, BRepBuilderAPI_NurbsConvert, BRepBuilderAPI_MakePolygon,
@@ -92,6 +92,27 @@ def zylinder(p, d, durchm, laenge):
 def bohrung_quer(shape, d, z, achse=(1, 0, 0)):
     zyl = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(-200 * achse[0], -200 * achse[1], z), gp_Dir(*achse)), d / 2, 400).Shape()
     return cut(shape, zyl)
+
+
+def senkung(shape, p, d, d_bohr, d_senk, wand, winkel=90.0):
+    """Senkbohrung von außen: p = Punkt auf der Außenfläche, d = Richtung ins Rohr; Bohrung Ø d_bohr durch eine Wand,
+    Kegel Ø d_senk an der Oberfläche (Senkwinkel 90°)."""
+    tief = (d_senk - d_bohr) / 2 / math.tan(math.radians(winkel / 2))
+    e = 0.5                                                            # Kegel beginnt etwas außerhalb
+    p0 = gp_Pnt(p[0] - e * d[0], p[1] - e * d[1], p[2] - e * d[2])
+    r0 = d_senk / 2 + e * math.tan(math.radians(winkel / 2))
+    kegel = BRepPrimAPI_MakeCone(gp_Ax2(p0, gp_Dir(*d)), r0, d_bohr / 2, tief + e).Shape()
+    return cut(cut(shape, kegel), zylinder(p0.Coord(), d, d_bohr, wand + e + 1))
+
+
+def fliessloch(shape, p, d, d_kern, d_kragen, wand, kragen):
+    """Fließlochbohrung (Flowdrill) von außen: Kernloch Ø d_kern durch eine Wand, innen ein Kragen (Buchse) Ø d_kragen,
+    kragen mm über die Innenfläche hinaus."""
+    mitte = tuple(p[k] + wand / 2 * d[k] for k in range(3))           # Buchse beginnt in der Wand
+    buchse = zylinder(mitte, d, d_kragen, wand / 2 + kragen)
+    s = BRepAlgoAPI_Fuse(shape, buchse).Shape()
+    start = tuple(p[k] - d[k] for k in range(3))
+    return cut(s, zylinder(start, d, d_kern, wand + kragen + 2))
 
 
 def gehrung(shape, l, winkel_grad, breite=500):
@@ -288,6 +309,22 @@ if __name__ == "__main__":
     r = cut(r, zylinder((0, 0, 450), (-1, 0, 0), 12, 40))               # Ø12 radial links (90°), z 450
     r = schraeg_ende(r, 30, 20, 10, ende_b=False)                        # Ende A: zweiachsig 20°/10° durch z 30
     schreibe(r, "K03_RR42-4x2_Konturen", kon)
+    # Senkungen und Fließlochbohrungen (Flowdrill mit Kragen innen)
+    k = kastenrohr(60, 40, 3, 600, 0)
+    k = senkung(k, (-10, 20, 100), (0, -1, 0), 6.6, 12.4, 3)            # 2x Senkung Ø6,6/12,4 oben, z 100
+    k = senkung(k, (10, 20, 100), (0, -1, 0), 6.6, 12.4, 3)
+    k = fliessloch(k, (30, 0, 200), (-1, 0, 0), 7.3, 11, 3, 4)          # 2x Flowdrill M8 (Kern Ø7,3) rechts, z 200/420
+    k = fliessloch(k, (30, 0, 420), (-1, 0, 0), 7.3, 11, 3, 4)          # (nicht in der Mitte: dort liegt der Messquerschnitt)
+    k = cut(k, zylinder((0, -30, 520), (0, 1, 0), 10, 20))              # zum Vergleich: Ø10 unten, z 520
+    schreibe(k, "K04_RE60x40x3_Senkung_Flowdrill", kon)
+    r = rundrohr(48.3, 4.0, 500)
+    r = senkung(r, (0, 24.15, 150), (0, -1, 0), 5.5, 10.4, 4)          # Senkung Ø5,5/10,4 oben, z 150
+    r = fliessloch(r, (24.15, 0, 350), (-1, 0, 0), 5.4, 8.5, 4, 3)      # Flowdrill M6 (Kern Ø5,4) rechts, z 350
+    schreibe(r, "K05_RR48-3x4_Senkung_Flowdrill", kon)
+    u = profil([(-30, 0), (30, 0), (30, 30), (26, 30), (26, 4), (-26, 4), (-26, 30), (-30, 30)], 500)   # U60x30x4
+    u = senkung(u, (-10, 0, 150), (0, 1, 0), 5.5, 10.4, 4)               # Senkung im Steg von außen, z 150
+    u = fliessloch(u, (10, 0, 350), (0, 1, 0), 5.4, 8.5, 4, 3)          # Flowdrill M6 im Steg, z 350
+    schreibe(u, "K06_U60x30x4_Senkung_Flowdrill", kon)
     # Referenzteile (eigener Ordner step_referenz): Grundformen, STEP-Varianten (AP203/AP214/AP242), CAD-Toleranzen,
     # gefaste Ecken
     ref = ZIEL.parent / "step_referenz"
