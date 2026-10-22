@@ -636,6 +636,8 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
                [_p("Rüstzeit Maschine [min]"), _z(summen["ruestzeit"], 0)],
                [_p("Abmessungen × Rüstzeit [min]"), f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"],
                [_p("Stangenwechsel [s]"), _z(summen["stangenwechsel"], 0)],
+               *([[_p(f"Stangenwechsel SN [s] ({summen['beladungen_sn']} Stangen mit Schweißnaht)"),
+                   _z(summen["stangenwechsel_sn"], 0)]] if summen.get("beladungen_sn") else []),
                [_p("Stangen"), _z(summen["stangen"], 0)], [_p("Teile"), _z(summen["teile"], 0)]]
     t = Table([[kosten, "", _tabelle(angebot, [65 * mm, 30 * mm], rechts=(1,), zebra=False)]],
               colWidths=[125 * mm, 15 * mm, 95 * mm], hAlign="LEFT")
