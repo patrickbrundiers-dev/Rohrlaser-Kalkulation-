@@ -1039,6 +1039,13 @@ def kapitel_step(i):
             "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
             "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
+            "<b>3D-Schnittbearbeitung aktivieren</b> (seit 0.8.19, unter <i>Werte setzen</i>, gilt für alle Teile): "
+            "Gehrungen an den Enden und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
+            "übernommen, die Bohrungen mit gemessener Neigung längs und quer. Daneben steht, wie viele Gehrungen und "
+            "schrägen Bohrungen gefunden wurden. Ohne Häkchen bleibt alles 2D; Teile mit schrägen Bohrungen bekommen "
+            "im Bericht „3D prüfen“. Fasen werden nie in 3D gerechnet. Über der Grenze der Maschine wird begrenzt "
+            "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
+            "die gemessene Querneigung auf etwa ±1,5° genau.",
             "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
             "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
             "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
@@ -1252,6 +1259,12 @@ def kapitel_optimieren(i):
     i.liste("Je Profil + Werkstoff + Oberfläche + Stangenlänge getrennt, ohne Vermischung.",
             "Belegung einer Stange = Endbeschnitt + Teile + Trennschnitte + Schnittverlust des letzten Schnitts; "
             "der Greiferrest muss frei bleiben.",
+            "<b>3D-Greifmaß</b>: hat das letzte Teil einer Stange eine 3D-Bearbeitung nahe seinem Ende B, muss sie "
+            "mindestens das Greifmaß der Maschine (Vorgabe 300 mm) vom Stangenende entfernt sein. Hinter dem Teil "
+            "bleibt dann statt des Greiferrests Greifmaß − Abstand der Bearbeitung vom Ende B frei (Gehrung in 3D an "
+            "Ende B: das volle Greifmaß), nur wenn das mehr ist als der Greiferrest; beides zusammen wird nie "
+            "abgezogen. Die Optimierung legt dafür nach Möglichkeit ein Teil ohne 3D ans Ende. Beispiel: 6.000 mm, "
+            "Greiferrest 142 mm, 3D-Gehrung am Ende B des letzten Teils: nutzbar bis 5.700 statt 5.858 mm.",
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
             "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Dafür wird die "
             "Reihenfolge der Teile gewählt; gewendet (Ende B nach vorn) wird ein Teil nie.",
@@ -1309,8 +1322,16 @@ def kapitel_optimieren(i):
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
             "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
-            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i> und <i>davon Einstiche</i> "
-            "zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
+            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i>, <i>davon Einstiche</i> "
+            "und <i>davon Mehrzeit 3D</i> zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
+            "<b>3D-Bearbeitung</b> (nur Teile mit Häkchen <i>3D-Schnittbearbeitung</i> auf einer Maschine mit "
+            "<i>3D: Bearbeitung verfügbar = ja</i>): Gehrungen in 3D und schräge Bohrungen rechnen mit den "
+            "Schneiddaten der wirksamen Dicke Wand ÷ cos(Winkel), z. B. 3 mm Wand bei 30° wie 3,46 mm, bei 45° wie "
+            "4,24 mm, × <i>3D: Faktor Schneidzeit</i> + <i>3D: Zusatzzeit je Bearbeitung</i>. <i>davon Mehrzeit 3D</i> "
+            "ist der Unterschied zu demselben Weg in 2D, <i>3D-Bearbeitung je Teil</i> die ganze 3D-Zeit. Winkel über "
+            "der Grenze der Maschine (Vorgabe ±45°) werden auf die Grenze begrenzt und so gerechnet, die Position "
+            "bekommt die WARNUNG <i>3D-Winkel begrenzt, Kontur nicht maßhaltig</i>. 3D auf einer Maschine ohne 3D ist "
+            "ein FEHLER, es wird nichts stillschweigend als 2D gerechnet.",
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz "
             "des Arbeitsschritts Gewinde.",
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
@@ -1325,7 +1346,7 @@ def kapitel_optimieren(i):
             "auf den Preis (Spalten <i>Programmierzeit [min]</i> und <i>Programmierung je Teil</i>). Die Zeit ist "
             "<i>Programmierzeit je Position</i> + <i>Programmierzeit je Innenkontur</i> × Anzahl Innenkonturen "
             "(klein + mittel + groß aus STEP-Import oder Schneidweg-Rechner), oder von Hand in der Spalte "
-            "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.16 verschickt und damit "
+            "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.20 verschickt und damit "
             "festgeschrieben wurden ([[preise_festschreiben]]), rechnen weiter mit ihrem Betrag je Position "
             "(<i>Programmierkosten je Position (alt) [€]</i>, auch in einer Staffel-Stufe).",
             "<b>Pauschale je Abmessung, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf den Preis.",
@@ -1375,7 +1396,8 @@ def kapitel_optimieren(i):
                    "<i>gekippt über</i> angenommen, die Skizze zeigt sie, die Optimierung dreht das Teil passend; von "
                    "Hand nur bei fester Lage), beim Rundrohr Ausklinkung; rechts der gemessene Wert aus dem "
                    "STEP-Import."),
-               (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer, "
+                   "3D mit Neigung längs und quer."),
                (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; Kopieren, Vorlagen, Entfernen daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
                (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe."),
@@ -1432,6 +1454,19 @@ def kapitel_optimieren(i):
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
             "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
+            "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): Das Häkchen <i>3D-Schnittbearbeitung "
+            "aktivieren</i> über den Enden schaltet sie für das Teil ein; daneben steht, ob die Maschine 3D kann, "
+            "ihr Schwenkwinkel und das Greifmaß (rot, wenn die Maschine kein 3D kann, die Position bekommt dann einen "
+            "FEHLER). Danach je Ende <i>Gehrung in 3D</i> (nur mit Gehrung: der Kopf wird auf den Gehrungswinkel "
+            "geschwenkt, die Schnittfläche ist eben durch die Wand) und je Bohrung die Spalte <i>3D</i> mit "
+            "<i>Neigung längs</i> (+ Richtung Ende B) und <i>Neigung quer</i> (+ im Uhrzeigersinn von Ende A, "
+            "Richtung 90°), Schnellauswahl −45°, −30°, 0°, +30°, +45° oder eine Zahl. Die Neigung ist der Winkel "
+            "der Bohrungsachse gegen die Wand, nicht der Umfangswinkel (der steht in <i>Seite</i>). Die Bohrung "
+            "wird als Ellipse gerechnet (Hüllmaß d / cos Gesamtneigung) und in der Skizze so gezeichnet, mit "
+            "<i>3D</i> und den Winkeln. Über der Grenze der Maschine (Vorgabe ±45°) wird der Winkel begrenzt, der "
+            "Dialog zeigt den Hinweis, die Position bekommt „WARNUNG: 3D-Winkel begrenzt, Kontur nicht "
+            "maßhaltig“. Fasen werden nicht in 3D gerechnet. Ohne Häkchen am Teil bleibt alles 2D, auch wenn "
+            "Zeilen <i>3D</i> haben. Zeit und Greifmaß: [[kalkulation]], [[optimieren]].",
             "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
             "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
             "Rundrohr der Umfang in Vierteln). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
@@ -1547,7 +1582,8 @@ def kapitel_optimieren(i):
     i.bild("erg_schnittplan", "Reiter Schnittplan, Stange 3 gewählt", hoehe=85 * mm)
     i.abschnitt("Stangenbild")
     i.text("Jede Stange als maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Positionsnummer und Länge, "
-           "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot. Gleich belegte Stangen stehen einmal da "
+           "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot (mit <i>3D</i> beschriftet, wenn dort das größere "
+           "3D-Greifmaß frei bleibt). Gleich belegte Stangen stehen einmal da "
            "(<i>2 × Stange 1, 2</i>). Schräge Enden mit bekannter Richtung erscheinen als schräge Linie, "
            "ineinanderliegende Gehrungen also als verzahnte Trapeze. Gezeigt wird die Ansicht von der Seite (0° "
            "oben); sind die Gehrungen über die Seitenflächen geschnitten, die Ansicht von oben (Hinweis "
@@ -2679,6 +2715,17 @@ def kapitel_stammdaten(i):
                                            "Stangenwechsel ([[schweissnaht]])"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
+        ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
+                                      "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
+                                      "ist"],
+        ["3D: Schwenkwinkel min. [°], 3D: Schwenkwinkel max. [°]", "Grenzen des Kopfschwenks (Vorgabe −45° und +45°); größere Winkel "
+                                              "werden auf die Grenze begrenzt. Eine Gehrung in 3D braucht beide "
+                                              "Richtungen, dort gilt die kleinere Grenze"],
+        ["3D: Greifmaß [mm]", "Abstand, den eine 3D-Bearbeitung am letzten Teil einer Stange vom Stangenende "
+                              "braucht (Vorgabe 300 mm). Zählt statt des Greiferrests, wenn größer, nie zusätzlich"],
+        ["3D: Zusatzzeit je Bearbeitung [s], 3D: Faktor Schneidzeit",
+         "Zeit je 3D-Bearbeitung (Kopf schwenken, Vorgabe 0 s) und Faktor auf die 3D-Schneidzeit (Vorgabe 1,0); "
+         "erst mit echten Zeiten der Maschine ändern"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
@@ -3606,7 +3653,8 @@ def kapitel_fragen(i):
          "Profil-ID oder Werkstoff-ID steht nicht in den Stammdaten oder ist falsch geschrieben. Aus der "
          "Auswahlliste wählen oder in den Stammdaten anlegen."],
         ["Teil unter <b>nicht eingeplante Teile</b>",
-         "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
+         "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest bzw. 3D-Greifmaß bei einer "
+         "3D-Bearbeitung am Ende), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
@@ -3712,11 +3760,28 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.16", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
+    ["0.8.20", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
                "Innenkontur</b> × Stundensatz <i>Programmierung</i>, je Position in der Spalte <i>Programmierzeit "
                "[min]</i> änderbar, sichtbar in Zeiten &amp; Arbeitskosten, in den Staffel-Stufen und im "
                "Kalkulation-PDF. Alle Angebote rechnen neu, nur bereits verschickte behalten ihren Betrag "
                "([[stundensaetze]])."],
+    ["0.8.19", "<b>STEP-Import mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i> im Prüfdialog; "
+               "Gehrungen und schräge Bohrungen (mit gemessener Neigung längs/quer) werden in 3D übernommen, ohne "
+               "Häkchen erscheint bei schrägen Bohrungen „3D prüfen“."],
+    ["0.8.18", "<b>Rohr-Editor mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i>, je Ende <i>Gehrung in "
+               "3D</i>, je Bohrung <i>3D</i> mit Neigung längs und quer (Schnellauswahl ±45°/±30°/0°). Schräge "
+               "Bohrungen als Ellipse in Rechnung und Skizze, Winkel über der Maschinengrenze werden begrenzt und "
+               "gemeldet."],
+    ["0.8.17", "<b>3D-Greifmaß</b> in der Optimierung: hat das letzte Teil einer Stange eine 3D-Bearbeitung am Ende, "
+               "bleibt dahinter das Greifmaß der Maschine frei (statt des Greiferrests, wenn größer, nie zusätzlich); "
+               "ein Teil ohne 3D kommt nach Möglichkeit ans Ende. Stangenbild und Werkstattpapiere zeigen es mit "
+               "<i>3D</i>, ein Teil, das mit dem Greifmaß nicht auf die Stange passt, bekommt einen FEHLER."],
+    ["0.8.16", "Grundlage für die <b>3D-Schnittbearbeitung</b> mit geschwenktem Laserkopf: neue Maschinenwerte "
+               "<i>3D: Bearbeitung verfügbar</i> (Vorgabe nein), Schwenkwinkel min./max. (±45°), Greifmaß (300 mm), "
+               "Zusatzzeit und Faktor. Gehrungen in 3D und schräge Bohrungen rechnen mit den Schneiddaten der "
+               "wirksamen Dicke Wand ÷ cos(Winkel); die Kalkulation zeigt die <i>Mehrzeit 3D</i> getrennt. Winkel "
+               "über der Grenze werden begrenzt (WARNUNG), 3D auf einer Maschine ohne 3D ist ein FEHLER. Die Eingabe "
+               "im Schneidweg-Rechner und das Greifmaß in der Optimierung folgen."],
     ["0.8.15", "Rohr / Profil als neue Position: Profilform vorwählen (die Liste zeigt dann nur Profile dieser Form), "
                "fehlendes Profil direkt mit <b>Neu …</b> anlegen (Form und Maße, Profil-ID, Querschnitt und Gewicht "
                "automatisch) ([[neue_position]]). Schneidweg-Rechner: die längste Seite einer Gehrung steht auf "

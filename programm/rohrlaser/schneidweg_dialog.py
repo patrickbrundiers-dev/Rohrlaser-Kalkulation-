@@ -8,18 +8,19 @@ import json
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QCompleter, QDialog, QDialogButtonBox, QDoubleSpinBox,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QCompleter, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
                                QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
+from . import dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
 
 KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", "Lage ab Ende A [mm]",
-                  "Abstand Muster [mm]", "Seite", "Versatz quer [mm]", "Bemerkung")
+                  "Abstand Muster [mm]", "Seite", "Versatz quer [mm]", "3D", "Neigung längs [°]", "Neigung quer [°]",
+                  "Bemerkung")
 SPALTEN_HILFE = (
     "Art der Innenkontur (Bohrung, Senkung, Langloch …)",
     "Anzahl gleicher Konturen je Teil",
@@ -31,6 +32,10 @@ SPALTEN_HILFE = (
     "Fläche, auf der die Kontur sitzt, von Ende A gesehen (Rechteck-/Quadratrohr 0° oben, 90° vorne = rechts, 180° "
     "unten, 270° hinten = links; Rundrohr Winkel am Umfang)",
     "Versatz der Kontur quer zur Flächenmitte in mm (+ zur nächsten Fläche hin)",
+    "Bohrung in 3D (schräg, Kopf geschwenkt); nur mit Häkchen „3D-Schnittbearbeitung aktivieren“",
+    "Neigung der Bohrungsachse gegen die Wandnormale längs zum Rohr: + = Richtung Ende B, − = Richtung Ende A, "
+    "0° = senkrecht zur Wand (nicht der Umfangswinkel, der steht in Seite)",
+    "Neigung der Bohrungsachse quer: + = im Uhrzeigersinn von Ende A gesehen (Richtung 90°), − = dagegen",
     "freier Text (erscheint in der Skizze und der Zeichnung)")
 # Bedeutung der Maße je Konturart (Erklärung unter der Tabelle für die markierte Zeile)
 ART_HILFE = {
@@ -45,7 +50,8 @@ ART_HILFE = {
     sw.SONSTIGE: "Maß 1 = Schnittlänge in mm, Maß 2 = Hüllmaß (größte Ausdehnung, leer = groß) für die Konturklasse."}
 LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitte, Seite = Fläche von Ende A gesehen, "
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
-LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, TEXT_SPALTE = 5, 6, 7, 8, 9
+LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE = range(5, 13)
+SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
 MASS_HILFE = ("Maße: Bohrung Ø · Senkung Bohrung Ø, Senk-Ø · Langloch Länge, Breite · Rechteck Breite, Höhe, "
@@ -110,9 +116,23 @@ class SchneidwegDialog(QDialog):
         self.step_info.setWordWrap(True)
         self.step_info.setStyleSheet("color: #1E6B35;")
         lay.addWidget(self.step_info)
+        # 3D-Schnittbearbeitung (dreid): Häkchen am Bauteil, dann je Gehrung und Bohrung „3D“
+        self.maschine = m
+        zeile_3d = QHBoxLayout()
+        self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
+        self.d3.setChecked(e.get("d3") is True)
+        self.d3.setToolTip("Laserkopf schwenken: Gehrungen in 3D (ebene Fläche durch die Wand) und schräge Bohrungen. "
+                           "Aus = 2D wie bisher, keine 3D-Zeiten und kein 3D-Greifmaß")
+        self.d3.toggled.connect(self.rechnen)
+        self.d3_info = QLabel()
+        self.d3_info.setWordWrap(True)
+        zeile_3d.addWidget(self.d3)
+        zeile_3d.addWidget(self.d3_info, 1)
+        lay.addLayout(zeile_3d)
 
         enden = QGridLayout()
         self.winkel, self.achse, self.sattel, self.richtung, self.gemessen_text = {}, {}, {}, {}, {}
+        self.ende_3d = {}
         rund = form == "Rundrohr"
         for c, (titel, tipp) in enumerate((
                 ("Gehrungswinkel", "Abweichung vom rechtwinkligen Schnitt in Grad (gerade = 0°)"),
@@ -121,7 +141,9 @@ class SchneidwegDialog(QDialog):
                  "Ende A gesehen; „automatisch“ nimmt sie aus „gekippt über“ an, die Optimierung dreht das Teil passend"),
                 ("Ausklinkung auf Rundrohr Ø", "nur Rundrohr: Ende rechtwinklig auf ein Rundrohr mit diesem Ø "
                  "(Sattelschnitt)"),
-                ("aus dem STEP-Import", "gemessene Schnittlänge des Endes; gilt, solange das Ende unverändert bleibt")),
+                ("aus dem STEP-Import", "gemessene Schnittlänge des Endes; gilt, solange das Ende unverändert bleibt"),
+                ("3D", "Gehrung in 3D: der Kopf wird auf den Gehrungswinkel geschwenkt (ebene Schnittfläche durch die "
+                       "Wand); nur mit „3D-Schnittbearbeitung aktivieren“ und einer Gehrung")),
                 start=1):
             kopf_ = QLabel(f"<span style='color:#595959'>{titel}</span>")
             kopf_.setToolTip(tipp)
@@ -169,6 +191,11 @@ class SchneidwegDialog(QDialog):
             enden.addWidget(ri, r, 3)
             enden.addWidget(sa, r, 4)
             enden.addWidget(gm, r, 5)
+            d3 = QCheckBox("Gehrung in 3D")
+            d3.setChecked(bool(e[seite].get("d3")))
+            d3.toggled.connect(self.rechnen)
+            self.ende_3d[seite] = d3
+            enden.addWidget(d3, r, 6)
         self._step_enden(e)
         self.gravur = QDoubleSpinBox()
         self.gravur.setRange(0, 100000)
@@ -211,7 +238,7 @@ class SchneidwegDialog(QDialog):
         self.tabelle.setHorizontalHeaderLabels(KONTUR_SPALTEN)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabelle.verticalHeader().setDefaultSectionSize(26)
-        for i, b in enumerate((130, 60, 150, 80, 80, 140, 140, 120, 120)):
+        for i, b in enumerate((130, 60, 150, 80, 80, 140, 140, 120, 120, 40, 110, 110)):
             self.tabelle.setColumnWidth(i, b)
         self.tabelle.horizontalHeader().setSectionResizeMode(TEXT_SPALTE, QHeaderView.Stretch)
         for c, t in enumerate(SPALTEN_HILFE):
@@ -648,11 +675,11 @@ class SchneidwegDialog(QDialog):
         self.rechnen()
         einst = getattr(self.parent(), "einst", None) or {}
         eingaben = self.eingaben()
-        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde)
+        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
 
         def schreiben(ziel):
             zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil,
-                                    sw.mit_angenommener_richtung(eingaben, self.profil), erg, self.naht_werte(), einst,
+                                    sw.mit_angenommener_richtung(ohne_3d(eingaben), self.profil), erg, self.naht_werte(), einst,
                                     self.schneidzeit())
         if pfad is not None:
             schreiben(pfad)
@@ -699,6 +726,21 @@ class SchneidwegDialog(QDialog):
         else:
             quer.setToolTip("Versatz quer zur Mitte der Fläche [mm] (+ in Richtung der nächsten Fläche)")
         self.tabelle.setItem(r, QUER_SPALTE, quer)
+        d3 = QTableWidgetItem("")
+        d3.setFlags((d3.flags() | Qt.ItemIsUserCheckable) & ~Qt.ItemIsEditable)
+        d3.setCheckState(Qt.Checked if z.get("d3") else Qt.Unchecked)
+        d3.setToolTip(SPALTEN_HILFE[D3_SPALTE])
+        self.tabelle.setItem(r, D3_SPALTE, d3)
+        for spalte, schl in ((NL_SPALTE, "neigung_l"), (NQ_SPALTE, "neigung_q")):
+            cb = QComboBox()
+            cb.setEditable(True)
+            cb.addItems(SCHNELLWAHL)
+            v = z.get(schl)
+            cb.setCurrentText(winkel_anzeige(v) if isinstance(v, (int, float)) else str(v) if v else "0°")
+            cb.setToolTip(SPALTEN_HILFE[spalte] + ". Schnellauswahl oder Zahl eingeben; über der Grenze der Maschine "
+                                                  "wird begrenzt")
+            cb.currentTextChanged.connect(self.rechnen)
+            self.tabelle.setCellWidget(r, spalte, cb)
         self.tabelle.setItem(r, TEXT_SPALTE, QTableWidgetItem(z.get("text") or ""))
         self._kopf_hinweise(r)
         art.quer = bool(z.get("quer"))
@@ -768,6 +810,16 @@ class SchneidwegDialog(QDialog):
             t = self.tabelle.item(r, TEXT_SPALTE).text().strip()
             if t:
                 z["text"] = t
+            if self.tabelle.item(r, D3_SPALTE).checkState() == Qt.Checked:
+                z["d3"] = True
+            for spalte, schl in ((NL_SPALTE, "neigung_l"), (NQ_SPALTE, "neigung_q")):
+                text = self.tabelle.cellWidget(r, spalte).currentText()
+                try:
+                    v = dreid.winkel_zahl(text)
+                except ValueError:
+                    v = text                    # ungültig: schneidweg.rechnen meldet den Fehler
+                if v:
+                    z[schl] = v
             combo = self.tabelle.cellWidget(r, 0)
             if getattr(combo, "quer", False):
                 z["quer"] = True
@@ -781,12 +833,18 @@ class SchneidwegDialog(QDialog):
         for s, (werte, gemessen) in self._ende_step.items():
             if self._ende_werte(s) == werte:
                 enden[s].update(gemessen)
-        return dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
+        for s in ("a", "b"):
+            if self.ende_3d[s].isChecked():
+                enden[s]["d3"] = True
+        out = dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
+        if self.d3.isChecked():
+            out["d3"] = True
+        return out
 
     # ------------------------------------------------------------------ Ergebnis
     def rechnen(self, *_):
         eingaben = self.eingaben()
-        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde)
+        erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
         self.ergebnis = erg
         t = self.ergebnis_tabelle
         t.setRowCount(len(erg["schritte"]))
@@ -821,13 +879,14 @@ class SchneidwegDialog(QDialog):
         if not sw._z(self.p.get("zeit_manuell")) == 0:
             teile.append("<span style='color:#7A5A00'>Die Position hat eine Schneidzeit von Hand; sie gilt weiter, "
                          "bis sie in der Positionsliste gelöscht wird.</span>")
+        teile += self._d3_zeigen(eingaben)
         fehler = erg["fehler"] + self.kopf_fehler()
         if fehler:
             teile.append("<span style='color:#B42318'>" + "<br>".join(fehler) + "</span>")
         self.summe.setText("<br>".join(teile))
         if hasattr(self, "skizze"):
             self.skizze.naht = self._naht_anzeigen()
-            self.skizze.zeigen(sw.mit_angenommener_richtung(eingaben, self.profil), erg)
+            self.skizze.zeigen(sw.mit_angenommener_richtung(ohne_3d(eingaben), self.profil), erg)
             self._auswahl_tabelle()
         if hasattr(self, "ok_knopf"):
             self.ok_knopf.setEnabled(not fehler)
@@ -982,15 +1041,50 @@ class SchneidwegDialog(QDialog):
         self.tabelle.selectRow(zeile)
         self.rechnen()
 
+    def _d3_zeigen(self, eingaben):
+        """3D: Häkchen je Gehrung nur mit Gehrung und 3D am Bauteil, Zeile über den Enden (Maschine, Grenzen),
+        Status der Position (dreid.pruefen). Ergebnis: Texte für die Zusammenfassung."""
+        an = self.d3.isChecked()
+        for s in ("a", "b"):
+            self.ende_3d[s].setEnabled(an and self.winkel[s].value() > 0 and not self.sattel[s].value())
+        m = self.maschine or {}
+        lo, hi = dreid.grenzen(m)
+        if not dreid.kann_3d(m):
+            self.d3_info.setText(f"<span style='color:{'#B42318' if an else '#595959'}'>Maschine "
+                                 f"{m.get('maschinen_id') or '–'} kann keine 3D-Bearbeitung (Einstellungen › Stammdaten › "
+                                 "Maschinen: 3D: Bearbeitung verfügbar)</span>")
+        else:
+            self.d3_info.setText(f"<span style='color:#595959'>Maschine {m.get('maschinen_id')}: Schwenkwinkel "
+                                 f"{dreid._zahl(lo, 0)}° bis +{dreid._zahl(hi, 0)}°, Greifmaß "
+                                 f"{rechnen.zahl(dreid.greifmass(m), 0)} mm am letzten Teil der Stange</span>")
+        if not an:
+            return []
+        p = dict(self.p, **(self.ergebnis or {}).get("felder", {}), technik=sw.speichern(eingaben))
+        st = dreid.pruefen(p, m)
+        return [f"<span style='color:{'#B42318' if st.startswith('FEHLER') else '#7A5A00'}'>3D: {st}</span>"] \
+            if st else []
+
     def schneidzeit(self):
-        """Schneidzeit je Teil [s] mit den neuen Werten oder None ohne Schneiddaten."""
-        p = dict(self.p, **self.ergebnis["felder"])
+        """Schneidzeit je Teil [s] mit den neuen Werten oder None ohne Schneiddaten (mit 3D-Mehrzeit)."""
+        p = dict(self.p, **self.ergebnis["felder"], technik=sw.speichern(self.eingaben()))
         return rechnen.schneidzeit(p, self.kopf, rechnen.wand_schneiden(self.profil), self.tabellen, self.k)[2]
 
     def _ok(self):
         self.rechnen()
         if not self.ergebnis["fehler"] and not self.kopf_fehler():
             self.accept()
+
+
+def ohne_3d(e):
+    """Eingaben für Skizze und Zeichnung: ohne Häkchen am Bauteil zählt „3D“ an Konturen nicht (2D wie gerechnet)."""
+    if e.get("d3") is True:
+        return e
+    return dict(e, konturen=[{k: v for k, v in z.items() if k != "d3"} for z in e.get("konturen") or ()])
+
+
+def winkel_anzeige(w):
+    """Neigung für die Eingabe: +30°, −45°, 0°."""
+    return "0°" if not w else (f"+{dreid._zahl(w)}°" if w > 0 else f"{dreid._zahl(w)}°")
 
 
 def step_eingaben(m, profil):

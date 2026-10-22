@@ -36,12 +36,12 @@ from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONE
                       naechste_nummer)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
-                         ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_WERTE, alte_beispiel_schneiddaten,
+                         ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 39     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 40     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -71,7 +71,9 @@ SCHEMA_VERSION = 39     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Richtpreis von Blech-/Kantteilen; getrennt von Werkstoffen und Schneiddaten des Rohrlasers)
                         # 38: maschinen.stangenwechsel_sn (Stangenwechsel für Stangen mit fester Schweißnaht-Lage);
                         #     T03/T11/LT7 mit dem alten Beispielwert: normal 24 s, SN 29 s, sonst SN = bisheriger Wert
-                        # 39: Programmierung als Zeit × Stundensatz (angebote/staffel_stufen.programmierung_zeit und
+                        # 39: 3D-Bearbeitung je Maschine (maschinen.d3, schwenk_min/max, greif_3d, zeit_3d, faktor_3d);
+                        #     vorhandene Maschinen: nein, ±45°, 300 mm, 0 s, Faktor 1
+                        # 40: Programmierung als Zeit × Stundensatz (angebote/staffel_stufen.programmierung_zeit und
                         #     _kontur, positionen.prog_zeit); alle Angebote umgestellt, außer festgeschriebenen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -216,6 +218,9 @@ class Datenbank:
             if 0 < version < 38:
                 self._stangenwechsel_sn()
             if 0 < version < 39:
+                self.con.execute("UPDATE maschinen SET d3=?, schwenk_min=?, schwenk_max=?, greif_3d=?, zeit_3d=?, "
+                                 "faktor_3d=? WHERE d3 IS NULL", MASCHINE_3D)
+            if 0 < version < 40:
                 self._programmierung_zeit()
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):

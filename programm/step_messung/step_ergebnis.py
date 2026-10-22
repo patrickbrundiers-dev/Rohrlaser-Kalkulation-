@@ -26,11 +26,14 @@ Versionen von SCHEMA_VERSION:
   hinweis), "trennung" (regelanteil, laengsanbau, ohne_trennung {profil_id, laenge, schneidweg, pruefstatus}) oder
   null, im Block "schneidweg" zusätzlich "gravur_anbau" (in "gravur" enthalten); "alternative" ist bei abgetrennten
   Anbauteilen die Messung ohne Trennung. Felder aus 1.3 unverändert.
+- 1.5 (22.10.2026): 3D-Schnittbearbeitung: schräge Bohrungen (ab 0,5° gegen die Wandnormale) tragen "neigung_l"
+  (längs, + Richtung Ende B) und "neigung_q" (quer, + Richtung steigender Umfangswinkel) in Grad. Felder aus 1.4
+  unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.4"
+SCHEMA_VERSION = "1.5"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
