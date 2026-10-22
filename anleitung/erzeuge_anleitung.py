@@ -649,7 +649,8 @@ def kapitel_angebot(i):
         (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
             "groß, Meldungen, Kennzahlen, Preisaufbau und Zeiten."),
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer."),
-        (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
+        (4, "<b>Neue Position</b> (fragt zuerst den Typ, [[neue_position]]); daneben <b>Positionen löschen</b> "
+            "(markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
@@ -661,6 +662,22 @@ def kapitel_angebot(i):
     i.text("Die blau hinterlegten Knöpfe sind die Hauptaktionen <b>Neue Position</b>, <b>STEP importieren</b>, "
            "<b>Optimieren</b> und <b>3D-Ansicht</b>. Rechts stehen die Ausgaben; CSV-Export und Ablage öffnen liegen "
            "unter <b>Weitere Aktionen</b> ([[ausgabe]]).")
+    i.abschnitt("Neue Position: erst der Typ", marke="neue_position")
+    i.text("<b>Neue Position</b> (oder Strg+N) öffnet das Fenster <i>Neue Position</i> mit der Frage <i>Welche Art "
+           "von Position?</i>. Nach der Wahl öffnet sich das passende Fenster:")
+    i.tabelle(["Typ", "Was passiert"], [
+               ["<b>Rohr / Profil</b>", "Der Schneidweg-Rechner ([[schneidweg_rechner]]) öffnet mit einer Kopfzeile: "
+                "Artikel, Bezeichnung, Profil (Eintippen sucht, z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. "
+                "Profil und Werkstoff sind von der letzten Rohrposition vorbelegt. Ein anderes Profil baut Skizze, "
+                "Enden und Naht sofort neu auf. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
+                "<b>Position anlegen</b> gesperrt. Danach steht die Position mit Schneidweg, Einstichen und Naht in "
+                "der Liste."],
+               ["<b>Blech / Kantteil</b>", "Der Blech-Editor ([[blech_editor]]) öffnet: Zuschnitt oder Kantteil "
+                "beschreiben, der Richtpreis wird Einkaufspreis eines neuen Zukaufartikels (Kategorie Blechteile)."],
+               ["<b>Zukaufteil</b>", "Dieselbe Schnellanlage ohne vorgewählte Kategorie (Normteile, Schrauben, "
+                "Handelsware)."],
+               ["<b>Leere Zeile</b>", "Wie bisher: eine leere Zeile in der Positionsliste, alle Werte von Hand."]],
+              [38, 132])
     i.abschnitt("Angebotskopf")
     i.liste("<b>Maschine</b> bestimmt Endbeschnitt, Greiferrest, Schnittverlust, Konturgrenzen, Stundensatz und die "
             "Schneiddaten. Die Zeile <b>Maschinenparameter</b> zeigt Endbeschnitt, Greiferrest, Schnittverlust und "
@@ -1949,6 +1966,49 @@ def kapitel_zukauf_angebot(i):
            "Gruppe <i>Zukaufteile (eigener Aufschlag statt Zuschläge und Gewinn)</i> mit <i>Einstand Zukaufteile "
            "(Einkauf + Bezugskosten)</i> und <i>Aufschlag Zukaufteile</i>. Materialzuschlag und Gewinn der Stufe "
            "wirken nicht auf Zukaufteile.")
+    i.abschnitt("Blech-Editor (Richtpreis)", marke="blech_editor")
+    i.text("Für Blech- und Kantteile, die ein Blechlaser liefert, schätzt der <b>Blech-Editor</b> vorab einen "
+           "<b>Richtpreis</b>, der als Einkaufspreis des Zukaufteils dient. Er öffnet über <b>Neue Position</b> → "
+           "<i>Blech / Kantteil</i> ([[neue_position]]). Er rechnet nur mit eigenen Daten: <i>Blech-Werkstoffe</i> "
+           "und <i>Blechlaser (Richtwerte)</i> ([[blech_stammdaten]]) sowie den Einstellungen der Gruppe "
+           "<i>Blech-Richtpreis</i>. Werkstoffe, Maschinen und Schneiddaten des Rohrlasers werden weder gelesen "
+           "noch geändert.")
+    i.bild("blech_editor", "Blech-Editor: U-Profil aus 1.4301, 2 mm, mit Bohrung und Langloch", hoehe=125 * mm,
+           legende=[
+               (1, "<b>Bezeichnung</b> (leer = Vorschlag aus den Maßen), Artikelnummer, Lieferant (Technik "
+                   "vorbelegt) und <b>Stückzahl</b>; auf sie wird das Rüsten umgelegt."),
+               (2, "<b>Blech-Werkstoff</b> und <b>Dicke</b>."),
+               (3, "<b>Art</b>: <i>Zuschnitt (flach)</i> als Rechteck mit Eckradius oder Polygon (Eckpunkte x,y), "
+                   "oder <i>Kantteil</i>."),
+               (4, "Kantteil: <b>Kantlänge</b> und je Zeile ein Schenkel mit Außenmaß, Biegewinkel zum nächsten "
+                   "Schenkel (+ nach oben, − nach unten) und Innenradius (leer = Blechdicke). <b>Vorlage …</b> "
+                   "setzt Winkel, U-, Z- oder Hutprofil; <b>+ Schenkel</b> und <b>Schenkel entfernen</b> ändern "
+                   "die Liste."),
+               (5, "<b>Innenkonturen</b> wie im Schneidweg-Rechner: Art, Anzahl, Maße (die Überschriften Maß 1–3 "
+                   "nennen das Maß der markierten Zeile) und optional die Mitte x/y in der Abwicklung. "
+                   "<b>Markierte entfernen</b> löscht Zeilen."),
+               (6, "<b>Skizze</b>: Abwicklung mit Biegelinien (B1, B2 … mit Winkel, Richtung und Radius) und "
+                   "Innenkonturen, beim Kantteil rechts die Seitenansicht mit den Außenmaßen."),
+               (7, "<b>Richtpreis je Stück</b> mit Zuschnitt, Gewicht, Schneidweg, Einstichen, Laserzeit und den "
+                   "Kosten Material, Laser, Kanten und Rüsten."),
+               (8, "<b>Als Zukaufteil anlegen</b>: neuer Zukaufartikel (Kategorie Blechteile, Artikeltyp Blech, "
+                   "Maße, Werkstoff) mit dem Richtpreis als EK und eine neue Position der Art Zukaufteil.")])
+    i.text("So rechnet der Blech-Editor:")
+    i.liste("<b>Abwicklung</b> beim Kantteil: Summe der Schenkel-Außenmaße minus Ausgleichswert je Biegung "
+            "v = 2·(r + s)·tan(φ/2) − π·φ/180·(r + k·s) (bis 90°; darüber 2·(r + s) − π·φ/180·(r + k·s)) mit "
+            "Innenradius r, Dicke s, Biegewinkel φ und K-Faktor k des Blech-Werkstoffs (Vorgabe 0,33). Beispiel "
+            "Winkel 50 × 80 aus 2 mm, r = 2: v = 3,8 mm, Zuschnitt 126,2 mm.",
+            "<b>Material</b> = Hüllrechteck des Zuschnitts × (1 + Verschnitt Tafel) × Dicke × Dichte × Preis je kg.",
+            "<b>Laser</b> = (Außenkontur ÷ Vorschub Außenkontur + Innenkonturen ÷ Vorschub Innenkonturen + "
+            "Einstiche × Einstechzeit) × Stundensatz Blechlaser; Einstiche = 1 + Anzahl der Innenkonturen.",
+            "<b>Kanten</b> = Anzahl Kantungen × Preis je Kantung; <b>Rüsten</b> = (Rüsten und Programmieren "
+            "Blechlaser + beim Kantteil Rüsten Kanten) ÷ Stückzahl.",
+            "<b>Richtpreis</b> = Summe × (1 + Aufschlag des Lieferanten), kaufmännisch auf Cent.")
+    i.text("Später ändern: Rechtsklick auf die Position → <b>Blech-Editor …</b> oder Doppelklick auf die Position "
+           "(außer in der Spalte Zukaufteile). Mit <b>Richtpreis übernehmen</b> kommt der neue Preis als "
+           "Staffelzeile <i>ab Stückzahl der Position</i> in den Artikel, und die Position bekommt den neuen "
+           "Preisstand. Der Richtpreis ersetzt kein Angebot des Blechlieferanten; liegt eines vor, den echten EK "
+           "mit <b>EK eintragen …</b> ([[zukauf_positionen]]) oder im Reiter Zukaufartikel eintragen.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
@@ -2192,6 +2252,11 @@ def kapitel_einstellungen(i):
         ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["Blech-Richtpreis", "Stundensatz Blechlaser [€/h], Rüsten und Programmieren Blechlaser je Auftrag [€], "
+                             "Verschnitt Tafel (auf das Hüllrechteck), Kanten: Preis je Kantung [€], Kanten: "
+                             "Rüsten je Auftrag [€], Aufschlag des Lieferanten (Gewinn)",
+         "Sätze für den Richtpreis im Blech-Editor (Vorgabe 120 €/h, 30 €, 15 %, 1,20 €, 25 €, 15 %); sie gelten "
+         "nur dort, nie für den Rohrlaser ([[blech_editor]])."],
         ["Angebots-PDF", "Firmenlogo (rechts oben im Angebot)",
          "<b>Bild wählen …</b> nimmt eine PNG- oder JPG-Datei (große Bilder werden verkleinert); das Logo steht im "
          "Angebots-PDF rechts oben im Briefkopf, eingepasst in 55 × 24 mm, klein (32 × 13 mm) auch auf "
@@ -2547,6 +2612,33 @@ def kapitel_stammdaten(i):
               "Richtwerte. Angebote mit festgeschriebenen Preisen rechnen mit ihren Schneiddaten weiter "
               "([[preise_festschreiben]]). Rückgängig machen geht nur über eine Datensicherung ([[datensicherung]]), "
               "deshalb vor dem Zurücksetzen eigene Werte bei Bedarf sichern.")
+    i.abschnitt("Blech-Werkstoffe und Blechlaser (Richtwerte)", marke="blech_stammdaten")
+    i.text("Die Unterreiter <i>Blech-Werkstoffe</i> und <i>Blechlaser (Richtwerte)</i> gehören nur zum "
+           "Blech-Editor ([[blech_editor]]). Sie sind von den Werkstoffen, Maschinen und Schneiddaten des "
+           "Rohrlasers getrennt: was hier steht, ändert keine Rohrkalkulation.")
+    i.tabelle(["Blech-Werkstoffe", "Bedeutung"], [
+        ["<b>Blech-Werkstoff</b>, Bezeichnung / Norm", "Name in der Auswahl des Blech-Editors (z. B. S235JR, "
+                                                       "1.4301 2B, AlMg3) und Beschreibung"],
+        ["<b>Kategorie</b>", "Stahl, Edelstahl oder Aluminium; wählt die Blechlaser-Richtwerte"],
+        ["<b>Dichte [kg/dm³]</b>, <b>Preis [€/kg]</b>", "für Gewicht und Materialpreis je kg Tafel"],
+        ["K-Faktor", "Lage der neutralen Faser als Anteil der Blechdicke für die Abwicklung (leer = 0,33)"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.bild("stamm_blech_werkstoffe", "Einstellungen, Blech-Werkstoffe mit Preis je kg und K-Faktor", hoehe=80 * mm)
+    i.tabelle(["Blechlaser (Richtwerte)", "Bedeutung"], [
+        ["<b>Kategorie</b>, <b>Schneidgas</b>, <b>Blechdicke bis [mm]</b>",
+         "es gilt die Zeile mit der kleinsten Blechdicke bis, die mindestens der Dicke entspricht; N₂, solange es "
+         "eine N₂-Zeile gibt, darüber O₂"],
+        ["<b>Vorschub Außenkontur [mm/min]</b>, Vorschub Innenkonturen [mm/min]",
+         "für Außenkontur bzw. Innenkonturen; Innenkonturen leer = halber Vorschub Außenkontur"],
+        ["Einstechzeit [s]", "Zeit je Einstich"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Vorbelegt sind Richtwerte eines Faserlasers mit etwa 6 kW: Stahl mit N₂ bis 6 mm (1 mm 30.000, 3 mm "
+           "10.000, 6 mm 3.200 mm/min), darüber O₂ bis 20 mm (10 mm 2.000, 20 mm 800 mm/min); Edelstahl und "
+           "Aluminium mit N₂ bis 20 mm. Es sind Schätzwerte für die Kalkulation vorab, keine Herstellerwerte; bitte "
+           "an den eigenen Blechlaser bzw. die Preise des Lieferanten anpassen. Ältere Datendateien bekommen beide "
+           "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
+    i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
+           hoehe=100 * mm)
     i.abschnitt("Zusatzarbeiten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
@@ -3423,6 +3515,11 @@ NEUERUNGEN = [
               "Querschnitt mit rotem Punkt und Anzahl gedrehter Teile; Gehrungen ineinander mit grünen Schnittkanten, "
               "gespartes Material einmal je Stange (in Rest und Ausnutzung enthalten); Tooltip je Teil "
               "([[optimieren]])."],
+    ["0.8.2", "<b>Neue Position</b> fragt zuerst den Typ: Rohr / Profil öffnet den Schneidweg-Rechner mit Kopfzeile "
+              "(Artikel, Profil, Werkstoff, Länge, Stückzahl), Blech / Kantteil den neuen <b>Blech-Editor</b> mit "
+              "Abwicklung und Richtpreis als EK ([[blech_editor]]; eigene Blech-Werkstoffe und Blechlaser-Richtwerte "
+              "unter Einstellungen, getrennt vom Rohrlaser), Zukaufteil die Schnellanlage, Leere Zeile wie bisher "
+              "([[neue_position]])."],
     ["0.8.1", "Schneidweg-Rechner: Werte aus dem STEP-Import auch bei älteren Positionen (Enden, Bohrungen, Konturen, "
               "Gravur), <b>STEP neu einlesen …</b>, Schweißnaht wählbar, Rechteck-/Quadratrohr bei Naht und Seite nur "
               "0°/90°/180°/270°, beschriftete Enden und Maße je Konturart, Maße und Naht in der Skizze, "

@@ -402,8 +402,40 @@ ARBEITSSCHRITTE = Tabelle(
     "Rüsten je Abmessung und Stangenwechsel rechnet das Programm selbst; bei ihnen zählen nur Stundensatz, Art "
     "und Parallel. Art Personal mit Parallel = ja läuft neben der Maschine und verlängert die Durchlaufzeit nicht.")
 
+# Blech-Editor (Patrick 22.10.2026): nur Richtpreis für Blech- und Kantteile vom Blechlaser (Zukaufteil), eigene
+# Werkstoffe und Schneiddaten, getrennt von den Rohrlaser-Daten
+BLECH_WERKSTOFFE = Tabelle(
+    "blech_werkstoffe", "Blech-Werkstoffe",
+    (Feld("blech_werkstoff_id", "Blech-Werkstoff", pflicht=True, breite=140),
+     Feld("kategorie", "Kategorie", "auswahl", auswahl="kategorie", pflicht=True, breite=90),
+     Feld("bezeichnung", "Bezeichnung / Norm", breite=220),
+     Feld("dichte", "Dichte [kg/dm³]", "zahl", 0.5, 25, stellen=2, pflicht=True),
+     Feld("preis_kg", "Preis [€/kg]", "zahl", 0.01, 1000, stellen=2, pflicht=True),
+     Feld("k_faktor", "K-Faktor", "zahl", 0.1, 0.5, stellen=2),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("blech_werkstoff_id",),
+    "Werkstoffe nur für den Blech-Editor (Richtpreis für Blech- und Kantteile als Zukaufteil), getrennt von den "
+    "Rohr-Werkstoffen. Preis je kg Tafelmaterial; die Kategorie wählt die Blechlaser-Richtwerte. K-Faktor = Lage der "
+    "neutralen Faser (Anteil der Blechdicke von innen) für die Abwicklung von Kantteilen; leer = 0,33.")
+
+BLECHLASER = Tabelle(
+    "blechlaser", "Blechlaser (Richtwerte)",
+    (Feld("kategorie", "Kategorie", "auswahl", auswahl="kategorie", pflicht=True, breite=90),
+     Feld("gas", "Schneidgas", "auswahl", auswahl="gas", pflicht=True, breite=70),
+     Feld("dicke_bis", "Blechdicke bis [mm]", "zahl", 0.1, 100, stellen=1, pflicht=True),
+     Feld("vorschub", "Vorschub Außenkontur [mm/min]", "zahl", 1, 200000, stellen=0, pflicht=True),
+     Feld("vorschub_innen", "Vorschub Innenkonturen [mm/min]", "zahl", 1, 200000, stellen=0),
+     Feld("einstechzeit", "Einstechzeit [s]", "zahl", 0, 60, stellen=1),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("kategorie", "gas", "dicke_bis"),
+    "Schneiddaten eines Flachbettlasers nur für den Richtpreis im Blech-Editor; sie gehören nicht zu den Rohrlaser-"
+    "Maschinen. Je Kategorie und Schneidgas gestaffelt nach Blechdicke: es gilt die Zeile mit der kleinsten "
+    "'Blechdicke bis', die mindestens der Blechdicke entspricht; N₂, solange es dafür eine Zeile gibt, darüber O₂. "
+    "Leerer Vorschub Innenkonturen = halber Vorschub Außenkontur. Vorbelegt sind Richtwerte eines Faserlasers mit "
+    "etwa 6 kW, bitte an den eigenen Blechlaser bzw. Lieferanten anpassen.")
+
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
-            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE)
+            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -490,6 +522,15 @@ EINSTELLUNGEN = (
                 6500, 0, 30000),
     Einstellung("zuschnitt_kosten", "Lieferlängen: Kosten je Zuschnitt beim Lieferanten [€]", "Lieferlängen", "zahl",
                 0.0, 0, 10000),
+    # Blech-Editor: Richtpreis je Blech-/Kantteil = (Material + Laser + Kanten + Rüsten je Stück) × (1 + Aufschlag)
+    Einstellung("blech_stundensatz", "Stundensatz Blechlaser [€/h]", "Blech-Richtpreis", "zahl", 120.0, 0, 10000),
+    Einstellung("blech_ruesten", "Rüsten und Programmieren Blechlaser je Auftrag [€]", "Blech-Richtpreis", "zahl",
+                30.0, 0, 100000),
+    Einstellung("blech_verschnitt", "Verschnitt Tafel (auf das Hüllrechteck)", "Blech-Richtpreis", "anteil", 0.15,
+                0, 5),
+    Einstellung("blech_kantung", "Kanten: Preis je Kantung [€]", "Blech-Richtpreis", "zahl", 1.20, 0, 10000),
+    Einstellung("blech_ruesten_kanten", "Kanten: Rüsten je Auftrag [€]", "Blech-Richtpreis", "zahl", 25.0, 0, 100000),
+    Einstellung("blech_aufschlag", "Aufschlag des Lieferanten (Gewinn)", "Blech-Richtpreis", "anteil", 0.15, 0, 5),
     Einstellung("standard_maschine", "Standard-Maschine", "Angebot", "auswahl", "T03",
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
@@ -850,7 +891,41 @@ def beispieldaten():
         "zusatzarbeiten": beispiel_zusatzarbeiten(),
         "stundensaetze": beispiel_stundensaetze(),
         "arbeitsschritte": beispiel_arbeitsschritte(),
+        "blech_werkstoffe": zeilen(BLECH_WERKSTOFFE, beispiel_blech_werkstoffe()),
+        "blechlaser": zeilen(BLECHLASER, beispiel_blechlaser()),
     }
+
+
+def beispiel_blech_werkstoffe():
+    """Blech-Werkstoffe für den Richtpreis (Beispielpreise je kg Tafel, bitte durch eigene ersetzen)."""
+    st, es, al, b = "Stahl", "Edelstahl", "Aluminium", "Richtwert, bitte anpassen"
+    return [("S235JR", st, "S235JR EN 10025-2 warmgewalzt", 7.85, 1.10, 0.33, b),
+            ("S355MC", st, "S355MC EN 10149-2", 7.85, 1.25, 0.33, b),
+            ("DC01", st, "DC01 EN 10130 kaltgewalzt", 7.85, 1.20, 0.33, b),
+            ("DX51D+Z275", st, "DX51D+Z275 feuerverzinkt", 7.85, 1.35, 0.33, b),
+            ("1.4301 2B", es, "X5CrNi18-10 kaltgewalzt 2B", 7.90, 3.80, 0.33, b),
+            ("1.4301 K240", es, "X5CrNi18-10 geschliffen K240, foliert", 7.90, 4.40, 0.33, b),
+            ("1.4571 2B", es, "X6CrNiMoTi17-12-2 kaltgewalzt 2B", 8.00, 5.50, 0.33, b),
+            ("AlMg3", al, "EN AW-5754 H111", 2.66, 4.20, 0.33, b),
+            ("AlMg4,5Mn", al, "EN AW-5083 H111", 2.66, 4.80, 0.33, b)]
+
+
+# Richtwerte Faserlaser etwa 6 kW, Flachbett: (Dicke bis, Vorschub Außenkontur, Einstechzeit); Innenkonturen halb
+BLECHLASER_RICHTWERTE = {
+    ("Stahl", "N₂"): [(1, 30000, 0.2), (2, 18000, 0.3), (3, 10000, 0.3), (4, 6500, 0.5), (5, 4500, 0.6),
+                      (6, 3200, 0.8)],
+    ("Stahl", "O₂"): [(8, 2600, 1.0), (10, 2000, 1.5), (12, 1600, 2.0), (15, 1200, 3.0), (20, 800, 4.0)],
+    ("Edelstahl", "N₂"): [(1, 32000, 0.2), (2, 16000, 0.3), (3, 8500, 0.3), (4, 5500, 0.5), (5, 3800, 0.6),
+                          (6, 2600, 0.8), (8, 1400, 1.2), (10, 900, 1.8), (12, 600, 2.5), (15, 400, 3.5),
+                          (20, 200, 5.0)],
+    ("Aluminium", "N₂"): [(1, 30000, 0.2), (2, 15000, 0.3), (3, 8000, 0.3), (4, 5500, 0.5), (5, 3800, 0.6),
+                          (6, 2500, 0.8), (8, 1300, 1.2), (10, 800, 1.8), (12, 550, 2.5), (15, 350, 3.5),
+                          (20, 180, 5.0)]}
+
+
+def beispiel_blechlaser():
+    return [(kat, gas, d, v, round(v * 0.5, -1), ein, "Richtwert Faser 6 kW")
+            for (kat, gas), stufen in BLECHLASER_RICHTWERTE.items() for d, v, ein in stufen]
 
 
 def beispiel_werkstoffe():

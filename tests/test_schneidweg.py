@@ -23,7 +23,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QLabel  # noqa: E402
 from rohrlaser import optimierung as opt, rechnen, schneidweg as sw  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -519,6 +519,52 @@ if step.messprogramm(HIER.parent / "programm") is not None:
     assert d12.tabelle.rowCount() == len(ek["konturen"]) and nah(d12.ergebnis["schneidweg"], pk["schneidweg"], 0.6)
     assert all(z.get("x") is not None for z in d12.eingaben()["konturen"])
     ok("S11 STEP neu einlesen: Konturen mit Lage und Seite aus der Datei, Schneidweg wie gemessen")
+
+# ------------------------------------------------------------------ S12 Neue Position mit Typ-Abfrage
+from rohrlaser import neue_position as np_  # noqa: E402
+td = np_.TypDialog(s)
+assert list(np_.TYPEN) == ["Rohr / Profil", "Blech / Kantteil", "Zukaufteil", "Leere Zeile"]
+td.waehlen(np_.BLECH)
+assert td.typ == np_.BLECH and td.result() == QDialog.Accepted
+vorher = len(db.positionen(a))
+assert s.position_neu() == np_.LEER and len(db.positionen(a)) == vorher + 1      # stumm: leere Zeile wie bisher
+aufrufe = []
+s.zukauf_schnell, alt_zs = (lambda zeilen=None, blech=True: aufrufe.append(blech) or 1), s.zukauf_schnell
+s.blech_neu, alt_bn = (lambda dialog=None: aufrufe.append("Blech-Editor") or True), s.blech_neu
+assert s.position_neu(np_.BLECH) == np_.BLECH and s.position_neu(np_.ZUKAUF) == np_.ZUKAUF
+assert aufrufe == ["Blech-Editor", False]
+s.zukauf_schnell, s.blech_neu = alt_zs, alt_bn
+gesehen12 = {}
+
+
+def rohr_bedienen(d):
+    gesehen12["titel"] = d.windowTitle()
+    gesehen12["fehler_leer"] = d.kopf_fehler()
+    gesehen12["ok_leer"] = d.ok_knopf.isEnabled()
+    d.k_artikel.setText("NEU-1")
+    d.k_profil.setCurrentText("RE 60x40x3")
+    gesehen12["kasten"] = d.kasten and isinstance(d.naht_winkel, QComboBox)
+    d.k_laenge.setValue(1200)
+    d.k_stueck.setValue(5)
+    d.zeile_neu(dict(art="Bohrung", anzahl=2, d=8.5))
+    d.naht_vorgabe.setCurrentText(naht_.FEST)
+    d.naht_winkel.setCurrentText("90° vorne (rechts)")
+    gesehen12["fehler"] = d.kopf_fehler()
+    return QDialog.Accepted
+
+
+vorher = len(db.positionen(a))
+assert s.position_neu(np_.ROHR, dialog=rohr_bedienen) == np_.ROHR
+neu12 = db.positionen(a)[-1]
+assert len(db.positionen(a)) == vorher + 1 and gesehen12["titel"].startswith("Neue Position")
+assert gesehen12["fehler_leer"] == ["Teilelänge eingeben."] and not gesehen12["ok_leer"] and gesehen12["kasten"] and gesehen12["fehler"] == []
+assert (neu12["artikel"], neu12["profil_id"], neu12["laenge"], neu12["stueck"]) == ("NEU-1", "RE 60x40x3", 1200, 5)
+assert neu12["werkstoff_id"] and neu12["einstiche"] >= 2 and neu12["schneidweg"] > 0
+assert (neu12["naht_vorgabe"], neu12["naht_winkel"]) == (naht_.FEST, 90.0)
+assert sw.lesen(neu12["technik"])["konturen"][0]["d"] == 8.5
+assert s.position_neu(np_.ROHR, dialog=lambda d: QDialog.Rejected) is None and len(db.positionen(a)) == vorher + 1
+ok("S12 Neue Position: erst Typ (Rohr / Profil, Blech / Kantteil, Zukaufteil, leere Zeile), Rohr im Rechner mit "
+   "Kopfzeile (Profilwechsel, Länge Pflicht, Naht, Konturen)")
 
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()
