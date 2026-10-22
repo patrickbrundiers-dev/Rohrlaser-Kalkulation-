@@ -153,7 +153,8 @@ class MeterpreisDialog(QDialog):
             feld.setPlaceholderText(_z(g["berechnet"]) if g["berechnet"] is not None else "Preis eintragen")
             if g["manuell"] is not None:
                 feld.setText(_z(g["manuell"]))
-            feld.setFont(fett)
+            feld.textChanged.connect(lambda t, feld=feld: self._fett(feld))       # eigener Wert fett, berechnet normal
+            self._fett(feld)
             feld.setToolTip("Eigener Meterpreis für diese Abmessung; leer = berechnet")
             self.felder.append(feld)
             self.tabelle.setCellWidget(r, 12, feld)
@@ -195,6 +196,12 @@ class MeterpreisDialog(QDialog):
         knoepfe.accepted.connect(self.annehmen)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
+
+    @staticmethod
+    def _fett(feld):
+        f = feld.font()
+        f.setBold(bool(feld.text().strip()))
+        feld.setFont(f)
 
     @staticmethod
     def _kunde(feld, herkunft):
