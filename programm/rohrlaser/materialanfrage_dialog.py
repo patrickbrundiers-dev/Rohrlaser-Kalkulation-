@@ -15,7 +15,7 @@ class AnfrageDialog(QDialog):
     eml_ziel = Pfad der E-Mail-Datei, oeffnen(pfad) öffnet Dateien, ausfuehren ersetzt den
     Outlook-Aufruf (Tests). Nach einer Aktion: self.meldung (Text für die Statuszeile), self.ergebnis
     ('outlook', 'eml' oder None)."""
-    SPALTEN = ("Anfragen", "Material", "Stangen", "Lieferant", "Pos.")
+    SPALTEN = ("Anfragen", "Material", "Stangen", "Zuschnitt", "Lieferant", "Pos.")
 
     def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, eml_ziel, oeffnen, ausfuehren=None):
         super().__init__(parent)
@@ -53,10 +53,22 @@ class AnfrageDialog(QDialog):
             m.valueChanged.connect(self._neu)
             self.mengen.append(m)
             self.tabelle.setCellWidget(r, 2, m)
-            self.tabelle.setItem(r, 3, QTableWidgetItem(z["lieferant"] or "–"))
-            self.tabelle.setItem(r, 4, QTableWidgetItem(", ".join(z["pos"])))
+            zs = QTableWidgetItem()
+            if ma.zuschnitt_text(z):        # nur Stangen, die der Lieferant nach der Planung zuschneidet
+                zs.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+                zs.setCheckState(Qt.Checked)
+                zs.setToolTip(ma.zuschnitt_text(z))
+            else:
+                zs.setFlags(Qt.ItemIsEnabled)
+                zs.setText("–")
+                zs.setToolTip("Ganze Stangen ohne Zuschnitt")
+            self.tabelle.setItem(r, 3, zs)
+            self.tabelle.item(r, 1).setToolTip("\n".join(t for t in (z["text"], ma.zuschnitt_text(z),
+                                                                     z.get("anforderungen")) if t))
+            self.tabelle.setItem(r, 4, QTableWidgetItem(z["lieferant"] or "–"))
+            self.tabelle.setItem(r, 5, QTableWidgetItem(", ".join(z["pos"])))
         kopfzeile = self.tabelle.horizontalHeader()
-        for i, b in enumerate((70, 0, 75, 150, 90)):
+        for i, b in enumerate((70, 0, 75, 75, 150, 90)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopfzeile.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -67,13 +79,19 @@ class AnfrageDialog(QDialog):
         form = QFormLayout()
         self.an = QLineEdit()
         self.an.setPlaceholderText("E-Mail-Adresse (Lieferanten unter Zukaufartikel → Lieferanten pflegen)")
-        self.betreff = QLineEdit(ma.betreff(kopf))
+        self.betreff = QLineEdit(ma.betreff(kopf, einst))
         form.addRow("An", self.an)
         form.addRow("Betreff", self.betreff)
         lay.addLayout(form)
         self.text = QPlainTextEdit()
         self.text.textChanged.connect(self._text_geaendert)
         lay.addWidget(self.text, 1)
+        self.signatur = QLabel(
+            "Signatur: setzt Outlook (Standardsignatur); in der E-Mail-Datei die eigene Signatur aus den Einstellungen."
+            if ma.outlook_signatur(einst) else "Signatur: eigene Signatur aus den Einstellungen (Materialanfrage).")
+        self.signatur.setWordWrap(True)
+        self.signatur.setToolTip(ma.signatur(einst) or "keine eigene Signatur (Briefkopf leer)")
+        lay.addWidget(self.signatur)
         self.hinweis = QLabel()
         self.hinweis.setWordWrap(True)
         self.hinweis.setStyleSheet("color: #7A5A00;")
@@ -110,14 +128,21 @@ class AnfrageDialog(QDialog):
         """Indizes der angehakten Zeilen."""
         return [r for r in range(len(self.zeilen)) if self.tabelle.item(r, 0).checkState() == Qt.Checked]
 
+    def mit_zuschnitt(self):
+        """Indizes der Zeilen, deren Zuschnitt angefragt wird."""
+        return [r for r in range(len(self.zeilen)) if self.tabelle.item(r, 3).flags() & Qt.ItemIsUserCheckable
+                and self.tabelle.item(r, 3).checkState() == Qt.Checked]
+
     def _neu(self, *_):
         if self._setzen:
             return
         auswahl = self.gewaehlt()
         if not self.text_von_hand:
             self._setzen = True
+            zs = set(self.mit_zuschnitt())
             self.text.setPlainText(ma.anschreiben(self.kopf, [self.zeilen[r] for r in auswahl], self.einst, self.k,
-                                                  {i: self.mengen[r].value() for i, r in enumerate(auswahl)}))
+                                                  {i: self.mengen[r].value() for i, r in enumerate(auswahl)},
+                                                  {i for i, r in enumerate(auswahl) if r in zs}))
             self._setzen = False
         hinweise = []
         if not auswahl:
@@ -132,16 +157,18 @@ class AnfrageDialog(QDialog):
         if not self._setzen:
             self.text_von_hand = True
 
-    def mail(self):
-        """(An, Betreff, Text) wie sie in die E-Mail gehen."""
-        return self.an.text().strip(), self.betreff.text().strip(), self.text.toPlainText()
+    def mail(self, signatur=False):
+        """(An, Betreff, Text); signatur = True: mit der eigenen Signatur (E-Mail-Datei, Outlook ohne Signatur)."""
+        text = self.text.toPlainText()
+        return (self.an.text().strip(), self.betreff.text().strip(),
+                ma.mit_signatur(text, ma.signatur(self.einst)) if signatur else text)
 
     # ------------------------------------------------------------------ Aktionen
     def als_datei(self, oeffnen=True):
         """E-Mail-Datei (.eml) in der Ablage speichern und mit dem Standard-Mailprogramm öffnen."""
         if self.eml_ziel is None:
             return None
-        pfad = ma.eml(self.eml_ziel, *self.mail())
+        pfad = ma.eml(self.eml_ziel, *self.mail(signatur=True))
         if oeffnen:
             self.oeffnen(pfad)
         self.ergebnis = "eml"
@@ -150,7 +177,9 @@ class AnfrageDialog(QDialog):
 
     def in_outlook(self):
         """E-Mail in Outlook anzeigen (nicht senden); geht das nicht, E-Mail-Datei als Ersatz."""
-        ok, fehler = ma.outlook_oeffnen(*self.mail(), ausfuehren=self.ausfuehren)
+        aus_outlook = ma.outlook_signatur(self.einst)
+        ok, fehler = ma.outlook_oeffnen(*self.mail(signatur=not aus_outlook), ausfuehren=self.ausfuehren,
+                                        signatur_=aus_outlook)
         if ok:
             self.ergebnis = "outlook"
             self.meldung = "E-Mail in Outlook geöffnet – bitte dort prüfen und senden."

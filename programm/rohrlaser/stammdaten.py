@@ -221,12 +221,17 @@ WERKSTOFFE = Tabelle(
      Feld("dichte", "Dichte [kg/dm³]", "zahl", 0.5, 25, stellen=2, pflicht=True),
      Feld("bemerkung", "Bemerkung", breite=160),
      Feld("tonnenpreis", "Tonnenpreis [€/t]", "zahl", 0.01, 1000000, stellen=0),
-     Feld("angebotstext", "Text im Angebot", breite=160)),
+     Feld("angebotstext", "Text im Angebot", breite=160),
+     # Anforderungen in der Materialanfrage (unter der Materialzeile); leer = keine
+     Feld("anfrage_zeugnis", "Anfrage: Prüfbescheinigung", "auswahl", auswahl="zeugnis", breite=100),
+     Feld("anfrage_herkunft_eu", "Anfrage: Herkunft EU", "auswahl", auswahl="janein", breite=80),
+     Feld("anfrage_toleranz", "Anfrage: Maßtoleranzen nach Norm", "auswahl", auswahl="janein", breite=100)),
     ("werkstoff_id",),
     "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Die Kategorie (Stahl, Edelstahl, "
     "Aluminium) ordnet die Auswahl im Angebot und liefert Schneiddaten und Oberflächen, wenn der Werkstoff keine "
     "eigenen hat. Der Tonnenpreis ergibt automatisch den Preis je kg, je m und je Stange; Abweichungen unter "
-    "'Preise' eintragen.")
+    "'Preise' eintragen. Die Spalten 'Anfrage: …' setzen die Anforderungen, die in der Materialanfrage unter dem "
+    "Werkstoff stehen (Prüfbescheinigung nach EN 10204, Herkunft EU, Maßtoleranzen nach Norm).")
 
 OBERFLAECHEN = Tabelle(
     "oberflaechen", "Oberflächen",
@@ -511,6 +516,17 @@ EINSTELLUNGEN = (
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
+    # Materialanfrage per Outlook: Vorlagen mit Platzhaltern, Signatur
+    Einstellung("anfrage_betreff", "Materialanfrage: Betreff", "Materialanfrage", "text",
+                "Materialanfrage zu Angebot {angebot}"),
+    Einstellung("anfrage_text", "Materialanfrage: Text der E-Mail", "Materialanfrage", "mehrzeilig",
+                "Sehr geehrte Damen und Herren,\n\nbitte senden Sie uns ein Angebot für folgendes Material "
+                "(unser Angebot {angebot}):\n\n{positionen}\n\nBitte mit Preis, Lieferzeit und Angabe der "
+                "Lieferlänge.\n\nMit freundlichen Grüßen"),
+    Einstellung("anfrage_outlook_signatur", "Materialanfrage: Signatur aus Outlook verwenden", "Materialanfrage",
+                "auswahl", "ja", auswahl="janein"),
+    Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
+                "Materialanfrage", "mehrzeilig", ""),
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "text", ""),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
@@ -643,7 +659,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),

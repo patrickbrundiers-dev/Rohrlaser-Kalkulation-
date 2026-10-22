@@ -1901,9 +1901,12 @@ def kapitel_ausgabe(i, seiten, ablage):
            legende=[(1, "<b>Anfrage an Lieferant</b>: Lieferanten aus <i>Lieferlängen</i> bzw. <i>Preise</i> (Spalte "
                         "Lieferant); die E-Mail-Adresse kommt aus den Lieferanten der Zukaufartikel."),
                     (2, "Bedarf je Profil, Werkstoff, Oberfläche und Lieferlänge mit Anzahl Stangen (änderbar) und "
-                        "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde."),
-                    (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Der Text wird bei jeder Änderung der Zeilen "
-                        "neu erstellt, bis er von Hand geändert wurde."),
+                        "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde. "
+                        "Spalte <b>Zuschnitt</b>: nur bei Stangen, die der Lieferant nach der Planung zuschneidet "
+                        "(z. B. 12 m); Häkchen = Zuschnitt mit anfragen."),
+                    (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Betreff und Text kommen aus den Vorlagen "
+                        "in den Einstellungen; der Text wird bei jeder Änderung der Zeilen neu erstellt, bis er von "
+                        "Hand geändert wurde. Darunter steht, woher die Signatur kommt."),
                     (4, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>. Zeichnungen bei Bedarf in "
                         "Outlook selbst anhängen.")])
     i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff und Text "
@@ -1916,6 +1919,26 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Lieferant stehen unter „(ohne Lieferant)“; die Adresse dann von Hand eintragen.",
             "Lieferanten und ihre E-Mail-Adressen pflegen: Zukaufartikel → Lieferanten; den Lieferanten eines "
             "Profils in den Stammdaten <i>Preise</i> bzw. <i>Lieferlängen</i>.")
+    i.text("<b>Zuschnitt.</b> Ist eine Gruppe mit einer langen Lieferlänge geplant (z. B. 12-m-Lösung übernommen, "
+           "[[lieferlaengen]]), steht unter der Materialzeile, wie der Lieferant die Stangen schneiden soll, z. B. "
+           "<i>je Stange geschnitten auf 2 x 5.950 mm</i> oder bei verschiedenen Zuschnitten <i>davon 2 Stangen "
+           "geschnitten auf …, 1 Stange geschnitten auf …</i>. Die Längen sind die Stangenlängen der Planung "
+           "(mit Puffer, siehe Einstellungen <i>Lieferlängen</i>). Ohne Häkchen in der Spalte Zuschnitt wird nur die "
+           "ganze Stange angefragt. Wird die Anzahl Stangen von Hand geändert, bleibt der Zuschnitt der Planung "
+           "stehen; dann den Text prüfen.")
+    i.text("<b>Anforderungen je Werkstoff.</b> In den Stammdaten <i>Werkstoffe</i> lassen sich je Werkstoff "
+           "<i>Anfrage: Prüfbescheinigung</i> (2.2, 3.1 oder 3.2 nach EN 10204), <i>Anfrage: Herkunft EU</i> und "
+           "<i>Anfrage: Maßtoleranzen nach Norm</i> ankreuzen. Sie stehen eingerückt unter jeder Materialzeile "
+           "dieses Werkstoffs, z. B. <i>Abnahmeprüfzeugnis 3.1 nach EN 10204, Herkunft EU</i> ([[stammdaten]]).")
+    i.text("<b>Text und Signatur.</b> Die Vorlagen stehen in den Einstellungen, Gruppe <i>Materialanfrage</i> "
+           "([[vorgaben]]). Platzhalter: <i>{angebot}</i> (Angebotsnummer), <i>{kunde}</i>, <i>{positionen}</i> "
+           "(die Materialliste), <i>{datum}</i> (heute) und <i>{absender}</i> (Briefkopf). Unbekannte Platzhalter "
+           "bleiben unverändert stehen. Mit <i>Signatur aus Outlook verwenden = ja</i> zeigt das Programm die "
+           "E-Mail in Outlook an, Outlook setzt dabei seine Standardsignatur für neue E-Mails ein, und der Text "
+           "kommt davor. Dafür muss in Outlook unter <i>Datei → Optionen → E-Mail → Signaturen</i> eine "
+           "Standardsignatur für neue Nachrichten gewählt sein. Die E-Mail-Datei (neues Outlook, kein Outlook) "
+           "erreicht die Outlook-Signatur nicht; sie bekommt die <i>eigene Signatur</i> aus den Einstellungen "
+           "(leer = Briefkopf). Mit <i>nein</i> gilt die eigene Signatur auch in Outlook.")
 
 
 def kapitel_nachkalkulation(i):
@@ -2059,6 +2082,13 @@ def kapitel_einstellungen(i):
         ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Versandart für automatische Fracht, "
                          "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen im Reiter Frachtkosten unter <i>Historie und "
                          "Einstellungen</i> ([[fracht_einstellungen]]), nicht unter Vorgaben"],
+        ["Materialanfrage", "Materialanfrage: Betreff, Materialanfrage: Text der E-Mail",
+         "Vorlagen der Materialanfrage mit Platzhaltern {angebot}, {kunde}, {positionen}, {datum}, {absender}; "
+         "leer = Vorgabe ([[materialanfrage]])"],
+        ["Materialanfrage", "Materialanfrage: Signatur aus Outlook verwenden, Materialanfrage: eigene Signatur "
+                            "(E-Mail-Datei; leer = Briefkopf)",
+         "ja = Outlook setzt seine Standardsignatur, der Text kommt davor; die E-Mail-Datei bekommt die eigene "
+         "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten; leer = ohne Passwort"]],
         [28, 80, 157])
@@ -2250,6 +2280,9 @@ def kapitel_stammdaten(i):
         ["<b>Dichte [kg/dm³]</b>", "für Gewicht und Preis je kg"],
         ["Tonnenpreis [€/t]", "Materialpreis, wenn unter Preise nichts steht"],
         ["Text im Angebot", "so steht der Werkstoff in der Bezeichnung im Angebot"],
+        ["Anfrage: Prüfbescheinigung, Anfrage: Herkunft EU, Anfrage: Maßtoleranzen nach Norm",
+         "Anforderungen, die in der Materialanfrage unter dem Werkstoff stehen: Prüfbescheinigung 2.2, 3.1 oder 3.2 "
+         "nach EN 10204, ja/nein für Herkunft EU und Maßtoleranzen nach Norm; leer = keine ([[materialanfrage]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Vorbelegt sind Stahl (S235JRH, S355J2H, E235, E355), Edelstahl (1.4301, 1.4307, 1.4404, 1.4571, "
            "1.4509) und Aluminium (EN AW-6060, 6063, 6082) mit Beispiel-Tonnenpreisen. Ältere Datendateien "
@@ -3208,6 +3241,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.35", "Materialanfrage: Zuschnitt der 12-m-Stange je Zeile („geschnitten auf …“, abwählbar), Anforderungen "
+               "je Werkstoff zum Ankreuzen (Prüfbescheinigung, Herkunft EU, Maßtoleranzen), Betreff und Text als "
+               "Vorlage in den Einstellungen, Signatur aus Outlook bzw. eigene Signatur ([[materialanfrage]])."],
     ["0.6.34", "Frachtkosten, Zukauf und Dialoge mit kurzen Hilfetexten (ⓘ mehr, wie [[stammdaten]]); Zukauf-Formular "
                "mit Abschnitten zum Auf- und Zuklappen ([[zukauf]])."],
     ["0.6.33", "Einstellungen übersichtlicher: Hilfetexte kurz mit ⓘ mehr oder nur als Tooltip (Einstellung), "

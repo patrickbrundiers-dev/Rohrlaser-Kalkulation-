@@ -227,7 +227,8 @@ class Auswahl(QStyledItemDelegate):
         art, f = quelle.model().spalten[quelle.column()]
         if art == "feld" and f.art == "auswahl":
             cb = QComboBox(parent)
-            cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "materialherkunft"))
+            cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "materialherkunft",
+                                              "zeugnis"))
             liste_fuellen(cb, quelle.model().k, f.auswahl)
             return cb
         return super().createEditor(parent, option, index)

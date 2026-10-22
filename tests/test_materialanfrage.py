@@ -2,6 +2,8 @@
 - Materialanfrage: Bedarf aus der Optimierung je Profil + Werkstoff + Lieferlänge (ohne Kundenmaterial), Lieferant
   aus 'Preise', E-Mail aus den Lieferanten, Text mit Stangen, Mengen änderbar, Zeilen
   abwählbar; Outlook wird nur zum Anzeigen aufgerufen (Display, nie Send); ohne Outlook E-Mail-Datei (.eml, Entwurf).
+- Zuschnitt der 12-m-Stange je Zeile, Anforderungen je Werkstoff, Vorlage für Betreff/Text, Signatur aus Outlook
+  (Text vor die Standardsignatur) oder eigene Signatur.
 - Ältere Datei (Schema 26) lässt sich weiter öffnen; früher abgelegte Zeichnungen werden einmalig gelöscht.
 
 Aufruf: python tests/test_materialanfrage.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -20,6 +22,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rohrlaser import materialanfrage as ma  # noqa: E402
 from rohrlaser.angebot import KUNDENMATERIAL  # noqa: E402
@@ -104,15 +107,19 @@ def anfrage_bedienen(d):
 d = s.material_anfragen(dialog=anfrage_bedienen, ausfuehren=outlook_ok)
 assert gesehen["lieferant"] == "Stahlhandel Nord" and gesehen["an"] == "anfrage@stahl-nord.example"
 assert len(gesehen["gewaehlt"]) == 1 and "Quadratrohr 40 x 40 x 3" in gesehen["text"] and "Rundrohr" not in gesehen["text"]
-assert "Angebot A-2026-0100" in gesehen["text"] and "Muster Laser GmbH" in gesehen["text"]
+assert "Angebot A-2026-0100" in gesehen["text"] and "Muster Laser GmbH" not in gesehen["text"]   # Signatur: Outlook
 assert "Zeichnung" not in gesehen["text"]
 assert f"{qr['stangen'] + 2} Stangen Quadratrohr" in gesehen["text2"]
 prog, skript, daten = aufrufe[0]
 assert prog == "powershell" and "Display" in skript and ".Send" not in skript and "Send(" not in skript
 assert daten["an"] == "anfrage@stahl-nord.example" and daten["betreff"] == "Materialanfrage zu Angebot A-2026-0100"
 assert not daten.get("anhaenge") and "Stangen" in daten["text"]
+assert daten["signatur"] is True and "Muster Laser GmbH" not in daten["text"]       # Outlook setzt die Signatur
+assert "Quadratrohr 40 x 40 x 3" in daten["html"] and "<br>" in daten["html"]
+assert skript.index("$m.Display") < skript.index("HTMLBody") and "Insert(" in skript    # Text vor die Signatur
 assert d.ergebnis == "outlook" and "in Outlook geöffnet" in fenster.statusBar().currentMessage()
-ok("M2 Vorschau: Lieferant mit E-Mail, nur seine Zeilen, Menge änderbar, ohne Anhang; Outlook nur Display, nie Send")
+ok("M2 Vorschau: Lieferant mit E-Mail, nur seine Zeilen, Menge änderbar, ohne Anhang; Outlook nur Display, nie Send, "
+   "Text vor der Outlook-Signatur")
 
 # ------------------------------------------------------------------ M3 ohne Outlook: E-Mail-Datei
 def outlook_fehlt(befehl):
@@ -132,12 +139,78 @@ assert d.ergebnis == "eml" and "nicht ansteuern" in d.meldung and geoeffnet and 
 mail = email.message_from_bytes(geoeffnet[0].read_bytes(), policy=policy.default)
 assert mail["To"] == "einkauf@rohr.example" and mail["X-Unsent"] == "1"
 assert "Rundrohr Ø 42,4 x 2" in mail.get_body().get_content() and "Quadratrohr" not in mail.get_body().get_content()
+assert mail.get_body().get_content().rstrip().endswith("Mit freundlichen Grüßen\nMuster Laser GmbH")  # eigene Signatur
 assert not list(mail.iter_attachments())
 pfad = ma.eml(tmp / "mit.eml", "a@b.example", "Test", "Text", [tmp / "Z-100.pdf"])
 anh = list(email.message_from_bytes(pfad.read_bytes(), policy=policy.default).iter_attachments())
 assert [x.get_filename() for x in anh] == ["Z-100.pdf"] and anh[0].get_content() == b"%PDF-1.4 Zeichnung 100"
 assert ma.outlook_oeffnen("a", "b", "c") == (False, "Outlook gibt es nur unter Windows.") or sys.platform == "win32"
 ok("M3 Ohne Outlook: E-Mail-Datei als Entwurf (X-Unsent) mit Empfänger und Text, geöffnet; eml kann weiter Anhänge")
+
+# ------------------------------------------------------------------ M5 Zuschnitt, Anforderungen, Vorlage, Signatur (1a 2a 3c 4a)
+from rohrlaser import rechnen  # noqa: E402
+from rohrlaser.materialanfrage_dialog import AnfrageDialog  # noqa: E402
+db.neu("lieferlaengen", dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=12000,
+                             lieferant="Stahlhandel Nord"))
+w = next(z for z in db.zeilen("werkstoffe") if z["werkstoff_id"] == "S235-10219")
+for feld, wert in (("anfrage_zeugnis", "3.1"), ("anfrage_herkunft_eu", "ja"), ("anfrage_toleranz", "ja")):
+    db.aendern("werkstoffe", w["id"], feld, wert)
+k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
+assert ma.anforderungen("S235-10219", k) == "Abnahmeprüfzeugnis 3.1 nach EN 10204, Herkunft EU, Maßtoleranzen nach Norm"
+assert ma.anforderungen("1.4301", k) == ""
+kopf = db.angebot(a)
+pos_ = db.positionen(a)
+erg = rechnen.optimieren(kopf, pos_, k, tab, einst)
+schl = next(g["schluessel"] for g in erg["laengen"] if g["profil"] == "QR 40x40x3")
+kopf12 = dict(kopf, laengenwahl={schl: 12000})
+erg12 = rechnen.optimieren(kopf12, pos_, k, tab, einst)
+z12 = next(z for z in ma.bedarf(pos_, erg12, k, tab) if z["profil"] == "QR 40x40x3")
+assert z12["laenge"] == 12000 and z12["zuschnitte"] and len(z12["zuschnitte"]) == z12["stangen"]
+st12 = [st for st in erg12["stangen"] if st["profil"] == "QR 40x40x3"]
+assert sorted(z12["zuschnitte"]) == sorted(tuple(x["laenge"] for x in st["werkstuecke"]) for st in st12)
+zt = ma.zuschnitt_text(z12)
+assert "geschnitten auf" in zt and zt.endswith(" mm"), zt
+rr6 = next(z for z in ma.bedarf(pos_, erg12, k, tab) if z["profil"] == "RR 42,4x2,0")
+assert rr6["zuschnitte"] == [] and ma.zuschnitt_text(rr6) == ""                      # 6 m: ganze Stangen
+# mehrere Zuschnitte: gleiche Längen zusammengefasst, häufigster zuerst
+mz = dict(zuschnitte=[(5950, 5950), (5950, 3000), (5950, 5950)])
+assert ma.zuschnitt_text(mz) == ("davon 2 Stangen geschnitten auf 2 x 5.950 mm, "
+                                 "1 Stange geschnitten auf 5.950 + 3.000 mm")
+assert ma.zuschnitt_text(dict(zuschnitte=[(6000, 5900)] * 3)) == "je Stange geschnitten auf 6.000 + 5.900 mm"
+
+d = AnfrageDialog(fenster, kopf, [z12, rr6], k, einst, ma.lieferanten(db.zeilen("zukauf_lieferanten")), tmp / "a.eml",
+                  lambda p: None, outlook_ok)
+t = d.text.toPlainText()
+assert d.mit_zuschnitt() == [0] and "à 12.000 mm" in t and f"\n  {zt}\n" in t, t
+assert f"\n  {z12['anforderungen']}" in t
+d.tabelle.item(0, 3).setCheckState(Qt.Unchecked)                         # Zuschnitt nicht anfragen
+t = d.text.toPlainText()
+assert "geschnitten auf" not in t and z12["anforderungen"] in t and "à 12.000 mm" in t
+assert not (d.tabelle.item(1, 3).flags() & Qt.ItemIsUserCheckable)       # 6 m: kein Häkchen
+d.tabelle.item(0, 3).setCheckState(Qt.Checked)
+# Vorlage aus den Einstellungen, unbekannte Platzhalter bleiben stehen
+einst_v = dict(einst, anfrage_betreff="Anfrage {angebot} / {kunde}",
+               anfrage_text="Hallo,\n\n{positionen}\n\nGruß {unbekannt}", anfrage_outlook_signatur="nein",
+               anfrage_signatur="Max Muster\nEinkauf")
+assert ma.betreff(kopf, einst_v) == "Anfrage A-2026-0100 / Test"
+assert ma.betreff(kopf, dict(einst, anfrage_betreff="")) == "Materialanfrage zu Angebot A-2026-0100"   # leer = Vorgabe
+d = AnfrageDialog(fenster, kopf, [z12], k, einst_v, {}, tmp / "b.eml", lambda p: None, outlook_ok)
+assert d.betreff.text() == "Anfrage A-2026-0100 / Test"
+t = d.text.toPlainText()
+assert t.startswith("Hallo,\n\n- ") and t.endswith("Gruß {unbekannt}") and zt in t, t
+aufrufe.clear()
+d.an.setText("x@y.example")
+assert d.in_outlook()
+_, skript, daten = aufrufe[0]
+assert daten["signatur"] is False and daten["text"].endswith("Gruß {unbekannt}\nMax Muster\nEinkauf")
+assert "Display" in skript and ".Send" not in skript and "Send(" not in skript
+pfad = d.als_datei(oeffnen=False)
+inhalt = email.message_from_bytes(pfad.read_bytes(), policy=policy.default).get_body().get_content()
+assert inhalt.rstrip().endswith("Max Muster\nEinkauf")
+assert ma.signatur(dict(einst, anfrage_signatur="")) == "Muster Laser GmbH"            # leer = Briefkopf
+assert ma.text_html("a < b\n  c") .count("&lt;") == 1 and "&nbsp;&nbsp;c" in ma.text_html("a < b\n  c")
+ok("M5 12-m-Zuschnitt je Zeile (abwählbar), Anforderungen des Werkstoffs, Vorlage mit Platzhaltern, Signatur aus "
+   "Outlook oder eigene")
 
 # ------------------------------------------------------------------ M4 Kundenmaterial allein, ältere Datei
 b = db.angebot_neu(dict(kunde="Nur Kunde"))
