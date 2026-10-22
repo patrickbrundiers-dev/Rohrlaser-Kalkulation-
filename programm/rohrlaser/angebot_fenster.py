@@ -620,8 +620,9 @@ class PositionenModell(QAbstractTableModel):
             p = self.daten[index.row()]
             text = wert_als_text(x, w)
             if x.name == "artikel" and p.get("id") in self.mit_netz:
-                return (text + "\n" if text else "") + "Doppelklick aufs Bild: Schneidweg-Rechner · Doppelklick auf die Nummer: " \
-                                                       "3D-Ansicht · Tippen oder F2: Artikelnummer ändern"
+                return (text + "\n" if text else "") + "Doppelklick aufs Bild: " + \
+                    ("Blech-Editor" if blech.lesen(p.get("technik")) else "Schneidweg-Rechner") + \
+                    " · Doppelklick auf die Nummer: 3D-Ansicht · Tippen oder F2: Artikelnummer ändern"
             if x.name == "artikel" and self.vorschau(index.row()):
                 return (text + "\n" if text else "") + "Doppelklick aufs Bild: " + \
                     ("Blech-Editor" if blech.lesen(p.get("technik")) else "Schneidweg-Rechner") + \
@@ -1903,16 +1904,14 @@ class AngebotSeite(QWidget):
                 "bohrbild": self.bohrungen_pruefen}.get(art)
         if ziel:
             ziel([r])
-        elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf":
-            self.blech_bearbeiten(r)
+        elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
+                name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
+            self.blech_bearbeiten(r)            # Blech (auch aus STEP): Editor; Nummer mit 3D-Modell: 3D-Ansicht
         elif (name in RECHNER_SPALTEN or art == "abweichung") and not ist_zukaufteil(p) \
                 and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)
         elif name == "artikel" and (p.get("id") in self.pos_modell.mit_netz or self.pos_modell.vorschau(r)):
-            if auf_bild is None:
-                maus = self.pos_ansicht.viewport().mapFromGlobal(QCursor.pos())
-                zelle = self.pos_ansicht.visualRect(i)
-                auf_bild = zelle.contains(maus) and maus.x() <= zelle.left() + self.pos_ansicht.iconSize().width() + 8
+            auf_bild = self._auf_bild(i, auf_bild)
             rechner = not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile
             if p.get("id") not in self.pos_modell.mit_netz and not auf_bild:
                 if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt: Nummer bearbeiten
@@ -1923,6 +1922,14 @@ class AngebotSeite(QWidget):
                 self.ansicht_3d(r)
         elif self.pos_modell.flags(i) & Qt.ItemIsEditable:
             self.pos_ansicht.edit(i)
+
+    def _auf_bild(self, i, auf_bild=None):
+        """Doppelklick auf das kleine Bild der Zelle i (auf_bild vorgegeben: Tests), sonst aus der Mausposition."""
+        if auf_bild is not None:
+            return auf_bild
+        maus = self.pos_ansicht.viewport().mapFromGlobal(QCursor.pos())
+        zelle = self.pos_ansicht.visualRect(i)
+        return zelle.contains(maus) and maus.x() <= zelle.left() + self.pos_ansicht.iconSize().width() + 8
 
     def zur_position(self, ref=None, zeile=None):
         """Reiter Positionen zeigen und die Position markieren (ref = Bezug aus der Optimierung oder zeile).
@@ -2578,11 +2585,16 @@ class AngebotSeite(QWidget):
             return None
         messwerte, json_ablage = gemessen
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
+        # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
+        blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
+                                       if z.get("blech_werkstoff_id")},
+                           laserdaten=self.db.zeilen("blechlaser"),
+                           einst={n: self.db.einstellung(n) for n in blech.EINSTELLUNGEN})
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
             if StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
-                               zukauf_liste).exec() != QDialog.Accepted:
+                               zukauf_liste, blech_daten["werkstoffe"]).exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
@@ -2600,13 +2612,16 @@ class AngebotSeite(QWidget):
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
                                neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
-                               fliessloch_laser=self.db.einstellung("fliessloch_laser"))
+                               fliessloch_laser=self.db.einstellung("fliessloch_laser"), blech_daten=blech_daten)
         self.db.profile_anlegen(erg["profile"])
         neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
                     for schl, (werte, bezuege) in erg["zukauf_neu"].items()}
+        ohne_ek = sum(not any(b.get("preise") for b in bezuege) for _, bezuege in erg["zukauf_neu"].values())
         if neue_ids:
-            erg["bericht"].append(f"{len(neue_ids)} Zukaufartikel (Blech) neu angelegt, EK fehlt: bitte unter "
-                                  "Zukaufartikel mit 'EK eintragen …' nachtragen.")
+            erg["bericht"].append(f"{len(neue_ids)} Zukaufartikel (Blech) neu angelegt" + (
+                f", {ohne_ek} ohne EK (Blech-Werkstoff offen): bitte unter Zukaufartikel mit 'EK eintragen …' "
+                "nachtragen." if ohne_ek else ", EK = Blech-Richtpreis (bitte durch das Angebot des Lieferanten "
+                                              "ersetzen)."))
         for p in erg["positionen"]:
             verweis = p.pop("_zukauf", None)
             if verweis:

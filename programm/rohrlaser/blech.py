@@ -197,6 +197,31 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     return erg
 
 
+def aus_step(b, werkstoff, stueck=1):
+    """Eingaben des Blech-Editors aus einem im STEP-Import gemessenen Blech b (step.blech): Zuschnitt als Rechteck
+    der Hüllmaße, Bohrungen je Durchmesser, die übrigen Innenkonturen als sonstige Kontur mit ihrer mittleren
+    Schnittlänge. Gekantet: Zuschnitt mit der Abwicklungsfläche (Breite = Fläche / Länge), die Schenkel misst der
+    Import nicht (im Editor als Kantteil nachtragen)."""
+    lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
+    if b.get("kontur") == "gekantet" and _z(b.get("abwicklung_flaeche")) > 0 and lg > 0:
+        br = round(_z(b["abwicklung_flaeche"]) / lg, 1)
+    konturen, rest_n, rest_l = [], int(_z(b.get("innen", b.get("innenkonturen")))), _z(b.get("umfang_innen"))
+    bo = b.get("bohrungen") or {}       # Messwerte {Ø: Anzahl}, JSON-Ergebnis [{durchmesser, anzahl}]
+    for d, n in (bo.items() if isinstance(bo, dict) else ((x.get("durchmesser"), x.get("anzahl")) for x in bo)):
+        try:
+            d, n = float(str(d).replace(",", ".")), int(_z(n))
+        except ValueError:
+            continue
+        if d > 0 and n > 0:
+            konturen.append(dict(art=sw.BOHRUNG, anzahl=n, d=round(d, 2), x=None, y=None))
+            rest_n, rest_l = rest_n - n, rest_l - math.pi * d * n
+    if rest_n > 0 and rest_l > 1:
+        konturen.append(dict(art=sw.SONSTIGE, anzahl=rest_n, laenge=round(rest_l / rest_n, 1), x=None, y=None))
+    return dict(quelle=QUELLE, art=ZUSCHNITT, form=RECHTECK, werkstoff=werkstoff, dicke=_z(b.get("dicke")),
+                laenge=lg, breite=br, eckradius=0, stueck=max(int(_z(stueck) or 1), 1), konturen=konturen,
+                schenkel=[], kantlaenge=lg)
+
+
 def lesen(text):
     """Gespeicherte Eingaben (positionen.technik) oder None, wenn sie nicht vom Blech-Editor sind."""
     try:

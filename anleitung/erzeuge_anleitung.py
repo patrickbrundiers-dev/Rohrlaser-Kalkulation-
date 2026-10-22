@@ -1116,8 +1116,15 @@ def kapitel_step(i):
             "darunter stehen gleiche und ähnliche Artikel zur Wahl. Die Hinweis-Spalte nennt <i>vorhanden</i>, "
             "<i>ähnlich</i> oder <i>neuer Zukaufartikel, EK fehlt</i>.",
             "Der <b>Werkstoff</b> eines Blechs ist leer (offen), bis er in der Zeile gewählt wird; die Vorgabe für "
-            "die Rohre gilt nicht für Bleche. Ohne Werkstoff heißt der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm "
-            "(Werkstoff offen)</i> und die Position hat kein Gewicht.",
+            "die Rohre gilt nicht für Bleche. Zur Wahl stehen die <b>Blech-Werkstoffe</b> des Blech-Editors "
+            "([[blech_stammdaten]]), nicht die Rohr-Werkstoffe. Mit Werkstoff bekommt ein neuer Blechartikel den "
+            "<b>Blech-Richtpreis</b> als EK (gerechnet wie im Blech-Editor, [[blech_editor]]). Ohne Werkstoff heißt "
+            "der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm (Werkstoff offen)</i>, die Position hat kein Gewicht "
+            "und der EK fehlt.",
+            "Jedes übernommene Blech trägt seine Maße als Eingaben des Blech-Editors: Zuschnitt (Hüllrechteck, "
+            "gekantet mit der Abwicklungsfläche), Bohrungen je Durchmesser und die übrigen Innenkonturen als "
+            "sonstige Kontur. <b>Doppelklick aufs Bild</b> vor der Artikelnummer öffnet den Blech-Editor (dort z. B. "
+            "ein gekantetes Teil als Kantteil mit Schenkeln nachtragen), Doppelklick auf die Nummer die 3D-Ansicht.",
             "Bleche mit Prüfstatus <i>prüfen</i> (z. B. gekantete) sind nicht angehakt und werden erst nach "
             "Anhaken übernommen. Ein Blech, dessen Artikelnummer schon im Angebot steht, wird übersprungen; ein "
             "erneuter Import legt keinen zweiten Zukaufartikel an.",
@@ -1125,7 +1132,8 @@ def kapitel_step(i):
             "mehrteilig: mit <i>Sätze</i> werden Rohr und Bleche ein Satz, gleiche Bleche eine Position mit "
             "Stück je Satz.",
             "Neue Zukaufartikel bekommen Kategorie Blechteile, Einheit Stück, Lieferant Technik, die STEP-Datei und "
-            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis direkt im Angebot mit "
+            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis (statt des Richtpreises bzw. "
+            "wenn er fehlt) direkt im Angebot mit "
             "<b>Zukaufteile … → EK eintragen …</b> (mit Stückzahl, [[zukauf_positionen]]) oder unter Zukaufartikel mit "
             "<b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>).",
             "In den Messwerten stehen die Spalten <i>bauteiltyp</i> (Profil, Blech, Blech gekantet) und <i>blech</i> "
@@ -3577,7 +3585,10 @@ NEUERUNGEN = [
     ["0.8.8", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "
               "Draufsicht mit Gehrungen und Innenkonturen, Blech-/Kantteil als Zuschnitt. Ändert sich das Teil (oder "
               "die STEP-Datei), wird das Bild neu gezeichnet; Doppelklick aufs Bild öffnet den Schneidweg-Rechner "
-              "bzw. den Blech-Editor ([[schneidweg_rechner]], [[blech_editor]])."],
+              "bzw. den Blech-Editor ([[schneidweg_rechner]], [[blech_editor]]). STEP-Import: Bleche wählen "
+              "Blech-Werkstoffe statt Rohr-Werkstoffen, neue Blechartikel bekommen den Blech-Richtpreis als EK, und "
+              "Doppelklick aufs Bild eines Blechs öffnet den Blech-Editor statt der 3D-Ansicht "
+              "([[blechartikel]])."],
     ["0.8.7", "STEP-Import trennt <b>Anbauteile</b> (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten) "
               "vom Rohr: Profil, Länge und Schneidweg nur vom Rohr, Anbauteile mit Lage und Gravur (Bolzen Kreuz, "
               "sonst Umriss), unsichere Fälle zum Prüfen ([[anbauteile]])."],
