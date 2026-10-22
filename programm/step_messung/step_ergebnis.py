@@ -41,11 +41,14 @@ Versionen von SCHEMA_VERSION:
   Innenkonturen) und "kontur_umfang" (Länge der Außenkontur), "verbund" = Text, wenn ein Körper als Kern in der
   Kammer eines anderen liegt (Verbundprofil, nur gemeldet; der Kern hat die Profilform "Verbundkern"), sonst null.
   Felder aus 1.6 unverändert.
+- 1.8 (22.10.2026): Fasen an den Enden: das Ende trägt "fase": true und "hinweis"; die Fase wird nicht gelasert,
+  Schnittlänge = Außenkontur an der längsten Stelle (bei gerader Außenkante "form" = "gerade"), Länge = längste Länge.
+  Felder aus 1.7 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.7"
+SCHEMA_VERSION = "1.8"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

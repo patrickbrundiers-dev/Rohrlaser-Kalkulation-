@@ -1074,6 +1074,10 @@ def kapitel_step(i):
             "im Bericht „3D prüfen“. Fasen werden nie in 3D gerechnet. Über der Grenze der Maschine wird begrenzt "
             "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
             "die gemessene Querneigung auf etwa ±1,5° genau.",
+            "<b>Fasen an den Enden</b> (seit 0.8.27): Eine Fase am Rohrende wird nicht gelasert. Der Import erkennt "
+            "sie, schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und nimmt Länge und Schneidweg an der "
+            "längsten Stelle an: Länge = längste Länge des Teils, Endschnitt = gerader Schnitt an der Außenkontur. "
+            "Das Teil bleibt <i>plausibel</i> und wird ohne Häkchen-Prüfung übernommen.",
             "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
             "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
             "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
@@ -3843,6 +3847,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.27", "<b>Fasen im STEP-Import</b>: Fasen an den Rohrenden werden erkannt und nicht gelasert; Hinweis im "
+               "Bericht, Länge und Schneidweg an der längsten Stelle (gerader Schnitt). Bisher zählte eine Fase als "
+               "Innenkontur und das Ende als „nicht erkannt“."],
     ["0.8.26", "Gewinde, Senken, Flowdrill und Bohren rechnen nur noch mit einem <b>Preis je Stück</b>, ohne "
                "Zeiten. Die Preise kommen aus den Einstellungen und lassen sich je Position im Fenster Bohrungen "
                "prüfen ändern (Spalten Gewinde [€/Stk] und Arbeit [€/Stk]); Senken, Flowdrill und Bohren sind "
