@@ -226,6 +226,13 @@ class SchneidwegDialog(QDialog):
         self.gravur.valueChanged.connect(self.rechnen)
         enden.addWidget(QLabel("Gravur (Länge je Teil)"), 3, 0)
         enden.addWidget(self.gravur, 3, 1)
+        from . import anbau
+        anbauteile = anbau.lesen(p.get("anbauteile"))
+        if anbauteile:      # Gravur der Anbauteile (STEP-Import) steckt in der Gravur; ändern mit 'Anbauteile prüfen'
+            ga = QLabel(f"davon Anbauteile {anbau.dez(anbau.gravur(anbauteile))} mm ({anbau.kurz(anbauteile)})")
+            ga.setToolTip("Gravur der aufgeschweißten Teile (Umriss bzw. Marke); ändern in der Angebotsposition mit "
+                          "Doppelklick auf die Spalte Anbauteile")
+            enden.addWidget(ga, 3, 2, 1, 4)
         # Schweißnaht (SN): wie im Dialog Schweißnaht, Winkel im Bezug Breitseite oben
         self.naht_form = naht.form_von(profil)
         self.naht_vorgabe = QComboBox()

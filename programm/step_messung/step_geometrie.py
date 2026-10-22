@@ -144,7 +144,8 @@ class Teil:
         'plausibel'. Plausibel heißt nur: die Messung ist in sich stimmig – keine Fertigungsfreigabe."""
         if not self.profilform or self.laenge <= 0:
             return "nicht messbar"
-        if self.hinweise or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
+        # Fase am Ende: nur Hinweis, Annahme längste Länge gilt (Patrick 22.10.2026), daher kein „prüfen“
+        if any(FASE_HINWEIS not in h for h in self.hinweise) or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
                 "Sonderprofil" in self.profilform:
             return "prüfen"
         return "plausibel"
@@ -1024,9 +1025,30 @@ def _ebene(face, tol=1e-4):
     return pr.Plan() if pr.IsPlanar() else None
 
 
+FASE_HINWEIS = "Fase erkannt"
+FASE_TIEFE = 25.0   # mm: so weit darf die Außenkante einer Fase höchstens vom Ende entfernt liegen
+
+
+def _fase_ende(flaechen, zmin, zmax, gz0, gz1, tol=0.01):
+    """'A' bzw. 'B', wenn ein Merkmal eine Fase am Ende ist: seine Flächen reichen bis an das Ende (z min bzw. max),
+    die Außenkanten (gz0..gz1) liegen aber davor, höchstens FASE_TIEFE entfernt (Schlitze und Ausklinkungen
+    reichen mit ihren Außenkanten bis ans Ende). Sonst None."""
+    bb = Bnd_Box()
+    for f in flaechen:
+        BRepBndLib.AddOptimal_s(f, bb, False, False)
+    if bb.IsVoid():
+        return None
+    fz0, fz1 = bb.CornerMin().Z(), bb.CornerMax().Z()
+    if zmax - fz1 < tol and zmax - gz1 > tol and zmax - gz0 <= FASE_TIEFE:
+        return "B"
+    if fz0 - zmin < tol and gz0 - zmin > tol and gz1 - zmin <= FASE_TIEFE:
+        return "A"
+    return None
+
+
 def _ende_flaechen(flaechen, kanten, cx, cy, ref, z_ref, tol=0.1):
     """3D-Ende (komplex: mehrere Ebenen, Zylinder quer zur Rohrachse) als Flächen für den Schneidweg-Rechner (STEP-JSON
-    1.8): Querschnitt um (cx, cy), gedreht wie _endform (Y = 0°-Richtung), z ab z_ref. Ebene ['E', gx, gy, c] mit
+    1.9): Querschnitt um (cx, cy), gedreht wie _endform (Y = 0°-Richtung), z ab z_ref. Ebene ['E', gx, gy, c] mit
     z = c + gx·x + gy·y, Zylinder ['Z', ux, uy, ax, ay, az, r, vz] (Achse quer zum Rohr in Richtung (ux, uy) durch
     (ax, ay, az), vz = +1 obere bzw. −1 untere Hälfte). Die Schnittfläche über einem Punkt ist das Minimum bzw. Maximum
     der Flächen ('huelle'); gewählt wird, was die gemessene Schnittkontur (Kanten zur Außenwand) innerhalb tol trifft.
@@ -1672,6 +1694,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
     kasten = t.profilform in ("Quadratrohr", "Rechteckrohr")
     hx, hy = bx / 2, by / 2
     enden = {"EA": [[], 0.0, []], "EB": [[], 0.0, []]}     # Flächen, Schnittlänge und Kanten je Ende
+    fasen = {}              # Ende ('A'/'B') mit Fase -> Außenkontur gerade (senkrecht zur Achse)
     liste = []
 
     def lage_auf_rohr(zug):
@@ -1791,7 +1814,19 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
             BRepBndLib.AddOptimal_s(e, bb, False, False)
         gz0, gz1 = bb.CornerMin().Z(), bb.CornerMax().Z()
         m["art"] = "EA" if gz0 - zmin < TOL_Z else "EB" if zmax - gz1 < TOL_Z else "K"
-        if gz0 - zmin < TOL_Z:
+        fase = _fase_ende([faces.FindKey(f) for f in m["faces"]], zmin, zmax, gz0, gz1) if m["art"] == "K" else None
+        if fase:
+            # Fase am Ende (Patrick 22.10.2026): wird nicht gelasert; der Laser schneidet an der längsten Stelle,
+            # Schnittlänge = Außenkontur, an der die Fase beginnt, Länge = längste Länge des Teils
+            m["art"] = "E" + fase
+            fasen[fase] = gz1 - gz0 < TOL_Z
+            if fase == "A":
+                t.ende_a += laenge
+                t.ende_a_gerade = fasen[fase] and t.ende_a == laenge
+            else:
+                t.ende_b += laenge
+                t.ende_b_gerade = fasen[fase] and t.ende_b == laenge
+        elif gz0 - zmin < TOL_Z:
             t.ende_a += laenge
             t.ende_a_gerade = (gz1 - zmin < TOL_Z) if t.ende_a == laenge else False
         elif zmax - gz1 < TOL_Z:
@@ -1855,6 +1890,15 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         fl, lg, kt = enden[art_]
         e = _endform(fl, lg, ref, art_[1]) if fl else dict(form="nicht erkannt", gehrung=None, um_x=None,
                                                           um_y=None, richtung=None, schnittlaenge=0.0)
+        if art_[1] in fasen:
+            gerade = fasen[art_[1]] and abs(lg - enden[art_][1]) < 1e-9
+            e.update(form="gerade" if gerade else "komplex", gehrung=0.0 if gerade else None,
+                     um_x=0.0 if gerade else None, um_y=0.0 if gerade else None, richtung=None, fase=True,
+                     hinweis="Fase: nicht gelasert, Schnitt an der längsten Stelle")
+            t.hinweise.append(f"{name}: {FASE_HINWEIS}, wird nicht gelasert; Länge und Schneidweg an der längsten "
+                              "Stelle angenommen")
+
+
         if e["form"] == "komplex" and kt:
             e.update(_ende_flaechen(fl, kt, abw.cx, abw.cy, ref, zmin + z) or {})
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None

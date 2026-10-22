@@ -1074,6 +1074,10 @@ def kapitel_step(i):
             "im Bericht „3D prüfen“. Fasen werden nie in 3D gerechnet. Über der Grenze der Maschine wird begrenzt "
             "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
             "die gemessene Querneigung auf etwa ±1,5° genau.",
+            "<b>Fasen an den Enden</b> (seit 0.8.27): Eine Fase am Rohrende wird nicht gelasert. Der Import erkennt "
+            "sie, schreibt den Hinweis „Ende B: Fase erkannt …“ in den Bericht und nimmt Länge und Schneidweg an der "
+            "längsten Stelle an: Länge = längste Länge des Teils, Endschnitt = gerader Schnitt an der Außenkontur. "
+            "Das Teil bleibt <i>plausibel</i> und wird ohne Häkchen-Prüfung übernommen.",
             "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
             "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
             "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
@@ -1120,10 +1124,16 @@ def kapitel_step(i):
            "Teil in die Position ein (Spalte <i>Zusatzarbeiten</i>, Preisstand der Stammdaten, "
            "[[zusatzarbeiten_angebot]]). Offene und abgelehnte Zeilen tragen nichts ein; wird eine Zeile später "
            "abgelehnt, fällt die Zusatzarbeit wieder weg. Steht dieselbe Zusatzarbeit schon von Hand in der Position, "
-           "bekommt sie nur die neue Anzahl. Die drei Zusatzarbeiten legt das Programm einmalig mit Beispielzeiten "
-           "an (je Stück 0,5 min, Flowdrill 0,75 min, Stundensatz Nachbearbeitung); Zeit und Preis in "
+           "bekommt sie nur die neue Anzahl. Die drei Zusatzarbeiten legt das Programm einmalig mit Beispielpreisen "
+           "je Stück an (Senken 0,40 €, Flowdrill 0,60 €, Bohren 0,40 €, ohne Zeiten); die Preise in "
            "Einstellungen › Zusatzarbeiten anpassen ([[zusatzarbeiten_verwalten]]). Fehlt eine davon in den "
            "Stammdaten, meldet das Fenster es rot.")
+    i.text("<b>Preise je Stück:</b> Gewinde, Senken, Flowdrill und Bohren rechnen nur mit einem Preis je Stück, "
+           "nie mit Zeiten. Vorgabe sind die Preise aus Einstellungen › Gewinde bzw. › Zusatzarbeiten; sie stehen "
+           "grau in den Spalten <i>Gewinde [€/Stk]</i> und <i>Arbeit [€/Stk]</i>. Ein eingetragener Preis gilt nur "
+           "für diese Position (z. B. Sonderpreis); leeren holt wieder die Einstellungen. Die Auswirkung zeigt den "
+           "Betrag je Teil. Ein Gewinde ohne Preis rechnet mit 0 € und die Position meldet <i>WARNUNG: Gewinde … "
+           "ohne Preis je Stück</i>.")
     i.text("Positionen mit offenen Bohrungen zeigen den Status <b>HINWEIS: Bohrungen prüfen (Doppelklick)</b>. Ein "
            "<b>Doppelklick</b> auf den Status, die Spalte <i>Gewinde geprüft</i>, <i>Bohrungen</i> oder "
            "<i>Gewinde-Vorschlag</i> öffnet das Fenster (auch Rechtsklick, <i>Bohrungen prüfen …</i>). Je Zeile "
@@ -1132,7 +1142,8 @@ def kapitel_step(i):
            "und die Wahl ändern.")
     i.bild("bohrbild_dialog", "Fenster Bohrungen prüfen: Senkung und Flowdrill eines Rechteckrohrs", hoehe=70 * mm,
            legende=[
-               (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), was der Laser macht und Bestätigen/Ablehnen."),
+               (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), Preis je Gewinde und je Arbeit (grau = "
+                   "Einstellungen, änderbar), was der Laser macht und Bestätigen/Ablehnen."),
                (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
                (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
                (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
@@ -1462,7 +1473,7 @@ def kapitel_optimieren(i):
             "gilt die gemessene Länge; mit einem anderen Profil rechnet der Rechner die Schnittkurve auf dessen "
             "Außenkontur neu (Rund-, Quadrat-, Rechteckrohr, RP-Profil), Text <i>STEP-Form, für … gerechnet</i>. "
             "Dasselbe gilt für gerade, Gehrungs- und zweiachsige Enden aus dem STEP-Import. Das braucht "
-            "STEP-Import.exe ab 0.8.26; ältere Messungen behalten bei komplexen Enden die gemessene Länge.",
+            "STEP-Import.exe ab 0.8.29; ältere Messungen behalten bei komplexen Enden die gemessene Länge.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
@@ -2402,6 +2413,9 @@ def kapitel_einstellungen(i):
          "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
+        ["Kalkulation", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]",
+         "eigener Zeitanteil der Laserzeit (Stundensatz Laser) je Teil, dessen Anbauteile aus dem STEP-Import "
+         "unsicher erkannt und nicht ausgeschlossen sind ([[anbauteile]]); Vorgabe 0 = aus."],
         ["Kalkulation", "Handling Kundenmaterial je m Stangenlänge [€/m] (0 = keins)",
          "Kosten für beigestelltes Material je Meter der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
          "Vorgabe 0."],
@@ -2600,9 +2614,9 @@ def kapitel_stammdaten(i):
                          "Wandstärke; Einstechzeit",
          "Es gilt die Zeile mit der kleinsten „Wandstärke bis“, die mindestens der Profilwandstärke entspricht. "
          "N₂ solange es dafür eine Zeile gibt, darüber O₂."],
-        ["Gewinde", "Gewinde, Kernloch-Ø, Zeit je Gewinde, Preis je Gewinde [€]",
-         "Der STEP-Import erkennt Kernlochbohrungen an diesem Durchmesser (±0,05 mm). Gerechnet wird der feste "
-         "Preis je Gewinde; ist er leer, die Zeit je Gewinde mit dem Stundensatz der Maschine."],
+        ["Gewinde", "Gewinde, Kernloch-Ø, Zeit je Gewinde (wird nicht gerechnet), Preis je Gewinde [€]",
+         "Der STEP-Import erkennt Kernlochbohrungen an diesem Durchmesser (±0,05 mm). Gerechnet wird nur der "
+         "Preis je Gewinde (€ je Stück), je Position in Bohrungen prüfen änderbar ([[bohrungen_pruefen]])."],
         ["Zusatzarbeiten", "Zusatzarbeit (Name), Abrechnung, Preis [€] bzw. Zeit [s] je Einheit, Mindestbetrag je "
                            "Angebot [€], Fremdleistung, Text im Angebot",
          "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot ([[zusatzarbeiten_angebot]]). Vorbelegt mit Beispielpreisen, "
@@ -2868,7 +2882,8 @@ def kapitel_stammdaten(i):
     i.tabelle(["Gewinde", "Bedeutung"], [
         ["<b>Gewinde</b>, <b>Kernloch Ø [mm]</b>",
          "z. B. M6 mit 5,0 mm; der STEP-Import schlägt Gewinde an diesem Durchmesser vor"],
-        ["Zeit je Gewinde [s], Preis je Gewinde [€]", "Preis geht vor; ohne Preis zählt die Zeit mit dem Stundensatz"],
+        ["Zeit je Gewinde [s] (wird nicht gerechnet), Preis je Gewinde [€]",
+         "nur der Preis je Stück zählt; ohne Preis 0 € und eine Warnung an der Position"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)
@@ -3604,9 +3619,12 @@ def kapitel_step_messung(i):
             "Laschen, Bleche, Muttern und Sonstiges den Umriss der Aufstandsfläche, Kopfplatten nichts. Die Gravur "
             "zählt zur Gravurlänge der Position (Vorschub Gravur), nie zum Schneidweg; im Prüfdialog steht sie "
             "getrennt als <i>Gravur</i> der Anbauteile. Geschweißt wird nicht kalkuliert.",
-            "<b>Eigene Körper</b> einer Baugruppe (Bleche, Bolzen als Rundstahl), die ein Rohr berühren, bleiben "
-            "eigene Positionen wie bisher. Das Rohr bekommt zusätzlich die Gravur an ihrer Stelle. Rohre, die "
-            "andere Rohre berühren (Gestell), bleiben unberührt.",
+            "<b>Eigene Körper</b> einer Baugruppe (Bleche, Bolzen als Rundstahl), die ein Rohr berühren: Das Rohr "
+            "bekommt die Gravur an ihrer Stelle. Im Prüfdialog ist dann <b>Anbauteile nicht ins Angebot "
+            "übernehmen</b> angehakt (Vorgabe): Diese Körper werden nicht als eigene Positionen übernommen, ihre "
+            "Zeile ist abgewählt mit dem Hinweis <i>Anbauteil von …</i>. Einzelne lassen sich trotzdem anhaken; ohne "
+            "Haken an der Option werden sie wie andere Teile übernommen (Bleche als Zukaufteil). Rohre, die andere "
+            "Rohre berühren (Gestell), bleiben unberührt.",
             "<b>Unsicher</b> (Prüfstatus <i>prüfen</i>, Übernahme nur mit Häkchen): Anbauteil an einer Ecke oder "
             "der Art <i>Sonstiges</i>, Anbau über (fast) die ganze Länge (das Rohr wird dann aus Innenkontur und "
             "Wandstärke angenommen), Anbauteile schwerer als das Rohr. Zum Vergleich steht im Prüfdialog, was ohne "
@@ -3651,6 +3669,22 @@ def kapitel_step_messung(i):
                (4, "Auswirkung je Teil: Gravur vorher → nachher und offene Anbauteile.")])
     i.bild("anbau_gravur", "Vorschau Gravurkonturen: Rohr ohne Anbauteile mit den Gravurlinien (türkis)",
            hoehe=55 * mm, legende=[(1, "Vorschau umschalten.")])
+    i.text("<b>Im Angebot</b> stehen die Anbauteile in der Spalte <i>Anbauteile</i> der Positionen (erscheint, "
+           "sobald eine Position welche hat). Solange ein unsicher erkanntes Anbauteil offen ist, zeigt der Status "
+           "<b>HINWEIS: Anbauteile prüfen (Doppelklick)</b>, und <i>Prüfen vor Freigabe</i> meldet „Anbauteile "
+           "ungeprüft“. Ein <b>Doppelklick</b> auf die Spalte oder den Status (oder Rechtsklick, <i>Anbauteile prüfen "
+           "…</i>) öffnet dasselbe Fenster; <b>Übernehmen</b> ändert die Gravur der Position um den Unterschied.")
+    i.bild("anbau_position", "Position mit Anbauteilen im Angebot: Spalte Anbauteile (hier alle geprüft)",
+           hoehe=28 * mm)
+    i.liste("<b>Gravur Anbauteile</b> ist ein Teil der Gravur und wird nicht doppelt gezählt: In den Spalten der "
+            "Kalkulation steht <i>davon Gravur Anbauteile [s]</i>, im Preisaufbau bei <i>Laser schneiden</i> "
+            "„davon Gravur Anbauteile … €“, in der Kalkulation-PDF die Spalte <i>davon Anbauteile [s]</i> und im "
+            "Schneidweg-Rechner unter der Gravur „davon Anbauteile … mm“.",
+            "<b>Prüfzeit</b>: Mit der Einstellung <i>Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]</i> "
+            "(Vorgabe 0) kommt je Teil, dessen Anbauteile unsicher erkannt und nicht ausgeschlossen sind, diese Zeit "
+            "zur Laserzeit. Sie steht als <i>Prüfzeit Anbauteile je Teil [s]</i> in der Kalkulation und im "
+            "Preisaufbau bei <i>Laser schneiden</i>.",
+            "Schweißen wird nicht kalkuliert.")
     i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
               "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
               "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
@@ -3875,13 +3909,27 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.26", "<b>RP-Profile kalkuliert</b>: Schnitt durch den Anschlag mit den Schneiddaten der doppelten Wand, "
+    ["0.8.29", "<b>RP-Profile kalkuliert</b>: Schnitt durch den Anschlag mit den Schneiddaten der doppelten Wand, "
                "neue Spalte <i>Zeit je Ecke</i> in den Schneiddaten (RP nach Kontur, Quadrat-/Rechteckrohr 4 Ecken), "
                "Maschinenfelder <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "
                "<i>Mindestabstand Düse</i> mit Warnungen ([[rp_profile]]). <b>STEP-Import</b>: anderes Profil gewählt "
                "→ WARNUNG mit STEP- und Profilwerten, Anfangs- und Endschnitt werden für das gewählte Profil neu "
                "gerechnet. <b>Schneidweg-Rechner</b>: Schrägschnitt zweiachsig (über Höhe und Breite) und 3D-Enden "
                "aus dem STEP-Import (mehrere Ebenen, Ausklinkung) ([[schneidweg_rechner]])."],
+    ["0.8.28", "Anbauteile im Angebot: Spalte <b>Anbauteile</b> der Positionen mit Doppelklick auf <i>Anbauteile "
+              "prüfen</i>, Status und Freigabe-Hinweis, Gravur Anbauteile getrennt ausgewiesen (Kalkulation, "
+              "Preisaufbau, PDF, Schneidweg-Rechner), Einstellung <i>Prüfzeit je Teil mit unsicher erkannten "
+              "Anbauteilen</i>. Im STEP-Prüfdialog die Option <b>Anbauteile nicht ins Angebot übernehmen</b> "
+              "(Vorgabe an): angeschweißte eigene Körper einer Baugruppe werden keine eigenen Positionen "
+              "([[anbauteile]])."],
+    ["0.8.27", "<b>Fasen im STEP-Import</b>: Fasen an den Rohrenden werden erkannt und nicht gelasert; Hinweis im "
+               "Bericht, Länge und Schneidweg an der längsten Stelle (gerader Schnitt). Bisher zählte eine Fase als "
+               "Innenkontur und das Ende als „nicht erkannt“."],
+    ["0.8.26", "Gewinde, Senken, Flowdrill und Bohren rechnen nur noch mit einem <b>Preis je Stück</b>, ohne "
+               "Zeiten. Die Preise kommen aus den Einstellungen und lassen sich je Position im Fenster Bohrungen "
+               "prüfen ändern (Spalten Gewinde [€/Stk] und Arbeit [€/Stk]); Senken, Flowdrill und Bohren sind "
+               "jetzt Festpreise (0,40 / 0,60 / 0,40 €), Gewinde ohne Preis bekommen einmalig Zeit × Stundensatz "
+               "als Preis ([[bohrungen_pruefen]])."],
     ["0.8.25", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
                "und Meterpreis, Werkstoff, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
                "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "

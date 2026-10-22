@@ -521,6 +521,22 @@ def ohne_trennung_text(m):
             + f", Länge {dez(_z(alt, 'laenge'))} mm, Schneidweg {dez(_z(alt, 'schneidweg'))} mm")
 
 
+def anbau_von(messwerte):
+    """Körper einer Baugruppe, die als eigener Körper an ein Rohr geschweißt sind (Anbauteil mit quelle 'Körper n'
+    beim Rohr): {Index: Artikel des Rohrs}. Sie werden standardmäßig nicht ins Angebot übernommen (Patrick
+    22.10.2026); das Rohr bekommt nur ihre Gravur."""
+    index = {(m.get("datei"), str(m.get("koerper"))): i for i, m in enumerate(messwerte)}
+    out = {}
+    for m in messwerte:
+        for a in anbau.lesen(m.get("anbauteile")):
+            q = str(a.get("quelle") or "")
+            if q.startswith("Körper "):
+                i = index.get((m.get("datei"), q[len("Körper "):].strip()))
+                if i is not None and messwerte[i] is not m:
+                    out.setdefault(i, m.get("artikel") or "")
+    return out
+
+
 def anbau_setzen(m, neu):
     """Ergebnis des Dialogs 'Anbauteile prüfen' in die Messwerte schreiben: Liste, Gravur um den Unterschied.
     Sind danach alle unsicher erkannten Anbauteile entschieden, gilt die Anbauteil-Erkennung als geprüft."""
@@ -798,7 +814,7 @@ def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k, blech_daten=None, 
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
-                blech_daten=None, d3=False):
+                blech_daten=None, d3=False, anbau_weglassen=True):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -839,6 +855,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 gruppe_von[i] = erster
     gruppen = {e: [i for i, g in gruppe_von.items() if g == e] for e in set(gruppe_von.values())}
     ergebnis = {}           # Index des ersten Körpers -> Ziel-Pos. (None = nicht übernommen)
+    anbauteil_von = anbau_von(messwerte)
     for i, m in enumerate(messwerte):
         if m.get("fehler"):
             protokoll.append([jetzt, m.get("datei")] + [None] * 27 + ["FEHLER: " + m["fehler"]])
@@ -889,6 +906,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
         elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):
             hinweise.append(f"nicht übernommen: {blech_text(m)} ist kein Rohrlaserteil")
+        elif i in anbauteil_von and m.get("_anbau_weglassen", anbau_weglassen) and m.get("_uebernehmen") is not True:
+            hinweise.append(f"nicht übernommen: Anbauteil von {anbauteil_von[i]} (nur Gravur auf dem Rohr)")
         elif m.get("profilform") in BLECHE and (m.get("_uebernehmen") is False or (
                 m.get("pruefstatus") == "prüfen" and m.get("_uebernehmen") is not True)):
             hinweise.append(f"nicht übernommen: {blech_text(m)}" + (" im Prüfdialog abgewählt" if "_uebernehmen" in m
@@ -987,6 +1006,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
                 if any(z["art"] != "Bohrung" for z in bild):
                     hinweise.append(bohrbild.text(bild) + ": im Angebot mit 'Bohrungen prüfen' bestätigen")
+            # Anbauteile (nicht gelasert, nur Gravur): Liste mit Prüfstatus; unsichere im Angebot prüfen
+            liste = anbau.lesen(m.get("anbauteile"))
+            if liste:
+                p["anbauteile"] = anbau.schreiben(liste)
+                hinweise.append("Anbauteile: " + anbau.kurz(liste)
+                                + (" – im Angebot mit 'Anbauteile prüfen' bestätigen" if anbau.offen(liste) else ""))
             if satz:
                 anzahl = int(m.get("_je_satz") or len(gruppen[i]))
                 p["satz"], p["je_satz"] = satz, anzahl

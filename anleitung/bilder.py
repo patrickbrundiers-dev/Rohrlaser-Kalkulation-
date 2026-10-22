@@ -779,6 +779,10 @@ def main(ziel):
     s5.step_importieren([str(ANBAU)], werkstoff="S235-10219")
     f.stumm = True
     bereit()
+    c = next(i for i, (art, _) in enumerate(s5.pos_modell.spalten) if art == "anbau")
+    s5.pos_ansicht.scrollTo(s5.pos_modell.index(0, c))
+    QApplication.processEvents()
+    foto.foto("anbau_position", s5.pos_ansicht, ausschnitt=QRect(0, 0, s5.pos_ansicht.width(), 90))
 
     # Sicherung wiederherstellen: einige Sicherungen verschiedener Art, Ordner wie unter Windows
     from rohrlaser.sicherung_dialog import WiederherstellenDialog

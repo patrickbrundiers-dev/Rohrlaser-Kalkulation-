@@ -41,7 +41,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 42     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 43     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -77,7 +77,9 @@ SCHEMA_VERSION = 42     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     profile.naht_stange wird nicht mehr gelesen (Spalte bleibt, ältere Angebote: leer)
                         # 41: Programmierung als Zeit × Stundensatz (angebote/staffel_stufen.programmierung_zeit und
                         #     _kontur, positionen.prog_zeit); alle Angebote umgestellt, außer festgeschriebenen
-                        # 42: RP-Kalkulation: schneiddaten.zeit_ecke (Zeit je Ecke), maschinen.sonder_spannbar,
+                        # 42: Anbauteile je Position (positionen.anbauteile: aufgeschweißte Teile aus dem STEP-Import
+                        #     mit Bearbeitung, Gravur und Prüfstatus als JSON; ältere Positionen leer)
+                        # 43: RP-Kalkulation: schneiddaten.zeit_ecke (Zeit je Ecke), maschinen.sonder_spannbar,
                         #     ruest_sonder, duese_min (neue Spalten leer = 0 bzw. keine Prüfung)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -95,7 +97,7 @@ GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
-BOHR_ZUSATZ_STAND = "2026-10-22"   # Zusatzarbeiten Senken, Flowdrill, Bohren ergänzt (Datenbank._bohr_zusatz_ergaenzen)
+BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -263,15 +265,19 @@ class Datenbank:
         self.con.execute("PRAGMA foreign_keys=ON")
 
     def _bohr_zusatz_ergaenzen(self):
-        """Einmalig Zusatzarbeiten Senken, Flowdrill und Bohren anlegen, wenn es sie (dem Namen nach) noch nicht gibt
-        ('Bohrungen prüfen' trägt sie nach dem Bestätigen ein). Ohne Stundensatz Nachbearbeitung: eigener Satz 45 €/h."""
-        saetze = {r[0] for r in self.con.execute("SELECT satz_id FROM stundensaetze")}
-        zeilen = []
+        """Einmalig: Zusatzarbeiten Senken, Flowdrill und Bohren anlegen, wenn es sie (dem Namen nach) noch nicht gibt
+        ('Bohrungen prüfen' trägt sie nach dem Bestätigen ein). Stand 2026-10-22 hatte sie als Zeit × Stundensatz:
+        unverändert übernommene werden Festpreis € je Stück (Patrick 22.10.2026: keine Zeiten). Gewinde ohne Preis
+        bekommen Zeit × Stundensatz der ersten Maschine als Preis je Stück."""
         for z in bohr_zusatzarbeiten():
-            if z["satz_id"] not in saetze:
-                z = dict(z, satz_id=None, satz=45.0)
-            zeilen.append(z)
-        self._einfuegen("zusatzarbeiten", zeilen, ergaenzen=True)
+            self.con.execute("UPDATE zusatzarbeiten SET preis=?, zeit=NULL, zeit_einheit=NULL, satz_id=NULL, satz=NULL "
+                             "WHERE name=? AND preis IS NULL AND zeit IS NOT NULL AND bemerkung=?",
+                             (z["preis"], z["name"], z["bemerkung"]))
+        self._einfuegen("zusatzarbeiten", bohr_zusatzarbeiten(), ergaenzen=True)
+        satz = self.con.execute("SELECT stundensatz FROM maschinen WHERE stundensatz IS NOT NULL ORDER BY rowid").fetchone()
+        if satz:
+            self.con.execute("UPDATE gewinde SET preis=ROUND(zeit / 3600.0 * ?, 2) WHERE preis IS NULL AND zeit > 0",
+                             (satz[0],))
         self._einstellung_schreiben("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
 
     def _programmierung_zeit(self):

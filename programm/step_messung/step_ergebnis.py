@@ -41,16 +41,19 @@ Versionen von SCHEMA_VERSION:
   Innenkonturen) und "kontur_umfang" (Länge der Außenkontur), "verbund" = Text, wenn ein Körper als Kern in der
   Kammer eines anderen liegt (Verbundprofil, nur gemeldet; der Kern hat die Profilform "Verbundkern"), sonst null.
   Felder aus 1.6 unverändert.
-- 1.8 (22.10.2026): 3D-Enden (Form "komplex" aus Ebenen und Zylindern quer zur Rohrachse) bekommen in der
+- 1.8 (22.10.2026): Fasen an den Enden: das Ende trägt "fase": true und "hinweis"; die Fase wird nicht gelasert,
+  Schnittlänge = Außenkontur an der längsten Stelle (bei gerader Außenkante "form" = "gerade"), Länge = längste Länge.
+  Felder aus 1.7 unverändert.
+- 1.9 (22.10.2026): 3D-Enden (Form "komplex" aus Ebenen und Zylindern quer zur Rohrachse) bekommen in der
   Konturliste "flaechen" und "huelle": Ebene ["E", gx, gy, c] mit z = c + gx·x + gy·y, Zylinder ["Z", ux, uy, ax, ay,
   az, r, vz]; x, y im Querschnitt um die Mitte, gedreht wie die Schnittwinkel (y = 0°-Richtung), z ab dem Ende;
   "huelle" = "min" oder "max" (Schnittfläche über einem Punkt). Damit rechnet das Programm das Ende für ein anderes
-  Profil neu. Andere komplexe Enden ohne diese Felder. Felder aus 1.7 unverändert.
+  Profil neu. Andere komplexe Enden ohne diese Felder. Felder aus 1.8 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.8"
+SCHEMA_VERSION = "1.9"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

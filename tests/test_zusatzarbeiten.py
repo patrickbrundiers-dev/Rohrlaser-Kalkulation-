@@ -105,7 +105,7 @@ db.position_aendern(p1, "schneidweg", 300)
 db.position_aendern(p1, "zeit_manuell", None)
 db.position_aendern(p1, "zusatz", None)
 
-# 6) Gewinde mit festem Preis (Beispiel M6 0,90 €) statt Zeit; ohne Preis wieder die Zeit
+# 6) Gewinde nur mit Preis je Stück (Beispiel M6 0,90 €); ohne Preis 0 € und Warnung, Zeit zählt nicht
 db.position_aendern(p1, "gewinde", "4xM6; 2xM8")
 pos, (z, s) = rechnung()
 assert nah(z[0]["gewinde_preis"], 4 * 0.90 + 2 * 1.10) and z[0]["gewindezeit"] == 0
@@ -115,7 +115,10 @@ db.aendern("gewinde", g6["id"], "preis", None)
 db.aendern("gewinde", g6["id"], "zeit", 12)
 tab = db.tabellen()
 pos, (z, s) = rechnung()
-assert nah(z[0]["gewinde_preis"], 2.2) and z[0]["gewindezeit"] == 48
+assert nah(z[0]["gewinde_preis"], 2.2) and z[0]["gewindezeit"] == 0
+assert rechnen.status(pos[0], rechnen.position_werte(pos[0], kopf, k, tab), kopf, k) == \
+    "WARNUNG: Gewinde M6 ohne Preis je Stück (Einstellungen › Gewinde)"
+assert z[0]["hinweis"] == "Gewinde M6 ohne Preis", z[0]["hinweis"]
 t = ausgabe.angebotstext(pos[0], k)
 assert "\ninkl. Gewinde 4xM6; 2xM8" in t and ", " not in t, t       # jede Angabe in einer eigenen Zeile
 
@@ -148,9 +151,13 @@ d = Datenbank(alt)
 assert d.anzahl("zusatzarbeiten") == 8 and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 d.schliessen()
 
-# 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt
+# 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt;
+#     Stand 0.8.12 (Bohren als Zeit × Stundensatz) wird Festpreis, Gewinde ohne Preis bekommen einen Preis je Stück
 con = sqlite3.connect(alt)
-con.execute("DELETE FROM zusatzarbeiten WHERE name IN ('Flowdrill', 'Bohren')")
+con.execute("DELETE FROM zusatzarbeiten WHERE name IN ('Flowdrill')")
+con.execute("UPDATE zusatzarbeiten SET preis=NULL, zeit=0.5, zeit_einheit='min', satz_id='Nachbearbeitung' "
+            "WHERE name='Bohren'")
+con.execute("UPDATE gewinde SET preis=NULL, zeit=36 WHERE gewinde='M6'")
 con.execute("UPDATE zusatzarbeiten SET preis=1.25, zeit=NULL WHERE name='Senken'")
 con.execute("DELETE FROM stundensaetze WHERE satz_id='Nachbearbeitung'")
 con.execute("DELETE FROM einstellungen WHERE name='bohr_zusatz_stand'")
@@ -159,7 +166,11 @@ con.close()
 d = Datenbank(alt)
 zs = {z["name"]: z for z in d.zeilen("zusatzarbeiten")}
 assert {"Senken", "Flowdrill", "Bohren"} <= set(zs) and zs["Senken"]["preis"] == 1.25, zs
-assert zs["Bohren"]["satz_id"] is None and zs["Bohren"]["satz"] == 45 and zs["Bohren"]["art"] == "€/Stück"
+assert zs["Bohren"]["satz_id"] is None and zs["Bohren"]["zeit"] is None and zs["Bohren"]["preis"] == 0.40
+assert zs["Flowdrill"]["preis"] == 0.60 and zs["Flowdrill"]["art"] == "€/Stück" and zs["Flowdrill"]["zeit"] is None
+m6 = next(g for g in d.zeilen("gewinde") if g["gewinde"] == "M6")
+satz = d.con.execute("SELECT stundensatz FROM maschinen ORDER BY rowid").fetchone()[0]
+assert nah(m6["preis"], round(36 / 3600 * satz, 2)), (m6, satz)
 d.schliessen()
 
 # 11) Oberfläche: Dialog liefert Gewinde und Zusatzarbeiten, Übernahme für mehrere Positionen, Tabellenspalte
