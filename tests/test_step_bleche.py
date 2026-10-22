@@ -221,9 +221,9 @@ def _():
         assert rohr.ws.currentText() == "S235-10219"
         z02 = next(z for z in bl if z.datei.startswith("B02"))
         assert z02.pr.count() == 2 and z02.pr.itemData(1) == i and "gleich, EK fehlt" in z02.pr.itemText(1)
-        assert "vorhanden" in z02.it.text(9), z02.it.text(9)
+        assert "vorhanden" in z02.it.text(d.SP_HINWEIS), z02.it.text(d.SP_HINWEIS)
         z07 = next(z for z in bl if z.datei.startswith("B07"))
-        assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(9), z07.it.text(9)
+        assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(d.SP_HINWEIS), z07.it.text(d.SP_HINWEIS)
         z02.pr.setCurrentIndex(1)
         z02.ws.setCurrentText("S235-10219")
         d.werte_schreiben()

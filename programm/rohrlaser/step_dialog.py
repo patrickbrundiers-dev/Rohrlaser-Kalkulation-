@@ -103,8 +103,8 @@ class StepPruefDialog(QDialog):
     BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
     AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
     SPALTEN = ("Teil", "In Datei", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl", "Länge [mm]",
-               "Schneidweg [mm]", "Konturen", "Hinweis")
-    SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_HINWEIS = range(2, 10)
+               "Schneidweg [mm]", "Konturen", "Anbauteile", "Hinweis")
+    SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None):
         from . import step
@@ -165,8 +165,9 @@ class StepPruefDialog(QDialog):
         self.baum.setUniformRowHeights(True)
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
+        self.baum.itemDoubleClicked.connect(self._doppelklick)
         self._baum_fuellen()
-        for c, b in enumerate((250, 55, 150, 130, 120, 75, 80, 95, 65, 260)):
+        for c, b in enumerate((250, 55, 150, 130, 120, 75, 80, 95, 65, 130, 260)):
             self.baum.setColumnWidth(c, b)
 
         # Werte für mehrere Teile auf einmal
@@ -210,7 +211,8 @@ class StepPruefDialog(QDialog):
         lay.addWidget(teil, 1)
         hinweis = QLabel("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
                          "eintragen. Art: bei Flachstahl/Blech und Profil/Kantteil die andere Art wählen, wenn das "
-                         "Teil falsch erkannt wurde. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
+                         "Teil falsch erkannt wurde. Anbauteile (aufgeschweißte Bolzen, Laschen …): Doppelklick auf "
+                         "die Spalte Anbauteile = prüfen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
                          "Enthält eine Datei mehrere Teile, steht sie als Baugruppe da und wird ein Satz: oben die "
                          "Anzahl Sätze eintragen (Vorgabe 1; leer = Einzelpositionen); die Spalte zeigt Stück je Satz, "
                          "Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
@@ -230,7 +232,7 @@ class StepPruefDialog(QDialog):
     def _baum_fuellen(self):
         """Rohrliste aufbauen (auch nach einem Wechsel der Art): je Datei und Profil eine Gruppe, je Gruppe gleicher
         Teile eine Zeile; Eingaben stehen in den Messwerten (_uebernehmen, _werkstoff, _stueck …)."""
-        from . import step, zukauf
+        from . import anbau, step, zukauf
         messwerte, k, werkstoff, stueck, zukauf_liste = (self.messwerte, self.k, self.werkstoff, self.stueck,
                                                          self.zukauf_liste)
         mit_blechen = zukauf_liste is not None
@@ -277,6 +279,12 @@ class StepPruefDialog(QDialog):
             for c, w in ((self.SP_LAENGE, _f(m, "laenge")), (self.SP_SCHNEIDWEG, _f(m, "schneidweg"))):
                 it.setText(c, zahl_als_text(w, 1))
             it.setText(self.SP_KONTUREN, str(int(_f(m, "konturen"))))
+            anbauteile = anbau.lesen(m.get("anbauteile"))
+            if anbauteile:
+                it.setText(self.SP_ANBAU, anbau.kurz(anbauteile))
+                it.setToolTip(self.SP_ANBAU, "Doppelklick: Anbauteile prüfen (nicht gelasert, nur Gravur)")
+                if anbau.offen(anbauteile):
+                    it.setBackground(self.SP_ANBAU, QBrush(QColor("#FFEB9C")))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
             if ist_blech:
                 hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
@@ -328,7 +336,7 @@ class StepPruefDialog(QDialog):
             alt = step.alternative(m)
             if alt:     # Grenzfall: Art wählbar (Flachstahl/Blech, Profil/Kantteil), vorbelegt das Erkannte
                 art = QComboBox()
-                art.addItems([step.art_text(m), step.art_text(alt)])
+                art.addItems([step.art_text(m, alt), step.art_text(alt, m)])
                 art.setToolTip("Erkannte Art; die andere wählen, wenn das Teil falsch erkannt wurde (Ersatzwerte = "
                                "nicht so messbar, aus der anderen Messung abgeleitet: bitte prüfen)")
                 art.currentIndexChanged.connect(lambda n, i=erster: n and self.art_wechseln(i))
@@ -357,7 +365,7 @@ class StepPruefDialog(QDialog):
                 g.setBackground(0, QBrush(QColor("#F8CBAD")))
                 g.setExpanded(True)
             it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "", "",
-                                     "", "", m.get("fehler") or (step.blech_text(m) + ": kein Rohrlaserteil" if step.blech(m) else "")
+                                     "", "", "", m.get("fehler") or (step.blech_text(m) + ": kein Rohrlaserteil" if step.blech(m) else "")
                                      or m.get("hinweise") or "kein Rohrteil erkannt"])
             it.setData(1, Qt.UserRole, i)
 
@@ -525,6 +533,46 @@ class StepPruefDialog(QDialog):
         self.werte_schreiben()
         for i in z.liste:
             step.art_wechseln(self.messwerte[i])
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        neu = next((x for x in self.zeilen if index in x.liste), None)
+        if neu:
+            self.baum.setCurrentItem(neu.it)
+        return neu
+
+    def _doppelklick(self, it, spalte):
+        z = self._zeile(it)
+        if z and spalte == self.SP_ANBAU and it.text(self.SP_ANBAU):
+            self.anbau_pruefen(z.liste[0])
+
+    def anbau_pruefen(self, index, dialog=False):
+        """Dialog 'Anbauteile prüfen' für die Zeile mit dem Teil Nr. index; dialog=True: nur den Dialog zurückgeben
+        (Tests, Bildschirmfotos), anbau_uebernehmen setzt dann sein Ergebnis."""
+        from . import step
+        from .anbau_dialog import AnbauDialog
+        m = self.messwerte[index]
+        d = AnbauDialog(self, m.get("anbauteile"), m.get("artikel") or m.get("datei") or "", _f(m, "gravur"),
+                        step.ohne_trennung_text(m))
+        if dialog:
+            return d
+        if d.exec() == QDialog.Accepted:
+            return self.anbau_uebernehmen(index, d.ergebnis)
+        return None
+
+    def anbau_uebernehmen(self, index, ergebnis):
+        """Ergebnis des Dialogs für alle gleichen Teile der Zeile übernehmen: neue Liste der Anbauteile (Gravur um
+        den Unterschied; sind alle unsicheren entschieden, wird das Teil angehakt) oder 'ohne Trennung' (die Messung
+        ohne Abtrennen gilt, wie ein Wechsel der Art). Gibt die neue Zeile zurück."""
+        from . import anbau, step
+        from .anbau_dialog import OHNE_TRENNUNG
+        if ergebnis == OHNE_TRENNUNG:
+            return self.art_wechseln(index)
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            step.anbau_setzen(self.messwerte[i], ergebnis)
+            if not anbau.offen(ergebnis) and not step.unsicher(self.messwerte[i]):
+                self.messwerte[i]["_uebernehmen"] = True
         self._baum_fuellen()
         self.datei_waehlen(self.datei_nr)
         neu = next((x for x in self.zeilen if index in x.liste), None)

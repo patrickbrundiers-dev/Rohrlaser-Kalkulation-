@@ -33,6 +33,7 @@ from abnahme_angebote import ANGEBOTE  # noqa: E402
 STEP = sorted((WURZEL / "tests" / "step").glob("*.step"))
 BAUGRUPPE = WURZEL / "tests" / "step_satz" / "T08_Gestell_Baugruppe.step"
 SENKUNG = WURZEL / "tests" / "step_konturen" / "K04_RE60x40x3_Senkung_Flowdrill.step"
+ANBAU = WURZEL / "tests" / "step_anbau" / "A11_RE60x40x3_Kopfplatte_Mutter_Ecke.step"
 ROT = QColor("#D0021B")
 
 FIRMA = ("Muster Rohrlaser GmbH", "Industriestraße 12", "12345 Musterstadt", "Tel. 01234 5678-0 · info@muster-rohrlaser.example")
@@ -723,6 +724,49 @@ def main(ziel):
         d.reject()
     QTimer.singleShot(100, bohrbild_ausfuellen)
     s4.bohrungen_pruefen([0])
+
+    # 11c) Anbauteile prüfen: Rechteckrohr mit Kopfplatte, Mutter und Lasche an der Ecke (A11) im Prüfdialog
+    anb = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Rohr mit Anbauteilen"))
+    s5 = f.angebot_oeffnen(anb)
+    f.stumm = False
+
+    def anbau_ausfuellen():
+        d = QApplication.activeModalWidget()
+        if not isinstance(d, StepPruefDialog):
+            QTimer.singleShot(50, anbau_ausfuellen)
+            return
+        d.resize(1500, 560)
+        d.alle_setzen("S235-10219", 10)
+        d.baum.setCurrentItem(d.zeilen[0].it)
+        for c in (1, d.SP_PROFIL, d.SP_WERKSTOFF, d.SP_STUECK, d.SP_KONTUREN):     # Platz für die Spalte Anbauteile
+            d.baum.setColumnHidden(c, True)
+        d.baum.setColumnWidth(d.SP_ANBAU, 260)
+        d.ansicht.modus_setzen("Original")
+        bereit()
+        foto.foto("anbau_pruefen", d, [(d.baum, 1), (d.ansicht.modi, 2), (d.ansicht.info, 3)])
+        for c in (1, d.SP_PROFIL, d.SP_WERKSTOFF, d.SP_STUECK, d.SP_KONTUREN):
+            d.baum.setColumnHidden(c, False)
+        a = d.anbau_pruefen(0, dialog=True)
+        a.resize(1000, 330)
+        nr = next(i for i, x in enumerate(a.liste) if x.get("vertrauen") == "prüfen")
+        a.setzen(nr, art="Lasche")                       # an der Ecke erkannt: Art von Hand korrigiert
+        a.show()
+        bereit()
+        foto.foto("anbau_dialog", a, [(a.tabelle, 1), (knopf(a, "Alle bestätigen"), 2), (a.ohne, 3),
+                                      (a.auswirkung, 4)])
+        a.alle_bestaetigen()
+        a.accept()
+        d.anbau_uebernehmen(0, a.ergebnis)
+        d.ansicht.modus_setzen("Gravurkonturen")
+        bereit()
+        foto.foto("anbau_gravur", d.ansicht, [(d.ansicht.modi, 1)])
+        d.ansicht.modus_setzen("Original")
+        f.stumm = True
+        d.accept()
+    QTimer.singleShot(100, anbau_ausfuellen)
+    s5.step_importieren([str(ANBAU)], werkstoff="S235-10219")
+    f.stumm = True
+    bereit()
 
     # Sicherung wiederherstellen: einige Sicherungen verschiedener Art, Ordner wie unter Windows
     from rohrlaser.sicherung_dialog import WiederherstellenDialog
