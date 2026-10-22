@@ -1,0 +1,82 @@
+# Android-App (Ordner android/): Rechenkern in Kotlin, geprüft gegen das PC-Programm (Gleichheitsfälle aus
+# tests/android_paritaet.py), und die App als APK.
+#
+# Actions-Minuten sparen: läuft bei Pull Requests nur, wenn sich android/ oder die Gleichheitsfälle ändern (Linux,
+# einfache Minuten). Die fertige, signierte APK zum Installieren entsteht nur, wenn der Workflow von Hand gestartet
+# wird (Actions > Android > Run workflow); von main gestartet, kommt sie zusätzlich in das Release "android" des
+# öffentlichen Repositorys Rohrlaser-Updates (Download auf dem Handy ohne Anmeldung).
+#
+# Signatur: Secret ANDROID_SIGNATUR (Schlüsseldatei .jks als Base64) und ANDROID_SIGNATUR_PASSWORT. Fehlen sie, wird
+# mit einem Testschlüssel signiert, der bei jedem Lauf neu entsteht: Eine neue APK lässt sich dann nicht über die alte
+# installieren (alte App vorher deinstallieren). Für die Auslieferung wird der feste Schlüssel nachgereicht.
+name: Android
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - "tests/android_paritaet.py"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Rechenkern gleich wie das PC-Programm (Kotlin-Tests)
+        working-directory: android
+        run: ./gradlew -p kern test --no-daemon
+      - name: Signaturschlüssel
+        working-directory: android
+        env:
+          SIGNATUR: ${{ secrets.ANDROID_SIGNATUR }}
+          PASSWORT: ${{ secrets.ANDROID_SIGNATUR_PASSWORT }}
+        run: |
+          if [ -n "$SIGNATUR" ]; then
+            echo "$SIGNATUR" | base64 -d > "$RUNNER_TEMP/signatur.jks"
+            echo "ANDROID_SIGNATUR_PASSWORT=$PASSWORT" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Kein Secret ANDROID_SIGNATUR: APK wird mit einem Testschlüssel signiert."
+            keytool -genkeypair -keystore "$RUNNER_TEMP/signatur.jks" -alias rohrlaser -keyalg RSA -keysize 2048 \
+              -validity 3650 -storepass testschluessel -keypass testschluessel \
+              -dname "CN=Rohrlaser Test, O=Patrick Brundiers, C=DE"
+            echo "ANDROID_SIGNATUR_PASSWORT=testschluessel" >> "$GITHUB_ENV"
+          fi
+          echo "ANDROID_SIGNATUR_DATEI=$RUNNER_TEMP/signatur.jks" >> "$GITHUB_ENV"
+      - name: App bauen (APK)
+        working-directory: android
+        run: ./gradlew -p app assembleRelease --no-daemon
+      - name: APK benennen
+        run: |
+          version=$(grep -oP 'val appVersion = "\K[^"]+' android/app/build.gradle.kts)
+          cp android/app/build/outputs/apk/release/app-release.apk "Rohrlaser-$version.apk"
+          echo "APK=Rohrlaser-$version.apk" >> "$GITHUB_ENV"
+          ls -l Rohrlaser-*.apk
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        with:
+          name: Rohrlaser-Android
+          path: Rohrlaser-*.apk
+          retention-days: 14
+      - name: APK ins Release "android" von Rohrlaser-Updates
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
+        run: |
+          repo=patrickbrundiers-dev/Rohrlaser-Updates
+          if ! gh release view android --repo "$repo" >/dev/null 2>&1; then
+            gh release create android --repo "$repo" --prerelease --title "Rohrlaser Android (Testversion)" \
+              --notes "Android-App zum Installieren auf dem Handy: APK-Datei antippen und Installation erlauben."
+          fi
+          gh release upload android "$APK" --repo "$repo" --clobber
+          echo "Download: https://github.com/$repo/releases/download/android/$APK" >> "$GITHUB_STEP_SUMMARY"

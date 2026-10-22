@@ -6,3 +6,7 @@ dist/
 programm/Daten/
 programm/Angebote/
 anleitung/Bedienungsanleitung.pdf
+.gradle/
+.kotlin/
+local.properties
+*.jks
