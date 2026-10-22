@@ -138,6 +138,9 @@ class StepPruefDialog(QDialog):
         self.resize(1350, 720)
         self.dateien = list(dict.fromkeys(m.get("datei") for m in messwerte))
         self.mehrteilig = step.mehrteilig(messwerte, mit_blechen)
+        # eigene Körper, die an ein Rohr geschweißt sind: standardmäßig nicht übernehmen (nur Gravur auf dem Rohr)
+        self.anbau_von = step.anbau_von(messwerte)
+        self.anbau_weglassen = all(m.get("_anbau_weglassen", True) for m in messwerte)
         # Datei -> Sätze (0 = leer = Einzelpositionen); Baugruppen sind als 1 Satz vorbelegt
         self.saetze = {d: 1 if d in self.mehrteilig else 0 for d in self.dateien}
         for m in messwerte:
@@ -232,6 +235,14 @@ class StepPruefDialog(QDialog):
         self.d3_info.setStyleSheet("color: #7A5A00;" if bohr else "color: #595959;")
         zeile_3d.addWidget(self.d3)
         zeile_3d.addWidget(self.d3_info, 1)
+        self.anbau_weg = QCheckBox("Anbauteile nicht ins Angebot übernehmen")
+        self.anbau_weg.setChecked(self.anbau_weglassen)
+        self.anbau_weg.setToolTip("Eigene Körper (Bleche, Bolzen …), die an ein Rohr geschweißt sind, werden nicht "
+                                  "als Positionen übernommen; das Rohr bekommt nur ihre Gravur. Aus = sie werden wie "
+                                  "andere Teile übernommen.")
+        self.anbau_weg.setVisible(bool(self.anbau_von))
+        self.anbau_weg.toggled.connect(self.anbau_weglassen_setzen)
+        zeile_3d.addWidget(self.anbau_weg)
 
         links = QWidget()
         ll = QVBoxLayout(links)
@@ -312,6 +323,9 @@ class StepPruefDialog(QDialog):
             it.setText(0, m.get("artikel") or m.get("datei") or "")
             gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen") is not False) if ist_blech \
                 else step.gewaehlt(m)
+            anbauteil = self.anbau_von.get(erster) if self.anbau_weglassen else None
+            if anbauteil is not None and "_uebernehmen" not in m:
+                gewaehlt = False
             it.setCheckState(0, Qt.Checked if gewaehlt else Qt.Unchecked)
             it.setText(1, str(len(liste)))
             for c, w in ((self.SP_LAENGE, _f(m, "laenge")), (self.SP_SCHNEIDWEG, _f(m, "schneidweg"))):
@@ -324,6 +338,8 @@ class StepPruefDialog(QDialog):
                 if anbau.offen(anbauteile):
                     it.setBackground(self.SP_ANBAU, QBrush(QColor("#FFEB9C")))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if anbauteil is not None:
+                hinweis.append(f"Anbauteil von {anbauteil}: nicht übernehmen (nur Gravur auf dem Rohr)")
             if ist_blech:
                 hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
                 if m.get("pruefstatus") == "prüfen":
@@ -707,6 +723,21 @@ class StepPruefDialog(QDialog):
             self.baum.setCurrentItem(neu.it)
         return neu
 
+    def anbau_weglassen_setzen(self, an):
+        """Option 'Anbauteile nicht ins Angebot übernehmen': Häkchen der angeschweißten Körper ab- bzw. wieder
+        anwählen (wie ohne Option vorbelegt); die Eingaben der anderen Zeilen bleiben."""
+        from . import step
+        self.werte_schreiben()
+        self.anbau_weglassen = bool(an)
+        for i in self.anbau_von:
+            m = self.messwerte[i]
+            m["_anbau_weglassen"] = self.anbau_weglassen
+            m.pop("_uebernehmen", None)
+            if not self.anbau_weglassen and step.blech(m) is None:
+                m["_uebernehmen"] = step.gewaehlt(m)
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+
     def _doppelklick(self, it, spalte):
         z = self._zeile(it)
         if z and spalte == self.SP_ANBAU and it.text(self.SP_ANBAU):
@@ -777,6 +808,7 @@ class StepPruefDialog(QDialog):
                 m = self.messwerte[i]
                 m["_uebernehmen"] = z.it.checkState(0) == Qt.Checked
                 m["_d3"] = self.d3.isChecked()
+                m["_anbau_weglassen"] = self.anbau_weglassen
                 m["_werkstoff"] = z.ws.currentText() or None
                 if saetze:
                     m["_saetze"], m["_stueck"] = saetze, saetze

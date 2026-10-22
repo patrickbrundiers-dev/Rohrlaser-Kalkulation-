@@ -17,7 +17,7 @@ from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, 
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_zukaufteil
 from . import fracht_angebot
-from . import dreid, naht, zukauf
+from . import anbau, dreid, naht, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -257,7 +257,7 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
     """Gemeinsame Einzelprüfungen einer Position (Code-Audit D-1), die status(), zukaufteil_status() und der
     Hinweis der Kalkulation jeweils in ihrer Reihenfolge abfragen: {Schlüssel: Text} nur der zutreffenden Punkte.
     Schlüssel: satz_vielfach, satz, zusatz, gewinde, gewinde_preis, kontur (nicht bei manueller Schneidzeit),
-    bohrungen.
+    bohrungen, anbau.
     zusatz/gewinde = Stammdaten; None = nicht prüfen."""
     erg = {}
     if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
@@ -283,6 +283,8 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
             erg["kontur"] = kontur
     if bohrbild_offen(p):
         erg["bohrungen"] = "Bohrungen ungeprüft"
+    if anbau_offen(p):
+        erg["anbau"] = "Anbauteile ungeprüft"
     return erg
 
 
@@ -373,6 +375,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "HINWEIS: keine Schneiddaten"
     if "bohrungen" in pr:
         return "HINWEIS: Bohrungen prüfen (Doppelklick)"
+    if "anbau" in pr:
+        return "HINWEIS: Anbauteile prüfen (Doppelklick)"
     if d3_status:
         return d3_status
     if manuell:
@@ -1321,6 +1325,18 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
 
 
 # ------------------------------------------------------------------ Kalkulation
+def anbau_offen(p):
+    """Unsicher erkanntes Anbauteil aus dem STEP-Import noch nicht bestätigt oder ausgeschlossen (anbau.py)."""
+    return not _leer(p.get("anbauteile")) and anbau.offen(anbau.lesen(p["anbauteile"])) > 0
+
+
+def gravur_anbau(p):
+    """Gravur der Anbauteile je Teil [mm] (in 'gravur' enthalten, höchstens so viel wie sie)."""
+    if _leer(p.get("anbauteile")):
+        return 0.0
+    return min(anbau.gravur(anbau.lesen(p["anbauteile"])), _n(p.get("gravur")))
+
+
 def bohrbild_offen(p):
     """Gewinde-Vorschlag, Senkung oder Fließlochbohrung noch nicht bestätigt bzw. abgelehnt (bohrbild.py); ohne
     Bohrbild wie früher: Gewinde-Vorschlag da, Gewinde geprüft leer."""
@@ -1710,19 +1726,21 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
     return sd, (h, i_, j, kv, l), sum(anteile.values()) if anteile else None
 
 
-ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "einstiche", "d3")
+ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "d3")
 
 
 def zeitanteile(p, vorschuebe, mehr_3d=0):
-    """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur,
-    einstiche, d3 (Mehrzeit der 3D-Bearbeitung gegenüber demselben Weg in 2D, zeit_3d)}; None ohne Vorschub groß.
-    vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
+    """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur
+    (ohne Anbauteile), gravur_anbau (Gravur der Anbauteile), einstiche, d3 (Mehrzeit der 3D-Bearbeitung gegenüber
+    demselben Weg in 2D, zeit_3d)}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit)
+    wie schneidzeit."""
     h, i_, j, kv, l = vorschuebe
     if not h:
         return None
     try:
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
-                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * _n(p.get("gravur")) / kv,
+                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p)) / kv,
+                    gravur_anbau=60 * gravur_anbau(p) / kv,
                     einstiche=_n(p.get("einstiche")) * _n(l), d3=_n(mehr_3d))
     except ZeroDivisionError:
         return None
@@ -2059,6 +2077,9 @@ def freigabe_punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0
     n = sum(1 for p, _ in aktiv if bohrbild_offen(p))
     if n:
         out.append(("WARNUNG", f"{n} Position{'en' if n > 1 else ''}: Bohrungen/Gewinde-Vorschlag ungeprüft"))
+    n = sum(1 for p, _ in aktiv if anbau_offen(p))
+    if n:
+        out.append(("WARNUNG", f"{n} Position{'en' if n > 1 else ''}: Anbauteile ungeprüft"))
     if summen.get("fracht_fehler"):
         out.append(("WARNUNG", f"Fracht: {summen['fracht_fehler']}"))
     if staffeln_veraltet:
@@ -2235,6 +2256,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                                              else _n(einstellungen.get("programmierung_teil")))
                 for i, (m, _) in prog_zeit.items()}
     handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
+    pruefzeit_anbau = _n(einstellungen.get("pruefzeit_anbau"))      # min je Teil mit unsicher erkannten Anbauteilen
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = _zusatz_umlegen(positionen, aktiv, laser, k, tabellen)
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
@@ -2287,10 +2309,12 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (h, i_, j, kv, l))
         anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0) or {}
         z.update({f"zeit_{n}": anteile.get(n) for n in ZEITANTEILE})
+        if anteile:     # Anzeige: Gravur gesamt, die Anbauteile als 'davon'
+            z["zeit_gravur"] = anteile["gravur"] + anteile["gravur_anbau"]
         z.update(zeit_3d_gesamt=d3["zeit"] if d3 else None, mm_3d=d3["laenge"] if d3 else None,
                  bearbeitungen_3d=d3["anzahl"] if d3 else None)
         z.update(mm_gross=gross_rest(p), mm_mittel=_n(p.get("mittel_mm")), mm_klein=_n(p.get("klein_mm")),
-                 mm_gravur=_n(p.get("gravur")), einstiche_teil=_n(p.get("einstiche")))
+                 mm_gravur=_n(p.get("gravur")), mm_gravur_anbau=gravur_anbau(p), einstiche_teil=_n(p.get("einstiche")))
         ein = eingespart.get(schluessel(p, i), [0, 0.0, 0])
         if h is None or c == 0 or not h:
             nz = 0
@@ -2299,10 +2323,13 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   + ein[2] * einstiche_ende(w["profilform"]) * l) / c
         manuell = not _leer(p.get("zeit_manuell"))
         zeit_extra = sum(e["zeit"] for e in zus[i])
+        # Prüfzeit je Teil mit unsicher erkannten Anbauteilen (Einstellung, min): eigener Zeitanteil der Laserzeit
+        pruef = 60 * pruefzeit_anbau if pruefzeit_anbau and not _leer(p.get("anbauteile")) and \
+            anbau.pruefteil(anbau.lesen(p["anbauteile"])) else 0.0
         if manuell:
-            oz = _n(p["zeit_manuell"]) + zeit_extra
+            oz = _n(p["zeit_manuell"]) + zeit_extra + pruef
         else:
-            oz = None if mz is None and not zeit_extra else max(0, _n(mz) - nz) + zeit_extra
+            oz = None if mz is None and not zeit_extra and not pruef else max(0, _n(mz) - nz) + zeit_extra + pruef
         pz = 0.0        # Gewinde nur mit € je Stück, keine Zeit (Patrick 22.10.2026)
         gp = gewinde_preis(p.get("gewinde"), tabellen["gewinde"], gewinde_preise_position(p))
         qz = _n(oz) / 3600 * s_laser + pz / 3600 * s_gew + gp
@@ -2344,6 +2371,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = pr["satz"]
         elif "bohrungen" in pr:
             hinweis = pr["bohrungen"]
+        elif "anbau" in pr:
+            hinweis = pr["anbau"]
         elif any(x["fehler"] for x in zk):
             hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
         else:
@@ -2351,6 +2380,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z.update(zeit_manuell="ja" if manuell else "", zeit_extra=zeit_extra, gewinde_preis=gp,
                  zusatz_eigen_teil=ze, zusatz_fremd_teil=zfr, zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c, zusatzarbeiten=zus[i],
                  zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]))
+        z.update(zeit_pruefung=pruef, pruefung_teil=pruef / 3600 * s_laser,
+                 gravur_anbau_teil=0.0 if manuell else _n(anteile.get("gravur_anbau")) / 3600 * s_laser)
         z.update(laser_schneiden_teil=_n(oz) / 3600 * s_laser, gewinde_teil=pz / 3600 * s_gew + gp,
                  gewinde_zeit_teil=pz / 3600 * s_gew, arbeit_teil=az,
                  zuschlag_material_teil=f * zm, zuschlag_fertigung_teil=(qz + rz + az + ze + hz) * zf,
@@ -2410,6 +2441,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # = Herstellkosten; Herstellkosten + Gewinn + Pauschalen + Programmierung + Aufschlag + Fracht + Zukaufteile
     # + Skonto = Verkaufspreis)
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
+                  gravur_anbau=_summe("gravur_anbau_teil"), pruefung_anbau=_summe("pruefung_teil"),
                   ruesten_maschine=ruest / 60 * s_rm, ruesten_abmessungen=ruest_abm * n_abm,
                   stangenwechsel_kosten=wechsel_s / 3600 * s_sw,
                   zuschlag_material=_summe("zuschlag_material_teil"),
@@ -2446,12 +2478,12 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
                           "gewinn_teil", "einsparung", "gewindezeit", "laser_teil", "ruesten_teil", "herstell_teil",
                           "herstell_position", "material_position", "laser_position", "ruesten_maschine_teil",
                           "stangenwechsel_teil", "ruesten_abm_teil", "pauschale_abm_teil", "angebotsaufschlag_teil",
-                          "programmierung_anteil"), 0.0)
+                          "programmierung_anteil", "zeit_pruefung", "pruefung_teil", "gravur_anbau_teil"), 0.0)
     null.update(prog_min=None, prog_hand=False)
     z = dict(null, pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, wand_stufe=None, gas=None,
              vorschub_gross=None, vorschub_mittel=None, vorschub_klein=None, vorschub_gravur=None, einstechzeit=None,
              **{f"zeit_{n}": None for n in ZEITANTEILE}, zeit_3d_gesamt=None, mm_3d=None, bearbeitungen_3d=None, mm_gross=None, mm_mittel=None, mm_klein=None,
-             mm_gravur=None, einstiche_teil=None, zeit_manuell="", zusatzarbeiten=[], zusatz_text="", skonto_teil=t_ - ohne, laser_brutto=None,
+             mm_gravur=None, mm_gravur_anbau=None, einstiche_teil=None, zeit_manuell="", zusatzarbeiten=[], zusatz_text="", skonto_teil=t_ - ohne, laser_brutto=None,
              laser_netto=None, zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf,
              zukauf_teil=zk_einst + zk_auf, zukauf_fehlt=sum(1 for x in zk if x["fehler"]) + (0 if zk else 1),
              pauschalen_teil=fr, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, hinweis=hinweis,
@@ -2648,7 +2680,11 @@ assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n
 def kostenarten(summen, einst):
     """[(Bezeichnung mit Mengenangabe, Betrag, fett)] aller Kostenarten des Angebots, einzeln."""
     z = lambda w, st=1: zahl(w, st)
+    davon = [f"{t} {z(summen.get(n, 0), 2)} €" for t, n in (("Gravur Anbauteile", "gravur_anbau"),
+                                                           ("Prüfzeit Anbauteile", "pruefung_anbau"))
+             if summen.get(n)]
     zusatz = {
+        "laser_schneiden": f" (davon {', '.join(davon)})" if davon else "",
         "ruesten_maschine": f" ({z(summen['ruestzeit'])} min)",
         "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min)",
         "stangenwechsel_kosten": f" ({summen['beladungen']} × {z(summen['stangenwechsel'])} s)",
