@@ -50,7 +50,7 @@ def ende_text(e, profil):
     if profil.get("form") != "Rundrohr":
         t += f" {e.get('achse') or sw.ACHSEN[0]}"
     r = next((k for k, v in sw.RICHTUNGEN.items() if v is not None and v == e.get("richtung")), None)
-    return t + (f", {r}" if r else "")
+    return t + (f", {r}" if r else "") + (" (automatisch)" if r and e.get("richtung_auto") else "")
 
 
 def _lage_text(e, n):
