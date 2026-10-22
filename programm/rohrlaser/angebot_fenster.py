@@ -2606,7 +2606,7 @@ class AngebotSeite(QWidget):
 
     # -------------------------------------------------------------- Material je Abmessung
     def material_einstellen(self, dialog=None):
-        """Fenster 'Material …': Materialeinsatz und Materialwerte je Abmessung (Oberfläche, Lieferlänge, Eigen-/
+        """Fenster 'Material …': Materialeinsatz und Materialwerte je Abmessung (Werkstoff, Oberfläche, Lieferlänge, Eigen-/
         Kundenmaterial, Meterpreis) und Handling Kundenmaterial; Änderungen werden an allen Positionen der Abmessung
         gespeichert und gehen so in die Kalkulation ein. dialog(d) bedient das Fenster statt exec (Tests). Ergebnis:
         Anzahl geänderter Abmessungen bzw. Werte oder None (nichts zu zeigen)."""
@@ -2635,9 +2635,9 @@ class AngebotSeite(QWidget):
         for feld, wert in d.kopf_aenderungen.items():
             self.db.angebot_aendern(self.id, feld, wert)
         self.neu_laden()
-        plan = any(set(f) & {"oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen)
+        plan = any(set(f) & {"werkstoff_id", "oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen)
         self.f.meldung(f"Material: {n} Änderung(en) gespeichert. {preis_aenderung(vorher, self._verkauf())}"
-                       + (" Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else ""))
+                       + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else ""))
         return n
 
     # -------------------------------------------------------------- Materialanfrage

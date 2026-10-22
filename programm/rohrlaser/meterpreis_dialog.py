@@ -2,7 +2,7 @@
 dem Materialeinsatz je Abmessung", "alles zum Material, was man einstellen kann"): je Abmessung eine Zeile mit
 Querschnitt, Materialeinsatz aus dem Schnittplan und den Materialwerten zum Ändern.
 
-Alle Werte werden wie in den Spalten der Positionen gespeichert, und zwar an allen Positionen der Abmessung: Oberfläche,
+Alle Werte werden wie in den Spalten der Positionen gespeichert, und zwar an allen Positionen der Abmessung: Werkstoff, Oberfläche,
 Stangenlänge abweichend (Lieferlänge), Material (Eigen-/Kundenmaterial) und Materialpreis [€/m] (preis_m, leer =
 wieder berechnet aus Lieferlängen, Preisen bzw. Tonnenpreis mit Aufpreis der Oberfläche).
 """
@@ -70,7 +70,7 @@ def laengen_text(g):
 
 
 class MeterpreisDialog(QDialog):
-    """Fenster 'Material …': je Abmessung Oberfläche, Lieferlänge, Material (Eigen-/Kundenmaterial) und Meterpreis
+    """Fenster 'Material …': je Abmessung Werkstoff, Oberfläche, Lieferlänge, Material (Eigen-/Kundenmaterial) und Meterpreis
     änderbar, dazu der Materialeinsatz laut Schnittplan; unten Handling Kundenmaterial des Angebots und die
     Materialwerte aus den Einstellungen (nur Anzeige). gruppen = rechnen.material_abmessungen(...), k = Kontext
     (profile, oberflaechen), kopf = Angebotskopf, laengen(g) = Lieferlängen der Abmessung [mm], einst = Einstellungen,
@@ -85,11 +85,11 @@ class MeterpreisDialog(QDialog):
         self.resize(1320, 250 + 52 * min(len(gruppen), 8))
         lay = QVBoxLayout(self)
         lay.addWidget(hilfe.Hinweis(
-            "Alles zum Material dieses Angebots je Abmessung: Oberfläche, Lieferlänge, Eigen- oder Kundenmaterial und "
+            "Alles zum Material dieses Angebots je Abmessung: Werkstoff, Oberfläche, Lieferlänge, Eigen- oder Kundenmaterial und "
             "Meterpreis gelten für alle Positionen der Abmessung und gehen nach 'Übernehmen' in die Kalkulation ein. "
             "Meterpreis grau = berechnet aus Lieferlängen, Preisen bzw. Tonnenpreis (mit Aufpreis der Oberfläche); ein "
             "eigener Wert steht fett, Feld leeren = wieder berechnet. Stangen, Meter, Gewicht und Material € kommen "
-            "aus dem Schnittplan; nach einer anderen Lieferlänge oder Oberfläche bitte neu optimieren.",
+            "aus dem Schnittplan; nach einem anderen Werkstoff, einer anderen Lieferlänge oder Oberfläche bitte neu optimieren.",
             schluessel="meterpreise"))
         if ohne_plan or veraltet:
             t = QLabel("Noch nicht optimiert: Stangen, Meter und Gewicht folgen nach dem Optimieren." if ohne_plan else
@@ -104,12 +104,12 @@ class MeterpreisDialog(QDialog):
         self.tabelle.setIconSize(QSize(BILD, BILD))
         self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabelle.setSelectionMode(QAbstractItemView.NoSelection)
-        self.felder, self.oberflaechen, self.laengen, self.herkunft = [], [], [], []
+        self.felder, self.werkstoffe, self.oberflaechen, self.laengen, self.herkunft = [], [], [], [], []
         fett = QFont()
         fett.setBold(True)
         ob_liste = [ROH] + sorted(o for o in k.oberflaechen if o.lower() != ROH)
         for r, g in enumerate(gruppen):
-            werte = {0: None, 1: g["profil"], 2: g["werkstoff"],
+            werte = {0: None, 1: g["profil"],
                      6: ", ".join(_z(p, 0) for p in g["positionen"] if p is not None),
                      7: _z(g["stangen"], 0) if g["stangen"] else "–", 8: _z(g["meter"], 1) if g["stangen"] else "–",
                      9: _z(g["kg"], 1) if g["stangen"] else "–", 10: _z(g["kosten"]) if g["stangen"] else "–",
@@ -129,6 +129,12 @@ class MeterpreisDialog(QDialog):
                                   + (f", Lieferlängen laut Schnittplan: {laengen_text(g)}" if g["laengen"] else ""))
                 self.tabelle.setItem(r, c, it)
             self.tabelle.item(r, 0).setIcon(QIcon(querschnitt_pixmap(k.profile.get(g["profil"]))))
+            ws = QComboBox()
+            ws.addItems(sorted(set(k.werkstoffe) | {g["werkstoff"]}))
+            ws.setCurrentText(g["werkstoff"])
+            ws.setToolTip("Werkstoff aller Positionen dieser Abmessung")
+            self.werkstoffe.append(ws)
+            self.tabelle.setCellWidget(r, 2, ws)
             ob = QComboBox()
             ob.addItems(ob_liste)
             ob.setCurrentText(g["oberflaeche"] or ROH)
@@ -161,10 +167,10 @@ class MeterpreisDialog(QDialog):
             hk.currentTextChanged.connect(lambda t, feld=feld: self._kunde(feld, t))
             self._kunde(feld, hk.currentText())
         kopf_z = self.tabelle.horizontalHeader()
-        for i, b in enumerate((BILD + 10, 130, 0, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115)):
+        for i, b in enumerate((BILD + 10, 130, 150, 95, 125, 140, 70, 60, 65, 85, 85, 110, 115)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
-        kopf_z.setSectionResizeMode(2, QHeaderView.Stretch)
+        kopf_z.setSectionResizeMode(1, QHeaderView.Stretch)
         lay.addWidget(self.tabelle, 1)
         summe = sum(g["kosten"] for g in gruppen)
         self.summe = QLabel(f"Material gesamt laut Schnittplan: {_z(summe)} €  ·  "
@@ -239,6 +245,9 @@ class MeterpreisDialog(QDialog):
             preis = self._preis(g, self.felder[i])
             if (preis is None) != (g["manuell"] is None) or preis is not None and abs(preis - g["manuell"]) > 1e-9:
                 neu["preis_m"] = preis
+            ws = self.werkstoffe[i].currentText()
+            if ws != g["werkstoff"]:
+                neu["werkstoff_id"] = ws
             ob = self.oberflaechen[i].currentText()
             if (ob if ob.lower() != ROH else "") != (g["oberflaeche"] or ""):
                 neu["oberflaeche"] = ob

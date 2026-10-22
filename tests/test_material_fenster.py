@@ -120,14 +120,16 @@ def anderes(d):
     d.herkunft[2].setCurrentText("Kunde beigestellt")
     assert not d.felder[2].isEnabled()
     d.handling.setText("0,15")
+    d.werkstoffe[3].setCurrentText("S355-10219")
 
 
-assert s.material_einstellen(bedienen(anderes)) == 3
+assert s.material_einstellen(bedienen(anderes)) == 4
 p30, p40 = (next(p for p in s.positionen if p["pos"] == n) for n in (30, 40))
 assert p30["stange"] == 12000 and p40["material_herkunft"] == "Kunde beigestellt"
 assert abs(s.kopf["handling_beistellung"] - 0.15) < 1e-9
+assert next(p for p in s.positionen if p["pos"] == 50)["werkstoff_id"] == "S355-10219"
 assert s.stand_optimierung() != "aktuell"
-ok("Lieferlänge 12 m, Kundenmaterial und Handling 0,15 €/kg gespeichert; Schnittplan veraltet")
+ok("Werkstoff S355, Lieferlänge 12 m, Kundenmaterial und Handling 0,15 €/kg gespeichert; Schnittplan veraltet")
 
 
 def falsch(d):

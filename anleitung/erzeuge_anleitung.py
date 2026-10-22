@@ -947,7 +947,7 @@ def kapitel_angebot(i):
     i.bild("material_fenster", "Material je Abmessung", hoehe=85 * mm, legende=[
         (1, "<b>Querschnitt</b> des Profils (RP-Profile mit ihrer Kontur aus dem MegaCAD-Makro); der Mauszeiger auf "
             "der Abmessung zeigt Teilelänge gesamt und Ausnutzung."),
-        (2, "<b>Oberfläche</b>, <b>Lieferlänge [mm]</b> (Auswahl aus den Stammdaten <i>Lieferlängen</i> oder eintippen) "
+        (2, "<b>Werkstoff</b>, <b>Oberfläche</b>, <b>Lieferlänge [mm]</b> (Auswahl aus den Stammdaten <i>Lieferlängen</i> oder eintippen) "
             "und <b>Material</b> (Eigenmaterial / Kunde beigestellt). Danach neu optimieren."),
         (3, "<b>Materialeinsatz</b> laut Schnittplan: Stangen, Meter, Gewicht und Materialkosten; darunter die Summe."),
         (4, "<b>Meterpreis [€/m]</b>: grau steht der berechnete Preis ([[meterpreis]]); ein eigener Wert steht fett, "
@@ -3813,7 +3813,7 @@ def kapitel_fragen(i):
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
     ["0.8.25", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
-               "und Meterpreis, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
+               "und Meterpreis, Werkstoff, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
                "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
                "ohne Wert ausgeblendet, Stangenbild am Ende."],
     ["0.8.22", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
