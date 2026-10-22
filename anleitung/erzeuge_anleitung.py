@@ -3023,6 +3023,12 @@ def kapitel_pflege(i):
             "Beschreibung). <b>Datei → Daten importieren …</b> liest eine Export-Datei, eine Sicherung oder eine "
             "Datendatei <i>rohrlaser.db</i> ein und ersetzt damit alle Daten; vorher sichert es den jetzigen Stand "
             "(<i>_vor_Import</i>). Eine beschädigte Export-Datei erkennt das Programm an der Prüfsumme.",
+            "<b>Datei → Stammdaten fürs Handy exportieren …</b> schreibt alle Stammdaten (Profile, Werkstoffe, Preise, "
+            "Maschinen, Schneiddaten, Kunden, Frachtkosten, Zukauf) und die Einstellungen in eine Datei "
+            "<i>Rohrlaser-Stammdaten JJJJ-MM-TT.json</i> für die Android-App (Testversion). Die Datei z. B. per "
+            "E-Mail aufs Handy bringen und in der App mit <b>Stammdaten einlesen</b> öffnen. Es gibt keinen Abgleich: "
+            "Gepflegt wird am PC, auf dem Handy lassen sich die Stammdaten nur ansehen; nach Änderungen am PC neu "
+            "exportieren und einlesen (ersetzt alles). Angebote gehen nicht mit, das Passwort der Einstellungen auch nicht.",
             "Lässt sich die Datendatei beim Start nicht öffnen (beschädigt, von einer neueren Version), bietet das "
             "Programm an, eine Sicherung zu wählen. Die nicht lesbare Datei wird dabei nicht gelöscht, sondern in den "
             "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
@@ -3303,6 +3309,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.38", "Datei → Stammdaten fürs Handy exportieren …: Stammdaten und Einstellungen als Datei für die "
+               "Android-App (Testversion), dort nur zum Ansehen und für den Stangenrechner ([[datensicherung]])."],
     ["0.6.37", "Mehr Doppelklick: Status führt zur Lösung (Dialog oder Zelle zum Eintragen), Schneidweg/Einstiche/"
                "STEP-Werte öffnen den Schneidweg-Rechner, Artikel mit 3D die 3D-Ansicht, Schnittplan, Stangenbild und "
                "STEP-Protokoll springen zur Position, Kunde im Angebotskopf öffnet den Kunden, Kundenliste zeigt die "

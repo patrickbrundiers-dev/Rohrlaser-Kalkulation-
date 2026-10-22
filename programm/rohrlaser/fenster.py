@@ -958,6 +958,7 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
                                   ("Daten importieren …", self.daten_importieren, None),
+                                  ("Stammdaten fürs Handy exportieren …", self.handy_exportieren, None),
                                   (None, None, None),
                                   ("Datenordner öffnen", self.datenordner_oeffnen, None),
                                   ("Ablageordner öffnen (PDF, CSV)", self.ablage_oeffnen, None),
@@ -1303,6 +1304,34 @@ class Hauptfenster(QMainWindow):
                                     "lassen sie sich in der portablen oder installierten Version oder auf einem "
                                     "anderen Rechner einlesen.")
         return info
+
+    def handy_exportieren(self):
+        from PySide6.QtWidgets import QFileDialog
+        from . import handy_export
+        ziel, _ = QFileDialog.getSaveFileName(self, "Stammdaten fürs Handy exportieren",
+                                              str(handy_export.vorschlag(self.ablage())), "Stammdaten (*.json)")
+        if ziel:
+            self.handy_export_schreiben(ziel)
+
+    def handy_export_schreiben(self, ziel):
+        """Stammdaten-Datei für die Android-App schreiben (handy_export). Ergebnis: Anzahl je Tabelle oder None."""
+        from . import handy_export
+        try:
+            anzahl = handy_export.schreiben(self.db, ziel)
+        except OSError as e:
+            self.meldung(f"Export fürs Handy nicht gelungen: {e}", fehler=True)
+            if not self.stumm:
+                QMessageBox.warning(self, "Stammdaten fürs Handy", f"Der Export ist nicht gelungen:\n\n{e}")
+            return None
+        self.meldung(f"Stammdaten fürs Handy exportiert: {ziel}")
+        if not self.stumm:
+            QMessageBox.information(
+                self, "Stammdaten fürs Handy",
+                f"Die Stammdaten stehen in\n{ziel}\n\n{anzahl.get('profile', 0)} Profile, "
+                f"{anzahl.get('werkstoffe', 0)} Werkstoffe, {anzahl.get('maschinen', 0)} Maschinen, "
+                f"{anzahl.get('kunden', 0)} Kunden. Die Datei aufs Handy bringen (z. B. per E-Mail) und in der App mit "
+                "„Stammdaten einlesen“ öffnen. Das Passwort der Einstellungen ist nicht enthalten.")
+        return anzahl
 
     def daten_importieren(self):
         from PySide6.QtWidgets import QFileDialog

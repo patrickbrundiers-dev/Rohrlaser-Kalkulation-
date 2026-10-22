@@ -19,6 +19,7 @@ from rohrlaser import optimierung as opt  # noqa: E402
 from rohrlaser.optimierung import FEST, FREI, UNBEKANNT, Gruppe, Teil  # noqa: E402
 
 DATEI = HIER.parent / "android" / "kern" / "src" / "test" / "resources" / "optimierung_faelle.json"
+STAMMDATEN = DATEI.with_name("stammdaten_beispiel.json")
 
 
 def teile(n, laenge, a=True, b=True, zeile=13, **extra):
@@ -158,12 +159,28 @@ def faelle():
     return out
 
 
+def beispiel_stammdaten():
+    """Stammdaten-Datei der Beispieldaten (wie Datei → Stammdaten fürs Handy exportieren) für die App-Tests. Wird nur
+    mit --schreiben erneuert und nicht verglichen: die App liest jede Tabelle anhand der Feldbeschreibung."""
+    import tempfile
+    from rohrlaser import handy_export
+    from rohrlaser.datenbank import Datenbank
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "beispiel.db")
+        inhalt = handy_export.stammdaten(db)
+        db.con.close()
+    inhalt.update(programm="Beispiel", erstellt="2026-10-22T12:00:00")
+    return json.dumps(inhalt, ensure_ascii=False, indent=1) + "\n"
+
+
 def main():
     text = json.dumps(faelle(), ensure_ascii=False, separators=(",", ":")) + "\n"
     if "--schreiben" in sys.argv:
         DATEI.parent.mkdir(parents=True, exist_ok=True)
         DATEI.write_text(text, encoding="utf-8")
         print(f"geschrieben: {DATEI} ({len(text) // 1024} KB)")
+        STAMMDATEN.write_text(beispiel_stammdaten(), encoding="utf-8")
+        print(f"geschrieben: {STAMMDATEN}")
         return 0
     if not DATEI.exists() or DATEI.read_text(encoding="utf-8") != text:
         print("FEHLER: Die Rechnung des PC-Programms passt nicht mehr zu den Gleichheitsfällen der Android-App.\n"

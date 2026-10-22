@@ -7,8 +7,8 @@ plugins {
 }
 
 // Versionsnummer der App (unabhängig vom PC-Programm); versionCode muss bei jeder ausgelieferten APK steigen.
-val appVersion = "0.1.0"
-val appVersionCode = 1
+val appVersion = "0.2.0"
+val appVersionCode = 2
 
 android {
     namespace = "de.brundiers.rohrlaser"
