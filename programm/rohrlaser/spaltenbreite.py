@@ -9,8 +9,10 @@ Regeln (für alle Tabellen gleich, damit das Layout ruhig und übersichtlich ble
 - Zeilen mit langem Text werden höher (Text umgebrochen), höchstens MAX_ZEILEN Textzeilen; der Rest wird mit …
   gekürzt und steht vollständig im Tooltip. Zeilen ohne langen Text bleiben einzeilig, damit wenig gescrollt wird.
 - Bei sehr vielen Zeilen (über MAX_ANZAHL) bleiben die Zeilen einzeilig (Geschwindigkeit).
+- Eine Tabelle, die gerade nicht zu sehen ist (anderer Reiter), wird erst beim Zeigen eingepasst (Performance-Audit
+  22.10.2026: das Einpassen verdeckter Tabellen kostete beim Angebots-PDF eines Angebots mit 200 Positionen ~20 s).
 """
-from PySide6.QtCore import QObject, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QFont, QFontMetrics, QGuiApplication
 
 MAX_BREITE = 260
@@ -44,6 +46,7 @@ class AutoGroesse(QObject):
         self.von_hand = set()          # vom Benutzer gezogene Spalten
         self.eingepasst = False        # erstes Einpassen mit Daten erledigt
         self._selbst = False
+        self._offen = False            # Anpassen steht aus, bis die Tabelle zu sehen ist
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(0)
@@ -60,6 +63,7 @@ class AutoGroesse(QObject):
         for signal in (m.modelReset, m.layoutChanged, m.rowsInserted, m.rowsRemoved, m.dataChanged, m.columnsInserted):
             signal.connect(self.spaeter)
         ansicht.auto_groesse = self
+        ansicht.installEventFilter(self)
         self.spaeter()
 
     @staticmethod
@@ -78,6 +82,11 @@ class AutoGroesse(QObject):
     def spaeter(self, *_):
         self._timer.start()
 
+    def eventFilter(self, obj, ereignis):
+        if obj is self.ansicht and ereignis.type() == QEvent.Show and self._offen:
+            self.anpassen()          # vor dem ersten Zeichnen: die Tabelle erscheint gleich passend
+        return False
+
     def neu_einpassen(self):
         """Alles neu einpassen (auch schmaler), vom Benutzer gezogene Spalten vergessen."""
         self.von_hand.clear()
@@ -93,6 +102,10 @@ class AutoGroesse(QObject):
         self._timer.stop()
         if self.ansicht.model() is None:
             return
+        if not self.ansicht.isVisible():      # verdeckt: beim Zeigen nachholen (eventFilter)
+            self._offen = True
+            return
+        self._offen = False
         if self.ansicht.model().rowCount() == 0:      # leere Tabelle: wenigstens die Spaltenköpfe ganz zeigen
             self._koepfe()
             return
