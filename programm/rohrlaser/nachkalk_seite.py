@@ -143,7 +143,7 @@ class NachkalkulationSeite(QWidget):
 
     def _rechnen(self):
         s = self.s
-        v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist)
+        v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
         self.vergleich.setzen(v["zeilen"] + [v["summe"], v["erloes"], v["db"]])
         db = v["db"]
         farbe = "#1E6B34" if db["abweichung"] >= 0 else "#B42318"
@@ -243,7 +243,7 @@ class NachkalkulationSeite(QWidget):
         if not s.ergebnis or not s.ergebnis.get("stangen"):
             QMessageBox.warning(self, "Nachkalkulation", "Bitte zuerst optimieren.")
             return None
-        v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist)
+        v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
         aktuell = s.stand_optimierung() == "aktuell"
         return s._schreiben("Nachkalkulation", s._ziel("Nachkalkulation", ".pdf"),
                             lambda p: pdf.nachkalkulation_pdf(p, s.kopf, v, self.ist, aktuell, s.einst))

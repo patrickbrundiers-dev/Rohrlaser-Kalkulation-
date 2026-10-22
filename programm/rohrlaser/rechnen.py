@@ -853,6 +853,11 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
 def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
     """Berechnete Spalten je Stange: teile, summe, belegt, rest, ausnutzung, pruefung, gewicht, kosten."""
     out = []
+    # Positionen je Stangengruppe einmal sortieren (lieferstange_preis sucht darin nur die eigene Gruppe)
+    nach_gruppe = {}
+    for p in positionen:
+        nach_gruppe.setdefault(gruppe_von(p, kopf), []).append(p)
+    preise = {}     # Stangen derselben Gruppe, Länge und Masse kosten dasselbe (lieferstange_preis hängt nur davon ab)
     for s in ergebnis["stangen"]:
         summe = sum(t["laenge"] for t in s["teile"])
         belegt = s["end"] + summe + s["verlust"]
@@ -868,7 +873,12 @@ def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
         out.append(dict(teile=len(s["teile"]), summe=summe, belegt=belegt, rest=s["stange"] - belegt,
                         ausnutzung=summe / s["stange"],
                         pruefung="ÜBERBELEGT" if ueber else "OK",
-                        gewicht=gewicht, kosten=stangenkosten(s, gewicht, kopf, positionen, k, tabellen)))
+                        gewicht=gewicht, kosten=None))
+        gr = gruppe_der_stange(s)
+        schl = (gr, s["stange"], gewicht, bool(s.get("beistellung")))
+        if schl not in preise:
+            preise[schl] = stangenkosten(s, gewicht, kopf, nach_gruppe.get(gr, []), k, tabellen)
+        out[-1]["kosten"] = preise[schl]
     return out
 
 
@@ -2263,6 +2273,16 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     zk_gruppen, zk_je = zukauf.rechnen([((i, n), e, zukauf.bezugsmenge(e, positionen[i], _n(positionen[i].get("stueck"))))
                                         for i in aktiv for n, e in enumerate(zukauf.eintraege(positionen[i]))])
     eingespart = _eingespart(stangen)
+    # Summanden je Stangengruppe einmal sammeln; summiert wird je Position wie bisher mit sum() in derselben
+    # Reihenfolge (sum() rechnet Gleitkommazahlen genauer als fortlaufendes Addieren, so bleibt jeder Wert gleich)
+    kosten_gr, meter_gr, laenge_gr = {}, {}, {}
+    for s, x in zip(stangen, sw):
+        g = gruppe_der_stange(s)
+        kosten_gr.setdefault(g, []).append(x["kosten"])
+        meter_gr.setdefault(g, []).append(s["stange"] / 1000)
+    for x in positionen:
+        if not _leer(x.get("laenge")) and not _leer(x.get("stueck")):
+            laenge_gr.setdefault(gruppe_von(x, kopf), []).append(_n(x.get("laenge")) * _n(x.get("stueck")))
     zeilen = [None] * len(positionen)
     for i in aktiv:
         p = positionen[i]
@@ -2274,13 +2294,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                                           satz_abweichung(p, positionen))
             continue
         gr = gruppe_von(p, kopf)
-        d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
+        d = sum(kosten_gr.get(gr, ()))
         # Kundenmaterial: Handling je m der beigestellten Stangen der Gruppe (Prüfen, Einlagern, Transport;
         # Patrick 22.10.2026: €/m statt €/kg)
-        dh = handling_m * sum(s["stange"] / 1000 for s in stangen if gruppe_der_stange(s) == gr) \
-            if beigestellt(p) else 0.0
-        gesamt = sum(_n(x.get("laenge")) * _n(x.get("stueck")) for x in positionen
-                     if gruppe_von(x, kopf) == gr and not _leer(x.get("laenge")) and not _leer(x.get("stueck")))
+        dh = handling_m * sum(meter_gr.get(gr, ())) if beigestellt(p) else 0.0
+        gesamt = sum(laenge_gr.get(gr, ()))
         e = _n(w["laenge_gesamt"]) / gesamt if gesamt else 0
         f = d * e / c if c else 0
         hz = dh * e / c if c else 0

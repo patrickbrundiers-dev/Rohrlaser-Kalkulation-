@@ -1,4 +1,5 @@
 """Angebote: Übersicht, Angebotsbearbeitung (Kopf, Positionen), STEP-Import, Optimierung, Ergebnisse."""
+import copy
 import datetime
 import json
 import tempfile
@@ -1436,6 +1437,14 @@ class AngebotSeite(QWidget):
         return f"Angebot {self.kopf.get('nummer') or ''}"
 
     def neu_laden(self, *_):
+        # Kalkulation nur einmal je Neuladen rechnen (Übersicht, Staffeln, Nachkalkulation; Performance-Audit 22.10.2026)
+        self._kalk_merken = {}
+        try:
+            self._neu_laden()
+        finally:
+            self._kalk_merken = None
+
+    def _neu_laden(self):
         a = self.db.angebot(self.id)
         if a is None:
             return
@@ -1657,7 +1666,7 @@ class AngebotSeite(QWidget):
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
-        zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
+        zeilen, summen = self._rechnung()
         self.uebersicht_bereich.preisstand_setzen(
             self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell),
             rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")),
@@ -2543,8 +2552,15 @@ class AngebotSeite(QWidget):
         return pfad
 
     def _rechnung(self):
-        zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
-        return zeilen, summen
+        """rechnen.kalkulation für dieses Angebot. Während neu_laden wird sie nur einmal gerechnet; jeder Aufrufer
+        bekommt eine eigene Kopie (die Eingaben ändern sich innerhalb eines Neuladens nicht)."""
+        merken = getattr(self, "_kalk_merken", None)
+        if merken is None:
+            return rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst)
+        if "ergebnis" not in merken:
+            merken["ergebnis"] = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
+                                                     self.einst)
+        return copy.deepcopy(merken["ergebnis"])
 
     def angebot_daten(self):
         """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen)."""
