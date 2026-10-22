@@ -68,7 +68,9 @@ assert isinstance(zb, dict) and summen["zeitbasis_gespeichert"], "Snapshot beim 
 assert {x["schritt"] for x in zb["schritte"]} >= set(rechnen.SCHRITTE_FEST)
 satz_m = summen["satz_maschine"]
 for name in rechnen.SCHRITTE_FEST:
-    assert abs(schritt(summen, name)["satz"] - satz_m) < EPS, name
+    if name != "Programmierung":
+        assert abs(schritt(summen, name)["satz"] - satz_m) < EPS, name
+assert schritt(summen, "Programmierung")["satz_id"] == "Programmierung"     # Vorgabe: Stundensatz Programmierung
 alt = dict(s.kopf, zeitbasis=None)                                  # wie ein Angebot vor Schema 13
 _, summen_alt = rechnen.kalkulation(alt, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst)
 assert abs(summen_alt["verkauf"] - summen["verkauf"]) < EPS and not summen_alt["zeitbasis_gespeichert"]
@@ -112,7 +114,10 @@ ok(f"J4 Zeit je Stange ({summen['stangen']} Stangen) und je Position (3) richtig
 # ------------------------------------------------------------------ J5 parallele Personalzeit
 k = rechnen.zeit_summen(summen["zeiten"])
 e = schritt(summen, "Entgraten / Nachbearbeitung")                      # Vorgabe: parallel zur Maschine
-assert e["parallel"] and abs(k["durchlauf_min"] - (k["maschine_min"] + k["personal_min"] - e["gesamt_min"])) < EPS
+pr = schritt(summen, "Programmierung")                                   # Vorgabe: Personal, parallel
+assert pr["art"] == "Personal" and pr["parallel"] and pr["gesamt_min"] > 0
+assert e["parallel"] and abs(k["durchlauf_min"] - (k["maschine_min"] + k["personal_min"] - e["gesamt_min"]
+                                                   - pr["gesamt_min"])) < EPS
 summen = zb_setzen(a, s, lambda zb: next(x for x in zb["schritte"] if x["schritt"] == "Verpackung")
                    .update(parallel="ja"))
 k2 = rechnen.zeit_summen(summen["zeiten"])
@@ -176,7 +181,10 @@ assert "Rüsten Maschine" in sichtbar
 zs.alle.setChecked(True)
 assert not any(zs.ansicht.isRowHidden(r) for r in range(len(namen)))
 zs.alle.setChecked(False)
-assert "Arbeitskosten" in zs.summen.text() and "<td>Personalzeit</td>" not in zs.summen.text(), "Personalzeit 0 ausgeblendet"
+assert "Arbeitskosten" in zs.summen.text() and "<td>Personalzeit</td>" in zs.summen.text(), "Programmierung = Personalzeit"
+assert "Programmierung" in sichtbar
+zs.setzen(dict(z, zeiten=[x for x in z["zeiten"] if x["schritt"] != "Programmierung"]))
+assert "<td>Personalzeit</td>" not in zs.summen.text(), "Personalzeit 0 ausgeblendet"
 ok(f"J9 Reiter zeigt {len(sichtbar)} von {len(namen)} Schritten (ohne Zeit und Kosten ausgeblendet, Laser immer), "
    "'Alle Arbeitsschritte zeigen' zeigt alle")
 
@@ -201,7 +209,7 @@ ok("J10 Zeit im Reiter geändert (Quelle 'von Hand'), Übersicht zeigt Zeiten un
 
 pfad = Path(s2.csv_export())
 text = pfad.read_text(encoding="utf-8-sig")
-assert "Arbeitsschritt;Art;Menge" in text and "Laser schneiden;Maschine" in text and "Programmierung;Pauschale" in text and "Verpackung;" not in text
+assert "Arbeitsschritt;Art;Menge" in text and "Laser schneiden;Maschine" in text and "Programmierung;Personal" in text and "Verpackung;" not in text
 assert "Weitere Arbeitsschritte je Teil [€]" in text
 pfad = Path(s2.kalkulation_pdf())
 assert pfad.stat().st_size > 2000

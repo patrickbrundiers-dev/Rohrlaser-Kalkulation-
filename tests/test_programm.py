@@ -206,7 +206,7 @@ from rohrlaser.angebot import naechste_nummer  # noqa: E402
 assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
 db = Datenbank(tmp / "b" / "rohrlaser.db")
 zuschlaege_wie_bisher(db)
-for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_teil", "skonto"):   # ohne
+for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_zeit", "skonto"):   # ohne
     db.einstellung_setzen(n, 0)                                               # die Kosten aus Teil 14
 a1 = db.angebot_neu()
 a2 = db.angebot_neu()
@@ -423,23 +423,25 @@ pos = [dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-1021
 erg = rechnen.optimieren(kopf, pos, k)
 assert not erg["fehler"] or all(f_["artikel"] == "D" for f_ in erg["fehler"])
 # ohne Mindestpreis (eigener Test), sonst hebt er den kleinen Vergleichspreis s0 an
-null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, angebotsaufschlag=0, programmierung_teil=0,
+null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, angebotsaufschlag=0, programmierung_zeit=0,
             mindestpreis=0)
 z0, s0 = rechnen.kalkulation(kopf, pos, erg, k, tab, null)
 z1, s1 = rechnen.kalkulation(dict(kopf, fracht=120.0), pos, erg, k, tab, dict(db.einstellungen(), mindestpreis=0))
 satz = k.maschinen["T11"]["stundensatz"]
 assert s1["abmessungen"] == 2 and s1["pauschalen"] == 45.0 and s1["angebotsaufschlag"] == 50 and s1["fracht"] == 120
-assert db.einstellung("programmierung_teil") == 8.5 and s1["programmierung"] == 3 * 8.5   # D ohne Stückzahl zählt nicht
+# Programmierung 5 min je Position (ohne Innenkonturen) × 60 €/h (Stundensatz Programmierung) = 5 €; D ohne
+# Stückzahl zählt nicht
+assert db.einstellung("programmierung_zeit") == 5 and s1["programmierung"] == 3 * 5 and s1["programmierung_min"] == 15
 assert abs(s1["ruesten"] - s0["ruesten"] - 2 * 15 / 60 * satz) < 1e-9
 gew = 1 + db.einstellung("gewinn")
 fert = 1 + db.einstellung("zuschlag_fertigung")
 # Verkaufspreis steigt um Rüsten je Abmessung (mit Zuschlag Fertigung und Gewinn) + Pauschalen + Aufschlag + Fracht
-erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120 + 3 * 8.5
+erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120 + 3 * 5
 assert abs(s1["verkauf"] - erwartet) < 1e-6, (s1["verkauf"], erwartet)
 # Pauschale je Abmessung trägt nur deren Teile: QR 40x40x3 hat 10, RE 120x60x4 hat 5 Teile
-# Programmierkosten 8,50 € je Position, umgelegt auf deren Stückzahl (A 6, C 5 Stück)
-assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15 + 8.5 / 6)) < 1e-9
-assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15 + 8.5 / 5)) < 1e-9
+# Programmierkosten 5 € (5 min × 60 €/h) je Position, umgelegt auf deren Stückzahl (A 6, C 5 Stück)
+assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15 + 5 / 6)) < 1e-9
+assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15 + 5 / 5)) < 1e-9
 assert z1[3]["pauschalen_teil"] == 0 and z1[3]["preis_position"] == 0
 # Grenzen der Maschine: RE 120x60x4 (Hüllkreis 134,2 mm, 10,9 kg/m) passt nicht mehr
 t11 = next(z["id"] for z in db.zeilen("maschinen") if z["maschinen_id"] == "T11")
@@ -463,7 +465,7 @@ assert any(f_["grund"] == "Metergewicht über Maschinengrenze" for f_ in erg["fe
 # Staffel: jede Stufe trägt Aufschlag, Fracht, Programmierung und die Kosten ihrer Abmessungen voll
 sp = staffeln.rechnen_alle(dict(kopf, fracht=120.0), pos, [dict(schluessel="10", menge=6)], k, tab, db.einstellungen())
 sp0 = staffeln.rechnen_alle(kopf, pos, [dict(schluessel="10", menge=6)], k, tab, null)
-assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 8.5 + 50 + 120)) < 0.1
+assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 5 + 50 + 120)) < 0.1
 db.schliessen()
 
 # 15) Kunden, Skonto (eingerechnet), Zahlungsbedingung im Angebot, Kopieren für einen anderen Kunden, Sicherungen
