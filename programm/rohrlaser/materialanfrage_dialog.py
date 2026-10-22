@@ -1,4 +1,4 @@
-"""Dialog 'Material per Outlook anfragen …' (Vorschau der Anfrage).
+"""Dialog "Materialanfrage (E-Mail)" (Vorschau der Anfrage).
 
 Die Materialanfrage wird nie vom Programm gesendet: 'In Outlook öffnen' zeigt die fertige E-Mail in Outlook, gesendet
 wird dort mit einem Klick des Benutzers. Geht das nicht (kein klassisches Outlook), entsteht eine E-Mail-Datei."""
@@ -15,10 +15,14 @@ class AnfrageDialog(QDialog):
     eml_ziel = Pfad der E-Mail-Datei, oeffnen(pfad) öffnet Dateien, ausfuehren ersetzt den
     Outlook-Aufruf (Tests). Nach einer Aktion: self.meldung (Text für die Statuszeile), self.ergebnis
     ('outlook', 'eml' oder None)."""
-    SPALTEN = ("Anfragen", "Material", "Stangen", "Zuschnitt", "Lieferant", "Pos.")
+    SPALTEN = ("Anfragen", "Material", "Stangen", "Zuschnitt", "Schweißnaht", "Lieferant", "Pos.")
+    KEINE_NAHT = "–"
 
-    def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, eml_ziel, oeffnen, ausfuehren=None):
+    def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, eml_ziel, oeffnen, ausfuehren=None,
+                 naht_speichern=None):
+        """naht_speichern(profil, werkstoff, seite) speichert eine geänderte Nahtlage der Lieferstange im Angebot."""
         super().__init__(parent)
+        self.naht_speichern = naht_speichern
         self.kopf, self.zeilen, self.k, self.einst = kopf, zeilen, k, einst
         self.lieferanten, self.eml_ziel = lieferanten, eml_ziel
         self.oeffnen, self.ausfuehren = oeffnen, ausfuehren
@@ -65,10 +69,22 @@ class AnfrageDialog(QDialog):
             self.tabelle.setItem(r, 3, zs)
             self.tabelle.item(r, 1).setToolTip("\n".join(t for t in (z["text"], ma.zuschnitt_text(z),
                                                                      z.get("anforderungen")) if t))
-            self.tabelle.setItem(r, 4, QTableWidgetItem(z["lieferant"] or "–"))
-            self.tabelle.setItem(r, 5, QTableWidgetItem(", ".join(z["pos"])))
+            if z.get("naht_noetig"):        # Rechteckrohr mit Teilen fester Naht: Seite der Naht anfragen
+                nb = QComboBox()
+                nb.addItems(([] if z.get("naht") else [self.KEINE_NAHT]) + list(ma.naht.NAHT_STANGE))
+                nb.setCurrentText(z.get("naht") or self.KEINE_NAHT)
+                nb.setToolTip("Seite der Schweißnaht der Lieferstange (gilt im Angebot für dieses Profil und "
+                              "diesen Werkstoff)")
+                nb.currentTextChanged.connect(lambda t, r=r: self._naht_gewaehlt(r, t))
+                self.tabelle.setCellWidget(r, 4, nb)
+            else:
+                ni = QTableWidgetItem("–")
+                ni.setToolTip("Keine Teile mit fester Schweißnaht auf Rechteckrohr")
+                self.tabelle.setItem(r, 4, ni)
+            self.tabelle.setItem(r, 5, QTableWidgetItem(z["lieferant"] or "–"))
+            self.tabelle.setItem(r, 6, QTableWidgetItem(", ".join(z["pos"])))
         kopfzeile = self.tabelle.horizontalHeader()
-        for i, b in enumerate((70, 0, 75, 75, 150, 90)):
+        for i, b in enumerate((70, 0, 75, 75, 100, 150, 90)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopfzeile.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -122,6 +138,23 @@ class AnfrageDialog(QDialog):
         self.an.setText(self.lieferanten.get(name, ""))
         self._setzen = False
         self.text_von_hand = False
+        self._neu()
+
+    def _naht_gewaehlt(self, r, seite):
+        """Nahtlage der Lieferstange geändert: gilt für alle Zeilen mit gleichem Profil und Werkstoff, wird im
+        Angebot gespeichert."""
+        seite = seite if seite in ma.naht.NAHT_STANGE else None     # '–' = ohne Angabe in der E-Mail
+        z0 = self.zeilen[r]
+        for i, z in enumerate(self.zeilen):
+            if (z["profil"], z["werkstoff"]) == (z0["profil"], z0["werkstoff"]) and z.get("naht_noetig"):
+                z["naht"] = seite
+                nb = self.tabelle.cellWidget(i, 4)
+                if nb is not None and nb.currentText() != (seite or self.KEINE_NAHT):
+                    nb.blockSignals(True)
+                    nb.setCurrentText(seite or self.KEINE_NAHT)
+                    nb.blockSignals(False)
+        if self.naht_speichern and seite:
+            self.naht_speichern(z0["profil"], z0["werkstoff"], seite)
         self._neu()
 
     def gewaehlt(self):

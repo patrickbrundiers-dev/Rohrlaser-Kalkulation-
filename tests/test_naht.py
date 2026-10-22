@@ -4,7 +4,8 @@
 - Profile: Rechteckrohr Breitseite oben, gedreht (Schmalseite oben), Naht auf Breit-/Schmalseite, Ecke nicht
   eindeutig, A < B im Profil, Quadratrohr (keine Breit-/Schmalseite), Rundrohr, kein Rohr/unvollständig = unbekannt.
 - Drehfreigabe: leer/keine Vorgabe frei (RE 0/180, QR und RR 0/90/180/270), feste Position und unbekannt gesperrt.
-- Prüfung: Nahtlage der Lieferstange (FEHLER bei falscher Seite, WARNUNG ohne Angabe), Winkel fehlt.
+- Prüfung: Nahtlage der Lieferstange aus dem Angebot (FEHLER bei falscher Seite, ohne Angabe kein Hinweis),
+  Winkel fehlt; Nahtlage je Stangengruppe aus den Teilen abgeleitet oder im Angebot eingetragen (N8).
 - Datenbank: Schema-Umstellung einer älteren Datei (Felder leer = keine Vorgabe), Speichern über die Angebotsseite,
   Dialog mit Klick in den Querschnitt, Spalte und Status.
 
@@ -88,9 +89,10 @@ assert naht.drehungen({}, RR) == (0, 90, 180, 270) and naht.drehungen({}, dict(f
 for v in (naht.FEST, naht.UNBEKANNT):
     assert naht.drehungen(dict(naht_vorgabe=v), QR) == (0,) and not naht.drehung_frei(dict(naht_vorgabe=v))
 fest = dict(naht_vorgabe=naht.FEST, naht_winkel=90)
-assert naht.pruefen(fest, RE).startswith("WARNUNG: Nahtlage der Lieferstange")
-assert naht.pruefen(fest, dict(RE, naht_stange=naht.SCHMALSEITE)) is None
-assert naht.pruefen(fest, dict(RE, naht_stange=naht.BREITSEITE)).startswith("FEHLER: Naht auf Schmalseite")
+assert naht.pruefen(fest, RE) is None                    # ohne Angabe im Angebot: kein Hinweis (22.10.2026)
+assert naht.pruefen(fest, dict(RE, naht_stange=naht.BREITSEITE)) is None      # Profilfeld wird nicht mehr gelesen
+assert naht.pruefen(fest, RE, naht.SCHMALSEITE) is None
+assert naht.pruefen(fest, RE, naht.BREITSEITE).startswith("FEHLER: Naht auf Schmalseite")
 assert naht.pruefen(dict(fest, naht_winkel=None), QR).startswith("FEHLER: Nahtwinkel fehlt")
 assert naht.pruefen(dict(fest, naht_winkel=45), QR).startswith("WARNUNG: Schweißnaht auf der Ecke")
 assert naht.pruefen(fest, QR) is None and naht.pruefen(fest, RR) is None
@@ -109,14 +111,13 @@ db.schliessen()
 con = sqlite3.connect(alt)                               # Datei vor Schema 30: Nahtspalten fehlen
 for spalte in ("naht_vorgabe", "naht_winkel", "naht_quelle", "querschnitt_lage"):
     con.execute(f'ALTER TABLE positionen DROP COLUMN "{spalte}"')
-con.execute('ALTER TABLE profile DROP COLUMN "naht_stange"')
 con.execute("PRAGMA user_version=29")
 con.commit()
 con.close()
 db = Datenbank(alt)
 assert db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 p = db.positionen(a)[0]
-assert p["naht_vorgabe"] is None and naht.drehung_frei(p) and db.kontext().profile["RE 60x40x3"]["naht_stange"] is None
+assert p["naht_vorgabe"] is None and naht.drehung_frei(p) and db.angebot(a)["naht_stangen"] is None
 ok("N5 ältere Datei: Nahtfelder leer angelegt = keine Vorgabe (frei drehbar)")
 
 app = QApplication.instance() or QApplication([])
@@ -150,14 +151,18 @@ p = db.positionen(a)[0]
 assert (p["naht_vorgabe"], p["naht_winkel"], p["querschnitt_lage"], p["naht_quelle"]) == \
     (naht.FEST, 180, naht.SCHMAL_OBEN, "Kunde")
 assert seite.pos_modell.roh(0, spalte) == "fest 90° rechts, Breitseite"
-assert seite.pos_modell.status[0].startswith("WARNUNG: Nahtlage der Lieferstange")
-pr = db.kontext().profile["RE 60x40x3"]
-db.aendern("profile", pr["id"], "naht_stange", naht.SCHMALSEITE)
+assert not seite.pos_modell.status[0].startswith(("WARNUNG: Naht", "FEHLER: Naht")), seite.pos_modell.status[0]
+assert seite.schweissnaht([0], werte={}, stange=naht.SCHMALSEITE)   # Nahtlage der Lieferstange im Angebot
+assert db.angebot(a)["naht_stangen"] == {"RE 60x40x3|S355-10219": naht.SCHMALSEITE}
 fenster2 = Hauptfenster(db, stumm=True)
 seite2 = fenster2.angebot_oeffnen(a)
 assert seite2.pos_modell.status[0].startswith("FEHLER: Naht auf Breitseite gefordert"), seite2.pos_modell.status[0]
-# Dialog öffnet mit gespeicherter Lage und Winkel in der Ansicht
-d = NahtDialog(None, p, db.kontext().profile["RE 60x40x3"])
+# Dialog öffnet mit gespeicherter Lage und Winkel in der Ansicht, Nahtlage der Lieferstange aus dem Angebot
+d = NahtDialog(None, p, db.kontext().profile["RE 60x40x3"], stange=naht.SCHMALSEITE)
+assert d.stange.currentText() == naht.SCHMALSEITE and d.stange_wert() == naht.SCHMALSEITE \
+    and "FEHLER: Naht auf Breitseite" in d.info.text()
+d.stange.setCurrentText(d.AUS_TEILEN)
+assert d.stange_wert() is None and "FEHLER" not in d.info.text()
 assert d.lage.currentText() == naht.SCHMAL_OBEN and d.winkel.value() == 90 and d.werte()["naht_winkel"] == 180
 d.lage.setCurrentText(naht.BREIT_OBEN)                   # Lage umschalten: Naht bleibt am Rohr
 assert d.winkel.value() == 180 and d.werte()["naht_winkel"] == 180 and d.werte()["querschnitt_lage"] is None
@@ -200,4 +205,20 @@ assert step.gehrungen(dict(konturen_liste=json.dumps(liste))) == dict(b_ende=nah
 liste[1].pop("richtung")                            # ältere STEP-Import.exe ohne Richtung
 assert step.gehrungen(dict(konturen_liste=json.dumps(liste))) == {} and step.gehrungen({}) == {}
 ok("N7 Gehrungsrichtung: Schneidweg-Rechner (mit Prüfung gegen die Achse), STEP-Konturliste, ohne Richtung leer")
+# ------------------------------------------------------------------ N8 Nahtlage der Lieferstange je Angebot
+pos = [dict(profil_id="RE", werkstoff_id="S", naht_vorgabe=naht.FEST, naht_winkel=0),          # Breitseite
+       dict(profil_id="RE", werkstoff_id="S"),                                                   # keine Vorgabe
+       dict(profil_id="RE", werkstoff_id="X", naht_vorgabe=naht.FEST, naht_winkel=90),         # Schmalseite
+       dict(profil_id="QR", werkstoff_id="S", naht_vorgabe=naht.FEST, naht_winkel=0)]
+profile = {"RE": RE, "QR": QR}
+assert naht.stange_gefordert(pos, "RE", "S", profile) == {naht.BREITSEITE}
+assert naht.stange_gefordert(pos, "QR", "S", profile) == set()             # Quadratrohr: jede Seite passt
+assert naht.stange_lage({}, pos, "RE", "S", profile) == (naht.BREITSEITE, "Teile")
+assert naht.stange_lage({}, pos, "RE", "X", profile) == (naht.SCHMALSEITE, "Teile")
+kopf = dict(naht_stangen={naht.gruppe_schluessel("RE", "S"): naht.SCHMALSEITE})
+assert naht.stange_lage(kopf, pos, "RE", "S", profile) == (naht.SCHMALSEITE, "Angebot")
+assert naht.stange_lage(kopf, pos[1:2], "RE", "S", profile) == (None, None)   # ohne feste Naht: keine Angabe
+beide = pos + [dict(pos[0], naht_winkel=90)]
+assert naht.stange_lage({}, beide, "RE", "S", profile) == (None, None)
+ok("N8 Nahtlage der Lieferstange: aus den Teilen, im Angebot eingetragen, ohne feste Naht keine Angabe")
 print("Alle Schweißnaht-Tests bestanden.")

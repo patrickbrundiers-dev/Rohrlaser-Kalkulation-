@@ -41,7 +41,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 39     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 40     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -73,6 +73,8 @@ SCHEMA_VERSION = 39     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     T03/T11/LT7 mit dem alten Beispielwert: normal 24 s, SN 29 s, sonst SN = bisheriger Wert
                         # 39: 3D-Bearbeitung je Maschine (maschinen.d3, schwenk_min/max, greif_3d, zeit_3d, faktor_3d);
                         #     vorhandene Maschinen: nein, ±45°, 300 mm, 0 s, Faktor 1
+                        # 40: Nahtlage der Lieferstange je Angebot und Stangengruppe (angebote.naht_stangen, JSON);
+                        #     profile.naht_stange wird nicht mehr gelesen (Spalte bleibt, ältere Angebote: leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -186,6 +188,8 @@ class Datenbank:
                 self.con.execute("UPDATE angebote SET vorgang='Verschickt' WHERE preisbasis IS NOT NULL")
             if "versand" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
+            if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -1011,6 +1015,14 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET laengenwahl=?, geaendert=? WHERE id=?",
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
+    def naht_stangen_speichern(self, angebot_id, wahl):
+        """Nahtlage der Lieferstange je Stangengruppe {naht.gruppe_schluessel: 'Breitseite'/'Schmalseite'}
+        (leer = aus den Teilen mit fester Naht)."""
+        wahl = {s: w for s, w in (wahl or {}).items() if w}
+        with self.con:
+            self.con.execute("UPDATE angebote SET naht_stangen=?, geaendert=? WHERE id=?",
+                             (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
+
     # -------------------------------------------------------------- Frachtkosten
     def fracht_daten(self):
         """Fracht-Stammdaten für den Rechenkern {Kurzname: [Zeilen]} (fracht_daten.KURZ)."""
@@ -1292,6 +1304,7 @@ class Datenbank:
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
+        a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
         return a
 
@@ -1378,6 +1391,8 @@ class Datenbank:
         neu = self.angebot_neu(kopf)
         if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
             self.laengenwahl_speichern(neu, a["laengenwahl"])
+        if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
+            self.naht_stangen_speichern(neu, a["naht_stangen"])
         netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
             i = self.position_neu(neu, p)

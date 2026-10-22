@@ -1191,10 +1191,15 @@ class AngebotSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+        # Materialanfrage immer sichtbar (Patrick 22.10.2026), nicht mehr unter Weitere Aktionen
+        self.anfrage_knopf = QPushButton("Materialanfrage (E-Mail)")
+        self.anfrage_knopf.setToolTip("Stangenbedarf aus der Optimierung beim Lieferanten anfragen (Outlook oder "
+                                      "E-Mail-Datei); gesendet wird nur im Mailprogramm")
+        self.anfrage_knopf.clicked.connect(lambda: self.material_anfragen())
+        leiste.addWidget(self.anfrage_knopf)
         self.weitere = QPushButton("Weitere Aktionen")
         menue = QMenu(self.weitere)
-        for text, ziel in (("Material per Outlook anfragen …", lambda: self.material_anfragen()),
-                           ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
+        for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
             menue.addAction(text, lambda ziel=ziel: ziel())
@@ -2108,9 +2113,10 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
-    def schweissnaht(self, zeilen=None, werte=None, dialog=None):
+    def schweissnaht(self, zeilen=None, werte=None, dialog=None, stange=None):
         """Schweißnaht der markierten Positionen wählen (Dialog mit Querschnitt). werte = dict der Nahtfelder setzt
-        sie ohne Dialog; dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
+        sie ohne Dialog, stange dazu die Nahtlage der Lieferstange ('' = aus den Teilen, None = unverändert);
+        dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
         if zeilen is None:
             zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
         zeilen = [z for z in zeilen if not ist_zukaufteil(self.positionen[z])]
@@ -2119,16 +2125,33 @@ class AngebotSeite(QWidget):
             return False
         p = self.positionen[zeilen[0]]
         if werte is None:
-            d = NahtDialog(self, p, self.k.profile.get(p.get("profil_id")), len(zeilen))
+            d = NahtDialog(self, p, self.k.profile.get(p.get("profil_id")), len(zeilen),
+                           naht.stange_eingetragen(self.kopf, p.get("profil_id"), p.get("werkstoff_id")))
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return False
             werte = d.werte()
+            if werte.get("naht_vorgabe") == naht.FEST and naht.form_von(d.profil) == "Rechteckrohr":
+                stange = d.stange_wert() or ""       # "" = aus den Teilen (Eintrag löschen)
+        if stange is not None:      # Nahtlage der Lieferstange gilt für die Gruppen der markierten Positionen
+            self.naht_stange_setzen({(self.positionen[z].get("profil_id"), self.positionen[z].get("werkstoff_id"))
+                                     for z in zeilen}, stange or None, laden=False)
         for z in zeilen:
             for name, wert in werte.items():
                 self.db.position_aendern(self.positionen[z]["id"], name, wert)
         self.f.meldung(f"Schweißnaht für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
+
+    def naht_stange_setzen(self, gruppen, wert, laden=True):
+        """Nahtlage der Lieferstange (Breitseite/Schmalseite, None = aus den Teilen) für Gruppen {(Profil, Werkstoff)}
+        im Angebot speichern."""
+        wahl = dict(self.kopf.get("naht_stangen") or {})
+        for profil, werkstoff in gruppen:
+            wahl[naht.gruppe_schluessel(profil, werkstoff)] = wert
+        self.db.naht_stangen_speichern(self.id, wahl)
+        self.kopf["naht_stangen"] = {s: w for s, w in wahl.items() if w} or None
+        if laden:
+            self.neu_laden()
 
     def zukaufteile(self, zeilen=None, werte=None, dialog=None):
         """Zukaufteile der markierten Positionen wählen (Dialog). werte = JSON (oder None) setzt sie ohne Dialog;
@@ -2561,15 +2584,20 @@ class AngebotSeite(QWidget):
                            fehler=True)
             return None
         werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
-        zeilen = materialanfrage.bedarf(self.positionen, self.ergebnis, self.k, self.tabellen, werte)
+        zeilen = materialanfrage.bedarf(self.positionen, self.ergebnis, self.k, self.tabellen, werte, self.kopf)
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
                            fehler=True)
             return None
+        vorher = self.kopf.get("naht_stangen")
         d = AnfrageDialog(self, self.kopf, zeilen, self.k, self.einst,
                           materialanfrage.lieferanten(self.db.zeilen("zukauf_lieferanten")),
-                          self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren)
+                          self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren,
+                          lambda profil, werkstoff, seite: self.naht_stange_setzen({(profil, werkstoff)}, seite,
+                                                                                   laden=False))
         (dialog(d) if dialog else d.exec())
+        if self.kopf.get("naht_stangen") != vorher:     # Nahtlage geändert: Status der Positionen neu prüfen
+            self.neu_laden()
         if d.meldung:
             self.f.meldung(d.meldung)
         return d
