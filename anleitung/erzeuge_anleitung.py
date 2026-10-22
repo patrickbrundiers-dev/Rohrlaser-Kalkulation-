@@ -706,7 +706,7 @@ def kapitel_angebot(i):
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
             "genau der kalkulierte Preis. 0 % = kein Skonto.",
             "<b>Kalkulation dieses Angebots</b>: Zuschlag Fremdleistung, Gewinn, Rüstzeit und "
-            "Pauschale je Abmessung, Programmierkosten je Teil und Angebotsaufschlag. Mindestpreis, Zuschlag "
+            "Pauschale je Abmessung, Programmierzeit je Position und Angebotsaufschlag. Mindestpreis, Zuschlag "
             "Material und Zuschlag Fertigung gelten immer aus den Einstellungen und sind im Angebot nicht änderbar "
             "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
@@ -723,7 +723,7 @@ def kapitel_angebot(i):
             "Beim Kopieren gehen die Werte mit.",
             "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel und Stundensatz der Maschine zur Information, Rüstzeit "
-            "je Abmessung), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Programmierkosten, Pauschale je "
+            "je Abmessung, Programmierzeit je Position und je Innenkontur), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Pauschale je "
             "Abmessung, Frachtkosten, Mindestpreis) und <b>Zahlungsbedingungen</b>.")
     i.abschnitt("Lieferzeit im Angebot", marke="lieferzeit")
     i.text("Jedes Angebot hat seine eigene Lieferzeit. Ein neues Angebot übernimmt die Vorgabe aus den Einstellungen "
@@ -800,7 +800,7 @@ def kapitel_angebot(i):
            "gerechnet und ausgegeben wird immer alles, auch was ausgeblendet ist.")
     i.tabelle(["Bereich", "ausgeblendet, wenn 0 oder leer", "immer sichtbar"], [
         ["Angebotskopf", "Frachtkosten, Skonto, Skontofrist, Zahlungsziel, Zuschläge, Gewinn, Rüstzeit und Pauschale "
-                         "je Abmessung, Programmierkosten, Angebotsaufschlag",
+                         "je Abmessung, Programmierzeit, Angebotsaufschlag",
          "Angebotsnummer, Kunde, Datum, Maschine, Standard-Stangenlänge, Bemerkung"],
         ["Maschinenparameter", "Abstand getrennte Schnitte, Konturgrenzen, max. Hüllkreis-Ø, max. Metergewicht",
          "Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge"],
@@ -858,6 +858,8 @@ def kapitel_angebot(i):
                                                        "I-/H-Träger und U-Profil 4, T-Profil 2, alle anderen 1 "
                                                        "(z. B. IPE 200 ohne Bohrungen: 8 Einstiche)"],
         ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit ([[schneidzeit]])"],
+        ["Programmierzeit [min]", "grau = Grundzeit je Position + Zeit je Innenkontur × Innenkonturen; anpassen "
+                                  "(fett) ersetzt sie für diese Position, leeren = wieder berechnet ([[stundensaetze]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
         ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
@@ -1346,8 +1348,15 @@ def kapitel_optimieren(i):
             "auf alle Teile verteilt, je mit dem Stundensatz ihres Arbeitsschritts.",
             "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten ([[stundensaetze]]) × Stundensatz, auf die "
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
-            "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
-            "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.",
+            "<b>Programmierkosten</b>: Programmierzeit der Position × Stundensatz <i>Programmierung</i> "
+            "([[stundensaetze]]), einmal je Position mit Stückzahl, egal wie viele Stück, ohne Zuschläge und Gewinn "
+            "auf den Preis (Spalten <i>Programmierzeit [min]</i> und <i>Programmierung je Teil</i>). Die Zeit ist "
+            "<i>Programmierzeit je Position</i> + <i>Programmierzeit je Innenkontur</i> × Anzahl Innenkonturen "
+            "(klein + mittel + groß aus STEP-Import oder Schneidweg-Rechner), oder von Hand in der Spalte "
+            "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.22 verschickt und damit "
+            "festgeschrieben wurden ([[preise_festschreiben]]), rechnen weiter mit ihrem Betrag je Position "
+            "(<i>Programmierkosten je Position (alt) [€]</i>, auch in einer Staffel-Stufe).",
+            "<b>Pauschale je Abmessung, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf den Preis.",
             "<b>Zukaufteile</b>: Einstand und Aufschlag der Zukaufteile der Position ([[zukauf_angebot]]), nach dem "
             "Gewinn und ohne Zuschläge (Spalte <i>Zukaufteile je Teil</i>).",
             "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis ohne Skonto "
@@ -1495,7 +1504,7 @@ def kapitel_optimieren(i):
             "offenen Profilen (U-, C-, L-, T-Profil, Träger, Flachstahl) legt der Import jede Kontur auf ihre Fläche "
             "(Steg, Flansch oben/unten, Schenkel a/b) mit Versatz quer; ein L-Profil, das von Ende A gesehen "
             "spiegelverkehrt liegt, erscheint wie in der Skizze (Fläche und Abstand von der Ecke stimmen). Bei Quadrat- und Rechteckrohren mit Eckradius wird der <i>Versatz quer</i> aus dem "
-            "Umfangswinkel gemessen und sitzt genau; vor 0.8.22 importierte Teile lagen bis zu einigen mm daneben "
+            "Umfangswinkel gemessen und sitzt genau; vor 0.8.23 importierte Teile lagen bis zu einigen mm daneben "
             "und werden mit <b>STEP neu einlesen …</b> korrigiert.",
             "<b>Ältere STEP-Positionen</b> (vor 0.6.29 importiert): Der Rechner zeigt die gespeicherten Werte der "
             "Position: Enden mit gemessener Länge und Gehrung, Gravur, Bohrungen (Länge = π × Ø) und übrige Konturen "
@@ -2341,9 +2350,10 @@ def kapitel_einstellungen(i):
          "die danach ins Angebot kommen."],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
-        ["Kalkulation", "Programmierkosten je Teil (Position) [€]",
-         "einmal je Position mit Stückzahl (Vorgabe 8,50 €), auf deren Stückzahl verteilt, ohne Zuschläge auf den "
-         "Preis; bei Staffelpreisen je Mengenstufe"],
+        ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
+         "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
+         "<i>Programmierung</i>, auf deren Stückzahl verteilt, ohne Zuschläge auf den Preis; je Position von Hand "
+         "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
         ["Kalkulation", "Handling Kundenmaterial je kg Stangengewicht [€/kg] (0 = keins)",
@@ -2458,11 +2468,12 @@ def kapitel_einstellungen(i):
         ["<b>Stundensatz [€/h]</b>", "Kosten je Stunde; vorbelegt mit Beispielwerten, bitte eigene eintragen"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Arbeitsschritte", "Bedeutung"], [
-        ["<b>Arbeitsschritt</b>", "Name. Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je Abmessung und "
-                                  "Stangenwechsel rechnet das Programm selbst (Zeit aus Schneiddaten, Gewinde, "
+        ["<b>Arbeitsschritt</b>", "Name. Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je Abmessung, "
+                                  "Stangenwechsel und Programmierung rechnet das Programm selbst (Zeit aus Schneiddaten, Gewinde, "
                                   "Maschine und Vorgaben); dort wird nur der Stundensatz gewählt."],
         ["<b>Stundensatz</b>", "<i>Maschine</i> oder eine Stundensatz-ID. Vorgabe für Gewinde, Rüsten und "
-                               "Stangenwechsel ist Maschine (wie bisher), umstellbar z. B. auf Rüstpersonal."],
+                               "Stangenwechsel ist Maschine (wie bisher), umstellbar z. B. auf Rüstpersonal; "
+                               "Programmierung rechnet mit dem Satz <i>Programmierung</i>."],
         ["<b>Art</b>", "Maschine oder Personal: für Maschinenzeit, Personalzeit und Durchlaufzeit"],
         ["Parallel zur Maschine", "ja = die Personalzeit läuft während die Maschine schneidet (z. B. Entgraten); "
                                   "sie kostet, verlängert aber die Durchlaufzeit nicht"],
@@ -2474,8 +2485,13 @@ def kapitel_einstellungen(i):
            "(Materialbereitstellung, Entgraten / Nachbearbeitung, Qualitätskontrolle, Verpackung, Sonstige "
            "Arbeiten) sind mit Zeit 0 vorbelegt und kosten erst etwas, wenn eine Zeit eingetragen ist. Ihre Kosten "
            "stehen als Kostenart <i>Weitere Arbeitsschritte</i> in der Kalkulation, mit Zuschlag Fertigung.")
-    i.text("Die Programmierung bleibt ein Betrag je Position (<i>Programmierkosten je Teil (Position)</i> unter "
-           "Vorgaben), ohne Zeit. Zusatzarbeiten und Gewinde mit Festpreis werden über ihren Preis gerechnet.")
+    i.text("<b>Programmierung</b> ist ein Arbeitsschritt mit Zeit: je Position mit Stückzahl <i>Programmierzeit je "
+           "Position</i> + <i>Programmierzeit je Innenkontur</i> × Anzahl Innenkonturen (Vorgaben, im Angebot "
+           "änderbar; je Position von Hand in der Spalte <i>Programmierzeit [min]</i>) × Stundensatz "
+           "<i>Programmierung</i> (Vorgabe in der Tabelle Arbeitsschritte, Art Personal, parallel zur Maschine). Im "
+           "Reiter <i>Zeiten &amp; Arbeitskosten</i> steht sie mit Zeit und Stundensatz; die Kosten gehen wie bisher "
+           "ohne Zuschläge und Gewinn in den Preis. Zusatzarbeiten und Gewinde mit Festpreis werden über ihren Preis "
+           "gerechnet.")
     i.text("<b>Snapshot im Angebot</b>: Ein neues Angebot speichert beim Anlegen alle Stundensätze, die "
            "Arbeitsschritte und Stundensatz, Rüstzeit und Stangenwechsel der Maschine. Spätere Änderungen hier "
            "ändern bestehende Angebote nicht; im Angebot holt sie der Knopf <i>Stundensätze aus Einstellungen</i> "
@@ -3776,11 +3792,16 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.22", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
+    ["0.8.23", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
                "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
                "([[blech_editor]]). U-, C-, L-, T-Profile, Träger und Flachstahl: jede Kontur auf ihrer Fläche (Steg, "
                "Flansch, Schenkel) mit Versatz quer statt alle auf der ersten Fläche. Quadrat- und Rechteckrohre mit Eckradius: Versatz quer jetzt genau, vorher bis zu "
                "einigen mm daneben; ältere Teile mit <i>STEP neu einlesen …</i> korrigieren ([[schneidweg_rechner]])."],
+    ["0.8.22", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
+               "Innenkontur</b> × Stundensatz <i>Programmierung</i>, je Position in der Spalte <i>Programmierzeit "
+               "[min]</i> änderbar, sichtbar in Zeiten &amp; Arbeitskosten, in den Staffel-Stufen und im "
+               "Kalkulation-PDF. Alle Angebote rechnen neu, nur bereits verschickte behalten ihren Betrag "
+               "([[stundensaetze]])."],
     ["0.8.21", "<b>Naht der Lieferstange im Angebot</b> statt in den Stammdaten: je Profil und Werkstoff im Fenster "
                "Schweißnaht oder in der Materialanfrage, Vorgabe aus den Teilen, kein Hinweis mehr ohne Eintrag "
                "([[schweissnaht]]); die Materialanfrage nennt die Seite („Schweißnaht auf der Breitseite“) und hat "

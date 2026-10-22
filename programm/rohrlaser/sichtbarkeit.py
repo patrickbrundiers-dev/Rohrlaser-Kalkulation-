@@ -22,7 +22,7 @@ KOPF_ROLLEN = {
     "fracht": OPTIONAL, "skonto": OPTIONAL, "skonto_tage": OPTIONAL, "zahlungsziel": OPTIONAL,
     "zuschlag_fremdleistung": OPTIONAL,
     "gewinn": OPTIONAL, "ruesten_abmessung": OPTIONAL, "pauschale_abmessung": OPTIONAL,
-    "programmierung_teil": OPTIONAL, "angebotsaufschlag": OPTIONAL,
+    "programmierung_zeit": OPTIONAL, "programmierung_kontur": OPTIONAL, "programmierung_teil": OPTIONAL, "angebotsaufschlag": OPTIONAL,
     "handling_beistellung": OPTIONAL, "material_vorgabe": STAMM,
     "kundenreferenz": STAMM, "lieferzeit_art": STAMM, "lieferzeit_wert": STAMM, "lieferzeit_zusatz": STAMM,
 }
