@@ -6,6 +6,7 @@ Gewinde-Vorschlag, Konturklassen, Protokoll.
 """
 import datetime
 import json
+import math
 import importlib.util
 import sys
 from pathlib import Path
@@ -117,6 +118,25 @@ def gehrungen(m):
 SEITE_KASTEN = {"0°": "oben", "90°": "vorne", "180°": "unten", "270°": "hinten"}
 
 
+def _versatz_quer(d, seite, breit, schmal):
+    """Versatz einer Kontur quer auf ihrer Seite (Quadrat-/Rechteckrohr) ab Seitenmitte [mm], + in Richtung
+    steigender Umfangsposition. Aus dem Umfangswinkel: auf der ebenen Seite ist der Versatz = Abstand der Seite von
+    der Rohrmitte × tan(Winkel zur Seitenmitte), unabhängig von den Eckradien (die Umfangsposition u enthält die
+    Bögen der Ecken und lag bei gerundeten Rohren um einige mm daneben). Ohne Winkel aus u (scharfkantig)."""
+    mitte_w = {"oben": 0, "vorne": 90, "unten": 180, "hinten": 270}[seite]
+    if d.get("winkel") is not None:
+        dw = (float(d["winkel"]) - mitte_w + 180) % 360 - 180
+        if abs(dw) >= 89:
+            return None
+        abstand = schmal / 2 if seite in ("oben", "unten") else breit / 2
+        return abstand * math.tan(math.radians(dw))
+    if d.get("u") is None:
+        return None
+    mitte = {"oben": 0.0, "vorne": (breit + schmal) / 2, "unten": breit + schmal, "hinten": 1.5 * (breit + schmal)}
+    umfang = 2 * (breit + schmal)
+    return (float(d["u"]) - mitte[seite] + umfang / 2) % umfang - umfang / 2
+
+
 def rechner_eingaben(m, form, a=None, b=None):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -178,14 +198,9 @@ def rechner_eingaben(m, form, a=None, b=None):
         elif kasten and d.get("seite") in SEITE_KASTEN:
             seite = SEITE_KASTEN[d["seite"]]
             breite_f = breit if seite in ("oben", "unten") else schmal
-            mitte = {"oben": 0.0, "vorne": (breit + schmal) / 2, "unten": breit + schmal,
-                     "hinten": 1.5 * (breit + schmal)}[seite]
-            if d.get("u") is not None:
-                u = float(d["u"])
-                umfang = 2 * (breit + schmal)
-                q = (u - mitte + umfang / 2) % umfang - umfang / 2
-                if abs(q) <= breite_f / 2 + 1e-6 and abs(q) > 0.05:
-                    k["q"] = round(q, 1)
+            q = _versatz_quer(d, seite, breit, schmal)
+            if q is not None and abs(q) <= breite_f / 2 + 1e-6 and abs(q) > 0.05:
+                k["q"] = round(q, 1)
             if seite != "oben":
                 k["seite"] = seite
         eing["konturen"].append(k)

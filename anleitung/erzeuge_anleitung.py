@@ -1131,8 +1131,9 @@ def kapitel_step(i):
     i.liste("<b>Dicke</b> = Abstand der beiden Hauptflächen. Sie stimmt auch, wenn das Blech im Modell gedreht "
             "oder schräg liegt (nicht einfach die kleinste Kante des Hüllquaders).",
             "<b>Länge und Breite</b> = kleinstes Rechteck, das die Außenkontur umschließt. Die Kontur heißt "
-            "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen Anzahl der Innenkonturen und die "
-            "Bohrungen je Durchmesser.",
+            "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen die Innenkonturen mit Art "
+            "(Bohrung, Langloch, Rechteck, sonst Polygon), Maßen und <b>Lage</b> (Mitte x längs ab der linken, y "
+            "quer ab der unteren Kante des Zuschnitts) und bei freier Kontur ihre Eckpunkte.",
             "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
             "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech). "
             "Flachstahl ist in der Spalte <b>Art</b> bei jedem flachen Teil wählbar und wird dann wie ein Rohr "
@@ -1170,8 +1171,9 @@ def kapitel_step(i):
             "der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm (Werkstoff offen)</i>, die Position hat kein Gewicht "
             "und der EK fehlt.",
             "Jedes übernommene Blech trägt seine Maße als Eingaben des Blech-Editors: Zuschnitt (Hüllrechteck, "
-            "gekantet mit der Abwicklungsfläche), Bohrungen je Durchmesser und die übrigen Innenkonturen als "
-            "sonstige Kontur. <b>Doppelklick aufs Bild</b> vor der Artikelnummer öffnet den Blech-Editor (dort z. B. "
+            "freie Außenkontur als Polygon, gekantet mit der Abwicklungsfläche) und jede Innenkontur als eigene "
+            "Zeile an ihrer Stelle (Mitte x/y), so wie sie im Modell sitzt; Skizze und Vorschaubild zeigen das Teil "
+            "wie in der STEP-Datei. Gekantete Bleche haben noch keine Konturen mit Lage. <b>Doppelklick aufs Bild</b> vor der Artikelnummer öffnet den Blech-Editor (dort z. B. "
             "ein gekantetes Teil als Kantteil mit Schenkeln nachtragen), Doppelklick auf die Nummer die 3D-Ansicht.",
             "Bleche mit Prüfstatus <i>prüfen</i> (z. B. gekantete) sind nicht angehakt und werden erst nach "
             "Anhaken übernommen. Ein Blech, dessen Artikelnummer schon im Angebot steht, wird übersprungen; ein "
@@ -1450,8 +1452,10 @@ def kapitel_optimieren(i):
             "<i>gemessen … mm</i>). Ändert man Art oder Maße einer Zeile bzw. Winkel, Achse oder Richtung eines "
             "Endes, rechnet sie mit den Formeln. Nicht erkannte Ausschnitte erscheinen als <i>sonstige Kontur</i> "
             "mit gemessener Länge und Hüllmaß; Merkmale nur auf der Innenseite fehlen (nicht im Schneidweg). Bei "
-            "offenen Profilen und Blechen kennt die Messung die Fläche nicht, die Konturen liegen dann auf der "
-            "ersten Fläche.",
+            "offenen Profilen (U, L, Träger) kennt die Messung die Fläche nicht, die Konturen liegen dann auf der "
+            "ersten Fläche. Bei Quadrat- und Rechteckrohren mit Eckradius wird der <i>Versatz quer</i> aus dem "
+            "Umfangswinkel gemessen und sitzt genau; vor 0.8.16 importierte Teile lagen bis zu einigen mm daneben "
+            "und werden mit <b>STEP neu einlesen …</b> korrigiert.",
             "<b>Ältere STEP-Positionen</b> (vor 0.6.29 importiert): Der Rechner zeigt die gespeicherten Werte der "
             "Position: Enden mit gemessener Länge und Gehrung, Gravur, Bohrungen (Länge = π × Ø) und übrige Konturen "
             "mit Größe und Schnittlänge. Ihre Lage ist nicht gespeichert, sie stehen in der Skizze verteilt, ein "
@@ -3696,6 +3700,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.16", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
+               "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
+               "([[blech_editor]]). Quadrat- und Rechteckrohre mit Eckradius: Versatz quer jetzt genau, vorher bis zu "
+               "einigen mm daneben; ältere Teile mit <i>STEP neu einlesen …</i> korrigieren ([[schneidweg_rechner]])."],
     ["0.8.15", "Rohr / Profil als neue Position: Profilform vorwählen (die Liste zeigt dann nur Profile dieser Form), "
                "fehlendes Profil direkt mit <b>Neu …</b> anlegen (Form und Maße, Profil-ID, Querschnitt und Gewicht "
                "automatisch) ([[neue_position]]). Schneidweg-Rechner: die längste Seite einer Gehrung steht auf "
