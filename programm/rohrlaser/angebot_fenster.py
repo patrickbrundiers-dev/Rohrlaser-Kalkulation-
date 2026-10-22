@@ -907,6 +907,10 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst):
     zum Übernehmen (laenge:<Gruppe>:<Länge>, 0 = Stangenlänge des Angebots)."""
     if not erg:
         return "<i>Noch nicht optimiert.</i>"
+    if not erg.get("laengen") and not rechnen.laengen_vergleichen(einst):
+        return ("Der Vergleich mit anderen Lieferlängen (z. B. 12 m) ist ausgeschaltet: Einstellungen → Vorgaben → "
+                "Lieferlängen, „beim Optimieren andere Lieferlängen vergleichen“ = ja. Ist die Stangenlänge des "
+                "Angebots für ein Profil nicht lieferbar, wird trotzdem mit einer lieferbaren Länge geplant.")
     if not erg.get("laengen"):
         return ("Für die Profile dieses Angebots gibt es keine weitere Lieferlänge: verglichen wird, was unter "
                 "Einstellungen → Lieferlängen steht, und ohne Eintrag Profile über dem Hüllkreis-Ø aus den "
@@ -1799,6 +1803,11 @@ class AngebotSeite(QWidget):
             return False
         werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
+        from . import bohrbild         # Gewinde-Vorschläge, Senkungen, Bohren < 0,7 × Wand: offen bis 'Bohrungen prüfen'
+        bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
+                                    rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"))
+        if bild:
+            werte.update(bohrbild.anwenden(werte, bild))
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self.neu_laden()
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
@@ -2018,17 +2027,25 @@ class AngebotSeite(QWidget):
             return False
         p = self.positionen[zeilen[0]]
         gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
+        katalog = self.tabellen.get("zusatzarbeiten") or []
         if werte is None:
             from .bohrbild_dialog import BohrbildDialog
-            d = BohrbildDialog(self, p, gewinde)
+            d = BohrbildDialog(self, p, gewinde, rechnen.wand_position(p, self.k),
+                               self.db.einstellung("fliessloch_laser"), katalog, rechnen.stundensaetze(self.tabellen))
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
         liste, hand = werte
-        for name, wert in bohrbild.anwenden(p, liste, hand).items():
+        felder = bohrbild.anwenden(p, liste, hand, katalog, rechnen.stundensaetze(self.tabellen))
+        fehlt = felder.pop("_fehlt", None)
+        for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
+        arbeiten = bohrbild.arbeiten_text(liste)
         self.f.meldung(f"Bohrungen von Pos. {p.get('pos') or ''} gespeichert"
-                       + (f", {bohrbild.offen(liste)} noch offen." if bohrbild.offen(liste) else "."))
+                       + (f", Zusatzarbeiten {arbeiten}" if arbeiten else "")
+                       + (f", {bohrbild.offen(liste)} noch offen" if bohrbild.offen(liste) else "") + "."
+                       + (f" Zusatzarbeit {', '.join(fehlt)} fehlt in den Stammdaten (Einstellungen › Zusatzarbeiten)."
+                          if fehlt else ""), fehler=bool(fehlt))
         self.neu_laden()
         return True
 
@@ -2071,7 +2088,17 @@ class AngebotSeite(QWidget):
                     "Durch die Werte des Schneidweg-Rechners ersetzen?") == QMessageBox.Yes
             if not ueberschreiben:
                 return False
-        for name, wert in dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu).items():
+        felder = dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu)
+        # Bohrbild neu aus den Eingaben (Gewinde, Senkungen, Bohren < 0,7 × Wand), Prüfstatus gleicher Bohrungen bleibt
+        from . import bohrbild
+        bild = bohrbild.aus_rechner(erg, bohrbild.lesen(p.get("bohrbild")), gewinde_liste(self.tabellen) or step.KERNLOCH,
+                                    rechnen.wand_schneiden(profil), self.db.einstellung("fliessloch_laser"))
+        if bild or p.get("bohrbild"):
+            felder.update(bohrbild.anwenden(dict(p, **felder, bohrbild=None), bild, None,
+                                            self.tabellen.get("zusatzarbeiten") or [],
+                                            rechnen.stundensaetze(self.tabellen)))
+            felder.pop("_fehlt", None)
+        for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
                        f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen.")

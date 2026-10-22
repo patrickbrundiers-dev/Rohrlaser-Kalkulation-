@@ -118,7 +118,7 @@ class SchneidwegDialog(QDialog):
                 ("Gehrungswinkel", "Abweichung vom rechtwinkligen Schnitt in Grad (gerade = 0°)"),
                 ("gekippt über", "Richtung, über die die Gehrung kippt: Höhe = Maß a, Breite = Maß b des Profils"),
                 ("längste Seite (Gehrungsrichtung)", "Seite, an der das Teil an diesem Ende am längsten ist, von "
-                 "Ende A gesehen; damit legt die Optimierung Gehrungen ineinander"),
+                 "Ende A gesehen; „automatisch“ nimmt sie aus „gekippt über“ an, die Optimierung dreht das Teil passend"),
                 ("Ausklinkung auf Rundrohr Ø", "nur Rundrohr: Ende rechtwinklig auf ein Rundrohr mit diesem Ø "
                  "(Sattelschnitt)"),
                 ("aus dem STEP-Import", "gemessene Schnittlänge des Endes; gilt, solange das Ende unverändert bleibt")),
@@ -154,10 +154,11 @@ class SchneidwegDialog(QDialog):
             ri = QComboBox()
             ri.addItems(list(sw.RICHTUNGEN))
             ri.setCurrentText(next((t for t, v in sw.RICHTUNGEN.items() if v == e[seite].get("richtung")),
-                                   "nicht angegeben"))
+                                   sw.AUTOMATISCH))
             ri.setEnabled(form in sw.MIT_RICHTUNG)
             ri.setToolTip("Gehrung: Seite, an der das Teil an diesem Ende am längsten ist (Blick von Ende A, "
-                          "Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen ineinander.")
+                          "Rechteckrohr mit der Breitseite oben). „automatisch“: aus „gekippt über“ angenommen, die "
+                          "Skizze zeigt sie; die Optimierung dreht das Teil frei und legt Gehrungen ineinander.")
             ri.currentTextChanged.connect(self.rechnen)
             gm = QLabel()
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
@@ -650,7 +651,8 @@ class SchneidwegDialog(QDialog):
         erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde)
 
         def schreiben(ziel):
-            zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil, eingaben, erg, self.naht_werte(), einst,
+            zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil,
+                                    sw.mit_angenommener_richtung(eingaben, self.profil), erg, self.naht_werte(), einst,
                                     self.schneidzeit())
         if pfad is not None:
             schreiben(pfad)
@@ -825,7 +827,7 @@ class SchneidwegDialog(QDialog):
         self.summe.setText("<br>".join(teile))
         if hasattr(self, "skizze"):
             self.skizze.naht = self._naht_anzeigen()
-            self.skizze.zeigen(eingaben, erg)
+            self.skizze.zeigen(sw.mit_angenommener_richtung(eingaben, self.profil), erg)
             self._auswahl_tabelle()
         if hasattr(self, "ok_knopf"):
             self.ok_knopf.setEnabled(not fehler)
@@ -843,7 +845,7 @@ class SchneidwegDialog(QDialog):
                     self.achse[s].setCurrentText(x["achse"])
                 self.sattel[s].setValue(sw._z(x.get("sattel")) if self.sattel[s].isEnabled() else 0)
                 self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
-                                                      if v == x.get("richtung")), "nicht angegeben"))
+                                                      if v == x.get("richtung")), sw.AUTOMATISCH))
             self.gravur.setValue(sw._z(e.get("gravur")))
             self._step_enden(e)
             self.tabelle.setRowCount(0)

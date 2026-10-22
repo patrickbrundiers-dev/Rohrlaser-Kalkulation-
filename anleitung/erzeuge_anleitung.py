@@ -999,7 +999,7 @@ def kapitel_step(i):
             "Umschalt). Der Dateidialog startet im Ordner aus der Einstellung <i>STEP-Import: Standardordner</i>; "
             "ist dort keiner eingetragen, im zuletzt benutzten STEP-Ordner.",
             "Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> auf das gestrichelte "
-            "Feld <b>STEP hierher ziehen</b> neben dem Knopf ziehen (es geht auch irgendwo sonst ins "
+            "Feld <b>STEP-Dateien hierher ziehen</b> neben dem Knopf ziehen (es geht auch irgendwo sonst ins "
             "Angebotsfenster; beim Ziehen färbt sich das Feld blau). Ein leeres Angebot zeigt statt der leeren "
             "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog wie "
             "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
@@ -1044,11 +1044,13 @@ def kapitel_step(i):
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
         (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
-    i.hinweis("Gewinde, Senkungen und Fließlochbohrungen werden nur vorgeschlagen (Status HINWEIS: Bohrungen prüfen "
-              "(Doppelklick)). Gerechnet wird ein Gewinde erst, wenn es im Fenster <b>Bohrungen prüfen</b> bestätigt "
-              "ist ([[bohrungen_pruefen]]).")
-    i.abschnitt("Bohrungen prüfen: Gewinde, Senkungen, Flowdrill", marke="bohrungen_pruefen")
-    i.text("Der STEP-Import erkennt drei Arten von Bohrungen, die nach der Zeichnung geprüft werden müssen:")
+    i.hinweis("Gewinde, Senkungen, Fließlochbohrungen und Bohrungen kleiner als 0,7 × Wandstärke werden nur "
+              "vorgeschlagen (Status HINWEIS: Bohrungen prüfen (Doppelklick)). Gerechnet werden Gewinde und die "
+              "Arbeitsschritte Senken, Flowdrill und Bohren erst, wenn sie im Fenster <b>Bohrungen prüfen</b> "
+              "bestätigt sind ([[bohrungen_pruefen]]).")
+    i.abschnitt("Bohrungen prüfen: Gewinde, Senken, Flowdrill, Bohren", marke="bohrungen_pruefen")
+    i.text("Der STEP-Import und der Schneidweg-Rechner erkennen vier Arten von Bohrungen, die nach der Zeichnung "
+           "geprüft werden müssen:")
     i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
             "(z. B. Ø 5 → M6). Der Laser schneidet die Bohrung; das Gewinde wird erst nach dem Bestätigen gerechnet.",
             "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4). Der Laser schneidet die Bohrung Ø 6,6, die "
@@ -1058,19 +1060,34 @@ def kapitel_step(i):
             "Auswahl eine <i>Gravur Ø0,5</i> oder ein <i>Loch Ø0,5</i> (Schneidweg und Einstich). Die Vorgabe steht in "
             "der Einstellung <i>STEP-Import: Flowdrill-Bohrung am Laser</i>. Das Gewinde wird nach dem "
             "Kernloch fürs Gewindeformen vorgeschlagen (z. B. Ø 7,3 → M8). <b>Ablehnen</b> heißt: es ist eine "
-            "normale Bohrung, die der Laser schneidet.")
+            "normale Bohrung, die der Laser schneidet.",
+            "<b>Bohren</b>: Bohrung kleiner als 0,7 × Wandstärke (z. B. Ø 5 in 8 mm Wand, Grenze 5,6 mm), die der "
+            "Laser kaum sauber schneidet ([[konturklassen]]). <b>Bestätigen</b> heißt: der Laser markiert nur "
+            "(Gravur Ø0,5 oder Loch Ø0,5 wie beim Flowdrill, die Bohrung fällt aus Schneidweg und Konturliste), "
+            "danach wird aufgebohrt. <b>Ablehnen</b> heißt: der Laser schneidet die Bohrung trotzdem, die Warnung "
+            "<i>Kontur kleiner als 0,7 × Wandstärke</i> entfällt. Die Markierung Ø0,5 selbst wird nie vorgeschlagen.")
+    i.text("<b>Arbeitsschritte als Zusatzarbeit:</b> Bestätigte Senkungen, Flowdrill und Bohren trägt "
+           "<b>Übernehmen</b> als Zusatzarbeit <i>Senken</i>, <i>Flowdrill</i> bzw. <i>Bohren</i> mit der Anzahl je "
+           "Teil in die Position ein (Spalte <i>Zusatzarbeiten</i>, Preisstand der Stammdaten, "
+           "[[zusatzarbeiten_angebot]]). Offene und abgelehnte Zeilen tragen nichts ein; wird eine Zeile später "
+           "abgelehnt, fällt die Zusatzarbeit wieder weg. Steht dieselbe Zusatzarbeit schon von Hand in der Position, "
+           "bekommt sie nur die neue Anzahl. Die drei Zusatzarbeiten legt das Programm einmalig mit Beispielzeiten "
+           "an (je Stück 0,5 min, Flowdrill 0,75 min, Stundensatz Nachbearbeitung); Zeit und Preis in "
+           "Einstellungen › Zusatzarbeiten anpassen ([[zusatzarbeiten_verwalten]]). Fehlt eine davon in den "
+           "Stammdaten, meldet das Fenster es rot.")
     i.text("Positionen mit offenen Bohrungen zeigen den Status <b>HINWEIS: Bohrungen prüfen (Doppelklick)</b>. Ein "
            "<b>Doppelklick</b> auf den Status, die Spalte <i>Gewinde geprüft</i>, <i>Bohrungen</i> oder "
            "<i>Gewinde-Vorschlag</i> öffnet das Fenster (auch Rechtsklick, <i>Bohrungen prüfen …</i>). Je Zeile "
            "<b>Bestätigen</b> oder <b>Ablehnen</b>; <b>Übernehmen</b> ändert Schneidweg, Einstiche, Gravur, "
-           "Konturklassen und <i>Gewinde geprüft</i> der Position. Das Fenster lässt sich jederzeit wieder öffnen "
+           "Konturklassen, <i>Gewinde geprüft</i> und die Zusatzarbeiten der Position. Das Fenster lässt sich jederzeit wieder öffnen "
            "und die Wahl ändern.")
     i.bild("bohrbild_dialog", "Fenster Bohrungen prüfen: Senkung und Flowdrill eines Rechteckrohrs", hoehe=70 * mm,
            legende=[
                (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), was der Laser macht und Bestätigen/Ablehnen."),
                (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
                (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
-               (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher.")])
+               (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
+                   "Zusatzarbeiten (z. B. 2× Senken, 4× Bohren).")])
     i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper; Doppelklick auf eine Zeile "
            "springt zur Position", hoehe=80 * mm)
     i.bild("step_optimiert", "Aus STEP übernommene Positionen nach dem Optimieren: Schneidweg, Einstiche und "
@@ -1228,7 +1245,11 @@ def kapitel_optimieren(i):
             "verschiedenen Winkeln (z. B. 45° neben 20°), es spart dann weniger. Teile mit fester oder unbekannter "
             "Schweißnaht ([[schweissnaht]]) werden nicht frei gedreht; Teile mit fester Naht auf der Breitseite und "
             "auf der Schmalseite eines Rechteckrohrs kommen nie auf dieselbe Stange. Im Schnittplan steht dann "
-            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>).",
+            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>). Steht im "
+            "Schneidweg-Rechner die längste Seite auf <i>automatisch</i> (Vorgabe), nimmt das Programm sie aus "
+            "<i>gekippt über</i> an und die Optimierung legt frei drehbare Teile (Schweißnaht ohne Vorgabe) "
+            "ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
+            "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>).",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
             "besten Schnittmuster je Stange und die Kombination mit den wenigsten Stangen. Sie liefert zugleich eine "
@@ -1326,8 +1347,10 @@ def kapitel_optimieren(i):
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck, Naht unten; Skizze vergrößert auf die erste Hälfte",
            hoehe=125 * mm, legende=[
-               (1, "<b>Enden</b>: Gehrungswinkel, gekippt über, längste Seite, beim Rundrohr Ausklinkung; rechts der "
-                   "gemessene Wert aus dem STEP-Import."),
+               (1, "<b>Enden</b>: Gehrungswinkel, gekippt über, längste Seite (Vorgabe <i>automatisch</i>: aus "
+                   "<i>gekippt über</i> angenommen, die Skizze zeigt sie, die Optimierung dreht das Teil passend; von "
+                   "Hand nur bei fester Lage), beim Rundrohr Ausklinkung; rechts der gemessene Wert aus dem "
+                   "STEP-Import."),
                (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer."),
                (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; Kopieren, Vorlagen, Entfernen daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
@@ -1348,15 +1371,17 @@ def kapitel_optimieren(i):
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
-            "Optimierung Gehrungen benachbarter Teile ineinanderlegen; <i>nicht angegeben</i> = das Ende bleibt "
-            "wie bisher getrennt. Beim Rechteckrohr muss die Richtung zur Gehrungsachse passen (0°/180° kippt über "
+            "Optimierung Gehrungen benachbarter Teile ineinanderlegen. <i>Nicht angegeben</i>: frei drehbare Teile "
+            "(Schweißnaht ohne Vorgabe) legt die Optimierung mit angenommener Richtung trotzdem ineinander, Teile mit "
+            "Nahtvorgabe bleiben getrennt; der Dialog weist darauf hin. Für richtige Drehangaben in den "
+            "Werkstattpapieren die Richtung eintragen. Beim Rechteckrohr muss die Richtung zur Gehrungsachse passen (0°/180° kippt über "
             "die kürzere Seite, 90°/270° über die längere), sonst meldet der Dialog einen Fehler.",
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Senkung</i> (Bohrung Ø d und "
-            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; der Dialog erinnert daran, das Senken als Zusatzarbeit "
-            "zu erfassen, [[zusatzarbeiten_angebot]]), <i>Langloch</i> (Länge, Breite: "
+            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; das Senken wird wie Gewinde und Bohren (Bohrung "
+            "kleiner als 0,7 × Wand) im Fenster Bohrungen prüfen vorgeschlagen, [[bohrungen_pruefen]]), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
             "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Ausklinkung</i> am Ende als Rechteck "
             "(Länge ab Ende, Breite, Eckradius innen: 2 × (l − r) + (b − 2 r) + π × r; ohne Lage an Ende A, für "
@@ -1459,7 +1484,9 @@ def kapitel_optimieren(i):
             "Eine Innenkontur ab 0,7 × Wandstärke ist in der Regel schneidbar. Ist sie <b>kleiner als 0,7 × "
             "Wandstärke</b> (z. B. Bohrung Ø 5 in 8 mm Wand, Grenze 5,6 mm), zeigt die Position die Warnung "
             "<i>Kontur kleiner als 0,7 × Wandstärke, Schneidbarkeit prüfen (ggf. nur gravieren und aufbohren)</i>: "
-            "dann die Kontur ggf. nur gravieren und das Loch anschließend aufbohren. Gerechnet wird weiter.")
+            "dann die Kontur ggf. nur gravieren und das Loch anschließend aufbohren. Gerechnet wird weiter. Für "
+            "Bohrungen schlägt das Fenster Bohrungen prüfen dafür den Arbeitsschritt <i>Bohren</i> vor "
+            "([[bohrungen_pruefen]]).")
     i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>), die "
            "Regel, mit der sie eingeteilt wurde, in der Spalte <i>Konturgrenzen</i> (z. B. <i>10/50; 3×/8× Wand "
            "4</i>). Wird im Angebotskopf eine andere Maschine oder in der Position ein anderes Profil gewählt oder "
@@ -1535,7 +1562,10 @@ def kapitel_optimieren(i):
            "erscheint im Reiter <i>Auswertung</i> unten der Knopf <b>12-m-Lösung ansehen …</b> mit einem Kurztext; er "
            "öffnet den Vergleich <b>Lieferlängen: 6 m gegen 12 m</b> groß in einem eigenen Fenster. Ohne Eintrag gilt das für Profile mit "
            "Hüllkreis-Ø über 70 mm (Einstellung). Kleinere Profile ohne Eintrag und Profile mit "
-           "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant.")
+           "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant. <b>Verglichen wird nur, wenn es in den "
+           "Einstellungen (Gruppe Lieferlängen) eingeschaltet ist</b>: <i>beim Optimieren andere Lieferlängen "
+           "vergleichen</i> = ja. Vorgabe ist <i>nein</i>, weil der Vergleich bei großen Gruppen Zeit kostet; "
+           "dann wird nur mit der Stangenlänge des Angebots geplant, außer sie ist für ein Profil nicht lieferbar.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
             "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
             "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
@@ -2264,6 +2294,10 @@ def kapitel_einstellungen(i):
          "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
          "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen "
          "([[stammdaten]]) und die Staffeln."],
+        ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
+         "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
+         "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
+         "geplant."],
         ["Lieferlängen", "Lieferlängen: Mindestersparnis je Gruppe in €, Lieferlängen: Mindestersparnis je Gruppe in %",
          "Eine andere Lieferlänge (z. B. 12 m) wird nur empfohlen, wenn sie gegenüber der Stangenlänge des Angebots "
          "mindestens so viel spart, in € und in % (Vorgabe 20 € und 3 %)."],
@@ -2695,7 +2729,7 @@ def kapitel_stammdaten(i):
            "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
     i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
            hoehe=100 * mm)
-    i.abschnitt("Zusatzarbeiten")
+    i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
            "STEP-Modell ist. Der Unterreiter zeigt eine Übersicht; angelegt und geändert wird in einem Formular.")
@@ -3643,9 +3677,21 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.13", "Rohr / Profil als neue Position: Profilform vorwählen (die Liste zeigt dann nur Profile dieser Form), "
+    ["0.8.15", "Rohr / Profil als neue Position: Profilform vorwählen (die Liste zeigt dann nur Profile dieser Form), "
                "fehlendes Profil direkt mit <b>Neu …</b> anlegen (Form und Maße, Profil-ID, Querschnitt und Gewicht "
-               "automatisch) ([[neue_position]])."],
+               "automatisch) ([[neue_position]]). Schneidweg-Rechner: die längste Seite einer Gehrung steht auf "
+               "<b>automatisch</b> und wird aus <i>gekippt über</i> angenommen; die Skizze zeigt sie, die Optimierung "
+               "dreht das Teil passend ([[schneidweg_rechner]])."],
+    ["0.8.13", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
+              "Gehrungen: wenige Sekunden statt mehrerer Minuten), gleiche Ergebnisse. Vergleich mit 12 m nur noch, wenn "
+              "in den Einstellungen eingeschaltet (Vorgabe aus, [[lieferlaengen]]). Gehrungen ohne angegebene "
+              "Richtung werden bei frei drehbaren Teilen trotzdem ineinandergelegt, der Schneidweg-Rechner weist "
+              "darauf hin ([[schneidweg_rechner]])."],
+    ["0.8.12", "Bohrungen prüfen schlägt wie die Gewinde jetzt auch die Arbeitsschritte vor: <b>Senken</b> für "
+               "Senkungen, <b>Flowdrill</b> für Fließlochbohrungen und <b>Bohren</b> für Bohrungen kleiner als 0,7 × "
+               "Wandstärke (Laser markiert nur, danach aufbohren). Nach dem Bestätigen stehen sie mit der Anzahl je "
+               "Teil als Zusatzarbeit in der Position; die drei Zusatzarbeiten werden einmalig in den Stammdaten "
+               "angelegt. Gilt für STEP-Import und Schneidweg-Rechner ([[bohrungen_pruefen]])."],
     ["0.8.11", "STEP-Import: Einstellung <b>STEP-Import: Standardordner</b> (dort startet der Dateidialog, sonst im "
                "zuletzt benutzten Ordner) und gut sichtbares <b>Ablagefeld</b> für Drag &amp; Drop neben "
                "<i>STEP importieren …</i>, im leeren Angebot groß statt der Positionsliste ([[step]])."],

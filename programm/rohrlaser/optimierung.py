@@ -50,6 +50,7 @@ class Teil:
     b_gehrung: tuple = None
     drehung: str = FREI     # frei | fest | unbekannt (naht.py: keine Vorgabe | feste Position | unbekannt)
     naht: float = None      # fest: Nahtwinkel [°]
+    angenommen: bool = False  # Richtung einer Gehrung angenommen (im Schneidweg-Rechner nicht angegeben)
 
 
 @dataclass
@@ -130,8 +131,14 @@ def gehrung_tiefe(g, geh):
     """Größte Überlappung, die eine Gehrung erlauben kann [mm]: Tiefe des schrägen Schnitts über den Querschnitt."""
     if not geh or not g.querschnitt:
         return 0.0
-    x, y = _richtung(geh[1])
-    return math.tan(math.radians(geh[0])) * _stuetz(g, x, y)
+    k = (g.querschnitt, geh)
+    if k not in _TIEFE:
+        x, y = _richtung(geh[1])
+        _TIEFE[k] = math.tan(math.radians(geh[0])) * _stuetz(g, x, y)
+    return _TIEFE[k]
+
+
+_TIEFE = {}
 
 
 def gehrung_trennung(g, b_geh, r1, a_geh, r2):
@@ -311,6 +318,29 @@ def anordnen(teile, g=None):
     if g is None or not g.querschnitt or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
             t.drehung == FEST for t in teile):
         return [(t, 0) for t in gerade]
+    # Das Ergebnis hängt nur von den Enden, der Drehfreigabe und der Naht der Teile (in dieser Reihenfolge) ab, nicht
+    # von Länge oder Position: einmal gerechnet gilt es für alle gleichen Folgen (gleiches Ergebnis, viel schneller;
+    # die Packverfahren prüfen dieselben Zusammenstellungen sehr oft)
+    teile = list(teile)
+    schluessel = (g.querschnitt, g.kerf, g.abstand, tuple(_enden(t) for t in teile))
+    speicher = _ANORDNUNG.get(schluessel)
+    if speicher is None:
+        if len(_ANORDNUNG) > ANORDNUNG_MAX:
+            _ANORDNUNG.clear()
+        nr = {id(t): i for i, t in enumerate(teile)}
+        speicher = _ANORDNUNG[schluessel] = tuple((nr[id(t)], r) for t, r in _anordnen_gehrung(g, teile, gerade))
+    return [(teile[i], r) for i, r in speicher]
+
+
+_ANORDNUNG = {}
+ANORDNUNG_MAX = 200000      # Einträge im Zwischenspeicher von anordnen, danach wird er geleert
+
+
+def _enden(t):
+    return t.a_gerade, t.b_gerade, t.a_gehrung, t.b_gehrung, t.drehung, t.naht
+
+
+def _anordnen_gehrung(g, teile, gerade):
     beste = None
     for naht_stange in naht_lagen(g, teile) or [0]:
         for folge in (gerade, _kette_gehrung(g, list(teile), naht_stange)):
@@ -338,7 +368,30 @@ def vertraeglich(g, teile):
 
 
 def passt(g, teile):
-    return vertraeglich(g, teile) and verbrauch(g, anordnen(teile, g)) <= g.nutzbar_bis + EPS
+    # Verbrauch = Endbeschnitt + Teile + Trennungen der Anordnung + letzter Schnitt; die Trennungen hängen nur von den
+    # Enden ab und werden je Folge von Enden einmal gerechnet (gleiches Ergebnis wie verbrauch(anordnen), schneller)
+    laenge = g.endbeschnitt + sum(t.laenge for t in teile) + (g.kerf if teile else 0)
+    # jede Trennung ist mindestens ein Schnittverlust abzüglich der größtmöglichen Überlappung der Gehrungen
+    # (mindestbedarf): passt es selbst so nicht, muss nicht angeordnet werden
+    ueber = sum(gehrung_tiefe(g, t.a_gehrung) + gehrung_tiefe(g, t.b_gehrung) for t in teile
+                if t.a_gehrung or t.b_gehrung) if g.querschnitt else 0.0
+    if laenge + (len(teile) - 1) * g.kerf - ueber > g.nutzbar_bis + EPS:
+        return False
+    if not vertraeglich(g, teile):
+        return False
+    if not g.querschnitt:
+        return verbrauch(g, anordnen(teile, g)) <= g.nutzbar_bis + EPS
+    schluessel = (g.querschnitt, g.kerf, g.abstand, tuple(_enden(t) for t in teile))
+    summe = _TRENNSUMME.get(schluessel)
+    if summe is None:
+        if len(_TRENNSUMME) > ANORDNUNG_MAX:
+            _TRENNSUMME.clear()
+        folge = anordnen(teile, g)
+        summe = _TRENNSUMME[schluessel] = verbrauch(g, folge) - laenge
+    return laenge + summe <= g.nutzbar_bis + EPS
+
+
+_TRENNSUMME = {}
 
 
 def mindestbedarf(g, t):
@@ -384,6 +437,13 @@ def best_fit(g, teile):
 def aufloesen(g, stangen):
     """Schwach belegte Stangen auflösen, wenn alle ihre Teile in andere Stangen passen."""
     stangen = [list(s) for s in stangen]
+    belegt = {}         # Verbrauch je Zusammenstellung (wird sonst je Teil für jede Stange neu gerechnet)
+
+    def vb(x):
+        k = tuple(id(t) for t in x)
+        if k not in belegt:
+            belegt[k] = verbrauch(g, anordnen(x, g))
+        return belegt[k]
     geaendert = True
     while geaendert and len(stangen) > 1:
         geaendert = False
@@ -392,7 +452,7 @@ def aufloesen(g, stangen):
             ok = True
             for t in sortiert(s):
                 ziel = None
-                for x in sorted(andere, key=lambda x: -verbrauch(g, anordnen(x, g))):
+                for x in sorted(andere, key=lambda x: -vb(x)):
                     if passt(g, x + [t]):
                         ziel = x
                         break
