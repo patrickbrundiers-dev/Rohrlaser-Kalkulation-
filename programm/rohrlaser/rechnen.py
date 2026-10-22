@@ -12,7 +12,7 @@ import math
 import json
 import re
 
-from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
+from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_zukaufteil
@@ -1748,7 +1748,9 @@ def zeitbasis(kopf, k, tabellen):
     zb = kopf.get("zeitbasis")
     if not isinstance(zb, dict):
         return dict(aktuell, gespeichert=False)
-    out = dict(saetze=dict(zb.get("saetze") or {}), schritte=list(zb.get("schritte") or []), gespeichert=True,
+    # Stundensätze, die es beim Anlegen noch nicht gab (z. B. Programmierung), aus den Stammdaten
+    out = dict(saetze=dict(aktuell["saetze"], **(zb.get("saetze") or {})), schritte=list(zb.get("schritte") or []),
+               gespeichert=True,
                vorgabe_schritte=aktuell["schritte"])
     m = zb.get("maschine") or {}
     out["maschine"] = m if m.get("maschinen_id") == kopf.get("maschine") else aktuell["maschine"]
@@ -1766,7 +1768,8 @@ SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"
 # Angebots (angebot.KALKULATION) zählen mit, weil ältere Angebote ohne eigene Werte mit den Einstellungen rechnen.
 EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendler_mehr_kurz", "haendler_mehr_lang",
               "haendler_mehr_grenze", "zuschlag_fremdleistung", "gewinn", "ruesten_abmessung", "pauschale_abmessung",
-              "programmierung_teil", "angebotsaufschlag", "handling_beistellung")
+              "programmierung_teil", "programmierung_zeit", "programmierung_kontur", "angebotsaufschlag",
+              "handling_beistellung")
 
 
 def _preis_schl(z):
@@ -1850,6 +1853,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
     if pb.get("einstellungen"):
         e = dict(tabellen.get("einstellungen") or {})
         e.update(pb["einstellungen"])
+        if "programmierung_teil" in pb["einstellungen"] and "programmierung_zeit" not in pb["einstellungen"]:
+            e["programmierung_zeit"] = None     # vor 0.8.22 festgeschrieben: Betrag je Position statt Zeit
         tab["einstellungen"] = e
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
@@ -1877,9 +1882,10 @@ def einstellungen_fest(tabellen, einst):
     """Einstellungen eines Angebots: die festgeschriebenen (tabellen nach preisbasis_anwenden) gehen den aktuellen
     vor."""
     out = dict(einst)
+    fest = tabellen.get("einstellungen") or {}
     for n in EINST_FEST:
-        if n in (tabellen.get("einstellungen") or {}):
-            out[n] = tabellen["einstellungen"][n]
+        if n in fest:
+            out[n] = fest[n]
     return out
 
 
@@ -1993,9 +1999,10 @@ def freigabe_punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0
     return out
 
 
-def _schritt_satz(zb, schritt):
-    """(Stundensatz-ID, €/h) eines Arbeitsschritts; fehlt er, wie bisher der Maschinenstundensatz."""
-    sid = (schritt or {}).get("satz") or SATZ_MASCHINE
+def _schritt_satz(zb, schritt, name=None):
+    """(Stundensatz-ID, €/h) eines Arbeitsschritts; fehlt er, der Vorgabesatz des Schritts (SCHRITT_SATZ, z. B.
+    Programmierung), sonst wie bisher der Maschinenstundensatz."""
+    sid = (schritt or {}).get("satz") or SCHRITT_SATZ.get(name) or SATZ_MASCHINE
     if sid == SATZ_MASCHINE:
         return sid, _n(zb["maschine"].get("stundensatz"))
     return sid, _n(zb["saetze"].get(sid))
@@ -2023,6 +2030,27 @@ def einstellungen_angebot(kopf, einst):
         if isinstance(w, (int, float)) and not isinstance(w, bool):
             out[f.name] = w / 100 if f.name in KALK_PROZENT else w
     return out
+
+
+def _zahl(w):
+    return isinstance(w, (int, float)) and not isinstance(w, bool)
+
+
+def konturen_anzahl(p):
+    """Innenkonturen einer Position (klein + mittel + groß aus STEP-Import bzw. Schneidweg-Rechner)."""
+    return int(sum(_n(p.get(n)) for n in ("klein_n", "mittel_n", "gross_n")))
+
+
+def programmier_zeit(p, einstellungen):
+    """Programmierzeit einer Position [min] und ob sie von Hand eingetragen ist: Spalte Programmierzeit der Position,
+    sonst Grundzeit je Position + Zeit je Innenkontur × Anzahl Innenkonturen (Einstellungen bzw. Angebot).
+    (None, False) = verschicktes Angebot vor 0.8.22, das mit seinem festgeschriebenen Betrag je Position rechnet."""
+    if not _leer(p.get("prog_zeit")):
+        return _n(p["prog_zeit"]), True
+    grund = einstellungen.get("programmierung_zeit")
+    if not _zahl(grund):
+        return None, False
+    return _n(grund) + _n(einstellungen.get("programmierung_kontur")) * konturen_anzahl(p), False
 
 
 def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen):
@@ -2078,8 +2106,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     - Pauschale je Abmessung (€), umgelegt auf die Teile dieser Abmessung, Angebotsaufschlag (€), umgelegt auf
       alle Teile, und Frachtkosten (fracht_angebot.wirksam: 0 bei 'keine Fracht' und 'im Artikelpreis enthalten'),
       je Stück oder nach Gewicht verteilt (fracht_angebot.anteile); gehen ohne Zuschläge in den Verkaufspreis ein.
-    - Programmierkosten je Teil (Einstellung, €) für jede Position mit Stückzahl, umgelegt auf deren
-      Stückzahl, ohne Zuschläge in den Verkaufspreis.
+    - Programmierung je Position mit Stückzahl: Programmierzeit (programmier_zeit: von Hand, sonst Grundzeit + Zeit
+      je Innenkontur) × Stundensatz des Arbeitsschritts 'Programmierung' (Vorgabe Satz 'Programmierung'), bei
+      verschickten Angeboten vor 0.8.22 der festgeschriebene Betrag je Position (programmierung_teil); umgelegt auf
+      deren Stückzahl, ohne Zuschläge in den Verkaufspreis.
     - Gewinde mit festem Preis (Stammdaten Gewinde) zählen mit dem Preis statt mit der Zeit.
     - Schneidzeit manuell (Position) ersetzt die berechnete Laserzeit netto je Teil.
     - Zusatzarbeiten je Position: Beträge je Teil (€/kg, €/m², €/m, €/Stück) mit Zuschlag Fremdleistung bzw.
@@ -2099,7 +2129,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     zb = zeitbasis(kopf, k, tabellen)
     satz_h = _n(zb["maschine"].get("stundensatz"))
     schritt = {z.get("schritt"): z for z in zb["schritte"]}
-    satz = {n: _schritt_satz(zb, schritt.get(n)) for n in SCHRITTE_FEST}     # vom Programm gerechnete Schritte
+    satz = {n: _schritt_satz(zb, schritt.get(n), n) for n in SCHRITTE_FEST}     # vom Programm gerechnete Schritte
     s_laser, s_gew, s_rm, s_ra, s_sw = (satz[n][1] for n in ("Laser schneiden", "Gewinde", "Rüsten Maschine",
                                                              "Rüsten je Abmessung", "Stangenwechsel"))
     stangen = ergebnis["stangen"] if ergebnis else []
@@ -2126,7 +2156,12 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
     ruest_abm = ruest_abm_min / 60 * s_ra              # € je Abmessung
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
-    prog = _n(einstellungen.get("programmierung_teil"))   # € je Teil (Position mit Stückzahl), einmal je Angebot
+    # Programmierung je Position mit Stückzahl, einmal je Angebot: Zeit × Stundensatz (verschickt vor 0.8.22: € je Pos.)
+    s_prog = satz["Programmierung"][1]
+    prog_zeit = {i: programmier_zeit(positionen[i], einstellungen) for i in laser}
+    prog_pos = {i: (_n(positionen[i].get("stueck")) > 0) * (m * s_prog / 60 if m is not None
+                                                             else _n(einstellungen.get("programmierung_teil")))
+                for i, (m, _) in prog_zeit.items()}
     handling_kg = _n(einstellungen.get("handling_beistellung"))     # € je kg Kundenmaterial (Stangengewicht)
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = _zusatz_umlegen(positionen, aktiv, laser, k, tabellen)
@@ -2197,7 +2232,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         az = sum(e["teil"](p, c) for e in weitere) if c else 0      # weitere Arbeitsschritte je Teil
         fr = fracht_je[i] if c else 0
         uz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) + fr \
-            + (prog / c if c else 0)
+            + (prog_pos[i] / c if c else 0)
         zk = [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))]
         zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
         zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
@@ -2243,7 +2278,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  stangenwechsel_teil=(wechsel_s / 3600 * s_sw / f8 if f8 else 0),
                  ruesten_abm_teil=(ruest_abm / n_abm if n_abm and c else 0),
                  pauschale_abm_teil=(pausch_abm / n_abm if n_abm and c else 0),
-                 angebotsaufschlag_teil=(aufschlag / f8 if f8 and c else 0), programmierung_anteil=(prog / c if c else 0))
+                 angebotsaufschlag_teil=(aufschlag / f8 if f8 and c else 0), programmierung_anteil=(prog_pos[i] / c if c else 0),
+                 prog_min=prog_zeit[i][0], prog_hand=prog_zeit[i][1])
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf, zukauf_teil=zk_einst + zk_auf,
                  zukauf_fehlt=sum(1 for x in zk if x["fehler"]),
@@ -2273,7 +2309,13 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
                   fracht_text=fracht_text, fracht_fehler=fracht_fehler,
                   positionen=sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
-                  programmierung=prog * sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
+                  programmierung=sum(prog_pos.values()),
+                  programmierung_min=(None if any(m is None for m, _ in prog_zeit.values()) else
+                                      sum(m for i, (m, _) in prog_zeit.items() if _n(positionen[i].get("stueck")) > 0)),
+                  programmierung_hand=sum(1 for i, (_, h) in prog_zeit.items() if h and _n(positionen[i].get("stueck")) > 0),
+                  programmierung_grund=einstellungen.get("programmierung_zeit"),
+                  programmierung_kontur=_n(einstellungen.get("programmierung_kontur")),
+                  programmierung_position=_n(einstellungen.get("programmierung_teil")),
                   zukaufteile=sum(_n(positionen[i].get("stueck")) for i in zk_pos),
                   material=sum(z["material_position"] for z in zeilen if z),
                   laser=sum(z["laser_position"] for z in zeilen if z),
@@ -2322,6 +2364,7 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
                           "herstell_position", "material_position", "laser_position", "ruesten_maschine_teil",
                           "stangenwechsel_teil", "ruesten_abm_teil", "pauschale_abm_teil", "angebotsaufschlag_teil",
                           "programmierung_anteil"), 0.0)
+    null.update(prog_min=None, prog_hand=False)
     z = dict(null, pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, wand_stufe=None, gas=None,
              vorschub_gross=None, vorschub_mittel=None, vorschub_klein=None, vorschub_gravur=None, einstechzeit=None,
              **{f"zeit_{n}": None for n in ZEITANTEILE}, zeit_3d_gesamt=None, mm_3d=None, bearbeitungen_3d=None, mm_gross=None, mm_mittel=None, mm_klein=None,
@@ -2432,8 +2475,23 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
                          "von Hand (Angebot)" if hand else "Vorgabe (Arbeitsschritte)", art_=e["art"],
                          sid=e["satz_id"], satz_=e["satz"], parallel=e["parallel"], fest=False))
         out[-1].update(ruest_einzeln=e["ruest_einzeln"], n_ruest=e["n_ruest"], ruest_bezug=e["ruest_bezug"])
-    out.append(zeile("Programmierung", summen["positionen"], "Positionen", None, None, None, summen["programmierung"],
-        "Programmierkosten je Teil × Positionen (ohne Zuschläge)", "Vorgabe € je Position", art_="Pauschale"))
+    n_pos, prog_min = summen["positionen"], summen.get("programmierung_min")
+    if prog_min is None:        # verschicktes Angebot vor 0.8.22: festgeschriebener Betrag je Position ohne Zeit
+        out.append(zeile("Programmierung", n_pos, "Positionen", None, None, None, summen["programmierung"],
+                         f"{n_pos} × {zahl(summen.get('programmierung_position', 0), 2)} € je Position (ohne Zuschläge)",
+                         "festgeschrieben: Betrag je Position (vor 0.8.22)", art_="Pauschale"))
+    else:
+        sid, sp = satz["Programmierung"]
+        hand = summen.get("programmierung_hand", 0)
+        quelle = (f"{zahl(_n(summen.get('programmierung_grund')), 1)} min je Position + "
+                  f"{zahl(summen.get('programmierung_kontur', 0), 1)} min je Innenkontur"
+                  + (f"; von Hand bei {hand} Pos." if hand else ""))
+        out.append(zeile("Programmierung", n_pos, "Positionen", None, prog_min * 60 / n_pos if n_pos else None, prog_min,
+                         summen["programmierung"],
+                         f"{zahl(prog_min, 1)} min / 60 × {zahl(sp, 2)} €/h (ohne Zuschläge)",
+                         quelle if sp or not prog_min else f"Stundensatz {sid} fehlt (0 €/h)",
+                         art_=(art.get("Programmierung") or {}).get("art") or "Personal",
+                         sid=sid, satz_=sp, parallel=(art.get("Programmierung") or {}).get("parallel", "ja") == "ja"))
     out.append(zeile("Zusatzarbeiten (€)", teile, "Teile", None, None, None, summen["zusatz"],
                      "Menge × Preis je Einheit, ggf. Mindestbetrag", "Stammdaten Zusatzarbeiten", art_="Fremd/Preis"))
     return out
