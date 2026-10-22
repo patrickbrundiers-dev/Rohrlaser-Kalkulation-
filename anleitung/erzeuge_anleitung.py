@@ -2591,11 +2591,11 @@ def kapitel_stammdaten(i):
                              "wie <i>IPE 200</i>, <i>HEB 160</i>, <i>UPN 100</i>, <i>T 50</i>, sonst Träger als "
                              "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>)"],
         ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl, "
-                              "I-/H-Träger, T-Profil oder Sonderprofil (Liste in den Einstellungen)"],
+                              "I-/H-Träger, T-Profil, RP-Profil oder Sonderprofil (Liste in den Einstellungen)"],
         ["<b>Abmessung A [mm]</b>, Abmessung B [mm]",
          "Rohre: A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, B = Flansch. "
          "L-Profil: A und B = Schenkel. Flachstahl: A = Breite, B leer. I-/H-Träger und T-Profil: A = Höhe, "
-         "B = Flanschbreite"],
+         "B = Flanschbreite. RP-Profil: A = Breite, B = Höhe, Wandstärke = Blechdicke"],
         ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten; bei offenen "
                                    "Profilen die Blechdicke, bei Flachstahl die Dicke, bei Trägern und T-Profilen die "
                                    "Stegdicke"],
@@ -2619,6 +2619,24 @@ def kapitel_stammdaten(i):
                                      "nein = das Profil wird nur mit der Stangenlänge des Angebots geplant (z. B. "
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
         ["Bemerkung", "freier Text"]], [75, 190])
+    i.abschnitt("RP-Profile (Rohre mit Anschlag)", marke="rp_profile")
+    i.text("RP-Profile sind kaltgeformte Stahlrohre mit einem Anschlag aus doppelt umgelegtem Blech (Serien mit "
+           "34, 40, 50, 60 und 80 mm Bautiefe). Ihr Querschnitt hat keine einfachen Maße, deshalb rechnet das "
+           "Programm Fläche, Gewicht, Außenumfang und Schnittlänge aus der <b>Kontur</b> des MegaCAD-Makros.")
+    i.liste("<b>Mitgeliefert</b>: die Bibliothek RP-ROHRE (Serie-34 bis Serie-80 und Zubehör-Rohre, gut 140 "
+            "Profile) steht schon in den Profilen, Profilform <i>RP-Profil</i>, Profil-ID <b>RP</b> + Dateiname "
+            "des Makros, z. B. <i>RP 0106-35</i> (RP-Nummer und Kammerbreite). Ältere Datendateien bekommen sie beim "
+            "ersten Start dazu; vorhandene Zeilen bleiben unverändert.",
+            "<b>RP-Profile aus MegaCAD laden …</b> (über der Tabelle Profile): eine oder mehrere .mac-Dateien "
+            "wählen. Neue Profile werden angelegt, eine vorhandene Zeile mit derselben Profil-ID bekommt Form, Maße, "
+            "Blechdicke und Fläche aus dem Makro. Die Kontur bleibt in der Datendatei gespeichert.",
+            "Nicht übernommen (Meldung unten im Fenster): offene Profile ohne Kammer (Zubehör wie 400180 bis "
+            "400330, kein Rohrlaser-Teil) und Zeichnungen ohne erkennbare Blechdicke (z. B. Befestigungen).",
+            "<b>RP-Querschnitt …</b> zeigt die Kontur der markierten Zeile mit Breite, Höhe, Blechdicke, Fläche, "
+            "Gewicht je Meter, Außenumfang, Schnittlänge und Zahl der Ecken.",
+            "<b>Schnittlänge</b>: Außenumfang ohne die doppelt liegende Blechlage, denn der Anschlag wird mit einem "
+            "Schnitt durch beide Lagen getrennt. Bei Gehrungen rechnet der Schneidweg-Rechner jede Kante mit ihrer "
+            "Richtung zur Gehrungsachse ([[schneidweg_rechner]]). Hüllkreis = Diagonale aus Breite und Höhe.")
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
         ["Kategorie", "Stahl, Edelstahl oder Aluminium (Liste in den Einstellungen). Im Angebot sind die Werkstoffe "
@@ -3753,10 +3771,13 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.20", "<b>Naht der Lieferstange im Angebot</b> statt in den Stammdaten: je Profil und Werkstoff im Fenster "
+    ["0.8.21", "<b>Naht der Lieferstange im Angebot</b> statt in den Stammdaten: je Profil und Werkstoff im Fenster "
                "Schweißnaht oder in der Materialanfrage, Vorgabe aus den Teilen, kein Hinweis mehr ohne Eintrag "
                "([[schweissnaht]]); die Materialanfrage nennt die Seite („Schweißnaht auf der Breitseite“) und hat "
                "einen eigenen, immer sichtbaren Knopf <b>Materialanfrage (E-Mail)</b> ([[materialanfrage]])."],
+    ["0.8.20", "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech): neue Profilform <i>RP-Profil</i>, die "
+               "Bibliothek RP-ROHRE ist mitgeliefert, eigene MegaCAD-Makros lassen sich laden, Querschnitt, Gewicht "
+               "und Schnittlänge kommen aus der Kontur ([[rp_profile]])."],
     ["0.8.19", "<b>STEP-Import mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i> im Prüfdialog; "
                "Gehrungen und schräge Bohrungen (mit gemessener Neigung längs/quer) werden in 3D übernommen, ohne "
                "Häkchen erscheint bei schrägen Bohrungen „3D prüfen“."],

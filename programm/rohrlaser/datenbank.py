@@ -88,6 +88,7 @@ ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
+RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 BOHR_ZUSATZ_STAND = "2026-10-22"   # Zusatzarbeiten Senken, Flowdrill, Bohren ergänzt (Datenbank._bohr_zusatz_ergaenzen)
@@ -120,6 +121,7 @@ class Datenbank:
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+        self._rp_anpassen()
 
     def schliessen(self):
         self.con.close()
@@ -421,6 +423,53 @@ class Datenbank:
         if neu:
             i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
             self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+
+    def _rp_anpassen(self):
+        """RP-Profile (Patricks Bibliothek RP-ROHRE, rp_profile.json): selbst geladene Konturen (Einstellung
+        'rp_eigene') bereitstellen; einmal je Stand der Bibliothek die Profilform 'RP-Profil' in die Auswahlliste und
+        fehlende RP-Profile in die Stammdaten 'Profile' eintragen. Vorhandene Zeilen bleiben unverändert; die
+        Stammdaten gelten dadurch nicht als von Hand geändert."""
+        from . import rp_profile
+        rp_profile.eigene_setzen(self.einstellung("rp_eigene") or {})
+        if self.einstellung("rp_stand") == RP_STAND:
+            return
+        with self.con:
+            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+            if formen and rp_profile.FORM not in formen:
+                i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
+                self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + [rp_profile.FORM] + formen[i:]))
+            da = {r[0] for r in self.con.execute("SELECT profil_id FROM profile")}
+            for e in rp_profile.bibliothek().values():
+                if e["profil_id"] not in da:
+                    z = rp_profile.stammdaten_zeile(e)
+                    self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                     list(z.values()))
+            self._einstellung_schreiben("rp_stand", RP_STAND)
+
+    def rp_laden(self, eintraege):
+        """Selbst geladene RP-Profile (rp_profile.laden) speichern: Kontur in der Einstellung 'rp_eigene', Zeile in den
+        Profilen anlegen bzw. Form, Maße und Fläche einer vorhandenen Zeile mit derselben Profil-ID ersetzen.
+        Ergebnis: (neu, geändert)."""
+        from . import rp_profile
+        eigene = dict(self.einstellung("rp_eigene") or {})
+        neu = geaendert = 0
+        with self.con:
+            for e in eintraege:
+                eigene[e["profil_id"]] = e
+                z = rp_profile.stammdaten_zeile(e)
+                r = self.con.execute("SELECT id FROM profile WHERE profil_id=?", (z["profil_id"],)).fetchone()
+                if r is None:
+                    self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                     list(z.values()))
+                    neu += 1
+                else:
+                    self.con.execute("UPDATE profile SET form=?, a=?, b=?, wand=?, flaeche_manuell=? WHERE id=?",
+                                     (z["form"], z["a"], z["b"], z["wand"], z["flaeche_manuell"], r[0]))
+                    geaendert += 1
+            self._einstellung_schreiben("rp_eigene", eigene)
+            self._stammdaten_geaendert("profile")
+        rp_profile.eigene_setzen(eigene)
+        return neu, geaendert
 
     def _wand_max_ergaenzen(self):
         """Dateien vor Schema 22: Wandstärke max. der Normprofile (Träger, T, UPN) aus der Flanschdicke der

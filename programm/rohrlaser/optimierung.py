@@ -26,7 +26,7 @@ Ineinanderlegen); die Untergrenze zieht dann je Teil die größtmögliche Überl
 import math
 from dataclasses import dataclass, field, replace
 
-from . import normprofile
+from . import normprofile, rp_profile
 
 EPS = 1e-6
 EXAKT_MAX_TEILE = 60     # exakte Suche nur für Gruppen bis zu so vielen Teilen
@@ -960,10 +960,13 @@ def pruefe_zuschnitt(g, stangen, lieferlaenge, max_werkstueck, saege, min_werkst
 OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
 
 
-def umfang(form, a, b, wand=None, flaeche=None):
+def umfang(form, a, b, wand=None, flaeche=None, pid=None):
     """Umfang des Querschnitts (Außenfläche je m Länge). Offene Profile: beide Seiten, aus Querschnittsfläche und
     Blechdicke (dünnwandig: 2 × Fläche / Dicke + 2 × Dicke an den Kanten), damit gilt es auch für C-Profile mit
-    Abkantung und Profile mit Radien."""
+    Abkantung und Profile mit Radien. RP-Profil: Außenkontur aus der RP-Bibliothek (pid = Profil-ID)."""
+    if form == rp_profile.FORM:
+        r = rp_profile.daten(pid)
+        return r["umfang"] if r else 0.0
     if form == "Rundrohr":
         return math.pi * a
     if form == "Quadratrohr":
@@ -979,9 +982,12 @@ def umfang(form, a, b, wand=None, flaeche=None):
     return 0.0
 
 
-def schnittlaenge(form, a, b, wand=None, flaeche=None):
+def schnittlaenge(form, a, b, wand=None, flaeche=None, pid=None):
     """Länge eines geraden Trennschnitts: Rohre = Außenumfang, offene Profile = halber Umfang (der Laser schneidet
-    jede Wand nur einmal)."""
+    jede Wand nur einmal). RP-Profil: aus der Kontur, der doppelt liegende Anschlag zählt einmal (rp_profile)."""
+    if form == rp_profile.FORM:
+        r = rp_profile.daten(pid)
+        return r["schnitt"] if r else 0.0
     u = umfang(form, a, b, wand, flaeche)
     return u / 2 if form in OFFEN else u
 
@@ -991,12 +997,16 @@ PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr", "U": 
 
 
 def profil_aus_name(pid):
-    """Profilform und Maße aus der Profil-ID, z. B. 'RR 42,4x2,0', 'QR 40x40x3', 'RE 60x40x3'.
+    """Profilform und Maße aus der Profil-ID, z. B. 'RR 42,4x2,0', 'QR 40x40x3', 'RE 60x40x3', 'RP 0106-35'.
     Ergebnis dict(form, a, b, wand) oder None, wenn der Name nicht nach dem Schema aufgebaut ist.
     """
     n = normprofile.daten(pid)
     if n is not None and n["flaeche"]:       # Normprofil, z. B. 'IPE 200', 'HEB 160', 'UPN 100', 'T 50'
         return dict(form=n["form"], a=n["h"], b=n["b"], wand=n["tw"], flaeche_manuell=n["flaeche"])
+    r = rp_profile.daten(pid)
+    if r is not None:                        # RP-Profil aus der Bibliothek, z. B. 'RP 0106-35'
+        z = rp_profile.stammdaten_zeile(r)
+        return dict(form=z["form"], a=z["a"], b=z["b"], wand=z["wand"], flaeche_manuell=z["flaeche_manuell"])
     kurz, _, rest = str(pid).strip().partition(" ")
     form = PROFILFORM.get(kurz.upper())
     zahlen = rest.replace(",", ".").replace("X", "x").split("x")
