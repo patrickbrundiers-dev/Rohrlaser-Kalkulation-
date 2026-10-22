@@ -139,4 +139,28 @@ def _():
     winkel_nah(g[0]["winkel"], (b[0]["winkel"] + 90) % 360, 0.2, "Gravur 90° neben den Bohrungen")
 
 
+@fall("Offene Profile: Fläche (Steg, Flansch, Schenkel) und Versatz quer je Kontur, auch gedreht (K07-K10)")
+def _():
+    import json
+    sys.path.insert(0, str(HIER.parent / "programm"))
+    from rohrlaser import step
+
+    def lage(datei):
+        t = analysiere_datei(str(ORDNER / datei))[0]
+        m = dict(konturen_liste=json.dumps(t.konturen_liste), wandstaerke=t.wandstaerke, normprofil=t.normprofil,
+                 profil_id_vorschlag=t.profil_id_vorschlag)
+        e = step.rechner_eingaben(m, t.profilform, t.abm_a, t.abm_b)
+        return [(k["x"], k.get("d"), k.get("seite"), k.get("q")) for k in e["konturen"]]
+    # U80x40x4, Steg unten in der Datei: Ø8 20 neben der Steg-Mitte, Ø6 im Flansch x+ 5 zur Spitze, Ø10 im Flansch
+    # x− 5 zum Steg (Skizze: Steg vorne, Flansch unten = der von Ende A gesehen rechts liegende)
+    soll = [(100, 8, "Steg", 20), (250, 6, "Flansch unten", 5), (400, 10, "Flansch oben", 5)]
+    for datei in ("K07_U80x40x4_Lage.step", "K08_U80x40x4_Lage_gedreht.step"):
+        assert lage(datei) == soll, (datei, lage(datei))
+    # L60x40x5: Ø8 im 60er Schenkel 40 von der Ecke (10 über die Mitte hinaus), Ø6 im 40er Schenkel 25 von der Ecke
+    assert lage("K09_L60x40x5_Lage.step") == [(100, 8, "Schenkel a", -10), (300, 6, "Schenkel b", 5)], \
+        lage("K09_L60x40x5_Lage.step")
+    k10 = lage("K10_T60x60x5x7_Lage.step")
+    assert [k[2] for k in k10] == ["Flansch", "Steg"] and abs(k10[0][3]) == 15, k10
+
+
 sys.exit(1 if fehler else 0)

@@ -1151,10 +1151,21 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
     Fläche, die nicht auf ihr liegt, gehört zu einem Merkmal (Ende, Bohrung, Ausschnitt). Ein Merkmal geht durch,
     wenn es Wandflächen beider Seiten der Wand berührt (Normalen entgegengesetzt), sonst ist es eine Gravur oder
     Sackbohrung. Der Laser schneidet von einer Seite: Schnittlänge = halbe Länge der Kanten zur Wand (oben und
-    unten je einmal), Einstiche = halbe Anzahl Konturzüge (aufgerundet). Lage: z ab Ende A; die Lage um das Profil
-    (Steg/Flansch) wird nicht angegeben."""
+    unten je einmal), Einstiche = halbe Anzahl Konturzüge (aufgerundet). Lage: z ab Ende A und "querlage" = Mitte
+    (x, y) im Querschnitt um die Mitte des Hüllrechtecks; dazu steht bei Ende A der Umriss ("querschnitt"). Die
+    Fläche (Steg, Flansch, Schenkel) bestimmt das Programm daraus (rohrlaser.step.offen_lage)."""
     zmax = zmin + t.laenge
     s_aussen = _strecken(aussen)
+    # Lage im Querschnitt (für die Fläche im Programm): Mitte des Hüllrechtecks, Umriss als Punkte darum
+    qx = [v for st in s_aussen for v in (st[0], st[2])]
+    qy = [v for st in s_aussen for v in (st[1], st[3])]
+    qcx, qcy = (max(qx) + min(qx)) / 2, (max(qy) + min(qy)) / 2
+    schritt_q = max(1, len(s_aussen) // 160)
+    querschnitt = [[round(st[0] - qcx, 2), round(st[1] - qcy, 2)] for st in s_aussen[::schritt_q]]
+
+    def quer_lage(bb):
+        mn, mx = bb.CornerMin(), bb.CornerMax()
+        return dict(x=round((mn.X() + mx.X()) / 2 - qcx, 2), y=round((mn.Y() + mx.Y()) / 2 - qcy, 2))
     faces = TopTools_IndexedMapOfShape()
     TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
 
@@ -1286,7 +1297,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
             if ba:      # Senkung bzw. Fließloch (wie bei geschlossenen Rohren, siehe bohrung_art)
                 art_, dm, aussen = ba
                 d = dict(durchgehend=True, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
-                         art=art_, durchmesser=dm)
+                         art=art_, durchmesser=dm, querlage=quer_lage(bb))
                 if art_ == "Senkung":
                     schnitt = math.pi * dm
                     t.innen += schnitt
@@ -1308,7 +1319,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
             dz = mx.Z() - mn.Z()
             quer = max(mx.X() - mn.X(), mx.Y() - mn.Y())
             d = dict(durchgehend=True, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
-                     schnittlaenge=round(schnitt, 2))
+                     schnittlaenge=round(schnitt, 2), querlage=quer_lage(bb))
             if rund:
                 bohrungen[rund[1]] = bohrungen.get(rund[1], 0) + 1
                 d.update(art="Bohrung", durchmesser=rund[1], huellmass=rund[1])
@@ -1332,6 +1343,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
+    kopf[0]["querschnitt"] = querschnitt        # Umriss von Ende A aus (x, y um die Mitte), zu "querlage" der Konturen
     t.konturen_liste = kopf + sorted(liste, key=lambda d: d["z"])
     t.bohrungen = dict(sorted(bohrungen.items()))
     t.schneidweg = t.ende_a + t.ende_b + t.innen
@@ -1980,6 +1992,65 @@ def _draht_laenge(draht):
     return sum(_kantenlaenge(e) for e in _liste(draht, TopAbs_EDGE))
 
 
+def _draht_punkte(draht, schritt=0.5):
+    """Punkte eines Drahts der Reihe nach (Kanten verbunden, Richtung beachtet), ohne doppelte Endpunkte."""
+    from OCP.BRepTools import BRepTools_WireExplorer
+    from OCP.TopAbs import TopAbs_REVERSED
+    out = []
+    ex = BRepTools_WireExplorer(TopoDS.Wire(draht))
+    while ex.More():
+        e = ex.Current()
+        c = BRepAdaptor_Curve(e)
+        n = max(2, min(400, int(_kantenlaenge(e) / schritt) + 1))
+        u0, u1 = c.FirstParameter(), c.LastParameter()
+        if e.Orientation() == TopAbs_REVERSED:
+            u0, u1 = u1, u0
+        out += [c.Value(u0 + (u1 - u0) * k / n) for k in range(n)]
+        ex.Next()
+    return out
+
+
+def _vereinfachen(pk, tol=0.05):
+    """Geschlossenen Linienzug ausdünnen (Douglas-Peucker), Abweichung höchstens tol [mm]."""
+    if len(pk) < 4:
+        return pk
+
+    def dp(a):
+        if len(a) < 3:
+            return a
+        (x0, y0), (x1, y1) = a[0], a[-1]
+        lg = math.hypot(x1 - x0, y1 - y0)
+        ab = [abs((x1 - x0) * (y0 - y) - (x0 - x) * (y1 - y0)) / lg if lg > 1e-9 else math.hypot(x - x0, y - y0)
+              for x, y in a[1:-1]]
+        i = max(range(len(ab)), key=ab.__getitem__)
+        if ab[i] <= tol:
+            return [a[0], a[-1]]
+        return dp(a[:i + 2])[:-1] + dp(a[i + 1:])
+    j = max(range(len(pk)), key=lambda i: math.hypot(pk[i][0] - pk[0][0], pk[i][1] - pk[0][1]))
+    return dp(pk[:j + 1])[:-1] + dp(pk[j:] + [pk[0]])[:-1]
+
+
+def _blech_kontur(pts):
+    """Innenkontur eines Blechs aus ihren Punkten (x, y im Zuschnitt): Art, Maße, Mitte, Lage für den Blech-Editor.
+    Bohrung / Langloch / Rechteck längs oder quer, sonst Polygon (Eckpunkte um die Mitte)."""
+    form, (cx, cy), lage = _form_2d(pts)
+    d = dict(x=round(cx, 2), y=round(cy, 2))
+    gerade = min(lage % 90, 90 - lage % 90) < 0.5
+    quer = gerade and 45 < lage % 180 < 135
+    if form[0] == "Kreis":
+        d.update(art="Bohrung", durchmesser=round(form[1], 2))
+    elif form[0] == "Langloch" and gerade:
+        d.update(art="Langloch", laenge=round(form[1], 2), breite=round(form[2], 2), quer=quer)
+    elif form[0] == "Rechteck" and gerade:
+        d.update(art="Rechteck", laenge=round(form[1], 2), breite=round(form[2], 2), quer=quer)
+    else:
+        pk = _vereinfachen(pts)
+        mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
+        d.update(art="Polygon", x=round(mx, 2), y=round(my, 2),
+                 punkte=[[round(x - mx, 2), round(y - my, 2)] for x, y in pk])
+    return d
+
+
 def _blech_daten(solid, fl):
     """Maße eines ebenen Blechs in der Hauptebene: Länge/Breite (kleinstes umschreibendes Rechteck der Außenkontur),
     Kontur rechteckig/frei, Innenkonturen und Bohrungen, Längsseiten gerade (für die Abgrenzung zum Flachstahl).
@@ -2012,7 +2083,7 @@ def _blech_daten(solid, fl):
     mf = BRepBuilderAPI_MakeFace(aussen, True)
     flaeche_aussen = _flaeche(mf.Face()) if mf.IsDone() else laenge * breite
     innen = [TopoDS.Wire(d) for d in _liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
-    bohrungen, innen_liste, innen_laenge = {}, [], 0.0
+    bohrungen, innen_liste, innen_laenge, lage = {}, [], 0.0, []
     for d in innen:
         lg = _draht_laenge(d)
         innen_laenge += lg
@@ -2023,17 +2094,38 @@ def _blech_daten(solid, fl):
         BRepBndLib.AddOptimal_s(d, b, False, False)
         q0, q1 = b.CornerMin(), b.CornerMax()
         innen_liste.append((round(max(q1.X() - q0.X(), q1.Y() - q0.Y(), q1.Z() - q0.Z()), 2), round(lg, 2)))
+        lage.append((d, lg))
     # System für die 3D-Ansicht und Lage in der Datei: Z = Längsrichtung, Y = Normale der Hauptfläche
     xd, yd = ax0.XDirection(), ax0.YDirection()
     lr = _vec(xd).Multiplied(c).Added(_vec(yd).Multiplied(s_))
     ax3 = gp_Ax3(fl["mitte"], gp_Dir(lr.X(), lr.Y(), lr.Z()), gp_Dir(_vec(n).Crossed(lr).X(), _vec(n).Crossed(lr).Y(),
                                                                        _vec(n).Crossed(lr).Z()))
     rechteckig = abs(flaeche_aussen - laenge * breite) <= 0.002 * laenge * breite
+    # Lage im Zuschnitt: x längs ab der linken, y quer ab der unteren Kante des Hüllrechtecks [mm]
+    u0, v0 = min(us), min(vs)
+
+    def zuschnitt(draht):
+        pk = [(p.X(), p.Y()) for p in _draht_punkte(_transformiere(draht, ax0))]
+        return [(x * c + y * s_ - u0, -x * s_ + y * c - v0) for x, y in pk]
+    konturen_lage = []
+    for d, lg in lage:
+        try:
+            k = _blech_kontur(zuschnitt(d))
+        except (ValueError, ZeroDivisionError, IndexError):
+            continue
+        k["schnittlaenge"] = round(lg, 2)
+        konturen_lage.append(k)
+    aussen_punkte = None
+    if not rechteckig:
+        try:
+            aussen_punkte = [[round(x, 2), round(y, 2)] for x, y in _vereinfachen(zuschnitt(aussen))]
+        except (ValueError, ZeroDivisionError, IndexError):
+            aussen_punkte = None
     return dict(laenge=laenge, breite=breite, dicke=fl["dicke"], flaeche_aussen=flaeche_aussen,
                 flaeche_netto=_flaeche(face), umfang_aussen=_draht_laenge(aussen), umfang_innen=innen_laenge,
                 innen=len(innen), bohrungen=dict(sorted(bohrungen.items())), innen_liste=innen_liste,
                 kontur="rechteckig" if rechteckig else "frei", laengsseiten_gerade=min(seiten) >= 0.8 * laenge,
-                ax3=ax3)
+                konturen_lage=konturen_lage, aussen_punkte=aussen_punkte, ax3=ax3)
 
 
 def ist_flachstahl(laenge, breite, laengsseiten_gerade, flach_bis=FLACHSTAHL_BIS):

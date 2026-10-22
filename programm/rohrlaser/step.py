@@ -6,6 +6,7 @@ Gewinde-Vorschlag, Konturklassen, Protokoll.
 """
 import datetime
 import json
+import math
 import importlib.util
 import sys
 from pathlib import Path
@@ -117,6 +118,25 @@ def gehrungen(m):
 SEITE_KASTEN = {"0°": "oben", "90°": "vorne", "180°": "unten", "270°": "hinten"}
 
 
+def _versatz_quer(d, seite, breit, schmal):
+    """Versatz einer Kontur quer auf ihrer Seite (Quadrat-/Rechteckrohr) ab Seitenmitte [mm], + in Richtung
+    steigender Umfangsposition. Aus dem Umfangswinkel: auf der ebenen Seite ist der Versatz = Abstand der Seite von
+    der Rohrmitte × tan(Winkel zur Seitenmitte), unabhängig von den Eckradien (die Umfangsposition u enthält die
+    Bögen der Ecken und lag bei gerundeten Rohren um einige mm daneben). Ohne Winkel aus u (scharfkantig)."""
+    mitte_w = {"oben": 0, "vorne": 90, "unten": 180, "hinten": 270}[seite]
+    if d.get("winkel") is not None:
+        dw = (float(d["winkel"]) - mitte_w + 180) % 360 - 180
+        if abs(dw) >= 89:
+            return None
+        abstand = schmal / 2 if seite in ("oben", "unten") else breit / 2
+        return abstand * math.tan(math.radians(dw))
+    if d.get("u") is None:
+        return None
+    mitte = {"oben": 0.0, "vorne": (breit + schmal) / 2, "unten": breit + schmal, "hinten": 1.5 * (breit + schmal)}
+    umfang = 2 * (breit + schmal)
+    return (float(d["u"]) - mitte[seite] + umfang / 2) % umfang - umfang / 2
+
+
 def kandidaten_3d(m):
     """Was die Messung für die 3D-Schnittbearbeitung anbietet: (Gehrungen an den Enden, schräge Bohrungen ab 0,5°)
     als Anzahl. Fasen zählen nicht (Patrick 22.10.2026: in 3D in der Praxis nicht sauber)."""
@@ -139,6 +159,52 @@ def kandidaten_3d(m):
 SCHRAEG_3D = 0.5        # Grad, wie step_geometrie.SCHRAEG_3D
 
 
+OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
+
+
+def offen_lage(querschnitt, profil):
+    """Lage der STEP-Messung im Querschnitt der Skizze für offene Profile und Flachstahl: aus dem gemessenen Umriss
+    (Punkte x, y um die Mitte, von Ende A gesehen) die Drehung (0/90/180/270°), mit der er am besten auf den Umriss
+    der Skizze passt (skizze.Querschnitt: U/C Steg vorne, L Schenkel a vorne und b unten, Träger/T Flansch oben).
+    Ergebnis: Funktion (x, y) -> (Flächenname, Versatz quer ab Flächenmitte) oder None ohne Umriss."""
+    from . import skizze as sk
+    pts = [(float(x), float(y)) for x, y in querschnitt or () if x is not None and y is not None]
+    if len(pts) < 4:
+        return None
+    try:
+        qs = sk.Querschnitt(profil)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+    if not qs.flaechen or not qs.umriss:
+        return None
+    um = qs.umriss[0]
+    us, vs = [p[0] for p in um], [p[1] for p in um]
+    mu, mv = (max(us) + min(us)) / 2, (max(vs) + min(vs)) / 2
+    kanten = list(zip(um, um[1:] + um[:1]))
+
+    def abst(p, a, b):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        lg = dx * dx + dy * dy
+        t = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lg))
+        return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
+
+    def drehen(r, sp):      # Blick von Ende A: u = −x, v = y (wie Umfangswinkel 90° = vorne), dann um r drehen
+        c, s_ = round(math.cos(math.radians(r))), round(math.sin(math.radians(r)))
+        return lambda x, y: (-sp * x * c - y * s_ + mu, -sp * x * s_ + y * c + mv)
+    # gespiegelt nur, wenn es deutlich besser passt: ein L-Profil kann von Ende A gesehen das Spiegelbild der Skizze
+    # sein (dasselbe Teil von B aus); Fläche und Abstand von der Ecke bleiben dabei richtig
+    beste = min((sum(min(abst(f(x, y), a, b) for a, b in kanten) for x, y in pts) / len(pts) + (0.2 if sp < 0 else 0),
+                 r, sp) for r in (0, 90, 180, 270) for sp in (1, -1) for f in (drehen(r, sp),))
+    f = drehen(beste[1], beste[2])
+
+    def lage(x, y):
+        p = f(float(x), float(y))
+        fl = min(qs.flaechen, key=lambda fl_: abst(p, fl_.p0, fl_.p1))
+        q = (p[0] - fl.mitte[0]) * fl.dir[0] + (p[1] - fl.mitte[1]) * fl.dir[1]
+        return fl.name, max(-fl.breite / 2, min(fl.breite / 2, q))
+    return lage
+
+
 def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -158,6 +224,12 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     a_, b_ = float(a or 0), float(b or a or 0)
     breit, schmal = max(a_, b_), min(a_, b_)
     kasten = form in ("Quadratrohr", "Rechteckrohr")
+    offen = None
+    if form in OFFEN:
+        kopf = next((d for d in liste if isinstance(d, dict) and d.get("art") == "Ende A"), {})
+        offen = offen_lage(kopf.get("querschnitt"), dict(
+            form=form, a=a_, b=b_ if b else None, wand=_z(m, "wandstaerke") or _wand(m),
+            profil_id=m.get("normprofil") or m.get("profil_id_vorschlag")))
     eing = dict(quelle=QUELLE_STEP, a={}, b={}, konturen=[])
     if d3:
         eing["d3"] = True
@@ -214,16 +286,15 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         elif kasten and d.get("seite") in SEITE_KASTEN:
             seite = SEITE_KASTEN[d["seite"]]
             breite_f = breit if seite in ("oben", "unten") else schmal
-            mitte = {"oben": 0.0, "vorne": (breit + schmal) / 2, "unten": breit + schmal,
-                     "hinten": 1.5 * (breit + schmal)}[seite]
-            if d.get("u") is not None:
-                u = float(d["u"])
-                umfang = 2 * (breit + schmal)
-                q = (u - mitte + umfang / 2) % umfang - umfang / 2
-                if abs(q) <= breite_f / 2 + 1e-6 and abs(q) > 0.05:
-                    k["q"] = round(q, 1)
+            q = _versatz_quer(d, seite, breit, schmal)
+            if q is not None and abs(q) <= breite_f / 2 + 1e-6 and abs(q) > 0.05:
+                k["q"] = round(q, 1)
             if seite != "oben":
                 k["seite"] = seite
+        elif offen and isinstance(d.get("querlage"), dict) and d["querlage"].get("x") is not None:
+            k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
+            if abs(q) > 0.05:
+                k["q"] = round(q, 1)
         eing["konturen"].append(k)
     if _z(m, "gravur") > 0:                     # Gravur nur als Länge (nicht im Schneidweg)
         eing["gravur"] = round(_z(m, "gravur"), 1)

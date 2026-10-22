@@ -29,16 +29,23 @@ Versionen von SCHEMA_VERSION:
 - 1.5 (22.10.2026): 3D-Schnittbearbeitung: schräge Bohrungen (ab 0,5° gegen die Wandnormale) tragen "neigung_l"
   (längs, + Richtung Ende B) und "neigung_q" (quer, + Richtung steigender Umfangswinkel) in Grad. Felder aus 1.4
   unverändert.
-- 1.6 (22.10.2026): RP-Profile (Rohre mit Anschlag aus doppeltem Blech) und Mehrkammerprofile: Profilform "RP-Profil"
+- 1.6 (22.10.2026): im Block "blech" (ebene Bleche) "konturen_lage": je Innenkontur art (Bohrung, Langloch, Rechteck,
+  Polygon), x/y = Mitte im Zuschnitt (x längs ab der linken, y quer ab der unteren Kante des Hüllrechtecks),
+  durchmesser bzw. laenge/breite und quer (Längsrichtung quer zum Zuschnitt), bei Polygon punkte um die Mitte,
+  schnittlaenge; "aussen_punkte" = Eckpunkte der freien Außenkontur im Zuschnitt, sonst null. Offene Profile (U, C,
+  L, Flachstahl, I-/H-Träger, T): je Kontur "querlage" {x, y} = Mitte im Querschnitt um die Mitte des Hüllrechtecks
+  (von Ende A gesehen), beim Ende A "querschnitt" = Umriss als Punkte [x, y] im selben System. Felder aus 1.5
+  unverändert.
+- 1.7 (22.10.2026): RP-Profile (Rohre mit Anschlag aus doppeltem Blech) und Mehrkammerprofile: Profilform "RP-Profil"
   mit "normprofil" = Profil-ID der RP-Bibliothek (z. B. RP 0106-35); je Hohlprofil "kammern" (Zahl der
   Innenkonturen) und "kontur_umfang" (Länge der Außenkontur), "verbund" = Text, wenn ein Körper als Kern in der
   Kammer eines anderen liegt (Verbundprofil, nur gemeldet; der Kern hat die Profilform "Verbundkern"), sonst null.
-  Felder aus 1.5 unverändert.
+  Felder aus 1.6 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.6"
+SCHEMA_VERSION = "1.7"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -53,7 +60,8 @@ def _blech(b):
            if b.get(k) is not None}
     out.update(kontur=b.get("kontur"), innenkonturen=b.get("innen", 0),
                bohrungen=[dict(durchmesser=_r(d), anzahl=n) for d, n in (b.get("bohrungen") or {}).items()],
-               fingerabdruck=b.get("fingerabdruck"))
+               fingerabdruck=b.get("fingerabdruck"), konturen_lage=b.get("konturen_lage") or [],
+               aussen_punkte=b.get("aussen_punkte"))
     return out
 
 

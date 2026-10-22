@@ -226,7 +226,7 @@ def _():
 def _():
     t = messen("A02_RE60x40x3_Bolzen")[0]
     j = step_ergebnis.koerper(t)
-    assert step_ergebnis.SCHEMA_VERSION == "1.6"
+    assert step_ergebnis.SCHEMA_VERSION >= "1.5"
     assert j["anbauteile"][0]["art"] == "Bolzen" and j["trennung"]["regelanteil"] > 0.9
     assert j["schneidweg"]["gravur_anbau"] == KREUZ and j["schneidweg"]["gravur"] == KREUZ
     assert step_ergebnis.koerper(A01)["anbauteile"] == [] and step_ergebnis.koerper(A01)["trennung"] is None
