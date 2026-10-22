@@ -16,7 +16,7 @@ import zlib
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("A", "Außenwand", "#B9C3CD", None),
@@ -38,6 +38,24 @@ FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
 FARBE["X"] = QColor("#D9DDE2")         # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 HINTERGRUND = QColor("#FFFFFF")
+# Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
+# Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
+MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
+
+
+def gefiltert(netz, modus):
+    """Netz für eine Vorschau (MODI); Original gibt das Netz unverändert zurück."""
+    if not netz or modus not in MODI[1:]:
+        return netz
+    out = dict(netz)
+    out["t"] = {a: i for a, i in (netz.get("t") or {}).items() if a != "AN"}
+    out["l"] = {a: z for a, z in (netz.get("l") or {}).items()
+                if (a in ("G", "GA") if modus == "Gravurkonturen" else a != "GA")}
+    return out
+
+
+def mit_anbau(netz):
+    return bool(netz) and ("AN" in (netz.get("t") or {}) or "GA" in (netz.get("l") or {}))
 
 
 def packen(netz):
@@ -214,16 +232,24 @@ class Ansicht3D(QWidget):
         self.setMinimumSize(360, 220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setFocusPolicy(Qt.StrongFocus)
-        self.modell, self.titel = None, ""
+        self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
         self.zuruecksetzen()
 
     def setzen(self, netz, titel=""):
         """netz: dict, Bytes aus der Datenbank oder None (= keine 3D-Daten)."""
         if isinstance(netz, (bytes, bytearray, memoryview)):
             netz = entpacken(bytes(netz))
-        self.modell = Modell(netz) if netz and netz.get("p") else None
+        self.netz = netz if netz and netz.get("p") else None
+        self.modell = Modell(gefiltert(self.netz, self.modus)) if self.netz else None
         self.titel = titel
         self.zuruecksetzen()
+
+    def modus_setzen(self, modus):
+        """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
+        self.modus = modus
+        if self.netz:
+            self.modell = Modell(gefiltert(self.netz, modus))
+        self.update()
 
     def zuruecksetzen(self):
         self.gier, self.nick = self.GRUND
@@ -305,6 +331,23 @@ class Ansicht3DMitKnoepfen(QWidget):
             b.clicked.connect(lambda _=False, g=g, n=n: self.ansicht.ansicht(g, n))
             leiste.addWidget(b)
         leiste.addStretch(1)
+        # Vorschau bei Anbauteilen (nur sichtbar, wenn das Teil welche hat)
+        self.modi = QWidget()
+        ml = QHBoxLayout(self.modi)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.setSpacing(0)
+        self.modus_knoepfe = QButtonGroup(self.modi)
+        for text, tipp in zip(MODI, ("Rohr mit Anbauteilen (sandfarben)", "Nur die Rohrlaser-Geometrie ohne Anbauteile",
+                                     "Rohr mit allen Gravurlinien, ohne Schnittlinien")):
+            b = QPushButton(text)
+            b.setCheckable(True)
+            b.setChecked(text == MODI[0])
+            b.setToolTip(tipp)
+            b.clicked.connect(lambda _=False, t=text: self.ansicht.modus_setzen(t))
+            self.modus_knoepfe.addButton(b)
+            ml.addWidget(b)
+        self.modi.setVisible(False)
+        leiste.addWidget(self.modi)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self.ansicht, 1)
@@ -313,4 +356,11 @@ class Ansicht3DMitKnoepfen(QWidget):
 
     def setzen(self, netz, titel="", info=""):
         self.ansicht.setzen(netz, titel)
+        self.modi.setVisible(mit_anbau(self.ansicht.netz))
         self.info.setText(info)
+
+    def modus_setzen(self, modus):
+        """Vorschau wählen wie mit den Knöpfen (Tests, Bildschirmfotos)."""
+        for b in self.modus_knoepfe.buttons():
+            b.setChecked(b.text() == modus)
+        self.ansicht.modus_setzen(modus)

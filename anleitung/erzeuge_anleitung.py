@@ -3346,6 +3346,42 @@ def kapitel_step_messung(i):
             "Grenzen: Teile <b>im</b> Rohr (eingeschweißte Mutter innen, Stopfen) werden nicht abgetrennt, sondern "
             "wie bisher als Innenmerkmal gemeldet. Eine Kopfplatte genau so groß wie das Rohr ist vom Rohr nicht "
             "zu unterscheiden.")
+    i.text("<b>Anbauteile prüfen</b>: Im Prüfdialog des STEP-Imports zeigt die Spalte <i>Anbauteile</i> je Teil, "
+           "was abgetrennt wurde, z. B. <i>2 Bolzen, 1 Lasche</i>; gelb mit <i>– 1 prüfen</i>, solange ein unsicher "
+           "erkanntes Anbauteil offen ist. Bei Teilen mit Anbauteilen hat die 3D-Ansicht drei Knöpfe: "
+           "<b>Original</b> (Rohr mit Anbauteilen), <b>Rohrgeometrie</b> (nur was der Laser bearbeitet) und "
+           "<b>Gravurkonturen</b> (Rohr mit allen Gravurlinien, ohne Schnittlinien). In der Auswahl <i>Art</i> "
+           "steht neben dem Profil <i>– Anbauteile abgetrennt</i>; dort lässt sich auf die Messung "
+           "<i>– ohne Trennung</i> umschalten, wenn die Trennung falsch ist.")
+    i.bild("anbau_pruefen", "Prüfdialog mit einem Rohr mit Kopfplatte, Mutter und einer Lasche an der Ecke",
+           hoehe=80 * mm, legende=[
+               (1, "Spalte <b>Anbauteile</b>: gelb, solange ein unsicher erkanntes Anbauteil offen ist. "
+                   "<b>Doppelklick</b> öffnet das Fenster <i>Anbauteile prüfen</i>."),
+               (2, "Vorschau <b>Original</b>, <b>Rohrgeometrie</b> oder <b>Gravurkonturen</b>."),
+               (3, "Messwerte mit den Anbauteilen und dem Vergleich ohne Trennung.")])
+    i.text("Ein <b>Doppelklick</b> auf die Spalte <i>Anbauteile</i> öffnet das Fenster <b>Anbauteile prüfen</b>. "
+           "Je Zeile stehen Nr., Art, Lage (z ab Ende A, Seite bzw. Winkel), Aufstand, Höhe, Bearbeitung, Gravur "
+           "und Erkennung (<i>sicher</i> oder <i>prüfen</i>):")
+    i.liste("<b>Art</b> ändern, wenn sie falsch erkannt ist; Bearbeitung und Gravur springen auf die Vorgabe der "
+            "Art.",
+            "<b>Bearbeitung</b>: <i>Umriss</i> (Umfang der Aufstandsfläche), <i>Positionsmarke</i> (Kreuz 2 × 10 mm "
+            "= 20 mm), <i>Punktmarke</i> (Kreuz 2 × 2 mm = 4 mm) oder <i>keine</i>. Die <b>Gravur [mm]</b> ist von "
+            "Hand änderbar.",
+            "<b>Bestätigen</b> oder <b>Ausschließen</b> (keine Gravur, das Anbauteil bleibt in der Liste). "
+            "<b>Alle bestätigen</b> bestätigt alle Zeilen.",
+            "<b>Ist kein Anbauteil: Messung ohne Trennung verwenden</b>: Das Teil gilt so, wie es ohne Abtrennen "
+            "gemessen wurde (wie die Umschaltung bei <i>Art</i>).",
+            "<b>Übernehmen</b> ändert die Gravur des Teils um den Unterschied und gilt für alle gleichen Teile der "
+            "Zeile. Sind alle unsicher erkannten Anbauteile entschieden, gilt die Erkennung als geprüft und das "
+            "Teil wird angehakt. <b>Abbrechen</b> lässt alles, wie es war.")
+    i.bild("anbau_dialog", "Fenster Anbauteile prüfen: die Lasche an der Ecke war als Sonstiges erkannt",
+           hoehe=62 * mm, legende=[
+               (1, "Je Anbauteil Art, Lage, Aufstand, Bearbeitung, Gravur, Erkennung und Bestätigen/Ausschließen."),
+               (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
+               (3, "Trennung falsch: die Messung ohne Trennung verwenden."),
+               (4, "Auswirkung je Teil: Gravur vorher → nachher und offene Anbauteile.")])
+    i.bild("anbau_gravur", "Vorschau Gravurkonturen: Rohr ohne Anbauteile mit den Gravurlinien (türkis)",
+           hoehe=55 * mm, legende=[(1, "Vorschau umschalten.")])
     i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
               "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
               "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
@@ -3567,6 +3603,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.8", "STEP-Import: Spalte <b>Anbauteile</b> im Prüfdialog, Fenster <b>Anbauteile prüfen</b> (Art, "
+              "Bearbeitung, Gravur, Bestätigen/Ausschließen, Messung ohne Trennung) und 3D-Vorschau Original/"
+              "Rohrgeometrie/Gravurkonturen ([[anbauteile]])."],
     ["0.8.7", "STEP-Import trennt <b>Anbauteile</b> (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten) "
               "vom Rohr: Profil, Länge und Schneidweg nur vom Rohr, Anbauteile mit Lage und Gravur (Bolzen Kreuz, "
               "sonst Umriss), unsichere Fälle zum Prüfen ([[anbauteile]])."],

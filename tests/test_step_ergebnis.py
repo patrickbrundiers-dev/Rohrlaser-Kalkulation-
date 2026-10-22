@@ -142,7 +142,7 @@ def _():
     zustand = {z.it.text(0): z.it.checkState(0) for z in dlg.zeilen}
     assert zustand == {"K03_RR42-4x2_Konturen": Qt.Checked, "P10_RE60x40_Wand2und3_L600": Qt.Unchecked}, zustand
     p10 = next(z for z in dlg.zeilen if z.it.text(0).startswith("P10"))
-    assert "UNSICHER: wandstaerke" in p10.it.text(9), p10.it.text(9)
+    assert "UNSICHER: wandstaerke" in p10.it.text(dlg.SP_HINWEIS), p10.it.text(dlg.SP_HINWEIS)
     p10.it.setCheckState(0, Qt.Checked)        # Bestätigung durch Anhaken
     dlg.werte_schreiben()
     erg = step.uebernehmen(dlg.messwerte, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, neue_profile=True)
