@@ -1120,10 +1120,16 @@ def kapitel_step(i):
            "Teil in die Position ein (Spalte <i>Zusatzarbeiten</i>, Preisstand der Stammdaten, "
            "[[zusatzarbeiten_angebot]]). Offene und abgelehnte Zeilen tragen nichts ein; wird eine Zeile später "
            "abgelehnt, fällt die Zusatzarbeit wieder weg. Steht dieselbe Zusatzarbeit schon von Hand in der Position, "
-           "bekommt sie nur die neue Anzahl. Die drei Zusatzarbeiten legt das Programm einmalig mit Beispielzeiten "
-           "an (je Stück 0,5 min, Flowdrill 0,75 min, Stundensatz Nachbearbeitung); Zeit und Preis in "
+           "bekommt sie nur die neue Anzahl. Die drei Zusatzarbeiten legt das Programm einmalig mit Beispielpreisen "
+           "je Stück an (Senken 0,40 €, Flowdrill 0,60 €, Bohren 0,40 €, ohne Zeiten); die Preise in "
            "Einstellungen › Zusatzarbeiten anpassen ([[zusatzarbeiten_verwalten]]). Fehlt eine davon in den "
            "Stammdaten, meldet das Fenster es rot.")
+    i.text("<b>Preise je Stück:</b> Gewinde, Senken, Flowdrill und Bohren rechnen nur mit einem Preis je Stück, "
+           "nie mit Zeiten. Vorgabe sind die Preise aus Einstellungen › Gewinde bzw. › Zusatzarbeiten; sie stehen "
+           "grau in den Spalten <i>Gewinde [€/Stk]</i> und <i>Arbeit [€/Stk]</i>. Ein eingetragener Preis gilt nur "
+           "für diese Position (z. B. Sonderpreis); leeren holt wieder die Einstellungen. Die Auswirkung zeigt den "
+           "Betrag je Teil. Ein Gewinde ohne Preis rechnet mit 0 € und die Position meldet <i>WARNUNG: Gewinde … "
+           "ohne Preis je Stück</i>.")
     i.text("Positionen mit offenen Bohrungen zeigen den Status <b>HINWEIS: Bohrungen prüfen (Doppelklick)</b>. Ein "
            "<b>Doppelklick</b> auf den Status, die Spalte <i>Gewinde geprüft</i>, <i>Bohrungen</i> oder "
            "<i>Gewinde-Vorschlag</i> öffnet das Fenster (auch Rechtsklick, <i>Bohrungen prüfen …</i>). Je Zeile "
@@ -1132,7 +1138,8 @@ def kapitel_step(i):
            "und die Wahl ändern.")
     i.bild("bohrbild_dialog", "Fenster Bohrungen prüfen: Senkung und Flowdrill eines Rechteckrohrs", hoehe=70 * mm,
            legende=[
-               (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), was der Laser macht und Bestätigen/Ablehnen."),
+               (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), Preis je Gewinde und je Arbeit (grau = "
+                   "Einstellungen, änderbar), was der Laser macht und Bestätigen/Ablehnen."),
                (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
                (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
                (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
@@ -2581,9 +2588,9 @@ def kapitel_stammdaten(i):
                          "Wandstärke; Einstechzeit",
          "Es gilt die Zeile mit der kleinsten „Wandstärke bis“, die mindestens der Profilwandstärke entspricht. "
          "N₂ solange es dafür eine Zeile gibt, darüber O₂."],
-        ["Gewinde", "Gewinde, Kernloch-Ø, Zeit je Gewinde, Preis je Gewinde [€]",
-         "Der STEP-Import erkennt Kernlochbohrungen an diesem Durchmesser (±0,05 mm). Gerechnet wird der feste "
-         "Preis je Gewinde; ist er leer, die Zeit je Gewinde mit dem Stundensatz der Maschine."],
+        ["Gewinde", "Gewinde, Kernloch-Ø, Zeit je Gewinde (wird nicht gerechnet), Preis je Gewinde [€]",
+         "Der STEP-Import erkennt Kernlochbohrungen an diesem Durchmesser (±0,05 mm). Gerechnet wird nur der "
+         "Preis je Gewinde (€ je Stück), je Position in Bohrungen prüfen änderbar ([[bohrungen_pruefen]])."],
         ["Zusatzarbeiten", "Zusatzarbeit (Name), Abrechnung, Preis [€] bzw. Zeit [s] je Einheit, Mindestbetrag je "
                            "Angebot [€], Fremdleistung, Text im Angebot",
          "Auswahl für den Knopf <i>Zusatzarbeiten …</i> im Angebot ([[zusatzarbeiten_angebot]]). Vorbelegt mit Beispielpreisen, "
@@ -2828,7 +2835,8 @@ def kapitel_stammdaten(i):
     i.tabelle(["Gewinde", "Bedeutung"], [
         ["<b>Gewinde</b>, <b>Kernloch Ø [mm]</b>",
          "z. B. M6 mit 5,0 mm; der STEP-Import schlägt Gewinde an diesem Durchmesser vor"],
-        ["Zeit je Gewinde [s], Preis je Gewinde [€]", "Preis geht vor; ohne Preis zählt die Zeit mit dem Stundensatz"],
+        ["Zeit je Gewinde [s] (wird nicht gerechnet), Preis je Gewinde [€]",
+         "nur der Preis je Stück zählt; ohne Preis 0 € und eine Warnung an der Position"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)
@@ -3835,6 +3843,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.26", "Gewinde, Senken, Flowdrill und Bohren rechnen nur noch mit einem <b>Preis je Stück</b>, ohne "
+               "Zeiten. Die Preise kommen aus den Einstellungen und lassen sich je Position im Fenster Bohrungen "
+               "prüfen ändern (Spalten Gewinde [€/Stk] und Arbeit [€/Stk]); Senken, Flowdrill und Bohren sind "
+               "jetzt Festpreise (0,40 / 0,60 / 0,40 €), Gewinde ohne Preis bekommen einmalig Zeit × Stundensatz "
+               "als Preis ([[bohrungen_pruefen]])."],
     ["0.8.25", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
                "und Meterpreis, Werkstoff, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
                "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
