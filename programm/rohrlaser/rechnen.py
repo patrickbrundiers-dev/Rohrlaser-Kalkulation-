@@ -1490,6 +1490,13 @@ SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"
                   "vorschub_klein", "einstechzeit", "vorschub_gravur")
 
 
+# Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
+# Angebots (angebot.KALKULATION) zählen mit, weil ältere Angebote ohne eigene Werte mit den Einstellungen rechnen.
+EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendler_mehr_kurz", "haendler_mehr_lang",
+              "haendler_mehr_grenze", "zuschlag_fremdleistung", "gewinn", "ruesten_abmessung", "pauschale_abmessung",
+              "programmierung_teil", "angebotsaufschlag", "handling_beistellung")
+
+
 def _preis_schl(z):
     return f"{z.get('profil_id')}|{z.get('werkstoff_id')}"
 
@@ -1516,10 +1523,17 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
     ofl = {oberflaeche_von(p) for p in positionen} - {""}
     lief = [{n: z.get(n) for n in LIEFER_FELDER} for pid, wid in sorted(kombis, key=str)
             for z in lieferlaengen(pid, wid, k, tabellen, auto=False)]
+    profile = sorted({p.get("profil_id") for p in positionen if not _leer(p.get("profil_id"))}, key=str)
+    einst = tabellen.get("einstellungen") or {}
     return dict(datum=datum or datetime.date.today().isoformat(), maschine=m, preise=preise, schneiddaten=sd,
                 lieferlaengen=lief,
                 tonnenpreise={w: (k.werkstoffe.get(w) or {}).get("tonnenpreis") for w in sorted(werkstoffe, key=str)},
-                aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)})
+                aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)},
+                # ab 0.7.0: Gewinde, preisrelevante Einstellungen, Profil- und Maschinenzeile (Prüfbericht B-4)
+                gewinde=[dict(z) for z in tabellen.get("gewinde") or []],
+                einstellungen={n: einst.get(n) for n in EINST_FEST if n in einst},
+                profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
+                maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
 
 
 def preisbasis_anwenden(kopf, k, tabellen):
@@ -1559,11 +1573,42 @@ def preisbasis_anwenden(kopf, k, tabellen):
                                            for z in zeilen)
         if projektion(aktuell) != projektion(sd):
             tab["schneiddaten"] = sd + [z for z in tabellen["schneiddaten"] if not betroffen(z)]
+    if "gewinde" in pb and _json_liste(pb["gewinde"]) != _json_liste(tabellen.get("gewinde") or []):
+        tab["gewinde"] = [dict(z) for z in pb["gewinde"]]
+    if pb.get("einstellungen"):
+        e = dict(tabellen.get("einstellungen") or {})
+        e.update(pb["einstellungen"])
+        tab["einstellungen"] = e
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
     of = {o: dict(z, aufpreis_m=pb["aufpreise"][o]) if o in (pb.get("aufpreise") or {}) else z
           for o, z in k.oberflaechen.items()}
-    return dataclasses.replace(k, werkstoffe=ws, oberflaechen=of), tab
+    pr = {pid: _fest(z, (pb.get("profile") or {}).get(pid)) for pid, z in k.profile.items()}
+    ma = {m: _fest(z, (pb.get("maschinen") or {}).get(m)) if m == kopf.get("maschine") else z
+          for m, z in k.maschinen.items()}
+    return dataclasses.replace(k, werkstoffe=ws, oberflaechen=of, profile=pr, maschinen=ma), tab
+
+
+def _json_liste(zeilen):
+    return sorted(json.dumps(z, sort_keys=True, default=str) for z in zeilen)
+
+
+def _fest(aktuell, fest):
+    """Zeile aus dem Snapshot, wenn sie abweicht (gleiche Zeile bleibt die der Stammdaten), sonst die aktuelle."""
+    if not isinstance(fest, dict) or json.dumps(fest, sort_keys=True, default=str) == \
+            json.dumps(aktuell, sort_keys=True, default=str):
+        return aktuell
+    return dict(aktuell, **fest)
+
+
+def einstellungen_fest(tabellen, einst):
+    """Einstellungen eines Angebots: die festgeschriebenen (tabellen nach preisbasis_anwenden) gehen den aktuellen
+    vor."""
+    out = dict(einst)
+    for n in EINST_FEST:
+        if n in (tabellen.get("einstellungen") or {}):
+            out[n] = tabellen["einstellungen"][n]
+    return out
 
 
 def _vergleich(pb):
@@ -1571,7 +1616,9 @@ def _vergleich(pb):
     sd = sorted((json.dumps(z, sort_keys=True) for z in pb.get("schneiddaten") or []))
     lief = sorted(json.dumps(z, sort_keys=True) for z in pb.get("lieferlaengen") or [])
     return dict(maschine=pb.get("maschine"), preise={_preis_schl(z): z for z in pb.get("preise") or []}, schneiddaten=sd,
-                tonnenpreise=pb.get("tonnenpreise") or {}, aufpreise=pb.get("aufpreise") or {}, lieferlaengen=lief)
+                tonnenpreise=pb.get("tonnenpreise") or {}, aufpreise=pb.get("aufpreise") or {}, lieferlaengen=lief,
+                gewinde=_json_liste(pb.get("gewinde") or []), einstellungen=pb.get("einstellungen") or {},
+                profile=pb.get("profile") or {}, maschinen=pb.get("maschinen") or {})
 
 
 def preisbasis_gleich(a, b):
@@ -1610,7 +1657,36 @@ def preisbasis_abweichung(kopf, k, tabellen):
         out.append(f"Schneiddaten der Maschine {pb.get('maschine')} geändert")
     if "lieferlaengen" in pb and alt["lieferlaengen"] != neu["lieferlaengen"]:
         out.append("Lieferlängen geändert")
+    if "gewinde" in pb and alt["gewinde"] != neu["gewinde"]:
+        out.append("Gewinde (Preis oder Zeit) geändert")
+    from .stammdaten import EINSTELLUNG
+    for n, w in alt["einstellungen"].items():
+        eigen = isinstance(kopf.get(n), (int, float)) and not isinstance(kopf.get(n), bool)   # Wert im Angebot gilt
+        if neu["einstellungen"].get(n) != w and n in EINSTELLUNG and not eigen:
+            e = EINSTELLUNG[n]
+            wert = (lambda x: f"{zahl(100 * _n(x))} %") if e.art == "anteil" else (lambda x: zahl(_n(x)))
+            out.append(f"Einstellung {e.titel}: {wert(w)} → {wert(neu['einstellungen'].get(n))}")
+    for pid, z in alt["profile"].items():
+        if json.dumps(z, sort_keys=True, default=str) != json.dumps(neu["profile"].get(pid), sort_keys=True, default=str):
+            out.append(f"Profil {pid} geändert")
+    for m, z in alt["maschinen"].items():
+        if json.dumps(z, sort_keys=True, default=str) != json.dumps(neu["maschinen"].get(m), sort_keys=True, default=str):
+            out.append(f"Maschine {m} geändert")
     return out
+
+
+def verschickt_abweichung(preisbasis, verkauf):
+    """Text, wenn der Verkaufspreis netto vom zuletzt verschickten Angebots-PDF abweicht (Positionen oder Werte des
+    Angebots geändert), z. B. 'Weicht vom verschickten Angebot (22.10.2026: 487,39 €) ab: +121,22 €'; sonst None."""
+    v = (preisbasis or {}).get("verschickt") if isinstance(preisbasis, dict) else None
+    if not isinstance(v, dict) or not isinstance(v.get("netto"), (int, float)) or verkauf is None:
+        return None
+    diff = round(verkauf - v["netto"], 2)
+    if abs(diff) < 0.005:
+        return None
+    from .ausgabe import datum_text
+    return (f"Weicht vom verschickten Angebot ({datum_text(v.get('datum'))}: {zahl(v['netto'], 2)} €) ab: "
+            f"{'+' if diff > 0 else '−'}{zahl(abs(diff), 2)} €")
 
 
 def _schritt_satz(zb, schritt):

@@ -1136,7 +1136,8 @@ class AngebotSeite(QWidget):
         self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()
         self.k, self.tabellen = rechnen.preisbasis_anwenden(a, self.k_aktuell, self.tabellen_aktuell)
         self._konturen_einteilen()
-        self.einst = rechnen.einstellungen_angebot(a, self.db.einstellungen())     # mit Werten des Angebots
+        # mit Werten des Angebots; nach dem Angebots-PDF mit den festgeschriebenen Einstellungen (Zuschläge, Mindestpreis …)
+        self.einst = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()))
         self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
@@ -1327,10 +1328,11 @@ class AngebotSeite(QWidget):
 
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
-        self.uebersicht_bereich.preisstand_setzen(
-            self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell))
         erg = self.ergebnis
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
+        self.uebersicht_bereich.preisstand_setzen(
+            self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell),
+            rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")))
         self.kalk.setzen([z for z in zeilen if z])
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
@@ -1978,8 +1980,11 @@ class AngebotSeite(QWidget):
         """Materialpreise und Schneiddaten, mit denen das Angebot gerade rechnet, im Angebot speichern (nach dem
         Angebots-PDF). Schon festgeschriebene Werte bleiben, neue Profile, Werkstoffe und Oberflächen kommen dazu."""
         pb = rechnen.preisbasis_aus(self.kopf, self.positionen, self.k, self.tabellen)
+        # Nettosumme und Datum des verschickten Angebots: spätere Änderungen zeigt die Übersicht als Abweichung
+        verkauf = self._verkauf()
+        pb["verschickt"] = dict(netto=round(verkauf, 2), datum=pb["datum"]) if verkauf is not None else None
         alt = self.kopf.get("preisbasis")
-        if isinstance(alt, dict) and rechnen.preisbasis_gleich(alt, pb):
+        if isinstance(alt, dict) and rechnen.preisbasis_gleich(alt, pb) and alt.get("verschickt") == pb["verschickt"]:
             return
         self.db.preisbasis_speichern(self.id, pb)
         self.neu_laden()
@@ -1989,7 +1994,8 @@ class AngebotSeite(QWidget):
         abw = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
         if not self.f.stumm and QMessageBox.question(
                 self, "Aktuelle Preise übernehmen",
-                "Materialpreise und Schneiddaten dieses Angebots auf die aktuellen Stammdaten setzen?\n\n"
+                "Festgeschriebene Preisgrundlagen dieses Angebots (Materialpreise, Schneiddaten, Gewinde, Einstellungen, "
+                "Profile, Maschine) auf die aktuellen Stammdaten setzen?\n\n"
                 + "\n".join(abw[:15]) + ("\n…" if len(abw) > 15 else "")
                 + "\n\nDer Preis des Angebots ändert sich dadurch. Ein bereits verschicktes Angebots-PDF bleibt "
                 "unverändert; erst das nächste Angebots-PDF schreibt die neuen Preise wieder fest.") != QMessageBox.Yes:

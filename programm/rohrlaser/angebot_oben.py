@@ -882,22 +882,24 @@ class UebersichtBereich(QWidget):
                                             "Verschnitt. Bitte optimieren.")
         self._stand_text(stand)
 
-    def preisstand_setzen(self, preisbasis, abweichungen):
-        """Hinweis, ob Materialpreise und Schneiddaten festgeschrieben sind und ob die Stammdaten seitdem
-        abweichen; der Knopf erscheint nur bei Abweichungen."""
+    def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None):
+        """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf
+        erscheint nur bei Abweichungen. verschickt = Text, wenn der Preis vom verschickten Angebots-PDF abweicht."""
+        zusatz = f"<br><span style='color:#B35C00'><b>{verschickt}</b></span>" if verschickt else ""
         if not isinstance(preisbasis, dict):
-            self.preisstand.setText("<span style='color:#5F6B7A'>Materialpreise: aktuelle Stammdaten (werden beim "
+            self.preisstand.setText("<span style='color:#5F6B7A'>Preise: aktuelle Stammdaten (werden beim "
                                     "Angebots-PDF festgeschrieben)</span>")
             self.preisstand.setToolTip("")
         elif abweichungen:
             self.preisstand.setText(f"<span style='color:#8A5A00'><b>Preise festgeschrieben am "
                                     f"{datum_text(preisbasis.get('datum'))}</b>, Stammdaten seitdem geändert "
-                                    f"({len(abweichungen)})</span>")
+                                    f"({len(abweichungen)})</span>" + zusatz)
             self.preisstand.setToolTip("\n".join(abweichungen))
         else:
             self.preisstand.setText(f"<span style='color:#5F6B7A'>Preise festgeschrieben am "
-                                    f"{datum_text(preisbasis.get('datum'))}</span>")
-            self.preisstand.setToolTip("Materialpreise und Schneiddaten stimmen mit den Stammdaten überein.")
+                                    f"{datum_text(preisbasis.get('datum'))}</span>" + zusatz)
+            self.preisstand.setToolTip("Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile und Maschine "
+                                       "stimmen mit den Stammdaten überein.")
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):

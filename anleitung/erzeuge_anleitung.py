@@ -785,7 +785,7 @@ def kapitel_angebot(i):
     i.abschnitt("Übersicht")
     i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
             "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, [[veraltet]]).",
-            "Darunter der <b>Preisstand</b>: <i>Materialpreise: aktuelle Stammdaten</i>, solange noch kein "
+            "Darunter der <b>Preisstand</b>: <i>Preise: aktuelle Stammdaten</i>, solange noch kein "
             "Angebots-PDF erzeugt wurde, danach <i>Preise festgeschrieben am …</i>. Haben sich die Stammdaten "
             "seitdem geändert, steht er gelb mit der Anzahl der Änderungen (Mauszeiger darauf zeigt sie einzeln), "
             "und der Knopf <b>Aktuelle Preise übernehmen …</b> erscheint ("
@@ -1900,8 +1900,14 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Beim Erzeugen des <b>Angebots-PDF</b> speichert das Programm im Angebot die Materialpreise und "
            "Schneiddaten, mit denen es gerechnet hat: die Zeilen aus <i>Preise</i> je Profil + Werkstoff der "
            "Positionen (auch, dass es keine Zeile gab und der Tonnenpreis galt), die Tonnenpreise der Werkstoffe, "
-           "die Aufpreise der Oberflächen und die Schneiddaten der gewählten Maschine. Ändern sich danach die "
-           "Stammdaten, z. B. der Stahlpreis, bleibt der Preis des Angebots wie im PDF beim Kunden.")
+           "die Aufpreise der Oberflächen und die Schneiddaten der gewählten Maschine, außerdem die Gewinde (Preis "
+           "und Zeit), die Einstellungen, die den Preis ändern (Zuschlag Material und Fertigung, Mindestpreis, "
+           "Händler-Mehrlänge), die Zeilen der Profile und der Maschine sowie den Verkaufspreis netto des PDFs. "
+           "Ändern sich danach die Stammdaten oder Einstellungen, z. B. der Stahlpreis, bleibt der Preis des Angebots "
+           "wie im PDF beim Kunden.")
+    i.text("Ändert sich danach das Angebot selbst (z. B. eine Stückzahl), steht in der Übersicht orange "
+           "„Weicht vom verschickten Angebot (Datum: Betrag) ab: +… €“. Das nächste Angebots-PDF setzt den "
+           "verschickten Stand neu.")
     i.liste("Neue Positionen mit anderem Profil, Werkstoff oder anderer Oberfläche rechnen mit den aktuellen "
             "Stammdaten; das nächste Angebots-PDF nimmt sie dazu, schon festgeschriebene Werte bleiben.",
             "Wird eine andere Maschine gewählt, gelten deren aktuelle Schneiddaten.",
@@ -3227,7 +3233,8 @@ def kapitel_fragen(i):
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
         ["Übersicht: <b>Preise festgeschrieben am …, Stammdaten seitdem geändert</b>",
-         "Materialpreise oder Schneiddaten wurden nach dem Angebots-PDF geändert; das Angebot rechnet weiter mit den "
+         "Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile oder Maschine wurden nach dem Angebots-PDF "
+         "geändert; das Angebot rechnet weiter mit den "
          "alten Werten. Gewollt? Dann nichts tun. Sonst <b>Aktuelle Preise übernehmen …</b> ([[preise_festschreiben]])."],
         ["Frachtkosten: <b>keiner Zone zugeordnet</b>", "Für die PLZ gibt es keine PLZ-Zuordnung. Mit Standardzone "
          "rechnet das Programm weiter (gelb), ohne nicht (rot). Zuordnung im Unterreiter Frachtzonen und "
