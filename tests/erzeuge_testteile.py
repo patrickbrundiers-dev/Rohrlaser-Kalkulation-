@@ -325,6 +325,21 @@ if __name__ == "__main__":
     u = senkung(u, (-10, 0, 150), (0, 1, 0), 5.5, 10.4, 4)               # Senkung im Steg von außen, z 150
     u = fliessloch(u, (10, 0, 350), (0, 1, 0), 5.4, 8.5, 4, 3)          # Flowdrill M6 im Steg, z 350
     schreibe(u, "K06_U60x30x4_Senkung_Flowdrill", kon)
+    # Lage auf offenen Profilen (Fläche und Versatz quer, Patrick 22.10.2026): Bohrungen auf Steg, Flansch, Schenkel
+    u = profil([(-40, 0), (40, 0), (40, 40), (36, 40), (36, 4), (-36, 4), (-36, 40), (-40, 40)], 600)  # U80x40x4
+    u = cut(u, zylinder((20, -1, 100), (0, 1, 0), 8, 10))              # Ø8 im Steg, 20 neben der Mitte, z 100
+    u = cut(u, zylinder((30, 25, 250), (1, 0, 0), 6, 20))              # Ø6 im Flansch x+ (y 25), z 250
+    u = cut(u, zylinder((-50, 15, 400), (1, 0, 0), 10, 20))            # Ø10 im Flansch x− (y 15), z 400
+    schreibe(u, "K07_U80x40x4_Lage", kon)
+    schreibe(drehe_beliebig(u), "K08_U80x40x4_Lage_gedreht", kon)
+    w = profil([(0, 0), (60, 0), (60, 5), (5, 5), (5, 40), (0, 40)], 500)   # L60x40x5: Schenkel 60 waagerecht
+    w = cut(w, zylinder((40, -1, 100), (0, 1, 0), 8, 10))              # Ø8 im 60er Schenkel bei x 40, z 100
+    w = cut(w, zylinder((-1, 25, 300), (1, 0, 0), 6, 10))              # Ø6 im 40er Schenkel bei y 25, z 300
+    schreibe(w, "K09_L60x40x5_Lage", kon)
+    t_ = profil([(-30, 53), (-2.5, 53), (-2.5, 0), (2.5, 0), (2.5, 53), (30, 53), (30, 60), (-30, 60)], 500)  # T
+    t_ = cut(t_, zylinder((15, 50, 120), (0, 1, 0), 8, 20))            # Ø8 im Flansch, 15 neben dem Steg, z 120
+    t_ = cut(t_, zylinder((-10, 30, 350), (1, 0, 0), 6, 20))           # Ø6 im Steg bei y 30, z 350
+    schreibe(t_, "K10_T60x60x5x7_Lage", kon)
     # Referenzteile (eigener Ordner step_referenz): Grundformen, STEP-Varianten (AP203/AP214/AP242), CAD-Toleranzen,
     # gefaste Ecken
     ref = ZIEL.parent / "step_referenz"

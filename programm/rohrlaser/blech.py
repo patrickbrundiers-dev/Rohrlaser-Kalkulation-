@@ -197,17 +197,56 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     return erg
 
 
+def _zahl(x):
+    return f"{round(float(x), 2):g}"
+
+
+def _konturen_mit_lage(liste):
+    """Innenkonturen mit Lage aus der STEP-Messung (blech.konturen_lage) als Zeilen des Editors: x/y = Mitte im
+    Zuschnitt, Langloch quer, Rechteck mit Breite längs, sonst Polygon mit Eckpunkten um die Mitte."""
+    out = []
+    for k in liste:
+        if not isinstance(k, dict) or k.get("x") is None or k.get("y") is None:
+            continue
+        z = dict(anzahl=1, x=round(_z(k["x"]), 1), y=round(_z(k["y"]), 1))
+        art = k.get("art")
+        if art == "Bohrung" and _z(k.get("durchmesser")) > 0:
+            z.update(art=sw.BOHRUNG, d=round(_z(k["durchmesser"]), 2))
+        elif art == "Langloch" and _z(k.get("laenge")) > 0:
+            z.update(art=sw.LANGLOCH, l=round(_z(k["laenge"]), 2), b=round(_z(k.get("breite")), 2))
+            if k.get("quer"):
+                z["quer"] = True
+        elif art == "Rechteck" and _z(k.get("laenge")) > 0:
+            lg, br = round(_z(k["laenge"]), 2), round(_z(k.get("breite")), 2)
+            z.update(art=sw.RECHTECK, b=br if k.get("quer") else lg, h=lg if k.get("quer") else br, r=0)
+        elif art == "Polygon" and len(k.get("punkte") or ()) >= 3:
+            z.update(art=sw.POLYGON, punkte="; ".join(f"{_zahl(x)},{_zahl(y)}" for x, y in k["punkte"]))
+        else:
+            z.update(art=sw.SONSTIGE, laenge=round(_z(k.get("schnittlaenge")), 1))
+        out.append(z)
+    return out
+
+
 def aus_step(b, werkstoff, stueck=1):
-    """Eingaben des Blech-Editors aus einem im STEP-Import gemessenen Blech b (step.blech): Zuschnitt als Rechteck
-    der Hüllmaße, Bohrungen je Durchmesser, die übrigen Innenkonturen als sonstige Kontur mit ihrer mittleren
-    Schnittlänge. Gekantet: Zuschnitt mit der Abwicklungsfläche (Breite = Fläche / Länge), die Schenkel misst der
-    Import nicht (im Editor als Kantteil nachtragen)."""
+    """Eingaben des Blech-Editors aus einem im STEP-Import gemessenen Blech b (step.blech). Mit Lage (Messung ab
+    0.8.23): jede Innenkontur an ihrer Stelle (x/y im Zuschnitt), freie Außenkontur als Polygon. Ältere Messungen:
+    Zuschnitt als Rechteck der Hüllmaße, Bohrungen je Durchmesser, die übrigen Innenkonturen als sonstige Kontur mit
+    ihrer mittleren Schnittlänge. Gekantet: Zuschnitt mit der Abwicklungsfläche (Breite = Fläche / Länge), die
+    Schenkel misst der Import nicht (im Editor als Kantteil nachtragen)."""
     lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
-    if b.get("kontur") == "gekantet" and _z(b.get("abwicklung_flaeche")) > 0 and lg > 0:
+    gekantet = b.get("kontur") == "gekantet"
+    if gekantet and _z(b.get("abwicklung_flaeche")) > 0 and lg > 0:
         br = round(_z(b["abwicklung_flaeche"]) / lg, 1)
-    konturen, rest_n, rest_l = [], int(_z(b.get("innen", b.get("innenkonturen")))), _z(b.get("umfang_innen"))
+    form, punkte = RECHTECK, None
+    if not gekantet and len(b.get("aussen_punkte") or ()) >= 3:
+        form, punkte = POLYGON, "; ".join(f"{_zahl(x)},{_zahl(y)}" for x, y in b["aussen_punkte"])
+    konturen = [] if gekantet else _konturen_mit_lage(b.get("konturen_lage") or ())
+    rest_n, rest_l = int(_z(b.get("innen", b.get("innenkonturen")))), _z(b.get("umfang_innen"))
+    if konturen:
+        rest_n = 0
     bo = b.get("bohrungen") or {}       # Messwerte {Ø: Anzahl}, JSON-Ergebnis [{durchmesser, anzahl}]
-    for d, n in (bo.items() if isinstance(bo, dict) else ((x.get("durchmesser"), x.get("anzahl")) for x in bo)):
+    for d, n in (() if konturen else bo.items() if isinstance(bo, dict) else
+                 ((x.get("durchmesser"), x.get("anzahl")) for x in bo)):
         try:
             d, n = float(str(d).replace(",", ".")), int(_z(n))
         except ValueError:
@@ -217,9 +256,9 @@ def aus_step(b, werkstoff, stueck=1):
             rest_n, rest_l = rest_n - n, rest_l - math.pi * d * n
     if rest_n > 0 and rest_l > 1:
         konturen.append(dict(art=sw.SONSTIGE, anzahl=rest_n, laenge=round(rest_l / rest_n, 1), x=None, y=None))
-    return dict(quelle=QUELLE, art=ZUSCHNITT, form=RECHTECK, werkstoff=werkstoff, dicke=_z(b.get("dicke")),
-                laenge=lg, breite=br, eckradius=0, stueck=max(int(_z(stueck) or 1), 1), konturen=konturen,
-                schenkel=[], kantlaenge=lg)
+    return dict(quelle=QUELLE, art=ZUSCHNITT, form=form, punkte=punkte, werkstoff=werkstoff,
+                dicke=_z(b.get("dicke")), laenge=lg, breite=br, eckradius=0, stueck=max(int(_z(stueck) or 1), 1),
+                konturen=konturen, schenkel=[], kantlaenge=lg)
 
 
 def lesen(text):
