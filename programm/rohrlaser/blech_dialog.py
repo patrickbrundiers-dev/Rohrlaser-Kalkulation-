@@ -133,7 +133,9 @@ class BlechSkizze(QWidget):
             p.drawEllipse(c, r, r)
         elif art == sw.LANGLOCH:
             lg, b = sw._z(z.get("l")) * m, sw._z(z.get("b")) * m
-            p.drawRoundedRect(QRectF(c.x() - lg / 2, c.y() - b / 2, lg, b), b / 2, b / 2)
+            if z.get("quer"):           # Längsrichtung quer zum Zuschnitt (aus dem STEP-Import)
+                lg, b = b, lg
+            p.drawRoundedRect(QRectF(c.x() - lg / 2, c.y() - b / 2, lg, b), min(lg, b) / 2, min(lg, b) / 2)
         elif art == sw.RECHTECK:
             b, h, r = sw._z(z.get("b")) * m, sw._z(z.get("h")) * m, sw._z(z.get("r")) * m
             p.drawRoundedRect(QRectF(c.x() - b / 2, c.y() - h / 2, b, h), r, r)
@@ -411,6 +413,7 @@ class BlechDialog(QDialog):
         art = QComboBox()
         art.addItems(list(blech.KONTUR_ARTEN))
         art.setCurrentText(z.get("art") or sw.BOHRUNG)
+        art.quer = bool(z.get("quer"))      # Langloch quer (STEP-Import); bleibt beim Speichern erhalten
         art.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, 0, art)
         masse = [k for k, _ in sw.MASSE.get(z.get("art"), ())]
@@ -447,6 +450,8 @@ class BlechDialog(QDialog):
                 t = self._text(self.tabelle, r, c)
                 z[k] = t.strip() if k == "punkte" else _zahl_text(t)
             z["x"], z["y"] = _zahl_text(self._text(self.tabelle, r, 5)), _zahl_text(self._text(self.tabelle, r, 6))
+            if art == sw.LANGLOCH and getattr(self.tabelle.cellWidget(r, 0), "quer", False):
+                z["quer"] = True
             konturen.append(z)
         schenkel = [dict(laenge=_zahl_text(self._text(self.schenkel, r, 0)),
                          winkel=_zahl_text(self._text(self.schenkel, r, 1)) or 0,
