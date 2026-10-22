@@ -77,6 +77,23 @@ def beladungen(stangen):
     return sum(len(s.get("werkstuecke") or [None]) for s in stangen)
 
 
+def beladungen_sn(stangen):
+    """Beladungen mit mindestens einem Teil mit fester Schweißnaht-Lage (Naht ausrichten): sie rechnen mit dem
+    Stangenwechsel SN der Maschine. Bei zugeschnittenen Lieferstangen zählt jedes Werkstück für sich."""
+    n = 0
+    for s in stangen:
+        fest = {t.get("werkstueck") for t in s.get("teile") or () if t.get("drehfreigabe") == opt.FEST}
+        n += sum(1 for w in s["werkstuecke"] if w["nr"] in fest) if s.get("werkstuecke") else bool(fest)
+    return n
+
+
+def stangenwechsel_zeiten(m):
+    """(Stangenwechsel, Stangenwechsel SN) der Maschine in s; SN leer (ältere Dateien, Snapshot) = normaler Wert."""
+    wechsel = _n(m.get("stangenwechsel"))
+    sn = m.get("stangenwechsel_sn")
+    return wechsel, wechsel if sn is None else _n(sn)
+
+
 def material_text(werkstoff, oberflaeche):
     """'1.4301' bzw. '1.4301 K240' für Listen und Papiere."""
     return f"{werkstoff} {oberflaeche}" if oberflaeche else str(werkstoff or "")
@@ -1091,19 +1108,20 @@ def laengen_vergleich_gruppe(g, k, tabellen, m, saege, basis_plan=None, einst=No
     gr = (g.profil, g.werkstoff, g.oberflaeche, g.stange, g.beistellung)
     return dict(schluessel=laengen_schluessel(gr), profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                 stange=g.stange, ausgenommen=info["ausgenommen"], basis_lieferbar=info["basis_lieferbar"],
+                naht=any(t.drehung == opt.FEST for t in g.teile),
                 automatisch=bool(info["zeilen"]) and all(z.get("automatisch") for z in info["zeilen"]),
                 max_werkstueck=(m or {}).get("max_stange"), saege=saege,
                 varianten=[variante_kennzahlen(g, v, saege) for v in plaene.values()]), plaene
 
 
-def je_werkstueck_kosten(kopf, k, tabellen):
-    """Kosten, die je geladenem Werkstück (Stange auf der Maschine) entstehen: Stangenwechsel der Maschine und
-    Arbeitsschritte mit Zeit je Stange. Ergebnis (€, fehlt)."""
+def je_werkstueck_kosten(kopf, k, tabellen, sn=False):
+    """Kosten, die je geladenem Werkstück (Stange auf der Maschine) entstehen: Stangenwechsel der Maschine (sn=True:
+    Stangenwechsel SN, Gruppe mit fester Schweißnaht-Lage) und Arbeitsschritte mit Zeit je Stange. Ergebnis (€, fehlt)."""
     zb = zeitbasis(kopf, k, tabellen)
     schritt = {z.get("schritt"): z for z in zb["schritte"]}
     _, s_sw = _schritt_satz(zb, schritt.get("Stangenwechsel"))
     wechsel = zb["maschine"].get("stangenwechsel")
-    eur = _n(wechsel) / 3600 * s_sw
+    eur = stangenwechsel_zeiten(zb["maschine"])[1 if sn else 0] / 3600 * s_sw
     for z in zb["schritte"]:
         if z.get("schritt") not in SCHRITTE_FEST and (z.get("bezug") or "Teil") == "Stange":
             eur += _n(z.get("zeit")) / 3600 * _schritt_satz(zb, z)[1]
@@ -1119,7 +1137,7 @@ def laengen_bewerten(vg, kopf, positionen, k, tabellen, einst):
     zuschnitt_kosten, gesamt, fehlt], empfehlung, titel, begruendung, beste=Länge der empfohlenen Variante)."""
     gr = (vg["profil"], vg["werkstoff"], vg["oberflaeche"], vg["stange"])
     kgm = kg_je_m(vg["profil"], vg["werkstoff"], k)
-    je_ws, fehlt_ws = je_werkstueck_kosten(kopf, k, tabellen)
+    je_ws, fehlt_ws = je_werkstueck_kosten(kopf, k, tabellen, sn=vg.get("naht", False))
     je_zs = _n(einstellung_wert(einst, "zuschnitt_kosten"))
     varianten = []
     for v in vg["varianten"]:
@@ -1582,13 +1600,13 @@ def zeitanteile(p, vorschuebe):
 
 
 # ------------------------------------------------------------------ Stundensätze und Zeitvorgaben
-MASCHINE_ZEIT = ("stundensatz", "ruestzeit", "stangenwechsel")
+MASCHINE_ZEIT = ("stundensatz", "ruestzeit", "stangenwechsel", "stangenwechsel_sn")
 SCHRITT_FELDER = ("schritt", "satz", "art", "parallel", "ruestzeit", "ruest_bezug", "zeit", "bezug")
 
 
 def zeitbasis_aus(maschinen_id, k, tabellen):
     """Stundensätze und Zeitvorgaben aus den Stammdaten (für den Snapshot im Angebot):
-    {maschine: {maschinen_id, stundensatz, ruestzeit, stangenwechsel}, saetze: {ID: €/h}, schritte: [Zeile]}."""
+    {maschine: {maschinen_id, stundensatz, ruestzeit, stangenwechsel, stangenwechsel_sn}, saetze: {ID: €/h}, schritte: [Zeile]}."""
     m = k.maschinen.get(maschinen_id) or {}
     return dict(maschine=dict({n: m.get(n) for n in MASCHINE_ZEIT}, maschinen_id=maschinen_id if m else None),
                 saetze={z["satz_id"]: z.get("satz") for z in (tabellen.get("stundensaetze") or []) if z.get("satz_id")},
@@ -1605,7 +1623,10 @@ def zeitbasis_abweichungen(zb, vorgabe):
     m, mv = zb.get("maschine") or {}, vorgabe.get("maschine") or {}
     if m.get("maschinen_id") == mv.get("maschinen_id"):
         for n, titel, einheit in (("stundensatz", "Stundensatz Maschine", "€/h"), ("ruestzeit", "Rüstzeit Maschine", "min"),
-                                  ("stangenwechsel", "Stangenwechsel", "s")):
+                                  ("stangenwechsel", "Stangenwechsel", "s"),
+                                  ("stangenwechsel_sn", "Stangenwechsel SN", "s")):
+            if n == "stangenwechsel_sn" and n not in m:     # Snapshot vor 0.8.9: SN wie Stangenwechsel
+                continue
             if _n(m.get(n)) != _n(mv.get(n)):
                 out.append(f"{titel} {zahl(_n(m.get(n)))} statt {zahl(_n(mv.get(n)))} {einheit}")
     s, sv = zb.get("saetze") or {}, vorgabe.get("saetze") or {}
@@ -1988,8 +2009,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     stangen = ergebnis["stangen"] if ergebnis else []
     sw = stangen_werte(ergebnis, kopf, positionen, k, tabellen) if ergebnis else []
     zm, zf, gew = (_n(einstellungen.get(n)) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn"))
-    ruest, wechsel = _n(zb["maschine"].get("ruestzeit")), _n(zb["maschine"].get("stangenwechsel"))
-    n_lad = beladungen(stangen)
+    ruest = _n(zb["maschine"].get("ruestzeit"))
+    wechsel, wechsel_sn = stangenwechsel_zeiten(zb["maschine"])
+    n_lad, n_sn = beladungen(stangen), beladungen_sn(stangen)
+    wechsel_s = wechsel * (n_lad - n_sn) + wechsel_sn * n_sn         # Stangen mit fester Naht: Stangenwechsel SN
     aktiv = [i for i, p in enumerate(positionen) if position_aktiv(p)]
     # Zukaufteil-Positionen (z. B. Bleche) tragen nur ihre Zukaufteile und die Fracht; Rüsten, Pauschalen,
     # Programmierung, Angebotsaufschlag und Arbeitsschritte verteilen sich auf die Rohrlaserteile
@@ -1998,7 +2021,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     f8 = sum(_n(positionen[i].get("stueck")) for i in laser)
     if not f8:              # ohne Rohrlaserteile kein Rüsten der Maschine (Übersicht = Preis)
         ruest = 0
-    f7 = ruest / 60 * s_rm + wechsel * n_lad / 3600 * s_sw
+    f7 = ruest / 60 * s_rm + wechsel_s / 3600 * s_sw
     teile_abm = {}
     for i in laser:
         if _n(positionen[i].get("stueck")) > 0:
@@ -2114,7 +2137,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew, skonto_teil=t_ - ohne)
         # Anteile je Teil (nur Aufteilung von rz und uz, für die Staffelpreise je Satz bzw. Position)
         z.update(ruesten_maschine_teil=(ruest / 60 * s_rm / f8 if f8 else 0),
-                 stangenwechsel_teil=(wechsel * n_lad / 3600 * s_sw / f8 if f8 else 0),
+                 stangenwechsel_teil=(wechsel_s / 3600 * s_sw / f8 if f8 else 0),
                  ruesten_abm_teil=(ruest_abm / n_abm if n_abm and c else 0),
                  pauschale_abm_teil=(pausch_abm / n_abm if n_abm and c else 0),
                  angebotsaufschlag_teil=(aufschlag / f8 if f8 and c else 0), programmierung_anteil=(prog / c if c else 0))
@@ -2140,7 +2163,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     def _summe(n):
         return sum(z[n] * z["stueck"] for z in zeilen if z)
 
-    summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangen=len(stangen), beladungen=n_lad, teile=f8,
+    summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
+                  stangen=len(stangen), beladungen=n_lad, beladungen_sn=n_sn, teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
                   pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
@@ -2159,7 +2183,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # + Skonto = Verkaufspreis)
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
                   ruesten_maschine=ruest / 60 * s_rm, ruesten_abmessungen=ruest_abm * n_abm,
-                  stangenwechsel_kosten=wechsel * n_lad / 3600 * s_sw,
+                  stangenwechsel_kosten=wechsel_s / 3600 * s_sw,
                   zuschlag_material=_summe("zuschlag_material_teil"),
                   zuschlag_fertigung=_summe("zuschlag_fertigung_teil"),
                   zuschlag_fremdleistung=_summe("zuschlag_fremdleistung_teil"), gewinn=_summe("gewinn_teil"),
@@ -2283,10 +2307,13 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
                      f"{summen['abmessungen']} × {zahl(summen['ruestzeit_abmessung'], 1)} min / 60 × {zahl(sa, 2)} €/h",
                      "Angebot (Vorgabe Einstellungen)", sid=sid, satz_=sa))
     sid, sw = satz["Stangenwechsel"]
-    wm = n_stangen * summen["stangenwechsel"] / 60
-    out.append(zeile("Stangenwechsel", n_stangen, "Stangen", None, summen["stangenwechsel"], wm,
-                     summen["stangenwechsel_kosten"],
-                     f"{n_stangen} × {zahl(summen['stangenwechsel'], 0)} s / 3600 × {zahl(sw, 2)} €/h",
+    n_sn = summen.get("beladungen_sn", 0)
+    ws = summen.get("stangenwechsel_s", n_stangen * summen["stangenwechsel"])
+    formel = f"{n_stangen - n_sn} × {zahl(summen['stangenwechsel'], 0)} s" if n_stangen > n_sn or not n_sn else ""
+    if n_sn:            # Stangen mit fester Schweißnaht-Lage: Stangenwechsel SN
+        formel += (" + " if formel else "") + f"{n_sn} × {zahl(summen['stangenwechsel_sn'], 0)} s (SN)"
+    out.append(zeile("Stangenwechsel", n_stangen, "Stangen", None, ws / n_stangen if n_stangen else summen["stangenwechsel"],
+                     ws / 60, summen["stangenwechsel_kosten"], f"{formel} / 3600 × {zahl(sw, 2)} €/h",
                      "Maschine (Snapshot)" if zb["gespeichert"] else "Maschine (Stammdaten)", sid=sid, satz_=sw))
     vorgabe = {z.get("schritt"): z for z in (zb.get("vorgabe_schritte") or [])}
     for e in weitere:

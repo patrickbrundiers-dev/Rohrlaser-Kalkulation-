@@ -44,6 +44,7 @@ MASCHINENPARAMETER = (
 # Werte der gewählten Maschine, die in die Kalkulation eingehen (Gruppe Zeit und Rüsten)
 MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stangenwechsel", "Stangenwechsel je Stange", "s", 0),
+                 ("stangenwechsel_sn", "Stangenwechsel SN (Schweißnaht)", "s", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
 
 from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
