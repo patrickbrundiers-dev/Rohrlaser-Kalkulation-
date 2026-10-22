@@ -1611,9 +1611,10 @@ def kapitel_staffeln(i):
             "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe (Tabelle unten)."),
         (4, "<b>Materialpreis je Abmessung</b> (Profil · Werkstoff): €/m im Angebot grau, daneben der Preis für diese "
             "Stufe (leer = wie im Angebot). Er gilt für alle Positionen dieser Abmessung in der Stufe."),
-        (5, "<b>Mengen</b> je Satz bzw. Position in Sätzen bzw. Stück; leer = nicht in dieser Stufe. "
-            "<b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen alle Zeilen. "
-            "<b>Menge bis</b> ist freiwillig.")])
+        (5, "<b>Positionen und Mengen</b>: Häkchen = Satz bzw. Position gehört zur Stufe (neue Stufe: alle "
+            "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
+            "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
+            "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig.")])
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
            "8 kurze Riegel, 16 Streben, 2 Holme und 3 Traversen.")
@@ -1625,6 +1626,8 @@ def kapitel_staffeln(i):
         ["Frachtkosten", "fester Betrag für die Stufe (leer = wie im Angebot)"],
         ["Materialpreis je Abmessung", "€/m für alle Positionen dieser Abmessung in der Stufe (leer = wie im "
                                        "Angebot)"],
+        ["Häkchen", "Satz bzw. Position gehört zur Stufe; ohne Häkchen ist sie nicht in dieser Stufe (ihre Menge "
+                    "zählt nicht)"],
         ["Menge ab", "Kalkulationsmenge der Stufe (Mindestmenge) in Sätzen bzw. Stück je Satz bzw. Position"],
         ["Menge bis", "Höchstmenge; leer = bis zur nächsten Stufe desselben Satzes bzw. derselben Position − 1, "
                       "bei der höchsten Stufe offen („ab …“)"],
@@ -1648,6 +1651,15 @@ def kapitel_staffeln(i):
         ["Lieferlänge je Stufe wählen", "ja = empfohlene Lieferlänge für die Mengen der Stufe (leer = Lieferlängen "
                                         "des Angebots)"],
     ], [55 * mm, 200 * mm])
+    i.abschnitt("Blechteile je Stufe")
+    i.text("Blech- und Kantteile aus dem Blech-Editor ([[blech_editor]]) bekommen in jeder Stufe den Preis für "
+           "deren Stückzahl: Hat der Einkauf beim Zukaufartikel einen Einkaufspreis ab einer Stückzahl eingetragen, "
+           "die die Stufe erreicht, gilt dieser EK. Sonst rechnet das Programm den Richtpreis für die Stückzahl der "
+           "Stufe neu (das Rüsten verteilt sich auf mehr oder weniger Teile). Die Prüfung der Stufe zeigt, was "
+           "galt, z. B. „Pos. 3 Blech: EK Einkauf ab 50 St“. Hat die Stufe die Stückzahl des Angebots, bleibt der "
+           "Preis des Angebots. Einen neuen EK aus dem Einkauf holt <b>Aus Stammdaten aktualisieren …</b> im Dialog "
+           "Zukaufteile der Position bzw. <b>Im Angebot aktualisieren …</b> unter Preisänderungen ins Angebot "
+           "([[zukauf]]).")
     i.abschnitt("Rechenweg je Stufe")
     i.text("Die Stufe wird mit ihren Mengen optimiert und kalkuliert wie ein Auftrag. Daraus kommen je Satz bzw. "
            "Position die Kostenbausteine; darauf wirken die Werte der Stufe in dieser Reihenfolge:")
@@ -3520,6 +3532,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.5", "Staffeln: Im Fenster der Stufe Sätze und Positionen per Häkchen wählen (neue Stufe: alle angehakt). "
+              "Blechteile aus dem Blech-Editor je Stufe mit dem EK aus dem Einkauf ab Stückzahl, sonst mit dem "
+              "Richtpreis für die Stückzahl der Stufe neu gerechnet ([[staffeln]])."],
     ["0.8.4", "Mausrad ändert keine Werte mehr: Über Zahlen- und Datumsfeldern, Auswahllisten und Schiebereglern "
               "rollt das Rad immer die Seite oder Tabelle, auch in Dialogen und Tabellenzellen ([[mausrad]])."],
     ["0.8.3", "Stangenbild und Werkstattpapiere: Schweißnaht als roter Strich auf jedem Teil, dazu je Stange "
