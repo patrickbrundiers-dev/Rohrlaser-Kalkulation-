@@ -40,7 +40,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 36     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 37     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -66,6 +66,8 @@ SCHEMA_VERSION = 36     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Verschickt, wenn die Preise schon festgeschrieben sind
                         # 36: Staffel-Stufen (Tabelle staffel_stufen mit Einstellungen wie im Angebot, staffeln.stufe_id):
                         #     alte Mengenstufen je Satz/Position der Größe nach auf Stufe 1, 2 … verteilt
+                        # 37: Blech-Editor (Tabellen blech_werkstoffe und blechlaser mit Richtwerten, nur für den
+                        #     Richtpreis von Blech-/Kantteilen; getrennt von Werkstoffen und Schneiddaten des Rohrlasers)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -217,6 +219,10 @@ class Datenbank:
                 self.con.execute("ALTER TABLE staffeln ADD COLUMN stufe_id INTEGER")
             if 0 < version < 36:
                 self._stufen_bilden()
+            if 0 < version < 37:
+                for t in ("blech_werkstoffe", "blechlaser"):
+                    if not self.anzahl(t):
+                        self._einfuegen(t, beispieldaten()[t])
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:

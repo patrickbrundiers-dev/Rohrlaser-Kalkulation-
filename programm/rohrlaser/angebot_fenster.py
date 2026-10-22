@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser,
     QVBoxLayout, QWidget)
 
-from . import fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+from . import blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
     zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -24,7 +24,7 @@ from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
-from .zukauf_schnell import SchnellDialog
+from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
@@ -1093,6 +1093,7 @@ class AngebotSeite(QWidget):
                            ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
                            ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
+                           ("Blech-Editor …", lambda: self.blech_bearbeiten()),
                            ("Positionen löschen", self.positionen_loeschen)):
             self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
         self.pos_ansicht.customContextMenuRequested.connect(
@@ -1612,7 +1613,8 @@ class AngebotSeite(QWidget):
     # -------------------------------------------------------------- Bearbeiten
     def position_neu(self, typ=None, dialog=None):
         """Neue Position: zuerst der Typ (neue_position.TypDialog), dann Rohr / Profil = Schneidweg-Rechner mit
-        Kopfzeile, Blech / Kantteil bzw. Zukaufteil = Schnellanlage Zukaufartikel, leere Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
+        Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
+        Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
         from .neue_position import BLECH, LEER, ROHR, ZUKAUF, TypDialog
         if typ is None:
@@ -1623,8 +1625,10 @@ class AngebotSeite(QWidget):
                 if d.exec() != QDialog.Accepted or not d.typ:
                     return None
                 typ = d.typ
-        if typ in (BLECH, ZUKAUF):
-            return typ if self.zukauf_schnell(zeilen=[], blech=typ == BLECH) else None
+        if typ == BLECH:
+            return typ if self.blech_neu(dialog=dialog) else None
+        if typ == ZUKAUF:
+            return typ if self.zukauf_schnell(zeilen=[], blech=False) else None
         if typ == ROHR:
             return typ if self.rohr_neu(dialog=dialog) else None
         self.db.position_neu(self.id, {"pos": self._naechste_pos()})
@@ -1673,6 +1677,69 @@ class AngebotSeite(QWidget):
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid_neu), None))
         return True
 
+    def blech_neu(self, dialog=None):
+        """Blech- oder Kantteil im Blech-Editor beschreiben; der Richtpreis wird EK eines neuen Zukaufartikels
+        (Kategorie Blechteile, Artikeltyp Blech) und die Position (Zukaufteil) behält die Eingaben in 'technik'.
+        dialog(d) bedient den Editor statt exec (Tests). Ergebnis: True = angelegt."""
+        from .blech_dialog import BlechDialog
+        d = BlechDialog(self, self.db, neu=True)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
+            return False
+        e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
+        zs = erg["zuschnitt"]
+        werte, bezuege = artikel_werte(kopf["bezeichnung"], kopf["artikelnr"], "Blechteile", kopf["lieferant"],
+                                       erg["richtpreis"], None)
+        werte.update(artikeltyp="Blech", laenge=round(zs["laenge"], 1), breite=round(zs["breite"], 1),
+                     dicke=e["dicke"], werkstoff=e["werkstoff"], herkunft=blech.QUELLE)
+        try:
+            aid = self.db.zukauf_speichern(None, werte, bezuege, "Richtpreis aus dem Blech-Editor")
+        except ValueError as x:
+            self.f.meldung(f"Blech-Editor: {x}", fehler=True)
+            return False
+        nr = self._naechste_pos()
+        self.db.position_neu(self.id, dict(
+            pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
+            stueck=kopf["stueck"], technik=blech.speichern(e), gewicht_teil=round(erg["gewicht"], 3),
+            zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False)))
+        self.neu_laden()
+        self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
+                       "je Stück als EK (Zukaufteil).")
+        return True
+
+    def blech_bearbeiten(self, zeile=None, dialog=None):
+        """Blech-Editor einer Position aus dem Blech-Editor wieder öffnen; der neue Richtpreis wird als EK ab der
+        Stückzahl der Position im Artikel eingetragen. Ergebnis: True = übernommen."""
+        from .blech_dialog import BlechDialog
+        if zeile is None:
+            zeile = self.pos_ansicht.currentIndex().row()
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            return False
+        p = self.positionen[zeile]
+        e = blech.lesen(p.get("technik"))
+        liste = zukauf.json_liste(p.get("zukauf"))
+        if e is None or not liste:
+            self.f.meldung("Diese Position stammt nicht aus dem Blech-Editor.", fehler=True)
+            return False
+        aid = liste[0].get("artikel_id")
+        lief = ((liste[0].get("stand") or {}).get("bezug") or {}).get("lieferant") or \
+            zukauf.lieferant_vorgabe("Blechteile")
+        d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
+                        dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
+                             stueck=p.get("stueck")), neu=False)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
+            return False
+        e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
+        self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], kopf["lieferant"], ab=kopf["stueck"],
+                                    bemerkung=f"Richtpreis Blech-Editor (ab {kopf['stueck']} St)")
+        liste[0]["stand"] = self.db.zukauf_stand(aid, kopf["lieferant"])
+        for feld, wert in (("technik", blech.speichern(e)), ("stueck", kopf["stueck"]),
+                           ("gewicht_teil", round(erg["gewicht"], 3)),
+                           ("zukauf", json.dumps(liste, ensure_ascii=False))):
+            self.db.position_aendern(p["id"], feld, wert)
+        self.neu_laden()
+        self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
+        return True
+
     def zusatzarbeiten(self, zeilen=None, werte=None):
         """Gewinde und Zusatzarbeiten der markierten Positionen wählen (Dialog). werte = (Gewinde, JSON) setzt
         sie ohne Dialog (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
@@ -1716,6 +1783,8 @@ class AngebotSeite(QWidget):
                 "bohrbild": self.bohrungen_pruefen}.get(art)
         if ziel:
             ziel([r])
+        elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf":
+            self.blech_bearbeiten(r)
         elif (name in RECHNER_SPALTEN or art == "abweichung") and not ist_zukaufteil(p) \
                 and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)

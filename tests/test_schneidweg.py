@@ -530,8 +530,10 @@ vorher = len(db.positionen(a))
 assert s.position_neu() == np_.LEER and len(db.positionen(a)) == vorher + 1      # stumm: leere Zeile wie bisher
 aufrufe = []
 s.zukauf_schnell, alt_zs = (lambda zeilen=None, blech=True: aufrufe.append(blech) or 1), s.zukauf_schnell
-assert s.position_neu(np_.BLECH) == np_.BLECH and s.position_neu(np_.ZUKAUF) == np_.ZUKAUF and aufrufe == [True, False]
-s.zukauf_schnell = alt_zs
+s.blech_neu, alt_bn = (lambda dialog=None: aufrufe.append("Blech-Editor") or True), s.blech_neu
+assert s.position_neu(np_.BLECH) == np_.BLECH and s.position_neu(np_.ZUKAUF) == np_.ZUKAUF
+assert aufrufe == ["Blech-Editor", False]
+s.zukauf_schnell, s.blech_neu = alt_zs, alt_bn
 gesehen12 = {}
 
 
