@@ -1,10 +1,15 @@
-"""Staffelpreise: jede Mengenstufe als eigenes Angebot neu rechnen, mit eigenen Zuschlägen je Stufe.
+"""Staffelpreise: jede Stufe als eigener Auftrag neu rechnen, mit eigenen Einstellungen je Stufe.
 
-Eine Stufe hat einen Schlüssel (Satzbezeichnung aus der Spalte 'Satz' oder eine Positionsnummer) und
-eine Menge (Anzahl Sätze bzw. Stück, „Menge ab“). Im Rechenlauf sind nur die Positionen dieser Stufe besetzt:
-bei einem Satz Menge × 'Stück je Satz', bei einer Position die Menge selbst. Alle anderen Stückzahlen
-sind leer. So fallen Rüsten, Stangenwechsel und Verschnitt je Stufe neu an, ebenso Programmierkosten, Rüstzeit und Pauschale
-je Abmessung, Angebotsaufschlag und Fracht (jede Stufe ist ein eigenes Angebot).
+Eine Stufe (Tabelle staffel_stufen, Schema 36) hat Einstellungen wie das Hauptangebot (Gewinn, Zuschlag
+Fremdleistung, Rüstzeit und Pauschale je Abmessung, Programmierkosten, Angebotsaufschlag, Handling Kundenmaterial,
+Fracht, Skonto, Materialpreis €/m je Abmessung; leer = Wert des Angebots) und Mengenzeilen (Tabelle staffeln):
+je Zeile ein Schlüssel (Satzbezeichnung aus der Spalte 'Satz' oder eine Positionsnummer) und eine Menge (Anzahl
+Sätze bzw. Stück, „Menge ab“). Im Rechenlauf einer Stufe sind genau die Positionen ihrer Mengenzeilen besetzt
+(Satz: Menge × 'Stück je Satz', Position: die Menge), alle anderen Stückzahlen sind leer. Die Stufe wird
+gemeinsam optimiert und kalkuliert wie ein Auftrag: Rüsten, Stangenwechsel, Verschnitt, Programmierkosten,
+Pauschalen, Angebotsaufschlag, Fracht und Mindestpreis verteilen sich auf alle Positionen der Stufe wie im
+Hauptangebot. Hat eine Stufe dieselben Mengen wie das Hauptangebot und keine eigenen Werte, ergibt sie genau
+dessen Preise. Mengenzeilen ohne Stufe (ältere Aufrufe) rechnen je Zeile als eigene Stufe.
 
 Zwei Rechenschichten:
 - Mengenlauf (stufe_rechnen, langsam): Optimierung und Kalkulation der Stufe. Ergebnis sind die Kostenbausteine
@@ -29,6 +34,7 @@ import hashlib
 import json
 
 from . import fracht_angebot, rechnen
+from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
 from .angebot import aktiv as position_aktiv
 from .ausgabe import aufrunden, kaufm_runden
 from .stammdaten import Feld, kontext_aus
@@ -36,7 +42,8 @@ from .stammdaten import Feld, kontext_aus
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
            "herstell", "herstell_einheit", "preis_einheit", "preis_gesamt", "hinweis")
 MAX_STUFEN = 200
-VERSION = 2          # 2: Bausteine je Stufe und Preisschicht; ältere gespeicherte Staffelpreise gelten als veraltet
+VERSION = 3          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag
+                     # (ältere gespeicherte Staffelpreise gelten als veraltet)
 
 PROZENT, EURO = "%", "€/Einheit"
 UMLEGEN, SEPARAT = "umlegen", "separat"
@@ -62,12 +69,36 @@ STUFE_FELDER = (
     Feld("bemerkung", "Bemerkung", breite=200),
 )
 STUFE_FELD = {f.name: f for f in STUFE_FELDER}
+# Mengenzeile einer Stufe (Tabelle staffeln; die übrigen Spalten der Tabelle stammen aus Schema 13–35)
+MENGE_FELDER = tuple(STUFE_FELD[n] for n in ("schluessel", "menge", "bis"))
+# Einstellungen einer Stufe (Tabelle staffel_stufen): wie im Angebot, dazu die Sonderwerte der Preisschicht
+_KOPF_FELD = {f.name: f for f in ANGEBOT_KOPF}
+EINSTELLUNG_FELDER = (
+    Feld("bezeichnung", "Bezeichnung", breite=160),
+    STUFE_FELD["gewinn"],
+    *[f for f in KALKULATION if f.name != "gewinn"],
+    _KOPF_FELD["fracht"], _KOPF_FELD["skonto"],
+    *(STUFE_FELD[n] for n in ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten",
+                              "arbeitsgang", "arbeitsgang_min", "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit",
+                              "neben_pauschal", "rabatt", "bemerkung")),
+    Feld("laenge_auto", "Lieferlänge je Stufe wählen", "auswahl", auswahl="janein", breite=80),
+    Feld("meterpreise", "Materialpreis je Abmessung [€/m]"),     # JSON {Abmessung: €/m}
+)
+EINSTELLUNG_FELD = {f.name: f for f in EINSTELLUNG_FELDER}
+# gehen in den Mengenlauf (Kalkulation) ein; die übrigen wirken sofort in der Preisschicht
+LAUF_FELDER = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag",
+               "handling_beistellung", "fracht", "skonto", "meterpreise", "laenge_auto")
+# in der Stufe wie im Angebot (Hauptwerte), die übrigen unter „Erweitert“
+HAUPT = ("gewinn", "zuschlag_fremdleistung", "ruesten_abmessung", "pauschale_abmessung", "programmierung_teil",
+         "angebotsaufschlag", "handling_beistellung", "fracht", "skonto")
+assert ZAHLUNG[0] == "skonto"
 # unter 'Erweiterte Einstellungen' (ausgeblendet, solange keine Stufe einen Wert hat)
 ERWEITERT = ("bis", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten", "arbeitsgang", "arbeitsgang_min",
              "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit", "neben_pauschal", "rabatt")
 AUSWAHL = {"zuschlag_art": [PROZENT, EURO], "ruesten": [UMLEGEN, SEPARAT], "janein": ["ja", "nein"]}
 # Einstellungen, die in den Mengenlauf eingehen (Zuschläge und Gewinn wirken erst in der Preisschicht)
-EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag")
+EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag",
+              "handling_beistellung")
 EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_puffer", "zuschnitt_kosten",
                  "haendler_mehr_kurz", "haendler_mehr_lang", "haendler_mehr_grenze", "laenge_auto_huellkreis",
                  "laenge_auto")
@@ -225,7 +256,8 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     """Eingaben, die für alle Stufen gleich in den Mengenlauf eingehen."""
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
-    fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land")
+    fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
+                     "laengenwahl")      # übernommene Lieferlängen gelten auch in den Stufen
     return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder if kopf.get(n) is not None)},
             [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
             [k.profile, k.werkstoffe, k.maschinen, k.oberflaechen], tabellen,
@@ -242,80 +274,266 @@ def stufe_kennung(gemeinsam, schl, menge):
     return _hash([g, txt(schl), menge])
 
 
-def rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt=None, alt=None, ohne_lauf=False):
-    """Alle gültigen Stufen rechnen. Ergebnis: Liste von dicts (Spalten aus SPALTEN, bausteine, Preise).
+def gruppieren(mengenzeilen, stufen_daten=None):
+    """[(Stufe, [Mengenzeilen])] in der Reihenfolge der Stufen (nur Stufen mit gültigen Mengenzeilen). Mengenzeilen
+    ohne bekannte Stufe bilden je eine eigene Stufe mit ihren eigenen Werten (ältere Aufrufe)."""
+    nach = {st["id"]: (st, []) for st in sorted(stufen_daten or (), key=lambda x: (_zahl(x.get("nr")), x["id"]))}
+    lose = []
+    for z in gueltige(mengenzeilen):
+        if z.get("stufe_id") in nach:
+            nach[z["stufe_id"]][1].append(z)
+        else:
+            lose.append((z, [z]))
+    return [(st, mz) for st, mz in nach.values() if mz] + lose
+
+
+def stufe_nummern(stufen_daten):
+    """{Stufen-ID: laufende Nummer 1, 2, 3 …}."""
+    return {st["id"]: n for n, st in enumerate(sorted(stufen_daten or (), key=lambda x: (_zahl(x.get("nr")), x["id"])), 1)}
+
+
+def abmessung(p):
+    """Abmessung für den Materialpreis einer Stufe: 'Profil · Werkstoff' (mit Oberfläche, wenn nicht roh)."""
+    ob = rechnen.oberflaeche_von(p)
+    return " · ".join([txt(p.get("profil_id")), txt(p.get("werkstoff_id"))] + ([ob] if ob else []))
+
+
+def abmessungen(positionen):
+    """Abmessungen der Rohrlaserteile mit eigenem Material: [(Abmessung, [Positionsnummern])]."""
+    out = {}
+    for p in positionen:
+        if position_aktiv(p) and not rechnen.ist_zukaufteil(p) and not rechnen.beigestellt(p) and txt(p.get("profil_id")):
+            out.setdefault(abmessung(p), []).append(txt(p.get("pos")))
+    return list(out.items())
+
+
+def meterpreise(stufe):
+    """Materialpreise der Stufe {Abmessung: €/m} (nur Werte > 0)."""
+    m = (stufe or {}).get("meterpreise")
+    if isinstance(m, str):
+        try:
+            m = json.loads(m)
+        except ValueError:
+            m = None
+    return {a: w for a, w in (m or {}).items() if isinstance(w, (int, float)) and not isinstance(w, bool) and w > 0}
+
+
+def stufe_kopf(kopf, stufe):
+    """Angebotskopf mit den Werten der Stufe (leer = Angebot): Kalkulationswerte, Fracht (fester Betrag) und Skonto."""
+    k2 = dict(kopf)
+    for f in KALKULATION:
+        w = (stufe or {}).get(f.name)
+        if isinstance(w, (int, float)) and not isinstance(w, bool):
+            k2[f.name] = w
+    w = (stufe or {}).get("fracht")
+    if isinstance(w, (int, float)) and not isinstance(w, bool) and stufe.get("schluessel") is None:
+        k2.update(fracht=w, fracht_modus=fracht_angebot.MANUELL, fracht_auto=None)
+    w = (stufe or {}).get("skonto")
+    if isinstance(w, (int, float)) and not isinstance(w, bool) and stufe.get("schluessel") is None:
+        k2["skonto"] = w
+    return k2
+
+
+def stufe_einst(kopf, stufe, einst):
+    """Einstellungen einer Stufe: die des Angebots mit den Kalkulationswerten der Stufe."""
+    return rechnen.einstellungen_angebot({f.name: (stufe or {}).get(f.name) for f in KALKULATION}, einst)
+
+
+def lauf_kennung(gemeinsam, stufe, mz):
+    """Prüfsumme eines Mengenlaufs: gemeinsame Eingaben, Mengenzeilen und die Werte der Stufe, die in die
+    Kalkulation eingehen (LAUF_FELDER)."""
+    g = gemeinsam if isinstance(gemeinsam, str) else _hash(gemeinsam)
+    werte = {f: stufe.get(f) for f in LAUF_FELDER if stufe.get(f) not in (None, "")} \
+        if stufe.get("schluessel") is None else {}
+    return _hash([g, sorted((txt(z.get("schluessel")), z.get("menge")) for z in mz), werte])
+
+
+def stufe_kennung(gemeinsam, schl, menge):
+    """Prüfsumme des Mengenlaufs einer einzelnen Mengenzeile (eigene Stufe ohne Werte)."""
+    return lauf_kennung(gemeinsam, {"schluessel": schl}, [dict(schluessel=schl, menge=menge)])
+
+
+def _zusammen(stufe, z):
+    """Werte einer Mengenzeile für die Preisschicht: Einstellungen der Stufe + Schlüssel, Menge, bis, ID."""
+    if stufe is z:
+        return z
+    out = {f.name: stufe.get(f.name) for f in EINSTELLUNG_FELDER}
+    out.update({n: z.get(n) for n in ("id", "schluessel", "menge", "bis")})
+    return out
+
+
+def rechnen_alle(kopf, positionen, stufen, k, tabellen, einst, fortschritt=None, alt=None, ohne_lauf=False,
+                 stufen_daten=None):
+    """Alle gültigen Stufen rechnen. stufen = Mengenzeilen (Tabelle staffeln), stufen_daten = Stufen mit ihren
+    Einstellungen (Tabelle staffel_stufen). Ergebnis: je Mengenzeile ein dict (Spalten aus SPALTEN, bausteine,
+    Preise, stufe_nr, gemeinsam = Stufe mit mehreren Mengenzeilen).
     alt: bisherige Zeilen; Stufen mit unveränderter Prüfsumme werden übernommen statt neu optimiert.
-    ohne_lauf: nur die Preisschicht; Stufen ohne passenden Mengenlauf bekommen eine Zeile 'VERALTET'.
+    ohne_lauf: nur die Preisschicht; Stufen ohne passenden Mengenlauf bekommen Zeilen 'VERALTET'.
     fortschritt(i, n) wird vor jedem Mengenlauf aufgerufen und kann mit False abbrechen (Ergebnis dann None)."""
-    stufen = gueltige(stufen)
     g = _hash(_gemeinsam(kopf, positionen, k, tabellen, einst))
-    vorher = {z.get("kennung_stufe"): z for z in alt or () if z.get("bausteine") or z.get("hinweis")}
-    neu = [st for st in stufen if stufe_kennung(g, st["schluessel"], st["menge"]) not in vorher]
+    vorher = {(z.get("kennung_stufe"), txt(z.get("schluessel")), z.get("menge")): z for z in alt or ()
+              if z.get("bausteine") or z.get("hinweis")}
+    gruppen = gruppieren(stufen, stufen_daten)
+    nummer = stufe_nummern(stufen_daten)
+
+    def da(st, mz):
+        kenn = lauf_kennung(g, st, mz)
+        return all((kenn, txt(z["schluessel"]), z["menge"]) in vorher for z in mz)
+    neu = [x for x in gruppen if not da(*x)]
+    # doppelte Mengen und Mengenbereiche nur unter Stufen mit denselben Sätzen und Positionen vergleichen
+    art = {id(st): frozenset(txt(z["schluessel"]) for z in mz) for st, mz in gruppen}
+    vergleich = {a: [z for st, mz in gruppen if art[id(st)] == a for z in mz] for a in set(art.values())}
     zeilen, n = [], 0
-    for st in stufen:
-        kenn = stufe_kennung(g, st["schluessel"], st["menge"])
-        if kenn in vorher:
-            z = dict(vorher[kenn])
+    for lfd, (st, mz) in enumerate(gruppen, 1):
+        kenn = lauf_kennung(g, st, mz)
+        if da(st, mz):
+            lz = [dict(vorher[(kenn, txt(z["schluessel"]), z["menge"])]) for z in mz]
         elif ohne_lauf:
-            ist_satz = any(txt(p.get("satz")) == txt(st["schluessel"]) for p in positionen)
-            z = dict.fromkeys(SPALTEN)
-            z.update(schluessel=txt(st["schluessel"]), menge=st["menge"], einheit="Satz" if ist_satz else "Stück",
-                     bausteine=None, hinweis="VERALTET – wird neu gerechnet")
+            lz = []
+            for z in mz:
+                ist_satz = any(txt(p.get("satz")) == txt(z["schluessel"]) for p in positionen)
+                x = dict.fromkeys(SPALTEN)
+                x.update(schluessel=txt(z["schluessel"]), menge=z["menge"], einheit="Satz" if ist_satz else "Stück",
+                         bausteine=None, hinweis="VERALTET – wird neu gerechnet")
+                lz.append(x)
         else:
             if fortschritt and fortschritt(n, len(neu)) is False:
                 return None
             n += 1
-            z = stufe_rechnen(kopf, positionen, txt(st["schluessel"]), st["menge"], k, tabellen, einst, mit_preis=False)
-            z["kennung_stufe"] = kenn
-        z["stufe_id"] = st.get("id")
-        zeilen.append(preise_anwenden(z, st, einst, stufen, positionen))
+            lz = stufe_lauf(kopf, positionen, st, mz, k, tabellen, einst)
+            for x in lz:
+                x["kennung_stufe"] = kenn
+        for x, z in zip(lz, mz):
+            x.update(stufe_id=z.get("id"), stufe=st.get("id") if st is not z else None,
+                     stufe_nr=nummer.get(st.get("id"), lfd) if st is not z else lfd, gemeinsam=len(mz) > 1,
+                     stufe_name=st.get("bezeichnung") if st is not z else None)
+        zeilen += stufe_bepreisen(lz, st, mz, stufe_einst(kopf, st, einst), vergleich[art[id(st)]], positionen)
     return zeilen
 
 
+def stufe_bepreisen(lz, stufe, mz, einst, alle=None, positionen=None):
+    """Preisschicht einer Stufe: jede Mengenzeile mit den Werten der Stufe bepreisen; der Mindestpreis gilt für die
+    ganze Stufe (alle Stückpreise anteilig angehoben), Nebenkosten pauschal nach Anteil am Verkaufspreis."""
+    vk = [_zahl((x.get("bausteine") or {}).get("verkauf")) for x in lz]
+    summe_vk = sum(vk)
+    werte = []
+    for x, z, v in zip(lz, mz, vk):
+        w = _zusammen(stufe, z)
+        if len(mz) > 1 and _zahl(w.get("neben_pauschal")):
+            w = dict(w, neben_pauschal=w["neben_pauschal"] * (v / summe_vk if summe_vk else 1 / len(mz)))
+        werte.append(w)
+    ohne = dict(einst, mindestpreis=0)
+    erste = [preise_anwenden(x, w, ohne, alle, positionen) for x, w in zip(lz, werte)]
+    mindest = _zahl(einst.get("mindestpreis"))
+    netto = sum(x["preis"]["netto"] for x in erste if x.get("preis"))
+    if not (mindest > 0 and 0 < netto < mindest):
+        return [preise_anwenden(x, w, einst, alle, positionen, anhebung=0.0) for x, w in zip(lz, werte)]
+    faktor = mindest / netto
+    return [preise_anwenden(x, w, einst, alle, positionen,
+                            anhebung=(e["preis"]["netto"] * (faktor - 1) if e.get("preis") else 0.0))
+            for x, w, e in zip(lz, werte, erste)]
+
+
 def stufe_rechnen(kopf, positionen, schl, menge, k, tabellen, einst, mit_preis=True, stufe=None):
-    """Mengenlauf einer Stufe; mit_preis: gleich mit den Werten der Stufe (stufe, leer = Angebot) bepreisen."""
-    ist_satz, mengen, bez = szenario(schl, menge, positionen)
-    z = dict.fromkeys(SPALTEN)
-    z.update(schluessel=schl, einheit="Satz" if ist_satz else "Stück", menge=menge, bausteine=None)
+    """Mengenlauf einer einzelnen Mengenzeile als eigene Stufe; mit_preis: gleich mit den Werten der Stufe (stufe,
+    leer = Angebot) bepreisen."""
+    z = dict(stufe or {}, schluessel=schl, menge=menge)
+    x = stufe_lauf(kopf, positionen, z, [z], k, tabellen, einst)[0]
+    return stufe_bepreisen([x], z, [z], stufe_einst(kopf, z, einst))[0] if mit_preis else x
+
+
+# (Name, Feld je Teil, Erklärung) der Fertigung und des Rüstens je Satz bzw. Position
+_FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stundensatz Laser"),
+              ("Gewinde", "gewinde_teil", "Gewindezeit × Stundensatz bzw. Festpreis"),
+              ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
+              ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),
+              ("Handling Kundenmaterial", "handling_teil", "€/kg × Stangengewicht Kundenmaterial"))
+_RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschine, auf alle Teile der Stufe umgelegt"),
+            ("Rüsten je Abmessung", "ruesten_abm_teil", "Rüstzeit je Abmessung, auf deren Teile umgelegt"),
+            ("Stangenwechsel", "stangenwechsel_teil", "Stangenwechsel der Stufe, auf alle Teile umgelegt"))
+
+
+def _bausteine_teil(kz, idx, summen):
+    """Kostenbausteine der Positionen idx (ein Satz bzw. eine Position) aus der Kalkulation der Stufe."""
+    zeilen = [kz[i] for i in idx if kz[i] is not None]
+
+    def summe(n):
+        return sum(_zahl(z.get(n)) * _zahl(z.get("stueck")) for z in zeilen)
+    fert = [(n, summe(f), e) for n, f, e in _FERTIGUNG if n == "Laser schneiden" or abs(summe(f)) >= 0.005]
+    ruest = [(n, summe(f), e) for n, f, e in _RUESTEN if n == "Rüsten Maschine" or abs(summe(f)) >= 0.005]
+    ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil")
+                     and not (z.get("kundenmaterial") and z["eingeplant"]))      # Kundenmaterial: 0 € ist richtig
+    return dict(material=summe("material_teil"), material_fehlt=ohne_preis, fertigung=fert, ruesten=ruest,
+                fremd=summe("zusatz_fremd_teil"), pauschalen=summe("pauschale_abm_teil"),
+                programmierung=summe("programmierung_anteil"), angebotsaufschlag=summe("angebotsaufschlag_teil"),
+                fracht=summe("fracht_teil"), skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
+                zukauf_einstand=summe("zukauf_einstand_teil"), zukauf_aufschlag=summe("zukauf_aufschlag_teil"),
+                zukauf_fehlt=sum(_zahl(z.get("zukauf_fehlt")) for z in zeilen), verkauf=summe("preis_teil"))
+
+
+def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
+    """Mengenlauf einer Stufe: alle Mengenzeilen zusammen optimieren und kalkulieren wie ein Auftrag (mit den
+    Werten der Stufe). Ergebnis: je Mengenzeile eine Zeile mit den Bausteinen ihres Satzes bzw. ihrer Position
+    (noch ohne Preisschicht)."""
+    kopf = stufe_kopf(kopf, stufe)
+    einst = stufe_einst(kopf, stufe, einst)
+    mengen, je, doppelt = {}, [], set()
+    for z in mz:
+        schl = txt(z.get("schluessel"))
+        ist_satz, m, bez = szenario(schl, z["menge"], positionen)
+        doppelt |= set(m) & set(mengen)
+        mengen.update(m)
+        x = dict.fromkeys(SPALTEN)
+        x.update(schluessel=schl, einheit="Satz" if ist_satz else "Stück", menge=z["menge"], bausteine=None,
+                 bezeichnung=bez)
+        je.append((x, m))
+
+    def alle_mit(hinweis):
+        for x, m in je:
+            x["hinweis"] = hinweis if m else "FEHLER: Satz/Pos. nicht im Angebot"
+        return [x for x, _ in je]
     if not mengen:
-        z.update(bezeichnung="", hinweis="FEHLER: Satz/Pos. nicht im Angebot")
-        return z
-    z["bezeichnung"] = bez
+        return alle_mit("FEHLER: Satz/Pos. nicht im Angebot")
+    if doppelt:
+        pos = ", ".join(sorted({txt(positionen[i].get("pos")) for i in doppelt}))
+        return alle_mit(f"FEHLER: Pos. {pos} steht in der Stufe doppelt (als Satz und als Position)")
     lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
+    mp = meterpreise(stufe) if stufe.get("schluessel") is None else {}
+    for p in lauf:                  # Materialpreis der Stufe je Abmessung (statt des Angebots)
+        if mp.get(abmessung(p)) and not rechnen.beigestellt(p):
+            p["preis_m"] = mp[abmessung(p)]
     werte = [rechnen.position_werte(p, kopf, k, tabellen) if position_aktiv(p) else None for p in lauf]
     betrag, fracht_text, fracht_fehler = fracht_angebot.stufe(kopf, lauf, werte)
     if fracht_fehler:           # nie still mit 0 € Fracht rechnen
-        z.update(hinweis=fracht_fehler)
-        return z
+        return alle_mit(fracht_fehler)
     kopf = dict(kopf, fracht=betrag)
-    erg = rechnen.optimieren(kopf, lauf, k, tabellen, einst, auto=True)     # Lieferlänge je Menge automatisch
+    # wie das Angebot: dieselben Lieferlängen, damit gleiche Mengen den gleichen Preis ergeben; auf Wunsch je Stufe
+    # die empfohlene Lieferlänge (z. B. 12 m erst bei großen Mengen)
+    erg = rechnen.optimieren(kopf, lauf, k, tabellen, einst, auto=stufe.get("laenge_auto") == "ja")
     if erg["neue_profile"]:      # Profil aus dem Namen gilt für diesen Lauf als angelegt
         k = kontext_aus({"profile": list(k.profile.values()) + erg["neue_profile"],
                          "werkstoffe": list(k.werkstoffe.values()), "maschinen": list(k.maschinen.values()),
                          "oberflaechen": list(k.oberflaechen.values())}, k.profilformen, k.kategorien)
     kz, summen = rechnen.kalkulation(kopf, lauf, erg, k, tabellen, einst)
-    z.update(teile=summen["teile"], stangen=summen["stangen"], material=summen["material"], laser=summen["laser"],
-             ruesten=summen["ruesten"])
-    hinweise = offen = ohne_preis = 0
-    for i in mengen:
-        if kz[i] is None:
-            continue
-        if kz[i]["hinweis"]:
-            hinweise += 1
-        offen += _zahl(kz[i]["nicht_eingeplant"])
-        if not kz[i]["material_gruppe"] and not kz[i].get("zukaufteil") and not (
-                kz[i].get("kundenmaterial") and kz[i]["eingeplant"]):     # Kundenmaterial: 0 € ist richtig
-            ohne_preis += 1
-    z["bausteine"] = bausteine(summen, ohne_preis)
-    text = f"WARNUNG: {offen:.0f} Teile nicht eingeplant" if offen > 0 else ""
-    if hinweise:
-        text += ("; " if text else "") + f"{hinweise} Hinweis(e) in der Kalkulation"
+    gemeinsam = []
     if summen.get("fracht_hinweis"):
-        text += ("; " if text else "") + summen["fracht_hinweis"]
+        gemeinsam.append(summen["fracht_hinweis"])
     if fracht_text:
-        text += ("; " if text else "") + fracht_text
-    z["hinweis"] = text or None
-    return preise_anwenden(z, stufe or {}, einst) if mit_preis else z
+        gemeinsam.append(fracht_text)
+    for x, m in je:
+        if not m:
+            x["hinweis"] = "FEHLER: Satz/Pos. nicht im Angebot"
+            continue
+        b = _bausteine_teil(kz, m, summen)
+        offen = sum(_zahl(kz[i]["nicht_eingeplant"]) for i in m if kz[i] is not None)
+        hinweise = sum(1 for i in m if kz[i] is not None and kz[i]["hinweis"])
+        text = [f"WARNUNG: {offen:.0f} Teile nicht eingeplant"] if offen > 0 else []
+        if hinweise:
+            text.append(f"{hinweise} Hinweis(e) in der Kalkulation")
+        x.update(teile=summen["teile"], stangen=summen["stangen"], material=b["material"],
+                 laser=sum(w for _, w, _ in b["fertigung"]), ruesten=sum(w for _, w, _ in b["ruesten"]), bausteine=b,
+                 hinweis="; ".join(text + gemeinsam) or None)
+    return [x for x, _ in je]
 
 
 def bausteine(summen, ohne_materialpreis=0):
@@ -372,10 +590,12 @@ def wirksam(stufe, einst):
                 mindestpreis=_zahl(einst.get("mindestpreis")))
 
 
-def preise(b, menge, w):
+def preise(b, menge, w, anhebung=None):
     """Preisschicht: Bausteine b eines Mengenlaufs, Menge der Stufe, Werte w (wirksam). Beträge für die ganze
     Stufe, ungerundet; gerundet sind nur preis_einheit, einmalig, preis_gesamt, mwst und brutto.
-    Fehler (Materialpreis fehlt, Rabatt zu groß): dict mit 'fehler' und ohne Preise."""
+    Fehler (Materialpreis fehlt, Rabatt zu groß): dict mit 'fehler' und ohne Preise.
+    anhebung: Anhebung auf den Mindestpreis (€, aus stufe_bepreisen für die ganze Stufe); None = Mindestpreis
+    für diese Zeile allein."""
     if b["material_fehlt"] and w["mat_grundpreis"] is None:
         return dict(fehler="Materialpreis fehlt (kein Preis in den Stammdaten oder kein Schnittplan)")
     if b.get("zukauf_fehlt"):
@@ -407,8 +627,9 @@ def preise(b, menge, w):
     ohne = selbst + gewinn + weitere + zk_e + zk_a
     netto = ohne / (1 - sk)
     # Mindestpreis netto je Stufe (jede Stufe ist ein eigenes Angebot): Stückpreis anheben, auf den Cent aufgerundet
-    mindest = _zahl(w.get("mindestpreis"))
-    anhebung = mindest - netto if mindest > 0 and 0 < netto < mindest else 0.0
+    if anhebung is None:
+        mindest = _zahl(w.get("mindestpreis"))
+        anhebung = mindest - netto if mindest > 0 and 0 < netto < mindest else 0.0
     netto += anhebung
     einmalig = 0.0
     if w["ruesten"] == SEPARAT:     # Rüsten mit Gemeinkosten, Gewinn und Skonto als einmalige Position
@@ -427,7 +648,7 @@ def preise(b, menge, w):
                 preis_gesamt=gesamt, mwst=mwst, brutto=kaufm_runden(gesamt + mwst, 2))
 
 
-def preise_anwenden(z, stufe, einst, alle=None, positionen=None):
+def preise_anwenden(z, stufe, einst, alle=None, positionen=None, anhebung=None):
     """Zeile eines Mengenlaufs mit den Werten der Stufe bepreisen (ohne neue Optimierung)."""
     z = dict(z)
     w = wirksam(stufe, einst)
@@ -442,7 +663,7 @@ def preise_anwenden(z, stufe, einst, alle=None, positionen=None):
     if fehl:
         hinweis.insert(0, "FEHLER: " + fehl[0][1])
     else:
-        p = preise(z["bausteine"], z["menge"], w)
+        p = preise(z["bausteine"], z["menge"], w, anhebung)
         if p["fehler"]:
             hinweis.insert(0, "FEHLER: " + p["fehler"])
         else:
@@ -452,15 +673,16 @@ def preise_anwenden(z, stufe, einst, alle=None, positionen=None):
     return z
 
 
-def kennung(kopf, positionen, stufen, k, tabellen, einst):
+def kennung(kopf, positionen, stufen, k, tabellen, einst, stufen_daten=None):
     """Prüfsumme über alle Mengenläufe; weicht sie ab, sind die Staffelpreise veraltet. Zuschläge und Gewinn
     gehören nicht dazu: sie wirken sofort über die Preisschicht."""
     g = _hash(_gemeinsam(kopf, positionen, k, tabellen, einst))
-    return _hash([g] + [stufe_kennung(g, s["schluessel"], s["menge"]) for s in gueltige(stufen)])
+    return _hash([g] + [lauf_kennung(g, st, mz) for st, mz in gruppieren(stufen, stufen_daten)])
 
 
-def veraltet(sp, kopf, positionen, stufen, k, tabellen, einst):
+def veraltet(sp, kopf, positionen, stufen, k, tabellen, einst, stufen_daten=None):
     """Anzahl der Stufen, deren Mengenlauf fehlt oder nicht mehr zu den Eingaben passt."""
     g = _hash(_gemeinsam(kopf, positionen, k, tabellen, einst))
-    da = {z.get("kennung_stufe") for z in (sp or {}).get("zeilen") or ()}
-    return sum(1 for s in gueltige(stufen) if stufe_kennung(g, s["schluessel"], s["menge"]) not in da)
+    da = {(z.get("kennung_stufe"), txt(z.get("schluessel")), z.get("menge")) for z in (sp or {}).get("zeilen") or ()}
+    return sum(1 for st, mz in gruppieren(stufen, stufen_daten)
+               if any((lauf_kennung(g, st, mz), txt(z["schluessel"]), z["menge"]) not in da for z in mz))

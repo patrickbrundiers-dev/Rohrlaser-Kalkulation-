@@ -185,7 +185,7 @@ ok("Prüfsumme je Stufe enthält die Frachteingaben: geänderte Fracht -> Stufen
 # Frachtart manuell: gleicher Betrag in allen Stufen (wie bisher)
 am = dict(a, fracht_modus=None, fracht=150.0)
 zm = staffeln.rechnen_alle(am, pos2, stufen, k, tab, einst)
-assert all(z["preis"]["fracht"] == 150.0 for z in zm)
+assert all(abs(z["preis"]["fracht"] - 150.0) < 1e-6 for z in zm)
 # berechnet ohne Frachtberechnung: kein Preis, Hinweis statt still 0 €
 ao = dict(a, fracht_sendung=None)
 zo = staffeln.rechnen_alle(ao, pos2, stufen[:1], k, tab, einst)

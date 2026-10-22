@@ -859,8 +859,11 @@ class UebersichtBereich(QWidget):
             self.kennzahlen.addWidget(box, 0, i)
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar
-        self.uebersicht = QLabel()
-        self.uebersicht.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.uebersicht = QLabel()          # Preisaufbau: Material → … → Herstellkosten → … → Verkaufspreis
+        self.uebersicht.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        self.uebersicht.setToolTip("Preisaufbau: Gruppen mit ▸ per Klick aufklappen")
+        self.uebersicht.linkActivated.connect(self._gruppe_umschalten)
+        self.offene_gruppen, self._kosten = set(), None
         kl.addWidget(self.uebersicht)
         self.einzeln = QLabel()
         self.einzeln.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -967,16 +970,29 @@ class UebersichtBereich(QWidget):
         betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
         for name, w in self.preis.items():
             w.setText(f"{_z(betrag[name][1])} €")
+        self._kosten = kosten
         linie = "border-top:1px solid #C9D0D8"
-        html = "<table width='100%' cellpadding='1' cellspacing='0'>"
+        html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>"
+                f"<b>Preisaufbau</b></td></tr>")
         for titel, namen, summe in rechnen.KOSTEN_GRUPPEN:
             gesamt = sum(betrag[n][1] or 0 for n in namen)
             if summe:
-                html += (f"<tr><td style='{linie}'><b>{titel}</b></td>"
+                html += (f"<tr><td style='{linie}'><b>= {titel}</b></td>"
                          f"<td align='right' style='{linie}'><b>{_z(gesamt)} €</b></td></tr>")
             elif titel == "Material" or any(sichtbar(betrag[n][1]) for n in namen):     # Material immer
-                text = betrag[namen[0]][0] if len(namen) == 1 else titel      # einzeln mit Mengenangabe
-                html += f"<tr><td>{text}</td><td align='right'>{_z(gesamt)} €</td></tr>"
+                zeichen = "" if titel == "Material" else "+ "
+                einzeln = [n for n in namen if sichtbar(betrag[n][1])]
+                if len(namen) == 1:
+                    text = betrag[namen[0]][0]                                  # einzeln mit Mengenangabe
+                elif titel in self.offene_gruppen:
+                    text = f"<a href='{titel}' style='color:#1F2937;text-decoration:none'>▾ {titel}</a>"
+                else:
+                    text = f"<a href='{titel}' style='color:#1F2937;text-decoration:none'>▸ {titel}</a>"
+                html += f"<tr><td>{zeichen}{text}</td><td align='right'>{_z(gesamt)} €</td></tr>"
+                if len(namen) > 1 and titel in self.offene_gruppen:
+                    for n in einzeln:
+                        html += (f"<tr><td style='color:{GRAU};padding-left:14px'>{betrag[n][0]}</td>"
+                                 f"<td align='right' style='color:{GRAU}'>{_z(betrag[n][1])} €</td></tr>")
         self.uebersicht.setText(html + "</table>")
         html = "<table width='100%' cellpadding='1' cellspacing='0'>"
         for t, w, fett in kosten:
@@ -985,6 +1001,12 @@ class UebersichtBereich(QWidget):
             elif sichtbar(w):
                 html += f"<tr><td style='color:{GRAU}'>{t}</td><td align='right' style='color:{GRAU}'>{_z(w)} €</td></tr>"
         self.einzeln.setText(html + "</table>")
+
+    def _gruppe_umschalten(self, titel):
+        """Klick auf eine Gruppe im Preisaufbau: ihre Kostenarten auf- oder zuklappen."""
+        self.offene_gruppen ^= {titel}
+        if self._kosten is not None:
+            self.kosten_setzen(self._kosten)
 
     def zeiten_setzen(self, k):
         """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten; Zeilen mit 0 ausgeblendet."""

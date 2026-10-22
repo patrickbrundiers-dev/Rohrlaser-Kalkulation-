@@ -34,13 +34,13 @@ from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
 from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, lieferzeit_wert,
                       naechste_nummer)
-from .staffeln import STUFE_FELDER
+from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten, alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 35     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 36     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -64,6 +64,8 @@ SCHEMA_VERSION = 35     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Zeitpunkt des gemerkten Verkaufspreises (angebote.vk_am), Verlauf der verschickten
                         #     Angebots-PDFs (angebote.versand, JSON); ältere Angebote: Entwurf bzw.
                         #     Verschickt, wenn die Preise schon festgeschrieben sind
+                        # 36: Staffel-Stufen (Tabelle staffel_stufen mit Einstellungen wie im Angebot, staffeln.stufe_id):
+                        #     alte Mengenstufen je Satz/Position der Größe nach auf Stufe 1, 2 … verteilt
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -150,6 +152,9 @@ class Datenbank:
             self.con.execute("CREATE TABLE IF NOT EXISTS staffeln (id INTEGER PRIMARY KEY, angebot_id INTEGER "
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, schluessel TEXT, "
                              "menge INTEGER, bemerkung TEXT)")
+            stufen_sp = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in EINSTELLUNG_FELDER)
+            self.con.execute("CREATE TABLE IF NOT EXISTS staffel_stufen (id INTEGER PRIMARY KEY, angebot_id INTEGER "
+                             f"NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, nr INTEGER, {stufen_sp})")
             spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
@@ -172,7 +177,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
-                                                                            ("staffeln", STUFE_FELDER)]:
+                                                                            ("staffeln", STUFE_FELDER),
+                                                                            ("staffel_stufen", EINSTELLUNG_FELDER)]:
                 vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
@@ -207,6 +213,10 @@ class Datenbank:
             if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
+            if "stufe_id" not in {r[1] for r in self.con.execute("PRAGMA table_info(staffeln)")}:
+                self.con.execute("ALTER TABLE staffeln ADD COLUMN stufe_id INTEGER")
+            if 0 < version < 36:
+                self._stufen_bilden()
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
@@ -219,6 +229,47 @@ class Datenbank:
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
+
+    def _stufen_bilden(self):
+        """Schema 36: Mengenstufen ohne Stufe je Angebot zu Stufen zusammenfassen. Je Satz bzw. Position zählt die
+        Reihenfolge der Mengen (kleinste = Stufe 1). Werte der Zeilen (Gewinn, Zuschläge …) werden Werte der Stufe;
+        widersprechen sie sich, bekommt die Zeile eine eigene Stufe (nichts geht verloren)."""
+        felder = [f.name for f in EINSTELLUNG_FELDER if f.name in {g.name for g in STUFE_FELDER}]
+        zeilen = [dict(r) for r in self.con.execute("SELECT * FROM staffeln WHERE stufe_id IS NULL ORDER BY "
+                                                     "angebot_id, nr, id")]
+        je_angebot = {}
+        for z in zeilen:
+            je_angebot.setdefault(z["angebot_id"], []).append(z)
+        for aid, zs in je_angebot.items():
+            rang, zaehler = {}, {}
+            for z in sorted(zs, key=lambda z: (str(z.get("schluessel") or ""), z.get("menge") or 0, z["id"])):
+                schl = str(z.get("schluessel") or "")
+                zaehler[schl] = zaehler.get(schl, 0) + 1
+                rang[z["id"]] = zaehler[schl]
+            stufen = []           # [(Rang, Werte, Schlüssel)]
+            for z in sorted(zs, key=lambda z: (rang[z["id"]], z.get("nr") or 0, z["id"])):
+                werte = {n: z.get(n) for n in felder if z.get(n) not in (None, "") and n != "bemerkung"}
+                schl = str(z.get("schluessel") or "")
+                ziel = next((i for i, (r, w, s) in enumerate(stufen) if r == rang[z["id"]] and schl not in s
+                             and all(w.get(n, v) == v for n, v in werte.items())
+                             and all(werte.get(n, v) == v for n, v in w.items())), None)
+                if ziel is None:
+                    stufen.append((rang[z["id"]], dict(werte), {schl}))
+                    ziel = len(stufen) - 1
+                else:
+                    stufen[ziel][1].update(werte)
+                    stufen[ziel][2].add(schl)
+                if z.get("bemerkung"):          # Bemerkungen der Zeilen zusammen
+                    w = stufen[ziel][1]
+                    w["bemerkung"] = "; ".join(x for x in (w.get("bemerkung"), z["bemerkung"]) if x)
+                z["_stufe"] = ziel
+            ids = []
+            for nr, (_, werte, _) in enumerate(stufen, 1):
+                namen = list(werte)
+                ids.append(self.con.execute(
+                    f'INSERT INTO staffel_stufen (angebot_id, nr{"".join(", " + chr(34) + n + chr(34) for n in namen)}) '
+                    f'VALUES (?, ?{", ?" * len(namen)})', [aid, nr] + [werte[n] for n in namen]).lastrowid)
+            self.con.executemany("UPDATE staffeln SET stufe_id=? WHERE id=?", [(ids[z["_stufe"]], z["id"]) for z in zs])
 
     def _einfuegen(self, tabelle, zeilen, ergaenzen=False):
         """Zeilen einfügen; ergaenzen=True überspringt Zeilen, deren Schlüssel es schon gibt."""
@@ -1227,8 +1278,9 @@ class Datenbank:
             i = self.position_neu(neu, p)
             if p["id"] in netze:
                 self.netz_speichern(i, netze[p["id"]])
+        stufen = {st["id"]: self.staffel_stufe_neu(neu, st) for st in self.staffel_stufen(angebot_id)}
         for st in self.staffeln(angebot_id):
-            self.staffel_neu(neu, st)
+            self.staffel_neu(neu, dict(st, stufe_id=stufen.get(st.get("stufe_id"))))
         return neu
 
     def angebot_loeschen(self, angebot_id):
@@ -1281,18 +1333,51 @@ class Datenbank:
         return [dict(r) for r in self.con.execute("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY nr, id",
                                                   (angebot_id,))]
 
+    def staffel_stufen(self, angebot_id):
+        """Stufen der Staffelpreise mit ihren Einstellungen (leer = Wert des Angebots), nach Nummer."""
+        return [dict(r) for r in self.con.execute("SELECT * FROM staffel_stufen WHERE angebot_id=? ORDER BY nr, id",
+                                                  (angebot_id,))]
+
+    def staffel_stufe_neu(self, angebot_id, werte=None):
+        werte = {f.name: (werte or {}).get(f.name) for f in EINSTELLUNG_FELDER}
+        if isinstance(werte.get("meterpreise"), dict):
+            werte["meterpreise"] = json.dumps(werte["meterpreise"], ensure_ascii=False)
+        nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM staffel_stufen WHERE angebot_id=?",
+                              (angebot_id,)).fetchone()[0]
+        with self.con:
+            return self.con.execute(f'INSERT INTO staffel_stufen (angebot_id, nr, {", ".join(chr(34) + n + chr(34) for n in werte)}) '
+                                    f'VALUES (?, ?, {", ".join("?" * len(werte))})',
+                                    [angebot_id, nr] + list(werte.values())).lastrowid
+
+    def staffel_stufe_aendern(self, stufe_id, feld, wert):
+        if feld not in {f.name for f in EINSTELLUNG_FELDER}:
+            raise KeyError(feld)
+        if feld == "meterpreise" and isinstance(wert, dict):
+            wert = json.dumps(wert, ensure_ascii=False) if wert else None
+        with self.con:
+            self.con.execute(f'UPDATE staffel_stufen SET "{feld}"=? WHERE id=?', (wert, stufe_id))
+
+    def staffel_stufen_loeschen(self, ids):
+        """Stufen mit ihren Mengenzeilen löschen."""
+        with self.con:
+            self.con.executemany("DELETE FROM staffeln WHERE stufe_id=?", [(i,) for i in ids])
+            self.con.executemany("DELETE FROM staffel_stufen WHERE id=?", [(i,) for i in ids])
+
     def staffel_neu(self, angebot_id, werte=None):
-        werte = werte or {}
+        """Mengenzeile anlegen. Ohne stufe_id bekommt sie eine eigene neue Stufe mit den Werten aus werte."""
+        werte = dict(werte or {})
+        if not werte.get("stufe_id"):
+            werte["stufe_id"] = self.staffel_stufe_neu(angebot_id, werte)
         nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM staffeln WHERE angebot_id=?",
                               (angebot_id,)).fetchone()[0]
-        namen = [f.name for f in STUFE_FELDER]
+        namen = [f.name for f in STUFE_FELDER] + ["stufe_id"]
         with self.con:
             return self.con.execute(f'INSERT INTO staffeln (angebot_id, nr, {", ".join(chr(34) + n + chr(34) for n in namen)}) '
                                     f'VALUES (?, ?, {", ".join("?" * len(namen))})',
                                     [angebot_id, nr] + [werte.get(n) for n in namen]).lastrowid
 
     def staffel_aendern(self, staffel_id, feld, wert):
-        if feld not in {f.name for f in STUFE_FELDER}:
+        if feld not in {f.name for f in STUFE_FELDER} | {"stufe_id"}:
             raise KeyError(feld)
         with self.con:
             self.con.execute(f'UPDATE staffeln SET "{feld}"=? WHERE id=?', (wert, staffel_id))
@@ -1427,6 +1512,7 @@ class Datenbank:
                           if k not in ("id", "geaendert", "vk_netto", "stand")),
             positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
             staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
+            stufen=zeilen("SELECT * FROM staffel_stufen WHERE angebot_id=? ORDER BY id"),
             protokoll=zeilen("SELECT * FROM step_protokoll WHERE angebot_id=? ORDER BY id"),
             netze=dict(zeilen("SELECT n.position_id, length(n.daten) FROM netze n JOIN positionen p ON "
                               "p.id = n.position_id WHERE p.angebot_id=?")))
@@ -1435,7 +1521,7 @@ class Datenbank:
         """Angebot auf einen mit angebot_stand gelesenen Stand zurücksetzen (eine Transaktion). netze:
         {Positions-ID: Netz-Bytes} für alle Netze des Stands."""
         spalten = {t: [r[1] for r in self.con.execute(f"PRAGMA table_info({t})")]
-                   for t in ("positionen", "staffeln", "step_protokoll")}
+                   for t in ("positionen", "staffeln", "staffel_stufen", "step_protokoll")}
         def einsetzen(tabelle, zeilen):
             namen = ", ".join(f'"{n}"' for n in spalten[tabelle])
             self.con.executemany(f'INSERT INTO {tabelle} ({namen}) VALUES ({", ".join("?" * len(spalten[tabelle]))})',
@@ -1463,9 +1549,9 @@ class Datenbank:
                                          (pid, netze[pid]))
                 else:
                     self.con.execute("DELETE FROM netze WHERE position_id=?", (pid,))
-            for tabelle, schl in (("staffeln", "staffeln"), ("step_protokoll", "protokoll")):
+            for tabelle, schl in (("staffeln", "staffeln"), ("staffel_stufen", "stufen"), ("step_protokoll", "protokoll")):
                 self.con.execute(f"DELETE FROM {tabelle} WHERE angebot_id=?", (angebot_id,))
-                einsetzen(tabelle, stand[schl])
+                einsetzen(tabelle, stand.get(schl, ()))
 
     def profile_anlegen(self, profile):
         """Profile aus Optimierung (Name) oder STEP-Import anlegen, vorhandene IDs bleiben unverändert."""

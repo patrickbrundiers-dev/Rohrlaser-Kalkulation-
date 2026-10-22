@@ -131,14 +131,12 @@ assert QGuiApplication.clipboard().text() == "Halter" and not pos_werte(s, "beze
 taste(s.pos_ansicht, "Ctrl+Z")
 assert pos_werte(s, "bezeichnung")[2] == "Halter"
 
-# 5) Staffeln: Strg+N legt eine Stufe an, Rückgängig nimmt sie zurück
+# 5) Staffeln: Strg+N legt eine Stufe mit den Mengen des Angebots an, Rückgängig nimmt sie zurück
 s.reiter.setCurrentWidget(s.st_seite)
 taste(s.st_seite.ansicht, "Ctrl+N")
-if s.st_seite.ansicht.state() == s.st_seite.ansicht.State.EditingState:
-    s.st_seite.ansicht.setFocus()
-assert len(db.staffeln(s.id)) == 1
+assert len(db.staffel_stufen(s.id)) == 1
 taste(s.st_seite.ansicht, "Ctrl+Z")
-assert len(db.staffeln(s.id)) == 0, "neue Staffel rückgängig"
+assert len(db.staffel_stufen(s.id)) == 0 and len(db.staffeln(s.id)) == 0, "neue Stufe rückgängig"
 s.reiter.setCurrentIndex(0)
 
 # 6) Textfelder behalten ihre Kürzel: Strg+Z im Suchfeld ändert das Angebot nicht
