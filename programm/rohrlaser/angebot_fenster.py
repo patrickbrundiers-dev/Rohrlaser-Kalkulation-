@@ -32,6 +32,8 @@ from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, Ueber
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .leiste import UmbruchLeiste
+from . import step_ablage
+from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
 from .verlauf import Verlauf
@@ -1154,6 +1156,10 @@ class AngebotSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+            if text == "STEP importieren …":      # sichtbares Ziel für Drag & Drop direkt neben dem Knopf
+                self.ablage_klein = AblageFeld()
+                self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
+                leiste.addWidget(self.ablage_klein)
         leiste.addSpacing(12)
         for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Zukaufteile …", None),
                            ("Positionen löschen", self.positionen_loeschen)):
@@ -1314,6 +1320,10 @@ class AngebotSeite(QWidget):
         pl.setSpacing(4)
         pl.addLayout(self.pos_leiste)
         pl.addWidget(self.pos_ansicht, 1)
+        # leeres Angebot: großes Ablagefeld statt der leeren Positionsliste
+        self.ablage_gross = AblageFeld(gross=True)
+        self.ablage_gross.geklickt.connect(lambda: self.step_importieren())
+        pl.addWidget(self.ablage_gross, 1)
         self.reiter.addTab(self.pos_seite, "Positionen")
         self.kalk_seite = kalk_seite
         self.zeiten_seite = ZeitenSeite(self)
@@ -1396,6 +1406,9 @@ class AngebotSeite(QWidget):
         self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
+        leer = not self.positionen
+        self.ablage_gross.setVisible(leer)
+        self.pos_ansicht.setVisible(not leer)
         self._spalten_zeigen()
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
@@ -2536,11 +2549,20 @@ class AngebotSeite(QWidget):
         urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
         return step.step_dateien([u.toLocalFile() for u in urls if u.isLocalFile()])
 
+    def _ablage_hervorheben(self, an):
+        for feld in (self.ablage_klein, self.ablage_gross):
+            feld.hervorheben(an)
+
     def dragEnterEvent(self, ereignis):
         if self._gezogene_dateien(ereignis):
             ereignis.acceptProposedAction()
+            self._ablage_hervorheben(True)
+
+    def dragLeaveEvent(self, ereignis):
+        self._ablage_hervorheben(False)
 
     def dropEvent(self, ereignis):
+        self._ablage_hervorheben(False)
         dateien = self._gezogene_dateien(ereignis)
         if dateien:
             ereignis.acceptProposedAction()
@@ -2555,10 +2577,12 @@ class AngebotSeite(QWidget):
                                 f"muss im Programmordner liegen:\n{self.f.programmordner}")
             return None
         if not dateien:
-            dateien, _ = QFileDialog.getOpenFileNames(self, titel, str(Path.home()),
+            # Start im Standardordner (Einstellungen), sonst im zuletzt benutzten STEP-Ordner
+            dateien, _ = QFileDialog.getOpenFileNames(self, titel, str(step_ablage.start_ordner(self.db)),
                                                       "STEP-Dateien (*.step *.stp *.STEP *.STP)")
             if not dateien:
                 return None
+            step_ablage.ordner_merken(self.db, dateien)
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
