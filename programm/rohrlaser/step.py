@@ -362,6 +362,72 @@ def art_wechseln(m):
     return True
 
 
+VON_HAND = "von Hand nachgetragen"
+
+
+def von_hand(m, form, profil_id, profile):
+    """Nicht erkanntes Teil von Hand als Rohr/Profil nachtragen (Patrick 22.10.2026): Profilform und Profil-ID aus dem
+    Prüfdialog, Maße aus den Stammdaten bzw. der Profil-ID ('QR 40x40x3'), sonst aus dem Hüllmaß; Länge = größtes
+    Hüllmaß, zwei gerade Enden, keine Konturen (im Schneidweg-Rechner ergänzen). Prüfstatus 'prüfen', angehakt.
+    Die Messung bleibt unter '_original' (zurück mit von_hand_zuruecknehmen). False, wenn kein Hüllmaß bekannt ist."""
+    from .optimierung import profil_aus_name, schnittlaenge
+    try:
+        h = sorted((float(x) for x in (m.get("huelle") or "").split("|") if x), reverse=True)
+    except ValueError:
+        h = []
+    if len(h) != 3 or h[0] <= 0 or not form:
+        return False
+    original = m.get("_original") or {k: v for k, v in m.items() if not k.startswith("_")}
+    pr = profile.get(profil_id) or (profil_aus_name(profil_id) if profil_id else None) or {}
+    a = float(pr.get("a") or h[1])
+    b = float(pr.get("b") or (h[2] if form in MIT_B else 0) or 0)
+    wand = float(pr.get("wand") or 0)
+    ende = schnittlaenge(form, a, b, wand, pr.get("flaeche_manuell")) or 2 * (a + b)
+    netz = m.get("_netz")
+    m.clear()
+    m.update(original)
+    m.update(profilform=form, abm_a=str(a), abm_b=str(b), wandstaerke=str(wand), laenge=str(h[0]),
+             ende_a=str(ende), ende_b=str(ende), ende_a_gerade="1", ende_b_gerade="1", schneidweg=str(2 * ende),
+             konturen="2", innen="0", innen_konturen="0", gravur="0", gravur_konturen="0", bohrungen="",
+             innen_liste="", konturen_liste="", profil_id_vorschlag=profil_id or "", pruefstatus="prüfen",
+             sicherheit="profil=von Hand", alternative="", anbauteile="", trennung="", bauteiltyp="Profil",
+             hinweise=f"{VON_HAND} ({original.get('hinweise') or 'nicht messbar'}): Länge aus Hüllmaß, gerade "
+                      "Enden, Konturen im Schneidweg-Rechner ergänzen")
+    m["_original"], m["_uebernehmen"], m["_profil"] = original, True, profil_id or None
+    if netz:        # Rohnetz der Messung (Art N = nicht übernehmbar) jetzt als Außenwand
+        import zlib
+        try:
+            n = json.loads(zlib.decompress(netz).decode("utf-8"))
+            if "N" in (n.get("t") or {}):
+                n["t"]["A"] = n["t"].pop("N")
+                netz = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
+        except (zlib.error, ValueError):
+            pass
+        m["_netz"] = netz
+    return True
+
+
+def von_hand_zuruecknehmen(m):
+    """Nachtrag zurücknehmen: wieder die Messung (nicht übernehmbar)."""
+    original = m.get("_original")
+    if not original:
+        return False
+    netz = m.get("_netz")
+    m.clear()
+    m.update(original)
+    if netz:        # wieder als nicht übernehmbar zeigen
+        import zlib
+        try:
+            n = json.loads(zlib.decompress(netz).decode("utf-8"))
+            if "A" in (n.get("t") or {}) and len(n["t"]) == 1:
+                n["t"]["N"] = n["t"].pop("A")
+                netz = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
+        except (zlib.error, ValueError):
+            pass
+        m["_netz"] = netz
+    return True
+
+
 def blech_text(m):
     """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
     b = blech(m) or {}

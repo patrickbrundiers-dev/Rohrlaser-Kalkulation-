@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QCompleter, QDialog
                                QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import hilfe, naht, rechnen, schneidweg as sw, skizze as sk
+from . import hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
@@ -118,7 +118,7 @@ class SchneidwegDialog(QDialog):
                 ("Gehrungswinkel", "Abweichung vom rechtwinkligen Schnitt in Grad (gerade = 0°)"),
                 ("gekippt über", "Richtung, über die die Gehrung kippt: Höhe = Maß a, Breite = Maß b des Profils"),
                 ("längste Seite (Gehrungsrichtung)", "Seite, an der das Teil an diesem Ende am längsten ist, von "
-                 "Ende A gesehen; damit legt die Optimierung Gehrungen ineinander"),
+                 "Ende A gesehen; „automatisch“ nimmt sie aus „gekippt über“ an, die Optimierung dreht das Teil passend"),
                 ("Ausklinkung auf Rundrohr Ø", "nur Rundrohr: Ende rechtwinklig auf ein Rundrohr mit diesem Ø "
                  "(Sattelschnitt)"),
                 ("aus dem STEP-Import", "gemessene Schnittlänge des Endes; gilt, solange das Ende unverändert bleibt")),
@@ -154,10 +154,11 @@ class SchneidwegDialog(QDialog):
             ri = QComboBox()
             ri.addItems(list(sw.RICHTUNGEN))
             ri.setCurrentText(next((t for t, v in sw.RICHTUNGEN.items() if v == e[seite].get("richtung")),
-                                   "nicht angegeben"))
+                                   sw.AUTOMATISCH))
             ri.setEnabled(form in sw.MIT_RICHTUNG)
             ri.setToolTip("Gehrung: Seite, an der das Teil an diesem Ende am längsten ist (Blick von Ende A, "
-                          "Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen ineinander.")
+                          "Rechteckrohr mit der Breitseite oben). „automatisch“: aus „gekippt über“ angenommen, die "
+                          "Skizze zeigt sie; die Optimierung dreht das Teil frei und legt Gehrungen ineinander.")
             ri.currentTextChanged.connect(self.rechnen)
             gm = QLabel()
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
@@ -339,15 +340,30 @@ class SchneidwegDialog(QDialog):
         self.k_artikel, self.k_bezeichnung = QLineEdit(self.p.get("artikel") or ""), QLineEdit()
         self.k_artikel.setPlaceholderText("Artikelnummer")
         self.k_bezeichnung.setPlaceholderText("Bezeichnung (optional)")
+        # Profil: erst die Form wählen (Vorauswahl), dann die Abmessung; fehlt es, „Neu …“ legt es an
+        self.k_form = QComboBox()
+        self.k_form.addItems([profil_neu.ALLE] + [f for f in self.k.profilformen
+                                                   if any(p.get("form") == f for p in self.k.profile.values())])
+        self.k_form.setCurrentText((self.k.profile.get(self.p.get("profil_id")) or {}).get("form") or profil_neu.ALLE)
+        self.k_form.setToolTip("Profilform: die Liste daneben zeigt nur Profile dieser Form")
+        self.k_form.currentTextChanged.connect(self._form_gewaehlt)
         self.k_profil = QComboBox()
         self.k_profil.setEditable(True)
         self.k_profil.setInsertPolicy(QComboBox.NoInsert)
-        self.k_profil.addItems(sorted(self.k.profile, key=str.lower))
+        self.k_profil.addItems(profil_neu.profile_der_form(self.k.profile, self.k_form.currentText()))
         self.k_profil.setCurrentText(self.p.get("profil_id") or "")
         self.k_profil.completer().setFilterMode(Qt.MatchContains)
         self.k_profil.completer().setCompletionMode(QCompleter.PopupCompletion)
         self.k_profil.setToolTip("Profil aus den Stammdaten (Eintippen sucht, z. B. 40x40)")
         self.k_profil.currentTextChanged.connect(self._profil_gewaehlt)
+        self.k_profil_neu = QPushButton("Neu …")
+        self.k_profil_neu.setToolTip("Profil fehlt in den Stammdaten: hier mit Form und Maßen anlegen")
+        self.k_profil_neu.clicked.connect(lambda: self.profil_neu())
+        profil_feld = QWidget()
+        pl = QHBoxLayout(profil_feld)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.addWidget(self.k_profil, 1)
+        pl.addWidget(self.k_profil_neu)
         self.k_werkstoff = QComboBox()
         self.k_werkstoff.addItems([""] + sorted(self.k.werkstoffe, key=str.lower))
         self.k_werkstoff.setCurrentText(self.p.get("werkstoff_id") or "")
@@ -366,12 +382,57 @@ class SchneidwegDialog(QDialog):
         self.k_stueck.setValue(int(sw._z(self.p.get("stueck"))))
         self.k_stueck.valueChanged.connect(self._kopf_geaendert)
         for c, (titel, w) in enumerate((("Artikel", self.k_artikel), ("Bezeichnung", self.k_bezeichnung),
-                                         ("Profil", self.k_profil), ("Werkstoff", self.k_werkstoff),
+                                         ("Profilform", self.k_form), ("Profil", profil_feld),
+                                         ("Werkstoff", self.k_werkstoff),
                                          ("Teilelänge", self.k_laenge), ("Stückzahl", self.k_stueck))):
             raster.addWidget(QLabel(f"<span style='color:#595959'>{titel}</span>"), 0, c)
             raster.addWidget(w, 1, c)
         raster.setColumnStretch(1, 1)
+        raster.setColumnStretch(3, 1)
         return raster
+
+    def _form_gewaehlt(self, form):
+        """Profilliste auf die Form beschränken; das gewählte Profil bleibt, wenn es passt, sonst das erste."""
+        alt = self.k_profil.currentText()
+        liste = profil_neu.profile_der_form(self.k.profile, form)
+        self.k_profil.blockSignals(True)
+        self.k_profil.clear()
+        self.k_profil.addItems(liste)
+        self.k_profil.setCurrentText(alt if alt in liste else (liste[0] if liste else ""))
+        self.k_profil.blockSignals(False)
+        self._profil_gewaehlt(self.k_profil.currentText())
+
+    def profil_neu(self, werte=None, dialog=None):
+        """Fehlendes Profil anlegen (ProfilNeuDialog; werte = fertige Zeile ohne Dialog, dialog(d) bedient ihn in
+        Tests): in die Stammdaten schreiben und hier wählen. Ergebnis: Profil-ID oder None."""
+        interaktiv = werte is None and dialog is None
+        if werte is None:
+            form = self.k_form.currentText()
+            d = profil_neu.ProfilNeuDialog(self, self.k.profile, form if form != profil_neu.ALLE else None,
+                                           self.k.profilformen)
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or d.fehler():
+                return None
+            werte = d.werte()
+        if not werte.get("profil_id") or werte["profil_id"] in self.k.profile:
+            return None
+        if self.db is not None:
+            self.db.profile_anlegen([werte])
+            zeile = next((z for z in self.db.zeilen("profile") if z.get("profil_id") == werte["profil_id"]), werte)
+        else:
+            zeile = werte
+        self.k.profile[werte["profil_id"]] = zeile
+        if self.k_form.findText(zeile["form"]) < 0:
+            self.k_form.addItem(zeile["form"])
+        self.k_form.blockSignals(True)
+        self.k_form.setCurrentText(zeile["form"])
+        self.k_form.blockSignals(False)
+        self._form_gewaehlt(zeile["form"])
+        self.k_profil.setCurrentText(werte["profil_id"])
+        self._profil_gewaehlt(werte["profil_id"])
+        if interaktiv:
+            QMessageBox.information(self, "Neues Profil", f"Profil {werte['profil_id']} angelegt. Den Materialpreis "
+                                    "bitte unter Einstellungen eintragen oder im Angebot als Meterpreis.")
+        return werte["profil_id"]
 
     def _groesse_setzen(self):
         """Fenster so groß, wie der Bildschirm erlaubt (höchstens 1600 × 1000), damit Konturtabelle, Skizze und
@@ -408,6 +469,12 @@ class SchneidwegDialog(QDialog):
 
     def _profil_gewaehlt(self, pid):
         if pid in self.k.profile and pid != self.p.get("profil_id"):
+            form = self.k.profile[pid].get("form")
+            if self.neu and self.k_form.currentText() not in (profil_neu.ALLE, form):     # eingetippt: Form folgt
+                self.k_form.blockSignals(True)
+                self.k_form.setCurrentText(form)
+                self.k_form.blockSignals(False)
+                self._form_gewaehlt(form)
             self.profil_setzen(pid)
 
     def profil_setzen(self, pid):
@@ -584,7 +651,8 @@ class SchneidwegDialog(QDialog):
         erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde)
 
         def schreiben(ziel):
-            zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil, eingaben, erg, self.naht_werte(), einst,
+            zeichnung.zeichnung_pdf(ziel, self.kopf, self.p, self.profil,
+                                    sw.mit_angenommener_richtung(eingaben, self.profil), erg, self.naht_werte(), einst,
                                     self.schneidzeit())
         if pfad is not None:
             schreiben(pfad)
@@ -759,7 +827,7 @@ class SchneidwegDialog(QDialog):
         self.summe.setText("<br>".join(teile))
         if hasattr(self, "skizze"):
             self.skizze.naht = self._naht_anzeigen()
-            self.skizze.zeigen(eingaben, erg)
+            self.skizze.zeigen(sw.mit_angenommener_richtung(eingaben, self.profil), erg)
             self._auswahl_tabelle()
         if hasattr(self, "ok_knopf"):
             self.ok_knopf.setEnabled(not fehler)
@@ -777,7 +845,7 @@ class SchneidwegDialog(QDialog):
                     self.achse[s].setCurrentText(x["achse"])
                 self.sattel[s].setValue(sw._z(x.get("sattel")) if self.sattel[s].isEnabled() else 0)
                 self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
-                                                      if v == x.get("richtung")), "nicht angegeben"))
+                                                      if v == x.get("richtung")), sw.AUTOMATISCH))
             self.gravur.setValue(sw._z(e.get("gravur")))
             self._step_enden(e)
             self.tabelle.setRowCount(0)

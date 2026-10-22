@@ -28,6 +28,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("AN", "Anbauteile", "#E8C77A", None),            # aufgeschweißte Teile (nicht gelasert)
     ("GA", "Gravur Anbauteile", "#59A14F", "#00897B"),
     ("S", "gewählte Teile", "#2E75B6", None),       # nur in der Baugruppen-Ansicht
+    ("N", "nicht übernehmbar", "#FF00FF", None),    # nicht messbare Teile (Rohnetz in Dateilage), magenta
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -72,10 +73,11 @@ def entpacken(daten):
         return None
 
 
-def baugruppe(netze, hervor=(), farben=None):
+def baugruppe(netze, hervor=(), farben=None, fehlend=()):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
-    hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden. Ohne Innenwände und
+    hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden;
+    fehlend: Nummern der nicht übernehmbaren Teile, immer magenta (Art N), außer sie sind gewählt. Ohne Innenwände und
     Schnittlinien (bei vielen Teilen verdeckt bzw. zu unruhig). Ergebnis: (Netz oder None, Anzahl Teile ohne
     Einbaulage, z. B. aus einer älteren Messung)."""
     punkte, dreiecke, ohne = [], {}, 0
@@ -96,7 +98,7 @@ def baugruppe(netze, hervor=(), farben=None):
         for art, idx in (netz.get("t") or {}).items():
             if art == "I":
                 continue
-            art = ("S" if nr in hervor else "X") if hervor else \
+            art = "S" if nr in hervor else "N" if nr in fehlend else "X" if hervor else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
     return (dict(p=punkte, t=dreiecke, l={}) if punkte else None), ohne

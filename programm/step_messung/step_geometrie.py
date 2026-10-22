@@ -460,9 +460,11 @@ def _schnitt(shape, z):
 
 
 def _querschnitt_daten(ws):
-    """Netto-Fläche und Schwerpunkt eines Schnitts (größte Kontur außen, alle anderen innen)."""
+    """Netto-Fläche und Schwerpunkt eines Schnitts (größte Kontur außen, alle anderen innen). Liegt eine Kontur
+    neben statt in der größten (Schnitt durch einen langen Ausschnitt zerfällt in Stücke), ist es kein Regel-
+    querschnitt: Fläche 0 (sonst Netto-Fläche ≈ 0 und ein Schwerpunkt weit außerhalb, die Achse kippt weg)."""
     netto = ws[0][0] - sum(w[0] for w in ws[1:])
-    if netto <= 0:
+    if netto <= 1e-6 * ws[0][0] or any(not _innen_liegend(w[1], ws[0][1]) for w in ws[1:]):
         return 0.0, 0.0, 0.0
     sx = ws[0][0] * ws[0][2] - sum(w[0] * w[2] for w in ws[1:])
     sy = ws[0][0] * ws[0][3] - sum(w[0] * w[3] for w in ws[1:])
@@ -1867,8 +1869,10 @@ def _flach_pruefen(solid, volumen):
                flaeche_unten=e2[1])
     # eben: nur diese beiden Ebenen in der Richtung (keine Absätze, Taschen oder Gravuren), Volumen = Fläche × Dicke
     weitere = [e for e in g[1][2:] if e[1] > 1e-3 * e1[1]]
+    # (Senkungen nehmen auf einer Seite Fläche weg: Volumen liegt zwischen kleinerer und größerer Fläche × Dicke)
     if not weitere and e2[1] >= 0.9 * e1[1] and \
-            abs(volumen - min(e1[1], e2[1]) * dicke) <= TOL_BLECH_VOLUMEN * volumen:
+            min(e1[1], e2[1]) * dicke * (1 - TOL_BLECH_VOLUMEN) <= volumen <= \
+            max(e1[1], e2[1]) * dicke * (1 + TOL_BLECH_VOLUMEN):
         return dict(erg, art="eben")
     # gekantet: alle Ebenenpaare im Abstand 'dicke' (je Richtung) und koaxiale Biegezonen tragen das Volumen
     paare, richtungen = 0.0, 0
@@ -2651,6 +2655,22 @@ def bohrungen_text(bohrungen):
     return "; ".join(f"{n}xØ{f'{d:g}'.replace('.', ',')}" for d, n in bohrungen.items())
 
 
+def _rohnetz(t, shape):
+    """Nicht messbares Teil: Dreiecksnetz des Körpers unverändert in Dateilage (Art 'N'), damit die 3D-Ansicht zeigt,
+    welches Teil fehlt und wo es in der Baugruppe sitzt. Lage = Dateikoordinaten (Ursprung, Z, X)."""
+    try:
+        faces = TopTools_IndexedMapOfShape()
+        TopExp.MapShapes_s(shape, TopAbs_FACE, faces)
+        if not faces.Extent():
+            return
+        groesse = math.sqrt(sum(x * x for x in t.huelle)) if t.huelle else 0.0
+        t.netz = dreiecksnetz(shape, faces, {i: "N" for i in range(1, faces.Extent() + 1)}, [], 0.0,
+                              max(10.0, groesse / 20))
+        t.netz["lage"] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
+    except Exception:  # 3D-Ansicht darf die Messung nie verhindern
+        t.netz = None
+
+
 def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Alle Körper einer STEP-Datei messen. Je Körper ein Teil, auch für nicht messbare (Flächenmodell offen,
     Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist."""
@@ -2677,6 +2697,8 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
             t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
                               + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
         _koerper_daten(t, k, art)
+        if netz and not t.netz:
+            _rohnetz(t, k)
         if t.alternative is not None:       # Importdaten gelten für beide Arten
             for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
                       "n_kanten", "huelle"):

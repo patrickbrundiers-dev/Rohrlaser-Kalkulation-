@@ -667,9 +667,15 @@ def kapitel_angebot(i):
            "von Position?</i>. Nach der Wahl öffnet sich das passende Fenster:")
     i.tabelle(["Typ", "Was passiert"], [
                ["<b>Rohr / Profil</b>", "Der Schneidweg-Rechner ([[schneidweg_rechner]]) öffnet mit einer Kopfzeile: "
-                "Artikel, Bezeichnung, Profil (Eintippen sucht, z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. "
-                "Profil und Werkstoff sind von der letzten Rohrposition vorbelegt. Ein anderes Profil baut Skizze, "
-                "Enden und Naht sofort neu auf. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
+                "Artikel, Bezeichnung, <b>Profilform</b> (Quadratrohr, Rechteckrohr, Rundrohr …; die Profilliste "
+                "daneben zeigt dann nur diese Form, <i>alle Profilformen</i> zeigt alle), Profil (Eintippen sucht, "
+                "z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. Profil und Werkstoff sind von der letzten "
+                "Rohrposition vorbelegt. Ein anderes Profil baut Skizze, Enden und Naht sofort neu auf. Fehlt das "
+                "Profil, legt <b>Neu …</b> neben der Liste es an: Fenster <i>Neues Profil</i> mit Profilform, "
+                "Abmessungen und Wandstärke; die Profil-ID wird aus den Maßen vorgeschlagen (z. B. RE 70x35x2,5), "
+                "Querschnitt, kg/m und Hüllkreis rechnet das Programm. <b>Profil anlegen</b> schreibt es in die "
+                "Stammdaten ([[stammdaten]]) und wählt es; den Materialpreis danach unter Einstellungen oder als "
+                "Meterpreis im Angebot eintragen. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
                 "<b>Position anlegen</b> gesperrt. Danach steht die Position mit Schneidweg, Einstichen und Naht in "
                 "der Liste."],
                ["<b>Blech / Kantteil</b>", "Der Blech-Editor ([[blech_editor]]) öffnet: Zuschnitt oder Kantteil "
@@ -1013,8 +1019,10 @@ def kapitel_step(i):
     i.abschnitt("Rohrliste prüfen")
     i.liste("Jede Zeile ist ein Teil. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
             "<b>In Datei</b> zeigt, wie oft es in der Datei vorkommt.",
-            "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart. Bei Flachstahl/Blech und Profil/Kantteil ist sie "
-            "eine Auswahl (siehe Bleche beim STEP-Import).",
+            "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart und ist bei jeder Zeile eine Auswahl. Bei "
+            "Flachstahl/Blech und Profil/Kantteil steht dort zuerst die andere Messung (siehe Bleche beim "
+            "STEP-Import). Bei Rohren und Profilen kann jede andere Profilform gewählt werden: Die Messwerte bleiben, "
+            "Profil-ID zeigt dann die Profile dieser Form, der Hinweis nennt die gemessene Form.",
             "Die Teile sind nach gemessenem Profil gruppiert. Eine rote Gruppenzeile heißt: dieses Profil steht nicht in "
             "den Stammdaten (beim Übernehmen fragt das Programm, ob es angelegt werden soll).",
             "<b>Häkchen</b> vor dem Teil: übernehmen ja/nein. Abgewählte Teile stehen nur im STEP-Protokoll.",
@@ -1029,7 +1037,17 @@ def kapitel_step(i):
             "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
             "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
-            "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i> mit dem Grund.")
+            "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
+            "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
+            "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
+            "alle. So sieht man, welches Teil fehlt und wo es sitzt.",
+            "<b>Von Hand nachtragen</b>: Unter jedem nicht übernehmbaren Teil steht die Zeile <i>Von Hand "
+            "nachtragen</i>. Profilform wählen, bei Profil-ID ein Profil der Stammdaten wählen oder eine neue ID "
+            "eintippen (z. B. QR 40x40x3, die Maße kommen dann aus dem Namen) und <b>Nachtragen</b> klicken. Das Teil "
+            "wandert in die Profilgruppe: Länge = größtes Hüllmaß, zwei gerade Enden, keine Konturen, Prüfstatus "
+            "<i>prüfen</i>, angehakt. Gleiche nicht übernehmbare Körper der Datei (gleiches Hüllmaß) werden mit "
+            "nachgetragen. Bohrungen und Ausschnitte danach im Schneidweg-Rechner ergänzen. In der Spalte Art macht "
+            "<i>Nachtrag zurücknehmen</i> das rückgängig.")
     i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
            hoehe=100 * mm, legende=[
                (1, "Pfeil-Knöpfe links/rechts: zwischen den STEP-Dateien wechseln; daneben Nummer und Name der Datei."),
@@ -1115,10 +1133,13 @@ def kapitel_step(i):
             "<b>Länge und Breite</b> = kleinstes Rechteck, das die Außenkontur umschließt. Die Kontur heißt "
             "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen Anzahl der Innenkonturen und die "
             "Bohrungen je Durchmesser.",
-            "<b>Flachstahl oder Blech</b>: Ein flaches Teil ist Flachstahl, wenn es höchstens so breit ist wie in "
-            "der Einstellung <i>STEP-Import: Flachstahl bis Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang "
-            "wie breit ist und gerade Längsseiten hat. Die Enden dürfen schräg oder ausgeklinkt sein. Flachstahl wird "
-            "wie bisher übernommen und kalkuliert. Alles andere Flache ist ein Blech.",
+            "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
+            "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech). "
+            "Flachstahl ist in der Spalte <b>Art</b> bei jedem flachen Teil wählbar und wird dann wie ein Rohr "
+            "übernommen und kalkuliert. Steht die Einstellung auf <i>Flachstahl bis Breite</i>, gilt die alte "
+            "Abgrenzung: Flachstahl, wenn das Teil höchstens so breit ist wie in <i>STEP-Import: Flachstahl bis "
+            "Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang wie breit ist und gerade Längsseiten hat; alles "
+            "andere Flache ist ein Blech.",
             "<b>Gekantete Bleche</b> (gleich dicke Schenkel mit Biegeradien) heißen <i>Blech gekantet</i>, immer mit "
             "Prüfstatus <i>prüfen</i>. Der Hinweis nennt die Außenmaße und die ungefähre Abwicklungsfläche ohne "
             "Biegefaktor. Ein Kantteil mit gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder "
@@ -1239,9 +1260,10 @@ def kapitel_optimieren(i):
             "verschiedenen Winkeln (z. B. 45° neben 20°), es spart dann weniger. Teile mit fester oder unbekannter "
             "Schweißnaht ([[schweissnaht]]) werden nicht frei gedreht; Teile mit fester Naht auf der Breitseite und "
             "auf der Schmalseite eines Rechteckrohrs kommen nie auf dieselbe Stange. Im Schnittplan steht dann "
-            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>). Ist im "
-            "Schneidweg-Rechner keine Richtung angegeben, legt die Optimierung frei drehbare Teile (Schweißnaht ohne "
-            "Vorgabe) trotzdem ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
+            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>). Steht im "
+            "Schneidweg-Rechner die längste Seite auf <i>automatisch</i> (Vorgabe), nimmt das Programm sie aus "
+            "<i>gekippt über</i> an und die Optimierung legt frei drehbare Teile (Schweißnaht ohne Vorgabe) "
+            "ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
             "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>).",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
@@ -1348,8 +1370,10 @@ def kapitel_optimieren(i):
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck, Naht unten; Skizze vergrößert auf die erste Hälfte",
            hoehe=125 * mm, legende=[
-               (1, "<b>Enden</b>: Gehrungswinkel, gekippt über, längste Seite, beim Rundrohr Ausklinkung; rechts der "
-                   "gemessene Wert aus dem STEP-Import."),
+               (1, "<b>Enden</b>: Gehrungswinkel, gekippt über, längste Seite (Vorgabe <i>automatisch</i>: aus "
+                   "<i>gekippt über</i> angenommen, die Skizze zeigt sie, die Optimierung dreht das Teil passend; von "
+                   "Hand nur bei fester Lage), beim Rundrohr Ausklinkung; rechts der gemessene Wert aus dem "
+                   "STEP-Import."),
                (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer."),
                (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; Kopieren, Vorlagen, Entfernen daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
@@ -2322,8 +2346,12 @@ def kapitel_einstellungen(i):
          "behalten ihre Werte."],
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
                                              "A-2026-0042)."],
+        ["Angebot", "STEP-Import: ebene flache Teile vorgeben als",
+         "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
+         "Spalte Art wählbar. Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
         ["Angebot", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
-         "Grenze zwischen Flachstahl und Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
+         "Nur bei <i>ebene flache Teile vorgeben als: Flachstahl bis Breite</i>. Grenze zwischen Flachstahl und "
+         "Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
          "Flachstahl, wenn es höchstens so breit ist, mindestens dreimal so lang wie breit ist und gerade "
          "Längsseiten hat. Alles andere Flache ist ein Blech ([[bleche]])."],
         ["Angebot", "STEP-Import: Flowdrill-Bohrung am Laser",
@@ -3687,12 +3715,23 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.14", "Grundlage für die <b>3D-Schnittbearbeitung</b> mit geschwenktem Laserkopf: neue Maschinenwerte "
+    ["0.8.16", "Grundlage für die <b>3D-Schnittbearbeitung</b> mit geschwenktem Laserkopf: neue Maschinenwerte "
                "<i>3D: Bearbeitung verfügbar</i> (Vorgabe nein), Schwenkwinkel min./max. (±45°), Greifmaß (300 mm), "
                "Zusatzzeit und Faktor. Gehrungen in 3D und schräge Bohrungen rechnen mit den Schneiddaten der "
                "wirksamen Dicke Wand ÷ cos(Winkel); die Kalkulation zeigt die <i>Mehrzeit 3D</i> getrennt. Winkel "
                "über der Grenze werden begrenzt (WARNUNG), 3D auf einer Maschine ohne 3D ist ein FEHLER. Die Eingabe "
                "im Schneidweg-Rechner und das Greifmaß in der Optimierung folgen."],
+    ["0.8.15", "Rohr / Profil als neue Position: Profilform vorwählen (die Liste zeigt dann nur Profile dieser Form), "
+               "fehlendes Profil direkt mit <b>Neu …</b> anlegen (Form und Maße, Profil-ID, Querschnitt und Gewicht "
+               "automatisch) ([[neue_position]]). Schneidweg-Rechner: die längste Seite einer Gehrung steht auf "
+               "<b>automatisch</b> und wird aus <i>gekippt über</i> angenommen; die Skizze zeigt sie, die Optimierung "
+               "dreht das Teil passend ([[schneidweg_rechner]])."],
+    ["0.8.14", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
+     "<i>nicht übernehmbar</i>. Nicht übernehmbare Teile zeigt die 3D-Baugruppe <b>magenta</b>, die Zeile nennt Grund "
+     "und Hüllmaß, Anklicken hebt das Teil hervor; mit <b>Von Hand nachtragen</b> (Profilform, Profil-ID) wird es "
+     "doch übernommen. Die Spalte Art ist bei jeder Zeile wählbar ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
+     "Flachstahl ist in der Spalte Art wählbar (Einstellung <i>ebene flache Teile vorgeben als</i>); Bleche mit "
+     "Senkungen werden erkannt ([[bleche]])."],
     ["0.8.13", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
               "Gehrungen: wenige Sekunden statt mehrerer Minuten), gleiche Ergebnisse. Vergleich mit 12 m nur noch, wenn "
               "in den Einstellungen eingeschaltet (Vorgabe aus, [[lieferlaengen]]). Gehrungen ohne angegebene "
