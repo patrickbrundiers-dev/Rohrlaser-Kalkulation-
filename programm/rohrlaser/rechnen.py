@@ -17,7 +17,7 @@ from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, 
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_zukaufteil
 from . import fracht_angebot
-from . import anbau, dreid, naht, zukauf
+from . import anbau, dreid, naht, rp_profile, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -172,6 +172,8 @@ def position_werte(p, kopf, k, tabellen):
         w["gas"] = sd.get("gas") if sd else None
         d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (1, 1, 1, 1, 0)) if sd else None
         w["fehlt_3d"] = d3["fehlt"] if d3 else None
+        ez = zeit_enden(p, kopf, sd, tabellen, k, w["vorschub"]) if sd else None
+        w["fehlt_ende"] = ez["fehlt"] if ez else None
     return w
 
 
@@ -369,6 +371,11 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "WARNUNG: " + pr["kontur"]
     if not manuell and w.get("fehlt_3d"):
         return "WARNUNG: " + w["fehlt_3d"]
+    sonder = sonderprofil_pruefen(p, k.profile.get(p.get("profil_id")), m)
+    if sonder:
+        return "WARNUNG: " + sonder
+    if not manuell and w.get("fehlt_ende"):
+        return "WARNUNG: " + w["fehlt_ende"]
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
@@ -1722,18 +1729,19 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
     else:
         h = i_ = j = kv = l = None
     d3 = zeit_3d(p, kopf, wand, tabellen, k, (h, i_, j, kv, l))
-    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0)
+    ez = zeit_enden(p, kopf, sd, tabellen, k, h)
+    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez)
     return sd, (h, i_, j, kv, l), sum(anteile.values()) if anteile else None
 
 
-ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "d3")
+ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "d3", "ecken", "doppel")
 
 
-def zeitanteile(p, vorschuebe, mehr_3d=0):
+def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None):
     """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur
     (ohne Anbauteile), gravur_anbau (Gravur der Anbauteile), einstiche, d3 (Mehrzeit der 3D-Bearbeitung gegenüber
-    demselben Weg in 2D, zeit_3d)}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit)
-    wie schneidzeit."""
+    demselben Weg in 2D, zeit_3d), ecken und doppel (Eckzeit und Mehrzeit der Doppellage im Anfangs- und Endschnitt,
+    zeit_enden)}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
     h, i_, j, kv, l = vorschuebe
     if not h:
         return None
@@ -1741,9 +1749,74 @@ def zeitanteile(p, vorschuebe, mehr_3d=0):
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
                     klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p)) / kv,
                     gravur_anbau=60 * gravur_anbau(p) / kv,
-                    einstiche=_n(p.get("einstiche")) * _n(l), d3=_n(mehr_3d))
+                    einstiche=_n(p.get("einstiche")) * _n(l), d3=_n(mehr_3d),
+                    ecken=_n((enden or {}).get("ecken")), doppel=_n((enden or {}).get("doppel")))
     except ZeroDivisionError:
         return None
+
+
+SONDERFORMEN = (rp_profile.FORM, "Sonderprofil")      # Maschine: spannbar, Rüstzuschlag (F7 a)
+
+
+def sonderprofil_pruefen(p, pr, m):
+    """Einschränkungen der Maschine für RP- und Sonderprofile (Patrick 22.10.2026, F7 a und F8 a): nicht spannbar
+    (Maschinenfeld 'RP-/Sonderprofile spannbar' = nein) oder Innenkonturen an einem RP-Profil, dessen Anschlag weiter
+    übersteht als der Mindestabstand der Düse (die Düse kommt unter dem Anschlag schlecht an die Wand). Text oder
+    None."""
+    if not pr or not m or pr.get("form") not in SONDERFORMEN:
+        return None
+    if m.get("sonder_spannbar") == "nein":
+        return f"Maschine prüfen: {m.get('maschinen_id')} spannt keine RP-/Sonderprofile"
+    duese = _n(m.get("duese_min"))
+    e = rp_profile.daten(p.get("profil_id")) if pr.get("form") == rp_profile.FORM else None
+    if duese > 0 and e and _n(e.get("doppellage")) > duese and (_n(p.get("innen")) > 0 or any(
+            _n(p.get(f"{n}_n")) for n in ("klein", "mittel", "gross"))):
+        return (f"Innenkonturen unter dem Anschlag prüfen (Anschlag {zahl(_n(e['doppellage']), 1)} mm, Düse min. "
+                f"{zahl(duese, 1)} mm)")
+    return None
+ECKEN_ENDE = {"Quadratrohr": 4, "Rechteckrohr": 4}      # RP-Profile: Ecken ihrer Kontur (rp_profile)
+
+
+def ecken_ende(pr):
+    """Ecken je Anfangs- bzw. Endschnitt (Eckzeit, Patrick 22.10.2026 F4 b): RP-Profil aus der Kontur, Quadrat- und
+    Rechteckrohr 4, alle anderen 0 (Rundrohr ohne Ecke, offene Profile noch ohne)."""
+    if not pr:
+        return 0
+    if pr.get("form") == rp_profile.FORM:
+        e = rp_profile.daten(pr.get("profil_id"))
+        return int(e.get("ecken") or 0) if e else 0
+    return ECKEN_ENDE.get(pr.get("form"), 0)
+
+
+def zeit_enden(p, kopf, sd, tabellen, k, h):
+    """Zuschläge im Anfangs- und Endschnitt je Teil (Patrick 22.10.2026, RP-Profile F4 b und F10 a): Ecken × 'Zeit je
+    Ecke' der Schneiddaten, und beim RP-Profil der Schnitt durch den Anschlag (Doppellage 2 × Wand) mit den Schneid-
+    daten der doppelten Wand statt der einfachen (Mehrzeit = Länge × (1 / Vorschub doppelt − 1 / Vorschub einfach)).
+    Ergebnis dict(ecken [s], doppel [s], n_ecken (je Ende), doppel_mm (beide Enden), je_ende (Zuschlag eines geraden
+    Endes [s], für die Einsparung gemeinsamer Schnitte), fehlt (Text ohne Schneiddaten für die Doppellage)) oder None."""
+    if not k or not h or _leer(p.get("profil_id")):
+        return None
+    pr = k.profile.get(p.get("profil_id"))
+    if not pr:
+        return None
+    pr = dict(pr, profil_id=p.get("profil_id"))
+    n = ecken_ende(pr)
+    te = _n((sd or {}).get("zeit_ecke"))
+    out = dict(ecken=2 * n * te, doppel=0.0, n_ecken=n, doppel_mm=0.0, je_ende=n * te, fehlt=None)
+    e = rp_profile.daten(pr["profil_id"]) if pr.get("form") == rp_profile.FORM else None
+    if e and _n(e.get("schnitt_doppel")) > 0:
+        enden = [_n(p.get(f)) for f in ("a_schnitt", "b_schnitt")]
+        mm = sum(rp_profile.doppel_anteil(e, x or None) for x in enden)
+        sd2 = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), 2 * _n(e.get("wand")), tabellen,
+                           kategorie(p.get("werkstoff_id"), k))
+        v2 = _n((sd2 or {}).get("vorschub_gross"))
+        out["doppel_mm"] = mm
+        if not v2:
+            out["fehlt"] = f"keine Schneiddaten für den Anschlag (Doppellage {zahl(2 * _n(e.get('wand')), 1)} mm)"
+        elif v2 < h:
+            out["doppel"] = 60 * mm * (1 / v2 - 1 / h)
+            out["je_ende"] += 60 * _n(e.get("schnitt_doppel")) * (1 / v2 - 1 / h)
+    return out
 
 
 def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
@@ -1786,7 +1859,7 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
 
 
 # ------------------------------------------------------------------ Stundensätze und Zeitvorgaben
-MASCHINE_ZEIT = ("stundensatz", "ruestzeit", "stangenwechsel", "stangenwechsel_sn")
+MASCHINE_ZEIT = ("stundensatz", "ruestzeit", "stangenwechsel", "stangenwechsel_sn", "ruest_sonder")
 SCHRITT_FELDER = ("schritt", "satz", "art", "parallel", "ruestzeit", "ruest_bezug", "zeit", "bezug")
 
 
@@ -2248,6 +2321,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             teile_abm[pid] = teile_abm.get(pid, 0) + _n(positionen[i]["stueck"])
     ruest_abm_min = _n(einstellungen.get("ruesten_abmessung"))
     ruest_abm = ruest_abm_min / 60 * s_ra              # € je Abmessung
+    # RP- und Sonderprofile: Rüstzuschlag der Maschine je Abmessung (Patrick 22.10.2026, F7 a), wie Rüsten je Abmessung
+    ruest_sonder_min = _n(zb["maschine"].get("ruest_sonder"))
+    sonder_abm = {pid: ruest_sonder_min / 60 * s_ra for pid in teile_abm
+                  if (k.profile.get(pid) or {}).get("form") in SONDERFORMEN} if ruest_sonder_min else {}
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
     # Programmierung je Position mit Stückzahl, einmal je Angebot: Zeit × Stundensatz (verschickt vor 0.8.22: € je Pos.)
     s_prog = satz["Programmierung"][1]
@@ -2307,7 +2384,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None)
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
         d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (h, i_, j, kv, l))
-        anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0) or {}
+        ez = zeit_enden(p, kopf, sd, tabellen, k, h)
+        anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez) or {}
         z.update({f"zeit_{n}": anteile.get(n) for n in ZEITANTEILE})
         if anteile:     # Anzeige: Gravur gesamt, die Anbauteile als 'davon'
             z["zeit_gravur"] = anteile["gravur"] + anteile["gravur_anbau"]
@@ -2320,7 +2398,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             nz = 0
         else:
             nz = (60 * ein[1] / ende_vorschub(p, (h, i_, j), kontur_regel(maschine(kopf, k), w["wand_schneiden"]))
-                  + ein[2] * einstiche_ende(w["profilform"]) * l) / c
+                  + ein[2] * einstiche_ende(w["profilform"]) * l + ein[2] * _n((ez or {}).get("je_ende"))) / c
         manuell = not _leer(p.get("zeit_manuell"))
         zeit_extra = sum(e["zeit"] for e in zus[i])
         # Prüfzeit je Teil mit unsicher erkannten Anbauteilen (Einstellung, min): eigener Zeitanteil der Laserzeit
@@ -2336,7 +2414,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         ze = sum(e["teil"] for e in zus[i] if not e["fremd"])
         zfr = sum(e["teil"] for e in zus[i] if e["fremd"])
         n_abm = teile_abm.get(p.get("profil_id"), 0)
-        rz = (f7 / f8 if f8 else 0) + (ruest_abm / n_abm if n_abm and c else 0)
+        r_abm = ruest_abm + sonder_abm.get(p.get("profil_id"), 0)
+        rz = (f7 / f8 if f8 else 0) + (r_abm / n_abm if n_abm and c else 0)
         az = sum(e["teil"](p, c) for e in weitere) if c else 0      # weitere Arbeitsschritte je Teil
         fr = fracht_je[i] if c else 0
         uz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) + fr \
@@ -2390,7 +2469,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         # Anteile je Teil (nur Aufteilung von rz und uz, für die Staffelpreise je Satz bzw. Position)
         z.update(ruesten_maschine_teil=(ruest / 60 * s_rm / f8 if f8 else 0),
                  stangenwechsel_teil=(wechsel_s / 3600 * s_sw / f8 if f8 else 0),
-                 ruesten_abm_teil=(ruest_abm / n_abm if n_abm and c else 0),
+                 ruesten_abm_teil=(r_abm / n_abm if n_abm and c else 0),
                  pauschale_abm_teil=(pausch_abm / n_abm if n_abm and c else 0),
                  angebotsaufschlag_teil=(aufschlag / f8 if f8 and c else 0), programmierung_anteil=(prog_pos[i] / c if c else 0),
                  prog_min=prog_zeit[i][0], prog_hand=prog_zeit[i][1])
@@ -2418,7 +2497,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
 
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
                   stangen=len(stangen), beladungen=n_lad, beladungen_sn=n_sn, teile=f8,
-                  abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm,
+                  abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten=f7 + ruest_abm * n_abm + sum(sonder_abm.values()),
+                  abmessungen_sonder=len(sonder_abm), ruestzeit_sonder=ruest_sonder_min,
                   pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
                   fracht_text=fracht_text, fracht_fehler=fracht_fehler,
@@ -2442,7 +2522,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # + Skonto = Verkaufspreis)
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
                   gravur_anbau=_summe("gravur_anbau_teil"), pruefung_anbau=_summe("pruefung_teil"),
-                  ruesten_maschine=ruest / 60 * s_rm, ruesten_abmessungen=ruest_abm * n_abm,
+                  ruesten_maschine=ruest / 60 * s_rm, ruesten_abmessungen=ruest_abm * n_abm + sum(sonder_abm.values()),
                   stangenwechsel_kosten=wechsel_s / 3600 * s_sw,
                   zuschlag_material=_summe("zuschlag_material_teil"),
                   zuschlag_fertigung=_summe("zuschlag_fertigung_teil"),
@@ -2686,7 +2766,9 @@ def kostenarten(summen, einst):
     zusatz = {
         "laser_schneiden": f" (davon {', '.join(davon)})" if davon else "",
         "ruesten_maschine": f" ({z(summen['ruestzeit'])} min)",
-        "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min)",
+        "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min"
+                               + (f" + {summen['abmessungen_sonder']} × {z(summen['ruestzeit_sonder'])} min RP-/"
+                                  "Sonderprofil" if summen.get("abmessungen_sonder") else "") + ")",
         "stangenwechsel_kosten": f" ({summen['beladungen']} × {z(summen['stangenwechsel'])} s)",
         "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
         "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",

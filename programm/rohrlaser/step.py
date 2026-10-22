@@ -214,7 +214,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     d3 (Häkchen 3D-Schnittbearbeitung im Prüfdialog): Gehrungen an den Enden werden Gehrungen in 3D, schräge
     Bohrungen (ab 0,5°) Bohrungen in 3D mit Neigung längs/quer (STEP-JSON 1.5; ältere Messungen nur mit dem Betrag
     als Neigung längs und dem Text „3D prüfen“). Ohne d3 bleibt alles 2D."""
-    from .schneidweg import ACHSEN, QUELLE_STEP
+    from .schneidweg import ACHSE_ZWEI, ACHSEN, QUELLE_STEP, messprofil_text
     try:
         liste = json.loads(m.get("konturen_liste") or "[]")
     except (TypeError, ValueError):
@@ -239,6 +239,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         art = d.get("art")
         if art in ("Ende A", "Ende B"):
             e = dict(gemessen=round(float(d.get("schnittlaenge") or 0), 2), form=d.get("form"))
+            if m.get("profilform") and _z(m, "abm_a") > 0:      # gemessener Querschnitt (Profilwechsel)
+                e["messprofil"] = messprofil_text(m["profilform"], m.get("abm_a"), m.get("abm_b"), _wand(m))
             if d.get("huellmass"):
                 e["huelle_gemessen"] = round(float(d["huellmass"]), 2)
             if d.get("form") in ("Gehrung", "Schrägschnitt zweiachsig") and d.get("gehrung"):
@@ -249,8 +251,18 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     # Achse passend zur Richtung (Breitseite oben: 0°/180° kippt über die kürzere Seite)
                     quer = schmal if e["richtung"] % 180 == 0 else breit
                     e["achse"] = ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1]
+                if d.get("form") == "Schrägschnitt zweiachsig" and d.get("um_x") is not None \
+                        and d.get("um_y") is not None:
+                    # um_x kippt über die senkrechte Ausdehnung (Breitseite oben: die schmale Seite), um_y über
+                    # die waagrechte; über Höhe = über Maß a
+                    senk, waag = float(d["um_x"]), float(d["um_y"])
+                    a_senk = abs(schmal - a_) < 1e-6
+                    e.update(achse=ACHSE_ZWEI, winkel_h=round(senk if a_senk else waag, 2),
+                             winkel_b=round(waag if a_senk else senk, 2))
                 if d3:
                     e["d3"] = True
+            if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
+                e.update(flaechen=d["flaechen"], huelle=d["huelle"])
             if e["gemessen"] > 0:
                 eing["a" if art == "Ende A" else "b"] = e
             continue
@@ -329,6 +341,57 @@ def wand_max(m):
                 pass
     w = max(werte)
     return round(w, 2) if w > _wand(m) + 0.05 else None
+
+
+def profil_abweichung(m, pr):
+    """Weicht der gemessene Querschnitt vom gewählten Profil ab (Patrick 22.10.2026)? Maße ±0,3 mm, Wand ±0,15 mm,
+    Fläche ±1,5 %: 'WARNUNG: STEP … ↔ Profil …' mit beiden Werten, sonst None."""
+    if not pr:
+        return None
+    from .schneidweg import _masse
+    from .stammdaten import flaeche_wirksam
+    form = m.get("profilform")
+    ist, soll = _masse(form, _z(m, "abm_a"), _z(m, "abm_b")), _masse(form, pr.get("a"), pr.get("b"))
+    fl_ist, fl_soll = _z(m, "flaeche"), flaeche_wirksam(pr) or 0
+    wand_ist, wand_soll = _wand(m), float(pr.get("wand") or 0)
+    abweichend = any(abs(x - y) > TOL_MASS for x, y in zip(ist, soll)) or \
+        (form != "Flachstahl" and abs(wand_ist - wand_soll) > 0.15) or \
+        (fl_ist > 0 and fl_soll > 0 and abs(fl_ist - fl_soll) > 0.015 * fl_soll)
+    if not abweichend:
+        return None
+    t = lambda masse, w, fl: (" × ".join(dez(round(x, 1)) for x in masse) + (f" × {dez(round(w, 2))}" if w else "")
+                              + f" mm, Fläche {dez(round(fl, 1))} mm²")
+    return f"WARNUNG: STEP weicht vom gewählten Profil ab: STEP {t(ist, wand_ist, fl_ist)} ↔ Profil " \
+           f"{pr.get('profil_id') or ''} {t(soll, wand_soll, fl_soll)}".replace("  ", " ")
+
+
+def enden_neu(m, pr, rechner):
+    """Anfangs- und Endschnitt für das Profil der Position neu (Patrick 22.10.2026): gilt die gemessene Länge nicht
+    für das Profil (anderes Profil als gemessen, RP-Profil mit doppelt gezähltem Anschlag; schneidweg.anderes_profil),
+    rechnet schneidweg.ende_neu mit der gemessenen Form (gerade, Gehrung, Schrägschnitt zweiachsig, 3D-Ende).
+    Ergebnis dict(laengen {a/b: mm}, differenz (neu − gemessen, für den Schneidweg), hinweise) oder None."""
+    from .schneidweg import anderes_profil, ende_neu
+    if not pr or not rechner:
+        return None
+    pr = dict(pr, profil_id=pr.get("profil_id"))
+    laengen, hinweise, diff = {}, [], 0.0
+    for x, titel in (("a", "Anfangsschnitt"), ("b", "Endschnitt")):
+        e = rechner.get(x) or {}
+        if not _z(e, "gemessen") or not anderes_profil(e, pr):
+            continue
+        neu = ende_neu(pr, e)
+        if neu is None:
+            hinweise.append(f"{titel} ({e.get('form') or '?'}) nicht für das Profil rechenbar: gemessene Länge "
+                            f"{dez(round(_z(e, 'gemessen'), 1))} mm übernommen, bitte prüfen")
+            continue
+        laengen[x] = neu[0]
+        diff += neu[0] - _z(e, "gemessen")
+    if laengen:
+        rp = pr.get("form") == rp_profile.FORM
+        hinweise.insert(0, ("RP-Profil " + str(pr.get("profil_id")) + ": Anschlag (Doppellage) einmal geschnitten, "
+                            if rp else f"Enden für Profil {pr.get('profil_id')} neu gerechnet, ")
+                        + f"Schneidweg {dez(round(abs(diff), 1))} mm {'kürzer' if diff < 0 else 'länger'} als gemessen")
+    return dict(laengen=laengen, differenz=diff, hinweise=hinweise) if laengen or hinweise else None
 
 
 def finde_rp(m, profile):
@@ -816,6 +879,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             pid = m.get("_profil") or finde_profil(m, profile)
             if m.get("_profil") and pid != gemessen:
                 hinweise.append(f"Profil im Prüfdialog geändert (gemessen {gemessen or m['profilform']})")
+                abw = profil_abweichung(m, profile.get(pid))
+                if abw:
+                    hinweise.append(abw)
             if pid is None or pid not in profile:
                 pid = pid or m.get("profil_id_vorschlag") or None
                 if neue_profile and pid and rp_profile.daten(pid):
@@ -920,18 +986,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if _z(m, "ende_b"):
                 p["b_gerade"] = "ja" if m.get("ende_b_gerade") == "1" else "nein"
                 p["b_schnitt"] = round(_z(m, "ende_b"), 1)
-            rp = rp_profile.daten(pid) if form == rp_profile.FORM else None
-            if rp:      # die Messung zählt die Doppellage als zwei Wände, der Laser trennt sie mit einem Schnitt
-                vorher = 0.0
-                for x, ende in (("a", "ende_a"), ("b", "ende_b")):
-                    if _z(m, ende):
-                        vorher += _z(m, ende)
-                        p[f"{x}_schnitt"] = round(rp_profile.schnitt_aus_messung(
-                            rp, _z(m, ende), m.get(f"{ende}_gerade") == "1"), 1)
-                weniger = vorher - p.get("a_schnitt", 0) - p.get("b_schnitt", 0)
-                p["schneidweg"] = round(p["schneidweg"] - weniger, 1)
-                hinweise.append(f"RP-Profil {pid}: Anschlag (Doppellage) einmal geschnitten, Schneidweg "
-                                f"{dez(round(weniger, 1))} mm kürzer als gemessen")
+            neu_enden = enden_neu(m, profile.get(pid), rechner)
+            if neu_enden:   # anderes Profil als gemessen bzw. RP-Profil: Enden mit der gemessenen Form neu gerechnet
+                for x, lg in neu_enden["laengen"].items():
+                    p[f"{x}_schnitt"] = round(lg, 1)
+                p["schneidweg"] = round(p["schneidweg"] + neu_enden["differenz"], 1)
+                hinweise += neu_enden["hinweise"]
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if m.get("innen_liste") or enden:

@@ -1274,6 +1274,14 @@ def kapitel_step(i):
             "<b>nicht angehakt</b> und trägt den Hinweis <i>UNSICHER: … – zum Übernehmen anhaken</i>. Übernommen "
             "wird es erst, wenn es von Hand angehakt wird. Ohne Bestätigung steht im Bericht <i>nicht übernommen: "
             "Erkennung unsicher</i>.",
+            "<b>Anderes Profil wählen</b> (Spalte Profil-ID): weicht der gemessene Querschnitt vom gewählten Profil "
+            "ab (Maße ±0,3 mm, Wand ±0,15 mm, Fläche ±1,5 %), steht in der Hinweis-Spalte gelb eine <i>WARNUNG</i> mit "
+            "den Werten aus der STEP-Datei und denen des Profils, ebenso im Bericht. Beim Übernehmen rechnet das "
+            "Programm Anfangs- und Endschnitt mit der gemessenen Form für das gewählte Profil neu: gerade = "
+            "Schnittlänge des Profils, Gehrung und Schrägschnitt zweiachsig mit den gemessenen Winkeln, 3D-Enden "
+            "(Spitze aus mehreren Ebenen, Ausklinkung auf ein Rundrohr) aus den gemessenen Schnittflächen "
+            "([[schneidweg_rechner]]). Innenkonturen und Bohrungen bleiben wie gemessen. Lässt sich ein Ende nicht "
+            "neu rechnen (z. B. Formschnitt aus einer älteren Messung), gilt die gemessene Länge mit Hinweis.",
             "Bei jedem STEP-Import legt das Programm das vollständige Messergebnis als <b>JSON-Datei</b> in die "
             "Ablage: <i>&lt;Angebot&gt; STEP-Messung &lt;Datum Uhrzeit&gt;.json</i>. Der Pfad steht im Bericht. Die "
             "Datei enthält je STEP-Datei den Importstatus, die Einheit und die Meldungen. Je Körper kommen dazu "
@@ -1455,6 +1463,17 @@ def kapitel_optimieren(i):
             "Träger Steg bzw. Flansche). Nur bei einer unbekannten Profilform ist die Gehrung eine "
             "<i>Schätzung</i> (gerade Schnittlänge / cos Winkel); der Dialog kennzeichnet sie. Je Ende zählen die "
             "Einstiche wie beim STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
+            "<b>Schrägschnitt zweiachsig</b>: bei <i>gekippt über</i> „über Höhe und Breite“ wählen; dann ist der "
+            "Gehrungswinkel die Neigung über Höhe und <i>Winkel über Breite</i> die zweite Neigung. Jede Kante wird "
+            "mit ihrer Richtung gestreckt (Rechteckrohr: Anteil Höhe × √(1 + tan² Höhe) + Anteil Breite × "
+            "√(1 + tan² Breite), Rundrohr als Ellipse mit der Gesamtneigung, RP-Profil je Konturstück). In 3D "
+            "schwenkt der Kopf auf die Gesamtneigung der Ebene.",
+            "<b>3D-Enden aus dem STEP-Import</b> (Spitze oder Kerbe aus mehreren Ebenen, Ausklinkung auf ein "
+            "Rundrohr): die Messung liefert die Schnittflächen mit. Solange das Profil der Position das gemessene ist, "
+            "gilt die gemessene Länge; mit einem anderen Profil rechnet der Rechner die Schnittkurve auf dessen "
+            "Außenkontur neu (Rund-, Quadrat-, Rechteckrohr, RP-Profil), Text <i>STEP-Form, für … gerechnet</i>. "
+            "Dasselbe gilt für gerade, Gehrungs- und zweiachsige Enden aus dem STEP-Import. Das braucht "
+            "STEP-Import.exe ab 0.8.30; ältere Messungen behalten bei komplexen Enden die gemessene Länge.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
@@ -2701,7 +2720,15 @@ def kapitel_stammdaten(i):
             "Gewicht je Meter, Außenumfang, Schnittlänge und Zahl der Ecken.",
             "<b>Schnittlänge</b>: Außenumfang ohne die doppelt liegende Blechlage, denn der Anschlag wird mit einem "
             "Schnitt durch beide Lagen getrennt. Bei Gehrungen rechnet der Schneidweg-Rechner jede Kante mit ihrer "
-            "Richtung zur Gehrungsachse ([[schneidweg_rechner]]). Hüllkreis = Diagonale aus Breite und Höhe.")
+            "Richtung zur Gehrungsachse ([[schneidweg_rechner]]). Hüllkreis = Diagonale aus Breite und Höhe.",
+            "<b>Schneidzeit</b>: der Schnitt durch den Anschlag (Doppellage) läuft mit den Schneiddaten der "
+            "doppelten Wand (bei 2 mm Blech die 4-mm-Zeile), der Rest mit der Blechdicke; bei schrägen Enden "
+            "entsprechend länger. Dazu kommt je Ecke der Kontur die <i>Zeit je Ecke</i> der Schneiddaten. Beides "
+            "steht in den Spalten <i>davon Ecken</i> und <i>davon Anschlag doppelt</i>. Fehlt die Zeile für die "
+            "doppelte Wand, meldet die Position eine WARNUNG.",
+            "<b>Maschine</b>: <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "
+            "<i>Mindestabstand Düse</i> in den Maschinen legen fest, ob die Maschine RP-Profile spannt, wie viel "
+            "Rüstzeit je RP-Abmessung dazukommt und ab wann Innenkonturen unter dem Anschlag geprüft werden müssen.")
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
         ["Kategorie", "Stahl, Edelstahl oder Aluminium (Liste in den Einstellungen). Im Angebot sind die Werkstoffe "
@@ -2802,6 +2829,16 @@ def kapitel_stammdaten(i):
         ["3D: Zusatzzeit je Bearbeitung [s], 3D: Faktor Schneidzeit",
          "Zeit je 3D-Bearbeitung (Kopf schwenken, Vorgabe 0 s) und Faktor auf die 3D-Schneidzeit (Vorgabe 1,0); "
          "erst mit echten Zeiten der Maschine ändern"],
+        ["RP-/Sonderprofile spannbar", "nein = Positionen mit RP-Profil oder Sonderprofil bekommen die WARNUNG "
+                                       "<i>Maschine prüfen</i>; leer = ja ([[rp_profile]])"],
+        ["Rüstzuschlag Sonderprofil [min je Abmessung]", "zusätzliche Rüstzeit je RP-/Sonderprofil-Abmessung "
+                                                          "(Spannbacken, Anlage), wie Rüsten je Abmessung bewertet "
+                                                          "und auf deren Teile verteilt; gilt für Angebote mit den "
+                                                          "aktuellen Zeitvorgaben"],
+        ["Mindestabstand Düse [mm]", "steht der Anschlag eines RP-Profils weiter über, bekommen Positionen mit "
+                                     "Innenkonturen die WARNUNG <i>Innenkonturen unter dem Anschlag prüfen</i> "
+                                     "(die Düse kommt unter dem Anschlag schlecht an die Wand); leer = keine "
+                                     "Prüfung"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
@@ -2818,7 +2855,10 @@ def kapitel_stammdaten(i):
          "für mittlere und kleine Konturen und Enden; leer = nächstgrößerer Vorschub"],
         ["Vorschub Gravur [mm/min]", "für Gravuren; leer = nächstgrößerer Vorschub"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
-        ["Bemerkung", "freier Text"]], [75, 190])
+        ["Bemerkung", "freier Text"],
+        ["Zeit je Ecke [s]", "Zuschlag je Ecke im Anfangs- und Endschnitt (der Laser bremst in der Ecke): "
+                             "RP-Profile nach der Zahl der Ecken ihrer Kontur, Quadrat- und Rechteckrohr 4 je Ende, "
+                             "andere Profile 0; leer = 0. Ein gemeinsamer Schnitt spart auch diese Zeit"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte je Kategorie für die Maschinen T03 (Trumpf, CO₂-Laser 3,2 kW), T11 (Trumpf, "
            "Faserlaser 4 kW) und LT7 (Adige, Faserlaser 3 kW). Seit Version 0.6.19 stammen die Faserlaser-Werte aus "
            "Rohr-Schnitttabellen für 3 und 4 kW: Am Rohr begrenzt bei dünnen Wänden die Drehachse, darum höchstens "
@@ -3869,6 +3909,13 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.30", "<b>RP-Profile kalkuliert</b>: Schnitt durch den Anschlag mit den Schneiddaten der doppelten Wand, "
+               "neue Spalte <i>Zeit je Ecke</i> in den Schneiddaten (RP nach Kontur, Quadrat-/Rechteckrohr 4 Ecken), "
+               "Maschinenfelder <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "
+               "<i>Mindestabstand Düse</i> mit Warnungen ([[rp_profile]]). <b>STEP-Import</b>: anderes Profil gewählt "
+               "→ WARNUNG mit STEP- und Profilwerten, Anfangs- und Endschnitt werden für das gewählte Profil neu "
+               "gerechnet. <b>Schneidweg-Rechner</b>: Schrägschnitt zweiachsig (über Höhe und Breite) und 3D-Enden "
+               "aus dem STEP-Import (mehrere Ebenen, Ausklinkung) ([[schneidweg_rechner]])."],
     ["0.8.29", "<b>Schneller</b>, ohne Änderung an Bedienung und Ergebnissen: große Angebote öffnen und rechnen "
                "deutlich schneller (Angebots-PDF mit Staffeln bei 200 Positionen 5 s statt 22 s, Optimieren 3 s statt "
                "8 s), der Programmstart ist kürzer und die STEP-Messung großer Baugruppen etwa 12 % schneller. Preise, "

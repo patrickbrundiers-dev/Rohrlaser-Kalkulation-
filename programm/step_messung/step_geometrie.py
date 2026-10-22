@@ -1108,6 +1108,77 @@ def _fase_ende(flaechen, zmin, zmax, gz0, gz1, tol=0.01):
     return None
 
 
+def _ende_flaechen(flaechen, kanten, cx, cy, ref, z_ref, tol=0.1):
+    """3D-Ende (komplex: mehrere Ebenen, Zylinder quer zur Rohrachse) als Flächen für den Schneidweg-Rechner (STEP-JSON
+    1.9): Querschnitt um (cx, cy), gedreht wie _endform (Y = 0°-Richtung), z ab z_ref. Ebene ['E', gx, gy, c] mit
+    z = c + gx·x + gy·y, Zylinder ['Z', ux, uy, ax, ay, az, r, vz] (Achse quer zum Rohr in Richtung (ux, uy) durch
+    (ax, ay, az), vz = +1 obere bzw. −1 untere Hälfte). Die Schnittfläche über einem Punkt ist das Minimum bzw. Maximum
+    der Flächen ('huelle'); gewählt wird, was die gemessene Schnittkontur (Kanten zur Außenwand) innerhalb tol trifft.
+    Ergebnis dict(flaechen, huelle) oder None (andere Flächen, längs liegende Ebenen, keine Hülle passt)."""
+    r = math.radians(ref)
+    cr, sr = math.cos(r), math.sin(r)
+
+    def dreh(x, y):
+        return x * cr + y * sr, -x * sr + y * cr
+    out = []
+    for f in flaechen:
+        sf = BRepAdaptor_Surface(TopoDS.Face(f))
+        pl = _ebene(f)
+        if pl is not None:
+            d, p0 = pl.Axis().Direction(), pl.Location()
+            n = (d.X(), d.Y(), d.Z()) if d.Z() >= 0 else (-d.X(), -d.Y(), -d.Z())
+            if n[2] < 0.1:          # Ebene längs zum Rohr: keine Höhe über dem Querschnitt
+                return None
+            nx, ny = dreh(n[0], n[1])
+            px, py = dreh(p0.X() - cx, p0.Y() - cy)
+            gx, gy = -nx / n[2], -ny / n[2]
+            e = ["E", round(gx, 6), round(gy, 6), round(p0.Z() - z_ref - gx * px - gy * py, 4)]
+            if not any(all(abs(a - b) < 1e-4 for a, b in zip(e[1:], x[1:])) for x in out if x[0] == "E"):
+                out.append(e)
+        elif sf.GetType() == GeomAbs_Cylinder:
+            zyl = sf.Cylinder()
+            ax = zyl.Axis()
+            d, l0 = ax.Direction(), ax.Location()
+            if abs(d.Z()) > 1e-3:   # Achse nicht quer zum Rohr
+                return None
+            ux, uy = dreh(d.X(), d.Y())
+            lg = math.hypot(ux, uy)
+            ux, uy = ux / lg, uy / lg
+            axx, ayy = dreh(l0.X() - cx, l0.Y() - cy)
+            az = l0.Z() - z_ref
+            u0, u1, v0, v1 = sf.FirstUParameter(), sf.LastUParameter(), sf.FirstVParameter(), sf.LastVParameter()
+            pm = sf.Value((u0 + u1) / 2, (v0 + v1) / 2)
+            vz = 1 if pm.Z() - z_ref >= az else -1
+            e = ["Z", round(ux, 6), round(uy, 6), round(axx, 4), round(ayy, 4), round(az, 4), round(zyl.Radius(), 4),
+                 vz]
+            if e not in out:
+                out.append(e)
+        else:
+            return None
+    if not out:
+        return None
+
+    def hoehe(f, x, y):
+        if f[0] == "E":
+            return f[3] + f[1] * x + f[2] * y
+        _, ux, uy, ax_, ay_, az_, rr, vz_ = f
+        q = -(x - ax_) * uy + (y - ay_) * ux
+        return None if abs(q) > rr + 1e-6 else az_ + vz_ * math.sqrt(max(rr * rr - q * q, 0.0))
+    pts = []
+    for p in _punkte_kanten(kanten, 1.0):
+        x, y = dreh(p.X() - cx, p.Y() - cy)
+        pts.append((x, y, p.Z() - z_ref))
+    beste = None
+    for huelle, wahl in (("min", min), ("max", max)):
+        fehler = 0.0
+        for x, y, z in pts:
+            h = [v for v in (hoehe(f, x, y) for f in out) if v is not None]
+            fehler = max(fehler, abs(wahl(h) - z) if h else math.inf)
+        if fehler <= tol and (beste is None or fehler < beste[0]):
+            beste = (fehler, huelle)
+    return dict(flaechen=out, huelle=beste[1]) if beste else None
+
+
 def _endform(flaechen, laenge, ref=0.0, ende="B"):
     """Form eines Endes aus seinen Schnittflächen: gerade, Gehrung (Neigung um eine Querachse), Schrägschnitt zwei-
     achsig oder komplex (mehrere Ebenen, gekrümmt: Ausklinkung, Sattel …). Winkel in Grad gegen den geraden Schnitt:
@@ -1888,6 +1959,10 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                      hinweis="Fase: nicht gelasert, Schnitt an der längsten Stelle")
             t.hinweise.append(f"{name}: {FASE_HINWEIS}, wird nicht gelasert; Länge und Schneidweg an der längsten "
                               "Stelle angenommen")
+
+
+        if e["form"] == "komplex" and kt:
+            e.update(_ende_flaechen(fl, kt, abw.cx, abw.cy, ref, zmin + z) or {})
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))

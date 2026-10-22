@@ -384,6 +384,10 @@ class StepPruefDialog(QDialog):
                 pr.setCurrentText(m.get("_profil") or vorschlag or "")
                 ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
             it.setText(self.SP_HINWEIS, "; ".join(hinweis))
+            if not ist_blech:       # anderes Profil gewählt: WARNUNG, wenn der STEP-Querschnitt davon abweicht
+                pr.currentTextChanged.connect(lambda t, it=it, m=m, h="; ".join(hinweis), v=vorschlag:
+                                              self._profil_warnung(it, m, t, h, v))
+                self._profil_warnung(it, m, pr.currentText(), "; ".join(hinweis), vorschlag)
             sp = QSpinBox()
             sp.setRange(0, 100000)
             sp.setSpecialValueText("leer")
@@ -670,6 +674,21 @@ class StepPruefDialog(QDialog):
         cb.setCurrentText(text if text in self.k.profile and (not form or self.k.profile[text].get("form") == form)
                           else "")
         cb.blockSignals(False)
+
+    def _profil_warnung(self, it, m, profil, hinweis, vorschlag):
+        """Hinweis der Zeile mit der WARNUNG step.profil_abweichung, wenn ein anderes Profil als das gemessene gewählt
+        ist und der Querschnitt davon abweicht; die Enden werden beim Übernehmen für das Profil neu gerechnet."""
+        from . import step
+        profil = (profil or "").strip()
+        warnung = step.profil_abweichung(m, self.k.profile.get(profil)) if profil and profil != vorschlag else None
+        it.setText(self.SP_HINWEIS, "; ".join(filter(None, [warnung, hinweis])))
+        it.setToolTip(self.SP_HINWEIS, (warnung + ". Beim Übernehmen werden Anfangs- und Endschnitt mit der gemessenen "
+                                        "Form für das gewählte Profil neu gerechnet, Innenkonturen bleiben gemessen.")
+                      if warnung else "")
+        if warnung:
+            it.setBackground(self.SP_HINWEIS, QBrush(QColor("#FFD966")))
+        elif m.get("pruefstatus") != "prüfen":
+            it.setBackground(self.SP_HINWEIS, QBrush())
 
     def form_setzen(self, index, form):
         """Andere Profilform für die Zeile mit dem Teil Nr. index (Messwerte bleiben, nur die Form): die Liste wird

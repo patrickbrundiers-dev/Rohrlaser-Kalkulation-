@@ -132,11 +132,15 @@ class SchneidwegDialog(QDialog):
 
         enden = QGridLayout()
         self.winkel, self.achse, self.sattel, self.richtung, self.gemessen_text = {}, {}, {}, {}, {}
+        self.winkel_b = {}          # zweiachsiger Schrägschnitt: Winkel über Breite (Gehrungswinkel = über Höhe)
         self.ende_3d = {}
         rund = form == "Rundrohr"
         for c, (titel, tipp) in enumerate((
                 ("Gehrungswinkel", "Abweichung vom rechtwinkligen Schnitt in Grad (gerade = 0°)"),
-                ("gekippt über", "Richtung, über die die Gehrung kippt: Höhe = Maß a, Breite = Maß b des Profils"),
+                ("gekippt über", "Richtung, über die die Gehrung kippt: Höhe = Maß a, Breite = Maß b des Profils; "
+                 "„über Höhe und Breite“ = Schrägschnitt zweiachsig"),
+                ("Winkel über Breite", "nur Schrägschnitt zweiachsig: Neigung über Breite (der Gehrungswinkel ist "
+                 "dann die Neigung über Höhe)"),
                 ("längste Seite (Gehrungsrichtung)", "Seite, an der das Teil an diesem Ende am längsten ist, von "
                  "Ende A gesehen; „automatisch“ nimmt sie aus „gekippt über“ an, die Optimierung dreht das Teil passend"),
                 ("Ausklinkung auf Rundrohr Ø", "nur Rundrohr: Ende rechtwinklig auf ein Rundrohr mit diesem Ø "
@@ -154,14 +158,27 @@ class SchneidwegDialog(QDialog):
             w.setDecimals(1)
             w.setSuffix(" °")
             w.setSpecialValueText("gerade")
-            w.setValue(sw._z(e[seite].get("winkel")))
-            w.setToolTip("Gehrung: Abweichung vom rechtwinkligen Schnitt (0° = gerader Schnitt)")
+            zwei = e[seite].get("achse") == sw.ACHSE_ZWEI
+            w.setValue(sw._z(e[seite].get("winkel_h" if zwei else "winkel")))
+            w.setToolTip("Gehrung: Abweichung vom rechtwinkligen Schnitt (0° = gerader Schnitt); beim Schrägschnitt "
+                         "zweiachsig die Neigung über Höhe")
             w.valueChanged.connect(self.rechnen)
+            wb = QDoubleSpinBox()
+            wb.setRange(0, 79.9)
+            wb.setDecimals(1)
+            wb.setSuffix(" °")
+            wb.setSpecialValueText("–")
+            wb.setValue(sw._z(e[seite].get("winkel_b")) if zwei else 0)
+            wb.setEnabled(zwei)
+            wb.setToolTip("Schrägschnitt zweiachsig: Neigung über Breite (Maß b)")
+            wb.valueChanged.connect(self.rechnen)
             a = QComboBox()
-            a.addItems(sw.ACHSEN)
+            a.addItems(sw.ACHSEN_WAHL)
             a.setCurrentText(e[seite].get("achse") or sw.ACHSEN[0])
             a.setEnabled(not rund)
-            a.setToolTip("Richtung, in die die Gehrung kippt (Höhe = Maß a, Breite = Maß b des Profils)")
+            a.setToolTip("Richtung, in die die Gehrung kippt (Höhe = Maß a, Breite = Maß b des Profils); „über Höhe "
+                         "und Breite“ = Schrägschnitt zweiachsig mit zwei Winkeln")
+            a.currentTextChanged.connect(lambda t, wb=wb: wb.setEnabled(t == sw.ACHSE_ZWEI))
             a.currentTextChanged.connect(self.rechnen)
             sa = QDoubleSpinBox()
             sa.setRange(0, 2000)
@@ -184,18 +201,20 @@ class SchneidwegDialog(QDialog):
             ri.currentTextChanged.connect(self.rechnen)
             gm = QLabel()
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
+            self.winkel_b[seite] = wb
             self.gemessen_text[seite] = gm
             enden.addWidget(QLabel(titel), r, 0)
             enden.addWidget(w, r, 1)
             enden.addWidget(a, r, 2)
-            enden.addWidget(ri, r, 3)
-            enden.addWidget(sa, r, 4)
-            enden.addWidget(gm, r, 5)
+            enden.addWidget(wb, r, 3)
+            enden.addWidget(ri, r, 4)
+            enden.addWidget(sa, r, 5)
+            enden.addWidget(gm, r, 6)
             d3 = QCheckBox("Gehrung in 3D")
             d3.setChecked(bool(e[seite].get("d3")))
             d3.toggled.connect(self.rechnen)
             self.ende_3d[seite] = d3
-            enden.addWidget(d3, r, 6)
+            enden.addWidget(d3, r, 7)
         self._step_enden(e)
         self.gravur = QDoubleSpinBox()
         self.gravur.setRange(0, 100000)
@@ -578,11 +597,12 @@ class SchneidwegDialog(QDialog):
             x = e.get(s) or {}
             gm = self.gemessen_text[s]
             if sw._z(x.get("gemessen")):
-                self._ende_step[s] = (self._ende_werte(s), {k_: x[k_] for k_ in ("gemessen", "huelle_gemessen", "form")
-                                                            if x.get(k_) is not None})
+                self._ende_step[s] = (self._ende_werte(s), {k_: x[k_] for k_ in (
+                    "gemessen", "huelle_gemessen", "form", "messprofil", "flaechen", "huelle") if x.get(k_) is not None})
                 self.winkel[s].setStyleSheet("background: #E8F5E9;")
                 gm.setText(f"<span style='color:#1E6B35'>gemessen {rechnen.zahl(x['gemessen'], 1)} mm"
-                           + (f", {x['form']}" if x.get("form") else "") + "</span>")
+                           + (f", {x['form']}" if x.get("form") else "")
+                           + (" (3D-Ende, für andere Profile gerechnet)" if x.get("flaechen") else "") + "</span>")
             else:
                 self.winkel[s].setStyleSheet("")
                 gm.setText("<span style='color:#595959'>–</span>")
@@ -766,7 +786,7 @@ class SchneidwegDialog(QDialog):
 
     def _ende_werte(self, s):
         return (self.winkel[s].value(), self.achse[s].currentText(), self.sattel[s].value(),
-                self.richtung[s].currentText())
+                self.richtung[s].currentText(), self.winkel_b[s].value())
 
     def _art_geaendert(self, combo):
         for r in range(self.tabelle.rowCount()):
@@ -837,6 +857,10 @@ class SchneidwegDialog(QDialog):
         enden = {s: dict(winkel=self.winkel[s].value(), achse=self.achse[s].currentText(),
                          sattel=self.sattel[s].value() or None,
                          richtung=sw.RICHTUNGEN.get(self.richtung[s].currentText())) for s in ("a", "b")}
+        for s in ("a", "b"):            # zweiachsig: Winkel über Höhe und Breite, winkel = Gesamtneigung der Ebene
+            if enden[s]["achse"] == sw.ACHSE_ZWEI:
+                w_h, w_b = self.winkel[s].value(), self.winkel_b[s].value()
+                enden[s].update(winkel=round(sw.gesamtwinkel(w_h, w_b), 2), winkel_h=w_h, winkel_b=w_b)
         for s, (werte, gemessen) in self._ende_step.items():
             if self._ende_werte(s) == werte:
                 enden[s].update(gemessen)
@@ -906,8 +930,10 @@ class SchneidwegDialog(QDialog):
         if not anhaengen:
             for s in ("a", "b"):
                 x = e.get(s) or {}
-                self.winkel[s].setValue(sw._z(x.get("winkel")))
-                if x.get("achse") in sw.ACHSEN:
+                zwei = x.get("achse") == sw.ACHSE_ZWEI
+                self.winkel[s].setValue(sw._z(x.get("winkel_h" if zwei else "winkel")))
+                self.winkel_b[s].setValue(sw._z(x.get("winkel_b")) if zwei else 0)
+                if x.get("achse") in sw.ACHSEN_WAHL:
                     self.achse[s].setCurrentText(x["achse"])
                 self.sattel[s].setValue(sw._z(x.get("sattel")) if self.sattel[s].isEnabled() else 0)
                 self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
@@ -1053,7 +1079,8 @@ class SchneidwegDialog(QDialog):
         Status der Position (dreid.pruefen). Ergebnis: Texte für die Zusammenfassung."""
         an = self.d3.isChecked()
         for s in ("a", "b"):
-            self.ende_3d[s].setEnabled(an and self.winkel[s].value() > 0 and not self.sattel[s].value())
+            self.ende_3d[s].setEnabled(an and (self.winkel[s].value() > 0 or self.winkel_b[s].value() > 0)
+                                       and not self.sattel[s].value())
         m = self.maschine or {}
         lo, hi = dreid.grenzen(m)
         if not dreid.kann_3d(m):
