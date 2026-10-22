@@ -38,12 +38,13 @@ def _feld(v):
 
 
 class BlechSkizze(QWidget):
-    """Abwicklung (Zuschnitt mit Biegelinien und Innenkonturen) und beim Kantteil die Seitenansicht."""
+    """Abwicklung (Zuschnitt mit Biegelinien und Innenkonturen) und beim Kantteil die Seitenansicht. mini=True:
+    nur der Zuschnitt ohne Beschriftung und Rand (Vorschaubild der Positionsliste, siehe vorschau.py)."""
 
-    def __init__(self):
+    def __init__(self, mini=False):
         super().__init__()
-        self.eingaben, self.zuschnitt = {}, None
-        self.setMinimumHeight(260)
+        self.eingaben, self.zuschnitt, self.mini = {}, None, mini
+        self.setMinimumHeight(0 if mini else 260)
 
     def setzen(self, eingaben, zuschnitt):
         self.eingaben, self.zuschnitt = eingaben, zuschnitt
@@ -52,27 +53,29 @@ class BlechSkizze(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor("white"))
+        if not self.mini:
+            p.fillRect(self.rect(), QColor("white"))
         zs = self.zuschnitt
         if not zs:
             p.setPen(QColor("#5F6B7A"))
             p.drawText(self.rect(), Qt.AlignCenter, "Maße eingeben, dann erscheint hier die Abwicklung.")
             return
-        kant = self.eingaben.get("art") == blech.KANTTEIL
+        kant = self.eingaben.get("art") == blech.KANTTEIL and not self.mini
         # Kantteil: Seitenansicht rechts daneben, in einer hohen Skizze (Editor zweispaltig) darunter
         untereinander = kant and self.height() >= self.width() * 0.75
         breite_abw = self.width() * (0.62 if kant and not untereinander else 1.0)
         hoehe_abw = self.height() * (0.58 if untereinander else 1.0)
-        rand = 46
+        rand = 1.5 if self.mini else 46
         lg, br = max(zs["laenge"], 1), max(zs["breite"], 1)
         m = min((breite_abw - 2 * rand) / lg, (hoehe_abw - 2 * rand) / br)
-        x0, y0 = rand, rand + (hoehe_abw - 2 * rand - br * m) / 2
+        x0 = rand + ((breite_abw - 2 * rand - lg * m) / 2 if self.mini else 0)      # Vorschau mittig
+        y0 = rand + (hoehe_abw - 2 * rand - br * m) / 2
 
         def pkt(x, y):          # mm (y nach oben) -> Pixel
             return QPointF(x0 + x * m, y0 + (br - y) * m)
 
         p.setFont(QFont(self.font().family(), 8))
-        p.setPen(QPen(QColor(FARBE_LINIE), 1.6))
+        p.setPen(QPen(QColor(FARBE_LINIE), 1.0 if self.mini else 1.6))
         p.setBrush(QColor(FARBE_BLECH))
         if zs.get("punkte"):
             minx, miny = min(x for x, _ in zs["punkte"]), min(y for _, y in zs["punkte"])
@@ -82,13 +85,15 @@ class BlechSkizze(QWidget):
             pfad.closeSubpath()
             p.drawPath(pfad)
         else:
-            r = sw._z(self.eingaben.get("eckradius")) * m if not kant else 0
+            r = sw._z(self.eingaben.get("eckradius")) * m if self.eingaben.get("art") != blech.KANTTEIL else 0
             p.drawRoundedRect(QRectF(pkt(0, br), pkt(lg, 0)), r, r)
         # Biegelinien quer zur Abwicklungsbreite (parallel zur Kantlänge)
         for i, (lage, winkel, radius, _) in enumerate(zs.get("biegungen") or [], 1):
             p.setPen(QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
             a, b = pkt(0, lage), pkt(lg, lage)
             p.drawLine(a, b)
+            if self.mini:
+                continue
             p.setPen(QColor(FARBE_BIEGUNG))
             p.drawText(QPointF(b.x() + 4, b.y() + 4),
                        f"B{i} {zahl_als_text(abs(winkel), 0)}° {'↑' if winkel > 0 else '↓'} r{zahl_als_text(radius, 1)}")
@@ -104,6 +109,8 @@ class BlechSkizze(QWidget):
             else:
                 cx, cy = z["x"], z["y"]
             self._kontur(p, z, pkt(cx, cy), m)
+        if self.mini:
+            return
         # Maße
         p.setPen(QColor("#333333"))
         p.drawText(QRectF(x0, y0 + br * m + 4, lg * m, 16), Qt.AlignCenter, f"{zahl_als_text(lg, 1)} mm")
@@ -145,7 +152,7 @@ class BlechSkizze(QWidget):
         else:
             p.drawRect(QRectF(c.x() - 4, c.y() - 4, 8, 8))
         n = int(sw._z(z.get("anzahl")) or 1)
-        if n > 1:
+        if n > 1 and not self.mini:
             p.drawText(QPointF(c.x() + 6, c.y() - 6), f"{n} ×")
 
     def _seitenansicht(self, p, feld, m_abw=None):

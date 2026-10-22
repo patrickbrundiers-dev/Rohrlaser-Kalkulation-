@@ -1625,7 +1625,7 @@ def zeitbasis_abweichungen(zb, vorgabe):
         for n, titel, einheit in (("stundensatz", "Stundensatz Maschine", "€/h"), ("ruestzeit", "Rüstzeit Maschine", "min"),
                                   ("stangenwechsel", "Stangenwechsel", "s"),
                                   ("stangenwechsel_sn", "Stangenwechsel SN", "s")):
-            if n == "stangenwechsel_sn" and n not in m:     # Snapshot vor 0.8.9: SN wie Stangenwechsel
+            if n == "stangenwechsel_sn" and n not in m:     # Snapshot vor 0.8.10: SN wie Stangenwechsel
                 continue
             if _n(m.get(n)) != _n(mv.get(n)):
                 out.append(f"{titel} {zahl(_n(m.get(n)))} statt {zahl(_n(mv.get(n)))} {einheit}")

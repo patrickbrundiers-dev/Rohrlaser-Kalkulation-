@@ -3,7 +3,7 @@ Schweißnaht-Lage hat, rechnen mit 'Stangenwechsel SN' (Vorgabe 29 s), alle ande
 - W1 Vorgaben neuer Dateien, Zählung beladungen_sn (auch zugeschnittene Lieferstangen je Werkstück)
 - W2 Angebot ohne Naht: nur normaler Stangenwechsel; mit fester Naht: SN-Zeit nur für die betroffenen Stangen
 - W3 Zeiten-Reiter (Formel), Anteil je Teil (Staffelpreise), Snapshot-Abweichung
-- W4 Snapshot ohne SN-Wert (Angebote vor 0.8.9): SN = normaler Wert, Preis unverändert
+- W4 Snapshot ohne SN-Wert (Angebote vor 0.8.10): SN = normaler Wert, Preis unverändert
 - W5 Schema 38: T03/T11/LT7 mit altem Wert -> 24/29 s, eigene Werte bleiben und werden SN
 
 Aufruf: python tests/test_stangenwechsel_sn.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -96,7 +96,7 @@ assert rechnen.zeitbasis_abweichungen(dict(zb, maschine=dict(zb["maschine"], sta
     ["Stangenwechsel SN 35 statt 29 s"]
 ok("W3 Zeiten-Reiter mit Aufteilung, Anteil je Teil = Summe, Snapshot-Abweichung SN")
 
-# ------------------------------------------------------------------ W4 Snapshot vor 0.8.9
+# ------------------------------------------------------------------ W4 Snapshot vor 0.8.10
 alt = dict(zb, maschine={n_: v for n_, v in zb["maschine"].items() if n_ != "stangenwechsel_sn"})
 alt["maschine"]["stangenwechsel"] = 29
 db.zeitbasis_speichern(a, alt)

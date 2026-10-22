@@ -106,10 +106,11 @@ class StepPruefDialog(QDialog):
                "Schneidweg [mm]", "Konturen", "Anbauteile", "Hinweis")
     SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
 
-    def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None):
+    def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None):
         from . import step
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
+        self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
         self.werkstoff, self.stueck, self.zukauf_liste = werkstoff, stueck, zukauf_liste
         mit_blechen = zukauf_liste is not None
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
@@ -299,7 +300,10 @@ class StepPruefDialog(QDialog):
                 it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
             pr = QComboBox()
             ws = QComboBox()
-            liste_fuellen(ws, k, "werkstoff")
+            if ist_blech and self.blech_werkstoffe:
+                self._blech_werkstoffe_fuellen(ws)
+            else:
+                liste_fuellen(ws, k, "werkstoff")
             if ist_blech:                   # Zukaufartikel: automatisch oder ein vorhandener Blechartikel
                 pr.addItem(self.AUTOMATISCH, None)
                 gleich, aehnlich = zukauf.blech_dubletten(step.blech(m), m.get("_werkstoff"), zukauf_liste)
@@ -316,7 +320,8 @@ class StepPruefDialog(QDialog):
                 pr.setToolTip("Zukaufartikel des Blechs: automatisch = gleicher vorhandener Artikel, sonst neu anlegen "
                               "(ohne Einkaufspreis)")
                 ws.setCurrentText(m.get("_werkstoff") or "")     # Werkstoff wird bei Blechen nie angenommen
-                ws.setToolTip("Werkstoff des Blechs; leer = offen (wird nicht angenommen)")
+                ws.setToolTip("Blech-Werkstoff (wie im Blech-Editor); leer = offen (wird nicht angenommen). Mit "
+                              "Werkstoff bekommt ein neuer Zukaufartikel den Blech-Richtpreis als EK.")
             else:
                 pr.setEditable(True)        # neue Profil-ID eintippen: wird beim Übernehmen angelegt (Rückfrage)
                 pr.addItems(sorted(set(profile) | ({vorschlag} if vorschlag else set())))
@@ -501,6 +506,22 @@ class StepPruefDialog(QDialog):
                 z.werte["einzeln"] = stueck
                 if not self.saetze.get(z.datei):
                     z.sp.setValue(stueck)
+
+    def _blech_werkstoffe_fuellen(self, cb):
+        """Blech-Werkstoffe (Einstellungen → Blech-Werkstoffe) nach Kategorie, davor leer = offen."""
+        cb.addItem("")
+        gruppen = {}
+        for wid, z in sorted(self.blech_werkstoffe.items()):
+            gruppen.setdefault(z.get("kategorie") or "", []).append(wid)
+        for titel, ids in sorted(gruppen.items()):
+            if titel:
+                cb.addItem(f"— {titel} —")
+                it = cb.model().item(cb.count() - 1)
+                it.setEnabled(False)
+                f = it.font()
+                f.setBold(True)
+                it.setFont(f)
+            cb.addItems(ids)
 
     def art_wechseln(self, index):
         """Art der Zeile mit dem Teil Nr. index umstellen (Flachstahl ↔ Blech, Profil ↔ Kantteil): alle gleichen
