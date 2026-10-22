@@ -101,10 +101,10 @@ class NachkalkulationSeite(QWidget):
         self.ist = dict(s.kopf.get("nachkalkulation") or {})
         self._laden = True
         if not s.ergebnis or not s.ergebnis.get("stangen"):
-            self.stand.setText("<b style='color:#9C5700'>Noch nicht optimiert: die Nachkalkulation vergleicht mit dem "
+            self.stand.setText("<b style='color:#7A5A00'>Noch nicht optimiert: die Nachkalkulation vergleicht mit dem "
                                "Schnittplan und der Kalkulation. Bitte zuerst optimieren.</b>")
         elif s.stand_optimierung() != "aktuell":
-            self.stand.setText("<b style='color:#C00000'>Optimierung VERALTET: das Soll passt nicht mehr zum Angebot. "
+            self.stand.setText("<b style='color:#B42318'>Optimierung VERALTET: das Soll passt nicht mehr zum Angebot. "
                                "Neu optimieren, bevor nachkalkuliert wird.</b>")
         else:
             am = self.ist.get("am")
@@ -146,7 +146,7 @@ class NachkalkulationSeite(QWidget):
         v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist)
         self.vergleich.setzen(v["zeilen"] + [v["summe"], v["erloes"], v["db"]])
         db = v["db"]
-        farbe = "#375623" if db["abweichung"] >= 0 else "#C00000"
+        farbe = "#1E6B34" if db["abweichung"] >= 0 else "#B42318"
         self.ergebnis.setText(
             f"Deckungsbeitrag Soll {_z(db['soll'])} € · Ist <b style='color:{farbe}'>{_z(db['ist'])} €</b> "
             f"(Abweichung {_z(db['abweichung'])} €). Einzelkosten Ist {_z(v['summe']['ist'])} € gegen Soll "

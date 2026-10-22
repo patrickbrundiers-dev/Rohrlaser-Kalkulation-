@@ -2,6 +2,8 @@
 import datetime
 import json
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
@@ -24,6 +26,7 @@ from .naht_dialog import NahtDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog
 from .zeiten_seite import ZeitenSeite
+from .datenbank import VORGAENGE
 from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
@@ -164,6 +167,30 @@ def _breiten(ansicht, spalten):
 # Stand eines Angebots in der Liste: Text und Farbe (wie die Etiketten in der Übersicht des Angebots)
 STATUS_FARBE = {"Nachkalkuliert": "#DDEBF7", "Optimiert": "#E3F4E8", "Veraltet": "#FDECEA",
                 "Nicht optimiert": "#FFF6DB"}
+VORGANG_FARBE = {"Verschickt": "#DDEBF7", "Beauftragt": "#E3F4E8", "Abgelehnt": "#ECEEF1", "Abgelaufen": "#FDECEA"}
+# Filter der Angebotsliste: Titel -> Prüfung je Zeile (Vorgang, abgelaufen)
+VORGANG_FILTER = {"Alle Angebote": lambda v, ab: True, "Offen (Entwurf, Verschickt)": lambda v, ab: v in ("Entwurf", "Verschickt"),
+                  "Entwurf": lambda v, ab: v == "Entwurf", "Verschickt": lambda v, ab: v == "Verschickt",
+                  "Verschickt und abgelaufen": lambda v, ab: v == "Verschickt" and ab,
+                  "Beauftragt": lambda v, ab: v == "Beauftragt", "Abgelehnt": lambda v, ab: v == "Abgelehnt"}
+
+
+def vorgang(z):
+    return z.get("vorgang") or VORGAENGE[0]
+
+
+def gueltig_bis(z, tage):
+    """Datum, bis zu dem das Angebot gilt (Angebotsdatum + Gültigkeit in Tagen), None ohne Datum."""
+    try:
+        return datetime.date.fromisoformat(z.get("datum") or "") + datetime.timedelta(days=int(tage or 0))
+    except (ValueError, TypeError):
+        return None
+
+
+def abgelaufen(z, tage, heute=None):
+    """Verschicktes Angebot, dessen Gültigkeit vorbei ist (Entwurf, Beauftragt, Abgelehnt laufen nicht ab)."""
+    g = gueltig_bis(z, tage)
+    return vorgang(z) == "Verschickt" and g is not None and g < (heute or datetime.date.today())
 
 
 def angebot_status(z):
@@ -178,9 +205,14 @@ def angebot_status(z):
 
 class AngeboteListe(Liste):
     def data(self, index, rolle=Qt.DisplayRole):
-        if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] == "Status":
-            farbe = STATUS_FARBE.get(self.wert(index.row(), index.column()))
+        if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] in ("Status", "Vorgang"):
+            w = self.wert(index.row(), index.column())
+            farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
             return QBrush(QColor(farbe)) if farbe else None
+        if rolle == Qt.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
+            am = self.zeilen[index.row()].get("vk_am")
+            return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
+                    "Wird beim Öffnen des Angebots gerechnet")
         return super().data(index, rolle)
 
 
@@ -190,6 +222,8 @@ class AngeboteSeite(QWidget):
 
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
+               ("Vorgang", lambda z: vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else ""), None, 140),
+               ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
@@ -212,6 +246,17 @@ class AngeboteSeite(QWidget):
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
         tastatur.suche_esc(self.suche)
+        self.vorgang_filter = QComboBox()
+        self.vorgang_filter.addItems(list(VORGANG_FILTER))
+        self.vorgang_filter.setToolTip("Angebote nach Vorgang zeigen; abgelaufen = verschickt und Gültigkeit vorbei")
+        self.vorgang_filter.currentTextChanged.connect(self.neu_laden)
+        self.vorgang_knopf = QPushButton("Vorgang ▾")
+        self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
+                                      "Angebots-PDF selbst), Beauftragt, Abgelehnt")
+        menue = QMenu(self.vorgang_knopf)
+        for v in VORGAENGE:
+            menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
+        self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
             k.setContext(Qt.WidgetShortcut)
@@ -223,7 +268,9 @@ class AngeboteSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+        leiste.addWidget(self.vorgang_knopf)
         leiste.addSpacing(20)
+        leiste.addWidget(self.vorgang_filter)
         leiste.addWidget(self.suche, 1)
         lay = QVBoxLayout(self)
         lay.addLayout(leiste)
@@ -231,7 +278,24 @@ class AngeboteSeite(QWidget):
         self.neu_laden()
 
     def neu_laden(self, *_):
-        self.modell.setzen(self.db.angebote(self.suche.text().strip()))
+        tage = self.db.einstellung("gueltigkeit")
+        passt = VORGANG_FILTER.get(self.vorgang_filter.currentText(), VORGANG_FILTER["Alle Angebote"])
+        zeilen = []
+        for z in self.db.angebote(self.suche.text().strip()):
+            z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
+            if passt(vorgang(z), z["_abgelaufen"]):
+                zeilen.append(z)
+        self.modell.setzen(zeilen)
+
+    def vorgang_setzen(self, v, angebot_id=None):
+        """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …)."""
+        i = angebot_id or self._gewaehlt()
+        if not i:
+            return False
+        self.db.vorgang_setzen(i, v)
+        self.neu_laden()
+        self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}.")
+        return True
 
     def _id(self, index):
         return self.modell.zeilen[self.filter.mapToSource(index).row()]["id"]
@@ -396,8 +460,9 @@ class PositionenModell(QAbstractTableModel):
         self.s = seite
         felder = {f.name: f for f in POSITIONEN.felder}
         art = lambda f: "bohrbild" if f.name in BOHRBILD_SPALTEN else f.art if f.art in EIGENE else "feld"
-        self.spalten = ([(art(felder[n]), felder[n]) for n in SICHTBAR]
-                        + [("status", None)]
+        # Status gleich nach der Positionsnummer: Fehler und Warnungen auch bei schmalem Fenster sichtbar
+        self.spalten = ([(art(felder[n]), felder[n]) for n in SICHTBAR[:1]] + [("status", None)]
+                        + [(art(felder[n]), felder[n]) for n in SICHTBAR[1:]]
                         + [("berechnet", b) for b in BERECHNET]
                         + [(art(f), f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
                         + [("abweichung", None)])
@@ -436,7 +501,7 @@ class PositionenModell(QAbstractTableModel):
                 ein = None              # Zukaufteile werden nicht eingeplant
             w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
             self.werte.append(w)
-            self.status.append(rechnen.status(p, w, s.kopf, s.k, ein))
+            self.status.append(rechnen.status(p, w, s.kopf, s.k, ein, self.daten))
         self.endResetModel()
 
     def rowCount(self, parent=QModelIndex()):
@@ -497,7 +562,7 @@ class PositionenModell(QAbstractTableModel):
             if rolle == Qt.EditRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if w is not None else "#7F7F7F"))
+                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
@@ -518,6 +583,9 @@ class PositionenModell(QAbstractTableModel):
                                                                     "eintragen. ")
                 if fehlt and berechnet is not None:
                     t += f"Achtung: {fehlt}. "
+                h = rechnen.preis_herkunft(self.daten[index.row()], self.s.kopf, self.s.k, self.s.tabellen)
+                if h:
+                    t += h + ". "
                 if eigen:
                     return t + ("Von Hand eingetragen, gilt für alle Positionen mit gleichem Profil, Werkstoff, "
                                 "Oberfläche und Stangenlänge; leeren = wieder berechnet.")
@@ -526,7 +594,7 @@ class PositionenModell(QAbstractTableModel):
                                 "Profil, Werkstoff, Oberfläche und Stangenlänge eingetragen.")
                 return t + "Doppelklick zum Anpassen (günstiger oder teurer)."
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if eigen else "#7F7F7F"))
+                return QBrush(QColor("#000000" if eigen else "#5F6B7A"))
             if rolle == Qt.FontRole and (eigen or fremd):
                 f = QFont()
                 f.setBold(eigen)
@@ -684,7 +752,7 @@ class Stangenbild(QWidget):
             m = breite / s["stange"]
             yb, hb = y + 20, 34
 
-            def rechteck(von, bis, farbe, rand=QColor("#7F7F7F")):
+            def rechteck(von, bis, farbe, rand=QColor("#5F6B7A")):
                 r = QRectF(x0 + von * m, yb, max(1.0, (bis - von) * m), hb)
                 p.fillRect(r, farbe)
                 p.setPen(QPen(rand, 1))
@@ -896,10 +964,12 @@ class AngebotSeite(QWidget):
         # Aktionen: Hauptaktionen hervorgehoben, dann Bearbeiten, rechts Ausgabe und Weitere Aktionen
         self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
         leiste = self.leiste.links_layout
+        # nur zwei Hauptknöpfe (dunkelblau): Optimieren und Angebot (PDF) – die Schritte zum fertigen Angebot (C-2)
         for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren()),
                            ("Optimieren", self.optimieren), ("3D-Ansicht …", lambda: self.ansicht_3d())):
             b = QPushButton(text)
-            b.setObjectName("primaer")
+            if text == "Optimieren":
+                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addSpacing(12)
@@ -922,6 +992,8 @@ class AngebotSeite(QWidget):
         for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
                            ("Kalkulation (PDF)", self.kalkulation_pdf)):
             b = QPushButton(text)
+            if text == "Angebot (PDF)":
+                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         self.weitere = QPushButton("Weitere Aktionen")
@@ -1135,7 +1207,8 @@ class AngebotSeite(QWidget):
         self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()
         self.k, self.tabellen = rechnen.preisbasis_anwenden(a, self.k_aktuell, self.tabellen_aktuell)
         self._konturen_einteilen()
-        self.einst = rechnen.einstellungen_angebot(a, self.db.einstellungen())     # mit Werten des Angebots
+        # mit Werten des Angebots; nach dem Angebots-PDF mit den festgeschriebenen Einstellungen (Zuschläge, Mindestpreis …)
+        self.einst = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()))
         self.stufen = self.db.staffeln(self.id)
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
@@ -1324,12 +1397,25 @@ class AngebotSeite(QWidget):
             == self.ergebnis.get("kennung")
         return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
 
+    def freigabe_punkte(self, summen=None):
+        """Offene Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte)."""
+        if summen is None:
+            summen = self._rechnung()[1]
+        try:
+            veraltet = self.st_seite.anzahl_veraltet() if self.stufen else 0
+        except (ValueError, TypeError, KeyError):
+            veraltet = 0
+        return rechnen.freigabe_punkte(self.kopf, self.positionen, self.pos_modell.status, self.stand_optimierung(),
+                                       summen, veraltet, gueltig_bis(self.kopf, self.db.einstellung("gueltigkeit")))
+
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
-        self.uebersicht_bereich.preisstand_setzen(
-            self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell))
         erg = self.ergebnis
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
+        self.uebersicht_bereich.preisstand_setzen(
+            self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell),
+            rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")),
+            self.kopf.get("versand"))
         self.kalk.setzen([z for z in zeilen if z])
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
@@ -1339,6 +1425,7 @@ class AngebotSeite(QWidget):
             gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
+        self.uebersicht_bereich.freigabe_setzen(self.freigabe_punkte(summen))
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
@@ -1476,8 +1563,12 @@ class AngebotSeite(QWidget):
             self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
             return False
         if werte is None:
+            weitere = {}
+            if len(zeilen) == 1 and not ist_zukaufteil(self.positionen[zeilen[0]]):
+                weitere = {"Schweißnaht …": lambda: self.schweissnaht(list(zeilen)),
+                           "Bohrungen prüfen …": lambda: self.bohrungen_pruefen(list(zeilen))}
             d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen,
-                            self.db.zusatz_haeufigkeit())
+                            self.db.zusatz_haeufigkeit(), weitere)
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
@@ -1814,10 +1905,61 @@ class AngebotSeite(QWidget):
             self.db.positionen_loeschen([self.positionen[r]["id"] for r in zeilen])
             self.neu_laden()
 
+    # ab so vielen Teilen rechnet die Optimierung im Hintergrund mit Fortschritt und Abbruch (Prüfbericht B-6)
+    HINTERGRUND_AB_TEILEN = 150
+
+    def _optimierung_rechnen(self):
+        """rechnen.optimieren für dieses Angebot. Große Angebote rechnen in einem Hintergrund-Thread; das Fenster
+        zeigt solange Fortschritt und Abbrechen (Eingaben gesperrt, damit sich die Daten nicht ändern). Ergebnis wie
+        rechnen.optimieren; abgebrochen: rechnen.Abbruch."""
+        args = (self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        teile = sum(int(rechnen._n(p.get("stueck"))) for p in self.positionen if position_aktiv(p))
+        if teile < self.HINTERGRUND_AB_TEILEN:
+            return rechnen.optimieren(*args)
+        stand, ende, abbrechen = dict(schritt=0, schritte=1, text="Gruppen bilden"), {}, threading.Event()
+
+        def fortschritt(schritt, schritte, text):
+            stand.update(schritt=schritt, schritte=max(schritte, 1), text=text)
+            if abbrechen.is_set():
+                raise rechnen.Abbruch()
+
+        def lauf():
+            try:
+                ende["erg"] = rechnen.optimieren(*args, fortschritt=fortschritt)
+            except BaseException as e:      # noqa: BLE001 – im Hauptthread weitergeben
+                ende["fehler"] = e
+
+        t = threading.Thread(target=lauf, name="Optimieren", daemon=True)
+        t.start()
+        dlg = QProgressDialog("Optimieren …", "Abbrechen", 0, 1000, self)
+        dlg.setWindowTitle("Optimieren")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(400)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+        start = time.monotonic()
+        while t.is_alive():
+            t.join(0.03)
+            if dlg.wasCanceled() and not abbrechen.is_set():
+                abbrechen.set()
+                dlg.setLabelText("Wird abgebrochen … (nach der laufenden Abmessung)")
+            elif not abbrechen.is_set():
+                dlg.setValue(int(1000 * stand["schritt"] / stand["schritte"]))
+                dlg.setLabelText(f"{stand['text']}\n{teile} Teile · {time.monotonic() - start:.0f} s")
+            QApplication.processEvents(QEventLoop.AllEvents, 30)
+        dlg.close()
+        if "fehler" in ende:
+            raise ende["fehler"]
+        return ende["erg"]
+
     def optimieren(self):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            erg = rechnen.optimieren(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+            erg = self._optimierung_rechnen()
+        except rechnen.Abbruch:
+            QApplication.restoreOverrideCursor()
+            self.f.meldung("Optimieren abgebrochen, nichts gespeichert.")
+            return False
         except ValueError as e:
             QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "Optimieren", str(e))
@@ -1881,9 +2023,6 @@ class AngebotSeite(QWidget):
     def staffeln_loeschen(self):
         self.st_seite.loeschen()
 
-    def _staffel_stand(self):
-        self.st_seite.stand()
-
     def staffelpreise_rechnen(self):
         """Alle Stufen neu rechnen und speichern. Ergebnis: bepreiste Zeilen oder None (abgebrochen)."""
         return self.st_seite.rechnen()
@@ -1907,13 +2046,14 @@ class AngebotSeite(QWidget):
             return True
         if self.f.stumm:
             return self.optimieren()
-        a = QMessageBox.question(self, "Optimierung veraltet",
-                                 "Der Schnittplan passt nicht mehr zum Angebot (oder es wurde noch nicht optimiert).\n\n"
-                                 "Jetzt neu optimieren?\nJa = optimieren, Nein = mit dem bisherigen Stand weiter",
-                                 QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
-        if a == QMessageBox.Cancel:
-            return False
-        return self.optimieren() if a == QMessageBox.Yes else True
+        # nur Optimieren oder Abbrechen: ein PDF mit altem Schnittplan hätte einen falschen Materialbedarf (B-10)
+        m = QMessageBox(QMessageBox.Question, "Optimierung veraltet",
+                        "Der Schnittplan passt nicht mehr zum Angebot (oder es wurde noch nicht optimiert).\n\n"
+                        "Vor der Ausgabe wird neu optimiert.", QMessageBox.Cancel, self)
+        knopf = m.addButton("Optimieren und weiter", QMessageBox.AcceptRole)
+        m.setDefaultButton(knopf)
+        m.exec()
+        return m.clickedButton() is knopf and self.optimieren()
 
     def _ziel(self, zusatz, endung, mit_kunde=False):
         try:
@@ -1962,23 +2102,35 @@ class AngebotSeite(QWidget):
         ang = self.angebot_daten()
         if ang is None:
             return None
-        if ang["hinweise"] and not self.f.stumm and QMessageBox.question(
-                self, "Angebot", f"{ang['hinweise']} Position(en) haben einen Hinweis in der Kalkulation, z. B. kein "
-                "Preis oder nicht eingeplant.\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
+        punkte = [t for a, t in self.freigabe_punkte() if a != "HINWEIS"]
+        if ang["hinweise"]:
+            punkte.append(f"{ang['hinweise']} Position(en) mit Hinweis in der Kalkulation, z. B. kein Preis oder nicht "
+                          "eingeplant")
+        if punkte and not self.f.stumm and QMessageBox.question(
+                self, "Prüfen vor Freigabe", "Vor dem Angebot sind noch Punkte offen:\n\n"
+                + "\n".join("• " + t for t in punkte) + "\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
             self.reiter.setCurrentIndex(1)
             return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
                                lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
         if pfad is not None:
             self.preise_festschreiben()
+            self.db.versand_merken(self.id, dict(datum=datetime.date.today().isoformat(), netto=ang["netto"],
+                                                 datei=Path(pfad).name))
+            if not (self.db.angebot(self.id) or {}).get("vorgang"):     # Entwurf -> Verschickt (sonst bleibt er)
+                self.db.vorgang_setzen(self.id, "Verschickt")
+                self.f.angebote.neu_laden()
         return pfad
 
     def preise_festschreiben(self):
         """Materialpreise und Schneiddaten, mit denen das Angebot gerade rechnet, im Angebot speichern (nach dem
         Angebots-PDF). Schon festgeschriebene Werte bleiben, neue Profile, Werkstoffe und Oberflächen kommen dazu."""
         pb = rechnen.preisbasis_aus(self.kopf, self.positionen, self.k, self.tabellen)
+        # Nettosumme und Datum des verschickten Angebots: spätere Änderungen zeigt die Übersicht als Abweichung
+        verkauf = self._verkauf()
+        pb["verschickt"] = dict(netto=round(verkauf, 2), datum=pb["datum"]) if verkauf is not None else None
         alt = self.kopf.get("preisbasis")
-        if isinstance(alt, dict) and rechnen.preisbasis_gleich(alt, pb):
+        if isinstance(alt, dict) and rechnen.preisbasis_gleich(alt, pb) and alt.get("verschickt") == pb["verschickt"]:
             return
         self.db.preisbasis_speichern(self.id, pb)
         self.neu_laden()
@@ -1988,7 +2140,8 @@ class AngebotSeite(QWidget):
         abw = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
         if not self.f.stumm and QMessageBox.question(
                 self, "Aktuelle Preise übernehmen",
-                "Materialpreise und Schneiddaten dieses Angebots auf die aktuellen Stammdaten setzen?\n\n"
+                "Festgeschriebene Preisgrundlagen dieses Angebots (Materialpreise, Schneiddaten, Gewinde, Einstellungen, "
+                "Profile, Maschine) auf die aktuellen Stammdaten setzen?\n\n"
                 + "\n".join(abw[:15]) + ("\n…" if len(abw) > 15 else "")
                 + "\n\nDer Preis des Angebots ändert sich dadurch. Ein bereits verschicktes Angebots-PDF bleibt "
                 "unverändert; erst das nächste Angebots-PDF schreibt die neuen Preise wieder fest.") != QMessageBox.Yes:

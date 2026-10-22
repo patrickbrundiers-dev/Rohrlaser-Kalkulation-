@@ -129,7 +129,7 @@ class Gesperrt(QWidget):
         knopf = QPushButton("Frachtdaten öffnen")
         knopf.clicked.connect(self.oeffnen)
         self.fehler = QLabel()
-        self.fehler.setStyleSheet("color: #C00000;")
+        self.fehler.setStyleSheet("color: #B42318;")
         zeile = QHBoxLayout()
         zeile.addWidget(self.passwort)
         zeile.addWidget(knopf)

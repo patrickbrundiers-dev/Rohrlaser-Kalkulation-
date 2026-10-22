@@ -197,6 +197,8 @@ ub = s.uebersicht_bereich
 _, summen = rechnen.kalkulation(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst)
 assert ub.preis["verkauf"].text().endswith(" €") and summen["verkauf"] > 0
 assert ub.preis["verkauf"].text() in ub.uebersicht.text() and ub.preis["herstell"].text() in ub.uebersicht.text()
+assert not kb.kalk_offen() and not kb.kalk_kurz.isHidden(), "Vorgabe: zugeklappt (Kurzzeile)"
+kb.kalk_knopf.click()
 assert kb.kalk_offen() and kb.kalk_kurz.isHidden()
 kb.kalk_knopf.click()
 assert not kb.kalk_offen() and kb.kalk_inhalt.isHidden() and not kb.kalk_kurz.isHidden()

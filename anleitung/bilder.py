@@ -335,11 +335,13 @@ def main(ziel):
     s.kopf_bereich.erweitert_bereich.aufklappen(True)
     s.kopf_bereich.maschinen_bereich.aufklappen(True)
     kb.fracht_aufklappen(True)
+    kb.kalkulation_aufklappen(True)
     QApplication.processEvents()
     foto.foto("angebot_erweitert", s.teiler.widget(0).widget())     # ganzer oberer Teil, auch was gerollt wäre
     kb.erweitert_bereich.aufklappen(False)
     kb.maschinen_bereich.aufklappen(False)
     kb.fracht_aufklappen(False)
+    kb.kalkulation_aufklappen(False)
     s.zeige_berechnet.setChecked(True)
     foto.foto("angebot_berechnet", f)
     s.zeige_berechnet.setChecked(False)

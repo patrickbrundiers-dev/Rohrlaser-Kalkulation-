@@ -46,8 +46,7 @@ MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stangenwechsel", "Stangenwechsel je Stange", "s", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
 
-GRAU = "#5F6B7A"
-GELB, GELB_TEXT = "#FFF4CE", "#7A5A00"        # Wert weicht von den Einstellungen ab
+from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
 
 
 def _z(w, stellen=2):
@@ -435,7 +434,7 @@ class KopfBereich(QWidget):
         frl.addWidget(self.fracht_text)
         lay.addWidget(fr)
         offen = self.s.db.einstellung(KALK_OFFEN_EINSTELLUNG)
-        self.kalkulation_aufklappen(offen if isinstance(offen, bool) else True)
+        self.kalkulation_aufklappen(offen if isinstance(offen, bool) else False)   # Vorgabe: Kurzzeile, Positionen vorn
         offen = self.s.db.einstellung(FRACHT_OFFEN_EINSTELLUNG)
         self.fracht_aufklappen(offen if isinstance(offen, bool) else False)
         lay.addStretch(1)
@@ -513,7 +512,8 @@ class KopfBereich(QWidget):
                         einheit = einheit.rstrip("]")
                     teile.append(f"{titel.strip()} {_z(v, fd.stellen if fd.stellen is not None else (0 if fd.art == "ganz" else 2))} {einheit}".strip())
         n = getattr(self, "_n_abweichend", 0)
-        self.kalk_kurz.setText("   " + " · ".join(teile) + (f"   ({n} abweichend)" if n else ""))
+        self.kalk_kurz.setText("   " + " · ".join(teile)
+                               + (f"   <b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>" if n else ""))
         self.kalk_kurz.setToolTip("\n".join(teile))
 
     def _gruppen_anordnen(self, spalten):
@@ -831,6 +831,12 @@ class UebersichtBereich(QWidget):
         self.meldungen.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.meldungen_bereich = Aufklapper("Meldungen", self.meldungen)
         kl.addWidget(self.meldungen_bereich)
+        # Prüfen vor Freigabe: alle offenen Punkte vor dem Angebots-PDF (Kunde, Schnittplan, Meldungen, Bohrungen …)
+        self.freigabe = QLabel()
+        self.freigabe.setWordWrap(True)
+        self.freigabe.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.freigabe_bereich = Aufklapper("Prüfen vor Freigabe", self.freigabe)
+        kl.addWidget(self.freigabe_bereich)
         # Kennzahlen
         self.kennzahlen = QGridLayout()
         self.kennzahlen.setHorizontalSpacing(6)
@@ -880,22 +886,27 @@ class UebersichtBereich(QWidget):
                                             "Verschnitt. Bitte optimieren.")
         self._stand_text(stand)
 
-    def preisstand_setzen(self, preisbasis, abweichungen):
-        """Hinweis, ob Materialpreise und Schneiddaten festgeschrieben sind und ob die Stammdaten seitdem
-        abweichen; der Knopf erscheint nur bei Abweichungen."""
+    def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None, versand=None):
+        """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf
+        erscheint nur bei Abweichungen. verschickt = Text, wenn der Preis vom verschickten Angebots-PDF abweicht."""
+        zusatz = f"<br><span style='color:#B35C00'><b>{verschickt}</b></span>" if verschickt else ""
         if not isinstance(preisbasis, dict):
-            self.preisstand.setText("<span style='color:#5F6B7A'>Materialpreise: aktuelle Stammdaten (werden beim "
+            self.preisstand.setText("<span style='color:#5F6B7A'>Preise: aktuelle Stammdaten (werden beim "
                                     "Angebots-PDF festgeschrieben)</span>")
             self.preisstand.setToolTip("")
         elif abweichungen:
-            self.preisstand.setText(f"<span style='color:#8A5A00'><b>Preise festgeschrieben am "
+            self.preisstand.setText(f"<span style='color:#7A5A00'><b>Preise festgeschrieben am "
                                     f"{datum_text(preisbasis.get('datum'))}</b>, Stammdaten seitdem geändert "
-                                    f"({len(abweichungen)})</span>")
+                                    f"({len(abweichungen)})</span>" + zusatz)
             self.preisstand.setToolTip("\n".join(abweichungen))
         else:
             self.preisstand.setText(f"<span style='color:#5F6B7A'>Preise festgeschrieben am "
-                                    f"{datum_text(preisbasis.get('datum'))}</span>")
-            self.preisstand.setToolTip("Materialpreise und Schneiddaten stimmen mit den Stammdaten überein.")
+                                    f"{datum_text(preisbasis.get('datum'))}</span>" + zusatz)
+            self.preisstand.setToolTip("Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile und Maschine "
+                                       "stimmen mit den Stammdaten überein.")
+        if versand:                 # Verlauf der verschickten Angebots-PDFs (Versionsstand)
+            self.preisstand.setToolTip((self.preisstand.toolTip() + "\n\n").lstrip() + "Verschickt:\n" + "\n".join(
+                f"{datum_text(v.get('datum'))}: {_z(v.get('netto'))} € netto ({v.get('datei') or 'PDF'})" for v in versand))
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):
@@ -919,11 +930,30 @@ class UebersichtBereich(QWidget):
         else:
             self.meldungen_bereich.setze_titel("Meldungen: " + " · ".join(t for t, a in zip(teile, n.values()) if a))
             self.meldungen_bereich.knopf.setObjectName("meldung_fehler" if n["FEHLER"] else "meldung_warnung")
-            farbe = {"FEHLER": "#B42318", "WARNUNG": "#8A5A00", "HINWEIS": "#5F6B7A"}
+            farbe = {"FEHLER": "#B42318", "WARNUNG": "#7A5A00", "HINWEIS": "#5F6B7A"}
             self.meldungen.setText("<br>".join(
                 f"<span style='color:{farbe.get(t.split(':')[0], '#1F2937')}'>Pos. {_z(pos, 0) or '?'}: {t}</span>"
                 for pos, t in meldungen))
         k = self.meldungen_bereich.knopf
+        k.style().unpolish(k)
+        k.style().polish(k)
+
+    def freigabe_setzen(self, punkte):
+        """punkte: rechnen.freigabe_punkte(...)."""
+        self.freigabe_punkte = punkte
+        k = self.freigabe_bereich.knopf
+        if not punkte:
+            self.freigabe_bereich.setze_titel("Prüfen vor Freigabe: alles erledigt")
+            k.setObjectName("meldung_ok")
+            self.freigabe.setText("Kunde, Schnittplan, Positionen, Bohrungen, Fracht und Staffeln sind in Ordnung.")
+        else:
+            offen = sum(1 for a, _ in punkte if a != "HINWEIS")
+            self.freigabe_bereich.setze_titel(f"Prüfen vor Freigabe: {len(punkte)} offene{'r' if len(punkte) == 1 else ''} "
+                                              f"Punkt{'e' if len(punkte) > 1 else ''}")
+            k.setObjectName("meldung_fehler" if any(a == "FEHLER" for a, _ in punkte)
+                            else "meldung_warnung" if offen else "meldung_ok")
+            farbe = {"FEHLER": "#B42318", "WARNUNG": "#7A5A00", "HINWEIS": "#5F6B7A"}
+            self.freigabe.setText("<br>".join(f"<span style='color:{farbe[a]}'>• {t}</span>" for a, t in punkte))
         k.style().unpolish(k)
         k.style().polish(k)
 

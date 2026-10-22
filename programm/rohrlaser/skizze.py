@@ -113,19 +113,6 @@ class Querschnitt:
     def flaeche(self, name):
         return next((f for f in self.flaechen if f.name == name), self.flaechen[0] if self.flaechen else None)
 
-    def punkte_rand(self, n=240):
-        """Punkte auf dem Außenumriss (für die Schnittlinien der Enden in den Ansichten)."""
-        poly = self.umriss[0]
-        if self.r:
-            return [(self.r * math.sin(2 * math.pi * i / n), self.r * math.cos(2 * math.pi * i / n)) for i in range(n)]
-        out = []
-        umfang = sum(math.dist(poly[i], poly[(i + 1) % len(poly)]) for i in range(len(poly)))
-        for i in range(len(poly)):
-            p0, p1 = poly[i], poly[(i + 1) % len(poly)]
-            k = max(2, int(n * math.dist(p0, p1) / (umfang or 1)))
-            out += [(p0[0] + (p1[0] - p0[0]) * j / k, p0[1] + (p1[1] - p0[1]) * j / k) for j in range(k)]
-        return out
-
     def ausdehnung(self, richtung):
         """Größte Ausdehnung des Umrisses in Richtung (0 = oben, 90 = vorne …) ab der Mitte [mm]."""
         if not hasattr(self, "_aus"):

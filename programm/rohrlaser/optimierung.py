@@ -547,35 +547,46 @@ def bestes_muster(g, typen, bedarf, wert):
                  for a in set(art)}
     zuschlag = {}
 
-    def passt_zahl(anz, laenge):
-        if anz not in zuschlag:
-            null = [vertreter[a] for a in range(4) for _ in range(anz[a])]
-            zuschlag[anz] = verbrauch(g, anordnen(null))
-        return zuschlag[anz] + laenge <= g.nutzbar_bis + EPS
+    def zuschlag_von(anz):
+        null = [vertreter[a] for a in range(4) for _ in range(anz[a])]
+        zuschlag[anz] = verbrauch(g, anordnen(null))
+        return zuschlag[anz]
 
-    def suche(i, w, laenge):
+    grenze = g.nutzbar_bis + EPS
+
+    frei = g.nutzbar_bis - g.endbeschnitt
+    laengen = [t.laenge for t in typen]
+
+    def suche(i, w, laenge, anz0):
+        # anz0: Anzahl je Endenart der Typen vor i (wird mitgegeben statt je Knoten neu gezählt; gleiche Suche)
         knoten[0] += 1
         if w > beste[1] + 1e-9:
             beste[0], beste[1] = list(zahl), w
         if i == n or knoten[0] > MUSTER_MAX_KNOTEN:
             return
-        if w + q_ab[i] * (g.nutzbar_bis - g.endbeschnitt - laenge) <= beste[1] + 1e-9:
+        if w + q_ab[i] * (frei - laenge) <= beste[1] + 1e-9:
             return
-        anz = [0, 0, 0, 0]
-        for j in range(i):
-            anz[art[j]] += zahl[j]
+        a, li = art[i], laengen[i]
+        anz = list(anz0)
         while zahl[i] < bedarf[i]:
-            anz[art[i]] += 1
-            if not passt_zahl(tuple(anz), laenge + typen[i].laenge * (zahl[i] + 1)):
+            anz[a] += 1
+            schl = tuple(anz)
+            zs = zuschlag.get(schl)
+            if zs is None:
+                zs = zuschlag_von(schl)
+            if not zs + (laenge + li * (zahl[i] + 1)) <= grenze:      # passt nicht mehr auf die Stange
                 break
             zahl[i] += 1
         while True:
-            suche(i + 1, w + wert[i] * zahl[i], laenge + typen[i].laenge * zahl[i])
+            k = zahl[i]
+            weiter = list(anz0)
+            weiter[a] += k
+            suche(i + 1, w + wert[i] * k, laenge + li * k, weiter)
             if zahl[i] == 0:
                 break
             zahl[i] -= 1
 
-    suche(0, 0.0, 0.0)
+    suche(0, 0.0, 0.0, [0, 0, 0, 0])
     return beste[0], knoten[0] <= MUSTER_MAX_KNOTEN
 
 
@@ -601,13 +612,19 @@ def simplex_max(c, a, b):
         if r is None:       # unbeschränkt: kommt bei Schnittmustern nicht vor (jeder Typ hat ein Muster)
             break
         p = tab[r][e]
-        tab[r] = [x / p for x in tab[r]]
+        zeile = [x / p for x in tab[r]]
+        tab[r] = zeile
+        # nur die Spalten, in denen die Pivotzeile nicht 0 ist, ändern sich (x − f·0 = x): gleiches Ergebnis, schneller
+        nz = [j for j, y in enumerate(zeile) if y != 0.0]
         for i in range(m):
-            if i != r and abs(tab[i][e]) > 1e-12:
-                f = tab[i][e]
-                tab[i] = [x - f * y for x, y in zip(tab[i], tab[r])]
+            ti = tab[i]
+            if i != r and abs(ti[e]) > 1e-12:
+                f = ti[e]
+                for j in nz:
+                    ti[j] = ti[j] - f * zeile[j]
         f = z[e]
-        z = [x - f * y for x, y in zip(z, tab[r])]
+        for j in nz:
+            z[j] = z[j] - f * zeile[j]
         basis[r] = e
     y = [0.0] * n
     for i, bi in enumerate(basis):

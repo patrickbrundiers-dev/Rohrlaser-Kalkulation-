@@ -19,8 +19,7 @@ from .stammdaten import (TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORI
 TITEL = "Zusatzarbeiten"
 BREIT = 1280        # ab dieser Breite steht das Formular neben der Tabelle, darunter in einem eigenen Fenster
 EIGENER_SATZ = "eigener Stundensatz"
-GRAU, ROT = "#5F6B7A", "#B42318"
-ROTER_RAHMEN = "border: 1px solid #B42318; border-radius: 3px; background: #FDECEA;"
+from .stil import ROT, ROTER_RAHMEN, TEXT_GRAU as GRAU  # noqa: E402
 FELD = {f.name: f for f in TABELLE["zusatzarbeiten"].felder}
 # Reihenfolge der Abrechnung in der Auswahl (häufigste zuerst)
 ARTEN = ("€/Stück", "€/Angebot", "€/kg", "€/m²", "€/m", "s/Stück")

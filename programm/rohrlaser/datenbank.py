@@ -40,7 +40,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 34     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 35     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -60,6 +60,10 @@ SCHEMA_VERSION = 34     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 32: Angebotsliste mit Verkaufspreis und Stand (angebote.vk_netto/stand, beim Anzeigen gemerkt)
                         # 33: Anforderungen der Materialanfrage je Werkstoff (werkstoffe.anfrage_*; leer = keine)
                         # 34: Bohrbild je Position (positionen.bohrbild: Gewinde, Senkungen, Flowdrill bestätigt/abgelehnt)
+                        # 35: Vorgang je Angebot (angebote.vorgang: leer = Entwurf, Verschickt, Beauftragt, Abgelehnt) und
+                        #     Zeitpunkt des gemerkten Verkaufspreises (angebote.vk_am), Verlauf der verschickten
+                        #     Angebots-PDFs (angebote.versand, JSON); ältere Angebote: Entwurf bzw.
+                        #     Verschickt, wenn die Preise schon festgeschrieben sind
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -75,6 +79,16 @@ MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Rich
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
+
+
+VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
+ZAHLFELDER = tuple(f.name for f in POSITIONEN.felder if f.art in ("zahl", "ganz"))
+
+
+def _zahl_pruefen(feld, wert):
+    """Zahlenfelder der Positionen nehmen nur Zahlen (oder leer) an; Text löst ValueError mit Meldung aus."""
+    if feld in ZAHLFELDER and wert not in (None, "") and (isinstance(wert, bool) or not isinstance(wert, (int, float))):
+        raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine Zahl eingeben (nicht '{wert}').")
 
 
 class Datenbank:
@@ -150,6 +164,12 @@ class Datenbank:
             if "vk_netto" not in spalten_a:           # Datei vor Schema 32 (leer, bis das Angebot geöffnet wird)
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vk_netto REAL")
                 self.con.execute("ALTER TABLE angebote ADD COLUMN stand TEXT")
+            if "vorgang" not in spalten_a:            # Datei vor Schema 35: mit Angebots-PDF = Verschickt
+                self.con.execute("ALTER TABLE angebote ADD COLUMN vorgang TEXT")
+                self.con.execute("ALTER TABLE angebote ADD COLUMN vk_am TEXT")
+                self.con.execute("UPDATE angebote SET vorgang='Verschickt' WHERE preisbasis IS NOT NULL")
+            if "versand" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
@@ -1094,7 +1114,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, a.vorgang, a.vk_am, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1116,6 +1136,7 @@ class Datenbank:
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
+        a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
         return a
 
     def _jetzt(self):
@@ -1224,8 +1245,24 @@ class Datenbank:
         """Verkaufspreis netto und Stand der Optimierung für die Angebotsliste (nur Anzeige; ändert 'geändert am'
         nicht). Wird beim Anzeigen eines Angebots geschrieben, nur wenn sich etwas geändert hat."""
         with self.con:
-            self.con.execute("UPDATE angebote SET vk_netto=?, stand=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ?)",
-                             (vk_netto, stand, angebot_id, vk_netto, stand))
+            self.con.execute("UPDATE angebote SET vk_am=CASE WHEN vk_netto IS NOT ? THEN ? ELSE vk_am END, vk_netto=?, "
+                             "stand=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ?)",
+                             (vk_netto, self._jetzt(), vk_netto, stand, angebot_id, vk_netto, stand))
+
+    def versand_merken(self, angebot_id, eintrag):
+        """Verschicktes Angebots-PDF merken ({datum, netto, datei}); Verlauf je Angebot, ändert 'geändert am' nicht."""
+        alt = (self.angebot(angebot_id) or {}).get("versand") or []
+        with self.con:
+            self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
+                             (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
+
+    def vorgang_setzen(self, angebot_id, vorgang):
+        """Vorgang des Angebots (VORGAENGE; 'Entwurf' wird leer gespeichert). Ändert 'geändert am' nicht."""
+        if vorgang not in VORGAENGE:
+            raise ValueError(f"Vorgang {vorgang!r} unbekannt")
+        with self.con:
+            self.con.execute("UPDATE angebote SET vorgang=? WHERE id=?",
+                             (None if vorgang == VORGAENGE[0] else vorgang, angebot_id))
 
     def staffelpreise_speichern(self, angebot_id, staffelpreise):
         """staffelpreise: {'zeilen': [...], 'kennung': str, 'am': Zeitpunkt} oder None"""
@@ -1265,11 +1302,21 @@ class Datenbank:
             self.con.executemany("DELETE FROM staffeln WHERE id=?", [(i,) for i in ids])
 
     def positionen(self, angebot_id):
-        return [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
-                                                  (angebot_id,))]
+        """Positionen eines Angebots. Text in einem Zahlenfeld (aus einer geänderten oder fremden Datei) wird als
+        leer gelesen, damit die Rechnung nicht abbricht; der Status meldet den fehlenden Wert."""
+        out = [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
+                                                 (angebot_id,))]
+        for p in out:
+            for f in ZAHLFELDER:
+                w = p.get(f)
+                if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))):
+                    p[f] = None
+        return out
 
     def position_neu(self, angebot_id, werte=None):
         werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
+        for feld, wert in werte.items():
+            _zahl_pruefen(feld, wert)
         if "material_herkunft" not in werte:      # Vorgabe des Angebots (Material neuer Positionen)
             r = self.con.execute("SELECT material_vorgabe FROM angebote WHERE id=?", (angebot_id,)).fetchone()
             if r and r[0] == KUNDENMATERIAL and werte.get("art") != ZUKAUFTEIL:
@@ -1285,6 +1332,7 @@ class Datenbank:
 
     def position_aendern(self, position_id, feld, wert):
         POSITIONEN.feld(feld)
+        _zahl_pruefen(feld, wert)
         with self.con:
             self.con.execute(f'UPDATE positionen SET "{feld}"=? WHERE id=?', (wert, position_id))
             self.con.execute("UPDATE angebote SET geaendert=? WHERE id=(SELECT angebot_id FROM positionen WHERE id=?)",

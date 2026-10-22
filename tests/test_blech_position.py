@@ -85,7 +85,7 @@ def _():
     nah(zb["skonto_teil"], 25 / 0.98 - 25, "Skonto je Teil")
     for n in ("material_teil", "laser_teil", "ruesten_teil", "herstell_teil", "gewinn_teil", "pauschalen_teil"):
         assert zb[n] == 0, (n, zb[n])
-    assert zb["hinweis"] == "", zb["hinweis"]
+    assert zb["hinweis"] == "Satz BG: unterschiedliche Anzahl Sätze (4 / 10)", zb["hinweis"]   # 10 Rohre, 4 Bleche
     nah(Z[0]["preis_teil"], z0[0]["preis_teil"], "Rohr: Rüsten, Pauschalen und Aufschlag nur auf Rohrlaserteile")
     assert S["teile"] == s0["teile"] == 10 and S["zukaufteile"] == 4
     nah(S["verkauf"], s0["verkauf"] + 4 * 25 / 0.98, "Summe Verkauf")

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from . import NAME, ausgabe, hilfe, tastatur, update
 from .spaltenbreite import AutoGroesse
+from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
@@ -27,50 +28,6 @@ FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
 FARBE_BERECHNET = QColor("#EDEDED")
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
 FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": FARBE_BERECHNET}
-# Einheitliches Aussehen angelehnt an die PDF-Ausgaben: Dunkelblau #1F4E78 als Akzent (aktiver Reiter, Titel,
-# Hauptknöpfe, Linie unter Tabellenköpfen), helle neutrale Flächen, Karten mit dünnem Rahmen, Zebra-Zeilen
-AKZENT = "#1F4E78"
-STIL = """
-QFrame#karte { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; }
-QLabel#kartentitel { font-weight: bold; color: #1F4E78; }
-QLabel#gruppentitel { font-weight: bold; color: #3A4656; padding-bottom: 2px; border-bottom: 1px solid #E3E7EC; }
-QFrame#kennzahl { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; }
-QLabel#kennzahltitel { color: #5F6B7A; }
-QLabel#kennzahlwert { font-weight: bold; color: #1F2937; }
-QLabel#summenzeile { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; padding: 6px; }
-QFrame#preis { background: #EEF4FB; border: 1px solid #C9DAEE; border-radius: 4px; }
-QLabel#preiswert { font-weight: bold; font-size: 13pt; color: #1F4E78; }
-QLabel#preiswert_klein { font-weight: bold; font-size: 11pt; color: #1F2937; }
-QLabel#stand_ok { background: #E3F4E8; color: #1E6B34; border: 1px solid #B7DFC3; border-radius: 4px; font-weight: bold; }
-QLabel#stand_offen { background: #FFF6DB; color: #7A5A00; border: 1px solid #F0D98C; border-radius: 4px; font-weight: bold; }
-QLabel#stand_veraltet { background: #FDECEA; color: #8C1D18; border: 1px solid #F3B8B2; border-radius: 4px; font-weight: bold; }
-QToolButton#kartenknopf { border: none; font-weight: bold; color: #1F4E78; padding: 2px 0; }
-QToolButton#aufklapper { border: none; text-align: left; color: #3A4656; padding: 2px 0; }
-QToolButton#meldung_ok { border: none; color: #1E6B34; font-weight: bold; padding: 2px 0; }
-QToolButton#meldung_warnung { border: none; color: #7A5A00; font-weight: bold; padding: 2px 0; }
-QToolButton#meldung_fehler { border: none; color: #B42318; font-weight: bold; padding: 2px 0; }
-QPushButton { padding: 4px 10px; border: 1px solid #C5CCD6; border-radius: 4px; background: #FFFFFF; }
-QPushButton:hover { background: #F1F4F8; }
-QPushButton:pressed { background: #E2E8F0; }
-QPushButton:disabled { color: #9AA3AF; }
-QPushButton#primaer { background: #1F4E78; color: #FFFFFF; border-color: #183E60; font-weight: bold; }
-QPushButton#primaer:hover { background: #183E60; }
-QPushButton::menu-indicator { subcontrol-position: right center; right: 4px; }
-QPushButton[menu="true"] { padding-right: 18px; }
-QTabWidget::pane { border: 1px solid #D5DBE3; top: -1px; }
-QTabBar::tab { background: #EEF1F5; color: #3A4656; border: 1px solid #D5DBE3; border-bottom: none;
-               border-top-left-radius: 4px; border-top-right-radius: 4px; padding: 4px 10px; margin-right: 1px; }
-QTabBar::tab:selected { background: #FFFFFF; color: #1F4E78; border-top: 3px solid #1F4E78; padding-top: 2px; }
-QTabBar::tab:hover:!selected { background: #F7F9FB; }
-QGroupBox { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; margin-top: 16px; padding-top: 6px; }
-QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 8px; padding: 0 4px;
-                   color: #1F4E78; font-weight: bold; }
-QTableView, QTreeView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selection-color: #111827;
-                        alternate-background-color: #F5F8FB; }
-QHeaderView::section { background: #F3F6FA; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
-                       border-bottom: 2px solid #1F4E78; padding: 3px; font-weight: bold; }
-QHeaderView::section:vertical { border-bottom: 1px solid #E3E7EC; border-right: 1px solid #C9D0D8; font-weight: normal; }
-"""
 
 
 class StammdatenModell(QAbstractTableModel):
@@ -701,7 +658,7 @@ class EinstellungenBereich(QWidget):
         oeffnen = QPushButton("Einstellungen öffnen")
         oeffnen.clicked.connect(self.oeffnen)
         self.fehler = QLabel()
-        self.fehler.setStyleSheet("color: #C00000;")
+        self.fehler.setStyleSheet("color: #B42318;")
         zeile = QHBoxLayout()
         zeile.addWidget(self.passwort)
         zeile.addWidget(oeffnen)
@@ -870,7 +827,7 @@ class StartSeite(QWidget):
             stand = datetime.datetime.fromisoformat(stand).strftime("%d.%m.%Y %H:%M")
         warnung = ""
         if herkunft == "Beispieldaten":
-            warnung = ("<p style='color:#C00000'><b>Die Stammdaten sind Beispielwerte.</b> Bitte im Reiter "
+            warnung = ("<p style='color:#B42318'><b>Die Stammdaten sind Beispielwerte.</b> Bitte im Reiter "
                        "Einstellungen durch die eigenen Werte ersetzen.</p>")
         tabellen = [(t.titel, db.anzahl(t.name)) for t in TABELLEN]
         haelfte = (len(tabellen) + 1) // 2           # zwei Spalten: kurze Liste statt einer langen
@@ -958,7 +915,6 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
                                   ("Daten importieren …", self.daten_importieren, None),
-                                  ("Stammdaten fürs Handy exportieren …", self.handy_exportieren, None),
                                   (None, None, None),
                                   ("Datenordner öffnen", self.datenordner_oeffnen, None),
                                   ("Ablageordner öffnen (PDF, CSV)", self.ablage_oeffnen, None),
@@ -1206,7 +1162,7 @@ class Hauptfenster(QMainWindow):
         return self.angebote.filter.rowCount()
 
     def meldung(self, text, fehler=False):
-        self.statusBar().setStyleSheet("color: #C00000;" if fehler else "")
+        self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
         self.statusBar().showMessage(text, 8000)
 
     def zeigen(self, seite):
@@ -1304,34 +1260,6 @@ class Hauptfenster(QMainWindow):
                                     "lassen sie sich in der portablen oder installierten Version oder auf einem "
                                     "anderen Rechner einlesen.")
         return info
-
-    def handy_exportieren(self):
-        from PySide6.QtWidgets import QFileDialog
-        from . import handy_export
-        ziel, _ = QFileDialog.getSaveFileName(self, "Stammdaten fürs Handy exportieren",
-                                              str(handy_export.vorschlag(self.ablage())), "Stammdaten (*.json)")
-        if ziel:
-            self.handy_export_schreiben(ziel)
-
-    def handy_export_schreiben(self, ziel):
-        """Stammdaten-Datei für die Android-App schreiben (handy_export). Ergebnis: Anzahl je Tabelle oder None."""
-        from . import handy_export
-        try:
-            anzahl = handy_export.schreiben(self.db, ziel)
-        except OSError as e:
-            self.meldung(f"Export fürs Handy nicht gelungen: {e}", fehler=True)
-            if not self.stumm:
-                QMessageBox.warning(self, "Stammdaten fürs Handy", f"Der Export ist nicht gelungen:\n\n{e}")
-            return None
-        self.meldung(f"Stammdaten fürs Handy exportiert: {ziel}")
-        if not self.stumm:
-            QMessageBox.information(
-                self, "Stammdaten fürs Handy",
-                f"Die Stammdaten stehen in\n{ziel}\n\n{anzahl.get('profile', 0)} Profile, "
-                f"{anzahl.get('werkstoffe', 0)} Werkstoffe, {anzahl.get('maschinen', 0)} Maschinen, "
-                f"{anzahl.get('kunden', 0)} Kunden. Die Datei aufs Handy bringen (z. B. per E-Mail) und in der App mit "
-                "„Stammdaten einlesen“ öffnen. Das Passwort der Einstellungen ist nicht enthalten.")
-        return anzahl
 
     def daten_importieren(self):
         from PySide6.QtWidgets import QFileDialog

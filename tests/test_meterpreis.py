@@ -55,7 +55,7 @@ c = next(i for i, (art, f) in enumerate(m.spalten) if art == "feld" and f.name =
 assert not s.pos_ansicht.isColumnHidden(c), "Meterpreis muss ohne Eintrag sichtbar sein"
 assert m.headerData(c, Qt.Horizontal) == "Materialpreis [€/m]"
 assert m.data(m.index(0, c)) == "10,33" and m.data(m.index(1, c)) == "12,53"
-assert m.data(m.index(0, c), Qt.ForegroundRole).color().name() == "#7f7f7f"
+assert m.data(m.index(0, c), Qt.ForegroundRole).color().name() == "#5f6b7a"
 assert "Doppelklick" in m.data(m.index(0, c), Qt.ToolTipRole)
 m.setData(m.index(0, c), m.data(m.index(0, c), Qt.EditRole))
 assert s.positionen[0]["preis_m"] is None, "unverändert bestätigt = bleibt berechnet"

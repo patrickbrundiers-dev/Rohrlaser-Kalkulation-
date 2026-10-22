@@ -98,7 +98,7 @@ text = kb.abweichung_text.text()
 assert text.startswith("3 Werte weichen von den Einstellungen ab") and "Gewinn 12 % statt 20 %" in text, text
 assert "Stundensatz Maschine 160 statt 175 €/h" in text and "Mindestpreis" not in text
 s.kopf_bereich.kalkulation_aufklappen(False)
-assert "(3 abweichend)" in kb.kalk_kurz.text()
+assert "(3 abweichend von den Einstellungen)" in kb.kalk_kurz.text()
 vorher = s._verkauf()
 kb.felder["gewinn"].setValue(25.0)
 kb.felder["gewinn"].editingFinished.emit()

@@ -587,8 +587,16 @@ def kapitel_angebote(i):
            "einem eigenen Reiter. Die Spalte <b>Status</b> zeigt farbig, wie weit ein Angebot ist: <i>Nicht "
            "optimiert</i> (gelb), <i>Optimiert</i> (grün), <i>Veraltet</i> (rot: nach der Optimierung geändert, "
            "bitte neu optimieren) und <i>Nachkalkuliert</i> (blau). <b>Verkaufspreis netto</b> ist der Preis aus der "
-           "Übersicht des Angebots; das Programm merkt ihn sich beim Anzeigen eines Angebots. Ältere Angebote, die "
-           "seit dem Update noch nicht geöffnet wurden, haben dort noch keinen Wert.")
+           "Übersicht des Angebots; das Programm merkt ihn sich beim Anzeigen eines Angebots (Mauszeiger darauf: "
+           "<i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch nicht geöffnet wurden, haben dort noch "
+           "keinen Wert.")
+    i.text("Die Spalte <b>Vorgang</b> zeigt, wo ein Angebot beim Kunden steht: <i>Entwurf</i> (neu), "
+           "<i>Verschickt</i> (setzt das Angebots-PDF selbst; blau), <i>Beauftragt</i> (grün) und <i>Abgelehnt</i> "
+           "(grau). <b>Vorgang ▾</b> setzt ihn für das markierte Angebot von Hand. <b>Gültig bis</b> ist das "
+           "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF); ist ein verschicktes Angebot "
+           "darüber hinaus, steht „Verschickt (abgelaufen)“ rot da. Die Auswahl links neben der Suche zeigt nur "
+           "Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i> oder <i>Verschickt und abgelaufen</i> "
+           "zum Nachfassen. Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt.")
     i.bild("angebote", "Reiter Angebote", hoehe=125 * mm, legende=[
         (1, "Reiter <b>Angebote</b>: Übersicht mit Positionen, Teilen und Zeitpunkt der letzten Optimierung."),
         (2, "<b>Neues Angebot</b>: legt ein Angebot mit der nächsten Nummer, dem heutigen Datum, der "
@@ -619,10 +627,11 @@ def kapitel_angebot(i):
            "gilt, solange das Angebot offen ist. Die Karte <b>Fracht</b> ist zugeklappt und zeigt Frachtart und Betrag "
            "in der Titelzeile; <b>Fracht berechnen …</b> steht auch zugeklappt bereit. Auf- oder Zuklappen der Fracht "
            "gilt für alle Angebote.")
-    i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
-           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · "
-           "Rüstzeit je Abmessung 15,0 min · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
-           "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. ")
+    i.text("Die Karte <b>Kalkulation dieses Angebots</b> ist zu Beginn zugeklappt: in der Titelzeile steht eine "
+           "Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · Rüstzeit je Abmessung 15,0 min · …“), und die "
+           "Positionen bekommen mehr Platz. Weichen Werte von den Einstellungen ab, steht dahinter orange „(n "
+           "abweichend von den Einstellungen)“. Ein Klick auf den Titel klappt die Kalkulationswerte auf; die Wahl "
+           "gilt für alle Angebote.")
     i.text("<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen (Positionen, Ergebnisse, Zeiten, "
            "Staffeln, Stammdaten) automatisch an den Inhalt an: eine Spalte ist so breit wie ihr längster Eintrag "
            "bzw. ihr Spaltenkopf, höchstens etwa 260 Punkte (Zeiten: 420); die letzte Spalte füllt den Rest. Langer "
@@ -639,7 +648,7 @@ def kapitel_angebot(i):
             "Maschinenparameter."),
         (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
             "groß, Meldungen, Kennzahlen, Kosten nach Gruppen und Zeiten."),
-        (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
+        (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
@@ -784,7 +793,7 @@ def kapitel_angebot(i):
     i.abschnitt("Übersicht")
     i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
             "abgeschlossen</i> (grün) oder <i>Veraltet</i> (rot, [[veraltet]]).",
-            "Darunter der <b>Preisstand</b>: <i>Materialpreise: aktuelle Stammdaten</i>, solange noch kein "
+            "Darunter der <b>Preisstand</b>: <i>Preise: aktuelle Stammdaten</i>, solange noch kein "
             "Angebots-PDF erzeugt wurde, danach <i>Preise festgeschrieben am …</i>. Haben sich die Stammdaten "
             "seitdem geändert, steht er gelb mit der Anzahl der Änderungen (Mauszeiger darauf zeigt sie einzeln), "
             "und der Knopf <b>Aktuelle Preise übernehmen …</b> erscheint ("
@@ -794,6 +803,11 @@ def kapitel_angebot(i):
             "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
             "<b>Meldungen</b>: die Anzahl der Fehler, Warnungen und Hinweise der Positionen (rot, gelb); aufklappen "
             "zeigt jede Meldung mit ihrer Positionsnummer.",
+            "<b>Prüfen vor Freigabe</b>: alle offenen Punkte vor dem Angebots-PDF in einer Liste: kein Kunde, "
+            "Schnittplan nicht aktuell, Positionen mit FEHLER oder WARNUNG, ungeprüfte Bohrungen/Gewinde-Vorschläge, "
+            "Fracht nicht berechnet, veraltete Staffeln, Abweichung vom verschickten Angebot, abgelaufene Gültigkeit. "
+            "Ist alles erledigt, steht dort grün „alles erledigt“. Beim Angebots-PDF fragt das Programm bei offenen "
+            "Punkten mit dieser Liste nach.",
             "Kennzahlen: Positionen, Stückzahl und Gewicht. Stangenbedarf und Längen stehen je Abmessung in den "
             "Reitern <i>Schnittplan</i> und <i>Stangenbild</i>.",
             "Kosten nach Gruppen: Material, Laser schneiden, Rüsten (Rüsten Maschine, Rüsten je Abmessung, "
@@ -824,8 +838,10 @@ def kapitel_angebot(i):
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
         ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
                                 "([[meterpreis]])"],
-        ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet. Doppelklick "
-                            "öffnet <i>Bohrungen prüfen</i> ([[bohrungen_pruefen]])."],
+        ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i> (Trennung mit Semikolon oder Komma, x oder ×). Nur was hier "
+                            "steht, wird als Gewinde gerechnet; ein Gewinde, das nicht in den Stammdaten steht, "
+                            "meldet eine WARNUNG. Doppelklick öffnet <i>Bohrungen prüfen</i> "
+                            "([[bohrungen_pruefen]])."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl ([[zusatzarbeiten_angebot]])"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl ([[zukauf_angebot]])"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
@@ -844,6 +860,10 @@ def kapitel_angebot(i):
     i.text("Positionen markieren (eine oder mehrere) und auf <b>Zusatzarbeiten …</b> klicken, oder in der Spalte "
            "<i>Zusatzarbeiten</i> doppelklicken. Im Fenster stehen oben die Gewinde, darunter beliebig viele "
            "Zusatzarbeiten aus den Stammdaten.")
+    i.text("Gewinde lassen sich tippen oder rechts daneben mit Anzahl, Gewinde aus der Liste und <b>Gewinde "
+           "hinzufügen</b> anhängen. Eine Angabe, die das Programm nicht erkennt (z. B. „4xM7“ ohne Stammdaten), "
+           "steht rot darunter, weil sie mit 0 € rechnen würde. Bei einer einzelnen Position führen <b>Schweißnaht "
+           "…</b> und <b>Bohrungen prüfen …</b> unten rechts zur übrigen Bearbeitung derselben Position.")
     i.bild("zusatz_dialog", "Zusatzarbeiten für eine Position: Gewinde, Feuerverzinken und eine zusätzliche Gravur",
            hoehe=80 * mm, legende=[
                (1, "<b>Gewinde (geprüft)</b>: Anzahl x Größe, mehrere mit Semikolon. Darunter der Festpreis je Teil "
@@ -882,6 +902,9 @@ def kapitel_angebot(i):
            "Werkstoffs, jeweils mit dem Aufpreis der Oberfläche. Bei festgeschriebenen Preisen gilt der Stand des "
            "Angebots ([[preise_festschreiben]]). Ist der Preis günstiger oder teurer zu bekommen (z. B. ein aktuelles "
            "Lieferantenangebot), doppelt klicken: der berechnete Preis steht im Feld und lässt sich ändern.")
+    i.text("Der Mauszeiger auf dem Preis nennt die <b>Herkunft</b>: Lieferlängen, Preise oder Tonnenpreis, mit Preis, "
+           "Lieferant und Gültig ab. Ist der Preis älter als 6 Monate, steht „Achtung: über 6 Monate alt, Preis "
+           "prüfen“ dabei.")
     i.liste("Der eingetragene Preis steht fett und ersetzt Preis und Oberflächen-Aufpreis. Er gilt für alle Stangen "
             "mit gleichem Profil, Werkstoff, Oberfläche und Stangenlänge, weil diese Positionen gemeinsam aus "
             "denselben Stangen geschnitten werden. Die anderen Positionen dieser Gruppe zeigen ihn kursiv.",
@@ -1164,8 +1187,12 @@ def kapitel_optimieren(i):
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
-           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand fragt "
-           "das Programm nach.")
+           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand bietet "
+           "das Programm nur <b>Optimieren und weiter</b> oder <b>Abbrechen</b> an, damit kein PDF mit altem "
+           "Materialbedarf entsteht.")
+    i.text("Große Angebote (ab 150 Teilen) rechnen im Hintergrund: ein Fenster zeigt die gerade geplante Abmessung "
+           "und die Zeit, <b>Abbrechen</b> beendet die Optimierung nach der laufenden Abmessung, ohne etwas zu "
+           "speichern.")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
            legende=[(1, "Stand der Optimierung: grün Optimierung abgeschlossen, gelb noch nicht optimiert, rot "
                         "Veraltet.")])
@@ -1602,8 +1629,10 @@ def kapitel_staffeln(i):
     i.text("Die Staffelpreise erscheinen im Angebots-PDF direkt in ihrer Position: unter der Zeile mit "
            "Menge und Preis je Einheit eingerückt je Stufe eine Zeile „Ab 50 Stk. je“ (bei Sätzen „Ab 4 Sätze je“) "
            "mit dem Staffelpreis, aufsteigend nach Menge, danach der übrige Positionstext. Staffelzeilen haben keinen "
-           "Gesamtpreis und zählen nicht zur Summe. Eine Stufe mit gleicher Menge und gleichem Preis wie die "
-           "Position entfällt dort. Ändert sich etwas am "
+           "Gesamtpreis und zählen nicht zur Summe. Darunter steht grau „Staffelpreise bei Einzelbestellung "
+           "dieser Position“ (bzw. „dieses Satzes“): Jede Stufe rechnet Rüsten, Pauschalen und Mindestpreis für sich, "
+           "deshalb kann eine Stufe mit der Menge des Angebots teurer sein als der Preis im Gesamtangebot. Eine Stufe "
+           "mit gleicher Menge und gleichem Preis wie die Position entfällt dort. Ändert sich etwas am "
            "Angebot, zeigt der Reiter VERALTET und rechnet nach; das Angebot rechnet veraltete Staffelpreise "
            "vor dem Drucken ebenfalls selbst neu. Ältere Angebote rechnen unverändert weiter: ihre Stufen haben "
            "leere Felder, also die Werte des Angebots. Vor dem Umstellen einer älteren Datendatei legt das "
@@ -1895,8 +1924,15 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.text("Beim Erzeugen des <b>Angebots-PDF</b> speichert das Programm im Angebot die Materialpreise und "
            "Schneiddaten, mit denen es gerechnet hat: die Zeilen aus <i>Preise</i> je Profil + Werkstoff der "
            "Positionen (auch, dass es keine Zeile gab und der Tonnenpreis galt), die Tonnenpreise der Werkstoffe, "
-           "die Aufpreise der Oberflächen und die Schneiddaten der gewählten Maschine. Ändern sich danach die "
-           "Stammdaten, z. B. der Stahlpreis, bleibt der Preis des Angebots wie im PDF beim Kunden.")
+           "die Aufpreise der Oberflächen und die Schneiddaten der gewählten Maschine, außerdem die Gewinde (Preis "
+           "und Zeit), die Einstellungen, die den Preis ändern (Zuschlag Material und Fertigung, Mindestpreis, "
+           "Händler-Mehrlänge), die Zeilen der Profile und der Maschine sowie den Verkaufspreis netto des PDFs. "
+           "Ändern sich danach die Stammdaten oder Einstellungen, z. B. der Stahlpreis, bleibt der Preis des Angebots "
+           "wie im PDF beim Kunden.")
+    i.text("Ändert sich danach das Angebot selbst (z. B. eine Stückzahl), steht in der Übersicht orange "
+           "„Weicht vom verschickten Angebot (Datum: Betrag) ab: +… €“. Das nächste Angebots-PDF setzt den "
+           "verschickten Stand neu. Jedes Angebots-PDF merkt sich das Programm mit Datum, Nettobetrag und Dateiname; "
+           "der Mauszeiger auf dem Preisstand zeigt diesen Verlauf („Verschickt: …“).")
     i.liste("Neue Positionen mit anderem Profil, Werkstoff oder anderer Oberfläche rechnen mit den aktuellen "
             "Stammdaten; das nächste Angebots-PDF nimmt sie dazu, schon festgeschriebene Werte bleiben.",
             "Wird eine andere Maschine gewählt, gelten deren aktuelle Schneiddaten.",
@@ -3023,12 +3059,6 @@ def kapitel_pflege(i):
             "Beschreibung). <b>Datei → Daten importieren …</b> liest eine Export-Datei, eine Sicherung oder eine "
             "Datendatei <i>rohrlaser.db</i> ein und ersetzt damit alle Daten; vorher sichert es den jetzigen Stand "
             "(<i>_vor_Import</i>). Eine beschädigte Export-Datei erkennt das Programm an der Prüfsumme.",
-            "<b>Datei → Stammdaten fürs Handy exportieren …</b> schreibt alle Stammdaten (Profile, Werkstoffe, Preise, "
-            "Maschinen, Schneiddaten, Kunden, Frachtkosten, Zukauf) und die Einstellungen in eine Datei "
-            "<i>Rohrlaser-Stammdaten JJJJ-MM-TT.json</i> für die Android-App (Testversion). Die Datei z. B. per "
-            "E-Mail aufs Handy bringen und in der App mit <b>Stammdaten einlesen</b> öffnen. Es gibt keinen Abgleich: "
-            "Gepflegt wird am PC, auf dem Handy lassen sich die Stammdaten nur ansehen; nach Änderungen am PC neu "
-            "exportieren und einlesen (ersetzt alles). Angebote gehen nicht mit, das Passwort der Einstellungen auch nicht.",
             "Lässt sich die Datendatei beim Start nicht öffnen (beschädigt, von einer neueren Version), bietet das "
             "Programm an, eine Sicherung zu wählen. Die nicht lesbare Datei wird dabei nicht gelöscht, sondern in den "
             "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
@@ -3221,8 +3251,12 @@ def kapitel_fragen(i):
          "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
+         "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
+         "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben."],
         ["Übersicht: <b>Preise festgeschrieben am …, Stammdaten seitdem geändert</b>",
-         "Materialpreise oder Schneiddaten wurden nach dem Angebots-PDF geändert; das Angebot rechnet weiter mit den "
+         "Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile oder Maschine wurden nach dem Angebots-PDF "
+         "geändert; das Angebot rechnet weiter mit den "
          "alten Werten. Gewollt? Dann nichts tun. Sonst <b>Aktuelle Preise übernehmen …</b> ([[preise_festschreiben]])."],
         ["Frachtkosten: <b>keiner Zone zugeordnet</b>", "Für die PLZ gibt es keine PLZ-Zuordnung. Mit Standardzone "
          "rechnet das Programm weiter (gelb), ohne nicht (rot). Zuordnung im Unterreiter Frachtzonen und "
@@ -3282,6 +3316,17 @@ def kapitel_fragen(i):
                                                         "hinterlegt. Unter Einstellungen Preise oder Werkstoffe ergänzen."],
         ["<b>WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz</b>",
          "Stückzahl und Stück je Satz der Position passen nicht zusammen (z. B. 7 Teile bei 2 je Satz)."],
+        ["<b>WARNUNG: Satz … unterschiedliche Anzahl Sätze</b>",
+         "Die Positionen eines Satzes ergeben verschieden viele Sätze (z. B. 10 Stiele, aber 6 Riegel bei je 1 "
+         "Stück je Satz). Das Angebots-PDF rechnet den Satz mit der größten Anzahl, die Kalkulation mit den "
+         "Stückzahlen; Stückzahlen angleichen. Vor dem PDF fragt das Programm nach."],
+        ["<b>WARNUNG: Gewinde '…' nicht erkannt</b>",
+         "Die Angabe in <i>Gewinde geprüft</i> hat kein lesbares Format (Anzahl x Gewinde, ganze Zahl) oder das "
+         "Gewinde steht nicht in den Stammdaten Gewinde. Sie wird nicht gerechnet. Korrigieren, z. B. "
+         "<i>4xM6; 2xM8</i>."],
+        ["<b>FEHLER: … darf nicht negativ sein</b>",
+         "Ein Zahlenwert der Position ist negativ (z. B. aus einer geänderten Datei). Wert korrigieren; Text in "
+         "Zahlenfeldern lehnt das Programm ab, aus einer Datei gelesen gilt er als leer."],
         ["Preise sind höher als vor dem Update",
          "Neue Angebote rechnen das Skonto ein (Vorgabe 2 %). Im Angebotskopf Skonto 0 eintragen oder in den "
          "Einstellungen bzw. beim Kunden die Vorgabe ändern."],
@@ -3309,6 +3354,14 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.7.0", "Verbesserungen aus dem Prüfbericht: Warnungen bei Satz mit ungleicher Anzahl Sätze, nicht erkannten "
+              "Gewinden und negativen Werten; Hinweis zu Staffelpreisen im Angebots-PDF (Kasten); Angebots-PDF schreibt "
+              "alle Preisgrundlagen fest und zeigt Abweichungen vom verschickten Stand ([[preise_festschreiben]]); "
+              "„Prüfen vor Freigabe“ in der Übersicht; Status gleich nach der Positionsnummer; Kalkulationswerte zu "
+              "Beginn zugeklappt; Vorgang (Entwurf, Verschickt, Beauftragt, Abgelehnt), Gültig bis und Filter in der "
+              "Angebotsliste ([[angebote]]); Optimierung großer Angebote im Hintergrund mit Abbruch und etwa dreimal "
+              "schneller; Herkunft des Materialpreises im Tooltip ([[meterpreis]]); Gewinde aus der Liste im Dialog "
+              "Zusatzarbeiten; Fehlerprotokoll Daten/Protokoll/fehler.log. Android-App und Handy-Export entfernt."],
     ["0.6.38", "Datei → Stammdaten fürs Handy exportieren …: Stammdaten und Einstellungen als Datei für die "
                "Android-App (Testversion), dort nur zum Ansehen und für den Stangenrechner ([[datensicherung]])."],
     ["0.6.37", "Mehr Doppelklick: Status führt zur Lösung (Dialog oder Zelle zum Eintragen), Schneidweg/Einstiche/"

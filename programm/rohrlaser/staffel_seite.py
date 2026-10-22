@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QMessageBox, QProgressDialog, QPushButton, QSplitter, QStyledItemDelegate, QTableView,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import hilfe, staffeln
+from . import hilfe, staffeln, stil
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS
 from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
@@ -22,7 +22,7 @@ from .staffeln import ERWEITERT, EURO, PROZENT, STUFE_FELDER, UMLEGEN
 from .stammdaten import wert_aus_text, zahl_als_text
 
 PRUEFUNG = len(STUFE_FELDER)          # letzte Spalte der Stufentabelle
-GRAU = QColor("#7F7F7F")
+GRAU = QColor(stil.TEXT_GRAU)
 FARBE_SUMME = QColor("#DDEBF7")
 ZEILENHOEHE = 20
 
@@ -36,6 +36,21 @@ def _zeit(iso):
         return datetime.datetime.fromisoformat(iso).strftime("%d.%m.%Y %H:%M")
     except (TypeError, ValueError):
         return ""
+
+
+def angebotspreise(positionen, zeilen):
+    """Preis je Einheit im Angebot (Hauptmenge): je Position ohne Satz der Stückpreis, je Satz die Summe der
+    Stückpreise × Stück je Satz (wie im Angebots-PDF). zeilen = rechnen.kalkulation(...)[0]."""
+    out = {}
+    for p, z in zip(positionen, zeilen):
+        if not z or not staffeln.position_aktiv(p) or not isinstance(z.get("preis_teil"), (int, float)):
+            continue
+        satz = staffeln.txt(p.get("satz"))
+        if satz:
+            out[satz] = out.get(satz, 0.0) + z["preis_teil"] * staffeln.je_satz(p)
+        elif staffeln.txt(p.get("pos")):
+            out[staffeln.txt(p.get("pos"))] = z["preis_teil"]
+    return out
 
 
 # ------------------------------------------------------------------ Stufentabelle (Eingabe)
@@ -296,8 +311,9 @@ class ErgebnisBaum(QTreeWidget):
         self.header().setMinimumHeight(52)
         self.offen = {"material", "fertigung"}
 
-    def setzen(self, zeilen, vorher=None):
-        """zeilen: bepreiste Zeilen aus staffeln.rechnen_alle; vorher: {stufe_id: Preis je Einheit vorher}."""
+    def setzen(self, zeilen, vorher=None, angebot=None):
+        """zeilen: bepreiste Zeilen aus staffeln.rechnen_alle; vorher: {stufe_id: Preis je Einheit vorher};
+        angebot: {Schlüssel: Preis je Einheit im Angebot} (angebotspreise) für die Zeile 'Δ zum Angebotspreis'."""
         for i in range(self.topLevelItemCount()):
             it = self.topLevelItem(i)
             if it.data(0, Qt.UserRole):
@@ -378,6 +394,18 @@ class ErgebnisBaum(QTreeWidget):
                             zelle(k, z, j, _liste(z, schl, n), "kind")
                             tipp += [f"{z['schluessel']} {z['menge']}: {e}" for n2, _, e in _p(z)[schl] if n2 == n and e]
                     k.setToolTip(0, "\n".join(tipp))
+        # Unterschied zum Preis je Einheit im Angebot (Hauptmenge): jede Stufe ist eine eigene Bestellung (B-3)
+        if angebot and any(z.get("schluessel") in angebot for z in zeilen):
+            it = neu(None, "Δ zum Angebotspreis je Einheit", "info", "delta")
+            it.setToolTip(0, "Preis je Einheit der Stufe minus Preis je Einheit im Angebot (Hauptmenge). Jede Stufe "
+                             "rechnet als eigene Bestellung dieser Position bzw. dieses Satzes.")
+            for j, z in enumerate(zeilen):
+                ang, jetzt = angebot.get(z.get("schluessel")), z.get("preis_einheit")
+                if isinstance(ang, (int, float)) and isinstance(jetzt, (int, float)):
+                    d = jetzt - ang
+                    it.setText(1 + 2 * j, f"{'+' if d > 0.005 else ''}{_z(d)} €")
+                    it.setText(2 + 2 * j, f"{'+' if d > 0.005 else ''}{_z(100 * d / ang, 1)} %" if ang else "")
+                    it.setToolTip(1 + 2 * j, f"Angebot {_z(ang)} €, Stufe {_z(jetzt)} € je Einheit")
         # Hinweise und Änderung zum vorherigen Stand
         if vorher:
             it = neu(None, "Änderung Preis je Einheit (zur letzten Eingabe)", "info", "aenderung")
@@ -575,23 +603,27 @@ class StaffelSeite(QWidget):
         offen = self.anzahl_veraltet()
         if speichern and sp and not offen:
             self.speichern(self.zeilen, am=sp.get("am"))
-        self.baum.setzen(self.zeilen, self.vorher)
+        try:
+            angebot = angebotspreise(self.s.positionen, self.s._rechnung()[0]) if self.zeilen else None
+        except (ValueError, TypeError, KeyError):         # unvollständiges Angebot: ohne Vergleich
+            angebot = None
+        self.baum.setzen(self.zeilen, self.vorher, angebot)
         self.vergleich.setzen(self.zeilen)
         if not staffeln.gueltige(self.s.stufen):
-            text, farbe = "Keine Mengenstufen eingetragen.", "#595959"
+            text, farbe = "Keine Mengenstufen eingetragen.", "#5F6B7A"
         elif not sp:
-            text, farbe = "Staffelpreise noch nicht gerechnet.", "#9C5700"
+            text, farbe = "Staffelpreise noch nicht gerechnet.", "#7A5A00"
         elif offen:
             text = (f"VERALTET – {offen} Stufe(n) passen nicht mehr zu Angebot, Mengen oder Stammdaten"
                     + (" und werden im Hintergrund neu gerechnet …" if self._laeuft or self._timer.isActive()
                        else ". Das Angebot rechnet sie neu."))
-            farbe = "#C00000"
+            farbe = "#B42318"
         else:
-            text, farbe = f"Staffelpreise aktuell (Mengenlauf {_zeit(sp.get('am'))}).", "#375623"
+            text, farbe = f"Staffelpreise aktuell (Mengenlauf {_zeit(sp.get('am'))}).", "#1E6B34"
         fehler = sum(1 for z in self.zeilen if str(z.get("hinweis") or "").startswith("FEHLER"))
         if fehler:
             text += f" {fehler} Stufe(n) mit FEHLER – ohne Preis, nicht im Angebot."
-            farbe = "#C00000" if not offen else farbe
+            farbe = "#B42318" if not offen else farbe
         self.info.setText(f"<b style='color:{farbe}'>{text}</b>")
         if offen and not self.s.f.stumm:
             self._planen()

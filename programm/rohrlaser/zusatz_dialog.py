@@ -9,7 +9,7 @@ import json
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget, QVBoxLayout)
+                               QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox, QTableWidget, QVBoxLayout)
 
 from . import hilfe, rechnen
 from .angebot import POSITIONEN
@@ -31,7 +31,9 @@ def _zahl(text, titel):
 class ZusatzDialog(QDialog):
     """p: erste gewählte Position (für Vorgaben und automatische Mengen), anzahl: gewählte Positionen."""
 
-    def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None):
+    def __init__(self, parent, p, anzahl, k, tabellen, haeufig=None, weitere=None):
+        """weitere: {Knopftext: Funktion} für die übrige Bearbeitung der Position (Schweißnaht, Bohrungen), damit
+        alles über einen Dialog erreichbar ist (Prüfbericht C-5)."""
         super().__init__(parent)
         self.p, self.k = p, k
         self.katalog = {z["name"]: z for z in tabellen.get("zusatzarbeiten") or () if z.get("name")}
@@ -48,8 +50,21 @@ class ZusatzDialog(QDialog):
         self.gewinde.setPlaceholderText("z. B. 4xM6; 2xM8")
         self.gewinde.textChanged.connect(self._gewinde_info)
         self.gewinde_info = QLabel()
-        self.gewinde_info.setStyleSheet("color: #595959;")
-        form.addRow("Gewinde (geprüft)", self.gewinde)
+        self.gewinde_info.setStyleSheet("color: #5F6B7A;")
+        # Gewinde aus der Liste der Stammdaten hinzufügen statt frei tippen: Anzahl × Größe
+        zeile = QHBoxLayout()
+        zeile.addWidget(self.gewinde, 1)
+        self.gewinde_anzahl = QSpinBox()
+        self.gewinde_anzahl.setRange(1, 999)
+        self.gewinde_anzahl.setSuffix(" ×")
+        self.gewinde_wahl = QComboBox()
+        self.gewinde_wahl.addItems([str(g.get("gewinde")) for g in self.gewinde_tab if g.get("gewinde")])
+        dazu = QPushButton("Gewinde hinzufügen")
+        dazu.setToolTip("Anzahl × gewähltes Gewinde an die Liste anhängen (z. B. 4xM6; 2xM8)")
+        dazu.clicked.connect(self.gewinde_hinzufuegen)
+        for w in (self.gewinde_anzahl, self.gewinde_wahl, dazu):
+            zeile.addWidget(w)
+        form.addRow("Gewinde (geprüft)", zeile)
         form.addRow("", self.gewinde_info)
         lay.addLayout(form)
         self.tabelle = QTableWidget(0, len(SPALTEN))
@@ -74,6 +89,14 @@ class ZusatzDialog(QDialog):
         leiste.addWidget(weg)
         leiste.addWidget(self.stammdaten_knopf)
         leiste.addStretch(1)
+        self.weitere_knoepfe = {}
+        if weitere:
+            leiste.addWidget(QLabel("Weitere Bearbeitung:"))
+            for text, ziel in weitere.items():
+                b = QPushButton(text)
+                b.clicked.connect(lambda _=False, ziel=ziel: ziel())
+                leiste.addWidget(b)
+                self.weitere_knoepfe[text] = b
         lay.addLayout(leiste)
         text = ("Menge und Preis leer lassen = automatisch: Menge aus der Position (Gewicht, Außenfläche, Länge "
                 "oder 1 Stück), Preis aus den Stammdaten. Abrechnung s/Stück: Zeit wird zur Schneidzeit addiert.")
@@ -87,7 +110,7 @@ class ZusatzDialog(QDialog):
         hinweis = hilfe.Hinweis(text, schluessel="zusatz_dialog")
         lay.addWidget(hinweis)
         self.fehler = QLabel()
-        self.fehler.setStyleSheet("color: #C00000;")
+        self.fehler.setStyleSheet("color: #B42318;")
         lay.addWidget(self.fehler)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self._ok)
@@ -190,8 +213,20 @@ class ZusatzDialog(QDialog):
         for r in sorted({i.row() for i in self.tabelle.selectedIndexes()}, reverse=True):
             self.tabelle.removeRow(r)
 
+    def gewinde_hinzufuegen(self):
+        g = self.gewinde_wahl.currentText()
+        if not g:
+            return
+        alt = self.gewinde.text().strip().rstrip(";,").strip()
+        self.gewinde.setText((alt + "; " if alt else "") + f"{self.gewinde_anzahl.value()}x{g}")
+
     def _gewinde_info(self):
         anz = {g: n for g, n in rechnen.gewinde_anzahl(self.gewinde.text(), self.gewinde_tab).items() if n}
+        fehlt = rechnen.gewinde_unbekannt(self.gewinde.text(), self.gewinde_tab)
+        if fehlt:
+            self.gewinde_info.setText(f"<span style='color:#B42318'>Nicht erkannt: {fehlt} – rechnet mit 0 €. "
+                                      "Format Anzahl x Gewinde, z. B. 4xM6; 2xM8</span>")
+            return
         if not anz:
             self.gewinde_info.setText("Gewinde aus den Stammdaten; Festpreis je Gewinde, sonst Zeit × Stundensatz.")
             return

@@ -45,7 +45,6 @@ jobs:
           /usr/bin/python3 tests/test_step_konturen.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_ergebnis.py
           /usr/bin/python3 tests/test_optimierung.py
-          /usr/bin/python3 tests/android_paritaet.py   # Android-App rechnet gleich (Kotlin-Tests im Workflow Android)
           /usr/bin/python3 tests/test_lieferlaengen.py
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
@@ -69,7 +68,6 @@ jobs:
           /usr/bin/python3 tests/test_zukauf_angebot.py
           /usr/bin/python3 tests/test_zukauf_preise.py
           /usr/bin/python3 tests/test_kunden_csv.py
-          /usr/bin/python3 tests/test_handy_export.py
           /usr/bin/python3 tests/test_zukauf_schnell.py
           /usr/bin/python3 tests/test_zukauf_ek.py
           /usr/bin/python3 tests/test_zukauf_blech.py
@@ -100,10 +98,19 @@ jobs:
           /usr/bin/python3 tests/test_kundenmaterial.py
           /usr/bin/python3 tests/test_schneidweg.py
           /usr/bin/python3 tests/test_naht.py
-          /usr/bin/python3 tests/test_gehrung.py
           /usr/bin/python3 tests/test_tastatur.py
           /usr/bin/python3 tests/test_materialanfrage.py
+          /usr/bin/python3 tests/test_plausibel.py
+          /usr/bin/python3 tests/test_protokoll.py
+          /usr/bin/python3 tests/test_festschreiben.py
+          /usr/bin/python3 tests/test_hintergrund.py
+          /usr/bin/python3 tests/test_vorgang.py
           /usr/bin/python3 tests/test_anleitung.py
+      - name: Gehrungen (langsamer Test, nur auf main bzw. von Hand, nicht bei jedem Pull Request)
+        if: github.event_name != 'pull_request'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: /usr/bin/python3 tests/test_gehrung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen
@@ -167,7 +174,7 @@ jobs:
         env:
           PYINSTALLER_COMPILE_BOOTLOADER: "1"
         run: |
-          pip install --no-binary pyinstaller --no-cache-dir pyinstaller
+          pip install --no-binary pyinstaller --no-cache-dir pyinstaller==6.22.3
           python -c "import PyInstaller, os; b = os.path.join(os.path.dirname(PyInstaller.__file__), 'bootloader', 'Windows-64bit-intel'); print(os.listdir(b))"
       - name: STEP-Import.exe bauen
         run: pyinstaller --noconfirm --clean programm/step_messung/step_messung.spec

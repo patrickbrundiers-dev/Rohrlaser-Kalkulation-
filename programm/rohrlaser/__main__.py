@@ -20,7 +20,7 @@ import tempfile
 import traceback
 from pathlib import Path
 
-from . import NAME
+from . import NAME, VERSION
 
 
 def programmordner():
@@ -251,6 +251,8 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName(NAME)
     app.setStyle("Fusion")
+    from .stil import ziffern_tabellarisch
+    ziffern_tabellarisch(app)
     deutsch(app)
     if a.selbsttest:
         return selbsttest(app, a.ergebnis, a.step)
@@ -262,8 +264,11 @@ def main(argv=None):
     if a.info:
         return info(o, a.ergebnis)
 
+    from . import protokoll
     from .datenbank import Datenbank
     from .fenster import Hauptfenster
+    protokoll.einrichten(o.daten / "Protokoll")
+    protokoll.info(f"Start {NAME} {VERSION} ({o.art}, Daten {o.daten})")
     try:
         sperre = orte.Sperre(o.daten)
     except orte.Gesperrt as e:
