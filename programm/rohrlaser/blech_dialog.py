@@ -354,7 +354,7 @@ class BlechDialog(QDialog):
         self.tabelle.itemChanged.connect(self.rechnen)
         frei = self.screen().availableGeometry() if self.screen() else None
         breite, hoehe = (frei.width() - 40, frei.height() - 70) if frei else (1400, 900)
-        self.resize(max(1000, min(1500, breite)), max(650, min(950, hoehe)))
+        self.resize(min(1500, breite), min(950, hoehe))
         self.teiler.setSizes([int(self.width() * 0.52), self.width() - int(self.width() * 0.52)])
         self.rechnen()
 

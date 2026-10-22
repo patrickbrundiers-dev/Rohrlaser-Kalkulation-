@@ -378,7 +378,7 @@ class SchneidwegDialog(QDialog):
         Ergebnis ohne Scrollen Platz haben."""
         frei = self.screen().availableGeometry() if self.screen() else None
         breite, hoehe = (frei.width() - 40, frei.height() - 70) if frei else (1400, 900)
-        self.resize(max(1000, min(1600, breite)), max(650, min(1000, hoehe)))
+        self.resize(min(1600, breite), min(1000, hoehe))
 
     def kopf_werte(self):
         """Felder der neuen Position aus der Kopfzeile (leer ohne Kopfzeile)."""
