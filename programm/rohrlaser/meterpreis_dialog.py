@@ -181,8 +181,8 @@ class MeterpreisDialog(QDialog):
         self.handling = QLineEdit(_z(kopf.get("handling_beistellung"), 3) if kopf.get("handling_beistellung") else "")
         self.handling.setPlaceholderText("0")
         self.handling.setMaximumWidth(120)
-        self.handling.setToolTip("Prüfen, Einlagern, Transport je kg der beigestellten Stangen (nur Kundenmaterial)")
-        unten.addRow("Handling Kundenmaterial [€/kg]:", self.handling)
+        self.handling.setToolTip("Prüfen, Einlagern, Transport je m der beigestellten Stangen (nur Kundenmaterial)")
+        unten.addRow("Handling Kundenmaterial [€/m]:", self.handling)
         e = einst or {}
         art = e.get("zuschlag_material_art")
         info = QLabel(f"Aus den Einstellungen: Zuschlag Material {_z(100 * rechnen._n(e.get('zuschlag_material')), 1)} %"

@@ -1192,8 +1192,7 @@ class AngebotSeite(QWidget):
                 self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
                 leiste.addWidget(self.ablage_klein)
         leiste.addSpacing(12)
-        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Material …", lambda: self.material_einstellen()),
-                           ("Zukaufteile …", None),
+        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Zukaufteile …", None),
                            ("Positionen löschen", self.positionen_loeschen)):
             b = QPushButton(text)
             if ziel is None:        # Auswahlmenü statt eines weiteren Knopfs: die Leiste wird nicht breiter
@@ -1216,6 +1215,12 @@ class AngebotSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+        # Material je Abmessung (Patrick 22.10.2026) neben der Materialanfrage; links ist die Leiste schon voll
+        self.material_knopf = QPushButton("Material …")
+        self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
+                                       "Meterpreis ändern")
+        self.material_knopf.clicked.connect(lambda: self.material_einstellen())
+        leiste.addWidget(self.material_knopf)
         # Materialanfrage immer sichtbar (Patrick 22.10.2026), nicht mehr unter Weitere Aktionen
         self.anfrage_knopf = QPushButton("Materialanfrage (E-Mail)")
         self.anfrage_knopf.setToolTip("Stangenbedarf aus der Optimierung beim Lieferanten anfragen (Outlook oder "

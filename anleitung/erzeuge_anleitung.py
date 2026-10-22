@@ -652,8 +652,7 @@ def kapitel_angebot(i):
         (4, "<b>Neue Position</b> (fragt zuerst den Typ, [[neue_position]]); daneben <b>Positionen löschen</b> "
             "(markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
-            "Daneben <b>Material …</b> (Materialeinsatz, Lieferlänge, Oberfläche und Meterpreis je Abmessung, "
-            "[[material_fenster]]) und <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
+            "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
             "<i>EK eintragen …</i> (Einkaufspreis fehlender Zukaufteile direkt im Angebot, [[zukauf_positionen]])."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten ([[step]])."),
@@ -762,7 +761,7 @@ def kapitel_angebot(i):
             "Laser, Gewinde, Rüsten, Stangenwechsel, Arbeitsschritte, Zusatzarbeiten, Programmierung und "
             "Pauschalen bleiben. Materialkosten anderer Positionen ändern sich nicht. Spalte <i>Kundenmaterial</i> "
             "im Reiter Kalkulation, Status „HINWEIS: Material vom Kunden beigestellt“.",
-            "<b>Handling Kundenmaterial</b> [€/kg]: optional für Prüfen, Einlagern und Transport, je kg der "
+            "<b>Handling Kundenmaterial</b> [€/m]: optional für Prüfen, Einlagern und Transport, je Meter der "
             "beigestellten Stangen, mit Zuschlag Fertigung und Gewinn (Kostenart <i>Handling Kundenmaterial</i>). "
             "Vorgabe 0 = keins; Einstellung in der Gruppe Kalkulation, je Angebot änderbar.",
             "Angebot: Die Position heißt „Material S235 EN10219 vom Kunden beigestellt“ statt „inkl. Material …“; "
@@ -940,7 +939,8 @@ def kapitel_angebot(i):
             "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
     i.abschnitt("Material je Abmessung (Fenster Material …)", marke="material_fenster")
-    i.text("Der Knopf <b>Material …</b> in der Knopfleiste des Angebots (auch Rechtsklick auf eine Position) öffnet "
+    i.text("Der Knopf <b>Material …</b> rechts neben den Ausgaben, vor <i>Materialanfrage (E-Mail)</i> (auch "
+           "Rechtsklick auf eine Position), öffnet "
            "alles zum Material in einem Fenster: je Abmessung (Profil, Werkstoff, Oberfläche und Stangenlänge) eine "
            "Zeile mit dem Querschnitt des Profils als Bild. Die eingetragenen Werte gelten für alle Positionen der "
            "Abmessung und gehen nach <b>Übernehmen</b> in die Kalkulation ein.")
@@ -952,7 +952,7 @@ def kapitel_angebot(i):
         (3, "<b>Materialeinsatz</b> laut Schnittplan: Stangen, Meter, Gewicht und Materialkosten; darunter die Summe."),
         (4, "<b>Meterpreis [€/m]</b>: grau steht der berechnete Preis ([[meterpreis]]); ein eigener Wert steht fett, "
             "Feld leeren = wieder berechnet. Bei Kundenmaterial gesperrt."),
-        (5, "<b>Handling Kundenmaterial [€/kg]</b> des Angebots; daneben zur Info Zuschlag Material und "
+        (5, "<b>Handling Kundenmaterial [€/m]</b> des Angebots; daneben zur Info Zuschlag Material und "
             "Händler-Mehrlänge aus den Einstellungen.")])
     i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert; der "
             "Status zeigt dann <b>HINWEIS: Meterpreis manuell</b>.",
@@ -2376,8 +2376,8 @@ def kapitel_einstellungen(i):
          "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
-        ["Kalkulation", "Handling Kundenmaterial je kg Stangengewicht [€/kg] (0 = keins)",
-         "Kosten für beigestelltes Material je kg der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
+        ["Kalkulation", "Handling Kundenmaterial je m Stangenlänge [€/m] (0 = keins)",
+         "Kosten für beigestelltes Material je Meter der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
          "Vorgabe 0."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
@@ -3815,7 +3815,7 @@ NEUERUNGEN = [
     ["0.8.25", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
                "und Meterpreis, Werkstoff, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
                "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
-               "ohne Wert ausgeblendet, Stangenbild am Ende."],
+               "ohne Wert ausgeblendet, Stangenbild am Ende. Handling Kundenmaterial in €/m statt €/kg."],
     ["0.8.22", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
                "Innenkontur</b> × Stundensatz <i>Programmierung</i>, je Position in der Spalte <i>Programmierzeit "
                "[min]</i> änderbar, sichtbar in Zeiten &amp; Arbeitskosten, in den Staffel-Stufen und im "

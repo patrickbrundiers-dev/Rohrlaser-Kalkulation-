@@ -2205,7 +2205,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     prog_pos = {i: (_n(positionen[i].get("stueck")) > 0) * (m * s_prog / 60 if m is not None
                                                              else _n(einstellungen.get("programmierung_teil")))
                 for i, (m, _) in prog_zeit.items()}
-    handling_kg = _n(einstellungen.get("handling_beistellung"))     # € je kg Kundenmaterial (Stangengewicht)
+    handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = _zusatz_umlegen(positionen, aktiv, laser, k, tabellen)
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
@@ -2234,8 +2234,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             continue
         gr = gruppe_von(p, kopf)
         d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
-        # Kundenmaterial: Handling je kg der beigestellten Stangen der Gruppe (Prüfen, Einlagern, Transport)
-        dh = handling_kg * sum(_n(x["gewicht"]) for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr) \
+        # Kundenmaterial: Handling je m der beigestellten Stangen der Gruppe (Prüfen, Einlagern, Transport;
+        # Patrick 22.10.2026: €/m statt €/kg)
+        dh = handling_m * sum(s["stange"] / 1000 for s in stangen if gruppe_der_stange(s) == gr) \
             if beigestellt(p) else 0.0
         gesamt = sum(_n(x.get("laenge")) * _n(x.get("stueck")) for x in positionen
                      if gruppe_von(x, kopf) == gr and not _leer(x.get("laenge")) and not _leer(x.get("stueck")))
