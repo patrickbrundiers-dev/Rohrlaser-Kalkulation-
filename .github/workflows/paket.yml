@@ -103,6 +103,8 @@ jobs:
           /usr/bin/python3 tests/test_gehrung.py
           /usr/bin/python3 tests/test_tastatur.py
           /usr/bin/python3 tests/test_materialanfrage.py
+          /usr/bin/python3 tests/test_plausibel.py
+          /usr/bin/python3 tests/test_protokoll.py
           /usr/bin/python3 tests/test_anleitung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
@@ -167,7 +169,7 @@ jobs:
         env:
           PYINSTALLER_COMPILE_BOOTLOADER: "1"
         run: |
-          pip install --no-binary pyinstaller --no-cache-dir pyinstaller
+          pip install --no-binary pyinstaller --no-cache-dir pyinstaller==6.22.3
           python -c "import PyInstaller, os; b = os.path.join(os.path.dirname(PyInstaller.__file__), 'bootloader', 'Windows-64bit-intel'); print(os.listdir(b))"
       - name: STEP-Import.exe bauen
         run: pyinstaller --noconfirm --clean programm/step_messung/step_messung.spec

@@ -139,6 +139,7 @@ def position_werte(p, kopf, k, tabellen):
         w["preis_hinterlegt"] = (beigestellt(p) or _n(p.get("preis_m")) > 0 or preis_zeile(p["profil_id"], p["werkstoff_id"], k, tabellen)
                                  is not None or _n(werkstoff.get("tonnenpreis")) > 0)
     w["zusatzarbeiten"] = tabellen.get("zusatzarbeiten")
+    w["gewinde_stamm"] = tabellen.get("gewinde")
     w["vorschub"] = None
     w["gas"] = None
     if ist_zukaufteil(p):        # eingekauftes Teil: nur Gewicht (Fracht), keine Fertigungswerte
@@ -182,7 +183,38 @@ def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None):
 
 
 # ------------------------------------------------------------------ Status
-def zukaufteil_status(p):
+def saetze_von(p):
+    """Anzahl Sätze einer Position: Stückzahl / Stück je Satz (None ohne Satz oder Stückzahl)."""
+    if _leer(p.get("satz")) or _n(p.get("stueck")) <= 0:
+        return None
+    je = _n(p.get("je_satz"))
+    return _n(p["stueck"]) / (je if je >= 1 else 1)
+
+
+def satz_abweichung(p, positionen):
+    """Text, wenn die Positionen des Satzes von p verschiedene Anzahlen Sätze ergeben (das Angebot rechnet den Satz
+    mit der größten Anzahl, die Kalkulation mit den Stückzahlen), sonst None."""
+    if not positionen or saetze_von(p) is None:
+        return None
+    satz = str(p.get("satz")).strip()
+    n = sorted({saetze_von(q) for q in positionen if position_aktiv(q) and saetze_von(q) is not None
+                and str(q.get("satz")).strip() == satz})
+    if len(n) < 2:
+        return None
+    return f"Satz {satz}: unterschiedliche Anzahl Sätze ({' / '.join(zahl(x, 2) for x in n)})"
+
+
+def wert_negativ(p):
+    """Titel des ersten Zahlenfelds der Position, das nicht negativ sein darf, aber negativ ist (z. B. aus einer
+    geänderten Datei), sonst None."""
+    from .angebot import POSITIONEN
+    for f in POSITIONEN.felder:
+        if f.art in ("zahl", "ganz") and f.von == 0 and isinstance(p.get(f.name), (int, float)) and p[f.name] < 0:
+            return f.titel
+    return None
+
+
+def zukaufteil_status(p, positionen=None):
     """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht)."""
     if _leer(p.get("stueck")) or p["stueck"] < 1:
         return "FEHLER: Stückzahl fehlt"
@@ -194,13 +226,17 @@ def zukaufteil_status(p):
             return "WARNUNG: EK fehlt (Zukaufteil ohne Einkaufspreis)"
     if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
         return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
+    abw = satz_abweichung(p, positionen)
+    if abw:
+        return "WARNUNG: " + abw
     return "OK"
 
 
-def status(p, w, kopf, k, eingeplant=None):
-    """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None)."""
+def status(p, w, kopf, k, eingeplant=None, positionen=None):
+    """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None), positionen = alle
+    Positionen des Angebots (Prüfung der Sätze)."""
     if ist_zukaufteil(p):
-        return zukaufteil_status(p)
+        return zukaufteil_status(p, positionen)
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
         return ""
     m = maschine(kopf, k)
@@ -217,6 +253,9 @@ def status(p, w, kopf, k, eingeplant=None):
         return "FEHLER: Teilelänge fehlt"
     if _leer(p.get("stueck")) or p["stueck"] < 1:
         return "FEHLER: Stückzahl fehlt"
+    negativ = wert_negativ(p)
+    if negativ:
+        return f"FEHLER: {negativ} darf nicht negativ sein"
     if m is None:
         return "FEHLER: Maschine fehlt/unbekannt"
     if m.get("max_stange") and w["stange"] is not None and w["stange"] > m["max_stange"]:
@@ -238,9 +277,16 @@ def status(p, w, kopf, k, eingeplant=None):
         return f"WARNUNG: Oberfläche {ob} ist für {kat_o}"
     if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
         return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
+    abw = satz_abweichung(p, positionen)
+    if abw:
+        return "WARNUNG: " + abw
     unbekannt = zusatz_unbekannt(p, w.get("zusatzarbeiten"))
     if unbekannt:
         return f"WARNUNG: Zusatzarbeit '{unbekannt}' unbekannt"
+    if w.get("gewinde_stamm") is not None and not _leer(p.get("gewinde")):
+        g = gewinde_unbekannt(p.get("gewinde"), w["gewinde_stamm"])
+        if g:
+            return f"WARNUNG: Gewinde '{g}' nicht erkannt (Format 4xM6; 2xM8)"
     if naht_status:
         return naht_status
     manuell = not _leer(p.get("zeit_manuell"))
@@ -1001,20 +1047,40 @@ def bohrbild_offen(p):
     return not _leer(p.get("gewinde_vorschlag")) and _leer(p.get("gewinde"))
 
 
+GEWINDE_TRENNER = re.compile(r";|,(?!\d)|\n")              # Semikolon, Komma (nicht zwischen Ziffern), Zeilenumbruch
+GEWINDE_EINTRAG = re.compile(r"(\d+)\s*[x×X*]\s*(\S+)")
+
+
+def gewinde_lesen(text, gewinde):
+    """'Gewinde geprüft' lesen, z. B. '4xM6; 2xM8', '4 x M6, 2×M8'. Ergebnis: ({Gewinde: Anzahl je Teil}, [nicht
+    erkannte Angaben]). Gewinde aus den Stammdaten (Groß-/Kleinschreibung egal); eine Angabe ohne Anzahl, mit
+    Kommazahl oder mit einem Gewinde, das es nicht gibt, ist nicht erkannt und zählt nicht."""
+    namen = {str(g.get("gewinde") or "").upper().replace(" ", ""): g.get("gewinde") for g in gewinde or ()}
+    n, fehlt = {}, []
+    for teil in GEWINDE_TRENNER.split(str(text or "")):
+        teil = teil.strip()
+        if not teil:
+            continue
+        m = GEWINDE_EINTRAG.fullmatch(teil)
+        name = namen.get(m.group(2).upper()) if m else None
+        if name is None:
+            fehlt.append(teil)
+        else:
+            n[name] = n.get(name, 0) + float(m.group(1))
+    return n, fehlt
+
+
 def gewinde_anzahl(text, gewinde):
-    """{Gewinde: Anzahl je Teil} aus 'Gewinde geprüft' (z. B. '4xM6; 2xM8')."""
-    t = ";" + str(text or "").upper().replace(" ", "") + ";"
-    n = {}
-    try:
-        for g in gewinde:
-            kenn = "X" + str(g.get("gewinde") or "").upper() + ";"
-            s = t + kenn
-            vor = s[:s.find(kenn)]
-            teil = vor.split(";")[-1].strip()
-            n[g.get("gewinde")] = float("0" + teil)
-    except ValueError:
-        return {}
-    return n
+    """{Gewinde: Anzahl je Teil} aus 'Gewinde geprüft' (z. B. '4xM6; 2xM8'); nicht erkannte Angaben zählen nicht
+    (gewinde_lesen meldet sie, der Status warnt)."""
+    n = gewinde_lesen(text, gewinde)[0]
+    return {g.get("gewinde"): n.get(g.get("gewinde"), 0.0) for g in gewinde}
+
+
+def gewinde_unbekannt(text, gewinde):
+    """Erste nicht erkannte Angabe in 'Gewinde geprüft' oder None."""
+    fehlt = gewinde_lesen(text, gewinde)[1]
+    return fehlt[0] if fehlt else None
 
 
 def gewindezeit(text, gewinde):
@@ -1619,13 +1685,15 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     zm, zf, gew = (_n(einstellungen.get(n)) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn"))
     ruest, wechsel = _n(zb["maschine"].get("ruestzeit")), _n(zb["maschine"].get("stangenwechsel"))
     n_lad = beladungen(stangen)
-    f7 = ruest / 60 * s_rm + wechsel * n_lad / 3600 * s_sw
     aktiv = [i for i, p in enumerate(positionen) if position_aktiv(p)]
     # Zukaufteil-Positionen (z. B. Bleche) tragen nur ihre Zukaufteile und die Fracht; Rüsten, Pauschalen,
     # Programmierung, Angebotsaufschlag und Arbeitsschritte verteilen sich auf die Rohrlaserteile
     laser = [i for i in aktiv if not ist_zukaufteil(positionen[i])]
     zk_pos = [i for i in aktiv if ist_zukaufteil(positionen[i])]
     f8 = sum(_n(positionen[i].get("stueck")) for i in laser)
+    if not f8:              # ohne Rohrlaserteile kein Rüsten der Maschine (Übersicht = Preis)
+        ruest = 0
+    f7 = ruest / 60 * s_rm + wechsel * n_lad / 3600 * s_sw
     teile_abm = {}
     for i in laser:
         if _n(positionen[i].get("stueck")) > 0:
@@ -1687,7 +1755,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         c = _n(p.get("stueck"))
         if i in zk_pos:
             zeilen[i] = _zukaufteil_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
-                                          fracht_je[i] if c else 0, skonto)
+                                          fracht_je[i] if c else 0, skonto,
+                                          satz_abweichung(p, positionen))
             continue
         gr = gruppe_von(p, kopf)
         d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
@@ -1747,6 +1816,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = konturen_pruefen(p, w["wand_schneiden"])
         elif zusatz_unbekannt(p, tabellen.get("zusatzarbeiten")):
             hinweis = "Zusatzarbeit unbekannt"
+        elif gewinde_unbekannt(p.get("gewinde"), tabellen["gewinde"]):
+            hinweis = f"Gewinde '{gewinde_unbekannt(p.get('gewinde'), tabellen['gewinde'])}' nicht erkannt"
+        elif satz_abweichung(p, positionen):
+            hinweis = satz_abweichung(p, positionen)
         elif bohrbild_offen(p):
             hinweis = "Bohrungen ungeprüft"
         elif any(x["fehler"] for x in zk):
@@ -1817,7 +1890,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     return zeilen, summen
 
 
-def _zukaufteil_zeile(p, c, zk, fr, skonto):
+def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
     """Kalkulationszeile einer Zukaufteil-Position: alle Fertigungswerte 0, Preis je Teil = Einstand + Aufschlag der
     Zukaufteile + Frachtanteil, mit Skonto. Fehlt der Einkaufspreis, rechnet sie ohne ihn und meldet es."""
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
@@ -1829,7 +1902,7 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto):
     elif any(x["fehler"] for x in zk):
         hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
     else:
-        hinweis = ""
+        hinweis = satz_text or ""
     null = dict.fromkeys(("handling_teil", "material_gruppe", "anteil", "material_teil", "zeit_extra", "gewinde_preis",
                           "zusatz_eigen_teil", "zusatz_fremd_teil", "zusatz_teil", "zusatz_position",
                           "laser_schneiden_teil", "gewinde_teil", "gewinde_zeit_teil", "arbeit_teil",
@@ -2021,7 +2094,7 @@ def kostenarten(summen, einst):
     zusatz = {
         "ruesten_maschine": f" ({z(summen['ruestzeit'])} min)",
         "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min)",
-        "stangenwechsel_kosten": f" ({summen['stangen']} × {z(summen['stangenwechsel'])} s)",
+        "stangenwechsel_kosten": f" ({summen['beladungen']} × {z(summen['stangenwechsel'])} s)",
         "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
         "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
         "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",

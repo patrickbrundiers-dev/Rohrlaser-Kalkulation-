@@ -230,6 +230,10 @@ def logo_bild(einst, breite=55 * mm, hoehe=24 * mm):
     return bild
 
 
+STAFFEL_HINWEIS = "Staffelpreise bei Einzelbestellung dieser Position"
+STAFFEL_HINWEIS_SATZ = "Staffelpreise bei Einzelbestellung dieses Satzes"
+
+
 def _staffel_text(st, satz=False):
     n = _z(st["menge"], 0)
     return f"Ab {n} {('Satz' if st['menge'] == 1 else 'Sätze') if satz else 'Stk.'} je"
@@ -286,6 +290,9 @@ def _angebot_positionen(ang):
         for st in liste:
             r = zeile(["", "", _p(_staffel_text(st, satz), S_A_STAFFEL), "", "", _p(_z(st["preis"]), S_A_STAFFEL), ""])
             stil.append(("SPAN", (2, r), (3, r)))
+        if liste:           # jede Stufe ist eine eigene Bestellung (Rüsten, Pauschalen, Mindestpreis je Stufe)
+            r = zeile(["", "", _p(STAFFEL_HINWEIS_SATZ if satz else STAFFEL_HINWEIS, S_A_GRAU), "", "", "", ""])
+            stil.append(("SPAN", (2, r), (5, r)))
 
     def text_zeilen(text, stil_text=S_A_GRAU):
         if text:

@@ -619,10 +619,11 @@ def kapitel_angebot(i):
            "gilt, solange das Angebot offen ist. Die Karte <b>Fracht</b> ist zugeklappt und zeigt Frachtart und Betrag "
            "in der Titelzeile; <b>Fracht berechnen …</b> steht auch zugeklappt bereit. Auf- oder Zuklappen der Fracht "
            "gilt für alle Angebote.")
-    i.text("Ein Klick auf den Titel <b>Kalkulation dieses Angebots</b> klappt die Kalkulationswerte zu. Zugeklappt "
-           "steht in der Titelzeile eine Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · "
-           "Rüstzeit je Abmessung 15,0 min · …“), und die Positionen bekommen mehr Platz. Die Wahl gilt für alle Angebote. Ohne eigene "
-           "Wahl ist die Karte auf kleinen Bildschirmen (z. B. 1280 × 720) zu Beginn zugeklappt. ")
+    i.text("Die Karte <b>Kalkulation dieses Angebots</b> ist zu Beginn zugeklappt: in der Titelzeile steht eine "
+           "Kurzfassung aller Werte ungleich 0 (z. B. „Gewinn 10,0 % · Rüstzeit je Abmessung 15,0 min · …“), und die "
+           "Positionen bekommen mehr Platz. Weichen Werte von den Einstellungen ab, steht dahinter orange „(n "
+           "abweichend von den Einstellungen)“. Ein Klick auf den Titel klappt die Kalkulationswerte auf; die Wahl "
+           "gilt für alle Angebote.")
     i.text("<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen (Positionen, Ergebnisse, Zeiten, "
            "Staffeln, Stammdaten) automatisch an den Inhalt an: eine Spalte ist so breit wie ihr längster Eintrag "
            "bzw. ihr Spaltenkopf, höchstens etwa 260 Punkte (Zeiten: 420); die letzte Spalte füllt den Rest. Langer "
@@ -824,8 +825,10 @@ def kapitel_angebot(i):
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
         ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
                                 "([[meterpreis]])"],
-        ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i>. Nur was hier steht, wird als Gewinde gerechnet. Doppelklick "
-                            "öffnet <i>Bohrungen prüfen</i> ([[bohrungen_pruefen]])."],
+        ["Gewinde geprüft", "z. B. <i>4xM6; 2xM8</i> (Trennung mit Semikolon oder Komma, x oder ×). Nur was hier "
+                            "steht, wird als Gewinde gerechnet; ein Gewinde, das nicht in den Stammdaten steht, "
+                            "meldet eine WARNUNG. Doppelklick öffnet <i>Bohrungen prüfen</i> "
+                            "([[bohrungen_pruefen]])."],
         ["Zusatzarbeiten", "Kurzanzeige der gewählten Zusatzarbeiten; Doppelklick öffnet die Auswahl ([[zusatzarbeiten_angebot]])"],
         ["Zukaufteile", "Kurzanzeige der Zukaufteile mit Menge je Teil bzw. je Satz (z. B. 20 St/Satz); Doppelklick öffnet die Auswahl ([[zukauf_angebot]])"],
         ["Gewicht je Teil [kg]", "nur für Zukaufteil-Positionen: Gewicht für die Fracht nach Gewicht (der STEP-Import "
@@ -1602,8 +1605,10 @@ def kapitel_staffeln(i):
     i.text("Die Staffelpreise erscheinen im Angebots-PDF direkt in ihrer Position: unter der Zeile mit "
            "Menge und Preis je Einheit eingerückt je Stufe eine Zeile „Ab 50 Stk. je“ (bei Sätzen „Ab 4 Sätze je“) "
            "mit dem Staffelpreis, aufsteigend nach Menge, danach der übrige Positionstext. Staffelzeilen haben keinen "
-           "Gesamtpreis und zählen nicht zur Summe. Eine Stufe mit gleicher Menge und gleichem Preis wie die "
-           "Position entfällt dort. Ändert sich etwas am "
+           "Gesamtpreis und zählen nicht zur Summe. Darunter steht grau „Staffelpreise bei Einzelbestellung "
+           "dieser Position“ (bzw. „dieses Satzes“): Jede Stufe rechnet Rüsten, Pauschalen und Mindestpreis für sich, "
+           "deshalb kann eine Stufe mit der Menge des Angebots teurer sein als der Preis im Gesamtangebot. Eine Stufe "
+           "mit gleicher Menge und gleichem Preis wie die Position entfällt dort. Ändert sich etwas am "
            "Angebot, zeigt der Reiter VERALTET und rechnet nach; das Angebot rechnet veraltete Staffelpreise "
            "vor dem Drucken ebenfalls selbst neu. Ältere Angebote rechnen unverändert weiter: ihre Stufen haben "
            "leere Felder, also die Werte des Angebots. Vor dem Umstellen einer älteren Datendatei legt das "
@@ -3282,6 +3287,17 @@ def kapitel_fragen(i):
                                                         "hinterlegt. Unter Einstellungen Preise oder Werkstoffe ergänzen."],
         ["<b>WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz</b>",
          "Stückzahl und Stück je Satz der Position passen nicht zusammen (z. B. 7 Teile bei 2 je Satz)."],
+        ["<b>WARNUNG: Satz … unterschiedliche Anzahl Sätze</b>",
+         "Die Positionen eines Satzes ergeben verschieden viele Sätze (z. B. 10 Stiele, aber 6 Riegel bei je 1 "
+         "Stück je Satz). Das Angebots-PDF rechnet den Satz mit der größten Anzahl, die Kalkulation mit den "
+         "Stückzahlen; Stückzahlen angleichen. Vor dem PDF fragt das Programm nach."],
+        ["<b>WARNUNG: Gewinde '…' nicht erkannt</b>",
+         "Die Angabe in <i>Gewinde geprüft</i> hat kein lesbares Format (Anzahl x Gewinde, ganze Zahl) oder das "
+         "Gewinde steht nicht in den Stammdaten Gewinde. Sie wird nicht gerechnet. Korrigieren, z. B. "
+         "<i>4xM6; 2xM8</i>."],
+        ["<b>FEHLER: … darf nicht negativ sein</b>",
+         "Ein Zahlenwert der Position ist negativ (z. B. aus einer geänderten Datei). Wert korrigieren; Text in "
+         "Zahlenfeldern lehnt das Programm ab, aus einer Datei gelesen gilt er als leer."],
         ["Preise sind höher als vor dem Update",
          "Neue Angebote rechnen das Skonto ein (Vorgabe 2 %). Im Angebotskopf Skonto 0 eintragen oder in den "
          "Einstellungen bzw. beim Kunden die Vorgabe ändern."],

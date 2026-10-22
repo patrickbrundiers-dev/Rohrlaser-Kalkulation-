@@ -161,7 +161,8 @@ def bedingungen_text(kopf, bedingungen):
     return t
 
 
-GEWINDE_MUSTER = (r"(?i)\dx\s*M", "Format Anzahl x Gewinde, mehrere mit Semikolon, z. B. 4xM6; 2xM8")
+GEWINDE_MUSTER = (r"^\s*\d+\s*[xX×*]\s*\S+(\s*(;|,(?!\d)|\n)\s*\d+\s*[xX×*]\s*\S+)*\s*[;,]?\s*$",
+                  "Format Anzahl x Gewinde (ganze Zahl), mehrere mit Semikolon oder Komma, z. B. 4xM6; 2xM8")
 
 POSITIONEN = Tabelle(
     "positionen", "Positionen",

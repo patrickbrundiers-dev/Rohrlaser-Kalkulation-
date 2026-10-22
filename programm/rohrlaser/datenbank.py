@@ -77,6 +77,15 @@ RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._ri
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 
 
+ZAHLFELDER = tuple(f.name for f in POSITIONEN.felder if f.art in ("zahl", "ganz"))
+
+
+def _zahl_pruefen(feld, wert):
+    """Zahlenfelder der Positionen nehmen nur Zahlen (oder leer) an; Text löst ValueError mit Meldung aus."""
+    if feld in ZAHLFELDER and wert not in (None, "") and (isinstance(wert, bool) or not isinstance(wert, (int, float))):
+        raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine Zahl eingeben (nicht '{wert}').")
+
+
 class Datenbank:
     def __init__(self, pfad):
         self.pfad = Path(pfad)
@@ -1265,11 +1274,21 @@ class Datenbank:
             self.con.executemany("DELETE FROM staffeln WHERE id=?", [(i,) for i in ids])
 
     def positionen(self, angebot_id):
-        return [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
-                                                  (angebot_id,))]
+        """Positionen eines Angebots. Text in einem Zahlenfeld (aus einer geänderten oder fremden Datei) wird als
+        leer gelesen, damit die Rechnung nicht abbricht; der Status meldet den fehlenden Wert."""
+        out = [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
+                                                 (angebot_id,))]
+        for p in out:
+            for f in ZAHLFELDER:
+                w = p.get(f)
+                if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))):
+                    p[f] = None
+        return out
 
     def position_neu(self, angebot_id, werte=None):
         werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
+        for feld, wert in werte.items():
+            _zahl_pruefen(feld, wert)
         if "material_herkunft" not in werte:      # Vorgabe des Angebots (Material neuer Positionen)
             r = self.con.execute("SELECT material_vorgabe FROM angebote WHERE id=?", (angebot_id,)).fetchone()
             if r and r[0] == KUNDENMATERIAL and werte.get("art") != ZUKAUFTEIL:
@@ -1285,6 +1304,7 @@ class Datenbank:
 
     def position_aendern(self, position_id, feld, wert):
         POSITIONEN.feld(feld)
+        _zahl_pruefen(feld, wert)
         with self.con:
             self.con.execute(f'UPDATE positionen SET "{feld}"=? WHERE id=?', (wert, position_id))
             self.con.execute("UPDATE angebote SET geaendert=? WHERE id=(SELECT angebot_id FROM positionen WHERE id=?)",
