@@ -45,6 +45,7 @@ jobs:
           /usr/bin/python3 tests/test_step_konturen.py
           /usr/bin/python3 tests/test_step_anbau.py
           /usr/bin/python3 tests/test_anbau_pruefen.py
+          QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_rahmengestell.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_ergebnis.py
           /usr/bin/python3 tests/test_optimierung.py
           /usr/bin/python3 tests/test_lieferlaengen.py

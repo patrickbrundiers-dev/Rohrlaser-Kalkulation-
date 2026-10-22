@@ -1019,7 +1019,11 @@ def kapitel_step(i):
             "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
             "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
-            "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i> mit dem Grund.")
+            "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
+            "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
+            "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
+            "alle. So sieht man, welches Teil fehlt und wo es sitzt. Solche Teile bei Bedarf von Hand als Position "
+            "anlegen.")
     i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
            hoehe=100 * mm, legende=[
                (1, "Pfeil-Knöpfe links/rechts: zwischen den STEP-Dateien wechseln; daneben Nummer und Name der Datei."),
@@ -1088,10 +1092,13 @@ def kapitel_step(i):
             "<b>Länge und Breite</b> = kleinstes Rechteck, das die Außenkontur umschließt. Die Kontur heißt "
             "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen Anzahl der Innenkonturen und die "
             "Bohrungen je Durchmesser.",
-            "<b>Flachstahl oder Blech</b>: Ein flaches Teil ist Flachstahl, wenn es höchstens so breit ist wie in "
-            "der Einstellung <i>STEP-Import: Flachstahl bis Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang "
-            "wie breit ist und gerade Längsseiten hat. Die Enden dürfen schräg oder ausgeklinkt sein. Flachstahl wird "
-            "wie bisher übernommen und kalkuliert. Alles andere Flache ist ein Blech.",
+            "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
+            "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech). "
+            "Flachstahl ist in der Spalte <b>Art</b> bei jedem flachen Teil wählbar und wird dann wie ein Rohr "
+            "übernommen und kalkuliert. Steht die Einstellung auf <i>Flachstahl bis Breite</i>, gilt die alte "
+            "Abgrenzung: Flachstahl, wenn das Teil höchstens so breit ist wie in <i>STEP-Import: Flachstahl bis "
+            "Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang wie breit ist und gerade Längsseiten hat; alles "
+            "andere Flache ist ein Blech.",
             "<b>Gekantete Bleche</b> (gleich dicke Schenkel mit Biegeradien) heißen <i>Blech gekantet</i>, immer mit "
             "Prüfstatus <i>prüfen</i>. Der Hinweis nennt die Außenmaße und die ungefähre Abwicklungsfläche ohne "
             "Biegefaktor. Ein Kantteil mit gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder "
@@ -2273,8 +2280,12 @@ def kapitel_einstellungen(i):
          "behalten ihre Werte."],
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
                                              "A-2026-0042)."],
+        ["Angebot", "STEP-Import: ebene flache Teile vorgeben als",
+         "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
+         "Spalte Art wählbar. Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
         ["Angebot", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
-         "Grenze zwischen Flachstahl und Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
+         "Nur bei <i>ebene flache Teile vorgeben als: Flachstahl bis Breite</i>. Grenze zwischen Flachstahl und "
+         "Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
          "Flachstahl, wenn es höchstens so breit ist, mindestens dreimal so lang wie breit ist und gerade "
          "Längsseiten hat. Alles andere Flache ist ein Blech ([[bleche]])."],
         ["Angebot", "STEP-Import: Flowdrill-Bohrung am Laser",
@@ -3618,6 +3629,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.11", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
+     "<i>nicht übernehmbar</i>. Nicht übernehmbare Teile zeigt die 3D-Baugruppe <b>magenta</b>, die Zeile nennt Grund "
+     "und Hüllmaß, Anklicken hebt das Teil hervor ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
+     "Flachstahl ist in der Spalte Art wählbar (Einstellung <i>ebene flache Teile vorgeben als</i>); Bleche mit "
+     "Senkungen werden erkannt ([[bleche]])."],
     ["0.8.9", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "
               "Draufsicht mit Gehrungen und Innenkonturen, Blech-/Kantteil als Zuschnitt. Ändert sich das Teil (oder "
               "die STEP-Datei), wird das Bild neu gezeichnet; Doppelklick aufs Bild öffnet den Schneidweg-Rechner "

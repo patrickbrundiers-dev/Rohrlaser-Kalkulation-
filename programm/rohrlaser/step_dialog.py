@@ -7,9 +7,26 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .ansicht3d import TEILFARBEN, Ansicht3DMitKnoepfen
+from .ansicht3d import ARTEN, TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
 from .stammdaten import zahl_als_text
+
+FARBE_FEHLT = next(f for a, _, f, _ in ARTEN if a == "N")     # nicht übernehmbare Teile in der 3D-Ansicht
+
+
+def grund(m):
+    """Warum ein Teil nicht übernommen werden kann, mit Hüllmaß (zum Wiederfinden in der STEP-Datei)."""
+    from . import step
+    text = m.get("fehler") or (step.blech_text(m) + ": Blech, kein Rohrlaserteil" if step.blech(m) else "") \
+        or m.get("hinweise") or "kein Rohrteil erkannt"
+    try:
+        masse = sorted((float(x) for x in (m.get("huelle") or "").split("|") if x), reverse=True)
+    except ValueError:
+        masse = []
+    if len(masse) == 3 and masse[0] > 0:
+        text += " – Hüllmaß " + " × ".join(zahl_als_text(x, 0) for x in masse) + " mm"
+    return text
+
 
 def _f(m, name):
     try:
@@ -355,6 +372,8 @@ class StepPruefDialog(QDialog):
                 it.setIcon(0, QIcon(punkt))
             self.zeilen.append(z)
         self.fehler_gruppen = {}
+        magenta = QPixmap(12, 12)
+        magenta.fill(QColor(FARBE_FEHLT))
         for i in fehler:
             m = messwerte[i]
             g = self.fehler_gruppen.get(m.get("datei"))
@@ -364,10 +383,17 @@ class StepPruefDialog(QDialog):
                 g.setFirstColumnSpanned(True)
                 g.setBackground(0, QBrush(QColor("#F8CBAD")))
                 g.setExpanded(True)
-            it = QTreeWidgetItem(g, [f"{m.get('datei')} Körper {m.get('koerper') or ''}", "", "", "", "", "", "",
-                                     "", "", "", m.get("fehler") or (step.blech_text(m) + ": kein Rohrlaserteil" if step.blech(m) else "")
-                                     or m.get("hinweise") or "kein Rohrteil erkannt"])
+            # Grund über die ganze Zeile (in der Spalte Hinweis stand er rechts außerhalb des sichtbaren Bereichs)
+            it = QTreeWidgetItem(g, [f"{m.get('artikel') or m.get('datei')}: {grund(m)}"])
+            it.setFirstColumnSpanned(True)
+            it.setToolTip(0, "Nicht übernehmbar: " + grund(m) + ". Anklicken = Teil in der 3D-Ansicht zeigen "
+                          "(magenta), Teil in der STEP-Datei prüfen oder als Position von Hand anlegen.")
             it.setData(1, Qt.UserRole, i)
+            if m.get("_netz"):
+                it.setIcon(0, QIcon(magenta))
+        for g in self.fehler_gruppen.values():
+            n = g.childCount()
+            g.setText(0, f"Nicht übernehmbar – {n} Teil{'e' if n != 1 else ''} (in der 3D-Ansicht magenta)")
 
 
     def _modus(self, datei):
@@ -454,27 +480,37 @@ class StepPruefDialog(QDialog):
         n = it.data(0, Qt.UserRole)
         return self.zeilen[n] if isinstance(n, int) and 0 <= n < len(self.zeilen) and self.zeilen[n].it is it else None
 
-    def baugruppe_zeigen(self, datei, hervor=()):
+    def baugruppe_zeigen(self, datei, hervor=(), vorn=""):
         """Alle Teile der Datei in Einbaulage in der 3D-Ansicht; hervor = Indizes der Messwerte, die farbig
-        hervorgehoben werden."""
+        hervorgehoben werden; nicht übernehmbare Teile magenta. vorn: Text vor der Erklärung (z. B. der Grund)."""
         from .ansicht3d import baugruppe
         from .step import satzname
         teile = [i for i, m in enumerate(self.messwerte) if m.get("datei") == datei and m.get("_netz")]
         zeile = {i: n for n, z in enumerate(self.zeilen) for i in z.liste}      # gleiche Teile = gleiche Farbe
+        fehlt = {it.data(1, Qt.UserRole) for g in self.fehler_gruppen.values() for it in
+                 (g.child(n) for n in range(g.childCount()))}
         netz, ohne = baugruppe([self.messwerte[i]["_netz"] for i in teile],
                                {n for n, i in enumerate(teile) if i in set(hervor)},
-                               [zeile.get(i, len(self.zeilen) + n) for n, i in enumerate(teile)])
+                               [zeile.get(i, len(self.zeilen) + n) for n, i in enumerate(teile)],
+                               {n for n, i in enumerate(teile) if i in fehlt})
+        n_fehlt = sum(1 for i in teile if i in fehlt)
         info = (f"Baugruppe „{satzname(datei)}“ mit {len(teile) - ohne} Teilen in Einbaulage"
                 + (", blau: die gewählten Teile" if hervor else ", gleiche Teile in gleicher Farbe")
+                + (f", magenta: {n_fehlt} nicht übernehmbare{'s' if n_fehlt == 1 else ''} Teil{'e' if n_fehlt != 1 else ''}"
+                   if n_fehlt and not set(hervor) >= {i for i in teile if i in fehlt} else "")
                 + ". Teil in der Liste anklicken = Einzelteil "
                 "mit Schnitten und Konturen.")
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne Einbaulage (ältere Messung) fehlen."
-        self.ansicht.setzen(netz, f"Baugruppe {satzname(datei)}", info)
+        self.ansicht.setzen(netz, f"Baugruppe {satzname(datei)}", (vorn + "<br>" if vorn else "") + info)
 
     def _zeigen(self, it):
         if it is not None and it in self.baugruppen.values():
             self.baugruppe_zeigen(next(d for d, b in self.baugruppen.items() if b is it))
+            return
+        fg = next((d for d, g in self.fehler_gruppen.items() if g is it), None)
+        if fg is not None and fg in self.baugruppen:     # Gruppe 'Nicht übernehmbar': alle diese Teile zeigen
+            self.baugruppe_zeigen(fg, [it.child(n).data(1, Qt.UserRole) for n in range(it.childCount())])
             return
         gruppe = next((k for k, g in self.gruppen.items() if g is it), None)
         if gruppe and gruppe[0] in self.baugruppen:      # Profilgruppe einer Baugruppe: ihre Teile hervorheben
@@ -484,9 +520,15 @@ class StepPruefDialog(QDialog):
         if z:
             m = self.messwerte[z.liste[0]]
             self.ansicht.setzen(m.get("_netz"), m.get("artikel") or "", _messinfo(m))
-        elif it is not None and it.data(1, Qt.UserRole) is not None:
-            m = self.messwerte[it.data(1, Qt.UserRole)]
-            self.ansicht.setzen(None, m.get("datei") or "", _messinfo(m))
+        elif it is not None and it.data(1, Qt.UserRole) is not None:   # nicht übernehmbar: Grund und wo es sitzt
+            i = it.data(1, Qt.UserRole)
+            m = self.messwerte[i]
+            vorn = f"<b style='color:#B42318'>Nicht übernehmbar: {grund(m)}</b>"
+            if m.get("datei") in self.baugruppen and m.get("_netz"):
+                self.baugruppe_zeigen(m["datei"], [i], vorn)
+            else:
+                self.ansicht.setzen(m.get("_netz"), m.get("artikel") or m.get("datei") or "",
+                                    vorn + ("" if m.get("_netz") else "<br>Für dieses Teil gibt es keine 3D-Daten."))
 
     def _markiert(self):
         z = [self._zeile(it) for it in self.baum.selectedItems()

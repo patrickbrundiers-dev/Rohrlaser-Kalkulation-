@@ -2546,6 +2546,14 @@ class AngebotSeite(QWidget):
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
 
+    def flach_bis(self):
+        """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
+        Vorgabe), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
+        from .stammdaten import FLACH_ALS
+        if (self.db.einstellung("flach_als") or FLACH_ALS[0]) == FLACH_ALS[0]:
+            return 0
+        return self.db.einstellung("flachstahl_bis") or 150
+
     def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen"):
         """STEP-Dateien wählen (ohne dateien) und mit STEP-Import.exe messen. Ergebnis: Messwerte (mit_ablage:
         (Messwerte, Pfad des abgelegten JSON-Ergebnisses)) oder None (abgebrochen, Fehler gemeldet)."""
@@ -2565,7 +2573,7 @@ class AngebotSeite(QWidget):
             netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
                                           "--json", str(ergebnis), "--flachstahl-bis",
-                                          str(self.db.einstellung("flachstahl_bis") or 150)], len(dateien)):
+                                          str(self.flach_bis())], len(dateien)):
                 return None
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
