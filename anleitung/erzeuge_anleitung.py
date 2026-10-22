@@ -432,14 +432,16 @@ def kapitel_ueberblick(i):
            "Strg+Z nimmt im Angebot die letzte Änderung zurück ([[tastenkuerzel]]). Die Farben zeigen, was eingegeben werden kann und was geprüft werden "
            "sollte:")
     i.tabelle(["Farbe", "Bedeutung"], [
-        ["hellgelb", "Eingabefeld: hier wird eingetragen (Doppelklick oder einfach lostippen)."],
+        ["hellgelb", "Eingabefeld: hier wird eingetragen (einfach lostippen, F2 oder Doppelklick; wo ein Doppelklick "
+                     "einen Dialog öffnet, steht das in [[doppelklick]])."],
         ["hellgrau", "Berechneter Wert, nicht änderbar."],
         ["grau <b>OK</b>", "Zeile ist vollständig und stimmig; bewusst nicht farbig, damit Warnungen und Fehler "
                            "auffallen."],
         ["gelb <b>WARNUNG / HINWEIS</b>", "Zeile wird gerechnet, sollte aber geprüft werden (z. B. Gewinde-Vorschlag "
                                           "aus dem STEP-Import)."],
         ["rot <b>FEHLER</b>", "Zeile kann nicht gerechnet werden; der Text sagt, was fehlt. Teile mit FEHLER werden "
-                              "nicht eingeplant."]], [60, 205])
+                              "nicht eingeplant. Ein <b>Doppelklick auf den Status</b> führt zur Lösung "
+                              "([[doppelklick]])."]], [60, 205])
 
 
 def kapitel_start(i):
@@ -1011,7 +1013,8 @@ def kapitel_step(i):
                (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
                (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
                (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher.")])
-    i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper", hoehe=80 * mm)
+    i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper; Doppelklick auf eine Zeile "
+           "springt zur Position", hoehe=80 * mm)
     i.bild("step_optimiert", "Aus STEP übernommene Positionen nach dem Optimieren: Schneidweg, Einstiche und "
            "Schneidzeit kommen aus der Messung", hoehe=110 * mm)
     i.abschnitt("3D-Ansicht")
@@ -1389,6 +1392,7 @@ def kapitel_optimieren(i):
            "Liegen zwei Gehrungen ineinander, steht als Trennung <i>Gehrung ineinander</i> und in "
            "<b>Eingespartes Material [mm]</b>, wie viel kürzer die Belegung gegenüber zwei Schnitten mit Abstand ist. "
            "Die Werkstattpapiere zeigen Lage und Naht in derselben Spalte.")
+    i.text("Ein Doppelklick auf ein Teil in der unteren Liste springt zu seiner Position.")
     i.bild("erg_schnittplan", "Reiter Schnittplan, Stange 3 gewählt", hoehe=85 * mm)
     i.abschnitt("Stangenbild")
     i.text("Jede Stange als maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Positionsnummer und Länge, "
@@ -1396,7 +1400,7 @@ def kapitel_optimieren(i):
            "(<i>2 × Stange 1, 2</i>). Schräge Enden mit bekannter Richtung erscheinen als schräge Linie, "
            "ineinanderliegende Gehrungen also als verzahnte Trapeze. Gezeigt wird die Ansicht von der Seite (0° "
            "oben); sind die Gehrungen über die Seitenflächen geschnitten, die Ansicht von oben (Hinweis "
-           "<i>Ansicht von oben</i> in der Kopfzeile).")
+           "<i>Ansicht von oben</i> in der Kopfzeile). Ein Doppelklick auf ein Teil springt zu seiner Position.")
     i.bild("erg_stangenbild", "Reiter Stangenbild", hoehe=85 * mm)
     i.abschnitt("Auswertung und nicht eingeplante Teile")
     i.text("Je Gruppe (Profil + Werkstoff + Stangenlänge): Stangen optimiert gegen eine einfache manuelle Einteilung "
@@ -2173,7 +2177,8 @@ def kapitel_stammdaten(i):
         (4, "<b>Suchen</b> filtert die Tabelle nach jedem Text in jeder Spalte."),
         (5, "<b>Prüfung</b>: OK (grau), WARNUNG (gelb) oder FEHLER (rot) mit Begründung.")])
     i.liste("Bearbeiten: Zelle doppelklicken oder einfach lostippen, mit Enter bestätigen. Felder mit fester Auswahl "
-            "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste.",
+            "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste. Im Reiter <i>Kunden</i> zeigt der Doppelklick "
+            "die Angebote des Kunden; dort wird durch Tippen oder F2 geändert.",
             "<b>Nur Fehler und Warnungen</b> (rechts neben der Suche) zeigt nur die Zeilen, die geprüft werden "
             "müssen; rechts daneben steht, wie viele Zeilen FEHLER und WARNUNG haben.",
             "Hilfetexte: unter Vorgaben, Gruppe Ansicht, <i>Hilfetexte über Tabellen und Seiten</i> = "
@@ -3159,7 +3164,7 @@ def kapitel_step_messung(i):
 
 
 def kapitel_tastenkuerzel(i):
-    i.kapitel("Anhang: Tastenkürzel", marke="tastenkuerzel")
+    i.kapitel("Anhang: Tastenkürzel und Doppelklick", marke="tastenkuerzel")
     i.text("Das Programm kennt die üblichen Windows-Tastenkürzel. Sie stehen auch in den Menüs <i>Bearbeiten</i> "
            "und <i>Ansicht</i> und unter <i>Hilfe → Tastenkürzel …</i>. Welche Seite ein Kürzel ausführt, richtet "
            "sich danach, wo der Cursor steht: Strg+N in der Angebotsliste legt ein Angebot an, im Angebot eine "
@@ -3168,6 +3173,33 @@ def kapitel_tastenkuerzel(i):
     i.tabelle(["Taste", "Wirkung", "Wo"], [list(z) for z in TASTENKUERZEL], [28, 170, 67])
     i.text("In Textfeldern wirken Strg+Z, Strg+C, Strg+V, Strg+X und Entf wie gewohnt im Text. Gespeichert wird jede "
            "Eingabe sofort; Strg+S schließt nur eine offene Eingabe ab.")
+    i.abschnitt("Doppelklick", marke="doppelklick")
+    i.text("Ein Doppelklick führt meist direkt dorthin, wo etwas zu tun ist. Wo er einen Dialog öffnet, bearbeitet "
+           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Der Tooltip (Maus kurz auf der Zelle lassen) "
+           "sagt, was der Doppelklick macht.")
+    i.tabelle(["Wo", "Doppelklick auf", "Wirkung"], [
+        ["Angebot, Positionen", "Status", "führt zur Lösung: Bei <i>Schneidweg fehlt</i> oder einem Kontur-Hinweis "
+                                          "öffnet sich der Schneidweg-Rechner, bei <i>EK fehlt</i> das EK-Fenster, "
+                                          "bei <i>Zusatzarbeit unbekannt</i> die Auswahl, bei <i>Bohrungen prüfen</i> "
+                                          "dieses Fenster, bei <i>nicht vollständig eingeplant</i> wird optimiert. Fehlt "
+                                          "ein Wert (Länge, Stückzahl, Profil, Werkstoff, Meterpreis …), öffnet sich die "
+                                          "passende Zelle zum Eintragen (ausgeblendete Spalten werden eingeblendet)."],
+        ["Angebot, Positionen", "Schneidweg, Einstiche, STEP-Werte",
+         "Schneidweg-Rechner der Position ([[schneidweg_rechner]])"],
+        ["Angebot, Positionen", "Artikelnummer mit 3D-Vorschaubild", "3D-Ansicht der Position"],
+        ["Angebot, Positionen", "Zusatzarbeiten, Zukaufteile, Schweißnaht",
+         "Auswahl-Dialog ([[zusatzarbeiten_angebot]], [[zukauf_angebot]], [[schweissnaht]])"],
+        ["Angebot, Positionen", "Gewinde geprüft, Bohrungen, Gewinde-Vorschlag",
+         "Bohrungen prüfen ([[bohrungen_pruefen]])"],
+        ["Angebot, Positionen", "jede andere Eingabezelle", "Zelle bearbeiten"],
+        ["Angebot, Kopf", "Kundenname oder Kundennummer", "Kunde im Reiter Kunden"],
+        ["Angebot, Schnittplan", "Teil in der unteren Liste", "springt zur Position"],
+        ["Angebot, Stangenbild", "Teil im Balken", "springt zur Position"],
+        ["Angebot, STEP-Protokoll", "Zeile", "springt zur Position mit derselben Pos.-Nummer"],
+        ["Angebote", "Angebot", "öffnet das Angebot"],
+        ["Kunden", "Kunde", "Reiter Angebote, gefiltert auf diesen Kunden"],
+        ["Start", "zuletzt bearbeitetes Angebot", "öffnet das Angebot"],
+    ], [38, 62, 165])
 
 
 def kapitel_fragen(i):
@@ -3271,6 +3303,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.6.37", "Mehr Doppelklick: Status führt zur Lösung (Dialog oder Zelle zum Eintragen), Schneidweg/Einstiche/"
+               "STEP-Werte öffnen den Schneidweg-Rechner, Artikel mit 3D die 3D-Ansicht, Schnittplan, Stangenbild und "
+               "STEP-Protokoll springen zur Position, Kunde im Angebotskopf öffnet den Kunden, Kundenliste zeigt die "
+               "Angebote des Kunden ([[doppelklick]])."],
     ["0.6.36", "STEP-Import erkennt Senkungen und Flowdrill (Fließlochbohrungen). Gewinde, Senkungen und Flowdrill "
                "werden per Doppelklick auf die Position im Fenster Bohrungen prüfen bestätigt oder abgelehnt; Senk-Ø "
                "auf Wunsch als Gravur, Flowdrill als Gravur oder Loch Ø0,5 ([[bohrungen_pruefen]])."],
@@ -3515,7 +3551,7 @@ STECKBRIEFE = {
                "<i>Hilfe → Nach Updates suchen …</i>; Reiter <i>Start</i>"),
     "step_messung": ("Für Fachleute: wie die STEP-Messung Rohr, Schnitte und Konturen erkennt.",
                      "<i>STEP-Import.exe</i> im Programmordner"),
-    "tastenkuerzel": ("Alle Tastenkürzel auf einen Blick.", "<i>Hilfe → Tastenkürzel …</i>"),
+    "tastenkuerzel": ("Alle Tastenkürzel und Doppelklicks auf einen Blick.", "<i>Hilfe → Tastenkürzel …</i>"),
     "fragen": ("Meldungen des Programms und was dagegen hilft.", "Statuszeile und Meldungsfenster"),
     "neu": ("Was sich je Programmversion geändert hat.", "<i>Hilfe → Über …</i> zeigt die installierte Version"),
 }
