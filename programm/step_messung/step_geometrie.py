@@ -1147,10 +1147,21 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
     Fläche, die nicht auf ihr liegt, gehört zu einem Merkmal (Ende, Bohrung, Ausschnitt). Ein Merkmal geht durch,
     wenn es Wandflächen beider Seiten der Wand berührt (Normalen entgegengesetzt), sonst ist es eine Gravur oder
     Sackbohrung. Der Laser schneidet von einer Seite: Schnittlänge = halbe Länge der Kanten zur Wand (oben und
-    unten je einmal), Einstiche = halbe Anzahl Konturzüge (aufgerundet). Lage: z ab Ende A; die Lage um das Profil
-    (Steg/Flansch) wird nicht angegeben."""
+    unten je einmal), Einstiche = halbe Anzahl Konturzüge (aufgerundet). Lage: z ab Ende A und "querlage" = Mitte
+    (x, y) im Querschnitt um die Mitte des Hüllrechtecks; dazu steht bei Ende A der Umriss ("querschnitt"). Die
+    Fläche (Steg, Flansch, Schenkel) bestimmt das Programm daraus (rohrlaser.step.offen_lage)."""
     zmax = zmin + t.laenge
     s_aussen = _strecken(aussen)
+    # Lage im Querschnitt (für die Fläche im Programm): Mitte des Hüllrechtecks, Umriss als Punkte darum
+    qx = [v for st in s_aussen for v in (st[0], st[2])]
+    qy = [v for st in s_aussen for v in (st[1], st[3])]
+    qcx, qcy = (max(qx) + min(qx)) / 2, (max(qy) + min(qy)) / 2
+    schritt_q = max(1, len(s_aussen) // 160)
+    querschnitt = [[round(st[0] - qcx, 2), round(st[1] - qcy, 2)] for st in s_aussen[::schritt_q]]
+
+    def quer_lage(bb):
+        mn, mx = bb.CornerMin(), bb.CornerMax()
+        return dict(x=round((mn.X() + mx.X()) / 2 - qcx, 2), y=round((mn.Y() + mx.Y()) / 2 - qcy, 2))
     faces = TopTools_IndexedMapOfShape()
     TopExp.MapShapes_s(lok, TopAbs_FACE, faces)
 
@@ -1282,7 +1293,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
             if ba:      # Senkung bzw. Fließloch (wie bei geschlossenen Rohren, siehe bohrung_art)
                 art_, dm, aussen = ba
                 d = dict(durchgehend=True, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
-                         art=art_, durchmesser=dm)
+                         art=art_, durchmesser=dm, querlage=quer_lage(bb))
                 if art_ == "Senkung":
                     schnitt = math.pi * dm
                     t.innen += schnitt
@@ -1304,7 +1315,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
             dz = mx.Z() - mn.Z()
             quer = max(mx.X() - mn.X(), mx.Y() - mn.Y())
             d = dict(durchgehend=True, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
-                     schnittlaenge=round(schnitt, 2))
+                     schnittlaenge=round(schnitt, 2), querlage=quer_lage(bb))
             if rund:
                 bohrungen[rund[1]] = bohrungen.get(rund[1], 0) + 1
                 d.update(art="Bohrung", durchmesser=rund[1], huellmass=rund[1])
@@ -1328,6 +1339,7 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
+    kopf[0]["querschnitt"] = querschnitt        # Umriss von Ende A aus (x, y um die Mitte), zu "querlage" der Konturen
     t.konturen_liste = kopf + sorted(liste, key=lambda d: d["z"])
     t.bohrungen = dict(sorted(bohrungen.items()))
     t.schneidweg = t.ende_a + t.ende_b + t.innen

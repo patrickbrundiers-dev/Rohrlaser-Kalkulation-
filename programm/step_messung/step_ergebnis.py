@@ -32,7 +32,9 @@ Versionen von SCHEMA_VERSION:
 - 1.6 (22.10.2026): im Block "blech" (ebene Bleche) "konturen_lage": je Innenkontur art (Bohrung, Langloch, Rechteck,
   Polygon), x/y = Mitte im Zuschnitt (x längs ab der linken, y quer ab der unteren Kante des Hüllrechtecks),
   durchmesser bzw. laenge/breite und quer (Längsrichtung quer zum Zuschnitt), bei Polygon punkte um die Mitte,
-  schnittlaenge; "aussen_punkte" = Eckpunkte der freien Außenkontur im Zuschnitt, sonst null. Felder aus 1.5
+  schnittlaenge; "aussen_punkte" = Eckpunkte der freien Außenkontur im Zuschnitt, sonst null. Offene Profile (U, C,
+  L, Flachstahl, I-/H-Träger, T): je Kontur "querlage" {x, y} = Mitte im Querschnitt um die Mitte des Hüllrechtecks
+  (von Ende A gesehen), beim Ende A "querschnitt" = Umriss als Punkte [x, y] im selben System. Felder aus 1.5
   unverändert.
 """
 from datetime import datetime

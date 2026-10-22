@@ -1487,8 +1487,9 @@ def kapitel_optimieren(i):
             "<i>gemessen … mm</i>). Ändert man Art oder Maße einer Zeile bzw. Winkel, Achse oder Richtung eines "
             "Endes, rechnet sie mit den Formeln. Nicht erkannte Ausschnitte erscheinen als <i>sonstige Kontur</i> "
             "mit gemessener Länge und Hüllmaß; Merkmale nur auf der Innenseite fehlen (nicht im Schneidweg). Bei "
-            "offenen Profilen (U, L, Träger) kennt die Messung die Fläche nicht, die Konturen liegen dann auf der "
-            "ersten Fläche. Bei Quadrat- und Rechteckrohren mit Eckradius wird der <i>Versatz quer</i> aus dem "
+            "offenen Profilen (U-, C-, L-, T-Profil, Träger, Flachstahl) legt der Import jede Kontur auf ihre Fläche "
+            "(Steg, Flansch oben/unten, Schenkel a/b) mit Versatz quer; ein L-Profil, das von Ende A gesehen "
+            "spiegelverkehrt liegt, erscheint wie in der Skizze (Fläche und Abstand von der Ecke stimmen). Bei Quadrat- und Rechteckrohren mit Eckradius wird der <i>Versatz quer</i> aus dem "
             "Umfangswinkel gemessen und sitzt genau; vor 0.8.20 importierte Teile lagen bis zu einigen mm daneben "
             "und werden mit <b>STEP neu einlesen …</b> korrigiert.",
             "<b>Ältere STEP-Positionen</b> (vor 0.6.29 importiert): Der Rechner zeigt die gespeicherten Werte der "
@@ -3750,7 +3751,8 @@ def kapitel_fragen(i):
 NEUERUNGEN = [
     ["0.8.20", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
                "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
-               "([[blech_editor]]). Quadrat- und Rechteckrohre mit Eckradius: Versatz quer jetzt genau, vorher bis zu "
+               "([[blech_editor]]). U-, C-, L-, T-Profile, Träger und Flachstahl: jede Kontur auf ihrer Fläche (Steg, "
+               "Flansch, Schenkel) mit Versatz quer statt alle auf der ersten Fläche. Quadrat- und Rechteckrohre mit Eckradius: Versatz quer jetzt genau, vorher bis zu "
                "einigen mm daneben; ältere Teile mit <i>STEP neu einlesen …</i> korrigieren ([[schneidweg_rechner]])."],
     ["0.8.19", "<b>STEP-Import mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i> im Prüfdialog; "
                "Gehrungen und schräge Bohrungen (mit gemessener Neigung längs/quer) werden in 3D übernommen, ohne "
