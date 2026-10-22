@@ -123,4 +123,55 @@ z = d.art_wechseln(i)                                         # zurück: wieder 
 assert mw[i]["profilform"] == "Rechteckrohr" and z.it.text(d.SP_ANBAU) == "1 Bolzen"
 d.accept()
 print("OK     Prüfdialog mit Anbauteilen")
+
+# 6) Angebot: Übernahme mit Anbauteilen, Gravur Anbauteile getrennt (ohne Doppelzählung), Prüfzeit, Status, Dialog
+from rohrlaser import rechnen  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+mw = messwerte("A11_RE60x40x3_Kopfplatte_Mutter_Ecke")
+mw[0]["_uebernehmen"] = True                                   # unsichere Erkennung angehakt (F5 a)
+erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 10, neue_profile=True)
+(p,) = erg["positionen"]
+liste = anbau.lesen(p["anbauteile"])
+assert len(liste) == 3 and anbau.offen(liste) == 1 and "Anbauteile: " in erg["bericht"][0], erg["bericht"]
+nah(rechnen.gravur_anbau(p), anbau.gravur(liste), "Gravur Anbauteile der Position")
+a = db.angebot_neu(dict(kunde="Test", maschine="T11"))
+pid = db.position_neu(a, {n: v for n, v in p.items() if not n.startswith("_")       # Bohrbild hier nicht prüfen
+                          and n not in ("bohrbild", "gewinde_vorschlag")})
+kopf, pos = db.angebot(a), db.positionen(a)
+k, tab = db.kontext(), db.tabellen()
+w = rechnen.position_werte(pos[0], kopf, k, tab)
+assert rechnen.status(pos[0], w, kopf, k) == "HINWEIS: Anbauteile prüfen (Doppelklick)", rechnen.status(pos[0], w, kopf, k)
+erg_opt = rechnen.optimieren(kopf, pos, k, tab)
+einst = rechnen.einstellungen_angebot(kopf, db.einstellungen())
+(z0,), s0 = rechnen.kalkulation(kopf, pos, erg_opt, k, tab, dict(einst, pruefzeit_anbau=0))
+_, _, summe = rechnen.schneidzeit(pos[0], kopf, w["wand_schneiden"], tab, k)
+anteile = rechnen.zeitanteile(pos[0], (z0["vorschub_gross"], z0["vorschub_mittel"], z0["vorschub_klein"],
+                                       z0["vorschub_gravur"], z0["einstechzeit"]))
+nah(anteile["gravur"] + anteile["gravur_anbau"], 60 * pos[0]["gravur"] / z0["vorschub_gravur"], "Gravur gesamt")
+nah(sum(anteile.values()), summe, "Summe der Zeitanteile = Schneidzeit (nichts doppelt)")
+nah(z0["zeit_gravur_anbau"], 60 * anbau.gravur(liste) / z0["vorschub_gravur"], "Zeit Gravur Anbauteile")
+assert z0["zeit_pruefung"] == 0 and s0["pruefung_anbau"] == 0 and s0["gravur_anbau"] > 0
+(z1,), s1 = rechnen.kalkulation(kopf, pos, erg_opt, k, tab, dict(einst, pruefzeit_anbau=2))
+assert z1["zeit_pruefung"] == 120 and nah(z1["laser_netto"] - z0["laser_netto"], 120, "Prüfzeit in der Laserzeit") is None
+nah(s1["laser_schneiden"] - s0["laser_schneiden"], s1["pruefung_anbau"], "Prüfzeit-Kosten in Laser schneiden")
+text = next(t for t, w_, _ in rechnen.kostenarten(s1, einst) if t.startswith("Laser schneiden"))
+assert "davon Gravur Anbauteile" in text and "Prüfzeit Anbauteile" in text, text
+punkte = rechnen.freigabe_punkte(kopf, pos, [rechnen.status(pos[0], w, kopf, k)], "aktuell", s1)
+assert ("WARNUNG", "1 Position: Anbauteile ungeprüft") in punkte, punkte
+fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+seite = fenster.angebot_oeffnen(a)
+pm = seite.pos_modell
+c = next(i for i, (art, f) in enumerate(pm.spalten) if art == "anbau")
+assert pm.data(pm.index(0, c)) == anbau.kurz(liste) and "Doppelklick: Anbauteile prüfen" in pm.data(pm.index(0, c), Qt.ToolTipRole)
+assert not seite.pos_ansicht.isColumnHidden(c)                # optionale Spalte mit Wert sichtbar
+neu = [dict(x, status=anbau.AUSGESCHLOSSEN if anbau.unsicher(x) else anbau.BESTAETIGT) for x in liste]
+gravur_vorher = db.positionen(a)[0]["gravur"]
+assert seite.anbauteile_pruefen([0], werte=neu)
+p2 = db.positionen(a)[0]
+nah(p2["gravur"], gravur_vorher - next(x["gravur_laenge"] for x in liste if anbau.unsicher(x)), "Gravur nach Ausschließen", 0.06)
+assert anbau.offen(anbau.lesen(p2["anbauteile"])) == 0 and "Anbauteile" not in pm.status[0], pm.status
+(z2,), _ = rechnen.kalkulation(kopf, db.positionen(a), erg_opt, k, tab, dict(einst, pruefzeit_anbau=2))
+assert z2["zeit_pruefung"] == 0                               # unsicheres ausgeschlossen: keine Prüfzeit mehr
+seite.close()
+print("OK     Angebot: Anbauteile, Gravur Anbauteile, Prüfzeit, Status, Dialog")
 print("Alle Prüfungen bestanden.")

@@ -678,6 +678,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
                 if any(z["art"] != "Bohrung" for z in bild):
                     hinweise.append(bohrbild.text(bild) + ": im Angebot mit 'Bohrungen prüfen' bestätigen")
+            # Anbauteile (nicht gelasert, nur Gravur): Liste mit Prüfstatus; unsichere im Angebot prüfen
+            liste = anbau.lesen(m.get("anbauteile"))
+            if liste:
+                p["anbauteile"] = anbau.schreiben(liste)
+                hinweise.append("Anbauteile: " + anbau.kurz(liste)
+                                + (" – im Angebot mit 'Anbauteile prüfen' bestätigen" if anbau.offen(liste) else ""))
             if satz:
                 anzahl = int(m.get("_je_satz") or len(gruppen[i]))
                 p["satz"], p["je_satz"] = satz, anzahl

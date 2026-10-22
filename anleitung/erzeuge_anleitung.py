@@ -2218,6 +2218,9 @@ def kapitel_einstellungen(i):
          "Preis; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
+        ["Kalkulation", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]",
+         "eigener Zeitanteil der Laserzeit (Stundensatz Laser) je Teil, dessen Anbauteile aus dem STEP-Import "
+         "unsicher erkannt und nicht ausgeschlossen sind ([[anbauteile]]); Vorgabe 0 = aus."],
         ["Kalkulation", "Handling Kundenmaterial je kg Stangengewicht [€/kg] (0 = keins)",
          "Kosten für beigestelltes Material je kg der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
          "Vorgabe 0."],
@@ -3382,6 +3385,22 @@ def kapitel_step_messung(i):
                (4, "Auswirkung je Teil: Gravur vorher → nachher und offene Anbauteile.")])
     i.bild("anbau_gravur", "Vorschau Gravurkonturen: Rohr ohne Anbauteile mit den Gravurlinien (türkis)",
            hoehe=55 * mm, legende=[(1, "Vorschau umschalten.")])
+    i.text("<b>Im Angebot</b> stehen die Anbauteile in der Spalte <i>Anbauteile</i> der Positionen (erscheint, "
+           "sobald eine Position welche hat). Solange ein unsicher erkanntes Anbauteil offen ist, zeigt der Status "
+           "<b>HINWEIS: Anbauteile prüfen (Doppelklick)</b>, und <i>Prüfen vor Freigabe</i> meldet „Anbauteile "
+           "ungeprüft“. Ein <b>Doppelklick</b> auf die Spalte oder den Status (oder Rechtsklick, <i>Anbauteile prüfen "
+           "…</i>) öffnet dasselbe Fenster; <b>Übernehmen</b> ändert die Gravur der Position um den Unterschied.")
+    i.bild("anbau_position", "Position mit Anbauteilen im Angebot: Spalte Anbauteile (hier alle geprüft)",
+           hoehe=28 * mm)
+    i.liste("<b>Gravur Anbauteile</b> ist ein Teil der Gravur und wird nicht doppelt gezählt: In den Spalten der "
+            "Kalkulation steht <i>davon Gravur Anbauteile [s]</i>, im Preisaufbau bei <i>Laser schneiden</i> "
+            "„davon Gravur Anbauteile … €“, in der Kalkulation-PDF die Spalte <i>davon Anbauteile [s]</i> und im "
+            "Schneidweg-Rechner unter der Gravur „davon Anbauteile … mm“.",
+            "<b>Prüfzeit</b>: Mit der Einstellung <i>Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]</i> "
+            "(Vorgabe 0) kommt je Teil, dessen Anbauteile unsicher erkannt und nicht ausgeschlossen sind, diese Zeit "
+            "zur Laserzeit. Sie steht als <i>Prüfzeit Anbauteile je Teil [s]</i> in der Kalkulation und im "
+            "Preisaufbau bei <i>Laser schneiden</i>.",
+            "Schweißen wird nicht kalkuliert.")
     i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
               "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
               "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
@@ -3603,6 +3622,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.9", "Anbauteile im Angebot: Spalte <b>Anbauteile</b> der Positionen mit Doppelklick auf <i>Anbauteile "
+              "prüfen</i>, Status und Freigabe-Hinweis, Gravur Anbauteile getrennt ausgewiesen (Kalkulation, "
+              "Preisaufbau, PDF, Schneidweg-Rechner), Einstellung <i>Prüfzeit je Teil mit unsicher erkannten "
+              "Anbauteilen</i> ([[anbauteile]])."],
     ["0.8.8", "STEP-Import: Spalte <b>Anbauteile</b> im Prüfdialog, Fenster <b>Anbauteile prüfen</b> (Art, "
               "Bearbeitung, Gravur, Bestätigen/Ausschließen, Messung ohne Trennung) und 3D-Vorschau Original/"
               "Rohrgeometrie/Gravurkonturen ([[anbauteile]])."],

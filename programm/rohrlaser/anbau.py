@@ -93,6 +93,22 @@ def offen(liste):
     return sum(1 for a in liste if unsicher(a) and a.get("status", OFFEN) == OFFEN)
 
 
+def pruefteil(liste):
+    """True, wenn ein Anbauteil unsicher erkannt und nicht ausgeschlossen ist (Prüfzeit je Teil, Einstellung
+    pruefzeit_anbau)."""
+    return any(unsicher(a) and a.get("status") != AUSGESCHLOSSEN for a in liste)
+
+
+def position_anwenden(p, neu):
+    """Feldänderungen einer Angebotsposition für die neue Liste: Gravur um den Unterschied, Spalte anbauteile."""
+    try:
+        gravur_alt = float(p.get("gravur") or 0)
+    except (TypeError, ValueError):
+        gravur_alt = 0.0
+    g = anwenden({"gravur": gravur_alt}, lesen(p.get("anbauteile")), neu)["gravur"]
+    return {"gravur": round(g, 1) or None, "anbauteile": schreiben(neu)}
+
+
 def anwenden(werte, alt, neu):
     """Neue Werte für gravur, gravur_anbau und gravur_konturen (nur die Felder, die werte hat): um den Unterschied
     zwischen der alten und der neuen Liste geändert."""

@@ -604,6 +604,7 @@ SCHNEID = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 22),
            ("Kontur klein [mm]", "mm_klein", 1, 15), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 15),
            ("Zeit klein [s]", "zeit_klein", 1, 13),
            ("Gravur [mm]", "mm_gravur", 1, 13), ("Zeit Gravur [s]", "zeit_gravur", 1, 13),
+           ("davon Anbauteile [s]", "zeit_gravur_anbau", 1, 14),
            ("Einstiche", "einstiche_teil", 0, 12), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 14),
            ("Laserzeit brutto [s]", "laser_brutto", 1, 14), ("Einsparung [s]", "einsparung", 1, 14),
            ("Laserzeit netto [s]", "laser_netto", 1, 14)]
