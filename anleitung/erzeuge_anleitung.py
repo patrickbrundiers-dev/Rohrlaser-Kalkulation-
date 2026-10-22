@@ -1270,25 +1270,18 @@ def kapitel_optimieren(i):
            "und ändern. Die Schweißnaht wird hier ebenfalls gewählt, und <b>Zeichnung als PDF …</b> macht aus allem "
            "eine maßstäbliche Zeichnung.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
-           "und ein Rechteck; maßstäbliche Skizze (vergrößert auf die erste Hälfte) mit Draufsicht, Seitenansicht und "
-           "Ansicht von A",
-           hoehe=150 * mm, legende=[
-               (1, "<b>Enden</b> mit beschrifteten Spalten: Gehrungswinkel (gerade = 0), gekippt über, längste Seite "
-                   "(Gehrungsrichtung), beim Rundrohr Ausklinkung; rechts der gemessene Wert aus dem STEP-Import."),
-               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße, dazu Lage ab Ende A, Abstand Muster, Seite "
-                   "und Versatz quer. Die Überschriften Maß 1–3 zeigen das Maß der markierten Zeile (z. B. Ø d)."),
-               (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; <b>Aus Position kopieren …</b>, "
-                   "<b>Vorlagen</b> und <b>Markierte entfernen</b> daneben."),
-               (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
-               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
-                   "in Farbe."),
-               (6, "<b>Skizze</b> maßstäblich: Draufsicht und Seitenansicht oder Abwicklung, Bemaßung mit Lage und "
-                   "Maß jeder Kontur, Schweißnaht SN rot, Ansicht von A mit 0°/90°/180°/270°; Konturen anklicken und "
-                   "ziehen."),
-               (7, "<b>Schweißnaht (SN)</b>: Vorgabe, Lage und Quelle wie im Fenster Schweißnaht; Rechteck- und "
-                   "Quadratrohr nur 0°, 90°, 180°, 270°."),
+           "und ein Rechteck, Naht unten; Skizze vergrößert auf die erste Hälfte",
+           hoehe=125 * mm, legende=[
+               (1, "<b>Enden</b>: Gehrungswinkel, gekippt über, längste Seite, beim Rundrohr Ausklinkung; rechts der "
+                   "gemessene Wert aus dem STEP-Import."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer."),
+               (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; Kopieren, Vorlagen, Entfernen daneben."),
+               (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
+               (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe."),
+               (6, "<b>Skizze</b> maßstäblich mit Lage und Maß jeder Kontur und Schweißnaht SN."),
+               (7, "<b>Schweißnaht (SN)</b>: Vorgabe, Lage, Quelle; Rechteck-/Quadratrohr nur 0°/90°/180°/270°."),
                (8, "<b>Erklärung</b> der markierten Zeile: welches Maß in Maß 1, 2 und 3 gehört."),
-               (9, "<b>Zeichnung als PDF …</b> und <b>STEP neu einlesen …</b>.")])
+               (9, "<b>Zeichnung als PDF …</b>, daneben <b>STEP neu einlesen …</b>.")])
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
            "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
