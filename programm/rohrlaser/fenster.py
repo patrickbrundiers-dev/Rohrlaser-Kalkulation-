@@ -252,6 +252,17 @@ class StammdatenSeite(QWidget):
             einlesen.clicked.connect(self.kunden_importieren)
             leiste.addWidget(export)
             leiste.addWidget(einlesen)
+        if tabelle.name == "profile":
+            rp = QPushButton("RP-Profile aus MegaCAD laden …")
+            rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
+                          "Dateiname, Maße, Fläche und Schnittlänge aus der Kontur. Die mitgelieferte Bibliothek "
+                          "RP-ROHRE ist schon eingetragen.")
+            rp.clicked.connect(self.rp_laden)
+            quer = QPushButton("RP-Querschnitt …")
+            quer.setToolTip("Querschnitt und Kennwerte des gewählten RP-Profils zeigen")
+            quer.clicked.connect(self.rp_querschnitt)
+            leiste.addWidget(rp)
+            leiste.addWidget(quer)
         leiste.addSpacing(20)
         leiste.addWidget(self.suche, 1)
         leiste.addWidget(self.nur_fehler)
@@ -374,6 +385,28 @@ class StammdatenSeite(QWidget):
             f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
             self.meldung(f"CSV-Import: {erg[0]} Kunden neu, {erg[1]} geändert. Sicherung vorher: {erg[2]}")
         return erg
+
+    def rp_laden(self, pfade=None):
+        """MegaCAD-Makros als RP-Profile einlesen (rp_dialog.makros_laden). Ergebnis: (neu, geändert, Meldungen)."""
+        from .rp_dialog import makros_laden
+        erg = makros_laden(self, self.db, pfade)
+        if erg is None:
+            return None
+        neu, geaendert, meldungen = erg
+        if neu or geaendert:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        text = f"RP-Profile: {neu} neu, {geaendert} geändert"
+        if meldungen:
+            text += f", {len(meldungen)} nicht übernommen ({'; '.join(meldungen[:3])}{' …' * (len(meldungen) > 3)})"
+        self.meldung(text + ".", fehler=bool(meldungen) and not (neu or geaendert))
+        return erg
+
+    def rp_querschnitt(self, stumm=False):
+        """Querschnitt des gewählten RP-Profils zeigen (rp_dialog.querschnitt_zeigen)."""
+        from .rp_dialog import querschnitt_zeigen
+        z = self.ausgewaehlt()
+        return querschnitt_zeigen(self, (z or {}).get("profil_id", ""), stumm)
 
     def schneiddaten_zuruecksetzen(self):
         """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage
