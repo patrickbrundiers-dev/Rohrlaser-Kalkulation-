@@ -954,7 +954,12 @@ def kapitel_angebot(i):
             "Status: <b>FEHLER: Naht auf … gefordert, Lieferstange hat sie auf der …</b>, wenn die Seite nicht zur "
             "<i>Naht der Lieferstange</i> im Profil passt ([[stammdaten]]); <b>WARNUNG: Nahtlage der Lieferstange im "
             "Profil eintragen</b>, wenn sie dort fehlt; <b>FEHLER: Nahtwinkel fehlt</b> bei fester Position ohne "
-            "Winkel. Die Schweißnaht steht nicht in STEP-Dateien und wird nie automatisch erkannt.")
+            "Winkel. Die Schweißnaht steht nicht in STEP-Dateien und wird nie automatisch erkannt.",
+            "<b>Stangenwechsel SN</b>: jede Stange, auf der mindestens ein Teil die Nahtvorgabe <i>feste Position</i> "
+            "hat, rechnet mit dem <i>Stangenwechsel SN</i> der Maschine (Vorgabe 29 s, die Naht wird ausgerichtet), "
+            "alle anderen Stangen mit dem normalen <i>Stangenwechsel</i> (Vorgabe 24 s). Beide Zeiten stehen je "
+            "Maschine in den Stammdaten ([[stammdaten]]); der Reiter Zeiten zeigt die Aufteilung, z. B. "
+            "„3 × 24 s + 2 × 29 s (SN)“ ([[zeiten]]).")
     i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
            "zurück, <b>Strg+Y</b> stellt sie wieder her. Das gilt für jede Änderung: Eingaben in Positionen und Kopf, "
@@ -1262,8 +1267,8 @@ def kapitel_optimieren(i):
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
             "dem Zuschlag Fremdleistung.",
             "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
-            "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt, je mit dem Stundensatz ihres "
-            "Arbeitsschritts.",
+            "Stangenwechsel je Stange (Stangen mit fester Schweißnaht-Lage mit dem Stangenwechsel SN), gleichmäßig "
+            "auf alle Teile verteilt, je mit dem Stundensatz ihres Arbeitsschritts.",
             "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten ([[stundensaetze]]) × Stundensatz, auf die "
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
             "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
@@ -2557,8 +2562,10 @@ def kapitel_stammdaten(i):
     i.text("Vorbelegt sind die Maschinen T03 (Trumpf, CO₂-Laser), T11 (Trumpf, Faserlaser) und LT7 (Adige, "
            "Faserlaser): Endbeschnitt 10 mm, Schnittverlust 0,2 mm, max. Stangenlänge 6.500 mm, 150 €/h, Konturgrenzen "
            "10 und 50 mm, Abstand getrennte Schnitte 5 mm, Rüstzeit 5 min; Greiferrest 142 mm (LT7 120 mm), "
-           "Stangenwechsel 29 s (LT7 25 s), Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m (LT7 23 kg/m), "
-           "min. Stangenlänge im Zuschnitt 2.500 mm. "
+           "Stangenwechsel 24 s, Stangenwechsel SN 29 s, Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m "
+           "(LT7 23 kg/m), min. Stangenlänge im Zuschnitt 2.500 mm. Ältere Datendateien: T03, T11 und LT7 mit dem "
+           "alten Stangenwechsel (29 bzw. 25 s) bekommen 24 s und SN 29 s, jede andere Maschine nimmt ihren "
+           "Stangenwechsel auch als SN-Zeit. "
            "Standard-Maschine ist T03. Beim Update einer älteren Datendatei werden unveränderte Beispielmaschinen "
            "RL-1 und RL-2 zu T03 und T11 (mit ihren Angeboten), LT7 kommt dazu, unveränderte alte "
            "Beispiel-Schneiddaten werden durch die neuen Richtwerte ersetzt; eigene Werte bleiben, vorher wird eine "
@@ -2583,6 +2590,9 @@ def kapitel_stammdaten(i):
                                              "2.500 mm); keine aus einer Lieferstange zugeschnittene Stange "
                                              "wird kürzer ([[lieferlaengen]]), leer oder 0 = keine Grenze"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
+        ["Stangenwechsel SN je Stange [s]", "Stangenwechsel für Stangen, auf denen ein Teil eine feste "
+                                           "Schweißnaht-Lage hat (Naht ausrichten, Vorgabe 29 s); leer = wie "
+                                           "Stangenwechsel ([[schweissnaht]])"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -3618,6 +3628,8 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.10", "Zwei Stangenwechselzeiten je Maschine: <b>Stangenwechsel</b> (Vorgabe 24 s) und <b>Stangenwechsel "
+              "SN</b> (29 s) für Stangen, auf denen ein Teil eine feste Schweißnaht-Lage hat ([[schweissnaht]])."],
     ["0.8.9", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "
               "Draufsicht mit Gehrungen und Innenkonturen, Blech-/Kantteil als Zuschnitt. Ändert sich das Teil (oder "
               "die STEP-Datei), wird das Bild neu gezeichnet; Doppelklick aufs Bild öffnet den Schneidweg-Rechner "
