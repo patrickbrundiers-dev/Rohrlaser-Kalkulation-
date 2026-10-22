@@ -5,6 +5,7 @@ Angebot mit einmal geschnittener Doppellage und Erkennung selbst geladener RP-Pr
 
 Aufruf: python tests/test_step_rp.py
 """
+import json
 import os
 import sys
 import tempfile
@@ -17,7 +18,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from step_geometrie import analysiere_datei  # noqa: E402
 import step_messen  # noqa: E402
 
-from rohrlaser import rp_profile, step  # noqa: E402
+from rohrlaser import rp_profile, schneidweg, step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 ORDNER = HIER / "step_rp"
@@ -90,8 +91,11 @@ with tempfile.TemporaryDirectory() as tmp:
     assert nah(p["schneidweg"], 2 * e["schnitt"], 0.2), p["schneidweg"]
     g = pos["RP03_0142-34_Gehrung45_L600"]
     e = rp_profile.daten("RP 0142-34")
-    assert g["a_schnitt"] == e["schnitt"] and nah(g["b_schnitt"], float(mw[1]["ende_b"]) * e["schnitt"] / e["umfang"],
-                                                   0.1), g
+    # Ende B ist halb gerade, halb 45° (3D-Ende aus zwei Ebenen): exakt mit der Kontur der Bibliothek gerechnet
+    tech = json.loads(g["technik"])
+    assert tech["b"]["form"] == "komplex" and tech["b"]["huelle"] == "min" and len(tech["b"]["flaechen"]) == 2, tech
+    soll = schneidweg.ende_3d(k.profile["RP 0142-34"], tech["b"]["flaechen"], "min")
+    assert g["a_schnitt"] == e["schnitt"] and nah(g["b_schnitt"], soll, 0.06) and 150 < soll < 165, (g, soll)
     assert any("Verbundkern wird noch nicht kalkuliert" in z for z in erg["bericht"]), erg["bericht"]
     assert any("Anschlag (Doppellage) einmal geschnitten" in z for z in erg["bericht"]), erg["bericht"]
     assert not erg["profile"]           # Bibliotheksprofile stehen schon in den Stammdaten

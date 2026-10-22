@@ -1,7 +1,7 @@
 """Prüft mehrere Arbeitsplätze mit gemeinsamem Ordner (teilen.py, Patrick 22.10.2026): Kürzel in der Angebotsnummer,
 eigene Datei je Mitarbeiter, Stammdaten zeilenweise zusammenführen (neueste Änderung gewinnt, Löschen kommt an,
 gleiche Schlüssel werden eine Zeile, Zukaufartikel über die Kennung), Angebote der anderen nur lesen und kopieren,
-erster Abgleich (übernehmen), Kürzel belegt, neuere Programmversion, Umstellung älterer Dateien (Schema 42).
+erster Abgleich (übernehmen), Kürzel belegt, neuere Programmversion, Umstellung älterer Dateien (Schema 43).
 
 Aufruf: python tests/test_teilen.py
 """
@@ -227,7 +227,7 @@ b = teilen.lesen(pb)
 assert any("neueren Programmversion" in h for h in b["hinweise"]), b
 ok("Datei einer neueren Programmversion: Stammdaten nicht übernommen, Hinweis")
 
-# ---------------------------------------------------------------- ältere Datei (Schema 42)
+# ---------------------------------------------------------------- ältere Datei (Schema 43)
 alt = tmp / "alt.db"
 pb.con.execute(f"VACUUM INTO '{alt}'")
 c = sqlite3.connect(alt)
@@ -238,11 +238,11 @@ for t in teilen.GETEILT:
 c.execute("DROP TABLE teilen_basis")
 for n in ("fremd", "fremd_stand", "bearbeiter"):
     c.execute(f"ALTER TABLE angebote DROP COLUMN {n}")
-c.execute("PRAGMA user_version=42")
+c.execute("PRAGMA user_version=43")
 c.commit()
 c.close()
 db41 = Datenbank(alt)
 assert all(r[0] for r in db41.con.execute("SELECT uid FROM kunden"))
-assert db41.con.execute("PRAGMA user_version").fetchone()[0] == 43
-ok("Datei Schema 42: Kennungen vergeben, Spalten ergänzt")
+assert db41.con.execute("PRAGMA user_version").fetchone()[0] == 44
+ok("Datei Schema 43: Kennungen vergeben, Spalten ergänzt")
 print("OK: mehrere Arbeitsplätze mit gemeinsamem Ordner")

@@ -41,7 +41,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 43     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 44     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -79,7 +79,9 @@ SCHEMA_VERSION = 43     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     _kontur, positionen.prog_zeit); alle Angebote umgestellt, außer festgeschriebenen
                         # 42: Anbauteile je Position (positionen.anbauteile: aufgeschweißte Teile aus dem STEP-Import
                         #     mit Bearbeitung, Gravur und Prüfstatus als JSON; ältere Positionen leer)
-                        # 43: Mehrere Arbeitsplätze (teilen.py): Kennung uid je Stammdatenzeile, Tabelle teilen_basis,
+                        # 43: RP-Kalkulation: schneiddaten.zeit_ecke (Zeit je Ecke), maschinen.sonder_spannbar,
+                        #     ruest_sonder, duese_min (neue Spalten leer = 0 bzw. keine Prüfung)
+                        # 44: Mehrere Arbeitsplätze (teilen.py): Kennung uid je Stammdatenzeile, Tabelle teilen_basis,
                         #     angebote.bearbeiter (Kürzel), angebote.fremd/fremd_stand (Angebote anderer Mitarbeiter)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)

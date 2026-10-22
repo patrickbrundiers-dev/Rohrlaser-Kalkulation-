@@ -315,7 +315,10 @@ MASCHINEN = Tabelle(
      Feld("schwenk_max", "3D: Schwenkwinkel max. [°]", "zahl", 0, 89, stellen=0, breite=85),
      Feld("greif_3d", "3D: Greifmaß [mm]", "zahl", 0, 5000, stellen=0, breite=80),
      Feld("zeit_3d", "3D: Zusatzzeit je Bearbeitung [s]", "zahl", 0, 600, stellen=1, breite=95),
-     Feld("faktor_3d", "3D: Faktor Schneidzeit", "zahl", 0.1, 10, stellen=2, breite=80)),
+     Feld("faktor_3d", "3D: Faktor Schneidzeit", "zahl", 0.1, 10, stellen=2, breite=80),
+     Feld("sonder_spannbar", "RP-/Sonderprofile spannbar", "auswahl", auswahl="janein", breite=85),
+     Feld("ruest_sonder", "Rüstzuschlag Sonderprofil [min je Abmessung]", "zahl", 0, 1440, stellen=0, breite=95),
+     Feld("duese_min", "Mindestabstand Düse [mm]", "zahl", 0, 200, stellen=1, breite=85)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -328,7 +331,11 @@ MASCHINEN = Tabelle(
     "3D (geschwenkter Laserkopf für Gehrungen in 3D und schräge Bohrungen): nur mit 'ja' kalkuliert; Winkel "
     "außerhalb min./max. werden auf die Grenze begrenzt. Greifmaß: Abstand, den eine 3D-Bearbeitung am letzten Teil "
     "einer Stange vom Stangenende braucht (zählt statt des Greiferrests, wenn größer, nie zusätzlich). Schneidzeit "
-    "3D = Schneiddaten bei Wand ÷ cos(Winkel) × Faktor + Zusatzzeit je Bearbeitung.")
+    "3D = Schneiddaten bei Wand ÷ cos(Winkel) × Faktor + Zusatzzeit je Bearbeitung. RP-/Sonderprofile spannbar: "
+    "'nein' = Positionen mit RP-Profil oder Sonderprofil bekommen WARNUNG (Maschine prüfen), leer = ja. "
+    "Rüstzuschlag Sonderprofil: zusätzliche Rüstzeit je RP-/Sonderprofil-Abmessung (wie Rüsten je Abmessung). "
+    "Mindestabstand Düse: tiefer als dieses Maß steht der Anschlag eines RP-Profils über; Innenkonturen können "
+    "darunter liegen und bekommen WARNUNG (prüfen), leer = keine Prüfung.")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -342,13 +349,16 @@ SCHNEIDDATEN = Tabelle(
      Feld("vorschub_klein", "Vorschub klein [mm/min]", "zahl", 1, 100000, stellen=0),
      Feld("einstechzeit", "Einstechzeit [s]", "zahl", 0, 60, stellen=1),
      Feld("vorschub_gravur", "Vorschub Gravur [mm/min]", "zahl", 1, 100000, stellen=0),
-     Feld("bemerkung", "Bemerkung", breite=160)),
+     Feld("bemerkung", "Bemerkung", breite=160),
+     Feld("zeit_ecke", "Zeit je Ecke [s]", "zahl", 0, 60, stellen=2, breite=75)),
     ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"),
     "Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärke: es gilt die Zeile mit der "
     "kleinsten 'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Zeilen mit Werkstoff-ID gehen "
     "vor; hat der Werkstoff keine passende Zeile, gelten die Zeilen seiner Kategorie (Werkstoff-ID leer). "
     "Schneidgas: N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂ (so endet N₂ ab einer "
-    "gewissen Wandstärke). Leere Vorschübe mittel/klein/Gravur nehmen den nächstgrößeren.")
+    "gewissen Wandstärke). Leere Vorschübe mittel/klein/Gravur nehmen den nächstgrößeren. Zeit je Ecke: Zuschlag "
+    "je Ecke im Anfangs- und Endschnitt (der Laser bremst ab): RP-Profile nach ihrer Kontur, Quadrat- und "
+    "Rechteckrohr 4, andere 0; leer = 0.")
 
 GEWINDE = Tabelle(
     "gewinde", "Gewinde",
