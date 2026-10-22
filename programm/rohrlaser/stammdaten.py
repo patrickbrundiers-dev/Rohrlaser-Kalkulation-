@@ -45,7 +45,7 @@ ZEITBEZUG = ("Teil", "Stange", "Position")
 SCHRITTE_FEST = {
     "Laser schneiden": "Schneidweg, Konturen und Einstiche mit den Schneiddaten bzw. Schneidzeit von Hand, dazu "
                        "Zusatzarbeiten in s/Stück",
-    "Gewinde": "Anzahl Gewinde × Zeit je Gewinde (Stammdaten Gewinde); Gewinde mit Festpreis ohne Zeit",
+    "Gewinde": "Gewinde rechnen nur mit Preis je Stück (Stammdaten Gewinde), ohne Zeit",
     "Rüsten Maschine": "Rüstzeit je Angebot der Maschine (Stammdaten Maschinen)",
     "Rüsten je Abmessung": "Rüstzeit je Abmessung aus dem Angebot (Vorgabe Einstellungen)",
     "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen; Stangen mit einem Teil mit fester "
@@ -354,13 +354,13 @@ GEWINDE = Tabelle(
     "gewinde", "Gewinde",
     (Feld("gewinde", "Gewinde", pflicht=True, breite=80),
      Feld("kernloch", "Kernloch Ø [mm]", "zahl", 0.5, 100, stellen=1, pflicht=True),
-     Feld("zeit", "Zeit je Gewinde [s]", "zahl", 0, 3600, stellen=0),
+     Feld("zeit", "Zeit je Gewinde [s] (wird nicht gerechnet)", "zahl", 0, 3600, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=260),
      Feld("preis", "Preis je Gewinde [€]", "zahl", 0, 1000, stellen=2, breite=90)),
     ("gewinde",),
     "ISO-Regelgewinde, Kernloch nach DIN 336. Der STEP-Import vergleicht Bohrungsdurchmesser mit dieser "
-    "Tabelle (±0,05 mm). In der Kalkulation zählt der feste Preis je Gewinde; ist er leer, die Zeit je "
-    "Gewinde mit dem Maschinenstundensatz.")
+    "Tabelle (±0,05 mm). In der Kalkulation zählt nur der Preis je Gewinde (€ je Stück); in 'Bohrungen prüfen' "
+    "lässt er sich je Position ändern. Ohne Preis rechnet das Gewinde mit 0 € (Warnung).")
 
 ZUSATZARBEITEN = Tabelle(
     "zusatzarbeiten", "Zusatzarbeiten",
@@ -1163,16 +1163,19 @@ def beispiel_zusatzarbeiten():
 ZUSATZ_SENKEN, ZUSATZ_FLOWDRILL, ZUSATZ_BOHREN = "Senken", "Flowdrill", "Bohren"
 
 
+BOHR_PREISE = {ZUSATZ_SENKEN: 0.40, ZUSATZ_FLOWDRILL: 0.60, ZUSATZ_BOHREN: 0.40}   # Beispielpreise € je Stück
+
+
 def bohr_zusatzarbeiten():
-    """Vorbelegung Senken, Flowdrill und Bohren: € je Stück aus Zeit × Stundensatz Nachbearbeitung (Beispielzeiten,
-    bitte anpassen)."""
-    werte = [(ZUSATZ_SENKEN, 0.5, "Senken", "Senkung nachträglich senken; Vorschlag aus 'Bohrungen prüfen'"),
-             (ZUSATZ_FLOWDRILL, 0.75, "Fließlochbohren (Flowdrill)",
+    """Vorbelegung Senken, Flowdrill und Bohren: Festpreis € je Stück, keine Zeit (Patrick 22.10.2026;
+    Beispielpreise, bitte anpassen)."""
+    werte = [(ZUSATZ_SENKEN, "Senken", "Senkung nachträglich senken; Vorschlag aus 'Bohrungen prüfen'"),
+             (ZUSATZ_FLOWDRILL, "Fließlochbohren (Flowdrill)",
               "Fließlochbohrung mit Kragen; Vorschlag aus 'Bohrungen prüfen'"),
-             (ZUSATZ_BOHREN, 0.5, "Bohren",
+             (ZUSATZ_BOHREN, "Bohren",
               "Bohrung kleiner 0,7 × Wandstärke: der Laser markiert nur, danach aufbohren; Vorschlag aus "
               "'Bohrungen prüfen'")]
-    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=n, art="€/Stück", fremd="nein",
-                 angebotstext=t, bemerkung=b, kategorie="Nachbearbeitung", aktiv="ja", zeit=z, zeit_einheit="min",
-                 satz_id="Nachbearbeitung") for n, z, t, b in werte]
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=n, art="€/Stück", preis=BOHR_PREISE[n],
+                 fremd="nein", angebotstext=t, bemerkung=b, kategorie="Nachbearbeitung", aktiv="ja")
+            for n, t, b in werte]
 

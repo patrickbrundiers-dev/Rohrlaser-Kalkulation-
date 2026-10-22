@@ -2063,7 +2063,8 @@ class AngebotSeite(QWidget):
         if werte is None:
             from .bohrbild_dialog import BohrbildDialog
             d = BohrbildDialog(self, p, gewinde, rechnen.wand_position(p, self.k),
-                               self.db.einstellung("fliessloch_laser"), katalog, rechnen.stundensaetze(self.tabellen))
+                               self.db.einstellung("fliessloch_laser"), katalog, rechnen.stundensaetze(self.tabellen),
+                               {g["gewinde"]: g.get("preis") for g in self.tabellen["gewinde"] if g.get("gewinde")})
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
