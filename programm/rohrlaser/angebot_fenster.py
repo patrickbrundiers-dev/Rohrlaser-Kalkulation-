@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    zukauf, zukauf_ek
+    vorschau, zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
@@ -402,6 +402,8 @@ OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "materia
                      "zukauf", "naht_vorgabe", "gewicht_teil")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild")        # Spalten mit eigenem Dialog (Doppelklick)
 RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelklick: Schneidweg-Rechner
+# Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
+VORSCHAU_FELDER = ("technik", "laenge", "profil_id", "art", "konturen", "a_ende", "b_ende", "a_schnitt", "b_schnitt")
 BOHRBILD_SPALTEN = ("gewinde", "bohrungen", "gewinde_vorschlag")     # Doppelklick: Bohrungen prüfen
 # Doppelklick auf den Status: (Stichwort im Status, Ziel, Tooltip); erstes passendes gilt. Ziel = Methode der
 # Angebotsseite (bekommt die Zeile) oder "feld:" + Spalte (Zelle zum Eintragen öffnen, Spalte notfalls einblenden).
@@ -470,24 +472,36 @@ class PositionenModell(QAbstractTableModel):
         self.mit_netz, self.bilder = set(), {}
 
     def vorschau(self, r):
-        """Kleines 3D-Bild der Position (nur aus dem STEP-Import), einmal je Position gezeichnet."""
-        pid = self.daten[r].get("id")
-        if pid not in self.mit_netz:
-            return None
-        if pid not in self.bilder:
-            from .ansicht3d import entpacken, vorschaubild
+        """Kleines Bild der Position: 3D aus dem STEP-Import, sonst selbst angelegt die Draufsicht des Rohrs
+        (Schneidweg-Rechner) bzw. der Zuschnitt (Blech-Editor). Neu gezeichnet, sobald sich Technik, Länge, Profil
+        oder Enden ändern."""
+        p = self.daten[r]
+        pid = p.get("id")
+        schluessel = (pid in self.mit_netz,) + tuple(p.get(n) for n in VORSCHAU_FELDER)
+        alt = self.bilder.get(pid)
+        if alt is None or alt[0] != schluessel:
             try:
-                self.bilder[pid] = vorschaubild(entpacken(self.s.db.netz(pid)), 64, 18)
+                if pid in self.mit_netz:
+                    from .ansicht3d import entpacken, vorschaubild
+                    neu = vorschaubild(entpacken(self.s.db.netz(pid)), 64, 18)
+                elif blech.lesen(p.get("technik")):
+                    neu = vorschau.bild(p, None)
+                elif not ist_zukaufteil(p):
+                    neu = vorschau.rohr(p, self.k.profile.get(p.get("profil_id")))
+                else:
+                    neu = None
             except Exception:       # beschädigte Daten: ohne Bild weiter
-                self.bilder[pid] = None
-        return self.bilder[pid]
+                neu = None
+            self.bilder[pid] = alt = (schluessel, neu)
+        return alt[1]
 
     def rechnen(self):
         s = self.s
         self.beginResetModel()
         self.daten = s.positionen
         self.mit_netz = s.db.netz_ids(s.id)
-        self.bilder = {pid: b for pid, b in self.bilder.items() if pid in self.mit_netz}
+        ids = {p.get("id") for p in self.daten}
+        self.bilder = {pid: b for pid, b in self.bilder.items() if pid in ids}
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
         self.werte, self.status, self.zeiten, self.meterpreise = [], [], [], []
@@ -608,6 +622,10 @@ class PositionenModell(QAbstractTableModel):
             if x.name == "artikel" and p.get("id") in self.mit_netz:
                 return (text + "\n" if text else "") + "Doppelklick aufs Bild: Schneidweg-Rechner · Doppelklick auf die Nummer: " \
                                                        "3D-Ansicht · Tippen oder F2: Artikelnummer ändern"
+            if x.name == "artikel" and self.vorschau(index.row()):
+                return (text + "\n" if text else "") + "Doppelklick aufs Bild: " + \
+                    ("Blech-Editor" if blech.lesen(p.get("technik")) else "Schneidweg-Rechner") + \
+                    " · Tippen oder F2: Artikelnummer ändern"
             if x.name in RECHNER_SPALTEN and not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
@@ -1872,7 +1890,8 @@ class AngebotSeite(QWidget):
         """Doppelklick in der Positionsliste: Spalten mit eigenem Dialog; Status führt zur Lösung (STATUS_ZIELE);
         Schneidweg, Einstiche und STEP-Werte öffnen den Schneidweg-Rechner, bei einem Teil mit 3D-Daten das kleine
         STEP-Bild der Artikelnummer ebenfalls (auf_bild, ohne Angabe aus der Mausposition), die Nummer daneben die
-        3D-Ansicht; sonst wird die Zelle bearbeitet."""
+        3D-Ansicht; das Bild einer selbst angelegten Position öffnet ihren Editor (Rechner bzw. Blech-Editor); sonst
+        wird die Zelle bearbeitet."""
         if not i.isValid() or i.row() >= len(self.positionen):
             return
         art, name, r = self.pos_modell.spalten[i.column()][0], self.pos_modell.name(i.column()), i.row()
@@ -1889,12 +1908,16 @@ class AngebotSeite(QWidget):
         elif (name in RECHNER_SPALTEN or art == "abweichung") and not ist_zukaufteil(p) \
                 and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)
-        elif name == "artikel" and p.get("id") in self.pos_modell.mit_netz:
+        elif name == "artikel" and (p.get("id") in self.pos_modell.mit_netz or self.pos_modell.vorschau(r)):
             if auf_bild is None:
                 maus = self.pos_ansicht.viewport().mapFromGlobal(QCursor.pos())
                 zelle = self.pos_ansicht.visualRect(i)
                 auf_bild = zelle.contains(maus) and maus.x() <= zelle.left() + self.pos_ansicht.iconSize().width() + 8
-            if auf_bild and not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile:
+            rechner = not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile
+            if p.get("id") not in self.pos_modell.mit_netz and not auf_bild:
+                if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt: Nummer bearbeiten
+                    self.pos_ansicht.edit(i)
+            elif auf_bild and rechner:
                 self.schneidweg_berechnen(r)
             else:
                 self.ansicht_3d(r)
