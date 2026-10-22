@@ -208,4 +208,49 @@ def _():
         db.con.close()
 
 
+@fall("Vorschaubild selbst angelegter Positionen: Rohr (Draufsicht) und Blech (Zuschnitt), neu bei Änderung, "
+      "Doppelklick aufs Bild öffnet den Editor")
+def _():
+    import json
+    from rohrlaser import blech, schneidweg as sw
+    app = QApplication.instance() or QApplication([])
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+        a = db.angebot_neu(dict(kunde="Test"))
+        tech = json.dumps(dict(quelle=sw.QUELLE, a=dict(form="Gehrung", winkel=45), b={},
+                               konturen=[dict(art="Bohrung", d=10, anzahl=2, abstand=200, x=100, seite="oben")]))
+        db.position_neu(a, dict(pos=10, artikel="R1", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=800,
+                                stueck=2, technik=tech))
+        e = dict(quelle=blech.QUELLE, art=blech.KANTTEIL, dicke=2, kantlaenge=400,
+                 schenkel=[dict(laenge=30, winkel=90), dict(laenge=50, winkel=0)])
+        db.position_neu(a, dict(pos=20, artikel="B1", art="Zukaufteil", stueck=2, technik=json.dumps(e)))
+        db.position_neu(a, dict(pos=30, artikel="Z1", art="Zukaufteil", stueck=2))
+        seite = fenster.angebot_oeffnen(a)
+        fenster.show()
+        pm, v = seite.pos_modell, seite.pos_ansicht
+        c = next(c for c in range(pm.columnCount()) if pm.name(c) == "artikel")
+        bild = lambda r: pm.data(pm.index(r, c), Qt.DecorationRole)  # noqa: E731
+        b0, b1 = bild(0), bild(1)
+        assert b0 is not None and not b0.isNull() and b1 is not None and not b1.isNull()
+        assert bild(2) is None                                  # Zukaufteil ohne Blech-Editor: kein Bild
+        assert bild(0) is b0                                    # einmal gezeichnet
+        assert "Schneidweg-Rechner" in pm.data(pm.index(0, c), Qt.ToolTipRole)
+        assert "Blech-Editor" in pm.data(pm.index(1, c), Qt.ToolTipRole)
+        seite.positionen[0]["laenge"] = 1200                    # geändert: neues Bild
+        assert bild(0) is not b0
+        rechner, blech_ed = [], []
+        seite.schneidweg_berechnen = lambda zeile: rechner.append(zeile)
+        seite.blech_bearbeiten = lambda zeile: blech_ed.append(zeile)
+        seite._doppelklick(pm.index(0, c), auf_bild=True)
+        seite._doppelklick(pm.index(1, c), auf_bild=True)
+        assert rechner == [0] and blech_ed == [1], (rechner, blech_ed)
+        seite._doppelklick(pm.index(0, c), auf_bild=False)      # Nummer: bearbeiten
+        app.processEvents()
+        assert rechner == [0] and v.state() == QAbstractItemView.EditingState
+        v.closePersistentEditor(v.currentIndex())
+        fenster.close()
+        db.con.close()
+
+
 sys.exit(1 if fehler else 0)

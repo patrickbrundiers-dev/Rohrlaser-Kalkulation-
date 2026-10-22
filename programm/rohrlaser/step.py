@@ -484,18 +484,32 @@ def vorpruefung(messwerte, positionen, k):
     return fehlend, doppelt
 
 
-def blech_gewicht(b, werkstoff_id, k):
-    """Gewicht je Blech [kg] aus Volumen × Dichte des Werkstoffs (Stammdaten); None ohne bekannten Werkstoff."""
-    dichte = ((k.werkstoffe.get(werkstoff_id) or {}).get("dichte")) if werkstoff_id else None
+def blech_gewicht(b, werkstoff_id, k, blech_werkstoffe=None):
+    """Gewicht je Blech [kg] aus Volumen × Dichte des Werkstoffs (Blech-Werkstoffe, sonst Stammdaten der Rohre);
+    None ohne bekannten Werkstoff."""
+    w = (blech_werkstoffe or {}).get(werkstoff_id) or k.werkstoffe.get(werkstoff_id) if werkstoff_id else None
+    dichte = (w or {}).get("dichte")
     vol = b.get("volumen") or (b.get("flaeche_netto") or 0) * (b.get("dicke") or 0)
     if not isinstance(dichte, (int, float)) or dichte <= 0 or not vol:
         return None
     return round(vol * dichte / 1e6, 3)          # mm³ × g/cm³ / 10⁶ = kg
 
 
-def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k):
+def blech_richtpreis(b, wst, blech_daten, stueck=None):
+    """Richtpreis je Stück [€] eines gemessenen Blechs wie im Blech-Editor (blech.aus_step) oder None (ohne
+    Blech-Werkstoff, Daten oder Richtwerte)."""
+    from . import blech as bl
+    if not blech_daten or not wst or wst not in blech_daten.get("werkstoffe", {}):
+        return None
+    erg = bl.rechnen(bl.aus_step(b, wst, stueck), blech_daten["werkstoffe"], blech_daten.get("laserdaten") or [],
+                     blech_daten.get("einst"))
+    return erg["richtpreis"] if not erg["fehler"] else None
+
+
+def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k, blech_daten=None, stueck=None):
     """Zukaufartikel für ein Blech: im Prüfdialog gewählter Artikel (_blech_artikel), sonst eine Dublette (gleich)
-    aus den vorhandenen bzw. in diesem Import neu angelegten Artikeln, sonst ein neuer Artikel (ohne EK).
+    aus den vorhandenen bzw. in diesem Import neu angelegten Artikeln, sonst ein neuer Artikel; mit Blech-Werkstoff
+    und blech_daten (Blech-Editor: werkstoffe, laserdaten, einst) bekommt er den Richtpreis als EK, sonst keinen.
     Ergebnis: (Verweis {artikel_id} bzw. {neu: Schlüssel}, Hinweistext)."""
     from . import zukauf
     gewaehlt_id = m.get("_blech_artikel")
@@ -512,18 +526,25 @@ def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k):
             ", EK fehlt" if zukauf.ek_fehlt(a) else "")
     neu_gleich, _ = zukauf.blech_dubletten(b, wst, [dict(x[0], status="aktiv", _schl=s_) for s_, x in neue_artikel.items()])
     if neu_gleich:
-        return dict(neu=neu_gleich[0]["_schl"]), f"Zukaufartikel {neu_gleich[0].get('bezeichnung')} (neu, EK fehlt)"
+        schl = neu_gleich[0]["_schl"]
+        return dict(neu=schl), f"Zukaufartikel {neu_gleich[0].get('bezeichnung')} (neu" + (
+            ", EK = Richtpreis)" if neue_artikel[schl][1][0].get("preise") else ", EK fehlt)")
     werte, bezuege = zukauf.blech_artikel(b, wst, m.get("datei"))
     schl = f"neu{len(neue_artikel) + 1}"
     neue_artikel[schl] = (werte, bezuege)
-    text = f"neuer Zukaufartikel {werte['bezeichnung']}, EK fehlt"
+    preis = blech_richtpreis(b, wst, blech_daten, stueck)
+    if preis:
+        bezuege[0]["preise"] = [dict(ab=1, preis=preis)]
+    text = f"neuer Zukaufartikel {werte['bezeichnung']}, " + (
+        f"EK = Richtpreis {preis:.2f} €".replace(".", ",") if preis else "EK fehlt")
     if aehnlich:
         text += f" (ähnlich: {', '.join(a.get('bezeichnung') or '' for a in aehnlich[:3])})"
     return dict(neu=schl), text
 
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
-                neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None):
+                neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
+                blech_daten=None):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -535,7 +556,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
 
     Bleche (Plan 4 b): mit zukauf_liste (Zukaufartikel der Datenbank, z. B. db.zukauf_artikel_liste()) wird jedes
     gewählte Blech eine Position der Art Zukaufteil mit einem Zukaufartikel (vorhandene Dublette oder neu, ohne EK).
-    Der Werkstoff kommt nur aus dem Prüfdialog (_werkstoff), nie aus der Vorgabe für die Rohre. Bleche mit
+    Der Werkstoff kommt nur aus dem Prüfdialog (_werkstoff, ein Blech-Werkstoff), nie aus der Vorgabe für die
+    Rohre; mit blech_daten (werkstoffe, laserdaten, einst des Blech-Editors) bekommt ein neuer Artikel den Richtpreis
+    als EK. Bleche mit
     Prüfstatus 'prüfen' (z. B. gekantet) werden erst nach Bestätigung im Prüfdialog übernommen. Die Positionen tragen
     _zukauf = {artikel_id} bzw. {neu: Schlüssel}; neue Artikel stehen im Ergebnis unter zukauf_neu {Schlüssel:
     (Werte, Einkaufsbedingungen)}, der Aufrufer legt sie an und trägt die Zukaufteile ein (Menge 1 je Teil).
@@ -612,13 +635,20 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             from .angebot import ZUKAUFTEIL
             b = blech(m)
             wst = m.get("_werkstoff") or None       # nur, wenn im Prüfdialog gewählt
-            verweis, text = _blech_position(m, b, wst, zukauf_liste, neue_artikel, k)
             stk = m.get("_stueck", stueck)
+            verweis, text = _blech_position(m, b, wst, zukauf_liste, neue_artikel, k, blech_daten, stk)
+            # Eingaben des Blech-Editors (Doppelklick öffnet ihn); ein Richtpreis als EK wird gemerkt, damit die
+            # Staffeln ihn vom EK des Einkaufs unterscheiden
+            preise = neue_artikel[verweis["neu"]][1][0].get("preise") if "neu" in verweis else None
+            from . import blech as bl
+            technik = bl.speichern(dict(bl.aus_step(b, wst, stk), richtpreise=[dict(ab=1, preis=preise[0]["preis"])]
+                                        if preise else []))
             from .zukauf import blech_bezeichnung
             p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art,
                      bezeichnung=blech_bezeichnung(b.get("laenge"), b.get("breite"), b.get("dicke"), wst),
                      werkstoff_id=wst if wst in k.werkstoffe else None, laenge=round(float(b.get("laenge") or 0), 1),
-                     stueck=stk or None, gewicht_teil=blech_gewicht(b, wst, k), _zukauf=verweis)
+                     stueck=stk or None, gewicht_teil=blech_gewicht(b, wst, k, (blech_daten or {}).get("werkstoffe")),
+                     technik=technik, _zukauf=verweis)
             if m.get("_netz"):
                 p["_netz"] = m["_netz"]
             hinweise.append(f"Zukaufteil: {text}")
