@@ -38,7 +38,7 @@ from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
-                         beispiel_arbeitsschritte, beispiel_stundensaetze,
+                         beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
 SCHEMA_VERSION = 38     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
@@ -86,6 +86,7 @@ MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Rich
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
+BOHR_ZUSATZ_STAND = "2026-10-22"   # Zusatzarbeiten Senken, Flowdrill, Bohren ergänzt (Datenbank._bohr_zusatz_ergaenzen)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -114,6 +115,7 @@ class Datenbank:
             self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
 
     def schliessen(self):
         self.con.close()
@@ -238,8 +240,22 @@ class Datenbank:
                 for n in ("zuschlag_material", "zuschlag_fertigung"):
                     self._einstellung_schreiben(n, 0)
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            if version > 0 and self.einstellung("bohr_zusatz_stand") != BOHR_ZUSATZ_STAND:
+                self._bohr_zusatz_ergaenzen()
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
+
+    def _bohr_zusatz_ergaenzen(self):
+        """Einmalig Zusatzarbeiten Senken, Flowdrill und Bohren anlegen, wenn es sie (dem Namen nach) noch nicht gibt
+        ('Bohrungen prüfen' trägt sie nach dem Bestätigen ein). Ohne Stundensatz Nachbearbeitung: eigener Satz 45 €/h."""
+        saetze = {r[0] for r in self.con.execute("SELECT satz_id FROM stundensaetze")}
+        zeilen = []
+        for z in bohr_zusatzarbeiten():
+            if z["satz_id"] not in saetze:
+                z = dict(z, satz_id=None, satz=45.0)
+            zeilen.append(z)
+        self._einfuegen("zusatzarbeiten", zeilen, ergaenzen=True)
+        self._einstellung_schreiben("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
 
     def _stangenwechsel_sn(self):
         """Schema 38: zweiter Stangenwechsel je Maschine für Stangen mit fester Schweißnaht-Lage (Patrick 22.10.2026:

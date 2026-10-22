@@ -767,8 +767,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("innen_liste") or enden:
                 p["konturen"] = rechnen.konturen_text(_paare(m.get("innen_liste")), enden)
                 p["kontur_grenzen"] = rechnen.grenzen_text(regel)
-            # Gewinde-Vorschläge, Senkungen, Fließlochbohrungen: offen bis 'Bohrungen prüfen' (bohrbild.py)
-            bild = bohrbild.aus_messung(m, gewinde, fliessloch_laser or bohrbild.GRAVUR)
+            # Gewinde-Vorschläge, Senkungen, Fließlochbohrungen, Bohren (< 0,7 × Wand): offen bis 'Bohrungen prüfen'
+            # (bohrbild.py), erst dann die Zusatzarbeiten Senken, Flowdrill, Bohren
+            bild = bohrbild.aus_messung(m, gewinde, fliessloch_laser or bohrbild.GRAVUR,
+                                        regel[4] if len(regel) >= 5 else None)
             if bild:
                 p.update(bohrbild.anwenden(p, bild))
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None

@@ -1050,11 +1050,13 @@ def kapitel_step(i):
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
         (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
-    i.hinweis("Gewinde, Senkungen und Fließlochbohrungen werden nur vorgeschlagen (Status HINWEIS: Bohrungen prüfen "
-              "(Doppelklick)). Gerechnet wird ein Gewinde erst, wenn es im Fenster <b>Bohrungen prüfen</b> bestätigt "
-              "ist ([[bohrungen_pruefen]]).")
-    i.abschnitt("Bohrungen prüfen: Gewinde, Senkungen, Flowdrill", marke="bohrungen_pruefen")
-    i.text("Der STEP-Import erkennt drei Arten von Bohrungen, die nach der Zeichnung geprüft werden müssen:")
+    i.hinweis("Gewinde, Senkungen, Fließlochbohrungen und Bohrungen kleiner als 0,7 × Wandstärke werden nur "
+              "vorgeschlagen (Status HINWEIS: Bohrungen prüfen (Doppelklick)). Gerechnet werden Gewinde und die "
+              "Arbeitsschritte Senken, Flowdrill und Bohren erst, wenn sie im Fenster <b>Bohrungen prüfen</b> "
+              "bestätigt sind ([[bohrungen_pruefen]]).")
+    i.abschnitt("Bohrungen prüfen: Gewinde, Senken, Flowdrill, Bohren", marke="bohrungen_pruefen")
+    i.text("Der STEP-Import und der Schneidweg-Rechner erkennen vier Arten von Bohrungen, die nach der Zeichnung "
+           "geprüft werden müssen:")
     i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
             "(z. B. Ø 5 → M6). Der Laser schneidet die Bohrung; das Gewinde wird erst nach dem Bestätigen gerechnet.",
             "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4). Der Laser schneidet die Bohrung Ø 6,6, die "
@@ -1064,19 +1066,34 @@ def kapitel_step(i):
             "Auswahl eine <i>Gravur Ø0,5</i> oder ein <i>Loch Ø0,5</i> (Schneidweg und Einstich). Die Vorgabe steht in "
             "der Einstellung <i>STEP-Import: Flowdrill-Bohrung am Laser</i>. Das Gewinde wird nach dem "
             "Kernloch fürs Gewindeformen vorgeschlagen (z. B. Ø 7,3 → M8). <b>Ablehnen</b> heißt: es ist eine "
-            "normale Bohrung, die der Laser schneidet.")
+            "normale Bohrung, die der Laser schneidet.",
+            "<b>Bohren</b>: Bohrung kleiner als 0,7 × Wandstärke (z. B. Ø 5 in 8 mm Wand, Grenze 5,6 mm), die der "
+            "Laser kaum sauber schneidet ([[konturklassen]]). <b>Bestätigen</b> heißt: der Laser markiert nur "
+            "(Gravur Ø0,5 oder Loch Ø0,5 wie beim Flowdrill, die Bohrung fällt aus Schneidweg und Konturliste), "
+            "danach wird aufgebohrt. <b>Ablehnen</b> heißt: der Laser schneidet die Bohrung trotzdem, die Warnung "
+            "<i>Kontur kleiner als 0,7 × Wandstärke</i> entfällt. Die Markierung Ø0,5 selbst wird nie vorgeschlagen.")
+    i.text("<b>Arbeitsschritte als Zusatzarbeit:</b> Bestätigte Senkungen, Flowdrill und Bohren trägt "
+           "<b>Übernehmen</b> als Zusatzarbeit <i>Senken</i>, <i>Flowdrill</i> bzw. <i>Bohren</i> mit der Anzahl je "
+           "Teil in die Position ein (Spalte <i>Zusatzarbeiten</i>, Preisstand der Stammdaten, "
+           "[[zusatzarbeiten_angebot]]). Offene und abgelehnte Zeilen tragen nichts ein; wird eine Zeile später "
+           "abgelehnt, fällt die Zusatzarbeit wieder weg. Steht dieselbe Zusatzarbeit schon von Hand in der Position, "
+           "bekommt sie nur die neue Anzahl. Die drei Zusatzarbeiten legt das Programm einmalig mit Beispielzeiten "
+           "an (je Stück 0,5 min, Flowdrill 0,75 min, Stundensatz Nachbearbeitung); Zeit und Preis in "
+           "Einstellungen › Zusatzarbeiten anpassen ([[zusatzarbeiten_verwalten]]). Fehlt eine davon in den "
+           "Stammdaten, meldet das Fenster es rot.")
     i.text("Positionen mit offenen Bohrungen zeigen den Status <b>HINWEIS: Bohrungen prüfen (Doppelklick)</b>. Ein "
            "<b>Doppelklick</b> auf den Status, die Spalte <i>Gewinde geprüft</i>, <i>Bohrungen</i> oder "
            "<i>Gewinde-Vorschlag</i> öffnet das Fenster (auch Rechtsklick, <i>Bohrungen prüfen …</i>). Je Zeile "
            "<b>Bestätigen</b> oder <b>Ablehnen</b>; <b>Übernehmen</b> ändert Schneidweg, Einstiche, Gravur, "
-           "Konturklassen und <i>Gewinde geprüft</i> der Position. Das Fenster lässt sich jederzeit wieder öffnen "
+           "Konturklassen, <i>Gewinde geprüft</i> und die Zusatzarbeiten der Position. Das Fenster lässt sich jederzeit wieder öffnen "
            "und die Wahl ändern.")
     i.bild("bohrbild_dialog", "Fenster Bohrungen prüfen: Senkung und Flowdrill eines Rechteckrohrs", hoehe=70 * mm,
            legende=[
                (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), was der Laser macht und Bestätigen/Ablehnen."),
                (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
                (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
-               (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher.")])
+               (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
+                   "Zusatzarbeiten (z. B. 2× Senken, 4× Bohren).")])
     i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper; Doppelklick auf eine Zeile "
            "springt zur Position", hoehe=80 * mm)
     i.bild("step_optimiert", "Aus STEP übernommene Positionen nach dem Optimieren: Schneidweg, Einstiche und "
@@ -1364,8 +1381,8 @@ def kapitel_optimieren(i):
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Senkung</i> (Bohrung Ø d und "
-            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; der Dialog erinnert daran, das Senken als Zusatzarbeit "
-            "zu erfassen, [[zusatzarbeiten_angebot]]), <i>Langloch</i> (Länge, Breite: "
+            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; das Senken wird wie Gewinde und Bohren (Bohrung "
+            "kleiner als 0,7 × Wand) im Fenster Bohrungen prüfen vorgeschlagen, [[bohrungen_pruefen]]), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
             "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Ausklinkung</i> am Ende als Rechteck "
             "(Länge ab Ende, Breite, Eckradius innen: 2 × (l − r) + (b − 2 r) + π × r; ohne Lage an Ende A, für "
@@ -1468,7 +1485,9 @@ def kapitel_optimieren(i):
             "Eine Innenkontur ab 0,7 × Wandstärke ist in der Regel schneidbar. Ist sie <b>kleiner als 0,7 × "
             "Wandstärke</b> (z. B. Bohrung Ø 5 in 8 mm Wand, Grenze 5,6 mm), zeigt die Position die Warnung "
             "<i>Kontur kleiner als 0,7 × Wandstärke, Schneidbarkeit prüfen (ggf. nur gravieren und aufbohren)</i>: "
-            "dann die Kontur ggf. nur gravieren und das Loch anschließend aufbohren. Gerechnet wird weiter.")
+            "dann die Kontur ggf. nur gravieren und das Loch anschließend aufbohren. Gerechnet wird weiter. Für "
+            "Bohrungen schlägt das Fenster Bohrungen prüfen dafür den Arbeitsschritt <i>Bohren</i> vor "
+            "([[bohrungen_pruefen]]).")
     i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>), die "
            "Regel, mit der sie eingeteilt wurde, in der Spalte <i>Konturgrenzen</i> (z. B. <i>10/50; 3×/8× Wand "
            "4</i>). Wird im Angebotskopf eine andere Maschine oder in der Position ein anderes Profil gewählt oder "
@@ -2708,7 +2727,7 @@ def kapitel_stammdaten(i):
            "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
     i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
            hoehe=100 * mm)
-    i.abschnitt("Zusatzarbeiten")
+    i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
            "STEP-Modell ist. Der Unterreiter zeigt eine Übersicht; angelegt und geändert wird in einem Formular.")
@@ -3656,12 +3675,17 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.13", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
+    ["0.8.14", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
      "<i>nicht übernehmbar</i>. Nicht übernehmbare Teile zeigt die 3D-Baugruppe <b>magenta</b>, die Zeile nennt Grund "
      "und Hüllmaß, Anklicken hebt das Teil hervor; mit <b>Von Hand nachtragen</b> (Profilform, Profil-ID) wird es "
      "doch übernommen. Die Spalte Art ist bei jeder Zeile wählbar ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
      "Flachstahl ist in der Spalte Art wählbar (Einstellung <i>ebene flache Teile vorgeben als</i>); Bleche mit "
      "Senkungen werden erkannt ([[bleche]])."],
+    ["0.8.12", "Bohrungen prüfen schlägt wie die Gewinde jetzt auch die Arbeitsschritte vor: <b>Senken</b> für "
+               "Senkungen, <b>Flowdrill</b> für Fließlochbohrungen und <b>Bohren</b> für Bohrungen kleiner als 0,7 × "
+               "Wandstärke (Laser markiert nur, danach aufbohren). Nach dem Bestätigen stehen sie mit der Anzahl je "
+               "Teil als Zusatzarbeit in der Position; die drei Zusatzarbeiten werden einmalig in den Stammdaten "
+               "angelegt. Gilt für STEP-Import und Schneidweg-Rechner ([[bohrungen_pruefen]])."],
     ["0.8.11", "STEP-Import: Einstellung <b>STEP-Import: Standardordner</b> (dort startet der Dateidialog, sonst im "
                "zuletzt benutzten Ordner) und gut sichtbares <b>Ablagefeld</b> für Drag &amp; Drop neben "
                "<i>STEP importieren …</i>, im leeren Angebot groß statt der Positionsliste ([[step]])."],
