@@ -59,7 +59,7 @@ from OCP.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Vec, gp_Ax3, gp_Trsf
 import sys as _sys
 from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))     # programm/: Normtabellen aus rohrlaser
-from rohrlaser import normprofile  # noqa: E402
+from rohrlaser import normprofile, rp_profile  # noqa: E402
 
 # ISO-Regelgewinde: Kernlochbohrung nach DIN 336 (Vorgabe; im Programm gelten die Stammdaten 'Gewinde')
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -133,6 +133,10 @@ class Teil:
     anbauteile: list = field(default_factory=list)
     trennung: dict = None
     gravur_anbau: float = 0.0   # Gravur an den Anbauteilen [mm], in gravur enthalten
+    # Hohlprofile: Zahl der Innenkonturen (Kammern) und Länge aller Konturen des Querschnitts (Fingerabdruck RP-Profile)
+    kammern: int = 0
+    kontur_umfang: float = 0.0
+    verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
 
     @property
     def pruefstatus(self):
@@ -154,7 +158,7 @@ class Teil:
             return f"QR {f(self.abm_a)}x{f(self.abm_a)}x{f(self.wandstaerke)}"
         if self.profilform == "Rechteckrohr":
             return f"RE {f(self.abm_a)}x{f(self.abm_b)}x{f(self.wandstaerke)}"
-        if self.normprofil and self.profilform in ("U-Profil",) + TRAEGER:
+        if self.normprofil and self.profilform in ("U-Profil", rp_profile.FORM) + TRAEGER:
             return self.normprofil
         if self.profilform == "I-/H-Träger":
             return f"I {f(self.abm_a)}x{f(self.abm_b)}x{f(self.stegdicke)}x{f(self.flanschdicke)}"
@@ -1354,6 +1358,22 @@ def _innen_liegend(innen, aussen):
             ba.CornerMin().Y() < bi.CornerMin().Y() and bi.CornerMax().Y() < ba.CornerMax().Y())
 
 
+def _rp_erkennen(t, bx, by):
+    """RP-Profil (Rohr mit Anschlag aus doppeltem Blech) per Fingerabdruck aus der Bibliothek rp_profile.json: Maße,
+    Fläche, Konturlänge und Kammern. Trifft eins, bekommt das Teil Form, Profil-ID und Maße der Bibliothek (A = Breite,
+    B = Höhe); mehrere gleiche stehen im Hinweis. Ergebnis: Profil-ID oder None."""
+    treffer = rp_profile.erkennen(bx, by, t.flaeche, t.kontur_umfang, t.kammern, t.wandstaerke,
+                                  rp_profile.bibliothek())
+    if not treffer:
+        return None
+    e = rp_profile.bibliothek()[treffer[0]]
+    t.profilform, t.normprofil, t.abm_a, t.abm_b = rp_profile.FORM, treffer[0], e["breite"], e["hoehe"]
+    if len(treffer) > 1:
+        t.hinweise.append(f"RP-Profil {treffer[0]} erkannt, gleicher Querschnitt: {', '.join(treffer[1:4])} "
+                          "(Profil-ID prüfen)")
+    return treffer[0]
+
+
 def _profil_messen(solid, datei="", koerper=1, netz=False):
     """Messung als gerades Profil (Rohr, offenes Profil, Flachstahl) mit konstantem Querschnitt."""
     t = Teil(datei=datei, koerper=koerper)
@@ -1378,7 +1398,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         for anteil in sorted([0.5037] + [(i + 0.37) / 50 for i in range(1, 49)], key=lambda a: abs(a - 0.5037)):
             z = zmin + anteil * t.laenge
             ws = _schnitt(lok, z)
-            if len(ws) != n_konturen or n_konturen == 2 and not _innen_liegend(ws[1][1], ws[0][1]):
+            if len(ws) != n_konturen or n_konturen >= 2 and not all(_innen_liegend(w[1], ws[0][1]) for w in ws[1:]):
                 continue
             netto = ws[0][0] - sum(w[0] for w in ws[1:])
             if best is None or netto > best[0] * 1.001:
@@ -1392,6 +1412,10 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
     t.sicherheit["achse"] = t.sicherheit["laenge"] = \
         "sicher" if len(regel) >= 3 else "wahrscheinlich" if len(regel) == 2 else "unsicher"
     best, passend = suche(2)
+    for n in range(3, 7):           # Mehrkammerprofil: mehrere Innenkonturen in der Außenkontur
+        if best is not None:
+            break
+        best, passend = suche(n)
     hohl = best is not None
     if not hohl:
         best, passend = suche(1)
@@ -1411,17 +1435,23 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         return _offen_auswerten(t, lok, aussen, passend, x0, y0, x1, y1, zmin, netz)
 
     innen = ws[1][1]
-    s_aussen, s_innen = _strecken(aussen), _strecken(innen)
-    t.wandstaerke = _wandstaerke(aussen, innen, s_aussen, s_innen, z0)
+    s_aussen, s_innen = _strecken(aussen), [s for w in ws[1:] for s in _strecken(w[1])]
+    t.wandstaerke = min(_wandstaerke(aussen, w[1], s_aussen, _strecken(w[1]), z0) for w in ws[1:])
+    t.kammern = len(ws) - 1
+    t.kontur_umfang = _draht_laenge(aussen)
+    innen_umfang = sum(_draht_laenge(w[1]) for w in ws[1:])
     ib = Bnd_Box()
     BRepBndLib.AddOptimal_s(innen, ib, False, False)
     ia, ibb = ib.CornerMax().X() - ib.CornerMin().X(), ib.CornerMax().Y() - ib.CornerMin().Y()
 
     # Profilform aus der Außenkontur (Ecken/Kreise können je nach CAD als Kreis, Ellipse, Spline oder Freiform-
     # kurve kommen, darum geometrisch statt über Kurventypen)
-    form = _profilform(aussen, bx, by)
+    form = _profilform(aussen, bx, by) if t.kammern == 1 else "Mehrkammer"
     t.sicherheit["profil"] = "sicher"
-    if form == "Kreis" and a - b < 0.1:
+    rp = _rp_erkennen(t, bx, by) if form not in ("Kreis", "Rechteck") else None
+    if rp:
+        pass
+    elif form == "Kreis" and a - b < 0.1:
         t.profilform, t.abm_a, t.innen_a = "Rundrohr", (a + b) / 2, (ia + ibb) / 2
     elif form == "Rechteck" and a - b < 0.1:
         t.profilform, t.abm_a, t.innen_a, t.innen_b = "Quadratrohr", (a + b) / 2, max(ia, ibb), min(ia, ibb)
@@ -1429,13 +1459,16 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         t.profilform, t.abm_a, t.abm_b, t.innen_a, t.innen_b = "Rechteckrohr", a, b, max(ia, ibb), min(ia, ibb)
     else:
         t.profilform, t.abm_a, t.abm_b, t.innen_a, t.innen_b = "Sonderprofil", a, b, max(ia, ibb), min(ia, ibb)
-        t.hinweise.append("Profil nicht erkannt, Fläche manuell prüfen")
+        t.hinweise.append(f"Mehrkammerprofil ({t.kammern} Kammern): Profil nicht erkannt, Fläche manuell prüfen"
+                          if t.kammern > 1 else "Profil nicht erkannt, Fläche manuell prüfen")
         t.sicherheit["profil"] = "unsicher"
 
     # Wandstärke an mehreren Stellen (je Querschnittslage mehrere Messstellen) und Gegenprobe
     for z, wsz in passend:
         t.wand_messungen += _wand_messungen(wsz, form == "Kreis", z - zmin)
     werte = [m[3] for m in t.wand_messungen] + [t.wandstaerke]
+    if rp:      # RP-Profil: am Anschlag liegt das Blech doppelt (2 × Wand), das ist keine ungleiche Wand
+        werte = [w for w in werte if abs(w - 2 * t.wandstaerke) > TOL_WAND_GLEICH] or [t.wandstaerke]
     if max(werte) - min(werte) > TOL_WAND_GLEICH:
         t.sicherheit["wandstaerke"] = "unsicher"
         t.hinweise.append(f"Wandstärke nicht einheitlich: {min(werte):.2f} bis {max(werte):.2f} mm an "
@@ -1752,6 +1785,14 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         d["art"] in ("Ausschnitt", "Innenmerkmal") or d.get("form") in ("komplex", "nicht erkannt") or
         d.get("seite") == "Ecke" for d in t.konturen_liste) else "sicher"
     t.bohrungen = dict(sorted(bohrungen.items()))
+    if t.kammern > 1 and t.kontur_umfang:
+        # Mehrkammerprofil: die Enden schneiden auch die Zwischenwände. Jede Zwischenwand verlängert die Innenkonturen
+        # um zweimal ihre Länge; ohne sie wäre die Innenkontur etwa Außenkontur − 8 × Wand (Näherung).
+        zwischen = max((innen_umfang - (t.kontur_umfang - 8 * t.wandstaerke)) / 2, 0.0)
+        for ende in ("ende_a", "ende_b"):
+            if getattr(t, ende):
+                setattr(t, ende, getattr(t, ende) + zwischen * getattr(t, ende) / t.kontur_umfang)
+        t.hinweise.append(f"Mehrkammerprofil: Zwischenwände {zwischen:.0f} mm je Ende im Schnitt (Näherung)")
     t.schneidweg = t.ende_a + t.ende_b + t.innen
     if netz:
         art_flaeche = dict(art)
@@ -2694,6 +2735,45 @@ def _rohnetz(t, shape):
         t.netz = None
 
 
+VERBUNDKERN = "Verbundkern"
+
+
+def _verbund_pruefen(teile, koerper):
+    """Verbundprofil (Patrick 22.10.2026, F6 a: nur melden): ein Körper, der ganz in der Kammer eines Hohlprofils
+    liegt (Kern aus Kunststoff, Dämmung o. ä.), wird nicht als eigenes Teil übernommen (Profilform 'Verbundkern'),
+    das Hohlprofil bekommt einen Hinweis und damit den Prüfstatus 'prüfen'."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_OUT
+    if len(teile) < 2:
+        return
+    boxen = []
+    for _, k in koerper:
+        b = Bnd_Box()
+        BRepBndLib.Add_s(k, b)
+        boxen.append(b)
+    for i, (t, (_, k)) in enumerate(zip(teile, koerper)):
+        if not t.kammern:
+            continue
+        bi = boxen[i]
+        for j, (u, (_, kj)) in enumerate(zip(teile, koerper)):
+            bj = boxen[j]
+            if i == j or u.verbund or bj.IsOut(bi) or not all(
+                    bi.CornerMin().Coord(n) - 0.01 <= bj.CornerMin().Coord(n) and
+                    bj.CornerMax().Coord(n) <= bi.CornerMax().Coord(n) + 0.01 for n in (1, 2, 3)):
+                continue
+            p = GProp_GProps()
+            BRepGProp.VolumeProperties_s(kj, p)
+            c = BRepClass3d_SolidClassifier(k, p.CentreOfMass(), 1e-6)
+            if c.State() != TopAbs_OUT:
+                continue
+            u.verbund = f"Kern in der Kammer von Körper {t.koerper}"
+            u.profilform, u.bauteiltyp = VERBUNDKERN, ""
+            u.hinweise.append(f"Verbundkern (z. B. Kunststoff) in Körper {t.koerper}: nicht übernommen")
+            t.verbund = (t.verbund + ", " if t.verbund else "") + f"Kern Körper {u.koerper}"
+            t.hinweise.append(f"Verbundprofil: Kern (Körper {u.koerper}) in der Kammer, nur gemeldet – Schneiddaten "
+                              "und Kalkulation prüfen")
+
+
 def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Alle Körper einer STEP-Datei messen. Je Körper ein Teil, auch für nicht messbare (Flächenmodell offen,
     Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist."""
@@ -2730,6 +2810,10 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
     try:
         _beruehrende_anbauteile(out, koerper, netz)
     except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
+        pass
+    try:
+        _verbund_pruefen(out, koerper)
+    except Exception:  # wie oben
         pass
     for t in out:
         t.__dict__.pop("_rahmen", None)

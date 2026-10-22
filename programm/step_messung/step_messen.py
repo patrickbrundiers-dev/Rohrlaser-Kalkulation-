@@ -41,7 +41,7 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste",
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
-           "trennung", "gravur_anbau", "ersatz", "alternative", "fehler"]
+           "trennung", "gravur_anbau", "kammern", "kontur_umfang", "verbund", "ersatz", "alternative", "fehler"]
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
 # bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "alternative", "fehler")
@@ -129,6 +129,7 @@ def _zeile(t, name, artikel, netz):
             json.dumps(t.anbauteile, ensure_ascii=False, separators=(",", ":")) if t.anbauteile else "",
             json.dumps(t.trennung, ensure_ascii=False, separators=(",", ":")) if t.trennung else "",
             _z(t.gravur_anbau) if t.anbauteile else "",
+            str(t.kammern) if t.kammern else "", _z(t.kontur_umfang) if t.kontur_umfang else "", _text(t.verbund),
             "1" if t.ersatz else "", "", ""])
 
 

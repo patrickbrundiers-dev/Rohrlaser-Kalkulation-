@@ -3427,6 +3427,19 @@ def kapitel_step_messung(i):
             "Sie stehen im Dialog STEP-Import prüfen unter <i>Nicht übernehmbar</i> mit dem Hinweis <i>… wird noch "
             "nicht kalkuliert</i>. Bei C-Profilen steht die Länge der Abkantung im Hinweis, bei U-Profilen mit "
             "verschieden dickem Steg und Flansch beide Werte.",
+            "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech) erkennt die Messung per <i>Fingerabdruck</i> "
+            "aus der RP-Bibliothek: Breite, Höhe, Fläche, Länge der Außenkontur und Zahl der Kammern müssen passen "
+            "(Maße ±0,3 mm, Fläche und Kontur ±1,5 %). Das Teil bekommt Profilform <i>RP-Profil</i> und die "
+            "Profil-ID der Bibliothek (z. B. <i>RP 0106-35</i>); haben mehrere RP-Profile denselben Querschnitt, "
+            "nennt der Hinweis die anderen. Der doppelt liegende Anschlag gilt nicht als ungleiche Wand. Beim "
+            "Übernehmen wird die Doppellage nur einmal geschnitten: Ein gerades Ende bekommt die Schnittlänge der "
+            "Kontur, ein schräges die gemessene Länge anteilig; der Bericht nennt, um wie viel der Schneidweg kürzer "
+            "ist. Selbst geladene RP-Profile ([[rp_profile]]) findet der Import ebenso, wenn die Messung ein "
+            "<i>Sonderprofil</i> meldet; von Hand: Art <i>RP-Profil</i> wählen, dann die Profil-ID.",
+            "<b>Mehrkammerprofile</b> (mehrere Kammern in einer Außenkontur) werden gemessen und als Sonderprofil zum "
+            "Prüfen gemeldet; die Zwischenwände kommen näherungsweise zum Schnitt der Enden dazu (Hinweis). "
+            "<b>Verbundprofile</b>: Liegt ein zweiter Körper ganz in der Kammer (Kern aus Kunststoff o. ä.), wird "
+            "er als <i>Verbundkern</i> nicht übernommen und das Profil mit Hinweis zum Prüfen gemeldet.",
             "<b>I-/H-Träger und T-Profile</b> werden ebenfalls erkannt und kalkuliert. Gemessen werden Höhe, "
             "Flanschbreite, Stegdicke (Strahl quer durch den Steg) und Flanschdicke (bei einem Viertel der "
             "Flanschbreite neben dem Steg, wie die Norm misst), dazu ob das Profil <i>symmetrisch</i> ist und die "
@@ -3762,6 +3775,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.21", "STEP-Import erkennt <b>RP-Profile</b> per Fingerabdruck (Bibliothek und selbst geladene), schneidet "
+               "die Doppellage des Anschlags nur einmal, misst <b>Mehrkammerprofile</b> und meldet "
+               "<b>Verbundprofile</b> mit Kern ([[step_messung]]). Die Skizze im Schneidweg-Rechner zeigt die "
+               "RP-Kontur."],
     ["0.8.20", "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech): neue Profilform <i>RP-Profil</i>, die "
                "Bibliothek RP-ROHRE ist mitgeliefert, eigene MegaCAD-Makros lassen sich laden, Querschnitt, Gewicht "
                "und Schnittlänge kommen aus der Kontur ([[rp_profile]])."],

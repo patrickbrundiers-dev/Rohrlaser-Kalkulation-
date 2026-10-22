@@ -25,7 +25,7 @@ DATEIEN = [HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step", HIER / "step_
            HIER / "step_referenz" / "REF18_Z60x40x4_L500.step", HIER / "step_traeger" / "TR01_IPE200_L1000.step"]
 KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", "volumen_mm3", "oberflaeche_mm2",
                   "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "bauteiltyp", "profiltyp",
-                  "profil_id_vorschlag", "blech", "normprofil", "traeger",
+                  "profil_id_vorschlag", "blech", "normprofil", "kammern", "kontur_umfang", "verbund", "traeger",
                   "aussenmasse", "innenmasse", "querschnittsflaeche_mm2", "wandstaerke", "laenge", "laengsachse",
                   "schnittwinkel", "schneidweg", "konturen", "enden", "senkungen", "fliessloecher", "pruefstatus", "warnungen",
                   "erkennungssicherheit", "ersatzwerte", "alternative", "anbauteile", "trennung"}
