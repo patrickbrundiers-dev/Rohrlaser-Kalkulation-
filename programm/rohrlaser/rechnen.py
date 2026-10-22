@@ -853,6 +853,7 @@ def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
     nach_gruppe = {}
     for p in positionen:
         nach_gruppe.setdefault(gruppe_von(p, kopf), []).append(p)
+    preise = {}     # Stangen derselben Gruppe, Länge und Masse kosten dasselbe (lieferstange_preis hängt nur davon ab)
     for s in ergebnis["stangen"]:
         summe = sum(t["laenge"] for t in s["teile"])
         belegt = s["end"] + summe + s["verlust"]
@@ -868,8 +869,12 @@ def stangen_werte(ergebnis, kopf, positionen, k, tabellen):
         out.append(dict(teile=len(s["teile"]), summe=summe, belegt=belegt, rest=s["stange"] - belegt,
                         ausnutzung=summe / s["stange"],
                         pruefung="ÜBERBELEGT" if ueber else "OK",
-                        gewicht=gewicht,
-                        kosten=stangenkosten(s, gewicht, kopf, nach_gruppe.get(gruppe_der_stange(s), []), k, tabellen)))
+                        gewicht=gewicht, kosten=None))
+        gr = gruppe_der_stange(s)
+        schl = (gr, s["stange"], gewicht, bool(s.get("beistellung")))
+        if schl not in preise:
+            preise[schl] = stangenkosten(s, gewicht, kopf, nach_gruppe.get(gr, []), k, tabellen)
+        out[-1]["kosten"] = preise[schl]
     return out
 
 
