@@ -859,6 +859,9 @@ class Stangenbild(QWidget):
             rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
             rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
             rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
+            if s.get("greif_3d"):           # 3D-Bearbeitung am letzten Teil: 3D-Greifmaß statt Greiferrest
+                p.setPen(QColor("#FFFFFF"))
+                p.drawText(QRectF(x0 + (s["stange"] - s["greif"]) * m, yb, s["greif"] * m, hb), Qt.AlignCenter, "3D")
             vorher = None
             for t in s["teile"]:
                 ineinander = bool(t.get("material_gespart")) and vorher is not None

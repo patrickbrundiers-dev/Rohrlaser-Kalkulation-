@@ -443,6 +443,10 @@ class StangenBalken(Flowable):
             rechteck(0, s["end"], colors.HexColor("#7F7F7F"))
         if s["greif"]:
             rechteck(lang - s["greif"], lang, colors.HexColor("#FF9999"))
+            if s.get("greif_3d"):       # 3D-Bearbeitung am letzten Teil: 3D-Greifmaß statt Greiferrest
+                c.setFillColor(colors.HexColor("#202020"))
+                c.setFont(FETT, 6)
+                c.drawCentredString((lang - s["greif"] / 2) * f, y + h / 2 - 2, "3D")
         vorher = None
         oben = 270 if any(t.get("ansicht") == "von oben" for t in m["teile"]) else 0
         for t in m["teile"]:

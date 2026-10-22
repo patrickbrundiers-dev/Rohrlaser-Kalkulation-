@@ -332,6 +332,9 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     d3_status = dreid.pruefen(p, m)     # Maschine ohne 3D, ungültiger Winkel: FEHLER, nicht stillschweigend 2D
     if d3_status and d3_status.startswith("FEHLER"):
         return d3_status
+    rest = dreid.rest_letztes(p, m)
+    if rest > w["greif"] and p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"] + w["greif"] - rest:
+        return "FEHLER: Teil zu lang für das 3D-Greifmaß der Maschine"
     if eingeplant is not None and _n(p.get("stueck")) - eingeplant > 0:
         return "WARNUNG: nicht vollständig eingeplant"
     if w["preis_hinterlegt"] is False:
@@ -430,6 +433,9 @@ def gruppen_bilden(kopf, positionen, k):
         greif = pr["greif"] if pr["greif"] is not None else me["greif"]
         if end + laenge + me["kerf"] > stange - greif + EPS:
             fehl("Teil länger als Nutzlänge der Stange"); continue
+        rest = dreid.rest_letztes(p, m)          # 3D-Greifmaß, wenn das Teil das letzte der Stange ist
+        if end + laenge + me["kerf"] > stange - max(greif, rest) + EPS:
+            fehl("Teil zu lang für das 3D-Greifmaß der Maschine"); continue
         bs = "Kunde" if beigestellt(p) else ""
         key = (pid, wst, ob, stange) + ((bs,) if bs else ())
         g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob,
@@ -460,7 +466,7 @@ def gruppen_bilden(kopf, positionen, k):
                     if ann:
                         geh[seite + "_gehrung"], geh["angenommen"] = ann, True
         for n in range(1, stk_n + 1):
-            g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, **geh))
+            g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, rest=rest, **geh))
     return list(gruppen.values()), fehler, neue_profile
 
 
@@ -481,9 +487,10 @@ def teil_kennung(t):
     gewendet wird."""
     alt = (t.zeile, t.pos, t.artikel, t.nr, t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt)
     neu = (t.a_gehrung, t.b_gehrung, t.drehung, t.naht)
+    d3 = (("3D-Greifmaß", t.rest),) if t.rest else ()       # ohne 3D wie bisher (Angebote bleiben aktuell)
     if neu == (None, None, opt.FREI, None) and t.a_gerade == t.b_gerade:
-        return alt
-    return alt + neu + ("nie wenden",)
+        return alt + d3
+    return alt + neu + ("nie wenden",) + d3
 
 
 def laengen_eingaben(gruppen, kopf, k, tabellen, einst):
@@ -626,6 +633,11 @@ def umriss(t):
     return t["von"] + ka[0], t["bis"] - kb[0], t["bis"] - kb[1], t["von"] + ka[1]
 
 
+def _greif_3d(g, folge):
+    """True, wenn hinter der Stange statt des Greiferrests das größere 3D-Greifmaß des letzten Teils frei bleibt."""
+    return opt.hinten(g, folge) > g.greiferrest + EPS
+
+
 def _folge_teile(g, folge, positionen, start=0.0):
     """Teile einer Stange bzw. eines Werkstücks ab Position start: (teile, verlust inkl. letztem Schnitt,
     gemeinsame Schnitte, Belegungstexte)."""
@@ -750,7 +762,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
                 teile, verlust, n_gem, belegung = _folge_teile(g, folge, positionen)
                 stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                                     stange=g.stange, end=g.endbeschnitt,
-                                    greif=g.greiferrest, verlust=round(verlust, 2), trennungen=len(folge),
+                                    greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge), verlust=round(verlust, 2), trennungen=len(folge),
                                     gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
             man = opt.manuell(g)
             ohne = opt.ohne_drehung(g)
@@ -776,7 +788,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
                 n_gem_gruppe += n_gem
                 stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                                     stange=gewaehlt, grundlaenge=g.stange, end=g.endbeschnitt,
-                                    greif=g.greiferrest, verlust=round(verlust, 2), trennungen=len(folge),
+                                    greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge), verlust=round(verlust, 2), trennungen=len(folge),
                                     gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
                 continue
             start, teile, verlust, n_gem, belegung, ws = 0.0, [], 0.0, 0, [], []
@@ -788,9 +800,10 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
                 for t in t_ws:
                     t["werkstueck"] = j
                 # Aufrundung des Werkstücks auf ganze mm zählt zum Verlust; der Greiferrest bleibt frei
-                verlust += v_ws + (laenge - g.endbeschnitt - sum(t.laenge for t, _ in folge) - v_ws - g.greiferrest)
+                verlust += v_ws + (laenge - g.endbeschnitt - sum(t.laenge for t, _ in folge) - v_ws
+                                   - opt.hinten(g, folge))
                 ws.append(dict(nr=j, von=round(start, 2), bis=round(start + laenge, 2), laenge=laenge,
-                               end=g.endbeschnitt, greif=g.greiferrest))
+                               end=g.endbeschnitt, greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge)))
                 teile += t_ws
                 n_gem += g_ws
                 belegung.append(f"W{j} {mm_text(laenge)}: " + " | ".join(b_ws))
@@ -799,7 +812,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
             rest = gewaehlt - start
             stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                                 stange=gewaehlt, grundlaenge=g.stange, end=g.endbeschnitt * len(ws),
-                                greif=g.greiferrest * len(ws), verlust=round(verlust, 2), trennungen=len(teile),
+                                greif=sum(w_["greif"] for w_ in ws), verlust=round(verlust, 2), trennungen=len(teile),
                                 gemeinsam=n_gem, belegung=" || ".join(belegung), teile=teile, werkstuecke=ws,
                                 zuschnitt=f"Zuschnitt beim Lieferanten: {' + '.join(mm_text(w['laenge']) for w in ws)}"
                                           f" mm, Rest {mm_text(max(rest - (saege if rest > saege else rest), 0))} mm"))
@@ -877,7 +890,7 @@ def anzeige_stangen(ergebnis, sw=None):
             summe = sum(t["laenge"] for t in teile)
             verlust = round(x["laenge"] - x["end"] - summe - x["greif"], 2)     # Trennschnitte und Aufrundung
             st = dict(nr=len(out) + 1, profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=s.get("oberflaeche"),
-                      stange=x["laenge"], grundlaenge=s.get("grundlaenge"), end=x["end"], greif=x["greif"],
+                      stange=x["laenge"], grundlaenge=s.get("grundlaenge"), end=x["end"], greif=x["greif"], greif_3d=x.get("greif_3d", False),
                       verlust=verlust, trennungen=len(teile), gemeinsam=sum(1 for t in teile if t.get("eingespart_mm")),
                       belegung=belegung.get(f"W{x['nr']} {mm_text(x['laenge'])}", ""), teile=teile)
             if s.get("beistellung"):
@@ -1093,7 +1106,7 @@ def variante_planen(g, laenge, m, saege, puffer=0):
     out = dict(laenge=laenge, zuschnitt=bool(maxw and laenge > maxw + EPS), stangen=[], fehler=None)
     if not out["zuschnitt"]:
         h = opt.replace(g, stange=laenge, teile=list(g.teile))
-        if any(h.endbeschnitt + t.laenge + h.kerf > h.nutzbar_bis + EPS for t in h.teile):
+        if any(h.endbeschnitt + t.laenge + h.kerf > h.stange - max(h.greiferrest, t.rest) + EPS for t in h.teile):
             out["fehler"] = "Teil länger als Nutzlänge der Stange"
             return out
         folgen = opt.optimiere(h)

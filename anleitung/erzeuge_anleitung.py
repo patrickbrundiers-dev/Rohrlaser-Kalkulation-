@@ -1250,6 +1250,12 @@ def kapitel_optimieren(i):
     i.liste("Je Profil + Werkstoff + Oberfläche + Stangenlänge getrennt, ohne Vermischung.",
             "Belegung einer Stange = Endbeschnitt + Teile + Trennschnitte + Schnittverlust des letzten Schnitts; "
             "der Greiferrest muss frei bleiben.",
+            "<b>3D-Greifmaß</b>: hat das letzte Teil einer Stange eine 3D-Bearbeitung nahe seinem Ende B, muss sie "
+            "mindestens das Greifmaß der Maschine (Vorgabe 300 mm) vom Stangenende entfernt sein. Hinter dem Teil "
+            "bleibt dann statt des Greiferrests Greifmaß − Abstand der Bearbeitung vom Ende B frei (Gehrung in 3D an "
+            "Ende B: das volle Greifmaß), nur wenn das mehr ist als der Greiferrest; beides zusammen wird nie "
+            "abgezogen. Die Optimierung legt dafür nach Möglichkeit ein Teil ohne 3D ans Ende. Beispiel: 6.000 mm, "
+            "Greiferrest 142 mm, 3D-Gehrung am Ende B des letzten Teils: nutzbar bis 5.700 statt 5.858 mm.",
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
             "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Dafür wird die "
             "Reihenfolge der Teile gewählt; gewendet (Ende B nach vorn) wird ein Teil nie.",
@@ -1546,7 +1552,8 @@ def kapitel_optimieren(i):
     i.bild("erg_schnittplan", "Reiter Schnittplan, Stange 3 gewählt", hoehe=85 * mm)
     i.abschnitt("Stangenbild")
     i.text("Jede Stange als maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Positionsnummer und Länge, "
-           "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot. Gleich belegte Stangen stehen einmal da "
+           "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot (mit <i>3D</i> beschriftet, wenn dort das größere "
+           "3D-Greifmaß frei bleibt). Gleich belegte Stangen stehen einmal da "
            "(<i>2 × Stange 1, 2</i>). Schräge Enden mit bekannter Richtung erscheinen als schräge Linie, "
            "ineinanderliegende Gehrungen also als verzahnte Trapeze. Gezeigt wird die Ansicht von der Seite (0° "
            "oben); sind die Gehrungen über die Seitenflächen geschnitten, die Ansicht von oben (Hinweis "
@@ -3609,7 +3616,8 @@ def kapitel_fragen(i):
          "Profil-ID oder Werkstoff-ID steht nicht in den Stammdaten oder ist falsch geschrieben. Aus der "
          "Auswahlliste wählen oder in den Stammdaten anlegen."],
         ["Teil unter <b>nicht eingeplante Teile</b>",
-         "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
+         "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest bzw. 3D-Greifmaß bei einer "
+         "3D-Bearbeitung am Ende), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
@@ -3715,6 +3723,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.17", "<b>3D-Greifmaß</b> in der Optimierung: hat das letzte Teil einer Stange eine 3D-Bearbeitung am Ende, "
+               "bleibt dahinter das Greifmaß der Maschine frei (statt des Greiferrests, wenn größer, nie zusätzlich); "
+               "ein Teil ohne 3D kommt nach Möglichkeit ans Ende. Stangenbild und Werkstattpapiere zeigen es mit "
+               "<i>3D</i>, ein Teil, das mit dem Greifmaß nicht auf die Stange passt, bekommt einen FEHLER."],
     ["0.8.16", "Grundlage für die <b>3D-Schnittbearbeitung</b> mit geschwenktem Laserkopf: neue Maschinenwerte "
                "<i>3D: Bearbeitung verfügbar</i> (Vorgabe nein), Schwenkwinkel min./max. (±45°), Greifmaß (300 mm), "
                "Zusatzzeit und Faktor. Gehrungen in 3D und schräge Bohrungen rechnen mit den Schneiddaten der "

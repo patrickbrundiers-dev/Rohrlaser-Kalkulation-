@@ -106,6 +106,7 @@ jobs:
           /usr/bin/python3 tests/test_naht.py
           /usr/bin/python3 tests/test_stangenwechsel_sn.py
           /usr/bin/python3 tests/test_3d.py
+          /usr/bin/python3 tests/test_3d_greifmass.py
           /usr/bin/python3 tests/test_tastatur.py
           /usr/bin/python3 tests/test_materialanfrage.py
           /usr/bin/python3 tests/test_plausibel.py
