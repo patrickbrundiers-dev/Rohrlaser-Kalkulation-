@@ -1057,7 +1057,7 @@ class Hauptfenster(QMainWindow):
             ziel = None
             while w is not None and w is not self.reiter:
                 if isinstance(w, QTabWidget):
-                    ziel = w
+                    ziel = getattr(w, "gruppe_von", None) or w     # Unterreiter-Gruppe: Reiter des Angebots
                     break
                 w = w.parentWidget()
             if ziel is None:            # Fokus außerhalb: erster Unterreiter der sichtbaren Seite

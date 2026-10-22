@@ -83,6 +83,9 @@ class Fotograf:
 
 
 def tab_rect(reiter, text):
+    if hasattr(reiter, "ort"):          # Angebot: auch Unterreiter (z. B. Stangenbild im Schnittplan)
+        r, i = reiter.ort(text)
+        return (r.tabBar(), r.tabBar().tabRect(i))
     leiste = reiter.tabBar()
     for i in range(reiter.count()):
         if reiter.tabText(i) == text:
@@ -135,6 +138,10 @@ def ja(d):
 
 
 def reiter_waehlen(s, text):
+    if hasattr(s.reiter, "waehlen"):
+        s.reiter.waehlen(text)
+        QApplication.processEvents()
+        return
     for i in range(s.reiter.count()):
         if s.reiter.tabText(i) == text:
             s.reiter.setCurrentIndex(i)
@@ -523,19 +530,32 @@ def main(ziel):
 
     # 8) Staffeln: Gestelle als Satz
     for menge, bem in ((1, "Einzelgestell"), (2, "Anfrage"), (5, "kleine Serie"), (10, "Rahmenauftrag")):
-        db.staffel_neu(haupt, dict(schluessel="MG 2000", menge=menge, bemerkung=bem))
+        db.staffel_neu(haupt, dict(schluessel="MG 2000", menge=menge, bezeichnung=bem))
     s.neu_laden()
     reiter_waehlen(s, "Staffeln")
     bereit()
     st = s.st_seite
-    foto.foto("staffeln_vorher", f, [(knopf(s, "Neue Stufe"), 1), (knopf(s, "Stufen aus Angebot"), 2),
-                                     (s.staffel_ansicht, 3), (knopf(s, "Staffelpreise rechnen"), 4),
-                                     (st.erweitert, 5)],
+    foto.foto("staffeln_vorher", f, [(knopf(s, "Neue Stufe …"), 1), (knopf(s, "Stufe bearbeiten …"), 2),
+                                     (s.staffel_ansicht, 3), (knopf(s, "Staffelpreise rechnen"), 4)],
               ausschnitt=reiterflaeche(s))
     s.staffelpreise_rechnen()
-    spalte_st = [x.name for x in staffeln.STUFE_FELDER].index
+
+    def stufe_setzen(zeile, **werte):
+        stufe = st.modell.daten[zeile]
+        alt = {x.name: stufe.get(x.name) for x in staffeln.EINSTELLUNG_FELDER if x.name != "meterpreise"}
+        mengen = [(staffeln.txt(z["schluessel"]), z["menge"], z.get("bis")) for z in s.stufen
+                  if z.get("stufe_id") == stufe["id"]]
+        st.stufe_speichern(stufe["id"], dict(alt, **werte), staffeln.meterpreise(stufe), mengen)
     for zeile, zuschlag in enumerate((20, 15, 10, 5)):      # Materialzuschlag je Stufe (Beispiel)
-        st.modell.setData(st.modell.index(zeile, spalte_st("mat_zuschlag")), str(zuschlag))
+        stufe_setzen(zeile, mat_zuschlag=zuschlag)
+    from rohrlaser.staffel_seite import StufeDialog
+    d = StufeDialog(st, st.modell.daten[0])
+    d.felder["gewinn"].setText("12")
+    d.show()
+    QApplication.processEvents()
+    foto.foto("staffel_stufe", d, [(d.felder["gewinn"], 1), (d.felder["fracht"], 2), (d.erweitert, 3),
+                                   (d.preise, 4), (d.mengen, 5)])
+    d.reject()
     st.vorher = {}
     st.stand()
     oben_vorher = s.teiler.sizes()
@@ -549,12 +569,10 @@ def main(ziel):
         r = baum.visualItemRect(baum.zeile(schl))
         r.setWidth(baum.columnWidth(0))
         return (baum.viewport(), r)
-    foto.foto("staffeln", f, [((st.ansicht.viewport(), st.ansicht.visualRect(
-        st.modell.index(0, spalte_st("mat_zuschlag")))), 1), (rect("material"), 2), (rect("selbst"), 3),
-        (rect("vk"), 4), (rect("brutto"), 5), (st.vergleich, 6), (st.info, 7)], ausschnitt=reiterflaeche(s))
-    st.modell.setData(st.modell.index(3, spalte_st("ruesten")), staffeln.SEPARAT)
-    st.modell.setData(st.modell.index(3, spalte_st("neben_einheit")), "12")
-    st.erweitert.setChecked(True)
+    foto.foto("staffeln", f, [((st.ansicht.viewport(), st.ansicht.visualRect(st.modell.index(0, 3))), 1),
+                              (rect("material"), 2), (rect("selbst"), 3), (rect("vk"), 4), (rect("brutto"), 5),
+                              (st.vergleich, 6), (st.info, 7)], ausschnitt=reiterflaeche(s))
+    stufe_setzen(3, ruesten=staffeln.SEPARAT, neben_einheit=12)
     for schl in ("fertigung", "ruesten", "gemeinkosten"):
         baum.zeile(schl).setExpanded(True)
     baum.zeile("material").setExpanded(False)
@@ -563,7 +581,6 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("staffeln_details", f, [(rect("fertigung"), 1), (rect("ruesten"), 2), (rect("gemeinkosten"), 3),
                                       (rect("einmalig"), 4), (rect("aenderung"), 5)], ausschnitt=reiterflaeche(s))
-    st.erweitert.setChecked(False)
     s.teiler.setSizes(oben_vorher)
 
     # 8a) Nachkalkulation nach dem Auftrag: eine Stange QR 40x40x3 mehr, Laser etwas länger, Rechnung Verzinkerei

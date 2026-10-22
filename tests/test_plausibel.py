@@ -171,4 +171,14 @@ spalte = next(c for c, (art, f) in enumerate(s.pos_modell.spalten) if art == "fe
 from PySide6.QtCore import Qt  # noqa: E402
 assert "Herkunft:" in s.pos_modell.data(s.pos_modell.index(0, spalte), Qt.ToolTipRole)
 ok(f"P8 Tooltip Materialpreis nennt die Herkunft ({h})")
+# ------------------------------------------------------------------ P9 gemeinsame Prüffunktion (D-1)
+q = dict(s.positionen[0], stueck=2.5)
+w = rechnen.position_werte(q, s.kopf, s.k, s.tabellen)
+assert rechnen.status(q, w, s.kopf, s.k) == "FEHLER: Stückzahl fehlt", "Status und Optimierung prüfen gleich"
+_, fehl, _ = rechnen.gruppen_bilden(s.kopf, [q], s.k)
+assert fehl and fehl[0]["grund"] == "Stückzahl fehlt oder ungültig"
+assert rechnen.grunddaten_fehler(s.positionen[0], s.k.profile, s.k) is None
+assert rechnen.pruefungen(dict(s.positionen[0], satz="X", je_satz=3, stueck=4)) == {
+    "satz_vielfach": "Stückzahl ist kein Vielfaches von Stück je Satz"}
+ok("P9 Gemeinsame Prüffunktion: Stückzahl 2,5 ist in Status und Optimierung ungültig")
 print("OK: Plausibilität (Prüfbericht B-1, B-2, B-3, B-7, B-9, C-2 Prüfen vor Freigabe)")

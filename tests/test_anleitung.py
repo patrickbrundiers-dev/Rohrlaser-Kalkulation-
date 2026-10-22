@@ -32,7 +32,7 @@ from rohrlaser.fracht_daten import FRACHT_TABELLEN  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.rechnen import KOSTENARTEN  # noqa: E402
 from rohrlaser.staffel_seite import ERGEBNIS  # noqa: E402
-from rohrlaser.staffeln import STUFE_FELDER  # noqa: E402
+from rohrlaser.staffeln import EINSTELLUNG_FELDER  # noqa: E402
 from rohrlaser.stammdaten import EINSTELLUNGEN, TABELLEN  # noqa: E402
 from rohrlaser import zukauf, zukauf_csv  # noqa: E402
 
@@ -94,7 +94,7 @@ pruefen += [("Feld in " + t.titel, f.titel) for t in FRACHT_TABELLEN for f in t.
 pruefen += [("Einstellung", e.titel) for e in EINSTELLUNGEN]
 pruefen += [("Kostenart", t) for t, _, _ in KOSTENARTEN]
 pruefen += [("Angebotskopf", f.titel) for f in KOPF]
-pruefen += [("Feld der Staffeln", f.titel) for f in STUFE_FELDER]
+pruefen += [("Feld der Staffeln", f.titel) for f in EINSTELLUNG_FELDER if f.name != "meterpreise"]
 pruefen += [("Ergebnis der Staffeln", t) for _, t, _, _ in ERGEBNIS if t[:1].isupper()]
 pruefen += [("Position", f.titel) for f in POSITIONEN.felder if f.name in SICHTBAR]
 pruefen += [("Zukauf-Tabelle", t.titel) for t in zukauf.TABELLEN]
@@ -120,7 +120,7 @@ for i in range(fenster.reiter.count()):
     text = fenster.reiter.tabText(i)
     if not text.startswith("Angebot "):
         pruefen.append(("Reiter", text))
-pruefen += [("Reiter im Angebot", seite.reiter.tabText(i)) for i in range(seite.reiter.count())]
+pruefen += [("Reiter im Angebot", t) for t in seite.reiter.texte()]
 pruefen += [("Unterreiter der Einstellungen", fenster.bereich.unter.tabText(i))
             for i in range(fenster.bereich.unter.count())]
 pruefen += [("Unterreiter der Frachtkosten", fenster.fracht.unter.tabText(i)) for i in range(fenster.fracht.unter.count())]

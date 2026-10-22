@@ -175,43 +175,64 @@ assert nah(z["preis"]["fert_gesamt"] + z["preis"]["ruest_gesamt"], zeit_kosten +
 assert {n for n, _, _ in z["preis"]["ruesten"]} >= {"Rüsten Maschine"}
 ok("6  Fertigung und Rüsten je Stufe = Zeit × Stundensatz der Arbeitsschritte (Rüstzeit getrennt von Stückzeit)")
 
-# 9) Änderung eines Zuschlags: sofort neue Preise, kein neuer Mengenlauf
+# 9) Änderung eines Werts der Stufe: sofort neue Preise, kein neuer Mengenlauf
+from rohrlaser.staffel_seite import StufeDialog, angebotspreise  # noqa: E402
 st = s.st_seite
 m = st.modell
-spalte = [f.name for f in staffeln.STUFE_FELDER].index
+assert m.rowCount() == 6 and m.data(m.index(0, 2)) == "Satz Rahmen: 2"     # alte Aufrufe: je Menge eine Stufe
 am = s.kopf["staffelpreise"]["am"]
 vorher = st.zeilen[3]["preis_einheit"]
-assert m.setData(m.index(3, spalte("mat_zuschlag")), "40")
-assert db.staffeln(a)[3]["mat_zuschlag"] == 40
+
+
+def speichern(zeile, mengen=None, preise=None, **werte):
+    """Stufe der Zeile wie über ihr Fenster speichern (Werte, die fehlen, bleiben wie sie sind)."""
+    stufe = m.daten[zeile]
+    alt = {f.name: stufe.get(f.name) for f in staffeln.EINSTELLUNG_FELDER if f.name != "meterpreise"}
+    if mengen is None:
+        mengen = [(staffeln.txt(z["schluessel"]), z["menge"], z.get("bis")) for z in s.stufen
+                  if z.get("stufe_id") == stufe["id"]]
+    st.stufe_speichern(stufe["id"], dict(alt, **werte),
+                       staffeln.meterpreise(stufe) if preise is None else preise, mengen)
+
+
+speichern(3, mat_zuschlag=40)
+assert db.staffel_stufen(a)[3]["mat_zuschlag"] == 40
 nachher = st.zeilen[3]["preis_einheit"]
 assert nachher > vorher and s.kopf["staffelpreise"]["am"] == am and st.anzahl_veraltet() == 0
 assert db.angebot(a)["staffelpreise"]["zeilen"][3]["preis_einheit"] == nachher          # gleich gespeichert
 assert st.zeilen[0]["preis_einheit"] == sp[0]["preis_einheit"]                        # andere Stufen unverändert
 assert st.baum.zeile("aenderung").text(1 + 2 * 3).startswith("+")
-assert "aktuell" in s.staffel_info.text()
+assert "aktuell" in s.staffel_info.text() and "Materialzuschlag 40,00 %" in m.data(m.index(3, 3))
 assert st.baum.zeile("m_zuschlag") is not None and st.baum.zeile("brutto") is not None
-assert m.data(m.index(3, spalte("mat_zuschlag"))) == "40,00 %"
-assert m.data(m.index(4, spalte("mat_zuschlag"))).endswith("(Einstellungen)")    # leer = Wert der Einstellungen
-assert m.setData(m.index(3, spalte("mat_art")), staffeln.EURO) and m.data(m.index(3, spalte("mat_zuschlag"))) == "40,00 €/Einheit"
-assert not m.setData(m.index(3, spalte("gewinn")), "-5")                          # ohne Rabatt abgelehnt
-assert not m.setData(m.index(3, spalte("mat_zuschlag")), "abc")
-assert m.setData(m.index(3, spalte("mat_zuschlag")), "")                          # wieder Angebotswert
-assert m.setData(m.index(3, spalte("mat_art")), "")
-assert st.zeilen[3]["preis_einheit"] == vorher
-ok("9  Zuschlag geändert: Preis sofort neu und gespeichert, ohne neuen Mengenlauf; andere Stufen unverändert")
+speichern(3, mat_zuschlag=None)
+assert st.zeilen[3]["preis_einheit"] == vorher and m.data(m.index(3, 3)) == "wie Angebot"
+ok("9  Wert der Stufe geändert: Preis sofort neu und gespeichert, ohne neuen Mengenlauf; andere Stufen unverändert")
 
-# Erweiterte Einstellungen: ausgeblendet, bis eine Stufe einen Wert hat oder das Häkchen gesetzt ist
-assert st.ansicht.isColumnHidden(spalte("verlust")) and not st.ansicht.isColumnHidden(spalte("gewinn"))
-st.erweitert.setChecked(True)
-assert not st.ansicht.isColumnHidden(spalte("verlust"))
-st.erweitert.setChecked(False)
-assert m.setData(m.index(0, spalte("neben_einheit")), "2,5")
-assert not st.ansicht.isColumnHidden(spalte("neben_einheit")) and st.ansicht.isColumnHidden(spalte("verlust"))
+# Fenster der Stufe: Felder wie im Angebot, leer = grau der Wert des Angebots; Prüfung der Eingaben
+d = StufeDialog(st, m.daten[3])
+assert d.felder["gewinn"].placeholderText().endswith("(Angebot)") and d.felder["gewinn"].text() == ""
+assert {"gewinn", "zuschlag_fremdleistung", "ruesten_abmessung", "pauschale_abmessung", "programmierung_teil",
+        "angebotsaufschlag", "handling_beistellung", "fracht", "skonto", "verlust", "neben_einheit"} <= set(d.felder)
+assert d.mengen.rowCount() == len(staffeln.auswahl(s.positionen)) and d.preise.rowCount() >= 1
+d.felder["gewinn"].setText("-5")
+try:
+    d.werte()
+    raise AssertionError("negativer Gewinn ohne Rabatt angenommen")
+except ValueError:
+    pass
+d.felder["gewinn"].setText("12,5")
+d.felder["neben_einheit"].setText("2,5")
+d.mengen_aus_angebot(2)
+werte, preise, mengen = d.werte()
+assert werte["gewinn"] == 12.5 and len(mengen) == len([x for x in staffeln.auswahl(s.positionen) if x[2]])
+d.reject()
+speichern(0, neben_einheit=2.5)
 assert nah(st.zeilen[0]["preis"]["neben"], 2.5 * st.zeilen[0]["menge"])
-ok("Erweiterte Einstellungen nur mit Häkchen oder Wert sichtbar; Nebenkosten je Einheit wirken sofort")
+ok("Fenster der Stufe: Einstellungen wie im Angebot (leer = grau), Rabattprüfung, Mengen = Angebot × 2; "
+   "Nebenkosten je Einheit wirken sofort")
 
 # Menge geändert: Stufe veraltet, Hintergrundlauf rechnet nur sie neu
-assert m.setData(m.index(5, spalte("menge")), "200")
+speichern(5, mengen=[("10", 200, None)])
 assert st.anzahl_veraltet() == 1 and "VERALTET" in s.staffel_info.text()
 assert st.zeilen[5]["preis_einheit"] is None and st.zeilen[0]["preis_einheit"]
 st._hintergrund_starten()
@@ -219,25 +240,25 @@ assert st.warten() and st.anzahl_veraltet() == 0 and "aktuell" in s.staffel_info
 assert st.zeilen[5]["menge"] == 200 and st.zeilen[5]["preis_einheit"] < sp[5]["preis_einheit"]
 ok("Menge geändert: nur diese Stufe wird im Hintergrund neu gerechnet")
 
-# Fehlerhafte Eingaben im Reiter: rot markiert, ohne Preis, nicht im Angebot
-assert m.setData(m.index(4, spalte("menge")), "24")              # gleiche Menge wie Stufe 4
-assert m.data(m.index(4, len(staffeln.STUFE_FELDER))).startswith("FEHLER: Menge doppelt")
+# Fehlerhafte Eingaben: gleiche Menge zweimal für Pos. 10 -> rot, ohne Preis, nicht im Angebot
+speichern(4, mengen=[("10", 24, None)])
+assert m.data(m.index(4, 5)).startswith("FEHLER: Menge doppelt"), m.data(m.index(4, 5))
 ang = s.angebot_daten()
 assert [x["menge"] for x in ang["staffeln"] if x["pos"] == "10"] == [200]      # beide doppelten Stufen fehlen
-assert m.setData(m.index(4, spalte("menge")), "50")
+speichern(4, mengen=[("10", 50, None)])
 ang = s.angebot_daten()
 assert [x["bereich"] for x in ang["staffeln"]] == ["ab 2", "ab 4", "ab 8", "ab 24", "ab 50", "ab 200"], ang["staffeln"]
 # jede Stufe steht unter ihrer Angebotszeile (Satz bzw. Pos.), aufsteigend nach Menge; Summe nur aus den Hauptzeilen
-unter = [st for z in ang["zeilen"] for st in z["staffeln"]]
-assert all(st["zugeordnet"] for st in ang["staffeln"]) and sorted(map(id, unter)) == sorted(map(id, ang["staffeln"]))
+unter = [x for z in ang["zeilen"] for x in z["staffeln"]]
+assert all(x["zugeordnet"] for x in ang["staffeln"]) and sorted(map(id, unter)) == sorted(map(id, ang["staffeln"]))
 for z in ang["zeilen"]:
-    assert [st["menge"] for st in z["staffeln"]] == sorted(st["menge"] for st in z["staffeln"])
-    assert all((st["art"] == "satz") == (z["art"] == "satz") for st in z["staffeln"])
+    assert [x["menge"] for x in z["staffeln"]] == sorted(x["menge"] for x in z["staffeln"])
+    assert all((x["art"] == "satz") == (z["art"] == "satz") for x in z["staffeln"])
 assert ang["netto"] == round(sum(z["gesamt"] for z in ang["zeilen"] if z["gesamt"] is not None), 2)
 ok("Doppelte Menge rot markiert und nicht im Angebot; Stufen im Angebot 'ab 2, ab 4, ab 8 …' unter ihrer Position")
 
 # Rüstkosten separat: im Angebot als einmalige Rüstkosten
-assert m.setData(m.index(0, spalte("ruesten")), staffeln.SEPARAT)
+speichern(0, ruesten=staffeln.SEPARAT)
 z0 = st.zeilen[0]
 assert z0["preis"]["einmalig"] > 0 and z0["preis_gesamt"] == round(z0["preis_einheit"] * z0["menge"] + z0["preis"]["einmalig"], 2)
 ang = s.angebot_daten()
@@ -246,6 +267,42 @@ assert "Rüstkosten" not in a0["text"] and a0["preis"] > z0["preis_einheit"]
 assert a0["preis"] * z0["menge"] >= z0["preis_gesamt"] - 1e-9 and a0["gesamt"] == round(a0["preis"] * z0["menge"], 2)
 assert s.angebot_pdf()
 ok("Rüstkosten separat: im Angebots-PDF im Stufenpreis enthalten, keine extra Kosten")
+
+# Stufe als gemeinsamer Auftrag: Mengen des Angebots = Preise des Angebots (Cent für Cent)
+st.vorher = {}
+sid = st.aus_angebot()
+st.rechnen(alle=False)
+haupt = angebotspreise(s.positionen, s._rechnung()[0])
+gem = [z for z in st.zeilen if z.get("stufe") == sid]
+assert len(gem) == len(haupt) >= 3 and all(z["gemeinsam"] for z in gem)
+for z in gem:
+    assert z["preis_einheit"] == ausgabe.kaufm_runden(haupt[z["schluessel"]], 2), (z["schluessel"], z["preis_einheit"])
+assert nah(sum(z["preis"]["netto"] for z in gem), s._rechnung()[1]["verkauf"], 1e-6)
+ok(f"Stufe mit den Mengen des Angebots ({len(gem)} Sätze/Positionen zusammen) = Stückpreise des Angebots")
+
+# dieselbe Position allein als eigene Stufe ist teurer: Rüsten, Aufschlag und Programmierung trägt sie allein
+allein = next(z for z in st.zeilen if z.get("stufe") != sid and z["schluessel"] == "10" and z["menge"] == 24)
+assert allein["preis_einheit"] > next(z for z in gem if z["schluessel"] == "10")["preis_einheit"]
+# Materialpreis je Abmessung und feste Fracht in der Stufe: neuer Mengenlauf, nur diese Stufe
+r = next(i for i, x in enumerate(m.daten) if x["id"] == sid)
+abm = staffeln.abmessung(next(p_ for p_ in s.positionen if str(p_.get("pos")) == "10"))
+vorher10 = next(z for z in gem if z["schluessel"] == "10")["preis_einheit"]
+speichern(r, preise={abm: 99.0}, fracht=100)
+assert st.anzahl_veraltet() == 1
+st.rechnen(alle=False)
+gem = [z for z in st.zeilen if z.get("stufe") == sid]
+assert next(z for z in gem if z["schluessel"] == "10")["preis_einheit"] > vorher10
+assert nah(sum(z["preis"]["fracht"] for z in gem), 100.0, 1e-6)
+assert "€/m für 1 Abmessung" in m.data(m.index(r, 3)) and "Frachtkosten 100,00 €" in m.data(m.index(r, 3))
+ang = s.angebot_daten()
+assert any(x["gemeinsam"] and x["stufe"] == r + 1 for x in ang["staffeln"])
+assert s.angebot_pdf()
+ok("Materialpreis €/m je Abmessung und feste Fracht je Stufe; im Angebot 'Stufe n: Ab …' mit Hinweis auf gemeinsame "
+   "Bestellung")
+s.st_seite.ansicht.selectRow(r)
+s.st_seite.loeschen()
+assert sid not in {x["id"] for x in db.staffel_stufen(a)} and not [z for z in db.staffeln(a) if z["stufe_id"] == sid]
+ok("Stufe löschen entfernt ihre Mengen")
 
 # Firmenlogo: Bilddatei -> Base64-PNG in der Einstellung, im PDF eingepasst; beschädigte Daten = ohne Logo
 from PySide6.QtGui import QImage  # noqa: E402
@@ -288,6 +345,8 @@ d = Datenbank(alt)
 a = beispiel_angebot.anlegen(d)
 d.schliessen()
 con = sqlite3.connect(alt)
+con.execute("DROP TABLE staffel_stufen")
+con.execute("ALTER TABLE staffeln DROP COLUMN stufe_id")
 for f in staffeln.STUFE_FELDER:
     if f.name not in ("schluessel", "menge", "bemerkung"):
         con.execute(f'ALTER TABLE staffeln DROP COLUMN "{f.name}"')
@@ -306,17 +365,22 @@ assert alt_con.execute("PRAGMA user_version").fetchone()[0] == 13 and alt_con.ex
     "SELECT COUNT(*) FROM staffeln").fetchone()[0] == 6
 alt_con.close()
 assert all(x["mat_zuschlag"] is None and x["gewinn"] is None for x in d.staffeln(a))
+# Schema 36: je Satz bzw. Position die kleinste Menge in Stufe 1, die nächste in Stufe 2 …
+stufen = d.staffel_stufen(a)
+assert len(stufen) == 3 and stufen[0]["bemerkung"].count("Beispiel") == 2
+assert sorted((z["schluessel"], z["menge"]) for z in d.staffeln(a) if z["stufe_id"] == stufen[1]["id"]) == \
+    [("10", 50), ("Rahmen", 4)]
 fenster = Hauptfenster(d, tmp / "alt", stumm=True)
 s = fenster.angebot_oeffnen(a)
-assert s.st_seite.anzahl_veraltet() == 6 and "VERALTET" in s.staffel_info.text()
+assert s.st_seite.anzahl_veraltet() == 3 and "VERALTET" in s.staffel_info.text()
 assert s.optimieren()
 neu = s.staffelpreise_aktuell()
 for z in neu:
     assert z["preis_einheit"] == ausgabe.kaufm_runden(z["bausteine"]["verkauf"] / z["menge"], 2)
 fenster.close()
 d.schliessen()
-ok("11 Datei Schema 13: Sicherung vor der Umstellung, neue Felder leer, alte Staffelpreise veraltet und mit "
-   "unveränderter Rechnung neu gerechnet")
+ok("11 Datei Schema 13: Sicherung vor der Umstellung, alte Mengen der Größe nach in Stufe 1–3, alte "
+   "Staffelpreise veraltet und neu gerechnet")
 
 # Regression Abnahmeangebote: jede Position als Stufe (ihre Stückzahl) = Verkaufspreis der Kalkulation
 db = Datenbank(tmp / "abn" / "rohrlaser.db")

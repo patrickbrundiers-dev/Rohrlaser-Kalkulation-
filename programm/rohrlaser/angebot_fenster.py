@@ -927,6 +927,72 @@ PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}  
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
 
 
+class AngebotReiter(QTabWidget):
+    """Reiter eines Angebots. Zusammengehörige Seiten liegen als Unterreiter in einem Reiter (Kalkulation mit
+    Zeiten, Schnittplan mit Stangenbild und Auswertung). setCurrentWidget, indexOf und waehlen finden auch
+    Seiten in den Unterreitern."""
+
+    def __init__(self):
+        super().__init__()
+        self.gruppen = []
+
+    def gruppe(self, text, seiten):
+        g = QTabWidget()
+        g.setDocumentMode(True)
+        g.gruppe_von = self              # Strg+Bild↓/↑ blättert in den Reitern des Angebots, nicht hier
+        for w, t in seiten:
+            g.addTab(w, t)
+        self.gruppen.append(g)
+        self.addTab(g, text)
+        return g
+
+    @staticmethod
+    def _in(seite, w):
+        return seite is w or seite.isAncestorOf(w)
+
+    def indexOf(self, w):
+        for i in range(self.count()):
+            if self._in(self.widget(i), w):
+                return i
+        return -1
+
+    def setCurrentWidget(self, w):
+        i = self.indexOf(w)
+        if i < 0:
+            return
+        self.setCurrentIndex(i)
+        g = self.widget(i)
+        if g in self.gruppen and g is not w:
+            j = next((j for j in range(g.count()) if self._in(g.widget(j), w)), -1)
+            if j >= 0:
+                g.setCurrentIndex(j)
+
+    def ort(self, text):
+        """(Reiterleiste, Index) des Reiters oder Unterreiters mit diesem Text."""
+        for i in range(self.count()):
+            if self.tabText(i) == text:
+                return self, i
+        for g in self.gruppen:
+            for j in range(g.count()):
+                if g.tabText(j) == text:
+                    return g, j
+        raise KeyError(text)
+
+    def waehlen(self, text):
+        leiste, i = self.ort(text)
+        if leiste is self:
+            self.setCurrentIndex(i)
+            if self.widget(i) in self.gruppen:
+                self.widget(i).setCurrentIndex(0)
+        else:
+            self.setCurrentWidget(leiste.widget(i))
+
+    def texte(self):
+        """Alle Reiter- und Unterreitertexte (für den Abgleich mit der Anleitung)."""
+        return [self.tabText(i) for i in range(self.count())] + [g.tabText(j) for g in self.gruppen
+                                                               for j in range(g.count())]
+
+
 class AngebotSeite(QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
@@ -1123,7 +1189,7 @@ class AngebotSeite(QWidget):
         st_seite = StaffelSeite(self)
         self.staffel_modell, self.staffel_ansicht, self.staffel_info = st_seite.modell, st_seite.ansicht, st_seite.info
 
-        self.reiter = QTabWidget()
+        self.reiter = AngebotReiter()
         self.pos_seite = QWidget()            # Positionsliste mit Spaltenauswahl darüber
         self.pos_leiste = QHBoxLayout()
         self.pos_leiste.setContentsMargins(0, 0, 0, 0)
@@ -1133,13 +1199,12 @@ class AngebotSeite(QWidget):
         pl.addLayout(self.pos_leiste)
         pl.addWidget(self.pos_ansicht, 1)
         self.reiter.addTab(self.pos_seite, "Positionen")
-        self.reiter.addTab(kalk_seite, "Kalkulation")
+        self.kalk_seite = kalk_seite
         self.zeiten_seite = ZeitenSeite(self)
-        self.reiter.addTab(self.zeiten_seite, "Zeiten && Arbeitskosten")
+        self.reiter.gruppe("Kalkulation", [(kalk_seite, "Kalkulation"), (self.zeiten_seite, "Zeiten && Arbeitskosten")])
         self.reiter.addTab(zk_seite, "Zukaufteile")
-        self.reiter.addTab(plan, "Schnittplan")
-        self.reiter.addTab(bild_rahmen, "Stangenbild")
-        self.reiter.addTab(ausw_seite, "Auswertung")
+        self.reiter.gruppe("Schnittplan", [(plan, "Schnittplan"), (bild_rahmen, "Stangenbild"),
+                                           (ausw_seite, "Auswertung")])
         self.reiter.addTab(st_seite, "Staffeln")
         self.nachkalk = NachkalkulationSeite(self)
         self.reiter.addTab(self.nachkalk, "Nachkalkulation")
@@ -1211,6 +1276,7 @@ class AngebotSeite(QWidget):
         # mit Werten des Angebots; nach dem Angebots-PDF mit den festgeschriebenen Einstellungen (Zuschläge, Mindestpreis …)
         self.einst = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()))
         self.stufen = self.db.staffeln(self.id)
+        self.stufen_daten = self.db.staffel_stufen(self.id)
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
         self._spalten_zeigen()
@@ -2122,7 +2188,7 @@ class AngebotSeite(QWidget):
         if punkte and not self.f.stumm and QMessageBox.question(
                 self, "Prüfen vor Freigabe", "Vor dem Angebot sind noch Punkte offen:\n\n"
                 + "\n".join("• " + t for t in punkte) + "\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
-            self.reiter.setCurrentIndex(1)
+            self.reiter.setCurrentWidget(self.kalk_seite)
             return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
                                lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
