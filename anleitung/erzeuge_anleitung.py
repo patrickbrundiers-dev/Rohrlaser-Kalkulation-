@@ -1292,6 +1292,9 @@ def kapitel_optimieren(i):
            "gemessenen Enden, Bohrungen, Konturen und die Gravur in Tabelle und Skizze; dort lassen sie sich prüfen "
            "und ändern. Die Schweißnaht wird hier ebenfalls gewählt, und <b>Zeichnung als PDF …</b> macht aus allem "
            "eine maßstäbliche Zeichnung.")
+    i.text("Aufbau des Fensters: oben die Eingaben mit der Konturtabelle (Platz für mindestens fünf Zeilen ohne "
+           "Rollen), unten links die Skizze und rechts das Ergebnis je Teil. Die Trennlinien dazwischen lassen sich "
+           "ziehen, z. B. für mehr Konturzeilen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck, Naht unten; Skizze vergrößert auf die erste Hälfte",
            hoehe=125 * mm, legende=[
@@ -1985,6 +1988,9 @@ def kapitel_zukauf_angebot(i):
            "und <i>Blechlaser (Richtwerte)</i> ([[blech_stammdaten]]) sowie den Einstellungen der Gruppe "
            "<i>Blech-Richtpreis</i>. Werkstoffe, Maschinen und Schneiddaten des Rohrlasers werden weder gelesen "
            "noch geändert.")
+    i.text("Aufbau des Fensters: links die Eingaben (Kopf, Zuschnitt bzw. Schenkel, Innenkonturen), rechts Skizze "
+           "und Richtpreis. Die Trennlinie lässt sich ziehen. Ist die Skizze höher als breit, steht die "
+           "Seitenansicht unter der Abwicklung, im selben Maßstab, solange sie passt.")
     i.bild("blech_editor", "Blech-Editor: U-Profil aus 1.4301, 2 mm, mit Bohrung und Langloch", hoehe=125 * mm,
            legende=[
                (1, "<b>Bezeichnung</b> (leer = Vorschlag aus den Maßen), Artikelnummer, Lieferant (Technik "
@@ -3564,6 +3570,9 @@ NEUERUNGEN = [
     ["0.8.7", "STEP-Import trennt <b>Anbauteile</b> (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten) "
               "vom Rohr: Profil, Länge und Schneidweg nur vom Rohr, Anbauteile mit Lage und Gravur (Bolzen Kreuz, "
               "sonst Umriss), unsichere Fälle zum Prüfen ([[anbauteile]])."],
+    ["0.8.6", "Schneidweg-Rechner und Blech-Editor neu aufgeteilt: Die Konturtabellen haben Platz für mehrere Zeilen "
+              "ohne Rollen, Skizze und Ergebnis stehen nebeneinander (Rohr) bzw. rechts (Blech), die Fenster öffnen "
+              "bildschirmgroß ([[schneidweg_rechner]], [[blech_editor]])."],
     ["0.8.5", "Staffeln: Im Fenster der Stufe Sätze und Positionen per Häkchen wählen (neue Stufe: alle angehakt). "
               "Blechteile aus dem Blech-Editor je Stufe mit dem EK aus dem Einkauf ab Stückzahl, sonst mit dem "
               "Richtpreis für die Stückzahl der Stufe neu gerechnet ([[staffeln]])."],
