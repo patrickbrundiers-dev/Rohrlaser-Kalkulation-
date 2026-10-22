@@ -32,7 +32,7 @@ class AblageFeld(QLabel):
     Ziehen selbst nimmt die Angebotsseite an (das Feld leitet es an sie weiter); hervorheben() färbt das Feld,
     solange Dateien darüber gezogen werden. gross: großes Feld statt der leeren Positionsliste."""
     geklickt = Signal()
-    KLEIN = "⇩ STEP hierher ziehen"
+    KLEIN = "⇩ STEP-Dateien\nhierher ziehen"     # zweizeilig: schmal genug für 1366 px
     GROSS = ("STEP-Dateien oder Ordner hierher ziehen\n\n"
              "oder klicken, um STEP-Dateien zu wählen (wie „STEP importieren …“)")
 
@@ -49,8 +49,8 @@ class AblageFeld(QLabel):
 
     def hervorheben(self, an):
         rand, grund, schrift = ("#1F5FAD", "#DCE9F8", "#1F5FAD") if an else ("#8FA6C1", "#F4F7FB", "#3D5573")
-        groesse = "15px" if self.gross else "12px"
-        polster = "24px" if self.gross else "3px 10px"
+        groesse = "15px" if self.gross else "11px"
+        polster = "24px" if self.gross else "0px 8px"
         self.setStyleSheet(f"QLabel {{ border: 2px dashed {rand}; border-radius: 6px; background: {grund}; "
                            f"color: {schrift}; font-size: {groesse}; padding: {polster}; }}")
 
