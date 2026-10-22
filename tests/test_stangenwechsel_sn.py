@@ -120,8 +120,8 @@ con.close()
 d = Datenbank(pfad)
 m = {z["maschinen_id"]: (z["stangenwechsel"], z["stangenwechsel_sn"]) for z in d.zeilen("maschinen")}
 assert m == {"T03": (24, 29), "T11": (31, 31), "LT7": (24, 29), "EIGEN": (40, 40)}, m
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 38
-assert len(list((pfad.parent / "Sicherung").glob("*vor_Schema_38*.db"))) == 1
+assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert len(list((pfad.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}*.db"))) == 1
 d.schliessen()
 ok("W5 Schema 38: unveränderte Beispielmaschinen 24/29 s, geänderte und eigene behalten ihren Wert (auch als SN)")
 print("Alle Stangenwechsel-SN-Tests bestanden.")

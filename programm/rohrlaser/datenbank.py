@@ -41,7 +41,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 38     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 39     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -71,6 +71,8 @@ SCHEMA_VERSION = 38     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Richtpreis von Blech-/Kantteilen; getrennt von Werkstoffen und Schneiddaten des Rohrlasers)
                         # 38: maschinen.stangenwechsel_sn (Stangenwechsel für Stangen mit fester Schweißnaht-Lage);
                         #     T03/T11/LT7 mit dem alten Beispielwert: normal 24 s, SN 29 s, sonst SN = bisheriger Wert
+                        # 39: Programmierung als Zeit × Stundensatz (angebote/staffel_stufen.programmierung_zeit und
+                        #     _kontur, positionen.prog_zeit); alle Angebote umgestellt, außer festgeschriebenen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -213,6 +215,8 @@ class Datenbank:
                                  "WHERE kontur_klein_wand IS NULL AND kontur_mittel_wand IS NULL")
             if 0 < version < 38:
                 self._stangenwechsel_sn()
+            if 0 < version < 39:
+                self._programmierung_zeit()
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -256,6 +260,17 @@ class Datenbank:
             zeilen.append(z)
         self._einfuegen("zusatzarbeiten", zeilen, ergaenzen=True)
         self._einstellung_schreiben("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+
+    def _programmierung_zeit(self):
+        """Schema 39: Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026: 5 min je Position +
+        Zeit je Innenkontur, alle Angebote umstellen). Bestehende Angebote rechnen ab jetzt mit der Zeit (Werte der
+        Einstellungen); nur verschickte Angebote mit festgeschriebener Preisbasis behalten ihren Betrag je Position
+        (rechnen.einstellungen_fest). Stundensatz und Arbeitsschritt 'Programmierung' werden ergänzt, falls sie fehlen."""
+        self._einfuegen("stundensaetze", [z for z in beispiel_stundensaetze() if z["satz_id"] == "Programmierung"],
+                        ergaenzen=True)
+        self._einfuegen("arbeitsschritte", [z for z in beispiel_arbeitsschritte() if z["schritt"] == "Programmierung"],
+                        ergaenzen=True)
+        self.con.execute("DELETE FROM einstellungen WHERE name='programmierung_teil'")
 
     def _stangenwechsel_sn(self):
         """Schema 38: zweiter Stangenwechsel je Maschine für Stangen mit fester Schweißnaht-Lage (Patrick 22.10.2026:

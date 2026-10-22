@@ -105,6 +105,7 @@ jobs:
           /usr/bin/python3 tests/test_blech_editor.py
           /usr/bin/python3 tests/test_naht.py
           /usr/bin/python3 tests/test_stangenwechsel_sn.py
+          /usr/bin/python3 tests/test_programmierung.py
           /usr/bin/python3 tests/test_tastatur.py
           /usr/bin/python3 tests/test_materialanfrage.py
           /usr/bin/python3 tests/test_plausibel.py
