@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 HILFE_EINSTELLUNG = "ansicht_hilfe"
 OFFEN_EINSTELLUNG = "ansicht_hilfe_offen"     # {Schlüssel: True} der aufgeklappten Hinweise
 HILFE_ARTEN = ("aufklappbar", "nur Tooltip")
-GRAU = "#595959"
+from .stil import TEXT_GRAU as GRAU  # noqa: E402
 # Satzende: Punkt/Doppelpunkt nach mindestens zwei Buchstaben oder Ziffern, danach ein Großbuchstabe;
 # Abkürzungen wie 'bzw.', 'z. B.', 'inkl.' beenden keinen Satz
 _SATZENDE = re.compile(r"(?<=[\wäöüß)\]]{2})[.!]\s+(?=[A-ZÄÖÜ0-9'„])")

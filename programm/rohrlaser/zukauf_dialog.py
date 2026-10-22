@@ -109,7 +109,7 @@ class ZukaufDialog(QDialog):
         lay.addLayout(leiste)
         self.info = QLabel()
         self.info.setWordWrap(True)
-        self.info.setStyleSheet("color: #595959;")
+        self.info.setStyleSheet("color: #5F6B7A;")
         lay.addWidget(self.info)
         if anzahl > 1:
             hinweis = QLabel(f"Die Liste gilt nach OK für alle {anzahl} markierten Positionen (ersetzt deren "

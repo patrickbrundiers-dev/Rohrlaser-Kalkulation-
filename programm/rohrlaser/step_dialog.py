@@ -21,10 +21,10 @@ def _f(m, name):
 def _messinfo(m):
     from . import step
     if m.get("fehler"):
-        return f"<b style='color:#C00000'>FEHLER: {m['fehler']}</b>"
+        return f"<b style='color:#B42318'>FEHLER: {m['fehler']}</b>"
     z = lambda name, st=1: zahl_als_text(_f(m, name), st)
     status = m.get("pruefstatus") or ""
-    farbe = {"plausibel": "#375623", "prüfen": "#9C5700", "nicht messbar": "#C00000"}.get(status, "#000000")
+    farbe = {"plausibel": "#1E6B34", "prüfen": "#7A5A00", "nicht messbar": "#B42318"}.get(status, "#000000")
     unsicher = step.unsicher(m)
     b = step.blech(m)
     if b is not None:

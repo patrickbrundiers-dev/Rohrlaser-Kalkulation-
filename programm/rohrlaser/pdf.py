@@ -23,6 +23,7 @@ from .stammdaten import zahl_als_text
 SCHRIFT, FETT = "Helvetica", "Helvetica-Bold"
 BLAU = colors.HexColor("#1F4E78")
 HELLBLAU = colors.HexColor("#DDEBF7")
+STAFFEL_FLAECHE = colors.HexColor("#F3F6FA")     # Kasten der Staffelpreise im Angebot
 ROT = colors.HexColor("#C00000")
 TEILFARBEN = ["#BDD7EE", "#C6E0B4", "#FFE699", "#D9D2E9", "#B4C6E7", "#F8CBAD", "#CCECFF", "#E2EFDA", "#EDEDBE"]
 
@@ -287,12 +288,15 @@ def _angebot_positionen(ang):
         return len(daten) - 1
 
     def staffeln(liste, satz=False):
+        # als eigener heller Kasten unter der Bezeichnung: nicht mit der Menge der Position zu verwechseln (C-9)
+        von = len(daten)
         for st in liste:
             r = zeile(["", "", _p(_staffel_text(st, satz), S_A_STAFFEL), "", "", _p(_z(st["preis"]), S_A_STAFFEL), ""])
-            stil.append(("SPAN", (2, r), (3, r)))
+            stil.append(("SPAN", (2, r), (4, r)))
         if liste:           # jede Stufe ist eine eigene Bestellung (Rüsten, Pauschalen, Mindestpreis je Stufe)
             r = zeile(["", "", _p(STAFFEL_HINWEIS_SATZ if satz else STAFFEL_HINWEIS, S_A_GRAU), "", "", "", ""])
             stil.append(("SPAN", (2, r), (5, r)))
+            stil.extend([("BACKGROUND", (2, von), (5, r), STAFFEL_FLAECHE), ("LINEBEFORE", (2, von), (2, r), 1.5, BLAU)])
 
     def text_zeilen(text, stil_text=S_A_GRAU):
         if text:

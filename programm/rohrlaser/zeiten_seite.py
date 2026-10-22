@@ -90,7 +90,7 @@ class ZeitenModell(QAbstractTableModel):
         if rolle == Qt.BackgroundRole:
             return QBrush(FARBE_EINGABE if self.bearbeitbar(r, c) else FARBE_BERECHNET)
         if rolle == Qt.ForegroundRole and z["gesamt_min"] is None and c in (5, 6):
-            return QBrush(QColor("#7F7F7F"))
+            return QBrush(QColor("#5F6B7A"))
         return None
 
     def flags(self, index):
@@ -169,7 +169,7 @@ class ZeitenSeite(QWidget):
         self.hinweis.setText(
             "Stundensätze und Zeitvorgaben sind in diesem Angebot gespeichert; spätere Änderungen in den "
             "Einstellungen ändern es nicht. Gelbe Felder gelten nur für dieses Angebot." if gespeichert else
-            "<span style='color:#8A5A00'><b>Stundensätze nicht im Angebot gespeichert</b> (älteres Angebot): es gelten "
+            "<span style='color:#7A5A00'><b>Stundensätze nicht im Angebot gespeichert</b> (älteres Angebot): es gelten "
             "die aktuellen Einstellungen. „Stundensätze aus Einstellungen“ speichert sie im Angebot.</span>")
         k = rechnen.zeit_summen(zeiten)
         wert = {n: w for (_, w, _), (_, n, _) in zip(rechnen.kostenarten(summen, self.s.einst), rechnen.KOSTENARTEN)}

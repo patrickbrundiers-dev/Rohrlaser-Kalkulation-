@@ -3046,12 +3046,6 @@ def kapitel_pflege(i):
             "Beschreibung). <b>Datei → Daten importieren …</b> liest eine Export-Datei, eine Sicherung oder eine "
             "Datendatei <i>rohrlaser.db</i> ein und ersetzt damit alle Daten; vorher sichert es den jetzigen Stand "
             "(<i>_vor_Import</i>). Eine beschädigte Export-Datei erkennt das Programm an der Prüfsumme.",
-            "<b>Datei → Stammdaten fürs Handy exportieren …</b> schreibt alle Stammdaten (Profile, Werkstoffe, Preise, "
-            "Maschinen, Schneiddaten, Kunden, Frachtkosten, Zukauf) und die Einstellungen in eine Datei "
-            "<i>Rohrlaser-Stammdaten JJJJ-MM-TT.json</i> für die Android-App (Testversion). Die Datei z. B. per "
-            "E-Mail aufs Handy bringen und in der App mit <b>Stammdaten einlesen</b> öffnen. Es gibt keinen Abgleich: "
-            "Gepflegt wird am PC, auf dem Handy lassen sich die Stammdaten nur ansehen; nach Änderungen am PC neu "
-            "exportieren und einlesen (ersetzt alles). Angebote gehen nicht mit, das Passwort der Einstellungen auch nicht.",
             "Lässt sich die Datendatei beim Start nicht öffnen (beschädigt, von einer neueren Version), bietet das "
             "Programm an, eine Sicherung zu wählen. Die nicht lesbare Datei wird dabei nicht gelöscht, sondern in den "
             "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")

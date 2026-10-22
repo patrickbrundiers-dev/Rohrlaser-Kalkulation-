@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpin
 
 from . import hilfe, naht
 
-GRAU = "#595959"
+from .stil import TEXT_GRAU as GRAU  # noqa: E402
 NAHT_FARBE = "#C0392B"
 
 

@@ -89,7 +89,7 @@ class SchnellDialog(QDialog):
         if hinweis:
             h = QLabel(hinweis)
             h.setWordWrap(True)
-            h.setStyleSheet("color: #595959;")
+            h.setStyleSheet("color: #5F6B7A;")
             lay.addWidget(h)
         self.info = QLabel()
         self.info.setWordWrap(True)

@@ -562,7 +562,7 @@ class PositionenModell(QAbstractTableModel):
             if rolle == Qt.EditRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if w is not None else "#7F7F7F"))
+                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
@@ -591,7 +591,7 @@ class PositionenModell(QAbstractTableModel):
                                 "Profil, Werkstoff, Oberfläche und Stangenlänge eingetragen.")
                 return t + "Doppelklick zum Anpassen (günstiger oder teurer)."
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if eigen else "#7F7F7F"))
+                return QBrush(QColor("#000000" if eigen else "#5F6B7A"))
             if rolle == Qt.FontRole and (eigen or fremd):
                 f = QFont()
                 f.setBold(eigen)
@@ -749,7 +749,7 @@ class Stangenbild(QWidget):
             m = breite / s["stange"]
             yb, hb = y + 20, 34
 
-            def rechteck(von, bis, farbe, rand=QColor("#7F7F7F")):
+            def rechteck(von, bis, farbe, rand=QColor("#5F6B7A")):
                 r = QRectF(x0 + von * m, yb, max(1.0, (bis - von) * m), hb)
                 p.fillRect(r, farbe)
                 p.setPen(QPen(rand, 1))
@@ -961,10 +961,12 @@ class AngebotSeite(QWidget):
         # Aktionen: Hauptaktionen hervorgehoben, dann Bearbeiten, rechts Ausgabe und Weitere Aktionen
         self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
         leiste = self.leiste.links_layout
+        # nur zwei Hauptknöpfe (dunkelblau): Optimieren und Angebot (PDF) – die Schritte zum fertigen Angebot (C-2)
         for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren()),
                            ("Optimieren", self.optimieren), ("3D-Ansicht …", lambda: self.ansicht_3d())):
             b = QPushButton(text)
-            b.setObjectName("primaer")
+            if text == "Optimieren":
+                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addSpacing(12)
@@ -987,6 +989,8 @@ class AngebotSeite(QWidget):
         for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
                            ("Kalkulation (PDF)", self.kalkulation_pdf)):
             b = QPushButton(text)
+            if text == "Angebot (PDF)":
+                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         self.weitere = QPushButton("Weitere Aktionen")

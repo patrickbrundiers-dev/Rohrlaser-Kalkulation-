@@ -16,8 +16,7 @@ from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_
 
 TITEL = "Zukaufartikel"
 BREIT = 1280        # ab dieser Breite steht das Formular neben der Tabelle, darunter in einem eigenen Fenster
-GRAU, ROT, GELB = "#5F6B7A", "#B42318", "#8A5A00"
-ROTER_RAHMEN = "border: 1px solid #B42318; border-radius: 3px; background: #FDECEA;"
+from .stil import GELB_TEXT as GELB, ROT, ROTER_RAHMEN, TEXT_GRAU as GRAU  # noqa: E402
 OHNE_KATEGORIE = "ohne Kategorie"
 EK_FEHLT = "EK fehlt"
 QUELLE_TEXT = {zukauf.KATEGORIE: "Standard der Kategorie", zukauf.INDIVIDUELL: "individuell für diesen Artikel",

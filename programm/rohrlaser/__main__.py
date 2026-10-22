@@ -251,6 +251,8 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName(NAME)
     app.setStyle("Fusion")
+    from .stil import ziffern_tabellarisch
+    ziffern_tabellarisch(app)
     deutsch(app)
     if a.selbsttest:
         return selbsttest(app, a.ergebnis, a.step)

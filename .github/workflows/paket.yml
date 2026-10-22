@@ -45,7 +45,6 @@ jobs:
           /usr/bin/python3 tests/test_step_konturen.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_ergebnis.py
           /usr/bin/python3 tests/test_optimierung.py
-          /usr/bin/python3 tests/android_paritaet.py   # Android-App rechnet gleich (Kotlin-Tests im Workflow Android)
           /usr/bin/python3 tests/test_lieferlaengen.py
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
@@ -69,7 +68,6 @@ jobs:
           /usr/bin/python3 tests/test_zukauf_angebot.py
           /usr/bin/python3 tests/test_zukauf_preise.py
           /usr/bin/python3 tests/test_kunden_csv.py
-          /usr/bin/python3 tests/test_handy_export.py
           /usr/bin/python3 tests/test_zukauf_schnell.py
           /usr/bin/python3 tests/test_zukauf_ek.py
           /usr/bin/python3 tests/test_zukauf_blech.py

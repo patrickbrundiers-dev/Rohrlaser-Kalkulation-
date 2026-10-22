@@ -46,9 +46,7 @@ MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stangenwechsel", "Stangenwechsel je Stange", "s", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
 
-GRAU = "#5F6B7A"
-ORANGE = "#B35C00"         # Hinweis: Wert weicht von den Einstellungen ab
-GELB, GELB_TEXT = "#FFF4CE", "#7A5A00"        # Wert weicht von den Einstellungen ab
+from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
 
 
 def _z(w, stellen=2):
@@ -891,7 +889,7 @@ class UebersichtBereich(QWidget):
                                     "Angebots-PDF festgeschrieben)</span>")
             self.preisstand.setToolTip("")
         elif abweichungen:
-            self.preisstand.setText(f"<span style='color:#8A5A00'><b>Preise festgeschrieben am "
+            self.preisstand.setText(f"<span style='color:#7A5A00'><b>Preise festgeschrieben am "
                                     f"{datum_text(preisbasis.get('datum'))}</b>, Stammdaten seitdem geändert "
                                     f"({len(abweichungen)})</span>" + zusatz)
             self.preisstand.setToolTip("\n".join(abweichungen))
@@ -923,7 +921,7 @@ class UebersichtBereich(QWidget):
         else:
             self.meldungen_bereich.setze_titel("Meldungen: " + " · ".join(t for t, a in zip(teile, n.values()) if a))
             self.meldungen_bereich.knopf.setObjectName("meldung_fehler" if n["FEHLER"] else "meldung_warnung")
-            farbe = {"FEHLER": "#B42318", "WARNUNG": "#8A5A00", "HINWEIS": "#5F6B7A"}
+            farbe = {"FEHLER": "#B42318", "WARNUNG": "#7A5A00", "HINWEIS": "#5F6B7A"}
             self.meldungen.setText("<br>".join(
                 f"<span style='color:{farbe.get(t.split(':')[0], '#1F2937')}'>Pos. {_z(pos, 0) or '?'}: {t}</span>"
                 for pos, t in meldungen))
