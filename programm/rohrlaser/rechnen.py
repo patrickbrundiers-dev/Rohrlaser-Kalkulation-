@@ -425,7 +425,7 @@ def gruppen_bilden(kopf, positionen, k):
                                                beistellung=bs, querschnitt=querschnitt_gehrung(pr)))
         a_ger = p.get("a_gerade") != "nein"
         b_ger = p.get("b_gerade") != "nein"
-        u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"])
+        u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"], pid)
         h = p.get("schneidweg")
         if h:
             u = min(u, h / 2)
@@ -1367,7 +1367,7 @@ def oberflaeche(p, k):
     pr = k.profile.get(p.get("profil_id"))
     if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
         return None
-    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr))
+    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), p.get("profil_id"))
     return u * p["laenge"] / 1e6 if u else None
 
 
