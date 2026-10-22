@@ -326,7 +326,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "FEHLER: " + grenze
     if w["nutz"] is None or p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"]:
         return "FEHLER: Teil länger als Nutzlänge"
-    naht_status = naht.pruefen(p, k.profile.get(p.get("profil_id")))
+    naht_status = naht.pruefen(p, k.profile.get(p.get("profil_id")),
+                               naht.stange_eingetragen(kopf, p.get("profil_id"), p.get("werkstoff_id")))
     if naht_status and naht_status.startswith("FEHLER"):
         return naht_status
     d3_status = dreid.pruefen(p, m)     # Maschine ohne 3D, ungültiger Winkel: FEHLER, nicht stillschweigend 2D
