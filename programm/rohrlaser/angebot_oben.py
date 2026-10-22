@@ -886,7 +886,7 @@ class UebersichtBereich(QWidget):
                                             "Verschnitt. Bitte optimieren.")
         self._stand_text(stand)
 
-    def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None):
+    def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None, versand=None):
         """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf
         erscheint nur bei Abweichungen. verschickt = Text, wenn der Preis vom verschickten Angebots-PDF abweicht."""
         zusatz = f"<br><span style='color:#B35C00'><b>{verschickt}</b></span>" if verschickt else ""
@@ -904,6 +904,9 @@ class UebersichtBereich(QWidget):
                                     f"{datum_text(preisbasis.get('datum'))}</span>" + zusatz)
             self.preisstand.setToolTip("Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile und Maschine "
                                        "stimmen mit den Stammdaten überein.")
+        if versand:                 # Verlauf der verschickten Angebots-PDFs (Versionsstand)
+            self.preisstand.setToolTip((self.preisstand.toolTip() + "\n\n").lstrip() + "Verschickt:\n" + "\n".join(
+                f"{datum_text(v.get('datum'))}: {_z(v.get('netto'))} € netto ({v.get('datei') or 'PDF'})" for v in versand))
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):

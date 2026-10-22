@@ -1414,7 +1414,8 @@ class AngebotSeite(QWidget):
         zeilen, summen = rechnen.kalkulation(self.kopf, self.positionen, erg, self.k, self.tabellen, self.einst)
         self.uebersicht_bereich.preisstand_setzen(
             self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell),
-            rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")))
+            rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")),
+            self.kopf.get("versand"))
         self.kalk.setzen([z for z in zeilen if z])
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
@@ -2114,6 +2115,8 @@ class AngebotSeite(QWidget):
                                lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
         if pfad is not None:
             self.preise_festschreiben()
+            self.db.versand_merken(self.id, dict(datum=datetime.date.today().isoformat(), netto=ang["netto"],
+                                                 datei=Path(pfad).name))
             if not (self.db.angebot(self.id) or {}).get("vorgang"):     # Entwurf -> Verschickt (sonst bleibt er)
                 self.db.vorgang_setzen(self.id, "Verschickt")
                 self.f.angebote.neu_laden()

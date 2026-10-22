@@ -1931,7 +1931,8 @@ def kapitel_ausgabe(i, seiten, ablage):
            "wie im PDF beim Kunden.")
     i.text("Ändert sich danach das Angebot selbst (z. B. eine Stückzahl), steht in der Übersicht orange "
            "„Weicht vom verschickten Angebot (Datum: Betrag) ab: +… €“. Das nächste Angebots-PDF setzt den "
-           "verschickten Stand neu.")
+           "verschickten Stand neu. Jedes Angebots-PDF merkt sich das Programm mit Datum, Nettobetrag und Dateiname; "
+           "der Mauszeiger auf dem Preisstand zeigt diesen Verlauf („Verschickt: …“).")
     i.liste("Neue Positionen mit anderem Profil, Werkstoff oder anderer Oberfläche rechnen mit den aktuellen "
             "Stammdaten; das nächste Angebots-PDF nimmt sie dazu, schon festgeschriebene Werte bleiben.",
             "Wird eine andere Maschine gewählt, gelten deren aktuelle Schneiddaten.",

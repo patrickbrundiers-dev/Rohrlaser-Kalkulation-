@@ -61,7 +61,8 @@ SCHEMA_VERSION = 35     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 33: Anforderungen der Materialanfrage je Werkstoff (werkstoffe.anfrage_*; leer = keine)
                         # 34: Bohrbild je Position (positionen.bohrbild: Gewinde, Senkungen, Flowdrill bestätigt/abgelehnt)
                         # 35: Vorgang je Angebot (angebote.vorgang: leer = Entwurf, Verschickt, Beauftragt, Abgelehnt) und
-                        #     Zeitpunkt des gemerkten Verkaufspreises (angebote.vk_am); ältere Angebote: Entwurf bzw.
+                        #     Zeitpunkt des gemerkten Verkaufspreises (angebote.vk_am), Verlauf der verschickten
+                        #     Angebots-PDFs (angebote.versand, JSON); ältere Angebote: Entwurf bzw.
                         #     Verschickt, wenn die Preise schon festgeschrieben sind
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -167,6 +168,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vorgang TEXT")
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vk_am TEXT")
                 self.con.execute("UPDATE angebote SET vorgang='Verschickt' WHERE preisbasis IS NOT NULL")
+            if "versand" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER)]:
@@ -1133,6 +1136,7 @@ class Datenbank:
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
+        a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
         return a
 
     def _jetzt(self):
@@ -1244,6 +1248,13 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET vk_am=CASE WHEN vk_netto IS NOT ? THEN ? ELSE vk_am END, vk_netto=?, "
                              "stand=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ?)",
                              (vk_netto, self._jetzt(), vk_netto, stand, angebot_id, vk_netto, stand))
+
+    def versand_merken(self, angebot_id, eintrag):
+        """Verschicktes Angebots-PDF merken ({datum, netto, datei}); Verlauf je Angebot, ändert 'geändert am' nicht."""
+        alt = (self.angebot(angebot_id) or {}).get("versand") or []
+        with self.con:
+            self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
+                             (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
 
     def vorgang_setzen(self, angebot_id, vorgang):
         """Vorgang des Angebots (VORGAENGE; 'Entwurf' wird leer gespeichert). Ändert 'geändert am' nicht."""

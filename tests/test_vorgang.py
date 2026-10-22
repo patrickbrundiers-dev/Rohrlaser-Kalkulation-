@@ -73,6 +73,12 @@ except ValueError:
     pass
 kopie = db.angebot_kopieren(ids[1])
 assert db.angebot(kopie)["vorgang"] is None
+v = db.angebot(ids[1])["versand"]
+assert len(v) == 2 and v[0]["netto"] > 0 and v[0]["datei"].endswith(".pdf"), v
+s.neu_laden()
+assert "Verschickt:" in s.uebersicht_bereich.preisstand.toolTip()
+assert db.angebot(kopie)["versand"] == []
+ok("Verlauf der verschickten Angebots-PDFs (Datum, netto, Datei) im Tooltip des Preisstands; Kopie ohne Verlauf")
 ok("Beauftragt und Abgelehnt von Hand, Filter je Vorgang, Kopie beginnt als Entwurf")
 
 # ältere Datei (Schema 34): festgeschriebene Preise = Verschickt
@@ -84,6 +90,7 @@ c = sqlite3.connect(alt)
 c.execute("UPDATE angebote SET vorgang=NULL")
 c.execute("ALTER TABLE angebote DROP COLUMN vk_am")
 c.execute("ALTER TABLE angebote DROP COLUMN vorgang")
+c.execute("ALTER TABLE angebote DROP COLUMN versand")
 c.execute("PRAGMA user_version=34")
 c.commit()
 c.close()
