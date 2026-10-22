@@ -605,7 +605,7 @@ SCHNEID = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 22),
            ("Zeit klein [s]", "zeit_klein", 1, 13),
            ("Gravur [mm]", "mm_gravur", 1, 13), ("Zeit Gravur [s]", "zeit_gravur", 1, 13),
            ("Einstiche", "einstiche_teil", 0, 12), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 14),
-           ("Laserzeit brutto [s]", "laser_brutto", 1, 14), ("Einsparung [s]", "einsparung", 1, 14),
+           ("Mehrzeit 3D [s]", "zeit_d3", 1, 14), ("Laserzeit brutto [s]", "laser_brutto", 1, 14), ("Einsparung [s]", "einsparung", 1, 14),
            ("Laserzeit netto [s]", "laser_netto", 1, 14)]
 assert sum(s[3] for s in SCHNEID) <= 273
 

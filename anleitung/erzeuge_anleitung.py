@@ -1285,8 +1285,16 @@ def kapitel_optimieren(i):
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
             "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
-            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i> und <i>davon Einstiche</i> "
-            "zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
+            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i>, <i>davon Einstiche</i> "
+            "und <i>davon Mehrzeit 3D</i> zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
+            "<b>3D-Bearbeitung</b> (nur Teile mit Häkchen <i>3D-Schnittbearbeitung</i> auf einer Maschine mit "
+            "<i>3D: Bearbeitung verfügbar = ja</i>): Gehrungen in 3D und schräge Bohrungen rechnen mit den "
+            "Schneiddaten der wirksamen Dicke Wand ÷ cos(Winkel), z. B. 3 mm Wand bei 30° wie 3,46 mm, bei 45° wie "
+            "4,24 mm, × <i>3D: Faktor Schneidzeit</i> + <i>3D: Zusatzzeit je Bearbeitung</i>. <i>davon Mehrzeit 3D</i> "
+            "ist der Unterschied zu demselben Weg in 2D, <i>3D-Bearbeitung je Teil</i> die ganze 3D-Zeit. Winkel über "
+            "der Grenze der Maschine (Vorgabe ±45°) werden auf die Grenze begrenzt und so gerechnet, die Position "
+            "bekommt die WARNUNG <i>3D-Winkel begrenzt, Kontur nicht maßhaltig</i>. 3D auf einer Maschine ohne 3D ist "
+            "ein FEHLER, es wird nichts stillschweigend als 2D gerechnet.",
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz "
             "des Arbeitsschritts Gewinde.",
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
@@ -2635,6 +2643,17 @@ def kapitel_stammdaten(i):
                                            "Stangenwechsel ([[schweissnaht]])"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
+        ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
+                                      "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
+                                      "ist"],
+        ["3D: Schwenkwinkel min. [°], 3D: Schwenkwinkel max. [°]", "Grenzen des Kopfschwenks (Vorgabe −45° und +45°); größere Winkel "
+                                              "werden auf die Grenze begrenzt. Eine Gehrung in 3D braucht beide "
+                                              "Richtungen, dort gilt die kleinere Grenze"],
+        ["3D: Greifmaß [mm]", "Abstand, den eine 3D-Bearbeitung am letzten Teil einer Stange vom Stangenende "
+                              "braucht (Vorgabe 300 mm). Zählt statt des Greiferrests, wenn größer, nie zusätzlich"],
+        ["3D: Zusatzzeit je Bearbeitung [s], 3D: Faktor Schneidzeit",
+         "Zeit je 3D-Bearbeitung (Kopf schwenken, Vorgabe 0 s) und Faktor auf die 3D-Schneidzeit (Vorgabe 1,0); "
+         "erst mit echten Zeiten der Maschine ändern"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
@@ -3668,6 +3687,12 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.14", "Grundlage für die <b>3D-Schnittbearbeitung</b> mit geschwenktem Laserkopf: neue Maschinenwerte "
+               "<i>3D: Bearbeitung verfügbar</i> (Vorgabe nein), Schwenkwinkel min./max. (±45°), Greifmaß (300 mm), "
+               "Zusatzzeit und Faktor. Gehrungen in 3D und schräge Bohrungen rechnen mit den Schneiddaten der "
+               "wirksamen Dicke Wand ÷ cos(Winkel); die Kalkulation zeigt die <i>Mehrzeit 3D</i> getrennt. Winkel "
+               "über der Grenze werden begrenzt (WARNUNG), 3D auf einer Maschine ohne 3D ist ein FEHLER. Die Eingabe "
+               "im Schneidweg-Rechner und das Greifmaß in der Optimierung folgen."],
     ["0.8.13", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
               "Gehrungen: wenige Sekunden statt mehrerer Minuten), gleiche Ergebnisse. Vergleich mit 12 m nur noch, wenn "
               "in den Einstellungen eingeschaltet (Vorgabe aus, [[lieferlaengen]]). Gehrungen ohne angegebene "

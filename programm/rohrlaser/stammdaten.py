@@ -303,7 +303,13 @@ MASCHINEN = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=160),
      Feld("max_huellkreis", "Max. Hüllkreis-Ø [mm]", "zahl", 1, 2000, stellen=1),
      Feld("max_kg_m", "Max. Metergewicht [kg/m]", "zahl", 0.1, 1000, stellen=1),
-     Feld("min_stange", "Min. Stangenlänge Zuschnitt [mm]", "ganz", 0, 20000)),
+     Feld("min_stange", "Min. Stangenlänge Zuschnitt [mm]", "ganz", 0, 20000),
+     Feld("d3", "3D: Bearbeitung verfügbar", "auswahl", auswahl="janein", breite=80),
+     Feld("schwenk_min", "3D: Schwenkwinkel min. [°]", "zahl", -89, 0, stellen=0, breite=85),
+     Feld("schwenk_max", "3D: Schwenkwinkel max. [°]", "zahl", 0, 89, stellen=0, breite=85),
+     Feld("greif_3d", "3D: Greifmaß [mm]", "zahl", 0, 5000, stellen=0, breite=80),
+     Feld("zeit_3d", "3D: Zusatzzeit je Bearbeitung [s]", "zahl", 0, 600, stellen=1, breite=95),
+     Feld("faktor_3d", "3D: Faktor Schneidzeit", "zahl", 0.1, 10, stellen=2, breite=80)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -312,7 +318,11 @@ MASCHINEN = Tabelle(
     "und werden nicht eingeplant (leer = keine Grenze). Min. Stangenlänge Zuschnitt: kürzeste Stange, die die "
     "automatische Stangenladung nimmt; keine aus einer Lieferstange (z. B. 12 m) zugeschnittene Stange wird kürzer "
     "(leer oder 0 = keine Grenze). Stangenwechsel SN: Zeit je Stange, auf der ein Teil eine feste "
-    "Schweißnaht-Lage hat (Naht ausrichten), alle anderen Stangen mit 'Stangenwechsel' (leer = wie Stangenwechsel).")
+    "Schweißnaht-Lage hat (Naht ausrichten), alle anderen Stangen mit 'Stangenwechsel' (leer = wie Stangenwechsel). "
+    "3D (geschwenkter Laserkopf für Gehrungen in 3D und schräge Bohrungen): nur mit 'ja' kalkuliert; Winkel "
+    "außerhalb min./max. werden auf die Grenze begrenzt. Greifmaß: Abstand, den eine 3D-Bearbeitung am letzten Teil "
+    "einer Stange vom Stangenende braucht (zählt statt des Greiferrests, wenn größer, nie zusätzlich). Schneidzeit "
+    "3D = Schneiddaten bei Wand ÷ cos(Winkel) × Faktor + Zusatzzeit je Bearbeitung.")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -969,11 +979,14 @@ def beispiel_oberflaechen():
             ("E6/EV1", "Aluminium", 3.50, "E6/EV1 eloxiert", "Beispielpreis")]
 
 
+# 3D-Bearbeitung je Maschine (Patrick 22.10.2026, F2 a): keine vorbelegt; Grenzen ±45°, Greifmaß 300 mm, Zusatzzeit
+# 0 s, Faktor 1 – (verfügbar, Schwenk min., Schwenk max., Greifmaß, Zusatzzeit, Faktor)
+MASCHINE_3D = ("nein", -45, 45, 300, 0, 1.0)
 # Maschinen (Werte von Patrick, 20.10.2026): T03 Trumpf CO₂-Laser, T11 Trumpf und LT7 Adige Faserlaser
 BEISPIEL_MASCHINEN = [
-    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "CO₂-Laser", 255, 36, 2500),
-    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 255, 36, 2500),
-    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 214, 23, 2500)]
+    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "CO₂-Laser", 255, 36, 2500, *MASCHINE_3D),
+    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 255, 36, 2500, *MASCHINE_3D),
+    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 214, 23, 2500, *MASCHINE_3D)]
 # Stangenwechsel bis 0.8.9 (ein Wert je Maschine); seit 0.8.10 normal 24 s und mit Schweißnaht-Vorgabe (SN) 29 s
 ALTER_STANGENWECHSEL = {"T03": 29, "T11": 29, "LT7": 25}
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
