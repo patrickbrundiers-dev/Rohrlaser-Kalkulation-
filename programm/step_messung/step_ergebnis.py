@@ -19,11 +19,17 @@ Versionen von SCHEMA_VERSION:
 - 1.3 (22.10.2026): Konturarten "Senkung" (durchmesser = gelaserte Bohrung, senk_durchmesser) und "Fließloch"
   (Flowdrill mit Kragen: durchmesser = Kernloch, kragen_durchmesser, schnittlaenge 0, nicht im Schneidweg); je Körper
   "senkungen" und "fliessloecher" als Liste mit Anzahl. Felder aus 1.2 unverändert.
+- 1.4 (22.10.2026): Anbauteile (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten). Alle Maße, Konturen und
+  der Schneidweg gelten für die Rohrlaser-Geometrie OHNE Anbauteile. Je Körper "anbauteile" (Liste: nr, art, quelle
+  "verschmolzen" oder "Körper n", z ab Ende A, winkel, u, seite, aufstand {form, umfang, flaeche, durchmesser bzw.
+  laenge/breite}, hoehe, volumen, bearbeitung Umriss/Positionsmarke/keine, gravur_laenge, vertrauen sicher/prüfen,
+  hinweis), "trennung" (regelanteil, laengsanbau, ohne_trennung {profil_id, laenge, schneidweg, pruefstatus}) oder
+  null, im Block "schneidweg" zusätzlich "gravur_anbau" (in "gravur" enthalten). Felder aus 1.3 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.3"
+SCHEMA_VERSION = "1.4"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -98,7 +104,8 @@ def koerper(t):
         "schnittwinkel": {name: dict(form=e.get("form"), gesamt=e.get("gehrung"), um_x=e.get("um_x"),
                                      um_y=e.get("um_y"), richtung=e.get("richtung")) for name, e in enden.items()} if konturen_ausgewertet else None,
         "schneidweg": dict(gesamt=_r(t.schneidweg, 2), ende_a=_r(t.ende_a, 2), ende_b=_r(t.ende_b, 2),
-                           innen=_r(t.innen, 2), gravur=_r(t.gravur, 2), einstiche=t.konturen)
+                           innen=_r(t.innen, 2), gravur=_r(t.gravur, 2), gravur_anbau=_r(t.gravur_anbau, 2),
+                           einstiche=t.konturen)
         if konturen_ausgewertet else None,
         "konturen": [dict(d) for d in konturen] if konturen_ausgewertet else None,
         "senkungen": [dict(durchmesser=_r(d), senk_durchmesser=_r(s_), anzahl=n)
@@ -115,6 +122,8 @@ def koerper(t):
         "warnungen": list(t.hinweise),
         "erkennungssicherheit": dict(t.sicherheit),
         "ersatzwerte": bool(t.ersatz),
+        "anbauteile": [dict(a) for a in t.anbauteile],
+        "trennung": dict(t.trennung) if t.trennung else None,
         "alternative": {k: v for k, v in koerper(t.alternative).items() if k != "nr"} if t.alternative else None,
     }
 

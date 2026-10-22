@@ -464,4 +464,51 @@ if __name__ == "__main__":
     for z in (100, 900):
         tr = cut(tr, zylinder((-10, 100, z), (1, 0, 0), 13, 20))
     schreibe(tr, "TR09_IPE200_Stegbohrungen_L1000", tg)
-    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, ",", ref, ",", bl, "und", tg)
+    # Anbauteile (tests/step_anbau): Rohr und aufgeschweißte Teile als EIN Körper (verschmolzen) oder als eigene
+    # Körper; Querschnitt in XY, Breite in X, 0° = +Y (oben), +X = 270°, Länge in Z ab 0
+    an = ZIEL.parent / "step_anbau"
+
+    def fuse(*s_):
+        out = s_[0]
+        for x in s_[1:]:
+            out = BRepAlgoAPI_Fuse(out, x).Shape()
+        return out
+
+    def box(x, y, z, dx, dy, dz):
+        return BRepPrimAPI_MakeBox(gp_Pnt(x, y, z), dx, dy, dz).Shape()
+    re_ = kastenrohr(60, 40, 3, 1000, 4)
+    schreibe(re_, "A01_RE60x40x3_ohne_Anbau", an)
+    # Bolzen Ø8 x 20 oben bei z 500 (liegt im ersten Prüfschnitt der Messung, früher Sonderprofil 60 x 59,5)
+    schreibe(fuse(re_, zylinder((0, 19.5, 500), (0, 1, 0), 8, 20)), "A02_RE60x40x3_Bolzen", an)
+    qr = kastenrohr(40, 40, 3, 800, 4)
+    schreibe(fuse(qr, zylinder((0, 19.5, 150), (0, 1, 0), 6, 15), zylinder((0, 19.5, 300), (0, 1, 0), 6, 15),
+                  zylinder((19.5, 0, 450), (1, 0, 0), 6, 15), zylinder((19.5, 0, 600), (1, 0, 0), 6, 15)),
+             "A03_QR40x3_4Bolzen", an)
+    # Blech 8 x 50 x 200 hochkant oben auf dem Rundrohr (früher nicht messbar)
+    schreibe(fuse(rundrohr(42.4, 2.0, 1000), box(-4, 20.5, 400, 8, 50, 200)), "A04_RR42-4x2_Blech", an)
+    # drei Laschen: 6 x 30 x 40 oben, 8 x 40 x 80 rechts (+X), 10 x 60 x 120 unten
+    schreibe(fuse(kastenrohr(80, 40, 3, 1200, 4), box(-3, 19.8, 180, 6, 30, 40), box(39.8, -4, 560, 40, 8, 80),
+                  box(-5, -79.8, 890, 10, 60, 120)), "A05_RE80x40x3_3Laschen", an)
+    # nur Bearbeitungen: Bohrung Ø10 oben bei z 200, Langloch 30 x 10 oben bei z 500 (quer), Bohrung Ø8 rechts z 800
+    a6 = cut(re_, zylinder((0, 10, 200), (0, 1, 0), 10, 20))
+    a6 = cut(a6, fuse(box(-10, 10, 495, 20, 20, 10), zylinder((-10, 10, 500), (0, 1, 0), 10, 20),
+                      zylinder((10, 10, 500), (0, 1, 0), 10, 20)))
+    schreibe(cut(a6, zylinder((20, 0, 800), (1, 0, 0), 8, 20)), "A06_RE60x40x3_Bohrungen_ohne_Anbau", an)
+    # Gehrung 30° am Ende B, Bohrung Ø10 oben z 300, Bolzen Ø8 oben z 600, Lasche 6 x 30 x 50 rechts bei z 150
+    a7 = cut(kastenrohr(60, 40, 3, 1200, 4), zylinder((0, 10, 300), (0, 1, 0), 10, 20))
+    a7 = fuse(a7, zylinder((0, 19.5, 600), (0, 1, 0), 8, 20), box(29.8, -3, 125, 30, 6, 50))
+    schreibe(gehrung(a7, 1000, 30), "A07_RE60x40x3_Gehrung_Anbau", an)
+    # Bolzen Ø8 x 20 oben z 300 und Blech 150 x 60 x 8 rechts flach angelegt (z 600–750) als eigene Körper bzw.
+    # mit dem Rohr verschmolzen
+    bolzen, blech_ = zylinder((0, 20, 300), (0, 1, 0), 8, 20), box(30, -30, 600, 8, 60, 150)
+    schreibe(baugruppe(re_, bolzen, blech_), "A08_RE60x40x3_Anbau_eigene_Koerper", an)
+    schreibe(fuse(re_, bolzen, blech_), "A09_RE60x40x3_Anbau_verschmolzen", an)
+    # mehrdeutig: Blech 120 x 10 über die ganze Länge oben (Längsanbau)
+    schreibe(fuse(re_, box(-60, 19.9, 0, 120, 10, 1000)), "A10_RE60x40x3_Laengsblech", an)
+    # Kopfplatte am Ende B, Mutter Ø16 x 10 über Bohrung Ø8,5 oben z 450, Klotz an der Ecke oben rechts z 700
+    a11 = cut(re_, zylinder((0, 10, 450), (0, 1, 0), 8.5, 20))
+    mutter = cut(zylinder((0, 19.5, 450), (0, 1, 0), 16, 10), zylinder((0, 19, 450), (0, 1, 0), 8.5, 12))
+    schreibe(fuse(a11, box(-50, -40, 1000, 100, 80, 8), mutter, box(28, 18, 700, 20, 20, 40)),
+             "A11_RE60x40x3_Kopfplatte_Mutter_Ecke", an)
+    print("Testteile geschrieben nach", ZIEL, ",", reg, ",", imp, ",", pro, ",", kon, ",", ref, ",", bl, ",", tg,
+          "und", an)
