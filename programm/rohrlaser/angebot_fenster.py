@@ -1559,8 +1559,12 @@ class AngebotSeite(QWidget):
             self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
             return False
         if werte is None:
+            weitere = {}
+            if len(zeilen) == 1 and not ist_zukaufteil(self.positionen[zeilen[0]]):
+                weitere = {"Schweißnaht …": lambda: self.schweissnaht(list(zeilen)),
+                           "Bohrungen prüfen …": lambda: self.bohrungen_pruefen(list(zeilen))}
             d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen,
-                            self.db.zusatz_haeufigkeit())
+                            self.db.zusatz_haeufigkeit(), weitere)
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis

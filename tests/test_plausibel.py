@@ -136,4 +136,24 @@ assert s.optimieren()
 assert not [t for a_, t in s.freigabe_punkte() if a_ != "HINWEIS"], s.freigabe_punkte()
 assert "alles erledigt" in s.uebersicht_bereich.freigabe_bereich.knopf.text()
 ok("P6 Prüfen vor Freigabe: Kunde, Schnittplan, FEHLER, Gewinde-Vorschlag als Liste in der Übersicht")
+# ------------------------------------------------------------------ P7 ein Bearbeitungsdialog
+from rohrlaser.zusatz_dialog import ZusatzDialog  # noqa: E402
+geoeffnet = []
+d = ZusatzDialog(fenster, s.positionen[0], 1, s.k, s.tabellen, weitere={
+    "Schweißnaht …": lambda: geoeffnet.append("naht"), "Bohrungen prüfen …": lambda: geoeffnet.append("bohr")})
+d.gewinde.setText("")
+d.gewinde_anzahl.setValue(4)
+d.gewinde_wahl.setCurrentText("M6")
+d.gewinde_hinzufuegen()
+d.gewinde_anzahl.setValue(2)
+d.gewinde_wahl.setCurrentText("M8")
+d.gewinde_hinzufuegen()
+assert d.gewinde.text() == "4xM6; 2xM8" and "= 5,8 €" in d.gewinde_info.text(), (d.gewinde.text(), d.gewinde_info.text())
+d.gewinde.setText("4xM7")
+assert "Nicht erkannt: 4xM7" in d.gewinde_info.text()
+d.weitere_knoepfe["Schweißnaht …"].click()
+d.weitere_knoepfe["Bohrungen prüfen …"].click()
+assert geoeffnet == ["naht", "bohr"]
+ok("P7 Zusatzarbeiten-Dialog: Gewinde aus der Liste (4xM6; 2xM8 = 5,80 €), Unbekanntes rot, Schweißnaht und "
+   "Bohrungen von dort erreichbar")
 print("OK: Plausibilität (Prüfbericht B-1, B-2, B-3, B-7, B-9, C-2 Prüfen vor Freigabe)")

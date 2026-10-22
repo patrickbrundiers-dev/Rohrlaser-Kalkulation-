@@ -648,7 +648,7 @@ def kapitel_angebot(i):
             "Maschinenparameter."),
         (2, "<b>Übersicht</b> rechts über die ganze Höhe: Stand der Optimierung, Herstellkosten und Verkaufspreis "
             "groß, Meldungen, Kennzahlen, Kosten nach Gruppen und Zeiten."),
-        (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status ganz rechts."),
+        (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer."),
         (4, "<b>Neue Position</b>; daneben <b>Positionen löschen</b> (markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
@@ -860,6 +860,10 @@ def kapitel_angebot(i):
     i.text("Positionen markieren (eine oder mehrere) und auf <b>Zusatzarbeiten …</b> klicken, oder in der Spalte "
            "<i>Zusatzarbeiten</i> doppelklicken. Im Fenster stehen oben die Gewinde, darunter beliebig viele "
            "Zusatzarbeiten aus den Stammdaten.")
+    i.text("Gewinde lassen sich tippen oder rechts daneben mit Anzahl, Gewinde aus der Liste und <b>Gewinde "
+           "hinzufügen</b> anhängen. Eine Angabe, die das Programm nicht erkennt (z. B. „4xM7“ ohne Stammdaten), "
+           "steht rot darunter, weil sie mit 0 € rechnen würde. Bei einer einzelnen Position führen <b>Schweißnaht "
+           "…</b> und <b>Bohrungen prüfen …</b> unten rechts zur übrigen Bearbeitung derselben Position.")
     i.bild("zusatz_dialog", "Zusatzarbeiten für eine Position: Gewinde, Feuerverzinken und eine zusätzliche Gravur",
            hoehe=80 * mm, legende=[
                (1, "<b>Gewinde (geprüft)</b>: Anzahl x Größe, mehrere mit Semikolon. Darunter der Festpreis je Teil "
