@@ -38,8 +38,8 @@ print("OK: Startordner (Standardordner, sonst zuletzt benutzter Ordner, sonst Be
 
 # 2. Einstellungsseite: Feld mit Ordner wählen/Leeren speichert die Einstellung
 fenster = Hauptfenster(db, stumm=True)
-eingaben = fenster.findChildren(OrdnerEingabe)
-assert len(eingaben) == 1, eingaben
+eingaben = [w for w in fenster.findChildren(OrdnerEingabe) if w.titel == "Standardordner wählen"]   # ohne den
+assert len(eingaben) == 1, eingaben                                     # gemeinsamen Ordner der Mitarbeiter
 w = eingaben[0]
 w._setzen(str(standard))
 assert db.einstellung("step_ordner") == str(standard)

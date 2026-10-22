@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
-from . import fracht_angebot, hilfe, rechnen
+from . import fracht_angebot, hilfe, rechnen, teilen
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
@@ -245,6 +245,12 @@ class KopfBereich(QWidget):
         w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
         g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 6, 0)
         g.addWidget(w, 6, 1, 1, 5)
+        # Bearbeiter (Kürzel und Name, teilen.py): nur Anzeige, gesetzt beim Anlegen
+        self.bearbeiter = QLabel()
+        self.bearbeiter.setToolTip("Mitarbeiter, der das Angebot angelegt hat (Kürzel vorn in der Nummer); im "
+                                   "Angebots-PDF als Ansprechpartner")
+        g.addWidget(QLabel(KOPF_FELD["bearbeiter"].titel), 7, 0)
+        g.addWidget(self.bearbeiter, 7, 1, 1, 5)
         for c in (1, 3, 5):
             g.setColumnStretch(c, 1)
         kl.addLayout(g)
@@ -616,6 +622,9 @@ class KopfBereich(QWidget):
                 else:
                     w.setText(v or "")
         self._lieferzeit_anzeigen()
+        k = s.kopf.get("bearbeiter")
+        name = teilen.mitarbeiter(s.db, k).get("name") if k else None
+        self.bearbeiter.setText(f"{k} – {name}" if k and name else k or "–")
         self.mat_vorgabe.blockSignals(True)
         self.mat_vorgabe.setCurrentText(s.kopf.get("material_vorgabe") or EIGENMATERIAL)
         self.mat_vorgabe.blockSignals(False)

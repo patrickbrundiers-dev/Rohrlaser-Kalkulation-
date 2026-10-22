@@ -33,6 +33,7 @@ UEBERSICHT = [
      "überall"),
     ("Strg+Bild↓", "Nächster Unterreiter, z. B. Positionen → Kalkulation (Strg+Bild↑: vorheriger, wie in Excel)",
      "Angebot, Einstellungen, Zukauf, Fracht"),
+    ("Strg+Umschalt+A", "Mit den Kollegen abgleichen (Angebote und Stammdaten, gemeinsamer Ordner)", "überall"),
     ("F1", "Bedienungsanleitung", "überall"),
     ("Alt+F4", "Programm beenden", "überall"),
 ]

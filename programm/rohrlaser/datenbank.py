@@ -28,12 +28,12 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import zukauf
+from . import teilen, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
-from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, lieferzeit_wert,
-                      naechste_nummer)
+from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
+                      lieferzeit_wert, naechste_nummer, nummer_mit_kuerzel)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
@@ -41,7 +41,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 43     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 44     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -81,6 +81,8 @@ SCHEMA_VERSION = 43     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     mit Bearbeitung, Gravur und Prüfstatus als JSON; ältere Positionen leer)
                         # 43: RP-Kalkulation: schneiddaten.zeit_ecke (Zeit je Ecke), maschinen.sonder_spannbar,
                         #     ruest_sonder, duese_min (neue Spalten leer = 0 bzw. keine Prüfung)
+                        # 44: Mehrere Arbeitsplätze (teilen.py): Kennung uid je Stammdatenzeile, Tabelle teilen_basis,
+                        #     angebote.bearbeiter (Kürzel), angebote.fremd/fremd_stand (Angebote anderer Mitarbeiter)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -261,6 +263,7 @@ class Datenbank:
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             if version > 0 and self.einstellung("bohr_zusatz_stand") != BOHR_ZUSATZ_STAND:
                 self._bohr_zusatz_ergaenzen()
+            teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
 
@@ -535,8 +538,13 @@ class Datenbank:
             self.con.execute("UPDATE OR IGNORE einstellungen SET name=? WHERE name=?", (neu, alt))
 
     # -------------------------------------------------------------- Stammdaten
-    def zeilen(self, tabelle):
-        return [dict(r) for r in self.con.execute(f'SELECT * FROM "{tabelle}" ORDER BY id')]
+    def zeilen(self, tabelle, mit_uid=False):
+        """Alle Zeilen als dicts; die Kennung uid (Abgleich mehrerer Arbeitsplätze, teilen.py) nur mit mit_uid."""
+        out = [dict(r) for r in self.con.execute(f'SELECT * FROM "{tabelle}" ORDER BY id')]
+        if not mit_uid:
+            for z in out:
+                z.pop("uid", None)
+        return out
 
     def anzahl(self, tabelle):
         return self.con.execute(f'SELECT COUNT(*) FROM "{tabelle}"').fetchone()[0]
@@ -549,7 +557,7 @@ class Datenbank:
             self._einstellung_schreiben("stammdaten_stand", self._jetzt())
 
     def neu(self, tabelle, werte=None):
-        werte = {k: v for k, v in (werte or {}).items() if k != "id"}
+        werte = {k: v for k, v in (werte or {}).items() if k not in ("id", "uid")}    # neue Zeile: neue Kennung
         with self.con:
             self._stammdaten_geaendert(tabelle)
             if not werte:
@@ -1305,7 +1313,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, a.vorgang, a.vk_am, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1337,11 +1345,20 @@ class Datenbank:
     def angebot_neu(self, kopf=None):
         """Neues Angebot mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch."""
         kopf = dict(kopf or {})
+        kuerzel = kuerzel_sauber(self.einstellung("benutzer_kuerzel"))
         if not kopf.get("nummer"):
-            nr = naechste_nummer(self.einstellung("letzte_angebotsnummer"))
+            if kuerzel:          # Kürzel vorn, eigener Zähler je Kürzel und Jahr (auch über gelöschte Angebote)
+                jahr = str(kopf.get("datum") or datetime.date.today().isoformat())[:4]
+                vergeben = [r[0] for r in self.con.execute("SELECT nummer FROM angebote")]
+                vergeben.append(self.einstellung("letzte_angebotsnummer"))
+                nr = nummer_mit_kuerzel(kuerzel, jahr, vergeben)
+            else:
+                nr = naechste_nummer(self.einstellung("letzte_angebotsnummer"))
             while self.con.execute("SELECT 1 FROM angebote WHERE nummer=?", (nr,)).fetchone():
                 nr = naechste_nummer(nr)
             kopf["nummer"] = nr
+        if kuerzel:
+            kopf.setdefault("bearbeiter", kuerzel)
         kopf.setdefault("datum", datetime.date.today().isoformat())
         kopf.setdefault("maschine", self.einstellung("standard_maschine"))
         kopf.setdefault("stange", self.einstellung("standard_stange"))
@@ -1403,7 +1420,7 @@ class Datenbank:
         """Kopie mit neuer Nummer und heutigem Datum. kundennr: anderer Kunde (Name und Zahlungsbedingungen
         aus dem Kundenstamm, sonst bleibt nur die Nummer); None = gleicher Kunde."""
         a = self.angebot(angebot_id)
-        kopf = {f.name: a[f.name] for f in KOPF if f.name != "nummer"}
+        kopf = {f.name: a[f.name] for f in KOPF if f.name not in ("nummer", "bearbeiter")}     # Kopie: eigene Nummer
         kopf["datum"] = datetime.date.today().isoformat()
         kopf["zeitbasis"] = a.get("zeitbasis")      # gleiche Stundensätze; ältere Angebote: aktuelle Vorgaben
         if kundennr is not None and kundennr != a.get("kundennr"):

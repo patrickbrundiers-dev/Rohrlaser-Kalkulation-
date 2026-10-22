@@ -25,6 +25,7 @@ KOPF_ROLLEN = {
     "programmierung_zeit": OPTIONAL, "programmierung_kontur": OPTIONAL, "programmierung_teil": OPTIONAL, "angebotsaufschlag": OPTIONAL,
     "handling_beistellung": OPTIONAL, "material_vorgabe": STAMM,
     "kundenreferenz": STAMM, "lieferzeit_art": STAMM, "lieferzeit_wert": STAMM, "lieferzeit_zusatz": STAMM,
+    "bearbeiter": STAMM,
 }
 
 _ZAHL = re.compile(r"^[+-]?(\d{1,3}(\.\d{3})+|\d+)(,\d+)?$|^[+-]?\d+(\.\d+)?$")

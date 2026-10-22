@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import anbau, blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    vorschau, zukauf, zukauf_ek
+    teilen, vorschau, zukauf, zukauf_ek
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
@@ -208,6 +208,12 @@ def angebot_status(z):
 
 class AngeboteListe(Liste):
     def data(self, index, rolle=Qt.DisplayRole):
+        if rolle == Qt.ForegroundRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
+            return QBrush(QColor(FREMD_FARBE))          # Angebote anderer Mitarbeiter: grau, nur zum Ansehen
+        if rolle == Qt.FontRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
+            f = QFont()
+            f.setItalic(True)
+            return f
         if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] in ("Status", "Vorgang"):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
@@ -219,11 +225,21 @@ class AngeboteListe(Liste):
         return super().data(index, rolle)
 
 
+FREMD_FARBE = "#6B7280"
+
+
+def bearbeiter(z):
+    """Kürzel des Bearbeiters; Angebote eines Kollegen ohne Kürzel (vor 0.8.30 angelegt): das Kürzel seiner Datei."""
+    return z.get("bearbeiter") or z.get("fremd") or ""
+MEINE, ALLE = "Meine Angebote", "Alle Mitarbeiter"
+
+
 class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
 
-    SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
+    SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Bearbeiter", lambda z: bearbeiter(z), None, 70),
+               ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
                ("Vorgang", lambda z: vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else ""), None, 140),
                ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
@@ -253,6 +269,15 @@ class AngeboteSeite(QWidget):
         self.vorgang_filter.addItems(list(VORGANG_FILTER))
         self.vorgang_filter.setToolTip("Angebote nach Vorgang zeigen; abgelaufen = verschickt und Gültigkeit vorbei")
         self.vorgang_filter.currentTextChanged.connect(self.neu_laden)
+        # Mehrere Arbeitsplätze (teilen.py): eigene Angebote, alle oder die eines Kollegen
+        self.wer_filter = QComboBox()
+        self.wer_filter.setToolTip("Eigene Angebote, alle oder die eines Kollegen zeigen. Angebote der Kollegen "
+                                   "(grau) lassen sich ansehen und als Kopie übernehmen.")
+        self.wer_filter.currentTextChanged.connect(self.neu_laden)
+        self.abgleich_knopf = QPushButton("Abgleichen")
+        self.abgleich_knopf.setToolTip("Eigene Angebote in den gemeinsamen Ordner legen und Angebote und Stammdaten "
+                                       "der Kollegen holen (auch beim Start und Beenden)")
+        self.abgleich_knopf.clicked.connect(lambda: self.f.abgleichen())
         self.vorgang_knopf = QPushButton("Vorgang ▾")
         self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
                                       "Angebots-PDF selbst), Beauftragt, Abgelehnt")
@@ -272,7 +297,9 @@ class AngeboteSeite(QWidget):
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addWidget(self.vorgang_knopf)
+        leiste.addWidget(self.abgleich_knopf)
         leiste.addSpacing(20)
+        leiste.addWidget(self.wer_filter)
         leiste.addWidget(self.vorgang_filter)
         leiste.addWidget(self.suche, 1)
         lay = QVBoxLayout(self)
@@ -283,17 +310,47 @@ class AngeboteSeite(QWidget):
     def neu_laden(self, *_):
         tage = self.db.einstellung("gueltigkeit")
         passt = VORGANG_FILTER.get(self.vorgang_filter.currentText(), VORGANG_FILTER["Alle Angebote"])
+        alle = self.db.angebote(self.suche.text().strip())
+        wer = self._wer_fuellen(alle)
         zeilen = []
-        for z in self.db.angebote(self.suche.text().strip()):
+        for z in alle:
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
-            if passt(vorgang(z), z["_abgelaufen"]):
-                zeilen.append(z)
+            if not passt(vorgang(z), z["_abgelaufen"]):
+                continue
+            if wer == MEINE and z.get("fremd") or wer not in (MEINE, ALLE) and bearbeiter(z) != wer:
+                continue
+            zeilen.append(z)
         self.modell.setzen(zeilen)
+
+    def _wer_fuellen(self, alle):
+        """Auswahl Meine/Alle/Kürzel nur, wenn geteilt wird oder Angebote anderer da sind. Ergebnis: Auswahl."""
+        kuerzel = sorted({bearbeiter(z) for z in alle if z.get("fremd")} - {None, ""})
+        eintraege = [MEINE, ALLE] + kuerzel if (kuerzel or teilen.aktiv(self.db)) else []
+        sichtbar_jetzt = bool(eintraege)
+        self.wer_filter.setVisible(sichtbar_jetzt)
+        self.abgleich_knopf.setVisible(teilen.aktiv(self.db))
+        if [self.wer_filter.itemText(i) for i in range(self.wer_filter.count())] != eintraege:
+            alt = self.wer_filter.currentText()
+            self.wer_filter.blockSignals(True)
+            self.wer_filter.clear()
+            self.wer_filter.addItems(eintraege)
+            self.wer_filter.setCurrentText(alt if alt in eintraege else ALLE if eintraege else "")
+            self.wer_filter.blockSignals(False)
+        return self.wer_filter.currentText() if sichtbar_jetzt else ALLE
+
+    def _fremd(self, i, was):
+        """Angebot eines Kollegen: Hinweis statt Ändern. Ergebnis: True = fremd (nichts tun)."""
+        a = self.db.angebot(i) or {}
+        if not a.get("fremd"):
+            return False
+        self.f.meldung(f"Angebot {a['nummer']} gehört {a['fremd']}: {was} kann nur {a['fremd']}. "
+                       "Zum Weiterarbeiten „Kopieren“ (eigene Kopie mit eigener Nummer).", fehler=True)
+        return True
 
     def vorgang_setzen(self, v, angebot_id=None):
         """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …)."""
         i = angebot_id or self._gewaehlt()
-        if not i:
+        if not i or self._fremd(i, "den Vorgang setzen"):
             return False
         self.db.vorgang_setzen(i, v)
         self.neu_laden()
@@ -349,7 +406,8 @@ class AngeboteSeite(QWidget):
         kunde.setCurrentIndex(i)
         if i < 0:
             kunde.setEditText(a.get("kundennr") or "")
-        text = QLabel("Die Kopie bekommt eine neue Nummer und das heutige Datum. Für einen anderen Kunden "
+        text = QLabel(("Angebot von " + a["fremd"] + ": " if a.get("fremd") else "") +
+                      "Die Kopie bekommt eine neue, eigene Nummer und das heutige Datum. Für einen anderen Kunden "
                       "kommen Name und Zahlungsbedingungen aus dem Kundenstamm.")
         text.setWordWrap(True)
         d.setMinimumWidth(460)
@@ -365,7 +423,7 @@ class AngeboteSeite(QWidget):
 
     def loeschen(self):
         i = self._gewaehlt()
-        if not i:
+        if not i or self._fremd(i, "löschen"):
             return
         a = self.db.angebot(i)
         if QMessageBox.question(self, "Angebot löschen", f"Angebot {a['nummer']} mit allen Positionen löschen?\n\n"
@@ -699,7 +757,7 @@ class PositionenModell(QAbstractTableModel):
 
     def flags(self, index):
         f = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-        if self.spalten[index.column()][0] == "feld":
+        if self.spalten[index.column()][0] == "feld" and not (self.s.kopf or {}).get("fremd"):
             f |= Qt.ItemIsEditable
         return f
 
@@ -1268,7 +1326,7 @@ class AngebotSeite(QWidget):
                            ("Positionen löschen", self.positionen_loeschen)):
             self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
         self.pos_ansicht.customContextMenuRequested.connect(
-            lambda punkt: self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
+            lambda punkt: self.fremd() or self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
 
         self.kalk = Liste(KALK_SPALTEN, max_stellen=2)
@@ -1426,15 +1484,54 @@ class AngebotSeite(QWidget):
         self.spalten.setStretchFactor(0, 1)
         self.spalten.setStretchFactor(1, 0)
         self.spalten.setChildrenCollapsible(False)
+        # Angebot eines Kollegen (teilen.py): Hinweis mit Kopieren, Eingaben gesperrt
+        self.fremd_leiste = QFrame()
+        self.fremd_leiste.setStyleSheet("QFrame { background: #FFF4D6; border: 1px solid #E8C66B; border-radius: 4px; }"
+                                        "QLabel { border: none; }")
+        fl = QHBoxLayout(self.fremd_leiste)
+        fl.setContentsMargins(10, 6, 10, 6)
+        self.fremd_text = QLabel()
+        self.fremd_text.setWordWrap(True)
+        fl.addWidget(self.fremd_text, 1)
+        kopie = QPushButton("Als Kopie übernehmen")
+        kopie.setToolTip("Eigene Kopie mit eigener Nummer und heutigem Datum anlegen und öffnen")
+        kopie.clicked.connect(lambda: self.als_kopie())
+        fl.addWidget(kopie)
+        self.fremd_leiste.hide()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
+        lay.addWidget(self.fremd_leiste)
         lay.addWidget(self.spalten, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()
 
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
-        return f"Angebot {self.kopf.get('nummer') or ''}"
+        return f"Angebot {self.kopf.get('nummer') or ''}" + (f" ({self.kopf['fremd']})" if self.kopf.get("fremd") else "")
+
+    def fremd(self):
+        """Kürzel des Kollegen, wenn das Angebot einem anderen Mitarbeiter gehört (nur ansehen), sonst None."""
+        return (self.kopf or {}).get("fremd") or None
+
+    def _fremd_anzeigen(self):
+        k = self.fremd()
+        self.fremd_leiste.setVisible(bool(k))
+        self.kopf_bereich.setEnabled(not k)
+        self.leiste.links.setEnabled(not k)
+        self.setAcceptDrops(not k)
+        if k:
+            m = teilen.mitarbeiter(self.db, k)
+            wer = f"{m.get('name')} ({k})" if m.get("name") else k
+            self.fremd_text.setText(f"<b>Angebot von {wer}</b> – nur zum Ansehen (Stand des letzten Abgleichs). "
+                                    "Ändern kann es nur der Bearbeiter; zum Weiterarbeiten als eigene Kopie übernehmen.")
+
+    def als_kopie(self):
+        """Fremdes (oder eigenes) Angebot kopieren: eigene Nummer, öffnet die Kopie."""
+        neu = self.db.angebot_kopieren(self.id)
+        self.f.angebote.neu_laden()
+        self.f.angebot_oeffnen(neu)
+        self.f.meldung(f"Kopie {self.db.angebot(neu)['nummer']} von Angebot {self.kopf.get('nummer')} angelegt.")
+        return neu
 
     def neu_laden(self, *_):
         # Kalkulation nur einmal je Neuladen rechnen (Übersicht, Staffeln, Nachkalkulation; Performance-Audit 22.10.2026)
@@ -1451,6 +1548,7 @@ class AngebotSeite(QWidget):
         if self.db.fracht_auto_nachfuehren(self.id):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
             a = self.db.angebot(self.id)
         self.kopf = a
+        self._fremd_anzeigen()
         self.ergebnis = a["ergebnis"]
         self.positionen = self.db.positionen(self.id)
         # festgeschriebene Materialpreise und Schneiddaten gehen den aktuellen Stammdaten vor
@@ -2570,6 +2668,7 @@ class AngebotSeite(QWidget):
         zeilen, _ = self._rechnung()
         ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp, ergebnis=self.ergebnis)
         ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
+        ang["ansprechpartner"] = teilen.mitarbeiter(self.db, self.kopf["bearbeiter"]) if self.kopf.get("bearbeiter") else {}
         return ang
 
     def angebot_pdf(self):
@@ -2592,7 +2691,7 @@ class AngebotSeite(QWidget):
             return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
                                lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
-        if pfad is not None:
+        if pfad is not None and not self.fremd():     # Angebot eines Kollegen: nur ansehen, nichts festschreiben
             self.preise_festschreiben()
             self.db.versand_merken(self.id, dict(datum=datetime.date.today().isoformat(), netto=ang["netto"],
                                                  datei=Path(pfad).name))
@@ -2744,7 +2843,7 @@ class AngebotSeite(QWidget):
     def dropEvent(self, ereignis):
         self._ablage_hervorheben(False)
         dateien = self._gezogene_dateien(ereignis)
-        if dateien:
+        if dateien and not self.fremd():
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
 

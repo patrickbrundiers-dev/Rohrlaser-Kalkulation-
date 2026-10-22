@@ -263,10 +263,16 @@ def _angebot_kopf(kopf, ang, einst):
              ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
     if ang.get("kundenreferenz"):
         daten.append(("Ihre Anfrage", ang["kundenreferenz"]))
-    rechts = Table([[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")] or [[""]],
-                   colWidths=[28 * mm, 38 * mm])
-    rechts.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                                ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]))
+    ap = ang.get("ansprechpartner") or {}      # Bearbeiter des Angebots (Benutzer und Kürzel, teilen.mitarbeiter)
+    daten += [("Ansprechpartner", ap.get("name")), ("Telefon", ap.get("telefon"))]
+    zeilen = [[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")]
+    stil = [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]
+    if ap.get("email"):         # E-Mail über die ganze Breite (lange Adressen ohne Umbruch)
+        stil.append(("SPAN", (0, len(zeilen)), (1, len(zeilen))))
+        zeilen.append([_p(ap["email"], S_A_RECHTS), ""])
+    rechts = Table(zeilen or [[""]], colWidths=[28 * mm, 38 * mm])
+    rechts.setStyle(TableStyle(stil))
     t = Table([[anschrift, rechts]], colWidths=[120 * mm, 66 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                            ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
