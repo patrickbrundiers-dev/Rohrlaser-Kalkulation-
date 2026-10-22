@@ -176,6 +176,7 @@ assert {n for n, _, _ in z["preis"]["ruesten"]} >= {"Rüsten Maschine"}
 ok("6  Fertigung und Rüsten je Stufe = Zeit × Stundensatz der Arbeitsschritte (Rüstzeit getrennt von Stückzeit)")
 
 # 9) Änderung eines Werts der Stufe: sofort neue Preise, kein neuer Mengenlauf
+from PySide6.QtCore import Qt  # noqa: E402
 from rohrlaser.staffel_seite import StufeDialog, angebotspreise  # noqa: E402
 st = s.st_seite
 m = st.modell
@@ -222,13 +223,40 @@ except ValueError:
     pass
 d.felder["gewinn"].setText("12,5")
 d.felder["neben_einheit"].setText("2,5")
+# Häkchen je Satz bzw. Position: bestehende Stufe = ihre Mengenzeilen angehakt
+aw = staffeln.auswahl(s.positionen)
+assert [d.drin(r) for r in range(len(aw))] == [any(staffeln.txt(z["schluessel"]) == schl and z.get("stufe_id") ==
+                                                   m.daten[3]["id"] for z in s.stufen) for schl, _, _ in aw]
+d.alle_haken(True)
 d.mengen_aus_angebot(2)
+for r, (_, _, menge) in enumerate(aw):
+    if not menge:                     # ohne Menge im Angebot: angehakt und leer -> Fehler, also abhaken
+        try:
+            d.werte()
+            raise AssertionError("angehakt ohne Menge angenommen")
+        except ValueError as e:
+            assert "Häkchen" in str(e)
+        d.mengen.item(r, 0).setCheckState(Qt.Unchecked)
 werte, preise, mengen = d.werte()
-assert werte["gewinn"] == 12.5 and len(mengen) == len([x for x in staffeln.auswahl(s.positionen) if x[2]])
+assert werte["gewinn"] == 12.5 and len(mengen) == len([x for x in aw if x[2]])
+d.mengen.item(0, 0).setCheckState(Qt.Unchecked)          # abgehakt: Menge zählt nicht
+assert [x[0] for x in d.werte()[2]] == [x[0] for x in aw[1:] if x[2]]
+d.mengen.item(0, 2).setText("7")                          # Menge eintragen hakt an
+assert d.drin(0) and d.werte()[2][0][:2] == (aw[0][0], 7)
+d.alle_haken(False)
+try:
+    d.werte()
+    raise AssertionError("Stufe ohne Position angenommen")
+except ValueError:
+    pass
+d.reject()
+d = StufeDialog(st, m.daten[3], neu=True)                 # neue Stufe: anfangs alle angehakt
+assert all(d.drin(r) for r in range(d.mengen.rowCount()))
 d.reject()
 speichern(0, neben_einheit=2.5)
 assert nah(st.zeilen[0]["preis"]["neben"], 2.5 * st.zeilen[0]["menge"])
-ok("Fenster der Stufe: Einstellungen wie im Angebot (leer = grau), Rabattprüfung, Mengen = Angebot × 2; "
+ok("Fenster der Stufe: Einstellungen wie im Angebot (leer = grau), Rabattprüfung, Häkchen je Satz/Pos. "
+   "(neu: alle), Mengen = Angebot × 2; "
    "Nebenkosten je Einheit wirken sofort")
 
 # Menge geändert: Stufe veraltet, Hintergrundlauf rechnet nur sie neu
