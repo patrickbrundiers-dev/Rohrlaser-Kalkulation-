@@ -1473,7 +1473,7 @@ def kapitel_optimieren(i):
             "gilt die gemessene Länge; mit einem anderen Profil rechnet der Rechner die Schnittkurve auf dessen "
             "Außenkontur neu (Rund-, Quadrat-, Rechteckrohr, RP-Profil), Text <i>STEP-Form, für … gerechnet</i>. "
             "Dasselbe gilt für gerade, Gehrungs- und zweiachsige Enden aus dem STEP-Import. Das braucht "
-            "STEP-Import.exe ab 0.8.29; ältere Messungen behalten bei komplexen Enden die gemessene Länge.",
+            "STEP-Import.exe ab 0.8.30; ältere Messungen behalten bei komplexen Enden die gemessene Länge.",
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
@@ -3909,7 +3909,7 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.29", "<b>RP-Profile kalkuliert</b>: Schnitt durch den Anschlag mit den Schneiddaten der doppelten Wand, "
+    ["0.8.30", "<b>RP-Profile kalkuliert</b>: Schnitt durch den Anschlag mit den Schneiddaten der doppelten Wand, "
                "neue Spalte <i>Zeit je Ecke</i> in den Schneiddaten (RP nach Kontur, Quadrat-/Rechteckrohr 4 Ecken), "
                "Maschinenfelder <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "
                "<i>Mindestabstand Düse</i> mit Warnungen ([[rp_profile]]). <b>STEP-Import</b>: anderes Profil gewählt "
