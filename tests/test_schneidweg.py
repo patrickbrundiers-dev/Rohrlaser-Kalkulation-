@@ -368,7 +368,7 @@ m10 = dict(konturen_liste=json.dumps([
          huellmass=60.0),
     dict(art="Bohrung", durchgehend=True, z=120.0, winkel=0.0, u=0.0, seite="0°", durchmesser=8.5,
          schnittlaenge=26.6, huellmass=8.5),
-    dict(art="Langloch", durchgehend=True, z=400.0, winkel=90.0, u=55.0, seite="90°", laenge=30.0, breite=10.0,
+    dict(art="Langloch", durchgehend=True, z=400.0, winkel=99.46, u=55.0, seite="90°", laenge=30.0, breite=10.0,
          richtung=90.0, schnittlaenge=72.6, huellmass=30.0),
     dict(art="Rechteckausschnitt", durchgehend=True, z=600.0, winkel=180.0, u=100.0, seite="180°", laenge=40.0,
          breite=20.0, richtung=0.0, schnittlaenge=119.0, huellmass=40.0),
@@ -389,6 +389,16 @@ r10 = sw.rechnen(e10, RE, (10, 50))
 assert not r10["fehler"] and nah(r10["schneidweg"], 230.5 + 200 + 26.6 + 72.6 + 119 + 80, 0.11)
 assert "STEP gemessen" in r10["schritte"][0]["text"] and r10["felder"]["a_gerade"] == "nein"
 assert r10["felder"]["b_gerade"] == "ja"
+# Querversatz aus dem Umfangswinkel, nicht aus u: Rohr mit Eckradius 4 (Patricks Gestell, RE 40x30) – Bohrung in der
+# Mitte der Unterseite liegt bei u = 66,56 statt 70 und saß früher 3,4 mm daneben; 10 mm neben der Mitte oben
+m_r = dict(konturen_liste=json.dumps([
+    dict(art="Bohrung", durchgehend=True, z=150.0, winkel=180.0, u=66.56, seite="180°", durchmesser=8.5,
+         schnittlaenge=26.7),
+    dict(art="Bohrung", durchgehend=True, z=330.0, winkel=round(math.degrees(math.atan(10 / 15)), 1), u=9.9,
+         seite="0°", durchmesser=8.5, schnittlaenge=26.7)]))
+k_r = step.rechner_eingaben(m_r, "Rechteckrohr", 40, 30)["konturen"]
+assert k_r[0]["seite"] == "unten" and "q" not in k_r[0], k_r[0]
+assert "seite" not in k_r[1] and k_r[1]["q"] == 10.0, k_r[1]
 assert step.rechner_eingaben(dict(konturen_liste=""), "Rundrohr", 42.4) is None
 e_rr = step.rechner_eingaben(dict(konturen_liste=json.dumps([dict(art="Bohrung", durchgehend=True, z=50, winkel=135.0,
                                                                   durchmesser=6, schnittlaenge=18.8)])), "Rundrohr", 42.4)

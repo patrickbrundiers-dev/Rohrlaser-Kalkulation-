@@ -6,11 +6,12 @@ Gewinde-Vorschlag, Konturklassen, Protokoll.
 """
 import datetime
 import json
+import math
 import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, bohrbild, naht, rechnen
+from . import anbau, bohrbild, naht, rechnen, rp_profile
 
 TOL_MASS = 0.15
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -117,6 +118,25 @@ def gehrungen(m):
 SEITE_KASTEN = {"0°": "oben", "90°": "vorne", "180°": "unten", "270°": "hinten"}
 
 
+def _versatz_quer(d, seite, breit, schmal):
+    """Versatz einer Kontur quer auf ihrer Seite (Quadrat-/Rechteckrohr) ab Seitenmitte [mm], + in Richtung
+    steigender Umfangsposition. Aus dem Umfangswinkel: auf der ebenen Seite ist der Versatz = Abstand der Seite von
+    der Rohrmitte × tan(Winkel zur Seitenmitte), unabhängig von den Eckradien (die Umfangsposition u enthält die
+    Bögen der Ecken und lag bei gerundeten Rohren um einige mm daneben). Ohne Winkel aus u (scharfkantig)."""
+    mitte_w = {"oben": 0, "vorne": 90, "unten": 180, "hinten": 270}[seite]
+    if d.get("winkel") is not None:
+        dw = (float(d["winkel"]) - mitte_w + 180) % 360 - 180
+        if abs(dw) >= 89:
+            return None
+        abstand = schmal / 2 if seite in ("oben", "unten") else breit / 2
+        return abstand * math.tan(math.radians(dw))
+    if d.get("u") is None:
+        return None
+    mitte = {"oben": 0.0, "vorne": (breit + schmal) / 2, "unten": breit + schmal, "hinten": 1.5 * (breit + schmal)}
+    umfang = 2 * (breit + schmal)
+    return (float(d["u"]) - mitte[seite] + umfang / 2) % umfang - umfang / 2
+
+
 def kandidaten_3d(m):
     """Was die Messung für die 3D-Schnittbearbeitung anbietet: (Gehrungen an den Enden, schräge Bohrungen ab 0,5°)
     als Anzahl. Fasen zählen nicht (Patrick 22.10.2026: in 3D in der Praxis nicht sauber)."""
@@ -139,6 +159,52 @@ def kandidaten_3d(m):
 SCHRAEG_3D = 0.5        # Grad, wie step_geometrie.SCHRAEG_3D
 
 
+OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
+
+
+def offen_lage(querschnitt, profil):
+    """Lage der STEP-Messung im Querschnitt der Skizze für offene Profile und Flachstahl: aus dem gemessenen Umriss
+    (Punkte x, y um die Mitte, von Ende A gesehen) die Drehung (0/90/180/270°), mit der er am besten auf den Umriss
+    der Skizze passt (skizze.Querschnitt: U/C Steg vorne, L Schenkel a vorne und b unten, Träger/T Flansch oben).
+    Ergebnis: Funktion (x, y) -> (Flächenname, Versatz quer ab Flächenmitte) oder None ohne Umriss."""
+    from . import skizze as sk
+    pts = [(float(x), float(y)) for x, y in querschnitt or () if x is not None and y is not None]
+    if len(pts) < 4:
+        return None
+    try:
+        qs = sk.Querschnitt(profil)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+    if not qs.flaechen or not qs.umriss:
+        return None
+    um = qs.umriss[0]
+    us, vs = [p[0] for p in um], [p[1] for p in um]
+    mu, mv = (max(us) + min(us)) / 2, (max(vs) + min(vs)) / 2
+    kanten = list(zip(um, um[1:] + um[:1]))
+
+    def abst(p, a, b):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        lg = dx * dx + dy * dy
+        t = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lg))
+        return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
+
+    def drehen(r, sp):      # Blick von Ende A: u = −x, v = y (wie Umfangswinkel 90° = vorne), dann um r drehen
+        c, s_ = round(math.cos(math.radians(r))), round(math.sin(math.radians(r)))
+        return lambda x, y: (-sp * x * c - y * s_ + mu, -sp * x * s_ + y * c + mv)
+    # gespiegelt nur, wenn es deutlich besser passt: ein L-Profil kann von Ende A gesehen das Spiegelbild der Skizze
+    # sein (dasselbe Teil von B aus); Fläche und Abstand von der Ecke bleiben dabei richtig
+    beste = min((sum(min(abst(f(x, y), a, b) for a, b in kanten) for x, y in pts) / len(pts) + (0.2 if sp < 0 else 0),
+                 r, sp) for r in (0, 90, 180, 270) for sp in (1, -1) for f in (drehen(r, sp),))
+    f = drehen(beste[1], beste[2])
+
+    def lage(x, y):
+        p = f(float(x), float(y))
+        fl = min(qs.flaechen, key=lambda fl_: abst(p, fl_.p0, fl_.p1))
+        q = (p[0] - fl.mitte[0]) * fl.dir[0] + (p[1] - fl.mitte[1]) * fl.dir[1]
+        return fl.name, max(-fl.breite / 2, min(fl.breite / 2, q))
+    return lage
+
+
 def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -158,6 +224,12 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     a_, b_ = float(a or 0), float(b or a or 0)
     breit, schmal = max(a_, b_), min(a_, b_)
     kasten = form in ("Quadratrohr", "Rechteckrohr")
+    offen = None
+    if form in OFFEN:
+        kopf = next((d for d in liste if isinstance(d, dict) and d.get("art") == "Ende A"), {})
+        offen = offen_lage(kopf.get("querschnitt"), dict(
+            form=form, a=a_, b=b_ if b else None, wand=_z(m, "wandstaerke") or _wand(m),
+            profil_id=m.get("normprofil") or m.get("profil_id_vorschlag")))
     eing = dict(quelle=QUELLE_STEP, a={}, b={}, konturen=[])
     if d3:
         eing["d3"] = True
@@ -214,16 +286,15 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         elif kasten and d.get("seite") in SEITE_KASTEN:
             seite = SEITE_KASTEN[d["seite"]]
             breite_f = breit if seite in ("oben", "unten") else schmal
-            mitte = {"oben": 0.0, "vorne": (breit + schmal) / 2, "unten": breit + schmal,
-                     "hinten": 1.5 * (breit + schmal)}[seite]
-            if d.get("u") is not None:
-                u = float(d["u"])
-                umfang = 2 * (breit + schmal)
-                q = (u - mitte + umfang / 2) % umfang - umfang / 2
-                if abs(q) <= breite_f / 2 + 1e-6 and abs(q) > 0.05:
-                    k["q"] = round(q, 1)
+            q = _versatz_quer(d, seite, breit, schmal)
+            if q is not None and abs(q) <= breite_f / 2 + 1e-6 and abs(q) > 0.05:
+                k["q"] = round(q, 1)
             if seite != "oben":
                 k["seite"] = seite
+        elif offen and isinstance(d.get("querlage"), dict) and d["querlage"].get("x") is not None:
+            k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
+            if abs(q) > 0.05:
+                k["q"] = round(q, 1)
         eing["konturen"].append(k)
     if _z(m, "gravur") > 0:                     # Gravur nur als Länge (nicht im Schneidweg)
         eing["gravur"] = round(_z(m, "gravur"), 1)
@@ -260,8 +331,26 @@ def wand_max(m):
     return round(w, 2) if w > _wand(m) + 0.05 else None
 
 
+def finde_rp(m, profile):
+    """RP-Profil der Stammdaten zu einer Messung: die erkannte Profil-ID (Spalte normprofil), sonst per Fingerabdruck
+    (Maße, Fläche, Außenkontur, Kammern) unter den RP-Profilen der Stammdaten mit bekannter Kontur (Bibliothek oder
+    selbst geladen). Damit findet auch ein als Sonderprofil gemessenes Teil sein selbst geladenes RP-Profil."""
+    if m.get("normprofil") in profile and (profile[m["normprofil"]].get("form") == rp_profile.FORM):
+        return m["normprofil"]
+    if not _z(m, "kontur_umfang"):
+        return None
+    eintraege = {pid: rp_profile.daten(pid) for pid, p in profile.items() if p.get("form") == rp_profile.FORM}
+    treffer = rp_profile.erkennen(_z(m, "abm_a"), _z(m, "abm_b"), _z(m, "flaeche"), _z(m, "kontur_umfang"),
+                                  int(_z(m, "kammern") or 1), _wand(m), {k: v for k, v in eintraege.items() if v})
+    return treffer[0] if treffer else None
+
+
 def finde_profil(m, profile):
     form, a, b, t = m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b"), _wand(m)
+    if form in (rp_profile.FORM, "Sonderprofil"):
+        pid = finde_rp(m, profile)
+        if pid or form == rp_profile.FORM:
+            return pid
     for pid, p in profile.items():
         if p.get("form") != form or abs((p.get("wand") or 0) - t) > TOL_MASS:
             continue
@@ -292,8 +381,8 @@ def profil_vorschlag(m, profile):
 # und Bleche", Frage 2 a); Vollmaterial und nicht erkannte offene Profile nicht.
 # Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
 BLECHE = ("Blech", "Blech gekantet")
-NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil") + BLECHE
-MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil")    # Formen mit Abmessung B
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern") + BLECHE
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM)    # Formen mit Abmessung B
 
 
 def blech(m):
@@ -712,7 +801,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 hinweise.append(f"Profil im Prüfdialog geändert (gemessen {gemessen or m['profilform']})")
             if pid is None or pid not in profile:
                 pid = pid or m.get("profil_id_vorschlag") or None
-                if neue_profile and pid:
+                if neue_profile and pid and rp_profile.daten(pid):
+                    p = rp_profile.stammdaten_zeile(rp_profile.daten(pid))
+                    neue_prof.append(p)
+                    profile[pid] = p
+                    hinweise.append("RP-Profil aus der Bibliothek in Stammdaten angelegt")
+                elif neue_profile and pid:
                     p = dict(profil_id=pid, form=m["profilform"], a=round(_z(m, "abm_a"), 2),
                              b=round(_z(m, "abm_b"), 2) if m["profilform"] in MIT_B else None,
                              wand=round(_wand(m), 2), wand_max=wand_max(m), flaeche_manuell=round(_z(m, "flaeche"), 1),
@@ -807,6 +901,18 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if _z(m, "ende_b"):
                 p["b_gerade"] = "ja" if m.get("ende_b_gerade") == "1" else "nein"
                 p["b_schnitt"] = round(_z(m, "ende_b"), 1)
+            rp = rp_profile.daten(pid) if form == rp_profile.FORM else None
+            if rp:      # die Messung zählt die Doppellage als zwei Wände, der Laser trennt sie mit einem Schnitt
+                vorher = 0.0
+                for x, ende in (("a", "ende_a"), ("b", "ende_b")):
+                    if _z(m, ende):
+                        vorher += _z(m, ende)
+                        p[f"{x}_schnitt"] = round(rp_profile.schnitt_aus_messung(
+                            rp, _z(m, ende), m.get(f"{ende}_gerade") == "1"), 1)
+                weniger = vorher - p.get("a_schnitt", 0) - p.get("b_schnitt", 0)
+                p["schneidweg"] = round(p["schneidweg"] - weniger, 1)
+                hinweise.append(f"RP-Profil {pid}: Anschlag (Doppellage) einmal geschnitten, Schneidweg "
+                                f"{dez(round(weniger, 1))} mm kürzer als gemessen")
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if m.get("innen_liste") or enden:

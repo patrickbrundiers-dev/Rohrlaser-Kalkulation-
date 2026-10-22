@@ -439,6 +439,17 @@ def main(ziel):
         foto.foto("materialanfrage", d, [(d.lieferant, 1), (d.tabelle, 2), (d.text, 3), (d.outlook_knopf, 4)])
         return QDialog.Rejected
     s.material_anfragen(dialog=anfrage_foto)
+
+    # 7a4) Fenster Material … (nur Foto, Abbrechen: nichts geändert)
+
+    def material_foto(d):
+        d.resize(1320, 420)
+        QApplication.processEvents()
+        z = d.tabelle
+        foto.foto("material_fenster", d, [((z.viewport(), z.visualItemRect(z.item(0, 0))), 1), (d.laengen[0], 2),
+                                          (d.summe, 3), (d.felder[0], 4), (d.handling, 5)])
+        return QDialog.Rejected
+    s.material_einstellen(dialog=material_foto)
     bereit()
     m = s.pos_modell
     versteckt = [i for i, (art, x) in enumerate(m.spalten) if art == "feld" and x.name in
