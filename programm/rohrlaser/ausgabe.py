@@ -344,9 +344,12 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
             teile.append(dict(platz=platz, pos=t["pos"], artikel=t["artikel"], bezeichnung=p.get("bezeichnung"),
                               laenge=t["laenge"], von=t["von"], bis=t["bis"], lage=t["lage"],
                               naht_text=t.get("naht_text") or "", trennung=t["trennung"],
-                              kante_a=t.get("kante_a"), kante_b=t.get("kante_b"), ansicht=t.get("ansicht")))
+                              kante_a=t.get("kante_a"), kante_b=t.get("kante_b"), ansicht=t.get("ansicht"),
+                              drehung=t.get("drehung") or 0, drehfreigabe=t.get("drehfreigabe"), naht=t.get("naht"),
+                              querschnitt=t.get("querschnitt"), material_gespart=t.get("material_gespart") or 0))
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
-                           rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile))
+                           rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile,
+                           gespart=rechnen.gehrung_gespart(s)))
     return dict(material=list(material.values()), muster=muster, zukaufteile=zk)
 
 

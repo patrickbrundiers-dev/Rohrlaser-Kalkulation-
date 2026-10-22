@@ -504,6 +504,84 @@ def naht_text(t):
     return ""
 
 
+def teil_zeichen(t):
+    """Markierung eines Teils im Stangenbild und in den Werkstattpapieren: (Lage der Naht auf der Stange [°] oder
+    None, Kurztext). Lage wie die Naht: Blick von Ende A, 0° oben, 90° rechts (Rechteckrohr mit der Breitseite oben).
+    Kurztext leer = frei drehbar und nicht gedreht, nichts anzeigen."""
+    dreh = t.get("drehung") or 0
+    if t.get("drehfreigabe") == opt.UNBEKANNT:
+        return None, "Naht unbekannt, nicht drehen"
+    lage, text = None, []
+    if t.get("drehfreigabe") == opt.FEST:
+        if t.get("naht") is not None:
+            lage = (t["naht"] + dreh) % 360
+            text.append(f"Naht {lage:g}°".replace(".", ","))
+        else:
+            text.append("Naht fest")
+    if dreh:
+        text.append(f"gedreht {dreh:g}°".replace(".", ","))
+    return lage, " · ".join(text)
+
+
+def stange_zeichen(s):
+    """Markierung einer Stange im Stangenbild und in den Werkstattpapieren, einmal je Stange statt je Teil
+    (Patrick 22.10.2026): (Lage der Naht auf der Stange [°] oder None, Querschnitt oder None, Kurztext; leer =
+    nichts anzuzeigen). Die Naht liegt bei allen Teilen mit fester Naht an derselben Stelle der Stange."""
+    lagen, text, q = [], [], None
+    for t in s["teile"]:
+        q = q or t.get("querschnitt")
+        lage, _ = teil_zeichen(t)
+        if lage is not None:
+            lagen.append(lage)
+    lage = max(set(lagen), key=lagen.count) if lagen else None
+    if lage is not None:
+        text.append(f"Naht {lage:g}°".replace(".", ","))
+    elif any(t.get("drehfreigabe") == opt.FEST for t in s["teile"]):
+        text.append("Naht fest")
+    if any(t.get("drehfreigabe") == opt.UNBEKANNT for t in s["teile"]):
+        text.append("Naht unbekannt: nicht drehen")
+    n = sum(1 for t in s["teile"] if t.get("drehung"))
+    if n:
+        text.append(f"{n} {'Teil' if n == 1 else 'Teile'} gedreht")
+    return lage, q, " · ".join(text)
+
+
+def symbol_masse(q):
+    """(Breite, Höhe) des Querschnitt-Symbols, größere Seite = 1; q wie optimierung.Gruppe.querschnitt."""
+    if q and q[0] == "Kasten" and max(q[1], q[2]) > 0:
+        return q[1] / max(q[1], q[2]), q[2] / max(q[1], q[2])
+    return 1.0, 1.0
+
+
+def naht_punkt(q, winkel):
+    """Lage der Naht auf dem Rand des Querschnitt-Symbols: (x rechts, y oben) ab der Mitte, Maße wie symbol_masse."""
+    x, y = math.sin(math.radians(winkel)), math.cos(math.radians(winkel))
+    if not q or q[0] != "Kasten":
+        return x / 2, y / 2
+    b, h = symbol_masse(q)
+    f = min(b / 2 / abs(x) if abs(x) > EPS else math.inf, h / 2 / abs(y) if abs(y) > EPS else math.inf)
+    return x * f, y * f
+
+
+def naht_strich(t, oben=0):
+    """Naht eines Teils als Strich im Stangenbild (Patrick 22.10.2026): (Höhe von −1 = unten bis 1 = oben,
+    sichtbar) oder None ohne feste Naht. oben: Winkel, der im Bild oben liegt (0 von der Seite, 270 von oben);
+    sichtbar ist die Seite oben + 90° (von der Seite: 90°, von oben: 0°), die andere gestrichelt."""
+    lage, _ = teil_zeichen(t)
+    if lage is None:
+        return None
+    q = t.get("querschnitt")
+    if q and q[0] == "Kasten" and oben % 180:
+        q = ("Kasten", q[2], q[1])
+    x, y = naht_punkt(q, lage - oben)
+    return y / (symbol_masse(q)[1] / 2), x > -EPS
+
+
+def gehrung_gespart(stange):
+    """Durch ineinandergelegte Gehrungen gespartes Material einer Stange [mm] (schon in Rest und Ausnutzung)."""
+    return sum(t.get("material_gespart") or 0 for t in stange["teile"])
+
+
 def umriss(t):
     """x-Werte eines Teils im Stangenbild: (oben links, oben rechts, unten rechts, unten links) [mm]."""
     ka, kb = t.get("kante_a") or (0, 0), t.get("kante_b") or (0, 0)
@@ -540,6 +618,8 @@ def _folge_teile(g, folge, positionen, start=0.0):
                           drehfreigabe=t.drehung, naht=t.naht, trennung=art,
                           eingespart_mm=round(eingespart_mm, 1), eingespart_e=eingespart_e,
                           material_gespart=round(ueberlappung, 1), naht_text=naht_text(t)))
+        if g.querschnitt:                   # Querschnitt-Symbol mit Nahtlage im Stangenbild
+            teile[-1]["querschnitt"] = list(g.querschnitt)
         if t.a_gehrung or t.b_gehrung:      # Schräge Enden im Stangenbild (Rücksprung oben/unten)
             teile[-1].update(ansicht="von oben" if oben else "von der Seite",
                              kante_a=[round(x, 1) for x in opt.kante(g, t.a_gehrung, drehung, oben)],
@@ -585,7 +665,8 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
      Lieferlänge oder None, nur wenn es Lieferlängen gibt]}
     Je Stange: nr, profil, werkstoff, stange, end, greif, verlust, trennungen, gemeinsam, belegung (Text),
     teile: [{index, pos, artikel, laenge, von, bis, lage, trennung, eingespart_mm, eingespart_e, drehung,
-    drehfreigabe, naht, naht_text, material_gespart}], bei schrägen Enden mit Richtung zusätzlich ansicht, kante_a
+    drehfreigabe, naht, naht_text, material_gespart, querschnitt (Rund-, Quadrat- und Rechteckrohr, wie
+    optimierung.Gruppe.querschnitt)}], bei schrägen Enden mit Richtung zusätzlich ansicht, kante_a
     und kante_b (Rücksprung der Schnittkante oben/unten im Stangenbild, umriss).
     Mit einer anderen Lieferlänge geplante Stangen haben dazu grundlaenge (Stangenlänge des Angebots, Schlüssel der
     Gruppe); kommen sie vom Lieferanten zugeschnitten, zusätzlich werkstuecke [{nr, von, bis, laenge, end, greif}]
@@ -633,7 +714,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
                                     gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
             man = opt.manuell(g)
             ohne = opt.ohne_drehung(g)
-            gespart = sum(t.get("material_gespart") or 0 for s in stangen[s0:] for t in s["teile"])
+            gespart = sum(gehrung_gespart(s) for s in stangen[s0:])
             auswertung.append(dict(profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche, stange=g.stange,
                                    teile=len(g.teile),
                                    stangen=len(folgen), manuell=len(man), untergrenze=opt.untergrenze(g),

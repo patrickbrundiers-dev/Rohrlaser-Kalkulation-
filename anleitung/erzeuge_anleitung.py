@@ -1453,6 +1453,18 @@ def kapitel_optimieren(i):
            "ineinanderliegende Gehrungen also als verzahnte Trapeze. Gezeigt wird die Ansicht von der Seite (0° "
            "oben); sind die Gehrungen über die Seitenflächen geschnitten, die Ansicht von oben (Hinweis "
            "<i>Ansicht von oben</i> in der Kopfzeile). Ein Doppelklick auf ein Teil springt zu seiner Position.")
+    i.text("<b>Schweißnaht:</b> Hat ein Teil eine feste Naht, liegt auf dem Teil ein <b>roter Strich</b> in der "
+           "Höhe der Naht: oben am Balken = Naht oben (0°), unten = 180°, in der Mitte = seitlich. Durchgezogen liegt "
+           "die Naht auf der sichtbaren Seite (Ansicht von der Seite: 90°, Ansicht von oben: 0°), gestrichelt auf der "
+           "Rückseite. Hinter dem Stangentitel steht dazu einmal je Stange ein kleiner Querschnitt (von Ende A "
+           "gesehen, Rechteckrohr mit der Breitseite oben) mit <b>rotem Punkt an der Naht</b> und dem Winkel, z. B. "
+           "<i>Naht 90°</i>, sowie die Zahl der um die eigene Achse gedrehten Teile (<i>3 Teile gedreht</i>) oder "
+           "<i>Naht unbekannt: nicht drehen</i>. Ohne Nahtvorgabe und ohne Drehung bleibt beides leer. Bleibt man "
+           "mit der Maus auf einem Teil stehen, zeigt der Tooltip Naht, Drehung und Trennung zum Vorgänger.",
+           "<b>Gehrungen ineinander</b> sind am Stoß mit grünen Schnittkanten markiert. Das gesparte Material steht "
+           "einmal je Stange rechts oben (<i>Gehrungen ineinander: 173,4 mm gespart</i>). Diese Ersparnis ist in "
+           "<b>Rest</b> und <b>Ausnutzung</b> schon enthalten: die Teile liegen um diesen Betrag enger, der Rest "
+           "wird entsprechend länger. Das Stangenbild der Werkstattpapiere zeigt dasselbe.")
     i.bild("erg_stangenbild", "Reiter Stangenbild", hoehe=85 * mm)
     i.abschnitt("Auswertung und nicht eingeplante Teile")
     i.text("Je Gruppe (Profil + Werkstoff + Stangenlänge): Stangen optimiert gegen eine einfache manuelle Einteilung "
@@ -3407,6 +3419,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.3", "Stangenbild und Werkstattpapiere: Schweißnaht als roter Strich auf jedem Teil, dazu je Stange "
+              "Querschnitt mit rotem Punkt und Anzahl gedrehter Teile; Gehrungen ineinander mit grünen Schnittkanten, "
+              "gespartes Material einmal je Stange (in Rest und Ausnutzung enthalten); Tooltip je Teil "
+              "([[optimieren]])."],
     ["0.8.1", "Schneidweg-Rechner: Werte aus dem STEP-Import auch bei älteren Positionen (Enden, Bohrungen, Konturen, "
               "Gravur), <b>STEP neu einlesen …</b>, Schweißnaht wählbar, Rechteck-/Quadratrohr bei Naht und Seite nur "
               "0°/90°/180°/270°, beschriftete Enden und Maße je Konturart, Maße und Naht in der Skizze, "
