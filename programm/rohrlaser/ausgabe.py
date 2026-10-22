@@ -91,18 +91,24 @@ def datum_text(iso):
 
 # ------------------------------------------------------------------ Angebot
 def profiltext(pid, k, dezimal=","):
-    """'Rundrohr Ø 42,4 x 2', 'Quadratrohr 40 x 40 x 3', 'Rechteckrohr 60 x 40 x 3', sonst die Profil-ID."""
+    """'Rundrohr Ø 42,4 x 2', 'Quadratrohr 40 x 40 x 3', 'Rechteckrohr 60 x 40 x 3'; Träger, T- und U-Profile mit
+    Normbezeichnung ('IPE 200', 'HEB 160', 'UPN 100'), wenn Profil-ID oder Maße zu einem Normprofil passen; sonst die
+    Profil-ID."""
     z = k.profile.get(pid)
     if not z:
         return str(pid or "")
+    form = z.get("form")
+    if form in ("I-/H-Träger", "T-Profil", "U-Profil"):      # Walzprofile mit Normbezeichnung (IPE, HEB, UPN, T …)
+        norm = pid if normprofile.daten(pid) else normprofile.name_aus_massen(form, z.get("a"), z.get("b"), z.get("wand"))
+        if norm:
+            return str(norm)
     a, b, wand = (zahl_kurz(z.get(n), dezimal) for n in ("a", "b", "wand"))
     return {"Rundrohr": f"Rundrohr Ø {a} x {wand}", "Quadratrohr": f"Quadratrohr {a} x {a} x {wand}",
             "Rechteckrohr": f"Rechteckrohr {a} x {b} x {wand}", "U-Profil": f"U-Profil {a} x {b} x {wand}",
             "C-Profil": f"C-Profil {a} x {b} x {wand}", "L-Profil": f"L-Profil {a} x {b} x {wand}",
             "Flachstahl": f"Flachstahl {a} x {wand}",
-            "I-/H-Träger": str(pid) if normprofile.daten(pid) else f"I-Träger {a} x {b} x {wand}",
-            "T-Profil": str(pid) if normprofile.daten(pid) else f"T-Profil {a} x {b} x {wand}"}.get(
-        z.get("form"), str(pid))
+            "I-/H-Träger": f"I-Träger {a} x {b} x {wand}", "T-Profil": f"T-Profil {a} x {b} x {wand}"}.get(
+        form, str(pid))
 
 
 def angebotstext(p, k, dezimal=",", zusatz=()):

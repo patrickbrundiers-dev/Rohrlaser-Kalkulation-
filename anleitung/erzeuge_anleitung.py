@@ -672,7 +672,9 @@ def kapitel_angebot(i):
                 "z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. Profil und Werkstoff sind von der letzten "
                 "Rohrposition vorbelegt. Ein anderes Profil baut Skizze, Enden und Naht sofort neu auf. Fehlt das "
                 "Profil, legt <b>Neu …</b> neben der Liste es an: Fenster <i>Neues Profil</i> mit Profilform, "
-                "Abmessungen und Wandstärke; die Profil-ID wird aus den Maßen vorgeschlagen (z. B. RE 70x35x2,5), "
+                "Abmessungen und Wandstärke; die Profil-ID wird aus den Maßen vorgeschlagen (z. B. RE 70x35x2,5; Träger, "
+                "T- und U-Profile mit passenden Maßen mit ihrer Normbezeichnung wie IPE 200, HEA 200, HEB 160, "
+                "UPN 100), "
                 "Querschnitt, kg/m und Hüllkreis rechnet das Programm. <b>Profil anlegen</b> schreibt es in die "
                 "Stammdaten ([[stammdaten]]) und wählt es; den Materialpreis danach unter Einstellungen oder als "
                 "Meterpreis im Angebot eintragen. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
@@ -761,7 +763,7 @@ def kapitel_angebot(i):
             "Laser, Gewinde, Rüsten, Stangenwechsel, Arbeitsschritte, Zusatzarbeiten, Programmierung und "
             "Pauschalen bleiben. Materialkosten anderer Positionen ändern sich nicht. Spalte <i>Kundenmaterial</i> "
             "im Reiter Kalkulation, Status „HINWEIS: Material vom Kunden beigestellt“.",
-            "<b>Handling Kundenmaterial</b> [€/kg]: optional für Prüfen, Einlagern und Transport, je kg der "
+            "<b>Handling Kundenmaterial</b> [€/m]: optional für Prüfen, Einlagern und Transport, je Meter der "
             "beigestellten Stangen, mit Zuschlag Fertigung und Gewinn (Kostenart <i>Handling Kundenmaterial</i>). "
             "Vorgabe 0 = keins; Einstellung in der Gruppe Kalkulation, je Angebot änderbar.",
             "Angebot: Die Position heißt „Material S235 EN10219 vom Kunden beigestellt“ statt „inkl. Material …“; "
@@ -938,6 +940,27 @@ def kapitel_angebot(i):
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
             "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
+    i.abschnitt("Material je Abmessung (Fenster Material …)", marke="material_fenster")
+    i.text("Der Knopf <b>Material …</b> rechts neben den Ausgaben, vor <i>Materialanfrage (E-Mail)</i> (auch "
+           "Rechtsklick auf eine Position), öffnet "
+           "alles zum Material in einem Fenster: je Abmessung (Profil, Werkstoff, Oberfläche und Stangenlänge) eine "
+           "Zeile mit dem Querschnitt des Profils als Bild. Die eingetragenen Werte gelten für alle Positionen der "
+           "Abmessung und gehen nach <b>Übernehmen</b> in die Kalkulation ein.")
+    i.bild("material_fenster", "Material je Abmessung", hoehe=85 * mm, legende=[
+        (1, "<b>Querschnitt</b> des Profils (RP-Profile mit ihrer Kontur aus dem MegaCAD-Makro); der Mauszeiger auf "
+            "der Abmessung zeigt Teilelänge gesamt und Ausnutzung."),
+        (2, "<b>Werkstoff</b>, <b>Oberfläche</b>, <b>Lieferlänge [mm]</b> (Auswahl aus den Stammdaten <i>Lieferlängen</i> oder eintippen) "
+            "und <b>Material</b> (Eigenmaterial / Kunde beigestellt). Danach neu optimieren."),
+        (3, "<b>Materialeinsatz</b> laut Schnittplan: Stangen, Meter, Gewicht und Materialkosten; darunter die Summe."),
+        (4, "<b>Meterpreis [€/m]</b>: grau steht der berechnete Preis ([[meterpreis]]); ein eigener Wert steht fett, "
+            "Feld leeren = wieder berechnet. Bei Kundenmaterial gesperrt."),
+        (5, "<b>Handling Kundenmaterial [€/m]</b> des Angebots; daneben zur Info Zuschlag Material und "
+            "Händler-Mehrlänge aus den Einstellungen.")])
+    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert; der "
+            "Status zeigt dann <b>HINWEIS: Meterpreis manuell</b>.",
+            "Ohne Optimierung stehen Stangen, Meter und Gewicht auf „–“; passt der Schnittplan nicht mehr zu den "
+            "Positionen, steht oben ein roter Hinweis.",
+            "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
     i.abschnitt("Schweißnaht", marke="schweissnaht")
     i.text("Fordert der Kunde eine bestimmte Lage der Schweißnaht, wird sie je Position eingetragen: Position(en) "
            "markieren und <b>Schweißnaht …</b> wählen (Rechtsklick, <i>Weitere Aktionen</i> oder Doppelklick in die "
@@ -2183,9 +2206,11 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan mit Kästchen zum "
             "Abhaken, danach das Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: oben die Kennzahlen (Verkaufspreis, Herstellkosten, Gewinn, Material, "
-            "Maschinenzeit, Stangen, Teile), darunter die Kostenarten (ohne 0,00 €, Herstellkosten und Verkaufspreis "
-            "hervorgehoben), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die interne Ablage und "
-            "die Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
+            "Maschinenzeit, Stangen, Teile), darunter die Kostenarten mit Anteil am Verkaufspreis in % und als Balken "
+            "(ohne 0,00 €, Herstellkosten und Verkaufspreis hervorgehoben), der Materialeinsatz je Abmessung mit "
+            "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
+            "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
+            "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet."),
         (4, "<b>Materialanfrage (E-Mail)</b>: Stangenbedarf beim Lieferanten anfragen ([[materialanfrage]])."),
         (5, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
@@ -2237,7 +2262,9 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>Zukaufteile (nicht lasern, zum Auftrag bereitstellen)</i> mit Pos., Artikelnummer, Bezeichnung, "
            "Zukaufartikel, Stückzahl und Kästchen <i>bereit</i>.")
     i.abschnitt("Kalkulation (PDF)")
-    i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
+    i.bilder_nebeneinander(["pdf_kalkulation_1", f"pdf_kalkulation_{seiten['kalkulation']}"],
+                           "Kalkulation A-2026-0041: Kennzahlen, Kostenarten und Materialeinsatz (links), Stangenbild "
+                           "am Ende (rechts)", hoehe=150 * mm)
     i.abschnitt("Materialanfrage per E-Mail", marke="materialanfrage")
     i.text("Der Knopf <b>Materialanfrage (E-Mail)</b> rechts neben den Ausgaben im Angebot (immer sichtbar) bereitet "
            "eine Anfrage an den Lieferanten vor. Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst "
@@ -2363,8 +2390,8 @@ def kapitel_einstellungen(i):
          "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
-        ["Kalkulation", "Handling Kundenmaterial je kg Stangengewicht [€/kg] (0 = keins)",
-         "Kosten für beigestelltes Material je kg der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
+        ["Kalkulation", "Handling Kundenmaterial je m Stangenlänge [€/m] (0 = keins)",
+         "Kosten für beigestelltes Material je Meter der Stangen, mit Zuschlag Fertigung und Gewinn ([[kundenmaterial]]); "
          "Vorgabe 0."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
@@ -2617,7 +2644,10 @@ def kapitel_stammdaten(i):
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
                              "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>, Normprofile "
                              "wie <i>IPE 200</i>, <i>HEB 160</i>, <i>UPN 100</i>, <i>T 50</i>, sonst Träger als "
-                             "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>)"],
+                             "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>). Im "
+                             "Angebotstext stehen Träger, T- und U-Profile mit ihrer Normbezeichnung (IPE, HEA, HEB, "
+                             "HEM, IPN, UPN, T), wenn Höhe, Breite und Steg zur Normtabelle passen, auch bei einer "
+                             "Profil-ID mit Maßen; sonst z. B. „I-Träger 150 x 80 x 5“."],
         ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl, "
                               "I-/H-Träger, T-Profil, RP-Profil oder Sonderprofil (Liste in den Einstellungen)"],
         ["<b>Abmessung A [mm]</b>, Abmessung B [mm]",
@@ -3465,6 +3495,19 @@ def kapitel_step_messung(i):
             "Sie stehen im Dialog STEP-Import prüfen unter <i>Nicht übernehmbar</i> mit dem Hinweis <i>… wird noch "
             "nicht kalkuliert</i>. Bei C-Profilen steht die Länge der Abkantung im Hinweis, bei U-Profilen mit "
             "verschieden dickem Steg und Flansch beide Werte.",
+            "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech) erkennt die Messung per <i>Fingerabdruck</i> "
+            "aus der RP-Bibliothek: Breite, Höhe, Fläche, Länge der Außenkontur und Zahl der Kammern müssen passen "
+            "(Maße ±0,3 mm, Fläche und Kontur ±1,5 %). Das Teil bekommt Profilform <i>RP-Profil</i> und die "
+            "Profil-ID der Bibliothek (z. B. <i>RP 0106-35</i>); haben mehrere RP-Profile denselben Querschnitt, "
+            "nennt der Hinweis die anderen. Der doppelt liegende Anschlag gilt nicht als ungleiche Wand. Beim "
+            "Übernehmen wird die Doppellage nur einmal geschnitten: Ein gerades Ende bekommt die Schnittlänge der "
+            "Kontur, ein schräges die gemessene Länge anteilig; der Bericht nennt, um wie viel der Schneidweg kürzer "
+            "ist. Selbst geladene RP-Profile ([[rp_profile]]) findet der Import ebenso, wenn die Messung ein "
+            "<i>Sonderprofil</i> meldet; von Hand: Art <i>RP-Profil</i> wählen, dann die Profil-ID.",
+            "<b>Mehrkammerprofile</b> (mehrere Kammern in einer Außenkontur) werden gemessen und als Sonderprofil zum "
+            "Prüfen gemeldet; die Zwischenwände kommen näherungsweise zum Schnitt der Enden dazu (Hinweis). "
+            "<b>Verbundprofile</b>: Liegt ein zweiter Körper ganz in der Kammer (Kern aus Kunststoff o. ä.), wird "
+            "er als <i>Verbundkern</i> nicht übernommen und das Profil mit Hinweis zum Prüfen gemeldet.",
             "<b>I-/H-Träger und T-Profile</b> werden ebenfalls erkannt und kalkuliert. Gemessen werden Höhe, "
             "Flanschbreite, Stegdicke (Strahl quer durch den Steg) und Flanschdicke (bei einem Viertel der "
             "Flanschbreite neben dem Steg, wie die Norm misst), dazu ob das Profil <i>symmetrisch</i> ist und die "
@@ -3800,11 +3843,20 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.24", "Gewinde, Senken, Flowdrill und Bohren rechnen nur noch mit einem <b>Preis je Stück</b>, ohne "
+    ["0.8.26", "Gewinde, Senken, Flowdrill und Bohren rechnen nur noch mit einem <b>Preis je Stück</b>, ohne "
                "Zeiten. Die Preise kommen aus den Einstellungen und lassen sich je Position im Fenster Bohrungen "
                "prüfen ändern (Spalten Gewinde [€/Stk] und Arbeit [€/Stk]); Senken, Flowdrill und Bohren sind "
                "jetzt Festpreise (0,40 / 0,60 / 0,40 €), Gewinde ohne Preis bekommen einmalig Zeit × Stundensatz "
                "als Preis ([[bohrungen_pruefen]])."],
+    ["0.8.25", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
+               "und Meterpreis, Werkstoff, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
+               "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
+               "ohne Wert ausgeblendet, Stangenbild am Ende. Handling Kundenmaterial in €/m statt €/kg. "
+               "Träger, T- und U-Profile im Angebotstext mit Normbezeichnung (IPE, HEA, HEB, UPN …)."],
+    ["0.8.24", "STEP-Import erkennt <b>RP-Profile</b> per Fingerabdruck (Bibliothek und selbst geladene), schneidet "
+               "die Doppellage des Anschlags nur einmal, misst <b>Mehrkammerprofile</b> und meldet "
+               "<b>Verbundprofile</b> mit Kern ([[step_messung]]). Die Skizze im Schneidweg-Rechner zeigt die "
+               "RP-Kontur."],
     ["0.8.23", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
                "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
                "([[blech_editor]]). U-, C-, L-, T-Profile, Träger und Flachstahl: jede Kontur auf ihrer Fläche (Steg, "

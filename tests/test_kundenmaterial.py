@@ -90,10 +90,9 @@ assert nah(s["material"], sum(x["material_position"] for x in z if x))
 assert s["material"] < s0["material"] and nah(s["laser"], s0["laser"], 1e-6)
 ok("K2 Kundenmaterial: Material und Materialzuschlag 0, Laser und Rüsten wie Eigenmaterial, andere Positionen unverändert")
 
-# ------------------------------------------------------------------ K3 Handling je kg
+# ------------------------------------------------------------------ K3 Handling je m
 _, _, _, _, einst_h, erg_h, zh, sh = rechnung(mit, dict(handling_beistellung=0.5))
-gew = sum(w["gewicht"] for st, w in zip(erg_h["stangen"], rechnen.stangen_werte(erg_h, kopf, pos, k, tab))
-          if st.get("beistellung"))
+gew = sum(st["stange"] / 1000 for st in erg_h["stangen"] if st.get("beistellung"))     # Meter Kundenmaterial
 assert nah(sh["handling_beistellung"], 0.5 * gew) and gew > 0
 assert zh[0]["handling_teil"] == 0 and zh[2]["handling_teil"] == 0
 assert nah(zh[1]["herstell_teil"] - z[1]["herstell_teil"], zh[1]["handling_teil"] * (1 + einst["zuschlag_fertigung"]))
@@ -103,7 +102,7 @@ herstell = sum(kosten[n] for n in ("material", "laser_schneiden", "gewinde", "ru
                                    "zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung"))
 assert nah(herstell, sh["herstell"], 1e-6), (herstell, sh["herstell"])
 assert db.einstellung("handling_beistellung") == 0 and db.angebot(mit)["handling_beistellung"] == 0
-ok(f"K3 Handling 0,50 €/kg × {gew:.1f} kg Kundenmaterial = {sh['handling_beistellung']:.2f} € mit Zuschlag Fertigung; Vorgabe 0")
+ok(f"K3 Handling 0,50 €/m × {gew:.1f} m Kundenmaterial = {sh['handling_beistellung']:.2f} € mit Zuschlag Fertigung; Vorgabe 0")
 
 # ------------------------------------------------------------------ K4 Status, Meterpreis, Angebotstext und PDF-Hinweis
 w = rechnen.position_werte(pos[1], kopf, k, tab)
