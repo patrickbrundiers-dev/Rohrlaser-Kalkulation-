@@ -47,6 +47,7 @@ MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
 
 GRAU = "#5F6B7A"
+ORANGE = "#B35C00"         # Hinweis: Wert weicht von den Einstellungen ab
 GELB, GELB_TEXT = "#FFF4CE", "#7A5A00"        # Wert weicht von den Einstellungen ab
 
 
@@ -435,7 +436,7 @@ class KopfBereich(QWidget):
         frl.addWidget(self.fracht_text)
         lay.addWidget(fr)
         offen = self.s.db.einstellung(KALK_OFFEN_EINSTELLUNG)
-        self.kalkulation_aufklappen(offen if isinstance(offen, bool) else True)
+        self.kalkulation_aufklappen(offen if isinstance(offen, bool) else False)   # Vorgabe: Kurzzeile, Positionen vorn
         offen = self.s.db.einstellung(FRACHT_OFFEN_EINSTELLUNG)
         self.fracht_aufklappen(offen if isinstance(offen, bool) else False)
         lay.addStretch(1)
@@ -513,7 +514,8 @@ class KopfBereich(QWidget):
                         einheit = einheit.rstrip("]")
                     teile.append(f"{titel.strip()} {_z(v, fd.stellen if fd.stellen is not None else (0 if fd.art == "ganz" else 2))} {einheit}".strip())
         n = getattr(self, "_n_abweichend", 0)
-        self.kalk_kurz.setText("   " + " · ".join(teile) + (f"   ({n} abweichend)" if n else ""))
+        self.kalk_kurz.setText("   " + " · ".join(teile)
+                               + (f"   <b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>" if n else ""))
         self.kalk_kurz.setToolTip("\n".join(teile))
 
     def _gruppen_anordnen(self, spalten):

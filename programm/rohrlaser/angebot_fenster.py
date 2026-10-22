@@ -396,8 +396,9 @@ class PositionenModell(QAbstractTableModel):
         self.s = seite
         felder = {f.name: f for f in POSITIONEN.felder}
         art = lambda f: "bohrbild" if f.name in BOHRBILD_SPALTEN else f.art if f.art in EIGENE else "feld"
-        self.spalten = ([(art(felder[n]), felder[n]) for n in SICHTBAR]
-                        + [("status", None)]
+        # Status gleich nach der Positionsnummer: Fehler und Warnungen auch bei schmalem Fenster sichtbar
+        self.spalten = ([(art(felder[n]), felder[n]) for n in SICHTBAR[:1]] + [("status", None)]
+                        + [(art(felder[n]), felder[n]) for n in SICHTBAR[1:]]
                         + [("berechnet", b) for b in BERECHNET]
                         + [(art(f), f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
                         + [("abweichung", None)])
@@ -436,7 +437,7 @@ class PositionenModell(QAbstractTableModel):
                 ein = None              # Zukaufteile werden nicht eingeplant
             w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
             self.werte.append(w)
-            self.status.append(rechnen.status(p, w, s.kopf, s.k, ein))
+            self.status.append(rechnen.status(p, w, s.kopf, s.k, ein, self.daten))
         self.endResetModel()
 
     def rowCount(self, parent=QModelIndex()):
