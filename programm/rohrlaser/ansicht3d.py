@@ -25,6 +25,8 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("EB", "Endschnitt", "#B07AA1", "#8E4F80"),
     ("K", "Innenkonturen", "#E15759", "#C00000"),
     ("G", "Gravur", "#59A14F", "#2E7D32"),
+    ("AN", "Anbauteile", "#E8C77A", None),            # aufgeschweißte Teile (nicht gelasert)
+    ("GA", "Gravur Anbauteile", "#59A14F", "#00897B"),
     ("S", "gewählte Teile", "#2E75B6", None),       # nur in der Baugruppen-Ansicht
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}

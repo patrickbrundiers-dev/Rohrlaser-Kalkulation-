@@ -3312,6 +3312,34 @@ def kapitel_step_messung(i):
             "<i>Richtung</i> dazu: der Umfangswinkel (von Ende A gesehen, 0° oben, 90° rechts), in dem das Teil an "
             "diesem Ende am längsten ist. Der Import übernimmt Winkel und Richtung in die Position, damit die "
             "Optimierung Gehrungen ineinanderlegen kann.")
+    i.abschnitt("Anbauteile: aufgeschweißte Bolzen, Laschen, Bleche", marke="anbauteile")
+    i.text("Manche Kunden konstruieren das Rohr zusammen mit aufgeschweißten Teilen als <b>einen</b> Körper. Diese "
+           "Anbauteile gehören nicht zum Rohr: Der Import trennt sie ab, damit Profil, Länge und Schneidweg nur vom "
+           "Rohr kommen. Das Originalmodell bleibt unverändert.")
+    i.liste("<b>So wird getrennt</b>: Der häufigste Querschnitt entlang der Achse ist das Rohr (Bohrungen machen "
+            "einzelne Schnitte kleiner, Anbauteile größer). Seine Außenkontur über die Länge der Rohrwände ist die "
+            "<i>Rohrhülle</i>. Bearbeitungen liegen immer in der Hülle, Anbauteile ragen heraus. Was in der Hülle "
+            "liegt, wird wie jedes Rohr gemessen; was herausragt, ist ein Anbauteil. Unter einem Anbauteil bleibt "
+            "die Rohrwand geschlossen, eine Bohrung unter einer aufgeschweißten Mutter bleibt eine Bohrung.",
+            "<b>Arten</b>: <i>Bolzen</i> (runder Fuß, höher als halber Ø), <i>Mutter</i> (Fuß mit Loch), "
+            "<i>Lasche</i> (Platte hochkant), <i>Blech</i> (Platte flach oder runde Scheibe), <i>Kopfplatte</i> "
+            "(jenseits eines Rohrendes), sonst <i>Sonstiges</i>. Je Anbauteil stehen Lage (z ab Ende A, Winkel und "
+            "Seite wie bei Bohrungen), Aufstandsfläche (Form, Maße, Umfang) und Höhe in den Messwerten.",
+            "<b>Gravur</b>: Bolzen bekommen eine Positionsmarke (Kreuz aus zwei Strichen je 10 mm = 20 mm Gravur), "
+            "Laschen, Bleche, Muttern und Sonstiges den Umriss der Aufstandsfläche, Kopfplatten nichts. Die Gravur "
+            "zählt zur Gravurlänge der Position (Vorschub Gravur), nie zum Schneidweg; im Prüfdialog steht sie "
+            "getrennt als <i>Gravur</i> der Anbauteile. Geschweißt wird nicht kalkuliert.",
+            "<b>Eigene Körper</b> einer Baugruppe (Bleche, Bolzen als Rundstahl), die ein Rohr berühren, bleiben "
+            "eigene Positionen wie bisher. Das Rohr bekommt zusätzlich die Gravur an ihrer Stelle. Rohre, die "
+            "andere Rohre berühren (Gestell), bleiben unberührt.",
+            "<b>Unsicher</b> (Prüfstatus <i>prüfen</i>, Übernahme nur mit Häkchen): Anbauteil an einer Ecke oder "
+            "der Art <i>Sonstiges</i>, Anbau über (fast) die ganze Länge (das Rohr wird dann aus Innenkontur und "
+            "Wandstärke angenommen), Anbauteile schwerer als das Rohr. Zum Vergleich steht im Prüfdialog, was ohne "
+            "Trennung gemessen worden wäre.",
+            "In der 3D-Ansicht sind Anbauteile sandfarben, ihre Gravur türkis.",
+            "Grenzen: Teile <b>im</b> Rohr (eingeschweißte Mutter innen, Stopfen) werden nicht abgetrennt, sondern "
+            "wie bisher als Innenmerkmal gemeldet. Eine Kopfplatte genau so groß wie das Rohr ist vom Rohr nicht "
+            "zu unterscheiden.")
     i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
               "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
               "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
@@ -3319,7 +3347,8 @@ def kapitel_step_messung(i):
     i.abschnitt("Messregeln")
     i.liste("Gerade Rohre mit konstantem Querschnitt (keine Biegeteile). Rund-, Quadrat- und Rechteckrohr werden "
             "erkannt, alles andere als Sonderprofil gemeldet.",
-            "Teilelänge = größte Ausdehnung entlang der Rohrachse (bei Gehrung die lange Seite).",
+            "Teilelänge = größte Ausdehnung der Rohrwände entlang der Achse (bei Gehrung die lange Seite; "
+            "Anbauteile wie Kopfplatten zählen nicht, [[anbauteile]]).",
             "Schneidweg = Anfangsschnitt + Endschnitt + Innenkonturen auf der Außenhaut. Gravuren (nicht durch die "
             "Wand) zählen getrennt.",
             "Innenkonturen, Anfangs- und Endschnitt werden nach ihrem Hüllmaß klein, mittel oder groß eingestuft "
@@ -3532,6 +3561,9 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.7", "STEP-Import trennt <b>Anbauteile</b> (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten) "
+              "vom Rohr: Profil, Länge und Schneidweg nur vom Rohr, Anbauteile mit Lage und Gravur (Bolzen Kreuz, "
+              "sonst Umriss), unsichere Fälle zum Prüfen ([[anbauteile]])."],
     ["0.8.5", "Staffeln: Im Fenster der Stufe Sätze und Positionen per Häkchen wählen (neue Stufe: alle angehakt). "
               "Blechteile aus dem Blech-Editor je Stufe mit dem EK aus dem Einkauf ab Stückzahl, sonst mit dem "
               "Richtpreis für die Stückzahl der Stufe neu gerechnet ([[staffeln]])."],

@@ -39,8 +39,8 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "hinweise", "einheit", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen", "n_kanten",
            "huelle", "meldungen", "innen_a", "innen_b", "wand_messungen", "sicherheit", "konturen_liste",
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
-           "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "ersatz",
-           "alternative", "fehler"]
+           "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
+           "trennung", "gravur_anbau", "ersatz", "alternative", "fehler"]
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, als
 # JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "alternative", "fehler")
@@ -125,6 +125,9 @@ def _zeile(t, name, artikel, netz):
             _z(t.ende_a_huelle), _z(t.ende_b_huelle),
             "|".join(f"{_z(d)}/{_z(s_)}:{n}" for (d, s_), n in sorted(t.senkungen.items())),
             "|".join(f"{_z(d)}:{n}" for d, n in sorted(t.fliessloecher.items())),
+            json.dumps(t.anbauteile, ensure_ascii=False, separators=(",", ":")) if t.anbauteile else "",
+            json.dumps(t.trennung, ensure_ascii=False, separators=(",", ":")) if t.trennung else "",
+            _z(t.gravur_anbau) if t.anbauteile else "",
             "1" if t.ersatz else "", "", ""])
 
 

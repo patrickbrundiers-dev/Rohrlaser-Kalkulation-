@@ -37,11 +37,13 @@ def _messinfo(m):
                + ("" if m.get("symmetrisch") != "0" else ", unsymmetrisch") + ", "
                if _f(m, "stegdicke") > 0 else "")
     norm = f"Normprofil {m['normprofil']}, " if m.get("normprofil") else ""
+    anbau = step.anbau_text(m)
     return (f"<b>{m.get('artikel')}</b>: {m.get('profilform')} {m.get('profil_id_vorschlag') or ''}, {norm}{traeger}"
             f"Länge {z('laenge')} mm, "
             f"Schneidweg {z('schneidweg')} mm (Anfangsschnitt {z('ende_a')}, Endschnitt {z('ende_b')}, Innenkonturen "
             f"{z('innen')} mm in {m.get('innen_konturen') or 0} Konturen), Gravur {z('gravur')} mm, Einstiche "
-            f"{m.get('konturen') or 0}" + (f" · {m['hinweise']}" if m.get("hinweise") else "")
+            f"{m.get('konturen') or 0}" + (f"<br>{anbau}" if anbau else "")
+            + (f" · {m['hinweise']}" if m.get("hinweise") else "")
             + (f"<br><b style='color:{farbe}'>Prüfstatus: {status}</b>" if status else "")
             + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else ""))
 
@@ -212,7 +214,8 @@ class StepPruefDialog(QDialog):
                          "Anzahl Sätze eintragen (Vorgabe 1; leer = Einzelpositionen); die Spalte zeigt Stück je Satz, "
                          "Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
                          "markieren (Strg/Umschalt) und unten Werte setzen; „Für alle“ gilt für alle Dateien. In der "
-                         "3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün.")
+                         "3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün, "
+                         "Anbauteile sandfarben.")
         hinweis.setWordWrap(True)
         lay.addWidget(hinweis)
         knoepfe = QDialogButtonBox()
