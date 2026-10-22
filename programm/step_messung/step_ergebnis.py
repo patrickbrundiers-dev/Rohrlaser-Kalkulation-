@@ -29,11 +29,14 @@ Versionen von SCHEMA_VERSION:
 - 1.5 (22.10.2026): 3D-Schnittbearbeitung: schräge Bohrungen (ab 0,5° gegen die Wandnormale) tragen "neigung_l"
   (längs, + Richtung Ende B) und "neigung_q" (quer, + Richtung steigender Umfangswinkel) in Grad. Felder aus 1.4
   unverändert.
+- 1.6 (22.10.2026): Fasen an den Enden: das Ende trägt "fase": true und "hinweis"; die Fase wird nicht gelasert,
+  Schnittlänge = Außenkontur an der längsten Stelle (bei gerader Außenkante "form" = "gerade"), Länge = längste Länge.
+  Felder aus 1.5 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.5"
+SCHEMA_VERSION = "1.6"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
