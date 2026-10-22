@@ -1800,7 +1800,7 @@ class AngebotSeite(QWidget):
             return False
         eingaben = d.eingaben()
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(d.profil))
-        erg = schneidweg.rechnen(eingaben, d.profil, grenzen, gewinde_liste(self.tabellen))
+        erg = schneidweg.rechnen(eingaben, d.profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"] or d.kopf_fehler():
             self.f.meldung("Neue Position: " + " ".join(erg["fehler"] + d.kopf_fehler()), fehler=True)
             return False
@@ -2078,7 +2078,7 @@ class AngebotSeite(QWidget):
         else:
             naht_neu = {}
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
-        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen))
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False

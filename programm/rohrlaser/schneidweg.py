@@ -30,7 +30,7 @@ gilt erst, wenn der Benutzer ihn in 'Gewinde geprüft' einträgt.
 import json
 import math
 
-from . import naht, optimierung as opt
+from . import dreid, naht, optimierung as opt
 from .stammdaten import flaeche_wirksam
 
 QUELLE = "Schneidweg-Rechner"
@@ -226,15 +226,20 @@ def kontur(e):
     raise ValueError(f"Unbekannte Konturart '{art}'.")
 
 
-def rechnen(eingaben, profil, grenzen, gewinde=None):
+def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     """Schneidweg je Teil aus den Eingaben. profil = Stammdaten-Zeile, grenzen = Regel der Konturklassen
-    (rechnen.kontur_regel: Grenzen der Maschine, mit Wandstärke auch die Faktoren × Wand).
+    (rechnen.kontur_regel: Grenzen der Maschine, mit Wandstärke auch die Faktoren × Wand). maschine = Stammdaten-
+    Zeile der Maschine für die Grenzen des Schwenkwinkels (3D, dreid; None = Vorgabe ±45°): mit Häkchen
+    'd3' der Eingaben wird eine Bohrung in 3D als Ellipse auf der Wand gerechnet (Länge und Hüllmaß mit dem
+    begrenzten Winkel), eine Gehrung in 3D behält ihre Länge (nur der Kopf ist geschwenkt).
     Ergebnis dict(schritte=[{text, anzahl, laenge_stueck, laenge, einstiche, huelle, klasse, schaetzung}],
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
     schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
     richtung_fehlt_text = []
+    hinweise_3d = []
+    mit_3d = eingaben.get("d3") is True
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
     n_ende = einstiche_ende(form)
@@ -255,6 +260,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
         if _z(e.get("gemessen")) > 0:       # aus der STEP-Messung: gemessene Länge und Form
             lg, sch, gerade = _z(e["gemessen"]), False, e.get("form") == "gerade"
             text = f"{titel} {e.get('form') or ''}".rstrip() + (f" {zahl(w, 1)}°" if w else "") + " (STEP gemessen)"
+        if mit_3d and e.get("d3") and w and not sat:
+            v, h_ = dreid.gehrung_begrenzen(w, maschine)
+            text += f", in 3D (Kopf {zahl(v, 1)}°)"
+            if h_:
+                hinweise_3d.append(f"{titel}: {h_} Die Gehrungsfläche ist dann nicht maßhaltig.")
         schritte.append(dict(text=text, anzahl=1, laenge_stueck=lg, laenge=lg, einstiche=n_ende,
                              huelle=_z(e.get("huelle_gemessen")) or hk_ende, klasse="Ende", schaetzung=sch,
                              gerade=gerade))
@@ -278,6 +288,18 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
             continue
         masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
+        if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
+            try:
+                nl, nq, ges, h_ = dreid.neigung_begrenzen(e.get("neigung_l"), e.get("neigung_q"), maschine)
+            except ValueError as f:
+                fehler.append(f"Bohrung 3D: {f}")
+                continue
+            if not (_z(e.get("gemessen")) > 0 and not h_):
+                lg = dreid.bohrung_laenge(_z(e.get("d")), ges)
+            hk = dreid.bohrung_huelle(_z(e.get("d")), ges)
+            masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
+            if h_:
+                hinweise_3d.append(f"Bohrung Ø {zahl(_z(e.get('d')), 2)}: {h_} Die Bohrung ist dann nicht maßhaltig.")
         klasse = "groß" if hk is None else ("klein", "mittel", "groß")[kontur_klasse(hk, grenzen)]
         if _z(e.get("gemessen")) > 0:
             masse = (masse + " (STEP gemessen)").strip()
@@ -314,8 +336,10 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
                         f"({', '.join(richtung_fehlt_text)}). Bei frei drehbaren Teilen (Schweißnaht ohne Vorgabe) "
                         "dreht die Optimierung das Teil passend und legt die Gehrungen ineinander. Nur wenn die Lage "
                         "fest ist (Werkstattpapiere, Bohrbild), die längste Seite von Hand wählen.")
+    hinweise += hinweise_3d
     return dict(schritte=schritte, felder=felder, schneidweg=felder["schneidweg"], einstiche=einstiche,
-                schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise)
+                schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise,
+                hinweise_3d=hinweise_3d)
 
 
 def aus_position(e, p, profil):

@@ -1380,7 +1380,8 @@ def kapitel_optimieren(i):
                    "<i>gekippt über</i> angenommen, die Skizze zeigt sie, die Optimierung dreht das Teil passend; von "
                    "Hand nur bei fester Lage), beim Rundrohr Ausklinkung; rechts der gemessene Wert aus dem "
                    "STEP-Import."),
-               (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer, "
+                   "3D mit Neigung längs und quer."),
                (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; Kopieren, Vorlagen, Entfernen daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
                (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe."),
@@ -1437,6 +1438,19 @@ def kapitel_optimieren(i):
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
             "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
+            "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): Das Häkchen <i>3D-Schnittbearbeitung "
+            "aktivieren</i> über den Enden schaltet sie für das Teil ein; daneben steht, ob die Maschine 3D kann, "
+            "ihr Schwenkwinkel und das Greifmaß (rot, wenn die Maschine kein 3D kann, die Position bekommt dann einen "
+            "FEHLER). Danach je Ende <i>Gehrung in 3D</i> (nur mit Gehrung: der Kopf wird auf den Gehrungswinkel "
+            "geschwenkt, die Schnittfläche ist eben durch die Wand) und je Bohrung die Spalte <i>3D</i> mit "
+            "<i>Neigung längs</i> (+ Richtung Ende B) und <i>Neigung quer</i> (+ im Uhrzeigersinn von Ende A, "
+            "Richtung 90°), Schnellauswahl −45°, −30°, 0°, +30°, +45° oder eine Zahl. Die Neigung ist der Winkel "
+            "der Bohrungsachse gegen die Wand, nicht der Umfangswinkel (der steht in <i>Seite</i>). Die Bohrung "
+            "wird als Ellipse gerechnet (Hüllmaß d / cos Gesamtneigung) und in der Skizze so gezeichnet, mit "
+            "<i>3D</i> und den Winkeln. Über der Grenze der Maschine (Vorgabe ±45°) wird der Winkel begrenzt, der "
+            "Dialog zeigt den Hinweis, die Position bekommt „WARNUNG: 3D-Winkel begrenzt, Kontur nicht "
+            "maßhaltig“. Fasen werden nicht in 3D gerechnet. Ohne Häkchen am Teil bleibt alles 2D, auch wenn "
+            "Zeilen <i>3D</i> haben. Zeit und Greifmaß: [[kalkulation]], [[optimieren]].",
             "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
             "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
             "Rundrohr der Umfang in Vierteln). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
@@ -3723,6 +3737,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.18", "<b>Rohr-Editor mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i>, je Ende <i>Gehrung in "
+               "3D</i>, je Bohrung <i>3D</i> mit Neigung längs und quer (Schnellauswahl ±45°/±30°/0°). Schräge "
+               "Bohrungen als Ellipse in Rechnung und Skizze, Winkel über der Maschinengrenze werden begrenzt und "
+               "gemeldet."],
     ["0.8.17", "<b>3D-Greifmaß</b> in der Optimierung: hat das letzte Teil einer Stange eine 3D-Bearbeitung am Ende, "
                "bleibt dahinter das Greifmaß der Maschine frei (statt des Greiferrests, wenn größer, nie zusätzlich); "
                "ein Teil ohne 3D kommt nach Möglichkeit ans Ende. Stangenbild und Werkstattpapiere zeigen es mit "
