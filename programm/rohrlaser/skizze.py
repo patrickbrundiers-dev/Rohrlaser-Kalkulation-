@@ -13,7 +13,7 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 """
 import math
 
-from . import normprofile
+from . import normprofile, rp_profile
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ, SENKUNG, _z, kontur,
                          punkte)
 
@@ -91,6 +91,16 @@ class Querschnitt:
                                 (-s, v1 - tf), (-u1, v1 - tf)]]
                 self.flaechen = [Flaeche("Flansch", (-u1, v1), (u1, v1), (0, 1)),
                                  Flaeche("Steg", (s, v1 - tf), (s, -v1), (1, 0))]
+        elif form == rp_profile.FORM and rp_profile.daten(profil.get("profil_id")):
+            # RP-Profil: Kontur der Bibliothek (A = Breite waagrecht, B = Höhe), Seiten wie beim Rechteckrohr
+            e = rp_profile.daten(profil.get("profil_id"))
+            self.B, self.H, self.a_waagrecht = e["breite"], e["hoehe"], True
+            self.umriss = rp_profile.umriss(e)
+            u1, v1 = self.B / 2, self.H / 2
+            self.flaechen = [Flaeche("oben", (-u1, v1), (u1, v1), (0, 1)),
+                             Flaeche("vorne", (u1, v1), (u1, -v1), (1, 0)),
+                             Flaeche("unten", (u1, -v1), (-u1, -v1), (0, -1)),
+                             Flaeche("hinten", (-u1, -v1), (-u1, v1), (-1, 0))]
         else:
             if form == "Flachstahl":
                 self.B, self.H = a, (t or max(1.0, a / 10))

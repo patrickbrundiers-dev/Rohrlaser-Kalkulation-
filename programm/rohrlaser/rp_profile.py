@@ -267,9 +267,10 @@ def wandstaerke(elemente):
     return max(zaehler, key=lambda d: (zaehler[d], -d)) if zaehler else None
 
 
-def querschnitt(elemente):
+def querschnitt(elemente, mit_konturen=False):
     """Kennwerte eines Querschnitts aus Linien und Bögen (siehe Modulbeschreibung). Ohne geschlossenen Querschnitt
-    ValueError."""
+    ValueError. mit_konturen: zusätzlich 'konturen' = dict(aussen=[(x, y)] gegen den Uhrzeigersinn,
+    kammern=[[(x, y)] …]) als Polygone (z. B. für Testteile)."""
     if not elemente:
         raise ValueError("Keine Linien oder Bögen gefunden.")
     g = _Graph(elemente)
@@ -351,7 +352,7 @@ def querschnitt(elemente):
     schnitt = max(umfang - doppel - len(laeufe) * math.pi * wand, 0.0)
     if not kammern:         # offenes Profil: der Laser schneidet jede Wand nur einmal (wie optimierung.schnittlaenge)
         schnitt /= 2
-    return dict(breite=round(max(xs) - min(xs), 2), hoehe=round(max(ys) - min(ys), 2), wand=round(wand, 2),
+    aus = dict(breite=round(max(xs) - min(xs), 2), hoehe=round(max(ys) - min(ys), 2), wand=round(wand, 2),
                 flaeche=round(sum(p["netto"] for p in blech), 1), umfang=round(umfang, 1),
                 kammern=len(kammern), kammer_flaeche=[round(p["netto"], 1) for p in sorted(kammern, key=lambda p: -p["a"])],
                 doppellage=round(doppel, 1), doppellagen=len(laeufe), schnitt=round(schnitt, 1),
@@ -359,6 +360,10 @@ def querschnitt(elemente):
                 richtung={k: {str(w): round(v, 2) for w, v in sorted(d.items()) if v >= 0.005}
                           for k, d in richtung.items()},
                 x0=round(min(xs), 3), y0=round(min(ys), 3))
+    if mit_konturen:
+        aus["konturen"] = dict(aussen=[list(reversed(z["pts"])) for z in aussen],
+                               kammern=[p["pts"] for p in kammern])
+    return aus
 
 
 def pruefen(q):
@@ -464,6 +469,73 @@ def daten(pid):
         return None
     pid = str(pid).strip()
     return _EIGENE.get(pid) or bibliothek().get(pid)
+
+
+TOL_MASS = 0.3          # mm, Breite/Höhe beim Erkennen (Fingerabdruck)
+TOL_ANTEIL = 0.015      # Fläche und Konturlänge beim Erkennen
+
+
+def erkennen(breite, hoehe, flaeche, umfang, kammern=1, wand=None, eintraege=None):
+    """RP-Profile, deren Fingerabdruck zu einem gemessenen Querschnitt passt (STEP-Import): Breite und Höhe (in
+    beliebiger Lage), Fläche, Konturlänge (außen + Kammern = 'umfang' der Bibliothek), Zahl der Kammern und
+    Blechdicke. eintraege: {Profil-ID: Eintrag}, Vorgabe eigene + Bibliothek. Ergebnis: Profil-IDs, beste zuerst."""
+    if eintraege is None:
+        eintraege = dict(bibliothek(), **_EIGENE)
+    m = sorted((breite, hoehe))
+    treffer = []
+    for pid, e in eintraege.items():
+        if (e.get("kammern") or 0) != kammern or \
+                any(abs(x - y) > TOL_MASS for x, y in zip(sorted((e["breite"], e["hoehe"])), m)):
+            continue
+        if wand and abs(e["wand"] - wand) > 0.15:
+            continue
+        df, du = abs(e["flaeche"] - flaeche) / e["flaeche"], abs(e["umfang"] - umfang) / e["umfang"]
+        if df <= TOL_ANTEIL and du <= TOL_ANTEIL:
+            treffer.append((df + du, pid))
+    return [pid for _, pid in sorted(treffer)]
+
+
+def schnitt_aus_messung(e, gemessen, gerade):
+    """Schnittlänge eines Endes für ein RP-Profil aus der STEP-Messung: die Messung zählt die Doppellage als zwei
+    Wände (Außenkontur + Kammer), der Laser trennt sie mit einem Schnitt. Gerades Ende: Schnittlänge der Kontur,
+    sonst die gemessene Länge im Verhältnis Schnittlänge / Konturlänge."""
+    if gerade or not gemessen:
+        return e["schnitt"]
+    return gemessen * e["schnitt"] / e["umfang"] if e.get("umfang") else gemessen
+
+
+def ausduennen(pts, tol=0.005):
+    """Geschlossenen Zug vereinfachen (Douglas-Peucker): Punkte, die weniger als tol von der Sehne abweichen, fallen
+    weg."""
+    def dp(zug):
+        if len(zug) < 3:
+            return zug
+        (x1, y1), (x2, y2) = zug[0], zug[-1]
+        lg = math.hypot(x2 - x1, y2 - y1) or 1e-12
+        d = [abs((x2 - x1) * (y1 - y) - (x1 - x) * (y2 - y1)) / lg for x, y in zug[1:-1]]
+        i = max(range(len(d)), key=d.__getitem__)
+        if d[i] <= tol:
+            return [zug[0], zug[-1]]
+        return dp(zug[:i + 2])[:-1] + dp(zug[i + 1:])
+    n = len(pts) // 2
+    return dp(pts[:n + 1])[:-1] + dp(pts[n:] + pts[:1])[:-1]
+
+
+_UMRISS = {}
+
+
+def umriss(e, tol=0.1):
+    """Kontur eines Eintrags für Zeichnungen: [Außenkontur, Kammer …] als Polygone um die Mitte des Hüllrechtecks
+    (vereinfacht mit tol), oder [] ohne Elemente."""
+    if not e.get("elemente"):
+        return []
+    schluessel = (e["profil_id"], e["flaeche"], tol)
+    if schluessel not in _UMRISS:
+        q = querschnitt(e["elemente"], mit_konturen=True)
+        mx, my = q["x0"] + q["breite"] / 2, q["y0"] + q["hoehe"] / 2
+        _UMRISS[schluessel] = [[(round(x - mx, 4), round(y - my, 4)) for x, y in ausduennen(z, tol)]
+                               for z in q["konturen"]["aussen"][:1] + q["konturen"]["kammern"]]
+    return _UMRISS[schluessel]
 
 
 def stammdaten_zeile(e, bemerkung=None):
