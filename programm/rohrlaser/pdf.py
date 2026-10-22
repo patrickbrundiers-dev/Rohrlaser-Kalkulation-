@@ -233,11 +233,13 @@ def logo_bild(einst, breite=55 * mm, hoehe=24 * mm):
 
 STAFFEL_HINWEIS = "Staffelpreise bei Einzelbestellung dieser Position"
 STAFFEL_HINWEIS_SATZ = "Staffelpreise bei Einzelbestellung dieses Satzes"
+STAFFEL_HINWEIS_STUFE = "Staffelpreise je Stufe bei gemeinsamer Bestellung aller Positionen dieser Stufe"
 
 
 def _staffel_text(st, satz=False):
     n = _z(st["menge"], 0)
-    return f"Ab {n} {('Satz' if st['menge'] == 1 else 'Sätze') if satz else 'Stk.'} je"
+    stufe = f"Stufe {st['stufe']}: " if st.get("gemeinsam") and st.get("stufe") else ""
+    return f"{stufe}Ab {n} {('Satz' if st['menge'] == 1 else 'Sätze') if satz else 'Stk.'} je"
 
 
 def _angebot_kopf(kopf, ang, einst):
@@ -294,7 +296,11 @@ def _angebot_positionen(ang):
             r = zeile(["", "", _p(_staffel_text(st, satz), S_A_STAFFEL), "", "", _p(_z(st["preis"]), S_A_STAFFEL), ""])
             stil.append(("SPAN", (2, r), (4, r)))
         if liste:           # jede Stufe ist eine eigene Bestellung (Rüsten, Pauschalen, Mindestpreis je Stufe)
-            r = zeile(["", "", _p(STAFFEL_HINWEIS_SATZ if satz else STAFFEL_HINWEIS, S_A_GRAU), "", "", "", ""])
+            text = STAFFEL_HINWEIS_STUFE if all(st.get("gemeinsam") for st in liste) else \
+                STAFFEL_HINWEIS_SATZ if satz else STAFFEL_HINWEIS
+            if any(st.get("gemeinsam") for st in liste) and not all(st.get("gemeinsam") for st in liste):
+                text += "; Zeilen mit Stufe: bei gemeinsamer Bestellung aller Positionen dieser Stufe"
+            r = zeile(["", "", _p(text, S_A_GRAU), "", "", "", ""])
             stil.append(("SPAN", (2, r), (5, r)))
             stil.extend([("BACKGROUND", (2, von), (5, r), STAFFEL_FLAECHE), ("LINEBEFORE", (2, von), (2, r), 1.5, BLAU)])
 

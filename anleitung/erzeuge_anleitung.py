@@ -1534,33 +1534,50 @@ def kapitel_optimieren(i):
 
 def kapitel_staffeln(i):
     i.kapitel("Staffelpreise", marke="staffeln")
-    i.text("Im Reiter <i>Staffeln</i> rechnet das Programm Preise für andere Mengen. Jede Mengenstufe wird als "
-           "eigenes Angebot neu optimiert und kalkuliert, weil Rüsten, Stangenwechsel und Verschnitt je Menge neu "
-           "anfallen. Das eigentliche Angebot bleibt unverändert. Jede Stufe kann eigene Werte haben "
-           "(Materialzuschlag, Gewinn, Nebenkosten …); leere Felder nehmen den Wert des Angebots.")
-    i.text("Gibt es für ein Profil weitere Lieferlängen (z. B. 12 m, [[lieferlaengen]]), "
-           "vergleicht das Programm sie für jede Mengenstufe neu und nimmt automatisch die empfohlene, also nur bei "
-           "ausreichender Ersparnis die längere. Bei kleinen Mengen bleibt es so oft bei 6 m, bei großen kann es 12 m "
-           "sein; die Spalte Stangen zeigt die Anzahl der geplanten Stangen.")
-    i.bild("staffeln_vorher", "Mengenstufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
-        (1, "<b>Neue Stufe</b> fügt eine Zeile an; <b>Stufen löschen</b> entfernt die markierten."),
-        (2, "<b>Stufen aus Angebot</b> legt für jeden Satz und jede Position ohne Satz, die noch fehlt, eine Stufe "
-            "mit der Menge aus dem Angebot an. Weitere Mengen danach mit <b>Neue Stufe</b> ergänzen."),
-        (3, "Je Zeile: <b>Satz oder Pos.</b> per Doppelklick aus der Liste wählen; die Liste zeigt alle Sätze "
-            "(mit ihren Positionen) und alle Positionen ohne Satz dieses Angebots. Eintippen geht weiterhin. Dazu "
-            "<b>Menge ab</b> in Sätzen bzw. Stück, <b>Materialzuschlag</b>, <b>Zuschlag in</b> (% oder €/Einheit), "
-            "<b>Gewinn</b> und Bemerkung. Graue Werte gelten, solange das Feld leer ist. Die Prüfung zeigt, was "
-            "erkannt wurde, oder den Fehler."),
-        (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Nötig ist das selten: Zuschläge wirken sofort, "
-            "neue Mengen und Änderungen am Angebot rechnet das Programm nach kurzer Zeit im Hintergrund nach."),
-        (5, "<b>Erweiterte Einstellungen</b> zeigt die übrigen Felder je Stufe (Tabelle unten). Spalten, in denen "
-            "eine Stufe einen Wert hat, bleiben immer sichtbar.")])
+    i.text("Im Reiter <i>Staffeln</i> rechnet das Programm Preise für andere Mengen. Eine <b>Stufe</b> ist wie ein "
+           "eigener Auftrag: Sie hat Mengen für einen oder mehrere Sätze und Positionen, und alle werden zusammen "
+           "optimiert und kalkuliert. Rüsten, Stangenwechsel, Verschnitt, Programmierkosten, Pauschalen, "
+           "Angebotsaufschlag, Fracht und Mindestpreis verteilen sich auf alle Positionen der Stufe, genau wie im "
+           "Angebot. Hat eine Stufe dieselben Mengen wie das Angebot und keine eigenen Werte, ergibt sie Cent für "
+           "Cent die Preise des Angebots. Das eigentliche Angebot bleibt unverändert.")
+    i.text("Jede Stufe hat dieselben Einstellungen wie das Angebot (Gewinn, Zuschlag Fremdleistung, Rüstzeit und "
+           "Pauschale je Abmessung, Programmierkosten, Angebotsaufschlag, Handling Kundenmaterial, Fracht, Skonto) "
+           "und einen eigenen Materialpreis €/m je Abmessung. Leere Felder nehmen den Wert des Angebots. Die "
+           "Lieferlängen sind dieselben wie im Angebot; mit <b>Lieferlänge je Stufe wählen</b> = ja (unter "
+           "Erweitert) nimmt die Stufe die empfohlene Lieferlänge für ihre Mengen ([[lieferlaengen]]), bei großen "
+           "Mengen also z. B. 12 m.")
+    i.bild("staffeln_vorher", "Stufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
+        (1, "<b>Neue Stufe …</b> legt eine Stufe mit den Mengen des Angebots an und öffnet ihr Fenster; dort die "
+            "Mengen ändern. <b>Stufen löschen</b> entfernt die markierten Stufen mit ihren Mengen."),
+        (2, "<b>Stufe bearbeiten …</b> (oder Doppelklick auf die Stufe) öffnet das Fenster der Stufe."),
+        (3, "Je Zeile eine Stufe: Bezeichnung, Mengen, eigene Werte (oder „wie Angebot“), Netto gesamt und "
+            "Prüfung („gemeinsamer Auftrag“ bei mehreren Sätzen und Positionen, sonst der Fehler)."),
+        (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Nötig ist das selten: Gewinn und Zuschläge wirken "
+            "sofort, neue Mengen, Materialpreise, Fracht und Änderungen am Angebot rechnet das Programm nach kurzer "
+            "Zeit im Hintergrund nach.")])
+    i.bild("staffel_stufe", "Fenster einer Stufe: Einstellungen, Materialpreise und Mengen", hoehe=110 * mm, legende=[
+        (1, "Einstellungen wie im Angebot. Leere Felder zeigen grau den Wert des Angebots."),
+        (2, "<b>Frachtkosten</b>: fester Betrag für die ganze Stufe; leer = Fracht wie im Angebot (mit der Frachtart "
+            "<i>berechnet</i> für die Mengen der Stufe)."),
+        (3, "<b>Erweitert</b>: Materialzuschlag, Verlust, Grundpreis, Gemeinkosten, Rüsten separat, zusätzlicher "
+            "Arbeitsgang, Nebenkosten, Rabatt und Lieferlänge je Stufe (Tabelle unten)."),
+        (4, "<b>Materialpreis je Abmessung</b> (Profil · Werkstoff): €/m im Angebot grau, daneben der Preis für diese "
+            "Stufe (leer = wie im Angebot). Er gilt für alle Positionen dieser Abmessung in der Stufe."),
+        (5, "<b>Mengen</b> je Satz bzw. Position in Sätzen bzw. Stück; leer = nicht in dieser Stufe. "
+            "<b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen alle Zeilen. "
+            "<b>Menge bis</b> ist freiwillig.")])
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
            "8 kurze Riegel, 16 Streben, 2 Holme und 3 Traversen.")
     i.abschnitt("Werte je Stufe")
     i.tabelle(["Feld", "Bedeutung (leer = …)"], [
-        ["Menge ab", "Kalkulationsmenge der Stufe (Mindestmenge) in Sätzen bzw. Stück; Pflicht"],
+        ["Gewinn, Zuschlag Fremdleistung, Rüstzeit und Pauschale je Abmessung, Programmierkosten, "
+         "Angebotsaufschlag, Handling Kundenmaterial, Skonto", "wie die Felder im Angebot, nur für diese Stufe "
+                                                              "(leer = Wert des Angebots)"],
+        ["Frachtkosten", "fester Betrag für die Stufe (leer = wie im Angebot)"],
+        ["Materialpreis je Abmessung", "€/m für alle Positionen dieser Abmessung in der Stufe (leer = wie im "
+                                       "Angebot)"],
+        ["Menge ab", "Kalkulationsmenge der Stufe (Mindestmenge) in Sätzen bzw. Stück je Satz bzw. Position"],
         ["Menge bis", "Höchstmenge; leer = bis zur nächsten Stufe desselben Satzes bzw. derselben Position − 1, "
                       "bei der höchsten Stufe offen („ab …“)"],
         ["Materialzuschlag, Zuschlag in", "Zuschlag auf die Materialkosten nach Verlust, in % oder als fester "
@@ -1580,8 +1597,12 @@ def kapitel_staffeln(i):
         ["Verpackung / Nebenkosten", "€/Einheit und Nebenkosten pauschal € für die Stufe; zählen zu den "
                                      "Selbstkosten"],
         ["Rabatt erlaubt", "ja = negativer Materialzuschlag und negativer Gewinn sind erlaubt (sonst abgelehnt)"],
+        ["Lieferlänge je Stufe wählen", "ja = empfohlene Lieferlänge für die Mengen der Stufe (leer = Lieferlängen "
+                                        "des Angebots)"],
     ], [55 * mm, 200 * mm])
     i.abschnitt("Rechenweg je Stufe")
+    i.text("Die Stufe wird mit ihren Mengen optimiert und kalkuliert wie ein Auftrag. Daraus kommen je Satz bzw. "
+           "Position die Kostenbausteine; darauf wirken die Werte der Stufe in dieser Reihenfolge:")
     i.liste("<b>Material-Grundkosten</b>: Stangenkosten dieser Menge inkl. echtem Verschnitt (oder Grundpreis "
             "abweichend × Menge).",
             "<b>Materialverlust</b>: Grundkosten × Verlust %.",
@@ -1626,7 +1647,8 @@ def kapitel_staffeln(i):
                (4, "Einmalige Rüstkosten (Rüstkosten = separat): nicht im Stückpreis, aber im Gesamtpreis."),
                (5, "Änderung des Preises je Einheit zur letzten Eingabe, in € und %.")])
     i.abschnitt("Prüfung und Fehler")
-    i.liste("Rot markiert und mit FEHLER in der Prüfung: Menge fehlt, Menge doppelt (gleicher Satz bzw. Position), "
+    i.liste("Rot markiert und mit FEHLER in der Prüfung: keine Menge, Menge doppelt (gleicher Satz bzw. Position in "
+            "zwei Stufen mit denselben Sätzen und Positionen), "
             "Menge bis kleiner als Menge ab, sich überschneidende Mengenbereiche, Prozentwerte außerhalb des "
             "zulässigen Bereichs, negative Werte ohne „Rabatt erlaubt“.",
             "Fehlt der Materialpreis (keine Preise in den Stammdaten, kein Schnittplan), rechnet das Programm nicht "
@@ -1635,14 +1657,18 @@ def kapitel_staffeln(i):
     i.text("Die Staffelpreise erscheinen im Angebots-PDF direkt in ihrer Position: unter der Zeile mit "
            "Menge und Preis je Einheit eingerückt je Stufe eine Zeile „Ab 50 Stk. je“ (bei Sätzen „Ab 4 Sätze je“) "
            "mit dem Staffelpreis, aufsteigend nach Menge, danach der übrige Positionstext. Staffelzeilen haben keinen "
-           "Gesamtpreis und zählen nicht zur Summe. Darunter steht grau „Staffelpreise bei Einzelbestellung "
-           "dieser Position“ (bzw. „dieses Satzes“): Jede Stufe rechnet Rüsten, Pauschalen und Mindestpreis für sich, "
-           "deshalb kann eine Stufe mit der Menge des Angebots teurer sein als der Preis im Gesamtangebot. Eine Stufe "
-           "mit gleicher Menge und gleichem Preis wie die Position entfällt dort. Ändert sich etwas am "
+           "Gesamtpreis und zählen nicht zur Summe. Hat eine Stufe mehrere Sätze bzw. Positionen, beginnt die Zeile mit "
+           "der Stufe („Stufe 2: Ab 50 Stk. je“), und darunter steht grau „Staffelpreise je Stufe bei gemeinsamer "
+           "Bestellung aller Positionen dieser Stufe“. Bei einer Stufe mit nur einer Position steht dort "
+           "„Staffelpreise bei Einzelbestellung dieser Position“ (bzw. „dieses Satzes“): Sie trägt Rüsten, "
+           "Pauschalen und Mindestpreis allein und kann deshalb teurer sein als der Preis im Gesamtangebot. Eine "
+           "Stufe mit gleicher Menge und gleichem Preis wie die Position entfällt dort. Ändert sich etwas am "
            "Angebot, zeigt der Reiter VERALTET und rechnet nach; das Angebot rechnet veraltete Staffelpreise "
-           "vor dem Drucken ebenfalls selbst neu. Ältere Angebote rechnen unverändert weiter: ihre Stufen haben "
-           "leere Felder, also die Werte des Angebots. Vor dem Umstellen einer älteren Datendatei legt das "
-           "Programm eine Sicherung „vor_Schema_14“ im Ordner Sicherung an.")
+           "vor dem Drucken ebenfalls selbst neu.")
+    i.text("Ältere Angebote (vor Version 0.8.0): Beim ersten Öffnen mit dieser Version werden ihre Mengenstufen zu "
+           "Stufen zusammengefasst, je Satz bzw. Position der Größe nach: die kleinste Menge in Stufe 1, die nächste in "
+           "Stufe 2 usw. Widersprechen sich die Werte zweier Zeilen (z. B. verschiedener Gewinn), bekommt die Zeile "
+           "eine eigene Stufe. Vorher legt das Programm im Ordner Sicherung die Sicherung „vor_Schema_36“ an.")
 
 
 def kapitel_fracht(i):
@@ -3360,7 +3386,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.7.1", "Angebot mit sieben statt zehn Reitern: Zeiten & Arbeitskosten liegt unter Kalkulation, Stangenbild und "
+    ["0.8.0", "Staffelpreise in Stufen: jede Stufe ist ein eigener Auftrag mit Mengen für einen oder mehrere Sätze "
+              "und Positionen, gemeinsam optimiert und kalkuliert; gleiche Mengen wie im Angebot ergeben dessen "
+              "Preise. Fenster je Stufe mit den Einstellungen des Angebots, Materialpreis €/m je Abmessung und "
+              "Mengen ([[staffeln]]); alte Staffeln werden der Größe nach auf Stufen verteilt (Schema 36). "
+              "Angebot mit sieben statt zehn Reitern: Zeiten & Arbeitskosten liegt unter Kalkulation, Stangenbild und "
               "Auswertung unter Schnittplan ([[optimieren]]); Übersicht zeigt den Preisaufbau Schritt für Schritt bis "
               "zum Verkaufspreis, Gruppen per Klick aufklappbar; Status, Optimierung und Kalkulation prüfen Positionen "
               "mit einer gemeinsamen Prüffunktion (ungültige Stückzahl mit Nachkommastellen jetzt FEHLER im Status)."],

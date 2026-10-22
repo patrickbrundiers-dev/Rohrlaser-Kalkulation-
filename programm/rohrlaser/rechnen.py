@@ -2031,6 +2031,12 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zuschlag_material_teil=f * zm, zuschlag_fertigung_teil=(qz + rz + az + ze + hz) * zf,
                  handling_teil=hz, kundenmaterial="ja" if beigestellt(p) else "",
                  zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew, skonto_teil=t_ - ohne)
+        # Anteile je Teil (nur Aufteilung von rz und uz, für die Staffelpreise je Satz bzw. Position)
+        z.update(ruesten_maschine_teil=(ruest / 60 * s_rm / f8 if f8 else 0),
+                 stangenwechsel_teil=(wechsel * n_lad / 3600 * s_sw / f8 if f8 else 0),
+                 ruesten_abm_teil=(ruest_abm / n_abm if n_abm and c else 0),
+                 pauschale_abm_teil=(pausch_abm / n_abm if n_abm and c else 0),
+                 angebotsaufschlag_teil=(aufschlag / f8 if f8 and c else 0), programmierung_anteil=(prog / c if c else 0))
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf, zukauf_teil=zk_einst + zk_auf,
                  zukauf_fehlt=sum(1 for x in zk if x["fehler"]),
@@ -2105,7 +2111,9 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
                           "laser_schneiden_teil", "gewinde_teil", "gewinde_zeit_teil", "arbeit_teil",
                           "zuschlag_material_teil", "zuschlag_fertigung_teil", "zuschlag_fremdleistung_teil",
                           "gewinn_teil", "einsparung", "gewindezeit", "laser_teil", "ruesten_teil", "herstell_teil",
-                          "herstell_position", "material_position", "laser_position"), 0.0)
+                          "herstell_position", "material_position", "laser_position", "ruesten_maschine_teil",
+                          "stangenwechsel_teil", "ruesten_abm_teil", "pauschale_abm_teil", "angebotsaufschlag_teil",
+                          "programmierung_anteil"), 0.0)
     z = dict(null, pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, wand_stufe=None, gas=None,
              vorschub_gross=None, vorschub_mittel=None, vorschub_klein=None, vorschub_gravur=None, einstechzeit=None,
              **{f"zeit_{n}": None for n in ZEITANTEILE}, mm_gross=None, mm_mittel=None, mm_klein=None,

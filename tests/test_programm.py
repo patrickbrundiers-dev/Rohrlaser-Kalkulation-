@@ -324,18 +324,15 @@ assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
                                                                        if not p.get("satz")]
-assert s4.staffeln_aus_angebot() == len(staffeln.auswahl(s4.positionen)) - 2        # Rahmen und 10 gibt es schon
-assert s4.staffeln_aus_angebot() == 0
-de = s4.staffel_ansicht.itemDelegateForColumn(0)       # Auswahlliste der Spalte Satz oder Pos.
-cb = de.createEditor(s4.staffel_ansicht.viewport(), None, st_mod.index(0, 0))
-assert cb.count() == len(staffeln.auswahl(s4.positionen)) and cb.itemText(0).startswith("Satz Rahmen (2 Pos.")
-de.setEditorData(cb, st_mod.index(0, 0))
-assert cb.currentData() == "Rahmen"
-db.staffeln_loeschen([x["id"] for x in s4.stufen[6:]])    # Referenzwerte unten gelten für die 6 Stufen
+sid = s4.staffeln_aus_angebot()          # eine Stufe mit den Mengen des Angebots (gemeinsamer Auftrag)
+assert sid and len([x for x in db.staffeln(a4) if x["stufe_id"] == sid]) == len(staffeln.auswahl(s4.positionen))
+assert st_mod.rowCount() == 7 and st_mod.data(st_mod.index(6, 3)) == "wie Angebot"
+db.staffel_stufen_loeschen([sid])        # Referenzwerte unten gelten für die 6 Stufen
 s4.neu_laden()
-assert st_mod.setData(st_mod.index(5, 1), "200") and db.staffeln(a4)[5]["menge"] == 200
+st6 = st_mod.daten[5]
+s4.st_seite.stufe_speichern(st6["id"], {}, {}, [("10", 200, None)])
+assert db.staffeln(a4)[5]["menge"] == 200
 assert "VERALTET" in s4.staffel_info.text()
-assert not st_mod.setData(st_mod.index(5, 1), "0")
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
 assert abs(ang["netto"] - 999.4) < 1e-9 and ang["mwst"] == 189.89, ang   # Referenzwerte (T11, Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)

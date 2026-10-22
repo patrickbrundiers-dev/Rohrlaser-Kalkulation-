@@ -10,18 +10,18 @@ import threading
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QHBoxLayout, QLabel,
-                               QMessageBox, QProgressDialog, QPushButton, QSplitter, QStyledItemDelegate, QTableView,
-                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressDialog, QPushButton,
+                               QSplitter, QTableView, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
+                               QVBoxLayout, QWidget)
 
-from . import hilfe, staffeln, stil
+from . import fracht_angebot, hilfe, staffeln, stil
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS
 from .spaltenbreite import AutoGroesse
 from .sichtbarkeit import ohne_wert
-from .staffeln import ERWEITERT, EURO, PROZENT, STUFE_FELDER, UMLEGEN
-from .stammdaten import wert_aus_text, zahl_als_text
+from .staffeln import EURO, PROZENT, UMLEGEN
+from .stammdaten import Feld, wert_aus_text, zahl_als_text
 
-PRUEFUNG = len(STUFE_FELDER)          # letzte Spalte der Stufentabelle
 GRAU = QColor(stil.TEXT_GRAU)
 FARBE_SUMME = QColor("#DDEBF7")
 ZEILENHOEHE = 20
@@ -53,47 +53,13 @@ def angebotspreise(positionen, zeilen):
     return out
 
 
-# ------------------------------------------------------------------ Stufentabelle (Eingabe)
-class StaffelAuswahl(QStyledItemDelegate):
-    """Spalte 'Satz oder Pos.': Auswahl der Sätze und Positionen des Angebots (Eintippen geht weiter);
-    Auswahlspalten (Zuschlag in, Rüstkosten, Rabatt erlaubt): feste Liste."""
-
-    def __init__(self, seite, parent):
-        super().__init__(parent)
-        self.s = seite
-
-    def createEditor(self, parent, option, index):
-        cb = QComboBox(parent)
-        f = STUFE_FELDER[index.column()]
-        if f.name == "schluessel":
-            cb.setEditable(True)
-            cb.setInsertPolicy(QComboBox.NoInsert)
-            for schl, text, _ in staffeln.auswahl(self.s.positionen):
-                cb.addItem(text, schl)
-        else:
-            cb.addItem("", None)
-            for w in staffeln.AUSWAHL[f.auswahl]:
-                cb.addItem(w, w)
-        return cb
-
-    def setEditorData(self, editor, index):
-        w = index.data(Qt.EditRole) or ""
-        i = editor.findData(w) if w else (0 if not editor.isEditable() else -1)
-        editor.setCurrentIndex(i)
-        if i < 0:
-            editor.setEditText(w)
-
-    def setModelData(self, editor, modell, index):
-        i = editor.currentIndex()
-        text = editor.currentText()
-        wert = editor.itemData(i) if i >= 0 and editor.itemText(i) == text else text
-        modell.setData(index, wert or "", Qt.EditRole)
+# ------------------------------------------------------------------ Stufentabelle (Übersicht)
+STUFEN_SPALTEN = ("Stufe", "Bezeichnung", "Mengen", "Eigene Werte", "Netto gesamt [€]", "Prüfung")
+PRUEFUNG = len(STUFEN_SPALTEN) - 1
 
 
-class StaffelnModell(QAbstractTableModel):
-    """Mengenstufen eines Angebots: Felder aus staffeln.STUFE_FELDER und die Prüfung. Leere Werte zeigen grau den
-    Wert, der gilt (Angebot bzw. automatische Höchstmenge)."""
-    geaendert = Signal(str)          # Name des geänderten Felds
+class StufenModell(QAbstractTableModel):
+    """Stufen der Staffelpreise, eine Zeile je Stufe (nur Anzeige; Doppelklick öffnet das Fenster der Stufe)."""
 
     def __init__(self, seite):
         super().__init__()
@@ -108,125 +74,98 @@ class StaffelnModell(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.daten)
 
     def columnCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else PRUEFUNG + 1
+        return 0 if parent.isValid() else len(STUFEN_SPALTEN)
 
     def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
         if rolle == Qt.DisplayRole:
-            if richtung != Qt.Horizontal:
-                return str(abschnitt + 1)
-            return "Prüfung" if abschnitt == PRUEFUNG else STUFE_FELDER[abschnitt].titel
-        if rolle == Qt.ToolTipRole and richtung == Qt.Horizontal and abschnitt < PRUEFUNG:
-            return TIPPS.get(STUFE_FELDER[abschnitt].name)
+            return STUFEN_SPALTEN[abschnitt] if richtung == Qt.Horizontal else str(abschnitt + 1)
         return None
 
-    def vorgabe(self, z, name):
-        """Grauer Text für ein leeres Feld: der Wert, der gilt."""
-        e = self.s.s.einst
-        if name == "mat_zuschlag":
-            return f"{_z(100 * (e.get('zuschlag_material') or 0), 1)} % (Einstellungen)"
-        if name == "mat_art":
-            return PROZENT
-        if name == "gewinn":
-            return f"{_z(100 * (e.get('gewinn') or 0), 1)} % (Angebot)"
-        if name == "zuschlag_fertigung":
-            return f"{_z(100 * (e.get('zuschlag_fertigung') or 0), 1)} % (Einstellungen)"
-        if name == "ruesten":
-            return UMLEGEN
-        if name == "bis":
-            b = staffeln.bis_wirksam(z, self.daten)
-            return f"bis {_z(b, 0)}" if b is not None else "offen"
-        if name == "arbeitsgang_satz" and (z.get("arbeitsgang_min") or 0):
-            return "Maschine"
-        return ""
+    def mengen(self, st):
+        return [z for z in self.s.s.stufen if z.get("stufe_id") == st["id"]]
 
-    def anzeige(self, z, name):
-        w = z.get(name)
-        if name == "mat_zuschlag" and isinstance(w, (int, float)):
-            return f"{_z(w, 2)} %" if (z.get("mat_art") or PROZENT) == PROZENT else f"{_z(w, 2)} €/Einheit"
-        f = staffeln.STUFE_FELD[name]
-        if f.art in ("zahl", "ganz"):
-            return _z(w, f.stellen if f.art == "zahl" else 0)
-        return "" if w is None else str(w)
+    def zeilen(self, st):
+        return [z for z in self.s.zeilen if z.get("stufe") == st["id"]]
+
+    def text(self, r, c):
+        st = self.daten[r]
+        if c == 0:
+            return f"Stufe {r + 1}"
+        if c == 1:
+            return st.get("bezeichnung") or ""
+        if c == 2:
+            return mengen_text(self.mengen(st), self.s.s.positionen) or "keine Mengen"
+        if c == 3:
+            return eigene_werte(st) or "wie Angebot"
+        if c == 4:
+            z = self.zeilen(st)
+            return _z(sum(x["preis_gesamt"] for x in z)) if z and all(x.get("preis_gesamt") is not None for x in z) else ""
+        return self.pruefung(st)
+
+    def pruefung(self, st):
+        mz = self.mengen(st)
+        if not staffeln.gueltige(mz):
+            return "FEHLER: keine Menge eingetragen"
+        hinweise = [x.get("hinweis") or "" for x in self.zeilen(st)]
+        fehler = next((h for h in hinweise if h.startswith("FEHLER")), None)
+        if fehler:
+            return fehler
+        return next((h for h in hinweise if h.startswith("VERALTET")), "") or \
+            ("gemeinsamer Auftrag" if len(mz) > 1 else "eine Position")
 
     def data(self, index, rolle=Qt.DisplayRole):
         if not index.isValid():
             return None
-        z, c = self.daten[index.row()], index.column()
-        if c == PRUEFUNG:
-            w = staffeln.pruefen(z, self.s.s.positionen, self.daten)
-            if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
-                return w
-            if rolle == Qt.BackgroundRole:
-                return QBrush(FARBE_STATUS["FEHLER"] if w.startswith("FEHLER") else FARBE_BERECHNET)
-            return None
-        name = STUFE_FELDER[c].name
-        leer = z.get(name) in (None, "")
-        fehl = [t for n, t in staffeln.fehler(z, self.s.s.positionen, self.daten) if n == name] \
-            if staffeln.txt(z.get("schluessel")) else []
-        if rolle == Qt.DisplayRole:
-            return self.vorgabe(z, name) if leer else self.anzeige(z, name)
-        if rolle == Qt.EditRole:
-            w = z.get(name)
-            f = STUFE_FELDER[c]
-            return "" if w is None else (_z(w, None if f.art == "zahl" else 0) if f.art in ("zahl", "ganz") else str(w))
-        if rolle == Qt.ToolTipRole:
-            return "; ".join(fehl) or (f"leer = {self.vorgabe(z, name)}" if leer and self.vorgabe(z, name) else None)
-        if rolle == Qt.ForegroundRole and leer:
-            return QBrush(GRAU)
-        if rolle == Qt.FontRole and leer:
-            f = QFont()
-            f.setItalic(True)
-            return f
-        if rolle == Qt.TextAlignmentRole and STUFE_FELDER[c].art in ("zahl", "ganz"):
+        r, c = index.row(), index.column()
+        if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
+            t = self.text(r, c)
+            if rolle == Qt.ToolTipRole and c in (0, 1, 2, 3):
+                return "Doppelklick: Stufe bearbeiten (Einstellungen, Materialpreise, Mengen)"
+            return t
+        if rolle == Qt.TextAlignmentRole and c == 4:
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole:
-            if fehl or (name in ("schluessel", "menge") and leer and staffeln.txt(z.get("schluessel"))):
-                return QBrush(FARBE_STATUS["FEHLER"])
-            return QBrush(FARBE_EINGABE)
+        if rolle == Qt.BackgroundRole and c == PRUEFUNG:
+            t = self.text(r, c)
+            return QBrush(FARBE_STATUS["FEHLER"] if t.startswith("FEHLER") else FARBE_STATUS["WARNUNG"]
+                          if t.startswith("VERALTET") else FARBE_BERECHNET)
         return None
 
     def flags(self, index):
-        f = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-        return f | Qt.ItemIsEditable if index.column() < PRUEFUNG else f
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
 
-    def setData(self, index, text, rolle=Qt.EditRole):
-        if rolle != Qt.EditRole or not index.isValid() or index.column() >= PRUEFUNG:
-            return False
-        f = STUFE_FELDER[index.column()]
-        z = self.daten[index.row()]
-        t = str(text).strip().replace("€/Einheit", "").replace("%", "").strip() if f.art in ("zahl", "ganz") \
-            else str(text).strip()
-        try:
-            if f.name == "schluessel":
-                wert = t or None
-            elif f.art == "auswahl":
-                if t and t not in staffeln.AUSWAHL[f.auswahl]:
-                    raise ValueError(f"{f.titel}: bitte aus der Liste wählen.")
-                wert = t or None
-            else:
-                wert = wert_aus_text(f, t)
-        except ValueError as e:
-            self.s.s.f.meldung(str(e), fehler=True)
-            return False
-        if f.name == "menge" and wert is not None and wert < 1:
-            self.s.s.f.meldung("Menge: bitte eine ganze Zahl ab 1 eingeben (Sätze bzw. Stück).", fehler=True)
-            return False
-        if f.name in ("mat_zuschlag", "gewinn") and isinstance(wert, (int, float)) and wert < 0 \
-                and z.get("rabatt") != "ja":
-            self.s.s.f.meldung(f"{f.titel}: negative Werte nur als Rabatt – zuerst 'Rabatt erlaubt' auf ja setzen.",
-                               fehler=True)
-            return False
-        if f.name == "mat_zuschlag" and isinstance(wert, (int, float)) and (z.get("mat_art") or PROZENT) == PROZENT \
-                and not -100 <= wert <= 500:
-            self.s.s.f.meldung("Materialzuschlag: zwischen −100 % und 500 % eingeben.", fehler=True)
-            return False
-        if wert == z.get(f.name):
-            return False
-        self.s.s.db.staffel_aendern(z["id"], f.name, wert)
-        z[f.name] = wert
-        self.dataChanged.emit(self.index(0, 0), self.index(len(self.daten) - 1, PRUEFUNG))
-        self.geaendert.emit(f.name)
-        return True
+
+def mengen_text(mz, positionen):
+    """Kurztext der Mengen einer Stufe: 'Satz Rahmen 4 · Pos. 10 24 Stk.'."""
+    saetze = {staffeln.txt(p.get("satz")) for p in positionen if staffeln.txt(p.get("satz"))}
+    teile = []
+    for z in sorted(mz, key=lambda z: staffeln.txt(z.get("schluessel"))):
+        schl = staffeln.txt(z.get("schluessel"))
+        if schl and isinstance(z.get("menge"), (int, float)):
+            teile.append(f"Satz {schl}: {_z(z['menge'], 0)}" if schl in saetze else f"Pos. {schl}: {_z(z['menge'], 0)} Stk.")
+    return " · ".join(teile)
+
+
+def eigene_werte(st):
+    """Kurztext der Werte, die eine Stufe abweichend vom Angebot hat."""
+    teile = []
+    for f in staffeln.EINSTELLUNG_FELDER:
+        w = st.get(f.name)
+        if f.name in ("bezeichnung", "bemerkung", "mat_art") or w in (None, ""):
+            continue
+        if f.name == "meterpreise":
+            n = len(staffeln.meterpreise(st))
+            if n:
+                teile.append(f"€/m für {n} Abmessung{'en' if n > 1 else ''}")
+            continue
+        titel = f.titel.split(" [")[0]
+        if f.name == "mat_zuschlag":
+            teile.append(f"{titel} {_z(w)} {'€/Einheit' if st.get('mat_art') == EURO else '%'}")
+        elif f.art in ("zahl", "ganz"):
+            einheit = f.titel.split("[")[1].rstrip("]") if "[" in f.titel else ""
+            teile.append(f"{titel} {_z(w, f.stellen if f.art == 'zahl' else 0)} {einheit}".strip())
+        else:
+            teile.append(f"{titel}: {w}")
+    return ", ".join(teile)
 
 
 TIPPS = {
@@ -248,6 +187,225 @@ TIPPS = {
     "neben_pauschal": "Nebenkosten pauschal für die ganze Stufe (in den Selbstkosten, mit Gewinn)",
     "rabatt": "ja = negative Materialzuschläge und Gewinne sind erlaubt (Rabatt)",
 }
+
+
+TIPPS.update({
+    "bezeichnung": "Freier Name der Stufe, z. B. „Rahmenauftrag 2027“",
+    "zuschlag_fremdleistung": "Zuschlag auf Zusatzarbeiten als Fremdleistung; leer = Wert des Angebots",
+    "ruesten_abmessung": "Rüstzeit je Abmessung in der Stufe; leer = Wert des Angebots",
+    "pauschale_abmessung": "Pauschale je Abmessung in der Stufe; leer = Wert des Angebots",
+    "programmierung_teil": "Programmierkosten je Teil (Position mit Stückzahl); leer = Wert des Angebots",
+    "angebotsaufschlag": "Angebotsaufschlag einmal je Stufe; leer = Wert des Angebots",
+    "handling_beistellung": "Handling Kundenmaterial je kg; leer = Wert des Angebots",
+    "fracht": "Fester Frachtbetrag für die ganze Stufe; leer = Fracht wie im Angebot (berechnet für die Mengen der Stufe)",
+    "skonto": "Skonto der Stufe in %; leer = Skonto des Angebots",
+    "laenge_auto": "ja = für diese Stufe die empfohlene Lieferlänge je Profil wählen (z. B. 12 m erst bei großen "
+                   "Mengen); leer = Lieferlängen wie im Angebot",
+})
+
+
+def _feld_text(f, w):
+    if w is None or w == "":
+        return ""
+    if f.art in ("zahl", "ganz"):
+        return _z(w, None if f.art == "zahl" else 0)
+    return str(w)
+
+
+class StufeDialog(QDialog):
+    """Fenster einer Stufe: Einstellungen wie im Angebot (leer = Wert des Angebots, grau angezeigt), Erweitert die
+    Sonderwerte der Preisschicht, Materialpreis €/m je Abmessung und die Mengen je Satz bzw. Position (leer = nicht
+    in dieser Stufe). Die ganze Stufe wird als ein Auftrag gerechnet."""
+
+    def __init__(self, seite, stufe):
+        super().__init__(seite)
+        self.s, self.stufe = seite, dict(stufe)
+        a = seite.s
+        self.setWindowTitle(f"Stufe {seite.nummer(stufe)} bearbeiten")
+        lay = QVBoxLayout(self)
+        lay.addWidget(hilfe.Hinweis("Die Stufe wird wie ein eigener Auftrag gerechnet: alle Positionen mit Menge "
+                                    "zusammen optimiert und kalkuliert. Leere Felder (grau) nehmen den Wert des "
+                                    "Angebots. Gleiche Mengen und Werte wie im Angebot ergeben dessen Preise."))
+        self.felder = {}
+        form = QGridLayout()
+        form.setHorizontalSpacing(8)
+        form.setVerticalSpacing(4)
+        haupt = ("bezeichnung",) + staffeln.HAUPT
+        for i, name in enumerate(haupt):
+            self._feld(form, i // 2, 2 * (i % 2), name)
+        lay.addLayout(form)
+        er = QWidget()
+        eg = QGridLayout(er)
+        eg.setContentsMargins(16, 0, 0, 0)
+        eg.setHorizontalSpacing(8)
+        eg.setVerticalSpacing(4)
+        erweitert = [f.name for f in staffeln.EINSTELLUNG_FELDER if f.name not in haupt + ("meterpreise",)]
+        for i, name in enumerate(erweitert):
+            self._feld(eg, i // 2, 2 * (i % 2), name)
+        from .angebot_oben import Aufklapper
+        self.erweitert = Aufklapper("Erweitert: Materialzuschlag, Verlust, Grundpreis, Gemeinkosten, Rüsten separat, "
+                                    "Arbeitsgang, Nebenkosten, Rabatt, Lieferlänge", er,
+                                    offen=any(not ohne_wert(stufe.get(n)) for n in erweitert))
+        lay.addWidget(self.erweitert)
+        # Materialpreis je Abmessung
+        self.abm = staffeln.abmessungen(a.positionen)
+        angebot_m = {}
+        for p, mp in zip(a.positionen, getattr(a.pos_modell, "meterpreise", []) or []):
+            if mp and mp[1] is not None:
+                angebot_m.setdefault(staffeln.abmessung(p), mp[1])
+        eigene = staffeln.meterpreise(stufe)
+        self.preise = QTableWidget(len(self.abm), 3)
+        self.preise.setHorizontalHeaderLabels(["Abmessung (Positionen)", "€/m im Angebot", "€/m in der Stufe"])
+        for r, (abm, pos) in enumerate(self.abm):
+            t = QTableWidgetItem(f"{abm} (Pos. {', '.join(pos)})")
+            t.setFlags(Qt.ItemIsEnabled)
+            w = QTableWidgetItem(_z(angebot_m.get(abm)))
+            w.setFlags(Qt.ItemIsEnabled)
+            w.setForeground(QBrush(GRAU))
+            e = QTableWidgetItem(_z(eigene.get(abm)) if abm in eigene else "")
+            for it in (w, e):
+                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.preise.setItem(r, 0, t)
+            self.preise.setItem(r, 1, w)
+            self.preise.setItem(r, 2, e)
+        self._tabelle_einrichten(self.preise)
+        lay.addWidget(QLabel("<b>Materialpreis je Abmessung</b> (leer = Preis des Angebots)"))
+        lay.addWidget(self.preise)
+        # Mengen je Satz bzw. Position
+        self.auswahl = staffeln.auswahl(a.positionen)
+        da = {staffeln.txt(z.get("schluessel")): z for z in a.stufen if z.get("stufe_id") == stufe.get("id")}
+        self.mengen = QTableWidget(len(self.auswahl), 4)
+        self.mengen.setHorizontalHeaderLabels(["Satz bzw. Position", "Menge im Angebot", "Menge ab", "Menge bis"])
+        for r, (schl, text, menge) in enumerate(self.auswahl):
+            z = da.get(schl) or {}
+            t = QTableWidgetItem(text)
+            t.setFlags(Qt.ItemIsEnabled)
+            m = QTableWidgetItem(_z(menge, 0))
+            m.setFlags(Qt.ItemIsEnabled)
+            m.setForeground(QBrush(GRAU))
+            ab = QTableWidgetItem(_z(z.get("menge"), 0))
+            bis = QTableWidgetItem(_z(z.get("bis"), 0))
+            for it in (m, ab, bis):
+                it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            for c, it in enumerate((t, m, ab, bis)):
+                self.mengen.setItem(r, c, it)
+        self._tabelle_einrichten(self.mengen)
+        zeile = QHBoxLayout()
+        zeile.addWidget(QLabel("<b>Mengen</b> in Sätzen bzw. Stück (leer = nicht in dieser Stufe)"), 1)
+        for text, faktor in (("Mengen des Angebots", 1), ("× 2", 2), ("× 5", 5), ("× 10", 10)):
+            b = QPushButton(text)
+            b.setToolTip("Menge ab = Menge im Angebot × Faktor für alle Sätze und Positionen")
+            b.clicked.connect(lambda _=False, f=faktor: self.mengen_aus_angebot(f))
+            zeile.addWidget(b)
+        lay.addLayout(zeile)
+        lay.addWidget(self.mengen, 1)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.accepted.connect(self.accept)
+        knoepfe.rejected.connect(self.reject)
+        lay.addWidget(knoepfe)
+        self.resize(860, 720)
+
+    @staticmethod
+    def _tabelle_einrichten(t):
+        t.verticalHeader().setVisible(False)
+        t.verticalHeader().setDefaultSectionSize(22)
+        t.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        for c in range(1, t.columnCount()):
+            t.setColumnWidth(c, 110)
+
+    def vorgabe(self, name):
+        """Grauer Text eines leeren Felds: der Wert des Angebots."""
+        a = self.s.s
+        e, kopf = a.einst, a.kopf
+        if name in ("gewinn", "zuschlag_fremdleistung", "zuschlag_fertigung", "mat_zuschlag"):
+            quelle = {"mat_zuschlag": "zuschlag_material"}.get(name, name)
+            return f"{_z(100 * (e.get(quelle) or 0), 1)} % (Angebot)"
+        if name in ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag",
+                    "handling_beistellung"):
+            f = staffeln.EINSTELLUNG_FELD[name]
+            return f"{_z(e.get(name) or 0, f.stellen)} (Angebot)"
+        if name == "fracht":
+            return (f"{_z(fracht_angebot.wirksam(kopf))} (Angebot)" if fracht_angebot.modus(kopf) != fracht_angebot.BERECHNET
+                    else "berechnet für die Mengen der Stufe")
+        if name == "skonto":
+            return f"{_z(kopf.get('skonto') or 0, 1)} % (Angebot)"
+        if name == "mat_art":
+            return PROZENT
+        if name == "ruesten":
+            return UMLEGEN
+        if name == "arbeitsgang_satz":
+            return "Maschine"
+        return ""
+
+    def _feld(self, raster, r, c, name):
+        f = staffeln.EINSTELLUNG_FELD[name]
+        if f.art == "auswahl":
+            w = QComboBox()
+            w.addItem("", None)
+            for x in staffeln.AUSWAHL[f.auswahl]:
+                w.addItem(x, x)
+            i = w.findData(self.stufe.get(name)) if self.stufe.get(name) else 0
+            w.setCurrentIndex(max(i, 0))
+        else:
+            w = QLineEdit(_feld_text(f, self.stufe.get(name)))
+            w.setPlaceholderText(self.vorgabe(name))
+            if f.art in ("zahl", "ganz"):
+                w.setAlignment(Qt.AlignRight)
+        w.setToolTip(TIPPS.get(name) or "")
+        b = QLabel(f.titel)
+        b.setToolTip(TIPPS.get(name) or "")
+        raster.addWidget(b, r, c)
+        raster.addWidget(w, r, c + 1)
+        self.felder[name] = w
+
+    def mengen_aus_angebot(self, faktor=1):
+        for r, (_, _, menge) in enumerate(self.auswahl):
+            self.mengen.item(r, 2).setText(_z(menge * faktor, 0) if menge else "")
+
+    def werte(self):
+        """Eingaben prüfen. Ergebnis: (Einstellungen, {Abmessung: €/m}, [(Schlüssel, Menge ab, Menge bis)]);
+        ValueError mit Meldung bei ungültiger Eingabe."""
+        werte = {}
+        for name, w in self.felder.items():
+            f = staffeln.EINSTELLUNG_FELD[name]
+            werte[name] = (w.currentData() if isinstance(w, QComboBox) else wert_aus_text(f, w.text()))
+        rabatt = werte.get("rabatt") == "ja"
+        for name in ("mat_zuschlag", "gewinn"):
+            if isinstance(werte.get(name), (int, float)) and werte[name] < 0 and not rabatt:
+                raise ValueError(f"{staffeln.EINSTELLUNG_FELD[name].titel}: negative Werte nur als Rabatt – unter "
+                                 "Erweitert 'Rabatt erlaubt' auf ja setzen.")
+        if isinstance(werte.get("mat_zuschlag"), (int, float)) and (werte.get("mat_art") or PROZENT) == PROZENT \
+                and not -100 <= werte["mat_zuschlag"] <= 500:
+            raise ValueError("Materialzuschlag: zwischen −100 % und 500 % eingeben.")
+        preis_f = Feld("meterpreis", "Materialpreis [€/m]", "zahl", 0, 100000, stellen=2)
+        preise = {}
+        for r, (abm, _) in enumerate(self.abm):
+            w = wert_aus_text(preis_f, self.preise.item(r, 2).text())
+            if w:
+                preise[abm] = w
+        mengen = []
+        ab_f, bis_f = staffeln.STUFE_FELD["menge"], staffeln.STUFE_FELD["bis"]
+        for r, (schl, text, _) in enumerate(self.auswahl):
+            ab = wert_aus_text(ab_f, self.mengen.item(r, 2).text())
+            bis = wert_aus_text(bis_f, self.mengen.item(r, 3).text())
+            if ab is None and bis is not None:
+                raise ValueError(f"{text}: Menge bis ohne Menge ab.")
+            if ab is not None:
+                if bis is not None and bis < ab:
+                    raise ValueError(f"{text}: Menge bis kleiner als Menge ab.")
+                mengen.append((schl, ab, bis))
+        if not mengen:
+            raise ValueError("Bitte mindestens eine Menge eintragen.")
+        return werte, preise, mengen
+
+    def accept(self):
+        try:
+            werte, preise, mengen = self.werte()
+        except ValueError as e:
+            QMessageBox.warning(self, self.windowTitle(), str(e))
+            return
+        self.s.stufe_speichern(self.stufe["id"], werte, preise, mengen)
+        super().accept()
 
 
 # ------------------------------------------------------------------ Ergebnis (Kostenpositionen je Stufe)
@@ -324,7 +482,8 @@ class ErgebnisBaum(QTreeWidget):
             bis = z.get("bis")
             menge = f"ab {_z(z['menge'], 0)}" if bis is None else _z(z["menge"], 0) if bis <= z["menge"] \
                 else f"{_z(z['menge'], 0)}–{_z(bis, 0)}"
-            kopf = f"{'Satz ' if z.get('einheit') == 'Satz' else 'Pos. '}{z['schluessel']} · {menge} {z.get('einheit') or ''}"
+            kopf = f"Stufe {z.get('stufe_nr') or ''} · {'Satz ' if z.get('einheit') == 'Satz' else 'Pos. '}{z['schluessel']} · " \
+                   f"{menge} {z.get('einheit') or ''}"
             titel += [f"{kopf}\n€ je {z.get('einheit') or 'Einheit'}", f"{kopf}\ngesamt €"]
         self.setColumnCount(len(titel))
         self.setHeaderLabels(titel)
@@ -398,7 +557,7 @@ class ErgebnisBaum(QTreeWidget):
         if angebot and any(z.get("schluessel") in angebot for z in zeilen):
             it = neu(None, "Δ zum Angebotspreis je Einheit", "info", "delta")
             it.setToolTip(0, "Preis je Einheit der Stufe minus Preis je Einheit im Angebot (Hauptmenge). Jede Stufe "
-                             "rechnet als eigene Bestellung dieser Position bzw. dieses Satzes.")
+                             "rechnet als eigener Auftrag mit allen Sätzen und Positionen der Stufe.")
             for j, z in enumerate(zeilen):
                 ang, jetzt = angebot.get(z.get("schluessel")), z.get("preis_einheit")
                 if isinstance(ang, (int, float)) and isinstance(jetzt, (int, float)):
@@ -497,47 +656,34 @@ class StaffelSeite(QWidget):
     def __init__(self, seite):
         super().__init__()
         self.s = seite
-        self.modell = StaffelnModell(self)
-        self.modell.geaendert.connect(self._geaendert)
+        self.modell = StufenModell(self)
         self.ansicht = QTableView()
         self.ansicht.setModel(self.modell)
         self.ansicht.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.ansicht.horizontalHeader().setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
-        self.ansicht.horizontalHeader().setMinimumHeight(48)
         self.ansicht.verticalHeader().setDefaultSectionSize(22)
         self.ansicht.horizontalHeader().setStretchLastSection(True)
-        auswahl = StaffelAuswahl(self.s, self.ansicht)
-        for i, f in enumerate(STUFE_FELDER):
-            self.ansicht.setColumnWidth(i, f.breite)
-            if f.art == "auswahl" or f.name == "schluessel":
-                self.ansicht.setItemDelegateForColumn(i, auswahl)
-        self.ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                     | QAbstractItemView.AnyKeyPressed)
+        self.ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.ansicht.doubleClicked.connect(lambda i: self.bearbeiten(i.row()))
+        for i, breite in enumerate((60, 160, 320, 300, 110)):
+            self.ansicht.setColumnWidth(i, breite)
         AutoGroesse(self.ansicht)        # Breite und Höhe passend zum Inhalt (spaltenbreite.py)
-        self.erweitert = QCheckBox("Erweiterte Einstellungen")
-        self.erweitert.setToolTip("Höchstmenge, Materialverlust, Grundpreis, Gemeinkosten, Rüstkosten separat, "
-                                  "zusätzlicher Arbeitsgang, Nebenkosten und Rabatt je Stufe. Spalten mit Werten "
-                                  "bleiben immer sichtbar.")
-        self.erweitert.toggled.connect(self._spalten_zeigen)
         self.info = QLabel()
         self.info.setWordWrap(True)
         self.baum = ErgebnisBaum()
         self.vergleich = Vergleich()
         self.knoepfe = {}
         leiste = QHBoxLayout()
-        for text, ziel in (("Neue Stufe", self.neu), ("Stufen aus Angebot", self.aus_angebot),
+        for text, ziel in (("Neue Stufe …", self.neu), ("Stufe bearbeiten …", self.bearbeiten),
                            ("Stufen löschen", self.loeschen), ("Staffelpreise rechnen", self.rechnen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
             self.knoepfe[text] = b
-        leiste.addSpacing(12)
-        leiste.addWidget(self.erweitert)
         leiste.addStretch(1)
-        self.hinweis = hilfe.Hinweis("Je Zeile eine Mengenstufe: Satz oder Position wählen, Menge eintragen. Leere "
-                                     "Felder (grau) nehmen den Wert des Angebots. Zuschläge wirken sofort, neue "
-                                     "Mengen werden automatisch neu gerechnet.", getattr(self.s, "db", None),
-                                     "staffeln")
+        self.hinweis = hilfe.Hinweis("Je Zeile eine Stufe, gerechnet wie ein eigener Auftrag: alle Sätze und "
+                                     "Positionen mit Menge zusammen. Doppelklick öffnet die Stufe mit Einstellungen, "
+                                     "Materialpreisen und Mengen. Leere Werte nehmen den Wert des Angebots.",
+                                     getattr(self.s, "db", None), "staffeln")
         aufklappen = QPushButton("Alle aufklappen")
         aufklappen.clicked.connect(lambda: self.baum.expandAll())
         unten = QWidget()
@@ -575,31 +721,31 @@ class StaffelSeite(QWidget):
     # -------------------------------------------------------------- Anzeige
     def setzen(self):
         """Nach dem Laden des Angebots: Stufen, Preise (ohne neuen Mengenlauf) und Stand anzeigen."""
-        self.modell.setzen(self.s.stufen)
-        self._spalten_zeigen()
         self.stand()
-
-    def _spalten_zeigen(self):
-        for i, f in enumerate(STUFE_FELDER):
-            zeigen = f.name not in ERWEITERT or self.erweitert.isChecked() \
-                or any(not ohne_wert(st.get(f.name)) for st in self.s.stufen)
-            self.ansicht.setColumnHidden(i, not zeigen)
 
     def _args(self):
         s = self.s
         return s.kopf, s.positionen, s.stufen, s.k, s.tabellen, s.einst
 
+    def _daten(self):
+        return getattr(self.s, "stufen_daten", None)
+
     def kennung(self):
-        return staffeln.kennung(*self._args())
+        return staffeln.kennung(*self._args(), stufen_daten=self._daten())
 
     def anzahl_veraltet(self):
-        return staffeln.veraltet(self.s.kopf.get("staffelpreise"), *self._args())
+        return staffeln.veraltet(self.s.kopf.get("staffelpreise"), *self._args(), stufen_daten=self._daten())
+
+    def nummer(self, stufe):
+        return staffeln.stufe_nummern(self._daten()).get(stufe.get("id"), "")
 
     def stand(self, speichern=False):
         """Preisschicht auf die gespeicherten Mengenläufe anwenden, anzeigen; speichern: Ergebnis sichern."""
         sp = self.s.kopf.get("staffelpreise")
         alt = (sp or {}).get("zeilen") or []
-        self.zeilen = staffeln.rechnen_alle(*self._args(), alt=alt, ohne_lauf=True) if staffeln.gueltige(self.s.stufen) else []
+        self.zeilen = staffeln.rechnen_alle(*self._args(), alt=alt, ohne_lauf=True, stufen_daten=self._daten()) \
+            if staffeln.gueltige(self.s.stufen) else []
+        self.modell.setzen(list(self._daten() or []))
         offen = self.anzahl_veraltet()
         if speichern and sp and not offen:
             self.speichern(self.zeilen, am=sp.get("am"))
@@ -628,43 +774,73 @@ class StaffelSeite(QWidget):
         if offen and not self.s.f.stumm:
             self._planen()
 
-    def _geaendert(self, feld):
-        """Eingabe in der Stufentabelle: Zuschläge sofort bepreisen, Mengen im Hintergrund neu rechnen."""
-        self.vorher = {z.get("stufe_id"): z.get("preis_einheit") for z in self.zeilen}
-        self._spalten_zeigen()
-        self.stand(speichern=feld not in ("schluessel", "menge"))
-        self.s.verlauf.merken()         # Schritt für Rückgängig
-
     # -------------------------------------------------------------- Stufen
     def neu(self):
-        self.s.db.staffel_neu(self.s.id)
-        self.s.neu_laden()
-        i = self.modell.index(len(self.s.stufen) - 1, 0)
-        self.s.reiter.setCurrentWidget(self)
-        self.ansicht.setCurrentIndex(i)
-        self.ansicht.edit(i)
+        """Neue Stufe mit den Mengen des Angebots anlegen und ihr Fenster öffnen (Mengen dort ändern)."""
+        sid = self.aus_angebot(leer=True)
+        if sid and not self.s.f.stumm:
+            self.bearbeiten(next(r for r, st in enumerate(self.modell.daten) if st["id"] == sid), neu=True)
+        return sid
 
-    def aus_angebot(self):
-        """Je Satz und je Position ohne Satz eine Stufe mit der aktuellen Menge anlegen (nur, was noch fehlt)."""
-        da = {staffeln.txt(s.get("schluessel")) for s in self.s.stufen}
-        neu = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.s.positionen) if schl not in da]
-        if not neu:
-            self.s.f.meldung("Alle Sätze und Positionen stehen schon in den Staffeln.", fehler=not self.s.stufen)
-            return 0
-        for schl, menge in neu:
-            self.s.db.staffel_neu(self.s.id, dict(schluessel=schl, menge=menge))
+    def aus_angebot(self, faktor=1, leer=False):
+        """Eine Stufe mit den Mengen des Angebots (× faktor) für alle Sätze und Positionen anlegen. Ergebnis: ID der
+        Stufe oder None (keine Mengen im Angebot; leer=True: dann eine Stufe ohne Mengen)."""
+        mengen = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.s.positionen) if menge]
+        if not mengen and not leer:
+            self.s.f.meldung("Im Angebot hat noch kein Satz und keine Position eine Stückzahl.", fehler=True)
+            return None
+        sid = self.s.db.staffel_stufe_neu(self.s.id)
+        for schl, menge in mengen:
+            self.s.db.staffel_neu(self.s.id, dict(schluessel=schl, menge=menge * faktor, stufe_id=sid))
         self.s.neu_laden()
         self.s.reiter.setCurrentWidget(self)
-        self.s.f.meldung(f"{len(neu)} Stufe(n) angelegt. Weitere Mengen mit Neue Stufe ergänzen.")
-        return len(neu)
+        r = next(r for r, st in enumerate(self.modell.daten) if st["id"] == sid)
+        self.ansicht.setCurrentIndex(self.modell.index(r, 0))
+        self.s.f.meldung(f"Stufe {r + 1} mit den Mengen des Angebots angelegt." if mengen else
+                         f"Stufe {r + 1} angelegt: bitte im Fenster der Stufe Mengen eintragen.")
+        self.s.verlauf.merken()
+        return sid
+
+    def bearbeiten(self, zeile=None, neu=False):
+        """Fenster der Stufe (zeile = Zeile der Stufentabelle, sonst die markierte)."""
+        if zeile is None or isinstance(zeile, bool):
+            i = self.ansicht.currentIndex()
+            zeile = i.row() if i.isValid() else None
+        if zeile is None or not 0 <= zeile < len(self.modell.daten):
+            self.s.f.meldung("Bitte zuerst eine Stufe markieren.", fehler=True)
+            return False
+        d = StufeDialog(self, self.modell.daten[zeile])
+        return d.exec() == QDialog.Accepted
+
+    def stufe_speichern(self, sid, werte, preise, mengen):
+        """Werte, Materialpreise und Mengen einer Stufe speichern (Mengenzeilen werden angepasst, nicht neu
+        angelegt, damit der Vergleich zur letzten Eingabe bleibt)."""
+        self.vorher = {z.get("stufe_id"): z.get("preis_einheit") for z in self.zeilen}
+        db = self.s.db
+        for name, w in werte.items():
+            db.staffel_stufe_aendern(sid, name, w)
+        db.staffel_stufe_aendern(sid, "meterpreise", preise or None)
+        da = {staffeln.txt(z.get("schluessel")): z for z in self.s.stufen if z.get("stufe_id") == sid}
+        for schl, ab, bis in mengen:
+            z = da.pop(schl, None)
+            if z is None:
+                db.staffel_neu(self.s.id, dict(schluessel=schl, menge=ab, bis=bis, stufe_id=sid))
+            else:
+                db.staffel_aendern(z["id"], "menge", ab)
+                db.staffel_aendern(z["id"], "bis", bis)
+        db.staffeln_loeschen([z["id"] for z in da.values()])
+        self.s.neu_laden()
+        self.stand(speichern=True)
+        self.s.verlauf.merken()         # Schritt für Rückgängig
 
     def loeschen(self):
         zeilen = sorted({i.row() for i in self.ansicht.selectionModel().selectedIndexes()})
         if not zeilen:
             self.s.f.meldung("Bitte zuerst die Stufen markieren, die gelöscht werden sollen.", fehler=True)
             return
-        self.s.db.staffeln_loeschen([self.s.stufen[r]["id"] for r in zeilen])
+        self.s.db.staffel_stufen_loeschen([self.modell.daten[r]["id"] for r in zeilen])
         self.s.neu_laden()
+        self.s.verlauf.merken()
 
     # -------------------------------------------------------------- Rechnen
     def speichern(self, zeilen, am=None):
@@ -695,7 +871,7 @@ class StaffelSeite(QWidget):
             return not fortschritt.wasCanceled()
         alt = None if alle else ((self.s.kopf.get("staffelpreise") or {}).get("zeilen"))
         try:
-            zeilen = staffeln.rechnen_alle(*self._args(), fortschritt=weiter, alt=alt)
+            zeilen = staffeln.rechnen_alle(*self._args(), fortschritt=weiter, alt=alt, stufen_daten=self._daten())
         except (ValueError, AssertionError) as e:
             fortschritt.close()
             QMessageBox.warning(self, "Staffelpreise", f"Staffelpreise abgebrochen:\n{e}")
@@ -730,12 +906,13 @@ class StaffelSeite(QWidget):
         self._lauf += 1
         nr, self._laeuft = self._lauf, True
         args = copy.deepcopy(self._args())
+        daten = copy.deepcopy(self._daten())
         alt = copy.deepcopy((self.s.kopf.get("staffelpreise") or {}).get("zeilen"))
         kenn = self.kennung()
 
         def lauf():
             try:
-                zeilen = staffeln.rechnen_alle(*args, alt=alt)
+                zeilen = staffeln.rechnen_alle(*args, alt=alt, stufen_daten=daten)
                 self._bote.fertig.emit(nr, zeilen, kenn)
             except Exception as e:          # noqa: BLE001 – Fehler im Programmablauf melden
                 self._bote.fertig.emit(nr, None, str(e))

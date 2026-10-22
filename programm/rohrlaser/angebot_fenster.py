@@ -1275,6 +1275,7 @@ class AngebotSeite(QWidget):
         # mit Werten des Angebots; nach dem Angebots-PDF mit den festgeschriebenen Einstellungen (Zuschläge, Mindestpreis …)
         self.einst = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()))
         self.stufen = self.db.staffeln(self.id)
+        self.stufen_daten = self.db.staffel_stufen(self.id)
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
         self._spalten_zeigen()

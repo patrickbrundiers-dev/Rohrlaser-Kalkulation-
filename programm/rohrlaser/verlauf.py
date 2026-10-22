@@ -85,7 +85,7 @@ def beschreiben(a, b, spalten):
     kopf = [f.name for f in KOPF if ka.get(f.name) != kb.get(f.name)]
     if kopf:
         return ", ".join(_titel(KOPF, n) for n in kopf[:2])
-    if a["staffeln"] != b["staffeln"]:
+    if a["staffeln"] != b["staffeln"] or a.get("stufen") != b.get("stufen"):
         return "Staffeln"
     if ka.get("ergebnis") != kb.get("ergebnis"):
         return "Optimierung"

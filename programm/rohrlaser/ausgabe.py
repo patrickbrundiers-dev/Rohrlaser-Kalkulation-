@@ -242,7 +242,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         einmalig, menge = ((z.get("preis") or {}).get("einmalig")) or 0, _wert(z["menge"]) or 1
         pr = aufrunden(_wert(z["preis_gesamt"]) / menge) if einmalig else z["preis_einheit"]
         eintrag = dict(menge=z["menge"], bereich=f"ab {z['menge']:.0f}", preis=pr,
-                       gesamt=kaufm_runden(pr * menge, 2) if einmalig else z["preis_gesamt"])
+                       gesamt=kaufm_runden(pr * menge, 2) if einmalig else z["preis_gesamt"],
+                       stufe=z.get("stufe_nr"), gemeinsam=bool(z.get("gemeinsam")))
         if z.get("einheit") == "Satz":
             bez = z.get("bezeichnung") or ""
             staffeln.append(dict(art="satz", pos=None, satz=str(z["schluessel"]),
