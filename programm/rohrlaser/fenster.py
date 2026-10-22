@@ -325,6 +325,14 @@ class StammdatenSeite(QWidget):
         self.modell.modelReset.connect(self.zaehlen)
         self.zaehlen()
 
+    def doppelklick_setzen(self, aktion, tooltip):
+        """Doppelklick auf eine Zeile ruft aktion(Zeile als dict) auf statt die Zelle zu bearbeiten (Tippen und F2
+        bearbeiten weiter)."""
+        self.ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
+        self.ansicht.setToolTip(tooltip)
+        self.ansicht.doubleClicked.connect(
+            lambda i: aktion(self.modell.daten[self.filter.mapToSource(i).row()]) if i.isValid() else None)
+
     def zaehlen(self):
         if self.filter.fest is not None:
             spalte, wert = self.filter.fest
@@ -909,6 +917,9 @@ class Hauptfenster(QMainWindow):
         for s in self.seiten:           # Kunden als eigener Reiter, die übrigen Stammdaten unter Einstellungen
             if s.t.name == "kunden":
                 self.reiter.addTab(s, s.t.titel)
+                self.kunden = s
+                s.doppelklick_setzen(lambda z: self.kunden_angebote(z.get("kundennr"), z.get("name")),
+                                     "Doppelklick: Angebote dieses Kunden zeigen · Tippen oder F2: Wert ändern")
         self.einstellungen = EinstellungenSeite(db, self.meldung, ohne=("Frachtkosten",))
         seite = {s.t.name: s for s in self.seiten}
         self.zeitvorgaben = ZeitvorgabenSeite(seite["stundensaetze"], seite["arbeitsschritte"])
@@ -1168,6 +1179,30 @@ class Hauptfenster(QMainWindow):
         i = self.reiter.indexOf(seite)
         if i >= 0:
             self.reiter.setTabText(i, seite.titel())
+
+    def kunde_zeigen(self, kundennr, name=None):
+        """Reiter Kunden mit diesem Kunden (gesucht nach Kundennummer, sonst Name) zeigen. Ergebnis: Treffer."""
+        such = str(kundennr or name or "").strip()
+        if not such:
+            self.meldung("Im Angebot ist noch kein Kunde eingetragen.", fehler=True)
+            return 0
+        self.reiter.setCurrentWidget(self.kunden)
+        self.kunden.suche.setText(such)
+        n = self.kunden.filter.rowCount()
+        if n:
+            self.kunden.ansicht.selectRow(0)
+        else:
+            self.meldung(f"„{such}“ steht nicht im Kundenstamm.", fehler=True)
+        return n
+
+    def kunden_angebote(self, kundennr, name=None):
+        """Reiter Angebote, gefiltert auf den Kunden (Kundennummer, sonst Name). Ergebnis: Anzahl Angebote."""
+        such = str(kundennr or name or "").strip()
+        if not such:
+            return 0
+        self.reiter.setCurrentWidget(self.angebote)
+        self.angebote.suche.setText(such)
+        return self.angebote.filter.rowCount()
 
     def meldung(self, text, fehler=False):
         self.statusBar().setStyleSheet("color: #C00000;" if fehler else "")

@@ -4,7 +4,7 @@ Welche Felder und Kennzahlen sichtbar sind, entscheidet sichtbarkeit.py: optiona
 nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer änderbar). Pflichtfelder,
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QEvent, QObject, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
@@ -94,6 +94,22 @@ def karte(titel=None, rechts=None):
             zeile.addWidget(rechts)
         lay.addLayout(zeile)
     return k, lay
+
+
+class Doppelklick(QObject):
+    """Doppelklick auf ein Eingabefeld ruft aktion() auf, statt ein Wort zu markieren (z. B. Kunde öffnen)."""
+
+    def __init__(self, feld, aktion, tooltip):
+        super().__init__(feld)
+        self.aktion = aktion
+        feld.installEventFilter(self)
+        feld.setToolTip(tooltip)
+
+    def eventFilter(self, _obj, ereignis):
+        if ereignis.type() == QEvent.MouseButtonDblClick:
+            self.aktion()
+            return True
+        return False
 
 
 class Aufklapper(QWidget):
@@ -528,6 +544,7 @@ class KopfBereich(QWidget):
             w.lineEdit().setPlaceholderText("Kunde wählen oder Nummer eintippen")
             w.activated.connect(lambda i, w=w: s.kunde_waehlen(w.itemData(i)))
             w.lineEdit().editingFinished.connect(lambda w=w: s.kunde_waehlen(_kundennr(w.currentText())))
+            Doppelklick(w.lineEdit(), s.kunde_zeigen, "Doppelklick: Kunde im Reiter Kunden öffnen")
         elif fd.art == "datum":
             w = QDateEdit()
             w.setCalendarPopup(True)
@@ -556,6 +573,8 @@ class KopfBereich(QWidget):
         else:
             w = QLineEdit()
             w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, w.text().strip() or None))
+            if fd.name == "kunde":
+                Doppelklick(w, s.kunde_zeigen, "Doppelklick: Kunde im Reiter Kunden öffnen")
         if isinstance(w, (QSpinBox, QDoubleSpinBox)):
             w.setMinimumWidth(90)
         ablage[fd.name] = w

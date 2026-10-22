@@ -179,7 +179,8 @@ KUNDEN = Tabelle(
     ("kundennr",),
     "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
     "Angebot. Skonto, Skontofrist und Zahlungsziel leer = Vorgabe aus den Einstellungen. PLZ und Land (leer = PLZ aus "
-    "'PLZ Ort' und DE) bzw. die abweichende Lieferanschrift bestimmen die Frachtzone.")
+    "'PLZ Ort' und DE) bzw. die abweichende Lieferanschrift bestimmen die Frachtzone. Doppelklick auf einen Kunden "
+    "zeigt seine Angebote; ändern durch Tippen oder F2.")
 
 PROFILE = Tabelle(
     "profile", "Profile",

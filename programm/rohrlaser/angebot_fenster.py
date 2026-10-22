@@ -337,7 +337,43 @@ SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id",
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "naht_vorgabe", "gewicht_teil")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild")        # Spalten mit eigenem Dialog (Doppelklick)
+RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelklick: Schneidweg-Rechner
 BOHRBILD_SPALTEN = ("gewinde", "bohrungen", "gewinde_vorschlag")     # Doppelklick: Bohrungen prüfen
+# Doppelklick auf den Status: (Stichwort im Status, Ziel, Tooltip); erstes passendes gilt. Ziel = Methode der
+# Angebotsseite (bekommt die Zeile) oder "feld:" + Spalte (Zelle zum Eintragen öffnen, Spalte notfalls einblenden).
+STATUS_ZIELE = (
+    ("Bohrungen prüfen", "bohrungen_pruefen", "Bohrungen prüfen"),
+    ("Zukaufartikel fehlt", "zukaufteile", "Zukaufteile wählen"),
+    ("EK fehlt", "zukauf_ek", "Einkaufspreis eintragen"),
+    ("Zusatzarbeit", "zusatzarbeiten", "Zusatzarbeiten wählen"),
+    ("Schweißnaht", "schweissnaht", "Schweißnaht wählen"),
+    ("Naht", "schweissnaht", "Schweißnaht wählen"),
+    ("Schneidweg fehlt", "schneidweg_berechnen", "Schneidweg-Rechner öffnen"),
+    ("Kontur", "schneidweg_berechnen", "Schneidweg-Rechner öffnen"),
+    ("Profil unbekannt", "feld:profil_id", "Profil wählen"),
+    ("Querschnitt fehlt", "feld:profil_id", "Profil wählen"),
+    ("Hüllkreis", "feld:profil_id", "Profil wählen"),
+    ("Metergewicht", "feld:profil_id", "Profil wählen"),
+    ("Werkstoff unbekannt", "feld:werkstoff_id", "Werkstoff wählen"),
+    ("Oberfläche", "feld:oberflaeche", "Oberfläche wählen"),
+    ("Teilelänge fehlt", "feld:laenge", "Teilelänge eintragen"),
+    ("Teil länger als Nutzlänge", "feld:laenge", "Teilelänge prüfen"),
+    ("Stückzahl", "feld:stueck", "Stückzahl eintragen"),
+    ("Stange länger", "feld:stange", "Stangenlänge eintragen"),
+    ("kein gültiger Materialpreis", "feld:preis_m", "Meterpreis eintragen"),
+    ("Meterpreis manuell", "feld:preis_m", "Meterpreis ändern"),
+    ("keine Schneiddaten", "feld:zeit_manuell", "Schneidzeit von Hand eintragen"),
+    ("Schneidzeit manuell", "feld:zeit_manuell", "Schneidzeit ändern"),
+    ("beigestellt", "feld:material_herkunft", "Material ändern"),
+    ("nicht vollständig eingeplant", "optimieren", "Optimieren"),
+)
+
+
+def status_ziel(status):
+    """(Ziel, Tooltip) für den Doppelklick auf einen Status, sonst None."""
+    return next(((z, t) for wort, z, t in STATUS_ZIELE if wort in str(status or "")), None)
+
+
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
 
@@ -496,6 +532,15 @@ class PositionenModell(QAbstractTableModel):
                 f.setBold(eigen)
                 f.setItalic(fremd)
                 return f
+        if rolle == Qt.ToolTipRole and art == "status" and status_ziel(w):
+            return f"{w}\nDoppelklick: {status_ziel(w)[1]}"
+        if rolle == Qt.ToolTipRole and art == "feld" and (x.name in RECHNER_SPALTEN or x.name == "artikel"):
+            p = self.daten[index.row()]
+            text = wert_als_text(x, w)
+            if x.name == "artikel" and p.get("id") in self.mit_netz:
+                return (text + "\n" if text else "") + "Doppelklick: 3D-Ansicht · Tippen oder F2: Artikelnummer ändern"
+            if x.name in RECHNER_SPALTEN and not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile:
+                return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
             if art == "bohrbild" and rolle == Qt.ToolTipRole:
                 return (wert_als_text(x, w) + "\n" if w not in (None, "") else "") + \
@@ -581,11 +626,22 @@ class Stangenbild(QWidget):
     """Je Stangenmuster ein maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Pos. und Länge,
     dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot."""
     ZEILE = 74
+    doppelklick = Signal(str)       # Bezug (ref) des Teils unter der Maus
 
     def __init__(self):
         super().__init__()
-        self.muster, self.farben = [], {}
+        self.muster, self.farben, self.flaechen = [], {}, []
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setToolTip("Doppelklick auf ein Teil: zur Position")
+
+    def teil_bei(self, punkt):
+        """Bezug (ref) des Teils an der Stelle punkt, sonst None."""
+        return next((ref for r, ref in self.flaechen if r.contains(QPointF(punkt))), None)
+
+    def mouseDoubleClickEvent(self, ereignis):
+        ref = self.teil_bei(ereignis.position() if hasattr(ereignis, "position") else ereignis.pos())
+        if ref:
+            self.doppelklick.emit(ref)
 
     def setzen(self, ergebnis):
         self.muster = rechnen.stangenmuster(ergebnis)
@@ -605,6 +661,7 @@ class Stangenbild(QWidget):
             p.drawText(self.rect(), Qt.AlignCenter, "Noch nicht optimiert.")
             return
         x0, breite = 10, max(200, self.width() - 20)
+        self.flaechen = []
         klein = QFont(self.font())
         klein.setPointSizeF(max(7.0, klein.pointSizeF() - 1.5))
         fett = QFont(self.font())
@@ -651,6 +708,7 @@ class Stangenbild(QWidget):
                     p.setPen(QPen(QColor("#202020"), 2))
                     p.drawLine(r.topLeft(), r.bottomLeft())
                     p.drawLine(r.topRight(), r.bottomRight())
+                self.flaechen.append((QRectF(r), t["ref"]))
                 text = f"{t['pos'] if t['pos'] is not None else t['artikel']}\n{_z(t['laenge'], 1)}"
                 if r.width() > 28:
                     p.setPen(QColor("white"))
@@ -881,8 +939,8 @@ class AngebotSeite(QWidget):
         self.pos_modell.geaendert.connect(self.neu_laden)
         self.pos_ansicht = _tabelle(self.pos_modell, sortieren=False)
         self.pos_ansicht.setItemDelegate(Auswahl(self.pos_modell, self.pos_ansicht))
-        self.pos_ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                         | QAbstractItemView.AnyKeyPressed)
+        # Doppelklick entscheidet _doppelklick (Dialog oder Zelle bearbeiten); Tippen und F2 bearbeiten immer
+        self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
         self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
@@ -943,6 +1001,10 @@ class AngebotSeite(QWidget):
         plan.addWidget(plan_oben)
         plan.addWidget(plan_unten)
         self.bild = Stangenbild()
+        self.bild.doppelklick.connect(self.zur_position)
+        teile_ansicht.setToolTip("Doppelklick auf ein Teil: zur Position")
+        teile_ansicht.doubleClicked.connect(
+            lambda i: self.zur_position(self.teile.zeilen[i.row()].get("ref")) if i.row() < len(self.teile.zeilen) else None)
         bild_rahmen = QScrollArea()
         bild_rahmen.setWidgetResizable(True)
         bild_rahmen.setWidget(self.bild)
@@ -982,6 +1044,8 @@ class AngebotSeite(QWidget):
         zl.addWidget(self.zukauf_ansicht, 1)
         prot_ansicht = _tabelle(self.prot)
         _breiten(prot_ansicht, PROT_SPALTEN)
+        prot_ansicht.setToolTip("Doppelklick auf eine Zeile: zur Position")
+        prot_ansicht.doubleClicked.connect(lambda i: self.protokoll_zur_position(prot_ansicht.model().mapToSource(i).row()))
         # Staffeln: Mengenstufen mit Werten je Stufe (Eingabe) und Kosten je Stufe (Ergebnis), siehe staffel_seite.py
         st_seite = StaffelSeite(self)
         self.staffel_modell, self.staffel_ansicht, self.staffel_info = st_seite.modell, st_seite.ansicht, st_seite.info
@@ -1249,6 +1313,10 @@ class AngebotSeite(QWidget):
             self._fracht_auto_rechnen()
         self.neu_laden()
 
+    def kunde_zeigen(self):
+        """Doppelklick auf Kunde im Angebotskopf: Kunden des Angebots im Reiter Kunden zeigen."""
+        return self.f.kunde_zeigen(self.kopf.get("kundennr"), self.kopf.get("kunde"))
+
     def stand_optimierung(self):
         if not self.ergebnis:
             return "noch nicht optimiert"
@@ -1423,17 +1491,88 @@ class AngebotSeite(QWidget):
         return True
 
     def _doppelklick(self, i):
-        """Doppelklick in der Positionsliste: Spalten mit eigenem Dialog; Status öffnet bei offenen Bohrungen
-        (Gewinde, Senkung, Flowdrill) den Dialog Bohrungen prüfen."""
-        art = self.pos_modell.spalten[i.column()][0]
+        """Doppelklick in der Positionsliste: Spalten mit eigenem Dialog; Status führt zur Lösung (STATUS_ZIELE);
+        Schneidweg, Einstiche und STEP-Werte öffnen den Schneidweg-Rechner, die Artikelnummer eines Teils mit 3D-Daten
+        die 3D-Ansicht; sonst wird die Zelle bearbeitet."""
+        if not i.isValid() or i.row() >= len(self.positionen):
+            return
+        art, name, r = self.pos_modell.spalten[i.column()][0], self.pos_modell.name(i.column()), i.row()
+        p = self.positionen[r]
         if art == "status":
-            if i.row() < len(self.positionen) and rechnen.bohrbild_offen(self.positionen[i.row()]):
-                self.bohrungen_pruefen([i.row()])
+            self.status_beheben(r)
             return
         ziel = {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile, "naht": self.schweissnaht,
                 "bohrbild": self.bohrungen_pruefen}.get(art)
         if ziel:
-            ziel([i.row()])
+            ziel([r])
+        elif (name in RECHNER_SPALTEN or art == "abweichung") and not ist_zukaufteil(p) \
+                and p.get("profil_id") in self.k.profile:
+            self.schneidweg_berechnen(r)
+        elif name == "artikel" and p.get("id") in self.pos_modell.mit_netz:
+            self.ansicht_3d(r)
+        elif self.pos_modell.flags(i) & Qt.ItemIsEditable:
+            self.pos_ansicht.edit(i)
+
+    def zur_position(self, ref=None, zeile=None):
+        """Reiter Positionen zeigen und die Position markieren (ref = Bezug aus der Optimierung oder zeile).
+        Ergebnis: Zeile oder None."""
+        if zeile is None:
+            zeile = next((r for r, p in enumerate(self.positionen) if rechnen.schluessel(p, r) == ref), None)
+        if zeile is None or zeile >= len(self.positionen):
+            return None
+        self.reiter.setCurrentWidget(self.pos_seite)
+        c = self.pos_ansicht.currentIndex().column()
+        index = self.pos_modell.index(zeile, c if c >= 0 and not self.pos_ansicht.isColumnHidden(c) else 0)
+        self.pos_ansicht.scrollTo(index)
+        self.pos_ansicht.setCurrentIndex(index)
+        self.pos_ansicht.selectRow(zeile)
+        self.pos_ansicht.setFocus()
+        return zeile
+
+    def protokoll_zur_position(self, zeile):
+        """Zeile des STEP-Protokolls: zur Position mit derselben Pos.-Nummer springen."""
+        if zeile >= len(self.prot.zeilen):
+            return None
+        pos = self.prot.zeilen[zeile][step.PROTOKOLL.index("Pos.")]
+        r = next((r for r, p in enumerate(self.positionen) if pos is not None and p.get("pos") == pos), None)
+        if r is None:
+            self.f.meldung("Zu dieser Protokollzeile gibt es keine Position (mehr).", fehler=True)
+            return None
+        return self.zur_position(zeile=r)
+
+    def status_beheben(self, zeile):
+        """Zum Status der Position springen: passenden Dialog öffnen oder die Zelle zum Eintragen öffnen.
+        Ergebnis: das Ziel aus STATUS_ZIELE oder None (Status ohne Ziel, z. B. OK)."""
+        ziel = status_ziel(self.pos_modell.status[zeile])
+        if not ziel:
+            return None
+        ziel = ziel[0]
+        if ziel.startswith("feld:"):
+            self.zelle_bearbeiten(zeile, ziel[5:])
+        elif ziel == "optimieren":
+            self.optimieren()
+        elif ziel == "schneidweg_berechnen":
+            self.schneidweg_berechnen(zeile)
+        else:
+            getattr(self, ziel)([zeile])
+        return ziel
+
+    def zelle_bearbeiten(self, zeile, name):
+        """Zelle der Spalte name in der Zeile markieren und zum Eintragen öffnen (ausgeblendete Spalte einblenden)."""
+        m = self.pos_modell
+        c = next((c for c in range(m.columnCount()) if m.name(c) == name), None)
+        if c is None:
+            return False
+        if self.pos_ansicht.isColumnHidden(c):
+            if name in OPTIONALE_SPALTEN:
+                self.spalte_waehlen(name, True)
+            else:
+                self.pos_ansicht.setColumnHidden(c, False)
+        index = m.index(zeile, c)
+        self.pos_ansicht.scrollTo(index)
+        self.pos_ansicht.setCurrentIndex(index)
+        self.pos_ansicht.edit(index)
+        return True
 
     def bohrungen_pruefen(self, zeilen=None, werte=None):
         """Gewinde-Vorschläge, Senkungen und Fließlochbohrungen der (ersten) markierten Position bestätigen oder
