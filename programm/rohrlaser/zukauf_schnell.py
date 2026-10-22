@@ -40,9 +40,10 @@ def artikel_werte(bezeichnung, artikelnr, kategorie, lieferant, ek, aufschlag):
 class SchnellDialog(QDialog):
     """Neue Zukaufartikel nacheinander anlegen. ergebnis: [{artikel_id, bezeichnung, artikelnr, menge, je}] der
     angelegten Artikel. ganz: Menge nur ganzzahlig (eigene Positionen im Angebot); hinweis: Text unter dem Formular,
-    der sagt, worauf sich die Menge bezieht; ohne_je: nur Stückzahl, ohne Wahl je Teil/je Satz."""
+    der sagt, worauf sich die Menge bezieht; ohne_je: nur Stückzahl, ohne Wahl je Teil/je Satz; blech: Kategorie
+    Blechteile vorbelegt."""
 
-    def __init__(self, parent, db, satz=False, ganz=False, hinweis="", ohne_je=False):
+    def __init__(self, parent, db, satz=False, ganz=False, hinweis="", ohne_je=False, blech=True):
         super().__init__(parent)
         self.db, self.ganz = db, ganz
         self.ergebnis = []
@@ -57,7 +58,7 @@ class SchnellDialog(QDialog):
         self.kategorie = QComboBox()
         kat = [n for n, z in db.zukauf_kategorien().items() if (z.get("aktiv") or "ja") == "ja"]
         self.kategorie.addItems([""] + kat)
-        if "Blechteile" in kat:
+        if blech and "Blechteile" in kat:
             self.kategorie.setCurrentText("Blechteile")
         self.lieferant = QComboBox()
         self.lieferant.setEditable(True)

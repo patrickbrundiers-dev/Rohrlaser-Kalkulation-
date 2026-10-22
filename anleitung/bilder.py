@@ -486,6 +486,23 @@ def main(ziel):
         d.reject()
         return QDialog.Rejected
     sz.zukauf_schnell([0], dialog=schnell_ausfuellen)
+
+    def blech_ausfuellen(d):            # Blech-Editor: U-Profil aus 1.4301 mit Bohrungen und Langlöchern
+        d.werkstoff.setCurrentText("1.4301 2B")
+        d.dicke.setValue(2)
+        d._vorlage(d.vorlage.findText("U-Profil"))
+        d.kantlaenge.setValue(300)
+        d.kontur_neu(dict(art="Bohrung", anzahl=1, d=6.6, x=40, y=56))
+        d.kontur_neu(dict(art="Langloch", anzahl=1, l=20, b=8.5, x=260, y=56))
+        d.stueck.setValue(20)
+        d.resize(1150, 860)
+        d.show()
+        QApplication.processEvents()
+        foto.foto("blech_editor", d, [(d.bezeichnung, 1), (d.werkstoff, 2), (d.art, 3), (d.schenkel, 4),
+                                      (d.tabelle, 5), (d.skizze, 6), (d.summe, 7), (d.ok_knopf, 8)])
+        d.reject()
+        return QDialog.Rejected
+    sz.blech_neu(dialog=blech_ausfuellen)
     sz.optimieren()
     reiter_waehlen(sz, "Zukaufteile")
     bereit()

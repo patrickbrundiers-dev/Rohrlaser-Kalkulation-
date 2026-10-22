@@ -178,7 +178,8 @@ assert haupt == ["Start", "Angebote", "Kunden", "Frachtkosten", "Zukaufartikel",
 b = fenster.bereich
 assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
-                                                                 "Zusatzarbeiten", "Stundensätze und Zeitvorgaben"]
+                                                                 "Zusatzarbeiten", "Blech-Werkstoffe",
+                                                                 "Blechlaser (Richtwerte)", "Stundensätze und Zeitvorgaben"]
 assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
 fenster.zeigen(seite)
 assert fenster.reiter.currentWidget() is b and b.stapel.currentIndex() == 0       # erst die Passwortabfrage
