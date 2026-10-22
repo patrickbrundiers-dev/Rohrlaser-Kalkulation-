@@ -1564,8 +1564,13 @@ def konturen_pruefen(p, wand=None):
     """Widerspruch zwischen Konturklassen und Schneidweg bzw. Innenkonturen oder eine Innenkontur kleiner als
     0,7 × Wandstärke (Text) oder None."""
     km = _n(p.get("klein_mm")) + _n(p.get("mittel_mm"))
+    gelasert = set()        # in 'Bohrungen prüfen' abgelehnt: der Laser schneidet sie bewusst
+    if not _leer(p.get("bohrbild")):
+        from .bohrbild import ABGELEHNT, BOHREN, lesen
+        gelasert = {round(float(z.get("d") or 0), 1) for z in lesen(p["bohrbild"])
+                    if z.get("art") == BOHREN and z.get("status") == ABGELEHNT}
     if isinstance(wand, (int, float)) and wand > 0 and any(
-            not a and MARKIERLOCH < round(g, 2) < round(KONTUR_MIN_WAND * wand, 2)
+            not a and MARKIERLOCH < round(g, 2) < round(KONTUR_MIN_WAND * wand, 2) and round(g, 1) not in gelasert
             for a, g, _ in konturen_lesen(p.get("konturen"), True)):
         return KONTUR_ZU_KLEIN
     if km <= 0 and _n(p.get("gross_mm")) <= 0:

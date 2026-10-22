@@ -4,6 +4,7 @@ Flowdrill als Gravur oder Loch Ø0,5).
 
 Aufruf: python tests/test_bohrbild.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
+import json
 import math
 import os
 import sys
@@ -173,6 +174,118 @@ def _():
         p = db.positionen(a)[0]
         assert p["gewinde"] == "4xM6; 1xM10" and bohrbild.lesen(p["bohrbild"])[0]["status"] == "bestätigt", p
         assert "Bohrungen" not in pm.status[0], pm.status
+        seite.close()
+        db.con.close()
+
+
+# 3) Bohren (< 0,7 × Wand) und Arbeitsschritte Senken, Flowdrill, Bohren als Zusatzarbeit
+@fall("Bohren: Bohrung Ø5 in 8 mm Wand vorgeschlagen (Ø0,5 und Ø6 nicht), bestätigt = Laser markiert, Zusatzarbeit")
+def _():
+    m = dict(bohrungen="5.0:4|0.5:1|6.0:2", senkungen="6.6/12.4:2", fliessloecher="7.3:2")
+    z = bohrbild.aus_messung(m, [("M6", 5.0)], wand=8)
+    assert [(x["art"], x["d"], x["anzahl"]) for x in z] == [
+        ("Bohrung", 5.0, 4), ("Senkung", 6.6, 2), ("Fließloch", 7.3, 2), ("Bohren", 5.0, 4)], z
+    assert all(x["d"] != 0.5 for x in bohrbild.aus_messung(m, [], wand=7) if x["art"] == "Bohren")
+    assert not [x for x in bohrbild.aus_messung(m, [], wand=None) if x["art"] == "Bohren"]
+    assert "4x Bohren Ø5" in bohrbild.text(z)
+    p = dict(schneidweg=500.0, innen=180.0, a_schnitt=160, b_schnitt=160, einstiche=10, gravur=None, kontur_grenzen="10/50; 3×/8× Wand 8",
+             konturen="A:40x160; E:40x160; 5x15,7; 5x15,8; 5x15,7; 5x15,7; 6x18,8; 6x18,8; 6,6x20,7; 6,6x20,7")
+    assert rechnen.konturen_pruefen(p, 8) == rechnen.KONTUR_ZU_KLEIN
+    p.update(bohrbild.anwenden(p, z))               # wie beim Import: Bohren offen ändert nichts am Schneidweg
+    assert p["schneidweg"] == 500.0 and p["einstiche"] == 10, p
+    katalog = [dict(name=n, art="€/Stück", preis=1.0) for n in ("Senken", "Flowdrill", "Bohren")]
+    best = [dict(x, status="bestätigt") for x in z]
+    f = bohrbild.anwenden(p, best, None, katalog)
+    assert nah(f["schneidweg"], 500 - 4 * PI * 5, 0.1) and f["einstiche"] == 6, f      # 4 Bohrungen nur graviert
+    assert nah(f["gravur"], 2 * PI * 0.5 + 4 * PI * 0.5, 0.1), f       # Flowdrill + Bohren je Gravur Ø0,5
+    assert "5x" not in f["konturen"] and f["konturen"].count("6x18,8") == 2, f["konturen"]
+    zu = {e["name"]: e for e in rechnen.zusatz_liste(f)}
+    assert {n: e["menge"] for n, e in zu.items()} == {"Senken": 2, "Flowdrill": 2, "Bohren": 4}, zu
+    assert all(e["quelle"] == bohrbild.QUELLE and e["stand"]["preis"] == 1.0 for e in zu.values())
+    assert rechnen.konturen_pruefen(dict(p, **f), 8) is None, rechnen.konturen_pruefen(dict(p, **f), 8)
+    p.update(f)
+    # Bohren als Loch Ø0,5, Senken abgelehnt: Zusatzarbeit Senken fällt weg, von Hand Eingetragenes bleibt
+    p["zusatz"] = json.dumps(rechnen.zusatz_liste(p) + [dict(name="Entgraten", menge=1)])
+    neu = [dict(x) for x in best]
+    neu[1]["status"], neu[3]["laser"] = "abgelehnt", bohrbild.LOCH
+    f = bohrbild.anwenden(p, neu, None, katalog)
+    assert nah(f["schneidweg"], 500 - 4 * PI * 5 + 4 * PI * 0.5, 0.1) and f["einstiche"] == 10, f
+    assert {e["name"]: e["menge"] for e in rechnen.zusatz_liste(f)} == {"Flowdrill": 2, "Bohren": 4, "Entgraten": 1}
+    assert f["konturen"].count("0,5x1,6") == 4, f["konturen"]
+    p.update(f)
+    # alles wieder offen: Schneidweg wie gemessen, Zusatzarbeiten aus dem Bohrbild weg
+    f = bohrbild.anwenden(p, z, None, katalog)
+    assert nah(f["schneidweg"], 500, 0.1) and f.get("einstiche", p["einstiche"]) == 10 and f["konturen"].count("5x15,7") == 4, f
+    assert [e["name"] for e in rechnen.zusatz_liste(f)] == ["Entgraten"]
+    # abgelehnt: der Laser schneidet die Bohrung bewusst, keine Warnung mehr
+    ab = [dict(x, status="abgelehnt") if x["art"] == "Bohren" else x for x in z]
+    assert rechnen.konturen_pruefen(dict(p, **bohrbild.anwenden(p, ab)), 8) is None
+    # fehlende Zusatzarbeit in den Stammdaten wird gemeldet
+    f = bohrbild.anwenden(dict(p, zusatz=None), best, None, katalog[:1])
+    assert f["_fehlt"] == ["Flowdrill", "Bohren"], f
+
+
+@fall("Bohren: ältere Position (Bohrbild ohne Bohren) wird ergänzt, Schneidweg-Rechner bildet Bohrbild neu")
+def _():
+    from rohrlaser import schneidweg
+    p = dict(bohrungen="4xØ5; 1xØ10; 2x Senkung Ø6,6/12,4", gewinde_vorschlag="4xM6")
+    z = bohrbild.aus_position(p, [("M6", 5.0)], 8)
+    assert [(x["art"], x["d"], x["anzahl"]) for x in z] == [("Bohrung", 5.0, 4), ("Bohren", 5.0, 4)], z
+    p["bohrbild"] = bohrbild.schreiben([dict(z[0], status="bestätigt")])
+    z = bohrbild.aus_position(p, [("M6", 5.0)], 8)
+    assert [(x["art"], x["status"]) for x in z] == [("Bohrung", "bestätigt"), ("Bohren", "offen")], z
+    profil = dict(form="Quadratrohr", a=60, b=60, wand=8)
+    e = dict(a={}, b={}, konturen=[dict(art="Bohrung", anzahl=4, d=5), dict(art="Senkung", anzahl=2, d=6.6, D=12.4),
+                                   dict(art="Bohrung", anzahl=1, d=10)])
+    erg = schneidweg.rechnen(e, profil, (10, 50), [("M6", 5.0)])
+    alt = [dict(art="Bohren", d=5.0, anzahl=4, status="bestätigt", laser=bohrbild.LOCH),
+           dict(art="Fließloch", d=7.3, anzahl=2, status="offen")]
+    neu = bohrbild.aus_rechner(erg, alt, [("M6", 5.0)], 8)
+    assert [(x["art"], x["d"], x["anzahl"], x["status"]) for x in neu] == [
+        ("Bohrung", 5.0, 4, "offen"), ("Senkung", 6.6, 2, "offen"), ("Bohren", 5.0, 4, "bestätigt")], neu
+    assert neu[2]["laser"] == bohrbild.LOCH
+    f = bohrbild.anwenden(dict(erg["felder"]), neu)
+    assert nah(f["schneidweg"], erg["schneidweg"] - 4 * PI * 5 + 4 * PI * 0.5, 0.1), (f, erg["schneidweg"])
+
+
+@fall("Angebot: Bohren im Dialog vorgeschlagen, Bestätigen trägt Zusatzarbeiten ein, Schneidweg-Rechner behält Status")
+def _():
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser.bohrbild_dialog import BohrbildDialog
+    from rohrlaser.fenster import Hauptfenster
+    app = QApplication.instance() or QApplication([])  # noqa: F841
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        assert {"Senken", "Flowdrill", "Bohren"} <= {z["name"] for z in db.zeilen("zusatzarbeiten")}
+        fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+        a = db.angebot_neu(dict(kunde="Test"))
+        db.position_neu(a, dict(pos=10, artikel="Halter", profil_id="QR 40x40x3", werkstoff_id="S235-10219",
+                                laenge=1000, stueck=4, schneidweg=330, einstiche=6, innen=10.1,
+                                konturen="2x6,3; 2x6,3", bohrungen="2xØ2"))
+        seite = fenster.angebot_oeffnen(a)
+        p = db.positionen(a)[0]
+        gew = [(g["gewinde"], g["kernloch"]) for g in db.zeilen("gewinde")]
+        d = BohrbildDialog(None, p, gew, 3, None, db.zeilen("zusatzarbeiten"))
+        assert d.tabelle.rowCount() == 1 and d.tabelle.item(0, 0).text().startswith("Bohren"), d.liste
+        d.setzen(0, "bestätigt")
+        assert "Zusatzarbeiten: 2× Bohren" in d.auswirkung.text(), d.auswirkung.text()
+        d.accept()
+        assert seite.bohrungen_pruefen([0], werte=d.ergebnis)
+        p = db.positionen(a)[0]
+        (e,) = rechnen.zusatz_liste(p)
+        assert e["name"] == "Bohren" and e["menge"] == 2 and e["stand"]["preis"] > 0, e
+        assert nah(p["schneidweg"], 330 - 2 * PI * 2, 0.1) and p["einstiche"] == 4, p
+        (w,) = rechnen.zusatz_werte(p, seite.k, seite.tabellen)      # 2 × 0,5 min × 45 €/h
+        assert w["menge"] == 2 and nah(w["betrag"], 2 * 0.5 / 60 * 45, 0.01), w
+        # Schneidweg-Rechner: Bohrbild aus den Eingaben, Bohren bleibt bestätigt, Zusatzarbeit bleibt
+        assert seite.schneidweg_berechnen(0, eingaben=dict(a={}, b={}, konturen=[dict(art="Bohrung", anzahl=2, d=2)]),
+                                          ueberschreiben=True)
+        p = db.positionen(a)[0]
+        (z,) = bohrbild.lesen(p["bohrbild"])
+        assert z["art"] == "Bohren" and z["status"] == "bestätigt", z
+        assert [e["name"] for e in rechnen.zusatz_liste(p)] == ["Bohren"]
+        rw = 2 * 160 + 2 * PI * 2           # Enden QR 40x40 (Umfang) + 2 Bohrungen, dann ohne die Bohrungen
+        assert nah(p["schneidweg"] + 2 * PI * 2, rw, 2), p["schneidweg"]
         seite.close()
         db.con.close()
 

@@ -1128,4 +1128,24 @@ def beispiel_zusatzarbeiten():
              ("Entgraten", "€/Stück", 0.50, None, "nein", "entgratet", "Beispielpreis", "Nachbearbeitung"),
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
-    return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte]
+    return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
+        + bohr_zusatzarbeiten()
+
+
+# Zusatzarbeiten, die 'Bohrungen prüfen' (bohrbild.py) nach dem Bestätigen mit der Anzahl je Teil einträgt
+ZUSATZ_SENKEN, ZUSATZ_FLOWDRILL, ZUSATZ_BOHREN = "Senken", "Flowdrill", "Bohren"
+
+
+def bohr_zusatzarbeiten():
+    """Vorbelegung Senken, Flowdrill und Bohren: € je Stück aus Zeit × Stundensatz Nachbearbeitung (Beispielzeiten,
+    bitte anpassen)."""
+    werte = [(ZUSATZ_SENKEN, 0.5, "Senken", "Senkung nachträglich senken; Vorschlag aus 'Bohrungen prüfen'"),
+             (ZUSATZ_FLOWDRILL, 0.75, "Fließlochbohren (Flowdrill)",
+              "Fließlochbohrung mit Kragen; Vorschlag aus 'Bohrungen prüfen'"),
+             (ZUSATZ_BOHREN, 0.5, "Bohren",
+              "Bohrung kleiner 0,7 × Wandstärke: der Laser markiert nur, danach aufbohren; Vorschlag aus "
+              "'Bohrungen prüfen'")]
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=n, art="€/Stück", fremd="nein",
+                 angebotstext=t, bemerkung=b, kategorie="Nachbearbeitung", aktiv="ja", zeit=z, zeit_einheit="min",
+                 satz_id="Nachbearbeitung") for n, z, t, b in werte]
+

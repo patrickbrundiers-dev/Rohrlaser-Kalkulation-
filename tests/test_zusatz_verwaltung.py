@@ -81,7 +81,7 @@ assert f.bereich.unter.currentWidget() is s and s.titel == "Zusatzarbeiten"
 f.zeigen(next(x for x in f.seiten if x.t.name == "zusatzarbeiten"))     # alter Weg (Anleitung) zeigt die neue Seite
 assert f.bereich.unter.currentWidget() is s
 n0 = len(db.zeilen("zusatzarbeiten"))
-assert len(s.sichtbar) == n0 == 5
+assert len(s.sichtbar) == n0 == 8
 
 # 1) Neue Zusatzarbeit anlegen
 fo = s.neu()
@@ -345,7 +345,7 @@ s.sortierung.setCurrentText("Preis")
 preise = [x["_preis"]["preis"] for x in s.sichtbar if x["art"] != "s/Stück"]
 assert preise == sorted(preise, reverse=True)
 s.sortierung.setCurrentText("Zeitaufwand")
-assert [x["name"] for x in s.sichtbar[:2]] == ["Montage", "Gravur extra"]     # 120 s vor 20 s
+assert [x["name"] for x in s.sichtbar[:2]] == ["Montage", "Flowdrill"]     # 120 s vor 45 s
 s.sortierung.setCurrentText("Name")
 assert [x["name"].lower() for x in s.sichtbar] == sorted(x["name"].lower() for x in s.sichtbar)
 ok("   Suche, Filter Kategorie/Status und Sortierung nach Name, Preis, Zeitaufwand")
@@ -355,6 +355,8 @@ db.schliessen()
 # 11) Datei der Vorversion (Schema 14): Sicherung, Einträge unverändert, neue Felder leer
 alt = tmp / "alt" / "rohrlaser.db"
 d = Datenbank(alt)
+with d.con:     # Senken, Flowdrill, Bohren gab es in Schema 14 nicht (Ergänzung gilt hier als schon erledigt)
+    d.con.execute("DELETE FROM zusatzarbeiten WHERE name IN ('Senken', 'Flowdrill', 'Bohren')")
 vorher = [{k: v for k, v in z.items() if k not in NEU} for z in d.zeilen("zusatzarbeiten")]
 d.schliessen()
 con = sqlite3.connect(alt)
