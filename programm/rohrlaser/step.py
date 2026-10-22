@@ -281,6 +281,37 @@ def alternative(m):
         return None
 
 
+def anbauteile(m):
+    """Anbauteile der Messung (Spalte 'anbauteile', JSON-Liste, ab STEP-Import 0.8.5) oder []."""
+    try:
+        return json.loads(m.get("anbauteile") or "[]")
+    except ValueError:
+        return []
+
+
+def anbau_text(m):
+    """Kurztext der Anbauteile für den Prüfdialog, z. B. 'Anbauteile (nicht gelasert): Bolzen bei z 300 mm 0°,
+    Gravur 20 mm …' oder ''."""
+    liste = anbauteile(m)
+    if not liste:
+        return ""
+    teile = []
+    for a in liste:
+        lage = a.get("seite") or (f"{dez(a['winkel'])}°" if a.get("winkel") is not None else "")
+        z = f"z {dez(a['z'])} mm" if a.get("z") is not None else ""
+        teile.append(" ".join(x for x in (a.get("art") or "", z, lage, "(prüfen)" if a.get("vertrauen") == "prüfen"
+                                          else "") if x)
+                     + (f" ({a['quelle']})" if str(a.get("quelle", "")).startswith("Körper") else ""))
+    try:
+        tr = json.loads(m.get("trennung") or "null") or {}
+    except ValueError:
+        tr = {}
+    ohne = tr.get("ohne_trennung") or {}
+    return (f"Anbauteile (nicht gelasert, abgetrennt): {'; '.join(teile)} – Gravur {dez(_z(m, 'gravur_anbau'))} mm"
+            + (f" · ohne Trennung gemessen: {ohne.get('profil_id') or 'nicht messbar'}, Länge {dez(ohne.get('laenge'))}"
+               f" mm, Schneidweg {dez(ohne.get('schneidweg'))} mm" if ohne else ""))
+
+
 def art_text(m):
     """Bauteilart für die Auswahl im Prüfdialog, z. B. 'Flachstahl', 'Blech', 'L-Profil', 'Kantteil (Blech gekantet)'."""
     form = m.get("profilform") or ""
