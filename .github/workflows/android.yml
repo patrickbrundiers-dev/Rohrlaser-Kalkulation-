@@ -58,7 +58,8 @@ jobs:
       - name: APK benennen
         run: |
           version=$(grep -oP 'val appVersion = "\K[^"]+' android/app/build.gradle.kts)
-          cp android/app/build/outputs/apk/release/app-release.apk "Rohrlaser-$version.apk"
+          apk=$(ls android/app/build/outputs/apk/release/*-release.apk | head -1)
+          cp "$apk" "Rohrlaser-$version.apk"
           echo "APK=Rohrlaser-$version.apk" >> "$GITHUB_ENV"
           ls -l Rohrlaser-*.apk
       - uses: actions/upload-artifact@v4
