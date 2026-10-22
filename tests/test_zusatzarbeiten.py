@@ -26,7 +26,8 @@ def nah(a, b, tol=1e-9):
 
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert [z["name"] for z in db.zeilen("zusatzarbeiten")] == ["Feuerverzinken", "Galvanisch verzinken", "Pulverbeschichten",
-                                                             "Entgraten", "Gravur extra"]
+                                                             "Entgraten", "Gravur extra", "Senken", "Flowdrill",
+                                                             "Bohren"]
 a = db.angebot_neu(dict(kunde="Test", skonto=0))
 p1 = db.position_neu(a, dict(pos=10, artikel="A", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,
                              stueck=10, schneidweg=300, einstiche=2))
@@ -144,7 +145,21 @@ con.execute("PRAGMA user_version=4")
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 5 and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert d.anzahl("zusatzarbeiten") == 8 and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+d.schliessen()
+
+# 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt
+con = sqlite3.connect(alt)
+con.execute("DELETE FROM zusatzarbeiten WHERE name IN ('Flowdrill', 'Bohren')")
+con.execute("UPDATE zusatzarbeiten SET preis=1.25, zeit=NULL WHERE name='Senken'")
+con.execute("DELETE FROM stundensaetze WHERE satz_id='Nachbearbeitung'")
+con.execute("DELETE FROM einstellungen WHERE name='bohr_zusatz_stand'")
+con.commit()
+con.close()
+d = Datenbank(alt)
+zs = {z["name"]: z for z in d.zeilen("zusatzarbeiten")}
+assert {"Senken", "Flowdrill", "Bohren"} <= set(zs) and zs["Senken"]["preis"] == 1.25, zs
+assert zs["Bohren"]["satz_id"] is None and zs["Bohren"]["satz"] == 45 and zs["Bohren"]["art"] == "€/Stück"
 d.schliessen()
 
 # 11) Oberfläche: Dialog liefert Gewinde und Zusatzarbeiten, Übernahme für mehrere Positionen, Tabellenspalte

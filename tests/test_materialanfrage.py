@@ -155,7 +155,7 @@ db.neu("lieferlaengen", dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", 
 w = next(z for z in db.zeilen("werkstoffe") if z["werkstoff_id"] == "S235-10219")
 for feld, wert in (("anfrage_zeugnis", "3.1"), ("anfrage_herkunft_eu", "ja"), ("anfrage_toleranz", "ja")):
     db.aendern("werkstoffe", w["id"], feld, wert)
-k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
+k, tab, einst = db.kontext(), db.tabellen(), dict(db.einstellungen(), laenge_vergleich="ja")   # mit 12-m-Vergleich
 assert ma.anforderungen("S235-10219", k) == "Abnahmeprüfzeugnis 3.1 nach EN 10204, Herkunft EU, Maßtoleranzen nach Norm"
 assert ma.anforderungen("1.4301", k) == ""
 kopf = db.angebot(a)
@@ -211,6 +211,49 @@ assert ma.signatur(dict(einst, anfrage_signatur="")) == "Muster Laser GmbH"     
 assert ma.text_html("a < b\n  c") .count("&lt;") == 1 and "&nbsp;&nbsp;c" in ma.text_html("a < b\n  c")
 ok("M5 12-m-Zuschnitt je Zeile (abwählbar), Anforderungen des Werkstoffs, Vorlage mit Platzhaltern, Signatur aus "
    "Outlook oder eigene")
+
+# ------------------------------------------------------------------ M6 Schweißnaht der Lieferstange, Knopf (22.10.2026)
+from rohrlaser import naht  # noqa: E402
+assert not s.anfrage_knopf.isHidden() and s.anfrage_knopf.text() == "Materialanfrage (E-Mail)"
+assert all("anfragen" not in act.text() for act in s.weitere.menu().actions())
+c = db.angebot_neu(dict(kunde="Naht", nummer="A-2026-0101"))
+for i, extra in enumerate((dict(naht_vorgabe=naht.FEST, naht_winkel=0, naht_quelle="Kunde"), {})):
+    db.position_neu(c, dict(pos=10 * (i + 1), artikel=f"N{i}", profil_id="RE 60x40x3", werkstoff_id="S355-10219",
+                            laenge=1200, stueck=3, schneidweg=200, einstiche=2, **extra))
+db.position_neu(c, dict(pos=30, artikel="Q", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=800, stueck=2,
+                        schneidweg=200, einstiche=2, naht_vorgabe=naht.FEST, naht_winkel=0, naht_quelle="Kunde"))
+sc = fenster.angebot_oeffnen(c)
+assert sc.optimieren()
+assert not any(st and "Naht" in st for st in sc.pos_modell.status), sc.pos_modell.status   # kein Hinweis mehr
+gesehen.clear()
+
+
+def naht_bedienen(d):
+    re_ = next(r for r, z in enumerate(d.zeilen) if z["profil"] == "RE 60x40x3")
+    qr_ = next(r for r, z in enumerate(d.zeilen) if z["profil"] == "QR 40x40x3")
+    for r in range(len(d.zeilen)):
+        d.tabelle.item(r, 0).setCheckState(Qt.Checked)
+    gesehen["vorher"] = d.text.toPlainText()
+    nb = d.tabelle.cellWidget(re_, 4)
+    gesehen["combo"] = nb.currentText() if nb else None
+    gesehen["qr"] = (d.tabelle.cellWidget(qr_, 4), d.tabelle.item(qr_, 4).text())
+    nb.setCurrentText(naht.SCHMALSEITE)
+    gesehen["nachher"] = d.text.toPlainText()
+    return 0
+
+
+sc.material_anfragen(dialog=naht_bedienen, ausfuehren=outlook_ok)
+assert gesehen["combo"] == naht.BREITSEITE and gesehen["qr"] == (None, "–")   # Quadratrohr: keine Seite anfragen
+assert "\n  Schweißnaht auf der Breitseite" in gesehen["vorher"] and gesehen["vorher"].count("Schweißnaht") == 1
+assert "\n  Schweißnaht auf der Schmalseite" in gesehen["nachher"]
+assert db.angebot(c)["naht_stangen"] == {"RE 60x40x3|S355-10219": naht.SCHMALSEITE}
+assert sc.pos_modell.status[0].startswith("FEHLER: Naht auf Breitseite gefordert"), sc.pos_modell.status[0]
+z = next(z for z in ma.bedarf(sc.positionen, sc.ergebnis, sc.k, sc.tabellen, None, sc.kopf)
+         if z["profil"] == "RE 60x40x3")
+assert z["naht"] == naht.SCHMALSEITE and ma.naht_text(z) == "Schweißnaht auf der Schmalseite"
+assert db.angebot(db.angebot_kopieren(c))["naht_stangen"] == {"RE 60x40x3|S355-10219": naht.SCHMALSEITE}
+ok("M6 Schweißnaht der Lieferstange je Zeile (aus den Teilen, änderbar, im Angebot gespeichert), Knopf "
+   "'Materialanfrage (E-Mail)' immer sichtbar")
 
 # ------------------------------------------------------------------ M4 Kundenmaterial allein, ältere Datei
 b = db.angebot_neu(dict(kunde="Nur Kunde"))

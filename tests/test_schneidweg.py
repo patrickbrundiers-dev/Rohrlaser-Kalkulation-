@@ -368,7 +368,7 @@ m10 = dict(konturen_liste=json.dumps([
          huellmass=60.0),
     dict(art="Bohrung", durchgehend=True, z=120.0, winkel=0.0, u=0.0, seite="0°", durchmesser=8.5,
          schnittlaenge=26.6, huellmass=8.5),
-    dict(art="Langloch", durchgehend=True, z=400.0, winkel=90.0, u=55.0, seite="90°", laenge=30.0, breite=10.0,
+    dict(art="Langloch", durchgehend=True, z=400.0, winkel=99.46, u=55.0, seite="90°", laenge=30.0, breite=10.0,
          richtung=90.0, schnittlaenge=72.6, huellmass=30.0),
     dict(art="Rechteckausschnitt", durchgehend=True, z=600.0, winkel=180.0, u=100.0, seite="180°", laenge=40.0,
          breite=20.0, richtung=0.0, schnittlaenge=119.0, huellmass=40.0),
@@ -389,6 +389,16 @@ r10 = sw.rechnen(e10, RE, (10, 50))
 assert not r10["fehler"] and nah(r10["schneidweg"], 230.5 + 200 + 26.6 + 72.6 + 119 + 80, 0.11)
 assert "STEP gemessen" in r10["schritte"][0]["text"] and r10["felder"]["a_gerade"] == "nein"
 assert r10["felder"]["b_gerade"] == "ja"
+# Querversatz aus dem Umfangswinkel, nicht aus u: Rohr mit Eckradius 4 (Patricks Gestell, RE 40x30) – Bohrung in der
+# Mitte der Unterseite liegt bei u = 66,56 statt 70 und saß früher 3,4 mm daneben; 10 mm neben der Mitte oben
+m_r = dict(konturen_liste=json.dumps([
+    dict(art="Bohrung", durchgehend=True, z=150.0, winkel=180.0, u=66.56, seite="180°", durchmesser=8.5,
+         schnittlaenge=26.7),
+    dict(art="Bohrung", durchgehend=True, z=330.0, winkel=round(math.degrees(math.atan(10 / 15)), 1), u=9.9,
+         seite="0°", durchmesser=8.5, schnittlaenge=26.7)]))
+k_r = step.rechner_eingaben(m_r, "Rechteckrohr", 40, 30)["konturen"]
+assert k_r[0]["seite"] == "unten" and "q" not in k_r[0], k_r[0]
+assert "seite" not in k_r[1] and k_r[1]["q"] == 10.0, k_r[1]
 assert step.rechner_eingaben(dict(konturen_liste=""), "Rundrohr", 42.4) is None
 e_rr = step.rechner_eingaben(dict(konturen_liste=json.dumps([dict(art="Bohrung", durchgehend=True, z=50, winkel=135.0,
                                                                   durchmesser=6, schnittlaenge=18.8)])), "Rundrohr", 42.4)
@@ -566,6 +576,40 @@ assert s.position_neu(np_.ROHR, dialog=lambda d: QDialog.Rejected) is None and l
 ok("S12 Neue Position: erst Typ (Rohr / Profil, Blech / Kantteil, Zukaufteil, leere Zeile), Rohr im Rechner mit "
    "Kopfzeile (Profilwechsel, Länge Pflicht, Naht, Konturen)")
 
+# ------------------------------------------------------------------ S13 Profilform vorwählen, Profil neu anlegen
+from rohrlaser import profil_neu as pn_  # noqa: E402
+assert pn_.profil_id("Quadratrohr", 40, None, 3) == "QR 40x40x3" and pn_.profil_id("Rundrohr", 48.3, None, 2.6) == \
+    "RR 48,3x2,6" and pn_.profil_id("Rechteckrohr", 60, 40, 3) == "RE 60x40x3"
+gesehen13 = {}
+
+
+def rohr_neues_profil(d):
+    d.k_form.setCurrentText("Rechteckrohr")
+    liste = [d.k_profil.itemText(i) for i in range(d.k_profil.count())]
+    gesehen13["nur_re"] = bool(liste) and all(s.k.profile[x]["form"] == "Rechteckrohr" for x in liste)
+    nd = pn_.ProfilNeuDialog(d, d.k.profile, "Rechteckrohr")
+    nd.a.setValue(70)
+    nd.b.setValue(35)
+    nd.wand.setValue(2.5)
+    gesehen13["pid"], gesehen13["fehler"] = nd.pid.text(), nd.fehler()
+    nd.b.setValue(0)
+    gesehen13["ohne_b"] = nd.fehler()
+    gesehen13["neu"] = d.profil_neu(dict(nd.werte(), b=35.0, profil_id="RE 70x35x2,5"))
+    gesehen13["gewaehlt"] = (d.k_profil.currentText(), d.profil.get("profil_id"), d.k_form.currentText())
+    d.k_artikel.setText("NEU-2")
+    d.k_laenge.setValue(500)
+    return QDialog.Accepted
+
+
+assert s.position_neu(np_.ROHR, dialog=rohr_neues_profil) == np_.ROHR
+assert gesehen13["nur_re"] and gesehen13["pid"] == "RE 70x35x2,5" and gesehen13["fehler"] == "", gesehen13
+assert gesehen13["ohne_b"] == "Abmessung B eingeben." and gesehen13["neu"] == "RE 70x35x2,5"
+assert gesehen13["gewaehlt"] == ("RE 70x35x2,5", "RE 70x35x2,5", "Rechteckrohr"), gesehen13
+pr13 = next(z for z in db.zeilen("profile") if z["profil_id"] == "RE 70x35x2,5")
+assert (pr13["form"], pr13["a"], pr13["b"], pr13["wand"]) == ("Rechteckrohr", 70, 35, 2.5)
+assert db.positionen(a)[-1]["profil_id"] == "RE 70x35x2,5" and db.positionen(a)[-1]["artikel"] == "NEU-2"
+ok("S13 Rohr-Editor: Profilform vorwählen filtert die Profile, fehlendes Profil direkt anlegen (ID aus den Maßen)")
+
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()
 alt = tmp / "alt.db"
@@ -581,4 +625,39 @@ assert all(p["technik"] is None for p in db2.positionen(a)) and db2.positionen(a
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()
 ok("S6 Datei mit Schema 25: Spalte technik leer ergänzt, Werte unverändert, Sicherung vorher")
+# S10 Gehrung ohne Richtung (Patrick 22.10.2026): Hinweis im Rechner; frei drehbare Teile werden mit angenommener
+# Richtung ineinandergelegt, mit Nahtvorgabe nicht
+ohne = dict(a=dict(winkel=45, achse="über Breite"), b=dict(winkel=40, achse="über Breite"), konturen=[])
+h = sw.rechnen(ohne, RE, (10, 50))["hinweise"]
+assert any("längste Seite automatisch" in x and "Anfangsschnitt und Endschnitt" in x and "länger oben (0°)" in x
+           for x in h), h
+# Skizze/Zeichnung: angenommene Richtung wie die Optimierung, gespeichert bleibt None
+anz = sw.mit_angenommener_richtung(ohne, RE)
+assert anz["a"]["richtung"] == 0 and anz["b"]["richtung"] == 0 and anz["a"]["richtung_auto"], anz
+assert ohne["a"].get("richtung") is None
+assert sw.mit_angenommener_richtung(dict(ohne, a=dict(winkel=45, achse="über Höhe")), RE)["a"]["richtung"] == 90
+assert sw.mit_angenommener_richtung(ohne, IPE) is ohne
+assert sw.AUTOMATISCH in sw.RICHTUNGEN and sw.RICHTUNGEN[sw.AUTOMATISCH] is None
+assert sw.rechnen(dict(ohne, a=dict(ohne["a"], richtung=90), b=dict(ohne["b"], richtung=90)), RE, (10, 50))[
+    "hinweise"] == []
+assert sw.gehrung_ohne_richtung(sw.speichern(ohne), "a", RE) == (45, 0)        # passend zu achse_zu_richtung
+assert sw.gehrung_ohne_richtung(sw.speichern(dict(ohne, a=dict(winkel=45, achse="über Höhe"))), "a", RE) == (45, 90)
+assert sw.gehrung_ohne_richtung(sw.speichern(ohne), "a", IPE) is None
+p110 = dict(pos=110, artikel="P110", profil_id="RE 60x40x3", werkstoff_id="S235-10219", laenge=370, stueck=64,
+            a_gerade="nein", b_gerade="nein", technik=sw.speichern(ohne))
+kopf110 = dict(maschine="T03", stange=6000)
+(g110,), _, _ = rechnen.gruppen_bilden(kopf110, [p110], k)
+assert g110.teile[0].a_gehrung == (45, 0) and g110.teile[0].b_gehrung == (40, 0) and g110.teile[0].angenommen
+e_frei = rechnen.optimieren(kopf110, [p110], k)
+p_fest = dict(p110, naht_vorgabe="unbekannt")
+(g_f,), _, _ = rechnen.gruppen_bilden(kopf110, [p_fest], k)
+assert g_f.teile[0].a_gehrung is None and not g_f.teile[0].angenommen
+e_fest = rechnen.optimieren(kopf110, [p_fest], k)
+assert len(e_frei["stangen"]) < len(e_fest["stangen"]), (len(e_frei["stangen"]), len(e_fest["stangen"]))
+tz = [t for s_ in e_frei["stangen"] for t in s_["teile"] if t.get("drehung")]
+assert tz and all(t["richtung_angenommen"] for t in tz)
+assert "Gehrungsrichtung angenommen" in rechnen.teil_zeichen(tz[0])[1]
+assert e_frei["kennung"] != e_fest["kennung"]
+ok(f"S10 Gehrung ohne Richtung: Hinweis, angenommen ineinander ({len(e_frei['stangen'])} statt "
+   f"{len(e_fest['stangen'])} Stangen), mit Nahtvorgabe nicht")
 print("OK: Schneidweg-Rechner")

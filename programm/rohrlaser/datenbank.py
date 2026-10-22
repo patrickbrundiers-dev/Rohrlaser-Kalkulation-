@@ -36,11 +36,12 @@ from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONE
                       naechste_nummer)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
-                         ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten, alte_richtwerte, ALTE_GRAVUR, GRAVUR,
-                         beispiel_arbeitsschritte, beispiel_stundensaetze,
+                         ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
+                         alte_richtwerte, ALTE_GRAVUR, GRAVUR,
+                         beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 38     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 42     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -68,7 +69,15 @@ SCHEMA_VERSION = 38     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     alte Mengenstufen je Satz/Position der Größe nach auf Stufe 1, 2 … verteilt
                         # 37: Blech-Editor (Tabellen blech_werkstoffe und blechlaser mit Richtwerten, nur für den
                         #     Richtpreis von Blech-/Kantteilen; getrennt von Werkstoffen und Schneiddaten des Rohrlasers)
-                        # 38: Anbauteile je Position (positionen.anbauteile: aufgeschweißte Teile aus dem STEP-Import
+                        # 38: maschinen.stangenwechsel_sn (Stangenwechsel für Stangen mit fester Schweißnaht-Lage);
+                        #     T03/T11/LT7 mit dem alten Beispielwert: normal 24 s, SN 29 s, sonst SN = bisheriger Wert
+                        # 39: 3D-Bearbeitung je Maschine (maschinen.d3, schwenk_min/max, greif_3d, zeit_3d, faktor_3d);
+                        #     vorhandene Maschinen: nein, ±45°, 300 mm, 0 s, Faktor 1
+                        # 40: Nahtlage der Lieferstange je Angebot und Stangengruppe (angebote.naht_stangen, JSON);
+                        #     profile.naht_stange wird nicht mehr gelesen (Spalte bleibt, ältere Angebote: leer)
+                        # 41: Programmierung als Zeit × Stundensatz (angebote/staffel_stufen.programmierung_zeit und
+                        #     _kontur, positionen.prog_zeit); alle Angebote umgestellt, außer festgeschriebenen
+                        # 42: Anbauteile je Position (positionen.anbauteile: aufgeschweißte Teile aus dem STEP-Import
                         #     mit Bearbeitung, Gravur und Prüfstatus als JSON; ältere Positionen leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -83,8 +92,10 @@ ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
+RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
+BOHR_ZUSATZ_STAND = "2026-10-22"   # Zusatzarbeiten Senken, Flowdrill, Bohren ergänzt (Datenbank._bohr_zusatz_ergaenzen)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -113,6 +124,8 @@ class Datenbank:
             self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+        self._rp_anpassen()
 
     def schliessen(self):
         self.con.close()
@@ -179,6 +192,8 @@ class Datenbank:
                 self.con.execute("UPDATE angebote SET vorgang='Verschickt' WHERE preisbasis IS NOT NULL")
             if "versand" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
+            if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -208,6 +223,13 @@ class Datenbank:
             if 0 < version < 29:
                 self.con.execute("UPDATE maschinen SET kontur_klein_wand=3, kontur_mittel_wand=8 "
                                  "WHERE kontur_klein_wand IS NULL AND kontur_mittel_wand IS NULL")
+            if 0 < version < 38:
+                self._stangenwechsel_sn()
+            if 0 < version < 39:
+                self.con.execute("UPDATE maschinen SET d3=?, schwenk_min=?, schwenk_max=?, greif_3d=?, zeit_3d=?, "
+                                 "faktor_3d=? WHERE d3 IS NULL", MASCHINE_3D)
+            if 0 < version < 41:
+                self._programmierung_zeit()
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -235,8 +257,49 @@ class Datenbank:
                 for n in ("zuschlag_material", "zuschlag_fertigung"):
                     self._einstellung_schreiben(n, 0)
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
+            if version > 0 and self.einstellung("bohr_zusatz_stand") != BOHR_ZUSATZ_STAND:
+                self._bohr_zusatz_ergaenzen()
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
+
+    def _bohr_zusatz_ergaenzen(self):
+        """Einmalig Zusatzarbeiten Senken, Flowdrill und Bohren anlegen, wenn es sie (dem Namen nach) noch nicht gibt
+        ('Bohrungen prüfen' trägt sie nach dem Bestätigen ein). Ohne Stundensatz Nachbearbeitung: eigener Satz 45 €/h."""
+        saetze = {r[0] for r in self.con.execute("SELECT satz_id FROM stundensaetze")}
+        zeilen = []
+        for z in bohr_zusatzarbeiten():
+            if z["satz_id"] not in saetze:
+                z = dict(z, satz_id=None, satz=45.0)
+            zeilen.append(z)
+        self._einfuegen("zusatzarbeiten", zeilen, ergaenzen=True)
+        self._einstellung_schreiben("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+
+    def _programmierung_zeit(self):
+        """Schema 39: Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026: 5 min je Position +
+        Zeit je Innenkontur, alle Angebote umstellen). Bestehende Angebote rechnen ab jetzt mit der Zeit (Werte der
+        Einstellungen); nur verschickte Angebote mit festgeschriebener Preisbasis behalten ihren Betrag je Position
+        (rechnen.einstellungen_fest). Stundensatz und Arbeitsschritt 'Programmierung' werden ergänzt, falls sie fehlen."""
+        self._einfuegen("stundensaetze", [z for z in beispiel_stundensaetze() if z["satz_id"] == "Programmierung"],
+                        ergaenzen=True)
+        self._einfuegen("arbeitsschritte", [z for z in beispiel_arbeitsschritte() if z["schritt"] == "Programmierung"],
+                        ergaenzen=True)
+        self.con.execute("DELETE FROM einstellungen WHERE name='programmierung_teil'")
+
+    def _stangenwechsel_sn(self):
+        """Schema 38: zweiter Stangenwechsel je Maschine für Stangen mit fester Schweißnaht-Lage (Patrick 22.10.2026:
+        SN 29 s, sonst 24 s). T03/T11/LT7 mit dem alten Beispielwert bekommen 24/29 s; jede andere Maschine behält
+        ihren Wert und nimmt ihn auch als SN-Zeit (Preise ohne Naht-Vorgabe bleiben dort gleich)."""
+        neu = {z["maschinen_id"]: z for z in beispieldaten()["maschinen"]}
+        for z in self.con.execute("SELECT id, maschinen_id, stangenwechsel, stangenwechsel_sn FROM maschinen").fetchall():
+            if z["stangenwechsel_sn"] is not None:
+                continue
+            alt = ALTER_STANGENWECHSEL.get(z["maschinen_id"])
+            if alt is not None and z["stangenwechsel"] == alt:
+                m = neu[z["maschinen_id"]]
+                self.con.execute("UPDATE maschinen SET stangenwechsel=?, stangenwechsel_sn=? WHERE id=?",
+                                 (m["stangenwechsel"], m["stangenwechsel_sn"], z["id"]))
+            else:
+                self.con.execute("UPDATE maschinen SET stangenwechsel_sn=stangenwechsel WHERE id=?", (z["id"],))
 
     def _stufen_bilden(self):
         """Schema 36: Mengenstufen ohne Stufe je Angebot zu Stufen zusammenfassen. Je Satz bzw. Position zählt die
@@ -377,6 +440,53 @@ class Datenbank:
         if neu:
             i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
             self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+
+    def _rp_anpassen(self):
+        """RP-Profile (Patricks Bibliothek RP-ROHRE, rp_profile.json): selbst geladene Konturen (Einstellung
+        'rp_eigene') bereitstellen; einmal je Stand der Bibliothek die Profilform 'RP-Profil' in die Auswahlliste und
+        fehlende RP-Profile in die Stammdaten 'Profile' eintragen. Vorhandene Zeilen bleiben unverändert; die
+        Stammdaten gelten dadurch nicht als von Hand geändert."""
+        from . import rp_profile
+        rp_profile.eigene_setzen(self.einstellung("rp_eigene") or {})
+        if self.einstellung("rp_stand") == RP_STAND:
+            return
+        with self.con:
+            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+            if formen and rp_profile.FORM not in formen:
+                i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
+                self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + [rp_profile.FORM] + formen[i:]))
+            da = {r[0] for r in self.con.execute("SELECT profil_id FROM profile")}
+            for e in rp_profile.bibliothek().values():
+                if e["profil_id"] not in da:
+                    z = rp_profile.stammdaten_zeile(e)
+                    self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                     list(z.values()))
+            self._einstellung_schreiben("rp_stand", RP_STAND)
+
+    def rp_laden(self, eintraege):
+        """Selbst geladene RP-Profile (rp_profile.laden) speichern: Kontur in der Einstellung 'rp_eigene', Zeile in den
+        Profilen anlegen bzw. Form, Maße und Fläche einer vorhandenen Zeile mit derselben Profil-ID ersetzen.
+        Ergebnis: (neu, geändert)."""
+        from . import rp_profile
+        eigene = dict(self.einstellung("rp_eigene") or {})
+        neu = geaendert = 0
+        with self.con:
+            for e in eintraege:
+                eigene[e["profil_id"]] = e
+                z = rp_profile.stammdaten_zeile(e)
+                r = self.con.execute("SELECT id FROM profile WHERE profil_id=?", (z["profil_id"],)).fetchone()
+                if r is None:
+                    self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                     list(z.values()))
+                    neu += 1
+                else:
+                    self.con.execute("UPDATE profile SET form=?, a=?, b=?, wand=?, flaeche_manuell=? WHERE id=?",
+                                     (z["form"], z["a"], z["b"], z["wand"], z["flaeche_manuell"], r[0]))
+                    geaendert += 1
+            self._einstellung_schreiben("rp_eigene", eigene)
+            self._stammdaten_geaendert("profile")
+        rp_profile.eigene_setzen(eigene)
+        return neu, geaendert
 
     def _wand_max_ergaenzen(self):
         """Dateien vor Schema 22: Wandstärke max. der Normprofile (Träger, T, UPN) aus der Flanschdicke der
@@ -922,6 +1032,14 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET laengenwahl=?, geaendert=? WHERE id=?",
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
+    def naht_stangen_speichern(self, angebot_id, wahl):
+        """Nahtlage der Lieferstange je Stangengruppe {naht.gruppe_schluessel: 'Breitseite'/'Schmalseite'}
+        (leer = aus den Teilen mit fester Naht)."""
+        wahl = {s: w for s, w in (wahl or {}).items() if w}
+        with self.con:
+            self.con.execute("UPDATE angebote SET naht_stangen=?, geaendert=? WHERE id=?",
+                             (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
+
     # -------------------------------------------------------------- Frachtkosten
     def fracht_daten(self):
         """Fracht-Stammdaten für den Rechenkern {Kurzname: [Zeilen]} (fracht_daten.KURZ)."""
@@ -1203,6 +1321,7 @@ class Datenbank:
         a["zeitbasis"] = json.loads(a["zeitbasis"]) if a.get("zeitbasis") else None
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
+        a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
         return a
 
@@ -1289,6 +1408,8 @@ class Datenbank:
         neu = self.angebot_neu(kopf)
         if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
             self.laengenwahl_speichern(neu, a["laengenwahl"])
+        if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
+            self.naht_stangen_speichern(neu, a["naht_stangen"])
         netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
             i = self.position_neu(neu, p)

@@ -44,7 +44,11 @@ KALKULATION = (
     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1),
     Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
     Feld("pauschale_abmessung", "Pauschale je Abmessung [€]", "zahl", 0, 100000, stellen=2),
-    Feld("programmierung_teil", "Programmierkosten je Teil [€]", "zahl", 0, 100000, stellen=2),
+    # Programmierung: (Grundzeit je Position + Zeit je Innenkontur) × Stundensatz 'Programmierung'. Der Betrag je
+    # Position (bis 0.8.21) zählt nur noch in vorher verschickten Angeboten (festgeschriebene Preisbasis)
+    Feld("programmierung_zeit", "Programmierzeit je Position [min]", "zahl", 0, 1440, stellen=1),
+    Feld("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "zahl", 0, 1440, stellen=2),
+    Feld("programmierung_teil", "Programmierkosten je Position (alt) [€]", "zahl", 0, 100000, stellen=2),
     Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
     # Mindestpreis (Mindestauftragswert) gilt immer aus den Einstellungen, für alle Angebote (Patrick 21.10.2026);
     # die Spalte angebote.mindestpreis älterer Dateien wird nicht mehr gelesen.
@@ -184,6 +188,8 @@ POSITIONEN = Tabelle(
      Feld("material_herkunft", "Material", "auswahl", auswahl="materialherkunft", breite=110),
      Feld("gewinde", "Gewinde geprüft", muster=GEWINDE_MUSTER, breite=110),
      Feld("zeit_manuell", "Schneidzeit je Teil [s]", "zahl", 0, 100000, stellen=1, breite=85),
+     # leer = Grundzeit + Zeit je Innenkontur (rechnen.programmier_zeit), sonst von Hand je Position
+     Feld("prog_zeit", "Programmierzeit [min]", "zahl", 0, 1440, stellen=1, breite=80),
      # Zusatzarbeiten als JSON-Liste [{name, menge, preis, text}] (Dialog 'Zusatzarbeiten …')
      Feld("zusatz", "Zusatzarbeiten", "zusatz", breite=220),
      # Zukaufteile als JSON-Liste [{artikel_id, menge (je Teil), aufschlag (%), stand}] (Dialog 'Zukaufteile …')

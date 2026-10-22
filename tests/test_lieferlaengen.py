@@ -23,6 +23,8 @@ _t03 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T03")
 for _feld, _wert in zip(MASCHINE_WERTE, ALTE_MASCHINEN["RL-1"][1]):
     db.aendern("maschinen", _t03["id"], _feld, _wert)
 einst = db.einstellungen()
+assert einst["laenge_vergleich"] == "nein"      # Vorgabe: kein Vergleich (Patrick 22.10.2026)
+einst["laenge_vergleich"] = "ja"                # die Tests unten prüfen den Vergleich
 kopf = dict(maschine="T03", stange=6000)
 
 
@@ -101,6 +103,10 @@ assert pruefen(TABELLE["lieferlaengen"], db.zeilen("lieferlaengen")[0], db.konte
 assert pruefen(TABELLE["lieferlaengen"], dict(db.zeilen("lieferlaengen")[0], basis="€/kg"), db.kontext()).startswith(
     "FEHLER: Preisbasis und Preis")
 
+# Vergleich in den Einstellungen aus (Vorgabe): keine Lieferlängen, Planung wie mit 6 m; andere Prüfsumme
+_aus = rechnen.optimieren(kopf, [pos(3100, 30)], db.kontext(), db.tabellen(), dict(einst, laenge_vergleich="nein"))
+assert "laengen" not in _aus and _aus["stangen"] == erg0["stangen"]
+
 # 7) 3.100 mm: 1 Teil je 6-m-Stange, 3 je 12-m-Stange -> 12 m wirtschaftlich sinnvoll
 erg, (b,) = vergleich([pos(3100, 30)])
 assert erg["kennung"] != kenn0                                  # Lieferlängen gehören zur Prüfsumme
@@ -168,6 +174,9 @@ _, (b,) = vergleich([pos(3100, 30)])
 assert not b["basis_lieferbar"] and [v["laenge"] for v in b["varianten"]] == [12000], b
 assert b["empfehlung"] == rechnen.LAENGE_NUR_ALTERNATIVE and b["beste"] == 12000, b
 assert b["titel"] == "6 m nicht lieferbar – 12-m-Stangen verwenden"
+# auch mit ausgeschaltetem Vergleich wird dann mit 12 m geplant
+_aus = rechnen.optimieren(kopf, [pos(3100, 30)], db.kontext(), db.tabellen(), dict(einst, laenge_vergleich="nein"))
+assert {s["stange"] for s in _aus["stangen"]} == {12000} and _aus["laengen"][0]["gewaehlt"] == 12000, _aus["laengen"]
 db.aendern("preise", preis["id"], "lieferlaenge", 6000)
 
 # 12) Fehlender Preis: 'Preise' in €/Stange für 6 m, Lieferlänge 12 m ohne Preis -> Vergleich nicht möglich

@@ -11,6 +11,9 @@ Regeln:
 - Gehrungen ineinanderlegen: zwei benachbarte ebene schräge Enden rücken zusammen, bis an der engsten Stelle der
   Abstand 2 × Schnittverlust + Abstand senkrecht zur steileren Schnittfläche erreicht ist (kein gemeinsamer Schnitt).
   Genutzt nur, wenn es kürzer ist als die normale Trennung. Siehe gehrung_trennung.
+- 3D-Greifmaß (Patrick 22.10.2026): hinter dem letzten Teil einer Stange bleibt der Greiferrest frei, bei einem Teil
+  mit 3D-Bearbeitung nahe Ende B dessen Forderung Teil.rest (dreid.rest_letztes), wenn sie größer ist – das Maximum,
+  nie die Summe (hinten, belegt). anordnen legt dafür nach Möglichkeit ein Teil ohne diese Forderung ans Ende.
 - Keine Restlagerverwaltung: Reste sind Verschnitt.
 
 Verfahren: First-Fit- und Best-Fit-Decreasing mit Auflösen schwach belegter Stangen; ist das nicht nachweislich
@@ -23,7 +26,7 @@ Ineinanderlegen); die Untergrenze zieht dann je Teil die größtmögliche Überl
 import math
 from dataclasses import dataclass, field, replace
 
-from . import normprofile
+from . import normprofile, rp_profile
 
 EPS = 1e-6
 EXAKT_MAX_TEILE = 60     # exakte Suche nur für Gruppen bis zu so vielen Teilen
@@ -50,6 +53,8 @@ class Teil:
     b_gehrung: tuple = None
     drehung: str = FREI     # frei | fest | unbekannt (naht.py: keine Vorgabe | feste Position | unbekannt)
     naht: float = None      # fest: Nahtwinkel [°]
+    rest: float = 0.0       # Rest hinter dem Teil, wenn es das letzte der Stange ist (3D-Greifmaß; 0 = Greiferrest)
+    angenommen: bool = False  # Richtung einer Gehrung angenommen (im Schneidweg-Rechner nicht angegeben)
 
 
 @dataclass
@@ -130,8 +135,14 @@ def gehrung_tiefe(g, geh):
     """Größte Überlappung, die eine Gehrung erlauben kann [mm]: Tiefe des schrägen Schnitts über den Querschnitt."""
     if not geh or not g.querschnitt:
         return 0.0
-    x, y = _richtung(geh[1])
-    return math.tan(math.radians(geh[0])) * _stuetz(g, x, y)
+    k = (g.querschnitt, geh)
+    if k not in _TIEFE:
+        x, y = _richtung(geh[1])
+        _TIEFE[k] = math.tan(math.radians(geh[0])) * _stuetz(g, x, y)
+    return _TIEFE[k]
+
+
+_TIEFE = {}
 
 
 def gehrung_trennung(g, b_geh, r1, a_geh, r2):
@@ -310,7 +321,34 @@ def anordnen(teile, g=None):
     gerade = _kette_gerade(list(teile))
     if g is None or not g.querschnitt or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
             t.drehung == FEST for t in teile):
-        return [(t, 0) for t in gerade]
+        folge = [(t, 0) for t in gerade]
+        return _ende_3d(g, folge) if g is not None and _mit_3d(g, teile) else folge
+    # Das Ergebnis hängt nur von den Enden, der Drehfreigabe und der Naht der Teile (in dieser Reihenfolge) ab, nicht
+    # von Länge oder Position: einmal gerechnet gilt es für alle gleichen Folgen (gleiches Ergebnis, viel schneller;
+    # die Packverfahren prüfen dieselben Zusammenstellungen sehr oft)
+    teile = list(teile)
+    schluessel = (g.querschnitt, g.kerf, g.abstand, tuple(_enden(t) for t in teile))
+    speicher = _ANORDNUNG.get(schluessel)
+    if speicher is None:
+        if len(_ANORDNUNG) > ANORDNUNG_MAX:
+            _ANORDNUNG.clear()
+        nr = {id(t): i for i, t in enumerate(teile)}
+        folge = _anordnen_gehrung(g, teile, gerade)
+        if _mit_3d(g, teile):
+            folge = _ende_3d(g, folge)
+        speicher = _ANORDNUNG[schluessel] = tuple((nr[id(t)], r) for t, r in folge)
+    return [(teile[i], r) for i, r in speicher]
+
+
+_ANORDNUNG = {}
+ANORDNUNG_MAX = 200000      # Einträge im Zwischenspeicher von anordnen, danach wird er geleert
+
+
+def _enden(t):
+    return t.a_gerade, t.b_gerade, t.a_gehrung, t.b_gehrung, t.drehung, t.naht, t.rest
+
+
+def _anordnen_gehrung(g, teile, gerade):
     beste = None
     for naht_stange in naht_lagen(g, teile) or [0]:
         for folge in (gerade, _kette_gehrung(g, list(teile), naht_stange)):
@@ -332,13 +370,81 @@ def verbrauch(g, folge):
     return pos + (g.kerf if folge else 0)
 
 
+def hinten(g, folge):
+    """Freie Länge hinter dem letzten Teil: Greiferrest, bei einem letzten Teil mit 3D-Greifmaß dessen Forderung,
+    wenn sie größer ist (Maximum, nie Summe)."""
+    return max(g.greiferrest, folge[-1][0].rest) if folge else g.greiferrest
+
+
+def belegt(g, folge):
+    """Verbrauch + Mehrbedarf hinter dem letzten Teil über den Greiferrest hinaus; zulässig bis g.nutzbar_bis."""
+    return verbrauch(g, folge) + hinten(g, folge) - g.greiferrest
+
+
+def _mit_3d(g, teile):
+    return any(t.rest > g.greiferrest + EPS for t in teile)
+
+
+def _drehen(g, teile):
+    """Beste Drehungen für eine feste Reihenfolge (wie _anordnen_gehrung, ohne die Reihenfolge zu ändern)."""
+    if not g.querschnitt or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
+            t.drehung == FEST for t in teile):
+        return [(t, 0) for t in teile]
+    beste = None
+    for naht_stange in naht_lagen(g, teile) or [0]:
+        summe, wahl = _drehungen_waehlen(g, teile, naht_stange)
+        if beste is None or summe < beste[0] - EPS:
+            beste = (summe, list(zip(teile, wahl)))
+    return beste[1]
+
+
+def _ende_3d(g, folge):
+    """Liegt ein Teil mit 3D-Greifmaß am Ende, jedes andersartige Teil mit kleinerer Forderung ans Ende probieren
+    (übrige Reihenfolge bleibt); es gilt die Folge mit der kleinsten Belegung."""
+    if not folge or folge[-1][0].rest <= g.greiferrest + EPS:
+        return folge
+    beste, wert, gesehen = folge, belegt(g, folge), set()
+    for i, (t, _) in enumerate(folge[:-1]):
+        if t.rest >= folge[-1][0].rest - EPS or (_enden(t), t.laenge) in gesehen:
+            continue
+        gesehen.add((_enden(t), t.laenge))
+        neu = _drehen(g, [x for j, (x, _) in enumerate(folge) if j != i] + [t])
+        w = belegt(g, neu)
+        if w < wert - EPS:
+            beste, wert = neu, w
+    return beste
+
+
 def vertraeglich(g, teile):
     """Dürfen die Teile auf dieselbe Stange? Rechteckrohr: feste Naht nicht zugleich auf Breit- und Schmalseite."""
     return bool(naht_lagen(g, teile))
 
 
 def passt(g, teile):
-    return vertraeglich(g, teile) and verbrauch(g, anordnen(teile, g)) <= g.nutzbar_bis + EPS
+    # Verbrauch = Endbeschnitt + Teile + Trennungen der Anordnung + letzter Schnitt; die Trennungen hängen nur von den
+    # Enden ab und werden je Folge von Enden einmal gerechnet (gleiches Ergebnis wie verbrauch(anordnen), schneller)
+    laenge = g.endbeschnitt + sum(t.laenge for t in teile) + (g.kerf if teile else 0)
+    # jede Trennung ist mindestens ein Schnittverlust abzüglich der größtmöglichen Überlappung der Gehrungen
+    # (mindestbedarf): passt es selbst so nicht, muss nicht angeordnet werden
+    ueber = sum(gehrung_tiefe(g, t.a_gehrung) + gehrung_tiefe(g, t.b_gehrung) for t in teile
+                if t.a_gehrung or t.b_gehrung) if g.querschnitt else 0.0
+    if laenge + (len(teile) - 1) * g.kerf - ueber > g.nutzbar_bis + EPS:
+        return False
+    if not vertraeglich(g, teile):
+        return False
+    if not g.querschnitt:
+        return belegt(g, anordnen(teile, g)) <= g.nutzbar_bis + EPS
+    schluessel = (g.querschnitt, g.kerf, g.abstand, tuple(_enden(t) for t in teile))
+    summe = _TRENNSUMME.get(schluessel)
+    if summe is None:
+        if len(_TRENNSUMME) > ANORDNUNG_MAX:
+            _TRENNSUMME.clear()
+        folge = anordnen(teile, g)
+        summe = _TRENNSUMME[schluessel] = belegt(g, folge) - laenge
+    return laenge + summe <= g.nutzbar_bis + EPS
+
+
+_TRENNSUMME = {}
 
 
 def mindestbedarf(g, t):
@@ -371,7 +477,7 @@ def best_fit(g, teile):
         for s in stangen:
             if not vertraeglich(g, s + [t]):
                 continue
-            v = verbrauch(g, anordnen(s + [t], g))
+            v = belegt(g, anordnen(s + [t], g))
             if v <= g.nutzbar_bis + EPS and (rest_min is None or g.nutzbar_bis - v < rest_min):
                 beste, rest_min = s, g.nutzbar_bis - v
         if beste is None:
@@ -384,6 +490,13 @@ def best_fit(g, teile):
 def aufloesen(g, stangen):
     """Schwach belegte Stangen auflösen, wenn alle ihre Teile in andere Stangen passen."""
     stangen = [list(s) for s in stangen]
+    belegt_ = {}        # Belegung je Zusammenstellung (wird sonst je Teil für jede Stange neu gerechnet)
+
+    def vb(x):
+        k = tuple(id(t) for t in x)
+        if k not in belegt_:
+            belegt_[k] = belegt(g, anordnen(x, g))
+        return belegt_[k]
     geaendert = True
     while geaendert and len(stangen) > 1:
         geaendert = False
@@ -392,7 +505,7 @@ def aufloesen(g, stangen):
             ok = True
             for t in sortiert(s):
                 ziel = None
-                for x in sorted(andere, key=lambda x: -verbrauch(g, anordnen(x, g))):
+                for x in sorted(andere, key=lambda x: -vb(x)):
                     if passt(g, x + [t]):
                         ziel = x
                         break
@@ -422,7 +535,7 @@ def gehrungen_ineinander(g, folge):
 
 def gleichartig(a, b):
     return a.laenge == b.laenge and a.a_gerade == b.a_gerade and a.b_gerade == b.b_gerade and \
-        (a.a_gehrung, a.b_gehrung, a.drehung, a.naht) == (b.a_gehrung, b.b_gehrung, b.drehung, b.naht)
+        (a.a_gehrung, a.b_gehrung, a.drehung, a.naht, a.rest) == (b.a_gehrung, b.b_gehrung, b.drehung, b.naht, b.rest)
 
 
 def exakt(g, ziel):
@@ -528,7 +641,7 @@ def bewertung(g, n_stangen):
 def typ(t):
     """Gleiche Teile (Länge, Enden, Schnittlängen, Gehrungen, Drehfreigabe) sind für die Schnittmuster ein Typ."""
     return (t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt, t.a_gehrung or (), t.b_gehrung or (),
-            t.drehung, -1 if t.naht is None else t.naht)
+            t.drehung, -1 if t.naht is None else t.naht, t.rest)
 
 
 def bestes_muster(g, typen, bedarf, wert):
@@ -678,6 +791,9 @@ def muster_optimierung(g):
         for _ in range(int(math.floor(xp + 1e-9))):
             if any(rest[i] < m[i] for i in range(n)):
                 break
+            neu = [vorrat[keys[i]][-1 - j] for i in range(n) for j in range(m[i])]
+            if _mit_3d(g, neu) and not passt(g, neu):     # Muster ohne 3D-Greifmaß gerechnet: Rest heuristisch
+                break
             stangen.append([vorrat[keys[i]].pop() for i in range(n) for _ in range(m[i])])
             rest = [r - c for r, c in zip(rest, m)]
     uebrig = [t for k in keys for t in vorrat[k]]
@@ -707,6 +823,9 @@ def muster_folge(g):
         for _ in range(min(bedarf[i] // m[i] for i in range(len(m)) if m[i])):
             stangen.append([gruppen[keys[i]].pop() for i in range(len(m)) for _ in range(m[i])])
             bedarf = [b - c for b, c in zip(bedarf, m)]
+    if _mit_3d(g, g.teile):     # Muster ohne 3D-Greifmaß gerechnet: Stangen, die damit nicht passen, neu packen
+        zu_viel = [t for s in stangen if not passt(g, s) for t in s]
+        stangen = [s for s in stangen if passt(g, s)] + (first_fit(g, zu_viel) if zu_viel else [])
     return aufloesen(g, stangen)
 
 
@@ -714,7 +833,7 @@ def manuell(g):
     """Einfache manuelle Einteilung: Eingabereihenfolge, keine Drehung, Stange voll, dann nächste."""
     stangen, aktuell = [], []
     for t in sorted(g.teile, key=lambda t: (t.zeile, t.nr)):
-        if aktuell and verbrauch(g, [(x, False) for x in aktuell + [t]]) > g.nutzbar_bis + EPS:
+        if aktuell and belegt(g, [(x, False) for x in aktuell + [t]]) > g.nutzbar_bis + EPS:
             stangen.append(aktuell)
             aktuell = []
         aktuell.append(t)
@@ -748,7 +867,7 @@ ZUSCHNITT_TEILUNG = 6    # Ziel-Werkstücklängen: Lieferlänge geteilt durch 1 
 
 def werkstueck_laenge(g, folge):
     """Länge des Werkstücks für eine Folge (ganze mm)."""
-    return math.ceil(verbrauch(g, folge) + g.greiferrest - EPS)
+    return math.ceil(verbrauch(g, folge) + hinten(g, folge) - EPS)
 
 
 def zuschnitt_belegt(laengen, saege):
@@ -760,7 +879,8 @@ def zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, pu
     """Ziel-Werkstücklängen, die ausprobiert werden: die max. Werkstücklänge und die Lieferlänge geteilt durch 2 … n
     (abzüglich der Zuschnitte), soweit das längste Teil hineinpasst und die Mindestlänge erreicht ist. Längste
     zuerst."""
-    noetig = max(g.endbeschnitt + max(t.laenge for t in g.teile) + g.kerf + g.greiferrest + puffer, min_werkstueck or 0)
+    noetig = max(g.endbeschnitt + max(t.laenge + max(g.greiferrest, t.rest) for t in g.teile) + g.kerf + puffer,
+                 min_werkstueck or 0)
     ziele = {int(min(max_werkstueck, math.floor((lieferlaenge - (n - 1) * saege) / n + EPS)))
              for n in range(1, ZUSCHNITT_TEILUNG + 1)}
     return sorted((z for z in ziele if z + EPS >= noetig), reverse=True)
@@ -830,7 +950,7 @@ def pruefe_zuschnitt(g, stangen, lieferlaenge, max_werkstueck, saege, min_werkst
                 raise AssertionError(f"{g.profil}: Werkstück {laenge:g} mm länger als die Maschine laden kann")
             if min_werkstueck and laenge + EPS < min_werkstueck:
                 raise AssertionError(f"{g.profil}: Werkstück {laenge:g} mm kürzer als die Min. Stangenlänge")
-            if verbrauch(g, f) + g.greiferrest > laenge + EPS:
+            if verbrauch(g, f) + hinten(g, f) > laenge + EPS:
                 raise AssertionError(f"{g.profil}: Werkstück überbelegt")
         if zuschnitt_belegt([l for l, _ in s], saege) > lieferlaenge + EPS:
             raise AssertionError(f"{g.profil}: Lieferstange überbelegt")
@@ -840,10 +960,13 @@ def pruefe_zuschnitt(g, stangen, lieferlaenge, max_werkstueck, saege, min_werkst
 OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
 
 
-def umfang(form, a, b, wand=None, flaeche=None):
+def umfang(form, a, b, wand=None, flaeche=None, pid=None):
     """Umfang des Querschnitts (Außenfläche je m Länge). Offene Profile: beide Seiten, aus Querschnittsfläche und
     Blechdicke (dünnwandig: 2 × Fläche / Dicke + 2 × Dicke an den Kanten), damit gilt es auch für C-Profile mit
-    Abkantung und Profile mit Radien."""
+    Abkantung und Profile mit Radien. RP-Profil: Außenkontur aus der RP-Bibliothek (pid = Profil-ID)."""
+    if form == rp_profile.FORM:
+        r = rp_profile.daten(pid)
+        return r["umfang"] if r else 0.0
     if form == "Rundrohr":
         return math.pi * a
     if form == "Quadratrohr":
@@ -859,9 +982,12 @@ def umfang(form, a, b, wand=None, flaeche=None):
     return 0.0
 
 
-def schnittlaenge(form, a, b, wand=None, flaeche=None):
+def schnittlaenge(form, a, b, wand=None, flaeche=None, pid=None):
     """Länge eines geraden Trennschnitts: Rohre = Außenumfang, offene Profile = halber Umfang (der Laser schneidet
-    jede Wand nur einmal)."""
+    jede Wand nur einmal). RP-Profil: aus der Kontur, der doppelt liegende Anschlag zählt einmal (rp_profile)."""
+    if form == rp_profile.FORM:
+        r = rp_profile.daten(pid)
+        return r["schnitt"] if r else 0.0
     u = umfang(form, a, b, wand, flaeche)
     return u / 2 if form in OFFEN else u
 
@@ -871,12 +997,16 @@ PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr", "U": 
 
 
 def profil_aus_name(pid):
-    """Profilform und Maße aus der Profil-ID, z. B. 'RR 42,4x2,0', 'QR 40x40x3', 'RE 60x40x3'.
+    """Profilform und Maße aus der Profil-ID, z. B. 'RR 42,4x2,0', 'QR 40x40x3', 'RE 60x40x3', 'RP 0106-35'.
     Ergebnis dict(form, a, b, wand) oder None, wenn der Name nicht nach dem Schema aufgebaut ist.
     """
     n = normprofile.daten(pid)
     if n is not None and n["flaeche"]:       # Normprofil, z. B. 'IPE 200', 'HEB 160', 'UPN 100', 'T 50'
         return dict(form=n["form"], a=n["h"], b=n["b"], wand=n["tw"], flaeche_manuell=n["flaeche"])
+    r = rp_profile.daten(pid)
+    if r is not None:                        # RP-Profil aus der Bibliothek, z. B. 'RP 0106-35'
+        z = rp_profile.stammdaten_zeile(r)
+        return dict(form=z["form"], a=z["a"], b=z["b"], wand=z["wand"], flaeche_manuell=z["flaeche_manuell"])
     kurz, _, rest = str(pid).strip().partition(" ")
     form = PROFILFORM.get(kurz.upper())
     zahlen = rest.replace(",", ".").replace("X", "x").split("x")
@@ -914,8 +1044,8 @@ def pruefe(gruppen, ergebnisse):
         if ids != soll:
             raise AssertionError(f"{g.profil}: Teile fehlen oder doppelt")
         for f in folgen:
-            if verbrauch(g, f) > g.nutzbar_bis + EPS:
-                raise AssertionError(f"{g.profil}: Stange überbelegt")
+            if verbrauch(g, f) + hinten(g, f) > g.stange + EPS:
+                raise AssertionError(f"{g.profil}: Stange überbelegt (mit Greiferrest bzw. 3D-Greifmaß)")
             pruefe_drehungen(g, f)
 
 

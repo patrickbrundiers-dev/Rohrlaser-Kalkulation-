@@ -252,6 +252,17 @@ class StammdatenSeite(QWidget):
             einlesen.clicked.connect(self.kunden_importieren)
             leiste.addWidget(export)
             leiste.addWidget(einlesen)
+        if tabelle.name == "profile":
+            rp = QPushButton("RP-Profile aus MegaCAD laden …")
+            rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
+                          "Dateiname, Maße, Fläche und Schnittlänge aus der Kontur. Die mitgelieferte Bibliothek "
+                          "RP-ROHRE ist schon eingetragen.")
+            rp.clicked.connect(self.rp_laden)
+            quer = QPushButton("RP-Querschnitt …")
+            quer.setToolTip("Querschnitt und Kennwerte des gewählten RP-Profils zeigen")
+            quer.clicked.connect(self.rp_querschnitt)
+            leiste.addWidget(rp)
+            leiste.addWidget(quer)
         leiste.addSpacing(20)
         leiste.addWidget(self.suche, 1)
         leiste.addWidget(self.nur_fehler)
@@ -375,6 +386,28 @@ class StammdatenSeite(QWidget):
             self.meldung(f"CSV-Import: {erg[0]} Kunden neu, {erg[1]} geändert. Sicherung vorher: {erg[2]}")
         return erg
 
+    def rp_laden(self, pfade=None):
+        """MegaCAD-Makros als RP-Profile einlesen (rp_dialog.makros_laden). Ergebnis: (neu, geändert, Meldungen)."""
+        from .rp_dialog import makros_laden
+        erg = makros_laden(self, self.db, pfade)
+        if erg is None:
+            return None
+        neu, geaendert, meldungen = erg
+        if neu or geaendert:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        text = f"RP-Profile: {neu} neu, {geaendert} geändert"
+        if meldungen:
+            text += f", {len(meldungen)} nicht übernommen ({'; '.join(meldungen[:3])}{' …' * (len(meldungen) > 3)})"
+        self.meldung(text + ".", fehler=bool(meldungen) and not (neu or geaendert))
+        return erg
+
+    def rp_querschnitt(self, stumm=False):
+        """Querschnitt des gewählten RP-Profils zeigen (rp_dialog.querschnitt_zeigen)."""
+        from .rp_dialog import querschnitt_zeigen
+        z = self.ausgewaehlt()
+        return querschnitt_zeigen(self, (z or {}).get("profil_id", ""), stumm)
+
     def schneiddaten_zuruecksetzen(self):
         """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage
         auf die mitgelieferten Standardwerte zurücksetzen (Datenbank.schneiddaten_zuruecksetzen)."""
@@ -463,6 +496,39 @@ class LogoEingabe(QWidget):
     def _setzen(self, daten):
         self.anzeigen(daten)
         self.geaendert.emit(daten)
+
+
+class OrdnerEingabe(QWidget):
+    """Einstellung 'ordner': Pfad, 'Ordner wählen …' und 'Leeren'. geaendert(pfad) mit dem Ordner oder ''."""
+    geaendert = Signal(str)
+
+    def __init__(self, titel):
+        super().__init__()
+        self.titel = titel
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.pfad = QLineEdit()
+        self.pfad.setPlaceholderText("zuletzt benutzter Ordner")
+        self.pfad.editingFinished.connect(lambda: self.geaendert.emit(self.pfad.text().strip()))
+        waehlen, weg = QPushButton("Ordner wählen …"), QPushButton("Leeren")
+        waehlen.clicked.connect(self._waehlen)
+        weg.clicked.connect(lambda: self._setzen(""))
+        lay.addWidget(self.pfad, 1)
+        lay.addWidget(waehlen)
+        lay.addWidget(weg)
+
+    def anzeigen(self, pfad):
+        self.pfad.setText(pfad or "")
+
+    def _waehlen(self):
+        from PySide6.QtWidgets import QFileDialog
+        pfad = QFileDialog.getExistingDirectory(self, self.titel, self.pfad.text().strip())
+        if pfad:
+            self._setzen(str(Path(pfad)))
+
+    def _setzen(self, pfad):
+        self.anzeigen(pfad)
+        self.geaendert.emit(pfad)
 
 
 class EinstellungenSeite(QScrollArea):
@@ -560,6 +626,10 @@ class EinstellungenSeite(QScrollArea):
         elif e.art == "bild":
             w = LogoEingabe()
             w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
+        elif e.art == "ordner":
+            w = OrdnerEingabe("Standardordner wählen")
+            w.setMaximumWidth(self.BREITE_TEXT + 160)
+            w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
             w = QLineEdit()
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
@@ -609,7 +679,7 @@ class EinstellungenSeite(QScrollArea):
                 w.clear()
                 w.addItems(k.auswahl(e.auswahl))
                 w.setCurrentText(v or "")
-            elif e.art == "bild":
+            elif e.art in ("bild", "ordner"):
                 w.anzeigen(v or "")
             else:
                 w.setText(v or "")

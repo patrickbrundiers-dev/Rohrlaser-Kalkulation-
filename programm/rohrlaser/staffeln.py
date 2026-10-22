@@ -90,22 +90,22 @@ EINSTELLUNG_FELDER = (
 )
 EINSTELLUNG_FELD = {f.name: f for f in EINSTELLUNG_FELDER}
 # gehen in den Mengenlauf (Kalkulation) ein; die übrigen wirken sofort in der Preisschicht
-LAUF_FELDER = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag",
-               "handling_beistellung", "fracht", "skonto", "meterpreise", "laenge_auto")
+LAUF_FELDER = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit", "programmierung_kontur", "programmierung_teil",
+               "angebotsaufschlag", "handling_beistellung", "fracht", "skonto", "meterpreise", "laenge_auto")
 # in der Stufe wie im Angebot (Hauptwerte), die übrigen unter „Erweitert“
-HAUPT = ("gewinn", "zuschlag_fremdleistung", "ruesten_abmessung", "pauschale_abmessung", "programmierung_teil",
-         "angebotsaufschlag", "handling_beistellung", "fracht", "skonto")
+HAUPT = ("gewinn", "zuschlag_fremdleistung", "ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit",
+         "programmierung_kontur", "angebotsaufschlag", "handling_beistellung", "fracht", "skonto")
 assert ZAHLUNG[0] == "skonto"
 # unter 'Erweiterte Einstellungen' (ausgeblendet, solange keine Stufe einen Wert hat)
-ERWEITERT = ("bis", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten", "arbeitsgang", "arbeitsgang_min",
+ERWEITERT = ("bis", "programmierung_teil", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten", "arbeitsgang", "arbeitsgang_min",
              "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit", "neben_pauschal", "rabatt")
 AUSWAHL = {"zuschlag_art": [PROZENT, EURO], "ruesten": [UMLEGEN, SEPARAT], "janein": ["ja", "nein"]}
 # Einstellungen, die in den Mengenlauf eingehen (Zuschläge und Gewinn wirken erst in der Preisschicht)
-EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil", "angebotsaufschlag",
+EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit", "programmierung_kontur", "programmierung_teil", "angebotsaufschlag",
               "handling_beistellung")
 EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_puffer", "zuschnitt_kosten",
                  "haendler_mehr_kurz", "haendler_mehr_lang", "haendler_mehr_grenze", "laenge_auto_huellkreis",
-                 "laenge_auto")
+                 "laenge_auto", "laenge_vergleich")
 
 
 def txt(v):

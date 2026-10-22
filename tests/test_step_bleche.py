@@ -59,7 +59,7 @@ def _():
 
 @fall("JSON 1.1: bauteiltyp, Block blech, keine Profilwerte bei Blechen")
 def _():
-    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.4", JS["schema_version"]
+    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION == "1.6", JS["schema_version"]
     k = JS["dateien"][1]["koerper"][0]
     assert k["bauteiltyp"] == "Blech" and k["profiltyp"] == "Blech", k
     assert k["blech"]["dicke"] == 4 and k["blech"]["kontur"] == "rechteckig", k["blech"]
@@ -267,8 +267,10 @@ def _():
         d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
         zfl = next(z for z in d.zeilen if z.liste == [0])
         art = d.baum.itemWidget(zfl.it, d.SP_ART)
-        assert [art.itemText(n) for n in range(art.count())] == ["Flachstahl", "Blech"] and not zfl.blech
-        assert d.baum.itemWidget(next(z for z in d.zeilen if z.liste == [3]).it, d.SP_ART) is None
+        assert [art.itemText(n) for n in range(art.count())][:2] == ["Flachstahl", "Blech"] and not zfl.blech
+        assert art.itemData(1) == "alt" and art.itemData(2).startswith("form:")     # dahinter die anderen Profilformen
+        rohr_art = d.baum.itemWidget(next(z for z in d.zeilen if z.liste == [3]).it, d.SP_ART)
+        assert rohr_art.itemData(1).startswith("form:")            # kein Grenzfall: nur andere Profilformen
         zfl.sp.setValue(4)
         art.setCurrentIndex(1)                                   # Flachstahl -> Blech
         z = next(z for z in d.zeilen if z.liste == [0])
@@ -341,6 +343,45 @@ def _():
         f.close()
         app.processEvents()
         db.con.close()
+
+
+@fall("Konturen mit Lage: Bohrungen, Rechteck, Langloch an ihrer Stelle, freie Außenkontur als Polygon")
+def _():
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser import blech
+    from rohrlaser import schneidweg as sw
+    from rohrlaser.blech_dialog import BlechDialog
+    app = QApplication.instance() or QApplication([])
+    mw, js = messen("B02_Blech_400x200x4_Bohrungen", "B03_Blech_600x400x3_Ausschnitte", "B04_Blech_400x250x6_Kontur")
+    b02, b03, b04 = (step.blech(m) for m in mw)
+    lage = sorted((k["x"], k["y"], k["durchmesser"]) for k in b02["konturen_lage"])
+    assert lage == [(30, 30, 10), (30, 170, 10), (200, 100, 20), (370, 30, 10), (370, 170, 10)], lage
+    assert js["dateien"][0]["koerper"][0]["blech"]["konturen_lage"] == b02["konturen_lage"]
+    e = blech.aus_step(b02, "S235JR")
+    assert sorted((k["art"], k["x"], k["y"], k["d"], k["anzahl"]) for k in e["konturen"])[0] == \
+        (sw.BOHRUNG, 30, 30, 10, 1) and len(e["konturen"]) == 5 and e["form"] == blech.RECHTECK, e["konturen"]
+    e = blech.aus_step(b03, "S235JR")
+    re_, ll = (next(k for k in e["konturen"] if k["art"] == a) for a in (sw.RECHTECK, sw.LANGLOCH))
+    assert (re_["x"], re_["y"], re_["b"], re_["h"]) == (150, 125, 100, 50), re_
+    assert (ll["x"], ll["y"], ll["l"], ll["b"]) == (410, 200, 32, 12) and not ll.get("quer"), ll
+    e = blech.aus_step(b04, "S235JR")
+    assert e["form"] == blech.POLYGON and e["laenge"] == 400 and e["breite"] == 250, e
+    zs = blech.zuschnitt(e)
+    assert (zs["laenge"], zs["breite"]) == (400, 250) and abs(zs["aussen"] - b04["umfang_aussen"]) < 0.5, zs
+    # Langloch quer bleibt im Editor erhalten
+    q = dict(e, form=blech.RECHTECK, konturen=[dict(art=sw.LANGLOCH, anzahl=1, l=40, b=10, x=100, y=100, quer=True)])
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        d = BlechDialog(None, db, q, neu=False)
+        assert d.eingaben()["konturen"][0].get("quer") is True
+        d.skizze.grab()
+        d.close()
+        db.con.close()
+    # ältere Messung ohne Lage: wie bisher je Durchmesser, ohne x/y
+    alt = {k: v for k, v in b02.items() if k != "konturen_lage"}
+    assert [(k["d"], k["anzahl"], k["x"]) for k in blech.aus_step(alt, "S235JR")["konturen"]] == [(10, 4, None),
+                                                                                              (20, 1, None)]
+    app.processEvents()
 
 
 sys.exit(1 if fehler else 0)

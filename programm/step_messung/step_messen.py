@@ -13,6 +13,7 @@ Aufruf:
 --json ERGEBNIS.json: alle Messwerte zusätzlich im versionierten JSON-Format (step_ergebnis.py, Schema-Version darin).
 
 --flachstahl-bis MM: größte Breite eines Flachstahls (Vorgabe 150); breitere oder kurze flache Teile gelten als Blech.
+  0 = ebene flache Teile immer als Blech (Vorgabe im Programm), Flachstahl steht dann in der Spalte "alternative".
 
 --netze ORDNER: je Teil zusätzlich ein Dreiecksnetz für die 3D-Ansicht als JSON-Datei (Spalte "netz" = Dateiname);
   "lage" = Einbaulage in der Datei (Ende A, Rohrachse, X-Richtung), damit Baugruppen zusammengesetzt gezeigt werden.
@@ -92,7 +93,7 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
         netz = ""
         if netze is not None and t.netz:
             netz = f"{nr:05d}_{t.koerper}.json"
-            if t.ende_a_global and t.achse_global and t.x_global:    # Einbaulage für die Baugruppen-Ansicht
+            if "lage" not in t.netz and t.ende_a_global and t.achse_global and t.x_global:   # Einbaulage (Baugruppe)
                 t.netz["lage"] = [round(v, 6) for v in (*t.ende_a_global, *t.achse_global, *t.x_global)]
             (Path(netze) / netz).write_text(json.dumps(t.netz, separators=(",", ":")), encoding="utf-8")
         z = _zeile(t, datei.name, artikel, netz)

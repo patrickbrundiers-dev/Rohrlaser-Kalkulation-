@@ -7,11 +7,11 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import naht, normprofile
+from . import naht, normprofile, rp_profile
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
-                "I-/H-Träger", "T-Profil", "Sonderprofil")
+                "I-/H-Träger", "T-Profil", rp_profile.FORM, "Sonderprofil")
 # Offene Profile: A = Höhe (U, C: Steg; L: längerer Schenkel; Flachstahl: Breite), B = Breite (U, C: Flansch; L:
 # kürzerer Schenkel; Flachstahl leer), Wandstärke = Blechdicke. C-Profil: Querschnitt über 'Fläche manuell'
 # (Abkantung nicht in den Maßen).
@@ -20,7 +20,7 @@ PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil
 # sie ein), weil die Flanschdicke nicht in den Maßen steht.
 TRAEGER = ("I-/H-Träger", "T-Profil")
 OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl") + TRAEGER
-MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") + TRAEGER
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", rp_profile.FORM) + TRAEGER
 KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium")
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
@@ -48,8 +48,13 @@ SCHRITTE_FEST = {
     "Gewinde": "Anzahl Gewinde × Zeit je Gewinde (Stammdaten Gewinde); Gewinde mit Festpreis ohne Zeit",
     "Rüsten Maschine": "Rüstzeit je Angebot der Maschine (Stammdaten Maschinen)",
     "Rüsten je Abmessung": "Rüstzeit je Abmessung aus dem Angebot (Vorgabe Einstellungen)",
-    "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen",
+    "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen; Stangen mit einem Teil mit fester "
+                      "Schweißnaht-Lage rechnen mit 'Stangenwechsel SN'",
+    "Programmierung": "Programmierzeit je Position mit Stückzahl: Grundzeit + Zeit je Innenkontur aus dem Angebot "
+                      "(Vorgabe Einstellungen) oder von Hand je Position; Stundensatz Vorgabe 'Programmierung'",
 }
+# Stundensatz der vom Programm gerechneten Schritte, wenn die Tabelle Arbeitsschritte keinen nennt (sonst Maschine)
+SCHRITT_SATZ = {"Programmierung": "Programmierung"}
 # Zukaufartikel (Rechnung in zukauf.py): Aufschlagsmethoden, Herkunft des Aufschlags am Artikel, Status
 ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
 ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
@@ -106,6 +111,9 @@ def flaeche_berechnet(p):
     if form in TRAEGER:
         n = normprofile.daten(p.get("profil_id"))
         return n["flaeche"] if n and n["form"] == form and n["flaeche"] else None
+    if form == rp_profile.FORM:       # aus der Kontur (MegaCAD-Makro), mit Radien und Anschlägen
+        r = rp_profile.daten(p.get("profil_id"))
+        return r["flaeche"] if r else None
     return None
 
 
@@ -122,8 +130,8 @@ def wand_schneiden(p):
 
 
 def huellkreis(p):
-    """Durchmesser des Kreises um den Profilquerschnitt: Rundrohr Ø, Quadrat-/Rechteckrohr Diagonale.
-    Sonderprofile ohne Angabe (None)."""
+    """Durchmesser des Kreises um den Profilquerschnitt: Rundrohr Ø, Quadrat-/Rechteckrohr Diagonale, RP-Profil
+    Diagonale des Hüllmaßes. Sonderprofile ohne Angabe (None)."""
     form, a, b = p.get("form"), p.get("a"), p.get("b")
     if a is None:
         return None
@@ -131,7 +139,7 @@ def huellkreis(p):
         return a
     if form == "Quadratrohr":
         return a * math.sqrt(2)
-    if form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") + TRAEGER and b is not None:
+    if form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", rp_profile.FORM) + TRAEGER and b is not None:
         return math.hypot(a, b)
     if form == "Flachstahl" and p.get("wand") is not None:
         return math.hypot(a, p["wand"])
@@ -195,19 +203,18 @@ PROFILE = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=220),
      # hinten angefügt: Beispieldaten und Import älterer Dateien zählen die Felder nach Reihenfolge
      Feld("wand_max", "Wandstärke max. [mm]", "zahl", 0, 500, stellen=2),
-     Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85),
-     Feld("naht_stange", "Naht der Lieferstange", "auswahl", auswahl="nahtstange", breite=95)),
+     Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85)),
     ("profil_id",),
     "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
     "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
     "T-Profil: A = Höhe, B = Flanschbreite, Wandstärke = Stegdicke (Querschnitt aus der Normtabelle bei IPE, IPN, "
     "HEA, HEB, HEM, T, sonst Fläche manuell). Wandstärke max. = dickste Stelle (z. B. Flanschdicke): die "
-    "Schneidzeit rechnet mit der größeren der beiden Wandstärken; leer = Normtabelle bzw. Wandstärke. Endbeschnitt und "
+    "Schneidzeit rechnet mit der größeren der beiden Wandstärken; leer = Normtabelle bzw. Wandstärke. RP-Profil (Rohr "
+    "mit Anschlag, Profil-ID 'RP 0106-35'): A = Breite, B = Höhe, Wandstärke = Blechdicke; Fläche, Umfang und "
+    "Schnittlänge aus der Kontur der RP-Bibliothek bzw. des geladenen MegaCAD-Makros. Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
     "(Eckradien, Sonderprofile, C-Profil). Lieferlängen vergleichen = nein: das Profil wird nur mit der "
-    "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen. Naht der "
-    "Lieferstange (nur Rechteckrohr): auf welcher Seite der Lieferant die Schweißnaht hat; damit prüft das Programm "
-    "Positionen mit fester Nahtlage.",
+    "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen.",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
                ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1),
                ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1)))
@@ -298,10 +305,17 @@ MASCHINEN = Tabelle(
      Feld("abstand", "Abstand getrennte Schnitte [mm]", "zahl", 0, 100, stellen=1),
      Feld("ruestzeit", "Rüstzeit je Angebot [min]", "zahl", 0, 1440, stellen=0),
      Feld("stangenwechsel", "Stangenwechsel je Stange [s]", "zahl", 0, 3600, stellen=0),
+     Feld("stangenwechsel_sn", "Stangenwechsel SN je Stange [s]", "zahl", 0, 3600, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=160),
      Feld("max_huellkreis", "Max. Hüllkreis-Ø [mm]", "zahl", 1, 2000, stellen=1),
      Feld("max_kg_m", "Max. Metergewicht [kg/m]", "zahl", 0.1, 1000, stellen=1),
-     Feld("min_stange", "Min. Stangenlänge Zuschnitt [mm]", "ganz", 0, 20000)),
+     Feld("min_stange", "Min. Stangenlänge Zuschnitt [mm]", "ganz", 0, 20000),
+     Feld("d3", "3D: Bearbeitung verfügbar", "auswahl", auswahl="janein", breite=80),
+     Feld("schwenk_min", "3D: Schwenkwinkel min. [°]", "zahl", -89, 0, stellen=0, breite=85),
+     Feld("schwenk_max", "3D: Schwenkwinkel max. [°]", "zahl", 0, 89, stellen=0, breite=85),
+     Feld("greif_3d", "3D: Greifmaß [mm]", "zahl", 0, 5000, stellen=0, breite=80),
+     Feld("zeit_3d", "3D: Zusatzzeit je Bearbeitung [s]", "zahl", 0, 600, stellen=1, breite=95),
+     Feld("faktor_3d", "3D: Faktor Schneidzeit", "zahl", 0.1, 10, stellen=2, breite=80)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -309,7 +323,12 @@ MASCHINEN = Tabelle(
     "Max. Hüllkreis-Ø und max. Metergewicht: größere oder schwerere Profile bekommen im Angebot FEHLER "
     "und werden nicht eingeplant (leer = keine Grenze). Min. Stangenlänge Zuschnitt: kürzeste Stange, die die "
     "automatische Stangenladung nimmt; keine aus einer Lieferstange (z. B. 12 m) zugeschnittene Stange wird kürzer "
-    "(leer oder 0 = keine Grenze).")
+    "(leer oder 0 = keine Grenze). Stangenwechsel SN: Zeit je Stange, auf der ein Teil eine feste "
+    "Schweißnaht-Lage hat (Naht ausrichten), alle anderen Stangen mit 'Stangenwechsel' (leer = wie Stangenwechsel). "
+    "3D (geschwenkter Laserkopf für Gehrungen in 3D und schräge Bohrungen): nur mit 'ja' kalkuliert; Winkel "
+    "außerhalb min./max. werden auf die Grenze begrenzt. Greifmaß: Abstand, den eine 3D-Bearbeitung am letzten Teil "
+    "einer Stange vom Stangenende braucht (zählt statt des Greiferrests, wenn größer, nie zusätzlich). Schneidzeit "
+    "3D = Schneiddaten bei Wand ÷ cos(Winkel) × Faktor + Zusatzzeit je Bearbeitung.")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -456,6 +475,8 @@ ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT = (
 LIEFERZEIT_ARTEN = (ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT)
 # Was der Laser an einer Fließlochbohrung (Flowdrill) macht (bohrbild.py): Markierung als Gravur oder kleines Loch
 FLIESSLOCH_LASER = ("Gravur Ø0,5", "Loch Ø0,5")
+# STEP-Import, Vorgabe für ebene flache Teile (Patrick 22.10.2026: vorerst immer Blech, Flachstahl im Prüfdialog wählbar)
+FLACH_ALS = ("Blech", "Flachstahl bis Breite (Einstellung darunter)")
 # Herkunft des Materials je Position (angebot.POSITIONEN 'material_herkunft'): leer = Eigenmaterial (wie bisher);
 # Kundenmaterial: keine Materialkosten, eigene Stangengruppe, Bearbeitung wie sonst
 EIGENMATERIAL, KUNDENMATERIAL = "Eigenmaterial", "Kunde beigestellt"
@@ -468,7 +489,7 @@ class Einstellung:
     name: str
     titel: str
     gruppe: str
-    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort | bild
+    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort | bild | ordner
     vorgabe: object
     von: float = None
     bis: float = None
@@ -486,8 +507,10 @@ EINSTELLUNGEN = (
                 "zahl_leer", None, 0, 1000),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, 0, 1440),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, 0, 100000),
-    Einstellung("programmierung_teil", "Programmierkosten je Teil (Position) [€]", "Kalkulation", "zahl", 8.50, 0,
-                100000),
+    # Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026; bis 0.8.21: 8,50 € je Position):
+    # Grundzeit je Position + Zeit je Innenkontur, je Position von Hand überschreibbar
+    Einstellung("programmierung_zeit", "Programmierzeit je Position [min]", "Kalkulation", "zahl", 5.0, 0, 1440),
+    Einstellung("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "Kalkulation", "zahl", 0.5, 0, 1440),
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
     # Patrick 22.10.2026 (F4 a): eigene Zeit je Teil, dessen Anbauteile unsicher erkannt sind (Stundensatz Laser)
     Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
@@ -505,6 +528,11 @@ EINSTELLUNGEN = (
                 1000000),
     # Lieferlängen-Vergleich (z. B. 6 m gegen 12 m): eine andere Lieferlänge wird nur empfohlen, wenn beide
     # Mindestwerte erreicht sind
+    # Vergleich mit anderen Lieferlängen (z. B. 12 m) beim Optimieren: kostet bei großen Gruppen Zeit, daher
+    # Vorgabe aus (Patrick 22.10.2026). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer
+    # lieferbaren Länge geplant.
+    Einstellung("laenge_vergleich", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
+                "Lieferlängen", "auswahl", "nein", auswahl="janein"),
     Einstellung("laenge_mindest_eur", "Lieferlängen: Mindestersparnis je Gruppe in €", "Lieferlängen", "zahl", 20.0,
                 0, 100000),
     Einstellung("laenge_mindest_anteil", "Lieferlängen: Mindestersparnis je Gruppe in %", "Lieferlängen", "anteil",
@@ -538,8 +566,13 @@ EINSTELLUNGEN = (
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
+    Einstellung("flach_als", "STEP-Import: ebene flache Teile vorgeben als", "Angebot", "auswahl", FLACH_ALS[0],
+                auswahl="flachals"),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "Angebot", "zahl", 150.0, 1, 10000),
+    # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
+    Einstellung("step_ordner", "STEP-Import: Standardordner (leer = zuletzt benutzter Ordner)", "Angebot", "ordner",
+                ""),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)", "Angebot",
                 "auswahl", "S235-10219", auswahl="werkstoff"),
@@ -718,7 +751,8 @@ class Kontext:
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
-                         "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
+                         "flachals": list(FLACH_ALS), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
@@ -961,11 +995,16 @@ def beispiel_oberflaechen():
             ("E6/EV1", "Aluminium", 3.50, "E6/EV1 eloxiert", "Beispielpreis")]
 
 
+# 3D-Bearbeitung je Maschine (Patrick 22.10.2026, F2 a): keine vorbelegt; Grenzen ±45°, Greifmaß 300 mm, Zusatzzeit
+# 0 s, Faktor 1 – (verfügbar, Schwenk min., Schwenk max., Greifmaß, Zusatzzeit, Faktor)
+MASCHINE_3D = ("nein", -45, 45, 300, 0, 1.0)
 # Maschinen (Werte von Patrick, 20.10.2026): T03 Trumpf CO₂-Laser, T11 Trumpf und LT7 Adige Faserlaser
 BEISPIEL_MASCHINEN = [
-    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 29, "CO₂-Laser", 255, 36, 2500),
-    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 29, "Faserlaser", 255, 36, 2500),
-    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 25, "Faserlaser", 214, 23, 2500)]
+    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "CO₂-Laser", 255, 36, 2500, *MASCHINE_3D),
+    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 255, 36, 2500, *MASCHINE_3D),
+    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 214, 23, 2500, *MASCHINE_3D)]
+# Stangenwechsel bis 0.8.9 (ein Wert je Maschine); seit 0.8.10 normal 24 s und mit Schweißnaht-Vorgabe (SN) 29 s
+ALTER_STANGENWECHSEL = {"T03": 29, "T11": 29, "LT7": 25}
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
 # Laserleistung laut Patrick (20.10.2026): T03 3,2 kW, T11 4 kW, LT7 3 kW
 LEISTUNG = {"T03": 3.2, "T11": 4.0, "LT7": 3.0}
@@ -1093,7 +1132,8 @@ def beispiel_stundensaetze():
 def beispiel_arbeitsschritte():
     """Vorbelegung der Arbeitsschritte: die vom Programm gerechneten mit dem Maschinenstundensatz (wie bisher),
     weitere Schritte mit Zeit 0 (rechnen erst, wenn eine Zeit eingetragen ist)."""
-    fest = [dict(schritt=n, satz=SATZ_MASCHINE, art="Maschine", parallel="nein", bemerkung="Zeit: " + t)
+    fest = [dict(schritt=n, satz=SCHRITT_SATZ.get(n, SATZ_MASCHINE), art="Personal" if n in SCHRITT_SATZ else "Maschine",
+                 parallel="ja" if n in SCHRITT_SATZ else "nein", bemerkung="Zeit: " + t)
             for n, t in SCHRITTE_FEST.items()]
     weitere = [("Materialbereitstellung", "Rüstpersonal", "Personal", "ja", "Angebot", "Stange",
                 "Stangen holen und auflegen, soweit nicht im Stangenwechsel enthalten"),
@@ -1118,4 +1158,24 @@ def beispiel_zusatzarbeiten():
              ("Entgraten", "€/Stück", 0.50, None, "nein", "entgratet", "Beispielpreis", "Nachbearbeitung"),
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
-    return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte]
+    return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
+        + bohr_zusatzarbeiten()
+
+
+# Zusatzarbeiten, die 'Bohrungen prüfen' (bohrbild.py) nach dem Bestätigen mit der Anzahl je Teil einträgt
+ZUSATZ_SENKEN, ZUSATZ_FLOWDRILL, ZUSATZ_BOHREN = "Senken", "Flowdrill", "Bohren"
+
+
+def bohr_zusatzarbeiten():
+    """Vorbelegung Senken, Flowdrill und Bohren: € je Stück aus Zeit × Stundensatz Nachbearbeitung (Beispielzeiten,
+    bitte anpassen)."""
+    werte = [(ZUSATZ_SENKEN, 0.5, "Senken", "Senkung nachträglich senken; Vorschlag aus 'Bohrungen prüfen'"),
+             (ZUSATZ_FLOWDRILL, 0.75, "Fließlochbohren (Flowdrill)",
+              "Fließlochbohrung mit Kragen; Vorschlag aus 'Bohrungen prüfen'"),
+             (ZUSATZ_BOHREN, 0.5, "Bohren",
+              "Bohrung kleiner 0,7 × Wandstärke: der Laser markiert nur, danach aufbohren; Vorschlag aus "
+              "'Bohrungen prüfen'")]
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=n, art="€/Stück", fremd="nein",
+                 angebotstext=t, bemerkung=b, kategorie="Nachbearbeitung", aktiv="ja", zeit=z, zeit_einheit="min",
+                 satz_id="Nachbearbeitung") for n, z, t, b in werte]
+

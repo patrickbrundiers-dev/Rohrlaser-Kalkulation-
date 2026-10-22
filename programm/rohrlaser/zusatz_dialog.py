@@ -40,6 +40,7 @@ class ZusatzDialog(QDialog):
         self.saetze = rechnen.stundensaetze(tabellen)
         self.haeufig = haeufig or {}
         self.stand = {}         # Auswahlfeld -> (Name beim Öffnen, gespeicherter Preisstand)
+        self.quelle = {}        # Auswahlfeld -> Herkunft des Eintrags (bohrbild.QUELLE) oder None
         self.gewinde_tab = tabellen.get("gewinde") or []
         self.setWindowTitle("Zusatzarbeiten" + (f" für {anzahl} Positionen" if anzahl > 1 else
                                                f" Pos. {p.get('pos') or ''} {p.get('artikel') or ''}"))
@@ -131,6 +132,7 @@ class ZusatzDialog(QDialog):
         if e.get("name"):
             cb.setCurrentText(e["name"])
         self.stand[cb] = (e.get("name"), e.get("stand") if isinstance(e.get("stand"), dict) else None)
+        self.quelle[cb] = e.get("quelle")        # z. B. aus 'Bohrungen prüfen' (Senken, Flowdrill, Bohren)
         self.tabelle.setCellWidget(r, 0, cb)
         self.tabelle.setCellWidget(r, 1, QLabel())
         menge = QLineEdit(zahl_als_text(e.get("menge"), tausender=False) if e.get("menge") is not None else "")
@@ -248,9 +250,12 @@ class ZusatzDialog(QDialog):
             e = dict(name=name, menge=_zahl(self.tabelle.cellWidget(r, 2).text(), f"Zeile {r + 1}: Menge"),
                      preis=_zahl(self.tabelle.cellWidget(r, 3).text(), f"Zeile {r + 1}: Preis bzw. Zeit"),
                      text=self.tabelle.cellWidget(r, 4).text().strip() or None)
-            stand = self.eintrag(self.tabelle.cellWidget(r, 0))[0]
+            cb = self.tabelle.cellWidget(r, 0)
+            stand = self.eintrag(cb)[0]
             if stand:
                 e["stand"] = stand
+            if self.quelle.get(cb) and name == self.stand.get(cb, (None,))[0]:
+                e["quelle"] = self.quelle[cb]
             for n in ("menge", "preis"):
                 if e[n] is not None and e[n] < 0:
                     raise ValueError(f"Zeile {r + 1}: negative Werte sind nicht zulässig.")

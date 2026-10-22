@@ -33,13 +33,14 @@ def zuschlaege_wie_bisher(db):
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert db.einstellung("stammdaten_herkunft") == "Beispieldaten"
 for name, zeilen in beispieldaten().items():
-    gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)]
+    gelesen = [{k: v for k, v in z.items() if k != "id"} for z in db.zeilen(name)
+               if not (name == "profile" and z["form"] == "RP-Profil")]     # RP-Bibliothek kommt dazu (rp_profile)
     assert gelesen == zeilen, name
 assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_material") == 0 and db.einstellung("standard_stange") == 6000
 assert db.einstellung("mwst") == 0.19
 assert db.einstellung("profilformen").splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil",
                                                        "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil",
-                                                       "Sonderprofil"]
+                                                       "RP-Profil", "Sonderprofil"]
 
 # 2) Eingabe: deutsche Zahlen, Bereiche, ganze Zahlen, Datum
 f = PROFILE.feld("a")
@@ -205,7 +206,7 @@ from rohrlaser.angebot import naechste_nummer  # noqa: E402
 assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
 db = Datenbank(tmp / "b" / "rohrlaser.db")
 zuschlaege_wie_bisher(db)
-for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_teil", "skonto"):   # ohne
+for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_zeit", "skonto"):   # ohne
     db.einstellung_setzen(n, 0)                                               # die Kosten aus Teil 14
 a1 = db.angebot_neu()
 a2 = db.angebot_neu()
@@ -320,7 +321,7 @@ sp = s4.staffelpreise_rechnen()
 assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
 # Stufe 24 Stück: 154,08 € netto liegt unter dem Mindestpreis 200 € (ab 0.6.0) -> 200 / 24 auf den Cent aufgerundet
 # 8,34 € (ohne Mindestpreis 6,42 €)
-assert [z["preis_einheit"] for z in sp] == [149.81, 145.86, 137.2, 8.34, 6.39, 6.0], sp   # Referenzwerte (T11, Rohr-Richtwerte Faserlaser 4 kW ab 0.6.19, Händler +50 mm je 6-m-Stange; bis 0.6.18: 149,75 145,80 137,14 8,34 6,35 5,96; bis 0.6.13: 148,64 144,68 136,07 8,34 6,30 5,92; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
+assert [z["preis_einheit"] for z in sp] == [149.02, 145.07, 136.44, 8.34, 6.32, 5.94], sp   # Referenzwerte (T11, Stangenwechsel 24 s ab 0.8.10; bis 0.8.9 mit 29 s: 149,81 145,86 137,20 8,34 6,39 6,00; Rohr-Richtwerte Faserlaser 4 kW ab 0.6.19, Händler +50 mm je 6-m-Stange; bis 0.6.18: 149,75 145,80 137,14 8,34 6,35 5,96; bis 0.6.13: 148,64 144,68 136,07 8,34 6,30 5,92; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
@@ -336,7 +337,7 @@ assert db.staffeln(a4)[5]["menge"] == 200
 assert "VERALTET" in s4.staffel_info.text()
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 999.4) < 1e-9 and ang["mwst"] == 189.89, ang   # Referenzwerte (T11, Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
+assert abs(ang["netto"] - 992.2) < 1e-9 and ang["mwst"] == 188.52, ang   # Referenzwerte (T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
@@ -422,23 +423,25 @@ pos = [dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff_id="S235-1021
 erg = rechnen.optimieren(kopf, pos, k)
 assert not erg["fehler"] or all(f_["artikel"] == "D" for f_ in erg["fehler"])
 # ohne Mindestpreis (eigener Test), sonst hebt er den kleinen Vergleichspreis s0 an
-null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, angebotsaufschlag=0, programmierung_teil=0,
+null = dict(db.einstellungen(), ruesten_abmessung=0, pauschale_abmessung=0, angebotsaufschlag=0, programmierung_zeit=0,
             mindestpreis=0)
 z0, s0 = rechnen.kalkulation(kopf, pos, erg, k, tab, null)
 z1, s1 = rechnen.kalkulation(dict(kopf, fracht=120.0), pos, erg, k, tab, dict(db.einstellungen(), mindestpreis=0))
 satz = k.maschinen["T11"]["stundensatz"]
 assert s1["abmessungen"] == 2 and s1["pauschalen"] == 45.0 and s1["angebotsaufschlag"] == 50 and s1["fracht"] == 120
-assert db.einstellung("programmierung_teil") == 8.5 and s1["programmierung"] == 3 * 8.5   # D ohne Stückzahl zählt nicht
+# Programmierung 5 min je Position (ohne Innenkonturen) × 60 €/h (Stundensatz Programmierung) = 5 €; D ohne
+# Stückzahl zählt nicht
+assert db.einstellung("programmierung_zeit") == 5 and s1["programmierung"] == 3 * 5 and s1["programmierung_min"] == 15
 assert abs(s1["ruesten"] - s0["ruesten"] - 2 * 15 / 60 * satz) < 1e-9
 gew = 1 + db.einstellung("gewinn")
 fert = 1 + db.einstellung("zuschlag_fertigung")
 # Verkaufspreis steigt um Rüsten je Abmessung (mit Zuschlag Fertigung und Gewinn) + Pauschalen + Aufschlag + Fracht
-erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120 + 3 * 8.5
+erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120 + 3 * 5
 assert abs(s1["verkauf"] - erwartet) < 1e-6, (s1["verkauf"], erwartet)
 # Pauschale je Abmessung trägt nur deren Teile: QR 40x40x3 hat 10, RE 120x60x4 hat 5 Teile
-# Programmierkosten 8,50 € je Position, umgelegt auf deren Stückzahl (A 6, C 5 Stück)
-assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15 + 8.5 / 6)) < 1e-9
-assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15 + 8.5 / 5)) < 1e-9
+# Programmierkosten 5 € (5 min × 60 €/h) je Position, umgelegt auf deren Stückzahl (A 6, C 5 Stück)
+assert abs(z1[0]["pauschalen_teil"] - (22.5 / 10 + 170 / 15 + 5 / 6)) < 1e-9
+assert abs(z1[2]["pauschalen_teil"] - (22.5 / 5 + 170 / 15 + 5 / 5)) < 1e-9
 assert z1[3]["pauschalen_teil"] == 0 and z1[3]["preis_position"] == 0
 # Grenzen der Maschine: RE 120x60x4 (Hüllkreis 134,2 mm, 10,9 kg/m) passt nicht mehr
 t11 = next(z["id"] for z in db.zeilen("maschinen") if z["maschinen_id"] == "T11")
@@ -462,7 +465,7 @@ assert any(f_["grund"] == "Metergewicht über Maschinengrenze" for f_ in erg["fe
 # Staffel: jede Stufe trägt Aufschlag, Fracht, Programmierung und die Kosten ihrer Abmessungen voll
 sp = staffeln.rechnen_alle(dict(kopf, fracht=120.0), pos, [dict(schluessel="10", menge=6)], k, tab, db.einstellungen())
 sp0 = staffeln.rechnen_alle(kopf, pos, [dict(schluessel="10", menge=6)], k, tab, null)
-assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 8.5 + 50 + 120)) < 0.1
+assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 5 + 50 + 120)) < 0.1
 db.schliessen()
 
 # 15) Kunden, Skonto (eingerechnet), Zahlungsbedingung im Angebot, Kopieren für einen anderen Kunden, Sicherungen

@@ -32,6 +32,8 @@ from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, Ueber
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .leiste import UmbruchLeiste
+from . import step_ablage
+from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
 from .verlauf import Verlauf
@@ -395,7 +397,7 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Vorschub groß [mm/min]", "vorschub", 0), ("Schneidgas", "gas", None), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
-            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
+            "einstiche", "zeit_manuell", "prog_zeit", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
@@ -505,11 +507,14 @@ class PositionenModell(QAbstractTableModel):
         self.bilder = {pid: b for pid, b in self.bilder.items() if pid in ids}
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
-        self.werte, self.status, self.zeiten, self.meterpreise = [], [], [], []
+        self.werte, self.status, self.zeiten, self.meterpreise, self.prog_zeiten = [], [], [], [], []
         for i, p in enumerate(self.daten):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
             self.meterpreise.append(rechnen.meterpreis(p, s.kopf, self.daten, s.k, s.tabellen))  # (berechnet, wirksam, fehlt)
             self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand_schneiden"), s.tabellen, s.k)[2])   # berechnet [s]
+            # Programmierzeit ohne Eintrag von Hand: Grundzeit + Zeit je Innenkontur [min] (Zukaufteile: keine)
+            self.prog_zeiten.append(None if ist_zukaufteil(p) else
+                                    rechnen.programmier_zeit(dict(p, prog_zeit=None), s.einst)[0])
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
             w["eingeplant"] = ein if p.get("profil_id") and not ist_zukaufteil(p) else None
             if ist_zukaufteil(p):
@@ -578,6 +583,23 @@ class PositionenModell(QAbstractTableModel):
                      else "Doppelklick zum Anpassen.")
             if rolle == Qt.EditRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
+            if rolle == Qt.ForegroundRole:
+                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
+            if rolle == Qt.FontRole and w is not None:
+                f = QFont()
+                f.setBold(True)
+                return f
+        if art == "feld" and x.name == "prog_zeit":         # Programmierzeit: berechnet, von Hand überschreibbar
+            berechnet = self.prog_zeiten[index.row()] if index.row() < len(self.prog_zeiten) else None
+            if rolle in (Qt.DisplayRole, Qt.EditRole) and w is None:
+                return _z(berechnet, 1) if berechnet is not None else ""
+            if rolle == Qt.ToolTipRole:
+                n = rechnen.konturen_anzahl(self.daten[index.row()])
+                return ((f"Berechnet: {_z(berechnet, 1)} min = Grundzeit je Position + Zeit je Innenkontur × {n} "
+                         "Innenkontur(en) (Kalkulation des Angebots). " if berechnet is not None
+                         else "Verschicktes Angebot: Betrag je Position festgeschrieben. ")
+                        + ("Von Hand eingetragen; leeren = wieder berechnet." if w is not None
+                           else "Doppelklick zum Anpassen."))
             if rolle == Qt.ForegroundRole:
                 return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
@@ -697,6 +719,10 @@ class PositionenModell(QAbstractTableModel):
         if f.name == "zeit_manuell" and p.get(f.name) is None and wert is not None \
                 and self.zeiten[index.row()] is not None and abs(wert - round(self.zeiten[index.row()], 1)) < 0.05:
             return False                # berechnete Zeit unverändert bestätigt: bleibt berechnet
+        if f.name == "prog_zeit" and p.get(f.name) is None and wert is not None \
+                and self.prog_zeiten[index.row()] is not None \
+                and abs(wert - round(self.prog_zeiten[index.row()], 1)) < 0.05:
+            return False                # berechnete Programmierzeit unverändert bestätigt: bleibt berechnet
         if f.name == "preis_m":
             if wert is not None and wert <= 0:
                 wert = None             # 0 = kein Preis von Hand
@@ -862,6 +888,9 @@ class Stangenbild(QWidget):
             rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
             rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
             rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
+            if s.get("greif_3d"):           # 3D-Bearbeitung am letzten Teil: 3D-Greifmaß statt Greiferrest
+                p.setPen(QColor("#FFFFFF"))
+                p.drawText(QRectF(x0 + (s["stange"] - s["greif"]) * m, yb, s["greif"] * m, hb), Qt.AlignCenter, "3D")
             vorher = None
             for t in s["teile"]:
                 ineinander = bool(t.get("material_gespart")) and vorher is not None
@@ -910,6 +939,10 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst):
     zum Übernehmen (laenge:<Gruppe>:<Länge>, 0 = Stangenlänge des Angebots)."""
     if not erg:
         return "<i>Noch nicht optimiert.</i>"
+    if not erg.get("laengen") and not rechnen.laengen_vergleichen(einst):
+        return ("Der Vergleich mit anderen Lieferlängen (z. B. 12 m) ist ausgeschaltet: Einstellungen → Vorgaben → "
+                "Lieferlängen, „beim Optimieren andere Lieferlängen vergleichen“ = ja. Ist die Stangenlänge des "
+                "Angebots für ein Profil nicht lieferbar, wird trotzdem mit einer lieferbaren Länge geplant.")
     if not erg.get("laengen"):
         return ("Für die Profile dieses Angebots gibt es keine weitere Lieferlänge: verglichen wird, was unter "
                 "Einstellungen → Lieferlängen steht, und ohne Eintrag Profile über dem Hüllkreis-Ø aus den "
@@ -1159,6 +1192,10 @@ class AngebotSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+            if text == "STEP importieren …":      # sichtbares Ziel für Drag & Drop direkt neben dem Knopf
+                self.ablage_klein = AblageFeld()
+                self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
+                leiste.addWidget(self.ablage_klein)
         leiste.addSpacing(12)
         for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Zukaufteile …", None),
                            ("Positionen löschen", self.positionen_loeschen)):
@@ -1183,10 +1220,15 @@ class AngebotSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+        # Materialanfrage immer sichtbar (Patrick 22.10.2026), nicht mehr unter Weitere Aktionen
+        self.anfrage_knopf = QPushButton("Materialanfrage (E-Mail)")
+        self.anfrage_knopf.setToolTip("Stangenbedarf aus der Optimierung beim Lieferanten anfragen (Outlook oder "
+                                      "E-Mail-Datei); gesendet wird nur im Mailprogramm")
+        self.anfrage_knopf.clicked.connect(lambda: self.material_anfragen())
+        leiste.addWidget(self.anfrage_knopf)
         self.weitere = QPushButton("Weitere Aktionen")
         menue = QMenu(self.weitere)
-        for text, ziel in (("Material per Outlook anfragen …", lambda: self.material_anfragen()),
-                           ("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
+        for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
             menue.addAction(text, lambda ziel=ziel: ziel())
@@ -1320,6 +1362,10 @@ class AngebotSeite(QWidget):
         pl.setSpacing(4)
         pl.addLayout(self.pos_leiste)
         pl.addWidget(self.pos_ansicht, 1)
+        # leeres Angebot: großes Ablagefeld statt der leeren Positionsliste
+        self.ablage_gross = AblageFeld(gross=True)
+        self.ablage_gross.geklickt.connect(lambda: self.step_importieren())
+        pl.addWidget(self.ablage_gross, 1)
         self.reiter.addTab(self.pos_seite, "Positionen")
         self.kalk_seite = kalk_seite
         self.zeiten_seite = ZeitenSeite(self)
@@ -1402,6 +1448,9 @@ class AngebotSeite(QWidget):
         self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
+        leer = not self.positionen
+        self.ablage_gross.setVisible(leer)
+        self.pos_ansicht.setVisible(not leer)
         self._spalten_zeigen()
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
@@ -1786,12 +1835,17 @@ class AngebotSeite(QWidget):
             return False
         eingaben = d.eingaben()
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(d.profil))
-        erg = schneidweg.rechnen(eingaben, d.profil, grenzen, gewinde_liste(self.tabellen))
+        erg = schneidweg.rechnen(eingaben, d.profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"] or d.kopf_fehler():
             self.f.meldung("Neue Position: " + " ".join(erg["fehler"] + d.kopf_fehler()), fehler=True)
             return False
         werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
+        from . import bohrbild         # Gewinde-Vorschläge, Senkungen, Bohren < 0,7 × Wand: offen bis 'Bohrungen prüfen'
+        bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
+                                    rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"))
+        if bild:
+            werte.update(bohrbild.anwenden(werte, bild))
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self.neu_laden()
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
@@ -2011,17 +2065,25 @@ class AngebotSeite(QWidget):
             return False
         p = self.positionen[zeilen[0]]
         gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
+        katalog = self.tabellen.get("zusatzarbeiten") or []
         if werte is None:
             from .bohrbild_dialog import BohrbildDialog
-            d = BohrbildDialog(self, p, gewinde)
+            d = BohrbildDialog(self, p, gewinde, rechnen.wand_position(p, self.k),
+                               self.db.einstellung("fliessloch_laser"), katalog, rechnen.stundensaetze(self.tabellen))
             if d.exec() != QDialog.Accepted:
                 return False
             werte = d.ergebnis
         liste, hand = werte
-        for name, wert in bohrbild.anwenden(p, liste, hand).items():
+        felder = bohrbild.anwenden(p, liste, hand, katalog, rechnen.stundensaetze(self.tabellen))
+        fehlt = felder.pop("_fehlt", None)
+        for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
+        arbeiten = bohrbild.arbeiten_text(liste)
         self.f.meldung(f"Bohrungen von Pos. {p.get('pos') or ''} gespeichert"
-                       + (f", {bohrbild.offen(liste)} noch offen." if bohrbild.offen(liste) else "."))
+                       + (f", Zusatzarbeiten {arbeiten}" if arbeiten else "")
+                       + (f", {bohrbild.offen(liste)} noch offen" if bohrbild.offen(liste) else "") + "."
+                       + (f" Zusatzarbeit {', '.join(fehlt)} fehlt in den Stammdaten (Einstellungen › Zusatzarbeiten)."
+                          if fehlt else ""), fehler=bool(fehlt))
         self.neu_laden()
         return True
 
@@ -2079,7 +2141,7 @@ class AngebotSeite(QWidget):
         else:
             naht_neu = {}
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
-        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen))
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False
@@ -2092,16 +2154,27 @@ class AngebotSeite(QWidget):
                     "Durch die Werte des Schneidweg-Rechners ersetzen?") == QMessageBox.Yes
             if not ueberschreiben:
                 return False
-        for name, wert in dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu).items():
+        felder = dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu)
+        # Bohrbild neu aus den Eingaben (Gewinde, Senkungen, Bohren < 0,7 × Wand), Prüfstatus gleicher Bohrungen bleibt
+        from . import bohrbild
+        bild = bohrbild.aus_rechner(erg, bohrbild.lesen(p.get("bohrbild")), gewinde_liste(self.tabellen) or step.KERNLOCH,
+                                    rechnen.wand_schneiden(profil), self.db.einstellung("fliessloch_laser"))
+        if bild or p.get("bohrbild"):
+            felder.update(bohrbild.anwenden(dict(p, **felder, bohrbild=None), bild, None,
+                                            self.tabellen.get("zusatzarbeiten") or [],
+                                            rechnen.stundensaetze(self.tabellen)))
+            felder.pop("_fehlt", None)
+        for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
                        f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen.")
         self.neu_laden()
         return True
 
-    def schweissnaht(self, zeilen=None, werte=None, dialog=None):
+    def schweissnaht(self, zeilen=None, werte=None, dialog=None, stange=None):
         """Schweißnaht der markierten Positionen wählen (Dialog mit Querschnitt). werte = dict der Nahtfelder setzt
-        sie ohne Dialog; dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
+        sie ohne Dialog, stange dazu die Nahtlage der Lieferstange ('' = aus den Teilen, None = unverändert);
+        dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
         if zeilen is None:
             zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
         zeilen = [z for z in zeilen if not ist_zukaufteil(self.positionen[z])]
@@ -2110,16 +2183,33 @@ class AngebotSeite(QWidget):
             return False
         p = self.positionen[zeilen[0]]
         if werte is None:
-            d = NahtDialog(self, p, self.k.profile.get(p.get("profil_id")), len(zeilen))
+            d = NahtDialog(self, p, self.k.profile.get(p.get("profil_id")), len(zeilen),
+                           naht.stange_eingetragen(self.kopf, p.get("profil_id"), p.get("werkstoff_id")))
             if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return False
             werte = d.werte()
+            if werte.get("naht_vorgabe") == naht.FEST and naht.form_von(d.profil) == "Rechteckrohr":
+                stange = d.stange_wert() or ""       # "" = aus den Teilen (Eintrag löschen)
+        if stange is not None:      # Nahtlage der Lieferstange gilt für die Gruppen der markierten Positionen
+            self.naht_stange_setzen({(self.positionen[z].get("profil_id"), self.positionen[z].get("werkstoff_id"))
+                                     for z in zeilen}, stange or None, laden=False)
         for z in zeilen:
             for name, wert in werte.items():
                 self.db.position_aendern(self.positionen[z]["id"], name, wert)
         self.f.meldung(f"Schweißnaht für {len(zeilen)} Position(en) gespeichert.")
         self.neu_laden()
         return True
+
+    def naht_stange_setzen(self, gruppen, wert, laden=True):
+        """Nahtlage der Lieferstange (Breitseite/Schmalseite, None = aus den Teilen) für Gruppen {(Profil, Werkstoff)}
+        im Angebot speichern."""
+        wahl = dict(self.kopf.get("naht_stangen") or {})
+        for profil, werkstoff in gruppen:
+            wahl[naht.gruppe_schluessel(profil, werkstoff)] = wert
+        self.db.naht_stangen_speichern(self.id, wahl)
+        self.kopf["naht_stangen"] = {s: w for s, w in wahl.items() if w} or None
+        if laden:
+            self.neu_laden()
 
     def zukaufteile(self, zeilen=None, werte=None, dialog=None):
         """Zukaufteile der markierten Positionen wählen (Dialog). werte = JSON (oder None) setzt sie ohne Dialog;
@@ -2552,15 +2642,20 @@ class AngebotSeite(QWidget):
                            fehler=True)
             return None
         werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
-        zeilen = materialanfrage.bedarf(self.positionen, self.ergebnis, self.k, self.tabellen, werte)
+        zeilen = materialanfrage.bedarf(self.positionen, self.ergebnis, self.k, self.tabellen, werte, self.kopf)
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
                            fehler=True)
             return None
+        vorher = self.kopf.get("naht_stangen")
         d = AnfrageDialog(self, self.kopf, zeilen, self.k, self.einst,
                           materialanfrage.lieferanten(self.db.zeilen("zukauf_lieferanten")),
-                          self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren)
+                          self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren,
+                          lambda profil, werkstoff, seite: self.naht_stange_setzen({(profil, werkstoff)}, seite,
+                                                                                   laden=False))
         (dialog(d) if dialog else d.exec())
+        if self.kopf.get("naht_stangen") != vorher:     # Nahtlage geändert: Status der Positionen neu prüfen
+            self.neu_laden()
         if d.meldung:
             self.f.meldung(d.meldung)
         return d
@@ -2570,15 +2665,32 @@ class AngebotSeite(QWidget):
         urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
         return step.step_dateien([u.toLocalFile() for u in urls if u.isLocalFile()])
 
+    def _ablage_hervorheben(self, an):
+        for feld in (self.ablage_klein, self.ablage_gross):
+            feld.hervorheben(an)
+
     def dragEnterEvent(self, ereignis):
         if self._gezogene_dateien(ereignis):
             ereignis.acceptProposedAction()
+            self._ablage_hervorheben(True)
+
+    def dragLeaveEvent(self, ereignis):
+        self._ablage_hervorheben(False)
 
     def dropEvent(self, ereignis):
+        self._ablage_hervorheben(False)
         dateien = self._gezogene_dateien(ereignis)
         if dateien:
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
+
+    def flach_bis(self):
+        """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
+        Vorgabe), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
+        from .stammdaten import FLACH_ALS
+        if (self.db.einstellung("flach_als") or FLACH_ALS[0]) == FLACH_ALS[0]:
+            return 0
+        return self.db.einstellung("flachstahl_bis") or 150
 
     def step_messen(self, dateien=None, mit_ablage=False, titel="STEP-Dateien wählen"):
         """STEP-Dateien wählen (ohne dateien) und mit STEP-Import.exe messen. Ergebnis: Messwerte (mit_ablage:
@@ -2589,17 +2701,19 @@ class AngebotSeite(QWidget):
                                 f"muss im Programmordner liegen:\n{self.f.programmordner}")
             return None
         if not dateien:
-            dateien, _ = QFileDialog.getOpenFileNames(self, titel, str(Path.home()),
+            # Start im Standardordner (Einstellungen), sonst im zuletzt benutzten STEP-Ordner
+            dateien, _ = QFileDialog.getOpenFileNames(self, titel, str(step_ablage.start_ordner(self.db)),
                                                       "STEP-Dateien (*.step *.stp *.STEP *.STP)")
             if not dateien:
                 return None
+            step_ablage.ordner_merken(self.db, dateien)
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
             netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
                                           "--json", str(ergebnis), "--flachstahl-bis",
-                                          str(self.db.einstellung("flachstahl_bis") or 150)], len(dateien)):
+                                          str(self.flach_bis())], len(dateien)):
                 return None
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")

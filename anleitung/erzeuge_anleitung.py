@@ -667,9 +667,15 @@ def kapitel_angebot(i):
            "von Position?</i>. Nach der Wahl öffnet sich das passende Fenster:")
     i.tabelle(["Typ", "Was passiert"], [
                ["<b>Rohr / Profil</b>", "Der Schneidweg-Rechner ([[schneidweg_rechner]]) öffnet mit einer Kopfzeile: "
-                "Artikel, Bezeichnung, Profil (Eintippen sucht, z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. "
-                "Profil und Werkstoff sind von der letzten Rohrposition vorbelegt. Ein anderes Profil baut Skizze, "
-                "Enden und Naht sofort neu auf. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
+                "Artikel, Bezeichnung, <b>Profilform</b> (Quadratrohr, Rechteckrohr, Rundrohr …; die Profilliste "
+                "daneben zeigt dann nur diese Form, <i>alle Profilformen</i> zeigt alle), Profil (Eintippen sucht, "
+                "z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. Profil und Werkstoff sind von der letzten "
+                "Rohrposition vorbelegt. Ein anderes Profil baut Skizze, Enden und Naht sofort neu auf. Fehlt das "
+                "Profil, legt <b>Neu …</b> neben der Liste es an: Fenster <i>Neues Profil</i> mit Profilform, "
+                "Abmessungen und Wandstärke; die Profil-ID wird aus den Maßen vorgeschlagen (z. B. RE 70x35x2,5), "
+                "Querschnitt, kg/m und Hüllkreis rechnet das Programm. <b>Profil anlegen</b> schreibt es in die "
+                "Stammdaten ([[stammdaten]]) und wählt es; den Materialpreis danach unter Einstellungen oder als "
+                "Meterpreis im Angebot eintragen. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
                 "<b>Position anlegen</b> gesperrt. Danach steht die Position mit Schneidweg, Einstichen und Naht in "
                 "der Liste."],
                ["<b>Blech / Kantteil</b>", "Der Blech-Editor ([[blech_editor]]) öffnet: Zuschnitt oder Kantteil "
@@ -700,7 +706,7 @@ def kapitel_angebot(i):
             "eingerechnet: Verkaufspreis = Preis ohne Skonto ÷ (1 − Skonto). Zahlt der Kunde mit Skonto, bleibt "
             "genau der kalkulierte Preis. 0 % = kein Skonto.",
             "<b>Kalkulation dieses Angebots</b>: Zuschlag Fremdleistung, Gewinn, Rüstzeit und "
-            "Pauschale je Abmessung, Programmierkosten je Teil und Angebotsaufschlag. Mindestpreis, Zuschlag "
+            "Pauschale je Abmessung, Programmierzeit je Position und Angebotsaufschlag. Mindestpreis, Zuschlag "
             "Material und Zuschlag Fertigung gelten immer aus den Einstellungen und sind im Angebot nicht änderbar "
             "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
@@ -717,7 +723,7 @@ def kapitel_angebot(i):
             "Beim Kopieren gehen die Werte mit.",
             "Die Kalkulationswerte stehen in vier Gruppen: <b>Material und Fertigung</b> (Zuschläge), <b>Zeit und "
             "Rüsten</b> (Rüstzeit je Maschine, Stangenwechsel und Stundensatz der Maschine zur Information, Rüstzeit "
-            "je Abmessung), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Programmierkosten, Pauschale je "
+            "je Abmessung, Programmierzeit je Position und je Innenkontur), <b>Verkauf und Gewinn</b> (Gewinn, Angebotsaufschlag, Pauschale je "
             "Abmessung, Frachtkosten, Mindestpreis) und <b>Zahlungsbedingungen</b>.")
     i.abschnitt("Lieferzeit im Angebot", marke="lieferzeit")
     i.text("Jedes Angebot hat seine eigene Lieferzeit. Ein neues Angebot übernimmt die Vorgabe aus den Einstellungen "
@@ -794,7 +800,7 @@ def kapitel_angebot(i):
            "gerechnet und ausgegeben wird immer alles, auch was ausgeblendet ist.")
     i.tabelle(["Bereich", "ausgeblendet, wenn 0 oder leer", "immer sichtbar"], [
         ["Angebotskopf", "Frachtkosten, Skonto, Skontofrist, Zahlungsziel, Zuschläge, Gewinn, Rüstzeit und Pauschale "
-                         "je Abmessung, Programmierkosten, Angebotsaufschlag",
+                         "je Abmessung, Programmierzeit, Angebotsaufschlag",
          "Angebotsnummer, Kunde, Datum, Maschine, Standard-Stangenlänge, Bemerkung"],
         ["Maschinenparameter", "Abstand getrennte Schnitte, Konturgrenzen, max. Hüllkreis-Ø, max. Metergewicht",
          "Endbeschnitt, Greiferrest, Schnittverlust, max. Stangenlänge"],
@@ -852,6 +858,8 @@ def kapitel_angebot(i):
                                                        "I-/H-Träger und U-Profil 4, T-Profil 2, alle anderen 1 "
                                                        "(z. B. IPE 200 ohne Bohrungen: 8 Einstiche)"],
         ["Schneidzeit je Teil [s]", "grau = berechnet; anpassen ersetzt die berechnete Schneidzeit ([[schneidzeit]])"],
+        ["Programmierzeit [min]", "grau = Grundzeit je Position + Zeit je Innenkontur × Innenkonturen; anpassen "
+                                  "(fett) ersetzt sie für diese Position, leeren = wieder berechnet ([[stundensaetze]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]])"],
         ["Materialpreis [€/m]", "grau = berechneter Meterpreis; anpassen ersetzt ihn für dieses Angebot "
@@ -951,10 +959,20 @@ def kapitel_angebot(i):
             "Das Fenster nennt die getroffene Seite: bei Rechteckrohr <i>Breitseite</i> (die längere Seite) oder "
             "<i>Schmalseite</i>, bei Quadratrohr nur die Richtung, bei Rundrohr nur den Winkel. Liegt der Winkel auf "
             "einer Ecke, ist die Seite nicht eindeutig (Warnung).",
-            "Status: <b>FEHLER: Naht auf … gefordert, Lieferstange hat sie auf der …</b>, wenn die Seite nicht zur "
-            "<i>Naht der Lieferstange</i> im Profil passt ([[stammdaten]]); <b>WARNUNG: Nahtlage der Lieferstange im "
-            "Profil eintragen</b>, wenn sie dort fehlt; <b>FEHLER: Nahtwinkel fehlt</b> bei fester Position ohne "
-            "Winkel. Die Schweißnaht steht nicht in STEP-Dateien und wird nie automatisch erkannt.")
+            "<b>Naht der Lieferstange</b> (nur Rechteckrohr, bei fester Position): auf welcher Seite die bestellte "
+            "Stange ihre Schweißnaht hat, <i>Breitseite</i> oder <i>Schmalseite</i>. Das ist eine Angabe des "
+            "<b>Angebots</b>, nicht der Stammdaten: sie gilt in diesem Angebot für alle Positionen mit gleichem "
+            "Profil und Werkstoff. <i>aus den Teilen</i> (Standard) = die Seite, die die Teile mit fester Naht "
+            "verlangen. Sie steht in der Materialanfrage und lässt sich dort auch ändern ([[materialanfrage]]).",
+            "Status: <b>FEHLER: Naht auf … gefordert, Lieferstange hat sie auf der …</b>, wenn eine im Angebot "
+            "eingetragene Naht der Lieferstange nicht zur Seite der Position passt; <b>FEHLER: Nahtwinkel fehlt</b> "
+            "bei fester Position ohne Winkel. Ohne Eintrag gibt es keinen Hinweis. Die Schweißnaht steht nicht in "
+            "STEP-Dateien und wird nie automatisch erkannt.",
+            "<b>Stangenwechsel SN</b>: jede Stange, auf der mindestens ein Teil die Nahtvorgabe <i>feste Position</i> "
+            "hat, rechnet mit dem <i>Stangenwechsel SN</i> der Maschine (Vorgabe 29 s, die Naht wird ausgerichtet), "
+            "alle anderen Stangen mit dem normalen <i>Stangenwechsel</i> (Vorgabe 24 s). Beide Zeiten stehen je "
+            "Maschine in den Stammdaten ([[stammdaten]]); der Reiter Zeiten zeigt die Aufteilung, z. B. "
+            "„3 × 24 s + 2 × 29 s (SN)“ ([[zeiten]]).")
     i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
            "zurück, <b>Strg+Y</b> stellt sie wieder her. Das gilt für jede Änderung: Eingaben in Positionen und Kopf, "
@@ -985,8 +1003,13 @@ def kapitel_step(i):
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
     i.liste("Im Angebot auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
-            "Umschalt). Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> in das "
-            "Angebotsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
+            "Umschalt). Der Dateidialog startet im Ordner aus der Einstellung <i>STEP-Import: Standardordner</i>; "
+            "ist dort keiner eingetragen, im zuletzt benutzten STEP-Ordner.",
+            "Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> auf das gestrichelte "
+            "Feld <b>STEP-Dateien hierher ziehen</b> neben dem Knopf ziehen (es geht auch irgendwo sonst ins "
+            "Angebotsfenster; beim Ziehen färbt sich das Feld blau). Ein leeres Angebot zeigt statt der leeren "
+            "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog wie "
+            "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien wechseln "
             "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
@@ -1003,8 +1026,10 @@ def kapitel_step(i):
     i.abschnitt("Rohrliste prüfen")
     i.liste("Jede Zeile ist ein Teil. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
             "<b>In Datei</b> zeigt, wie oft es in der Datei vorkommt.",
-            "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart. Bei Flachstahl/Blech und Profil/Kantteil ist sie "
-            "eine Auswahl (siehe Bleche beim STEP-Import).",
+            "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart und ist bei jeder Zeile eine Auswahl. Bei "
+            "Flachstahl/Blech und Profil/Kantteil steht dort zuerst die andere Messung (siehe Bleche beim "
+            "STEP-Import). Bei Rohren und Profilen kann jede andere Profilform gewählt werden: Die Messwerte bleiben, "
+            "Profil-ID zeigt dann die Profile dieser Form, der Hinweis nennt die gemessene Form.",
             "Die Teile sind nach gemessenem Profil gruppiert. Eine rote Gruppenzeile heißt: dieses Profil steht nicht in "
             "den Stammdaten (beim Übernehmen fragt das Programm, ob es angelegt werden soll).",
             "<b>Häkchen</b> vor dem Teil: übernehmen ja/nein. Abgewählte Teile stehen nur im STEP-Protokoll.",
@@ -1019,7 +1044,24 @@ def kapitel_step(i):
             "für alle Teile aller Dateien, die Stückzahl nur für Teile ohne Satz), oder Zeilen der gezeigten Datei "
             "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
-            "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i> mit dem Grund.")
+            "<b>3D-Schnittbearbeitung aktivieren</b> (seit 0.8.19, unter <i>Werte setzen</i>, gilt für alle Teile): "
+            "Gehrungen an den Enden und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
+            "übernommen, die Bohrungen mit gemessener Neigung längs und quer. Daneben steht, wie viele Gehrungen und "
+            "schrägen Bohrungen gefunden wurden. Ohne Häkchen bleibt alles 2D; Teile mit schrägen Bohrungen bekommen "
+            "im Bericht „3D prüfen“. Fasen werden nie in 3D gerechnet. Über der Grenze der Maschine wird begrenzt "
+            "(WARNUNG im Status). Ändern je Teil im Schneidweg-Rechner ([[schneidweg_rechner]]); bei Rundrohren ist "
+            "die gemessene Querneigung auf etwa ±1,5° genau.",
+            "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
+            "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
+            "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
+            "alle. So sieht man, welches Teil fehlt und wo es sitzt.",
+            "<b>Von Hand nachtragen</b>: Unter jedem nicht übernehmbaren Teil steht die Zeile <i>Von Hand "
+            "nachtragen</i>. Profilform wählen, bei Profil-ID ein Profil der Stammdaten wählen oder eine neue ID "
+            "eintippen (z. B. QR 40x40x3, die Maße kommen dann aus dem Namen) und <b>Nachtragen</b> klicken. Das Teil "
+            "wandert in die Profilgruppe: Länge = größtes Hüllmaß, zwei gerade Enden, keine Konturen, Prüfstatus "
+            "<i>prüfen</i>, angehakt. Gleiche nicht übernehmbare Körper der Datei (gleiches Hüllmaß) werden mit "
+            "nachgetragen. Bohrungen und Ausschnitte danach im Schneidweg-Rechner ergänzen. In der Spalte Art macht "
+            "<i>Nachtrag zurücknehmen</i> das rückgängig.")
     i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
            hoehe=100 * mm, legende=[
                (1, "Pfeil-Knöpfe links/rechts: zwischen den STEP-Dateien wechseln; daneben Nummer und Name der Datei."),
@@ -1028,11 +1070,13 @@ def kapitel_step(i):
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
         (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
             "Gewinde-Vorschlag.")])
-    i.hinweis("Gewinde, Senkungen und Fließlochbohrungen werden nur vorgeschlagen (Status HINWEIS: Bohrungen prüfen "
-              "(Doppelklick)). Gerechnet wird ein Gewinde erst, wenn es im Fenster <b>Bohrungen prüfen</b> bestätigt "
-              "ist ([[bohrungen_pruefen]]).")
-    i.abschnitt("Bohrungen prüfen: Gewinde, Senkungen, Flowdrill", marke="bohrungen_pruefen")
-    i.text("Der STEP-Import erkennt drei Arten von Bohrungen, die nach der Zeichnung geprüft werden müssen:")
+    i.hinweis("Gewinde, Senkungen, Fließlochbohrungen und Bohrungen kleiner als 0,7 × Wandstärke werden nur "
+              "vorgeschlagen (Status HINWEIS: Bohrungen prüfen (Doppelklick)). Gerechnet werden Gewinde und die "
+              "Arbeitsschritte Senken, Flowdrill und Bohren erst, wenn sie im Fenster <b>Bohrungen prüfen</b> "
+              "bestätigt sind ([[bohrungen_pruefen]]).")
+    i.abschnitt("Bohrungen prüfen: Gewinde, Senken, Flowdrill, Bohren", marke="bohrungen_pruefen")
+    i.text("Der STEP-Import und der Schneidweg-Rechner erkennen vier Arten von Bohrungen, die nach der Zeichnung "
+           "geprüft werden müssen:")
     i.liste("<b>Bohrung mit Gewinde-Vorschlag</b>: der Ø passt zum Kernloch eines Gewindes der Stammdaten "
             "(z. B. Ø 5 → M6). Der Laser schneidet die Bohrung; das Gewinde wird erst nach dem Bestätigen gerechnet.",
             "<b>Senkung</b>: Bohrung mit Kegel (z. B. Ø 6,6 / 12,4). Der Laser schneidet die Bohrung Ø 6,6, die "
@@ -1042,19 +1086,34 @@ def kapitel_step(i):
             "Auswahl eine <i>Gravur Ø0,5</i> oder ein <i>Loch Ø0,5</i> (Schneidweg und Einstich). Die Vorgabe steht in "
             "der Einstellung <i>STEP-Import: Flowdrill-Bohrung am Laser</i>. Das Gewinde wird nach dem "
             "Kernloch fürs Gewindeformen vorgeschlagen (z. B. Ø 7,3 → M8). <b>Ablehnen</b> heißt: es ist eine "
-            "normale Bohrung, die der Laser schneidet.")
+            "normale Bohrung, die der Laser schneidet.",
+            "<b>Bohren</b>: Bohrung kleiner als 0,7 × Wandstärke (z. B. Ø 5 in 8 mm Wand, Grenze 5,6 mm), die der "
+            "Laser kaum sauber schneidet ([[konturklassen]]). <b>Bestätigen</b> heißt: der Laser markiert nur "
+            "(Gravur Ø0,5 oder Loch Ø0,5 wie beim Flowdrill, die Bohrung fällt aus Schneidweg und Konturliste), "
+            "danach wird aufgebohrt. <b>Ablehnen</b> heißt: der Laser schneidet die Bohrung trotzdem, die Warnung "
+            "<i>Kontur kleiner als 0,7 × Wandstärke</i> entfällt. Die Markierung Ø0,5 selbst wird nie vorgeschlagen.")
+    i.text("<b>Arbeitsschritte als Zusatzarbeit:</b> Bestätigte Senkungen, Flowdrill und Bohren trägt "
+           "<b>Übernehmen</b> als Zusatzarbeit <i>Senken</i>, <i>Flowdrill</i> bzw. <i>Bohren</i> mit der Anzahl je "
+           "Teil in die Position ein (Spalte <i>Zusatzarbeiten</i>, Preisstand der Stammdaten, "
+           "[[zusatzarbeiten_angebot]]). Offene und abgelehnte Zeilen tragen nichts ein; wird eine Zeile später "
+           "abgelehnt, fällt die Zusatzarbeit wieder weg. Steht dieselbe Zusatzarbeit schon von Hand in der Position, "
+           "bekommt sie nur die neue Anzahl. Die drei Zusatzarbeiten legt das Programm einmalig mit Beispielzeiten "
+           "an (je Stück 0,5 min, Flowdrill 0,75 min, Stundensatz Nachbearbeitung); Zeit und Preis in "
+           "Einstellungen › Zusatzarbeiten anpassen ([[zusatzarbeiten_verwalten]]). Fehlt eine davon in den "
+           "Stammdaten, meldet das Fenster es rot.")
     i.text("Positionen mit offenen Bohrungen zeigen den Status <b>HINWEIS: Bohrungen prüfen (Doppelklick)</b>. Ein "
            "<b>Doppelklick</b> auf den Status, die Spalte <i>Gewinde geprüft</i>, <i>Bohrungen</i> oder "
            "<i>Gewinde-Vorschlag</i> öffnet das Fenster (auch Rechtsklick, <i>Bohrungen prüfen …</i>). Je Zeile "
            "<b>Bestätigen</b> oder <b>Ablehnen</b>; <b>Übernehmen</b> ändert Schneidweg, Einstiche, Gravur, "
-           "Konturklassen und <i>Gewinde geprüft</i> der Position. Das Fenster lässt sich jederzeit wieder öffnen "
+           "Konturklassen, <i>Gewinde geprüft</i> und die Zusatzarbeiten der Position. Das Fenster lässt sich jederzeit wieder öffnen "
            "und die Wahl ändern.")
     i.bild("bohrbild_dialog", "Fenster Bohrungen prüfen: Senkung und Flowdrill eines Rechteckrohrs", hoehe=70 * mm,
            legende=[
                (1, "Je Zeile Art, Ø, Anzahl je Teil, Gewinde (änderbar), was der Laser macht und Bestätigen/Ablehnen."),
                (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
                (3, "Gewinde ohne Zeile (z. B. aus der Zeichnung) von Hand ergänzen, z. B. <i>2xM10</i>."),
-               (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher.")])
+               (4, "Auswirkung je Teil: Schneidweg, Gravur, Einstiche und Gewinde vorher → nachher, dazu die "
+                   "Zusatzarbeiten (z. B. 2× Senken, 4× Bohren).")])
     i.bild("step_protokoll", "Reiter STEP-Protokoll: alle Messwerte je Datei und Körper; Doppelklick auf eine Zeile "
            "springt zur Position", hoehe=80 * mm)
     i.bild("step_optimiert", "Aus STEP übernommene Positionen nach dem Optimieren: Schneidweg, Einstiche und "
@@ -1086,12 +1145,16 @@ def kapitel_step(i):
     i.liste("<b>Dicke</b> = Abstand der beiden Hauptflächen. Sie stimmt auch, wenn das Blech im Modell gedreht "
             "oder schräg liegt (nicht einfach die kleinste Kante des Hüllquaders).",
             "<b>Länge und Breite</b> = kleinstes Rechteck, das die Außenkontur umschließt. Die Kontur heißt "
-            "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen Anzahl der Innenkonturen und die "
-            "Bohrungen je Durchmesser.",
-            "<b>Flachstahl oder Blech</b>: Ein flaches Teil ist Flachstahl, wenn es höchstens so breit ist wie in "
-            "der Einstellung <i>STEP-Import: Flachstahl bis Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang "
-            "wie breit ist und gerade Längsseiten hat. Die Enden dürfen schräg oder ausgeklinkt sein. Flachstahl wird "
-            "wie bisher übernommen und kalkuliert. Alles andere Flache ist ein Blech.",
+            "<i>rechteckig</i> oder <i>frei</i> (z. B. schräge Ecke). Dazu kommen die Innenkonturen mit Art "
+            "(Bohrung, Langloch, Rechteck, sonst Polygon), Maßen und <b>Lage</b> (Mitte x längs ab der linken, y "
+            "quer ab der unteren Kante des Zuschnitts) und bei freier Kontur ihre Eckpunkte.",
+            "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
+            "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech). "
+            "Flachstahl ist in der Spalte <b>Art</b> bei jedem flachen Teil wählbar und wird dann wie ein Rohr "
+            "übernommen und kalkuliert. Steht die Einstellung auf <i>Flachstahl bis Breite</i>, gilt die alte "
+            "Abgrenzung: Flachstahl, wenn das Teil höchstens so breit ist wie in <i>STEP-Import: Flachstahl bis "
+            "Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang wie breit ist und gerade Längsseiten hat; alles "
+            "andere Flache ist ein Blech.",
             "<b>Gekantete Bleche</b> (gleich dicke Schenkel mit Biegeradien) heißen <i>Blech gekantet</i>, immer mit "
             "Prüfstatus <i>prüfen</i>. Der Hinweis nennt die Außenmaße und die ungefähre Abwicklungsfläche ohne "
             "Biegefaktor. Ein Kantteil mit gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder "
@@ -1122,8 +1185,9 @@ def kapitel_step(i):
             "der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm (Werkstoff offen)</i>, die Position hat kein Gewicht "
             "und der EK fehlt.",
             "Jedes übernommene Blech trägt seine Maße als Eingaben des Blech-Editors: Zuschnitt (Hüllrechteck, "
-            "gekantet mit der Abwicklungsfläche), Bohrungen je Durchmesser und die übrigen Innenkonturen als "
-            "sonstige Kontur. <b>Doppelklick aufs Bild</b> vor der Artikelnummer öffnet den Blech-Editor (dort z. B. "
+            "freie Außenkontur als Polygon, gekantet mit der Abwicklungsfläche) und jede Innenkontur als eigene "
+            "Zeile an ihrer Stelle (Mitte x/y), so wie sie im Modell sitzt; Skizze und Vorschaubild zeigen das Teil "
+            "wie in der STEP-Datei. Gekantete Bleche haben noch keine Konturen mit Lage. <b>Doppelklick aufs Bild</b> vor der Artikelnummer öffnet den Blech-Editor (dort z. B. "
             "ein gekantetes Teil als Kantteil mit Schenkeln nachtragen), Doppelklick auf die Nummer die 3D-Ansicht.",
             "Bleche mit Prüfstatus <i>prüfen</i> (z. B. gekantete) sind nicht angehakt und werden erst nach "
             "Anhaken übernommen. Ein Blech, dessen Artikelnummer schon im Angebot steht, wird übersprungen; ein "
@@ -1202,6 +1266,12 @@ def kapitel_optimieren(i):
     i.liste("Je Profil + Werkstoff + Oberfläche + Stangenlänge getrennt, ohne Vermischung.",
             "Belegung einer Stange = Endbeschnitt + Teile + Trennschnitte + Schnittverlust des letzten Schnitts; "
             "der Greiferrest muss frei bleiben.",
+            "<b>3D-Greifmaß</b>: hat das letzte Teil einer Stange eine 3D-Bearbeitung nahe seinem Ende B, muss sie "
+            "mindestens das Greifmaß der Maschine (Vorgabe 300 mm) vom Stangenende entfernt sein. Hinter dem Teil "
+            "bleibt dann statt des Greiferrests Greifmaß − Abstand der Bearbeitung vom Ende B frei (Gehrung in 3D an "
+            "Ende B: das volle Greifmaß), nur wenn das mehr ist als der Greiferrest; beides zusammen wird nie "
+            "abgezogen. Die Optimierung legt dafür nach Möglichkeit ein Teil ohne 3D ans Ende. Beispiel: 6.000 mm, "
+            "Greiferrest 142 mm, 3D-Gehrung am Ende B des letzten Teils: nutzbar bis 5.700 statt 5.858 mm.",
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
             "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Dafür wird die "
             "Reihenfolge der Teile gewählt; gewendet (Ende B nach vorn) wird ein Teil nie.",
@@ -1212,7 +1282,11 @@ def kapitel_optimieren(i):
             "verschiedenen Winkeln (z. B. 45° neben 20°), es spart dann weniger. Teile mit fester oder unbekannter "
             "Schweißnaht ([[schweissnaht]]) werden nicht frei gedreht; Teile mit fester Naht auf der Breitseite und "
             "auf der Schmalseite eines Rechteckrohrs kommen nie auf dieselbe Stange. Im Schnittplan steht dann "
-            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>).",
+            "<i>Gehrung ineinander</i> und die Lage (<i>normal</i> oder <i>gedreht 180°</i>). Steht im "
+            "Schneidweg-Rechner die längste Seite auf <i>automatisch</i> (Vorgabe), nimmt das Programm sie aus "
+            "<i>gekippt über</i> an und die Optimierung legt frei drehbare Teile (Schweißnaht ohne Vorgabe) "
+            "ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
+            "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>).",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
             "besten Schnittmuster je Stange und die Kombination mit den wenigsten Stangen. Sie liefert zugleich eine "
@@ -1255,19 +1329,34 @@ def kapitel_optimieren(i):
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
             "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
             "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
-            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i> und <i>davon Einstiche</i> "
-            "zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
+            "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i>, <i>davon Einstiche</i> "
+            "und <i>davon Mehrzeit 3D</i> zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
+            "<b>3D-Bearbeitung</b> (nur Teile mit Häkchen <i>3D-Schnittbearbeitung</i> auf einer Maschine mit "
+            "<i>3D: Bearbeitung verfügbar = ja</i>): Gehrungen in 3D und schräge Bohrungen rechnen mit den "
+            "Schneiddaten der wirksamen Dicke Wand ÷ cos(Winkel), z. B. 3 mm Wand bei 30° wie 3,46 mm, bei 45° wie "
+            "4,24 mm, × <i>3D: Faktor Schneidzeit</i> + <i>3D: Zusatzzeit je Bearbeitung</i>. <i>davon Mehrzeit 3D</i> "
+            "ist der Unterschied zu demselben Weg in 2D, <i>3D-Bearbeitung je Teil</i> die ganze 3D-Zeit. Winkel über "
+            "der Grenze der Maschine (Vorgabe ±45°) werden auf die Grenze begrenzt und so gerechnet, die Position "
+            "bekommt die WARNUNG <i>3D-Winkel begrenzt, Kontur nicht maßhaltig</i>. 3D auf einer Maschine ohne 3D ist "
+            "ein FEHLER, es wird nichts stillschweigend als 2D gerechnet.",
             "<b>Gewinde</b>: Anzahl × Preis je Gewinde (Stammdaten); ohne Preis Anzahl × Zeit mit dem Stundensatz "
             "des Arbeitsschritts Gewinde.",
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
             "dem Zuschlag Fremdleistung.",
             "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
-            "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt, je mit dem Stundensatz ihres "
-            "Arbeitsschritts.",
+            "Stangenwechsel je Stange (Stangen mit fester Schweißnaht-Lage mit dem Stangenwechsel SN), gleichmäßig "
+            "auf alle Teile verteilt, je mit dem Stundensatz ihres Arbeitsschritts.",
             "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten ([[stundensaetze]]) × Stundensatz, auf die "
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
-            "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
-            "den Preis. Die Programmierkosten fallen einmal je Position an, egal wie viele Stück.",
+            "<b>Programmierkosten</b>: Programmierzeit der Position × Stundensatz <i>Programmierung</i> "
+            "([[stundensaetze]]), einmal je Position mit Stückzahl, egal wie viele Stück, ohne Zuschläge und Gewinn "
+            "auf den Preis (Spalten <i>Programmierzeit [min]</i> und <i>Programmierung je Teil</i>). Die Zeit ist "
+            "<i>Programmierzeit je Position</i> + <i>Programmierzeit je Innenkontur</i> × Anzahl Innenkonturen "
+            "(klein + mittel + groß aus STEP-Import oder Schneidweg-Rechner), oder von Hand in der Spalte "
+            "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.22 verschickt und damit "
+            "festgeschrieben wurden ([[preise_festschreiben]]), rechnen weiter mit ihrem Betrag je Position "
+            "(<i>Programmierkosten je Position (alt) [€]</i>, auch in einer Staffel-Stufe).",
+            "<b>Pauschale je Abmessung, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf den Preis.",
             "<b>Zukaufteile</b>: Einstand und Aufschlag der Zukaufteile der Position ([[zukauf_angebot]]), nach dem "
             "Gewinn und ohne Zuschläge (Spalte <i>Zukaufteile je Teil</i>).",
             "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis ohne Skonto "
@@ -1310,9 +1399,12 @@ def kapitel_optimieren(i):
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck, Naht unten; Skizze vergrößert auf die erste Hälfte",
            hoehe=125 * mm, legende=[
-               (1, "<b>Enden</b>: Gehrungswinkel, gekippt über, längste Seite, beim Rundrohr Ausklinkung; rechts der "
-                   "gemessene Wert aus dem STEP-Import."),
-               (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer."),
+               (1, "<b>Enden</b>: Gehrungswinkel, gekippt über, längste Seite (Vorgabe <i>automatisch</i>: aus "
+                   "<i>gekippt über</i> angenommen, die Skizze zeigt sie, die Optimierung dreht das Teil passend; von "
+                   "Hand nur bei fester Lage), beim Rundrohr Ausklinkung; rechts der gemessene Wert aus dem "
+                   "STEP-Import."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl, Maße, Lage ab Ende A, Abstand Muster, Seite, Versatz quer, "
+                   "3D mit Neigung längs und quer."),
                (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; Kopieren, Vorlagen, Entfernen daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
                (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Hinweise und Fehler in Farbe."),
@@ -1332,15 +1424,17 @@ def kapitel_optimieren(i):
             "<b>Richtung der Gehrung</b> (Rund-, Quadrat- und Rechteckrohr): an welcher Seite das Teil an diesem "
             "Ende am längsten ist, z. B. <i>länger oben (0°)</i> oder <i>länger rechts (90°)</i>, gesehen von Ende A "
             "wie bei der Schweißnaht ([[schweissnaht]]), Rechteckrohr mit der Breitseite oben. Damit kann die "
-            "Optimierung Gehrungen benachbarter Teile ineinanderlegen; <i>nicht angegeben</i> = das Ende bleibt "
-            "wie bisher getrennt. Beim Rechteckrohr muss die Richtung zur Gehrungsachse passen (0°/180° kippt über "
+            "Optimierung Gehrungen benachbarter Teile ineinanderlegen. <i>Nicht angegeben</i>: frei drehbare Teile "
+            "(Schweißnaht ohne Vorgabe) legt die Optimierung mit angenommener Richtung trotzdem ineinander, Teile mit "
+            "Nahtvorgabe bleiben getrennt; der Dialog weist darauf hin. Für richtige Drehangaben in den "
+            "Werkstattpapieren die Richtung eintragen. Beim Rechteckrohr muss die Richtung zur Gehrungsachse passen (0°/180° kippt über "
             "die kürzere Seite, 90°/270° über die längere), sonst meldet der Dialog einen Fehler.",
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Senkung</i> (Bohrung Ø d und "
-            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; der Dialog erinnert daran, das Senken als Zusatzarbeit "
-            "zu erfassen, [[zusatzarbeiten_angebot]]), <i>Langloch</i> (Länge, Breite: "
+            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; das Senken wird wie Gewinde und Bohren (Bohrung "
+            "kleiner als 0,7 × Wand) im Fenster Bohrungen prüfen vorgeschlagen, [[bohrungen_pruefen]]), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
             "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Ausklinkung</i> am Ende als Rechteck "
             "(Länge ab Ende, Breite, Eckradius innen: 2 × (l − r) + (b − 2 r) + π × r; ohne Lage an Ende A, für "
@@ -1367,6 +1461,19 @@ def kapitel_optimieren(i):
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
             "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
+            "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): Das Häkchen <i>3D-Schnittbearbeitung "
+            "aktivieren</i> über den Enden schaltet sie für das Teil ein; daneben steht, ob die Maschine 3D kann, "
+            "ihr Schwenkwinkel und das Greifmaß (rot, wenn die Maschine kein 3D kann, die Position bekommt dann einen "
+            "FEHLER). Danach je Ende <i>Gehrung in 3D</i> (nur mit Gehrung: der Kopf wird auf den Gehrungswinkel "
+            "geschwenkt, die Schnittfläche ist eben durch die Wand) und je Bohrung die Spalte <i>3D</i> mit "
+            "<i>Neigung längs</i> (+ Richtung Ende B) und <i>Neigung quer</i> (+ im Uhrzeigersinn von Ende A, "
+            "Richtung 90°), Schnellauswahl −45°, −30°, 0°, +30°, +45° oder eine Zahl. Die Neigung ist der Winkel "
+            "der Bohrungsachse gegen die Wand, nicht der Umfangswinkel (der steht in <i>Seite</i>). Die Bohrung "
+            "wird als Ellipse gerechnet (Hüllmaß d / cos Gesamtneigung) und in der Skizze so gezeichnet, mit "
+            "<i>3D</i> und den Winkeln. Über der Grenze der Maschine (Vorgabe ±45°) wird der Winkel begrenzt, der "
+            "Dialog zeigt den Hinweis, die Position bekommt „WARNUNG: 3D-Winkel begrenzt, Kontur nicht "
+            "maßhaltig“. Fasen werden nicht in 3D gerechnet. Ohne Häkchen am Teil bleibt alles 2D, auch wenn "
+            "Zeilen <i>3D</i> haben. Zeit und Greifmaß: [[kalkulation]], [[optimieren]].",
             "<b>Skizze</b> (maßstäblich, gleicher Maßstab in Länge und Höhe): <i>Draufsicht und Seitenansicht</i> "
             "(Blick von oben und auf die Fläche vorne) oder <i>Abwicklung</i> (alle Flächen als Streifen, beim "
             "Rundrohr der Umfang in Vierteln). Gehrungen erscheinen mit ihrer Richtung, die sichtbare Schnittfläche "
@@ -1394,8 +1501,11 @@ def kapitel_optimieren(i):
             "<i>gemessen … mm</i>). Ändert man Art oder Maße einer Zeile bzw. Winkel, Achse oder Richtung eines "
             "Endes, rechnet sie mit den Formeln. Nicht erkannte Ausschnitte erscheinen als <i>sonstige Kontur</i> "
             "mit gemessener Länge und Hüllmaß; Merkmale nur auf der Innenseite fehlen (nicht im Schneidweg). Bei "
-            "offenen Profilen und Blechen kennt die Messung die Fläche nicht, die Konturen liegen dann auf der "
-            "ersten Fläche.",
+            "offenen Profilen (U-, C-, L-, T-Profil, Träger, Flachstahl) legt der Import jede Kontur auf ihre Fläche "
+            "(Steg, Flansch oben/unten, Schenkel a/b) mit Versatz quer; ein L-Profil, das von Ende A gesehen "
+            "spiegelverkehrt liegt, erscheint wie in der Skizze (Fläche und Abstand von der Ecke stimmen). Bei Quadrat- und Rechteckrohren mit Eckradius wird der <i>Versatz quer</i> aus dem "
+            "Umfangswinkel gemessen und sitzt genau; vor 0.8.23 importierte Teile lagen bis zu einigen mm daneben "
+            "und werden mit <b>STEP neu einlesen …</b> korrigiert.",
             "<b>Ältere STEP-Positionen</b> (vor 0.6.29 importiert): Der Rechner zeigt die gespeicherten Werte der "
             "Position: Enden mit gemessener Länge und Gehrung, Gravur, Bohrungen (Länge = π × Ø) und übrige Konturen "
             "mit Größe und Schnittlänge. Ihre Lage ist nicht gespeichert, sie stehen in der Skizze verteilt, ein "
@@ -1443,7 +1553,9 @@ def kapitel_optimieren(i):
             "Eine Innenkontur ab 0,7 × Wandstärke ist in der Regel schneidbar. Ist sie <b>kleiner als 0,7 × "
             "Wandstärke</b> (z. B. Bohrung Ø 5 in 8 mm Wand, Grenze 5,6 mm), zeigt die Position die Warnung "
             "<i>Kontur kleiner als 0,7 × Wandstärke, Schneidbarkeit prüfen (ggf. nur gravieren und aufbohren)</i>: "
-            "dann die Kontur ggf. nur gravieren und das Loch anschließend aufbohren. Gerechnet wird weiter.")
+            "dann die Kontur ggf. nur gravieren und das Loch anschließend aufbohren. Gerechnet wird weiter. Für "
+            "Bohrungen schlägt das Fenster Bohrungen prüfen dafür den Arbeitsschritt <i>Bohren</i> vor "
+            "([[bohrungen_pruefen]]).")
     i.text("Die Liste aller Konturen steht in der Position (Spalte <i>Konturen Hüllmaß x Schnittweg [mm]</i>), die "
            "Regel, mit der sie eingeteilt wurde, in der Spalte <i>Konturgrenzen</i> (z. B. <i>10/50; 3×/8× Wand "
            "4</i>). Wird im Angebotskopf eine andere Maschine oder in der Position ein anderes Profil gewählt oder "
@@ -1480,7 +1592,8 @@ def kapitel_optimieren(i):
     i.bild("erg_schnittplan", "Reiter Schnittplan, Stange 3 gewählt", hoehe=85 * mm)
     i.abschnitt("Stangenbild")
     i.text("Jede Stange als maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Positionsnummer und Länge, "
-           "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot. Gleich belegte Stangen stehen einmal da "
+           "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot (mit <i>3D</i> beschriftet, wenn dort das größere "
+           "3D-Greifmaß frei bleibt). Gleich belegte Stangen stehen einmal da "
            "(<i>2 × Stange 1, 2</i>). Schräge Enden mit bekannter Richtung erscheinen als schräge Linie, "
            "ineinanderliegende Gehrungen also als verzahnte Trapeze. Gezeigt wird die Ansicht von der Seite (0° "
            "oben); sind die Gehrungen über die Seitenflächen geschnitten, die Ansicht von oben (Hinweis "
@@ -1519,7 +1632,10 @@ def kapitel_optimieren(i):
            "erscheint im Reiter <i>Auswertung</i> unten der Knopf <b>12-m-Lösung ansehen …</b> mit einem Kurztext; er "
            "öffnet den Vergleich <b>Lieferlängen: 6 m gegen 12 m</b> groß in einem eigenen Fenster. Ohne Eintrag gilt das für Profile mit "
            "Hüllkreis-Ø über 70 mm (Einstellung). Kleinere Profile ohne Eintrag und Profile mit "
-           "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant.")
+           "<i>Lieferlängen vergleichen = nein</i> werden nie mit 12 m geplant. <b>Verglichen wird nur, wenn es in den "
+           "Einstellungen (Gruppe Lieferlängen) eingeschaltet ist</b>: <i>beim Optimieren andere Lieferlängen "
+           "vergleichen</i> = ja. Vorgabe ist <i>nein</i>, weil der Vergleich bei großen Gruppen Zeit kostet; "
+           "dann wird nur mit der Stangenlänge des Angebots geplant, außer sie ist für ein Profil nicht lieferbar.")
     i.liste("<b>Die Maschine lädt nie eine 12-m-Stange.</b> Ist eine Lieferlänge länger als die <i>Max. "
             "Stangenlänge</i> der Maschine (Beladelänge, T03: 6.500 mm), schneidet der Lieferant jede Stange in "
             "Werkstücke, die einzeln geladen werden, z. B. 3 × 4.000 mm, 2 × 6.000 mm oder 6.500 + 5.497 mm. Kein "
@@ -2063,7 +2179,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Maschinenzeit, Stangen, Teile), darunter die Kostenarten (ohne 0,00 €, Herstellkosten und Verkaufspreis "
             "hervorgehoben), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die interne Ablage und "
             "die Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
-        (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
+        (4, "<b>Materialanfrage (E-Mail)</b>: Stangenbedarf beim Lieferanten anfragen ([[materialanfrage]])."),
+        (5, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
@@ -2114,16 +2231,18 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zukaufartikel, Stückzahl und Kästchen <i>bereit</i>.")
     i.abschnitt("Kalkulation (PDF)")
     i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
-    i.abschnitt("Material per Outlook anfragen", marke="materialanfrage")
-    i.text("<i>Weitere Aktionen → Material per Outlook anfragen …</i> bereitet eine Anfrage an den Lieferanten vor. "
-           "Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst <b>Optimieren</b>.")
+    i.abschnitt("Materialanfrage per E-Mail", marke="materialanfrage")
+    i.text("Der Knopf <b>Materialanfrage (E-Mail)</b> rechts neben den Ausgaben im Angebot (immer sichtbar) bereitet "
+           "eine Anfrage an den Lieferanten vor. Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst "
+           "<b>Optimieren</b>.")
     i.bild("materialanfrage", "Materialanfrage an einen Lieferanten", hoehe=120 * mm,
            legende=[(1, "<b>Anfrage an Lieferant</b>: Lieferanten aus <i>Lieferlängen</i> bzw. <i>Preise</i> (Spalte "
                         "Lieferant); die E-Mail-Adresse kommt aus den Lieferanten der Zukaufartikel."),
                     (2, "Bedarf je Profil, Werkstoff, Oberfläche und Lieferlänge mit Anzahl Stangen (änderbar) und "
                         "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde. "
                         "Spalte <b>Zuschnitt</b>: nur bei Stangen, die der Lieferant nach der Planung zuschneidet "
-                        "(z. B. 12 m); Häkchen = Zuschnitt mit anfragen."),
+                        "(z. B. 12 m); Häkchen = Zuschnitt mit anfragen. Spalte <b>Schweißnaht</b>: nur bei "
+                        "Rechteckrohr mit Teilen fester Naht, Seite der Naht der Lieferstange (änderbar)."),
                     (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Betreff und Text kommen aus den Vorlagen "
                         "in den Einstellungen; der Text wird bei jeder Änderung der Zeilen neu erstellt, bis er von "
                         "Hand geändert wurde. Darunter steht, woher die Signatur kommt."),
@@ -2146,6 +2265,11 @@ def kapitel_ausgabe(i, seiten, ablage):
            "(mit Puffer, siehe Einstellungen <i>Lieferlängen</i>). Ohne Häkchen in der Spalte Zuschnitt wird nur die "
            "ganze Stange angefragt. Wird die Anzahl Stangen von Hand geändert, bleibt der Zuschnitt der Planung "
            "stehen; dann den Text prüfen.")
+    i.text("<b>Schweißnaht der Lieferstange.</b> Hat eine Gruppe Rechteckrohr Teile mit fester Schweißnaht "
+           "([[schweissnaht]]), steht unter der Materialzeile z. B. <i>Schweißnaht auf der Breitseite</i>. "
+           "Vorgabe ist die Seite aus dem Angebot bzw. aus den Teilen; in der Spalte <b>Schweißnaht</b> geändert, "
+           "gilt die neue Seite auch im Angebot (Profil und Werkstoff). Quadrat- und Rundrohr bekommen keine Angabe, "
+           "dort passt jede Seite.")
     i.text("<b>Anforderungen je Werkstoff.</b> In den Stammdaten <i>Werkstoffe</i> lassen sich je Werkstoff "
            "<i>Anfrage: Prüfbescheinigung</i> (2.2, 3.1 oder 3.2 nach EN 10204), <i>Anfrage: Herkunft EU</i> und "
            "<i>Anfrage: Maßtoleranzen nach Norm</i> ankreuzen. Sie stehen eingerückt unter jeder Materialzeile "
@@ -2226,9 +2350,10 @@ def kapitel_einstellungen(i):
          "die danach ins Angebot kommen."],
         ["Kalkulation", "Rüstzeit je Abmessung [min]",
          "je verschiedenem Profil im Angebot, über den Stundensatz der Maschine mit Zuschlägen gerechnet"],
-        ["Kalkulation", "Programmierkosten je Teil (Position) [€]",
-         "einmal je Position mit Stückzahl (Vorgabe 8,50 €), auf deren Stückzahl verteilt, ohne Zuschläge auf den "
-         "Preis; bei Staffelpreisen je Mengenstufe"],
+        ["Kalkulation", "Programmierzeit je Position [min], Programmierzeit je Innenkontur [min]",
+         "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
+         "<i>Programmierung</i>, auf deren Stückzahl verteilt, ohne Zuschläge auf den Preis; je Position von Hand "
+         "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
         ["Kalkulation", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]",
@@ -2251,6 +2376,10 @@ def kapitel_einstellungen(i):
          "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
          "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen "
          "([[stammdaten]]) und die Staffeln."],
+        ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
+         "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
+         "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
+         "geplant."],
         ["Lieferlängen", "Lieferlängen: Mindestersparnis je Gruppe in €, Lieferlängen: Mindestersparnis je Gruppe in %",
          "Eine andere Lieferlänge (z. B. 12 m) wird nur empfohlen, wenn sie gegenüber der Stangenlänge des Angebots "
          "mindestens so viel spart, in € und in % (Vorgabe 20 € und 3 %)."],
@@ -2276,13 +2405,21 @@ def kapitel_einstellungen(i):
          "behalten ihre Werte."],
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
                                              "A-2026-0042)."],
+        ["Angebot", "STEP-Import: ebene flache Teile vorgeben als",
+         "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
+         "Spalte Art wählbar. Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
         ["Angebot", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
-         "Grenze zwischen Flachstahl und Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
+         "Nur bei <i>ebene flache Teile vorgeben als: Flachstahl bis Breite</i>. Grenze zwischen Flachstahl und "
+         "Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
          "Flachstahl, wenn es höchstens so breit ist, mindestens dreimal so lang wie breit ist und gerade "
          "Längsseiten hat. Alles andere Flache ist ein Blech ([[bleche]])."],
         ["Angebot", "STEP-Import: Flowdrill-Bohrung am Laser",
          "Was der Laser bei einer erkannten Fließlochbohrung macht: Gravur Ø0,5 (Vorgabe) oder Loch Ø0,5. Im Fenster "
          "Bohrungen prüfen je Zeile änderbar ([[bohrungen_pruefen]])."],
+        ["Angebot", "STEP-Import: Standardordner (leer = zuletzt benutzter Ordner)",
+         "Ordner, in dem der Dateidialog <i>STEP importieren …</i> startet, z. B. das Laufwerk mit den "
+         "Kundenzeichnungen. <b>Ordner wählen …</b> sucht ihn aus, <b>Leeren</b> nimmt ihn heraus; leer (oder der "
+         "Ordner ist nicht erreichbar) = der Dialog startet im zuletzt benutzten STEP-Ordner ([[step]])."],
         ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
@@ -2334,11 +2471,12 @@ def kapitel_einstellungen(i):
         ["<b>Stundensatz [€/h]</b>", "Kosten je Stunde; vorbelegt mit Beispielwerten, bitte eigene eintragen"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Arbeitsschritte", "Bedeutung"], [
-        ["<b>Arbeitsschritt</b>", "Name. Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je Abmessung und "
-                                  "Stangenwechsel rechnet das Programm selbst (Zeit aus Schneiddaten, Gewinde, "
+        ["<b>Arbeitsschritt</b>", "Name. Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je Abmessung, "
+                                  "Stangenwechsel und Programmierung rechnet das Programm selbst (Zeit aus Schneiddaten, Gewinde, "
                                   "Maschine und Vorgaben); dort wird nur der Stundensatz gewählt."],
         ["<b>Stundensatz</b>", "<i>Maschine</i> oder eine Stundensatz-ID. Vorgabe für Gewinde, Rüsten und "
-                               "Stangenwechsel ist Maschine (wie bisher), umstellbar z. B. auf Rüstpersonal."],
+                               "Stangenwechsel ist Maschine (wie bisher), umstellbar z. B. auf Rüstpersonal; "
+                               "Programmierung rechnet mit dem Satz <i>Programmierung</i>."],
         ["<b>Art</b>", "Maschine oder Personal: für Maschinenzeit, Personalzeit und Durchlaufzeit"],
         ["Parallel zur Maschine", "ja = die Personalzeit läuft während die Maschine schneidet (z. B. Entgraten); "
                                   "sie kostet, verlängert aber die Durchlaufzeit nicht"],
@@ -2350,8 +2488,13 @@ def kapitel_einstellungen(i):
            "(Materialbereitstellung, Entgraten / Nachbearbeitung, Qualitätskontrolle, Verpackung, Sonstige "
            "Arbeiten) sind mit Zeit 0 vorbelegt und kosten erst etwas, wenn eine Zeit eingetragen ist. Ihre Kosten "
            "stehen als Kostenart <i>Weitere Arbeitsschritte</i> in der Kalkulation, mit Zuschlag Fertigung.")
-    i.text("Die Programmierung bleibt ein Betrag je Position (<i>Programmierkosten je Teil (Position)</i> unter "
-           "Vorgaben), ohne Zeit. Zusatzarbeiten und Gewinde mit Festpreis werden über ihren Preis gerechnet.")
+    i.text("<b>Programmierung</b> ist ein Arbeitsschritt mit Zeit: je Position mit Stückzahl <i>Programmierzeit je "
+           "Position</i> + <i>Programmierzeit je Innenkontur</i> × Anzahl Innenkonturen (Vorgaben, im Angebot "
+           "änderbar; je Position von Hand in der Spalte <i>Programmierzeit [min]</i>) × Stundensatz "
+           "<i>Programmierung</i> (Vorgabe in der Tabelle Arbeitsschritte, Art Personal, parallel zur Maschine). Im "
+           "Reiter <i>Zeiten &amp; Arbeitskosten</i> steht sie mit Zeit und Stundensatz; die Kosten gehen wie bisher "
+           "ohne Zuschläge und Gewinn in den Preis. Zusatzarbeiten und Gewinde mit Festpreis werden über ihren Preis "
+           "gerechnet.")
     i.text("<b>Snapshot im Angebot</b>: Ein neues Angebot speichert beim Anlegen alle Stundensätze, die "
            "Arbeitsschritte und Stundensatz, Rüstzeit und Stangenwechsel der Maschine. Spätere Änderungen hier "
            "ändern bestehende Angebote nicht; im Angebot holt sie der Knopf <i>Stundensätze aus Einstellungen</i> "
@@ -2472,11 +2615,11 @@ def kapitel_stammdaten(i):
                              "wie <i>IPE 200</i>, <i>HEB 160</i>, <i>UPN 100</i>, <i>T 50</i>, sonst Träger als "
                              "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>)"],
         ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl, "
-                              "I-/H-Träger, T-Profil oder Sonderprofil (Liste in den Einstellungen)"],
+                              "I-/H-Träger, T-Profil, RP-Profil oder Sonderprofil (Liste in den Einstellungen)"],
         ["<b>Abmessung A [mm]</b>, Abmessung B [mm]",
          "Rohre: A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, B = Flansch. "
          "L-Profil: A und B = Schenkel. Flachstahl: A = Breite, B leer. I-/H-Träger und T-Profil: A = Höhe, "
-         "B = Flanschbreite"],
+         "B = Flanschbreite. RP-Profil: A = Breite, B = Höhe, Wandstärke = Blechdicke"],
         ["<b>Wandstärke [mm]</b>", "bestimmt Querschnitt, Gewicht und die Zeile der Schneiddaten; bei offenen "
                                    "Profilen die Blechdicke, bei Flachstahl die Dicke, bei Trägern und T-Profilen die "
                                    "Stegdicke"],
@@ -2499,11 +2642,25 @@ def kapitel_stammdaten(i):
         ["Lieferlängen vergleichen", "leer oder ja = Lieferlängen aus der Tabelle Lieferlängen werden verglichen; "
                                      "nein = das Profil wird nur mit der Stangenlänge des Angebots geplant (z. B. "
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
-        ["Naht der Lieferstange", "nur Rechteckrohr: <i>Breitseite</i> oder <i>Schmalseite</i>, je nachdem wo der "
-                                  "Lieferant die Schweißnaht hat. Damit prüft das Programm Positionen mit fester "
-                                  "Nahtlage ([[schweissnaht]]); leer = Warnung, sobald eine Position eine feste Naht "
-                                  "verlangt"],
         ["Bemerkung", "freier Text"]], [75, 190])
+    i.abschnitt("RP-Profile (Rohre mit Anschlag)", marke="rp_profile")
+    i.text("RP-Profile sind kaltgeformte Stahlrohre mit einem Anschlag aus doppelt umgelegtem Blech (Serien mit "
+           "34, 40, 50, 60 und 80 mm Bautiefe). Ihr Querschnitt hat keine einfachen Maße, deshalb rechnet das "
+           "Programm Fläche, Gewicht, Außenumfang und Schnittlänge aus der <b>Kontur</b> des MegaCAD-Makros.")
+    i.liste("<b>Mitgeliefert</b>: die Bibliothek RP-ROHRE (Serie-34 bis Serie-80 und Zubehör-Rohre, gut 140 "
+            "Profile) steht schon in den Profilen, Profilform <i>RP-Profil</i>, Profil-ID <b>RP</b> + Dateiname "
+            "des Makros, z. B. <i>RP 0106-35</i> (RP-Nummer und Kammerbreite). Ältere Datendateien bekommen sie beim "
+            "ersten Start dazu; vorhandene Zeilen bleiben unverändert.",
+            "<b>RP-Profile aus MegaCAD laden …</b> (über der Tabelle Profile): eine oder mehrere .mac-Dateien "
+            "wählen. Neue Profile werden angelegt, eine vorhandene Zeile mit derselben Profil-ID bekommt Form, Maße, "
+            "Blechdicke und Fläche aus dem Makro. Die Kontur bleibt in der Datendatei gespeichert.",
+            "Nicht übernommen (Meldung unten im Fenster): offene Profile ohne Kammer (Zubehör wie 400180 bis "
+            "400330, kein Rohrlaser-Teil) und Zeichnungen ohne erkennbare Blechdicke (z. B. Befestigungen).",
+            "<b>RP-Querschnitt …</b> zeigt die Kontur der markierten Zeile mit Breite, Höhe, Blechdicke, Fläche, "
+            "Gewicht je Meter, Außenumfang, Schnittlänge und Zahl der Ecken.",
+            "<b>Schnittlänge</b>: Außenumfang ohne die doppelt liegende Blechlage, denn der Anschlag wird mit einem "
+            "Schnitt durch beide Lagen getrennt. Bei Gehrungen rechnet der Schneidweg-Rechner jede Kante mit ihrer "
+            "Richtung zur Gehrungsachse ([[schneidweg_rechner]]). Hüllkreis = Diagonale aus Breite und Höhe.")
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
         ["Kategorie", "Stahl, Edelstahl oder Aluminium (Liste in den Einstellungen). Im Angebot sind die Werkstoffe "
@@ -2560,8 +2717,10 @@ def kapitel_stammdaten(i):
     i.text("Vorbelegt sind die Maschinen T03 (Trumpf, CO₂-Laser), T11 (Trumpf, Faserlaser) und LT7 (Adige, "
            "Faserlaser): Endbeschnitt 10 mm, Schnittverlust 0,2 mm, max. Stangenlänge 6.500 mm, 150 €/h, Konturgrenzen "
            "10 und 50 mm, Abstand getrennte Schnitte 5 mm, Rüstzeit 5 min; Greiferrest 142 mm (LT7 120 mm), "
-           "Stangenwechsel 29 s (LT7 25 s), Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m (LT7 23 kg/m), "
-           "min. Stangenlänge im Zuschnitt 2.500 mm. "
+           "Stangenwechsel 24 s, Stangenwechsel SN 29 s, Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m "
+           "(LT7 23 kg/m), min. Stangenlänge im Zuschnitt 2.500 mm. Ältere Datendateien: T03, T11 und LT7 mit dem "
+           "alten Stangenwechsel (29 bzw. 25 s) bekommen 24 s und SN 29 s, jede andere Maschine nimmt ihren "
+           "Stangenwechsel auch als SN-Zeit. "
            "Standard-Maschine ist T03. Beim Update einer älteren Datendatei werden unveränderte Beispielmaschinen "
            "RL-1 und RL-2 zu T03 und T11 (mit ihren Angeboten), LT7 kommt dazu, unveränderte alte "
            "Beispiel-Schneiddaten werden durch die neuen Richtwerte ersetzt; eigene Werte bleiben, vorher wird eine "
@@ -2586,8 +2745,22 @@ def kapitel_stammdaten(i):
                                              "2.500 mm); keine aus einer Lieferstange zugeschnittene Stange "
                                              "wird kürzer ([[lieferlaengen]]), leer oder 0 = keine Grenze"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
+        ["Stangenwechsel SN je Stange [s]", "Stangenwechsel für Stangen, auf denen ein Teil eine feste "
+                                           "Schweißnaht-Lage hat (Naht ausrichten, Vorgabe 29 s); leer = wie "
+                                           "Stangenwechsel ([[schweissnaht]])"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
+        ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
+                                      "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
+                                      "ist"],
+        ["3D: Schwenkwinkel min. [°], 3D: Schwenkwinkel max. [°]", "Grenzen des Kopfschwenks (Vorgabe −45° und +45°); größere Winkel "
+                                              "werden auf die Grenze begrenzt. Eine Gehrung in 3D braucht beide "
+                                              "Richtungen, dort gilt die kleinere Grenze"],
+        ["3D: Greifmaß [mm]", "Abstand, den eine 3D-Bearbeitung am letzten Teil einer Stange vom Stangenende "
+                              "braucht (Vorgabe 300 mm). Zählt statt des Greiferrests, wenn größer, nie zusätzlich"],
+        ["3D: Zusatzzeit je Bearbeitung [s], 3D: Faktor Schneidzeit",
+         "Zeit je 3D-Bearbeitung (Kopf schwenken, Vorgabe 0 s) und Faktor auf die 3D-Schneidzeit (Vorgabe 1,0); "
+         "erst mit echten Zeiten der Maschine ändern"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
@@ -2673,7 +2846,7 @@ def kapitel_stammdaten(i):
            "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
     i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
            hoehe=100 * mm)
-    i.abschnitt("Zusatzarbeiten")
+    i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
            "STEP-Modell ist. Der Unterreiter zeigt eine Übersicht; angelegt und geändert wird in einem Formular.")
@@ -3531,7 +3704,8 @@ def kapitel_fragen(i):
          "Profil-ID oder Werkstoff-ID steht nicht in den Stammdaten oder ist falsch geschrieben. Aus der "
          "Auswahlliste wählen oder in den Stammdaten anlegen."],
         ["Teil unter <b>nicht eingeplante Teile</b>",
-         "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest), Profil über max. Hüllkreis oder "
+         "Teil länger als die Nutzlänge (Stange − Endbeschnitt − Greiferrest bzw. 3D-Greifmaß bei einer "
+         "3D-Bearbeitung am Ende), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
@@ -3637,10 +3811,70 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.10", "Anbauteile im Angebot: Spalte <b>Anbauteile</b> der Positionen mit Doppelklick auf <i>Anbauteile "
+    ["0.8.24", "Anbauteile im Angebot: Spalte <b>Anbauteile</b> der Positionen mit Doppelklick auf <i>Anbauteile "
               "prüfen</i>, Status und Freigabe-Hinweis, Gravur Anbauteile getrennt ausgewiesen (Kalkulation, "
               "Preisaufbau, PDF, Schneidweg-Rechner), Einstellung <i>Prüfzeit je Teil mit unsicher erkannten "
               "Anbauteilen</i> ([[anbauteile]])."],
+    ["0.8.23", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
+               "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
+               "([[blech_editor]]). U-, C-, L-, T-Profile, Träger und Flachstahl: jede Kontur auf ihrer Fläche (Steg, "
+               "Flansch, Schenkel) mit Versatz quer statt alle auf der ersten Fläche. Quadrat- und Rechteckrohre mit Eckradius: Versatz quer jetzt genau, vorher bis zu "
+               "einigen mm daneben; ältere Teile mit <i>STEP neu einlesen …</i> korrigieren ([[schneidweg_rechner]])."],
+    ["0.8.22", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
+               "Innenkontur</b> × Stundensatz <i>Programmierung</i>, je Position in der Spalte <i>Programmierzeit "
+               "[min]</i> änderbar, sichtbar in Zeiten &amp; Arbeitskosten, in den Staffel-Stufen und im "
+               "Kalkulation-PDF. Alle Angebote rechnen neu, nur bereits verschickte behalten ihren Betrag "
+               "([[stundensaetze]])."],
+    ["0.8.21", "<b>Naht der Lieferstange im Angebot</b> statt in den Stammdaten: je Profil und Werkstoff im Fenster "
+               "Schweißnaht oder in der Materialanfrage, Vorgabe aus den Teilen, kein Hinweis mehr ohne Eintrag "
+               "([[schweissnaht]]); die Materialanfrage nennt die Seite („Schweißnaht auf der Breitseite“) und hat "
+               "einen eigenen, immer sichtbaren Knopf <b>Materialanfrage (E-Mail)</b> ([[materialanfrage]])."],
+    ["0.8.20", "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech): neue Profilform <i>RP-Profil</i>, die "
+               "Bibliothek RP-ROHRE ist mitgeliefert, eigene MegaCAD-Makros lassen sich laden, Querschnitt, Gewicht "
+               "und Schnittlänge kommen aus der Kontur ([[rp_profile]])."],
+    ["0.8.19", "<b>STEP-Import mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i> im Prüfdialog; "
+               "Gehrungen und schräge Bohrungen (mit gemessener Neigung längs/quer) werden in 3D übernommen, ohne "
+               "Häkchen erscheint bei schrägen Bohrungen „3D prüfen“."],
+    ["0.8.18", "<b>Rohr-Editor mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i>, je Ende <i>Gehrung in "
+               "3D</i>, je Bohrung <i>3D</i> mit Neigung längs und quer (Schnellauswahl ±45°/±30°/0°). Schräge "
+               "Bohrungen als Ellipse in Rechnung und Skizze, Winkel über der Maschinengrenze werden begrenzt und "
+               "gemeldet."],
+    ["0.8.17", "<b>3D-Greifmaß</b> in der Optimierung: hat das letzte Teil einer Stange eine 3D-Bearbeitung am Ende, "
+               "bleibt dahinter das Greifmaß der Maschine frei (statt des Greiferrests, wenn größer, nie zusätzlich); "
+               "ein Teil ohne 3D kommt nach Möglichkeit ans Ende. Stangenbild und Werkstattpapiere zeigen es mit "
+               "<i>3D</i>, ein Teil, das mit dem Greifmaß nicht auf die Stange passt, bekommt einen FEHLER."],
+    ["0.8.16", "Grundlage für die <b>3D-Schnittbearbeitung</b> mit geschwenktem Laserkopf: neue Maschinenwerte "
+               "<i>3D: Bearbeitung verfügbar</i> (Vorgabe nein), Schwenkwinkel min./max. (±45°), Greifmaß (300 mm), "
+               "Zusatzzeit und Faktor. Gehrungen in 3D und schräge Bohrungen rechnen mit den Schneiddaten der "
+               "wirksamen Dicke Wand ÷ cos(Winkel); die Kalkulation zeigt die <i>Mehrzeit 3D</i> getrennt. Winkel "
+               "über der Grenze werden begrenzt (WARNUNG), 3D auf einer Maschine ohne 3D ist ein FEHLER. Die Eingabe "
+               "im Schneidweg-Rechner und das Greifmaß in der Optimierung folgen."],
+    ["0.8.15", "Rohr / Profil als neue Position: Profilform vorwählen (die Liste zeigt dann nur Profile dieser Form), "
+               "fehlendes Profil direkt mit <b>Neu …</b> anlegen (Form und Maße, Profil-ID, Querschnitt und Gewicht "
+               "automatisch) ([[neue_position]]). Schneidweg-Rechner: die längste Seite einer Gehrung steht auf "
+               "<b>automatisch</b> und wird aus <i>gekippt über</i> angenommen; die Skizze zeigt sie, die Optimierung "
+               "dreht das Teil passend ([[schneidweg_rechner]])."],
+    ["0.8.14", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
+     "<i>nicht übernehmbar</i>. Nicht übernehmbare Teile zeigt die 3D-Baugruppe <b>magenta</b>, die Zeile nennt Grund "
+     "und Hüllmaß, Anklicken hebt das Teil hervor; mit <b>Von Hand nachtragen</b> (Profilform, Profil-ID) wird es "
+     "doch übernommen. Die Spalte Art ist bei jeder Zeile wählbar ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
+     "Flachstahl ist in der Spalte Art wählbar (Einstellung <i>ebene flache Teile vorgeben als</i>); Bleche mit "
+     "Senkungen werden erkannt ([[bleche]])."],
+    ["0.8.13", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
+              "Gehrungen: wenige Sekunden statt mehrerer Minuten), gleiche Ergebnisse. Vergleich mit 12 m nur noch, wenn "
+              "in den Einstellungen eingeschaltet (Vorgabe aus, [[lieferlaengen]]). Gehrungen ohne angegebene "
+              "Richtung werden bei frei drehbaren Teilen trotzdem ineinandergelegt, der Schneidweg-Rechner weist "
+              "darauf hin ([[schneidweg_rechner]])."],
+    ["0.8.12", "Bohrungen prüfen schlägt wie die Gewinde jetzt auch die Arbeitsschritte vor: <b>Senken</b> für "
+               "Senkungen, <b>Flowdrill</b> für Fließlochbohrungen und <b>Bohren</b> für Bohrungen kleiner als 0,7 × "
+               "Wandstärke (Laser markiert nur, danach aufbohren). Nach dem Bestätigen stehen sie mit der Anzahl je "
+               "Teil als Zusatzarbeit in der Position; die drei Zusatzarbeiten werden einmalig in den Stammdaten "
+               "angelegt. Gilt für STEP-Import und Schneidweg-Rechner ([[bohrungen_pruefen]])."],
+    ["0.8.11", "STEP-Import: Einstellung <b>STEP-Import: Standardordner</b> (dort startet der Dateidialog, sonst im "
+               "zuletzt benutzten Ordner) und gut sichtbares <b>Ablagefeld</b> für Drag &amp; Drop neben "
+               "<i>STEP importieren …</i>, im leeren Angebot groß statt der Positionsliste ([[step]])."],
+    ["0.8.10", "Zwei Stangenwechselzeiten je Maschine: <b>Stangenwechsel</b> (Vorgabe 24 s) und <b>Stangenwechsel "
+              "SN</b> (29 s) für Stangen, auf denen ein Teil eine feste Schweißnaht-Lage hat ([[schweissnaht]])."],
     ["0.8.9", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "
               "Draufsicht mit Gehrungen und Innenkonturen, Blech-/Kantteil als Zuschnitt. Ändert sich das Teil (oder "
               "die STEP-Datei), wird das Bild neu gezeichnet; Doppelklick aufs Bild öffnet den Schneidweg-Rechner "

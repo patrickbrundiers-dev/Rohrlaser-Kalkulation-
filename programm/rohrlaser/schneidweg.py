@@ -15,6 +15,7 @@ Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader 
 - Gehrung Rundrohr: Ellipse mit Halbachsen r und r / cos α (Umfang nach Ramanujan)
 - Gehrung aller anderen Profile: gerade Schnittlänge zerlegt in Anteil Höhe H und Anteil Breite W (zerlegung);
   die gekippte Richtung wird mit 1 / cos α gestreckt: über Höhe H / cos α + W, über Breite H + W / cos α.
+  RP-Profil: Kontur aus der RP-Bibliothek in der gekippten Richtung gestreckt (rp_profile.schnitt_gehrung)
   Unbekannte Profilform: gerade Schnittlänge / cos α (Schätzung, als solche gekennzeichnet)
 - Ausklinkung (Sattelschnitt) Rundrohr Ø d rechtwinklig auf Rundrohr Ø D: Länge der Schnittkurve numerisch
 - Bohrung π × d; Senkung π × d (der Laser schneidet die Bohrung, das Senken auf Ø D ist eine Zusatzarbeit);
@@ -30,7 +31,7 @@ gilt erst, wenn der Benutzer ihn in 'Gewinde geprüft' einträgt.
 import json
 import math
 
-from . import naht, optimierung as opt
+from . import dreid, naht, optimierung as opt, rp_profile
 from .stammdaten import flaeche_wirksam
 
 QUELLE = "Schneidweg-Rechner"
@@ -50,8 +51,10 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
 # Gehrung bei Rund-, Quadrat- und Rechteckrohr: Seite, an der das Teil an diesem Ende am längsten ist (Blick von
 # Ende A, 0° oben, 90° rechts; Rechteckrohr mit der Breitseite oben). Damit legt die Optimierung Gehrungen
-# ineinander (positionen.a_ende/b_ende); ohne Angabe nicht.
-RICHTUNGEN = {"nicht angegeben": None, "länger oben (0°)": 0, "länger rechts (90°)": 90,
+# ineinander (positionen.a_ende/b_ende). "automatisch" (gespeichert None): die Richtung folgt aus "gekippt über"
+# (angenommene_richtung), die Optimierung darf das Teil frei drehen.
+AUTOMATISCH = "automatisch"
+RICHTUNGEN = {AUTOMATISCH: None, "länger oben (0°)": 0, "länger rechts (90°)": 90,
               "länger unten (180°)": 180, "länger links (270°)": 270}
 MIT_RICHTUNG = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
 OHNE_HUELLE = 9999.0        # sonstige Kontur ohne Hüllmaß: in der Konturliste als groß
@@ -85,7 +88,8 @@ def zerlegung(profil):
     """Gerade Schnittlänge eines Profils (außer Rundrohr) als (Anteil Höhe H, Anteil Breite W) [mm], passend zu
     optimierung.schnittlaenge; None für unbekannte Formen. Höhe = Maß a, Breite = Maß b."""
     form, a, b, wand = profil.get("form"), _z(profil.get("a")), _z(profil.get("b")), _z(profil.get("wand"))
-    gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil))
+    gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
+                               profil.get("profil_id"))
     if gerade <= 0:
         return None
     if form == "Quadratrohr":
@@ -116,7 +120,7 @@ def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None):
     """Schnittlänge eines Endes: (mm, schaetzung). profil = Stammdaten-Zeile (form, a, b, wand, Fläche);
     gegenrohr = Ø des Rundrohrs, auf das das Ende ausgeklinkt wird (nur Rundrohr, rechtwinklig)."""
     form, a, b, wand = profil.get("form"), _z(profil.get("a")), profil.get("b"), profil.get("wand")
-    gerade = opt.schnittlaenge(form, a, b, wand, flaeche_wirksam(profil))
+    gerade = opt.schnittlaenge(form, a, b, wand, flaeche_wirksam(profil), profil.get("profil_id"))
     w = abs(_z(winkel))
     if _z(gegenrohr):
         if form != "Rundrohr":
@@ -131,6 +135,9 @@ def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None):
     c = math.cos(math.radians(w))
     if form == "Rundrohr":
         return ellipse(a / 2, a / 2 / c), False
+    rp = rp_profile.daten(profil.get("profil_id")) if form == rp_profile.FORM else None
+    if rp:          # Kontur in der gekippten Richtung gestreckt (über Höhe = Maß A = Breite des Querschnitts)
+        return rp_profile.schnitt_gehrung(rp, w, "x" if achse != ACHSEN[1] else "y"), False
     hw = zerlegung(profil)
     if hw:
         h_, w_ = hw
@@ -224,14 +231,20 @@ def kontur(e):
     raise ValueError(f"Unbekannte Konturart '{art}'.")
 
 
-def rechnen(eingaben, profil, grenzen, gewinde=None):
+def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     """Schneidweg je Teil aus den Eingaben. profil = Stammdaten-Zeile, grenzen = Regel der Konturklassen
-    (rechnen.kontur_regel: Grenzen der Maschine, mit Wandstärke auch die Faktoren × Wand).
+    (rechnen.kontur_regel: Grenzen der Maschine, mit Wandstärke auch die Faktoren × Wand). maschine = Stammdaten-
+    Zeile der Maschine für die Grenzen des Schwenkwinkels (3D, dreid; None = Vorgabe ±45°): mit Häkchen
+    'd3' der Eingaben wird eine Bohrung in 3D als Ellipse auf der Wand gerechnet (Länge und Hüllmaß mit dem
+    begrenzten Winkel), eine Gehrung in 3D behält ihre Länge (nur der Kopf ist geschwenkt).
     Ergebnis dict(schritte=[{text, anzahl, laenge_stueck, laenge, einstiche, huelle, klasse, schaetzung}],
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
-    schritte, fehler, liste, enden, gehrung = [], [], [], [], {}
+    schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
+    richtung_fehlt_text = []
+    hinweise_3d = []
+    mit_3d = eingaben.get("d3") is True
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
     n_ende = einstiche_ende(form)
@@ -252,10 +265,19 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
         if _z(e.get("gemessen")) > 0:       # aus der STEP-Messung: gemessene Länge und Form
             lg, sch, gerade = _z(e["gemessen"]), False, e.get("form") == "gerade"
             text = f"{titel} {e.get('form') or ''}".rstrip() + (f" {zahl(w, 1)}°" if w else "") + " (STEP gemessen)"
+        if mit_3d and e.get("d3") and w and not sat:
+            v, h_ = dreid.gehrung_begrenzen(w, maschine)
+            text += f", in 3D (Kopf {zahl(v, 1)}°)"
+            if h_:
+                hinweise_3d.append(f"{titel}: {h_} Die Gehrungsfläche ist dann nicht maßhaltig.")
         schritte.append(dict(text=text, anzahl=1, laenge_stueck=lg, laenge=lg, einstiche=n_ende,
                              huelle=_z(e.get("huelle_gemessen")) or hk_ende, klasse="Ende", schaetzung=sch,
                              gerade=gerade))
         gehrung[seite] = None
+        if w and not sat and e.get("richtung") is None and form in MIT_RICHTUNG and not _z(e.get("gemessen")):
+            richtung_fehlt.append(titel)
+            r_ = angenommene_richtung(profil, e.get("achse"))
+            richtung_fehlt_text.append(next(t for t, v in RICHTUNGEN.items() if v == r_))
         if w and not sat and e.get("richtung") is not None and form in MIT_RICHTUNG:
             f_ = richtung_pruefen(profil, e.get("richtung"), e.get("achse") or ACHSEN[0])
             if f_:
@@ -271,6 +293,18 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
             continue
         masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
+        if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
+            try:
+                nl, nq, ges, h_ = dreid.neigung_begrenzen(e.get("neigung_l"), e.get("neigung_q"), maschine)
+            except ValueError as f:
+                fehler.append(f"Bohrung 3D: {f}")
+                continue
+            if not (_z(e.get("gemessen")) > 0 and not h_):
+                lg = dreid.bohrung_laenge(_z(e.get("d")), ges)
+            hk = dreid.bohrung_huelle(_z(e.get("d")), ges)
+            masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
+            if h_:
+                hinweise_3d.append(f"Bohrung Ø {zahl(_z(e.get('d')), 2)}: {h_} Die Bohrung ist dann nicht maßhaltig.")
         klasse = "groß" if hk is None else ("klein", "mittel", "groß")[kontur_klasse(hk, grenzen)]
         if _z(e.get("gemessen")) > 0:
             masse = (masse + " (STEP gemessen)").strip()
@@ -302,8 +336,15 @@ def rechnen(eingaben, profil, grenzen, gewinde=None):
     senk = sum(s_["anzahl"] for s_ in schritte[2:] if s_.get("art") == SENKUNG)
     hinweise = [f"{senk} Senkung(en): der Laser schneidet nur die Bohrung; das Senken als Zusatzarbeit erfassen "
                 "(Zusatzarbeiten …)."] if senk else []
+    if richtung_fehlt:
+        hinweise.append(f"{' und '.join(richtung_fehlt)}: längste Seite automatisch aus „gekippt über“ "
+                        f"({', '.join(richtung_fehlt_text)}). Bei frei drehbaren Teilen (Schweißnaht ohne Vorgabe) "
+                        "dreht die Optimierung das Teil passend und legt die Gehrungen ineinander. Nur wenn die Lage "
+                        "fest ist (Werkstattpapiere, Bohrbild), die längste Seite von Hand wählen.")
+    hinweise += hinweise_3d
     return dict(schritte=schritte, felder=felder, schneidweg=felder["schneidweg"], einstiche=einstiche,
-                schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise)
+                schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise,
+                hinweise_3d=hinweise_3d)
 
 
 def aus_position(e, p, profil):
@@ -361,3 +402,39 @@ def achse_zu_richtung(profil, richtung):
 def speichern(eingaben):
     """Eingaben als JSON für positionen.technik (mit Quelle)."""
     return json.dumps(dict(eingaben, quelle=QUELLE), ensure_ascii=False)
+
+
+def angenommene_richtung(profil, achse):
+    """Richtung (am längsten …) für eine Gehrung ohne Angabe: die erste, die zur Gehrungsachse passt (Rechteckrohr:
+    0° kippt über die kürzere Seite, 90° über die längere). Nur für frei drehbare Teile (rechnen.gruppen_bilden):
+    dort legt die Optimierung mit Drehung um 180° bzw. 90° jede Lage gleich gut ineinander."""
+    for r in (0, 90):
+        if achse_zu_richtung(profil, r) == (achse or ACHSEN[0]):
+            return r
+    return 0
+
+
+def mit_angenommener_richtung(eingaben, profil):
+    """Eingaben für Skizze und Zeichnung: Enden mit Gehrung und Richtung "automatisch" bekommen die angenommene
+    Richtung (wie die Optimierung, angenommene_richtung); gespeichert bleibt None."""
+    if (profil or {}).get("form") not in MIT_RICHTUNG:
+        return eingaben
+    neu = dict(eingaben)
+    for s in ("a", "b"):
+        e = neu.get(s)
+        if isinstance(e, dict) and e.get("richtung") is None and not _z(e.get("sattel")) \
+                and 0 < abs(_z(e.get("winkel"))) < 80:
+            neu[s] = dict(e, richtung=angenommene_richtung(profil, e.get("achse")), richtung_auto=True)
+    return neu
+
+
+def gehrung_ohne_richtung(technik, seite, profil):
+    """(Winkel, angenommene Richtung) für ein Ende, das im Schneidweg-Rechner eine Gehrung ohne Richtung hat
+    (Rund-, Quadrat-, Rechteckrohr, keine Ausklinkung), sonst None."""
+    if (profil or {}).get("form") not in MIT_RICHTUNG:
+        return None
+    e = lesen(technik).get(seite) or {}
+    if not isinstance(e, dict) or e.get("richtung") is not None or _z(e.get("sattel")) or _z(e.get("gemessen")):
+        return None
+    w = abs(_z(e.get("winkel")))
+    return (w, angenommene_richtung(profil, e.get("achse"))) if 0 < w < 80 else None

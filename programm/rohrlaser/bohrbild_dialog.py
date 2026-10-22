@@ -1,5 +1,7 @@
-"""Dialog 'Bohrungen prüfen': Gewinde-Vorschläge, Senkungen und Fließlochbohrungen einer Position bestätigen oder
-ablehnen (Doppelklick auf Status, Gewinde oder Bohrungen der Position). Rechnet nichts selbst: bohrbild.py."""
+"""Dialog 'Bohrungen prüfen': Gewinde-Vorschläge, Senkungen, Fließlochbohrungen und Bohrungen kleiner als
+0,7 × Wandstärke (Bohren) einer Position bestätigen oder ablehnen (Doppelklick auf Status, Gewinde oder Bohrungen der
+Position). Bestätigte Senkungen, Flowdrill und Bohren werden als Zusatzarbeit vorgeschlagen. Rechnet nichts selbst:
+bohrbild.py."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
@@ -17,11 +19,13 @@ class BohrbildDialog(QDialog):
     der Gewinde von Hand)."""
     SPALTEN = ("Art", "Ø [mm]", "Anzahl je Teil", "Gewinde", "Laser", "Prüfung")
 
-    def __init__(self, parent, p, gewinde):
-        """gewinde = [(Gewinde, Kernloch)] der Stammdaten."""
+    def __init__(self, parent, p, gewinde, wand=None, laser=None, katalog=None, saetze=None):
+        """gewinde = [(Gewinde, Kernloch)] der Stammdaten, wand = Wandstärke (Bohren < 0,7 × Wand), laser = Vorgabe
+        der Markierung, katalog = Zeilen der Zusatzarbeiten (None: Zusatzarbeiten nicht anzeigen)."""
         super().__init__(parent)
         self.p = p
-        self.liste = [dict(z) for z in bohrbild.aus_position(p, gewinde)]
+        self.katalog, self.saetze = katalog, saetze
+        self.liste = [dict(z) for z in bohrbild.aus_position(p, gewinde, wand, laser or bohrbild.GRAVUR)]
         gewinde_namen = [g for g, _ in gewinde]
         self.ergebnis = None
         titel = " ".join(str(x) for x in (p.get("pos"), p.get("artikel")) if x)
@@ -30,7 +34,10 @@ class BohrbildDialog(QDialog):
         lay = QVBoxLayout(self)
         info = QLabel("Je Zeile <b>Bestätigen</b> oder <b>Ablehnen</b>. Gewinde werden erst nach dem Bestätigen "
                       "gerechnet. Senkung: der Laser schneidet die Bohrung, auf Wunsch wird der Senk-Ø graviert. "
-                      "Flowdrill: der Laser markiert nur (Gravur oder Loch Ø0,5); abgelehnt = normale Bohrung.")
+                      "Flowdrill: der Laser markiert nur (Gravur oder Loch Ø0,5); abgelehnt = normale Bohrung. "
+                      "Bohren: Bohrung kleiner als 0,7 × Wandstärke, der Laser markiert nur, danach aufbohren; "
+                      "abgelehnt = der Laser schneidet sie. Bestätigte Senkungen, Flowdrill und Bohren kommen als "
+                      "Zusatzarbeit Senken, Flowdrill bzw. Bohren mit der Anzahl je Teil in die Position.")
         info.setWordWrap(True)
         lay.addWidget(info)
         self.tabelle = QTableWidget(len(self.liste), len(self.SPALTEN))
@@ -40,7 +47,8 @@ class BohrbildDialog(QDialog):
         self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.gruppen, self.gewinde, self.laser = [], [], []
         for r, z in enumerate(self.liste):
-            art = {"Bohrung": "Bohrung (Kernloch)", "Fließloch": "Flowdrill"}.get(z["art"], z["art"])
+            art = {"Bohrung": "Bohrung (Kernloch)", "Fließloch": "Flowdrill",
+                   bohrbild.BOHREN: "Bohren (< 0,7 × Wand)"}.get(z["art"], z["art"])
             masse = bohrbild.dez(z.get("d")) + (f" / {bohrbild.dez(z.get('D'))}" if z.get("D") else "")
             for c, text in ((0, art), (1, masse), (2, str(z.get("anzahl") or ""))):
                 it = QTableWidgetItem(text)
@@ -62,7 +70,7 @@ class BohrbildDialog(QDialog):
                 ls = QCheckBox(f"Senk-Ø {bohrbild.dez(z.get('D'))} gravieren")
                 ls.setChecked(bool(z.get("gravur")))
                 ls.toggled.connect(self._auswirkung)
-            elif z["art"] == "Fließloch":
+            elif z["art"] in ("Fließloch", bohrbild.BOHREN):
                 ls = QComboBox()
                 ls.addItems(bohrbild.LASER)
                 ls.setCurrentText(z.get("laser") or bohrbild.GRAVUR)
@@ -94,8 +102,8 @@ class BohrbildDialog(QDialog):
         self.tabelle.verticalHeader().setDefaultSectionSize(34)
         lay.addWidget(self.tabelle, 1)
         if not self.liste:
-            lay.addWidget(QLabel("Diese Position hat keine Gewinde-Vorschläge, Senkungen oder Fließlochbohrungen aus "
-                                 "dem STEP-Import."))
+            lay.addWidget(QLabel("Diese Position hat keine Gewinde-Vorschläge, Senkungen, Fließlochbohrungen oder "
+                                 "Bohrungen kleiner als 0,7 × Wandstärke."))
         zeile = QHBoxLayout()
         alle = QPushButton("Alle bestätigen")
         alle.clicked.connect(self.alle_bestaetigen)
@@ -154,7 +162,7 @@ class BohrbildDialog(QDialog):
 
     def _auswirkung(self, *_):
         neu = self.werte()
-        felder = bohrbild.anwenden(self.p, neu, self.hand.text())
+        felder = bohrbild.anwenden(self.p, neu, self.hand.text(), self.katalog, self.saetze)
         teile = []
         for name, titel, einheit, stellen in (("schneidweg", "Schneidweg", " mm", 1), ("gravur", "Gravur", " mm", 1),
                                               ("einstiche", "Einstiche", "", 0)):
@@ -162,6 +170,11 @@ class BohrbildDialog(QDialog):
                 alt, wert = self.p.get(name) or 0, felder[name] or 0
                 teile.append(f"{titel} {zahl_als_text(alt, stellen)} → {zahl_als_text(wert, stellen)}{einheit}")
         teile.append("Gewinde: " + (felder.get("gewinde") or "keine"))
+        if self.katalog is not None:
+            teile.append("Zusatzarbeiten: " + (bohrbild.arbeiten_text(neu) or "keine"))
+            if felder.get("_fehlt"):
+                teile.append(f"<span style='color:#B42318'>{', '.join(felder['_fehlt'])} fehlt in den Stammdaten "
+                             "Zusatzarbeiten</span>")
         offen = bohrbild.offen(neu)
         if offen:
             teile.append(f"<span style='color:#7A5A00'>{offen} Zeile{'n' if offen != 1 else ''} noch offen</span>")
