@@ -1,1 +1,2 @@
-cadquery-ocp>=7.7
+# Feste Versionen (Prüfbericht 22.10.2026, D-3): Aktualisierung bewusst per Pull Request, nicht automatisch.
+cadquery-ocp==8.0.1.1.0

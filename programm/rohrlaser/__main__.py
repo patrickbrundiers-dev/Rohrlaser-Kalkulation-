@@ -20,7 +20,7 @@ import tempfile
 import traceback
 from pathlib import Path
 
-from . import NAME
+from . import NAME, VERSION
 
 
 def programmordner():
@@ -262,8 +262,11 @@ def main(argv=None):
     if a.info:
         return info(o, a.ergebnis)
 
+    from . import protokoll
     from .datenbank import Datenbank
     from .fenster import Hauptfenster
+    protokoll.einrichten(o.daten / "Protokoll")
+    protokoll.info(f"Start {NAME} {VERSION} ({o.art}, Daten {o.daten})")
     try:
         sperre = orte.Sperre(o.daten)
     except orte.Gesperrt as e:

@@ -1,2 +1,3 @@
-PySide6-Essentials>=6.7
-reportlab>=4.0
+# Feste Versionen (Prüfbericht 22.10.2026, D-3): Aktualisierung bewusst per Pull Request, nicht automatisch.
+PySide6-Essentials==6.12.0
+reportlab==5.1.0
