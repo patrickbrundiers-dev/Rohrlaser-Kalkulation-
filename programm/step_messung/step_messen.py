@@ -41,8 +41,8 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
            "trennung", "gravur_anbau", "ersatz", "alternative", "fehler"]
-# Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, als
-# JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
+# Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
+# bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "alternative", "fehler")
 
 

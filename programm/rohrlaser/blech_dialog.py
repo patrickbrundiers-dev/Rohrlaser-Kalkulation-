@@ -5,9 +5,10 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox,
-                               QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+                               QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import blech, schneidweg as sw, zukauf
+from .leiste import UmbruchLeiste
 from .stammdaten import zahl_als_text, zahl_aus_text
 
 FARBE_BLECH, FARBE_LINIE, FARBE_KONTUR, FARBE_BIEGUNG = "#EAF1F8", "#1F4E78", "#B42318", "#2E7D32"
@@ -37,12 +38,13 @@ def _feld(v):
 
 
 class BlechSkizze(QWidget):
-    """Abwicklung (Zuschnitt mit Biegelinien und Innenkonturen) und beim Kantteil die Seitenansicht."""
+    """Abwicklung (Zuschnitt mit Biegelinien und Innenkonturen) und beim Kantteil die Seitenansicht. mini=True:
+    nur der Zuschnitt ohne Beschriftung und Rand (Vorschaubild der Positionsliste, siehe vorschau.py)."""
 
-    def __init__(self):
+    def __init__(self, mini=False):
         super().__init__()
-        self.eingaben, self.zuschnitt = {}, None
-        self.setMinimumHeight(260)
+        self.eingaben, self.zuschnitt, self.mini = {}, None, mini
+        self.setMinimumHeight(0 if mini else 260)
 
     def setzen(self, eingaben, zuschnitt):
         self.eingaben, self.zuschnitt = eingaben, zuschnitt
@@ -51,24 +53,29 @@ class BlechSkizze(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor("white"))
+        if not self.mini:
+            p.fillRect(self.rect(), QColor("white"))
         zs = self.zuschnitt
         if not zs:
             p.setPen(QColor("#5F6B7A"))
             p.drawText(self.rect(), Qt.AlignCenter, "Maße eingeben, dann erscheint hier die Abwicklung.")
             return
-        kant = self.eingaben.get("art") == blech.KANTTEIL
-        breite_abw = self.width() * (0.62 if kant else 1.0)
-        rand = 46
+        kant = self.eingaben.get("art") == blech.KANTTEIL and not self.mini
+        # Kantteil: Seitenansicht rechts daneben, in einer hohen Skizze (Editor zweispaltig) darunter
+        untereinander = kant and self.height() >= self.width() * 0.75
+        breite_abw = self.width() * (0.62 if kant and not untereinander else 1.0)
+        hoehe_abw = self.height() * (0.58 if untereinander else 1.0)
+        rand = 1.5 if self.mini else 46
         lg, br = max(zs["laenge"], 1), max(zs["breite"], 1)
-        m = min((breite_abw - 2 * rand) / lg, (self.height() - 2 * rand) / br)
-        x0, y0 = rand, rand + (self.height() - 2 * rand - br * m) / 2
+        m = min((breite_abw - 2 * rand) / lg, (hoehe_abw - 2 * rand) / br)
+        x0 = rand + ((breite_abw - 2 * rand - lg * m) / 2 if self.mini else 0)      # Vorschau mittig
+        y0 = rand + (hoehe_abw - 2 * rand - br * m) / 2
 
         def pkt(x, y):          # mm (y nach oben) -> Pixel
             return QPointF(x0 + x * m, y0 + (br - y) * m)
 
         p.setFont(QFont(self.font().family(), 8))
-        p.setPen(QPen(QColor(FARBE_LINIE), 1.6))
+        p.setPen(QPen(QColor(FARBE_LINIE), 1.0 if self.mini else 1.6))
         p.setBrush(QColor(FARBE_BLECH))
         if zs.get("punkte"):
             minx, miny = min(x for x, _ in zs["punkte"]), min(y for _, y in zs["punkte"])
@@ -78,13 +85,15 @@ class BlechSkizze(QWidget):
             pfad.closeSubpath()
             p.drawPath(pfad)
         else:
-            r = sw._z(self.eingaben.get("eckradius")) * m if not kant else 0
+            r = sw._z(self.eingaben.get("eckradius")) * m if self.eingaben.get("art") != blech.KANTTEIL else 0
             p.drawRoundedRect(QRectF(pkt(0, br), pkt(lg, 0)), r, r)
         # Biegelinien quer zur Abwicklungsbreite (parallel zur Kantlänge)
         for i, (lage, winkel, radius, _) in enumerate(zs.get("biegungen") or [], 1):
             p.setPen(QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
             a, b = pkt(0, lage), pkt(lg, lage)
             p.drawLine(a, b)
+            if self.mini:
+                continue
             p.setPen(QColor(FARBE_BIEGUNG))
             p.drawText(QPointF(b.x() + 4, b.y() + 4),
                        f"B{i} {zahl_als_text(abs(winkel), 0)}° {'↑' if winkel > 0 else '↓'} r{zahl_als_text(radius, 1)}")
@@ -100,6 +109,8 @@ class BlechSkizze(QWidget):
             else:
                 cx, cy = z["x"], z["y"]
             self._kontur(p, z, pkt(cx, cy), m)
+        if self.mini:
+            return
         # Maße
         p.setPen(QColor("#333333"))
         p.drawText(QRectF(x0, y0 + br * m + 4, lg * m, 16), Qt.AlignCenter, f"{zahl_als_text(lg, 1)} mm")
@@ -110,8 +121,10 @@ class BlechSkizze(QWidget):
                    f"{zahl_als_text(br, 1)} mm" + (" (Abwicklung)" if kant else ""))
         p.restore()
         p.drawText(QPointF(x0, 16), "Abwicklung (Zuschnitt)" if kant else "Zuschnitt")
-        if kant:
-            self._seitenansicht(p, QRectF(breite_abw + 10, 24, self.width() - breite_abw - 20, self.height() - 40))
+        if kant and untereinander:
+            self._seitenansicht(p, QRectF(10, hoehe_abw + 16, self.width() - 20, self.height() - hoehe_abw - 24), m)
+        elif kant:
+            self._seitenansicht(p, QRectF(breite_abw + 10, 24, self.width() - breite_abw - 20, self.height() - 40), m)
 
     def _kontur(self, p, z, c, m):
         art = z.get("art")
@@ -139,27 +152,34 @@ class BlechSkizze(QWidget):
         else:
             p.drawRect(QRectF(c.x() - 4, c.y() - 4, 8, 8))
         n = int(sw._z(z.get("anzahl")) or 1)
-        if n > 1:
+        if n > 1 and not self.mini:
             p.drawText(QPointF(c.x() + 6, c.y() - 6), f"{n} ×")
 
-    def _seitenansicht(self, p, feld):
+    def _seitenansicht(self, p, feld, m_abw=None):
+        """Seitenansicht im Maßstab der Abwicklung (kleiner, wenn sie sonst nicht passt); Maße außen an den
+        Schenkeln."""
         pk = blech.querschnitt(self.eingaben)
         if len(pk) < 2:
             return
         xs, ys = [x for x, _ in pk], [y for _, y in pk]
         w, h = max(max(xs) - min(xs), 1), max(max(ys) - min(ys), 1)
-        m = min((feld.width() - 40) / w, (feld.height() - 50) / h)
+        m = min((feld.width() - 80) / w, (feld.height() - 70) / h, m_abw or 1e9)
         ox = feld.x() + 20 + (feld.width() - 40 - w * m) / 2 - min(xs) * m
         oy = feld.y() + 30 + (feld.height() - 50 + h * m) / 2 + min(ys) * m
         p.setPen(QColor("#333333"))
         p.drawText(QPointF(feld.x(), feld.y() - 8), "Seitenansicht (Außenmaße)")
-        p.setPen(QPen(QColor(FARBE_LINIE), max(2.0, sw._z(self.eingaben.get("dicke")) * m)))
+        p.setPen(QPen(QColor(FARBE_LINIE), min(max(2.0, sw._z(self.eingaben.get("dicke")) * m), 8.0)))
         for (x1, y1), (x2, y2) in zip(pk, pk[1:]):
             p.drawLine(QPointF(ox + x1 * m, oy - y1 * m), QPointF(ox + x2 * m, oy - y2 * m))
         p.setPen(QColor("#333333"))
         schenkel = [z for z in self.eingaben.get("schenkel") or [] if sw._z(z.get("laenge")) > 0]
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)          # Maße von der Mitte weg nach außen schieben
         for (x1, y1), (x2, y2), z in zip(pk, pk[1:], schenkel):
-            p.drawText(QPointF(ox + (x1 + x2) / 2 * m + 4, oy - (y1 + y2) / 2 * m - 4), zahl_als_text(z["laenge"], 1))
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            dx, dy = cx - mx, cy - my
+            n = (dx * dx + dy * dy) ** 0.5 or 1
+            px, py = ox + cx * m + dx / n * 16, oy - cy * m - dy / n * 16
+            p.drawText(QRectF(px - 30, py - 8, 60, 16), Qt.AlignCenter, zahl_als_text(z["laenge"], 1))
 
 
 class BlechDialog(QDialog):
@@ -181,7 +201,15 @@ class BlechDialog(QDialog):
         e.update(eingaben or {})
         kopf = kopf or {}
         self.setWindowTitle("Blech-Editor (Richtpreis)")
-        lay = QVBoxLayout(self)
+        # links die Eingaben (Tabellen mit Platz für viele Zeilen), rechts Skizze und Richtpreis
+        haupt = QVBoxLayout(self)
+        self.teiler = QSplitter(Qt.Horizontal)
+        self.teiler.setChildrenCollapsible(False)
+        haupt.addWidget(self.teiler, 1)
+        links = QWidget()
+        lay = QVBoxLayout(links)
+        lay.setContentsMargins(0, 0, 6, 0)
+        self.teiler.addWidget(links)
 
         # Kopf: Bezeichnung, Artikelnummer, Lieferant, Stückzahl
         raster = QGridLayout()
@@ -210,19 +238,21 @@ class BlechDialog(QDialog):
         self.art = QComboBox()
         self.art.addItems(list(blech.ARTEN))
         self.art.setCurrentText(e.get("art") or blech.ZUSCHNITT)
-        felder = (("Bezeichnung", self.bezeichnung), ("Artikelnummer", self.artikelnr), ("Lieferant", self.lieferant),
-                  ("Stückzahl", self.stueck), ("Blech-Werkstoff", self.werkstoff), ("Dicke", self.dicke),
-                  ("Art", self.art))
-        for c, (titel, w) in enumerate(felder):
-            raster.addWidget(QLabel(f"<span style='color:#595959'>{titel}</span>"), 0, c)
-            raster.addWidget(w, 1, c)
-        raster.setColumnStretch(0, 2)
+        # zwei Zeilen: Bezeichnung (breit), Artikelnummer, Stückzahl / Werkstoff, Dicke, Art, Lieferant
+        felder = ((0, 0, 2, "Bezeichnung", self.bezeichnung), (0, 2, 1, "Artikelnummer", self.artikelnr),
+                  (0, 3, 1, "Stückzahl", self.stueck), (2, 0, 1, "Blech-Werkstoff", self.werkstoff),
+                  (2, 1, 1, "Dicke", self.dicke), (2, 2, 1, "Art", self.art), (2, 3, 1, "Lieferant", self.lieferant))
+        for r, c, n, titel, w in felder:
+            raster.addWidget(QLabel(f"<span style='color:#595959'>{titel}</span>"), r, c, 1, n)
+            raster.addWidget(w, r + 1, c, 1, n)
+        for c in range(4):
+            raster.setColumnStretch(c, 1)
         lay.addLayout(raster)
 
         # Geometrie: Zuschnitt oder Kantteil
         self.stapel = QStackedWidget()
         flach = QWidget()
-        fl = QHBoxLayout(flach)
+        fl = QGridLayout(flach)
         fl.setContentsMargins(0, 0, 0, 0)
         self.form = QComboBox()
         self.form.addItems(list(blech.FORMEN))
@@ -232,10 +262,13 @@ class BlechDialog(QDialog):
         self.eckradius = self._spin(e.get("eckradius"), 0, 10000, 1, " mm", 1)
         self.punkte = QLineEdit(e.get("punkte") or "")
         self.punkte.setPlaceholderText("Eckpunkte x,y; x,y; … in mm, z. B. 0,0; 200,0; 200,80; 120,150; 0,150")
-        for titel, w in (("Form", self.form), ("Länge", self.laenge), ("Breite", self.breite),
-                         ("Eckradius", self.eckradius), ("Polygon", self.punkte)):
-            fl.addWidget(QLabel(titel))
-            fl.addWidget(w, 3 if w is self.punkte else 0)
+        for c, (titel, w) in enumerate((("Form", self.form), ("Länge", self.laenge), ("Breite", self.breite),
+                                        ("Eckradius", self.eckradius))):
+            fl.addWidget(QLabel(f"<span style='color:#595959'>{titel}</span>"), 0, c)
+            fl.addWidget(w, 1, c)
+        fl.addWidget(QLabel("<span style='color:#595959'>Polygon</span>"), 2, 0)
+        fl.addWidget(self.punkte, 3, 0, 1, 4)
+        fl.setRowStretch(4, 1)
         self.stapel.addWidget(flach)
         kant = QWidget()
         kl = QVBoxLayout(kant)
@@ -258,12 +291,13 @@ class BlechDialog(QDialog):
         self.schenkel = QTableWidget(0, len(SCHENKEL_SPALTEN))
         self.schenkel.setHorizontalHeaderLabels(list(SCHENKEL_SPALTEN))
         self.schenkel.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.schenkel.setMaximumHeight(130)
+        self.schenkel.verticalHeader().setDefaultSectionSize(26)
+        self.schenkel.setMinimumHeight(self.schenkel.horizontalHeader().sizeHint().height() + 4 * 26 + 6)
         self.schenkel.setToolTip("Je Zeile ein Schenkel mit Außenmaß; Biegewinkel zum nächsten Schenkel (+ nach oben, "
                                  "− nach unten, 90 = rechter Winkel); Innenradius leer = Blechdicke")
-        kl.addWidget(self.schenkel)
+        kl.addWidget(self.schenkel, 1)
         self.stapel.addWidget(kant)
-        lay.addWidget(self.stapel)
+        lay.addWidget(self.stapel, 2)
         for x in e.get("schenkel") or []:
             self.schenkel_neu(x, rechnen_=False)
 
@@ -274,26 +308,30 @@ class BlechDialog(QDialog):
         self.tabelle.setHorizontalHeaderLabels(list(KONTUR_SPALTEN))
         self.tabelle.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabelle.setMaximumHeight(140)
+        self.tabelle.verticalHeader().setDefaultSectionSize(26)
+        self.tabelle.setMinimumHeight(self.tabelle.horizontalHeader().sizeHint().height() + 5 * 26 + 6)
         self.tabelle.setToolTip("Maße je Art: Bohrung Maß 1 = Ø; Langloch Länge, Breite; Rechteck Breite, Höhe, "
                                 "Eckradius; Polygon Eckpunkte in Maß 1; sonstige Kontur Schnittlänge, Hüllmaß. "
                                 "Mitte x/y in der Abwicklung (leer = nur für die Skizze verteilt)")
         self.tabelle.currentCellChanged.connect(lambda r, *_: self._spalten_erklaeren(r))
-        bl.addWidget(self.tabelle)
-        knoepfe = QHBoxLayout()
+        bl.addWidget(self.tabelle, 1)
+        knoepfe = UmbruchLeiste()           # bei schmaler Spalte rückt 'Markierte entfernen' in eine zweite Zeile
         for art in (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE):
             b = QPushButton(f"+ {art}")
             b.clicked.connect(lambda _=False, art=art: self.kontur_neu(dict(art=art, anzahl=1)))
-            knoepfe.addWidget(b)
+            knoepfe.links_layout.addWidget(b)
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(self._kontur_weg)
-        knoepfe.addStretch(1)
-        knoepfe.addWidget(weg)
-        bl.addLayout(knoepfe)
-        lay.addWidget(box)
+        knoepfe.rechts_layout.addWidget(weg)
+        bl.addWidget(knoepfe)
+        lay.addWidget(box, 3)
         for z in e.get("konturen") or []:
             self.kontur_neu(z, rechnen_=False)
 
+        rechts = QWidget()
+        lay = QVBoxLayout(rechts)
+        lay.setContentsMargins(6, 0, 0, 0)
+        self.teiler.addWidget(rechts)
         self.skizze = BlechSkizze()
         lay.addWidget(self.skizze, 1)
         self.summe = QLabel()
@@ -305,6 +343,7 @@ class BlechDialog(QDialog):
         hinweis.setWordWrap(True)
         hinweis.setStyleSheet("color: #5F6B7A;")
         lay.addWidget(hinweis)
+        lay = haupt
         self.knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.ok_knopf = self.knoepfe.button(QDialogButtonBox.Ok)
         self.ok_knopf.setText("Als Zukaufteil anlegen" if neu else "Richtpreis übernehmen")
@@ -320,7 +359,10 @@ class BlechDialog(QDialog):
         self.punkte.textChanged.connect(self.rechnen)
         self.schenkel.itemChanged.connect(self.rechnen)
         self.tabelle.itemChanged.connect(self.rechnen)
-        self.resize(1150, 860)
+        frei = self.screen().availableGeometry() if self.screen() else None
+        breite, hoehe = (frei.width() - 40, frei.height() - 70) if frei else (1400, 900)
+        self.resize(min(1500, breite), min(950, hoehe))
+        self.teiler.setSizes([int(self.width() * 0.52), self.width() - int(self.width() * 0.52)])
         self.rechnen()
 
     @staticmethod

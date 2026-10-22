@@ -1061,7 +1061,11 @@ def kapitel_step(i):
            "Schneidzeit kommen aus der Messung", hoehe=110 * mm)
     i.abschnitt("3D-Ansicht")
     i.text("Jedes per STEP-Import angelegte Teil wird mit seinem 3D-Modell gespeichert. In der Positionsliste steht "
-           "neben der Artikelnummer ein kleines Vorschaubild. <b>3D-Ansicht …</b> in der Knopfleiste des Angebots "
+           "neben der Artikelnummer ein kleines Vorschaubild. Selbst angelegte Teile bekommen ebenfalls ein Bild: "
+           "Rohre und Profile die Draufsicht (oder die Seitenansicht, wenn sie mehr zeigt) mit Gehrungen und "
+           "Innenkonturen aus dem Schneidweg-Rechner, Blech- und Kantteile den Zuschnitt aus dem Blech-Editor. "
+           "Ändert sich das Teil im Editor oder eine neue STEP-Datei, wird das Bild neu gezeichnet. Doppelklick "
+           "aufs Bild öffnet den passenden Editor ([[schneidweg_rechner]], [[blech_editor]]). <b>3D-Ansicht …</b> in der Knopfleiste des Angebots "
            "öffnet alle Positionen mit großer Ansicht, beginnend mit der markierten Zeile. Beim Kopieren eines "
            "Angebots gehen die 3D-Modelle mit.")
     i.liste("Linke Maustaste ziehen: drehen. Rechte oder mittlere Maustaste ziehen: verschieben. Mausrad: zoomen. "
@@ -1112,8 +1116,15 @@ def kapitel_step(i):
             "darunter stehen gleiche und ähnliche Artikel zur Wahl. Die Hinweis-Spalte nennt <i>vorhanden</i>, "
             "<i>ähnlich</i> oder <i>neuer Zukaufartikel, EK fehlt</i>.",
             "Der <b>Werkstoff</b> eines Blechs ist leer (offen), bis er in der Zeile gewählt wird; die Vorgabe für "
-            "die Rohre gilt nicht für Bleche. Ohne Werkstoff heißt der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm "
-            "(Werkstoff offen)</i> und die Position hat kein Gewicht.",
+            "die Rohre gilt nicht für Bleche. Zur Wahl stehen die <b>Blech-Werkstoffe</b> des Blech-Editors "
+            "([[blech_stammdaten]]), nicht die Rohr-Werkstoffe. Mit Werkstoff bekommt ein neuer Blechartikel den "
+            "<b>Blech-Richtpreis</b> als EK (gerechnet wie im Blech-Editor, [[blech_editor]]). Ohne Werkstoff heißt "
+            "der neue Artikel z. B. <i>Blech 400 × 200 × 4 mm (Werkstoff offen)</i>, die Position hat kein Gewicht "
+            "und der EK fehlt.",
+            "Jedes übernommene Blech trägt seine Maße als Eingaben des Blech-Editors: Zuschnitt (Hüllrechteck, "
+            "gekantet mit der Abwicklungsfläche), Bohrungen je Durchmesser und die übrigen Innenkonturen als "
+            "sonstige Kontur. <b>Doppelklick aufs Bild</b> vor der Artikelnummer öffnet den Blech-Editor (dort z. B. "
+            "ein gekantetes Teil als Kantteil mit Schenkeln nachtragen), Doppelklick auf die Nummer die 3D-Ansicht.",
             "Bleche mit Prüfstatus <i>prüfen</i> (z. B. gekantete) sind nicht angehakt und werden erst nach "
             "Anhaken übernommen. Ein Blech, dessen Artikelnummer schon im Angebot steht, wird übersprungen; ein "
             "erneuter Import legt keinen zweiten Zukaufartikel an.",
@@ -1121,7 +1132,8 @@ def kapitel_step(i):
             "mehrteilig: mit <i>Sätze</i> werden Rohr und Bleche ein Satz, gleiche Bleche eine Position mit "
             "Stück je Satz.",
             "Neue Zukaufartikel bekommen Kategorie Blechteile, Einheit Stück, Lieferant Technik, die STEP-Datei und "
-            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis direkt im Angebot mit "
+            "die Geometrie-Kennung. Der Bericht nennt die Anzahl; den Einkaufspreis (statt des Richtpreises bzw. "
+            "wenn er fehlt) direkt im Angebot mit "
             "<b>Zukaufteile … → EK eintragen …</b> (mit Stückzahl, [[zukauf_positionen]]) oder unter Zukaufartikel mit "
             "<b>EK eintragen …</b> nachtragen (Filter <i>EK fehlt</i>).",
             "In den Messwerten stehen die Spalten <i>bauteiltyp</i> (Profil, Blech, Blech gekantet) und <i>blech</i> "
@@ -1290,11 +1302,14 @@ def kapitel_optimieren(i):
     i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
     i.text("Für Teile ohne STEP-Datei rechnet der <b>Schneidweg-Rechner</b> Schneidweg, Einstiche und Konturklassen "
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
-           "die Position oder <i>Weitere Aktionen</i>, Doppelklick auf Schneidweg oder auf das kleine STEP-Bild vor "
+           "die Position oder <i>Weitere Aktionen</i>, Doppelklick auf Schneidweg oder auf das kleine Bild vor "
            "der Artikelnummer). Das Profil muss in den Stammdaten stehen. Bei Teilen aus dem STEP-Import zeigt er die "
            "gemessenen Enden, Bohrungen, Konturen und die Gravur in Tabelle und Skizze; dort lassen sie sich prüfen "
            "und ändern. Die Schweißnaht wird hier ebenfalls gewählt, und <b>Zeichnung als PDF …</b> macht aus allem "
            "eine maßstäbliche Zeichnung.")
+    i.text("Aufbau des Fensters: oben die Eingaben mit der Konturtabelle (Platz für mindestens fünf Zeilen ohne "
+           "Rollen), unten links die Skizze und rechts das Ergebnis je Teil. Die Trennlinien dazwischen lassen sich "
+           "ziehen, z. B. für mehr Konturzeilen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck, Naht unten; Skizze vergrößert auf die erste Hälfte",
            hoehe=125 * mm, legende=[
@@ -1993,6 +2008,10 @@ def kapitel_zukauf_angebot(i):
            "und <i>Blechlaser (Richtwerte)</i> ([[blech_stammdaten]]) sowie den Einstellungen der Gruppe "
            "<i>Blech-Richtpreis</i>. Werkstoffe, Maschinen und Schneiddaten des Rohrlasers werden weder gelesen "
            "noch geändert.")
+    i.text("Aufbau des Fensters: links die Eingaben (Kopf, Zuschnitt bzw. Schenkel, Innenkonturen), rechts Skizze "
+           "und Richtpreis. Die Trennlinie lässt sich ziehen. Ist die Skizze höher als breit, steht die "
+           "Seitenansicht unter der Abwicklung, im selben Maßstab, solange sie passt. In der Positionsliste "
+           "zeigt das kleine Bild vor der Artikelnummer den Zuschnitt; Doppelklick darauf öffnet den Editor wieder.")
     i.bild("blech_editor", "Blech-Editor: U-Profil aus 1.4301, 2 mm, mit Bohrung und Langloch", hoehe=125 * mm,
            legende=[
                (1, "<b>Bezeichnung</b> (leer = Vorschlag aus den Maßen), Artikelnummer, Lieferant (Technik "
@@ -3352,6 +3371,42 @@ def kapitel_step_messung(i):
             "Grenzen: Teile <b>im</b> Rohr (eingeschweißte Mutter innen, Stopfen) werden nicht abgetrennt, sondern "
             "wie bisher als Innenmerkmal gemeldet. Eine Kopfplatte genau so groß wie das Rohr ist vom Rohr nicht "
             "zu unterscheiden.")
+    i.text("<b>Anbauteile prüfen</b>: Im Prüfdialog des STEP-Imports zeigt die Spalte <i>Anbauteile</i> je Teil, "
+           "was abgetrennt wurde, z. B. <i>2 Bolzen, 1 Lasche</i>; gelb mit <i>– 1 prüfen</i>, solange ein unsicher "
+           "erkanntes Anbauteil offen ist. Bei Teilen mit Anbauteilen hat die 3D-Ansicht drei Knöpfe: "
+           "<b>Original</b> (Rohr mit Anbauteilen), <b>Rohrgeometrie</b> (nur was der Laser bearbeitet) und "
+           "<b>Gravurkonturen</b> (Rohr mit allen Gravurlinien, ohne Schnittlinien). In der Auswahl <i>Art</i> "
+           "steht neben dem Profil <i>– Anbauteile abgetrennt</i>; dort lässt sich auf die Messung "
+           "<i>– ohne Trennung</i> umschalten, wenn die Trennung falsch ist.")
+    i.bild("anbau_pruefen", "Prüfdialog mit einem Rohr mit Kopfplatte, Mutter und einer Lasche an der Ecke",
+           hoehe=80 * mm, legende=[
+               (1, "Spalte <b>Anbauteile</b>: gelb, solange ein unsicher erkanntes Anbauteil offen ist. "
+                   "<b>Doppelklick</b> öffnet das Fenster <i>Anbauteile prüfen</i>."),
+               (2, "Vorschau <b>Original</b>, <b>Rohrgeometrie</b> oder <b>Gravurkonturen</b>."),
+               (3, "Messwerte mit den Anbauteilen und dem Vergleich ohne Trennung.")])
+    i.text("Ein <b>Doppelklick</b> auf die Spalte <i>Anbauteile</i> öffnet das Fenster <b>Anbauteile prüfen</b>. "
+           "Je Zeile stehen Nr., Art, Lage (z ab Ende A, Seite bzw. Winkel), Aufstand, Höhe, Bearbeitung, Gravur "
+           "und Erkennung (<i>sicher</i> oder <i>prüfen</i>):")
+    i.liste("<b>Art</b> ändern, wenn sie falsch erkannt ist; Bearbeitung und Gravur springen auf die Vorgabe der "
+            "Art.",
+            "<b>Bearbeitung</b>: <i>Umriss</i> (Umfang der Aufstandsfläche), <i>Positionsmarke</i> (Kreuz 2 × 10 mm "
+            "= 20 mm), <i>Punktmarke</i> (Kreuz 2 × 2 mm = 4 mm) oder <i>keine</i>. Die <b>Gravur [mm]</b> ist von "
+            "Hand änderbar.",
+            "<b>Bestätigen</b> oder <b>Ausschließen</b> (keine Gravur, das Anbauteil bleibt in der Liste). "
+            "<b>Alle bestätigen</b> bestätigt alle Zeilen.",
+            "<b>Ist kein Anbauteil: Messung ohne Trennung verwenden</b>: Das Teil gilt so, wie es ohne Abtrennen "
+            "gemessen wurde (wie die Umschaltung bei <i>Art</i>).",
+            "<b>Übernehmen</b> ändert die Gravur des Teils um den Unterschied und gilt für alle gleichen Teile der "
+            "Zeile. Sind alle unsicher erkannten Anbauteile entschieden, gilt die Erkennung als geprüft und das "
+            "Teil wird angehakt. <b>Abbrechen</b> lässt alles, wie es war.")
+    i.bild("anbau_dialog", "Fenster Anbauteile prüfen: die Lasche an der Ecke war als Sonstiges erkannt",
+           hoehe=62 * mm, legende=[
+               (1, "Je Anbauteil Art, Lage, Aufstand, Bearbeitung, Gravur, Erkennung und Bestätigen/Ausschließen."),
+               (2, "<b>Alle bestätigen</b> setzt alle Zeilen auf bestätigt."),
+               (3, "Trennung falsch: die Messung ohne Trennung verwenden."),
+               (4, "Auswirkung je Teil: Gravur vorher → nachher und offene Anbauteile.")])
+    i.bild("anbau_gravur", "Vorschau Gravurkonturen: Rohr ohne Anbauteile mit den Gravurlinien (türkis)",
+           hoehe=55 * mm, legende=[(1, "Vorschau umschalten.")])
     i.hinweis("Eine STEP-Datei enthält nur Geometrie, keine Fertigungsmerkmale. Ob eine Fläche ein Schnitt ist, "
               "leitet die Messung daraus ab, ob sie auf dem Außen- oder Innenmantel liegt. Durchgehend ist ein "
               "Merkmal, wenn es bis zur Innenwand reicht. Kanten, die den Mantel nur in mehrere Flächen teilen, sind "
@@ -3430,9 +3485,11 @@ def kapitel_tastenkuerzel(i):
                                           "passende Zelle zum Eintragen (ausgeblendete Spalten werden eingeblendet)."],
         ["Angebot, Positionen", "Schneidweg, Einstiche, STEP-Werte",
          "Schneidweg-Rechner der Position ([[schneidweg_rechner]])"],
-        ["Angebot, Positionen", "kleines STEP-Bild vor der Artikelnummer",
-         "Schneidweg-Rechner der Position ([[schneidweg_rechner]])"],
-        ["Angebot, Positionen", "Artikelnummer neben dem STEP-Bild", "3D-Ansicht der Position"],
+        ["Angebot, Positionen", "kleines Bild vor der Artikelnummer",
+         "Schneidweg-Rechner der Position ([[schneidweg_rechner]]), bei Blechteilen der Blech-Editor "
+         "([[blech_editor]])"],
+        ["Angebot, Positionen", "Artikelnummer neben dem STEP-Bild", "3D-Ansicht der Position (ohne STEP: Nummer "
+                                                                     "bearbeiten)"],
         ["Angebot, Positionen", "Zusatzarbeiten, Zukaufteile, Schweißnaht",
          "Auswahl-Dialog ([[zusatzarbeiten_angebot]], [[zukauf_angebot]], [[schweissnaht]])"],
         ["Angebot, Positionen", "Gewinde geprüft, Bohrungen, Gewinde-Vorschlag",
@@ -3573,14 +3630,27 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.8", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
+    ["0.8.10", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
               "Gehrungen: wenige Sekunden statt mehrerer Minuten), gleiche Ergebnisse. Vergleich mit 12 m nur noch, wenn "
               "in den Einstellungen eingeschaltet (Vorgabe aus, [[lieferlaengen]]). Gehrungen ohne angegebene "
               "Richtung werden bei frei drehbaren Teilen trotzdem ineinandergelegt, der Schneidweg-Rechner weist "
               "darauf hin ([[schneidweg_rechner]])."],
+    ["0.8.9", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "
+              "Draufsicht mit Gehrungen und Innenkonturen, Blech-/Kantteil als Zuschnitt. Ändert sich das Teil (oder "
+              "die STEP-Datei), wird das Bild neu gezeichnet; Doppelklick aufs Bild öffnet den Schneidweg-Rechner "
+              "bzw. den Blech-Editor ([[schneidweg_rechner]], [[blech_editor]]). STEP-Import: Bleche wählen "
+              "Blech-Werkstoffe statt Rohr-Werkstoffen, neue Blechartikel bekommen den Blech-Richtpreis als EK, und "
+              "Doppelklick aufs Bild eines Blechs öffnet den Blech-Editor statt der 3D-Ansicht "
+              "([[blechartikel]])."],
+    ["0.8.8", "STEP-Import: Spalte <b>Anbauteile</b> im Prüfdialog, Fenster <b>Anbauteile prüfen</b> (Art, "
+              "Bearbeitung, Gravur, Bestätigen/Ausschließen, Messung ohne Trennung) und 3D-Vorschau Original/"
+              "Rohrgeometrie/Gravurkonturen ([[anbauteile]])."],
     ["0.8.7", "STEP-Import trennt <b>Anbauteile</b> (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten) "
               "vom Rohr: Profil, Länge und Schneidweg nur vom Rohr, Anbauteile mit Lage und Gravur (Bolzen Kreuz, "
               "sonst Umriss), unsichere Fälle zum Prüfen ([[anbauteile]])."],
+    ["0.8.6", "Schneidweg-Rechner und Blech-Editor neu aufgeteilt: Die Konturtabellen haben Platz für mehrere Zeilen "
+              "ohne Rollen, Skizze und Ergebnis stehen nebeneinander (Rohr) bzw. rechts (Blech), die Fenster öffnen "
+              "bildschirmgroß ([[schneidweg_rechner]], [[blech_editor]])."],
     ["0.8.5", "Staffeln: Im Fenster der Stufe Sätze und Positionen per Häkchen wählen (neue Stufe: alle angehakt). "
               "Blechteile aus dem Blech-Editor je Stufe mit dem EK aus dem Einkauf ab Stückzahl, sonst mit dem "
               "Richtpreis für die Stückzahl der Stufe neu gerechnet ([[staffeln]])."],

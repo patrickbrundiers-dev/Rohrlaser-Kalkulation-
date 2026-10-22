@@ -221,9 +221,9 @@ def _():
         assert rohr.ws.currentText() == "S235-10219"
         z02 = next(z for z in bl if z.datei.startswith("B02"))
         assert z02.pr.count() == 2 and z02.pr.itemData(1) == i and "gleich, EK fehlt" in z02.pr.itemText(1)
-        assert "vorhanden" in z02.it.text(9), z02.it.text(9)
+        assert "vorhanden" in z02.it.text(d.SP_HINWEIS), z02.it.text(d.SP_HINWEIS)
         z07 = next(z for z in bl if z.datei.startswith("B07"))
-        assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(9), z07.it.text(9)
+        assert z07.it.checkState(0).name == "Unchecked" and "PRÜFEN" in z07.it.text(d.SP_HINWEIS), z07.it.text(d.SP_HINWEIS)
         z02.pr.setCurrentIndex(1)
         z02.ws.setCurrentText("S235-10219")
         d.werte_schreiben()
@@ -290,6 +290,55 @@ def _():
         assert arten["B10_Blech_1000x160x8"] == (None, "FL 160x8"), arten
         assert arten["B07_Blech_gekantet_Winkel"][1].startswith("L "), arten
         d.close()
+        app.processEvents()
+        db.con.close()
+
+
+@fall("Blech-Werkstoffe im Prüfdialog, Blech-Richtpreis als EK, Doppelklick aufs Bild öffnet den Blech-Editor")
+def _():
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser import blech, zukauf
+    from rohrlaser.fenster import Hauptfenster
+    from rohrlaser.step_dialog import StepPruefDialog
+    app = QApplication.instance() or QApplication([])
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        bw = {z["blech_werkstoff_id"]: z for z in db.zeilen("blech_werkstoffe")}
+        wid = next(iter(sorted(bw)))
+        mw = [dict(m) for m in MW]
+        d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste(), bw)
+        z02 = next(z for z in d.zeilen if z.blech and z.datei.startswith("B02"))
+        eintraege = [z02.ws.itemText(n) for n in range(z02.ws.count())]
+        assert wid in eintraege and "S235-10219" not in eintraege, eintraege
+        rohr = next(z for z in d.zeilen if not z.blech)
+        assert rohr.ws.findText("S235-10219") >= 0          # Rohre weiter mit den Rohr-Werkstoffen
+        d.close()
+        f = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+        s = f.angebot_oeffnen(db.angebot_neu(dict(kunde="Test")))
+        gemessen = s.step_messen([str(BL / "B02_Blech_400x200x4_Bohrungen.step")])
+        s.step_messen = lambda *a, **k: (gemessen, None)
+        for m in gemessen:
+            m["_werkstoff"] = wid
+        erg = s.step_importieren(["B02"], stueck=3)
+        p = db.positionen(s.id)[0]
+        e = blech.lesen(p["technik"])
+        assert e and e["werkstoff"] == wid and e["laenge"] == 400 and e["breite"] == 200 and e["dicke"] == 4, e
+        assert [k_["art"] for k_ in e["konturen"]][:1] == ["Bohrung"], e["konturen"]
+        a = db.zukauf_artikel(zukauf.eintraege(p)[0]["artikel_id"])
+        rp = blech.rechnen(e, bw, db.zeilen("blechlaser"), {n: db.einstellung(n) for n in blech.EINSTELLUNGEN})
+        assert not zukauf.ek_fehlt(a) and rp["richtpreis"] and e["richtpreise"] == [dict(ab=1, preis=rp["richtpreis"])]
+        assert any("EK = Blech-Richtpreis" in t for t in erg["bericht"]), erg["bericht"]
+        pm = s.pos_modell
+        c = next(c for c in range(pm.columnCount()) if pm.name(c) == "artikel")
+        aufrufe = []
+        s.blech_bearbeiten = lambda zeile: aufrufe.append(("blech", zeile))
+        s.ansicht_3d = lambda zeile: aufrufe.append(("3d", zeile))
+        s._doppelklick(pm.index(0, c), auf_bild=True)
+        s._doppelklick(pm.index(0, c), auf_bild=False)
+        assert aufrufe == [("blech", 0), ("3d", 0)], aufrufe
+        assert "Doppelklick aufs Bild: Blech-Editor" in pm.data(pm.index(0, c), Qt.ToolTipRole)
+        f.close()
         app.processEvents()
         db.con.close()
 
