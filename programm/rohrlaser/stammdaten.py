@@ -524,9 +524,9 @@ EINSTELLUNGEN = (
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
     # angehoben. 0 = keiner.
-    # Kundenmaterial (Spalte Material: Kunde beigestellt): keine Materialkosten; optional Handling je kg der
+    # Kundenmaterial (Spalte Material: Kunde beigestellt): keine Materialkosten; optional Handling je m der
     # beigestellten Stangen mit Zuschlag Fertigung und Gewinn. Vorgabe 0 = aus
-    Einstellung("handling_beistellung", "Handling Kundenmaterial je kg Stangengewicht [€/kg] (0 = keins)",
+    Einstellung("handling_beistellung", "Handling Kundenmaterial je m Stangenlänge [€/m] (0 = keins)",
                 "Kalkulation", "zahl", 0.0, 0, 1000),
     # im Angebots-PDF: Hinweis, welche Stangen der Kunde beistellen muss
     Einstellung("beistellung_hinweis", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf", "Angebots-PDF",

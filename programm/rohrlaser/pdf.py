@@ -16,7 +16,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe, rechnen
+from . import ausgabe, querschnitt, rechnen
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
@@ -502,6 +502,27 @@ class StangenBalken(Flowable):
         c.drawRightString(self.breite, y - 3 * mm, f"{_z(lang, 0)} mm")
 
 
+def _stangenbild(kopf, einst, muster, warnung=None):
+    """Seite(n) 'Stangenbild' (A4 quer, 273 mm breit) für Werkstattpapiere und Kalkulation: Kopf, Legende und je
+    Stangenmuster ein maßstäblicher Balken (StangenBalken); Farbe je Position über alle Stangen gleich."""
+    farben, n = {}, 0
+    for m in muster:
+        for t in m["teile"]:
+            if t["pos"] not in farben:
+                farben[t["pos"]] = TEILFARBEN[n % len(TEILFARBEN)]
+                n += 1
+    inhalt = _dok_kopf("Stangenbild – Verschachtelung je Stange", kopf, einst, 273 * mm, warnung=warnung)
+    inhalt += [_p("Grau = Endbeschnitt, farbig = Teil (Pos., Länge in mm; Farbe je Position), hellgrau = Rest / "
+                  "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange. "
+                  "Schräge Linie = Gehrung (Ansicht von der Seite, 0° oben; bei Gehrungen über die Seitenflächen "
+                  "von oben). Roter Strich = Schweißnaht (gestrichelt: hinten liegend); hinter den Stangendaten der "
+                  "Querschnitt von Ende A mit rotem Punkt an der Naht und die Zahl gedrehter Teile (Lage je Teil im "
+                  "Schnittplan). Grüne Linien = Gehrungen ineinandergelegt; das gesparte Material steht einmal je "
+                  "Stange in der Titelzeile und ist in Rest und Ausnutzung schon enthalten.",
+                  ParagraphStyle("le", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 3 * mm)]
+    return inhalt + [StangenBalken(m, farben) for m in muster]
+
+
 def _fuss(einst, text):
     firma = (einst or {}).get("briefkopf_1") or ""
     return "   |   ".join(t for t in (firma, text) if t)
@@ -566,61 +587,172 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         else:
             inhalt += [CondPageBreak(60 * mm)] + kopfteil + [tab, Spacer(1, 6 * mm)]
     if wp["muster"]:
-        farben, n = {}, 0
-        for m in wp["muster"]:
-            for t in m["teile"]:
-                if t["pos"] not in farben:
-                    farben[t["pos"]] = TEILFARBEN[n % len(TEILFARBEN)]
-                    n += 1
         inhalt += [NextPageTemplate("quer"), PageBreak()]
-        inhalt += _dok_kopf("Stangenbild – Verschachtelung je Stange", kopf, einst, 273 * mm,
-                            warnung=None if aktuell else achtung.replace("Schnittplan", "Stangenbild"))
-        inhalt += [_p("Grau = Endbeschnitt, farbig = Teil (Pos., Länge in mm; Farbe je Position), hellgrau = Rest / "
-                      "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange. "
-                      "Schräge Linie = Gehrung (Ansicht von der Seite, 0° oben; bei Gehrungen über die Seitenflächen "
-                      "von oben). Roter Strich = Schweißnaht (gestrichelt: hinten liegend); hinter den Stangendaten der "
-                      "Querschnitt von Ende A mit rotem Punkt an der Naht und die Zahl gedrehter Teile (Lage je Teil im "
-                      "Schnittplan). Grüne Linien = Gehrungen ineinandergelegt; das gesparte Material steht einmal je "
-                      "Stange in der Titelzeile und ist in Rest und Ausnutzung schon enthalten.",
-                      ParagraphStyle("le", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 3 * mm)]
-        inhalt += [StangenBalken(m, farben) for m in wp["muster"]]
+        inhalt += _stangenbild(kopf, einst, wp["muster"], None if aktuell else achtung.replace("Schnittplan", "Stangenbild"))
     else:
         inhalt.append(_p("Der Schnittplan ist leer. Bitte zuerst optimieren.", S_FETT))
     doc.build(inhalt, canvasmaker=leinwand)
 
 
 # ------------------------------------------------------------------ Kalkulation
-KALK = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 20), ("Stück", "stueck", 0, 10),
-        ("Material je Teil [€]", "material_teil", 3, 18), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 18),
-        ("Gewindezeit je Teil [s]", "gewindezeit", 1, 16), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 18),
-        ("Zusatzarbeiten je Teil [€]", "zusatz_teil", 3, 18), ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 18),
-        ("Herstellkosten je Teil [€]", "herstell_teil", 3, 19),
-        ("Pauschalen, Programmierung, Aufschlag, Fracht je Teil [€]", "pauschalen_teil", 3, 19),
-        ("Skonto je Teil [€]", "skonto_teil", 3, 15),
-        ("Verkaufspreis je Teil [€]", "preis_teil", 3, 19), ("Verkaufspreis Position [€]", "preis_position", 2, 18),
-        ("Herstellkosten Position [€]", "herstell_position", 2, 18), ("Hinweis", "hinweis", None, 20)]
-assert sum(s[3] for s in KALK) <= 273     # Breite A4 quer ohne Ränder [mm]
-SCHNEID = [("Pos.", "pos", 0, 9), ("Artikelnummer", "artikel", None, 20),
-           ("groß + Rest [mm]", "mm_gross", 1, 15), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 13),
-           ("Zeit groß [s]", "zeit_gross", 1, 13),
-           ("Kontur mittel [mm]", "mm_mittel", 1, 14), ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 13),
-           ("Zeit mittel [s]", "zeit_mittel", 1, 13),
-           ("Kontur klein [mm]", "mm_klein", 1, 14), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 13),
-           ("Zeit klein [s]", "zeit_klein", 1, 13),
-           ("Gravur [mm]", "mm_gravur", 1, 13), ("Zeit Gravur [s]", "zeit_gravur", 1, 13),
-           ("Einstiche", "einstiche_teil", 0, 10), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 14),
-           ("Mehrzeit 3D [s]", "zeit_d3", 1, 14), ("Ecken + Anschlag [s]", "zeit_enden", 1, 14),
-           ("Laserzeit brutto [s]", "laser_brutto", 1, 14), ("Einsparung [s]", "einsparung", 1, 14),
-           ("Laserzeit netto [s]", "laser_netto", 1, 14)]
-assert sum(s[3] for s in SCHNEID) <= 273
+# Spalten der Tabellen: (Kopf, Schlüssel, Nachkommastellen (None = Text), Breite [mm], immer zeigen). Spalten, die in
+# keiner Zeile einen Wert haben (alles 0 bzw. leer), blendet das PDF aus; die übrigen werden auf die volle Breite
+# verteilt (Patrick 22.10.2026: Kalkulation übersichtlicher). Beträge und Zeiten je Teil, außer 'Position'.
+KALK = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True), ("Stück", "stueck", 0, 10, True),
+        ("Material [€]", "material_teil", 3, 16, True), ("Laser netto [s]", "laser_netto", 1, 15, True),
+        ("Gewinde [s]", "gewindezeit", 1, 14, False), ("Laser + Gewinde [€]", "laser_teil", 3, 17, True),
+        ("Zusatz [€]", "zusatz_teil", 3, 15, False), ("Rüsten + Wechsel [€]", "ruesten_teil", 3, 17, False),
+        ("Herstellkosten [€]", "herstell_teil", 3, 17, True),
+        ("Pauschalen, Programm., Aufschlag, Fracht [€]", "pauschalen_teil", 3, 20, False),
+        ("Skonto [€]", "skonto_teil", 3, 13, False),
+        ("Preis je Teil [€]", "preis_teil", 3, 17, True), ("Preis Position [€]", "preis_position", 2, 18, True),
+        ("Herstellkosten Position [€]", "herstell_position", 2, 19, True), ("Hinweis", "hinweis", None, 30, False)]
+SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True),
+           ("groß + Rest [mm]", "mm_gross", 1, 15, True), ("Vorschub groß [mm/min]", "vorschub_gross", 0, 15, True),
+           ("Zeit groß [s]", "zeit_gross", 1, 12, True),
+           ("Kontur mittel [mm]", "mm_mittel", 1, 14, False), ("Vorschub mittel [mm/min]", "vorschub_mittel", 0, 15, False),
+           ("Zeit mittel [s]", "zeit_mittel", 1, 12, False),
+           ("Kontur klein [mm]", "mm_klein", 1, 14, False), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 15, False),
+           ("Zeit klein [s]", "zeit_klein", 1, 12, False),
+           ("Gravur [mm]", "mm_gravur", 1, 12, False), ("Zeit Gravur [s]", "zeit_gravur", 1, 12, False),
+           ("Einstiche", "einstiche_teil", 0, 13, True), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 13, True),
+           ("Mehrzeit 3D [s]", "zeit_d3", 1, 13, False), ("Ecken [s]", "zeit_ecken", 1, 12, False),
+           ("Anschlag doppelt [s]", "zeit_doppel", 1, 14, False), ("Laser brutto [s]", "laser_brutto", 1, 14, True),
+           ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]
+S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
 
 
-def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
+def spalten_waehlen(spalten, zeilen, breite):
+    """Spalten mit Wert in mindestens einer Zeile (bzw. 'immer zeigen'), Breiten auf breite [pt] verteilt; jede Spalte
+    mindestens so breit wie das längste Wort ihres Kopfs, damit kein Wort getrennt wird. [(Spalte, Breite)]."""
+    def hat_wert(s):
+        for z in zeilen:
+            w = z.get(s[1])
+            if s[2] is None and w not in (None, ""):
+                return True
+            if s[2] is not None and isinstance(w, (int, float)) and round(w, s[2]) != 0:
+                return True
+        return False
+    gewaehlt = [s for s in spalten if s[4] or hat_wert(s)]
+    rl = rl_canvas.Canvas(io.BytesIO())
+    minimum = [max(rl.stringWidth(w, FETT, 7) for w in s[0].split()) + 7 for s in gewaehlt]
+    w = [max(s[3] * mm, m) for s, m in zip(gewaehlt, minimum)]
+    f = breite / sum(w)
+    if f < 1:           # zu breit: nur über das Minimum hinaus kürzen
+        frei = sum(x - m for x, m in zip(w, minimum))
+        zuviel = sum(w) - breite
+        w = [x - (x - m) * min(1, zuviel / frei) if frei else x for x, m in zip(w, minimum)]
+    else:
+        w = [x * f for x in w]
+    return list(zip(gewaehlt, w))
+
+
+def _spalten_tabelle(spalten, zeilen, breite, fett=()):
+    sp = spalten_waehlen(spalten, zeilen, breite)
+    daten = [[_p(s[0], S_KOPF7) for s, _ in sp]]
+    for z in zeilen:
+        daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s, _ in sp])
+    tab = _tabelle(daten, [b for _, b in sp], rechts=[i for i, (s, _) in enumerate(sp) if s[2] is not None])
+    spalten_fett = [i for i, (s, _) in enumerate(sp) if s[1] in fett]
+    tab.setStyle(TableStyle([("FONT", (c, 1), (c, -1), FETT, 8.5) for c in spalten_fett]))
+    return tab
+
+
+class QuerschnittBild(Flowable):
+    """Profilquerschnitt (querschnitt.kontur) in einer Box groesse × groesse, Wand hellblau gefüllt."""
+
+    def __init__(self, profil, groesse=9 * mm):
+        super().__init__()
+        self.q, self.groesse = querschnitt.kontur(profil), groesse
+
+    def wrap(self, breite, hoehe):
+        return self.groesse, self.groesse
+
+    def draw(self):
+        if not self.q:
+            return
+        c, g = self.canv, self.groesse
+        f, dx, dy = querschnitt.einpassen(self.q, g, g, rand=0.5 * mm)
+        c.setStrokeColor(BLAU)
+        c.setLineWidth(0.5)
+        if self.q["flaechen"]:
+            pfad = c.beginPath()
+            for poly in self.q["flaechen"]:
+                pfad.moveTo(dx + poly[0][0] * f, dy + poly[0][1] * f)
+                for x, y in poly[1:]:
+                    pfad.lineTo(dx + x * f, dy + y * f)
+                pfad.close()
+            c.setFillColor(colors.HexColor("#BDD7EE"))
+            c.drawPath(pfad, fill=1, stroke=1, fillMode=0)       # 0 = Gerade-Ungerade (Rohrwand)
+        for zug in self.q["linien"]:
+            pfad = c.beginPath()
+            pfad.moveTo(dx + zug[0][0] * f, dy + zug[0][1] * f)
+            for x, y in zug[1:]:
+                pfad.lineTo(dx + x * f, dy + y * f)
+            c.drawPath(pfad, fill=0, stroke=1)
+
+
+class AnteilBalken(Flowable):
+    """Waagerechter Balken für den Anteil einer Kostenart am Verkaufspreis (0 … 1)."""
+
+    def __init__(self, anteil, breite=28 * mm, farbe=BLAU):
+        super().__init__()
+        self.anteil, self.breite, self.farbe = max(0.0, min(1.0, anteil or 0)), breite, farbe
+
+    def wrap(self, breite, hoehe):
+        return self.breite, 3 * mm
+
+    def draw(self):
+        c = self.canv
+        c.setFillColor(ZEBRA)
+        c.rect(0, 0.4 * mm, self.breite, 2.4 * mm, fill=1, stroke=0)
+        if self.anteil > 0:
+            c.setFillColor(self.farbe)
+            c.rect(0, 0.4 * mm, max(0.4, self.breite * self.anteil), 2.4 * mm, fill=1, stroke=0)
+
+
+def _material_tabelle(material, profile):
+    """Materialeinsatz je Abmessung (rechnen.material_abmessungen) mit Querschnitt; Meterpreis von Hand fett."""
+    kopf = ["", "Abmessung", "Werkstoff · Oberfläche", "Lieferlänge", "Pos.", "Stangen", "Meter", "Gewicht [kg]",
+            "Ausnutzung", "Meterpreis [€/m]", "Material [€]"]
+    daten, fett = [_kopfzeile(kopf)], []
+    rechts = (5, 6, 7, 8, 9, 10)
+    for g in material:
+        plan = g["stangen"] > 0
+        if len(g["laengen"]) > 1:
+            laenge = " + ".join(f"{n} × {_z(l, 0)}" for l, n in sorted(g["laengen"].items())) + " mm"
+        else:
+            laenge = f"{_z(next(iter(g['laengen']), g['stange']), 0)} mm"
+        preis = "Kundenmaterial" if g["kunde"] else _z(g["wirksam"]) if g["wirksam"] is not None else "–"
+        if g["manuell"] is not None and not g["kunde"]:
+            fett.append(len(daten))
+            preis += " *"
+        daten.append([QuerschnittBild(profile.get(g["profil"])), _p(g["profil"], S_FETT),
+                      _p(rechnen.material_text(g["werkstoff"], g["oberflaeche"]), S_KLEIN), _p(laenge, S_KLEIN),
+                      _p(", ".join(_z(p, 0) for p in g["positionen"] if p is not None), S_KLEIN),
+                      _z(g["stangen"], 0) if plan else "–", _z(g["meter"], 1) if plan else "–",
+                      _z(g["kg"], 1) if plan else "–",
+                      f"{_z(100 * g['ausnutzung'], 1)} %" if g["ausnutzung"] is not None else "–", preis,
+                      _z(g["kosten"]) if plan else "–"])
+    summe = sum(g["kosten"] for g in material)
+    daten.append(["", _p("Summe", S_FETT), "", "", "", _z(sum(g["stangen"] for g in material), 0),
+                  _z(sum(g["meter"] for g in material), 1), _z(sum(g["kg"] for g in material), 1), "", "", _z(summe)])
+    tab = _tabelle(daten, [w * mm for w in (12, 32, 42, 31, 30, 16, 18, 22, 20, 26, 22)], rechts=rechts,
+                   fett_zeilen=[len(daten) - 1])
+    tab.setStyle(TableStyle([("VALIGN", (0, 1), (-1, -1), "MIDDLE")]
+                            + [("FONT", (9, r), (9, r), FETT, 8.5) for r in fett]))
+    return tab, bool(fett)
+
+
+def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None):
+    """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
+    ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
+    Querschnitte."""
     nr = kopf.get("nummer") or ""
     doc, leinwand = _dokument(pfad, f"Kalkulation {nr}", _fuss(einst, f"Kalkulation {nr}"), quer=True)
     breite = 273 * mm
-    inhalt = _dok_kopf("Kalkulation", kopf, einst, breite, warnung=None if aktuell else
-                       "ACHTUNG: Kalkulation passt nicht zum aktuellen Angebot (Optimierung veraltet).")
+    achtung = "ACHTUNG: Kalkulation passt nicht zum aktuellen Angebot (Optimierung veraltet)."
+    inhalt = _dok_kopf("Kalkulation", kopf, einst, breite, warnung=None if aktuell else achtung)
     k = rechnen.zeit_summen(summen["zeiten"])
     verkauf, herstell = summen.get("verkauf") or 0, summen.get("herstell") or 0
     inhalt += [_kacheln([("Verkaufspreis netto", _z(verkauf) + " €"), ("Herstellkosten", _z(herstell) + " €"),
@@ -628,15 +760,18 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
                          ("Maschinenzeit", rechnen.zeit_text(k["maschine_min"])),
                          ("Stangen", _z(summen["stangen"], 0)), ("Teile", _z(summen["teile"], 0))], breite),
                Spacer(1, 5 * mm)]
-    # Kostenarten ohne 0,00 € (Summenzeilen immer), Summen hellblau
-    daten, fett = [_kopfzeile(["Kostenart", "Betrag [€]"])], []
+    # Kostenarten ohne 0,00 € (Summenzeilen immer), Anteil am Verkaufspreis als Zahl und Balken, Summen hellblau
+    daten, fett = [_kopfzeile(["Kostenart", "Betrag [€]", "Anteil", ""])], []
     for t, w, f in kostenarten(summen, einst):
         if not f and not round(w or 0, 2):
             continue
         if f:
             fett.append(len(daten))
-        daten.append([_p(t, S_FETT if f else S), _z(w)])
-    kosten = _tabelle(daten, [95 * mm, 30 * mm], rechts=(1,), fett_zeilen=fett, zebra=False)
+        anteil = (w or 0) / verkauf if verkauf else 0
+        daten.append([_p(t, S_FETT if f else S), _z(w), f"{_z(100 * anteil, 1)} %" if verkauf else "",
+                      AnteilBalken(anteil, 30 * mm, BLAU if f else colors.HexColor("#5B9BD5")) if verkauf else ""])
+    kosten = _tabelle(daten, [88 * mm, 25 * mm, 16 * mm, 33 * mm], rechts=(1, 2), fett_zeilen=fett, zebra=False)
+    kosten.setStyle(TableStyle([("VALIGN", (0, 1), (-1, -1), "MIDDLE")]))
     angebot = [_kopfzeile(["Rüsten und Mengen", ""]),
                [_p("Rüstzeit Maschine [min]"), _z(summen["ruestzeit"], 0)],
                [_p("Abmessungen × Rüstzeit [min]"), f"{summen['abmessungen']} × {_z(summen['ruestzeit_abmessung'], 0)}"],
@@ -644,52 +779,54 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True):
                *([[_p(f"Stangenwechsel SN [s] ({summen['beladungen_sn']} Stangen mit Schweißnaht)"),
                    _z(summen["stangenwechsel_sn"], 0)]] if summen.get("beladungen_sn") else []),
                [_p("Stangen"), _z(summen["stangen"], 0)], [_p("Teile"), _z(summen["teile"], 0)]]
-    t = Table([[kosten, "", _tabelle(angebot, [65 * mm, 30 * mm], rechts=(1,), zebra=False)]],
-              colWidths=[125 * mm, 15 * mm, 95 * mm], hAlign="LEFT")
+    t = Table([[kosten, "", _tabelle(angebot, [70 * mm, 30 * mm], rechts=(1,), zebra=False)]],
+              colWidths=[162 * mm, 11 * mm, 100 * mm], hAlign="LEFT")
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                            ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
     inhalt += [t, Spacer(1, 5 * mm)]
-    klein = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
+    if material:            # Materialeinsatz je Abmessung (Patrick 22.10.2026), eingestellt im Fenster 'Material …'
+        tab, hand = _material_tabelle(material, profile or {})
+        inhalt += [CondPageBreak(40 * mm), _p("Materialeinsatz je Abmessung", S_H2), tab]
+        hinweis = ("Meterpreis = womit das Angebot rechnet (Lieferlängen, Preise bzw. Tonnenpreis mit Aufpreis der "
+                   "Oberfläche); Material € je Stange mit Händler-Mehrlänge. Ausnutzung = Teilelängen / Stangenlänge.")
+        if hand:
+            hinweis += " * = Meterpreis von Hand (Fenster 'Material …' bzw. Spalte Materialpreis [€/m])."
+        inhalt += [Spacer(1, 1.5 * mm), _p(hinweis, ParagraphStyle("mh", parent=S_KLEIN, textColor=GRAU)),
+                   Spacer(1, 5 * mm)]
     # Zeiten und Kosten je Arbeitsschritt (Schritte ohne Zeit und Kosten ausgeblendet)
-    daten = [[_p(t, klein) for t in ("Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit",
-                                     "Stundensatz [€/h]", "Kosten [€]", "Quelle", "Berechnung")]]
+    daten = [[_p(t, S_KOPF7) for t in ("Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit",
+                                       "Stundensatz [€/h]", "Kosten [€]", "Quelle", "Berechnung")]]
     for z in summen["zeiten"]:
         if rechnen.schritt_sichtbar(z):
             daten.append([_p(z["schritt"], S_KLEIN), _p(z["art"], S_KLEIN), *rechnen.schritt_texte(z),
                           _z(z["kosten"]), _p(z["quelle"], S_KLEIN), _p(z["formel"], S_KLEIN)])
     inhalt += [CondPageBreak(40 * mm), _p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2),
-               _tabelle(daten, [w * mm for w in (40, 20, 22, 18, 18, 18, 22, 18, 40, 57)], rechts=(2, 3, 4, 5, 6, 7)),
+               _tabelle(daten, [w * mm for w in (40, 20, 24, 18, 20, 20, 22, 20, 40, 49)], rechts=(2, 3, 4, 5, 6, 7)),
                Spacer(1, 1.5 * mm),
                _p(f"Maschinenzeit {rechnen.zeit_text(k['maschine_min'])} · Personalzeit "
                   f"{rechnen.zeit_text(k['personal_min'])} · Durchlaufzeit {rechnen.zeit_text(k['durchlauf_min'])} "
                   f"(parallele Personalzeit nicht addiert) · Arbeitskosten {_z(k['arbeitskosten'])} €",
                   ParagraphStyle("zs", parent=S_KLEIN, textColor=GRAU)),
                Spacer(1, 5 * mm)]
-    daten = [[_p(s[0], klein) for s in KALK]]
-    for z in zeilen:
-        if z is None:
-            continue
-        daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s in KALK])
-    tab = _tabelle(daten, [s[3] * mm for s in KALK], rechts=[i for i, s in enumerate(KALK) if s[2] is not None])
-    preis = [i for i, s in enumerate(KALK) if s[1] in ("preis_teil", "preis_position", "pos")]
-    tab.setStyle(TableStyle([("FONT", (c, 1), (c, -1), FETT, 8.5) for c in preis]))
-    inhalt += [CondPageBreak(40 * mm), _p("Kalkulation je Position", S_H2), tab]
+    liste = [z for z in zeilen if z is not None]
+    inhalt += [CondPageBreak(40 * mm), _p("Kalkulation je Position", S_H2),
+               _spalten_tabelle(KALK, liste, breite, fett=("pos", "preis_teil", "preis_position")),
+               Spacer(1, 1.5 * mm),
+               _p("Beträge und Zeiten je Teil, außer den Spalten 'Position'. Spalten ohne Wert sind ausgeblendet.",
+                  ParagraphStyle("kh", parent=S_KLEIN, textColor=GRAU))]
     # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse
-    daten = [[_p(s[0], klein) for s in SCHNEID]]
-    for z in zeilen:
-        if z is None or z.get("zukaufteil"):
-            continue
-        daten.append([_p(z.get(s[1]), S_KLEIN) if s[2] is None else _z(z.get(s[1]), s[2]) for s in SCHNEID])
-    if len(daten) > 1:
+    liste = [z for z in zeilen if z is not None and not z.get("zukaufteil")]
+    if liste:
         inhalt += [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Schneidzeit je Teil nach Konturklassen", S_H2),
-                   _tabelle(daten, [s[3] * mm for s in SCHNEID],
-                            rechts=[i for i, s in enumerate(SCHNEID) if s[2] is not None]),
-                   Spacer(1, 1.5 * mm),
+                   _spalten_tabelle(SCHNEID, liste, breite), Spacer(1, 1.5 * mm),
                    _p("Zeit je Klasse = Schneidweg der Klasse / Vorschub der Klasse × 60. Anfangs- und Endschnitt sind "
                       "wie die Innenkonturen nach Hüllmaß eingeteilt. groß + Rest = Schneidweg − Konturen klein und "
                       "mittel. Netto = brutto − Einsparung gemeinsamer Schnitte (mit dem Vorschub der Klasse des "
-                      "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit.",
-                      ParagraphStyle("sh", parent=S_KLEIN, textColor=GRAU))]
+                      "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit. Spalten ohne Wert "
+                      "sind ausgeblendet.", ParagraphStyle("sh", parent=S_KLEIN, textColor=GRAU))]
+    if muster:              # Stangenbild wie in den Werkstattpapieren, auf neuer Seite
+        inhalt += [PageBreak()] + _stangenbild(kopf, einst, muster, None if aktuell else
+                                               achtung.replace("Kalkulation", "Stangenbild"))
     doc.build(inhalt, canvasmaker=leinwand)
 
 

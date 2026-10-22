@@ -131,3 +131,22 @@ def zuordnen(form, h, b, tw, tf, flaeche=None):
             if best is None or abw < best[0]:
                 best = (abw, name)
     return best[1] if best else None
+
+
+def name_aus_massen(form, h, b, tw):
+    """Normbezeichnung ('IPE 200', 'HEB 160', 'UPN 100', 'T 50') aus Höhe, Breite und Stegdicke, wie sie in den
+    Stammdaten stehen (ohne Flanschdicke), oder None. Patrick 22.10.2026: Träger mit ihrer richtigen Bezeichnung."""
+    try:
+        h, b, tw = float(h), float(b), float(tw)
+    except (TypeError, ValueError):
+        return None
+    best = None
+    for name, n in NORM.items():
+        if n["form"] != form or form == "L-Profil":
+            continue
+        tol_t = TOL_T_GENEIGT if n["geneigt"] else TOL_T
+        if abs(h - n["h"]) <= TOL_HB and abs(b - n["b"]) <= TOL_HB and abs(tw - n["tw"]) <= tol_t:
+            abw = abs(h - n["h"]) + abs(b - n["b"]) + abs(tw - n["tw"])
+            if best is None or abw < best[0]:
+                best = (abw, name)
+    return best[1] if best else None

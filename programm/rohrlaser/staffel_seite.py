@@ -199,7 +199,7 @@ TIPPS.update({
     "programmierung_kontur": "Programmierzeit je Innenkontur, zur Zeit je Position; leer = Wert des Angebots",
     "programmierung_teil": "Betrag je Position verschickter Angebote vor 0.8.22; zählt nur ohne Programmierzeit",
     "angebotsaufschlag": "Angebotsaufschlag einmal je Stufe; leer = Wert des Angebots",
-    "handling_beistellung": "Handling Kundenmaterial je kg; leer = Wert des Angebots",
+    "handling_beistellung": "Handling Kundenmaterial je m; leer = Wert des Angebots",
     "fracht": "Fester Frachtbetrag für die ganze Stufe; leer = Fracht wie im Angebot (berechnet für die Mengen der Stufe)",
     "skonto": "Skonto der Stufe in %; leer = Skonto des Angebots",
     "laenge_auto": "ja = für diese Stufe die empfohlene Lieferlänge je Profil wählen (z. B. 12 m erst bei großen "

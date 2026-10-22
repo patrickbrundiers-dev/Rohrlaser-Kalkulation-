@@ -1215,6 +1215,12 @@ class AngebotSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+        # Material je Abmessung (Patrick 22.10.2026) neben der Materialanfrage; links ist die Leiste schon voll
+        self.material_knopf = QPushButton("Material …")
+        self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
+                                       "Meterpreis ändern")
+        self.material_knopf.clicked.connect(lambda: self.material_einstellen())
+        leiste.addWidget(self.material_knopf)
         # Materialanfrage immer sichtbar (Patrick 22.10.2026), nicht mehr unter Weitere Aktionen
         self.anfrage_knopf = QPushButton("Materialanfrage (E-Mail)")
         self.anfrage_knopf.setToolTip("Stangenbedarf aus der Optimierung beim Lieferanten anfragen (Outlook oder "
@@ -1248,6 +1254,7 @@ class AngebotSeite(QWidget):
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
+                           ("Material …", lambda: self.material_einstellen()),
                            ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
                            ("Blech-Editor …", lambda: self.blech_bearbeiten()),
@@ -2588,8 +2595,12 @@ class AngebotSeite(QWidget):
             return None
         zeilen, summen = self._rechnung()
         aktuell = self.stand_optimierung() == "aktuell"
+        material = rechnen.material_abmessungen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
+        muster = ausgabe.werkstatt(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)["muster"] \
+            if self.ergebnis and self.ergebnis.get("stangen") else None
         return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
-                               lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell))
+                               lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell,
+                                                             material, muster, self.k.profile))
 
     def csv_export(self):
         if not self._vor_ausgabe():
@@ -2597,6 +2608,42 @@ class AngebotSeite(QWidget):
         zeilen, summen = self._rechnung()
         return self._schreiben("CSV-Export", self._ziel("Kalkulation", ".csv", mit_kunde=True),
                                lambda p: export.angebot_csv(p, self.kopf, zeilen, summen, self.einst))
+
+    # -------------------------------------------------------------- Material je Abmessung
+    def material_einstellen(self, dialog=None):
+        """Fenster 'Material …': Materialeinsatz und Materialwerte je Abmessung (Werkstoff, Oberfläche, Lieferlänge, Eigen-/
+        Kundenmaterial, Meterpreis) und Handling Kundenmaterial; Änderungen werden an allen Positionen der Abmessung
+        gespeichert und gehen so in die Kalkulation ein. dialog(d) bedient das Fenster statt exec (Tests). Ergebnis:
+        Anzahl geänderter Abmessungen bzw. Werte oder None (nichts zu zeigen)."""
+        from .meterpreis_dialog import MeterpreisDialog
+        gruppen = rechnen.material_abmessungen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
+        if not gruppen:
+            self.f.meldung("Material: keine Position mit Profil und Werkstoff im Angebot.", fehler=True)
+            return None
+        ohne_plan = not self.ergebnis or not self.ergebnis.get("stangen")
+        d = MeterpreisDialog(self, gruppen, self.k, self.kopf,
+                             lambda g: [z["laenge"] for z in rechnen.lieferlaengen(g["profil"], g["werkstoff"], self.k,
+                                                                                   self.tabellen, auto=False)
+                                        if rechnen._n(z.get("laenge")) > 0],
+                             self.einst, veraltet=not ohne_plan and self.stand_optimierung() != "aktuell",
+                             ohne_plan=ohne_plan)
+        if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
+            return 0
+        n = len(d.aenderungen) + len(d.kopf_aenderungen)
+        if not n:
+            return 0
+        vorher = self._verkauf()
+        for g, felder in d.aenderungen:
+            for pid in g["ids"]:
+                for feld, wert in felder.items():
+                    self.db.position_aendern(pid, feld, wert)
+        for feld, wert in d.kopf_aenderungen.items():
+            self.db.angebot_aendern(self.id, feld, wert)
+        self.neu_laden()
+        plan = any(set(f) & {"werkstoff_id", "oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen)
+        self.f.meldung(f"Material: {n} Änderung(en) gespeichert. {preis_aenderung(vorher, self._verkauf())}"
+                       + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else ""))
+        return n
 
     # -------------------------------------------------------------- Materialanfrage
     def material_anfragen(self, dialog=None, ausfuehren=None):
