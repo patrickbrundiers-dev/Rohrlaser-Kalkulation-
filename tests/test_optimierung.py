@@ -108,4 +108,26 @@ for lauf in range(40):
 assert (summe, summe_bisher, bewiesen) == (1250, 1271, 38), (summe, summe_bisher, bewiesen)
 print(f"OK    40 große Gruppen: {summe} statt {summe_bisher} Stangen, {bewiesen} nachweislich optimal")
 
+# Zwischenspeicher von anordnen/passt (0.8.5): gleiche Ergebnisse wie ohne, große Gruppe mit Gehrungen schnell
+import time  # noqa: E402
+rnd = random.Random(7)
+g = Gruppe("RE 60x40x3", "S", 6000, 20, 80, 0.3, 2, querschnitt=("Kasten", 60, 40))
+gehr = [((45, 0), (40, 0)), ((45, 0), (45, 180)), ((30, 90), None), (None, (20, 270))]
+g.teile = [Teil(z, z, "A", i + 1, L, a is None, b is None, 60, 60, a, b, drehung=dr)
+           for z, (L, (a, b), dr) in enumerate((rnd.choice([370, 420, 615, 850, 1450]), rnd.choice(gehr),
+                                                rnd.choice([opt.FREI, opt.FREI, opt.UNBEKANNT])) for _ in range(12))
+           for i in range(rnd.randint(30, 90))]
+for _ in range(300):
+    s_ = rnd.sample(g.teile, rnd.randint(1, 14))
+    opt._ANORDNUNG.clear()
+    frisch = opt.anordnen(s_, g)
+    assert opt.anordnen(s_, g) == frisch and opt.anordnen(list(s_), g) == frisch
+    assert opt.passt(g, s_) == (opt.vertraeglich(g, s_) and opt.verbrauch(g, frisch) <= g.nutzbar_bis + opt.EPS)
+t0 = time.time()
+r = optimiere(g)
+pruefe([g], [r])
+dauer = time.time() - t0
+assert dauer < 60, dauer
+print(f"OK    Zwischenspeicher: gleiche Anordnung, {len(g.teile)} Teile mit Gehrungen in {dauer:.1f} s")
+
 print("OK: Optimierung")
