@@ -29,11 +29,15 @@ Zwei Rechenschichten:
       Skonto eingerechnet; liegt Netto unter dem Mindestpreis, gilt der Mindestpreis (Stückpreis aufgerundet);
       MwSt = Netto gesamt × MwSt-Satz
   Ohne Werte in der Stufe ergibt das genau den Verkaufspreis der Kalkulation (rechnen.kalkulation).
+
+Blechteile aus dem Blech-Editor (Patrick 22.10.2026): weicht die Stückzahl in der Stufe von der des Angebots ab,
+gilt der EK aus dem Einkauf (Staffelzeile des Preisstands ab ≤ Stückzahl, nicht vom Blech-Editor), sonst wird der
+Richtpreis für die Stückzahl der Stufe neu gerechnet (Rüsten verteilt sich auf mehr oder weniger Teile; blech_stand).
 """
 import hashlib
 import json
 
-from . import fracht_angebot, rechnen
+from . import blech, fracht_angebot, rechnen, zukauf
 from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
 from .angebot import aktiv as position_aktiv
 from .ausgabe import aufrunden, kaufm_runden
@@ -258,6 +262,9 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
                      "laengenwahl")      # übernommene Lieferlängen gelten auch in den Stufen
+    # Blech-Daten (Richtpreis je Stufe) nur, wenn ein Blechteil aus dem Blech-Editor im Angebot ist
+    if "blech" in tabellen and not any(blech.lesen(p.get("technik")) for p in positionen):
+        tabellen = {n: w for n, w in tabellen.items() if n != "blech"}
     return [{f: kopf.get(f) for f in felder + tuple(n for n in fracht_felder if kopf.get(n) is not None)},
             [{a: b for a, b in p.items() if a not in ("id", "angebot_id", "nr", "zeile")} for p in positionen],
             [k.profile, k.werkstoffe, k.maschinen, k.oberflaechen], tabellen,
@@ -471,6 +478,57 @@ def _bausteine_teil(kz, idx, summen):
                 zukauf_fehlt=sum(_zahl(z.get("zukauf_fehlt")) for z in zeilen), verkauf=summe("preis_teil"))
 
 
+def richtpreis_zeilen(e, p, daten):
+    """Staffelzeilen (ab, Preis) des Preisstands, die vom Blech-Editor stammen: die beim Übernehmen gemerkten
+    (e['richtpreise']); ältere Positionen ohne Merkliste: (None, Richtpreis für die Stückzahl der Position) = jede
+    Zeile mit diesem Preis."""
+    out = {(float(r["ab"]), round(float(r["preis"]), 2)) for r in e.get("richtpreise") or ()
+           if isinstance(r, dict) and isinstance(r.get("ab"), (int, float)) and isinstance(r.get("preis"), (int, float))}
+    if not out and daten:
+        rp = blech.rechnen(dict(e, stueck=p.get("stueck") or e.get("stueck")), daten.get("werkstoffe") or {},
+                           daten.get("laser") or [], daten.get("einst")).get("richtpreis")
+        if rp:
+            out |= {(None, round(rp, 2))}
+    return out
+
+
+def blech_stand(p, stueck, daten):
+    """Zukaufliste eines Blechteils aus dem Blech-Editor für die Stückzahl einer Stufe: EK aus dem Einkauf, wenn
+    eine Staffelzeile ab ≤ Stückzahl nicht vom Blech-Editor stammt, sonst der Richtpreis für diese Stückzahl neu
+    gerechnet (daten = tabellen['blech']: werkstoffe, laser, einst). Ergebnis: (Liste, Hinweis) oder (None, None),
+    wenn alles bleibt (gleiche Stückzahl wie im Angebot, kein Blechteil, Daten fehlen)."""
+    e = blech.lesen(p.get("technik"))
+    liste = zukauf.json_liste(p.get("zukauf"))
+    if e is None or not liste or not rechnen.ist_zukaufteil(p) or not stueck or stueck == p.get("stueck"):
+        return None, None
+    st = dict(liste[0].get("stand") or {})
+    bezug = dict(st.get("bezug") or {})
+    richt = richtpreis_zeilen(e, p, daten)
+    preise_rp = {pr for ab, pr in richt if ab is None}         # nur ältere Positionen: am Preis erkannt
+
+    def vom_editor(z):
+        return (float(z["ab"]), round(float(z["preis"]), 2)) in richt or round(float(z["preis"]), 2) in preise_rp
+    verbrauch = float(zukauf.dez(liste[0].get("menge")) or 1) * zukauf.bezugsmenge(liste[0], p, stueck)
+    einkauf = [z for z in zukauf.staffel_sortiert(bezug.get("preise")) if z["preis"] > 0 and not vom_editor(z)]
+    pos = txt(p.get("pos"))
+    if any(float(z["ab"]) <= verbrauch for z in einkauf):
+        bezug["preise"] = [dict(ab=float(z["ab"]), preis=float(z["preis"])) for z in einkauf]
+        z = zukauf.staffel_wahl(einkauf, verbrauch)
+        text = f"Pos. {pos} Blech: EK Einkauf ab {rechnen.zahl(float(z['ab']), 0)} St"
+    else:
+        if not daten:
+            return None, None
+        erg = blech.rechnen(dict(e, stueck=stueck), daten.get("werkstoffe") or {}, daten.get("laser") or [],
+                            daten.get("einst"))
+        if not erg.get("richtpreis"):
+            return None, None
+        # Richtpreis je Stück: ohne Preiseinheit und Rabatt des Lieferanten
+        bezug.update(preise=[dict(ab=1, preis=erg["richtpreis"])], preiseinheit=1, rabatt=None)
+        text = f"Pos. {pos} Blech: Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € für {stueck:g} St"
+    st["bezug"] = bezug
+    return [dict(liste[0], stand=st)] + liste[1:], text
+
+
 def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     """Mengenlauf einer Stufe: alle Mengenzeilen zusammen optimieren und kalkulieren wie ein Auftrag (mit den
     Werten der Stufe). Ergebnis: je Mengenzeile eine Zeile mit den Bausteinen ihres Satzes bzw. ihrer Position
@@ -498,6 +556,12 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         pos = ", ".join(sorted({txt(positionen[i].get("pos")) for i in doppelt}))
         return alle_mit(f"FEHLER: Pos. {pos} steht in der Stufe doppelt (als Satz und als Position)")
     lauf = [dict(p, stueck=mengen.get(i)) for i, p in enumerate(positionen)]
+    blech_text = {}
+    for i, p in enumerate(positionen):          # Blechteile: EK aus dem Einkauf oder Richtpreis für die Stufe
+        neu, text = blech_stand(p, mengen.get(i), tabellen.get("blech"))
+        if neu is not None:
+            lauf[i]["zukauf"] = json.dumps(neu, ensure_ascii=False)
+            blech_text[i] = text
     mp = meterpreise(stufe) if stufe.get("schluessel") is None else {}
     for p in lauf:                  # Materialpreis der Stufe je Abmessung (statt des Angebots)
         if mp.get(abmessung(p)) and not rechnen.beigestellt(p):
@@ -530,6 +594,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         text = [f"WARNUNG: {offen:.0f} Teile nicht eingeplant"] if offen > 0 else []
         if hinweise:
             text.append(f"{hinweise} Hinweis(e) in der Kalkulation")
+        text += [blech_text[i] for i in sorted(m) if i in blech_text]
         x.update(teile=summen["teile"], stangen=summen["stangen"], material=b["material"],
                  laser=sum(w for _, w, _ in b["fertigung"]), ruesten=sum(w for _, w, _ in b["ruesten"]), bausteine=b,
                  hinweis="; ".join(text + gemeinsam) or None)
