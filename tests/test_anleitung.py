@@ -120,7 +120,7 @@ for i in range(fenster.reiter.count()):
     text = fenster.reiter.tabText(i)
     if not text.startswith("Angebot "):
         pruefen.append(("Reiter", text))
-pruefen += [("Reiter im Angebot", seite.reiter.tabText(i)) for i in range(seite.reiter.count())]
+pruefen += [("Reiter im Angebot", t) for t in seite.reiter.texte()]
 pruefen += [("Unterreiter der Einstellungen", fenster.bereich.unter.tabText(i))
             for i in range(fenster.bereich.unter.count())]
 pruefen += [("Unterreiter der Frachtkosten", fenster.fracht.unter.tabText(i)) for i in range(fenster.fracht.unter.count())]

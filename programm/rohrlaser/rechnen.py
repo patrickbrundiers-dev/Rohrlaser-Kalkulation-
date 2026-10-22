@@ -214,6 +214,54 @@ def wert_negativ(p):
     return None
 
 
+def grunddaten_fehler(p, profile, k):
+    """Erste fehlende oder unbekannte Grundangabe einer Rohrlaser-Position (Profil, Werkstoff, Oberfläche,
+    Teilelänge, Stückzahl) als Text ohne „FEHLER:“, sonst None. Gemeinsam für status() und gruppen_bilden()
+    (Code-Audit D-1); profile = bekannte Profil-IDs."""
+    if p.get("profil_id") not in profile:
+        return "Profil unbekannt"
+    if p.get("werkstoff_id") not in k.werkstoffe:
+        return "Werkstoff unbekannt"
+    ob = oberflaeche_von(p)
+    if ob and ob not in k.oberflaechen:
+        return "Oberfläche unbekannt"
+    laenge = p.get("laenge")
+    if not isinstance(laenge, (int, float)) or laenge <= 0:
+        return "Teilelänge fehlt"
+    stk = p.get("stueck")
+    if not isinstance(stk, (int, float)) or stk < 1 or int(stk) != stk:
+        return "Stückzahl fehlt"
+    return None
+
+
+def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
+    """Gemeinsame Einzelprüfungen einer Position (Code-Audit D-1), die status(), zukaufteil_status() und der
+    Hinweis der Kalkulation jeweils in ihrer Reihenfolge abfragen: {Schlüssel: Text} nur der zutreffenden Punkte.
+    Schlüssel: satz_vielfach, satz, zusatz, gewinde, kontur (nicht bei manueller Schneidzeit), bohrungen.
+    zusatz/gewinde = Stammdaten; None = nicht prüfen."""
+    erg = {}
+    if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
+        erg["satz_vielfach"] = "Stückzahl ist kein Vielfaches von Stück je Satz"
+    abw = satz_abweichung(p, positionen)
+    if abw:
+        erg["satz"] = abw
+    if zusatz is not None:
+        u = zusatz_unbekannt(p, zusatz)
+        if u:
+            erg["zusatz"] = u
+    if gewinde is not None and not _leer(p.get("gewinde")):
+        g = gewinde_unbekannt(p.get("gewinde"), gewinde)
+        if g:
+            erg["gewinde"] = g
+    if w is not None and _leer(p.get("zeit_manuell")):
+        kontur = konturen_pruefen(p, w.get("wand_schneiden"))
+        if kontur:
+            erg["kontur"] = kontur
+    if bohrbild_offen(p):
+        erg["bohrungen"] = "Bohrungen ungeprüft"
+    return erg
+
+
 def zukaufteil_status(p, positionen=None):
     """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht)."""
     if _leer(p.get("stueck")) or p["stueck"] < 1:
@@ -224,11 +272,10 @@ def zukaufteil_status(p, positionen=None):
     for e in eintraege:
         if zukauf.ek_fehlt(dict(bezuege=[(e.get("stand") or {}).get("bezug") or {}])):
             return "WARNUNG: EK fehlt (Zukaufteil ohne Einkaufspreis)"
-    if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
-        return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
-    abw = satz_abweichung(p, positionen)
-    if abw:
-        return "WARNUNG: " + abw
+    pr = pruefungen(p, positionen=positionen)
+    for schluessel in ("satz_vielfach", "satz"):
+        if schluessel in pr:
+            return "WARNUNG: " + pr[schluessel]
     return "OK"
 
 
@@ -240,19 +287,14 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
         return ""
     m = maschine(kopf, k)
-    if p.get("profil_id") not in k.profile:
-        return "FEHLER: Profil unbekannt"
-    if p.get("werkstoff_id") not in k.werkstoffe:
-        return "FEHLER: Werkstoff unbekannt"
     ob = oberflaeche_von(p)
-    if ob and ob not in k.oberflaechen:
-        return "FEHLER: Oberfläche unbekannt"
+    fehler = grunddaten_fehler(p, k.profile, k)
+    if fehler in ("Profil unbekannt", "Werkstoff unbekannt", "Oberfläche unbekannt"):
+        return "FEHLER: " + fehler
     if w["querschnitt"] is None:
         return "FEHLER: Querschnitt fehlt (Profil)"
-    if _leer(p.get("laenge")) or p["laenge"] <= 0:
-        return "FEHLER: Teilelänge fehlt"
-    if _leer(p.get("stueck")) or p["stueck"] < 1:
-        return "FEHLER: Stückzahl fehlt"
+    if fehler:
+        return "FEHLER: " + fehler
     negativ = wert_negativ(p)
     if negativ:
         return f"FEHLER: {negativ} darf nicht negativ sein"
@@ -275,29 +317,24 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     kat_o = (k.oberflaechen.get(ob) or {}).get("kategorie") if ob else None
     if kat_o and kat_o != kategorie(p.get("werkstoff_id"), k):
         return f"WARNUNG: Oberfläche {ob} ist für {kat_o}"
-    if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
-        return "WARNUNG: Stückzahl ist kein Vielfaches von Stück je Satz"
-    abw = satz_abweichung(p, positionen)
-    if abw:
-        return "WARNUNG: " + abw
-    unbekannt = zusatz_unbekannt(p, w.get("zusatzarbeiten"))
-    if unbekannt:
-        return f"WARNUNG: Zusatzarbeit '{unbekannt}' unbekannt"
-    if w.get("gewinde_stamm") is not None and not _leer(p.get("gewinde")):
-        g = gewinde_unbekannt(p.get("gewinde"), w["gewinde_stamm"])
-        if g:
-            return f"WARNUNG: Gewinde '{g}' nicht erkannt (Format 4xM6; 2xM8)"
+    pr = pruefungen(p, w, positionen, w.get("zusatzarbeiten") or (), w.get("gewinde_stamm"))
+    for schluessel in ("satz_vielfach", "satz"):
+        if schluessel in pr:
+            return "WARNUNG: " + pr[schluessel]
+    if "zusatz" in pr:
+        return f"WARNUNG: Zusatzarbeit '{pr['zusatz']}' unbekannt"
+    if "gewinde" in pr:
+        return f"WARNUNG: Gewinde '{pr['gewinde']}' nicht erkannt (Format 4xM6; 2xM8)"
     if naht_status:
         return naht_status
     manuell = not _leer(p.get("zeit_manuell"))
-    kontur = konturen_pruefen(p, w.get("wand_schneiden"))
-    if kontur and not manuell:
-        return "WARNUNG: " + kontur
+    if "kontur" in pr:
+        return "WARNUNG: " + pr["kontur"]
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
         return "HINWEIS: keine Schneiddaten"
-    if bohrbild_offen(p):
+    if "bohrungen" in pr:
         return "HINWEIS: Bohrungen prüfen (Doppelklick)"
     if manuell:
         return "HINWEIS: Schneidzeit manuell"
@@ -346,17 +383,10 @@ def gruppen_bilden(kopf, positionen, k):
 
         def fehl(grund):
             fehler.append(dict(index=i, pos=p.get("pos"), artikel=name, anzahl=stk_n, grund=grund))
-        if pid not in profile:
-            fehl("Profil unbekannt"); continue
-        if wst not in k.werkstoffe:
-            fehl("Werkstoff unbekannt"); continue
+        grund = grunddaten_fehler(p, profile, k)
+        if grund:
+            fehl("Stückzahl fehlt oder ungültig" if grund == "Stückzahl fehlt" else grund); continue
         ob = oberflaeche_von(p)
-        if ob and ob not in k.oberflaechen:
-            fehl("Oberfläche unbekannt"); continue
-        if not laenge or laenge <= 0:
-            fehl("Teilelänge fehlt"); continue
-        if not stk_n:
-            fehl("Stückzahl fehlt oder ungültig"); continue
         stange = p.get("stange") or std
         if not stange:
             fehl("Stangenlänge fehlt"); continue
@@ -1972,22 +2002,23 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         ohne = s_ * (1 + gew) + uz + zk_einst + zk_auf
         t_ = ohne / (1 - skonto)
         nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
+        pr = pruefungen(p, w, positionen, tabellen.get("zusatzarbeiten") or (), tabellen["gewinde"])
         if _n(nicht) > 0:
             hinweis = "nicht vollständig eingeplant"
         elif d == 0 and not (beigestellt(p) and ein[0]):
             hinweis = "kein Schnittplan oder Preis"
         elif h is None and not manuell:
             hinweis = "keine Schneiddaten"
-        elif not manuell and konturen_pruefen(p, w["wand_schneiden"]):
-            hinweis = konturen_pruefen(p, w["wand_schneiden"])
-        elif zusatz_unbekannt(p, tabellen.get("zusatzarbeiten")):
+        elif "kontur" in pr:
+            hinweis = pr["kontur"]
+        elif "zusatz" in pr:
             hinweis = "Zusatzarbeit unbekannt"
-        elif gewinde_unbekannt(p.get("gewinde"), tabellen["gewinde"]):
-            hinweis = f"Gewinde '{gewinde_unbekannt(p.get('gewinde'), tabellen['gewinde'])}' nicht erkannt"
-        elif satz_abweichung(p, positionen):
-            hinweis = satz_abweichung(p, positionen)
-        elif bohrbild_offen(p):
-            hinweis = "Bohrungen ungeprüft"
+        elif "gewinde" in pr:
+            hinweis = f"Gewinde '{pr['gewinde']}' nicht erkannt"
+        elif "satz" in pr:
+            hinweis = pr["satz"]
+        elif "bohrungen" in pr:
+            hinweis = pr["bohrungen"]
         elif any(x["fehler"] for x in zk):
             hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
         else:

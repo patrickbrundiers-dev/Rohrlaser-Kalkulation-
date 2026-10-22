@@ -116,6 +116,20 @@ for titel in ("Material", "Laser schneiden", "Rüsten", "Herstellkosten", "Progr
 assert "Zusätzliche Bearbeitung" not in text and "Gewinde" not in s.uebersicht_bereich.einzeln.text()   # beide 0
 assert f"{summen['verkauf']:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".") in text
 assert "Optimierung abgeschlossen" == s.stand.text()
+assert "Preisaufbau" in text and "= Herstellkosten" in text and "+ Laser schneiden" in text
+ub = s.uebersicht_bereich
+assert "Rüsten Maschine" not in text
+ub._gruppe_umschalten("Rüsten")                 # Gruppe aufklappen: Kostenarten einzeln darunter
+assert "Rüsten Maschine" in ub.uebersicht.text() and "▾ Rüsten" in ub.uebersicht.text()
+ub._gruppe_umschalten("Rüsten")
+assert "Rüsten Maschine" not in ub.uebersicht.text()
+# Reiter: Zeiten und Stangenbild liegen als Unterreiter in Kalkulation bzw. Schnittplan
+assert s.reiter.count() == 7, s.reiter.texte()
+s.reiter.setCurrentWidget(s.zeiten_seite)
+assert s.reiter.tabText(s.reiter.currentIndex()) == "Kalkulation" and s.zeiten_seite.isVisibleTo(s.reiter)
+s.reiter.waehlen("Stangenbild")
+assert s.reiter.tabText(s.reiter.currentIndex()) == "Schnittplan"
+s.reiter.setCurrentIndex(0)
 ok("Fall 7: Herstellkosten, Gewinn und Verkaufspreis kommen unverändert aus rechnen.kalkulation; Gruppen summieren "
    "sich exakt")
 

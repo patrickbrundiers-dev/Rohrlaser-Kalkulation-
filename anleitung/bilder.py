@@ -83,6 +83,9 @@ class Fotograf:
 
 
 def tab_rect(reiter, text):
+    if hasattr(reiter, "ort"):          # Angebot: auch Unterreiter (z. B. Stangenbild im Schnittplan)
+        r, i = reiter.ort(text)
+        return (r.tabBar(), r.tabBar().tabRect(i))
     leiste = reiter.tabBar()
     for i in range(reiter.count()):
         if reiter.tabText(i) == text:
@@ -135,6 +138,10 @@ def ja(d):
 
 
 def reiter_waehlen(s, text):
+    if hasattr(s.reiter, "waehlen"):
+        s.reiter.waehlen(text)
+        QApplication.processEvents()
+        return
     for i in range(s.reiter.count()):
         if s.reiter.tabText(i) == text:
             s.reiter.setCurrentIndex(i)
