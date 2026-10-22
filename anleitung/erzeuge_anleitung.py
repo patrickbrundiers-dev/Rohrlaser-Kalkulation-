@@ -3524,9 +3524,12 @@ def kapitel_step_messung(i):
             "Laschen, Bleche, Muttern und Sonstiges den Umriss der Aufstandsfläche, Kopfplatten nichts. Die Gravur "
             "zählt zur Gravurlänge der Position (Vorschub Gravur), nie zum Schneidweg; im Prüfdialog steht sie "
             "getrennt als <i>Gravur</i> der Anbauteile. Geschweißt wird nicht kalkuliert.",
-            "<b>Eigene Körper</b> einer Baugruppe (Bleche, Bolzen als Rundstahl), die ein Rohr berühren, bleiben "
-            "eigene Positionen wie bisher. Das Rohr bekommt zusätzlich die Gravur an ihrer Stelle. Rohre, die "
-            "andere Rohre berühren (Gestell), bleiben unberührt.",
+            "<b>Eigene Körper</b> einer Baugruppe (Bleche, Bolzen als Rundstahl), die ein Rohr berühren: Das Rohr "
+            "bekommt die Gravur an ihrer Stelle. Im Prüfdialog ist dann <b>Anbauteile nicht ins Angebot "
+            "übernehmen</b> angehakt (Vorgabe): Diese Körper werden nicht als eigene Positionen übernommen, ihre "
+            "Zeile ist abgewählt mit dem Hinweis <i>Anbauteil von …</i>. Einzelne lassen sich trotzdem anhaken; ohne "
+            "Haken an der Option werden sie wie andere Teile übernommen (Bleche als Zukaufteil). Rohre, die andere "
+            "Rohre berühren (Gestell), bleiben unberührt.",
             "<b>Unsicher</b> (Prüfstatus <i>prüfen</i>, Übernahme nur mit Häkchen): Anbauteil an einer Ecke oder "
             "der Art <i>Sonstiges</i>, Anbau über (fast) die ganze Länge (das Rohr wird dann aus Innenkontur und "
             "Wandstärke angenommen), Anbauteile schwerer als das Rohr. Zum Vergleich steht im Prüfdialog, was ohne "
@@ -3814,7 +3817,9 @@ NEUERUNGEN = [
     ["0.8.24", "Anbauteile im Angebot: Spalte <b>Anbauteile</b> der Positionen mit Doppelklick auf <i>Anbauteile "
               "prüfen</i>, Status und Freigabe-Hinweis, Gravur Anbauteile getrennt ausgewiesen (Kalkulation, "
               "Preisaufbau, PDF, Schneidweg-Rechner), Einstellung <i>Prüfzeit je Teil mit unsicher erkannten "
-              "Anbauteilen</i> ([[anbauteile]])."],
+              "Anbauteilen</i>. Im STEP-Prüfdialog die Option <b>Anbauteile nicht ins Angebot übernehmen</b> "
+              "(Vorgabe an): angeschweißte eigene Körper einer Baugruppe werden keine eigenen Positionen "
+              "([[anbauteile]])."],
     ["0.8.23", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
                "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
                "([[blech_editor]]). U-, C-, L-, T-Profile, Träger und Flachstahl: jede Kontur auf ihrer Fläche (Steg, "

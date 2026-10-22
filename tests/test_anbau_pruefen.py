@@ -174,4 +174,27 @@ assert anbau.offen(anbau.lesen(p2["anbauteile"])) == 0 and "Anbauteile" not in p
 assert z2["zeit_pruefung"] == 0                               # unsicheres ausgeschlossen: keine Prüfzeit mehr
 seite.close()
 print("OK     Angebot: Anbauteile, Gravur Anbauteile, Prüfzeit, Status, Dialog")
+
+# 7) Angeschweißte eigene Körper: Option 'Anbauteile nicht ins Angebot übernehmen' (Vorgabe an)
+mw = messwerte("A08_RE60x40x3_Anbau_eigene_Koerper")
+assert set(step.anbau_von(mw)) == {1, 2}, step.anbau_von(mw)
+erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, neue_profile=True, zukauf_liste=[])
+assert len(erg["positionen"]) == 1 and "Anbauteil von" in erg["bericht"][2], erg["bericht"]
+d = StepPruefDialog(None, mw, k, "S235-10219", 1, [])
+assert d.anbau_weg.isVisibleTo(d) and d.anbau_weg.isChecked()
+blech_zeile = next(z for z in d.zeilen if z.blech)
+assert blech_zeile.it.checkState(0) == Qt.Unchecked and "Anbauteil von" in blech_zeile.it.text(d.SP_HINWEIS)
+d.anbau_weg.setChecked(False)                                  # aus: Blech wird wieder Zukaufteil
+blech_zeile = next(z for z in d.zeilen if z.blech)
+assert blech_zeile.it.checkState(0) == Qt.Checked and "Anbauteil von" not in blech_zeile.it.text(d.SP_HINWEIS)
+d.werte_schreiben()
+erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, neue_profile=True, zukauf_liste=[])
+assert len(erg["positionen"]) == 2, erg["bericht"]
+d.anbau_weg.setChecked(True)
+d.werte_schreiben()
+erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 1, neue_profile=True, zukauf_liste=[])
+assert len(erg["positionen"]) == 1, erg["bericht"]
+d2 = StepPruefDialog(None, messwerte("A02_RE60x40x3_Bolzen"), k, "S235-10219", 1, [])
+assert not d2.anbau_weg.isVisibleTo(d2)                        # ohne eigene Anbau-Körper keine Option
+print("OK     Option 'Anbauteile nicht ins Angebot übernehmen'")
 print("Alle Prüfungen bestanden.")
