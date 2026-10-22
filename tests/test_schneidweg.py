@@ -204,7 +204,7 @@ s2.neu_laden()
 assert s2.schneidweg_berechnen(3, e7)
 p4 = db.positionen(a)[3]
 assert p4["gewinde_vorschlag"] == "2xM8; 4xM10" and p4["gewinde"] is None
-assert s2.pos_modell.status[3].startswith("HINWEIS: Gewinde-Vorschlag prüfen"), s2.pos_modell.status[3]
+assert s2.pos_modell.status[3].startswith("HINWEIS: Bohrungen prüfen"), s2.pos_modell.status[3]
 dlg7 = SchneidwegDialog(s2, p4, RR, s2.kopf, s2.k, s2.tabellen)
 assert dlg7.sattel["a"].value() == 60.3 and dlg7.tabelle.item(0, 2).text() == "0,0; 40,0; 40,20; 0,20"
 assert dlg7.tabelle.item(0, 5).text() == "300" and "Vorschlag" in dlg7.summe.text() and "M10" in dlg7.summe.text()

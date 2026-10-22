@@ -10,7 +10,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import naht, rechnen
+from . import bohrbild, naht, rechnen
 
 TOL_MASS = 0.15
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -80,12 +80,12 @@ def _paare(text):
     return out
 
 
-def _dez(x):
+def dez(x):
     return f"{x:g}".replace(".", ",")
 
 
 def bohrungen_text(text):
-    return "; ".join(f"{int(n)}xØ{_dez(d)}" for d, n in _paare(text))
+    return "; ".join(f"{int(n)}xØ{dez(d)}" for d, n in _paare(text))
 
 
 def gewinde_vorschlag(text, gewinde):
@@ -162,6 +162,8 @@ def rechner_eingaben(m, form, a=None, b=None):
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
         if art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
+        elif art == "Senkung" and d.get("durchmesser") and d.get("senk_durchmesser"):
+            k.update(art="Senkung", d=float(d["durchmesser"]), D=float(d["senk_durchmesser"]))
         elif art == "Langloch" and d.get("laenge") and d.get("breite"):
             k.update(art="Langloch", l=float(d["laenge"]), b=float(d["breite"]))
             if not laengs:
@@ -302,7 +304,7 @@ def art_wechseln(m):
 def blech_text(m):
     """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
     b = blech(m) or {}
-    f = lambda x: _dez(round(float(x or 0), 1))
+    f = lambda x: dez(round(float(x or 0), 1))
     return f"{m.get('profilform')} {f(b.get('laenge'))} × {f(b.get('breite'))} × {f(b.get('dicke'))} mm"
 
 
@@ -460,7 +462,7 @@ def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k):
 
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
-                neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None):
+                neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -608,6 +610,13 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("innen_liste") or enden:
                 p["konturen"] = rechnen.konturen_text(_paare(m.get("innen_liste")), enden)
                 p["kontur_grenzen"] = rechnen.grenzen_text(regel)
+            # Gewinde-Vorschläge, Senkungen, Fließlochbohrungen: offen bis 'Bohrungen prüfen' (bohrbild.py)
+            bild = bohrbild.aus_messung(m, gewinde, fliessloch_laser or bohrbild.GRAVUR)
+            if bild:
+                p.update(bohrbild.anwenden(p, bild))
+                p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
+                if any(z["art"] != "Bohrung" for z in bild):
+                    hinweise.append(bohrbild.text(bild) + ": im Angebot mit 'Bohrungen prüfen' bestätigen")
             if satz:
                 anzahl = int(m.get("_je_satz") or len(gruppen[i]))
                 p["satz"], p["je_satz"] = satz, anzahl

@@ -421,6 +421,8 @@ VERWEISE = {
 ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT = (
     "Arbeitstage", "Wochen", "Kalenderwoche", "Lieferdatum", "nur Text")
 LIEFERZEIT_ARTEN = (ARBEITSTAGE, WOCHEN, KALENDERWOCHE, LIEFERDATUM, NUR_TEXT)
+# Was der Laser an einer Fließlochbohrung (Flowdrill) macht (bohrbild.py): Markierung als Gravur oder kleines Loch
+FLIESSLOCH_LASER = ("Gravur Ø0,5", "Loch Ø0,5")
 # Herkunft des Materials je Position (angebot.POSITIONEN 'material_herkunft'): leer = Eigenmaterial (wie bisher);
 # Kundenmaterial: keine Materialkosten, eigene Stangengruppe, Bearbeitung wie sonst
 EIGENMATERIAL, KUNDENMATERIAL = "Eigenmaterial", "Kunde beigestellt"
@@ -496,6 +498,9 @@ EINSTELLUNGEN = (
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)", "Angebot",
                 "auswahl", "S235-10219", auswahl="werkstoff"),
+    # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
+    Einstellung("fliessloch_laser", "STEP-Import: Flowdrill-Bohrung am Laser", "Angebot", "auswahl",
+                FLIESSLOCH_LASER[0], auswahl="fliesslochlaser"),
     # Zahlungsbedingungen neuer Angebote, wenn der Kunde keine eigenen hat. Skonto wird in den Preis eingerechnet.
     Einstellung("skonto", "Skonto [%]", "Angebot", "zahl", 2.0, 0, 20),
     Einstellung("skonto_tage", "Skontofrist [Tage]", "Angebot", "ganz", 10, 0, 365),
@@ -668,7 +673,7 @@ class Kontext:
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
-                         "lieferzeitart": list(LIEFERZEIT_ARTEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

@@ -32,6 +32,7 @@ from abnahme_angebote import ANGEBOTE  # noqa: E402
 
 STEP = sorted((WURZEL / "tests" / "step").glob("*.step"))
 BAUGRUPPE = WURZEL / "tests" / "step_satz" / "T08_Gestell_Baugruppe.step"
+SENKUNG = WURZEL / "tests" / "step_konturen" / "K04_RE60x40x3_Senkung_Flowdrill.step"
 ROT = QColor("#D0021B")
 
 FIRMA = ("Muster Rohrlaser GmbH", "Industriestraße 12", "12345 Musterstadt", "Tel. 01234 5678-0 · info@muster-rohrlaser.example")
@@ -658,6 +659,28 @@ def main(ziel):
     s3.pos_ansicht.scrollTo(s3.pos_modell.index(0, max(spalten)))
     QApplication.processEvents()
     foto.foto("step_satz_positionen", f, [(s3.pos_ansicht, 1)])
+
+    # 11b) Bohrungen prüfen: Rechteckrohr mit Senkungen und Flowdrill (K04), Dialog per Doppelklick
+    from rohrlaser.bohrbild_dialog import BohrbildDialog
+    senk = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Senkungen und Flowdrill"))
+    s4 = f.angebot_oeffnen(senk)
+    s4.step_importieren([str(SENKUNG)], werkstoff="S235-10219")
+    bereit()
+
+    def bohrbild_ausfuellen():
+        d = QApplication.activeModalWidget()
+        if not isinstance(d, BohrbildDialog):
+            QTimer.singleShot(50, bohrbild_ausfuellen)
+            return
+        d.resize(1050, 330)
+        d.setzen(0, "bestätigt", gravur=True)            # Senkung bestätigt, Senk-Ø gravieren
+        d.setzen(1, "bestätigt")                         # Flowdrill M8 bestätigt
+        bereit()
+        foto.foto("bohrbild_dialog", d, [(d.tabelle, 1), (knopf(d, "Alle bestätigen"), 2), (d.hand, 3),
+                                         (d.auswirkung, 4)])
+        d.reject()
+    QTimer.singleShot(100, bohrbild_ausfuellen)
+    s4.bohrungen_pruefen([0])
 
     # Sicherung wiederherstellen: einige Sicherungen verschiedener Art, Ordner wie unter Windows
     from rohrlaser.sicherung_dialog import WiederherstellenDialog

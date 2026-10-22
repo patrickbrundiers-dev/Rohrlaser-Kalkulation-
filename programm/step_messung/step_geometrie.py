@@ -43,7 +43,7 @@ from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_Transform
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
 from OCP.GCPnts import GCPnts_AbscissaPoint
-from OCP.GeomAbs import GeomAbs_Plane, GeomAbs_Cylinder, GeomAbs_Cone, GeomAbs_Line, GeomAbs_BSplineSurface, GeomAbs_BezierSurface
+from OCP.GeomAbs import GeomAbs_Plane, GeomAbs_Cylinder, GeomAbs_Cone, GeomAbs_Torus, GeomAbs_Line, GeomAbs_BSplineSurface, GeomAbs_BezierSurface
 from OCP.ShapeAnalysis import ShapeAnalysis_FreeBounds
 try:  # OCP >= 7.8
     from OCP.collections import (IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher as TopTools_IndexedMapOfShape,
@@ -92,6 +92,8 @@ class Teil:
     gravur: float = 0.0         # Konturlänge nicht durchgehender Merkmale (Gravur/Markierung)
     gravur_konturen: int = 0
     bohrungen: dict = field(default_factory=dict)  # Ø -> Anzahl (durchgehende Rundbohrungen)
+    senkungen: dict = field(default_factory=dict)  # (Bohrungs-Ø, Senk-Ø) -> Anzahl (Senkbohrungen)
+    fliessloecher: dict = field(default_factory=dict)  # Kernloch-Ø -> Anzahl (Fließlochbohrungen mit Kragen)
     innen_liste: list = field(default_factory=list)  # je Innenkontur (Größe = größtes Hüllmaß, Länge) [mm]
     hinweise: list = field(default_factory=list)
     innen_a: float = 0.0        # Innenmaß Ø bzw. Breite (Hohlprofile)
@@ -1262,6 +1264,26 @@ def _offen_konturen(t, lok, aussen, zmin, netz):
             t.ende_b_gerade = zmax - gz0 < TOL_Z
         else:
             m["art"] = "K"
+            ba = bohrung_art([faces.FindKey(f) for f in m["faces"]], kanten)
+            if ba:      # Senkung bzw. Fließloch (wie bei geschlossenen Rohren, siehe bohrung_art)
+                art_, dm, aussen = ba
+                d = dict(durchgehend=True, z=round((gz0 + gz1) / 2 - zmin, 2), winkel=None, u=None, seite=None,
+                         art=art_, durchmesser=dm)
+                if art_ == "Senkung":
+                    schnitt = math.pi * dm
+                    t.innen += schnitt
+                    t.innen_konturen += 1
+                    t.konturen += 1
+                    t.innen_liste.append((dm, schnitt))
+                    t.senkungen[(dm, aussen)] = t.senkungen.get((dm, aussen), 0) + 1
+                    d.update(senk_durchmesser=aussen, schnittlaenge=round(schnitt, 2), huellmass=dm,
+                             hinweis="Laser schneidet die Bohrung, Senkung ist Nacharbeit")
+                else:
+                    t.fliessloecher[dm] = t.fliessloecher.get(dm, 0) + 1
+                    d.update(kragen_durchmesser=aussen, schnittlaenge=0.0,
+                             hinweis="Fließlochbohrung (Flowdrill): nicht im Schneidweg")
+                liste.append(d)
+                continue
             t.innen += schnitt
             t.innen_konturen += einstiche
             mn, mx = bb.CornerMin(), bb.CornerMax()
@@ -1553,6 +1575,27 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         c = abs(dz.X() * normale[0] + dz.Y() * normale[1])
         return round(math.degrees(math.acos(min(1.0, c))), 2)
 
+    def bohrung_sonder(ba, kanten):
+        """Senkung: der Laser schneidet die Bohrung (π × Ø), Senken ist Nacharbeit; Fließloch: der Laser schneidet
+        nichts (Loch formt das Fließbohrwerkzeug), im Programm wählbar als kleines Loch oder Gravur."""
+        art_, dm, aussen = ba
+        form, lage, d, normale = lage_auf_rohr(kanten)
+        d.update(durchgehend=True, art=art_, durchmesser=dm)
+        if art_ == "Senkung":
+            schnitt = math.pi * dm
+            t.innen += schnitt
+            t.innen_konturen += 1
+            t.konturen += 1
+            t.innen_liste.append((dm, schnitt))
+            t.senkungen[(dm, aussen)] = t.senkungen.get((dm, aussen), 0) + 1
+            d.update(senk_durchmesser=aussen, schnittlaenge=round(schnitt, 2), huellmass=dm,
+                     hinweis="Laser schneidet die Bohrung, Senkung ist Nacharbeit")
+        else:
+            t.fliessloecher[dm] = t.fliessloecher.get(dm, 0) + 1
+            d.update(kragen_durchmesser=aussen, schnittlaenge=0.0,
+                     hinweis="Fließlochbohrung (Flowdrill): nicht im Schneidweg")
+        liste.append(d)
+
     for m in merkmale.values():
         kanten = m["kanten"]
         if not kanten:
@@ -1592,6 +1635,10 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
             t.ende_b += laenge
             t.ende_b_gerade = (zmax - gz0 < TOL_Z) if t.ende_b == laenge else False
         else:
+            ba = bohrung_art([faces.FindKey(f) for f in m["faces"]], kanten)
+            if ba:
+                bohrung_sonder(ba, kanten)
+                continue
             t.innen += laenge
             t.innen_konturen += n
             # Rundbohrung: nur Zylinderflächen gleichen Radius, Achse quer zum Rohr
@@ -1710,6 +1757,45 @@ def _ebenen_gruppen(solid):
     for g in gruppen:
         g[1].sort(key=lambda e: -e[1])
     return gruppen
+
+
+def bohrung_art(flaechen, aussenkanten):
+    """Senkung oder Fließlochbohrung (Flowdrill) aus den Flächen eines durchgehenden Merkmals und seinen Kanten auf
+    der Außenhaut. Senkung: Zylinder eines Ø quer zur Achse + Kegel, außen größer als die Bohrung. Fließloch: Kernloch
+    (kleinster Zylinder) ist außen genau so groß, dazu ein koaxialer Kragen innen (größerer Zylinder, Ring- oder
+    Rundungsflächen). Ergebnis: ("Senkung", Ø, Senk-Ø) bzw. ("Fließloch", Ø, Kragen-Ø) oder None."""
+    zyl, kegel, sonst = [], 0, 0
+    for f in flaechen:
+        z_ = _zylinder(f)
+        if z_ is not None:
+            if abs(z_.Axis().Direction().Z()) > 0.99:
+                return None
+            zyl.append(z_)
+            continue
+        typ = BRepAdaptor_Surface(TopoDS.Face(f)).GetType()
+        if typ == GeomAbs_Cone:
+            kegel += 1
+        elif typ in (GeomAbs_Plane, GeomAbs_Torus):
+            sonst += 1
+        else:
+            return None
+    if not zyl or not aussenkanten:
+        return None
+    kern = min(zyl, key=lambda c: c.Radius())
+    ax = kern.Axis()
+    for c in zyl:     # alle Zylinder koaxial zum Kernloch
+        if abs(abs(c.Axis().Direction().Dot(ax.Direction())) - 1) > 1e-6 or \
+                gp_Vec(ax.Location(), c.Axis().Location()).Crossed(_vec(ax.Direction())).Magnitude() > 0.01:
+            return None
+    radien = {round(c.Radius(), 2) for c in zyl}
+    r = kern.Radius()
+    # Abstand der Wandkanten von der Achse (offene Profile: Kanten beider Wandseiten, daher größter und kleinster)
+    abst = [gp_Vec(ax.Location(), p).Crossed(_vec(ax.Direction())).Magnitude() for p in _punkte_kanten(aussenkanten)]
+    if kegel and len(radien) == 1 and max(abst) > r + 0.1:
+        return ("Senkung", round(2 * r, 2), round(2 * max(abst), 1))
+    if abs(min(abst) - r) < 0.05 and (len(radien) > 1 or sonst):
+        return ("Fließloch", round(2 * r, 2), round(2 * max(c.Radius() for c in zyl), 2))
+    return None
 
 
 def _zylinder_paare(solid, dicke, tol=0.02):

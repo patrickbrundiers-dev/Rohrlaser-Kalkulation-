@@ -336,7 +336,8 @@ SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id",
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "naht_vorgabe", "gewicht_teil")
-EIGENE = ("zusatz", "zukauf", "naht")        # Spalten mit eigenem Dialog (Doppelklick)
+EIGENE = ("zusatz", "zukauf", "naht", "bohrbild")        # Spalten mit eigenem Dialog (Doppelklick)
+BOHRBILD_SPALTEN = ("gewinde", "bohrungen", "gewinde_vorschlag")     # Doppelklick: Bohrungen prüfen
 SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: True/False}; fehlt = automatisch
 ABWEICHUNG_MM = 0.25    # STEP-Teilwerte sind auf 0,1 mm gerundet: kleinere Unterschiede sind keine Änderung
 
@@ -358,10 +359,11 @@ class PositionenModell(QAbstractTableModel):
         super().__init__()
         self.s = seite
         felder = {f.name: f for f in POSITIONEN.felder}
-        self.spalten = ([(felder[n].art if felder[n].art in EIGENE else "feld", felder[n]) for n in SICHTBAR]
+        art = lambda f: "bohrbild" if f.name in BOHRBILD_SPALTEN else f.art if f.art in EIGENE else "feld"
+        self.spalten = ([(art(felder[n]), felder[n]) for n in SICHTBAR]
                         + [("status", None)]
                         + [("berechnet", b) for b in BERECHNET]
-                        + [("feld", f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
+                        + [(art(f), f) for f in POSITIONEN.felder if f.name in STEP_FELDER]
                         + [("abweichung", None)])
         self.daten, self.werte, self.status = [], [], []
         self.mit_netz, self.bilder = set(), {}
@@ -427,7 +429,7 @@ class PositionenModell(QAbstractTableModel):
 
     def roh(self, r, c):
         art, x = self.spalten[c]
-        if art == "feld":
+        if art in ("feld", "bohrbild"):
             return self.daten[r].get(x.name)
         if art == "status":
             return self.status[r]
@@ -495,7 +497,10 @@ class PositionenModell(QAbstractTableModel):
                 f.setItalic(fremd)
                 return f
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
-            if art == "feld":
+            if art == "bohrbild" and rolle == Qt.ToolTipRole:
+                return (wert_als_text(x, w) + "\n" if w not in (None, "") else "") + \
+                    "Doppelklick: Bohrungen prüfen (Gewinde, Senkungen, Flowdrill bestätigen oder ablehnen)"
+            if art in ("feld", "bohrbild"):
                 return wert_als_text(x, w)
             if art == "berechnet":
                 return _z(w, x[2]) if x[2] is not None else ("" if w is None else str(w))
@@ -889,15 +894,13 @@ class AngebotSeite(QWidget):
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("Zusatzarbeiten …", lambda: self.zusatzarbeiten()),
+                           ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
                            ("Positionen löschen", self.positionen_loeschen)):
             self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
         self.pos_ansicht.customContextMenuRequested.connect(
             lambda punkt: self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
-        self.pos_ansicht.doubleClicked.connect(
-            lambda i: {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile,
-                       "naht": self.schweissnaht}.get(
-                self.pos_modell.spalten[i.column()][0], lambda _: None)([i.row()]))
+        self.pos_ansicht.doubleClicked.connect(self._doppelklick)
 
         self.kalk = Liste(KALK_SPALTEN, max_stellen=2)
         self.stangen = Liste(STANGEN_SPALTEN)
@@ -1419,6 +1422,46 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
+    def _doppelklick(self, i):
+        """Doppelklick in der Positionsliste: Spalten mit eigenem Dialog; Status öffnet bei offenen Bohrungen
+        (Gewinde, Senkung, Flowdrill) den Dialog Bohrungen prüfen."""
+        art = self.pos_modell.spalten[i.column()][0]
+        if art == "status":
+            if i.row() < len(self.positionen) and rechnen.bohrbild_offen(self.positionen[i.row()]):
+                self.bohrungen_pruefen([i.row()])
+            return
+        ziel = {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile, "naht": self.schweissnaht,
+                "bohrbild": self.bohrungen_pruefen}.get(art)
+        if ziel:
+            ziel([i.row()])
+
+    def bohrungen_pruefen(self, zeilen=None, werte=None):
+        """Gewinde-Vorschläge, Senkungen und Fließlochbohrungen der (ersten) markierten Position bestätigen oder
+        ablehnen (BohrbildDialog). werte = (Bohrbild-Liste, Gewinde von Hand) setzt sie ohne Dialog (Tests).
+        Ergebnis: True = gespeichert."""
+        from . import bohrbild
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        zeilen = [r for r in zeilen if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst eine Position markieren.", fehler=True)
+            return False
+        p = self.positionen[zeilen[0]]
+        gewinde = [(g["gewinde"], g.get("kernloch")) for g in self.tabellen["gewinde"] if g.get("gewinde")]
+        if werte is None:
+            from .bohrbild_dialog import BohrbildDialog
+            d = BohrbildDialog(self, p, gewinde)
+            if d.exec() != QDialog.Accepted:
+                return False
+            werte = d.ergebnis
+        liste, hand = werte
+        for name, wert in bohrbild.anwenden(p, liste, hand).items():
+            self.db.position_aendern(p["id"], name, wert)
+        self.f.meldung(f"Bohrungen von Pos. {p.get('pos') or ''} gespeichert"
+                       + (f", {bohrbild.offen(liste)} noch offen." if bohrbild.offen(liste) else "."))
+        self.neu_laden()
+        return True
+
     def schneidweg_berechnen(self, zeile=None, eingaben=None, dialog=None, ueberschreiben=None):
         """Schneidweg-Rechner für die markierte Position (Dialog): Enden, Konturen und Gravur eingeben, Werte in die
         Position übernehmen. eingaben = dict setzt sie ohne Dialog, dialog(d) bedient den Dialog statt exec,
@@ -1931,7 +1974,8 @@ class AngebotSeite(QWidget):
             als_satz = self.f.stumm and not any("_saetze" in m for m in messwerte)
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
-                               neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste)
+                               neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
+                               fliessloch_laser=self.db.einstellung("fliessloch_laser"))
         self.db.profile_anlegen(erg["profile"])
         neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
                     for schl, (werte, bezuege) in erg["zukauf_neu"].items()}

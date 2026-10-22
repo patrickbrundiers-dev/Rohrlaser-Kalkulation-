@@ -16,11 +16,14 @@ Versionen von SCHEMA_VERSION:
 - 1.2 (20.10.2026): Grenzfälle Flachstahl/Blech und Profil/Kantteil: "alternative" = derselbe Körper in der anderen
   Art (gleicher Aufbau wie ein Körper, ohne "nr"), sonst null. "ersatzwerte" = true, wenn die Werte nicht gemessen,
   sondern aus der anderen Messung abgeleitet sind (Prüfstatus dann "prüfen"). Felder aus 1.1 unverändert.
+- 1.3 (22.10.2026): Konturarten "Senkung" (durchmesser = gelaserte Bohrung, senk_durchmesser) und "Fließloch"
+  (Flowdrill mit Kragen: durchmesser = Kernloch, kragen_durchmesser, schnittlaenge 0, nicht im Schneidweg); je Körper
+  "senkungen" und "fliessloecher" als Liste mit Anzahl. Felder aus 1.2 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -98,6 +101,10 @@ def koerper(t):
                            innen=_r(t.innen, 2), gravur=_r(t.gravur, 2), einstiche=t.konturen)
         if konturen_ausgewertet else None,
         "konturen": [dict(d) for d in konturen] if konturen_ausgewertet else None,
+        "senkungen": [dict(durchmesser=_r(d), senk_durchmesser=_r(s_), anzahl=n)
+                      for (d, s_), n in sorted(t.senkungen.items())] if konturen_ausgewertet else None,
+        "fliessloecher": [dict(durchmesser=_r(d), anzahl=n) for d, n in sorted(t.fliessloecher.items())]
+        if konturen_ausgewertet else None,
         "enden": list(enden.values()) if konturen_ausgewertet else None,
         "blech": _blech(t.blech) if blech else None,
         "normprofil": t.normprofil or None,
