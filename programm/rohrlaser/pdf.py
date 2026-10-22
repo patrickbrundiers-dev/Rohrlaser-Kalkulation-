@@ -615,6 +615,7 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
            ("Kontur klein [mm]", "mm_klein", 1, 14, False), ("Vorschub klein [mm/min]", "vorschub_klein", 0, 15, False),
            ("Zeit klein [s]", "zeit_klein", 1, 12, False),
            ("Gravur [mm]", "mm_gravur", 1, 12, False), ("Zeit Gravur [s]", "zeit_gravur", 1, 12, False),
+           ("davon Anbauteile [s]", "zeit_gravur_anbau", 1, 12, False),
            ("Einstiche", "einstiche_teil", 0, 13, True), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 13, True),
            ("Mehrzeit 3D [s]", "zeit_d3", 1, 13, False), ("Laser brutto [s]", "laser_brutto", 1, 14, True),
            ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]

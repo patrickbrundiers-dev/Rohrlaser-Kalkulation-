@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from PySide6.QtCore import Qt  # noqa: E402
 
 HIER = Path(__file__).parent
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -103,6 +104,11 @@ def _():
         k = db.kontext()
         mw = [dict(m) for m in MW]
         erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 2, zukauf_liste=[])
+        # Vorgabe: die Kopfplatten (eigene Körper am Rohr) sind Anbauteile und werden nicht übernommen
+        assert [p["artikel"] for p in erg["positionen"]] == ["B14_Baugruppe_Rohr_2Bleche-K1",
+                                                             "B02_Blech_400x200x4_Bohrungen"], erg["positionen"]
+        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", 2, zukauf_liste=[],
+                               anbau_weglassen=False)
         arten = [(p["artikel"], p.get("art")) for p in erg["positionen"]]
         assert arten == [("B14_Baugruppe_Rohr_2Bleche-K1", None), ("B14_Baugruppe_Rohr_2Bleche-K2", "Zukaufteil"),
                          ("B14_Baugruppe_Rohr_2Bleche-K3", "Zukaufteil"), ("B02_Blech_400x200x4_Bohrungen", "Zukaufteil")], arten
@@ -118,7 +124,7 @@ def _():
         # Werkstoff im Prüfdialog gewählt: Bezeichnung und Gewicht (Volumen × Dichte)
         mw = [dict(m) for m in MW]
         mw[3]["_werkstoff"] = "S235-10219"
-        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, None, 1, zukauf_liste=[])
+        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, None, 1, zukauf_liste=[], anbau_weglassen=False)
         b = erg["positionen"][-1]
         dichte = k.werkstoffe["S235-10219"]["dichte"]
         bl = step.blech(MW[3])
@@ -127,14 +133,15 @@ def _():
         # Dublette: vorhandener Artikel wird verwendet, kein neuer
         i = db.zukauf_speichern(None, *zukauf.blech_artikel(bl, None, "alt.step"))
         mw = [dict(m) for m in MW]
-        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, None, 1, zukauf_liste=db.zukauf_artikel_liste())
+        erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, None, 1, zukauf_liste=db.zukauf_artikel_liste(),
+                               anbau_weglassen=False)
         assert erg["positionen"][-1]["_zukauf"] == {"artikel_id": i} and len(erg["zukauf_neu"]) == 1, erg["zukauf_neu"]
         assert any("vorhandener Zukaufartikel" in z for z in erg["bericht"])
         # abgewählt bzw. erneuter Import: nicht übernommen
         mw = [dict(m) for m in MW]
         mw[3]["_uebernehmen"] = False
         erg = step.uebernehmen(mw, [dict(artikel="B14_Baugruppe_Rohr_2Bleche-K2")], k, db.zeilen("gewinde"), None,
-                               None, 1, zukauf_liste=[])
+                               None, 1, zukauf_liste=[], anbau_weglassen=False)
         assert [p["artikel"] for p in erg["positionen"]] == ["B14_Baugruppe_Rohr_2Bleche-K1",
                                                              "B14_Baugruppe_Rohr_2Bleche-K3"], erg["positionen"]
         db.con.close()
@@ -164,7 +171,7 @@ def _():
         mw = [dict(m) for m in MW[:3]]
         assert step.mehrteilig(mw) == {} and step.mehrteilig(mw, True) == {"B14_Baugruppe_Rohr_2Bleche.step": (3, 2)}
         erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, None, 5,
-                               saetze=["B14_Baugruppe_Rohr_2Bleche.step"], zukauf_liste=[])
+                               saetze=["B14_Baugruppe_Rohr_2Bleche.step"], zukauf_liste=[], anbau_weglassen=False)
         p = erg["positionen"]
         assert len(p) == 2 and p[1]["art"] == "Zukaufteil" and p[1]["je_satz"] == 2 and p[1]["stueck"] == 10, p
         assert p[0]["satz"] == p[1]["satz"] == "B14_Baugruppe_Rohr_2Bleche"
@@ -210,6 +217,9 @@ def _():
         db = Datenbank(Path(tmp) / "rohrlaser.db")
         i = db.zukauf_speichern(None, *zukauf.blech_artikel(step.blech(MW[3]), None, "alt.step"))
         d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
+        assert d.anbau_weg.isChecked() and not next(z for z in d.zeilen if z.datei.startswith("B14") and z.blech
+                                                    ).it.checkState(0) == Qt.Checked, "Kopfplatten: Vorgabe weglassen"
+        d.anbau_weg.setChecked(False)      # Kopfplatten wie andere Bleche übernehmen
         bg = d.baum.topLevelItem(0)        # B14 (Rohr + 2 gleiche Bleche) steht als Baugruppe, Vorgabe 1 Satz
         assert bg.text(0) == "Baugruppe „B14_Baugruppe_Rohr_2Bleche“ – 3 Teile, 2 verschieden – 1 Satz", bg.text(0)
         gruppen = [bg.child(n).text(0) for n in range(bg.childCount())]

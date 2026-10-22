@@ -41,7 +41,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 41     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 42     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -77,6 +77,8 @@ SCHEMA_VERSION = 41     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     profile.naht_stange wird nicht mehr gelesen (Spalte bleibt, ältere Angebote: leer)
                         # 41: Programmierung als Zeit × Stundensatz (angebote/staffel_stufen.programmierung_zeit und
                         #     _kontur, positionen.prog_zeit); alle Angebote umgestellt, außer festgeschriebenen
+                        # 42: Anbauteile je Position (positionen.anbauteile: aufgeschweißte Teile aus dem STEP-Import
+                        #     mit Bearbeitung, Gravur und Prüfstatus als JSON; ältere Positionen leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
