@@ -225,4 +225,48 @@ bild.resize(1200, 400)
 bild.setzen(erg)
 bild.grab()
 ok("G7 Anzeige: Schnittkanten im Stangenbild ohne Überlappung, Naht im Schnittplan, Vergleich ohne Drehen, PDF")
+
+# ------------------------------------------------------------------ G8 Naht und Ersparnis je Stange (22.10.2026)
+mit_fest = [s_ for s_ in erg["stangen"] if any(t["pos"] == 20 for t in s_["teile"])]
+assert mit_fest
+for s_ in mit_fest:
+    lage, q, text = rechnen.stange_zeichen(s_)
+    assert lage is not None and q[0] == "Kasten" and text.startswith("Naht "), (lage, q, text)
+    assert all((t["naht"] + t["drehung"]) % 360 == lage for t in s_["teile"] if t["pos"] == 20)
+for s_ in erg["stangen"]:
+    if all(t["pos"] == 30 for t in s_["teile"]):
+        assert rechnen.stange_zeichen(s_)[2] == ""                         # gerade, frei, nicht gedreht: nichts
+    n = sum(1 for t in s_["teile"] if t["drehung"])
+    assert (f"{n} Teil" in rechnen.stange_zeichen(s_)[2]) == (n > 0)
+assert rechnen.stange_zeichen(dict(teile=[dict(drehfreigabe=UNBEKANNT, drehung=0)]))[2] == \
+    "Naht unbekannt: nicht drehen"
+nah(rechnen.naht_punkt(("Kasten", 60, 40), 90)[0], 0.5)
+nah(rechnen.naht_punkt(("Kasten", 60, 40), 0)[1], 1 / 3)                    # Breitseite oben, Höhe 40/60
+nah(rechnen.naht_punkt(("Rund", 21.2), 180)[1], -0.5)
+gespart = sum(rechnen.gehrung_gespart(s_) for s_ in erg["stangen"])
+nah(gespart, aw["RE 60x40x3"]["gehrung_mm"], 0.2)
+# Rest der Stange enthält die Ersparnis: Teile + Trennungen + Endbeschnitt + Rest = Stange
+for s_ in erg["stangen"]:
+    if rechnen.gehrung_gespart(s_):
+        summe = sum(t["laenge"] for t in s_["teile"])
+        assert s_["verlust"] < len(s_["teile"]) * D, s_["verlust"]           # weniger als 2 Schnitte je Trennung
+assert bild._legende()
+t_gespart = next(t for s_ in erg["stangen"] for t in s_["teile"] if t["material_gespart"])
+assert "Gehrung ineinander" in Stangenbild.tipp(t_gespart)
+# Naht als Strich je Teil: von der Seite (0° oben) liegt 0° oben, 180° unten, 90° Mitte vorn, 270° Mitte hinten
+q = ["Kasten", 60, 40]
+for w, hoehe, vorn in ((0, 1, True), (180, -1, True), (90, 0, True), (270, 0, False)):
+    st = rechnen.naht_strich(dict(drehfreigabe=FEST, naht=w, drehung=0, querschnitt=q))
+    nah(st[0], hoehe)
+    assert st[1] == vorn or abs(hoehe) == 1, (w, st)
+st = rechnen.naht_strich(dict(drehfreigabe=FEST, naht=0, drehung=0, querschnitt=q), 270)     # von oben: Naht oben vorn
+nah(st[0], 0)
+assert st[1]
+assert rechnen.naht_strich(dict(drehfreigabe=FREI, drehung=180, querschnitt=q)) is None
+assert "Naht 0°" in Stangenbild.tipp(next(t for t in teile if t["pos"] == 20)) or \
+    "Naht 180°" in Stangenbild.tipp(next(t for t in teile if t["pos"] == 20))
+wp = ausgabe.werkstatt(kopf, pos, erg, k, db.tabellen())
+assert any(m_["gespart"] > 0 for m_ in wp["muster"]) and any(t["querschnitt"] for m_ in wp["muster"] for t in m_["teile"])
+pdf.werkstatt_pdf(ziel, kopf, wp)
+ok("G8 Naht einmal je Stange (Querschnitt mit Punkt), gedrehte Teile, Gehrungen ineinander je Stange, PDF")
 print("OK: Gehrungen ineinander")

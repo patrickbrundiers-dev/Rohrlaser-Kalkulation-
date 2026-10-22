@@ -6,14 +6,14 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEvent, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFileDialog, QFrame,
     QFormLayout, QMenu, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyledItemDelegate, QTableView,
-    QTabWidget, QTextBrowser,
+    QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
 from . import blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
@@ -693,8 +693,12 @@ class PositionenModell(QAbstractTableModel):
 # ------------------------------------------------------------------ Stangenbild
 class Stangenbild(QWidget):
     """Je Stangenmuster ein maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Pos. und Länge,
-    dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot."""
+    dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot. Schweißnaht als roter Strich auf jedem Teil, im Kopf je
+    Stange Querschnitt mit Nahtlage (roter Punkt) und gedrehte Teile; Gehrungen ineinander: grüne Schnittkanten,
+    Ersparnis einmal je Stange."""
     ZEILE = 74
+    LEGENDE = 20
+    GRUEN = "#1E7B34"
     doppelklick = Signal(str)       # Bezug (ref) des Teils unter der Maus
 
     def __init__(self):
@@ -705,12 +709,39 @@ class Stangenbild(QWidget):
 
     def teil_bei(self, punkt):
         """Bezug (ref) des Teils an der Stelle punkt, sonst None."""
-        return next((ref for r, ref in self.flaechen if r.contains(QPointF(punkt))), None)
+        t = self._teil_bei(punkt)
+        return t["ref"] if t else None
+
+    def _teil_bei(self, punkt):
+        return next((t for r, t in self.flaechen if r.contains(QPointF(punkt))), None)
 
     def mouseDoubleClickEvent(self, ereignis):
         ref = self.teil_bei(ereignis.position() if hasattr(ereignis, "position") else ereignis.pos())
         if ref:
             self.doppelklick.emit(ref)
+
+    def event(self, ereignis):
+        if ereignis.type() == QEvent.ToolTip:
+            t = self._teil_bei(ereignis.pos())
+            QToolTip.showText(ereignis.globalPos(), self.tipp(t) if t else self.toolTip(), self)
+            return True
+        return super().event(ereignis)
+
+    @staticmethod
+    def tipp(t):
+        """Tooltip eines Teils: Pos., Länge, Naht, Drehung, Trennung zum Vorgänger, Ersparnis."""
+        zeilen = [f"Pos. {t['pos'] if t['pos'] is not None else t['artikel']} · {_z(t['laenge'], 1)} mm"]
+        _, text = rechnen.teil_zeichen(t)
+        zeilen.append(text or "Keine Nahtvorgabe, nicht gedreht")
+        if t.get("trennung"):
+            zeilen.append(f"Zum Vorgänger: {t['trennung']}")
+        if t.get("eingespart_mm"):
+            zeilen.append(f"Gemeinsamer Schnitt: {_z(t['eingespart_mm'], 1)} mm Schneidweg gespart")
+        zeilen.append("Doppelklick: zur Position")
+        return "\n".join(zeilen)
+
+    def _legende(self):
+        return any(rechnen.gehrung_gespart(s) > 0 or rechnen.stange_zeichen(s)[2] for s, _ in self.muster)
 
     def setzen(self, ergebnis):
         self.muster = rechnen.stangenmuster(ergebnis)
@@ -720,8 +751,30 @@ class Stangenbild(QWidget):
                 if t["ref"] not in refs:
                     refs.append(t["ref"])
         self.farben = {r: QColor(FARBE_TEILE[i % len(FARBE_TEILE)]) for i, r in enumerate(refs)}
-        self.setMinimumHeight(max(60, 20 + self.ZEILE * len(self.muster)))
+        hoehe = 20 + self.ZEILE * len(self.muster) + (self.LEGENDE if self._legende() else 0)
+        self.setMinimumHeight(max(60, hoehe))
         self.update()
+
+    def _symbol(self, p, q, lage, x, y):
+        """Querschnitt (Blick von Ende A) mit rotem Punkt an der Naht, Kantenlänge 12 px ab (x, y) oben links."""
+        b, h = rechnen.symbol_masse(q)
+        g = 12
+        mx, my = x + g / 2, y + g / 2
+        r = QRectF(mx - b * g / 2, my - h * g / 2, b * g, h * g)
+        p.setPen(QPen(QColor("#404040"), 1.2))
+        p.setBrush(Qt.NoBrush)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        if q and q[0] == "Kasten":
+            p.drawRect(r)
+        else:
+            p.drawEllipse(r)
+        if lage is not None:
+            nx, ny = rechnen.naht_punkt(q, lage)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor("#D0021B"))
+            p.drawEllipse(QPointF(mx + nx * g, my - ny * g), 2.6, 2.6)
+            p.setBrush(Qt.NoBrush)
+        p.setRenderHint(QPainter.Antialiasing, False)
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -735,8 +788,16 @@ class Stangenbild(QWidget):
         klein.setPointSizeF(max(7.0, klein.pointSizeF() - 1.5))
         fett = QFont(self.font())
         fett.setBold(True)
-        for n, (s, nummern) in enumerate(self.muster):
-            y = 10 + n * self.ZEILE
+        y = 10
+        if self._legende():
+            p.setFont(klein)
+            p.setPen(QColor("#404040"))
+            p.drawText(x0, y, breite, 16, Qt.AlignLeft | Qt.AlignVCenter,
+                       "Roter Strich = Schweißnaht (gestrichelt: hinten liegend); hinter dem Stangentitel der "
+                       "Querschnitt von Ende A mit rotem Punkt an der Naht.  Grün = Gehrungen ineinandergelegt; die "
+                       "Ersparnis ist in Rest und Ausnutzung schon enthalten.")
+            y += self.LEGENDE
+        for s, nummern in self.muster:
             p.setPen(QColor("#202020"))
             p.setFont(fett)
             anz = len(nummern)
@@ -745,13 +806,28 @@ class Stangenbild(QWidget):
             if any(t.get("ansicht") == "von oben" for t in s["teile"]):
                 kopf += "  (Ansicht von oben)"
             p.drawText(x0, y + 12, kopf)
+            lage, q, zeichen = rechnen.stange_zeichen(s)
+            if zeichen:                     # Naht und Drehung einmal je Stange
+                xs = x0 + p.fontMetrics().horizontalAdvance(kopf) + 12
+                self._symbol(p, q, lage, xs, y + 2)
+                p.setFont(klein)
+                p.setPen(QColor("#202020"))
+                p.drawText(QRectF(xs + 17, y, 400, 16), Qt.AlignLeft | Qt.AlignVCenter, zeichen)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]
+            gespart = rechnen.gehrung_gespart(s)
             p.setFont(klein)
-            p.drawText(x0 + breite - 330, y, 330, 16, Qt.AlignRight | Qt.AlignVCenter,
-                       f"{len(s['teile'])} Teile · Rest {_z(rest, 1)} mm · Ausnutzung {_z(100 * summe / s['stange'], 1)} %")
+            p.setPen(QColor("#202020"))
+            werte = f"{len(s['teile'])} Teile · Rest {_z(rest, 1)} mm · Ausnutzung {_z(100 * summe / s['stange'], 1)} %"
+            p.drawText(x0 + breite - 330, y, 330, 16, Qt.AlignRight | Qt.AlignVCenter, werte)
+            if gespart > 0:                 # Ersparnis einmal je Stange, links neben Rest und Ausnutzung
+                p.setPen(QColor(self.GRUEN))
+                rechts = x0 + breite - p.fontMetrics().horizontalAdvance(werte) - 12
+                p.drawText(QRectF(rechts - 300, y, 300, 16), Qt.AlignRight | Qt.AlignVCenter,
+                           f"Gehrungen ineinander: {_z(gespart, 1)} mm gespart ·")
             m = breite / s["stange"]
             yb, hb = y + 20, 34
+            oben = 270 if any(t.get("ansicht") == "von oben" for t in s["teile"]) else 0
 
             def rechteck(von, bis, farbe, rand=QColor("#5F6B7A")):
                 r = QRectF(x0 + von * m, yb, max(1.0, (bis - von) * m), hb)
@@ -762,7 +838,9 @@ class Stangenbild(QWidget):
             rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
             rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
             rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
+            vorher = None
             for t in s["teile"]:
+                ineinander = bool(t.get("material_gespart")) and vorher is not None
                 if t.get("kante_a") or t.get("kante_b"):        # schräge Enden: Umriss mit Schnittkanten
                     ol, or_, ur, ul = rechnen.umriss(t)
                     form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb),
@@ -777,11 +855,29 @@ class Stangenbild(QWidget):
                     p.setPen(QPen(QColor("#202020"), 2))
                     p.drawLine(r.topLeft(), r.bottomLeft())
                     p.drawLine(r.topRight(), r.bottomRight())
-                self.flaechen.append((QRectF(r), t["ref"]))
+                if ineinander:      # Stoß der ineinandergelegten Gehrungen: beide Schnittkanten grün
+                    p.setRenderHint(QPainter.Antialiasing, True)
+                    p.setPen(QPen(QColor(self.GRUEN), 3))
+                    for u, a, b in ((vorher, 1, 2), (t, 0, 3)):
+                        x = rechnen.umriss(u)
+                        p.drawLine(QPointF(x0 + x[a] * m, yb), QPointF(x0 + x[b] * m, yb + hb))
+                    p.setRenderHint(QPainter.Antialiasing, False)
+                strich = rechnen.naht_strich(t, oben)
+                if strich and r.width() > 6:       # Schweißnaht als roter Strich über die Länge des Teils
+                    hy = yb + hb / 2 - strich[0] * (hb / 2 - 3)
+                    stift = QPen(QColor("#D0021B"), 3)
+                    if not strich[1]:
+                        stift.setStyle(Qt.DashLine)
+                    p.setPen(stift)
+                    p.drawLine(QPointF(r.left() + 3, hy), QPointF(r.right() - 3, hy))
+                self.flaechen.append((QRectF(r), t))
                 text = f"{t['pos'] if t['pos'] is not None else t['artikel']}\n{_z(t['laenge'], 1)}"
                 if r.width() > 28:
                     p.setPen(QColor("white"))
+                    p.setFont(klein)
                     p.drawText(r, Qt.AlignCenter, text if r.width() > 46 else str(t["pos"] or ""))
+                vorher = t
+            y += self.ZEILE
         p.end()
 
 

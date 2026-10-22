@@ -179,7 +179,8 @@ def _():
         seite.reiter.setCurrentWidget(seite.bild.parent().parent())
         seite.bild.resize(1000, 300)
         seite.bild.grab()
-        r, ref = seite.bild.flaechen[0]
+        r, teil = seite.bild.flaechen[0]
+        ref = teil["ref"]
         seite.pos_ansicht.setCurrentIndex(seite.pos_modell.index(1 - seite.zur_position(ref), 0))
         seite.reiter.setCurrentWidget(seite.bild.parent().parent())
         QTest.mouseDClick(seite.bild, Qt.LeftButton, Qt.NoModifier, r.center().toPoint())

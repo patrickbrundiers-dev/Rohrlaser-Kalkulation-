@@ -377,8 +377,11 @@ def angebot_pdf(pfad, kopf, ang, einst):
 # ------------------------------------------------------------------ Werkstattpapiere mit Stangenbild
 class StangenBalken(Flowable):
     """Ein Stangenmuster maßstäblich: Endbeschnitt grau, Teile farbig (Pos., Länge), dicke Linie = Schnitt,
-    Rest hellgrau, Greiferrest rot."""
-    HOEHE = 30 * mm
+    Rest hellgrau, Greiferrest rot. Schweißnaht als roter Strich auf jedem Teil; in der Titelzeile je Stange
+    Querschnitt von Ende A mit rotem Punkt an der Naht, gedrehte Teile und die Ersparnis der Gehrungen ineinander
+    (grüne Schnittkanten)."""
+    HOEHE = 31 * mm
+    GRUEN = colors.HexColor("#1E7B34")
 
     def __init__(self, m, farben):
         super().__init__()
@@ -388,21 +391,47 @@ class StangenBalken(Flowable):
         self.breite = breite
         return breite, self.HOEHE
 
+    def _symbol(self, q, lage, x, y):
+        """Querschnitt 2,6 mm ab (x, y) unten links, Naht als roter Punkt."""
+        c, g = self.canv, 2.6 * mm
+        b, h = rechnen.symbol_masse(q)
+        mx, my = x + g / 2, y + g / 2
+        c.setStrokeColor(colors.HexColor("#404040"))
+        c.setLineWidth(0.5)
+        if q and q[0] == "Kasten":
+            c.rect(mx - b * g / 2, my - h * g / 2, b * g, h * g, fill=0, stroke=1)
+        else:
+            c.circle(mx, my, g / 2, fill=0, stroke=1)
+        if lage is not None:
+            nx, ny = rechnen.naht_punkt(q, lage)
+            c.setFillColor(colors.HexColor("#D0021B"))
+            c.circle(mx + nx * g, my + ny * g, 0.55 * mm, fill=1, stroke=0)
+
     def draw(self):
         c, m, s = self.canv, self.m, self.m["stange"]
         lang = s["stange"] or 1
         f = self.breite / lang
-        y, h = 9 * mm, 11 * mm
+        y, h = 10 * mm, 11 * mm
         c.setFont(FETT, 9)
         c.setFillColor(BLAU)
         titel = ausgabe.muster_titel(m)
-        c.drawString(0, 25 * mm, titel)
+        c.drawString(0, 26.5 * mm, titel)
         c.setFont(SCHRIFT, 8.5)
         c.setFillColor(colors.black)
-        c.drawString(c.stringWidth(titel, FETT, 9) + 4 * mm, 25 * mm,
-                     f"{s['profil']}  ·  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  ·  "
+        gespart = m.get("gespart") or 0
+        zeile = (f"{s['profil']}  ·  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  ·  "
                      f"{_z(lang, 0)} mm  ·  {len(m['teile'])} Teile  ·  Rest {_z(m['rest'], 1)} mm  ·  "
-                     f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %")
+                     f"Ausnutzung {_z(100 * m['ausnutzung'], 1)} %"
+                     + (f"  ·  Gehrungen ineinander {_z(gespart, 1)} mm gespart" if gespart > 0 else ""))
+        x = c.stringWidth(titel, FETT, 9) + 4 * mm
+        c.drawString(x, 26.5 * mm, zeile)
+        lage, q, zeichen = rechnen.stange_zeichen(s)
+        if zeichen:                         # Naht und Drehung einmal je Stange
+            x += c.stringWidth(zeile, SCHRIFT, 8.5) + 4 * mm
+            self._symbol(q, lage, x, 26 * mm)
+            c.setFont(SCHRIFT, 8.5)
+            c.setFillColor(colors.black)
+            c.drawString(x + 4.2 * mm, 26.5 * mm, zeichen)
 
         def rechteck(von, bis, farbe, rand=0.3):
             c.setFillColor(farbe)
@@ -414,6 +443,8 @@ class StangenBalken(Flowable):
             rechteck(0, s["end"], colors.HexColor("#7F7F7F"))
         if s["greif"]:
             rechteck(lang - s["greif"], lang, colors.HexColor("#FF9999"))
+        vorher = None
+        oben = 270 if any(t.get("ansicht") == "von oben" for t in m["teile"]) else 0
         for t in m["teile"]:
             if t.get("kante_a") or t.get("kante_b"):        # schräge Enden: Umriss mit Schnittkanten
                 ol, or_, ur, ul = rechnen.umriss(t)
@@ -433,6 +464,23 @@ class StangenBalken(Flowable):
                 c.setLineWidth(1.2)
                 for x in (t["von"], t["bis"]):
                     c.line(x * f, y - 1, x * f, y + h + 1)
+            if t.get("material_gespart") and vorher is not None:   # Gehrungen ineinander: Schnittkanten grün
+                c.setStrokeColor(self.GRUEN)
+                c.setLineWidth(2)
+                for u, a, b in ((vorher, 1, 2), (t, 0, 3)):
+                    x = rechnen.umriss(u)
+                    c.line(x[a] * f, y + h, x[b] * f, y)
+            strich = rechnen.naht_strich(t, oben)
+            if strich:                      # Schweißnaht als roter Strich über die Länge des Teils
+                ol, or_, ur, ul = rechnen.umriss(t)
+                links, rechts = max(ol, ul) * f + 0.8 * mm, min(or_, ur) * f - 0.8 * mm
+                if rechts > links:
+                    hy = y + h / 2 + strich[0] * (h / 2 - 0.8 * mm)
+                    c.setStrokeColor(colors.HexColor("#D0021B"))
+                    c.setLineWidth(1.4)
+                    c.setDash(*(() if strich[1] else ((3, 2),)))
+                    c.line(links, hy, rechts, hy)
+                    c.setDash()
             breite = (t["bis"] - t["von"]) * f
             c.setFillColor(colors.black)
             pos = "" if t["pos"] is None else _z(t["pos"], 0)
@@ -443,10 +491,11 @@ class StangenBalken(Flowable):
             elif breite > 5 * mm:
                 c.setFont(SCHRIFT, 6.5)
                 c.drawCentredString((t["von"] + t["bis"]) / 2 * f, y + h / 2 - 2, pos)
+            vorher = t
         c.setFont(SCHRIFT, 6.5)
         c.setFillColor(colors.HexColor("#595959"))
-        c.drawString(0, y - 8, "0")
-        c.drawRightString(self.breite, y - 8, f"{_z(lang, 0)} mm")
+        c.drawString(0, y - 3 * mm, "0")
+        c.drawRightString(self.breite, y - 3 * mm, f"{_z(lang, 0)} mm")
 
 
 def _fuss(einst, text):
@@ -504,7 +553,9 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
                                    ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
         info = _p(f"Stange {_z(s['stange'], 0)} mm  ·  Endbeschnitt {_z(s['end'], 1)} mm  ·  Greiferrest "
                   f"{_z(s['greif'], 1)} mm  ·  Rest {_z(m['rest'], 1)} mm  ·  Ausnutzung "
-                  f"{_z(100 * m['ausnutzung'], 1)} %", ParagraphStyle("mi", parent=S_KLEIN, textColor=GRAU))
+                  f"{_z(100 * m['ausnutzung'], 1)} %"
+                  + (f"  ·  Gehrungen ineinander {_z(m['gespart'], 1)} mm gespart" if m.get("gespart") else ""),
+                  ParagraphStyle("mi", parent=S_KLEIN, textColor=GRAU))
         kopfteil = [titel, Spacer(1, 1 * mm), info, Spacer(1, 1 * mm)]
         if len(m["teile"]) <= 30:
             inhalt.append(KeepTogether(kopfteil + [tab, Spacer(1, 6 * mm)]))
@@ -523,7 +574,10 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         inhalt += [_p("Grau = Endbeschnitt, farbig = Teil (Pos., Länge in mm; Farbe je Position), hellgrau = Rest / "
                       "Verschnitt, rot = Greiferrest. Dicke schwarze Linie = Schnitt. Maßstäblich je Stange. "
                       "Schräge Linie = Gehrung (Ansicht von der Seite, 0° oben; bei Gehrungen über die Seitenflächen "
-                      "von oben).",
+                      "von oben). Roter Strich = Schweißnaht (gestrichelt: hinten liegend); hinter den Stangendaten der "
+                      "Querschnitt von Ende A mit rotem Punkt an der Naht und die Zahl gedrehter Teile (Lage je Teil im "
+                      "Schnittplan). Grüne Linien = Gehrungen ineinandergelegt; das gesparte Material steht einmal je "
+                      "Stange in der Titelzeile und ist in Rest und Ausnutzung schon enthalten.",
                       ParagraphStyle("le", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 3 * mm)]
         inhalt += [StangenBalken(m, farben) for m in wp["muster"]]
     else:
