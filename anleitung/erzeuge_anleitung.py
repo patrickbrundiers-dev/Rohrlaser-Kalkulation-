@@ -1003,8 +1003,10 @@ def kapitel_step(i):
     i.abschnitt("Rohrliste prüfen")
     i.liste("Jede Zeile ist ein Teil. Gleiche Teile aus einer Datei (Baugruppe) stehen in einer Zeile; die Spalte "
             "<b>In Datei</b> zeigt, wie oft es in der Datei vorkommt.",
-            "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart. Bei Flachstahl/Blech und Profil/Kantteil ist sie "
-            "eine Auswahl (siehe Bleche beim STEP-Import).",
+            "Die Spalte <b>Art</b> zeigt die erkannte Bauteilart und ist bei jeder Zeile eine Auswahl. Bei "
+            "Flachstahl/Blech und Profil/Kantteil steht dort zuerst die andere Messung (siehe Bleche beim "
+            "STEP-Import). Bei Rohren und Profilen kann jede andere Profilform gewählt werden: Die Messwerte bleiben, "
+            "Profil-ID zeigt dann die Profile dieser Form, der Hinweis nennt die gemessene Form.",
             "Die Teile sind nach gemessenem Profil gruppiert. Eine rote Gruppenzeile heißt: dieses Profil steht nicht in "
             "den Stammdaten (beim Übernehmen fragt das Programm, ob es angelegt werden soll).",
             "<b>Häkchen</b> vor dem Teil: übernehmen ja/nein. Abgewählte Teile stehen nur im STEP-Protokoll.",
@@ -1022,8 +1024,14 @@ def kapitel_step(i):
             "Teile, die nicht gemessen werden konnten, stehen unten unter <i>Nicht übernehmbar</i>. Die Zeile nennt "
             "den Grund und das Hüllmaß des Körpers (zum Wiederfinden im CAD). In der 3D-Baugruppe sind diese Teile "
             "<b>magenta</b>; ein Klick auf die Zeile hebt das Teil blau hervor, ein Klick auf <i>Nicht übernehmbar</i> "
-            "alle. So sieht man, welches Teil fehlt und wo es sitzt. Solche Teile bei Bedarf von Hand als Position "
-            "anlegen.")
+            "alle. So sieht man, welches Teil fehlt und wo es sitzt.",
+            "<b>Von Hand nachtragen</b>: Unter jedem nicht übernehmbaren Teil steht die Zeile <i>Von Hand "
+            "nachtragen</i>. Profilform wählen, bei Profil-ID ein Profil der Stammdaten wählen oder eine neue ID "
+            "eintippen (z. B. QR 40x40x3, die Maße kommen dann aus dem Namen) und <b>Nachtragen</b> klicken. Das Teil "
+            "wandert in die Profilgruppe: Länge = größtes Hüllmaß, zwei gerade Enden, keine Konturen, Prüfstatus "
+            "<i>prüfen</i>, angehakt. Gleiche nicht übernehmbare Körper der Datei (gleiches Hüllmaß) werden mit "
+            "nachgetragen. Bohrungen und Ausschnitte danach im Schneidweg-Rechner ergänzen. In der Spalte Art macht "
+            "<i>Nachtrag zurücknehmen</i> das rückgängig.")
     i.bild("step_pruefen", "STEP-Import prüfen: eine Datei je Ansicht, Eingaben je Teil und 3D-Ansicht",
            hoehe=100 * mm, legende=[
                (1, "Pfeil-Knöpfe links/rechts: zwischen den STEP-Dateien wechseln; daneben Nummer und Name der Datei."),
@@ -3631,7 +3639,8 @@ def kapitel_fragen(i):
 NEUERUNGEN = [
     ["0.8.11", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
      "<i>nicht übernehmbar</i>. Nicht übernehmbare Teile zeigt die 3D-Baugruppe <b>magenta</b>, die Zeile nennt Grund "
-     "und Hüllmaß, Anklicken hebt das Teil hervor ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
+     "und Hüllmaß, Anklicken hebt das Teil hervor; mit <b>Von Hand nachtragen</b> (Profilform, Profil-ID) wird es "
+     "doch übernommen. Die Spalte Art ist bei jeder Zeile wählbar ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
      "Flachstahl ist in der Spalte Art wählbar (Einstellung <i>ebene flache Teile vorgeben als</i>); Bleche mit "
      "Senkungen werden erkannt ([[bleche]])."],
     ["0.8.9", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "

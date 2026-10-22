@@ -267,8 +267,10 @@ def _():
         d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
         zfl = next(z for z in d.zeilen if z.liste == [0])
         art = d.baum.itemWidget(zfl.it, d.SP_ART)
-        assert [art.itemText(n) for n in range(art.count())] == ["Flachstahl", "Blech"] and not zfl.blech
-        assert d.baum.itemWidget(next(z for z in d.zeilen if z.liste == [3]).it, d.SP_ART) is None
+        assert [art.itemText(n) for n in range(art.count())][:2] == ["Flachstahl", "Blech"] and not zfl.blech
+        assert art.itemData(1) == "alt" and art.itemData(2).startswith("form:")     # dahinter die anderen Profilformen
+        rohr_art = d.baum.itemWidget(next(z for z in d.zeilen if z.liste == [3]).it, d.SP_ART)
+        assert rohr_art.itemData(1).startswith("form:")            # kein Grenzfall: nur andere Profilformen
         zfl.sp.setValue(4)
         art.setCurrentIndex(1)                                   # Flachstahl -> Blech
         z = next(z for z in d.zeilen if z.liste == [0])

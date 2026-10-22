@@ -28,6 +28,10 @@ def grund(m):
     return text
 
 
+def hat_huelle(m):
+    return len([x for x in (m.get("huelle") or "").split("|") if x]) == 3
+
+
 def _f(m, name):
     try:
         return float(m.get(name) or 0)
@@ -227,8 +231,8 @@ class StepPruefDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.addWidget(teil, 1)
         hinweis = QLabel("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
-                         "eintragen. Art: bei Flachstahl/Blech und Profil/Kantteil die andere Art wählen, wenn das "
-                         "Teil falsch erkannt wurde. Anbauteile (aufgeschweißte Bolzen, Laschen …): Doppelklick auf "
+                         "eintragen. Art: eine andere wählen, wenn das Teil falsch erkannt wurde. Nicht übernehmbare "
+                         "Teile (in 3D magenta): darunter Profilform und Profil-ID wählen und „Nachtragen“. Anbauteile (aufgeschweißte Bolzen, Laschen …): Doppelklick auf "
                          "die Spalte Anbauteile = prüfen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
                          "Enthält eine Datei mehrere Teile, steht sie als Baugruppe da und wird ein Satz: oben die "
                          "Anzahl Sätze eintragen (Vorgabe 1; leer = Einzelpositionen); die Spalte zeigt Stück je Satz, "
@@ -309,6 +313,8 @@ class StepPruefDialog(QDialog):
                     hinweis.append("PRÜFEN – zum Übernehmen anhaken")
             if step.unsicher(m):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
+            if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
+                hinweis.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
             hinweis += [h for h in [m.get("hinweise")] if h]
             it.setText(self.SP_HINWEIS, "; ".join(hinweis))
             if m.get("pruefstatus") == "prüfen":
@@ -351,15 +357,24 @@ class StepPruefDialog(QDialog):
             for c, w in ((self.SP_PROFIL, pr), (self.SP_WERKSTOFF, ws), (self.SP_STUECK, sp)):
                 self.baum.setItemWidget(it, c, w)
             alt = step.alternative(m)
-            if alt:     # Grenzfall: Art wählbar (Flachstahl/Blech, Profil/Kantteil), vorbelegt das Erkannte
-                art = QComboBox()
-                art.addItems([step.art_text(m, alt), step.art_text(alt, m)])
-                art.setToolTip("Erkannte Art; die andere wählen, wenn das Teil falsch erkannt wurde (Ersatzwerte = "
-                               "nicht so messbar, aus der anderen Messung abgeleitet: bitte prüfen)")
-                art.currentIndexChanged.connect(lambda n, i=erster: n and self.art_wechseln(i))
-                self.baum.setItemWidget(it, self.SP_ART, art)
-            else:
-                it.setText(self.SP_ART, step.art_text(m))
+            # Art bei jeder Zeile wählbar (Patrick 22.10.2026): die andere Messung (Flachstahl/Blech, Profil/
+            # Kantteil, ohne Trennung), bei Rohren und Profilen jede andere Profilform, bei Nachträgen zurücknehmen
+            art = QComboBox()
+            art.addItem(step.art_text(m, alt) + (f" – {step.VON_HAND}" if m.get("_original") else ""), None)
+            if alt:
+                art.addItem(step.art_text(alt, m), "alt")
+            if m.get("_original"):
+                art.addItem("Nachtrag zurücknehmen (nicht übernehmbar)", "zurueck")
+            if not ist_blech:
+                for form in k.profilformen:
+                    if form != m.get("profilform"):
+                        art.addItem(form, "form:" + form)
+            art.setToolTip("Erkannte Art; eine andere wählen, wenn das Teil falsch erkannt wurde. Grenzfälle "
+                           "(Flachstahl/Blech, Profil/Kantteil) werden in der anderen Art neu gemessen (Ersatzwerte = "
+                           "nicht so messbar: bitte prüfen); eine andere Profilform zeigt bei Profil-ID die Profile "
+                           "dieser Form.")
+            art.currentIndexChanged.connect(lambda n, i=erster, cb=art: n > 0 and self.art_gewaehlt(i, cb.itemData(n)))
+            self.baum.setItemWidget(it, self.SP_ART, art)
             it.setData(0, Qt.UserRole, len(self.zeilen))
             z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
                        m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
@@ -387,10 +402,30 @@ class StepPruefDialog(QDialog):
             it = QTreeWidgetItem(g, [f"{m.get('artikel') or m.get('datei')}: {grund(m)}"])
             it.setFirstColumnSpanned(True)
             it.setToolTip(0, "Nicht übernehmbar: " + grund(m) + ". Anklicken = Teil in der 3D-Ansicht zeigen "
-                          "(magenta), Teil in der STEP-Datei prüfen oder als Position von Hand anlegen.")
+                          "(magenta). Darunter Profilform und Profil-ID wählen und „Nachtragen“: das Teil wird mit "
+                          "Länge aus dem Hüllmaß übernommen.")
             it.setData(1, Qt.UserRole, i)
             if m.get("_netz"):
                 it.setIcon(0, QIcon(magenta))
+            if hat_huelle(m):               # von Hand nachtragen: Profilform, Profil-ID, Knopf
+                n = QTreeWidgetItem(it, ["Von Hand nachtragen:"])
+                n.setData(1, Qt.UserRole, i)
+                form = QComboBox()
+                form.addItem("(Profilform)", None)
+                for f_ in k.profilformen:
+                    form.addItem(f_, f_)
+                pid = QComboBox()
+                pid.setEditable(True)
+                pid.setToolTip("Profil der Stammdaten wählen oder neue Profil-ID eintippen (z. B. QR 40x40x3)")
+                form.currentIndexChanged.connect(lambda _n, f=form, p=pid: self._profile_der_form(p, f.currentData()))
+                knopf = QPushButton("Nachtragen")
+                knopf.setToolTip("Teil als Rohr/Profil übernehmen: Länge = größtes Hüllmaß, gerade Enden, Prüfstatus "
+                                 "prüfen; Konturen danach im Schneidweg-Rechner ergänzen")
+                knopf.clicked.connect(lambda _=False, i=i, f=form, p=pid: self.von_hand(i, f.currentData(),
+                                                                                      p.currentText().strip()))
+                for c, w in ((self.SP_ART, form), (self.SP_PROFIL, pid), (self.SP_WERKSTOFF, knopf)):
+                    self.baum.setItemWidget(n, c, w)
+                it.setExpanded(True)
         for g in self.fehler_gruppen.values():
             n = g.childCount()
             g.setText(0, f"Nicht übernehmbar – {n} Teil{'e' if n != 1 else ''} (in der 3D-Ansicht magenta)")
@@ -575,6 +610,79 @@ class StepPruefDialog(QDialog):
         self.werte_schreiben()
         for i in z.liste:
             step.art_wechseln(self.messwerte[i])
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        neu = next((x for x in self.zeilen if index in x.liste), None)
+        if neu:
+            self.baum.setCurrentItem(neu.it)
+        return neu
+
+    def art_gewaehlt(self, index, wahl):
+        """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zurueck' = Nachtrag zurücknehmen, andere
+        Profilform 'form:F' (Profil-ID zeigt die Profile dieser Form)."""
+        if wahl == "alt":
+            return self.art_wechseln(index)
+        if wahl == "zurueck":
+            return self.von_hand_zuruecknehmen(index)
+        if isinstance(wahl, str) and wahl.startswith("form:"):
+            return self.form_setzen(index, wahl[5:])
+        return None
+
+    def _profile_der_form(self, cb, form):
+        """Profil-ID-Auswahl auf die Profile einer Form beschränken (leer = alle)."""
+        text = cb.currentText()
+        cb.blockSignals(True)
+        cb.clear()
+        cb.addItems(sorted(pid for pid, p in self.k.profile.items() if not form or p.get("form") == form))
+        cb.setCurrentText(text if text in self.k.profile and (not form or self.k.profile[text].get("form") == form)
+                          else "")
+        cb.blockSignals(False)
+
+    def form_setzen(self, index, form):
+        """Andere Profilform für die Zeile mit dem Teil Nr. index (Messwerte bleiben, nur die Form): die Liste wird
+        neu aufgebaut, Profil-ID = passendes Profil der Stammdaten in der neuen Form, sonst leer."""
+        from . import step
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            m = self.messwerte[i]
+            m.setdefault("_form_gemessen", m.get("profilform"))
+            m["profilform"] = form
+            m["_profil"] = step.finde_profil(m, self.k.profile)
+            m["_uebernehmen"] = True
+        return self._neu_aufbauen(index)
+
+    def von_hand(self, index, form, profil_id):
+        """Nicht übernehmbares Teil Nr. index (und alle gleichen der Datei, siehe Hüllmaß) von Hand als Rohr/Profil
+        nachtragen; gibt die neue Zeile zurück oder None (keine Profilform gewählt)."""
+        from . import step
+        if not form:
+            return None
+        self.werte_schreiben()
+        m = self.messwerte[index]
+        masse = lambda x: sorted(float(v) for v in x.get("huelle", "").split("|") if v)
+        gleiche = [i for g in self.fehler_gruppen.values() for i in (g.child(n).data(1, Qt.UserRole)
+                                                                     for n in range(g.childCount()))
+                   if self.messwerte[i].get("datei") == m.get("datei") and hat_huelle(self.messwerte[i])
+                   and all(abs(a - b) <= 0.2 for a, b in zip(masse(self.messwerte[i]), masse(m)))]
+        if not step.von_hand(m, form, profil_id, self.k.profile):
+            return None
+        for i in gleiche:           # gleiche nicht übernehmbare Körper der Datei (gleiches Hüllmaß) ebenso
+            if i != index:
+                step.von_hand(self.messwerte[i], form, profil_id, self.k.profile)
+        return self._neu_aufbauen(index)
+
+    def von_hand_zuruecknehmen(self, index):
+        from . import step
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            step.von_hand_zuruecknehmen(self.messwerte[i])
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        return None
+
+    def _neu_aufbauen(self, index):
         self._baum_fuellen()
         self.datei_waehlen(self.datei_nr)
         neu = next((x for x in self.zeilen if index in x.liste), None)
