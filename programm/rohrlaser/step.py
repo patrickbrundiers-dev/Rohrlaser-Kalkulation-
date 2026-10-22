@@ -10,7 +10,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import bohrbild, naht, rechnen
+from . import anbau, bohrbild, naht, rechnen
 
 TOL_MASS = 0.15
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -312,10 +312,38 @@ def anbau_text(m):
                f" mm, Schneidweg {dez(ohne.get('schneidweg'))} mm" if ohne else ""))
 
 
-def art_text(m):
-    """Bauteilart für die Auswahl im Prüfdialog, z. B. 'Flachstahl', 'Blech', 'L-Profil', 'Kantteil (Blech gekantet)'."""
+def art_text(m, gegen=None):
+    """Bauteilart für die Auswahl im Prüfdialog, z. B. 'Flachstahl', 'Blech', 'L-Profil', 'Kantteil (Blech gekantet)'.
+    Bei Anbauteilen mit dem Zusatz 'Anbauteile abgetrennt' bzw. (gegen = die andere Messung hat sie abgetrennt)
+    'ohne Trennung'."""
     form = m.get("profilform") or ""
-    return ("Kantteil (Blech gekantet)" if form == "Blech gekantet" else form) + (" – Ersatzwerte" if m.get("ersatz") == "1" else "")
+    zusatz = " – Anbauteile abgetrennt" if m.get("trennung") else \
+        " – ohne Trennung" if gegen is not None and gegen.get("trennung") else ""
+    return (("Kantteil (Blech gekantet)" if form == "Blech gekantet" else form) + zusatz
+            + (" – Ersatzwerte" if m.get("ersatz") == "1" else ""))
+
+
+def ohne_trennung_text(m):
+    """Kurztext der Messung ohne Trennung (Teil mit abgetrennten Anbauteilen), z. B. 'Sonderprofil, Länge 1008 mm,
+    Schneidweg 2280 mm', oder None (keine Trennung oder ohne Trennung nicht messbar)."""
+    alt = alternative(m)
+    if not m.get("trennung") or not alt or alt.get("trennung"):
+        return None
+    return (f"{alt.get('profilform') or ''} {alt.get('profil_id_vorschlag') or ''}".strip()
+            + f", Länge {dez(_z(alt, 'laenge'))} mm, Schneidweg {dez(_z(alt, 'schneidweg'))} mm")
+
+
+def anbau_setzen(m, neu):
+    """Ergebnis des Dialogs 'Anbauteile prüfen' in die Messwerte schreiben: Liste, Gravur um den Unterschied.
+    Sind danach alle unsicher erkannten Anbauteile entschieden, gilt die Anbauteil-Erkennung als geprüft."""
+    alt = anbau.lesen(m.get("anbauteile"))
+    for k, v in anbau.anwenden({k: m.get(k) for k in ("gravur", "gravur_anbau", "gravur_konturen")}, alt,
+                               neu).items():
+        m[k] = str(v)
+    m["anbauteile"] = anbau.schreiben(neu) or ""
+    if not anbau.offen(neu) and any(anbau.unsicher(a) for a in neu):
+        m["sicherheit"] = ";".join(f"{k}=geprüft" if k == "anbauteile" else x for x in
+                                   (m.get("sicherheit") or "").split(";") for k in [x.partition("=")[0]])
 
 
 def art_wechseln(m):

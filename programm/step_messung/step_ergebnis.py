@@ -24,7 +24,8 @@ Versionen von SCHEMA_VERSION:
   "verschmolzen" oder "Körper n", z ab Ende A, winkel, u, seite, aufstand {form, umfang, flaeche, durchmesser bzw.
   laenge/breite}, hoehe, volumen, bearbeitung Umriss/Positionsmarke/keine, gravur_laenge, vertrauen sicher/prüfen,
   hinweis), "trennung" (regelanteil, laengsanbau, ohne_trennung {profil_id, laenge, schneidweg, pruefstatus}) oder
-  null, im Block "schneidweg" zusätzlich "gravur_anbau" (in "gravur" enthalten). Felder aus 1.3 unverändert.
+  null, im Block "schneidweg" zusätzlich "gravur_anbau" (in "gravur" enthalten); "alternative" ist bei abgetrennten
+  Anbauteilen die Messung ohne Trennung. Felder aus 1.3 unverändert.
 """
 from datetime import datetime
 

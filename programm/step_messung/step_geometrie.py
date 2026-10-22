@@ -2057,7 +2057,8 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     except Exception as e:
         fehler = e
     # aufgesetzte Teile (Bolzen, Laschen, Kopfplatten …): nur bei Verdacht trennen und neu messen (sonst bleibt alles
-    # wie bisher); Rohrlaser-Geometrie ohne Anbauteile, die Messung ohne Trennung steht kurz in t.trennung
+    # wie bisher); Rohrlaser-Geometrie ohne Anbauteile, die Messung ohne Trennung steht kurz in t.trennung und ganz
+    # in t.alternative
     if t is None or not t.profilform or getattr(t, "_anbau_verdacht", False) or t.profilform == "Sonderprofil" or \
             t.sicherheit.get("wandstaerke") == "unsicher":
         try:
@@ -2065,6 +2066,9 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         except Exception:  # Trennung gescheitert: Messung ohne Trennung gilt
             g = None
         if g is not None:
+            if t is not None and t.profilform:
+                t.bauteiltyp = "Profil"
+                g.alternative = t       # Messung ohne Trennung: im Prüfdialog wählbar ("ist kein Anbauteil")
             t, fehler = g, None
     if fehler is not None and not (fl and fl["art"] == "gekantet"):
         raise fehler
@@ -2075,7 +2079,7 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         return b
     if t.profilform:
         t.bauteiltyp = "Profil"
-        if fl and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
+        if fl and t.alternative is None and (fl["art"] == "gekantet" or t.profilform == "Flachstahl"):
             try:      # Grenzfall: auch als (gekantetes) Blech messen, im Prüfdialog wählbar
                 t.alternative = _blech_teil(solid, datei, koerper, fl, volumen, False, daten and dict(daten))
             except Exception:  # Zweitmessung darf die Messung nie verhindern
