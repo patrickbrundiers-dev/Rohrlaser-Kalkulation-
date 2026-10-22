@@ -859,6 +859,9 @@ class Stangenbild(QWidget):
             rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
             rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
             rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
+            if s.get("greif_3d"):           # 3D-Bearbeitung am letzten Teil: 3D-Greifmaß statt Greiferrest
+                p.setPen(QColor("#FFFFFF"))
+                p.drawText(QRectF(x0 + (s["stange"] - s["greif"]) * m, yb, s["greif"] * m, hb), Qt.AlignCenter, "3D")
             vorher = None
             for t in s["teile"]:
                 ineinander = bool(t.get("material_gespart")) and vorher is not None
@@ -1797,7 +1800,7 @@ class AngebotSeite(QWidget):
             return False
         eingaben = d.eingaben()
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(d.profil))
-        erg = schneidweg.rechnen(eingaben, d.profil, grenzen, gewinde_liste(self.tabellen))
+        erg = schneidweg.rechnen(eingaben, d.profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"] or d.kopf_fehler():
             self.f.meldung("Neue Position: " + " ".join(erg["fehler"] + d.kopf_fehler()), fehler=True)
             return False
@@ -2075,7 +2078,7 @@ class AngebotSeite(QWidget):
         else:
             naht_neu = {}
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
-        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen))
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False

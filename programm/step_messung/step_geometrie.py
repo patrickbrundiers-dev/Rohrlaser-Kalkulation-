@@ -67,6 +67,7 @@ KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M
 
 TOL_WAND = 0.05     # mm, Abstand eines Punkts zur Profilkontur
 TOL_PARALLEL = 1e-3
+SCHRAEG_3D = 0.5     # Grad: ab dieser Neigung gegen die Wandnormale bekommt eine Bohrung neigung_l/neigung_q (3D)
 
 
 @dataclass
@@ -1571,9 +1572,15 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                 seite = f"{round(winkel / 90) % 4 * 90}°"
             else:
                 seite = "Ecke"
-        (_, ax_, ay_), (_, bx_, by_) = abw.punkt(uc - 0.5), abw.punkt(uc + 0.5)
+        (wa, ax_, ay_), (wb, bx_, by_) = abw.punkt(uc - 0.5), abw.punkt(uc + 0.5)
         tl = math.hypot(bx_ - ax_, by_ - ay_) or 1.0
-        normale = ((by_ - ay_) / tl, -(bx_ - ax_) / tl)
+        tx, ty = (bx_ - ax_) / tl, (by_ - ay_) / tl
+        if (wb - wa + 180) % 360 - 180 < 0:         # Tangente in Richtung steigender Umfangswinkel (quer +)
+            tx, ty = -tx, -ty
+        nx, ny = ty, -tx
+        if nx * (px - abw.cx) + ny * (py - abw.cy) < 0:     # Normale nach außen
+            nx, ny = -nx, -ny
+        normale = (nx, ny, tx, ty)
         u = uc % abw.umfang
         d = dict(z=round(vc, 2), winkel=round(winkel % 360, 1) % 360,
                  u=round(0.0 if abw.umfang - u < 0.005 else u, 2), seite=seite)
@@ -1600,6 +1607,20 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         dz = zyl.Axis().Direction()
         c = abs(dz.X() * normale[0] + dz.Y() * normale[1])
         return round(math.degrees(math.acos(min(1.0, c))), 2)
+
+    def neigung(zyl, normale):
+        """Neigung der Bohrungsachse gegen die Wandnormale (3D-Schnittbearbeitung, Schema 1.5): längs (+ Richtung
+        Ende B) und quer (+ Richtung steigender Umfangswinkel, von Ende A gesehen im Uhrzeigersinn) in Grad, als
+        Winkel der Projektion (tan² gesamt = tan² längs + tan² quer)."""
+        dz = zyl.Axis().Direction()
+        n = dz.X() * normale[0] + dz.Y() * normale[1]
+        q = dz.X() * normale[2] + dz.Y() * normale[3]
+        z = dz.Z()
+        if n < 0:                                   # Achse nach außen
+            n, q, z = -n, -q, -z
+        if n < 1e-9:
+            return None, None
+        return round(math.degrees(math.atan2(z, n)), 2) + 0.0, round(math.degrees(math.atan2(q, n)), 2) + 0.0
 
     def bohrung_sonder(ba, kanten):
         """Senkung: der Laser schneidet die Bohrung (π × Ø), Senken ist Nacharbeit; Fließloch: der Laser schneidet
@@ -1683,6 +1704,8 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                 d.update(durchgehend=True, schnittlaenge=round(schnitt, 2), huellmass=round(groesse, 2))
                 if rund:
                     d.update(art="Bohrung", durchmesser=rund[1], schraeg=schraeg(rund[0], normale))
+                    if d["schraeg"] >= SCHRAEG_3D:
+                        d["neigung_l"], d["neigung_q"] = neigung(rund[0], normale)
                     ax = rund[0].Axis()
                     d["_achse"] = (ax.Location(), ax.Direction())
                 elif form[0] == "Kreis":

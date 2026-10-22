@@ -229,7 +229,7 @@ def _konturen_mit_lage(liste):
 
 def aus_step(b, werkstoff, stueck=1):
     """Eingaben des Blech-Editors aus einem im STEP-Import gemessenen Blech b (step.blech). Mit Lage (Messung ab
-    0.8.16): jede Innenkontur an ihrer Stelle (x/y im Zuschnitt), freie Außenkontur als Polygon. Ältere Messungen:
+    0.8.20): jede Innenkontur an ihrer Stelle (x/y im Zuschnitt), freie Außenkontur als Polygon. Ältere Messungen:
     Zuschnitt als Rechteck der Hüllmaße, Bohrungen je Durchmesser, die übrigen Innenkonturen als sonstige Kontur mit
     ihrer mittleren Schnittlänge. Gekantet: Zuschnitt mit der Abwicklungsfläche (Breite = Fläche / Länge), die
     Schenkel misst der Import nicht (im Editor als Kantteil nachtragen)."""

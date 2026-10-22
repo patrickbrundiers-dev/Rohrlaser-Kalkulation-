@@ -26,16 +26,19 @@ Versionen von SCHEMA_VERSION:
   hinweis), "trennung" (regelanteil, laengsanbau, ohne_trennung {profil_id, laenge, schneidweg, pruefstatus}) oder
   null, im Block "schneidweg" zusätzlich "gravur_anbau" (in "gravur" enthalten); "alternative" ist bei abgetrennten
   Anbauteilen die Messung ohne Trennung. Felder aus 1.3 unverändert.
-- 1.5 (22.10.2026): im Block "blech" (ebene Bleche) "konturen_lage": je Innenkontur art (Bohrung, Langloch, Rechteck,
+- 1.5 (22.10.2026): 3D-Schnittbearbeitung: schräge Bohrungen (ab 0,5° gegen die Wandnormale) tragen "neigung_l"
+  (längs, + Richtung Ende B) und "neigung_q" (quer, + Richtung steigender Umfangswinkel) in Grad. Felder aus 1.4
+  unverändert.
+- 1.6 (22.10.2026): im Block "blech" (ebene Bleche) "konturen_lage": je Innenkontur art (Bohrung, Langloch, Rechteck,
   Polygon), x/y = Mitte im Zuschnitt (x längs ab der linken, y quer ab der unteren Kante des Hüllrechtecks),
   durchmesser bzw. laenge/breite und quer (Längsrichtung quer zum Zuschnitt), bei Polygon punkte um die Mitte,
-  schnittlaenge; "aussen_punkte" = Eckpunkte der freien Außenkontur im Zuschnitt, sonst null. Felder aus 1.4
+  schnittlaenge; "aussen_punkte" = Eckpunkte der freien Außenkontur im Zuschnitt, sonst null. Felder aus 1.5
   unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.5"
+SCHEMA_VERSION = "1.6"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

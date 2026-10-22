@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
                                QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -216,6 +216,22 @@ class StepPruefDialog(QDialog):
             b.clicked.connect(lambda _=False, an=an: self.alle_waehlen(an))
             alle.addWidget(b)
         alle.addStretch(1)
+        # 3D-Schnittbearbeitung (nur wenn ausgewählt): Gehrungen und schräge Bohrungen aller Teile in 3D
+        zeile_3d = QHBoxLayout()
+        self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
+        self.d3.setChecked(any(m.get("_d3") for m in messwerte))
+        self.d3.setToolTip("Gehrungen an den Enden und schräge Bohrungen aller Teile mit geschwenktem Laserkopf "
+                           "(3D) rechnen. Aus = 2D wie bisher; Teile mit schrägen Bohrungen bekommen dann den "
+                           "Hinweis „3D prüfen“. Korrektur je Teil im Rohr-Editor (Schneidweg berechnen …).")
+        gehr = bohr = 0
+        for m in messwerte:
+            g_, b_ = step.kandidaten_3d(m)
+            gehr, bohr = gehr + g_, bohr + b_
+        self.d3_info = QLabel(f"gefunden: {gehr} Gehrung{'en' if gehr != 1 else ''} an Enden, {bohr} schräge "
+                              f"Bohrung{'en' if bohr != 1 else ''}" + (" – 3D prüfen" if bohr else ""))
+        self.d3_info.setStyleSheet("color: #7A5A00;" if bohr else "color: #595959;")
+        zeile_3d.addWidget(self.d3)
+        zeile_3d.addWidget(self.d3_info, 1)
 
         links = QWidget()
         ll = QVBoxLayout(links)
@@ -223,6 +239,7 @@ class StepPruefDialog(QDialog):
         ll.addWidget(self.kopf)
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
+        ll.addLayout(zeile_3d)
         self.ansicht = Ansicht3DMitKnoepfen()
         teil = QSplitter(Qt.Horizontal)
         teil.addWidget(links)
@@ -759,6 +776,7 @@ class StepPruefDialog(QDialog):
             for i in z.liste:
                 m = self.messwerte[i]
                 m["_uebernehmen"] = z.it.checkState(0) == Qt.Checked
+                m["_d3"] = self.d3.isChecked()
                 m["_werkstoff"] = z.ws.currentText() or None
                 if saetze:
                     m["_saetze"], m["_stueck"] = saetze, saetze
