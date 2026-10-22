@@ -454,7 +454,7 @@ _FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stunde
               ("Gewinde", "gewinde_teil", "Gewindezeit × Stundensatz bzw. Festpreis"),
               ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
               ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),
-              ("Handling Kundenmaterial", "handling_teil", "€/kg × Stangengewicht Kundenmaterial"))
+              ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"))
 _RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschine, auf alle Teile der Stufe umgelegt"),
             ("Rüsten je Abmessung", "ruesten_abm_teil", "Rüstzeit je Abmessung, auf deren Teile umgelegt"),
             ("Stangenwechsel", "stangenwechsel_teil", "Stangenwechsel der Stufe, auf alle Teile umgelegt"))
@@ -624,7 +624,7 @@ def bausteine(summen, ohne_materialpreis=0):
     if abs(summen["zusatz_eigen"]) >= 0.005:
         fert.append(("Zusatzarbeiten", summen["zusatz_eigen"], "Stammdaten Zusatzarbeiten"))
     if abs(summen.get("handling_beistellung", 0)) >= 0.005:
-        fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/kg × Stangengewicht Kundenmaterial"))
+        fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/m × Stangenlänge Kundenmaterial"))
     return dict(material=summen["material"], material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
                 fremd=summen["zusatz_fremd"], pauschalen=summen["pauschalen"],
                 programmierung=summen["programmierung"], angebotsaufschlag=summen["angebotsaufschlag"],

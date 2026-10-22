@@ -4,6 +4,7 @@ Programm aus den Maßen. Genutzt im Schneidweg-Rechner (neue Position)."""
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel, QLineEdit,
                                QVBoxLayout)
 
+from . import normprofile
 from .stammdaten import MIT_B, PROFILFORMEN, TRAEGER, flaeche_berechnet, huellkreis, zahl_als_text
 
 ALLE = "alle Profilformen"
@@ -20,6 +21,10 @@ def profil_id(form, a, b=None, wand=None):
     """Profil-ID nach der Schreibweise des STEP-Imports; '' ohne Maße."""
     if not form or not a:
         return ""
+    if form in ("I-/H-Träger", "T-Profil", "U-Profil") and b:      # Normprofil: 'IPE 200', 'HEB 160', 'UPN 100'
+        norm = normprofile.name_aus_massen(form, a, b, wand)
+        if norm:
+            return norm
     k = KUERZEL.get(form, "P")
     if form == "Rundrohr":
         return f"{k} {_mm(a)}x{_mm(wand or 0)}"
