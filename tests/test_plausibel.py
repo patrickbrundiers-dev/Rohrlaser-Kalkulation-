@@ -156,4 +156,19 @@ d.weitere_knoepfe["Bohrungen prüfen …"].click()
 assert geoeffnet == ["naht", "bohr"]
 ok("P7 Zusatzarbeiten-Dialog: Gewinde aus der Liste (4xM6; 2xM8 = 5,80 €), Unbekanntes rot, Schweißnaht und "
    "Bohrungen von dort erreichbar")
+# ------------------------------------------------------------------ P8 Herkunft des Materialpreises
+import datetime  # noqa: E402
+a, s = angebot([P(10)])
+h = rechnen.preis_herkunft(s.positionen[0], s.kopf, s.k, s.tabellen)
+assert h and h.startswith("Herkunft: "), h
+zeile = rechnen.preis_zeile("QR 40x40x3", "S235-10219", s.k, s.tabellen)
+if zeile is not None and zeile.get("basis"):
+    db.aendern("preise", zeile["id"], "gueltig_ab", (datetime.date.today() - datetime.timedelta(days=400)).isoformat())
+    s.neu_laden()
+    h = rechnen.preis_herkunft(s.positionen[0], s.kopf, s.k, s.tabellen)
+    assert "Monate alt" in h or "Lieferlängen" in h, h
+spalte = next(c for c, (art, f) in enumerate(s.pos_modell.spalten) if art == "feld" and f.name == "preis_m")
+from PySide6.QtCore import Qt  # noqa: E402
+assert "Herkunft:" in s.pos_modell.data(s.pos_modell.index(0, spalte), Qt.ToolTipRole)
+ok(f"P8 Tooltip Materialpreis nennt die Herkunft ({h})")
 print("OK: Plausibilität (Prüfbericht B-1, B-2, B-3, B-7, B-9, C-2 Prüfen vor Freigabe)")

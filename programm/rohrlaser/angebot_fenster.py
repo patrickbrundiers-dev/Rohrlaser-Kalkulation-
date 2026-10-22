@@ -583,6 +583,9 @@ class PositionenModell(QAbstractTableModel):
                                                                     "eintragen. ")
                 if fehlt and berechnet is not None:
                     t += f"Achtung: {fehlt}. "
+                h = rechnen.preis_herkunft(self.daten[index.row()], self.s.kopf, self.s.k, self.s.tabellen)
+                if h:
+                    t += h + ". "
                 if eigen:
                     return t + ("Von Hand eingetragen, gilt für alle Positionen mit gleichem Profil, Werkstoff, "
                                 "Oberfläche und Stangenlänge; leeren = wieder berechnet.")

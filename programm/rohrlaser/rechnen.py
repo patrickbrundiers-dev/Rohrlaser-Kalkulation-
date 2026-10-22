@@ -817,6 +817,38 @@ def meterpreis(p, kopf, positionen, k, tabellen):
     return berechnet, (wirksam if wirksam > 0 else None), fehlt
 
 
+PREIS_ALT_MONATE = 6      # älter: Hinweis im Tooltip des Meterpreises
+
+
+def preis_herkunft(p, kopf, k, tabellen, heute=None):
+    """Woher der berechnete Meterpreis kommt, als Text für den Tooltip (Prüfbericht C-3): Zeile aus 'Lieferlängen'
+    oder 'Preise' mit Preis, Gültig ab und Lieferant, sonst der Tonnenpreis des Werkstoffs; ist der Preis älter als
+    PREIS_ALT_MONATE, steht ein Hinweis dabei. None ohne Profil, Werkstoff oder bei Zukaufteilen."""
+    import datetime
+    if ist_zukaufteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
+        return None
+    pid, wid, laenge = p["profil_id"], p["werkstoff_id"], gruppe_von(p, kopf)[3]
+    z = next((r for r in lieferlaengen(pid, wid, k, tabellen, auto=False) if _n(r.get("laenge")) == _n(laenge)), None)
+    quelle = "Lieferlängen"
+    if z is None:
+        z, quelle = preis_zeile(pid, wid, k, tabellen), "Preise"
+    if z is None or _leer(z.get("basis")):
+        t = (k.werkstoffe.get(wid) or {}).get("tonnenpreis")
+        return f"Herkunft: Tonnenpreis {wid} {zahl(_n(t))} €/t (Werkstoffe)" if t else "Herkunft: kein Preis hinterlegt"
+    text = f"Herkunft: {quelle} {zahl(_n(z.get('preis')))} {z.get('basis')}"
+    if z.get("lieferant"):
+        text += f", Lieferant {z['lieferant']}"
+    try:
+        ab = datetime.date.fromisoformat(str(z.get("gueltig_ab") or ""))
+    except ValueError:
+        return text + ", ohne Datum"
+    text += f", gültig ab {ab.strftime('%d.%m.%Y')}"
+    monate = ((heute or datetime.date.today()) - ab).days / 30.4
+    if monate > PREIS_ALT_MONATE:
+        text += f" – Achtung: über {PREIS_ALT_MONATE} Monate alt, Preis prüfen"
+    return text
+
+
 # ------------------------------------------------------------------ Lieferlängen (z. B. 6 m gegen 12 m)
 # Je Gruppe (Profil + Werkstoff + Oberfläche + Stangenlänge des Angebots) werden die weiteren Lieferlängen aus den
 # Stammdaten 'Lieferlängen' unter gleichen Bedingungen geplant (gleiche Teile, Endbeschnitt, Greiferrest,

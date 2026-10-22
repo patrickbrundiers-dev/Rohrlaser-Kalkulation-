@@ -902,6 +902,9 @@ def kapitel_angebot(i):
            "Werkstoffs, jeweils mit dem Aufpreis der Oberfläche. Bei festgeschriebenen Preisen gilt der Stand des "
            "Angebots ([[preise_festschreiben]]). Ist der Preis günstiger oder teurer zu bekommen (z. B. ein aktuelles "
            "Lieferantenangebot), doppelt klicken: der berechnete Preis steht im Feld und lässt sich ändern.")
+    i.text("Der Mauszeiger auf dem Preis nennt die <b>Herkunft</b>: Lieferlängen, Preise oder Tonnenpreis, mit Preis, "
+           "Lieferant und Gültig ab. Ist der Preis älter als 6 Monate, steht „Achtung: über 6 Monate alt, Preis "
+           "prüfen“ dabei.")
     i.liste("Der eingetragene Preis steht fett und ersetzt Preis und Oberflächen-Aufpreis. Er gilt für alle Stangen "
             "mit gleichem Profil, Werkstoff, Oberfläche und Stangenlänge, weil diese Positionen gemeinsam aus "
             "denselben Stangen geschnitten werden. Die anderen Positionen dieser Gruppe zeigen ihn kursiv.",
