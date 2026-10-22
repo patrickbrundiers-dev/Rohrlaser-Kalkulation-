@@ -121,6 +121,8 @@ jobs:
           /usr/bin/python3 tests/test_festschreiben.py
           /usr/bin/python3 tests/test_hintergrund.py
           /usr/bin/python3 tests/test_vorgang.py
+          /usr/bin/python3 tests/test_teilen.py
+          /usr/bin/python3 tests/test_teilen_fenster.py
           /usr/bin/python3 tests/test_anleitung.py
       - name: Gehrungen (langsamer Test, nur auf main bzw. von Hand, nicht bei jedem Pull Request)
         if: github.event_name != 'pull_request'

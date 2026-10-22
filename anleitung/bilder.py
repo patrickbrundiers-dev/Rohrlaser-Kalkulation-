@@ -328,6 +328,13 @@ def main(ziel):
     foto.foto("angebote", f, [(tab_rect(f.reiter, "Angebote"), 1), (knopf(au, "Neues Angebot"), 2),
                                (knopf(au, "Kopieren"), 3), (au.suche, 4)])
     mit_dialog(lambda: au._kunde_fuer_kopie(db.angebot(a2)), foto, "kopieren_dialog", lambda d: d.reject())
+    # Benutzer und gemeinsamer Ordner (nur ausgefüllt, nicht gespeichert: die Bilder rechnen ohne Kürzel)
+    from rohrlaser.teilen_fenster import BenutzerDialog
+    bd = BenutzerDialog(f)
+    for feld, wert in ((bd.name, "Patrick Brundiers"), (bd.kuerzel, "PB"), (bd.email, "p.brundiers@firma.de"),
+                       (bd.telefon, "05250 1234-12"), (bd.ordner, r"\\server\Kalkulation\Gemeinsam")):
+        feld.setText(wert)
+    mit_dialog(bd.exec, foto, "benutzer_dialog", lambda d: d.reject())
 
     # 6) Angebot öffnen: Positionen vor der Optimierung (breiteres Fenster: Kalkulationsgruppen nebeneinander)
     f.resize(1680, 980)

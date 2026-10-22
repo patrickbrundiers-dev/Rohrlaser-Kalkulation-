@@ -10,7 +10,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QUrl, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
@@ -18,7 +18,8 @@ from PySide6.QtWidgets import (
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import NAME, ausgabe, hilfe, tastatur, update
+from . import NAME, ausgabe, hilfe, tastatur, teilen, update
+from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
@@ -627,7 +628,9 @@ class EinstellungenSeite(QScrollArea):
             w = LogoEingabe()
             w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
         elif e.art == "ordner":
-            w = OrdnerEingabe("Standardordner wählen")
+            w = OrdnerEingabe("Gemeinsamen Ordner wählen" if e.name == "teilen_ordner" else "Standardordner wählen")
+            if e.name == "teilen_ordner":
+                w.pfad.setPlaceholderText("nicht teilen")
             w.setMaximumWidth(self.BREITE_TEXT + 160)
             w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
@@ -653,9 +656,13 @@ class EinstellungenSeite(QScrollArea):
         w.setText(zahl_als_text(wert, None, tausender=False) if wert is not None else "")
 
     def _speichern(self, e, wert):
+        if e.name == "benutzer_kuerzel":
+            wert = kuerzel_sauber(wert)
         if getattr(self, "_laden", False) or self.db.einstellung(e.name) == wert:
             return
         self.db.einstellung_setzen(e.name, wert)
+        if e.name == "benutzer_kuerzel":
+            teilen.bearbeiter_nachtragen(self.db)
         if e.name == hilfe.HILFE_EINSTELLUNG:
             hilfe.alle_aktualisieren()
         self.meldung(f"{e.titel} gespeichert.")
@@ -974,13 +981,39 @@ class Hauptfenster(QMainWindow):
             self.updater.beim_start()
 
     def starten(self):
-        """Programmstart: Fenster maximiert (mit Taskleiste) und gleich im Reiter Angebote."""
+        """Programmstart: Fenster maximiert (mit Taskleiste) und gleich im Reiter Angebote; danach Benutzer (beim
+        ersten Start) und Angebote der anderen Mitarbeiter holen."""
         self.reiter.setCurrentWidget(self.angebote)
         self.showMaximized()
+        if not self.stumm:
+            QTimer.singleShot(200, self._start_teilen)
+
+    def _start_teilen(self):
+        from . import teilen_fenster
+        try:
+            ohne_kuerzel = not teilen.kuerzel(self.db)
+        except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            return
+        if ohne_kuerzel:
+            teilen_fenster.benutzer_bearbeiten(self, erststart=True)
+        elif teilen.aktiv(self.db):
+            teilen_fenster.abgleichen(self, schreiben=False, leise=True)
+
+    def benutzer_bearbeiten(self):
+        from . import teilen_fenster
+        return teilen_fenster.benutzer_bearbeiten(self)
+
+    def abgleichen(self):
+        """Knopf Abgleichen: Angebote und Stammdaten mit dem gemeinsamen Ordner abgleichen."""
+        from . import teilen_fenster
+        return teilen_fenster.abgleichen(self)
 
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
-        for text, ziel, taste in (("Datensicherung erstellen", self.sicherung_erstellen, None),
+        for text, ziel, taste in (("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
+                                  ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
+                                  (None, None, None),
+                                  ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
                                   (None, None, None),
                                   ("Daten exportieren …", self.daten_exportieren, None),
@@ -1284,7 +1317,16 @@ class Hauptfenster(QMainWindow):
         return pfade
 
     def closeEvent(self, ereignis):
-        """Beim Beenden eine Sicherung (eine je Tag, wird überschrieben), auch in den zweiten Sicherungsordner."""
+        """Beim Beenden die eigenen Angebote in den gemeinsamen Ordner legen und eine Sicherung (eine je Tag, wird
+        überschrieben), auch in den zweiten Sicherungsordner."""
+        if not self.stumm and teilen.aktiv(self.db):
+            from . import teilen_fenster
+            if teilen_fenster.abgleichen(self, lesen=False, leise=True) is None and QMessageBox.warning(
+                    self, "Abgleichen", "Die eigenen Angebote ließen sich nicht in den gemeinsamen Ordner legen "
+                    "(siehe Statuszeile). Die Kollegen sehen den Stand nach dem nächsten Abgleich.\n\n"
+                    "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+                ereignis.ignore()
+                return
         if not self.stumm:
             try:
                 _, fehler = self.db.sicherungen(zusatz="beenden")

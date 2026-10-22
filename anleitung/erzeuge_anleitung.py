@@ -564,7 +564,10 @@ def kapitel_start(i):
     i.abschnitt("Startseite")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
-           "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an.")
+           "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an. Danach fragt es nach "
+           "<b>Name und Kürzel</b> des Benutzers; das Kürzel steht vorn in jeder neuen Angebotsnummer. Arbeiten "
+           "mehrere Mitarbeiter mit dem Programm, kommt hier auch der gemeinsame Ordner hinein "
+           "([[mehrere_arbeitsplaetze]]).")
     i.text("Die Startseite ist eine Übersicht in drei Karten. <b>Angebote</b>: <b>Neues Angebot</b> legt gleich ein "
            "Angebot an, <b>Alle Angebote</b> wechselt in den Reiter Angebote ([[angebote]]); darunter die zuletzt "
            "bearbeiteten Angebote mit Status und Verkaufspreis, Doppelklick öffnet eines. <b>Stammdaten</b>: Herkunft "
@@ -604,6 +607,12 @@ def kapitel_angebote(i):
         (3, "<b>Kopieren</b>: Kopie des markierten Angebots mit neuer Nummer, z. B. für eine Nachbestellung. "
             "Daneben <b>Öffnen</b> und <b>Löschen</b> (die tägliche Sicherung enthält gelöschte Angebote weiter)."),
         (4, "<b>Suchen</b> nach Angebotsnummer, Kunde, Kundennummer, Bemerkung, Artikelnummer oder Bezeichnung.")])
+    i.text("Die Spalte <b>Bearbeiter</b> zeigt das Kürzel des Mitarbeiters, der ein Angebot angelegt hat. Mit "
+           "gemeinsamem Ordner stehen auch die Angebote der Kollegen in der Liste, <b>grau und kursiv</b>; die Auswahl "
+           "<b>Meine Angebote / Alle Mitarbeiter / Kürzel</b> links neben dem Vorgang filtert danach, <b>Abgleichen</b> "
+           "holt den neuesten Stand ([[mehrere_arbeitsplaetze]]). Ein Angebot eines Kollegen lässt sich öffnen, "
+           "ansehen und als PDF ausgeben, aber nicht ändern, löschen oder auf einen anderen Vorgang setzen; "
+           "<b>Kopieren</b> macht daraus ein eigenes Angebot mit eigener Nummer.")
     i.text("Beim Kopieren fragt das Programm nach dem Kunden der Kopie. Vorgeschlagen ist der bisherige Kunde; "
            "wer ein Angebot für einen anderen Kunden wiederverwenden will, wählt ihn aus der Liste. Name und "
            "Zahlungsbedingungen kommen dann aus dem Kundenstamm, Positionen und Staffeln werden mitkopiert.")
@@ -2537,6 +2546,70 @@ def kapitel_einstellungen(i):
            "gewechselt, gelten deren aktuelle Werte.")
 
 
+def kapitel_mehrere(i):
+    i.kapitel("Mehrere Arbeitsplätze: Kürzel und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
+    i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
+           "Angebote der anderen sieht und alle mit denselben Stammdaten rechnen, gibt es das <b>Kürzel</b> und einen "
+           "<b>gemeinsamen Ordner</b>.")
+    i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
+    i.abschnitt("Benutzer und Kürzel")
+    i.liste("<b>Datei → Benutzer und gemeinsamer Ordner …</b> (beim ersten Start von selbst): Name, Kürzel, E-Mail "
+            "und Telefon eintragen. Dieselben Felder stehen in den Einstellungen in der Gruppe <i>Benutzer</i>.",
+            "Das <b>Kürzel</b> (Buchstaben und Ziffern, höchstens 5, z. B. PB) steht vorn in jeder neuen "
+            "Angebotsnummer: <b>PB-2026-0001</b>, PB-2026-0002 … Jedes Kürzel zählt je Jahr für sich, eine gelöschte "
+            "Nummer wird nicht wieder vergeben. Ältere Angebote behalten ihre Nummer.",
+            "Im Angebotskopf steht der <b>Bearbeiter</b> (Kürzel und Name), im Angebots-PDF rechts oben als "
+            "<b>Ansprechpartner</b> mit Telefon und E-Mail. Eine Kopie bekommt immer das eigene Kürzel.")
+    i.abschnitt("Gemeinsamer Ordner")
+    i.text("Ein Ordner, den alle erreichen: ein Netzlaufwerk, eine NAS oder ein OneDrive-/SharePoint-Ordner, den "
+           "alle synchronisieren. Jeder trägt denselben Ordner ein. Darin legt jedes Programm genau eine Datei an, "
+           "<i>Rohrlaser_PB.sqlite</i>, <i>Rohrlaser_MK.sqlite</i> …, und schreibt nur in seine eigene. Deshalb kann "
+           "nichts kaputtgehen, wenn zwei gleichzeitig abgleichen, auch nicht über OneDrive. Die eigene Datei enthält "
+           "alle eigenen Angebote (mit Positionen, Staffeln, STEP-Protokoll und 3D-Ansicht), die Stammdaten und die "
+           "gemeinsamen Einstellungen.")
+    i.tabelle(["Wann", "Was passiert"], [
+        ["Programmstart", "holt Angebote und Stammdaten der Kollegen (ohne Fenster; Fehler nur in der Statuszeile)"],
+        ["Knopf <b>Abgleichen</b> (Reiter Angebote) oder <i>Datei → Mit den Kollegen abgleichen</i> (Strg+Umschalt+A)",
+         "holt den Stand der Kollegen und legt den eigenen in den Ordner"],
+        ["Beenden", "legt die eigenen Angebote und Stammdaten in den Ordner; ist er nicht erreichbar, fragt das "
+                    "Programm, ob trotzdem beendet werden soll"]],
+        [80, 185])
+    i.abschnitt("Angebote der Kollegen")
+    i.liste("Stehen im Reiter Angebote grau und kursiv mit dem Kürzel des Kollegen ([[angebote]]).",
+            "Geöffnet zeigt ein gelber Hinweis <i>Angebot von … – nur zum Ansehen</i>. Kopf, Positionen und die "
+            "Knöpfe zum Bearbeiten sind gesperrt; Kalkulation, Staffeln, Stangenbild und die PDF-Ausgabe gehen. Ein "
+            "solches PDF schreibt keine Preise fest und setzt keinen Vorgang.",
+            "<b>Als Kopie übernehmen</b> (im Hinweis oder <i>Kopieren</i> in der Liste) legt ein eigenes Angebot mit "
+            "eigener Nummer und heutigem Datum an.",
+            "Ändert oder löscht der Kollege sein Angebot, zeigt der nächste Abgleich das auch hier; ein offenes "
+            "Fenster lädt neu bzw. schließt sich.")
+    i.abschnitt("Gemeinsame Stammdaten")
+    i.text("Kunden, Profile, Werkstoffe, Preise, Lieferlängen, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten, "
+           "Stundensätze, Zeitvorgaben, Blech-Richtwerte, Frachtkosten, Zukaufartikel und die Einstellungen gelten "
+           "für alle. Geändert wird wie bisher an jedem Arbeitsplatz; der Abgleich bringt die Änderung zu den "
+           "anderen. Für jede Zeile gilt die <b>neueste Änderung</b>: haben zwei dieselbe Zeile zwischen zwei "
+           "Abgleichen geändert, gewinnt die spätere. Gelöschte Zeilen verschwinden auch bei den anderen. Legen zwei "
+           "dieselbe Zeile getrennt an (z. B. dasselbe Profil), wird daraus eine.")
+    i.text("Nur für den eigenen Arbeitsplatz gelten: Benutzer (Name, Kürzel, E-Mail, Telefon), gemeinsamer Ordner, "
+           "Ablageordner, zweiter Sicherungsordner, STEP-Standardordner, Hilfetexte und die Signatur der "
+           "Materialanfrage.")
+    i.abschnitt("Erster Abgleich, neuer Rechner")
+    i.liste("Liegen im Ordner schon Dateien von Kollegen, fragt der erste Abgleich: <b>Übernehmen</b> (empfohlen "
+            "bei einer neuen Installation) ersetzt die eigenen Stammdaten durch die gemeinsamen, nach einer "
+            "Sicherung (<i>_vor_Uebernahme</i>); eigene Angebote und Zukaufartikel bleiben. <b>Zusammenführen</b> "
+            "bringt eigene Zeilen dazu, bei gleichen Zeilen gilt der gemeinsame Stand. Bis zu dieser Antwort "
+            "schreibt das Programm nichts in den Ordner.",
+            "Gibt es die Datei des eigenen Kürzels schon von einem anderen Rechner, fragt das Programm. Wer selbst "
+            "an einem neuen Rechner sitzt, sagt <b>Ja</b>: die eigenen Angebote kommen von dort zurück und der "
+            "Nummernzähler läuft weiter. Gehört das Kürzel einem Kollegen: <b>Nein</b> und ein anderes Kürzel "
+            "eintragen.",
+            "Arbeitet ein Kollege schon mit einer neueren Programmversion, übernimmt das Programm dessen Stammdaten "
+            "erst nach dem eigenen Update (Hinweis beim Abgleich); seine Angebote kommen trotzdem.")
+    i.hinweis("Das Kürzel ist eine Kennung, kein Zugriffsschutz: wer den gemeinsamen Ordner öffnen kann, sieht alle "
+              "Angebote. Die Rechte am Ordner legt die IT bzw. der Ordnerbesitzer fest. Kollegen sehen den Stand des "
+              "letzten Abgleichs, nicht live.")
+
+
 def kapitel_stammdaten(i):
     i.kapitel("Stammdaten und Kunden", marke="stammdaten")
     i.abschnitt("Tabellen bearbeiten")
@@ -3469,7 +3542,9 @@ def kapitel_pflege(i):
            "und die Datei <i>Daten\\rohrlaser.db</i> der portablen Version, eine Sicherung oder eine Export-Datei "
            "angeben. Übernommen wird eine Kopie, die Quelle bleibt unverändert. Danach mit der neuen Version "
            "weiterarbeiten und die alte nicht mehr benutzen, sonst laufen zwei Datenbestände auseinander.",
-           "Das Programm ist für einen Arbeitsplatz gedacht. Solange es läuft, sperrt es seine Datendatei: Ein "
+           "Jeder Arbeitsplatz hat seine eigene Datendatei; geteilt wird über den gemeinsamen Ordner "
+           "([[mehrere_arbeitsplaetze]]), nicht über eine gemeinsame Datendatei. Solange das Programm läuft, sperrt "
+           "es seine Datendatei: Ein "
            "zweites Programm mit derselben Datendatei (die andere Version, ein zweites Fenster oder ein anderer "
            "Rechner auf einem Netzlaufwerk) meldet <b>„schon in einem anderen Programm geöffnet“</b> mit Rechner und "
            "Benutzer und startet nicht.")
@@ -3847,6 +3922,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.29", "<b>Mehrere Arbeitsplätze</b>: Name und Kürzel je Benutzer, das Kürzel steht vorn in der "
+               "Angebotsnummer (PB-2026-0001); Bearbeiter im Angebotskopf und als Ansprechpartner im Angebots-PDF. "
+               "Über einen <b>gemeinsamen Ordner</b> sieht jeder die Angebote der Kollegen (nur ansehen, als Kopie "
+               "übernehmen) und alle teilen die Stammdaten; Abgleich beim Start, beim Beenden und mit dem Knopf "
+               "<i>Abgleichen</i> ([[mehrere_arbeitsplaetze]])."],
     ["0.8.27", "<b>Fasen im STEP-Import</b>: Fasen an den Rohrenden werden erkannt und nicht gelasert; Hinweis im "
                "Bericht, Länge und Schneidweg an der längsten Stelle (gerader Schnitt). Bisher zählte eine Fase als "
                "Innenkontur und das Ende als „nicht erkannt“."],
@@ -4221,6 +4301,10 @@ STECKBRIEFE = {
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
+    "mehrere_arbeitsplaetze": ("Kürzel in der Angebotsnummer; Angebote und Stammdaten mit den Kollegen über einen "
+                               "gemeinsamen Ordner teilen.",
+                               "<i>Datei → Benutzer und gemeinsamer Ordner …</i>; Knopf <i>Abgleichen</i> im Reiter "
+                               "Angebote"),
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
                "<i>Hilfe → Nach Updates suchen …</i>; Reiter <i>Start</i>"),
     "step_messung": ("Für Fachleute: wie die STEP-Messung Rohr, Schnitte und Konturen erkennt.",
@@ -4241,7 +4325,8 @@ TEILE = [
       kapitel_fracht, kapitel_zukauf_angebot, kapitel_ausgabe, kapitel_nachkalkulation]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates und Datensicherung.",
-     [kapitel_einstellungen, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten, kapitel_pflege]),
+     [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,
+      kapitel_pflege]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",
      [kapitel_step_messung, kapitel_tastenkuerzel, kapitel_fragen, kapitel_neu]),
