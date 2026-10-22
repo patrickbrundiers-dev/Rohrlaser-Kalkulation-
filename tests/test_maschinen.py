@@ -26,9 +26,9 @@ t03, t11, lt7 = k.maschinen["T03"], k.maschinen["T11"], k.maschinen["LT7"]
 for m in (t03, t11, lt7):
     assert (m["endbeschnitt"], m["schnittverlust"], m["max_stange"], m["stundensatz"], m["kontur_klein"],
             m["kontur_mittel"], m["abstand"], m["ruestzeit"]) == (10, 0.2, 6500, 150, 10, 50, 5, 5), m
-assert (t03["greiferrest"], t03["stangenwechsel"], t03["max_huellkreis"], t03["max_kg_m"]) == (142, 29, 255, 36)
-assert (t11["greiferrest"], t11["stangenwechsel"], t11["max_huellkreis"], t11["max_kg_m"]) == (142, 29, 255, 36)
-assert (lt7["greiferrest"], lt7["stangenwechsel"], lt7["max_huellkreis"], lt7["max_kg_m"]) == (120, 25, 214, 23)
+assert (t03["greiferrest"], t03["stangenwechsel"], t03["stangenwechsel_sn"], t03["max_huellkreis"], t03["max_kg_m"]) == (142, 24, 29, 255, 36)
+assert (t11["greiferrest"], t11["stangenwechsel"], t11["stangenwechsel_sn"], t11["max_huellkreis"], t11["max_kg_m"]) == (142, 24, 29, 255, 36)
+assert (lt7["greiferrest"], lt7["stangenwechsel"], lt7["stangenwechsel_sn"], lt7["max_huellkreis"], lt7["max_kg_m"]) == (120, 24, 29, 214, 23)
 assert t03["bezeichnung"] == "Trumpf" and lt7["bezeichnung"] == "Adige" and "CO₂" in t03["bemerkung"]
 assert db.einstellung("standard_maschine") == "T03"
 for t in ("maschinen", "schneiddaten"):

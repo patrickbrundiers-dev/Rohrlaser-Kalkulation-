@@ -48,7 +48,8 @@ SCHRITTE_FEST = {
     "Gewinde": "Anzahl Gewinde × Zeit je Gewinde (Stammdaten Gewinde); Gewinde mit Festpreis ohne Zeit",
     "Rüsten Maschine": "Rüstzeit je Angebot der Maschine (Stammdaten Maschinen)",
     "Rüsten je Abmessung": "Rüstzeit je Abmessung aus dem Angebot (Vorgabe Einstellungen)",
-    "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen",
+    "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen; Stangen mit einem Teil mit fester "
+                      "Schweißnaht-Lage rechnen mit 'Stangenwechsel SN'",
 }
 # Zukaufartikel (Rechnung in zukauf.py): Aufschlagsmethoden, Herkunft des Aufschlags am Artikel, Status
 ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
@@ -298,6 +299,7 @@ MASCHINEN = Tabelle(
      Feld("abstand", "Abstand getrennte Schnitte [mm]", "zahl", 0, 100, stellen=1),
      Feld("ruestzeit", "Rüstzeit je Angebot [min]", "zahl", 0, 1440, stellen=0),
      Feld("stangenwechsel", "Stangenwechsel je Stange [s]", "zahl", 0, 3600, stellen=0),
+     Feld("stangenwechsel_sn", "Stangenwechsel SN je Stange [s]", "zahl", 0, 3600, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=160),
      Feld("max_huellkreis", "Max. Hüllkreis-Ø [mm]", "zahl", 1, 2000, stellen=1),
      Feld("max_kg_m", "Max. Metergewicht [kg/m]", "zahl", 0.1, 1000, stellen=1),
@@ -309,7 +311,8 @@ MASCHINEN = Tabelle(
     "Max. Hüllkreis-Ø und max. Metergewicht: größere oder schwerere Profile bekommen im Angebot FEHLER "
     "und werden nicht eingeplant (leer = keine Grenze). Min. Stangenlänge Zuschnitt: kürzeste Stange, die die "
     "automatische Stangenladung nimmt; keine aus einer Lieferstange (z. B. 12 m) zugeschnittene Stange wird kürzer "
-    "(leer oder 0 = keine Grenze).")
+    "(leer oder 0 = keine Grenze). Stangenwechsel SN: Zeit je Stange, auf der ein Teil eine feste "
+    "Schweißnaht-Lage hat (Naht ausrichten), alle anderen Stangen mit 'Stangenwechsel' (leer = wie Stangenwechsel).")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -470,7 +473,7 @@ class Einstellung:
     name: str
     titel: str
     gruppe: str
-    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort | bild
+    art: str                # text | zahl | ganz | anteil | mehrzeilig | auswahl | passwort | bild | ordner
     vorgabe: object
     von: float = None
     bis: float = None
@@ -541,6 +544,9 @@ EINSTELLUNGEN = (
                 auswahl="flachals"),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "Angebot", "zahl", 150.0, 1, 10000),
+    # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
+    Einstellung("step_ordner", "STEP-Import: Standardordner (leer = zuletzt benutzter Ordner)", "Angebot", "ordner",
+                ""),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)", "Angebot",
                 "auswahl", "S235-10219", auswahl="werkstoff"),
@@ -965,9 +971,11 @@ def beispiel_oberflaechen():
 
 # Maschinen (Werte von Patrick, 20.10.2026): T03 Trumpf CO₂-Laser, T11 Trumpf und LT7 Adige Faserlaser
 BEISPIEL_MASCHINEN = [
-    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 29, "CO₂-Laser", 255, 36, 2500),
-    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 29, "Faserlaser", 255, 36, 2500),
-    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 25, "Faserlaser", 214, 23, 2500)]
+    ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "CO₂-Laser", 255, 36, 2500),
+    ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 255, 36, 2500),
+    ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 214, 23, 2500)]
+# Stangenwechsel bis 0.8.9 (ein Wert je Maschine); seit 0.8.10 normal 24 s und mit Schweißnaht-Vorgabe (SN) 29 s
+ALTER_STANGENWECHSEL = {"T03": 29, "T11": 29, "LT7": 25}
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
 # Laserleistung laut Patrick (20.10.2026): T03 3,2 kW, T11 4 kW, LT7 3 kW
 LEISTUNG = {"T03": 3.2, "T11": 4.0, "LT7": 3.0}

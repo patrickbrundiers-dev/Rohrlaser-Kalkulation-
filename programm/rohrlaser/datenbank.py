@@ -36,11 +36,12 @@ from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONE
                       naechste_nummer)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
-                         ALTE_MASCHINEN, MASCHINE_WERTE, alte_beispiel_schneiddaten, alte_richtwerte, ALTE_GRAVUR, GRAVUR,
+                         ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_WERTE, alte_beispiel_schneiddaten,
+                         alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 37     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 38     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -68,6 +69,8 @@ SCHEMA_VERSION = 37     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     alte Mengenstufen je Satz/Position der Größe nach auf Stufe 1, 2 … verteilt
                         # 37: Blech-Editor (Tabellen blech_werkstoffe und blechlaser mit Richtwerten, nur für den
                         #     Richtpreis von Blech-/Kantteilen; getrennt von Werkstoffen und Schneiddaten des Rohrlasers)
+                        # 38: maschinen.stangenwechsel_sn (Stangenwechsel für Stangen mit fester Schweißnaht-Lage);
+                        #     T03/T11/LT7 mit dem alten Beispielwert: normal 24 s, SN 29 s, sonst SN = bisheriger Wert
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -206,6 +209,8 @@ class Datenbank:
             if 0 < version < 29:
                 self.con.execute("UPDATE maschinen SET kontur_klein_wand=3, kontur_mittel_wand=8 "
                                  "WHERE kontur_klein_wand IS NULL AND kontur_mittel_wand IS NULL")
+            if 0 < version < 38:
+                self._stangenwechsel_sn()
             if 0 < version < 13:
                 if not self.anzahl("stundensaetze"):
                     self._einfuegen("stundensaetze", beispiel_stundensaetze())
@@ -235,6 +240,22 @@ class Datenbank:
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
+
+    def _stangenwechsel_sn(self):
+        """Schema 38: zweiter Stangenwechsel je Maschine für Stangen mit fester Schweißnaht-Lage (Patrick 22.10.2026:
+        SN 29 s, sonst 24 s). T03/T11/LT7 mit dem alten Beispielwert bekommen 24/29 s; jede andere Maschine behält
+        ihren Wert und nimmt ihn auch als SN-Zeit (Preise ohne Naht-Vorgabe bleiben dort gleich)."""
+        neu = {z["maschinen_id"]: z for z in beispieldaten()["maschinen"]}
+        for z in self.con.execute("SELECT id, maschinen_id, stangenwechsel, stangenwechsel_sn FROM maschinen").fetchall():
+            if z["stangenwechsel_sn"] is not None:
+                continue
+            alt = ALTER_STANGENWECHSEL.get(z["maschinen_id"])
+            if alt is not None and z["stangenwechsel"] == alt:
+                m = neu[z["maschinen_id"]]
+                self.con.execute("UPDATE maschinen SET stangenwechsel=?, stangenwechsel_sn=? WHERE id=?",
+                                 (m["stangenwechsel"], m["stangenwechsel_sn"], z["id"]))
+            else:
+                self.con.execute("UPDATE maschinen SET stangenwechsel_sn=stangenwechsel WHERE id=?", (z["id"],))
 
     def _stufen_bilden(self):
         """Schema 36: Mengenstufen ohne Stufe je Angebot zu Stufen zusammenfassen. Je Satz bzw. Position zählt die

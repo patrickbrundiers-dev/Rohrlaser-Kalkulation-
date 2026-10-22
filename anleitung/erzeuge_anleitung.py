@@ -954,7 +954,12 @@ def kapitel_angebot(i):
             "Status: <b>FEHLER: Naht auf … gefordert, Lieferstange hat sie auf der …</b>, wenn die Seite nicht zur "
             "<i>Naht der Lieferstange</i> im Profil passt ([[stammdaten]]); <b>WARNUNG: Nahtlage der Lieferstange im "
             "Profil eintragen</b>, wenn sie dort fehlt; <b>FEHLER: Nahtwinkel fehlt</b> bei fester Position ohne "
-            "Winkel. Die Schweißnaht steht nicht in STEP-Dateien und wird nie automatisch erkannt.")
+            "Winkel. Die Schweißnaht steht nicht in STEP-Dateien und wird nie automatisch erkannt.",
+            "<b>Stangenwechsel SN</b>: jede Stange, auf der mindestens ein Teil die Nahtvorgabe <i>feste Position</i> "
+            "hat, rechnet mit dem <i>Stangenwechsel SN</i> der Maschine (Vorgabe 29 s, die Naht wird ausgerichtet), "
+            "alle anderen Stangen mit dem normalen <i>Stangenwechsel</i> (Vorgabe 24 s). Beide Zeiten stehen je "
+            "Maschine in den Stammdaten ([[stammdaten]]); der Reiter Zeiten zeigt die Aufteilung, z. B. "
+            "„3 × 24 s + 2 × 29 s (SN)“ ([[zeiten]]).")
     i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
            "zurück, <b>Strg+Y</b> stellt sie wieder her. Das gilt für jede Änderung: Eingaben in Positionen und Kopf, "
@@ -985,8 +990,13 @@ def kapitel_step(i):
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
     i.liste("Im Angebot auf <b>STEP importieren …</b> klicken und die Dateien wählen (Mehrfachauswahl mit Strg oder "
-            "Umschalt). Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> in das "
-            "Angebotsfenster ziehen; aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
+            "Umschalt). Der Dateidialog startet im Ordner aus der Einstellung <i>STEP-Import: Standardordner</i>; "
+            "ist dort keiner eingetragen, im zuletzt benutzten STEP-Ordner.",
+            "Oder die STEP-Dateien bzw. ganze Ordner aus dem Explorer per <b>Drag &amp; Drop</b> auf das gestrichelte "
+            "Feld <b>STEP hierher ziehen</b> neben dem Knopf ziehen (es geht auch irgendwo sonst ins "
+            "Angebotsfenster; beim Ziehen färbt sich das Feld blau). Ein leeres Angebot zeigt statt der leeren "
+            "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog wie "
+            "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien wechseln "
             "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
@@ -1277,8 +1287,8 @@ def kapitel_optimieren(i):
             "<b>Zusatzarbeiten</b>: Menge × Preis je Teil, ggf. auf den Mindestbetrag angehoben; Fremdleistungen mit "
             "dem Zuschlag Fremdleistung.",
             "<b>Rüsten</b>: Rüstzeit je Angebot (Maschine), Rüstzeit je Abmessung (Einstellungen) und "
-            "Stangenwechsel je Stange, gleichmäßig auf alle Teile verteilt, je mit dem Stundensatz ihres "
-            "Arbeitsschritts.",
+            "Stangenwechsel je Stange (Stangen mit fester Schweißnaht-Lage mit dem Stangenwechsel SN), gleichmäßig "
+            "auf alle Teile verteilt, je mit dem Stundensatz ihres Arbeitsschritts.",
             "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten ([[stundensaetze]]) × Stundensatz, auf die "
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
             "<b>Pauschale je Abmessung, Programmierkosten je Teil, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf "
@@ -2299,6 +2309,10 @@ def kapitel_einstellungen(i):
         ["Angebot", "STEP-Import: Flowdrill-Bohrung am Laser",
          "Was der Laser bei einer erkannten Fließlochbohrung macht: Gravur Ø0,5 (Vorgabe) oder Loch Ø0,5. Im Fenster "
          "Bohrungen prüfen je Zeile änderbar ([[bohrungen_pruefen]])."],
+        ["Angebot", "STEP-Import: Standardordner (leer = zuletzt benutzter Ordner)",
+         "Ordner, in dem der Dateidialog <i>STEP importieren …</i> startet, z. B. das Laufwerk mit den "
+         "Kundenzeichnungen. <b>Ordner wählen …</b> sucht ihn aus, <b>Leeren</b> nimmt ihn heraus; leer (oder der "
+         "Ordner ist nicht erreichbar) = der Dialog startet im zuletzt benutzten STEP-Ordner ([[step]])."],
         ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
@@ -2576,8 +2590,10 @@ def kapitel_stammdaten(i):
     i.text("Vorbelegt sind die Maschinen T03 (Trumpf, CO₂-Laser), T11 (Trumpf, Faserlaser) und LT7 (Adige, "
            "Faserlaser): Endbeschnitt 10 mm, Schnittverlust 0,2 mm, max. Stangenlänge 6.500 mm, 150 €/h, Konturgrenzen "
            "10 und 50 mm, Abstand getrennte Schnitte 5 mm, Rüstzeit 5 min; Greiferrest 142 mm (LT7 120 mm), "
-           "Stangenwechsel 29 s (LT7 25 s), Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m (LT7 23 kg/m), "
-           "min. Stangenlänge im Zuschnitt 2.500 mm. "
+           "Stangenwechsel 24 s, Stangenwechsel SN 29 s, Hüllkreis-Ø 255 mm (LT7 214 mm), Metergewicht 36 kg/m "
+           "(LT7 23 kg/m), min. Stangenlänge im Zuschnitt 2.500 mm. Ältere Datendateien: T03, T11 und LT7 mit dem "
+           "alten Stangenwechsel (29 bzw. 25 s) bekommen 24 s und SN 29 s, jede andere Maschine nimmt ihren "
+           "Stangenwechsel auch als SN-Zeit. "
            "Standard-Maschine ist T03. Beim Update einer älteren Datendatei werden unveränderte Beispielmaschinen "
            "RL-1 und RL-2 zu T03 und T11 (mit ihren Angeboten), LT7 kommt dazu, unveränderte alte "
            "Beispiel-Schneiddaten werden durch die neuen Richtwerte ersetzt; eigene Werte bleiben, vorher wird eine "
@@ -2602,6 +2618,9 @@ def kapitel_stammdaten(i):
                                              "2.500 mm); keine aus einer Lieferstange zugeschnittene Stange "
                                              "wird kürzer ([[lieferlaengen]]), leer oder 0 = keine Grenze"],
         ["Rüstzeit je Angebot [min], Stangenwechsel je Stange [s]", "Zeiten, die auf alle Teile verteilt werden"],
+        ["Stangenwechsel SN je Stange [s]", "Stangenwechsel für Stangen, auf denen ein Teil eine feste "
+                                           "Schweißnaht-Lage hat (Naht ausrichten, Vorgabe 29 s); leer = wie "
+                                           "Stangenwechsel ([[schweissnaht]])"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
         ["Bemerkung", "freier Text"]], [75, 190])
@@ -3637,12 +3656,17 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
-    ["0.8.11", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
+    ["0.8.12", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
      "<i>nicht übernehmbar</i>. Nicht übernehmbare Teile zeigt die 3D-Baugruppe <b>magenta</b>, die Zeile nennt Grund "
      "und Hüllmaß, Anklicken hebt das Teil hervor; mit <b>Von Hand nachtragen</b> (Profilform, Profil-ID) wird es "
      "doch übernommen. Die Spalte Art ist bei jeder Zeile wählbar ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
      "Flachstahl ist in der Spalte Art wählbar (Einstellung <i>ebene flache Teile vorgeben als</i>); Bleche mit "
      "Senkungen werden erkannt ([[bleche]])."],
+    ["0.8.11", "STEP-Import: Einstellung <b>STEP-Import: Standardordner</b> (dort startet der Dateidialog, sonst im "
+               "zuletzt benutzten Ordner) und gut sichtbares <b>Ablagefeld</b> für Drag &amp; Drop neben "
+               "<i>STEP importieren …</i>, im leeren Angebot groß statt der Positionsliste ([[step]])."],
+    ["0.8.10", "Zwei Stangenwechselzeiten je Maschine: <b>Stangenwechsel</b> (Vorgabe 24 s) und <b>Stangenwechsel "
+              "SN</b> (29 s) für Stangen, auf denen ein Teil eine feste Schweißnaht-Lage hat ([[schweissnaht]])."],
     ["0.8.9", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "
               "Draufsicht mit Gehrungen und Innenkonturen, Blech-/Kantteil als Zuschnitt. Ändert sich das Teil (oder "
               "die STEP-Datei), wird das Bild neu gezeichnet; Doppelklick aufs Bild öffnet den Schneidweg-Rechner "

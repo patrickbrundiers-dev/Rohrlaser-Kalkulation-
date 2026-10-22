@@ -465,6 +465,39 @@ class LogoEingabe(QWidget):
         self.geaendert.emit(daten)
 
 
+class OrdnerEingabe(QWidget):
+    """Einstellung 'ordner': Pfad, 'Ordner wählen …' und 'Leeren'. geaendert(pfad) mit dem Ordner oder ''."""
+    geaendert = Signal(str)
+
+    def __init__(self, titel):
+        super().__init__()
+        self.titel = titel
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.pfad = QLineEdit()
+        self.pfad.setPlaceholderText("zuletzt benutzter Ordner")
+        self.pfad.editingFinished.connect(lambda: self.geaendert.emit(self.pfad.text().strip()))
+        waehlen, weg = QPushButton("Ordner wählen …"), QPushButton("Leeren")
+        waehlen.clicked.connect(self._waehlen)
+        weg.clicked.connect(lambda: self._setzen(""))
+        lay.addWidget(self.pfad, 1)
+        lay.addWidget(waehlen)
+        lay.addWidget(weg)
+
+    def anzeigen(self, pfad):
+        self.pfad.setText(pfad or "")
+
+    def _waehlen(self):
+        from PySide6.QtWidgets import QFileDialog
+        pfad = QFileDialog.getExistingDirectory(self, self.titel, self.pfad.text().strip())
+        if pfad:
+            self._setzen(str(Path(pfad)))
+
+    def _setzen(self, pfad):
+        self.anzeigen(pfad)
+        self.geaendert.emit(pfad)
+
+
 class EinstellungenSeite(QScrollArea):
     """Einstellungen als Formular; gruppen = nur diese Gruppen, ohne = diese Gruppen nicht. Jede Gruppe ist eine
     Karte; ab ZWEI_SPALTEN px Breite stehen die Karten in zwei Spalten (auf die kürzere Spalte verteilt)."""
@@ -560,6 +593,10 @@ class EinstellungenSeite(QScrollArea):
         elif e.art == "bild":
             w = LogoEingabe()
             w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
+        elif e.art == "ordner":
+            w = OrdnerEingabe("Standardordner wählen")
+            w.setMaximumWidth(self.BREITE_TEXT + 160)
+            w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
             w = QLineEdit()
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
@@ -609,7 +646,7 @@ class EinstellungenSeite(QScrollArea):
                 w.clear()
                 w.addItems(k.auswahl(e.auswahl))
                 w.setCurrentText(v or "")
-            elif e.art == "bild":
+            elif e.art in ("bild", "ordner"):
                 w.anzeigen(v or "")
             else:
                 w.setText(v or "")
