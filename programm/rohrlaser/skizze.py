@@ -204,7 +204,8 @@ def kurz(e):
     art = e.get("art")
     m = [zahl(_z(e.get(k_)), 2) for k_ in ("d", "D", "l", "b", "h") if _z(e.get(k_))]
     if art == BOHRUNG:
-        return f"Ø {zahl(_z(e.get('d')), 2)}"
+        return f"Ø {zahl(_z(e.get('d')), 2)}" + (f" 3D {zahl(neigung[0], 1)}°/{zahl(neigung[1], 1)}°"
+                                                 if (neigung := neigung_3d(e)) else "")
     if art == SENKUNG:
         return f"Ø {zahl(_z(e.get('d')), 2)} / Senk-Ø {zahl(_z(e.get('D')), 2)}"
     if art == LANGLOCH:
@@ -220,6 +221,19 @@ def kurz(e):
         return f"Kontur L {zahl(_z(e.get('laenge')), 1)}" + (f", Hülle {zahl(_z(e.get('huelle')), 1)}"
                                                             if _z(e.get("huelle")) else "")
     return " × ".join(m) or (art or "")
+
+
+def neigung_3d(e):
+    """Neigung (längs, quer) [°] einer Bohrung in 3D, begrenzt wie die Rechnung (dreid); None ohne 3D oder ungültig."""
+    from . import dreid
+    if not e.get("d3"):
+        return None
+    try:
+        lg, qu, _, _ = dreid.neigung_begrenzen(dreid.winkel_zahl(e.get("neigung_l")),
+                                               dreid.winkel_zahl(e.get("neigung_q")))
+    except ValueError:
+        return None
+    return lg, qu
 
 
 def winkel_aus_text(text):
@@ -363,7 +377,10 @@ def umriss_kontur(e, n=36):
         return None
     if art in (BOHRUNG, SENKUNG):
         r = _z(e.get("d")) / 2
-        pts = [(r * math.cos(2 * math.pi * i / n), r * math.sin(2 * math.pi * i / n)) for i in range(n)]
+        # schräge Bohrung (3D): Austritt auf der Wand als Ellipse, gestreckt um 1/cos der Neigung längs bzw. quer
+        nl, nq = (neigung_3d(e) if art == BOHRUNG else None) or (0, 0)
+        fx, fq = 1 / math.cos(math.radians(nl)), 1 / math.cos(math.radians(nq))
+        pts = [(fx * r * math.cos(2 * math.pi * i / n), fq * r * math.sin(2 * math.pi * i / n)) for i in range(n)]
     elif art == LANGLOCH:
         l_, b_ = _z(e.get("l")), _z(e.get("b"))
         r, m = b_ / 2, (l_ - b_) / 2

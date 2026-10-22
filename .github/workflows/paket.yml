@@ -47,6 +47,7 @@ jobs:
           /usr/bin/python3 tests/test_anbau_pruefen.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_rahmengestell.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_ergebnis.py
+          QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_3d_step.py
           /usr/bin/python3 tests/test_optimierung.py
           /usr/bin/python3 tests/test_lieferlaengen.py
       - name: STEP-Referenztests mit Testbericht
@@ -105,6 +106,9 @@ jobs:
           /usr/bin/python3 tests/test_blech_editor.py
           /usr/bin/python3 tests/test_naht.py
           /usr/bin/python3 tests/test_stangenwechsel_sn.py
+          /usr/bin/python3 tests/test_3d.py
+          /usr/bin/python3 tests/test_3d_greifmass.py
+          /usr/bin/python3 tests/test_3d_editor.py
           /usr/bin/python3 tests/test_tastatur.py
           /usr/bin/python3 tests/test_materialanfrage.py
           /usr/bin/python3 tests/test_plausibel.py

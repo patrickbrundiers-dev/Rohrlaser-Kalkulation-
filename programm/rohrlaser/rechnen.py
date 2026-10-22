@@ -17,7 +17,7 @@ from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITTE_FEST, ZEITEINHEITEN,
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_zukaufteil
 from . import fracht_angebot
-from . import naht, zukauf
+from . import dreid, naht, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -170,6 +170,8 @@ def position_werte(p, kopf, k, tabellen):
                           kategorie(p["werkstoff_id"], k))
         w["vorschub"] = _n(sd.get("vorschub_gross")) if sd else None
         w["gas"] = sd.get("gas") if sd else None
+        d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (1, 1, 1, 1, 0)) if sd else None
+        w["fehlt_3d"] = d3["fehlt"] if d3 else None
     return w
 
 
@@ -327,6 +329,12 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     naht_status = naht.pruefen(p, k.profile.get(p.get("profil_id")))
     if naht_status and naht_status.startswith("FEHLER"):
         return naht_status
+    d3_status = dreid.pruefen(p, m)     # Maschine ohne 3D, ungültiger Winkel: FEHLER, nicht stillschweigend 2D
+    if d3_status and d3_status.startswith("FEHLER"):
+        return d3_status
+    rest = dreid.rest_letztes(p, m)
+    if rest > w["greif"] and p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"] + w["greif"] - rest:
+        return "FEHLER: Teil zu lang für das 3D-Greifmaß der Maschine"
     if eingeplant is not None and _n(p.get("stueck")) - eingeplant > 0:
         return "WARNUNG: nicht vollständig eingeplant"
     if w["preis_hinterlegt"] is False:
@@ -344,15 +352,21 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return f"WARNUNG: Gewinde '{pr['gewinde']}' nicht erkannt (Format 4xM6; 2xM8)"
     if naht_status:
         return naht_status
+    if d3_status and d3_status.startswith("WARNUNG"):
+        return d3_status
     manuell = not _leer(p.get("zeit_manuell"))
     if "kontur" in pr:
         return "WARNUNG: " + pr["kontur"]
+    if not manuell and w.get("fehlt_3d"):
+        return "WARNUNG: " + w["fehlt_3d"]
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
         return "HINWEIS: keine Schneiddaten"
     if "bohrungen" in pr:
         return "HINWEIS: Bohrungen prüfen (Doppelklick)"
+    if d3_status:
+        return d3_status
     if manuell:
         return "HINWEIS: Schneidzeit manuell"
     if _n(p.get("preis_m")) > 0 and not beigestellt(p):
@@ -419,6 +433,9 @@ def gruppen_bilden(kopf, positionen, k):
         greif = pr["greif"] if pr["greif"] is not None else me["greif"]
         if end + laenge + me["kerf"] > stange - greif + EPS:
             fehl("Teil länger als Nutzlänge der Stange"); continue
+        rest = dreid.rest_letztes(p, m)          # 3D-Greifmaß, wenn das Teil das letzte der Stange ist
+        if end + laenge + me["kerf"] > stange - max(greif, rest) + EPS:
+            fehl("Teil zu lang für das 3D-Greifmaß der Maschine"); continue
         bs = "Kunde" if beigestellt(p) else ""
         key = (pid, wst, ob, stange) + ((bs,) if bs else ())
         g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, end, greif, me["kerf"], me["abstand"], ob,
@@ -449,7 +466,7 @@ def gruppen_bilden(kopf, positionen, k):
                     if ann:
                         geh[seite + "_gehrung"], geh["angenommen"] = ann, True
         for n in range(1, stk_n + 1):
-            g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, **geh))
+            g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, rest=rest, **geh))
     return list(gruppen.values()), fehler, neue_profile
 
 
@@ -470,9 +487,10 @@ def teil_kennung(t):
     gewendet wird."""
     alt = (t.zeile, t.pos, t.artikel, t.nr, t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt)
     neu = (t.a_gehrung, t.b_gehrung, t.drehung, t.naht)
+    d3 = (("3D-Greifmaß", t.rest),) if t.rest else ()       # ohne 3D wie bisher (Angebote bleiben aktuell)
     if neu == (None, None, opt.FREI, None) and t.a_gerade == t.b_gerade:
-        return alt
-    return alt + neu + ("nie wenden",)
+        return alt + d3
+    return alt + neu + ("nie wenden",) + d3
 
 
 def laengen_eingaben(gruppen, kopf, k, tabellen, einst):
@@ -615,6 +633,11 @@ def umriss(t):
     return t["von"] + ka[0], t["bis"] - kb[0], t["bis"] - kb[1], t["von"] + ka[1]
 
 
+def _greif_3d(g, folge):
+    """True, wenn hinter der Stange statt des Greiferrests das größere 3D-Greifmaß des letzten Teils frei bleibt."""
+    return opt.hinten(g, folge) > g.greiferrest + EPS
+
+
 def _folge_teile(g, folge, positionen, start=0.0):
     """Teile einer Stange bzw. eines Werkstücks ab Position start: (teile, verlust inkl. letztem Schnitt,
     gemeinsame Schnitte, Belegungstexte)."""
@@ -739,7 +762,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
                 teile, verlust, n_gem, belegung = _folge_teile(g, folge, positionen)
                 stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                                     stange=g.stange, end=g.endbeschnitt,
-                                    greif=g.greiferrest, verlust=round(verlust, 2), trennungen=len(folge),
+                                    greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge), verlust=round(verlust, 2), trennungen=len(folge),
                                     gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
             man = opt.manuell(g)
             ohne = opt.ohne_drehung(g)
@@ -765,7 +788,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
                 n_gem_gruppe += n_gem
                 stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                                     stange=gewaehlt, grundlaenge=g.stange, end=g.endbeschnitt,
-                                    greif=g.greiferrest, verlust=round(verlust, 2), trennungen=len(folge),
+                                    greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge), verlust=round(verlust, 2), trennungen=len(folge),
                                     gemeinsam=n_gem, belegung=" | ".join(belegung), teile=teile))
                 continue
             start, teile, verlust, n_gem, belegung, ws = 0.0, [], 0.0, 0, [], []
@@ -777,9 +800,10 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
                 for t in t_ws:
                     t["werkstueck"] = j
                 # Aufrundung des Werkstücks auf ganze mm zählt zum Verlust; der Greiferrest bleibt frei
-                verlust += v_ws + (laenge - g.endbeschnitt - sum(t.laenge for t, _ in folge) - v_ws - g.greiferrest)
+                verlust += v_ws + (laenge - g.endbeschnitt - sum(t.laenge for t, _ in folge) - v_ws
+                                   - opt.hinten(g, folge))
                 ws.append(dict(nr=j, von=round(start, 2), bis=round(start + laenge, 2), laenge=laenge,
-                               end=g.endbeschnitt, greif=g.greiferrest))
+                               end=g.endbeschnitt, greif=opt.hinten(g, folge), greif_3d=_greif_3d(g, folge)))
                 teile += t_ws
                 n_gem += g_ws
                 belegung.append(f"W{j} {mm_text(laenge)}: " + " | ".join(b_ws))
@@ -788,7 +812,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
             rest = gewaehlt - start
             stangen.append(dict(nr=nr, profil=g.profil, werkstoff=g.werkstoff, oberflaeche=g.oberflaeche,
                                 stange=gewaehlt, grundlaenge=g.stange, end=g.endbeschnitt * len(ws),
-                                greif=g.greiferrest * len(ws), verlust=round(verlust, 2), trennungen=len(teile),
+                                greif=sum(w_["greif"] for w_ in ws), verlust=round(verlust, 2), trennungen=len(teile),
                                 gemeinsam=n_gem, belegung=" || ".join(belegung), teile=teile, werkstuecke=ws,
                                 zuschnitt=f"Zuschnitt beim Lieferanten: {' + '.join(mm_text(w['laenge']) for w in ws)}"
                                           f" mm, Rest {mm_text(max(rest - (saege if rest > saege else rest), 0))} mm"))
@@ -866,7 +890,7 @@ def anzeige_stangen(ergebnis, sw=None):
             summe = sum(t["laenge"] for t in teile)
             verlust = round(x["laenge"] - x["end"] - summe - x["greif"], 2)     # Trennschnitte und Aufrundung
             st = dict(nr=len(out) + 1, profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=s.get("oberflaeche"),
-                      stange=x["laenge"], grundlaenge=s.get("grundlaenge"), end=x["end"], greif=x["greif"],
+                      stange=x["laenge"], grundlaenge=s.get("grundlaenge"), end=x["end"], greif=x["greif"], greif_3d=x.get("greif_3d", False),
                       verlust=verlust, trennungen=len(teile), gemeinsam=sum(1 for t in teile if t.get("eingespart_mm")),
                       belegung=belegung.get(f"W{x['nr']} {mm_text(x['laenge'])}", ""), teile=teile)
             if s.get("beistellung"):
@@ -1082,7 +1106,7 @@ def variante_planen(g, laenge, m, saege, puffer=0):
     out = dict(laenge=laenge, zuschnitt=bool(maxw and laenge > maxw + EPS), stangen=[], fehler=None)
     if not out["zuschnitt"]:
         h = opt.replace(g, stange=laenge, teile=list(g.teile))
-        if any(h.endbeschnitt + t.laenge + h.kerf > h.nutzbar_bis + EPS for t in h.teile):
+        if any(h.endbeschnitt + t.laenge + h.kerf > h.stange - max(h.greiferrest, t.rest) + EPS for t in h.teile):
             out["fehler"] = "Teil länger als Nutzlänge der Stange"
             return out
         folgen = opt.optimiere(h)
@@ -1608,25 +1632,66 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
         l = _n(sd.get("einstechzeit"))
     else:
         h = i_ = j = kv = l = None
-    anteile = zeitanteile(p, (h, i_, j, kv, l))
+    d3 = zeit_3d(p, kopf, wand, tabellen, k, (h, i_, j, kv, l))
+    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0)
     return sd, (h, i_, j, kv, l), sum(anteile.values()) if anteile else None
 
 
-ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "einstiche")
+ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "einstiche", "d3")
 
 
-def zeitanteile(p, vorschuebe):
+def zeitanteile(p, vorschuebe, mehr_3d=0):
     """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur,
-    einstiche}; None ohne Vorschub groß. vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
+    einstiche, d3 (Mehrzeit der 3D-Bearbeitung gegenüber demselben Weg in 2D, zeit_3d)}; None ohne Vorschub groß.
+    vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
     h, i_, j, kv, l = vorschuebe
     if not h:
         return None
     try:
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
                     klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * _n(p.get("gravur")) / kv,
-                    einstiche=_n(p.get("einstiche")) * _n(l))
+                    einstiche=_n(p.get("einstiche")) * _n(l), d3=_n(mehr_3d))
     except ZeroDivisionError:
         return None
+
+
+def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
+    """3D-Bearbeitung eines Teils (dreid.bearbeitungen; nur mit Häkchen und auf einer Maschine mit 3D), sonst None.
+    Je Bearbeitung: Schneiddaten der Maschine bei der wirksamen Dicke Wand ÷ cos(Winkel), Vorschub der Konturklasse
+    (Gehrung = Ende: groß, Bohrung nach Hüllmaß), Einstiche mit deren Einstechzeit, × Faktor 3D der Maschine,
+    + Zusatzzeit je Bearbeitung. Ergebnis dict(zeit (3D-Anteil gesamt [s]), mehr (zeit − derselbe Weg in 2D, steckt
+    im Schneidweg schon drin), laenge [mm], anzahl, fehlt (Text, wenn Schneiddaten für die 3D-Dicke fehlen; mehr
+    dann 0))."""
+    m = maschine(kopf, k) if k else None
+    if not dreid.aktiv(p) or not dreid.kann_3d(m) or not wand:
+        return None
+    pr = k.profile.get(p.get("profil_id")) if k else None
+    bearb = [b for b in dreid.bearbeitungen(p, m, einstiche_ende((pr or {}).get("form"))) if not b["fehler"]]
+    h, i_, j, kv, l = vorschuebe
+    if not bearb or not h:
+        return None
+    regel = kontur_regel(m, wand)
+    faktor = _n(m.get("faktor_3d")) or 1.0
+    zusatz = _n(m.get("zeit_3d"))
+    zeit = ref = laenge = 0.0
+    anzahl = 0
+    for b in bearb:
+        dicke = dreid.wirksame_dicke(wand, b["winkel"])
+        sd = schneiddaten(m.get("maschinen_id"), p.get("werkstoff_id"), dicke, tabellen,
+                          kategorie(p.get("werkstoff_id"), k))
+        if not (sd and _n(sd.get("vorschub_gross"))):
+            return dict(zeit=0.0, mehr=0.0, laenge=0.0, anzahl=0,
+                        fehlt=f"keine Schneiddaten für 3D (Dicke {zahl(dicke, 1)} mm)")
+        g3 = _n(sd["vorschub_gross"])
+        m3 = _n(sd.get("vorschub_mittel")) or g3
+        k3 = _n(sd.get("vorschub_klein")) or m3
+        c = 2 if b["ende"] else kontur_klasse(b["huelle"], regel)
+        lg, n = b["laenge"] * b["anzahl"], b["einstiche"] * b["anzahl"]
+        ref += 60 * lg / (j, i_, h)[c] + n * _n(l)
+        zeit += (60 * lg / (k3, m3, g3)[c] + n * _n(sd.get("einstechzeit"))) * faktor + zusatz * b["anzahl"]
+        laenge += lg
+        anzahl += b["anzahl"]
+    return dict(zeit=zeit, mehr=zeit - ref, laenge=laenge, anzahl=anzahl, fehlt=None)
 
 
 # ------------------------------------------------------------------ Stundensätze und Zeitvorgaben
@@ -2102,8 +2167,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z = dict(pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, material_gruppe=d, anteil=e,
                  material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None)
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
-        anteile = zeitanteile(p, (h, i_, j, kv, l)) or {}
+        d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (h, i_, j, kv, l))
+        anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0) or {}
         z.update({f"zeit_{n}": anteile.get(n) for n in ZEITANTEILE})
+        z.update(zeit_3d_gesamt=d3["zeit"] if d3 else None, mm_3d=d3["laenge"] if d3 else None,
+                 bearbeitungen_3d=d3["anzahl"] if d3 else None)
         z.update(mm_gross=gross_rest(p), mm_mittel=_n(p.get("mittel_mm")), mm_klein=_n(p.get("klein_mm")),
                  mm_gravur=_n(p.get("gravur")), einstiche_teil=_n(p.get("einstiche")))
         ein = eingespart.get(schluessel(p, i), [0, 0.0, 0])
@@ -2145,6 +2213,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = "keine Schneiddaten"
         elif "kontur" in pr:
             hinweis = pr["kontur"]
+        elif not manuell and dreid.pruefen(p, maschine(kopf, k)):
+            hinweis = dreid.pruefen(p, maschine(kopf, k)).split(": ", 1)[1]
+        elif not manuell and d3 and d3["fehlt"]:
+            hinweis = d3["fehlt"]
         elif "zusatz" in pr:
             hinweis = "Zusatzarbeit unbekannt"
         elif "gewinde" in pr:
@@ -2251,7 +2323,7 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
                           "programmierung_anteil"), 0.0)
     z = dict(null, pos=p.get("pos"), artikel=p.get("artikel"), stueck=c, wand_stufe=None, gas=None,
              vorschub_gross=None, vorschub_mittel=None, vorschub_klein=None, vorschub_gravur=None, einstechzeit=None,
-             **{f"zeit_{n}": None for n in ZEITANTEILE}, mm_gross=None, mm_mittel=None, mm_klein=None,
+             **{f"zeit_{n}": None for n in ZEITANTEILE}, zeit_3d_gesamt=None, mm_3d=None, bearbeitungen_3d=None, mm_gross=None, mm_mittel=None, mm_klein=None,
              mm_gravur=None, einstiche_teil=None, zeit_manuell="", zusatzarbeiten=[], zusatz_text="", skonto_teil=t_ - ohne, laser_brutto=None,
              laser_netto=None, zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf,
              zukauf_teil=zk_einst + zk_auf, zukauf_fehlt=sum(1 for x in zk if x["fehler"]) + (0 if zk else 1),

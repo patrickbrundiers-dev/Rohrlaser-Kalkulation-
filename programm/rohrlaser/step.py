@@ -117,12 +117,37 @@ def gehrungen(m):
 SEITE_KASTEN = {"0°": "oben", "90°": "vorne", "180°": "unten", "270°": "hinten"}
 
 
-def rechner_eingaben(m, form, a=None, b=None):
+def kandidaten_3d(m):
+    """Was die Messung für die 3D-Schnittbearbeitung anbietet: (Gehrungen an den Enden, schräge Bohrungen ab 0,5°)
+    als Anzahl. Fasen zählen nicht (Patrick 22.10.2026: in 3D in der Praxis nicht sauber)."""
+    try:
+        liste = json.loads(m.get("konturen_liste") or "[]")
+    except (TypeError, ValueError):
+        return 0, 0
+    gehr = bohr = 0
+    for d in liste if isinstance(liste, list) else ():
+        if not isinstance(d, dict):
+            continue
+        if d.get("art") in ("Ende A", "Ende B") and d.get("form") in ("Gehrung", "Schrägschnitt zweiachsig") \
+                and d.get("gehrung"):
+            gehr += 1
+        elif d.get("art") == "Bohrung" and d.get("durchgehend") and float(d.get("schraeg") or 0) >= SCHRAEG_3D:
+            bohr += 1
+    return gehr, bohr
+
+
+SCHRAEG_3D = 0.5        # Grad, wie step_geometrie.SCHRAEG_3D
+
+
+def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
     Schnittlänge und Hüllmaß ('gemessen', 'huelle_gemessen'), Gravur als Länge. Solange die Maße einer Zeile
     unverändert bleiben, rechnet der Rechner mit der gemessenen Länge. Nur innen liegende Merkmale fehlen;
-    ohne Konturliste (ältere STEP-Import.exe) None."""
+    ohne Konturliste (ältere STEP-Import.exe) None.
+    d3 (Häkchen 3D-Schnittbearbeitung im Prüfdialog): Gehrungen an den Enden werden Gehrungen in 3D, schräge
+    Bohrungen (ab 0,5°) Bohrungen in 3D mit Neigung längs/quer (STEP-JSON 1.5; ältere Messungen nur mit dem Betrag
+    als Neigung längs und dem Text „3D prüfen“). Ohne d3 bleibt alles 2D."""
     from .schneidweg import ACHSEN, QUELLE_STEP
     try:
         liste = json.loads(m.get("konturen_liste") or "[]")
@@ -134,6 +159,8 @@ def rechner_eingaben(m, form, a=None, b=None):
     breit, schmal = max(a_, b_), min(a_, b_)
     kasten = form in ("Quadratrohr", "Rechteckrohr")
     eing = dict(quelle=QUELLE_STEP, a={}, b={}, konturen=[])
+    if d3:
+        eing["d3"] = True
     for d in liste:
         if not isinstance(d, dict):
             continue
@@ -150,6 +177,8 @@ def rechner_eingaben(m, form, a=None, b=None):
                     # Achse passend zur Richtung (Breitseite oben: 0°/180° kippt über die kürzere Seite)
                     quer = schmal if e["richtung"] % 180 == 0 else breit
                     e["achse"] = ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1]
+                if d3:
+                    e["d3"] = True
             if e["gemessen"] > 0:
                 eing["a" if art == "Ende A" else "b"] = e
             continue
@@ -162,6 +191,13 @@ def rechner_eingaben(m, form, a=None, b=None):
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
         if art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
+            schraeg = float(d.get("schraeg") or 0)
+            if d3 and schraeg >= SCHRAEG_3D:
+                if d.get("neigung_l") is not None:
+                    k.update(d3=True, neigung_l=round(float(d["neigung_l"]), 1),
+                             neigung_q=round(float(d.get("neigung_q") or 0), 1))
+                else:                       # Messung vor STEP-JSON 1.5: Richtung unbekannt
+                    k.update(d3=True, neigung_l=round(schraeg, 1), text=f"schräg {schraeg:g}°, 3D prüfen")
         elif art == "Senkung" and d.get("durchmesser") and d.get("senk_durchmesser"):
             k.update(art="Senkung", d=float(d["durchmesser"]), D=float(d["senk_durchmesser"]))
         elif art == "Langloch" and d.get("laenge") and d.get("breite"):
@@ -610,7 +646,7 @@ def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k, blech_daten=None, 
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
-                blech_daten=None):
+                blech_daten=None, d3=False):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -628,7 +664,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     Prüfstatus 'prüfen' (z. B. gekantet) werden erst nach Bestätigung im Prüfdialog übernommen. Die Positionen tragen
     _zukauf = {artikel_id} bzw. {neu: Schlüssel}; neue Artikel stehen im Ergebnis unter zukauf_neu {Schlüssel:
     (Werte, Einkaufsbedingungen)}, der Aufrufer legt sie an und trägt die Zukaufteile ein (Menge 1 je Teil).
-    Ohne zukauf_liste werden Bleche wie bisher nicht übernommen."""
+    Ohne zukauf_liste werden Bleche wie bisher nicht übernommen.
+    d3 bzw. je Teil _d3 (Häkchen 3D-Schnittbearbeitung im Prüfdialog): Gehrungen und schräge Bohrungen in 3D
+    (rechner_eingaben); ohne Häkchen bekommen Teile mit schrägen Bohrungen den Hinweis „3D prüfen“."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
@@ -752,8 +790,15 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = m["_netz"]         # 3D-Ansicht; speichert der Aufrufer nach position_neu
             p.update(gehrungen(m))
+            mit_3d = bool(m.get("_d3", d3))
             rechner = rechner_eingaben(m, form, (profile.get(pid) or {}).get("a") or m.get("abm_a"),
-                                       (profile.get(pid) or {}).get("b") or m.get("abm_b"))
+                                       (profile.get(pid) or {}).get("b") or m.get("abm_b"), mit_3d)
+            gehr_3d, bohr_3d = kandidaten_3d(m)
+            if bohr_3d and not mit_3d:
+                hinweise.append(f"3D prüfen: {bohr_3d} schräge Bohrung{'en' if bohr_3d > 1 else ''}, ohne "
+                                "3D-Schnittbearbeitung als 2D gerechnet")
+            elif mit_3d and not (gehr_3d or bohr_3d):
+                hinweise.append("3D-Schnittbearbeitung gewählt, aber keine Gehrung und keine schräge Bohrung")
             if rechner:
                 p["technik"] = json.dumps(rechner, ensure_ascii=False)     # Konturen für Skizze und Rechner
             if _z(m, "ende_a"):
