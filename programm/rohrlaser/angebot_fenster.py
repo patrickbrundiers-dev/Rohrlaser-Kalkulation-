@@ -1394,6 +1394,17 @@ class AngebotSeite(QWidget):
             == self.ergebnis.get("kennung")
         return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
 
+    def freigabe_punkte(self, summen=None):
+        """Offene Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte)."""
+        if summen is None:
+            summen = self._rechnung()[1]
+        try:
+            veraltet = self.st_seite.anzahl_veraltet() if self.stufen else 0
+        except (ValueError, TypeError, KeyError):
+            veraltet = 0
+        return rechnen.freigabe_punkte(self.kopf, self.positionen, self.pos_modell.status, self.stand_optimierung(),
+                                       summen, veraltet, gueltig_bis(self.kopf, self.db.einstellung("gueltigkeit")))
+
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
@@ -1410,6 +1421,7 @@ class AngebotSeite(QWidget):
             gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
+        self.uebersicht_bereich.freigabe_setzen(self.freigabe_punkte(summen))
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
@@ -2085,9 +2097,13 @@ class AngebotSeite(QWidget):
         ang = self.angebot_daten()
         if ang is None:
             return None
-        if ang["hinweise"] and not self.f.stumm and QMessageBox.question(
-                self, "Angebot", f"{ang['hinweise']} Position(en) haben einen Hinweis in der Kalkulation, z. B. kein "
-                "Preis oder nicht eingeplant.\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
+        punkte = [t for a, t in self.freigabe_punkte() if a != "HINWEIS"]
+        if ang["hinweise"]:
+            punkte.append(f"{ang['hinweise']} Position(en) mit Hinweis in der Kalkulation, z. B. kein Preis oder nicht "
+                          "eingeplant")
+        if punkte and not self.f.stumm and QMessageBox.question(
+                self, "Prüfen vor Freigabe", "Vor dem Angebot sind noch Punkte offen:\n\n"
+                + "\n".join("• " + t for t in punkte) + "\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
             self.reiter.setCurrentIndex(1)
             return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),

@@ -118,4 +118,22 @@ texte = [getattr(x, "text", "") for zeile in pdf._angebot_positionen(ang)._cellv
 assert texte.count(pdf.STAFFEL_HINWEIS) == 1, texte
 ok("P5 Angebots-PDF: unter den Staffelpreisen 'Staffelpreise bei Einzelbestellung dieser Position' (einmal je "
    "Position mit Staffeln)")
-print("OK: Plausibilität (Prüfbericht B-1, B-2, B-3, B-7, B-9)")
+# ------------------------------------------------------------------ P6 Prüfen vor Freigabe
+a = db.angebot_neu(dict(kunde=""))
+db.position_neu(a, P(10, gewinde_vorschlag="4xM6"))
+db.position_neu(a, P(20, schneidweg=-1))
+s = fenster.angebot_oeffnen(a)
+texte = [t for _, t in s.freigabe_punkte()]
+for teil in ("kein Kunde", "Schnittplan nicht aktuell", "1 Position mit FEHLER", "Gewinde-Vorschlag ungeprüft"):
+    assert any(teil in t for t in texte), (teil, texte)
+assert "4 offene Punkte" in s.uebersicht_bereich.freigabe_bereich.knopf.text(), s.uebersicht_bereich.freigabe_bereich.knopf.text()
+db.angebot_aendern(a, "kunde", "Test")
+for p in db.positionen(a):
+    db.position_aendern(p["id"], "schneidweg", 320)
+    db.position_aendern(p["id"], "gewinde", "4xM6")
+s.neu_laden()
+assert s.optimieren()
+assert not [t for a_, t in s.freigabe_punkte() if a_ != "HINWEIS"], s.freigabe_punkte()
+assert "alles erledigt" in s.uebersicht_bereich.freigabe_bereich.knopf.text()
+ok("P6 Prüfen vor Freigabe: Kunde, Schnittplan, FEHLER, Gewinde-Vorschlag als Liste in der Übersicht")
+print("OK: Plausibilität (Prüfbericht B-1, B-2, B-3, B-7, B-9, C-2 Prüfen vor Freigabe)")

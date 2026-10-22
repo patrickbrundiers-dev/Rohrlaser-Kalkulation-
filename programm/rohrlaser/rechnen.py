@@ -1701,6 +1701,38 @@ def verschickt_abweichung(preisbasis, verkauf):
             f"{'+' if diff > 0 else '−'}{zahl(abs(diff), 2)} €")
 
 
+def freigabe_punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig_bis=None, heute=None):
+    """'Prüfen vor Freigabe' (Prüfbericht C-2, 3.4): alle offenen Punkte vor dem Angebots-PDF in einer Liste
+    [(Art, Text)], Art FEHLER, WARNUNG oder HINWEIS. status = Status je Position, stand = Stand der Optimierung,
+    summen = kalkulation(...)[1], gueltig_bis = Datum (verschickte Angebote), leer = alles erledigt."""
+    import datetime
+    out = []
+    aktiv = [(p, st) for p, st in zip(positionen, status) if position_aktiv(p)]
+    if not aktiv:
+        out.append(("FEHLER", "keine Positionen"))
+    if _leer(kopf.get("kunde")):
+        out.append(("WARNUNG", "kein Kunde eingetragen"))
+    if stand != "aktuell":
+        out.append(("WARNUNG", "Schnittplan nicht aktuell: vor dem Angebot neu optimieren"))
+    for art in ("FEHLER", "WARNUNG"):
+        n = sum(1 for _, st in aktiv if str(st).startswith(art))
+        if n:
+            out.append((art, f"{n} Position{'en' if n > 1 else ''} mit {art} (siehe Meldungen)"))
+    n = sum(1 for p, _ in aktiv if bohrbild_offen(p))
+    if n:
+        out.append(("WARNUNG", f"{n} Position{'en' if n > 1 else ''}: Bohrungen/Gewinde-Vorschlag ungeprüft"))
+    if summen.get("fracht_fehler"):
+        out.append(("WARNUNG", f"Fracht: {summen['fracht_fehler']}"))
+    if staffeln_veraltet:
+        out.append(("HINWEIS", f"{staffeln_veraltet} Staffelstufe(n) veraltet (werden vor dem PDF neu gerechnet)"))
+    v = verschickt_abweichung(kopf.get("preisbasis"), summen.get("verkauf"))
+    if v:
+        out.append(("HINWEIS", v))
+    if gueltig_bis and kopf.get("vorgang") == "Verschickt" and gueltig_bis < (heute or datetime.date.today()):
+        out.append(("HINWEIS", f"Gültigkeit abgelaufen ({gueltig_bis.strftime('%d.%m.%Y')})"))
+    return out
+
+
 def _schritt_satz(zb, schritt):
     """(Stundensatz-ID, €/h) eines Arbeitsschritts; fehlt er, wie bisher der Maschinenstundensatz."""
     sid = (schritt or {}).get("satz") or SATZ_MASCHINE

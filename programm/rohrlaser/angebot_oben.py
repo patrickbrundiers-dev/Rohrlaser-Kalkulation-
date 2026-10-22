@@ -831,6 +831,12 @@ class UebersichtBereich(QWidget):
         self.meldungen.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.meldungen_bereich = Aufklapper("Meldungen", self.meldungen)
         kl.addWidget(self.meldungen_bereich)
+        # Prüfen vor Freigabe: alle offenen Punkte vor dem Angebots-PDF (Kunde, Schnittplan, Meldungen, Bohrungen …)
+        self.freigabe = QLabel()
+        self.freigabe.setWordWrap(True)
+        self.freigabe.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.freigabe_bereich = Aufklapper("Prüfen vor Freigabe", self.freigabe)
+        kl.addWidget(self.freigabe_bereich)
         # Kennzahlen
         self.kennzahlen = QGridLayout()
         self.kennzahlen.setHorizontalSpacing(6)
@@ -926,6 +932,25 @@ class UebersichtBereich(QWidget):
                 f"<span style='color:{farbe.get(t.split(':')[0], '#1F2937')}'>Pos. {_z(pos, 0) or '?'}: {t}</span>"
                 for pos, t in meldungen))
         k = self.meldungen_bereich.knopf
+        k.style().unpolish(k)
+        k.style().polish(k)
+
+    def freigabe_setzen(self, punkte):
+        """punkte: rechnen.freigabe_punkte(...)."""
+        self.freigabe_punkte = punkte
+        k = self.freigabe_bereich.knopf
+        if not punkte:
+            self.freigabe_bereich.setze_titel("Prüfen vor Freigabe: alles erledigt")
+            k.setObjectName("meldung_ok")
+            self.freigabe.setText("Kunde, Schnittplan, Positionen, Bohrungen, Fracht und Staffeln sind in Ordnung.")
+        else:
+            offen = sum(1 for a, _ in punkte if a != "HINWEIS")
+            self.freigabe_bereich.setze_titel(f"Prüfen vor Freigabe: {len(punkte)} offene{'r' if len(punkte) == 1 else ''} "
+                                              f"Punkt{'e' if len(punkte) > 1 else ''}")
+            k.setObjectName("meldung_fehler" if any(a == "FEHLER" for a, _ in punkte)
+                            else "meldung_warnung" if offen else "meldung_ok")
+            farbe = {"FEHLER": "#B42318", "WARNUNG": "#7A5A00", "HINWEIS": "#5F6B7A"}
+            self.freigabe.setText("<br>".join(f"<span style='color:{farbe[a]}'>• {t}</span>" for a, t in punkte))
         k.style().unpolish(k)
         k.style().polish(k)
 
