@@ -397,7 +397,7 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Vorschub groß [mm/min]", "vorschub", 0), ("Schneidgas", "gas", None), ("Gewicht Position [kg]", "gewicht_position", 2),
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
-            "einstiche", "zeit_manuell", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
+            "einstiche", "zeit_manuell", "prog_zeit", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
             "naht_vorgabe", "gewicht_teil"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
@@ -506,11 +506,14 @@ class PositionenModell(QAbstractTableModel):
         self.bilder = {pid: b for pid, b in self.bilder.items() if pid in ids}
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
-        self.werte, self.status, self.zeiten, self.meterpreise = [], [], [], []
+        self.werte, self.status, self.zeiten, self.meterpreise, self.prog_zeiten = [], [], [], [], []
         for i, p in enumerate(self.daten):
             w = rechnen.position_werte(p, s.kopf, s.k, s.tabellen)
             self.meterpreise.append(rechnen.meterpreis(p, s.kopf, self.daten, s.k, s.tabellen))  # (berechnet, wirksam, fehlt)
             self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand_schneiden"), s.tabellen, s.k)[2])   # berechnet [s]
+            # Programmierzeit ohne Eintrag von Hand: Grundzeit + Zeit je Innenkontur [min] (Zukaufteile: keine)
+            self.prog_zeiten.append(None if ist_zukaufteil(p) else
+                                    rechnen.programmier_zeit(dict(p, prog_zeit=None), s.einst)[0])
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
             w["eingeplant"] = ein if p.get("profil_id") and not ist_zukaufteil(p) else None
             if ist_zukaufteil(p):
@@ -577,6 +580,23 @@ class PositionenModell(QAbstractTableModel):
                      else "Doppelklick zum Anpassen.")
             if rolle == Qt.EditRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
+            if rolle == Qt.ForegroundRole:
+                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
+            if rolle == Qt.FontRole and w is not None:
+                f = QFont()
+                f.setBold(True)
+                return f
+        if art == "feld" and x.name == "prog_zeit":         # Programmierzeit: berechnet, von Hand überschreibbar
+            berechnet = self.prog_zeiten[index.row()] if index.row() < len(self.prog_zeiten) else None
+            if rolle in (Qt.DisplayRole, Qt.EditRole) and w is None:
+                return _z(berechnet, 1) if berechnet is not None else ""
+            if rolle == Qt.ToolTipRole:
+                n = rechnen.konturen_anzahl(self.daten[index.row()])
+                return ((f"Berechnet: {_z(berechnet, 1)} min = Grundzeit je Position + Zeit je Innenkontur × {n} "
+                         "Innenkontur(en) (Kalkulation des Angebots). " if berechnet is not None
+                         else "Verschicktes Angebot: Betrag je Position festgeschrieben. ")
+                        + ("Von Hand eingetragen; leeren = wieder berechnet." if w is not None
+                           else "Doppelklick zum Anpassen."))
             if rolle == Qt.ForegroundRole:
                 return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
@@ -694,6 +714,10 @@ class PositionenModell(QAbstractTableModel):
         if f.name == "zeit_manuell" and p.get(f.name) is None and wert is not None \
                 and self.zeiten[index.row()] is not None and abs(wert - round(self.zeiten[index.row()], 1)) < 0.05:
             return False                # berechnete Zeit unverändert bestätigt: bleibt berechnet
+        if f.name == "prog_zeit" and p.get(f.name) is None and wert is not None \
+                and self.prog_zeiten[index.row()] is not None \
+                and abs(wert - round(self.prog_zeiten[index.row()], 1)) < 0.05:
+            return False                # berechnete Programmierzeit unverändert bestätigt: bleibt berechnet
         if f.name == "preis_m":
             if wert is not None and wert <= 0:
                 wert = None             # 0 = kein Preis von Hand

@@ -183,7 +183,7 @@ class ZeitenSeite(QWidget):
                   ("davon Maschinenkosten", f"{_z(k['maschinenkosten'])} €", False),
                   ("davon Personalkosten", f"{_z(k['personalkosten'])} €", False),
                   ("Materialkosten", f"{_z(wert['material'])} €", False),
-                  ("Kosten ohne Zeit (Festpreise, Zusatzarbeiten, Programmierung)", f"{_z(k['sonstige'])} €", False),
+                  ("Kosten ohne Zeit (Festpreise, Zusatzarbeiten)", f"{_z(k['sonstige'])} €", False),
                   ("Zuschläge", f"{_z(zuschlaege)} €", False),
                   ("Herstellkosten", f"{_z(summen['herstell'])} €", True), ("Gewinn", f"{_z(wert['gewinn'])} €", False),
                   ("Verkaufspreis", f"{_z(summen['verkauf'])} €", True)]

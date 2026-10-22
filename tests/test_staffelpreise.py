@@ -212,8 +212,8 @@ ok("9  Wert der Stufe geändert: Preis sofort neu und gespeichert, ohne neuen Me
 # Fenster der Stufe: Felder wie im Angebot, leer = grau der Wert des Angebots; Prüfung der Eingaben
 d = StufeDialog(st, m.daten[3])
 assert d.felder["gewinn"].placeholderText().endswith("(Angebot)") and d.felder["gewinn"].text() == ""
-assert {"gewinn", "zuschlag_fremdleistung", "ruesten_abmessung", "pauschale_abmessung", "programmierung_teil",
-        "angebotsaufschlag", "handling_beistellung", "fracht", "skonto", "verlust", "neben_einheit"} <= set(d.felder)
+assert {"gewinn", "zuschlag_fremdleistung", "ruesten_abmessung", "pauschale_abmessung", "programmierung_zeit",
+        "programmierung_teil", "angebotsaufschlag", "handling_beistellung", "fracht", "skonto", "verlust", "neben_einheit"} <= set(d.felder)
 assert d.mengen.rowCount() == len(staffeln.auswahl(s.positionen)) and d.preise.rowCount() >= 1
 d.felder["gewinn"].setText("-5")
 try:

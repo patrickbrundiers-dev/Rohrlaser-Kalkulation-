@@ -22,11 +22,12 @@ KOPF_FELD = {f.name: f for f in KOPF}
 KALK_NAMEN = {f.name for f in KALKULATION}
 KALK_OFFEN_EINSTELLUNG = "ansicht_kalkulation_offen"     # Karte Kalkulation auf- oder zugeklappt (alle Angebote)
 FRACHT_OFFEN_EINSTELLUNG = "ansicht_fracht_offen"        # Karte Fracht auf- oder zugeklappt (alle Angebote)
-# Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs)
+# Kalkulationseinstellungen nach Zweck (Felder des Angebotskopfs); programmierung_teil (€ je Position älterer Angebote)
+# steht nicht hier: er zählt nur, solange die Programmierzeit leer ist (Kostenübersicht, Zeiten & Arbeitskosten)
 GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "handling_beistellung")),
-    ("Zeit und Rüsten", ("ruesten_abmessung",)),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "programmierung_teil", "pauschale_abmessung", "fracht")),
+    ("Zeit und Rüsten", ("ruesten_abmessung", "programmierung_zeit", "programmierung_kontur")),
+    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)

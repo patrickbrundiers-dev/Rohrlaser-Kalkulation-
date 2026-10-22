@@ -50,7 +50,11 @@ SCHRITTE_FEST = {
     "Rüsten je Abmessung": "Rüstzeit je Abmessung aus dem Angebot (Vorgabe Einstellungen)",
     "Stangenwechsel": "Stangenwechsel je Stange der Maschine × Anzahl Stangen; Stangen mit einem Teil mit fester "
                       "Schweißnaht-Lage rechnen mit 'Stangenwechsel SN'",
+    "Programmierung": "Programmierzeit je Position mit Stückzahl: Grundzeit + Zeit je Innenkontur aus dem Angebot "
+                      "(Vorgabe Einstellungen) oder von Hand je Position; Stundensatz Vorgabe 'Programmierung'",
 }
+# Stundensatz der vom Programm gerechneten Schritte, wenn die Tabelle Arbeitsschritte keinen nennt (sonst Maschine)
+SCHRITT_SATZ = {"Programmierung": "Programmierung"}
 # Zukaufartikel (Rechnung in zukauf.py): Aufschlagsmethoden, Herkunft des Aufschlags am Artikel, Status
 ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Mengenstaffel %", "Zielmarge %")
 ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
@@ -503,8 +507,10 @@ EINSTELLUNGEN = (
                 "zahl_leer", None, 0, 1000),
     Einstellung("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "Kalkulation", "zahl", 15.0, 0, 1440),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 22.50, 0, 100000),
-    Einstellung("programmierung_teil", "Programmierkosten je Teil (Position) [€]", "Kalkulation", "zahl", 8.50, 0,
-                100000),
+    # Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026; bis 0.8.21: 8,50 € je Position):
+    # Grundzeit je Position + Zeit je Innenkontur, je Position von Hand überschreibbar
+    Einstellung("programmierung_zeit", "Programmierzeit je Position [min]", "Kalkulation", "zahl", 5.0, 0, 1440),
+    Einstellung("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "Kalkulation", "zahl", 0.5, 0, 1440),
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
     # Mindestangebotspreis netto (nach Skonto, vor MwSt) für neue Angebote; darunter werden die Stückpreise anteilig
     # angehoben. 0 = keiner.
@@ -1123,7 +1129,8 @@ def beispiel_stundensaetze():
 def beispiel_arbeitsschritte():
     """Vorbelegung der Arbeitsschritte: die vom Programm gerechneten mit dem Maschinenstundensatz (wie bisher),
     weitere Schritte mit Zeit 0 (rechnen erst, wenn eine Zeit eingetragen ist)."""
-    fest = [dict(schritt=n, satz=SATZ_MASCHINE, art="Maschine", parallel="nein", bemerkung="Zeit: " + t)
+    fest = [dict(schritt=n, satz=SCHRITT_SATZ.get(n, SATZ_MASCHINE), art="Personal" if n in SCHRITT_SATZ else "Maschine",
+                 parallel="ja" if n in SCHRITT_SATZ else "nein", bemerkung="Zeit: " + t)
             for n, t in SCHRITTE_FEST.items()]
     weitere = [("Materialbereitstellung", "Rüstpersonal", "Personal", "ja", "Angebot", "Stange",
                 "Stangen holen und auflegen, soweit nicht im Stangenwechsel enthalten"),
