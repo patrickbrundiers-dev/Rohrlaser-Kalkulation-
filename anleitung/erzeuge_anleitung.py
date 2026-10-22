@@ -652,7 +652,8 @@ def kapitel_angebot(i):
         (4, "<b>Neue Position</b> (fragt zuerst den Typ, [[neue_position]]); daneben <b>Positionen löschen</b> "
             "(markierte Zeilen)."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
-            "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
+            "Daneben <b>Material …</b> (Materialeinsatz, Lieferlänge, Oberfläche und Meterpreis je Abmessung, "
+            "[[material_fenster]]) und <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
             "<i>EK eintragen …</i> (Einkaufspreis fehlender Zukaufteile direkt im Angebot, [[zukauf_positionen]])."),
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten ([[step]])."),
@@ -936,6 +937,26 @@ def kapitel_angebot(i):
             "Materialzuschläge der Staffeln kommen wie gewohnt dazu.",
             "Der Status zeigt <b>HINWEIS: Meterpreis manuell</b>. Feld leeren (oder 0 eintragen) = wieder berechnet. "
             "Wird der berechnete Preis unverändert bestätigt, bleibt er berechnet.")
+    i.abschnitt("Material je Abmessung (Fenster Material …)", marke="material_fenster")
+    i.text("Der Knopf <b>Material …</b> in der Knopfleiste des Angebots (auch Rechtsklick auf eine Position) öffnet "
+           "alles zum Material in einem Fenster: je Abmessung (Profil, Werkstoff, Oberfläche und Stangenlänge) eine "
+           "Zeile mit dem Querschnitt des Profils als Bild. Die eingetragenen Werte gelten für alle Positionen der "
+           "Abmessung und gehen nach <b>Übernehmen</b> in die Kalkulation ein.")
+    i.bild("material_fenster", "Material je Abmessung", hoehe=85 * mm, legende=[
+        (1, "<b>Querschnitt</b> des Profils (RP-Profile mit ihrer Kontur aus dem MegaCAD-Makro); der Mauszeiger auf "
+            "der Abmessung zeigt Teilelänge gesamt und Ausnutzung."),
+        (2, "<b>Oberfläche</b>, <b>Lieferlänge [mm]</b> (Auswahl aus den Stammdaten <i>Lieferlängen</i> oder eintippen) "
+            "und <b>Material</b> (Eigenmaterial / Kunde beigestellt). Danach neu optimieren."),
+        (3, "<b>Materialeinsatz</b> laut Schnittplan: Stangen, Meter, Gewicht und Materialkosten; darunter die Summe."),
+        (4, "<b>Meterpreis [€/m]</b>: grau steht der berechnete Preis ([[meterpreis]]); ein eigener Wert steht fett, "
+            "Feld leeren = wieder berechnet. Bei Kundenmaterial gesperrt."),
+        (5, "<b>Handling Kundenmaterial [€/kg]</b> des Angebots; daneben zur Info Zuschlag Material und "
+            "Händler-Mehrlänge aus den Einstellungen.")])
+    i.liste("Der Meterpreis wird wie in der Spalte <i>Materialpreis [€/m]</i> an den Positionen gespeichert; der "
+            "Status zeigt dann <b>HINWEIS: Meterpreis manuell</b>.",
+            "Ohne Optimierung stehen Stangen, Meter und Gewicht auf „–“; passt der Schnittplan nicht mehr zu den "
+            "Positionen, steht oben ein roter Hinweis.",
+            "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
     i.abschnitt("Schweißnaht", marke="schweissnaht")
     i.text("Fordert der Kunde eine bestimmte Lage der Schweißnaht, wird sie je Position eingetragen: Position(en) "
            "markieren und <b>Schweißnaht …</b> wählen (Rechtsklick, <i>Weitere Aktionen</i> oder Doppelklick in die "
@@ -2157,9 +2178,11 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und je Stangenmuster der Schnittplan mit Kästchen zum "
             "Abhaken, danach das Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: oben die Kennzahlen (Verkaufspreis, Herstellkosten, Gewinn, Material, "
-            "Maschinenzeit, Stangen, Teile), darunter die Kostenarten (ohne 0,00 €, Herstellkosten und Verkaufspreis "
-            "hervorgehoben), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die interne Ablage und "
-            "die Schneidzeit je Teil nach Konturklassen (Schneidweg, Vorschub und Zeit je Klasse)."),
+            "Maschinenzeit, Stangen, Teile), darunter die Kostenarten mit Anteil am Verkaufspreis in % und als Balken "
+            "(ohne 0,00 €, Herstellkosten und Verkaufspreis hervorgehoben), der Materialeinsatz je Abmessung mit "
+            "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
+            "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
+            "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet."),
         (4, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die "
             "Kalkulation je Position als CSV-Datei (Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer "
             "Tabellenkalkulation; <b>Ablage öffnen</b> zeigt den Ablageordner im Explorer.")])
@@ -2210,7 +2233,9 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>Zukaufteile (nicht lasern, zum Auftrag bereitstellen)</i> mit Pos., Artikelnummer, Bezeichnung, "
            "Zukaufartikel, Stückzahl und Kästchen <i>bereit</i>.")
     i.abschnitt("Kalkulation (PDF)")
-    i.bilder_nebeneinander(["pdf_kalkulation_1"], "Kalkulation A-2026-0041", hoehe=150 * mm)
+    i.bilder_nebeneinander(["pdf_kalkulation_1", f"pdf_kalkulation_{seiten['kalkulation']}"],
+                           "Kalkulation A-2026-0041: Kennzahlen, Kostenarten und Materialeinsatz (links), Stangenbild "
+                           "am Ende (rechts)", hoehe=150 * mm)
     i.abschnitt("Material per Outlook anfragen", marke="materialanfrage")
     i.text("<i>Weitere Aktionen → Material per Outlook anfragen …</i> bereitet eine Anfrage an den Lieferanten vor. "
            "Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst <b>Optimieren</b>.")
@@ -3762,6 +3787,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.21", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
+               "und Meterpreis, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
+               "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
+               "ohne Wert ausgeblendet, Stangenbild am Ende."],
     ["0.8.20", "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech): neue Profilform <i>RP-Profil</i>, die "
                "Bibliothek RP-ROHRE ist mitgeliefert, eigene MegaCAD-Makros lassen sich laden, Querschnitt, Gewicht "
                "und Schnittlänge kommen aus der Kontur ([[rp_profile]])."],

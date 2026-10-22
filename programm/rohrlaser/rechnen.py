@@ -981,6 +981,49 @@ def meterpreis(p, kopf, positionen, k, tabellen):
     return berechnet, (wirksam if wirksam > 0 else None), fehlt
 
 
+def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
+    """Materialeinsatz und Meterpreis je Abmessung (Stangengruppe: Profil, Werkstoff, Oberfläche, Stangenlänge, ggf.
+    Kundenmaterial) für den Dialog 'Meterpreise' und das Kalkulation-PDF, in der Reihenfolge der Positionen.
+    Je Gruppe dict(gruppe, profil, werkstoff, oberflaeche, stange, kunde, positionen [Pos.-Nr.], ids, teile_m
+    (Teilelängen × Stück [m]), berechnet, wirksam, fehlt (wie meterpreis), manuell (Preis von Hand €/m oder None),
+    kg_m) und aus dem Schnittplan (ergebnis, sonst 0): stangen, laengen {Lieferlänge: Anzahl}, meter, kg, kosten,
+    nutz_m (eingeplante Teile [m]), ausnutzung (None ohne Stangen)."""
+    out = {}
+    for p in positionen:
+        if ist_zukaufteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
+            continue
+        gr = gruppe_von(p, kopf)
+        g = out.get(gr)
+        if g is None:
+            berechnet, wirksam, fehlt = meterpreis(p, kopf, positionen, k, tabellen)
+            hand = [p2["preis_m"] for p2 in positionen if _n(p2.get("preis_m")) > 0 and not ist_zukaufteil(p2)
+                    and gruppe_von(p2, kopf) == gr]
+            g = out[gr] = dict(gruppe=gr, profil=gr[0], werkstoff=gr[1], oberflaeche=gr[2], stange=gr[3],
+                               kunde=beigestellt(p), positionen=[], ids=[], teile_m=0.0, berechnet=berechnet,
+                               wirksam=wirksam, fehlt=fehlt, manuell=max(hand) if hand else None,
+                               kg_m=kg_je_m(gr[0], gr[1], k), stangen=0, laengen={}, meter=0.0, kg=0.0, kosten=0.0,
+                               nutz_m=0.0, ausnutzung=None)
+        g["positionen"].append(p.get("pos"))
+        g["ids"].append(p.get("id"))
+        g["teile_m"] += _n(p.get("laenge")) * _n(p.get("stueck")) / 1000
+    if ergebnis and ergebnis.get("stangen"):
+        for s, w in zip(ergebnis["stangen"], stangen_werte(ergebnis, kopf, positionen, k, tabellen)):
+            gr = gruppe_der_stange(s)
+            gr = gr[:4] + (("Kunde",) if len(gr) > 4 else ())
+            g = out.get(gr)
+            if g is None:
+                continue
+            g["stangen"] += 1
+            g["laengen"][s["stange"]] = g["laengen"].get(s["stange"], 0) + 1
+            g["meter"] += s["stange"] / 1000
+            g["kg"] += _n(w["gewicht"])
+            g["kosten"] += _n(w["kosten"])
+            g["nutz_m"] += w["summe"] / 1000
+        for g in out.values():
+            g["ausnutzung"] = g["nutz_m"] / g["meter"] if g["meter"] else None
+    return list(out.values())
+
+
 PREIS_ALT_MONATE = 6      # älter: Hinweis im Tooltip des Meterpreises
 
 

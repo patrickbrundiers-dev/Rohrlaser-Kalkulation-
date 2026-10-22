@@ -85,6 +85,7 @@ jobs:
           /usr/bin/python3 tests/test_step_bleche.py
           /usr/bin/python3 tests/test_werkstoffe.py
           /usr/bin/python3 tests/test_meterpreis.py
+          /usr/bin/python3 tests/test_material_fenster.py
           /usr/bin/python3 tests/test_maschinen.py
           /usr/bin/python3 tests/test_offene_profile.py
           /usr/bin/python3 tests/test_wand_einstiche.py
