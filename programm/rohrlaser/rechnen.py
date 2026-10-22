@@ -256,7 +256,8 @@ def grunddaten_fehler(p, profile, k):
 def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
     """Gemeinsame Einzelprüfungen einer Position (Code-Audit D-1), die status(), zukaufteil_status() und der
     Hinweis der Kalkulation jeweils in ihrer Reihenfolge abfragen: {Schlüssel: Text} nur der zutreffenden Punkte.
-    Schlüssel: satz_vielfach, satz, zusatz, gewinde, kontur (nicht bei manueller Schneidzeit), bohrungen, anbau.
+    Schlüssel: satz_vielfach, satz, zusatz, gewinde, gewinde_preis, kontur (nicht bei manueller Schneidzeit),
+    bohrungen, anbau.
     zusatz/gewinde = Stammdaten; None = nicht prüfen."""
     erg = {}
     if not _leer(p.get("satz")) and _n(p.get("je_satz")) > 0 and _n(p.get("stueck")) % p["je_satz"] != 0:
@@ -272,6 +273,10 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
         g = gewinde_unbekannt(p.get("gewinde"), gewinde)
         if g:
             erg["gewinde"] = g
+        else:
+            g = gewinde_ohne_preis(p.get("gewinde"), gewinde, gewinde_preise_position(p))
+            if g:
+                erg["gewinde_preis"] = g
     if w is not None and _leer(p.get("zeit_manuell")):
         kontur = konturen_pruefen(p, w.get("wand_schneiden"))
         if kontur:
@@ -353,6 +358,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return f"WARNUNG: Zusatzarbeit '{pr['zusatz']}' unbekannt"
     if "gewinde" in pr:
         return f"WARNUNG: Gewinde '{pr['gewinde']}' nicht erkannt (Format 4xM6; 2xM8)"
+    if "gewinde_preis" in pr:
+        return f"WARNUNG: Gewinde {pr['gewinde_preis']} ohne Preis je Stück (Einstellungen › Gewinde)"
     if naht_status:
         return naht_status
     if d3_status and d3_status.startswith("WARNUNG"):
@@ -986,6 +993,49 @@ def meterpreis(p, kopf, positionen, k, tabellen):
     return berechnet, (wirksam if wirksam > 0 else None), fehlt
 
 
+def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
+    """Materialeinsatz und Meterpreis je Abmessung (Stangengruppe: Profil, Werkstoff, Oberfläche, Stangenlänge, ggf.
+    Kundenmaterial) für den Dialog 'Meterpreise' und das Kalkulation-PDF, in der Reihenfolge der Positionen.
+    Je Gruppe dict(gruppe, profil, werkstoff, oberflaeche, stange, kunde, positionen [Pos.-Nr.], ids, teile_m
+    (Teilelängen × Stück [m]), berechnet, wirksam, fehlt (wie meterpreis), manuell (Preis von Hand €/m oder None),
+    kg_m) und aus dem Schnittplan (ergebnis, sonst 0): stangen, laengen {Lieferlänge: Anzahl}, meter, kg, kosten,
+    nutz_m (eingeplante Teile [m]), ausnutzung (None ohne Stangen)."""
+    out = {}
+    for p in positionen:
+        if ist_zukaufteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
+            continue
+        gr = gruppe_von(p, kopf)
+        g = out.get(gr)
+        if g is None:
+            berechnet, wirksam, fehlt = meterpreis(p, kopf, positionen, k, tabellen)
+            hand = [p2["preis_m"] for p2 in positionen if _n(p2.get("preis_m")) > 0 and not ist_zukaufteil(p2)
+                    and gruppe_von(p2, kopf) == gr]
+            g = out[gr] = dict(gruppe=gr, profil=gr[0], werkstoff=gr[1], oberflaeche=gr[2], stange=gr[3],
+                               kunde=beigestellt(p), positionen=[], ids=[], teile_m=0.0, berechnet=berechnet,
+                               wirksam=wirksam, fehlt=fehlt, manuell=max(hand) if hand else None,
+                               kg_m=kg_je_m(gr[0], gr[1], k), stangen=0, laengen={}, meter=0.0, kg=0.0, kosten=0.0,
+                               nutz_m=0.0, ausnutzung=None)
+        g["positionen"].append(p.get("pos"))
+        g["ids"].append(p.get("id"))
+        g["teile_m"] += _n(p.get("laenge")) * _n(p.get("stueck")) / 1000
+    if ergebnis and ergebnis.get("stangen"):
+        for s, w in zip(ergebnis["stangen"], stangen_werte(ergebnis, kopf, positionen, k, tabellen)):
+            gr = gruppe_der_stange(s)
+            gr = gr[:4] + (("Kunde",) if len(gr) > 4 else ())
+            g = out.get(gr)
+            if g is None:
+                continue
+            g["stangen"] += 1
+            g["laengen"][s["stange"]] = g["laengen"].get(s["stange"], 0) + 1
+            g["meter"] += s["stange"] / 1000
+            g["kg"] += _n(w["gewicht"])
+            g["kosten"] += _n(w["kosten"])
+            g["nutz_m"] += w["summe"] / 1000
+        for g in out.values():
+            g["ausnutzung"] = g["nutz_m"] / g["meter"] if g["meter"] else None
+    return list(out.values())
+
+
 PREIS_ALT_MONATE = 6      # älter: Hinweis im Tooltip des Meterpreises
 
 
@@ -1322,16 +1372,28 @@ def gewinde_unbekannt(text, gewinde):
     return fehlt[0] if fehlt else None
 
 
-def gewindezeit(text, gewinde):
-    """Gewindezeit je Teil [s] für Gewinde ohne festen Preis (Zeit je Gewinde × Anzahl)."""
+def gewinde_preis(text, gewinde, preise=None):
+    """Preis der Gewinde je Teil [€]: Anzahl × Preis je Gewinde. Gewinde rechnen nur noch mit € je Stück (Patrick
+    22.10.2026, keine Zeiten); preise = {Gewinde: €} der Position (in 'Bohrungen prüfen' geändert) gehen vor."""
     anz = gewinde_anzahl(text, gewinde)
-    return sum(anz.get(g.get("gewinde"), 0) * _n(g.get("zeit")) for g in gewinde if _leer(g.get("preis")))
+    preise = preise or {}
+    return sum(anz.get(g.get("gewinde"), 0) * _n(preise.get(g.get("gewinde"), g.get("preis"))) for g in gewinde)
 
 
-def gewinde_preis(text, gewinde):
-    """Festpreis der Gewinde je Teil [€]: Anzahl × Preis je Gewinde (nur Gewinde mit Preis)."""
+def gewinde_ohne_preis(text, gewinde, preise=None):
+    """Erstes Gewinde aus 'Gewinde geprüft' ohne Preis je Stück (rechnet mit 0 €) oder None."""
     anz = gewinde_anzahl(text, gewinde)
-    return sum(anz.get(g.get("gewinde"), 0) * _n(g.get("preis")) for g in gewinde if not _leer(g.get("preis")))
+    preise = preise or {}
+    return next((g.get("gewinde") for g in gewinde if anz.get(g.get("gewinde"))
+                 and _leer(preise.get(g.get("gewinde"), g.get("preis")))), None)
+
+
+def gewinde_preise_position(p):
+    """{Gewinde: € je Stück}, die in 'Bohrungen prüfen' für diese Position geändert wurden (bohrbild.py)."""
+    if _leer(p.get("bohrbild")):
+        return {}
+    from .bohrbild import gewinde_preise
+    return gewinde_preise(p["bohrbild"])
 
 
 # ------------------------------------------------------------------ Zusatzarbeiten
@@ -2183,7 +2245,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     prog_pos = {i: (_n(positionen[i].get("stueck")) > 0) * (m * s_prog / 60 if m is not None
                                                              else _n(einstellungen.get("programmierung_teil")))
                 for i, (m, _) in prog_zeit.items()}
-    handling_kg = _n(einstellungen.get("handling_beistellung"))     # € je kg Kundenmaterial (Stangengewicht)
+    handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
     pruefzeit_anbau = _n(einstellungen.get("pruefzeit_anbau"))      # min je Teil mit unsicher erkannten Anbauteilen
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     zus = _zusatz_umlegen(positionen, aktiv, laser, k, tabellen)
@@ -2213,8 +2275,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             continue
         gr = gruppe_von(p, kopf)
         d = sum(x["kosten"] for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr)
-        # Kundenmaterial: Handling je kg der beigestellten Stangen der Gruppe (Prüfen, Einlagern, Transport)
-        dh = handling_kg * sum(_n(x["gewicht"]) for s, x in zip(stangen, sw) if gruppe_der_stange(s) == gr) \
+        # Kundenmaterial: Handling je m der beigestellten Stangen der Gruppe (Prüfen, Einlagern, Transport;
+        # Patrick 22.10.2026: €/m statt €/kg)
+        dh = handling_m * sum(s["stange"] / 1000 for s in stangen if gruppe_der_stange(s) == gr) \
             if beigestellt(p) else 0.0
         gesamt = sum(_n(x.get("laenge")) * _n(x.get("stueck")) for x in positionen
                      if gruppe_von(x, kopf) == gr and not _leer(x.get("laenge")) and not _leer(x.get("stueck")))
@@ -2249,8 +2312,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             oz = _n(p["zeit_manuell"]) + zeit_extra + pruef
         else:
             oz = None if mz is None and not zeit_extra and not pruef else max(0, _n(mz) - nz) + zeit_extra + pruef
-        pz = gewindezeit(p.get("gewinde"), tabellen["gewinde"])
-        gp = gewinde_preis(p.get("gewinde"), tabellen["gewinde"])
+        pz = 0.0        # Gewinde nur mit € je Stück, keine Zeit (Patrick 22.10.2026)
+        gp = gewinde_preis(p.get("gewinde"), tabellen["gewinde"], gewinde_preise_position(p))
         qz = _n(oz) / 3600 * s_laser + pz / 3600 * s_gew + gp
         ze = sum(e["teil"] for e in zus[i] if not e["fremd"])
         zfr = sum(e["teil"] for e in zus[i] if e["fremd"])
@@ -2284,6 +2347,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = "Zusatzarbeit unbekannt"
         elif "gewinde" in pr:
             hinweis = f"Gewinde '{pr['gewinde']}' nicht erkannt"
+        elif "gewinde_preis" in pr:
+            hinweis = f"Gewinde {pr['gewinde_preis']} ohne Preis"
         elif "satz" in pr:
             hinweis = pr["satz"]
         elif "bohrungen" in pr:

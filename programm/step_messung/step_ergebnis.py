@@ -36,11 +36,19 @@ Versionen von SCHEMA_VERSION:
   L, Flachstahl, I-/H-Träger, T): je Kontur "querlage" {x, y} = Mitte im Querschnitt um die Mitte des Hüllrechtecks
   (von Ende A gesehen), beim Ende A "querschnitt" = Umriss als Punkte [x, y] im selben System. Felder aus 1.5
   unverändert.
+- 1.7 (22.10.2026): RP-Profile (Rohre mit Anschlag aus doppeltem Blech) und Mehrkammerprofile: Profilform "RP-Profil"
+  mit "normprofil" = Profil-ID der RP-Bibliothek (z. B. RP 0106-35); je Hohlprofil "kammern" (Zahl der
+  Innenkonturen) und "kontur_umfang" (Länge der Außenkontur), "verbund" = Text, wenn ein Körper als Kern in der
+  Kammer eines anderen liegt (Verbundprofil, nur gemeldet; der Kern hat die Profilform "Verbundkern"), sonst null.
+  Felder aus 1.6 unverändert.
+- 1.8 (22.10.2026): Fasen an den Enden: das Ende trägt "fase": true und "hinweis"; die Fase wird nicht gelasert,
+  Schnittlänge = Außenkontur an der längsten Stelle (bei gerader Außenkante "form" = "gerade"), Länge = längste Länge.
+  Felder aus 1.7 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.6"
+SCHEMA_VERSION = "1.8"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -127,6 +135,9 @@ def koerper(t):
         "enden": list(enden.values()) if konturen_ausgewertet else None,
         "blech": _blech(t.blech) if blech else None,
         "normprofil": t.normprofil or None,
+        "kammern": t.kammern or None,
+        "kontur_umfang": _r(t.kontur_umfang, 2) if t.kontur_umfang else None,
+        "verbund": t.verbund or None,
         "traeger": dict(stegdicke=_r(t.stegdicke), flanschdicke=_r(t.flanschdicke), symmetrisch=t.symmetrisch,
                         ausrundung=_r(t.radius, 1) if t.radius else None)
         if gemessen and t.profilform in ("I-/H-Träger", "T-Profil") else None,

@@ -16,6 +16,8 @@ Zeile: {art, d, anzahl, status, …}; status offen / bestätigt / abgelehnt.
 Arbeitsschritt als Zusatzarbeit (ZUSATZ_ARBEIT): bestätigte Senkungen, Flowdrill und Bohren tragen beim Übernehmen
 die Zusatzarbeiten Senken, Flowdrill bzw. Bohren mit der Anzahl je Teil in die Position ein (quelle = QUELLE);
 offene und abgelehnte Zeilen nichts. Von Hand eingetragene Zusatzarbeiten gleichen Namens bekommen nur die Anzahl.
+Preise (Patrick 22.10.2026: nur € je Stück, keine Zeiten): je Zeile preis = € je Stück der Arbeit und gewinde_preis =
+€ je Gewinde; leer = Preis aus den Einstellungen (Zusatzarbeiten bzw. Gewinde), sonst gilt er nur für diese Position.
 
 Was eine Zeile am Schneidweg, an Einstichen, Gravur und Konturliste ändert (zusatz), steht beim Speichern in der
 Position; geändert wird um den Unterschied zwischen alter und neuer Wahl (anwenden).
@@ -113,7 +115,7 @@ def aus_rechner(erg, alt, gewinde, wand=None, laser=GRAVUR):
     for z in neu:
         v = vorher.get((z["art"], z["d"]))
         if v:
-            z.update({k: v[k] for k in ("status", "gewinde", "laser", "gravur") if k in v})
+            z.update({k: v[k] for k in ("status", "gewinde", "laser", "gravur", "preis", "gewinde_preis") if k in v})
     return neu
 
 
@@ -227,6 +229,24 @@ def arbeiten(liste):
     return out
 
 
+def arbeit_preise(liste):
+    """{Zusatzarbeit: € je Stück} aus den bestätigten Zeilen mit eigenem Preis (letzter gilt)."""
+    out = {}
+    for z in liste:
+        name = ZUSATZ_ARBEIT.get(z.get("art"))
+        if name and z.get("status") == BESTAETIGT and isinstance(z.get("preis"), (int, float)):
+            out[name] = float(z["preis"])
+    return out
+
+
+def gewinde_preise(liste):
+    """{Gewinde: € je Stück} der bestätigten Zeilen mit eigenem Gewindepreis; liste oder JSON-Text."""
+    if isinstance(liste, str):
+        liste = lesen(liste)
+    return {z["gewinde"]: float(z["gewinde_preis"]) for z in liste
+            if z.get("status") == BESTAETIGT and z.get("gewinde") and isinstance(z.get("gewinde_preis"), (int, float))}
+
+
 def arbeiten_text(liste):
     return ", ".join(f"{n}× {name}" for name, n in arbeiten(liste).items())
 
@@ -236,20 +256,23 @@ def zusatz_eintragen(p, liste, katalog, saetze=None):
     Namens bekommt die Anzahl als Menge, neuer Eintrag mit Preisstand der Stammdaten (katalog = Zeilen der
     Zusatzarbeiten); Einträge aus dem Bohrbild ohne bestätigte Zeile fallen weg. Ergebnis: (JSON oder None, Namen,
     die in den Stammdaten fehlen)."""
-    soll = arbeiten(liste)
+    soll, preise = arbeiten(liste), arbeit_preise(liste)
     kat = {z.get("name"): z for z in katalog or ()}
     out, fehlt = [], []
     for e in rechnen.zusatz_liste(p):
         name = e["name"]
         if name in soll:
-            out.append(dict(e, menge=soll.pop(name), quelle=e.get("quelle") or QUELLE))
+            e = dict(e, menge=soll.pop(name), quelle=e.get("quelle") or QUELLE)
+            if name in preise or e["quelle"] == QUELLE:
+                e["preis"] = preise.get(name)
+            out.append(e)
         elif e.get("quelle") != QUELLE:
             out.append(e)
     for name, n in soll.items():
         if name not in kat:
             fehlt.append(name)
             continue
-        out.append(dict(name=name, menge=n, preis=None, text=None, quelle=QUELLE,
+        out.append(dict(name=name, menge=n, preis=preise.get(name), text=None, quelle=QUELLE,
                         stand=rechnen.zusatz_stand(kat[name], saetze)))
     return (json.dumps(out, ensure_ascii=False) if out else None), fehlt
 

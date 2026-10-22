@@ -52,8 +52,8 @@ KALKULATION = (
     Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
     # Mindestpreis (Mindestauftragswert) gilt immer aus den Einstellungen, für alle Angebote (Patrick 21.10.2026);
     # die Spalte angebote.mindestpreis älterer Dateien wird nicht mehr gelesen.
-    # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je kg der beigestellten Stangen; 0 = keins
-    Feld("handling_beistellung", "Handling Kundenmaterial [€/kg]", "zahl", 0, 1000, stellen=3),
+    # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je m der beigestellten Stangen; 0 = keins
+    Feld("handling_beistellung", "Handling Kundenmaterial [€/m]", "zahl", 0, 1000, stellen=3),
 )
 KALK_PROZENT = ("zuschlag_fremdleistung", "gewinn")
 KOPF = KOPF + KALKULATION
