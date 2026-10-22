@@ -555,12 +555,74 @@ def _abst_strecke(x, y, s):
     return math.hypot(x - x1 - u * dx, y - y1 - u * dy)
 
 
+RASTER = 2.0          # mm, Zellgröße des Rasters für Abstände Punkt–Polygonzug
+RASTER_AB = 64        # erst ab so vielen Strecken lohnt das Raster
+RASTER_RINGE = 6      # weiter entfernt (über 12 mm): alle Strecken durchgehen
+_RASTER = {}          # id(strecken) -> (strecken, Raster); die Listen werden nach dem Anlegen nicht mehr geändert
+
+
+def _raster(strecken):
+    """Strecken nach Rasterzellen (jede Strecke in allen Zellen ihres Hüllrechtecks). Für Abstände wird nur in den
+    Zellen um den Punkt gerechnet – mit derselben Formel (_abst_strecke), nur weit entfernte Strecken entfallen, die
+    nachweislich nicht die nächsten sind: gleiche Werte wie jeder gegen jeden (Performance-Audit 22.10.2026)."""
+    eintrag = _RASTER.get(id(strecken))
+    if eintrag is not None and eintrag[0] is strecken and eintrag[2] == len(strecken):
+        return eintrag[1]
+    zellen = {}
+    if not all(math.isfinite(v) for st in strecken for v in st):
+        return None
+    for i, (x1, y1, x2, y2) in enumerate(strecken):
+        for ix in range(math.floor(min(x1, x2) / RASTER), math.floor(max(x1, x2) / RASTER) + 1):
+            for iy in range(math.floor(min(y1, y2) / RASTER), math.floor(max(y1, y2) / RASTER) + 1):
+                zellen.setdefault((ix, iy), []).append(i)
+    if len(_RASTER) > 200:
+        _RASTER.clear()
+    _RASTER[id(strecken)] = (strecken, zellen, len(strecken))
+    return zellen
+
+
+def _ring(cx, cy, r):
+    if r == 0:
+        yield cx, cy
+        return
+    for ix in range(cx - r, cx + r + 1):
+        yield ix, cy - r
+        yield ix, cy + r
+    for iy in range(cy - r + 1, cy + r):
+        yield cx - r, iy
+        yield cx + r, iy
+
+
 def _abstand_zug(x, y, strecken):
+    if len(strecken) < RASTER_AB or not (math.isfinite(x) and math.isfinite(y)):
+        return min(_abst_strecke(x, y, s) for s in strecken)
+    zellen = _raster(strecken)
+    if zellen is None:
+        return min(_abst_strecke(x, y, s) for s in strecken)
+    cx, cy = math.floor(x / RASTER), math.floor(y / RASTER)
+    best = math.inf
+    for r in range(RASTER_RINGE + 1):
+        for z in _ring(cx, cy, r):
+            for i in zellen.get(z, ()):
+                d = _abst_strecke(x, y, strecken[i])
+                if d < best:
+                    best = d
+        # nicht besuchte Zellen liegen mindestens r·RASTER vom Punkt entfernt
+        if best <= r * RASTER - 1e-6:
+            return best
     return min(_abst_strecke(x, y, s) for s in strecken)
 
 
 def _nah_zug(x, y, strecken, tol):
-    return any(_abst_strecke(x, y, s) < tol for s in strecken)
+    if len(strecken) < RASTER_AB or tol > RASTER * (RASTER_RINGE - 2) or not (math.isfinite(x) and math.isfinite(y)):
+        return any(_abst_strecke(x, y, s) < tol for s in strecken)
+    zellen = _raster(strecken)
+    if zellen is None:
+        return any(_abst_strecke(x, y, s) < tol for s in strecken)
+    cx, cy = math.floor(x / RASTER), math.floor(y / RASTER)
+    # eine Strecke näher als tol berührt eine Zelle höchstens ceil(tol/RASTER) Zellen weiter (+1 Sicherheit)
+    return any(_abst_strecke(x, y, strecken[i]) < tol for r in range(math.ceil(tol / RASTER) + 2)
+               for z in _ring(cx, cy, r) for i in zellen.get(z, ()))
 
 
 def _zylinder(face, tol=1e-3):
