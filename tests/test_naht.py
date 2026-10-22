@@ -161,8 +161,12 @@ d = NahtDialog(None, p, db.kontext().profile["RE 60x40x3"])
 assert d.lage.currentText() == naht.SCHMAL_OBEN and d.winkel.value() == 90 and d.werte()["naht_winkel"] == 180
 d.lage.setCurrentText(naht.BREIT_OBEN)                   # Lage umschalten: Naht bleibt am Rohr
 assert d.winkel.value() == 180 and d.werte()["naht_winkel"] == 180 and d.werte()["querschnitt_lage"] is None
-d.winkel.setValue(-1)                                    # über 0° hinaus gedreht: normiert
-assert d.winkel.value() == 359
+d.winkel.setValue(-90)                                   # über 0° hinaus gedreht: normiert
+assert d.winkel.value() == 270
+d.winkel.setValue(47)                                    # Rechteckrohr: nur 0°/90°/180°/270°
+assert d.winkel.value() == 90 and d.werte()["naht_winkel"] == 90
+klick(d, 130)
+assert d.winkel.value() == 90
 d.vorgabe.setCurrentText(naht.KEINE)
 assert set(d.werte().values()) == {None} and "drehen (0°, 180°)" in d.info.text()
 assert seite2.schweissnaht([0], werte=dict(naht_vorgabe=naht.UNBEKANNT, naht_winkel=None, naht_quelle=None,

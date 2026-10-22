@@ -19,6 +19,9 @@ from .schneidweg import (AUSKLINKUNG, BOHRUNG, LANGLOCH, OHNE_HUELLE, POLYGON, R
 
 RUND_SEITEN = {"oben (0°)": 0.0, "vorne (90°)": 90.0, "unten (180°)": 180.0, "hinten (270°)": 270.0}
 KASTEN = ("Quadratrohr", "Rechteckrohr", "Flachstahl")
+# Quadrat- und Rechteckrohr: Seite nur 0°/90°/180°/270° (Patrick 22.10.2026), Anzeige mit Winkel, gespeichert der
+# Flächenname; vorne = rechts von Ende A gesehen (wie die Schweißnaht)
+KASTEN_SEITEN = {"0° oben": "oben", "90° vorne": "vorne", "180° unten": "unten", "270° hinten": "hinten"}
 
 
 class Flaeche:
@@ -146,6 +149,77 @@ class Querschnitt:
                 return f.punkt(q), f.n
             s0 += f.breite
         return (0.0, 0.0), (0, 1)
+
+
+def seite_anzeige(qs, name):
+    """Text der Spalte Seite zu einem gespeicherten Flächennamen (Quadrat-/Rechteckrohr mit Winkel)."""
+    if qs.form in ("Quadratrohr", "Rechteckrohr"):
+        return next((t for t, n in KASTEN_SEITEN.items() if n == name), next(iter(KASTEN_SEITEN)))
+    return name
+
+
+def seite_name(qs, text):
+    """Gespeicherter Flächenname zum Text der Spalte Seite (Umkehrung von seite_anzeige)."""
+    return KASTEN_SEITEN.get(text, text)
+
+
+def seiten_anzeige(qs):
+    """Auswahl der Spalte Seite: Rundrohr Winkeltexte, Quadrat-/Rechteckrohr 0°/90°/180°/270°, sonst Flächennamen."""
+    return [seite_anzeige(qs, n) for n in qs.seiten()]
+
+
+def naht_punkt(qs, winkel):
+    """Punkt (u, v) der Schweißnaht am Umriss (Winkel von Ende A gesehen: 0° oben, 90° vorne/rechts) oder None für
+    Profile ohne Naht."""
+    if winkel is None or not (qs.r or qs.form in ("Quadratrohr", "Rechteckrohr")):
+        return None
+    t = math.radians(float(winkel))
+    dx, dy = math.sin(t), math.cos(t)
+    if qs.r:
+        return round(qs.r * dx, 6), round(qs.r * dy, 6)
+    f = min(qs.B / 2 / abs(dx) if abs(dx) > 1e-9 else 1e9, qs.H / 2 / abs(dy) if abs(dy) > 1e-9 else 1e9)
+    return round(dx * f, 6), round(dy * f, 6)
+
+
+def naht_s(qs, winkel):
+    """Stelle s der Schweißnaht in der Abwicklung oder None."""
+    pt = naht_punkt(qs, winkel)
+    if pt is None:
+        return None
+    if qs.r:
+        return ((float(winkel) + 45) % 360) / 360 * qs.umfang
+    s0 = 0.0
+    for f in qs.flaechen:
+        q = (pt[0] - f.mitte[0]) * f.dir[0] + (pt[1] - f.mitte[1]) * f.dir[1]
+        abstand = abs((pt[0] - f.mitte[0]) * f.n[0] + (pt[1] - f.mitte[1]) * f.n[1])
+        if abstand < 1e-6 and abs(q) <= f.breite / 2 + 1e-6:
+            return s0 + f.breite / 2 + q
+        s0 += f.breite
+    return None
+
+
+def kurz(e):
+    """Kurzbezeichnung einer Kontur für die Bemaßung der Skizze: Ø 8,5, Senkung Ø 6,6/Ø 12, LL 30 × 10 …"""
+    from .rechnen import zahl
+    art = e.get("art")
+    m = [zahl(_z(e.get(k_)), 2) for k_ in ("d", "D", "l", "b", "h") if _z(e.get(k_))]
+    if art == BOHRUNG:
+        return f"Ø {zahl(_z(e.get('d')), 2)}"
+    if art == SENKUNG:
+        return f"Ø {zahl(_z(e.get('d')), 2)} / Senk-Ø {zahl(_z(e.get('D')), 2)}"
+    if art == LANGLOCH:
+        return f"LL {zahl(_z(e.get('l')), 2)} × {zahl(_z(e.get('b')), 2)}"
+    if art == RECHTECK:
+        return f"Rechteck {zahl(_z(e.get('b')), 2)} × {zahl(_z(e.get('h')), 2)}" + (f" R{zahl(_z(e.get('r')), 2)}"
+                                                                             if _z(e.get("r")) else "")
+    if art in (SCHLITZ, AUSKLINKUNG):
+        return f"{art} {zahl(_z(e.get('l')), 2)} × {zahl(_z(e.get('b')), 2)}"
+    if art == POLYGON:
+        return "Polygon"
+    if _z(e.get("laenge")):
+        return f"Kontur L {zahl(_z(e.get('laenge')), 1)}" + (f", Hülle {zahl(_z(e.get('huelle')), 1)}"
+                                                            if _z(e.get("huelle")) else "")
+    return " × ".join(m) or (art or "")
 
 
 def winkel_aus_text(text):

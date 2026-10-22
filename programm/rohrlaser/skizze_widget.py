@@ -2,7 +2,8 @@
 Ansicht von A als kleines Bild. Bemaßung (Länge, Lage der Konturen ab Anfang), Zoom mit dem Mausrad, Verschieben des
 Bildes mit gedrückter Maus auf freier Fläche, Doppelklick = einpassen. Klick auf eine Kontur markiert ihre Zeile,
 Ziehen verschiebt sie (Lage längs; quer in der Abwicklung und auf Flächen, die man in der Ansicht von vorn sieht).
-Die Geometrie steht in skizze.py."""
+Jede Kontur trägt ihr Maß (Ø, Länge × Breite), die Schweißnaht (SN) erscheint rot strichpunktiert. bild() zeichnet
+die Skizze ohne Bedienhinweise für die Zeichnung als PDF. Die Geometrie steht in skizze.py."""
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
@@ -16,10 +17,11 @@ ANSICHTEN, ABWICKLUNG = "Draufsicht und Seitenansicht", "Abwicklung"
 MODI = (ANSICHTEN, ABWICKLUNG)
 LINKS, RECHTS, OBEN, UNTEN = 96, 24, 52, 44     # Ränder [px] für Beschriftung und Bemaßung
 ABSTAND_ANSICHTEN = 46                          # zwischen Draufsicht und Seitenansicht [px]
-EINSATZ = 150                                   # Ansicht von A [px]
+EINSATZ = 180                                   # Ansicht von A [px]
 
 FARBE_TEIL, FARBE_FLAECHE, FARBE_SCHNITT = QColor("#1F3864"), QColor("#F4F7FB"), QColor("#DCE6F2")
 FARBE_KONTUR, FARBE_WAHL, FARBE_MASS = QColor("#B42318"), QColor("#E67E00"), QColor("#595959")
+FARBE_NAHT = QColor("#C0392B")
 
 
 class Skizze(QWidget):
@@ -35,6 +37,8 @@ class Skizze(QWidget):
         self.eingaben, self.ergebnis = {}, None
         self.modus, self.zoom, self.pan = ANSICHTEN, 1.0, QPointF(0, 0)
         self.markiert = None
+        self.naht = None            # Winkel der Schweißnaht (Bezug Breitseite oben) oder None
+        self.druck = False          # True: ohne Bedienhinweise und Markierung (Zeichnung als PDF)
         self.treffer = []           # [(QPolygonF Bildschirm, Lage-dict, Ansicht)] der letzten Zeichnung
         self._ziehen = None         # dict beim Ziehen einer Kontur bzw. des Bildes
         self.setMinimumHeight(260)
@@ -126,6 +130,9 @@ class Skizze(QWidget):
         if self.modus == ANSICHTEN:
             self._ansicht_a(g, lagen)
         g.setPen(FARBE_MASS)
+        if self.druck:
+            g.end()
+            return
         txt = (f"Maßstab 1 : {self._massstab_text()}" + ("" if self.laenge else "  ·  Teilelänge fehlt: Skizze mit "
                                                          "1000 mm")
                + "  ·  Mausrad = Zoom, Doppelklick = einpassen, Kontur ziehen = verschieben")
@@ -174,6 +181,13 @@ class Skizze(QWidget):
                 m = self._bild(a, -R if links else self.L + R, 0)
                 g.setPen(QPen(FARBE_MASS, 0.8, Qt.DashDotLine))
                 g.drawEllipse(m, R * s, R * s)
+        pt = sk.naht_punkt(self.qs, self.naht)
+        if pt is not None:                  # Schweißnaht längs; auf der abgewandten Seite gestrichelt
+            w, sicht = (pt[0], pt[1]) if name == "oben" else (pt[1], pt[0])
+            g.setPen(QPen(FARBE_NAHT, 1.6, Qt.DashDotLine if sicht > -1e-6 else Qt.DotLine))
+            p0, p1 = self._bild(a, self._x_bei(sil, w, 1), w), self._bild(a, self._x_bei(sil, w, 4), w)
+            g.drawLine(p0, p1)
+            g.drawText(QRectF(p0.x() + 4, p0.y() - 15, 40, 14), Qt.AlignLeft | Qt.AlignVCenter, "SN")
         g.setPen(FARBE_MASS)
         g.drawText(QRectF(4, a[2] + 14, LINKS - 10, 16), Qt.AlignLeft,
                    f"{'B' if name == 'oben' else 'H'} {rechnen.zahl(a[4] - a[3], 1)} mm")
@@ -200,6 +214,12 @@ class Skizze(QWidget):
             q = self._bild(a, self.L, s1)
             g.drawText(QRectF(q.x() + 6, (self._bild(a, 0, s0).y() + q.y()) / 2 - 8, RECHTS + 60, 16),
                        Qt.AlignLeft | Qt.AlignVCenter, rechnen.zahl(s1 - s0, 1))
+        s_n = sk.naht_s(qs, self.naht)
+        if s_n is not None:
+            g.setPen(QPen(FARBE_NAHT, 1.6, Qt.DashDotLine))
+            p0 = self._bild(a, self._d_bei(la, s_n), s_n)
+            g.drawLine(p0, self._bild(a, self.L - self._d_bei(lb, s_n), s_n))
+            g.drawText(QRectF(p0.x() + 4, p0.y() - 15, 40, 14), Qt.AlignLeft | Qt.AlignVCenter, "SN")
 
     @staticmethod
     def _d_bei(linie, s):
@@ -222,7 +242,7 @@ class Skizze(QWidget):
                     continue                # Fläche von der Kante gesehen
                 idx = 1 if a[0] == "oben" else 2
                 poly = QPolygonF([self._bild(a, p[0], p[idx]) for p in pts3])
-            wahl = d["zeile"] == self.markiert
+            wahl = d["zeile"] == self.markiert and not self.druck
             farbe = FARBE_WAHL if wahl else FARBE_KONTUR
             if d.get("verteilt"):
                 farbe = QColor(farbe).lighter(135)
@@ -241,6 +261,11 @@ class Skizze(QWidget):
                 g.setBrush(Qt.NoBrush)
                 g.drawPolygon(QPolygonF([c + (pt - c) * f for pt in poly]))
             g.setBrush(Qt.NoBrush)
+            if d["nr"] == 0 and sicht > 0:       # Maß an die erste Kontur der Zeile (Muster: Anzahl ×)
+                n = int(_z(e.get("anzahl")) or 1)
+                g.setPen(farbe)
+                g.drawText(QRectF(r.right() + 3, r.top() - 14, 220, 14), Qt.AlignLeft | Qt.AlignVCenter,
+                           (f"{n} × " if n > 1 else "") + sk.kurz(e))
             self.treffer.append((poly, d, a))
 
     def _bemassung(self, g, ansichten, lagen):
@@ -280,7 +305,7 @@ class Skizze(QWidget):
         g.setPen(QPen(QColor("#D0D7E2"), 1))
         g.setBrush(QBrush(QColor("#FFFFFF")))
         g.drawRect(box)
-        m = min((box.width() - 96) / max(qs.B, 1e-6), (box.height() - 70) / max(qs.H, 1e-6))
+        m = min((box.width() - 130) / max(qs.B, 1e-6), (box.height() - 80) / max(qs.H, 1e-6))
         c = box.center() - QPointF(0, 6)
 
         def p(u, v):
@@ -294,14 +319,14 @@ class Skizze(QWidget):
         g.drawPath(pfad)
         g.setPen(FARBE_MASS)
         if qs.r:
-            marken = [(t.split(" ")[0], (math.sin(math.radians(w)), math.cos(math.radians(w))), w)
+            marken = [(f"{w:g}° " + t.split(" ")[0], (math.sin(math.radians(w)), math.cos(math.radians(w))), w)
                       for t, w in sk.RUND_SEITEN.items()]
             for name, (nu, nv), _ in marken:
                 self._marke(g, p(nu * (qs.r + 5 / m), nv * (qs.r + 5 / m)), (nu, nv), name)
         else:
             for f in qs.flaechen:
                 self._marke(g, p(f.mitte[0] + f.n[0] * 5 / m, f.mitte[1] + f.n[1] * 5 / m), f.n,
-                            f.name.replace("Flansch ", "Fl. ").replace("Schenkel ", "Schenkel\u00a0"))
+                            sk.seite_anzeige(qs, f.name).replace("Flansch ", "Fl. ").replace("Schenkel ", "Schenkel\u00a0"))
         g.setPen(QPen(FARBE_KONTUR, 1))
         g.setBrush(QBrush(FARBE_KONTUR))
         for d in lagen:
@@ -309,9 +334,18 @@ class Skizze(QWidget):
             u = sum(x[1] for x in pts3) / len(pts3)
             v = sum(x[2] for x in pts3) / len(pts3)
             g.drawEllipse(p(u, v), 2.5, 2.5)
+        pt = sk.naht_punkt(qs, self.naht)
+        if pt is not None:
+            g.setPen(QPen(FARBE_NAHT, 1))
+            g.setBrush(QBrush(FARBE_NAHT))
+            q = p(*pt)
+            g.drawEllipse(q, 4, 4)
+            g.drawText(QRectF(q.x() - 30, q.y() - 8, 26, 16), Qt.AlignRight | Qt.AlignVCenter, "SN")
         g.setPen(FARBE_MASS)
         g.setBrush(Qt.NoBrush)
-        g.drawText(QRectF(box.x() + 4, box.bottom() - 15, box.width() - 8, 14), Qt.AlignCenter, "Ansicht von A")
+        g.drawText(QRectF(box.x() + 4, box.bottom() - 15, box.width() - 8, 14), Qt.AlignCenter,
+                   f"Ansicht von A · {rechnen.zahl(qs.B, 1)} × {rechnen.zahl(qs.H, 1)}" if not qs.r else
+                   f"Ansicht von A · Ø {rechnen.zahl(qs.B, 1)}")
 
     @staticmethod
     def _marke(g, q, n, text):
@@ -324,6 +358,30 @@ class Skizze(QWidget):
             g.drawText(QRectF(q.x() - 40, q.y() - 15, 80, 14), Qt.AlignCenter, text)
         else:
             g.drawText(QRectF(q.x() - 40, q.y() + 1, 80, 14), Qt.AlignCenter, text)
+
+    def hoehe_fuer(self, breite, modus=ANSICHTEN):
+        """Höhe [px], bei der die Skizze in der Breite breite den Platz füllt (Maßstab durch die Länge begrenzt)."""
+        m = modus if modus in MODI else ANSICHTEN
+        frei_b = max(60, breite - LINKS - RECHTS - (EINSATZ + 12 if m == ANSICHTEN else 0))
+        welt = self.qs.umfang if m == ABWICKLUNG else self.qs.B + self.qs.H
+        h = OBEN + UNTEN + (ABSTAND_ANSICHTEN if m == ANSICHTEN else 0) + welt * frei_b / self.L
+        return max(h, EINSATZ + OBEN if m == ANSICHTEN else 0)
+
+    def bild(self, breite, hoehe, modus=ANSICHTEN, faktor=2):
+        """Skizze ohne Bedienhinweise als QImage (breite × hoehe Punkte, faktor-fach aufgelöst) für die Zeichnung.
+        Ergebnis: (QImage, Pixel je mm in Punkten)."""
+        from PySide6.QtGui import QImage
+        alt = (self.size(), self.modus, self.zoom, self.pan, self.druck)
+        self.resize(int(breite), int(hoehe))
+        self.modus, self.zoom, self.pan, self.druck = modus if modus in MODI else ANSICHTEN, 1.0, QPointF(0, 0), True
+        img = QImage(int(breite * faktor), int(hoehe * faktor), QImage.Format_ARGB32)
+        img.setDevicePixelRatio(faktor)
+        img.fill(QColor("#FFFFFF"))
+        self.render(img)
+        s = self.massstab()
+        self.resize(alt[0])
+        self.modus, self.zoom, self.pan, self.druck = alt[1:]
+        return img, s
 
     # ------------------------------------------------------------------ Maus
     def treffer_bei(self, pos):

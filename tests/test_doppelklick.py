@@ -142,8 +142,10 @@ def _():
         v.setFocus()
         app.processEvents()
         pm.mit_netz.add(seite.positionen[0]["id"])
-        seite._doppelklick(pm.index(0, spalte("artikel")))
-        assert ansicht == [0] and "Doppelklick: 3D-Ansicht" in pm.data(pm.index(0, spalte("artikel")), Qt.ToolTipRole)
+        seite._doppelklick(pm.index(0, spalte("artikel")), auf_bild=False)
+        assert ansicht == [0] and "Nummer: 3D-Ansicht" in pm.data(pm.index(0, spalte("artikel")), Qt.ToolTipRole)
+        seite._doppelklick(pm.index(0, spalte("artikel")), auf_bild=True)      # kleines STEP-Bild: Rechner
+        assert ansicht == [0] and rechner[-1] == 0, rechner
         fenster.close()
         db.con.close()
 

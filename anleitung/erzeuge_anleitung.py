@@ -918,8 +918,9 @@ def kapitel_angebot(i):
            "Spalte <b>Schweißnaht</b>). Das Fenster <i>Schweißnaht – Pos. …</i> zeigt den Rohrquerschnitt.")
     i.liste("<b>Winkel</b>: der Querschnitt wird immer <b>von Ende A in Richtung Ende B</b> gesehen; 0° oben, 90° "
             "rechts, 180° unten, 270° links (im Uhrzeigersinn). Ein Klick in das Bild setzt den Winkel, oder er wird "
-            "in das Zahlenfeld eingegeben; 360° wird zu 0°, −90° zu 270°. Bei Rechteck- und Quadratrohr rastet der "
-            "Klick auf 5° ein.",
+            "in das Zahlenfeld eingegeben; 360° wird zu 0°, −90° zu 270°. Bei Rechteck- und Quadratrohr gibt es nur "
+            "<b>0°, 90°, 180° und 270°</b> (Mitte einer Seite): der Klick rastet dort ein, die Pfeile springen um "
+            "90°. Die Naht lässt sich auch im Schneidweg-Rechner wählen ([[schneidweg_rechner]]).",
             "<b>Nahtvorgabe</b>: <i>keine Vorgabe</i> (Standard, auch für ältere und per STEP importierte "
             "Positionen) = die Optimierung darf das Teil um die eigene Achse drehen (Rechteckrohr 0° und 180°, "
             "Quadrat- und Rundrohr 0°, 90°, 180°, 270°); <i>feste Position</i> = Winkel und Quelle (Kunde, "
@@ -1263,23 +1264,31 @@ def kapitel_optimieren(i):
     i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
     i.text("Für Teile ohne STEP-Datei rechnet der <b>Schneidweg-Rechner</b> Schneidweg, Einstiche und Konturklassen "
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
-           "die Position oder <i>Weitere Aktionen</i>). Das Profil muss in den Stammdaten stehen. Bei Teilen aus dem "
-           "STEP-Import zeigt er die gemessenen Konturen in Tabelle und Skizze; dort lassen sie sich prüfen und "
-           "ändern.")
+           "die Position oder <i>Weitere Aktionen</i>, Doppelklick auf Schneidweg oder auf das kleine STEP-Bild vor "
+           "der Artikelnummer). Das Profil muss in den Stammdaten stehen. Bei Teilen aus dem STEP-Import zeigt er die "
+           "gemessenen Enden, Bohrungen, Konturen und die Gravur in Tabelle und Skizze; dort lassen sie sich prüfen "
+           "und ändern. Die Schweißnaht wird hier ebenfalls gewählt, und <b>Zeichnung als PDF …</b> macht aus allem "
+           "eine maßstäbliche Zeichnung.")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck; maßstäbliche Skizze (vergrößert auf die erste Hälfte) mit Draufsicht, Seitenansicht und "
            "Ansicht von A",
            hoehe=150 * mm, legende=[
-               (1, "<b>Gehrung</b> je Ende in Grad (gerade = 0) mit Richtung, beim Rundrohr wahlweise Ausklinkung."),
-               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße (der Tooltip jeder Zelle nennt das Maß), "
-                   "dazu Lage ab Anfang, Abstand (Muster), Seite und Versatz quer."),
+               (1, "<b>Enden</b> mit beschrifteten Spalten: Gehrungswinkel (gerade = 0), gekippt über, längste Seite "
+                   "(Gehrungsrichtung), beim Rundrohr Ausklinkung; rechts der gemessene Wert aus dem STEP-Import."),
+               (2, "<b>Innenkonturen</b>: Art, Anzahl je Teil und Maße, dazu Lage ab Ende A, Abstand Muster, Seite "
+                   "und Versatz quer. Die Überschriften Maß 1–3 zeigen das Maß der markierten Zeile (z. B. Ø d)."),
                (3, "<b>+ Bohrung</b>, <b>+ Senkung</b> … fügt eine Zeile hinzu; <b>Aus Position kopieren …</b>, "
                    "<b>Vorlagen</b> und <b>Markierte entfernen</b> daneben."),
                (4, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Konturklasse."),
                (5, "Schneidweg, Einstiche, Klassen und Schneidzeit je Teil; Gewinde-Vorschlag, Hinweise und Fehler "
                    "in Farbe."),
-               (6, "<b>Skizze</b> maßstäblich: Draufsicht und Seitenansicht oder Abwicklung, Bemaßung, Ansicht "
-                   "von A mit den Flächennamen; Konturen anklicken und ziehen.")])
+               (6, "<b>Skizze</b> maßstäblich: Draufsicht und Seitenansicht oder Abwicklung, Bemaßung mit Lage und "
+                   "Maß jeder Kontur, Schweißnaht SN rot, Ansicht von A mit 0°/90°/180°/270°; Konturen anklicken und "
+                   "ziehen."),
+               (7, "<b>Schweißnaht (SN)</b>: Vorgabe, Lage und Quelle wie im Fenster Schweißnaht; Rechteck- und "
+                   "Quadratrohr nur 0°, 90°, 180°, 270°."),
+               (8, "<b>Erklärung</b> der markierten Zeile: welches Maß in Maß 1, 2 und 3 gehört."),
+               (9, "<b>Zeichnung als PDF …</b> und <b>STEP neu einlesen …</b>.")])
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
            "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
@@ -1319,9 +1328,10 @@ def kapitel_optimieren(i):
             "<b>Lage der Konturen</b> (nur für die Skizze, ändert den Schneidweg nicht): <i>Lage ab Anfang</i> = "
             "Mitte der Kontur in mm ab Ende A (leer = gleichmäßig verteilt, Schlitz ohne Lage am Ende A). "
             "<i>Abstand</i> macht aus der Anzahl ein <b>Muster</b>: 4 Bohrungen, Lage 200, Abstand 100 liegen bei "
-            "200, 300, 400 und 500 mm. <i>Seite</i> ist die Fläche, auf der die Kontur sitzt: Rechteckrohr, "
-            "Quadratrohr und Flachstahl <i>oben, vorne, unten, hinten</i> (Rechteckrohr mit der Breitseite oben, "
-            "wie bei Schweißnaht und Gehrungsrichtung); U-/C-Profil und Träger <i>Flansch oben, "
+            "200, 300, 400 und 500 mm. <i>Seite</i> ist die Fläche, auf der die Kontur sitzt, von Ende A gesehen: "
+            "Rechteckrohr und Quadratrohr nur <i>0° oben, 90° vorne (rechts), 180° unten, 270° hinten (links)</i> "
+            "(Rechteckrohr mit der Breitseite oben, wie bei Schweißnaht und Gehrungsrichtung); Flachstahl <i>oben, "
+            "vorne, unten, hinten</i>; U-/C-Profil und Träger <i>Flansch oben, "
             "Steg, Flansch unten</i>; T-Profil <i>Flansch, Steg</i>; L-Profil <i>Schenkel a, Schenkel b</i>. Beim "
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
@@ -1348,13 +1358,29 @@ def kapitel_optimieren(i):
             "Hinweis; das Programm erfindet keine Werte, die Schneidzeit wird dann von Hand eingetragen.",
             "<b>Teile aus dem STEP-Import</b> (seit 0.6.29): Der Import legt die gemessenen Konturen und Enden im "
             "Rechner ab. Beim Öffnen stehen sie mit Art, Maßen, Lage ab Anfang und Seite (Rundrohr Winkel, "
-            "Rechteckrohr Fläche und Versatz) in der Tabelle und in der Skizze; grün markierte Zeilen und Enden "
-            "rechnen mit der <b>gemessenen</b> Schnittlänge. Ändert man Art oder Maße einer Zeile bzw. Winkel, "
-            "Achse oder Richtung eines Endes, rechnet sie mit den Formeln. Nicht erkannte Ausschnitte erscheinen als "
-            "<i>sonstige Kontur</i> mit gemessener Länge und Hüllmaß; Gravuren und Merkmale nur auf der Innenseite "
-            "fehlen (nicht im Schneidweg). Bei offenen Profilen und Blechen kennt die Messung die Fläche nicht, die "
-            "Konturen liegen dann auf der ersten Fläche. Positionen, die vor 0.6.29 importiert wurden, haben diese "
-            "Angaben nicht (erneut importieren).",
+            "Rechteckrohr Fläche und Versatz) in der Tabelle und in der Skizze, die Gravur als Länge; grün markierte "
+            "Zeilen und Enden rechnen mit der <b>gemessenen</b> Schnittlänge (rechts neben dem Ende steht sie als "
+            "<i>gemessen … mm</i>). Ändert man Art oder Maße einer Zeile bzw. Winkel, Achse oder Richtung eines "
+            "Endes, rechnet sie mit den Formeln. Nicht erkannte Ausschnitte erscheinen als <i>sonstige Kontur</i> "
+            "mit gemessener Länge und Hüllmaß; Merkmale nur auf der Innenseite fehlen (nicht im Schneidweg). Bei "
+            "offenen Profilen und Blechen kennt die Messung die Fläche nicht, die Konturen liegen dann auf der "
+            "ersten Fläche.",
+            "<b>Ältere STEP-Positionen</b> (vor 0.6.29 importiert): Der Rechner zeigt die gespeicherten Werte der "
+            "Position: Enden mit gemessener Länge und Gehrung, Gravur, Bohrungen (Länge = π × Ø) und übrige Konturen "
+            "mit Größe und Schnittlänge. Ihre Lage ist nicht gespeichert, sie stehen in der Skizze verteilt, ein "
+            "gelber Hinweis sagt das. <b>STEP neu einlesen …</b> wählt die STEP-Datei des Teils, misst sie und "
+            "ersetzt die Eingaben durch die Messung mit Lage, Seite und Maßen (bei mehreren Rohrteilen in der Datei "
+            "zuerst das mit derselben Artikelnummer, sonst Auswahl). Erst <i>In Position übernehmen</i> speichert.",
+            "<b>Schweißnaht (SN)</b>: Vorgabe (keine Vorgabe, feste Position, unbekannt), Lage und Quelle wie im "
+            "Fenster Schweißnaht ([[schweissnaht]]); Rechteck- und Quadratrohr nur 0° oben, 90° vorne (rechts), 180° "
+            "unten, 270° hinten (links), Rundrohr frei im Winkel. Die Naht erscheint rot strichpunktiert (SN) in "
+            "Skizze und Zeichnung. Gespeichert wird sie mit <i>In Position übernehmen</i>, nur wenn sie im Rechner "
+            "geändert wurde.",
+            "<b>Zeichnung als PDF …</b>: maßstäbliche Zeichnung des Teils (A4 quer, gleiches Design wie Angebot und "
+            "Kalkulation) mit Draufsicht, Seitenansicht, Ansicht von A und Abwicklung, Lage und Maß jeder Kontur, "
+            "Schweißnaht, Maßstab, dazu Tabellen der Enden und Innenkonturen (Art, Maße, Lage ab Ende A, Seite, "
+            "Versatz, Schnittlänge, Klasse) sowie Schneidweg, Einstiche, Gravur und Schneidzeit. Die Datei landet in "
+            "der Ablage des Angebots und öffnet sich. Konturen ohne Lage stehen als <i>verteilt</i> darin.",
             "<b>In Position übernehmen</b> schreibt Schneidweg, Einstiche, Anfangs-/Endschnitt (gerade ja/nein), "
             "Innenkonturen, Gravur, Konturliste und Konturklassen in die Position, also dieselben Felder wie der "
             "STEP-Import. Hat die Position schon Werte aus dem STEP-Import, fragt das Programm vorher. Die Eingaben "
@@ -3222,7 +3248,9 @@ def kapitel_tastenkuerzel(i):
                                           "passende Zelle zum Eintragen (ausgeblendete Spalten werden eingeblendet)."],
         ["Angebot, Positionen", "Schneidweg, Einstiche, STEP-Werte",
          "Schneidweg-Rechner der Position ([[schneidweg_rechner]])"],
-        ["Angebot, Positionen", "Artikelnummer mit 3D-Vorschaubild", "3D-Ansicht der Position"],
+        ["Angebot, Positionen", "kleines STEP-Bild vor der Artikelnummer",
+         "Schneidweg-Rechner der Position ([[schneidweg_rechner]])"],
+        ["Angebot, Positionen", "Artikelnummer neben dem STEP-Bild", "3D-Ansicht der Position"],
         ["Angebot, Positionen", "Zusatzarbeiten, Zukaufteile, Schweißnaht",
          "Auswahl-Dialog ([[zusatzarbeiten_angebot]], [[zukauf_angebot]], [[schweissnaht]])"],
         ["Angebot, Positionen", "Gewinde geprüft, Bohrungen, Gewinde-Vorschlag",
@@ -3354,6 +3382,11 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.7.1", "Schneidweg-Rechner: Werte aus dem STEP-Import auch bei älteren Positionen (Enden, Bohrungen, Konturen, "
+              "Gravur), <b>STEP neu einlesen …</b>, Schweißnaht wählbar, Rechteck-/Quadratrohr bei Naht und Seite nur "
+              "0°/90°/180°/270°, beschriftete Enden und Maße je Konturart, Maße und Naht in der Skizze, "
+              "<b>Zeichnung als PDF …</b>; Doppelklick auf das kleine STEP-Bild öffnet den Rechner "
+              "([[schneidweg_rechner]])."],
     ["0.7.0", "Verbesserungen aus dem Prüfbericht: Warnungen bei Satz mit ungleicher Anzahl Sätze, nicht erkannten "
               "Gewinden und negativen Werten; Hinweis zu Staffelpreisen im Angebots-PDF (Kasten); Angebots-PDF schreibt "
               "alle Preisgrundlagen fest und zeigt Abweichungen vom verschickten Stand ([[preise_festschreiben]]); "
