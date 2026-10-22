@@ -885,6 +885,14 @@ class Datenbank:
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         return tab
 
+    def blech_daten(self):
+        """Daten des Blech-Editors für den Richtpreis je Staffelstufe (staffeln.blech_stand): werkstoffe {ID: Zeile},
+        laser [Zeilen], einst {Einstellung: Wert}."""
+        from . import blech
+        return dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.zeilen("blech_werkstoffe")
+                                if z.get("blech_werkstoff_id")},
+                    laser=self.zeilen("blechlaser"), einst={n: self.einstellung(n) for n in blech.EINSTELLUNGEN})
+
     def zeitbasis_vorgabe(self, maschinen_id):
         """Snapshot der Stundensätze und Zeitvorgaben für ein Angebot (rechnen.zeitbasis_aus)."""
         from .rechnen import zeitbasis_aus

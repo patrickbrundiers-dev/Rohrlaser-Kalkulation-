@@ -7,6 +7,8 @@
   ältere Datei (Schema 36) bekommt die Blech-Tabellen.
 - B4 Angebot: Neue Position → Blech / Kantteil legt Zukaufartikel (Blechteile, Artikeltyp Blech, Richtpreis als EK)
   und Position an; erneut öffnen trägt den neuen Richtpreis ab Stückzahl ein.
+- B5 Staffelstufe: andere Stückzahl -> Richtpreis für die Stückzahl der Stufe neu, EK aus dem Einkauf (ab ≤ Stückzahl)
+  geht vor; gleiche Stückzahl wie im Angebot = gleicher Preis.
 
 Aufruf: python tests/test_blech_editor.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -174,4 +176,57 @@ assert blech.lesen(p["technik"])["dicke"] == 3 and len(preise) == 2 and preise[1
 assert preise[1]["preis"] > richt and json.loads(p["zukauf"])[0]["stand"]["bezug"]["preise"][1]["ab"] == 20
 ok("B4 Angebot: Blech / Kantteil legt Zukaufartikel mit Richtpreis und Position an, Rohrdaten unverändert, erneut "
    "öffnen trägt den neuen Preis ab Stückzahl ein")
+
+# ------------------------------------------------------------------ B5 Staffelstufe
+from rohrlaser import staffeln  # noqa: E402
+daten = db.blech_daten()
+p = db.positionen(a)[-1]
+eingabe = blech.lesen(p["technik"])
+assert [r["ab"] for r in eingabe["richtpreise"]] == [1, 20]            # gemerkte Richtpreise (nicht EK Einkauf)
+assert staffeln.blech_stand(p, 20, daten) == (None, None)               # Stückzahl des Angebots: Preisstand bleibt
+r100 = blech.rechnen(dict(eingabe, stueck=100), werkstoffe, laser, daten["einst"])["richtpreis"]
+neu, text = staffeln.blech_stand(p, 100, daten)
+assert neu[0]["stand"]["bezug"]["preise"] == [dict(ab=1, preis=r100)] and r100 < preise[1]["preis"]
+assert text.startswith(f"Pos. {p['pos']} Blech: Richtpreis") and "100 St" in text
+# Einkauf trägt einen echten EK ab 50 Stück ein (Preisstand der Position aktualisiert)
+db.zukauf_ek_eintragen(aid, 5.0, "Technik", ab=50)
+liste = json.loads(p["zukauf"])
+liste[0]["stand"] = db.zukauf_stand(aid, "Technik")
+db.position_aendern(p["id"], "zukauf", json.dumps(liste))
+p = db.positionen(a)[-1]
+neu, text = staffeln.blech_stand(p, 100, daten)
+assert [(float(x["ab"]), x["preis"]) for x in neu[0]["stand"]["bezug"]["preise"]] == [(50.0, 5.0)]
+assert text.endswith("EK Einkauf ab 50 St")
+neu, text = staffeln.blech_stand(p, 30, daten)              # unter 50 Stück: kein EK, Richtpreis für 30 Stück
+assert "Richtpreis" in text and neu[0]["stand"]["bezug"]["preise"][0]["preis"] == \
+    blech.rechnen(dict(eingabe, stueck=30), werkstoffe, laser, daten["einst"])["richtpreis"]
+# Richtpreis ersetzt Preiseinheit und Rabatt des Lieferanten; EK mit gleichem Preis wie ein Richtpreis bleibt EK
+p2 = dict(p, zukauf=json.dumps([dict(liste[0], stand=dict(liste[0]["stand"], bezug=dict(
+    liste[0]["stand"]["bezug"], preiseinheit=100, rabatt=10)))]))
+bz = staffeln.blech_stand(p2, 30, daten)[0][0]["stand"]["bezug"]
+assert bz["preiseinheit"] == 1 and not bz["rabatt"]
+rp1 = eingabe["richtpreise"][0]["preis"]
+db.zukauf_ek_eintragen(aid, rp1, "Technik", ab=80)
+liste2 = json.loads(p["zukauf"])
+liste2[0]["stand"] = db.zukauf_stand(aid, "Technik")
+neu, text = staffeln.blech_stand(dict(p, zukauf=json.dumps(liste2)), 100, daten)
+assert text.endswith("EK Einkauf ab 80 St") and (80.0, rp1) in [(float(x["ab"]), x["preis"])
+                                                               for x in neu[0]["stand"]["bezug"]["preise"]]
+# ganze Stufe: Angebot × 5 (100 St) nimmt den EK, × 1 ergibt den Angebotspreis
+s.neu_laden()
+s.optimieren()
+st = s.st_seite
+st.aus_angebot(1)
+st.aus_angebot(5)
+zeilen = st.rechnen()
+assert len(zeilen) == 2 and not any(str(z.get("hinweis") or "").startswith("FEHLER") for z in zeilen), zeilen
+gleich, gross = zeilen
+assert gross["menge"] == 100 and "EK Einkauf ab 50 St" in gross["hinweis"]
+assert nah(gross["bausteine"]["zukauf_einstand"], 100 * 5.0)
+assert "Blech" not in (gleich.get("hinweis") or "")
+from rohrlaser.staffel_seite import angebotspreise  # noqa: E402
+ap = angebotspreise(s.positionen, s._rechnung()[0])
+assert nah(gleich["preis_einheit"], ap[str(p["pos"])], 0.005), (gleich["preis_einheit"], ap)
+ok("B5 Staffelstufe: Richtpreis für die Stückzahl der Stufe neu, EK aus dem Einkauf ab 50 St geht vor, "
+   "Stückzahl des Angebots = Angebotspreis")
 print("OK: Blech-Editor")
