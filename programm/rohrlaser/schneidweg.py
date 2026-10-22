@@ -15,6 +15,7 @@ Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader 
 - Gehrung Rundrohr: Ellipse mit Halbachsen r und r / cos α (Umfang nach Ramanujan)
 - Gehrung aller anderen Profile: gerade Schnittlänge zerlegt in Anteil Höhe H und Anteil Breite W (zerlegung);
   die gekippte Richtung wird mit 1 / cos α gestreckt: über Höhe H / cos α + W, über Breite H + W / cos α.
+  RP-Profil: Kontur aus der RP-Bibliothek in der gekippten Richtung gestreckt (rp_profile.schnitt_gehrung)
   Unbekannte Profilform: gerade Schnittlänge / cos α (Schätzung, als solche gekennzeichnet)
 - Ausklinkung (Sattelschnitt) Rundrohr Ø d rechtwinklig auf Rundrohr Ø D: Länge der Schnittkurve numerisch
 - Bohrung π × d; Senkung π × d (der Laser schneidet die Bohrung, das Senken auf Ø D ist eine Zusatzarbeit);
@@ -30,7 +31,7 @@ gilt erst, wenn der Benutzer ihn in 'Gewinde geprüft' einträgt.
 import json
 import math
 
-from . import dreid, naht, optimierung as opt
+from . import dreid, naht, optimierung as opt, rp_profile
 from .stammdaten import flaeche_wirksam
 
 QUELLE = "Schneidweg-Rechner"
@@ -87,7 +88,8 @@ def zerlegung(profil):
     """Gerade Schnittlänge eines Profils (außer Rundrohr) als (Anteil Höhe H, Anteil Breite W) [mm], passend zu
     optimierung.schnittlaenge; None für unbekannte Formen. Höhe = Maß a, Breite = Maß b."""
     form, a, b, wand = profil.get("form"), _z(profil.get("a")), _z(profil.get("b")), _z(profil.get("wand"))
-    gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil))
+    gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
+                               profil.get("profil_id"))
     if gerade <= 0:
         return None
     if form == "Quadratrohr":
@@ -118,7 +120,7 @@ def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None):
     """Schnittlänge eines Endes: (mm, schaetzung). profil = Stammdaten-Zeile (form, a, b, wand, Fläche);
     gegenrohr = Ø des Rundrohrs, auf das das Ende ausgeklinkt wird (nur Rundrohr, rechtwinklig)."""
     form, a, b, wand = profil.get("form"), _z(profil.get("a")), profil.get("b"), profil.get("wand")
-    gerade = opt.schnittlaenge(form, a, b, wand, flaeche_wirksam(profil))
+    gerade = opt.schnittlaenge(form, a, b, wand, flaeche_wirksam(profil), profil.get("profil_id"))
     w = abs(_z(winkel))
     if _z(gegenrohr):
         if form != "Rundrohr":
@@ -133,6 +135,9 @@ def ende(profil, winkel=0.0, achse=ACHSEN[0], gegenrohr=None):
     c = math.cos(math.radians(w))
     if form == "Rundrohr":
         return ellipse(a / 2, a / 2 / c), False
+    rp = rp_profile.daten(profil.get("profil_id")) if form == rp_profile.FORM else None
+    if rp:          # Kontur in der gekippten Richtung gestreckt (über Höhe = Maß A = Breite des Querschnitts)
+        return rp_profile.schnitt_gehrung(rp, w, "x" if achse != ACHSEN[1] else "y"), False
     hw = zerlegung(profil)
     if hw:
         h_, w_ = hw
