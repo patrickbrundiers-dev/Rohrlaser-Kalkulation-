@@ -106,6 +106,7 @@ jobs:
           /usr/bin/python3 tests/test_plausibel.py
           /usr/bin/python3 tests/test_protokoll.py
           /usr/bin/python3 tests/test_festschreiben.py
+          /usr/bin/python3 tests/test_hintergrund.py
           /usr/bin/python3 tests/test_anleitung.py
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:

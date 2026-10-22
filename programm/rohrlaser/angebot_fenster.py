@@ -2,6 +2,8 @@
 import datetime
 import json
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
@@ -1817,10 +1819,61 @@ class AngebotSeite(QWidget):
             self.db.positionen_loeschen([self.positionen[r]["id"] for r in zeilen])
             self.neu_laden()
 
+    # ab so vielen Teilen rechnet die Optimierung im Hintergrund mit Fortschritt und Abbruch (Prüfbericht B-6)
+    HINTERGRUND_AB_TEILEN = 150
+
+    def _optimierung_rechnen(self):
+        """rechnen.optimieren für dieses Angebot. Große Angebote rechnen in einem Hintergrund-Thread; das Fenster
+        zeigt solange Fortschritt und Abbrechen (Eingaben gesperrt, damit sich die Daten nicht ändern). Ergebnis wie
+        rechnen.optimieren; abgebrochen: rechnen.Abbruch."""
+        args = (self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        teile = sum(int(rechnen._n(p.get("stueck"))) for p in self.positionen if position_aktiv(p))
+        if teile < self.HINTERGRUND_AB_TEILEN:
+            return rechnen.optimieren(*args)
+        stand, ende, abbrechen = dict(schritt=0, schritte=1, text="Gruppen bilden"), {}, threading.Event()
+
+        def fortschritt(schritt, schritte, text):
+            stand.update(schritt=schritt, schritte=max(schritte, 1), text=text)
+            if abbrechen.is_set():
+                raise rechnen.Abbruch()
+
+        def lauf():
+            try:
+                ende["erg"] = rechnen.optimieren(*args, fortschritt=fortschritt)
+            except BaseException as e:      # noqa: BLE001 – im Hauptthread weitergeben
+                ende["fehler"] = e
+
+        t = threading.Thread(target=lauf, name="Optimieren", daemon=True)
+        t.start()
+        dlg = QProgressDialog("Optimieren …", "Abbrechen", 0, 1000, self)
+        dlg.setWindowTitle("Optimieren")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(400)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+        start = time.monotonic()
+        while t.is_alive():
+            t.join(0.03)
+            if dlg.wasCanceled() and not abbrechen.is_set():
+                abbrechen.set()
+                dlg.setLabelText("Wird abgebrochen … (nach der laufenden Abmessung)")
+            elif not abbrechen.is_set():
+                dlg.setValue(int(1000 * stand["schritt"] / stand["schritte"]))
+                dlg.setLabelText(f"{stand['text']}\n{teile} Teile · {time.monotonic() - start:.0f} s")
+            QApplication.processEvents(QEventLoop.AllEvents, 30)
+        dlg.close()
+        if "fehler" in ende:
+            raise ende["fehler"]
+        return ende["erg"]
+
     def optimieren(self):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            erg = rechnen.optimieren(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+            erg = self._optimierung_rechnen()
+        except rechnen.Abbruch:
+            QApplication.restoreOverrideCursor()
+            self.f.meldung("Optimieren abgebrochen, nichts gespeichert.")
+            return False
         except ValueError as e:
             QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "Optimieren", str(e))
@@ -1910,13 +1963,14 @@ class AngebotSeite(QWidget):
             return True
         if self.f.stumm:
             return self.optimieren()
-        a = QMessageBox.question(self, "Optimierung veraltet",
-                                 "Der Schnittplan passt nicht mehr zum Angebot (oder es wurde noch nicht optimiert).\n\n"
-                                 "Jetzt neu optimieren?\nJa = optimieren, Nein = mit dem bisherigen Stand weiter",
-                                 QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
-        if a == QMessageBox.Cancel:
-            return False
-        return self.optimieren() if a == QMessageBox.Yes else True
+        # nur Optimieren oder Abbrechen: ein PDF mit altem Schnittplan hätte einen falschen Materialbedarf (B-10)
+        m = QMessageBox(QMessageBox.Question, "Optimierung veraltet",
+                        "Der Schnittplan passt nicht mehr zum Angebot (oder es wurde noch nicht optimiert).\n\n"
+                        "Vor der Ausgabe wird neu optimiert.", QMessageBox.Cancel, self)
+        knopf = m.addButton("Optimieren und weiter", QMessageBox.AcceptRole)
+        m.setDefaultButton(knopf)
+        m.exec()
+        return m.clickedButton() is knopf and self.optimieren()
 
     def _ziel(self, zusatz, endung, mit_kunde=False):
         try:

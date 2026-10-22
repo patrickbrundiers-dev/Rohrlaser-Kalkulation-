@@ -1167,8 +1167,12 @@ def kapitel_optimieren(i):
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
-           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand fragt "
-           "das Programm nach.")
+           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand bietet "
+           "das Programm nur <b>Optimieren und weiter</b> oder <b>Abbrechen</b> an, damit kein PDF mit altem "
+           "Materialbedarf entsteht.")
+    i.text("Große Angebote (ab 150 Teilen) rechnen im Hintergrund: ein Fenster zeigt die gerade geplante Abmessung "
+           "und die Zeit, <b>Abbrechen</b> beendet die Optimierung nach der laufenden Abmessung, ohne etwas zu "
+           "speichern.")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
            legende=[(1, "Stand der Optimierung: grün Optimierung abgeschlossen, gelb noch nicht optimiert, rot "
                         "Veraltet.")])

@@ -544,7 +544,11 @@ def _beistellung_markieren(g, zeilen):
             x["beistellung"] = g.beistellung
 
 
-def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False):
+class Abbruch(Exception):
+    """Optimierung vom Benutzer abgebrochen (fortschritt hat sie ausgelöst); es wird nichts gespeichert."""
+
+
+def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None):
     """Optimiert das Angebot. Ergebnis (als JSON speicherbar):
     {'stangen': [...], 'auswertung': [...], 'fehler': [...], 'neue_profile': [...], 'kennung': str,
      'laengen': [Vergleich der Lieferlängen je Gruppe (laengen_vergleich_gruppe) mit 'gewaehlt' = geplante
@@ -556,17 +560,25 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False):
     Mit einer anderen Lieferlänge geplante Stangen haben dazu grundlaenge (Stangenlänge des Angebots, Schlüssel der
     Gruppe); kommen sie vom Lieferanten zugeschnitten, zusätzlich werkstuecke [{nr, von, bis, laenge, end, greif}]
     (je Werkstück eine Beladung der Maschine), zuschnitt (Text) und je Teil werkstueck (Nummer).
-    auto: Lieferlänge je Gruppe nach der Empfehlung (Staffelpreise), sonst nur übernommene Längen."""
+    auto: Lieferlänge je Gruppe nach der Empfehlung (Staffelpreise), sonst nur übernommene Längen.
+    fortschritt(schritt, schritte, text): wird vor jeder Gruppe aufgerufen (Fortschrittsanzeige); löst sie Abbruch
+    aus, endet die Optimierung ohne Ergebnis. Die Rechnung selbst ist dieselbe."""
     gruppen, fehler, neue_profile = gruppen_bilden(kopf, positionen, k)
+    melden = fortschritt or (lambda *_: None)
+    schritte = 2 * len(gruppen)
     m = maschine(kopf, k)
     saege = _n(einstellung_wert(einst, "zuschnitt_verlust"))
     # Kundenmaterial: kommt in der Stangenlänge des Angebots, kein Vergleich der Lieferlängen
     infos = [laengen_der_gruppe(g, k, tabellen, einst) if tabellen and not g.beistellung else None for g in gruppen]
-    folgen_je_gruppe = [opt.optimiere(g) if i is None or i["basis_lieferbar"] else None for g, i in zip(gruppen, infos)]
+    folgen_je_gruppe = []
+    for n, (g, i) in enumerate(zip(gruppen, infos)):
+        melden(n, schritte, f"Schnittplan {g.profil} / {g.werkstoff}")
+        folgen_je_gruppe.append(opt.optimiere(g) if i is None or i["basis_lieferbar"] else None)
     mit = [(g, f) for g, f in zip(gruppen, folgen_je_gruppe) if f is not None]
     opt.pruefe([g for g, _ in mit], [f for _, f in mit])
     stangen, auswertung, laengen, nr = [], [], [], 0
-    for g, folgen in zip(gruppen, folgen_je_gruppe):
+    for n, (g, folgen) in enumerate(zip(gruppen, folgen_je_gruppe)):
+        melden(len(gruppen) + n, schritte, f"Lieferlängen und Auswertung {g.profil} / {g.werkstoff}")
         s0, a0 = len(stangen), len(auswertung)
         vg, plaene = (laengen_vergleich_gruppe(g, k, tabellen, m, saege, folgen, einst) if tabellen and not g.beistellung
                       else (None, {}))
