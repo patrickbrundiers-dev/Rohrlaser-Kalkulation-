@@ -623,7 +623,8 @@ def main(ziel):
     unterkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() + 34
     oberkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() - 10
     foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Werkstattpapiere (PDF)"), 2),
-                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "Weitere Aktionen"), 4)],
+                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "Materialanfrage (E-Mail)"), 4),
+                                    (knopf(s, "Weitere Aktionen"), 5)],
               ausschnitt=QRect(0, oberkante, f.width(), unterkante - oberkante))
     pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf(),
                 nachkalkulation=s.nachkalk.pdf())

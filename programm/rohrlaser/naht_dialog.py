@@ -117,7 +117,10 @@ class Querschnitt(QWidget):
 class NahtDialog(QDialog):
     """Schweißnaht einer oder mehrerer Positionen. Nach OK: self.werte() = Felder der Position."""
 
-    def __init__(self, parent, p, profil, anzahl=1):
+    AUS_TEILEN = "aus den Teilen"
+
+    def __init__(self, parent, p, profil, anzahl=1, stange=None):
+        """stange = im Angebot eingetragene Nahtlage der Lieferstange dieser Gruppe (None = aus den Teilen)."""
         super().__init__(parent)
         self.profil = profil
         titel = f"Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip() if anzahl == 1 else f"{anzahl} Positionen"
@@ -145,6 +148,15 @@ class NahtDialog(QDialog):
         self.quelle.addItems(naht.QUELLEN)
         self.quelle.setCurrentText(p.get("naht_quelle") or "Kunde")
         form.addRow("Quelle", self.quelle)
+        # Nahtlage der Lieferstange: angebotsbezogen je Profil + Werkstoff (Patrick 22.10.2026), nur Rechteckrohr
+        self.stange = QComboBox()
+        self.stange.addItems((self.AUS_TEILEN,) + naht.NAHT_STANGE)
+        self.stange.setCurrentText(stange if stange in naht.NAHT_STANGE else self.AUS_TEILEN)
+        self.stange.setToolTip("Auf welcher Seite die bestellte Lieferstange die Schweißnaht hat. Gilt in diesem "
+                               "Angebot für alle Positionen mit gleichem Profil und Werkstoff und steht in der "
+                               "Materialanfrage. 'aus den Teilen' = die Seite, die die Teile mit fester Naht verlangen.")
+        self.stange_zeile = QLabel("Naht der Lieferstange")
+        form.addRow(self.stange_zeile, self.stange)
         lay.addLayout(form)
         self.kasten = naht.form_von(profil) in ("Quadratrohr", "Rechteckrohr")
         if self.kasten:                     # nur Seitenmitten 0°/90°/180°/270°, Pfeile springen um 90°
@@ -167,13 +179,14 @@ class NahtDialog(QDialog):
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
         ist_re = naht.form_von(profil) == "Rechteckrohr"
-        self.lage.setVisible(ist_re)
-        self.lage_zeile.setVisible(ist_re)
+        for w in (self.lage, self.lage_zeile, self.stange, self.stange_zeile):
+            w.setVisible(ist_re)
         self._bezug = naht.aus_ansicht(self.winkel.value(), self.lage.currentText())
         self.bild.gewaehlt.connect(self.winkel.setValue)
         self.winkel.valueChanged.connect(lambda _: self._winkel_geaendert())
         self.lage.currentTextChanged.connect(lambda _: self._lage_geaendert())
         self.vorgabe.currentTextChanged.connect(lambda _: self._anzeigen())
+        self.stange.currentTextChanged.connect(lambda _: self._anzeigen())
         self._anzeigen()
 
     def _winkel_geaendert(self):
@@ -193,7 +206,7 @@ class NahtDialog(QDialog):
 
     def _anzeigen(self):
         fest = self.vorgabe.currentText() == naht.FEST
-        for w in (self.winkel, self.quelle):
+        for w in (self.winkel, self.quelle, self.stange):
             w.setEnabled(fest)
         self.bild.setzen(self.profil, self.lage.currentText(), self.winkel.value() if fest else None, fest)
         v = self.vorgabe.currentText()
@@ -201,7 +214,7 @@ class NahtDialog(QDialog):
             s = naht.seite(self.profil, self._bezug, self.lage.currentText())
             text = f"Naht: {s['text']}. " + ("" if s["eindeutig"] else "Bitte auf eine Seite legen. ")
             text += "Drehung um die Längsachse gesperrt (Kundenvorgabe)."
-            pr = naht.pruefen(self.werte(), self.profil)
+            pr = naht.pruefen(self.werte(), self.profil, self.stange_wert())
             if pr:
                 text += "\n" + pr
         elif v == naht.UNBEKANNT:
@@ -211,6 +224,11 @@ class NahtDialog(QDialog):
             text = ("Keine Vorgabe: die Optimierung darf das Teil um die eigene Achse drehen ("
                     + ", ".join(f"{d}°" for d in erlaubt) + ").")
         self.info.setText(text)
+
+    def stange_wert(self):
+        """Nahtlage der Lieferstange für das Angebot: 'Breitseite'/'Schmalseite' oder None (aus den Teilen)."""
+        w = self.stange.currentText()
+        return w if w in naht.NAHT_STANGE and naht.form_von(self.profil) == "Rechteckrohr" else None
 
     def werte(self):
         """Felder der Position. 'keine Vorgabe' leert alle Nahtfelder (leer = keine Vorgabe)."""
