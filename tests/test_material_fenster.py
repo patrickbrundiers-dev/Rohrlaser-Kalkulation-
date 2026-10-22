@@ -53,6 +53,25 @@ if rp:
     assert q and q["linien"] and not q["flaechen"]
     ok(f"RP-Profil {rp['profil_id']}: Kontur aus dem MegaCAD-Makro")
 
+# --- Träger mit Normbezeichnung (Patrick 22.10.2026)
+from rohrlaser import ausgabe, normprofile  # noqa: E402
+from rohrlaser.profil_neu import profil_id  # noqa: E402
+assert normprofile.name_aus_massen("I-/H-Träger", 200, 100, 5.6) == "IPE 200"
+assert normprofile.name_aus_massen("I-/H-Träger", 190, 200, 6.5) == "HEA 200"
+assert normprofile.name_aus_massen("U-Profil", 100, 50, 6) == "UPN 100"
+assert normprofile.name_aus_massen("I-/H-Träger", 150, 80, 5) is None
+
+
+class _K:
+    profile = {"I 200x100x5,6x8": dict(form="I-/H-Träger", a=200, b=100, wand=5.6),
+               "I 150x80x5": dict(form="I-/H-Träger", a=150, b=80, wand=5)}
+
+
+assert ausgabe.profiltext("I 200x100x5,6x8", _K) == "IPE 200"
+assert ausgabe.profiltext("I 150x80x5", _K) == "I-Träger 150 x 80 x 5"
+assert profil_id("I-/H-Träger", 160, 160, 8) == "HEB 160" and profil_id("T-Profil", 50, 50, 6) == "T 50"
+ok("Träger, T- und U-Profile: Normbezeichnung (IPE, HEA, HEB, UPN, T) im Angebotstext und beim Profil anlegen")
+
 # --- Angebot
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())

@@ -672,7 +672,9 @@ def kapitel_angebot(i):
                 "z. B. 40x40), Werkstoff, Teilelänge und Stückzahl. Profil und Werkstoff sind von der letzten "
                 "Rohrposition vorbelegt. Ein anderes Profil baut Skizze, Enden und Naht sofort neu auf. Fehlt das "
                 "Profil, legt <b>Neu …</b> neben der Liste es an: Fenster <i>Neues Profil</i> mit Profilform, "
-                "Abmessungen und Wandstärke; die Profil-ID wird aus den Maßen vorgeschlagen (z. B. RE 70x35x2,5), "
+                "Abmessungen und Wandstärke; die Profil-ID wird aus den Maßen vorgeschlagen (z. B. RE 70x35x2,5; Träger, "
+                "T- und U-Profile mit passenden Maßen mit ihrer Normbezeichnung wie IPE 200, HEA 200, HEB 160, "
+                "UPN 100), "
                 "Querschnitt, kg/m und Hüllkreis rechnet das Programm. <b>Profil anlegen</b> schreibt es in die "
                 "Stammdaten ([[stammdaten]]) und wählt es; den Materialpreis danach unter Einstellungen oder als "
                 "Meterpreis im Angebot eintragen. Ohne Profil aus den Stammdaten oder ohne Teilelänge bleibt "
@@ -2630,7 +2632,10 @@ def kapitel_stammdaten(i):
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
                              "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>, Normprofile "
                              "wie <i>IPE 200</i>, <i>HEB 160</i>, <i>UPN 100</i>, <i>T 50</i>, sonst Träger als "
-                             "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>)"],
+                             "<i>I Höhe x Breite x Steg x Flansch</i> (z. B. <i>I 150x80x5x7</i>, <i>T 60x40x5x7</i>). Im "
+                             "Angebotstext stehen Träger, T- und U-Profile mit ihrer Normbezeichnung (IPE, HEA, HEB, "
+                             "HEM, IPN, UPN, T), wenn Höhe, Breite und Steg zur Normtabelle passen, auch bei einer "
+                             "Profil-ID mit Maßen; sonst z. B. „I-Träger 150 x 80 x 5“."],
         ["<b>Profilform</b>", "Rundrohr, Quadratrohr, Rechteckrohr, U-Profil, C-Profil, L-Profil, Flachstahl, "
                               "I-/H-Träger, T-Profil, RP-Profil oder Sonderprofil (Liste in den Einstellungen)"],
         ["<b>Abmessung A [mm]</b>, Abmessung B [mm]",
@@ -3815,7 +3820,8 @@ NEUERUNGEN = [
     ["0.8.25", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
                "und Meterpreis, Werkstoff, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
                "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
-               "ohne Wert ausgeblendet, Stangenbild am Ende. Handling Kundenmaterial in €/m statt €/kg."],
+               "ohne Wert ausgeblendet, Stangenbild am Ende. Handling Kundenmaterial in €/m statt €/kg. "
+               "Träger, T- und U-Profile im Angebotstext mit Normbezeichnung (IPE, HEA, HEB, UPN …)."],
     ["0.8.22", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
                "Innenkontur</b> × Stundensatz <i>Programmierung</i>, je Position in der Spalte <i>Programmierzeit "
                "[min]</i> änderbar, sichtbar in Zeiten &amp; Arbeitskosten, in den Staffel-Stufen und im "
