@@ -214,10 +214,10 @@ def _feld_text(f, w):
 
 class StufeDialog(QDialog):
     """Fenster einer Stufe: Einstellungen wie im Angebot (leer = Wert des Angebots, grau angezeigt), Erweitert die
-    Sonderwerte der Preisschicht, Materialpreis €/m je Abmessung und die Mengen je Satz bzw. Position (leer = nicht
-    in dieser Stufe). Die ganze Stufe wird als ein Auftrag gerechnet."""
+    Sonderwerte der Preisschicht, Materialpreis €/m je Abmessung und die Mengen je Satz bzw. Position (Häkchen =
+    in dieser Stufe; neue Stufe: alle angehakt). Die ganze Stufe wird als ein Auftrag gerechnet."""
 
-    def __init__(self, seite, stufe):
+    def __init__(self, seite, stufe, neu=False):
         super().__init__(seite)
         self.s, self.stufe = seite, dict(stufe)
         a = seite.s
@@ -279,7 +279,9 @@ class StufeDialog(QDialog):
         for r, (schl, text, menge) in enumerate(self.auswahl):
             z = da.get(schl) or {}
             t = QTableWidgetItem(text)
-            t.setFlags(Qt.ItemIsEnabled)
+            t.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+            t.setCheckState(Qt.Checked if neu or schl in da else Qt.Unchecked)
+            t.setToolTip("Häkchen = Satz bzw. Position gehört zu dieser Stufe")
             m = QTableWidgetItem(_z(menge, 0))
             m.setFlags(Qt.ItemIsEnabled)
             m.setForeground(QBrush(GRAU))
@@ -290,8 +292,14 @@ class StufeDialog(QDialog):
             for c, it in enumerate((t, m, ab, bis)):
                 self.mengen.setItem(r, c, it)
         self._tabelle_einrichten(self.mengen)
+        self.mengen.itemChanged.connect(self._menge_geaendert)
         zeile = QHBoxLayout()
-        zeile.addWidget(QLabel("<b>Mengen</b> in Sätzen bzw. Stück (leer = nicht in dieser Stufe)"), 1)
+        zeile.addWidget(QLabel("<b>Positionen und Mengen</b> in Sätzen bzw. Stück (Häkchen = in dieser Stufe)"), 1)
+        for text, an in (("Alle", True), ("Keine", False)):
+            b = QPushButton(text)
+            b.setToolTip("Alle Sätze und Positionen an- bzw. abhaken")
+            b.clicked.connect(lambda _=False, a=an: self.alle_haken(a))
+            zeile.addWidget(b)
         for text, faktor in (("Mengen des Angebots", 1), ("× 2", 2), ("× 5", 5), ("× 10", 10)):
             b = QPushButton(text)
             b.setToolTip("Menge ab = Menge im Angebot × Faktor für alle Sätze und Positionen")
@@ -360,7 +368,27 @@ class StufeDialog(QDialog):
 
     def mengen_aus_angebot(self, faktor=1):
         for r, (_, _, menge) in enumerate(self.auswahl):
-            self.mengen.item(r, 2).setText(_z(menge * faktor, 0) if menge else "")
+            if self.drin(r):
+                self.mengen.item(r, 2).setText(_z(menge * faktor, 0) if menge else "")
+
+    def drin(self, r):
+        """Satz bzw. Position der Zeile r ist angehakt (gehört zur Stufe)."""
+        return self.mengen.item(r, 0).checkState() == Qt.Checked
+
+    def alle_haken(self, an=True):
+        for r in range(self.mengen.rowCount()):
+            self.mengen.item(r, 0).setCheckState(Qt.Checked if an else Qt.Unchecked)
+
+    def _menge_geaendert(self, it):
+        """Eine Menge eintragen hakt die Zeile an; abgehakte Zeilen grau."""
+        r = it.row()
+        if it.column() == 2 and it.text().strip() and not self.drin(r):
+            self.mengen.item(r, 0).setCheckState(Qt.Checked)
+        elif it.column() == 0:
+            self.mengen.blockSignals(True)
+            for c in (2, 3):
+                self.mengen.item(r, c).setData(Qt.ForegroundRole, None if self.drin(r) else QBrush(GRAU))
+            self.mengen.blockSignals(False)
 
     def werte(self):
         """Eingaben prüfen. Ergebnis: (Einstellungen, {Abmessung: €/m}, [(Schlüssel, Menge ab, Menge bis)]);
@@ -386,16 +414,17 @@ class StufeDialog(QDialog):
         mengen = []
         ab_f, bis_f = staffeln.STUFE_FELD["menge"], staffeln.STUFE_FELD["bis"]
         for r, (schl, text, _) in enumerate(self.auswahl):
+            if not self.drin(r):            # nicht angehakt: nicht in dieser Stufe (Mengen zählen nicht)
+                continue
             ab = wert_aus_text(ab_f, self.mengen.item(r, 2).text())
             bis = wert_aus_text(bis_f, self.mengen.item(r, 3).text())
-            if ab is None and bis is not None:
-                raise ValueError(f"{text}: Menge bis ohne Menge ab.")
-            if ab is not None:
-                if bis is not None and bis < ab:
-                    raise ValueError(f"{text}: Menge bis kleiner als Menge ab.")
-                mengen.append((schl, ab, bis))
+            if ab is None:
+                raise ValueError(f"{text}: Menge ab eintragen oder das Häkchen entfernen.")
+            if bis is not None and bis < ab:
+                raise ValueError(f"{text}: Menge bis kleiner als Menge ab.")
+            mengen.append((schl, ab, bis))
         if not mengen:
-            raise ValueError("Bitte mindestens eine Menge eintragen.")
+            raise ValueError("Bitte mindestens einen Satz bzw. eine Position anhaken und eine Menge eintragen.")
         return werte, preise, mengen
 
     def accept(self):
@@ -725,7 +754,8 @@ class StaffelSeite(QWidget):
 
     def _args(self):
         s = self.s
-        return s.kopf, s.positionen, s.stufen, s.k, s.tabellen, s.einst
+        tab = dict(s.tabellen, blech=s.blech_daten) if getattr(s, "blech_daten", None) else s.tabellen
+        return s.kopf, s.positionen, s.stufen, s.k, tab, s.einst
 
     def _daten(self):
         return getattr(self.s, "stufen_daten", None)
@@ -809,7 +839,7 @@ class StaffelSeite(QWidget):
         if zeile is None or not 0 <= zeile < len(self.modell.daten):
             self.s.f.meldung("Bitte zuerst eine Stufe markieren.", fehler=True)
             return False
-        d = StufeDialog(self, self.modell.daten[zeile])
+        d = StufeDialog(self, self.modell.daten[zeile], neu=neu)
         return d.exec() == QDialog.Accepted
 
     def stufe_speichern(self, sid, werte, preise, mengen):

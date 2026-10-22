@@ -1374,6 +1374,7 @@ class AngebotSeite(QWidget):
         self.einst = rechnen.einstellungen_angebot(a, rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()))
         self.stufen = self.db.staffeln(self.id)
         self.stufen_daten = self.db.staffel_stufen(self.id)
+        self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
         self._spalten_zeigen()
@@ -1795,7 +1796,8 @@ class AngebotSeite(QWidget):
         nr = self._naechste_pos()
         self.db.position_neu(self.id, dict(
             pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
-            stueck=kopf["stueck"], technik=blech.speichern(e), gewicht_teil=round(erg["gewicht"], 3),
+            stueck=kopf["stueck"], technik=blech.speichern(dict(e, richtpreise=[dict(ab=1, preis=erg["richtpreis"])])),
+            gewicht_teil=round(erg["gewicht"], 3),
             zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False)))
         self.neu_laden()
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
@@ -1828,7 +1830,10 @@ class AngebotSeite(QWidget):
         self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], kopf["lieferant"], ab=kopf["stueck"],
                                     bemerkung=f"Richtpreis Blech-Editor (ab {kopf['stueck']} St)")
         liste[0]["stand"] = self.db.zukauf_stand(aid, kopf["lieferant"])
-        for feld, wert in (("technik", blech.speichern(e)), ("stueck", kopf["stueck"]),
+        ab = max(1, float(kopf["stueck"] or 1))      # gemerkte Richtpreise: so unterscheiden die Stufen sie vom EK
+        merk = [r for r in (blech.lesen(p.get("technik")) or {}).get("richtpreise") or ()
+                if isinstance(r, dict) and r.get("ab") != ab] + [dict(ab=ab, preis=erg["richtpreis"])]
+        for feld, wert in (("technik", blech.speichern(dict(e, richtpreise=merk))), ("stueck", kopf["stueck"]),
                            ("gewicht_teil", round(erg["gewicht"], 3)),
                            ("zukauf", json.dumps(liste, ensure_ascii=False))):
             self.db.position_aendern(p["id"], feld, wert)
