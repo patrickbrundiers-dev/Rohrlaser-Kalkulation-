@@ -74,7 +74,7 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist):
         g["ist_kosten"] = (n if n is not None else g["soll"]) * g["kosten_stange_ist"]
     laser_h = sum((z["laser_netto"] or 0) * z["stueck"] for z in zeilen_k if z) / 3600
     ruest_min = summen["ruestzeit"] + summen["abmessungen"] * summen["ruestzeit_abmessung"] \
-        + summen.get("beladungen", summen["stangen"]) * summen["stangenwechsel"] / 60
+        + summen.get("stangenwechsel_s", summen.get("beladungen", summen["stangen"]) * summen["stangenwechsel"]) / 60
 
     def zeile(text, einheit, soll_menge, ist_menge, soll, ist_betrag, erfasst):
         abw = ist_betrag - soll
