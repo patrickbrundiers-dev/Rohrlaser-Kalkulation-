@@ -155,7 +155,7 @@ db.neu("lieferlaengen", dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", 
 w = next(z for z in db.zeilen("werkstoffe") if z["werkstoff_id"] == "S235-10219")
 for feld, wert in (("anfrage_zeugnis", "3.1"), ("anfrage_herkunft_eu", "ja"), ("anfrage_toleranz", "ja")):
     db.aendern("werkstoffe", w["id"], feld, wert)
-k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
+k, tab, einst = db.kontext(), db.tabellen(), dict(db.einstellungen(), laenge_vergleich="ja")   # mit 12-m-Vergleich
 assert ma.anforderungen("S235-10219", k) == "Abnahmeprüfzeugnis 3.1 nach EN 10204, Herkunft EU, Maßtoleranzen nach Norm"
 assert ma.anforderungen("1.4301", k) == ""
 kopf = db.angebot(a)

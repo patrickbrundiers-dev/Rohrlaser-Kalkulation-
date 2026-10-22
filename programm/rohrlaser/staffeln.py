@@ -101,7 +101,7 @@ EINST_LAUF = ("ruesten_abmessung", "pauschale_abmessung", "programmierung_teil",
               "handling_beistellung")
 EINST_LAENGEN = ("laenge_mindest_eur", "laenge_mindest_anteil", "zuschnitt_verlust", "zuschnitt_puffer", "zuschnitt_kosten",
                  "haendler_mehr_kurz", "haendler_mehr_lang", "haendler_mehr_grenze", "laenge_auto_huellkreis",
-                 "laenge_auto")
+                 "laenge_auto", "laenge_vergleich")
 
 
 def txt(v):

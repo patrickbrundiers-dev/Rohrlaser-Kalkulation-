@@ -422,6 +422,15 @@ def gruppen_bilden(kopf, positionen, k):
                 geh["naht"] = naht.normieren(p.get("naht_winkel"))
             except ValueError:
                 geh["drehung"] = opt.UNBEKANNT      # feste Naht ohne Winkel (FEHLER im Status): nicht drehen
+        if geh["drehung"] == opt.FREI and not (a_ger and b_ger):
+            # Gehrung ohne Richtung (Schneidweg-Rechner): frei drehbare Teile legen sich mit Drehung in jeder Lage
+            # gleich gut ineinander, also mit angenommener Richtung planen (Patrick 22.10.2026)
+            from .schneidweg import gehrung_ohne_richtung
+            for seite, ger in (("a", a_ger), ("b", b_ger)):
+                if not ger and geh[seite + "_gehrung"] is None:
+                    ann = gehrung_ohne_richtung(p.get("technik"), seite, pr)
+                    if ann:
+                        geh[seite + "_gehrung"], geh["angenommen"] = ann, True
         for n in range(1, stk_n + 1):
             g.teile.append(opt.Teil(r, p.get("pos"), name, n, laenge, a_ger, b_ger, a_s, b_s, **geh))
     return list(gruppen.values()), fehler, neue_profile
@@ -519,7 +528,8 @@ def teil_zeichen(t):
         else:
             text.append("Naht fest")
     if dreh:
-        text.append(f"gedreht {dreh:g}°".replace(".", ","))
+        text.append(f"gedreht {dreh:g}°".replace(".", ",")
+                    + (" (Gehrungsrichtung angenommen)" if t.get("richtung_angenommen") else ""))
     return lage, " · ".join(text)
 
 
@@ -620,6 +630,8 @@ def _folge_teile(g, folge, positionen, start=0.0):
                           material_gespart=round(ueberlappung, 1), naht_text=naht_text(t)))
         if g.querschnitt:                   # Querschnitt-Symbol mit Nahtlage im Stangenbild
             teile[-1]["querschnitt"] = list(g.querschnitt)
+        if t.angenommen:                    # Richtung der Gehrung nicht angegeben (teil_zeichen)
+            teile[-1]["richtung_angenommen"] = True
         if t.a_gehrung or t.b_gehrung:      # Schräge Enden im Stangenbild (Rücksprung oben/unten)
             teile[-1].update(ansicht="von oben" if oben else "von der Seite",
                              kante_a=[round(x, 1) for x in opt.kante(g, t.a_gehrung, drehung, oben)],
@@ -1020,7 +1032,9 @@ def laengen_der_gruppe(g, k, tabellen, einst=None):
     basis_lieferbar). Ohne Zeilen in 'Lieferlängen' gilt wie bisher nur die Stangenlänge des Angebots, außer bei
     Profilen über dem Hüllkreis-Ø der Einstellung (dann zusätzlich 12 m, lieferlaengen); mit 'Lieferlängen
     vergleichen = nein' am Profil nur die Stangenlänge des Angebots (ausgenommen). Gibt es eigene Zeilen, ist die
-    Stangenlänge des Angebots nur lieferbar, wenn sie dort oder als Liefer-Stangenlänge in 'Preise' steht."""
+    Stangenlänge des Angebots nur lieferbar, wenn sie dort oder als Liefer-Stangenlänge in 'Preise' steht. Ist der
+    Vergleich in den Einstellungen aus (laengen_vergleichen) und die Stangenlänge des Angebots lieferbar, wie ohne
+    Zeilen."""
     zeilen = lieferlaengen(g.profil, g.werkstoff, k, tabellen, einst)
     if ((k.profile.get(g.profil) or {}).get("laengenvergleich") or "").strip().lower() == "nein":
         return dict(ausgenommen=True, zeilen=zeilen, alternativen=[], basis_lieferbar=True)
@@ -1028,8 +1042,19 @@ def laengen_der_gruppe(g, k, tabellen, einst=None):
         return dict(ausgenommen=False, zeilen=[], alternativen=[], basis_lieferbar=True)
     z = preis_zeile(g.profil, g.werkstoff, k, tabellen) if tabellen and "preise" in tabellen else None
     lieferbar = {r["laenge"] for r in zeilen} | ({z["lieferlaenge"]} if z and z.get("lieferlaenge") else set())
+    basis = g.stange in lieferbar or all(r.get("automatisch") for r in zeilen)
+    if basis and not laengen_vergleichen(einst):
+        return dict(ausgenommen=False, zeilen=[], alternativen=[], basis_lieferbar=True)
     return dict(ausgenommen=False, zeilen=zeilen, alternativen=sorted({r["laenge"] for r in zeilen} - {g.stange}),
-                basis_lieferbar=g.stange in lieferbar or all(r.get("automatisch") for r in zeilen))
+                basis_lieferbar=basis)
+
+
+def laengen_vergleichen(einst):
+    """Einstellung 'laenge_vergleich': andere Lieferlängen beim Optimieren vergleichen (Vorgabe nein). Ohne
+    Einstellungen (Tests, ältere Aufrufe ohne einst) wie bisher ja."""
+    if einst is None:
+        return True
+    return (einst.get("laenge_vergleich") or "nein") == "ja"
 
 
 def variante_planen(g, laenge, m, saege, puffer=0):
