@@ -3573,6 +3573,9 @@ def kapitel_stammdaten(i):
                                      "Innenkonturen die WARNUNG <i>Innenkonturen unter dem Anschlag prüfen</i> "
                                      "(die Düse kommt unter dem Anschlag schlecht an die Wand); leer = keine "
                                      "Prüfung"],
+        ["Kürzestes Teil [mm]", "kürzere Teile kann die Maschine nicht fertigen; sie bekommen die Stufe der "
+                                "Prüfregel <i>Teil zu kurz für die Maschine</i> ([[pruefregeln]]); leer = keine "
+                                "Grenze"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
@@ -3677,6 +3680,36 @@ def kapitel_stammdaten(i):
            "von Version 0.9.14 (Schema 47).")
     i.bild("stamm_blech_kfaktoren", "Einstellungen, K-Faktoren (Abwicklung) je Kategorie, Blechdicke und "
            "Innenradius ÷ Dicke", hoehe=90 * mm)
+    i.abschnitt("Prüfregeln (Fertigung)", marke="pruefregeln")
+    i.text("Die <b>Fertigungsprüfung</b> sieht sich jedes Rohr-, Profil- und Blechteil an und meldet, was sich "
+           "schlecht fertigen lässt. Der Befund steht im Status der Position (mit Lage am Teil, z. B. <i>bei x = "
+           "120 mm, oben</i>), im Schneidweg-Rechner und im Blech-Editor. Jede Regel ist im Unterreiter "
+           "<b>Prüfregeln (Fertigung)</b> einzeln an- oder abschaltbar und hat einen Grenzwert und eine Stufe.",
+           kurz=True)
+    i.tabelle(["Prüfregeln (Fertigung)", "Bedeutung"], [
+        ["<b>Regel</b>", "Bohrung zu klein, Steg zu schmal, Kontur zu nah am Rand, Teil zu kurz für die Maschine, "
+                         "Gravur über Kante, Kantbarkeit"],
+        ["Aktiv", "<i>nein</i> schaltet die Regel ab"],
+        ["Grenzwert [× Wand bzw. Dicke]", "Faktor auf die Wandstärke des Profils bzw. die Blechdicke; leer = "
+                                          "Vorgabe"],
+        ["Stufe", "HINWEIS, WARNUNG oder FEHLER: so erscheint der Befund im Status; FEHLER sperrt die Position "
+                  "wie jeder andere Fehler"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.liste("<b>Bohrung zu klein</b>: Bohrung oder Senkung mit Ø unter 1,0 × Wand (Vorgabe WARNUNG). Unter "
+            "0,7 × Wand bleibt zusätzlich die Warnung, dass gebohrt werden muss ([[bohrungen_pruefen]]).",
+            "<b>Steg zu schmal</b>: zwei Konturen näher als 1,5 × Wand beieinander, auch über eine Kante des "
+            "Profils hinweg (Abwicklung).",
+            "<b>Kontur zu nah am Rand</b>: Kontur näher als 1,0 × Wand am Ende des Teils bzw. an der Blechkante. "
+            "Schlitze und Ausklinkungen sind zum Ende offen und zählen nicht; Gehrungen rechnen mit dem Ende bei "
+            "x = 0 bzw. x = Länge.",
+            "<b>Teil zu kurz für die Maschine</b>: kürzer als <i>Kürzestes Teil</i> der Maschine (Vorgabe FEHLER).",
+            "<b>Gravur über Kante</b>: eine Gravur aus dem STEP-Import läuft über mehrere Flächen.",
+            "<b>Kantbarkeit</b>: die Hinweise der Kantbarkeit ([[blech_kantbarkeit]]) im Status der Blech-Position "
+            "(Vorgabe HINWEIS).",
+            "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
+    i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
+           "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48).")
+    i.bild("stamm_pruefregeln", "Einstellungen, Prüfregeln (Fertigung)", hoehe=60 * mm)
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "

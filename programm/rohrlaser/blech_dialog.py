@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QPushButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import blech, blech3d, dxf, schneidweg as sw, zukauf
+from . import blech, blech3d, dfm, dxf, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .stammdaten import zahl_als_text, zahl_aus_text
@@ -545,6 +545,9 @@ class BlechDialog(QDialog):
             self.summe.setText("<span style='color:#B42318'>" + "<br>".join(erg["fehler"]) + "</span>")
             return erg
         warn = "".join(f"<br><span style='color:#B26A00'>Hinweis: {h}</span>" for h in erg.get("hinweise") or ())
+        farbe = {dfm.FEHLER: "#B42318", dfm.WARNUNG: "#B26A00", dfm.HINWEIS: "#7A5A00"}
+        warn += "".join(f"<br><span style='color:{farbe[b.stufe]}'>Prüfung {b.stufe}: {b.zeile()}</span>"
+                        for b in self.pruefung(e, erg["zuschnitt"]))
         zs, k = erg["zuschnitt"], erg["kosten"]
         kanten = f", {erg['kantungen']} Kantung{'en' if erg['kantungen'] != 1 else ''}" if erg["kantungen"] else ""
         t = erg.get("tafel")
@@ -563,6 +566,16 @@ class BlechDialog(QDialog):
             + f" · Summe {_euro(erg['summe'])} + Aufschlag {zahl_als_text(sw._z(self.einst.get('blech_aufschlag')) * 100, 0)} %"
             + warn)
         return erg
+
+    def pruefung(self, e=None, zs=None):
+        """Befunde der Fertigungsprüfung (dfm.blech) ohne Kantbarkeit (steht schon bei den Hinweisen)."""
+        e = e or self.eingaben()
+        if zs is None:
+            try:
+                zs = blech.zuschnitt(e)
+            except ValueError:
+                return []
+        return dfm.blech(e, zs, self.db.zeilen("pruefregeln") if self.db else None, kantbarkeit=False)
 
     def dxf_speichern(self, pfad=None):
         """Abwicklung als DXF speichern (pfad None: Dateidialog). Rückgabe: Hinweise oder None (abgebrochen)."""
