@@ -1008,8 +1008,9 @@ def kapitel_angebot(i):
             "Reitern <i>Schnittplan</i> und <i>Stangenbild</i>.",
             "<b>Preisaufbau</b> Schritt für Schritt: Material, + Laser schneiden, + Rüsten (Rüsten Maschine, Rüsten "
             "je Abmessung, Stangenwechsel), + Zusätzliche Bearbeitung (Gewinde, Zusatzarbeiten), + Zuschläge, "
-            "= <b>Herstellkosten</b>, + Gewinn, + Programmierkosten, + Pauschalen und Aufschläge (Pauschale je "
-            "Abmessung, Angebotsaufschlag, Fracht), + Zukaufteile, + Skonto, = <b>Verkaufspreis</b>. Ein Klick auf "
+            "= <b>Herstellkosten</b>, + Programmierkosten, + Pauschalen und Aufschläge (Pauschale je Abmessung, "
+            "Angebotsaufschlag), + Zukaufteile, = <b>Selbstkosten</b>, + Gewinn (auf die Selbstkosten), + Fracht "
+            "(ohne Gewinn), + Skonto, = <b>Verkaufspreis</b> ([[gewinn_basis]]). Ein Klick auf "
             "eine Gruppe mit ▸ klappt ihre Kostenarten auf. <b>Kostenarten einzeln</b> zeigt alle Kostenarten mit "
             "ihrer Mengenangabe.")
     i.abschnitt("Positionen", marke="positionen")
@@ -1691,9 +1692,9 @@ def kapitel_optimieren(i):
            "(die Übersicht nach Gruppen, einzeln unter <i>Kostenarten einzeln</i>); im Reiter fehlen Kostenarten "
            "mit 0,00 €, das PDF enthält alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Weitere Arbeitsschritte, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
-           "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
-           "Programmierkosten, Angebotsaufschlag, Fracht, Skonto und ggf. die Anhebung auf Mindestpreis "
-           "([[mindestpreis]]) ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
+           "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Programmierkosten, Pauschale je Abmessung, "
+           "Angebotsaufschlag und Zukaufteile ergeben die <b>Selbstkosten</b>; dazu Gewinn, Fracht, Skonto und ggf. "
+           "die Anhebung auf Mindestpreis ([[mindestpreis]]) ergeben den <b>Verkaufspreis</b>. In Klammern stehen "
            "Zeiten, Anzahl und Prozentsätze, aus denen der Betrag entsteht.")
     i.liste("<b>Material</b>: Kosten der geplanten Stangen je Gruppe, nach Längenanteil auf die Positionen verteilt "
             "(Verschnitt ist enthalten). Preis: abweichender Preis der Position, sonst <i>Preise</i>, sonst "
@@ -1722,18 +1723,33 @@ def kapitel_optimieren(i):
             "<b>Weitere Arbeitsschritte</b>: Zeiten aus den Arbeitsschritten ([[stundensaetze]]) × Stundensatz, auf die "
             "Teile verteilt (Spalte <i>Weitere Arbeitsschritte je Teil</i>).",
             "<b>Programmierkosten</b>: Programmierzeit der Position × Stundensatz <i>Programmierung</i> "
-            "([[stundensaetze]]), einmal je Position mit Stückzahl, egal wie viele Stück, ohne Zuschläge und Gewinn "
-            "auf den Preis (Spalten <i>Programmierzeit [min]</i> und <i>Programmierung je Teil</i>). Die Zeit ist "
+            "([[stundensaetze]]), einmal je Position mit Stückzahl, egal wie viele Stück, ohne Zuschläge in die "
+            "Selbstkosten (Spalten <i>Programmierzeit [min]</i> und <i>Programmierung je Teil</i>). Die Zeit ist "
             "<i>Programmierzeit je Position</i> + <i>Programmierzeit je Innenkontur</i> × Anzahl Innenkonturen "
             "(klein + mittel + groß aus STEP-Import oder Schneidweg-Rechner), oder von Hand in der Spalte "
             "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.22 verschickt und damit "
             "festgeschrieben wurden ([[preise_festschreiben]]), rechnen weiter mit ihrem Betrag je Position "
             "(<i>Programmierkosten je Position (alt) [€]</i>, auch in einer Staffel-Stufe).",
-            "<b>Pauschale je Abmessung, Angebotsaufschlag, Fracht</b>: ohne Zuschläge auf den Preis.",
-            "<b>Zukaufteile</b>: Einstand und Aufschlag der Zukaufteile der Position ([[zukauf_angebot]]), nach dem "
-            "Gewinn und ohne Zuschläge (Spalte <i>Zukaufteile je Teil</i>).",
-            "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis ohne Skonto "
-            "bleibt (Skonto % des Verkaufspreises). Je Teil in der Spalte <i>Skonto je Teil</i>.")
+            "<b>Pauschale je Abmessung, Angebotsaufschlag</b>: ohne Zuschläge in die Selbstkosten.",
+            "<b>Zukaufteile</b>: Einstand und Aufschlag der Zukaufteile der Position ([[zukauf_angebot]]), ohne "
+            "Zuschläge in die Selbstkosten (Spalte <i>Zukaufteile je Teil</i>).",
+            "<b>Selbstkosten</b> = Herstellkosten + Programmierkosten + Pauschale je Abmessung + Angebotsaufschlag + "
+            "Zukaufteile (Spalte <i>Selbstkosten je Teil</i>).",
+            "<b>Gewinn</b> = Selbstkosten × Gewinn %.",
+            "<b>Fracht</b>: nach dem Gewinn, ohne Zuschläge und ohne Gewinn (reine Fremdkosten).",
+            "<b>Skonto</b>: der Betrag, um den der Preis steigt, damit nach Abzug des Skontos der Preis mit Gewinn "
+            "bleibt (Skonto % des Verkaufspreises, „im Hundert“). Je Teil in der Spalte <i>Skonto je Teil</i>.")
+    i.abschnitt("Worauf der Gewinn rechnet", marke="gewinn_basis")
+    i.text("Der Gewinn rechnet auf <b>alle Kosten</b> (Selbstkosten): Herstellkosten, Programmierung, Pauschalen, "
+           "Angebotsaufschlag und Zukaufteile. Nur die Fracht bekommt keinen Gewinn. Das Skonto kommt zuletzt auf "
+           "den Preis mit Gewinn.", kurz=True)
+    i.text("Bis Oktober 2026 rechnete der Gewinn nur auf die Herstellkosten; Programmierung, Pauschalen, "
+           "Angebotsaufschlag, Fracht und Zukaufteile kamen ohne Gewinn danach. Angebote, deren Preise vorher "
+           "festgeschrieben (verschickt) wurden ([[preise_festschreiben]]), rechnen weiter so, damit ihr Preis "
+           "gleich bleibt; die Übersicht zeigt dann „Gewinn (… % auf Herstellkosten)“. <b>Aktuelle Preise "
+           "übernehmen …</b> stellt sie um (der Dialog nennt „Gewinn auf Herstellkosten → auf Selbstkosten“). Mit "
+           "gleichem Gewinn-Prozentsatz steigen die Preise dadurch; bei den Prüfangeboten mit 25 % Gewinn um 1,6 bis "
+           "8 %, bei kleinen Aufträgen am meisten.")
     i.abschnitt("Zeiten & Arbeitskosten", marke="zeiten")
     i.bild("erg_zeiten", "Reiter Zeiten & Arbeitskosten mit Beispielzeiten (Beispielwerte, keine gemessenen Zeiten)",
            hoehe=95 * mm, legende=[
@@ -1741,23 +1757,28 @@ def kapitel_optimieren(i):
                    "Laser schneiden immer sichtbar)."),
                (2, "<b>Stundensätze aus Einstellungen</b>: Stundensätze und Zeitvorgaben dieses Angebots auf die "
                    "aktuellen Einstellungen setzen (eigene Werte des Angebots gehen verloren)."),
-               (3, "Summen: Maschinenzeit, Personalzeit, Rüstzeit, Bearbeitungszeit, Durchlaufzeit (parallele "
-                   "Personalzeit nicht addiert), Arbeitskosten, Material, Zuschläge, Herstellkosten, Gewinn, "
+               (3, "Summen: Maschinenzeit (davon Rüsten Maschine), Personalzeit (davon parallel zur Maschine), "
+                   "Arbeitszeit gesamt, Durchlaufzeit (Maschine + Personal, das nicht parallel läuft), Ø Arbeitszeit "
+                   "je Teil, Arbeitskosten, Material, Zuschläge, Herstellkosten, Selbstkosten, Gewinn, "
                    "Verkaufspreis. Werte mit 0 sind ausgeblendet.")])
     i.text("Je Arbeitsschritt Menge, Zeit, Stundensatz und Kosten. Gelbe Felder gelten nur für dieses Angebot.", kurz=True)
     i.genauer()
     i.text("Der Reiter <i>Zeiten & Arbeitskosten</i> zeigt je Arbeitsschritt Art, Menge, Rüstzeit, Zeit je Einheit, "
            "Gesamtzeit, Stundensatz, Kosten, Quelle und die Berechnung. Die Beträge sind dieselben wie in der "
-           "Kalkulation; jede Kostenart kommt genau einmal vor. Programmierung, Gewinde mit Festpreis und "
-           "Zusatzarbeiten stehen als Betrag <i>ohne Zeit</i> darin.")
+           "Kalkulation; jede Kostenart kommt genau einmal vor. Gewinde mit Festpreis, Zusatzarbeiten ohne "
+           "Zeitaufwand und Fremdleistungen stehen als Betrag <i>ohne Zeit</i> darin. Zusatzarbeiten mit Zeit "
+           "(Schweißen in €/h, Zeitaufwand aus den Stammdaten) und die Schweißbaugruppen (Schweißen und eigene "
+           "Arbeitsgänge) zählen als Personalzeit.")
     i.liste("Gelbe Felder gelten nur für dieses Angebot: Rüstzeit und Zeit je Einheit der weiteren Arbeitsschritte "
             "und der Stundensatz (er gilt dann für alle Schritte dieses Angebots mit demselben Satz). Die Quelle "
             "zeigt dann <i>von Hand (Angebot)</i>.",
             "Ältere Angebote ohne gespeicherte Stundensätze rechnen mit den aktuellen Einstellungen; der Reiter "
             "sagt das. Die erste Änderung oder <i>Stundensätze aus Einstellungen</i> speichert sie im Angebot.",
-            "Die Übersicht rechts oben zeigt Maschinenzeit, Personalzeit, Rüstzeit, Durchlaufzeit und "
-            "Arbeitskosten; das Kalkulations-PDF enthält die Tabelle der Arbeitsschritte mit "
-            "Zeit oder Kosten.",
+            "Die Übersicht rechts zeigt unter <b>Zeiten</b> Maschine und Personal mit Zeit und Kosten; ein Klick "
+            "auf ▸ klappt die Arbeitsschritte auf (parallele Schritte mit „(parallel)“). Die Rüstzeit steht als "
+            "„davon Rüsten“, weil sie schon in der Zeit enthalten ist. Darunter Arbeitszeit gesamt, Durchlaufzeit, "
+            "Ø Arbeitszeit je Teil und Kosten ohne Zeit. Das Kalkulations-PDF enthält die Tabelle der "
+            "Arbeitsschritte nach Maschine und Personal geordnet und dieselben Summen.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
     i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
@@ -2288,11 +2309,13 @@ def kapitel_staffeln(i):
             "zusätzlicher Arbeitsgang; <b>Rüsten</b> (Rüstzeiten × Stundensatz) einmal je Stufe, getrennt davon.",
             "<b>Gemeinkosten</b>: (Fertigung + Rüsten) × Gemeinkosten Fertigung; Fremdleistung × Zuschlag "
             "Fremdleistung.",
-            "<b>Selbstkosten</b> = Material + Fertigung + Rüsten + Gemeinkosten + Fremdleistung + Verpackung / "
+            "<b>Herstellkosten</b> = Material + Fertigung + Rüsten + Gemeinkosten + Fremdleistung + Verpackung / "
             "Nebenkosten.",
-            "<b>Gewinn</b> = Selbstkosten × Gewinn %; dazu als <b>Weitere Kosten</b> Pauschalen, Programmierkosten, "
-            "Angebotsaufschlag und Fracht ohne Zuschläge, Skonto eingerechnet = <b>Gesamtpreis netto</b>; dazu Umsatzsteuer = "
-            "<b>Gesamtpreis brutto</b>.", nummeriert=True)
+            "<b>Selbstkosten</b> = Herstellkosten + Programmierung, Pauschalen, Aufschlag (ohne Zuschläge) + "
+            "Zukaufteile (eigener Aufschlag statt Zuschläge).",
+            "<b>Gewinn</b> = Selbstkosten × Gewinn % ([[gewinn_basis]]); dazu die Fracht ohne Gewinn, Skonto "
+            "eingerechnet = <b>Gesamtpreis netto</b>; dazu Umsatzsteuer = <b>Gesamtpreis brutto</b>.",
+            nummeriert=True)
     i.text("Gerechnet wird ungerundet; erst der Verkaufspreis netto je Einheit wird auf Cent gerundet "
            "(kaufmännisch), der Gesamtpreis ist Stückpreis × Menge (plus einmalige Rüstkosten). Ohne Werte je Stufe "
            "ergibt das genau den Preis der Kalkulation. Im Angebots-PDF stehen keine Extra-Kosten: einmalige "
