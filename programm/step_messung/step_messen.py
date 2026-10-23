@@ -90,6 +90,12 @@ def _lesen(datei):
         return step_geometrie.datei_lesen(kopie, datei.stem)
 
 
+def zeilen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
+    """Messwerte einer Datei als Zeilen (Liste von Feldern in der Reihenfolge SPALTEN). netze: Ordner für die
+    Dreiecksnetze (None = keine), nr: laufende Nummer der Datei (Name der Netzdateien)."""
+    return messen(datei, netze, nr, flach_bis)[0]
+
+
 def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslassen=None, melden=None, gel=None,
            vorgemessen=None):
     """Wie zeilen, dazu das Ergebnis im versionierten JSON-Format (step_ergebnis.datei). einst: Grenzwerte der
