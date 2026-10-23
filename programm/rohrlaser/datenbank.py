@@ -43,7 +43,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          schweiss_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 46     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 47     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -88,6 +88,7 @@ SCHEMA_VERSION = 46     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 45: Mindestauftragswert je Angebot ein/aus (angebote.mindestpreis_anwenden: leer = ja)
                         # 46: Schweißbaugruppen (positionen.baugruppe/bg_knoten/je_knoten, Positionsart
                         #     Schweißbaugruppe; Tabellen schweissverfahren, schweiss_kennwerte, schweiss_faktoren leer)
+                        # 47: K-Faktoren der Abwicklung (Tabelle blech_kfaktoren mit Beispielwerten nach DIN 6935)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -314,6 +315,8 @@ class Datenbank:
                 for t in ("blech_werkstoffe", "blechlaser"):
                     if not self.anzahl(t):
                         self._einfuegen(t, beispieldaten()[t])
+            if 0 < version < 47 and not self.anzahl("blech_kfaktoren"):
+                self._einfuegen("blech_kfaktoren", beispieldaten()["blech_kfaktoren"])
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
@@ -1120,7 +1123,13 @@ class Datenbank:
         from . import blech
         return dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.zeilen("blech_werkstoffe")
                                 if z.get("blech_werkstoff_id")},
-                    laser=self.zeilen("blechlaser"), einst={n: self.einstellung(n) for n in blech.EINSTELLUNGEN})
+                    laser=self.zeilen("blechlaser"), einst=self.blech_einstellungen())
+
+    @liest
+    def blech_einstellungen(self):
+        """Sätze des Blech-Editors (Einstellungen 'blech_…') und die K-Faktor-Tabelle (Schlüssel 'kfaktoren')."""
+        from . import blech
+        return dict({n: self.einstellung(n) for n in blech.EINSTELLUNGEN}, kfaktoren=self.zeilen("blech_kfaktoren"))
 
     @liest
     def zeitbasis_vorgabe(self, maschinen_id):
