@@ -108,10 +108,11 @@ try:
             erg["positionen"]
         u = erg["positionen"][0]
         assert u["profil_id"] == "U 50x30x3" and abs(u["schneidweg"] - 2 * (50 + 60 - 3)) < 0.5, u
-        # nicht erkanntes offenes Profil (Z-Profil): ohne Schneidweg, darf nie als Position entstehen
-        assert any("offenes Sonderprofil wird noch nicht kalkuliert" in z for z in erg["bericht"]), erg["bericht"]
+        # scharfkantiges Z (seit 23.10.2026 Kantteil, Blech-Editor): wird ohne Blechliste keine Rohrlaser-Position
+        assert any("REF18" in z and "Kantteil" in z and "nicht übernommen" in z for z in erg["bericht"]), \
+            erg["bericht"]
         assert mw[0]["sicherheit"].startswith("achse=sicher") and mw[0]["wand_messungen"], mw[0]
-    print("OK     Programm: U-Profil übernommen, offenes Sonderprofil gemeldet, nicht übernommen")
+    print("OK     Programm: U-Profil übernommen, Z-Kantteil gemeldet, nicht als Rohrlaserteil übernommen")
 except AssertionError as e:
     fehler += 1
     print(f"FEHLER Programm: {e}")

@@ -1403,10 +1403,13 @@ def kapitel_step(i):
             "Abgrenzung: Flachstahl, wenn das Teil höchstens so breit ist wie in <i>STEP-Import: Flachstahl bis "
             "Breite</i> (Vorgabe 150 mm), mindestens dreimal so lang wie breit ist und gerade Längsseiten hat; alles "
             "andere Flache ist ein Blech.",
-            "<b>Gekantete Bleche</b> (gleich dicke Schenkel mit Biegeradien) heißen <i>Blech gekantet</i>, immer mit "
-            "Prüfstatus <i>prüfen</i>. Der Hinweis nennt die Außenmaße und die ungefähre Abwicklungsfläche ohne "
-            "Biegefaktor. Ein Kantteil mit gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder "
-            "C-Profil, weil es als Stangenmaterial auf dem Rohrlaser geschnitten werden kann.",
+            "<b>Gekantete Bleche</b> (gleich dicke Schenkel mit Biegeradien oder scharfen Kanten) heißen <i>Blech "
+            "gekantet</i>, immer mit Prüfstatus <i>prüfen</i>. Der Import wickelt das Teil ab (k = 0,33, scharfe "
+            "Kante: Innenradius = Blechdicke): Zuschnitt, Schenkel-Außenmaße, Biegelinien, alle Innenkonturen und "
+            "der Schneidweg kommen aus der Abwicklung. Auch mehrachsig gekantete Teile (Schale, Kasten) werden "
+            "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Ein Kantteil mit "
+            "gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder C-Profil, weil es als "
+            "Stangenmaterial auf dem Rohrlaser geschnitten werden kann; als Art lässt sich <i>Kantteil</i> wählen.",
             "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
             "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
             "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "
@@ -3977,9 +3980,13 @@ def kapitel_step_messung(i):
             "senkrecht zur Oberfläche die Kontur beim 2D-Schnitt: Innenkante radial auf die Außenhaut geschoben "
             "(außen breiter als die Konstruktion, STEP-JSON 1.11).",
             "<b>Langloch</b> und <b>Rechteckausschnitt</b> mit Länge, Breite und Richtung (90° = längs zur "
-            "Rohrachse); alles andere ist ein <b>Ausschnitt</b> mit Hüllmaßen.",
-            "<b>Sackbohrung</b> (nicht durchgehend) und <b>Gravur</b> (Vertiefung, Markierung). Sie zählen nicht "
-            "zum Schneidweg. Bei einer Sackbohrung kommt der Hinweis, dass sie mit dem Laser nicht herstellbar ist.",
+            "Rohrachse).",
+            "<b>Sonderkontur</b>: jede andere Kontur und jede Kontur über mehrere Wände (z. B. ein Ausschnitt über "
+            "die Ecke). Sie hat Hüllmaße, die beteiligten Wände und ihren echten <i>Umriss</i> als Punktfolge in "
+            "der Abwicklung (u, z; STEP-JSON 1.12). Komplexe Enden bekommen ebenfalls ihren Umriss.",
+            "<b>Gravur</b>: Vertiefung bis 0,5 mm (z. B. eine Prägung von 0,2 mm), mit <i>Tiefe</i> und Lage, runde "
+            "mit Durchmesser. Tiefere, nicht durchgehende Merkmale sind <b>Sackbohrungen</b> mit dem Hinweis, dass "
+            "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg.",
             "<b>Innenmerkmal</b>: nur auf der Innenseite, von außen nicht sichtbar. Es wird gemeldet, aber nicht "
             "gerechnet.",
             "<b>Ende A / Ende B</b>: <i>gerade</i>, <i>Gehrung</i> (Neigung um eine Querachse), <i>Schrägschnitt "
