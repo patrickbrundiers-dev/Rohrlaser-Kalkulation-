@@ -243,6 +243,6 @@ c.commit()
 c.close()
 db41 = Datenbank(alt)
 assert all(r[0] for r in db41.con.execute("SELECT uid FROM kunden"))
-assert db41.con.execute("PRAGMA user_version").fetchone()[0] == 44
+assert db41.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 ok("Datei Schema 43: Kennungen vergeben, Spalten ergänzt")
 print("OK: mehrere Arbeitsplätze mit gemeinsamem Ordner")

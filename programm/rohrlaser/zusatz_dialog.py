@@ -15,7 +15,8 @@ from . import hilfe, rechnen
 from .angebot import POSITIONEN
 from .stammdaten import ZUSATZ_EINHEIT, wert_aus_text, zahl_als_text, zahl_aus_text
 
-SPALTEN = ("Zusatzarbeit", "Abrechnung", "Menge je Teil", "Preis [€] bzw. Zeit [s] je Einheit", "Text (z. B. RAL-Farbe)")
+SPALTEN = ("Zusatzarbeit", "Abrechnung", "Menge bzw. Sekunden je Teil", "Preis [€], Zeit [s] bzw. Stundensatz [€/h]",
+           "Text (z. B. RAL-Farbe)")
 
 
 def _zahl(text, titel):
@@ -100,7 +101,9 @@ class ZusatzDialog(QDialog):
                 self.weitere_knoepfe[text] = b
         lay.addLayout(leiste)
         text = ("Menge und Preis leer lassen = automatisch: Menge aus der Position (Gewicht, Außenfläche, Länge "
-                "oder 1 Stück), Preis aus den Stammdaten. Abrechnung s/Stück: Zeit wird zur Schneidzeit addiert.")
+                "oder 1 Stück), Preis aus den Stammdaten. Abrechnung s/Stück: Zeit wird zur Schneidzeit addiert. "
+                "Abrechnung €/h (z. B. Schweißen): Sekunden je Teil eintragen, gerechnet wird Sekunden ÷ 3600 × "
+                "Stundensatz.")
         if anzahl > 1:
             text += (f" Gilt für alle {anzahl} markierten Positionen und ersetzt dort Gewinde und Zusatzarbeiten; "
                      "automatische Mengen rechnet jede Position selbst.")
@@ -204,9 +207,14 @@ class ZusatzDialog(QDialog):
         self.tabelle.cellWidget(r, 1).setText(art or "unbekannt")
         auto = rechnen.zusatz_menge_auto(art, self.p, self.k) if art else None
         einheit = ZUSATZ_EINHEIT.get(art, "")
-        self.tabelle.cellWidget(r, 2).setPlaceholderText(
-            f"auto: {rechnen.zahl(auto, 3)} {einheit}" if auto is not None else f"{einheit} je Teil")
-        einheit_preis = "s" if art == "s/Stück" else "€"
+        if art == "€/h":             # Sekunden je Teil: Vorgabezeit der Stammdaten, sonst von Hand
+            vorgabe = rechnen.zusatz_vorgabe_s(kz)
+            self.tabelle.cellWidget(r, 2).setPlaceholderText(
+                f"Vorgabe: {rechnen.zahl(vorgabe, 1)} s" if vorgabe else "Sekunden je Teil eingeben")
+        else:
+            self.tabelle.cellWidget(r, 2).setPlaceholderText(
+                f"auto: {rechnen.zahl(auto, 3)} {einheit}" if auto is not None else f"{einheit} je Teil")
+        einheit_preis = {"s/Stück": "s", "€/h": "€/h"}.get(art, "€")
         quelle = "Preisstand " + ".".join(reversed((stand.get("datum") or "").split("-"))) if stand else "Stammdaten"
         self.tabelle.cellWidget(r, 3).setPlaceholderText(
             f"{quelle}: {rechnen.zahl((kz or {}).get('preis'))} {einheit_preis}" if kz else "")

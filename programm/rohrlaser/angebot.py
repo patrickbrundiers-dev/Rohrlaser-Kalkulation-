@@ -35,6 +35,9 @@ KOPF = (
     Feld("material_vorgabe", "Material neuer Positionen", "auswahl", auswahl="materialherkunft"),
     # Kürzel des Mitarbeiters, der das Angebot angelegt hat (Einstellung benutzer_kuerzel); leer = ältere Angebote
     Feld("bearbeiter", "Bearbeiter"),
+    # Mindestauftragswert (Betrag aus den Einstellungen) für dieses Angebot anwenden: leer = ja, "nein" = aus
+    # (Patrick 23.10.2026); der Betrag selbst bleibt nur in den Einstellungen änderbar
+    Feld("mindestpreis_anwenden", "Mindestauftragswert anwenden", "auswahl", auswahl="janein"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;

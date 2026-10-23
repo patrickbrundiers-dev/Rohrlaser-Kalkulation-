@@ -27,10 +27,11 @@ GASE = ("N₂", "O₂")
 ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
 # Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge, Stück oder einmal je Angebot (pauschal,
 # auf die Teile umgelegt); 's/Stück' = Zeit in Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur,
-# die nicht im STEP-Modell ist)
-ZUSATZARTEN = ("€/kg", "€/m²", "€/m", "€/Stück", "s/Stück", "€/Angebot")
+# die nicht im STEP-Modell ist); '€/h' = Zeit in Sekunden je Teil (je Position im Angebot) × Stundensatz (Schweißen)
+ZUSATZARTEN = ("€/kg", "€/m²", "€/m", "€/Stück", "s/Stück", "€/Angebot", "€/h")
 ZUSATZART_TEXT = {"€/Stück": "pro Stück", "€/Angebot": "pauschal je Angebot", "€/kg": "nach Gewicht",
-                  "€/m²": "nach Außenfläche", "€/m": "nach Länge", "s/Stück": "Maschinenzeit zur Laserzeit"}
+                  "€/m²": "nach Außenfläche", "€/m": "nach Länge", "s/Stück": "Maschinenzeit zur Laserzeit",
+                  "€/h": "Zeit in s je Teil × Stundensatz"}
 ZEITEINHEITEN = {"s": 1, "min": 60, "h": 3600}
 ZUSCHLAG_ARTEN = ("%", "€")
 ZUSCHLAG_BASIS = ("Arbeit", "Material", "Arbeit und Material")
@@ -60,7 +61,8 @@ ZUKAUF_METHODEN = ("% auf Einstand", "€ je Einheit", "€ je Bestellung", "Men
 ZUKAUF_QUELLEN = ("Kategorie", "individuell", "Standard")
 ZUKAUF_STATUS = ("aktiv", "archiviert")
 ZUKAUF_TYPEN = ("Blech",)              # besondere Artikeltypen (leer = normaler Zukaufartikel)
-ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot"}
+ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": "Stk", "s/Stück": "Stk", "€/Angebot": "Angebot",
+                  "€/h": "s"}
 
 
 @dataclass(frozen=True)
@@ -397,7 +399,8 @@ ZUSATZARBEITEN = Tabelle(
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
     "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
-    "(Zeit je Stück, wird zur Schneidzeit addiert, z. B. Gravur, die nicht im Teil ist). Preis je Einheit = "
+    "(Zeit je Stück, wird zur Schneidzeit addiert, z. B. Gravur, die nicht im Teil ist), €/h (Zeit in Sekunden je "
+    "Teil, im Angebot je Position eingetragen, × Stundensatz, z. B. Schweißen). Preis je Einheit = "
     "Festpreis + Zeitaufwand × Stundensatz + Material mit Materialzuschlag + weiterer Zuschlag. Mindestbetrag: "
     "liegt die Summe im Angebot darunter, wird auf den Mindestbetrag angehoben. Fremdleistung = ja: Zuschlag "
     "Fremdleistung, sonst Zuschlag Fertigung.")
@@ -821,6 +824,9 @@ def pruefen(t, z, k):
         if z.get("art") == "s/Stück":
             if z.get("preis") in (None, ""):
                 return "FEHLER: Zeit je Stück fehlt"
+        elif z.get("art") == "€/h":
+            if z.get("satz_id") in (None, "") and z.get("satz") in (None, ""):
+                return "FEHLER: Stundensatz fehlt"
         elif all(z.get(n) in (None, "", 0) for n in ("preis", "zeit", "material")):
             return "FEHLER: Festpreis, Zeitaufwand oder Materialkosten fehlen"
         if z.get("zeit") and z.get("satz_id") in (None, "") and z.get("satz") in (None, ""):
@@ -1143,7 +1149,8 @@ def beispiel_stundensaetze():
     """Vorbelegung der Stundensätze (Beispielwerte, bitte durch eigene ersetzen)."""
     werte = [("Programmierung", "Programmierung / CAD", 60.0), ("Rüstpersonal", "Rüsten und Materialbereitstellung", 48.0),
              ("Nachbearbeitung", "Entgraten, manuelle Nacharbeit", 45.0), ("Qualitätskontrolle", "Prüfen, Messen", 50.0),
-             ("Verpackung", "Verpacken, Kommissionieren", 40.0), ("Sonstige", "Sonstige Arbeitsplätze", 45.0)]
+             ("Verpackung", "Verpacken, Kommissionieren", 40.0), ("Sonstige", "Sonstige Arbeitsplätze", 45.0),
+             (SATZ_SCHWEISSEN, "Schweißen (Zusatzarbeit Schweißen)", 75.0)]
     return [dict(satz_id=i, bezeichnung=b, satz=w, bemerkung="Beispielwert, bitte anpassen") for i, b, w in werte]
 
 
@@ -1177,7 +1184,20 @@ def beispiel_zusatzarbeiten():
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
-        + bohr_zusatzarbeiten()
+        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten()
+
+
+# Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
+ZUSATZ_SCHWEISSEN = SATZ_SCHWEISSEN = "Schweißen"
+
+
+def schweiss_zusatzarbeiten():
+    """Vorbelegung Schweißen: Abrechnung €/h, die Sekunden je Teil stehen je Position im Angebot (keine
+    Vorgabezeit), Stundensatz 'Schweißen' aus den Stundensätzen."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_SCHWEISSEN, art="€/h",
+                 zeit_einheit="s", satz_id=SATZ_SCHWEISSEN, fremd="nein", angebotstext="geschweißt",
+                 bemerkung="Schweißzeit in Sekunden je Teil im Angebot eintragen (Zusatzarbeiten …)",
+                 kategorie="Montage", aktiv="ja")]
 
 
 # Zusatzarbeiten, die 'Bohrungen prüfen' (bohrbild.py) nach dem Bestätigen mit der Anzahl je Teil einträgt

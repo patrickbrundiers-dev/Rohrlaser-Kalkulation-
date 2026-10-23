@@ -81,7 +81,7 @@ assert f.bereich.unter.currentWidget() is s and s.titel == "Zusatzarbeiten"
 f.zeigen(next(x for x in f.seiten if x.t.name == "zusatzarbeiten"))     # alter Weg (Anleitung) zeigt die neue Seite
 assert f.bereich.unter.currentWidget() is s
 n0 = len(db.zeilen("zusatzarbeiten"))
-assert len(s.sichtbar) == n0 == 8
+assert len(s.sichtbar) == n0 == 9
 
 # 1) Neue Zusatzarbeit anlegen
 fo = s.neu()
@@ -372,7 +372,7 @@ assert len(list((alt.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}.d
 nachher = d.zeilen("zusatzarbeiten")
 assert [{k: v for k, v in z.items() if k not in NEU} for z in nachher] == vorher
 assert all(z[n] is None for z in nachher for n in NEU)
-assert all(rechnen.zusatz_preis(z)["preis"] == z["preis"] for z in nachher)
+assert all(rechnen.zusatz_preis(z)["preis"] == z["preis"] for z in nachher if z["art"] != "€/h")   # €/h (Schweißen) gibt es erst ab 0.8.36
 f = Hauptfenster(d, tmp / "alt", stumm=True)
 assert all(x == "aktiv" for x in [f.zusatz.zellen(z)["status"] for z in f.zusatz.daten])
 fo = f.zusatz.bearbeiten(nachher[0]["id"])
