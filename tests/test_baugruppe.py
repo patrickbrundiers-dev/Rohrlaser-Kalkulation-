@@ -208,6 +208,13 @@ nah(summen["baugruppe_fremd"], 30, "Summe Fremdleistung Baugruppen")
 nah(summen["verkauf"], sum(z["preis_position"] for z in zeilen if z), "Summe Verkauf")
 kosten = dict((n, w) for (_, w, _), (_, n, _) in zip(rechnen.kostenarten(summen, einst), rechnen.KOSTENARTEN))
 nah(kosten["baugruppe_eigen"], 228, "Kostenart")
+# Zeiten: Schweißen und Arbeitsgänge der Baugruppen als Personalzeit, Fremdleistung ohne Zeit (Plan Preisaufbau Z1)
+zs = {x["schritt"]: x for x in summen["zeiten"]}
+nah(zs["Schweißbaugruppen"]["gesamt_min"], summen["baugruppe_zeit_min"], "Zeit Schweißbaugruppen")
+nah(zs["Schweißbaugruppen"]["kosten"], 228, "Kosten Schweißbaugruppen")
+assert zs["Schweißbaugruppen"]["art"] == "Personal" and summen["baugruppe_zeit_min"] > 0
+nah(zs["Schweißbaugruppen Fremdleistung (€)"]["kosten"], 30, "Fremdleistung ohne Zeit")
+assert zs["Schweißbaugruppen Fremdleistung (€)"]["gesamt_min"] is None
 # ohne Baugruppe (gleiche Teile, gleiche Stückzahlen): Teile rechnen genau gleich, nichts doppelt
 ohne = [dict(p, bg_knoten=None, je_knoten=None) for p in pos[1:]]
 erg2 = rechnen.optimieren(kopf, ohne, k, tab, einst)
