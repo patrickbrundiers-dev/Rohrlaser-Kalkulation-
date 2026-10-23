@@ -3373,7 +3373,9 @@ class AngebotSeite(QWidget):
         m = rechnen.maschine(self.kopf, self.k)
         erg = step.uebernehmen(messwerte, self.positionen, self.k, self.tabellen["gewinde"], m, werkstoff, stueck,
                                neue_profile, erneut, saetze=list(mehr) if als_satz else (), zukauf_liste=zukauf_liste,
-                               fliessloch_laser=self.db.einstellung("fliessloch_laser"), blech_daten=blech_daten)
+                               fliessloch_laser=self.db.einstellung("fliessloch_laser"), blech_daten=blech_daten,
+                               biegerohr_faktor=self.db.einstellung("biegerohr_faktor"),
+                               zusatz_katalog=self.db.zeilen("zusatzarbeiten"))
         self.db.profile_anlegen(erg["profile"])
         neue_ids = {schl: self.db.zukauf_speichern(None, werte, bezuege, bemerkung="aus STEP-Import angelegt")
                     for schl, (werte, bezuege) in erg["zukauf_neu"].items()}

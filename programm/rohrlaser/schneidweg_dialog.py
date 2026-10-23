@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
                                QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
-from . import dfm, dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
+from . import biegerohr, dfm, dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
@@ -106,6 +106,7 @@ class SchneidwegDialog(QDialog):
         e, self.aus_position = sw.aus_position(sw.lesen(p.get("technik")), p, profil)
         # Profil der Position anders als gemessen (von Hand geändert): Konturen umrechnen bzw. Umriss übertragen
         e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(profil, profil_id=p.get("profil_id")))
+        self.biegerohr = biegerohr.lesen(e)        # Biegerohr aus dem STEP-Import: bleibt in den Eingaben
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
         self.setWindowTitle(f"Neue Position {p.get('pos') or ''} – Rohr / Profil".strip() if neu else
                             f"Schneidweg berechnen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
@@ -941,6 +942,8 @@ class SchneidwegDialog(QDialog):
         out = dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
         if self.d3.isChecked():
             out["d3"] = True
+        if self.biegerohr:
+            out["biegerohr"] = self.biegerohr
         return out
 
     # ------------------------------------------------------------------ Ergebnis
