@@ -1667,6 +1667,18 @@ def kapitel_optimieren(i):
            "Unterreitern <i>Schnittplan</i>, <i>Stangenbild</i> und <i>Auswertung</i>), <i>Staffeln</i>, "
            "<i>Nachkalkulation</i> und <i>STEP-Protokoll</i>. Strg+Bild↓/↑ blättert durch die sieben Reiter, die "
            "Unterreiter wählt ein Klick.")
+    i.abschnitt("Automatisch optimieren")
+    i.text("Entwürfe bis 100 Positionen optimieren sich kurz nach jeder Änderung selbst; F9 ist dann meist nicht "
+           "nötig.", kurz=True)
+    i.genauer()
+    i.text("Ist ein Angebot im Vorgang <i>Entwurf</i> und hat es höchstens so viele aktive Positionen wie die "
+           "Einstellung <i>Automatisch optimieren: Entwürfe bis Positionen (0 = aus)</i> (Vorgabe 100) und weniger "
+           "als 500 Teile, optimiert das Programm etwa 0,8 Sekunden nach der letzten Änderung von selbst. Das "
+           "Ergebnis ist dasselbe wie mit <b>Optimieren</b> (F9); die Statuszeile meldet <i>Automatisch optimiert</i>. "
+           "Verschickte oder beauftragte Angebote, Angebote anderer Benutzer und der Lesemodus behalten ihren "
+           "Schnittplan, bis Sie selbst optimieren. Klappt das automatische Optimieren nicht (z. B. eine Position "
+           "passt auf keine Stange), steht der Grund nur in der Statuszeile, ohne Meldungsfenster; versucht wird es "
+           "erst nach der nächsten Änderung wieder. Mit F9 sehen Sie die vollständige Meldung.")
     i.abschnitt("Regeln der Optimierung")
     i.text("Getrennt je Profil, Werkstoff, Oberfläche und Stangenlänge, nie gemischt. Endbeschnitt, Schnittverlust "
            "und Greiferrest werden abgezogen, gerade Enden teilen sich einen Schnitt.", kurz=True)
@@ -3258,6 +3270,9 @@ def kapitel_einstellungen(i):
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
          "Wert bleibt im neuen Angebot leer ([[lieferzeit]])."],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Angebot", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)",
+         "Vorgabe 100: Entwürfe mit höchstens so vielen Positionen (und weniger als 500 Teilen) optimieren sich "
+         "kurz nach jeder Änderung selbst; 0 schaltet das ab ([[optimieren]])."],
         ["Angebot", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
          "Vorgabe 1; 2; 5: Stufen, die der Knopf <b>Standard-Staffeln</b> und das erste Angebots-PDF ohne Stufe "
          "anlegen ([[staffeln]])."],
