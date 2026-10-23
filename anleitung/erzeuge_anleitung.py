@@ -2655,6 +2655,12 @@ def kapitel_baugruppen(i):
            "Zeile mit Richtwerten, zeigt die Baugruppe den HINWEIS <i>Schweißzeit aus ungeprüften Richtwerten</i>. "
            "<b>Nahtgruppe hinzufügen</b> legt eine Zeile mit Verfahren und Nahtart der letzten an; <b>Markierte "
            "kopieren</b> und <b>Markierte entfernen</b> arbeiten auf den markierten Zeilen.")
+    i.text("Kommt die Baugruppe aus dem STEP-Import ([[step]]), stehen unter den Nahtgruppen die <b>Nahtkandidaten aus "
+           "STEP</b>: Stellen, an denen sich Teile berühren, gleiche zusammengefasst (Stoßart, Länge je Naht, Anzahl "
+           "je Stück der Unterbaugruppe, Dicke, Körper). Sie rechnen nicht mit. <b>Markierte übernehmen</b> macht "
+           "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
+           "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
+           "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
     i.abschnitt("Arbeitsgänge und Vorrichtungen")
     i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
            "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)
@@ -2923,6 +2929,20 @@ def kapitel_nachkalkulation(i):
             "vorliegen. Beim Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
+    i.abschnitt("Schweißbaugruppen nachkalkulieren")
+    i.text("Hat das Angebot Schweißbaugruppen ([[schweissbaugruppe]]), erscheint unter den Ist-Werten die Tabelle "
+           "<b>Schweißbaugruppen (leer = wie kalkuliert)</b>: je Baugruppe Soll und Ist für den ganzen Auftrag.",
+           kurz=True)
+    i.liste("<b>Schweißen</b> [h]: Schweißzeit aller Nahtgruppen; Ist mit dem Stundensatz des Solls bewertet.",
+            "<b>Arbeitsgänge</b> [h]: laufende Zeiten und Rüstzeiten der eigenen Arbeitsgänge, ebenso bewertet.",
+            "<b>Material und Einmalbeträge</b> [€]: Kosten je Einheit, Vorrichtungen und Lehren.",
+            "<b>Fremdleistungen</b> [€]: z. B. Verzinken laut Rechnung.",
+            "<b>Abweichungsgrund</b>: Text, z. B. Nacharbeit oder Ausschuss; steht auch im PDF.",
+            "<b>Schweißen Soll/Ist [min/m Naht]</b>: Schweißzeit je Meter Naht. Weicht das Ist bei mehreren "
+            "Aufträgen in dieselbe Richtung ab, die Schweiß-Kennwerte ([[schweiss_stammdaten]]) prüfen und von Hand "
+            "anpassen; die Nachkalkulation ändert keine Stammdaten und keine Angebote.")
+    i.text("Die Zeilen der Baugruppen stehen im Vergleich als <i>Name: Schweißen</i>, <i>Name: Arbeitsgänge</i> usw. "
+           "und zählen zu den Einzelkosten. Angebote ohne Baugruppe zeigen die Tabelle nicht.")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
 
 

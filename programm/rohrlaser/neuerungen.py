@@ -25,6 +25,12 @@ NEUERUNGEN = [
                "Auch große Baugruppen bleiben beim Drehen fein und flüssig. Über Remote-Desktop und wenn OpenGL nicht "
                "klappt, zeichnet sie wie bisher. Einstellbar unter Vorgaben, Ansicht ([[step_3d_ansicht]]).",
      "3D-Ansicht mit Grafikkarte (OpenGL), Rückfall wie bisher ([[step_3d_ansicht]])."],
+    ["0.9.11", "<b>Schweißbaugruppen: Nachkalkulation und Nahtkandidaten</b>: Der Reiter Nachkalkulation zeigt je "
+                "Baugruppe Soll und Ist für Schweißen und Arbeitsgänge [h], Material/Einmalbeträge und "
+                "Fremdleistungen [€], Abweichungsgrund und die Schweißzeit je Meter Naht ([[nachkalkulation]]). "
+                "Aus STEP erkannte Nahtkandidaten stehen im Editor als Vorschläge und werden erst mit <i>Markierte "
+                "übernehmen</i> Nahtgruppen ([[schweissbaugruppe]]).",
+     "Schweißbaugruppen: Nachkalkulation je Baugruppe, Nahtkandidaten aus STEP als Vorschläge."],
     ["0.9.10", "<b>STEP-Import schneller</b>: Gleiche Teile einer Baugruppe (im CAD nur verschoben, z. B. acht gleiche "
               "Stützen) werden nur einmal gemessen, und eine große Datei wird auf mehrere Messprozesse verteilt. Eine "
               "Baugruppe mit 200 Körpern braucht statt 85 s etwa 30 s, mit 3 Prozessen etwa 15 s; die Messwerte "
