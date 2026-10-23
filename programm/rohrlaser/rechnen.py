@@ -1998,7 +1998,16 @@ SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"
 EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendler_mehr_kurz", "haendler_mehr_lang",
               "haendler_mehr_grenze", "zuschlag_fremdleistung", "gewinn", "ruesten_abmessung", "pauschale_abmessung",
               "programmierung_teil", "programmierung_zeit", "programmierung_kontur", "angebotsaufschlag",
-              "handling_beistellung")
+              "handling_beistellung", "gewinn_basis")
+# Worauf der Gewinn rechnet (Einstellung gewinn_basis, nicht im Einstellungsdialog): seit 23.10.2026 auf die Selbstkosten
+# (Herstellkosten + Programmierung + Pauschale je Abmessung + Angebotsaufschlag + Zukaufteile; Fracht ohne Gewinn),
+# davor nur auf die Herstellkosten. Festgeschriebene Angebote ohne diesen Wert rechnen wie bisher (Patrick 23.10.2026).
+GEWINN_SELBST, GEWINN_HERSTELL = "Selbstkosten", "Herstellkosten"
+
+
+def gewinn_auf_selbstkosten(einst):
+    """True: Gewinn auf die Selbstkosten (Vorgabe); False: nur auf die Herstellkosten (festgeschrieben vor dem 23.10.2026)."""
+    return (einst or {}).get("gewinn_basis") != GEWINN_HERSTELL
 
 
 def _preis_schl(z):
@@ -2035,7 +2044,8 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                 aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)},
                 # ab 0.7.0: Gewinde, preisrelevante Einstellungen, Profil- und Maschinenzeile (Prüfbericht B-4)
                 gewinde=[dict(z) for z in tabellen.get("gewinde") or []],
-                einstellungen={n: einst.get(n) for n in EINST_FEST if n in einst},
+                einstellungen=dict({n: einst.get(n) for n in EINST_FEST if n in einst},
+                                   gewinn_basis=einst.get("gewinn_basis") or GEWINN_SELBST),
                 profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
 
@@ -2079,12 +2089,14 @@ def preisbasis_anwenden(kopf, k, tabellen):
             tab["schneiddaten"] = sd + [z for z in tabellen["schneiddaten"] if not betroffen(z)]
     if "gewinde" in pb and _json_liste(pb["gewinde"]) != _json_liste(tabellen.get("gewinde") or []):
         tab["gewinde"] = [dict(z) for z in pb["gewinde"]]
-    if pb.get("einstellungen"):
-        e = dict(tabellen.get("einstellungen") or {})
-        e.update(pb["einstellungen"])
-        if "programmierung_teil" in pb["einstellungen"] and "programmierung_zeit" not in pb["einstellungen"]:
-            e["programmierung_zeit"] = None     # vor 0.8.22 festgeschrieben: Betrag je Position statt Zeit
-        tab["einstellungen"] = e
+    fest = pb.get("einstellungen") or {}
+    e = dict(tabellen.get("einstellungen") or {})
+    e.update(fest)
+    if "programmierung_teil" in fest and "programmierung_zeit" not in fest:
+        e["programmierung_zeit"] = None     # vor 0.8.22 festgeschrieben: Betrag je Position statt Zeit
+    if "gewinn_basis" not in fest:
+        e["gewinn_basis"] = GEWINN_HERSTELL     # festgeschrieben vor dem 23.10.2026: Gewinn nur auf die Herstellkosten
+    tab["einstellungen"] = e
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
     of = {o: dict(z, aufpreis_m=pb["aufpreise"][o]) if o in (pb.get("aufpreise") or {}) else z
@@ -2166,6 +2178,10 @@ def preisbasis_abweichung(kopf, k, tabellen):
         out.append("Lieferlängen geändert")
     if "gewinde" in pb and alt["gewinde"] != neu["gewinde"]:
         out.append("Gewinde (Preis oder Zeit) geändert")
+    basis_alt = alt["einstellungen"].get("gewinn_basis") or GEWINN_HERSTELL
+    basis_neu = neu["einstellungen"].get("gewinn_basis") or GEWINN_SELBST
+    if basis_alt != basis_neu:
+        out.append(f"Gewinn auf {basis_alt} → auf {basis_neu}")
     from .stammdaten import EINSTELLUNG
     for n, w in alt["einstellungen"].items():
         eigen = isinstance(kopf.get(n), (int, float)) and not isinstance(kopf.get(n), bool)   # Wert im Angebot gilt
@@ -2357,8 +2373,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
       Artikel mit gleichem Preisstand werden im Angebot zu einer Bestellung zusammengefasst (Staffel, Mindestmenge,
       VPE und Bezugskosten einmal; zukauf.rechnen). Einstandspreis + Aufschlag nach der Regel des Artikels gehen
       je Teil ohne Zuschläge und ohne Gewinn in den Verkaufspreis ein (der Aufschlag ersetzt beides).
+    - Gewinn (gewinn_auf_selbstkosten): auf die Selbstkosten = Herstellkosten + Programmierung + Pauschale je Abmessung
+      + Angebotsaufschlag + Zukaufteile (Einstand + Aufschlag); die Fracht kommt ohne Gewinn danach. Festgeschriebene
+      Angebote vor dem 23.10.2026: Gewinn nur auf die Herstellkosten, alles andere ohne Gewinn danach.
     - Skonto aus dem Angebotskopf (%) wird eingerechnet: Verkaufspreis = Preis ohne Skonto / (1 − Skonto), so bleibt
-      nach Abzug des Skontos der Preis ohne Skonto.
+      nach Abzug des Skontos der Preis ohne Skonto (Preis mit Gewinn).
     - Mindestpreis (Einstellung bzw. Angebot, netto): liegt der Verkaufspreis des Angebots darunter, werden alle
       Stückpreise anteilig angehoben (zeilen 'mindestpreis_teil', summen 'mindestpreis_anhebung')."""
     zb = zeitbasis(kopf, k, tabellen)
@@ -2370,6 +2389,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     stangen = ergebnis["stangen"] if ergebnis else []
     sw = stangen_werte(ergebnis, kopf, positionen, k, tabellen) if ergebnis else []
     zm, zf, gew = (_n(einstellungen.get(n)) for n in ("zuschlag_material", "zuschlag_fertigung", "gewinn"))
+    selbst_basis = gewinn_auf_selbstkosten(einstellungen)
     ruest = _n(zb["maschine"].get("ruestzeit"))
     wechsel, wechsel_sn = stangenwechsel_zeiten(zb["maschine"])
     n_lad, n_sn = beladungen(stangen), beladungen_sn(stangen)
@@ -2439,11 +2459,12 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if i in zk_pos:
             zeilen[i] = _zukaufteil_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
                                           fracht_je[i] if c else 0, skonto,
-                                          satz_abweichung(p, positionen))
+                                          satz_abweichung(p, positionen), gew=gew if selbst_basis else 0.0)
             continue
         if i in bg_pos:
             zeilen[i] = _baugruppe_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
-                                         fracht_je[i] if c else 0, skonto, (zf, zfl, gew), tabellen, zb["saetze"])
+                                         fracht_je[i] if c else 0, skonto, (zf, zfl, gew), tabellen, zb["saetze"],
+                                         selbst_basis)
             continue
         gr = gruppe_von(p, kopf)
         d = sum(kosten_gr.get(gr, ()))
@@ -2499,7 +2520,16 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
         zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
         s_ = f * (1 + zm) + (qz + rz + az + ze + hz) * (1 + zf) + zfr * (1 + zfl)
-        ohne = s_ * (1 + gew) + uz + zk_einst + zk_auf
+        # Selbstkosten: Herstellkosten + Programmierung, Pauschale, Angebotsaufschlag und Zukaufteile (ohne Fracht)
+        wz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) \
+            + (prog_pos[i] / c if c else 0)
+        sk_ = s_ + wz + zk_einst + zk_auf
+        if selbst_basis:
+            gw = sk_ * gew
+            ohne = sk_ + gw + fr
+        else:           # festgeschrieben vor dem 23.10.2026: Gewinn nur auf die Herstellkosten (bitgleich wie bisher)
+            gw = s_ * gew
+            ohne = s_ * (1 + gew) + uz + zk_einst + zk_auf
         t_ = ohne / (1 - skonto)
         nicht = c - ein[0] if (stangen and not _leer(p.get("stueck"))) else None
         pr = pruefungen(p, w, positionen, tabellen.get("zusatzarbeiten") or (), tabellen["gewinde"])
@@ -2544,7 +2574,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  gewinde_zeit_teil=pz / 3600 * s_gew, arbeit_teil=az,
                  zuschlag_material_teil=f * zm, zuschlag_fertigung_teil=(qz + rz + az + ze + hz) * zf,
                  handling_teil=hz, kundenmaterial="ja" if beigestellt(p) else "",
-                 zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=s_ * gew, skonto_teil=t_ - ohne)
+                 zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=gw, skonto_teil=t_ - ohne,
+                 selbst_teil=sk_, selbst_position=sk_ * c)
         # Anteile je Teil (nur Aufteilung von rz und uz, für die Staffelpreise je Satz bzw. Position)
         z.update(ruesten_maschine_teil=(ruest / 60 * s_rm / f8 if f8 else 0),
                  stangenwechsel_teil=(wechsel_s / 3600 * s_sw / f8 if f8 else 0),
@@ -2595,10 +2626,12 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zusatz=sum(z["zusatz_position"] for z in zeilen if z),
                   handling_beistellung=sum(z.get("handling_teil", 0) * z["stueck"] for z in zeilen if z),
                   herstell=sum(z["herstell_position"] for z in zeilen if z),
+                  selbst=sum(z["selbst_position"] for z in zeilen if z),
+                  gewinn_basis=GEWINN_SELBST if selbst_basis else GEWINN_HERSTELL,
                   verkauf=sum(z["preis_position"] for z in zeilen if z))
     # Einzelne Kostenarten (Material + Laser + Gewinde + Rüsten + Stangenwechsel + Zusatzarbeiten + Zuschläge
-    # = Herstellkosten; Herstellkosten + Gewinn + Pauschalen + Programmierung + Aufschlag + Fracht + Zukaufteile
-    # + Skonto = Verkaufspreis)
+    # = Herstellkosten; Herstellkosten + Programmierung + Pauschalen + Aufschlag + Zukaufteile = Selbstkosten;
+    # Selbstkosten + Gewinn + Fracht + Skonto = Verkaufspreis)
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
                   gravur_anbau=_summe("gravur_anbau_teil"), pruefung_anbau=_summe("pruefung_teil"),
                   ruesten_maschine=ruest / 60 * s_rm, ruesten_abmessungen=ruest_abm * n_abm + sum(sonder_abm.values()),
@@ -2625,12 +2658,14 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     return zeilen, summen
 
 
-def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
-    """Kalkulationszeile einer Zukaufteil-Position: alle Fertigungswerte 0, Preis je Teil = Einstand + Aufschlag der
-    Zukaufteile + Frachtanteil, mit Skonto. Fehlt der Einkaufspreis, rechnet sie ohne ihn und meldet es."""
+def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0):
+    """Kalkulationszeile einer Zukaufteil-Position: alle Fertigungswerte 0, Preis je Teil = (Einstand + Aufschlag der
+    Zukaufteile) × (1 + Gewinn) + Frachtanteil, mit Skonto (gew = 0: ohne Gewinn, festgeschrieben vor dem 23.10.2026). Fehlt
+    der Einkaufspreis, rechnet sie ohne ihn und meldet es."""
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
-    ohne = fr + zk_einst + zk_auf
+    sk_ = zk_einst + zk_auf
+    ohne = fr + zk_einst + zk_auf if not gew else sk_ * (1 + gew) + fr
     t_ = ohne / (1 - skonto)
     if not zk:
         hinweis = "Zukaufteil: kein Zukaufartikel"
@@ -2642,7 +2677,7 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
                           "zusatz_eigen_teil", "zusatz_fremd_teil", "zusatz_teil", "zusatz_position",
                           "laser_schneiden_teil", "gewinde_teil", "gewinde_zeit_teil", "arbeit_teil",
                           "zuschlag_material_teil", "zuschlag_fertigung_teil", "zuschlag_fremdleistung_teil",
-                          "gewinn_teil", "einsparung", "gewindezeit", "laser_teil", "ruesten_teil", "herstell_teil",
+                          "einsparung", "gewindezeit", "laser_teil", "ruesten_teil", "herstell_teil",
                           "herstell_position", "material_position", "laser_position", "ruesten_maschine_teil",
                           "stangenwechsel_teil", "ruesten_abm_teil", "pauschale_abm_teil", "angebotsaufschlag_teil",
                           "programmierung_anteil", "zeit_pruefung", "pruefung_teil", "gravur_anbau_teil"), 0.0)
@@ -2654,22 +2689,30 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
              laser_netto=None, zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf,
              zukauf_teil=zk_einst + zk_auf, zukauf_fehlt=sum(1 for x in zk if x["fehler"]) + (0 if zk else 1),
              pauschalen_teil=fr, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, hinweis=hinweis,
+             gewinn_teil=sk_ * gew, selbst_teil=sk_, selbst_position=sk_ * c,
              eingeplant=None, nicht_eingeplant=None, zukaufteil=True, kundenmaterial="")
     return z
 
 
-def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze):
+def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_basis=True):
     """Kalkulationszeile einer Schweißbaugruppe: eigene Leistungen (Nahtgruppen, Arbeitsgänge, umgelegte Einmalkosten;
     baugruppe.rechnen) als Fertigung mit Zuschlag Fertigung bzw. als Fremdleistung mit Zuschlag Fremdleistung, dazu
     Gewinn, Zukaufteile der Baugruppe (z. B. Schrauben je Satz), Frachtanteil und Skonto wie jede Position. Kein
-    Material, keine Laserzeit (die Einzelteile sind eigene Positionen)."""
+    Material, keine Laserzeit (die Einzelteile sind eigene Positionen). selbst_basis: Gewinn auch auf die Zukaufteile
+    (Selbstkosten), sonst nur auf die eigenen Leistungen (festgeschrieben vor dem 23.10.2026)."""
     zf, zfl, gew = zuschlaege
     r = baugruppe.rechnen(p, tabellen, saetze, c)
     eigen, fremd = r["eigen"], r["fremd"]
     zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
     s_ = eigen * (1 + zf) + fremd * (1 + zfl)
-    ohne = s_ * (1 + gew) + fr + zk_einst + zk_auf
+    sk_ = s_ + zk_einst + zk_auf
+    if selbst_basis:
+        gw = sk_ * gew
+        ohne = sk_ + gw + fr
+    else:
+        gw = s_ * gew
+        ohne = s_ * (1 + gew) + fr + zk_einst + zk_auf
     t_ = ohne / (1 - skonto)
     if r["fehler"]:
         hinweis = r["fehler"]
@@ -2693,7 +2736,8 @@ def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze):
              bg_einmal_preis_teil=(e_e * (1 + zf) + e_f * (1 + zfl)) * (1 + gew) / (1 - skonto) if getrennt else 0.0,
              bg_zeit_min=r["zeit_min"],
              bg_schweiss_min=r["schweiss_min"], bg_naht_m=r["naht_m"], bg_zeilen=r["zeilen"],
-             zuschlag_fertigung_teil=eigen * zf, zuschlag_fremdleistung_teil=fremd * zfl, gewinn_teil=s_ * gew,
+             zuschlag_fertigung_teil=eigen * zf, zuschlag_fremdleistung_teil=fremd * zfl, gewinn_teil=gw,
+             selbst_teil=sk_, selbst_position=sk_ * c,
              herstell_teil=s_, herstell_position=s_ * c, skonto_teil=t_ - ohne, preis_teil=t_, preis_position=t_ * c,
              zukauf_fehlt=sum(1 for x in zk if x["fehler"]), hinweis=hinweis)
     return z
@@ -2865,10 +2909,10 @@ KOSTENARTEN = (
     ("Schweißbaugruppen: Fremdleistungen", "baugruppe_fremd", False),
     ("Zuschlag Material", "zuschlag_material", False), ("Zuschlag Fertigung", "zuschlag_fertigung", False),
     ("Zuschlag Fremdleistung", "zuschlag_fremdleistung", False), ("Herstellkosten", "herstell", True),
-    ("Gewinn", "gewinn", False), ("Pauschale je Abmessung", "pauschalen", False),
-    ("Programmierkosten", "programmierung", False), ("Angebotsaufschlag", "angebotsaufschlag", False),
-    ("Fracht", "fracht", False), ("Zukaufteile (Einstand)", "zukauf_einstand", False),
-    ("Aufschlag Zukaufteile", "zukauf_aufschlag", False), ("Skonto", "skonto", False),
+    ("Programmierkosten", "programmierung", False), ("Pauschale je Abmessung", "pauschalen", False),
+    ("Angebotsaufschlag", "angebotsaufschlag", False), ("Zukaufteile (Einstand)", "zukauf_einstand", False),
+    ("Aufschlag Zukaufteile", "zukauf_aufschlag", False), ("Selbstkosten", "selbst", True),
+    ("Gewinn", "gewinn", False), ("Fracht", "fracht", False), ("Skonto", "skonto", False),
     ("Anhebung auf Mindestpreis", "mindestpreis_anhebung", False), ("Verkaufspreis", "verkauf", True))
 
 
@@ -2879,10 +2923,10 @@ KOSTEN_GRUPPEN = (
     ("Zusätzliche Bearbeitung", ("gewinde", "arbeitsschritte", "zusatz", "handling_beistellung"), False),
     ("Schweißbaugruppen", ("baugruppe_eigen", "baugruppe_fremd"), False),
     ("Zuschläge", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung"), False),
-    ("Herstellkosten", ("herstell",), True), ("Gewinn", ("gewinn",), False),
-    ("Programmierkosten", ("programmierung",), False),
-    ("Pauschalen und Aufschläge", ("pauschalen", "angebotsaufschlag", "fracht"), False),
+    ("Herstellkosten", ("herstell",), True), ("Programmierkosten", ("programmierung",), False),
+    ("Pauschalen und Aufschläge", ("pauschalen", "angebotsaufschlag"), False),
     ("Zukaufteile", ("zukauf_einstand", "zukauf_aufschlag"), False),
+    ("Selbstkosten", ("selbst",), True), ("Gewinn", ("gewinn",), False), ("Fracht", ("fracht",), False),
     ("Skonto", ("skonto",), False), ("Mindestpreis", ("mindestpreis_anhebung",), False),
     ("Verkaufspreis", ("verkauf",), True))
 assert sorted(n for _, ns, _ in KOSTEN_GRUPPEN for n in ns) == sorted(n for _, n, _ in KOSTENARTEN)
@@ -2904,7 +2948,9 @@ def kostenarten(summen, einst):
         "zuschlag_material": f" ({z(100 * _n(einst.get('zuschlag_material')))} %)",
         "zuschlag_fertigung": f" ({z(100 * _n(einst.get('zuschlag_fertigung')))} %)",
         "zuschlag_fremdleistung": f" ({z(100 * _n(einst.get('zuschlag_fremdleistung')))} %)",
-        "gewinn": f" ({z(100 * _n(einst.get('gewinn')))} %)",
+        "gewinn": f" ({z(100 * _n(einst.get('gewinn')))} % auf "
+                  + (f"Herstellkosten {z(summen.get('herstell', 0), 2)} €)" if summen.get("gewinn_basis") == GEWINN_HERSTELL
+                     else f"Selbstkosten {z(summen.get('selbst', 0), 2)} €)"),
         "skonto": f" ({z(summen.get('skonto_satz', 0))} % eingerechnet)",
         "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)",
         "mindestpreis_anhebung": (f" (kalkuliert {z(summen.get('verkauf_kalkuliert', 0), 2)} €, Mindestpreis "

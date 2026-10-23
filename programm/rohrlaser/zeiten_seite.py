@@ -185,7 +185,9 @@ class ZeitenSeite(QWidget):
                   ("Materialkosten", f"{_z(wert['material'])} €", False),
                   ("Kosten ohne Zeit (Festpreise, Zusatzarbeiten)", f"{_z(k['sonstige'])} €", False),
                   ("Zuschläge", f"{_z(zuschlaege)} €", False),
-                  ("Herstellkosten", f"{_z(summen['herstell'])} €", True), ("Gewinn", f"{_z(wert['gewinn'])} €", False),
+                  ("Herstellkosten", f"{_z(summen['herstell'])} €", True),
+                  ("Selbstkosten (mit Programmierung, Pauschalen, Zukaufteilen)", f"{_z(summen['selbst'])} €", True),
+                  ("Gewinn", f"{_z(wert['gewinn'])} €", False),
                   ("Verkaufspreis", f"{_z(summen['verkauf'])} €", True)]
         roh = dict(Maschinenzeit=k["maschine_min"], Personalzeit=k["personal_min"], Rüstzeit=k["ruest_min"])
         html = "<table cellpadding='1'>"
