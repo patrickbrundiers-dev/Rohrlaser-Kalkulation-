@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import anbau, bohrbild, naht, rechnen, rp_profile
 
-TOL_MASS = 0.15
+TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
 PROTOKOLL = ["Zeitpunkt", "Datei", "Körper", "Profilform", "Abm. A [mm]", "Abm. B [mm]", "Wandstärke [mm]",
@@ -93,7 +93,7 @@ def gewinde_vorschlag(text, gewinde):
     out = []
     for d, n in _paare(text):
         for g, kern in gewinde:
-            if abs(d - kern) <= 0.05:
+            if abs(d - kern) <= bohrbild.TOL_KERNLOCH:
                 out.append(f"{int(n)}x{g}")
                 break
     return "; ".join(out)
