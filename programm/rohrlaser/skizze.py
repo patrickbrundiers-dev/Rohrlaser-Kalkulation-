@@ -14,8 +14,8 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 import math
 
 from . import normprofile, rp_profile
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ, SENKUNG,
-                         _z, kontur, punkte)
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ,
+                         SENKUNG, SONDERKONTUR, _z, kontur, punkte)
 
 RUND_SEITEN = {"oben (0°)": 0.0, "vorne (90°)": 90.0, "unten (180°)": 180.0, "hinten (270°)": 270.0}
 KASTEN = ("Quadratrohr", "Rechteckrohr", "Flachstahl")
@@ -229,6 +229,12 @@ def kurz(e):
         return f"{art} {zahl(_z(e.get('l')), 2)} × {zahl(_z(e.get('b')), 2)}"
     if art == POLYGON:
         return "Polygon"
+    if art == SONDERKONTUR:
+        return f"Sonderkontur L {zahl(_z(e.get('laenge')), 1)}" + (
+            f" über {len(e['waende'])} Wände" if len(e.get("waende") or ()) > 1 else "")
+    if art == GRAVUR:
+        return f"Gravur {zahl(_z(e.get('laenge')), 1)}" + (f", {zahl(_z(e.get('tiefe')), 2)} tief"
+                                                          if _z(e.get("tiefe")) else "")
     if _z(e.get("laenge")):
         return f"Kontur L {zahl(_z(e.get('laenge')), 1)}" + (f", Hülle {zahl(_z(e.get('huelle')), 1)}"
                                                             if _z(e.get("huelle")) else "")
@@ -375,13 +381,37 @@ def kanten(qs, ansicht):
 
 
 def ende_abwicklung(qs, e, n=120):
-    """Schnittlinie eines Endes in der Abwicklung: [(s, Abstand von der Spitze)]."""
+    """Schnittlinie eines Endes in der Abwicklung: [(s, Abstand von der Spitze)]. Mit umriss (komplexes Ende aus dem
+    STEP-Import: [[s, Abstand vom Ende]]) der gemessene Verlauf."""
     out = []
+    um = _ende_umriss(qs, (e or {}).get("umriss"))
     for i in range(n + 1):
         s = qs.umfang * i / n
+        if um:
+            out.append((s, um(s)))
+            continue
         (u, v), _ = qs.s_zu_uv(s)
         out.append((s, schnitt_x(qs, e, u, v)))
     return out
+
+
+def _ende_umriss(qs, umriss):
+    """Funktion s -> Abstand vom Ende aus dem gemessenen Umriss eines Endes (linear, über die Naht 0/Umfang
+    hinweg), oder None."""
+    try:
+        pk = sorted((float(a) % qs.umfang, max(float(b), 0.0)) for a, b in umriss or ())
+    except (TypeError, ValueError):
+        return None
+    if len(pk) < 2:
+        return None
+    pk = [(pk[-1][0] - qs.umfang, pk[-1][1])] + pk + [(pk[0][0] + qs.umfang, pk[0][1])]
+
+    def d(s):
+        for (s0, d0), (s1, d1) in zip(pk, pk[1:]):
+            if s0 <= s <= s1:
+                return d0 + (d1 - d0) * ((s - s0) / (s1 - s0) if s1 > s0 else 0)
+        return 0.0
+    return d
 
 
 # ---------------------------------------------------------------------- Konturen
@@ -393,6 +423,13 @@ def umriss_kontur(e, n=36):
         _, hk, _ = kontur(dict(e, anzahl=1))
     except ValueError:
         return None
+    if len(e.get("umriss") or ()) >= 3:     # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import)
+        try:
+            return _dicht([(float(dx), float(dq)) for dx, dq in e["umriss"]])
+        except (TypeError, ValueError):
+            pass
+    if art == GRAVUR:                   # ohne Umriss: kleines Kreuz an der Stelle
+        return [(-3.0, 0.0), (3.0, 0.0), (0.0, 0.0), (0.0, 3.0), (0.0, -3.0), (0.0, 0.0)]
     if art in (BOHRUNG, SENKUNG, FLOWDRILL):
         r = _z(e.get("d")) / 2
         # schräge Bohrung (3D): Austritt auf der Wand als Ellipse, gestreckt um 1/cos der Neigung längs bzw. quer
@@ -419,6 +456,17 @@ def umriss_kontur(e, n=36):
     if e.get("quer"):
         pts = [(-q, x) for x, q in pts]
     return pts
+
+
+def _dicht(pts, schritt=3.0):
+    """Geschlossenen Linienzug so unterteilen, dass kein Stück länger als schritt [mm] ist (damit ein Umriss über
+    Kanten und Rundungen des Querschnitts der Oberfläche folgt)."""
+    out = []
+    for i, a in enumerate(pts):
+        b = pts[(i + 1) % len(pts)]
+        n = max(1, math.ceil(math.dist(a, b) / schritt))
+        out += [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n)]
+    return out
 
 
 def _bogen(a0, a1, n):
@@ -469,6 +517,10 @@ def platzieren(qs, d):
     """3D-Linienzug [(x, u, v)] einer Kontur und ihre Normale (u, v) in der Mitte."""
     e = d["eingabe"]
     pts = umriss_kontur(e) or [(0.0, 0.0)]
+    if e.get("umriss") and not qs.r and qs.flaechen:      # über mehrere Flächen: entlang der Abwicklung
+        out = [(d["x"] + dx, *_um_kante(qs, sk_s)) for dx, sk_s in
+               ((dx, s_lage(qs, e, dq)) for dx, dq in pts)]
+        return out, qs.s_zu_uv(s_lage(qs, e) % qs.umfang)[1]
     if qs.r:
         w = winkel_aus_text(e.get("seite"))
         phi = math.radians(w if w is not None else 0.0)
@@ -483,6 +535,23 @@ def platzieren(qs, d):
         u, v = f.punkt(q + dq)
         out.append((d["x"] + dx, u, v))
     return out, f.n
+
+
+def _um_kante(qs, s):
+    return qs.s_zu_uv(s % qs.umfang)[0]
+
+
+def normalen(qs, d):
+    """Normale (u, v) je Punkt des Linienzugs einer Kontur (für Konturen über mehrere Flächen)."""
+    e = d["eingabe"]
+    pts = umriss_kontur(e) or [(0.0, 0.0)]
+    if qs.r:
+        w = winkel_aus_text(e.get("seite")) or 0.0
+        return [(math.sin(math.radians(w) + dq / qs.r), math.cos(math.radians(w) + dq / qs.r)) for _, dq in pts]
+    if e.get("umriss") and qs.flaechen:
+        return [qs.s_zu_uv(s_lage(qs, e, dq) % qs.umfang)[1] for _, dq in pts]
+    n = platzieren(qs, d)[1]
+    return [n] * len(pts)
 
 
 def s_lage(qs, e, dq=0.0):

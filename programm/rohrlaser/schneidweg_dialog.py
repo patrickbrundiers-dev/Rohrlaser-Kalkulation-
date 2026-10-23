@@ -54,7 +54,11 @@ ART_HILFE = {
     sw.AUSKLINKUNG: "Ausklinkung am Ende: Maß 1 = Länge l ab Ende, Maß 2 = Breite b, Maß 3 = Eckradius r innen; "
                     "ohne Lage an Ende A, für Ende B Lage = Teilelänge − l/2.",
     sw.POLYGON: "Maß 1 = Eckpunkte x,y in mm, getrennt mit Semikolon, z. B. 0,0; 40,0; 40,20; 0,20.",
-    sw.SONSTIGE: "Maß 1 = Schnittlänge in mm, Maß 2 = Hüllmaß (größte Ausdehnung, leer = groß) für die Konturklasse."}
+    sw.SONSTIGE: "Maß 1 = Schnittlänge in mm, Maß 2 = Hüllmaß (größte Ausdehnung, leer = groß) für die Konturklasse.",
+    sw.SONDERKONTUR: "Freie Kontur, auch über mehrere Flächen (aus dem STEP-Import mit echtem Umriss): Maß 1 = "
+                     "Schnittlänge, Maß 2 = Hüllmaß für die Konturklasse.",
+    sw.GRAVUR: "Gravur (Markierung, Prägung) an dieser Stelle: Maß 1 = Gravurlänge; zählt zur Gravur, nie zum "
+               "Schneidweg. In der Skizze grün."}
 LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitte, Seite = Fläche von Ende A gesehen, "
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE, GEWINDE_SPALTE = range(5, 14)
@@ -232,8 +236,8 @@ class SchneidwegDialog(QDialog):
         self.gravur.setDecimals(1)
         self.gravur.setSuffix(" mm")
         self.gravur.setValue(sw._z(e.get("gravur")))
-        self.gravur.setToolTip("Länge aller Gravurlinien je Teil (Beschriftung, Markierung); Vorschub Gravur, nicht "
-                               "im Schneidweg")
+        self.gravur.setToolTip("Länge weiterer Gravurlinien je Teil (Beschriftung, Markierung), zusätzlich zu den "
+                               "Zeilen der Art Gravur in der Tabelle; Vorschub Gravur, nicht im Schneidweg")
         self.gravur.valueChanged.connect(self.rechnen)
         enden.addWidget(QLabel("Gravur (Länge je Teil)"), 3, 0)
         enden.addWidget(self.gravur, 3, 1)
@@ -789,6 +793,9 @@ class SchneidwegDialog(QDialog):
         self.tabelle.setCellWidget(r, GEWINDE_SPALTE, g)
         self._kopf_hinweise(r)
         art.quer = bool(z.get("quer"))
+        # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
+        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe") if z.get(k_) is not None}
+        art.extra = (art.currentText(), extra) if extra else None
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
             art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
                                                                  if z.get(k_) is not None})
@@ -878,6 +885,9 @@ class SchneidwegDialog(QDialog):
             step = getattr(combo, "step", None)
             if step and step[0] == art and step[1] == self._mass_texte(r):
                 z.update(step[2])
+            extra = getattr(combo, "extra", None)
+            if extra and extra[0] == art:
+                z.update(extra[1])
             konturen.append(z)
         enden = {s: dict(winkel=self.winkel[s].value(), achse=self.achse[s].currentText(),
                          sattel=self.sattel[s].value() or None,

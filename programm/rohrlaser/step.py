@@ -188,6 +188,49 @@ def schraege_konturen(m):
 OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
 
 
+def _umfang_versatz(form, breit, schmal, a_):
+    """Abwicklung der Skizze (skizze.Querschnitt) gegen die Umfangsposition u der Messung: s = u + Versatz;
+    Umfang der Skizze. Rundrohr ab 315°, Kastenprofil ab der linken Kante der Breitseite oben."""
+    if form == "Rundrohr":
+        u = math.pi * a_
+        return u / 8, u
+    return breit / 2, 2 * (breit + schmal)
+
+
+def _kasten_seite(s, breit, schmal):
+    """Stelle s der Abwicklung (Kastenprofil) -> (Seite, Versatz quer ab Seitenmitte)."""
+    s0 = 0.0
+    for seite, w in (("oben", breit), ("vorne", schmal), ("unten", breit), ("hinten", schmal)):
+        if s < s0 + w or seite == "hinten":
+            return seite, round(min(max(s - s0, 0.0), w) - w / 2, 1)
+        s0 += w
+    return "oben", 0.0
+
+
+def _umriss_relativ(d):
+    """Umriss der Messung [[u, z]] als [[dx längs, ds am Umfang]] um die Mitte (z, u) der Kontur, oder None."""
+    um = d.get("umriss")
+    if not um or d.get("u") is None or d.get("z") is None or len(um) < 3:
+        return None
+    u0, z0 = float(d["u"]), float(d["z"])
+    return [[round(float(z) - z0, 2), round(float(u) - u0, 2)] for u, z in um]
+
+
+def _ende_umriss(d, ende_b, laenge, versatz, umfang, n=90):
+    """Umriss eines komplexen Endes der Messung als [[s, Abstand vom Ende]] (n Stellen, je Stelle der größte
+    Abstand), für die Abwicklung der Skizze; None ohne Umriss."""
+    um = d.get("umriss")
+    if not um or len(um) < 3 or umfang <= 0:
+        return None
+    feld = [None] * n
+    for u, z in um:
+        abst = (laenge - float(z)) if ende_b else float(z)
+        i = int(((float(u) + versatz) % umfang) / umfang * n) % n
+        feld[i] = max(feld[i] if feld[i] is not None else 0.0, max(abst, 0.0))
+    pk = [[round((i + 0.5) * umfang / n, 1), round(v, 2)] for i, v in enumerate(feld) if v is not None]
+    return pk if len(pk) >= 3 else None
+
+
 def offen_lage(querschnitt, profil):
     """Lage der STEP-Messung im Querschnitt der Skizze für offene Profile und Flachstahl: aus dem gemessenen Umriss
     (Punkte x, y um die Mitte, von Ende A gesehen) die Drehung (0/90/180/270°), mit der er am besten auf den Umriss
@@ -257,6 +300,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             form=form, a=a_, b=b_ if b else None, wand=_z(m, "wandstaerke") or _wand(m),
             profil_id=m.get("normprofil") or m.get("profil_id_vorschlag")))
     eing = dict(quelle=QUELLE_STEP, a={}, b={}, konturen=[])
+    gravur_zeilen = 0.0
     if d3:
         eing["d3"] = True
     for d in liste:
@@ -291,17 +335,37 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 e["schwenk"] = round(float(d["schwenk"]), 2)
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
                 e.update(flaechen=d["flaechen"], huelle=d["huelle"])
+            if d.get("form") == "komplex" and (form == "Rundrohr" or kasten):     # Umriss für die Abwicklung
+                um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), *_umfang_versatz(form, breit, schmal, a_))
+                if um:
+                    e["umriss"] = um
             if e["gemessen"] > 0:
                 eing["a" if art == "Ende A" else "b"] = e
             continue
-        if not d.get("durchgehend") or d.get("z") is None or not d.get("schnittlaenge"):
+        if art == "Gravur" and d.get("z") is not None and d.get("schnittlaenge"):
+            k = dict(art="Gravur", anzahl=1, x=round(float(d["z"]), 1), laenge=round(float(d["schnittlaenge"]), 1))
+            if d.get("tiefe"):
+                k["tiefe"] = round(float(d["tiefe"]), 2)
+            gravur_zeilen += k["laenge"]
+        elif not d.get("durchgehend") or d.get("z") is None or not d.get("schnittlaenge"):
             continue
-        k = dict(anzahl=1, x=round(float(d["z"]), 1), gemessen=round(float(d["schnittlaenge"]), 2))
+        else:
+            k = dict(anzahl=1, x=round(float(d["z"]), 1), gemessen=round(float(d["schnittlaenge"]), 2))
         if d.get("huellmass"):
             k["huelle_gemessen"] = round(float(d["huellmass"]), 2)
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
-        if art == "Bohrung" and d.get("durchmesser"):
+        umriss = _umriss_relativ(d) if form == "Rundrohr" or kasten else None
+        if art == "Gravur":
+            if umriss:
+                k["umriss"] = umriss
+        elif art == "Sonderkontur":
+            k.update(art="Sonderkontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
+            if umriss:
+                k["umriss"] = umriss
+            if d.get("waende"):
+                k["waende"] = list(d["waende"])
+        elif art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
             schraeg = float(d.get("schraeg") or 0)
             if d3 and schraeg >= SCHRAEG_3D:
@@ -323,6 +387,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
         if form == "Rundrohr" and d.get("winkel") is not None:
             k["seite"] = round(float(d["winkel"]) % 360, 1)
+        elif kasten and umriss and d.get("u") is not None:      # über Ecken: Mitte aus der Umfangsposition
+            versatz, umfang = _umfang_versatz(form, breit, schmal, a_)
+            seite, q = _kasten_seite((float(d["u"]) + versatz) % umfang, breit, schmal)
+            if abs(q) > 0.05:
+                k["q"] = q
+            if seite != "oben":
+                k["seite"] = seite
         elif kasten and d.get("seite") in SEITE_KASTEN:
             seite = SEITE_KASTEN[d["seite"]]
             breite_f = breit if seite in ("oben", "unten") else schmal
@@ -336,8 +407,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             if abs(q) > 0.05:
                 k["q"] = round(q, 1)
         eing["konturen"].append(k)
-    if _z(m, "gravur") > 0:                     # Gravur nur als Länge (nicht im Schneidweg)
-        eing["gravur"] = round(_z(m, "gravur"), 1)
+    rest = _z(m, "gravur") - gravur_zeilen      # Gravur ohne eigene Zeile (z. B. Anbauteile) nur als Länge
+    if rest > 0.05:
+        eing["gravur"] = round(rest, 1)
     return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
 
 

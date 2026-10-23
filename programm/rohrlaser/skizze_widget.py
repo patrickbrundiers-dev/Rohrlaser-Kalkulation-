@@ -11,7 +11,7 @@ from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, Q
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
 from . import rechnen, skizze as sk
-from .schneidweg import MASSE, POLYGON, _z
+from .schneidweg import GRAVUR, MASSE, POLYGON, _z
 
 ANSICHTEN, ABWICKLUNG = "Draufsicht und Seitenansicht", "Abwicklung"
 MODI = (ANSICHTEN, ABWICKLUNG)
@@ -22,6 +22,7 @@ EINSATZ = 180                                   # Ansicht von A [px]
 FARBE_TEIL, FARBE_FLAECHE, FARBE_SCHNITT = QColor("#1F3864"), QColor("#F4F7FB"), QColor("#DCE6F2")
 FARBE_KONTUR, FARBE_WAHL, FARBE_MASS = QColor("#B42318"), QColor("#E67E00"), QColor("#595959")
 FARBE_NAHT = QColor("#C0392B")
+FARBE_GRAVUR = QColor("#2E7D32")                # Gravur grün wie in der 3D-Ansicht
 
 
 class Skizze(QWidget):
@@ -228,6 +229,7 @@ class Skizze(QWidget):
     def _konturen(self, g, a, lagen):
         qs = self.qs
         for d in lagen:
+            begrenzt = False
             pts3, n = sk.platzieren(qs, d)
             if a[0] == "abw":
                 s0 = sk.s_lage(qs, d["eingabe"])
@@ -236,24 +238,58 @@ class Skizze(QWidget):
                 umr = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
                 poly = QPolygonF([self._bild(a, d["x"] + dx, s0 + dq) for dx, dq in umr])
                 sicht = 1.0
+                dqs = [dq for _, dq in umr]
+                if s0 + min(dqs) < -0.5 or s0 + max(dqs) > qs.umfang + 0.5:
+                    # über die Naht der Abwicklung: auf beiden Seiten zeichnen, auf den Streifen begrenzt
+                    g.save()
+                    oben_, unten_ = self._bild(a, 0, 0), self._bild(a, self.L, qs.umfang)
+                    g.setClipRect(QRectF(0, oben_.y(), self.width(), unten_.y() - oben_.y()))
+                    farbe = FARBE_GRAVUR if d["art"] == GRAVUR else FARBE_KONTUR
+                    g.setPen(QPen(farbe, 1.3))
+                    g.setBrush(Qt.NoBrush)
+                    for k_ in (-1, 1):
+                        g.drawPolygon(QPolygonF([self._bild(a, d["x"] + dx, s0 + dq + k_ * qs.umfang)
+                                                 for dx, dq in umr]))
+                    begrenzt = True             # die Kontur selbst auch nur im Streifen
             else:
+                idx = 1 if a[0] == "oben" else 2
+                poly = QPolygonF([self._bild(a, p[0], p[idx]) for p in pts3])
+                if d["eingabe"].get("umriss") and not self.qs.r:    # über mehrere Flächen: nur sichtbare Teile
+                    ns = sk.normalen(self.qs, d)
+                    sicht = max(sk.sichtbar(x, a[0]) for x in ns)
+                    if sicht < 0.12:
+                        continue
+                    wahl = d["zeile"] == self.markiert and not self.druck
+                    farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] == GRAVUR else FARBE_KONTUR
+                    g.setPen(QPen(farbe, 2.2 if wahl else 1.3))
+                    for i in range(len(pts3)):
+                        j = (i + 1) % len(pts3)
+                        if min(sk.sichtbar(ns[i], a[0]), sk.sichtbar(ns[j], a[0])) >= -0.01:
+                            g.drawLine(poly[i], poly[j])
+                    r = poly.boundingRect()
+                    if d["nr"] == 0:
+                        g.drawText(QRectF(r.right() + 3, r.top() - 14, 220, 14), Qt.AlignLeft | Qt.AlignVCenter,
+                                   sk.kurz(d["eingabe"]))
+                    self.treffer.append((poly, d, a))
+                    continue
                 sicht = sk.sichtbar(n, a[0])
                 if abs(sicht) < 0.12:
                     continue                # Fläche von der Kante gesehen
-                idx = 1 if a[0] == "oben" else 2
-                poly = QPolygonF([self._bild(a, p[0], p[idx]) for p in pts3])
             wahl = d["zeile"] == self.markiert and not self.druck
-            farbe = FARBE_WAHL if wahl else FARBE_KONTUR
+            farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] == GRAVUR else FARBE_KONTUR
             if d.get("verteilt"):
                 farbe = QColor(farbe).lighter(135)
             stift = QPen(farbe, 2.2 if wahl else 1.3, Qt.SolidLine if sicht > 0 else Qt.DashLine)
             g.setPen(stift)
-            g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 else Qt.NoBrush)
+            g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 and
+                       d["art"] != GRAVUR else Qt.NoBrush)
             r = poly.boundingRect()
             if r.width() < 3 and r.height() < 3:
                 g.drawEllipse(r.center(), 2.5, 2.5)
             else:
                 g.drawPolygon(poly)
+            if begrenzt:
+                g.restore()
             e = d["eingabe"]
             if e.get("art") == "Senkung" and _z(e.get("D")) > _z(e.get("d")) > 0:      # Senk-Ø dünn
                 f, c = _z(e.get("D")) / _z(e.get("d")), r.center()
