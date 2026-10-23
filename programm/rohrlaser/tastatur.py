@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QAbstractItemView
 UEBERSICHT = [
     ("Strg+Z", "Rückgängig: letzte Änderung am Angebot zurücknehmen (bis zu 100 Schritte)", "geöffnetes Angebot"),
     ("Strg+Y", "Wiederholen: zurückgenommene Änderung wiederherstellen (auch Strg+Umschalt+Z)", "geöffnetes Angebot"),
+    ("Strg+Z / Strg+Y", "Rückgängig / Wiederholen der Eingaben im Teile-Editor", "Schneidweg-Rechner, Blech-Editor"),
     ("Strg+X", "Ausschneiden: markierte Zellen kopieren und leeren", "Tabellen"),
     ("Strg+C", "Kopieren: markierte Zellen (auch mehrere) für Excel oder eine andere Tabelle", "alle Tabellen"),
     ("Strg+V", "Einfügen ab der aktuellen Zelle, auch Blöcke aus Excel", "Tabellen"),
