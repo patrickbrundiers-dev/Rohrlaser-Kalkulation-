@@ -21,7 +21,8 @@
 - B20 Baugruppen-Vorlagen speichern/einsetzen (P1), Baugruppe mit Teilen in ein anderes Angebot kopieren (P7)
 - B21 Schweißplan in den Werkstattpapieren (P2), Baugruppe in Kalkulation-PDF und CSV-Export (P3)
 - B22 a-Maß-Regel (P6), Schweißzusatz und Gas (P5), Kennwerte aus der Nachkalkulation (P4), Abweichungen (D5)
-- B23 Positionsliste gruppiert: Einzelteile unter ihrer Baugruppe, zu-/aufklappen (D3)
+- B23 Positionsliste gruppiert: Einzelteile unter ihrer Baugruppe, zu-/aufklappen (D3); Angebot eines Kollegen:
+  Editor nur ansehen (T6)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -897,6 +898,20 @@ seite.neu_laden()                                                             # 
 assert all(seite.pos_ansicht.isRowHidden(j) for j in t_bg)
 seite._kopf_klick(i_bg)
 assert not any(seite.pos_ansicht.isRowHidden(j) for j in t_bg)
-ok(f"B23 Positionsliste: {len(t_bg)} Einzelteile unter ihrer Baugruppe, zu- und aufgeklappt")
+gesehen = []
+
+
+def nur_ansehen(d):
+    gesehen.append((d.nur_lesen, d.windowTitle()))
+    d._ok()
+    return QDialog.Accepted
+
+
+seite.kopf["fremd"] = "XY"
+assert seite.baugruppe_bearbeiten([i_bg], dialog=nur_ansehen) is False
+assert gesehen[0][0] and gesehen[0][1].endswith("(nur ansehen)")
+seite.kopf["fremd"] = None
+ok(f"B23 Positionsliste: {len(t_bg)} Einzelteile unter ihrer Baugruppe, zu- und aufgeklappt; fremdes Angebot: Editor "
+   "nur ansehen")
 
 print("\nAlle Baugruppen-Tests bestanden.")

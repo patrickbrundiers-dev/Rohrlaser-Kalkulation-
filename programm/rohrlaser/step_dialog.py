@@ -181,9 +181,18 @@ class StepPruefDialog(QDialog):
         self.bg_haken = QCheckBox("als Schweißbaugruppe")
         self.bg_haken.setToolTip("Den Satz als Schweißbaugruppe anlegen: Unterbaugruppen mit Menge aus der STEP-Datei, "
                                  "Einzelteile zugeordnet. Nahtgruppen und Arbeitsgänge danach im Editor ergänzen.")
-        self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)))
+        self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)) or
+                                      self.ziel_wahl.setEnabled(bool(an)))
         sl.addSpacing(12)
         sl.addWidget(self.bg_haken)
+        # P8: Datei als Unterbaugruppe in die Schweißbaugruppe einer anderen Datei dieses Imports einhängen
+        self.bg_ziel = {}
+        self.ziel_wahl = QComboBox()
+        self.ziel_wahl.setToolTip("Mehrere STEP-Dateien als eine Baugruppe: diese Datei als Unterbaugruppe in die "
+                                  "Schweißbaugruppe einer anderen Datei einhängen. 'Sätze' gilt dann als Stück je "
+                                  "übergeordneter Baugruppe.")
+        self.ziel_wahl.currentIndexChanged.connect(lambda i: self._ziel_setzen(self.ziel_wahl.itemData(i)))
+        sl.addWidget(self.ziel_wahl)
         self.satz_info = QLabel()
         kl.addWidget(self.zurueck)
         kl.addWidget(self.vor)
@@ -539,6 +548,18 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setChecked(bool(self.baugruppe.get(d)))
         self.bg_haken.blockSignals(False)
         self.bg_haken.setEnabled(satz)
+        from .step import satzname as _sn
+        self.ziel_wahl.blockSignals(True)
+        self.ziel_wahl.clear()
+        self.ziel_wahl.addItem("eigene Baugruppe", None)
+        hat_unter = d in self.bg_ziel.values()           # nur eine Ebene: Datei mit Unterbaugruppen bleibt oben
+        for andere in self.dateien:
+            if not hat_unter and andere != d and andere in self.mehrteilig and andere not in self.bg_ziel:
+                self.ziel_wahl.addItem(f"in Baugruppe „{_sn(andere)}“", andere)
+        self.ziel_wahl.setCurrentIndex(max(0, self.ziel_wahl.findData(self.bg_ziel.get(d))))
+        self.ziel_wahl.blockSignals(False)
+        self.ziel_wahl.setVisible(self.ziel_wahl.count() > 1 or hat_unter)
+        self.ziel_wahl.setEnabled(satz and bool(self.baugruppe.get(d)))
         self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
             koerper, verschieden = self.mehrteilig[d]
@@ -547,6 +568,22 @@ class StepPruefDialog(QDialog):
             self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"leer = {koerper} Einzelteile")
             self.baugruppen[d].setText(0, f"Baugruppe „{satzname(d)}“ – {koerper} Teile, {verschieden} verschieden – "
                                        + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if satz else "als Einzelteile"))
+
+    def _ziel_setzen(self, ziel, datei=None):
+        """Datei als Unterbaugruppe in die Schweißbaugruppe der Datei ziel einhängen (None = eigene Baugruppe, P8).
+        Die Zieldatei wird dabei selbst Schweißbaugruppe. Nur eine Ebene: Hat die Datei selbst Unterbaugruppen oder
+        hängt das Ziel schon in einer anderen Baugruppe, bleibt alles, wie es ist (Ergebnis False)."""
+        datei = self.datei if datei is None else datei
+        if ziel:
+            if ziel == datei or ziel in self.bg_ziel or datei in self.bg_ziel.values():
+                return False
+            self.bg_ziel[datei] = ziel
+            self.baugruppe[ziel] = True
+            if not self.saetze.get(ziel) and ziel in self.mehrteilig:
+                self.saetze[ziel] = 1
+        else:
+            self.bg_ziel.pop(datei, None)
+        return True
 
     def saetze_setzen(self, n, datei=None):
         """Anzahl Sätze einer Datei (Vorgabe: die gezeigte); 0 = Einzelpositionen. Wechselt die Spalte Stückzahl
@@ -851,6 +888,7 @@ class StepPruefDialog(QDialog):
                 m["_anbau_weglassen"] = self.anbau_weglassen
                 m["_werkstoff"] = z.ws.currentText() or None
                 m["_baugruppe"] = bool(saetze and self.baugruppe.get(z.datei))
+                m["_in_baugruppe"] = self.bg_ziel.get(z.datei) if m["_baugruppe"] else None
                 if saetze:
                     m["_saetze"], m["_stueck"] = saetze, saetze
                     m["_je_satz"] = z.werte["satz"] or len(z.liste)
