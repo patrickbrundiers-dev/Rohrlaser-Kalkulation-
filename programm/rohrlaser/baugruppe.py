@@ -222,6 +222,51 @@ def teil_pruefen(p, positionen):
     return None
 
 
+# ------------------------------------------------------------------ STEP-Import
+def aus_step(name_bg, struktur, teile_gruppen):
+    """Schweißbaugruppe aus einer STEP-Datei (Teil 5): Unterbaugruppen aus der Struktur der Messung (STEP-JSON ab
+    1.13: knoten {id, name, eltern, menge}); die eine Wurzel ist die Baugruppe selbst. teile_gruppen = [(Position,
+    [Knoten-ID je Körper])]: jede Position kommt in die Unterbaugruppe ihrer Körper mit Stück je Unterbaugruppe =
+    Körper ÷ Menge der Unterbaugruppe. Liegen gleiche Körper in mehreren Unterbaugruppen oder geht die Teilung nicht
+    auf, hängt die Position direkt an der Baugruppe (Stück je Satz bleibt richtig) und bekommt einen Hinweis.
+    Nahtgruppen und Arbeitsgänge legt der Import nie an (nichts erfinden). Ändert die Positionen (bg_knoten,
+    je_knoten). Ergebnis: (Baugruppe, [Hinweis je Position bzw. None])."""
+    bg = leer()
+    bg["stamm"] = dict(bemerkung=f"aus STEP-Import ({name_bg})")
+    st_knoten = [k for k in (struktur or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
+    wurzeln = [k for k in st_knoten if not k.get("eltern")]
+    wurzel = wurzeln[0]["id"] if len(wurzeln) == 1 else None
+    ids = {k["id"] for k in st_knoten}
+    for k in st_knoten:
+        if k["id"] == wurzel:
+            continue
+        eltern = k.get("eltern") if k.get("eltern") in ids and k.get("eltern") != wurzel else ""
+        menge = k.get("menge") if _zahl(k.get("menge")) and k["menge"] >= 1 else 1
+        bg["knoten"].append(dict(id=str(k["id"]), name=str(k.get("name") or k["id"]), menge=int(menge),
+                                 parent=str(eltern) if eltern else ""))
+    if struktur_fehler(bg):
+        bg["knoten"] = []
+    km = knoten_map(bg)
+    hinweise = []
+    for p, knoten in teile_gruppen:
+        gesamt = p.get("je_satz") if _zahl(p.get("je_satz")) and p["je_satz"] >= 1 else len(knoten) or 1
+        orte = {str(k or "") if str(k or "") in km else "" for k in knoten} or {""}
+        kn, hinweis = "", None
+        if len(orte) == 1 and len(knoten) == gesamt:
+            kn = orte.pop()
+            f = faktor(bg, kn) or 1
+            if gesamt % f:
+                kn, hinweis = "", "Stückzahl passt nicht zur Unterbaugruppe: direkt der Baugruppe zugeordnet, prüfen"
+        elif len(orte) > 1:
+            hinweis = "in mehreren Unterbaugruppen: direkt der Baugruppe zugeordnet, im Editor prüfen"
+        elif orte != {""}:
+            hinweis = "Stück je Satz von Hand geändert: direkt der Baugruppe zugeordnet, prüfen"
+        p["bg_knoten"] = zuordnung_text(bg["id"], kn)
+        p["je_knoten"] = int(gesamt // (faktor(bg, kn) or 1))
+        hinweise.append(hinweis)
+    return bg, hinweise
+
+
 # ------------------------------------------------------------------ Schweißkennwerte
 def _faktor_zeile(tabellen, art, wert):
     if not wert:

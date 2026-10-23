@@ -14,6 +14,7 @@
 - B13 Editor: Zyklus abgewiesen, ungültige Zahl, Status führt in den Editor
 - B14 Richtwerte laden (nur fehlende Zeilen, eigene bleiben) und Arbeitsgang aus Zusatzarbeiten
 - B15 Angebot/PDF: Stückliste per Häkchen, Einmalkosten als eigene Zeile und in den Staffeln 'zzgl. einmalig'
+- B16 Schweißbaugruppe aus der STEP-Struktur: Grenzfälle (gemischte Unterbaugruppen, Rest, ohne Struktur)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -472,5 +473,23 @@ assert text.startswith("Ab 10 Stk. je (zzgl. einmalig ") and text.endswith(" €
 pdf.angebot_pdf(tmp / "bg.pdf", kopf, ang, db.einstellungen())
 assert (tmp / "bg.pdf").stat().st_size > 0
 ok(f"B15 Angebot: Stückliste per Häkchen, Einmalkosten {einmal_z['gesamt']:.2f} € als eigene Zeile, Staffel '{text}'")
+
+# ------------------------------------------------------------------ B16 STEP-Struktur (Grenzfälle)
+st = dict(knoten=[dict(id="K1", name="Gestell", eltern=None, menge=1), dict(id="K2", name="Seite", eltern="K1", menge=2),
+                  dict(id="K3", name="Lasche", eltern="K2", menge=3)])
+teile_ = [dict(je_satz=12), dict(je_satz=3), dict(je_satz=4), dict(je_satz=5)]
+g, h = baugruppe.aus_step("G", st, [(teile_[0], ["K3"] * 12), (teile_[1], ["K1", "K2", "K2"]),
+                                    (teile_[2], ["K2"] * 3 + ["K2"]), (teile_[3], ["K2"] * 3)])
+assert [(x["id"], x["parent"], x["menge"]) for x in g["knoten"]] == [("K2", "", 2), ("K3", "K2", 3)]
+assert [(q["bg_knoten"], q["je_knoten"]) for q in teile_] == [
+    (g["id"] + "/K3", 2), (g["id"], 3), (g["id"] + "/K2", 2), (g["id"], 5)], teile_
+assert h[0] is None and "mehreren" in h[1] and h[2] is None and "von Hand" in h[3]
+q = dict(je_satz=3)
+assert baugruppe.aus_step("G", dict(knoten=[dict(id="K1", eltern=None, menge=1), dict(id="K2", eltern="K1", menge=2)]),
+                          [(q, ["K2"] * 3)])[1] == ["Stückzahl passt nicht zur Unterbaugruppe: direkt der Baugruppe "
+                                                    "zugeordnet, prüfen"] and q["je_knoten"] == 3
+g, h = baugruppe.aus_step("G", None, [(dict(je_satz=2), [None, None])])
+assert g["knoten"] == [] and h == [None]
+ok("B16 STEP-Struktur: Unterbaugruppen verschachtelt, gemischte Körper und Teilung mit Rest direkt an der Baugruppe")
 
 print("\nAlle Baugruppen-Tests bestanden.")

@@ -1013,6 +1013,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     saetze = set(saetze or ()) | {m.get("datei") for m in messwerte if m.get("_saetze")}
     mit_blechen = zukauf_liste is not None
     neue_artikel = {}
+    satz_teile = {}         # Datei -> [(Position eines Satzes, Knoten je Körper)] für Schweißbaugruppen
     gruppe_von = {}         # Index -> Index des ersten gleichen Körpers (nur in Sätzen)
     for erster, liste in teile_gruppen(messwerte, mit_blechen).items():
         if messwerte[erster].get("datei") in saetze:
@@ -1109,6 +1110,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["satz"], p["je_satz"] = satz, anzahl
                 p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
+                satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
             vorhanden.add(art)
@@ -1201,6 +1203,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["stueck"] = stk * anzahl if stk else None
                 hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz"
                                 + (f" (Körper {', '.join(messwerte[j].get('koerper') for j in gruppen[i])})" if anzahl > 1 else ""))
+                satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
             neu.append(p)
             ziel = naechste
             vorhanden.add(art)
@@ -1219,4 +1222,29 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                           pid, ziel, "; ".join(hinweise) or None])
         bericht.append(f"{art}: " + (f"Pos. {ziel}" if ziel else "nicht übernommen") +
                        (", " + "; ".join(hinweise) if hinweise else ", OK"))
+    naechste = _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck)
     return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel)
+
+
+def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=None):
+    """Sätze aus Dateien mit Häkchen „als Schweißbaugruppe“ im Prüfdialog (_baugruppe): Position der Art
+    Schweißbaugruppe mit den Unterbaugruppen der STEP-Struktur (baugruppe.aus_step), Teile zugeordnet. Ergebnis:
+    nächste freie Pos."""
+    from . import baugruppe
+    from .angebot import BAUGRUPPE
+    for datei, liste in satz_teile.items():
+        eigene = [m for m in messwerte if m.get("datei") == datei]
+        if not any(m.get("_baugruppe") for m in eigene):
+            continue
+        name = satzname(datei)
+        struktur = next((m.get("_struktur") for m in eigene if m.get("_struktur")), None)
+        bg, hinweise = baugruppe.aus_step(name, struktur, liste)
+        anzahl = next((m.get("_saetze") for m in eigene if m.get("_saetze")), None) or stueck or 1
+        neu.append(dict(pos=naechste, art=BAUGRUPPE, bezeichnung=name, stueck=anzahl, satz=name, je_satz=1,
+                        baugruppe=baugruppe.speichern(bg)))
+        bericht.append(f"Schweißbaugruppe {name}: Pos. {naechste}, {len(liste)} Einzelteil-Positionen, "
+                       f"{len(bg['knoten'])} Unterbaugruppen" + ("" if struktur else " (Datei ohne Struktur)")
+                       + "; Nahtgruppen und Arbeitsgänge im Editor ergänzen")
+        bericht += [f"{p.get('artikel')}: {h}" for (p, _), h in zip(liste, hinweise) if h]
+        naechste += 10
+    return naechste
