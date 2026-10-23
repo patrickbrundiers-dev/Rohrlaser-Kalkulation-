@@ -17,6 +17,7 @@
 - B16 Schweißbaugruppe aus der STEP-Struktur: Grenzfälle (gemischte Unterbaugruppen, Rest, ohne Struktur)
 - B17 Nachkalkulation: Soll/Ist je Baugruppe (Schweißen, Arbeitsgänge, Material/Einmal, Fremd), min/m Naht
 - B18 Nahtkandidaten aus STEP als Vorschläge im Editor (Übernehmen/Verwerfen)
+- B19 Sollwerte einmal je Stand (T1), Datenprüfung mit Ort (T5), Nahtgruppen gelb + Sprung vom Status (D4)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -562,5 +563,97 @@ assert d.vorschlag_rahmen.isHidden() and d.daten()["vorschlaege"] == []
 assert {n["nahtart"] for n in d.daten()["naehte"]} == {"Kehlnaht", "Stumpfnaht"}
 d.reject()
 ok("B18 Nahtkandidaten: als Vorschläge gruppiert (Anzahl je Unterbaugruppe), erst nach Übernehmen Nahtgruppen, a-Maß offen")
+
+# ------------------------------------------------------------------ B19 T1 Sollwerte einmal, T5 Datenprüfung, D4
+zaehler = {"n": 0}
+_soll_echt = baugruppe._soll_werte
+
+
+def _soll_zaehlen(positionen):
+    zaehler["n"] += 1
+    return _soll_echt(positionen)
+
+
+baugruppe._soll_werte = _soll_zaehlen
+kopf, pos, k, tab, einst = laden()
+for p in pos:
+    rechnen.status(p, rechnen.position_werte(p, kopf, k, tab), kopf, k, None, pos)
+assert zaehler["n"] == 1, zaehler                              # früher einmal je Einzelteil (und doppelt im Status)
+assert baugruppe.soll_werte(pos) == _soll_echt(pos)
+pos[0]["stueck"] = 3                                            # Änderung in derselben Liste: neu gerechnet
+assert baugruppe.teil_pruefen(pos[1], pos) == "Stückzahl passt nicht zur Baugruppe (neu abgleichen)"
+assert zaehler["n"] == 2
+pos[0]["stueck"] = 2
+assert baugruppe.teil_pruefen(pos[1], pos) is None
+baugruppe._soll_werte = _soll_echt
+
+g = json.loads(pos[0]["baugruppe"])
+for text, erwartet in (
+        ("kaputt{", "Baugruppendaten beschädigt (JSON, Zeile 1, Zeichen 1)"),
+        (json.dumps(dict(g, id="")), "Baugruppendaten: Kennung der Baugruppe fehlt"),
+        (json.dumps(dict(g, naehte={})), "Baugruppendaten: Nahtgruppen sind keine Liste ('naehte')"),
+        (json.dumps(dict(g, arbeitsgaenge=g["arbeitsgaenge"] + [7])), "Baugruppendaten: Arbeitsgang Nr. 7 ist kein "
+                                                                       "Datensatz"),
+        (json.dumps(dict(g, naehte=g["naehte"] + [dict(g["naehte"][0], nr="9")])),
+         "Baugruppendaten: Nahtgruppe 9 hat eine doppelte Kennung (n1)")):
+    assert baugruppe.daten_fehler(text) == erwartet, (baugruppe.daten_fehler(text), erwartet)
+    assert rechnen.status(dict(pos[0], baugruppe=text), w, kopf, k, None, pos) == "FEHLER: " + erwartet
+assert baugruppe.daten_fehler(pos[0]["baugruppe"]) is None
+
+zeile = next(i for i, q in enumerate(seite.positionen) if q["id"] == bgp["id"])
+g3 = baugruppe.lesen(seite.positionen[zeile]["baugruppe"])
+g3["naehte"] += [dict(id="nx", nr="2", verfahren="MAG", nahtart="Kehlnaht", laenge=50, anzahl=1),     # a-Maß fehlt
+                 dict(id="ny", nr="3", verfahren="MAG", nahtart="Kehlnaht", mass=3, laenge=50, anzahl=1)]
+g3["arbeitsgaenge"].append(dict(id="ax", name="Schleifen", satz_id="gibtsnicht", zeit_min=2))
+db.position_aendern(bgp["id"], "baugruppe", baugruppe.speichern(g3))
+seite.neu_laden()
+gesehen = {}
+
+
+def ansehen(d):
+    gesehen["warn"] = set(d.naht_tab.warnzeilen)
+    gesehen["kopf"] = d.naht_tab.verticalHeaderItem(1).text()
+    gesehen["reiter"] = d.reiter.currentIndex()
+    gesehen["zeile"] = d.naht_tab.markierte()
+    gesehen["ag"] = d.fokus("WARNUNG: Stundensatz fehlt (Schleifen)")
+    gesehen["teil"] = d.fokus("WARNUNG: Pos. 10 hat zusätzlich Zusatzarbeit Schweißen (doppelt?)")
+    gesehen["teil_zeile"] = d.teile_tab.markierte()
+    d.reject()
+    return d.result()
+
+
+st = seite.pos_modell.status[zeile]
+assert st == "WARNUNG: Nahtgruppe 2: a-Maß fehlt", st
+aufruf = {}
+seite.baugruppe_bearbeiten, echt = (lambda z, dialog=None, fokus=None: aufruf.update(z=z, fokus=fokus)), \
+    seite.baugruppe_bearbeiten
+assert seite.status_beheben(zeile) == "baugruppe_bearbeiten" and aufruf == dict(z=[zeile], fokus=st), aufruf
+seite.baugruppe_bearbeiten = echt
+assert not seite.baugruppe_bearbeiten([zeile], dialog=ansehen, fokus=st)
+assert gesehen["warn"] == {1} and gesehen["kopf"] == "⚠ 2", gesehen
+assert gesehen["reiter"] == 1 and gesehen["zeile"] == [1], gesehen
+assert gesehen["ag"] == (2, len(g3["arbeitsgaenge"]) - 1), gesehen
+teil_r = next(i for i, t in enumerate(BaugruppeDialog(None, seite.positionen[zeile], seite.positionen, seite.tabellen,
+                                                      saetze).teile) if t["_q"].get("pos") == 10)
+assert gesehen["teil"] == (0, teil_r) and gesehen["teil_zeile"] == [teil_r], gesehen
+db.stammdaten_ersetzen({"schweiss_kennwerte": [dict(z, status="Richtwert") for z in kw]}, {}, "T")
+seite.neu_laden()
+d = BaugruppeDialog(None, seite.positionen[zeile], seite.positionen, seite.tabellen, saetze)
+d.kennwerte_neu()
+etikett = d.naht_tab.cellWidget(2, len(d.naht_tab.spalten) - 1).text()
+assert "Richtwert&nbsp;</span>" in etikett and "background" in etikett, etikett
+d.reject()
+db.stammdaten_ersetzen({"schweiss_kennwerte": kw}, {}, "T")
+r_ = baugruppe.rechnen(pos[0], tab, saetze)
+teile_ = dict(baugruppe.kostenaufteilung(r_))
+nah(sum(teile_.values()), r_["eigen"] + r_["fremd"], "Kostenbalken = eigen + fremd")
+nah(teile_["Einmalkosten (umgelegt)"], 65, "Einmalkosten im Balken")
+assert baugruppe.groesste_posten(r_)[0][0] == "Vorrichtung bauen", baugruppe.groesste_posten(r_)   # 50 € je BG
+ub = seite.uebersicht_bereich
+assert not ub.bg_bereich.isHidden() and len(ub.bg_balken) == 1 and ub.bg_balken[0].summe() > 0
+nah(ub.bg_balken[0].summe(), sum(dict(baugruppe.kostenaufteilung(baugruppe.rechnen(
+    seite.positionen[zeile], seite.tabellen, seite._saetze()))).values()), "Balken in der Übersicht")
+ub.bg_balken[0].grab()                                           # zeichnet ohne Fehler
+ok("B19 Sollwerte einmal je Stand, Datenfehler mit Ort, Nahtgruppe ohne a-Maß gelb, Sprung vom Status zur Zeile")
 
 print("\nAlle Baugruppen-Tests bestanden.")

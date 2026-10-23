@@ -902,6 +902,14 @@ class UebersichtBereich(QWidget):
         self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.zeiten.setToolTip("Einzelheiten je Arbeitsschritt im Reiter „Zeiten & Arbeitskosten“")
         kl.addWidget(self.zeiten)
+        # Kosten je Schweißbaugruppe als Balken (D2); nur sichtbar, wenn das Angebot Baugruppen hat
+        self.bg_inhalt = QWidget()
+        self.bg_lay = QVBoxLayout(self.bg_inhalt)
+        self.bg_lay.setContentsMargins(0, 0, 0, 0)
+        self.bg_balken = []
+        self.bg_bereich = Aufklapper("Schweißbaugruppen", self.bg_inhalt, offen=True)
+        self.bg_bereich.setVisible(False)
+        kl.addWidget(self.bg_bereich)
         kl.addStretch(1)
         lay.addWidget(k)
 
@@ -987,6 +995,27 @@ class UebersichtBereich(QWidget):
             self.freigabe.setText("<br>".join(f"<span style='color:{farbe[a]}'>• {t}</span>" for a, t in punkte))
         k.style().unpolish(k)
         k.style().polish(k)
+
+    def baugruppen_setzen(self, gruppen):
+        """gruppen: [(Titel, [(Kostenteil, €)], [(größter Posten, €)])] je Schweißbaugruppe, Beträge je Baugruppe."""
+        from .kostenbalken import Kostenbalken
+        while self.bg_lay.count():
+            w = self.bg_lay.takeAt(0).widget()
+            if w is not None:
+                w.deleteLater()
+        self.bg_balken = []
+        for titel, teile, posten in gruppen:
+            b = Kostenbalken(titel)
+            b.setzen(teile)
+            self.bg_lay.addWidget(b)
+            self.bg_balken.append(b)
+            if posten:
+                t = QLabel("Größte Posten: " + ", ".join(f"{n} {_z(w)} €" for n, w in posten))
+                t.setWordWrap(True)
+                t.setStyleSheet(f"color: {GRAU};")
+                self.bg_lay.addWidget(t)
+        self.bg_bereich.setze_titel(f"Schweißbaugruppen: Kosten je Baugruppe ({len(gruppen)})")
+        self.bg_bereich.setVisible(bool(gruppen))
 
     def kennzahlen_setzen(self, werte):
         for name, text in werte.items():
