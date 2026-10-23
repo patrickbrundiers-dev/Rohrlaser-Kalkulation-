@@ -745,7 +745,8 @@ def kapitel_angebote(i):
            "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand. <b>Gültig bis</b> ist das "
            "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
            "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i> oder <i>Verschickt und "
-           "abgelaufen</i> zum Nachfassen. Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
+           "abgelaufen</i> zum Nachfassen, <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
+           "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
            "Die Spalte <b>Bearbeiter</b> zeigt das Kürzel des Mitarbeiters, der ein Angebot angelegt hat. Mit "
            "gemeinsamem Ordner stehen auch die Angebote der Kollegen in der Liste, <b>grau und kursiv</b>; die Auswahl "
@@ -1188,7 +1189,10 @@ def kapitel_angebot(i):
         ["Strg+Z / Strg+Y", "letzte Änderung zurücknehmen / wiederherstellen (bis 100 Schritte)"],
         ["Strg+C / Strg+V", "Zellen kopieren / einfügen, auch Blöcke aus Excel"],
         ["Entf", "markierte Positionen löschen (mit Rückfrage)"],
-        ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"]], [55, 210],
+        ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
+        ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
+                                         "Materialanfrage"],
+        ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"]], [55, 210],
         kurz=True)
     i.genauer()
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
@@ -1203,6 +1207,10 @@ def kapitel_angebot(i):
             "unten; ein einzelner Wert füllt alle markierten Zellen (z. B. dieselbe Stückzahl für mehrere "
             "Positionen). Grau berechnete Zellen bleiben unverändert, falsche Werte meldet die Statuszeile. Ein "
             "Einfügen ist ein Schritt für Strg+Z.",
+            "<b>Stückzahl ändern …</b> (Rechtsklick auf eine Position oder Strg+Umschalt+S): Stückzahl der markierten "
+            "Positionen, ohne Markierung aller Positionen: <b>Stückzahl × Faktor</b> (z. B. 2 oder 0,5, kaufmännisch gerundet, "
+            "mindestens 1) oder <b>Stückzahl =</b> Wert. Positionen ohne Stückzahl bleiben beim Faktor leer. Ein Schritt für "
+            "Strg+Z.",
             "<b>Strg+X</b> kopiert und leert die markierten Eingabezellen.",
             "<b>Entf</b> in der Positionsliste löscht die markierten Positionen nach Rückfrage, <b>Strg+N</b> legt "
             "eine neue Position an, <b>Strg+I</b> startet den STEP-Import, <b>F9</b> optimiert und <b>Strg+P</b> "
@@ -2186,7 +2194,9 @@ def kapitel_staffeln(i):
     i.kapitel("Staffelpreise", marke="staffeln")
     i.bild("staffeln_vorher", "Stufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
         (1, "<b>Neue Stufe …</b> legt eine Stufe mit den Mengen des Angebots an und öffnet ihr Fenster; dort die "
-            "Mengen ändern. <b>Stufen löschen</b> entfernt die markierten Stufen mit ihren Mengen."),
+            "Mengen ändern. <b>Stufen löschen</b> entfernt die markierten Stufen mit ihren Mengen. "
+            "<b>Standard-Staffeln</b> legt je Faktor aus den Einstellungen eine Stufe mit den Mengen des Angebots × "
+            "Faktor an (Vorgabe 1; 2; 5)."),
         (2, "<b>Stufe bearbeiten …</b> (oder Doppelklick auf die Stufe) öffnet das Fenster der Stufe."),
         (3, "Je Zeile eine Stufe: Bezeichnung, Mengen, eigene Werte (oder „wie Angebot“), Netto gesamt und "
             "Prüfung („gemeinsamer Auftrag“ bei mehreren Sätzen und Positionen, sonst der Fehler)."),
@@ -2221,6 +2231,11 @@ def kapitel_staffeln(i):
             "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
             "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
             "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig.")])
+    i.text("<b>Standard-Staffeln automatisch</b>: Hat das Angebot noch keine Stufe, legt das <b>Angebots-PDF</b> die "
+           "Standard-Staffeln selbst an und rechnet sie, z. B. für 10 Stück die Stufen 10, 20 und 50. Die Faktoren "
+           "stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
+           "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5). Wer alle Stufen löscht, bekommt sie "
+           "beim nächsten PDF nicht wieder, solange das Angebot geöffnet bleibt.")
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
            "8 kurze Riegel, 16 Streben, 2 Holme und 3 Traversen.")
@@ -2823,6 +2838,17 @@ def kapitel_baugruppen(i):
            "größten Posten. So sieht man sofort, wo sich das Nachprüfen von Kennwerten oder Vorrichtungen lohnt. "
            "Angebote ohne Baugruppe zeigen den Bereich nicht.")
 
+    i.abschnitt("Schweißplan, Kalkulation und CSV")
+    i.text("Die <b>Werkstattpapiere</b> ([[ausgabe]]) bekommen je Baugruppe eine Seite <b>Schweißplan</b> ohne Preise: "
+           "Struktur mit Mengen, Einzelteile mit Pos. und Kästchen zum Bereitstellen, Nahtgruppen (Verfahren, a-Maß "
+           "bzw. Dicke, Länge, Anzahl, Lage, Heftpunkte), Arbeitsgänge und Vorrichtungen in Reihenfolge zum Abhaken "
+           "und die Vorgabezeit je Baugruppe und gesamt.", kurz=True)
+    i.text("Die <b>Kalkulation (PDF)</b> zeigt je Baugruppe einen Abschnitt mit allen Nahtgruppen und Arbeitsgängen: "
+           "Stück je Baugruppe, Zeit und Kosten je Baugruppe, Einmalbetrag und Herkunft der Zeit (Kennwert, "
+           "Richtwert, von Hand, Fremdleistung oder was fehlt). Der <b>CSV-Export</b> als ZIP enthält bei Angeboten "
+           "mit Baugruppen zusätzlich <i>Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
+           "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
+           "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
     i.text("Wiederkehrende Baugruppen nicht jedes Mal neu erfassen: <b>Als Vorlage speichern …</b> unten im Editor "
            "merkt Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) unter einem Namen; "
@@ -3050,7 +3076,8 @@ def kapitel_nachkalkulation(i):
         (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner: oben Kacheln mit Erlös, "
             "Einzelkosten Ist, Abweichung und Deckungsbeitrag Ist/Soll, Abweichungen farbig (rot = teurer bzw. "
             "schlechter als kalkuliert, grün = günstiger bzw. besser). <b>Ist-Werte löschen</b> setzt "
-            "alles zurück.")])
+            "alles zurück. <b>Rest wie geplant</b> setzt alle noch leeren Ist-Werte auf das Soll, so dass nur die "
+            "Abweichungen eingetragen werden müssen.")])
     i.text("Nach dem Auftrag die tatsächlichen Werte in <b>Ist-Werte nach dem Auftrag</b> eintragen (leer = wie "
            "kalkuliert). Das Programm vergleicht sie mit der Kalkulation.", kurz=True)
     i.genauer()
@@ -3059,9 +3086,12 @@ def kapitel_nachkalkulation(i):
            "gegenüber. Verglichen werden die <b>Einzelkosten</b> ohne Zuschläge und Gewinn, denn nur sie lassen sich "
            "in der Fertigung messen. Voraussetzung ist ein aktueller Schnittplan (vorher optimieren).")
     i.liste("Jede Eingabe wird sofort gespeichert. Leere Felder zählen wie kalkuliert; die Spalte <i>Ist erfasst</i> "
-            "zeigt, welche Werte wirklich eingetragen sind.",
+            "zeigt, welche Werte wirklich eingetragen sind. Schneller geht es mit <b>Rest wie geplant</b>: zuerst die "
+            "Abweichungen eintragen (z. B. eine Stange mehr), dann den Knopf drücken; alle übrigen Werte gelten als "
+            "erfasst wie kalkuliert (Meterpreis bleibt kalkuliert, Sonstige Kosten 0, Erlös = Verkaufspreis).",
             "Im Reiter <i>Angebote</i> zeigt die Spalte <b>Nachkalkuliert</b>, für welche Angebote Ist-Werte "
-            "vorliegen. Beim Kopieren werden die Ist-Werte nicht mitkopiert.",
+            "vorliegen, der Filter <i>Nachkalkulation offen</i> die beauftragten Angebote, die noch fehlen. Beim "
+            "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
     i.abschnitt("Schweißbaugruppen nachkalkulieren")
@@ -3145,6 +3175,9 @@ def kapitel_einstellungen(i):
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
          "Wert bleibt im neuen Angebot leer ([[lieferzeit]])."],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Angebot", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
+         "Vorgabe 1; 2; 5: Stufen, die der Knopf <b>Standard-Staffeln</b> und das erste Angebots-PDF ohne Stufe "
+         "anlegen ([[staffeln]])."],
         ["Ansicht", "Hilfetexte über Tabellen und Seiten",
          "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
          "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen, auch für "
@@ -3875,7 +3908,7 @@ def kapitel_stammdaten(i):
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
-           "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.30.")
+           "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.33.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "

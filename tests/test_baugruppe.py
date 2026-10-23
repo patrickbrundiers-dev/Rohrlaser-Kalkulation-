@@ -19,6 +19,7 @@
 - B18 Nahtkandidaten aus STEP als Vorschläge im Editor (Übernehmen/Verwerfen)
 - B19 Sollwerte einmal je Stand (T1), Datenprüfung mit Ort (T5), Nahtgruppen gelb + Sprung vom Status (D4)
 - B20 Baugruppen-Vorlagen speichern/einsetzen (P1), Baugruppe mit Teilen in ein anderes Angebot kopieren (P7)
+- B21 Schweißplan in den Werkstattpapieren (P2), Baugruppe in Kalkulation-PDF und CSV-Export (P3)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -706,5 +707,59 @@ assert {q["artikel"] for q in neu_pos[1:]} == {seite.positionen[j]["artikel"] fo
 for q in neu_pos:
     db.positionen_loeschen([q["id"]])
 ok(f"B20 Vorlage 'Gestell' ({v['inhalt']}) gespeichert und eingesetzt, Baugruppe mit {n - 1} Teilen kopiert")
+
+# ------------------------------------------------------------------ B21 P2 Schweißplan, P3 Kalkulation-PDF und CSV
+import zipfile as _zip  # noqa: E402
+from rohrlaser import export  # noqa: E402
+
+kopf, pos, k, tab, einst = laden()
+erg = rechnen.optimieren(kopf, pos, k, tab, einst)
+zeilen, summen = rechnen.kalkulation(kopf, pos, erg, k, tab, einst)
+plan = ausgabe.schweissplan(pos, tab)
+assert len(plan) == 1 and plan[0]["name"] == "Rahmen R1" and plan[0]["anzahl"] == 2
+b = plan[0]
+r_ = baugruppe.rechnen(pos[0], tab, saetze)
+nah(b["vorgabe_min"], r_["zeit_min"], "Vorgabezeit = Zeit der Kalkulation")
+assert [t["pos"] for t in b["teile"]] == [10, 20, 30] and [n["nr"] for n in b["naehte"]] == ["1", "2", "3"]
+assert b["struktur"][0]["name"] == "Querstrebe" and b["arbeitsgaenge"][2]["vorrichtung"]
+assert b["arbeitsgaenge"][4]["fremd"] and b["naehte"][1]["beidseitig"]
+assert not any("kosten" in x or "preis" in x for x in b["naehte"] + b["arbeitsgaenge"])     # ohne Preise
+wp = ausgabe.werkstatt(kopf, pos, erg, k, tab)
+assert wp["schweissplan"] == plan
+pdf.werkstatt_pdf(tmp / "wp.pdf", kopf, wp, einst=db.einstellungen())
+pdf.kalkulation_pdf(tmp / "kalk.pdf", kopf, zeilen, summen, db.einstellungen())
+try:
+    from pypdf import PdfReader  # noqa: E402
+except ImportError:
+    PdfReader = None
+if PdfReader:
+    text = "".join(s_.extract_text() for s_ in PdfReader(str(tmp / "wp.pdf")).pages)
+    assert "Schweißplan Pos. 100 Rahmen R1" in text and "Nahtgruppen" in text and "€" not in text.split("Schweißplan")[1]
+    text = "".join(s_.extract_text() for s_ in PdfReader(str(tmp / "kalk.pdf")).pages)
+    assert "Schweißbaugruppe Pos. 100 R1" in text and "Nahtgruppe 2" in text and "von Hand" in text
+bz = export.baugruppen_zeilen(pos, zeilen)
+assert len(bz) == 1 and len(bz[0]) == len(export.BAUGRUPPE_SPALTEN)
+werte = dict(zip(export.BAUGRUPPE_SPALTEN, bz[0]))
+assert werte["Pos"] == "100" and werte["Anzahl"] == "2" and werte["Nahtgruppen"] == "3"
+assert werte["Fertigung_EUR_je_BG"] == export.geld(114) and werte["Fremdleistung_EUR_je_BG"] == export.geld(15)
+nah(float(werte["Nahtlaenge_m_je_BG"]), sum(r_["naht_m"].values()), "Nahtlänge im CSV", 1e-3)
+kz, pz = export.daten(kopf, pos, erg, zeilen, summen, k, tab, einst)
+export.zip_schreiben(tmp / "mit.zip", kz, pz, bz)
+export.zip_schreiben(tmp / "ohne.zip", kz, pz, export.baugruppen_zeilen(pos[1:], zeilen[1:]))
+assert export.BAUGRUPPE_DATEI in _zip.ZipFile(tmp / "mit.zip").namelist()
+assert _zip.ZipFile(tmp / "ohne.zip").namelist() == [export.KOPF_DATEI, export.POSITION_DATEI]   # wie bisher
+# nur Baugruppe und Zukaufteil, kein Laserteil: Werkstattpapiere trotzdem (nur Schweißplan)
+a_nur = db.angebot_neu(dict(kunde="Test", maschine="T11"))
+bg_nur = dict(rahmen, id=baugruppe.neue_id())
+db.position_neu(a_nur, dict(pos=10, art=BAUGRUPPE, bezeichnung="Nur BG", stueck=1, baugruppe=baugruppe.speichern(bg_nur)))
+db.position_neu(a_nur, dict(pos=20, art=ZUKAUFTEIL, artikel="Lasche", stueck=1, zukauf=json.dumps([eintrag(lasche, 1)]),
+                            bg_knoten=bg_nur["id"], je_knoten=1))
+s_nur = f.angebot_oeffnen(a_nur)
+pfad_nur = s_nur.werkstatt_pdf()
+assert pfad_nur and Path(pfad_nur).exists()
+if PdfReader:
+    assert "Schweißplan" in "".join(x.extract_text() for x in PdfReader(str(pfad_nur)).pages)
+ok(f"B21 Schweißplan ({len(b['naehte'])} Nahtgruppen, Vorgabe {b['vorgabe_min']:.1f} min), Kalkulation-PDF und "
+   "Schweissbaugruppen.csv nur mit Baugruppe")
 
 print("\nAlle Baugruppen-Tests bestanden.")
