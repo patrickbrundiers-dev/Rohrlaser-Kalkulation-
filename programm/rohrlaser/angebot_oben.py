@@ -898,6 +898,11 @@ class UebersichtBereich(QWidget):
         self.einzeln.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.einzeln_bereich = Aufklapper("Kostenarten einzeln", self.einzeln)
         kl.addWidget(self.einzeln_bereich)
+        # Kostenwasserfall (Layout-Plan L22): wie der Preisaufbau Stufe für Stufe zum Verkaufspreis kommt
+        from .kostenbalken import Kostenwasserfall
+        self.wasserfall = Kostenwasserfall()
+        self.wasserfall_bereich = Aufklapper("Kostenwasserfall", self.wasserfall)
+        kl.addWidget(self.wasserfall_bereich)
         # Zeiten je Arbeitsschritt (Reiter 'Zeiten & Arbeitskosten'), Zeilen mit 0 ausgeblendet
         self.zeiten = QLabel()
         self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -1059,6 +1064,7 @@ class UebersichtBereich(QWidget):
             elif sichtbar(w):
                 html += f"<tr><td style='color:{GRAU}'>{t}</td><td align='right' style='color:{GRAU}'>{_z(w)} €</td></tr>"
         self.einzeln.setText(html + "</table>")
+        self.wasserfall.setzen(kosten)
 
     def _gruppe_umschalten(self, titel):
         """Klick auf eine Gruppe im Preisaufbau: ihre Kostenarten auf- oder zuklappen."""
