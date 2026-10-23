@@ -36,6 +36,12 @@ POSITION_SPALTEN = (
     "Marge Netto()", "Gesamt Einkauf()", "Gesamt Einkauf(Kg)", "Verschnitt", "Liste der Arbeitsgänge")
 assert len(KOPF_SPALTEN) == 26 and len(POSITION_SPALTEN) == 40
 KOPF_DATEI, POSITION_DATEI = "Angebotskopf.csv", "Angebotspositionen.csv"
+# Schweißbaugruppen (Verbesserung P3): eigene Datei im ZIP, nur wenn das Angebot Baugruppen hat; Kopf- und
+# Positionsdatei bleiben unverändert (festes Format)
+BAUGRUPPE_DATEI = "Schweissbaugruppen.csv"
+BAUGRUPPE_SPALTEN = ("Pos", "Artikel", "Bezeichnung", "Anzahl", "Schweisszeit_min_je_BG", "Nahtlaenge_m_je_BG",
+                     "Zeit_min_je_BG", "Fertigung_EUR_je_BG", "Fremdleistung_EUR_je_BG", "Einmalkosten_EUR_je_BG",
+                     "Herstellkosten_EUR_je_BG", "Preis_EUR_je_BG", "Nahtgruppen", "Arbeitsgaenge", "Richtwerte")
 TRENNER = ";"
 DEZIMAL = "."             # Dezimaltrennzeichen der Zahlen
 
@@ -296,6 +302,24 @@ def daten(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabellen, einst, k
     return [kz[s] for s in KOPF_SPALTEN], [[z[s] for s in POSITION_SPALTEN] for z in pz]
 
 
+def baugruppen_zeilen(positionen, kalk_zeilen):
+    """Eine Zeile je Schweißbaugruppe (Texte in BAUGRUPPE_SPALTEN): Zeiten, Nahtlänge und Kosten je Baugruppe aus der
+    Kalkulation. Leer ohne Baugruppe."""
+    out = []
+    for p, z in zip(positionen, kalk_zeilen):
+        if not z or not z.get("baugruppe"):
+            continue
+        bz = z.get("bg_zeilen") or ()
+        out.append([zahl(p.get("pos"), 0), _text(p.get("artikel")), _einzeilig(p.get("bezeichnung")),
+                    zahl(p.get("stueck"), 0), zahl(z.get("bg_schweiss_min"), 2),
+                    zahl(sum((z.get("bg_naht_m") or {}).values()), 3), zahl(z.get("bg_zeit_min"), 2),
+                    geld(z.get("bg_eigen_teil")), geld(z.get("bg_fremd_teil")), geld(z.get("bg_einmal_teil")),
+                    geld(z.get("herstell_teil")), geld(z.get("preis_teil")),
+                    str(sum(1 for x in bz if x["art"] == "Naht")), str(sum(1 for x in bz if x["art"] != "Naht")),
+                    "ja" if any((x.get("werte") or {}).get("richtwert") for x in bz) else "nein"])
+    return out
+
+
 # ------------------------------------------------------------------ Dateien
 def csv_bytes(spalten, zeilen):
     """CSV als Bytes: UTF-8 mit BOM, Semikolon, CRLF, Anführungszeichen nur wo nötig."""
@@ -333,12 +357,14 @@ def positionen_csv(pfad, pos_zeilen):
     _sicher_schreiben(pfad, csv_bytes(POSITION_SPALTEN, pos_zeilen))
 
 
-def zip_schreiben(pfad, kopfzeile, pos_zeilen):
-    """ZIP mit Angebotskopf.csv und Angebotspositionen.csv."""
+def zip_schreiben(pfad, kopfzeile, pos_zeilen, bg_zeilen=None):
+    """ZIP mit Angebotskopf.csv und Angebotspositionen.csv, mit Baugruppen dazu Schweissbaugruppen.csv."""
     puffer = io.BytesIO()
     with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(KOPF_DATEI, csv_bytes(KOPF_SPALTEN, [kopfzeile]))
         z.writestr(POSITION_DATEI, csv_bytes(POSITION_SPALTEN, pos_zeilen))
+        if bg_zeilen:
+            z.writestr(BAUGRUPPE_DATEI, csv_bytes(BAUGRUPPE_SPALTEN, bg_zeilen))
     _sicher_schreiben(pfad, puffer.getvalue())
 
 
