@@ -248,6 +248,12 @@ class StammdatenSeite(QWidget):
                                 "Richtwerte ersetzen")
             standard.clicked.connect(self.schneiddaten_zuruecksetzen)
             leiste.addWidget(standard)
+        if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
+            richt = QPushButton("Richtwerte laden")
+            richt.setToolTip("Fehlende Schweißverfahren, Kennwerte und Faktoren als Richtwerte eintragen; vorhandene "
+                             "Zeilen bleiben unverändert")
+            richt.clicked.connect(lambda: self.schweiss_richtwerte())
+            leiste.addWidget(richt)
         if tabelle.name == "kunden":
             export = QPushButton("CSV exportieren")
             export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
@@ -413,6 +419,33 @@ class StammdatenSeite(QWidget):
         from .rp_dialog import querschnitt_zeigen
         z = self.ausgewaehlt()
         return querschnitt_zeigen(self, (z or {}).get("profil_id", ""), stumm)
+
+    def schweiss_richtwerte(self, bestaetigt=None):
+        """Fehlende Richtwerte der Schweiß-Stammdaten eintragen (baugruppe.richtwerte_fehlend); vorhandene Zeilen
+        bleiben, wie sie sind. bestaetigt: Antwort auf die Rückfrage (Tests). Ergebnis: Anzahl neuer Zeilen."""
+        from . import baugruppe
+        fehlt = baugruppe.richtwerte_fehlend(self.db.tabellen())
+        n = sum(len(z) for z in fehlt.values())
+        if not n:
+            self.meldung("Alle Richtwerte sind schon eingetragen; vorhandene Zeilen werden nicht geändert.")
+            return 0
+        if bestaetigt is None:
+            text = (f"{len(fehlt['schweissverfahren'])} Schweißverfahren, {len(fehlt['schweiss_kennwerte'])} "
+                    f"Kennwerte und {len(fehlt['schweiss_faktoren'])} Faktoren fehlen und werden als Richtwerte "
+                    "eingetragen (Status Richtwert). Vorhandene Zeilen bleiben unverändert.\n\nRichtwerte sind aus "
+                    "dem Nahtquerschnitt hergeleitet, keine Erfahrungswerte der eigenen Fertigung: bitte prüfen und "
+                    "danach auf 'geprüft' stellen.\n\nJetzt eintragen?")
+            bestaetigt = QMessageBox.question(self, "Richtwerte laden", text, QMessageBox.Yes | QMessageBox.No,
+                                              QMessageBox.Yes) == QMessageBox.Yes
+        if not bestaetigt:
+            return 0
+        for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):    # Verfahren zuerst (Verweis)
+            for z in fehlt[name]:
+                self.db.neu(name, z)
+        f = self.window()
+        f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu, vorhandene unverändert.")
+        return n
 
     def schneiddaten_zuruecksetzen(self):
         """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage

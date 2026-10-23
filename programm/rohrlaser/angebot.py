@@ -78,10 +78,14 @@ def kalk_abweichungen(kopf, vorgaben):
 # Positionsart: leer = Rohrlaserteil (Profil, Optimierung, Laser); Zukaufteil = eingekauftes Teil ohne Fertigung
 # (z. B. Blech aus dem STEP-Import), Preis nur aus den Zukaufteilen der Position (Einstand + Aufschlag) und Fracht
 ROHRLASERTEIL, ZUKAUFTEIL = "Rohrlaserteil", "Zukaufteil"
+# Schweißbaugruppe (Patrick 23.10.2026, Plan Schweißbaugruppen 1a): trägt nur die eigenen Leistungen der Baugruppe
+# (Nahtgruppen, Arbeitsgänge, Vorrichtungen; baugruppe.py), ihre Einzelteile sind die Positionen, die ihr über
+# bg_knoten zugeordnet sind; Preis je Baugruppe = Satz aus Teilen und Baugruppen-Position
+BAUGRUPPE = "Schweißbaugruppe"
 # Herkunft des Materials je Position: leer = Eigenmaterial (wie bisher); Kundenmaterial: keine Materialkosten,
 # eigene Stangengruppe, Bearbeitung wie sonst
 
-POSITIONSARTEN = (ROHRLASERTEIL, ZUKAUFTEIL)
+POSITIONSARTEN = (ROHRLASERTEIL, ZUKAUFTEIL, BAUGRUPPE)
 
 
 def ist_zukaufteil(p):
@@ -89,9 +93,19 @@ def ist_zukaufteil(p):
     return (p or {}).get("art") == ZUKAUFTEIL
 
 
+def ist_baugruppe(p):
+    """True für eine Position der Art Schweißbaugruppe (Leistungen der Baugruppe, ohne Profil und Laser)."""
+    return (p or {}).get("art") == BAUGRUPPE
+
+
+def kein_laserteil(p):
+    """True für Positionen ohne Rohrlaser-Bearbeitung (Zukaufteil, Schweißbaugruppe): nicht optimiert, nicht gelasert."""
+    return (p or {}).get("art") in (ZUKAUFTEIL, BAUGRUPPE)
+
+
 def aktiv(p):
-    """Position, die kalkuliert wird: Rohrlaserteil mit Profil oder Zukaufteil."""
-    return ist_zukaufteil(p) or (p or {}).get("profil_id") not in (None, "")
+    """Position, die kalkuliert wird: Rohrlaserteil mit Profil, Zukaufteil oder Schweißbaugruppe."""
+    return kein_laserteil(p) or (p or {}).get("profil_id") not in (None, "")
 
 
 # ------------------------------------------------------------------ Lieferzeit
@@ -234,7 +248,13 @@ POSITIONEN = Tabelle(
      # ebene schräge Enden (Gehrung) für das Ineinanderlegen: JSON {winkel, richtung}, richtung = Umfangswinkel, in
      # dem das Teil an diesem Ende am längsten ist (naht.py-Zählung); STEP-Import oder Schneidweg-Rechner
      Feld("a_ende", "Gehrung Anfang", breite=90),
-     Feld("b_ende", "Gehrung Ende", breite=90)),
+     Feld("b_ende", "Gehrung Ende", breite=90),
+     # Schweißbaugruppen (baugruppe.py, Schema 46): auf der Position der Art Schweißbaugruppe die Baugruppe als JSON
+     # (Stammdaten, Unterbaugruppen, Arbeitsgänge, Nahtgruppen); auf Einzelteilen die Zuordnung 'Baugruppen-ID/Knoten'
+     # und die Menge je direkt übergeordneter (Unter-)Baugruppe. Leer = keine Baugruppe (ältere Positionen)
+     Feld("baugruppe", "Schweißbaugruppe", breite=150),
+     Feld("bg_knoten", "Baugruppe (Zuordnung)", breite=120),
+     Feld("je_knoten", "Stück je Baugruppe", "ganz", 1, 100000, breite=70)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")
