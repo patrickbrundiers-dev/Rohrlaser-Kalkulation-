@@ -950,7 +950,7 @@ def anzeige_stangen(ergebnis, sw=None):
             st = dict(nr=len(out) + 1, profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=s.get("oberflaeche"),
                       stange=x["laenge"], grundlaenge=s.get("grundlaenge"), end=x["end"], greif=x["greif"], greif_3d=x.get("greif_3d", False),
                       verlust=verlust, trennungen=len(teile), gemeinsam=sum(1 for t in teile if t.get("eingespart_mm")),
-                      belegung=belegung.get(f"W{x['nr']} {mm_text(x['laenge'])}", ""), teile=teile)
+                      belegung=belegung.get(f"W{x['nr']} {mm_text(x['laenge'])}", ""), teile=teile, zugeschnitten=True)
             if s.get("beistellung"):
                 st["beistellung"] = s["beistellung"]
             wx = None
