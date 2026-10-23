@@ -754,7 +754,8 @@ def kapitel_angebote(i):
     i.text("Beim Kopieren ist der bisherige Kunde vorgeschlagen. Ein anderer Kunde bringt Name und "
            "Zahlungsbedingungen aus dem Kundenstamm mit; Positionen und Staffeln werden mitkopiert.",
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
-           "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es. <b>Strg+Tab</b> wechselt zwischen "
+           "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es; die Liste filtert, sobald man kurz "
+           "mit dem Tippen aufhört. <b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
 
 

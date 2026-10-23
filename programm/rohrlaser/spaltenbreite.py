@@ -9,6 +9,9 @@ Regeln (für alle Tabellen gleich, damit das Layout ruhig und übersichtlich ble
 - Zeilen mit langem Text werden höher (Text umgebrochen), höchstens MAX_ZEILEN Textzeilen; der Rest wird mit …
   gekürzt und steht vollständig im Tooltip. Zeilen ohne langen Text bleiben einzeilig, damit wenig gescrollt wird.
 - Bei sehr vielen Zeilen (über MAX_ANZAHL) bleiben die Zeilen einzeilig (Geschwindigkeit).
+- Die Spaltenbreite richtet sich nach den sichtbaren und höchstens PRUEF_ZEILEN Zeilen (Geschwindigkeit: die
+  Angebotsliste mit 1.000 Angeboten brauchte sonst 4,6 s je Taste im Suchfeld; Performance-Audit F1, 23.10.2026).
+  Ein sehr langer Eintrag weiter unten kann dann gekürzt sein, er steht vollständig im Tooltip.
 - Eine Tabelle, die gerade nicht zu sehen ist (anderer Reiter), wird erst beim Zeigen eingepasst (Performance-Audit
   22.10.2026: das Einpassen verdeckter Tabellen kostete beim Angebots-PDF eines Angebots mit 200 Positionen ~20 s).
 """
@@ -19,6 +22,7 @@ MAX_BREITE = 260
 MIN_BREITE = 40
 MAX_ZEILEN = 3
 MAX_ANZAHL = 500
+PRUEF_ZEILEN = 100
 
 
 def kopfbreite(ansicht, c):
@@ -56,6 +60,7 @@ class AutoGroesse(QObject):
         ansicht.setTextElideMode(Qt.ElideRight)
         kopf = ansicht.horizontalHeader()
         kopf.sectionResized.connect(self._gezogen)
+        kopf.setResizeContentsPrecision(PRUEF_ZEILEN)      # sizeHintForColumn: sichtbare + bis zu so viele Zeilen
         # Köpfe zweizeilig (Regel oben), sonst wird ein langer Kopf trotz passender Breite abgeschnitten
         kopf.setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
         kopf.setMinimumHeight(max(kopf.minimumHeight(), 2 * kopf.fontMetrics().lineSpacing() + 12))
