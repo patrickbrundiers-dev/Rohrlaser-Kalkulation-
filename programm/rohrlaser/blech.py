@@ -8,7 +8,10 @@ Eingaben (JSON in positionen.technik, quelle QUELLE):
   werkstoff, dicke [mm], art ZUSCHNITT oder KANTTEIL, stueck
   Zuschnitt: form RECHTECK (laenge, breite, eckradius) oder POLYGON (punkte 'x,y; x,y; …')
   Kantteil: kantlaenge (Länge der Biegekanten) und schenkel [{laenge (Außenmaß), winkel (Biegewinkel zum
-            nächsten Schenkel, + nach oben, − nach unten), radius (Innenradius, leer = Blechdicke)}]
+            nächsten Schenkel, + nach oben, − nach unten), radius (Innenradius, leer = Blechdicke)}]; mit form
+            POLYGON und punkte eine freie Außenkontur der Abwicklung (x längs der Kante, y ab Schenkel 1)
+  Mehrachsig gekantet (STEP-Import, Schale, Kasten): Zuschnitt mit kantungen (Anzahl) und biegelinien [{punkte
+            (Mittellinie [[x, y], [x, y]]), winkel, ba (Bogenlänge)}] für Skizze und 3D-Ansicht
   konturen: Innenkonturen wie im Schneidweg-Rechner (Bohrung, Senkung, Langloch, Rechteck, Polygon, sonstige)
             mit Anzahl, optional x/y = Mitte in der Abwicklung [mm]
 
@@ -109,8 +112,18 @@ def zuschnitt(e, k=K_FAKTOR):
         bg, breite = biegungen(e, k)
         if breite <= 0:
             raise ValueError("Kantteil: Abwicklung ergibt keine Länge.")
-        return dict(laenge=lg, breite=breite, flaeche=lg * breite, aussen=2 * (lg + breite), biegungen=bg,
-                    punkte=None)
+        erg = dict(laenge=lg, breite=breite, flaeche=lg * breite, aussen=2 * (lg + breite), biegungen=bg,
+                   punkte=None, hinweise=[])
+        pk = sw.punkte(e.get("punkte")) if e.get("form") == POLYGON else []
+        if len(pk) >= 3:        # freie Außenkontur der Abwicklung (STEP-Import: Ausklinkungen, Laschen)
+            xs, ys = [x for x, _ in pk], [y for _, y in pk]
+            erg.update(flaeche=flaeche_polygon(pk), punkte=pk,
+                       aussen=sum(math.dist(pk[i], pk[(i + 1) % len(pk)]) for i in range(len(pk))))
+            if abs(max(xs) - min(xs) - lg) > 1 or abs(max(ys) - min(ys) - breite) > 1:
+                erg["hinweise"].append(
+                    f"Außenkontur {zahl_mm(max(xs) - min(xs))} × {zahl_mm(max(ys) - min(ys))} mm passt nicht zu "
+                    f"Kantlänge × Abwicklung {zahl_mm(lg)} × {zahl_mm(breite)} mm: Polygon prüfen")
+        return erg
     if e.get("form") == POLYGON:
         pk = sw.punkte(e.get("punkte"))
         if len(pk) < 3:
@@ -126,6 +139,17 @@ def zuschnitt(e, k=K_FAKTOR):
         raise ValueError("Zuschnitt: Eckradius höchstens halbe Seite.")
     return dict(laenge=lg, breite=br, flaeche=lg * br - (4 - math.pi) * r * r,
                 aussen=2 * (lg + br) - 8 * r + 2 * math.pi * r, biegungen=[], punkte=None)
+
+
+def zahl_mm(x):
+    return f"{round(float(x), 1):g}".replace(".", ",")
+
+
+def kantungen(e, zs=None):
+    """Anzahl Kantungen: Biegungen des Kantteils, beim mehrachsig gekanteten Zuschnitt die gezählten."""
+    if e.get("art") == KANTTEIL:
+        return len((zs or {}).get("biegungen") or biegungen(e)[0])
+    return max(int(_z(e.get("kantungen"))), 0)
 
 
 def schneiddaten(zeilen, kategorie, dicke):
@@ -145,7 +169,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     erg = dict(fehler=[], zuschnitt=None, gewicht=None, gewicht_tafel=None, schneidweg=None, aussen=None, innen=None,
                einstiche=None, zeit=None, kosten={}, summe=None, richtpreis=None, gas=None, kantungen=0,
-               konturen=[])
+               konturen=[], hinweise=[])
     wst = werkstoffe.get(e.get("werkstoff"))
     s = _z(e.get("dicke"))
     if not wst:
@@ -159,6 +183,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         erg["fehler"].append(str(x))
         return erg
     erg["zuschnitt"] = zs
+    erg["hinweise"] = list(zs.get("hinweise") or ())
     innen, einstiche, loch = 0.0, 1, 0.0
     for i, z in enumerate(e.get("konturen") or [], 1):
         try:
@@ -171,7 +196,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         loch += kontur_flaeche(z) * n
         erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
     erg.update(aussen=zs["aussen"], innen=innen, schneidweg=zs["aussen"] + innen, einstiche=einstiche,
-               kantungen=len(zs["biegungen"]))
+               kantungen=kantungen(e, zs))
     if erg["fehler"]:
         return erg
     dichte = _z(wst.get("dichte"))
@@ -229,10 +254,32 @@ def _konturen_mit_lage(liste):
 
 def aus_step(b, werkstoff, stueck=1):
     """Eingaben des Blech-Editors aus einem im STEP-Import gemessenen Blech b (step.blech). Mit Lage (Messung ab
-    0.8.23): jede Innenkontur an ihrer Stelle (x/y im Zuschnitt), freie Außenkontur als Polygon. Ältere Messungen:
-    Zuschnitt als Rechteck der Hüllmaße, Bohrungen je Durchmesser, die übrigen Innenkonturen als sonstige Kontur mit
-    ihrer mittleren Schnittlänge. Gekantet: Zuschnitt mit der Abwicklungsfläche (Breite = Fläche / Länge), die
-    Schenkel misst der Import nicht (im Editor als Kantteil nachtragen)."""
+    0.8.23): jede Innenkontur an ihrer Stelle (x/y im Zuschnitt), freie Außenkontur als Polygon. Gekantet mit
+    Abwicklung (Messung ab 0.8.37): Kantteil mit Kantlänge, Schenkeln, Biegungen und den Konturen der Abwicklung;
+    mehrachsig gekantet (Schale, Kasten) als Zuschnitt mit Außenkontur, gezählten Kantungen und Biegelinien.
+    Ältere Messungen: Zuschnitt als Rechteck der Hüllmaße, Bohrungen je Durchmesser, die übrigen Innenkonturen als
+    sonstige Kontur mit ihrer mittleren Schnittlänge; gekantet mit der Abwicklungsfläche (Breite = Fläche / Länge),
+    die Schenkel im Editor als Kantteil nachtragen."""
+    stueck = max(int(_z(stueck) or 1), 1)
+    abw = b.get("abwicklung") if b.get("kontur") == "gekantet" else None
+    if isinstance(abw, dict) and not abw.get("fehler") and _z(abw.get("laenge")) > 0:
+        e = dict(quelle=QUELLE, werkstoff=werkstoff, dicke=_z(b.get("dicke")), stueck=stueck, eckradius=0,
+                 konturen=_konturen_mit_lage(b.get("konturen_lage") or ()), form=RECHTECK, punkte=None,
+                 laenge=round(_z(abw["laenge"]), 1), breite=round(_z(abw["breite"]), 1))
+        if len(b.get("aussen_punkte") or ()) >= 3:
+            e.update(form=POLYGON, punkte="; ".join(f"{_zahl(x)},{_zahl(y)}" for x, y in b["aussen_punkte"]))
+        schenkel = abw.get("schenkel") or []
+        if not abw.get("mehrachsig") and len(schenkel) >= 2:
+            e.update(art=KANTTEIL, kantlaenge=round(_z(abw.get("kantlaenge") or abw["laenge"]), 1),
+                     schenkel=[dict(laenge=round(_z(x.get("laenge")), 2), winkel=round(_z(x.get("winkel")), 1),
+                                    radius=None if x.get("radius") is None else round(_z(x["radius"]), 2))
+                               for x in schenkel])
+        else:
+            e.update(art=ZUSCHNITT, schenkel=[], kantlaenge=e["laenge"],
+                     kantungen=int(_z(abw.get("kantungen")) or len(abw.get("biegelinien") or ())),
+                     biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"))
+                                  for x in abw.get("biegelinien") or () if len(x.get("punkte") or ()) == 2])
+        return e
     lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
     gekantet = b.get("kontur") == "gekantet"
     if gekantet and _z(b.get("abwicklung_flaeche")) > 0 and lg > 0:
@@ -257,7 +304,7 @@ def aus_step(b, werkstoff, stueck=1):
     if rest_n > 0 and rest_l > 1:
         konturen.append(dict(art=sw.SONSTIGE, anzahl=rest_n, laenge=round(rest_l / rest_n, 1), x=None, y=None))
     return dict(quelle=QUELLE, art=ZUSCHNITT, form=form, punkte=punkte, werkstoff=werkstoff,
-                dicke=_z(b.get("dicke")), laenge=lg, breite=br, eckradius=0, stueck=max(int(_z(stueck) or 1), 1),
+                dicke=_z(b.get("dicke")), laenge=lg, breite=br, eckradius=0, stueck=stueck,
                 konturen=konturen, schenkel=[], kantlaenge=lg)
 
 
@@ -279,8 +326,8 @@ def bezeichnung_vorschlag(e, zs=None):
     zs = zs or {}
     s = f"{_z(e.get('dicke')):g}".replace(".", ",")
     werk = e.get("werkstoff") or ""
-    if e.get("art") == KANTTEIL:
-        n = len(zs.get("biegungen") or [])
+    n = kantungen(e, zs) if zs else 0
+    if e.get("art") == KANTTEIL or n:
         return (f"Kantteil {_z(zs.get('laenge')):.0f} × {_z(zs.get('breite')):.0f} × {s} {werk} "
                 f"({n} Kantung{'en' if n != 1 else ''})").strip()
     return f"Blech {_z(zs.get('laenge')):.0f} × {_z(zs.get('breite')):.0f} × {s} {werk}".strip()

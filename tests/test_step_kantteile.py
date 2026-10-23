@@ -19,6 +19,12 @@ Blech-Editor, STEP robuster“, Freigabe 1a 2a 3b 4a):
 - G2 Prägung im Rundrohr: Gravur mit Tiefe 0,2 und Umriss um 0°
 - V1 zwei gekreuzte Quadratrohre gleicher Hülle (Rahmengestell 23.10.2026): beide Quadratrohr, kein Verbundkern
 - J1 STEP-JSON 1.12: Abwicklung, Umriss, Wände im Ergebnis
+- E1 Blech-Editor aus der Messung (blech.aus_step): Winkel/Z als Kantteil mit Schenkeln und Bohrungen an ihrer
+  Stelle, U mit Ausklinkungen mit Polygon-Außenkontur, Schale als Zuschnitt mit 4 Kantungen und Biegelinien; der
+  Schneidweg des Editors ist der Schneidweg der STEP-Abwicklung; 3D-Ansicht gefaltet in den Außenmaßen
+- R1 Rohr-Editor aus der Messung (step.rechner_eingaben): Sonderkontur mit Umriss und Wänden, Mitte über der Ecke
+  richtig platziert, Gravur-Zeilen mit Tiefe (Summe = gemessene Gravur), komplexes Ende mit Umriss; Schneidweg und
+  Gravur im Rechner wie gemessen
 
 Teile werden mit OpenCascade erzeugt (tests/erzeuge_testteile.py) und mit step_messung gemessen.
 Aufruf: python tests/test_step_kantteile.py
@@ -208,4 +214,154 @@ j = step_ergebnis.koerper(messen("S1_Ecke")[0])
 assert j["konturen"][0]["umriss"] and j["konturen"][0]["waende"]
 json.dumps(j)
 ok("J1 STEP-JSON 1.12: Abwicklung, Umriss und Wände im Ergebnis")
+from rohrlaser import blech, blech3d  # noqa: E402
+for name, art, n_kant in (("K1_Winkel", blech.KANTTEIL, 1), ("K3_Z", blech.KANTTEIL, 2),
+                          ("K5_U_Ausklinkung", blech.KANTTEIL, 2), ("K6_Schale", blech.ZUSCHNITT, 4)):
+    (t,) = messen(name)
+    k = t if t.profilform == "Blech gekantet" else t.alternative
+    b = json.loads(json.dumps(k.blech))         # wie aus der Messwert-Datei
+    e = blech.aus_step(b, "S235JR")
+    zs = blech.zuschnitt(e)
+    sw_editor = zs["aussen"] + sum(blech.sw.kontur(z)[0] * z["anzahl"] for z in e["konturen"])
+    assert e["art"] == art and blech.kantungen(e, zs) == n_kant, (name, e)
+    assert nah(sw_editor, b["umfang_aussen"] + b["umfang_innen"], 0.5), (name, sw_editor, b["umfang_aussen"])
+    netz = blech3d.netz(dict(e, dicke=b["dicke"]), zs)
+    p = netz["p"]
+    ausdehnung = sorted(max(p[i::3]) - min(p[i::3]) for i in range(3))
+    soll = sorted((b["laenge"], b["breite"], b["hoehe"]))
+    assert all(abs(x - y) <= b["dicke"] + 0.5 for x, y in zip(ausdehnung, soll)), (name, ausdehnung, soll)
+    if name == "K1_Winkel":
+        assert [x["laenge"] for x in e["schenkel"]] == [100, 50] and e["kantlaenge"] == 300
+        assert len(e["konturen"]) == 6 and all(z["x"] is not None for z in e["konturen"])
+    if name == "K5_U_Ausklinkung":
+        assert e["form"] == blech.POLYGON and not zs["hinweise"], zs["hinweise"]
+    if name == "K6_Schale":
+        assert e["form"] == blech.POLYGON and len(e["biegelinien"]) == 4
+ok("E1 Blech-Editor aus der Messung: Kantteil/Schale, Schneidweg wie STEP, 3D gefaltet in den Außenmaßen")
+import step_messen  # noqa: E402
+from rohrlaser import schneidweg as sw, skizze as sk, step  # noqa: E402
+step_messen.main(["--ausgabe", str(tmp / "r1.csv")] + [str(tmp / f"{n}.step") for n in
+                                                        ("S1_Ecke", "S2_drei_Waende", "S3_Ausklinkung_Ende",
+                                                         "G1_Praegung", "G2_Praegung_RR")])
+for m in step.lies_messwerte(tmp / "r1.csv"):
+    name = Path(m["datei"]).stem
+    a_, b_ = float(m["abm_a"]), float(m["abm_b"] or 0) or None
+    profil = dict(form=m["profilform"], a=a_, b=b_, wand=float(m["wandstaerke"]), profil_id="X")
+    e = step.rechner_eingaben(m, m["profilform"], a_, b_)
+    erg = sw.rechnen(e, profil, (10, 50))
+    assert not erg["fehler"] and nah(erg["schneidweg"], float(m["schneidweg"]), 0.15), (name, erg["fehler"])
+    assert nah(erg["felder"]["gravur"] or 0, float(m["gravur"] or 0), 0.15), (name, erg["felder"]["gravur"])
+    qs = sk.Querschnitt(profil)
+    if name.startswith("S"):
+        sonder = [k for k in e["konturen"] if k["art"] == sw.SONDERKONTUR]
+        if name == "S3_Ausklinkung_Ende":
+            assert e["a"].get("umriss") or e["b"].get("umriss"), e
+            continue
+        (k,) = sonder
+        assert len(k["umriss"]) >= 4 and len(k["waende"]) == (2 if name == "S1_Ecke" else 3)
+        d = sk.lagen([k], float(m["laenge"]))[0]
+        n = {(round(x[0]), round(x[1])) for x in sk.normalen(qs, d)}
+        assert len(n) >= len(k["waende"]), (name, n)
+    else:
+        gr = [k for k in e["konturen"] if k["art"] == sw.GRAVUR]
+        assert gr and all(k["tiefe"] == 0.2 and k.get("umriss") for k in gr), gr
+ok("R1 Rohr-Editor aus der Messung: Sonderkontur mit Umriss über die Wände, Gravur-Zeilen, komplexes Ende, "
+   "Schneidweg und Gravur wie gemessen")
+
+# ------------------------------------------------------------------ U1 Profil von Hand geändert (3b)
+mw = {Path(m["datei"]).stem: m for m in step.lies_messwerte(tmp / "r1.csv")}
+step_messen.main(["--ausgabe", str(tmp / "u1.csv"), str(tmp / "S4_Bohrung_durch.step")])
+mw.update({Path(m["datei"]).stem: m for m in step.lies_messwerte(tmp / "u1.csv")})
+
+
+def eingaben_von(name):
+    m = mw[name]
+    a_, b_ = float(m["abm_a"]), float(m["abm_b"] or 0) or None
+    return m, step.rechner_eingaben(m, m["profilform"], a_, b_), dict(form=m["profilform"], a=a_, b=b_,
+                                                                      wand=float(m["wandstaerke"]), profil_id="X")
+
+
+m, e, gemessen_pr = eingaben_von("S1_Ecke")
+assert all(k.get("messprofil") for k in e["konturen"]), e["konturen"]
+gleich = sw.konturen_umstellen(e, gemessen_pr)
+assert gleich[1:] == ([], 0.0, 0.0), gleich[1:]          # gleiches Profil: nichts ändert sich
+(k,) = [k for k in e["konturen"] if k["art"] == sw.SONDERKONTUR]
+z, (alt, neu) = sw.kontur_umstellen(k, dict(gemessen_pr, wand=4))      # nur die Wand: Umriss bleibt
+assert nah(neu, alt, 0.01 * alt) and "gemessen" not in z and z["messprofil"].endswith("|4.00"), (alt, neu)
+breiter = dict(form="Rechteckrohr", a=80, b=40, wand=3, profil_id="RE 80x40x3")
+z, (alt, neu) = sw.kontur_umstellen(k, breiter)
+# Ecke bleibt Ecke: der Teil auf der Breitseite wächst mit 80/60, der auf der Schmalseite bleibt
+assert alt + 1 < neu < alt * 80 / 60, (alt, neu)
+assert z.get("seite", "oben") in ("oben", "vorne", "hinten") and z["huelle"] >= k["huelle"], z
+r_neu = sw.rechnen(e, breiter, (10, 50))
+e2, hinw, d_s, _ = sw.konturen_umstellen(e, breiter)
+r2 = sw.rechnen(e2, breiter, (10, 50))
+assert nah(r_neu["felder"]["innen"], r2["felder"]["innen"], 0.05) and nah(d_s, neu - alt, 0.05), (r_neu["felder"], d_s)
+assert "neu gerechnet" in hinw[0] and any("neu gerechnet" in h for h in r_neu["hinweise"]), (hinw, r_neu["hinweise"])
+assert sw.konturen_umstellen(e2, breiter)[1] == []              # einmal umgestellt: bleibt
+d = sk.lagen([z], float(m["laenge"]))[0]                          # Skizze: Umriss über die Ecke des neuen Profils
+assert len({(round(x[0]), round(x[1])) for x in sk.normalen(sk.Querschnitt(breiter), d)}) >= 2
+
+m, e, gemessen_pr = eingaben_von("S4_Bohrung_durch")          # Bohrungen: mit dem Ø neu gerechnet
+qr = dict(form="Quadratrohr", a=80, b=80, wand=4, profil_id="QR 80x80x4")
+e2, hinw, d_s, _ = sw.konturen_umstellen(e, qr)
+assert all(k["art"] == sw.BOHRUNG and "gemessen" not in k for k in e2["konturen"]) and hinw, e2["konturen"]
+assert nah(sw.rechnen(e2, qr, (10, 50))["felder"]["innen"], 2 * math.pi * 12, 0.2)
+
+m, e, gemessen_pr = eingaben_von("G2_Praegung_RR")             # Gravur auf Rundrohr: Umfang wächst mit
+rr = dict(form="Rundrohr", a=48.3, wand=2.6, profil_id="RR 48,3x2,6")
+e2, hinw, d_s, d_g = sw.konturen_umstellen(e, rr)
+(g,) = [k for k in e2["konturen"] if k["art"] == sw.GRAVUR]
+(g0,) = [k for k in e["konturen"] if k["art"] == sw.GRAVUR]
+assert d_s == 0 and d_g > 0 and g["laenge"] > g0["laenge"] and "Gravur +" in hinw[0], (hinw, g, g0)
+spanne = lambda u: max(y for _, y in u) - min(y for _, y in u)     # noqa: E731
+assert nah(spanne(g["umriss"]) / spanne(g0["umriss"]), 48.3 / 42.4, 0.02)
+e3 = sw.konturen_umstellen(e, dict(form="Quadratrohr", a=40, b=40, wand=2, profil_id="QR"))[0]   # rund -> eckig
+assert all(k.get("laenge", 1) > 0 for k in e3["konturen"])
+
+sonst = dict(art=sw.SONSTIGE, anzahl=1, x=100, gemessen=55.0, laenge=55.0, messprofil=k["messprofil"])
+e4, hinw, d_s, _ = sw.konturen_umstellen(dict(konturen=[sonst]), breiter)
+r4 = sw.rechnen(dict(konturen=[sonst]), breiter, (10, 50))
+assert e4["konturen"][0] == sonst and d_s == 0 and "nicht umrechenbar" in hinw[0] and r4["felder"]["innen"] == 55.0
+assert any("nicht umrechenbar" in h for h in r4["hinweise"]), r4["hinweise"]
+ok("U1 Profil von Hand geändert: Sonderkontur auf den neuen Querschnitt übertragen (Ecke bleibt Ecke), Bohrungen mit "
+   "dem Ø, Gravur mit dem Umfang, sonstige Kontur gemessen mit Hinweis")
+
+# ------------------------------------------------------------------ U2 Übernahme, Rohr-Editor, von Hand nachgetragen
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtWidgets import QApplication  # noqa: E402
+from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+from rohrlaser.schneidweg_dialog import SchneidwegDialog  # noqa: E402
+app = QApplication.instance() or QApplication([])
+db = Datenbank(tmp / "rohrlaser.db")
+k = db.kontext()
+m = dict(mw["S1_Ecke"], _profil="RE 120x60x4", _uebernehmen=True)
+erg = step.uebernehmen([m], [], k, db.zeilen("gewinde"), k.maschinen["T03"], "S235-10219", 1, erneut=True)
+(p,) = erg["positionen"]
+txt = " | ".join(erg["bericht"])
+pr = dict(k.profile["RE 120x60x4"], profil_id="RE 120x60x4")
+r = sw.rechnen(sw.lesen(p["technik"]), pr, (10, 50))
+assert "Kontur für Profil RE 120x60x4 neu gerechnet: Schneidweg" in txt and "→" in txt, txt
+assert nah(r["felder"]["schneidweg"], p["schneidweg"], 0.3) and nah(r["felder"]["innen"], p["innen"], 0.3), (r, p)
+assert all(z["messprofil"].startswith("Rechteckrohr|120.00|60.00") for z in sw.lesen(p["technik"])["konturen"])
+fenster = Hauptfenster(db, tmp, stumm=True)
+a = db.angebot_neu(dict(kunde="Test", kundennr="4711", maschine="T03"))
+e = step.rechner_eingaben(mw["S1_Ecke"], "Rechteckrohr", 60, 40)       # gespeichert am gemessenen Profil …
+db.position_neu(a, dict(pos=10, artikel="U2", profil_id="RE 120x60x4", werkstoff_id="S235-10219", laenge=1000,
+                        stueck=1, technik=sw.speichern(e)))              # … Profil danach von Hand geändert
+seite = fenster.angebot_oeffnen(a)
+d = SchneidwegDialog(seite, seite.positionen[0], pr, seite.kopf, seite.k, seite.tabellen)
+z = d.eingaben()["konturen"][0]
+assert "gemessen" not in z and z["messprofil"].startswith("Rechteckrohr|120.00") and \
+    z["laenge"] > e["konturen"][0]["gemessen"], z
+assert not d.step_info.isHidden() and "Profil geändert" in d.step_info.text(), d.step_info.text()
+assert nah(d.ergebnis["felder"]["innen"], r["felder"]["innen"], 0.3), (d.ergebnis["felder"], r["felder"], txt)
+d.reject()
+v = dict(mw["S1_Ecke"], huelle="1000|60|40", pruefstatus="nicht messbar", profilform="")   # von Hand nachgetragen
+assert step.von_hand(v, "Rechteckrohr", "RE 60x40x3", k.profile)
+assert json.loads(v["konturen_liste"]) and "1 Konturen aus der Messung übernommen" in v["hinweise"], v["hinweise"]
+assert nah(float(v["schneidweg"]), 2 * float(v["ende_a"]) + float(mw["S1_Ecke"]["innen"]), 0.01)
+ok("U2 Übernahme und Rohr-Editor mit geändertem Profil: Kontur neu gerechnet, Schneidweg passt zum Rechner; von Hand "
+   "nachgetragen: Konturen der Messung bleiben")
 print("Alle Kantteil-, Sonderkontur- und Gravur-Tests bestanden.")

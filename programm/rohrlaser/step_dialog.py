@@ -131,6 +131,8 @@ class StepPruefDialog(QDialog):
         from . import step
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
+        if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
+            step.kantteile_vorbelegen(messwerte, k.profile)
         self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
         self.werkstoff, self.stueck, self.zukauf_liste = werkstoff, stueck, zukauf_liste
         mit_blechen = zukauf_liste is not None

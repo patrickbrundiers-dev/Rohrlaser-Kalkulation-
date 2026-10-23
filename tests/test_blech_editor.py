@@ -7,6 +7,10 @@
   ältere Datei (Schema 36) bekommt die Blech-Tabellen.
 - B4 Angebot: Neue Position → Blech / Kantteil legt Zukaufartikel (Blechteile, Artikeltyp Blech, Richtpreis als EK)
   und Position an; erneut öffnen trägt den neuen Richtpreis ab Stückzahl ein.
+- B6 Kantteil aus dem STEP-Import (Patrick 23.10.2026): Kantteil mit Polygon-Außenkontur (Fläche, Schnittlänge,
+  Hinweis bei unpassender Kontur), mehrachsig gekanteter Zuschnitt mit gezählten Kantungen (Kosten Kanten),
+  Editor mit 3D-Ansicht (gefaltet, Blickrichtung bleibt beim Tippen), Biegelinien bleiben gespeichert;
+  Profil/Kantteil im Prüfdialog: Profil nur, wenn es in den Stammdaten steht.
 - B5 Staffelstufe: andere Stückzahl -> Richtpreis für die Stückzahl der Stufe neu, EK aus dem Einkauf (ab ≤ Stückzahl)
   geht vor; gleiche Stückzahl wie im Angebot = gleicher Preis.
 
@@ -229,4 +233,50 @@ ap = angebotspreise(s.positionen, s._rechnung()[0])
 assert nah(gleich["preis_einheit"], ap[str(p["pos"])], 0.005), (gleich["preis_einheit"], ap)
 ok("B5 Staffelstufe: Richtpreis für die Stückzahl der Stufe neu, EK aus dem Einkauf ab 50 St geht vor, "
    "Stückzahl des Angebots = Angebotspreis")
+# ------------------------------------------------------------------ B6 Kantteil aus dem STEP-Import
+from rohrlaser import blech3d, step  # noqa: E402
+from rohrlaser.blech_dialog import BlechDialog  # noqa: E402
+u = dict(werkstoff="S235JR", dicke=2, art=blech.KANTTEIL, kantlaenge=200, stueck=1,
+         schenkel=[dict(laenge=30, winkel=90), dict(laenge=60, winkel=90), dict(laenge=30)])
+zs = blech.zuschnitt(u)
+br = zs["breite"]
+poly = dict(u, form=blech.POLYGON, punkte=f"0,0; 200,0; 200,{br:.3f}; 20,{br:.3f}; 20,{br - 10:.3f}; 0,{br - 10:.3f}")
+zp = blech.zuschnitt(poly)
+assert nah(zp["flaeche"], 200 * br - 200, 0.5) and nah(zp["aussen"], 2 * (200 + br), 0.05) and not zp["hinweise"]
+assert zp["biegungen"] == zs["biegungen"] and zp["laenge"] == 200
+assert blech.zuschnitt(dict(poly, punkte="0,0; 150,0; 150,50; 0,50"))["hinweise"]
+schale = dict(werkstoff="S235JR", dicke=2, art=blech.ZUSCHNITT, form=blech.RECHTECK, laenge=232.36, breite=182.36,
+              stueck=10, kantungen=4, konturen=[],
+              biegelinien=[dict(punkte=[[18.09, 16.18], [18.09, 166.18]], winkel=-90, ba=4.178),
+                           dict(punkte=[[214.27, 16.18], [214.27, 166.18]], winkel=-90, ba=4.178),
+                           dict(punkte=[[16.18, 18.09], [216.18, 18.09]], winkel=-90, ba=4.178),
+                           dict(punkte=[[16.18, 164.27], [216.18, 164.27]], winkel=-90, ba=4.178)])
+es = blech.rechnen(schale, werkstoffe, laser, dict(blech_kantung=2.0))
+assert es["kantungen"] == 4 and es["kosten"]["Kanten"] == 8.0 and not es["fehler"]
+assert blech.bezeichnung_vorschlag(schale, es["zuschnitt"]).endswith("(4 Kantungen)")
+n = blech3d.netz(schale, es["zuschnitt"])
+hoehe = max(n["p"][1::3]) - min(n["p"][1::3])         # Ränder 20 hoch (nach unten gekantet)
+assert 19 <= hoehe <= 23 and len(n["l"]["B"]) == 4, hoehe
+d = BlechDialog(None, db, schale)
+d.resize(1300, 900)
+d.show()
+app.processEvents()
+assert d.ansicht3d.ansicht.netz and d.kantungen.value() == 4 and d.ergebnis["kantungen"] == 4
+d.ansicht3d.ansicht.gier = 1.0
+d.dicke.setValue(3)
+assert d.ansicht3d.ansicht.gier == 1.0 and d.eingaben()["biegelinien"] == schale["biegelinien"]
+d.grab()
+d.kantungen.setValue(0)
+assert "biegelinien" not in d.eingaben() and d.ergebnis["kantungen"] == 0
+d.close()
+# Prüfdialog: scharfkantiges L-Profil -> Kantteil, außer das Profil steht in den Stammdaten
+mw = [dict(profilform="L-Profil", abm_a="50", abm_b="30", wandstaerke="3",
+           alternative=json.dumps(dict(profilform="Blech gekantet", blech="{}")))]
+assert step.kantteile_vorbelegen(mw, {}) == 1 and mw[0]["profilform"] == "Blech gekantet"
+assert step.kantteile_vorbelegen(mw, {}) == 0                  # nur einmal
+mw = [dict(mw[0], profilform="L-Profil", _art_vorbelegt=False)]
+assert step.kantteile_vorbelegen(mw, {"L 50x30x3": dict(form="L-Profil", a=50, b=30, wand=3)}) == 0
+assert mw[0]["profilform"] == "L-Profil"
+ok("B6 Kantteil aus STEP: Polygon-Außenkontur, mehrachsig mit Kantungen, 3D-Ansicht gefaltet, Profil/Kantteil nach "
+   "Stammdaten")
 print("OK: Blech-Editor")

@@ -28,6 +28,22 @@ NEUERUNGEN = [
               "aber nichts ändern; Daten gehen nie verloren. <b>Noch keine Sperre</b>: Diese Version zeigt ohne Lizenz "
               "nur einen Hinweis. Bitte die Rechner-ID an Patrick senden ([[lizenz]]).",
      "Lizenz: <i>Hilfe → Lizenz …</i> mit Rechner-ID und Lizenzdatei laden, vorerst nur Hinweis ([[lizenz]])."],
+    ["0.8.40", "<b>Profil geändert: Schneidwege gehen mit</b>: Wählt man für ein STEP-Teil ein anderes Profil (im "
+               "Prüfdialog oder später im Angebot), rechnen Bohrungen, Langlöcher und Rechtecke mit ihren Maßen neu, "
+               "Sonderkonturen und Gravuren werden auf den neuen Querschnitt übertragen; der Bericht nennt "
+               "<i>Schneidweg alt → neu</i>. Nicht umrechenbare Zeilen bleiben gemessen und sind gelb. Von Hand "
+               "nachgetragene Teile behalten die gemessenen Konturen ([[step]]).",
+     "Profilwechsel: Konturen und Schneidweg für das neue Profil umgerechnet ([[step]])."],
+    ["0.8.39", "<b>Rohr-Editor: Sonderkontur und Gravur</b>: Konturen über mehrere Wände und freie Formen aus dem "
+               "STEP-Import stehen als <i>Sonderkontur</i> mit ihrem echten Umriss in Skizze und Abwicklung, auch über "
+               "die Ecke. Prägungen sind <i>Gravur</i>-Zeilen mit Lage und Tiefe, grün gezeichnet und nicht im "
+               "Schneidweg. Komplexe Enden zeigen in der Abwicklung ihren gemessenen Verlauf ([[schneidweg_rechner]]).",
+     "Rohr-Editor: Sonderkontur mit echtem Umriss, Gravur grün ([[schneidweg_rechner]])."],
+    ["0.8.38", "<b>Blech-Editor mit 3D-Ansicht</b>: Unter der Skizze steht das gekantete Teil dreidimensional "
+               "(drehen, zoomen), mit Konturen und Biegelinien. Mehrachsig gekantete Teile aus dem STEP-Import "
+               "(Schale, Kasten) kommen als Zuschnitt mit Außenkontur und Kantungen, scharfkantige L-/U-Teile ohne "
+               "passendes Profil in den Stammdaten als Kantteil ([[blech_editor]]).",
+     "Blech-Editor: 3D-Ansicht, mehrachsig gekantete Teile mit Abwicklung ([[blech_editor]])."],
     ["0.8.37", "<b>STEP-Import erkennt mehr</b>: Gekantete Bleche werden abgewickelt, auch scharfkantige und "
                "mehrachsige (Schale, Kasten): Zuschnitt, Schenkel, Biegelinien, Innenkonturen und Schneidweg kommen "
                "aus der Abwicklung ([[bleche]]). Konturen über mehrere Wände und freie Formen heißen "
