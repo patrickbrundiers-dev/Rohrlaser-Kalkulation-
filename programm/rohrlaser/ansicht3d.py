@@ -29,6 +29,8 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("GA", "Gravur Anbauteile", "#59A14F", "#00897B"),
     ("S", "gewählte Teile", "#2E75B6", None),       # nur in der Baugruppen-Ansicht
     ("N", "nicht übernehmbar", "#FF00FF", None),    # nicht messbare Teile (Rohnetz in Dateilage), magenta
+    ("BL", "Blech", "#C9D6E3", None),               # Blech-Editor (blech3d)
+    ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -121,13 +123,18 @@ class Modell:
             for n in range(0, len(idx) - 2, 3):
                 self._dreieck(idx[n], idx[n + 1], idx[n + 2], art)
         self.linien = []
+        normalen = netz.get("ln") or {}         # Normale je Linienzug (Blech), sonst radial zur Rohrachse
         for art, zuege in (netz.get("l") or {}).items():
-            for zug in zuege:
+            for nr, zug in enumerate(zuege):
                 pk = [(zug[i], zug[i + 1], zug[i + 2]) for i in range(0, len(zug) - 2, 3)]
+                n = (normalen.get(art) or [])[nr] if nr < len(normalen.get(art) or []) else None
                 for a, b in zip(pk, pk[1:]):
-                    m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-                    r = math.hypot(m[0], m[1]) or 1.0
-                    self.linien.append((a, b, art, (m[0] / r, m[1] / r, 0.0)))
+                    if n is None:
+                        m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+                        r = math.hypot(m[0], m[1]) or 1.0
+                        self.linien.append((a, b, art, (m[0] / r, m[1] / r, 0.0)))
+                    else:
+                        self.linien.append((a, b, art, tuple(n)))
         self.arten = sorted({d[3] for d in self.dreiecke} | {l[2] for l in self.linien},
                             key=lambda a: REIHE.index(a) if a in REIHE else 99)
         self.laenge = laenge
@@ -184,7 +191,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
         liste.append((0 if art == "I" else 1, (a[2] + b[2] + c[2]) / 3, (a, b, c), art, hell))
     if linien:
         for a, b, art, n in modell.linien:
-            nz = m[2][0] * n[0] + m[2][1] * n[1]
+            nz = m[2][0] * n[0] + m[2][1] * n[1] + m[2][2] * n[2]
             if nz < 0.0:
                 continue
             ra = (m[0][0] * (a[0] - cx) + m[0][1] * (a[1] - cy) + m[0][2] * (a[2] - cz),

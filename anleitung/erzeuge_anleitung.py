@@ -1409,7 +1409,9 @@ def kapitel_step(i):
             "der Schneidweg kommen aus der Abwicklung. Auch mehrachsig gekantete Teile (Schale, Kasten) werden "
             "abgewickelt, der Zuschnitt ist dann ein Polygon mit gezählten Kantungen. Ein Kantteil mit "
             "gleichbleibendem Querschnitt über die ganze Länge bleibt ein L-, U- oder C-Profil, weil es als "
-            "Stangenmaterial auf dem Rohrlaser geschnitten werden kann; als Art lässt sich <i>Kantteil</i> wählen.",
+            "Stangenmaterial auf dem Rohrlaser geschnitten werden kann; als Art lässt sich <i>Kantteil</i> wählen. "
+            "Ist es scharfkantig gezeichnet (ohne Biegeradien), ist im Prüfdialog das Profil nur vorbelegt, wenn "
+            "ein passendes Profil in den Stammdaten steht, sonst das Kantteil.",
             "<b>Art umstellen, wenn falsch erkannt</b>: Bei Grenzfällen misst der Import das Teil in beiden Arten. "
             "Grenzfälle sind alle flachen Teile (Flachstahl oder Blech) und alle Teile mit Biegezonen (L-, U-, "
             "C-Profil oder Kantteil). Im Prüfdialog steht dann in der Spalte <b>Art</b> eine Auswahl, vorbelegt mit "
@@ -2461,13 +2463,13 @@ def kapitel_zukauf_angebot(i):
            "(Einkauf + Bezugskosten)</i> und <i>Aufschlag Zukaufteile</i>. Materialzuschlag und Gewinn der Stufe "
            "wirken nicht auf Zukaufteile.")
     i.abschnitt("Blech-Editor (Richtpreis)", marke="blech_editor")
-    i.bild("blech_editor", "Blech-Editor: U-Profil aus 1.4301, 2 mm, mit Bohrung und Langloch", hoehe=125 * mm,
+    i.bild("blech_editor", "Blech-Editor: U-Profil aus 1.4301, 2 mm, mit Bohrung und Langloch", hoehe=95 * mm,
            legende=[
                (1, "<b>Bezeichnung</b> (leer = Vorschlag aus den Maßen), Artikelnummer, Lieferant (Technik "
                    "vorbelegt) und <b>Stückzahl</b>; auf sie wird das Rüsten umgelegt."),
                (2, "<b>Blech-Werkstoff</b> und <b>Dicke</b>."),
-               (3, "<b>Art</b>: <i>Zuschnitt (flach)</i> als Rechteck mit Eckradius oder Polygon (Eckpunkte x,y), "
-                   "oder <i>Kantteil</i>."),
+               (3, "<b>Art</b>: <i>Zuschnitt (flach)</i> mit Länge, Breite, Eckradius und <b>Kantungen</b> "
+                   "(mehrachsig gekantete Teile, z. B. eine Schale; 0 = flach) oder <i>Kantteil</i>."),
                (4, "Kantteil: <b>Kantlänge</b> und je Zeile ein Schenkel mit Außenmaß, Biegewinkel zum nächsten "
                    "Schenkel (+ nach oben, − nach unten) und Innenradius (leer = Blechdicke). <b>Vorlage …</b> "
                    "setzt Winkel, U-, Z- oder Hutprofil; <b>+ Schenkel</b> und <b>Schenkel entfernen</b> ändern "
@@ -2480,7 +2482,11 @@ def kapitel_zukauf_angebot(i):
                (7, "<b>Richtpreis je Stück</b> mit Zuschnitt, Gewicht, Schneidweg, Einstichen, Laserzeit und den "
                    "Kosten Material, Laser, Kanten und Rüsten."),
                (8, "<b>Als Zukaufteil anlegen</b>: neuer Zukaufartikel (Kategorie Blechteile, Artikeltyp Blech, "
-                   "Maße, Werkstoff) mit dem Richtpreis als EK und eine neue Position der Art Zukaufteil.")])
+                   "Maße, Werkstoff) mit dem Richtpreis als EK und eine neue Position der Art Zukaufteil."),
+               (9, "<b>3D-Ansicht</b>: das Teil aus den Eingaben gefaltet, Innenkonturen rot, Biegelinien grün. "
+                   "Drehen mit der linken Maustaste, Knöpfe für feste Blickrichtungen."),
+               (10, "<b>Außenkontur</b>: <i>Rechteck</i> aus den Maßen (Kantteil: Kantlänge × Abwicklung) oder "
+                    "<i>Polygon</i> mit Eckpunkten x,y der Abwicklung, z. B. mit Ausklinkungen.")])
     i.text("<b>Neue Position</b> → <i>Blech / Kantteil</i>: Zuschnitt oder Kantteil beschreiben, das Programm "
            "schätzt einen Richtpreis als Einkaufspreis.", kurz=True)
     i.genauer()
@@ -2494,6 +2500,13 @@ def kapitel_zukauf_angebot(i):
            "und Richtpreis. Die Trennlinie lässt sich ziehen. Ist die Skizze höher als breit, steht die "
            "Seitenansicht unter der Abwicklung, im selben Maßstab, solange sie passt. In der Positionsliste "
            "zeigt das kleine Bild vor der Artikelnummer den Zuschnitt; Doppelklick darauf öffnet den Editor wieder.")
+    i.text("<b>Aus dem STEP-Import</b>: Gekantete Bleche kommen vollständig an. Ein Kantteil mit parallelen "
+           "Biegungen (Winkel, U, Z, Hut) hat Kantlänge, Schenkel mit Winkel und Radius, die Innenkonturen an ihrer "
+           "Stelle und bei Ausklinkungen die Außenkontur als Polygon. Ein mehrachsig gekantetes Teil (Schale, "
+           "Kasten) kommt als Zuschnitt mit der Außenkontur der Abwicklung, den gezählten Kantungen und den "
+           "Biegelinien für Skizze und 3D-Ansicht. Der Schneidweg ist dann der der STEP-Abwicklung. Passt ein "
+           "Polygon nicht mehr zu Kantlänge und Schenkeln (nach einer Änderung), steht unter dem Richtpreis ein "
+           "Hinweis.")
     i.text("So rechnet der Blech-Editor:")
     i.liste("<b>Abwicklung</b> beim Kantteil: Summe der Schenkel-Außenmaße minus Ausgleichswert je Biegung "
             "v = 2·(r + s)·tan(φ/2) − π·φ/180·(r + k·s) (bis 90°; darüber 2·(r + s) − π·φ/180·(r + k·s)) mit "
