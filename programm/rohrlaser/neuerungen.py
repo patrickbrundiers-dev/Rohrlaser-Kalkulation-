@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.10", "<b>STEP-Import schneller</b>: Gleiche Teile einer Baugruppe (im CAD nur verschoben, z. B. acht gleiche "
+              "Stützen) werden nur einmal gemessen, und eine große Datei wird auf mehrere Messprozesse verteilt. Eine "
+              "Baugruppe mit 200 Körpern braucht statt 85 s etwa 30 s, mit 3 Prozessen etwa 15 s; die Messwerte "
+              "bleiben gleich. Die 3D-Ansicht großer Baugruppen bleibt beim Drehen flüssig ([[step]]).",
+     "STEP-Import schneller: gleiche Teile einmal messen, große Dateien verteilt, 3D flüssiger ([[step]])."],
     ["0.9.9", "<b>Schweißbaugruppe aus STEP</b>: Im Prüfdialog des STEP-Imports legt das Häkchen <i>als "
                "Schweißbaugruppe</i> (neben <i>Sätze</i>) den Satz als Schweißbaugruppe an: Unterbaugruppen mit Menge "
                "aus der STEP-Struktur, Teile zugeordnet; Nahtgruppen und Arbeitsgänge im Editor ergänzen ([[step]]).",

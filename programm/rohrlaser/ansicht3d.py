@@ -14,7 +14,7 @@ import json
 import math
 import zlib
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
@@ -34,6 +34,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
+GROB_DREIECKE = 10000   # beim Drehen/Zoomen höchstens so viele Dreiecke zeichnen (grobe Stufe, Modell.grob)
 # Baugruppen-Ansicht: je Teil (Zeile gleicher Teile) eine Farbe, ohne Eintrag in der Legende
 TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
               "#BAB0AC", "#2F4B7C", "#A05195")
@@ -138,6 +139,36 @@ class Modell:
         self.arten = sorted({d[3] for d in self.dreiecke} | {l[2] for l in self.linien},
                             key=lambda a: REIHE.index(a) if a in REIHE else 99)
         self.laenge = laenge
+        self._grob = None
+
+    def grob(self):
+        """Grobe Stufe für große Netze (Baugruppen) beim Drehen und Zoomen: nur die GROB_DREIECKE größten
+        Dreiecke (lange Rohrwände, Blechflächen; kleine Rundungen, Bohrungen und Fasen fallen weg), ohne Linien.
+        Punkte, Mitte und Größe bleiben, damit das Bild beim Umschalten nicht springt. Kleine Netze: das Modell."""
+        if len(self.dreiecke) <= GROB_DREIECKE:
+            return self
+        if self._grob is None:
+            p = self.punkte
+
+            def flaeche(d):
+                a, b, c = p[d[0]], p[d[1]], p[d[2]]
+                u = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+                v = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+                return ((u[1] * v[2] - u[2] * v[1]) ** 2 + (u[2] * v[0] - u[0] * v[2]) ** 2
+                        + (u[0] * v[1] - u[1] * v[0]) ** 2)
+            g = Modell.__new__(Modell)
+            g.__dict__.update(self.__dict__)
+            neu, g.punkte, g.dreiecke = {}, [], []
+            for i, j, k, art, n in sorted(self.dreiecke, key=flaeche, reverse=True)[:GROB_DREIECKE]:
+                for x in (i, j, k):
+                    if x not in neu:
+                        neu[x] = len(g.punkte)
+                        g.punkte.append(p[x])
+                g.dreiecke.append((neu[i], neu[j], neu[k], art, n))
+            g.linien = []
+            g._grob = g
+            self._grob = g
+        return self._grob
 
     def _dreieck(self, i, j, k, art):
         a, b, c = self.punkte[i], self.punkte[j], self.punkte[k]
@@ -163,8 +194,8 @@ def _drehung(gier, nick):
     return mal(nm, mal(gm, basis))
 
 
-def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True):
-    """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen."""
+def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True):
+    """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller)."""
     m = _drehung(gier, nick)
     cx, cy, cz = modell.mitte
     proj = []
@@ -202,7 +233,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                   m[2][0] * (b[0] - cx) + m[2][1] * (b[1] - cy) + m[2][2] * (b[2] - cz))
             liste.append((2, (ra[2] + rb[2]) / 2, (ra, rb), art, 1.0))
     liste.sort(key=lambda e: (e[0], e[1]))
-    p.setRenderHint(QPainter.Antialiasing, True)
+    p.setRenderHint(QPainter.Antialiasing, glatt)
     stift_linie = {a: QPen(LINIE.get(a, QColor("#C00000")), 2.2, Qt.SolidLine, Qt.RoundCap) for a in LINIE}
     for schicht, _, punkte, art, hell in liste:
         poly = [QPointF(ox + q[0] * massstab, oy - q[1] * massstab) for q in punkte]
@@ -242,7 +273,16 @@ class Ansicht3D(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setFocusPolicy(Qt.StrongFocus)
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
+        self._bild, self._eilig = None, False      # gezeichnetes Bild (solange sich die Ansicht nicht ändert)
+        self._ruhe = QTimer(self)                   # nach dem Zoomen wieder fein zeichnen
+        self._ruhe.setSingleShot(True)
+        self._ruhe.setInterval(250)
+        self._ruhe.timeout.connect(self._fein)
         self.zuruecksetzen()
+
+    def _fein(self):
+        self._eilig = False
+        self.update()
 
     def setzen(self, netz, titel=""):
         """netz: dict, Bytes aus der Datenbank oder None (= keine 3D-Daten)."""
@@ -277,7 +317,21 @@ class Ansicht3D(QWidget):
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
                        "Keine 3D-Daten.\nDie 3D-Ansicht gibt es für Teile, die per STEP-Import übernommen wurden.")
             return
-        zeichnen(p, self.modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz)
+        grob = self._eilig or self._maus is not None
+        modell = self.modell.grob() if grob else self.modell
+        schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick,
+                      self.zoom, self.versatz)
+        if self._bild is None or self._bild[0] != schluessel:
+            dpr = self.devicePixelRatioF()
+            bild = QPixmap(int(self.width() * dpr), int(self.height() * dpr))
+            bild.setDevicePixelRatio(dpr)
+            bild.fill(Qt.transparent)
+            q = QPainter(bild)
+            zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
+                     linien=modell is self.modell, glatt=not grob)
+            q.end()
+            self._bild = (schluessel, bild)
+        p.drawPixmap(0, 0, self._bild[1])
         p.setRenderHint(QPainter.Antialiasing, False)
         y = 8
         p.setPen(QColor("#202020"))
@@ -314,12 +368,15 @@ class Ansicht3D(QWidget):
 
     def mouseReleaseEvent(self, _):
         self._maus = None
+        self.update()
 
     def mouseDoubleClickEvent(self, _):
         self.zuruecksetzen()
 
     def wheelEvent(self, e):
         self.zoom = max(0.2, min(40.0, self.zoom * (1.15 ** (e.angleDelta().y() / 120))))
+        self._eilig = True
+        self._ruhe.start()
         self.update()
 
 
