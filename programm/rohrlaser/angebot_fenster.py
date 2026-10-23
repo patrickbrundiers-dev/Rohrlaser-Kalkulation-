@@ -33,7 +33,7 @@ from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, Ueber
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
 from .leiste import UmbruchLeiste
-from . import step_ablage
+from . import step_ablage, step_einstellungen
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -1524,10 +1524,14 @@ class AngebotSeite(QWidget):
 
     def _fremd_anzeigen(self):
         k = self.fremd()
-        self.fremd_leiste.setVisible(bool(k))
-        self.kopf_bereich.setEnabled(not k)
-        self.leiste.links.setEnabled(not k)
-        self.setAcceptDrops(not k)
+        lesen = bool(self.db.nur_lesen)            # Lizenz: Lesemodus wie ein fremdes Angebot, nur ansehen
+        self.fremd_leiste.setVisible(bool(k) or lesen)
+        self.kopf_bereich.setEnabled(not k and not lesen)
+        self.leiste.links.setEnabled(not k)          # Lesemodus: Knöpfe einzeln (3D-Ansicht bleibt)
+        self.setAcceptDrops(not k and not lesen)
+        if lesen and not k:
+            self.fremd_text.setText(f"<b>Lesemodus</b> – {self.db.nur_lesen}. Das Angebot lässt sich ansehen, aber "
+                                    "nicht ändern (Hilfe → Lizenz …).")
         if k:
             m = teilen.mitarbeiter(self.db, k)
             wer = f"{m.get('name')} ({k})" if m.get("name") else k
@@ -1554,7 +1558,7 @@ class AngebotSeite(QWidget):
         a = self.db.angebot(self.id)
         if a is None:
             return
-        if self.db.fracht_auto_nachfuehren(self.id):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
+        if not self.db.nur_lesen and self.db.fracht_auto_nachfuehren(self.id):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
             a = self.db.angebot(self.id)
         self.kopf = a
         self._fremd_anzeigen()
@@ -1792,8 +1796,9 @@ class AngebotSeite(QWidget):
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
         stand = self.stand_optimierung()
-        self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
-                                  "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
+        if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
+            self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
+                                      "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
@@ -1901,7 +1906,8 @@ class AngebotSeite(QWidget):
             self.spalten_wahl = {}
         else:
             self.spalten_wahl[name] = zeigen
-        self.db.einstellung_setzen(SPALTEN_EINSTELLUNG, self.spalten_wahl)
+        if not self.db.nur_lesen:          # Spaltenwahl ist Ansicht: im Lesemodus nur für diese Sitzung
+            self.db.einstellung_setzen(SPALTEN_EINSTELLUNG, self.spalten_wahl)
         self._spalten_zeigen()
 
     # -------------------------------------------------------------- Bearbeiten
@@ -2932,13 +2938,14 @@ class AngebotSeite(QWidget):
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
+        step_einstellungen.anwenden(self.db)
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
             netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
-                                          "--json", str(ergebnis), "--flachstahl-bis",
-                                          str(self.flach_bis())], len(dateien)):
+                                          "--json", str(ergebnis), "--flachstahl-bis", str(self.flach_bis())]
+                                + step_einstellungen.mess_argumente(self.db), len(dateien), ausgabe):
                 return None
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
@@ -3048,20 +3055,58 @@ class AngebotSeite(QWidget):
             d.exec()
         return d
 
-    def _messen(self, befehl, anzahl):
-        """Messung als eigener Prozess mit Fortschrittsanzeige. True = Messung beendet."""
+    def _teilergebnis(self, ausgabe_datei, anzahl):
+        """Nach Abbruch: gibt es schon gemessene Dateien, fragen, ob sie übernommen werden sollen."""
+        try:
+            text = ausgabe_datei.read_text(encoding="utf-8") if ausgabe_datei else ""
+            if text and not text.endswith("\n"):       # beim Abbruch halb geschriebene Zeile weglassen
+                text = text[:text.rfind("\n") + 1]
+                ausgabe_datei.write_text(text, encoding="utf-8")
+            zeilen = text.splitlines()[1:]
+        except OSError:
+            zeilen = []
+        n = len({z.split("\t", 1)[0] for z in zeilen if z.strip()})
+        if not n or self.f.stumm:
+            return False
+        return QMessageBox.question(
+            self, "STEP-Import", f"Messung abgebrochen. {n} von {anzahl} Dateien sind schon gemessen.\n\n"
+            "Diese Dateien übernehmen?", QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes) == QMessageBox.Yes
+
+    def _messen(self, befehl, anzahl, ausgabe_datei=None):
+        """Messung als eigener Prozess mit Fortschrittsanzeige (Datei, Körper, Restzeit). True = Messung beendet
+        oder nach Abbruch die schon gemessenen Dateien übernehmen (stehen in ausgabe_datei)."""
         proz = QProcess(self)
         fortschritt = QProgressDialog("STEP-Dateien werden gemessen …", "Abbrechen", 0, anzahl, self)
         fortschritt.setWindowModality(Qt.WindowModal)
         fortschritt.setMinimumDuration(300)
         schleife = QEventLoop()
+        start, stand = time.monotonic(), dict(fertig=0, aus_speicher=0)
+
+        def restzeit():
+            n = stand["fertig"] - stand["aus_speicher"]
+            if n < 1 or stand["fertig"] >= anzahl:
+                return ""
+            s = (time.monotonic() - start) / n * (anzahl - stand["fertig"])
+            return f"\nRestzeit etwa {s / 60:.0f} min" if s >= 90 else f"\nRestzeit etwa {max(5, round(s, -1)):.0f} s"
 
         def ausgabe():
             for z in bytes(proz.readAllStandardOutput()).decode("utf-8", "replace").splitlines():
-                if z.startswith("[") and "/" in z:
+                if z.startswith("{"):           # je Körper (Messung mit Zeitlimit)
                     try:
-                        fortschritt.setValue(int(z[1:z.index("/")]) - 1)
-                        fortschritt.setLabelText(z)
+                        d = json.loads(z)
+                        text = f"Datei {d['datei']} von {d['dateien']}: {d['name']}"
+                        if d.get("koerper"):
+                            text += f"\nKörper {d['koerper']} von {d['koerper_n']}"
+                        fortschritt.setLabelText(text + restzeit())
+                    except (ValueError, KeyError, TypeError):
+                        pass
+                elif z.startswith("[") and "/" in z:
+                    try:
+                        stand["fertig"] = int(z[1:z.index("/")])
+                        if z.endswith("aus dem Zwischenspeicher"):
+                            stand["aus_speicher"] = stand["fertig"]
+                        fortschritt.setValue(stand["fertig"] - 1 if stand["fertig"] < anzahl else anzahl - 1)
+                        fortschritt.setLabelText(z + restzeit())
                     except ValueError:
                         pass
         proz.readyReadStandardOutput.connect(ausgabe)
@@ -3077,7 +3122,7 @@ class AngebotSeite(QWidget):
             schleife.exec()
         fortschritt.close()     # close() meldet auch 'canceled', darum zählt nur ein Abbruch bei laufender Messung
         if abgebrochen:
-            return False
+            return self._teilergebnis(ausgabe_datei, anzahl)
         if proz.exitStatus() != QProcess.NormalExit or proz.exitCode() not in (0, 1):
             fehler = bytes(proz.readAllStandardError()).decode("utf-8", "replace")[-800:]
             QMessageBox.warning(self, "STEP-Import", f"Die Messung ist fehlgeschlagen (Rückgabewert {proz.exitCode()})."

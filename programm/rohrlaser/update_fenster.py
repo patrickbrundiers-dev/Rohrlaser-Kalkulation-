@@ -16,9 +16,11 @@ SUCHEN_NACH_MS = 3000        # nach dem Start etwas warten, das Fenster soll zue
 class _Suche(QObject):
     """Dateiliste in einem eigenen Thread holen, damit das Fenster nicht hängt (kein Netz, langsame Leitung)."""
     fertig = Signal(object, object)       # Dateiliste oder None, Fehlertext oder None
+    lizenz = Signal(object)               # Sperrliste und Datum des Servers (update.lizenz_zusatz)
 
     def starten(self, quelle):
         def arbeit():
+            self.lizenz.emit(update.lizenz_zusatz(quelle))
             try:
                 self.fertig.emit(update.online_liste(quelle), None)
             except update.UpdateFehler as e:
@@ -107,7 +109,13 @@ class Updater:
             self.f.meldung("Suche nach Updates …")
         self._suche = _Suche()
         self._suche.fertig.connect(lambda online, fehler: self._gefunden(online, fehler, still))
+        self._suche.lizenz.connect(self._lizenz)
         self._suche.starten(self.quelle)
+
+    def _lizenz(self, zusatz):
+        """Sperrliste und Zeitabgleich an die Lizenz des Hauptfensters (nur mit Lizenzprüfung, sonst nichts)."""
+        if hasattr(self.f, "lizenz_zusatz"):
+            self.f.lizenz_zusatz(zusatz)
 
     def _gefunden(self, online, fehler, still):
         self._laeuft = False

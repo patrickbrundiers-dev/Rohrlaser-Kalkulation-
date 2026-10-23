@@ -11,3 +11,5 @@ anleitung/Kurzanleitung.pdf
 .kotlin/
 local.properties
 *.jks
+*.pem
+*.lizenz

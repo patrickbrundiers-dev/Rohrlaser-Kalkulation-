@@ -7,6 +7,9 @@
   Rückfrage ersetzt; Dialog zeigt Ergebnis und Schneidzeit sofort.
 - Skizze (S8): maßstäbliche Draufsicht, Seitenansicht und Abwicklung je Profilform, Lage der Konturen (Seite,
   Versatz, Muster), Klick markiert die Zeile, Ziehen verschiebt die Kontur, Zoom.
+- S15 Sonderkontur und Gravur (Patrick 23.10.2026): Sonderkontur mit echtem Umriss über drei Flächen (Schneidweg
+  wie gemessen, Skizze folgt den Flächen und der Naht der Abwicklung), Gravur-Zeilen nicht im Schneidweg, ihre
+  Länge zählt zur Gravur, Umriss bleibt beim Speichern; komplexes Ende mit gemessenem Umriss in der Abwicklung.
 - Ältere Datei (Schema 25) bekommt die Spalte technik leer.
 
 Aufruf: python tests/test_schneidweg.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
@@ -377,7 +380,8 @@ m10 = dict(konturen_liste=json.dumps([
          schnittlaenge=80.0, huellmass=25.0),
     dict(art="Gravur", durchgehend=False, z=300.0, schnittlaenge=50.0)]))
 e10 = step.rechner_eingaben(m10, "Rechteckrohr", 60, 40)
-assert e10["quelle"] == "STEP-Import" and len(e10["konturen"]) == 4                 # Gravur nicht
+assert e10["quelle"] == "STEP-Import" and len(e10["konturen"]) == 5                 # Gravur als eigene Zeile
+assert e10["konturen"].pop() == dict(art="Gravur", anzahl=1, x=300.0, laenge=50.0) and "gravur" not in e10
 assert e10["a"]["gemessen"] == 230.5 and e10["a"]["winkel"] == 45 and e10["a"]["richtung"] == 90
 assert e10["a"]["achse"] == "über Höhe" and e10["b"]["form"] == "gerade"           # 90°: über die Breitseite (a=60)
 k10 = e10["konturen"]
@@ -610,6 +614,46 @@ pr13 = next(z for z in db.zeilen("profile") if z["profil_id"] == "RE 70x35x2,5")
 assert (pr13["form"], pr13["a"], pr13["b"], pr13["wand"]) == ("Rechteckrohr", 70, 35, 2.5)
 assert db.positionen(a)[-1]["profil_id"] == "RE 70x35x2,5" and db.positionen(a)[-1]["artikel"] == "NEU-2"
 ok("S13 Rohr-Editor: Profilform vorwählen filtert die Profile, fehlendes Profil direkt anlegen (ID aus den Maßen)")
+
+# S15 Sonderkontur über drei Flächen und Gravur
+um = [[-15, -50], [15, -50], [15, 50], [-15, 50]]          # Ausschnitt 30 längs über hinten, oben, vorne
+ein = dict(a=dict(gemessen=200.0, form="komplex", umriss=[[s_, 20.0 if 10 < s_ < 50 else 0.0] for s_ in range(0, 200, 5)]),
+           b={}, gravur=5.0, konturen=[
+               dict(art=sw.SONDERKONTUR, anzahl=1, x=400, laenge=312.3, gemessen=312.3, huelle=100, umriss=um,
+                    waende=["270°", "0°", "90°"]),
+               dict(art=sw.GRAVUR, anzahl=2, x=600, laenge=40.0, tiefe=0.2, seite="vorne",
+                    umriss=[[-10, -5], [10, -5], [10, 5], [-10, 5]])])
+e15 = sw.rechnen(ein, RE, (10, 50))
+f15 = e15["felder"]
+assert not e15["fehler"] and nah(f15["innen"], 312.3) and f15["gravur"] == 85.0, (e15["fehler"], f15)
+assert f15["einstiche"] == 2 + 1 and [x["klasse"] for x in e15["schritte"][2:]][1] == "Gravur"
+assert nah(f15["schneidweg"], 200 + sw.ende(RE)[0] + 312.3, 0.1)
+qs_re = sk.Querschnitt(RE)
+d15 = sk.lagen(ein["konturen"], 1000)[0]
+seiten = {(round(n[0]), round(n[1])) for n in sk.normalen(qs_re, d15)}
+assert {(-1, 0), (0, 1), (1, 0)} <= seiten and (0, -1) not in seiten, seiten
+pts15, _ = sk.platzieren(qs_re, d15)
+assert nah(max(v for _, _, v in pts15), 20) and nah(min(u for _, u, _ in pts15), -30) and nah(max(u for _, u, _ in pts15), 30)
+ab = sk.ende_abwicklung(qs_re, ein["a"], n=40)
+assert max(d for _, d in ab) == 20.0 and min(d for _, d in ab) == 0.0
+p15 = dict(db.positionen(a)[0], technik=sw.speichern(ein), laenge=1000, profil_id="RE 60x40x3")
+dlg15 = SchneidwegDialog(s, p15, RE, s.kopf, s.k, s.tabellen)
+dlg15.resize(1300, 950)
+dlg15.show()
+app.processEvents()
+e15b = dlg15.eingaben()
+assert e15b["konturen"][0]["umriss"] == um and e15b["konturen"][0]["waende"] == ["270°", "0°", "90°"]
+assert e15b["konturen"][1]["tiefe"] == 0.2 and dlg15.ergebnis["felder"]["gravur"] == 85.0
+from rohrlaser.skizze_widget import ABWICKLUNG as ABW15  # noqa: E402
+dlg15.skizze.grab()
+assert any(d["zeile"] == 0 and an[0] == "oben" for _, d, an in dlg15.skizze.treffer)
+dlg15.skizze.modus_setzen(ABW15)
+dlg15.skizze.grab()
+dlg15.tabelle.cellWidget(0, 0).setCurrentText(sw.SONSTIGE)         # andere Art: Umriss fällt weg
+assert "umriss" not in dlg15.eingaben()["konturen"][0]
+dlg15.close()
+ok("S15 Sonderkontur über drei Flächen (Umriss in Skizze und Abwicklung), Gravur-Zeilen nicht im Schneidweg, "
+   "komplexes Ende mit gemessenem Umriss")
 
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()

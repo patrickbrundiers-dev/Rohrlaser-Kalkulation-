@@ -12,6 +12,8 @@ installiert im Benutzerprofil (%LOCALAPPDATA%\\Rohrlaser Angebotskalkulation\\Da
 --update-test QUELLE  Online-Update aus QUELLE (Dateiliste Update.json, Adresse oder Pfad) bei offenem
                    Hauptfenster einspielen und beenden; --alle tauscht jede Programmdatei aus (prüft im Build,
                    dass sich die laufende .exe und alle geladenen Bibliotheken austauschen lassen).
+Lizenz: nur der normale Start prüft sie (lizenz.py, Ordner Lizenz im Datenordner); --selbsttest und --update-test
+arbeiten mit einer temporären Datendatei und brauchen keine. --info schreibt Zustand und Rechner-ID mit aus.
 """
 import argparse
 import json
@@ -163,7 +165,14 @@ def info(orte_, ergebnis):
         sperre = orte.Sperre(orte_.daten)
         try:
             db = Datenbank(orte_.datei)
-            db.schliessen()
+            try:
+                from . import lizenz
+                stelle = lizenz.LizenzStelle(lizenz.ordner(orte_.daten), db)
+                z = stelle.pruefen()
+                werte.update(lizenz=z.stufe, lizenz_text=stelle.text(), rechner_id=stelle.rechner,
+                             lizenz_durchsetzung=z.durchsetzung)
+            finally:
+                db.schliessen()
             werte.update(datei_info(orte_.datei))
         finally:
             sperre.freigeben()
@@ -231,6 +240,20 @@ def oeffnen_fehlgeschlagen(orte_, fehler):
         return False
 
 
+def lizenz_pruefen(orte_, db):
+    """Lizenzzustand beim Start (schaltet die Datenbank ggf. in den Lesemodus). Ein unerwarteter Fehler der Prüfung
+    sperrt nie aus: er wird protokolliert, das Programm startet ohne Lizenzprüfung."""
+    from . import lizenz, protokoll
+    try:
+        stelle = lizenz.LizenzStelle(lizenz.ordner(orte_.daten), db)
+        z = stelle.pruefen()
+        protokoll.info(f"Lizenz: {z.stufe} – {stelle.text()}")
+        return stelle
+    except Exception:       # noqa: BLE001
+        protokoll.info("Lizenzprüfung fehlgeschlagen:\n" + traceback.format_exc())
+        return None
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog=NAME)
     ap.add_argument("--daten", help="Datenordner (Vorgabe: siehe orte.py)")
@@ -291,7 +314,7 @@ def main(argv=None):
             except Exception as e:
                 if not oeffnen_fehlgeschlagen(o, e):
                     return 1
-        f = Hauptfenster(db, programmordner(), orte=o)
+        f = Hauptfenster(db, programmordner(), orte=o, lizenz=lizenz_pruefen(o, db))
         f.starten()
         code = app.exec()
         db.schliessen()
