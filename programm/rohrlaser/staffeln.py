@@ -231,6 +231,26 @@ def auswahl(positionen):
     return out + einzeln
 
 
+def standard_faktoren(text):
+    """Faktoren der Standard-Staffeln aus der Einstellung, z. B. '1; 2; 5' -> [1, 2, 5]. Trennzeichen ; oder
+    Leerzeichen, Komma als Dezimalzeichen; ungültige, doppelte und Werte ≤ 0 entfallen, höchstens 10 Faktoren."""
+    out = []
+    for t in str(text or "").replace(";", " ").split():
+        try:
+            f = float(t.replace(",", "."))
+            f = int(f) if f == int(f) else f
+        except (ValueError, OverflowError):        # auch "inf" und "nan"
+            continue
+        if f > 0 and f not in out:
+            out.append(f)
+    return out[:10]
+
+
+def standard_menge(menge, faktor):
+    """Menge einer Standard-Staffel: Menge × Faktor, kaufmännisch gerundet, mindestens 1."""
+    return max(1, int(menge * faktor + 0.5))
+
+
 def gueltige(stufen):
     """Stufen, die gerechnet werden: Schlüssel gefüllt und Menge ≥ 1 (höchstens MAX_STUFEN)."""
     return [s for s in stufen if txt(s.get("schluessel")) and _zahl(s.get("menge")) >= 1][:MAX_STUFEN]
