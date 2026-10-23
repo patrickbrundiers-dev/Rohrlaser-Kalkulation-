@@ -180,7 +180,8 @@ b = fenster.bereich
 assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
-                                                                 "Blechlaser (Richtwerte)", "Schweißverfahren",
+                                                                 "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)",
+                                                                 "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren",
                                                                  "Importprofile (STEP)",
                                                                  "Stundensätze und Zeitvorgaben"]

@@ -35,8 +35,9 @@ FORMEN = (RECHTECK, POLYGON)
 KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE)
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
+ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
 EINSTELLUNGEN = {"blech_stundensatz": 120.0, "blech_ruesten": 30.0, "blech_verschnitt": 0.15, "blech_kantung": 1.20,
-                 "blech_ruesten_kanten": 25.0, "blech_aufschlag": 0.15}
+                 "blech_ruesten_kanten": 25.0, "blech_aufschlag": 0.15, "blech_abwicklung": ABWICKLUNG_K[0]}
 
 _z = sw._z
 
@@ -53,8 +54,26 @@ def ausgleich(winkel, radius, dicke, k=K_FAKTOR):
     return 2 * (r + s) - bogen
 
 
+def k_faktor(tabelle, kategorie, dicke, radius, vorgabe=K_FAKTOR):
+    """K-Faktor aus der Tabelle blech_kfaktoren: Zeilen der Kategorie mit der kleinsten 'Dicke bis' ≥ Dicke, darin
+    die kleinste 'Ri/s bis' ≥ Innenradius ÷ Dicke (größer als alle: die größte). Keine Zeile: vorgabe."""
+    s = _z(dicke)
+    zeilen = [z for z in tabelle or () if z.get("kategorie") == kategorie and _z(z.get("k_faktor")) > 0
+              and _z(z.get("dicke_bis")) >= s - 1e-9]
+    if not zeilen or s <= 0:
+        return vorgabe
+    d = min(_z(z["dicke_bis"]) for z in zeilen)
+    zeilen = [z for z in zeilen if _z(z["dicke_bis"]) == d]
+    ri_s = _z(radius) / s
+    passend = [z for z in zeilen if _z(z.get("ri_s_bis")) >= ri_s - 1e-9]
+    z = (min(passend, key=lambda z: _z(z["ri_s_bis"])) if passend
+         else max(zeilen, key=lambda z: _z(z.get("ri_s_bis"))))
+    return _z(z["k_faktor"])
+
+
 def biegungen(e, k=K_FAKTOR):
-    """[(Lage der Biegelinie ab Anfang der Abwicklung, Winkel, Innenradius, Ausgleich)], Abwicklungslänge."""
+    """[(Lage der Biegelinie ab Anfang der Abwicklung, Winkel, Innenradius, Ausgleich)], Abwicklungslänge.
+    k: K-Faktor oder Funktion Innenradius -> K-Faktor (K-Faktor-Tabelle)."""
     s = _z(e.get("dicke"))
     schenkel = [x for x in e.get("schenkel") or [] if _z(x.get("laenge")) > 0]
     out, pos = [], 0.0
@@ -63,7 +82,7 @@ def biegungen(e, k=K_FAKTOR):
         if i == len(schenkel) - 1 or not _z(x.get("winkel")):
             continue
         r = _z(x.get("radius")) if x.get("radius") not in (None, "") else s
-        v = ausgleich(x["winkel"], r, s, k)
+        v = ausgleich(x["winkel"], r, s, k(r) if callable(k) else k)
         out.append((pos - v / 2, _z(x["winkel"]), r, v))
         pos -= v
     return out, pos
@@ -169,7 +188,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     erg = dict(fehler=[], zuschnitt=None, gewicht=None, gewicht_tafel=None, schneidweg=None, aussen=None, innen=None,
                einstiche=None, zeit=None, kosten={}, summe=None, richtpreis=None, gas=None, kantungen=0,
-               konturen=[], hinweise=[])
+               konturen=[], hinweise=[], k_faktoren=[])
     wst = werkstoffe.get(e.get("werkstoff"))
     s = _z(e.get("dicke"))
     if not wst:
@@ -177,12 +196,15 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     if s <= 0:
         erg["fehler"].append("Blechdicke eingeben.")
     k = _z((wst or {}).get("k_faktor")) or K_FAKTOR
+    if w.get("blech_abwicklung") != ABWICKLUNG_K[1] and w.get("kfaktoren"):
+        k = (lambda r, k0=k: k_faktor(w["kfaktoren"], (wst or {}).get("kategorie"), s, r, k0))
     try:
         zs = zuschnitt(e, k)
     except ValueError as x:
         erg["fehler"].append(str(x))
         return erg
     erg["zuschnitt"] = zs
+    erg["k_faktoren"] = sorted({round(k(r) if callable(k) else k, 3) for _, _, r, _ in zs.get("biegungen") or ()})
     erg["hinweise"] = list(zs.get("hinweise") or ())
     innen, einstiche, loch = 0.0, 1, 0.0
     for i, z in enumerate(e.get("konturen") or [], 1):

@@ -3112,7 +3112,7 @@ class AngebotSeite(QWidget):
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
                                        if z.get("blech_werkstoff_id")},
                            laserdaten=self.db.zeilen("blechlaser"),
-                           einst={n: self.db.einstellung(n) for n in blech.EINSTELLUNGEN})
+                           einst=self.db.blech_einstellungen())
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)

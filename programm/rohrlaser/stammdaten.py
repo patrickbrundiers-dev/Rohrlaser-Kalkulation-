@@ -466,6 +466,22 @@ BLECHLASER = Tabelle(
     "Leerer Vorschub Innenkonturen = halber Vorschub Außenkontur. Vorbelegt sind Richtwerte eines Faserlasers mit "
     "etwa 6 kW, bitte an den eigenen Blechlaser bzw. Lieferanten anpassen.")
 
+# K-Faktoren der Abwicklung je Kategorie, Blechdicke und Innenradius ÷ Dicke (Plan S4, Patrick 23.10.2026 „2a“)
+BLECH_KFAKTOREN = Tabelle(
+    "blech_kfaktoren", "K-Faktoren (Abwicklung)",
+    (Feld("kategorie", "Kategorie", "auswahl", auswahl="kategorie", pflicht=True, breite=90),
+     Feld("dicke_bis", "Blechdicke bis [mm]", "zahl", 0.1, 100, stellen=1, pflicht=True),
+     Feld("ri_s_bis", "Innenradius ÷ Dicke bis", "zahl", 0.01, 1000, stellen=2, pflicht=True),
+     Feld("k_faktor", "K-Faktor", "zahl", 0.1, 0.5, stellen=3, pflicht=True),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("kategorie", "dicke_bis", "ri_s_bis"),
+    "K-Faktor = Lage der neutralen Faser (Anteil der Blechdicke von innen) für die Abwicklung von Kantteilen im "
+    "Blech-Editor, je Biegung nachgeschlagen: Zeile der Kategorie mit der kleinsten 'Blechdicke bis' ≥ Dicke, darin "
+    "die kleinste 'Innenradius ÷ Dicke bis' ≥ Innenradius ÷ Dicke (größer als alle: die größte). Ohne passende Zeile "
+    "gilt der K-Faktor des Blech-Werkstoffs. Vorbelegt sind Beispielwerte nach DIN 6935, bitte an die eigene "
+    "Abkantpresse bzw. den Lieferanten anpassen. Einstellung 'Abwicklung: K-Faktor aus' = je Werkstoff schaltet "
+    "die Tabelle ab.")
+
 # Schweißbaugruppen (Patrick 23.10.2026, Plan 3a/4a): Schweißzeit je Nahtgruppe aus Lichtbogenzeit je m Naht
 # (Verfahren × Nahtart × a-Maß bzw. Blechdicke) × Faktoren, geteilt durch den Lichtbogenzeitfaktor des Verfahrens,
 # dazu Heftpunkte. Neue Dateien bekommen die Tabellen leer; 'Richtwerte laden' (baugruppe.richtwerte) trägt
@@ -518,6 +534,7 @@ SCHWEISS_FAKTOREN = Tabelle(
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
 BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
 DARSTELLUNG_3D = ("Automatisch", "Software", "OpenGL")       # wie ansicht3d.RENDERER
+ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")            # wie blech.ABWICKLUNG_K
 IMPORTPROFILE = Tabelle(
     "importprofile", "Importprofile (STEP)",
     (Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", pflicht=True, breite=110),
@@ -538,7 +555,8 @@ IMPORTPROFILE = Tabelle(
 
 
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
-            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, SCHWEISSVERFAHREN,
+            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
+            SCHWEISSVERFAHREN,
             SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, IMPORTPROFILE)
 TABELLE = {t.name: t for t in TABELLEN}
 
@@ -649,6 +667,8 @@ EINSTELLUNGEN = (
     Einstellung("blech_kantung", "Kanten: Preis je Kantung [€]", "Blech-Richtpreis", "zahl", 1.20, 0, 10000),
     Einstellung("blech_ruesten_kanten", "Kanten: Rüsten je Auftrag [€]", "Blech-Richtpreis", "zahl", 25.0, 0, 100000),
     Einstellung("blech_aufschlag", "Aufschlag des Lieferanten (Gewinn)", "Blech-Richtpreis", "anteil", 0.15, 0, 5),
+    Einstellung("blech_abwicklung", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle oder je Werkstoff)",
+                "Blech-Richtpreis", "auswahl", ABWICKLUNG_K[0], auswahl="abwicklung"),
     # DXF-Export der Abwicklung (Blech-Editor, dxf.py): Layernamen in fester Reihenfolge, Biegelinien ja/nein
     Einstellung("blech_dxf_layer", "DXF: Layernamen (Außenkontur; Innenkontur; Biegelinie hoch; Biegelinie runter; "
                 "Gravur; Beschriftung)", "Blech-Richtpreis", "text",
@@ -878,7 +898,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
@@ -1063,6 +1083,7 @@ def beispieldaten():
         "arbeitsschritte": beispiel_arbeitsschritte(),
         "blech_werkstoffe": zeilen(BLECH_WERKSTOFFE, beispiel_blech_werkstoffe()),
         "blechlaser": zeilen(BLECHLASER, beispiel_blechlaser()),
+        "blech_kfaktoren": zeilen(BLECH_KFAKTOREN, beispiel_blech_kfaktoren()),
     }
 
 
@@ -1091,6 +1112,14 @@ BLECHLASER_RICHTWERTE = {
     ("Aluminium", "N₂"): [(1, 30000, 0.2), (2, 15000, 0.3), (3, 8000, 0.3), (4, 5500, 0.5), (5, 3800, 0.6),
                           (6, 2500, 0.8), (8, 1300, 1.2), (10, 800, 1.8), (12, 550, 2.5), (15, 350, 3.5),
                           (20, 180, 5.0)]}
+
+
+def beispiel_blech_kfaktoren():
+    """K-Faktoren nach DIN 6935 (k = (0,65 + 0,5·lg(ri/s)) / 2, höchstens 0,5) an der oberen Grenze je Bereich
+    Innenradius ÷ Dicke; ri = s ergibt wie bisher 0,33. Beispielwerte, gleich für alle Kategorien und Dicken."""
+    b = "Beispiel nach DIN 6935, bitte anpassen"
+    stufen = ((0.5, 0.25), (1, 0.33), (2, 0.4), (3, 0.44), (5, 0.5), (1000, 0.5))
+    return [(kat, 100, ri, k, b) for kat in ("Stahl", "Edelstahl", "Aluminium") for ri, k in stufen]
 
 
 def beispiel_blechlaser():
