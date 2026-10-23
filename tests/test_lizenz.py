@@ -225,6 +225,75 @@ pruefe(stelle.zeit_abgleich(datetime.date.today() - datetime.timedelta(days=30))
        "älteres Server-Datum ändert nichts")
 pruefe(stelle.zeit_abgleich(None).stufe == "gueltig", "ohne Server-Datum: nichts")
 
+# ------------------------------------------------------------------ L16 Admin-Passwort beim Start
+class _Db:
+    """Nur was LizenzStelle braucht: Einstellungen und Lesemodus."""
+    nur_lesen = ""
+
+    def __init__(self, passwort):
+        self.werte = dict(passwort=passwort)
+
+    def einstellung(self, n):
+        return self.werte.get(n)
+
+    def einstellung_setzen(self, n, w):
+        self.werte[n] = w
+
+    def lesemodus(self, grund):
+        self.nur_lesen = grund
+
+
+from rohrlaser.lizenz_dialog import admin_beim_start  # noqa: E402
+
+o = tmp / "adminstart"
+o.mkdir()
+(o / lizenz.AKTIV).write_text(json.dumps(lizenzdatei("admin", bis=None, rechner=[RECHNER], gueltig_ab=datetime.date.today().isoformat())), encoding="utf-8")
+
+
+def admin_stelle(passwort="geheim"):
+    st = lizenz.LizenzStelle(o, _Db(passwort), SCHL, RECHNER, durchsetzung=True)
+    st.pruefen()
+    return st
+
+
+eingaben = []
+
+
+def abfrage(werte):
+    werte = list(werte)
+
+    def f(_eltern, versuch):
+        eingaben.append(versuch)
+        return werte.pop(0) if werte else None
+    return f
+
+
+st = admin_stelle()
+pruefe(st.zustand.admin and st.admin_passwort_noetig(), "L16 Admin-Lizenz mit Passwort: Abfrage nötig")
+pruefe(admin_beim_start(st, abfrage(["geheim"])) and st.zustand.admin and not st.zustand.admin_aus,
+       "L16 richtiges Passwort: Admin-Rechte")
+eingaben.clear()
+st = admin_stelle()
+pruefe(admin_beim_start(st, abfrage(["a", "b", "geheim"])) and eingaben == [0, 1, 2],
+       "L16 dritter Versuch richtig: Admin-Rechte")
+eingaben.clear()
+st = admin_stelle()
+ok = admin_beim_start(st, abfrage(["a", "b", "c", "geheim"]))
+pruefe(not ok and len(eingaben) == 3 and not st.zustand.admin and st.zustand.admin_aus
+       and st.zustand.farbe == "gelb" and "Admin-Passwort" in st.zustand.hinweis and not st.zustand.nur_lesen,
+       "L16 dreimal falsch: ohne Admin-Rechte, kein Lesemodus, gelber Hinweis")
+pruefe(not st.pruefen().admin and "ohne Admin-Rechte" in st.text(), "L16 bleibt ohne Admin-Rechte nach erneuter Prüfung")
+pruefe(not st.admin_freigeben("falsch") and st.admin_freigeben("geheim") and st.zustand.admin,
+       "L16 Hilfe → Lizenz: Admin freischalten mit Passwort")
+st = admin_stelle()
+pruefe(not admin_beim_start(st, abfrage([])) and st.zustand.admin_aus, "L16 Abbrechen: ohne Admin-Rechte")
+st = admin_stelle("")
+eingaben.clear()
+pruefe(admin_beim_start(st, abfrage([])) and not eingaben and st.zustand.admin,
+       "L16 ohne Passwort in den Einstellungen: keine Abfrage, Admin-Rechte")
+pruefe(not admin_beim_start(None), "L16 ohne Lizenzstelle: keine Abfrage")
+pruefe(lizenz.STANDARD_MONATE == 3, "Vorgabe-Laufzeit Benutzerlizenz 3 Monate")
+
 # ------------------------------------------------------------------ Lizenz-Werkzeug
 umg = dict(os.environ, ROHRLASER_LIZENZ_PASSWORT="test-passwort-123", ROHRLASER_LIZENZ_ORDNER=str(tmp / "werkzeug"))
 WZ = [sys.executable, str(WURZEL / "werkzeuge" / "lizenz_werkzeug.py")]
@@ -258,9 +327,9 @@ for d in dateien:
     arten[inh["art"]] = (inh, lizenz.ermitteln(d, heute, RECHNER, s, durchsetzung=True))
 b_inh, b_z = arten["benutzer"]
 import lizenz_werkzeug  # noqa: E402
-erwartet = lizenz_werkzeug.monate_spaeter(heute, 6)
+erwartet = lizenz_werkzeug.monate_spaeter(heute, 3)
 pruefe(b_z.stufe == "gueltig" and b_inh["gueltig_bis"] == erwartet.isoformat(),
-       f"Benutzerlizenz 6 Monate ({b_inh['gueltig_bis']})")
+       f"Benutzerlizenz 3 Monate ({b_inh['gueltig_bis']})")
 pruefe(arten["admin"][1].stufe == "admin" and arten["admin"][0]["gueltig_bis"] is None, "Admin-Lizenz gültig")
 t_inh, t_z = arten["test"]
 pruefe(t_z.test and t_inh["rechner"] == [] and (datetime.date.fromisoformat(t_inh["gueltig_bis"]) - heute).days == 29,
@@ -297,8 +366,8 @@ w.art.setCurrentIndex(2)
 pruefe(not w.bis.isEnabled() and w.inhaber.text() == "Patrick", "Werkzeug-Fenster: Admin ohne Datum")
 w.art.setCurrentIndex(0)
 q = w.bis.date()
-pruefe(datetime.date(q.year(), q.month(), q.day()) == lizenz_werkzeug.monate_spaeter(heute, 6),
-       "Werkzeug-Fenster: Benutzer 6 Monate vorgeschlagen")
+pruefe(datetime.date(q.year(), q.month(), q.day()) == lizenz_werkzeug.monate_spaeter(heute, 3),
+       "Werkzeug-Fenster: Benutzer 3 Monate vorgeschlagen")
 w2 = lizenz_werkzeug_fenster.Fenster(tmp / "werkzeug_leer")
 pruefe(w2.schluessel_knopf.isEnabled() and w2.tabelle.rowCount() == 0, "Werkzeug-Fenster ohne Schlüssel")
 

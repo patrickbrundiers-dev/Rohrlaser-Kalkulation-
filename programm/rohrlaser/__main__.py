@@ -314,7 +314,14 @@ def main(argv=None):
             except Exception as e:
                 if not oeffnen_fehlgeschlagen(o, e):
                     return 1
-        f = Hauptfenster(db, programmordner(), orte=o, lizenz=lizenz_pruefen(o, db))
+        stelle = lizenz_pruefen(o, db)
+        try:
+            from .lizenz_dialog import admin_beim_start
+            admin_beim_start(stelle)                # Admin-Lizenz: Passwort, sonst ohne Admin-Rechte
+        except Exception:       # noqa: BLE001
+            from . import protokoll
+            protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen:\n" + traceback.format_exc())
+        f = Hauptfenster(db, programmordner(), orte=o, lizenz=stelle)
         f.starten()
         code = app.exec()
         db.schliessen()

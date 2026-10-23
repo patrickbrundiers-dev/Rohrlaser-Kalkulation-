@@ -4549,11 +4549,18 @@ def kapitel_lizenz(i):
     i.text("Das Programm prüft die Datei vor dem Übernehmen. Eine ungültige, abgelaufene oder für einen anderen "
            "Rechner ausgestellte Datei wird abgelehnt; die bisherige Lizenz bleibt dann, wie sie war.")
     i.genauer()
-    i.liste("Eine <b>Benutzerlizenz</b> gilt in der Regel 6 Monate und für einen Rechner. Für die portable Version "
+    i.liste("Eine <b>Benutzerlizenz</b> gilt in der Regel 3 Monate und für einen Rechner; danach schickt Patrick "
+            "eine neue Datei. Für die portable Version "
             "auf einem USB-Stick an mehreren PCs gibt es Lizenzen für mehrere oder beliebige Rechner.",
             "Eine <b>Testlizenz</b> gilt kurz (meist 30 Tage). Alle PDFs tragen dann den Aufdruck <i>TESTVERSION</i>.",
-            "Die <b>Admin-Lizenz</b> ist unbefristet. Mit ihr öffnen sich die Einstellungen ohne Passwort "
-            "([[passwort]]).",
+            "Die <b>Admin-Lizenz</b> ist unbefristet. Beim Start fragt das Programm dann das <b>Admin-Passwort</b> "
+            "ab, das ist das Passwort der Einstellungen ([[passwort]]); ist keins vergeben, entfällt die Frage. Mit "
+            "richtigem Passwort öffnen sich die Einstellungen ohne weitere Abfrage. Nach <b>Abbrechen</b> oder dreimal "
+            "falsch startet das Programm ohne Admin-Rechte, wie mit einer Benutzerlizenz: Einstellungen nur mit "
+            "Passwort, gelber Hinweis unten rechts. <i>Hilfe → Lizenz …</i>, <b>Admin freischalten …</b> holt die "
+            "Admin-Rechte ohne Neustart nach.",
+            "<b>Gesperrte Lizenzen</b> erfährt ein Rechner bei der Suche nach Updates. Ein Rechner, der nie online "
+            "ist, arbeitet bis zum Ablaufdatum seiner Lizenz weiter; deshalb sind die Laufzeiten kurz.",
             "Neuer PC oder Windows neu installiert: Die Rechner-ID ändert sich, es braucht eine neue Lizenz.",
             "Die Lizenz liegt im Datenordner im Unterordner <i>Lizenz</i>, nicht in der Datendatei. Sicherung, "
             "Wiederherstellen und Daten exportieren nehmen sie deshalb nicht mit auf einen anderen Rechner.",
