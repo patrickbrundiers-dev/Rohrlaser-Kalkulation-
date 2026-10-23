@@ -28,6 +28,13 @@ NEUERUNGEN = [
      "messen die Spaltenbreite an den sichtbaren und höchstens 100 Zeilen; ein sehr langer Eintrag weiter unten "
      "kann gekürzt sein und steht ganz im Tooltip ([[optimieren]]).",
      "Optimieren großer Angebote auf mehreren Kernen, schnellere Suche in der Angebotsliste ([[optimieren]])."],
+    ["0.9.29", "<b>Übersichtlicher</b>: Der Angebotskopf braucht 5 statt 8 Zeilen, die Positionsliste wird höher. "
+               "Der Status hat ein Symbol (Haken, i, Dreieck, Kreuz), Eingabefelder sind nur noch hell gelb, der "
+               "Verkaufspreis steht groß in der Übersicht. Die Staffel-Tabelle schneidet keine Texte mehr ab. Leere "
+               "Spalten Bearbeiter und Nachkalkuliert blendet die Angebotsliste aus; die Startseite zeigt die "
+               "Stammdaten-Tabellen nur aufgeklappt. Lange Hinweise in Dialogen zeigen den ersten Satz, der Rest "
+               "steht hinter <b>ⓘ mehr</b> ([[angebot]]).",
+     "Angebot kompakter, Status mit Symbol, Verkaufspreis groß ([[angebot]])."],
     ["0.9.28", "<b>Baugruppen-Vorlagen</b>: Im Editor einer Schweißbaugruppe lassen sich Struktur, Nahtgruppen und "
      "Arbeitsgänge als Vorlage speichern und in neue Baugruppen einsetzen (Kennwerte aus den aktuellen Stammdaten). "
      "Neu im Rechtsklick-Menü: <b>Baugruppe in anderes Angebot kopieren …</b> mit allen Einzelteilen "

@@ -35,7 +35,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import step_ablage, step_einstellungen
+from . import step_ablage, step_einstellungen, stil
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -342,6 +342,15 @@ class AngeboteSeite(QWidget):
                 continue
             zeilen.append(z)
         self.modell.setzen(zeilen)
+        self._leere_spalten()
+
+    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert")     # ohne einen Eintrag ausgeblendet (Layout-Plan L6)
+
+    def _leere_spalten(self):
+        for c, (titel, quelle, _, _) in enumerate(self.SPALTEN):
+            if titel in self.AUSBLENDBAR:
+                leer = all(not (quelle(z) if callable(quelle) else z.get(quelle)) for z in self.modell.zeilen)
+                self.ansicht.setColumnHidden(c, leer)
 
     def _wer_fuellen(self, alle):
         """Auswahl Meine/Alle/Kürzel nur, wenn geteilt wird oder Angebote anderer da sind. Ergebnis: Auswahl."""
@@ -767,6 +776,8 @@ class PositionenModell(QAbstractTableModel):
             return w
         if rolle == Qt.EditRole and art == "feld":
             return wert_als_text(x, w, bearbeiten=True)
+        if rolle == Qt.DecorationRole and art == "status":
+            return stil.status_symbol(w)
         if rolle == Qt.DecorationRole and art == "feld" and x.name == "artikel":
             return self.vorschau(index.row())
         if rolle == Qt.UserRole:
