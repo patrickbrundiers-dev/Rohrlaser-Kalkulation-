@@ -30,7 +30,7 @@ from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 KURZANLEITUNG = "Kurzanleitung.pdf"
-FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
+FARBE_EINGABE = QColor("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
 FARBE_BERECHNET = QColor("#EDEDED")
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
 FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": FARBE_BERECHNET}
@@ -903,7 +903,7 @@ class StartSeite(QWidget):
 
     def __init__(self, fenster):
         from .angebot_fenster import AngeboteListe, _tabelle, _zeit, angebot_status
-        from .angebot_oben import karte
+        from .angebot_oben import Aufklapper, karte
         super().__init__()
         self.f = fenster
         titel = QLabel(f"<h2 style='color:{AKZENT}'>{NAME}</h2>")
@@ -936,6 +936,8 @@ class StartSeite(QWidget):
         self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an.")
         self.keine.setStyleSheet("color: #5F6B7A;")
         al.addWidget(self.keine)
+        al.addStretch(0)                    # ohne Angebote: Knöpfe und Hinweis oben statt verteilt (L8)
+        self.angebote_layout = al
 
         # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
         stamm, sl = karte("Stammdaten")
@@ -943,6 +945,10 @@ class StartSeite(QWidget):
         self.stamm.setWordWrap(True)
         self.stamm.setTextInteractionFlags(Qt.TextSelectableByMouse)
         sl.addWidget(self.stamm)
+        self.stamm_tabellen = QLabel()       # Anzahl je Tabelle nur bei Bedarf (L8)
+        self.stamm_tabellen.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.stamm_aufklapper = Aufklapper("Tabellen", self.stamm_tabellen)
+        sl.addWidget(self.stamm_aufklapper)
         b = QPushButton("Einstellungen öffnen")
         b.clicked.connect(lambda: fenster.reiter.setCurrentWidget(fenster.bereich))
         zeile = QHBoxLayout()
@@ -1000,13 +1006,16 @@ class StartSeite(QWidget):
         zeilen = "".join(
             "<tr>" + "".join(f"<td>{t}</td><td align='right' style='padding-right:18px'><b>{n}</b></td>"
                              for t, n in tabellen[i::haelfte]) + "</tr>" for i in range(haelfte))
-        self.stamm.setText(f"<p>{herkunft} (Stand {stand})</p>{warnung}<table cellpadding='2'>{zeilen}</table>")
+        self.stamm.setText(f"<p>{herkunft} (Stand {stand})</p>{warnung}")
+        self.stamm_tabellen.setText(f"<table cellpadding='2'>{zeilen}</table>")
+        self.stamm_aufklapper.setze_titel(f"{len(tabellen)} Tabellen, {sum(n for _, n in tabellen)} Einträge")
         self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
                           f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
         zuletzt = sorted(db.angebote(), key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
         self.zuletzt.setzen(zuletzt)
         self.zuletzt_ansicht.setVisible(bool(zuletzt))
         self.keine.setVisible(not zuletzt)
+        self.angebote_layout.setStretch(self.angebote_layout.count() - 1, 0 if zuletzt else 1)
 
 
 class Hauptfenster(QMainWindow):
