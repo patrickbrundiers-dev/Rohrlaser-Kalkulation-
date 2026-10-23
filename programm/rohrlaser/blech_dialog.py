@@ -1,13 +1,15 @@
 """Fenster 'Blech-Editor': Blech- oder Kantteil beschreiben (Werkstoff, Dicke, Zuschnitt bzw. Schenkel mit
-Biegungen, Innenkonturen), Abwicklung und Seitenansicht als Skizze, Richtpreis je Stück als EK-Vorschlag des
-Zukaufteils (Rechnung in blech.py). Schreibt nichts in die Rohrlaser-Daten."""
+Biegungen, Innenkonturen), Abwicklung und Seitenansicht als Skizze, darunter das gefaltete Teil in 3D (blech3d),
+Richtpreis je Stück als EK-Vorschlag des Zukaufteils (Rechnung in blech.py). Schreibt nichts in die
+Rohrlaser-Daten."""
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox,
                                QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import blech, schneidweg as sw, zukauf
+from . import blech, blech3d, schneidweg as sw, zukauf
+from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .stammdaten import zahl_als_text, zahl_aus_text
 
@@ -77,6 +79,7 @@ class BlechSkizze(QWidget):
         p.setFont(QFont(self.font().family(), 8))
         p.setPen(QPen(QColor(FARBE_LINIE), 1.0 if self.mini else 1.6))
         p.setBrush(QColor(FARBE_BLECH))
+        minx = miny = 0.0
         if zs.get("punkte"):
             minx, miny = min(x for x, _ in zs["punkte"]), min(y for _, y in zs["punkte"])
             pfad = QPainterPath(pkt(zs["punkte"][0][0] - minx, zs["punkte"][0][1] - miny))
@@ -97,6 +100,21 @@ class BlechSkizze(QWidget):
             p.setPen(QColor(FARBE_BIEGUNG))
             p.drawText(QPointF(b.x() + 4, b.y() + 4),
                        f"B{i} {zahl_als_text(abs(winkel), 0)}° {'↑' if winkel > 0 else '↓'} r{zahl_als_text(radius, 1)}")
+        # mehrachsig gekantet (STEP-Import): Biegelinien in beliebiger Richtung
+        if self.eingaben.get("art") != blech.KANTTEIL:
+            for i, x in enumerate(self.eingaben.get("biegelinien") or (), 1):
+                try:
+                    (x1, y1), (x2, y2) = x["punkte"]
+                except (TypeError, ValueError, KeyError):
+                    continue
+                p.setPen(QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
+                a, b = pkt(x1 - minx, y1 - miny), pkt(x2 - minx, y2 - miny)
+                p.drawLine(a, b)
+                if not self.mini:
+                    p.setPen(QColor(FARBE_BIEGUNG))
+                    w = sw._z(x.get("winkel"))
+                    p.drawText(QPointF((a.x() + b.x()) / 2 + 4, (a.y() + b.y()) / 2 - 4),
+                               f"B{i} {zahl_als_text(abs(w), 0)}° {'↑' if w > 0 else '↓'}")
         # Innenkonturen: Mitte x/y, ohne Angabe gleichmäßig auf der Mittellinie
         konturen = [z for z in self.eingaben.get("konturen") or [] if z.get("art")]
         frei = [z for z in konturen if z.get("x") is None or z.get("y") is None]
@@ -120,7 +138,9 @@ class BlechSkizze(QWidget):
         p.drawText(QRectF(-80, -16, 160, 14), Qt.AlignCenter,
                    f"{zahl_als_text(br, 1)} mm" + (" (Abwicklung)" if kant else ""))
         p.restore()
-        p.drawText(QPointF(x0, 16), "Abwicklung (Zuschnitt)" if kant else "Zuschnitt")
+        mehr = not kant and blech.kantungen(self.eingaben)
+        p.drawText(QPointF(x0, 16), "Abwicklung (Zuschnitt)" if kant else
+                   f"Abwicklung, mehrachsig gekantet ({mehr} Kantungen)" if mehr else "Zuschnitt")
         if kant and untereinander:
             self._seitenansicht(p, QRectF(10, hoehe_abw + 16, self.width() - 20, self.height() - hoehe_abw - 24), m)
         elif kant:
@@ -256,21 +276,20 @@ class BlechDialog(QDialog):
         flach = QWidget()
         fl = QGridLayout(flach)
         fl.setContentsMargins(0, 0, 0, 0)
-        self.form = QComboBox()
-        self.form.addItems(list(blech.FORMEN))
-        self.form.setCurrentText(e.get("form") or blech.RECHTECK)
         self.laenge = self._spin(e.get("laenge"), 0, 100000, 10, " mm", 1)
         self.breite = self._spin(e.get("breite"), 0, 100000, 10, " mm", 1)
         self.eckradius = self._spin(e.get("eckradius"), 0, 10000, 1, " mm", 1)
-        self.punkte = QLineEdit(e.get("punkte") or "")
-        self.punkte.setPlaceholderText("Eckpunkte x,y; x,y; … in mm, z. B. 0,0; 200,0; 200,80; 120,150; 0,150")
-        for c, (titel, w) in enumerate((("Form", self.form), ("Länge", self.laenge), ("Breite", self.breite),
-                                        ("Eckradius", self.eckradius))):
+        self.kantungen = QSpinBox()
+        self.kantungen.setRange(0, 99)
+        self.kantungen.setValue(int(sw._z(e.get("kantungen"))))
+        self.kantungen.setToolTip("Mehrachsig gekantetes Teil (z. B. Schale aus dem STEP-Import): Anzahl Kantungen "
+                                  "für die Kosten Kanten; 0 = flaches Blech")
+        self.biegelinien = list(e.get("biegelinien") or ())      # aus dem STEP-Import, nur Skizze und 3D
+        for c, (titel, w) in enumerate((("Länge", self.laenge), ("Breite", self.breite),
+                                        ("Eckradius", self.eckradius), ("Kantungen", self.kantungen))):
             fl.addWidget(QLabel(f"<span style='color:#595959'>{titel}</span>"), 0, c)
             fl.addWidget(w, 1, c)
-        fl.addWidget(QLabel("<span style='color:#595959'>Polygon</span>"), 2, 0)
-        fl.addWidget(self.punkte, 3, 0, 1, 4)
-        fl.setRowStretch(4, 1)
+        fl.setRowStretch(2, 1)
         self.stapel.addWidget(flach)
         kant = QWidget()
         kl = QVBoxLayout(kant)
@@ -300,6 +319,19 @@ class BlechDialog(QDialog):
         kl.addWidget(self.schenkel, 1)
         self.stapel.addWidget(kant)
         lay.addWidget(self.stapel, 2)
+        # Außenkontur (Zuschnitt und Kantteil): Rechteck aus den Maßen oder freies Polygon der Abwicklung
+        zeile = QHBoxLayout()
+        self.form = QComboBox()
+        self.form.addItems(list(blech.FORMEN))
+        self.form.setCurrentText(e.get("form") or blech.RECHTECK)
+        self.form.setToolTip("Rechteck: Länge × Breite (Kantteil: Kantlänge × Abwicklung); Polygon: freie "
+                             "Außenkontur der Abwicklung mit Eckpunkten")
+        self.punkte = QLineEdit(e.get("punkte") or "")
+        self.punkte.setPlaceholderText("Eckpunkte x,y; x,y; … in mm, z. B. 0,0; 200,0; 200,80; 120,150; 0,150")
+        zeile.addWidget(QLabel("<span style='color:#595959'>Außenkontur</span>"))
+        zeile.addWidget(self.form)
+        zeile.addWidget(self.punkte, 1)
+        lay.addLayout(zeile)
         for x in e.get("schenkel") or []:
             self.schenkel_neu(x, rechnen_=False)
 
@@ -335,7 +367,14 @@ class BlechDialog(QDialog):
         lay.setContentsMargins(6, 0, 0, 0)
         self.teiler.addWidget(rechts)
         self.skizze = BlechSkizze()
-        lay.addWidget(self.skizze, 1)
+        self.ansicht3d = Ansicht3DMitKnoepfen()
+        self.ansicht3d.setToolTip("Das gefaltete Teil aus den Eingaben (zur Anschauung): Innenkonturen rot, "
+                                  "Biegelinien grün")
+        bilder = QSplitter(Qt.Vertical)
+        bilder.setChildrenCollapsible(False)
+        bilder.addWidget(self.skizze)
+        bilder.addWidget(self.ansicht3d)
+        lay.addWidget(bilder, 1)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
@@ -353,7 +392,7 @@ class BlechDialog(QDialog):
         self.knoepfe.rejected.connect(self.reject)
         lay.addWidget(self.knoepfe)
 
-        for w in (self.dicke, self.laenge, self.breite, self.eckradius, self.kantlaenge):
+        for w in (self.dicke, self.laenge, self.breite, self.eckradius, self.kantlaenge, self.kantungen):
             w.valueChanged.connect(self.rechnen)
         self.stueck.valueChanged.connect(self.rechnen)
         for w in (self.werkstoff, self.art, self.form):
@@ -457,11 +496,14 @@ class BlechDialog(QDialog):
                          winkel=_zahl_text(self._text(self.schenkel, r, 1)) or 0,
                          radius=_zahl_text(self._text(self.schenkel, r, 2)))
                     for r in range(self.schenkel.rowCount())]
-        return dict(werkstoff=self.werkstoff.currentText() or None, dicke=self.dicke.value(),
-                    art=self.art.currentText(), form=self.form.currentText(), laenge=self.laenge.value(),
-                    breite=self.breite.value(), eckradius=self.eckradius.value(),
-                    punkte=self.punkte.text().strip() or None, kantlaenge=self.kantlaenge.value(),
-                    schenkel=schenkel, konturen=konturen, stueck=self.stueck.value())
+        e = dict(werkstoff=self.werkstoff.currentText() or None, dicke=self.dicke.value(),
+                 art=self.art.currentText(), form=self.form.currentText(), laenge=self.laenge.value(),
+                 breite=self.breite.value(), eckradius=self.eckradius.value(),
+                 punkte=self.punkte.text().strip() or None, kantlaenge=self.kantlaenge.value(),
+                 schenkel=schenkel, konturen=konturen, stueck=self.stueck.value())
+        if e["art"] != blech.KANTTEIL and self.kantungen.value():
+            e.update(kantungen=self.kantungen.value(), biegelinien=self.biegelinien)
+        return e
 
     def kopf_werte(self):
         return dict(bezeichnung=self.bezeichnung.text().strip() or self.bezeichnung.placeholderText(),
@@ -480,12 +522,24 @@ class BlechDialog(QDialog):
         erg = blech.rechnen(e, self.werkstoffe, self.laserdaten, self.einst)
         self.ergebnis = erg
         self.skizze.setzen(e, erg.get("zuschnitt"))
+        try:
+            netz = blech3d.netz(e, erg.get("zuschnitt"))
+        except (ValueError, ZeroDivisionError):
+            netz = None
+        alt = self.ansicht3d.ansicht.netz is not None
+        blick = (self.ansicht3d.ansicht.gier, self.ansicht3d.ansicht.nick, self.ansicht3d.ansicht.zoom)
+        self.ansicht3d.setzen(netz, "3D-Ansicht (gefaltet aus den Eingaben)")
+        if alt and netz:            # beim Tippen die Blickrichtung behalten
+            a = self.ansicht3d.ansicht
+            a.gier, a.nick, a.zoom = blick
+            a.update()
         if erg.get("zuschnitt") and not self._bez_von_hand:
             self.bezeichnung.setPlaceholderText(blech.bezeichnung_vorschlag(e, erg["zuschnitt"]))
         self.ok_knopf.setEnabled(not erg["fehler"] and bool(erg.get("richtpreis")))
         if erg["fehler"]:
             self.summe.setText("<span style='color:#B42318'>" + "<br>".join(erg["fehler"]) + "</span>")
             return erg
+        warn = "".join(f"<br><span style='color:#B26A00'>Hinweis: {h}</span>" for h in erg.get("hinweise") or ())
         zs, k = erg["zuschnitt"], erg["kosten"]
         kanten = f", {erg['kantungen']} Kantung{'en' if erg['kantungen'] != 1 else ''}" if erg["kantungen"] else ""
         self.summe.setText(
@@ -495,7 +549,8 @@ class BlechDialog(QDialog):
             f"{zahl_als_text(erg['gewicht_tafel'], 2)} kg<br>Schneidweg {zahl_als_text(erg['schneidweg'], 0)} mm, "
             f"{erg['einstiche']} Einstiche, Laserzeit {zahl_als_text(erg['zeit'], 1)} s ({erg['gas']}) · "
             + " · ".join(f"{n} {_euro(w)}" for n, w in k.items())
-            + f" · Summe {_euro(erg['summe'])} + Aufschlag {zahl_als_text(sw._z(self.einst.get('blech_aufschlag')) * 100, 0)} %")
+            + f" · Summe {_euro(erg['summe'])} + Aufschlag {zahl_als_text(sw._z(self.einst.get('blech_aufschlag')) * 100, 0)} %"
+            + warn)
         return erg
 
     def accept(self):

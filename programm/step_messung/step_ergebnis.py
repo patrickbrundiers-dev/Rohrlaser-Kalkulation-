@@ -56,11 +56,22 @@ Versionen von SCHEMA_VERSION:
   "schnittlaenge" ist die Kontur beim 2D-Schnitt (Strahl zur Rohrmitte, innen Ø der Konstruktion, außen breiter;
   dreid.bohrung_2d_rundrohr) statt der Außenkante der Konstruktion; "innen"/"schneidweg" entsprechend. Hüllmaß
   bleibt der Ø. Felder sonst unverändert.
+- 1.12 (23.10.2026): Konturen von Hohlprofilen (Innenkonturen, Gravuren, komplexe Enden) tragen "umriss" = Punkte
+  [u, z] der abgewickelten Kontur (u = Umfangsposition wie "u", über die 0°-Naht fortlaufend, z ab Ende A); bei
+  Quadrat-/Rechteckrohren "waende" = berührte Seiten. Neue Konturart "Sonderkontur" (über mehrere Wände oder keine
+  Grundform; laenge/breite = Hüllrechteck der Abwicklung) statt "Ausschnitt" bei Hohlprofilen; Gravuren und
+  Sackbohrungen mit "tiefe" [mm], flache runde Vertiefungen bis 0,5 mm sind Gravur (mit durchmesser), keine
+  Sackbohrung. Gekantete Bleche: im Block "blech" Schneidweg (umfang_aussen/innen), Innenkonturen, konturen_lage,
+  aussen_punkte der Abwicklung und "abwicklung" {laenge, breite (Zuschnitt), kantlaenge, schenkel [{laenge
+  (Außenmaß), winkel (+ zur Außenseite), radius (Innenradius, null = scharfkantig, Blechdicke angenommen)}] bei
+  einer Kette paralleler Kanten, sonst null, biegelinien [{punkte, winkel, radius, scharf, ba, von, bis}], kantungen,
+  mehrachsig, scharf, k_faktor}; scharfkantig gezeichnete Kantteile werden erkannt (Grenzfall Profil/Kantteil).
+  Felder aus 1.11 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.11"
+SCHEMA_VERSION = "1.12"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -76,7 +87,7 @@ def _blech(b):
     out.update(kontur=b.get("kontur"), innenkonturen=b.get("innen", 0),
                bohrungen=[dict(durchmesser=_r(d), anzahl=n) for d, n in (b.get("bohrungen") or {}).items()],
                fingerabdruck=b.get("fingerabdruck"), konturen_lage=b.get("konturen_lage") or [],
-               aussen_punkte=b.get("aussen_punkte"))
+               aussen_punkte=b.get("aussen_punkte"), abwicklung=b.get("abwicklung"))
     return out
 
 

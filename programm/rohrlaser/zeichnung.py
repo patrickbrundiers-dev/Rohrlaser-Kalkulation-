@@ -141,8 +141,9 @@ def zeichnung_pdf(pfad, kopf, p, profil, eingaben, ergebnis, naht=None, einst=No
     zeilen = [f"Schneidweg je Teil {rechnen.zahl(f.get('schneidweg') or 0, 1)} mm (Enden "
               f"{rechnen.zahl(f.get('a_schnitt') or 0, 1)} + {rechnen.zahl(f.get('b_schnitt') or 0, 1)} mm, "
               f"Innenkonturen {rechnen.zahl(f.get('innen') or 0, 1)} mm), {f.get('einstiche') or 0} Einstiche"]
-    if sw._z(eingaben.get("gravur")):
-        zeilen.append(f"Gravur {rechnen.zahl(eingaben['gravur'], 1)} mm")
+    if sw._z(f.get("gravur") or eingaben.get("gravur")):
+        zeilen.append(f"Gravur {rechnen.zahl(sw._z(f.get('gravur') or eingaben.get('gravur')), 1)} mm (grün, nicht "
+                      "im Schneidweg)")
     if schneidzeit is not None:
         zeilen.append(f"Schneidzeit je Teil {rechnen.zahl(schneidzeit, 1)} s")
     inhalt += [Spacer(1, 3 * mm), _p(" · ".join(zeilen)),

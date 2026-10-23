@@ -1003,6 +1003,49 @@ class _Abwicklung:
         return self.theta(x, y), x, y
 
 
+GRAVUR_TIEFE = 0.5       # mm: flachere nicht durchgehende Merkmale sind immer Gravur (Prägung), nie Sackbohrung
+UMRISS_PUNKTE = 300      # höchstens so viele Punkte je Umriss (sonst gröber ausgedünnt)
+
+
+def _umriss_uv(kanten, abw, zmin, u_mitte=None):
+    """Abgewickelter Umriss einer Kontur (STEP-JSON 1.12): Punkte [u, z] der Reihe nach, u = Umfangsposition
+    [mm] wie bei 'u' (über die 0°-Naht hinaus fortlaufend, also auch < 0 oder > Umfang), z ab Ende A. Mehrere Züge:
+    der längste, um ganze Umfänge so verschoben, dass seine Mitte bei u_mitte liegt. Ausgedünnt auf 0,05 mm (bei
+    sehr vielen Punkten gröber); None, wenn sich nichts ordnen lässt."""
+    seq = TopTools_HSequenceOfShape()
+    for e in kanten:
+        seq.Append(e)
+    try:
+        wires = ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(seq, 1e-3, False)
+        zuege = [TopoDS.Wire(wires.Value(i)) for i in range(1, wires.Length() + 1)]
+    except Exception:  # Umriss ist nur Zusatz
+        return None
+    if not zuege:
+        return None
+    w = max(zuege, key=_draht_laenge)
+    pts, vorher, versatz = [], None, 0.0
+    for p in _draht_punkte(w, 0.25):
+        u = abw.u(p.X(), p.Y())
+        if vorher is not None:
+            if u + versatz - vorher > abw.umfang / 2:
+                versatz -= abw.umfang
+            elif vorher - (u + versatz) > abw.umfang / 2:
+                versatz += abw.umfang
+        vorher = u + versatz
+        pts.append((vorher, p.Z() - zmin))
+    if len(pts) < 3:
+        return None
+    mitte = (max(u for u, _ in pts) + min(u for u, _ in pts)) / 2
+    k = round((u_mitte - mitte) / abw.umfang) if u_mitte is not None else -math.floor(mitte / abw.umfang)
+    pts = [(u + k * abw.umfang, z) for u, z in pts]
+    tol = 0.05
+    um = _vereinfachen(pts, tol)
+    while len(um) > UMRISS_PUNKTE and tol < 5:
+        tol *= 2
+        um = _vereinfachen(pts, tol)
+    return [[round(u, 2), round(z, 2)] for u, z in um]
+
+
 def _bezug(ax3, profilform):
     """Bezugsrichtung 0° des Umfangswinkels im Messsystem (Grad, gleiche Zählung wie _Abwicklung.theta).
     Kastenprofile: Mitte der breiten Seite (±Y), und zwar die, die in der Datei eher nach oben (+Z) zeigt.
@@ -1819,7 +1862,38 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         u = uc % abw.umfang
         d = dict(z=round(vc, 2), winkel=round(winkel % 360, 1) % 360,
                  u=round(0.0 if abw.umfang - u < 0.005 else u, 2), seite=seite)
+        um = _umriss_uv(zug, abw, zmin, d["u"])
+        if um:
+            d["umriss"] = um
+            if kasten:
+                d["waende"] = waende(um)
         return form, lage, d, normale
+
+    def waende(um):
+        """Wände (Seiten wie 'seite', z. B. '0°', '90°'), die eine abgewickelte Kontur berührt; Ecken zählen nicht."""
+        out, us = [], []
+        for (u0, _), (u1, _) in zip(um, um[1:] + um[:1]):     # auch zwischen den Eckpunkten des Umrisses
+            n = max(1, int(abs(u1 - u0)))
+            us += [u0 + (u1 - u0) * i / n for i in range(n)]
+        for u in us:
+            _, x, y = abw.punkt(u)
+            dx, dy = x - abw.cx, y - abw.cy
+            if abs(abs(dy) - hy) < 0.05:
+                mx, my = abw.cx, abw.cy + math.copysign(hy, dy)
+            elif abs(abs(dx) - hx) < 0.05:
+                mx, my = abw.cx + math.copysign(hx, dx), abw.cy
+            else:
+                continue
+            s = f"{round(abw.theta(mx, my) / 90) % 4 * 90}°"
+            if s not in out:
+                out.append(s)
+        return out
+
+    def tiefe(fl):
+        """Größte Tiefe eines nicht durchgehenden Merkmals unter der Außenhaut [mm] (Abstand seiner Eckpunkte von
+        der Außenkontur im Querschnitt)."""
+        return max((_abstand_zug(p.X(), p.Y(), s_aussen) for f in fl
+                    for p in _punkte_kanten(_liste(faces.FindKey(f), TopAbs_EDGE), 1.0)), default=0.0)
 
     def zylinder_einheitlich(fl, mit_boden=False):
         """(gp_Cylinder, Ø), wenn alle Flächen Zylinder gleichen Radius quer zum Rohr sind (bei mit_boden dürfen
@@ -1899,14 +1973,19 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
             t.gravur += laenge
             t.gravur_konturen += n
             sack = zylinder_einheitlich(m["faces"], mit_boden=True)
+            tief = round(tiefe(m["faces"]), 2)
+            if sack and tief <= GRAVUR_TIEFE:      # flache runde Prägung: Gravur, keine Sackbohrung
+                sack = None
             for zug in konturzuege(kanten):
                 form, lage, d, normale = lage_auf_rohr(zug)
                 if sack:
                     d.update(art="Sackbohrung", durchgehend=False, durchmesser=sack[1], schraeg=schraeg(sack[0], normale),
-                             hinweis="nicht durchgehend, mit dem Laser nicht herstellbar")
+                             tiefe=tief, hinweis="nicht durchgehend, mit dem Laser nicht herstellbar")
                 else:
                     d.update(art="Gravur", durchgehend=False, laenge=round(form[1], 2), breite=round(form[2], 2),
-                             hinweis="nicht durchgehend (Markierung/Vertiefung), nicht im Schneidweg")
+                             tiefe=tief, hinweis="nicht durchgehend (Markierung/Vertiefung), nicht im Schneidweg")
+                    if form[0] == "Kreis":
+                        d.update(breite=round(form[1], 2), durchmesser=round(form[1], 2))
                 d["schnittlaenge"] = round(sum(_kantenlaenge(e) for e in zug), 2)
                 liste.append(d)
             if sack:
@@ -1961,7 +2040,10 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                     schnitt = neu_
                 t.innen_liste.append((groesse, schnitt))
                 d.update(durchgehend=True, schnittlaenge=round(schnitt, 2), huellmass=round(groesse, 2))
-                if rund:
+                if len(d.get("waende") or ()) > 1 or form[0] == "Ausschnitt" and not rund:
+                    # über mehrere Wände oder keine Grundform (Patrick 23.10.2026): Sonderkontur mit Umriss
+                    d.update(art="Sonderkontur", laenge=round(form[1], 2), breite=round(form[2], 2))
+                elif rund:
                     d.update(art="Bohrung", durchmesser=rund[1], schraeg=sr)
                     if d["schraeg"] >= SCHRAEG_3D:
                         d["neigung_l"], d["neigung_q"] = neigung(rund[0], normale)
@@ -1975,9 +2057,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                 elif form[0] == "Rechteck":
                     d.update(art="Rechteckausschnitt", laenge=round(form[1], 2), breite=round(form[2], 2),
                              richtung=round(lage, 1))
-                else:
-                    d.update(art="Ausschnitt", laenge=round(form[1], 2), breite=round(form[2], 2))
-                if not rund:            # Bohrungen: Neigung der Achse (oben); sonst Flächen gegen die Oberfläche
+                if not rund or d["art"] == "Sonderkontur":  # Bohrungen: Neigung der Achse (oben); sonst Flächen
                     d["schwenk"] = schwenk([faces.FindKey(f) for f in m["faces"]], zug, abw)
                 liste.append(d)
         if m["art"] in enden:
@@ -2011,6 +2091,9 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
 
         if e["form"] == "komplex" and kt:
             e.update(_ende_flaechen(fl, kt, abw.cx, abw.cy, ref, zmin + z) or {})
+            um = _umriss_uv(kt, abw, zmin)      # z. B. Ausklinkung am Ende: echter Umriss für die Darstellung
+            if um:
+                e["umriss"] = um
         if fl and kt and art_[1] not in fasen:
             e["schwenk"] = schwenk(fl, kt, abw)
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
@@ -2194,9 +2277,20 @@ def _flach_pruefen(solid, volumen):
         richtungen += gefunden
     biegungen = _zylinder_paare(solid, dicke)
     paare += biegungen
-    # ohne Biegezone (koaxiale Zylinder r und r + Dicke) ist es kein Kantteil, sondern z. B. ein T- oder L-Profil
-    if biegungen > 0 and richtungen >= 2 and abs(volumen - paare / 2 * dicke) <= TOL_BLECH_VOLUMEN * 1.5 * volumen:
+    if richtungen < 2:
+        return None
+    if biegungen > 0 and abs(volumen - paare / 2 * dicke) <= TOL_BLECH_VOLUMEN * 1.5 * volumen:
         return dict(erg, art="gekantet")
+    # scharfkantig gezeichnet (Patrick 23.10.2026, Frage 1 a): Kantteil, wenn sich zwei Blechhäute mit Schenkeln
+    # finden (ein T-Stoß oder Walzprofil ungleicher Dicke nicht; step_abwicklung)
+    if biegungen == 0 and abs(volumen - paare / 2 * dicke) <= 0.15 * volumen:
+        from step_abwicklung import abwickeln
+        try:
+            abw = abwickeln(solid, dicke)
+        except Exception:  # Abwicklung ist nur ein Versuch
+            abw = None
+        if abw and "fehler" not in abw and not abw.get("rohr"):
+            return dict(erg, art="gekantet", abwicklung=abw)
     return None
 
 
@@ -2398,10 +2492,38 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
         b = dict(laenge=masse[0], breite=masse[1], hoehe=masse[2], dicke=d, kontur="gekantet",
                  abwicklung_flaeche=volumen / d, flaeche_netto=volumen / d, umfang_aussen=0.0, umfang_innen=0.0,
                  innen=0, bohrungen={}, innen_liste=[])
-        t.sicherheit.update(profil="wahrscheinlich", laenge="wahrscheinlich", wandstaerke="sicher",
-                            konturen="nicht ausgewertet")
-        t.hinweise.append(f"Gekantetes Blech: Außenmaße {masse[0]:.1f} × {masse[1]:.1f} × {masse[2]:.1f} mm, "
-                          f"Abwicklung ca. {volumen / d / 1e6:.4f} m² (ohne Biegefaktor), Zuschnitt prüfen")
+        abw = fl.get("abwicklung")
+        if abw is None:
+            from step_abwicklung import abwickeln
+            try:
+                abw = abwickeln(solid, d)
+            except Exception as e:  # ohne Abwicklung bleibt es bei den Außenmaßen
+                abw = dict(fehler=str(e))
+        if "fehler" not in abw:
+            # Abwicklung (STEP-JSON 1.12): Zuschnitt, Schenkel, Biegelinien, Innenkonturen mit Lage, Schneidweg
+            b.update(abwicklung_flaeche=abw["flaeche_netto"], flaeche_netto=abw["flaeche_netto"],
+                     umfang_aussen=abw["umfang_aussen"], umfang_innen=abw["umfang_innen"], innen=abw["innen"],
+                     bohrungen=abw["bohrungen"], innen_liste=abw["innen_liste"], konturen_lage=abw["konturen_lage"],
+                     aussen_punkte=abw["aussen_punkte"], abwicklung=dict(
+                         laenge=round(abw["laenge"], 2), breite=round(abw["breite"], 2), kantlaenge=abw["kantlaenge"],
+                         schenkel=abw["schenkel"], biegelinien=abw["biegelinien"], kantungen=abw["kantungen"],
+                         mehrachsig=abw["mehrachsig"], scharf=abw["scharf"], k_faktor=abw["k_faktor"]))
+            t.innen, t.innen_konturen, t.innen_liste = abw["umfang_innen"], abw["innen"], abw["innen_liste"]
+            t.bohrungen, t.konturen = abw["bohrungen"], 1 + abw["innen"]
+            t.schneidweg = abw["umfang_aussen"] + abw["umfang_innen"]
+            t.sicherheit.update(profil="wahrscheinlich", laenge="wahrscheinlich", wandstaerke="sicher",
+                                konturen="sicher" if not abw["hinweise"] else "wahrscheinlich")
+            art = "mehrachsig gekantet" if abw["mehrachsig"] else "gekantet"
+            t.hinweise.append(f"Kantteil ({art}, {abw['kantungen']} Kantung{'en' if abw['kantungen'] != 1 else ''}): "
+                              f"Zuschnitt {abw['laenge']:.1f} × {abw['breite']:.1f} mm (k = {abw['k_faktor']:g}), "
+                              "Abwicklung prüfen")
+            t.hinweise += abw["hinweise"]
+        else:
+            t.sicherheit.update(profil="wahrscheinlich", laenge="wahrscheinlich", wandstaerke="sicher",
+                                konturen="nicht ausgewertet")
+            t.hinweise.append(f"Gekantetes Blech: Außenmaße {masse[0]:.1f} × {masse[1]:.1f} × {masse[2]:.1f} mm, "
+                              f"Abwicklung ca. {volumen / d / 1e6:.4f} m² (ohne Biegefaktor), Zuschnitt prüfen "
+                              f"({abw['fehler']})")
         lr = _vec(ax0.XDirection()).Multiplied(c).Added(_vec(ax0.YDirection()).Multiplied(s_))
         ax3 = gp_Ax3(fl["mitte"], gp_Dir(lr.X(), lr.Y(), lr.Z()), fl["richtung"])
     b["volumen"] = volumen
@@ -2461,8 +2583,18 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
             t, fehler = g, None
     if fehler is not None and not (fl and fl["art"] == "gekantet"):
         raise fehler
+    if fl and fl["art"] == "gekantet" and "abwicklung" not in fl and t is not None and t.kammern:
+        fl["abwicklung"] = dict(fehler="geschlossenes Hohlprofil")     # Rohr, keine Abwicklung rechnen
+    if fl and fl["art"] == "gekantet" and "abwicklung" not in fl:
+        from step_abwicklung import abwickeln
+        try:
+            fl["abwicklung"] = abwickeln(solid, fl["dicke"])
+        except Exception as e:  # ohne Abwicklung bleibt es bei den Außenmaßen
+            fl["abwicklung"] = dict(fehler=str(e))
+    mehrachsig = bool(fl and (fl.get("abwicklung") or {}).get("mehrachsig"))
     if fl and fl["art"] == "gekantet" and (t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
-                                           or t.profilform == "offenes Sonderprofil" or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
+                                           or t.profilform == "offenes Sonderprofil" or mehrachsig
+                                           or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
         b.alternative = _als_profil(solid, b, None, t)
         return b
@@ -3059,6 +3191,22 @@ def _rohnetz(t, shape):
 VERBUNDKERN = "Verbundkern"
 
 
+def _in_kammer(t, kern):
+    """Liegt der Körper kern ganz im Hüllprisma des Hohlprofils t (alle Eckpunkte höchstens halbe Diagonale des
+    Querschnitts von der Rohrachse und zwischen den Enden)? Zwei gekreuzte Streben gleicher Hülle (Rahmengestell
+    23.10.2026: Schwerpunkt der einen im Hohlraum der anderen) sind so kein Verbundprofil."""
+    if not t.achse_global or not t.ende_a_global:
+        return True
+    a, o = gp_Vec(*t.achse_global), gp_Pnt(*t.ende_a_global)
+    r = math.hypot(t.abm_a, t.abm_b or t.abm_a) / 2 + 0.1
+    for v in _liste(kern, TopAbs_VERTEX):
+        w = gp_Vec(o, BRep_Tool.Pnt_s(TopoDS.Vertex(v)))
+        z = w.Dot(a)
+        if z < -0.1 or z > t.laenge + 0.1 or w.Crossed(a).Magnitude() > r:
+            return False
+    return True
+
+
 def _verbund_pruefen(teile, koerper):
     """Verbundprofil (Patrick 22.10.2026, F6 a: nur melden): ein Körper, der ganz in der Kammer eines Hohlprofils
     liegt (Kern aus Kunststoff, Dämmung o. ä.), wird nicht als eigenes Teil übernommen (Profilform 'Verbundkern'),
@@ -3085,7 +3233,7 @@ def _verbund_pruefen(teile, koerper):
             p = GProp_GProps()
             BRepGProp.VolumeProperties_s(kj, p)
             c = BRepClass3d_SolidClassifier(k, p.CentreOfMass(), 1e-6)
-            if c.State() != TopAbs_OUT:
+            if c.State() != TopAbs_OUT or not _in_kammer(t, kj):
                 continue
             u.verbund = f"Kern in der Kammer von Körper {t.koerper}"
             u.profilform, u.bauteiltyp = VERBUNDKERN, ""
