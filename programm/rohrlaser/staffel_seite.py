@@ -632,11 +632,17 @@ class ErgebnisBaum(QTreeWidget):
 
 
 class Vergleich(QWidget):
-    """Preisentwicklung: Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position eine Reihe."""
+    """Staffelkurve (Layout-Plan L22): Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position ein
+    eigenes Feld untereinander mit eigenem Maßstab (ein Satz zu 200 € und eine Position zu 5 € blieben in einem
+    gemeinsamen Feld nicht lesbar). Die Mengen stehen in gleichen Abständen, die senkrechte Achse beginnt bei 0,
+    damit der Preisrückgang nicht übertrieben wirkt."""
+    FARBEN = stil.BALKEN_FARBEN
+    OBEN = 24               # Titel
+    RAND = (52, 20, 16, 30)     # je Feld: links, oben (Name), rechts, unten (Mengen)
 
     def __init__(self):
         super().__init__()
-        self.reihen = []
+        self.reihen, self.mengen = [], []
         self.setMinimumWidth(260)
 
     def setzen(self, zeilen):
@@ -645,36 +651,67 @@ class Vergleich(QWidget):
             if isinstance(z.get("preis_einheit"), (int, float)):
                 reihen.setdefault((z.get("einheit"), z["schluessel"]), []).append((z["menge"], z["preis_einheit"]))
         self.reihen = [(k, sorted(v)) for k, v in reihen.items()]
+        self.mengen = sorted({m for _, punkte in self.reihen for m, _ in punkte})
+        self.setToolTip("\n".join(f"{self.name(k)}: " + ", ".join(f"{_z(m, 0)} × {_z(w)} €" for m, w in punkte)
+                                   for k, punkte in self.reihen))
         self.update()
 
+    @staticmethod
+    def name(kennung):
+        einheit, schl = kennung
+        return f"{'Satz' if einheit == 'Satz' else 'Pos.'} {schl}"
+
+    def punkte(self, breite, hoehe):
+        """Je Reihe ihr Feld und ihre Bildpunkte: [(Kennung, (oben, unten, Höchstwert), [(x, y, Menge, Preis)])]."""
+        li, ob, re, un = self.RAND
+        je = (hoehe - self.OBEN) / max(1, len(self.reihen))
+        aus = []
+        for r, (k, pk) in enumerate(self.reihen):
+            top = self.OBEN + r * je
+            y0, y1 = top + ob, top + je - un
+            maxp = max([w for _, w in pk] + [0.01])
+            n = len(pk)
+            aus.append((k, (y0, y1, maxp), [(li + (breite - li - re) * (i + 0.5) / n,
+                                              y1 - (y1 - y0) * w / (maxp * 1.15), m, w)
+                                             for i, (m, w) in enumerate(pk)]))
+        return aus
+
     def paintEvent(self, _):
+        from PySide6.QtGui import QPen
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor("white"))
-        p.setPen(stil.farbe("#404040"))
-        p.drawText(QRectF(8, 4, self.width() - 16, 20), Qt.AlignLeft, "Preisentwicklung: VK netto je Einheit")
+        p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
+        text, grau, linie = stil.farbe(stil.TEXT), stil.farbe(stil.TEXT_GRAU), stil.farbe(stil.LINIE)
+        p.setPen(text)
+        p.drawText(QRectF(8, 4, self.width() - 16, 18), Qt.AlignLeft, "Staffelkurve: VK netto je Einheit")
         if not self.reihen:
+            p.setPen(grau)
             p.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignCenter, "noch keine Staffelpreise")
             return
-        farben = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#E15759", "#76B7B2"]
-        y0, hoehe = 30, max(40, self.height() - 30)
-        je = hoehe / len(self.reihen)
-        for r, ((einheit, schl), punkte) in enumerate(self.reihen):
-            top = y0 + r * je
-            p.setPen(stil.farbe("#404040"))
-            p.drawText(QRectF(8, top, self.width() - 16, 16), Qt.AlignLeft,
-                       f"{'Satz' if einheit == 'Satz' else 'Pos.'} {schl}")
-            maxp = max(w for _, w in punkte) or 1
-            balken = min(24, (je - 22) / max(1, len(punkte)))
-            for i, (m, w) in enumerate(punkte):
-                y = top + 18 + i * balken
-                breite = (self.width() - 150) * w / maxp
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor(farben[r % len(farben)]))
-                p.drawRect(QRectF(60, y + 1, max(1, breite), max(3, balken - 3)))
-                p.setPen(stil.farbe("#404040"))
-                p.drawText(QRectF(4, y, 54, balken), Qt.AlignRight | Qt.AlignVCenter, _z(m, 0))
-                p.drawText(QRectF(64 + breite, y, 90, balken), Qt.AlignLeft | Qt.AlignVCenter, f"{_z(w)} €")
+        li, _, re, _ = self.RAND
+        rechts = self.width() - re
+        for i, (k, (y0, y1, maxp), pk) in enumerate(self.punkte(self.width(), self.height())):
+            farbe = QColor(stil.umsetzen(self.FARBEN[i % len(self.FARBEN)]))
+            p.setPen(text)
+            p.drawText(QRectF(8, y0 - 18, self.width() - 16, 16), Qt.AlignLeft | Qt.AlignVCenter, self.name(k))
+            p.setPen(linie)
+            p.drawLine(int(li), int(y1), int(rechts), int(y1))
+            p.setPen(grau)
+            p.drawText(QRectF(0, y1 - 9, li - 6, 18), Qt.AlignRight | Qt.AlignVCenter, "0")
+            for px, _, m, _ in pk:
+                p.drawText(QRectF(px - 30, y1 + 2, 60, 14), Qt.AlignHCenter, _z(m, 0))
+            p.setPen(QPen(farbe, 2))
+            for (x1, ya, _, _), (x2, yb, _, _) in zip(pk, pk[1:]):
+                p.drawLine(int(x1), int(ya), int(x2), int(yb))
+            p.setBrush(farbe)
+            p.setPen(Qt.NoPen)
+            for px, py, _, _ in pk:
+                p.drawEllipse(QRectF(px - 3, py - 3, 6, 6))
+            p.setPen(text)
+            for px, py, _, w in pk:                     # Preis über jedem Punkt
+                p.drawText(QRectF(px - 40, py - 17, 80, 14), Qt.AlignHCenter, f"{_z(w)} €")
+        p.setPen(grau)
+        p.drawText(QRectF(li, self.height() - 14, rechts - li, 14), Qt.AlignRight, "Menge")
 
 
 class _Bote(QObject):
