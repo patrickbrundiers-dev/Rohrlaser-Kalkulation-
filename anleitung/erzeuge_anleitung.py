@@ -2604,6 +2604,16 @@ def kapitel_zukauf_angebot(i):
            "Staffelzeile <i>ab Stückzahl der Position</i> in den Artikel, und die Position bekommt den neuen "
            "Preisstand. Der Richtpreis ersetzt kein Angebot des Blechlieferanten; liegt eines vor, den echten EK "
            "mit <b>EK eintragen …</b> ([[zukauf_positionen]]) oder im Reiter Zukaufartikel eintragen.")
+    i.abschnitt("DXF der Abwicklung", marke="blech_dxf")
+    i.text("<b>DXF speichern …</b> unten im Blech-Editor speichert den Zuschnitt als DXF-Datei (Format R12, Maße in "
+           "mm), zum Beispiel für den Blechlaser oder für die Anfrage beim Lieferanten. Die Datei hat eigene Layer "
+           "für Außenkontur, Innenkonturen, Biegelinien nach oben, Biegelinien nach unten, Gravur und die "
+           "Beschriftung (Artikelnummer und Bezeichnung). Rundungen sind echte Bögen.", kurz=True)
+    i.liste("Innenkonturen stehen an ihrer Mitte x/y. Fehlt die Lage, zeichnet die Datei sie nur verteilt auf der "
+            "Mittellinie ein; eine Kontur mit Anzahl größer 1 steht nur einmal darin; eine sonstige Kontur ohne "
+            "Form fehlt. Das meldet der Editor nach dem Speichern, damit die Datei vor der Weitergabe geprüft wird.",
+            "Layernamen und ob Biegelinien in die Datei kommen, stehen unter Einstellungen, Gruppe "
+            "Blech-Richtpreis ([[einstellungen]]).")
 
 
 def kapitel_baugruppen(i):
@@ -3094,6 +3104,11 @@ def kapitel_einstellungen(i):
                              "Rüsten je Auftrag [€], Aufschlag des Lieferanten (Gewinn)",
          "Sätze für den Richtpreis im Blech-Editor (Vorgabe 120 €/h, 30 €, 15 %, 1,20 €, 25 €, 15 %); sie gelten "
          "nur dort, nie für den Rohrlaser ([[blech_editor]])."],
+        ["Blech-Richtpreis", "DXF: Layernamen (Außenkontur; Innenkontur; Biegelinie hoch; Biegelinie runter; "
+                             "Gravur; Beschriftung), DXF: Biegelinien ausgeben",
+         "Layer der DXF-Datei aus dem Blech-Editor in dieser Reihenfolge, mit ; getrennt (leer = Vorgabe "
+         "AUSSENKONTUR, INNENKONTUR, BIEGUNG_HOCH, BIEGUNG_RUNTER, GRAVUR, BESCHRIFTUNG); Biegelinien ausgeben "
+         "Vorgabe ja ([[blech_dxf]])."],
         ["Angebots-PDF", "Firmenlogo (rechts oben im Angebot)",
          "<b>Bild wählen …</b> nimmt eine PNG- oder JPG-Datei (große Bilder werden verkleinert); das Logo steht im "
          "Angebots-PDF rechts oben im Briefkopf, eingepasst in 55 × 24 mm, klein (32 × 13 mm) auch auf "

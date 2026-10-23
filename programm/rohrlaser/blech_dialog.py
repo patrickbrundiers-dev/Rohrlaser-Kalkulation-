@@ -4,11 +4,12 @@ Richtpreis je Stück als EK-Vorschlag des Zukaufteils (Rechnung in blech.py). Sc
 Rohrlaser-Daten."""
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout,
-                               QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox,
-                               QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
+                               QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
+                               QPushButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
+                               QVBoxLayout, QWidget)
 
-from . import blech, blech3d, schneidweg as sw, zukauf
+from . import blech, blech3d, dxf, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .stammdaten import zahl_als_text, zahl_aus_text
@@ -388,6 +389,10 @@ class BlechDialog(QDialog):
         self.knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.ok_knopf = self.knoepfe.button(QDialogButtonBox.Ok)
         self.ok_knopf.setText("Als Zukaufteil anlegen" if neu else "Richtpreis übernehmen")
+        self.dxf_knopf = self.knoepfe.addButton("DXF speichern …", QDialogButtonBox.ActionRole)
+        self.dxf_knopf.setToolTip("Abwicklung als DXF (R12) mit Layern für Außenkontur, Innenkonturen, Biegelinien "
+                                  "und Beschriftung, z. B. für den Blechlaser oder den Lieferanten")
+        self.dxf_knopf.clicked.connect(lambda: self.dxf_speichern())
         self.knoepfe.accepted.connect(self.accept)
         self.knoepfe.rejected.connect(self.reject)
         lay.addWidget(self.knoepfe)
@@ -552,6 +557,32 @@ class BlechDialog(QDialog):
             + f" · Summe {_euro(erg['summe'])} + Aufschlag {zahl_als_text(sw._z(self.einst.get('blech_aufschlag')) * 100, 0)} %"
             + warn)
         return erg
+
+    def dxf_speichern(self, pfad=None):
+        """Abwicklung als DXF speichern (pfad None: Dateidialog). Rückgabe: Hinweise oder None (abgebrochen)."""
+        erg = self.rechnen()
+        if not erg.get("zuschnitt"):
+            QMessageBox.warning(self, "DXF speichern", "Erst die Maße eingeben: " + "; ".join(erg["fehler"]))
+            return None
+        e = self.eingaben()
+        kopf = self.kopf_werte()
+        if pfad is None:
+            name = "".join(c if c.isalnum() or c in " -_,." else "_" for c in kopf["artikelnr"] or kopf["bezeichnung"])
+            pfad, _ = QFileDialog.getSaveFileName(self, "Abwicklung als DXF speichern",
+                                                  f"{name.strip() or 'Blech'}.dxf", "DXF-Datei (*.dxf)")
+            if not pfad:
+                return None
+        text = " ".join(x for x in (kopf["artikelnr"], kopf["bezeichnung"]) if x)
+        elem, hinweise = dxf.elemente(e, erg["zuschnitt"], beschriftung=text,
+                                      biegelinien=self.db.einstellung("blech_dxf_biegelinien") != "nein")
+        try:
+            dxf.speichern(pfad, elem, dxf.layer_namen(self.db.einstellung("blech_dxf_layer")))
+        except OSError as x:
+            QMessageBox.warning(self, "DXF speichern", f"Datei nicht gespeichert: {x}")
+            return None
+        if hinweise and not getattr(self, "stumm", False):
+            QMessageBox.information(self, "DXF gespeichert", "Gespeichert. Bitte prüfen:\n– " + "\n– ".join(hinweise))
+        return hinweise
 
     def accept(self):
         if self.rechnen()["fehler"]:

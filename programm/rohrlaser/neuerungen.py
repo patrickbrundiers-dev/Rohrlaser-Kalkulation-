@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.13", "<b>DXF der Abwicklung</b>: Der Blech-Editor speichert den Zuschnitt mit <b>DXF speichern …</b> als "
+               "DXF-Datei (R12) mit Layern für Außenkontur, Innenkonturen, Biegelinien nach oben und unten, Gravur "
+               "und Beschriftung; Rundungen als echte Bögen. Layernamen unter Einstellungen ([[blech_dxf]]).",
+     "Blech-Editor: Abwicklung als DXF mit Layern ([[blech_dxf]])."],
     ["0.9.12", "<b>3D-Ansicht mit Grafikkarte</b>: Die 3D-Ansicht zeichnet jetzt mit OpenGL, wenn der Rechner das kann. "
                "Auch große Baugruppen bleiben beim Drehen fein und flüssig. Über Remote-Desktop und wenn OpenGL nicht "
                "klappt, zeichnet sie wie bisher. Einstellbar unter Vorgaben, Ansicht ([[step_3d_ansicht]]).",
