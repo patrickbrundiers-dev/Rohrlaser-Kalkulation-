@@ -469,6 +469,8 @@ def verbrauch(naht, st, naht_m, lichtbogen_min):
         out["gas_l"] = lichtbogen_min * st["gas_l_min"]
     elif not _zahl(st.get("gas_l_min")):
         fehlt.append("Gasverbrauch")
+    elif _zahl(naht.get("zeit_hand")):     # Zeit von Hand: Lichtbogenzeit unbekannt, Gas nicht schätzen
+        fehlt.append("Lichtbogenzeit (Zeit von Hand) für Gas")
     if out["draht_kg"] and not _zahl(st.get("draht_eur_kg")):
         fehlt.append("Preis Draht")
     if out["gas_l"] and not _zahl(st.get("gas_eur_l")):

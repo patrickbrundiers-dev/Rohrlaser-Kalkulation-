@@ -807,6 +807,8 @@ nah(r1["kosten"], r0["kosten"] + r1["material"], "Kosten mit Verbrauch")
 r2 = baugruppe.naht_rechnen(n1, dict(tab0, schweissverfahren=[dict(z, gas_l_min=12)
                                                               for z in tab0["schweissverfahren"]]), saetze)
 assert r2["material"] == 0 and "Dichte Zusatz" in r2["verbrauch_hinweis"] and "Preis Gas" in r2["verbrauch_hinweis"]
+r3 = baugruppe.naht_rechnen(dict(n1, zeit_hand=10), tab_v, saetze)       # Zeit von Hand: Gas nicht still 0
+assert r3["gas_l"] == 0 and "Zeit von Hand" in r3["verbrauch_hinweis"] and r3["draht_kg"] > 0
 rr = baugruppe.rechnen(dict(pos=100, stueck=2, baugruppe=baugruppe.speichern(rahmen)), tab_v, saetze)
 teile = dict(baugruppe.kostenaufteilung(rr))
 nah(teile["Schweißzusatz und Gas"], rr["verbrauch"], "Kostenbalken Verbrauch")
