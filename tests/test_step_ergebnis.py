@@ -22,7 +22,8 @@ import step_messen  # noqa: E402
 DATEIEN = [HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step", HIER / "step_konturen" / "K03_RR42-4x2_Konturen.step",
            HIER / "step_import" / "I04_Flaechenmodell_offen.step", HIER / "step_import" / "I05_defekt.step",
            HIER / "step_profile" / "P01_U50x30x3_L800.step", HIER / "step_profile" / "P10_RE60x40_Wand2und3_L600.step",
-           HIER / "step_referenz" / "REF18_Z60x40x4_L500.step", HIER / "step_traeger" / "TR01_IPE200_L1000.step"]
+           HIER / "step_referenz" / "REF18_Z60x40x4_L500.step", HIER / "step_traeger" / "TR01_IPE200_L1000.step",
+           HIER / "step_bleche" / "B08_Platte_mit_Tasche.step"]
 KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", "volumen_mm3", "oberflaeche_mm2",
                   "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "bauteiltyp", "profiltyp",
                   "profil_id_vorschlag", "blech", "normprofil", "kammern", "kontur_umfang", "verbund", "traeger",
@@ -87,7 +88,7 @@ def _():
     assert k["aussenmasse"] == {"durchmesser": 42.4} and k["innenmasse"] == {"durchmesser": 38.4}, k
 
 
-@fall("Unbekannte Werte sind null: offenes Flächenmodell, defekte Datei, Konturen eines Z-Profils")
+@fall("Unbekannte Werte sind null: offenes Flächenmodell, defekte Datei, Konturen eines offenen Sonderprofils")
 def _():
     (k,) = NACH["I04_Flaechenmodell_offen.step"]["koerper"]
     assert k["pruefstatus"] == "nicht messbar"
@@ -96,10 +97,14 @@ def _():
         assert k[f] is None, f"{f} = {k[f]!r}"
     d = NACH["I05_defekt.step"]
     assert d["importstatus"] == "nicht lesbar" and "nicht lesbar" in d["fehler"] and d["koerper"] == []
-    (u,) = NACH["REF18_Z60x40x4_L500.step"]["koerper"]
+    (u,) = NACH["B08_Platte_mit_Tasche.step"]["koerper"]
     assert u["profiltyp"] == "offenes Sonderprofil" and u["innenmasse"] is None and u["konturen"] is None and \
         u["schneidweg"] is None, u
     assert u["erkennungssicherheit"]["konturen"] == "nicht ausgewertet"
+    # scharfkantiges Z (seit 1.12): Kantteil mit Abwicklung, Schenkel 40/60/40
+    (z,) = NACH["REF18_Z60x40x4_L500.step"]["koerper"]
+    assert z["profiltyp"] == "Blech gekantet" and \
+        [x["laenge"] for x in z["blech"]["abwicklung"]["schenkel"]] == [40, 60, 40], z["blech"]
     # U-Profil: Konturen ausgewertet (seit 20.10.2026), Innenmaße bleiben null
     (u,) = NACH["P01_U50x30x3_L800.step"]["koerper"]
     assert u["profiltyp"] == "U-Profil" and u["innenmasse"] is None and u["schneidweg"]["gesamt"] > 0, u

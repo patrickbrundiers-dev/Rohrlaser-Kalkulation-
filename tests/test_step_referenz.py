@@ -222,12 +222,14 @@ def _(f, p):
     f.gleich("Profil-ID-Vorschlag", t.profil_id_vorschlag, "T 40x50x5x5")
 
 
-@fall("REF18", "Z-Profil (offen, nicht erkannt): gemeldet, nie kalkuliert", REF / "REF18_Z60x40x4_L500.step")
+@fall("REF18", "Z 60 × 40 × 4 scharfkantig: Kantteil (Blech-Editor) mit Schenkeln 40/60/40, nie Rohrlaser",
+      REF / "REF18_Z60x40x4_L500.step")
 def _(f, p):
     (t,) = analysiere_datei(p)
-    f.gleich("Profilform", t.profilform, "offenes Sonderprofil")
+    f.gleich("Profilform", t.profilform, "Blech gekantet")
     f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
-    f.wert("Länge", t.laenge, 500, TOL_MASS)
+    f.gleich("Schenkel", [x["laenge"] for x in t.blech["abwicklung"]["schenkel"]], [40, 60, 40])
+    f.wert("Kantlänge", t.blech["abwicklung"]["kantlaenge"], 500, TOL_MASS)
 
 
 @fall("REF14", "Flächenmodell mit loser Fläche: Rohr gemessen, lose Fläche gemeldet",
