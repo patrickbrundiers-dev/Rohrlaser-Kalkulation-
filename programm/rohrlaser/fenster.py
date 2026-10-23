@@ -537,6 +537,36 @@ class LogoEingabe(QWidget):
         self.geaendert.emit(daten)
 
 
+class PasswortEingabe(QWidget):
+    """Einstellung 'passwort': gespeichert ist nur der Hash (passwort.py), das Feld bleibt deshalb leer. Ein neu
+    eingegebenes Passwort ersetzt das alte, 'Entfernen' = ohne Passwort. geaendert(text) mit dem neuen Passwort oder ''."""
+    geaendert = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.feld = QLineEdit()
+        self.feld.setEchoMode(QLineEdit.Password)
+        self.feld.editingFinished.connect(self._neu)
+        self.weg = QPushButton("Entfernen")
+        self.weg.setToolTip("Einstellungen ohne Passwort öffnen (auch keine Admin-Abfrage beim Start)")
+        self.weg.clicked.connect(lambda: self.geaendert.emit(""))
+        lay.addWidget(self.feld, 1)
+        lay.addWidget(self.weg)
+
+    def _neu(self):
+        text = self.feld.text()
+        self.feld.clear()
+        if text:
+            self.geaendert.emit(text)
+
+    def anzeigen(self, gesetzt):
+        self.feld.clear()
+        self.feld.setPlaceholderText("gesetzt – zum Ändern neues Passwort eingeben" if gesetzt else "ohne Passwort")
+        self.weg.setEnabled(bool(gesetzt))
+
+
 class OrdnerEingabe(QWidget):
     """Einstellung 'ordner': Pfad, 'Ordner wählen …' und 'Leeren'. geaendert(pfad) mit dem Ordner oder ''."""
     geaendert = Signal(str)
@@ -665,9 +695,8 @@ class EinstellungenSeite(QScrollArea):
             w.setEditable(e.auswahl != "hilfeart")
             w.currentTextChanged.connect(lambda text, e=e: self._speichern(e, text.strip()))
         elif e.art == "passwort":
-            w = QLineEdit()
-            w.setEchoMode(QLineEdit.PasswordEchoOnEdit)
-            w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text()))
+            w = PasswortEingabe()
+            w.geaendert.connect(lambda text, e=e, w=w: (self._speichern(e, text), w.anzeigen(text)))
         elif e.art == "bild":
             w = LogoEingabe()
             w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
@@ -682,8 +711,10 @@ class EinstellungenSeite(QScrollArea):
             w.editingFinished.connect(lambda e=e, w=w: self._speichern(e, w.text().strip()))
         if e.art in ("anteil", "zahl", "zahl_leer", "ganz"):
             w.setMaximumWidth(self.BREITE_ZAHL)
-        elif e.art in ("text", "auswahl", "passwort"):
+        elif e.art in ("text", "auswahl"):
             w.setMaximumWidth(self.BREITE_TEXT)
+        elif e.art == "passwort":
+            w.setMaximumWidth(self.BREITE_TEXT + 100)
         elif e.art == "mehrzeilig":
             w.setMaximumWidth(self.BREITE_TEXT + 160)
         return w
@@ -743,6 +774,8 @@ class EinstellungenSeite(QScrollArea):
                 w.setCurrentText(v or "")
             elif e.art in ("bild", "ordner"):
                 w.anzeigen(v or "")
+            elif e.art == "passwort":
+                w.anzeigen(bool(v))
             else:
                 w.setText(v or "")
         self._laden = False
@@ -835,9 +868,8 @@ class EinstellungenBereich(QWidget):
     def oeffnen(self, passwort=None):
         """Mit dem Passwort aus dem Eingabefeld (oder dem übergebenen) öffnen. Ergebnis: geöffnet ja/nein."""
         text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
-        soll = self.db.einstellung("passwort") or ""
         self.passwort.clear()
-        if soll and text != soll:
+        if not self.db.passwort_pruefen(text):
             self.fehler.setText("Passwort falsch.")
             return False
         self.offen = True

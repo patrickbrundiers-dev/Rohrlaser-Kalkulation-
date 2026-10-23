@@ -8,18 +8,26 @@ Kennwerte einer Nahtgruppe: Beim Speichern merkt sich jede vollständig berechen
 Nahtart, Nahtgröße, Lage, Zugänglichkeit oder Qualität, gilt der neue Stand aus den Stammdaten; 'Kennwerte neu aus
 Stammdaten' setzt alle Nahtgruppen auf die aktuellen Stammdaten."""
 import copy
+import html
+import re
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
                                QGroupBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import baugruppe, hilfe
+from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe
 from .stammdaten import NAHTARTEN, zahl_als_text, zahl_aus_text
+from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
 
 FEHLER_FARBE = "#B42318"
 GRAU = "#5F6B7A"
+WARNUNG = "warnung"         # Anzeige (Text, WARNUNG): Zeile gelb hinterlegt (D4)
+RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
+             "</span>")
 DIREKT = "(Baugruppe selbst)"
 NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet")    # neuer Stand, wenn geändert
 ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "Entgraten", "Bohren", "Gewindeschneiden",
@@ -42,7 +50,8 @@ def _min(w):
 
 class Spalte:
     """Spalte einer ZeilenTabelle. typ: text, zahl, ganz, auswahl (optionen() = [(Text, Wert)], frei = eigene Texte
-    erlaubt), haken oder anzeige (anzeige(zeile, index) = Text, nur lesen)."""
+    erlaubt), haken oder anzeige (anzeige(zeile, index) = Text, nur lesen; (Text, True) rot, (Text, WARNUNG) gelb
+    hinterlegt mit markierter Zeilennummer)."""
 
     def __init__(self, schluessel, titel, typ="text", breite=90, optionen=None, frei=False, anzeige=None, tipp=""):
         self.schluessel, self.titel, self.typ, self.breite = schluessel, titel, typ, breite
@@ -100,6 +109,7 @@ class ZeilenTabelle(QTableWidget):
             return f
         if s.typ == "anzeige":
             f = QLabel()
+            f.setTextFormat(Qt.RichText)
             f.setStyleSheet(f"color: {GRAU}; padding-left: 4px;")
             return f
         f = QLineEdit(_text(w) if s.typ in ("zahl", "ganz") else str(w or ""))
@@ -155,14 +165,30 @@ class ZeilenTabelle(QTableWidget):
         self.geaendert()
 
     def auffrischen(self):
+        self.warnzeilen = set()
         for r, z in enumerate(self.zeilen):
             for c, s in enumerate(self.spalten):
                 if s.typ == "anzeige" and s.anzeige:
                     w = self.cellWidget(r, c)
                     t = s.anzeige(z, r)
-                    w.setText(t[0] if isinstance(t, tuple) else t)
-                    w.setStyleSheet(f"color: {FEHLER_FARBE if isinstance(t, tuple) and t[1] else GRAU}; "
-                                    "padding-left: 4px;")
+                    w.setText(html.escape(t[0] if isinstance(t, tuple) else t).replace(html.escape(RICHTWERT), RICHTWERT))
+                    art = t[1] if isinstance(t, tuple) else None
+                    if art == WARNUNG:
+                        self.warnzeilen.add(r)
+                        w.setStyleSheet(f"color: {GELB_TEXT}; background: {GELB_FLAECHE}; padding-left: 4px;")
+                    else:
+                        w.setStyleSheet(f"color: {FEHLER_FARBE if art else GRAU}; padding-left: 4px;")
+            kopf = self.verticalHeaderItem(r) or QTableWidgetItem(str(r + 1))
+            kopf.setText(f"⚠ {r + 1}" if r in self.warnzeilen else str(r + 1))
+            kopf.setToolTip("Zeile prüfen (Hinweis)" if r in self.warnzeilen else "")
+            kopf.setBackground(QColor(GELB_FLAECHE) if r in self.warnzeilen else QBrush())
+            self.setVerticalHeaderItem(r, kopf)
+
+    def zeigen(self, r):
+        """Zeile r markieren und hineinscrollen (Sprung vom Status, D4)."""
+        if 0 <= r < self.rowCount():
+            self.selectRow(r)
+            self.scrollTo(self.model().index(r, 0))
 
     def markierte(self):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
@@ -611,6 +637,8 @@ class BaugruppeDialog(QDialog):
     def _seite_uebersicht(self):
         w = QWidget()
         lay = QVBoxLayout(w)
+        self.balken = Kostenbalken("Kosten je Baugruppe")
+        lay.addWidget(self.balken)
         self.uebersicht = QLabel()
         self.uebersicht.setWordWrap(True)
         self.uebersicht.setTextFormat(Qt.RichText)
@@ -661,7 +689,7 @@ class BaugruppeDialog(QDialog):
     def _zeile_wert(self, art, z, was):
         r = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == art and x["id"] == z.get("id")), None)
         if r is None:
-            return ("Unterbaugruppe fehlt", True) if was == "hinweis" else ""
+            return ("Unterbaugruppe fehlt", WARNUNG) if was == "hinweis" else ""
         if was == "zeit":
             return _min(r["zeit_min"])
         if was == "kosten":
@@ -670,13 +698,13 @@ class BaugruppeDialog(QDialog):
             return _euro(r["einmal"]) if r["einmal"] else ""
         w = r["werte"]
         if w.get("fehlt"):
-            return (w["fehlt"], True)
+            return (w["fehlt"], WARNUNG)
         if art == "Naht":
             teile = [f"{_text(round(w['naht_m'] * r['faktor'], 2))} m"]
             if w.get("hand"):
                 teile.append("Zeit von Hand")
             elif w.get("richtwert"):
-                teile.append("Richtwert")
+                teile.append(RICHTWERT)
             if self._naht_aktuell(z).get("stand"):
                 teile.append(f"Kennwerte vom {z['stand'].get('datum') or '?'}")
             return ", ".join(teile)
@@ -706,6 +734,7 @@ class BaugruppeDialog(QDialog):
             f"{_euro(e['einmal_gesamt'])} bei {anzahl} Stk.) · Zeit {_min(e['zeit_min'])}, davon Schweißen "
             f"{_min(e['schweiss_min'])} · {n_teile} Einzelteil(e). <b>Status:</b> {self.status}")
         self.summe.setTextFormat(Qt.RichText)
+        self.balken.setzen(baugruppe.kostenaufteilung(e))
         naht = ", ".join(f"{v} {_text(round(m, 2))} m" for v, m in sorted(e["naht_m"].items())) or "keine"
         zeilen = "".join(
             f"<tr><td>{x['art']}</td><td>{x['name']}</td><td>{x['knoten'] or DIREKT}</td><td align=right>"
@@ -718,6 +747,54 @@ class BaugruppeDialog(QDialog):
             f"<table cellspacing=0 cellpadding=3 border=1><tr><th>Art</th><th>Name</th><th>Unterbaugruppe</th>"
             f"<th>Stück je BG</th><th>Zeit je BG</th><th>Kosten je BG</th><th>einmalig</th><th></th></tr>{zeilen}"
             f"</table>" + (f"<p><b>Warnungen</b></p><ul>{warn}</ul>" if warn else ""))
+
+    def fokus(self, status):
+        """Zur Zeile springen, die ein Status nennt (D4, Doppelklick auf den Status im Angebot): Reiter wählen und Zeile
+        markieren. Ergebnis: (Reiter, Zeile) oder None, wenn der Status keine Zeile nennt."""
+        t = str(status or "")
+        reiter = {"struktur": 0, "naht": 1, "ag": 2}
+        m = re.search(r"Pos\. (\S+?)(?::| hat)", t)
+        if m:
+            r = next((i for i, z in enumerate(self.teile) if str(z["_q"].get("pos") or "") == m.group(1)), None)
+            return self._springen(reiter["struktur"], self.teile_tab, r)
+        m = re.search(r"Nahtgruppe (\S+?)(?::| hat|$)", t)
+        if m:
+            r = next((i for i, n in enumerate(self.bg["naehte"]) if str(n.get("nr") or "") == m.group(1)), None)
+            return self._springen(reiter["naht"], self.naht_tab, r)
+        m = re.search(r"Stundensatz fehlt \((.+)\)", t) or re.search(r"(?:WARNUNG|FEHLER): (.+?): Unterbaugruppe fehlt", t)
+        if m:
+            r = next((i for i, a in enumerate(self.bg["arbeitsgaenge"])
+                      if (a.get("name") or "Arbeitsgang") == m.group(1)), None)
+            return self._springen(reiter["ag"], self.ag_tab, r)
+        m = re.search(r"Unterbaugruppe '(.+?)'", t)
+        if m:
+            r = next((i for i, k in enumerate(self.bg["knoten"]) if (k.get("name") or k.get("id")) == m.group(1)), None)
+            return self._springen(reiter["struktur"], self.knoten_tab, r)
+        if "Richtwert" in t:
+            r = next((i for i, n in enumerate(self.bg["naehte"]) if self._naht_ergebnis(n).get("richtwert")), None)
+            return self._springen(reiter["naht"], self.naht_tab, r)
+        if "Vorrichtung" in t:
+            r = next((i for i, a in enumerate(self.bg["arbeitsgaenge"]) if a.get("umlage") == baugruppe.UMLAGE_WIEDER
+                      and a.get("einmal_eur")), None)
+            return self._springen(reiter["ag"], self.ag_tab, r)
+        if "keine Nahtgruppen" in t:
+            return self._springen(reiter["naht"], self.naht_tab, None)
+        if "Einzelteile" in t or "doppelt" in t:
+            return self._springen(reiter["struktur"], self.teile_tab, None)
+        r = min(self.naht_tab.warnzeilen, default=None)
+        if r is not None:
+            return self._springen(reiter["naht"], self.naht_tab, r)
+        return None
+
+    def _springen(self, reiter, tab, r):
+        self.reiter.setCurrentIndex(reiter)
+        if r is not None:
+            tab.zeigen(r)
+        return reiter, r
+
+    def _naht_ergebnis(self, n):
+        x = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == "Naht" and x["id"] == n.get("id")), None)
+        return x["werte"] if x else {}
 
     def pruefen(self):
         """Fehlertext (ungültige Zahlen, Struktur), sonst None."""

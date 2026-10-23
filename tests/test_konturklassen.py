@@ -171,7 +171,7 @@ p40 = next(x for x in s.positionen if x["artikel"] == "K40")
 assert (p30["klein_n"], p30["mittel_n"], p30["gross_n"], p30["kontur_grenzen"]) == (1, 2, 1, "8/45; 3×/8× Wand 3"), p30
 assert p30["klein_mm"] == 25.1 and p30["mittel_mm"] == 122.8
 assert (p40["klein_n"], p40["klein_mm"]) == (1, 20.0)
-ok(f"Grenzen der Maschine auf 8/45 mm geändert: Pos. 30 neu eingeteilt, Pos. 40 ohne Konturliste unverändert")
+ok("Grenzen der Maschine auf 8/45 mm geändert: Pos. 30 neu eingeteilt, Pos. 40 ohne Konturliste unverändert")
 s.neu_laden()
 assert next(x for x in s.positionen if x["artikel"] == "K30")["kontur_grenzen"] == "8/45; 3×/8× Wand 3"
 # Konturliste von Hand geändert -> beim Neuladen neu eingeteilt

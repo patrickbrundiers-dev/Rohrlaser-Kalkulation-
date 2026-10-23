@@ -275,12 +275,6 @@ def _hash(daten):
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()
 
 
-def stufe_kennung(gemeinsam, schl, menge):
-    """Prüfsumme eines Mengenlaufs: gemeinsame Eingaben (_gemeinsam bzw. deren Hash), Schlüssel und Menge."""
-    g = gemeinsam if isinstance(gemeinsam, str) else _hash(gemeinsam)
-    return _hash([g, txt(schl), menge])
-
-
 def gruppieren(mengenzeilen, stufen_daten=None):
     """[(Stufe, [Mengenzeilen])] in der Reihenfolge der Stufen (nur Stufen mit gültigen Mengenzeilen). Mengenzeilen
     ohne bekannte Stufe bilden je eine eigene Stufe mit ihren eigenen Werten (ältere Aufrufe)."""
