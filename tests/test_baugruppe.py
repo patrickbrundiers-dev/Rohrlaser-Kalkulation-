@@ -748,6 +748,17 @@ export.zip_schreiben(tmp / "mit.zip", kz, pz, bz)
 export.zip_schreiben(tmp / "ohne.zip", kz, pz, export.baugruppen_zeilen(pos[1:], zeilen[1:]))
 assert export.BAUGRUPPE_DATEI in _zip.ZipFile(tmp / "mit.zip").namelist()
 assert _zip.ZipFile(tmp / "ohne.zip").namelist() == [export.KOPF_DATEI, export.POSITION_DATEI]   # wie bisher
+# nur Baugruppe und Zukaufteil, kein Laserteil: Werkstattpapiere trotzdem (nur Schweißplan)
+a_nur = db.angebot_neu(dict(kunde="Test", maschine="T11"))
+bg_nur = dict(rahmen, id=baugruppe.neue_id())
+db.position_neu(a_nur, dict(pos=10, art=BAUGRUPPE, bezeichnung="Nur BG", stueck=1, baugruppe=baugruppe.speichern(bg_nur)))
+db.position_neu(a_nur, dict(pos=20, art=ZUKAUFTEIL, artikel="Lasche", stueck=1, zukauf=json.dumps([eintrag(lasche, 1)]),
+                            bg_knoten=bg_nur["id"], je_knoten=1))
+s_nur = f.angebot_oeffnen(a_nur)
+pfad_nur = s_nur.werkstatt_pdf()
+assert pfad_nur and Path(pfad_nur).exists()
+if PdfReader:
+    assert "Schweißplan" in "".join(x.extract_text() for x in PdfReader(str(pfad_nur)).pages)
 ok(f"B21 Schweißplan ({len(b['naehte'])} Nahtgruppen, Vorgabe {b['vorgabe_min']:.1f} min), Kalkulation-PDF und "
    "Schweissbaugruppen.csv nur mit Baugruppe")
 
