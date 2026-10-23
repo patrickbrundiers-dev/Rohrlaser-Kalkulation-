@@ -122,6 +122,21 @@ assert abs(v["erloes"]["ist"] - v["erloes"]["soll"]) < 1e-6
 assert nks.rest_wie_geplant() == 0
 ok(f"W9 Rest wie geplant: {gesetzt} leere Ist-Werte = Soll, eingetragene (Laserzeit 1,5 h) bleiben, alles erfasst")
 
+# Zwei Baugruppen mit gleichem Namen: Werte gehen nach ID, nicht nach Anzeigetext
+def _z(text, menge, soll, **x):
+    return dict(text=text, soll_menge=menge, soll=soll, **x)
+
+
+v2 = dict(gruppen=[], erloes=dict(soll=100.0), baugruppen=[dict(id="A", name="Rahmen"), dict(id="B", name="Rahmen")],
+          zeilen=[_z("Material", 0, 0), _z("Laserzeit", 1, 10), _z("Rüsten + Stangenwechsel", 5, 4),
+                  _z("Gewinde und Zusatzarbeiten", None, 0), _z("Zukaufteile (Einstand)", None, 0)]
+          + [_z(f"Rahmen: {t}", m, b_, bg_id=i, bg_feld=n) for i, f in (("A", 1), ("B", 3))
+             for n, t, e, _ in nk.BG_FELDER for m, b_ in [((f if e == "h" else None), 10.0 * f)]])
+ist2, _ = nk.rest_wie_geplant(v2, {})
+assert ist2["baugruppen"]["A"] == dict(schweiss_h=1, arbeit_h=1, material=10.0, fremd=10.0), ist2["baugruppen"]
+assert ist2["baugruppen"]["B"] == dict(schweiss_h=3, arbeit_h=3, material=30.0, fremd=30.0), ist2["baugruppen"]
+ok("W9 Rest wie geplant: gleichnamige Schweißbaugruppen bekommen je eigene Soll-Werte (nach ID)")
+
 # Filter „Nachkalkulation offen“: beauftragt und noch ohne Ist-Werte
 passt = VORGANG_FILTER["Nachkalkulation offen"]
 assert passt("Beauftragt", False, dict(ist_erfasst=False)) and not passt("Beauftragt", False, dict(ist_erfasst=True))

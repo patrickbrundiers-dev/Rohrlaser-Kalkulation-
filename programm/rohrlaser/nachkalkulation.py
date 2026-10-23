@@ -180,6 +180,7 @@ def _baugruppen_zeilen(soll, ist, zeile):
             else:
                 zeilen.append(zeile(f"{b['name']}: {titel}", "€", None, None, betrag, m if m is not None else betrag,
                                     m is not None))
+            zeilen[-1].update(bg_id=b["id"], bg_feld=n)       # eindeutig, auch bei gleichen Namen (rest_wie_geplant)
         sm, ih = b["werte"]["schweiss_h"][0], _n(e.get("schweiss_h"))
         info.append(dict(id=b["id"], name=b["name"], naht_m=b["naht_m"],
                          soll_min_m=sm * 60 / b["naht_m"] if b["naht_m"] else None,
@@ -212,14 +213,13 @@ def rest_wie_geplant(v, ist):
     setzen(ist, "zukauf", z["Zukaufteile (Einstand)"]["soll"])
     setzen(ist, "sonstiges", 0.0)
     setzen(ist, "erloes", v["erloes"]["soll"])
-    if v.get("baugruppen"):
+    einheiten = {name: einheit for name, _, einheit, _ in BG_FELDER}
+    bg_zeilen = [x for x in v["zeilen"] if x.get("bg_id") is not None]
+    if bg_zeilen:
         bg = {k: dict(e) for k, e in (ist.get("baugruppen") or {}).items()}
-        for b in v["baugruppen"]:
-            e = bg.setdefault(b["id"], {})
-            for name, titel, einheit, _ in BG_FELDER:
-                zeile = z.get(f"{b['name']}: {titel}")
-                if zeile is not None:
-                    setzen(e, name, zeile["soll_menge"] if einheit == "h" else zeile["soll"])
+        for x in bg_zeilen:
+            setzen(bg.setdefault(x["bg_id"], {}), x["bg_feld"],
+                   x["soll_menge"] if einheiten[x["bg_feld"]] == "h" else x["soll"])
         ist["baugruppen"] = bg
     return ist, n
 
