@@ -19,7 +19,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
-from rohrlaser import fracht, fracht_angebot, fracht_richtwerte, rechnen  # noqa: E402
+from rohrlaser import fracht, fracht_angebot, fracht_richtwerte  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 

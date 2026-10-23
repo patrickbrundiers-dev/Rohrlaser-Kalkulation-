@@ -40,26 +40,6 @@ jobs:
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xkb1 libxkbcommon-x11-0
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
-      - name: STEP-Messung und Optimierung
-        run: |
-          /usr/bin/python3 tests/test_step_import.py
-          /usr/bin/python3 tests/test_step_regression.py
-          /usr/bin/python3 tests/test_step_einlesen.py
-          QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_profile.py
-          /usr/bin/python3 tests/test_step_konturen.py
-          /usr/bin/python3 tests/test_step_anbau.py
-          /usr/bin/python3 tests/test_anbau_pruefen.py
-          QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_rahmengestell.py
-          QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_ergebnis.py
-          QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_3d_step.py
-          /usr/bin/python3 tests/test_step_fase.py
-          /usr/bin/python3 tests/test_step_kantteile.py
-          QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_messung_robust.py
-          /usr/bin/python3 tests/test_step_struktur.py
-          /usr/bin/python3 tests/test_step_leistung.py
-          /usr/bin/python3 tests/test_ansicht_gl.py
-          /usr/bin/python3 tests/test_optimierung.py
-          /usr/bin/python3 tests/test_lieferlaengen.py
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
@@ -69,88 +49,12 @@ jobs:
           name: STEP-Testbericht
           path: STEP-Testbericht.json
           retention-days: 90
-      - name: Programm-Tests
-        env:
-          QT_QPA_PLATFORM: offscreen
+      - name: Prüfwerkzeuge (ruff, nur Entwicklung, requirements-dev.txt)
         run: |
-          /usr/bin/python3 tests/test_programm.py
-          /usr/bin/python3 tests/test_csv_export.py
-          /usr/bin/python3 tests/test_konturklassen.py
-          /usr/bin/python3 tests/test_zusatzarbeiten.py
-          /usr/bin/python3 tests/test_zusatz_verwaltung.py
-          /usr/bin/python3 tests/test_zukauf.py
-          /usr/bin/python3 tests/test_zukauf_verwaltung.py
-          /usr/bin/python3 tests/test_zukauf_angebot.py
-          /usr/bin/python3 tests/test_zukauf_preise.py
-          /usr/bin/python3 tests/test_kunden_csv.py
-          /usr/bin/python3 tests/test_zukauf_schnell.py
-          /usr/bin/python3 tests/test_zukauf_ek.py
-          /usr/bin/python3 tests/test_zukauf_blech.py
-          /usr/bin/python3 tests/test_blech_position.py
-          /usr/bin/python3 tests/test_step_satz.py
-          /usr/bin/python3 tests/test_step_ablage.py
-          /usr/bin/python3 tests/test_importprofil.py
-          /usr/bin/python3 tests/test_bohrbild.py
-          /usr/bin/python3 tests/test_rp_profile.py
-          /usr/bin/python3 tests/test_step_rp.py
-          /usr/bin/python3 tests/test_profilwechsel.py
-          /usr/bin/python3 tests/test_doppelklick.py
-          /usr/bin/python3 tests/test_mausrad.py
-          /usr/bin/python3 tests/test_step_bleche.py
-          /usr/bin/python3 tests/test_werkstoffe.py
-          /usr/bin/python3 tests/test_meterpreis.py
-          /usr/bin/python3 tests/test_material_fenster.py
-          /usr/bin/python3 tests/test_maschinen.py
-          /usr/bin/python3 tests/test_offene_profile.py
-          /usr/bin/python3 tests/test_wand_einstiche.py
-          /usr/bin/python3 tests/test_ansicht.py
-          /usr/bin/python3 tests/test_spaltenbreite.py
-          /usr/bin/python3 tests/test_zeiten.py
-          /usr/bin/python3 tests/test_staffelpreise.py
-          /usr/bin/python3 tests/test_update.py
-          /usr/bin/python3 tests/test_fracht.py
-          /usr/bin/python3 tests/test_fracht_angebot.py
-          /usr/bin/python3 tests/test_fracht_auto.py
-          /usr/bin/python3 tests/test_fracht_richtwerte.py
-          /usr/bin/python3 tests/test_sicherung.py
-          /usr/bin/python3 tests/test_preisbasis.py
-          /usr/bin/python3 tests/test_rundung.py
-          /usr/bin/python3 tests/test_angebot_vorgaben.py
-          /usr/bin/python3 tests/test_angebot_einstellungen.py
-          /usr/bin/python3 tests/test_kundenmaterial.py
-          /usr/bin/python3 tests/test_schneidweg.py
-          /usr/bin/python3 tests/test_blech_editor.py
-          /usr/bin/python3 tests/test_blech_dxf.py
-          /usr/bin/python3 tests/test_blech_kfaktor.py
-          /usr/bin/python3 tests/test_blech_kantbarkeit.py
-          /usr/bin/python3 tests/test_blech_tafel.py
-          /usr/bin/python3 tests/test_dfm.py
-          /usr/bin/python3 tests/test_naht.py
-          /usr/bin/python3 tests/test_stangenwechsel_sn.py
-          /usr/bin/python3 tests/test_3d.py
-          /usr/bin/python3 tests/test_3d_greifmass.py
-          /usr/bin/python3 tests/test_3d_editor.py
-          /usr/bin/python3 tests/test_programmierung.py
-          /usr/bin/python3 tests/test_schweissen.py
-          /usr/bin/python3 tests/test_baugruppe.py
-          /usr/bin/python3 tests/test_baugruppe_abnahme.py
-          /usr/bin/python3 tests/test_tastatur.py
-          /usr/bin/python3 tests/test_materialanfrage.py
-          /usr/bin/python3 tests/test_plausibel.py
-          /usr/bin/python3 tests/test_protokoll.py
-          /usr/bin/python3 tests/test_festschreiben.py
-          /usr/bin/python3 tests/test_hintergrund.py
-          /usr/bin/python3 tests/test_vorgang.py
-          /usr/bin/python3 tests/test_teilen.py
-          /usr/bin/python3 tests/test_teilen_fenster.py
-          /usr/bin/python3 tests/test_lizenz.py
-          /usr/bin/python3 tests/test_lesemodus.py
-          /usr/bin/python3 tests/test_anleitung.py
-      - name: Gehrungen (langsamer Test, nur auf main bzw. von Hand, nicht bei jedem Pull Request)
-        if: github.event_name != 'pull_request'
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: /usr/bin/python3 tests/test_gehrung.py
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements-dev.txt
+          /usr/bin/python3 -m ruff check programm tests werkzeuge anleitung
+      - name: Alle Tests parallel (tests/alle.py; langsame Tests nur auf main bzw. von Hand)
+        run: /usr/bin/python3 tests/alle.py ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY"
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen

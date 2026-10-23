@@ -27,7 +27,7 @@ sys.path.insert(0, str(WURZEL / "tests"))
 
 from PySide6.QtCore import QLocale, QPoint, QRect, QRectF, Qt, QTimer  # noqa: E402
 from PySide6.QtGui import QColor, QFont, QPainter, QPen  # noqa: E402
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QComboBox, QDialog, QMessageBox, QPushButton, QSpinBox  # noqa: E402
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog, QPushButton  # noqa: E402
 
 from abnahme_angebote import ANGEBOTE  # noqa: E402
 

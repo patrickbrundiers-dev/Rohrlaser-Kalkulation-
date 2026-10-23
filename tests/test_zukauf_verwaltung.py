@@ -13,7 +13,6 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QTableWidgetItem  # noqa: E402
 
 from rohrlaser import zukauf  # noqa: E402

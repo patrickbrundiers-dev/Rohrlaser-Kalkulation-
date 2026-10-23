@@ -8,7 +8,6 @@
 
 Aufruf: python tests/test_3d_editor.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
-import json
 import math
 import os
 import sys

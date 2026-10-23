@@ -25,6 +25,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .passwort import pruefen as pruefen_passwort
+
 FORMAT = 1
 ARTEN = ("admin", "benutzer", "test")
 WARNUNG_TAGE = 30          # so viele Tage vor Ablauf: gelber Hinweis in der Statusleiste
@@ -460,7 +462,8 @@ class LizenzStelle:
         return z
 
     def admin_passwort(self):
-        """Admin-Passwort = Passwort der Einstellungen (Einstellung 'passwort'); leer: keine Abfrage beim Start."""
+        """Admin-Passwort = Passwort der Einstellungen (Einstellung 'passwort', gespeichert als Hash, passwort.py);
+        leer: keine Abfrage beim Start. Prüfen nur mit passwort.pruefen (Hash oder alter Klartext)."""
         return (self.db.einstellung("passwort") or "") if self.db is not None else ""
 
     def admin_passwort_noetig(self):
@@ -470,7 +473,7 @@ class LizenzStelle:
 
     def admin_freigeben(self, passwort):
         """Admin-Rechte mit dem Passwort freischalten. Ergebnis: True = richtig (Admin-Rechte an)."""
-        if passwort != self.admin_passwort():
+        if not pruefen_passwort(passwort, self.admin_passwort()):
             return False
         self.admin_ok = True
         self.pruefen()
