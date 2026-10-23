@@ -572,6 +572,19 @@ IMPORTPROFILE = Tabelle(
     "Normteile zusätzlich: Begriffe zu denen aus der Einstellung, Teile mit diesen Wörtern im Namen sind im "
     "Prüfdialog abgewählt.")
 
+# Baugruppen-Vorlagen (Verbesserung P1): Struktur, Nahtgruppen und Arbeitsgänge einer Schweißbaugruppe ohne
+# Einzelteile (JSON in 'daten', baugruppe.vorlage_aus). Gepflegt im Editor der Baugruppe, nicht als Stammdaten-Reiter;
+# mit den übrigen Stammdaten zwischen Arbeitsplätzen geteilt.
+BAUGRUPPEN_VORLAGEN = Tabelle(
+    "baugruppen_vorlagen", "Baugruppen-Vorlagen",
+    (Feld("name", "Vorlage", pflicht=True, breite=200),
+     Feld("inhalt", "Inhalt", breite=260),
+     Feld("daten", "Daten", breite=100),
+     Feld("angelegt", "Angelegt", breite=130),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("name",),
+    "Vorlagen für Schweißbaugruppen: im Editor der Baugruppe speichern und in neue Baugruppen einsetzen.")
+
 
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,

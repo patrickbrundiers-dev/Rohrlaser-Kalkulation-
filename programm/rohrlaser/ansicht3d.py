@@ -48,6 +48,8 @@ FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
 FARBE["X"] = QColor("#D9DDE2")         # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 HINTERGRUND = QColor("#FFFFFF")
+MARKIERT = QColor("#2E75B6")        # Teile-Editor: gewähltes Merkmal
+MESSEN = QColor("#B42318")
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
@@ -113,6 +115,10 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=()):
     return (dict(p=punkte, t=dreiecke, l={}) if punkte else None), ohne
 
 
+def _zahl(w):
+    return f"{w:.1f}".replace(".", ",")
+
+
 def renderer_setzen(wert):
     """Darstellung für neu geöffnete 3D-Ansichten (RENDERER; Unbekanntes = Automatisch)."""
     global _renderer
@@ -162,11 +168,15 @@ class Modell:
             for n in range(0, len(idx) - 2, 3):
                 self._dreieck(idx[n], idx[n + 1], idx[n + 2], art)
         self.linien = []
+        self.linien_id = []                     # je Liniensegment: Merkmal (netz 'li', Teile-Editor) oder None
         normalen = netz.get("ln") or {}         # Normale je Linienzug (Blech), sonst radial zur Rohrachse
+        kennung = netz.get("li") or {}
         for art, zuege in (netz.get("l") or {}).items():
             for nr, zug in enumerate(zuege):
                 pk = [(zug[i], zug[i + 1], zug[i + 2]) for i in range(0, len(zug) - 2, 3)]
                 n = (normalen.get(art) or [])[nr] if nr < len(normalen.get(art) or []) else None
+                kn = (kennung.get(art) or [])[nr] if nr < len(kennung.get(art) or []) else None
+                self.linien_id += [kn] * max(len(pk) - 1, 0)
                 for a, b in zip(pk, pk[1:]):
                     if n is None:
                         m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
@@ -203,7 +213,7 @@ class Modell:
                         neu[x] = len(g.punkte)
                         g.punkte.append(p[x])
                 g.dreiecke.append((neu[i], neu[j], neu[k], art, n))
-            g.linien = []
+            g.linien, g.linien_id = [], []
             g._grob = g
             self._grob = g
         return self._grob
@@ -232,8 +242,8 @@ def _drehung(gier, nick):
     return mal(nm, mal(gm, basis))
 
 
-def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True):
-    """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller)."""
+def projektion(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0)):
+    """Gedrehte Punkte (x, y, Tiefe) um die Mitte, Maßstab und Bildmitte wie beim Zeichnen mit QPainter."""
     m = _drehung(gier, nick)
     cx, cy, cz = modell.mitte
     proj = []
@@ -246,7 +256,13 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
         bx = max(abs(q[0]) for q in proj) * 2 or 1
         by = max(abs(q[1]) for q in proj) * 2 or 1
         massstab = zoom * 0.9 * min(breite / bx, hoehe / by)
-    ox, oy = breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
+    return m, proj, massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
+
+
+def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True):
+    """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller)."""
+    m, proj, massstab, ox, oy = projektion(modell, breite, hoehe, gier, nick, zoom, verschiebung)
+    cx, cy, cz = modell.mitte
     licht = (-0.35, 0.45, 0.82)
     liste = []
     for i, j, k, art, n in modell.dreiecke:
@@ -304,6 +320,8 @@ class Ansicht3D(QWidget):
     Doppelklick = Ausgangsansicht."""
     GRUND = (-0.45, 0.45)
     gedreht = Signal()
+    angeklickt = Signal(object)     # Klick ohne Ziehen auf eine Linie: dict(id=Merkmal oder None, punkt=(x, y, z))
+    gemessen = Signal(object)       # Messen: Abstand [mm] nach dem zweiten Punkt
     _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
 
     def __init__(self, parent=None):
@@ -312,6 +330,9 @@ class Ansicht3D(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setFocusPolicy(Qt.StrongFocus)
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
+        # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
+        self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
+        self._druck = None
         self._bild, self._eilig = None, False      # gezeichnetes Bild (solange sich die Ansicht nicht ändert)
         self._ruhe = QTimer(self)                   # nach dem Zoomen wieder fein zeichnen
         self._ruhe.setSingleShot(True)
@@ -357,7 +378,79 @@ class Ansicht3D(QWidget):
         self.netz = netz if netz and netz.get("p") else None
         self.modell = Modell(gefiltert(self.netz, self.modus)) if self.netz else None
         self.titel = titel
+        self.messpunkte = []
         self.zuruecksetzen()
+
+    def markieren(self, ids=(), z_bereich=None):
+        """Linien der Merkmale ids (netz 'li') bzw. alle Linien mit z im Bereich (z0, z1) hervorheben."""
+        self.markiert, self.markiert_z = set(ids or ()), z_bereich
+        self.update()
+
+    def messen_setzen(self, an):
+        """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke), Abstand in mm."""
+        self.messen, self.messpunkte = bool(an), []
+        self.setCursor(Qt.CrossCursor if an else Qt.ArrowCursor)
+        self.update()
+
+    def abstand(self):
+        """Gemessener Abstand [mm] oder None."""
+        if len(self.messpunkte) == 2:
+            return math.dist(*self.messpunkte)
+        return None
+
+    def bildpunkt(self):
+        """Funktion Modellpunkt (x, y, z) -> (Pixel x, Pixel y, Tiefe) für die aktuelle Ansicht (wie gezeichnet)."""
+        modell = self.modell
+        if self._gl is not None:
+            from .ansicht3d_gl import abbildung
+            m = _drehung(self.gier, self.nick)
+            s, ox, oy = abbildung(modell, max(1, self.width()), max(1, self.height()), m, self.zoom, self.versatz)
+        else:
+            m, _, s, ox, oy = projektion(modell, self.width(), self.height(), self.gier, self.nick, self.zoom,
+                                         self.versatz)
+        cx, cy, cz = modell.mitte
+
+        def bild(v):
+            x, y, z = v[0] - cx, v[1] - cy, v[2] - cz
+            return (ox + (m[0][0] * x + m[0][1] * y + m[0][2] * z) * s,
+                    oy - (m[1][0] * x + m[1][1] * y + m[1][2] * z) * s,
+                    m[2][0] * x + m[2][1] * y + m[2][2] * z)
+        return bild
+
+    def klicken(self, x, y):
+        """Klick an Pixel (x, y): Messpunkt setzen bzw. nächste Linie wählen (Signal angeklickt)."""
+        if self.modell is None:
+            return None
+        bild = self.bildpunkt()
+        if self.messen:
+            beste = None
+            for v in self.modell.punkte:
+                px, py, t = bild(v)
+                d = math.hypot(px - x, py - y)
+                if d <= 14 and (beste is None or (d - t * 1e-3) < beste[0]):
+                    beste = (d - t * 1e-3, v)
+            if beste is None:
+                return None
+            self.messpunkte = (self.messpunkte if len(self.messpunkte) < 2 else []) + [tuple(beste[1])]
+            self.update()
+            if len(self.messpunkte) == 2:
+                self.gemessen.emit(self.abstand())
+            return beste[1]
+        beste = None
+        for nr, (a, b, _, _) in enumerate(self.modell.linien):
+            pa, pb = bild(a), bild(b)
+            dx, dy = pb[0] - pa[0], pb[1] - pa[1]
+            lg = dx * dx + dy * dy
+            t = 0.0 if lg < 1e-9 else max(0.0, min(1.0, ((x - pa[0]) * dx + (y - pa[1]) * dy) / lg))
+            d = math.hypot(pa[0] + t * dx - x, pa[1] + t * dy - y)
+            if d <= 8 and (beste is None or d < beste[0]):
+                beste = (d, nr, tuple(a[k] + t * (b[k] - a[k]) for k in range(3)))
+        if beste is None:
+            return None
+        kn = self.modell.linien_id[beste[1]] if beste[1] < len(self.modell.linien_id) else None
+        treffer = dict(id=kn, punkt=beste[2])
+        self.angeklickt.emit(treffer)
+        return treffer
 
     def modus_setzen(self, modus):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
@@ -422,12 +515,45 @@ class Ansicht3D(QWidget):
             p.setPen(QColor("#202020"))
             p.drawText(QRectF(28, y, 200, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
             y += 18
+        self._markierung_zeichnen(p)
         p.setPen(QColor("#7F7F7F"))
         p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                   "Messen: zwei Punkte anklicken (fängt die nächste Ecke)" if self.messen else
                    "Linke Maustaste drehen · rechte verschieben · Mausrad zoomen · Doppelklick Ausgangsansicht")
+
+    def _markierung_zeichnen(self, p):
+        """Hervorgehobene Linien (Teile-Editor) und Messung über dem Bild."""
+        if not (self.markiert or self.markiert_z or self.messpunkte):
+            return
+        bild = self.bildpunkt()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(QPen(MARKIERT, 4.0, Qt.SolidLine, Qt.RoundCap))
+        z = self.markiert_z
+        for nr, (a, b, _, _) in enumerate(self.modell.linien):
+            kn = self.modell.linien_id[nr] if nr < len(self.modell.linien_id) else None
+            if (kn is not None and kn in self.markiert) or \
+                    (z is not None and z[0] - 1e-6 <= a[2] <= z[1] + 1e-6 and z[0] - 1e-6 <= b[2] <= z[1] + 1e-6):
+                pa, pb = bild(a), bild(b)
+                p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        if self.messpunkte:
+            pk = [bild(v) for v in self.messpunkte]
+            p.setPen(QPen(MESSEN, 2.0))
+            if len(pk) == 2:
+                p.drawLine(QPointF(pk[0][0], pk[0][1]), QPointF(pk[1][0], pk[1][1]))
+            p.setBrush(QBrush(MESSEN))
+            for q in pk:
+                p.drawEllipse(QPointF(q[0], q[1]), 4, 4)
+            p.setBrush(Qt.NoBrush)
+            if len(pk) == 2:
+                a, b = self.messpunkte
+                text = (f"Abstand {_zahl(math.dist(a, b))} mm (Δx {_zahl(abs(b[0] - a[0]))}, "
+                        f"Δy {_zahl(abs(b[1] - a[1]))}, Δz {_zahl(abs(b[2] - a[2]))})")
+                p.drawText(QRectF((pk[0][0] + pk[1][0]) / 2 + 8, (pk[0][1] + pk[1][1]) / 2 - 20, 360, 18),
+                           Qt.AlignLeft | Qt.AlignVCenter, text)
 
     def mousePressEvent(self, e):
         self._maus = (e.position(), e.button())
+        self._druck = e.position() if e.button() == Qt.LeftButton else None
 
     def mouseMoveEvent(self, e):
         if not self._maus:
@@ -443,8 +569,11 @@ class Ansicht3D(QWidget):
         self.update()
         self.gedreht.emit()
 
-    def mouseReleaseEvent(self, _):
+    def mouseReleaseEvent(self, e):
         self._maus = None
+        druck, self._druck = self._druck, None
+        if druck is not None and e is not None and (e.position() - druck).manhattanLength() < 4:
+            self.klicken(e.position().x(), e.position().y())
         self.update()
 
     def mouseDoubleClickEvent(self, _):
