@@ -172,23 +172,30 @@ class ZeitenSeite(QWidget):
             "Einstellungen ändern es nicht. Gelbe Felder gelten nur für dieses Angebot." if gespeichert else
             "<span style='color:#7A5A00'><b>Stundensätze nicht im Angebot gespeichert</b> (älteres Angebot): es gelten "
             "die aktuellen Einstellungen. „Stundensätze aus Einstellungen“ speichert sie im Angebot.</span>")
-        k = rechnen.zeit_summen(zeiten)
+        k = rechnen.zeit_summen(zeiten, summen.get("teile"))
         wert = {n: w for (_, w, _), (_, n, _) in zip(rechnen.kostenarten(summen, self.s.einst), rechnen.KOSTENARTEN)}
         zuschlaege = wert["zuschlag_material"] + wert["zuschlag_fertigung"] + wert["zuschlag_fremdleistung"]
         zeilen = [("Maschinenzeit", rechnen.zeit_text(k["maschine_min"]), False),
+                  ("davon Rüsten Maschine", rechnen.zeit_text(k["ruest_maschine_min"]), False),
                   ("Personalzeit", rechnen.zeit_text(k["personal_min"]), False),
-                  ("Rüstzeit", rechnen.zeit_text(k["ruest_min"]), False),
-                  ("Bearbeitungszeit gesamt", rechnen.zeit_text(k["bearbeitung_min"]), False),
-                  ("Durchlaufzeit (parallele Personalzeit nicht addiert)", rechnen.zeit_text(k["durchlauf_min"]), False),
+                  ("davon parallel zur Maschine", rechnen.zeit_text(k["parallel_min"]), False),
+                  ("Arbeitszeit gesamt", rechnen.zeit_text(k["bearbeitung_min"]), True),
+                  ("Durchlaufzeit (Maschine + Personal, das nicht parallel läuft)", rechnen.zeit_text(k["durchlauf_min"]),
+                   False),
+                  ("Ø Arbeitszeit je Teil", rechnen.zeit_text(k["je_teil_min"]), False),
                   ("Arbeitskosten", f"{_z(k['arbeitskosten'])} €", True),
                   ("davon Maschinenkosten", f"{_z(k['maschinenkosten'])} €", False),
                   ("davon Personalkosten", f"{_z(k['personalkosten'])} €", False),
                   ("Materialkosten", f"{_z(wert['material'])} €", False),
                   ("Kosten ohne Zeit (Festpreise, Zusatzarbeiten)", f"{_z(k['sonstige'])} €", False),
                   ("Zuschläge", f"{_z(zuschlaege)} €", False),
-                  ("Herstellkosten", f"{_z(summen['herstell'])} €", True), ("Gewinn", f"{_z(wert['gewinn'])} €", False),
+                  ("Herstellkosten", f"{_z(summen['herstell'])} €", True),
+                  ("Selbstkosten (mit Programmierung, Pauschalen, Zukaufteilen)", f"{_z(summen['selbst'])} €", True),
+                  ("Gewinn", f"{_z(wert['gewinn'])} €", False),
                   ("Verkaufspreis", f"{_z(summen['verkauf'])} €", True)]
-        roh = dict(Maschinenzeit=k["maschine_min"], Personalzeit=k["personal_min"], Rüstzeit=k["ruest_min"])
+        roh = {"Maschinenzeit": k["maschine_min"], "Personalzeit": k["personal_min"],
+               "davon Rüsten Maschine": k["ruest_maschine_min"], "davon parallel zur Maschine": k["parallel_min"],
+               "Ø Arbeitszeit je Teil": k["je_teil_min"] or 0}
         html = "<table cellpadding='1'>"
         for t, w, fett in zeilen:
             if t in roh and ohne_wert(roh[t]) or t.startswith("davon") and ohne_wert(w) \

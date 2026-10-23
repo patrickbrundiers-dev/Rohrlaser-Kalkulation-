@@ -445,8 +445,9 @@ assert db.einstellung("programmierung_zeit") == 5 and s1["programmierung"] == 3 
 assert abs(s1["ruesten"] - s0["ruesten"] - 2 * 15 / 60 * satz) < 1e-9
 gew = 1 + db.einstellung("gewinn")
 fert = 1 + db.einstellung("zuschlag_fertigung")
-# Verkaufspreis steigt um Rüsten je Abmessung (mit Zuschlag Fertigung und Gewinn) + Pauschalen + Aufschlag + Fracht
-erwartet = s0["verkauf"] + 2 * 15 / 60 * satz * fert * gew + 45 + 50 + 120 + 3 * 5
+# Verkaufspreis steigt um Rüsten je Abmessung (mit Zuschlag Fertigung) + Pauschalen + Aufschlag + Programmierung, alles
+# mit Gewinn (Selbstkosten), + Fracht ohne Gewinn
+erwartet = s0["verkauf"] + (2 * 15 / 60 * satz * fert + 45 + 50 + 3 * 5) * gew + 120
 assert abs(s1["verkauf"] - erwartet) < 1e-6, (s1["verkauf"], erwartet)
 # Pauschale je Abmessung trägt nur deren Teile: QR 40x40x3 hat 10, RE 120x60x4 hat 5 Teile
 # Programmierkosten 5 € (5 min × 60 €/h) je Position, umgelegt auf deren Stückzahl (A 6, C 5 Stück)
@@ -475,7 +476,7 @@ assert any(f_["grund"] == "Metergewicht über Maschinengrenze" for f_ in erg["fe
 # Staffel: jede Stufe trägt Aufschlag, Fracht, Programmierung und die Kosten ihrer Abmessungen voll
 sp = staffeln.rechnen_alle(dict(kopf, fracht=120.0), pos, [dict(schluessel="10", menge=6)], k, tab, db.einstellungen())
 sp0 = staffeln.rechnen_alle(kopf, pos, [dict(schluessel="10", menge=6)], k, tab, null)
-assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - (15 / 60 * satz * fert * gew + 22.5 + 5 + 50 + 120)) < 0.1
+assert abs(sp[0]["preis_einheit"] * 6 - sp0[0]["preis_einheit"] * 6 - ((15 / 60 * satz * fert + 22.5 + 5 + 50) * gew + 120)) < 0.1
 db.schliessen()
 
 # 15) Kunden, Skonto (eingerechnet), Zahlungsbedingung im Angebot, Kopieren für einen anderen Kunden, Sicherungen
@@ -504,8 +505,11 @@ assert abs(s2["skonto"] - (s2["verkauf"] - s0["verkauf"])) < 1e-6 and s0["skonto
 assert abs(z2[0]["preis_teil"] * 0.98 - z0[0]["preis_teil"]) < 1e-9 and z2[0]["skonto_teil"] > 0
 kosten = rechnen.kostenarten(s2, einst)
 assert ("Skonto (2 % eingerechnet)", s2["skonto"], False) in kosten and kosten[-1][0] == "Verkaufspreis"
-nach_herstell = kosten[[t_ for t_, _, _ in kosten].index("Herstellkosten") + 1:-1]
-assert abs(s2["herstell"] + sum(w for _, w, _ in nach_herstell) - s2["verkauf"]) < 1e-6
+titel_k = [t_ for t_, _, _ in kosten]
+bis_selbst = kosten[titel_k.index("Herstellkosten") + 1:titel_k.index("Selbstkosten")]
+assert abs(s2["herstell"] + sum(w for _, w, _ in bis_selbst) - s2["selbst"]) < 1e-6
+nach_selbst = kosten[titel_k.index("Selbstkosten") + 1:-1]
+assert abs(s2["selbst"] + sum(w for _, w, _ in nach_selbst) - s2["verkauf"]) < 1e-6
 assert ausgabe.zahlungstext(kopf8) == "Zahlung innerhalb 10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto."
 assert ausgabe.zahlungstext(dict(skonto=0, zahlungsziel=14)) == "Zahlung innerhalb 14 Tagen netto."
 assert ausgabe.zahlungstext(dict(skonto=1.5, skonto_tage=8, zahlungsziel=0)) == \

@@ -7,9 +7,10 @@ from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox
                                QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import stil
+from . import baugruppe, stil
 from . import nachkalkulation as nk
 from .spaltenbreite import AutoGroesse
+from .stil import GRUEN, GRUEN_FLAECHE, ROT, ROT_FLAECHE
 from .stammdaten import zahl_als_text, zahl_aus_text
 
 VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", None, 60),
@@ -185,17 +186,27 @@ class NachkalkulationSeite(QWidget):
         self.bg_rahmen.setVisible(bool(info))
         self.bg_tabelle.setRowCount(len(info))
         ist_bg = self.ist.get("baugruppen") or {}
+        vorlagen = {}
+        for p in s.positionen:
+            g = baugruppe.lesen(p.get("baugruppe")) if p.get("baugruppe") else None
+            if g and g.get("vorlage"):
+                vorlagen[g["id"]] = g["vorlage"]
         for r, b in enumerate(info):
             e, w = ist_bg.get(b["id"]) or {}, soll[b["id"]]["werte"]
-            texte = [b["name"]]
+            texte, urteil = [b["name"]], {}
             for n, _, einheit, st in nk.BG_FELDER:
                 menge, betrag = w[n]
-                texte += [_z(menge if einheit == "h" else betrag, st),
-                          "" if e.get(n) is None else _z(e.get(n), st)]
+                sw = menge if einheit == "h" else betrag
+                texte += [_z(sw, st), "" if e.get(n) is None else _z(e.get(n), st)]
+                urteil[len(texte) - 1] = nk.bewertung(sw, e.get(n))
             texte += [b["grund"], _z(b["soll_min_m"], 2), _z(b["ist_min_m"], 2)]
+            urteil[len(texte) - 1] = nk.bewertung(b["soll_min_m"], b["ist_min_m"])
+            verlauf = self._verlauf(vorlagen.get(b["id"]))
             for c, (feld, _) in enumerate(BG_SPALTEN):
                 it = QTableWidgetItem(texte[c])
                 it.setData(Qt.UserRole, b["id"])
+                if c == 0 and verlauf:
+                    it.setToolTip(verlauf)
                 if feld is None:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     it.setBackground(QBrush(stil.farbe("#F2F2F2")))
@@ -203,8 +214,24 @@ class NachkalkulationSeite(QWidget):
                     it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c and feld != "grund":
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                if urteil.get(c):                   # D5: ab 10 % Abweichung rot (teurer) bzw. grün (günstiger)
+                    hoch = urteil[c] == "hoch"
+                    it.setForeground(QBrush(stil.farbe(ROT if hoch else GRUEN)))
+                    it.setBackground(QBrush(stil.farbe(ROT_FLAECHE if hoch else GRUEN_FLAECHE)))
+                    it.setToolTip(f"Ist {'über' if hoch else 'unter'} Soll um mindestens "
+                                  f"{nk.ABWEICHUNG_GRENZE:.0%}".replace("%", " %"))
                 self.bg_tabelle.setItem(r, c, it)
         self.bg_tabelle.resizeColumnsToContents()
+
+    def _verlauf(self, vorlage):
+        """Tooltip: Schweißzeit Ist ÷ Soll der bisherigen Aufträge aus derselben Vorlage (D5), leer ohne Vorlage."""
+        if not vorlage:
+            return ""
+        from . import kennwerte
+        zeilen = [f"{v['angebot']} ({str(v['datum'])[:10]}): Ist ÷ Soll {_z(v['faktor'], 2)}"
+                  for v in kennwerte.verlauf_vorlage(self.s.db, vorlage) if v["faktor"] is not None]
+        return (f"Vorlage {vorlage}: Schweißzeit bisher\n" + "\n".join(zeilen[-10:])) if zeilen else \
+            f"Vorlage {vorlage}: noch keine nachkalkulierten Aufträge"
 
     def _bg_geaendert(self, it):
         feld = BG_SPALTEN[it.column()][0]

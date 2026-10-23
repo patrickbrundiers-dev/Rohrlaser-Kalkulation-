@@ -52,7 +52,7 @@ TESTS = [
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
     "test_step_bleche.py", "test_werkstoffe.py", "test_meterpreis.py", "test_material_fenster.py", "test_maschinen.py",
     "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_spaltenbreite.py", "test_zeiten.py",
-    "test_staffelpreise.py", "test_update.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
+    "test_staffelpreise.py", "test_gewinn_basis.py", "test_update.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
     "test_fracht_richtwerte.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
     "test_angebot_vorgaben.py", "test_angebot_einstellungen.py", "test_kundenmaterial.py", "test_schneidweg.py",
     "test_blech_editor.py", "test_blech_dxf.py", "test_blech_kfaktor.py", "test_blech_kantbarkeit.py", "test_blech_tafel.py",
@@ -61,7 +61,7 @@ TESTS = [
     "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_nummern.py", "test_lizenz.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py",
-    "test_arbeitsablaeufe.py", "test_anleitung.py",
+    "test_arbeitsablaeufe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_anleitung.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
 LANGSAM = [("test_gehrung.py", QT)]
