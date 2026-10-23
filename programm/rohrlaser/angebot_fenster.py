@@ -35,7 +35,8 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import step_ablage, step_einstellungen, stil
+from . import schritte, step_ablage, step_einstellungen, stil
+from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -1264,68 +1265,62 @@ class AngebotSeite(QWidget):
         self.uebersicht_rahmen.setWidget(self.uebersicht_bereich)
         self.uebersicht_rahmen.setMinimumWidth(UEBERSICHT_MIN)
 
-        # Aktionen: Hauptaktionen hervorgehoben, dann Bearbeiten, rechts Ausgabe und Weitere Aktionen
+        # Aktionen in drei Gruppen (Layout-Plan L9): Erfassen · Rechnen · Ausgeben. Rechts nur Angebot (PDF) als
+        # Knopf, alle weiteren Ausgaben im Menü „Ausgaben“; Positionen löschen über Rechtsklick oder Entf
+        # (Bearbeiten → Löschen …).
         self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
         leiste = self.leiste.links_layout
-        # nur zwei Hauptknöpfe (dunkelblau): Optimieren und Angebot (PDF) – die Schritte zum fertigen Angebot (C-2)
-        for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren()),
-                           ("Optimieren", self.optimieren), ("3D-Ansicht …", lambda: self.ansicht_3d())):
+        for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren())):
             b = QPushButton(text)
-            if text == "Optimieren":
-                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
-            if text == "STEP importieren …":      # sichtbares Ziel für Drag & Drop direkt neben dem Knopf
-                self.ablage_klein = AblageFeld()
-                self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
-                leiste.addWidget(self.ablage_klein)
-        leiste.addSpacing(12)
-        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Zukaufteile …", None),
-                           ("Positionen löschen", self.positionen_loeschen)):
-            b = QPushButton(text)
-            if ziel is None:        # Auswahlmenü statt eines weiteren Knopfs: die Leiste wird nicht breiter
-                menue = QMenu(b)
-                menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
-                menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
-                menue.addAction("EK eintragen …", lambda: self.zukauf_ek())
-                b.setMenu(menue)
-                b.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
-                self.zukauf_knopf = b
-            else:
-                b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            leiste.addWidget(b)
-        leiste = self.leiste.rechts_layout
-        leiste.addWidget(QLabel("Ausgabe:"))
-        for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
-                           ("Kalkulation (PDF)", self.kalkulation_pdf)):
-            b = QPushButton(text)
-            if text == "Angebot (PDF)":
-                b.setObjectName("primaer")
-            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            leiste.addWidget(b)
-        # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
-        self.csv_knopf = QPushButton("CSV-Export")
-        self.csv_knopf.setToolTip("Angebotskopf.csv und Angebotspositionen.csv (Semikolon, für Excel) in die Ablage")
-        menue = QMenu(self.csv_knopf)
-        for text, ziel in (("Kopf + Positionen (ZIP)", self.csv_export), ("Nur Angebotskopf", self.csv_kopf),
-                           ("Nur Angebotspositionen", self.csv_positionen)):
-            menue.addAction(text, lambda ziel=ziel: ziel())
-        self.csv_knopf.setMenu(menue)
-        leiste.addWidget(self.csv_knopf)
-        # Material je Abmessung (Patrick 22.10.2026) neben der Materialanfrage; links ist die Leiste schon voll
+        self.ablage_klein = AblageFeld()       # sichtbares Ziel für Drag & Drop direkt neben dem Knopf
+        self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
+        leiste.addWidget(self.ablage_klein)
+        leiste.addSpacing(16)
+        optimieren = QPushButton("Optimieren")
+        optimieren.setObjectName("primaer")     # Hauptknöpfe (dunkelblau): Optimieren und Angebot (PDF)
+        optimieren.clicked.connect(lambda: self.optimieren())
+        leiste.addWidget(optimieren)
+        zusatz = QPushButton("Zusatzarbeiten …")
+        zusatz.clicked.connect(lambda: self.zusatzarbeiten())
+        leiste.addWidget(zusatz)
+        self.zukauf_knopf = QPushButton("Zukaufteile …")      # Auswahlmenü statt weiterer Knöpfe
+        menue = QMenu(self.zukauf_knopf)
+        menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
+        menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
+        menue.addAction("EK eintragen …", lambda: self.zukauf_ek())
+        self.zukauf_knopf.setMenu(menue)
+        self.zukauf_knopf.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
+        leiste.addWidget(self.zukauf_knopf)
+        # Material je Abmessung (Patrick 22.10.2026)
         self.material_knopf = QPushButton("Material …")
         self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
                                        "Meterpreis ändern")
         self.material_knopf.clicked.connect(lambda: self.material_einstellen())
         leiste.addWidget(self.material_knopf)
-        # Materialanfrage immer sichtbar (Patrick 22.10.2026), nicht mehr unter Weitere Aktionen
-        self.anfrage_knopf = QPushButton("Materialanfrage (E-Mail)")
-        self.anfrage_knopf.setToolTip("Stangenbedarf aus der Optimierung beim Lieferanten anfragen (Outlook oder "
-                                      "E-Mail-Datei); gesendet wird nur im Mailprogramm")
-        self.anfrage_knopf.clicked.connect(lambda: self.material_anfragen())
-        leiste.addWidget(self.anfrage_knopf)
-        self.weitere = QPushButton("Weitere Aktionen")
+        ansicht = QPushButton("3D-Ansicht …")
+        ansicht.clicked.connect(lambda: self.ansicht_3d())
+        leiste.addWidget(ansicht)
+        leiste = self.leiste.rechts_layout
+        pdf = QPushButton("Angebot (PDF)")
+        pdf.setObjectName("primaer")
+        pdf.clicked.connect(lambda: self.angebot_pdf())
+        leiste.addWidget(pdf)
+        self.weitere = QPushButton("Ausgaben")
+        self.weitere.setToolTip("Werkstattpapiere, Kalkulation, Materialanfrage, CSV-Export und weitere Aktionen")
         menue = QMenu(self.weitere)
+        menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
+        menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
+        # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
+        self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
+        # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
+        csv = menue.addMenu("CSV-Export")
+        csv.setToolTipsVisible(True)
+        for text, ziel in (("Kopf + Positionen (ZIP)", self.csv_export), ("Nur Angebotskopf", self.csv_kopf),
+                           ("Nur Angebotspositionen", self.csv_positionen)):
+            csv.addAction(text, lambda ziel=ziel: ziel())
+        menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("Ablage öffnen", self.f.ablage_oeffnen)):
@@ -1471,6 +1466,8 @@ class AngebotSeite(QWidget):
         self.staffel_modell, self.staffel_ansicht, self.staffel_info = st_seite.modell, st_seite.ansicht, st_seite.info
 
         self.reiter = AngebotReiter()
+        self.schritte = Schrittanzeige()         # ① erfasst → ② optimiert → ③ geprüft → ④ verschickt (L10)
+        self.reiter.setCornerWidget(self.schritte, Qt.TopRightCorner)
         self.pos_seite = QWidget()            # Positionsliste mit Spaltenauswahl darüber
         self.pos_leiste = QHBoxLayout()
         self.pos_leiste.setContentsMargins(0, 0, 0, 0)
@@ -1846,7 +1843,9 @@ class AngebotSeite(QWidget):
             gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
-        self.uebersicht_bereich.freigabe_setzen(self.freigabe_punkte(summen))
+        punkte = self.freigabe_punkte(summen)
+        self.uebersicht_bereich.freigabe_setzen(punkte)
+        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(), punkte, vorgang(self.kopf)))
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
