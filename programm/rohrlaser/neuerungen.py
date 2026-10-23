@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.3", "<b>Schweißbaugruppen im Angebot</b>: eine Zeile je Baugruppe mit Zeichnung, Werkstoff und "
+               "Oberfläche; Einzelteile nur mit dem Häkchen <i>Stückliste im Angebot zeigen</i>. Einmalkosten "
+               "(Rüsten, Vorrichtungen) zählen in den Staffeln wie Rüsten; mit dem Häkchen <i>Einmalkosten als eigene "
+               "Zeile im Angebot</i> stehen sie als eigene Zeile und in den Staffeln als <i>zzgl. einmalig</i> "
+               "([[schweissbaugruppe]]).",
+     "Schweißbaugruppe als eine Angebotszeile, Stückliste und Einmalkosten wahlweise getrennt."],
     ["0.9.2", "<b>Schweißbaugruppen</b>: neue Positionsart <i>Schweißbaugruppe</i>. <i>Neue Position → "
                "Schweißbaugruppe</i> öffnet den Editor mit Struktur und Teilen (Unterbaugruppen mit Menge, markierte "
                "Positionen vorgewählt), Nahtgruppen, Arbeitsgängen und Vorrichtungen (Einmalkosten je Auftrag, "

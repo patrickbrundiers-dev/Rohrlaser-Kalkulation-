@@ -2619,8 +2619,19 @@ def kapitel_baugruppen(i):
            "Stufe: kleine Mengen tragen mehr davon. Eine wiederverwendbare Vorrichtung mit Betrag zeigt den HINWEIS "
            "<i>wiederverwendbare Vorrichtung nicht berechnet</i>, damit das bewusst bleibt. Der Reiter "
            "<i>Stammdaten</i> nimmt Zeichnungsnummer, Revisionsstand, Werkstoff, Oberfläche und Bemerkungen auf; "
-           "Zeichnung und Revision stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet alle Nahtgruppen und "
-           "Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+           "Zeichnung, Revision, Werkstoff und Oberfläche stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet "
+           "alle Nahtgruppen und Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+    i.abschnitt("Im Angebot und in den Staffeln")
+    i.text("Das Angebot zeigt <b>eine Zeile je Baugruppe</b>: <i>Schweißbaugruppe</i> mit Bezeichnung, darunter "
+           "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "
+           "darunter, wenn im Reiter <i>Stammdaten</i> das Häkchen <b>Stückliste im Angebot zeigen</b> gesetzt ist "
+           "(ohne Preise).", kurz=True)
+    i.text("Einmalkosten (Rüstzeit, Vorrichtungen, Lehren) sind normalerweise im Preis je Baugruppe enthalten. Mit "
+           "dem Häkchen <b>Einmalkosten als eigene Zeile im Angebot</b> stehen sie als eigene Zeile <i>Einmalkosten "
+           "Schweißbaugruppe … einmalig je Auftrag</i> (pausch.) unter der Baugruppe; die Summe des Angebots bleibt "
+           "gleich. In den Staffeln zählen die Einmalkosten wie Rüsten (<i>Schweißbaugruppe einmalig</i>, umgelegt "
+           "oder separat nach der Einstellung der Stufe); mit dem Häkchen zeigt das Angebots-PDF je Stufe den Preis "
+           "je Stück ohne sie und den Zusatz <i>zzgl. einmalig … €</i>.")
     i.text("In der Kalkulation stehen die Kosten als <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> (mit "
            "Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung); danach "
            "Gewinn und Skonto wie bei jeder Position. Der Status der Baugruppe führt per Doppelklick in den Editor, "

@@ -318,13 +318,13 @@ def arbeitsgang_rechnen(ag, saetze):
 # ------------------------------------------------------------------ Baugruppe rechnen
 def rechnen(p, tabellen, saetze, anzahl=None):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
-    der Position. Ergebnis: dict(eigen, fremd, einmal, einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
+    der Position. Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
     zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, text}], fehler, warnungen, richtwert).
     eigen/fremd enthalten den umgelegten Einmalanteil (einmal)."""
     bg = lesen(p.get("baugruppe"))
     n = anzahl if anzahl is not None else p.get("stueck")
     n = n if _zahl(n) and n > 0 else 0
-    out = dict(eigen=0.0, fremd=0.0, einmal=0.0, einmal_gesamt=0.0, zeit_min=0.0, schweiss_min=0.0, naht_m={},
+    out = dict(eigen=0.0, fremd=0.0, einmal=0.0, einmal_fremd=0.0, einmal_gesamt=0.0, zeit_min=0.0, schweiss_min=0.0, naht_m={},
                zeilen=[], fehler=None, warnungen=[], richtwert=False, wiederverwendbar=0)
     if bg is None:
         out["fehler"] = "Baugruppendaten fehlen"
@@ -370,6 +370,8 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         je = r["laufend"] * f + (einmal / n if n else 0.0)
         out["zeit_min"] += r["laufend_min"] * f + (r["einmal_min"] * r["umlage_faktor"] / n if n else 0.0)
         out["einmal"] += einmal / n if n else 0.0
+        if r["fremd"]:
+            out["einmal_fremd"] += einmal / n if n else 0.0
         out["fremd" if r["fremd"] else "eigen"] += je
         out["zeilen"].append(dict(art="Arbeitsgang", id=ag.get("id"), name=ag.get("name") or "Arbeitsgang",
                                   knoten=kname(ag.get("knoten")), faktor=f, zeit_min=r["laufend_min"] * f,
@@ -431,6 +433,32 @@ def doppelt_schweissen(p, positionen):
         if any(isinstance(e, dict) and e.get("name") == ZUSATZ_SCHWEISSEN for e in liste):
             return f"Pos. {q.get('pos') or j + 1} hat zusätzlich Zusatzarbeit Schweißen (doppelt?)"
     return None
+
+
+STAMM_WAHL = (("stueckliste", "Stückliste im Angebot zeigen",
+               "Unter der Angebotszeile der Baugruppe die Einzelteile auflisten (ohne Preise)"),
+              ("einmal_getrennt", "Einmalkosten als eigene Zeile im Angebot",
+               "Rüsten und Vorrichtungen der Baugruppe nicht in den Stückpreis umlegen, sondern einmalig ausweisen"))
+
+
+def zeile_angebot(p):
+    """Text der Angebotszeile einer Baugruppe (eine Zeile je Baugruppe, Plan-Freigabe 7a): Name, darunter Zeichnung
+    mit Revision, Werkstoff, Oberfläche und Beschreibung aus den Stammdaten der Baugruppe."""
+    bg = lesen(p.get("baugruppe")) or {}
+    st = bg.get("stamm") or {}
+    zeilen = [f"Schweißbaugruppe {name(p, bg)}"]
+    if st.get("zeichnung"):
+        zeilen.append(f"Zeichnung {st['zeichnung']}" + (f" Rev. {st['revision']}" if st.get("revision") else ""))
+    for n in ("werkstoff", "oberflaeche", "beschreibung"):
+        if str(st.get(n) or "").strip():
+            zeilen.append(str(st[n]).strip())
+    return "\n".join(zeilen)
+
+
+def stamm_wahl(p, n):
+    """Häkchen aus den Stammdaten der Baugruppe: 'stueckliste' (Einzelteile im Angebot zeigen), 'einmal_getrennt'
+    (Einmalkosten als eigene Zeile)."""
+    return bool(((lesen(p.get("baugruppe")) or {}).get("stamm") or {}).get(n))
 
 
 def text_angebot(p):
