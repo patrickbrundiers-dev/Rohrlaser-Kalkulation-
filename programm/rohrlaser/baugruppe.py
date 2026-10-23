@@ -730,3 +730,62 @@ def arbeitsgang_vorlage(z):
     if z.get("art") == "€/Angebot" and preis:
         ag["einmal_eur"] = preis
     return {k: v for k, v in ag.items() if v is not None}
+
+
+# ------------------------------------------------------------------ Vorlagen (P1) und Kopie in ein anderes Angebot (P7)
+def vorlage_aus(bg):
+    """Vorlage einer Baugruppe: Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge ohne Einzelteile, ohne
+    gemerkte Kennwerte (beim Einsetzen gelten die aktuellen Stammdaten) und ohne Nahtkandidaten aus STEP."""
+    out = json.loads(speichern(bg))
+    out.pop("vorschlaege", None)
+    out.pop("id", None)
+    for n in out["naehte"]:
+        n.pop("stand", None)
+    return out
+
+
+def vorlage_inhalt(v):
+    """Kurztext einer Vorlage für die Auswahl: Anzahl Unterbaugruppen, Nahtgruppen, Arbeitsgänge."""
+    teile = [(len(v.get("knoten") or ()), "Unterbaugruppe", "Unterbaugruppen"),
+             (len(v.get("naehte") or ()), "Nahtgruppe", "Nahtgruppen"),
+             (len(v.get("arbeitsgaenge") or ()), "Arbeitsgang", "Arbeitsgänge")]
+    return ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
+
+
+def vorlage_einsetzen(bg, v):
+    """Vorlage v in die Baugruppe bg übernehmen (Kennung von bg bleibt, damit zugeordnete Teile dabei bleiben; Nahtkandidaten
+    aus STEP bleiben). Ergebnis: Kennungen der Unterbaugruppen der Vorlage (Teile und Kandidaten in anderen
+    Unterbaugruppen kommen an die Baugruppe)."""
+    v = json.loads(json.dumps(v))
+    bg["stamm"] = v.get("stamm") if isinstance(v.get("stamm"), dict) else {}
+    for liste in ("knoten", "arbeitsgaenge", "naehte"):
+        bg[liste][:] = [x for x in v.get(liste) or () if isinstance(x, dict)]     # gleiche Liste (Tabellen im Editor)
+    for n in bg["naehte"]:
+        n.pop("stand", None)
+    knoten = {k["id"] for k in bg["knoten"] if k.get("id")}
+    for v in bg.get("vorschlaege") or ():           # Nahtkandidaten aus STEP bleiben, ohne alte Unterbaugruppe
+        if v.get("knoten") and v["knoten"] not in knoten:
+            v["knoten"] = ""
+    return knoten
+
+
+def kopie(positionen, bg_id, pos_start=10, schritt=10):
+    """Baugruppe bg_id mit ihren Einzelteilen für ein anderes Angebot (P7): neue Kennung der Baugruppe, Zuordnung der
+    Teile umgeschrieben, Pos.-Nummern ab pos_start in der Reihenfolge des Angebots. Ergebnis: [(alte Position,
+    neue Werte)] (Baugruppe zuerst) oder [] ohne lesbare Baugruppe."""
+    alle = baugruppen(positionen)
+    if bg_id not in alle:
+        return []
+    i, bg = alle[bg_id]
+    neu_id = neue_id()
+    bg = json.loads(speichern(bg))
+    bg["id"] = neu_id
+    out = [(positionen[i], dict(positionen[i], baugruppe=speichern(bg)))]
+    for j in teile(positionen, bg_id):
+        q = positionen[j]
+        out.append((q, dict(q, bg_knoten=zuordnung_text(neu_id, zuordnung(q)[1] or ""))))
+    for n, (_, w) in enumerate(out):
+        w["pos"] = pos_start + n * schritt
+        for f in ("id", "angebot_id", "nr"):
+            w.pop(f, None)
+    return out

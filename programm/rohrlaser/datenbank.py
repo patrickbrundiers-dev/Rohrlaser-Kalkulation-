@@ -36,14 +36,14 @@ from .fracht_angebot import UMLAGE_NEU
 from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
                       lieferzeit_wert, naechste_nummer, nummer_mit_kuerzel)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
-from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 48     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 49     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -90,6 +90,7 @@ SCHEMA_VERSION = 48     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Schweißbaugruppe; Tabellen schweissverfahren, schweiss_kennwerte, schweiss_faktoren leer)
                         # 47: K-Faktoren der Abwicklung (Tabelle blech_kfaktoren mit Beispielwerten nach DIN 6935)
                         # 48: Fertigungsprüfung (Tabelle pruefregeln mit den Vorgaben, maschinen.min_teil leer)
+                        # 49: Baugruppen-Vorlagen (Tabelle baugruppen_vorlagen, leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -98,8 +99,8 @@ UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), (
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
-ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN
-ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE}
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN,)
+ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)

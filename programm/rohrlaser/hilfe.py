@@ -5,6 +5,7 @@ sich das Programm je Seite (Einstellung 'ansicht_hilfe_offen', über alle Angebo
 nur Tooltip: statt des Textes steht nur 'ⓘ Hilfe', der ganze Text erscheint beim Zeigen mit der Maus.
 """
 import re
+import sqlite3
 import weakref
 
 from PySide6.QtCore import Qt
@@ -38,8 +39,16 @@ def kurztext(text):
     return text
 
 
+def _einstellung(db, name):
+    """Einstellung lesen; ohne oder mit schon geschlossener Datenbank (z. B. Dialog nach dem Schließen): None."""
+    try:
+        return db.einstellung(name) if db is not None else None
+    except sqlite3.Error:
+        return None
+
+
 def art(db):
-    a = db.einstellung(HILFE_EINSTELLUNG) if db is not None else None
+    a = _einstellung(db, HILFE_EINSTELLUNG)
     return "nur Tooltip" if a == "nur Tooltip" else "aufklappbar"
 
 
@@ -82,7 +91,7 @@ class Hinweis(QWidget):
     def _gemerkt(self):
         if self.db is None or not self.schluessel:
             return self.offen
-        return bool((self.db.einstellung(OFFEN_EINSTELLUNG) or {}).get(self.schluessel))
+        return bool((_einstellung(self.db, OFFEN_EINSTELLUNG) or {}).get(self.schluessel))
 
     def aktualisieren(self):
         self.tooltip = art(self.db) == "nur Tooltip"

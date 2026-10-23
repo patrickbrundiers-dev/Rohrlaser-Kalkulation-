@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
+from . import hilfe
 from . import bohrbild, rechnen
 from .stammdaten import zahl_als_text
 
@@ -38,13 +39,13 @@ class BohrbildDialog(QDialog):
         self.setWindowTitle(f"Bohrungen prüfen – Pos. {titel}")
         self.resize(1150, 380)
         lay = QVBoxLayout(self)
-        info = QLabel("Je Zeile <b>Bestätigen</b> oder <b>Ablehnen</b>. Gewinde werden erst nach dem Bestätigen "
+        info = hilfe.Hinweis("Je Zeile „Bestätigen“ oder „Ablehnen“. Gewinde werden erst nach dem Bestätigen "
                       "gerechnet. Senkung: der Laser schneidet die Bohrung, auf Wunsch wird der Senk-Ø graviert. "
                       "Flowdrill: der Laser markiert nur (Gravur oder Loch Ø0,5); abgelehnt = normale Bohrung. "
                       "Bohren: Bohrung kleiner als 0,7 × Wandstärke, der Laser markiert nur, danach aufbohren; "
                       "abgelehnt = der Laser schneidet sie. Bestätigte Senkungen, Flowdrill und Bohren kommen als "
-                      "Zusatzarbeit Senken, Flowdrill bzw. Bohren mit der Anzahl je Teil in die Position.")
-        info.setWordWrap(True)
+                      "Zusatzarbeit Senken, Flowdrill bzw. Bohren mit der Anzahl je Teil in die Position.",
+                             schluessel="bohrbild")             # erster Satz, Rest hinter „mehr“ (L7)
         lay.addWidget(info)
         self.tabelle = QTableWidget(len(self.liste), len(self.SPALTEN))
         self.tabelle.setHorizontalHeaderLabels(self.SPALTEN)

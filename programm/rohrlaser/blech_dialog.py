@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QPushButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
+from . import hilfe
 from . import blech, blech3d, dfm, dxf, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
@@ -392,10 +393,9 @@ class BlechDialog(QDialog):
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
         lay.addWidget(self.summe)
-        hinweis = QLabel("Richtpreis zur Kostenschätzung vorab (EK-Vorschlag). Werkstoffe, Blechlaser-Richtwerte und "
-                         "Sätze stehen unter Einstellungen; die Rohrlaser-Daten bleiben unverändert.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #5F6B7A;")
+        hinweis = hilfe.Hinweis("Richtpreis zur Kostenschätzung vorab (EK-Vorschlag). Werkstoffe, Blechlaser-Richtwerte "
+                                "und Sätze stehen unter Einstellungen; die Rohrlaser-Daten bleiben unverändert.",
+                                schluessel="blech_editor")
         lay.addWidget(hinweis)
         lay = haupt
         self.knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
