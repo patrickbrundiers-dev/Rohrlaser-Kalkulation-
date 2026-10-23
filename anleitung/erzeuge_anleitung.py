@@ -1077,7 +1077,9 @@ def kapitel_step(i):
             "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
             "<b>3D-Schnittbearbeitung aktivieren</b> (seit 0.8.19, unter <i>Werte setzen</i>, gilt für alle Teile): "
-            "Gehrungen an den Enden und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
+            "3D heißt: die Schnittfläche steht nicht senkrecht (90°) zur Rohroberfläche. Eine Gehrung im CAD ist "
+            "meist eine ebene Fläche; ob sie 2D (Strahl senkrecht zur Oberfläche) oder 3D geschnitten wird, "
+            "entscheidet das Häkchen, nicht die Datei. Mit Häkchen werden Gehrungen an den Enden und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
             "übernommen, die Bohrungen mit gemessener Neigung längs und quer. Daneben steht, wie viele Gehrungen und "
             "schrägen Bohrungen gefunden wurden. Ohne Häkchen bleibt alles 2D; Teile mit schrägen Bohrungen bekommen "
             "im Bericht „3D prüfen“. Fasen werden nie in 3D gerechnet. Über der Grenze der Maschine wird begrenzt "
@@ -1523,7 +1525,9 @@ def kapitel_optimieren(i):
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
             "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
-            "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): Das Häkchen <i>3D-Schnittbearbeitung "
+            "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): 3D ist ein Schnitt nur, wenn die "
+            "Schnittfläche nicht senkrecht (90°) zur Rohroberfläche steht und der Laserkopf dafür geschwenkt wird. "
+            "Bleibt der Strahl senkrecht zur Oberfläche, ist es 2D, auch bei einer Gehrung. Das Häkchen <i>3D-Schnittbearbeitung "
             "aktivieren</i> über den Enden schaltet sie für das Teil ein; daneben steht, ob die Maschine 3D kann, "
             "ihr Schwenkwinkel und das Greifmaß (rot, wenn die Maschine kein 3D kann, die Position bekommt dann einen "
             "FEHLER). Danach je Ende <i>Gehrung in 3D</i> (nur mit Gehrung: der Kopf wird auf den Gehrungswinkel "

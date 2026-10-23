@@ -223,8 +223,9 @@ class StepPruefDialog(QDialog):
         zeile_3d = QHBoxLayout()
         self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
         self.d3.setChecked(any(m.get("_d3") for m in messwerte))
-        self.d3.setToolTip("Gehrungen an den Enden und schräge Bohrungen aller Teile mit geschwenktem Laserkopf "
-                           "(3D) rechnen. Aus = 2D wie bisher; Teile mit schrägen Bohrungen bekommen dann den "
+        self.d3.setToolTip("3D = Schnittfläche nicht senkrecht (90°) zur Rohroberfläche. Gehrungen an den Enden "
+                           "und schräge Bohrungen aller Teile mit geschwenktem Laserkopf (3D) rechnen; nur wählen, "
+                           "wenn die Gehrungen wirklich 3D geschnitten werden. Aus = 2D wie bisher; Teile mit schrägen Bohrungen bekommen dann den "
                            "Hinweis „3D prüfen“. Korrektur je Teil im Rohr-Editor (Schneidweg berechnen …).")
         gehr = bohr = 0
         for m in messwerte:

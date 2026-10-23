@@ -32,7 +32,8 @@ SPALTEN_HILFE = (
     "Fläche, auf der die Kontur sitzt, von Ende A gesehen (Rechteck-/Quadratrohr 0° oben, 90° vorne = rechts, 180° "
     "unten, 270° hinten = links; Rundrohr Winkel am Umfang)",
     "Versatz der Kontur quer zur Flächenmitte in mm (+ zur nächsten Fläche hin)",
-    "Bohrung in 3D (schräg, Kopf geschwenkt); nur mit Häkchen „3D-Schnittbearbeitung aktivieren“",
+    "Bohrung in 3D: Achse nicht senkrecht zur Rohroberfläche (schräg, Kopf geschwenkt); nur mit Häkchen "
+    "„3D-Schnittbearbeitung aktivieren“",
     "Neigung der Bohrungsachse gegen die Wandnormale längs zum Rohr: + = Richtung Ende B, − = Richtung Ende A, "
     "0° = senkrecht zur Wand (nicht der Umfangswinkel, der steht in Seite)",
     "Neigung der Bohrungsachse quer: + = im Uhrzeigersinn von Ende A gesehen (Richtung 90°), − = dagegen",
@@ -121,8 +122,9 @@ class SchneidwegDialog(QDialog):
         zeile_3d = QHBoxLayout()
         self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
         self.d3.setChecked(e.get("d3") is True)
-        self.d3.setToolTip("Laserkopf schwenken: Gehrungen in 3D (ebene Fläche durch die Wand) und schräge Bohrungen. "
-                           "Aus = 2D wie bisher, keine 3D-Zeiten und kein 3D-Greifmaß")
+        self.d3.setToolTip("3D = die Schnittfläche steht nicht senkrecht (90°) zur Rohroberfläche, der Laserkopf wird "
+                           "geschwenkt: Gehrungen in 3D und schräge Bohrungen. Bleibt der Strahl senkrecht zur "
+                           "Oberfläche, ist es 2D, auch bei einer Gehrung. Aus = 2D, keine 3D-Zeiten, kein 3D-Greifmaß")
         self.d3.toggled.connect(self.rechnen)
         self.d3_info = QLabel()
         self.d3_info.setWordWrap(True)
@@ -146,8 +148,10 @@ class SchneidwegDialog(QDialog):
                 ("Ausklinkung auf Rundrohr Ø", "nur Rundrohr: Ende rechtwinklig auf ein Rundrohr mit diesem Ø "
                  "(Sattelschnitt)"),
                 ("aus dem STEP-Import", "gemessene Schnittlänge des Endes; gilt, solange das Ende unverändert bleibt"),
-                ("3D", "Gehrung in 3D: der Kopf wird auf den Gehrungswinkel geschwenkt (ebene Schnittfläche durch die "
-                       "Wand); nur mit „3D-Schnittbearbeitung aktivieren“ und einer Gehrung")),
+                ("3D", "Gehrung in 3D: Schnittfläche nicht senkrecht zur Rohroberfläche, der Kopf wird auf den "
+                       "Gehrungswinkel geschwenkt (ebene Schnittfläche durch die Wand). Ohne Häkchen ist die Gehrung "
+                       "2D (Strahl senkrecht zur Oberfläche). Nur mit „3D-Schnittbearbeitung aktivieren“ und einer "
+                       "Gehrung")),
                 start=1):
             kopf_ = QLabel(f"<span style='color:#595959'>{titel}</span>")
             kopf_.setToolTip(tipp)
