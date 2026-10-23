@@ -180,8 +180,8 @@ VORGANG_FILTER = {"Alle Angebote": lambda v, ab, z: True,
                   "Entwurf": lambda v, ab, z: v == "Entwurf", "Verschickt": lambda v, ab, z: v == "Verschickt",
                   "Verschickt und abgelaufen": lambda v, ab, z: v == "Verschickt" and ab,
                   "Beauftragt": lambda v, ab, z: v == "Beauftragt",
-                  # Plan Arbeitsabläufe W9: beauftragt, aber noch ohne Ist-Werte
-                  "Nachkalkulation offen": lambda v, ab, z: v == "Beauftragt" and not z.get("nachkalkuliert"),
+                  # Plan Arbeitsabläufe W9: beauftragt, aber noch ohne Ist-Werte (eine Bemerkung allein zählt nicht)
+                  "Nachkalkulation offen": lambda v, ab, z: v == "Beauftragt" and not z.get("ist_erfasst"),
                   "Abgelehnt": lambda v, ab, z: v == "Abgelehnt"}
 
 
@@ -2778,7 +2778,11 @@ class AngebotSeite(QWidget):
         self.st_seite.loeschen()
 
     def staffelpreise_rechnen(self):
-        """Alle Stufen neu rechnen und speichern. Ergebnis: bepreiste Zeilen oder None (abgebrochen)."""
+        """Alle Stufen neu rechnen und speichern. Ergebnis: bepreiste Zeilen oder None (abgebrochen bzw. Angebot nur
+        zum Ansehen: fremdes Angebot oder Lesemodus, F8)."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return None
         return self.st_seite.rechnen()
 
     def staffelpreise_aktuell(self):

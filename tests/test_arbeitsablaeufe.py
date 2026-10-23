@@ -124,18 +124,20 @@ ok(f"W9 Rest wie geplant: {gesetzt} leere Ist-Werte = Soll, eingetragene (Laserz
 
 # Filter „Nachkalkulation offen“: beauftragt und noch ohne Ist-Werte
 passt = VORGANG_FILTER["Nachkalkulation offen"]
-assert passt("Beauftragt", False, dict(nachkalkuliert=0)) and not passt("Beauftragt", False, dict(nachkalkuliert=1))
-assert not passt("Verschickt", False, dict(nachkalkuliert=0))
+assert passt("Beauftragt", False, dict(ist_erfasst=False)) and not passt("Beauftragt", False, dict(ist_erfasst=True))
+assert not passt("Verschickt", False, dict(ist_erfasst=False))
 b = beispiel_angebot.anlegen(db)
-db.vorgang_setzen(b, "Beauftragt")
-db.vorgang_setzen(a, "Beauftragt")
+c = beispiel_angebot.anlegen(db)
+db.nachkalkulation_speichern(c, dict(bemerkung="nur Bemerkung"))       # zählt nicht als nachkalkuliert
+for x in (a, b, c):
+    db.vorgang_setzen(x, "Beauftragt")
 liste = fenster.angebote
 liste.vorgang_filter.setCurrentText("Nachkalkulation offen")
 liste.neu_laden()
 ids = [z["id"] for z in liste.modell.zeilen]
-assert b in ids and a not in ids, ids
+assert b in ids and c in ids and a not in ids, ids
 liste.vorgang_filter.setCurrentText("Alle Angebote")
-ok("W9 Filter „Nachkalkulation offen“ zeigt beauftragte Angebote ohne Ist-Werte")
+ok("W9 Filter „Nachkalkulation offen“ zeigt beauftragte Angebote ohne Ist-Werte (nur Bemerkung zählt nicht)")
 
 # ------------------------------------------------------------------ W12 Tastenkürzel
 fenster.reiter.setCurrentWidget(s)
@@ -149,6 +151,12 @@ assert {"Strg+Umschalt+P", "Strg+Umschalt+K", "F8", "Strg+Umschalt+S", "Strg+Ums
 alle = [t.shortcut().toString() for t in fenster.findChildren(type(a_)) if t.shortcut().toString()]
 assert len(alle) == len(set(alle)), sorted(alle)
 assert fenster.kuerzel("staffeln") and fenster.kuerzel("werkstatt")
-ok("W12 Kürzel Strg+Umschalt+P/K/S/M und F8 im Menü, in der Übersicht und ohne Doppelbelegung")
+db.nur_lesen = "Test Lesemodus"
+fenster.lesemodus_anwenden()
+assert not fenster.kuerzel_aktionen["staffeln"].isEnabled() and not fenster.kuerzel_aktionen["stueck"].isEnabled()
+assert s.staffelpreise_rechnen() is None and s.stueck_aendern(faktor=2) is None
+db.nur_lesen = None
+ok("W12 Kürzel Strg+Umschalt+P/K/S/M und F8 im Menü, in der Übersicht, ohne Doppelbelegung; F8 und Strg+Umschalt+S "
+   "im Lesemodus aus")
 
 print("Alle Prüfungen bestanden.")

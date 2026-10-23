@@ -1466,7 +1466,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1475,7 +1475,14 @@ class Datenbank:
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
             werte = [f"%{suche}%"] * 6
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
-        return [dict(r) for r in self.con.execute(sql, werte)]
+        from .nachkalkulation import erfasst
+        zeilen = []
+        for r in self.con.execute(sql, werte):
+            z = dict(r)
+            nk = z.pop("_nk")      # ist_erfasst: echte Ist-Werte (nicht nur eine Bemerkung), Filter Nachkalkulation offen
+            z["ist_erfasst"] = bool(nk) and erfasst(json.loads(nk))
+            zeilen.append(z)
+        return zeilen
 
     @liest
     def angebot(self, angebot_id):

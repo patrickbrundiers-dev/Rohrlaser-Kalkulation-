@@ -1372,7 +1372,7 @@ class Hauptfenster(QMainWindow):
 
     # -------------------------------------------------------------- Lizenz
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
-                           "optimieren", "importieren", "drucken")
+                           "optimieren", "importieren", "drucken", "staffeln", "stueck")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen")
 
     def lizenz_anwenden(self):
