@@ -103,6 +103,8 @@ class SchneidwegDialog(QDialog):
         self.gewinde = gewinde_liste(tabellen)
         self.ergebnis = None
         e, self.aus_position = sw.aus_position(sw.lesen(p.get("technik")), p, profil)
+        # Profil der Position anders als gemessen (von Hand geändert): Konturen umrechnen bzw. Umriss übertragen
+        e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(profil, profil_id=p.get("profil_id")))
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
         self.setWindowTitle(f"Neue Position {p.get('pos') or ''} – Rohr / Profil".strip() if neu else
                             f"Schneidweg berechnen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
@@ -570,9 +572,13 @@ class SchneidwegDialog(QDialog):
         for w_ in (self.naht_vorgabe, self.naht_quelle):
             w_.setEnabled(self.naht_form is not None)
         self.skizze.profil, self.skizze.qs = self.profil, self.qs
+        # Konturen aus dem STEP-Import: für den neuen Querschnitt neu rechnen bzw. Umriss übertragen (3b)
+        e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(self.profil, profil_id=pid))
         self.tabelle.setRowCount(0)
         for z in e["konturen"]:
             self.zeile_neu(z, rechnen_=False)
+        if hasattr(self, "step_info") and hasattr(self, "_ende_step"):
+            self._step_hinweis()
         self._info_zeigen()
         self.rechnen()
 
@@ -624,12 +630,15 @@ class SchneidwegDialog(QDialog):
 
     def _step_hinweis(self):
         konturen = [self.tabelle.cellWidget(r, 0) for r in range(self.tabelle.rowCount())]
-        step = self._ende_step or any(getattr(c, "step", None) for c in konturen)
+        step = self._ende_step or any(getattr(c, "step", None) for c in konturen) or \
+            getattr(self, "_umstell_hinweise", None)
         if not step:
             self.step_info.setVisible(False)
             return
         text = ("Werte aus dem <b>STEP-Import</b> (grün): Es gelten die gemessenen Schnittlängen, solange Art und Maße "
                 "einer Zeile bzw. eines Endes unverändert bleiben.")
+        if getattr(self, "_umstell_hinweise", None):
+            text += " <span style='color:#7A5A00'>Profil geändert: " + "; ".join(self._umstell_hinweise) + ".</span>"
         if self.aus_position:
             text += (" <span style='color:#7A5A00'>Diese Position wurde ohne Konturliste importiert (vor Version "
                      "0.6.29): Bohrungen und Konturen stehen mit Größe und Länge da, ihre Lage ist unbekannt (in der "
@@ -794,14 +803,20 @@ class SchneidwegDialog(QDialog):
         self._kopf_hinweise(r)
         art.quer = bool(z.get("quer"))
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
-        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe") if z.get(k_) is not None}
+        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil") if z.get(k_) is not None}
         art.extra = (art.currentText(), extra) if extra else None
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
             art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
                                                                  if z.get(k_) is not None})
-            art.setToolTip(f"aus dem STEP-Import: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm (gilt, "
-                           "solange Art und Maße unverändert bleiben)")
-            self.tabelle.item(r, 1).setBackground(QColor("#E8F5E9"))
+            if sw.anderer_querschnitt(z, self.profil):      # nicht umrechenbar: gelb zum Prüfen
+                art.setToolTip(f"gemessen an einem anderen Querschnitt ({str(z['messprofil']).split('|')[0]}), nicht "
+                               f"umrechenbar: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm gilt, bitte "
+                               "prüfen")
+                self.tabelle.item(r, 1).setBackground(QColor("#FFF4CC"))
+            else:
+                art.setToolTip(f"aus dem STEP-Import: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm "
+                               "(gilt, solange Art und Maße unverändert bleiben)")
+                self.tabelle.item(r, 1).setBackground(QColor("#E8F5E9"))
         self.tabelle.blockSignals(False)
         if rechnen_:
             self.rechnen()
@@ -963,6 +978,9 @@ class SchneidwegDialog(QDialog):
         """Enden, Gravur und Konturen setzen (anhaengen: nur Konturen dazu; mit_messung: gemessene Werte des
         STEP-Imports behalten)."""
         e = sw.lesen(json.dumps(e if mit_messung else ohne_messung(e))) if isinstance(e, dict) else sw.lesen(e)
+        if mit_messung:
+            e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(self.profil,
+                                                                             profil_id=self.p.get("profil_id")))
         if not anhaengen:
             for s in ("a", "b"):
                 x = e.get(s) or {}

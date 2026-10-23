@@ -1294,9 +1294,12 @@ def kapitel_step(i):
             "<b>Von Hand nachtragen</b>: Unter jedem nicht übernehmbaren Teil steht die Zeile <i>Von Hand "
             "nachtragen</i>. Profilform wählen, bei Profil-ID ein Profil der Stammdaten wählen oder eine neue ID "
             "eintippen (z. B. QR 40x40x3, die Maße kommen dann aus dem Namen) und <b>Nachtragen</b> klicken. Das Teil "
-            "wandert in die Profilgruppe: Länge = größtes Hüllmaß, zwei gerade Enden, keine Konturen, Prüfstatus "
+            "wandert in die Profilgruppe: Länge = größtes Hüllmaß, zwei gerade Enden, Prüfstatus "
             "<i>prüfen</i>, angehakt. Gleiche nicht übernehmbare Körper der Datei (gleiches Hüllmaß) werden mit "
-            "nachgetragen. Bohrungen und Ausschnitte danach im Schneidweg-Rechner ergänzen. In der Spalte Art macht "
+            "nachgetragen. Hat die Messung Konturen in Längsrichtung gefunden (Länge passt zum Hüllmaß), bleiben sie "
+            "samt Schneidweg erhalten, sonst Bohrungen und Ausschnitte im Schneidweg-Rechner ergänzen. Auch wenn "
+            "man im Angebot später das Profil einer STEP-Position ändert, rechnet der Schneidweg-Rechner beim Öffnen "
+            "die Konturen für das neue Profil um (Hinweis <i>Profil geändert</i>). In der Spalte Art macht "
             "<i>Nachtrag zurücknehmen</i> das rückgängig.")
     i.bild("step_positionen", "Übernommene Positionen mit eingeblendeten STEP-Werten", hoehe=125 * mm, legende=[
         (1, "<b>STEP-Werte</b> zeigt Anfangs-/Endschnitt, Innenkonturen nach Größe, Gravur, Bohrungen und den "
@@ -1505,8 +1508,12 @@ def kapitel_step(i):
             "Programm Anfangs- und Endschnitt mit der gemessenen Form für das gewählte Profil neu: gerade = "
             "Schnittlänge des Profils, Gehrung und Schrägschnitt zweiachsig mit den gemessenen Winkeln, 3D-Enden "
             "(Spitze aus mehreren Ebenen, Ausklinkung auf ein Rundrohr) aus den gemessenen Schnittflächen "
-            "([[schneidweg_rechner]]). Innenkonturen und Bohrungen bleiben wie gemessen. Lässt sich ein Ende nicht "
-            "neu rechnen (z. B. Formschnitt aus einer älteren Messung), gilt die gemessene Länge mit Hinweis.",
+            "([[schneidweg_rechner]]). Auch die <b>Innenkonturen</b> gehen mit: Bohrungen, Langlöcher und Rechtecke "
+            "rechnen mit ihren Maßen neu, eine Sonderkontur oder Gravur mit echtem Umriss wird auf den neuen "
+            "Querschnitt übertragen (jeder Punkt bleibt auf seiner Wand an derselben Stelle, eine Ecke bleibt eine "
+            "Ecke; der Teil auf einer breiteren Wand wird länger). Der Bericht nennt <i>Schneidweg alt → neu</i>. "
+            "Lässt sich ein Ende oder eine Kontur nicht neu rechnen (z. B. sonstige Kontur, Wechsel auf ein offenes "
+            "Profil), gilt die gemessene Länge mit Hinweis; im Schneidweg-Rechner ist die Zeile <b>gelb</b>.",
             "Bei jedem STEP-Import legt das Programm das vollständige Messergebnis als <b>JSON-Datei</b> in die "
             "Ablage: <i>&lt;Angebot&gt; STEP-Messung &lt;Datum Uhrzeit&gt;.json</i>. Der Pfad steht im Bericht. Die "
             "Datei enthält je STEP-Datei den Importstatus, die Einheit und die Meldungen. Je Körper kommen dazu "
