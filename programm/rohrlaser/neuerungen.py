@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.20", "<b>Passwort verschlüsselt</b>: Das Passwort der Einstellungen (zugleich Admin-Passwort beim Start) steht "
+               "nicht mehr lesbar in der Datendatei, sondern nur als Prüfwert. Das bisherige Passwort gilt weiter. Das "
+               "Feld unter Vorgaben, Gruppe Zugang, bleibt deshalb leer; neues Passwort eintippen ändert es, "
+               "<b>Entfernen</b> schaltet es ab ([[passwort]]). Dazu laufen die Programmtests jetzt gemeinsam und "
+               "schneller.",
+     "Passwort der Einstellungen verschlüsselt gespeichert ([[passwort]])."],
     ["0.9.16", "<b>Kantbarkeit prüfen</b>: Der Blech-Editor weist bei Kantteilen auf zu kurze Schenkel (nach "
                "V-Öffnung), zu kleine Innenradien, Bohrungen zu nah an der Biegelinie und fehlende Freischnitte an "
                "Biegeecken hin; die Regeln stehen unter Einstellungen ([[blech_kantbarkeit]]).",

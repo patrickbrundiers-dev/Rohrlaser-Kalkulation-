@@ -17,7 +17,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
-from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, Kontext, beispieldaten, flaeche_berechnet,  # noqa: E402
+from rohrlaser.stammdaten import (TABELLE, PROFILE, PREISE, beispieldaten, flaeche_berechnet,  # noqa: E402
                                   preis_je_m_automatisch, pruefen, wert_aus_text, wert_als_text)
 
 tmp = Path(tempfile.mkdtemp())

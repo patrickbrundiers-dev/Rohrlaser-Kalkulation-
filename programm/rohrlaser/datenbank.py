@@ -29,7 +29,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import teilen, zukauf
+from . import passwort, teilen, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -184,6 +184,22 @@ class Datenbank:
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
         self._rp_anpassen()
+        self._passwort_umstellen()
+
+    def _passwort_umstellen(self):
+        """Passwort noch im Klartext gespeichert (ältere Version): auf den Hash umstellen, es gilt weiter (passwort.py)."""
+        r = self.con.execute("SELECT wert FROM einstellungen WHERE name='passwort'").fetchone()
+        if r is None:
+            return
+        wert = json.loads(r[0])
+        if wert and not passwort.ist_hash(wert):
+            with self.con:
+                self._einstellung_schreiben("passwort", wert)
+
+    @liest
+    def passwort_pruefen(self, text):
+        """True, wenn text das Passwort der Einstellungen ist (auch Admin-Passwort beim Start); ohne Passwort: True."""
+        return passwort.pruefen(text, self.einstellung("passwort"))
 
     @liest
     def schliessen(self):
@@ -1120,7 +1136,6 @@ class Datenbank:
     def blech_daten(self):
         """Daten des Blech-Editors für den Richtpreis je Staffelstufe (staffeln.blech_stand): werkstoffe {ID: Zeile},
         laser [Zeilen], einst {Einstellung: Wert}."""
-        from . import blech
         return dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.zeilen("blech_werkstoffe")
                                 if z.get("blech_werkstoff_id")},
                     laser=self.zeilen("blechlaser"), einst=self.blech_einstellungen())
@@ -1902,6 +1917,8 @@ class Datenbank:
             self._einstellung_schreiben(name, wert)
 
     def _einstellung_schreiben(self, name, wert):
+        if name == "passwort":
+            wert = passwort.speicherwert(wert)       # nie im Klartext in die Datendatei
         self.con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)",
                          (name, json.dumps(wert, ensure_ascii=False)))
 

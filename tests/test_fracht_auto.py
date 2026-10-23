@@ -6,7 +6,6 @@
   mit der Kopie neu, jede Staffelmenge eigene Fracht, Fehler -> Kalkulation ohne Fracht mit Warnung (nie still 0 €),
   von Hand übernommene Frachtberechnung schaltet die Automatik aus, ältere Angebote unverändert.
 """
-import json
 import os
 import sys
 import tempfile

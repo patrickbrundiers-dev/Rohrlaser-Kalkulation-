@@ -7,13 +7,12 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEvent, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QEvent, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFileDialog, QFrame,
-    QFormLayout, QMenu, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyledItemDelegate, QTableView,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame,
+    QFormLayout, QMenu, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSplitter, QTableView,
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
@@ -2779,7 +2778,7 @@ class AngebotSeite(QWidget):
             text = "kompakte Übersicht, alle Spalten ohne Häkchen „Kompakt“"
         else:
             n = leere_ausblenden(self.kalk_ansicht, self.kalk, KALK_IMMER)
-            text = f"Beträge auf 2 Stellen (genauer Wert im Tooltip)" + (f" · {n} Spalten ohne Werte ausgeblendet" if n else "")
+            text = "Beträge auf 2 Stellen (genauer Wert im Tooltip)" + (f" · {n} Spalten ohne Werte ausgeblendet" if n else "")
         self.kalk_info.setText(f"{len(self.kalk.zeilen)} Positionen · {text}")
 
     def _kompakt_umschalten(self, an, merken=True):
