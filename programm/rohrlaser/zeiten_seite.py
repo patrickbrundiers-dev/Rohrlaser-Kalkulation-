@@ -7,10 +7,11 @@ für dieses Angebot und stehen in seinem Snapshot der Stundensätze und Zeitvorg
 import copy
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFrame, QHBoxLayout, QLabel, QMessageBox, QPushButton,
                                QScrollArea, QSplitter, QTableView, QVBoxLayout, QWidget)
 
+from . import stil
 from . import rechnen
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE
 from .spaltenbreite import AutoGroesse
@@ -90,7 +91,7 @@ class ZeitenModell(QAbstractTableModel):
         if rolle == Qt.BackgroundRole:
             return QBrush(FARBE_EINGABE if self.bearbeitbar(r, c) else FARBE_BERECHNET)
         if rolle == Qt.ForegroundRole and z["gesamt_min"] is None and c in (5, 6):
-            return QBrush(QColor("#5F6B7A"))
+            return QBrush(stil.farbe("#5F6B7A"))
         return None
 
     def flags(self, index):

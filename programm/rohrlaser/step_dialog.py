@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from . import stil
 from . import hilfe
 from .ansicht3d import ARTEN, TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
@@ -307,7 +308,7 @@ class StepPruefDialog(QDialog):
                 f = b.font(0)
                 f.setBold(True)
                 b.setFont(0, f)
-                b.setBackground(0, QBrush(QColor("#FFF2CC")))
+                b.setBackground(0, QBrush(stil.farbe("#FFF2CC")))
                 b.setExpanded(True)
         teile = step.teile_gruppen(messwerte, mit_blechen)
         fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
@@ -328,7 +329,7 @@ class StepPruefDialog(QDialog):
                 f = g.font(0)
                 f.setBold(True)
                 g.setFont(0, f)
-                g.setBackground(0, QBrush(QColor("#FCE4D6" if fehlt else "#E2EFDA" if ist_blech else "#DDEBF7")))
+                g.setBackground(0, QBrush(stil.farbe("#FCE4D6" if fehlt else "#E2EFDA" if ist_blech else "#DDEBF7")))
                 g.setExpanded(True)
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
@@ -348,7 +349,7 @@ class StepPruefDialog(QDialog):
                 it.setText(self.SP_ANBAU, anbau.kurz(anbauteile))
                 it.setToolTip(self.SP_ANBAU, "Doppelklick: Anbauteile prüfen (nicht gelasert, nur Gravur)")
                 if anbau.offen(anbauteile):
-                    it.setBackground(self.SP_ANBAU, QBrush(QColor("#FFEB9C")))
+                    it.setBackground(self.SP_ANBAU, QBrush(stil.farbe("#FFEB9C")))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
             if anbauteil is not None:
                 hinweis.append(f"Anbauteil von {anbauteil}: nicht übernehmen (nur Gravur auf dem Rohr)")
@@ -367,7 +368,7 @@ class StepPruefDialog(QDialog):
             hinweis += [h for h in [m.get("hinweise")] if h]
             it.setText(self.SP_HINWEIS, "; ".join(hinweis))
             if m.get("pruefstatus") == "prüfen":
-                it.setBackground(self.SP_HINWEIS, QBrush(QColor("#FFEB9C")))
+                it.setBackground(self.SP_HINWEIS, QBrush(stil.farbe("#FFEB9C")))
             for c in (1, self.SP_STUECK, self.SP_LAENGE, self.SP_SCHNEIDWEG, self.SP_KONTUREN):
                 it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
             pr = QComboBox()
@@ -449,7 +450,7 @@ class StepPruefDialog(QDialog):
                 g = self.fehler_gruppen[m.get("datei")] = QTreeWidgetItem(self.baugruppen.get(m.get("datei"))
                                                                           or self.baum, ["Nicht übernehmbar"])
                 g.setFirstColumnSpanned(True)
-                g.setBackground(0, QBrush(QColor("#F8CBAD")))
+                g.setBackground(0, QBrush(stil.farbe("#F8CBAD")))
                 g.setExpanded(True)
             # Grund über die ganze Zeile (in der Spalte Hinweis stand er rechts außerhalb des sichtbaren Bereichs)
             it = QTreeWidgetItem(g, [f"{m.get('artikel') or m.get('datei')}: {grund(m)}"])
@@ -706,7 +707,7 @@ class StepPruefDialog(QDialog):
                                         "Form für das gewählte Profil neu gerechnet, Innenkonturen bleiben gemessen.")
                       if warnung else "")
         if warnung:
-            it.setBackground(self.SP_HINWEIS, QBrush(QColor("#FFD966")))
+            it.setBackground(self.SP_HINWEIS, QBrush(stil.farbe("#FFD966")))
         elif m.get("pruefstatus") != "prüfen":
             it.setBackground(self.SP_HINWEIS, QBrush())
 
