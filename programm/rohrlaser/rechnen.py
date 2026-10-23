@@ -1539,6 +1539,8 @@ def zusatz_stand(z, saetze=None, datum=None):
                  datum=datum or datetime.date.today().isoformat())
     if z.get("art") == "€/h":          # Preis = Stundensatz, dazu die Vorgabezeit je Teil
         stand["zeit_s"] = pr["zeit_s"] or None
+    elif pr["zeit_s"]:                 # Zeitaufwand je Einheit für die Zeiten (ändert den Preis nicht)
+        stand["arbeit_s"] = pr["zeit_s"]
     return stand
 
 
@@ -1594,8 +1596,11 @@ def zusatz_werte(p, k, tabellen):
             arbeit_s = 0.0
         elif art == "€/h":
             arbeit_s = _n(menge)
-        else:
-            arbeit_s = _n(zusatz_preis(kz, saetze)["zeit_s"]) * _n(menge)
+        elif stand and "arbeit_s" in stand:
+            arbeit_s = _n(stand["arbeit_s"]) * _n(menge)
+        else:   # Stammdaten (auch für Preisstände ohne Zeitaufwand, die Zeit ändert den Preis nicht)
+            kat = katalog.get(e["name"])
+            arbeit_s = _n(zusatz_preis(kat, saetze)["zeit_s"]) * _n(menge) if kat else 0.0
         out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,

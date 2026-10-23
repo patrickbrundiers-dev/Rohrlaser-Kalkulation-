@@ -7,6 +7,7 @@ an einer Zukaufteil-Position, an der Preisschicht der Staffeln und am Festschrei
 
 Aufruf: python tests/test_gewinn_basis.py
 """
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -129,5 +130,19 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "Gewinn auf Herstellkosten → auf Selbstkosten" in rechnen.preisbasis_abweichung(dict(a, preisbasis=alt), k, tab)
     ok("5  festgeschriebene Angebote: ohne Merker Gewinn auf Herstellkosten, „Aktuelle Preise übernehmen“ nennt "
        "die Umstellung")
+
+    # 6) Zeitaufwand einer Zusatzarbeit (€/Stück mit Zeit × Stundensatz) bleibt im Preisstand für die Zeiten erhalten
+    saetze = rechnen.stundensaetze(tab)
+    kz = dict(name="Entgraten Test", art="€/Stück", zeit=0.5, zeit_einheit="min", satz_id="Nachbearbeitung")
+    stand = rechnen.zusatz_stand(kz, saetze)
+    assert stand["arbeit_s"] == 30 and stand["preis"] == rechnen.zusatz_preis(kz, saetze)["preis"]
+    pos_z = dict(zusatz=json.dumps([dict(name="Entgraten Test", menge=2, stand=stand)]))
+    (w,) = rechnen.zusatz_werte(pos_z, k, tab)
+    assert w["arbeit_s"] == 60, w
+    alt_stand = {n: v for n, v in stand.items() if n != "arbeit_s"}        # Preisstand vor 0.9.28: Stammdaten
+    tab_k = dict(tab, zusatzarbeiten=list(tab.get("zusatzarbeiten") or []) + [kz])
+    (w,) = rechnen.zusatz_werte(dict(zusatz=json.dumps([dict(name="Entgraten Test", menge=2, stand=alt_stand)])), k, tab_k)
+    assert w["arbeit_s"] == 60, w
+    ok("6  Zeitaufwand der Zusatzarbeit im Preisstand gemerkt (2 × 30 s), ältere Preisstände aus den Stammdaten")
     db.schliessen()
 print("Alle Prüfungen bestanden.")
