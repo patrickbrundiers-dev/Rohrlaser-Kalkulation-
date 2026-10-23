@@ -121,6 +121,17 @@ def _intervalle(liste, tol=0.1):
     return out
 
 
+def _ring_intervalle(iv, tol=1e-3):
+    """Winkelbereiche [(u0, u1)] eines Torus vereinigen, auch über die Naht bei 0 = 2π (ein Bogen aus zwei
+    Flächen beiderseits der Naht ist ein Bogen)."""
+    voll = 2 * math.pi
+    out = _intervalle([(a % voll, a % voll + (b - a)) for a, b in iv], tol)
+    if len(out) > 1 and out[0][0] < tol and out[-1][1] > voll - tol:
+        out = [(out[-1][0], out[0][1] + voll)] + out[1:-1]
+        out = _intervalle(out, tol)
+    return out
+
+
 def _elemente(daten, ra):
     """Geraden und Bögen der Mittellinie (unverkettet): dict(art, a, b (Endpunkte), …)."""
     linien = []     # [(Punkt, Richtung), [(v0, v1)]]
@@ -156,9 +167,7 @@ def _elemente(daten, ra):
         for a, b in _intervalle(iv):
             out.append(dict(art="gerade", a=_add(p, r, a), b=_add(p, r, b), laenge=b - a))
     for (c, n, x, y, rb), iv in boegen:
-        # Bereich über die 0-Lage: auf einen fortlaufenden Bereich bringen
-        iv = [(a % (2 * math.pi), a % (2 * math.pi) + (b - a)) for a, b in iv]
-        for a, b in _intervalle(iv, 1e-3):
+        for a, b in _ring_intervalle(iv):
             if b - a > 2 * math.pi - 1e-3:
                 return None             # geschlossener Ring, kein Rohrbogen
             pa = _add(c, _add(tuple(rb * math.cos(a) * v for v in x), tuple(rb * math.sin(a) * v for v in y)))

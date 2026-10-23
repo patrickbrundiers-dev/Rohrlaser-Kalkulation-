@@ -147,7 +147,15 @@ assert any("Biegezone" in h for h in t2.hinweise)
 (t4,) = analysiere_datei(b4)
 assert abs(t4.laenge - (60 * math.pi + 30)) < 0.05 and [z["gerade"] for z in t4.biegerohr["lra"]] == [0, 30, 0]
 assert abs(t4.biegerohr["lra"][1]["drehung"]) == 180
-ok("B2 Konturen: Lage auf der Mittellinie, Winkel, Biegezone; Rohr beginnt mit einem Bogen")
+# ein Bogen aus zwei Torusflächen beiderseits der Naht u = 0 (zweite Fläche mit eigener X-Richtung) bleibt eine Biegung
+import step_biegerohr  # noqa: E402
+w = -math.pi / 4
+naht = {1: ("T", 20.0, (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), 80.0, 0.0, math.pi / 4),
+        2: ("T", 20.0, (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (math.cos(w), math.sin(w), 0.0), (-math.sin(w), math.cos(w), 0.0),
+            80.0, 0.0, math.pi / 4)}
+(bogen,) = step_biegerohr._elemente(naht, 20.0)
+assert abs(bogen["winkel"] - 90) < 1e-6 and abs(bogen["laenge"] - 80 * math.pi / 2) < 1e-6, bogen
+ok("B2 Konturen: Lage auf der Mittellinie, Winkel, Biegezone; Rohr beginnt mit einem Bogen; Bogen über die Torus-Naht")
 
 # ------------------------------------------------------------------ B3 Programm: gestreckte Länge
 assert abs(biegerohr.laenge(br) - SOLL) < 0.01
