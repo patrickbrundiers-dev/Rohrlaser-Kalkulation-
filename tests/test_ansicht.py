@@ -266,6 +266,26 @@ ok("Übersicht als rechte Spalte, Angebotskopf ausgefüllt zugeklappt (Kurzzeile
 # Ergebnisreiter: leere Spalten der Kalkulation weg, Schnittplan mit gewählter Stange, Auswertung ohne Leertabelle
 assert s.optimieren()
 QApplication.processEvents()
+# Kompakte Übersicht (Vorgabe): Profil, Stückzahl, Länge, Material, Oberfläche, Laserzeit berechnet/genutzt, VK
+assert s.kalk_kompakt.isChecked() and s.kompakt_ansicht.isVisibleTo(s.kalk_seite) \
+    and not s.kalk_ansicht.isVisibleTo(s.kalk_seite)
+ko = s.kompakt
+ks = {sp[1]: c for c, sp in enumerate(ko.spalten)}
+z0 = ko.zeilen[0]
+assert z0["profil"] and z0["material"] and z0["laenge"] and z0["oberflaeche"]
+assert z0["laser_brutto"] > 0 and z0["laser_netto"] > 0 and z0["preis_teil"] > 0
+assert abs(z0["laser_position_min"] - z0["laser_netto"] * z0["stueck"] / 60) < 1e-9
+assert not s.kompakt_ansicht.isColumnHidden(ks["laser_brutto"]) and s.kompakt_ansicht.isColumnHidden(ks["zeit_manuell"])
+assert "kompakt" in s.kalk_info.text()
+gesprungen = []
+s.zur_position, alt = (lambda ref=None, zeile=None: gesprungen.append(zeile)), s.zur_position
+s._kompakt_doppelklick(s.kompakt_ansicht.model().index(0, 0))
+s.zur_position = alt
+assert gesprungen == [z0["zeile"]]
+s.kalk_kompakt.setChecked(False)
+assert db.einstellung("ansicht_kalk_kompakt") is False and s.kalk_ansicht.isVisibleTo(s.kalk_seite) \
+    and not s.kompakt_ansicht.isVisibleTo(s.kalk_seite)
+ok("Kalkulation: kompakte Übersicht je Bauteil als Vorgabe, Doppelklick zur Position, Häkchen aus = alle Spalten")
 km = s.kalk
 spalte = {sp[1]: c for c, sp in enumerate(km.spalten)}
 assert s.kalk_ansicht.isColumnHidden(spalte["gewindezeit"]) and not s.kalk_ansicht.isColumnHidden(spalte["preis_teil"])

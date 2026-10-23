@@ -68,3 +68,37 @@ AUSW_SPALTEN = [("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff"
                 ("Bewertung", "bewertung", None, 230)]
 FEHLER_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 150), ("Anzahl", "anzahl", 0, 60),
                   ("Grund", "grund", None, 300)]
+
+# Kompakte Teileübersicht im Reiter Kalkulation (Patrick 23.10.2026): das Wichtigste je Bauteil auf einen Blick.
+# Laserzeit berechnet = Schneidzeit aus den Konturen (brutto); genutzt = was in den Preis eingeht (nach gemeinsamen
+# Schnitten, mit Zusatz- und Prüfzeit, bzw. die Zeit von Hand).
+KOMPAKT_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Profil", "profil", None, 130),
+                   ("Stückzahl", "stueck", 0, 60), ("Länge [mm]", "laenge", 1, 75), ("Material", "material", None, 110),
+                   ("Oberfläche", "oberflaeche", None, 85),
+                   ("Laserzeit berechnet je Teil [s]", "laser_brutto", 1, 85),
+                   ("Laserzeit genutzt je Teil [s]", "laser_netto", 1, 85), ("Schneidzeit manuell", "zeit_manuell", None, 70),
+                   ("Laserzeit genutzt Position [min]", "laser_position_min", 1, 90),
+                   ("Verkaufspreis je Teil [€]", "preis_teil", 3, 85), ("Verkaufspreis Position [€]", "preis_position", 2, 95),
+                   ("Hinweis", "hinweis", None, 190)]
+
+
+def kompakt_zeilen(positionen, zeilen):
+    """Zeilen der kompakten Übersicht aus Positionen und Kalkulationszeilen (gleiche Reihenfolge, None = ohne
+    Kalkulation); 'zeile' = Index der Position für den Sprung in die Positionsliste."""
+    out = []
+    for i, (p, z) in enumerate(zip(positionen, zeilen)):
+        if not z:
+            continue
+        netto = z.get("laser_netto")
+        stueck = z.get("stueck") or 0
+        zukauf = not p.get("profil_id")
+        out.append(dict(zeile=i, pos=z.get("pos"), artikel=z.get("artikel"), profil=p.get("profil_id") or "",
+                        stueck=z.get("stueck"), laenge=None if zukauf else p.get("laenge"),
+                        material=p.get("werkstoff_id") or "",
+                        oberflaeche="" if zukauf else (p.get("oberflaeche") or "roh"),
+                        laser_brutto=z.get("laser_brutto"),
+                        laser_netto=netto, zeit_manuell=z.get("zeit_manuell") or "",
+                        laser_position_min=netto * stueck / 60 if isinstance(netto, (int, float)) else None,
+                        preis_teil=z.get("preis_teil"), preis_position=z.get("preis_position"),
+                        hinweis=z.get("hinweis") or ""))
+    return out
