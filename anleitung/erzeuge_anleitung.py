@@ -2594,7 +2594,8 @@ def kapitel_zukauf_angebot(i):
             "Innenradius r, Dicke s, Biegewinkel φ und K-Faktor k je Biegung aus der Tabelle K-Faktoren "
             "([[blech_stammdaten]]; ohne passende Zeile der des Blech-Werkstoffs, Vorgabe 0,33). Beispiel "
             "Winkel 50 × 80 aus 2 mm, r = 2: v = 3,8 mm, Zuschnitt 126,2 mm.",
-            "<b>Material</b> = Hüllrechteck des Zuschnitts × (1 + Verschnitt Tafel) × Dicke × Dichte × Preis je kg.",
+            "<b>Material</b> = Tafelbedarf der Stückzahl ÷ Stückzahl × Dicke × Dichte × Preis je kg "
+            "([[blech_tafel]]).",
             "<b>Laser</b> = (Außenkontur ÷ Vorschub Außenkontur + Innenkonturen ÷ Vorschub Innenkonturen + "
             "Einstiche × Einstechzeit) × Stundensatz Blechlaser; Einstiche = 1 + Anzahl der Innenkonturen.",
             "<b>Kanten</b> = Anzahl Kantungen × Preis je Kantung; <b>Rüsten</b> = (Rüsten und Programmieren "
@@ -2605,6 +2606,21 @@ def kapitel_zukauf_angebot(i):
            "Staffelzeile <i>ab Stückzahl der Position</i> in den Artikel, und die Position bekommt den neuen "
            "Preisstand. Der Richtpreis ersetzt kein Angebot des Blechlieferanten; liegt eines vor, den echten EK "
            "mit <b>EK eintragen …</b> ([[zukauf_positionen]]) oder im Reiter Zukaufartikel eintragen.")
+    i.abschnitt("Tafelausnutzung", marke="blech_tafel")
+    i.text("Das Material eines Blechteils kommt aus dem <b>Tafelbedarf</b> der Stückzahl, nicht aus einem festen "
+           "Verschnitt. Größere Lose nutzen die Tafel besser; deshalb sinkt der Materialanteil je Stück mit der "
+           "Stückzahl, auch in den Staffelpreisen.", kurz=True)
+    i.liste("Das Programm legt die Hüllrechtecke der Teile mit Steg auf jedes Tafelformat: als Raster in einer Lage, "
+            "den Reststreifen gedreht. Gewählt wird das Format mit dem kleinsten Bedarf.",
+            "Volle Tafeln zählen ganz. Die letzte Tafel zählt nur mit der belegten Fläche samt Rand, denn der Rest "
+            "der Tafel bleibt beim Lieferanten.",
+            "Unter dem Richtpreis steht zum Beispiel <i>Tafel 3000 × 1500: 203 Stück je Tafel, Bedarf 0,49 Tafeln "
+            "für 100 Stück, Ausnutzung 91 %</i> (Zuschnitt 200 × 100 mm).",
+            "Freie Außenkonturen zählen mit ihrem Hüllrechteck; verschiedene Teile auf einer Tafel schachtelt das "
+            "Programm nicht zusammen.",
+            "Passt ein Zuschnitt auf kein Tafelformat, gilt der pauschale Verschnitt, und unter dem Richtpreis steht "
+            "ein Hinweis. Mit der Einstellung <i>Material: pauschaler Verschnitt</i> gilt er immer "
+            "([[einstellungen]]).")
     i.abschnitt("Kantbarkeit prüfen", marke="blech_kantbarkeit")
     i.text("Bei Kantteilen und mehrachsig gekanteten Zuschnitten prüft der Blech-Editor einfache Regeln und zeigt "
            "Befunde als <b>Hinweis: Kantbarkeit …</b> unter dem Richtpreis. Der Preis bleibt gleich; die Hinweise "
@@ -3130,6 +3146,11 @@ def kapitel_einstellungen(i):
                              "Dicke",
          "Regeln der Kantbarkeits-Hinweise im Blech-Editor (Vorgabe 8; 0,7; 2; 0,5); Faktor 0 schaltet eine Regel "
          "ab ([[blech_kantbarkeit]])."],
+        ["Blech-Richtpreis", "Material: Tafelausnutzung oder pauschaler Verschnitt, Tafelformate: Länge × Breite "
+                             "in mm, mit ; getrennt, Tafel: Randabstand [mm], Tafel: Steg zwischen den Teilen [mm]",
+         "<i>Tafelausnutzung</i> (Vorgabe): Material aus dem Tafelbedarf der Stückzahl; <i>pauschaler "
+         "Verschnitt</i>: Hüllrechteck × (1 + Verschnitt Tafel). Tafelformate als Beispiel 3000 × 1500 und "
+         "2500 × 1250, Randabstand 10 mm, Steg 5 mm; bitte an die eigenen Tafeln anpassen ([[blech_tafel]])."],
         ["Blech-Richtpreis", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle oder je Werkstoff)",
          "<i>K-Faktor-Tabelle</i> (Vorgabe): je Biegung aus der Tabelle K-Faktoren nach Dicke und Innenradius; "
          "<i>je Werkstoff</i>: der K-Faktor des Blech-Werkstoffs für alle Biegungen ([[blech_stammdaten]])."],

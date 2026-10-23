@@ -547,11 +547,15 @@ class BlechDialog(QDialog):
         warn = "".join(f"<br><span style='color:#B26A00'>Hinweis: {h}</span>" for h in erg.get("hinweise") or ())
         zs, k = erg["zuschnitt"], erg["kosten"]
         kanten = f", {erg['kantungen']} Kantung{'en' if erg['kantungen'] != 1 else ''}" if erg["kantungen"] else ""
+        t = erg.get("tafel")
+        tafel = (f"<br>Tafel {t['format'][0]:g} × {t['format'][1]:g}: "
+                 f"{t['je_tafel']} Stück je Tafel, Bedarf {zahl_als_text(t['tafeln'], 2)} Tafeln für "
+                 f"{self.stueck.value()} Stück, Ausnutzung {zahl_als_text(t['ausnutzung'] * 100, 0)} %") if t else ""
         self.summe.setText(
             f"<b>Richtpreis {_euro(erg['richtpreis'])} je Stück</b> (EK-Vorschlag) · Zuschnitt "
             f"{zahl_als_text(zs['laenge'], 1)} × {zahl_als_text(zs['breite'], 1)} mm{kanten}, "
-            f"{zahl_als_text(erg['gewicht'], 2)} kg je Teil, Tafel mit Verschnitt "
-            f"{zahl_als_text(erg['gewicht_tafel'], 2)} kg<br>Schneidweg {zahl_als_text(erg['schneidweg'], 0)} mm, "
+            f"{zahl_als_text(erg['gewicht'], 2)} kg je Teil, Material mit Verschnitt "
+            f"{zahl_als_text(erg['gewicht_tafel'], 2)} kg je Teil{tafel}<br>Schneidweg {zahl_als_text(erg['schneidweg'], 0)} mm, "
             f"{erg['einstiche']} Einstiche, Laserzeit {zahl_als_text(erg['zeit'], 1)} s ({erg['gas']})"
             + (f", K-Faktor {' / '.join(zahl_als_text(x, 2) for x in erg['k_faktoren'])}" if erg["k_faktoren"] else "")
             + " · "

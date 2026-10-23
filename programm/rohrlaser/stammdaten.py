@@ -535,6 +535,7 @@ SCHWEISS_FAKTOREN = Tabelle(
 BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
 DARSTELLUNG_3D = ("Automatisch", "Software", "OpenGL")       # wie ansicht3d.RENDERER
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")            # wie blech.ABWICKLUNG_K
+MATERIAL_AUS = ("Tafelausnutzung", "pauschaler Verschnitt")    # wie blech.MATERIAL_AUS
 IMPORTPROFILE = Tabelle(
     "importprofile", "Importprofile (STEP)",
     (Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", pflicht=True, breite=110),
@@ -664,6 +665,13 @@ EINSTELLUNGEN = (
                 30.0, 0, 100000),
     Einstellung("blech_verschnitt", "Verschnitt Tafel (auf das Hüllrechteck)", "Blech-Richtpreis", "anteil", 0.15,
                 0, 5),
+    # Tafelausnutzung (blech.tafelbedarf): Material je Losgröße aus den Tafelformaten statt pauschalem Verschnitt
+    Einstellung("blech_material", "Material: Tafelausnutzung oder pauschaler Verschnitt", "Blech-Richtpreis",
+                "auswahl", MATERIAL_AUS[0], auswahl="blechmaterial"),
+    Einstellung("blech_tafeln", "Tafelformate: Länge × Breite in mm, mit ; getrennt (Beispiel, bitte anpassen)",
+                "Blech-Richtpreis", "text", "3000 × 1500; 2500 × 1250"),
+    Einstellung("blech_tafel_rand", "Tafel: Randabstand [mm]", "Blech-Richtpreis", "zahl", 10.0, 0, 200),
+    Einstellung("blech_tafel_steg", "Tafel: Steg zwischen den Teilen [mm]", "Blech-Richtpreis", "zahl", 5.0, 0, 100),
     Einstellung("blech_kantung", "Kanten: Preis je Kantung [€]", "Blech-Richtpreis", "zahl", 1.20, 0, 10000),
     Einstellung("blech_ruesten_kanten", "Kanten: Rüsten je Auftrag [€]", "Blech-Richtpreis", "zahl", 25.0, 0, 100000),
     Einstellung("blech_aufschlag", "Aufschlag des Lieferanten (Gewinn)", "Blech-Richtpreis", "anteil", 0.15, 0, 5),
@@ -907,7 +915,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

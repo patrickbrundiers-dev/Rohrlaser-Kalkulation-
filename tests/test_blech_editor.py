@@ -82,7 +82,7 @@ assert blech.schneiddaten(laser, "Stahl", 3)["gas"] == "N₂" and blech.schneidd
 assert blech.schneiddaten(laser, "Stahl", 2.5)["dicke_bis"] == 3 and blech.schneiddaten(laser, "Stahl", 25) is None
 e = dict(werkstoff="S235JR", dicke=3, art=blech.ZUSCHNITT, laenge=200, breite=100, stueck=10,
          konturen=[dict(art=sw.BOHRUNG, anzahl=4, d=10)])
-erg = blech.rechnen(e, werkstoffe, laser)
+erg = blech.rechnen(e, werkstoffe, laser, dict(blech_material=blech.MATERIAL_AUS[1]))   # Tafel: test_blech_tafel
 assert not erg["fehler"] and erg["einstiche"] == 5 and nah(erg["schneidweg"], 600 + 40 * math.pi)
 assert nah(erg["gewicht"], (20000 - 4 * math.pi * 25) * 3 * 7.85 / 1e6, 1e-6)
 assert nah(erg["gewicht_tafel"], 20000 * 1.15 * 3 * 7.85 / 1e6, 1e-6)

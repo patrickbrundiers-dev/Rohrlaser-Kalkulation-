@@ -20,8 +20,10 @@ Abwicklung je Biegung (Außenmaße, K-Faktor k, Innenradius r, Dicke s, Biegewin
   Ausgleich v = 2·(r+s)·tan(φ/2) − π·φ/180·(r + k·s)   für φ ≤ 90°
   v = 2·(r+s) − π·φ/180·(r + k·s)                         für φ > 90°
   Abwicklungslänge = Σ Schenkel − Σ v
-Richtpreis je Stück = (Material + Laser + Kanten + Rüsten je Stück) × (1 + Aufschlag); Material = Hüllrechteck ×
-(1 + Verschnitt) × Dicke × Dichte × €/kg; Laserzeit = Außenkontur / Vorschub + Innenkonturen / Vorschub innen +
+Richtpreis je Stück = (Material + Laser + Kanten + Rüsten je Stück) × (1 + Aufschlag); Material = Tafelbedarf der
+Losgröße ÷ Stückzahl × Dicke × Dichte × €/kg (tafelbedarf: Hüllrechtecke mit Steg auf den Tafelformaten, volle Tafeln
+ganz, die letzte nur mit ihrer belegten Fläche samt Rand; Einstellung 'pauschaler Verschnitt': Hüllrechteck ×
+(1 + Verschnitt)); Laserzeit = Außenkontur / Vorschub + Innenkonturen / Vorschub innen +
 Einstiche × Einstechzeit."""
 import json
 import math
@@ -37,9 +39,12 @@ KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
+MATERIAL_AUS = ("Tafelausnutzung", "pauschaler Verschnitt")  # Einstellung blech_material
 EINSTELLUNGEN = {"blech_stundensatz": 120.0, "blech_ruesten": 30.0, "blech_verschnitt": 0.15, "blech_kantung": 1.20,
                  "blech_ruesten_kanten": 25.0, "blech_aufschlag": 0.15, "blech_abwicklung": ABWICKLUNG_K[0],
-                 "blech_kant_v": 8.0, "blech_kant_schenkel": 0.7, "blech_kant_loch": 2.0, "blech_kant_radius": 0.5}
+                 "blech_kant_v": 8.0, "blech_kant_schenkel": 0.7, "blech_kant_loch": 2.0, "blech_kant_radius": 0.5,
+                 "blech_material": MATERIAL_AUS[0], "blech_tafeln": "3000 × 1500; 2500 × 1250",
+                 "blech_tafel_rand": 10.0, "blech_tafel_steg": 5.0}
 NICHT_GEPRUEFT = "Biegefolge und Werkzeugkollision prüft das Programm nicht"
 
 _z = sw._z
@@ -285,6 +290,72 @@ def schneiddaten(zeilen, kategorie, dicke):
     return None
 
 
+def tafelformate(text):
+    """Tafelformate aus der Einstellung 'blech_tafeln' ('3000 × 1500; 2500 × 1250'): [(Länge, Breite)], Länge ≥
+    Breite, unlesbare Einträge fehlen."""
+    out = []
+    for teil in str(text or "").replace(",", ".").split(";"):
+        zahlen = [x for x in teil.replace("×", " ").replace("x", " ").replace("X", " ").replace("*", " ").split()]
+        try:
+            l, b = (float(x) for x in zahlen)
+        except ValueError:
+            continue
+        if l > 0 and b > 0:
+            out.append((max(l, b), min(l, b)))
+    return out
+
+
+def _je_tafel(u, v, a, b):
+    """Größte Anzahl gleicher Rechtecke a × b (mit Steg) auf der Fläche u × v (mit Steg): Raster in einer Lage plus
+    Reststreifen gedreht, längs oder quer geteilt."""
+    best = 0
+    for p, q in ((a, b), (b, a)):
+        for k in range(int(u // p) + 1):
+            best = max(best, k * int(v // q) + int((u - k * p) // q) * int(v // p))
+        for k in range(int(v // q) + 1):
+            best = max(best, k * int(u // p) + int((v - k * q) // p) * int(u // q))
+    return best
+
+
+def _rest(m, u, v, a, b, steg, rand):
+    """Kleinste belegte Fläche (Länge, Breite) samt Rand für m gleiche Teile als Raster, None = passt so nicht."""
+    best = None
+    for p, q in ((a, b), (b, a)):
+        for reihen in range(1, int(v // q) + 1):
+            spalten = math.ceil(m / reihen)
+            if spalten * p > u + 1e-9:
+                continue
+            reihen_n = min(reihen, m)
+            l, br = spalten * p - steg + 2 * rand, reihen_n * q - steg + 2 * rand
+            if best is None or l * br < best[0] * best[1]:
+                best = (l, br)
+    return best
+
+
+def tafelbedarf(laenge, breite, stueck, tafeln, rand=10.0, steg=5.0):
+    """Tafelbedarf für stueck gleiche Teile mit dem Hüllrechteck laenge × breite [mm] (Plan S4, Tafelausnutzung):
+    je Tafelformat volle Tafeln ganz und die letzte nur mit der belegten Fläche samt Rand; gewählt wird das Format
+    mit der kleinsten Fläche. Ergebnis dict format (l, b), je_tafel, voll, rest (l, b) oder None, flaeche [mm²],
+    tafeln (Anzahl, Rest als Anteil), ausnutzung (Teile ÷ Fläche); None, wenn das Teil auf keine Tafel passt."""
+    n = max(int(stueck or 1), 1)
+    a, b = _z(laenge) + steg, _z(breite) + steg
+    best = None
+    for l, br in tafeln:
+        u, v = l - 2 * rand + steg, br - 2 * rand + steg
+        je = _je_tafel(u, v, a, b)
+        if je < 1:
+            continue
+        voll = (n - 1) // je                         # die letzte Tafel immer mit ihrer belegten Fläche
+        rest = _rest(n - voll * je, u, v, a, b, steg, rand)
+        if rest is None:                             # nur mit gemischter Lage: ganze Tafel
+            voll += 1
+        flaeche = voll * l * br + (rest[0] * rest[1] if rest else 0)
+        if best is None or flaeche < best["flaeche"] - 1e-6:
+            best = dict(format=(l, br), je_tafel=je, voll=voll, rest=rest, flaeche=flaeche,
+                        tafeln=flaeche / (l * br), ausnutzung=n * _z(laenge) * _z(breite) / flaeche)
+    return best
+
+
 def rechnen(e, werkstoffe, laserdaten, einst=None):
     """Richtpreis. werkstoffe: {ID: Zeile blech_werkstoffe}; laserdaten: Zeilen blechlaser; einst: Werte der
     Einstellungen 'blech_…' (fehlende: EINSTELLUNGEN). Ergebnis dict mit fehler [Texte], zuschnitt, gewicht,
@@ -292,7 +363,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     erg = dict(fehler=[], zuschnitt=None, gewicht=None, gewicht_tafel=None, schneidweg=None, aussen=None, innen=None,
                einstiche=None, zeit=None, kosten={}, summe=None, richtpreis=None, gas=None, kantungen=0,
-               konturen=[], hinweise=[], k_faktoren=[])
+               konturen=[], hinweise=[], k_faktoren=[], tafel=None)
     wst = werkstoffe.get(e.get("werkstoff"))
     s = _z(e.get("dicke"))
     if not wst:
@@ -327,7 +398,16 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         return erg
     dichte = _z(wst.get("dichte"))
     erg["gewicht"] = max(zs["flaeche"] - loch, 0) * s * dichte / 1e6
-    erg["gewicht_tafel"] = zs["laenge"] * zs["breite"] * (1 + _z(w["blech_verschnitt"])) * s * dichte / 1e6
+    stueck = max(int(_z(e.get("stueck")) or 1), 1)
+    flaeche = zs["laenge"] * zs["breite"] * (1 + _z(w["blech_verschnitt"]))
+    if w.get("blech_material") != MATERIAL_AUS[1]:
+        erg["tafel"] = tafelbedarf(zs["laenge"], zs["breite"], stueck, tafelformate(w.get("blech_tafeln")),
+                                   _z(w.get("blech_tafel_rand")), _z(w.get("blech_tafel_steg")))
+        if erg["tafel"]:
+            flaeche = erg["tafel"]["flaeche"] / stueck
+        else:
+            erg["hinweise"].append("Tafel: Zuschnitt passt auf kein Tafelformat, Material mit pauschalem Verschnitt")
+    erg["gewicht_tafel"] = flaeche * s * dichte / 1e6
     sd = schneiddaten(laserdaten, wst.get("kategorie"), s)
     if sd is None:
         erg["fehler"].append(f"Keine Blechlaser-Richtwerte für {wst.get('kategorie')} {s:g} mm "
@@ -337,7 +417,6 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     v_innen = _z(sd.get("vorschub_innen")) or _z(sd["vorschub"]) / 2
     erg["zeit"] = (zs["aussen"] / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
                    + einstiche * _z(sd.get("einstechzeit")))
-    stueck = max(int(_z(e.get("stueck")) or 1), 1)
     ruesten = _z(w["blech_ruesten"]) + (_z(w["blech_ruesten_kanten"]) if erg["kantungen"] else 0)
     erg["kosten"] = {"Material": erg["gewicht_tafel"] * _z(wst.get("preis_kg")),
                      "Laser": erg["zeit"] / 3600 * _z(w["blech_stundensatz"]),
