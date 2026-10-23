@@ -24,14 +24,15 @@ def ok(text):
 
 # ohne Fenster: Gruppen addieren sich, Summenzeilen setzen den Stand neu, 0-Gruppen fehlen
 werte = {n: 0.0 for _, n, _ in rechnen.KOSTENARTEN}
-werte.update(material=100.0, laser_schneiden=20.0, ruesten_maschine=5.0, stangenwechsel_kosten=2.5, herstell=127.5,
+werte.update(material=100.0, laser_schneiden=20.0, ruesten_maschine=5.0, stangenwechsel_kosten=2.5, herstell=127.5, selbst=127.5,
              gewinn=12.75, skonto=-3.0, verkauf=137.25)
 kosten = [(t, werte[n], fett) for t, n, fett in rechnen.KOSTENARTEN]
 w = wasserfall(kosten)
-assert [t for t, *_ in w] == ["Material", "Laser schneiden", "Rüsten", "Herstellkosten", "Gewinn", "Skonto",
+assert [t for t, *_ in w] == ["Material", "Laser schneiden", "Rüsten", "Herstellkosten", "Selbstkosten",
+                              "Gewinn", "Skonto",
                               "Verkaufspreis"], w
 assert w[2][1:] == (120.0, 127.5, False) and w[3][1:] == (0.0, 127.5, True)
-assert w[5][1:] == (140.25, 137.25, False) and w[-1][2] == w[-2][2] == 137.25
+assert w[4][1:] == (0.0, 127.5, True) and w[6][1:] == (140.25, 137.25, False) and w[-1][2] == w[-2][2] == 137.25
 ok("Wasserfall: Gruppen des Preisaufbaus, Rüsten zusammengefasst, Skonto negativ, ohne 0-Zeilen")
 
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")

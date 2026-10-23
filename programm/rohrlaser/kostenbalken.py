@@ -87,7 +87,7 @@ class Kostenbalken(QWidget):
 # ------------------------------------------------------------------ Kostenwasserfall (Layout-Plan L22)
 def wasserfall(kosten):
     """Stufen des Preisaufbaus aus rechnen.kostenarten(...): [(Titel, von, bis, Summe ja/nein)] je Gruppe aus
-    rechnen.KOSTEN_GRUPPEN mit Betrag ≠ 0. Eine Summenzeile (Herstellkosten, Verkaufspreis) reicht von 0 bis zu
+    rechnen.KOSTEN_GRUPPEN mit Betrag ≠ 0. Eine Summenzeile (Herstellkosten, Selbstkosten, Verkaufspreis) reicht von 0 bis zu
     ihrem Betrag und setzt den laufenden Stand neu, sodass die letzte Zeile genau den Verkaufspreis trifft."""
     from . import rechnen
     betrag = {n: (w or 0.0) for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}

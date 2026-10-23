@@ -1027,7 +1027,7 @@ def kapitel_angebot(i):
             "(ohne Gewinn), + Skonto, = <b>Verkaufspreis</b> ([[gewinn_basis]]). Ein Klick auf "
             "eine Gruppe mit ▸ klappt ihre Kostenarten auf. <b>Kostenarten einzeln</b> zeigt alle Kostenarten mit "
             "ihrer Mengenangabe, der <b>Kostenwasserfall</b> dieselben Gruppen als Balken: jeder beginnt dort, wo der "
-            "vorige endet, Herstellkosten und Verkaufspreis reichen von 0 bis zur Summe. So ist auf einen Blick zu "
+            "vorige endet, die Summen (Herstellkosten, Selbstkosten, Verkaufspreis) reichen von 0 bis zum Betrag. So ist auf einen Blick zu "
             "sehen, welcher Posten den Preis treibt.")
     i.abschnitt("Positionen", marke="positionen")
     i.text("Eine Zeile je Teil. Pflicht sind <b>Profil-ID</b>, <b>Werkstoff-ID</b>, <b>Teilelänge</b> und "
