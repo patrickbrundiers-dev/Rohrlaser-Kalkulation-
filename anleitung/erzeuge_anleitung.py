@@ -1170,6 +1170,35 @@ def kapitel_angebot(i):
             "Ohne Optimierung stehen Stangen, Meter und Gewicht auf „–“; passt der Schnittplan nicht mehr zu den "
             "Positionen, steht oben ein roter Hinweis.",
             "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
+    i.abschnitt("Abmessung genauer ansehen (Doppelklick im Fenster Material …)", marke="abmessung_fenster")
+    i.text("Im Fenster <b>Material …</b> öffnet ein <b>Doppelklick auf Stangen</b> die Abmessung in einem eigenen "
+           "Fenster: Stangenbild, Schnittmuster, Bilanz und alle Teile dieser Abmessung.", kurz=True)
+    i.bild("abmessung_fenster", "Abmessung im eigenen Fenster", hoehe=110 * mm, legende=[
+        (1, "<b>Stangenbild</b> nur dieser Abmessung (wie im Reiter Schnittplan, [[optimieren]]). Klick auf ein Teil "
+            "zeigt es in der Teileliste, Doppelklick springt zur Position."),
+        (2, "<b>Schnittmuster</b>: gleich belegte Stangen einmal, mit Anzahl, Stangennummern, Teilen je Stange, Rest, "
+            "Ausnutzung und Material je Stange. Klick zeigt das Muster im Stangenbild."),
+        (3, "<b>Meter- und Gewichtsbilanz</b>: Lieferlänge gesamt = Teile + Schnittfugen + Endbeschnitt + "
+            "Greiferrest + Rest (Verschnitt), bei 12-m-Stangen dazu der Zuschnitt beim Lieferanten."),
+        (4, "<b>Teile</b> je Position: Länge, Stück, Enden, Naht/Drehung, eingeplant (rot, wenn Teile fehlen), auf "
+            "welchen Stangen, Meter, Gewicht, Anteil, Material je Teil, Laserzeit und Verkaufspreis je Teil. "
+            "Rechtsklick auf die Kopfzeile blendet Spalten aus."),
+        (5, "<b>Knöpfe</b>: Neu optimieren (nur wenn nötig), 12-m-Lösung ansehen, Materialanfrage, Schnittplan drucken "
+            "(Werkstattpapiere nur dieser Abmessung) und Positionen markieren.")])
+    i.genauer()
+    i.text("Doppelklick je Spalte im Fenster <b>Material …</b>:")
+    i.liste("<b>Querschnitt</b> oder <b>Abmessung</b>: Profil-Info mit großem Querschnitt, Maßen, Metergewicht, "
+            "Hüllkreis-Ø und welche Maschinen das Profil laden können.",
+            "<b>Pos.</b>, <b>Stangen</b>: Abmessungs-Fenster; <b>Meter</b>, <b>Gewicht</b>: dasselbe Fenster, die "
+            "Bilanz ist orange umrandet.",
+            "<b>Material €</b>, <b>berechnet €/m</b>: Preis-Aufbau mit der Herkunft des Meterpreises (Lieferant, "
+            "Gültig ab), Einkauf je Lieferlänge mit Händler-Mehrlänge, Zuschlag Material und Verteilung auf die "
+            "Positionen.",
+            "<b>Rechtsklick</b> auf eine Zeile: alle Fenster und Schritte dieser Abmessung, auch 12-m-Lösung, "
+            "Materialanfrage, Schnittplan drucken und Positionen markieren.",
+            "Zur Position, Positionen markieren, Neu optimieren, 12-m-Lösung und Materialanfrage schließen das Fenster "
+            "<b>Material …</b> wie <b>Übernehmen</b>: Eingaben werden gespeichert. Bei einer ungültigen Eingabe bleibt "
+            "es offen. Nach Neu optimieren öffnet es sich mit dem neuen Schnittplan wieder.")
     i.abschnitt("Schweißnaht", marke="schweissnaht")
     i.text("Fordert der Kunde eine Lage der Schweißnaht: Position(en) markieren → <b>Schweißnaht …</b> (Rechtsklick, "
            "<i>Ausgaben</i> oder Doppelklick in die Spalte <b>Schweißnaht</b>), im Querschnitt die Stelle "
