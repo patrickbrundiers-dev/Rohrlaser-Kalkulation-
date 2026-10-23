@@ -89,6 +89,11 @@ ep, _ = dxf.elemente(schale, zp)
 assert [el for el in ep if el[1] == dxf.RUNTER][0][2:] == ((20.0, 0.0), (20.0, 180.0))       # Polygon ab 0, 0
 assert [el for el in ep if el[1] == dxf.HOCH][0][2:] == ((200.0, 0.0), (200.0, 180.0))
 assert abs(dxf.schnittlaenge(ep)[dxf.AUSSEN] - zp["aussen"]) < 1e-6
+# Polygon nicht ab 0, 0: Innenkonturen verschieben mit
+versetzt = dict(art=blech.ZUSCHNITT, form=blech.POLYGON, dicke=2, punkte="100,200; 300,200; 300,300; 100,300",
+                konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=10, x=150, y=250)])
+ev, _ = dxf.elemente(versetzt, blech.zuschnitt(versetzt))
+assert ("CIRCLE", dxf.INNEN, (50.0, 50.0), 5.0) in ev
 ok("D2 Kantteil: Biegelinien hoch/runter an der Lage der Abwicklung; mehrachsig und Polygon-Außenkontur")
 
 # ------------------------------------------------------------------ D3 Einstellungen und Hinweise

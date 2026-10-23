@@ -125,8 +125,8 @@ class BlechSkizze(QWidget):
             if z in frei:
                 k = frei.index(z)
                 cx, cy = lg * (k + 1) / (len(frei) + 1), br / 2
-            else:
-                cx, cy = z["x"], z["y"]
+            else:               # im System der Außenkontur (Polygon ab 0, 0 gezeichnet)
+                cx, cy = z["x"] - minx, z["y"] - miny
             self._kontur(p, z, pkt(cx, cy), m)
         if self.mini:
             return

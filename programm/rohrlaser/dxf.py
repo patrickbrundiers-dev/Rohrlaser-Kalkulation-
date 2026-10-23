@@ -134,6 +134,8 @@ def elemente(e, zs, beschriftung=None, biegelinien=True):
                                   (x2 - minx, y2 - miny)))
     ohne_lage = mehrfach = ohne_form = 0
     for z, cx, cy in konturen_lage(e, zs):
+        if z.get("x") is not None and z.get("y") is not None:      # im System der Außenkontur, wie sie ab 0, 0
+            cx, cy = cx - minx, cy - miny
         teile = kontur_elemente(z, cx, cy, GRAVUR if z.get("gravur") else INNEN)
         if not teile:
             ohne_form += 1
