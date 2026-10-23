@@ -61,7 +61,7 @@ class NavigationsReiter(QWidget):
         self.baum.setHeaderHidden(True)
         self.baum.setRootIsDecorated(False)
         self.baum.setIndentation(14)
-        self.baum.setMinimumWidth(140)
+        self.baum.setMinimumWidth(100)
         self.baum.setMaximumWidth(220)
         self.baum.currentItemChanged.connect(self._gewaehlt)
         self.stapel = QStackedWidget()

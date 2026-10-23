@@ -896,6 +896,7 @@ class EinstellungenBereich(QWidget):
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         sperren = QPushButton("Einstellungen sperren")
         sperren.clicked.connect(self.sperren)
+        sperren.setMinimumWidth(90)                 # schmale Fenster (1024 px): Navigation darf schmaler werden
         self.unter.links.addWidget(sperren)         # unter der Navigation: oben bleibt keine Leerzeile
         li = QVBoxLayout(inhalt)
         li.setContentsMargins(0, 0, 0, 0)
