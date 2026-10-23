@@ -242,13 +242,16 @@ def netz(e, zs):
         soll = tuple(vb[i] - va[i] for i in range(3))
         dreieck(o1, o2, u2, soll)
         dreieck(o1, u2, u1, soll)
-    # Linien: Innenkonturen (K) oben und unten, Biegelinien (B) oben
+    # Linien: Innenkonturen (K) oben und unten, Biegelinien (B) oben; je Linie das Merkmal des Teile-Editors (li)
+    kennung = {}
+    zeile = {id(z): i for i, z in enumerate(e.get("konturen") or [])}
     for z, zug in konturzuege(e, zs):
         for seite in (1, -1):
             pk = [haut(q, seite * 1.02) for q in zug]
             linien.setdefault("K", []).append([c for v, _ in pk for c in _ansicht(v)])
             normalen.setdefault("K", []).append([round(c * seite, 3) for c in _ansicht(pk[len(pk) // 2][1])])
-    for b in bg:
+            kennung.setdefault("K", []).append(f"kontur:{zeile.get(id(z))}")
+    for nr, b in enumerate(bg):
         lg = (b["t"][1] - b["t"][0]) if b["t"][1] < 1e8 else zs["laenge"]
         t0 = b["t"][0] if b["t"][0] > -1e8 else 0.0
         m = (b["o"][0] + b["n"][0] * b["ba"] / 2, b["o"][1] + b["n"][1] * b["ba"] / 2)
@@ -257,9 +260,10 @@ def netz(e, zs):
         pk = [haut(q, 1.02) for q in zug]
         linien.setdefault("B", []).append([c for v, _ in pk for c in _ansicht(v)])
         normalen.setdefault("B", []).append([round(c, 3) for c in _ansicht(pk[4][1])])
+        kennung.setdefault("B", []).append(f"biegung:{nr}")
     return dict(p=punkte, t={"BL": dreiecke},
                 l={a: [[round(c, 3) for c in zug] for zug in z] for a, z in linien.items()}, ln=normalen,
-                flach=True)
+                li=kennung, flach=True)
 
 
 def konturzuege(e, zs):

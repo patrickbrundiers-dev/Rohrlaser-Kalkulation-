@@ -2,7 +2,7 @@
 
 Die Bilder kommen aus dem echten Programm (anleitung/bilder.py, unsichtbar mit Beispieldaten), der Text
 steht unten in den Funktionen kapitel_…. Beide PDF entstehen aus denselben Kapiteln: die Kurzanleitung nimmt
-nur Teil A und B und davon nur Bildfolgen, Bildschirmfotos mit Legende und was kurz=True hat (Inhalt).
+Teil A bis C (ohne Anhang) und davon nur Bildfolgen, Bildschirmfotos mit Legende und was kurz=True hat (Inhalt).
 Nach Änderungen am Programm einfach neu erzeugen:
 
     python anleitung/erzeuge_anleitung.py [--ziel DATEI.pdf] [--kurz KURZ.pdf] [--bilder ORDNER]
@@ -514,10 +514,10 @@ def titelseite(inh, stand):
     f.append(Spacer(1, 3 * mm))
     f.append(Paragraph("Alle Bildschirmfotos stammen aus dem Programm selbst. Firmen, Kunden, Angebote und Preise sind "
                        "Beispielwerte. " + (
-                           "Die Kurzanleitung zeigt den täglichen Ablauf in Bildern. Einzelheiten, Einrichten und "
-                           "Pflegen stehen in der Bedienungsanleitung (<i>Hilfe → Bedienungsanleitung</i>, F1); "
+                           "Die Kurzanleitung zeigt den täglichen Ablauf und das Einrichten in Bildern. Einzelheiten "
+                           "stehen in der Bedienungsanleitung (<i>Hilfe → Bedienungsanleitung</i>, F1); "
                            "„Anleitung 6.3“ verweist dorthin, gleiche Kapitelnummern." if inh.kurz else
-                           "Blaue Kapitelverweise sind im PDF anklickbar. Eine bebilderte Kurzfassung von Teil A und B "
+                           "Blaue Kapitelverweise sind im PDF anklickbar. Eine bebilderte Kurzfassung von Teil A bis C "
                            "ist die <b>Kurzanleitung</b> (<i>Hilfe → Kurzanleitung (PDF)</i>)."),
                        ParagraphStyle("klein", parent=S, fontSize=8.5, textColor=GRAU)))
     from reportlab.platypus.doctemplate import NextPageTemplate
@@ -553,7 +553,7 @@ def kapitel_ueberblick(i):
            "Jedes Kapitel beginnt mit dem Kasten <i>Wofür / Wo im Programm</i>. Danach kommt das Wichtigste in "
            "Bildern: rote Nummern im Bild, darunter die Erklärung. Einzelheiten stehen kleiner gesetzt unter "
            "<i>Genauer</i>. Die <b>Kurzanleitung</b> (<i>Hilfe → Kurzanleitung (PDF)</i>) enthält nur die Bilder von "
-           "Teil A und B.")
+           "Teil A bis C.")
     i.abschnitt("Aufbau des Fensters")
     i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=112 * mm, legende=[
         (1, "Stand des Angebots: grün <i>Optimierung abgeschlossen</i>, gelb <i>Noch nicht optimiert</i>, rot "
@@ -1776,7 +1776,10 @@ def kapitel_optimieren(i):
                (6, "<b>Skizze</b> maßstäblich mit Lage und Maß jeder Kontur und Schweißnaht SN."),
                (7, "<b>Schweißnaht (SN)</b>: Vorgabe, Lage, Quelle; Rechteck-/Quadratrohr nur 0°/90°/180°/270°."),
                (8, "<b>Erklärung</b> der markierten Zeile: welches Maß in Maß 1, 2 und 3 gehört."),
-               (9, "<b>Zeichnung als PDF …</b>, daneben <b>STEP neu einlesen …</b>.")])
+               (9, "<b>Zeichnung als PDF …</b>, daneben <b>STEP neu einlesen …</b>."),
+               (10, "<b>Merkmale</b> mit Herkunft STEP, manuell oder Vorgabe ([[teile_editor]])."),
+               (11, "<b>Prüfmeldungen</b>: Klick zeigt die Stelle in Tabelle, Skizze und 3D."),
+               (12, "<b>Rückgängig</b>, <b>Wiederholen</b>, <b>Auf STEP-Wert zurücksetzen</b> und <b>Messen</b>.")])
     i.text("Für Teile ohne STEP-Datei: Position markieren, Doppelklick auf Schneidweg oder das kleine Bild. Enden, "
            "Bohrungen und Ausschnitte eintragen, das Programm rechnet Schneidweg, Einstiche und Konturklassen.", kurz=True)
     i.genauer()
@@ -1787,9 +1790,11 @@ def kapitel_optimieren(i):
            "gemessenen Enden, Bohrungen, Konturen und die Gravur in Tabelle und Skizze; dort lassen sie sich prüfen "
            "und ändern. Die Schweißnaht wird hier ebenfalls gewählt, und <b>Zeichnung als PDF …</b> macht aus allem "
            "eine maßstäbliche Zeichnung.")
-    i.text("Aufbau des Fensters: oben die Eingaben mit der Konturtabelle (Platz für mindestens fünf Zeilen ohne "
-           "Rollen), unten links die Skizze und rechts das Ergebnis je Teil. Die Trennlinien dazwischen lassen sich "
-           "ziehen, z. B. für mehr Konturzeilen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt.")
+    i.text("Aufbau des Fensters: links die Merkmale, oben die Eingaben mit der Konturtabelle (Platz für mindestens "
+           "fünf Zeilen ohne Rollen), darunter links Skizze und 3D-Ansicht als Reiter und rechts das Ergebnis je "
+           "Teil, ganz unten die Prüfmeldungen. Die Trennlinien dazwischen lassen sich ziehen, z. B. für mehr "
+           "Konturzeilen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt. Merkmale, Prüfmeldungen, "
+           "Rückgängig und Messen sind im Teile-Editor ([[teile_editor]]) beschrieben.")
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
            "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
@@ -1936,6 +1941,37 @@ def kapitel_optimieren(i):
             "STEP-Import. Hat die Position schon Werte aus dem STEP-Import, fragt das Programm vorher. Die Eingaben "
             "bleiben gespeichert und erscheinen beim nächsten Öffnen wieder.",
             "Eine von Hand eingetragene Schneidzeit gilt weiter, bis sie in der Positionsliste gelöscht wird.")
+    i.abschnitt("Teile-Editor: Merkmale, Prüfmeldungen, Rückgängig", marke="teile_editor")
+    i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: links die <b>Merkmale</b> des Teils mit ihrer "
+           "Herkunft, unten die <b>Prüfmeldungen</b>, oben <b>Rückgängig</b>, <b>Wiederholen</b>, <b>Auf STEP-Wert "
+           "zurücksetzen</b> und <b>Messen</b>. Ein Klick auf ein Merkmal oder eine Meldung zeigt die Stelle in "
+           "Tabelle, Skizze und 3D-Ansicht.", kurz=True)
+    i.genauer()
+    i.liste("<b>Merkmale</b>: Teil (Länge bzw. Werkstoff, Dicke und Zuschnitt), Enden, Innenkonturen, Biegungen, "
+            "Anbauteile, Schweißnaht und Gravur, je Eintrag mit der <b>Herkunft</b>: <i>STEP</i> (grün) = wie im "
+            "STEP-Import gemessen, <i>manuell (STEP geändert)</i> (orange) = gemessen und von Hand geändert, "
+            "<i>manuell</i> = von Hand eingetragen, <i>Vorgabe</i> (grau) = unveränderter Grundwert. Beim Blech "
+            "bleibt die Herkunft mit der Position gespeichert; beim Rohr gilt sie, solange der Rechner offen ist "
+            "(danach zählen die gemessenen Werte, solange Art und Maße einer Zeile unverändert sind).",
+            "<b>Auf STEP-Wert zurücksetzen</b>: setzt das gewählte Merkmal mit Herkunft <i>manuell (STEP "
+            "geändert)</i> wieder auf die Messung, z. B. eine Bohrung oder ein Ende; die gemessene Schnittlänge gilt "
+            "dann wieder.",
+            "<b>Prüfmeldungen</b>: die Befunde der Fertigungsprüfung ([[pruefregeln]]) sowie Fehler und Hinweise der "
+            "Rechnung, Fehler zuerst. Ein Klick wählt das betroffene Merkmal; bei einem zu schmalen Steg sind beide "
+            "Konturen markiert, in der Skizze und in der 3D-Ansicht blau hervorgehoben.",
+            "<b>Auswahl überall gleich</b>: Klick auf eine Zeile der Tabelle, ein Merkmal, eine Kontur in der Skizze "
+            "oder eine Linie in der 3D-Ansicht wählt überall dasselbe Merkmal. Die 3D-Ansicht des Rohrs zeigt das "
+            "Netz aus dem STEP-Import (Reiter <i>3D</i> neben der Skizze); dort ist der Bereich der gewählten Kontur "
+            "bzw. des Endes längs der Rohrachse hervorgehoben. Beim Blech ist es die Kontur bzw. Biegelinie selbst.",
+            "<b>Messen</b>: Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt die "
+            "nächste Ecke des Modells und zeigt den Abstand in mm mit Δx, Δy und Δz. Noch einmal drücken beendet "
+            "das Messen.",
+            "<b>Rückgängig</b> (Strg+Z) und <b>Wiederholen</b> (Strg+Y) nehmen Eingaben im Fenster zurück bzw. "
+            "stellen sie wieder her, mit den gemessenen Werten. In einem Eingabefeld mit Cursor wirkt Strg+Z zuerst "
+            "im Text.",
+            "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s), damit "
+            "beim Tippen nichts hängt. Gerechnet wird wie bisher im Schneidweg-Rechner bzw. Blech-Editor; der "
+            "Rahmen rechnet nichts eigenes.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),
@@ -2590,7 +2626,9 @@ def kapitel_zukauf_angebot(i):
                (9, "<b>3D-Ansicht</b>: das Teil aus den Eingaben gefaltet, Innenkonturen rot, Biegelinien grün. "
                    "Drehen mit der linken Maustaste, Knöpfe für feste Blickrichtungen."),
                (10, "<b>Außenkontur</b>: <i>Rechteck</i> aus den Maßen (Kantteil: Kantlänge × Abwicklung) oder "
-                    "<i>Polygon</i> mit Eckpunkten x,y der Abwicklung, z. B. mit Ausklinkungen.")])
+                    "<i>Polygon</i> mit Eckpunkten x,y der Abwicklung, z. B. mit Ausklinkungen."),
+               (11, "<b>Merkmale</b> mit Herkunft (Teil, Biegungen, Innenkonturen; [[teile_editor]])."),
+               (12, "<b>Prüfmeldungen</b>: Klick hebt die Kontur bzw. Biegung in Skizze und 3D blau hervor.")])
     i.text("<b>Neue Position</b> → <i>Blech / Kantteil</i>: Zuschnitt oder Kantteil beschreiben, das Programm "
            "schätzt einen Richtpreis als Einkaufspreis.", kurz=True)
     i.genauer()
@@ -2600,8 +2638,9 @@ def kapitel_zukauf_angebot(i):
            "und <i>Blechlaser (Richtwerte)</i> ([[blech_stammdaten]]) sowie den Einstellungen der Gruppe "
            "<i>Blech-Richtpreis</i>. Werkstoffe, Maschinen und Schneiddaten des Rohrlasers werden weder gelesen "
            "noch geändert.")
-    i.text("Aufbau des Fensters: links die Eingaben (Kopf, Zuschnitt bzw. Schenkel, Innenkonturen), rechts Skizze "
-           "und Richtpreis. Die Trennlinie lässt sich ziehen. Ist die Skizze höher als breit, steht die "
+    i.text("Aufbau des Fensters: ganz links die Merkmale, daneben die Eingaben (Kopf, Zuschnitt bzw. Schenkel, "
+           "Innenkonturen), rechts Skizze, 3D-Ansicht und Richtpreis, unten die Prüfmeldungen; Rückgängig, "
+           "Zurücksetzen und Messen wie im Teile-Editor ([[teile_editor]]). Die Trennlinien lassen sich ziehen. Ist die Skizze höher als breit, steht die "
            "Seitenansicht unter der Abwicklung, im selben Maßstab, solange sie passt. In der Positionsliste "
            "zeigt das kleine Bild vor der Artikelnummer den Zuschnitt; Doppelklick darauf öffnet den Editor wieder.")
     i.text("<b>Aus dem STEP-Import</b>: Gekantete Bleche kommen vollständig an. Ein Kantteil mit parallelen "
@@ -3021,8 +3060,13 @@ def kapitel_nachkalkulation(i):
 def kapitel_einstellungen(i):
     i.kapitel("Einstellungen", marke="einstellungen")
     i.text("Der Reiter <i>Einstellungen</i> enthält alle Voreinstellungen: den Unterreiter <i>Vorgaben</i> mit den "
-           "Werten, die für alle Angebote gelten, und die Stammdaten außer den Kunden ([[stammdaten]]).")
+           "Werten, die für alle Angebote gelten, und die Stammdaten außer den Kunden ([[stammdaten]]).", kurz=True)
     i.abschnitt("Passwort", marke="passwort")
+    i.bild("einstellungen_gesperrt", "Reiter Einstellungen gesperrt", hoehe=45 * mm, legende=[
+        (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
+    i.text("Passwort eintippen, Enter. Der Reiter bleibt offen, bis <b>Einstellungen sperren</b> gedrückt oder das "
+           "Programm beendet wird.", kurz=True)
+    i.genauer()
     i.text("Der Reiter öffnet sich erst nach Eingabe des Passworts. Passwort eintippen und Enter oder "
            "<b>Einstellungen öffnen</b> drücken. Er bleibt offen, bis <b>Einstellungen sperren</b> gedrückt oder das "
            "Programm beendet wird. Das Passwort steht unter Vorgaben, Gruppe Zugang (<i>Passwort für die "
@@ -3030,17 +3074,18 @@ def kapitel_einstellungen(i):
            "Passwort nur verschlüsselt (als Prüfwert, nicht lesbar). Zum Ändern das neue Passwort eintippen und das "
            "Feld verlassen; <b>Entfernen</b> = Einstellungen ohne Passwort. Ein Passwort aus einer älteren Version gilt "
            "unverändert weiter. Das Passwort bitte beim Verantwortlichen erfragen.")
-    i.bild("einstellungen_gesperrt", "Reiter Einstellungen gesperrt", hoehe=45 * mm, legende=[
-        (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
     i.abschnitt("Vorgaben", marke="vorgaben")
+    i.bild("einstellungen", "Einstellungen, Unterreiter Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
+        (1, "Unterreiter Vorgaben, daneben die Stammdaten"), (2, "<b>Einstellungen sperren</b>")])
+    i.text("Wert ändern, Feld verlassen: gespeichert. Er gilt ab der nächsten Rechnung für alle Angebote. Jede "
+           "Gruppe (Kalkulation, Angebot, STEP-Import, Ablage …) ist eine eigene Karte.", kurz=True)
+    i.bild("einstellungen_unten", "Einstellungen, Unterreiter Vorgaben (unterer Teil): Briefkopf, Ablage, "
+           "Auswahllisten und Passwort", hoehe=110 * mm, kurz=False)
+    i.genauer("alle Vorgaben")
     i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
            "Ausnahme: Stundensätze und Zeitvorgaben ([[stundensaetze]]) speichert jedes Angebot beim Anlegen. "
            "Jede Gruppe steht in einer eigenen Karte; bei breitem Fenster (z. B. 1920 px) in zwei Spalten, bei "
            "schmalem untereinander.")
-    i.bild("einstellungen", "Einstellungen, Unterreiter Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
-        (1, "Unterreiter Vorgaben, daneben die Stammdaten"), (2, "<b>Einstellungen sperren</b>")])
-    i.bild("einstellungen_unten", "Einstellungen, Unterreiter Vorgaben (unterer Teil): Briefkopf, Ablage, "
-           "Auswahllisten und Passwort", hoehe=110 * mm)
     i.tabelle(["Gruppe", "Einstellung", "Wirkung"], [
         ["Kalkulation", "Zuschlag Material, Zuschlag Fertigung, Zuschlag Fremdleistung, Gewinn",
          "Herstellkosten = Material × (1 + Zuschlag Material) + Fertigung und eigene Zusatzarbeiten × (1 + Zuschlag "
@@ -3221,10 +3266,13 @@ def kapitel_einstellungen(i):
                                                     "leer; <b>Entfernen</b> = ohne Passwort"]],
         [28, 80, 157])
     i.abschnitt("Stundensätze und Zeitvorgaben", marke="stundensaetze")
+    i.bild("stamm_arbeitsschritte", "Einstellungen, Stundensätze und Zeitvorgaben (Beispielwerte)", hoehe=95 * mm)
+    i.text("Links die <b>Stundensätze</b> (€/h), rechts die <b>Arbeitsschritte</b> mit Zeit und Stundensatz. Kosten "
+           "= Zeit × Stundensatz. Neue Angebote merken sich die Werte beim Anlegen.", kurz=True)
+    i.genauer()
     i.text("Der Unterreiter <i>Stundensätze und Zeitvorgaben</i> zeigt links die <b>Stundensätze</b> und rechts die "
            "<b>Arbeitsschritte</b>. Jeder Arbeitsschritt wird mit genau einem Stundensatz gerechnet; der Satz "
            "<i>Maschine</i> ist der Stundensatz der gewählten Maschine ([[stammdaten]]).")
-    i.bild("stamm_arbeitsschritte", "Einstellungen, Stundensätze und Zeitvorgaben (Beispielwerte)", hoehe=95 * mm)
     i.tabelle(["Stundensätze", "Bedeutung"], [
         ["<b>Stundensatz-ID</b>", "Kurzname, z. B. <i>Rüstpersonal</i>; Auswahl in den Arbeitsschritten"],
         ["Bezeichnung", "Klartext, z. B. Arbeitsplatz oder Kostenstelle"],
@@ -3266,9 +3314,14 @@ def kapitel_mehrere(i):
     i.kapitel("Mehrere Arbeitsplätze: Kürzel und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
            "Angebote der anderen sieht und alle mit denselben Stammdaten rechnen, gibt es das <b>Kürzel</b> und einen "
-           "<b>gemeinsamen Ordner</b>.")
+           "<b>gemeinsamen Ordner</b>.", kurz=True)
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
+    i.liste("<b>Kürzel</b> eintragen (z. B. PB): neue Angebote heißen PB-2026-0001 …",
+            "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
+            "<b>Abgleichen</b> im Reiter Angebote holt die Angebote der Kollegen; beim Start und Beenden geht das "
+            "von selbst.", nummeriert=True, kurz=True)
     i.abschnitt("Benutzer und Kürzel")
+    i.genauer()
     i.liste("<b>Datei → Benutzer und gemeinsamer Ordner …</b> (beim ersten Start von selbst): Name, Kürzel, E-Mail "
             "und Telefon eintragen. Dieselben Felder stehen in den Einstellungen in der Gruppe <i>Benutzer</i>.",
             "Das <b>Kürzel</b> (Buchstaben und Ziffern, höchstens 5, z. B. PB) steht vorn in jeder neuen "
@@ -3277,6 +3330,7 @@ def kapitel_mehrere(i):
             "Im Angebotskopf steht der <b>Bearbeiter</b> (Kürzel und Name), im Angebots-PDF rechts oben als "
             "<b>Ansprechpartner</b> mit Telefon und E-Mail. Eine Kopie bekommt immer das eigene Kürzel.")
     i.abschnitt("Gemeinsamer Ordner")
+    i.genauer()
     i.text("Ein Ordner, den alle erreichen: ein Netzlaufwerk, eine NAS oder ein OneDrive-/SharePoint-Ordner, den "
            "alle synchronisieren. Jeder trägt denselben Ordner ein (im Dialog oder in den Einstellungen, Gruppe "
            "Benutzer: <i>Gemeinsamer Ordner der Mitarbeiter</i>; leer = nicht teilen). Darin legt jedes Programm genau eine Datei an, "
@@ -3292,6 +3346,9 @@ def kapitel_mehrere(i):
                     "Programm, ob trotzdem beendet werden soll"]],
         [80, 185])
     i.abschnitt("Angebote der Kollegen")
+    i.text("Angebote der Kollegen stehen grau in der Liste: ansehen und drucken ja, ändern nein. <b>Als Kopie "
+           "übernehmen</b> macht ein eigenes daraus.", kurz=True)
+    i.genauer()
     i.liste("Stehen im Reiter Angebote grau und kursiv mit dem Kürzel des Kollegen ([[angebote]]).",
             "Geöffnet zeigt ein gelber Hinweis <i>Angebot von … – nur zum Ansehen</i>. Kopf, Positionen und die "
             "Knöpfe zum Bearbeiten sind gesperrt; Kalkulation, Staffeln, Stangenbild und die PDF-Ausgabe gehen. Ein "
@@ -3301,6 +3358,9 @@ def kapitel_mehrere(i):
             "Ändert oder löscht der Kollege sein Angebot, zeigt der nächste Abgleich das auch hier; ein offenes "
             "Fenster lädt neu bzw. schließt sich.")
     i.abschnitt("Gemeinsame Stammdaten")
+    i.text("Stammdaten und Einstellungen gelten für alle; bei gleichzeitigen Änderungen gewinnt die neueste.",
+           kurz=True)
+    i.genauer()
     i.text("Kunden, Profile, Werkstoffe, Preise, Lieferlängen, Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten, "
            "Stundensätze, Zeitvorgaben, Blech-Richtwerte, Frachtkosten, Zukaufartikel und die Einstellungen gelten "
            "für alle. Geändert wird wie bisher an jedem Arbeitsplatz; der Abgleich bringt die Änderung zu den "
@@ -3311,6 +3371,7 @@ def kapitel_mehrere(i):
            "Ablageordner, zweiter Sicherungsordner, STEP-Standardordner, Hilfetexte und die Signatur der "
            "Materialanfrage.")
     i.abschnitt("Erster Abgleich, neuer Rechner")
+    i.genauer()
     i.liste("Liegen im Ordner schon Dateien von Kollegen, fragt der erste Abgleich: <b>Übernehmen</b> (empfohlen "
             "bei einer neuen Installation) ersetzt die eigenen Stammdaten durch die gemeinsamen, nach einer "
             "Sicherung (<i>_vor_Uebernahme</i>); eigene Angebote und Zukaufartikel bleiben. <b>Zusammenführen</b> "
@@ -3330,6 +3391,7 @@ def kapitel_mehrere(i):
 def kapitel_stammdaten(i):
     i.kapitel("Stammdaten und Kunden", marke="stammdaten")
     i.abschnitt("Tabellen bearbeiten")
+    i.text("Alle Tabellen funktionieren gleich: Zelle anklicken und lostippen, Enter speichert.", kurz=True)
     i.text("Die Kunden haben einen eigenen Reiter. Alle anderen Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, "
            "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze und Arbeitsschritte) stehen als Unterreiter "
            "im Reiter <i>Einstellungen</i>, "
@@ -3342,6 +3404,9 @@ def kapitel_stammdaten(i):
             "darauf, sagt das Programm wie viele)."),
         (4, "<b>Suchen</b> filtert die Tabelle nach jedem Text in jeder Spalte."),
         (5, "<b>Prüfung</b>: OK (grau), WARNUNG (gelb) oder FEHLER (rot) mit Begründung.")])
+    i.liste("Unterreiter wählen, z. B. <i>Profile</i>.", "<b>Neue Zeile</b>, Werte eintippen, Enter.",
+            "Rote oder gelbe Prüfung: Begründung lesen und den Wert korrigieren.", nummeriert=True, kurz=True)
+    i.genauer()
     i.liste("Bearbeiten: Zelle doppelklicken oder einfach lostippen, mit Enter bestätigen. Felder mit fester Auswahl "
             "(Profilform, Preisbasis, Profil-ID …) zeigen eine Liste. Im Reiter <i>Kunden</i> zeigt der Doppelklick "
             "die Angebote des Kunden; dort wird durch Tippen oder F2 geändert.",
@@ -3356,6 +3421,7 @@ def kapitel_stammdaten(i):
             "Schneiddaten mit. Bei einer Maschinen-ID ändern sich auch die Angebote (mit ihren festgeschriebenen "
             "Werten) und die Standard-Maschine mit.")
     i.abschnitt("Was in welche Tabelle gehört")
+    i.genauer()
     i.tabelle(["Tabelle", "Inhalt", "Wichtig"], [
         ["Kunden", "Kundennummer, Name, Anschrift, Ansprechpartner, Zahlungsbedingungen",
          "Im Angebotskopf die Kundennummer wählen: Name, Anschrift (im Angebots-PDF) und Zahlungsbedingungen "
@@ -3395,8 +3461,12 @@ def kapitel_stammdaten(i):
         ["Arbeitsschritte", "Arbeitsschritt, Stundensatz, Art, Rüstzeit, Zeit je Einheit",
          "Welcher Arbeitsschritt mit welchem Stundensatz und welcher Zeitvorgabe gerechnet wird ([[stundensaetze]])."]],
         [30, 95, 140])
-    i.abschnitt("Felder der Tabellen")
-    i.text("Die Spalten jeder Tabelle im Einzelnen. Pflichtfelder sind fett; was leer bleiben darf, rechnet das "
+    i.abschnitt("Kunden")
+    i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
+    i.text("Im Reiter <i>Kunden</i>: Kundennummer, Name und Anschrift eintragen. Im Angebotskopf die Kundennummer "
+           "wählen, dann kommen Anschrift, Fracht-PLZ und Zahlungsbedingungen mit.", kurz=True)
+    i.genauer("Felder")
+    i.text("Die Spalten der Tabellen im Einzelnen. Pflichtfelder sind fett; was leer bleiben darf, rechnet das "
            "Programm wie angegeben.")
     i.tabelle(["Kunden", "Bedeutung"], [
         ["<b>Kundennummer</b>, <b>Kundenname</b>", "Schlüssel und Name; eine geänderte Kundennummer ändert sich auch "
@@ -3413,8 +3483,11 @@ def kapitel_stammdaten(i):
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
          "den Preis eingerechnet ([[kalkulation]])."],
         ["Bemerkung", "freier Text"]], [75, 190])
-    i.bild("stamm_kunden", "Reiter Kunden", hoehe=100 * mm)
     i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
+    i.liste("<b>CSV exportieren</b>: alle Kunden als Datei für Excel.",
+            "<b>CSV importieren …</b>: Datei wählen, Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann "
+            "<b>Importieren</b>.", nummeriert=True, kurz=True)
+    i.genauer()
     i.text("Im Reiter <i>Kunden</i> speichert <b>CSV exportieren</b> alle Kunden als CSV-Datei (Semikolon, mit Excel "
            "zu öffnen): eine Zeile je Kunde, Kopfzeile mit den Spaltentiteln wie im Reiter, Zahlen mit Komma. So "
            "lässt sich die Liste in Excel bearbeiten oder aus einem anderen Programm übernehmen.",
@@ -3434,6 +3507,10 @@ def kapitel_stammdaten(i):
             "formatieren.",
             "Vor dem Import legt das Programm eine Datensicherung an (Name endet auf <i>_vor_Kundenimport</i>), "
             "der alte Stand lässt sich zurückholen ([[datensicherung]]).")
+    i.abschnitt("Profile")
+    i.text("Profil-ID, Form, Maße und Wandstärke. Unbekannte Rohre im Angebot oder STEP-Import legt das Programm "
+           "selbst an.", kurz=True)
+    i.genauer("Felder")
     i.tabelle(["Profile", "Bedeutung"], [
         ["<b>Profil-ID</b>", "Name des Profils, z. B. <i>RR 42,4x2,0</i>, <i>QR 40x40x3</i>, <i>RE 60x40x3</i>, "
                              "<i>U 50x30x3</i>, <i>C 100x50x3</i>, <i>L 40x40x4</i>, <i>FL 40x5</i>, Normprofile "
@@ -3472,6 +3549,9 @@ def kapitel_stammdaten(i):
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("RP-Profile (Rohre mit Anschlag)", marke="rp_profile")
+    i.text("RP-Profile sind mitgeliefert. Neue kommen mit <b>RP-Profile aus MegaCAD laden …</b> aus den .mac-Dateien; "
+           "<b>RP-Querschnitt …</b> zeigt die Kontur.", kurz=True)
+    i.genauer()
     i.text("RP-Profile sind kaltgeformte Stahlrohre mit einem Anschlag aus doppelt umgelegtem Blech (Serien mit "
            "34, 40, 50, 60 und 80 mm Bautiefe). Ihr Querschnitt hat keine einfachen Maße, deshalb rechnet das "
            "Programm Fläche, Gewicht, Außenumfang und Schnittlänge aus der <b>Kontur</b> des MegaCAD-Makros.")
@@ -3497,6 +3577,12 @@ def kapitel_stammdaten(i):
             "<b>Maschine</b>: <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "
             "<i>Mindestabstand Düse</i> in den Maschinen legen fest, ob die Maschine RP-Profile spannt, wie viel "
             "Rüstzeit je RP-Abmessung dazukommt und ab wann Innenkonturen unter dem Anschlag geprüft werden müssen.")
+    i.abschnitt("Werkstoffe und Oberflächen")
+    i.bild("stamm_werkstoffe", "Einstellungen, Werkstoffe mit Kategorie", hoehe=100 * mm)
+    i.text("Werkstoff mit Kategorie (Stahl, Edelstahl, Aluminium), Dichte und Tonnenpreis. Oberflächen mit Aufpreis "
+           "je Meter.", kurz=True)
+    i.bild("stamm_oberflaechen", "Einstellungen, Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm, kurz=False)
+    i.genauer("Felder")
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
         ["Kategorie", "Stahl, Edelstahl oder Aluminium (Liste in den Einstellungen). Im Angebot sind die Werkstoffe "
@@ -3513,7 +3599,6 @@ def kapitel_stammdaten(i):
            "1.4509) und Aluminium (EN AW-6060, 6063, 6082) mit Beispiel-Tonnenpreisen. Ältere Datendateien "
            "bekommen beim ersten Start die fehlenden Werkstoffe dazu; vorhandene bleiben unverändert und erhalten "
            "eine Kategorie (Dichte unter 4 = Aluminium, 1.4… = Edelstahl, sonst Stahl).")
-    i.bild("stamm_werkstoffe", "Einstellungen, Werkstoffe mit Kategorie", hoehe=100 * mm)
     i.tabelle(["Oberflächen", "Bedeutung"], [
         ["<b>Oberfläche</b>", "Name, z. B. <i>roh</i>, <i>K240</i>, <i>gestrahlt</i>; Auswahl in der Position"],
         ["Kategorie (leer = alle)", "für welche Werkstoffe die Oberfläche passt; sonst Warnung in der Position"],
@@ -3523,8 +3608,12 @@ def kapitel_stammdaten(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
            "Werkstoff + Oberfläche + Stangenlänge. Leer und <i>roh</i> sind gleich.")
-    i.bild("stamm_oberflaechen", "Einstellungen, Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm)
+    i.abschnitt("Preise und Lieferlängen")
     i.bild("stamm_preise", "Einstellungen, Preise je Profil und Werkstoff", hoehe=95 * mm)
+    i.text("<b>Preise</b>: Materialpreis je Profil und Werkstoff in €/kg, €/m oder €/Stange. <b>Lieferlängen</b>: "
+           "weitere lieferbare Längen, z. B. 12 m.", kurz=True)
+    i.bild("stamm_lieferlaengen", "Einstellungen, Lieferlängen: 12-m-Stangen für ein Rundrohr", hoehe=70 * mm, kurz=False)
+    i.genauer("Felder")
     i.tabelle(["Preise", "Bedeutung"], [
         ["<b>Profil-ID</b>, <b>Werkstoff-ID</b>", "Kombination, für die der Preis gilt"],
         ["<b>Preisbasis</b>, <b>Preis [€]</b>", "€/kg, €/m oder €/Stange und der Betrag"],
@@ -3540,7 +3629,6 @@ def kapitel_stammdaten(i):
          "in Preise ein Preis je Stange einer anderen Länge, ist hier ein eigener Preis nötig, sonst meldet der "
          "Vergleich <i>Angaben fehlen</i>."],
         ["Gültig ab, Lieferant, Bemerkung", "zur Info"]], [75, 190])
-    i.bild("stamm_lieferlaengen", "Einstellungen, Lieferlängen: 12-m-Stangen für ein Rundrohr", hoehe=70 * mm)
     i.liste("Ohne Zeile in Lieferlängen gelten Profile mit Hüllkreis-Ø über 70 mm (Einstellung, 0 = aus) "
             "zusätzlich als 12 m lieferbar, zum Preis aus <i>Preise</i> bzw. zum Tonnenpreis. Kleinere Profile ohne "
             "Zeile werden nie mit 12 m geplant. Eine eigene Zeile geht immer vor; <i>Lieferlängen vergleichen = "
@@ -3550,6 +3638,14 @@ def kapitel_stammdaten(i):
             "Programm keine künstliche 6-m-Variante.",
             "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
             "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Stangenlängen zu.")
+    i.abschnitt("Maschinen, Schneiddaten und Gewinde")
+    i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
+           hoehe=125 * mm)
+    i.text("<b>Maschinen</b>: Stundensatz, Reste, Stangenlänge und Grenzen. <b>Schneiddaten</b>: Vorschub und "
+           "Einstechzeit je Wandstärke und Gas. <b>Gewinde</b>: Kernloch und Preis je Gewinde.", kurz=True)
+    i.bild("stamm_schneiddaten", "Einstellungen, Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm, kurz=False)
+    i.bild("stamm_gewinde", "Einstellungen, Gewinde mit Kernloch, Zeit und Preis", hoehe=95 * mm, kurz=False)
+    i.genauer("Felder")
     i.text("Vorbelegt sind die Maschinen T03 (Trumpf, CO₂-Laser), T11 (Trumpf, Faserlaser) und LT7 (Adige, "
            "Faserlaser): Endbeschnitt 10 mm, Schnittverlust 0,2 mm, max. Stangenlänge 6.500 mm, 150 €/h, Konturgrenzen "
            "10 und 50 mm, Abstand getrennte Schnitte 5 mm, Rüstzeit 5 min; Greiferrest 142 mm (LT7 120 mm), "
@@ -3648,17 +3744,16 @@ def kapitel_stammdaten(i):
            "ein höherer Vorschub als bei der nächstdünneren Wandstärke derselben Maschine, desselben Werkstoffs "
            "bzw. derselben Kategorie und desselben Gases. In den Maschinen warnt sie, wenn einer Maschine "
            "Schneiddaten ganz oder für eine Kategorie fehlen.")
-    i.bild("stamm_schneiddaten", "Einstellungen, Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm)
-    i.bild("stamm_gewinde", "Einstellungen, Gewinde mit Kernloch, Zeit und Preis", hoehe=95 * mm)
     i.tabelle(["Gewinde", "Bedeutung"], [
         ["<b>Gewinde</b>, <b>Kernloch Ø [mm]</b>",
          "z. B. M6 mit 5,0 mm; der STEP-Import schlägt Gewinde an diesem Durchmesser vor"],
         ["Zeit je Gewinde [s] (wird nicht gerechnet), Preis je Gewinde [€]",
          "nur der Preis je Stück zählt; ohne Preis 0 € und eine Warnung an der Position"],
         ["Bemerkung", "freier Text"]], [75, 190])
-    i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
-           hoehe=125 * mm)
     i.abschnitt("Schneiddaten auf Standard zurücksetzen", marke="schneiddaten_standard")
+    i.text("<b>Auf Standard zurücksetzen …</b> im Unterreiter Schneiddaten holt die mitgelieferten Richtwerte "
+           "zurück; eigene Werte der gewählten Maschine gehen dabei verloren.", kurz=True)
+    i.genauer()
     i.text("Im Unterreiter <i>Schneiddaten</i> stellt die Schaltfläche <b>Auf Standard zurücksetzen …</b> (rechts "
            "neben <i>Zeilen löschen</i>) die mitgelieferten Richtwerte wieder her, z. B. wenn eigene Versuche die "
            "Tabelle durcheinandergebracht haben:")
@@ -3676,7 +3771,13 @@ def kapitel_stammdaten(i):
     i.text("Die Unterreiter <i>Blech-Werkstoffe</i>, <i>Blechlaser (Richtwerte)</i> und <i>K-Faktoren "
            "(Abwicklung)</i> gehören nur zum "
            "Blech-Editor ([[blech_editor]]). Sie sind von den Werkstoffen, Maschinen und Schneiddaten des "
-           "Rohrlasers getrennt: was hier steht, ändert keine Rohrkalkulation.")
+           "Rohrlasers getrennt: was hier steht, ändert keine Rohrkalkulation.", kurz=True)
+    i.bild("stamm_blech_werkstoffe", "Einstellungen, Blech-Werkstoffe mit Preis je kg und K-Faktor", hoehe=80 * mm)
+    i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
+           hoehe=100 * mm, kurz=False)
+    i.bild("stamm_blech_kfaktoren", "Einstellungen, K-Faktoren (Abwicklung) je Kategorie, Blechdicke und "
+           "Innenradius ÷ Dicke", hoehe=90 * mm, kurz=False)
+    i.genauer("Felder")
     i.tabelle(["Blech-Werkstoffe", "Bedeutung"], [
         ["<b>Blech-Werkstoff</b>, Bezeichnung / Norm", "Name in der Auswahl des Blech-Editors (z. B. S235JR, "
                                                        "1.4301 2B, AlMg3) und Beschreibung"],
@@ -3684,7 +3785,6 @@ def kapitel_stammdaten(i):
         ["<b>Dichte [kg/dm³]</b>, <b>Preis [€/kg]</b>", "für Gewicht und Materialpreis je kg Tafel"],
         ["K-Faktor", "Lage der neutralen Faser als Anteil der Blechdicke für die Abwicklung (leer = 0,33)"],
         ["Bemerkung", "freier Text"]], [75, 190])
-    i.bild("stamm_blech_werkstoffe", "Einstellungen, Blech-Werkstoffe mit Preis je kg und K-Faktor", hoehe=80 * mm)
     i.tabelle(["Blechlaser (Richtwerte)", "Bedeutung"], [
         ["<b>Kategorie</b>, <b>Schneidgas</b>, <b>Blechdicke bis [mm]</b>",
          "es gilt die Zeile mit der kleinsten Blechdicke bis, die mindestens der Dicke entspricht; N₂, solange es "
@@ -3698,8 +3798,6 @@ def kapitel_stammdaten(i):
            "Aluminium mit N₂ bis 20 mm. Es sind Schätzwerte für die Kalkulation vorab, keine Herstellerwerte; bitte "
            "an den eigenen Blechlaser bzw. die Preise des Lieferanten anpassen. Ältere Datendateien bekommen beide "
            "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
-    i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
-           hoehe=100 * mm)
     i.tabelle(["K-Faktoren (Abwicklung)", "Bedeutung"], [
         ["<b>Kategorie</b>, <b>Blechdicke bis [mm]</b>, <b>Innenradius ÷ Dicke bis</b>",
          "je Biegung gilt die Zeile der Kategorie mit der kleinsten Blechdicke bis ≥ Dicke, darin die kleinste "
@@ -3712,14 +3810,14 @@ def kapitel_stammdaten(i):
            "K-Faktor aus</i> = <i>je Werkstoff</i> gilt nur dieser ([[einstellungen]]). Bitte an die eigene "
            "Abkantpresse bzw. den Lieferanten anpassen. Ältere Datendateien bekommen die Tabelle beim ersten Start "
            "von Version 0.9.14 (Schema 47).")
-    i.bild("stamm_blech_kfaktoren", "Einstellungen, K-Faktoren (Abwicklung) je Kategorie, Blechdicke und "
-           "Innenradius ÷ Dicke", hoehe=90 * mm)
     i.abschnitt("Prüfregeln (Fertigung)", marke="pruefregeln")
     i.text("Die <b>Fertigungsprüfung</b> sieht sich jedes Rohr-, Profil- und Blechteil an und meldet, was sich "
            "schlecht fertigen lässt. Der Befund steht im Status der Position (mit Lage am Teil, z. B. <i>bei x = "
            "120 mm, oben</i>), im Schneidweg-Rechner und im Blech-Editor. Jede Regel ist im Unterreiter "
            "<b>Prüfregeln (Fertigung)</b> einzeln an- oder abschaltbar und hat einen Grenzwert und eine Stufe.",
            kurz=True)
+    i.bild("stamm_pruefregeln", "Einstellungen, Prüfregeln (Fertigung)", hoehe=60 * mm)
+    i.genauer()
     i.tabelle(["Prüfregeln (Fertigung)", "Bedeutung"], [
         ["<b>Regel</b>", "Bohrung zu klein, Steg zu schmal, Kontur zu nah am Rand, Teil zu kurz für die Maschine, "
                          "Gravur über Kante, Kantbarkeit"],
@@ -3743,12 +3841,11 @@ def kapitel_stammdaten(i):
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48).")
-    i.bild("stamm_pruefregeln", "Einstellungen, Prüfregeln (Fertigung)", hoehe=60 * mm)
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
            "pflegst. Neue Datendateien bekommen die Tabellen leer; ohne Kennwert rechnet das Programm keine Zeit, "
-           "sondern zeigt eine Warnung.")
+           "sondern zeigt eine Warnung.", kurz=True)
     i.tabelle(["Tabelle", "Inhalt"], [
         ["<b>Schweißverfahren</b>", "Verfahren (MAG, MIG, WIG, E-Hand, Heften, Roboter …, frei erweiterbar), "
                                     "Stundensatz-ID, <b>Lichtbogenzeitfaktor [%]</b> (Anteil der Lichtbogenzeit an "
@@ -3784,7 +3881,8 @@ def kapitel_stammdaten(i):
     i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
-           "STEP-Modell ist. Der Unterreiter zeigt eine Übersicht; angelegt und geändert wird in einem Formular.")
+           "STEP-Modell ist. Der Unterreiter zeigt eine Übersicht; angelegt und geändert wird in einem Formular.",
+           kurz=True)
     i.bild("stamm_zusatzarbeiten", "Einstellungen, Zusatzarbeiten: Übersicht mit den Beispielwerten", hoehe=110 * mm,
            legende=[(1, "Unterreiter <b>Zusatzarbeiten</b>"),
                     (2, "<b>+ Zusatzarbeit hinzufügen</b> öffnet ein leeres Formular"),
@@ -3794,6 +3892,7 @@ def kapitel_stammdaten(i):
                     (5, "<b>Bearbeiten</b>, <b>Duplizieren</b>, <b>Deaktivieren</b> bzw. <b>Aktivieren</b> und "
                         "<b>Löschen</b> für den markierten Eintrag (auch mit der rechten Maustaste)"),
                     (6, "Detailbereich: die vollständige Berechnung des markierten Eintrags")])
+    i.genauer()
     i.liste("Die Übersicht zeigt immer Name, Kategorie, Abrechnung, Preis je Einheit, Verkaufspreis (Vorgaben) und "
             "Status. Spalten wie Zeitaufwand, Stundensatz, Arbeitskosten, Material, Materialzuschlag, weitere "
             "Zuschläge oder Mindestbetrag erscheinen nur, wenn ein Eintrag dort einen Wert hat. Bei schmalem Fenster "
@@ -3802,10 +3901,9 @@ def kapitel_stammdaten(i):
             "<b>Verkaufspreis (Vorgaben)</b> = Preis je Einheit mit Zuschlag Fertigung bzw. Fremdleistung und Gewinn aus "
             "den Vorgaben. Im Angebot gelten dessen Werte bzw. die der Staffel.")
     i.abschnitt("Zusatzarbeit anlegen und bearbeiten")
-    i.text("Anlegen, Bearbeiten und Duplizieren nutzen dasselbe Formular. Es steht rechts neben der Tabelle, bei "
-           "schmalem Fenster (unter 1280 Pixel) in einem eigenen Fenster. Der Preis rechnet sich beim Tippen neu. "
-           "Gespeichert wird erst mit <b>Speichern</b>; <b>Abbrechen</b> verwirft alle Änderungen. Wer mit "
-           "ungespeicherten Änderungen einen anderen Eintrag öffnet, wird gefragt, ob sie verworfen werden sollen.")
+    i.liste("<b>+ Zusatzarbeit hinzufügen</b> (oder Doppelklick auf eine Zeile).",
+            "Name, Abrechnung und Preis bzw. Zeit × Stundensatz eintragen; rechts unten rechnet der Preis mit.",
+            "<b>Speichern</b>.", nummeriert=True, kurz=True)
     i.bild("zusatz_formular", "Formular einer neuen Zusatzarbeit (schmales Fenster): 5 min × 60 €/h + 2 € Material "
                               "+ 10 % = 7,20 €",
            hoehe=120 * mm, legende=[
@@ -3819,6 +3917,11 @@ def kapitel_stammdaten(i):
                (5, "<b>Ergebnis</b>: Selbstkosten, Zuschläge und Verkaufspreis je Einheit, darunter die "
                    "Berechnungsgrundlage im Angebot"),
                (6, "<b>Speichern</b> / <b>Abbrechen</b>")])
+    i.genauer("Felder und Rechenweg")
+    i.text("Anlegen, Bearbeiten und Duplizieren nutzen dasselbe Formular. Es steht rechts neben der Tabelle, bei "
+           "schmalem Fenster (unter 1280 Pixel) in einem eigenen Fenster. Der Preis rechnet sich beim Tippen neu. "
+           "Gespeichert wird erst mit <b>Speichern</b>; <b>Abbrechen</b> verwirft alle Änderungen. Wer mit "
+           "ungespeicherten Änderungen einen anderen Eintrag öffnet, wird gefragt, ob sie verworfen werden sollen.")
     i.tabelle(["Feld", "Bedeutung"], [
         ["Zusatzarbeit (Name)", "Pflicht, eindeutig. Umbenennen ändert den Namen auch in den Positionen der Angebote."],
         ["Kategorie", "frei wählbar, z. B. Oberfläche, Nachbearbeitung, Laser; Filter und Gruppen in der Auswahl"],
@@ -3862,6 +3965,7 @@ def kapitel_stammdaten(i):
          "Sekunden ÷ 3600 × Stundensatz, z. B. <i>Schweißen</i> mit 75 €/h; Festpreis und Material zählen nicht, "
          "nicht zur Laserzeit"]], [30, 95, 140])
     i.abschnitt("Duplizieren, Deaktivieren und Löschen")
+    i.genauer()
     i.liste("<b>Duplizieren</b> öffnet das Formular mit allen Werten des markierten Eintrags und dem Namen „… (Kopie)“. "
             "Angelegt wird die Kopie erst mit <b>Speichern</b>.",
             "<b>Deaktivieren</b>: die Zusatzarbeit ist im Angebot nicht mehr wählbar, Angebote, in denen sie schon "
@@ -3883,6 +3987,8 @@ def kapitel_zukauf(i):
            "(Verzinken, Entgraten) bleiben Zusatzarbeiten ([[stammdaten]]).",
            "Der Reiter <i>Zukaufartikel</i> ist ohne Passwort zugänglich und hat vier Unterreiter: <b>Artikel</b>, "
            "<b>Kategorien</b>, <b>Lieferanten</b> und <b>Preisänderungen</b>.")
+    i.text("Eingekaufte Teile (Bleche, Schrauben, Normteile …) mit Einkaufspreis je Lieferant und Aufschlag. Reiter "
+           "<i>Zukaufartikel</i>, ohne Passwort.", kurz=True)
     i.abschnitt("Übersicht der Artikel")
     i.bild("zukauf_uebersicht", "Zukaufartikel, Unterreiter Artikel (Beispielwerte)", hoehe=105 * mm, legende=[
         (1, "Reiter <b>Zukaufartikel</b> mit den Unterreitern Artikel, Kategorien und Lieferanten"),
@@ -3894,6 +4000,9 @@ def kapitel_zukauf(i):
             "aktivieren</b>, <b>EK eintragen …</b> ([[blechartikel]]) und <b>In Angebot übernehmen …</b> ([[zukauf_angebot]]); dieselben Befehle mit der rechten "
             "Maustaste. Rechts <b>CSV exportieren</b> und <b>CSV importieren …</b> ([[zukauf_csv]])"),
         (6, "Details des markierten Artikels: alle Lieferanten mit Staffelpreisen und die Rechnung je Einheit")])
+    i.text("Rot = <b>kein Preis</b> oder <b>kein Aufschlag</b>, gelb = Preis abgelaufen. Doppelklick öffnet den "
+           "Artikel.", kurz=True)
+    i.genauer()
     i.text("Die Spalten zeigen je Artikel Artikelnr., Bezeichnung, Kategorie, bevorzugten Lieferant, Einheit, "
            "<i>EK je Einheit</i> (Einkaufspreis netto bei der kleinsten Bestellmenge), <i>Bezugskosten</i> (je "
            "Bestellung und je Einheit; die Spalte erscheint nur, wenn ein Artikel welche hat), <i>Aufschlag</i> mit "
@@ -3906,17 +4015,21 @@ def kapitel_zukauf(i):
             "<b>Archivieren</b> nimmt den Artikel aus der Auswahl im Angebot. Angebote, die ihn schon enthalten, "
             "rechnen mit ihrem gespeicherten Preisstand weiter. Gelöscht werden Artikel nicht.")
     i.abschnitt("Artikel anlegen und bearbeiten")
+    i.liste("<b>+ Neuer Artikel</b>.", "A: Bezeichnung, Kategorie und Einheit.",
+            "B: Lieferant und Einkaufspreis (ab Menge).", "Preisvorschau prüfen, <b>Speichern</b>.",
+            nummeriert=True, kurz=True)
+    i.bild("zukauf_formular", "Formular mit Preisvorschau: Schrauben, 12,00 € je 100 Stück, 5,00 € Eingangsfracht, "
+                              "25 % Aufschlag (Beispielwerte)", hoehe=200 * mm, legende=[
+        (1, "A Stammdaten"), (2, "B Einkaufspreis: Lieferanten des Artikels, Preiseinheit und Staffelpreise"),
+        (3, "C Aufschlag: Herkunft und Methode"), (4, "<b>Weitere Details</b> aufklappen"),
+        (5, "Preisvorschau für eine Verbrauchsmenge"), (6, "<b>Speichern</b>")])
+    i.genauer("Felder")
     i.text("Neu, Bearbeiten und Duplizieren öffnen dasselbe Formular, bei breitem Fenster rechts neben der Tabelle, "
            "sonst als eigenes Fenster. Gespeichert wird erst mit <b>Speichern</b>; <b>Abbrechen</b> verwirft alle "
            "Eingaben. Ungültige Eingaben werden rot umrandet und unten im Formular genannt. Die Abschnitte A, B, C "
            "und Preisvorschau klappen mit einem Klick auf ihre Überschrift zu und auf; zugeklappt steht daneben eine "
            "Kurzfassung (z. B. bei C <i>Standard der Kategorie</i>). C Aufschlag ist anfangs zu, weil meist die "
            "Kategorie den Aufschlag liefert; das Programm merkt sich, welche Abschnitte offen sind.")
-    i.bild("zukauf_formular", "Formular mit Preisvorschau: Schrauben, 12,00 € je 100 Stück, 5,00 € Eingangsfracht, "
-                              "25 % Aufschlag (Beispielwerte)", hoehe=200 * mm, legende=[
-        (1, "A Stammdaten"), (2, "B Einkaufspreis: Lieferanten des Artikels, Preiseinheit und Staffelpreise"),
-        (3, "C Aufschlag: Herkunft und Methode"), (4, "<b>Weitere Details</b> aufklappen"),
-        (5, "Preisvorschau für eine Verbrauchsmenge"), (6, "<b>Speichern</b>")])
     i.tabelle(["Bereich", "Feld", "Bedeutung"], [
         ["A Stammdaten", "Artikelnummer", "eindeutig, darf leer bleiben"],
         ["", "Artikelbezeichnung", "Pflichtfeld"],
@@ -3954,6 +4067,8 @@ def kapitel_zukauf(i):
         ["", "im Angebotstext der Position nennen", "der Artikel erscheint im Text der Position im Angebot"]],
               [28, 55, 92])
     i.abschnitt("Preisvorschau und Rechenweg")
+    i.text("Verkaufspreis = Einkauf + Bezugskosten (Einstand) + Aufschlag.", kurz=True)
+    i.genauer()
     i.text("Die Vorschau rechnet bei jeder Eingabe mit derselben Rechnung wie das Angebot, für die eingetragene "
            "Verbrauchsmenge (Vorgabe: kleinste Bestellmenge). Sie zeigt je Einheit und für die ganze Menge:")
     i.tabelle(["Position", "Rechnung (Beispielwerte)"], [
@@ -3974,6 +4089,11 @@ def kapitel_zukauf(i):
            "beide Mengen. Fehlt der Einkaufspreis, steht dort rot <i>Kein Einkaufspreis</i>; gerechnet wird dann "
            "nicht mit 0 €.")
     i.abschnitt("Kategorien und Aufschlagsregeln", marke="zukauf_kategorien")
+    i.bild("zukauf_kategorien", "Zukaufartikel, Unterreiter Kategorien (Beispiel: 30 % für Schrauben und Muttern)",
+           hoehe=80 * mm, legende=[(1, "Unterreiter <b>Kategorien</b>")])
+    i.text("Je Kategorie ein Standardaufschlag. Vorrang: Aufschlag der Position vor dem des Artikels vor dem der "
+           "Kategorie vor dem Standard der Einstellungen.", kurz=True)
+    i.genauer()
     i.text("Unter <b>Kategorien</b> steht je Kategorie ein Standardaufschlag: Kategorie, Standard-Aufschlagsmethode "
            "(% auf Einstand, € je Einheit, € je Bestellung oder Zielmarge %), Standardaufschlag [% bzw. €], Aktiv "
            "und Beschreibung. Mengenstaffeln gibt es nur am Artikel. Die Kategorien sind mit Namen vorbelegt "
@@ -3981,8 +4101,6 @@ def kapitel_zukauf(i):
            "Zukaufartikel), aber <b>ohne Aufschläge</b>: die Werte trägt der Betrieb selbst ein. Bedient wird die "
            "Tabelle wie die Stammdaten ([[stammdaten]]).",
            "Welcher Aufschlag gilt, entscheidet diese Reihenfolge; die höhere Stufe ersetzt die niedrigere:")
-    i.bild("zukauf_kategorien", "Zukaufartikel, Unterreiter Kategorien (Beispiel: 30 % für Schrauben und Muttern)",
-           hoehe=80 * mm, legende=[(1, "Unterreiter <b>Kategorien</b>")])
     i.liste("Positionsaufschlag im Angebot (nur für diese Position)",
             "individueller Artikelaufschlag",
             "Aufschlag der Kategorie",
@@ -3993,15 +4111,14 @@ def kapitel_zukauf(i):
            "geändert, ändert das Artikel mit individuellem Aufschlag nicht. Beim Umbenennen einer Kategorie "
            "ändert sich der Name in allen Artikeln mit.")
     i.abschnitt("Lieferanten")
+    i.genauer()
     i.text("Unter <b>Lieferanten</b> stehen Lieferant, Lieferantennummer, Ansprechpartner, Telefon, E-Mail, "
            "Lieferzeit und Bemerkung. Lieferanten, die im Artikelformular neu eingetippt werden, legt das Programm "
            "hier mit ihrem Namen an. Beim Umbenennen ändert sich der Name in allen Artikeln mit. Preise, "
            "Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
     i.abschnitt("Preisänderungen")
-    i.text("Jede Änderung an Einkaufspreisen, Bezugskosten, Mindestmengen, Gültigkeit oder Aufschlag eines Artikels "
-           "schreibt das Programm beim Speichern ins Protokoll: Datum, Artikel, Lieferant, Was, Alt, Neu und "
-           "Bemerkung (z. B. <i>CSV-Import</i>). Der Unterreiter <b>Preisänderungen</b> zeigt das Protokoll, neueste "
-           "zuerst, mit Suche und Filter nach Artikel.")
+    i.text("Jede Preisänderung steht im Protokoll. Angebote mit altem Preis stehen darunter; <b>Im Angebot "
+           "aktualisieren …</b> setzt den neuen Preis.", kurz=True)
     i.bild("zukauf_preise", "Unterreiter Preisänderungen: Schrauben von 12,00 auf 12,80 € je 100 Stück "
                             "(Beispielwerte)", hoehe=100 * mm, legende=[
         (1, "Unterreiter <b>Preisänderungen</b>"), (2, "Protokoll mit altem und neuem Wert"),
@@ -4010,19 +4127,28 @@ def kapitel_zukauf(i):
         (4, "<b>Angebot öffnen</b> (auch Doppelklick)"),
         (5, "<b>Im Angebot aktualisieren …</b>: zeigt alt und neu und setzt nach Bestätigung den aktuellen "
             "Preisstand in allen Positionen dieses Angebots")])
+    i.genauer()
+    i.text("Jede Änderung an Einkaufspreisen, Bezugskosten, Mindestmengen, Gültigkeit oder Aufschlag eines Artikels "
+           "schreibt das Programm beim Speichern ins Protokoll: Datum, Artikel, Lieferant, Was, Alt, Neu und "
+           "Bemerkung (z. B. <i>CSV-Import</i>). Der Unterreiter <b>Preisänderungen</b> zeigt das Protokoll, neueste "
+           "zuerst, mit Suche und Filter nach Artikel.")
     i.text("Gespeicherte Angebote ändern sich nie von selbst. Aktualisiert wird nur ausdrücklich: hier je Angebot "
            "oder im Dialog Zukaufteile einer Position mit <b>Aus Stammdaten aktualisieren …</b>.")
     i.abschnitt("CSV-Import und -Export", marke="zukauf_csv")
+    i.liste("<b>CSV exportieren</b>: alle Artikel als Datei für Excel.",
+            "<b>CSV importieren …</b>: Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann <b>Importieren</b>.",
+            nummeriert=True, kurz=True)
+    i.bild("zukauf_csv", "Vorschau des CSV-Imports (Beispielwerte)", hoehe=55 * mm, legende=[
+        (1, "Zusammenfassung: neu, ändern, unverändert, mit Fehler"),
+        (2, "je Zeile der Datei die Aktion mit den Änderungen bzw. Fehlern; neu grün, ändern gelb, Fehler rot"),
+        (3, "<b>Importieren</b>")])
+    i.genauer()
     i.text("<b>CSV exportieren</b> im Unterreiter Artikel speichert alle Artikel als CSV-Datei (Semikolon, mit "
            "Excel zu öffnen): eine Zeile je Artikel und Lieferant, Kopfzeile mit den Feldnamen wie im Formular. "
            "Einkaufspreise stehen als Staffel <i>ab 1: 12,00 | ab 500: 9,00</i> (Preis je Preiseinheit); ein "
            "einzelner Preis genügt (<i>12,00</i> = ab 1).",
            "<b>CSV importieren …</b> liest eine solche Datei und zeigt zuerst eine Vorschau. Übernommen wird erst "
            "mit <b>Importieren</b>:")
-    i.bild("zukauf_csv", "Vorschau des CSV-Imports (Beispielwerte)", hoehe=55 * mm, legende=[
-        (1, "Zusammenfassung: neu, ändern, unverändert, mit Fehler"),
-        (2, "je Zeile der Datei die Aktion mit den Änderungen bzw. Fehlern; neu grün, ändern gelb, Fehler rot"),
-        (3, "<b>Importieren</b>")])
     i.liste("Artikel mit vorhandener Artikelnummer werden geändert: Angaben aus der Datei ersetzen die alten, der "
             "Einkauf beim genannten Lieferanten wird ersetzt, andere Lieferanten bleiben. Mehrere Zeilen mit "
             "derselben Artikelnummer und verschiedenen Lieferanten ergeben einen Artikel mit mehreren Lieferanten.",
@@ -4054,6 +4180,9 @@ def kapitel_zukauf(i):
            "verweist die <b>Artikel-ID</b> auf den Artikel; <b>Einkauf je Lieferant</b> ist die Tabelle mit den "
            "Einkaufsdaten je Lieferant.")
     i.abschnitt("Blechartikel und fehlender Einkaufspreis", marke="blechartikel")
+    i.text("Bleche sind Zukaufartikel vom Typ <b>Blech</b>. Fehlt der Einkaufspreis, steht rot <i>EK fehlt</i>; "
+           "<b>EK eintragen …</b> trägt ihn nach.", kurz=True)
+    i.genauer()
     i.text("Bleche schneidet der Rohrlaser nicht; sie werden als Zukaufartikel mit dem Artikeltyp <b>Blech</b> "
            "geführt. Ein Blechartikel hat zusätzlich Länge, Breite und Dicke in mm und einen Werkstoff. Der "
            "STEP-Import kann solche Artikel selbst anlegen ([[step]]); er trägt dann <i>Angelegt aus STEP-Import</i>, "
@@ -4086,6 +4215,8 @@ def kapitel_frachtkosten(i):
            "holt keine Dieselpreise aus dem Internet. Eine neue Datendatei bringt Beispielwerte mit, die mit "
            "<b>BEISPIEL</b> gekennzeichnet sind; jede Rechnung damit zeigt die Warnung <i>Beispieltarif – keine "
            "echten Preise</i>. Ältere Datendateien bekommen die Frachttabellen leer.")
+    i.text("Hier stehen Zonen, Tarife, Paletten und Zuschläge, mit denen die Fracht gerechnet wird. Der Rechner ist "
+           "frei; zum Pflegen <b>Frachtdaten öffnen</b> mit dem Passwort der Einstellungen.", kurz=True)
     i.text("Der Reiter hat sieben Unterreiter: <i>Fracht kalkulieren</i>, <i>Frachtzonen und Postleitzahlen</i>, "
            "<i>Tarifverwaltung</i>, <i>Paletten und Ladehilfsmittel</i>, <i>Zuschläge</i>, <i>Dienstleister und "
            "Kundentarife</i> sowie <i>Historie und Einstellungen</i>. Der Rechner ist frei; die übrigen sechs öffnen "
@@ -4103,6 +4234,8 @@ def kapitel_frachtkosten(i):
             "und Zone; Land leer = DE."),
         (4, "Unterreiter <i>Länder</i> neben <i>Frachtzonen</i>"),
         (5, "<b>Auf Standard zurücksetzen …</b> stellt die Standardzonen wieder her ([[fracht_zonen_standard]]).")])
+    i.text("Jede Zone fasst PLZ-Bereiche zusammen; im Feld <b>PLZ testen</b> sieht man sofort, in welche Zone eine PLZ fällt.", kurz=True)
+    i.genauer()
     i.tabelle(["Frachtzonen", "Bedeutung"], [
         ["<b>Zone</b>, <b>Bezeichnung</b>", "Kurzname und freie Bezeichnung, z. B. Z1 Nahbereich"],
         ["<b>Land</b>", "Ländercode aus den Ländern"],
@@ -4135,6 +4268,9 @@ def kapitel_frachtkosten(i):
         ["Bezeichnung, PLZ-Stellen, Währung", "Name, Stellenzahl der PLZ (für die Prüfung), Währung (leer = EUR)"],
         ["Aktiv, Bemerkung", "leer = aktiv; freier Text"]], [75, 190])
     i.abschnitt("Frachtzonen auf Standard zurücksetzen", marke="fracht_zonen_standard")
+    i.text("<b>Auf Standard zurücksetzen …</b> holt die mitgelieferten Zonen zurück; vorher legt das Programm eine "
+           "Sicherung an.", kurz=True)
+    i.genauer()
     i.text("Sind die Zonen oder PLZ-Zuordnungen durcheinandergeraten, stellt <b>Auf Standard zurücksetzen …</b> "
            "(oben rechts auf dem Unterreiter <i>Frachtzonen und Postleitzahlen</i>) den mitgelieferten Stand wieder "
            "her. Der Standard sind die Zonen der Richtwerte Palettenversand ([[fracht_richtwerte]]): vier Zonen nach "
@@ -4155,6 +4291,8 @@ def kapitel_frachtkosten(i):
             "Tarif gilt bis zum Vortag. So bleiben Tarifwechsel lückenlos und nachvollziehbar."),
         (2, "Unten stehen nur die Preisstaffeln des markierten Tarifs; neue Zeilen bekommen ihn automatisch."),
         (3, "<b>Preise aller Tarife zeigen</b> hebt den Filter auf.")])
+    i.text("Oben die Tarife, unten die Preise des markierten Tarifs je Zone und Gewicht.", kurz=True)
+    i.genauer()
     i.tabelle(["Tarife", "Bedeutung"], [
         ["<b>Tarif</b>, Bezeichnung", "Kurzname und Klartext"],
         ["Dienstleister, Tarifart", "Frachtführer; Standardtarif, Rahmenvertrag, Sondertarif, Kundentarif oder interner "
@@ -4192,6 +4330,9 @@ def kapitel_frachtkosten(i):
            "zu rechnen.")
     i.abschnitt("Paletten und Ladehilfsmittel")
     i.bild("fracht_lht", "Paletten und Ladehilfsmittel (Beispielwerte)", hoehe=90 * mm)
+    i.text("Paletten mit Eigengewicht, Nutzlast, Stellplätzen und größter Teillänge (für den Packvorschlag).",
+           kurz=True)
+    i.genauer()
     i.tabelle(["Ladehilfsmittel", "Bedeutung"], [
         ["<b>Ladehilfsmittel</b>, Bezeichnung", "Kurzname und Klartext"],
         ["<b>Art</b>", "Europalette, Einwegpalette, Industriepalette, Gitterbox, Sonderpalette, Langgut oder "
@@ -4206,6 +4347,9 @@ def kapitel_frachtkosten(i):
     i.bild("fracht_zuschlaege", "Zuschläge, darunter Dieselpreise, Dieselstaffel und Währungen", hoehe=105 * mm,
            legende=[(1, "Unterreiter <i>Dieselpreise</i>"), (2, "Unterreiter <i>Dieselstaffel</i>"),
                     (3, "Unterreiter <i>Währungen</i>")])
+    i.text("Zuschläge in € oder % mit Bedingung (immer, ab Gewicht, nur wenn gewählt …), darunter Diesel und "
+           "Währungen.", kurz=True)
+    i.genauer()
     i.tabelle(["Zuschläge", "Bedeutung"], [
         ["<b>Zuschlag</b>, Bezeichnung", "Kurzname und Text in der Kostenübersicht"],
         ["<b>Typ</b>", "Diesel, Maut, Energie, Gefahrgut, Langgut / Überlänge, Sperrgut, Insel- und Randgebiet, "
@@ -4241,6 +4385,8 @@ def kapitel_frachtkosten(i):
         (1, "<b>Kundentarif anlegen</b> legt einen Tarif mit Tarifart Kundentarif an und öffnet die Tarifverwaltung; "
             "dort Tarif-ID, Kundennummer und Preise eintragen."),
         (2, "Übersicht aller Kundentarife, Rahmenverträge und Sondertarife; Doppelklick öffnet den Tarif.")])
+    i.text("Speditionen und eigene Tarife für einzelne Kunden.", kurz=True)
+    i.genauer()
     i.tabelle(["Dienstleister", "Bedeutung"], [
         ["<b>Dienstleister</b>, Name", "Kurzname und Name des Frachtführers"],
         ["Versandarten", "mit Komma getrennt, erscheinen im Rechner zur Auswahl"],
@@ -4257,7 +4403,13 @@ def kapitel_frachtkosten(i):
         (4, "<b>Beispieldaten laden</b> fügt die Beispiel-Zonen, -Tarife, -Ladehilfsmittel und -Zuschläge hinzu "
             "(BEISPIEL); vorhandene Einträge bleiben."),
         (5, "<b>Richtwerte laden</b> ersetzt die Beispielwerte durch Richtwerte für den Palettenversand (unten).")])
+    i.text("Gespeicherte Frachtrechnungen und die Einstellungen: Absender-PLZ, Versandart der automatischen Fracht, "
+           "Paletten im Packvorschlag.", kurz=True)
+    i.genauer()
     i.abschnitt("Richtwerte Palettenversand", marke="fracht_richtwerte")
+    i.text("Ohne Preise der eigenen Spedition rechnet das Programm mit Richtwerten (eher etwas zu teuer). "
+           "<b>Richtwerte laden</b> setzt sie neu; eigene Einträge bleiben.", kurz=True)
+    i.genauer()
     i.text("Solange keine Preise der eigenen Spedition vorliegen, rechnet das Programm mit <b>Richtwerten</b>: "
            "Marktpreise aus Online-Frachtrechnern (Stand 10/2026, netto, Maut und Diesel enthalten), angesetzt an der "
            "Obergrenze der üblichen Spanne plus 10 % Puffer, also eher etwas zu teuer als zu günstig. Alle Zeilen "
@@ -4298,14 +4450,17 @@ def kapitel_pflege(i):
     i.text("Das Programm holt Updates auf Knopfdruck aus dem Internet und sichert die Datendatei selbst. Hier steht, "
            "wie beides geht und wie die Daten auf einen anderen Rechner umziehen.")
     i.abschnitt("Updates", marke="updates")
+    i.bild("update_hinweis", "Hinweis auf eine neue Version", hoehe=55 * mm, legende=[
+        (1, "<b>Jetzt aktualisieren</b>: lädt die neue Version und startet das Programm neu. <b>Später</b>: "
+            "nichts ändern, beim nächsten Start kommt der Hinweis wieder.")])
+    i.text("Gibt es eine neue Version, meldet sich das Programm beim Start: <b>Jetzt aktualisieren</b>. Von Hand: "
+           "<b>Hilfe → Nach Updates suchen …</b>. Vorher sichert es die Daten.", kurz=True)
+    i.genauer()
     i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (öffentliches Verzeichnis "
            "<i>Rohrlaser-Updates</i> auf GitHub, ohne Anmeldung), installiert wie portabel. Gibt es eine, erscheint das Fenster <b>Update verfügbar</b> mit dem installierten und dem neuen Stand und der letzten "
            "Änderung. Ohne Internet oder bei einem Fehler meldet sich das Programm beim Start nicht. Von Hand: "
            "<b>Hilfe → Nach Updates suchen …</b>; dort steht auch, wenn das Programm schon aktuell ist. Welcher Stand "
            "installiert ist, zeigen Fenstertitel, Startseite und <i>Hilfe → Über …</i>.")
-    i.bild("update_hinweis", "Hinweis auf eine neue Version", hoehe=55 * mm, legende=[
-        (1, "<b>Jetzt aktualisieren</b>: lädt die neue Version und startet das Programm neu. <b>Später</b>: "
-            "nichts ändern, beim nächsten Start kommt der Hinweis wieder.")])
     i.liste("Das Programm vergleicht jede Programmdatei über ihre Prüfsumme mit der neuen Version und lädt <b>nur die "
             "geänderten Dateien</b>. Meist sind das wenige MB statt des ganzen ZIP mit rund 180 MB. Beschädigte oder "
             "fehlende Programmdateien werden dabei gleich mit ersetzt.",
@@ -4329,6 +4484,16 @@ def kapitel_pflege(i):
             "neue Setup über die alte Installation installieren bzw. das neue ZIP entpacken und die Daten übernehmen "
             "([[datensicherung]]); danach geht es online weiter.")
     i.abschnitt("Datensicherung und Umzug", marke="datensicherung")
+    i.liste("Das Programm sichert von selbst: täglich, beim Beenden und vor jedem Update oder Import.",
+            "Selbst sichern: <b>Datensicherung erstellen</b> (Startseite oder Menü Datei).",
+            "Zurückholen: <b>Sicherung wiederherstellen …</b>, Sicherung wählen, <b>Wiederherstellen</b>.",
+            kurz=True)
+    i.bild("sicherung_wiederherstellen", "Sicherung wiederherstellen", hoehe=80 * mm, legende=[
+        (1, "Sicherungen aus dem Datenordner und dem zweiten Sicherungsordner, neueste oben, mit Art, Anzahl "
+            "Angebote und Positionen. Grau: beschädigt oder von einer neueren Programmversion."),
+        (2, "<b>Wiederherstellen</b>: ersetzt alle Daten durch die gewählte Sicherung (Doppelklick geht auch). "
+            "<b>Andere Datei …</b>: eine Sicherung, Datendatei oder Export-Datei von woanders wählen.")])
+    i.genauer()
     i.text("Das Programm sichert die Datendatei in den Ordner <i>Sicherung</i> im Datenordner:")
     i.liste("beim ersten Start jedes Tages,",
             "beim Beenden (eine je Tag, wird bei jedem Beenden erneuert, Name endet auf <i>_beenden</i>),",
@@ -4347,11 +4512,6 @@ def kapitel_pflege(i):
            "Kopie dorthin. Ist der Ordner nicht erreichbar, meldet das Programm das beim Beenden und fragt, ob "
            "trotzdem beendet werden soll; die Sicherung im Datenordner ist dann trotzdem angelegt. Für die "
            "installierte Version ist ein zweiter Ordner besonders zu empfehlen.")
-    i.bild("sicherung_wiederherstellen", "Sicherung wiederherstellen", hoehe=80 * mm, legende=[
-        (1, "Sicherungen aus dem Datenordner und dem zweiten Sicherungsordner, neueste oben, mit Art, Anzahl "
-            "Angebote und Positionen. Grau: beschädigt oder von einer neueren Programmversion."),
-        (2, "<b>Wiederherstellen</b>: ersetzt alle Daten durch die gewählte Sicherung (Doppelklick geht auch). "
-            "<b>Andere Datei …</b>: eine Sicherung, Datendatei oder Export-Datei von woanders wählen.")])
     i.liste("<b>Sicherung wiederherstellen …</b> (Startseite oder Menü <i>Datei</i>): Das Programm prüft die "
             "gewählte Sicherung, sichert vorher den jetzigen Stand (<i>_vor_Wiederherstellung</i>, damit lässt sich "
             "das Wiederherstellen selbst rückgängig machen), schließt offene Angebote und lädt alles neu. Eine "
@@ -4956,7 +5116,7 @@ def inhalt_sammeln(daten, bilder, vorlauf=None, kurz=False):
     stand = datetime.date.today().strftime("%d.%m.%Y")
     inh = Inhalt(bilder, vorlauf, kurz)
     titelseite(inh, stand)
-    for buchstabe, name, text, kapitel_liste in (TEILE[:2] if kurz else TEILE):     # Kurzanleitung: Teil A und B
+    for buchstabe, name, text, kapitel_liste in (TEILE[:3] if kurz else TEILE):     # Kurzanleitung: ohne Anhang
         inh.teil(buchstabe, name, text)
         for kapitel in kapitel_liste:
             if kapitel is kapitel_ausgabe:
@@ -4967,7 +5127,7 @@ def inhalt_sammeln(daten, bilder, vorlauf=None, kurz=False):
 
 
 def pdf_bauen(bilder_ordner, ziel, kurz_ziel=None):
-    """Bedienungsanleitung nach ziel, Kurzanleitung (Teil A und B, nur Bilder, Schritte und Legenden) nach kurz_ziel."""
+    """Bedienungsanleitung nach ziel, Kurzanleitung (Teil A bis C, nur Bilder, Schritte und Legenden) nach kurz_ziel."""
     daten = json.loads((Path(bilder_ordner) / "bilder.json").read_text(encoding="utf-8"))
     bilder = dict(daten["bilder"], _ordner=Path(bilder_ordner))
     # 1. Durchlauf: Kapitelnummern der Marken, 2. Durchlauf: Verweise einsetzen

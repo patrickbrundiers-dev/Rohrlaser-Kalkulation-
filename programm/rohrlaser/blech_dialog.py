@@ -12,9 +12,11 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
 from . import blech, blech3d, dfm, dxf, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
+from .teile_editor import EditorRahmen
 from .stammdaten import zahl_als_text, zahl_aus_text
 
 FARBE_BLECH, FARBE_LINIE, FARBE_KONTUR, FARBE_BIEGUNG = "#EAF1F8", "#1F4E78", "#B42318", "#2E7D32"
+FARBE_MARKIERT = "#2E75B6"      # gewähltes Merkmal (Teile-Editor), wie in der 3D-Ansicht
 KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1", "Maß 2", "Maß 3", "Mitte x [mm]", "Mitte y [mm]")
 SCHENKEL_SPALTEN = ("Schenkel außen [mm]", "Biegewinkel danach [°]", "Innenradius [mm]")
 # Vorlagen für Kantteile: [(Schenkel außen, Biegewinkel danach)]; Radius leer = Blechdicke
@@ -47,7 +49,12 @@ class BlechSkizze(QWidget):
     def __init__(self, mini=False):
         super().__init__()
         self.eingaben, self.zuschnitt, self.mini = {}, None, mini
+        self.markiert = None            # Teile-Editor: gewähltes Merkmal ('kontur:3', 'biegung:0') blau
         self.setMinimumHeight(0 if mini else 260)
+
+    def markieren(self, merkmal):
+        self.markiert = merkmal
+        self.update()
 
     def setzen(self, eingaben, zuschnitt):
         self.eingaben, self.zuschnitt = eingaben, zuschnitt
@@ -93,7 +100,8 @@ class BlechSkizze(QWidget):
             p.drawRoundedRect(QRectF(pkt(0, br), pkt(lg, 0)), r, r)
         # Biegelinien quer zur Abwicklungsbreite (parallel zur Kantlänge)
         for i, (lage, winkel, radius, _) in enumerate(zs.get("biegungen") or [], 1):
-            p.setPen(QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
+            p.setPen(QPen(QColor(FARBE_MARKIERT), 3.0) if self.markiert == f"biegung:{i - 1}" else
+                     QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
             a, b = pkt(0, lage), pkt(lg, lage)
             p.drawLine(a, b)
             if self.mini:
@@ -108,7 +116,8 @@ class BlechSkizze(QWidget):
                     (x1, y1), (x2, y2) = x["punkte"]
                 except (TypeError, ValueError, KeyError):
                     continue
-                p.setPen(QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
+                p.setPen(QPen(QColor(FARBE_MARKIERT), 3.0) if self.markiert == f"biegung:{i - 1}" else
+                         QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
                 a, b = pkt(x1 - minx, y1 - miny), pkt(x2 - minx, y2 - miny)
                 p.drawLine(a, b)
                 if not self.mini:
@@ -117,9 +126,10 @@ class BlechSkizze(QWidget):
                     p.drawText(QPointF((a.x() + b.x()) / 2 + 4, (a.y() + b.y()) / 2 - 4),
                                f"B{i} {zahl_als_text(abs(w), 0)}° {'↑' if w > 0 else '↓'}")
         # Innenkonturen: Mitte x/y, ohne Angabe gleichmäßig auf der Mittellinie
-        konturen = [z for z in self.eingaben.get("konturen") or [] if z.get("art")]
+        alle = self.eingaben.get("konturen") or []
+        konturen = [z for z in alle if z.get("art")]
         frei = [z for z in konturen if z.get("x") is None or z.get("y") is None]
-        p.setPen(QPen(QColor(FARBE_KONTUR), 1.2))
+        zeile = {id(z): i for i, z in enumerate(alle)}
         p.setBrush(Qt.NoBrush)
         for z in konturen:
             if z in frei:
@@ -127,6 +137,8 @@ class BlechSkizze(QWidget):
                 cx, cy = lg * (k + 1) / (len(frei) + 1), br / 2
             else:               # im System der Außenkontur (Polygon ab 0, 0 gezeichnet)
                 cx, cy = z["x"] - minx, z["y"] - miny
+            p.setPen(QPen(QColor(FARBE_MARKIERT), 3.0) if self.markiert == f"kontur:{zeile[id(z)]}" else
+                     QPen(QColor(FARBE_KONTUR), 1.2))
             self._kontur(p, z, pkt(cx, cy), m)
         if self.mini:
             return
@@ -409,7 +421,13 @@ class BlechDialog(QDialog):
         breite, hoehe = (frei.width() - 40, frei.height() - 70) if frei else (1400, 900)
         self.resize(min(1500, breite), min(950, hoehe))
         self.teiler.setSizes([int(self.width() * 0.52), self.width() - int(self.width() * 0.52)])
+        # Werte wie im STEP-Import gemessen (Teile-Editor: Herkunft, zurücksetzen); beim ersten Öffnen aus den Eingaben
+        self.step_werte = e.get("step") if isinstance(e.get("step"), dict) else None
+        if e.get("step") is True:
+            self.step_werte = {k: v for k, v in self.eingaben().items() if k not in ("stueck", "step")}
+        self.editor = None
         self.rechnen()
+        EditorRahmen(self, "blech")
 
     @staticmethod
     def _spin(wert, von, bis, schritt, suffix, stellen):
@@ -508,7 +526,38 @@ class BlechDialog(QDialog):
                  schenkel=schenkel, konturen=konturen, stueck=self.stueck.value())
         if e["art"] != blech.KANTTEIL and self.kantungen.value():
             e.update(kantungen=self.kantungen.value(), biegelinien=self.biegelinien)
+        if getattr(self, "step_werte", None):
+            e["step"] = self.step_werte
         return e
+
+    def eingaben_setzen(self, e):
+        """Alle Eingaben aus e (wie eingaben()) setzen, dann einmal rechnen (Teile-Editor: Rückgängig)."""
+        felder = (self.dicke, self.laenge, self.breite, self.eckradius, self.kantlaenge, self.kantungen, self.stueck,
+                  self.werkstoff, self.art, self.form, self.punkte, self.schenkel, self.tabelle)
+        for w in felder:
+            w.blockSignals(True)
+        try:
+            if e.get("werkstoff") in self.werkstoffe:
+                self.werkstoff.setCurrentText(e["werkstoff"])
+            self.art.setCurrentText(e.get("art") or blech.ZUSCHNITT)
+            self.form.setCurrentText(e.get("form") or blech.RECHTECK)
+            for w, n in ((self.dicke, "dicke"), (self.laenge, "laenge"), (self.breite, "breite"),
+                         (self.eckradius, "eckradius"), (self.kantlaenge, "kantlaenge")):
+                w.setValue(sw._z(e.get(n)))
+            self.kantungen.setValue(int(sw._z(e.get("kantungen"))))
+            self.stueck.setValue(int(sw._z(e.get("stueck")) or 1))
+            self.punkte.setText(e.get("punkte") or "")
+            self.biegelinien = list(e.get("biegelinien") or self.biegelinien)
+            self.schenkel.setRowCount(0)
+            self.tabelle.setRowCount(0)
+        finally:
+            for w in felder:
+                w.blockSignals(False)
+        for x in e.get("schenkel") or []:
+            self.schenkel_neu(x, rechnen_=False)
+        for z in e.get("konturen") or []:
+            self.kontur_neu(z, rechnen_=False)
+        return self.rechnen()
 
     def kopf_werte(self):
         return dict(bezeichnung=self.bezeichnung.text().strip() or self.bezeichnung.placeholderText(),
@@ -517,6 +566,12 @@ class BlechDialog(QDialog):
                     stueck=self.stueck.value())
 
     def rechnen(self, *_):
+        erg = self._rechnen()
+        if getattr(self, "editor", None) is not None:
+            self.editor.geaendert()
+        return erg
+
+    def _rechnen(self):
         kant = self.art.currentText() == blech.KANTTEIL
         self.stapel.setCurrentIndex(1 if kant else 0)
         poly = self.form.currentText() == blech.POLYGON
