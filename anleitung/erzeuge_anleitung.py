@@ -2825,6 +2825,17 @@ def kapitel_baugruppen(i):
            "größten Posten. So sieht man sofort, wo sich das Nachprüfen von Kennwerten oder Vorrichtungen lohnt. "
            "Angebote ohne Baugruppe zeigen den Bereich nicht.")
 
+    i.abschnitt("Schweißplan, Kalkulation und CSV")
+    i.text("Die <b>Werkstattpapiere</b> ([[ausgabe]]) bekommen je Baugruppe eine Seite <b>Schweißplan</b> ohne Preise: "
+           "Struktur mit Mengen, Einzelteile mit Pos. und Kästchen zum Bereitstellen, Nahtgruppen (Verfahren, a-Maß "
+           "bzw. Dicke, Länge, Anzahl, Lage, Heftpunkte), Arbeitsgänge und Vorrichtungen in Reihenfolge zum Abhaken "
+           "und die Vorgabezeit je Baugruppe und gesamt.", kurz=True)
+    i.text("Die <b>Kalkulation (PDF)</b> zeigt je Baugruppe einen Abschnitt mit allen Nahtgruppen und Arbeitsgängen: "
+           "Stück je Baugruppe, Zeit und Kosten je Baugruppe, Einmalbetrag und Herkunft der Zeit (Kennwert, "
+           "Richtwert, von Hand, Fremdleistung oder was fehlt). Der <b>CSV-Export</b> als ZIP enthält bei Angeboten "
+           "mit Baugruppen zusätzlich <i>Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
+           "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
+           "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
     i.text("Wiederkehrende Baugruppen nicht jedes Mal neu erfassen: <b>Als Vorlage speichern …</b> unten im Editor "
            "merkt Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) unter einem Namen; "
