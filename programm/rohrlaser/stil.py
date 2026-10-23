@@ -33,8 +33,8 @@ QLabel#kennzahltitel { color: #5F6B7A; }
 QLabel#kennzahlwert { font-weight: bold; color: #1F2937; }
 QLabel#summenzeile { background: #F5F7FA; border: 1px solid #E3E7EC; border-radius: 4px; padding: 6px; }
 QFrame#preis { background: #EEF4FB; border: 1px solid #C9DAEE; border-radius: 4px; }
-QLabel#preiswert { font-weight: bold; font-size: 13pt; color: #1F4E78; }
-QLabel#preiswert_klein { font-weight: bold; font-size: 11pt; color: #1F2937; }
+QLabel#preiswert { font-weight: bold; font-size: 17pt; color: #1F4E78; }
+QLabel#preiswert_klein { font-weight: bold; font-size: 11pt; color: #3A4656; }
 QLabel#stand_ok { background: #E3F4E8; color: #1E6B34; border: 1px solid #B7DFC3; border-radius: 4px; font-weight: bold; }
 QLabel#stand_offen { background: #FFF6DB; color: #7A5A00; border: 1px solid #F0D98C; border-radius: 4px; font-weight: bold; }
 QLabel#stand_veraltet { background: #FDECEA; color: #8C1D18; border: 1px solid #F3B8B2; border-radius: 4px; font-weight: bold; }
@@ -59,6 +59,7 @@ QTabBar::tab:hover:!selected { background: #F7F9FB; }
 QGroupBox { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; margin-top: 16px; padding-top: 6px; }
 QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 8px; padding: 0 4px;
                    color: #1F4E78; font-weight: bold; }
+QTreeView::item { min-height: 20px; }
 QTableView, QTreeView { gridline-color: #E3E7EC; selection-background-color: #CFE0F5; selection-color: #111827;
                         alternate-background-color: #F5F8FB; }
 QHeaderView::section { background: #F3F6FA; color: #1F2937; border: none; border-right: 1px solid #DDE2E8;
@@ -74,3 +75,60 @@ def ziffern_tabellarisch(app):
     schrift = app.font()
     schrift.setFeature(QFont.Tag("tnum"), 1)
     app.setFont(schrift)
+
+
+# Statussymbole (Layout-Plan L4): Status nie nur über die Farbe – ✓ OK, ! Warnung, ✕ Fehler, i Hinweis
+_SYMBOLE = {}
+STATUS_SYMBOL_FARBE = {"OK": GRUEN, "HINWEIS": AKZENT, "WARNUNG": "#B7791F", "VERALTET": "#B7791F", "FEHLER": ROT}
+
+
+def status_stufe(text):
+    """Stufe eines Statustexts ('FEHLER: …', 'WARNUNG …', 'OK' …); unbekannt: None."""
+    t = str(text or "").strip().upper()
+    for stufe in ("FEHLER", "VERALTET", "WARNUNG", "HINWEIS", "OK"):
+        if t.startswith(stufe):
+            return stufe
+    return None
+
+
+def status_symbol(text, groesse=14):
+    """QIcon für einen Statustext (gezeichnet, ohne Bilddatei); None für unbekannte Texte."""
+    stufe = status_stufe(text)
+    if stufe is None:
+        return None
+    if (stufe, groesse) in _SYMBOLE:
+        return _SYMBOLE[stufe, groesse]
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+    bild = QPixmap(groesse * 2, groesse * 2)          # doppelte Auflösung, scharf auch bei 200 %
+    bild.fill(Qt.transparent)
+    bild.setDevicePixelRatio(2)
+    p = QPainter(bild)
+    p.setRenderHint(QPainter.Antialiasing)
+    farbe, g = QColor(STATUS_SYMBOL_FARBE[stufe]), float(groesse)
+    p.setPen(Qt.NoPen)
+    p.setBrush(farbe)
+    if stufe in ("WARNUNG", "VERALTET"):
+        pfad = QPainterPath(QPointF(g / 2, 1))
+        pfad.lineTo(g - 1, g - 1.5)
+        pfad.lineTo(1, g - 1.5)
+        pfad.closeSubpath()
+        p.drawPath(pfad)
+    else:
+        p.drawEllipse(QRectF(1, 1, g - 2, g - 2))
+    stift = QPen(QColor("#FFFFFF"), max(1.6, g / 8), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+    p.setPen(stift)
+    if stufe == "OK":
+        p.drawPolyline([QPointF(g * .28, g * .52), QPointF(g * .44, g * .68), QPointF(g * .73, g * .35)])
+    elif stufe == "FEHLER":
+        p.drawLine(QPointF(g * .33, g * .33), QPointF(g * .67, g * .67))
+        p.drawLine(QPointF(g * .67, g * .33), QPointF(g * .33, g * .67))
+    elif stufe == "HINWEIS":
+        p.drawLine(QPointF(g / 2, g * .45), QPointF(g / 2, g * .72))
+        p.drawPoint(QPointF(g / 2, g * .28))
+    else:
+        p.drawLine(QPointF(g / 2, g * .38), QPointF(g / 2, g * .62))
+        p.drawPoint(QPointF(g / 2, g * .78))
+    p.end()
+    _SYMBOLE[stufe, groesse] = QIcon(bild)
+    return _SYMBOLE[stufe, groesse]
