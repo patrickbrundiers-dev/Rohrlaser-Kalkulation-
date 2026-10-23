@@ -1,0 +1,278 @@
+"""Lizenz (programm/rohrlaser/lizenz.py) und Lizenz-Werkzeug (werkzeuge/lizenz_werkzeug.py): Fälle L1–L15, S7.
+
+Jeder Lauf erzeugt ein eigenes Testschlüsselpaar; der echte Schlüssel kommt in keinem Test vor.
+Aufruf: python tests/test_lizenz.py
+"""
+import datetime
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+WURZEL = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(WURZEL / "programm"))
+sys.path.insert(0, str(WURZEL / "werkzeuge"))
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
+
+from rohrlaser import lizenz  # noqa: E402
+
+tmp = Path(tempfile.mkdtemp(prefix="lizenz_"))
+fehler = []
+
+
+def pruefe(bedingung, text):
+    print(("OK    " if bedingung else "FEHLER") + "  " + text)
+    if not bedingung:
+        fehler.append(text)
+
+
+PRIVAT = Ed25519PrivateKey.generate()
+FREMD = Ed25519PrivateKey.generate()
+SCHL = {"T1": lizenz.oeffentlich_text(PRIVAT)}
+HEUTE = datetime.date(2026, 11, 15)
+RECHNER = lizenz.rechner_id("1234abcd-0000-1111-2222-333344445555")
+
+
+def lizenzdatei(art="benutzer", bis=HEUTE + datetime.timedelta(days=100), rechner=None, privat=PRIVAT, **mehr):
+    inhalt = dict(lizenz_id="L-2026-0001", art=art, inhaber="Max Mustermann", firma="Musterbau GmbH",
+                  ausgestellt="2026-11-01", gueltig_ab="2026-11-01",
+                  gueltig_bis=bis.isoformat() if bis else None,
+                  rechner=[RECHNER] if rechner is None else rechner, funktionen=["alle"], test=art == "test",
+                  schluessel_id="T1", hinweis="")
+    inhalt.update(mehr)
+    return dict(format=1, inhalt=inhalt, signatur=lizenz.signieren(inhalt, privat))
+
+
+def zustand(daten, heute=HEUTE, **k):
+    k.setdefault("durchsetzung", True)
+    return lizenz.ermitteln(daten, heute, k.pop("rechner", RECHNER), SCHL, **k)
+
+
+# ------------------------------------------------------------------ Rechner-ID
+pruefe(len(RECHNER) == 22 and RECHNER.startswith("RL-") and RECHNER.count("-") == 4,
+       f"Rechner-ID im Format RL-XXXX-XXXX-XXXX-XXXX ({RECHNER})")
+pruefe(lizenz.rechner_id("1234ABCD-0000-1111-2222-333344445555") == RECHNER, "Rechner-ID unabhängig von Groß/klein")
+pruefe(lizenz.rechner_id("") == "", "ohne Kennung: leere ID")
+eigene = lizenz.rechner_id()
+pruefe(eigene == "" or eigene.startswith("RL-"), f"Rechner-ID dieses Rechners ({eigene or 'keine'})")
+
+# ------------------------------------------------------------------ L1–L10
+z = zustand(lizenzdatei())
+pruefe(z.stufe == "gueltig" and not z.nur_lesen and z.darf() and z.tage_rest == 100, "L1 gültige Benutzerlizenz")
+z = zustand(lizenzdatei(bis=HEUTE + datetime.timedelta(days=20)))
+pruefe(z.stufe == "bald" and z.farbe == "gelb" and not z.nur_lesen and not z.start_hinweis, "L2 20 Tage: läuft bald ab")
+z = zustand(lizenzdatei(bis=HEUTE + datetime.timedelta(days=5)))
+pruefe(z.stufe == "bald" and z.start_hinweis, "L2 5 Tage: zusätzlich Hinweis beim Start")
+z = zustand(lizenzdatei(bis=HEUTE))
+pruefe(z.stufe == "bald" and z.tage_rest == 0, "gültig_bis gilt einschließlich (letzter Tag)")
+z = zustand(lizenzdatei(bis=HEUTE - datetime.timedelta(days=5)))
+pruefe(z.stufe == "kulanz" and z.farbe == "rot" and not z.nur_lesen and "Lesemodus ab" in z.hinweis,
+       f"L3 seit 5 Tagen abgelaufen: Kulanz ({z.hinweis})")
+z = zustand(lizenzdatei(bis=HEUTE - datetime.timedelta(days=14)))
+pruefe(z.stufe == "kulanz", "14 Tage abgelaufen: noch Kulanz")
+z = zustand(lizenzdatei(bis=HEUTE - datetime.timedelta(days=15)))
+pruefe(z.stufe == "lesemodus" and z.nur_lesen, "15 Tage abgelaufen: Lesemodus")
+z = zustand(lizenzdatei(bis=HEUTE - datetime.timedelta(days=30)))
+pruefe(z.stufe == "lesemodus" and "abgelaufen" in z.nur_lesen and not z.darf(), f"L4 30 Tage: Lesemodus ({z.nur_lesen})")
+
+d = lizenzdatei()
+d["inhalt"]["gueltig_bis"] = "2099-12-31"
+z = zustand(d)
+pruefe(z.stufe == "lesemodus" and "Signatur" in z.nur_lesen, "L5 Ablaufdatum geändert: ungültig")
+d = json.loads(json.dumps(lizenzdatei(), indent=4))          # andere Leerzeichen/Reihenfolge: bleibt gültig
+pruefe(zustand(json.dumps(d, indent=3, sort_keys=False)).stufe == "gueltig", "Leerzeichen in der Datei ändern nichts")
+z = zustand(lizenzdatei(privat=FREMD))
+pruefe(z.stufe == "lesemodus" and "Signatur" in z.nur_lesen, "L6 fremder Schlüssel: ungültig")
+z = zustand(lizenzdatei(rechner=["RL-0000-0000-0000-0000"]))
+pruefe(z.stufe == "lesemodus" and "andere Rechner-ID" in z.nur_lesen and RECHNER in z.nur_lesen,
+       "L7 falscher Rechner")
+z = zustand(lizenzdatei(rechner=[]))
+pruefe(z.stufe == "gueltig", "Benutzer mit rechner [] gilt überall")
+z = zustand(lizenzdatei(rechner=[RECHNER.lower().replace("-", "- ", 1)]))
+pruefe(z.stufe == "gueltig", "Rechner-ID unabhängig von Schreibweise")
+z = zustand(lizenzdatei(art="admin", bis=None))
+pruefe(z.stufe == "admin" and z.admin and z.darf() and not z.hinweis, "L8 Admin ohne Datum, Rechner passt")
+z = zustand(lizenzdatei(art="admin", bis=None), heute=datetime.date(2040, 1, 1))
+pruefe(z.stufe == "admin", "Admin auch in 13 Jahren")
+z = zustand(lizenzdatei(bis=None))
+pruefe(z.stufe == "lesemodus" and "Ablaufdatum" in z.nur_lesen, "L9 Benutzer ohne Datum: ungültig")
+z = zustand(lizenzdatei(art="admin", bis=None, rechner=[]))
+pruefe(z.stufe == "lesemodus" and "Rechner" in z.nur_lesen, "L9 Admin ohne Rechner: ungültig")
+z = zustand(lizenzdatei(art="admin", bis=None, rechner=[RECHNER, "RL-1", "RL-2", "RL-3"]))
+pruefe(z.stufe == "lesemodus", "Admin mit 4 Rechnern: ungültig")
+d = lizenzdatei()
+d["format"] = 2
+z = zustand(d)
+pruefe(z.stufe == "lesemodus" and "neuere Programmversion" in z.nur_lesen, "L10 unbekanntes Format: neuere Version")
+d = lizenzdatei(schluessel_id="K9")
+z = zustand(d)
+pruefe(z.stufe == "lesemodus" and "unbekanntem Schlüssel" in z.nur_lesen, "unbekannte Schlüssel-ID")
+z = zustand(lizenzdatei(gueltig_ab="2026-12-01"))
+pruefe(z.stufe == "lesemodus" and "erst ab" in z.nur_lesen, "gültig_ab in der Zukunft")
+z = zustand(lizenzdatei(art="test", bis=HEUTE + datetime.timedelta(days=10)))
+pruefe(z.test and z.stufe == "bald" and "Testlizenz" in z.hinweis, "Testlizenz erkannt")
+pruefe(not zustand(lizenzdatei()).test, "Benutzerlizenz ist keine Testlizenz")
+z = zustand(lizenzdatei(funktionen=["schweissbaugruppen"]))
+pruefe(z.darf("schweissbaugruppen") and not z.darf("anderes"), "Feld funktionen vorbereitet")
+pruefe(zustand(lizenzdatei(funktionen=["alle", "unbekannt"])).darf("x"), "unbekannte Funktionsnamen stören nicht")
+pruefe(zustand("kein json").stufe == "lesemodus", "kaputte Datei: Lesemodus")
+
+# ------------------------------------------------------------------ L11–L12 Sperrliste
+sl = lizenz.sperrliste_signieren(3, ["L-2026-0001"], PRIVAT, "T1")
+pruefe(lizenz.sperrliste_pruefen(sl, SCHL) is not None, "Sperrliste gültig signiert")
+z = zustand(lizenzdatei(), sperrliste=lizenz.sperrliste_pruefen(sl, SCHL))
+pruefe(z.stufe == "lesemodus" and "gesperrt" in z.nur_lesen, "L11 Lizenz auf der Sperrliste")
+z = zustand(lizenzdatei(art="admin", bis=None), sperrliste=lizenz.sperrliste_pruefen(sl, SCHL))
+pruefe(z.stufe == "lesemodus", "auch Admin ist sperrbar")
+falsch = dict(sl, gesperrt=["L-2026-0001", "L-2026-0002"])
+pruefe(lizenz.sperrliste_pruefen(falsch, SCHL) is None, "veränderte Sperrliste zählt nicht")
+pruefe(lizenz.sperrliste_pruefen(lizenz.sperrliste_signieren(4, [], FREMD, "T1"), SCHL) is None,
+       "Sperrliste mit fremdem Schlüssel zählt nicht")
+o = tmp / "sperr"
+pruefe(lizenz.sperrliste_uebernehmen(o, sl, SCHL), "Sperrliste Stand 3 übernommen")
+alt = lizenz.sperrliste_signieren(2, [], PRIVAT, "T1")
+pruefe(not lizenz.sperrliste_uebernehmen(o, alt, SCHL), "L12 ältere Sperrliste (Stand 2) nicht übernommen")
+pruefe(not lizenz.sperrliste_uebernehmen(o, sl, SCHL), "gleicher Stand nicht noch einmal")
+pruefe(lizenz.sperrliste_pruefen(o / lizenz.SPERRLISTE, SCHL)["stand"] == 3, "Stand 3 bleibt")
+pruefe(lizenz.sperrliste_uebernehmen(o, lizenz.sperrliste_signieren(4, [], PRIVAT, "T1"), SCHL)
+       and lizenz.sperrliste_pruefen(o / lizenz.SPERRLISTE, SCHL)["gesperrt"] == [], "neuere Liste (Stand 4) ersetzt")
+
+# ------------------------------------------------------------------ L13 Uhr
+o = tmp / "uhr"
+lic = o / lizenz.AKTIV
+o.mkdir()
+lic.write_text(json.dumps(lizenzdatei()), encoding="utf-8")
+z, neu = lizenz.zustand_im_ordner(o, HEUTE, RECHNER, SCHL, durchsetzung=True)
+pruefe(z.stufe == "gueltig" and neu == HEUTE.isoformat(), "Datum gemerkt")
+z, neu = lizenz.zustand_im_ordner(o, HEUTE - datetime.timedelta(days=5), RECHNER, SCHL, durchsetzung=True)
+pruefe(z.stufe == "lesemodus" and "Systemzeit prüfen" in z.nur_lesen and neu is None,
+       "L13 Uhr 5 Tage zurück: Systemzeit prüfen, nichts gemerkt")
+z, _ = lizenz.zustand_im_ordner(o, HEUTE - datetime.timedelta(days=2), RECHNER, SCHL, durchsetzung=True)
+pruefe(z.stufe == "gueltig", "2 Tage zurück (Zeitzone, Datumswechsel): noch in Ordnung")
+z, _ = lizenz.zustand_im_ordner(o, HEUTE, RECHNER, SCHL, durchsetzung=True)
+pruefe(z.stufe == "gueltig", "L13 nach Korrektur wieder gültig")
+(o / lizenz.ZEIT).unlink()
+z, _ = lizenz.zustand_im_ordner(o, HEUTE - datetime.timedelta(days=5), RECHNER, SCHL,
+                                db_zuletzt=HEUTE.isoformat(), durchsetzung=True)
+pruefe(z.stufe == "lesemodus", "zeit.json gelöscht: Einstellung lizenz_zuletzt zählt weiter")
+lic.write_text(json.dumps(lizenzdatei(art="admin", bis=None)), encoding="utf-8")
+z, _ = lizenz.zustand_im_ordner(o, HEUTE - datetime.timedelta(days=50), RECHNER, SCHL,
+                                db_zuletzt=HEUTE.isoformat(), durchsetzung=True)
+pruefe(z.stufe == "admin", "Admin unabhängig von der Uhr")
+
+# ------------------------------------------------------------------ L14 keine Lizenz, Stufe 1
+o = tmp / "leer"
+z, _ = lizenz.zustand_im_ordner(o, HEUTE, RECHNER, SCHL, durchsetzung=True)
+pruefe(z.stufe == "lesemodus" and RECHNER in z.nur_lesen and RECHNER in z.hinweis, "L14 keine Lizenz: Rechner-ID im Hinweis")
+z, _ = lizenz.zustand_im_ordner(o, HEUTE, RECHNER, SCHL, durchsetzung=False)
+pruefe(z.stufe == "lesemodus" and not z.nur_lesen and z.darf() and "braucht das Programm eine Lizenz" in z.hinweis
+       and z.farbe == "gelb", "Stufe 1: keine Sperre, nur Hinweis")
+z = zustand(lizenzdatei(bis=HEUTE - datetime.timedelta(days=60)), durchsetzung=False)
+pruefe(not z.nur_lesen and z.darf(), "Stufe 1: abgelaufene Lizenz sperrt nicht")
+pruefe(lizenz.DURCHSETZUNG is False, "Auslieferung in Stufe 1 (DURCHSETZUNG aus)")
+
+# ------------------------------------------------------------------ L15 Lizenz laden
+o = tmp / "laden"
+gut = tmp / "gut.lizenz"
+gut.write_text(json.dumps(lizenzdatei()), encoding="utf-8")
+inhalt = lizenz.lizenz_laden(o, gut, HEUTE, RECHNER, SCHL)
+pruefe(inhalt["lizenz_id"] == "L-2026-0001" and lizenz.aktive_lizenz(o), "gültige Lizenz geladen")
+vorher = (o / lizenz.AKTIV).read_text(encoding="utf-8")
+for name, daten in (("verändert", dict(lizenzdatei(), signatur=lizenzdatei(privat=FREMD)["signatur"])),
+                    ("anderer Rechner", lizenzdatei(rechner=["RL-0000-0000-0000-0000"])),
+                    ("abgelaufen", lizenzdatei(bis=HEUTE - datetime.timedelta(days=40)))):
+    schlecht = tmp / f"{name}.lizenz"
+    schlecht.write_text(json.dumps(daten), encoding="utf-8")
+    try:
+        lizenz.lizenz_laden(o, str(schlecht), HEUTE, RECHNER, SCHL)
+        pruefe(False, f"L15 ungültige Datei ({name}) abgelehnt")
+    except lizenz.LizenzFehler as e:
+        pruefe((o / lizenz.AKTIV).read_text(encoding="utf-8") == vorher, f"L15 {name}: abgelehnt, gültige bleibt ({e})")
+lizenz.lizenz_laden(o, lizenzdatei(lizenz_id="L-2026-0002"), HEUTE, RECHNER, SCHL)
+pruefe(len(list((o / lizenz.ALT).glob("*.lizenz"))) == 1, "ersetzte Lizenz liegt in alt/")
+
+# ------------------------------------------------------------------ Lizenz-Werkzeug
+umg = dict(os.environ, ROHRLASER_LIZENZ_PASSWORT="test-passwort-123", ROHRLASER_LIZENZ_ORDNER=str(tmp / "werkzeug"))
+WZ = [sys.executable, str(WURZEL / "werkzeuge" / "lizenz_werkzeug.py")]
+
+
+def wz(*args):
+    r = subprocess.run(WZ + list(args), env=umg, capture_output=True, text=True, encoding="utf-8")
+    return r.returncode, r.stdout + r.stderr
+
+
+code, aus = wz("schluessel-erzeugen")
+pruefe(code == 0 and '"K1": "' in aus, "Werkzeug: Schlüsselpaar K1 erzeugt")
+pem = (tmp / "werkzeug" / "privat_K1.pem").read_text()
+pruefe("ENCRYPTED PRIVATE KEY" in pem, "privater Schlüssel mit Passwort geschützt")
+code, _ = wz("schluessel-erzeugen")
+pruefe(code != 0 and (tmp / "werkzeug" / "privat_K1.pem").read_text() == pem, "vorhandener Schlüssel nie überschrieben")
+k1 = aus.split('"K1": "')[1].split('"')[0]
+code, aus = wz("erstellen", "--inhaber", "Max Mustermann", "--firma", "Musterbau GmbH", "--rechner", RECHNER)
+pruefe(code == 0 and "L-" in aus, "Werkzeug: Benutzerlizenz erstellt")
+code, aus2 = wz("admin", "--rechner", RECHNER, "--rechner", "RL-AAAA-BBBB-CCCC-DDDD")
+code3, aus3 = wz("erstellen", "--art", "test", "--inhaber", "Interessent", "--beliebig")
+code4, _ = wz("erstellen", "--inhaber", "Ohne Rechner")
+pruefe(code == 0 and code3 == 0 and code4 != 0, "Werkzeug: Admin, Test (beliebig); ohne --rechner abgelehnt")
+dateien = sorted((tmp / "werkzeug" / "Lizenzen").glob("*.lizenz"))
+pruefe(len(dateien) == 3, f"drei Lizenzdateien ({', '.join(d.name for d in dateien)})")
+s = {"K1": k1}
+heute = datetime.date.today()
+arten = {}
+for d in dateien:
+    inh = lizenz.pruefen(d, s)
+    arten[inh["art"]] = (inh, lizenz.ermitteln(d, heute, RECHNER, s, durchsetzung=True))
+b_inh, b_z = arten["benutzer"]
+import lizenz_werkzeug  # noqa: E402
+erwartet = lizenz_werkzeug.monate_spaeter(heute, 6)
+pruefe(b_z.stufe == "gueltig" and b_inh["gueltig_bis"] == erwartet.isoformat(),
+       f"Benutzerlizenz 6 Monate ({b_inh['gueltig_bis']})")
+pruefe(arten["admin"][1].stufe == "admin" and arten["admin"][0]["gueltig_bis"] is None, "Admin-Lizenz gültig")
+t_inh, t_z = arten["test"]
+pruefe(t_z.test and t_inh["rechner"] == [] and (datetime.date.fromisoformat(t_inh["gueltig_bis"]) - heute).days == 29,
+       "Testlizenz 30 Tage, beliebiger Rechner")
+pruefe(lizenz_werkzeug.monate_spaeter(datetime.date(2026, 11, 1), 6) == datetime.date(2027, 4, 30)
+       and lizenz_werkzeug.monate_spaeter(datetime.date(2026, 8, 31), 6) == datetime.date(2027, 2, 27),
+       "6 Monate: 1.11. bis 30.4., 31.8. bis 27.2.")
+ids = sorted(lizenz.pruefen(d, s)["lizenz_id"] for d in dateien)
+pruefe(ids == [f"L-{heute.year}-000{i}" for i in (1, 2, 3)], f"Lizenz-IDs fortlaufend ({ids})")
+code, aus = wz("pruefen", str(dateien[0]))
+pruefe("Signatur" in aus, "Werkzeug: pruefen gibt Ergebnis aus")
+code, aus = wz("sperren", ids[0])
+sp = json.loads((tmp / "werkzeug" / "Sperrliste.json").read_text(encoding="utf-8"))
+pruefe(code == 0 and lizenz.sperrliste_pruefen(sp, s) == dict(stand=1, gesperrt=[ids[0]], schluessel_id="K1"),
+       "Werkzeug: Sperrliste Stand 1 signiert")
+wz("sperren", ids[1])
+sp = json.loads((tmp / "werkzeug" / "Sperrliste.json").read_text(encoding="utf-8"))
+pruefe(lizenz.sperrliste_pruefen(sp, s)["stand"] == 2 and len(sp["gesperrt"]) == 2, "zweite Sperrung: Stand 2")
+code, aus = wz("liste")
+pruefe(code == 0 and sum(z.startswith("L-") for z in aus.splitlines()) == 3 and "GESPERRT" in aus, "Werkzeug: liste mit Register")
+umg["ROHRLASER_LIZENZ_PASSWORT"] = "falsch-falsch"
+code, aus = wz("erstellen", "--inhaber", "X", "--beliebig")
+pruefe(code != 0 and "Passwort falsch" in aus, "falsches Passwort abgelehnt")
+
+# ------------------------------------------------------------------ S7 Repository
+git = subprocess.run(["git", "ls-files"], cwd=WURZEL, capture_output=True, text=True)
+if git.returncode == 0:
+    treffer = []
+    for rel in git.stdout.split():
+        p = WURZEL / rel
+        if p.suffix.lower() in (".pem", ".lizenz", ".key"):
+            treffer.append(rel)
+            continue
+        try:
+            if p.stat().st_size < 5_000_000 and b"PRIVATE " + b"KEY" in p.read_bytes():
+                treffer.append(rel)
+        except OSError:
+            pass
+    pruefe(not treffer, f"S7 kein privater Schlüssel im Repository {treffer or ''}")
+ignor = (WURZEL / ".gitignore").read_text(encoding="utf-8").split()
+pruefe("*.pem" in ignor and "*.lizenz" in ignor, ".gitignore enthält *.pem und *.lizenz")
+from rohrlaser.lizenz_schluessel import SCHLUESSEL  # noqa: E402
+pruefe(all(len(__import__("base64").b64decode(v)) == 32 for v in SCHLUESSEL.values()),
+       "lizenz_schluessel.py enthält nur öffentliche Schlüssel (32 Byte)")
+
+print(f"\n{len(fehler)} Fehler" if fehler else "\nAlle Lizenz-Prüfungen bestanden.")
+sys.exit(1 if fehler else 0)

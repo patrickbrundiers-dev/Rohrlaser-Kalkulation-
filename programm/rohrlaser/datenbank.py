@@ -18,6 +18,7 @@ bekommen Kategorien, die neuen Beispiel-Werkstoffe und -Oberflächen und Schneid
 """
 import contextlib
 import datetime
+import functools
 import hashlib
 import json
 import os
@@ -115,7 +116,53 @@ def _zahl_pruefen(feld, wert):
         raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine Zahl eingeben (nicht '{wert}').")
 
 
+class Lesemodus(PermissionError):
+    """Ändern im Lesemodus (Lizenz fehlt, abgelaufen, gesperrt …). Text: Grund für den Benutzer."""
+
+
+def _zugriff(art):
+    def markieren(methode):
+        methode.zugriff = art
+        return methode
+    return markieren
+
+
+liest = _zugriff("liest")              # ändert nichts, auch im Lesemodus erlaubt
+
+
+def schreibt(methode):
+    """Ändert Daten: im Lesemodus (Datenbank.nur_lesen) Ausnahme Lesemodus statt Ausführung."""
+    @functools.wraps(methode)
+    def pruefen(self, *args, **kwargs):
+        if self.nur_lesen:
+            raise Lesemodus(f"Lesemodus – {self.nur_lesen}. Ändern ist erst mit gültiger Lizenz möglich "
+                            "(Hilfe → Lizenz …).")
+        return methode(self, *args, **kwargs)
+    pruefen.zugriff = "schreibt"
+    return pruefen
+
+
+def erlaubt(methode):
+    """Ändert die Datendatei, ist aber auch im Lesemodus erlaubt (Sicherung wiederherstellen: die Daten gehören dem
+    Benutzer); hebt dafür den Schreibschutz von SQLite kurz auf."""
+    @functools.wraps(methode)
+    def frei(self, *args, **kwargs):
+        if not self.nur_lesen:
+            return methode(self, *args, **kwargs)
+        if self.con.in_transaction:      # abgewiesener Schreibversuch: im Lesemodus gibt es nichts zu verlieren
+            self.con.rollback()
+        self.con.execute("PRAGMA query_only=OFF")
+        try:
+            return methode(self, *args, **kwargs)
+        finally:
+            self.con.execute("PRAGMA query_only=ON")
+    frei.zugriff = "erlaubt"
+    return frei
+
+
 class Datenbank:
+    nur_lesen = ""        # Grund des Lesemodus (Lizenz), leer = Ändern erlaubt; setzen mit lesemodus()
+
     def __init__(self, pfad):
         self.pfad = Path(pfad)
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
@@ -135,8 +182,18 @@ class Datenbank:
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
         self._rp_anpassen()
 
+    @liest
     def schliessen(self):
         self.con.close()
+
+    @liest
+    def lesemodus(self, grund):
+        """Lesemodus ein (grund: Text, warum) oder aus (leer). Zwei Riegel: @schreibt-Methoden lösen Lesemodus aus,
+        und SQLite selbst nimmt keine Änderung mehr an (PRAGMA query_only), auch nicht über db.con direkt."""
+        if self.con.in_transaction:      # Offenes aus der Zeit mit Schreibrecht behalten, abgewiesenes verwerfen
+            self.con.rollback() if self.nur_lesen else self.con.commit()
+        self.nur_lesen = str(grund or "")
+        self.con.execute(f"PRAGMA query_only={'ON' if self.nur_lesen else 'OFF'}")
 
     # -------------------------------------------------------------- Schema
     def _anlegen(self):
@@ -486,6 +543,7 @@ class Datenbank:
                                      list(z.values()))
             self._einstellung_schreiben("rp_stand", RP_STAND)
 
+    @schreibt
     def rp_laden(self, eintraege):
         """Selbst geladene RP-Profile (rp_profile.laden) speichern: Kontur in der Einstellung 'rp_eigene', Zeile in den
         Profilen anlegen bzw. Form, Maße und Fläche einer vorhandenen Zeile mit derselben Profil-ID ersetzen.
@@ -552,6 +610,7 @@ class Datenbank:
             self.con.execute("UPDATE OR IGNORE einstellungen SET name=? WHERE name=?", (neu, alt))
 
     # -------------------------------------------------------------- Stammdaten
+    @liest
     def zeilen(self, tabelle, mit_uid=False):
         """Alle Zeilen als dicts; die Kennung uid (Abgleich mehrerer Arbeitsplätze, teilen.py) nur mit mit_uid."""
         out = [dict(r) for r in self.con.execute(f'SELECT * FROM "{tabelle}" ORDER BY id')]
@@ -560,6 +619,7 @@ class Datenbank:
                 z.pop("uid", None)
         return out
 
+    @liest
     def anzahl(self, tabelle):
         return self.con.execute(f'SELECT COUNT(*) FROM "{tabelle}"').fetchone()[0]
 
@@ -570,6 +630,7 @@ class Datenbank:
             self._einstellung_schreiben("stammdaten_herkunft", "eigene Werte")
             self._einstellung_schreiben("stammdaten_stand", self._jetzt())
 
+    @schreibt
     def neu(self, tabelle, werte=None):
         werte = {k: v for k, v in (werte or {}).items() if k not in ("id", "uid")}    # neue Zeile: neue Kennung
         with self.con:
@@ -580,6 +641,7 @@ class Datenbank:
             return self.con.execute(f'INSERT INTO "{tabelle}" ({namen}) VALUES ({", ".join("?" * len(werte))})',
                                     list(werte.values())).lastrowid
 
+    @schreibt
     def aendern(self, tabelle, zeilen_id, feld, wert):
         """Ein Feld ändern. Ist es ein Schlüssel, auf den andere Tabellen verweisen (Profil-ID,
         Werkstoff-ID, Maschinen-ID), werden die Verweise mit umbenannt. Doppelte Schlüssel lösen
@@ -601,6 +663,7 @@ class Datenbank:
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
 
+    @liest
     def verweise(self, tabelle, zeilen_id):
         """Anzahl der Zeilen anderer Tabellen, die auf diese Zeile verweisen (Hinweis vor dem Löschen)."""
         n = 0
@@ -613,11 +676,13 @@ class Datenbank:
                     n += self.con.execute(f'SELECT COUNT(*) FROM "{ziel}" WHERE "{zfeld}"=?', (r[0],)).fetchone()[0]
         return n
 
+    @schreibt
     def loeschen(self, tabelle, ids):
         with self.con:
             self._stammdaten_geaendert(tabelle)
             self.con.executemany(f'DELETE FROM "{tabelle}" WHERE id=?', [(i,) for i in ids])
 
+    @schreibt
     def schneiddaten_zuruecksetzen(self, maschinen=None):
         """Schneiddaten der Maschinen (None = alle mit mitgelieferten Richtwerten, stammdaten.LASER) auf die
         Standardwerte zurücksetzen: alle Zeilen dieser Maschinen (auch eigene und werkstoffgenaue) löschen, die
@@ -653,6 +718,7 @@ class Datenbank:
                 out.append((pid, aid, nummer, liste))
         return out
 
+    @liest
     def zusatz_verwendung(self, name):
         """Wo eine Zusatzarbeit verwendet wird: {angebote: [Nummer], positionen: Anzahl, ohne_stand: Anzahl
         Positionen ohne gespeicherten Preisstand (rechnen nach dem Löschen nicht mehr)}."""
@@ -661,6 +727,7 @@ class Datenbank:
                                                      and not isinstance(e.get("stand"), dict) for e in liste))
         return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer), ohne_stand=ohne)
 
+    @liest
     def zusatz_haeufigkeit(self):
         """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten)."""
         n = {}
@@ -669,6 +736,7 @@ class Datenbank:
                 n[name] = n.get(name, 0) + 1
         return n
 
+    @schreibt
     def zusatz_speichern(self, zeilen_id, werte):
         """Zusatzarbeit anlegen (zeilen_id None) oder alle Felder ersetzen. Wird der Name geändert, ändern sich die
         Namen in den Positionen mit (Preise bleiben). Ergebnis: ID. Doppelter Name -> ValueError."""
@@ -696,10 +764,12 @@ class Datenbank:
             raise ValueError(f"Eine Zusatzarbeit '{werte['name']}' gibt es schon.")
 
     # -------------------------------------------------------------- Zukaufartikel
+    @liest
     def zukauf_kategorien(self):
         """{Name: Zeile} der Kategorien der Zukaufartikel."""
         return {z["name"]: z for z in self.zeilen("zukauf_kategorien") if z.get("name")}
 
+    @liest
     def zukauf_artikel_liste(self):
         """Alle Zukaufartikel, je mit 'bezuege' (Einkauf je Lieferant, bevorzugter zuerst)."""
         bezuege = {}
@@ -711,6 +781,7 @@ class Datenbank:
             out.append(a)
         return out
 
+    @liest
     def zukauf_artikel(self, artikel_id):
         """Zukaufartikel mit 'bezuege' oder None."""
         r = self.con.execute("SELECT * FROM zukauf_artikel WHERE id=?", (artikel_id,)).fetchone()
@@ -722,6 +793,7 @@ class Datenbank:
             key=lambda b: b.get("bevorzugt") != "ja")
         return a
 
+    @schreibt
     def zukauf_speichern(self, artikel_id, werte, bezuege, bemerkung=None):
         """Zukaufartikel anlegen (artikel_id None) oder ersetzen, mit allen Einkaufsbedingungen. Prüft Eingaben
         (zukauf.artikel_fehler) und eindeutige Artikelnummer (ValueError). Änderungen an Einkaufspreisen und
@@ -774,6 +846,7 @@ class Datenbank:
             self._zukauf_protokoll(artikel_id, alt, dict(werte, bezuege=bezuege), jetzt, bemerkung)
         return artikel_id
 
+    @schreibt
     def zukauf_ek_eintragen(self, artikel_id, preis, lieferant=None, ab=None, bemerkung=None):
         """Einkaufspreis je Einheit (ab Menge 1) beim Lieferanten eintragen (fehlt er, beim bevorzugten bzw. einem neuen
         Eintrag); weitere Staffelzeilen dieses Lieferanten werden ersetzt. Mit ab (Stückzahl, z. B. aus dem Angebot)
@@ -838,18 +911,21 @@ class Datenbank:
                              "bemerkung) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                              [(jetzt, artikel_id, name, l, f, a, n, bemerkung) for l, f, a, n in zeilen])
 
+    @schreibt
     def zukauf_status(self, artikel_id, status):
         """Artikel archivieren oder wieder aktivieren (Positionen mit dem Artikel rechnen mit ihrem Preisstand weiter)."""
         with self.con:
             self.con.execute("UPDATE zukauf_artikel SET status=?, geaendert=? WHERE id=?",
                              (status, self._jetzt(), artikel_id))
 
+    @liest
     def zukauf_historie(self, artikel_id=None):
         """Preisänderungen, neueste zuerst."""
         sql = "SELECT * FROM zukauf_historie" + (" WHERE artikel_id=?" if artikel_id is not None else "")
         return [dict(r) for r in self.con.execute(sql + " ORDER BY datum DESC, id DESC",
                                                   (artikel_id,) if artikel_id is not None else ())]
 
+    @liest
     def zukauf_stand(self, artikel_id, lieferant=None):
         """Aktueller Preisstand eines Artikels für eine Position (zukauf.stand) oder None."""
         a = self.zukauf_artikel(artikel_id)
@@ -858,6 +934,7 @@ class Datenbank:
         return zukauf.stand(a, zukauf.bezug_waehlen(a["bezuege"], lieferant), self.zukauf_kategorien(),
                             self.einstellung("zukauf_aufschlag"))
 
+    @liest
     def zukauf_positionen(self, artikel_id=None):
         """[(Positions-ID, Angebots-ID, Angebotsnummer, Liste)] aller Positionen mit Zukaufteilen (nur mit diesem
         Artikel, falls angegeben)."""
@@ -870,6 +947,7 @@ class Datenbank:
                 out.append((pid, aid, nummer, liste))
         return out
 
+    @liest
     def zukauf_verwendung(self, artikel_id):
         """Wo ein Artikel verwendet wird: {angebote: [Nummer], positionen: Anzahl, veraltet: [Nummer] (Angebote,
         deren gespeicherter Preisstand vom aktuellen abweicht)}."""
@@ -888,6 +966,7 @@ class Datenbank:
         return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer),
                     veraltet=sorted(veraltet))
 
+    @liest
     def zukauf_betroffen(self, artikel_id):
         """Angebote mit dem Artikel in einem älteren Preisstand: [{angebot_id, nummer, kunde, positionen, stand
         (Datum), verbrauch, vk_alt, vk_neu}] (VK netto für den ganzen Verbrauch im Angebot, ohne Skonto)."""
@@ -922,6 +1001,7 @@ class Datenbank:
                                  vk_neu=None if fehlt else float(sum((g["vk"] for g in neu), zukauf.NULL))))
         return sorted(ergebnis, key=lambda x: x["nummer"] or "")
 
+    @schreibt
     def zukauf_angebot_aktualisieren(self, angebot_id, artikel_id):
         """Preisstand eines Artikels in allen Positionen eines Angebots auf den aktuellen Stand setzen (gleicher
         Lieferant). Ergebnis: Anzahl geänderter Einträge."""
@@ -942,6 +1022,7 @@ class Datenbank:
                 self.position_aendern(pid, "zukauf", json.dumps(liste, ensure_ascii=False))
         return n
 
+    @schreibt
     def zukauf_importieren(self, zeilen, bemerkung="CSV-Import"):
         """Geprüfte Zeilen aus zukauf_csv.vorschau übernehmen (nur 'neu' und 'ändern'). Unbekannte Kategorien werden
         angelegt. Ergebnis: (neu, geändert)."""
@@ -966,6 +1047,7 @@ class Datenbank:
                 neu += 1
         return neu, geaendert
 
+    @schreibt
     def kunden_importieren(self, zeilen):
         """Geprüfte Zeilen aus kunden_csv.vorschau übernehmen (nur 'neu' und 'ändern'), vorher geschützte Sicherung
         '_vor_Kundenimport'. Ergebnis: (neu, geändert, Pfad der Sicherung)."""
@@ -989,6 +1071,7 @@ class Datenbank:
                     neu += 1
         return neu, geaendert, pfad
 
+    @schreibt
     def stammdaten_ersetzen(self, daten, einstellungen, herkunft):
         """Alle Stammdatentabellen in einem Schritt ersetzen (z. B. Beispieldaten einer neuen Datei).
         daten: {Tabelle: [Zeile, …]}; einstellungen: {Name: Wert}, nur die genannten werden gesetzt."""
@@ -1007,6 +1090,7 @@ class Datenbank:
             self._einstellung_schreiben("stammdaten_herkunft", herkunft)
             self._einstellung_schreiben("stammdaten_stand", datetime.datetime.now().isoformat(timespec="seconds"))
 
+    @liest
     def kontext(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
@@ -1017,6 +1101,7 @@ class Datenbank:
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
         return k
 
+    @liest
     def tabellen(self):
         """Stammdaten, die die Rechnung braucht (Preise, Lieferlängen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
         Arbeitsschritte)."""
@@ -1025,6 +1110,7 @@ class Datenbank:
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         return tab
 
+    @liest
     def blech_daten(self):
         """Daten des Blech-Editors für den Richtpreis je Staffelstufe (staffeln.blech_stand): werkstoffe {ID: Zeile},
         laser [Zeilen], einst {Einstellung: Wert}."""
@@ -1033,11 +1119,13 @@ class Datenbank:
                                 if z.get("blech_werkstoff_id")},
                     laser=self.zeilen("blechlaser"), einst={n: self.einstellung(n) for n in blech.EINSTELLUNGEN})
 
+    @liest
     def zeitbasis_vorgabe(self, maschinen_id):
         """Snapshot der Stundensätze und Zeitvorgaben für ein Angebot (rechnen.zeitbasis_aus)."""
         from .rechnen import zeitbasis_aus
         return zeitbasis_aus(maschinen_id, self.kontext(), self.tabellen())
 
+    @schreibt
     def zeitbasis_speichern(self, angebot_id, zeitbasis):
         """Stundensätze und Zeitvorgaben eines Angebots setzen (None = wieder die aktuellen Stammdaten)."""
         with self.con:
@@ -1045,6 +1133,7 @@ class Datenbank:
                              (json.dumps(zeitbasis, ensure_ascii=False) if zeitbasis is not None else None,
                               self._jetzt(), angebot_id))
 
+    @schreibt
     def preisbasis_speichern(self, angebot_id, preisbasis):
         """Festgeschriebene Materialpreise und Schneiddaten eines Angebots setzen (rechnen.preisbasis_aus;
         None = wieder die aktuellen Stammdaten)."""
@@ -1053,6 +1142,7 @@ class Datenbank:
                              (json.dumps(preisbasis, ensure_ascii=False) if preisbasis is not None else None,
                               self._jetzt(), angebot_id))
 
+    @schreibt
     def laengenwahl_speichern(self, angebot_id, wahl):
         """Übernommene Lieferlängen eines Angebots {Gruppenschlüssel: Länge} (rechnen.laengen_schluessel;
         leer = alle Gruppen mit der Stangenlänge des Angebots)."""
@@ -1060,6 +1150,7 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET laengenwahl=?, geaendert=? WHERE id=?",
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
+    @schreibt
     def naht_stangen_speichern(self, angebot_id, wahl):
         """Nahtlage der Lieferstange je Stangengruppe {naht.gruppe_schluessel: 'Breitseite'/'Schmalseite'}
         (leer = aus den Teilen mit fester Naht)."""
@@ -1069,10 +1160,12 @@ class Datenbank:
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
     # -------------------------------------------------------------- Frachtkosten
+    @liest
     def fracht_daten(self):
         """Fracht-Stammdaten für den Rechenkern {Kurzname: [Zeilen]} (fracht_daten.KURZ)."""
         return {kurz: self.zeilen(t) for t, kurz in KURZ.items()}
 
+    @schreibt
     def fracht_beispiele_laden(self):
         """Beispiel-Frachtdaten (BEISPIEL) einfügen; vorhandene Zeilen mit gleichem Schlüssel bleiben.
         Ergebnis: Anzahl eingefügter Zeilen."""
@@ -1086,6 +1179,7 @@ class Datenbank:
                     n += c.rowcount
         return n
 
+    @schreibt
     def fracht_richtwerte_laden(self, absender_plz=None):
         """Richtwerte Palettenversand (fracht_richtwerte.py) übernehmen: alle Zeilen mit BEISPIEL oder RICHTWERT in
         der Bemerkung werden ersetzt, eigene Einträge bleiben (gleicher Schlüssel: der eigene gilt). Absender-PLZ
@@ -1113,6 +1207,7 @@ class Datenbank:
             self.einstellung_setzen("fracht_versandart", VERSANDART)
         return weg, neu
 
+    @schreibt
     def fracht_zonen_zuruecksetzen(self, absender_plz=None):
         """Frachtzonen und PLZ-Zuordnungen auf Standard (Richtwert-Zonen RW1–4 und Inseln ab der Absender-PLZ,
         fracht_richtwerte.py) zurücksetzen: vorher geschützte Sicherung 'vor_Frachtzonen_Standard', dann alle Zonen
@@ -1143,6 +1238,7 @@ class Datenbank:
             self.einstellung_setzen("absender_plz", absender_plz)
         return weg, neu, pfad
 
+    @liest
     def fracht_zonen_fremd(self):
         """Preiszeilen anderer Tarife (nicht Richtwert), deren Zone es nach dem Zurücksetzen nicht mehr gäbe: Anzahl
         (für die Sicherheitsabfrage)."""
@@ -1152,6 +1248,7 @@ class Datenbank:
             f'SELECT COUNT(*) FROM fracht_preise WHERE tarif_id<>? AND COALESCE(zone_id,\'\')<>\'\' AND zone_id NOT IN '
             f'({", ".join("?" * len(standard))})', [TARIF] + standard).fetchone()[0]
 
+    @schreibt
     def plz_importieren(self, zeilen):
         """PLZ-Zuordnungen übernehmen (fracht_daten.plz_csv_lesen); gleicher Schlüssel (Land, PLZ von, PLZ bis,
         Richtung, Dienstleister, Kunde) wird ersetzt. Ergebnis: (neu, ersetzt)."""
@@ -1174,6 +1271,7 @@ class Datenbank:
                     neu += 1
         return neu, ersetzt
 
+    @schreibt
     def fracht_tarif_neue_version(self, tarif_id, ab):
         """Tarif mit Preisstaffeln kopieren: neue Tarif-ID '<alt>/<ab>', gültig ab `ab` (ISO); der alte Tarif
         bekommt 'gültig bis' am Vortag. Ergebnis: neue Tarif-ID."""
@@ -1222,6 +1320,7 @@ class Datenbank:
         self.angebot_aendern(angebot_id, "fracht_modus", fracht_angebot.BERECHNET)
         self.angebot_aendern(angebot_id, "fracht", d.get("gesamt"))
 
+    @schreibt
     def fracht_auto_aktualisieren(self, angebot_id):
         """'Fracht automatisch berechnen': Zone, Tarif und Tarifkopie mit den aktuellen Frachtdaten neu festhalten
         (beim Setzen des Hakens, Ändern der Ziel-PLZ oder des Kunden). Ergebnis: Frachtberechnung (dict)."""
@@ -1229,6 +1328,7 @@ class Datenbank:
         self._fracht_auto_speichern(angebot_id, d)
         return d
 
+    @schreibt
     def fracht_auto_nachfuehren(self, angebot_id):
         """Nach jeder Änderung am Angebot (Haken gesetzt): Fracht mit der Tarifkopie neu rechnen und ins Feld
         Frachtkosten schreiben (leer, solange sie nicht berechnet werden kann). Ohne Tarifkopie (noch nicht
@@ -1253,6 +1353,7 @@ class Datenbank:
         self.angebot_aendern(angebot_id, "fracht", b)
         return True
 
+    @schreibt
     def fracht_kalkulation_speichern(self, ergebnis, bezeichnung="", angebot_id=None):
         """Abgeschlossene Frachtkalkulation mit allen verwendeten Tarifwerten (Snapshot) in die Historie."""
         from . import VERSION
@@ -1263,6 +1364,7 @@ class Datenbank:
                 (self._jetzt(), angebot_id, bezeichnung, json.dumps(ergebnis.get("eingaben"), ensure_ascii=False),
                  json.dumps(ergebnis, ensure_ascii=False, default=str), ergebnis.get("gesamt"), VERSION)).lastrowid
 
+    @liest
     def fracht_kalkulationen(self):
         """Historie, neueste zuerst: id, datum, bezeichnung, angebot_id, gesamt und das gespeicherte Ergebnis."""
         out = []
@@ -1274,6 +1376,7 @@ class Datenbank:
         return out
 
     # -------------------------------------------------------------- Kunden
+    @liest
     def kunde(self, kundennr):
         """Kundenzeile zur Kundennummer oder None."""
         if kundennr in (None, ""):
@@ -1281,12 +1384,14 @@ class Datenbank:
         r = self.con.execute("SELECT * FROM kunden WHERE kundennr=?", (kundennr,)).fetchone()
         return dict(r) if r else None
 
+    @liest
     def zahlungsbedingungen(self, kundennr=None):
         """Skonto [%], Skontofrist und Zahlungsziel für ein neues Angebot: Werte des Kunden, fehlende aus den
         Einstellungen."""
         k = self.kunde(kundennr) or {}
         return {n: k[n] if k.get(n) is not None else self.einstellung(n) for n in ZAHLUNG}
 
+    @liest
     def kalkulation_vorgaben(self):
         """Kalkulationswerte für ein Angebot aus den Einstellungen (Prozentwerte in %)."""
         out = {}
@@ -1296,6 +1401,7 @@ class Datenbank:
                 out[f.name] = round(w * 100, 4) if f.name in KALK_PROZENT else w
         return out
 
+    @liest
     def lieferzeit_vorgabe(self, datum=None):
         """Lieferzeit für ein neues Angebot aus den Einstellungen; ein ungültiger Wert dort bleibt leer."""
         art = self.einstellung("lieferzeit_art") or None
@@ -1306,12 +1412,14 @@ class Datenbank:
         return dict(lieferzeit_art=art, lieferzeit_wert=wert,
                     lieferzeit_zusatz=(self.einstellung("lieferzeit_zusatz") or "").strip() or None)
 
+    @schreibt
     def kalkulation_zuruecksetzen(self, angebot_id):
         """Kalkulationswerte, Stundensätze und Zeitvorgaben des Angebots wieder auf die Einstellungen setzen."""
         for n, w in self.kalkulation_vorgaben().items():
             self.angebot_aendern(angebot_id, n, w)
         self.zeitbasis_speichern(angebot_id, self.zeitbasis_vorgabe(self.angebot(angebot_id).get("maschine")))
 
+    @schreibt
     def kunde_uebernehmen(self, angebot_id, kundennr):
         """Kundennummer ins Angebot; steht sie im Kundenstamm, auch Name und Zahlungsbedingungen.
         Ergebnis: Kundenzeile oder None."""
@@ -1324,6 +1432,7 @@ class Datenbank:
         return k
 
     # -------------------------------------------------------------- Angebote
+    @liest
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
@@ -1338,6 +1447,7 @@ class Datenbank:
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
         return [dict(r) for r in self.con.execute(sql, werte)]
 
+    @liest
     def angebot(self, angebot_id):
         r = self.con.execute("SELECT * FROM angebote WHERE id=?", (angebot_id,)).fetchone()
         if r is None:
@@ -1356,6 +1466,7 @@ class Datenbank:
     def _jetzt(self):
         return datetime.datetime.now().isoformat(timespec="seconds")
 
+    @schreibt
     def angebot_neu(self, kopf=None):
         """Neues Angebot mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch."""
         kopf = dict(kopf or {})
@@ -1399,6 +1510,7 @@ class Datenbank:
             raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
         return i
 
+    @schreibt
     def angebot_aendern(self, angebot_id, feld, wert):
         if feld not in {f.name for f in KOPF}:
             raise KeyError(feld)
@@ -1430,6 +1542,7 @@ class Datenbank:
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{wert}' gibt es schon.")
 
+    @schreibt
     def angebot_kopieren(self, angebot_id, kundennr=None):
         """Kopie mit neuer Nummer und heutigem Datum. kundennr: anderer Kunde (Name und Zahlungsbedingungen
         aus dem Kundenstamm, sonst bleibt nur die Nummer); None = gleicher Kunde."""
@@ -1457,16 +1570,19 @@ class Datenbank:
             self.staffel_neu(neu, dict(st, stufe_id=stufen.get(st.get("stufe_id"))))
         return neu
 
+    @schreibt
     def angebot_loeschen(self, angebot_id):
         with self.con:
             self.con.execute("DELETE FROM angebote WHERE id=?", (angebot_id,))
 
+    @schreibt
     def ergebnis_speichern(self, angebot_id, ergebnis):
         with self.con:
             self.con.execute("UPDATE angebote SET ergebnis=?, optimiert_am=? WHERE id=?",
                              (json.dumps(ergebnis, ensure_ascii=False) if ergebnis else None,
                               self._jetzt() if ergebnis else None, angebot_id))
 
+    @schreibt
     def kennzahlen_merken(self, angebot_id, vk_netto, stand):
         """Verkaufspreis netto und Stand der Optimierung für die Angebotsliste (nur Anzeige; ändert 'geändert am'
         nicht). Wird beim Anzeigen eines Angebots geschrieben, nur wenn sich etwas geändert hat."""
@@ -1475,6 +1591,7 @@ class Datenbank:
                              "stand=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ?)",
                              (vk_netto, self._jetzt(), vk_netto, stand, angebot_id, vk_netto, stand))
 
+    @schreibt
     def versand_merken(self, angebot_id, eintrag):
         """Verschicktes Angebots-PDF merken ({datum, netto, datei}); Verlauf je Angebot, ändert 'geändert am' nicht."""
         alt = (self.angebot(angebot_id) or {}).get("versand") or []
@@ -1482,6 +1599,7 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
                              (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
 
+    @schreibt
     def vorgang_setzen(self, angebot_id, vorgang):
         """Vorgang des Angebots (VORGAENGE; 'Entwurf' wird leer gespeichert). Ändert 'geändert am' nicht."""
         if vorgang not in VORGAENGE:
@@ -1490,12 +1608,14 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET vorgang=? WHERE id=?",
                              (None if vorgang == VORGAENGE[0] else vorgang, angebot_id))
 
+    @schreibt
     def staffelpreise_speichern(self, angebot_id, staffelpreise):
         """staffelpreise: {'zeilen': [...], 'kennung': str, 'am': Zeitpunkt} oder None"""
         with self.con:
             self.con.execute("UPDATE angebote SET staffelpreise=? WHERE id=?",
                              (json.dumps(staffelpreise, ensure_ascii=False) if staffelpreise else None, angebot_id))
 
+    @schreibt
     def nachkalkulation_speichern(self, angebot_id, ist):
         """Ist-Werte der Nachkalkulation (siehe nachkalkulation.py) oder None."""
         with self.con:
@@ -1503,15 +1623,18 @@ class Datenbank:
                              (json.dumps(ist, ensure_ascii=False) if ist else None, angebot_id))
 
     # -------------------------------------------------------------- Staffeln (Mengenstufen)
+    @liest
     def staffeln(self, angebot_id):
         return [dict(r) for r in self.con.execute("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY nr, id",
                                                   (angebot_id,))]
 
+    @liest
     def staffel_stufen(self, angebot_id):
         """Stufen der Staffelpreise mit ihren Einstellungen (leer = Wert des Angebots), nach Nummer."""
         return [dict(r) for r in self.con.execute("SELECT * FROM staffel_stufen WHERE angebot_id=? ORDER BY nr, id",
                                                   (angebot_id,))]
 
+    @schreibt
     def staffel_stufe_neu(self, angebot_id, werte=None):
         werte = {f.name: (werte or {}).get(f.name) for f in EINSTELLUNG_FELDER}
         if isinstance(werte.get("meterpreise"), dict):
@@ -1523,6 +1646,7 @@ class Datenbank:
                                     f'VALUES (?, ?, {", ".join("?" * len(werte))})',
                                     [angebot_id, nr] + list(werte.values())).lastrowid
 
+    @schreibt
     def staffel_stufe_aendern(self, stufe_id, feld, wert):
         if feld not in {f.name for f in EINSTELLUNG_FELDER}:
             raise KeyError(feld)
@@ -1531,12 +1655,14 @@ class Datenbank:
         with self.con:
             self.con.execute(f'UPDATE staffel_stufen SET "{feld}"=? WHERE id=?', (wert, stufe_id))
 
+    @schreibt
     def staffel_stufen_loeschen(self, ids):
         """Stufen mit ihren Mengenzeilen löschen."""
         with self.con:
             self.con.executemany("DELETE FROM staffeln WHERE stufe_id=?", [(i,) for i in ids])
             self.con.executemany("DELETE FROM staffel_stufen WHERE id=?", [(i,) for i in ids])
 
+    @schreibt
     def staffel_neu(self, angebot_id, werte=None):
         """Mengenzeile anlegen. Ohne stufe_id bekommt sie eine eigene neue Stufe mit den Werten aus werte."""
         werte = dict(werte or {})
@@ -1550,16 +1676,19 @@ class Datenbank:
                                     f'VALUES (?, ?, {", ".join("?" * len(namen))})',
                                     [angebot_id, nr] + [werte.get(n) for n in namen]).lastrowid
 
+    @schreibt
     def staffel_aendern(self, staffel_id, feld, wert):
         if feld not in {f.name for f in STUFE_FELDER} | {"stufe_id"}:
             raise KeyError(feld)
         with self.con:
             self.con.execute(f'UPDATE staffeln SET "{feld}"=? WHERE id=?', (wert, staffel_id))
 
+    @schreibt
     def staffeln_loeschen(self, ids):
         with self.con:
             self.con.executemany("DELETE FROM staffeln WHERE id=?", [(i,) for i in ids])
 
+    @liest
     def positionen(self, angebot_id):
         """Positionen eines Angebots. Text in einem Zahlenfeld (aus einer geänderten oder fremden Datei) wird als
         leer gelesen, damit die Rechnung nicht abbricht; der Status meldet den fehlenden Wert."""
@@ -1572,6 +1701,7 @@ class Datenbank:
                     p[f] = None
         return out
 
+    @schreibt
     def position_neu(self, angebot_id, werte=None):
         werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
         for feld, wert in werte.items():
@@ -1589,6 +1719,7 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET geaendert=? WHERE id=?", (self._jetzt(), angebot_id))
         return i
 
+    @schreibt
     def position_aendern(self, position_id, feld, wert):
         POSITIONEN.feld(feld)
         _zahl_pruefen(feld, wert)
@@ -1597,41 +1728,49 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET geaendert=? WHERE id=(SELECT angebot_id FROM positionen WHERE id=?)",
                              (self._jetzt(), position_id))
 
+    @schreibt
     def positionen_loeschen(self, ids):
         with self.con:
             self.con.executemany("DELETE FROM positionen WHERE id=?", [(i,) for i in ids])
 
     # -------------------------------------------------------------- 3D-Netze (STEP-Import)
+    @schreibt
     def netz_speichern(self, position_id, daten):
         """Dreiecksnetz einer Position (zlib-komprimiertes JSON, siehe ansicht3d.packen)."""
         with self.con:
             self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)", (position_id, daten))
 
+    @liest
     def netz(self, position_id):
         r = self.con.execute("SELECT daten FROM netze WHERE position_id=?", (position_id,)).fetchone()
         return bytes(r[0]) if r else None
 
+    @liest
     def netz_ids(self, angebot_id):
         """Positions-IDs eines Angebots, für die es ein 3D-Netz gibt."""
         return {r[0] for r in self.con.execute("SELECT n.position_id FROM netze n JOIN positionen p ON "
                                                 "p.id = n.position_id WHERE p.angebot_id=?", (angebot_id,))}
 
+    @liest
     def netze(self, angebot_id):
         """{Positions-ID: Netz-Bytes} aller Positionen eines Angebots mit 3D-Daten."""
         return {r[0]: bytes(r[1]) for r in self.con.execute(
             "SELECT n.position_id, n.daten FROM netze n JOIN positionen p ON p.id = n.position_id "
             "WHERE p.angebot_id=?", (angebot_id,))}
 
+    @liest
     def protokoll(self, angebot_id):
         return [json.loads(r[0]) for r in self.con.execute(
             "SELECT zeile FROM step_protokoll WHERE angebot_id=? ORDER BY id", (angebot_id,))]
 
+    @schreibt
     def protokoll_anhaengen(self, angebot_id, zeilen):
         with self.con:
             self.con.executemany("INSERT INTO step_protokoll (angebot_id, zeile) VALUES (?, ?)",
                                  [(angebot_id, json.dumps(z, default=str, ensure_ascii=False)) for z in zeilen])
 
     # -------------------------------------------------------------- Zeichnungsablage (0.6.10 bis 0.6.23) entfernen
+    @schreibt
     def zeichnungen_entfernen(self, ablage):
         """Einmalig (Marke 'zeichnungen_entfernt'): die mit der früheren Zeichnungsablage in den Ordner des Angebots
         (<Ablage>/<Angebotsnummer>) kopierten Dateien löschen und positionen.dokumente leeren. Gelöscht werden nur
@@ -1673,6 +1812,7 @@ class Datenbank:
         return geloescht
 
     # -------------------------------------------------------------- Stand eines Angebots (Rückgängig/Wiederholen)
+    @liest
     def angebot_stand(self, angebot_id):
         """Alles, was zu einem Angebot gehört, als Werte (Kopf, Positionen, Staffeln, STEP-Protokoll) plus
         {Positions-ID: Länge} der 3D-Netze. Die Netze selbst holt verlauf.Verlauf nur bei Bedarf. None = gelöscht."""
@@ -1691,6 +1831,7 @@ class Datenbank:
             netze=dict(zeilen("SELECT n.position_id, length(n.daten) FROM netze n JOIN positionen p ON "
                               "p.id = n.position_id WHERE p.angebot_id=?")))
 
+    @schreibt
     def angebot_stand_setzen(self, angebot_id, stand, netze):
         """Angebot auf einen mit angebot_stand gelesenen Stand zurücksetzen (eine Transaktion). netze:
         {Positions-ID: Netz-Bytes} für alle Netze des Stands."""
@@ -1727,6 +1868,7 @@ class Datenbank:
                 self.con.execute(f"DELETE FROM {tabelle} WHERE angebot_id=?", (angebot_id,))
                 einsetzen(tabelle, stand.get(schl, ()))
 
+    @schreibt
     def profile_anlegen(self, profile):
         """Profile aus Optimierung (Name) oder STEP-Import anlegen, vorhandene IDs bleiben unverändert."""
         for p in profile:
@@ -1734,6 +1876,7 @@ class Datenbank:
                 self.neu("profile", {k: v for k, v in p.items() if k in {f.name for f in TABELLE["profile"].felder}})
 
     # -------------------------------------------------------------- Einstellungen
+    @liest
     def einstellung(self, name):
         r = self.con.execute("SELECT wert FROM einstellungen WHERE name=?", (name,)).fetchone()
         if r is None:
@@ -1741,6 +1884,7 @@ class Datenbank:
             return e.vorgabe if e else None
         return json.loads(r[0])
 
+    @schreibt
     def einstellung_setzen(self, name, wert):
         with self.con:
             self._einstellung_schreiben(name, wert)
@@ -1749,10 +1893,12 @@ class Datenbank:
         self.con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)",
                          (name, json.dumps(wert, ensure_ascii=False)))
 
+    @liest
     def einstellungen(self):
         return {e.name: self.einstellung(e.name) for e in EINSTELLUNGEN}
 
     # -------------------------------------------------------------- Sicherung
+    @liest
     def sicherung(self, ordner=None, behalten=SICHERUNGEN_BEHALTEN, zusatz=None):
         """Kopie der Datendatei nach Daten/Sicherung (sqlite-Backup, auch bei offener Datei sicher), danach geprüft
         (Integrität, gleiche Anzahl Angebote und Positionen wie das Original) und mit einer Beschreibung
@@ -1802,6 +1948,7 @@ class Datenbank:
                 _sicherung_loeschen(p)
         return ziel
 
+    @liest
     def sicherung_heute(self, ordner=None):
         """Beim Start: eine Sicherung je Tag."""
         ordner = Path(ordner) if ordner else self.pfad.parent / "Sicherung"
@@ -1809,6 +1956,7 @@ class Datenbank:
             return None
         return self.sicherung(ordner)
 
+    @liest
     def sicherungen(self, zusatz=None):
         """Sicherung nach Daten/Sicherung und, falls eingestellt, in den zweiten Sicherungsordner.
         Ergebnis: (Pfade, Fehlertext oder None) – ein nicht erreichbarer zweiter Ordner (Netzlaufwerk,
@@ -1823,6 +1971,7 @@ class Datenbank:
             return pfade, f"Zweiter Sicherungsordner nicht erreichbar ({ordner2}): {e}"
         return pfade, None
 
+    @liest
     def sicherungsordner(self):
         """Ordner mit Sicherungen: Daten/Sicherung und, falls eingestellt und vorhanden, der zweite Ordner."""
         ordner = [self.pfad.parent / "Sicherung"]
@@ -1831,6 +1980,7 @@ class Datenbank:
             ordner.append(Path(ordner2))
         return ordner
 
+    @erlaubt
     def wiederherstellen(self, quelle, zusatz="vor_Wiederherstellung"):
         """Datendatei durch eine Sicherung, eine Datendatei oder eine Export-Datei (.zip) ersetzen. Vorher wird die
         Quelle geprüft (Integrität, nicht von einer neueren Programmversion) und der jetzige Stand gesichert
@@ -1851,6 +2001,7 @@ class Datenbank:
         self._anlegen()
         return info, vorher
 
+    @liest
     def exportieren(self, ziel):
         """Alle Daten in eine Export-Datei (ZIP mit rohrlaser.db und info.json: Version, Schema, Anzahlen, Prüfsumme)
         zum Umziehen zwischen portabler und installierter Version oder auf einen anderen Rechner. Ergebnis: info."""
