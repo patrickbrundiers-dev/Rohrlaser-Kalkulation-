@@ -357,6 +357,8 @@ def _(f, p):
 @fall("BL16", "Profile und Rohre sind keine Bleche (alle Referenzteile)", REF)
 def _(f, p):
     for q in sorted(list(p.glob("*.step")) + list((HIER / "step_profile").glob("*.step"))):
+        if q.stem.startswith("REF18"):  # scharfkantiges Z ist seit STEP-JSON 1.12 ein Kantteil (Fall REF18)
+            continue
         try:
             teile = analysiere_datei(q)
         except ValueError:
