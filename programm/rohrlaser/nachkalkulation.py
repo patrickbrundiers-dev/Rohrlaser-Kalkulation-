@@ -188,6 +188,17 @@ def _baugruppen_zeilen(soll, ist, zeile):
     return zeilen, info
 
 
+ABWEICHUNG_GRENZE = 0.10   # ab 10 % Abweichung Ist gegen Soll farbig (Reiter Nachkalkulation, Baugruppen)
+
+
+def bewertung(soll, ist, grenze=ABWEICHUNG_GRENZE):
+    """'hoch' (Ist mindestens grenze über Soll), 'niedrig' (darunter) oder None (im Rahmen bzw. kein Vergleich)."""
+    if _n(soll) is None or _n(ist) is None or soll <= 0:
+        return None
+    a = (ist - soll) / soll
+    return "hoch" if a >= grenze - 1e-9 else "niedrig" if a <= -grenze + 1e-9 else None
+
+
 def erfasst(ist):
     """True, wenn mindestens ein Ist-Wert eingetragen ist."""
     ist = ist or {}

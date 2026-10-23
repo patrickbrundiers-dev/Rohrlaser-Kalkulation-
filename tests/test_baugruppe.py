@@ -20,6 +20,8 @@
 - B19 Sollwerte einmal je Stand (T1), Datenprüfung mit Ort (T5), Nahtgruppen gelb + Sprung vom Status (D4)
 - B20 Baugruppen-Vorlagen speichern/einsetzen (P1), Baugruppe mit Teilen in ein anderes Angebot kopieren (P7)
 - B21 Schweißplan in den Werkstattpapieren (P2), Baugruppe in Kalkulation-PDF und CSV-Export (P3)
+- B22 a-Maß-Regel (P6), Schweißzusatz und Gas (P5), Kennwerte aus der Nachkalkulation (P4), Abweichungen (D5)
+- B23 Positionsliste gruppiert: Einzelteile unter ihrer Baugruppe, zu-/aufklappen (D3)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -680,7 +682,7 @@ assert len(vd["naehte"]) == len(quelle["naehte"]) and v["inhalt"].startswith("1 
 leer = dict(pos=900, art=BAUGRUPPE, stueck=1)
 d = BaugruppeDialog(None, leer, seite.positionen, seite.tabellen, saetze, db=db)
 alt_id = d.bg["id"]
-assert d.vorlage_einsetzen(vid) and d.bg["id"] == alt_id
+assert d.vorlage_einsetzen(vid) and d.bg["id"] == alt_id and d.bg["vorlage"] == "Gestell"
 assert d.knoten_tab.rowCount() == len(quelle["knoten"]) and d.naht_tab.rowCount() == len(quelle["naehte"])
 assert d.ag_tab.rowCount() == len(quelle["arbeitsgaenge"]) and d.erg["schweiss_min"] > 0
 assert not d.vorlage_einsetzen(12345) and "beschädigt" in d.fehler.text()
@@ -761,5 +763,130 @@ if PdfReader:
     assert "Schweißplan" in "".join(x.extract_text() for x in PdfReader(str(pfad_nur)).pages)
 ok(f"B21 Schweißplan ({len(b['naehte'])} Nahtgruppen, Vorgabe {b['vorgabe_min']:.1f} min), Kalkulation-PDF und "
    "Schweissbaugruppen.csv nur mit Baugruppe")
+
+# ------------------------------------------------------------------ B22 P6 a-Maß-Regel, P5 Verbrauch, P4 Kennwerte, D5
+from rohrlaser import kennwerte  # noqa: E402
+from rohrlaser.kennwerte_dialog import KennwerteDialog  # noqa: E402
+
+assert [baugruppe.a_mass_regel(t) for t in (3, 4, 5, 0.5, None)] == [2.0, 2.5, 3.5, None, None]
+assert baugruppe.a_mass_regel(4, 0.5) == 2.0
+v_k = dict(knoten="", nahtart="Kehlnaht", laenge=150, anzahl=2, dicke=4.0)
+assert "mass" not in baugruppe.vorschlag_naht(v_k)                                          # ohne Häkchen wie bisher
+n_r = baugruppe.vorschlag_naht(v_k, 0.7)
+assert n_r["mass"] == n_r["mass_regel"] == 2.5 and baugruppe.regel_offen(n_r)
+g6 = baugruppe.leer()
+g6["naehte"] = [dict(n_r, id="r1", nr="1", verfahren="MAG")]
+p6 = dict(pos=910, art=BAUGRUPPE, stueck=1, baugruppe=baugruppe.speichern(g6))
+w6 = dict(bg_tabellen=db.tabellen(), saetze=saetze)
+t6 = dict(pos=10, artikel="T", stueck=1, bg_knoten=g6["id"], je_knoten=1)
+for i_, f_, w_ in baugruppe.abgleich([p6, t6]):
+    [p6, t6][i_][f_] = w_
+st6 = baugruppe.status(p6, w6, [p6, t6])
+assert "a-Maß nach Regel" in st6, st6
+db.einstellung_setzen("schweiss_a_regel", 0.5)
+d = BaugruppeDialog(None, p6, [p6], db.tabellen(), saetze, db=db)
+assert d._regel_faktor() == 0.5
+d.regel_bestaetigen()
+assert not baugruppe.regel_offen(d.bg["naehte"][0]) and d.bg["naehte"][0]["mass"] == 2.5
+d.reject()
+db.einstellung_setzen("schweiss_a_regel", baugruppe.A_REGEL_VORGABE)
+
+# P5: ohne Verbrauchswerte bitgleich, mit Werten Draht + Gas als Material der Nahtgruppe
+n1 = dict(rahmen["naehte"][0])
+tab0 = db.tabellen()
+r0 = baugruppe.naht_rechnen(n1, tab0, saetze)
+assert r0["material"] == 0 and r0["verbrauch_hinweis"] is None
+tab_v = dict(tab0, schweissverfahren=[dict(z, dichte=7.85, draht_eur_kg=2.5, gas_l_min=12, gas_eur_l=0.02)
+                                      for z in tab0["schweissverfahren"]])
+r1 = baugruppe.naht_rechnen(n1, tab_v, saetze)
+draht = baugruppe.nahtquerschnitt("Kehlnaht", 3) * 0.96 * 7.85 / 1000
+nah(r1["draht_kg"], draht, "Draht kg")
+nah(r1["gas_l"], r0["lichtbogen_min"] * 12, "Gas l")
+nah(r1["material"], draht * 2.5 + r0["lichtbogen_min"] * 12 * 0.02, "Verbrauch €")
+nah(r1["kosten"], r0["kosten"] + r1["material"], "Kosten mit Verbrauch")
+r2 = baugruppe.naht_rechnen(n1, dict(tab0, schweissverfahren=[dict(z, gas_l_min=12)
+                                                              for z in tab0["schweissverfahren"]]), saetze)
+assert r2["material"] == 0 and "Dichte Zusatz" in r2["verbrauch_hinweis"] and "Preis Gas" in r2["verbrauch_hinweis"]
+rr = baugruppe.rechnen(dict(pos=100, stueck=2, baugruppe=baugruppe.speichern(rahmen)), tab_v, saetze)
+teile = dict(baugruppe.kostenaufteilung(rr))
+nah(teile["Schweißzusatz und Gas"], rr["verbrauch"], "Kostenbalken Verbrauch")
+nah(sum(teile.values()), rr["eigen"] + rr["fremd"], "Kostenbalken Summe")
+assert len(baugruppe.kostenaufteilung(baugruppe.rechnen(dict(pos=100, stueck=2, baugruppe=baugruppe.speichern(rahmen)),
+                                                         tab0, saetze))) == 4
+
+# P4: sechs nachkalkulierte Angebote MAG/Kehlnaht, einer als Ausreißer
+from rohrlaser.nachkalkulation import bewertung  # noqa: E402
+
+nummern = []
+for q in (1.2, 1.2, 1.1, 1.3, 1.25, 5.0):
+    g = baugruppe.leer()
+    g["vorlage"] = "Lernrahmen"
+    g["naehte"] = [dict(id="n", knoten="", nr="1", verfahren="MAG", nahtart="Kehlnaht", mass=3, laenge=1000, anzahl=1)]
+    g["naehte"][0]["stand"] = baugruppe.naht_stand(g["naehte"][0], db.tabellen())
+    aid = db.angebot_neu(dict(kunde="Lernen", maschine="T11"))
+    db.position_neu(aid, dict(pos=10, art=BAUGRUPPE, artikel="L", stueck=4, baugruppe=baugruppe.speichern(g)))
+    soll_h = 1.5 / 0.4 * 4 / 60
+    db.nachkalkulation_speichern(aid, dict(am="2026-10-23", baugruppen={g["id"]: dict(schweiss_h=soll_h * q)}))
+    nummern.append(db.angebot(aid)["nummer"])
+faelle = [f for f in kennwerte.faelle_schweissen(db) if f["angebot"] in nummern]
+assert len(faelle) == 6 and all(f["schluessel"] == ("MAG", "Kehlnaht") for f in faelle)
+nah(faelle[0]["soll"], 0.25, "Soll h")
+e = kennwerte.auswerten(faelle)
+nah(e["faktor"], 1.2, "Median ohne Ausreißer")
+assert e["n"] == 5 and [f["angebot"] for f in e["ausreisser"]] == [nummern[5]] and e["status"] == "ok"
+assert kennwerte.auswerten(faelle[:3])["status"] == "zu wenig Daten"
+v_ = next(v for v in kennwerte.vorschlaege(db) if v["schluessel"] == ("MAG", "Kehlnaht"))
+alt = {z["id"]: z["min_m"] for z in db.zeilen("schweiss_kennwerte")}
+try:
+    kennwerte.freigeben(db, v_, "  ", "x")
+    raise AssertionError("ohne Begründung freigegeben")
+except ValueError:
+    pass
+dlg = KennwerteDialog(None, db)
+zeile_k = next(i for i, v in enumerate(dlg.vorschlaege) if v["schluessel"] == ("MAG", "Kehlnaht"))
+f_ = dlg.vorschlaege[zeile_k]["faktor"]
+hid = dlg.freigeben(zeile_k, "Test Nachkalkulation")
+assert hid and dlg.geaendert and dlg.hist.rowCount() == 1
+neu_k = {z["id"]: z for z in db.zeilen("schweiss_kennwerte")}
+for zid, m in alt.items():
+    z = neu_k[zid]
+    soll_m = round(m * f_, 2) if (z["verfahren"], z["nahtart"]) == ("MAG", "Kehlnaht") else m
+    nah(z["min_m"], soll_m, "freigegebener Kennwert")
+h = kennwerte.historie(db)[0]
+assert h["begruendung"] == "Test Nachkalkulation" and h["version"] and h["n"] >= 5
+assert dlg.zuruecknehmen(0) == sum(1 for z in neu_k.values() if (z["verfahren"], z["nahtart"]) == ("MAG", "Kehlnaht"))
+assert {z["id"]: z["min_m"] for z in db.zeilen("schweiss_kennwerte")} == alt and kennwerte.historie(db)[0]["zurueck"]
+assert kennwerte.zuruecknehmen(db, hid) == 0                                     # zweimal geht nicht
+dlg.reject()
+
+# D5: Abweichung ab 10 % farbig, Verlauf je Vorlage
+vl = kennwerte.verlauf_vorlage(db, "Lernrahmen")
+assert len(vl) == 6 and [v["angebot"] for v in vl] == nummern and abs(vl[0]["faktor"] - 1.2) < 1e-9
+assert kennwerte.verlauf_vorlage(db, "gibtsnicht") == [] and "vorlage" not in baugruppe.vorlage_aus(g)
+assert bewertung(1.0, 1.1) == "hoch" and bewertung(1.0, 0.9) == "niedrig" and bewertung(1.0, 1.05) is None
+assert bewertung(0, 1) is None and bewertung(1.0, None) is None
+ok(f"B22 a-Maß-Regel (a = 0,7 × 4 → 2,5 mm, bestätigen), Zusatz/Gas {r1['material']:.2f} € je Nahtgruppe, "
+   f"Kennwert-Vorschlag Faktor {e['faktor']:.2f} aus {e['n']} Fällen (1 Ausreißer), Freigabe zurückgenommen")
+
+# ------------------------------------------------------------------ B23 D3 Positionsliste gruppiert
+assert baugruppe.gruppen_reihenfolge(pos[1:]) == (list(range(len(pos) - 1)), {})          # ohne Baugruppe wie bisher
+seite.neu_laden()
+kopf_v = seite.pos_ansicht.verticalHeader()
+folge, zu = baugruppe.gruppen_reihenfolge(seite.positionen)
+from PySide6.QtCore import Qt  # noqa: E402
+
+i_bg = next(i for i, q in enumerate(seite.positionen) if q["art"] == BAUGRUPPE)
+t_bg = [j for j in zu if zu[j] == baugruppe.lesen(seite.positionen[i_bg]["baugruppe"])["id"]]
+assert t_bg and folge.index(i_bg) + 1 == folge.index(min(t_bg))
+assert [kopf_v.logicalIndex(v) for v in range(len(folge))] == folge
+assert seite.pos_modell.headerData(i_bg, Qt.Vertical).startswith("▾") and \
+    seite.pos_modell.headerData(t_bg[0], Qt.Vertical).startswith("└")
+seite._kopf_klick(i_bg)
+assert all(seite.pos_ansicht.isRowHidden(j) for j in t_bg) and seite.pos_modell.headerData(i_bg, Qt.Vertical)[0] == "▸"
+seite.neu_laden()                                                             # bleibt zugeklappt
+assert all(seite.pos_ansicht.isRowHidden(j) for j in t_bg)
+seite._kopf_klick(i_bg)
+assert not any(seite.pos_ansicht.isRowHidden(j) for j in t_bg)
+ok(f"B23 Positionsliste: {len(t_bg)} Einzelteile unter ihrer Baugruppe, zu- und aufgeklappt")
 
 print("\nAlle Baugruppen-Tests bestanden.")
