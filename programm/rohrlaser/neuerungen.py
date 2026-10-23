@@ -29,6 +29,11 @@ NEUERUNGEN = [
      "Prüfstatus immer prüfen ([[biegerohre]]).",
      "Biegerohre: gestreckte Länge, Konturen am geraden Rohr, Biegedaten, Biegezonen, Zusatzarbeit Biegen "
      "([[biegerohre]])."],
+    ["0.9.38", "<b>Spaltenbreiten bleiben</b>: Von Hand gezogene Spalten behalten ihre Breite auch nach einem Neustart "
+               "(je Tabelle, nur an diesem Arbeitsplatz); Rechtsklick auf den Spaltenkopf → <b>Spaltenbreiten "
+               "zurücksetzen</b> passt wieder alles an. Die Hauptknöpfe (Neue Position, STEP importieren, Optimieren, "
+               "Angebot (PDF) …) und die Startseite tragen schlichte <b>Symbole</b> vor dem Text ([[positionen]]).",
+     "Gezogene Spaltenbreiten bleiben über den Neustart; Symbole an den Hauptknöpfen."],
     ["0.9.37", "<b>Material … mit Zusatzfenstern</b>: Doppelklick auf <b>Stangen</b> öffnet die Abmessung in einem "
                "eigenen Fenster mit Stangenbild, Schnittmustern, Meter- und Gewichtsbilanz und der Liste aller Teile "
                "(Länge, Stück, Enden, Naht, eingeplant, auf Stangen, Material und Verkaufspreis je Teil). Doppelklick "
