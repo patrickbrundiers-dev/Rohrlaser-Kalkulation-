@@ -22,7 +22,7 @@ EIGENER_SATZ = "eigener Stundensatz"
 from .stil import ROT, ROTER_RAHMEN, TEXT_GRAU as GRAU  # noqa: E402
 FELD = {f.name: f for f in TABELLE["zusatzarbeiten"].felder}
 # Reihenfolge der Abrechnung in der Auswahl (häufigste zuerst)
-ARTEN = ("€/Stück", "€/Angebot", "€/kg", "€/m²", "€/m", "s/Stück")
+ARTEN = ("€/Stück", "€/Angebot", "€/h", "€/kg", "€/m²", "€/m", "s/Stück")
 assert set(ARTEN) == set(ZUSATZARTEN)
 
 
@@ -52,11 +52,12 @@ def zeit_text(z):
         return f"{zahl_als_text(_n(z.get('preis')))} s Laser" if z.get("preis") is not None else ""
     if not _n(z.get("zeit")):
         return ""
-    return f"{zahl_als_text(z['zeit'])} {z.get('zeit_einheit') or 'min'}"
+    standard = "s" if z.get("art") == "€/h" else "min"
+    return f"{zahl_als_text(z['zeit'])} {z.get('zeit_einheit') or standard}"
 
 
 def satz_text(z, saetze):
-    if z.get("art") == "s/Stück" or not _n(z.get("zeit")):
+    if z.get("art") == "s/Stück" or not _n(z.get("zeit")) and z.get("art") != "€/h":
         return ""
     if z.get("satz_id"):
         return f"{z['satz_id']} ({euro(saetze.get(z['satz_id']))}/h)" if saetze.get(z["satz_id"]) is not None \
@@ -102,6 +103,14 @@ def grundlage_text(z):
     if art == "s/Stück":
         return ("Die Zeit je Stück kommt zur Laserzeit und wird mit dem Stundensatz für Laser schneiden bewertet; "
                 "danach Zuschlag Fertigung und Gewinn wie die übrige Laserzeit.")
+    if art == "€/h":
+        t = ("Im Angebot: Sekunden je Teil (je Position unter Zusatzarbeiten …, sonst die Vorgabezeit) ÷ 3600 × "
+             "Stundensatz × Stückzahl")
+        if _n(z.get("mindest")):
+            t += f", mindestens {euro(z['mindest'])} je Angebot"
+        return t + (", dann Zuschlag " + ("Fremdleistung" if z.get("fremd") == "ja" else "Fertigung")
+                    + " und Gewinn des Angebots bzw. der Staffel. Der Stundensatz wird beim Hinzufügen in der "
+                    "Position gespeichert.")
     menge = {"€/kg": "× Teilegewicht [kg]", "€/m²": "× Außenfläche [m²]", "€/m": "× Teilelänge [m]",
              "€/Stück": "× Stückzahl"}.get(art)
     t = (f"Im Angebot: Preis je Einheit {menge} der Position" if menge else
@@ -119,6 +128,13 @@ def rechenzeilen(z, saetze, vg):
     if z.get("art") == "s/Stück":
         return [("Maschinenzeit je Stück", f"{zahl_als_text(_n(z.get('preis')))} s", True)]
     pr = rechnen.zusatz_preis(z, saetze)
+    if z.get("art") == "€/h":
+        out = [("Stundensatz", f"{euro(pr['preis'])}/h", True),
+               ("je Sekunde", f"{zahl_als_text(pr['preis'] / 3600, 4)} €", False)]
+        if pr["zeit_s"]:
+            out.append((f"Vorgabezeit {zeit_text(z)} je Teil", euro(pr["arbeit"]), False))
+        out.append(("Verkaufspreis je Stunde (mit Vorgaben)", f"{euro(verkauf(z, pr['preis'], vg))}/h", True))
+        return out
     out = []
     if pr["fest"]:
         out.append(("Festpreis", euro(pr["fest"]), False))
@@ -231,7 +247,8 @@ class ZusatzFormular(QWidget):
         self.f2 = self._bereich(lay, "Arbeitszeit und Kosten")
         self.preis_titel = QLabel("Festpreis je Einheit")
         self.f2.addRow(self.preis_titel, self._zeile(self.preis, self.preis_einheit))
-        self.f2.addRow("Zeitaufwand je Einheit", self._zeile(self.zeit, self.zeit_einheit))
+        self.zeit_titel = QLabel("Zeitaufwand je Einheit")
+        self.f2.addRow(self.zeit_titel, self._zeile(self.zeit, self.zeit_einheit))
         self.f2.addRow("Stundensatz", self._zeile(self.satz_id, self.satz, QLabel("€/h")))
         self.f2.addRow("Arbeitskosten", self.arbeit)
         self.box3 = QWidget()
@@ -361,7 +378,7 @@ class ZusatzFormular(QWidget):
             w = z.get(n)
             getattr(self, n).setText(zahl_als_text(w, stellen if n != "preis" or z.get("art") != "s/Stück" else None,
                                                    tausender=False) if isinstance(w, (int, float)) else "")
-        self.zeit_einheit.setCurrentText(z.get("zeit_einheit") or "min")
+        self.zeit_einheit.setCurrentText(z.get("zeit_einheit") or ("s" if z.get("art") == "€/h" else "min"))
         self.zuschlag_material_art.setCurrentText(z.get("zuschlag_material_art") or "%")
         self.zuschlag_weitere_basis.setCurrentText(z.get("zuschlag_weitere_basis") or "Arbeit und Material")
         self.fremd.setChecked(z.get("fremd") == "ja")
@@ -417,17 +434,24 @@ class ZusatzFormular(QWidget):
             for n in ("zeit", "satz_id", "satz", "material", "zuschlag_material", "zuschlag_weitere"):
                 werte[n] = None
                 fehler.pop(n, None)
+        elif werte["art"] == "€/h":             # Stundensatz und (optional) Vorgabezeit je Teil
+            for n in ("preis", "material", "zuschlag_material", "zuschlag_weitere"):
+                werte[n] = None
+                fehler.pop(n, None)
         return werte, fehler
 
     def aktualisieren(self):
         """Sichtbarkeit, rote Felder und Preisvorschau nach jeder Eingabe."""
         s_stueck = self.art.currentData() == "s/Stück"
+        je_h = self.art.currentData() == "€/h"
         self.preis_titel.setText("Maschinenzeit je Stück" if s_stueck else "Festpreis je Einheit")
         self.preis_einheit.setText("s" if s_stueck else "€")
+        self.zeit_titel.setText("Vorgabezeit je Teil (leer = im Angebot)" if je_h else "Zeitaufwand je Einheit")
+        self.f2.setRowVisible(0, not je_h)
         for i in range(1, self.f2.rowCount()):
             self.f2.setRowVisible(i, not s_stueck)
-        self.box3.setVisible(not s_stueck)
-        self.zeile_weitere.setEnabled(not s_stueck)
+        self.box3.setVisible(not s_stueck and not je_h)
+        self.zeile_weitere.setEnabled(not s_stueck and not je_h)
         eigen = self.satz_id.currentData() is None
         self.satz.setEnabled(eigen)
         werte, fehler = self._felder()
@@ -437,7 +461,9 @@ class ZusatzFormular(QWidget):
             self.satz.setText(zahl_als_text(self.saetze.get(werte["satz_id"]), 2, tausender=False)
                               if self.saetze.get(werte["satz_id"]) is not None else "")
         pr = rechnen.zusatz_preis(werte, self.saetze)
-        self.arbeit.setText(f"{zeit_text(werte) or '0 min'} × {euro(pr['satz'] or 0)}/h = {euro(pr['arbeit'])}")
+        null = "0 s" if je_h else "0 min"
+        self.arbeit.setText(f"{zeit_text(werte) or null} × {euro(pr['satz'] or 0)}/h = {euro(pr['arbeit'])}"
+                            + (" je Teil" if je_h else ""))
         self.material_inkl.setText(euro(pr["material_inkl"]))
         self.ergebnis_zeilen = rechenzeilen(werte, self.saetze, self.vg)
         while self.ergebnis_gitter.count():
@@ -468,6 +494,9 @@ class ZusatzFormular(QWidget):
         if werte["art"] == "s/Stück":
             if not _n(werte.get("preis")):
                 raise ValueError("Bitte die Maschinenzeit je Stück in Sekunden eingeben.")
+        elif werte["art"] == "€/h":
+            if not werte.get("satz_id") and werte.get("satz") is None:
+                raise ValueError("Bitte einen Stundensatz wählen oder eingeben.")
         elif not any(_n(werte.get(n)) for n in ("preis", "zeit", "material")):
             raise ValueError("Bitte einen Festpreis, einen Zeitaufwand oder Materialkosten eingeben.")
         if _n(werte.get("zeit")) and not werte.get("satz_id") and werte.get("satz") is None:
@@ -672,14 +701,15 @@ class ZusatzVerwaltung(QWidget):
         """Anzeigetexte je Spalte und ob der Wert leer bzw. 0 ist."""
         pr = z["_preis"]
         s_stueck = z.get("art") == "s/Stück"
+        je_h = "/h" if z.get("art") == "€/h" else ""
         werte = dict(name=z.get("name") or "", kategorie=z.get("kategorie") or "", art=art_text(z.get("art")),
                      bemerkung=z.get("bemerkung") or "", zeit=zeit_text(z), satz=satz_text(z, self.saetze),
                      arbeit=euro(pr["arbeit"]) if pr["arbeit"] else "",
                      material=euro(pr["material"]) if pr["material"] else "",
                      zuschlag_material=material_zuschlag_text(z), weitere=weitere_text(z),
                      mindest=euro(z.get("mindest")) if _n(z.get("mindest")) else "",
-                     preis=f"{zahl_als_text(pr['preis'])} s" if s_stueck else euro(pr["preis"]),
-                     verkauf="Laserzeit" if s_stueck else euro(verkauf(z, pr["preis"], self.vg)),
+                     preis=f"{zahl_als_text(pr['preis'])} s" if s_stueck else euro(pr["preis"]) + je_h,
+                     verkauf="Laserzeit" if s_stueck else euro(verkauf(z, pr["preis"], self.vg)) + je_h,
                      status="aktiv" if aktiv(z) else "inaktiv")
         return werte
 

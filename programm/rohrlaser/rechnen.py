@@ -258,7 +258,7 @@ def grunddaten_fehler(p, profile, k):
 def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
     """Gemeinsame Einzelprüfungen einer Position (Code-Audit D-1), die status(), zukaufteil_status() und der
     Hinweis der Kalkulation jeweils in ihrer Reihenfolge abfragen: {Schlüssel: Text} nur der zutreffenden Punkte.
-    Schlüssel: satz_vielfach, satz, zusatz, gewinde, gewinde_preis, kontur (nicht bei manueller Schneidzeit),
+    Schlüssel: satz_vielfach, satz, zusatz, zusatz_zeit, gewinde, gewinde_preis, kontur (nicht bei manueller Schneidzeit),
     bohrungen, anbau.
     zusatz/gewinde = Stammdaten; None = nicht prüfen."""
     erg = {}
@@ -271,6 +271,9 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
         u = zusatz_unbekannt(p, zusatz)
         if u:
             erg["zusatz"] = u
+        u = zusatz_ohne_zeit(p, zusatz)
+        if u:
+            erg["zusatz_zeit"] = u
     if gewinde is not None and not _leer(p.get("gewinde")):
         g = gewinde_unbekannt(p.get("gewinde"), gewinde)
         if g:
@@ -358,6 +361,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
             return "WARNUNG: " + pr[schluessel]
     if "zusatz" in pr:
         return f"WARNUNG: Zusatzarbeit '{pr['zusatz']}' unbekannt"
+    if "zusatz_zeit" in pr:
+        return f"WARNUNG: {pr['zusatz_zeit']} ohne Zeit (Sekunden je Teil unter Zusatzarbeiten …)"
     if "gewinde" in pr:
         return f"WARNUNG: Gewinde '{pr['gewinde']}' nicht erkannt (Format 4xM6; 2xM8)"
     if "gewinde_preis" in pr:
@@ -1438,6 +1443,26 @@ def zusatz_unbekannt(p, katalog):
                 None)
 
 
+def zusatz_vorgabe_s(kz):
+    """Vorgabezeit je Teil [s] einer Zusatzarbeit mit Abrechnung €/h (Preisstand oder Stammdatenzeile) oder None."""
+    if not kz:
+        return None
+    if "zeit_s" in kz and "zeit" not in kz:                 # Preisstand
+        return kz["zeit_s"] or None
+    return _n(kz.get("zeit")) * ZEITEINHEITEN.get(kz.get("zeit_einheit") or "s", 1) or None
+
+
+def zusatz_ohne_zeit(p, katalog):
+    """Erste Zusatzarbeit mit Abrechnung €/h (Schweißen) ohne Sekunden je Teil und ohne Vorgabezeit, sonst None."""
+    namen = {z.get("name"): z for z in katalog or ()}
+    for e in zusatz_liste(p):
+        kz = e.get("stand") if isinstance(e.get("stand"), dict) else namen.get(e["name"])
+        if (kz or {}).get("art") == "€/h" and not isinstance(e.get("menge"), (int, float)) \
+                and not zusatz_vorgabe_s(kz):
+            return e["name"]
+    return None
+
+
 def stundensaetze(tabellen):
     """{Stundensatz-ID: €/h} aus den Stammdaten Stundensätze."""
     return {z["satz_id"]: z.get("satz") for z in (tabellen.get("stundensaetze") or ()) if z.get("satz_id")}
@@ -1450,12 +1475,19 @@ def zusatz_preis(z, saetze=None):
     Material inkl. = Material × (1 + Zuschlag %) bzw. Material + Zuschlag €,
     weiterer Zuschlag = % auf Arbeit, auf Material inkl. oder auf beides.
     Leere Felder zählen 0; ohne die Felder ab Schema 15 ist der Preis der Festpreis (wie bisher). Bei s/Stück ist
-    'preis' die Zeit je Stück in s, alles andere zählt nicht.
+    'preis' die Zeit je Stück in s, alles andere zählt nicht. Bei €/h (Schweißen) ist 'preis' der Stundensatz [€/h]
+    (Einheit der Menge: Sekunden je Teil), zeit_s die Vorgabezeit je Teil und arbeit deren Betrag; Festpreis,
+    Material und Zuschläge zählen nicht.
     Ergebnis: dict(fest, zeit_s, satz, arbeit, material, zuschlag_material, material_inkl, weitere, preis)."""
     fest = _n(z.get("preis"))
     if z.get("art") == "s/Stück":
         return dict(fest=fest, zeit_s=0.0, satz=None, arbeit=0.0, material=0.0, zuschlag_material=0.0,
                     material_inkl=0.0, weitere=0.0, preis=fest)
+    if z.get("art") == "€/h":
+        satz = (saetze or {}).get(z["satz_id"]) if not _leer(z.get("satz_id")) else z.get("satz")
+        zeit_s = _n(zusatz_vorgabe_s(z))
+        return dict(fest=0.0, zeit_s=zeit_s, satz=satz, arbeit=zeit_s / 3600 * _n(satz), material=0.0,
+                    zuschlag_material=0.0, material_inkl=0.0, weitere=0.0, preis=_n(satz))
     zeit_s = _n(z.get("zeit")) * ZEITEINHEITEN.get(z.get("zeit_einheit") or "min", 60)
     if not _leer(z.get("satz_id")):
         satz = (saetze or {}).get(z["satz_id"])
@@ -1477,9 +1509,13 @@ def zusatz_stand(z, saetze=None, datum=None):
     Stammdaten alte Angebote nicht verändern): Abrechnung, Preis je Einheit, Mindestbetrag, Fremdleistung,
     Angebotstext und Datum."""
     import datetime
-    return dict(art=z.get("art"), preis=zusatz_preis(z, saetze)["preis"], mindest=z.get("mindest"),
-                fremd=z.get("fremd"), angebotstext=z.get("angebotstext"),
-                datum=datum or datetime.date.today().isoformat())
+    pr = zusatz_preis(z, saetze)
+    stand = dict(art=z.get("art"), preis=pr["preis"], mindest=z.get("mindest"),
+                 fremd=z.get("fremd"), angebotstext=z.get("angebotstext"),
+                 datum=datum or datetime.date.today().isoformat())
+    if z.get("art") == "€/h":          # Preis = Stundensatz, dazu die Vorgabezeit je Teil
+        stand["zeit_s"] = pr["zeit_s"] or None
+    return stand
 
 
 def oberflaeche(p, k):
@@ -1492,7 +1528,10 @@ def oberflaeche(p, k):
 
 
 def zusatz_menge_auto(art, p, k):
-    """Vorschlag Menge je Teil: kg = Teilegewicht, m² = Außenfläche, m = Teilelänge, sonst 1 Stück."""
+    """Vorschlag Menge je Teil: kg = Teilegewicht, m² = Außenfläche, m = Teilelänge, €/h: keine (Sekunden je Teil
+    von Hand bzw. Vorgabezeit, zusatz_vorgabe_s), sonst 1 Stück."""
+    if art == "€/h":
+        return None
     if art == "€/kg":
         kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k)
         return kgm * p["laenge"] / 1000 if kgm is not None and not _leer(p.get("laenge")) else None
@@ -1505,7 +1544,8 @@ def zusatz_menge_auto(art, p, k):
 
 def zusatz_werte(p, k, tabellen):
     """Zusatzarbeiten einer Position je Teil: [{name, art, einheit, menge, preis, betrag, zeit, fremd, text,
-    angebotstext, mindest}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück).
+    angebotstext, mindest}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück). Bei €/h ist
+    menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600 × €/h.
     Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung)."""
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
     saetze = stundensaetze(tabellen)
@@ -1517,11 +1557,13 @@ def zusatz_werte(p, k, tabellen):
             continue
         art = kz.get("art")
         menge = e.get("menge") if isinstance(e.get("menge"), (int, float)) else zusatz_menge_auto(art, p, k)
+        if art == "€/h" and menge is None:
+            menge = zusatz_vorgabe_s(kz)
         if isinstance(e.get("preis"), (int, float)):
             preis = e["preis"]
         else:
             preis = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
-        wert = _n(menge) * preis
+        wert = _n(menge) * preis / (3600 if art == "€/h" else 1)
         out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,
@@ -2188,13 +2230,16 @@ def zeit_text(minuten):
 
 def einstellungen_angebot(kopf, einst):
     """Einstellungen mit den Kalkulationswerten des Angebots (angebot.KALKULATION); leere Werte im Angebot
-    lassen den Wert der Einstellungen stehen. Prozentwerte des Angebots werden zu Anteilen."""
+    lassen den Wert der Einstellungen stehen. Prozentwerte des Angebots werden zu Anteilen. Mindestauftragswert
+    im Angebot ausgeschaltet (mindestpreis_anwenden = nein): Mindestpreis 0."""
     from .angebot import KALK_PROZENT, KALKULATION
     out = dict(einst)
     for f in KALKULATION:
         w = (kopf or {}).get(f.name)
         if isinstance(w, (int, float)) and not isinstance(w, bool):
             out[f.name] = w / 100 if f.name in KALK_PROZENT else w
+    if (kopf or {}).get("mindestpreis_anwenden") == "nein":
+        out["mindestpreis"] = 0
     return out
 
 
@@ -2442,6 +2487,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = d3["fehlt"]
         elif "zusatz" in pr:
             hinweis = "Zusatzarbeit unbekannt"
+        elif "zusatz_zeit" in pr:
+            hinweis = f"{pr['zusatz_zeit']} ohne Zeit"
         elif "gewinde" in pr:
             hinweis = f"Gewinde '{pr['gewinde']}' nicht erkannt"
         elif "gewinde_preis" in pr:
