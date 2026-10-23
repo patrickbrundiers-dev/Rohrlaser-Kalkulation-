@@ -18,6 +18,10 @@ VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", No
 GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
                  "EK-Meterpreis Soll [€/m]", "EK-Meterpreis Ist [€/m]")
 EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalten: (Schlüssel in ist, ganze Zahl)
+# Schweißbaugruppen: Spalte -> (Feld in ist['baugruppen'][ID] oder None, Titel); Ist-Spalten und Grund editierbar
+BG_SPALTEN = [(None, "Baugruppe")] + [x for n, titel, e, _ in nk.BG_FELDER
+                                      for x in ((None, f"{titel} Soll [{e}]"), (n, f"{titel} Ist [{e}]"))] + [
+    ("grund", "Abweichungsgrund"), (None, "Schweißen Soll [min/m Naht]"), (None, "Schweißen Ist [min/m Naht]")]
 
 
 def _z(w, stellen=2):
@@ -63,6 +67,21 @@ class NachkalkulationSeite(QWidget):
         self.bemerkung.editingFinished.connect(self._bemerkung_geaendert)
         form.addRow("Bemerkung Nachkalkulation", self.bemerkung)
         el.addLayout(form)
+        self.bg_rahmen = QGroupBox("Schweißbaugruppen (leer = wie kalkuliert)")
+        bl = QVBoxLayout(self.bg_rahmen)
+        hinweis = QLabel("Tatsächliche Zeiten und Kosten je Baugruppe für den ganzen Auftrag. Die Schweißzeit je Meter "
+                         "Naht hilft, die Schweiß-Kennwerte zu prüfen; sie ändert keine Stammdaten.")
+        hinweis.setWordWrap(True)
+        bl.addWidget(hinweis)
+        self.bg_tabelle = QTableWidget(0, len(BG_SPALTEN))
+        self.bg_tabelle.setHorizontalHeaderLabels([t for _, t in BG_SPALTEN])
+        self.bg_tabelle.verticalHeader().setDefaultSectionSize(22)
+        self.bg_tabelle.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
+                                        | QAbstractItemView.AnyKeyPressed)
+        self.bg_tabelle.itemChanged.connect(self._bg_geaendert)
+        AutoGroesse(self.bg_tabelle)
+        bl.addWidget(self.bg_tabelle)
+        el.addWidget(self.bg_rahmen)
         knoepfe = QHBoxLayout()
         for text, ziel in (("Ist-Werte löschen", self.loeschen), ("Nachkalkulation (PDF)", self.pdf)):
             b = QPushButton(text)
@@ -138,6 +157,7 @@ class NachkalkulationSeite(QWidget):
             w = self.ist.get(name)
             self.felder[name].setText(_z(w, stellen) if w is not None else "")
         self.bemerkung.setText(self.ist.get("bemerkung") or "")
+        self._bg_zeigen(v)
         self._platzhalter(v)
         self._laden = False
 
@@ -152,6 +172,60 @@ class NachkalkulationSeite(QWidget):
             f"(Abweichung {_z(db['abweichung'])} €). Einzelkosten Ist {_z(v['summe']['ist'])} € gegen Soll "
             f"{_z(v['summe']['soll'])} €. Herstellkosten laut Kalkulation (mit Zuschlägen) {_z(v['herstell'])} €.")
         return v
+
+    def _bg_zeigen(self, v):
+        s = self.s
+        soll = {b["id"]: b for b in nk.baugruppen_soll(s.positionen, s._rechnung()[0])}
+        info = v.get("baugruppen") or []
+        self.bg_rahmen.setVisible(bool(info))
+        self.bg_tabelle.setRowCount(len(info))
+        ist_bg = self.ist.get("baugruppen") or {}
+        for r, b in enumerate(info):
+            e, w = ist_bg.get(b["id"]) or {}, soll[b["id"]]["werte"]
+            texte = [b["name"]]
+            for n, _, einheit, st in nk.BG_FELDER:
+                menge, betrag = w[n]
+                texte += [_z(menge if einheit == "h" else betrag, st),
+                          "" if e.get(n) is None else _z(e.get(n), st)]
+            texte += [b["grund"], _z(b["soll_min_m"], 2), _z(b["ist_min_m"], 2)]
+            for c, (feld, _) in enumerate(BG_SPALTEN):
+                it = QTableWidgetItem(texte[c])
+                it.setData(Qt.UserRole, b["id"])
+                if feld is None:
+                    it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                else:
+                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                if c and feld != "grund":
+                    it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                self.bg_tabelle.setItem(r, c, it)
+        self.bg_tabelle.resizeColumnsToContents()
+
+    def _bg_geaendert(self, it):
+        feld = BG_SPALTEN[it.column()][0]
+        if self._laden or feld is None:
+            return
+        if feld == "grund":
+            wert = it.text().strip() or None
+        else:
+            try:
+                wert = self._zahl(it.text())
+            except ValueError as e:
+                self.s.f.meldung(str(e), fehler=True)
+                self.neu_laden()
+                return
+        e = self.ist.setdefault("baugruppen", {}).setdefault(it.data(Qt.UserRole), {})
+        if e.get(feld) == wert:
+            return
+        e[feld] = wert
+        self._speichern()
+        self.neu_laden()
+
+    def setzen_baugruppe(self, bg_id, **werte):
+        """Ist-Werte einer Schweißbaugruppe ohne Oberfläche setzen (Tests, Bildschirmfotos)."""
+        self.ist.setdefault("baugruppen", {}).setdefault(bg_id, {}).update(werte)
+        self._speichern()
+        self.neu_laden()
 
     def _platzhalter(self, v):
         soll = {"laser_h": (v["zeilen"][1]["soll_menge"], 2), "ruest_min": (v["zeilen"][2]["soll_menge"], 0),

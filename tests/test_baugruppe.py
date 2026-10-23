@@ -15,6 +15,7 @@
 - B14 Richtwerte laden (nur fehlende Zeilen, eigene bleiben) und Arbeitsgang aus Zusatzarbeiten
 - B15 Angebot/PDF: Stückliste per Häkchen, Einmalkosten als eigene Zeile und in den Staffeln 'zzgl. einmalig'
 - B16 Schweißbaugruppe aus der STEP-Struktur: Grenzfälle (gemischte Unterbaugruppen, Rest, ohne Struktur)
+- B17 Nachkalkulation: Soll/Ist je Baugruppe (Schweißen, Arbeitsgänge, Material/Einmal, Fremd), min/m Naht
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -491,5 +492,49 @@ assert baugruppe.aus_step("G", dict(knoten=[dict(id="K1", eltern=None, menge=1),
 g, h = baugruppe.aus_step("G", None, [(dict(je_satz=2), [None, None])])
 assert g["knoten"] == [] and h == [None]
 ok("B16 STEP-Struktur: Unterbaugruppen verschachtelt, gemischte Körper und Teilung mit Rest direkt an der Baugruppe")
+
+# ------------------------------------------------------------------ B17 Nachkalkulation
+from rohrlaser import nachkalkulation  # noqa: E402
+
+v = nachkalkulation.vergleich(kopf, pos, erg, k, tab, einst, None, kalk=(zeilen, summen))
+bgz = {z["text"]: z for z in v["zeilen"] if z["text"].startswith("Rahmen R1: ")}
+assert list(bgz) == ["Rahmen R1: Schweißen", "Rahmen R1: Arbeitsgänge", "Rahmen R1: Material und Einmalbeträge",
+                     "Rahmen R1: Fremdleistungen"], list(bgz)
+r_ = baugruppe.rechnen(pos[0], tab, saetze)        # Kennwerte inzwischen mit Richtwerten (B14)
+s_min, s_eur = r_["schweiss_min"], sum(x["kosten"] for x in r_["zeilen"] if x["art"] == "Naht")
+nah(bgz["Rahmen R1: Schweißen"]["soll_menge"], s_min * 2 / 60, "Schweißen Soll h")
+nah(bgz["Rahmen R1: Schweißen"]["soll"], s_eur * 2, "Schweißen Soll €")
+nah(bgz["Rahmen R1: Arbeitsgänge"]["soll_menge"], (6 + 6) * 2 / 60 + 0.5, "Arbeitsgänge Soll h (laufend + Rüsten)")
+nah(bgz["Rahmen R1: Arbeitsgänge"]["soll"], 12 * 2 + 30, "Arbeitsgänge Soll €")
+nah(bgz["Rahmen R1: Material und Einmalbeträge"]["soll"], 100, "Vorrichtung anteilig")
+nah(bgz["Rahmen R1: Fremdleistungen"]["soll"], 30, "Verzinken")
+nah(sum(z["soll"] for z in bgz.values()), summen["baugruppe_eigen"] + summen["baugruppe_fremd"], "Summe = Kalkulation")
+assert all(z["erfasst"] == "nein" and z["abweichung"] == 0 for z in bgz.values())
+gid = baugruppe.lesen(pos[0]["baugruppe"])["id"]
+ist = dict(baugruppen={gid: dict(schweiss_h=1.0, fremd=40, grund="Nacharbeit Naht 2")})
+assert nachkalkulation.erfasst(ist) and nachkalkulation.erfasst(dict(baugruppen={gid: dict(grund="x")}))
+v2 = nachkalkulation.vergleich(kopf, pos, erg, k, tab, einst, ist, kalk=(zeilen, summen))
+z2 = {z["text"]: z for z in v2["zeilen"]}
+nah(z2["Rahmen R1: Schweißen"]["ist"], 1.0 * s_eur * 2 / (s_min * 2 / 60), "Ist-Stunden mit dem Satz des Solls")
+nah(z2["Rahmen R1: Fremdleistungen"]["ist"], 40, "Fremdleistung Ist")
+nah(v2["summe"]["ist"] - v["summe"]["ist"], z2["Rahmen R1: Schweißen"]["abweichung"] + 10, "nur die Abweichungen")
+b = v2["baugruppen"][0]
+nah(b["naht_m"], (0.96 + 2.0 + 0.36) * 2, "Naht je Auftrag")
+nah(b["soll_min_m"], s_min * 2 / 6.64, "Soll min/m")
+nah(b["ist_min_m"], 60 / 6.64, "Ist min/m")
+assert b["grund"] == "Nacharbeit Naht 2"
+# ohne Baugruppe: keine zusätzlichen Zeilen
+v3 = nachkalkulation.vergleich(kopf, pos[1:], erg2, k, tab, einst, None, kalk=(zeilen2, summen2))
+assert len(v3["zeilen"]) == 6 and v3["baugruppen"] == []
+# Reiter Nachkalkulation: Tabelle der Baugruppen, Ist-Werte gespeichert
+nk_s = seite.nachkalk
+nk_s.neu_laden()
+assert not nk_s.bg_rahmen.isHidden() and nk_s.bg_tabelle.rowCount() == 1
+nk_s.setzen_baugruppe(bg3["id"], schweiss_h=0.1, grund="Heftpunkte nachgesetzt")
+assert db.angebot(a3)["nachkalkulation"]["baugruppen"][bg3["id"]]["schweiss_h"] == 0.1
+assert nk_s.bg_tabelle.item(0, 2).text() == "0,10" and nk_s.bg_tabelle.item(0, 9).text() == "Heftpunkte nachgesetzt"
+pdf.nachkalkulation_pdf(tmp / "nk.pdf", kopf, v2, ist)
+assert (tmp / "nk.pdf").stat().st_size > 0
+ok("B17 Nachkalkulation: Soll je Baugruppe = Kalkulation, Ist-Stunden mit Satz des Solls, min/m Naht, Reiter und PDF")
 
 print("\nAlle Baugruppen-Tests bestanden.")
