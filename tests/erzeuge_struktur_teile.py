@@ -8,13 +8,17 @@ S01_Gestell_verschachtelt.step:
       Querrohr RR42.4x2 L600 (2×)
       Schraube ISO 4017 M8x20 (4×)
 S02_Einzelteil_benannt.step: ein Teil "Halter 4711 QR40x3" ohne Baugruppe.
+S03_Rahmen_geschweisst.step (Nahtkandidaten):
+    Rahmen: 2× Längsrohr QR40x3 L1000 (y = 0 und y = 540), 2× Querrohr QR40x3 L500 stumpf dazwischen (je 2 Kehlnähte
+    Umfang 160), Fußplatte 100x100x10 unter dem Ende eines Längsrohrs (Kehlnaht Umfang 160), Verlängerung QR40x3
+    L300 in einer Flucht am anderen Ende (Stumpfnaht 160).
 """
 import sys
 from pathlib import Path
 
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
-from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder
-from OCP.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder
+from OCP.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec  # noqa: F401
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.STEPCAFControl import STEPCAFControl_Writer
 from OCP.STEPControl import STEPControl_AsIs
@@ -50,13 +54,13 @@ class Dokument:
 
     def teil(self, name, shape):
         lab = self.st.AddShape(shape, False)
-        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(name))
+        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(name, True))
         return lab
 
     def baugruppe(self, name, teile):
         """teile: Liste (Label, TopLoc_Location)."""
         lab = self.st.NewShape()
-        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(name))
+        TDataStd_Name.Set_s(lab, TCollection_ExtendedString(name, True))
         for t, loc in teile:
             self.st.AddComponent(lab, t, loc)
         self.st.UpdateAssemblies()
@@ -84,6 +88,17 @@ def main():
                           + [(schraube, lage(200 * i, -200, 0)) for i in range(4)])
     assert gestell is not None
     d.schreiben(ZIEL / "S01_Gestell_verschachtelt.step")
+    r = Dokument()
+    laengs = r.teil("Längsrohr QR40x3 L1000", kastenrohr(40, 40, 3, 1000, 4.5))   # Achse Z, Querschnitt um 0/0
+    quer = r.teil("Querrohr QR40x3 L500", kastenrohr(40, 40, 3, 500, 4.5))
+    verl = r.teil("Verlängerung QR40x3 L300", kastenrohr(40, 40, 3, 300, 4.5))
+    platte = r.teil("Fußplatte 100x100x10", BRepPrimAPI_MakeBox(gp_Pnt(-50, -50, -10), 100, 100, 10).Shape())
+    # Querrohre entlang Y zwischen den Längsrohren (Außenkante y = 20 bis 520), bei z = 200 und z = 800
+    r.baugruppe("Rahmen", [(laengs, lage()), (laengs, lage(0, 540, 0)),
+                           (quer, lage(0, 20, 200, um_x=-1.5707963267948966)),
+                           (quer, lage(0, 20, 800, um_x=-1.5707963267948966)),
+                           (platte, lage()), (verl, lage(0, 0, 1000))])
+    r.schreiben(ZIEL / "S03_Rahmen_geschweisst.step")
     e = Dokument()
     e.teil("Halter 4711 QR40x3", kastenrohr(40, 40, 3, 350, 4.5))
     e.schreiben(ZIEL / "S02_Einzelteil_benannt.step")

@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.7", "<b>STEP: Nahtkandidaten</b>: Bei Baugruppen erkennt die Messung, welche Teile sich berühren, und "
+              "schlägt je Stelle eine Schweißnaht vor (Länge, Kehl-, Stumpf- oder Ecknaht, Wanddicke). Die "
+              "Vorschläge stehen im Messergebnis mit Status <i>prüfen</i> und sind die Grundlage für die "
+              "Schweißbaugruppen ([[step]]).",
+     "STEP: Nahtkandidaten bei Baugruppen ([[step]])."],
     ["0.9.5", "<b>STEP: Bauteilnamen, Normteile, Importprofile</b>: Die Messung liest die Baugruppenstruktur und "
               "die Bauteilnamen aus der STEP-Datei. Der Bauteilname wird die Artikelnummer (Einstellung "
               "<i>Artikelnummer aus</i>; ohne Namen wie bisher der Dateiname). Normteile wie Schrauben, Muttern und "
