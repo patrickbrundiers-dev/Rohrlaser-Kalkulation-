@@ -199,12 +199,18 @@ def _(f, p):
         f.wert(f"Körper {t.koerper} Länge", t.laenge, l, TOL_MASS)
 
 
-@fall("REF11", "Grenzfall gebogenes Rohr: keine Maße, Status 'nicht messbar'", REF / "REF11_RR42-4x2_Bogen90.step")
+@fall("REF11", "Biegerohr RR 42,4 × 2, Bogen 90° Radius 200 (seit S9 23.10.2026): gestreckte Länge, Status 'prüfen'",
+      REF / "REF11_RR42-4x2_Bogen90.step")
 def _(f, p):
     (t,) = analysiere_datei(p)
-    f.gleich("Prüfstatus", t.pruefstatus, "nicht messbar")
-    f.gleich("keine Länge erfunden", t.laenge, 0)
-    f.gleich("Hinweis 'Erkennung unsicher'", any("Erkennung unsicher" in h for h in t.hinweise), True)
+    f.gleich("Prüfstatus", t.pruefstatus, "prüfen")
+    f.gleich("Profilform", t.profilform, "Rundrohr")
+    f.wert("Außen-Ø", t.abm_a, 42.4, TOL_MASS)
+    f.wert("Wandstärke", t.wandstaerke, 2, TOL_MASS)
+    f.wert("Länge Mittellinie (gestreckt)", t.laenge, 200 * math.pi / 2, 0.05)
+    f.gleich("Biegung (Winkel, Radius)", [(z["winkel"], z["radius"]) for z in t.biegerohr["lra"]],
+             [(90.0, 200.0), (0.0, None)])
+    f.gleich("Hinweis Biegerohr", any(h.startswith("Biegerohr") for h in t.hinweise), True)
 
 
 @fall("REF12", "Grenzfall Rohr mit Sicke (nicht konvex): nicht 'plausibel'", REF / "REF12_QR40x2_Sicke.step")

@@ -16,7 +16,7 @@ Lokales Rohrkoordinatensystem (_lage): Z = Rohrachse, Ursprung auf der Schwerlin
 groben Netzes, damit sie auch bei Freiformflächen (B-Spline) und beliebiger Lage im Raum stimmt.
 
 Annahmen:
-- Gerades Rohr mit konstantem Querschnitt (nicht gebogen).
+- Gerades Rohr mit konstantem Querschnitt (gebogene Rundrohre: step_biegerohr, vor dieser Messung).
 - Schnitt- und Merkmalsflächen sind zusammen kleiner als der Außenmantel; sonst gilt die Erkennung als unsicher
   und es werden keine Maße ausgegeben.
 - Jede Fläche, die nicht zur Außen- oder Innenwand gehört, gehört zu einem
