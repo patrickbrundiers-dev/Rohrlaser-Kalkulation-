@@ -1755,7 +1755,10 @@ def kapitel_optimieren(i):
                (6, "<b>Skizze</b> maßstäblich mit Lage und Maß jeder Kontur und Schweißnaht SN."),
                (7, "<b>Schweißnaht (SN)</b>: Vorgabe, Lage, Quelle; Rechteck-/Quadratrohr nur 0°/90°/180°/270°."),
                (8, "<b>Erklärung</b> der markierten Zeile: welches Maß in Maß 1, 2 und 3 gehört."),
-               (9, "<b>Zeichnung als PDF …</b>, daneben <b>STEP neu einlesen …</b>.")])
+               (9, "<b>Zeichnung als PDF …</b>, daneben <b>STEP neu einlesen …</b>."),
+               (10, "<b>Merkmale</b> mit Herkunft STEP, manuell oder Vorgabe ([[teile_editor]])."),
+               (11, "<b>Prüfmeldungen</b>: Klick zeigt die Stelle in Tabelle, Skizze und 3D."),
+               (12, "<b>Rückgängig</b>, <b>Wiederholen</b>, <b>Auf STEP-Wert zurücksetzen</b> und <b>Messen</b>.")])
     i.text("Für Teile ohne STEP-Datei: Position markieren, Doppelklick auf Schneidweg oder das kleine Bild. Enden, "
            "Bohrungen und Ausschnitte eintragen, das Programm rechnet Schneidweg, Einstiche und Konturklassen.", kurz=True)
     i.genauer()
@@ -1766,9 +1769,11 @@ def kapitel_optimieren(i):
            "gemessenen Enden, Bohrungen, Konturen und die Gravur in Tabelle und Skizze; dort lassen sie sich prüfen "
            "und ändern. Die Schweißnaht wird hier ebenfalls gewählt, und <b>Zeichnung als PDF …</b> macht aus allem "
            "eine maßstäbliche Zeichnung.")
-    i.text("Aufbau des Fensters: oben die Eingaben mit der Konturtabelle (Platz für mindestens fünf Zeilen ohne "
-           "Rollen), unten links die Skizze und rechts das Ergebnis je Teil. Die Trennlinien dazwischen lassen sich "
-           "ziehen, z. B. für mehr Konturzeilen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt.")
+    i.text("Aufbau des Fensters: links die Merkmale, oben die Eingaben mit der Konturtabelle (Platz für mindestens "
+           "fünf Zeilen ohne Rollen), darunter links Skizze und 3D-Ansicht als Reiter und rechts das Ergebnis je "
+           "Teil, ganz unten die Prüfmeldungen. Die Trennlinien dazwischen lassen sich ziehen, z. B. für mehr "
+           "Konturzeilen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt. Merkmale, Prüfmeldungen, "
+           "Rückgängig und Messen sind im Teile-Editor ([[teile_editor]]) beschrieben.")
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
            "unten, hinten), die Enden als Schnittlinie, die Konturen an ihrer Stelle", hoehe=48 * mm)
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
@@ -1915,6 +1920,37 @@ def kapitel_optimieren(i):
             "STEP-Import. Hat die Position schon Werte aus dem STEP-Import, fragt das Programm vorher. Die Eingaben "
             "bleiben gespeichert und erscheinen beim nächsten Öffnen wieder.",
             "Eine von Hand eingetragene Schneidzeit gilt weiter, bis sie in der Positionsliste gelöscht wird.")
+    i.abschnitt("Teile-Editor: Merkmale, Prüfmeldungen, Rückgängig", marke="teile_editor")
+    i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: links die <b>Merkmale</b> des Teils mit ihrer "
+           "Herkunft, unten die <b>Prüfmeldungen</b>, oben <b>Rückgängig</b>, <b>Wiederholen</b>, <b>Auf STEP-Wert "
+           "zurücksetzen</b> und <b>Messen</b>. Ein Klick auf ein Merkmal oder eine Meldung zeigt die Stelle in "
+           "Tabelle, Skizze und 3D-Ansicht.", kurz=True)
+    i.genauer()
+    i.liste("<b>Merkmale</b>: Teil (Länge bzw. Werkstoff, Dicke und Zuschnitt), Enden, Innenkonturen, Biegungen, "
+            "Anbauteile, Schweißnaht und Gravur, je Eintrag mit der <b>Herkunft</b>: <i>STEP</i> (grün) = wie im "
+            "STEP-Import gemessen, <i>manuell (STEP geändert)</i> (orange) = gemessen und von Hand geändert, "
+            "<i>manuell</i> = von Hand eingetragen, <i>Vorgabe</i> (grau) = unveränderter Grundwert. Beim Blech "
+            "bleibt die Herkunft mit der Position gespeichert; beim Rohr gilt sie, solange der Rechner offen ist "
+            "(danach zählen die gemessenen Werte, solange Art und Maße einer Zeile unverändert sind).",
+            "<b>Auf STEP-Wert zurücksetzen</b>: setzt das gewählte Merkmal mit Herkunft <i>manuell (STEP "
+            "geändert)</i> wieder auf die Messung, z. B. eine Bohrung oder ein Ende; die gemessene Schnittlänge gilt "
+            "dann wieder.",
+            "<b>Prüfmeldungen</b>: die Befunde der Fertigungsprüfung ([[pruefregeln]]) sowie Fehler und Hinweise der "
+            "Rechnung, Fehler zuerst. Ein Klick wählt das betroffene Merkmal; bei einem zu schmalen Steg sind beide "
+            "Konturen markiert, in der Skizze und in der 3D-Ansicht blau hervorgehoben.",
+            "<b>Auswahl überall gleich</b>: Klick auf eine Zeile der Tabelle, ein Merkmal, eine Kontur in der Skizze "
+            "oder eine Linie in der 3D-Ansicht wählt überall dasselbe Merkmal. Die 3D-Ansicht des Rohrs zeigt das "
+            "Netz aus dem STEP-Import (Reiter <i>3D</i> neben der Skizze); dort ist der Bereich der gewählten Kontur "
+            "bzw. des Endes längs der Rohrachse hervorgehoben. Beim Blech ist es die Kontur bzw. Biegelinie selbst.",
+            "<b>Messen</b>: Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt die "
+            "nächste Ecke des Modells und zeigt den Abstand in mm mit Δx, Δy und Δz. Noch einmal drücken beendet "
+            "das Messen.",
+            "<b>Rückgängig</b> (Strg+Z) und <b>Wiederholen</b> (Strg+Y) nehmen Eingaben im Fenster zurück bzw. "
+            "stellen sie wieder her, mit den gemessenen Werten. In einem Eingabefeld mit Cursor wirkt Strg+Z zuerst "
+            "im Text.",
+            "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s), damit "
+            "beim Tippen nichts hängt. Gerechnet wird wie bisher im Schneidweg-Rechner bzw. Blech-Editor; der "
+            "Rahmen rechnet nichts eigenes.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),
@@ -2567,7 +2603,9 @@ def kapitel_zukauf_angebot(i):
                (9, "<b>3D-Ansicht</b>: das Teil aus den Eingaben gefaltet, Innenkonturen rot, Biegelinien grün. "
                    "Drehen mit der linken Maustaste, Knöpfe für feste Blickrichtungen."),
                (10, "<b>Außenkontur</b>: <i>Rechteck</i> aus den Maßen (Kantteil: Kantlänge × Abwicklung) oder "
-                    "<i>Polygon</i> mit Eckpunkten x,y der Abwicklung, z. B. mit Ausklinkungen.")])
+                    "<i>Polygon</i> mit Eckpunkten x,y der Abwicklung, z. B. mit Ausklinkungen."),
+               (11, "<b>Merkmale</b> mit Herkunft (Teil, Biegungen, Innenkonturen; [[teile_editor]])."),
+               (12, "<b>Prüfmeldungen</b>: Klick hebt die Kontur bzw. Biegung in Skizze und 3D blau hervor.")])
     i.text("<b>Neue Position</b> → <i>Blech / Kantteil</i>: Zuschnitt oder Kantteil beschreiben, das Programm "
            "schätzt einen Richtpreis als Einkaufspreis.", kurz=True)
     i.genauer()
@@ -2577,8 +2615,9 @@ def kapitel_zukauf_angebot(i):
            "und <i>Blechlaser (Richtwerte)</i> ([[blech_stammdaten]]) sowie den Einstellungen der Gruppe "
            "<i>Blech-Richtpreis</i>. Werkstoffe, Maschinen und Schneiddaten des Rohrlasers werden weder gelesen "
            "noch geändert.")
-    i.text("Aufbau des Fensters: links die Eingaben (Kopf, Zuschnitt bzw. Schenkel, Innenkonturen), rechts Skizze "
-           "und Richtpreis. Die Trennlinie lässt sich ziehen. Ist die Skizze höher als breit, steht die "
+    i.text("Aufbau des Fensters: ganz links die Merkmale, daneben die Eingaben (Kopf, Zuschnitt bzw. Schenkel, "
+           "Innenkonturen), rechts Skizze, 3D-Ansicht und Richtpreis, unten die Prüfmeldungen; Rückgängig, "
+           "Zurücksetzen und Messen wie im Teile-Editor ([[teile_editor]]). Die Trennlinien lassen sich ziehen. Ist die Skizze höher als breit, steht die "
            "Seitenansicht unter der Abwicklung, im selben Maßstab, solange sie passt. In der Positionsliste "
            "zeigt das kleine Bild vor der Artikelnummer den Zuschnitt; Doppelklick darauf öffnet den Editor wieder.")
     i.text("<b>Aus dem STEP-Import</b>: Gekantete Bleche kommen vollständig an. Ein Kantteil mit parallelen "

@@ -21,11 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.27", "<b>Baugruppen-Vorlagen</b>: Im Editor einer Schweißbaugruppe lassen sich Struktur, Nahtgruppen und "
+    ["0.9.28", "<b>Baugruppen-Vorlagen</b>: Im Editor einer Schweißbaugruppe lassen sich Struktur, Nahtgruppen und "
      "Arbeitsgänge als Vorlage speichern und in neue Baugruppen einsetzen (Kennwerte aus den aktuellen Stammdaten). "
      "Neu im Rechtsklick-Menü: <b>Baugruppe in anderes Angebot kopieren …</b> mit allen Einzelteilen "
      "([[schweissbaugruppe]]).",
      "Baugruppen-Vorlagen und Baugruppe in anderes Angebot kopieren ([[schweissbaugruppe]])."],
+    ["0.9.27", "<b>Teile-Editor</b>: Schneidweg-Rechner und Blech-Editor haben einen gemeinsamen Rahmen. Links "
+     "stehen die Merkmale des Teils (Enden, Innenkonturen, Biegungen, Schweißnaht, Gravur) mit ihrer Herkunft STEP, "
+     "manuell oder Vorgabe; geänderte STEP-Werte lassen sich auf die Messung zurücksetzen. Unten stehen die "
+     "Prüfmeldungen, ein Klick zeigt die Stelle in Tabelle, Skizze und 3D-Ansicht. Dazu Rückgängig/Wiederholen "
+     "(Strg+Z/Strg+Y), Messen Punkt–Punkt in der 3D-Ansicht und beim Rohr ein Reiter 3D mit dem Netz aus dem "
+     "STEP-Import; ein Klick auf eine Kontur in 3D wählt ihre Zeile ([[teile_editor]]).",
+     "Teile-Editor: Merkmale mit Herkunft, Prüfmeldungen mit Klick, Rückgängig, Messen in 3D ([[teile_editor]])."],
     ["0.9.26", "<b>Bedienungsanleitung Teil C bildlastig</b>: Einstellungen, Mehrere Arbeitsplätze, Stammdaten, "
      "Zukaufartikel, Frachtkosten sowie Updates und Datensicherung zeigen wie Teil A und B zuerst das Bild mit einem "
      "kurzen Satz oder Schritten; die Einzelheiten stehen im Kasten <i>Genauer</i>. Die Stammdaten haben eigene "

@@ -15,6 +15,8 @@ Eingaben (JSON in positionen.technik, quelle QUELLE):
             und Kantbarkeit
   konturen: Innenkonturen wie im Schneidweg-Rechner (Bohrung, Senkung, Langloch, Rechteck, Polygon, sonstige)
             mit Anzahl, optional x/y = Mitte in der Abwicklung [mm]
+  step: True aus dem STEP-Import; der Blech-Editor ersetzt es beim ersten Öffnen durch die Eingaben wie gemessen
+            (ohne stueck). Der Teile-Editor zeigt damit je Merkmal die Herkunft STEP oder manuell und setzt zurück.
 
 Abwicklung je Biegung (Außenmaße, K-Faktor k, Innenradius r, Dicke s, Biegewinkel φ):
   Ausgleich v = 2·(r+s)·tan(φ/2) − π·φ/180·(r + k·s)   für φ ≤ 90°
@@ -485,7 +487,7 @@ def aus_step(b, werkstoff, stueck=1):
                      biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"),
                                        radius=x.get("radius"))
                                   for x in abw.get("biegelinien") or () if len(x.get("punkte") or ()) == 2])
-        return e
+        return dict(e, step=True)
     lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
     gekantet = b.get("kontur") == "gekantet"
     if gekantet and _z(b.get("abwicklung_flaeche")) > 0 and lg > 0:
@@ -511,7 +513,7 @@ def aus_step(b, werkstoff, stueck=1):
         konturen.append(dict(art=sw.SONSTIGE, anzahl=rest_n, laenge=round(rest_l / rest_n, 1), x=None, y=None))
     return dict(quelle=QUELLE, art=ZUSCHNITT, form=form, punkte=punkte, werkstoff=werkstoff,
                 dicke=_z(b.get("dicke")), laenge=lg, breite=br, eckradius=0, stueck=stueck,
-                konturen=konturen, schenkel=[], kantlaenge=lg)
+                konturen=konturen, schenkel=[], kantlaenge=lg, step=True)
 
 
 def lesen(text):

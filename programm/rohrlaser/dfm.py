@@ -125,10 +125,12 @@ def stege(teile, grenze):
 
 
 class Befund:
-    __slots__ = ("regel", "stufe", "text")
+    """Ergebnis einer Regel; zeilen = betroffene Konturzeilen (ab 0) für den Teile-Editor, laenge = Teilelänge
+    betroffen (Regel 'zu kurz'), biegung = Kantbarkeit."""
+    __slots__ = ("regel", "stufe", "text", "zeilen")
 
-    def __init__(self, regel, stufe, text):
-        self.regel, self.stufe, self.text = regel, stufe, text
+    def __init__(self, regel, stufe, text, zeilen=()):
+        self.regel, self.stufe, self.text, self.zeilen = regel, stufe, text, tuple(zeilen)
 
     def __repr__(self):
         return f"{self.stufe}: {self.regel}: {self.text}"
@@ -144,7 +146,7 @@ def _befunde_sortiert(liste):
 # ------------------------------------------------------------------ Rohr und Profil
 def _schnittkonturen(konturen):
     from . import schneidweg as sw
-    return [z for z in konturen or () if z.get("art") not in (sw.GRAVUR,)]
+    return [z for z in konturen or () if z.get("art") != sw.GRAVUR]
 
 
 @functools.lru_cache(maxsize=4096)
@@ -161,25 +163,29 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
     konturen = e["konturen"]
     if BOHRUNG_KLEIN in r and wand:
         g, stufe = r[BOHRUNG_KLEIN]
-        klein = [z for z in konturen if z.get("art") in (sw.BOHRUNG, sw.SENKUNG)
-                 and 0.5 < sw._z(z.get("d")) < g * wand - 1e-9]
+        nr = [i for i, z in enumerate(konturen) if z.get("art") in (sw.BOHRUNG, sw.SENKUNG)
+              and 0.5 < sw._z(z.get("d")) < g * wand - 1e-9]
+        klein = [konturen[i] for i in nr]
         if klein:
             n = sum(max(int(sw._z(z.get("anzahl")) or 1), 1) for z in klein)
             d = min(sw._z(z["d"]) for z in klein)
             out.append(Befund(BOHRUNG_KLEIN, stufe, f"{n} Bohrung(en) ab Ø {_zahl(d)} mm unter {_zahl(g)} × Wand "
-                                                    f"({_zahl(g * wand)} mm)" + _lage_rohr(klein[0])))
+                                                    f"({_zahl(g * wand)} mm)" + _lage_rohr(klein[0]), nr))
     if GRAVUR_KANTE in r:
-        ueber = [z for z in konturen if z.get("art") == sw.GRAVUR and len(z.get("waende") or ()) > 1]
-        if ueber:
+        nr = [i for i, z in enumerate(konturen) if z.get("art") == sw.GRAVUR and len(z.get("waende") or ()) > 1]
+        if nr:
             out.append(Befund(GRAVUR_KANTE, r[GRAVUR_KANTE][1],
-                              f"{len(ueber)} Gravur(en) über mehrere Flächen" + _lage_rohr(ueber[0])))
+                              f"{len(nr)} Gravur(en) über mehrere Flächen" + _lage_rohr(konturen[nr[0]]), nr))
     if not wand or not laenge or (STEG not in r and RAND not in r):
         return tuple(out)
     qs = sk.Querschnitt(dict(profil))
     teile = []
-    for d in sk.lagen(_schnittkonturen(konturen), laenge):
+    schnitt = _schnittkonturen(konturen)
+    zeile = [i for i, z in enumerate(konturen) if z.get("art") != sw.GRAVUR]    # Tabellenzeile je Schnittkontur
+    for d in sk.lagen(schnitt, laenge):
         if d.get("verteilt"):
             continue
+        d = dict(d, zeile=zeile[d["zeile"]])
         e_ = d["eingabe"]
         pts = sk.umriss_kontur(e_)
         if not pts:
@@ -199,7 +205,7 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
             rest, d = min(nah, key=lambda t: t[0])
             out.append(Befund(RAND, stufe, f"{len(nah)} Kontur(en) näher als {_zahl(g)} × Wand ({_zahl(g * wand)} mm) "
                                            f"am Ende, kleinster Abstand {_zahl(max(rest, 0))} mm"
-                                           + _lage_rohr(d["eingabe"], d["x"])))
+                                           + _lage_rohr(d["eingabe"], d["x"]), _zeilen(x[1] for x in nah)))
     if STEG in r:
         g, stufe = r[STEG]
         paare = stege(teile, g * wand)
@@ -208,8 +214,14 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
             a, b = teile[i][1], teile[j][1]
             out.append(Befund(STEG, stufe, f"{len(paare)} Steg(e) unter {_zahl(g)} × Wand ({_zahl(g * wand)} mm), "
                                            f"schmalster {_zahl(dmin)} mm zwischen Kontur {_nr(a)} und {_nr(b)}"
-                                           + _lage_rohr(a["eingabe"], a["x"])))
+                                           + _lage_rohr(a["eingabe"], a["x"]),
+                              _zeilen(teile[k][1] for i_, j_, _ in paare for k in (i_, j_))))
     return tuple(out)
+
+
+def _zeilen(lagen):
+    """Konturzeilen (ab 0, sortiert, ohne Doppelte) aus Lagen dict(zeile=…)."""
+    return sorted({d["zeile"] for d in lagen})
 
 
 def _nr(d):
@@ -254,13 +266,14 @@ def blech(e, zs, zeilen=None, kantbarkeit=True, einst=None):
     konturen = e.get("konturen") or []
     if BOHRUNG_KLEIN in r:
         g, stufe = r[BOHRUNG_KLEIN]
-        klein = [z for z in konturen if z.get("art") in (sw.BOHRUNG, sw.SENKUNG)
-                 and 0.5 < sw._z(z.get("d")) < g * s - 1e-9]
+        nr = [i for i, z in enumerate(konturen) if z.get("art") in (sw.BOHRUNG, sw.SENKUNG)
+              and 0.5 < sw._z(z.get("d")) < g * s - 1e-9]
+        klein = [konturen[i] for i in nr]
         if klein:
             n = sum(max(int(sw._z(z.get("anzahl")) or 1), 1) for z in klein)
             d = min(sw._z(z["d"]) for z in klein)
             out.append(Befund(BOHRUNG_KLEIN, stufe, f"{n} Bohrung(en) ab Ø {_zahl(d)} mm unter {_zahl(g)} × Dicke "
-                                                    f"({_zahl(g * s)} mm)" + _lage_blech(klein[0])))
+                                                    f"({_zahl(g * s)} mm)" + _lage_blech(klein[0]), nr))
     punkte = zs.get("punkte")
     minx = min((x for x, _ in punkte), default=0.0) if punkte else 0.0
     miny = min((y for _, y in punkte), default=0.0) if punkte else 0.0
@@ -290,7 +303,7 @@ def blech(e, zs, zeilen=None, kantbarkeit=True, einst=None):
             rest, d = min(nah, key=lambda t: t[0])
             out.append(Befund(RAND, stufe, f"{len(nah)} Kontur(en) näher als {_zahl(g)} × Dicke ({_zahl(g * s)} mm) "
                                            f"an der Blechkante, kleinster Abstand {_zahl(rest)} mm"
-                                           + _lage_blech(d["eingabe"])))
+                                           + _lage_blech(d["eingabe"]), _zeilen(x[1] for x in nah)))
     if STEG in r:
         g, stufe = r[STEG]
         paare = stege(teile, g * s)
@@ -299,7 +312,8 @@ def blech(e, zs, zeilen=None, kantbarkeit=True, einst=None):
             a, b = teile[i][1], teile[j][1]
             out.append(Befund(STEG, stufe, f"{len(paare)} Steg(e) unter {_zahl(g)} × Dicke ({_zahl(g * s)} mm), "
                                            f"schmalster {_zahl(dmin)} mm zwischen Kontur {a['zeile'] + 1} und "
-                                           f"{b['zeile'] + 1}" + _lage_blech(a["eingabe"])))
+                                           f"{b['zeile'] + 1}" + _lage_blech(a["eingabe"]),
+                              _zeilen(teile[k][1] for i_, j_, _ in paare for k in (i_, j_))))
     if kantbarkeit and KANTBARKEIT in r:
         texte = [t for t in bl.kantbarkeit(e, zs, einst) if not t.endswith(bl.NICHT_GEPRUEFT)]
         if texte:
