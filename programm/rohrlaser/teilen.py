@@ -32,12 +32,12 @@ from pathlib import Path
 from . import VERSION, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
-from .stammdaten import EINSTELLUNGEN, TABELLEN, VERWEISE
+from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, TABELLEN, VERWEISE
 
 FORMAT = 1                      # Aufbau der geteilten Datei
 PRAEFIX = "Rohrlaser_"
 ENDUNG = ".sqlite"
-GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN)     # Reihenfolge: Artikel vor Bezug
+GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN) + (BAUGRUPPEN_VORLAGEN,)  # Artikel vor Bezug
 GETEILT_NAME = {t.name: t for t in GETEILT}
 # Verweise über die Zeilen-ID: in der geteilten Datei steht statt der ID die Kennung (uid) der Zielzeile
 ID_VERWEISE = {"zukauf_bezug": {"artikel_id": "zukauf_artikel"}, "zukauf_historie": {"artikel_id": "zukauf_artikel"}}

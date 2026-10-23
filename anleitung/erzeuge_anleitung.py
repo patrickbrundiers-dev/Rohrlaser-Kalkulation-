@@ -2791,6 +2791,21 @@ def kapitel_baugruppen(i):
            "größten Posten. So sieht man sofort, wo sich das Nachprüfen von Kennwerten oder Vorrichtungen lohnt. "
            "Angebote ohne Baugruppe zeigen den Bereich nicht.")
 
+    i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
+    i.text("Wiederkehrende Baugruppen nicht jedes Mal neu erfassen: <b>Als Vorlage speichern …</b> unten im Editor "
+           "merkt Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) unter einem Namen; "
+           "<b>Vorlage einsetzen …</b> übernimmt sie in eine neue oder vorhandene Baugruppe.", kurz=True)
+    i.text("Beim Einsetzen werden Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge der Baugruppe ersetzt; "
+           "zugeordnete Einzelteile bleiben drin (Teile in einer Unterbaugruppe, die es in der Vorlage nicht gibt, "
+           "hängen danach direkt an der Baugruppe). Die Kennwerte der Nahtgruppen gelten aus den aktuellen "
+           "Stammdaten und werden beim Speichern wie immer gemerkt. Danach die Einzelteile per Häkchen zuordnen. "
+           "Gibt es den Namen schon, fragt das Programm vor dem Überschreiben. Vorlagen werden mit den übrigen "
+           "Stammdaten zwischen Arbeitsplätzen geteilt.")
+    i.text("Für Folgeaufträge mit anderem Kunden: Rechtsklick auf die Baugruppe oder eines ihrer Teile → <b>Baugruppe "
+           "in anderes Angebot kopieren …</b> und das Ziel wählen. Die Baugruppe kommt mit allen Einzelteilen, ihren "
+           "Stückzahlen und 3D-Modellen ans Ende des anderen Angebots, mit eigener Kennung; das Original bleibt "
+           "unverändert.")
+
 
 def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation", marke="ausgabe")
