@@ -242,7 +242,7 @@ def _():
            dict(art="Fließloch", d=7.3, anzahl=2, status="offen")]
     neu = bohrbild.aus_rechner(erg, alt, [("M6", 5.0)], 8)
     assert [(x["art"], x["d"], x["anzahl"], x["status"]) for x in neu] == [
-        ("Bohrung", 5.0, 4, "offen"), ("Senkung", 6.6, 2, "offen"), ("Bohren", 5.0, 4, "bestätigt")], neu
+        ("Bohrung", 5.0, 4, "bestätigt"), ("Senkung", 6.6, 2, "bestätigt"), ("Bohren", 5.0, 4, "bestätigt")], neu
     assert neu[2]["laser"] == bohrbild.LOCH
     f = bohrbild.anwenden(dict(erg["felder"]), neu)
     assert nah(f["schneidweg"], erg["schneidweg"] - 4 * PI * 5 + 4 * PI * 0.5, 0.1), (f, erg["schneidweg"])
@@ -337,6 +337,52 @@ def _():
         assert rechnen.gewinde_preise_position(p) == {} and rechnen.zusatz_liste(p)[0]["preis"] is None
         (zw,) = rechnen.zusatz_werte(p, seite.k, tab)
         assert nah(zw["betrag"], 0.8), zw
+        seite.close()
+        db.con.close()
+
+
+@fall("Rechner von Hand: Flowdrill, Spalte Gewinde (automatisch/kein/gewählt), sofort bestätigt mit Zusatzarbeiten")
+def _():
+    from PySide6.QtWidgets import QApplication
+    from rohrlaser import schneidweg
+    from rohrlaser.fenster import Hauptfenster
+    from rohrlaser.schneidweg_dialog import GEWINDE_KEIN, GEWINDE_SPALTE, SchneidwegDialog
+    app = QApplication.instance() or QApplication([])  # noqa: F841
+    profil = dict(form="Quadratrohr", a=60, b=60, wand=3)
+    e = dict(a={}, b={}, konturen=[dict(art="Bohrung", anzahl=4, d=5), dict(art="Bohrung", anzahl=2, d=6.8, gewinde=""),
+                                   dict(art="Bohrung", anzahl=2, d=10.2, gewinde="M10"),
+                                   dict(art="Flowdrill", anzahl=3, d=7.3)])
+    erg = schneidweg.rechnen(e, profil, (10, 50), [("M6", 5.0), ("M8", 6.8), ("M12", 10.2)])
+    assert not erg["fehler"], erg["fehler"]
+    assert erg["felder"]["gewinde_vorschlag"] == "4xM6", erg["felder"]       # nur die automatischen
+    neu = bohrbild.aus_rechner(erg, None, [("M6", 5.0), ("M8", 6.8), ("M12", 10.2)], 3)
+    art = [(x["art"], x["d"], x["anzahl"], x.get("gewinde"), x["status"]) for x in neu]
+    assert art == [("Bohrung", 10.2, 2, "M10", "bestätigt"), ("Bohrung", 5.0, 4, "M6", "bestätigt"),
+                   ("Fließloch", 7.3, 3, "M8", "bestätigt")], art
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Datenbank(Path(tmp) / "rohrlaser.db")
+        fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
+        a = db.angebot_neu(dict(kunde="Test"))
+        db.position_neu(a, dict(pos=10, artikel="Halter", profil_id="QR 40x40x3", werkstoff_id="S235-10219",
+                                laenge=1000, stueck=4))
+        seite = fenster.angebot_oeffnen(a)
+        assert seite.schneidweg_berechnen(0, e)
+        p = db.positionen(a)[0]
+        assert p["gewinde"] == "2xM10; 4xM6; 3xM8", p["gewinde"]
+        assert {z["name"]: z["menge"] for z in rechnen.zusatz_liste(p)} == {"Flowdrill": 3}, rechnen.zusatz_liste(p)
+        assert "Bohrungen prüfen" not in seite.pos_modell.status[0], seite.pos_modell.status[0]
+        # Dialog: Spalte Gewinde nur für Bohrung/Flowdrill, Wahl kommt in die Eingaben
+        d = SchneidwegDialog(seite, p, seite.k.profile["QR 40x40x3"], seite.kopf, seite.k, seite.tabellen)
+        g = {d.tabelle.cellWidget(r, 0).currentText() + str(r): d.tabelle.cellWidget(r, GEWINDE_SPALTE)
+             for r in range(d.tabelle.rowCount())}
+        assert all(w.isEnabled() for w in g.values()), g
+        d.zeile_neu(dict(art="Senkung", anzahl=1, d=6.6, D=12.4))
+        r = d.tabelle.rowCount() - 1
+        assert not d.tabelle.cellWidget(r, GEWINDE_SPALTE).isEnabled()
+        k = d.eingaben()["konturen"]
+        assert [z.get("gewinde", "auto") for z in k] == ["auto", "", "M10", "auto", "auto"], k
+        assert d.tabelle.cellWidget(1, GEWINDE_SPALTE).currentText() == GEWINDE_KEIN
+        d.close()
         seite.close()
         db.con.close()
 

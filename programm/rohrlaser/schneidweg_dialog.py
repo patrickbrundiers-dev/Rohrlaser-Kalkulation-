@@ -17,10 +17,11 @@ from . import dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze 
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
+from .step import KERNLOCH
 
 KONTUR_SPALTEN = ("Art", "Anzahl", "Maß 1 [mm]", "Maß 2 [mm]", "Maß 3 [mm]", "Lage ab Ende A [mm]",
                   "Abstand Muster [mm]", "Seite", "Versatz quer [mm]", "3D", "Neigung längs [°]", "Neigung quer [°]",
-                  "Bemerkung")
+                  "Bemerkung", "Gewinde")
 SPALTEN_HILFE = (
     "Art der Innenkontur (Bohrung, Senkung, Langloch …)",
     "Anzahl gleicher Konturen je Teil",
@@ -36,11 +37,16 @@ SPALTEN_HILFE = (
     "Neigung der Bohrungsachse gegen die Wandnormale längs zum Rohr: + = Richtung Ende B, − = Richtung Ende A, "
     "0° = senkrecht zur Wand (nicht der Umfangswinkel, der steht in Seite)",
     "Neigung der Bohrungsachse quer: + = im Uhrzeigersinn von Ende A gesehen (Richtung 90°), − = dagegen",
-    "freier Text (erscheint in der Skizze und der Zeichnung)")
+    "freier Text (erscheint in der Skizze und der Zeichnung)",
+    "Gewinde der Bohrung oder des Flowdrill-Lochs: automatisch nach dem Kernloch-Ø, kein Gewinde oder ein Gewinde "
+    "aus den Stammdaten; kommt beim Übernehmen bestätigt in die Position")
 # Bedeutung der Maße je Konturart (Erklärung unter der Tabelle für die markierte Zeile)
 ART_HILFE = {
     sw.BOHRUNG: "Maß 1 = Durchmesser Ø d. Schnittlänge π × d.",
-    sw.SENKUNG: "Maß 1 = Bohrung Ø d (wird geschnitten), Maß 2 = Senk-Ø D außen (Senken ist eine Zusatzarbeit).",
+    sw.SENKUNG: "Maß 1 = Bohrung Ø d (wird geschnitten), Maß 2 = Senk-Ø D außen (Senken kommt als Zusatzarbeit in "
+                "die Position).",
+    sw.FLOWDRILL: "Maß 1 = Kernloch Ø d des Flowdrill-Lochs (nicht geschnitten, nur markiert: Gravur oder Loch Ø 0,5 "
+                  "wie in den Einstellungen); Flowdrill und Gewinde kommen als Zusatzarbeit in die Position.",
     sw.LANGLOCH: "Maß 1 = Gesamtlänge l außen (längs zum Teil), Maß 2 = Breite b (= Ø der Rundungen).",
     sw.RECHTECK: "Maß 1 = Breite b (längs zum Teil), Maß 2 = Höhe h (quer), Maß 3 = Eckradius r (0 = scharfkantig).",
     sw.SCHLITZ: "Schlitz offen vom Rand: Maß 1 = Tiefe l, Maß 2 = Breite b.",
@@ -50,7 +56,8 @@ ART_HILFE = {
     sw.SONSTIGE: "Maß 1 = Schnittlänge in mm, Maß 2 = Hüllmaß (größte Ausdehnung, leer = groß) für die Konturklasse."}
 LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitte, Seite = Fläche von Ende A gesehen, "
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
-LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE = range(5, 13)
+LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE, GEWINDE_SPALTE = range(5, 14)
+GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -264,7 +271,7 @@ class SchneidwegDialog(QDialog):
         self.tabelle.setHorizontalHeaderLabels(KONTUR_SPALTEN)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabelle.verticalHeader().setDefaultSectionSize(26)
-        for i, b in enumerate((130, 60, 150, 80, 80, 140, 140, 120, 120, 40, 110, 110)):
+        for i, b in enumerate((130, 60, 150, 80, 80, 140, 140, 120, 120, 40, 110, 110, 160, 110)):
             self.tabelle.setColumnWidth(i, b)
         self.tabelle.horizontalHeader().setSectionResizeMode(TEXT_SPALTE, QHeaderView.Stretch)
         for c, t in enumerate(SPALTEN_HILFE):
@@ -769,6 +776,13 @@ class SchneidwegDialog(QDialog):
             cb.currentTextChanged.connect(self.rechnen)
             self.tabelle.setCellWidget(r, spalte, cb)
         self.tabelle.setItem(r, TEXT_SPALTE, QTableWidgetItem(z.get("text") or ""))
+        g = QComboBox()
+        g.addItems([GEWINDE_AUTO, GEWINDE_KEIN] + [n for n, _ in self.gewinde or KERNLOCH])
+        g.setToolTip(SPALTEN_HILFE[GEWINDE_SPALTE])
+        if "gewinde" in z:
+            g.setCurrentText(z["gewinde"] or GEWINDE_KEIN)
+        g.currentTextChanged.connect(self.rechnen)
+        self.tabelle.setCellWidget(r, GEWINDE_SPALTE, g)
         self._kopf_hinweise(r)
         art.quer = bool(z.get("quer"))
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
@@ -796,7 +810,11 @@ class SchneidwegDialog(QDialog):
 
     def _kopf_hinweise(self, r):
         """Tooltip je Maßzelle: welches Maß die Art an dieser Stelle braucht."""
-        masse = sw.MASSE.get(self.tabelle.cellWidget(r, 0).currentText(), ())
+        art = self.tabelle.cellWidget(r, 0).currentText()
+        masse = sw.MASSE.get(art, ())
+        g = self.tabelle.cellWidget(r, GEWINDE_SPALTE)
+        if g is not None:
+            g.setEnabled(art in sw.MIT_GEWINDE)
         for i in range(3):
             it = self.tabelle.item(r, 2 + i)
             if it is not None:
@@ -839,6 +857,9 @@ class SchneidwegDialog(QDialog):
                 z["text"] = t
             if self.tabelle.item(r, D3_SPALTE).checkState() == Qt.Checked:
                 z["d3"] = True
+            g = self.tabelle.cellWidget(r, GEWINDE_SPALTE).currentText()
+            if art in sw.MIT_GEWINDE and g != GEWINDE_AUTO:
+                z["gewinde"] = "" if g == GEWINDE_KEIN else g
             for spalte, schl in ((NL_SPALTE, "neigung_l"), (NQ_SPALTE, "neigung_q")):
                 text = self.tabelle.cellWidget(r, spalte).currentText()
                 try:
@@ -900,8 +921,9 @@ class SchneidwegDialog(QDialog):
                       "Schneidzeit von Hand eintragen.</span>"]
         if f.get("gewinde_vorschlag"):
             teile.append(f"<span style='color:#7A5A00'>Vorschlag: Bohrungen {f['bohrungen']} passen zu Kernlöchern "
-                         f"für <b>{f['gewinde_vorschlag']}</b>. Erst nach Prüfung in <i>Gewinde geprüft</i> "
-                         "eintragen (Zusatzarbeiten …).</span>")
+                         f"für <b>{f['gewinde_vorschlag']}</b>. Mit OK kommt das Gewinde bestätigt in die Position "
+                         "(Spalte Gewinde: anderes oder kein Gewinde wählen; später änderbar in <i>Bohrungen "
+                         "prüfen</i>).</span>")
         for h in erg.get("hinweise") or ():
             teile.append(f"<span style='color:#7A5A00'>{h}</span>")
         if erg["schaetzung"]:

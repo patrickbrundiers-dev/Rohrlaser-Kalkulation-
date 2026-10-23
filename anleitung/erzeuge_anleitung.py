@@ -1495,8 +1495,9 @@ def kapitel_optimieren(i):
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Senkung</i> (Bohrung Ø d und "
-            "Senk-Ø D: geschnitten wird nur die Bohrung π × d; das Senken wird wie Gewinde und Bohren (Bohrung "
-            "kleiner als 0,7 × Wand) im Fenster Bohrungen prüfen vorgeschlagen, [[bohrungen_pruefen]]), <i>Langloch</i> (Länge, Breite: "
+            "Senk-Ø D: geschnitten wird nur die Bohrung π × d, Senken kommt als Zusatzarbeit in die Position), "
+            "<i>Flowdrill</i> (Kernloch-Ø: nicht geschnitten, nur markiert mit Gravur oder Loch Ø 0,5; Flowdrill "
+            "kommt als Zusatzarbeit in die Position), <i>Langloch</i> (Länge, Breite: "
             "2 × (l − b) + π × b), <i>Rechteck</i> (Breite, Höhe, Eckradius: 2 × (b + h) − 8 r + 2 π r), "
             "<i>Schlitz</i> offen vom Rand (Tiefe, Breite: 2 × l + b), <i>Ausklinkung</i> am Ende als Rechteck "
             "(Länge ab Ende, Breite, Eckradius innen: 2 × (l − r) + (b − 2 r) + π × r; ohne Lage an Ende A, für "
@@ -1548,10 +1549,12 @@ def kapitel_optimieren(i):
             "und Seitenansicht den Versatz bzw. beim Rundrohr den Winkel. Die Werte stehen danach in der Tabelle. "
             "Fehlt die Teilelänge, zeichnet die Skizze mit 1000 mm. Flanschdicken, die das Profil nicht hat "
             "(kein Normprofil), zeichnet sie mit der Wandstärke; gerechnet wird damit nichts.",
-            "<b>Gewinde-Vorschlag</b>: Bohrungen mit dem Kernloch-Ø eines Gewindes aus den Stammdaten (z. B. Ø 8,5 "
-            "für M10) ergeben wie beim STEP-Import einen Vorschlag (Spalten <i>Bohrungen</i> und "
-            "<i>Gewinde-Vorschlag</i>, Status „HINWEIS: Bohrungen prüfen (Doppelklick)“). Gerechnet wird ein Gewinde erst, "
-            "wenn es im Fenster <i>Bohrungen prüfen</i> bestätigt ist ([[bohrungen_pruefen]]).",
+            "<b>Spalte Gewinde</b> (Bohrung und Flowdrill): <i>automatisch</i> nimmt das Gewinde zum Kernloch-Ø "
+            "aus den Stammdaten (z. B. Ø 8,5 für M10), <i>kein Gewinde</i> oder ein Gewinde aus der Liste gilt wie "
+            "gewählt. Was im Rechner eingegeben ist, gilt als <b>bestätigt</b>: Mit OK kommen Gewinde, Senken, "
+            "Flowdrill und Bohren (Bohrung kleiner als 0,7 × Wand) mit Anzahl und Preis je Stück direkt in die "
+            "Position, ohne Prüfhinweis. Ändern lässt sich das jederzeit im Fenster <i>Bohrungen prüfen</i> "
+            "([[bohrungen_pruefen]]).",
             "Unter <i>Ergebnis je Teil</i> stehen sofort alle Schnitte mit Länge, Einstichen, Hüllmaß und Klasse "
             "(klein/mittel/groß nach den Konturgrenzen der Maschine, [[konturklassen]]), darunter Schneidweg und "
             "Schneidzeit je Teil mit den Schneiddaten der Maschine. Ohne passende Schneiddaten erscheint ein "
@@ -3985,6 +3988,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.32", "<b>Schneidweg-Rechner</b>: neue Konturart <i>Flowdrill</i> (Kernloch-Ø, nur markiert) und Spalte "
+               "<i>Gewinde</i> je Bohrung (automatisch, kein Gewinde oder Auswahl). Von Hand eingegebene Gewinde, "
+               "Senkungen, Flowdrill und Bohren kommen sofort bestätigt mit Preis je Stück in die Position, so "
+               "einfach wie beim STEP-Import ([[schneidweg_rechner]])."],
     ["0.8.30", "<b>RP-Profile kalkuliert</b>: Schnitt durch den Anschlag mit den Schneiddaten der doppelten Wand, "
                "neue Spalte <i>Zeit je Ecke</i> in den Schneiddaten (RP nach Kontur, Quadrat-/Rechteckrohr 4 Ecken), "
                "Maschinenfelder <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "

@@ -19,14 +19,17 @@ Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader 
   Unbekannte Profilform: gerade Schnittlänge / cos α (Schätzung, als solche gekennzeichnet)
 - Ausklinkung (Sattelschnitt) Rundrohr Ø d rechtwinklig auf Rundrohr Ø D: Länge der Schnittkurve numerisch
 - Bohrung π × d; Senkung π × d (der Laser schneidet die Bohrung, das Senken auf Ø D ist eine Zusatzarbeit);
+  Flowdrill 0 (nur Markierung, siehe unten);
   Langloch 2 × (l − b) + π × b; Rechteck 2 × (b + h) − 8 r + 2 π r; Schlitz (offen, vom Rand) 2 × l + b;
   Ausklinkung am Ende (Rechteck, offen zum Ende, Ecken innen mit r) 2 × (l − r) + (b − 2 r) + π r, der Endschnitt
   wird dafür nicht gekürzt (zur sicheren Seite); sonstige Kontur: Länge wie eingegeben. Jede Innenkontur 1 Einstich, jedes Ende
   rechnen.einstiche_ende(Profilform) Einstiche.
 Hüllmaß (für die Konturklassen klein/mittel/groß): Bohrung und Senkung d, Ausklinkung max(l, b), Langloch l, Rechteck max(b, h), Schlitz max(l, b),
 sonstige Kontur wie eingegeben (leer = groß), Polygon größte Ausdehnung in x oder y.
-Vorschlag: Bohrungen mit dem Kernloch-Ø eines Gewindes ergeben einen Gewinde-Vorschlag (wie beim STEP-Import); er
-gilt erst, wenn der Benutzer ihn in 'Gewinde geprüft' einträgt.
+Flowdrill: Kernloch Ø d, nicht im Schneidweg (der Laser markiert nur; Gravur bzw. Loch Ø 0,5 kommt über das Bohrbild
+dazu, bohrbild.py). Gewinde je Konturzeile (Bohrung, Flowdrill): gewinde fehlt = Vorschlag nach dem Kernloch,
+'' = kein Gewinde, sonst das Gewinde. Was im Rechner eingegeben wird, übernimmt die Position als bestätigt
+(bohrbild.aus_rechner): Gewinde, Senken, Flowdrill und Bohren (Bohrung < 0,7 × Wand) mit Anzahl und Preis je Stück.
 """
 import json
 import math
@@ -38,10 +41,12 @@ QUELLE = "Schneidweg-Rechner"
 QUELLE_STEP = "STEP-Import"         # Konturen aus der STEP-Messung (Lage, gemessene Schnittlängen)
 BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE = ("Bohrung", "Langloch", "Rechteck", "Schlitz", "Polygon",
                                                           "sonstige Kontur")
-SENKUNG, AUSKLINKUNG = "Senkung", "Ausklinkung"
-ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONSTIGE)
+SENKUNG, AUSKLINKUNG, FLOWDRILL = "Senkung", "Ausklinkung", "Flowdrill"
+ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONSTIGE)
+MIT_GEWINDE = (BOHRUNG, FLOWDRILL)      # Konturarten mit Spalte Gewinde (gewinde: fehlt = nach Kernloch, '' = keins)
 # Maße je Art: (Schlüssel, Titel) in der Eingabetabelle
 MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"), ("D", "Senk-Ø D (Zusatzarbeit)")),
+         FLOWDRILL: (("d", "Kernloch Ø d (Flowdrill)"),),
          LANGLOCH: (("l", "Länge l"), ("b", "Breite b")),
          RECHTECK: (("b", "Breite b"), ("h", "Höhe h"), ("r", "Eckradius r")),
          SCHLITZ: (("l", "Tiefe l"), ("b", "Breite b")),
@@ -321,6 +326,11 @@ def kontur(e):
         if d <= 0:
             raise ValueError("Bohrung: Ø fehlt.")
         return math.pi * d, d, n
+    if art == FLOWDRILL:                # der Laser markiert nur (Bohrungen prüfen: Gravur oder Loch Ø 0,5)
+        d = _z(e.get("d"))
+        if d <= 0:
+            raise ValueError("Flowdrill: Kernloch Ø fehlt.")
+        return 0.0, d, n
     if art == SENKUNG:
         d, D = _z(e.get("d")), _z(e.get("D"))
         if d <= 0:
@@ -453,6 +463,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
             if h_:
                 hinweise_3d.append(f"Bohrung Ø {zahl(_z(e.get('d')), 2)}: {h_} Die Bohrung ist dann nicht maßhaltig.")
+        if e.get("art") == FLOWDRILL:      # nicht im Schneidweg: Markierung kommt über das Bohrbild dazu
+            schritte.append(dict(text=f"{n} × {FLOWDRILL} Ø {masse}" + (f" ({e['text']})" if e.get("text") else ""),
+                                 anzahl=n, laenge_stueck=0.0, laenge=0.0, einstiche=0, huelle=hk,
+                                 klasse="Markierung", schaetzung=False, gerade=None, art=FLOWDRILL, eingabe=e))
+            continue
         klasse = "groß" if hk is None else ("klein", "mittel", "groß")[kontur_klasse(hk, grenzen)]
         if _z(e.get("gemessen")) > 0:
             masse = (masse + " (STEP gemessen)").strip()
@@ -478,12 +493,21 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
         if s_.get("art") == BOHRUNG:
             d = round(_z(s_["eingabe"].get("d")), 2)
             bohr[d] = bohr.get(d, 0) + s_["anzahl"]
-    paare = "|".join(f"{d}:{n}" for d, n in sorted(bohr.items()))
+    auto = {}                           # nur Bohrungen ohne Gewinde von Hand (Spalte Gewinde = automatisch)
+    for s_ in schritte[2:]:
+        if s_.get("art") == BOHRUNG and "gewinde" not in s_["eingabe"]:
+            d = round(_z(s_["eingabe"].get("d")), 2)
+            auto[d] = auto.get(d, 0) + s_["anzahl"]
+    paare = "|".join(f"{d}:{n}" for d, n in sorted(auto.items()))
     felder["bohrungen"] = "; ".join(f"{n}xØ{zahl(d, 2)}" for d, n in sorted(bohr.items())) or None
     felder["gewinde_vorschlag"] = gewinde_vorschlag(paare, gewinde or KERNLOCH) or None
     senk = sum(s_["anzahl"] for s_ in schritte[2:] if s_.get("art") == SENKUNG)
-    hinweise = [f"{senk} Senkung(en): der Laser schneidet nur die Bohrung; das Senken als Zusatzarbeit erfassen "
-                "(Zusatzarbeiten …)."] if senk else []
+    fl = sum(s_["anzahl"] for s_ in schritte[2:] if s_.get("art") == FLOWDRILL)
+    hinweise = [f"{senk} Senkung(en): der Laser schneidet nur die Bohrung; Senken kommt beim Übernehmen als "
+                "Zusatzarbeit in die Position."] if senk else []
+    if fl:
+        hinweise.append(f"{fl} Flowdrill: der Laser markiert nur (Gravur oder Loch Ø 0,5, kommt beim Übernehmen dazu); "
+                        "Flowdrill kommt als Zusatzarbeit in die Position.")
     if richtung_fehlt:
         hinweise.append(f"{' und '.join(richtung_fehlt)}: längste Seite automatisch aus „gekippt über“ "
                         f"({', '.join(richtung_fehlt_text)}). Bei frei drehbaren Teilen (Schweißnaht ohne Vorgabe) "
