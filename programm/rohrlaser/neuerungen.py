@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.5", "<b>STEP: Bauteilnamen, Normteile, Importprofile</b>: Die Messung liest die Baugruppenstruktur und "
+              "die Bauteilnamen aus der STEP-Datei. Der Bauteilname wird die Artikelnummer (Einstellung "
+              "<i>Artikelnummer aus</i>; ohne Namen wie bisher der Dateiname). Normteile wie Schrauben, Muttern und "
+              "Scheiben sind im Prüfdialog abgewählt. Neuer Unterreiter <i>Importprofile (STEP)</i>: je Kunde "
+              "Benennung, Muster für die Artikelnummer, eigene Normteil-Begriffe, Werkstoff und Vorgaben. Die "
+              "Struktur (Unterbaugruppen mit Menge) steht im Messergebnis für die Schweißbaugruppen "
+              "([[importprofile]]).",
+     "STEP: Artikel aus Bauteilnamen, Normteile abgewählt, Importprofile je Kunde ([[importprofile]])."],
     ["0.9.4", "<b>Lizenzen ladbar</b>: Das Programm kennt jetzt Patricks Schlüssel, Lizenzdateien lassen sich unter "
               "<i>Hilfe → Lizenz …</i> laden. <b>E-Mail an Patrick …</b> geht direkt an patrick.brundiers@gmail.com. "
               "Weiterhin keine Sperre ohne Lizenz ([[lizenz]]).",

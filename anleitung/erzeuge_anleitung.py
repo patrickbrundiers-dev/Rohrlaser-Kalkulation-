@@ -1498,6 +1498,35 @@ def kapitel_step(i):
     i.text("Wird das Feld <b>geleert</b> (auf 0), wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
            "der Rohrliste. Bei mehreren Dateien gilt das Feld je Datei. Staffelpreise und Angebot rechnen den Satz "
            "wie einen von Hand angelegten ([[staffeln]]).")
+    i.abschnitt("Bauteilnamen, Normteile und Importprofile", marke="importprofile")
+    i.text("Hat die Konstruktion Namen, wird der <b>Bauteilname</b> die Artikelnummer. <b>Normteile</b> (Schrauben, "
+           "Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest.", kurz=True)
+    i.genauer()
+    i.liste("Die Messung liest die Baugruppenstruktur und die Namen der Bauteile aus der STEP-Datei. Wie die "
+            "Artikelnummer entsteht, steht in der Einstellung <i>Artikelnummer aus (Bauteilname, Dateiname oder "
+            "beides)</i> (Vorgabe Bauteilname). Ohne Namen in der Datei bleibt es wie bisher beim Dateinamen mit "
+            "Körpernummer (<i>Gestell-K3</i>). Der Tooltip auf dem Artikel im Prüfdialog zeigt die Lage in der "
+            "Baugruppe, z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>.",
+            "Steht im Bauteilnamen ein Begriff aus der Einstellung <i>Normteile: Begriffe im Bauteilnamen (mit ; "
+            "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "
+            "ist das Teil ein Normteil. Es ist im Prüfdialog abgewählt (Hinweis <i>Normteil … – zum Übernehmen "
+            "anhaken</i>) und steht im Bericht als nicht übernommen.",
+            "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
+            "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
+    i.tabelle(["Importprofile (STEP)", "Bedeutung"], [
+        ["<b>Kunde</b>", "Kundennummer; das Profil gilt in allen Angeboten dieses Kunden"],
+        ["Artikel aus", "Bauteilname, Dateiname oder Dateiname + Bauteilname (leer = Einstellung)"],
+        ["Artikelnummer im Namen (Muster)", "regulärer Ausdruck: sein erster Klammerausdruck (sonst der ganze "
+                                            "Treffer) wird die Artikelnummer, der ganze Name die Bezeichnung der "
+                                            "Position. Beispiel <i>^(\\d+)</i>: aus <i>4711 Strebe</i> wird Artikel "
+                                            "4711, Bezeichnung <i>4711 Strebe</i>"],
+        ["Normteile zusätzlich (Begriffe mit ; getrennt)", "weitere Wörter für Normteile dieses Kunden, z. B. "
+                                                            "Kaufteil; Zukauf"],
+        ["Werkstoff Rohre/Profile, Flache Teile als, Anbauteile nicht übernehmen",
+         "Vorbelegung im Prüfdialog statt der Einstellungen <i>Standard-Werkstoff</i>, <i>ebene flache Teile "
+         "vorgeben als</i> und des Häkchens für Anbauteile"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
     i.text("<i>plausibel</i> = Messung stimmig, <i>prüfen</i> = bitte ansehen, <i>nicht messbar</i> = kein Profil "
            "erkannt. Unsichere Teile sind nicht angehakt.")
@@ -1529,7 +1558,9 @@ def kapitel_step(i):
             "Profiltyp, Außen- und Innenmaße, Wandstärke mit allen Einzelmessungen, Länge, Längsachse, Konturen "
             "mit Lage, Schnittwinkel, Prüfstatus, Warnungen und die Erkennungssicherheit je Merkmal. Werte, die "
             "nicht gemessen werden konnten, stehen als <i>null</i> darin, nie als 0 oder Schätzwert. Das Format "
-            "trägt eine Versionsnummer (<i>schema_version</i>).",
+            "trägt eine Versionsnummer (<i>schema_version</i>). Bei Baugruppen steht dort ab Version 1.13 auch die "
+            "<b>Baugruppenstruktur</b> aus der STEP-Datei: Unterbaugruppen mit Menge, je Körper der Bauteilname "
+            "aus der Konstruktion und sein Pfad (z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>).",
             "<i>STEP-Import.exe</i> kann auch ohne das Programm messen: <i>STEP-Import.exe --ausgabe messwerte.txt "
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
@@ -2962,6 +2993,10 @@ def kapitel_einstellungen(i):
         ["STEP-Import", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["STEP-Import", "Artikelnummer aus (Bauteilname, Dateiname oder beides), Normteile: Begriffe im "
+                        "Bauteilnamen (mit ; getrennt)",
+         "Wie aus den Namen in der STEP-Datei Artikelnummern werden und welche Teile als Normteil abgewählt sind; "
+         "je Kunde änderbar im Importprofil ([[importprofile]])."],
         ["STEP-Import", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)",
          "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1). Weniger "
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
