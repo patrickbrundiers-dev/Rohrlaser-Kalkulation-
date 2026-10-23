@@ -23,7 +23,6 @@ import datetime
 import hashlib
 import json
 import os
-import re
 import shutil
 import socket
 import sqlite3
@@ -402,9 +401,11 @@ def schreiben(db, uebernehmen=False):
     """Schritt 3: eigene Datei im Zwischenspeicher aktualisieren und in den gemeinsamen Ordner legen.
     uebernehmen: die Datei des Kürzels gehört einem anderen Arbeitsplatz (z. B. neuer Rechner) und wird übernommen;
     ihre Angebote, die es hier nicht gibt, kommen vorher als eigene Angebote herein. Ergebnis: Anzahl Angebote."""
+    from . import nummern
     k, o = kuerzel(db), _ordner_pruefen(db)
     if not k:
         raise TeilenFehler("Kein Kürzel eingetragen.")
+    nummern.endgueltig(db)          # vorläufige Nummern (Ordner war nicht erreichbar) jetzt endgültig vergeben
     ziel = o / datei_name(k)
     ich = installation(db)
     if ziel.exists():
@@ -470,21 +471,16 @@ def schreiben(db, uebernehmen=False):
     return len(eigene)
 
 
-def _zaehler(nr):
-    """'PB-2026-0007' -> (2026, 7) zum Vergleichen; andere Nummern (0, 0)."""
-    m = re.match(r"^.+-(\d{4})-(\d+)$", str(nr or ""))
-    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
-
-
 def _eigene_holen(db, pfad):
     """Beim Übernehmen der Datei des eigenen Kürzels: deren Angebote, die es hier nicht gibt, als eigene anlegen."""
+    from . import nummern
     kopie = _lokal_kopieren(db, pfad)
     fc = sqlite3.connect(kopie)
     try:
         vorhanden = {r[0] for r in db.con.execute("SELECT nummer FROM angebote")}
         letzte = info_lesen(kopie).get("letzte")
         with db.con:
-            if _zaehler(letzte) > _zaehler(db.einstellung("letzte_angebotsnummer")):
+            if nummern.zaehler(letzte) > nummern.zaehler(db.einstellung("letzte_angebotsnummer")):
                 db._einstellung_schreiben("letzte_angebotsnummer", letzte)    # Zähler geht dort weiter
             entfernt = {(t, u): (zeit, json.loads(daten) if daten is not None else None)
                         for t, u, zeit, daten in fc.execute("SELECT tabelle, uid, zeit, daten FROM stammdaten")}
@@ -681,8 +677,9 @@ def lesen(db, modus=None):
                 for nummer, (h, _) in liste.items():
                     a = hier.get(nummer)
                     if a is not None and a[1] != k2:
-                        bericht["hinweise"].append(f"Angebot {nummer} von {k2} nicht übernommen: die Nummer gibt es "
-                                                   "hier schon.")
+                        bericht["hinweise"].append(f"Angebot {nummer} von {k2} nicht übernommen: doppelte "
+                                                   "Angebotsnummer, die Nummer gibt es hier schon. Bitte bei einem "
+                                                   "der beiden Angebote die Nummer ändern.")
                         continue
                     if a is not None and _hash(angebot_inhalt(con, a[0], karte)[0]) == h:
                         continue
@@ -721,6 +718,8 @@ def bericht_text(b):
         teile.append(f"Angebote: {neu} neu, {geaendert} geändert, {weg} entfernt")
     if b.get("stammdaten"):
         teile.append(f"{b['stammdaten']} Stammdaten übernommen")
+    if b.get("nummern"):
+        teile.append("endgültige Nummer: " + ", ".join(f"{a} → {n}" for a, n in b["nummern"]))
     if "eigene" in b:
         teile.append(f"{b['eigene']} eigene Angebote geteilt")
     return "; ".join(teile) + "."

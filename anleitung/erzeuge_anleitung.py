@@ -713,7 +713,7 @@ def kapitel_start(i):
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
            "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an. Danach fragt es nach "
-           "<b>Name und Kürzel</b> des Benutzers; das Kürzel steht vorn in jeder neuen Angebotsnummer. Arbeiten "
+           "<b>Name und Kürzel</b> des Benutzers; das Kürzel zeigt, wer ein Angebot bearbeitet. Arbeiten "
            "mehrere Mitarbeiter mit dem Programm, kommt hier auch der gemeinsame Ordner hinein "
            "([[mehrere_arbeitsplaetze]]).",
            "Die Karte Angebote zeigt die zuletzt bearbeiteten Angebote mit Status und Verkaufspreis; die Karte Daten "
@@ -3134,8 +3134,9 @@ def kapitel_einstellungen(i):
          "Zahlungsbedingungen neuer Angebote, wenn der Kunde im Kundenstamm keine eigenen hat (Vorgabe 2 % Skonto "
          "bei Zahlung in 10 Tagen, 30 Tage netto). Das Skonto wird in den Preis eingerechnet. Bestehende Angebote "
          "behalten ihre Werte."],
-        ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
-                                             "A-2026-0042)."],
+        ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (2026-00041 → "
+                                             "2026-00042); hier lässt sich der Startwert setzen "
+                                             "([[mehrere_arbeitsplaetze]])."],
         ["STEP-Import", "STEP-Import: ebene flache Teile vorgeben als",
          "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
          "Spalte Art wählbar. Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
@@ -3288,12 +3289,12 @@ def kapitel_einstellungen(i):
 
 
 def kapitel_mehrere(i):
-    i.kapitel("Mehrere Arbeitsplätze: Kürzel und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
+    i.kapitel("Mehrere Arbeitsplätze: Kürzel, Nummernkreis und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
            "Angebote der anderen sieht und alle mit denselben Stammdaten rechnen, gibt es das <b>Kürzel</b> und einen "
            "<b>gemeinsamen Ordner</b>.", kurz=True)
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
-    i.liste("<b>Kürzel</b> eintragen (z. B. PB): neue Angebote heißen PB-2026-0001 …",
+    i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
             "<b>Abgleichen</b> im Reiter Angebote holt die Angebote der Kollegen; beim Start und Beenden geht das "
             "von selbst.", nummeriert=True, kurz=True)
@@ -3301,11 +3302,36 @@ def kapitel_mehrere(i):
     i.genauer()
     i.liste("<b>Datei → Benutzer und gemeinsamer Ordner …</b> (beim ersten Start von selbst): Name, Kürzel, E-Mail "
             "und Telefon eintragen. Dieselben Felder stehen in den Einstellungen in der Gruppe <i>Benutzer</i>.",
-            "Das <b>Kürzel</b> (Buchstaben und Ziffern, höchstens 5, z. B. PB) steht vorn in jeder neuen "
-            "Angebotsnummer: <b>PB-2026-0001</b>, PB-2026-0002 … Jedes Kürzel zählt je Jahr für sich, eine gelöschte "
-            "Nummer wird nicht wieder vergeben. Ältere Angebote behalten ihre Nummer.",
-            "Im Angebotskopf steht der <b>Bearbeiter</b> (Kürzel und Name), im Angebots-PDF rechts oben als "
-            "<b>Ansprechpartner</b> mit Telefon und E-Mail. Eine Kopie bekommt immer das eigene Kürzel.")
+            "Das <b>Kürzel</b> (Buchstaben und Ziffern, höchstens 5, z. B. PB) steht in der Spalte "
+            "<b>Bearbeiter</b> und im Angebotskopf (Kürzel und Name), im Angebots-PDF rechts oben als "
+            "<b>Ansprechpartner</b> mit Telefon und E-Mail. Eine Kopie bekommt immer das eigene Kürzel. In der "
+            "Angebotsnummer steht es nicht (siehe Angebotsnummern).")
+    i.abschnitt("Angebotsnummern")
+    i.text("Alle Mitarbeiter zählen gemeinsam: <b>2026-00001</b>, 2026-00002 … Keine Nummer kommt doppelt vor.",
+           kurz=True)
+    i.genauer()
+    i.liste("Die Nummer besteht aus dem Jahr und einem fünfstelligen Zähler. Der Zähler läuft über den "
+            "Jahreswechsel weiter (2026-00731 → 2027-00732), er beginnt also nicht jedes Jahr neu.",
+            "Bei <b>Neues Angebot</b> und <b>Kopieren</b> reserviert das Programm die nächste Nummer im gemeinsamen "
+            "Ordner (Unterordner <i>Nummern</i>, je Nummer eine kleine Datei). Legen zwei Mitarbeiter im selben "
+            "Augenblick ein Angebot an, bekommt der zweite automatisch die nächste Nummer.",
+            "Eine vergebene Nummer wird nie wieder vergeben, auch wenn das Angebot gelöscht wird. Lücken in der "
+            "Reihe sind deshalb möglich.",
+            "<b>Ordner nicht erreichbar</b> (Laptop unterwegs, Netz weg): das Angebot bekommt eine <b>vorläufige "
+            "Nummer</b> (V-PB-1); der Reiter zeigt <i>(vorläufige Nummer)</i>. Die endgültige Nummer kommt beim "
+            "nächsten Abgleich von selbst (Meldung in der Statuszeile). Angebots-PDF und Materialanfrage gehen erst "
+            "mit endgültiger Nummer: das Programm versucht sie dann sofort zu holen.",
+            "Ohne gemeinsamen Ordner (nur ein Arbeitsplatz) zählt das Programm im gleichen Format auf diesem Rechner. "
+            "Den Startwert setzt die Einstellung <i>Letzte Angebotsnummer</i> (z. B. 2026-00500: das nächste Angebot "
+            "bekommt 2026-00501).",
+            "Ältere Angebote behalten ihre Nummer (A-2026-0041, PB-2026-0001 …); sie zählen beim neuen Nummernkreis "
+            "nicht mit.",
+            "Gibt jemand eine Nummer von Hand doppelt ein, meldet der Abgleich das (<i>doppelte Angebotsnummer</i>); "
+            "dann bei einem der beiden Angebote die Nummer im Angebotskopf ändern.")
+    i.hinweis("Für einen garantiert eindeutigen Nummernkreis gehört der gemeinsame Ordner auf ein "
+              "<b>Netzlaufwerk</b> (Server oder NAS im Firmennetz). Bei OneDrive/SharePoint kommt die Reservierung "
+              "erst mit der Synchronisierung bei den Kollegen an; legen zwei in diesem Moment ein Angebot an, kann "
+              "eine Nummer selten doppelt entstehen. Der Abgleich meldet das.")
     i.abschnitt("Gemeinsamer Ordner")
     i.genauer()
     i.text("Ein Ordner, den alle erreichen: ein Netzlaufwerk, eine NAS oder ein OneDrive-/SharePoint-Ordner, den "
@@ -5054,8 +5080,8 @@ STECKBRIEFE = {
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
-    "mehrere_arbeitsplaetze": ("Kürzel in der Angebotsnummer; Angebote und Stammdaten mit den Kollegen über einen "
-                               "gemeinsamen Ordner teilen.",
+    "mehrere_arbeitsplaetze": ("Kürzel als Bearbeiter, gemeinsamer Nummernkreis 2026-00001; Angebote und Stammdaten "
+                               "mit den Kollegen über einen gemeinsamen Ordner teilen.",
                                "<i>Datei → Benutzer und gemeinsamer Ordner …</i>; Knopf <i>Abgleichen</i> im Reiter "
                                "Angebote"),
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
