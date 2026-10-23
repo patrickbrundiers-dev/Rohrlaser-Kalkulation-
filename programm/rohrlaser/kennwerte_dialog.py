@@ -1,11 +1,11 @@
 """Fenster 'Kennwerte aus der Nachkalkulation' (Einstellungen, kennwerte.py): Vorschläge Ist ÷ Soll je Quelle und
 Schlüssel prüfen, mit Begründung freigeben, frühere Freigaben zurücknehmen."""
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import VERSION, kennwerte
+from . import VERSION, kennwerte, stil
 from .stil import GELB_FLAECHE, TEXT_GRAU
 
 SPALTEN = ("Quelle", "Schlüssel", "Faktor Ist ÷ Soll", "Fälle", "Streuung", "Ausreißer", "Status")
@@ -88,9 +88,9 @@ class KennwerteDialog(QDialog):
                 if c in (2, 3, 4):
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if v["status"] != "ok":
-                    it.setForeground(QBrush(QColor(TEXT_GRAU)))
+                    it.setForeground(QBrush(stil.farbe(TEXT_GRAU)))
                 elif v["faktor"] and abs(v["faktor"] - 1) >= 0.1:
-                    it.setBackground(QBrush(QColor(GELB_FLAECHE)))
+                    it.setBackground(QBrush(stil.farbe(GELB_FLAECHE)))
                 self.tab.setItem(r, c, it)
         self.historie = kennwerte.historie(self.db)
         self.hist.setRowCount(len(self.historie))

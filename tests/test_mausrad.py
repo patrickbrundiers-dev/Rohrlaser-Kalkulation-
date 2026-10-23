@@ -136,7 +136,9 @@ def test_hauptfenster():
     fenster.show()
     app.processEvents()
     geprueft, geaendert = set(), []
-    for reiter in fenster.findChildren(QTabWidget):
+    from rohrlaser.einstellungen_nav import NavigationsReiter
+    # Hauptreiter (feste Reiter + Zeile der Angebote) und Navigation der Einstellungen verhalten sich wie Reiter
+    for reiter in [fenster.reiter] + fenster.findChildren(QTabWidget) + fenster.findChildren(NavigationsReiter):
         for i in range(reiter.count()):
             if not reiter.isVisible():
                 continue

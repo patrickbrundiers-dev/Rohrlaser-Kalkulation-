@@ -23,7 +23,7 @@ from .staffeln import EURO, PROZENT, UMLEGEN
 from .stammdaten import Feld, wert_aus_text, zahl_als_text
 
 GRAU = QColor(stil.TEXT_GRAU)
-FARBE_SUMME = QColor("#DDEBF7")
+FARBE_SUMME = stil.farbe_fest("#DDEBF7")
 ZEILENHOEHE = 20
 
 
@@ -650,7 +650,7 @@ class Vergleich(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.fillRect(self.rect(), QColor("white"))
-        p.setPen(QColor("#404040"))
+        p.setPen(stil.farbe("#404040"))
         p.drawText(QRectF(8, 4, self.width() - 16, 20), Qt.AlignLeft, "Preisentwicklung: VK netto je Einheit")
         if not self.reihen:
             p.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignCenter, "noch keine Staffelpreise")
@@ -660,7 +660,7 @@ class Vergleich(QWidget):
         je = hoehe / len(self.reihen)
         for r, ((einheit, schl), punkte) in enumerate(self.reihen):
             top = y0 + r * je
-            p.setPen(QColor("#404040"))
+            p.setPen(stil.farbe("#404040"))
             p.drawText(QRectF(8, top, self.width() - 16, 16), Qt.AlignLeft,
                        f"{'Satz' if einheit == 'Satz' else 'Pos.'} {schl}")
             maxp = max(w for _, w in punkte) or 1
@@ -671,7 +671,7 @@ class Vergleich(QWidget):
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(farben[r % len(farben)]))
                 p.drawRect(QRectF(60, y + 1, max(1, breite), max(3, balken - 3)))
-                p.setPen(QColor("#404040"))
+                p.setPen(stil.farbe("#404040"))
                 p.drawText(QRectF(4, y, 54, balken), Qt.AlignRight | Qt.AlignVCenter, _z(m, 0))
                 p.drawText(QRectF(64 + breite, y, 90, balken), Qt.AlignLeft | Qt.AlignVCenter, f"{_z(w)} €")
 

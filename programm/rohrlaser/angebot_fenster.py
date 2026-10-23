@@ -35,7 +35,8 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import step_ablage, step_einstellungen, stil
+from . import schritte, step_ablage, step_einstellungen, stil
+from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -216,7 +217,7 @@ def angebot_status(z):
 class AngeboteListe(Liste):
     def data(self, index, rolle=Qt.DisplayRole):
         if rolle == Qt.ForegroundRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
-            return QBrush(QColor(FREMD_FARBE))          # Angebote anderer Mitarbeiter: grau, nur zum Ansehen
+            return QBrush(stil.farbe(FREMD_FARBE))          # Angebote anderer Mitarbeiter: grau, nur zum Ansehen
         if rolle == Qt.FontRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
             f = QFont()
             f.setItalic(True)
@@ -224,7 +225,7 @@ class AngeboteListe(Liste):
         if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] in ("Status", "Vorgang"):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
-            return QBrush(QColor(farbe)) if farbe else None
+            return QBrush(stil.farbe(farbe)) if farbe else None
         if rolle == Qt.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
             am = self.zeilen[index.row()].get("vk_am")
             return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
@@ -668,7 +669,7 @@ class PositionenModell(QAbstractTableModel):
             if rolle == Qt.EditRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
+                return QBrush(stil.farbe("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
@@ -685,7 +686,7 @@ class PositionenModell(QAbstractTableModel):
                         + ("Von Hand eingetragen; leeren = wieder berechnet." if w is not None
                            else "Doppelklick zum Anpassen."))
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
+                return QBrush(stil.farbe("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
@@ -717,7 +718,7 @@ class PositionenModell(QAbstractTableModel):
                                 "Profil, Werkstoff, Oberfläche und Stangenlänge eingetragen.")
                 return t + "Doppelklick zum Anpassen (günstiger oder teurer)."
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if eigen else "#5F6B7A"))
+                return QBrush(stil.farbe("#000000" if eigen else "#5F6B7A"))
             if rolle == Qt.FontRole and (eigen or fremd):
                 f = QFont()
                 f.setBold(eigen)
@@ -774,12 +775,12 @@ class PositionenModell(QAbstractTableModel):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         if rolle == Qt.BackgroundRole:
             if art == "status":
-                return QBrush(_farbe_status(w) or (QColor("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
+                return QBrush(_farbe_status(w) or (stil.farbe("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
             if art == "abweichung" and w is not None:
-                return QBrush(QColor("#FFF2CC"))
+                return QBrush(stil.farbe("#FFF2CC"))
             return QBrush(FARBE_EINGABE if art in ("feld",) + EIGENE else FARBE_BERECHNET)
         if rolle == Qt.ForegroundRole and art == "status":
-            return QBrush(QColor({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
+            return QBrush(stil.farbe({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
         return None
 
     def flags(self, index):
@@ -897,7 +898,7 @@ class Stangenbild(QWidget):
         g = 12
         mx, my = x + g / 2, y + g / 2
         r = QRectF(mx - b * g / 2, my - h * g / 2, b * g, h * g)
-        p.setPen(QPen(QColor("#404040"), 1.2))
+        p.setPen(QPen(stil.farbe("#404040"), 1.2))
         p.setBrush(Qt.NoBrush)
         p.setRenderHint(QPainter.Antialiasing, True)
         if q and q[0] == "Kasten":
@@ -907,7 +908,7 @@ class Stangenbild(QWidget):
         if lage is not None:
             nx, ny = rechnen.naht_punkt(q, lage)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#D0021B"))
+            p.setBrush(stil.farbe("#D0021B"))
             p.drawEllipse(QPointF(mx + nx * g, my - ny * g), 2.6, 2.6)
             p.setBrush(Qt.NoBrush)
         p.setRenderHint(QPainter.Antialiasing, False)
@@ -927,14 +928,14 @@ class Stangenbild(QWidget):
         y = 10
         if self._legende():
             p.setFont(klein)
-            p.setPen(QColor("#404040"))
+            p.setPen(stil.farbe("#404040"))
             p.drawText(x0, y, breite, 16, Qt.AlignLeft | Qt.AlignVCenter,
                        "Roter Strich = Schweißnaht (gestrichelt: hinten liegend); hinter dem Stangentitel der "
                        "Querschnitt von Ende A mit rotem Punkt an der Naht.  Grün = Gehrungen ineinandergelegt; die "
                        "Ersparnis ist in Rest und Ausnutzung schon enthalten.")
             y += self.LEGENDE
         for s, nummern in self.muster:
-            p.setPen(QColor("#202020"))
+            p.setPen(stil.farbe("#202020"))
             p.setFont(fett)
             anz = len(nummern)
             nr_text = ", ".join(map(str, nummern)) if anz <= 6 else f"{nummern[0]}–{nummern[-1]}"
@@ -947,13 +948,13 @@ class Stangenbild(QWidget):
                 xs = x0 + p.fontMetrics().horizontalAdvance(kopf) + 12
                 self._symbol(p, q, lage, xs, y + 2)
                 p.setFont(klein)
-                p.setPen(QColor("#202020"))
+                p.setPen(stil.farbe("#202020"))
                 p.drawText(QRectF(xs + 17, y, 400, 16), Qt.AlignLeft | Qt.AlignVCenter, zeichen)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]
             gespart = rechnen.gehrung_gespart(s)
             p.setFont(klein)
-            p.setPen(QColor("#202020"))
+            p.setPen(stil.farbe("#202020"))
             werte = f"{len(s['teile'])} Teile · Rest {_z(rest, 1)} mm · Ausnutzung {_z(100 * summe / s['stange'], 1)} %"
             p.drawText(x0 + breite - 330, y, 330, 16, Qt.AlignRight | Qt.AlignVCenter, werte)
             if gespart > 0:                 # Ersparnis einmal je Stange, links neben Rest und Ausnutzung
@@ -965,17 +966,17 @@ class Stangenbild(QWidget):
             yb, hb = y + 20, 34
             oben = 270 if any(t.get("ansicht") == "von oben" for t in s["teile"]) else 0
 
-            def rechteck(von, bis, farbe, rand=QColor("#5F6B7A")):
+            def rechteck(von, bis, farbe, rand=stil.farbe("#5F6B7A")):
                 r = QRectF(x0 + von * m, yb, max(1.0, (bis - von) * m), hb)
                 p.fillRect(r, farbe)
                 p.setPen(QPen(rand, 1))
                 p.drawRect(r)
                 return r
-            rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
-            rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
-            rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
+            rechteck(0, s["stange"], stil.farbe("#EDEDED"))                         # Rest
+            rechteck(0, s["end"], stil.farbe("#A6A6A6"))                             # Endbeschnitt
+            rechteck(s["stange"] - s["greif"], s["stange"], stil.farbe("#E06666"))   # Greiferrest
             if s.get("greif_3d"):           # 3D-Bearbeitung am letzten Teil: 3D-Greifmaß statt Greiferrest
-                p.setPen(QColor("#FFFFFF"))
+                p.setPen(stil.farbe("#FFFFFF"))
                 p.drawText(QRectF(x0 + (s["stange"] - s["greif"]) * m, yb, s["greif"] * m, hb), Qt.AlignCenter, "3D")
             vorher = None
             for t in s["teile"]:
@@ -984,14 +985,14 @@ class Stangenbild(QWidget):
                     ol, or_, ur, ul = rechnen.umriss(t)
                     form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb),
                                       QPointF(x0 + ur * m, yb + hb), QPointF(x0 + ul * m, yb + hb)])
-                    p.setPen(QPen(QColor("#202020"), 2))
-                    p.setBrush(self.farben.get(t["ref"], QColor("#4E79A7")))
+                    p.setPen(QPen(stil.farbe("#202020"), 2))
+                    p.setBrush(self.farben.get(t["ref"], stil.farbe("#4E79A7")))
                     p.drawPolygon(form)
                     p.setBrush(Qt.NoBrush)
                     r = QRectF(x0 + max(ol, ul) * m, yb, max(1.0, (min(or_, ur) - max(ol, ul)) * m), hb)
                 else:
-                    r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], QColor("#4E79A7")))
-                    p.setPen(QPen(QColor("#202020"), 2))
+                    r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], stil.farbe("#4E79A7")))
+                    p.setPen(QPen(stil.farbe("#202020"), 2))
                     p.drawLine(r.topLeft(), r.bottomLeft())
                     p.drawLine(r.topRight(), r.bottomRight())
                 if ineinander:      # Stoß der ineinandergelegten Gehrungen: beide Schnittkanten grün
@@ -1004,7 +1005,7 @@ class Stangenbild(QWidget):
                 strich = rechnen.naht_strich(t, oben)
                 if strich and r.width() > 6:       # Schweißnaht als roter Strich über die Länge des Teils
                     hy = yb + hb / 2 - strich[0] * (hb / 2 - 3)
-                    stift = QPen(QColor("#D0021B"), 3)
+                    stift = QPen(stil.farbe("#D0021B"), 3)
                     if not strich[1]:
                         stift.setStyle(Qt.DashLine)
                     p.setPen(stift)
@@ -1271,68 +1272,62 @@ class AngebotSeite(QWidget):
         self.uebersicht_rahmen.setWidget(self.uebersicht_bereich)
         self.uebersicht_rahmen.setMinimumWidth(UEBERSICHT_MIN)
 
-        # Aktionen: Hauptaktionen hervorgehoben, dann Bearbeiten, rechts Ausgabe und Weitere Aktionen
+        # Aktionen in drei Gruppen (Layout-Plan L9): Erfassen · Rechnen · Ausgeben. Rechts nur Angebot (PDF) als
+        # Knopf, alle weiteren Ausgaben im Menü „Ausgaben“; Positionen löschen über Rechtsklick oder Entf
+        # (Bearbeiten → Löschen …).
         self.leiste = UmbruchLeiste()     # bei schmalem Fenster rückt die Ausgabe in eine zweite Zeile
         leiste = self.leiste.links_layout
-        # nur zwei Hauptknöpfe (dunkelblau): Optimieren und Angebot (PDF) – die Schritte zum fertigen Angebot (C-2)
-        for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren()),
-                           ("Optimieren", self.optimieren), ("3D-Ansicht …", lambda: self.ansicht_3d())):
+        for text, ziel in (("Neue Position", self.position_neu), ("STEP importieren …", lambda: self.step_importieren())):
             b = QPushButton(text)
-            if text == "Optimieren":
-                b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
-            if text == "STEP importieren …":      # sichtbares Ziel für Drag & Drop direkt neben dem Knopf
-                self.ablage_klein = AblageFeld()
-                self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
-                leiste.addWidget(self.ablage_klein)
-        leiste.addSpacing(12)
-        for text, ziel in (("Zusatzarbeiten …", lambda: self.zusatzarbeiten()), ("Zukaufteile …", None),
-                           ("Positionen löschen", self.positionen_loeschen)):
-            b = QPushButton(text)
-            if ziel is None:        # Auswahlmenü statt eines weiteren Knopfs: die Leiste wird nicht breiter
-                menue = QMenu(b)
-                menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
-                menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
-                menue.addAction("EK eintragen …", lambda: self.zukauf_ek())
-                b.setMenu(menue)
-                b.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
-                self.zukauf_knopf = b
-            else:
-                b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            leiste.addWidget(b)
-        leiste = self.leiste.rechts_layout
-        leiste.addWidget(QLabel("Ausgabe:"))
-        for text, ziel in (("Angebot (PDF)", self.angebot_pdf), ("Werkstattpapiere (PDF)", self.werkstatt_pdf),
-                           ("Kalkulation (PDF)", self.kalkulation_pdf)):
-            b = QPushButton(text)
-            if text == "Angebot (PDF)":
-                b.setObjectName("primaer")
-            b.clicked.connect(lambda _=False, ziel=ziel: ziel())
-            leiste.addWidget(b)
-        # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
-        self.csv_knopf = QPushButton("CSV-Export")
-        self.csv_knopf.setToolTip("Angebotskopf.csv und Angebotspositionen.csv (Semikolon, für Excel) in die Ablage")
-        menue = QMenu(self.csv_knopf)
-        for text, ziel in (("Kopf + Positionen (ZIP)", self.csv_export), ("Nur Angebotskopf", self.csv_kopf),
-                           ("Nur Angebotspositionen", self.csv_positionen)):
-            menue.addAction(text, lambda ziel=ziel: ziel())
-        self.csv_knopf.setMenu(menue)
-        leiste.addWidget(self.csv_knopf)
-        # Material je Abmessung (Patrick 22.10.2026) neben der Materialanfrage; links ist die Leiste schon voll
+        self.ablage_klein = AblageFeld()       # sichtbares Ziel für Drag & Drop direkt neben dem Knopf
+        self.ablage_klein.geklickt.connect(lambda: self.step_importieren())
+        leiste.addWidget(self.ablage_klein)
+        leiste.addSpacing(16)
+        optimieren = QPushButton("Optimieren")
+        optimieren.setObjectName("primaer")     # Hauptknöpfe (dunkelblau): Optimieren und Angebot (PDF)
+        optimieren.clicked.connect(lambda: self.optimieren())
+        leiste.addWidget(optimieren)
+        zusatz = QPushButton("Zusatzarbeiten …")
+        zusatz.clicked.connect(lambda: self.zusatzarbeiten())
+        leiste.addWidget(zusatz)
+        self.zukauf_knopf = QPushButton("Zukaufteile …")      # Auswahlmenü statt weiterer Knöpfe
+        menue = QMenu(self.zukauf_knopf)
+        menue.addAction("Zukaufteile bearbeiten …", lambda: self.zukaufteile())
+        menue.addAction("Neuer Zukaufartikel …", lambda: self.zukauf_schnell())
+        menue.addAction("EK eintragen …", lambda: self.zukauf_ek())
+        self.zukauf_knopf.setMenu(menue)
+        self.zukauf_knopf.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
+        leiste.addWidget(self.zukauf_knopf)
+        # Material je Abmessung (Patrick 22.10.2026)
         self.material_knopf = QPushButton("Material …")
         self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
                                        "Meterpreis ändern")
         self.material_knopf.clicked.connect(lambda: self.material_einstellen())
         leiste.addWidget(self.material_knopf)
-        # Materialanfrage immer sichtbar (Patrick 22.10.2026), nicht mehr unter Weitere Aktionen
-        self.anfrage_knopf = QPushButton("Materialanfrage (E-Mail)")
-        self.anfrage_knopf.setToolTip("Stangenbedarf aus der Optimierung beim Lieferanten anfragen (Outlook oder "
-                                      "E-Mail-Datei); gesendet wird nur im Mailprogramm")
-        self.anfrage_knopf.clicked.connect(lambda: self.material_anfragen())
-        leiste.addWidget(self.anfrage_knopf)
-        self.weitere = QPushButton("Weitere Aktionen")
+        ansicht = QPushButton("3D-Ansicht …")
+        ansicht.clicked.connect(lambda: self.ansicht_3d())
+        leiste.addWidget(ansicht)
+        leiste = self.leiste.rechts_layout
+        pdf = QPushButton("Angebot (PDF)")
+        pdf.setObjectName("primaer")
+        pdf.clicked.connect(lambda: self.angebot_pdf())
+        leiste.addWidget(pdf)
+        self.weitere = QPushButton("Ausgaben")
+        self.weitere.setToolTip("Werkstattpapiere, Kalkulation, Materialanfrage, CSV-Export und weitere Aktionen")
         menue = QMenu(self.weitere)
+        menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
+        menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
+        # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
+        self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
+        # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
+        csv = menue.addMenu("CSV-Export")
+        csv.setToolTipsVisible(True)
+        for text, ziel in (("Kopf + Positionen (ZIP)", self.csv_export), ("Nur Angebotskopf", self.csv_kopf),
+                           ("Nur Angebotspositionen", self.csv_positionen)):
+            csv.addAction(text, lambda ziel=ziel: ziel())
+        menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
                            ("Ablage öffnen", self.f.ablage_oeffnen)):
@@ -1483,6 +1478,8 @@ class AngebotSeite(QWidget):
         self.staffel_modell, self.staffel_ansicht, self.staffel_info = st_seite.modell, st_seite.ansicht, st_seite.info
 
         self.reiter = AngebotReiter()
+        self.schritte = Schrittanzeige()         # ① erfasst → ② optimiert → ③ geprüft → ④ verschickt (L10)
+        self.reiter.setCornerWidget(self.schritte, Qt.TopRightCorner)
         self.pos_seite = QWidget()            # Positionsliste mit Spaltenauswahl darüber
         self.pos_leiste = QHBoxLayout()
         self.pos_leiste.setContentsMargins(0, 0, 0, 0)
@@ -1884,7 +1881,9 @@ class AngebotSeite(QWidget):
             gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
-        self.uebersicht_bereich.freigabe_setzen(self.freigabe_punkte(summen))
+        punkte = self.freigabe_punkte(summen)
+        self.uebersicht_bereich.freigabe_setzen(punkte)
+        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(), punkte, vorgang(self.kopf)))
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
@@ -2046,7 +2045,7 @@ class AngebotSeite(QWidget):
         letzten Rohrposition (sonst erstes Profil, Werkstoff aus der Einstellung step_werkstoff), Stückzahl 1.
         Ergebnis: True = angelegt."""
         if not self.k.profile:
-            QMessageBox.information(self, "Neue Position", "Es gibt noch keine Profile in den Stammdaten.")
+            self.f.meldung("Neue Position: Es gibt noch keine Profile in den Stammdaten.", fehler=True)
             return False
         letzte = next((p for p in reversed(self.positionen) if not kein_laserteil(p)
                        and p.get("profil_id") in self.k.profile), {})
@@ -3102,9 +3101,7 @@ class AngebotSeite(QWidget):
         except (OSError, ValueError) as e:
             return fehler(f"Der Export ist nicht gelungen:\n{pfad}\n\n{e}")
         QApplication.restoreOverrideCursor()
-        self.f.meldung(f"CSV-Export gespeichert: {pfad} ({len(pos_zeilen)} Positionen)")
-        if not self.f.stumm:
-            QMessageBox.information(self, "CSV-Export", f"Gespeichert ({len(pos_zeilen)} Positionen):\n{pfad}")
+        self.f.meldung(f"CSV-Export gespeichert: {pfad} ({len(pos_zeilen)} Positionen)")    # Einblendung (L14)
         return pfad
 
     def csv_kopf(self):
@@ -3347,8 +3344,8 @@ class AngebotSeite(QWidget):
         from .step_dialog import Positionen3DDialog
         netze = self.db.netze(self.id)
         if not netze:
-            QMessageBox.information(self, "3D-Ansicht", "In diesem Angebot gibt es keine Teile mit 3D-Daten.\n\n"
-                                    "3D-Daten entstehen beim STEP-Import.")
+            self.f.meldung("3D-Ansicht: In diesem Angebot gibt es keine Teile mit 3D-Daten (sie entstehen beim "
+                           "STEP-Import).", fehler=True)
             return None
         if zeile is None:
             i = self.pos_ansicht.currentIndex()

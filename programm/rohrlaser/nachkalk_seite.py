@@ -2,12 +2,12 @@
 import datetime
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import baugruppe
+from . import baugruppe, stil
 from . import nachkalkulation as nk
 from .spaltenbreite import AutoGroesse
 from .stil import GRUEN, GRUEN_FLAECHE, ROT, ROT_FLAECHE
@@ -153,9 +153,9 @@ class NachkalkulationSeite(QWidget):
                     it.setToolTip(f"Leer = kalkulierter Meterpreis {_z(g['meterpreis'], 2)} €/m")
                 if c not in EINGABE:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c >= 2:
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 self.gruppen.setItem(r, c, it)
@@ -209,15 +209,15 @@ class NachkalkulationSeite(QWidget):
                     it.setToolTip(verlauf)
                 if feld is None:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c and feld != "grund":
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 if urteil.get(c):                   # D5: ab 10 % Abweichung rot (teurer) bzw. grün (günstiger)
                     hoch = urteil[c] == "hoch"
-                    it.setForeground(QBrush(QColor(ROT if hoch else GRUEN)))
-                    it.setBackground(QBrush(QColor(ROT_FLAECHE if hoch else GRUEN_FLAECHE)))
+                    it.setForeground(QBrush(stil.farbe(ROT if hoch else GRUEN)))
+                    it.setBackground(QBrush(stil.farbe(ROT_FLAECHE if hoch else GRUEN_FLAECHE)))
                     it.setToolTip(f"Ist {'über' if hoch else 'unter'} Soll um mindestens "
                                   f"{nk.ABWEICHUNG_GRENZE:.0%}".replace("%", " %"))
                 self.bg_tabelle.setItem(r, c, it)

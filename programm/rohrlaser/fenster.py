@@ -10,30 +10,34 @@ schaltet im Lesemodus die ändernden Aktionen ab; mit der Admin-Lizenz (Admin-Pa
 lizenz (Tests, Entwicklung) voller Zugriff ohne Hinweise."""
 import datetime
 import os
+import re
 import sqlite3
 import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray
-from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
+from . import stil
 from . import NAME, VERSION, ausgabe, hilfe, pdf, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
+from .einstellungen_nav import NavigationsReiter
+from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 KURZANLEITUNG = "Kurzanleitung.pdf"
-FARBE_EINGABE = QColor("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
-FARBE_BERECHNET = QColor("#EDEDED")
+FARBE_EINGABE = stil.farbe_fest("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
+FARBE_BERECHNET = stil.farbe_fest("#EDEDED")
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
-FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": FARBE_BERECHNET}
+FARBE_STATUS = {"FEHLER": stil.farbe_fest("#F8CBAD"), "WARNUNG": stil.farbe_fest("#FFD966"), "OK": FARBE_BERECHNET}
 
 
 class StammdatenModell(QAbstractTableModel):
@@ -636,6 +640,7 @@ class EinstellungenSeite(QScrollArea):
         self.felder = {}
         gruppen = {}
         self.boxen = []
+        self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
         for e in self.liste:
             if e.gruppe not in gruppen:
                 box = QGroupBox(e.gruppe)
@@ -644,9 +649,12 @@ class EinstellungenSeite(QScrollArea):
                 self.boxen.append(box)
             w = self._eingabe(e)
             self.felder[e.name] = w
-            titel = QLabel(e.titel)
+            titel = QLabel(self._kurztitel(e, w))
+            titel.setToolTip(e.titel)
             titel.setWordWrap(True)
             titel.setFixedWidth(self.BREITE_TITEL)
+            form = gruppen[e.gruppe]
+            self.zeilen.append((e, form, form.rowCount(), form.parentWidget()))
             gruppen[e.gruppe].addRow(titel, w)
         if "STEP-Import" in gruppen:
             knopf = QPushButton("Zwischenspeicher leeren")
@@ -658,6 +666,19 @@ class EinstellungenSeite(QScrollArea):
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
+
+    schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
+
+    def filtern(self, suche):
+        """Suche der Einstellungen: nur passende Einstellungen und Karten zeigen (leer = alle)."""
+        from .einstellungen_nav import passt
+        sichtbar = {}
+        for e, form, zeile, box in self.zeilen:
+            ja = not suche.strip() or passt(f"{e.titel} {e.gruppe}", suche)
+            form.setRowVisible(zeile, ja)
+            sichtbar[id(box)] = sichtbar.get(id(box), False) or ja
+        for box in self.boxen:
+            box.setVisible(sichtbar.get(id(box), True))
 
     def _anordnen(self, zwei):
         """Karten auf eine oder zwei Spalten verteilen (Reihenfolge bleibt, je Karte in die kürzere Spalte)."""
@@ -735,6 +756,31 @@ class EinstellungenSeite(QScrollArea):
             w.setMaximumWidth(self.BREITE_TEXT + 160)
         return w
 
+    EINHEIT = re.compile(r"\s*\[([^\]]{1,12})\]")
+    SONDER = re.compile(r"\s*\((0|leer) = ([^);]+)\)")
+
+    def _kurztitel(self, e, w):
+        """Vorgaben-Formular (Layout-Plan L12): Einheit als Suffix rechts im Feld statt im Titel, Sonderfall
+        („0 = aus“, „leer = keiner“) als grauer Text im Feld. Der volle Titel bleibt Tooltip."""
+        titel = e.titel
+        if isinstance(w, (QSpinBox, QDoubleSpinBox)) and e.art in ("zahl", "ganz"):
+            m = self.EINHEIT.search(titel)
+            if m:
+                w.setSuffix(" " + m.group(1))
+                titel = titel[:m.start()] + titel[m.end():]
+            m = self.SONDER.search(titel)
+            if m and m.group(1) == "0" and w.minimum() == 0:
+                w.setSpecialValueText(m.group(2).strip())
+                titel = titel[:m.start()] + titel[m.end():]
+        elif e.art in ("text", "zahl_leer", "ordner"):
+            m = self.SONDER.search(titel)
+            feld = getattr(w, "pfad", w)
+            if m and m.group(1) == "leer" and isinstance(feld, QLineEdit):
+                if e.art != "ordner" or not feld.placeholderText():
+                    feld.setPlaceholderText(m.group(2).strip())
+                titel = titel[:m.start()] + titel[m.end():]
+        return titel.strip()
+
     def _zahl_leer(self, e, w):
         try:
             wert = wert_aus_text(Feld(e.name, e.titel, "zahl", e.von, e.bis), w.text())
@@ -764,6 +810,9 @@ class EinstellungenSeite(QScrollArea):
         from . import step_einstellungen
         if e.name in step_einstellungen.EINSTELLUNGEN:
             step_einstellungen.anwenden(self.db)
+        if e.name in ("ansicht_thema", "ansicht_schrift", "ansicht_dichte"):
+            self.meldung(f"{e.titel} gespeichert, gilt ab dem nächsten Start.")
+            return
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
@@ -800,10 +849,12 @@ class EinstellungenSeite(QScrollArea):
 class ZeitvorgabenSeite(QWidget):
     """Unterreiter 'Stundensätze und Zeitvorgaben': Stundensätze oben, Arbeitsschritte darunter."""
     titel = "Stundensätze und Zeitvorgaben"
+    schluessel = "zeitvorgaben"
 
     def __init__(self, saetze, schritte):
         super().__init__()
         self.saetze, self.schritte = saetze, schritte
+        self.teilseiten = (saetze, schritte)        # für die Suche der Einstellungen
         teiler = QSplitter(Qt.Vertical)
         for s in (saetze, schritte):
             box = QGroupBox(s.t.titel)
@@ -854,19 +905,17 @@ class EinstellungenBereich(QWidget):
         ls.addStretch(1)
         # Inhalt
         inhalt = QWidget()
-        self.unter = QTabWidget()
+        self.unter = NavigationsReiter()     # Navigation links mit Suche (Layout-Plan L11)
         self.unter.addTab(vorgaben, "Vorgaben")
         for s in seiten:
             self.unter.addTab(s, getattr(s, "titel", None) or s.t.titel)
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         sperren = QPushButton("Einstellungen sperren")
         sperren.clicked.connect(self.sperren)
-        oben = QHBoxLayout()
-        oben.addStretch(1)
-        oben.addWidget(sperren)
+        sperren.setMinimumWidth(90)                 # schmale Fenster (1024 px): Navigation darf schmaler werden
+        self.unter.links.addWidget(sperren)         # unter der Navigation: oben bleibt keine Leerzeile
         li = QVBoxLayout(inhalt)
         li.setContentsMargins(0, 0, 0, 0)
-        li.addLayout(oben)
         li.addWidget(self.unter, 1)
         self.stapel.addWidget(sperre)
         self.stapel.addWidget(inhalt)
@@ -1056,10 +1105,9 @@ class Hauptfenster(QMainWindow):
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
-        self.setStyleSheet(STIL)
+        self.setStyleSheet(stil.aktuell())     # Theme und Dichte aus stil.anwenden (beim Start)
         self.resize(1400, 800)
-        self.reiter = QTabWidget()
-        self.reiter.setTabsClosable(True)
+        self.reiter = HauptReiter()     # feste Reiter oben, geöffnete Angebote in eigener Zeile (Layout-Plan L13)
         self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
         self.start = StartSeite(self)
         self.reiter.addTab(self.start, "Start")
@@ -1090,8 +1138,7 @@ class Hauptfenster(QMainWindow):
         self.zukauf = ZukaufBereich(db, self.meldung)
         self.reiter.addTab(self.zukauf, self.zukauf.titel)
         self.reiter.addTab(self.bereich, "Einstellungen")
-        for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
-            self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
+        self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
         self._menue()
@@ -1099,6 +1146,10 @@ class Hauptfenster(QMainWindow):
         self.lizenz_hinweis.setTextFormat(Qt.PlainText)
         self.lizenz_hinweis.hide()
         self.statusBar().addPermanentWidget(self.lizenz_hinweis)
+        from .einblendung import Einblendung, Verlauf
+        self.einblendung = Einblendung(self)        # ruhige Meldungen unten rechts (Layout-Plan L14)
+        self.verlauf = Verlauf()
+        self.statusBar().addPermanentWidget(self.verlauf)
         self.statusBar().showMessage("Bereit")
         self.lizenz_anwenden()
         if not stumm:
@@ -1306,12 +1357,14 @@ class Hauptfenster(QMainWindow):
                 w = self._seite()
             ziel = None
             while w is not None and w is not self.reiter:
-                if isinstance(w, QTabWidget):
+                if isinstance(w, (QTabWidget, NavigationsReiter)):
                     ziel = getattr(w, "gruppe_von", None) or w     # Unterreiter-Gruppe: Reiter des Angebots
                     break
                 w = w.parentWidget()
             if ziel is None:            # Fokus außerhalb: erster Unterreiter der sichtbaren Seite
-                ziel = next((t for t in self.reiter.currentWidget().findChildren(QTabWidget) if t.isVisible()), None)
+                seite = self.reiter.currentWidget()
+                ziel = next((t for t in seite.findChildren(NavigationsReiter) + seite.findChildren(QTabWidget)
+                             if t.isVisible()), None)
             if ziel is None:
                 return None
             reiter = ziel
@@ -1513,6 +1566,16 @@ class Hauptfenster(QMainWindow):
     def meldung(self, text, fehler=False):
         self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
         self.statusBar().showMessage(text, 8000)
+        if getattr(self, "verlauf", None) is None:  # noch beim Aufbau des Fensters
+            return
+        self.verlauf.merken(text, fehler)
+        if not self.stumm:                          # Selbsttest und Bildschirmfotos ohne Einblendung
+            self.einblendung.zeigen(text, fehler)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if getattr(self, "einblendung", None) is not None and self.einblendung.isVisible():
+            self.einblendung.platzieren()
 
     def zeigen(self, seite):
         """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage)."""
