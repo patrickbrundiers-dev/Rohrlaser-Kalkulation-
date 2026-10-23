@@ -1891,7 +1891,7 @@ class AngebotSeite(QWidget):
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
-        self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
+        self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
