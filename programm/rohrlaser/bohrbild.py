@@ -92,31 +92,48 @@ def aus_messung(m, gewinde, laser=GRAVUR, wand=None):
 
 
 def aus_rechner(erg, alt, gewinde, wand=None, laser=GRAVUR):
-    """Bohrbild nach dem Schneidweg-Rechner (Ergebnis schneidweg.rechnen): Gewinde-Vorschläge der Bohrungen,
-    Senkungen und Bohren (< 0,7 × Wand) aus den Eingaben; Prüfstatus und Wahl der bisherigen Zeilen gleicher Art und
-    gleichen Ø (alt) bleiben. Fließlochbohrungen kennt der Rechner nicht, sie fallen weg."""
-    bohr, senk = {}, {}
+    """Bohrbild nach dem Schneidweg-Rechner (Ergebnis schneidweg.rechnen): Gewinde der Bohrungen (Spalte Gewinde der
+    Konturzeile, sonst Vorschlag nach dem Kernloch), Senkungen, Flowdrill und Bohren (< 0,7 × Wand) aus den
+    Eingaben. Was im Rechner eingegeben ist, gilt als bestätigt (Patrick 23.10.2026); Zeilen gleicher Art und
+    gleichen Ø aus dem bisherigen Bohrbild (alt, z. B. vom STEP-Import) behalten Prüfstatus und Wahl, ein im Rechner
+    gewähltes Gewinde geht vor."""
+    bohr, senk, fluss = {}, {}, {}       # (Ø, Gewinde oder None, Gewinde von Hand?) -> Anzahl
     for s_ in erg.get("schritte", [])[2:]:
         e = s_.get("eingabe") or {}
         try:
             d = round(float(e.get("d")), 2)
         except (TypeError, ValueError):
             continue
+        hand = "gewinde" in e
         if s_.get("art") == "Bohrung":
-            bohr[d] = bohr.get(d, 0) + int(s_["anzahl"])
+            schl = (d, (e.get("gewinde") or None) if hand else _gewinde(d, gewinde), hand)
+            bohr[schl] = bohr.get(schl, 0) + int(s_["anzahl"])
+        elif s_.get("art") == "Flowdrill":
+            schl = (d, (e.get("gewinde") or None) if hand else _gewinde(d, FLIESSLOCH_KERN, 0.15), hand)
+            fluss[schl] = fluss.get(schl, 0) + int(s_["anzahl"])
         elif s_.get("art") == "Senkung" and isinstance(e.get("D"), (int, float)):
             schl = (d, round(float(e["D"]), 2))
             senk[schl] = senk.get(schl, 0) + int(s_["anzahl"])
-    neu = [dict(art="Bohrung", d=d, anzahl=n, gewinde=_gewinde(d, gewinde), status=OFFEN)
-           for d, n in sorted(bohr.items()) if _gewinde(d, gewinde)]
-    neu += [dict(art="Senkung", d=d, D=dd, anzahl=n, gravur=False, status=OFFEN) for (d, dd), n in sorted(senk.items())]
-    neu += bohren_zeilen(sorted(bohr.items()), wand, laser)
+    laser = laser if laser in LASER else GRAVUR
+    neu = [(dict(art="Bohrung", d=d, anzahl=n, gewinde=g, status=BESTAETIGT), hand)
+           for (d, g, hand), n in sorted(bohr.items(), key=str) if g]
+    neu += [(dict(art="Senkung", d=d, D=dd, anzahl=n, gravur=False, status=BESTAETIGT), False)
+            for (d, dd), n in sorted(senk.items())]
+    neu += [(dict(art="Fließloch", d=d, anzahl=n, gewinde=g, laser=laser, status=BESTAETIGT), hand)
+            for (d, g, hand), n in sorted(fluss.items(), key=str)]
+    summe = {}
+    for (d, _, _), n in bohr.items():
+        summe[d] = summe.get(d, 0) + n
+    neu += [(dict(z, status=BESTAETIGT), False) for z in bohren_zeilen(sorted(summe.items()), wand, laser)]
     vorher = {(z.get("art"), round(float(z.get("d") or 0), 2)): z for z in alt or ()}
-    for z in neu:
+    out = []
+    for z, hand in neu:
         v = vorher.get((z["art"], z["d"]))
         if v:
-            z.update({k: v[k] for k in ("status", "gewinde", "laser", "gravur", "preis", "gewinde_preis") if k in v})
-    return neu
+            z.update({k: v[k] for k in ("status", "gewinde", "laser", "gravur", "preis", "gewinde_preis")
+                      if k in v and not (k == "gewinde" and hand)})
+        out.append(z)
+    return out
 
 
 def bohrungen_lesen(text):

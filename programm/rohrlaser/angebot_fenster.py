@@ -1955,11 +1955,13 @@ class AngebotSeite(QWidget):
             return False
         werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
-        from . import bohrbild         # Gewinde-Vorschläge, Senkungen, Bohren < 0,7 × Wand: offen bis 'Bohrungen prüfen'
+        from . import bohrbild     # Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand: von Hand eingegeben = bestätigt
         bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
                                     rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"))
         if bild:
-            werte.update(bohrbild.anwenden(werte, bild))
+            werte.update(bohrbild.anwenden(werte, bild, None, self.tabellen.get("zusatzarbeiten") or [],
+                                           rechnen.stundensaetze(self.tabellen)))
+            werte.pop("_fehlt", None)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self.neu_laden()
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
@@ -2270,12 +2272,15 @@ class AngebotSeite(QWidget):
             if not ueberschreiben:
                 return False
         felder = dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu)
-        # Bohrbild neu aus den Eingaben (Gewinde, Senkungen, Bohren < 0,7 × Wand), Prüfstatus gleicher Bohrungen bleibt
+        # Bohrbild neu aus den Eingaben (Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand; neu eingegeben = bestätigt),
+        # Prüfstatus gleicher Bohrungen bleibt; Gewinde von Hand ohne Zeile im alten Bohrbild bleiben stehen
         from . import bohrbild
-        bild = bohrbild.aus_rechner(erg, bohrbild.lesen(p.get("bohrbild")), gewinde_liste(self.tabellen) or step.KERNLOCH,
+        g_liste = gewinde_liste(self.tabellen) or step.KERNLOCH
+        alt = bohrbild.aus_position(p, g_liste)         # ohne Bohrbild: aus Gewinde-Vorschlag und Gewinde geprüft
+        bild = bohrbild.aus_rechner(erg, alt, g_liste,
                                     rechnen.wand_schneiden(profil), self.db.einstellung("fliessloch_laser"))
-        if bild or p.get("bohrbild"):
-            felder.update(bohrbild.anwenden(dict(p, **felder, bohrbild=None), bild, None,
+        if bild or p.get("bohrbild") or erg["felder"].get("gewinde_vorschlag"):
+            felder.update(bohrbild.anwenden(dict(p, **felder, bohrbild=None), bild, bohrbild.hand_gewinde(p, alt),
                                             self.tabellen.get("zusatzarbeiten") or [],
                                             rechnen.stundensaetze(self.tabellen)))
             felder.pop("_fehlt", None)
