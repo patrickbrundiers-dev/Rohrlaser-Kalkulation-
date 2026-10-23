@@ -2788,6 +2788,12 @@ def kapitel_baugruppen(i):
            "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
            "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
            "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
+    i.text("Mit dem Häkchen <b>a-Maß nach Regel vorschlagen</b> bekommt eine übernommene Kehlnaht ein a-Maß = Faktor × "
+           "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Vorgaben, Einstellung "
+           "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>; z. B. Wand 4 mm → "
+           "a 2,5 mm). Der Vorschlag ist gelb markiert und der Status "
+           "zeigt den HINWEIS <i>a-Maß nach Regel, bitte bestätigen</i>, bis du das a-Maß prüfst und <b>a-Maß "
+           "bestätigen</b> drückst oder einen anderen Wert einträgst.")
     i.abschnitt("Arbeitsgänge und Vorrichtungen")
     i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
            "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)
@@ -2820,6 +2826,9 @@ def kapitel_baugruppen(i):
            "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "
            "darunter, wenn im Reiter <i>Stammdaten</i> das Häkchen <b>Stückliste im Angebot zeigen</b> gesetzt ist "
            "(ohne Preise).", kurz=True)
+    i.text("In der <b>Positionsliste</b> stehen die Einzelteile direkt unter ihrer Baugruppe, im Zeilenkopf mit └ "
+           "markiert. Ein Klick auf ▾ im Zeilenkopf der Baugruppe klappt ihre Teile zu (▸), ein weiterer wieder "
+           "auf. Das ändert nur die Anzeige; Pos.-Nummern, Rechnung und Dokumente bleiben gleich.")
     i.text("Einmalkosten (Rüstzeit, Vorrichtungen, Lehren) sind normalerweise im Preis je Baugruppe enthalten. Mit "
            "dem Häkchen <b>Einmalkosten als eigene Zeile im Angebot</b> stehen sie als eigene Zeile <i>Einmalkosten "
            "Schweißbaugruppe … einmalig je Auftrag</i> (pausch.) unter der Baugruppe; die Summe des Angebots bleibt "
@@ -3106,7 +3115,11 @@ def kapitel_nachkalkulation(i):
             "Aufträgen in dieselbe Richtung ab, die Schweiß-Kennwerte ([[schweiss_stammdaten]]) prüfen und von Hand "
             "anpassen; die Nachkalkulation ändert keine Stammdaten und keine Angebote.")
     i.text("Die Zeilen der Baugruppen stehen im Vergleich als <i>Name: Schweißen</i>, <i>Name: Arbeitsgänge</i> usw. "
-           "und zählen zu den Einzelkosten. Angebote ohne Baugruppe zeigen die Tabelle nicht.")
+           "und zählen zu den Einzelkosten. Angebote ohne Baugruppe zeigen die Tabelle nicht. Ein Ist, das mindestens "
+           "10 % über dem Soll liegt, ist rot hinterlegt, mindestens 10 % darunter grün. Stammt die Baugruppe aus "
+           "einer Vorlage, zeigt der Tooltip ihres Namens die Schweißzeit Ist ÷ Soll der bisherigen Aufträge aus "
+           "derselben Vorlage. Aus den nachkalkulierten "
+           "Baugruppen schlägt das Programm geänderte Schweiß-Kennwerte vor ([[schweiss_stammdaten]]).")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
 
 
@@ -3951,12 +3964,31 @@ def kapitel_stammdaten(i):
            "Schleifen sind eigene Arbeitsgänge der Baugruppe. Ist eine Zeit von Hand eingetragen, gilt sie. In der "
            "Kalkulation stehen die Kosten als Kostenarten <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> "
            "(mit Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung).")
+    i.text("<b>Schweißzusatz und Schutzgas</b> (wahlweise): Trägt man beim Schweißverfahren <i>Dichte Schweißzusatz "
+           "[kg/dm³]</i>, <i>Preis Schweißzusatz [€/kg]</i>, <i>Schutzgas [l/min]</i> und <i>Preis Schutzgas "
+           "[€/l]</i> ein, rechnet jede Nahtgruppe dazu "
+           "Draht = Nahtquerschnitt × Nahtlänge × Dichte und Gas = Lichtbogenzeit × l/min, jeweils × Preis. Leer "
+           "bleibt es wie bisher (Zusatz und Gas stecken im Stundensatz). Fehlt nur ein Teil der Werte, zählt dieser "
+           "Teil 0 € und der Editor nennt, was fehlt. Im Kostenbalken steht der Betrag als <i>Schweißzusatz und "
+           "Gas</i>.")
     i.text("Jede Zeile hat einen <b>Status</b>: <i>Richtwert</i> oder <i>geprüft</i>. Richtwerte sind aus dem "
            "Nahtquerschnitt hergeleitet (Kehlnaht a² × 1,1; V-Naht 60° mit 1,5 mm Spalt; × Dichte ÷ "
            "Abschmelzleistung des Verfahrens, z. B. MAG 3,5 kg/h) und keine Erfahrungswerte der eigenen Fertigung. "
            "Solange eine Baugruppe mit Richtwerten rechnet, zeigt ihr Status einen HINWEIS. Stelle die Werte nach "
            "den ersten Aufträgen auf <i>geprüft</i>. Verschickte Angebote ändern sich nicht: jede Nahtgruppe merkt "
            "sich die Kennwerte, mit denen sie gerechnet wurde.")
+    i.text("<b>Kennwerte aus Nachkalkulation …</b> (Unterreiter Schweiß-Kennwerte) öffnet das Fenster "
+           "<i>Kennwerte aus der Nachkalkulation</i>. Es wertet alle nachkalkulierten "
+           "Schweißbaugruppen aus ([[nachkalkulation]]): je Verfahren und Nahtart der Faktor Ist ÷ Soll der "
+           "Schweißzeit als Median, Ausreißer (mehr als 3 × die mittlere Abweichung) zählen nicht und stehen in der "
+           "Spalte <i>Ausreißer</i> mit Angebotsnummer. Es zählen nur Baugruppen, deren Nahtgruppen alle dasselbe "
+           "Verfahren und dieselbe Nahtart haben und keine Zeit von Hand. Unter 5 Fällen (einstellbar) steht "
+           "<i>zu wenig Daten</i>. Gelb = mindestens 10 % Abweichung.")
+    i.text("Geändert wird erst mit <b>Gewählten Vorschlag freigeben</b> und einer Begründung: dann werden alle "
+           "Kennwerte dieses Verfahrens und dieser Nahtart mit dem Faktor multipliziert. Jede Freigabe steht mit "
+           "Datum, Begründung und Programmversion unter <i>Bisherige Freigaben</i>; <b>Gewählte Freigabe "
+           "zurücknehmen</b> stellt die alten Werte wieder her (Werte, die du seitdem von Hand geändert hast, "
+           "bleiben). Verschickte Angebote ändern sich nie.")
     i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
