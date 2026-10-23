@@ -214,7 +214,7 @@ ok("M5 12-m-Zuschnitt je Zeile (abwählbar), Anforderungen des Werkstoffs, Vorla
 
 # ------------------------------------------------------------------ M6 Schweißnaht der Lieferstange, Knopf (22.10.2026)
 from rohrlaser import naht  # noqa: E402
-assert not s.anfrage_knopf.isHidden() and s.anfrage_knopf.text() == "Materialanfrage (E-Mail)"
+assert s.anfrage_aktion.text() == "Materialanfrage (E-Mail)" and s.anfrage_aktion in s.weitere.menu().actions()
 assert all("anfragen" not in act.text() for act in s.weitere.menu().actions())
 c = db.angebot_neu(dict(kunde="Naht", nummer="A-2026-0101"))
 for i, extra in enumerate((dict(naht_vorgabe=naht.FEST, naht_winkel=0, naht_quelle="Kunde"), {})):

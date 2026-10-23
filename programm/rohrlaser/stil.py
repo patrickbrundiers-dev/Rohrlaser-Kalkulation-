@@ -132,3 +132,220 @@ def status_symbol(text, groesse=14):
     p.end()
     _SYMBOLE[stufe, groesse] = QIcon(bild)
     return _SYMBOLE[stufe, groesse]
+
+
+# ------------------------------------------------------------------ Themes (Plan B1/B2, Layout-Plan D2)
+# Die Farben oben sind das Theme „Hell“ und zugleich die Schlüssel: jedes andere Theme setzt eine Hell-Farbe auf seine
+# eigene um (UMSETZUNG). So gilt dieselbe Tabelle für das Stylesheet, für Farben im Programmtext (farbe, farbe_fest)
+# und für Farben in Texten von Beschriftungen. „Hell“ bleibt dadurch Zeichen für Zeichen wie bisher.
+THEMES = ("Hell", "Dunkel", "Hoher Kontrast", "Wie Windows")
+DICHTEN = ("kompakt", "normal", "komfortabel")
+
+UMSETZUNG = {
+    "Dunkel": {
+        "#FFFFFF": "#1E2530", "#F5F7FA": "#161B22", "#EEF1F5": "#232A35", "#F7F9FB": "#2A3240", "#F1F4F8": "#2A3240",
+        "#E2E8F0": "#334052", "#F3F6FA": "#232A35", "#F5F8FB": "#222935", "#D5DBE3": "#3A4555", "#E3E7EC": "#2E3744",
+        "#DDE2E8": "#364050", "#C5CCD6": "#485568", "#C9D0D8": "#445064", "#1F4E78": "#6CA6DE", "#183E60": "#8BBBE8",
+        "#1F2937": "#E6EAF0", "#111827": "#F3F4F6", "#CFE0F5": "#2D4A6B", "#3A4656": "#C3CBD6", "#5F6B7A": "#9AA6B5",
+        "#9AA3AF": "#6B7685", "#EEF4FB": "#1F2F44", "#C9DAEE": "#34506F", "#E3F4E8": "#173523", "#1E6B34": "#7FD39A",
+        "#B7DFC3": "#2F6B43", "#FFF6DB": "#3A3016", "#7A5A00": "#F0C75E", "#F0D98C": "#6B5A22", "#FDECEA": "#3D1D1B",
+        "#8C1D18": "#F4A29B", "#F3B8B2": "#7A3530", "#B42318": "#F28B82", "#FFF4CE": "#3A3016", "#B35C00": "#F5A55B",
+        "#DDEBF7": "#1F3247", "#000000": "#F3F4F6", "#FFFCF0": "#2A2818", "#FFF9E0": "#2A2818", "#EDEDED": "#262C36",
+        "#F8CBAD": "#4A2620", "#FFD966": "#4D4016", "#FFF2CC": "#3D3418", "#595959": "#B8C0CC", "#404040": "#CDD3DC",
+        "#202020": "#E6EAF0", "#333333": "#D5DAE1", "#6B4A00": "#F0C75E", "#B7791F": "#E9B44C", "#2E7D32": "#81C784",
+        "#C00000": "#F28B82", "#FFF4D6": "#3A3016", "#E8F5E9": "#173523", "#B26A00": "#F5A55B", "#7F7F7F": "#9AA6B5",
+        "#FCE4D6": "#4A2B1E", "#E2EFDA": "#1E3320", "#FFEB9C": "#4D4016", "#F2F2F2": "#262C36", "#FFF9E5": "#2A2818",
+        "#BDD7EE": "#2D4A6B", "#FFF4CC": "#3D3418", "#E8EEF5": "#2A3240", "#ECEEF1": "#2A3038", "#6B7280": "#9AA3AF",
+        "#E2F0D9": "#1E3320",
+    },
+    "Hoher Kontrast": {
+        "#1F2937": "#000000", "#111827": "#000000", "#3A4656": "#111111", "#5F6B7A": "#2F3742", "#9AA3AF": "#5F6B7A",
+        "#D5DBE3": "#5F6B7A", "#E3E7EC": "#8A94A1", "#DDE2E8": "#6B7685", "#C5CCD6": "#3A4656", "#C9D0D8": "#3A4656",
+        "#1F4E78": "#123456", "#183E60": "#0B2440", "#7A5A00": "#4D3800", "#1E6B34": "#0F4A22", "#B42318": "#8C1414",
+        "#8C1D18": "#6E0F0B", "#B35C00": "#7A3E00", "#F5F8FB": "#EAF0F7", "#CFE0F5": "#9EC1EA", "#595959": "#222222",
+        "#404040": "#111111", "#7F7F7F": "#3A3A3A", "#B7791F": "#7A4E00", "#6B4A00": "#4D3800", "#6B7280": "#3A4656",
+    },
+}
+ZUSATZ = {      # nur in diesen Themes: deutlicher Tastaturfokus (B9)
+    "Dunkel": "QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus, QPlainTextEdit:focus, QTextEdit:focus "
+              "{ border: 2px solid #8BBBE8; border-radius: 3px; }\nQPushButton:focus { border: 2px solid #8BBBE8; }\n",
+    "Hoher Kontrast": "QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus, QPlainTextEdit:focus, QTextEdit:focus "
+                      "{ border: 2px solid #000000; border-radius: 3px; }\nQPushButton:focus { border: 2px solid #000000; }"
+                      "\nQPushButton { border: 1px solid #3A4656; }\n",
+}
+DICHTE_CSS = {
+    "kompakt": "QPushButton { padding: 2px 8px; }\nQTabBar::tab { padding: 2px 8px; }\nQTreeView::item { min-height: 18px; }\n"
+               "QHeaderView::section { padding: 1px; }\n",
+    "normal": "",
+    "komfortabel": "QPushButton { padding: 7px 14px; }\nQTabBar::tab { padding: 7px 14px; }\n"
+                   "QTreeView::item { min-height: 26px; }\nQHeaderView::section { padding: 6px; }\n",
+}
+_HEX = None
+_thema = "Hell"                 # wirksames Theme (nach „Wie Windows“ aufgelöst), gesetzt von anwenden()
+_FEST = []                      # [(QColor, Hell-Farbe)]: Farbkonstanten, die anwenden() umfärbt
+
+
+def thema():
+    return _thema
+
+
+def thema_aufloesen(name, windows_dunkel=None):
+    """„Wie Windows“ -> Dunkel oder Hell (Qt 6.5+: QStyleHints.colorScheme); Unbekanntes -> Hell."""
+    if name == "Wie Windows":
+        if windows_dunkel is None:
+            try:
+                from PySide6.QtCore import Qt
+                from PySide6.QtGui import QGuiApplication
+                windows_dunkel = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
+            except Exception:       # noqa: BLE001 – ältere Qt-Version oder ohne Anwendung
+                windows_dunkel = False
+        return "Dunkel" if windows_dunkel else "Hell"
+    return name if name in UMSETZUNG or name == "Hell" else "Hell"
+
+
+def umsetzen(text, name=None):
+    """Hell-Farben (#RRGGBB) in einem Text auf das Theme umsetzen; „Hell“ und Unbekanntes bleiben unverändert."""
+    global _HEX
+    tabelle = UMSETZUNG.get(name or _thema)
+    if not tabelle or not text or "#" not in text:
+        return text
+    if _HEX is None:
+        import re
+        _HEX = re.compile(r"#[0-9A-Fa-f]{6}\b")
+    return _HEX.sub(lambda m: tabelle.get(m.group(0).upper(), m.group(0)), text)
+
+
+def farbe(hell):
+    """QColor einer Hell-Farbe im aktuellen Theme (für Farben, die beim Zeichnen entstehen)."""
+    from PySide6.QtGui import QColor
+    return QColor(umsetzen(hell))
+
+
+def farbe_fest(hell):
+    """QColor-Konstante (auf Modulebene): anwenden() färbt sie beim Themewechsel an Ort und Stelle um."""
+    c = farbe(hell)
+    _FEST.append((c, hell))
+    return c
+
+
+def stylesheet(name="Hell", dichte="normal"):
+    """Stylesheet für Theme und Dichte; Hell + normal = STIL unverändert."""
+    name = thema_aufloesen(name)
+    return umsetzen(STIL, name) + ZUSATZ.get(name, "") + DICHTE_CSS.get(dichte, "")
+
+
+def kontrast(vorne, hinten):
+    """Kontrastverhältnis nach WCAG 2.1 zweier Farben #RRGGBB (1 … 21)."""
+    def hell(h):
+        def kanal(c):
+            c /= 255
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        r, g, b = (int(h[i:i + 2], 16) for i in (1, 3, 5))
+        return 0.2126 * kanal(r) + 0.7152 * kanal(g) + 0.0722 * kanal(b)
+    a, b = sorted((hell(vorne), hell(hinten)), reverse=True)
+    return (a + 0.05) / (b + 0.05)
+
+
+# Textfarbe auf Fläche, die in jedem Theme WCAG AA (4,5 : 1) erreichen müssen (Prüfung: tests/test_themes.py)
+KONTRAST_PAARE = [
+    (TEXT, "#FFFFFF", "Text auf Karte"), (TEXT, FLAECHE, "Text auf Fläche"), (TEXT_GRAU, "#FFFFFF", "Nebentext auf Karte"),
+    (AKZENT, "#FFFFFF", "Kartentitel"), ("#FFFFFF", AKZENT, "Hauptknopf"), (ROT, ROT_FLAECHE, "Fehler"),
+    (GELB_TEXT, GELB_FLAECHE, "Warnung"), (GRUEN, GRUEN_FLAECHE, "OK"), ("#8C1D18", "#FDECEA", "Stand veraltet"),
+    ("#7A5A00", "#FFF6DB", "Stand offen"), (TEXT, "#FFFCF0", "Eingabezelle"), (TEXT, "#EDEDED", "berechnete Zelle"),
+    ("#111827", "#CFE0F5", "Auswahl"), ("#3A4656", "#EEF1F5", "Reiter"), (AKZENT, "#EEF4FB", "Verkaufspreis"),
+]
+
+
+def palette(name):
+    """QPalette für Fenster, Eingabefelder und Standarddialoge (Fusion); None = Standard (Hell)."""
+    if name == "Hell":
+        return None
+    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QApplication
+    p = QPalette(QApplication.style().standardPalette())
+    u = lambda h: QColor(umsetzen(h, name))     # noqa: E731
+    rollen = {QPalette.Window: FLAECHE, QPalette.WindowText: TEXT, QPalette.Base: "#FFFFFF",
+              QPalette.AlternateBase: "#F5F8FB", QPalette.Text: TEXT, QPalette.Button: "#EEF1F5",
+              QPalette.ButtonText: TEXT, QPalette.Highlight: "#CFE0F5", QPalette.HighlightedText: "#111827",
+              QPalette.ToolTipBase: "#FFFFFF", QPalette.ToolTipText: TEXT, QPalette.PlaceholderText: "#9AA3AF",
+              QPalette.Link: AKZENT, QPalette.Light: "#FFFFFF", QPalette.Mid: "#C5CCD6", QPalette.Dark: "#9AA3AF"}
+    for rolle, hell in rollen.items():
+        p.setColor(rolle, u(hell))
+    for rolle in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
+        p.setColor(QPalette.Disabled, rolle, u("#9AA3AF"))
+    return p
+
+
+_gepatcht = False
+
+
+def _farben_in_texten():
+    """Andere Themes: Farben in setStyleSheet und Beschriftungstexten (HTML) des Programms umsetzen."""
+    global _gepatcht
+    if _gepatcht:
+        return
+    from PySide6.QtWidgets import QLabel, QWidget
+    alt_stil, alt_text = QWidget.setStyleSheet, QLabel.setText
+    QWidget.setStyleSheet = lambda self, text: alt_stil(self, umsetzen(text))
+    QLabel.setText = lambda self, text: alt_text(self, umsetzen(text) if isinstance(text, str) else text)
+    _gepatcht = True
+
+
+class _TexteBeimZeigen:
+    """Beschriftungen, deren Text schon im Konstruktor steht (QLabel("<h2 style='color:…'>…")), beim ersten
+    Polieren umfärben; als Ereignisfilter der Anwendung."""
+
+    def __new__(cls):
+        from PySide6.QtCore import QEvent, QObject
+        from PySide6.QtWidgets import QLabel
+
+        class Filter(QObject):
+            def eventFilter(self, obj, ereignis):
+                if ereignis.type() == QEvent.Polish and isinstance(obj, QLabel):
+                    t = obj.text()
+                    if "#" in t:
+                        neu = umsetzen(t)
+                        if neu != t:
+                            obj.setText(neu)
+                return False
+        return Filter()
+
+
+def anwenden(app, name="Hell", schrift=100, dichte="normal"):
+    """Theme, Schriftgröße [%] und Dichte für die ganze Anwendung (beim Start, vor dem Hauptfenster).
+    Ergebnis: wirksames Theme. Hell, 100 %, normal ändert nichts gegenüber bisher."""
+    global _thema
+    _thema = thema_aufloesen(name)
+    for c, hell in _FEST:
+        c.setRgba(farbe(hell).rgba())
+    p = palette(_thema)
+    if p is not None:
+        app.setPalette(p)
+        _farben_in_texten()
+        global _filter
+        if _filter is None:
+            _filter = _TexteBeimZeigen()
+            app.installEventFilter(_filter)
+    try:
+        prozent = max(90, min(150, int(schrift or 100)))
+    except (TypeError, ValueError):
+        prozent = 100
+    if prozent != 100:
+        f = app.font()
+        if f.pointSizeF() > 0:
+            f.setPointSizeF(f.pointSizeF() * prozent / 100)
+        else:
+            f.setPixelSize(round(f.pixelSize() * prozent / 100))
+        app.setFont(f)
+    global _dichte
+    _dichte = dichte if dichte in DICHTEN else "normal"
+    return _thema
+
+
+_dichte = "normal"
+_filter = None
+
+
+def aktuell():
+    """Stylesheet des Hauptfensters für das wirksame Theme und die Dichte."""
+    return stylesheet(_thema, _dichte)

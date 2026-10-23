@@ -152,7 +152,7 @@ def bedienen(d):
 
 
 assert "Schneidweg berechnen …" in [x.text() for x in s.pos_menue.actions()]           # Rechtsklick
-assert "Schneidweg berechnen …" in [x.text() for x in s.weitere.menu().actions()]      # Weitere Aktionen
+assert "Schneidweg berechnen …" in [x.text() for x in s.weitere.menu().actions()]      # Menü Ausgaben
 assert s.schneidweg_berechnen(0, dialog=bedienen)
 assert gesehen["zeilen"] == 4 and gesehen["winkel"] == 45 and gesehen["schritte"] == 2 + 5
 assert "Schneidweg" in gesehen["summe"] and "Schneidzeit je Teil" in gesehen["summe"]
