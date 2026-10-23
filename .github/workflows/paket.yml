@@ -219,6 +219,20 @@ jobs:
           if ($n -ne (Get-ChildItem netze_py -Filter *.json).Count -or $n -lt 8) { throw "STEP-Import.exe: $n 3D-Netze" }
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
+      - name: Lizenz-Werkzeug.exe bauen und prüfen (nur für Patrick; eigener Ordner, nicht im Programm und im Update)
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name Lizenz-Werkzeug --paths programm --paths werkzeuge `
+            --hidden-import lizenz_werkzeug_fenster --distpath dist_werkzeug --workpath build_werkzeug werkzeuge/lizenz_werkzeug.py
+          if (Test-Path dist/Rohrlaser-Angebotskalkulation/Lizenz-Werkzeug.exe) { throw "Lizenz-Werkzeug im Programmordner" }
+          $env:ROHRLASER_LIZENZ_ORDNER = "$env:RUNNER_TEMP\lizenz_test"
+          $env:ROHRLASER_LIZENZ_PASSWORT = "build-test-123"
+          foreach ($befehl in @("schluessel-erzeugen", "liste")) {
+            $p = Start-Process dist_werkzeug/Lizenz-Werkzeug.exe -ArgumentList $befehl -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "Lizenz-Werkzeug $befehl Rückgabewert $($p.ExitCode)" }
+          }
+          if (-not (Test-Path "$env:ROHRLASER_LIZENZ_ORDNER\privat_K1.pem")) { throw "Lizenz-Werkzeug: kein Schlüssel erzeugt" }
+          Remove-Item -Recurse -Force $env:ROHRLASER_LIZENZ_ORDNER
       - name: Programm signieren (eigenes Zertifikat aus dem Secret SIGNATUR_PFX)
         # Selbst ausgestelltes Zertifikat „Patrick Brundiers“ (kostenlos). Windows vertraut ihm, sobald
         # Windows-Vertrauen-einrichten.cmd es eingetragen hat (ohne Adminrechte, je Benutzer). Fehlt das Secret,
@@ -451,6 +465,7 @@ jobs:
             Online-Update (Hilfe → Nach Updates suchen): ab Version 0.5.5 holt das Programm Dateiliste und Pakete ohne
             Anmeldung aus dem öffentlichen Repository Rohrlaser-Updates und lädt nur geänderte Dateien. Ältere
             Versionen einmal mit diesem Setup bzw. ZIP ersetzen.
+            Lizenz-Werkzeug.exe: nur für Patrick zum Ausstellen der Lizenzen; ohne den privaten Schlüssel wertlos.
           files: |
             Rohrlaser-Angebotskalkulation-Setup.exe
             Rohrlaser-Angebotskalkulation-Setup.exe.sha256
@@ -460,6 +475,7 @@ jobs:
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
             Windows-Vertrauen-einrichten.cmd
+            dist_werkzeug/Lizenz-Werkzeug.exe
           make_latest: true
       - name: Update-Pakete hochladen (Repository Rohrlaser-Updates, Release "update-dateien", nur neue Pakete)
         if: github.ref == 'refs/heads/main'
@@ -522,7 +538,7 @@ jobs:
           $repo = $env:UPDATE_REPO
           # Pakete des neuen und des vorigen Stands bleiben: ein Programm, das die vorige Dateiliste schon geholt hat,
           # findet seine Pakete noch (und holt sonst die neue Liste, update.neuere_liste)
-          $gebraucht = @("Update.json")
+          $gebraucht = @("Update.json", "Sperrliste.json")     # Sperrliste (Lizenz) lädt Patrick von Hand hoch
           foreach ($liste in @("update_dateien/Update.json", "update_vorher.json")) {
             $pakete = (Get-Content -Raw -Encoding utf8 $liste | ConvertFrom-Json).pakete
             if ($pakete) { $gebraucht += @($pakete.PSObject.Properties.Name) }

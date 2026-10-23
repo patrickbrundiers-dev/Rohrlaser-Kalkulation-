@@ -55,6 +55,9 @@ def _p(text, stil=S):
     return Paragraph(t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>"), stil)
 
 
+AUFDRUCK = ""        # quer über jede Seite, z. B. "TESTVERSION" bei einer Testlizenz (Hauptfenster.lizenz_anwenden)
+
+
 class _Seitenzahlen(rl_canvas.Canvas):
     """Canvas mit 'Seite x von y' und Fußzeilentext auf jeder Seite."""
     fuss = ""
@@ -81,6 +84,17 @@ class _Seitenzahlen(rl_canvas.Canvas):
             self.setFillColor(colors.HexColor("#595959"))
             self.drawString(12 * mm, 8 * mm, self.fuss)
             self.drawRightString(breite - 12 * mm, 8 * mm, f"Seite {i} von {n}")
+            if AUFDRUCK:
+                self.saveState()
+                self.setFont(SCHRIFT, 64)
+                self.setFillColor(colors.HexColor("#B42318"), alpha=0.18)
+                self.translate(breite / 2, self._pagesize[1] / 2)
+                self.rotate(35)
+                self.drawCentredString(0, -20, AUFDRUCK)
+                self.restoreState()
+                self.setFont(SCHRIFT, 7.5)
+                self.setFillColor(colors.HexColor("#B42318"))
+                self.drawCentredString(breite / 2, 8 * mm, AUFDRUCK)
             super().showPage()
         super().save()
 

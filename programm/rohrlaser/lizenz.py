@@ -46,6 +46,7 @@ SPERRLISTE = "sperrliste.json"
 ZEIT = "zeit.json"
 ALT = "alt"
 EINSTELLUNG_ZULETZT = "lizenz_zuletzt"
+EMAIL = ""                 # Empfänger der E-Mail „Lizenz anfragen“ im Lizenzdialog (leer: im Mailprogramm eintragen)
 
 
 class LizenzFehler(ValueError):
@@ -426,3 +427,63 @@ def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zul
     if merken and not uhr_zurueck(heute, spaet):
         neu = zeit_merken(o, heute, spaet)
     return z, neu
+
+
+class LizenzStelle:
+    """Lizenz eines laufenden Programms: Ordner Lizenz im Datenordner und die Datendatei (Einstellung
+    lizenz_zuletzt, Lesemodus). pruefen() ermittelt den Zustand und schaltet den Lesemodus der Datenbank."""
+
+    def __init__(self, ordner_, db=None, schluessel=None, rechner=None, durchsetzung=None):
+        self.ordner = Path(ordner_)
+        self.db = db
+        self.schluessel = schluessel
+        self.rechner = rechner_id() if rechner is None else rechner
+        self.durchsetzung = durchsetzung
+        self.zustand = None
+
+    def pruefen(self, heute=None):
+        db_wert = self.db.einstellung(EINSTELLUNG_ZULETZT) if self.db is not None else None
+        z, neu = zustand_im_ordner(self.ordner, heute, self.rechner, self.schluessel, db_wert, self.durchsetzung)
+        if self.db is not None:
+            if self.db.nur_lesen:
+                self.db.lesemodus("")
+            if neu and neu != db_wert:
+                self.db.einstellung_setzen(EINSTELLUNG_ZULETZT, neu)
+            self.db.lesemodus(z.nur_lesen)
+        self.zustand = z
+        return z
+
+    def laden(self, quelle, heute=None):
+        """Lizenzdatei übernehmen (LizenzFehler, wenn ungültig; dann bleibt alles, wie es war) und neu prüfen."""
+        lizenz_laden(self.ordner, quelle, heute, self.rechner, self.schluessel)
+        return self.pruefen(heute)
+
+    def sperrliste(self, quelle):
+        """Sperrliste vom Update-Check übernehmen (nur gültig signiert und neuer). Ergebnis: True = übernommen."""
+        if sperrliste_uebernehmen(self.ordner, quelle, self.schluessel):
+            self.pruefen()
+            return True
+        return False
+
+    def zeit_abgleich(self, datum):
+        """Datum des Update-Servers als zusätzlicher Zeitstempel (nie zurück). Liegt die Rechneruhr danach mehr als
+        UHR_TOLERANZ_TAGE davor, meldet die nächste Prüfung „Systemzeit prüfen“. Ergebnis: neuer Zustand."""
+        if not datum:
+            return self.zustand
+        db_wert = self.db.einstellung(EINSTELLUNG_ZULETZT) if self.db is not None else None
+        neu = zeit_merken(self.ordner, datum, spaetestes_datum(self.ordner, db_wert))
+        if self.db is not None and neu != db_wert and not self.db.nur_lesen:
+            self.db.einstellung_setzen(EINSTELLUNG_ZULETZT, neu)
+        return self.pruefen()
+
+    def text(self):
+        """Kurzbeschreibung für Hilfe → Über … und --info."""
+        z = self.zustand or self.pruefen()
+        i = z.inhalt
+        if z.stufe == "admin":
+            return f"Admin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), unbefristet"
+        if i and z.stufe != "lesemodus":
+            art = "Testlizenz" if z.test else "Lizenz"
+            wer = ", ".join(x for x in (i.get("inhaber"), i.get("firma")) if x)
+            return f"{art} {i.get('lizenz_id')} ({wer}), gültig bis {_datum_text(datetime.date.fromisoformat(i['gueltig_bis']))}"
+        return ("Lesemodus: " if z.nur_lesen else "Keine gültige Lizenz: ") + z.grund

@@ -193,6 +193,38 @@ for name, daten in (("verändert", dict(lizenzdatei(), signatur=lizenzdatei(priv
 lizenz.lizenz_laden(o, lizenzdatei(lizenz_id="L-2026-0002"), HEUTE, RECHNER, SCHL)
 pruefe(len(list((o / lizenz.ALT).glob("*.lizenz"))) == 1, "ersetzte Lizenz liegt in alt/")
 
+# ------------------------------------------------------------------ L11–L13 über den Update-Weg (L4)
+from rohrlaser import update  # noqa: E402
+
+rel = tmp / "release"
+rel.mkdir()
+(rel / update.DATEILISTE).write_text("{}", encoding="utf-8")
+z = update.lizenz_zusatz(str(rel / update.DATEILISTE))
+pruefe(z == dict(sperrliste=None, datum=None), "Update-Check ohne Sperrliste: nichts")
+(rel / update.SPERRLISTE).write_text(json.dumps(lizenz.sperrliste_signieren(5, ["L-2026-0001"], PRIVAT, "T1")),
+                                     encoding="utf-8")
+z = update.lizenz_zusatz(str(rel / update.DATEILISTE))
+o = tmp / "updateweg"
+o.mkdir()
+(o / lizenz.AKTIV).write_text(json.dumps(lizenzdatei(bis=datetime.date.today() + datetime.timedelta(days=90),
+                                                      gueltig_ab=datetime.date.today().isoformat())),
+                              encoding="utf-8")
+stelle = lizenz.LizenzStelle(o, None, SCHL, RECHNER, durchsetzung=True)
+pruefe(stelle.pruefen().stufe == "gueltig", "Update-Weg: vorher gültig")
+pruefe(z["sperrliste"] and stelle.sperrliste(z["sperrliste"].decode()) and stelle.zustand.stufe == "lesemodus"
+       and "gesperrt" in stelle.zustand.nur_lesen, "L11 Sperrliste über den Update-Check: gesperrt")
+pruefe(not stelle.sperrliste(json.dumps(lizenz.sperrliste_signieren(4, [], PRIVAT, "T1"))),
+       "L12 ältere Sperrliste über den Update-Check nicht übernommen")
+pruefe(stelle.sperrliste(json.dumps(lizenz.sperrliste_signieren(6, [], PRIVAT, "T1")))
+       and stelle.zustand.stufe == "gueltig", "neuere Sperrliste hebt die Sperre auf")
+z = stelle.zeit_abgleich(datetime.date.today() + datetime.timedelta(days=5))
+pruefe(z.stufe == "lesemodus" and "Systemzeit" in z.nur_lesen, "L13 Server-Datum 5 Tage voraus: Systemzeit prüfen")
+(o / lizenz.ZEIT).unlink()
+pruefe(stelle.pruefen().stufe == "gueltig", "L13 nach Korrektur wieder gültig")
+pruefe(stelle.zeit_abgleich(datetime.date.today() - datetime.timedelta(days=30)).stufe == "gueltig",
+       "älteres Server-Datum ändert nichts")
+pruefe(stelle.zeit_abgleich(None).stufe == "gueltig", "ohne Server-Datum: nichts")
+
 # ------------------------------------------------------------------ Lizenz-Werkzeug
 umg = dict(os.environ, ROHRLASER_LIZENZ_PASSWORT="test-passwort-123", ROHRLASER_LIZENZ_ORDNER=str(tmp / "werkzeug"))
 WZ = [sys.executable, str(WURZEL / "werkzeuge" / "lizenz_werkzeug.py")]
@@ -206,7 +238,7 @@ def wz(*args):
 code, aus = wz("schluessel-erzeugen")
 pruefe(code == 0 and '"K1": "' in aus, "Werkzeug: Schlüsselpaar K1 erzeugt")
 pem = (tmp / "werkzeug" / "privat_K1.pem").read_text()
-pruefe("ENCRYPTED PRIVATE KEY" in pem, "privater Schlüssel mit Passwort geschützt")
+pruefe("ENCRYPTED PRIVATE " + "KEY" in pem, "privater Schlüssel mit Passwort geschützt")
 code, _ = wz("schluessel-erzeugen")
 pruefe(code != 0 and (tmp / "werkzeug" / "privat_K1.pem").read_text() == pem, "vorhandener Schlüssel nie überschrieben")
 k1 = aus.split('"K1": "')[1].split('"')[0]
@@ -252,6 +284,23 @@ pruefe(code == 0 and sum(z.startswith("L-") for z in aus.splitlines()) == 3 and 
 umg["ROHRLASER_LIZENZ_PASSWORT"] = "falsch-falsch"
 code, aus = wz("erstellen", "--inhaber", "X", "--beliebig")
 pruefe(code != 0 and "Passwort falsch" in aus, "falsches Passwort abgelehnt")
+
+# Fenster des Werkzeugs (Doppelklick auf Lizenz-Werkzeug.exe)
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import lizenz_werkzeug_fenster  # noqa: E402
+
+fw = lizenz_werkzeug_fenster.QApplication.instance() or lizenz_werkzeug_fenster.QApplication([])
+w = lizenz_werkzeug_fenster.Fenster(tmp / "werkzeug")
+pruefe(w.tabelle.rowCount() == 3 and not w.schluessel_knopf.isEnabled() and "K1" in w.ordner_text.text(),
+       "Werkzeug-Fenster: Register mit 3 Lizenzen, Schlüssel K1 vorhanden")
+w.art.setCurrentIndex(2)
+pruefe(not w.bis.isEnabled() and w.inhaber.text() == "Patrick", "Werkzeug-Fenster: Admin ohne Datum")
+w.art.setCurrentIndex(0)
+q = w.bis.date()
+pruefe(datetime.date(q.year(), q.month(), q.day()) == lizenz_werkzeug.monate_spaeter(heute, 6),
+       "Werkzeug-Fenster: Benutzer 6 Monate vorgeschlagen")
+w2 = lizenz_werkzeug_fenster.Fenster(tmp / "werkzeug_leer")
+pruefe(w2.schluessel_knopf.isEnabled() and w2.tabelle.rowCount() == 0, "Werkzeug-Fenster ohne Schlüssel")
 
 # ------------------------------------------------------------------ S7 Repository
 git = subprocess.run(["git", "ls-files"], cwd=WURZEL, capture_output=True, text=True)

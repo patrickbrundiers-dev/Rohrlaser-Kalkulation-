@@ -27,6 +27,7 @@ from pathlib import Path
 from . import NAME, VERSION
 
 DATEILISTE = "Update.json"
+SPERRLISTE = "Sperrliste.json"      # Lizenz: signierte Sperrliste, neben Update.json im Release update-dateien
 ARBEITSORDNER = "_update"           # im Programmordner: Download, Zwischenstand und alte Dateien
 # Dateiliste und Pakete liegen im Release "update-dateien" des öffentlichen Repositorys Rohrlaser-Updates: das
 # Programm-Repository ist privat, seine Release-Dateien lassen sich ohne Anmeldung nicht laden (404).
@@ -183,6 +184,25 @@ def online_liste(quelle=ADRESSE, timeout=15):
         if not sicherer_pfad(rel) or not re.fullmatch(r"[dp]-[0-9a-f]{40}\.zip", str(d.get("paket"))):
             raise UpdateFehler(f"Die Dateiliste {quelle} enthält einen ungültigen Eintrag: {rel}")
     return liste
+
+
+def lizenz_zusatz(quelle=ADRESSE, timeout=10):
+    """Für die Lizenz beim Update-Check: Sperrliste (Bytes oder None) neben der Dateiliste und das Datum des Servers
+    (HTTP-Kopf Date, als datetime.date oder None). Fehler zählen nicht: ohne Netz bleibt alles, wie es ist."""
+    adresse = str(quelle).replace("\\", "/").rsplit("/", 1)[0] + "/" + SPERRLISTE
+    if not _ist_url(quelle):
+        adresse = str(Path(quelle).parent / SPERRLISTE)
+    daten, datum = None, None
+    try:
+        with _oeffnen(adresse, timeout) as r:
+            daten = r.read(1 << 20)
+            kopf = r.headers.get("Date") if hasattr(r, "headers") else None
+            if kopf:
+                import email.utils
+                datum = email.utils.parsedate_to_datetime(kopf).date()
+    except Exception:       # noqa: BLE001 – keine Sperrliste veröffentlicht (404), kein Netz, kaputter Kopf
+        pass
+    return dict(sperrliste=daten, datum=datum)
 
 
 def sicherer_pfad(rel):

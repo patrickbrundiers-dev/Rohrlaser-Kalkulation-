@@ -1,9 +1,11 @@
-"""Lesemodus (Lizenz): Schreibschutz in der Datenbank (S1–S3).
+"""Lesemodus (Lizenz): Schreibschutz in der Datenbank (S1–S3) und Oberfläche (S4–S6).
 
 S1 jede schreibende Datenbank-Methode löst im Lesemodus die Ausnahme Lesemodus aus, nichts ändert sich (auch nicht
    über db.con direkt: PRAGMA query_only); S2 Lesen, Export, Sicherung und Wiederherstellen gehen weiter;
 S3 jede öffentliche Methode der Klasse Datenbank ist als liest, schreibt oder erlaubt eingeordnet – eine neue
-   Methode ohne Einordnung macht diesen Test rot.
+   Methode ohne Einordnung macht diesen Test rot;
+S4 Oberfläche im Lesemodus: ändernde Knöpfe und Kürzel aus, Hinweis sichtbar, Angebot nur ansehen, kein Fehler;
+S5 Admin-Lizenz: Einstellungen ohne Passwort; S6 Testlizenz: PDF mit Aufdruck TESTVERSION.
 Aufruf: python tests/test_lesemodus.py
 """
 import hashlib
@@ -132,6 +134,135 @@ db.schliessen()
 neu = Datenbank(tmp / "zweite.db")
 pruefe(neu.nur_lesen == "" and neu.angebot_neu(dict(kunde="frei")), "ohne Lizenzangabe: voller Zugriff (Tests, Entwicklung)")
 neu.schliessen()
+
+# ------------------------------------------------------------------ S4–S6 Oberfläche
+import datetime  # noqa: E402
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
+
+from rohrlaser import lizenz, pdf  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+
+app = QApplication.instance() or QApplication([])
+PRIVAT = Ed25519PrivateKey.generate()
+SCHL = {"T1": lizenz.oeffentlich_text(PRIVAT)}
+RECHNER = lizenz.rechner_id("test-rechner")
+fehler_ui = []
+sys.excepthook = lambda art, wert, tb: fehler_ui.append(f"{art.__name__}: {wert}")
+
+
+def lizenzdatei(art, tage=200):
+    inhalt = dict(lizenz_id="L-2026-0042", art=art, inhaber="Test", firma="", ausgestellt="2026-01-01",
+                  gueltig_ab="2026-01-01", gueltig_bis=None if art == "admin" else
+                  (datetime.date.today() + datetime.timedelta(days=tage)).isoformat(),
+                  rechner=[RECHNER], funktionen=["alle"], test=art == "test", schluessel_id="T1", hinweis="")
+    return dict(format=1, inhalt=inhalt, signatur=lizenz.signieren(inhalt, PRIVAT))
+
+
+def fenster(name, lizenzdaten=None, durchsetzung=True):
+    d = Datenbank(tmp / name / "rohrlaser.db")
+    a = d.angebot_neu(dict(kunde="UI-Test"))
+    for p in BEISPIEL:
+        d.position_neu(a, p)
+    stelle = lizenz.LizenzStelle(lizenz.ordner(tmp / name), d, SCHL, RECHNER, durchsetzung)
+    if lizenzdaten:
+        lizenz.lizenz_laden(stelle.ordner, lizenzdaten, rechner=RECHNER, schluessel=SCHL)
+    stelle.pruefen()
+    f = Hauptfenster(d, stumm=True, lizenz=stelle)
+    f.show()
+    app.processEvents()
+    return d, a, f, stelle
+
+
+def knopf(w, text):
+    return next((k for k in w.findChildren(QPushButton) if k.text() == text), None)
+
+
+d, a, f, stelle = fenster("ohne")
+pruefe(d.nur_lesen and stelle.zustand.stufe == "lesemodus", "S4 ohne Lizenz (Stufe 2): Lesemodus")
+pruefe(f.lizenz_hinweis.isVisible() and "Lesemodus" in f.lizenz_hinweis.text() and RECHNER in f.lizenz_hinweis.text(),
+       f"S4 Hinweis in der Statusleiste ({f.lizenz_hinweis.text()[:60]} …)")
+pruefe("Lesemodus" in f.windowTitle(), "S4 Fenstertitel zeigt Lesemodus")
+pruefe(not knopf(f.angebote, "Neues Angebot").isEnabled() and not knopf(f.angebote, "Löschen").isEnabled()
+       and knopf(f.angebote, "Öffnen").isEnabled(), "S4 Angebote: Neu/Löschen aus, Öffnen geht")
+pruefe(not f.kuerzel_aktionen["neu"].isEnabled() and not f.kuerzel_aktionen["optimieren"].isEnabled()
+       and f.kuerzel_aktionen["kopieren"].isEnabled(), "S4 Kürzel Neu/Optimieren aus, Kopieren geht")
+pruefe(f.datei_aktionen["Daten exportieren …"].isEnabled() and f.datei_aktionen["Datensicherung erstellen"].isEnabled()
+       and not f.datei_aktionen["Mit den Kollegen abgleichen"].isEnabled(), "S4 Export und Sicherung im Menü frei")
+seite = f.angebot_oeffnen(a)
+for i in range(seite.reiter.count()):
+    seite.reiter.setCurrentIndex(i)
+    app.processEvents()
+for i in range(f.reiter.count()):
+    f.reiter.setCurrentIndex(i)
+    app.processEvents()
+pruefe(seite.fremd_leiste.isVisible() and "Lesemodus" in seite.fremd_text.text() and not seite.kopf_bereich.isEnabled(),
+       "S4 Angebot: Hinweis Lesemodus, Kopf gesperrt")
+pruefe(not knopf(seite, "Optimieren").isEnabled() and not knopf(seite, "Angebot (PDF)").isEnabled()
+       and knopf(seite, "3D-Ansicht …").isEnabled(), "S4 Angebot: Optimieren und PDF aus, 3D-Ansicht geht")
+pruefe(not fehler_ui, f"S4 Ansehen aller Reiter ohne Fehler {fehler_ui or ''}")
+d2 = f.lizenz_zeigen()
+pruefe(RECHNER == d2.rechner.text() and "Lesemodus" in d2.status.text(), "Lizenzdialog zeigt Rechner-ID und Zustand")
+pruefe(RECHNER in d2.email_adresse() and "mailto:" in d2.email_adresse(), "fertige E-Mail mit Rechner-ID")
+schlecht = tmp / "schlecht.lizenz"
+schlecht.write_text("{}", encoding="utf-8")
+pruefe(not d2.laden(schlecht) and d.nur_lesen, "ungültige Datei im Dialog abgelehnt")
+gut = tmp / "gut.lizenz"
+gut.write_text(__import__("json").dumps(lizenzdatei("benutzer")), encoding="utf-8")
+pruefe(d2.laden(gut) and not d.nur_lesen and "Lizenz gültig" in d2.status.text(), "Lizenz im Dialog geladen: frei")
+pruefe(d.angebot_neu(dict(kunde="wieder frei")), "nach dem Laden: Ändern geht")
+f.close()
+d.schliessen()
+
+d, a, f, stelle = fenster("stufe1", durchsetzung=False)
+pruefe(not d.nur_lesen and f.lizenz_hinweis.isVisible() and "braucht das Programm eine Lizenz" in f.lizenz_hinweis.text()
+       and knopf(f.angebote, "Neues Angebot").isEnabled(), "Stufe 1: ohne Lizenz nur Hinweis, alles frei")
+f.close()
+d.schliessen()
+
+d, a, f, stelle = fenster("admin", lizenzdatei("admin"))
+d.einstellung_setzen("passwort", "geheim")
+f.bereich.sperren()
+pruefe(stelle.zustand.admin and not f.bereich.gesperrt() and not f.lizenz_hinweis.isVisible(),
+       "S5 Admin: Einstellungen ohne Passwort, kein Hinweis")
+pruefe("Admin-Lizenz" in stelle.text(), f"Über …: {stelle.text()}")
+f.close()
+d.schliessen()
+
+d, a, f, stelle = fenster("test", lizenzdatei("test", 20))
+pruefe(stelle.zustand.test and pdf.AUFDRUCK == "TESTVERSION" and "TESTVERSION" in f.windowTitle(),
+       "S6 Testlizenz: Aufdruck TESTVERSION eingeschaltet")
+d.einstellung_setzen("ablageordner", str(tmp / "Ablage"))
+seite = f.angebot_oeffnen(a)
+seite.optimieren()
+datei = seite.angebot_pdf()
+import base64  # noqa: E402
+import re  # noqa: E402
+import zlib  # noqa: E402
+
+
+def pdf_inhalt(pfad):
+    """Seiteninhalte einer reportlab-PDF entpackt (ASCII85 + Flate), ohne pypdf (fehlt in der CI)."""
+    roh, teile = Path(pfad).read_bytes(), []
+    for m in re.finditer(rb"stream\r?\n(.*?)endstream", roh, re.S):
+        daten = m.group(1).strip()
+        try:
+            if daten.endswith(b"~>"):
+                daten = base64.a85decode(daten[:-2].replace(b"\n", b"").replace(b"\r", b""))
+            teile.append(zlib.decompress(daten))
+        except (ValueError, zlib.error):
+            teile.append(daten)
+    return b"".join(teile).decode("latin-1")
+
+
+text = pdf_inhalt(datei) if datei else ""
+pruefe("TESTVERSION" in text, "S6 Angebots-PDF trägt TESTVERSION")
+pruefe(f.lizenz_hinweis.isVisible() and "Testlizenz" in f.lizenz_hinweis.text(), "Testlizenz läuft bald ab: Hinweis")
+f.close()
+d.schliessen()
+pdf.AUFDRUCK = ""
+pruefe(not fehler_ui, f"keine unerwarteten Fehler {fehler_ui or ''}")
 
 print(f"\n{len(fehler)} Fehler" if fehler else "\nAlle Lesemodus-Prüfungen bestanden.")
 sys.exit(1 if fehler else 0)

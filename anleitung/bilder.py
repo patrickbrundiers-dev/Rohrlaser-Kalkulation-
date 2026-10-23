@@ -8,6 +8,7 @@ der Anleitung aufgreift. Die PDF-Ausgaben des Programms werden als Seitenbilder 
 
 Aufruf: python anleitung/bilder.py ZIELORDNER   (schreibt PNG-Dateien und bilder.json)
 """
+import datetime
 import json
 import os
 import subprocess
@@ -814,6 +815,28 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("update_hinweis", m, [(m.jetzt, 1)])
     m.close()
+
+    # Lizenz: Dialog Hilfe → Lizenz … mit einer Beispiel-Lizenz (Wegwerfschlüssel, Rechner-ID nur als Beispiel)
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from rohrlaser import lizenz
+    from rohrlaser.lizenz_dialog import LizenzDialog
+    privat, rid = Ed25519PrivateKey.generate(), "RL-7F3A-91C2-0B5D-E4A8"
+    heute = datetime.date.today()
+    inhalt = dict(lizenz_id=f"L-{heute.year}-0007", art="benutzer", inhaber="Max Mustermann", firma="Musterbau GmbH",
+                  ausgestellt=heute.isoformat(), gueltig_ab=heute.isoformat(),
+                  gueltig_bis=(heute + datetime.timedelta(days=182)).isoformat(), rechner=[rid],
+                  funktionen=["alle"], test=False, schluessel_id="B1", hinweis="")
+    lordner = Path(tempfile.mkdtemp(prefix="lizenz_bild_"))
+    (lordner / lizenz.AKTIV).write_text(json.dumps(dict(format=1, inhalt=inhalt, signatur=lizenz.signieren(
+        inhalt, privat))), encoding="utf-8")
+    stelle = lizenz.LizenzStelle(lordner, None, {"B1": lizenz.oeffentlich_text(privat)}, rid, durchsetzung=True)
+    stelle.pruefen()
+    d = LizenzDialog(f, stelle, stumm=True)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("lizenz_dialog", d, [(d.status, 1), (d.rechner, 2), (knopf(d, "Kopieren"), 3),
+                                   (knopf(d, "E-Mail an Patrick …"), 4), (knopf(d, "Lizenzdatei laden …"), 5)])
+    d.close()
 
     # 12) Frachtkosten (Beispieldaten BEISPIEL)
     fb = f.fracht

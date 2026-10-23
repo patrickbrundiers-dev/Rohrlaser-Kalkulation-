@@ -13,6 +13,7 @@ Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
   pruefen DATEI [--rechner RL-…]         Inhalt und Prüfergebnis einer Lizenzdatei
   sperren L-JJJJ-NNNN …                  neue Sperrliste Sperrliste.json (Stand + 1) für den Release update-dateien
   liste                                  alle ausgestellten Lizenzen nach Ablaufdatum
+  (ohne Befehl)                          Fenster mit allem oben (lizenz_werkzeug_fenster.py, Lizenz-Werkzeug.exe)
 Passwort: wird abgefragt (oder Umgebungsvariable ROHRLASER_LIZENZ_PASSWORT, z. B. für Tests).
 """
 import argparse
@@ -62,15 +63,16 @@ def aktueller_schluessel(ordner):
     return ids[-1][1]
 
 
-def privat_laden(ordner, sid):
+def privat_laden(ordner, sid, pw=None):
     from cryptography.hazmat.primitives import serialization
     try:
-        return serialization.load_pem_private_key(schluessel_pfad(ordner, sid).read_bytes(), passwort())
+        return serialization.load_pem_private_key(schluessel_pfad(ordner, sid).read_bytes(),
+                                                  pw or passwort())
     except (ValueError, TypeError):
         raise SystemExit("Passwort falsch oder Schlüsseldatei beschädigt.") from None
 
 
-def schluessel_erzeugen(ordner, sid):
+def schluessel_erzeugen(ordner, sid, pw=None):
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     ordner = Path(ordner)
@@ -80,7 +82,7 @@ def schluessel_erzeugen(ordner, sid):
     ordner.mkdir(parents=True, exist_ok=True)
     privat = Ed25519PrivateKey.generate()
     pfad.write_bytes(privat.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
-                                          serialization.BestAvailableEncryption(passwort(neu=True))))
+                                          serialization.BestAvailableEncryption(pw or passwort(neu=True))))
     text = lizenz.oeffentlich_text(privat)
     (ordner / f"oeffentlich_{sid}.txt").write_text(text + "\n", encoding="ascii")
     print(f"Privater Schlüssel: {pfad}\n  -> jetzt zwei Kopien sichern (USB-Stick im Tresor, Passwortmanager).\n")
@@ -126,11 +128,11 @@ def dateiname(inhalt):
     return f"{inhalt['lizenz_id']}_{name}.lizenz"
 
 
-def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None, ziel=None):
+def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None, ziel=None, pw=None):
     ordner = Path(ordner)
     heute = heute or datetime.date.today()
     sid = aktueller_schluessel(ordner)
-    privat = privat_laden(ordner, sid)
+    privat = privat_laden(ordner, sid, pw)
     zeilen = register_lesen(ordner)
     inhalt = dict(lizenz_id=naechste_id(zeilen, heute), art=art, inhaber=inhaber or "", firma=firma or "",
                   ausgestellt=heute.isoformat(), gueltig_ab=heute.isoformat(),
@@ -175,10 +177,10 @@ def pruefen(datei, rechner=None, ordner=None):
     return 0
 
 
-def sperren(ordner, ids):
+def sperren(ordner, ids, pw=None):
     ordner = Path(ordner)
     sid = aktueller_schluessel(ordner)
-    privat = privat_laden(ordner, sid)
+    privat = privat_laden(ordner, sid, pw)
     p = ordner / SPERRLISTE
     alt = json.loads(p.read_text(encoding="utf-8")) if p.exists() else dict(stand=0, gesperrt=[])
     daten = lizenz.sperrliste_signieren(alt["stand"] + 1, list(alt["gesperrt"]) + list(ids), privat, sid)
@@ -206,7 +208,7 @@ def liste(ordner):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="lizenz_werkzeug", description=__doc__.split("\n")[0])
     ap.add_argument("--ordner", help="Lizenzordner mit privatem Schlüssel und Register")
-    sub = ap.add_subparsers(dest="befehl", required=True)
+    sub = ap.add_subparsers(dest="befehl")
     s = sub.add_parser("schluessel-erzeugen")
     s.add_argument("--id", default="K1")
     e = sub.add_parser("erstellen")
@@ -230,6 +232,9 @@ def main(argv=None):
     sub.add_parser("liste")
     a = ap.parse_args(argv)
     ordner = lizenzordner(a.ordner)
+    if a.befehl is None:            # ohne Befehl (Doppelklick auf Lizenz-Werkzeug.exe): Fenster
+        from lizenz_werkzeug_fenster import starten
+        return starten(ordner)
     if a.befehl == "schluessel-erzeugen":
         schluessel_erzeugen(ordner, a.id)
     elif a.befehl == "erstellen":

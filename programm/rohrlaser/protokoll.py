@@ -43,10 +43,43 @@ def info(text):
     _log.info(text)
 
 
+def ist_lesemodus(wert):
+    """Abgewiesener Schreibversuch im Lesemodus (Lizenz): Ausnahme Lesemodus oder SQLite 'readonly database'."""
+    import sqlite3
+    return type(wert).__name__ == "Lesemodus" or (isinstance(wert, sqlite3.OperationalError)
+                                                   and "readonly" in str(wert))
+
+
+_lesemodus_zuletzt = 0.0
+
+
+def _lesemodus_melden(wert):
+    """Kein Fehler, sondern Absicht: kurzer Hinweis statt Fehlermeldung, höchstens alle 20 Sekunden ein Fenster."""
+    global _lesemodus_zuletzt, _in_meldung
+    import time
+    _log.info("Lesemodus: Änderung abgewiesen (%s)", wert)
+    if _zeigen is None or _in_meldung or time.monotonic() - _lesemodus_zuletzt < 20:
+        return
+    _lesemodus_zuletzt = time.monotonic()
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    if QApplication.instance() is None or _zeigen is not meldung_dialog:
+        return
+    _in_meldung = True
+    try:
+        text = str(wert) if type(wert).__name__ == "Lesemodus" else (
+            "Lesemodus – Ändern ist erst mit gültiger Lizenz möglich (Hilfe → Lizenz …).")
+        QMessageBox.information(None, "Lesemodus", text + "\n\nAnsehen, Daten exportieren und Sicherungen gehen weiter.")
+    finally:
+        _in_meldung = False
+
+
 def _haken(art, wert, tb):
     global _in_meldung
     if issubclass(art, KeyboardInterrupt):
         sys.__excepthook__(art, wert, tb)
+        return
+    if ist_lesemodus(wert):
+        _lesemodus_melden(wert)
         return
     details = "".join(traceback.format_exception(art, wert, tb))
     _log.error("Unerwarteter Fehler\n%s", details)
