@@ -3,7 +3,11 @@ Zukaufartikel und Einstellungen.
 
 Der Reiter Einstellungen ist mit einem Passwort geschützt (Einstellung 'passwort') und enthält als Unterreiter die
 allgemeinen Vorgaben und alle Stammdaten außer den Kunden. Im Reiter Frachtkosten ist der Rechner frei, die
-Pflegebereiche öffnen mit demselben Passwort."""
+Pflegebereiche öffnen mit demselben Passwort.
+
+Lizenz (lizenz.py): Hauptfenster(…, lizenz=LizenzStelle) zeigt Hinweise in der Statusleiste, Hilfe → Lizenz …, und
+schaltet im Lesemodus die ändernden Aktionen ab; mit der Admin-Lizenz öffnen die Einstellungen ohne Passwort. Ohne
+lizenz (Tests, Entwicklung) voller Zugriff ohne Hinweise."""
 import datetime
 import os
 import sqlite3
@@ -18,7 +22,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import NAME, VERSION, ausgabe, hilfe, tastatur, teilen, update
+from . import NAME, VERSION, ausgabe, hilfe, pdf, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
@@ -773,8 +777,10 @@ class EinstellungenBereich(QWidget):
         self.offen = False
         self.sperren()
 
+    admin = False           # Admin-Lizenz: ohne Passwort (Hauptfenster.lizenz_anwenden)
+
     def gesperrt(self):
-        return not self.offen and bool(self.db.einstellung("passwort"))
+        return not self.offen and not self.admin and bool(self.db.einstellung("passwort"))
 
     def oeffnen(self, passwort=None):
         """Mit dem Passwort aus dem Eingabefeld (oder dem übergebenen) öffnen. Ergebnis: geöffnet ja/nein."""
@@ -922,10 +928,11 @@ class StartSeite(QWidget):
 
 
 class Hauptfenster(QMainWindow):
-    def __init__(self, db, programmordner=None, stumm=False, orte=None):
+    def __init__(self, db, programmordner=None, stumm=False, orte=None, lizenz=None):
         from .angebot_fenster import AngeboteSeite
         super().__init__()
         self.db = db
+        self.lizenz = lizenz        # lizenz.LizenzStelle oder None (voller Zugriff, keine Hinweise)
         hilfe.einrichten(db)
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
@@ -977,7 +984,12 @@ class Hauptfenster(QMainWindow):
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
         self._menue()
+        self.lizenz_hinweis = QLabel()
+        self.lizenz_hinweis.setTextFormat(Qt.PlainText)
+        self.lizenz_hinweis.hide()
+        self.statusBar().addPermanentWidget(self.lizenz_hinweis)
         self.statusBar().showMessage("Bereit")
+        self.lizenz_anwenden()
         if not stumm:
             self.updater.beim_start()
 
@@ -988,12 +1000,18 @@ class Hauptfenster(QMainWindow):
         self.showMaximized()
         if not self.stumm:
             QTimer.singleShot(200, self._start_teilen)
+            z = self.lizenz.zustand if self.lizenz else None
+            if z is not None and z.start_hinweis and (z.hinweis or z.grund):
+                QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
+                                                                                  "Mehr unter Hilfe → Lizenz …"))
 
     def _start_teilen(self):
         from . import teilen_fenster
         try:
             ohne_kuerzel = not teilen.kuerzel(self.db)
         except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            return
+        if self.db.nur_lesen:                   # Lesemodus: kein Benutzer anlegen, kein Abgleich (beides schreibt)
             return
         if ohne_kuerzel:
             teilen_fenster.benutzer_bearbeiten(self, erststart=True)
@@ -1011,6 +1029,7 @@ class Hauptfenster(QMainWindow):
 
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
+        self.datei_aktionen = {}
         for text, ziel, taste in (("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   (None, None, None),
@@ -1032,6 +1051,7 @@ class Hauptfenster(QMainWindow):
             if taste:
                 a.setShortcut(taste)
             datei.addAction(a)
+            self.datei_aktionen[text] = a
         bearbeiten = self.menuBar().addMenu("&Bearbeiten")
         self.kuerzel_aktionen = {}
         for name, text, tasten in (("rueckgaengig", "Rückgängig", [QKeySequence.Undo]),
@@ -1082,13 +1102,17 @@ class Hauptfenster(QMainWindow):
         a = QAction("Tastenkürzel …", self)
         a.triggered.connect(self.kuerzel_zeigen)
         hilfe.addAction(a)
+        a = QAction("Lizenz …", self)
+        a.triggered.connect(lambda: self.lizenz_zeigen())
+        hilfe.addAction(a)
         a = QAction("Nach Updates suchen …", self)
         a.triggered.connect(lambda: self.updater.suchen())
         hilfe.addAction(a)
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
             self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
-                        f"Daten: {self.db.pfad}{self.datenort_text()}"))
+                        f"Daten: {self.db.pfad}{self.datenort_text()}"
+                        + (f"<br>{self.lizenz.text()}<br>Rechner-ID: {self.lizenz.rechner}" if self.lizenz else "")))
         hilfe.addAction(a)
 
     # -------------------------------------------------------------- Tastenkürzel
@@ -1246,6 +1270,7 @@ class Hauptfenster(QMainWindow):
         if neu:
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
             self.offen[angebot_id] = seite
+            self.lesemodus_anwenden(seite)
             self.reiter.addTab(seite, seite.titel())
         self._frisch = seite if neu else None           # gerade geladen: beim Reiterwechsel nicht noch einmal
         try:
@@ -1253,6 +1278,80 @@ class Hauptfenster(QMainWindow):
         finally:
             self._frisch = None
         return seite
+
+    # -------------------------------------------------------------- Lizenz
+    SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
+                           "optimieren", "importieren", "drucken")
+    SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen")
+
+    def lizenz_anwenden(self):
+        """Lizenzzustand auf die Oberfläche: Hinweis in der Statusleiste, Fenstertitel, Admin-Rechte (Einstellungen
+        ohne Passwort), Aufdruck TESTVERSION, im Lesemodus ändernde Aktionen aus."""
+        z = self.lizenz.zustand if self.lizenz else None
+        if z is None:
+            return
+        farbe = "rot" if z.nur_lesen else z.farbe
+        self.lizenz_hinweis.setText(z.hinweis if not z.nur_lesen else f"Lesemodus: {z.nur_lesen}")
+        self.lizenz_hinweis.setToolTip("Hilfe → Lizenz …")
+        self.lizenz_hinweis.setStyleSheet({"gelb": "background: #FFF4D6; color: #7A5B00; padding: 1px 8px;",
+                                           "rot": "background: #FDECEA; color: #B42318; padding: 1px 8px;"}
+                                          .get(farbe, ""))
+        self.lizenz_hinweis.setVisible(bool(self.lizenz_hinweis.text()) and not z.admin)
+        self.bereich.admin = z.admin
+        if z.admin and not self.bereich.offen:
+            self.bereich.offen = True
+            self.bereich.neu_laden()
+        pdf.AUFDRUCK = "TESTVERSION" if z.test else ""
+        titel = f"{NAME} {update.stand_text(self.updater.lokal)}"
+        self.setWindowTitle(titel + (" – Lesemodus" if z.nur_lesen else " – TESTVERSION" if z.test else ""))
+        if z.nur_lesen:
+            self.lesemodus_anwenden()
+            self._lesemodus_aktiv = True
+        elif getattr(self, "_lesemodus_aktiv", False) and not self.stumm:     # neue Lizenz geladen
+            QMessageBox.information(self, "Lizenz", "Ändern ist wieder möglich. Bitte das Programm einmal neu starten, "
+                                                    "damit alle Knöpfe wieder frei sind.")
+
+    def lesemodus_anwenden(self, seite=None):
+        """Im Lesemodus: ändernde Menüpunkte und Knöpfe aus (ansehen, exportieren, sichern geht weiter)."""
+        if not self.db.nur_lesen:
+            return
+        from .lizenz_dialog import LESEMODUS_TIPP, lesemodus_anwenden
+        if seite is not None:
+            lesemodus_anwenden(seite)
+            return
+        for name in self.SCHREIBENDE_KUERZEL:
+            self.kuerzel_aktionen[name].setEnabled(False)
+        for text in self.SCHREIBENDE_DATEI:
+            self.datei_aktionen[text].setEnabled(False)
+        for w in [self.angebote, self.kunden, self.fracht, self.zukauf, self.bereich, *self.offen.values()]:
+            lesemodus_anwenden(w)
+        self.einstellungen.setEnabled(False)
+        self.einstellungen.setToolTip(LESEMODUS_TIPP)
+
+    def lizenz_zusatz(self, zusatz):
+        """Vom Update-Check: neue Sperrliste übernehmen und Zeit abgleichen, dann den Zustand neu anzeigen."""
+        if self.lizenz is None or not zusatz:
+            return
+        vorher = self.lizenz.zustand.stufe if self.lizenz.zustand else None
+        try:
+            if zusatz.get("sperrliste"):
+                self.lizenz.sperrliste(zusatz["sperrliste"].decode("utf-8", "replace"))
+            if zusatz.get("datum"):
+                self.lizenz.zeit_abgleich(zusatz["datum"])
+        except (OSError, ValueError):
+            return
+        if self.lizenz.zustand and self.lizenz.zustand.stufe != vorher:
+            self.lizenz_anwenden()
+
+    def lizenz_zeigen(self):
+        from . import lizenz as lz
+        from .lizenz_dialog import LizenzDialog
+        if self.lizenz is None:         # Entwicklung/Tests: Zustand ohne Speichern anzeigen
+            self.lizenz = lz.LizenzStelle(lz.ordner(self.db.pfad.parent), None)
+        d = LizenzDialog(self, self.lizenz, stumm=self.stumm)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def angebot_schliessen(self, angebot_id):
         seite = self.offen.pop(angebot_id, None)
@@ -1351,7 +1450,7 @@ class Hauptfenster(QMainWindow):
     def closeEvent(self, ereignis):
         """Beim Beenden die eigenen Angebote in den gemeinsamen Ordner legen und eine Sicherung (eine je Tag, wird
         überschrieben), auch in den zweiten Sicherungsordner."""
-        if not self.stumm and teilen.aktiv(self.db):
+        if not self.stumm and not self.db.nur_lesen and teilen.aktiv(self.db):
             from . import teilen_fenster
             if teilen_fenster.abgleichen(self, lesen=False, leise=True) is None and QMessageBox.warning(
                     self, "Abgleichen", "Die eigenen Angebote ließen sich nicht in den gemeinsamen Ordner legen "

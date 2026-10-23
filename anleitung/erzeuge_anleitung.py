@@ -4244,6 +4244,57 @@ def kapitel_tastenkuerzel(i):
            "zoomt das Rad weiterhin.")
 
 
+def kapitel_lizenz(i):
+    i.kapitel("Lizenz", marke="lizenz")
+    i.text("Das Programm braucht eine Lizenz. Sie ist eine kleine Datei (<i>.lizenz</i>), die Patrick für einen "
+           "Rechner ausstellt. Sie gilt ohne Internet und ohne Anmeldung. Ohne gültige Lizenz bleiben alle Angebote "
+           "und Daten erhalten und lassen sich ansehen und exportieren, nur ändern geht dann nicht mehr.")
+    i.bild("lizenz_dialog", "Hilfe → Lizenz …", hoehe=85 * mm, legende=[
+        (1, "Zustand der Lizenz: gültig bis, läuft bald ab, abgelaufen oder Lesemodus"),
+        (2, "<b>Rechner-ID</b> dieses Rechners"),
+        (3, "<b>Kopieren</b>: Rechner-ID in die Zwischenablage"),
+        (4, "<b>E-Mail an Patrick …</b>: fertige E-Mail mit der Rechner-ID"),
+        (5, "<b>Lizenzdatei laden …</b>: erhaltene Datei übernehmen (oder auf das Fenster ziehen)")])
+    i.abschnitt("Lizenz bekommen und laden", marke="lizenz_laden")
+    i.liste("<b>Rechner-ID senden</b>: <i>Hilfe → Lizenz …</i>, <b>E-Mail an Patrick …</b> oder <b>Kopieren</b>.",
+            "<b>Lizenzdatei erhalten</b>: Patrick schickt eine Datei wie <i>L-2026-0007_Musterbau_….lizenz</i>.",
+            "<b>Laden</b>: <i>Hilfe → Lizenz …</i>, <b>Lizenzdatei laden …</b> oder die Datei auf das Fenster ziehen.",
+            nummeriert=True, kurz=True)
+    i.text("Das Programm prüft die Datei vor dem Übernehmen. Eine ungültige, abgelaufene oder für einen anderen "
+           "Rechner ausgestellte Datei wird abgelehnt; die bisherige Lizenz bleibt dann, wie sie war.")
+    i.genauer()
+    i.liste("Eine <b>Benutzerlizenz</b> gilt in der Regel 6 Monate und für einen Rechner. Für die portable Version "
+            "auf einem USB-Stick an mehreren PCs gibt es Lizenzen für mehrere oder beliebige Rechner.",
+            "Eine <b>Testlizenz</b> gilt kurz (meist 30 Tage). Alle PDFs tragen dann den Aufdruck <i>TESTVERSION</i>.",
+            "Die <b>Admin-Lizenz</b> ist unbefristet. Mit ihr öffnen sich die Einstellungen ohne Passwort "
+            "([[passwort]]).",
+            "Neuer PC oder Windows neu installiert: Die Rechner-ID ändert sich, es braucht eine neue Lizenz.",
+            "Die Lizenz liegt im Datenordner im Unterordner <i>Lizenz</i>, nicht in der Datendatei. Sicherung, "
+            "Wiederherstellen und Daten exportieren nehmen sie deshalb nicht mit auf einen anderen Rechner.",
+            "<i>Hilfe → Über …</i> zeigt die Lizenz und die Rechner-ID ebenfalls.")
+    i.abschnitt("Ablauf und Lesemodus", marke="lesemodus")
+    i.tabelle(["Zustand", "Wann", "Programm"], [
+        ["Gültig", "mehr als 30 Tage Restlaufzeit", "alles frei"],
+        ["Läuft bald ab", "30 Tage oder weniger", "alles frei, gelber Hinweis unten rechts; ab 7 Tagen auch beim Start"],
+        ["Kulanz", "bis 14 Tage nach Ablauf", "alles frei, roter Hinweis mit dem Datum des Lesemodus"],
+        ["Lesemodus", "länger abgelaufen, keine oder falsche Lizenz, gesperrt, Uhr zurückgestellt",
+         "nur ansehen, mit Begründung unten rechts"]], [28, 55, 95])
+    i.text("Im <b>Lesemodus</b> lassen sich alle Angebote, Positionen, Kalkulationen und Stammdaten ansehen. Daten "
+           "exportieren, Sicherungen anlegen und wiederherstellen, nach Updates suchen und eine Lizenz laden geht "
+           "weiter. Gesperrt sind Anlegen, Ändern, Kopieren und Löschen, STEP-Import, Optimieren, PDFs, CSV und "
+           "Materialanfrage. Daten werden nie gelöscht. Nach dem Laden einer gültigen Lizenz das Programm einmal neu "
+           "starten, dann sind alle Knöpfe wieder frei.")
+    i.genauer()
+    i.liste("<b>Systemzeit prüfen</b>: Liegt das Datum des Rechners mehr als 2 Tage vor dem zuletzt gesehenen Datum, "
+            "geht das Programm in den Lesemodus. Stimmt die Uhr wieder, ist alles normal.",
+            "Beim Update-Check holt das Programm die Sperrliste mit. Eine gesperrte Lizenz (z. B. bei einem verlorenen "
+            "Laptop) geht dann in den Lesemodus.",
+            "Updates gehen auch mit abgelaufener Lizenz ([[updates]]).",
+            "Einführung: Zuerst zeigt das Programm ohne Lizenz nur einen Hinweis (<i>Demnächst braucht das Programm "
+            "eine Lizenz</i>) und sperrt nichts. Erst eine spätere Version schaltet den Lesemodus ein; bis dahin bitte "
+            "die Rechner-ID an Patrick senden.")
+
+
 def kapitel_fragen(i):
     i.kapitel("Anhang: Häufige Fragen und Meldungen", marke="fragen")
     i.tabelle(["Meldung / Frage", "Ursache und Abhilfe"], [
@@ -4449,6 +4500,8 @@ STECKBRIEFE = {
                                "Angebote"),
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
                "<i>Hilfe → Nach Updates suchen …</i>; Reiter <i>Start</i>"),
+    "lizenz": ("Lizenz bekommen und laden, Ablauf, Lesemodus.",
+               "<i>Hilfe → Lizenz …</i>; Hinweis unten rechts in der Statusleiste"),
     "step_messung": ("Für Fachleute: wie die STEP-Messung Rohr, Schnitte und Konturen erkennt.",
                      "<i>STEP-Import.exe</i> im Programmordner"),
     "tastenkuerzel": ("Alle Tastenkürzel und Doppelklicks auf einen Blick, dazu das Mausrad.", "<i>Hilfe → Tastenkürzel …</i>"),
@@ -4467,9 +4520,9 @@ TEILE = [
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
       kapitel_fracht, kapitel_zukauf_angebot, kapitel_ausgabe, kapitel_nachkalkulation]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
-     "Stammdaten, Zukaufartikel, Frachtkosten, Updates und Datensicherung.",
+     "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,
-      kapitel_pflege]),
+      kapitel_pflege, kapitel_lizenz]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",
      [kapitel_step_messung, kapitel_tastenkuerzel, kapitel_fragen, kapitel_neu]),

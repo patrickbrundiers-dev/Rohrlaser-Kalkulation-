@@ -1515,10 +1515,14 @@ class AngebotSeite(QWidget):
 
     def _fremd_anzeigen(self):
         k = self.fremd()
-        self.fremd_leiste.setVisible(bool(k))
-        self.kopf_bereich.setEnabled(not k)
-        self.leiste.links.setEnabled(not k)
-        self.setAcceptDrops(not k)
+        lesen = bool(self.db.nur_lesen)            # Lizenz: Lesemodus wie ein fremdes Angebot, nur ansehen
+        self.fremd_leiste.setVisible(bool(k) or lesen)
+        self.kopf_bereich.setEnabled(not k and not lesen)
+        self.leiste.links.setEnabled(not k)          # Lesemodus: Knöpfe einzeln (3D-Ansicht bleibt)
+        self.setAcceptDrops(not k and not lesen)
+        if lesen and not k:
+            self.fremd_text.setText(f"<b>Lesemodus</b> – {self.db.nur_lesen}. Das Angebot lässt sich ansehen, aber "
+                                    "nicht ändern (Hilfe → Lizenz …).")
         if k:
             m = teilen.mitarbeiter(self.db, k)
             wer = f"{m.get('name')} ({k})" if m.get("name") else k
@@ -1545,7 +1549,7 @@ class AngebotSeite(QWidget):
         a = self.db.angebot(self.id)
         if a is None:
             return
-        if self.db.fracht_auto_nachfuehren(self.id):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
+        if not self.db.nur_lesen and self.db.fracht_auto_nachfuehren(self.id):      # Haken 'Fracht automatisch berechnen': nach jeder Änderung
             a = self.db.angebot(self.id)
         self.kopf = a
         self._fremd_anzeigen()
@@ -1783,8 +1787,9 @@ class AngebotSeite(QWidget):
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
         stand = self.stand_optimierung()
-        self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
-                                  "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
+        if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
+            self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
+                                      "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
@@ -1892,7 +1897,8 @@ class AngebotSeite(QWidget):
             self.spalten_wahl = {}
         else:
             self.spalten_wahl[name] = zeigen
-        self.db.einstellung_setzen(SPALTEN_EINSTELLUNG, self.spalten_wahl)
+        if not self.db.nur_lesen:          # Spaltenwahl ist Ansicht: im Lesemodus nur für diese Sitzung
+            self.db.einstellung_setzen(SPALTEN_EINSTELLUNG, self.spalten_wahl)
         self._spalten_zeigen()
 
     # -------------------------------------------------------------- Bearbeiten

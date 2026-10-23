@@ -21,13 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.8.41", "<b>Schweißbaugruppen, Teil 1 (Rechenkern)</b>: neue Positionsart <i>Schweißbaugruppe</i> mit "
+    ["0.9.1", "<b>Schweißbaugruppen, Teil 1 (Rechenkern)</b>: neue Positionsart <i>Schweißbaugruppe</i> mit "
                "Unterbaugruppen, Nahtgruppen, Arbeitsgängen und Einmalkosten (Vorrichtung je Auftrag, anteilig oder "
                "wiederverwendbar). Ihre Einzelteile bleiben normale Positionen und rechnen unverändert; die "
                "Baugruppe rechnet nur ihre eigenen Leistungen dazu. Neue Unterreiter Schweißverfahren, "
                "Schweiß-Kennwerte und Schweiß-Faktoren ([[schweiss_stammdaten]]). Angebote ohne Baugruppe rechnen "
                "genau wie bisher.",
      "Schweißbaugruppen: Rechenkern und Schweiß-Kennwerte ([[schweiss_stammdaten]])."],
+    ["0.9.0", "<b>Lizenz</b>: neuer Menüpunkt <i>Hilfe → Lizenz …</i> mit Zustand, <b>Rechner-ID</b> (Kopieren, "
+              "fertige E-Mail an Patrick) und <b>Lizenzdatei laden …</b> (auch per Drag & Drop). Eine Lizenz gilt "
+              "offline für einen Rechner, Benutzerlizenzen meist 6 Monate; vor Ablauf erscheint ein Hinweis unten "
+              "rechts. Ohne gültige Lizenz gilt später der <i>Lesemodus</i>: alles ansehen, exportieren und sichern, "
+              "aber nichts ändern; Daten gehen nie verloren. <b>Noch keine Sperre</b>: Diese Version zeigt ohne Lizenz "
+              "nur einen Hinweis. Bitte die Rechner-ID an Patrick senden ([[lizenz]]).",
+     "Lizenz: <i>Hilfe → Lizenz …</i> mit Rechner-ID und Lizenzdatei laden, vorerst nur Hinweis ([[lizenz]])."],
     ["0.8.40", "<b>Profil geändert: Schneidwege gehen mit</b>: Wählt man für ein STEP-Teil ein anderes Profil (im "
                "Prüfdialog oder später im Angebot), rechnen Bohrungen, Langlöcher und Rechtecke mit ihren Maßen neu, "
                "Sonderkonturen und Gravuren werden auf den neuen Querschnitt übertragen; der Bericht nennt "
