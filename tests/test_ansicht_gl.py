@@ -94,7 +94,10 @@ if GL_KIND:
     _, sw3 = bild("Software", zoom=3.0)
     g3, v3 = farbe(gl3, *mitte), farbe(sw3, *mitte)
     assert abstand(g3, v3) < abstand(g3, hinten) and nah(g3, v3, 30), ("vergrößert", g3, v3, hinten)
-    abweichend = sum(not nah(farbe(gl, x, y), farbe(sw, x, y), 30)
+    # Umriss gleich (Bildpunkt Hintergrund oder Teil); Farbtöne hängen von der Mesa-Version ab
+    h = ansicht3d.HINTERGRUND
+    hg = (h.red(), h.green(), h.blue())
+    abweichend = sum(nah(farbe(gl, x, y), hg, 10) != nah(farbe(sw, x, y), hg, 10)
                      for x in range(0, gl.width(), 8) for y in range(0, gl.height(), 8))
     assert abweichend < 0.05 * (gl.width() // 8) * (gl.height() // 8), f"{abweichend} Bildpunkte anders"
     # Fehler beim Zeichnen: diese und alle neuen Ansichten zurück zu QPainter
