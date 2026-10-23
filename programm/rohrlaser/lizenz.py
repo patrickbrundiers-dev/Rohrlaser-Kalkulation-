@@ -31,7 +31,7 @@ WARNUNG_TAGE = 30          # so viele Tage vor Ablauf: gelber Hinweis in der Sta
 WARNUNG_START_TAGE = 7     # so viele Tage vor Ablauf: zusätzlich Hinweis beim Start
 KULANZ_TAGE = 14           # so lange nach Ablauf: noch voller Zugriff, roter Hinweis
 UHR_TOLERANZ_TAGE = 2      # Uhr darf so weit hinter dem spätesten gesehenen Datum liegen
-STANDARD_MONATE = 6        # Vorgabe-Laufzeit einer Benutzerlizenz im Lizenz-Werkzeug (Entscheidung E2)
+STANDARD_MONATE = 3        # Vorgabe-Laufzeit einer Benutzerlizenz im Lizenz-Werkzeug (E2: 6, Patrick 23.10.: kürzer)
 TEST_TAGE = 30             # Vorgabe-Laufzeit einer Testlizenz
 ADMIN_RECHNER_MAX = 3      # Admin-Lizenz: bis zu 3 Rechner (Entscheidung E6)
 
@@ -281,10 +281,11 @@ class Zustand:
     tage_rest: int = None    # bis Ablauf (negativ: abgelaufen seit)
     start_hinweis: bool = False
     durchsetzung: bool = DURCHSETZUNG
+    admin_aus: bool = False  # Admin-Lizenz, aber Passwort beim Start nicht eingegeben: wie eine Benutzerlizenz
 
     @property
     def admin(self):
-        return self.stufe == "admin"
+        return self.stufe == "admin" and not self.admin_aus
 
     @property
     def test(self):
@@ -440,6 +441,9 @@ class LizenzStelle:
         self.rechner = rechner_id() if rechner is None else rechner
         self.durchsetzung = durchsetzung
         self.zustand = None
+        self.admin_ok = False           # Admin-Passwort in dieser Sitzung eingegeben (ohne: keine Admin-Rechte)
+
+    ADMIN_HINWEIS = "Ohne Admin-Rechte gestartet (Admin-Passwort nicht eingegeben) – Hilfe → Lizenz …"
 
     def pruefen(self, heute=None):
         db_wert = self.db.einstellung(EINSTELLUNG_ZULETZT) if self.db is not None else None
@@ -450,8 +454,32 @@ class LizenzStelle:
             if neu and neu != db_wert:
                 self.db.einstellung_setzen(EINSTELLUNG_ZULETZT, neu)
             self.db.lesemodus(z.nur_lesen)
+        if z.stufe == "admin" and not self.admin_ok and self.admin_passwort():
+            z.admin_aus, z.hinweis, z.farbe = True, self.ADMIN_HINWEIS, "gelb"
         self.zustand = z
         return z
+
+    def admin_passwort(self):
+        """Admin-Passwort = Passwort der Einstellungen (Einstellung 'passwort'); leer: keine Abfrage beim Start."""
+        return (self.db.einstellung("passwort") or "") if self.db is not None else ""
+
+    def admin_passwort_noetig(self):
+        """True, wenn eine Admin-Lizenz geladen ist und beim Start das Admin-Passwort abgefragt werden muss."""
+        z = self.zustand or self.pruefen()
+        return z.admin_aus
+
+    def admin_freigeben(self, passwort):
+        """Admin-Rechte mit dem Passwort freischalten. Ergebnis: True = richtig (Admin-Rechte an)."""
+        if passwort != self.admin_passwort():
+            return False
+        self.admin_ok = True
+        self.pruefen()
+        return True
+
+    def admin_sperren(self):
+        """Ohne Admin-Rechte weiter (Passwort abgebrochen oder falsch): Einstellungen wieder mit Passwort."""
+        self.admin_ok = False
+        return self.pruefen()
 
     def laden(self, quelle, heute=None):
         """Lizenzdatei übernehmen (LizenzFehler, wenn ungültig; dann bleibt alles, wie es war) und neu prüfen."""
@@ -481,7 +509,8 @@ class LizenzStelle:
         z = self.zustand or self.pruefen()
         i = z.inhalt
         if z.stufe == "admin":
-            return f"Admin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), unbefristet"
+            return (f"Admin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), unbefristet"
+                    + (", ohne Admin-Rechte gestartet" if z.admin_aus else ""))
         if i and z.stufe != "lesemodus":
             art = "Testlizenz" if z.test else "Lizenz"
             wer = ", ".join(x for x in (i.get("inhaber"), i.get("firma")) if x)

@@ -8,7 +8,7 @@ mit --ordner oder der Umgebungsvariable ROHRLASER_LIZENZ_ORDNER), nie im Reposit
 Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
   schluessel-erzeugen [--id K1]          Schlüsselpaar erzeugen, öffentlichen Schlüssel für lizenz_schluessel.py ausgeben
   erstellen --inhaber … --firma … [--art benutzer|test] [--bis JJJJ-MM-TT] [--rechner RL-…]… [--beliebig]
-                                         Benutzer- (Vorgabe 6 Monate) oder Testlizenz (30 Tage, Aufdruck TESTVERSION)
+                                         Benutzer- (Vorgabe 3 Monate) oder Testlizenz (30 Tage, Aufdruck TESTVERSION)
   admin --rechner RL-… [--rechner RL-…]  unbefristete Admin-Lizenz (bis 3 Rechner)
   pruefen DATEI [--rechner RL-…]         Inhalt und Prüfergebnis einer Lizenzdatei
   sperren L-JJJJ-NNNN …                  neue Sperrliste Sperrliste.json (Stand + 1) für den Release update-dateien
@@ -215,7 +215,7 @@ def main(argv=None):
     e.add_argument("--art", choices=("benutzer", "test"), default="benutzer")
     e.add_argument("--inhaber", required=True)
     e.add_argument("--firma", default="")
-    e.add_argument("--bis", help="gültig bis JJJJ-MM-TT (Vorgabe: Benutzer 6 Monate, Test 30 Tage)")
+    e.add_argument("--bis", help="gültig bis JJJJ-MM-TT (Vorgabe: Benutzer 3 Monate, Test 30 Tage)")
     e.add_argument("--rechner", action="append", default=[])
     e.add_argument("--beliebig", action="store_true", help="ohne Rechnerbindung (portabel an mehreren PCs)")
     e.add_argument("--hinweis", default="")

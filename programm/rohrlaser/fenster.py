@@ -6,7 +6,7 @@ allgemeinen Vorgaben und alle Stammdaten außer den Kunden. Im Reiter Frachtkost
 Pflegebereiche öffnen mit demselben Passwort.
 
 Lizenz (lizenz.py): Hauptfenster(…, lizenz=LizenzStelle) zeigt Hinweise in der Statusleiste, Hilfe → Lizenz …, und
-schaltet im Lesemodus die ändernden Aktionen ab; mit der Admin-Lizenz öffnen die Einstellungen ohne Passwort. Ohne
+schaltet im Lesemodus die ändernden Aktionen ab; mit der Admin-Lizenz (Admin-Passwort beim Start) öffnen die Einstellungen ohne Passwort. Ohne
 lizenz (Tests, Entwicklung) voller Zugriff ohne Hinweise."""
 import datetime
 import os

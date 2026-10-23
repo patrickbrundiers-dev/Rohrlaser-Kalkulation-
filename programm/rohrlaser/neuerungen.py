@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.15", "<b>Admin-Passwort beim Start</b>: Mit Admin-Lizenz fragt das Programm beim Start das Admin-Passwort "
+               "ab (= Passwort der Einstellungen). Nach Abbrechen oder dreimal falsch startet es ohne Admin-Rechte wie "
+               "mit einer Benutzerlizenz; <i>Hilfe → Lizenz …</i>, <b>Admin freischalten …</b> holt sie nach. "
+               "Benutzerlizenzen gelten jetzt in der Regel 3 statt 6 Monate ([[lizenz]]).",
+     "Admin-Lizenz: Passwort beim Start; Benutzerlizenzen 3 Monate ([[lizenz]])."],
     ["0.9.14", "<b>K-Faktor-Tabelle</b>: Der Blech-Editor nimmt den K-Faktor jeder Biegung aus der neuen Tabelle "
                "<i>K-Faktoren (Abwicklung)</i> nach Kategorie, Blechdicke und Innenradius ÷ Dicke (Beispielwerte nach "
                "DIN 6935; Innenradius = Dicke wie bisher 0,33). Der Editor zeigt die genutzten K-Faktoren "

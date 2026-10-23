@@ -10,7 +10,7 @@ from urllib.parse import quote
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-                               QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout)
+                               QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QVBoxLayout)
 
 from . import NAME, lizenz
 
@@ -25,6 +25,8 @@ FREI = {"Öffnen", "Angebot öffnen", "Ablage öffnen", "3D-Ansicht …", "Kalku
 
 
 def stufe_text(z):
+    if z.admin_aus:
+        return "Admin-Lizenz – ohne Admin-Rechte"
     if z.stufe == "lesemodus":
         return "Lesemodus – nur ansehen" if z.nur_lesen else "Keine gültige Lizenz (noch ohne Sperre)"
     return STUFEN.get(z.stufe, z.stufe)
@@ -73,12 +75,16 @@ class LizenzDialog(QDialog):
         laden = knoepfe.addButton("Lizenzdatei laden …", QDialogButtonBox.ActionRole)
         laden.setObjectName("primaer")
         laden.clicked.connect(lambda: self.laden())
+        self.admin = knoepfe.addButton("Admin freischalten …", QDialogButtonBox.ActionRole)
+        self.admin.setToolTip("Admin-Rechte mit dem Admin-Passwort (= Passwort der Einstellungen) einschalten")
+        self.admin.clicked.connect(lambda: self.admin_freischalten())
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
         self.anzeigen()
 
     def anzeigen(self):
         z = self.stelle.zustand or self.stelle.pruefen()
+        self.admin.setVisible(z.admin_aus)
         hg, rand = FARBEN["rot" if z.nur_lesen else "gelb" if z.stufe == "lesemodus" else z.farbe]
         text = f"<b>{stufe_text(z)}</b>"
         if z.hinweis or z.grund:
@@ -143,6 +149,21 @@ class LizenzDialog(QDialog):
             QMessageBox.information(self, "Lizenz", f"Lizenz übernommen: {stufe_text(z)}.\n\n{self.stelle.text()}")
         return True
 
+    def admin_freischalten(self, passwort=None):
+        """Admin-Rechte nachträglich mit dem Admin-Passwort einschalten. Ergebnis: True = freigeschaltet."""
+        if passwort is None:
+            passwort = admin_passwort_abfragen(self)
+            if passwort is None:
+                return False
+        if not self.stelle.admin_freigeben(passwort):
+            if not self.stumm:
+                QMessageBox.warning(self, "Lizenz", "Das Admin-Passwort ist falsch.")
+            return False
+        self.anzeigen()
+        if hasattr(self.f, "lizenz_anwenden"):
+            self.f.lizenz_anwenden()
+        return True
+
     def dragEnterEvent(self, e):
         if e.mimeData().hasUrls():
             e.acceptProposedAction()
@@ -152,6 +173,28 @@ class LizenzDialog(QDialog):
             if url.isLocalFile():
                 self.laden(url.toLocalFile())
                 break
+
+
+def admin_passwort_abfragen(eltern=None, versuch=0):
+    """Eingabefeld für das Admin-Passwort. Ergebnis: Text oder None (abgebrochen)."""
+    text = "Admin-Passwort eingeben:" if not versuch else "Passwort falsch. Bitte noch einmal:"
+    wert, ok = QInputDialog.getText(eltern, f"{NAME} – Admin-Lizenz", text, QLineEdit.Password)
+    return wert if ok else None
+
+
+def admin_beim_start(stelle, abfragen=admin_passwort_abfragen, versuche=3):
+    """Beim Start mit Admin-Lizenz: Admin-Passwort abfragen (bis zu 3 Versuche). Abbrechen oder falsch: das Programm
+    startet ohne Admin-Rechte (wie mit einer Benutzerlizenz). Ergebnis: True = Admin-Rechte an."""
+    if stelle is None or not stelle.admin_passwort_noetig():
+        return bool(stelle and stelle.zustand and stelle.zustand.admin)
+    for versuch in range(versuche):
+        wert = abfragen(None, versuch)
+        if wert is None:
+            break
+        if stelle.admin_freigeben(wert):
+            return True
+    stelle.admin_sperren()
+    return False
 
 
 def lesemodus_anwenden(widget, frei=FREI):
