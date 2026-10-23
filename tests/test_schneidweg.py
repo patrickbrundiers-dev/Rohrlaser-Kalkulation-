@@ -661,4 +661,22 @@ assert "Gehrungsrichtung angenommen" in rechnen.teil_zeichen(tz[0])[1]
 assert e_frei["kennung"] != e_fest["kennung"]
 ok(f"S10 Gehrung ohne Richtung: Hinweis, angenommen ineinander ({len(e_frei['stangen'])} statt "
    f"{len(e_fest['stangen'])} Stangen), mit Nahtvorgabe nicht")
+
+# Bohrungen im Rundrohr beim 2D-Schnitt (Patrick 23.10.2026): Strahl zur Rohrmitte, innen Ø der Konstruktion,
+# außen breiter -> Kontur auf der Außenhaut länger als π × d; Wand -> 0 ergibt den Sattel der Konstruktion
+from rohrlaser import dreid  # noqa: E402
+assert nah(dreid.bohrung_2d_rundrohr(10, 40, 2), 33.37, 0.02)
+assert nah(dreid.bohrung_2d_rundrohr(5, 20, 2), 17.87, 0.02)
+assert nah(dreid.bohrung_2d_rundrohr(10, 40, 1e-6), sw.sattel(10, 40), 0.01)
+assert dreid.bohrung_2d_rundrohr(38, 40, 2) is None
+e_rr = sw.rechnen(dict(a={}, b={}, konturen=[dict(art="Bohrung", d=8, anzahl=2), dict(art="Senkung", d=6.6, D=12,
+                                                                                         anzahl=1)]), RR, (10, 50))
+l8, l6 = dreid.bohrung_2d_rundrohr(8, 42.4, 2.0), dreid.bohrung_2d_rundrohr(6.6, 42.4, 2.0)
+assert l8 > math.pi * 8 * 1.03 and nah(e_rr["schritte"][2]["laenge"], 2 * l8) and nah(e_rr["schritte"][3]["laenge"], l6)
+assert e_rr["schritte"][2]["huelle"] == 8
+e_qr = sw.rechnen(dict(a={}, b={}, konturen=[dict(art="Bohrung", d=8, anzahl=1)]), QR, (10, 50))
+assert nah(e_qr["schritte"][2]["laenge"], math.pi * 8)        # ebene Wand: wie Konstruktion
+e_gm = sw.rechnen(dict(a={}, b={}, konturen=[dict(art="Bohrung", d=8, anzahl=1, gemessen=27.0)]), RR, (10, 50))
+assert nah(e_gm["schritte"][2]["laenge"], 27.0)               # STEP-Messung rechnet schon selbst
+ok("S14 Bohrung/Senkung im Rundrohr: 2D-Kontur auf der Außenhaut (breiter als die Konstruktion), Quadratrohr π × d")
 print("OK: Schneidweg-Rechner")

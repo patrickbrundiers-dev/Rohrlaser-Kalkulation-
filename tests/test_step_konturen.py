@@ -115,6 +115,11 @@ def _():
     assert 300 - zmin < b[1]["z"] < 300 - zmin + 21.2 * math.tan(math.radians(30)) + 1, b[1]["z"]
     nah(b[2]["z"], 450 - zmin, 0.02, "Bohrung 3 z"); winkel_nah(b[2]["winkel"], 90, 0.2, "Bohrung 3")
     nah(b[2]["durchmesser"], 12, 0.01, "Bohrung 3 Ø")
+    # 2D im Rundrohr (STEP-JSON 1.11): radiale Bohrungen mit der Kontur auf der Außenhaut, schräge wie gemessen
+    from rohrlaser import dreid
+    nah(b[0]["schnittlaenge"], dreid.bohrung_2d_rundrohr(8, 42.4, 2), 0.02, "Bohrung 1 Schnittlänge 2D")
+    nah(b[2]["schnittlaenge"], dreid.bohrung_2d_rundrohr(12, 42.4, 2), 0.02, "Bohrung 3 Schnittlänge 2D")
+    assert b[1]["schnittlaenge"] != round(dreid.bohrung_2d_rundrohr(8, 42.4, 2), 2), b[1]
 
 
 @fall("T02 Querbohrung durch beide Wände: zwei gegenüberliegende Bohrungen")

@@ -10,6 +10,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
 from step_geometrie import analysiere_datei, gewinde_vorschlag, konturklassen  # noqa: E402
+from rohrlaser import dreid  # noqa: E402
 
 STEP = HIER / "step"
 if not (STEP / "T07_QR40x3_L1000_Gewinde_Gravur.step").exists():
@@ -47,9 +48,9 @@ for name, (form, a, b, t, fl, l, sw, k) in SOLL.items():
         nah(teil.wandstaerke, t, 0.01, "Wandstärke", name)
         nah(teil.flaeche, fl, 0.5, "Fläche", name)
         nah(teil.laenge, l, 0.01, "Länge", name)
-        if sw is None:  # Querbohrung Ø10 durch beide Wände: Sattelkurve etwas länger als 2·π·10
-            sw = 2 * pi * 42.4
-            assert 2 * pi * 10 < teil.schneidweg - sw < 2 * pi * 10 * 1.03, f"{name}: Schneidweg {teil.schneidweg:.2f}"
+        if sw is None:  # Querbohrung Ø10 durch beide Wände, 2D: Strahl zur Rohrmitte, außen breiter als Ø10
+            nah(teil.schneidweg, 2 * pi * 42.4 + 2 * dreid.bohrung_2d_rundrohr(10, 42.4, 2.0), 0.05, "Schneidweg",
+                name)
         else:
             nah(teil.schneidweg, sw, 0.05, "Schneidweg", name)
         assert teil.konturen == k, f"{name}: Konturen {teil.konturen}, soll {k}"

@@ -1708,7 +1708,8 @@ def kapitel_optimieren(i):
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
-            "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d), <i>Senkung</i> (Bohrung Ø d und "
+            "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d; im Rundrohr etwas mehr, siehe "
+            "unten), <i>Senkung</i> (Bohrung Ø d und "
             "Senk-Ø D: geschnitten wird nur die Bohrung π × d, Senken kommt als Zusatzarbeit in die Position), "
             "<i>Flowdrill</i> (Kernloch-Ø: nicht geschnitten, nur markiert mit Gravur oder Loch Ø 0,5; Flowdrill "
             "kommt als Zusatzarbeit in die Position), <i>Langloch</i> (Länge, Breite: "
@@ -1738,6 +1739,12 @@ def kapitel_optimieren(i):
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
             "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
+            "<b>Bohrungen im Rundrohr</b> (seit 0.8.35): Beim 2D-Schnitt zeigt der Strahl immer zur Rohrmitte. Innen "
+            "hat das Loch den Ø der Konstruktion, außen ist es quer zur Rohrachse breiter und leicht elliptisch "
+            "(Außen- ÷ Innenradius). Gerechnet wird diese Kontur auf der Außenhaut, z. B. Ø 10 in Rundrohr 40 × 2: "
+            "33,4 mm statt π × 10 = 31,4 mm; Ø 5 in 20 × 2: 17,9 statt 15,7 mm. Das gilt für Bohrungen und Senkungen "
+            "senkrecht zur Oberfläche (auch beim STEP-Import); schräge Bohrungen in 3D rechnen weiter als Ellipse "
+            "auf der Wand. Das Hüllmaß für die Konturklasse bleibt der Ø.",
             "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): 3D ist ein Schnitt nur, wenn die "
             "Schnittfläche nicht senkrecht (90°) zur Rohroberfläche steht und der Laserkopf dafür geschwenkt wird. "
             "Bleibt der Strahl senkrecht zur Oberfläche, ist es 2D, auch bei einer Gehrung. Das Häkchen <i>3D-Schnittbearbeitung "
@@ -3948,7 +3955,9 @@ def kapitel_step_messung(i):
     i.text("Erkannte Arten:")
     i.liste("<b>Bohrung</b> mit Durchmesser. <i>schräg</i> gibt an, wie weit die Bohrachse von der Senkrechten "
             "zur Wand abweicht (schräge Durchdringung). <i>gegenüber</i> kennzeichnet zwei Bohrungen auf einer Achse "
-            "(eine Bohrung durch beide Wände, zwei Konturen).",
+            "(eine Bohrung durch beide Wände, zwei Konturen). Im Rundrohr ist die Schnittlänge einer Bohrung "
+            "senkrecht zur Oberfläche die Kontur beim 2D-Schnitt: Innenkante radial auf die Außenhaut geschoben "
+            "(außen breiter als die Konstruktion, STEP-JSON 1.11).",
             "<b>Langloch</b> und <b>Rechteckausschnitt</b> mit Länge, Breite und Richtung (90° = längs zur "
             "Rohrachse); alles andere ist ein <b>Ausschnitt</b> mit Hüllmaßen.",
             "<b>Sackbohrung</b> (nicht durchgehend) und <b>Gravur</b> (Vertiefung, Markierung). Sie zählen nicht "

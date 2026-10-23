@@ -52,11 +52,15 @@ Versionen von SCHEMA_VERSION:
 - 1.10 (23.10.2026): "schwenk" je Ende (außer Fasen) und je Innenkontur außer Bohrungen: größter Winkel [Grad]
   zwischen Schnittfläche und Senkrechter zur Rohroberfläche entlang der Schnittkante. Ab 0,5° ist der Schnitt eine
   3D-Bearbeitung (Kopf geschwenkt), darunter 2D, auch bei einer Gehrung. Felder aus 1.9 unverändert.
+- 1.11 (23.10.2026): Bohrungen und Senkungen im Rundrohr, die senkrecht zur Oberfläche stehen (schraeg < 0,5°):
+  "schnittlaenge" ist die Kontur beim 2D-Schnitt (Strahl zur Rohrmitte, innen Ø der Konstruktion, außen breiter;
+  dreid.bohrung_2d_rundrohr) statt der Außenkante der Konstruktion; "innen"/"schneidweg" entsprechend. Hüllmaß
+  bleibt der Ø. Felder sonst unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.10"
+SCHEMA_VERSION = "1.11"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
