@@ -122,6 +122,7 @@ jobs:
           /usr/bin/python3 tests/test_blech_editor.py
           /usr/bin/python3 tests/test_blech_dxf.py
           /usr/bin/python3 tests/test_blech_kfaktor.py
+          /usr/bin/python3 tests/test_blech_kantbarkeit.py
           /usr/bin/python3 tests/test_naht.py
           /usr/bin/python3 tests/test_stangenwechsel_sn.py
           /usr/bin/python3 tests/test_3d.py

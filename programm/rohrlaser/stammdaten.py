@@ -667,6 +667,15 @@ EINSTELLUNGEN = (
     Einstellung("blech_kantung", "Kanten: Preis je Kantung [€]", "Blech-Richtpreis", "zahl", 1.20, 0, 10000),
     Einstellung("blech_ruesten_kanten", "Kanten: Rüsten je Auftrag [€]", "Blech-Richtpreis", "zahl", 25.0, 0, 100000),
     Einstellung("blech_aufschlag", "Aufschlag des Lieferanten (Gewinn)", "Blech-Richtpreis", "anteil", 0.15, 0, 5),
+    # Kantbarkeit (blech.kantbarkeit): nur Hinweise im Blech-Editor, Faktor 0 = Regel aus
+    Einstellung("blech_kant_v", "Kantbarkeit: V-Öffnung = Faktor × Blechdicke", "Blech-Richtpreis", "zahl", 8.0, 0,
+                50),
+    Einstellung("blech_kant_schenkel", "Kantbarkeit: kleinstes Schenkel-Außenmaß = Faktor × V-Öffnung",
+                "Blech-Richtpreis", "zahl", 0.7, 0, 5),
+    Einstellung("blech_kant_loch", "Kantbarkeit: Abstand Innenkontur–Biegelinie mindestens Innenradius + Faktor × "
+                "Dicke", "Blech-Richtpreis", "zahl", 2.0, 0, 20),
+    Einstellung("blech_kant_radius", "Kantbarkeit: kleinster Innenradius = Faktor × Dicke", "Blech-Richtpreis",
+                "zahl", 0.5, 0, 20),
     Einstellung("blech_abwicklung", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle oder je Werkstoff)",
                 "Blech-Richtpreis", "auswahl", ABWICKLUNG_K[0], auswahl="abwicklung"),
     # DXF-Export der Abwicklung (Blech-Editor, dxf.py): Layernamen in fester Reihenfolge, Biegelinien ja/nein

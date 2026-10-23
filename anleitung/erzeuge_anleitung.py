@@ -2605,6 +2605,20 @@ def kapitel_zukauf_angebot(i):
            "Staffelzeile <i>ab Stückzahl der Position</i> in den Artikel, und die Position bekommt den neuen "
            "Preisstand. Der Richtpreis ersetzt kein Angebot des Blechlieferanten; liegt eines vor, den echten EK "
            "mit <b>EK eintragen …</b> ([[zukauf_positionen]]) oder im Reiter Zukaufartikel eintragen.")
+    i.abschnitt("Kantbarkeit prüfen", marke="blech_kantbarkeit")
+    i.text("Bei Kantteilen und mehrachsig gekanteten Zuschnitten prüft der Blech-Editor einfache Regeln und zeigt "
+           "Befunde als <b>Hinweis: Kantbarkeit …</b> unter dem Richtpreis. Der Preis bleibt gleich; die Hinweise "
+           "sagen nur, was mit der Kanterei oder dem Lieferanten zu klären ist.", kurz=True)
+    i.liste("<b>Kleinster Schenkel</b>: Außenmaß mindestens 0,7 × V-Öffnung, V-Öffnung = 8 × Blechdicke (2 mm: "
+            "11,2 mm).",
+            "<b>Innenradius</b> mindestens 0,5 × Blechdicke.",
+            "<b>Innenkontur an der Biegelinie</b>: der Rand einer Bohrung oder Kontur mindestens Innenradius + "
+            "2 × Dicke von der Biegelinie entfernt, sonst verzieht sie sich beim Kanten (nur Konturen mit Mitte x/y).",
+            "<b>Freischnitt</b>: kreuzen sich Biegelinien eines mehrachsig gekanteten Rechtecks, fehlt der "
+            "Freischnitt an den Biegeecken.",
+            "Biegefolge und Werkzeugkollision prüft das Programm nicht; das steht bei jedem Befund dabei.",
+            "Die Faktoren stehen unter Einstellungen, Gruppe Blech-Richtpreis; Faktor 0 schaltet eine Regel ab "
+            "([[einstellungen]]).")
     i.abschnitt("DXF der Abwicklung", marke="blech_dxf")
     i.text("<b>DXF speichern …</b> unten im Blech-Editor speichert den Zuschnitt als DXF-Datei (Format R12, Maße in "
            "mm), zum Beispiel für den Blechlaser oder für die Anfrage beim Lieferanten. Die Datei hat eigene Layer "
@@ -3110,6 +3124,12 @@ def kapitel_einstellungen(i):
          "Layer der DXF-Datei aus dem Blech-Editor in dieser Reihenfolge, mit ; getrennt (leer = Vorgabe "
          "AUSSENKONTUR, INNENKONTUR, BIEGUNG_HOCH, BIEGUNG_RUNTER, GRAVUR, BESCHRIFTUNG); Biegelinien ausgeben "
          "Vorgabe ja ([[blech_dxf]])."],
+        ["Blech-Richtpreis", "Kantbarkeit: V-Öffnung = Faktor × Blechdicke, Kantbarkeit: kleinstes "
+                             "Schenkel-Außenmaß = Faktor × V-Öffnung, Kantbarkeit: Abstand Innenkontur–Biegelinie "
+                             "mindestens Innenradius + Faktor × Dicke, Kantbarkeit: kleinster Innenradius = Faktor × "
+                             "Dicke",
+         "Regeln der Kantbarkeits-Hinweise im Blech-Editor (Vorgabe 8; 0,7; 2; 0,5); Faktor 0 schaltet eine Regel "
+         "ab ([[blech_kantbarkeit]])."],
         ["Blech-Richtpreis", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle oder je Werkstoff)",
          "<i>K-Faktor-Tabelle</i> (Vorgabe): je Biegung aus der Tabelle K-Faktoren nach Dicke und Innenradius; "
          "<i>je Werkstoff</i>: der K-Faktor des Blech-Werkstoffs für alle Biegungen ([[blech_stammdaten]])."],

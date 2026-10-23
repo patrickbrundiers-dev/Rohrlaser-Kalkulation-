@@ -11,7 +11,8 @@ Eingaben (JSON in positionen.technik, quelle QUELLE):
             nächsten Schenkel, + nach oben, − nach unten), radius (Innenradius, leer = Blechdicke)}]; mit form
             POLYGON und punkte eine freie Außenkontur der Abwicklung (x längs der Kante, y ab Schenkel 1)
   Mehrachsig gekantet (STEP-Import, Schale, Kasten): Zuschnitt mit kantungen (Anzahl) und biegelinien [{punkte
-            (Mittellinie [[x, y], [x, y]]), winkel, ba (Bogenlänge)}] für Skizze und 3D-Ansicht
+            (Mittellinie [[x, y], [x, y]]), winkel, ba (Bogenlänge), radius (gemessener Innenradius, None = scharf)}] für Skizze, 3D-Ansicht
+            und Kantbarkeit
   konturen: Innenkonturen wie im Schneidweg-Rechner (Bohrung, Senkung, Langloch, Rechteck, Polygon, sonstige)
             mit Anzahl, optional x/y = Mitte in der Abwicklung [mm]
 
@@ -37,7 +38,9 @@ K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
 EINSTELLUNGEN = {"blech_stundensatz": 120.0, "blech_ruesten": 30.0, "blech_verschnitt": 0.15, "blech_kantung": 1.20,
-                 "blech_ruesten_kanten": 25.0, "blech_aufschlag": 0.15, "blech_abwicklung": ABWICKLUNG_K[0]}
+                 "blech_ruesten_kanten": 25.0, "blech_aufschlag": 0.15, "blech_abwicklung": ABWICKLUNG_K[0],
+                 "blech_kant_v": 8.0, "blech_kant_schenkel": 0.7, "blech_kant_loch": 2.0, "blech_kant_radius": 0.5}
+NICHT_GEPRUEFT = "Biegefolge und Werkzeugkollision prüft das Programm nicht"
 
 _z = sw._z
 
@@ -160,6 +163,107 @@ def zuschnitt(e, k=K_FAKTOR):
                 aussen=2 * (lg + br) - 8 * r + 2 * math.pi * r, biegungen=[], punkte=None)
 
 
+def _halbmass(z):
+    """Halbe Ausdehnung einer Innenkontur quer zu den Biegelinien (y) und größte halbe Ausdehnung [mm]."""
+    art = z.get("art")
+    if art in (sw.BOHRUNG, sw.SENKUNG):
+        r = _z(z.get("d")) / 2
+        return r, r
+    if art == sw.LANGLOCH:
+        lg, b = _z(z.get("l")), _z(z.get("b"))
+        return (lg if z.get("quer") else b) / 2, max(lg, b) / 2
+    if art == sw.RECHTECK:
+        b, h = _z(z.get("b")), _z(z.get("h"))
+        return h / 2, math.hypot(b, h) / 2
+    if art == sw.POLYGON:
+        try:
+            pk = sw.punkte(z.get("punkte"))
+        except ValueError:
+            return None
+        if len(pk) < 3:
+            return None
+        mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
+        return max(abs(y - my) for _, y in pk), max(math.hypot(x - mx, y - my) for x, y in pk)
+    return None
+
+
+def kantbarkeit(e, zs, w=None):
+    """Hinweise zur Kantbarkeit (Plan S4, Patrick 23.10.2026 „1a: Kantbarkeit als Hinweis“) nach den Regeln der
+    Einstellungen 'blech_kant_…' (Faktor 0 = Regel aus): kleinster Schenkel (Außenmaß) ≥ Faktor × V-Öffnung
+    (V = Faktor × Dicke), Abstand Innenkontur–Biegelinie ≥ Innenradius + Faktor × Dicke, Innenradius ≥ Faktor ×
+    Dicke, Freischnitt an Biegeecken mehrachsig gekanteter Rechtecke. Biegefolge und Werkzeugkollision nicht."""
+    w = dict(EINSTELLUNGEN, **{n: v for n, v in (w or {}).items() if v is not None})
+    s = _z(e.get("dicke"))
+    out = []
+    if s <= 0 or not zs:
+        return out
+    kant = e.get("art") == KANTTEIL
+    mehr = not kant and len(e.get("biegelinien") or ()) > 0
+    if not kant and not mehr:
+        return out
+    v = _z(w.get("blech_kant_v")) * s
+    radien = []
+    if kant:
+        schenkel = [x for x in e.get("schenkel") or [] if _z(x.get("laenge")) > 0]
+        b_min = _z(w.get("blech_kant_schenkel")) * v
+        if b_min > 0:
+            kurz = [f"{i}" for i, x in enumerate(schenkel, 1) if _z(x["laenge"]) < b_min - 1e-9]
+            if kurz:
+                out.append(f"Kantbarkeit: Schenkel {', '.join(kurz)} kürzer als {zahl_mm(b_min)} mm "
+                           f"(V-Öffnung {zahl_mm(v)} mm)")
+        radien = [r for _, _, r, _ in zs.get("biegungen") or ()]
+        linien = [((0.0, lage), (1.0, lage), r) for lage, _, r, _ in zs.get("biegungen") or ()]
+    else:
+        linien = []
+        for x in e.get("biegelinien") or ():
+            try:
+                (x1, y1), (x2, y2) = x["punkte"]
+            except (TypeError, ValueError, KeyError):
+                continue
+            r = _z(x.get("radius")) if x.get("radius") is not None else None    # gemessen (STEP), sonst = Dicke
+            if r is not None:
+                radien.append(r)
+            linien.append(((x1, y1), (x2, y2), s if r is None else r))
+    r_min = _z(w.get("blech_kant_radius")) * s
+    if r_min > 0 and any(r < r_min - 1e-9 for r in radien):
+        out.append(f"Kantbarkeit: Innenradius unter {zahl_mm(r_min)} mm ({zahl_mm(_z(w.get('blech_kant_radius')))} × "
+                   "Dicke), Werkstoff und Werkzeug prüfen")
+    faktor = _z(w.get("blech_kant_loch"))
+    if faktor > 0 and linien:
+        minx = min((x for x, _ in zs.get("punkte") or ()), default=0.0)
+        miny = min((y for _, y in zs.get("punkte") or ()), default=0.0)
+        nah = 0
+        for z in e.get("konturen") or ():
+            if z.get("x") is None or z.get("y") is None:
+                continue
+            m = _halbmass(z)
+            if not m:
+                continue
+            cx, cy = _z(z["x"]) - minx, _z(z["y"]) - miny
+            for (ax, ay), (bx, by), r in linien:
+                if kant:
+                    abstand = abs(cy - ay) - m[0]
+                else:
+                    ax, ay, bx, by = ax - minx, ay - miny, bx - minx, by - miny
+                    lg = math.hypot(bx - ax, by - ay) or 1.0
+                    abstand = abs((bx - ax) * (ay - cy) - (ax - cx) * (by - ay)) / lg - m[1]
+                if abstand < r + faktor * s - 1e-9:
+                    nah += 1
+                    break
+        if nah:
+            out.append(f"Kantbarkeit: {nah} Innenkontur(en) näher als Innenradius + {zahl_mm(faktor)} × Dicke an einer "
+                       "Biegelinie (verzieht sich beim Kanten)")
+    if mehr and not zs.get("punkte"):
+        richtungen = set()
+        for (ax, ay), (bx, by), _ in linien:
+            richtungen.add(round(math.degrees(math.atan2(by - ay, bx - ax))) % 180)
+        if len(richtungen) > 1:
+            out.append("Kantbarkeit: Biegelinien kreuzen sich, Außenkontur ohne Freischnitt an den Biegeecken")
+    if out:
+        out.append(f"Kantbarkeit: {NICHT_GEPRUEFT}")
+    return out
+
+
 def zahl_mm(x):
     return f"{round(float(x), 1):g}".replace(".", ",")
 
@@ -205,7 +309,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         return erg
     erg["zuschnitt"] = zs
     erg["k_faktoren"] = sorted({round(k(r) if callable(k) else k, 3) for _, _, r, _ in zs.get("biegungen") or ()})
-    erg["hinweise"] = list(zs.get("hinweise") or ())
+    erg["hinweise"] = list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w)
     innen, einstiche, loch = 0.0, 1, 0.0
     for i, z in enumerate(e.get("konturen") or [], 1):
         try:
@@ -299,7 +403,8 @@ def aus_step(b, werkstoff, stueck=1):
         else:
             e.update(art=ZUSCHNITT, schenkel=[], kantlaenge=e["laenge"],
                      kantungen=int(_z(abw.get("kantungen")) or len(abw.get("biegelinien") or ())),
-                     biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"))
+                     biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"),
+                                       radius=x.get("radius"))
                                   for x in abw.get("biegelinien") or () if len(x.get("punkte") or ()) == 2])
         return e
     lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
