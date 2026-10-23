@@ -40,7 +40,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
-                         schweiss_zusatzarbeiten,
+                         schweiss_zusatzarbeiten, biege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
 SCHEMA_VERSION = 48     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
@@ -108,6 +108,7 @@ RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._ri
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
+BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -184,6 +185,7 @@ class Datenbank:
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
+            self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -350,6 +352,8 @@ class Datenbank:
                 self._bohr_zusatz_ergaenzen()
             if version > 0 and self.einstellung("schweissen_stand") != SCHWEISSEN_STAND:
                 self._schweissen_ergaenzen()
+            if version > 0 and self.einstellung("biegerohr_stand") != BIEGEROHR_STAND:
+                self._biegerohr_ergaenzen()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
@@ -377,6 +381,17 @@ class Datenbank:
                         ergaenzen=True)
         self._einfuegen("zusatzarbeiten", schweiss_zusatzarbeiten(), ergaenzen=True)
         self._einstellung_schreiben("schweissen_stand", SCHWEISSEN_STAND)
+
+    def _biegerohr_ergaenzen(self):
+        """Einmalig: Zusatzarbeit 'Biegen' (€ je Biegung) und die Prüfregeln für Biegerohre anlegen, wenn es sie (dem
+        Namen nach) noch nicht gibt (Plan S9). Eine Datei ohne Prüfregeln (vor Schema 48) bekommt sie mit allen
+        Vorgaben schon oben."""
+        from . import dfm
+        self._einfuegen("zusatzarbeiten", biege_zusatzarbeiten(), ergaenzen=True)
+        if self.anzahl("pruefregeln"):
+            neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in (dfm.BIEGEZONE, dfm.GERADE_KURZ)]
+            self._einfuegen("pruefregeln", neu, ergaenzen=True)
+        self._einstellung_schreiben("biegerohr_stand", BIEGEROHR_STAND)
 
     def _programmierung_zeit(self):
         """Schema 39: Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026: 5 min je Position +

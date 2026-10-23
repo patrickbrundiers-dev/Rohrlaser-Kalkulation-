@@ -10,6 +10,9 @@ Regeln (Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen):
   Teil zu kurz            Teil kürzer als 'Kürzestes Teil' der Maschine (FEHLER, leer = keine Grenze)
   Gravur über Kante       Gravur über mehrere Flächen des Profils (WARNUNG)
   Kantbarkeit             Hinweise der Kantbarkeit (blech.kantbarkeit, Faktoren in den Einstellungen) (HINWEIS)
+  Kontur in der Biegezone Biegerohr: Kontur in einem Bogen oder näher als Grenzwert × Wand daran (0, WARNUNG)
+  Gerade zwischen Biegungen zu kurz
+                          Biegerohr: Gerade zwischen zwei Biegungen kürzer als Grenzwert × Außen-Ø (1,5, WARNUNG)
 
 Geometrie: jede Kontur mit Lage als Linienzug (skizze.umriss_kontur) auf der Abwicklung des Rohrs (x längs,
 s am Umfang, skizze.s_lage) bzw. im Zuschnitt (x, y); Steg = kleinster Abstand zweier Linienzüge, Rand = Abstand
@@ -23,6 +26,7 @@ STUFEN = (HINWEIS, WARNUNG, FEHLER)
 BOHRUNG_KLEIN, STEG, RAND, KURZ, GRAVUR_KANTE, KANTBARKEIT = (
     "Bohrung zu klein", "Steg zu schmal", "Kontur zu nah am Rand", "Teil zu kurz für die Maschine",
     "Gravur über Kante", "Kantbarkeit")
+BIEGEZONE, GERADE_KURZ = "Kontur in der Biegezone", "Gerade zwischen Biegungen zu kurz"
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
     BOHRUNG_KLEIN: (1.0, WARNUNG, "Bohrung bzw. Senkung Ø kleiner als Grenzwert × Wandstärke bzw. Blechdicke"),
@@ -32,6 +36,9 @@ REGELN = {
     GRAVUR_KANTE: (None, WARNUNG, "Gravur über mehrere Flächen des Profils"),
     KANTBARKEIT: (None, HINWEIS, "Kantteile: Hinweise der Kantbarkeit (Faktoren unter Einstellungen, "
                                  "Blech-Richtpreis)"),
+    BIEGEZONE: (0.0, WARNUNG, "Biegerohr: Kontur in einem Bogen oder näher als Grenzwert × Wandstärke daran"),
+    GERADE_KURZ: (1.5, WARNUNG, "Biegerohr: Gerade zwischen zwei Biegungen kürzer als Grenzwert × Außen-Ø "
+                                "(Spannlänge der Biegemaschine)"),
 }
 RANG = {HINWEIS: 0, WARNUNG: 1, FEHLER: 2}
 
@@ -158,6 +165,8 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
         out.append(Befund(KURZ, r[KURZ][1], f"{_zahl(laenge, 0)} mm, die Maschine nimmt Teile ab "
                                              f"{_zahl(min_teil, 0)} mm"))
     e = sw.lesen(technik) if technik else None
+    if e:
+        out += _biegerohr(e, laenge, dict(profil), wand, r)
     if not e or not e.get("konturen"):
         return tuple(out)
     konturen = e["konturen"]
@@ -219,6 +228,44 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
     return tuple(out)
 
 
+def _biegerohr(e, laenge, profil, wand, r):
+    """Befunde eines Biegerohrs (technik mit Block 'biegerohr'): Konturen in der Biegezone, kurze Geraden."""
+    from . import biegerohr as bg, schneidweg as sw, skizze as sk
+    br = bg.lesen(e)
+    if not br:
+        return []
+    out = []
+    if GERADE_KURZ in r:
+        g, stufe = r[GERADE_KURZ]
+        d = sw._z(br.get("aussen_d")) or sw._z(profil.get("a"))
+        kurz = [(n, lg) for n, lg in bg.geraden_zwischen(br) if g and d and lg < g * d - 1e-9]
+        if kurz:
+            n, lg = min(kurz, key=lambda t: t[1])
+            out.append(Befund(GERADE_KURZ, stufe, f"{len(kurz)} Gerade(n) unter {_zahl(g)} × Außen-Ø "
+                                                  f"({_zahl(g * d)} mm), kürzeste {_zahl(lg)} mm nach Biegung {n}"))
+    if BIEGEZONE in r:
+        g, stufe = r[BIEGEZONE]
+        abstand = (g or 0.0) * (wand or 0.0)
+        treffer, zonen = [], set()
+        for d in sk.lagen(_schnittkonturen(e.get("konturen")), laenge):
+            if d.get("verteilt"):
+                continue
+            pts = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
+            x0, x1 = d["x"] + min(p[0] for p in pts), d["x"] + max(p[0] for p in pts)
+            nr = bg.in_zone(x0, x1, br, None, abstand)
+            if nr:
+                treffer.append(d)
+                zonen.update(nr)
+        if treffer:
+            zeilen_e = [i for i, z in enumerate(e.get("konturen") or ()) if z.get("art") != sw.GRAVUR]
+            out.append(Befund(BIEGEZONE, stufe, f"{len(treffer)} Kontur(en) in der Biegezone (Biegung "
+                                                f"{', '.join(map(str, sorted(zonen)))})"
+                              + (f", Abstand unter {_zahl(abstand)} mm" if abstand else "")
+                              + _lage_rohr(treffer[0]["eingabe"], treffer[0]["x"]),
+                              sorted({zeilen_e[d["zeile"]] for d in treffer})))
+    return out
+
+
 def _zeilen(lagen):
     """Konturzeilen (ab 0, sortiert, ohne Doppelte) aus Lagen dict(zeile=…)."""
     return sorted({d["zeile"] for d in lagen})
@@ -236,6 +283,8 @@ def _lage_rohr(z, x=None):
     if x is None:
         return ""
     seite = z.get("seite")
+    if isinstance(seite, (int, float)) and not isinstance(seite, bool):       # Rundrohr: Winkel
+        seite = f"{_zahl(seite, 0)}°"
     return f" (bei x = {_zahl(x, 0)} mm{', ' + str(seite) if seite else ''})"
 
 

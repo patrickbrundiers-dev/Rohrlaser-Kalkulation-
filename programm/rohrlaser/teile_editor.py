@@ -20,7 +20,7 @@ from PySide6.QtGui import QColor, QKeySequence, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QListWidget, QListWidgetItem, QPushButton, QSplitter,
                                QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import dfm, rechnen, schneidweg as sw, stil
+from . import biegerohr, dfm, rechnen, schneidweg as sw, stil
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
@@ -91,6 +91,17 @@ def merkmale_rohr(e, laenge=None, step_enden=None, step_zeilen=None, naht_text=N
     for i, z in enumerate(e.get("konturen") or ()):
         out.append(Merkmal(f"kontur:{i}", "Gravur" if z.get("art") == sw.GRAVUR else "Innenkonturen",
                            kontur_text(i, z), herkunft(step_zeilen.get(i))))
+    br = biegerohr.lesen(e)
+    if br:      # Biegerohr aus dem STEP-Import: Biegedaten fest aus der Messung
+        out[0] = Merkmal("teil", "Teil", f"Länge {_z(laenge)} mm gestreckt, Biegerohr" if laenge else
+                         "Länge –", STEP)
+        for b in biegerohr.biegungen(br):
+            out.append(Merkmal(f"biegung:{b['nr'] - 1}", "Biegungen",
+                               f"B{b['nr']}: L {_z(b['gerade'])} · R {_z(b['drehung'])}° · A {_z(b['winkel'])}° · "
+                               f"Radius {_z(b['radius'])} (x {_z(b['x0'])}–{_z(b['x1'])} mm)", STEP))
+        out.append(Merkmal("biegedaten", "Biegungen", "Biegedaten: " + biegerohr.kurz(br), STEP))
+        if br.get("xyz"):
+            out.append(Merkmal("xyz", "Biegungen", "XYZ: " + "; ".join(biegerohr.xyz_zeilen(br)), STEP))
     if anbau_text:
         out.append(Merkmal("anbau", "Anbauteile", anbau_text, STEP))
     if naht_text is not None:
@@ -552,8 +563,8 @@ class EditorRahmen(QObject):
         """Rohr (STEP-Netz, Achse Z ab Ende A): Bereich längs der Achse um die Konturen bzw. das Ende."""
         from . import skizze as sk
         a = self.ansicht()
-        if a is None or a.modell is None:
-            return None
+        if a is None or a.modell is None or getattr(self.d, "biegerohr", None):
+            return None             # Biegerohr: das Netz ist gebogen, Lagen gelten am gestreckten Rohr
         d = self.d
         z0, z1 = a.modell.min[2], a.modell.max[2]
         bereiche = []
@@ -582,6 +593,8 @@ class EditorRahmen(QObject):
                 self.waehlen(treffer["id"])
             return
         from . import skizze as sk
+        if getattr(self.d, "biegerohr", None):
+            return
         a = self.ansicht()
         z0, z1 = a.modell.min[2], a.modell.max[2]
         x = treffer["punkt"][2] - z0

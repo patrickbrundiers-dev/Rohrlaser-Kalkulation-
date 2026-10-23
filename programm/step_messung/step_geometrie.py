@@ -143,6 +143,7 @@ class Teil:
     kammern: int = 0
     kontur_umfang: float = 0.0
     verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
+    biegerohr: dict = None      # Biegerohr (step_biegerohr): Mittellinie, Elemente, LRA, XYZ; sonst None
 
     @property
     def pruefstatus(self):
@@ -2705,6 +2706,13 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     """Ein Körper: zuerst die Blechprüfung (ebene Bleche, die kein Flachstahl sind, werden als Blech gemessen), sonst
     die Profilmessung. Gekantete Bleche gelten nur dann als Blech, wenn die Profilmessung keinen gleichbleibenden
     Querschnitt findet (ein Kantprofil mit konstantem Querschnitt bleibt L/U/C-Profil)."""
+    try:        # Biegerohr (Zylinder + Tori, Plan S9): Mittellinie und gestreckte Länge
+        from step_biegerohr import messen as biegerohr_messen
+        b = biegerohr_messen(solid, datei, koerper, netz)
+    except Exception:  # Biegerohr-Erkennung darf die übrige Messung nie verhindern
+        b = None
+    if b is not None:
+        return b
     p = GProp_GProps()
     BRepGProp.VolumeProperties_s(solid, p)
     volumen = abs(p.Mass())

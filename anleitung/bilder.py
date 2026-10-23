@@ -447,6 +447,34 @@ def main(ziel):
         return QDialog.Rejected
     s.schneidweg_berechnen(0, dialog=schneidweg_ausfuellen)
 
+    # 7a2a) Biegerohr im Schneidweg-Rechner (Position nur für das Foto, nichts gespeichert): RR 40 × 2 mit 90° und 45°
+    from rohrlaser import schneidweg as sw
+    from rohrlaser.schneidweg_dialog import SchneidwegDialog
+    rr = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Rundrohr"),
+              dict(form="Rundrohr", a=40, wand=2, profil_id="RR 40x2"))
+    biege = dict(mittellinie=638.5, aussen_d=40.0, faktor=1.0, elemente=[
+        dict(art="gerade", s0=0, s1=200, laenge=200), dict(art="bogen", s0=200, s1=325.66, laenge=125.66, radius=80,
+                                                             winkel=90),
+        dict(art="gerade", s0=325.66, s1=475.66, laenge=150), dict(art="bogen", s0=475.66, s1=538.5, laenge=62.83,
+                                                                     radius=80, winkel=45),
+        dict(art="gerade", s0=538.5, s1=638.5, laenge=100)],
+        lra=[dict(gerade=200, drehung=0, winkel=90, radius=80), dict(gerade=150, drehung=90, winkel=45, radius=80),
+             dict(gerade=100, drehung=0, winkel=0, radius=None)],
+        xyz=[[0, 0, 0], [0, 0, 280], [263.14, 0, 280], [357.28, 94.14, 280]])
+    technik = dict(quelle=sw.QUELLE_STEP, a=dict(gemessen=125.66, form="gerade"), b=dict(gemessen=125.66, form="gerade"),
+                   konturen=[dict(art="Bohrung", anzahl=1, d=8, x=100, seite=0.0, gemessen=26.6),
+                             dict(art="Bohrung", anzahl=1, d=6, x=262.8, seite=90.0, gemessen=20.0)],
+                   biegerohr=biege)
+    p_b = dict(id=None, pos=900, artikel="Bügel gebogen", profil_id=rr["profil_id"], laenge=638.5, stueck=10,
+               technik=json.dumps(technik))
+    d = SchneidwegDialog(s, p_b, rr, s.kopf, s.k, s.tabellen, db, s.positionen)
+    d.resize(1450, 980)
+    d.ansicht_wahl.setCurrentText("Abwicklung")
+    QApplication.processEvents()
+    d.editor.aktualisieren()
+    foto.foto("biegerohr_rechner", d, [(d.editor.baum, 1), (d.skizze, 2), (d.editor.meldungen, 3)])
+    d.reject()
+
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog
