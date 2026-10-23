@@ -543,6 +543,13 @@ class BaugruppeDialog(QDialog):
                 f = QLineEdit(str(self.bg["stamm"].get(n) or ""))
             self.stamm_felder[n] = f
             form.addRow(titel, f)
+        self.stamm_wahl = {}
+        for n, titel, tipp in baugruppe.STAMM_WAHL:
+            f = QCheckBox(titel)
+            f.setChecked(bool(self.bg["stamm"].get(n)))
+            f.setToolTip(tipp)
+            self.stamm_wahl[n] = f
+            form.addRow("", f)
         return w
 
     def _seite_uebersicht(self):
@@ -565,6 +572,9 @@ class BaugruppeDialog(QDialog):
             t = (f.toPlainText() if isinstance(f, QPlainTextEdit) else f.text()).strip()
             if t:
                 bg["stamm"][n] = t
+        for n, f in getattr(self, "stamm_wahl", {}).items():
+            if f.isChecked():
+                bg["stamm"][n] = True
         return bg
 
     def _position(self, bg=None):

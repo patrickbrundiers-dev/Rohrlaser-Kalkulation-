@@ -2598,6 +2598,11 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen,
                   baugruppe_eigen=_summe("bg_eigen_teil"), baugruppe_fremd=_summe("bg_fremd_teil"),
                   baugruppe_einmal=_summe("bg_einmal_teil"), baugruppe_zeit_min=_summe("bg_zeit_min"),
+                  baugruppe_laufend_eigen=_summe("bg_laufend_eigen_teil"),
+                  baugruppe_einmal_ruesten=_summe("bg_einmal_ruesten_teil"),
+                  baugruppe_fremd_staffel=_summe("bg_fremd_staffel_teil"),
+                  baugruppe_getrennt_eigen=_summe("bg_getrennt_eigen_teil"),
+                  baugruppe_getrennt_fremd=_summe("bg_getrennt_fremd_teil"),
                   baugruppen=sum(1 for i in bg_pos if _n(positionen[i].get("stueck")) > 0))
     summen.update(verkauf_kalkuliert=kalkuliert, mindestpreis=mindest, mindestpreis_gilt=faktor > 1,
                   mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
@@ -2660,9 +2665,19 @@ def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze):
         hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
     else:
         hinweis = ""
+    # Einmalkosten (Rüstzeit, Vorrichtung …) je Baugruppe: in den Staffeln wie Rüsten (umlegen oder separat); mit
+    # 'Einmalkosten als eigene Zeile' (Stammdaten der Baugruppe) im Angebot und in den Staffeln eine eigene Zeile
+    e_f = r["einmal_fremd"]
+    e_e = r["einmal"] - e_f
+    getrennt = bool(((baugruppe.lesen(p.get("baugruppe")) or {}).get("stamm") or {}).get("einmal_getrennt"))
     z = _zukaufteil_zeile(p, c, zk, fr, skonto)
     z.update(zukaufteil=False, baugruppe=True, zusatz_eigen_teil=0.0, zusatz_fremd_teil=0.0,
-             bg_eigen_teil=eigen, bg_fremd_teil=fremd, bg_einmal_teil=r["einmal"], bg_zeit_min=r["zeit_min"],
+             bg_eigen_teil=eigen, bg_fremd_teil=fremd, bg_einmal_teil=r["einmal"],
+             bg_laufend_eigen_teil=eigen - e_e, bg_einmal_ruesten_teil=0.0 if getrennt else e_e,
+             bg_fremd_staffel_teil=fremd - (e_f if getrennt else 0.0),
+             bg_getrennt_eigen_teil=e_e if getrennt else 0.0, bg_getrennt_fremd_teil=e_f if getrennt else 0.0,
+             bg_einmal_preis_teil=(e_e * (1 + zf) + e_f * (1 + zfl)) * (1 + gew) / (1 - skonto) if getrennt else 0.0,
+             bg_zeit_min=r["zeit_min"],
              bg_schweiss_min=r["schweiss_min"], bg_naht_m=r["naht_m"], bg_zeilen=r["zeilen"],
              zuschlag_fertigung_teil=eigen * zf, zuschlag_fremdleistung_teil=fremd * zfl, gewinn_teil=s_ * gew,
              herstell_teil=s_, herstell_position=s_ * c, skonto_teil=t_ - ohne, preis_teil=t_, preis_position=t_ * c,

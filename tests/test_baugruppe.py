@@ -6,13 +6,14 @@
 - B5 Arbeitsgänge: laufend je Stück, Einmalkosten je Auftrag / anteilig / wiederverwendbar, Fremdleistung
 - B6 Beispielbaugruppe (Plan 18.3) mit Handrechnung: Preis der Baugruppen-Position, Teile ohne Doppelrechnung
 - B7 Status: Warnungen und Hinweise, nie still mit fehlenden Werten
-- B8 Staffeln: Einmalkosten verteilen sich auf die Menge der Stufe
+- B8 Staffeln: Einmalkosten wie Rüsten (in der Stufe auf die Menge verteilt)
 - B9 Angebot: Baugruppe als Satz mit Zeile 'Schweißen und Fertigung'; Kopie behält die Baugruppe
 - B10 Richtwerte: hergeleitet (Nahtquerschnitt × Dichte ÷ Abschmelzleistung), Status Richtwert = HINWEIS
 - B11 Editor (PR 2): Neue Position 'Schweißbaugruppe' mit markierten Teilen, Unterbaugruppe, Nahtgruppe, Vorrichtung
 - B12 Editor: Bearbeiten über ein Einzelteil, gemerkte Kennwerte, Teil herausnehmen, Anzahl folgt in der Liste
 - B13 Editor: Zyklus abgewiesen, ungültige Zahl, Status führt in den Editor
 - B14 Richtwerte laden (nur fehlende Zeilen, eigene bleiben) und Arbeitsgang aus Zusatzarbeiten
+- B15 Angebot/PDF: Stückliste per Häkchen, Einmalkosten als eigene Zeile und in den Staffeln 'zzgl. einmalig'
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -246,20 +247,22 @@ satzpreis = sum(z["preis_teil"] * p["je_satz"] for z, p in zip(zeilen, pos))
 nah(s2["preis_einheit"], round(satzpreis, 2), "Stufe 2 Sätze = Satzpreis des Angebots", 0.011)
 assert s10["preis_einheit"] < s2["preis_einheit"]
 fert = dict((n, x) for n, x, _ in s10["bausteine"]["fertigung"])
-nah(fert["Schweißbaugruppe"], 10 * (114 - 65 + 13), "Baugruppe in der Stufe 10")
+nah(fert["Schweißbaugruppe"], 10 * (114 - 65), "Baugruppe (laufend) in der Stufe 10")
+ruest = dict((n, x) for n, x, _ in s10["bausteine"]["ruesten"])
+nah(ruest["Schweißbaugruppe einmalig"], 130, "Einmalkosten der Baugruppe wie Rüsten")
 ok(f"B8 Staffeln: 2 Sätze {s2['preis_einheit']:.2f} € (= Angebot), 10 Sätze {s10['preis_einheit']:.2f} € je Satz")
 
 # ------------------------------------------------------------------ B9 Angebot, Kopie
 ang = ausgabe.angebot(kopf, pos, zeilen, k, db.einstellungen())
 satz = [z for z in ang["zeilen"] if z["art"] == "satz"]
-assert len(satz) == 1 and satz[0]["menge"] == 2 and satz[0]["text"] == "Satz Rahmen R1"
-teile = [z["text"] for z in ang["zeilen"] if z["art"] == "satzteil"]
-assert any("Schweißen und Fertigung der Baugruppe" in t and "Zeichnung Z-4711 Rev. B" in t for t in teile), teile
+assert len(satz) == 1 and satz[0]["menge"] == 2 and satz[0]["einheit"] == "Stk.", satz
+assert satz[0]["text"].split("\n")[:3] == ["Schweißbaugruppe Rahmen R1", "Zeichnung Z-4711 Rev. B", "S235"], satz
+assert not [z for z in ang["zeilen"] if z["art"] == "satzteil"], "Stückliste nur mit Häkchen"
 kopie = db.angebot_kopieren(a)
 pk = db.positionen(kopie)
 assert baugruppe.lesen(pk[0]["baugruppe"])["id"] == rahmen["id"]
 assert baugruppe.abgleich(pk) == [] and {p["bg_knoten"] for p in pk[1:]} == {p["bg_knoten"] for p in pos[1:]}
-ok("B9 Angebot: Satz 'Rahmen R1' mit Zeile 'Schweißen und Fertigung', Kopie behält Baugruppe und Zuordnung")
+ok("B9 Angebot: eine Zeile 'Schweißbaugruppe Rahmen R1' (ohne Stückliste), Kopie behält Baugruppe und Zuordnung")
 
 # ------------------------------------------------------------------ B10 Richtwerte
 rw = baugruppe.richtwerte()
@@ -427,8 +430,47 @@ assert set(d._katalog()) == {"Richten"}
 vorher = d.erg["eigen"]
 d.arbeitsgang_aus_katalog("Richten")
 nah(d.erg["eigen"] - vorher, 2 / 60 * 75, "Richten aus dem Katalog im Editor")
+assert set(d.stamm_wahl) == {"stueckliste", "einmal_getrennt"} and not d.daten()["stamm"].get("stueckliste")
+d.stamm_wahl["stueckliste"].setChecked(True)
+assert d.daten()["stamm"]["stueckliste"] is True and "einmal_getrennt" not in d.daten()["stamm"]
 d.reject()
 f.close()
 ok(f"B14 Richtwerte laden: {n} Zeilen neu, eigene MAG-Werte unverändert; Arbeitsgang aus Zusatzarbeiten")
+
+# ------------------------------------------------------------------ B15 Angebot: Stückliste, Einmalkosten getrennt
+from rohrlaser import pdf  # noqa: E402
+
+kopf, pos, k, tab, einst = laden()
+erg = rechnen.optimieren(kopf, pos, k, tab, einst)
+zeilen, summen = rechnen.kalkulation(kopf, pos, erg, k, tab, einst)
+s10 = staffeln.stufe_rechnen(kopf, pos, "Rahmen R1", 10, k, tab, einst)
+vorher = ausgabe.angebot(kopf, pos, zeilen, k, db.einstellungen(), [s10])
+g = baugruppe.lesen(pos[0]["baugruppe"])
+g["stamm"].update(stueckliste=True, einmal_getrennt=True)
+db.position_aendern(pos[0]["id"], "baugruppe", baugruppe.speichern(g))
+kopf, pos, k, tab, einst = laden()
+erg = rechnen.optimieren(kopf, pos, k, tab, einst)
+zeilen, summen = rechnen.kalkulation(kopf, pos, erg, k, tab, einst)
+zb = zeilen[0]
+nah(zb["bg_einmal_preis_teil"], 65 * (1 + zf) * (1 + gew) / (1 - sk), "Einmalkosten-Preis je Baugruppe")
+s10 = staffeln.stufe_rechnen(kopf, pos, "Rahmen R1", 10, k, tab, einst)
+assert "Schweißbaugruppe einmalig" not in dict((n, x) for n, x, _ in s10["bausteine"]["ruesten"])
+assert s10["preis"]["bg_einmalig"] == ausgabe.kaufm_runden(130 * (1 + zf) * (1 + gew) / (1 - sk), 2)
+ang = ausgabe.angebot(kopf, pos, zeilen, k, db.einstellungen(), [s10])
+arten = [(z["art"], z["pos"]) for z in ang["zeilen"]]
+assert arten == [("satz", 100), ("einmal", None), ("satzteil", 10), ("satzteil", 20), ("satzteil", 30)], arten
+bg_z, einmal_z = ang["zeilen"][0], ang["zeilen"][1]
+nah(einmal_z["gesamt"], ausgabe.kaufm_runden(zb["bg_einmal_preis_teil"] * 2, 2), "eigene Zeile Einmalkosten")
+assert einmal_z["einheit"] == "pausch." and einmal_z["menge"] == 1
+nah(ang["netto"], vorher["netto"], "Summe gleich, nur anders aufgeteilt", 0.03)
+assert bg_z["preis"] < vorher["zeilen"][0]["preis"]
+st = bg_z["staffeln"][0]
+nah(st["einmal"], s10["preis"]["bg_einmalig"], "Staffel: Einmalkosten getrennt")
+nah(st["gesamt"], s10["preis_gesamt"], "Staffel gesamt unverändert", 0.11)
+text = pdf._staffel_text(st, True)
+assert text.startswith("Ab 10 Stk. je (zzgl. einmalig ") and text.endswith(" €)"), text
+pdf.angebot_pdf(tmp / "bg.pdf", kopf, ang, db.einstellungen())
+assert (tmp / "bg.pdf").stat().st_size > 0
+ok(f"B15 Angebot: Stückliste per Häkchen, Einmalkosten {einmal_z['gesamt']:.2f} € als eigene Zeile, Staffel '{text}'")
 
 print("\nAlle Baugruppen-Tests bestanden.")
