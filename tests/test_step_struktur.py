@@ -78,3 +78,50 @@ assert step.struktur_anhaengen([dict(datei="x")], tmp / "fehlt.json")[0]["_struk
 # Messwerte der Rohre unverändert gegenüber der Messung ohne Namen (Profil, Länge)
 assert {x["profilform"] for x in m} >= {"Rechteckrohr", "Quadratrohr", "Rundrohr"}
 print("OK: Messwerte mit Bauteil, Pfad und Knoten; Struktur je Datei an den Messwerten")
+
+# S4: Schweißbaugruppe aus der Struktur (Häkchen „als Schweißbaugruppe“ im Prüfdialog)
+from rohrlaser import baugruppe  # noqa: E402
+from rohrlaser.angebot import BAUGRUPPE  # noqa: E402
+from rohrlaser.datenbank import Datenbank  # noqa: E402
+
+db = Datenbank(tmp / "bg.db")
+k = db.kontext()
+for x in m:
+    x.update(_saetze=2, _stueck=2, _baugruppe=True, _uebernehmen=True)
+erg = step.uebernehmen(m, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True)
+pos = erg["positionen"]
+bgp = next(p for p in pos if p.get("art") == BAUGRUPPE)
+g = baugruppe.lesen(bgp["baugruppe"])
+assert (bgp["bezeichnung"], bgp["stueck"]) == ("S01_Gestell_verschachtelt", 2), bgp
+assert [(kn["name"], kn["menge"], kn["parent"]) for kn in g["knoten"]] == [("Rahmenseite", 2, "")], g["knoten"]
+assert not g["naehte"] and not g["arbeitsgaenge"]
+laenge = {800: "Holm RE60x40x3 L800", 500: "Strebe QR40x3 L500", 600: "Querrohr RR42.4x2 L600"}
+teile = {laenge[round(p["laenge"])]: (p["bg_knoten"], p["je_knoten"]) for p in pos if p.get("bg_knoten")}
+kn = g["knoten"][0]["id"]
+assert teile == {"Holm RE60x40x3 L800": (baugruppe.zuordnung_text(g["id"], kn), 1),
+                 "Strebe QR40x3 L500": (baugruppe.zuordnung_text(g["id"], kn), 2),
+                 "Querrohr RR42.4x2 L600": (g["id"], 2)}, teile
+pos = [dict(p, id=i) for i, p in enumerate(pos)]
+assert baugruppe.abgleich(pos) == [], baugruppe.abgleich(pos)      # Satz, Stück je Satz und Stückzahl passen schon
+assert any(b.startswith("Schweißbaugruppe S01_Gestell_verschachtelt") for b in erg["bericht"])
+print("OK: Schweißbaugruppe aus der STEP-Struktur (Unterbaugruppe Rahmenseite × 2, Teile zugeordnet, ohne Nähte)")
+
+# S5: Prüfdialog – Häkchen „als Schweißbaugruppe“ nur mit Satz, schreibt _baugruppe
+import os  # noqa: E402
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtWidgets import QApplication  # noqa: E402
+from rohrlaser.step_dialog import StepPruefDialog  # noqa: E402
+
+app = QApplication.instance() or QApplication([])
+mw = [{n: v for n, v in x.items() if not n.startswith("_") or n in ("_struktur", "_netz")} for x in m]
+d = StepPruefDialog(None, mw, k, "S235-10219", 1, db.zukauf_artikel_liste(), {})
+assert d.bg_haken.isEnabled() and not d.bg_haken.isChecked()
+d.bg_haken.setChecked(True)
+d.werte_schreiben()
+assert all(x["_baugruppe"] for x in mw if "_uebernehmen" in x) and sum("_uebernehmen" in x for x in mw) >= 8
+d.saetze_setzen(0)
+assert not d.bg_haken.isEnabled()
+d.werte_schreiben()
+assert not any(x.get("_baugruppe") for x in mw)
+d.reject()
+print("OK: Prüfdialog: Häkchen als Schweißbaugruppe (nur mit Satz)")

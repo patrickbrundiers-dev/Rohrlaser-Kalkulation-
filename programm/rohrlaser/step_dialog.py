@@ -174,6 +174,14 @@ class StepPruefDialog(QDialog):
                                   "laden.")
         self.satz_spin.valueChanged.connect(lambda n: self.saetze_setzen(n))
         sl.addWidget(self.satz_spin)
+        # Schweißbaugruppe: Satz als Position der Art Schweißbaugruppe mit den Unterbaugruppen der STEP-Struktur
+        self.baugruppe = {d: any(m.get("_baugruppe") for m in messwerte if m.get("datei") == d) for d in self.dateien}
+        self.bg_haken = QCheckBox("als Schweißbaugruppe")
+        self.bg_haken.setToolTip("Den Satz als Schweißbaugruppe anlegen: Unterbaugruppen mit Menge aus der STEP-Datei, "
+                                 "Einzelteile zugeordnet. Nahtgruppen und Arbeitsgänge danach im Editor ergänzen.")
+        self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)))
+        sl.addSpacing(12)
+        sl.addWidget(self.bg_haken)
         self.satz_info = QLabel()
         kl.addWidget(self.zurueck)
         kl.addWidget(self.vor)
@@ -526,6 +534,10 @@ class StepPruefDialog(QDialog):
     def _satz_anzeigen(self):
         d = self.datei
         satz = bool(self.saetze.get(d))
+        self.bg_haken.blockSignals(True)
+        self.bg_haken.setChecked(bool(self.baugruppe.get(d)))
+        self.bg_haken.blockSignals(False)
+        self.bg_haken.setEnabled(satz)
         self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
             koerper, verschieden = self.mehrteilig[d]
@@ -837,6 +849,7 @@ class StepPruefDialog(QDialog):
                 m["_d3"] = self.d3.isChecked()
                 m["_anbau_weglassen"] = self.anbau_weglassen
                 m["_werkstoff"] = z.ws.currentText() or None
+                m["_baugruppe"] = bool(saetze and self.baugruppe.get(z.datei))
                 if saetze:
                     m["_saetze"], m["_stueck"] = saetze, saetze
                     m["_je_satz"] = z.werte["satz"] or len(z.liste)

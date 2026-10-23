@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.7", "<b>Schweißbaugruppe aus STEP</b>: Im Prüfdialog des STEP-Imports legt das Häkchen <i>als "
+               "Schweißbaugruppe</i> (neben <i>Sätze</i>) den Satz als Schweißbaugruppe an: Unterbaugruppen mit Menge "
+               "aus der STEP-Struktur, Teile zugeordnet; Nahtgruppen und Arbeitsgänge im Editor ergänzen ([[step]]).",
+     "STEP-Import: Satz wahlweise als Schweißbaugruppe mit Unterbaugruppen aus der Datei."],
     ["0.9.6", "<b>Schweißbaugruppen im Angebot</b>: eine Zeile je Baugruppe mit Zeichnung, Werkstoff und "
                "Oberfläche; Einzelteile nur mit dem Häkchen <i>Stückliste im Angebot zeigen</i>. Einmalkosten "
                "(Rüsten, Vorrichtungen) zählen in den Staffeln wie Rüsten; mit dem Häkchen <i>Einmalkosten als eigene "
