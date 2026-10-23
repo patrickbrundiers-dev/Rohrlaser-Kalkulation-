@@ -602,6 +602,12 @@ class EinstellungenSeite(QScrollArea):
             titel.setWordWrap(True)
             titel.setFixedWidth(self.BREITE_TITEL)
             gruppen[e.gruppe].addRow(titel, w)
+        if "STEP-Import" in gruppen:
+            knopf = QPushButton("Zwischenspeicher leeren")
+            knopf.setToolTip("Gemerkte Messungen löschen: der nächste STEP-Import misst alle Dateien neu")
+            knopf.clicked.connect(self._step_cache_leeren)
+            knopf.setMaximumWidth(self.BREITE_ZAHL + 60)
+            gruppen["STEP-Import"].addRow("", knopf)
         self.zweispaltig = None
         self._anordnen(False)
         self.setWidget(innen)
@@ -693,6 +699,11 @@ class EinstellungenSeite(QScrollArea):
         self._speichern(e, wert)
         w.setText(zahl_als_text(wert, None, tausender=False) if wert is not None else "")
 
+    def _step_cache_leeren(self):
+        from . import step_einstellungen
+        n = step_einstellungen.cache_leeren(self.db)
+        self.meldung(f"Zwischenspeicher des STEP-Imports geleert ({n} Messungen).")
+
     def _speichern(self, e, wert):
         if e.name == "benutzer_kuerzel":
             wert = kuerzel_sauber(wert)
@@ -703,6 +714,9 @@ class EinstellungenSeite(QScrollArea):
             teilen.bearbeiter_nachtragen(self.db)
         if e.name == hilfe.HILFE_EINSTELLUNG:
             hilfe.alle_aktualisieren()
+        from . import step_einstellungen
+        if e.name in step_einstellungen.EINSTELLUNGEN:
+            step_einstellungen.anwenden(self.db)
         self.meldung(f"{e.titel} gespeichert.")
 
     def neu_laden(self):
@@ -975,6 +989,8 @@ class Hauptfenster(QMainWindow):
             db.zeichnungen_entfernen(self.ablage())
         except OSError:
             pass
+        from . import step_einstellungen
+        step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")

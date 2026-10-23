@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.2", "<b>Schweißbaugruppen, Teil 2 (Editor)</b>: <i>Neue Position → Schweißbaugruppe</i> öffnet den Editor "
+    ["0.9.3", "<b>Schweißbaugruppen, Teil 2 (Editor)</b>: <i>Neue Position → Schweißbaugruppe</i> öffnet den Editor "
                "mit Struktur und Teilen (Unterbaugruppen mit Menge, markierte Positionen vorgewählt), Nahtgruppen, "
                "Arbeitsgängen und Vorrichtungen (Einmalkosten je Auftrag, anteilig oder wiederverwendbar), Stammdaten "
                "und Übersicht; gerechnet wird bei jeder Eingabe. Doppelklick auf die Baugruppe oder ihren Status "
@@ -30,13 +30,20 @@ NEUERUNGEN = [
                "<b>Richtwerte laden</b> fehlende Schweißverfahren, Kennwerte und Faktoren ein, eigene Zeilen bleiben "
                "([[schweiss_stammdaten]]).",
      "Schweißbaugruppen: Editor, Richtwerte laden, Arbeitsgänge aus Zusatzarbeiten ([[schweissbaugruppe]])."],
-    ["0.9.1", "<b>Schweißbaugruppen, Teil 1 (Rechenkern)</b>: neue Positionsart <i>Schweißbaugruppe</i> mit "
+    ["0.9.2", "<b>Schweißbaugruppen, Teil 1 (Rechenkern)</b>: neue Positionsart <i>Schweißbaugruppe</i> mit "
                "Unterbaugruppen, Nahtgruppen, Arbeitsgängen und Einmalkosten (Vorrichtung je Auftrag, anteilig oder "
                "wiederverwendbar). Ihre Einzelteile bleiben normale Positionen und rechnen unverändert; die "
                "Baugruppe rechnet nur ihre eigenen Leistungen dazu. Neue Unterreiter Schweißverfahren, "
                "Schweiß-Kennwerte und Schweiß-Faktoren ([[schweiss_stammdaten]]). Angebote ohne Baugruppe rechnen "
                "genau wie bisher.",
      "Schweißbaugruppen: Rechenkern und Schweiß-Kennwerte ([[schweiss_stammdaten]])."],
+    ["0.9.1", "<b>STEP-Import robuster</b>: Die Messung zeigt Datei, Körper und Restzeit. Ein Körper, der länger als "
+              "das Zeitlimit braucht (Vorgabe 120 s) oder abstürzt, wird ausgelassen und als <i>nicht gemessen</i> "
+              "gemeldet, der Rest der Datei wird gemessen. Schon gemessene Dateien kommen sofort aus dem "
+              "<i>Zwischenspeicher</i>. Nach <b>Abbrechen</b> lassen sich die fertigen Dateien übernehmen. Neue Karte "
+              "<i>STEP-Import</i> in den Einstellungen mit Prozessen, Zeitlimit, Zwischenspeicher und Toleranzen "
+              "([[einstellungen]]).",
+     "STEP-Import: Zeitlimit je Körper, Zwischenspeicher, Teilergebnis bei Abbruch ([[einstellungen]])."],
     ["0.9.0", "<b>Lizenz</b>: neuer Menüpunkt <i>Hilfe → Lizenz …</i> mit Zustand, <b>Rechner-ID</b> (Kopieren, "
               "fertige E-Mail an Patrick) und <b>Lizenzdatei laden …</b> (auch per Drag & Drop). Eine Lizenz gilt "
               "offline für einen Rechner, Benutzerlizenzen meist 6 Monate; vor Ablauf erscheint ein Hinweis unten "
