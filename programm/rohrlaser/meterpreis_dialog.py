@@ -5,11 +5,15 @@ Querschnitt, Materialeinsatz aus dem Schnittplan und den Materialwerten zum Änd
 Alle Werte werden wie in den Spalten der Positionen gespeichert, und zwar an allen Positionen der Abmessung: Werkstoff, Oberfläche,
 Stangenlänge abweichend (Lieferlänge), Material (Eigen-/Kundenmaterial) und Materialpreis [€/m] (preis_m, leer =
 wieder berechnet aus Lieferlängen, Preisen bzw. Tonnenpreis mit Aufpreis der Oberfläche).
+
+Zusatzfenster (Patrick 23.10.2026, Freigabe 1a–6a, abmessung_fenster.py): Doppelklick auf Stangen, Pos., Meter oder
+Gewicht öffnet das Abmessungs-Fenster (Stangenbild, Schnittmuster, Bilanz, Teileliste), auf Material € oder berechnet
+€/m den Preis-Aufbau, auf Querschnitt oder Abmessung die Profil-Info; Rechtsklick auf eine Zeile zeigt alle Schritte.
 """
 from PySide6.QtCore import QPointF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
-                               QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QVBoxLayout)
+                               QLabel, QLineEdit, QMenu, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
 from . import hilfe, querschnitt, rechnen
 from .stammdaten import EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, zahl_als_text, zahl_aus_text
@@ -18,6 +22,16 @@ GRAU = "#5F6B7A"
 SPALTEN = ("", "Abmessung", "Werkstoff", "Oberfläche", "Lieferlänge [mm]", "Material", "Pos.", "Stangen", "Meter",
            "Gewicht [kg]", "Material [€]", "berechnet [€/m]", "Meterpreis [€/m]")
 BILD = 44
+# Doppelklick je Spalte: (Ziel, Tooltip); Ziel = Fenster ('abmessung:<Fokus>', 'preis', 'profil')
+DOPPELKLICK = {0: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Maschinen"),
+               1: ("profil", "Profil-Info: Querschnitt, Kennwerte, passende Maschinen"),
+               6: ("abmessung:teile", "Abmessung öffnen: Teileliste"),
+               7: ("abmessung:stangen", "Abmessung öffnen: Stangenbild, Schnittmuster und Teile"),
+               8: ("abmessung:bilanz", "Abmessung öffnen: Meterbilanz (Teile, Schnittfugen, Endbeschnitt, Greiferrest, "
+                   "Verschnitt)"),
+               9: ("abmessung:bilanz", "Abmessung öffnen: Gewichtsbilanz"),
+               10: ("preis", "Preis-Aufbau: Einkauf je Lieferlänge, Zuschlag, Verteilung auf die Positionen"),
+               11: ("preis", "Preis-Aufbau mit Herkunft des Meterpreises (Lieferant, Gültig ab)")}
 
 
 def _z(w, stellen=2):
@@ -77,10 +91,13 @@ class MeterpreisDialog(QDialog):
     veraltet: Schnittplan passt nicht mehr zu den Positionen. Nach 'Übernehmen': self.aenderungen = [(Gruppe,
     {Feld: Wert})] (nur geänderte Abmessungen, Felder der Positionen) und self.kopf_aenderungen = {Feld: Wert}."""
 
-    def __init__(self, parent, gruppen, k, kopf, laengen=None, einst=None, veraltet=False, ohne_plan=False):
+    def __init__(self, parent, gruppen, k, kopf, laengen=None, einst=None, veraltet=False, ohne_plan=False, seite=None):
         super().__init__(parent)
         self.gruppen, self.kopf = gruppen, kopf
         self.aenderungen, self.kopf_aenderungen = [], {}
+        # seite = Angebot (AngebotSeite) für die Zusatzfenster, None = ohne; nachher = (Schritt, Wert) nach dem Schließen
+        self.seite, self.veraltet, self.ohne_plan, self.nachher = seite, veraltet, ohne_plan, None
+        self.zeigen = lambda fenster: fenster.exec()        # Tests ersetzen das Öffnen der Zusatzfenster
         self.setWindowTitle("Material je Abmessung")
         self.resize(1320, 250 + 52 * min(len(gruppen), 8))
         lay = QVBoxLayout(self)
@@ -127,6 +144,8 @@ class MeterpreisDialog(QDialog):
                     it.setToolTip(f"Teile {_z(g['teile_m'], 1)} m"
                                   + (f", Ausnutzung {_z(100 * g['ausnutzung'], 1)} %" if g["ausnutzung"] else "")
                                   + (f", Lieferlängen laut Schnittplan: {laengen_text(g)}" if g["laengen"] else ""))
+                if seite is not None and c in DOPPELKLICK:
+                    it.setToolTip((it.toolTip() + "\n" if it.toolTip() else "") + "Doppelklick: " + DOPPELKLICK[c][1])
                 self.tabelle.setItem(r, c, it)
             self.tabelle.item(r, 0).setIcon(QIcon(querschnitt_pixmap(k.profile.get(g["profil"]))))
             ws = QComboBox()
@@ -171,6 +190,14 @@ class MeterpreisDialog(QDialog):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopf_z.setSectionResizeMode(1, QHeaderView.Stretch)
+        if seite is not None:
+            for c, (_, tipp) in DOPPELKLICK.items():
+                self.tabelle.horizontalHeaderItem(c).setToolTip("Doppelklick: " + tipp)
+            self.tabelle.cellDoubleClicked.connect(self.oeffnen)
+            self.tabelle.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.tabelle.customContextMenuRequested.connect(
+                lambda punkt: self.kontextmenue(self.tabelle.indexAt(punkt).row(),
+                                                self.tabelle.viewport().mapToGlobal(punkt)))
         lay.addWidget(self.tabelle, 1)
         summe = sum(g["kosten"] for g in gruppen)
         self.summe = QLabel(f"Material gesamt laut Schnittplan: {_z(summe)} €  ·  "
@@ -276,3 +303,88 @@ class MeterpreisDialog(QDialog):
             self.fehler.setText(str(e))
             return
         self.accept()
+
+    # -------------------------------------------------------------- Zusatzfenster
+    def oeffnen(self, r, c):
+        """Doppelklick in Zeile r, Spalte c: passendes Zusatzfenster (DOPPELKLICK). Ergebnis: das Fenster oder None."""
+        if self.seite is None or not 0 <= r < len(self.gruppen) or c not in DOPPELKLICK:
+            return None
+        ziel = DOPPELKLICK[c][0]
+        if ziel.startswith("abmessung"):
+            return self.abmessung(r, ziel.split(":")[1])
+        return self.preis(r) if ziel == "preis" else self.profil(r)
+
+    def abmessung(self, r, fokus="stangen"):
+        from .abmessung_fenster import AbmessungFenster
+        f = AbmessungFenster(self, self.gruppen[r], fokus)
+        self.zeigen(f)
+        return f
+
+    def preis(self, r):
+        from .abmessung_fenster import PreisFenster
+        f = PreisFenster(self, self.gruppen[r])
+        self.zeigen(f)
+        return f
+
+    def profil(self, r):
+        from .abmessung_fenster import ProfilFenster
+        f = ProfilFenster(self, self.gruppen[r])
+        self.zeigen(f)
+        return f
+
+    def menue_eintraege(self, r):
+        """Einträge des Kontextmenüs einer Zeile: [(Text, Funktion, aktiv)]."""
+        g = self.gruppen[r]
+        geplant = bool(g["stangen"])
+        from . import abmessung
+        return [("Abmessung öffnen …", lambda: self.abmessung(r), True),
+                ("Preis-Aufbau …", lambda: self.preis(r), True),
+                ("Profil-Info …", lambda: self.profil(r), True),
+                (None, None, None),
+                ("12-m-Lösung für diese Abmessung …",
+                 lambda: self.schliessen_mit("laengen", abmessung.laengen_indizes(self.seite.ergebnis, g)),
+                 self.laengen_sinnvoll(g)),
+                ("Materialanfrage nur für diese Abmessung …", lambda: self.schliessen_mit("anfrage", g),
+                 geplant and not g["kunde"]),
+                ("Schnittplan dieser Abmessung drucken …", lambda: self.drucken(g), geplant),
+                ("Positionen dieser Abmessung im Angebot markieren", lambda: self.schliessen_mit("markieren", g), True)]
+
+    def kontextmenue(self, r, wo):
+        if self.seite is None or not 0 <= r < len(self.gruppen):
+            return
+        menue = QMenu(self)
+        for text, f, aktiv in self.menue_eintraege(r):
+            if text is None:
+                menue.addSeparator()
+                continue
+            a = menue.addAction(text)
+            a.setEnabled(bool(aktiv))
+            a.triggered.connect(f)
+        menue.exec(wo)
+
+    def laengen_sinnvoll(self, g):
+        """Zeigt der Vergleich der Lieferlängen für diese Abmessung eine sinnvolle Lösung (wie der Knopf im Reiter)?"""
+        from . import abmessung
+        from .angebot_fenster import laengen_sinnvoll
+        s = self.seite
+        nur = abmessung.laengen_indizes(s.ergebnis, g)
+        if not nur:
+            return False
+        erg = dict(s.ergebnis, laengen=[s.ergebnis["laengen"][i] for i in nur])
+        return bool(laengen_sinnvoll(erg, s.kopf, s.positionen, s.k, s.tabellen, s.einst))
+
+    def drucken(self, g):
+        """Werkstattpapiere nur dieser Abmessung (Fenster bleibt offen)."""
+        return self.seite.werkstatt_pdf(gruppe=g)
+
+    def schliessen_mit(self, aktion, wert=None):
+        """Material-Fenster mit 'Übernehmen' schließen (Eingaben werden gespeichert) und danach im Angebot aktion
+        ausführen. False bei ungültiger Eingabe (Fenster bleibt offen)."""
+        try:
+            self.aenderungen, self.kopf_aenderungen = self.werte()
+        except ValueError as e:
+            self.fehler.setText(str(e))
+            return False
+        self.nachher = (aktion, wert)
+        self.accept()
+        return True

@@ -7,7 +7,7 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QEvent, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QEvent, QEventLoop, QItemSelectionModel, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame,
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
-from . import anbau, blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+from . import abmessung, anbau, blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
     teilen, vorschau, zukauf, zukauf_ek, baugruppe
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -830,10 +830,12 @@ class Stangenbild(QWidget):
     LEGENDE = 20
     GRUEN = "#1E7B34"
     doppelklick = Signal(str)       # Bezug (ref) des Teils unter der Maus
+    klick = Signal(str)             # Bezug (ref) des angeklickten Teils (Abmessungs-Fenster: Zeile der Teileliste)
 
     def __init__(self):
         super().__init__()
         self.muster, self.farben, self.flaechen = [], {}, []
+        self.markiert = None        # Bezug (ref) der hervorgehobenen Teile
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip("Doppelklick auf ein Teil: zur Position")
 
@@ -849,6 +851,21 @@ class Stangenbild(QWidget):
         ref = self.teil_bei(ereignis.position() if hasattr(ereignis, "position") else ereignis.pos())
         if ref:
             self.doppelklick.emit(ref)
+
+    def mousePressEvent(self, ereignis):
+        ref = self.teil_bei(ereignis.position() if hasattr(ereignis, "position") else ereignis.pos())
+        if ref:
+            self.klick.emit(ref)
+        super().mousePressEvent(ereignis)
+
+    def markieren(self, ref):
+        """Teile mit dem Bezug ref hervorheben (None = keins)."""
+        self.markiert = ref
+        self.update()
+
+    def muster_y(self, i):
+        """Obere Kante des i-ten Stangenmusters [px] (zum Hinscrollen)."""
+        return 10 + (self.LEGENDE if self._legende() else 0) + self.ZEILE * i
 
     def event(self, ereignis):
         if ereignis.type() == QEvent.ToolTip:
@@ -1003,6 +1020,10 @@ class Stangenbild(QWidget):
                         stift.setStyle(Qt.DashLine)
                     p.setPen(stift)
                     p.drawLine(QPointF(r.left() + 3, hy), QPointF(r.right() - 3, hy))
+                if self.markiert is not None and t["ref"] == self.markiert:
+                    p.setPen(QPen(QColor(stil.ORANGE), 3))
+                    p.setBrush(Qt.NoBrush)
+                    p.drawRect(r.adjusted(-1, -1, 1, 1))
                 self.flaechen.append((QRectF(r), t))
                 text = f"{t['pos'] if t['pos'] is not None else t['artikel']}\n{_z(t['laenge'], 1)}"
                 if r.width() > 28:
@@ -1014,9 +1035,10 @@ class Stangenbild(QWidget):
         p.end()
 
 
-def laengen_html(erg, kopf, positionen, k, tabellen, einst):
+def laengen_html(erg, kopf, positionen, k, tabellen, einst, nur=None):
     """Vergleich der Lieferlängen je Gruppe als HTML: Kennzahlen je Variante, Empfehlung mit Begründung und Links
-    zum Übernehmen (laenge:<Gruppe>:<Länge>, 0 = Stangenlänge des Angebots)."""
+    zum Übernehmen (laenge:<Gruppe>:<Länge>, 0 = Stangenlänge des Angebots). nur = Indizes der Gruppen, die
+    gezeigt werden (Abmessungs-Fenster), None = alle."""
     if not erg:
         return "<i>Noch nicht optimiert.</i>"
     if not erg.get("laengen") and not rechnen.laengen_vergleichen(einst):
@@ -1044,6 +1066,8 @@ def laengen_html(erg, kopf, positionen, k, tabellen, einst):
              rechnen.LAENGE_ANGABEN_FEHLEN: "#B45F06"}
     teile = []
     for i, vg in enumerate(erg["laengen"]):
+        if nur is not None and i not in nur:
+            continue
         b = rechnen.laengen_bewerten(vg, kopf, positionen, k, tabellen, einst)
         geplant = vg.get("gewaehlt") or vg["stange"]
         kopfz = "".join(f"<th align='right'>{rechnen.m_text(v['laenge'])}-m-Variante"
@@ -1446,7 +1470,7 @@ class AngebotSeite(QWidget):
         lz = QHBoxLayout()
         self.laengen_knopf = QPushButton("12-m-Lösung ansehen …")
         self.laengen_knopf.setToolTip("Lieferlängen: 6 m gegen 12 m – Vergleich je Gruppe in einem großen Fenster")
-        self.laengen_knopf.clicked.connect(self.laengen_zeigen)
+        self.laengen_knopf.clicked.connect(lambda: self.laengen_zeigen())
         self.laengen_hinweis = QLabel()
         self.laengen_hinweis.setWordWrap(True)
         lz.addWidget(self.laengen_knopf)
@@ -2757,8 +2781,12 @@ class AngebotSeite(QWidget):
         self.f.meldung(text + ".")
         return True
 
-    def laengen_zeigen(self):
-        """Vergleich der Lieferlängen im großen Fenster öffnen."""
+    def laengen_zeigen(self, nur=None):
+        """Vergleich der Lieferlängen im großen Fenster öffnen; nur = Indizes der Gruppen (eine Abmessung aus dem
+        Material-Fenster), None = alle."""
+        self.laengen_ansicht.setHtml(laengen_html(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen,
+                                                  self.einst, nur))
+        self.laengen_dialog.setWindowTitle("Lieferlängen: 6 m gegen 12 m" + (" – eine Abmessung" if nur else ""))
         self.laengen_dialog.show()
         self.laengen_dialog.raise_()
         self.laengen_dialog.activateWindow()
@@ -2953,15 +2981,23 @@ class AngebotSeite(QWidget):
         self.neu_laden()
         return True
 
-    def werkstatt_pdf(self):
+    def werkstatt_pdf(self, gruppe=None):
+        """Werkstattpapiere als PDF; gruppe = Abmessung aus dem Material-Fenster (rechnen.material_abmessungen): nur
+        deren Stangen, Datei '<Nr> Werkstattpapiere <Profil>'."""
         if not self._vor_ausgabe():
             return None
         if not self.ergebnis or not self.ergebnis["stangen"]:
             QMessageBox.warning(self, "Werkstattpapiere", "Der Schnittplan ist leer. Bitte zuerst optimieren.")
             return None
-        wp = ausgabe.werkstatt(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
+        erg, name = self.ergebnis, "Werkstattpapiere"
+        if gruppe is not None:
+            erg = dict(erg, stangen=[s for s in erg["stangen"] if abmessung.gruppe_der_stange(s) == gruppe["gruppe"]])
+            name += f" {gruppe['profil']}"
+        wp = ausgabe.werkstatt(self.kopf, self.positionen, erg, self.k, self.tabellen)
+        if gruppe is not None:
+            wp["zukaufteile"] = []
         aktuell = self.stand_optimierung() == "aktuell"
-        return self._schreiben("Werkstattpapiere", self._ziel("Werkstattpapiere", ".pdf"),
+        return self._schreiben("Werkstattpapiere", self._ziel(name, ".pdf"),
                                lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
 
     def kalkulation_pdf(self):
@@ -3035,8 +3071,11 @@ class AngebotSeite(QWidget):
     def material_einstellen(self, dialog=None):
         """Fenster 'Material …': Materialeinsatz und Materialwerte je Abmessung (Werkstoff, Oberfläche, Lieferlänge, Eigen-/
         Kundenmaterial, Meterpreis) und Handling Kundenmaterial; Änderungen werden an allen Positionen der Abmessung
-        gespeichert und gehen so in die Kalkulation ein. dialog(d) bedient das Fenster statt exec (Tests). Ergebnis:
-        Anzahl geänderter Abmessungen bzw. Werte oder None (nichts zu zeigen)."""
+        gespeichert und gehen so in die Kalkulation ein. Doppelklick und Kontextmenü öffnen die Zusatzfenster
+        (abmessung_fenster.py); Schritte, die das Fenster schließen (zur Position, Positionen markieren, neu
+        optimieren, 12-m-Vergleich, Materialanfrage), laufen danach (d.nachher, _material_nachher). dialog(d) bedient
+        das Fenster statt exec (Tests). Ergebnis: Anzahl geänderter Abmessungen bzw. Werte oder None (nichts zu
+        zeigen)."""
         from .meterpreis_dialog import MeterpreisDialog
         gruppen = rechnen.material_abmessungen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
         if not gruppen:
@@ -3048,12 +3087,18 @@ class AngebotSeite(QWidget):
                                                                                    self.tabellen, auto=False)
                                         if rechnen._n(z.get("laenge")) > 0],
                              self.einst, veraltet=not ohne_plan and self.stand_optimierung() != "aktuell",
-                             ohne_plan=ohne_plan)
+                             ohne_plan=ohne_plan, seite=self)
         if not (dialog(d) if dialog else d.exec() == QDialog.Accepted):
             return 0
         n = len(d.aenderungen) + len(d.kopf_aenderungen)
-        if not n:
-            return 0
+        if n:
+            self._material_speichern(d)
+        if d.nachher:
+            self._material_nachher(*d.nachher)
+        return n
+
+    def _material_speichern(self, d):
+        n = len(d.aenderungen) + len(d.kopf_aenderungen)
         vorher = self._verkauf()
         for g, felder in d.aenderungen:
             for pid in g["ids"]:
@@ -3065,19 +3110,50 @@ class AngebotSeite(QWidget):
         plan = any(set(f) & {"werkstoff_id", "oberflaeche", "stange", "material_herkunft"} for _, f in d.aenderungen)
         self.f.meldung(f"Material: {n} Änderung(en) gespeichert. {preis_aenderung(vorher, self._verkauf())}"
                        + (" Werkstoff, Lieferlänge, Oberfläche oder Material geändert: bitte neu optimieren." if plan else ""))
-        return n
+
+    def _material_nachher(self, aktion, wert=None):
+        """Schritt aus dem Material-Fenster, nachdem es geschlossen ist: 'position' (wert = Bezug ref), 'markieren'
+        (wert = Abmessung: alle ihre Positionen markieren), 'optimieren', 'laengen' (wert = Indizes im Vergleich der
+        Lieferlängen), 'anfrage' (wert = Abmessung). Ergebnis wie die aufgerufene Methode."""
+        if aktion == "position":
+            return self.zur_position(ref=wert)
+        if aktion == "markieren":
+            zeilen = [r for r, p in enumerate(self.positionen) if p.get("id") in set(wert["ids"])]
+            if not zeilen:
+                return None
+            self.zur_position(zeile=zeilen[0])
+            auswahl = self.pos_ansicht.selectionModel()
+            for r in zeilen[1:]:
+                auswahl.select(self.pos_modell.index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+            self.f.meldung(f"{wert['profil']}: {len(zeilen)} Position(en) markiert.")
+            return zeilen
+        if aktion == "optimieren":         # danach das Material-Fenster mit dem neuen Schnittplan wieder zeigen
+            ok = self.optimieren()
+            if ok and not self.f.stumm:
+                self.material_einstellen()
+            return ok
+        if aktion == "laengen":
+            return self.laengen_zeigen(wert)
+        if aktion == "anfrage":
+            return self.material_anfragen(gruppe=wert)
+        return None
 
     # -------------------------------------------------------------- Materialanfrage
-    def material_anfragen(self, dialog=None, ausfuehren=None):
+    def material_anfragen(self, dialog=None, ausfuehren=None, gruppe=None):
         """Materialanfrage an den Lieferanten (Dialog): Bedarf aus der Optimierung, Lieferant und Text prüfen, dann 'In Outlook öffnen' (gesendet wird nur in Outlook) oder 'Als E-Mail-Datei speichern'.
-        dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests)."""
+        dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests). gruppe = nur diese
+        Abmessung (Material-Fenster, rechnen.material_abmessungen)."""
         from .materialanfrage_dialog import AnfrageDialog
         if not self.ergebnis or not self.ergebnis.get("stangen"):
             self.f.meldung("Materialanfrage: bitte zuerst optimieren (der Stangenbedarf kommt aus der Optimierung).",
                            fehler=True)
             return None
         werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
-        zeilen = materialanfrage.bedarf(self.positionen, self.ergebnis, self.k, self.tabellen, werte, self.kopf)
+        erg = self.ergebnis
+        if gruppe is not None:
+            paare = abmessung.lieferstangen(erg, gruppe["gruppe"], werte)
+            erg, werte = dict(erg, stangen=[s for s, _ in paare]), [w for _, w in paare]
+        zeilen = materialanfrage.bedarf(self.positionen, erg, self.k, self.tabellen, werte, self.kopf)
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
                            fehler=True)

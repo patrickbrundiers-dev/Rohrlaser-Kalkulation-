@@ -497,6 +497,16 @@ def main(ziel):
         z = d.tabelle
         foto.foto("material_fenster", d, [((z.viewport(), z.visualItemRect(z.item(0, 0))), 1), (d.laengen[0], 2),
                                           (d.summe, 3), (d.felder[0], 4), (d.handling, 5)])
+
+        def abmessung_foto(f):            # Doppelklick auf Stangen: Abmessungs-Fenster
+            f.resize(1250, 860)
+            QApplication.processEvents()
+            if f.teile:
+                f.teil_waehlen(f.teile[0]["ref"])
+            foto.foto("abmessung_fenster", f, [(f.rolle, 1), (f.muster_tab, 2), (f.bilanz_box, 3), (f.teile_tab, 4),
+                                               (f.k_drucken, 5)])
+        d.zeigen = abmessung_foto
+        d.oeffnen(0, 7)
         return QDialog.Rejected
     s.material_einstellen(dialog=material_foto)
     bereit()
