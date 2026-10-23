@@ -25,8 +25,14 @@ NEUERUNGEN = [
                "(Hell, Dunkel, Hoher Kontrast, Wie Windows), Schriftgröße (90 bis 150 %) und Dichte (kompakt, normal, "
                "komfortabel) wählen; gilt ab dem nächsten Start, nur an diesem Arbeitsplatz. Kurze Hinweise erscheinen "
                "jetzt unten rechts und verschwinden von selbst, <b>Meldungen (N)</b> in der Statusleiste zeigt die "
-               "letzten noch einmal ([[einstellungen]], [[fragen]]).",
-     "Farbschema Dunkel/Hoher Kontrast, Schriftgröße, Dichte; Meldungen unten rechts ([[einstellungen]])."],
+               "letzten noch einmal ([[einstellungen]], [[fragen]]). <b>Aufgeräumte Bedienung</b>: Im Angebot eine "
+               "Knopfleiste in drei Gruppen; rechts nur <b>Angebot (PDF)</b>, alle weiteren Ausgaben (Werkstattpapiere, "
+               "Kalkulation, Materialanfrage, CSV-Export, Ablage) im Menü <b>Ausgaben</b>; Positionen löschen über "
+               "Rechtsklick oder Entf. Über den Reitern zeigt eine Schrittanzeige ① erfasst → ② optimiert → ③ geprüft → "
+               "④ verschickt. Die Einstellungen haben links eine Navigation nach Themen mit <b>Suchfeld</b>; in den "
+               "Vorgaben steht die Einheit im Feld (z. B. „15,00 min“) und „0 = aus“ als Text im Feld ([[ausgabe]]).",
+     "Farbschema Dunkel/Hoher Kontrast, Schriftgröße; Knopfleiste mit Menü Ausgaben, Schrittanzeige, "
+     "Einstellungen mit Navigation und Suche ([[einstellungen]])."],
     ["0.9.29", "<b>Übersichtlicher</b>: Der Angebotskopf braucht 5 statt 8 Zeilen, die Positionsliste wird höher. "
                "Der Status hat ein Symbol (Haken, i, Dreieck, Kreuz), Eingabefelder sind nur noch hell gelb, der "
                "Verkaufspreis steht groß in der Übersicht. Die Staffel-Tabelle schneidet keine Texte mehr ab. Leere "
