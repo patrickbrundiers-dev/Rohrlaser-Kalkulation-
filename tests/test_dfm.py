@@ -74,6 +74,10 @@ assert regeln_von(bl([dict(art=sw.BOHRUNG, anzahl=1, d=10, x=50, y=50),
                       dict(art=sw.LANGLOCH, anzahl=1, l=20, b=10, x=69, y=50)])) == [dfm.STEG]
 assert bl([dict(art=sw.BOHRUNG, anzahl=1, d=10, x=50, y=50), dict(art=sw.LANGLOCH, anzahl=1, l=20, b=10, x=70,
                                                                       y=50)]) == []
+# gekreuzte schmale Rechtecke ohne Ecke im anderen: schneiden sich, Steg 0
+assert dfm.abstand([(-50, -2), (50, -2), (50, 2), (-50, 2)], [(-2, -50), (2, -50), (2, 50), (-2, 50)]) == 0
+assert regeln_von(bl([dict(art=sw.RECHTECK, anzahl=1, b=60, h=4, x=100, y=50),
+                      dict(art=sw.RECHTECK, anzahl=1, b=4, h=60, x=100, y=50)])) == [dfm.STEG]
 ok("P2 Steg zu schmal: Muster, über die Kante des Quadratrohrs, Blech")
 
 # ------------------------------------------------------------------ P3 Kontur zu nah am Rand
@@ -117,6 +121,8 @@ assert dfm.blech(kant, blech.zuschnitt(kant), kantbarkeit=False) == []
 assert dfm.blech(dict(kant, schenkel=[dict(laenge=50, winkel=90), dict(laenge=80)]),
                  blech.zuschnitt(dict(kant, schenkel=[dict(laenge=50, winkel=90), dict(laenge=80)]))) == []
 assert regeln_von(dfm.blech_position(dict(technik=blech.speichern(kant)))) == [dfm.KANTBARKEIT]
+# Einstellungen der Kantbarkeit gelten auch im Status (Faktor 0 = aus, wie im Blech-Editor)
+assert dfm.blech_position(dict(technik=blech.speichern(kant)), einst=dict(blech_kant_schenkel=0.0)) == []
 ok("P6 Kantbarkeit als Befund (Vorgabe HINWEIS)")
 
 # ------------------------------------------------------------------ P7 Regeltabelle und Anzeige
@@ -166,6 +172,9 @@ ok("P7 Regeltabelle: abschalten, Grenzwert, Stufe; Status der Position nach Stuf
 blech_p = dict(positionsart="Zukaufteil", technik=blech.speichern(dict(kant, quelle=blech.QUELLE)), stueck=10)
 assert rechnen.zukaufteil_status(dict(blech_p, zukauf=None)).startswith("FEHLER: Zukaufartikel fehlt")
 assert regeln_von(dfm.blech_position(blech_p, db.zeilen("pruefregeln"))) == [dfm.KANTBARKEIT]
+w_b = rechnen.position_werte(blech_p, kopf, k, dict(db.tabellen(), einstellungen=dict(db.einstellungen(),
+                                                                                       blech_kant_schenkel=0.0)))
+assert w_b["einstellungen"]["blech_kant_schenkel"] == 0.0
 
 # ältere Datei (Schema 47) bekommt die Tabelle mit den Vorgaben
 db.schliessen()

@@ -84,10 +84,19 @@ def _innen(p, poly):
     return drin
 
 
+def _kreuzen(p1, p2, q1, q2):
+    def seite(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    d1, d2, d3, d4 = seite(q1, q2, p1), seite(q1, q2, p2), seite(p1, p2, q1), seite(p1, p2, q2)
+    return d1 * d2 < 0 and d3 * d4 < 0
+
+
 def abstand(a, b):
-    """Kleinster Abstand zweier geschlossener Linienzüge [mm]; 0, wenn sie sich schneiden oder einer im anderen
-    liegt."""
+    """Kleinster Abstand zweier geschlossener Linienzüge [mm]; 0, wenn sie sich schneiden (auch ohne Ecke im
+    anderen, z. B. zwei gekreuzte schmale Rechtecke) oder einer im anderen liegt."""
     if len(a) >= 3 and _innen(b[0], a) or len(b) >= 3 and _innen(a[0], b):
+        return 0.0
+    if any(_kreuzen(a[i - 1], a[i], b[j - 1], b[j]) for i in range(len(a)) for j in range(len(b))):
         return 0.0
     d = min(min(_abstand_punkt_strecke(p, q[i - 1], q[i]) for i in range(len(q)))
             for p, q in ((p, b) for p in a))
@@ -231,10 +240,11 @@ def rohr(p, profil, maschine=None, zeilen=None, wand=None):
 
 
 # ------------------------------------------------------------------ Blech
-def blech(e, zs, zeilen=None, kantbarkeit=True):
+def blech(e, zs, zeilen=None, kantbarkeit=True, einst=None):
     """Befunde eines Blechteils aus dem Blech-Editor: e = Eingaben, zs = blech.zuschnitt(e). Konturen mit x/y
     im Zuschnitt; Rand = Abstand zur Außenkontur (Polygon bzw. Rechteck laenge × breite). kantbarkeit=False lässt
-    die Kantbarkeit weg (der Blech-Editor zeigt sie schon)."""
+    die Kantbarkeit weg (der Blech-Editor zeigt sie schon); einst = Einstellungen 'blech_kant_…' (fehlende:
+    Vorgaben)."""
     from . import blech as bl, schneidweg as sw, skizze as sk
     r = regeln(zeilen)
     s = sw._z(e.get("dicke"))
@@ -291,7 +301,7 @@ def blech(e, zs, zeilen=None, kantbarkeit=True):
                                            f"schmalster {_zahl(dmin)} mm zwischen Kontur {a['zeile'] + 1} und "
                                            f"{b['zeile'] + 1}" + _lage_blech(a["eingabe"])))
     if kantbarkeit and KANTBARKEIT in r:
-        texte = [t for t in bl.kantbarkeit(e, zs) if not t.endswith(bl.NICHT_GEPRUEFT)]
+        texte = [t for t in bl.kantbarkeit(e, zs, einst) if not t.endswith(bl.NICHT_GEPRUEFT)]
         if texte:
             out.append(Befund(KANTBARKEIT, r[KANTBARKEIT][1],
                               "; ".join(t.split(": ", 1)[-1] for t in texte)))
@@ -304,16 +314,17 @@ def _lage_blech(z):
     return f" (bei x = {_zahl(z['x'], 0)}, y = {_zahl(z['y'], 0)} mm)"
 
 
-def blech_position(p, zeilen=None):
-    """Befunde einer Blech-Position (Zukaufteil aus dem Blech-Editor, technik)."""
+def blech_position(p, zeilen=None, einst=None):
+    """Befunde einer Blech-Position (Zukaufteil aus dem Blech-Editor, technik); einst = Einstellungen (die
+    'blech_kant_…' gelten für die Kantbarkeit wie im Blech-Editor)."""
     if not p.get("technik"):
         return []
-    r = regeln(zeilen)
-    return list(_blech_position(p["technik"], _schluessel(r)))
+    kant = tuple(sorted((n, v) for n, v in (einst or {}).items() if n.startswith("blech_kant_") and v is not None))
+    return list(_blech_position(p["technik"], _schluessel(regeln(zeilen)), kant))
 
 
 @functools.lru_cache(maxsize=2048)
-def _blech_position(technik, r_key):
+def _blech_position(technik, r_key, kant):
     from . import blech as bl
     e = bl.lesen(technik)
     if not e:
@@ -324,7 +335,7 @@ def _blech_position(technik, r_key):
         return ()
     zeilen = [dict(regel=n, aktiv="ja", grenzwert=g, stufe=s) for n, g, s in r_key]
     zeilen += [dict(regel=n, aktiv="nein") for n in REGELN if n not in {k for k, _, _ in r_key}]
-    return tuple(blech(e, zs, zeilen))
+    return tuple(blech(e, zs, zeilen, einst=dict(kant)))
 
 
 def status(befunde):

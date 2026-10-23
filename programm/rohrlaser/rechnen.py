@@ -158,6 +158,7 @@ def position_werte(p, kopf, k, tabellen):
     w["zusatzarbeiten"] = tabellen.get("zusatzarbeiten")
     w["gewinde_stamm"] = tabellen.get("gewinde")
     w["pruefregeln"] = tabellen.get("pruefregeln")
+    w["einstellungen"] = tabellen.get("einstellungen")       # Kantbarkeit der Blech-Positionen (dfm.blech_position)
     w["vorschub"] = None
     w["gas"] = None
     if ist_baugruppe(p):         # Schweißbaugruppe: Daten für ihren Status (Kennwerte, Stundensätze des Angebots)
@@ -302,7 +303,7 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
     return erg
 
 
-def zukaufteil_status(p, positionen=None, pruefregeln=None):
+def zukaufteil_status(p, positionen=None, pruefregeln=None, einst=None):
     """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht); Blechteile
     aus dem Blech-Editor zusätzlich mit der Fertigungsprüfung (dfm.blech_position, Tabelle pruefregeln)."""
     if _leer(p.get("stueck")) or p["stueck"] < 1:
@@ -313,7 +314,7 @@ def zukaufteil_status(p, positionen=None, pruefregeln=None):
     for e in eintraege:
         if zukauf.ek_fehlt(dict(bezuege=[(e.get("stand") or {}).get("bezug") or {}])):
             return "WARNUNG: EK fehlt (Zukaufteil ohne Einkaufspreis)"
-    befunde = dfm.blech_position(p, pruefregeln)
+    befunde = dfm.blech_position(p, pruefregeln, einst)
     if befunde and befunde[0].stufe == dfm.FEHLER:
         return dfm.status(befunde)
     pr = pruefungen(p, positionen=positionen)
@@ -327,7 +328,7 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None), positionen = alle
     Positionen des Angebots (Prüfung der Sätze)."""
     if ist_zukaufteil(p):
-        return zukaufteil_status(p, positionen, w.get("pruefregeln") if w else None)
+        return zukaufteil_status(p, positionen, *((w.get("pruefregeln"), w.get("einstellungen")) if w else ()))
     if ist_baugruppe(p):
         return baugruppe.status(p, w, positionen)
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
