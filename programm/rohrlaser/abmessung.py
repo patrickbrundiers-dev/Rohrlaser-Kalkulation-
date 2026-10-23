@@ -185,8 +185,10 @@ def profil_info(profil_id, werkstoff_id, k):
 
 
 def laengen_indizes(ergebnis, gruppe):
-    """Indizes in ergebnis['laengen'] (Vergleich der Lieferlängen), die zur Abmessung gehören."""
+    """Indizes in ergebnis['laengen'] (Vergleich der Lieferlängen), die zur Abmessung gehören; Kundenmaterial: keine."""
     out = []
+    if gruppe["kunde"]:         # Kundenmaterial wird nicht verglichen (der Kunde liefert die Stangen)
+        return out
     for i, vg in enumerate((ergebnis or {}).get("laengen") or []):
         if (vg["profil"], vg["werkstoff"], vg.get("oberflaeche") or "", vg["stange"]) == tuple(gruppe["gruppe"][:4]):
             out.append(i)

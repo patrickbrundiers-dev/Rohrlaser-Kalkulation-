@@ -218,7 +218,18 @@ offen.clear()
 s.material_einstellen(bedienen(lambda d: (d.oeffnen(0, 10), d.oeffnen(0, 7))))
 assert isinstance(offen[0], PreisFenster) and "Kundenmaterial" in offen[0].ansicht.toPlainText()
 assert not offen[1].k_anfrage.isEnabled()
-ok("Kundenmaterial: Preis-Aufbau ohne Materialpreis, keine Materialanfrage")
+assert abmessung.laengen_indizes(s.ergebnis, dict(gruppen[0], kunde=True)) == []
+
+
+def werkstoff_dann_anfrage(d):
+    d.werkstoffe[1].setCurrentText("S355-10219")
+    assert d.schliessen_mit("anfrage", d.gruppen[1])
+
+
+s.material_einstellen(bedienen(werkstoff_dann_anfrage))
+assert s.stand_optimierung() != "aktuell" and "neu optimieren" in fenster.statusBar().currentMessage()
+ok("Kundenmaterial: Preis-Aufbau ohne Materialpreis, keine Materialanfrage, kein 12-m-Vergleich; "
+   "Materialanfrage nach geändertem Werkstoff erst nach dem Optimieren")
 
 # 12-m-Stangen, vom Lieferanten zugeschnitten: Bilanz mit Zuschnitt, Teile auf den Werkstücken
 db.einstellung_setzen("laenge_vergleich", "ja")

@@ -3136,6 +3136,10 @@ class AngebotSeite(QWidget):
             if ok and not self.f.stumm:
                 self.material_einstellen()
             return ok
+        if aktion in ("laengen", "anfrage") and self.stand_optimierung() != "aktuell":
+            # z. B. gerade Werkstoff oder Lieferlänge geändert: Vergleich und Bedarf kämen aus dem alten Schnittplan
+            self.f.meldung("Der Schnittplan passt nicht mehr zum Angebot: bitte zuerst neu optimieren.", fehler=True)
+            return None
         if aktion == "laengen":
             return self.laengen_zeigen(wert)
         if aktion == "anfrage":
