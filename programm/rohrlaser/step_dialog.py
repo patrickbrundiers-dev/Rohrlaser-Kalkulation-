@@ -552,12 +552,13 @@ class StepPruefDialog(QDialog):
         self.ziel_wahl.blockSignals(True)
         self.ziel_wahl.clear()
         self.ziel_wahl.addItem("eigene Baugruppe", None)
+        hat_unter = d in self.bg_ziel.values()           # nur eine Ebene: Datei mit Unterbaugruppen bleibt oben
         for andere in self.dateien:
-            if andere != d and andere in self.mehrteilig:
+            if not hat_unter and andere != d and andere in self.mehrteilig and andere not in self.bg_ziel:
                 self.ziel_wahl.addItem(f"in Baugruppe „{_sn(andere)}“", andere)
         self.ziel_wahl.setCurrentIndex(max(0, self.ziel_wahl.findData(self.bg_ziel.get(d))))
         self.ziel_wahl.blockSignals(False)
-        self.ziel_wahl.setVisible(self.ziel_wahl.count() > 1)
+        self.ziel_wahl.setVisible(self.ziel_wahl.count() > 1 or hat_unter)
         self.ziel_wahl.setEnabled(satz and bool(self.baugruppe.get(d)))
         self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
@@ -570,16 +571,19 @@ class StepPruefDialog(QDialog):
 
     def _ziel_setzen(self, ziel, datei=None):
         """Datei als Unterbaugruppe in die Schweißbaugruppe der Datei ziel einhängen (None = eigene Baugruppe, P8).
-        Die Zieldatei wird dabei selbst Schweißbaugruppe."""
+        Die Zieldatei wird dabei selbst Schweißbaugruppe. Nur eine Ebene: Hat die Datei selbst Unterbaugruppen oder
+        hängt das Ziel schon in einer anderen Baugruppe, bleibt alles, wie es ist (Ergebnis False)."""
         datei = self.datei if datei is None else datei
         if ziel:
+            if ziel == datei or ziel in self.bg_ziel or datei in self.bg_ziel.values():
+                return False
             self.bg_ziel[datei] = ziel
             self.baugruppe[ziel] = True
-            self.bg_ziel.pop(ziel, None)            # nur eine Ebene
             if not self.saetze.get(ziel) and ziel in self.mehrteilig:
                 self.saetze[ziel] = 1
         else:
             self.bg_ziel.pop(datei, None)
+        return True
 
     def saetze_setzen(self, n, datei=None):
         """Anzahl Sätze einer Datei (Vorgabe: die gezeigte); 0 = Einzelpositionen. Wechselt die Spalte Stückzahl

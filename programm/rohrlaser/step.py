@@ -1238,7 +1238,10 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
     bg_dateien = {d for d in satz_teile if wert(d, "_baugruppe")}
     # P8: Dateien „in Baugruppe …“ werden Unterbaugruppen einer anderen Schweißbaugruppe dieses Imports
     ziel_von = {d: wert(d, "_in_baugruppe") for d in bg_dateien if wert(d, "_in_baugruppe") in bg_dateien}
-    ziel_von = {d: z for d, z in ziel_von.items() if z not in ziel_von and z != d}       # nur eine Ebene
+    for d, z in [(d, z) for d, z in ziel_von.items() if z in ziel_von or z == d]:     # nur eine Ebene
+        bericht.append(f"Schweißbaugruppe {satzname(d)}: nicht in {satzname(z)} eingehängt, weil {satzname(z)} selbst "
+                       "Unterbaugruppe ist; eigene Schweißbaugruppe angelegt")
+    ziel_von = {d: z for d, z in ziel_von.items() if z not in ziel_von and z != d}
     for datei, liste in satz_teile.items():
         if datei not in bg_dateien or datei in ziel_von:
             continue

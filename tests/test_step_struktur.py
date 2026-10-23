@@ -157,7 +157,9 @@ assert [p["bezeichnung"] for p in erg3["positionen"] if p.get("art") == BAUGRUPP
 mw2 = [{n: v for n, v in x.items() if not n.startswith("_") or n in ("_struktur", "_netz")} for x in m2]
 d = StepPruefDialog(None, mw2, k, "S235-10219", 1, db.zukauf_artikel_liste(), {})
 t08_datei = "T08_Gestell_Baugruppe.step"
-d._ziel_setzen("S01_Gestell_verschachtelt.step", t08_datei)
+assert d._ziel_setzen("S01_Gestell_verschachtelt.step", t08_datei)
+assert not d._ziel_setzen(t08_datei, "S01_Gestell_verschachtelt.step")     # Kette/Kreis: nur eine Ebene
+assert not d._ziel_setzen(t08_datei, "andere.step")                          # Ziel hängt selbst schon unter S01
 d.baugruppe[t08_datei] = True
 d.saetze_setzen(3, t08_datei)
 d.werte_schreiben()
@@ -165,6 +167,14 @@ assert all(x["_in_baugruppe"] == "S01_Gestell_verschachtelt.step" for x in mw2
            if x["datei"] == t08_datei and "_uebernehmen" in x)
 assert all(x["_baugruppe"] for x in mw2 if x["datei"].startswith("S01") and "_uebernehmen" in x)
 d.reject()
+# Kette A → B → C aus alten Daten: A wird nicht still verworfen, sondern eigene Baugruppe mit Hinweis
+for x in m2:
+    x["_baugruppe"] = True
+    x["_in_baugruppe"] = t08_datei if x["datei"].startswith("S01") else "S01_Gestell_verschachtelt.step"
+erg4 = step.uebernehmen(m2, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True)
+assert any("selbst Unterbaugruppe ist" in b for b in erg4["bericht"]), erg4["bericht"]
+for x in m2:
+    x.pop("_in_baugruppe", None)
 print("OK: P8 zwei STEP-Dateien als eine Schweißbaugruppe (T08 × 3 als Unterbaugruppe von S01)")
 
 # S6: Nahtkandidaten (STEP-JSON 1.14) – geschweißter Rahmen
