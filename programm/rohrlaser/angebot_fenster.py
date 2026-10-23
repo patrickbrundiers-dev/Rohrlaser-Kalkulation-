@@ -3003,10 +3003,14 @@ class AngebotSeite(QWidget):
     def werkstatt_pdf(self):
         if not self._vor_ausgabe():
             return None
-        if not self.ergebnis or not self.ergebnis["stangen"]:
+        nur_bg = not (self.ergebnis and self.ergebnis["stangen"]) and baugruppe.baugruppen(self.positionen) and \
+            not any(not kein_laserteil(p) for p in self.positionen)        # nur Baugruppen und Zukaufteile
+        if not nur_bg and (not self.ergebnis or not self.ergebnis["stangen"]):
             QMessageBox.warning(self, "Werkstattpapiere", "Der Schnittplan ist leer. Bitte zuerst optimieren.")
             return None
-        wp = ausgabe.werkstatt(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen)
+        erg = self.ergebnis if self.ergebnis else rechnen.optimieren(self.kopf, self.positionen, self.k, self.tabellen,
+                                                                     self.einst)
+        wp = ausgabe.werkstatt(self.kopf, self.positionen, erg, self.k, self.tabellen)
         aktuell = self.stand_optimierung() == "aktuell"
         return self._schreiben("Werkstattpapiere", self._ziel("Werkstattpapiere", ".pdf"),
                                lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
@@ -3056,7 +3060,7 @@ class AngebotSeite(QWidget):
                 kunde=self.db.kunde(self.kopf.get("kundennr")),
                 ersteller=teilen.mitarbeiter(self.db, bearbeiter).get("name") if bearbeiter else None)
             if art == "zip":
-                export.zip_schreiben(pfad, kopfzeile, pos_zeilen)
+                export.zip_schreiben(pfad, kopfzeile, pos_zeilen, export.baugruppen_zeilen(self.positionen, zeilen))
             elif art == "kopf":
                 export.kopf_csv(pfad, kopfzeile)
             else:
