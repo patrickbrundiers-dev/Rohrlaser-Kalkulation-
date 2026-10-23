@@ -59,7 +59,7 @@ from OCP.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Vec, gp_Ax3, gp_Trsf
 import sys as _sys
 from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))     # programm/: Normtabellen aus rohrlaser
-from rohrlaser import normprofile, rp_profile  # noqa: E402
+from rohrlaser import dreid, normprofile, rp_profile  # noqa: E402
 
 # ISO-Regelgewinde: Kernlochbohrung nach DIN 336 (Vorgabe; im Programm gelten die Stammdaten 'Gewinde')
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -1838,6 +1838,13 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
             radien.add(round(z_.Radius(), 2))
         return (zyl, round(2 * radien.pop(), 2)) if zyl is not None and len(radien) == 1 else None
 
+    def rund_2d(dm, sonst):
+        """Bohrung im Rundrohr beim 2D-Schnitt (Strahl zur Rohrmitte): Schnittlänge auf der Außenhaut, innen Ø dm
+        (dreid.bohrung_2d_rundrohr, STEP-JSON 1.11); andere Profile oder unpassende Maße: sonst."""
+        if t.profilform != "Rundrohr":
+            return sonst
+        return dreid.bohrung_2d_rundrohr(dm, t.abm_a, t.wandstaerke) or sonst
+
     def schraeg(zyl, normale):
         dz = zyl.Axis().Direction()
         c = abs(dz.X() * normale[0] + dz.Y() * normale[1])
@@ -1864,7 +1871,7 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
         form, lage, d, normale = lage_auf_rohr(kanten)
         d.update(durchgehend=True, art=art_, durchmesser=dm)
         if art_ == "Senkung":
-            schnitt = math.pi * dm
+            schnitt = rund_2d(dm, math.pi * dm)
             t.innen += schnitt
             t.innen_konturen += 1
             t.konturen += 1
@@ -1947,10 +1954,15 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                 # wahren Länge (der achsparallele Hüllquader wäre kleiner).
                 groesse = rund[1] if rund else max(form[1:])
                 schnitt = sum(_kantenlaenge(e) for e in zug)
+                sr = schraeg(rund[0], normale) if rund else None
+                if rund and sr < SCHRAEG_3D:          # 2D im Rundrohr: außen breiter als die Konstruktion
+                    neu_ = rund_2d(rund[1], schnitt)
+                    t.innen += neu_ - schnitt
+                    schnitt = neu_
                 t.innen_liste.append((groesse, schnitt))
                 d.update(durchgehend=True, schnittlaenge=round(schnitt, 2), huellmass=round(groesse, 2))
                 if rund:
-                    d.update(art="Bohrung", durchmesser=rund[1], schraeg=schraeg(rund[0], normale))
+                    d.update(art="Bohrung", durchmesser=rund[1], schraeg=sr)
                     if d["schraeg"] >= SCHRAEG_3D:
                         d["neigung_l"], d["neigung_q"] = neigung(rund[0], normale)
                     ax = rund[0].Axis()

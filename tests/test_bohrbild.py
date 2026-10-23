@@ -15,7 +15,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from rohrlaser import bohrbild, rechnen, step  # noqa: E402
+from rohrlaser import bohrbild, dreid, rechnen, step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 ORDNER = HIER / "step_konturen"
@@ -111,7 +111,10 @@ if analysiere_datei:
             (t,) = analysiere_datei(ORDNER / f"{name}.step")
             assert t.senkungen == {(5.5, 10.4): 1} and t.fliessloecher == {5.4: 1} and not t.bohrungen, \
                 (name, t.senkungen, t.fliessloecher, t.bohrungen)
-            assert nah(t.innen, PI * 5.5, 0.05), (name, t.innen)
+            # Rundrohr 2D: Strahl zur Rohrmitte, außen breiter als Ø5,5 (dreid.bohrung_2d_rundrohr)
+            soll = dreid.bohrung_2d_rundrohr(5.5, 48.3, 4) if name.startswith("K05") else PI * 5.5
+            assert soll > PI * 5.5 * 1.05 or not name.startswith("K05")
+            assert nah(t.innen, soll, 0.05), (name, t.innen)
 
     @fall("Import: Bohrbild offen, Status HINWEIS, Dialog bestätigt (Senk-Ø gravieren, Flowdrill Loch Ø0,5)")
     def _():

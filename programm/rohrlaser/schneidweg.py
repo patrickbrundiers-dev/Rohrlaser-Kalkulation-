@@ -451,6 +451,10 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             continue
         masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
+        if form == "Rundrohr" and e.get("art") in (BOHRUNG, SENKUNG) and not _z(e.get("gemessen")) \
+                and not (mit_3d and e.get("d3")):
+            # 2D: Strahl zur Rohrmitte, außen breiter als die Konstruktion (Messung macht das schon selbst)
+            lg = dreid.bohrung_2d_rundrohr(_z(e.get("d")), profil.get("a"), profil.get("wand")) or lg
         if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
             try:
                 nl, nq, ges, h_ = dreid.neigung_begrenzen(e.get("neigung_l"), e.get("neigung_q"), maschine)
@@ -555,7 +559,9 @@ def aus_position(e, p, profil):
             k = dict(anzahl=n, gemessen=round(lg, 2), text="aus STEP, Lage unbekannt")
             if hk < OHNE_HUELLE:
                 k["huelle_gemessen"] = hk
-            if hk > 0 and abs(lg - math.pi * hk) <= max(0.15, 0.01 * lg):
+            rund = dreid.bohrung_2d_rundrohr(hk, profil.get("a"), profil.get("wand")) \
+                if (profil or {}).get("form") == "Rundrohr" and hk > 0 else None
+            if hk > 0 and any(abs(lg - v) <= max(0.15, 0.01 * lg) for v in (math.pi * hk, rund) if v):
                 k.update(art=BOHRUNG, d=hk)
             else:
                 k.update(art=SONSTIGE, laenge=round(lg, 2), huelle=hk if hk < OHNE_HUELLE else None)

@@ -154,6 +154,27 @@ def bohrung_huelle(d, gesamt):
     return d / math.cos(math.radians(abs(gesamt)))
 
 
+def bohrung_2d_rundrohr(d, aussen, wand, schritte=720):
+    """Schnittlänge einer Bohrung Ø d in einem Rundrohr (Außen-Ø aussen, Wand) beim 2D-Schnitt (Patrick 23.10.2026):
+    der Strahl steht immer senkrecht zur Oberfläche, also zur Rohrmitte. Innen hat das Loch den Ø der Konstruktion,
+    außen ist es in Umfangsrichtung um Außen-/Innenradius breiter (elliptisch). Gerechnet wird die Kontur auf der
+    Außenhaut: jeder Punkt der Innenkante radial nach außen geschoben, numerisch über den Umfang integriert.
+    None, wenn die Maße nicht passen (Bohrung so breit wie der Innen-Ø oder breiter)."""
+    r, R = _z(d) / 2, _z(aussen) / 2
+    ri = R - _z(wand)
+    if r <= 0 or ri <= 0 or r >= ri:
+        return None
+    lg = 0.0
+    dt = 2 * math.pi / schritte
+    for i in range(schritte):
+        t = (i + 0.5) * dt
+        x = r * math.cos(t)
+        dphi = -r * math.sin(t) / math.sqrt(ri * ri - x * x)       # Umfangswinkel φ = asin(x / ri)
+        dz = r * math.cos(t)
+        lg += math.hypot(R * dphi, dz) * dt
+    return lg
+
+
 def austritt(wand, laengs, quer):
     """Versatz des Austritts innen gegen den Eintritt außen [mm]: (längs Richtung Ende B, quer Richtung 90°)."""
     return _z(wand) * math.tan(math.radians(laengs)), _z(wand) * math.tan(math.radians(quer))
