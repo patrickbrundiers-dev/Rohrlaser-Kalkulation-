@@ -127,5 +127,12 @@ texte = [el for el in gelesen if el[0] == "TEXT"]
 assert len(texte) == 1 and texte[0][4] == "L-01 Lasche Größe 1" and texte[0][1] == "BESCHRIFTUNG"
 assert abs(dxf.schnittlaenge(gelesen)["AUSSENKONTUR"] - zs["aussen"]) < 1e-3
 assert math.isclose(dxf.schnittlaenge(gelesen)["INNENKONTUR"], innen, rel_tol=1e-6)
+# Kontur mit Fehler (Anzahl 0): keine Datei
+from rohrlaser import blech_dialog  # noqa: E402
+blech_dialog.QMessageBox.warning = staticmethod(lambda *a: None)
+d2 = BlechDialog(None, db, dict(e, werkstoff=werkstoff, konturen=[dict(art=sw.BOHRUNG, anzahl=0, d=8, x=20, y=20)]))
+d2.stumm = True
+assert d2.dxf_speichern(str(tmp / "falsch.dxf")) is None and not (tmp / "falsch.dxf").exists()
 db.schliessen()
-ok("D4 Blech-Editor: DXF speichern schreibt eine lesbare R12-Datei mit Beschriftung und Umlauten")
+ok("D4 Blech-Editor: DXF speichern schreibt eine lesbare R12-Datei mit Beschriftung und Umlauten; "
+   "Konturfehler sperren die Datei")

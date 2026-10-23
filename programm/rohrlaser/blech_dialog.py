@@ -561,8 +561,10 @@ class BlechDialog(QDialog):
     def dxf_speichern(self, pfad=None):
         """Abwicklung als DXF speichern (pfad None: Dateidialog). Rückgabe: Hinweise oder None (abgebrochen)."""
         erg = self.rechnen()
-        if not erg.get("zuschnitt"):
-            QMessageBox.warning(self, "DXF speichern", "Erst die Maße eingeben: " + "; ".join(erg["fehler"]))
+        # Fehler der Konturen sperren die Datei (sonst andere Geometrie als im Editor); fehlende Preisdaten nicht
+        sperre = [f for f in erg["fehler"] if f.startswith("Kontur ")] if erg.get("zuschnitt") else erg["fehler"]
+        if sperre:
+            QMessageBox.warning(self, "DXF speichern", "Erst die Eingaben korrigieren: " + "; ".join(sperre))
             return None
         e = self.eingaben()
         kopf = self.kopf_werte()
