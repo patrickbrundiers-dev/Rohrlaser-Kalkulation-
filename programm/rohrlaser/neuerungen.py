@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.2", "<b>Schweißbaugruppen, Teil 2 (Editor)</b>: <i>Neue Position → Schweißbaugruppe</i> öffnet den Editor "
+               "mit Struktur und Teilen (Unterbaugruppen mit Menge, markierte Positionen vorgewählt), Nahtgruppen, "
+               "Arbeitsgängen und Vorrichtungen (Einmalkosten je Auftrag, anteilig oder wiederverwendbar), Stammdaten "
+               "und Übersicht; gerechnet wird bei jeder Eingabe. Doppelklick auf die Baugruppe oder ihren Status "
+               "öffnet ihn wieder. Satz und Stückzahlen der Einzelteile folgen der Baugruppe ([[schweissbaugruppe]]).",
+     "Schweißbaugruppen: Editor mit Struktur, Nahtgruppen, Arbeitsgängen ([[schweissbaugruppe]])."],
     ["0.9.1", "<b>Schweißbaugruppen, Teil 1 (Rechenkern)</b>: neue Positionsart <i>Schweißbaugruppe</i> mit "
                "Unterbaugruppen, Nahtgruppen, Arbeitsgängen und Einmalkosten (Vorrichtung je Auftrag, anteilig oder "
                "wiederverwendbar). Ihre Einzelteile bleiben normale Positionen und rechnen unverändert; die "

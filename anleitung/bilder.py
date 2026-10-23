@@ -439,6 +439,39 @@ def main(ziel):
         return QDialog.Rejected
     s.schneidweg_berechnen(0, dialog=schneidweg_ausfuellen)
 
+    # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
+    from rohrlaser import baugruppe
+    from rohrlaser.baugruppe_dialog import BaugruppeDialog
+    bg_tab = dict(s.tabellen, **baugruppe.richtwerte())
+    d = BaugruppeDialog(s, dict(pos=900, stueck=4), s.positionen, bg_tab, s._saetze(),
+                        {q["id"] for q in s.positionen[:3]})
+    d.bezeichnung.setText("Rahmen R1")
+    d.artikel.setText("R1-4711")
+    konsole = d.knoten_neu("Konsole", 2)
+    d.teil_setzen(s.positionen[2]["id"], True, konsole, 1)
+    d.teil_setzen(s.positionen[0]["id"], True, "", 2)
+    d.naht_neu(dict(mass=3, laenge=120, anzahl=8, heftpunkte=2, lage="PA"))
+    d.naht_neu(dict(knoten=konsole, mass=5, laenge=250, anzahl=4, beidseitig=True, lage="PF"))
+    d.arbeitsgang_neu(dict(name="Schleifen", zeit_min=6))
+    d.arbeitsgang_neu(dict(name="Vorrichtung", satz_id=None, einmal_eur=400, umlage=baugruppe.UMLAGE_ANTEILIG,
+                           anteil=25))
+    d.resize(1400, 560)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("baugruppe_struktur", d, [(d.bezeichnung, 1), (d.anzahl, 2), (d.knoten_tab, 3), (d.teile_tab, 4),
+                                        (d.summe, 5)])
+    d.reiter.setCurrentIndex(1)
+    QApplication.processEvents()
+    foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, 2), 1), (d.naht_tab.cellWidget(0, 4), 2),
+                                      (d.naht_tab.cellWidget(1, 7), 3), (d.naht_tab.cellWidget(0, 9), 4),
+                                      (d.naht_tab.cellWidget(0, 12), 5), (d.naht_tab.cellWidget(1, 15), 6)])
+    d.reiter.setCurrentIndex(2)
+    QApplication.processEvents()
+    foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, 2), 1), (d.ag_tab.cellWidget(1, 7), 2),
+                                             (d.ag_tab.cellWidget(1, 8), 3), (d.ag_tab.cellWidget(1, 10), 4),
+                                             (knopf(d, "Vorrichtung hinzufügen"), 5)])
+    d.reject()
+
     # 7a3) Materialanfrage (nur Foto, Schließen: nichts geöffnet)
 
     def anfrage_foto(d):

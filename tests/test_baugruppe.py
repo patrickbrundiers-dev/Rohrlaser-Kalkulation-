@@ -9,6 +9,9 @@
 - B8 Staffeln: Einmalkosten verteilen sich auf die Menge der Stufe
 - B9 Angebot: Baugruppe als Satz mit Zeile 'Schweißen und Fertigung'; Kopie behält die Baugruppe
 - B10 Richtwerte: hergeleitet (Nahtquerschnitt × Dichte ÷ Abschmelzleistung), Status Richtwert = HINWEIS
+- B11 Editor (PR 2): Neue Position 'Schweißbaugruppe' mit markierten Teilen, Unterbaugruppe, Nahtgruppe, Vorrichtung
+- B12 Editor: Bearbeiten über ein Einzelteil, gemerkte Kennwerte, Teil herausnehmen, Anzahl folgt in der Liste
+- B13 Editor: Zyklus abgewiesen, ungültige Zahl, Status führt in den Editor
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -45,7 +48,7 @@ spalten = {r[1] for r in db.con.execute("PRAGMA table_info(positionen)")}
 assert {"baugruppe", "bg_knoten", "je_knoten"} <= spalten
 for t in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
     assert db.anzahl(t) == 0, t                      # leer ausgeliefert (Freigabe 4a)
-assert BAUGRUPPE not in db.kontext().auswahl("positionsart")   # anlegen erst mit dem Baugruppen-Editor (PR 2)
+assert BAUGRUPPE in db.kontext().auswahl("positionsart")
 assert POSITIONEN.feld("je_knoten").art == "ganz"
 ok("B1 Schema 46: Positionsart Schweißbaugruppe, Spalten, Schweiß-Stammdaten leer")
 
@@ -280,5 +283,115 @@ assert rechnen.status(p_rw, w2, kopf, k2, None, [p_rw] + pos[1:]) == "HINWEIS: S
 gemerkt = dict(rahmen["naehte"][0], stand=baugruppe.naht_stand(rahmen["naehte"][0], tab))
 nah(baugruppe.naht_rechnen(gemerkt, db2.tabellen(), saetze)["zeit_min"], 5.2, "Stand der Nahtgruppe")
 ok(f"B10 Richtwerte hergeleitet (MAG Kehlnaht a3 {mag3['min_m']} min/m), prüfbar, Status Richtwert = HINWEIS")
+
+# ------------------------------------------------------------------ B11 Editor: neue Baugruppe
+from PySide6.QtCore import QItemSelectionModel  # noqa: E402
+from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
+from rohrlaser.angebot_fenster import status_ziel  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+from rohrlaser.neue_position import SCHWEISS  # noqa: E402
+
+app = QApplication.instance() or QApplication([])
+a3 = db.angebot_neu(dict(kunde="Test", maschine="T11"))
+r1 = db.position_neu(a3, dict(pos=10, artikel="Holm", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=900,
+                              stueck=1, schneidweg=320, einstiche=2))
+r2 = db.position_neu(a3, dict(pos=20, artikel="Konsole", profil_id="QR 40x40x3", werkstoff_id="S235-10219",
+                              laenge=200, stueck=1, schneidweg=320, einstiche=2))
+r3 = db.position_neu(a3, dict(pos=30, art=ZUKAUFTEIL, artikel="Lasche", stueck=1, zukauf=json.dumps([eintrag(lasche, 1)])))
+f = Hauptfenster(db, stumm=True)
+seite = f.angebot_oeffnen(a3)
+for r in (0, 1):
+    seite.pos_ansicht.selectionModel().select(seite.pos_modell.index(r, 0),
+                                              QItemSelectionModel.Select | QItemSelectionModel.Rows)
+gesehen = {}
+
+
+def anlegen(d):
+    gesehen["vorwahl"] = {t["_id"] for t in d.teile if t["drin"]}
+    kid = d.knoten_neu("Konsole", 2)
+    d.teil_setzen(r1, True, "", 4)
+    d.teil_setzen(r2, True, kid, 1)
+    d.bezeichnung.setText("Gestell G1")
+    d.anzahl.setValue(3)
+    # 2 × 100 mm Kehlnaht a3 je Konsole: 0,2 m × 1,5 min/m ÷ 0,40 = 0,75 min, × 2 Konsolen = 1,5 min = 1,875 €
+    d.naht_neu(dict(knoten=kid, verfahren="MAG", nahtart="Kehlnaht", mass=3, laenge=100, anzahl=2))
+    d.arbeitsgang_neu(dict(name="Vorrichtung", einmal_eur=300))           # je Auftrag: 300 € ÷ 3 = 100 €
+    nah(d.erg["schweiss_min"], 1.5, "Schweißzeit im Editor")
+    nah(d.erg["eigen"], 1.875 + 100, "eigen im Editor")
+    gesehen["status"] = d.status
+    d._ok()
+    return d.result()
+
+
+assert seite.position_neu(typ=SCHWEISS, dialog=anlegen) == SCHWEISS
+assert gesehen["vorwahl"] == {r1, r2} and gesehen["status"] == "OK", gesehen
+pos3 = {q["id"]: q for q in db.positionen(a3)}
+bgp = next(q for q in pos3.values() if q.get("art") == BAUGRUPPE)
+bg3 = baugruppe.lesen(bgp["baugruppe"])
+assert bgp["stueck"] == 3 and bgp["satz"] == "Gestell G1" and bgp["bezeichnung"] == "Gestell G1"
+assert (pos3[r1]["je_satz"], pos3[r1]["stueck"], pos3[r2]["je_satz"], pos3[r2]["stueck"]) == (4, 12, 2, 6)
+assert pos3[r1]["satz"] == pos3[r2]["satz"] == "Gestell G1" and not pos3[r3].get("bg_knoten")
+assert bg3["naehte"][0]["stand"]["min_m"] == 1.5 and len(bg3["knoten"]) == 1
+zeile = seite.positionen.index(next(q for q in seite.positionen if q["id"] == bgp["id"]))
+assert seite.pos_modell.status[zeile] == "OK", seite.pos_modell.status[zeile]
+ok("B11 Editor: Gestell G1 mit Unterbaugruppe, Teile vorgewählt, Stückzahlen 12/6, Nahtgruppe mit Kennwert-Stand")
+
+# ------------------------------------------------------------------ B12 Editor: bearbeiten
+kw = db.zeilen("schweiss_kennwerte")
+db.stammdaten_ersetzen({"schweiss_kennwerte": [dict(z, min_m=3.0) if z["mass_bis"] == 4 else z for z in kw]}, {}, "T")
+seite.neu_laden()
+
+
+def bearbeiten(d):
+    nah(d.erg["schweiss_min"], 1.5, "gemerkter Kennwert")          # Stammdaten jetzt 3,0 min/m
+    d.anzahl.setValue(5)
+    d.teil_setzen(r2, False)
+    d._ok()
+    return d.result()
+
+
+assert seite.baugruppe_bearbeiten([next(i for i, q in enumerate(seite.positionen) if q["id"] == r2)], dialog=bearbeiten)
+pos3 = {q["id"]: q for q in db.positionen(a3)}
+assert pos3[r1]["stueck"] == 20 and pos3[bgp["id"]]["stueck"] == 5
+assert not pos3[r2].get("bg_knoten") and not pos3[r2].get("satz") and not pos3[r2].get("je_satz")
+assert baugruppe.lesen(pos3[bgp["id"]]["baugruppe"])["naehte"][0]["stand"]["min_m"] == 1.5
+db.position_aendern(bgp["id"], "stueck", 2)
+seite.neu_laden()
+assert next(q for q in seite.positionen if q["id"] == r1)["stueck"] == 8
+
+
+def neu_rechnen(d):
+    d.kennwerte_neu()
+    nah(d.erg["schweiss_min"], 3.0, "Kennwerte neu aus Stammdaten")
+    d.reject()
+    return d.result()
+
+
+assert not seite.baugruppe_bearbeiten([next(i for i, q in enumerate(seite.positionen) if q["id"] == bgp["id"])],
+                                      dialog=neu_rechnen)
+db.stammdaten_ersetzen({"schweiss_kennwerte": kw}, {}, "T")
+ok("B12 Editor über Einzelteil geöffnet, gemerkte Kennwerte, Teil herausgenommen, Anzahl 2 → Holm 8 Stück")
+
+# ------------------------------------------------------------------ B13 Editor: Prüfungen, Status
+from rohrlaser.baugruppe_dialog import BaugruppeDialog  # noqa: E402
+d = BaugruppeDialog(None, next(q for q in seite.positionen if q["id"] == bgp["id"]), seite.positionen, seite.tabellen,
+                    saetze)
+ka = d.knoten_neu("A")
+kb = d.knoten_neu("B", parent=ka)
+next(k for k in d.bg["knoten"] if k["id"] == ka)["parent"] = kb
+d._struktur_geaendert()
+assert next(k for k in d.bg["knoten"] if k["id"] == ka).get("parent") is None and "sich selbst" in d.fehler.text()
+d.naht_tab.cellWidget(0, 5).setText("zwölf")
+assert "Zahlen" in d.pruefen()
+d.naht_tab.cellWidget(0, 5).setText("100")
+assert d.pruefen() is None
+d.reject()
+for text in ("WARNUNG: Nahtgruppe 1: kein Kennwert für MAG Kehlnaht 3 mm", "WARNUNG: Baugruppe ohne Einzelteile",
+             "WARNUNG: Pos. 10 hat zusätzlich Zusatzarbeit Schweißen (doppelt?)",
+             "HINWEIS: Schweißzeit aus ungeprüften Richtwerten", "WARNUNG: Stundensatz fehlt (Schleifen)"):
+    assert status_ziel(text)[0] == "baugruppe_bearbeiten", text
+assert QDialog.Rejected == d.result()
+f.close()
+ok("B13 Editor: Zyklus abgewiesen, ungültige Zahl gemeldet, Status der Baugruppe öffnet den Editor")
 
 print("\nAlle Baugruppen-Tests bestanden.")

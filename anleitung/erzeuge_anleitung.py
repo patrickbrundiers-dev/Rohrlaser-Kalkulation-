@@ -803,6 +803,8 @@ def kapitel_angebot(i):
                 "([[schneidweg_rechner]])"],
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
+               ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
+                "vorgewählt ([[schweissbaugruppe]])"],
                ["<b>Leere Zeile</b>", "eine leere Zeile, alle Werte von Hand"]], [38, 132], kurz=True)
     i.genauer()
     i.tabelle(["Typ", "Was passiert"], [
@@ -822,7 +824,9 @@ def kapitel_angebot(i):
                 "der Liste."],
                ["<b>Blech / Kantteil</b>", "Zuschnitt oder Kantteil beschreiben; der Richtpreis wird Einkaufspreis "
                 "eines neuen Zukaufartikels (Kategorie Blechteile)."],
-               ["<b>Zukaufteil</b>", "Dieselbe Schnellanlage ohne vorgewählte Kategorie."]],
+               ["<b>Zukaufteil</b>", "Dieselbe Schnellanlage ohne vorgewählte Kategorie."],
+               ["<b>Schweißbaugruppe</b>", "Editor mit Struktur, Nahtgruppen und Arbeitsgängen; die Baugruppe "
+                "kommt als eigene Position in die Liste, ihre Einzelteile bleiben Positionen ([[schweissbaugruppe]])."]],
               [38, 132])
     i.abschnitt("Angebotskopf", marke="angebotskopf")
     i.schritte([
@@ -2538,6 +2542,79 @@ def kapitel_zukauf_angebot(i):
            "Staffelzeile <i>ab Stückzahl der Position</i> in den Artikel, und die Position bekommt den neuen "
            "Preisstand. Der Richtpreis ersetzt kein Angebot des Blechlieferanten; liegt eines vor, den echten EK "
            "mit <b>EK eintragen …</b> ([[zukauf_positionen]]) oder im Reiter Zukaufartikel eintragen.")
+
+
+def kapitel_baugruppen(i):
+    i.kapitel("Schweißbaugruppen", marke="schweissbaugruppe")
+    i.text("Eine <b>Schweißbaugruppe</b> fasst Einzelteile des Angebots zusammen und rechnet dazu, was am Ganzen "
+           "anfällt: Schweißen, Vorrichten, Schleifen, Vorrichtungen und Fremdleistungen. Anlegen: Einzelteile "
+           "markieren → <b>Neue Position</b> → <b>Schweißbaugruppe</b>. Bearbeiten: Doppelklick auf die Zeile der "
+           "Baugruppe oder auf ihren Status.", kurz=True)
+    i.bild("baugruppe_struktur", "Editor Schweißbaugruppe, Reiter Struktur und Teile", hoehe=70 * mm, legende=[
+        (1, "<b>Bezeichnung</b> und <b>Artikelnummer</b> der Baugruppe; die Bezeichnung ist der Satzname im "
+            "Angebot."),
+        (2, "<b>Anzahl Baugruppen</b>: Stückzahl der Baugruppe; alle Einzelteile folgen."),
+        (3, "<b>Unterbaugruppen</b> mit <b>Menge</b> je übergeordneter Baugruppe (<b>Unterbaugruppe hinzufügen</b>,"
+            " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
+        (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "
+            "das Stück je Baugruppe."),
+        (5, "Kosten je Baugruppe, Zeit und <b>Status</b>, bei jeder Eingabe neu gerechnet.")])
+    i.text("Die Einzelteile bleiben normale Positionen: sie werden optimiert und kalkuliert wie bisher. Die Baugruppe "
+           "rechnet nur ihre eigenen Leistungen dazu, nichts doppelt.", kurz=True)
+    i.genauer()
+    i.text("Im Angebot verhält sich die Baugruppe wie ein <b>Satz</b>: Satz = Bezeichnung der Baugruppe, Stück je "
+           "Satz der Teile = Stück je Unterbaugruppe × Menge der Unterbaugruppen, Stückzahl = Stück je Satz × Anzahl "
+           "Baugruppen. Das Programm hält diese Werte selbst aktuell: Ändert man die Stückzahl der Baugruppe in der "
+           "Positionsliste, ziehen die Teile nach (Meldung unten). Ein Teil kann nur zu einer Baugruppe gehören; "
+           "Teile anderer Baugruppen fehlen in der Liste des Editors. Nimmt man ein Teil heraus (Haken weg), verliert "
+           "es Satz und Stück je Satz der Baugruppe. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
+           "Editor weist das sofort ab. <b>Unterbaugruppe entfernen</b> hängt ihre Teile, Nähte und Arbeitsgänge "
+           "eine Ebene höher.")
+    i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
+           "Position</i> an die Zeile der Baugruppe ([[zukauf_angebot]]); eigene Zukaufteil-Positionen können auch "
+           "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
+    i.abschnitt("Nahtgruppen")
+    i.text("Je Zeile eine Gruppe gleicher Nähte. Die Schweißzeit kommt aus den Kennwerten unter Einstellungen "
+           "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert, steht der Grund rot in der Spalte "
+           "<i>Hinweis</i> und die Baugruppe zeigt eine WARNUNG.", kurz=True)
+    i.bild("baugruppe_naehte", "Reiter Nahtgruppen (Kennwerte hier aus den Richtwerten)", hoehe=60 * mm, legende=[
+        (1, "<b>Verfahren</b> und <b>Nahtart</b> (Kehlnaht, Stumpfnaht, Ecknaht)."),
+        (2, "<b>a-Maß / Dicke</b>: Kehlnaht a-Maß, Stumpf- und Ecknaht Blechdicke; dazu Länge je Naht und Anzahl."),
+        (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
+        (4, "<b>Lage</b> (PA … PG), Zugänglichkeit und Qualität: Faktoren auf die Lichtbogenzeit."),
+        (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
+        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Richtwert, "
+            "Datum der gemerkten Kennwerte oder was fehlt.")])
+    i.genauer()
+    i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
+           "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
+           "Verfahren, Nahtart, Nahtgröße, Lage, Zugänglichkeit oder Qualität, gelten für diese Zeile die aktuellen "
+           "Stammdaten; <b>Kennwerte neu aus Stammdaten</b> setzt alle Zeilen auf die aktuellen Werte. Rechnet eine "
+           "Zeile mit Richtwerten, zeigt die Baugruppe den HINWEIS <i>Schweißzeit aus ungeprüften Richtwerten</i>. "
+           "<b>Nahtgruppe hinzufügen</b> legt eine Zeile mit Verfahren und Nahtart der letzten an; <b>Markierte "
+           "kopieren</b> und <b>Markierte entfernen</b> arbeiten auf den markierten Zeilen.")
+    i.abschnitt("Arbeitsgänge und Vorrichtungen")
+    i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
+           "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)
+    i.bild("baugruppe_arbeitsgaenge", "Reiter Arbeitsgänge und Vorrichtungen", hoehe=60 * mm, legende=[
+        (1, "<b>Stundensatz</b> aus den Stundensätzen des Angebots ([[stundensaetze]])."),
+        (2, "<b>Einmalbetrag</b> (Vorrichtung, Lehre, Programm) und Rüstzeit: einmal je Auftrag bzw. Staffelstufe."),
+        (3, "<b>Umlage</b>: <i>je Auftrag</i> ganz, <i>anteilig</i> mit dem Anteil in %, <i>wiederverwendbar</i> "
+            "gar nicht (Vorrichtung schon vorhanden)."),
+        (4, "<b>Fremd</b>: Fremdleistung mit Zuschlag Fremdleistung statt Fertigung."),
+        (5, "<b>Arbeitsgang hinzufügen</b> bzw. <b>Vorrichtung hinzufügen</b>.")])
+    i.genauer()
+    i.text("Laufende Kosten je Stück der Unterbaugruppe: Zeit je Einheit × Menge × Stundensatz + Kosten je Einheit "
+           "× Menge. Einmalkosten werden durch die Anzahl Baugruppen geteilt, in den Staffeln durch die Menge der "
+           "Stufe: kleine Mengen tragen mehr davon. Eine wiederverwendbare Vorrichtung mit Betrag zeigt den HINWEIS "
+           "<i>wiederverwendbare Vorrichtung nicht berechnet</i>, damit das bewusst bleibt. Der Reiter "
+           "<i>Stammdaten</i> nimmt Zeichnungsnummer, Revisionsstand, Werkstoff, Oberfläche und Bemerkungen auf; "
+           "Zeichnung und Revision stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet alle Nahtgruppen und "
+           "Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+    i.text("In der Kalkulation stehen die Kosten als <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> (mit "
+           "Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung); danach "
+           "Gewinn und Skonto wie bei jeder Position. Der Status der Baugruppe führt per Doppelklick in den Editor, "
+           "auch der Status eines Einzelteils mit einem Fehler der Zuordnung.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
@@ -4482,6 +4559,9 @@ STECKBRIEFE = {
                "Im Angebot Karte <b>Fracht</b>; Reiter <i>Frachtkosten</i> → Frachtrechner"),
     "zukauf_im_angebot": ("Eingekaufte Teile als eigene Position oder an einer Position mitkalkulieren.",
                           "Im Angebot <b>Zukaufteile …</b> bzw. <b>Weitere Aktionen</b>"),
+    "schweissbaugruppe": ("Einzelteile zu einer Schweißbaugruppe zusammenfassen und Schweißen, Arbeitsgänge und "
+                          "Vorrichtungen dazurechnen.",
+                          "<b>Neue Position</b> → <b>Schweißbaugruppe</b>; Doppelklick auf die Baugruppe"),
     "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Materialanfrage.",
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
@@ -4518,7 +4598,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_ausgabe, kapitel_nachkalkulation]),
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_nachkalkulation]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,
