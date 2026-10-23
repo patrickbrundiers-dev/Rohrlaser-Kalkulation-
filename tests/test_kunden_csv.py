@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 from rohrlaser import kunden_csv  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import STIL, Hauptfenster  # noqa: E402
-from rohrlaser.kunden_csv_dialog import KundenImportDialog, csv_exportieren, csv_importieren  # noqa: E402
+from rohrlaser.kunden_csv_dialog import KundenImportDialog, csv_importieren  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
 app.setStyleSheet(STIL)

@@ -16,7 +16,6 @@ S03_Rahmen_geschweisst.step (Nahtkandidaten):
 import sys
 from pathlib import Path
 
-from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder
 from OCP.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec  # noqa: F401
 from OCP.IFSelect import IFSelect_RetDone

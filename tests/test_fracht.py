@@ -5,7 +5,6 @@ Alle Tarifwerte hier sind erfundene Testwerte.
 Aufruf: python tests/test_fracht.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path

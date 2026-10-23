@@ -12,7 +12,6 @@ from . import hilfe, tastatur, zukauf_csv
 from .stammdaten import zahl_als_text
 from .zukauf_dialog import datum_text
 
-from .stil import TEXT_GRAU as GRAU  # noqa: E402
 FARBE = {zukauf_csv.NEU: "#E2F0D9", zukauf_csv.AENDERN: "#FFF2CC", zukauf_csv.FEHLER: "#F8D7DA"}
 
 

@@ -7,13 +7,12 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QDate, QEvent, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QSize, QEvent, QEventLoop, QModelIndex, QPointF, QProcess, QRectF, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter, QPen, QPolygonF, QShortcut
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFileDialog, QFrame,
-    QFormLayout, QInputDialog, QMenu, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyledItemDelegate, QTableView,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFrame,
+    QFormLayout, QInputDialog, QMenu, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSplitter, QTableView,
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
@@ -1351,7 +1350,8 @@ class AngebotSeite(QWidget):
                            ("Positionen löschen", self.positionen_loeschen)):
             self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
         self.pos_ansicht.customContextMenuRequested.connect(
-            lambda punkt: self.fremd() or self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
+            lambda punkt: self.fremd() or self._menue_zeile(punkt) or
+            self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
         self.bg_zu, self.bg_zeilen = set(), {}
         self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
@@ -2199,6 +2199,12 @@ class AngebotSeite(QWidget):
         """Datenbank für Baugruppen-Vorlagen im Editor; im Lesemodus keine (Speichern schreibt)."""
         return None if self.db.nur_lesen else self.db
 
+    def _menue_zeile(self, punkt):
+        """Rechtsklick auf eine nicht markierte Zeile: diese Zeile markieren, damit das Menü für sie gilt."""
+        i = self.pos_ansicht.indexAt(punkt)
+        if i.isValid() and i.row() not in {x.row() for x in self.pos_ansicht.selectedIndexes()}:
+            self.pos_ansicht.setCurrentIndex(i)
+
     def baugruppe_kopieren(self, zeilen=None, ziel=None):
         """Schweißbaugruppe der Zeile (oder des Einzelteils) mit allen Einzelteilen in ein anderes Angebot kopieren
         (P7): neue Kennung, Zuordnung der Teile mitgenommen, Pos.-Nummern hinter den vorhandenen, 3D-Modelle mit.
@@ -2871,7 +2877,7 @@ class AngebotSeite(QWidget):
             text = "kompakte Übersicht, alle Spalten ohne Häkchen „Kompakt“"
         else:
             n = leere_ausblenden(self.kalk_ansicht, self.kalk, KALK_IMMER)
-            text = f"Beträge auf 2 Stellen (genauer Wert im Tooltip)" + (f" · {n} Spalten ohne Werte ausgeblendet" if n else "")
+            text = "Beträge auf 2 Stellen (genauer Wert im Tooltip)" + (f" · {n} Spalten ohne Werte ausgeblendet" if n else "")
         self.kalk_info.setText(f"{len(self.kalk.zeilen)} Positionen · {text}")
 
     def _kompakt_umschalten(self, an, merken=True):
