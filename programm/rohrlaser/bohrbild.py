@@ -53,7 +53,11 @@ def _paare(text, getrennt="/"):
     return out
 
 
-def _gewinde(d, tabelle, tol=0.05):
+TOL_KERNLOCH = 0.05     # mm: Bohrung gilt als Kernloch eines Gewindes (Einstellung step_tol_kernloch)
+
+
+def _gewinde(d, tabelle, tol=None):
+    tol = TOL_KERNLOCH if tol is None else tol
     return next((g for g, kern in tabelle if abs(d - kern) <= tol), None)
 
 

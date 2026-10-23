@@ -3243,9 +3243,23 @@ def _verbund_pruefen(teile, koerper):
                               "und Kalkulation prüfen")
 
 
-def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
+# Einstellungen des Programms für die Messung (STEP-Import.exe --flach-laenge/--gekantet-anteil), Vorgaben wie oben
+EINSTELLBAR = {"flach_laenge": "FLACHSTAHL_LAENGE", "gekantet_anteil": "GEKANTET_ANTEIL"}
+
+
+def einstellen(werte):
+    """Grenzwerte der Erkennung aus den Einstellungen setzen ({Name aus EINSTELLBAR: Wert}, None = Vorgabe)."""
+    vorgabe = {"flach_laenge": 3.0, "gekantet_anteil": 0.85}
+    for name, glob in EINSTELLBAR.items():
+        v = (werte or {}).get(name)
+        globals()[glob] = float(v) if v is not None else vorgabe[name]
+
+
+def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None, melden=None):
     """Alle Körper einer STEP-Datei messen. Je Körper ein Teil, auch für nicht messbare (Flächenmodell offen,
-    Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist."""
+    Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist.
+    auslassen = {Körpernummer: Grund}: diese Körper nicht messen (z. B. Zeitlimit überschritten), nur Importdaten
+    und Rohnetz. melden(i, n): vor jedem Körper aufgerufen (i = 0: Datei gelesen), für Fortschritt und Zeitlimit."""
     from pathlib import Path
     name = Path(pfad).stem
     koerper, info = lies_step_info(pfad)
@@ -3254,8 +3268,16 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS):
         t.hinweise.append("Kein Körper und keine Fläche in der Datei")
         return [t]
     out = []
+    auslassen = auslassen or {}
+    if melden:
+        melden(0, len(koerper))
     for i, (art, k) in enumerate(koerper, start=1):
-        if art == "Flächenmodell offen":
+        if melden:
+            melden(i, len(koerper))
+        if i in auslassen:
+            t = Teil(datei=name, koerper=i)
+            t.hinweise.append(f"nicht gemessen: {auslassen[i]}")
+        elif art == "Flächenmodell offen":
             t = Teil(datei=name, koerper=i)
             t.hinweise.append("Flächenmodell nicht geschlossen, nicht messbar")
         else:
