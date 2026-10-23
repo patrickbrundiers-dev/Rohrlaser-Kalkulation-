@@ -4374,7 +4374,9 @@ def bilder_erzeugen(ordner):
 
 
 # Bildschirmfotos, die bilder.py mit erzeugt, die aber bewusst nicht in der Anleitung stehen
-OHNE_STELLE = {"stamm_stundensaetze"}     # gleiche Seite wie stamm_arbeitsschritte
+OHNE_STELLE = {"stamm_stundensaetze",     # gleiche Seite wie stamm_arbeitsschritte
+               # Schweiß-Stammdaten: noch leer ausgeliefert, Bilder erst mit "Richtwerte laden"
+               "stamm_schweissverfahren", "stamm_schweiss_kennwerte", "stamm_schweiss_faktoren"}
 
 
 def kapitel_schnellstart(i):
