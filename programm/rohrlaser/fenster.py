@@ -717,6 +717,9 @@ class EinstellungenSeite(QScrollArea):
         from . import step_einstellungen
         if e.name in step_einstellungen.EINSTELLUNGEN:
             step_einstellungen.anwenden(self.db)
+        if e.name == "ansicht_3d":
+            from . import ansicht3d
+            ansicht3d.renderer_setzen(wert)
         self.meldung(f"{e.titel} gespeichert.")
 
     def neu_laden(self):
@@ -991,6 +994,8 @@ class Hauptfenster(QMainWindow):
             pass
         from . import step_einstellungen
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
+        from . import ansicht3d
+        ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")

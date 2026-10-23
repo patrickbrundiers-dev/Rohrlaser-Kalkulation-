@@ -1373,7 +1373,7 @@ def kapitel_step(i):
            "springt zur Position", hoehe=80 * mm, kurz=False)
     i.bild("step_optimiert", "Aus STEP übernommene Positionen nach dem Optimieren: Schneidweg, Einstiche und "
            "Schneidzeit kommen aus der Messung", hoehe=110 * mm, kurz=False)
-    i.abschnitt("3D-Ansicht")
+    i.abschnitt("3D-Ansicht", marke="step_3d_ansicht")
     i.text("<b>3D-Ansicht …</b> zeigt die STEP-Teile drehbar: Anfangsschnitt orange, Endschnitt violett, "
            "Innenkonturen rot, Gravur grün. Linke Maustaste drehen, Mausrad zoomen, Doppelklick zurück. Große "
            "Baugruppen zeigt die Ansicht beim Drehen und Zoomen vereinfacht (ohne kleine Rundungen, Bohrungen und "
@@ -1394,7 +1394,10 @@ def kapitel_step(i):
             "Farben: Außenwand grau, Innenwand dunkelgrau, <b>Anfangsschnitt orange</b>, <b>Endschnitt violett</b>, "
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
-            "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.")
+            "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.",
+            "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
+            "Baugruppen beim Drehen fein. Sonst und über Remote-Desktop zeichnet sie wie bisher ohne Grafikkarte. "
+            "Einstellen unter Vorgaben, Gruppe Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
               "Prozessorkernen gleichzeitig.")
     i.abschnitt("Bleche erkennen", marke="bleche")
@@ -2983,6 +2986,11 @@ def kapitel_einstellungen(i):
          "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
          "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen "
          "([[stammdaten]]) und die Staffeln."],
+        ["Ansicht", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)",
+         "<i>Automatisch</i> (Vorgabe): die 3D-Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das "
+         "kann und nicht über Remote-Desktop läuft, sonst wie bisher; <i>Software</i>: immer ohne Grafikkarte; "
+         "<i>OpenGL</i>: immer mit Grafikkarte, wenn möglich. Klappt OpenGL nicht, zeichnet die Ansicht von selbst "
+         "ohne Grafikkarte weiter ([[step_3d_ansicht]]). Gilt für neu geöffnete Ansichten, nur an diesem Arbeitsplatz."],
         ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
          "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
          "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
