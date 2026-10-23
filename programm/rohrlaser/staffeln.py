@@ -678,7 +678,8 @@ def wirksam(stufe, einst):
                 arbeitsgang_min=_zahl(w("arbeitsgang_min")), arbeitsgang_satz=w("arbeitsgang_satz"),
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
                 neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")),
-                mindestpreis=_zahl(einst.get("mindestpreis")))
+                mindestpreis=_zahl(einst.get("mindestpreis")),
+                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst))
 
 
 def preise(b, menge, w, anhebung=None):
@@ -712,12 +713,19 @@ def preise(b, menge, w, anhebung=None):
     neben = w["neben_einheit"] * menge + w["neben_pauschal"]
     ge, gf = b.get("bg_getrennt") or (0.0, 0.0)          # Einmalkosten der Baugruppen mit eigener Zeile
     bg_selbst = ge * (1 + w["zuschlag_fertigung"]) + gf * (1 + w["zuschlag_fremdleistung"])
-    selbst = m0 + verlust + mz + f_sum + r_sum + gk_f + b["fremd"] + gk_fl + neben + bg_selbst
-    gewinn = selbst * w["gewinn"]
-    weitere = b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + b["fracht"]
+    herstell = m0 + verlust + mz + f_sum + r_sum + gk_f + b["fremd"] + gk_fl + neben + bg_selbst
     zk_e, zk_a = b.get("zukauf_einstand", 0), b.get("zukauf_aufschlag", 0)     # fehlt in älteren Mengenläufen
     sk = min(max(b["skonto_satz"], 0), 50) / 100
-    ohne = selbst + gewinn + weitere + zk_e + zk_a
+    # Selbstkosten = Herstellkosten + Pauschalen + Programmierung + Angebotsaufschlag + Zukaufteile; Gewinn darauf,
+    # Fracht ohne Gewinn danach (festgeschrieben vor dem 23.10.2026: Gewinn nur auf die Herstellkosten, wie bisher)
+    selbst = herstell + b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + zk_e + zk_a
+    if w.get("selbst_basis", True):
+        gewinn = selbst * w["gewinn"]
+        ohne = selbst + gewinn + b["fracht"]
+    else:
+        gewinn = herstell * w["gewinn"]
+        weitere = b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + b["fracht"]
+        ohne = herstell + gewinn + weitere + zk_e + zk_a
     netto = ohne / (1 - sk)
     # Mindestpreis netto je Stufe (jede Stufe ist ein eigenes Angebot): Stückpreis anheben, auf den Cent aufgerundet
     if anhebung is None:
@@ -736,7 +744,7 @@ def preise(b, menge, w, anhebung=None):
     mwst = kaufm_runden(gesamt * w["mwst"], 2)
     return dict(fehler=None, m_grund=m0, m_verlust=verlust, m_zuschlag=mz, m_gesamt=m1 + mz, fertigung=fert,
                 fert_gesamt=f_sum, ruesten=b["ruesten"], ruest_gesamt=r_sum, gk_fertigung=gk_f, fremd=b["fremd"],
-                gk_fremd=gk_fl, neben=neben, selbst=selbst, gewinn=gewinn,
+                gk_fremd=gk_fl, neben=neben, herstell=herstell, selbst=selbst, gewinn=gewinn,
                 marge=gewinn / netto if netto else None, pauschalen=b["pauschalen"],
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
@@ -764,7 +772,7 @@ def preise_anwenden(z, stufe, einst, alle=None, positionen=None, anhebung=None):
         if p["fehler"]:
             hinweis.insert(0, "FEHLER: " + p["fehler"])
         else:
-            z.update(preis=p, herstell=p["selbst"], herstell_einheit=p["selbst"] / z["menge"],
+            z.update(preis=p, herstell=p["herstell"], herstell_einheit=p["herstell"] / z["menge"],
                      preis_einheit=p["preis_einheit"], preis_gesamt=p["preis_gesamt"])
     z["hinweis"] = "; ".join(hinweis) or None
     return z

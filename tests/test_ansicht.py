@@ -108,8 +108,11 @@ kosten = rechnen.kostenarten(summen, s.einst)
 wert = {n: w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
 vor_herstell = [g for g in rechnen.KOSTEN_GRUPPEN[:[t for t, _, _ in rechnen.KOSTEN_GRUPPEN].index("Herstellkosten")]]
 assert abs(sum(wert[n] for _, ns, _ in vor_herstell for n in ns) - summen["herstell"]) < 1e-6
-nach = rechnen.KOSTEN_GRUPPEN[len(vor_herstell) + 1:-1]
-assert abs(summen["herstell"] + sum(wert[n] for _, ns, _ in nach for n in ns) - summen["verkauf"]) < 1e-6
+titel_g = [t for t, _, _ in rechnen.KOSTEN_GRUPPEN]
+bis_selbst = rechnen.KOSTEN_GRUPPEN[len(vor_herstell) + 1:titel_g.index("Selbstkosten")]
+assert abs(summen["herstell"] + sum(wert[n] for _, ns, _ in bis_selbst for n in ns) - summen["selbst"]) < 1e-6
+nach = rechnen.KOSTEN_GRUPPEN[titel_g.index("Selbstkosten") + 1:-1]
+assert abs(summen["selbst"] + sum(wert[n] for _, ns, _ in nach for n in ns) - summen["verkauf"]) < 1e-6
 text = s.uebersicht.text()
 for titel in ("Material", "Laser schneiden", "Rüsten", "Herstellkosten", "Programmierkosten", "Verkaufspreis"):
     assert titel in text, titel

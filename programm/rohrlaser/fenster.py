@@ -20,7 +20,7 @@ from PySide6.QtCore import QBuffer, QByteArray
 from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
-    QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
+    QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
@@ -1004,6 +1004,27 @@ class StartSeite(QWidget):
         al.addStretch(0)                    # ohne Angebote: Knöpfe und Hinweis oben statt verteilt (L8)
         self.angebote_layout = al
 
+        # Cockpit (Layout-Plan L21): Pipeline je Vorgang, Wiedervorlagen, Kennzahlen nur für Admin
+        heute, hl = karte("Heute")
+        self.pipeline = QLabel()
+        self.pipeline.setTextFormat(Qt.RichText)
+        self.pipeline.setToolTip("Klick auf einen Vorgang zeigt die Angebotsliste mit diesem Filter")
+        self.pipeline.linkActivated.connect(self.vorgang_zeigen)
+        hl.addWidget(self.pipeline)
+        self.wv_titel = QLabel()
+        hl.addWidget(self.wv_titel)
+        self.wiedervorlage = QListWidget()
+        self.wiedervorlage.setToolTip("Verschickte Angebote, deren Gültigkeit bald endet oder vorbei ist "
+                                      "(Doppelklick öffnet)")
+        self.wiedervorlage.itemActivated.connect(
+            lambda it: fenster.angebot_oeffnen(it.data(Qt.UserRole)))
+        hl.addWidget(self.wiedervorlage)
+        self.kennzahlen = QLabel()
+        self.kennzahlen.setTextFormat(Qt.RichText)
+        self.kennzahlen.setWordWrap(True)
+        hl.addWidget(self.kennzahlen)
+        hl.addStretch(1)
+
         # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
         stamm, sl = karte("Stammdaten")
         self.stamm = QLabel()
@@ -1040,12 +1061,13 @@ class StartSeite(QWidget):
 
         raster = QGridLayout()
         raster.setSpacing(10)
-        raster.addWidget(angebote, 0, 0, 2, 1)
-        raster.addWidget(stamm, 0, 1)
-        raster.addWidget(sicherung, 1, 1)
+        raster.addWidget(angebote, 0, 0, 3, 1)
+        raster.addWidget(heute, 0, 1)
+        raster.addWidget(stamm, 1, 1)
+        raster.addWidget(sicherung, 2, 1)
         raster.setColumnStretch(0, 3)
         raster.setColumnStretch(1, 2)
-        raster.setRowStretch(0, 1)
+        raster.setRowStretch(0, 1)          # Heute: die Wiedervorlage bekommt den Platz
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
         kopf.addWidget(titel)
@@ -1076,11 +1098,57 @@ class StartSeite(QWidget):
         self.stamm_aufklapper.setze_titel(f"{len(tabellen)} Tabellen, {sum(n for _, n in tabellen)} Einträge")
         self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
                           f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
-        zuletzt = sorted(db.angebote(), key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
+        alle = db.angebote()
+        self.cockpit_laden(alle)
+        zuletzt = sorted(alle, key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
         self.zuletzt.setzen(zuletzt)
         self.zuletzt_ansicht.setVisible(bool(zuletzt))
         self.keine.setVisible(not zuletzt)
         self.angebote_layout.setStretch(self.angebote_layout.count() - 1, 0 if zuletzt else 1)
+
+    def cockpit_laden(self, alle):
+        from . import cockpit
+        from .ausgabe import euro_text
+        self.pipeline_werte = cockpit.pipeline(alle)
+        teile = [f"<a href='{v}'>{v}</a>: <b>{n}</b>" + (f" · {euro_text(summe)} €" if summe else "")
+                 for v, n, summe in self.pipeline_werte]
+        self.pipeline.setText("<b>Eigene Angebote</b><br>" + "<br>".join(teile))
+        self.wiedervorlagen = cockpit.wiedervorlagen(alle, self.f.db.einstellung("gueltigkeit"))
+        self.wiedervorlage.clear()
+        for z, bis, rest in self.wiedervorlagen:
+            wann = (f"seit {-rest} Tagen abgelaufen" if rest < -1 else "seit gestern abgelaufen" if rest == -1
+                    else "heute letzter Tag" if rest == 0 else f"noch {rest} Tage" if rest > 1 else "noch 1 Tag")
+            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  gültig bis "
+                                 f"{bis.strftime('%d.%m.%Y')} ({wann})")
+            it.setData(Qt.UserRole, z["id"])
+            if rest < 0:
+                it.setForeground(QBrush(stil.farbe("#B42318")))
+            self.wiedervorlage.addItem(it)
+        n = len(self.wiedervorlagen)
+        self.wv_titel.setText(f"<b>Wiedervorlage</b> ({n})" if n else
+                              "<b>Wiedervorlage:</b> kein verschicktes Angebot läuft in den nächsten "
+                              f"{cockpit.VORLAUF_TAGE} Tagen ab")
+        self.wiedervorlage.setVisible(bool(n))
+        admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
+        self.kennzahlen.setVisible(admin)
+        if admin:
+            k = cockpit.kennzahlen(alle)
+            quote = f"{k['trefferquote'] * 100:.0f} %" if k["trefferquote"] is not None else "–"
+            schnitt = f"{euro_text(k['durchschnitt'])} €" if k["durchschnitt"] is not None else "–"
+            self.kennzahlen.setText(
+                f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
+                f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
+                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+
+    def vorgang_zeigen(self, v):
+        """Angebotsliste mit dem Filter des Vorgangs (nur eigene Angebote wie in der Pipeline)."""
+        from .angebot_fenster import MEINE
+        a = self.f.angebote
+        a.suche.clear()
+        if a.wer_filter.findText(MEINE) >= 0:
+            a.wer_filter.setCurrentText(MEINE)
+        a.vorgang_filter.setCurrentText(v)
+        self.f.reiter.setCurrentWidget(a)
 
 
 class Hauptfenster(QMainWindow):
@@ -1255,6 +1323,11 @@ class Hauptfenster(QMainWindow):
             a.setShortcut(QKeySequence(taste))
             a.triggered.connect(lambda _=False, schritt=schritt, innen=innen: self.reiter_weiter(schritt, innen))
             ansicht.addAction(a)
+        ansicht.addSeparator()
+        a = QAction("Suchen und ausführen …", self)       # Befehlspalette (Layout-Plan L20)
+        a.setShortcut(QKeySequence("Ctrl+K"))
+        a.triggered.connect(lambda: self.befehlspalette())
+        ansicht.addAction(a)
         hilfe = self.menuBar().addMenu("&Hilfe")
         a = QAction("Bedienungsanleitung (PDF)", self)
         a.setShortcut(QKeySequence.HelpContents)
@@ -1538,6 +1611,14 @@ class Hauptfenster(QMainWindow):
         i = self.reiter.indexOf(seite)
         if i >= 0:
             self.reiter.setTabText(i, seite.titel())
+
+    def befehlspalette(self):
+        """Strg+K: Angebote, Kunden, Profile, Einstellungen und Befehle suchen und ausführen."""
+        from .befehlspalette import Befehlspalette
+        d = Befehlspalette(self)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def kunde_zeigen(self, kundennr, name=None):
         """Reiter Kunden mit diesem Kunden (gesucht nach Kundennummer, sonst Name) zeigen. Ergebnis: Treffer."""

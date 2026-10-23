@@ -75,6 +75,24 @@ assert z[0]["zusatz_text"] == "Schweißen 48 s"
 assert not s.pos_modell.status[0].startswith("WARNUNG"), s.pos_modell.status[0]
 ok("S2 48 s × 75 €/h = 1,00 € je Teil, 120 s × 90 €/h (je Position) = 3,00 €; nicht zur Laserzeit")
 
+# Zeiten (Plan Preisaufbau Z1): Schweißen als Personalzeit 10 × 48 s + 4 × 120 s = 16 min, 22,00 €; Rest ohne Zeit
+zs = {x["schritt"]: x for x in su["zeiten"]}
+sz = zs["Zusatzarbeiten mit Zeit"]
+assert sz["art"] == "Personal" and not sz["parallel"] and nah(sz["gesamt_min"], 16) and nah(sz["kosten"], 22)
+assert nah(zs["Zusatzarbeiten (€)"]["kosten"], 0) and nah(sum(x["kosten"] for x in su["zeiten"]),
+                                                       su["laser_schneiden"] + su["gewinde"] + su["ruesten_maschine"]
+                                                       + su["ruesten_abmessungen"] + su["stangenwechsel_kosten"]
+                                                       + su["arbeitsschritte"] + su["programmierung"] + su["zusatz"])
+k = rechnen.zeit_summen(su["zeiten"], su["teile"])
+assert nah(k["je_teil_min"], k["bearbeitung_min"] / 14) and k["personal_min"] >= 16 - 1e-9
+s.uebersicht_bereich.offene_zeiten = {"Personal"}
+s.uebersicht_bereich.zeiten_setzen(k)
+text = s.uebersicht_bereich.zeiten.text()
+assert "Zusatzarbeiten mit Zeit" in text and "Arbeitszeit gesamt" in text and "Durchlaufzeit" in text, text
+assert "Programmierung (parallel)" in text and "▾ Personal" in text and "▸ Maschine" in text
+assert "(Maschine + Personal, das nicht parallel läuft)" in rechnen.zeiten_text(k)
+ok("S2 Zeiten: Schweißen 16 min Personalzeit (22,00 €), Übersicht aufklappbar nach Maschine und Personal")
+
 # ------------------------------------------------------------------ S3 ohne Sekunden, Vorgabezeit
 db.position_aendern(p1["id"], "zusatz", json.dumps([dict(name="Schweißen", stand=stand)]))
 s.neu_laden()

@@ -1891,7 +1891,7 @@ class AngebotSeite(QWidget):
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
-        self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
+        self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
@@ -2303,10 +2303,11 @@ class AngebotSeite(QWidget):
                                "leeren oder das Teil im Editor einer Baugruppe neu zuordnen.", fehler=True)
                 return False
             p = self.positionen[ziel[0]]
-        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db())
+        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db(),
+                            nur_lesen=bool(self.fremd() or self.db.nur_lesen))
         if fokus:
             d.fokus(fokus)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
         for feld, wert in d.ergebnis["position"].items():

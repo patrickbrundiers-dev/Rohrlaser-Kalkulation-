@@ -21,6 +21,8 @@ UEBERSICHT = [
     ("Strg+A", "Alles markieren", "Tabellen"),
     ("Strg+N", "Neu: Angebot, Position, Zeile, Staffel oder Artikel – je nach Seite", "überall"),
     ("Strg+F", "Suchfeld der Seite", "Angebote, Kunden, Stammdaten, Zukauf"),
+    ("Strg+K", "Suchen und ausführen: Angebot, Kunde, Profil, Werkstoff, Einstellung oder Befehl suchen, Enter "
+               "öffnet bzw. führt aus", "überall"),
     ("Strg+S", "Eingabe abschließen und speichern (das Programm speichert jede Eingabe sofort)", "überall"),
     ("Strg+P", "Angebot als PDF", "geöffnetes Angebot"),
     ("Strg+Umschalt+P", "Werkstattpapiere als PDF", "geöffnetes Angebot"),

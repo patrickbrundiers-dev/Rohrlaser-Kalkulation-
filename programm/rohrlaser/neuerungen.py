@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.34", "<b>Biegerohre</b> im STEP-Import: gebogene Rundrohre (Geraden und Bögen) werden erkannt. Das "
+    ["0.9.37", "<b>Biegerohre</b> im STEP-Import: gebogene Rundrohre (Geraden und Bögen) werden erkannt. Das "
      "Programm rechnet die gestreckte Länge (Geraden + Faktor neutrale Faser × Bögen, Einstellung unter STEP-Import, "
      "Vorgabe 1,0) und setzt die Bohrungen an die richtige Stelle am geraden Rohr. Die Biegedaten (LRA und XYZ) "
      "stehen im Teile-Editor, die Skizze zeigt die Biegezonen. Neue Prüfregeln <i>Kontur in der Biegezone</i> und "
@@ -29,6 +29,31 @@ NEUERUNGEN = [
      "Prüfstatus immer prüfen ([[biegerohre]]).",
      "Biegerohre: gestreckte Länge, Konturen am geraden Rohr, Biegedaten, Biegezonen, Zusatzarbeit Biegen "
      "([[biegerohre]])."],
+    ["0.9.36", "<b>Suchen und ausführen</b>: <b>Strg+K</b> (Menü Ansicht) findet von überall Angebote, Kunden, "
+               "Profile, Werkstoffe, Einstellungen und Menübefehle; Enter öffnet oder führt aus ([[befehlspalette]]). "
+               "<b>Startseite mit Karte Heute</b>: eigene Angebote je Vorgang mit Summe (Klick zeigt die "
+               "Angebotsliste mit diesem Filter), <b>Wiedervorlage</b> verschickter Angebote, deren Gültigkeit bald "
+               "endet, und mit Admin-Lizenz die Kennzahlen der letzten 90 Tage mit Trefferquote ([[start]]). Im "
+               "Angebot zeigt der <b>Kostenwasserfall</b> unter dem Preisaufbau, welcher Posten den Preis treibt; im "
+               "Reiter Staffeln zeigt die <b>Staffelkurve</b> den Preis je Einheit über die Mengen ([[staffeln]]).",
+     "Strg+K sucht und führt aus; Startseite mit Wiedervorlage und Pipeline; Kostenwasserfall und Staffelkurve."],
+    ["0.9.35", "<b>Mehrere STEP-Dateien als eine Schweißbaugruppe</b>: Im Prüfdialog des STEP-Imports lässt sich eine "
+     "Datei mit <i>in Baugruppe „…“</i> als Unterbaugruppe in die Schweißbaugruppe einer anderen Datei einhängen; "
+     "<i>Sätze</i> gilt dann als Stück je übergeordneter Baugruppe ([[step]], [[schweissbaugruppe]]). Im Angebot "
+     "eines Kollegen öffnet der Baugruppen-Editor nur zum Ansehen.",
+     "STEP-Import: mehrere Dateien als eine Schweißbaugruppe ([[step]])."],
+    ["0.9.34", "<b>Gewinn auf alle Kosten</b>: Der Gewinn rechnet jetzt auf die <b>Selbstkosten</b> = Herstellkosten + "
+               "Programmierung + Pauschale je Abmessung + Angebotsaufschlag + Zukaufteile, nicht mehr nur auf die "
+               "Herstellkosten. Die Fracht kommt ohne Gewinn danach, das Skonto wie bisher zuletzt auf den Preis mit "
+               "Gewinn. Preisaufbau, Kalkulation-PDF und Staffelpreise zeigen die neue Zeile <i>Selbstkosten</i> und "
+               "„Gewinn (… % auf Selbstkosten …)“. Mit gleichem Gewinn-% steigen die Preise (Prüfangebote +1,6 bis "
+               "+8 %). Verschickte, festgeschriebene Angebote rechnen weiter wie bisher, bis <b>Aktuelle Preise "
+               "übernehmen …</b> ([[gewinn_basis]]). <b>Zeiten aufgeschlüsselt</b>: In der Übersicht klappen "
+               "Maschine und Personal per ▸ ihre Arbeitsschritte mit Zeit und Kosten auf; Schweißbaugruppen und "
+               "Schweißen als Zusatzarbeit zählen jetzt als Personalzeit, die Rüstzeit steht als „davon Rüsten“, "
+               "dazu Arbeitszeit gesamt, Durchlaufzeit und Ø je Teil ([[zeiten]]).",
+     "Gewinn auf die Selbstkosten (alle Kosten außer Fracht), Skonto danach; Zeiten nach Maschine und Personal "
+     "aufgeschlüsselt ([[gewinn_basis]], [[zeiten]])."],
     ["0.9.33", "<b>Schweißbaugruppen lernen aus der Nachkalkulation</b>: Unter Einstellungen → Schweiß-Kennwerte "
      "schlägt <i>Kennwerte aus Nachkalkulation …</i> je Verfahren und Nahtart einen Faktor Ist ÷ Soll vor (Median, "
      "Ausreißer ausgeschlossen); geändert wird erst nach Freigabe mit Begründung, jede Freigabe lässt sich "

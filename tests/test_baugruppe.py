@@ -21,7 +21,8 @@
 - B20 Baugruppen-Vorlagen speichern/einsetzen (P1), Baugruppe mit Teilen in ein anderes Angebot kopieren (P7)
 - B21 Schweißplan in den Werkstattpapieren (P2), Baugruppe in Kalkulation-PDF und CSV-Export (P3)
 - B22 a-Maß-Regel (P6), Schweißzusatz und Gas (P5), Kennwerte aus der Nachkalkulation (P4), Abweichungen (D5)
-- B23 Positionsliste gruppiert: Einzelteile unter ihrer Baugruppe, zu-/aufklappen (D3)
+- B23 Positionsliste gruppiert: Einzelteile unter ihrer Baugruppe, zu-/aufklappen (D3); Angebot eines Kollegen:
+  Editor nur ansehen (T6)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -201,7 +202,8 @@ zeilen, summen = rechnen.kalkulation(kopf, pos, erg, k, tab, einst)
 zf, zfl, gew = (einst.get(n) or 0 for n in ("zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn"))
 herstell = 114 * (1 + zf) + 15 * (1 + zfl)
 sk = (kopf.get("skonto") or 0) / 100
-preis = (herstell * (1 + gew) + 8 * 0.10) / (1 - sk)       # + 8 Schrauben je Baugruppe à 0,10 € (ohne Aufschlag)
+# + 8 Schrauben je Baugruppe à 0,10 € (ohne Aufschlag), mit in den Selbstkosten; Gewinn darauf (Plan Preisaufbau)
+preis = (herstell + 8 * 0.10) * (1 + gew) / (1 - sk)
 zb = zeilen[0]
 nah(zb["herstell_teil"], herstell, "Herstellkosten je Baugruppe")
 nah(zb["preis_teil"] - zb["fracht_teil"] / (1 - sk), preis, "Preis der Baugruppen-Position je Baugruppe")
@@ -211,6 +213,13 @@ nah(summen["baugruppe_fremd"], 30, "Summe Fremdleistung Baugruppen")
 nah(summen["verkauf"], sum(z["preis_position"] for z in zeilen if z), "Summe Verkauf")
 kosten = dict((n, w) for (_, w, _), (_, n, _) in zip(rechnen.kostenarten(summen, einst), rechnen.KOSTENARTEN))
 nah(kosten["baugruppe_eigen"], 228, "Kostenart")
+# Zeiten: Schweißen und Arbeitsgänge der Baugruppen als Personalzeit, Fremdleistung ohne Zeit (Plan Preisaufbau Z1)
+zs = {x["schritt"]: x for x in summen["zeiten"]}
+nah(zs["Schweißbaugruppen"]["gesamt_min"], summen["baugruppe_zeit_min"], "Zeit Schweißbaugruppen")
+nah(zs["Schweißbaugruppen"]["kosten"], 228, "Kosten Schweißbaugruppen")
+assert zs["Schweißbaugruppen"]["art"] == "Personal" and summen["baugruppe_zeit_min"] > 0
+nah(zs["Schweißbaugruppen Fremdleistung (€)"]["kosten"], 30, "Fremdleistung ohne Zeit")
+assert zs["Schweißbaugruppen Fremdleistung (€)"]["gesamt_min"] is None
 # ohne Baugruppe (gleiche Teile, gleiche Stückzahlen): Teile rechnen genau gleich, nichts doppelt
 ohne = [dict(p, bg_knoten=None, je_knoten=None) for p in pos[1:]]
 erg2 = rechnen.optimieren(kopf, ohne, k, tab, einst)
@@ -889,6 +898,20 @@ seite.neu_laden()                                                             # 
 assert all(seite.pos_ansicht.isRowHidden(j) for j in t_bg)
 seite._kopf_klick(i_bg)
 assert not any(seite.pos_ansicht.isRowHidden(j) for j in t_bg)
-ok(f"B23 Positionsliste: {len(t_bg)} Einzelteile unter ihrer Baugruppe, zu- und aufgeklappt")
+gesehen = []
+
+
+def nur_ansehen(d):
+    gesehen.append((d.nur_lesen, d.windowTitle()))
+    d._ok()
+    return QDialog.Accepted
+
+
+seite.kopf["fremd"] = "XY"
+assert seite.baugruppe_bearbeiten([i_bg], dialog=nur_ansehen) is False
+assert gesehen[0][0] and gesehen[0][1].endswith("(nur ansehen)")
+seite.kopf["fremd"] = None
+ok(f"B23 Positionsliste: {len(t_bg)} Einzelteile unter ihrer Baugruppe, zu- und aufgeklappt; fremdes Angebot: Editor "
+   "nur ansehen")
 
 print("\nAlle Baugruppen-Tests bestanden.")
