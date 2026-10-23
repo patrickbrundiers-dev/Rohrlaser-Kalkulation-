@@ -49,11 +49,16 @@ assert not doppelt, f"Marken doppelt vergeben: {doppelt}"
 unbekannt = sorted(set(re.findall(r"\[\[([a-z0-9_]+)\]\]", TEXTTEIL)) - set(marken))
 assert not unbekannt, f"Verweise auf unbekannte Marken: {unbekannt}"
 
-# „Was ist neu“: die aktuelle Programmversion braucht eine Zeile
+# „Was ist neu“: die aktuelle Programmversion braucht einen Eintrag mit Kurzfassung (programm/rohrlaser/neuerungen.py)
 from rohrlaser import VERSION  # noqa: E402
-neuerungen = re.findall(r'^    \["([0-9. –]+)"', TEXTTEIL[TEXTTEIL.index("NEUERUNGEN = ["):], re.MULTILINE)
-assert any(VERSION in v.split(" – ") for v in neuerungen), \
-    f"Version {VERSION} fehlt in NEUERUNGEN (Anleitung, Kapitel „Was ist neu“)"
+from rohrlaser.neuerungen import IN_ANLEITUNG, NEUERUNGEN  # noqa: E402
+eintrag = [e for e in NEUERUNGEN if VERSION in e[0].split(" – ")]
+assert eintrag, f"Version {VERSION} fehlt in NEUERUNGEN (programm/rohrlaser/neuerungen.py, oben einfügen)"
+assert NEUERUNGEN[0] is eintrag[0], f"Version {VERSION} gehört ganz oben in NEUERUNGEN (neueste zuerst)"
+assert all(len(e) == 3 and e[2].strip() for e in NEUERUNGEN[:IN_ANLEITUNG]), \
+    "Die neuesten Einträge in NEUERUNGEN brauchen eine Kurzfassung: [Version, ausführlich, kurz (eine Zeile)]"
+unbekannt = sorted({m for e in NEUERUNGEN[:IN_ANLEITUNG] for m in re.findall(r"\[\[([a-z0-9_]+)\]\]", e[2])} - set(marken))
+assert not unbekannt, f"NEUERUNGEN verweist auf unbekannte Marken: {unbekannt}"
 
 
 # Aufbau: jedes Kapitel in genau einem Teil, jedes Kapitel mit Steckbrief

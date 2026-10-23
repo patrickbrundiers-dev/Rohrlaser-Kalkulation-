@@ -18,13 +18,14 @@ from PySide6.QtWidgets import (
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import NAME, ausgabe, hilfe, tastatur, teilen, update
+from . import NAME, VERSION, ausgabe, hilfe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
+KURZANLEITUNG = "Kurzanleitung.pdf"
 FARBE_EINGABE = QColor("#FFF9E0")   # Eingabefelder (gelb)
 FARBE_BERECHNET = QColor("#EDEDED")
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
@@ -1070,7 +1071,13 @@ class Hauptfenster(QMainWindow):
         hilfe = self.menuBar().addMenu("&Hilfe")
         a = QAction("Bedienungsanleitung (PDF)", self)
         a.setShortcut(QKeySequence.HelpContents)
-        a.triggered.connect(self.anleitung_oeffnen)
+        a.triggered.connect(lambda: self.anleitung_oeffnen())
+        hilfe.addAction(a)
+        a = QAction("Kurzanleitung (PDF)", self)
+        a.triggered.connect(lambda: self.anleitung_oeffnen(KURZANLEITUNG))
+        hilfe.addAction(a)
+        a = QAction("Was ist neu …", self)
+        a.triggered.connect(self.neuerungen_zeigen)
         hilfe.addAction(a)
         a = QAction("Tastenkürzel …", self)
         a.triggered.connect(self.kuerzel_zeigen)
@@ -1213,6 +1220,25 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
+    def neuerungen_zeigen(self):
+        """Hilfe → Was ist neu …: alle Versionen ausführlich (die Bedienungsanleitung zeigt nur die letzten)."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser
+        from .neuerungen import als_html
+        d = QDialog(self)
+        d.setWindowTitle("Was ist neu")
+        d.resize(900, 640)
+        text = QTextBrowser()
+        text.setHtml(als_html())
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel(f"Änderungen je Programmversion, neueste zuerst. Installiert ist {VERSION}."))
+        lay.addWidget(text)
+        lay.addWidget(knoepfe)
+        if not self.stumm:
+            d.exec()
+        return d
+
     def angebot_oeffnen(self, angebot_id):
         from .angebot_fenster import AngebotSeite
         seite = self.offen.get(angebot_id)
@@ -1301,13 +1327,14 @@ class Hauptfenster(QMainWindow):
         self.einstellungen.neu_laden()
         self.fracht.neu_laden()
 
-    def anleitung_oeffnen(self):
-        """Bedienungsanleitung.pdf neben dem Programm (liegt im ZIP), beim Entwickeln aus dem Ordner anleitung."""
-        for pfad in (self.programmordner / ANLEITUNG, self.programmordner.parent / "anleitung" / ANLEITUNG):
+    def anleitung_oeffnen(self, datei=ANLEITUNG):
+        """Bedienungsanleitung.pdf bzw. Kurzanleitung.pdf neben dem Programm (liegt im ZIP), beim Entwickeln aus dem
+        Ordner anleitung."""
+        for pfad in (self.programmordner / datei, self.programmordner.parent / "anleitung" / datei):
             if pfad.is_file():
                 self.datei_oeffnen(pfad)
                 return pfad
-        QMessageBox.warning(self, "Bedienungsanleitung", f"{ANLEITUNG} wurde nicht gefunden.\n\n"
+        QMessageBox.warning(self, Path(datei).stem, f"{datei} wurde nicht gefunden.\n\n"
                             f"Sie gehört in den Programmordner:\n{self.programmordner}")
         return None
 

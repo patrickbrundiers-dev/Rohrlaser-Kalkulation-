@@ -1,9 +1,11 @@
-"""Erzeugt anleitung/Bedienungsanleitung.pdf: bebilderte Bedienungsanleitung des Programms.
+"""Erzeugt anleitung/Bedienungsanleitung.pdf und Kurzanleitung.pdf: bebilderte Anleitungen des Programms.
 
 Die Bilder kommen aus dem echten Programm (anleitung/bilder.py, unsichtbar mit Beispieldaten), der Text
-steht unten in KAPITEL. Nach Änderungen am Programm einfach neu erzeugen:
+steht unten in den Funktionen kapitel_…. Beide PDF entstehen aus denselben Kapiteln: die Kurzanleitung nimmt
+nur Teil A und B und davon nur Bildfolgen, Bildschirmfotos mit Legende und was kurz=True hat (Inhalt).
+Nach Änderungen am Programm einfach neu erzeugen:
 
-    python anleitung/erzeuge_anleitung.py [--ziel DATEI.pdf] [--bilder ORDNER]
+    python anleitung/erzeuge_anleitung.py [--ziel DATEI.pdf] [--kurz KURZ.pdf] [--bilder ORDNER]
 
 Braucht PySide6, reportlab, openpyxl, OpenCascade (für den STEP-Import der Testteile) und pdftoppm
 (Poppler, für die Seitenbilder der PDF-Ausgaben). Unter Linux zusätzlich libegl1.
@@ -31,6 +33,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 from rohrlaser import NAME, VERSION  # noqa: E402
+from rohrlaser.neuerungen import IN_ANLEITUNG, NEUERUNGEN  # noqa: E402
 from rohrlaser.tastatur import UEBERSICHT as TASTENKUERZEL  # noqa: E402
 
 SEITE = landscape(A4)
@@ -66,6 +69,13 @@ S_TOC1 = ParagraphStyle("toc1", parent=S, fontName="Helvetica-Bold", fontSize=10
 S_TOC2 = ParagraphStyle("toc2", parent=S, fontSize=9.5, leading=12.5, leftIndent=24, textColor=colors.HexColor("#404040"))
 S_KASTEN = ParagraphStyle("kasten", parent=S, fontSize=9.5, leading=12.5, spaceAfter=0)
 S_KASTEN_KOPF = ParagraphStyle("kasten_kopf", parent=S_KASTEN, fontName="Helvetica-Bold", textColor=BLAU)
+# Kasten „Genauer“: Einzelheiten zum Nachlesen, kleiner gesetzt; fehlen in der Kurzanleitung
+S_GENAUER_KOPF = ParagraphStyle("genauer_kopf", parent=S, fontName="Helvetica-Bold", fontSize=9.5, leading=12,
+                                textColor=BLAU, backColor=HELLBLAU, borderPadding=(3, 4, 3, 4), spaceBefore=10,
+                                spaceAfter=7)
+S_KLEIN = ParagraphStyle("klein_text", parent=S, fontSize=9, leading=12, spaceAfter=3, textColor=colors.HexColor("#262626"))
+S_KLEIN_LISTE = ParagraphStyle("klein_liste", parent=S_KLEIN, leftIndent=12, bulletIndent=2, spaceAfter=1.5)
+S_SCHRITT = ParagraphStyle("schritt", parent=S, fontSize=9.5, leading=12.5, spaceAfter=0)
 
 
 # ---------------------------------------------------------------- Bausteine
@@ -142,10 +152,11 @@ class Anleitung(BaseDocTemplate):
     """Seiten wie das Angebots-PDF: Titelseite mit dunkelblauem Band, sonst Kopfzeile (Teil, Kapitel) und Fuß
     (Programm, Seite) mit feiner Linie."""
 
-    def __init__(self, ziel):
+    def __init__(self, ziel, art="Bedienungsanleitung"):
+        self.art = art
         super().__init__(str(ziel), pagesize=SEITE, leftMargin=RAND, rightMargin=RAND, topMargin=RAND,
-                         bottomMargin=RAND + 4 * mm, title=f"{NAME} – Bedienungsanleitung",
-                         author=NAME, subject=f"Bedienungsanleitung Version {VERSION}")
+                         bottomMargin=RAND + 4 * mm, title=f"{NAME} – {art}",
+                         author=NAME, subject=f"{art} Version {VERSION}")
         titel = Frame(RAND, RAND + 4 * mm, BREITE, SEITE[1] - RAND - 4 * mm - TITEL_BAND - 8 * mm, id="titel",
                       leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
         rahmen = Frame(RAND, RAND + 4 * mm, BREITE, SEITE[1] - 2 * RAND - 4 * mm - KOPF_H, id="text",
@@ -166,7 +177,7 @@ class Anleitung(BaseDocTemplate):
         c.setFont("Helvetica-Bold", 32)
         c.drawString(RAND + 4 * mm, SEITE[1] - 34 * mm, NAME)
         c.setFont("Helvetica", 20)
-        c.drawString(RAND + 4 * mm, SEITE[1] - 47 * mm, "Bedienungsanleitung")
+        c.drawString(RAND + 4 * mm, SEITE[1] - 47 * mm, self.art)
         c.setFillColor(colors.HexColor("#C9D7E5"))
         c.setFont("Helvetica", 11)
         c.drawString(RAND + 4 * mm, SEITE[1] - 62 * mm, "Angebotskalkulation und Materialoptimierung für Rohrlaserteile")
@@ -190,7 +201,7 @@ class Anleitung(BaseDocTemplate):
         c.line(RAND, RAND + 1 * mm, SEITE[0] - RAND, RAND + 1 * mm)
         c.setFont("Helvetica", 8)
         c.setFillColor(GRAU)
-        c.drawString(RAND, RAND - 3 * mm, f"{NAME} {VERSION} – Bedienungsanleitung")
+        c.drawString(RAND, RAND - 3 * mm, f"{NAME} {VERSION} – {self.art}")
         c.setFillColor(BLAU)
         c.setFont("Helvetica-Bold", 8)
         c.drawRightString(SEITE[0] - RAND, RAND - 3 * mm, f"Seite {doc.page}")
@@ -224,14 +235,28 @@ class Inhalt:
 
     VERWEIS = re.compile(r"\[\[([a-z0-9_]+)\]\]")
 
-    def __init__(self, bilder, vorlauf=None):
-        """vorlauf: das Inhalt-Objekt des 1. Durchlaufs (Kapitelnummern, Titel und Kapitel je Teil)."""
+    def __init__(self, bilder, vorlauf=None, kurz=False):
+        """vorlauf: das Inhalt-Objekt des 1. Durchlaufs (Kapitelnummern, Titel und Kapitel je Teil).
+
+        kurz: Kurzanleitung aus denselben Kapiteln. Sie zeigt nur Überschriften, Steckbriefe, Bildfolgen
+        (schritte), Bildschirmfotos mit Legende und was ausdrücklich kurz=True hat; Fließtext, Listen, Tabellen und
+        die Kästen „Genauer“ bleiben weg. Kapitel- und Abschnittsnummern sind dieselben wie in der
+        Bedienungsanleitung, Verweise lauten „Anleitung 6.3“."""
         self.bilder, self.f, self.kapitel_nr, self.abschnitt_nr = bilder, [], 0, 0
         self.marken = vorlauf.neue_marken if vorlauf else None
         self.titel = vorlauf.neue_titel if vorlauf else {}
         self.teile = vorlauf.neue_teile if vorlauf else {}
         self.neue_marken, self.neue_titel, self.neue_teile, self.benutzte_bilder = {}, {}, {}, set()
         self.verweise, self._teil = {}, None
+        self.kurz, self._genauer, self._offen = kurz, False, []    # _offen: Abschnitt wartet auf ein Bild (kurz)
+
+    def _zeigen(self, kurz):
+        """Steht der Baustein im aktuellen Dokument? In der Kurzanleitung nur mit kurz=True und nie in „Genauer“."""
+        return not self.kurz or (kurz and not self._genauer)
+
+    def _offene_abschnitte(self):
+        self.f.extend(self._offen)
+        self._offen = []
 
     def _marke(self, marke, nummer):
         if not marke:
@@ -248,6 +273,8 @@ class Inhalt:
                 return "Kapitel ?"
             if m.group(1) not in self.marken:
                 raise ValueError(f"Verweis auf unbekannte Marke [[{m.group(1)}]]")
+            if self.kurz:      # Kurzanleitung: Verweis in die Bedienungsanleitung, ohne Link
+                return f'<font color="#1F4E78">Anleitung {self.marken[m.group(1)]}</font>'
             return f'<a href="#{m.group(1)}" color="#1F4E78">Kapitel {self.marken[m.group(1)]}</a>'
         return self.VERWEIS.sub(ersetzen, str(text))
 
@@ -286,6 +313,7 @@ class Inhalt:
     def kapitel(self, titel, marke=None):
         self.kapitel_nr += 1
         self.abschnitt_nr = 0
+        self._offen, self._genauer = [], False
         if self.f and not isinstance(self.f[-1], PageBreak):
             self.f.append(PageBreak())
         anker = self._marke(marke, f"{self.kapitel_nr}")
@@ -309,28 +337,99 @@ class Inhalt:
         self.f.extend([t, Spacer(1, 8)])
 
     def abschnitt(self, titel, marke=None):
+        """Abschnittsüberschrift. Im Kasten „Genauer“ als dessen Kopfzeile. In der Kurzanleitung erscheint sie erst,
+        wenn danach ein Bild oder eine Bildfolge kommt."""
         self.abschnitt_nr += 1
-        self.f.append(CondPageBreak(45 * mm))
+        self._genauer = False
         anker = self._marke(marke, f"{self.kapitel_nr}.{self.abschnitt_nr}")
-        self.f.append(Paragraph(f"{anker}{self.kapitel_nr}.{self.abschnitt_nr}&nbsp;&nbsp;{titel}", S_H2))
+        teile = [CondPageBreak(45 * mm), Paragraph(f"{anker}{self.kapitel_nr}.{self.abschnitt_nr}&nbsp;&nbsp;{titel}", S_H2)]
+        if self.kurz:
+            self._offen = teile
+        else:
+            self.f.extend(teile)
 
-    def text(self, *absaetze):
-        self.f.extend(Paragraph(self._t(a), S) for a in absaetze)
+    def genauer(self, titel=""):
+        """Ab hier bis zum nächsten Abschnitt: Einzelheiten zum Nachlesen, kleiner gesetzt unter einer hellblauen
+        Kopfzeile „Genauer“. Die Hauptsache steht davor in Bildern, Legenden und Schritten; die Kurzanleitung lässt
+        „Genauer“ ganz weg."""
+        self._genauer = True
+        if not self.kurz:
+            self.f.append(CondPageBreak(25 * mm))
+            self.f.append(Paragraph("Genauer" + (f": {titel}" if titel else ""), S_GENAUER_KOPF))
 
-    def liste(self, *punkte, nummeriert=False):
+    def text(self, *absaetze, kurz=False):
+        if self._zeigen(kurz):
+            self.f.extend(Paragraph(self._t(a), S_KLEIN if self._genauer else S) for a in absaetze)
+
+    def liste(self, *punkte, nummeriert=False, kurz=False):
+        if not self._zeigen(kurz):
+            return
         for i, p in enumerate(punkte, 1):
-            self.f.append(Paragraph(self._t(p), S_LISTE, bulletText=f"{i}." if nummeriert else "•"))
+            self.f.append(Paragraph(self._t(p), S_KLEIN_LISTE if self._genauer else S_LISTE,
+                                    bulletText=f"{i}." if nummeriert else "•"))
         self.f.append(Spacer(1, 3))
 
-    def bild(self, name, unterschrift="", hoehe=125 * mm, legende=()):
-        self.bilder_nebeneinander([name], unterschrift, hoehe, legende)
+    def bild(self, name, unterschrift="", hoehe=125 * mm, legende=(), kurz=True):
+        self.bilder_nebeneinander([name], unterschrift, hoehe, legende, kurz)
 
-    def bilder_nebeneinander(self, namen, unterschrift="", hoehe=125 * mm, legende=()):
+    def bilder_nebeneinander(self, namen, unterschrift="", hoehe=125 * mm, legende=(), kurz=True):
+        """Bildschirmfotos mit Unterschrift und Legende zu den roten Nummern. Stehen auch in der Kurzanleitung,
+        außer mit kurz=False oder im Kasten „Genauer“."""
         self.benutzte_bilder.update(namen)
+        if not self._zeigen(kurz):
+            return
+        self._offene_abschnitte()
+        if self._genauer:
+            hoehe = min(hoehe, 95 * mm)
         pfade = [self.bilder["_ordner"] / self.bilder[n]["datei"] for n in namen]
         oben = [self.f.pop()] if self.f and isinstance(self.f[-1], Paragraph) and self.f[-1].style.name == "h2" else []
         unten = ([Paragraph(self._t(unterschrift), S_BILD)] if unterschrift else []) + ([self._legende(legende)] if legende else [])
         self.f.append(BildBlock(pfade, hoehe, oben, unten))
+
+    def schritte(self, schritte, spalten=None, hoehe=62 * mm):
+        """Bildfolge Schritt 1, 2, 3 …: je Schritt ein Bild und ein kurzer Satz darüber, zwei oder drei
+        nebeneinander. schritte = [(bild oder None, text), …]. Steht immer auch in der Kurzanleitung."""
+        self.benutzte_bilder.update(b for b, _ in schritte if b)
+        if self.kurz and self._genauer:
+            return
+        self._offene_abschnitte()
+        from reportlab.platypus import Image
+        spalten = spalten or (3 if len(schritte) in (3, 5, 6, 9) else 2)
+        abstand = 6 * mm
+        breite = (BREITE - abstand * (spalten - 1)) / spalten
+        zellen = []
+        for nr, (name, text) in enumerate(schritte, 1):
+            kopf = Table([[Nummer(nr, 6 * mm), Paragraph(self._t(text), S_SCHRITT)]], colWidths=[8 * mm, breite - 8 * mm])
+            kopf.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                      ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
+                                      ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+            inhalt = [kopf]
+            if name:
+                pfad = self.bilder["_ordner"] / self.bilder[name]["datei"]
+                from reportlab.lib.utils import ImageReader
+                w, h = ImageReader(str(pfad)).getSize()
+                s = min(breite / w, hoehe / h)
+                bild = Image(str(pfad), w * s, h * s)
+                rahmen = Table([[bild]], colWidths=[w * s])
+                rahmen.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, LINIE), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                            ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
+                                            ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+                rahmen.hAlign = "LEFT"
+                inhalt.append(rahmen)
+            zellen.append(inhalt)
+        zeilen = [zellen[k:k + spalten] for k in range(0, len(zellen), spalten)]
+        zeilen[-1] += [""] * (spalten - len(zeilen[-1]))
+        breiten = []
+        for k in range(spalten):
+            breiten += [breite] + ([abstand] if k < spalten - 1 else [])
+        daten = [sum(([z] + ([""] if k < spalten - 1 else []) for k, z in enumerate(zeile)), []) for zeile in zeilen]
+        t = Table(daten, colWidths=breiten)
+        t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                               ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 2),
+                               ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+        oben = [self.f.pop()] if self.f and isinstance(self.f[-1], Paragraph) and self.f[-1].style.name == "h2" else []
+        self.f.append(KeepTogether(oben + [t]) if oben else t)
+        self.f.append(Spacer(1, 4))
 
     def _legende(self, punkte):
         zeilen = [[Nummer(nr), Paragraph(self._t(text), S_LEGENDE)] for nr, text in punkte]
@@ -346,7 +445,9 @@ class Inhalt:
                                ("TOPPADDING", (0, 0), (-1, -1), 1.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5)]))
         return t
 
-    def hinweis(self, text, titel="Hinweis"):
+    def hinweis(self, text, titel="Hinweis", kurz=False):
+        if not self._zeigen(kurz):
+            return
         t = Table([[Paragraph(self._t(f"<b>{titel}:</b> {text}"), S_TIPP)]], colWidths=[BREITE])
         t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), HELLBLAU),
                                ("LINEBEFORE", (0, 0), (0, -1), 3, BLAU),
@@ -354,8 +455,10 @@ class Inhalt:
                                ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
         self.f.extend([Spacer(1, 3), t, Spacer(1, 6)])
 
-    def tabelle(self, kopf, zeilen, breiten):
+    def tabelle(self, kopf, zeilen, breiten, kurz=False):
         """Tabelle wie im Angebots-PDF: ohne Gitter, blaue Linie unter dem Kopf und am Ende, dazwischen fein grau."""
+        if not self._zeigen(kurz):
+            return
         daten = [[Paragraph(f'<font color="#1F4E78"><b>{k}</b></font>', S_LEGENDE) for k in kopf]]
         daten += [[Paragraph(self._t(z), S_LEGENDE) for z in zeile] for zeile in zeilen]
         t = Table(daten, colWidths=[b * mm for b in breiten], repeatRows=1)
@@ -375,7 +478,7 @@ def titelseite(inh, stand):
     inh.bild("erg_stangenbild", hoehe=64 * mm)
     zellen = [Paragraph(f'<font color="#8EA9C1"><b>{"TEIL " + b if len(b) == 1 else b.upper()}</b></font><br/>'
                         f'<font color="#1F4E78"><b>{titel}</b></font><br/>{text}', S_KASTEN)
-              for b, titel, text, _ in TEILE]
+              for b, titel, text, _ in (TEILE[:2] if inh.kurz else TEILE)]
     t = Table([zellen], colWidths=[BREITE / len(zellen)] * len(zellen))
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                            ("RIGHTPADDING", (0, 0), (-1, -1), 10), ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -383,7 +486,12 @@ def titelseite(inh, stand):
     f.append(t)
     f.append(Spacer(1, 3 * mm))
     f.append(Paragraph("Alle Bildschirmfotos stammen aus dem Programm selbst. Firmen, Kunden, Angebote und Preise sind "
-                       "Beispielwerte. Blaue Kapitelverweise sind im PDF anklickbar.",
+                       "Beispielwerte. " + (
+                           "Die Kurzanleitung zeigt den täglichen Ablauf in Bildern. Einzelheiten, Einrichten und "
+                           "Pflegen stehen in der Bedienungsanleitung (<i>Hilfe → Bedienungsanleitung</i>, F1); "
+                           "„Anleitung 6.3“ verweist dorthin, gleiche Kapitelnummern." if inh.kurz else
+                           "Blaue Kapitelverweise sind im PDF anklickbar. Eine bebilderte Kurzfassung von Teil A und B "
+                           "ist die <b>Kurzanleitung</b> (<i>Hilfe → Kurzanleitung (PDF)</i>)."),
                        ParagraphStyle("klein", parent=S, fontSize=8.5, textColor=GRAU)))
     from reportlab.platypus.doctemplate import NextPageTemplate
     f.append(NextPageTemplate("normal"))
@@ -3993,330 +4101,12 @@ def kapitel_fragen(i):
          "(<i>Hilfe → Nach Updates suchen …</i>), dann wiederherstellen bzw. importieren."]], [85, 180])
 
 
-# Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
-NEUERUNGEN = [
-    ["0.8.33", "<b>3D nur, wenn die Schnittfläche nicht senkrecht zur Rohroberfläche steht</b>: der STEP-Import misst "
-               "je Ende und Kontur den Winkel zwischen Schnittfläche und Oberfläche. Gehrungen, die überall senkrecht "
-               "zur Wand stehen (wie ein 2D-Laser schneidet), bleiben auch mit 3D-Häkchen 2D; schräge Langlöcher und "
-               "Ausschnitte bekommen „3D prüfen“. Texte im Rohr-Editor und Prüfdialog klargestellt."],
-    ["0.8.32", "<b>Schneidweg-Rechner</b>: neue Konturart <i>Flowdrill</i> (Kernloch-Ø, nur markiert) und Spalte "
-               "<i>Gewinde</i> je Bohrung (automatisch, kein Gewinde oder Auswahl). Von Hand eingegebene Gewinde, "
-               "Senkungen, Flowdrill und Bohren kommen sofort bestätigt mit Preis je Stück in die Position, so "
-               "einfach wie beim STEP-Import ([[schneidweg_rechner]])."],
-    ["0.8.30", "<b>RP-Profile kalkuliert</b>: Schnitt durch den Anschlag mit den Schneiddaten der doppelten Wand, "
-               "neue Spalte <i>Zeit je Ecke</i> in den Schneiddaten (RP nach Kontur, Quadrat-/Rechteckrohr 4 Ecken), "
-               "Maschinenfelder <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "
-               "<i>Mindestabstand Düse</i> mit Warnungen ([[rp_profile]]). <b>STEP-Import</b>: anderes Profil gewählt "
-               "→ WARNUNG mit STEP- und Profilwerten, Anfangs- und Endschnitt werden für das gewählte Profil neu "
-               "gerechnet. <b>Schneidweg-Rechner</b>: Schrägschnitt zweiachsig (über Höhe und Breite) und 3D-Enden "
-               "aus dem STEP-Import (mehrere Ebenen, Ausklinkung) ([[schneidweg_rechner]])."],
-    ["0.8.31", "<b>Mehrere Arbeitsplätze</b>: Name und Kürzel je Benutzer, das Kürzel steht vorn in der "
-               "Angebotsnummer (PB-2026-0001); Bearbeiter im Angebotskopf und als Ansprechpartner im Angebots-PDF. "
-               "Über einen <b>gemeinsamen Ordner</b> sieht jeder die Angebote der Kollegen (nur ansehen, als Kopie "
-               "übernehmen) und alle teilen die Stammdaten; Abgleich beim Start, beim Beenden und mit dem Knopf "
-               "<i>Abgleichen</i> ([[mehrere_arbeitsplaetze]])."],
-    ["0.8.29", "<b>Schneller</b>, ohne Änderung an Bedienung und Ergebnissen: große Angebote öffnen und rechnen "
-               "deutlich schneller (Angebots-PDF mit Staffeln bei 200 Positionen 5 s statt 22 s, Optimieren 3 s statt "
-               "8 s), der Programmstart ist kürzer und die STEP-Messung großer Baugruppen etwa 12 % schneller. Preise, "
-               "Zeiten und Messwerte bleiben gleich."],
-    ["0.8.28", "Anbauteile im Angebot: Spalte <b>Anbauteile</b> der Positionen mit Doppelklick auf <i>Anbauteile "
-              "prüfen</i>, Status und Freigabe-Hinweis, Gravur Anbauteile getrennt ausgewiesen (Kalkulation, "
-              "Preisaufbau, PDF, Schneidweg-Rechner), Einstellung <i>Prüfzeit je Teil mit unsicher erkannten "
-              "Anbauteilen</i>. Im STEP-Prüfdialog die Option <b>Anbauteile nicht ins Angebot übernehmen</b> "
-              "(Vorgabe an): angeschweißte eigene Körper einer Baugruppe werden keine eigenen Positionen "
-              "([[anbauteile]])."],
-    ["0.8.27", "<b>Fasen im STEP-Import</b>: Fasen an den Rohrenden werden erkannt und nicht gelasert; Hinweis im "
-               "Bericht, Länge und Schneidweg an der längsten Stelle (gerader Schnitt). Bisher zählte eine Fase als "
-               "Innenkontur und das Ende als „nicht erkannt“."],
-    ["0.8.26", "Gewinde, Senken, Flowdrill und Bohren rechnen nur noch mit einem <b>Preis je Stück</b>, ohne "
-               "Zeiten. Die Preise kommen aus den Einstellungen und lassen sich je Position im Fenster Bohrungen "
-               "prüfen ändern (Spalten Gewinde [€/Stk] und Arbeit [€/Stk]); Senken, Flowdrill und Bohren sind "
-               "jetzt Festpreise (0,40 / 0,60 / 0,40 €), Gewinde ohne Preis bekommen einmalig Zeit × Stundensatz "
-               "als Preis ([[bohrungen_pruefen]])."],
-    ["0.8.25", "<b>Fenster Material …</b> im Angebot: je Abmessung Querschnitt, Materialeinsatz (Stangen, Meter, kg, €) "
-               "und Meterpreis, Werkstoff, Lieferlänge, Oberfläche und Eigen-/Kundenmaterial zum Ändern ([[material_fenster]]). "
-               "<b>Kalkulation-PDF</b> übersichtlicher: Anteil der Kostenarten, Materialeinsatz je Abmessung, Spalten "
-               "ohne Wert ausgeblendet, Stangenbild am Ende. Handling Kundenmaterial in €/m statt €/kg. "
-               "Träger, T- und U-Profile im Angebotstext mit Normbezeichnung (IPE, HEA, HEB, UPN …)."],
-    ["0.8.24", "STEP-Import erkennt <b>RP-Profile</b> per Fingerabdruck (Bibliothek und selbst geladene), schneidet "
-               "die Doppellage des Anschlags nur einmal, misst <b>Mehrkammerprofile</b> und meldet "
-               "<b>Verbundprofile</b> mit Kern ([[step_messung]]). Die Skizze im Schneidweg-Rechner zeigt die "
-               "RP-Kontur."],
-    ["0.8.23", "Konturen aus der STEP-Datei sitzen an der richtigen Stelle: Bleche bringen jede Innenkontur mit "
-               "Lage (x/y im Zuschnitt), Art und Maßen in den Blech-Editor, eine freie Außenkontur als Polygon "
-               "([[blech_editor]]). U-, C-, L-, T-Profile, Träger und Flachstahl: jede Kontur auf ihrer Fläche (Steg, "
-               "Flansch, Schenkel) mit Versatz quer statt alle auf der ersten Fläche. Quadrat- und Rechteckrohre mit Eckradius: Versatz quer jetzt genau, vorher bis zu "
-               "einigen mm daneben; ältere Teile mit <i>STEP neu einlesen …</i> korrigieren ([[schneidweg_rechner]])."],
-    ["0.8.22", "Programmierung als Zeit statt fester 8,50 € je Position: <b>5 min je Position + 0,5 min je "
-               "Innenkontur</b> × Stundensatz <i>Programmierung</i>, je Position in der Spalte <i>Programmierzeit "
-               "[min]</i> änderbar, sichtbar in Zeiten &amp; Arbeitskosten, in den Staffel-Stufen und im "
-               "Kalkulation-PDF. Alle Angebote rechnen neu, nur bereits verschickte behalten ihren Betrag "
-               "([[stundensaetze]])."],
-    ["0.8.21", "<b>Naht der Lieferstange im Angebot</b> statt in den Stammdaten: je Profil und Werkstoff im Fenster "
-               "Schweißnaht oder in der Materialanfrage, Vorgabe aus den Teilen, kein Hinweis mehr ohne Eintrag "
-               "([[schweissnaht]]); die Materialanfrage nennt die Seite („Schweißnaht auf der Breitseite“) und hat "
-               "einen eigenen, immer sichtbaren Knopf <b>Materialanfrage (E-Mail)</b> ([[materialanfrage]])."],
-    ["0.8.20", "<b>RP-Profile</b> (Rohre mit Anschlag aus doppeltem Blech): neue Profilform <i>RP-Profil</i>, die "
-               "Bibliothek RP-ROHRE ist mitgeliefert, eigene MegaCAD-Makros lassen sich laden, Querschnitt, Gewicht "
-               "und Schnittlänge kommen aus der Kontur ([[rp_profile]])."],
-    ["0.8.19", "<b>STEP-Import mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i> im Prüfdialog; "
-               "Gehrungen und schräge Bohrungen (mit gemessener Neigung längs/quer) werden in 3D übernommen, ohne "
-               "Häkchen erscheint bei schrägen Bohrungen „3D prüfen“."],
-    ["0.8.18", "<b>Rohr-Editor mit 3D</b>: Häkchen <i>3D-Schnittbearbeitung aktivieren</i>, je Ende <i>Gehrung in "
-               "3D</i>, je Bohrung <i>3D</i> mit Neigung längs und quer (Schnellauswahl ±45°/±30°/0°). Schräge "
-               "Bohrungen als Ellipse in Rechnung und Skizze, Winkel über der Maschinengrenze werden begrenzt und "
-               "gemeldet."],
-    ["0.8.17", "<b>3D-Greifmaß</b> in der Optimierung: hat das letzte Teil einer Stange eine 3D-Bearbeitung am Ende, "
-               "bleibt dahinter das Greifmaß der Maschine frei (statt des Greiferrests, wenn größer, nie zusätzlich); "
-               "ein Teil ohne 3D kommt nach Möglichkeit ans Ende. Stangenbild und Werkstattpapiere zeigen es mit "
-               "<i>3D</i>, ein Teil, das mit dem Greifmaß nicht auf die Stange passt, bekommt einen FEHLER."],
-    ["0.8.16", "Grundlage für die <b>3D-Schnittbearbeitung</b> mit geschwenktem Laserkopf: neue Maschinenwerte "
-               "<i>3D: Bearbeitung verfügbar</i> (Vorgabe nein), Schwenkwinkel min./max. (±45°), Greifmaß (300 mm), "
-               "Zusatzzeit und Faktor. Gehrungen in 3D und schräge Bohrungen rechnen mit den Schneiddaten der "
-               "wirksamen Dicke Wand ÷ cos(Winkel); die Kalkulation zeigt die <i>Mehrzeit 3D</i> getrennt. Winkel "
-               "über der Grenze werden begrenzt (WARNUNG), 3D auf einer Maschine ohne 3D ist ein FEHLER. Die Eingabe "
-               "im Schneidweg-Rechner und das Greifmaß in der Optimierung folgen."],
-    ["0.8.15", "Rohr / Profil als neue Position: Profilform vorwählen (die Liste zeigt dann nur Profile dieser Form), "
-               "fehlendes Profil direkt mit <b>Neu …</b> anlegen (Form und Maße, Profil-ID, Querschnitt und Gewicht "
-               "automatisch) ([[neue_position]]). Schneidweg-Rechner: die längste Seite einer Gehrung steht auf "
-               "<b>automatisch</b> und wird aus <i>gekippt über</i> angenommen; die Skizze zeigt sie, die Optimierung "
-               "dreht das Teil passend ([[schneidweg_rechner]])."],
-    ["0.8.14", "STEP-Import: Rohre mit gegenüberliegenden Langlöchern (z. B. RE 40x30x3) werden wieder gemessen statt "
-     "<i>nicht übernehmbar</i>. Nicht übernehmbare Teile zeigt die 3D-Baugruppe <b>magenta</b>, die Zeile nennt Grund "
-     "und Hüllmaß, Anklicken hebt das Teil hervor; mit <b>Von Hand nachtragen</b> (Profilform, Profil-ID) wird es "
-     "doch übernommen. Die Spalte Art ist bei jeder Zeile wählbar ([[step]]). Ebene flache Teile kommen als <b>Blech</b>, "
-     "Flachstahl ist in der Spalte Art wählbar (Einstellung <i>ebene flache Teile vorgeben als</i>); Bleche mit "
-     "Senkungen werden erkannt ([[bleche]])."],
-    ["0.8.13", "Optimieren mit Gehrungen ineinander und großen Gruppen deutlich schneller (Beispiel 830 Teile mit "
-              "Gehrungen: wenige Sekunden statt mehrerer Minuten), gleiche Ergebnisse. Vergleich mit 12 m nur noch, wenn "
-              "in den Einstellungen eingeschaltet (Vorgabe aus, [[lieferlaengen]]). Gehrungen ohne angegebene "
-              "Richtung werden bei frei drehbaren Teilen trotzdem ineinandergelegt, der Schneidweg-Rechner weist "
-              "darauf hin ([[schneidweg_rechner]])."],
-    ["0.8.12", "Bohrungen prüfen schlägt wie die Gewinde jetzt auch die Arbeitsschritte vor: <b>Senken</b> für "
-               "Senkungen, <b>Flowdrill</b> für Fließlochbohrungen und <b>Bohren</b> für Bohrungen kleiner als 0,7 × "
-               "Wandstärke (Laser markiert nur, danach aufbohren). Nach dem Bestätigen stehen sie mit der Anzahl je "
-               "Teil als Zusatzarbeit in der Position; die drei Zusatzarbeiten werden einmalig in den Stammdaten "
-               "angelegt. Gilt für STEP-Import und Schneidweg-Rechner ([[bohrungen_pruefen]])."],
-    ["0.8.11", "STEP-Import: Einstellung <b>STEP-Import: Standardordner</b> (dort startet der Dateidialog, sonst im "
-               "zuletzt benutzten Ordner) und gut sichtbares <b>Ablagefeld</b> für Drag &amp; Drop neben "
-               "<i>STEP importieren …</i>, im leeren Angebot groß statt der Positionsliste ([[step]])."],
-    ["0.8.10", "Zwei Stangenwechselzeiten je Maschine: <b>Stangenwechsel</b> (Vorgabe 24 s) und <b>Stangenwechsel "
-              "SN</b> (29 s) für Stangen, auf denen ein Teil eine feste Schweißnaht-Lage hat ([[schweissnaht]])."],
-    ["0.8.9", "Selbst angelegte Positionen bekommen ein <b>Vorschaubild</b> vor der Artikelnummer: Rohr/Profil als "
-              "Draufsicht mit Gehrungen und Innenkonturen, Blech-/Kantteil als Zuschnitt. Ändert sich das Teil (oder "
-              "die STEP-Datei), wird das Bild neu gezeichnet; Doppelklick aufs Bild öffnet den Schneidweg-Rechner "
-              "bzw. den Blech-Editor ([[schneidweg_rechner]], [[blech_editor]]). STEP-Import: Bleche wählen "
-              "Blech-Werkstoffe statt Rohr-Werkstoffen, neue Blechartikel bekommen den Blech-Richtpreis als EK, und "
-              "Doppelklick aufs Bild eines Blechs öffnet den Blech-Editor statt der 3D-Ansicht "
-              "([[blechartikel]])."],
-    ["0.8.8", "STEP-Import: Spalte <b>Anbauteile</b> im Prüfdialog, Fenster <b>Anbauteile prüfen</b> (Art, "
-              "Bearbeitung, Gravur, Bestätigen/Ausschließen, Messung ohne Trennung) und 3D-Vorschau Original/"
-              "Rohrgeometrie/Gravurkonturen ([[anbauteile]])."],
-    ["0.8.7", "STEP-Import trennt <b>Anbauteile</b> (aufgeschweißte Bolzen, Laschen, Bleche, Muttern, Kopfplatten) "
-              "vom Rohr: Profil, Länge und Schneidweg nur vom Rohr, Anbauteile mit Lage und Gravur (Bolzen Kreuz, "
-              "sonst Umriss), unsichere Fälle zum Prüfen ([[anbauteile]])."],
-    ["0.8.6", "Schneidweg-Rechner und Blech-Editor neu aufgeteilt: Die Konturtabellen haben Platz für mehrere Zeilen "
-              "ohne Rollen, Skizze und Ergebnis stehen nebeneinander (Rohr) bzw. rechts (Blech), die Fenster öffnen "
-              "bildschirmgroß ([[schneidweg_rechner]], [[blech_editor]])."],
-    ["0.8.5", "Staffeln: Im Fenster der Stufe Sätze und Positionen per Häkchen wählen (neue Stufe: alle angehakt). "
-              "Blechteile aus dem Blech-Editor je Stufe mit dem EK aus dem Einkauf ab Stückzahl, sonst mit dem "
-              "Richtpreis für die Stückzahl der Stufe neu gerechnet ([[staffeln]])."],
-    ["0.8.4", "Mausrad ändert keine Werte mehr: Über Zahlen- und Datumsfeldern, Auswahllisten und Schiebereglern "
-              "rollt das Rad immer die Seite oder Tabelle, auch in Dialogen und Tabellenzellen ([[mausrad]])."],
-    ["0.8.3", "Stangenbild und Werkstattpapiere: Schweißnaht als roter Strich auf jedem Teil, dazu je Stange "
-              "Querschnitt mit rotem Punkt und Anzahl gedrehter Teile; Gehrungen ineinander mit grünen Schnittkanten, "
-              "gespartes Material einmal je Stange (in Rest und Ausnutzung enthalten); Tooltip je Teil "
-              "([[optimieren]])."],
-    ["0.8.2", "<b>Neue Position</b> fragt zuerst den Typ: Rohr / Profil öffnet den Schneidweg-Rechner mit Kopfzeile "
-              "(Artikel, Profil, Werkstoff, Länge, Stückzahl), Blech / Kantteil den neuen <b>Blech-Editor</b> mit "
-              "Abwicklung und Richtpreis als EK ([[blech_editor]]; eigene Blech-Werkstoffe und Blechlaser-Richtwerte "
-              "unter Einstellungen, getrennt vom Rohrlaser), Zukaufteil die Schnellanlage, Leere Zeile wie bisher "
-              "([[neue_position]])."],
-    ["0.8.1", "Schneidweg-Rechner: Werte aus dem STEP-Import auch bei älteren Positionen (Enden, Bohrungen, Konturen, "
-              "Gravur), <b>STEP neu einlesen …</b>, Schweißnaht wählbar, Rechteck-/Quadratrohr bei Naht und Seite nur "
-              "0°/90°/180°/270°, beschriftete Enden und Maße je Konturart, Maße und Naht in der Skizze, "
-              "<b>Zeichnung als PDF …</b>; Doppelklick auf das kleine STEP-Bild öffnet den Rechner "
-              "([[schneidweg_rechner]])."],
-    ["0.8.0", "Staffelpreise in Stufen: jede Stufe ist ein eigener Auftrag mit Mengen für einen oder mehrere Sätze "
-              "und Positionen, gemeinsam optimiert und kalkuliert; gleiche Mengen wie im Angebot ergeben dessen "
-              "Preise. Fenster je Stufe mit den Einstellungen des Angebots, Materialpreis €/m je Abmessung und "
-              "Mengen ([[staffeln]]); alte Staffeln werden der Größe nach auf Stufen verteilt (Schema 36). "
-              "Angebot mit sieben statt zehn Reitern: Zeiten & Arbeitskosten liegt unter Kalkulation, Stangenbild und "
-              "Auswertung unter Schnittplan ([[optimieren]]); Übersicht zeigt den Preisaufbau Schritt für Schritt bis "
-              "zum Verkaufspreis, Gruppen per Klick aufklappbar; Status, Optimierung und Kalkulation prüfen Positionen "
-              "mit einer gemeinsamen Prüffunktion (ungültige Stückzahl mit Nachkommastellen jetzt FEHLER im Status)."],
-    ["0.7.0", "Verbesserungen aus dem Prüfbericht: Warnungen bei Satz mit ungleicher Anzahl Sätze, nicht erkannten "
-              "Gewinden und negativen Werten; Hinweis zu Staffelpreisen im Angebots-PDF (Kasten); Angebots-PDF schreibt "
-              "alle Preisgrundlagen fest und zeigt Abweichungen vom verschickten Stand ([[preise_festschreiben]]); "
-              "„Prüfen vor Freigabe“ in der Übersicht; Status gleich nach der Positionsnummer; Kalkulationswerte zu "
-              "Beginn zugeklappt; Vorgang (Entwurf, Verschickt, Beauftragt, Abgelehnt), Gültig bis und Filter in der "
-              "Angebotsliste ([[angebote]]); Optimierung großer Angebote im Hintergrund mit Abbruch und etwa dreimal "
-              "schneller; Herkunft des Materialpreises im Tooltip ([[meterpreis]]); Gewinde aus der Liste im Dialog "
-              "Zusatzarbeiten; Fehlerprotokoll Daten/Protokoll/fehler.log. Android-App und Handy-Export entfernt."],
-    ["0.6.38", "Datei → Stammdaten fürs Handy exportieren …: Stammdaten und Einstellungen als Datei für die "
-               "Android-App (Testversion), dort nur zum Ansehen und für den Stangenrechner ([[datensicherung]])."],
-    ["0.6.37", "Mehr Doppelklick: Status führt zur Lösung (Dialog oder Zelle zum Eintragen), Schneidweg/Einstiche/"
-               "STEP-Werte öffnen den Schneidweg-Rechner, Artikel mit 3D die 3D-Ansicht, Schnittplan, Stangenbild und "
-               "STEP-Protokoll springen zur Position, Kunde im Angebotskopf öffnet den Kunden, Kundenliste zeigt die "
-               "Angebote des Kunden ([[doppelklick]])."],
-    ["0.6.36", "STEP-Import erkennt Senkungen und Flowdrill (Fließlochbohrungen). Gewinde, Senkungen und Flowdrill "
-               "werden per Doppelklick auf die Position im Fenster Bohrungen prüfen bestätigt oder abgelehnt; Senk-Ø "
-               "auf Wunsch als Gravur, Flowdrill als Gravur oder Loch Ø0,5 ([[bohrungen_pruefen]])."],
-    ["0.6.35", "Materialanfrage: Zuschnitt der 12-m-Stange je Zeile („geschnitten auf …“, abwählbar), Anforderungen "
-               "je Werkstoff zum Ankreuzen (Prüfbescheinigung, Herkunft EU, Maßtoleranzen), Betreff und Text als "
-               "Vorlage in den Einstellungen, Signatur aus Outlook bzw. eigene Signatur ([[materialanfrage]])."],
-    ["0.6.34", "Frachtkosten, Zukauf und Dialoge mit kurzen Hilfetexten (ⓘ mehr, wie [[stammdaten]]); Zukauf-Formular "
-               "mit Abschnitten zum Auf- und Zuklappen ([[zukauf]])."],
-    ["0.6.33", "Einstellungen übersichtlicher: Hilfetexte kurz mit ⓘ mehr oder nur als Tooltip (Einstellung), "
-               "Prüfung OK grau statt grün, Filter „Nur Fehler und Warnungen“ ([[stammdaten]]); Vorgaben als "
-               "Karten, bei breitem Fenster zweispaltig ([[vorgaben]])."],
-    ["0.6.32", "Startseite als Übersicht (Neues Angebot, zuletzt bearbeitete Angebote, Stammdaten, Sicherung); "
-               "Angebotsliste mit farbigem Status und Verkaufspreis ([[angebote]])."],
-    ["0.6.31", "Angebot übersichtlicher: Übersicht rechts über die ganze Höhe, Angebotskopf und Fracht klappen auf "
-               "eine Zeile zu ([[angebot]]); Kalkulation ohne leere Spalten mit 2 Nachkommastellen "
-               "([[kalkulation]]), Schnittplan zeigt Gleiches einmal und gleich die erste Stange, Auswertung "
-               "„Alle Teile eingeplant“."],
-    ["0.6.30", "Einheitliches Aussehen wie die PDFs (dunkelblaue Akzente, Reiter, Tabellenköpfe mit Linie, "
-               "Zebra-Zeilen); Angebot passt auf 1366-px-Bildschirme ([[ausgabe]]); Spaltenköpfe nicht mehr "
-               "abgeschnitten, Staffel-Kostentabelle mit lesbarem Zeilenabstand, Nachkalkulation zeigt alle "
-               "Stangengruppen."],
-    ["0.6.29", "Schneidweg-Rechner: <b>maßstäbliche Skizze</b> mit Draufsicht, Seitenansicht, Ansicht von A und "
-               "<b>Abwicklung</b> für alle Profilformen, Bemaßung, Zoom; Konturen anklicken (Zeile wird markiert) "
-               "und mit der Maus verschieben. Neu je Kontur: Seite bzw. Winkel, Versatz quer und Abstand für Muster; "
-               "neue Konturarten Senkung und Ausklinkung am Ende; Vorlagen speichern und laden, Konturen aus einer "
-               "anderen Position kopieren. Der STEP-Import legt die gemessenen Konturen im Rechner ab: sie erscheinen "
-               "in Tabelle und Skizze und lassen sich bearbeiten ([[schneidweg_rechner]])."],
-    ["0.6.28", "Zeichnungen je Position wieder entfernt (Spalte, Ziehen von Dateien auf eine Position, automatisches "
-               "Anhängen der STEP-Datei). Bereits in den Ordner des Angebots kopierte Zeichnungen löscht das Programm "
-               "beim ersten Start einmalig; andere Dateien im Ordner bleiben. Die "
-               "Materialanfrage per Outlook bleibt, ohne Zeichnungsanhang ([[materialanfrage]])."],
-    ["0.6.27", "Reiter Kunden: <b>CSV exportieren</b> und <b>CSV importieren …</b> mit Vorschau, Prüfung, Wahl "
-               "„nur neue anlegen“ und Datensicherung vorher ([[kunden_csv]])."],
-    ["0.6.26", "STEP-Import von Baugruppen: im Prüfdialog steht eine Datei mit mehreren Teilen als Baugruppe, die "
-               "3D-Ansicht zeigt sie zusammengebaut (Lage aus der STEP, gleiche Teile gleiche Farbe), und sie wird "
-               "standardmäßig ein Satz (Sätze = 1) ([[step]])."],
-    ["0.6.25", "Frachtzonen: <b>Auf Standard zurücksetzen …</b> stellt die Standardzonen und PLZ-Zuordnungen der "
-               "Richtwerte wieder her, mit Rückfrage und Datensicherung vorher ([[fracht_zonen_standard]])."],
-    ["0.6.24", "Schnittplan, Stangenbild und Werkstattpapiere zeigen Drehung, Schweißnaht und ineinanderliegende "
-               "Gehrungen (schräge Kanten), die Auswertung den Vergleich ohne Drehen ([[optimieren]])."],
-    ["0.6.23", "Optimierung legt Gehrungen ineinander: Teile werden um die eigene Achse gedreht, nie gewendet; feste "
-               "oder unbekannte Schweißnaht sperrt die Drehung ([[optimieren]], [[schweissnaht]])."],
-    ["0.6.22", "Gehrungen mit Richtung: der STEP-Import misst, an welcher Seite ein schräges Ende am längsten ist "
-               "([[step_messung]]), im Schneidweg-Rechner wird sie gewählt ([[schneidweg_rechner]]). Grundlage für "
-               "das Ineinanderlegen von Gehrungen in der Optimierung."],
-    ["0.6.21", "Schweißnaht je Position: Vorgabe (keine, feste Position, unbekannt), Winkel am Querschnitt (Blick von "
-               "Ende A, 0° oben, 90° rechts), Querschnittslage bei Rechteckrohr, Breit- oder Schmalseite; Profil mit "
-               "<i>Naht der Lieferstange</i> und Prüfung im Status ([[schweissnaht]])."],
-    ["0.6.20", "Bedienungsanleitung neu gegliedert: Teil A Erste Schritte mit neuem Schnellstart in 10 Schritten "
-               "([[schnellstart]]), Teil B Ein Angebot rechnen (jetzt bis zur Nachkalkulation), Teil C Einrichten und "
-               "pflegen, Anhang; jedes Kapitel beginnt mit dem Kasten <i>Wofür / Wo im Programm</i>. Aussehen wie das "
-               "Angebots-PDF (dunkelblau, ohne Gitterlinien). Ergänzt: Spalten der Zukauf-CSV ([[zukauf_csv]])."],
-    ["0.6.19", "Schneiddaten: neue Rohr-Richtwerte für die Faserlaser (dünne Wände höchstens 8.000 mm/min, Stahl mit "
-               "N₂ bis 4 mm, T11 erst ab 3 mm schneller als LT7); unveränderte Richtwert-Zeilen älterer Dateien "
-               "werden einmalig angepasst ([[stammdaten]]). Konturklassen zählen zusätzlich nach Hüllmaß ÷ "
-               "Wandstärke (klein bis 3 ×, mittel bis 8 × Wand, je Maschine änderbar), die strengere Klasse gilt; "
-               "Kontur kleiner als 0,7 × Wand gibt eine Warnung (ggf. nur gravieren und aufbohren) ([[konturklassen]])."],
-    ["0.6.18", "Schneiddaten: Schaltfläche <i>Auf Standard zurücksetzen …</i> stellt für eine Maschine oder alle "
-              "(T03, T11, LT7) nach Sicherheitsabfrage die mitgelieferten Richtwerte wieder her "
-              "([[schneiddaten_standard]])."],
-    ["0.6.17", "Werkstattpapiere, Kalkulation und Nachkalkulation im Design des Angebots ([[ausgabe]]): Firmenname, "
-              "kleines Logo, Listen ohne Gitter. Werkstattpapiere mit Kästchen zum Abhaken und fetter Kopfzeile je "
-              "Stangenmuster; Kalkulation mit Kennzahlen oben und ohne Kostenarten mit 0,00 €; Nachkalkulation mit "
-              "Kennzahlen und farbigen Abweichungen (rot = teurer, grün = günstiger)."],
-    ["0.6.16", "Angebots-PDF moderner: ohne Gitterlinien, Briefkopf mit Firmenlogo (neue Einstellung <i>Firmenlogo</i>), "
-              "Anschrift links und Angebotsdaten rechts, Summenblock mit Gesamtbetrag, Konditionen zeilenweise. "
-              "Staffelpreise stehen jetzt in ihrer Position („Ab 50 Stk. je“) statt als eigene Tabelle; einmalige "
-              "Rüstkosten sind im Stufenpreis enthalten ([[ausgabe]], [[staffeln]])."],
-    ["0.6.15", "Lieferlängen: Die Restlänge einer zugeschnittenen 12-m-Stange kommt an die letzte Stange (bis zur "
-              "Beladelänge), das spart einen Sägeschnitt; sonst ist sie Abfall. Der Vergleich öffnet sich groß über den "
-              "Knopf <i>12-m-Lösung ansehen …</i> im Reiter Auswertung, den es nur bei einer sinnvollen Lösung gibt. "
-              "Händler-Mehrlänge im Materialpreis (Einstellungen, Vorgabe +50 mm je Stange bis 6,5 m, +100 mm "
-              "darüber), nicht in der Längenplanung. Neue Einstellung <i>Puffer je "
-              "zugeschnittener Stange</i> (Vorgabe 50 mm): Zuschnitte nicht mehr auf den Millimeter genau. Material "
-              "zählt weiter die ganzen Lieferstangen, nach Länge auf alle Teile verteilt ([[lieferlaengen]])."],
-    ["0.6.14", "Spaltenbreite und Zeilenhöhe automatisch in allen Tabellen: Spalten passend zum Inhalt (Höchstbreite), "
-              "lange Texte umgebrochen bis drei Zeilen, kurze Zeilen bleiben einzeilig; von Hand gezogene Spalten "
-              "bleiben ([[angebot]])."],
-    ["0.6.13", "Maschinen: neues Feld <i>Min. Stangenlänge Zuschnitt</i> (Vorgabe 2.500 mm, auch für vorhandene "
-              "Maschinen). Beim Zuschnitt einer 12-m-Stange wird keine Stange kürzer, damit die automatische "
-              "Stangenladung sie nimmt; eine kürzere wird verlängert, der Mehrbedarf ist Verschnitt ([[lieferlaengen]])."],
-    ["0.6.12", "Windows-Tastenkürzel: Strg+Z/Strg+Y (Rückgängig/Wiederholen im Angebot, bis 100 Schritte), "
-              "Strg+C/V/X für Zellen und Blöcke aus Excel, Entf löscht mit Rückfrage, Strg+N, Strg+F, Strg+S, Strg+P, "
-              "Strg+I, F5, F9, Strg+W, Strg+Tab, Strg+Bild↓/↑; neue Menüs Bearbeiten und Ansicht, "
-              "<i>Hilfe → Tastenkürzel …</i> ([[rueckgaengig]], [[tastenkuerzel]])."],
-    ["0.6.11", "Lieferlängen: Schnittplan, Stangenbild und Werkstattpapiere zeigen zugeschnittene 12-m-Stangen als "
-              "ihre Stücke (eigene Stangen mit Endbeschnitt und Greiferrest), ohne den Zuschnitt; gerechnet wird weiter "
-              "mit den 12-m-Stangen ([[lieferlaengen]])."],
-    ["0.6.10", "Zeichnungen je Position (seit 0.6.28 wieder entfernt) und <b>Material per Outlook anfragen</b>: Stangenbedarf aus der "
-              "Optimierung, Lieferant und E-Mail-Adresse, gesendet wird nur in Outlook ([[materialanfrage]])."],
-    ["0.6.9", "Frachtkosten: <b>Richtwerte laden</b> für den Palettenversand (Marktpreise 10/2026 + 10 % Puffer, "
-              "Maut und Diesel enthalten, Zonen nach Entfernung vom Versandort, schwere Paletten, Langgut, Inseln; "
-              "[[fracht_richtwerte]]). Automatische Fracht übernimmt die volle PLZ des Kunden."],
-    ["0.6.8", "Online-Update: erscheint zwischen Suche und Update eine noch neuere Version, nimmt das Programm diese "
-              "statt mit <i>HTTP Error 404</i> abzubrechen; die Pakete des vorigen Stands bleiben länger liegen "
-              "([[updates]])."],
-    ["0.6.7", "Übersicht im Angebot ohne die Kennzahlen Gesamtlänge und Stangen, weil diese Summen über "
-              "verschiedene Abmessungen nicht aussagekräftig sind. Stangen je Abmessung zeigt das Stangenbild."],
-    ["0.6.6", "Schneidweg-Rechner ausgebaut: Gehrung bei allen Profilen über Höhe oder Breite, Ausklinkung "
-              "(Sattelschnitt) auf ein Rundrohr, Polygon aus Koordinaten, Skizze mit Lage der Konturen, "
-              "Gewinde-Vorschlag aus den Bohrungen ([[schneidweg_rechner]])."],
-    ["0.6.5", "Mindestpreis: gilt immer aus den Einstellungen für alle Angebote, auch ältere (dort stand bisher 0 €), "
-              "und wird bei jeder Änderung geprüft; im Angebot nicht mehr änderbar ([[mindestpreis]]). Zuschlag "
-              "Material und Zuschlag Fertigung ebenso nur noch in den Einstellungen, dort einmalig auf 0 % gesetzt."],
-    ["0.6.4", "Vorschub Gravur der Richtwerte auf 3.000 mm/min gesenkt (bisher Faser 15.000, CO₂ 10.000); ältere "
-              "Datendateien werden einmalig angepasst, von Hand geänderte Werte bleiben ([[stammdaten]])."],
-    ["0.6.3", "Schneidweg-Rechner für Teile ohne STEP-Datei: Gehrungen, Bohrungen, Langlöcher, Rechtecke, Schlitze "
-              "und sonstige Konturen eingeben, Schneidweg, Einstiche, Konturklassen und Schneidzeit sofort sehen und "
-              "in die Position übernehmen (Rechtsklick auf die Position, [[schneidweg_rechner]])."],
-    ["0.6.2", "Kundenmaterial: Spalte <i>Material</i> je Position (Eigenmaterial / Kunde beigestellt), Vorgabe im "
-              "Angebotskopf, eigene Stangengruppe ohne Materialkosten, optional Handling je kg, Hinweis mit "
-              "Stangenbedarf im Angebot ([[kundenmaterial]])."],
-    ["0.6.1", "Angebot: Kalkulationswerte, die von den Einstellungen abweichen, sind gelb markiert und aufgelistet "
-              "(auch Stundensätze), Preisänderung nach jeder Änderung in der Statuszeile, <i>Vorgaben aus "
-              "Einstellungen</i> nennt jede Änderung ([[angebot]])."],
-    ["0.6.0", "Angebot: eigene <b>Lieferzeit</b> je Angebot (Arbeitstage, Wochen, KW, Datum oder Text, [[lieferzeit]]), "
-              "<b>Ihre Anfrage / Zeichen</b> im Kopf und im PDF, <b>Mindestpreis</b> 200 € netto: Stückpreise "
-              "werden anteilig angehoben, Hinweis „Mindestauftragswert“ ([[mindestpreis]])."],
-    ["0.5.17", "Angebot: Der Angebotstext jeder Position steht zeilenweise (Profil, Länge, Material, Oberfläche, je "
-               "Zusatzarbeit und Zukaufteil eine Zeile <i>inkl. …</i>) statt hintereinander ([[ausgabe]])."],
-    ["0.5.16", "Programm und Setup sind mit dem eigenen Zertifikat <i>Patrick Brundiers</i> signiert; neue Datei "
-               "<i>Windows-Vertrauen-einrichten.cmd</i> (ohne Adminrechte) gibt Setup/ZIP frei und trägt das Zertifikat "
-               "ein, Anleitung zu „Zulassen“ vor dem Entpacken ([[windows_warnungen]], [[windows_vertrauen]])."],
-    ["0.5.15", "Angebot: Spalte <i>Materialpreis [€/m]</i> zeigt den berechneten Meterpreis grau und lässt ihn wie die "
-               "Schneidzeit günstiger oder teurer überschreiben ([[meterpreis]])."],
-    ["0.5.14", "Lieferlängen: 6-m- gegen 12-m-Stangen vergleichen, 12 m nur als vom Lieferanten geschnittene "
-               "Werkstücke bis zur Beladelänge, Übernahme per Klick, Staffeln wählen selbst ([[lieferlaengen]])."],
-    ["0.5.13", "Maschinen T03 (Trumpf, CO₂ 3,2 kW), T11 (Trumpf, Faser 4 kW) und LT7 (Adige, Faser 3 kW) statt RL-1/RL-2, "
-               "neue Schneiddaten-Richtwerte je Laser, Prüfspalte warnt bei unplausiblen Vorschüben; beim Umbenennen "
-               "einer Maschine ziehen Angebote und Standard-Maschine mit ([[stammdaten]])."],
-    ["0.5.12", "Schneidzeit mit der größten Wandstärke (neues Feld <i>Wandstärke max.</i> bei den Profilen, "
-               "Normprofile mit der Flanschdicke) und mehrere Einstiche je Anfangs-/Endschnitt: I-/H-Träger und "
-               "U-Profil 4, T-Profil 2 ([[optimieren]])."],
-    ["0.5.11", "Einkaufspreis fehlender Zukaufteile direkt im Angebot eintragen (<i>Zukaufteile … → EK eintragen …</i>), "
-               "gespeichert ab der Stückzahl der Position ([[zukauf_positionen]])."],
-    ["0.5.10", "Automatische Fracht rechnet nach jeder Änderung am Angebot sofort neu und schreibt den Betrag ins "
-               "Feld Frachtkosten ([[fracht_angebot]])."],
-    ["0.5.9", "STEP-Import: bei Grenzfällen ist die Art im Prüfdialog wählbar (Flachstahl oder Blech, Profil oder "
-              "Kantteil) ([[step]])."],
-    ["0.5.8", "Fracht automatisch berechnen mit Ziel-PLZ und Land, zweistellige Postleitzahlen in den Frachtzonen "
-              "([[fracht]]). STEP-Import: Standard-Werkstoff für Rohre und Profile, Stückzahl 1 bei Einzelteilen."],
-    ["0.5.7", "Konturklassen: Konturliste je Position, Neu-Einteilung, Enden nach Hüllmaß ([[konturklassen]])."],
-    ["0.5.6", "Konturklassen: Zeitanteile je Klasse, Warnung bei widersprüchlichen Konturwerten."],
-    ["0.5.4 – 0.5.5", "Bleche aus dem STEP-Import werden eigene Zukaufteil-Positionen ([[zukauf_positionen]])."],
-    ["0.5.3", "Online-Update ohne Anmeldung aus einem öffentlichen Update-Verzeichnis ([[updates]]); Blechartikel "
-              "mit Maßen, Werkstoff und fehlendem Einkaufspreis ([[blechartikel]])."],
-    ["0.5.2", "STEP-Import erkennt I-/H-Träger und T-Profile."],
-    ["0.5.1", "STEP-Import erkennt Bleche und grenzt sie vom Flachstahl ab ([[bleche]])."],
-    ["0.5.0", "Preise je Angebot festschreiben ([[preise_festschreiben]]), Schnittmuster-Optimierung, "
-              "kaufmännische Rundung im Angebot."],
-]
-
-
 def kapitel_neu(i):
     i.kapitel("Anhang: Was ist neu", marke="neu")
-    i.text("Was sich je Programmversion für die Bedienung geändert hat, neueste zuerst. Die installierte Version "
-           "steht unter <i>Hilfe → Über …</i> und auf der Titelseite dieser Anleitung.")
-    i.tabelle(["Version", "Änderung"], NEUERUNGEN, [30, 235])
+    i.text(f"Die wichtigsten Neuerungen der letzten {IN_ANLEITUNG} Versionen, neueste zuerst. Alle Versionen mit "
+           "allen Einzelheiten zeigt das Programm unter <b>Hilfe → Was ist neu …</b>; die installierte Version steht "
+           "unter <i>Hilfe → Über …</i>.")
+    i.tabelle(["Version", "Neu"], [[v, kurz] for v, _, kurz in NEUERUNGEN[:IN_ANLEITUNG]], [30, 235])
 
 
 # ---------------------------------------------------------------- Ablauf
@@ -4409,7 +4199,8 @@ STECKBRIEFE = {
                      "<i>STEP-Import.exe</i> im Programmordner"),
     "tastenkuerzel": ("Alle Tastenkürzel und Doppelklicks auf einen Blick, dazu das Mausrad.", "<i>Hilfe → Tastenkürzel …</i>"),
     "fragen": ("Meldungen des Programms und was dagegen hilft.", "Statuszeile und Meldungsfenster"),
-    "neu": ("Was sich je Programmversion geändert hat.", "<i>Hilfe → Über …</i> zeigt die installierte Version"),
+    "neu": ("Die wichtigsten Neuerungen der letzten Versionen.",
+            "<i>Hilfe → Was ist neu …</i> zeigt alle Versionen, <i>Hilfe → Über …</i> die installierte"),
 }
 
 # Teile der Anleitung: Buchstabe, Titel, ein Satz dazu, Kapitel in der Reihenfolge der Arbeit.
@@ -4431,11 +4222,11 @@ TEILE = [
 ]
 
 
-def inhalt_sammeln(daten, bilder, vorlauf=None):
+def inhalt_sammeln(daten, bilder, vorlauf=None, kurz=False):
     stand = datetime.date.today().strftime("%d.%m.%Y")
-    inh = Inhalt(bilder, vorlauf)
+    inh = Inhalt(bilder, vorlauf, kurz)
     titelseite(inh, stand)
-    for buchstabe, name, text, kapitel_liste in TEILE:
+    for buchstabe, name, text, kapitel_liste in (TEILE[:2] if kurz else TEILE):     # Kurzanleitung: Teil A und B
         inh.teil(buchstabe, name, text)
         for kapitel in kapitel_liste:
             if kapitel is kapitel_ausgabe:
@@ -4445,34 +4236,44 @@ def inhalt_sammeln(daten, bilder, vorlauf=None):
     return inh
 
 
-def pdf_bauen(bilder_ordner, ziel):
+def pdf_bauen(bilder_ordner, ziel, kurz_ziel=None):
+    """Bedienungsanleitung nach ziel, Kurzanleitung (Teil A und B, nur Bilder, Schritte und Legenden) nach kurz_ziel."""
     daten = json.loads((Path(bilder_ordner) / "bilder.json").read_text(encoding="utf-8"))
     bilder = dict(daten["bilder"], _ordner=Path(bilder_ordner))
     # 1. Durchlauf: Kapitelnummern der Marken, 2. Durchlauf: Verweise einsetzen
-    inh = inhalt_sammeln(daten, bilder, inhalt_sammeln(daten, bilder))
+    vorlauf = inhalt_sammeln(daten, bilder)
+    inh = inhalt_sammeln(daten, bilder, vorlauf)
     ungenutzt = sorted(n for n in set(daten["bilder"]) - inh.benutzte_bilder - OHNE_STELLE
                        if not n.startswith("pdf_"))      # Seitenbilder der PDF-Ausgaben: nur einzelne Seiten gezeigt
     if ungenutzt:
         raise ValueError("Bildschirmfotos ohne Stelle in der Anleitung (bilder.py erzeugt sie umsonst): "
                          + ", ".join(ungenutzt))
+    stand = datetime.date.today().strftime("%d.%m.%Y")
     doc = Anleitung(ziel)
-    doc.stand = datetime.date.today().strftime("%d.%m.%Y")
+    doc.stand = stand
     doc.multiBuild(inh.f)
+    if kurz_ziel:
+        kurz = Anleitung(kurz_ziel, "Kurzanleitung")
+        kurz.stand = stand
+        kurz.multiBuild(inhalt_sammeln(daten, bilder, vorlauf, kurz=True).f)
     return ziel
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ziel", default=str(HIER / "Bedienungsanleitung.pdf"))
+    ap.add_argument("--kurz", help="Kurzanleitung.pdf (Vorgabe: neben --ziel)")
     ap.add_argument("--bilder", help="vorhandene Bilder verwenden (Ordner mit bilder.json)")
     a = ap.parse_args()
+    kurz = a.kurz or str(Path(a.ziel).with_name("Kurzanleitung.pdf"))
     if a.bilder:
-        ziel = pdf_bauen(a.bilder, a.ziel)
+        ziel = pdf_bauen(a.bilder, a.ziel, kurz)
     else:
         with tempfile.TemporaryDirectory() as tmp:
             bilder_erzeugen(tmp)
-            ziel = pdf_bauen(tmp, a.ziel)
-    print(f"{ziel}: {Path(ziel).stat().st_size // 1024} KB")
+            ziel = pdf_bauen(tmp, a.ziel, kurz)
+    for datei in (ziel, kurz):
+        print(f"{datei}: {Path(datei).stat().st_size // 1024} KB")
 
 
 if __name__ == "__main__":

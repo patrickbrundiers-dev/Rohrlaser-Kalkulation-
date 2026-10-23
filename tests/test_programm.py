@@ -136,7 +136,7 @@ assert db.einstellung("stammdaten_herkunft") == "Test"
 
 # 8) Oberfläche: Bearbeiten über das Tabellenmodell speichert sofort, ungültige Eingaben werden abgewiesen
 from PySide6.QtCore import Qt  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db)
@@ -261,15 +261,18 @@ else:
 # 11) Angebotsfenster: Optimieren speichert das Ergebnis, Ändern macht es veraltet, Status und Summen stehen
 app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
-anleitung_pdf = HIER.parent / "anleitung" / "Bedienungsanleitung.pdf"   # erzeugt erst der Build, nicht im Repository
-ohne_pdf = not anleitung_pdf.is_file()
-if ohne_pdf:
-    anleitung_pdf.write_bytes(b"%PDF-1.4")
 fenster.datei_oeffnen = lambda pfad: None
-assert fenster.anleitung_oeffnen() == anleitung_pdf   # Hilfe-Menü
-if ohne_pdf:
-    anleitung_pdf.unlink()
+for name in ("Bedienungsanleitung.pdf", "Kurzanleitung.pdf"):    # erzeugt erst der Build, nicht im Repository
+    anleitung_pdf = HIER.parent / "anleitung" / name
+    ohne_pdf = not anleitung_pdf.is_file()
+    if ohne_pdf:
+        anleitung_pdf.write_bytes(b"%PDF-1.4")
+    assert fenster.anleitung_oeffnen(name) == anleitung_pdf   # Hilfe-Menü
+    if ohne_pdf:
+        anleitung_pdf.unlink()
 del fenster.datei_oeffnen
+from rohrlaser import VERSION  # noqa: E402
+assert VERSION in fenster.neuerungen_zeigen().findChild(QLabel).text()   # Hilfe → Was ist neu …
 seite = fenster.angebot_oeffnen(a1)
 assert seite.stand_optimierung() == "noch nicht optimiert"
 assert seite.optimieren()
