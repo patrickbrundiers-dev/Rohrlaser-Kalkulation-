@@ -35,7 +35,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import nummern, step_ablage, step_einstellungen
+from . import nummern as angebotsnummern, step_ablage, step_einstellungen
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -1548,16 +1548,16 @@ class AngebotSeite(QWidget):
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
         nr = self.kopf.get("nummer") or ""
-        return (f"Angebot {nr}" + (" (vorläufige Nummer)" if nummern.vorlaeufig(nr) else "")
+        return (f"Angebot {nr}" + (" (vorläufige Nummer)" if angebotsnummern.vorlaeufig(nr) else "")
                 + (f" ({self.kopf['fremd']})" if self.kopf.get("fremd") else ""))
 
     def nummer_endgueltig(self, wofuer):
         """Vor Angebots-PDF und Materialanfrage: eine vorläufige Nummer (Ordner war beim Anlegen nicht erreichbar) jetzt
         im gemeinsamen Ordner endgültig vergeben. False = Ordner weiter nicht erreichbar (Meldung)."""
-        if self.fremd() or not nummern.vorlaeufig(self.kopf.get("nummer")):
+        if self.fremd() or not angebotsnummern.vorlaeufig(self.kopf.get("nummer")):
             return True
         try:
-            umn = nummern.endgueltig(self.db, self.id)
+            umn = angebotsnummern.endgueltig(self.db, self.id)
         except OSError:
             text = (f"{wofuer} erst mit endgültiger Angebotsnummer: der gemeinsame Ordner ist nicht erreichbar. "
                     "Die Nummer kommt beim nächsten Abgleich.")
