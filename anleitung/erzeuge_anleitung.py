@@ -1564,11 +1564,20 @@ def kapitel_optimieren(i):
            "und die Zeit, <b>Abbrechen</b> beendet die Optimierung nach der laufenden Abmessung, ohne etwas zu "
            "speichern.")
     i.abschnitt("Kalkulation", marke="kalkulation")
-    i.bild("erg_kalkulation", "Reiter Kalkulation", hoehe=80 * mm)
-    i.text("Oben die Summen des Angebots, darunter je Position Material, Laserzeit, Rüsten, Herstellkosten und "
-           "Verkaufspreis je Teil.", kurz=True)
+    i.bild("erg_kalkulation", "Reiter Kalkulation, kompakte Übersicht", hoehe=80 * mm, legende=[
+        (1, "<b>Kompakte Übersicht</b> je Bauteil: Profil, Stückzahl, Länge, Material, Oberfläche, "
+            "<i>Laserzeit berechnet</i> und <i>Laserzeit genutzt</i> je Teil, genutzte Laserzeit der Position in "
+            "Minuten, Verkaufspreis je Teil und Position. Doppelklick springt zur Position."),
+        (2, "Häkchen <b>Kompakt</b> aus: alle Spalten der Kalkulation (Wahl gilt für alle Angebote).")])
+    i.text("Oben die Summen des Angebots, darunter je Bauteil das Wichtigste auf einen Blick; ohne Häkchen "
+           "<b>Kompakt</b> alle Spalten.", kurz=True)
     i.genauer()
-    i.text("Der Reiter <i>Kalkulation</i> zeigt oben in einem Kasten die Summen des Angebots und darunter je Position "
+    i.text("<i>Laserzeit berechnet</i> ist die Schneidzeit aus Schneidweg, Konturklassen, Gravur und Einstichen "
+           "(Laserzeit brutto). <i>Laserzeit genutzt</i> ist die Zeit, die in den Preis eingeht: ohne die "
+           "gemeinsamen Schnitte mit dem Nachbarteil, mit Zeiten aus Zusatzarbeiten und Prüfzeit; bei einer "
+           "Schneidzeit von Hand ([[schneidzeit]]) diese Zeit, die Spalte <i>Schneidzeit manuell</i> zeigt dann "
+           "„ja“. Die Spalte <i>Hinweis</i> erscheint nur, wenn eine Position einen Hinweis hat.")
+    i.text("Ohne Häkchen <b>Kompakt</b> zeigt der Reiter <i>Kalkulation</i> je Position "
            "Material, Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position. Beträge "
            "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; Kalkulations-PDF und "
            "CSV-Export rechnen weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "

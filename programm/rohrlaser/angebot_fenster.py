@@ -31,7 +31,8 @@ from .datenbank import VORGAENGE
 from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
-from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
+from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
+    kompakt_zeilen
 from .leiste import UmbruchLeiste
 from . import step_ablage
 from .step_ablage import AblageFeld
@@ -1135,6 +1136,9 @@ PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None,
 
 
 KALK_IMMER = {"pos", "artikel", "stueck", "material_teil", "herstell_teil", "preis_teil", "preis_position"}
+KOMPAKT_IMMER = {"pos", "artikel", "profil", "stueck", "laenge", "material", "oberflaeche", "laser_brutto", "laser_netto",
+                 "preis_teil", "preis_position"}
+KOMPAKT_EINSTELLUNG = "ansicht_kalk_kompakt"    # Reiter Kalkulation: kompakte Übersicht (Vorgabe) oder alle Spalten
 PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}   # einmal über dem Schnittplan
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
 
@@ -1343,11 +1347,27 @@ class AngebotSeite(QWidget):
         self.summen.setObjectName("summenzeile")
         self.kalk_info = QLabel()
         self.kalk_info.setStyleSheet("color: #5F6B7A;")
+        # Kompakte Übersicht (Vorgabe): das Wichtigste je Bauteil; 'Alle Spalten' zeigt die ganze Kalkulation
+        self.kompakt = Liste(KOMPAKT_SPALTEN, max_stellen=2)
+        self.kompakt_ansicht = _tabelle(self.kompakt)
+        _breiten(self.kompakt_ansicht, KOMPAKT_SPALTEN)
+        self.kompakt_ansicht.setToolTip("Doppelklick: zur Position")
+        self.kompakt_ansicht.doubleClicked.connect(self._kompakt_doppelklick)
+        self.kalk_kompakt = QCheckBox("Kompakt")
+        self.kalk_kompakt.setToolTip("Kompakt: Profil, Stückzahl, Länge, Material, Oberfläche, Laserzeit berechnet und "
+                                     "genutzt, Verkaufspreis je Bauteil.\nOhne Häkchen: alle Spalten der Kalkulation.")
+        self.kalk_kompakt.setChecked(self.db.einstellung(KOMPAKT_EINSTELLUNG) is not False)
+        self.kalk_kompakt.toggled.connect(self._kompakt_umschalten)
         kalk_seite = QWidget()
         kl = QVBoxLayout(kalk_seite)
         kl.addWidget(self.summen)
-        kl.addWidget(self.kalk_info)
+        kz = QHBoxLayout()
+        kz.addWidget(self.kalk_info, 1)
+        kz.addWidget(self.kalk_kompakt)
+        kl.addLayout(kz)
+        kl.addWidget(self.kompakt_ansicht, 1)
         kl.addWidget(kalk_ansicht, 1)
+        self._kompakt_umschalten(self.kalk_kompakt.isChecked(), merken=False)
         self.stangen_ansicht = _tabelle(self.stangen, sortieren=False)
         _breiten(self.stangen_ansicht, STANGEN_SPALTEN)
         self.stangen_ansicht.selectionModel().currentRowChanged.connect(self._stange_gewaehlt)
@@ -1791,9 +1811,9 @@ class AngebotSeite(QWidget):
         self.zukauf_info.setText(zukauf_info(summen))
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
-        n = leere_ausblenden(self.kalk_ansicht, self.kalk, KALK_IMMER)
-        self.kalk_info.setText(f"{len(self.kalk.zeilen)} Positionen · Beträge auf 2 Stellen (genauer Wert im "
-                               f"Tooltip)" + (f" · {n} Spalten ohne Werte ausgeblendet" if n else ""))
+        self.kompakt.setzen(kompakt_zeilen(self.positionen, zeilen))
+        leere_ausblenden(self.kompakt_ansicht, self.kompakt, KOMPAKT_IMMER)
+        self._kalk_info_setzen()
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
             # Schnittplan wie geladen: zugeschnittene Lieferstangen als ihre Werkstücke
@@ -2653,6 +2673,27 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"{art} gespeichert: {pfad}")
         self.f.datei_oeffnen(pfad)
         return pfad
+
+    def _kalk_info_setzen(self):
+        if self.kalk_kompakt.isChecked():
+            text = "kompakte Übersicht, alle Spalten ohne Häkchen „Kompakt“"
+        else:
+            n = leere_ausblenden(self.kalk_ansicht, self.kalk, KALK_IMMER)
+            text = f"Beträge auf 2 Stellen (genauer Wert im Tooltip)" + (f" · {n} Spalten ohne Werte ausgeblendet" if n else "")
+        self.kalk_info.setText(f"{len(self.kalk.zeilen)} Positionen · {text}")
+
+    def _kompakt_umschalten(self, an, merken=True):
+        self.kompakt_ansicht.setVisible(an)
+        self.kalk_ansicht.setVisible(not an)
+        if merken:
+            self.db.einstellung_setzen(KOMPAKT_EINSTELLUNG, bool(an))
+            self._kalk_info_setzen()
+
+    def _kompakt_doppelklick(self, index):
+        modell = self.kompakt_ansicht.model()
+        r = modell.mapToSource(index).row() if hasattr(modell, "mapToSource") else index.row()
+        if 0 <= r < len(self.kompakt.zeilen):
+            self.zur_position(zeile=self.kompakt.zeilen[r]["zeile"])
 
     def _rechnung(self):
         """rechnen.kalkulation für dieses Angebot. Während neu_laden wird sie nur einmal gerechnet; jeder Aufrufer
