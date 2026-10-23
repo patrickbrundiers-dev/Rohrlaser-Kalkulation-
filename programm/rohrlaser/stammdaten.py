@@ -649,6 +649,12 @@ EINSTELLUNGEN = (
     Einstellung("blech_kantung", "Kanten: Preis je Kantung [€]", "Blech-Richtpreis", "zahl", 1.20, 0, 10000),
     Einstellung("blech_ruesten_kanten", "Kanten: Rüsten je Auftrag [€]", "Blech-Richtpreis", "zahl", 25.0, 0, 100000),
     Einstellung("blech_aufschlag", "Aufschlag des Lieferanten (Gewinn)", "Blech-Richtpreis", "anteil", 0.15, 0, 5),
+    # DXF-Export der Abwicklung (Blech-Editor, dxf.py): Layernamen in fester Reihenfolge, Biegelinien ja/nein
+    Einstellung("blech_dxf_layer", "DXF: Layernamen (Außenkontur; Innenkontur; Biegelinie hoch; Biegelinie runter; "
+                "Gravur; Beschriftung)", "Blech-Richtpreis", "text",
+                "AUSSENKONTUR; INNENKONTUR; BIEGUNG_HOCH; BIEGUNG_RUNTER; GRAVUR; BESCHRIFTUNG"),
+    Einstellung("blech_dxf_biegelinien", "DXF: Biegelinien ausgeben", "Blech-Richtpreis", "auswahl", "ja",
+                auswahl="janein"),
     Einstellung("standard_maschine", "Standard-Maschine", "Angebot", "auswahl", "T03",
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
