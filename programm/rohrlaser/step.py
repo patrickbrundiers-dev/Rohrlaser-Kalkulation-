@@ -1238,13 +1238,15 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
             continue
         name = satzname(datei)
         struktur = next((m.get("_struktur") for m in eigene if m.get("_struktur")), None)
-        bg, hinweise = baugruppe.aus_step(name, struktur, liste)
+        kandidaten = next((m.get("_nahtkandidaten") for m in eigene if m.get("_nahtkandidaten")), ())
+        bg, hinweise = baugruppe.aus_step(name, struktur, liste, kandidaten)
         anzahl = next((m.get("_saetze") for m in eigene if m.get("_saetze")), None) or stueck or 1
         neu.append(dict(pos=naechste, art=BAUGRUPPE, bezeichnung=name, stueck=anzahl, satz=name, je_satz=1,
                         baugruppe=baugruppe.speichern(bg)))
         bericht.append(f"Schweißbaugruppe {name}: Pos. {naechste}, {len(liste)} Einzelteil-Positionen, "
                        f"{len(bg['knoten'])} Unterbaugruppen" + ("" if struktur else " (Datei ohne Struktur)")
-                       + "; Nahtgruppen und Arbeitsgänge im Editor ergänzen")
+                       + (f", {sum(len(v['teile']) for v in bg['vorschlaege'])} Nahtkandidaten als Vorschlag" if
+                          bg["vorschlaege"] else "") + "; Nahtgruppen und Arbeitsgänge im Editor ergänzen")
         bericht += [f"{p.get('artikel')}: {h}" for (p, _), h in zip(liste, hinweise) if h]
         naechste += 10
     return naechste

@@ -919,4 +919,13 @@ def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True, einst=None):
                _p("Leere Ist-Werte zählen wie kalkuliert (Spalte erfasst = nein). Zeiten werden mit dem Stundensatz der "
                   "Maschine bewertet, Material mit dem EK-Meterpreis × Stangenlänge (leer = Meterpreis laut "
                   "Schnittplan).", ParagraphStyle("nh", parent=S_KLEIN, textColor=GRAU))]
+    if v.get("baugruppen"):      # Schweißbaugruppen: Kennwert-Hinweis und Abweichungsgrund
+        daten = [_kopfzeile(["Schweißbaugruppe", "Naht [m]", "Soll [min/m]", "Ist [min/m]", "Abweichungsgrund"])]
+        for b in v["baugruppen"]:
+            daten.append([_p(b["name"], S_FETT), _z(b["naht_m"]), _z(b["soll_min_m"]) if b["soll_min_m"] else "",
+                          _z(b["ist_min_m"]) if b["ist_min_m"] is not None else "–", _p(b["grund"])])
+        inhalt += [Spacer(1, 5 * mm), _p("Schweißbaugruppen: Schweißzeit je Meter Naht", S_H2),
+                   _tabelle(daten, [50 * mm, 20 * mm, 22 * mm, 22 * mm, 72 * mm], rechts=(1, 2, 3)), Spacer(1, 2 * mm),
+                   _p("Hinweis zum Prüfen der Schweiß-Kennwerte; die Stammdaten ändern sich dadurch nicht.",
+                      ParagraphStyle("nb", parent=S_KLEIN, textColor=GRAU))]
     doc.build(inhalt, canvasmaker=leinwand)

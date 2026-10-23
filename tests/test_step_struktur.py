@@ -149,3 +149,16 @@ assert d["S02_Einzelteil_benannt.step"]["nahtkandidaten"] == []
 m = step.struktur_anhaengen(step.lies_messwerte(aus2), js2)
 assert len(m[0]["_nahtkandidaten"]) == 6
 print("OK: Nahtkandidaten (Kehlnaht, Stumpfnaht, Länge = Umfang am Rohrende, Dicke, Knoten)")
+
+# S7: Schweißbaugruppe aus S03 – Nahtkandidaten nur als Vorschläge an der Baugruppe
+m3 = [x for x in m if x["datei"] == "S03_Rahmen_geschweisst.step"]
+for x in m3:
+    x.update(_saetze=1, _stueck=1, _baugruppe=True, _uebernehmen=True)
+erg = step.uebernehmen(m3, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True,
+                       zukauf_liste=[])
+g = baugruppe.lesen(next(p for p in erg["positionen"] if p.get("art") == BAUGRUPPE)["baugruppe"])
+assert not g["naehte"]
+vs = sorted((v["nahtart"], v["anzahl"], v["laenge"], v["knoten"]) for v in g["vorschlaege"])
+assert vs == [("Kehlnaht", 5, 152, ""), ("Stumpfnaht", 1, 152, "")], vs
+assert any("6 Nahtkandidaten als Vorschlag" in b for b in erg["bericht"]), erg["bericht"]
+print("OK: Schweißbaugruppe aus S03: 6 Nahtkandidaten als 2 Vorschläge, keine Nahtgruppe automatisch")
