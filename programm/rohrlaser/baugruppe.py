@@ -223,14 +223,15 @@ def teil_pruefen(p, positionen):
 
 
 # ------------------------------------------------------------------ STEP-Import
-def aus_step(name_bg, struktur, teile_gruppen):
+def aus_step(name_bg, struktur, teile_gruppen, nahtkandidaten=()):
     """Schweißbaugruppe aus einer STEP-Datei (Teil 5): Unterbaugruppen aus der Struktur der Messung (STEP-JSON ab
     1.13: knoten {id, name, eltern, menge}); die eine Wurzel ist die Baugruppe selbst. teile_gruppen = [(Position,
     [Knoten-ID je Körper])]: jede Position kommt in die Unterbaugruppe ihrer Körper mit Stück je Unterbaugruppe =
     Körper ÷ Menge der Unterbaugruppe. Liegen gleiche Körper in mehreren Unterbaugruppen oder geht die Teilung nicht
     auf, hängt die Position direkt an der Baugruppe (Stück je Satz bleibt richtig) und bekommt einen Hinweis.
     Nahtgruppen und Arbeitsgänge legt der Import nie an (nichts erfinden). Ändert die Positionen (bg_knoten,
-    je_knoten). Ergebnis: (Baugruppe, [Hinweis je Position bzw. None])."""
+    je_knoten). Nahtkandidaten der Messung (STEP-JSON 1.14) kommen nur als Vorschläge an die Baugruppe
+    (vorschlaege_aus_step), nie als Nahtgruppen. Ergebnis: (Baugruppe, [Hinweis je Position bzw. None])."""
     bg = leer()
     bg["stamm"] = dict(bemerkung=f"aus STEP-Import ({name_bg})")
     st_knoten = [k for k in (struktur or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
@@ -264,7 +265,43 @@ def aus_step(name_bg, struktur, teile_gruppen):
         p["bg_knoten"] = zuordnung_text(bg["id"], kn)
         p["je_knoten"] = int(gesamt // (faktor(bg, kn) or 1))
         hinweise.append(hinweis)
+    bg["vorschlaege"] = vorschlaege_aus_step(bg, nahtkandidaten, wurzel)
     return bg, hinweise
+
+
+def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
+    """Nahtkandidaten der STEP-Messung als Vorschläge für Nahtgruppen: gleiche Stoßart, Länge (auf mm) und Dicke in
+    derselben Unterbaugruppe werden ein Vorschlag mit Anzahl je Stück der Unterbaugruppe (Kandidaten ÷ Menge; geht
+    das nicht auf, direkt an der Baugruppe). Das Maß (a-Maß bzw. Dicke) bleibt offen: die STEP-Datei kennt kein
+    a-Maß; bei Stumpf- und Ecknaht ist die gemessene Dicke das Maß. Erst nach Prüfung im Editor (Übernehmen) werden
+    sie Nahtgruppen."""
+    km = knoten_map(bg)
+    gruppen = {}
+    for k in kandidaten or ():
+        if not isinstance(k, dict) or not _zahl(k.get("laenge_mm")) or k["laenge_mm"] <= 0:
+            continue
+        kn = str(k.get("knoten") or "")
+        kn = kn if kn in km and kn != wurzel else ""
+        schl = (kn, k.get("stossart") or "Kehlnaht", round(k["laenge_mm"]), k.get("dicke_mm"))
+        gruppen.setdefault(schl, []).append(k)
+    out = []
+    for (kn, art, laenge, dicke), liste in gruppen.items():
+        f = faktor(bg, kn) or 1
+        if len(liste) % f:
+            kn, f = "", 1
+        out.append(dict(id=neue_id(), knoten=kn, nahtart=art, laenge=laenge, anzahl=len(liste) // f,
+                        dicke=dicke, teile=[x.get("teile") for x in liste], quelle="STEP"))
+    return out
+
+
+def vorschlag_naht(v):
+    """Werte einer Nahtgruppe aus einem Vorschlag: Stumpf- und Ecknaht mit der gemessenen Dicke als Maß, Kehlnaht
+    ohne a-Maß (trägt man im Editor ein; bis dahin rechnet die Zeile keine Zeit und zeigt den Grund)."""
+    n = dict(knoten=v.get("knoten") or "", nahtart=v.get("nahtart"), laenge=v.get("laenge"),
+             anzahl=v.get("anzahl") or 1, quelle="STEP")
+    if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
+        n["mass"] = v["dicke"]
+    return n
 
 
 # ------------------------------------------------------------------ Schweißkennwerte
@@ -319,6 +356,8 @@ def naht_rechnen(naht, tabellen, saetze):
     else:
         if not st.get("verfahren"):
             out["fehlt"] = f"Verfahren '{naht.get('verfahren') or ''}' unbekannt"
+        elif not _zahl(naht.get("mass")):
+            out["fehlt"] = "a-Maß fehlt" if naht.get("nahtart") == "Kehlnaht" else "Dicke fehlt"
         elif not _zahl(st.get("min_m")):
             out["fehlt"] = (f"kein Kennwert für {naht.get('verfahren')} {naht.get('nahtart') or ''} "
                             f"{_text(naht.get('mass'))} mm")

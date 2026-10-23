@@ -2648,6 +2648,12 @@ def kapitel_baugruppen(i):
            "Zeile mit Richtwerten, zeigt die Baugruppe den HINWEIS <i>Schweißzeit aus ungeprüften Richtwerten</i>. "
            "<b>Nahtgruppe hinzufügen</b> legt eine Zeile mit Verfahren und Nahtart der letzten an; <b>Markierte "
            "kopieren</b> und <b>Markierte entfernen</b> arbeiten auf den markierten Zeilen.")
+    i.text("Kommt die Baugruppe aus dem STEP-Import ([[step]]), stehen unter den Nahtgruppen die <b>Nahtkandidaten aus "
+           "STEP</b>: Stellen, an denen sich Teile berühren, gleiche zusammengefasst (Stoßart, Länge je Naht, Anzahl "
+           "je Stück der Unterbaugruppe, Dicke, Körper). Sie rechnen nicht mit. <b>Markierte übernehmen</b> macht "
+           "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
+           "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
+           "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
     i.abschnitt("Arbeitsgänge und Vorrichtungen")
     i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
            "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)

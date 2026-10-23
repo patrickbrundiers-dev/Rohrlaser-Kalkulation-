@@ -12,7 +12,7 @@ import copy
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
-                               QTableWidget, QTabWidget, QVBoxLayout, QWidget)
+                               QGroupBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import baugruppe, hilfe
 from .angebot import BAUGRUPPE, ist_baugruppe
@@ -399,6 +399,7 @@ class BaugruppeDialog(QDialog):
             leiste.addWidget(b)
         leiste.addStretch(1)
         lay.addLayout(leiste)
+        lay.addWidget(self._vorschlaege_box())
         lay.addWidget(hilfe.Hinweis(
             "Je Zeile eine Gruppe gleicher Nähte. Schweißzeit = Naht [m] × Kennwert [min/m] × Faktoren (Lage, "
             "Zugänglichkeit, Qualität) ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit je Heftpunkt; Kennwerte und "
@@ -406,6 +407,61 @@ class BaugruppeDialog(QDialog):
             "Kennwert, rechnet die Zeile keine Zeit und zeigt den Grund. Eine Zeit von Hand geht immer vor.",
             schluessel="baugruppe_naehte"))
         return w
+
+    def _vorschlaege_box(self):
+        """Nahtkandidaten aus der STEP-Messung: nur Vorschläge, erst 'Markierte übernehmen' macht Nahtgruppen."""
+        self.vorschlag_rahmen = QGroupBox("Nahtkandidaten aus STEP (prüfen, dann übernehmen)")
+        vl = QVBoxLayout(self.vorschlag_rahmen)
+        self.vorschlag_tab = QTableWidget(0, 6)
+        self.vorschlag_tab.setHorizontalHeaderLabels(["Unterbaugruppe", "Stoßart", "Länge je Naht [mm]", "Anzahl",
+                                                      "Dicke [mm]", "Körper"])
+        self.vorschlag_tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.vorschlag_tab.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.vorschlag_tab.verticalHeader().setDefaultSectionSize(22)
+        self.vorschlag_tab.setMaximumHeight(150)
+        vl.addWidget(self.vorschlag_tab)
+        leiste = QHBoxLayout()
+        uebernehmen = QPushButton("Markierte übernehmen")
+        uebernehmen.setToolTip("Markierte Vorschläge als Nahtgruppen anlegen; Verfahren und a-Maß danach eintragen")
+        uebernehmen.clicked.connect(lambda: self.vorschlaege_uebernehmen())
+        verwerfen = QPushButton("Markierte verwerfen")
+        verwerfen.clicked.connect(lambda: self.vorschlaege_verwerfen())
+        leiste.addWidget(uebernehmen)
+        leiste.addWidget(verwerfen)
+        leiste.addStretch(1)
+        vl.addLayout(leiste)
+        self._vorschlaege_zeigen()
+        return self.vorschlag_rahmen
+
+    def _vorschlaege_zeigen(self):
+        vs = self.bg.setdefault("vorschlaege", [])
+        namen = {k["id"]: k.get("name") or "Unterbaugruppe" for k in self.bg["knoten"]}
+        self.vorschlag_tab.setRowCount(len(vs))
+        for r, v in enumerate(vs):
+            texte = [namen.get(v.get("knoten"), DIREKT), v.get("nahtart") or "", _text(v.get("laenge")),
+                     _text(v.get("anzahl")), _text(v.get("dicke")),
+                     ", ".join(f"{a}+{b}" for a, b in (x for x in v.get("teile") or () if x and len(x) == 2))]
+            for c, s in enumerate(texte):
+                self.vorschlag_tab.setItem(r, c, QTableWidgetItem(s))
+        self.vorschlag_rahmen.setVisible(bool(vs))
+
+    def _vorschlag_zeilen(self, zeilen=None):
+        if zeilen is None:
+            zeilen = {i.row() for i in self.vorschlag_tab.selectionModel().selectedIndexes()}
+        return sorted(z for z in zeilen if 0 <= z < len(self.bg["vorschlaege"]))
+
+    def vorschlaege_uebernehmen(self, zeilen=None):
+        """Markierte Vorschläge (zeilen: Indizes, sonst die Auswahl) als Nahtgruppen anlegen und aus der Liste nehmen.
+        Ergebnis: IDs der neuen Nahtgruppen."""
+        zeilen = self._vorschlag_zeilen(zeilen)
+        neu = [self.naht_neu(baugruppe.vorschlag_naht(self.bg["vorschlaege"][r])) for r in zeilen]
+        self.vorschlaege_verwerfen(zeilen)
+        return neu
+
+    def vorschlaege_verwerfen(self, zeilen=None):
+        weg = set(self._vorschlag_zeilen(zeilen))
+        self.bg["vorschlaege"] = [v for i, v in enumerate(self.bg["vorschlaege"]) if i not in weg]
+        self._vorschlaege_zeigen()
 
     def naht_neu(self, werte=None):
         nr = max([int(n["nr"]) for n in self.bg["naehte"] if str(n.get("nr") or "").isdigit()], default=0) + 1

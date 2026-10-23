@@ -16,6 +16,7 @@
 - B15 Angebot/PDF: Stückliste per Häkchen, Einmalkosten als eigene Zeile und in den Staffeln 'zzgl. einmalig'
 - B16 Schweißbaugruppe aus der STEP-Struktur: Grenzfälle (gemischte Unterbaugruppen, Rest, ohne Struktur)
 - B17 Nachkalkulation: Soll/Ist je Baugruppe (Schweißen, Arbeitsgänge, Material/Einmal, Fremd), min/m Naht
+- B18 Nahtkandidaten aus STEP als Vorschläge im Editor (Übernehmen/Verwerfen)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -536,5 +537,30 @@ assert nk_s.bg_tabelle.item(0, 2).text() == "0,10" and nk_s.bg_tabelle.item(0, 9
 pdf.nachkalkulation_pdf(tmp / "nk.pdf", kopf, v2, ist)
 assert (tmp / "nk.pdf").stat().st_size > 0
 ok("B17 Nachkalkulation: Soll je Baugruppe = Kalkulation, Ist-Stunden mit Satz des Solls, min/m Naht, Reiter und PDF")
+
+# ------------------------------------------------------------------ B18 Nahtkandidaten aus STEP als Vorschläge
+st = dict(knoten=[dict(id="K1", name="Gestell", eltern=None, menge=1), dict(id="K2", name="Seite", eltern="K1", menge=2)])
+kand = ([dict(teile=[1, 2], knoten="K2", laenge_mm=152.3, stossart="Kehlnaht", dicke_mm=3.0, status="prüfen")] * 4
+        + [dict(teile=[3, 4], knoten="K1", laenge_mm=200.0, stossart="Stumpfnaht", dicke_mm=4.0, status="prüfen")]
+        + [dict(teile=[5, 6], knoten="K2", laenge_mm=80.0, stossart="Ecknaht", dicke_mm=2.0, status="prüfen")])
+g, _ = baugruppe.aus_step("G", st, [], kand)
+vs = {(v["knoten"], v["nahtart"]): v for v in g["vorschlaege"]}
+assert (vs[("K2", "Kehlnaht")]["anzahl"], vs[("K2", "Kehlnaht")]["laenge"]) == (2, 152)      # 4 ÷ Menge 2
+assert vs[("", "Stumpfnaht")]["anzahl"] == 1 and vs[("", "Ecknaht")]["anzahl"] == 1       # 1 ÷ 2 geht nicht auf
+assert not g["naehte"]                                                                        # nie automatisch
+n_k, n_s = baugruppe.vorschlag_naht(vs[("K2", "Kehlnaht")]), baugruppe.vorschlag_naht(vs[("", "Stumpfnaht")])
+assert "mass" not in n_k and n_s["mass"] == 4.0 and n_k["quelle"] == "STEP"
+r_ = baugruppe.naht_rechnen(dict(n_k, verfahren="MAG"), db.tabellen(), saetze)
+assert r_["zeit_min"] == 0 and r_["fehlt"] == "a-Maß fehlt"
+p_bg = dict(pos=900, art=BAUGRUPPE, bezeichnung="G", stueck=1, baugruppe=baugruppe.speichern(g))
+d = BaugruppeDialog(None, p_bg, [p_bg], db.tabellen(), saetze)
+assert not d.vorschlag_rahmen.isHidden() and d.vorschlag_tab.rowCount() == 3
+neu = d.vorschlaege_uebernehmen([0, 1])
+assert len(neu) == 2 and len(d.bg["naehte"]) == 2 and d.vorschlag_tab.rowCount() == 1
+d.vorschlaege_verwerfen([0])
+assert d.vorschlag_rahmen.isHidden() and d.daten()["vorschlaege"] == []
+assert {n["nahtart"] for n in d.daten()["naehte"]} == {"Kehlnaht", "Stumpfnaht"}
+d.reject()
+ok("B18 Nahtkandidaten: als Vorschläge gruppiert (Anzahl je Unterbaugruppe), erst nach Übernehmen Nahtgruppen, a-Maß offen")
 
 print("\nAlle Baugruppen-Tests bestanden.")
