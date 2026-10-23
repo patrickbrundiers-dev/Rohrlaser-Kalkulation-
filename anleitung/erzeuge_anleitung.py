@@ -789,8 +789,8 @@ def kapitel_angebot(i):
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Die Trennlinien zwischen oben und unten und zur Übersicht "
-           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. CSV-Export und Ablage "
-           "öffnen liegen unter <b>Weitere Aktionen</b>.",
+           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ablage öffnen</b> "
+           "liegt unter <b>Weitere Aktionen</b>, der <b>CSV-Export</b> rechts bei der Ausgabe.",
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
            "Punkte, Zeiten 420; die letzte Spalte füllt den Rest). Langer Text bricht um, höchstens drei Zeilen, der "
            "Rest steht gekürzt mit „…“ und vollständig im Tooltip. Beim Tippen werden Spalten nur breiter. Eine von "
@@ -930,7 +930,7 @@ def kapitel_angebot(i):
     i.text("Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie kalkuliert. "
            "Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
     i.liste("Beispiel: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis × 200 ÷ 148; "
-            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation, Kalkulations-PDF und CSV steht die "
+            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation und Kalkulations-PDF steht die "
             "Differenz als Kostenart <b>Anhebung auf Mindestpreis</b> (mit kalkuliertem Preis und Mindestpreis), "
             "je Position in der Spalte <i>Mindestpreis je Teil</i>.",
             "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
@@ -1584,13 +1584,13 @@ def kapitel_optimieren(i):
     i.genauer()
     i.text("Der Reiter <i>Kalkulation</i> zeigt oben in einem Kasten die Summen des Angebots und darunter je Position "
            "Material, Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position. Beträge "
-           "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; Kalkulations-PDF und "
-           "CSV-Export rechnen weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
+           "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; das Kalkulations-PDF "
+           "rechnet weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
            "Zusatzarbeiten, Handling Kundenmaterial), sind ausgeblendet; die Zeile über der Tabelle nennt ihre "
            "Anzahl. Pos., Artikelnummer, Stückzahl, Material, Herstellkosten und Verkaufspreis bleiben immer.")
-    i.text("Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots einzeln auf "
+    i.text("Reiter Kalkulation und Kalkulations-PDF führen jede Kostenart des Angebots einzeln auf "
            "(die Übersicht nach Gruppen, einzeln unter <i>Kostenarten einzeln</i>); im Reiter fehlen Kostenarten "
-           "mit 0,00 €, PDF und CSV enthalten alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
+           "mit 0,00 €, das PDF enthält alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Weitere Arbeitsschritte, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
            "Programmierkosten, Angebotsaufschlag, Fracht, Skonto und ggf. die Anhebung auf Mindestpreis "
@@ -1657,7 +1657,7 @@ def kapitel_optimieren(i):
             "Ältere Angebote ohne gespeicherte Stundensätze rechnen mit den aktuellen Einstellungen; der Reiter "
             "sagt das. Die erste Änderung oder <i>Stundensätze aus Einstellungen</i> speichert sie im Angebot.",
             "Die Übersicht rechts oben zeigt Maschinenzeit, Personalzeit, Rüstzeit, Durchlaufzeit und "
-            "Arbeitskosten; das Kalkulations-PDF und der CSV-Export enthalten die Tabelle der Arbeitsschritte mit "
+            "Arbeitskosten; das Kalkulations-PDF enthält die Tabelle der Arbeitsschritte mit "
             "Zeit oder Kosten.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
@@ -2516,7 +2516,9 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und Schnittpläne zum Abhaken, Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: alle Kosten und Zeiten für die interne Ablage."),
         (4, "<b>Materialanfrage (E-Mail)</b>: Stangenbedarf beim Lieferanten anfragen ([[materialanfrage]])."),
-        (5, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> und <b>Ablage öffnen</b>.")])
+        (5, "<b>CSV-Export</b>: Angebotskopf und Angebotspositionen als CSV, einzeln oder zusammen als ZIP "
+            "([[csv_export]])."),
+        (6, "<b>Weitere Aktionen</b>: u. a. <b>Ablage öffnen</b>.")])
     i.text("Jede Datei wird im Ablageordner gespeichert und gleich geöffnet. Ist die Optimierung veraltet, fragt das "
            "Programm vorher.", kurz=True)
     i.genauer()
@@ -2539,9 +2541,8 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
            "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
            "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
-           "<b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die Kalkulation je Position als CSV-Datei "
-           "(Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer Tabellenkalkulation; <b>Ablage "
-           "öffnen</b> zeigt den Ablageordner im Explorer.")
+           "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
+           "([[csv_export]]); <b>Ablage öffnen</b> (unter Weitere Aktionen) zeigt den Ablageordner im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
            "Reihenfolge: Profil, Länge, Werkstoff (<i>inkl. Material</i> mit dem Text im Angebot des Werkstoffs), "
            "Oberfläche, dann je Zusatzarbeit, Gewinde oder Gravur eine Zeile <i>inkl. …</i> und je Zukaufteil mit "
@@ -2550,6 +2551,56 @@ def kapitel_ausgabe(i, seiten, ablage):
            "inkl. Senken</i><br/>"
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile.")
     i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
+    i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
+    i.text("<b>CSV-Export</b> → <b>Kopf + Positionen (ZIP)</b> speichert <i>Angebot_&lt;Nr&gt;.zip</i> mit "
+           "<i>Angebotskopf.csv</i> (eine Zeile) und <i>Angebotspositionen.csv</i> (eine Zeile je Position) in der "
+           "Ablage; <b>Nur Angebotskopf</b> bzw. <b>Nur Angebotspositionen</b> speichern eine Datei.", kurz=True)
+    i.genauer()
+    i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalkomma ohne Tausenderpunkt, Beträge mit "
+           "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
+           "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
+           "keine zusätzlichen Spalten. Der Export ändert nichts am Angebot; die Werte stammen aus derselben "
+           "Rechnung wie Übersicht und Kalkulation, Stückpreis und Preis genau wie im Angebots-PDF. Staffelmengen "
+           "sind nicht enthalten, nur die Menge der Position. Werte, die es im Programm nicht gibt, bleiben leer.")
+    i.tabelle(["Angebotskopf.csv", "Inhalt"], [
+        ["Erstellungsdatum / Datum Kunde:", "Anlagedatum des Angebots / Angebotsdatum"],
+        ["Kunden Nr., Kunde:, Nachname", "Kundennummer, Kundenname, Ansprechpartner des Kunden"],
+        ["Versandzone:", "Zone der Frachtberechnung, sonst Lieferbedingung des Kunden"],
+        ["Kundenanfrage:, Kommentar", "Ihre Anfrage / Zeichen, Bemerkung"],
+        ["Versandkosten, Feste Versandkosten, Versand inkl.", "Fracht in €; True bei Frachtart manuell; True bei "
+         "<i>im Artikelpreis enthalten</i>"],
+        ["Lieferzeit", "z. B. <i>ca. 2 Wochen nach Auftragseingang</i> ([[lieferzeit]])"],
+        ["%Kunde Mat, %Kunde Arb., %Fremdarb., %Aufschlag", "Zuschlag Material, Fertigung, Fremdleistung und Gewinn "
+         "in % (2 = 2 %)"],
+        ["Bearbeitungszeit, Gesamtzeit", "Summe der Spalten der Positionen"],
+        ["Restblech min.€", "Mindestauftragswert, wenn er für das Angebot gilt ([[mindestpreis]])"],
+        ["Preis", "Angebotssumme netto wie im Angebots-PDF"],
+        ["Aufrunden, Angebot erstellt von", "+0,01 (Rundung auf den Cent); Name bzw. Kürzel des Bearbeiters"],
+        ["Kundenkurzbez., Position, Anrede, Rabatt(Euros)", "leer (gibt es im Programm nicht)"]],
+        [150, 115])
+    i.tabelle(["Angebotspositionen.csv", "Inhalt"], [
+        ["Angebot, Art, ArtikelNr., Pos.", "Angebotsnummer, laufende Nummer 1, 2 …, Artikelnummer, Pos. der Position"],
+        ["Bestellt, Preis geändert, zum Schneiden", "0 bzw. 1; Preis geändert = 1 bei Meterpreis oder Schneidzeit von "
+         "Hand"],
+        ["Format, Anz. Baugruppe, Menge", "Stangenlänge [mm], Stück je Satz (sonst 1), Stückzahl"],
+        ["Stückpr., Preis", "Preis je Teil und Positionspreis wie im Angebots-PDF"],
+        ["Werkstoff, Werkstofftyp, Dicke", "Kategorie (Stahl …), Text im Angebot des Werkstoffs, Wandstärke [mm]"],
+        ["Fläche, Gew., Umfang, L.", "Mantelfläche außen [m²], Gewicht je Teil [kg], Schneidweg je Teil [mm], "
+         "Teilelänge [mm]"],
+        ["Maschine, Schneiden, Date", "Maschine des Angebots, Schneidgas, Angebotsdatum"],
+        ["Artikeltext", "Angebotstext der Position in einer Zeile"],
+        ["Bearbeitungszeit, Gesamtzeit", "Laserzeit je Teil; Laserzeit × Menge + Anteil Rüsten, Stangenwechsel, "
+         "Rüsten je Abmessung + Programmierzeit"],
+        ["Gesamt HK(€), HK(), Marge Netto(), Marge Netto%", "Herstellkosten der Position und je Teil; Preis − "
+         "Herstellkosten, in % der Herstellkosten"],
+        ["Kommentar", "Hinweis der Kalkulation"],
+        ["Einsatzgewicht, Gesamt Einkauf(Kg), Verschnitt", "Stangengewicht anteilig je Teil bzw. × Menge; "
+         "(Einsatz − Gewicht) ÷ Einsatz in %"],
+        ["Gesamt Einkauf(), Preis/Kg", "Material + Einkauf Zukaufteile der Position; Material € je kg Einsatz"],
+        ["Liste der Arbeitsgänge", "<i>Profile [Rechteckrohr 120x60x3], Gewinde [4xM6], Zusatzarbeit […]</i>, "
+         "durch Komma getrennt"],
+        ["Pos.Nr., Anzahl Tafeln, Arb., B.", "leer (Blech-Angaben, gibt es beim Rohr nicht)"]],
+        [150, 115])
     i.abschnitt("Preise festschreiben", marke="preise_festschreiben")
     i.text("Mit dem Angebots-PDF schreibt das Programm die Preise fest: spätere Änderungen der Stammdaten (z. B. "
            "Stahlpreis) ändern das verschickte Angebot nicht. <b>Aktuelle Preise übernehmen …</b> holt sie bei Bedarf.")

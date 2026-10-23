@@ -83,7 +83,7 @@ def selbsttest(app, ergebnis, step_dateien=()):
             for art, aufruf in (("Angebot", seite.angebot_pdf), ("Werkstattpapiere", seite.werkstatt_pdf),
                                 ("Kalkulation", seite.kalkulation_pdf), ("CSV-Export", seite.csv_export)):
                 datei = aufruf()
-                if not datei or Path(datei).stat().st_size < 1000:
+                if not datei or Path(datei).stat().st_size < (300 if art == "CSV-Export" else 1000):    # ZIP ist klein
                     raise RuntimeError(f"{art} nicht geschrieben")
                 protokoll.append(f"{art}: {Path(datei).name} ({Path(datei).stat().st_size // 1024} KB)")
             protokoll.append(f"Angebot {seite.kopf['nummer']}: {len(seite.positionen)} Positionen, "
