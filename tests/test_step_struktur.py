@@ -126,6 +126,47 @@ assert not any(x.get("_baugruppe") for x in mw)
 d.reject()
 print("OK: Prüfdialog: Häkchen als Schweißbaugruppe (nur mit Satz)")
 
+# S5b P8: zwei STEP-Dateien als eine Baugruppe – T08 als Unterbaugruppe (3 Stück) in S01
+m2 = [dict(x) for x in messwerte if x["datei"] in ("S01_Gestell_verschachtelt.step", "T08_Gestell_Baugruppe.step")]
+for x in m2:
+    x.update(_saetze=2 if x["datei"].startswith("S01") else 3, _baugruppe=True, _uebernehmen=True)
+    x["_stueck"] = x["_saetze"]
+    if x["datei"].startswith("T08"):
+        x["_in_baugruppe"] = "S01_Gestell_verschachtelt.step"
+erg2 = step.uebernehmen(m2, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True)
+pos2 = [dict(p, id=i) for i, p in enumerate(erg2["positionen"])]
+bgs = [p for p in pos2 if p.get("art") == BAUGRUPPE]
+assert len(bgs) == 1 and bgs[0]["bezeichnung"] == "S01_Gestell_verschachtelt" and bgs[0]["stueck"] == 2
+g2 = baugruppe.lesen(bgs[0]["baugruppe"])
+u = next(kn for kn in g2["knoten"] if kn["name"] == "T08_Gestell_Baugruppe")
+assert u["menge"] == 3 and u["parent"] == "" and any(kn["name"] == "Rahmenseite" for kn in g2["knoten"])
+t08 = [p for p in pos2 if p.get("bg_knoten") and m2 and baugruppe.zuordnung(p)[1] and
+       baugruppe.zuordnung(p)[1].startswith(u["id"])]
+assert t08, [p.get("bg_knoten") for p in pos2]
+for i, feld, wert in baugruppe.abgleich(pos2):
+    pos2[i][feld] = wert
+assert baugruppe.abgleich(pos2) == [] and all(baugruppe.teil_pruefen(p, pos2) is None for p in pos2 if p.get("bg_knoten"))
+assert all(p["stueck"] % (2 * 3) == 0 for p in t08)                     # 2 Gestelle × 3 Unterbaugruppen
+assert any("als Unterbaugruppe eingehängt" in b for b in erg2["bericht"])
+# ohne Ziel-Baugruppe (Ziel nicht als Schweißbaugruppe): eigene Baugruppe wie bisher
+for x in m2:
+    if x["datei"].startswith("S01"):
+        x["_baugruppe"] = False
+erg3 = step.uebernehmen(m2, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True)
+assert [p["bezeichnung"] for p in erg3["positionen"] if p.get("art") == BAUGRUPPE] == ["T08_Gestell_Baugruppe"]
+mw2 = [{n: v for n, v in x.items() if not n.startswith("_") or n in ("_struktur", "_netz")} for x in m2]
+d = StepPruefDialog(None, mw2, k, "S235-10219", 1, db.zukauf_artikel_liste(), {})
+t08_datei = "T08_Gestell_Baugruppe.step"
+d._ziel_setzen("S01_Gestell_verschachtelt.step", t08_datei)
+d.baugruppe[t08_datei] = True
+d.saetze_setzen(3, t08_datei)
+d.werte_schreiben()
+assert all(x["_in_baugruppe"] == "S01_Gestell_verschachtelt.step" for x in mw2
+           if x["datei"] == t08_datei and "_uebernehmen" in x)
+assert all(x["_baugruppe"] for x in mw2 if x["datei"].startswith("S01") and "_uebernehmen" in x)
+d.reject()
+print("OK: P8 zwei STEP-Dateien als eine Schweißbaugruppe (T08 × 3 als Unterbaugruppe von S01)")
+
 # S6: Nahtkandidaten (STEP-JSON 1.14) – geschweißter Rahmen
 aus2, js2 = tmp / "n.txt", tmp / "n.json"
 r = subprocess.run([sys.executable, str(MESSEN), "--ausgabe", str(aus2), "--json", str(js2),

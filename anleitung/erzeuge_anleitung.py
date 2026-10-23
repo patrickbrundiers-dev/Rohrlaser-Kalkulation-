@@ -1527,6 +1527,11 @@ def kapitel_step(i):
            "Stück je Unterbaugruppe. Liegen gleiche Teile in mehreren Unterbaugruppen, hängen sie direkt an der "
            "Baugruppe (Hinweis im Bericht, Stückzahl stimmt). Nahtgruppen und Arbeitsgänge legt der Import nicht an: "
            "die STEP-Datei kennt keine Nähte, also im Editor ergänzen.")
+    i.text("Liefert der Kunde Unterbaugruppen als eigene Dateien, alle zusammen einlesen und bei der Unterbaugruppe "
+           "rechts neben dem Häkchen statt <i>eigene Baugruppe</i> den Eintrag <b>in Baugruppe „…“</b> wählen. Die "
+           "Datei wird dann eine Unterbaugruppe der anderen Schweißbaugruppe (mit ihrer eigenen Struktur darunter); "
+           "<i>Sätze</i> gilt bei ihr als Stück je übergeordneter Baugruppe. Die andere Datei wird dabei selbst "
+           "Schweißbaugruppe. Es entsteht nur eine Baugruppen-Position; der Bericht nennt die eingehängten Dateien.")
     i.abschnitt("Bauteilnamen, Normteile und Importprofile", marke="importprofile")
     i.text("Hat die Konstruktion Namen, wird der <b>Bauteilname</b> die Artikelnummer. <b>Normteile</b> (Schrauben, "
            "Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest.", kurz=True)
@@ -2765,6 +2770,12 @@ def kapitel_baugruppen(i):
            "daraus Nahtgruppen: Stumpf- und Ecknaht mit der gemessenen Dicke, Kehlnaht ohne a-Maß (die STEP-Datei "
            "kennt keins; bis es eingetragen ist, zeigt die Zeile <i>a-Maß fehlt</i>). Verfahren, Lage und "
            "Heftpunkte prüfen. <b>Markierte verwerfen</b> löscht Vorschläge, die keine Naht sind.")
+    i.bild("baugruppe_vorschlaege", "Nahtkandidaten aus STEP im Reiter Nahtgruppen", hoehe=45 * mm, kurz=False,
+           legende=[(1, "Je Zeile gleiche Nähte einer Unterbaugruppe: Stoßart, Länge je Naht, Anzahl je Stück, "
+                        "Dicke und beteiligte Körper."),
+                    (2, "<b>Markierte übernehmen</b> legt daraus Nahtgruppen an."),
+                    (3, "<b>a-Maß nach Regel vorschlagen</b>: Kehlnaht mit a = Faktor × Wanddicke, bis zur "
+                        "Bestätigung gelb.")])
     i.text("Mit dem Häkchen <b>a-Maß nach Regel vorschlagen</b> bekommt eine übernommene Kehlnaht ein a-Maß = Faktor × "
            "kleinere Wanddicke, abgerundet auf 0,5 mm (Faktor 0,7 unter Einstellungen → Vorgaben, Einstellung "
            "<i>Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)</i>; z. B. Wand 4 mm → "
@@ -2805,7 +2816,8 @@ def kapitel_baugruppen(i):
            "(ohne Preise).", kurz=True)
     i.text("In der <b>Positionsliste</b> stehen die Einzelteile direkt unter ihrer Baugruppe, im Zeilenkopf mit └ "
            "markiert. Ein Klick auf ▾ im Zeilenkopf der Baugruppe klappt ihre Teile zu (▸), ein weiterer wieder "
-           "auf. Das ändert nur die Anzeige; Pos.-Nummern, Rechnung und Dokumente bleiben gleich.")
+           "auf. Das ändert nur die Anzeige; Pos.-Nummern, Rechnung und Dokumente bleiben gleich. Im Angebot eines "
+           "Kollegen ([[mehrere_arbeitsplaetze]]) und im Lesemodus öffnet der Editor nur zum Ansehen (OK ist grau).")
     i.text("Einmalkosten (Rüstzeit, Vorrichtungen, Lehren) sind normalerweise im Preis je Baugruppe enthalten. Mit "
            "dem Häkchen <b>Einmalkosten als eigene Zeile im Angebot</b> stehen sie als eigene Zeile <i>Einmalkosten "
            "Schweißbaugruppe … einmalig je Auftrag</i> (pausch.) unter der Baugruppe; die Summe des Angebots bleibt "

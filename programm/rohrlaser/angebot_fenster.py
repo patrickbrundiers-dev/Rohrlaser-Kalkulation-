@@ -2303,10 +2303,11 @@ class AngebotSeite(QWidget):
                                "leeren oder das Teil im Editor einer Baugruppe neu zuordnen.", fehler=True)
                 return False
             p = self.positionen[ziel[0]]
-        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db())
+        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db(),
+                            nur_lesen=bool(self.fremd() or self.db.nur_lesen))
         if fokus:
             d.fokus(fokus)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
         for feld, wert in d.ergebnis["position"].items():
