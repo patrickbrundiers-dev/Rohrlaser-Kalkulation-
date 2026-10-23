@@ -1634,11 +1634,20 @@ def kapitel_optimieren(i):
            "und die Zeit, <b>Abbrechen</b> beendet die Optimierung nach der laufenden Abmessung, ohne etwas zu "
            "speichern.")
     i.abschnitt("Kalkulation", marke="kalkulation")
-    i.bild("erg_kalkulation", "Reiter Kalkulation", hoehe=80 * mm)
-    i.text("Oben die Summen des Angebots, darunter je Position Material, Laserzeit, Rüsten, Herstellkosten und "
-           "Verkaufspreis je Teil.", kurz=True)
+    i.bild("erg_kalkulation", "Reiter Kalkulation, kompakte Übersicht", hoehe=80 * mm, legende=[
+        (1, "<b>Kompakte Übersicht</b> je Bauteil: Profil, Stückzahl, Länge, Material, Oberfläche, "
+            "<i>Laserzeit berechnet</i> und <i>Laserzeit genutzt</i> je Teil, genutzte Laserzeit der Position in "
+            "Minuten, Verkaufspreis je Teil und Position. Doppelklick springt zur Position."),
+        (2, "Häkchen <b>Kompakt</b> aus: alle Spalten der Kalkulation (Wahl gilt für alle Angebote).")])
+    i.text("Oben die Summen des Angebots, darunter je Bauteil das Wichtigste auf einen Blick; ohne Häkchen "
+           "<b>Kompakt</b> alle Spalten.", kurz=True)
     i.genauer()
-    i.text("Der Reiter <i>Kalkulation</i> zeigt oben in einem Kasten die Summen des Angebots und darunter je Position "
+    i.text("<i>Laserzeit berechnet</i> ist die Schneidzeit aus Schneidweg, Konturklassen, Gravur und Einstichen "
+           "(Laserzeit brutto). <i>Laserzeit genutzt</i> ist die Zeit, die in den Preis eingeht: ohne die "
+           "gemeinsamen Schnitte mit dem Nachbarteil, mit Zeiten aus Zusatzarbeiten und Prüfzeit; bei einer "
+           "Schneidzeit von Hand ([[schneidzeit]]) diese Zeit, die Spalte <i>Schneidzeit manuell</i> zeigt dann "
+           "„ja“. Die Spalte <i>Hinweis</i> erscheint nur, wenn eine Position einen Hinweis hat.")
+    i.text("Ohne Häkchen <b>Kompakt</b> zeigt der Reiter <i>Kalkulation</i> je Position "
            "Material, Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position. Beträge "
            "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; das Kalkulations-PDF "
            "rechnet weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
@@ -2654,8 +2663,19 @@ def kapitel_baugruppen(i):
            "Stufe: kleine Mengen tragen mehr davon. Eine wiederverwendbare Vorrichtung mit Betrag zeigt den HINWEIS "
            "<i>wiederverwendbare Vorrichtung nicht berechnet</i>, damit das bewusst bleibt. Der Reiter "
            "<i>Stammdaten</i> nimmt Zeichnungsnummer, Revisionsstand, Werkstoff, Oberfläche und Bemerkungen auf; "
-           "Zeichnung und Revision stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet alle Nahtgruppen und "
-           "Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+           "Zeichnung, Revision, Werkstoff und Oberfläche stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet "
+           "alle Nahtgruppen und Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+    i.abschnitt("Im Angebot und in den Staffeln")
+    i.text("Das Angebot zeigt <b>eine Zeile je Baugruppe</b>: <i>Schweißbaugruppe</i> mit Bezeichnung, darunter "
+           "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "
+           "darunter, wenn im Reiter <i>Stammdaten</i> das Häkchen <b>Stückliste im Angebot zeigen</b> gesetzt ist "
+           "(ohne Preise).", kurz=True)
+    i.text("Einmalkosten (Rüstzeit, Vorrichtungen, Lehren) sind normalerweise im Preis je Baugruppe enthalten. Mit "
+           "dem Häkchen <b>Einmalkosten als eigene Zeile im Angebot</b> stehen sie als eigene Zeile <i>Einmalkosten "
+           "Schweißbaugruppe … einmalig je Auftrag</i> (pausch.) unter der Baugruppe; die Summe des Angebots bleibt "
+           "gleich. In den Staffeln zählen die Einmalkosten wie Rüsten (<i>Schweißbaugruppe einmalig</i>, umgelegt "
+           "oder separat nach der Einstellung der Stufe); mit dem Häkchen zeigt das Angebots-PDF je Stufe den Preis "
+           "je Stück ohne sie und den Zusatz <i>zzgl. einmalig … €</i>.")
     i.text("In der Kalkulation stehen die Kosten als <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> (mit "
            "Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung); danach "
            "Gewinn und Skonto wie bei jeder Position. Der Status der Baugruppe führt per Doppelklick in den Editor, "
