@@ -174,10 +174,15 @@ STATUS_FARBE = {"Nachkalkuliert": "#DDEBF7", "Optimiert": "#E3F4E8", "Veraltet":
                 "Nicht optimiert": "#FFF6DB"}
 VORGANG_FARBE = {"Verschickt": "#DDEBF7", "Beauftragt": "#E3F4E8", "Abgelehnt": "#ECEEF1", "Abgelaufen": "#FDECEA"}
 # Filter der Angebotsliste: Titel -> Prüfung je Zeile (Vorgang, abgelaufen)
-VORGANG_FILTER = {"Alle Angebote": lambda v, ab: True, "Offen (Entwurf, Verschickt)": lambda v, ab: v in ("Entwurf", "Verschickt"),
-                  "Entwurf": lambda v, ab: v == "Entwurf", "Verschickt": lambda v, ab: v == "Verschickt",
-                  "Verschickt und abgelaufen": lambda v, ab: v == "Verschickt" and ab,
-                  "Beauftragt": lambda v, ab: v == "Beauftragt", "Abgelehnt": lambda v, ab: v == "Abgelehnt"}
+# Filter der Angebotsliste: (Vorgang, abgelaufen, Zeile der Liste) -> zeigen
+VORGANG_FILTER = {"Alle Angebote": lambda v, ab, z: True,
+                  "Offen (Entwurf, Verschickt)": lambda v, ab, z: v in ("Entwurf", "Verschickt"),
+                  "Entwurf": lambda v, ab, z: v == "Entwurf", "Verschickt": lambda v, ab, z: v == "Verschickt",
+                  "Verschickt und abgelaufen": lambda v, ab, z: v == "Verschickt" and ab,
+                  "Beauftragt": lambda v, ab, z: v == "Beauftragt",
+                  # Plan Arbeitsabläufe W9: beauftragt, aber noch ohne Ist-Werte
+                  "Nachkalkulation offen": lambda v, ab, z: v == "Beauftragt" and not z.get("nachkalkuliert"),
+                  "Abgelehnt": lambda v, ab, z: v == "Abgelehnt"}
 
 
 def vorgang(z):
@@ -317,7 +322,7 @@ class AngeboteSeite(QWidget):
         zeilen = []
         for z in alle:
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
-            if not passt(vorgang(z), z["_abgelaufen"]):
+            if not passt(vorgang(z), z["_abgelaufen"], z):
                 continue
             if wer == MEINE and z.get("fremd") or wer not in (MEINE, ALLE) and bearbeiter(z) != wer:
                 continue
@@ -1223,7 +1228,8 @@ class AngebotSeite(QWidget):
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
                "rueckgaengig": "rueckgaengig", "wiederholen": "wiederholen", "einfuegen": "_einfuegen",
                "ausschneiden": "_ausschneiden", "optimieren": "optimieren", "drucken": "angebot_pdf",
-               "importieren": "step_importieren"}
+               "importieren": "step_importieren", "staffeln": "staffelpreise_rechnen", "werkstatt": "werkstatt_pdf",
+               "kalkulation": "kalkulation_pdf", "material": "material_anfragen", "stueck": "stueck_aendern"}
 
     def __init__(self, fenster, angebot_id):
         super().__init__()
@@ -1345,6 +1351,7 @@ class AngebotSeite(QWidget):
                            ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
                            ("Blech-Editor …", lambda: self.blech_bearbeiten()),
+                           ("Stückzahl ändern …", lambda: self.stueck_aendern()),
                            ("Positionen löschen", self.positionen_loeschen)):
             self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
         self.pos_ansicht.customContextMenuRequested.connect(
@@ -2609,6 +2616,40 @@ class AngebotSeite(QWidget):
         tastatur.kopieren(self.pos_ansicht)
         return self._gesammelt(tastatur.leeren)
 
+    def stueck_aendern(self, zeilen=None, faktor=None, wert=None, dialog=None):
+        """Stückzahl der markierten Positionen (ohne Markierung: aller aktiven) × Faktor oder = Wert setzen (Plan
+        Arbeitsabläufe W4), ein Schritt für Rückgängig. Ohne faktor und wert fragt ein Dialog; dialog(d) bedient ihn
+        statt exec (Tests). Ergebnis: Anzahl geänderter Positionen oder None (abgebrochen)."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return None
+        if zeilen is None:
+            zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        alle = not zeilen
+        if alle:
+            zeilen = [r for r, p in enumerate(self.positionen) if position_aktiv(p)]
+        if not zeilen:
+            self.f.meldung("Das Angebot hat noch keine Positionen.", fehler=True)
+            return None
+        if faktor is None and wert is None:
+            from .mengen_dialog import StueckDialog
+            d = StueckDialog(self, len(zeilen), alle)
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return None
+            faktor, wert = d.faktor, d.wert
+        from .mengen_dialog import neue_stueckzahl
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            neu = neue_stueckzahl(p.get("stueck"), faktor, wert)
+            if neu is not None and neu != p.get("stueck"):
+                self.db.position_aendern(p["id"], "stueck", neu)
+                n += 1
+        if n:
+            self.neu_laden()
+        self.f.meldung(f"Stückzahl in {n} Position(en) geändert." if n else "Keine Stückzahl geändert.", fehler=not n)
+        return n
+
     def positionen_loeschen(self):
         zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
         if not zeilen:
@@ -2841,6 +2882,8 @@ class AngebotSeite(QWidget):
         if not any(position_aktiv(p) for p in self.positionen):
             QMessageBox.warning(self, "Angebot", "Das Angebot hat keine Positionen.")
             return None
+        if not self.fremd() and not self.db.nur_lesen:
+            self.st_seite.standard_auto()       # Standard-Staffeln, falls das Angebot noch keine Stufe hat (W3)
         ang = self.angebot_daten()
         if ang is None:
             return None
