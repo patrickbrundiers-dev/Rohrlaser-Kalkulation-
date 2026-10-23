@@ -1170,6 +1170,8 @@ class Hauptfenster(QMainWindow):
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
+        from . import spaltenbreite
+        spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
@@ -1219,6 +1221,8 @@ class Hauptfenster(QMainWindow):
         self.verlauf = Verlauf()
         self.statusBar().addPermanentWidget(self.verlauf)
         self.statusBar().showMessage("Bereit")
+        from . import symbole
+        symbole.versehen(self)          # Symbole an Hauptaktionen und Menüpunkten (Layout-Plan L19)
         self.lizenz_anwenden()
         if not stumm:
             self.updater.beim_start()
@@ -1511,6 +1515,8 @@ class Hauptfenster(QMainWindow):
         neu = seite is None
         if neu:
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
+            from . import symbole
+            symbole.versehen(seite)
             self.offen[angebot_id] = seite
             self.lesemodus_anwenden(seite)
             self.reiter.addTab(seite, seite.titel())

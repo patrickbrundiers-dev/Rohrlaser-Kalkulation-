@@ -817,8 +817,11 @@ def kapitel_angebot(i):
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
            "Punkte, Zeiten 420; die letzte Spalte füllt den Rest). Langer Text bricht um, höchstens drei Zeilen, der "
            "Rest steht gekürzt mit „…“ und vollständig im Tooltip. Beim Tippen werden Spalten nur breiter. Eine von "
-           "Hand gezogene Spalte behält ihre Breite, bis das Angebot neu geöffnet wird; Doppelklick auf die "
-           "Trennlinie passt sie wieder an. Ab 500 Zeilen bleiben die Zeilen einzeilig.")
+           "Hand gezogene Spalte behält ihre Breite, auch nach einem Neustart (gemerkt je Tabelle, nur an diesem "
+           "Arbeitsplatz); Doppelklick auf die Trennlinie passt sie einmal an, Rechtsklick auf den Spaltenkopf → "
+           "<b>Spaltenbreiten zurücksetzen</b> vergisst die gemerkten Breiten der Tabelle. Ab 500 Zeilen bleiben "
+           "die Zeilen einzeilig. Die Hauptknöpfe tragen ein schlichtes Symbol vor dem Text (z. B. Blitz für "
+           "Optimieren, Würfel für STEP).")
     i.abschnitt("Neue Position: erst der Typ", marke="neue_position")
     i.text("<b>Neue Position</b> (Strg+N) fragt zuerst: <i>Welche Art von Position?</i>", kurz=True)
     i.tabelle(["Typ", "öffnet"], [
