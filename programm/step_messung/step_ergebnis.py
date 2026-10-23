@@ -49,11 +49,14 @@ Versionen von SCHEMA_VERSION:
   az, r, vz]; x, y im Querschnitt um die Mitte, gedreht wie die Schnittwinkel (y = 0°-Richtung), z ab dem Ende;
   "huelle" = "min" oder "max" (Schnittfläche über einem Punkt). Damit rechnet das Programm das Ende für ein anderes
   Profil neu. Andere komplexe Enden ohne diese Felder. Felder aus 1.8 unverändert.
+- 1.10 (23.10.2026): "schwenk" je Ende (außer Fasen) und je Innenkontur außer Bohrungen: größter Winkel [Grad]
+  zwischen Schnittfläche und Senkrechter zur Rohroberfläche entlang der Schnittkante. Ab 0,5° ist der Schnitt eine
+  3D-Bearbeitung (Kopf geschwenkt), darunter 2D, auch bei einer Gehrung. Felder aus 1.9 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.9"
+SCHEMA_VERSION = "1.10"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

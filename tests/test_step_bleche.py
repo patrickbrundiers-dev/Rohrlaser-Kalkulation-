@@ -60,7 +60,8 @@ def _():
 
 @fall("JSON 1.1: bauteiltyp, Block blech, keine Profilwerte bei Blechen")
 def _():
-    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION >= "1.6", JS["schema_version"]
+    assert JS["schema_version"] == step_ergebnis.SCHEMA_VERSION and \
+        tuple(map(int, JS["schema_version"].split("."))) >= (1, 6), JS["schema_version"]
     k = JS["dateien"][1]["koerper"][0]
     assert k["bauteiltyp"] == "Blech" and k["profiltyp"] == "Blech", k
     assert k["blech"]["dicke"] == 4 and k["blech"]["kontur"] == "rechteckig", k["blech"]

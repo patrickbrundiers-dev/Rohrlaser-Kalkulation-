@@ -117,4 +117,40 @@ d.werte_schreiben()
 assert all(m["_d3"] is True for m in werte)
 assert StepPruefDialog(None, werte, k, "S235-10219", 1).d3.isChecked()
 ok("T3 Prüfdialog: Häkchen 3D mit gefundenen Kandidaten, Wahl geht an die Übernahme")
+# ------------------------------------------------------------------ T4 nur 3D, wenn nicht 90° zur Oberfläche
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Common  # noqa: E402
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox  # noqa: E402
+from OCP.gp import gp_Pnt  # noqa: E402
+
+
+def quader(x0, y0, z0, x1, y1, z1):
+    return BRepPrimAPI_MakeBox(gp_Pnt(x0, y0, z0), x1 - x0, y1 - y0, z1 - z0).Shape()
+
+
+t30 = math.tan(math.radians(30))
+re_ = et.kastenrohr(60, 40, 3, 600, 0)
+eben = et.schraeg_ende(re_, 550, 30, 0)                          # Gehrung als ebene Fläche: oben/unten 30° schräg
+weg = et.cut(re_, eben)
+zwei_d = re_                                                     # dieselbe Gehrung, Strahl überall senkrecht:
+for x0, x1 in ((-31, -27), (27, 31)):                            # Seitenwände schräg (senkrecht zur Seitenwand),
+    zwei_d = et.cut(zwei_d, BRepAlgoAPI_Common(weg, quader(x0, -17, -1, x1, 17, 700)).Shape())
+zwei_d = et.cut(zwei_d, quader(-31, 17, 550 + 20 * t30, 31, 21, 700))     # oben und unten z = konstant
+zwei_d = et.cut(zwei_d, quader(-31, -21, 550 - 20 * t30, 31, -17, 700))
+et.schreibe(eben, "D02_RE60x40x3_Gehrung_eben", tmp)
+et.schreibe(zwei_d, "D03_RE60x40x3_Gehrung_2D", tmp)
+(t_eben,) = analysiere_datei(tmp / "D02_RE60x40x3_Gehrung_eben.step")
+(t_2d,) = analysiere_datei(tmp / "D03_RE60x40x3_Gehrung_2D.step")
+b_eben, b_2d = t_eben.konturen_liste[1], t_2d.konturen_liste[1]
+assert b_eben["form"] == "Gehrung" and nah(b_eben["schwenk"], 30, 0.1), b_eben
+assert nah(b_2d["schwenk"], 0, 0.1) and nah(t_eben.konturen_liste[0]["schwenk"], 0, 0.1), b_2d
+step_messen.main(["--ausgabe", str(tmp / "m2.txt"), str(tmp / "D02_RE60x40x3_Gehrung_eben.step"),
+                  str(tmp / "D03_RE60x40x3_Gehrung_2D.step")])
+mw2 = step.lies_messwerte(tmp / "m2.txt")
+assert [step.kandidaten_3d(m) for m in mw2] == [(1, 0), (0, 0)] and [step.schraege_konturen(m) for m in mw2] == [0, 0]
+erg = step.uebernehmen([dict(m, _d3=True) for m in mw2], [], k, gew, None, "S235-10219", 5, neue_profile=True)
+p_eben, p_2d = erg["positionen"]
+assert json.loads(p_eben["technik"])["b"].get("d3") is True and not dreid.pruefen(p_eben, m)
+assert not json.loads(p_2d["technik"])["b"].get("d3") and not dreid.bearbeitungen(p_2d, m)
+ok("T4 3D nur, wenn die Schnittfläche nicht senkrecht zur Oberfläche steht: ebene Gehrung 30° = 3D, gleiche "
+   "Gehrung mit Strahl senkrecht zur Wand = 2D (gemessen 0°)")
 print("Alle 3D-STEP-Tests bestanden.")

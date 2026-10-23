@@ -1108,6 +1108,40 @@ def _fase_ende(flaechen, zmin, zmax, gz0, gz1, tol=0.01):
     return None
 
 
+SCHWENK_3D = 0.5    # Grad: ab dieser Abweichung von 90° zur Rohroberfläche ist ein Schnitt eine 3D-Bearbeitung
+
+
+def schwenk(flaechen, kanten, abw, schritt=2.0):
+    """Größter Winkel [Grad] zwischen Schnittfläche und Senkrechter zur Rohroberfläche entlang der Schnittkanten
+    (Kanten zur Außenwand), STEP-JSON 1.10. 0 = Strahl senkrecht zur Oberfläche (2D, auch bei einer Gehrung), sonst
+    3D (Patrick 23.10.2026: nur 3D, wenn die Geometrie nicht 90° zur Oberfläche steht). None, wenn nichts messbar."""
+    from OCP.GeomAPI import GeomAPI_ProjectPointOnSurf
+    from OCP.GeomLProp import GeomLProp_SLProps
+    flaechen = [BRep_Tool.Surface_s(TopoDS.Face(f)) for f in flaechen]
+    groesster = None
+    for p in _punkte_kanten(kanten, schritt):
+        beste = None
+        for sf in flaechen:
+            pr = GeomAPI_ProjectPointOnSurf(p, sf)
+            if pr.NbPoints() and (beste is None or pr.LowerDistance() < beste[0]):
+                beste = (pr.LowerDistance(), sf, pr.LowerDistanceParameters())
+        if beste is None or beste[0] > 0.05:
+            continue
+        lp = GeomLProp_SLProps(beste[1], beste[2][0], beste[2][1], 1, 1e-6)
+        if not lp.IsNormalDefined():
+            continue
+        n = lp.Normal()
+        uc = abw.u(p.X(), p.Y())
+        (_, ax_, ay_), (_, bx_, by_) = abw.punkt(uc - 0.5), abw.punkt(uc + 0.5)
+        tl = math.hypot(bx_ - ax_, by_ - ay_)
+        if tl < 1e-9:
+            continue
+        c = abs(n.X() * (by_ - ay_) / tl - n.Y() * (bx_ - ax_) / tl)      # Flächennormale · Wandnormale
+        w = math.degrees(math.asin(min(1.0, c)))
+        groesster = w if groesster is None else max(groesster, w)
+    return None if groesster is None else round(groesster, 2)
+
+
 def _ende_flaechen(flaechen, kanten, cx, cy, ref, z_ref, tol=0.1):
     """3D-Ende (komplex: mehrere Ebenen, Zylinder quer zur Rohrachse) als Flächen für den Schneidweg-Rechner (STEP-JSON
     1.9): Querschnitt um (cx, cy), gedreht wie _endform (Y = 0°-Richtung), z ab z_ref. Ebene ['E', gx, gy, c] mit
@@ -1931,6 +1965,8 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
                              richtung=round(lage, 1))
                 else:
                     d.update(art="Ausschnitt", laenge=round(form[1], 2), breite=round(form[2], 2))
+                if not rund:            # Bohrungen: Neigung der Achse (oben); sonst Flächen gegen die Oberfläche
+                    d["schwenk"] = schwenk([faces.FindKey(f) for f in m["faces"]], zug, abw)
                 liste.append(d)
         if m["art"] in enden:
             enden[m["art"]][0] += [faces.FindKey(f) for f in m["faces"]]
@@ -1963,6 +1999,8 @@ def _profil_messen(solid, datei="", koerper=1, netz=False):
 
         if e["form"] == "komplex" and kt:
             e.update(_ende_flaechen(fl, kt, abw.cx, abw.cy, ref, zmin + z) or {})
+        if fl and kt and art_[1] not in fasen:
+            e["schwenk"] = schwenk(fl, kt, abw)
         e["huellmass"] = _ende_huellmass(_punkte_kanten(kt)) if kt else None
         setattr(t, "ende_a_huelle" if art_ == "EA" else "ende_b_huelle", e["huellmass"] or 0.0)
         kopf.append(dict(art=name, durchgehend=True, z=round(z, 2), winkel=None, u=None, seite=None, **e))
