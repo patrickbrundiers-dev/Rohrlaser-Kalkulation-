@@ -2421,10 +2421,11 @@ class AngebotSeite(QWidget):
 
     # -------------------------------------------------------------- Wiederholteile (Plan A1, wiederholteile.py)
     def wiederholteile_suchen(self):
-        """{Positions-ID: [Treffer]}; gerechnet nur, wenn sich die suchrelevanten Werte geändert haben."""
+        """{Positions-ID: [Treffer]}; gerechnet nur, wenn sich die suchrelevanten Werte oder andere Angebote geändert
+        haben."""
         from . import wiederholteile
-        kennung = (self.kopf.get("kundennr"), tuple(tuple(p.get(f) for f in wiederholteile.FELDER)
-                                                   for p in self.positionen))
+        kennung = (wiederholteile.stand(self.db), self.kopf.get("kundennr"),
+                   tuple(tuple(p.get(f) for f in wiederholteile.FELDER) for p in self.positionen))
         if getattr(self, "_wt_kennung", None) != kennung:
             self._wt_kennung = kennung
             self._wt = wiederholteile.suchen(self.db, self.id, self.kopf.get("kundennr"), self.positionen)

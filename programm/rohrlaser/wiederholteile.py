@@ -89,6 +89,13 @@ def unterschiede(neu, alt):
     return {f: alt[f] for f, _ in UEBERNEHMBAR if alt.get(f) not in (None, "") and alt.get(f) != neu.get(f)}
 
 
+def stand(db):
+    """Änderungsstand der Datendatei für den Zwischenspeicher: steigt bei jedem Schreiben über diese Verbindung (auch
+    beim Abgleich der Kollegen-Angebote) und bei Schreiben anderer Verbindungen. Ein Zeitstempel reicht nicht, weil
+    abgeglichene Angebote ihr eigenes, oft älteres Änderungsdatum mitbringen."""
+    return db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0]
+
+
 def suchen(db, angebot_id, kundennr, positionen):
     """{Positions-ID: [Treffer, bester zuerst]} für die Positionen eines Angebots; nur Positionen mit Treffern."""
     import json

@@ -94,4 +94,13 @@ assert f.reiter.currentWidget() is s_alt
 s.wiederholteil_link(f"hin:{zeile}")
 assert f.reiter.currentWidget() is s and s.pos_ansicht.currentIndex().row() == zeile
 ok("Links: Angebot öffnen, Hinspringen")
+vorher = s.wiederholteile_suchen()
+assert s.wiederholteile_suchen() is vorher                # unverändert: aus dem Zwischenspeicher
+db.position_aendern(alt_pos[0]["id"], "prog_zeit", 9.0)   # anderes Angebot geändert (auch abgeglichenes des Kollegen)
+s.neu_laden()
+p10 = next(p for p in s.positionen if p["pos"] == 10)
+assert s.wiederholteile_suchen()[p10["id"]][0].werte["prog_zeit"] == 9.0
+db.angebot_loeschen(anderer)
+assert [t.art for t in s.wiederholteile_suchen()[p10["id"]]] == [wt.SICHER]
+ok("Zwischenspeicher: Änderung oder Löschen eines anderen Angebots wird beim Neuladen erkannt")
 print("OK: Wiederholteile")
