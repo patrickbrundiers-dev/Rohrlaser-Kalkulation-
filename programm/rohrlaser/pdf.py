@@ -776,7 +776,7 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
     breite = 273 * mm
     achtung = "ACHTUNG: Kalkulation passt nicht zum aktuellen Angebot (Optimierung veraltet)."
     inhalt = _dok_kopf("Kalkulation", kopf, einst, breite, warnung=None if aktuell else achtung)
-    k = rechnen.zeit_summen(summen["zeiten"])
+    k = rechnen.zeit_summen(summen["zeiten"], summen.get("teile"))
     verkauf, herstell = summen.get("verkauf") or 0, summen.get("herstell") or 0
     inhalt += [_kacheln([("Verkaufspreis netto", _z(verkauf) + " €"), ("Herstellkosten", _z(herstell) + " €"),
                          ("Gewinn", _z(summen.get("gewinn") or 0) + " €"), ("Material", _z(summen.get("material") or 0) + " €"),
@@ -816,20 +816,20 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
             hinweis += " * = Meterpreis von Hand (Fenster 'Material …' bzw. Spalte Materialpreis [€/m])."
         inhalt += [Spacer(1, 1.5 * mm), _p(hinweis, ParagraphStyle("mh", parent=S_KLEIN, textColor=GRAU)),
                    Spacer(1, 5 * mm)]
-    # Zeiten und Kosten je Arbeitsschritt (Schritte ohne Zeit und Kosten ausgeblendet)
+    # Zeiten und Kosten je Arbeitsschritt, nach Maschine, Personal und ohne Zeit geordnet (Schritte ohne Zeit und
+    # Kosten ausgeblendet); parallele Personalzeit gekennzeichnet
     daten = [[_p(t, S_KOPF7) for t in ("Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit",
                                        "Stundensatz [€/h]", "Kosten [€]", "Quelle", "Berechnung")]]
-    for z in summen["zeiten"]:
+    reihe = {"Maschine": 0, "Personal": 1}
+    for z in sorted(summen["zeiten"], key=lambda z: reihe.get(z["art"], 2) if z["gesamt_min"] is not None else 2):
         if rechnen.schritt_sichtbar(z):
-            daten.append([_p(z["schritt"], S_KLEIN), _p(z["art"], S_KLEIN), *rechnen.schritt_texte(z),
+            art = z["art"] + (" (parallel)" if z["art"] != "Maschine" and z["parallel"] and z["gesamt_min"] else "")
+            daten.append([_p(z["schritt"], S_KLEIN), _p(art, S_KLEIN), *rechnen.schritt_texte(z),
                           _z(z["kosten"]), _p(z["quelle"], S_KLEIN), _p(z["formel"], S_KLEIN)])
     inhalt += [CondPageBreak(40 * mm), _p("Zeiten und Arbeitskosten je Arbeitsschritt", S_H2),
                _tabelle(daten, [w * mm for w in (40, 20, 24, 18, 20, 20, 22, 20, 40, 49)], rechts=(2, 3, 4, 5, 6, 7)),
                Spacer(1, 1.5 * mm),
-               _p(f"Maschinenzeit {rechnen.zeit_text(k['maschine_min'])} · Personalzeit "
-                  f"{rechnen.zeit_text(k['personal_min'])} · Durchlaufzeit {rechnen.zeit_text(k['durchlauf_min'])} "
-                  f"(parallele Personalzeit nicht addiert) · Arbeitskosten {_z(k['arbeitskosten'])} €",
-                  ParagraphStyle("zs", parent=S_KLEIN, textColor=GRAU)),
+               _p(rechnen.zeiten_text(k), ParagraphStyle("zs", parent=S_KLEIN, textColor=GRAU)),
                Spacer(1, 5 * mm)]
     liste = [z for z in zeilen if z is not None]
     inhalt += [CondPageBreak(40 * mm), _p("Kalkulation je Position", S_H2),

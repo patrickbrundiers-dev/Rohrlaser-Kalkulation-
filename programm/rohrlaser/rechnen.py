@@ -12,7 +12,7 @@ import math
 import json
 import re
 
-from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
+from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
@@ -1568,7 +1568,9 @@ def zusatz_menge_auto(art, p, k):
 
 def zusatz_werte(p, k, tabellen):
     """Zusatzarbeiten einer Position je Teil: [{name, art, einheit, menge, preis, betrag, zeit, fremd, text,
-    angebotstext, mindest}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück). Bei €/h ist
+    angebotstext, mindest, arbeit_s}]. betrag = € je Teil (ohne Mindestbetrag), zeit = s je Teil (Art s/Stück, kommt zur
+    Laserzeit), arbeit_s = eigene Arbeitszeit je Teil für die Zeiten (€/h: die Zeit; sonst Zeitaufwand der Stammdaten
+    × Menge; Fremdleistungen, s/Stück und €/Angebot 0). Bei €/h ist
     menge die Zeit je Teil in s (von Hand, sonst Vorgabezeit), preis der Stundensatz, betrag = s / 3600 × €/h.
     Unbekannte Namen werden ausgelassen (Status zeigt eine Warnung)."""
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
@@ -1588,11 +1590,17 @@ def zusatz_werte(p, k, tabellen):
         else:
             preis = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
         wert = _n(menge) * preis / (3600 if art == "€/h" else 1)
+        if kz.get("fremd") == "ja" or art in ("s/Stück", "€/Angebot"):
+            arbeit_s = 0.0
+        elif art == "€/h":
+            arbeit_s = _n(menge)
+        else:
+            arbeit_s = _n(zusatz_preis(kz, saetze)["zeit_s"]) * _n(menge)
         out.append(dict(name=e["name"], art=art, einheit=ZUSATZ_EINHEIT.get(art, ""), menge=menge, preis=preis,
                         betrag=0.0 if art in ("s/Stück", "€/Angebot") else wert,
                         pauschal=wert if art == "€/Angebot" else 0.0, zeit=wert if art == "s/Stück" else 0.0,
                         fremd=kz.get("fremd") == "ja", text=e.get("text"), mindest=_n(kz.get("mindest")),
-                        angebotstext=kz.get("angebotstext") or e["name"]))
+                        angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s))
     return out
 
 
@@ -2567,7 +2575,9 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = ""
         z.update(zeit_manuell="ja" if manuell else "", zeit_extra=zeit_extra, gewinde_preis=gp,
                  zusatz_eigen_teil=ze, zusatz_fremd_teil=zfr, zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c, zusatzarbeiten=zus[i],
-                 zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]))
+                 zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]),
+                 zusatz_arbeit_s=sum(e.get("arbeit_s", 0.0) for e in zus[i]),
+                 zusatz_arbeit_teil=sum(e["teil"] for e in zus[i] if e.get("arbeit_s")))
         z.update(zeit_pruefung=pruef, pruefung_teil=pruef / 3600 * s_laser,
                  gravur_anbau_teil=0.0 if manuell else _n(anteile.get("gravur_anbau")) / 3600 * s_laser)
         z.update(laser_schneiden_teil=_n(oz) / 3600 * s_laser, gewinde_teil=pz / 3600 * s_gew + gp,
@@ -2675,6 +2685,7 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0):
         hinweis = satz_text or ""
     null = dict.fromkeys(("handling_teil", "material_gruppe", "anteil", "material_teil", "zeit_extra", "gewinde_preis",
                           "zusatz_eigen_teil", "zusatz_fremd_teil", "zusatz_teil", "zusatz_position",
+                          "zusatz_arbeit_s", "zusatz_arbeit_teil",
                           "laser_schneiden_teil", "gewinde_teil", "gewinde_zeit_teil", "arbeit_teil",
                           "zuschlag_material_teil", "zuschlag_fertigung_teil", "zuschlag_fremdleistung_teil",
                           "einsparung", "gewindezeit", "laser_teil", "ruesten_teil", "herstell_teil",
@@ -2859,9 +2870,39 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
                          quelle if sp or not prog_min else f"Stundensatz {sid} fehlt (0 €/h)",
                          art_=(art.get("Programmierung") or {}).get("art") or "Personal",
                          sid=sid, satz_=sp, parallel=(art.get("Programmierung") or {}).get("parallel", "ja") == "ja"))
-    out.append(zeile("Zusatzarbeiten (€)", teile, "Teile", None, None, None, summen["zusatz"],
+    # Zusatzarbeiten mit eigener Arbeitszeit (Schweißen €/h, Zeitaufwand der Stammdaten) als Personalzeit; der Rest
+    # (Festpreise, Material, Fremdleistungen) bleibt ohne Zeit
+    za_s = sum(_n(z.get("zusatz_arbeit_s")) * z["stueck"] for z in zl)
+    za_k = sum(_n(z.get("zusatz_arbeit_teil")) * z["stueck"] for z in zl)
+    out.append(zeile("Zusatzarbeiten mit Zeit", teile, "Teile", None, za_s / teile if teile else None, za_s / 60, za_k,
+                     f"{zahl(za_s / 60, 2)} min (Zeit je Teil × Stückzahl), Betrag aus dem Preis der Zusatzarbeit",
+                     "Zusatzarbeiten (Sekunden je Teil bzw. Zeitaufwand der Stammdaten)", art_="Personal", parallel=False))
+    out.append(zeile("Zusatzarbeiten (€)", teile, "Teile", None, None, None, summen["zusatz"] - za_k,
                      "Menge × Preis je Einheit, ggf. Mindestbetrag", "Stammdaten Zusatzarbeiten", art_="Fremd/Preis"))
+    # Schweißbaugruppen: Schweißen und eigene Arbeitsgänge (baugruppe.rechnen), Fremdleistungen ohne Zeit
+    bg_min = _n(summen.get("baugruppe_zeit_min"))
+    out.append(zeile("Schweißbaugruppen", summen.get("baugruppen", 0), "Baugruppen", None, None, bg_min,
+                     _n(summen.get("baugruppe_eigen")), f"{zahl(bg_min, 1)} min Schweißen und Arbeitsgänge je Baugruppe "
+                     "× Stückzahl", "Schweißbaugruppen (Nahtgruppen, Arbeitsgänge)", art_="Personal", parallel=False))
+    out.append(zeile("Schweißbaugruppen Fremdleistung (€)", summen.get("baugruppen", 0), "Baugruppen", None, None, None,
+                     _n(summen.get("baugruppe_fremd")), "Fremdleistungen der Baugruppen", "Schweißbaugruppen",
+                     art_="Fremd/Preis"))
     return out
+
+
+def zeiten_text(k):
+    """Zeiten in einer Zeile (Kalkulation-PDF, Reiter Zeiten): Maschine (davon Rüsten), Personal (davon parallel),
+    Arbeitszeit gesamt, Durchlaufzeit, Ø je Teil und Arbeitskosten. k = zeit_summen(...)."""
+    teile = [f"Maschinenzeit {zeit_text(k['maschine_min'])}"
+             + (f" (davon Rüsten {zeit_text(k['ruest_maschine_min'])})" if k.get("ruest_maschine_min") else ""),
+             f"Personalzeit {zeit_text(k['personal_min'])}"
+             + (f" (davon parallel {zeit_text(k['parallel_min'])})" if k.get("parallel_min") else ""),
+             f"Arbeitszeit gesamt {zeit_text(k['bearbeitung_min'])}",
+             f"Durchlaufzeit {zeit_text(k['durchlauf_min'])} (Maschine + Personal, das nicht parallel läuft)"]
+    if k.get("je_teil_min"):
+        teile.append(f"Ø je Teil {zeit_text(k['je_teil_min'])}")
+    teile.append(f"Arbeitskosten {zahl(k['arbeitskosten'])} €")
+    return " · ".join(teile)
 
 
 def schritt_sichtbar(z):
@@ -2884,19 +2925,27 @@ def schritt_texte(z):
     return menge, ruest, zeit, gesamt, satz
 
 
-def zeit_summen(zeiten):
+def zeit_summen(zeiten, teile=None):
     """Kennzahlen aus arbeitszeiten(): Minuten und Kosten nach Art, Durchlaufzeit (parallele Personalzeit nicht
-    addiert)."""
+    addiert). Dazu für die Aufschlüsselung: gruppen = [(Art, [Arbeitsschritte mit Zeit oder Kosten])] für Maschine und
+    Personal, Rüstzeit je Art (steckt in deren Zeit), parallele Personalzeit und mit teile die Zeit je Teil."""
     mit = [z for z in zeiten if z["gesamt_min"] is not None]
     m = lambda bed: sum(z["gesamt_min"] for z in mit if bed(z))
     k = lambda bed: sum(z["kosten"] for z in mit if bed(z))
     maschine = lambda z: z["art"] == "Maschine"
     personal = lambda z: z["art"] != "Maschine"
+    gesamt = m(lambda z: True)
     return dict(maschine_min=m(maschine), personal_min=m(personal), ruest_min=sum(_n(z["ruest_min"]) for z in mit),
-                bearbeitung_min=m(lambda z: True),
+                ruest_maschine_min=sum(_n(z["ruest_min"]) for z in mit if maschine(z)),
+                ruest_personal_min=sum(_n(z["ruest_min"]) for z in mit if personal(z)),
+                parallel_min=m(lambda z: personal(z) and z["parallel"]),
+                bearbeitung_min=gesamt, je_teil_min=gesamt / teile if teile else None,
                 durchlauf_min=m(maschine) + m(lambda z: personal(z) and not z["parallel"]),
                 arbeitskosten=k(lambda z: True), maschinenkosten=k(maschine), personalkosten=k(personal),
-                sonstige=sum(z["kosten"] for z in zeiten if z["gesamt_min"] is None))
+                sonstige=sum(z["kosten"] for z in zeiten if z["gesamt_min"] is None),
+                gruppen=[(art, [z for z in mit if (maschine(z) if art == "Maschine" else personal(z))
+                                and (abs(z["gesamt_min"]) >= 0.005 or abs(z["kosten"] or 0) >= 0.005)])
+                         for art in ZEITARTEN])
 
 
 KOSTENARTEN = (
