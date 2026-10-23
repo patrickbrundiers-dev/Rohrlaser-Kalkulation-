@@ -253,7 +253,9 @@ STAFFEL_HINWEIS_STUFE = "Staffelpreise je Stufe bei gemeinsamer Bestellung aller
 def _staffel_text(st, satz=False):
     n = _z(st["menge"], 0)
     stufe = f"Stufe {st['stufe']}: " if st.get("gemeinsam") and st.get("stufe") else ""
-    return f"{stufe}Ab {n} {('Satz' if st['menge'] == 1 else 'Sätze') if satz else 'Stk.'} je"
+    einheit = ('Satz' if st['menge'] == 1 else 'Sätze') if satz and not st.get("baugruppe") else 'Stk.'
+    zzgl = f" (zzgl. einmalig {_z(st['einmal'])} €)" if st.get("einmal") else ""
+    return f"{stufe}Ab {n} {einheit} je{zzgl}"
 
 
 def _angebot_kopf(kopf, ang, einst):
@@ -341,7 +343,7 @@ def _angebot_positionen(ang):
             continue
         erste, _, rest = (z["text"] or "").partition("\n")
         zeile([_p(_z(z["pos"], 0)), _p(z["artikel"]), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
-               _p("Satz" if z["art"] == "satz" else "Stk."), _p(_z(z["preis"]), S_A_RECHTS),
+               _p(z.get("einheit") or ("Satz" if z["art"] == "satz" else "Stk.")), _p(_z(z["preis"]), S_A_RECHTS),
                _p(_z(z["gesamt"]), S_A_RECHTS)])
         staffeln(z.get("staffeln") or (), z["art"] == "satz")
         text_zeilen(rest)

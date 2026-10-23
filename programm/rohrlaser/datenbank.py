@@ -33,7 +33,7 @@ from . import teilen, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
-from .angebot import (KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
+from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
                       lieferzeit_wert, naechste_nummer, nummer_mit_kuerzel)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
@@ -43,7 +43,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          schweiss_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 45     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 46     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -86,6 +86,8 @@ SCHEMA_VERSION = 45     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 44: Mehrere Arbeitsplätze (teilen.py): Kennung uid je Stammdatenzeile, Tabelle teilen_basis,
                         #     angebote.bearbeiter (Kürzel), angebote.fremd/fremd_stand (Angebote anderer Mitarbeiter)
                         # 45: Mindestauftragswert je Angebot ein/aus (angebote.mindestpreis_anwenden: leer = ja)
+                        # 46: Schweißbaugruppen (positionen.baugruppe/bg_knoten/je_knoten, Positionsart
+                        #     Schweißbaugruppe; Tabellen schweissverfahren, schweiss_kennwerte, schweiss_faktoren leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -1096,7 +1098,7 @@ class Datenbank:
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
                                                      "stundensaetze", "schneiddaten", "zukauf_kategorien",
-                                                     "zukauf_lieferanten")},
+                                                     "zukauf_lieferanten", "schweissverfahren")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
         return k
@@ -1106,7 +1108,8 @@ class Datenbank:
         """Stammdaten, die die Rechnung braucht (Preise, Lieferlängen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
         Arbeitsschritte)."""
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
-                                           "stundensaetze", "arbeitsschritte")}
+                                           "stundensaetze", "arbeitsschritte", "schweissverfahren",
+                                           "schweiss_kennwerte", "schweiss_faktoren")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         return tab
 
@@ -1708,7 +1711,7 @@ class Datenbank:
             _zahl_pruefen(feld, wert)
         if "material_herkunft" not in werte:      # Vorgabe des Angebots (Material neuer Positionen)
             r = self.con.execute("SELECT material_vorgabe FROM angebote WHERE id=?", (angebot_id,)).fetchone()
-            if r and r[0] == KUNDENMATERIAL and werte.get("art") != ZUKAUFTEIL:
+            if r and r[0] == KUNDENMATERIAL and werte.get("art") not in (ZUKAUFTEIL, BAUGRUPPE):
                 werte["material_herkunft"] = KUNDENMATERIAL
         nr = self.con.execute("SELECT COALESCE(MAX(nr), 0) + 1 FROM positionen WHERE angebot_id=?",
                               (angebot_id,)).fetchone()[0]

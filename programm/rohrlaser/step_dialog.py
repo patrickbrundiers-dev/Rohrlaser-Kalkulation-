@@ -324,7 +324,8 @@ class StepPruefDialog(QDialog):
                 g.setExpanded(True)
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
-            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen") is not False) if ist_blech \
+            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen" and not m.get("_normteil"))
+                        is not False) if ist_blech \
                 else step.gewaehlt(m)
             anbauteil = self.anbau_von.get(erster) if self.anbau_weglassen else None
             if anbauteil is not None and "_uebernehmen" not in m:
@@ -349,6 +350,10 @@ class StepPruefDialog(QDialog):
                     hinweis.append("PRÜFEN – zum Übernehmen anhaken")
             if step.unsicher(m):
                 hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
+            if m.get("_normteil"):
+                hinweis.append(f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken")
+            if m.get("pfad") and m.get("pfad") != m.get("artikel"):
+                it.setToolTip(0, f"In der Baugruppe: {m['pfad']}")
             if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
                 hinweis.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
             hinweis += [h for h in [m.get("hinweise")] if h]

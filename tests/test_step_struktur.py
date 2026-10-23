@@ -1,0 +1,80 @@
+"""STEP-Baugruppenstruktur und Bauteilnamen (STEP-JSON 1.13): Knoten mit Menge, Teile je Knoten, Pfad je Körper.
+
+Testdateien: tests/step_struktur/ (erzeugt mit tests/erzeuge_struktur_teile.py).
+"""
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HIER = Path(__file__).resolve().parent
+sys.path.insert(0, str(HIER.parent / "programm"))
+MESSEN = HIER.parent / "programm" / "step_messung" / "step_messen.py"
+ORDNER = HIER / "step_struktur"
+tmp = Path(tempfile.mkdtemp())
+
+from rohrlaser import step  # noqa: E402
+
+dateien = [ORDNER / "S01_Gestell_verschachtelt.step", ORDNER / "S02_Einzelteil_benannt.step",
+           HIER / "step_satz" / "T08_Gestell_Baugruppe.step", HIER / "step_referenz" / "REF01_RE60x40x2_L1000.step"]
+aus, js = tmp / "m.txt", tmp / "m.json"
+r = subprocess.run([sys.executable, str(MESSEN), "--ausgabe", str(aus), "--json", str(js), *map(str, dateien)],
+                   capture_output=True, text=True, timeout=600)
+assert r.returncode == 0, r.stderr
+daten = json.loads(js.read_text(encoding="utf-8"))
+assert daten["schema_version"] >= "1.13"
+je = {d["datei"]: d for d in daten["dateien"]}
+
+# S1: verschachtelte Baugruppe – Rahmenseite 2× im Gestell, Teile nur aus der ersten Instanz mit Anzahl je Knoten
+s01 = je["S01_Gestell_verschachtelt.step"]
+st = s01["struktur"]
+assert st["knoten"] == [dict(id="K1", name="Gestell", eltern=None, menge=1),
+                        dict(id="K2", name="Rahmenseite", eltern="K1", menge=2)], st["knoten"]
+koerper = {k["nr"]: k for k in s01["koerper"]}
+teile = {(koerper[t["teil_index"]]["bauteil"], t["knoten"]): t["anzahl"] for t in st["teile"]}
+assert teile == {("Holm RE60x40x3 L800", "K2"): 1, ("Strebe QR40x3 L500", "K2"): 2,
+                 ("Querrohr RR42.4x2 L600", "K1"): 2, ("Schraube ISO 4017 M8x20", "K1"): 4}, teile
+assert len(s01["koerper"]) == 12 and all(k["bauteil"] and k["knoten"] for k in s01["koerper"])
+pfade = [k["pfad"] for k in s01["koerper"]]
+assert "Gestell/Rahmenseite[2]/Strebe QR40x3 L500[2]" in pfade and len(set(pfade)) == 12
+# Gesamtzahl je Bauteil über die Struktur = Zahl der Körper in der Datei
+menge = {k["id"]: k["menge"] for k in st["knoten"]}
+eltern = {k["id"]: k["eltern"] for k in st["knoten"]}
+
+
+def faktor(kid):
+    return menge[kid] * (faktor(eltern[kid]) if eltern[kid] else 1)
+
+
+gesamt = {}
+for t in st["teile"]:
+    b = koerper[t["teil_index"]]["bauteil"]
+    gesamt[b] = gesamt.get(b, 0) + t["anzahl"] * faktor(t["knoten"])
+zaehlen = {}
+for k in s01["koerper"]:
+    zaehlen[k["bauteil"]] = zaehlen.get(k["bauteil"], 0) + 1
+assert gesamt == zaehlen, (gesamt, zaehlen)
+print("OK: verschachtelte Baugruppe (Knoten mit Menge, Teile je Knoten, Pfade, Summe = Körper)")
+
+# S2: Einzelteil mit Namen – keine Struktur, Bauteilname am Körper
+s02 = je["S02_Einzelteil_benannt.step"]
+assert s02["struktur"] is None and s02["koerper"][0]["bauteil"] == "Halter 4711 QR40x3"
+assert s02["koerper"][0]["knoten"] is None
+# ohne Namen (Testteile von OpenCascade): Struktur nur mit Wurzel aus dem Dateinamen, Bauteilname leer
+t08 = je["T08_Gestell_Baugruppe.step"]
+assert t08["struktur"]["knoten"] == [dict(id="K1", name="T08_Gestell_Baugruppe", eltern=None, menge=1)]
+assert all(k["bauteil"] is None and k["knoten"] == "K1" for k in t08["koerper"])
+assert je["REF01_RE60x40x2_L1000.step"]["struktur"] is None
+print("OK: Einzelteil mit Namen, Dateien ohne Namen, Einzelteil ohne Baugruppe")
+
+# S3: Messwerte (Textdatei) mit Spalten bauteil/pfad/knoten, Struktur für das Programm angehängt
+messwerte = step.struktur_anhaengen(step.lies_messwerte(aus), js)
+m = [x for x in messwerte if x["datei"] == "S01_Gestell_verschachtelt.step"]
+assert m[0]["bauteil"] == "Holm RE60x40x3 L800" and m[0]["pfad"] == "Gestell/Rahmenseite/Holm RE60x40x3 L800"
+assert m[0]["knoten"] == "K2" and m[0]["_struktur"] == st
+assert all(x["_struktur"] is None for x in messwerte if x["datei"] == "REF01_RE60x40x2_L1000.step")
+assert step.struktur_anhaengen([dict(datei="x")], tmp / "fehlt.json")[0]["_struktur"] is None
+# Messwerte der Rohre unverändert gegenüber der Messung ohne Namen (Profil, Länge)
+assert {x["profilform"] for x in m} >= {"Rechteckrohr", "Quadratrohr", "Rundrohr"}
+print("OK: Messwerte mit Bauteil, Pfad und Knoten; Struktur je Datei an den Messwerten")

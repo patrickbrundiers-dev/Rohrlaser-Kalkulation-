@@ -466,19 +466,92 @@ BLECHLASER = Tabelle(
     "Leerer Vorschub Innenkonturen = halber Vorschub Außenkontur. Vorbelegt sind Richtwerte eines Faserlasers mit "
     "etwa 6 kW, bitte an den eigenen Blechlaser bzw. Lieferanten anpassen.")
 
+# Schweißbaugruppen (Patrick 23.10.2026, Plan 3a/4a): Schweißzeit je Nahtgruppe aus Lichtbogenzeit je m Naht
+# (Verfahren × Nahtart × a-Maß bzw. Blechdicke) × Faktoren, geteilt durch den Lichtbogenzeitfaktor des Verfahrens,
+# dazu Heftpunkte. Neue Dateien bekommen die Tabellen leer; 'Richtwerte laden' (baugruppe.richtwerte) trägt
+# hergeleitete Richtwerte mit Status 'Richtwert' ein, die die Kalkulation als HINWEIS kennzeichnet.
+NAHTARTEN = ("Kehlnaht", "Stumpfnaht", "Ecknaht")
+SCHWEISS_FAKTORARTEN = ("Schweißlage", "Zugänglichkeit", "Qualität")
+KENNWERT_STATUS = ("Richtwert", "geprüft")
+
+SCHWEISSVERFAHREN = Tabelle(
+    "schweissverfahren", "Schweißverfahren",
+    (Feld("verfahren", "Verfahren", pflicht=True, breite=110),
+     Feld("bezeichnung", "Bezeichnung", breite=220),
+     Feld("satz_id", "Stundensatz-ID", "auswahl", auswahl="zusatzsatz", pflicht=True, breite=110),
+     Feld("lichtbogen", "Lichtbogenzeitfaktor [%]", "zahl", 1, 100, stellen=0, pflicht=True, breite=95),
+     Feld("heft_s", "Zeit je Heftpunkt [s]", "zahl", 0, 600, stellen=1, breite=80),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
+     Feld("bemerkung", "Bemerkung", breite=260)),
+    ("verfahren",),
+    "Schweißverfahren der Baugruppen-Kalkulation (MAG, MIG, WIG, E-Hand, Heften, Roboter … frei erweiterbar). "
+    "Lichtbogenzeitfaktor = Anteil der Lichtbogenzeit an der Schweißarbeitszeit: Arbeitszeit = Lichtbogenzeit ÷ "
+    "Faktor (Nebenzeiten wie Brenner ansetzen, Schlacke entfernen, Drahtwechsel). Heftpunkte rechnen mit der Zeit "
+    "je Heftpunkt. Kosten = Zeit × Stundensatz. Status 'Richtwert' = noch nicht an der eigenen Fertigung geprüft.")
+
+SCHWEISS_KENNWERTE = Tabelle(
+    "schweiss_kennwerte", "Schweiß-Kennwerte",
+    (Feld("verfahren", "Verfahren", "auswahl", auswahl="schweissverfahren", pflicht=True, breite=100),
+     Feld("nahtart", "Nahtart", "auswahl", auswahl="nahtart", pflicht=True, breite=100),
+     Feld("mass_bis", "a-Maß bzw. Blechdicke bis [mm]", "zahl", 0.5, 100, stellen=1, pflicht=True, breite=95),
+     Feld("min_m", "Lichtbogenzeit [min je m Naht]", "zahl", 0.01, 1000, stellen=2, pflicht=True, breite=100),
+     Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
+     Feld("bemerkung", "Herkunft / Bemerkung", breite=300)),
+    ("verfahren", "nahtart", "mass_bis"),
+    "Lichtbogenzeit je m Naht (eine Lage bzw. alle Lagen zusammen) nach Verfahren, Nahtart und Nahtgröße: Kehlnaht "
+    "nach a-Maß, Stumpf- und Ecknaht nach Blechdicke. Es gilt die Zeile mit dem kleinsten 'bis', das mindestens der "
+    "Nahtgröße entspricht; größer als alle Zeilen = kein Kennwert (Warnung, Zeit von Hand eintragen). Beidseitige "
+    "Nähte zählen doppelt.")
+
+SCHWEISS_FAKTOREN = Tabelle(
+    "schweiss_faktoren", "Schweiß-Faktoren",
+    (Feld("art", "Art", "auswahl", auswahl="schweissfaktorart", pflicht=True, breite=110),
+     Feld("wert", "Ausprägung", pflicht=True, breite=200),
+     Feld("faktor", "Faktor auf die Lichtbogenzeit", "zahl", 0.1, 10, stellen=2, pflicht=True, breite=100),
+     Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
+     Feld("bemerkung", "Bemerkung", breite=260)),
+    ("art", "wert"),
+    "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit "
+    "und Qualitätsanforderung. Leer bzw. nicht gefunden = Faktor 1.")
+
+# STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
+BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
+IMPORTPROFILE = Tabelle(
+    "importprofile", "Importprofile (STEP)",
+    (Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", pflicht=True, breite=110),
+     Feld("benennung", "Artikel aus", "auswahl", auswahl="benennung", breite=170),
+     Feld("muster", "Artikelnummer im Namen (Muster)", breite=170),
+     Feld("normteile", "Normteile zusätzlich (Begriffe mit ; getrennt)", breite=200),
+     Feld("werkstoff_id", "Werkstoff Rohre/Profile", "auswahl", auswahl="werkstoff", breite=120),
+     Feld("flach_als", "Flache Teile als", "auswahl", auswahl="flachals", breite=150),
+     Feld("anbau_weglassen", "Anbauteile nicht übernehmen", "auswahl", auswahl="janein", breite=90),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("kundennr",),
+    "Vorgaben für den STEP-Import je Kunde; sie gelten in Angeboten dieses Kunden, leere Felder wie in den "
+    "Einstellungen. Artikel aus: Bauteilname (Name in der Konstruktion, ohne Namen wie bisher der Dateiname), "
+    "Dateiname oder beides. Artikelnummer im Namen: regulärer Ausdruck, sein erster Klammerausdruck (sonst der ganze "
+    "Treffer) wird die Artikelnummer und der ganze Name die Bezeichnung, z. B. ^(\\d+) für führende Ziffern. "
+    "Normteile zusätzlich: Begriffe zu denen aus der Einstellung, Teile mit diesen Wörtern im Namen sind im "
+    "Prüfdialog abgewählt.")
+
+
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
-            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER)
+            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, SCHWEISSVERFAHREN,
+            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, IMPORTPROFILE)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
 VERWEISE = {
-    ("kunden", "kundennr"): (("angebote", "kundennr"),),
+    ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr")),
     ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id")),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
                                      ("schneiddaten", "werkstoff_id")),
     # Angebote: dazu die Snapshots im Angebot und die Standard-Maschine (Datenbank._maschine_umbenannt)
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine")),
-    ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id")),
+    ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id"),
+                                   ("schweissverfahren", "satz_id")),
+    ("schweissverfahren", "verfahren"): (("schweiss_kennwerte", "verfahren"),),
 }
 
 
@@ -593,6 +666,10 @@ EINSTELLUNGEN = (
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
     Einstellung("fliessloch_laser", "STEP-Import: Flowdrill-Bohrung am Laser", "STEP-Import", "auswahl",
                 FLIESSLOCH_LASER[0], auswahl="fliesslochlaser"),
+    # Teile mit diesen Wörtern im Bauteilnamen sind Normteile: im Prüfdialog abgewählt (importprofil.py)
+    Einstellung("step_normteile", "Normteile: Begriffe im Bauteilnamen (mit ; getrennt)", "STEP-Import", "text",
+                "ISO; DIN; Schraube; Mutter; Scheibe; Stift; Niet; Normteil"),
+    Einstellung("step_benennung", "Artikelnummer aus (Bauteilname, Dateiname oder beides)", "STEP-Import", "auswahl", BENENNUNGEN[0], auswahl="benennung"),
     # Messung (STEP-Import.exe): Prozesse, Zeitlimit je Körper, Zwischenspeicher; siehe step_einstellungen.py
     Einstellung("step_prozesse", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)", "STEP-Import",
                 "ganz", 0, 0, 64),
@@ -757,6 +834,7 @@ class Kontext:
     zukauf_kategorien: tuple = ()     # Namen der Kategorien und Lieferanten der Zukaufartikel
     zukauf_lieferanten: tuple = ()
     listen: dict = field(default_factory=dict)        # weitere Auswahllisten (Frachtkosten: Zonen, Tarife …)
+    schweissverfahren: tuple = ()     # Namen der Schweißverfahren (Auswahl in den Schweiß-Kennwerten)
 
     def auswahl(self, quelle):
         return [w for _, werte in self.gruppiert(quelle) for w in werte]
@@ -788,13 +866,16 @@ class Kontext:
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
-                         "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
+                         "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
-                         "zukauflieferant": list(self.zukauf_lieferanten)}.get(quelle, []))]
+                         "zukauflieferant": list(self.zukauf_lieferanten),
+                         "schweissverfahren": list(self.schweissverfahren), "nahtart": list(NAHTARTEN),
+                         "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
+                         "kennwertstatus": list(KENNWERT_STATUS)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
@@ -810,6 +891,7 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.kategorien = tuple(kategorien)
     k.zukauf_kategorien = tuple(z["name"] for z in daten.get("zukauf_kategorien", []) if z.get("name"))
     k.zukauf_lieferanten = tuple(z["name"] for z in daten.get("zukauf_lieferanten", []) if z.get("name"))
+    k.schweissverfahren = tuple(z["verfahren"] for z in daten.get("schweissverfahren", []) if z.get("verfahren"))
     return k
 
 

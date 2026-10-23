@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
 from . import fracht_angebot, normprofile, rechnen, zukauf
-from .angebot import aktiv as position_aktiv, bedingungen_text, ist_zukaufteil, lieferzeit_text
+from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -118,6 +118,9 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     der Text der Position, z. B. RAL 7016). Zukaufteile mit 'Im Angebotstext nennen' je Zeile mit Menge je Teil."""
     if ist_zukaufteil(p):
         return zukaufteil_text(p)
+    if ist_baugruppe(p):
+        from . import baugruppe
+        return baugruppe.text_angebot(p)
     laenge = p.get("laenge")
     zeilen = [profiltext(p.get("profil_id"), k, dezimal),
               f"L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else "L =  mm"]
@@ -226,9 +229,27 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             teile = [(j, q) for j, q in enumerate(positionen) if _satz(q.get("satz")) == satz]
             n = max((_wert(q.get("stueck")) / je(q) for _, q in teile), default=0)
             saetze = max(1, int(n + 0.5))
-            satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile), 2)
-            zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}", menge=saetze,
-                               preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
+            bg = next(((j, q) for j, q in teile if ist_baugruppe(q)), None)
+            einmal = 0.0        # Einmalkosten der Baugruppe als eigene Zeile: nicht im Preis je Baugruppe
+            if bg is not None and (kalk_zeilen[bg[0]] or {}).get("bg_einmal_preis_teil"):
+                einmal = kaufm_runden(kalk_zeilen[bg[0]]["bg_einmal_preis_teil"] * _wert(bg[1].get("stueck")), 2)
+            satzpreis = kaufm_runden(sum(preis(j) * je(q) for j, q in teile) - (einmal / saetze), 2)
+            if bg is None:
+                zeilen.append(dict(art="satz", pos=None, artikel=None, satz=satz, text=f"Satz {satz}", menge=saetze,
+                                   preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
+            else:               # Schweißbaugruppe: eine Zeile, Einzelteile nur mit Häkchen 'Stückliste'
+                from . import baugruppe
+                zeilen.append(dict(art="satz", pos=bg[1].get("pos"), artikel=bg[1].get("artikel"), satz=satz,
+                                   text=baugruppe.zeile_angebot(bg[1]), menge=saetze, einheit="Stk.",
+                                   baugruppe=True, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2)))
+                if einmal:
+                    zeilen.append(dict(art="einmal", pos=None, artikel=None, satz=satz, einheit="pausch.",
+                                       text=f"Einmalkosten Schweißbaugruppe {satz} (Rüsten, Vorrichtungen), "
+                                            "einmalig je Auftrag",
+                                       menge=1, preis=einmal, gesamt=einmal))
+                if not baugruppe.stamm_wahl(bg[1], "stueckliste"):
+                    continue
+                teile = [(j, q) for j, q in teile if j != bg[0]]
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
                                    text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
@@ -246,10 +267,12 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         # Rüstkosten 'separat' stehen nicht extra im Angebot: der Stufenpreis enthält sie (aufgerundet, damit
         # Menge x Preis den Stufenpreis nicht unterschreitet)
         einmalig, menge = ((z.get("preis") or {}).get("einmalig")) or 0, _wert(z["menge"]) or 1
-        pr = aufrunden(_wert(z["preis_gesamt"]) / menge) if einmalig else z["preis_einheit"]
+        bg_einmal = _wert((z.get("preis") or {}).get("bg_einmalig"))   # Baugruppe: Einmalkosten als eigene Zeile
+        einmalig -= bg_einmal
+        pr = aufrunden((_wert(z["preis_gesamt"]) - bg_einmal) / menge) if einmalig else z["preis_einheit"]
         eintrag = dict(menge=z["menge"], bereich=f"ab {z['menge']:.0f}", preis=pr,
-                       gesamt=kaufm_runden(pr * menge, 2) if einmalig else z["preis_gesamt"],
-                       stufe=z.get("stufe_nr"), gemeinsam=bool(z.get("gemeinsam")))
+                       gesamt=kaufm_runden(pr * menge + bg_einmal, 2) if einmalig else z["preis_gesamt"],
+                       stufe=z.get("stufe_nr"), gemeinsam=bool(z.get("gemeinsam")), einmal=bg_einmal)
         if z.get("einheit") == "Satz":
             bez = z.get("bezeichnung") or ""
             staffeln.append(dict(art="satz", pos=None, satz=str(z["schluessel"]),
@@ -283,6 +306,7 @@ def _staffeln_zuordnen(zeilen, staffeln):
         st["zugeordnet"] = z is not None
         if z is None or (_wert(st["menge"]) == _wert(z["menge"]) and st["preis"] == z["preis"]):
             continue
+        st["baugruppe"] = bool(z.get("baugruppe"))
         z["staffeln"].append(st)
     for z in zeilen:
         z["staffeln"].sort(key=lambda st: _wert(st["menge"]))

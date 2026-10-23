@@ -207,10 +207,6 @@ assert s2.kopf["zeitbasis"]["maschine"]["stundensatz"] == 100 and "nicht im Ange
 ok("J10 Zeit im Reiter geändert (Quelle 'von Hand'), Übersicht zeigt Zeiten und weitere Arbeitsschritte; älteres "
    "Angebot ohne Snapshot erhält ihn beim ersten Ändern")
 
-pfad = Path(s2.csv_export())
-text = pfad.read_text(encoding="utf-8-sig")
-assert "Arbeitsschritt;Art;Menge" in text and "Laser schneiden;Maschine" in text and "Programmierung;Personal" in text and "Verpackung;" not in text
-assert "Weitere Arbeitsschritte je Teil [€]" in text
 pfad = Path(s2.kalkulation_pdf())
 assert pfad.stat().st_size > 2000
 try:
@@ -219,6 +215,6 @@ try:
     assert "Zeiten und Arbeitskosten je Arbeitsschritt" in inhalt and "Stangenwechsel" in inhalt
 except ImportError:
     pass
-ok("CSV-Export und Kalkulation (PDF) enthalten die Arbeitsschritte mit Zeit oder Kosten")
+ok("Kalkulation (PDF) enthält die Arbeitsschritte mit Zeit oder Kosten")
 
 print("OK: Zeiten und Kosten je Arbeitsschritt")

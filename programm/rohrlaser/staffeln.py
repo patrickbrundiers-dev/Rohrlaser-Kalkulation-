@@ -309,7 +309,7 @@ def abmessungen(positionen):
     """Abmessungen der Rohrlaserteile mit eigenem Material: [(Abmessung, [Positionsnummern])]."""
     out = {}
     for p in positionen:
-        if position_aktiv(p) and not rechnen.ist_zukaufteil(p) and not rechnen.beigestellt(p) and txt(p.get("profil_id")):
+        if position_aktiv(p) and not rechnen.kein_laserteil(p) and not rechnen.beigestellt(p) and txt(p.get("profil_id")):
             out.setdefault(abmessung(p), []).append(txt(p.get("pos")))
     return list(out.items())
 
@@ -454,10 +454,13 @@ _FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stunde
               ("Gewinde", "gewinde_teil", "Gewindezeit × Stundensatz bzw. Festpreis"),
               ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
               ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),
-              ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"))
+              ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"),
+              ("Schweißbaugruppe", "bg_laufend_eigen_teil", "Nahtgruppen und Arbeitsgänge der Baugruppe"))
 _RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschine, auf alle Teile der Stufe umgelegt"),
             ("Rüsten je Abmessung", "ruesten_abm_teil", "Rüstzeit je Abmessung, auf deren Teile umgelegt"),
-            ("Stangenwechsel", "stangenwechsel_teil", "Stangenwechsel der Stufe, auf alle Teile umgelegt"))
+            ("Stangenwechsel", "stangenwechsel_teil", "Stangenwechsel der Stufe, auf alle Teile umgelegt"),
+            ("Schweißbaugruppe einmalig", "bg_einmal_ruesten_teil",
+             "Rüstzeit und Einmalbeträge der Arbeitsgänge (Vorrichtung …), einmal je Stufe"))
 
 
 def _bausteine_teil(kz, idx, summen):
@@ -468,10 +471,12 @@ def _bausteine_teil(kz, idx, summen):
         return sum(_zahl(z.get(n)) * _zahl(z.get("stueck")) for z in zeilen)
     fert = [(n, summe(f), e) for n, f, e in _FERTIGUNG if n == "Laser schneiden" or abs(summe(f)) >= 0.005]
     ruest = [(n, summe(f), e) for n, f, e in _RUESTEN if n == "Rüsten Maschine" or abs(summe(f)) >= 0.005]
-    ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil")
+    ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil") and not z.get("baugruppe")
                      and not (z.get("kundenmaterial") and z["eingeplant"]))      # Kundenmaterial: 0 € ist richtig
     return dict(material=summe("material_teil"), material_fehlt=ohne_preis, fertigung=fert, ruesten=ruest,
-                fremd=summe("zusatz_fremd_teil"), pauschalen=summe("pauschale_abm_teil"),
+                fremd=summe("zusatz_fremd_teil") + summe("bg_fremd_staffel_teil"),
+                bg_getrennt=(summe("bg_getrennt_eigen_teil"), summe("bg_getrennt_fremd_teil")),
+                pauschalen=summe("pauschale_abm_teil"),
                 programmierung=summe("programmierung_anteil"), angebotsaufschlag=summe("angebotsaufschlag_teil"),
                 fracht=summe("fracht_teil"), skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
                 zukauf_einstand=summe("zukauf_einstand_teil"), zukauf_aufschlag=summe("zukauf_aufschlag_teil"),
@@ -625,8 +630,15 @@ def bausteine(summen, ohne_materialpreis=0):
         fert.append(("Zusatzarbeiten", summen["zusatz_eigen"], "Stammdaten Zusatzarbeiten"))
     if abs(summen.get("handling_beistellung", 0)) >= 0.005:
         fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/m × Stangenlänge Kundenmaterial"))
+    if abs(summen.get("baugruppe_laufend_eigen", 0)) >= 0.005:
+        fert.append(("Schweißbaugruppen", summen["baugruppe_laufend_eigen"], "Nahtgruppen und Arbeitsgänge"))
+    if abs(summen.get("baugruppe_einmal_ruesten", 0)) >= 0.005:
+        ruest.append(("Schweißbaugruppen einmalig", summen["baugruppe_einmal_ruesten"],
+                      "Rüstzeit und Einmalbeträge der Arbeitsgänge"))
     return dict(material=summen["material"], material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
-                fremd=summen["zusatz_fremd"], pauschalen=summen["pauschalen"],
+                fremd=summen["zusatz_fremd"] + summen.get("baugruppe_fremd_staffel", 0.0),
+                bg_getrennt=(summen.get("baugruppe_getrennt_eigen", 0.0), summen.get("baugruppe_getrennt_fremd", 0.0)),
+                pauschalen=summen["pauschalen"],
                 programmierung=summen["programmierung"], angebotsaufschlag=summen["angebotsaufschlag"],
                 fracht=summen["fracht"], skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
                 zukauf_einstand=summen.get("zukauf_einstand", 0), zukauf_aufschlag=summen.get("zukauf_aufschlag", 0),
@@ -684,7 +696,9 @@ def preise(b, menge, w, anhebung=None):
     gk_f = (f_sum + r_sum) * w["zuschlag_fertigung"]
     gk_fl = b["fremd"] * w["zuschlag_fremdleistung"]
     neben = w["neben_einheit"] * menge + w["neben_pauschal"]
-    selbst = m0 + verlust + mz + f_sum + r_sum + gk_f + b["fremd"] + gk_fl + neben
+    ge, gf = b.get("bg_getrennt") or (0.0, 0.0)          # Einmalkosten der Baugruppen mit eigener Zeile
+    bg_selbst = ge * (1 + w["zuschlag_fertigung"]) + gf * (1 + w["zuschlag_fremdleistung"])
+    selbst = m0 + verlust + mz + f_sum + r_sum + gk_f + b["fremd"] + gk_fl + neben + bg_selbst
     gewinn = selbst * w["gewinn"]
     weitere = b["pauschalen"] + b["programmierung"] + b["angebotsaufschlag"] + b["fracht"]
     zk_e, zk_a = b.get("zukauf_einstand", 0), b.get("zukauf_aufschlag", 0)     # fehlt in älteren Mengenläufen
@@ -699,6 +713,9 @@ def preise(b, menge, w, anhebung=None):
     einmalig = 0.0
     if w["ruesten"] == SEPARAT:     # Rüsten mit Gemeinkosten, Gewinn und Skonto als einmalige Position
         einmalig = kaufm_runden(r_sum * (1 + w["zuschlag_fertigung"]) * (1 + w["gewinn"]) / (1 - sk), 2)
+    # Einmalkosten von Schweißbaugruppen mit eigener Zeile: immer einmalig, nicht im Stückpreis
+    bg_einmalig = kaufm_runden(bg_selbst * (1 + w["gewinn"]) / (1 - sk), 2) if bg_selbst else 0.0
+    einmalig += bg_einmalig
     preis_einheit = (aufrunden((netto - einmalig) / menge) if anhebung
                      else kaufm_runden((netto - einmalig) / menge, 2))
     gesamt = kaufm_runden(preis_einheit * menge + einmalig, 2)
@@ -709,7 +726,8 @@ def preise(b, menge, w, anhebung=None):
                 marge=gewinn / netto if netto else None, pauschalen=b["pauschalen"],
                 programmierung=b["programmierung"], angebotsaufschlag=b["angebotsaufschlag"], fracht=b["fracht"],
                 zukauf_einstand=zk_e, zukauf_aufschlag=zk_a,
-                skonto=netto - anhebung - ohne, mindest_anhebung=anhebung, netto=netto, einmalig=einmalig, preis_einheit=preis_einheit,
+                skonto=netto - anhebung - ohne, mindest_anhebung=anhebung, netto=netto, einmalig=einmalig,
+                bg_einmalig=bg_einmalig, preis_einheit=preis_einheit,
                 preis_gesamt=gesamt, mwst=mwst, brutto=kaufm_runden(gesamt + mwst, 2))
 
 
