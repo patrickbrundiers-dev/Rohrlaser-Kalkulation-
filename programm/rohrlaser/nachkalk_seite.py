@@ -2,11 +2,12 @@
 import datetime
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
+from . import stil
 from . import nachkalkulation as nk
 from .spaltenbreite import AutoGroesse
 from .stammdaten import zahl_als_text, zahl_aus_text
@@ -83,10 +84,14 @@ class NachkalkulationSeite(QWidget):
         bl.addWidget(self.bg_tabelle)
         el.addWidget(self.bg_rahmen)
         knoepfe = QHBoxLayout()
-        for text, ziel in (("Ist-Werte löschen", self.loeschen), ("Nachkalkulation (PDF)", self.pdf)):
+        for text, ziel in (("Rest wie geplant", self.rest_wie_geplant), ("Ist-Werte löschen", self.loeschen),
+                           ("Nachkalkulation (PDF)", self.pdf)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             knoepfe.addWidget(b)
+            if text == "Rest wie geplant":
+                b.setToolTip("Alle noch leeren Ist-Werte auf das Soll setzen; nur Abweichungen von Hand eintragen. "
+                             "Eingetragene Werte bleiben.")
         knoepfe.addStretch(1)
         el.addLayout(knoepfe)
 
@@ -147,9 +152,9 @@ class NachkalkulationSeite(QWidget):
                     it.setToolTip(f"Leer = kalkulierter Meterpreis {_z(g['meterpreis'], 2)} €/m")
                 if c not in EINGABE:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c >= 2:
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 self.gruppen.setItem(r, c, it)
@@ -193,9 +198,9 @@ class NachkalkulationSeite(QWidget):
                 it.setData(Qt.UserRole, b["id"])
                 if feld is None:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c and feld != "grund":
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 self.bg_tabelle.setItem(r, c, it)
@@ -300,6 +305,22 @@ class NachkalkulationSeite(QWidget):
             return
         st[it.data(Qt.UserRole)] = wert
         self._speichern()
+
+    def rest_wie_geplant(self):
+        """Leere Ist-Werte = Soll (Plan Arbeitsabläufe W9). Ergebnis: Anzahl gesetzter Werte (None = nicht möglich)."""
+        s = self.s
+        if not s.ergebnis or not s.ergebnis.get("stangen") or s.stand_optimierung() != "aktuell":
+            s.f.meldung("Nachkalkulation: bitte zuerst (neu) optimieren, das Soll passt sonst nicht.", fehler=True)
+            return None
+        v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
+        self.ist, n = nk.rest_wie_geplant(v, self.ist)
+        if not n:
+            s.f.meldung("Alle Ist-Werte sind schon eingetragen.")
+            return 0
+        self._speichern()
+        self.neu_laden()
+        s.f.meldung(f"{n} Ist-Wert(e) wie geplant übernommen.")
+        return n
 
     def loeschen(self):
         if not self.ist:

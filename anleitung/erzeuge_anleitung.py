@@ -559,12 +559,14 @@ def kapitel_ueberblick(i):
         (1, "Stand des Angebots: grün <i>Optimierung abgeschlossen</i>, gelb <i>Noch nicht optimiert</i>, rot "
             "<i>Veraltet</i> ([[veraltet]]).")])
     i.text("Oben die Reiter <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, <i>Frachtkosten</i> ([[frachtkosten]]), "
-           "<i>Zukaufartikel</i> ([[zukauf]]) und <i>Einstellungen</i> (mit Passwort). Jedes geöffnete Angebot hat "
-           "einen eigenen Reiter, der sich mit dem × schließt. Die Statuszeile unten meldet, was gespeichert oder "
+           "<i>Zukaufartikel</i> ([[zukauf]]) und <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen "
+           "in einer eigenen Zeile unter <i>Angebote</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
+           "Reiter, der sich mit dem × schließt. Die Zeile erscheint, solange <i>Angebote</i> gewählt ist; ein Klick "
+           "auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. Die Statuszeile unten meldet, was gespeichert oder "
            "gerechnet wurde, Fehler in Rot.", kurz=True)
     i.genauer()
     i.text("Das Programm öffnet sich maximiert im Reiter <i>Angebote</i>. Die Einstellungen enthalten die Vorgaben "
-           "und die übrigen Stammdaten als Unterreiter. Zahlen mit Komma eingeben (1385,5). Jede Änderung wird sofort "
+           "und die übrigen Stammdaten als Seiten in der Navigation links. Zahlen mit Komma eingeben (1385,5). Jede Änderung wird sofort "
            "gespeichert, einen Speichern-Knopf gibt es nicht. Strg+C/Strg+V kopieren und fügen Zellen ein (auch Blöcke "
            "aus Excel), Entf löscht markierte Zeilen nach Rückfrage, Strg+Z nimmt im Angebot die letzte Änderung "
            "zurück ([[tastenkuerzel]]).")
@@ -745,7 +747,8 @@ def kapitel_angebote(i):
            "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand. <b>Gültig bis</b> ist das "
            "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
            "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i> oder <i>Verschickt und "
-           "abgelaufen</i> zum Nachfassen. Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
+           "abgelaufen</i> zum Nachfassen, <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
+           "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
            "Die Spalte <b>Bearbeiter</b> zeigt das Kürzel des Mitarbeiters, der ein Angebot angelegt hat. Mit "
            "gemeinsamem Ordner stehen auch die Angebote der Kollegen in der Liste, <b>grau und kursiv</b>; die Auswahl "
@@ -763,7 +766,7 @@ def kapitel_angebote(i):
 
 def kapitel_angebot(i):
     i.kapitel("Angebot anlegen und bearbeiten", marke="angebot")
-    i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=125 * mm, legende=[
+    i.bild("angebot_positionen", "Angebot A-2026-0041 vor dem Optimieren", hoehe=105 * mm, legende=[
         (1, "<b>Angebotskopf</b> (aufgeklappt): Angebotsnummer, Kunde und Maschine fett in der ersten Zeile, "
             "darunter Datum, Kundenname und Standard-Stangenlänge; dann paarweise Anfrage und Bemerkung, Lieferzeit "
             "und Material neuer Positionen, darunter der Bearbeiter. Ganz unten die aufklappbaren Maschinenparameter."),
@@ -772,8 +775,7 @@ def kapitel_angebot(i):
         (3, "<b>Positionen</b>: eine Zeile je Teil mit Stückzahl, Spalte Status direkt nach der Positionsnummer. "
             "Der Status hat zusätzlich zur Farbe ein Symbol: grüner Haken = OK, blaues i = Hinweis, gelbes Dreieck = "
             "Warnung oder veraltet, rotes Kreuz = Fehler. Eingabefelder sind hell gelb, berechnete Werte grau."),
-        (4, "<b>Neue Position</b> (fragt zuerst den Typ, [[neue_position]]); daneben <b>Positionen löschen</b> "
-            "(markierte Zeilen)."),
+        (4, "<b>Neue Position</b> (fragt zuerst den Typ, [[neue_position]]); löschen: Rechtsklick oder Entf."),
         (5, "<b>Zusatzarbeiten …</b>: Gewinde und Zusatzarbeiten der markierten Positionen ([[zusatzarbeiten_angebot]]). "
             "Daneben <b>Zukaufteile …</b> mit <i>Zukaufteile bearbeiten …</i> (eingekaufte Teile je Position) "
             "<i>Neuer Zukaufartikel …</i> (z. B. Bleche schnell als eigene Positionen anlegen, [[zukauf_angebot]]) und "
@@ -781,10 +783,12 @@ def kapitel_angebot(i):
         (6, "<b>STEP importieren</b>: Positionen aus Konstruktionsdaten ([[step]])."),
         (7, "<b>Optimieren</b>: Stangen planen und Kalkulation rechnen ([[optimieren]])."),
         (8, "Zeile über der Positionsliste: links Anzahl der Positionen und ausgeblendeten optionalen Spalten, "
-            "rechts <b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b>.")])
-    i.text("Blau hinterlegt sind die Hauptaktionen <b>Neue Position</b>, <b>STEP importieren</b>, <b>Optimieren</b> "
-           "und <b>3D-Ansicht</b>; rechts daneben die Ausgaben ([[ausgabe]]). Die Übersicht rechts bleibt in jedem "
-           "Reiter sichtbar.", kurz=True)
+            "rechts <b>Weitere Spalten</b>, <b>STEP-Werte (aus CAD)</b> und <b>Berechnete Werte (Programm)</b>."),
+        (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist).")])
+    i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, STEP importieren, Ablagefeld), "
+           "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
+           "<i>Ausgeben</i> (<b>Angebot (PDF)</b> dunkelblau, alles Weitere im Menü <b>Ausgaben</b>, [[ausgabe]]). "
+           "Die Übersicht rechts bleibt in jedem Reiter sichtbar.", kurz=True)
     i.genauer("Karten auf- und zuklappen, Spaltenbreiten")
     i.text("Links oben stehen die Karten <b>Angebotskopf</b>, <b>Kalkulation dieses Angebots</b> und <b>Fracht</b>. "
            "Der Angebotskopf ist bei einem neuen Angebot aufgeklappt; sobald Kunde und Positionen eingetragen sind, "
@@ -795,7 +799,7 @@ def kapitel_angebot(i):
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Die Trennlinien zwischen oben und unten und zur Übersicht "
            "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ablage öffnen</b> "
-           "liegt unter <b>Weitere Aktionen</b>, der <b>CSV-Export</b> rechts bei der Ausgabe.",
+           "und der <b>CSV-Export</b> liegen im Menü <b>Ausgaben</b>.",
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
            "Punkte, Zeiten 420; die letzte Spalte füllt den Rest). Langer Text bricht um, höchstens drei Zeilen, der "
            "Rest steht gekürzt mit „…“ und vollständig im Tooltip. Beim Tippen werden Spalten nur breiter. Eine von "
@@ -1148,7 +1152,7 @@ def kapitel_angebot(i):
             "Den Materialeinsatz zeigt auch das Kalkulation-PDF ([[ausgabe]]).")
     i.abschnitt("Schweißnaht", marke="schweissnaht")
     i.text("Fordert der Kunde eine Lage der Schweißnaht: Position(en) markieren → <b>Schweißnaht …</b> (Rechtsklick, "
-           "<i>Weitere Aktionen</i> oder Doppelklick in die Spalte <b>Schweißnaht</b>), im Querschnitt die Stelle "
+           "<i>Ausgaben</i> oder Doppelklick in die Spalte <b>Schweißnaht</b>), im Querschnitt die Stelle "
            "anklicken und <i>feste Position</i> wählen. Das Teil wird dann nicht gedreht.")
     i.genauer()
     i.text("Das Fenster <i>Schweißnaht – Pos. …</i> zeigt den Rohrquerschnitt.")
@@ -1188,7 +1192,10 @@ def kapitel_angebot(i):
         ["Strg+Z / Strg+Y", "letzte Änderung zurücknehmen / wiederherstellen (bis 100 Schritte)"],
         ["Strg+C / Strg+V", "Zellen kopieren / einfügen, auch Blöcke aus Excel"],
         ["Entf", "markierte Positionen löschen (mit Rückfrage)"],
-        ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"]], [55, 210],
+        ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
+        ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
+                                         "Materialanfrage"],
+        ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"]], [55, 210],
         kurz=True)
     i.genauer()
     i.text("<b>Strg+Z</b> (oder <i>Bearbeiten → Rückgängig</i>) nimmt die letzte Änderung am geöffneten Angebot "
@@ -1203,6 +1210,10 @@ def kapitel_angebot(i):
             "unten; ein einzelner Wert füllt alle markierten Zellen (z. B. dieselbe Stückzahl für mehrere "
             "Positionen). Grau berechnete Zellen bleiben unverändert, falsche Werte meldet die Statuszeile. Ein "
             "Einfügen ist ein Schritt für Strg+Z.",
+            "<b>Stückzahl ändern …</b> (Rechtsklick auf eine Position oder Strg+Umschalt+S): Stückzahl der markierten "
+            "Positionen, ohne Markierung aller Positionen: <b>Stückzahl × Faktor</b> (z. B. 2 oder 0,5, kaufmännisch gerundet, "
+            "mindestens 1) oder <b>Stückzahl =</b> Wert. Positionen ohne Stückzahl bleiben beim Faktor leer. Ein Schritt für "
+            "Strg+Z.",
             "<b>Strg+X</b> kopiert und leert die markierten Eingabezellen.",
             "<b>Entf</b> in der Positionsliste löscht die markierten Positionen nach Rückfrage, <b>Strg+N</b> legt "
             "eine neue Position an, <b>Strg+I</b> startet den STEP-Import, <b>F9</b> optimiert und <b>Strg+P</b> "
@@ -1769,7 +1780,7 @@ def kapitel_optimieren(i):
     i.genauer()
     i.text("Für Teile ohne STEP-Datei rechnet der <b>Schneidweg-Rechner</b> Schneidweg, Einstiche und Konturklassen "
            "aus wenigen Angaben. Eine Position markieren und <b>Schneidweg berechnen …</b> wählen (Rechtsklick auf "
-           "die Position oder <i>Weitere Aktionen</i>, Doppelklick auf Schneidweg oder auf das kleine Bild vor "
+           "die Position oder <i>Ausgaben</i>, Doppelklick auf Schneidweg oder auf das kleine Bild vor "
            "der Artikelnummer). Das Profil muss in den Stammdaten stehen. Bei Teilen aus dem STEP-Import zeigt er die "
            "gemessenen Enden, Bohrungen, Konturen und die Gravur in Tabelle und Skizze; dort lassen sie sich prüfen "
            "und ändern. Die Schweißnaht wird hier ebenfalls gewählt, und <b>Zeichnung als PDF …</b> macht aus allem "
@@ -2159,7 +2170,9 @@ def kapitel_staffeln(i):
     i.kapitel("Staffelpreise", marke="staffeln")
     i.bild("staffeln_vorher", "Stufen für den Satz „MG 2000“ (ein Maschinengestell)", hoehe=80 * mm, legende=[
         (1, "<b>Neue Stufe …</b> legt eine Stufe mit den Mengen des Angebots an und öffnet ihr Fenster; dort die "
-            "Mengen ändern. <b>Stufen löschen</b> entfernt die markierten Stufen mit ihren Mengen."),
+            "Mengen ändern. <b>Stufen löschen</b> entfernt die markierten Stufen mit ihren Mengen. "
+            "<b>Standard-Staffeln</b> legt je Faktor aus den Einstellungen eine Stufe mit den Mengen des Angebots × "
+            "Faktor an (Vorgabe 1; 2; 5)."),
         (2, "<b>Stufe bearbeiten …</b> (oder Doppelklick auf die Stufe) öffnet das Fenster der Stufe."),
         (3, "Je Zeile eine Stufe: Bezeichnung, Mengen, eigene Werte (oder „wie Angebot“), Netto gesamt und "
             "Prüfung („gemeinsamer Auftrag“ bei mehreren Sätzen und Positionen, sonst der Fehler)."),
@@ -2194,6 +2207,11 @@ def kapitel_staffeln(i):
             "angehakt; <b>Alle</b> / <b>Keine</b> haken alle an bzw. ab). Mengen in Sätzen bzw. Stück; eine Menge "
             "eintragen hakt die Zeile an. <b>Mengen des Angebots</b>, <b>× 2</b>, <b>× 5</b> und <b>× 10</b> füllen "
             "die angehakten Zeilen. <b>Menge bis</b> ist freiwillig.")])
+    i.text("<b>Standard-Staffeln automatisch</b>: Hat das Angebot noch keine Stufe, legt das <b>Angebots-PDF</b> die "
+           "Standard-Staffeln selbst an und rechnet sie, z. B. für 10 Stück die Stufen 10, 20 und 50. Die Faktoren "
+           "stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
+           "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5). Wer alle Stufen löscht, bekommt sie "
+           "beim nächsten PDF nicht wieder, solange das Angebot geöffnet bleibt.")
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
            "8 kurze Riegel, 16 Streben, 2 Holme und 3 Traversen.")
@@ -2796,6 +2814,17 @@ def kapitel_baugruppen(i):
            "größten Posten. So sieht man sofort, wo sich das Nachprüfen von Kennwerten oder Vorrichtungen lohnt. "
            "Angebote ohne Baugruppe zeigen den Bereich nicht.")
 
+    i.abschnitt("Schweißplan, Kalkulation und CSV")
+    i.text("Die <b>Werkstattpapiere</b> ([[ausgabe]]) bekommen je Baugruppe eine Seite <b>Schweißplan</b> ohne Preise: "
+           "Struktur mit Mengen, Einzelteile mit Pos. und Kästchen zum Bereitstellen, Nahtgruppen (Verfahren, a-Maß "
+           "bzw. Dicke, Länge, Anzahl, Lage, Heftpunkte), Arbeitsgänge und Vorrichtungen in Reihenfolge zum Abhaken "
+           "und die Vorgabezeit je Baugruppe und gesamt.", kurz=True)
+    i.text("Die <b>Kalkulation (PDF)</b> zeigt je Baugruppe einen Abschnitt mit allen Nahtgruppen und Arbeitsgängen: "
+           "Stück je Baugruppe, Zeit und Kosten je Baugruppe, Einmalbetrag und Herkunft der Zeit (Kennwert, "
+           "Richtwert, von Hand, Fremdleistung oder was fehlt). Der <b>CSV-Export</b> als ZIP enthält bei Angeboten "
+           "mit Baugruppen zusätzlich <i>Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
+           "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
+           "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
     i.text("Wiederkehrende Baugruppen nicht jedes Mal neu erfassen: <b>Als Vorlage speichern …</b> unten im Editor "
            "merkt Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) unter einem Namen; "
@@ -2816,16 +2845,16 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation", marke="ausgabe")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
         (1, "<b>Angebot (PDF)</b> (Strg+P) für den Kunden, mit Staffelpreisen und Konditionen."),
-        (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und Schnittpläne zum Abhaken, Stangenbild."),
-        (3, "<b>Kalkulation (PDF)</b>: alle Kosten und Zeiten für die interne Ablage."),
-        (4, "<b>Materialanfrage (E-Mail)</b>: Stangenbedarf beim Lieferanten anfragen ([[materialanfrage]])."),
-        (5, "<b>CSV-Export</b>: Angebotskopf und Angebotspositionen als CSV, einzeln oder zusammen als ZIP "
-            "([[csv_export]])."),
-        (6, "<b>Weitere Aktionen</b>: u. a. <b>Ablage öffnen</b>.")])
+        (2, "Menü <b>Ausgaben</b>: <b>Werkstattpapiere (PDF)</b> (Materialliste und Schnittpläne zum Abhaken, "
+            "Stangenbild), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
+            "<b>Materialanfrage (E-Mail)</b> (Stangenbedarf beim Lieferanten anfragen, [[materialanfrage]]), "
+            "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen, einzeln oder zusammen als ZIP, [[csv_export]]), "
+            "darunter <b>Schneidweg berechnen …</b>, <b>Schweißnaht …</b> und <b>Ablage öffnen</b>."),
+        (3, "<b>Schrittanzeige</b>: ④ Verschickt wird erledigt, sobald das Angebot verschickt ist (Vorgang, [[angebote]]).")])
     i.text("Jede Datei wird im Ablageordner gespeichert und gleich geöffnet. Ist die Optimierung veraltet, fragt das "
            "Programm vorher.", kurz=True)
     i.genauer()
-    i.text("Bei schmalem Fenster (z. B. 1366 px Bildschirmbreite) rücken <b>Ausgabe</b> und <b>Weitere Aktionen</b> "
+    i.text("Bei schmalem Fenster (z. B. 1366 px Bildschirmbreite) rücken <b>Angebot (PDF)</b> und <b>Ausgaben</b> "
            "rechtsbündig in eine zweite Zeile unter die Arbeitsknöpfe.",
            "<b>Angebot (PDF)</b>: Briefkopf mit Firmenlogo (Einstellung <i>Firmenlogo</i>), Anschriftfeld "
            "links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), Positionen "
@@ -2845,7 +2874,7 @@ def kapitel_ausgabe(i, seiten, ablage):
            "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
            "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
            "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
-           "([[csv_export]]); <b>Ablage öffnen</b> (unter Weitere Aktionen) zeigt den Ablageordner im Explorer.")
+           "([[csv_export]]); <b>Ablage öffnen</b> (im Menü Ausgaben) zeigt den Ablageordner im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
            "Reihenfolge: Profil, Länge, Werkstoff (<i>inkl. Material</i> mit dem Text im Angebot des Werkstoffs), "
            "Oberfläche, dann je Zusatzarbeit, Gewinde oder Gravur eine Zeile <i>inkl. …</i> und je Zukaufteil mit "
@@ -3023,7 +3052,8 @@ def kapitel_nachkalkulation(i):
         (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner: oben Kacheln mit Erlös, "
             "Einzelkosten Ist, Abweichung und Deckungsbeitrag Ist/Soll, Abweichungen farbig (rot = teurer bzw. "
             "schlechter als kalkuliert, grün = günstiger bzw. besser). <b>Ist-Werte löschen</b> setzt "
-            "alles zurück.")])
+            "alles zurück. <b>Rest wie geplant</b> setzt alle noch leeren Ist-Werte auf das Soll, so dass nur die "
+            "Abweichungen eingetragen werden müssen.")])
     i.text("Nach dem Auftrag die tatsächlichen Werte in <b>Ist-Werte nach dem Auftrag</b> eintragen (leer = wie "
            "kalkuliert). Das Programm vergleicht sie mit der Kalkulation.", kurz=True)
     i.genauer()
@@ -3032,9 +3062,12 @@ def kapitel_nachkalkulation(i):
            "gegenüber. Verglichen werden die <b>Einzelkosten</b> ohne Zuschläge und Gewinn, denn nur sie lassen sich "
            "in der Fertigung messen. Voraussetzung ist ein aktueller Schnittplan (vorher optimieren).")
     i.liste("Jede Eingabe wird sofort gespeichert. Leere Felder zählen wie kalkuliert; die Spalte <i>Ist erfasst</i> "
-            "zeigt, welche Werte wirklich eingetragen sind.",
+            "zeigt, welche Werte wirklich eingetragen sind. Schneller geht es mit <b>Rest wie geplant</b>: zuerst die "
+            "Abweichungen eintragen (z. B. eine Stange mehr), dann den Knopf drücken; alle übrigen Werte gelten als "
+            "erfasst wie kalkuliert (Meterpreis bleibt kalkuliert, Sonstige Kosten 0, Erlös = Verkaufspreis).",
             "Im Reiter <i>Angebote</i> zeigt die Spalte <b>Nachkalkuliert</b>, für welche Angebote Ist-Werte "
-            "vorliegen. Beim Kopieren werden die Ist-Werte nicht mitkopiert.",
+            "vorliegen, der Filter <i>Nachkalkulation offen</i> die beauftragten Angebote, die noch fehlen. Beim "
+            "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
     i.abschnitt("Schweißbaugruppen nachkalkulieren")
@@ -3056,8 +3089,17 @@ def kapitel_nachkalkulation(i):
 
 def kapitel_einstellungen(i):
     i.kapitel("Einstellungen", marke="einstellungen")
-    i.text("Der Reiter <i>Einstellungen</i> enthält alle Voreinstellungen: den Unterreiter <i>Vorgaben</i> mit den "
-           "Werten, die für alle Angebote gelten, und die Stammdaten außer den Kunden ([[stammdaten]]).", kurz=True)
+    i.text("Der Reiter <i>Einstellungen</i> enthält alle Voreinstellungen: die Seite <i>Vorgaben</i> mit den "
+           "Werten, die für alle Angebote gelten, und die Stammdaten außer den Kunden ([[stammdaten]]). Links steht "
+           "die Navigation nach Themen: <i>Kalkulation</i> (Vorgaben, Stundensätze und Zeitvorgaben, Zusatzarbeiten), "
+           "<i>Material</i> (Profile, Werkstoffe, Oberflächen, Preise, Lieferlängen), <i>Maschinen</i> (Maschinen, "
+           "Schneiddaten, Gewinde, Prüfregeln), <i>Blech</i>, <i>Schweißen</i> und <i>STEP-Import</i>. Darüber das "
+           "<b>Suchfeld</b>: es zeigt nur die Seiten, deren Titel, Spalten oder Vorgaben zum Suchwort passen, und auf "
+           "der Seite Vorgaben nur die passenden Einstellungen (z. B. „gewinn“). Enter öffnet den ersten Treffer, "
+           "das × im Feld zeigt wieder alles. Unten links: <b>Einstellungen sperren</b>.", kurz=True)
+    i.bild("einstellungen_suche", "Einstellungen: Suche nach „gewinn“", hoehe=60 * mm, legende=[
+        (1, "<b>Suchfeld</b>"), (2, "Navigation: nur Seiten mit Treffern"),
+        (3, "Seite Vorgaben: nur die passenden Einstellungen")])
     i.abschnitt("Passwort", marke="passwort")
     i.bild("einstellungen_gesperrt", "Reiter Einstellungen gesperrt", hoehe=45 * mm, legende=[
         (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
@@ -3072,11 +3114,12 @@ def kapitel_einstellungen(i):
            "Feld verlassen; <b>Entfernen</b> = Einstellungen ohne Passwort. Ein Passwort aus einer älteren Version gilt "
            "unverändert weiter. Das Passwort bitte beim Verantwortlichen erfragen.")
     i.abschnitt("Vorgaben", marke="vorgaben")
-    i.bild("einstellungen", "Einstellungen, Unterreiter Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
-        (1, "Unterreiter Vorgaben, daneben die Stammdaten"), (2, "<b>Einstellungen sperren</b>")])
+    i.bild("einstellungen", "Einstellungen, Seite Vorgaben (oberer Teil)", hoehe=125 * mm, legende=[
+        (1, "Seite Vorgaben in der Navigation links, darunter die Stammdaten nach Themen"),
+        (2, "<b>Einstellungen sperren</b>")])
     i.text("Wert ändern, Feld verlassen: gespeichert. Er gilt ab der nächsten Rechnung für alle Angebote. Jede "
            "Gruppe (Kalkulation, Angebot, STEP-Import, Ablage …) ist eine eigene Karte.", kurz=True)
-    i.bild("einstellungen_unten", "Einstellungen, Unterreiter Vorgaben (unterer Teil): Briefkopf, Ablage, "
+    i.bild("einstellungen_unten", "Einstellungen, Seite Vorgaben (unterer Teil): Briefkopf, Ablage, "
            "Auswahllisten und Passwort", hoehe=110 * mm, kurz=False)
     i.genauer("alle Vorgaben")
     i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
@@ -3118,6 +3161,9 @@ def kapitel_einstellungen(i):
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
          "Wert bleibt im neuen Angebot leer ([[lieferzeit]])."],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Angebot", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
+         "Vorgabe 1; 2; 5: Stufen, die der Knopf <b>Standard-Staffeln</b> und das erste Angebots-PDF ohne Stufe "
+         "anlegen ([[staffeln]])."],
         ["Ansicht", "Hilfetexte über Tabellen und Seiten",
          "<i>aufklappbar</i> (Vorgabe): erster Satz, <b>ⓘ mehr</b> zeigt den ganzen Text; <i>nur Tooltip</i>: nur "
          "<b>ⓘ Hilfe</b>, der Text erscheint beim Zeigen mit der Maus. Gilt sofort für alle Tabellen, auch für "
@@ -3128,6 +3174,18 @@ def kapitel_einstellungen(i):
          "kann und nicht über Remote-Desktop läuft, sonst wie bisher; <i>Software</i>: immer ohne Grafikkarte; "
          "<i>OpenGL</i>: immer mit Grafikkarte, wenn möglich. Klappt OpenGL nicht, zeichnet die Ansicht von selbst "
          "ohne Grafikkarte weiter ([[step_3d_ansicht]]). Gilt für neu geöffnete Ansichten, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)",
+         "<i>Hell</i> (Vorgabe) wie bisher; <i>Dunkel</i>: dunkle Flächen, helle Schrift, für dunkle Räume und lange "
+         "Arbeit am Bildschirm; <i>Hoher Kontrast</i>: dunklere Schrift und deutlich umrandete Knöpfe; <i>Wie "
+         "Windows</i>: hell oder dunkel wie in den Windows-Einstellungen. Der Tastaturfokus ist in Dunkel und Hoher "
+         "Kontrast blau bzw. schwarz umrandet. Zeichnungen (3D-Ansicht, Skizzen, Stangenbild) bleiben hell. Gilt ab "
+         "dem nächsten Start, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Schriftgröße [%] (90 bis 150)",
+         "Schrift im ganzen Programm größer oder kleiner (Vorgabe 100 %), z. B. 120 % für große Bildschirme. Gilt ab "
+         "dem nächsten Start, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Dichte (kompakt, normal, komfortabel)",
+         "Zeilenhöhe der Tabellen und Abstand in Knöpfen und Feldern: <i>kompakt</i> zeigt mehr Zeilen, "
+         "<i>komfortabel</i> mehr Luft (Vorgabe normal). Gilt ab dem nächsten Start, nur an diesem Arbeitsplatz."],
         ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
          "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
          "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
@@ -3417,18 +3475,18 @@ def kapitel_stammdaten(i):
     i.abschnitt("Tabellen bearbeiten")
     i.text("Alle Tabellen funktionieren gleich: Zelle anklicken und lostippen, Enter speichert.", kurz=True)
     i.text("Die Kunden haben einen eigenen Reiter. Alle anderen Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, "
-           "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze und Arbeitsschritte) stehen als Unterreiter "
-           "im Reiter <i>Einstellungen</i>, "
+           "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze und Arbeitsschritte) stehen als Seiten in der "
+           "Navigation links im Reiter <i>Einstellungen</i> ([[einstellungen]]), "
            "der mit einem Passwort geschützt ist ([[passwort]]). Alle Tabellen sind gleich aufgebaut:")
-    i.bild("stamm_profile", "Einstellungen, Unterreiter Profile", hoehe=125 * mm, legende=[
-        (1, "Unterreiter der Tabelle. Oben steht der erste Satz des Hilfetextes, was in die Spalten gehört; "
+    i.bild("stamm_profile", "Einstellungen, Seite Profile", hoehe=125 * mm, legende=[
+        (1, "Seite der Tabelle in der Navigation links. Oben steht der erste Satz des Hilfetextes, was in die Spalten gehört; "
             "<b>ⓘ mehr</b> zeigt den ganzen Text, <b>ⓘ weniger</b> klappt ihn wieder zu (bleibt je Tabelle so)."),
         (2, "<b>Neue Zeile</b> hängt eine leere Zeile an und springt hinein."),
         (3, "<b>Zeilen löschen</b> löscht die markierten Zeilen (vorher Rückfrage; verweisen andere Tabellen "
             "darauf, sagt das Programm wie viele)."),
         (4, "<b>Suchen</b> filtert die Tabelle nach jedem Text in jeder Spalte."),
         (5, "<b>Prüfung</b>: OK (grau), WARNUNG (gelb) oder FEHLER (rot) mit Begründung.")])
-    i.liste("Unterreiter wählen, z. B. <i>Profile</i>.", "<b>Neue Zeile</b>, Werte eintippen, Enter.",
+    i.liste("Seite links wählen, z. B. <i>Profile</i> (oder ins Suchfeld tippen).", "<b>Neue Zeile</b>, Werte eintippen, Enter.",
             "Rote oder gelbe Prüfung: Begründung lesen und den Wert korrigieren.", nummeriert=True, kurz=True)
     i.genauer()
     i.liste("Bearbeiten: Zelle doppelklicken oder einfach lostippen, mit Enter bestätigen. Felder mit fester Auswahl "
@@ -4913,6 +4971,11 @@ def kapitel_fragen(i):
          "3D-Bearbeitung am Ende), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Kurze Meldung unten rechts, die von selbst verschwindet",
+         "Hinweise und Erfolgsmeldungen (z. B. <i>CSV gespeichert</i>) erscheinen als Einblendung unten rechts und "
+         "verschwinden nach einigen Sekunden; ein Klick schließt sie sofort. Verpasst? <b>Meldungen (N)</b> rechts "
+         "in der Statusleiste zeigt die letzten 20 mit Uhrzeit (am Anfang: <i>Noch keine Meldungen</i>). Rückfragen vor dem Löschen und Fehler bleiben "
+         "Fenster, die bestätigt werden müssen."],
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
          "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben."],
@@ -5085,7 +5148,7 @@ STECKBRIEFE = {
     "fracht": ("Frachtkosten ins Angebot bringen: manuell, berechnet oder automatisch.",
                "Im Angebot Karte <b>Fracht</b>; Reiter <i>Frachtkosten</i> → Frachtrechner"),
     "zukauf_im_angebot": ("Eingekaufte Teile als eigene Position oder an einer Position mitkalkulieren.",
-                          "Im Angebot <b>Zukaufteile …</b> bzw. <b>Weitere Aktionen</b>"),
+                          "Im Angebot <b>Zukaufteile …</b> bzw. <b>Ausgaben</b>"),
     "schweissbaugruppe": ("Einzelteile zu einer Schweißbaugruppe zusammenfassen und Schweißen, Arbeitsgänge und "
                           "Vorrichtungen dazurechnen.",
                           "<b>Neue Position</b> → <b>Schweißbaugruppe</b>; Doppelklick auf die Baugruppe"),

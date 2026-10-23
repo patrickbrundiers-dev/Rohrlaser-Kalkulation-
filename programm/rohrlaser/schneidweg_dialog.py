@@ -7,12 +7,12 @@ OK schreibt die Werte in die Position (Angebotsseite.schneidweg_berechnen), Zeic
 import json
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QCompleter, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
                                QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
+from . import stil
 from . import dfm, dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
@@ -822,11 +822,11 @@ class SchneidwegDialog(QDialog):
                 art.setToolTip(f"gemessen an einem anderen Querschnitt ({str(z['messprofil']).split('|')[0]}), nicht "
                                f"umrechenbar: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm gilt, bitte "
                                "prüfen")
-                self.tabelle.item(r, 1).setBackground(QColor("#FFF4CC"))
+                self.tabelle.item(r, 1).setBackground(stil.farbe("#FFF4CC"))
             else:
                 art.setToolTip(f"aus dem STEP-Import: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm "
                                "(gilt, solange Art und Maße unverändert bleiben)")
-                self.tabelle.item(r, 1).setBackground(QColor("#E8F5E9"))
+                self.tabelle.item(r, 1).setBackground(stil.farbe("#E8F5E9"))
         self.tabelle.blockSignals(False)
         if rechnen_:
             self.rechnen()
