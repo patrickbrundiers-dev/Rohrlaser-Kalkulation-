@@ -201,8 +201,9 @@ class KopfBereich(QWidget):
             g.addWidget(w, zeile, 2 * spalte + 1)
         w = self._eingabe(KOPF_FELD["kundenreferenz"], self.felder)
         w.setPlaceholderText("z. B. Anfrage 4711 vom 20.10.2026")
+        # kompakt (Layout-Plan L2): Anfrage | Bemerkung, Lieferzeit | Material, Vorschau | Bearbeiter
         g.addWidget(QLabel(KOPF_FELD["kundenreferenz"].titel), 2, 0)
-        g.addWidget(w, 2, 1, 1, 5)
+        g.addWidget(w, 2, 1)
         # Lieferzeit dieses Angebots: Art, Wert passend zur Art und Freitext (ändert keine Preise)
         self.lz_art, self.lz_wert, self.lz_zusatz = QComboBox(), QLineEdit(), QLineEdit()
         self.lz_art.addItems(LIEFERZEIT_ARTEN)
@@ -221,10 +222,10 @@ class KopfBereich(QWidget):
         lz.addWidget(self.lz_wert)
         lz.addWidget(self.lz_zusatz, 1)
         g.addWidget(QLabel("Lieferzeit"), 3, 0)
-        g.addLayout(lz, 3, 1, 1, 5)
+        g.addLayout(lz, 3, 1, 1, 3)
         self.lz_vorschau = QLabel()
         self.lz_vorschau.setStyleSheet(f"color: {GRAU};")
-        g.addWidget(self.lz_vorschau, 4, 1, 1, 5)
+        g.addWidget(self.lz_vorschau, 4, 1, 1, 3)
         # Material neuer Positionen: Eigenmaterial oder vom Kunden beigestellt; je Position änderbar
         self.mat_vorgabe = QComboBox()
         self.mat_vorgabe.addItems(MATERIAL_HERKUNFT)
@@ -240,17 +241,17 @@ class KopfBereich(QWidget):
         mz.addWidget(self.mat_vorgabe)
         mz.addWidget(self.mat_alle)
         mz.addStretch(1)
-        g.addWidget(QLabel(KOPF_FELD["material_vorgabe"].titel), 5, 0)
-        g.addLayout(mz, 5, 1, 1, 5)
+        g.addWidget(QLabel(KOPF_FELD["material_vorgabe"].titel), 3, 4)
+        g.addLayout(mz, 3, 5)
         w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
-        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 6, 0)
-        g.addWidget(w, 6, 1, 1, 5)
+        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 2, 2)
+        g.addWidget(w, 2, 3, 1, 3)
         # Bearbeiter (Kürzel und Name, teilen.py): nur Anzeige, gesetzt beim Anlegen
         self.bearbeiter = QLabel()
         self.bearbeiter.setToolTip("Mitarbeiter, der das Angebot angelegt hat (Kürzel vorn in der Nummer); im "
                                    "Angebots-PDF als Ansprechpartner")
-        g.addWidget(QLabel(KOPF_FELD["bearbeiter"].titel), 7, 0)
-        g.addWidget(self.bearbeiter, 7, 1, 1, 5)
+        g.addWidget(QLabel(KOPF_FELD["bearbeiter"].titel), 4, 4)
+        g.addWidget(self.bearbeiter, 4, 5)
         for c in (1, 3, 5):
             g.setColumnStretch(c, 1)
         kl.addLayout(g)
@@ -851,7 +852,7 @@ class UebersichtBereich(QWidget):
             bl.addWidget(w)
             self.preis[name] = w
             self.preis_titel[name] = (t, titel)
-            preise.addWidget(box, 1)
+            preise.addWidget(box, 2 if name == "verkauf" else 1)   # Verkaufspreis ist die Hauptzahl (L5)
         kl.addLayout(preise)
         # Meldungen: Anzahl als Etikett, einzelne Meldungen aufklappbar
         self.meldungen = QLabel()

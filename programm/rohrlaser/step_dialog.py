@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from . import hilfe
 from .ansicht3d import ARTEN, TEILFARBEN, Ansicht3DMitKnoepfen
 from .fenster import liste_fuellen
 from .stammdaten import zahl_als_text
@@ -269,7 +270,7 @@ class StepPruefDialog(QDialog):
         teil.setSizes([820, 530])
         lay = QVBoxLayout(self)
         lay.addWidget(teil, 1)
-        hinweis = QLabel("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
+        hinweis = hilfe.Hinweis("Häkchen = Teil übernehmen. Profil, Werkstoff und Stückzahl je Teil wählen; leer = später "
                          "eintragen. Art: eine andere wählen, wenn das Teil falsch erkannt wurde. Nicht übernehmbare "
                          "Teile (in 3D magenta): darunter Profilform und Profil-ID wählen und „Nachtragen“. Anbauteile (aufgeschweißte Bolzen, Laschen …): Doppelklick auf "
                          "die Spalte Anbauteile = prüfen. Mit ◀ ▶ zwischen den STEP-Dateien wechseln; Übernehmen übernimmt alle Dateien. "
@@ -278,8 +279,7 @@ class StepPruefDialog(QDialog):
                          "Stückzahl = Sätze × Stück je Satz. Mehrere Zeilen "
                          "markieren (Strg/Umschalt) und unten Werte setzen; „Für alle“ gilt für alle Dateien. In der "
                          "3D-Ansicht: Anfangsschnitt orange, Endschnitt violett, Innenkonturen rot, Gravur grün, "
-                         "Anbauteile sandfarben.")
-        hinweis.setWordWrap(True)
+                         "Anbauteile sandfarben.", schluessel="step_pruefen")    # erster Satz, Rest hinter „mehr“ (L7)
         lay.addWidget(hinweis)
         knoepfe = QDialogButtonBox()
         knoepfe.addButton("Übernehmen", QDialogButtonBox.AcceptRole)
