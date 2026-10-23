@@ -184,9 +184,11 @@ def _():
     ang = ausgabe.angebot(KOPF, POS, Z, k, EINST)
     ang["anschrift"] = ""
     pdf.angebot_pdf(tmp / "a.pdf", KOPF, ang, EINST)
-    export.angebot_csv(tmp / "a.csv", KOPF, Z, S, EINST)
+    kz, pz = export.daten(KOPF, POS, ERG, Z, S, k, tab, EINST)
+    export.positionen_csv(tmp / "a.csv", pz)
     text = (tmp / "a.csv").read_text(encoding="utf-8-sig")
-    assert "B1" in text
+    zk = next(z for z in pz if z[2] == "B1")          # Zukaufteil: eigene Zeile, ohne Rohr-Werte
+    assert "B1" in text and zk[14] == "" and zk[39].startswith("Zukaufteil ["), zk
     for n in ("w.pdf", "k.pdf", "a.pdf"):
         assert (tmp / n).stat().st_size > 1000, n
     nur = [POS[1]]
