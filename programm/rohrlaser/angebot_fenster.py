@@ -1350,7 +1350,8 @@ class AngebotSeite(QWidget):
                            ("Positionen löschen", self.positionen_loeschen)):
             self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
         self.pos_ansicht.customContextMenuRequested.connect(
-            lambda punkt: self.fremd() or self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
+            lambda punkt: self.fremd() or self._menue_zeile(punkt) or
+            self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
 
         self.kalk = Liste(KALK_SPALTEN, max_stellen=2)
@@ -2167,6 +2168,12 @@ class AngebotSeite(QWidget):
     def _vorlagen_db(self):
         """Datenbank für Baugruppen-Vorlagen im Editor; im Lesemodus keine (Speichern schreibt)."""
         return None if self.db.nur_lesen else self.db
+
+    def _menue_zeile(self, punkt):
+        """Rechtsklick auf eine nicht markierte Zeile: diese Zeile markieren, damit das Menü für sie gilt."""
+        i = self.pos_ansicht.indexAt(punkt)
+        if i.isValid() and i.row() not in {x.row() for x in self.pos_ansicht.selectedIndexes()}:
+            self.pos_ansicht.setCurrentIndex(i)
 
     def baugruppe_kopieren(self, zeilen=None, ziel=None):
         """Schweißbaugruppe der Zeile (oder des Einzelteils) mit allen Einzelteilen in ein anderes Angebot kopieren
