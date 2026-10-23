@@ -17,7 +17,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 
 from rohrlaser import teilen  # noqa: E402
 from rohrlaser.angebot import kuerzel_sauber, nummer_mit_kuerzel  # noqa: E402
-from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 
 
 def ok(text):
