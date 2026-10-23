@@ -9,6 +9,9 @@ Die Eingaben stehen als JSON in positionen.technik, damit der Dialog sie wieder 
    konturen: [{art, anzahl, d | d, D | l, b | b, h, r | laenge, huelle | punkte, x, abstand, seite, q, text}]}
 x = Lage der (ersten) Kontur ab Anfang [mm], abstand = Muster längs, seite = Fläche bzw. Winkel (Rundrohr),
 q = Versatz quer zur Flächenmitte [mm]; alles nur für die Skizze (skizze.py), nicht für den Schneidweg.
+umriss = echter Umriss einer Sonderkontur oder Gravur [[dx längs, ds am Umfang], …] um ihre Mitte, auch über
+mehrere Flächen (STEP-Import); waende = beteiligte Seiten; tiefe = Tiefe einer Gravur [mm]. Ein Ende kann
+umriss = [[s am Umfang, Abstand vom Ende], …] haben (komplexes Ende aus dem STEP-Import, nur für die Abwicklung).
 
 Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader Schnitt):
 - gerades Ende: optimierung.schnittlaenge (Rohre Außenumfang, offene Profile halber Umfang)
@@ -22,7 +25,8 @@ Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader 
   Flowdrill 0 (nur Markierung, siehe unten);
   Langloch 2 × (l − b) + π × b; Rechteck 2 × (b + h) − 8 r + 2 π r; Schlitz (offen, vom Rand) 2 × l + b;
   Ausklinkung am Ende (Rechteck, offen zum Ende, Ecken innen mit r) 2 × (l − r) + (b − 2 r) + π r, der Endschnitt
-  wird dafür nicht gekürzt (zur sicheren Seite); sonstige Kontur: Länge wie eingegeben. Jede Innenkontur 1 Einstich, jedes Ende
+  wird dafür nicht gekürzt (zur sicheren Seite); sonstige Kontur und Sonderkontur (freie Form, auch über mehrere
+  Flächen): Länge wie eingegeben bzw. gemessen; Gravur: nicht im Schneidweg, ihre Länge zählt zur Gravur. Jede Innenkontur 1 Einstich, jedes Ende
   rechnen.einstiche_ende(Profilform) Einstiche.
 Hüllmaß (für die Konturklassen klein/mittel/groß): Bohrung und Senkung d, Ausklinkung max(l, b), Langloch l, Rechteck max(b, h), Schlitz max(l, b),
 sonstige Kontur wie eingegeben (leer = groß), Polygon größte Ausdehnung in x oder y.
@@ -42,7 +46,10 @@ QUELLE_STEP = "STEP-Import"         # Konturen aus der STEP-Messung (Lage, gemes
 BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE = ("Bohrung", "Langloch", "Rechteck", "Schlitz", "Polygon",
                                                           "sonstige Kontur")
 SENKUNG, AUSKLINKUNG, FLOWDRILL = "Senkung", "Ausklinkung", "Flowdrill"
-ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONSTIGE)
+SONDERKONTUR, GRAVUR = "Sonderkontur", "Gravur"
+ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONDERKONTUR, SONSTIGE,
+         GRAVUR)
+MIT_UMRISS = (SONDERKONTUR, GRAVUR)     # Konturarten mit echtem Umriss (umriss, waende, tiefe)
 MIT_GEWINDE = (BOHRUNG, FLOWDRILL)      # Konturarten mit Spalte Gewinde (gewinde: fehlt = nach Kernloch, '' = keins)
 # Maße je Art: (Schlüssel, Titel) in der Eingabetabelle
 MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"), ("D", "Senk-Ø D (Zusatzarbeit)")),
@@ -52,7 +59,9 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"
          SCHLITZ: (("l", "Tiefe l"), ("b", "Breite b")),
          AUSKLINKUNG: (("l", "Länge l ab Ende"), ("b", "Breite b"), ("r", "Eckradius r")),
          POLYGON: (("punkte", "Eckpunkte x,y; x,y; … [mm]"),),
-         SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß"))}
+         SONDERKONTUR: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
+         SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
+         GRAVUR: (("laenge", "Gravurlänge"),)}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
 # Schrägschnitt zweiachsig: die Schnittebene kippt über Höhe und Breite zugleich (winkel_h, winkel_b); winkel ist dann
 # der Gesamtwinkel der Ebene (Kopf in 3D, Skizze), gesamtwinkel
@@ -364,11 +373,16 @@ def kontur(e):
             raise ValueError("Polygon: mindestens 3 Eckpunkte x,y eingeben.")
         lg = sum(math.dist(pk[i], pk[(i + 1) % len(pk)]) for i in range(len(pk)))
         return lg, max(max(x for x, _ in pk) - min(x for x, _ in pk), max(y for _, y in pk) - min(y for _, y in pk)), n
-    if art == SONSTIGE:
+    if art in (SONSTIGE, SONDERKONTUR):
         lg = _z(e.get("laenge"))
         if lg <= 0:
-            raise ValueError("Sonstige Kontur: Schnittlänge fehlt.")
+            raise ValueError(f"{'Sonstige Kontur' if art == SONSTIGE else art}: Schnittlänge fehlt.")
         return lg, (_z(e.get("huelle")) or None), n
+    if art == GRAVUR:
+        lg = _z(e.get("laenge"))
+        if lg <= 0:
+            raise ValueError("Gravur: Gravurlänge fehlt.")
+        return lg, None, n
     raise ValueError(f"Unbekannte Konturart '{art}'.")
 
 
@@ -385,6 +399,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
     richtung_fehlt_text = []
     hinweise_3d, hinweise_ende = [], []
+    gravur_zeilen = 0.0
     mit_3d = eingaben.get("d3") is True
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
@@ -467,6 +482,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
             if h_:
                 hinweise_3d.append(f"Bohrung Ø {zahl(_z(e.get('d')), 2)}: {h_} Die Bohrung ist dann nicht maßhaltig.")
+        if e.get("art") == GRAVUR:         # nicht im Schneidweg: zählt zur Gravurlänge
+            gravur_zeilen += n * lg
+            schritte.append(dict(text=f"{n} × {GRAVUR} {masse} (nicht im Schneidweg)" +
+                                 (f" ({e['text']})" if e.get("text") else ""), anzahl=n, laenge_stueck=0.0, laenge=0.0,
+                                 einstiche=0, huelle=None, klasse="Gravur", schaetzung=False, gerade=None, art=GRAVUR,
+                                 eingabe=e))
+            continue
         if e.get("art") == FLOWDRILL:      # nicht im Schneidweg: Markierung kommt über das Bohrbild dazu
             schritte.append(dict(text=f"{n} × {FLOWDRILL} Ø {masse}" + (f" ({e['text']})" if e.get("text") else ""),
                                  anzahl=n, laenge_stueck=0.0, laenge=0.0, einstiche=0, huelle=hk,
@@ -479,7 +501,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
                              anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=n, huelle=hk, klasse=klasse,
                              schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
         liste += [(hk if hk is not None else OHNE_HUELLE, lg)] * n
-    gravur = _z(eingaben.get("gravur"))
+    gravur = _z(eingaben.get("gravur")) + gravur_zeilen     # weitere Gravur + Gravur-Zeilen
     a_s, b_s = schritte[0]["laenge"], schritte[1]["laenge"]
     innen = sum(lg for _, lg in liste)
     kl = konturklassen([(hk, lg) for hk, lg in liste], grenzen)

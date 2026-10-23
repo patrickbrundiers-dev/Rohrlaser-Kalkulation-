@@ -5,7 +5,7 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QPainter, QPen, QPixmap, QPolygonF
 
 from . import blech, schneidweg as sw, skizze as sk
-from .skizze_widget import FARBE_FLAECHE, FARBE_KONTUR, FARBE_TEIL
+from .skizze_widget import FARBE_FLAECHE, FARBE_GRAVUR, FARBE_KONTUR, FARBE_TEIL
 
 MIN_BAND = 6            # Breite des Rohrs im Bild mindestens [px], auch bei langen dünnen Teilen
 
@@ -57,11 +57,12 @@ def rohr(p, profil, breite=64, hoehe=18, dpr=2.0):
     g.setPen(QPen(FARBE_TEIL, 1.0))
     g.setBrush(QBrush(FARBE_FLAECHE))
     g.drawPolygon(QPolygonF([pkt(z[1], z[0]) for z in sil] + [pkt(z[4], z[0]) for z in reversed(sil)]))
-    g.setPen(QPen(FARBE_KONTUR, 0.8))
-    g.setBrush(QBrush(FARBE_KONTUR))
-    for pts3, n in formen:
+    for d, (pts3, n) in zip(lagen, formen):
         if sk.sichtbar(n, ansicht) < 0.12:
             continue                # auf der Rückseite oder von der Kante gesehen
+        farbe = FARBE_GRAVUR if d["art"] == sw.GRAVUR else FARBE_KONTUR
+        g.setPen(QPen(farbe, 0.8))
+        g.setBrush(QBrush(farbe) if d["art"] != sw.GRAVUR else Qt.NoBrush)
         poly = QPolygonF([pkt(q[0], q[1 if oben else 2]) for q in pts3])
         r = poly.boundingRect()
         if r.width() < 2 and r.height() < 2:

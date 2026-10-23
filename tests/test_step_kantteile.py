@@ -22,6 +22,9 @@ Blech-Editor, STEP robuster“, Freigabe 1a 2a 3b 4a):
 - E1 Blech-Editor aus der Messung (blech.aus_step): Winkel/Z als Kantteil mit Schenkeln und Bohrungen an ihrer
   Stelle, U mit Ausklinkungen mit Polygon-Außenkontur, Schale als Zuschnitt mit 4 Kantungen und Biegelinien; der
   Schneidweg des Editors ist der Schneidweg der STEP-Abwicklung; 3D-Ansicht gefaltet in den Außenmaßen
+- R1 Rohr-Editor aus der Messung (step.rechner_eingaben): Sonderkontur mit Umriss und Wänden, Mitte über der Ecke
+  richtig platziert, Gravur-Zeilen mit Tiefe (Summe = gemessene Gravur), komplexes Ende mit Umriss; Schneidweg und
+  Gravur im Rechner wie gemessen
 
 Teile werden mit OpenCascade erzeugt (tests/erzeuge_testteile.py) und mit step_messung gemessen.
 Aufruf: python tests/test_step_kantteile.py
@@ -235,4 +238,33 @@ for name, art, n_kant in (("K1_Winkel", blech.KANTTEIL, 1), ("K3_Z", blech.KANTT
     if name == "K6_Schale":
         assert e["form"] == blech.POLYGON and len(e["biegelinien"]) == 4
 ok("E1 Blech-Editor aus der Messung: Kantteil/Schale, Schneidweg wie STEP, 3D gefaltet in den Außenmaßen")
+import step_messen  # noqa: E402
+from rohrlaser import schneidweg as sw, skizze as sk, step  # noqa: E402
+step_messen.main(["--ausgabe", str(tmp / "r1.csv")] + [str(tmp / f"{n}.step") for n in
+                                                        ("S1_Ecke", "S2_drei_Waende", "S3_Ausklinkung_Ende",
+                                                         "G1_Praegung", "G2_Praegung_RR")])
+for m in step.lies_messwerte(tmp / "r1.csv"):
+    name = Path(m["datei"]).stem
+    a_, b_ = float(m["abm_a"]), float(m["abm_b"] or 0) or None
+    profil = dict(form=m["profilform"], a=a_, b=b_, wand=float(m["wandstaerke"]), profil_id="X")
+    e = step.rechner_eingaben(m, m["profilform"], a_, b_)
+    erg = sw.rechnen(e, profil, (10, 50))
+    assert not erg["fehler"] and nah(erg["schneidweg"], float(m["schneidweg"]), 0.15), (name, erg["fehler"])
+    assert nah(erg["felder"]["gravur"] or 0, float(m["gravur"] or 0), 0.15), (name, erg["felder"]["gravur"])
+    qs = sk.Querschnitt(profil)
+    if name.startswith("S"):
+        sonder = [k for k in e["konturen"] if k["art"] == sw.SONDERKONTUR]
+        if name == "S3_Ausklinkung_Ende":
+            assert e["a"].get("umriss") or e["b"].get("umriss"), e
+            continue
+        (k,) = sonder
+        assert len(k["umriss"]) >= 4 and len(k["waende"]) == (2 if name == "S1_Ecke" else 3)
+        d = sk.lagen([k], float(m["laenge"]))[0]
+        n = {(round(x[0]), round(x[1])) for x in sk.normalen(qs, d)}
+        assert len(n) >= len(k["waende"]), (name, n)
+    else:
+        gr = [k for k in e["konturen"] if k["art"] == sw.GRAVUR]
+        assert gr and all(k["tiefe"] == 0.2 and k.get("umriss") for k in gr), gr
+ok("R1 Rohr-Editor aus der Messung: Sonderkontur mit Umriss über die Wände, Gravur-Zeilen, komplexes Ende, "
+   "Schneidweg und Gravur wie gemessen")
 print("Alle Kantteil-, Sonderkontur- und Gravur-Tests bestanden.")
