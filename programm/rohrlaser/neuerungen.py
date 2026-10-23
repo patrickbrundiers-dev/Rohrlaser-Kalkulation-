@@ -29,7 +29,7 @@ NEUERUNGEN = [
                "Knopfleiste in drei Gruppen; rechts nur <b>Angebot (PDF)</b>, alle weiteren Ausgaben (Werkstattpapiere, "
                "Kalkulation, Materialanfrage, CSV-Export, Ablage) im Menü <b>Ausgaben</b>; Positionen löschen über "
                "Rechtsklick oder Entf. Über den Reitern zeigt eine Schrittanzeige ① erfasst → ② optimiert → ③ geprüft → "
-               "④ verschickt. Die Einstellungen haben links eine Navigation nach Themen mit <b>Suchfeld</b>; in den "
+               "④ verschickt. Geöffnete Angebote stehen in einer eigenen Reiterzeile unter <b>Angebote</b>. Die Einstellungen haben links eine Navigation nach Themen mit <b>Suchfeld</b>; in den "
                "Vorgaben steht die Einheit im Feld (z. B. „15,00 min“) und „0 = aus“ als Text im Feld ([[ausgabe]]).",
      "Farbschema Dunkel/Hoher Kontrast, Schriftgröße; Knopfleiste mit Menü Ausgaben, Schrittanzeige, "
      "Einstellungen mit Navigation und Suche ([[einstellungen]])."],

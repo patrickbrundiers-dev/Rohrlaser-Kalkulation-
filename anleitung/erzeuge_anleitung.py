@@ -559,8 +559,10 @@ def kapitel_ueberblick(i):
         (1, "Stand des Angebots: grün <i>Optimierung abgeschlossen</i>, gelb <i>Noch nicht optimiert</i>, rot "
             "<i>Veraltet</i> ([[veraltet]]).")])
     i.text("Oben die Reiter <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, <i>Frachtkosten</i> ([[frachtkosten]]), "
-           "<i>Zukaufartikel</i> ([[zukauf]]) und <i>Einstellungen</i> (mit Passwort). Jedes geöffnete Angebot hat "
-           "einen eigenen Reiter, der sich mit dem × schließt. Die Statuszeile unten meldet, was gespeichert oder "
+           "<i>Zukaufartikel</i> ([[zukauf]]) und <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen "
+           "in einer eigenen Zeile unter <i>Angebote</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
+           "Reiter, der sich mit dem × schließt. Die Zeile erscheint, solange <i>Angebote</i> gewählt ist; ein Klick "
+           "auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. Die Statuszeile unten meldet, was gespeichert oder "
            "gerechnet wurde, Fehler in Rot.", kurz=True)
     i.genauer()
     i.text("Das Programm öffnet sich maximiert im Reiter <i>Angebote</i>. Die Einstellungen enthalten die Vorgaben "
