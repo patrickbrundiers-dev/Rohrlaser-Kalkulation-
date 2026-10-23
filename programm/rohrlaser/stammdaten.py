@@ -466,13 +466,33 @@ BLECHLASER = Tabelle(
     "Leerer Vorschub Innenkonturen = halber Vorschub Außenkontur. Vorbelegt sind Richtwerte eines Faserlasers mit "
     "etwa 6 kW, bitte an den eigenen Blechlaser bzw. Lieferanten anpassen.")
 
+# STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
+BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
+IMPORTPROFILE = Tabelle(
+    "importprofile", "Importprofile (STEP)",
+    (Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", pflicht=True, breite=110),
+     Feld("benennung", "Artikel aus", "auswahl", auswahl="benennung", breite=170),
+     Feld("muster", "Artikelnummer im Namen (Muster)", breite=170),
+     Feld("normteile", "Normteile zusätzlich (Begriffe mit ; getrennt)", breite=200),
+     Feld("werkstoff_id", "Werkstoff Rohre/Profile", "auswahl", auswahl="werkstoff", breite=120),
+     Feld("flach_als", "Flache Teile als", "auswahl", auswahl="flachals", breite=150),
+     Feld("anbau_weglassen", "Anbauteile nicht übernehmen", "auswahl", auswahl="janein", breite=90),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("kundennr",),
+    "Vorgaben für den STEP-Import je Kunde; sie gelten in Angeboten dieses Kunden, leere Felder wie in den "
+    "Einstellungen. Artikel aus: Bauteilname (Name in der Konstruktion, ohne Namen wie bisher der Dateiname), "
+    "Dateiname oder beides. Artikelnummer im Namen: regulärer Ausdruck, sein erster Klammerausdruck (sonst der ganze "
+    "Treffer) wird die Artikelnummer und der ganze Name die Bezeichnung, z. B. ^(\\d+) für führende Ziffern. "
+    "Normteile zusätzlich: Begriffe zu denen aus der Einstellung, Teile mit diesen Wörtern im Namen sind im "
+    "Prüfdialog abgewählt.")
+
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
-            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER)
+            ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, IMPORTPROFILE)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
 VERWEISE = {
-    ("kunden", "kundennr"): (("angebote", "kundennr"),),
+    ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr")),
     ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id")),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
                                      ("schneiddaten", "werkstoff_id")),
@@ -593,6 +613,10 @@ EINSTELLUNGEN = (
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
     Einstellung("fliessloch_laser", "STEP-Import: Flowdrill-Bohrung am Laser", "STEP-Import", "auswahl",
                 FLIESSLOCH_LASER[0], auswahl="fliesslochlaser"),
+    # Teile mit diesen Wörtern im Bauteilnamen sind Normteile: im Prüfdialog abgewählt (importprofil.py)
+    Einstellung("step_normteile", "Normteile: Begriffe im Bauteilnamen (mit ; getrennt)", "STEP-Import", "text",
+                "ISO; DIN; Schraube; Mutter; Scheibe; Stift; Niet; Normteil"),
+    Einstellung("step_benennung", "Artikelnummer aus (Bauteilname, Dateiname oder beides)", "STEP-Import", "auswahl", BENENNUNGEN[0], auswahl="benennung"),
     # Messung (STEP-Import.exe): Prozesse, Zeitlimit je Körper, Zwischenspeicher; siehe step_einstellungen.py
     Einstellung("step_prozesse", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)", "STEP-Import",
                 "ganz", 0, 0, 64),
@@ -790,7 +814,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

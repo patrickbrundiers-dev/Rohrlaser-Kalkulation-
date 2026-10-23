@@ -82,6 +82,7 @@ jobs:
           /usr/bin/python3 tests/test_blech_position.py
           /usr/bin/python3 tests/test_step_satz.py
           /usr/bin/python3 tests/test_step_ablage.py
+          /usr/bin/python3 tests/test_importprofil.py
           /usr/bin/python3 tests/test_bohrbild.py
           /usr/bin/python3 tests/test_rp_profile.py
           /usr/bin/python3 tests/test_step_rp.py

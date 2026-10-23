@@ -2858,11 +2858,19 @@ class AngebotSeite(QWidget):
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
 
+    def importprofil(self):
+        """Importprofil (STEP) des Kunden dieses Angebots oder None."""
+        from . import importprofil
+        return importprofil.fuer_kunde(self.db, (self.kopf or {}).get("kundennr"))
+
     def flach_bis(self):
         """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
-        Vorgabe), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
+        Vorgabe, oder Importprofil des Kunden), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
         from .stammdaten import FLACH_ALS
-        if (self.db.einstellung("flach_als") or FLACH_ALS[0]) == FLACH_ALS[0]:
+        from . import importprofil
+        profil = importprofil.fuer_kunde(self.db, (getattr(self, "kopf", None) or {}).get("kundennr"))
+        flach_als = (profil or {}).get("flach_als") or self.db.einstellung("flach_als") or FLACH_ALS[0]
+        if flach_als == FLACH_ALS[0]:
             return 0
         return self.db.einstellung("flachstahl_bis") or 150
 
@@ -2900,13 +2908,22 @@ class AngebotSeite(QWidget):
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
         """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
-        if werkstoff is None:       # Vorgabe für Rohre und Profile (Einstellung), Bleche bleiben offen
-            werkstoff = self.db.einstellung("step_werkstoff") or None
+        from . import importprofil
+        profil = self.importprofil()
+        vorgaben = importprofil.vorgaben(profil)
+        if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
+            werkstoff = vorgaben.get("werkstoff") or self.db.einstellung("step_werkstoff") or None
             werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
         gemessen = self.step_messen(dateien, mit_ablage=True)
         if gemessen is None:
             return None
         messwerte, json_ablage = gemessen
+        # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
+        importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
+                                                                                     "step_normteile")})
+        if "anbau_weglassen" in vorgaben:
+            for m in messwerte:
+                m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
