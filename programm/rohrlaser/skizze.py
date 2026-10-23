@@ -14,8 +14,8 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 import math
 
 from . import normprofile, rp_profile
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ, SENKUNG, _z, kontur,
-                         punkte)
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ, SENKUNG,
+                         _z, kontur, punkte)
 
 RUND_SEITEN = {"oben (0°)": 0.0, "vorne (90°)": 90.0, "unten (180°)": 180.0, "hinten (270°)": 270.0}
 KASTEN = ("Quadratrohr", "Rechteckrohr", "Flachstahl")
@@ -218,6 +218,8 @@ def kurz(e):
                                                  if (neigung := neigung_3d(e)) else "")
     if art == SENKUNG:
         return f"Ø {zahl(_z(e.get('d')), 2)} / Senk-Ø {zahl(_z(e.get('D')), 2)}"
+    if art == FLOWDRILL:
+        return f"Flowdrill Ø {zahl(_z(e.get('d')), 2)}" + (f" {e['gewinde']}" if e.get("gewinde") else "")
     if art == LANGLOCH:
         return f"LL {zahl(_z(e.get('l')), 2)} × {zahl(_z(e.get('b')), 2)}"
     if art == RECHTECK:
@@ -391,7 +393,7 @@ def umriss_kontur(e, n=36):
         _, hk, _ = kontur(dict(e, anzahl=1))
     except ValueError:
         return None
-    if art in (BOHRUNG, SENKUNG):
+    if art in (BOHRUNG, SENKUNG, FLOWDRILL):
         r = _z(e.get("d")) / 2
         # schräge Bohrung (3D): Austritt auf der Wand als Ellipse, gestreckt um 1/cos der Neigung längs bzw. quer
         nl, nq = (neigung_3d(e) if art == BOHRUNG else None) or (0, 0)
