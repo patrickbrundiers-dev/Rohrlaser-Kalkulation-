@@ -789,8 +789,8 @@ def kapitel_angebot(i):
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Die Trennlinien zwischen oben und unten und zur Übersicht "
-           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. CSV-Export und Ablage "
-           "öffnen liegen unter <b>Weitere Aktionen</b>.",
+           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ablage öffnen</b> "
+           "liegt unter <b>Weitere Aktionen</b>, der <b>CSV-Export</b> rechts bei der Ausgabe.",
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
            "Punkte, Zeiten 420; die letzte Spalte füllt den Rest). Langer Text bricht um, höchstens drei Zeilen, der "
            "Rest steht gekürzt mit „…“ und vollständig im Tooltip. Beim Tippen werden Spalten nur breiter. Eine von "
@@ -803,6 +803,8 @@ def kapitel_angebot(i):
                 "([[schneidweg_rechner]])"],
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
+               ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
+                "vorgewählt ([[schweissbaugruppe]])"],
                ["<b>Leere Zeile</b>", "eine leere Zeile, alle Werte von Hand"]], [38, 132], kurz=True)
     i.genauer()
     i.tabelle(["Typ", "Was passiert"], [
@@ -822,7 +824,9 @@ def kapitel_angebot(i):
                 "der Liste."],
                ["<b>Blech / Kantteil</b>", "Zuschnitt oder Kantteil beschreiben; der Richtpreis wird Einkaufspreis "
                 "eines neuen Zukaufartikels (Kategorie Blechteile)."],
-               ["<b>Zukaufteil</b>", "Dieselbe Schnellanlage ohne vorgewählte Kategorie."]],
+               ["<b>Zukaufteil</b>", "Dieselbe Schnellanlage ohne vorgewählte Kategorie."],
+               ["<b>Schweißbaugruppe</b>", "Editor mit Struktur, Nahtgruppen und Arbeitsgängen; die Baugruppe "
+                "kommt als eigene Position in die Liste, ihre Einzelteile bleiben Positionen ([[schweissbaugruppe]])."]],
               [38, 132])
     i.abschnitt("Angebotskopf", marke="angebotskopf")
     i.schritte([
@@ -930,7 +934,7 @@ def kapitel_angebot(i):
     i.text("Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie kalkuliert. "
            "Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
     i.liste("Beispiel: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis × 200 ÷ 148; "
-            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation, Kalkulations-PDF und CSV steht die "
+            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation und Kalkulations-PDF steht die "
             "Differenz als Kostenart <b>Anhebung auf Mindestpreis</b> (mit kalkuliertem Preis und Mindestpreis), "
             "je Position in der Spalte <i>Mindestpreis je Teil</i>.",
             "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
@@ -1632,13 +1636,13 @@ def kapitel_optimieren(i):
     i.genauer()
     i.text("Der Reiter <i>Kalkulation</i> zeigt oben in einem Kasten die Summen des Angebots und darunter je Position "
            "Material, Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position. Beträge "
-           "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; Kalkulations-PDF und "
-           "CSV-Export rechnen weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
+           "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; das Kalkulations-PDF "
+           "rechnet weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
            "Zusatzarbeiten, Handling Kundenmaterial), sind ausgeblendet; die Zeile über der Tabelle nennt ihre "
            "Anzahl. Pos., Artikelnummer, Stückzahl, Material, Herstellkosten und Verkaufspreis bleiben immer.")
-    i.text("Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots einzeln auf "
+    i.text("Reiter Kalkulation und Kalkulations-PDF führen jede Kostenart des Angebots einzeln auf "
            "(die Übersicht nach Gruppen, einzeln unter <i>Kostenarten einzeln</i>); im Reiter fehlen Kostenarten "
-           "mit 0,00 €, PDF und CSV enthalten alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
+           "mit 0,00 €, das PDF enthält alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Weitere Arbeitsschritte, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
            "Programmierkosten, Angebotsaufschlag, Fracht, Skonto und ggf. die Anhebung auf Mindestpreis "
@@ -1705,7 +1709,7 @@ def kapitel_optimieren(i):
             "Ältere Angebote ohne gespeicherte Stundensätze rechnen mit den aktuellen Einstellungen; der Reiter "
             "sagt das. Die erste Änderung oder <i>Stundensätze aus Einstellungen</i> speichert sie im Angebot.",
             "Die Übersicht rechts oben zeigt Maschinenzeit, Personalzeit, Rüstzeit, Durchlaufzeit und "
-            "Arbeitskosten; das Kalkulations-PDF und der CSV-Export enthalten die Tabelle der Arbeitsschritte mit "
+            "Arbeitskosten; das Kalkulations-PDF enthält die Tabelle der Arbeitsschritte mit "
             "Zeit oder Kosten.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
@@ -2576,6 +2580,84 @@ def kapitel_zukauf_angebot(i):
            "mit <b>EK eintragen …</b> ([[zukauf_positionen]]) oder im Reiter Zukaufartikel eintragen.")
 
 
+def kapitel_baugruppen(i):
+    i.kapitel("Schweißbaugruppen", marke="schweissbaugruppe")
+    i.text("Eine <b>Schweißbaugruppe</b> fasst Einzelteile des Angebots zusammen und rechnet dazu, was am Ganzen "
+           "anfällt: Schweißen, Vorrichten, Schleifen, Vorrichtungen und Fremdleistungen. Anlegen: Einzelteile "
+           "markieren → <b>Neue Position</b> → <b>Schweißbaugruppe</b>. Bearbeiten: Doppelklick auf die Zeile der "
+           "Baugruppe oder auf ihren Status.", kurz=True)
+    i.bild("baugruppe_struktur", "Editor Schweißbaugruppe, Reiter Struktur und Teile", hoehe=70 * mm, legende=[
+        (1, "<b>Bezeichnung</b> und <b>Artikelnummer</b> der Baugruppe; die Bezeichnung ist der Satzname im "
+            "Angebot."),
+        (2, "<b>Anzahl Baugruppen</b>: Stückzahl der Baugruppe; alle Einzelteile folgen."),
+        (3, "<b>Unterbaugruppen</b> mit <b>Menge</b> je übergeordneter Baugruppe (<b>Unterbaugruppe hinzufügen</b>,"
+            " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
+        (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "
+            "das Stück je Baugruppe."),
+        (5, "Kosten je Baugruppe, Zeit und <b>Status</b>, bei jeder Eingabe neu gerechnet.")])
+    i.text("Die Einzelteile bleiben normale Positionen: sie werden optimiert und kalkuliert wie bisher. Die Baugruppe "
+           "rechnet nur ihre eigenen Leistungen dazu, nichts doppelt.", kurz=True)
+    i.genauer()
+    i.text("Im Angebot verhält sich die Baugruppe wie ein <b>Satz</b>: Satz = Bezeichnung der Baugruppe, Stück je "
+           "Satz der Teile = Stück je Unterbaugruppe × Menge der Unterbaugruppen, Stückzahl = Stück je Satz × Anzahl "
+           "Baugruppen. Das Programm hält diese Werte selbst aktuell: Ändert man die Stückzahl der Baugruppe in der "
+           "Positionsliste, ziehen die Teile nach (Meldung unten). Ein Teil kann nur zu einer Baugruppe gehören; "
+           "Teile anderer Baugruppen fehlen in der Liste des Editors. Nimmt man ein Teil heraus (Haken weg), verliert "
+           "es Satz und Stück je Satz der Baugruppe. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
+           "Editor weist das sofort ab. <b>Unterbaugruppe entfernen</b> hängt ihre Teile, Nähte und Arbeitsgänge "
+           "eine Ebene höher.")
+    i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
+           "Position</i> an die Zeile der Baugruppe ([[zukauf_angebot]]); eigene Zukaufteil-Positionen können auch "
+           "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
+    i.abschnitt("Nahtgruppen")
+    i.text("Je Zeile eine Gruppe gleicher Nähte. Die Schweißzeit kommt aus den Kennwerten unter Einstellungen "
+           "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert, steht der Grund rot in der Spalte "
+           "<i>Hinweis</i> und die Baugruppe zeigt eine WARNUNG.", kurz=True)
+    i.bild("baugruppe_naehte", "Reiter Nahtgruppen (Kennwerte hier aus den Richtwerten)", hoehe=60 * mm, legende=[
+        (1, "<b>Verfahren</b> und <b>Nahtart</b> (Kehlnaht, Stumpfnaht, Ecknaht)."),
+        (2, "<b>a-Maß / Dicke</b>: Kehlnaht a-Maß, Stumpf- und Ecknaht Blechdicke; dazu Länge je Naht und Anzahl."),
+        (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
+        (4, "<b>Lage</b> (PA … PG), Zugänglichkeit und Qualität: Faktoren auf die Lichtbogenzeit."),
+        (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
+        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Richtwert, "
+            "Datum der gemerkten Kennwerte oder was fehlt.")])
+    i.genauer()
+    i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
+           "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
+           "Verfahren, Nahtart, Nahtgröße, Lage, Zugänglichkeit oder Qualität, gelten für diese Zeile die aktuellen "
+           "Stammdaten; <b>Kennwerte neu aus Stammdaten</b> setzt alle Zeilen auf die aktuellen Werte. Rechnet eine "
+           "Zeile mit Richtwerten, zeigt die Baugruppe den HINWEIS <i>Schweißzeit aus ungeprüften Richtwerten</i>. "
+           "<b>Nahtgruppe hinzufügen</b> legt eine Zeile mit Verfahren und Nahtart der letzten an; <b>Markierte "
+           "kopieren</b> und <b>Markierte entfernen</b> arbeiten auf den markierten Zeilen.")
+    i.abschnitt("Arbeitsgänge und Vorrichtungen")
+    i.text("Alles außer dem Schweißen selbst: Vorrichten, Heften, Richten, Schleifen, Prüfen, Verpacken, "
+           "Fremdleistungen wie Verzinken, dazu Einmalkosten für Vorrichtungen und Lehren.", kurz=True)
+    i.bild("baugruppe_arbeitsgaenge", "Reiter Arbeitsgänge und Vorrichtungen", hoehe=60 * mm, legende=[
+        (1, "<b>Stundensatz</b> aus den Stundensätzen des Angebots ([[stundensaetze]])."),
+        (2, "<b>Einmalbetrag</b> (Vorrichtung, Lehre, Programm) und Rüstzeit: einmal je Auftrag bzw. Staffelstufe."),
+        (3, "<b>Umlage</b>: <i>je Auftrag</i> ganz, <i>anteilig</i> mit dem Anteil in %, <i>wiederverwendbar</i> "
+            "gar nicht (Vorrichtung schon vorhanden)."),
+        (4, "<b>Fremd</b>: Fremdleistung mit Zuschlag Fremdleistung statt Fertigung."),
+        (5, "<b>Arbeitsgang hinzufügen</b> bzw. <b>Vorrichtung hinzufügen</b>.")])
+    i.genauer()
+    i.text("<b>Aus Zusatzarbeiten …</b> übernimmt eine Zusatzarbeit der Stammdaten ([[zusatzarbeiten_verwalten]]) als "
+           "Arbeitsgang: Stundensatz-ID bzw. eigener Stundensatz, Zeitaufwand (in Minuten umgerechnet), Festpreis "
+           "und Material als Kosten je Einheit (bei €/kg, €/m², €/m die Menge in kg, m² bzw. m im Arbeitsgang "
+           "eintragen), €/Angebot als Einmalbetrag und Fremdleistung. Danach lässt sich alles im Arbeitsgang ändern; "
+           "spätere Änderungen der Zusatzarbeit ändern den Arbeitsgang nicht.")
+    i.text("Laufende Kosten je Stück der Unterbaugruppe: Zeit je Einheit × Menge × Stundensatz + Kosten je Einheit "
+           "× Menge. Einmalkosten werden durch die Anzahl Baugruppen geteilt, in den Staffeln durch die Menge der "
+           "Stufe: kleine Mengen tragen mehr davon. Eine wiederverwendbare Vorrichtung mit Betrag zeigt den HINWEIS "
+           "<i>wiederverwendbare Vorrichtung nicht berechnet</i>, damit das bewusst bleibt. Der Reiter "
+           "<i>Stammdaten</i> nimmt Zeichnungsnummer, Revisionsstand, Werkstoff, Oberfläche und Bemerkungen auf; "
+           "Zeichnung und Revision stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet alle Nahtgruppen und "
+           "Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+    i.text("In der Kalkulation stehen die Kosten als <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> (mit "
+           "Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung); danach "
+           "Gewinn und Skonto wie bei jeder Position. Der Status der Baugruppe führt per Doppelklick in den Editor, "
+           "auch der Status eines Einzelteils mit einem Fehler der Zuordnung.")
+
+
 def kapitel_ausgabe(i, seiten, ablage):
     i.kapitel("Ausgabe: Angebot, Werkstattpapiere, Kalkulation", marke="ausgabe")
     i.bild("ausgabe_leiste", hoehe=60 * mm, legende=[
@@ -2583,7 +2665,9 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und Schnittpläne zum Abhaken, Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: alle Kosten und Zeiten für die interne Ablage."),
         (4, "<b>Materialanfrage (E-Mail)</b>: Stangenbedarf beim Lieferanten anfragen ([[materialanfrage]])."),
-        (5, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> und <b>Ablage öffnen</b>.")])
+        (5, "<b>CSV-Export</b>: Angebotskopf und Angebotspositionen als CSV, einzeln oder zusammen als ZIP "
+            "([[csv_export]])."),
+        (6, "<b>Weitere Aktionen</b>: u. a. <b>Ablage öffnen</b>.")])
     i.text("Jede Datei wird im Ablageordner gespeichert und gleich geöffnet. Ist die Optimierung veraltet, fragt das "
            "Programm vorher.", kurz=True)
     i.genauer()
@@ -2606,9 +2690,8 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
            "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
            "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
-           "<b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die Kalkulation je Position als CSV-Datei "
-           "(Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer Tabellenkalkulation; <b>Ablage "
-           "öffnen</b> zeigt den Ablageordner im Explorer.")
+           "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
+           "([[csv_export]]); <b>Ablage öffnen</b> (unter Weitere Aktionen) zeigt den Ablageordner im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
            "Reihenfolge: Profil, Länge, Werkstoff (<i>inkl. Material</i> mit dem Text im Angebot des Werkstoffs), "
            "Oberfläche, dann je Zusatzarbeit, Gewinde oder Gravur eine Zeile <i>inkl. …</i> und je Zukaufteil mit "
@@ -2617,6 +2700,56 @@ def kapitel_ausgabe(i, seiten, ablage):
            "inkl. Senken</i><br/>"
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile.")
     i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
+    i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
+    i.text("<b>CSV-Export</b> → <b>Kopf + Positionen (ZIP)</b> speichert <i>Angebot_&lt;Nr&gt;.zip</i> mit "
+           "<i>Angebotskopf.csv</i> (eine Zeile) und <i>Angebotspositionen.csv</i> (eine Zeile je Position) in der "
+           "Ablage; <b>Nur Angebotskopf</b> bzw. <b>Nur Angebotspositionen</b> speichern eine Datei.", kurz=True)
+    i.genauer()
+    i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
+           "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
+           "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
+           "keine zusätzlichen Spalten. Der Export ändert nichts am Angebot; die Werte stammen aus derselben "
+           "Rechnung wie Übersicht und Kalkulation, Stückpreis und Preis genau wie im Angebots-PDF. Staffelmengen "
+           "sind nicht enthalten, nur die Menge der Position. Werte, die es im Programm nicht gibt, bleiben leer.")
+    i.tabelle(["Angebotskopf.csv", "Inhalt"], [
+        ["Erstellungsdatum / Datum Kunde:", "Anlagedatum des Angebots / Angebotsdatum"],
+        ["Kunden Nr., Kunde:, Nachname", "Kundennummer, Kundenname, Ansprechpartner des Kunden"],
+        ["Versandzone:", "Zone der Frachtberechnung, sonst Lieferbedingung des Kunden"],
+        ["Kundenanfrage:, Kommentar", "Ihre Anfrage / Zeichen, Bemerkung"],
+        ["Versandkosten, Feste Versandkosten, Versand inkl.", "Fracht in €; True bei Frachtart manuell; True bei "
+         "<i>im Artikelpreis enthalten</i>"],
+        ["Lieferzeit", "z. B. <i>ca. 2 Wochen nach Auftragseingang</i> ([[lieferzeit]])"],
+        ["%Kunde Mat, %Kunde Arb., %Fremdarb., %Aufschlag", "Zuschlag Material, Fertigung, Fremdleistung und Gewinn "
+         "in % (2 = 2 %)"],
+        ["Bearbeitungszeit, Gesamtzeit", "Summe der Spalten der Positionen"],
+        ["Restblech min.€", "Mindestauftragswert, wenn er für das Angebot gilt ([[mindestpreis]])"],
+        ["Preis", "Angebotssumme netto wie im Angebots-PDF"],
+        ["Aufrunden, Angebot erstellt von", "+0.01 (Rundung auf den Cent); Name bzw. Kürzel des Bearbeiters"],
+        ["Kundenkurzbez., Position, Anrede, Rabatt(Euros)", "leer (gibt es im Programm nicht)"]],
+        [150, 115])
+    i.tabelle(["Angebotspositionen.csv", "Inhalt"], [
+        ["Angebot, Art, ArtikelNr., Pos.", "Angebotsnummer, laufende Nummer 1, 2 …, Artikelnummer, Pos. der Position"],
+        ["Bestellt, Preis geändert, zum Schneiden", "0 bzw. 1; Preis geändert = 1 bei Meterpreis oder Schneidzeit von "
+         "Hand"],
+        ["Format, Anz. Baugruppe, Menge", "Stangenlänge [mm], Stück je Satz (sonst 1), Stückzahl"],
+        ["Stückpr., Preis", "Preis je Teil und Positionspreis wie im Angebots-PDF"],
+        ["Werkstoff, Werkstofftyp, Dicke", "Kategorie (Stahl …), Text im Angebot des Werkstoffs, Wandstärke [mm]"],
+        ["Fläche, Gew., Umfang, L.", "Mantelfläche außen [m²], Gewicht je Teil [kg], Schneidweg je Teil [mm], "
+         "Teilelänge [mm]"],
+        ["Maschine, Schneiden, Date", "Maschine des Angebots, Schneidgas, Angebotsdatum"],
+        ["Artikeltext", "Angebotstext der Position in einer Zeile"],
+        ["Bearbeitungszeit, Gesamtzeit", "Laserzeit je Teil; Laserzeit × Menge + Anteil Rüsten, Stangenwechsel, "
+         "Rüsten je Abmessung + Programmierzeit"],
+        ["Gesamt HK(€), HK(), Marge Netto(), Marge Netto%", "Herstellkosten der Position und je Teil; Preis − "
+         "Herstellkosten, in % der Herstellkosten"],
+        ["Kommentar", "Hinweis der Kalkulation"],
+        ["Einsatzgewicht, Gesamt Einkauf(Kg), Verschnitt", "Stangengewicht anteilig je Teil bzw. × Menge; "
+         "(Einsatz − Gewicht) ÷ Einsatz in %"],
+        ["Gesamt Einkauf(), Preis/Kg", "Material + Einkauf Zukaufteile der Position; Material € je kg Einsatz"],
+        ["Liste der Arbeitsgänge", "<i>Profile [Rechteckrohr 120x60x3], Gewinde [4xM6], Zusatzarbeit […]</i>, "
+         "durch Komma getrennt"],
+        ["Pos.Nr., Anzahl Tafeln, Arb., B.", "leer (Blech-Angaben, gibt es beim Rohr nicht)"]],
+        [150, 115])
     i.abschnitt("Preise festschreiben", marke="preise_festschreiben")
     i.text("Mit dem Angebots-PDF schreibt das Programm die Preise fest: spätere Änderungen der Stammdaten (z. B. "
            "Stahlpreis) ändern das verschickte Angebot nicht. <b>Aktuelle Preise übernehmen …</b> holt sie bei Bedarf.")
@@ -3401,6 +3534,43 @@ def kapitel_stammdaten(i):
            "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
     i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
            hoehe=100 * mm)
+    i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
+    i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
+           "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
+           "pflegst. Neue Datendateien bekommen die Tabellen leer; ohne Kennwert rechnet das Programm keine Zeit, "
+           "sondern zeigt eine Warnung.")
+    i.tabelle(["Tabelle", "Inhalt"], [
+        ["<b>Schweißverfahren</b>", "Verfahren (MAG, MIG, WIG, E-Hand, Heften, Roboter …, frei erweiterbar), "
+                                    "Stundensatz-ID, <b>Lichtbogenzeitfaktor [%]</b> (Anteil der Lichtbogenzeit an "
+                                    "der Schweißarbeitszeit) und Zeit je Heftpunkt [s]"],
+        ["<b>Schweiß-Kennwerte</b>", "Lichtbogenzeit in min je m Naht nach Verfahren, Nahtart (Kehl-, Stumpf-, "
+                                     "Ecknaht) und Nahtgröße: Kehlnaht nach a-Maß, Stumpf- und Ecknaht nach "
+                                     "Blechdicke (Spalte <i>a-Maß bzw. Blechdicke bis [mm]</i>). Es gilt die Zeile "
+                                     "mit dem kleinsten <i>bis</i>, das die Nahtgröße abdeckt; <i>Herkunft / "
+                                     "Bemerkung</i> sagt, woher der Wert stammt."],
+        ["<b>Schweiß-Faktoren</b>", "Zuschläge auf die Lichtbogenzeit für Schweißlage (PA … PG), Zugänglichkeit und "
+                                    "Qualitätsanforderung: je Art und <i>Ausprägung</i> ein <i>Faktor auf die "
+                                    "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"]], [45, 220])
+    i.bild("stamm_schweiss_kennwerte", "Einstellungen, Schweiß-Kennwerte nach Richtwerte laden", hoehe=85 * mm,
+           legende=[(1, "Unterreiter <b>Schweißverfahren</b>, <b>Schweiß-Kennwerte</b>, <b>Schweiß-Faktoren</b>."),
+                    (2, "<b>Richtwerte laden</b> trägt fehlende Verfahren, Kennwerte und Faktoren als Richtwerte ein; "
+                        "vorhandene Zeilen bleiben unverändert (auch eigene Werte)."),
+                    (3, "Je Zeile Verfahren, Nahtart, Nahtgröße <i>bis</i>, Lichtbogenzeit je m und <b>Status</b> "
+                        "(Richtwert oder geprüft).")])
+    i.genauer()
+    i.text("Rechnung je Nahtgruppe: Naht [m] = Länge je Naht × Anzahl (beidseitig doppelt); Lichtbogenzeit = Naht × "
+           "Kennwert × Faktoren; Schweißzeit = Lichtbogenzeit ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit je "
+           "Heftpunkt. Lichtbogenzeit und Arbeitszeit sind nicht dasselbe: der Lichtbogenzeitfaktor deckt die "
+           "Nebenzeiten am Platz ab (Brenner ansetzen, Schlacke, Drahtwechsel). Rüsten, Vorrichten, Wenden und "
+           "Schleifen sind eigene Arbeitsgänge der Baugruppe. Ist eine Zeit von Hand eingetragen, gilt sie. In der "
+           "Kalkulation stehen die Kosten als Kostenarten <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> "
+           "(mit Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung).")
+    i.text("Jede Zeile hat einen <b>Status</b>: <i>Richtwert</i> oder <i>geprüft</i>. Richtwerte sind aus dem "
+           "Nahtquerschnitt hergeleitet (Kehlnaht a² × 1,1; V-Naht 60° mit 1,5 mm Spalt; × Dichte ÷ "
+           "Abschmelzleistung des Verfahrens, z. B. MAG 3,5 kg/h) und keine Erfahrungswerte der eigenen Fertigung. "
+           "Solange eine Baugruppe mit Richtwerten rechnet, zeigt ihr Status einen HINWEIS. Stelle die Werte nach "
+           "den ersten Aufträgen auf <i>geprüft</i>. Verschickte Angebote ändern sich nicht: jede Nahtgruppe merkt "
+           "sich die Kennwerte, mit denen sie gerechnet wurde.")
     i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
@@ -4458,7 +4628,9 @@ def bilder_erzeugen(ordner):
 
 
 # Bildschirmfotos, die bilder.py mit erzeugt, die aber bewusst nicht in der Anleitung stehen
-OHNE_STELLE = {"stamm_stundensaetze"}     # gleiche Seite wie stamm_arbeitsschritte
+OHNE_STELLE = {"stamm_stundensaetze",     # gleiche Seite wie stamm_arbeitsschritte
+               # Schweiß-Stammdaten: Bild der Kennwerte steht für alle drei Unterreiter
+               "stamm_schweissverfahren", "stamm_schweiss_faktoren"}
 
 
 def kapitel_schnellstart(i):
@@ -4513,6 +4685,9 @@ STECKBRIEFE = {
                "Im Angebot Karte <b>Fracht</b>; Reiter <i>Frachtkosten</i> → Frachtrechner"),
     "zukauf_im_angebot": ("Eingekaufte Teile als eigene Position oder an einer Position mitkalkulieren.",
                           "Im Angebot <b>Zukaufteile …</b> bzw. <b>Weitere Aktionen</b>"),
+    "schweissbaugruppe": ("Einzelteile zu einer Schweißbaugruppe zusammenfassen und Schweißen, Arbeitsgänge und "
+                          "Vorrichtungen dazurechnen.",
+                          "<b>Neue Position</b> → <b>Schweißbaugruppe</b>; Doppelklick auf die Baugruppe"),
     "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Materialanfrage.",
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
@@ -4549,7 +4724,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_ausgabe, kapitel_nachkalkulation]),
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_nachkalkulation]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,

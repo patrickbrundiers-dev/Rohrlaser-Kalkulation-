@@ -15,9 +15,9 @@ import re
 from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_zukaufteil
+from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
 from . import fracht_angebot
-from . import anbau, dreid, naht, rp_profile, zukauf
+from . import anbau, baugruppe, dreid, naht, rp_profile, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -159,7 +159,11 @@ def position_werte(p, kopf, k, tabellen):
     w["gewinde_stamm"] = tabellen.get("gewinde")
     w["vorschub"] = None
     w["gas"] = None
-    if ist_zukaufteil(p):        # eingekauftes Teil: nur Gewicht (Fracht), keine Fertigungswerte
+    if ist_baugruppe(p):         # Schweißbaugruppe: Daten für ihren Status (Kennwerte, Stundensätze des Angebots)
+        w["bg_tabellen"] = {n: tabellen.get(n) or () for n in ("schweissverfahren", "schweiss_kennwerte",
+                                                               "schweiss_faktoren")}
+        w["saetze"] = zeitbasis(kopf, k, tabellen)["saetze"]
+    if kein_laserteil(p):        # eingekauftes Teil, Baugruppe: nur Gewicht (Fracht), keine Fertigungswerte
         g = p.get("gewicht_teil")
         w["gewicht"] = g if isinstance(g, (int, float)) and g > 0 else None
         w["gewicht_position"] = (w["gewicht"] * p["stueck"] if w["gewicht"] is not None and not _leer(p.get("stueck"))
@@ -267,6 +271,10 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
     abw = satz_abweichung(p, positionen)
     if abw:
         erg["satz"] = abw
+    if not _leer(p.get("bg_knoten")):
+        t = baugruppe.teil_pruefen(p, positionen)
+        if t:
+            erg["baugruppe"] = t
     if zusatz is not None:
         u = zusatz_unbekannt(p, zusatz)
         if u:
@@ -304,7 +312,7 @@ def zukaufteil_status(p, positionen=None):
         if zukauf.ek_fehlt(dict(bezuege=[(e.get("stand") or {}).get("bezug") or {}])):
             return "WARNUNG: EK fehlt (Zukaufteil ohne Einkaufspreis)"
     pr = pruefungen(p, positionen=positionen)
-    for schluessel in ("satz_vielfach", "satz"):
+    for schluessel in ("satz_vielfach", "satz", "baugruppe"):
         if schluessel in pr:
             return "WARNUNG: " + pr[schluessel]
     return "OK"
@@ -315,6 +323,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     Positionen des Angebots (Prüfung der Sätze)."""
     if ist_zukaufteil(p):
         return zukaufteil_status(p, positionen)
+    if ist_baugruppe(p):
+        return baugruppe.status(p, w, positionen)
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
         return ""
     m = maschine(kopf, k)
@@ -356,7 +366,7 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     if kat_o and kat_o != kategorie(p.get("werkstoff_id"), k):
         return f"WARNUNG: Oberfläche {ob} ist für {kat_o}"
     pr = pruefungen(p, w, positionen, w.get("zusatzarbeiten") or (), w.get("gewinde_stamm"))
-    for schluessel in ("satz_vielfach", "satz"):
+    for schluessel in ("satz_vielfach", "satz", "baugruppe"):
         if schluessel in pr:
             return "WARNUNG: " + pr[schluessel]
     if "zusatz" in pr:
@@ -431,7 +441,7 @@ def gruppen_bilden(kopf, positionen, k):
         r = ZEILE0 + i
         pid, wst, laenge, stk = p.get("profil_id"), p.get("werkstoff_id"), p.get("laenge"), p.get("stueck")
         laenge = laenge if isinstance(laenge, (int, float)) else None
-        if ist_zukaufteil(p) or all(_leer(v) for v in (pid, wst, laenge, stk)):
+        if kein_laserteil(p) or all(_leer(v) for v in (pid, wst, laenge, stk)):
             continue
         name = p.get("artikel") or f"Zeile {i + 1}"
         stk_n = int(stk) if isinstance(stk, (int, float)) and stk >= 1 and int(stk) == stk else 0
@@ -1000,7 +1010,7 @@ def meterpreis(p, kopf, positionen, k, tabellen):
     Lieferlängen/Preise/Tonnenpreis + Aufpreis der Oberfläche für die wirksame Stangenlänge (ohne Preise von Hand),
     wirksam = womit die Stangen der Gruppe rechnen (höchster Preis von Hand einer Position der Gruppe, sonst
     berechnet). None ohne Profil, Werkstoff oder Stangenlänge und bei Zukaufteilen."""
-    if ist_zukaufteil(p) or beigestellt(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
+    if kein_laserteil(p) or beigestellt(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
         return None, None, None
     gr = gruppe_von(p, kopf)
     laenge = gr[3]
@@ -1024,13 +1034,13 @@ def material_abmessungen(kopf, positionen, ergebnis, k, tabellen):
     nutz_m (eingeplante Teile [m]), ausnutzung (None ohne Stangen)."""
     out = {}
     for p in positionen:
-        if ist_zukaufteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
+        if kein_laserteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
             continue
         gr = gruppe_von(p, kopf)
         g = out.get(gr)
         if g is None:
             berechnet, wirksam, fehlt = meterpreis(p, kopf, positionen, k, tabellen)
-            hand = [p2["preis_m"] for p2 in positionen if _n(p2.get("preis_m")) > 0 and not ist_zukaufteil(p2)
+            hand = [p2["preis_m"] for p2 in positionen if _n(p2.get("preis_m")) > 0 and not kein_laserteil(p2)
                     and gruppe_von(p2, kopf) == gr]
             g = out[gr] = dict(gruppe=gr, profil=gr[0], werkstoff=gr[1], oberflaeche=gr[2], stange=gr[3],
                                kunde=beigestellt(p), positionen=[], ids=[], teile_m=0.0, berechnet=berechnet,
@@ -1066,7 +1076,7 @@ def preis_herkunft(p, kopf, k, tabellen, heute=None):
     oder 'Preise' mit Preis, Gültig ab und Lieferant, sonst der Tonnenpreis des Werkstoffs; ist der Preis älter als
     PREIS_ALT_MONATE, steht ein Hinweis dabei. None ohne Profil, Werkstoff oder bei Zukaufteilen."""
     import datetime
-    if ist_zukaufteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
+    if kein_laserteil(p) or _leer(p.get("profil_id")) or _leer(p.get("werkstoff_id")):
         return None
     pid, wid, laenge = p["profil_id"], p["werkstoff_id"], gruppe_von(p, kopf)[3]
     z = next((r for r in lieferlaengen(pid, wid, k, tabellen, auto=False) if _n(r.get("laenge")) == _n(laenge)), None)
@@ -1708,7 +1718,7 @@ def konturklassen_neu(p, m, wand=None):
     """Neue Einteilung einer Position, deren Konturliste mit einer anderen Regel eingeteilt wurde als der aktuellen
     (Grenzen und Faktoren der Maschine, Wandstärke des Profils): dict mit den Klassenfeldern und kontur_grenzen,
     sonst None (keine Konturliste oder Regel gleich)."""
-    if _leer(p.get("konturen")) or ist_zukaufteil(p):
+    if _leer(p.get("konturen")) or kein_laserteil(p):
         return None
     grenzen = kontur_regel(m, wand)
     if p.get("kontur_grenzen") == grenzen_text(grenzen):
@@ -2353,8 +2363,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     aktiv = [i for i, p in enumerate(positionen) if position_aktiv(p)]
     # Zukaufteil-Positionen (z. B. Bleche) tragen nur ihre Zukaufteile und die Fracht; Rüsten, Pauschalen,
     # Programmierung, Angebotsaufschlag und Arbeitsschritte verteilen sich auf die Rohrlaserteile
-    laser = [i for i in aktiv if not ist_zukaufteil(positionen[i])]
+    laser = [i for i in aktiv if not kein_laserteil(positionen[i])]
     zk_pos = [i for i in aktiv if ist_zukaufteil(positionen[i])]
+    # Schweißbaugruppen tragen nur ihre eigenen Leistungen (baugruppe.rechnen), ihre Teile sind eigene Positionen
+    bg_pos = [i for i in aktiv if ist_baugruppe(positionen[i])]
     f8 = sum(_n(positionen[i].get("stueck")) for i in laser)
     if not f8:              # ohne Rohrlaserteile kein Rüsten der Maschine (Übersicht = Preis)
         ruest = 0
@@ -2385,7 +2397,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     aufschlag = _n(einstellungen.get("angebotsaufschlag")) if f8 else 0
     werte = [position_werte(p, kopf, k, tabellen) if i in aktiv else None for i, p in enumerate(positionen)]
     fracht, fracht_text, fracht_fehler = (fracht_angebot.betrag_angebot(kopf, positionen, werte)
-                                          if f8 or any(_n(positionen[i].get("stueck")) for i in zk_pos)
+                                          if f8 or any(_n(positionen[i].get("stueck")) for i in zk_pos + bg_pos)
                                           else (0, "", ""))
     fracht = fracht or 0
     fracht_je, fracht_hinweis, fracht_umlage = fracht_angebot.anteile(positionen, werte, fracht,
@@ -2414,6 +2426,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             zeilen[i] = _zukaufteil_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
                                           fracht_je[i] if c else 0, skonto,
                                           satz_abweichung(p, positionen))
+            continue
+        if i in bg_pos:
+            zeilen[i] = _baugruppe_zeile(p, c, [zk_je[(i, n)] for n in range(len(zukauf.eintraege(p)))],
+                                         fracht_je[i] if c else 0, skonto, (zf, zfl, gew), tabellen, zb["saetze"])
             continue
         gr = gruppe_von(p, kopf)
         d = sum(kosten_gr.get(gr, ()))
@@ -2495,6 +2511,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = f"Gewinde {pr['gewinde_preis']} ohne Preis"
         elif "satz" in pr:
             hinweis = pr["satz"]
+        elif "baugruppe" in pr:
+            hinweis = pr["baugruppe"]
         elif "bohrungen" in pr:
             hinweis = pr["bohrungen"]
         elif "anbau" in pr:
@@ -2540,7 +2558,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                      mindestpreis_teil=alt * (faktor - 1))
 
     def _summe(n):
-        return sum(z[n] * z["stueck"] for z in zeilen if z)
+        return sum(z.get(n, 0.0) * z["stueck"] for z in zeilen if z)
 
     summen = dict(ruestzeit=ruest, stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
                   stangen=len(stangen), beladungen=n_lad, beladungen_sn=n_sn, teile=f8,
@@ -2577,7 +2595,10 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   skonto=_summe("skonto_teil"), skonto_satz=100 * skonto, arbeitsschritte=_summe("arbeit_teil"),
                   zusatz_eigen=_summe("zusatz_eigen_teil"), zusatz_fremd=_summe("zusatz_fremd_teil"),
                   zukauf_einstand=_summe("zukauf_einstand_teil"), zukauf_aufschlag=_summe("zukauf_aufschlag_teil"),
-                  zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen)
+                  zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen,
+                  baugruppe_eigen=_summe("bg_eigen_teil"), baugruppe_fremd=_summe("bg_fremd_teil"),
+                  baugruppe_einmal=_summe("bg_einmal_teil"), baugruppe_zeit_min=_summe("bg_zeit_min"),
+                  baugruppen=sum(1 for i in bg_pos if _n(positionen[i].get("stueck")) > 0))
     summen.update(verkauf_kalkuliert=kalkuliert, mindestpreis=mindest, mindestpreis_gilt=faktor > 1,
                   mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"])
@@ -2615,6 +2636,37 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None):
              zukauf_teil=zk_einst + zk_auf, zukauf_fehlt=sum(1 for x in zk if x["fehler"]) + (0 if zk else 1),
              pauschalen_teil=fr, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, hinweis=hinweis,
              eingeplant=None, nicht_eingeplant=None, zukaufteil=True, kundenmaterial="")
+    return z
+
+
+def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze):
+    """Kalkulationszeile einer Schweißbaugruppe: eigene Leistungen (Nahtgruppen, Arbeitsgänge, umgelegte Einmalkosten;
+    baugruppe.rechnen) als Fertigung mit Zuschlag Fertigung bzw. als Fremdleistung mit Zuschlag Fremdleistung, dazu
+    Gewinn, Zukaufteile der Baugruppe (z. B. Schrauben je Satz), Frachtanteil und Skonto wie jede Position. Kein
+    Material, keine Laserzeit (die Einzelteile sind eigene Positionen)."""
+    zf, zfl, gew = zuschlaege
+    r = baugruppe.rechnen(p, tabellen, saetze, c)
+    eigen, fremd = r["eigen"], r["fremd"]
+    zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
+    zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
+    s_ = eigen * (1 + zf) + fremd * (1 + zfl)
+    ohne = s_ * (1 + gew) + fr + zk_einst + zk_auf
+    t_ = ohne / (1 - skonto)
+    if r["fehler"]:
+        hinweis = r["fehler"]
+    elif r["warnungen"]:
+        hinweis = r["warnungen"][0]
+    elif any(x["fehler"] for x in zk):
+        hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
+    else:
+        hinweis = ""
+    z = _zukaufteil_zeile(p, c, zk, fr, skonto)
+    z.update(zukaufteil=False, baugruppe=True, zusatz_eigen_teil=0.0, zusatz_fremd_teil=0.0,
+             bg_eigen_teil=eigen, bg_fremd_teil=fremd, bg_einmal_teil=r["einmal"], bg_zeit_min=r["zeit_min"],
+             bg_schweiss_min=r["schweiss_min"], bg_naht_m=r["naht_m"], bg_zeilen=r["zeilen"],
+             zuschlag_fertigung_teil=eigen * zf, zuschlag_fremdleistung_teil=fremd * zfl, gewinn_teil=s_ * gew,
+             herstell_teil=s_, herstell_position=s_ * c, skonto_teil=t_ - ohne, preis_teil=t_, preis_position=t_ * c,
+             zukauf_fehlt=sum(1 for x in zk if x["fehler"]), hinweis=hinweis)
     return z
 
 
@@ -2780,6 +2832,8 @@ KOSTENARTEN = (
     ("Rüsten Maschine", "ruesten_maschine", False), ("Rüsten je Abmessung", "ruesten_abmessungen", False),
     ("Stangenwechsel", "stangenwechsel_kosten", False), ("Weitere Arbeitsschritte", "arbeitsschritte", False),
     ("Zusatzarbeiten", "zusatz", False), ("Handling Kundenmaterial", "handling_beistellung", False),
+    ("Schweißbaugruppen: Schweißen und Arbeitsgänge", "baugruppe_eigen", False),
+    ("Schweißbaugruppen: Fremdleistungen", "baugruppe_fremd", False),
     ("Zuschlag Material", "zuschlag_material", False), ("Zuschlag Fertigung", "zuschlag_fertigung", False),
     ("Zuschlag Fremdleistung", "zuschlag_fremdleistung", False), ("Herstellkosten", "herstell", True),
     ("Gewinn", "gewinn", False), ("Pauschale je Abmessung", "pauschalen", False),
@@ -2794,6 +2848,7 @@ KOSTEN_GRUPPEN = (
     ("Material", ("material",), False), ("Laser schneiden", ("laser_schneiden",), False),
     ("Rüsten", ("ruesten_maschine", "ruesten_abmessungen", "stangenwechsel_kosten"), False),
     ("Zusätzliche Bearbeitung", ("gewinde", "arbeitsschritte", "zusatz", "handling_beistellung"), False),
+    ("Schweißbaugruppen", ("baugruppe_eigen", "baugruppe_fremd"), False),
     ("Zuschläge", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung"), False),
     ("Herstellkosten", ("herstell",), True), ("Gewinn", ("gewinn",), False),
     ("Programmierkosten", ("programmierung",), False),

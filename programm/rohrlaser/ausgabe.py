@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
 from . import fracht_angebot, normprofile, rechnen, zukauf
-from .angebot import aktiv as position_aktiv, bedingungen_text, ist_zukaufteil, lieferzeit_text
+from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -118,6 +118,9 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     der Text der Position, z. B. RAL 7016). Zukaufteile mit 'Im Angebotstext nennen' je Zeile mit Menge je Teil."""
     if ist_zukaufteil(p):
         return zukaufteil_text(p)
+    if ist_baugruppe(p):
+        from . import baugruppe
+        return baugruppe.text_angebot(p)
     laenge = p.get("laenge")
     zeilen = [profiltext(p.get("profil_id"), k, dezimal),
               f"L = {kaufm_runden(laenge, 0):.0f} mm" if isinstance(laenge, (int, float)) else "L =  mm"]

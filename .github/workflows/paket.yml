@@ -68,6 +68,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           /usr/bin/python3 tests/test_programm.py
+          /usr/bin/python3 tests/test_csv_export.py
           /usr/bin/python3 tests/test_konturklassen.py
           /usr/bin/python3 tests/test_zusatzarbeiten.py
           /usr/bin/python3 tests/test_zusatz_verwaltung.py
@@ -120,6 +121,7 @@ jobs:
           /usr/bin/python3 tests/test_3d_editor.py
           /usr/bin/python3 tests/test_programmierung.py
           /usr/bin/python3 tests/test_schweissen.py
+          /usr/bin/python3 tests/test_baugruppe.py
           /usr/bin/python3 tests/test_tastatur.py
           /usr/bin/python3 tests/test_materialanfrage.py
           /usr/bin/python3 tests/test_plausibel.py
