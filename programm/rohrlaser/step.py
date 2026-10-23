@@ -11,7 +11,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, bohrbild, naht, rechnen, rp_profile
+from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile
 
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
@@ -979,7 +979,7 @@ def _blech_position(m, b, wst, zukauf_liste, neue_artikel, k, blech_daten=None, 
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
-                blech_daten=None, d3=False, anbau_weglassen=True):
+                blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -999,7 +999,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     (Werte, Einkaufsbedingungen)}, der Aufrufer legt sie an und trägt die Zukaufteile ein (Menge 1 je Teil).
     Ohne zukauf_liste werden Bleche wie bisher nicht übernommen.
     d3 bzw. je Teil _d3 (Häkchen 3D-Schnittbearbeitung im Prüfdialog): Gehrungen und schräge Bohrungen in 3D
-    (rechner_eingaben); ohne Häkchen bekommen Teile mit schrägen Bohrungen den Hinweis „3D prüfen“."""
+    (rechner_eingaben); ohne Häkchen bekommen Teile mit schrägen Bohrungen den Hinweis „3D prüfen“.
+    Biegerohre (Messung mit Block 'biegerohr'): Länge und Konturen auf das gestreckte Rohr mit biegerohr_faktor
+    (Faktor neutrale Faser, Vorgabe 1,0) umgerechnet, Block in technik; mit zusatz_katalog (Zeilen der Zusatzarbeiten)
+    die Zusatzarbeit 'Biegen' mit der Zahl der Biegungen als Menge."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
@@ -1142,6 +1145,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             mit_3d = bool(m.get("_d3", d3))
             rechner = rechner_eingaben(m, form, (profile.get(pid) or {}).get("a") or m.get("abm_a"),
                                        (profile.get(pid) or {}).get("b") or m.get("abm_b"), mit_3d)
+            br = biegerohr.lesen(m.get("biegerohr"))
+            if br and rechner:      # Konturen von der Mittellinie auf das gestreckte Rohr
+                biegerohr.technik_umrechnen(rechner, br, biegerohr_faktor)
             gehr_3d, bohr_3d = kandidaten_3d(m)
             if bohr_3d and not mit_3d:
                 hinweise.append(f"3D prüfen: {bohr_3d} schräge Bohrung{'en' if bohr_3d > 1 else ''}, ohne "
@@ -1191,6 +1197,19 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
                 if any(z["art"] != "Bohrung" for z in bild):
                     hinweise.append(bohrbild.text(bild) + ": im Angebot mit 'Bohrungen prüfen' bestätigen")
+            if br:
+                p["laenge"] = round(biegerohr.laenge(br, biegerohr_faktor), 1)
+                hinweise.append(f"Biegerohr: {biegerohr.kurz(br, biegerohr_faktor)}; Biegedaten im Schneidweg-Rechner "
+                                "prüfen")
+                kat = {z.get("name"): z for z in zusatz_katalog or ()}
+                n = len(biegerohr.biegungen(br))
+                if biegerohr.ZUSATZ_BIEGEN in kat:
+                    p["zusatz"] = json.dumps([dict(name=biegerohr.ZUSATZ_BIEGEN, menge=n, preis=None, text=None,
+                                                   quelle="STEP-Import",
+                                                   stand=rechnen.zusatz_stand(kat[biegerohr.ZUSATZ_BIEGEN]))],
+                                             ensure_ascii=False)
+                elif zusatz_katalog is not None:
+                    hinweise.append(f"Zusatzarbeit '{biegerohr.ZUSATZ_BIEGEN}' fehlt in den Stammdaten")
             # Anbauteile (nicht gelasert, nur Gravur): Liste mit Prüfstatus; unsichere im Angebot prüfen
             liste = anbau.lesen(m.get("anbauteile"))
             if liste:
