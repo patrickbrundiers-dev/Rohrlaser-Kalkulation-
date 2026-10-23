@@ -21,13 +21,14 @@ from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequenc
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
 from . import NAME, VERSION, ausgabe, hilfe, pdf, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
+from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
@@ -1089,8 +1090,7 @@ class Hauptfenster(QMainWindow):
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
         self.setStyleSheet(stil.aktuell())     # Theme und Dichte aus stil.anwenden (beim Start)
         self.resize(1400, 800)
-        self.reiter = QTabWidget()
-        self.reiter.setTabsClosable(True)
+        self.reiter = HauptReiter()     # feste Reiter oben, geöffnete Angebote in eigener Zeile (Layout-Plan L13)
         self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
         self.start = StartSeite(self)
         self.reiter.addTab(self.start, "Start")
@@ -1121,8 +1121,7 @@ class Hauptfenster(QMainWindow):
         self.zukauf = ZukaufBereich(db, self.meldung)
         self.reiter.addTab(self.zukauf, self.zukauf.titel)
         self.reiter.addTab(self.bereich, "Einstellungen")
-        for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
-            self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
+        self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
         self._menue()
@@ -1336,12 +1335,14 @@ class Hauptfenster(QMainWindow):
                 w = self._seite()
             ziel = None
             while w is not None and w is not self.reiter:
-                if isinstance(w, QTabWidget):
+                if isinstance(w, (QTabWidget, NavigationsReiter)):
                     ziel = getattr(w, "gruppe_von", None) or w     # Unterreiter-Gruppe: Reiter des Angebots
                     break
                 w = w.parentWidget()
             if ziel is None:            # Fokus außerhalb: erster Unterreiter der sichtbaren Seite
-                ziel = next((t for t in self.reiter.currentWidget().findChildren(QTabWidget) if t.isVisible()), None)
+                seite = self.reiter.currentWidget()
+                ziel = next((t for t in seite.findChildren(NavigationsReiter) + seite.findChildren(QTabWidget)
+                             if t.isVisible()), None)
             if ziel is None:
                 return None
             reiter = ziel
