@@ -594,6 +594,22 @@ def art_wechseln(m):
     return True
 
 
+def kantteile_vorbelegen(messwerte, profile):
+    """Grenzfall Profil/Kantteil (scharfkantig gezeichnetes L-, U- oder C-Profil, Patrick 23.10.2026): Profil, wenn
+    ein passendes Profil in den Stammdaten steht, sonst Kantteil (Blech gekantet mit Abwicklung). Nur einmal je Teil
+    (_art_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl umgestellter Teile."""
+    n = 0
+    for m in messwerte:
+        if m.get("_art_vorbelegt"):
+            continue
+        m["_art_vorbelegt"] = True
+        alt = alternative(m)
+        if (m.get("profilform") in ("L-Profil", "U-Profil", "C-Profil") and alt
+                and alt.get("profilform") == "Blech gekantet" and not finde_profil(m, profile)):
+            n += art_wechseln(m)
+    return n
+
+
 VON_HAND = "von Hand nachgetragen"
 
 

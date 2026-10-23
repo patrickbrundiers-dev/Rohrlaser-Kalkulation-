@@ -19,6 +19,9 @@ Blech-Editor, STEP robuster“, Freigabe 1a 2a 3b 4a):
 - G2 Prägung im Rundrohr: Gravur mit Tiefe 0,2 und Umriss um 0°
 - V1 zwei gekreuzte Quadratrohre gleicher Hülle (Rahmengestell 23.10.2026): beide Quadratrohr, kein Verbundkern
 - J1 STEP-JSON 1.12: Abwicklung, Umriss, Wände im Ergebnis
+- E1 Blech-Editor aus der Messung (blech.aus_step): Winkel/Z als Kantteil mit Schenkeln und Bohrungen an ihrer
+  Stelle, U mit Ausklinkungen mit Polygon-Außenkontur, Schale als Zuschnitt mit 4 Kantungen und Biegelinien; der
+  Schneidweg des Editors ist der Schneidweg der STEP-Abwicklung; 3D-Ansicht gefaltet in den Außenmaßen
 
 Teile werden mit OpenCascade erzeugt (tests/erzeuge_testteile.py) und mit step_messung gemessen.
 Aufruf: python tests/test_step_kantteile.py
@@ -208,4 +211,28 @@ j = step_ergebnis.koerper(messen("S1_Ecke")[0])
 assert j["konturen"][0]["umriss"] and j["konturen"][0]["waende"]
 json.dumps(j)
 ok("J1 STEP-JSON 1.12: Abwicklung, Umriss und Wände im Ergebnis")
+from rohrlaser import blech, blech3d  # noqa: E402
+for name, art, n_kant in (("K1_Winkel", blech.KANTTEIL, 1), ("K3_Z", blech.KANTTEIL, 2),
+                          ("K5_U_Ausklinkung", blech.KANTTEIL, 2), ("K6_Schale", blech.ZUSCHNITT, 4)):
+    (t,) = messen(name)
+    k = t if t.profilform == "Blech gekantet" else t.alternative
+    b = json.loads(json.dumps(k.blech))         # wie aus der Messwert-Datei
+    e = blech.aus_step(b, "S235JR")
+    zs = blech.zuschnitt(e)
+    sw_editor = zs["aussen"] + sum(blech.sw.kontur(z)[0] * z["anzahl"] for z in e["konturen"])
+    assert e["art"] == art and blech.kantungen(e, zs) == n_kant, (name, e)
+    assert nah(sw_editor, b["umfang_aussen"] + b["umfang_innen"], 0.5), (name, sw_editor, b["umfang_aussen"])
+    netz = blech3d.netz(dict(e, dicke=b["dicke"]), zs)
+    p = netz["p"]
+    ausdehnung = sorted(max(p[i::3]) - min(p[i::3]) for i in range(3))
+    soll = sorted((b["laenge"], b["breite"], b["hoehe"]))
+    assert all(abs(x - y) <= b["dicke"] + 0.5 for x, y in zip(ausdehnung, soll)), (name, ausdehnung, soll)
+    if name == "K1_Winkel":
+        assert [x["laenge"] for x in e["schenkel"]] == [100, 50] and e["kantlaenge"] == 300
+        assert len(e["konturen"]) == 6 and all(z["x"] is not None for z in e["konturen"])
+    if name == "K5_U_Ausklinkung":
+        assert e["form"] == blech.POLYGON and not zs["hinweise"], zs["hinweise"]
+    if name == "K6_Schale":
+        assert e["form"] == blech.POLYGON and len(e["biegelinien"]) == 4
+ok("E1 Blech-Editor aus der Messung: Kantteil/Schale, Schneidweg wie STEP, 3D gefaltet in den Außenmaßen")
 print("Alle Kantteil-, Sonderkontur- und Gravur-Tests bestanden.")
