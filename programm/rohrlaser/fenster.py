@@ -258,6 +258,12 @@ class StammdatenSeite(QWidget):
                              "Zeilen bleiben unverändert")
             richt.clicked.connect(lambda: self.schweiss_richtwerte())
             leiste.addWidget(richt)
+        if tabelle.name == "schweiss_kennwerte":
+            lernen = QPushButton("Kennwerte aus Nachkalkulation …")
+            lernen.setToolTip("Vorschläge Ist ÷ Soll aus nachkalkulierten Schweißbaugruppen prüfen, mit Begründung "
+                              "freigeben oder frühere Freigaben zurücknehmen")
+            lernen.clicked.connect(lambda: self.kennwerte_lernen())
+            leiste.addWidget(lernen)
         if tabelle.name == "kunden":
             export = QPushButton("CSV exportieren")
             export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
@@ -450,6 +456,16 @@ class StammdatenSeite(QWidget):
         f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
         self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu, vorhandene unverändert.")
         return n
+
+    def kennwerte_lernen(self, dialog=None):
+        """Fenster Kennwerte aus der Nachkalkulation (kennwerte_dialog); dialog(d) statt exec (Tests)."""
+        from .kennwerte_dialog import KennwerteDialog
+        d = KennwerteDialog(self, self.db)
+        dialog(d) if dialog else d.exec()
+        if d.geaendert:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        return d
 
     def schneiddaten_zuruecksetzen(self):
         """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage
