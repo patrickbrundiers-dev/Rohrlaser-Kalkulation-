@@ -1465,6 +1465,33 @@ def kapitel_step(i):
             "Einstellen unter Vorgaben, Gruppe Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
               "Prozessorkernen gleichzeitig.")
+    i.abschnitt("Biegerohre", marke="biegerohre")
+    i.text("Ein <b>gebogenes Rundrohr</b> (Geraden und Bögen) erkennt der Import selbst. Er rechnet die gestreckte "
+           "Länge, setzt die Bohrungen an die richtige Stelle am geraden Rohr und liefert die Biegedaten. Der "
+           "Prüfstatus ist immer <i>prüfen</i>.", kurz=True)
+    i.bild("biegerohr_rechner", "Biegerohr im Schneidweg-Rechner: Abwicklung des gestreckten Rohrs mit den "
+           "Biegezonen", hoehe=110 * mm, legende=[
+               (1, "Gruppe <b>Biegungen</b>: je Biegung L (Gerade davor), R (Drehung der Biegeebene), A (Winkel) und "
+                   "Radius, dazu gestreckte Länge und die Eckpunkte XYZ."),
+               (2, "<b>Biegezonen</b> schraffiert mit Nummer und Winkel, Bohrungen am gestreckten Rohr."),
+               (3, "Prüfmeldung <b>Kontur in der Biegezone</b>.")])
+    i.genauer()
+    i.liste("<b>Erkennung</b>: Außenmantel aus Zylindern (Geraden) und Tori (Bögen) mit gleichem Rohrradius und einem "
+            "Biegeradius größer als der Rohrradius. Aus den Achsen und Mittenkreisen entsteht die <b>Mittellinie</b>; "
+            "Außen-Ø und Wand kommen aus den Radien.",
+            "<b>Gestreckte Länge</b> = Summe der Geraden + Faktor × Summe der Bögen (Radius × Winkel). Der Faktor ist "
+            "die Lage der neutralen Faser, Vorgabe 1,0 = Rohrmitte. Einstellung <i>Biegerohr: Faktor neutrale Faser "
+            "für die gestreckte Länge (1,0 = Rohrmitte)</i> unter STEP-Import ([[einstellungen]]); er gilt beim "
+            "Übernehmen.",
+            "<b>Konturen</b>: Lage x ab Ende A am gestreckten Rohr, Winkel um die Rohrachse (0° = Innenseite der "
+            "ersten Biegung). Liegt eine Kontur in einem Bogen, meldet die Fertigungsprüfung <i>Kontur in der "
+            "Biegezone</i>; eine zu kurze Gerade zwischen zwei Biegungen meldet <i>Gerade zwischen Biegungen zu "
+            "kurz</i> (Vorgabe 1,5 × Außen-Ø, [[pruefregeln]]).",
+            "<b>Biegedaten</b>: LRA je Biegung (L = Gerade davor, R = Drehung der Biegeebene gegen die vorige, A = "
+            "Biegewinkel) und XYZ = Eckpunkte der verlängerten Geraden ab Ende A. Sie stehen im Teile-Editor "
+            "([[teile_editor]]) und im Messergebnis (JSON).",
+            "<b>Zusatzarbeit Biegen</b>: € je Biegung (Beispielpreis 1,50 €, Stammdaten Zusatzarbeiten); der Import "
+            "trägt die Zahl der Biegungen als Menge ein.")
     i.abschnitt("Bleche erkennen", marke="bleche")
     i.text("Bleche erkennt der Import selbst. Sie werden nicht gelasert, sondern <b>Zukaufteil-Positionen</b> mit "
            "einem Blechartikel; im Prüfdialog stehen sie in der grünen Gruppe <b>Bleche (Zukaufteile, nicht "
@@ -3371,6 +3398,9 @@ def kapitel_einstellungen(i):
          "Wie genau die Messung zu einem Profil der Stammdaten passen muss (Vorgabe 0,15 mm), ab wann Körper einer "
          "Baugruppe als gleiches Teil zusammengefasst werden (0,2 mm) und wie nah eine Bohrung am Kernloch-Ø liegen "
          "muss, damit ein Gewinde vorgeschlagen wird (0,05 mm)."],
+        ["STEP-Import", "Biegerohr: Faktor neutrale Faser für die gestreckte Länge (1,0 = Rohrmitte)",
+         "Gestreckte Länge eines Biegerohrs = Geraden + Faktor × Bögen (Vorgabe 1,0, [[biegerohre]]); gilt beim "
+         "Übernehmen aus dem STEP-Import."],
         ["STEP-Import", "Experte: Flachstahl ab Länge × Breite, Experte: gekantetes Blech statt Profil, wenn Volumen "
                         "unter Anteil von Querschnitt × Länge",
          "Grenzwerte der Erkennung, nur nach Rücksprache ändern: ein flaches Teil ist erst ab dieser Länge "
@@ -3988,9 +4018,11 @@ def kapitel_stammdaten(i):
     i.genauer()
     i.tabelle(["Prüfregeln (Fertigung)", "Bedeutung"], [
         ["<b>Regel</b>", "Bohrung zu klein, Steg zu schmal, Kontur zu nah am Rand, Teil zu kurz für die Maschine, "
-                         "Gravur über Kante, Kantbarkeit"],
+                         "Gravur über Kante, Kantbarkeit, Kontur in der Biegezone, Gerade zwischen Biegungen zu "
+                         "kurz"],
         ["Aktiv", "<i>nein</i> schaltet die Regel ab"],
-        ["Grenzwert [× Wand bzw. Dicke]", "Faktor auf die Wandstärke des Profils bzw. die Blechdicke; leer = "
+        ["Grenzwert [× Wand bzw. Dicke]", "Faktor auf die Wandstärke des Profils bzw. die Blechdicke (bei "
+                                          "<i>Gerade zwischen Biegungen zu kurz</i> auf den Außen-Ø); leer = "
                                           "Vorgabe"],
         ["Stufe", "HINWEIS, WARNUNG oder FEHLER: so erscheint der Befund im Status; FEHLER sperrt die Position "
                   "wie jeder andere Fehler"],
@@ -4006,9 +4038,14 @@ def kapitel_stammdaten(i):
             "<b>Gravur über Kante</b>: eine Gravur aus dem STEP-Import läuft über mehrere Flächen.",
             "<b>Kantbarkeit</b>: die Hinweise der Kantbarkeit ([[blech_kantbarkeit]]) im Status der Blech-Position "
             "(Vorgabe HINWEIS).",
+            "<b>Kontur in der Biegezone</b> (Biegerohr): Kontur in einem Bogen oder näher als Grenzwert × Wand daran "
+            "(Vorgabe 0 = nur im Bogen, WARNUNG, [[biegerohre]]).",
+            "<b>Gerade zwischen Biegungen zu kurz</b> (Biegerohr): Gerade zwischen zwei Biegungen kürzer als "
+            "Grenzwert × Außen-Ø (Vorgabe 1,5, Spannlänge der Biegemaschine).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
-           "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48).")
+           "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
+           "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
@@ -4934,7 +4971,8 @@ def kapitel_step_messung(i):
            "Rohr und Blechen, Abgrenzung zum Flachstahl und eine Platte mit Tasche als Gegenbeispiel. Maße stimmen "
            "dabei auf 0,01 mm, Winkel auf 0,1°.")
     i.text("Bekannte Grenzen:")
-    i.liste("Gebogene Rohre und Rohre mit veränderlichem Querschnitt: keine Maße, Prüfstatus <i>nicht messbar</i>.",
+    i.liste("Rohre mit veränderlichem Querschnitt: keine Maße, Prüfstatus <i>nicht messbar</i>. Gebogene "
+            "Rundrohre misst der Import als Biegerohr ([[biegerohre]]), gebogene Kastenprofile noch nicht.",
             "Rohre mit Sicke oder anderem nicht konvexem Querschnitt werden über ihr umschließendes Rechteck "
             "gemessen und stehen mit Prüfstatus <i>prüfen</i> da.",
             "Gewinde werden nur als Kernloch erkannt; der Gewindevorschlag ist von Hand zu prüfen.",
