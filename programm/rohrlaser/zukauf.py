@@ -25,6 +25,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from .stammdaten import (TABELLE, VERWEISE, ZUKAUF_METHODEN, ZUKAUF_QUELLEN, ZUKAUF_STATUS, ZUKAUF_TYPEN, Feld,
                          Tabelle)
+ZUKAUF_TYPEN = ZUKAUF_TYPEN     # weitergereicht: zukauf_seite liest zukauf.ZUKAUF_TYPEN
 
 # ------------------------------------------------------------------ Auswahllisten
 EINHEITEN = ("Stück", "Meter", "Kilogramm", "Satz")

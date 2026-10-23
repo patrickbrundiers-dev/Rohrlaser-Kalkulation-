@@ -3018,8 +3018,10 @@ def kapitel_einstellungen(i):
     i.text("Der Reiter öffnet sich erst nach Eingabe des Passworts. Passwort eintippen und Enter oder "
            "<b>Einstellungen öffnen</b> drücken. Er bleibt offen, bis <b>Einstellungen sperren</b> gedrückt oder das "
            "Programm beendet wird. Das Passwort steht unter Vorgaben, Gruppe Zugang (<i>Passwort für die "
-           "Einstellungen</i>); leer = Einstellungen ohne Passwort. Das Passwort bitte beim Verantwortlichen "
-           "erfragen.")
+           "Einstellungen</i>). Das Feld bleibt leer, auch wenn ein Passwort vergeben ist: Das Programm speichert das "
+           "Passwort nur verschlüsselt (als Prüfwert, nicht lesbar). Zum Ändern das neue Passwort eintippen und das "
+           "Feld verlassen; <b>Entfernen</b> = Einstellungen ohne Passwort. Ein Passwort aus einer älteren Version gilt "
+           "unverändert weiter. Das Passwort bitte beim Verantwortlichen erfragen.")
     i.bild("einstellungen_gesperrt", "Reiter Einstellungen gesperrt", hoehe=45 * mm, legende=[
         (1, "Reiter Einstellungen"), (2, "Passwort eingeben"), (3, "<b>Einstellungen öffnen</b>")])
     i.abschnitt("Vorgaben", marke="vorgaben")
@@ -3207,7 +3209,8 @@ def kapitel_einstellungen(i):
          "ja = Outlook setzt seine Standardsignatur, der Text kommt davor; die E-Mail-Datei bekommt die eigene "
          "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
-                                                    "Frachtkosten; leer = ohne Passwort"]],
+                                                    "Frachtkosten, zugleich Admin-Passwort beim Start; verschlüsselt gespeichert, Feld bleibt "
+                                                    "leer; <b>Entfernen</b> = ohne Passwort"]],
         [28, 80, 157])
     i.abschnitt("Stundensätze und Zeitvorgaben", marke="stundensaetze")
     i.text("Der Unterreiter <i>Stundensätze und Zeitvorgaben</i> zeigt links die <b>Stundensätze</b> und rechts die "

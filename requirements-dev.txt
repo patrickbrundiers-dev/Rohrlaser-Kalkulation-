@@ -1,0 +1,4 @@
+# Nur für die Entwicklung (Plan „Intelligenteres Programm“ C4): Prüfwerkzeuge im Workflow, nicht im Programm und
+# nicht in der .exe. Feste Versionen, Aktualisierung bewusst per Pull Request.
+ruff==0.17.2
+coverage==7.17.0
