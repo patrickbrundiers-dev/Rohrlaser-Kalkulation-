@@ -82,3 +82,85 @@ class Kostenbalken(QWidget):
             p.drawText(QRectF(16, y, breite - 16, ZEILE), Qt.AlignLeft | Qt.AlignVCenter, t)
             p.drawText(QRectF(16, y, breite - 16, ZEILE), Qt.AlignRight | Qt.AlignVCenter, _euro(w) + anteil)
             y += ZEILE
+
+
+# ------------------------------------------------------------------ Kostenwasserfall (Layout-Plan L22)
+def wasserfall(kosten):
+    """Stufen des Preisaufbaus aus rechnen.kostenarten(...): [(Titel, von, bis, Summe ja/nein)] je Gruppe aus
+    rechnen.KOSTEN_GRUPPEN mit Betrag ≠ 0. Eine Summenzeile (Herstellkosten, Selbstkosten, Verkaufspreis) reicht von 0 bis zu
+    ihrem Betrag und setzt den laufenden Stand neu, sodass die letzte Zeile genau den Verkaufspreis trifft."""
+    from . import rechnen
+    betrag = {n: (w or 0.0) for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
+    stand, aus = 0.0, []
+    for titel, namen, summe in rechnen.KOSTEN_GRUPPEN:
+        w = sum(betrag[n] for n in namen)
+        if summe:
+            aus.append((titel, 0.0, w, True))
+            stand = w
+        elif abs(w) >= 0.005:
+            aus.append((titel, stand, stand + w, False))
+            stand += w
+    return aus
+
+
+class Kostenwasserfall(QWidget):
+    """Je Gruppe eine Zeile: Bezeichnung links, Balken vom bisherigen Stand um den Betrag weiter, Betrag rechts;
+    Summenzeilen als voller Balken in der Akzentfarbe."""
+    TEXT_BREITE = 0.36
+    BETRAG_BREITE = 86
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.stufen = []
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def setzen(self, kosten):
+        self.stufen = wasserfall(kosten)
+        self.setToolTip("\n".join(f"{'= ' if s else '+ '}{t}: {_euro(b if s else b - v)}"
+                                  for t, v, b, s in self.stufen))
+        self.updateGeometry()
+        self.update()
+
+    def sizeHint(self):
+        return QSize(300, ZEILE * len(self.stufen) + 4)
+
+    def minimumSizeHint(self):
+        return QSize(160, self.sizeHint().height())
+
+    def paintEvent(self, _):
+        from .stil import AKZENT
+        if not self.stufen:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        fm = QFontMetrics(self.font())
+        links = int(self.width() * self.TEXT_BREITE)
+        flaeche = max(20, self.width() - links - self.BETRAG_BREITE - 8)
+        hoch = max([max(v, b) for _, v, b, _ in self.stufen] + [0.01])
+        x = lambda w: links + flaeche * max(w, 0.0) / hoch
+        vorher, farbe_nr = None, 0
+        for i, (titel, von, bis, summe) in enumerate(self.stufen):
+            y = i * ZEILE
+            p.setPen(QColor(TEXT))
+            f = p.font()
+            f.setBold(summe)
+            p.setFont(f)
+            p.drawText(QRectF(0, y, links - 6, ZEILE), Qt.AlignLeft | Qt.AlignVCenter,
+                       fm.elidedText(titel, Qt.ElideRight, links - 6))
+            p.drawText(QRectF(self.width() - self.BETRAG_BREITE, y, self.BETRAG_BREITE, ZEILE),
+                       Qt.AlignRight | Qt.AlignVCenter, _euro(bis if summe else bis - von))
+            if summe:
+                farbe = AKZENT
+            else:
+                farbe = BALKEN_FARBEN[1 + farbe_nr % (len(BALKEN_FARBEN) - 1)]
+                farbe_nr += 1
+            a, b = sorted((x(von), x(bis)))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(farbe))
+            p.drawRect(QRectF(a, y + 3, max(b - a, 1.0), ZEILE - 6))
+            if vorher is not None:                  # Verbindungslinie vom Ende der vorigen Stufe
+                p.setPen(QColor(TEXT_GRAU))
+                p.drawLine(int(vorher), y - 3, int(vorher), y + 3)
+            vorher = x(bis)
+        p.setPen(QColor(LINIE))
+        p.drawLine(links, 0, links, ZEILE * len(self.stufen))

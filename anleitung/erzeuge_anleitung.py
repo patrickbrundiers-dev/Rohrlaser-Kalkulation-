@@ -708,10 +708,24 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
-    i.text("Drei Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
-           "Doppelklick öffnet), <b>Stammdaten</b> (Stand, Hinweis auf Beispielwerte, aufklappbar die Anzahl je Tabelle, "
-           "<b>Einstellungen öffnen</b>) "
+    i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
+           "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
+           "Hinweis auf Beispielwerte, aufklappbar die Anzahl je Tabelle, <b>Einstellungen öffnen</b>) "
            "und <b>Daten und Sicherung</b>.", kurz=True)
+    i.liste("<b>Heute, Eigene Angebote</b>: Anzahl und Verkaufspreis netto der eigenen Angebote je Vorgang (Entwurf, "
+            "Verschickt, Beauftragt, Abgelehnt), dieselben Summen wie in der Angebotsliste. Ein Klick auf den Vorgang "
+            "öffnet die Angebotsliste mit diesem Filter ([[angebote]]).",
+            "<b>Wiedervorlage</b>: verschickte Angebote, deren Gültigkeit ([[vorgaben]], <i>Gültigkeit</i>) in den "
+            "nächsten 7 Tagen endet oder schon vorbei ist (rot); Doppelklick öffnet das Angebot. Ein guter Zeitpunkt "
+            "zum Nachfassen beim Kunden.",
+            "<b>Letzte 90 Tage</b> (nur mit Admin-Lizenz): Zahl und Summe der Angebote, Durchschnittswert, beauftragte "
+            "Angebote mit Auftragswert und die Trefferquote (beauftragt geteilt durch beauftragt + abgelehnt).")
+    i.abschnitt("Suchen und ausführen (Strg+K)", marke="befehlspalette")
+    i.text("<b>Strg+K</b> oder <i>Ansicht → Suchen und ausführen …</i> öffnet von überall ein Suchfeld für "
+           "Angebote (Nummer, Kunde), Kunden, Profile, Werkstoffe, Einstellungen, Reiter und alle Menübefehle mit "
+           "ihrem Tastenkürzel. Tippen filtert (alle Wörter müssen vorkommen, z. B. „40x3 re“), <b>↑/↓</b> wählt, "
+           "<b>Enter</b> öffnet das Angebot, zeigt Kunde oder Profil, springt zur Einstellung (Einstellungen mit "
+           "gefilterter Suche) oder führt den Befehl aus; <b>Esc</b> schließt.", kurz=True)
     i.genauer("Erster Start")
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
@@ -1012,7 +1026,9 @@ def kapitel_angebot(i):
             "Angebotsaufschlag), + Zukaufteile, = <b>Selbstkosten</b>, + Gewinn (auf die Selbstkosten), + Fracht "
             "(ohne Gewinn), + Skonto, = <b>Verkaufspreis</b> ([[gewinn_basis]]). Ein Klick auf "
             "eine Gruppe mit ▸ klappt ihre Kostenarten auf. <b>Kostenarten einzeln</b> zeigt alle Kostenarten mit "
-            "ihrer Mengenangabe.")
+            "ihrer Mengenangabe, der <b>Kostenwasserfall</b> dieselben Gruppen als Balken: jeder beginnt dort, wo der "
+            "vorige endet, die Summen (Herstellkosten, Selbstkosten, Verkaufspreis) reichen von 0 bis zum Betrag. So ist auf einen Blick zu "
+            "sehen, welcher Posten den Preis treibt.")
     i.abschnitt("Positionen", marke="positionen")
     i.text("Eine Zeile je Teil. Pflicht sind <b>Profil-ID</b>, <b>Werkstoff-ID</b>, <b>Teilelänge</b> und "
            "<b>Stückzahl</b>; gelbe Felder sind Eingaben, graue rechnet das Programm. Optionale Spalten erscheinen, "
@@ -2294,7 +2310,8 @@ def kapitel_staffeln(i):
                (3, "<b>Selbstkosten</b>"),
                (4, "<b>Verkaufspreis netto je Einheit</b>, darunter Gewinn und Gewinnmarge (vom Nettopreis)."),
                (5, "<b>Gesamtpreis netto</b>, <b>Umsatzsteuer</b> und <b>Gesamtpreis brutto</b>."),
-               (6, "Vergleich: Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position."),
+               (6, "<b>Staffelkurve</b>: Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position ein "
+                   "eigenes Feld mit Preis an jedem Punkt; die Achse beginnt bei 0."),
                (7, "Stand: aktuell, VERALTET (wird im Hintergrund neu gerechnet) oder Stufen mit FEHLER.")])
     i.text("Von den Kosten der Stufe über Materialzuschlag, Gewinn und Nebenkosten bis zum Stückpreis brutto; "
            "<b>Details</b> zeigt jeden Schritt.", kurz=True)
