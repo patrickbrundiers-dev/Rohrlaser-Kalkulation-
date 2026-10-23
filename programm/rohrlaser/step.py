@@ -149,14 +149,40 @@ def kandidaten_3d(m):
         if not isinstance(d, dict):
             continue
         if d.get("art") in ("Ende A", "Ende B") and d.get("form") in ("Gehrung", "Schrägschnitt zweiachsig") \
-                and d.get("gehrung"):
+                and d.get("gehrung") and nicht_senkrecht(d):
             gehr += 1
         elif d.get("art") == "Bohrung" and d.get("durchgehend") and float(d.get("schraeg") or 0) >= SCHRAEG_3D:
             bohr += 1
     return gehr, bohr
 
 
-SCHRAEG_3D = 0.5        # Grad, wie step_geometrie.SCHRAEG_3D
+SCHRAEG_3D = 0.5        # Grad, wie step_geometrie.SCHRAEG_3D und SCHWENK_3D
+
+
+def nicht_senkrecht(d):
+    """Schnittfläche eines Endes bzw. einer Kontur steht nicht senkrecht zur Rohroberfläche (STEP-JSON 1.10
+    'schwenk' ab 0,5°) und ist damit eine 3D-Bearbeitung (Patrick 23.10.2026). Ältere Messungen ohne 'schwenk':
+    True (wie vorher)."""
+    w = d.get("schwenk")
+    return w is None or float(w) >= SCHRAEG_3D
+
+
+def schraege_konturen(m):
+    """Anzahl Innenkonturen (außer Bohrungen) und komplexer Enden, deren Schnittfläche nicht senkrecht zur
+    Rohroberfläche steht (gemessen, 'schwenk' ab 0,5°). Sie werden nur gemeldet („3D prüfen“), nicht in 3D gerechnet."""
+    try:
+        liste = json.loads(m.get("konturen_liste") or "[]")
+    except (TypeError, ValueError):
+        return 0
+    n = 0
+    for d in liste if isinstance(liste, list) else ():
+        if not isinstance(d, dict) or d.get("schwenk") is None or not nicht_senkrecht(d):
+            continue
+        if d.get("art") in ("Ende A", "Ende B"):
+            n += d.get("form") not in ("Gehrung", "Schrägschnitt zweiachsig")
+        elif d.get("durchgehend"):
+            n += 1
+    return n
 
 
 OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
@@ -259,8 +285,10 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     a_senk = abs(schmal - a_) < 1e-6
                     e.update(achse=ACHSE_ZWEI, winkel_h=round(senk if a_senk else waag, 2),
                              winkel_b=round(waag if a_senk else senk, 2))
-                if d3:
+                if d3 and nicht_senkrecht(d):     # 3D nur, wenn die Fläche nicht 90° zur Oberfläche steht
                     e["d3"] = True
+            if d.get("schwenk") is not None:
+                e["schwenk"] = round(float(d["schwenk"]), 2)
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
                 e.update(flaechen=d["flaechen"], huelle=d["huelle"])
             if e["gemessen"] > 0:
@@ -977,7 +1005,12 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 hinweise.append(f"3D prüfen: {bohr_3d} schräge Bohrung{'en' if bohr_3d > 1 else ''}, ohne "
                                 "3D-Schnittbearbeitung als 2D gerechnet")
             elif mit_3d and not (gehr_3d or bohr_3d):
-                hinweise.append("3D-Schnittbearbeitung gewählt, aber keine Gehrung und keine schräge Bohrung")
+                hinweise.append("3D-Schnittbearbeitung gewählt, aber keine Gehrung und keine Bohrung, die nicht "
+                                "senkrecht zur Oberfläche steht")
+            sonst_3d = schraege_konturen(m)
+            if sonst_3d:
+                hinweise.append(f"3D prüfen: {sonst_3d} Kontur{'en' if sonst_3d > 1 else ''} nicht senkrecht zur "
+                                "Oberfläche, als 2D gerechnet")
             if rechner:
                 p["technik"] = json.dumps(rechner, ensure_ascii=False)     # Konturen für Skizze und Rechner
             if _z(m, "ende_a"):

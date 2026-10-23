@@ -223,15 +223,16 @@ class StepPruefDialog(QDialog):
         zeile_3d = QHBoxLayout()
         self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
         self.d3.setChecked(any(m.get("_d3") for m in messwerte))
-        self.d3.setToolTip("Gehrungen an den Enden und schräge Bohrungen aller Teile mit geschwenktem Laserkopf "
-                           "(3D) rechnen. Aus = 2D wie bisher; Teile mit schrägen Bohrungen bekommen dann den "
+        self.d3.setToolTip("3D = Schnittfläche nicht senkrecht (90°) zur Rohroberfläche (gemessen, ab 0,5°). "
+                           "Gehrungen an den Enden und schräge Bohrungen aller Teile, die das sind, mit geschwenktem "
+                           "Laserkopf (3D) rechnen; Gehrungen, die überall senkrecht zur Wand stehen, bleiben 2D. Aus = 2D wie bisher; Teile mit schrägen Bohrungen bekommen dann den "
                            "Hinweis „3D prüfen“. Korrektur je Teil im Rohr-Editor (Schneidweg berechnen …).")
         gehr = bohr = 0
         for m in messwerte:
             g_, b_ = step.kandidaten_3d(m)
             gehr, bohr = gehr + g_, bohr + b_
-        self.d3_info = QLabel(f"gefunden: {gehr} Gehrung{'en' if gehr != 1 else ''} an Enden, {bohr} schräge "
-                              f"Bohrung{'en' if bohr != 1 else ''}" + (" – 3D prüfen" if bohr else ""))
+        self.d3_info = QLabel(f"nicht senkrecht zur Oberfläche: {gehr} Gehrung{'en' if gehr != 1 else ''} an "
+                              f"Enden, {bohr} schräge Bohrung{'en' if bohr != 1 else ''}" + (" – 3D prüfen" if bohr else ""))
         self.d3_info.setStyleSheet("color: #7A5A00;" if bohr else "color: #595959;")
         zeile_3d.addWidget(self.d3)
         zeile_3d.addWidget(self.d3_info, 1)

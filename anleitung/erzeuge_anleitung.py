@@ -1077,7 +1077,12 @@ def kapitel_step(i):
             "markieren (Strg/Umschalt) und <b>Für markierte</b>. <b>Alle wählen</b> / <b>Keine wählen</b> setzen "
             "die Häkchen aller Dateien.",
             "<b>3D-Schnittbearbeitung aktivieren</b> (seit 0.8.19, unter <i>Werte setzen</i>, gilt für alle Teile): "
-            "Gehrungen an den Enden und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
+            "3D heißt: die Schnittfläche steht nicht senkrecht (90°) zur Rohroberfläche. Der Import misst dafür an "
+            "jedem Ende und jeder Kontur den Winkel zwischen Schnittfläche und Oberfläche (ab 0,5° = 3D). Eine "
+            "Gehrung, die im CAD als ebene Fläche gezeichnet ist, steht an den schräg geschnittenen Wänden nicht "
+            "senkrecht und ist damit 3D; ist sie so gezeichnet, wie ein 2D-Laser schneidet (überall senkrecht zur "
+            "Wand), bleibt sie 2D. Schräge Langlöcher und Ausschnitte bekommen nur „3D prüfen“. Mit Häkchen werden "
+            "Gehrungen an den Enden, die nicht senkrecht zur Oberfläche stehen, und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
             "übernommen, die Bohrungen mit gemessener Neigung längs und quer. Daneben steht, wie viele Gehrungen und "
             "schrägen Bohrungen gefunden wurden. Ohne Häkchen bleibt alles 2D; Teile mit schrägen Bohrungen bekommen "
             "im Bericht „3D prüfen“. Fasen werden nie in 3D gerechnet. Über der Grenze der Maschine wird begrenzt "
@@ -1524,7 +1529,9 @@ def kapitel_optimieren(i):
             "Rundrohr steht dort der Winkel am Umfang (0° oben, 90° vorne, 180° unten, 270° hinten, auch frei, z. B. "
             "45°). <i>Versatz quer</i> verschiebt die Kontur von der Flächenmitte zur nächsten Fläche hin (mm). "
             "Langlöcher und Rechtecke liegen mit ihrer Länge bzw. Breite längs zum Teil.",
-            "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): Das Häkchen <i>3D-Schnittbearbeitung "
+            "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): 3D ist ein Schnitt nur, wenn die "
+            "Schnittfläche nicht senkrecht (90°) zur Rohroberfläche steht und der Laserkopf dafür geschwenkt wird. "
+            "Bleibt der Strahl senkrecht zur Oberfläche, ist es 2D, auch bei einer Gehrung. Das Häkchen <i>3D-Schnittbearbeitung "
             "aktivieren</i> über den Enden schaltet sie für das Teil ein; daneben steht, ob die Maschine 3D kann, "
             "ihr Schwenkwinkel und das Greifmaß (rot, wenn die Maschine kein 3D kann, die Position bekommt dann einen "
             "FEHLER). Danach je Ende <i>Gehrung in 3D</i> (nur mit Gehrung: der Kopf wird auf den Gehrungswinkel "
@@ -3988,6 +3995,10 @@ def kapitel_fragen(i):
 
 # Jede neue Programmversion bekommt hier eine Zeile (tests/test_anleitung.py prüft das), neueste zuerst.
 NEUERUNGEN = [
+    ["0.8.33", "<b>3D nur, wenn die Schnittfläche nicht senkrecht zur Rohroberfläche steht</b>: der STEP-Import misst "
+               "je Ende und Kontur den Winkel zwischen Schnittfläche und Oberfläche. Gehrungen, die überall senkrecht "
+               "zur Wand stehen (wie ein 2D-Laser schneidet), bleiben auch mit 3D-Häkchen 2D; schräge Langlöcher und "
+               "Ausschnitte bekommen „3D prüfen“. Texte im Rohr-Editor und Prüfdialog klargestellt."],
     ["0.8.32", "<b>Schneidweg-Rechner</b>: neue Konturart <i>Flowdrill</i> (Kernloch-Ø, nur markiert) und Spalte "
                "<i>Gewinde</i> je Bohrung (automatisch, kein Gewinde oder Auswahl). Von Hand eingegebene Gewinde, "
                "Senkungen, Flowdrill und Bohren kommen sofort bestätigt mit Preis je Stück in die Position, so "
