@@ -46,7 +46,7 @@ SPERRLISTE = "sperrliste.json"
 ZEIT = "zeit.json"
 ALT = "alt"
 EINSTELLUNG_ZULETZT = "lizenz_zuletzt"
-EMAIL = ""                 # Empfänger der E-Mail „Lizenz anfragen“ im Lizenzdialog (leer: im Mailprogramm eintragen)
+EMAIL = "patrick.brundiers@gmail.com"    # Empfänger der E-Mail „Lizenz anfragen“ im Lizenzdialog
 
 
 class LizenzFehler(ValueError):

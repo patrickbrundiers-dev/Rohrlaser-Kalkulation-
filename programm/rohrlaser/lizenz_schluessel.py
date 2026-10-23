@@ -5,4 +5,5 @@ Nur öffentliche Schlüssel, nie private. Den Eintrag K1 gibt das Lizenz-Werkzeu
 stehen, damit ältere Lizenzen gültig bleiben.
 """
 SCHLUESSEL = {
+    "K1": "6ii5n+reQTdXAgvBFtVkr6E6ssWNmBqMmXLkHjEssB0=",     # Patrick, 23.10.2026
 }
