@@ -202,7 +202,7 @@ class BaugruppeDialog(QDialog):
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
 
-    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None):
+    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False):
         super().__init__(parent)
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
         self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
@@ -212,7 +212,9 @@ class BaugruppeDialog(QDialog):
         self.stand_verwerfen = False
         self.ergebnis, self.erg, self.status = None, None, None
         self._teile_aufbauen(vorwahl)
-        self.setWindowTitle(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, self.bg)}".strip())
+        self.nur_lesen = nur_lesen  # T6: Angebot eines Kollegen bzw. Lesemodus – ansehen, nicht speichern
+        self.setWindowTitle(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, self.bg)}".strip()
+                            + (" (nur ansehen)" if nur_lesen else ""))
         self.resize(1400, 720)
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
@@ -247,6 +249,7 @@ class BaugruppeDialog(QDialog):
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
+        knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
         unten = QHBoxLayout()
         if db is not None:
             einsetzen = QPushButton("Vorlage einsetzen …")
@@ -931,6 +934,8 @@ class BaugruppeDialog(QDialog):
         return None
 
     def _ok(self):
+        if self.nur_lesen:
+            return
         f = self.pruefen()
         if f:
             self.fehler.setText(f)
