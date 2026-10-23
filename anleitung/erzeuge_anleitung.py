@@ -2591,7 +2591,8 @@ def kapitel_zukauf_angebot(i):
     i.text("So rechnet der Blech-Editor:")
     i.liste("<b>Abwicklung</b> beim Kantteil: Summe der Schenkel-Außenmaße minus Ausgleichswert je Biegung "
             "v = 2·(r + s)·tan(φ/2) − π·φ/180·(r + k·s) (bis 90°; darüber 2·(r + s) − π·φ/180·(r + k·s)) mit "
-            "Innenradius r, Dicke s, Biegewinkel φ und K-Faktor k des Blech-Werkstoffs (Vorgabe 0,33). Beispiel "
+            "Innenradius r, Dicke s, Biegewinkel φ und K-Faktor k je Biegung aus der Tabelle K-Faktoren "
+            "([[blech_stammdaten]]; ohne passende Zeile der des Blech-Werkstoffs, Vorgabe 0,33). Beispiel "
             "Winkel 50 × 80 aus 2 mm, r = 2: v = 3,8 mm, Zuschnitt 126,2 mm.",
             "<b>Material</b> = Hüllrechteck des Zuschnitts × (1 + Verschnitt Tafel) × Dicke × Dichte × Preis je kg.",
             "<b>Laser</b> = (Außenkontur ÷ Vorschub Außenkontur + Innenkonturen ÷ Vorschub Innenkonturen + "
@@ -3109,6 +3110,9 @@ def kapitel_einstellungen(i):
          "Layer der DXF-Datei aus dem Blech-Editor in dieser Reihenfolge, mit ; getrennt (leer = Vorgabe "
          "AUSSENKONTUR, INNENKONTUR, BIEGUNG_HOCH, BIEGUNG_RUNTER, GRAVUR, BESCHRIFTUNG); Biegelinien ausgeben "
          "Vorgabe ja ([[blech_dxf]])."],
+        ["Blech-Richtpreis", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle oder je Werkstoff)",
+         "<i>K-Faktor-Tabelle</i> (Vorgabe): je Biegung aus der Tabelle K-Faktoren nach Dicke und Innenradius; "
+         "<i>je Werkstoff</i>: der K-Faktor des Blech-Werkstoffs für alle Biegungen ([[blech_stammdaten]])."],
         ["Angebots-PDF", "Firmenlogo (rechts oben im Angebot)",
          "<b>Bild wählen …</b> nimmt eine PNG- oder JPG-Datei (große Bilder werden verkleinert); das Logo steht im "
          "Angebots-PDF rechts oben im Briefkopf, eingepasst in 55 × 24 mm, klein (32 × 13 mm) auch auf "
@@ -3591,7 +3595,8 @@ def kapitel_stammdaten(i):
               "([[preise_festschreiben]]). Rückgängig machen geht nur über eine Datensicherung ([[datensicherung]]), "
               "deshalb vor dem Zurücksetzen eigene Werte bei Bedarf sichern.")
     i.abschnitt("Blech-Werkstoffe und Blechlaser (Richtwerte)", marke="blech_stammdaten")
-    i.text("Die Unterreiter <i>Blech-Werkstoffe</i> und <i>Blechlaser (Richtwerte)</i> gehören nur zum "
+    i.text("Die Unterreiter <i>Blech-Werkstoffe</i>, <i>Blechlaser (Richtwerte)</i> und <i>K-Faktoren "
+           "(Abwicklung)</i> gehören nur zum "
            "Blech-Editor ([[blech_editor]]). Sie sind von den Werkstoffen, Maschinen und Schneiddaten des "
            "Rohrlasers getrennt: was hier steht, ändert keine Rohrkalkulation.")
     i.tabelle(["Blech-Werkstoffe", "Bedeutung"], [
@@ -3617,6 +3622,20 @@ def kapitel_stammdaten(i):
            "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
     i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
            hoehe=100 * mm)
+    i.tabelle(["K-Faktoren (Abwicklung)", "Bedeutung"], [
+        ["<b>Kategorie</b>, <b>Blechdicke bis [mm]</b>, <b>Innenradius ÷ Dicke bis</b>",
+         "je Biegung gilt die Zeile der Kategorie mit der kleinsten Blechdicke bis ≥ Dicke, darin die kleinste "
+         "Grenze Innenradius ÷ Dicke ≥ der Biegung (größer als alle: die größte Zeile)"],
+        ["<b>K-Faktor</b>", "Lage der neutralen Faser als Anteil der Blechdicke von innen (0,1 bis 0,5)"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.text("Vorbelegt sind Beispielwerte nach DIN 6935 für alle Kategorien: Innenradius ÷ Dicke bis 0,5 → 0,25; "
+           "bis 1 → 0,33; bis 2 → 0,40; bis 3 → 0,44; darüber 0,50. Innenradius = Blechdicke ergibt 0,33 wie "
+           "bisher. Passt keine Zeile, gilt der K-Faktor des Blech-Werkstoffs; mit der Einstellung <i>Abwicklung: "
+           "K-Faktor aus</i> = <i>je Werkstoff</i> gilt nur dieser ([[einstellungen]]). Bitte an die eigene "
+           "Abkantpresse bzw. den Lieferanten anpassen. Ältere Datendateien bekommen die Tabelle beim ersten Start "
+           "von Version 0.9.14 (Schema 47).")
+    i.bild("stamm_blech_kfaktoren", "Einstellungen, K-Faktoren (Abwicklung) je Kategorie, Blechdicke und "
+           "Innenradius ÷ Dicke", hoehe=90 * mm)
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "

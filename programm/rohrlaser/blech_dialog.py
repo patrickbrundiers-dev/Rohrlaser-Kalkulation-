@@ -216,7 +216,7 @@ class BlechDialog(QDialog):
         self.werkstoffe = {z["blech_werkstoff_id"]: z for z in db.zeilen("blech_werkstoffe")
                            if z.get("blech_werkstoff_id")}
         self.laserdaten = db.zeilen("blechlaser")
-        self.einst = {n: db.einstellung(n) for n in blech.EINSTELLUNGEN}
+        self.einst = db.blech_einstellungen()
         self.ergebnis = {}
         self._bez_von_hand = bool((kopf or {}).get("bezeichnung"))
         e = dict(art=blech.ZUSCHNITT, form=blech.RECHTECK, dicke=3, laenge=200, breite=100, stueck=1, konturen=[],
@@ -552,7 +552,9 @@ class BlechDialog(QDialog):
             f"{zahl_als_text(zs['laenge'], 1)} × {zahl_als_text(zs['breite'], 1)} mm{kanten}, "
             f"{zahl_als_text(erg['gewicht'], 2)} kg je Teil, Tafel mit Verschnitt "
             f"{zahl_als_text(erg['gewicht_tafel'], 2)} kg<br>Schneidweg {zahl_als_text(erg['schneidweg'], 0)} mm, "
-            f"{erg['einstiche']} Einstiche, Laserzeit {zahl_als_text(erg['zeit'], 1)} s ({erg['gas']}) · "
+            f"{erg['einstiche']} Einstiche, Laserzeit {zahl_als_text(erg['zeit'], 1)} s ({erg['gas']})"
+            + (f", K-Faktor {' / '.join(zahl_als_text(x, 2) for x in erg['k_faktoren'])}" if erg["k_faktoren"] else "")
+            + " · "
             + " · ".join(f"{n} {_euro(w)}" for n, w in k.items())
             + f" · Summe {_euro(erg['summe'])} + Aufschlag {zahl_als_text(sw._z(self.einst.get('blech_aufschlag')) * 100, 0)} %"
             + warn)
