@@ -2242,8 +2242,8 @@ def kapitel_staffeln(i):
             "Fremdleistung.",
             "<b>Herstellkosten</b> = Material + Fertigung + Rüsten + Gemeinkosten + Fremdleistung + Verpackung / "
             "Nebenkosten.",
-            "<b>Selbstkosten</b> = Herstellkosten + Pauschalen, Programmierkosten, Angebotsaufschlag (ohne "
-            "Zuschläge) + Zukaufteile.",
+            "<b>Selbstkosten</b> = Herstellkosten + Programmierung, Pauschalen, Aufschlag (ohne Zuschläge) + "
+            "Zukaufteile (eigener Aufschlag statt Zuschläge).",
             "<b>Gewinn</b> = Selbstkosten × Gewinn % ([[gewinn_basis]]); dazu die Fracht ohne Gewinn, Skonto "
             "eingerechnet = <b>Gesamtpreis netto</b>; dazu Umsatzsteuer = <b>Gesamtpreis brutto</b>.",
             nummeriert=True)

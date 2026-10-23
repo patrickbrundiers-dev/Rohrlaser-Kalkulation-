@@ -197,7 +197,8 @@ zeilen, summen = rechnen.kalkulation(kopf, pos, erg, k, tab, einst)
 zf, zfl, gew = (einst.get(n) or 0 for n in ("zuschlag_fertigung", "zuschlag_fremdleistung", "gewinn"))
 herstell = 114 * (1 + zf) + 15 * (1 + zfl)
 sk = (kopf.get("skonto") or 0) / 100
-preis = (herstell * (1 + gew) + 8 * 0.10) / (1 - sk)       # + 8 Schrauben je Baugruppe à 0,10 € (ohne Aufschlag)
+# + 8 Schrauben je Baugruppe à 0,10 € (ohne Aufschlag), mit in den Selbstkosten; Gewinn darauf (Plan Preisaufbau)
+preis = (herstell + 8 * 0.10) * (1 + gew) / (1 - sk)
 zb = zeilen[0]
 nah(zb["herstell_teil"], herstell, "Herstellkosten je Baugruppe")
 nah(zb["preis_teil"] - zb["fracht_teil"] / (1 - sk), preis, "Preis der Baugruppen-Position je Baugruppe")
