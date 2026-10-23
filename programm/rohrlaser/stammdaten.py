@@ -518,12 +518,19 @@ SCHWEISSVERFAHREN = Tabelle(
      Feld("heft_s", "Zeit je Heftpunkt [s]", "zahl", 0, 600, stellen=1, breite=80),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
      Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Bemerkung", breite=260),
+     # Verbrauch (P5, Schema 50): leer = Schweißzusatz und Gas stecken im Stundensatz
+     Feld("dichte", "Dichte Schweißzusatz [kg/dm³]", "zahl", 0.5, 25, stellen=2, breite=90),
+     Feld("draht_eur_kg", "Preis Schweißzusatz [€/kg]", "zahl", 0, 1000, stellen=2, breite=90),
+     Feld("gas_l_min", "Schutzgas [l/min]", "zahl", 0, 100, stellen=1, breite=80),
+     Feld("gas_eur_l", "Preis Schutzgas [€/l]", "zahl", 0, 100, stellen=4, breite=80)),
     ("verfahren",),
     "Schweißverfahren der Baugruppen-Kalkulation (MAG, MIG, WIG, E-Hand, Heften, Roboter … frei erweiterbar). "
     "Lichtbogenzeitfaktor = Anteil der Lichtbogenzeit an der Schweißarbeitszeit: Arbeitszeit = Lichtbogenzeit ÷ "
     "Faktor (Nebenzeiten wie Brenner ansetzen, Schlacke entfernen, Drahtwechsel). Heftpunkte rechnen mit der Zeit "
-    "je Heftpunkt. Kosten = Zeit × Stundensatz. Status 'Richtwert' = noch nicht an der eigenen Fertigung geprüft.")
+    "je Heftpunkt. Kosten = Zeit × Stundensatz. Status 'Richtwert' = noch nicht an der eigenen Fertigung geprüft. "
+    "Schweißzusatz und Schutzgas (optional): Draht = Nahtquerschnitt × Nahtlänge × Dichte, Gas = Lichtbogenzeit × "
+    "l/min, jeweils × Preis; leer = steckt im Stundensatz. Fehlt nur ein Teil der Werte, zählt er 0 € mit Hinweis.")
 
 SCHWEISS_KENNWERTE = Tabelle(
     "schweiss_kennwerte", "Schweiß-Kennwerte",
@@ -730,6 +737,9 @@ EINSTELLUNGEN = (
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
     Einstellung("flach_als", "STEP-Import: ebene flache Teile vorgeben als", "STEP-Import", "auswahl", FLACH_ALS[0],
                 auswahl="flachals"),
+    # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
+    Einstellung("schweiss_a_regel", "Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)",
+                "Schweißbaugruppen", "zahl", 0.7, 0.1, 2),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "STEP-Import", "zahl", 150.0, 1, 10000),
     # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner

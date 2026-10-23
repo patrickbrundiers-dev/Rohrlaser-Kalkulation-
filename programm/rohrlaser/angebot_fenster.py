@@ -557,6 +557,7 @@ class PositionenModell(QAbstractTableModel):
                         + [("abweichung", None)])
         self.daten, self.werte, self.status = [], [], []
         self.mit_netz, self.bilder = set(), {}
+        self.kopf_text = {}         # Zeilenkopf gruppierter Baugruppen (D3): ▾/▸ an der Baugruppe, └ an den Teilen
 
     def vorschau(self, r):
         """Kleines Bild der Position: 3D aus dem STEP-Import, sonst selbst angelegt die Draufsicht des Rohrs
@@ -622,7 +623,7 @@ class PositionenModell(QAbstractTableModel):
         if rolle != Qt.DisplayRole:
             return None
         if richtung == Qt.Vertical:
-            return str(abschnitt + 1)
+            return self.kopf_text.get(abschnitt) or str(abschnitt + 1)
         art, x = self.spalten[abschnitt]
         return x.titel if art in ("feld",) + EIGENE else {"status": "Status",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
@@ -1365,6 +1366,10 @@ class AngebotSeite(QWidget):
             lambda punkt: self.fremd() or self._menue_zeile(punkt) or
             self.pos_menue.exec(self.pos_ansicht.viewport().mapToGlobal(punkt)))
         self.pos_ansicht.doubleClicked.connect(self._doppelklick)
+        self.bg_zu, self.bg_zeilen = set(), {}
+        self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
+        self.pos_ansicht.verticalHeader().setToolTip("Klick auf ▾/▸ einer Schweißbaugruppe: Einzelteile zu- bzw. "
+                                                     "aufklappen")
 
         self.kalk = Liste(KALK_SPALTEN, max_stellen=2)
         self.stangen = Liste(STANGEN_SPALTEN)
@@ -1623,6 +1628,7 @@ class AngebotSeite(QWidget):
         self.blech_daten = self.db.blech_daten()        # Richtpreis der Blechteile je Staffelstufe
         self._kopf_anzeigen()
         self.pos_modell.rechnen()
+        self._gruppieren()
         leer = not self.positionen
         self.ablage_gross.setVisible(leer)
         self.pos_ansicht.setVisible(not leer)
@@ -1630,6 +1636,31 @@ class AngebotSeite(QWidget):
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
         self.verlauf.merken()
+
+    def _gruppieren(self):
+        """Positionsliste gruppiert (D3): Einzelteile direkt unter ihrer Schweißbaugruppe (nur die Anzeige; die
+        Zeilennummern im Modell bleiben), Klick auf den Zeilenkopf der Baugruppe klappt die Teile zu bzw. auf."""
+        folge, zu = baugruppe.gruppen_reihenfolge(self.positionen)
+        kopf = self.pos_ansicht.verticalHeader()
+        for v, logisch in enumerate(folge):
+            if kopf.visualIndex(logisch) != v:
+                kopf.moveSection(kopf.visualIndex(logisch), v)
+        self.bg_zeilen = {i: bg_id for bg_id, (i, _) in baugruppe.baugruppen(self.positionen).items()} if zu else {}
+        self.bg_zu &= set(self.bg_zeilen.values())
+        texte = {i: ("▸ " if b in self.bg_zu else "▾ ") + str(i + 1) for i, b in self.bg_zeilen.items()}
+        texte.update({j: "└ " + str(j + 1) for j in zu})
+        self.pos_modell.kopf_text = texte
+        for r in range(len(self.positionen)):
+            self.pos_ansicht.setRowHidden(r, zu.get(r) in self.bg_zu)
+        if self.positionen:
+            self.pos_modell.headerDataChanged.emit(Qt.Vertical, 0, len(self.positionen) - 1)
+
+    def _kopf_klick(self, zeile):
+        """Zeilenkopf einer Schweißbaugruppe: ihre Einzelteile zu- bzw. aufklappen (D3)."""
+        bg_id = getattr(self, "bg_zeilen", {}).get(zeile)
+        if bg_id:
+            self.bg_zu ^= {bg_id}
+            self._gruppieren()
 
     def _baugruppen_abgleichen(self):
         """Satz, Stück je Satz und Stückzahl der Schweißbaugruppen und ihrer Teile folgen der Struktur
