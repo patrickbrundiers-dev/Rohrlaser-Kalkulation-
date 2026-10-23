@@ -98,7 +98,6 @@ class SchneidwegDialog(QDialog):
         self.db, self.positionen = db, [x for x in (positionen or ()) if x.get("id") != p.get("id")]
         self.step_lesen = step_lesen    # Funktion: STEP-Datei wählen und messen -> [Messwerte] oder None
         m = rechnen.maschine(kopf, k)
-        vorgabe = rechnen.kontur_grenzen(m)[1]
         self.grenzen = rechnen.kontur_regel(m, rechnen.wand_schneiden(profil))
         self.gewinde = gewinde_liste(tabellen)
         self.ergebnis = None

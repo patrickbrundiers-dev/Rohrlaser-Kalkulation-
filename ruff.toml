@@ -1,0 +1,12 @@
+# Prüfwerkzeug nur für die Entwicklung (Plan „Intelligenteres Programm“ C4): läuft im Workflow, nicht im Programm
+# und nicht in der .exe. Version fest in requirements-dev.txt. Vorerst nur echte Fehlerquellen (Syntax, undefinierte
+# Namen, ungenutzte Importe/Variablen, doppelte Definitionen); Stilregeln bewusst noch nicht.
+line-length = 120
+target-version = "py312"         # wie der Windows-Build (paket.yml)
+
+[lint]
+select = ["E9", "F"]
+
+[lint.per-file-ignores]
+# STEP-Messung: wird gerade im Thread „Rohr- und Blech-Editor, STEP robuster“ umgebaut, dort aufräumen
+"programm/step_messung/*.py" = ["F401"]

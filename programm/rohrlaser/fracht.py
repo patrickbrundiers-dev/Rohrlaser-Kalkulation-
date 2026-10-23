@@ -594,7 +594,7 @@ def dieselpreis(daten, datum):
 def zuschlaege(snap, s, kg, lw, grund, leistung_basis=None):
     """Zuschläge berechnen. grund = Grundfracht nach Rabatt und Mindestfracht (EUR).
     Ergebnis: (zeilen [(Text, Betrag, Erklärung, Zuschlag-ID, Stufe)], nicht_angewendet [Text], warnungen)"""
-    tarif, zone = snap["tarif"], snap["zone"]
+    zone = snap["zone"]
     leist = s.get("leistungen") or {}
     kand, nicht, warnungen = [], [], []
     for z in snap.get("zuschlaege", []):

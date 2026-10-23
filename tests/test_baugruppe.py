@@ -687,6 +687,11 @@ assert not d.vorlage_einsetzen(12345) and "beschädigt" in d.fehler.text()
 d.reject()
 assert BaugruppeDialog(None, leer, seite.positionen, seite.tabellen, saetze).db is None      # ohne db: keine Vorlagen
 
+seite.pos_ansicht.clearSelection()
+seite.pos_ansicht.selectRow(zeile + 1)
+mi = seite.pos_modell.index(zeile, 0)
+seite._menue_zeile(seite.pos_ansicht.visualRect(mi).center())                # Rechtsklick auf andere Zeile
+assert {x.row() for x in seite.pos_ansicht.selectedIndexes()} == {zeile}
 vorher = db.positionen(a)
 n = seite.baugruppe_kopieren([zeile], ziel=a)
 nachher = db.positionen(a)

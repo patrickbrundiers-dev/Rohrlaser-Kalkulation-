@@ -15,7 +15,7 @@ from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
                       aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
-from .sichtbarkeit import KOPF_ROLLEN, MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
+from .sichtbarkeit import MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
 
 KOPF_FELD = {f.name: f for f in KOPF}

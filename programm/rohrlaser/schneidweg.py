@@ -107,7 +107,7 @@ def ellipse(a, b):
 def zerlegung(profil):
     """Gerade Schnittlänge eines Profils (außer Rundrohr) als (Anteil Höhe H, Anteil Breite W) [mm], passend zu
     optimierung.schnittlaenge; None für unbekannte Formen. Höhe = Maß a, Breite = Maß b."""
-    form, a, b, wand = profil.get("form"), _z(profil.get("a")), _z(profil.get("b")), _z(profil.get("wand"))
+    form, a, b = profil.get("form"), _z(profil.get("a")), _z(profil.get("b"))
     gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
                                profil.get("profil_id"))
     if gerade <= 0:

@@ -25,7 +25,6 @@ Die Bibliothek (rp_profile.json neben dieser Datei) enthält die ausgewerteten M
 22.10.2026: "archiv zur berechnung nutzen"); Profil-ID = "RP " + Dateiname, z. B. 'RP 0106-35' (Frage F12 a: Nummer und
 Kammerbreite). Zubehör ohne Rohrlaser (400180 … 400330, Schrauben, Zeichnungen) ist nicht dabei (Frage F13 b).
 """
-import bisect
 import json
 import math
 import os
