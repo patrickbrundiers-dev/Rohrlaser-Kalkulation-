@@ -3,7 +3,7 @@
 - C2 alle Positionen des Angebots (Beispiel 2613000461 mit Vordach_Rohr-1 und Vordach_Rohr-2), Angebotsnummer je Zeile
 - C3 Werte aus der Kalkulation: Stückpreis/Preis wie im Angebots-PDF, HK, Marge, Einkauf, Gewicht, Zeiten HH:MM:SS
 - C4 Umlaute, €, °, Semikolon, Anführungszeichen und Zeilenumbruch bleiben erhalten bzw. werden maskiert
-- C5 leere Werte verschieben keine Spalten; Dezimalkomma ohne Tausenderpunkt; UTF-8 mit BOM, CRLF
+- C5 leere Werte verschieben keine Spalten; Dezimalpunkt ohne Tausendertrennzeichen; UTF-8 mit BOM, CRLF
 - C6 ZIP mit beiden Dateien, Export ändert die Datenbank nicht, wieder einlesbar
 - C7 Formatfunktionen (Zeit, Datum, Zahlen als Text) und großes Angebot (Laufzeit)
 
@@ -51,7 +51,7 @@ def lesen(daten):
 
 
 def euro(t):
-    return float(t.replace(",", ".")) if t else None
+    return float(t) if t else None
 
 
 def db_stand(pfad):
@@ -111,11 +111,11 @@ ang = s.angebot_daten()
 assert K["Kunden Nr."] == "10916" and K["Kunde:"] == "AP Glas GmbH" and K["Nachname"] == "Jürgen Weiß"
 assert K["Versandzone:"] == "Ab Werk" and K["Kundenanfrage:"] == "Bestellung Rohrlaserteile"
 assert K["Datum Kunde:"] == "23.10.2026" and len(K["Erstellungsdatum"]) == 10 and K["Erstellungsdatum"][2] == "."
-assert K["Versandkosten"] == "50,00" and K["Feste Versandkosten"] == "True" and K["Versand inkl."] == "False"
+assert K["Versandkosten"] == "50.00" and K["Feste Versandkosten"] == "True" and K["Versand inkl."] == "False"
 assert K["Lieferzeit"].startswith("ca. 2 Wochen nach Auftragseingang") and "Lieferzeit" not in K["Lieferzeit"], K
 assert euro(K["Preis"]) == ang["netto"], (K["Preis"], ang["netto"])
 assert K["Restblech min.€"] == "" or euro(K["Restblech min.€"]) > 0
-assert K["Aufrunden"] == "+0,01" and K["Kundenkurzbez."] == K["Anrede"] == K["Rabatt(Euros)"] == ""
+assert K["Aufrunden"] == "+0.01" and K["Kundenkurzbez."] == K["Anrede"] == K["Rabatt(Euros)"] == ""
 for p, z, az in zip(P, [x for x in zeilen if x], [x for x in ang["zeilen"] if x["art"] == "teil"]):
     assert euro(p["Stückpr."]) == az["preis"] and euro(p["Preis"]) == az["gesamt"], (p, az)   # wie Angebots-PDF
     assert abs(euro(p["Gesamt HK(€)"]) - z["herstell_position"]) < 0.005
@@ -133,7 +133,7 @@ for p, z, az in zip(P, [x for x in zeilen if x], [x for x in ang["zeilen"] if x[
     assert abs(euro(p["Gesamt Einkauf(Kg)"]) - euro(p["Einsatzgewicht"]) * int(p["Menge"])) < 0.01
     assert p["Liste der Arbeitsgänge"].startswith("Profile [Rechteckrohr 120x60x3]")
 p1, p2 = P
-assert p1["L."] == "2958" and p1["Umfang"] == "904" and p1["Fläche"] == "1,065", p1      # 360 mm × 2,958 m
+assert p1["L."] == "2958" and p1["Umfang"] == "904" and p1["Fläche"] == "1.065", p1      # 360 mm × 2,958 m
 assert "Gewinde [4xM6]" in p2["Liste der Arbeitsgänge"] and "Gewinde 4xM6" in p2["Artikeltext"]
 # Zeiten im Kopf = Summe der Positionen
 sek = [sum(int(x) * f for x, f in zip(t.split(":"), (3600, 60, 1))) for t in (p1["Bearbeitungszeit"], p2["Bearbeitungszeit"])]
@@ -151,9 +151,10 @@ ok("C4 Semikolon, Anführungszeichen, Zeilenumbruch maskiert; Umlaute, ß, € e
 
 # ------------------------------------------------------------------ C5 leere Werte, Zahlenformat
 assert p1["Pos.Nr."] == "" and p1["Anzahl Tafeln"] == "" and p1["B."] == ""
-assert all("." not in p[n] for p in P for n in ("Stückpr.", "Preis", "Gesamt HK(€)", "Gew.", "Einsatzgewicht"))
-assert all("," in p["Preis"] and len(p["Preis"].split(",")[1]) == 2 for p in P)
-ok("C5 leere Felder ohne Verschiebung, Dezimalkomma ohne Tausenderpunkt, Beträge mit 2 Stellen")
+assert all("," not in p[n] for p in P for n in ("Stückpr.", "Preis", "Gesamt HK(€)", "Gew.", "Einsatzgewicht"))
+assert all("." in p["Preis"] and len(p["Preis"].split(".")[1]) == 2 for p in P)
+assert export.zahl(12345.5, 2) == "12345.50"          # kein Tausendertrennzeichen
+ok("C5 leere Felder ohne Verschiebung, Dezimalpunkt ohne Tausendertrennzeichen, Beträge mit 2 Stellen")
 
 # ------------------------------------------------------------------ C6 einzelne Dateien, Datenbank unverändert
 pk = s.csv_kopf()
@@ -168,8 +169,8 @@ ok("C6 ZIP mit beiden Dateien, einzelne CSV gleich, Datenbank unverändert, wied
 assert export.zeit(83) == "00:01:23" and export.zeit(2697) == "00:44:57" and export.zeit(90000) == "25:00:00"
 assert export.zeit(None) == "" and export.zeit("x") == "" and export.zeit(-1) == ""
 assert export.datum("2026-10-23T14:05:00") == "23.10.2026" and export.datum("##########") == "" and export.datum(None) == ""
-assert export.zahl("12,5") == "12,5" and export.zahl("1234.5", 2) == "1234,50" and export.zahl(2958.0) == "2958"
-assert export.zahl(None) == "" and export.zahl("abc") == "" and export.geld(0.005) == "0,01"
+assert export.zahl("12,5") == "12.5" and export.zahl("1234.5", 2) == "1234.50" and export.zahl(2958.0) == "2958"
+assert export.zahl(None) == "" and export.zahl("abc") == "" and export.geld(0.005) == "0.01"
 leer = db.angebot_neu(dict(kunde="Ohne Positionen", maschine="T11"))
 s_leer = fenster.angebot_oeffnen(leer)
 assert s_leer.csv_export() is None

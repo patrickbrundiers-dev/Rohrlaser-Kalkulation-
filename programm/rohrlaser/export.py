@@ -1,7 +1,7 @@
 """CSV-Export eines Angebots im Format von Patrick (23.10.2026): Angebotskopf.csv (eine Zeile je Angebot) und
 Angebotspositionen.csv (eine Zeile je Position), einzeln oder zusammen als ZIP.
 
-Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF, Dezimalkomma ohne Tausenderpunkt, Beträge mit 2 Stellen,
+Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF, Dezimalpunkt ohne Tausendertrennzeichen (wie die Beispieldatei, Patrick 23.10.2026), Beträge mit 2 Stellen,
 Zeiten HH:MM:SS, Datum TT.MM.JJJJ. Texte mit Semikolon, Anführungszeichen oder Zeilenumbruch stehen in
 Anführungszeichen (innere Anführungszeichen verdoppelt). Werte, die es im Programm nicht gibt, bleiben leer.
 Der Export liest nur: alle Werte kommen aus der Kalkulation des Angebots (rechnen.kalkulation), nichts wird
@@ -37,6 +37,7 @@ POSITION_SPALTEN = (
 assert len(KOPF_SPALTEN) == 26 and len(POSITION_SPALTEN) == 40
 KOPF_DATEI, POSITION_DATEI = "Angebotskopf.csv", "Angebotspositionen.csv"
 TRENNER = ";"
+DEZIMAL = "."             # Dezimaltrennzeichen der Zahlen
 
 
 # ------------------------------------------------------------------ Formate
@@ -52,14 +53,16 @@ def _zahl(w):
 
 
 def zahl(w, stellen=None):
-    """Zahl mit Dezimalkomma, ohne Tausenderpunkt; stellen=None: so viele Stellen wie nötig (2958, 1,5)."""
+    """Zahl mit DEZIMAL, ohne Tausendertrennzeichen; stellen=None: so viele Stellen wie nötig (2958, 1.5)."""
     x = _zahl(w)
     if x is None:
         return ""
     if stellen is None:
         x = kaufm_runden(x, 6)
-        return zahl_als_text(int(x) if x.is_integer() else x, None, tausender=False)
-    return zahl_als_text(kaufm_runden(x, stellen), stellen, tausender=False)
+        t = zahl_als_text(int(x) if x.is_integer() else x, None, tausender=False)
+    else:
+        t = zahl_als_text(kaufm_runden(x, stellen), stellen, tausender=False)
+    return t.replace(",", DEZIMAL)
 
 
 def geld(w):

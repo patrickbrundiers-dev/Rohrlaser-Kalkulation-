@@ -2556,7 +2556,7 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>Angebotskopf.csv</i> (eine Zeile) und <i>Angebotspositionen.csv</i> (eine Zeile je Position) in der "
            "Ablage; <b>Nur Angebotskopf</b> bzw. <b>Nur Angebotspositionen</b> speichern eine Datei.", kurz=True)
     i.genauer()
-    i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalkomma ohne Tausenderpunkt, Beträge mit "
+    i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
            "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
            "keine zusätzlichen Spalten. Der Export ändert nichts am Angebot; die Werte stammen aus derselben "
@@ -2575,7 +2575,7 @@ def kapitel_ausgabe(i, seiten, ablage):
         ["Bearbeitungszeit, Gesamtzeit", "Summe der Spalten der Positionen"],
         ["Restblech min.€", "Mindestauftragswert, wenn er für das Angebot gilt ([[mindestpreis]])"],
         ["Preis", "Angebotssumme netto wie im Angebots-PDF"],
-        ["Aufrunden, Angebot erstellt von", "+0,01 (Rundung auf den Cent); Name bzw. Kürzel des Bearbeiters"],
+        ["Aufrunden, Angebot erstellt von", "+0.01 (Rundung auf den Cent); Name bzw. Kürzel des Bearbeiters"],
         ["Kundenkurzbez., Position, Anrede, Rabatt(Euros)", "leer (gibt es im Programm nicht)"]],
         [150, 115])
     i.tabelle(["Angebotspositionen.csv", "Inhalt"], [
