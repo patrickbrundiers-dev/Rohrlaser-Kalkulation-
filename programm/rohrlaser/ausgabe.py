@@ -352,8 +352,9 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                    zukaufteile=[{pos, artikel, bezeichnung, stueck, text}] (Zukaufteil-Positionen, nicht gelasert))."""
     zk = [dict(pos=p.get("pos"), artikel=p.get("artikel"), bezeichnung=p.get("bezeichnung"), stueck=p.get("stueck"),
                text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
+    plan = schweissplan(positionen, tabellen)
     if not ergebnis or not ergebnis.get("stangen"):
-        return dict(material=[], muster=[], zukaufteile=zk)
+        return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan)
     # so, wie die Maschine lädt: zugeschnittene Lieferstangen als ihre Werkstücke (rechnen.anzeige_stangen)
     paare = rechnen.anzeige_stangen(ergebnis, rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen))
     werte = {s["nr"]: w for s, w in paare}
@@ -380,7 +381,43 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile,
                            gespart=rechnen.gehrung_gespart(s)))
-    return dict(material=list(material.values()), muster=muster, zukaufteile=zk)
+    return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan)
+
+
+def schweissplan(positionen, tabellen):
+    """Schweißplan je Schweißbaugruppe für die Werkstattpapiere (Verbesserung P2), ohne Preise: Struktur mit Mengen,
+    Einzelteile mit Pos., Nahtgruppen, Arbeitsgänge in Reihenfolge, Vorrichtungen und Vorgabezeit je Baugruppe."""
+    from . import baugruppe
+    out = []
+    for p in positionen:
+        bg = baugruppe.lesen(p.get("baugruppe")) if ist_baugruppe(p) else None
+        if not bg:
+            continue
+        km = baugruppe.knoten_map(bg)
+        kname = (lambda kid: (km.get(kid) or {}).get("name") or "Unterbaugruppe" if kid else "Baugruppe")
+        r = baugruppe.rechnen(p, tabellen, {})            # nur Zeiten (Stundensätze spielen hier keine Rolle)
+        zeiten = {(x["art"], x["id"]): x for x in r["zeilen"]}
+        struktur = [dict(name=k.get("name") or "Unterbaugruppe", menge=k.get("menge"),
+                         unter=kname(k.get("parent") or ""), je_bg=baugruppe.faktor(bg, k["id"])) for k in bg["knoten"]]
+        teile = [dict(pos=q.get("pos"), artikel=q.get("artikel"), bezeichnung=q.get("bezeichnung"),
+                      knoten=kname(baugruppe.zuordnung(q)[1] or ""), je_knoten=q.get("je_knoten") or 1,
+                      je_bg=q.get("je_satz"), stueck=q.get("stueck"))
+                 for q in (positionen[j] for j in baugruppe.teile(positionen, bg["id"]))]
+        naehte = [dict(nr=n.get("nr"), knoten=kname(n.get("knoten") or ""), verfahren=n.get("verfahren"),
+                       nahtart=n.get("nahtart"), mass=n.get("mass"), laenge=n.get("laenge"), anzahl=n.get("anzahl"),
+                       beidseitig=bool(n.get("beidseitig")), heftpunkte=n.get("heftpunkte"), lage=n.get("lage"),
+                       zeit_min=(zeiten.get(("Naht", n.get("id"))) or {}).get("zeit_min"))
+                  for n in bg["naehte"]]
+        ags = [dict(name=a.get("name") or "Arbeitsgang", knoten=kname(a.get("knoten") or ""), menge=a.get("menge"),
+                    zeit_min=(zeiten.get(("Arbeitsgang", a.get("id"))) or {}).get("zeit_min"),
+                    ruest_min=a.get("ruest_min"), fremd=bool(a.get("fremd")),
+                    vorrichtung=bool(a.get("einmal_eur")), umlage=a.get("umlage"))
+               for a in bg["arbeitsgaenge"]]
+        out.append(dict(pos=p.get("pos"), name=baugruppe.name(p, bg), anzahl=p.get("stueck"), stamm=bg["stamm"],
+                        struktur=struktur, teile=teile, naehte=naehte, arbeitsgaenge=ags,
+                        vorgabe_min=r["zeit_min"], schweiss_min=r["schweiss_min"],
+                        naht_m=sum(r["naht_m"].values())))
+    return out
 
 
 def muster_titel(m):
