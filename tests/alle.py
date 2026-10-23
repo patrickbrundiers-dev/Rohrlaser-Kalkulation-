@@ -43,6 +43,7 @@ TESTS = [
     ("test_step_leistung.py", {}),
     ("test_ansicht_gl.py", {}),
     ("test_optimierung.py", {}),
+    ("test_parallel.py", {}),
     ("test_lieferlaengen.py", {}),
 ] + [(name, QT) for name in (
     "test_programm.py", "test_csv_export.py", "test_konturklassen.py", "test_zusatzarbeiten.py",

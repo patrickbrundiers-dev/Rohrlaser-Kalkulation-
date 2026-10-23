@@ -24,6 +24,7 @@ Mit Gehrungen, die sich ineinanderlegen lassen, gilt die Schranke der Schnittmus
 Ineinanderlegen); die Untergrenze zieht dann je Teil die größtmögliche Überlappung ab.
 """
 import math
+import threading
 from dataclasses import dataclass, field, replace
 
 from . import normprofile, rp_profile
@@ -597,9 +598,24 @@ def exakt(g, ziel):
     return zustand["beste"], not zustand["abbruch"] or zustand["beste_n"] <= ug
 
 
+# Auf Hilfsprozessen schon gerechnete Gruppen (parallel.vorrechnen): {schluessel(Gruppe): (Folgen als Teilnummern,
+# bewiesen, schranke)}; je Thread, damit der Staffel-Hintergrund und die Oberfläche sich nicht in die Quere kommen
+vorgerechnet = threading.local()
+
+
+def schluessel(g):
+    """Eingaben einer Gruppe für optimiere als Text (bewiesen und schranke sind nur Ergebnis)."""
+    return repr(replace(g, bewiesen=False, schranke=0))
+
+
 def optimiere(g):
     """Ergebnis: Liste von Stangen, je Stange die angeordnete Folge [(Teil, gedreht)].
     Setzt g.bewiesen, wenn die Stangenzahl nachweislich minimal ist."""
+    fertig = getattr(vorgerechnet, "gruppen", None)
+    erg = fertig.pop(schluessel(g), None) if fertig else None
+    if erg is not None:         # dieselbe Rechnung lief schon auf einem Hilfsprozess
+        folgen, g.bewiesen, g.schranke = erg
+        return [[(g.teile[i], d) for i, d in f] for f in folgen]
     kandidaten = []
     for verfahren in (first_fit, best_fit):
         st = aufloesen(g, verfahren(g, g.teile))
@@ -845,11 +861,16 @@ def manuell(g):
 def ohne_drehung(g):
     """Stangen, wenn kein Teil gedreht werden dürfte (Vergleich für die Auswertung); None = in dieser Gruppe gibt es
     keine drehbaren Teile mit Gehrung."""
+    h = ohne_drehung_gruppe(g)
+    return None if h is None else len(optimiere(h))
+
+
+def ohne_drehung_gruppe(g):
+    """Die Gruppe, als dürfte kein Teil gedreht werden (ohne_drehung), oder None."""
     if not any(verschachtelbar(g, t) and len(drehungen(g, t)) > 1 for t in g.teile):
         return None
-    h = replace(g, teile=[replace(t, drehung=UNBEKANNT) if t.drehung == FREI else t for t in g.teile],
-                bewiesen=False, schranke=0)
-    return len(optimiere(h))
+    return replace(g, teile=[replace(t, drehung=UNBEKANNT) if t.drehung == FREI else t for t in g.teile],
+                   bewiesen=False, schranke=0)
 
 
 def untergrenze(g):
@@ -886,6 +907,14 @@ def zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, pu
     return sorted((z for z in ziele if z + EPS >= noetig), reverse=True)
 
 
+def zuschnitt_gruppen(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, puffer=0):
+    """Je Ziel-Werkstücklänge die Gruppe, die zuschnitt optimiert: [(Ziel, Gruppe)]."""
+    mindest = math.ceil((min_werkstueck or 0) - EPS)
+    puffer = math.ceil((puffer or 0) - EPS)
+    return [(ziel, replace(g, stange=ziel - puffer, teile=list(g.teile)))
+            for ziel in zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, mindest, puffer)]
+
+
 def zuschnitt(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, puffer=0):
     """Zweistufige Planung: Teile zu Werkstücken (Optimierung wie bei normalen Stangen, Stangenlänge = Ziel-
     Werkstücklänge), dann die Werkstücke auf Lieferstangen verteilen (dieselbe Optimierung: Werkstücke als Teile mit
@@ -902,8 +931,7 @@ def zuschnitt(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, puffer=0
     beste = None
     mindest = math.ceil((min_werkstueck or 0) - EPS)
     puffer = math.ceil((puffer or 0) - EPS)
-    for ziel in zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, mindest, puffer):
-        h = replace(g, stange=ziel - puffer, teile=list(g.teile))
+    for ziel, h in zuschnitt_gruppen(g, lieferlaenge, max_werkstueck, saege, min_werkstueck, puffer):
         folgen = optimiere(h)
         laengen = [max(werkstueck_laenge(g, f) + puffer, mindest) for f in folgen]
         # Stange um einen Zuschnitt länger: verbrauch() zählt nach dem letzten Werkstück noch einen Schnitt

@@ -21,11 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.28", "<b>Suche in der Angebotsliste schneller</b>: Die Liste filtert, sobald man kurz mit dem Tippen "
-     "aufhört (0,25 s), statt bei jeder Taste; bei 1.000 Angeboten ist sie nach 0,3 s statt 4,6 s fertig. Lange "
-     "Listen und Tabellen messen die Spaltenbreite an den sichtbaren und höchstens 100 Zeilen; ein sehr langer "
-     "Eintrag weiter unten kann gekürzt sein und steht ganz im Tooltip. Neuer Leistungstest für große Angebote.",
-     "Suche in der Angebotsliste schneller (nach kurzer Tipp-Pause), Spaltenbreite aus den ersten 100 Zeilen."],
+    ["0.9.28", "<b>Schneller bei großen Angeboten</b>: <b>Optimieren</b> rechnet ab etwa 1.500 Teilen die "
+     "Profilgruppen auf mehreren Prozessorkernen gleichzeitig (500 Positionen: 10 s statt 28 s, mit Vergleich der "
+     "Lieferlängen 17 s statt 45 s), der Schnittplan ist derselbe. Die <b>Suche in der Angebotsliste</b> filtert, "
+     "sobald man kurz mit dem Tippen aufhört, statt bei jeder Taste (1.000 Angebote: 0,3 s statt 4,6 s). Tabellen "
+     "messen die Spaltenbreite an den sichtbaren und höchstens 100 Zeilen; ein sehr langer Eintrag weiter unten "
+     "kann gekürzt sein und steht ganz im Tooltip ([[optimieren]]).",
+     "Optimieren großer Angebote auf mehreren Kernen, schnellere Suche in der Angebotsliste ([[optimieren]])."],
     ["0.9.26", "<b>Bedienungsanleitung Teil C bildlastig</b>: Einstellungen, Mehrere Arbeitsplätze, Stammdaten, "
      "Zukaufartikel, Frachtkosten sowie Updates und Datensicherung zeigen wie Teil A und B zuerst das Bild mit einem "
      "kurzen Satz oder Schritten; die Einzelheiten stehen im Kasten <i>Genauer</i>. Die Stammdaten haben eigene "

@@ -17,7 +17,7 @@ from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, 
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
 from . import fracht_angebot
-from . import anbau, baugruppe, dfm, dreid, naht, rp_profile, zukauf
+from . import anbau, baugruppe, dfm, dreid, naht, parallel, rp_profile, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -781,6 +781,43 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
     saege = _n(einstellung_wert(einst, "zuschnitt_verlust"))
     # Kundenmaterial: kommt in der Stangenlänge des Angebots, kein Vergleich der Lieferlängen
     infos = [laengen_der_gruppe(g, k, tabellen, einst) if tabellen and not g.beistellung else None for g in gruppen]
+    # Große Angebote: alle Schnittpläne vorab auf Hilfsprozessen (parallel.py, gleiches Ergebnis)
+    opt.vorgerechnet.gruppen = parallel.vorrechnen(
+        _auftraege(gruppen, infos, m, saege, einst), lambda fertig, alle: melden(fertig * len(gruppen) // alle, schritte,
+                                                                    f"Schnittpläne: {fertig} von {alle} gerechnet"))
+    try:
+        return _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neue_profile, melden, m, saege,
+                           infos)
+    finally:
+        opt.vorgerechnet.gruppen = None
+
+
+def _auftraege(gruppen, infos, m, saege, einst):
+    """Alle Gruppen, die optimieren gleich mit optimierung.optimiere rechnet: Stangenlänge des Angebots, andere
+    Lieferlängen (variante_gruppe, mit Zuschnitt je Ziel-Werkstücklänge wie variante_planen) und der Vergleich ohne
+    Drehung (optimierung.ohne_drehung_gruppe)."""
+    out = []
+    maxw = _n((m or {}).get("max_stange"))
+    puffer = _n(einstellung_wert(einst, "zuschnitt_puffer"))
+    for g, i in zip(gruppen, infos):
+        if i is None or i["basis_lieferbar"]:
+            out.append(g)
+            h = opt.ohne_drehung_gruppe(g)
+            if h is not None:
+                out.append(h)
+        for laenge in (i or {}).get("alternativen") or []:
+            if maxw and laenge > maxw + EPS:
+                minw = min(_n((m or {}).get("min_stange")), maxw)
+                out += [h for _, h in opt.zuschnitt_gruppen(g, laenge, maxw, saege, minw, puffer)]
+                continue
+            h = variante_gruppe(g, laenge, m)
+            if h is not None:
+                out.append(h)
+    return out
+
+
+def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neue_profile, melden, m, saege, infos):
+    schritte = 2 * len(gruppen)
     folgen_je_gruppe = []
     for n, (g, i) in enumerate(zip(gruppen, infos)):
         melden(n, schritte, f"Schnittplan {g.profil} / {g.werkstoff}")
@@ -1199,6 +1236,18 @@ def laengen_vergleichen(einst):
     return (einst.get("laenge_vergleich") or "nein") == "ja"
 
 
+def variante_gruppe(g, laenge, m):
+    """Gruppe mit Lieferlänge laenge ohne Zuschnitt, wie variante_planen sie optimiert; None, wenn zugeschnitten
+    wird oder ein Teil nicht auf die Stange passt."""
+    maxw = _n((m or {}).get("max_stange"))
+    if maxw and laenge > maxw + EPS:
+        return None
+    h = opt.replace(g, stange=laenge, teile=list(g.teile))
+    if any(h.endbeschnitt + t.laenge + h.kerf > h.stange - max(h.greiferrest, t.rest) + EPS for t in h.teile):
+        return None
+    return h
+
+
 def variante_planen(g, laenge, m, saege, puffer=0):
     """Planung einer Gruppe mit Lieferlänge laenge. Ergebnis dict(laenge, zuschnitt, stangen, fehler):
     stangen = je Lieferstange [(Werkstücklänge, Folge)] (ohne Zuschnitt ein Werkstück = die ganze Stange),
@@ -1206,8 +1255,8 @@ def variante_planen(g, laenge, m, saege, puffer=0):
     maxw = _n((m or {}).get("max_stange"))
     out = dict(laenge=laenge, zuschnitt=bool(maxw and laenge > maxw + EPS), stangen=[], fehler=None)
     if not out["zuschnitt"]:
-        h = opt.replace(g, stange=laenge, teile=list(g.teile))
-        if any(h.endbeschnitt + t.laenge + h.kerf > h.stange - max(h.greiferrest, t.rest) + EPS for t in h.teile):
+        h = variante_gruppe(g, laenge, m)
+        if h is None:
             out["fehler"] = "Teil länger als Nutzlänge der Stange"
             return out
         folgen = opt.optimiere(h)
