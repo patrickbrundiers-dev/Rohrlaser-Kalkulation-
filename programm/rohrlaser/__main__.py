@@ -314,6 +314,9 @@ def main(argv=None):
             except Exception as e:
                 if not oeffnen_fehlgeschlagen(o, e):
                     return 1
+        from . import stil
+        stil.anwenden(app, db.einstellung("ansicht_thema"), db.einstellung("ansicht_schrift"),
+                      db.einstellung("ansicht_dichte"))
         stelle = lizenz_pruefen(o, db)
         try:
             from .lizenz_dialog import admin_beim_start

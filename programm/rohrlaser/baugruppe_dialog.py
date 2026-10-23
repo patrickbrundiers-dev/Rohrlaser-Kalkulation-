@@ -14,12 +14,12 @@ import json
 import re
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
                                QGroupBox, QInputDialog, QMessageBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import baugruppe, hilfe
+from . import baugruppe, hilfe, stil
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe
 from .stammdaten import NAHTARTEN, zahl_als_text, zahl_aus_text
@@ -184,7 +184,7 @@ class ZeilenTabelle(QTableWidget):
             kopf = self.verticalHeaderItem(r) or QTableWidgetItem(str(r + 1))
             kopf.setText(f"⚠ {r + 1}" if r in self.warnzeilen else str(r + 1))
             kopf.setToolTip("Zeile prüfen (Hinweis)" if r in self.warnzeilen else "")
-            kopf.setBackground(QColor(GELB_FLAECHE) if r in self.warnzeilen else QBrush())
+            kopf.setBackground(stil.farbe(GELB_FLAECHE) if r in self.warnzeilen else QBrush())
             self.setVerticalHeaderItem(r, kopf)
 
     def zeigen(self, r):

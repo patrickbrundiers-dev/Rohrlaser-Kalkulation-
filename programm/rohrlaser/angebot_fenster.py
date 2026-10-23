@@ -211,7 +211,7 @@ def angebot_status(z):
 class AngeboteListe(Liste):
     def data(self, index, rolle=Qt.DisplayRole):
         if rolle == Qt.ForegroundRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
-            return QBrush(QColor(FREMD_FARBE))          # Angebote anderer Mitarbeiter: grau, nur zum Ansehen
+            return QBrush(stil.farbe(FREMD_FARBE))          # Angebote anderer Mitarbeiter: grau, nur zum Ansehen
         if rolle == Qt.FontRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
             f = QFont()
             f.setItalic(True)
@@ -219,7 +219,7 @@ class AngeboteListe(Liste):
         if rolle == Qt.BackgroundRole and index.isValid() and self.spalten[index.column()][0] in ("Status", "Vorgang"):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
-            return QBrush(QColor(farbe)) if farbe else None
+            return QBrush(stil.farbe(farbe)) if farbe else None
         if rolle == Qt.ToolTipRole and index.isValid() and self.spalten[index.column()][1] == "vk_netto":
             am = self.zeilen[index.row()].get("vk_am")
             return (f"Stand vom {_zeit(am)} (zuletzt beim Öffnen des Angebots gerechnet)" if am else
@@ -662,7 +662,7 @@ class PositionenModell(QAbstractTableModel):
             if rolle == Qt.EditRole and w is None:
                 return _z(berechnet, 1) if berechnet is not None else ""
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
+                return QBrush(stil.farbe("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
@@ -679,7 +679,7 @@ class PositionenModell(QAbstractTableModel):
                         + ("Von Hand eingetragen; leeren = wieder berechnet." if w is not None
                            else "Doppelklick zum Anpassen."))
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if w is not None else "#5F6B7A"))
+                return QBrush(stil.farbe("#000000" if w is not None else "#5F6B7A"))
             if rolle == Qt.FontRole and w is not None:
                 f = QFont()
                 f.setBold(True)
@@ -711,7 +711,7 @@ class PositionenModell(QAbstractTableModel):
                                 "Profil, Werkstoff, Oberfläche und Stangenlänge eingetragen.")
                 return t + "Doppelklick zum Anpassen (günstiger oder teurer)."
             if rolle == Qt.ForegroundRole:
-                return QBrush(QColor("#000000" if eigen else "#5F6B7A"))
+                return QBrush(stil.farbe("#000000" if eigen else "#5F6B7A"))
             if rolle == Qt.FontRole and (eigen or fremd):
                 f = QFont()
                 f.setBold(eigen)
@@ -768,12 +768,12 @@ class PositionenModell(QAbstractTableModel):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         if rolle == Qt.BackgroundRole:
             if art == "status":
-                return QBrush(_farbe_status(w) or (QColor("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
+                return QBrush(_farbe_status(w) or (stil.farbe("#FFF2CC") if str(w).startswith("HINWEIS") else FARBE_BERECHNET))
             if art == "abweichung" and w is not None:
-                return QBrush(QColor("#FFF2CC"))
+                return QBrush(stil.farbe("#FFF2CC"))
             return QBrush(FARBE_EINGABE if art in ("feld",) + EIGENE else FARBE_BERECHNET)
         if rolle == Qt.ForegroundRole and art == "status":
-            return QBrush(QColor({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
+            return QBrush(stil.farbe({"FEHLER": "#8C1D18", "WARNUNG": "#6B4A00"}.get(str(w).split(":")[0], "#1F2937")))
         return None
 
     def flags(self, index):
@@ -891,7 +891,7 @@ class Stangenbild(QWidget):
         g = 12
         mx, my = x + g / 2, y + g / 2
         r = QRectF(mx - b * g / 2, my - h * g / 2, b * g, h * g)
-        p.setPen(QPen(QColor("#404040"), 1.2))
+        p.setPen(QPen(stil.farbe("#404040"), 1.2))
         p.setBrush(Qt.NoBrush)
         p.setRenderHint(QPainter.Antialiasing, True)
         if q and q[0] == "Kasten":
@@ -901,7 +901,7 @@ class Stangenbild(QWidget):
         if lage is not None:
             nx, ny = rechnen.naht_punkt(q, lage)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor("#D0021B"))
+            p.setBrush(stil.farbe("#D0021B"))
             p.drawEllipse(QPointF(mx + nx * g, my - ny * g), 2.6, 2.6)
             p.setBrush(Qt.NoBrush)
         p.setRenderHint(QPainter.Antialiasing, False)
@@ -921,14 +921,14 @@ class Stangenbild(QWidget):
         y = 10
         if self._legende():
             p.setFont(klein)
-            p.setPen(QColor("#404040"))
+            p.setPen(stil.farbe("#404040"))
             p.drawText(x0, y, breite, 16, Qt.AlignLeft | Qt.AlignVCenter,
                        "Roter Strich = Schweißnaht (gestrichelt: hinten liegend); hinter dem Stangentitel der "
                        "Querschnitt von Ende A mit rotem Punkt an der Naht.  Grün = Gehrungen ineinandergelegt; die "
                        "Ersparnis ist in Rest und Ausnutzung schon enthalten.")
             y += self.LEGENDE
         for s, nummern in self.muster:
-            p.setPen(QColor("#202020"))
+            p.setPen(stil.farbe("#202020"))
             p.setFont(fett)
             anz = len(nummern)
             nr_text = ", ".join(map(str, nummern)) if anz <= 6 else f"{nummern[0]}–{nummern[-1]}"
@@ -941,13 +941,13 @@ class Stangenbild(QWidget):
                 xs = x0 + p.fontMetrics().horizontalAdvance(kopf) + 12
                 self._symbol(p, q, lage, xs, y + 2)
                 p.setFont(klein)
-                p.setPen(QColor("#202020"))
+                p.setPen(stil.farbe("#202020"))
                 p.drawText(QRectF(xs + 17, y, 400, 16), Qt.AlignLeft | Qt.AlignVCenter, zeichen)
             summe = sum(t["laenge"] for t in s["teile"])
             rest = s["stange"] - s["end"] - summe - s["verlust"]
             gespart = rechnen.gehrung_gespart(s)
             p.setFont(klein)
-            p.setPen(QColor("#202020"))
+            p.setPen(stil.farbe("#202020"))
             werte = f"{len(s['teile'])} Teile · Rest {_z(rest, 1)} mm · Ausnutzung {_z(100 * summe / s['stange'], 1)} %"
             p.drawText(x0 + breite - 330, y, 330, 16, Qt.AlignRight | Qt.AlignVCenter, werte)
             if gespart > 0:                 # Ersparnis einmal je Stange, links neben Rest und Ausnutzung
@@ -959,17 +959,17 @@ class Stangenbild(QWidget):
             yb, hb = y + 20, 34
             oben = 270 if any(t.get("ansicht") == "von oben" for t in s["teile"]) else 0
 
-            def rechteck(von, bis, farbe, rand=QColor("#5F6B7A")):
+            def rechteck(von, bis, farbe, rand=stil.farbe("#5F6B7A")):
                 r = QRectF(x0 + von * m, yb, max(1.0, (bis - von) * m), hb)
                 p.fillRect(r, farbe)
                 p.setPen(QPen(rand, 1))
                 p.drawRect(r)
                 return r
-            rechteck(0, s["stange"], QColor("#EDEDED"))                         # Rest
-            rechteck(0, s["end"], QColor("#A6A6A6"))                             # Endbeschnitt
-            rechteck(s["stange"] - s["greif"], s["stange"], QColor("#E06666"))   # Greiferrest
+            rechteck(0, s["stange"], stil.farbe("#EDEDED"))                         # Rest
+            rechteck(0, s["end"], stil.farbe("#A6A6A6"))                             # Endbeschnitt
+            rechteck(s["stange"] - s["greif"], s["stange"], stil.farbe("#E06666"))   # Greiferrest
             if s.get("greif_3d"):           # 3D-Bearbeitung am letzten Teil: 3D-Greifmaß statt Greiferrest
-                p.setPen(QColor("#FFFFFF"))
+                p.setPen(stil.farbe("#FFFFFF"))
                 p.drawText(QRectF(x0 + (s["stange"] - s["greif"]) * m, yb, s["greif"] * m, hb), Qt.AlignCenter, "3D")
             vorher = None
             for t in s["teile"]:
@@ -978,14 +978,14 @@ class Stangenbild(QWidget):
                     ol, or_, ur, ul = rechnen.umriss(t)
                     form = QPolygonF([QPointF(x0 + ol * m, yb), QPointF(x0 + or_ * m, yb),
                                       QPointF(x0 + ur * m, yb + hb), QPointF(x0 + ul * m, yb + hb)])
-                    p.setPen(QPen(QColor("#202020"), 2))
-                    p.setBrush(self.farben.get(t["ref"], QColor("#4E79A7")))
+                    p.setPen(QPen(stil.farbe("#202020"), 2))
+                    p.setBrush(self.farben.get(t["ref"], stil.farbe("#4E79A7")))
                     p.drawPolygon(form)
                     p.setBrush(Qt.NoBrush)
                     r = QRectF(x0 + max(ol, ul) * m, yb, max(1.0, (min(or_, ur) - max(ol, ul)) * m), hb)
                 else:
-                    r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], QColor("#4E79A7")))
-                    p.setPen(QPen(QColor("#202020"), 2))
+                    r = rechteck(t["von"], t["bis"], self.farben.get(t["ref"], stil.farbe("#4E79A7")))
+                    p.setPen(QPen(stil.farbe("#202020"), 2))
                     p.drawLine(r.topLeft(), r.bottomLeft())
                     p.drawLine(r.topRight(), r.bottomRight())
                 if ineinander:      # Stoß der ineinandergelegten Gehrungen: beide Schnittkanten grün
@@ -998,7 +998,7 @@ class Stangenbild(QWidget):
                 strich = rechnen.naht_strich(t, oben)
                 if strich and r.width() > 6:       # Schweißnaht als roter Strich über die Länge des Teils
                     hy = yb + hb / 2 - strich[0] * (hb / 2 - 3)
-                    stift = QPen(QColor("#D0021B"), 3)
+                    stift = QPen(stil.farbe("#D0021B"), 3)
                     if not strich[1]:
                         stift.setStyle(Qt.DashLine)
                     p.setPen(stift)
@@ -2008,7 +2008,7 @@ class AngebotSeite(QWidget):
         letzten Rohrposition (sonst erstes Profil, Werkstoff aus der Einstellung step_werkstoff), Stückzahl 1.
         Ergebnis: True = angelegt."""
         if not self.k.profile:
-            QMessageBox.information(self, "Neue Position", "Es gibt noch keine Profile in den Stammdaten.")
+            self.f.meldung("Neue Position: Es gibt noch keine Profile in den Stammdaten.", fehler=True)
             return False
         letzte = next((p for p in reversed(self.positionen) if not kein_laserteil(p)
                        and p.get("profil_id") in self.k.profile), {})
@@ -3020,9 +3020,7 @@ class AngebotSeite(QWidget):
         except (OSError, ValueError) as e:
             return fehler(f"Der Export ist nicht gelungen:\n{pfad}\n\n{e}")
         QApplication.restoreOverrideCursor()
-        self.f.meldung(f"CSV-Export gespeichert: {pfad} ({len(pos_zeilen)} Positionen)")
-        if not self.f.stumm:
-            QMessageBox.information(self, "CSV-Export", f"Gespeichert ({len(pos_zeilen)} Positionen):\n{pfad}")
+        self.f.meldung(f"CSV-Export gespeichert: {pfad} ({len(pos_zeilen)} Positionen)")    # Einblendung (L14)
         return pfad
 
     def csv_kopf(self):
@@ -3265,8 +3263,8 @@ class AngebotSeite(QWidget):
         from .step_dialog import Positionen3DDialog
         netze = self.db.netze(self.id)
         if not netze:
-            QMessageBox.information(self, "3D-Ansicht", "In diesem Angebot gibt es keine Teile mit 3D-Daten.\n\n"
-                                    "3D-Daten entstehen beim STEP-Import.")
+            self.f.meldung("3D-Ansicht: In diesem Angebot gibt es keine Teile mit 3D-Daten (sie entstehen beim "
+                           "STEP-Import).", fehler=True)
             return None
         if zeile is None:
             i = self.pos_ansicht.currentIndex()

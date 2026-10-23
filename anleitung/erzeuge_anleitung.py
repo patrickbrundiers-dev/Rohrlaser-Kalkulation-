@@ -3128,6 +3128,18 @@ def kapitel_einstellungen(i):
          "kann und nicht über Remote-Desktop läuft, sonst wie bisher; <i>Software</i>: immer ohne Grafikkarte; "
          "<i>OpenGL</i>: immer mit Grafikkarte, wenn möglich. Klappt OpenGL nicht, zeichnet die Ansicht von selbst "
          "ohne Grafikkarte weiter ([[step_3d_ansicht]]). Gilt für neu geöffnete Ansichten, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)",
+         "<i>Hell</i> (Vorgabe) wie bisher; <i>Dunkel</i>: dunkle Flächen, helle Schrift, für dunkle Räume und lange "
+         "Arbeit am Bildschirm; <i>Hoher Kontrast</i>: dunklere Schrift und deutlich umrandete Knöpfe; <i>Wie "
+         "Windows</i>: hell oder dunkel wie in den Windows-Einstellungen. Der Tastaturfokus ist in Dunkel und Hoher "
+         "Kontrast blau bzw. schwarz umrandet. Zeichnungen (3D-Ansicht, Skizzen, Stangenbild) bleiben hell. Gilt ab "
+         "dem nächsten Start, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Schriftgröße [%] (90 bis 150)",
+         "Schrift im ganzen Programm größer oder kleiner (Vorgabe 100 %), z. B. 120 % für große Bildschirme. Gilt ab "
+         "dem nächsten Start, nur an diesem Arbeitsplatz."],
+        ["Ansicht", "Dichte (kompakt, normal, komfortabel)",
+         "Zeilenhöhe der Tabellen und Abstand in Knöpfen und Feldern: <i>kompakt</i> zeigt mehr Zeilen, "
+         "<i>komfortabel</i> mehr Luft (Vorgabe normal). Gilt ab dem nächsten Start, nur an diesem Arbeitsplatz."],
         ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
          "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
          "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
@@ -4887,6 +4899,11 @@ def kapitel_fragen(i):
          "3D-Bearbeitung am Ende), Profil über max. Hüllkreis oder "
          "Metergewicht der Maschine, oder Pflichtangaben fehlen. Grund steht in der Auswertung."],
         ["Übersicht zeigt <b>Veraltet</b>", "Nach der letzten Optimierung wurde etwas geändert. Neu optimieren."],
+        ["Kurze Meldung unten rechts, die von selbst verschwindet",
+         "Hinweise und Erfolgsmeldungen (z. B. <i>CSV gespeichert</i>) erscheinen als Einblendung unten rechts und "
+         "verschwinden nach einigen Sekunden; ein Klick schließt sie sofort. Verpasst? <b>Meldungen (N)</b> rechts "
+         "in der Statusleiste zeigt die letzten 20 mit Uhrzeit (am Anfang: <i>Noch keine Meldungen</i>). Rückfragen vor dem Löschen und Fehler bleiben "
+         "Fenster, die bestätigt werden müssen."],
         ["Meldung <b>Unerwarteter Fehler</b>", "Ein Programmfehler bei dieser Aktion. Gespeicherte Daten bleiben "
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
          "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben."],

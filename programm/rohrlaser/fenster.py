@@ -16,12 +16,13 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray
-from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
+from . import stil
 from . import NAME, VERSION, ausgabe, hilfe, pdf, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
@@ -30,10 +31,10 @@ from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 KURZANLEITUNG = "Kurzanleitung.pdf"
-FARBE_EINGABE = QColor("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
-FARBE_BERECHNET = QColor("#EDEDED")
+FARBE_EINGABE = stil.farbe_fest("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
+FARBE_BERECHNET = stil.farbe_fest("#EDEDED")
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
-FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": FARBE_BERECHNET}
+FARBE_STATUS = {"FEHLER": stil.farbe_fest("#F8CBAD"), "WARNUNG": stil.farbe_fest("#FFD966"), "OK": FARBE_BERECHNET}
 
 
 class StammdatenModell(QAbstractTableModel):
@@ -748,6 +749,9 @@ class EinstellungenSeite(QScrollArea):
         from . import step_einstellungen
         if e.name in step_einstellungen.EINSTELLUNGEN:
             step_einstellungen.anwenden(self.db)
+        if e.name in ("ansicht_thema", "ansicht_schrift", "ansicht_dichte"):
+            self.meldung(f"{e.titel} gespeichert, gilt ab dem nächsten Start.")
+            return
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
@@ -1040,7 +1044,7 @@ class Hauptfenster(QMainWindow):
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
-        self.setStyleSheet(STIL)
+        self.setStyleSheet(stil.aktuell())     # Theme und Dichte aus stil.anwenden (beim Start)
         self.resize(1400, 800)
         self.reiter = QTabWidget()
         self.reiter.setTabsClosable(True)
@@ -1083,6 +1087,10 @@ class Hauptfenster(QMainWindow):
         self.lizenz_hinweis.setTextFormat(Qt.PlainText)
         self.lizenz_hinweis.hide()
         self.statusBar().addPermanentWidget(self.lizenz_hinweis)
+        from .einblendung import Einblendung, Verlauf
+        self.einblendung = Einblendung(self)        # ruhige Meldungen unten rechts (Layout-Plan L14)
+        self.verlauf = Verlauf()
+        self.statusBar().addPermanentWidget(self.verlauf)
         self.statusBar().showMessage("Bereit")
         self.lizenz_anwenden()
         if not stumm:
@@ -1492,6 +1500,16 @@ class Hauptfenster(QMainWindow):
     def meldung(self, text, fehler=False):
         self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
         self.statusBar().showMessage(text, 8000)
+        if getattr(self, "verlauf", None) is None:  # noch beim Aufbau des Fensters
+            return
+        self.verlauf.merken(text, fehler)
+        if not self.stumm:                          # Selbsttest und Bildschirmfotos ohne Einblendung
+            self.einblendung.zeigen(text, fehler)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if getattr(self, "einblendung", None) is not None and self.einblendung.isVisible():
+            self.einblendung.platzieren()
 
     def zeigen(self, seite):
         """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage)."""

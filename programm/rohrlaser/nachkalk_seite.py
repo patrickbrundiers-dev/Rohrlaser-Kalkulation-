@@ -2,11 +2,12 @@
 import datetime
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
+from . import stil
 from . import nachkalkulation as nk
 from .spaltenbreite import AutoGroesse
 from .stammdaten import zahl_als_text, zahl_aus_text
@@ -147,9 +148,9 @@ class NachkalkulationSeite(QWidget):
                     it.setToolTip(f"Leer = kalkulierter Meterpreis {_z(g['meterpreis'], 2)} €/m")
                 if c not in EINGABE:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c >= 2:
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 self.gruppen.setItem(r, c, it)
@@ -193,9 +194,9 @@ class NachkalkulationSeite(QWidget):
                 it.setData(Qt.UserRole, b["id"])
                 if feld is None:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c and feld != "grund":
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 self.bg_tabelle.setItem(r, c, it)
