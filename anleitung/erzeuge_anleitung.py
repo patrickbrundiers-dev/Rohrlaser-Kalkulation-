@@ -2604,6 +2604,11 @@ def kapitel_baugruppen(i):
         (4, "<b>Fremd</b>: Fremdleistung mit Zuschlag Fremdleistung statt Fertigung."),
         (5, "<b>Arbeitsgang hinzufügen</b> bzw. <b>Vorrichtung hinzufügen</b>.")])
     i.genauer()
+    i.text("<b>Aus Zusatzarbeiten …</b> übernimmt eine Zusatzarbeit der Stammdaten ([[zusatzarbeiten_verwalten]]) als "
+           "Arbeitsgang: Stundensatz-ID bzw. eigener Stundensatz, Zeitaufwand (in Minuten umgerechnet), Festpreis "
+           "und Material als Kosten je Einheit (bei €/kg, €/m², €/m die Menge in kg, m² bzw. m im Arbeitsgang "
+           "eintragen), €/Angebot als Einmalbetrag und Fremdleistung. Danach lässt sich alles im Arbeitsgang ändern; "
+           "spätere Änderungen der Zusatzarbeit ändern den Arbeitsgang nicht.")
     i.text("Laufende Kosten je Stück der Unterbaugruppe: Zeit je Einheit × Menge × Stundensatz + Kosten je Einheit "
            "× Menge. Einmalkosten werden durch die Anzahl Baugruppen geteilt, in den Staffeln durch die Menge der "
            "Stufe: kleine Mengen tragen mehr davon. Eine wiederverwendbare Vorrichtung mit Betrag zeigt den HINWEIS "
@@ -3431,6 +3436,12 @@ def kapitel_stammdaten(i):
         ["<b>Schweiß-Faktoren</b>", "Zuschläge auf die Lichtbogenzeit für Schweißlage (PA … PG), Zugänglichkeit und "
                                     "Qualitätsanforderung: je Art und <i>Ausprägung</i> ein <i>Faktor auf die "
                                     "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"]], [45, 220])
+    i.bild("stamm_schweiss_kennwerte", "Einstellungen, Schweiß-Kennwerte nach Richtwerte laden", hoehe=85 * mm,
+           legende=[(1, "Unterreiter <b>Schweißverfahren</b>, <b>Schweiß-Kennwerte</b>, <b>Schweiß-Faktoren</b>."),
+                    (2, "<b>Richtwerte laden</b> trägt fehlende Verfahren, Kennwerte und Faktoren als Richtwerte ein; "
+                        "vorhandene Zeilen bleiben unverändert (auch eigene Werte)."),
+                    (3, "Je Zeile Verfahren, Nahtart, Nahtgröße <i>bis</i>, Lichtbogenzeit je m und <b>Status</b> "
+                        "(Richtwert oder geprüft).")])
     i.genauer()
     i.text("Rechnung je Nahtgruppe: Naht [m] = Länge je Naht × Anzahl (beidseitig doppelt); Lichtbogenzeit = Naht × "
            "Kennwert × Faktoren; Schweißzeit = Lichtbogenzeit ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit je "
@@ -4503,8 +4514,8 @@ def bilder_erzeugen(ordner):
 
 # Bildschirmfotos, die bilder.py mit erzeugt, die aber bewusst nicht in der Anleitung stehen
 OHNE_STELLE = {"stamm_stundensaetze",     # gleiche Seite wie stamm_arbeitsschritte
-               # Schweiß-Stammdaten: noch leer ausgeliefert, Bilder erst mit "Richtwerte laden"
-               "stamm_schweissverfahren", "stamm_schweiss_kennwerte", "stamm_schweiss_faktoren"}
+               # Schweiß-Stammdaten: Bild der Kennwerte steht für alle drei Unterreiter
+               "stamm_schweissverfahren", "stamm_schweiss_faktoren"}
 
 
 def kapitel_schnellstart(i):

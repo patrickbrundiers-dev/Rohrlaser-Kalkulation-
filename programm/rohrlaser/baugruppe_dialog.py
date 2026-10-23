@@ -466,11 +466,15 @@ class BaugruppeDialog(QDialog):
         vor = QPushButton("Vorrichtung hinzufügen")
         vor.setToolTip("Einmalkosten für eine Vorrichtung (Umlage je Auftrag)")
         vor.clicked.connect(lambda: self.arbeitsgang_neu(dict(name="Vorrichtung", umlage=baugruppe.UMLAGE_AUFTRAG)))
+        katalog = QPushButton("Aus Zusatzarbeiten …")
+        katalog.setToolTip("Arbeitsgang aus den Zusatzarbeiten der Stammdaten übernehmen (Stundensatz, Zeit, Preis)")
+        katalog.setEnabled(bool(self._katalog()))
+        katalog.clicked.connect(lambda: self.arbeitsgang_aus_katalog())
         kopie = QPushButton("Markierte kopieren")
         kopie.clicked.connect(lambda: self._kopieren(self.bg["arbeitsgaenge"], self.ag_tab))
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(lambda: self._entfernen(self.bg["arbeitsgaenge"], self.ag_tab))
-        for b in (neu, vor, kopie, weg):
+        for b in (neu, vor, katalog, kopie, weg):
             leiste.addWidget(b)
         leiste.addStretch(1)
         lay.addLayout(leiste)
@@ -484,11 +488,31 @@ class BaugruppeDialog(QDialog):
     def arbeitsgang_neu(self, werte=None):
         a = dict(id=baugruppe.neue_id(), name="Vorrichten", umlage=baugruppe.UMLAGE_AUFTRAG,
                  satz_id="Schweißen" if "Schweißen" in self.saetze else None)
+        if werte and ("satz" in werte or "satz_id" in werte):
+            a.pop("satz_id")
         a.update(werte or {})
         self.bg["arbeitsgaenge"].append({k: v for k, v in a.items() if v is not None})
         self.ag_tab.aufbauen()
         self.aktualisieren()
         return a["id"]
+
+    def _katalog(self):
+        """Aktive Zusatzarbeiten der Stammdaten, die an einer Baugruppe Sinn ergeben (ohne s/Stück = Laserzeit)."""
+        return {z["name"]: z for z in self.tabellen.get("zusatzarbeiten") or ()
+                if z.get("name") and z.get("aktiv") != "nein" and z.get("art") != "s/Stück"}
+
+    def arbeitsgang_aus_katalog(self, name=None):
+        """Arbeitsgang aus einer Zusatzarbeit anlegen (name vorgegeben: ohne Auswahlfenster). Ergebnis: ID oder None."""
+        katalog = self._katalog()
+        if name is None:
+            from PySide6.QtWidgets import QInputDialog
+            name, ok = QInputDialog.getItem(self, "Arbeitsgang aus Zusatzarbeiten", "Zusatzarbeit:",
+                                            sorted(katalog, key=str.lower), 0, False)
+            if not ok:
+                return None
+        if name not in katalog:
+            return None
+        return self.arbeitsgang_neu(baugruppe.arbeitsgang_vorlage(katalog[name]))
 
     def _kopieren(self, liste, tab):
         for r in tab.markierte():

@@ -219,6 +219,8 @@ def main(ziel):
                                             (knopf(f.bereich, "Einstellungen öffnen"), 3)],
               ausschnitt=QRect(0, 0, 760, f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 70))
     f.bereich.oeffnen(db.einstellung("passwort"))
+    # Schweiß-Stammdaten werden leer ausgeliefert: wie mit dem Knopf 'Richtwerte laden' füllen
+    next(s for s in f.seiten if s.t.name == "schweissverfahren").schweiss_richtwerte(bestaetigt=True)
     for seite in f.seiten:
         f.zeigen(seite)
         QApplication.processEvents()
@@ -230,6 +232,9 @@ def main(ziel):
             spalte = len(seite.modell.spalten) - 1
             x = kopf.sectionViewportPosition(spalte)
             marken.append(((kopf, QRect(x, 0, min(kopf.sectionSize(spalte), kopf.width() - x), kopf.height())), 5))
+        if seite.t.name == "schweiss_kennwerte":
+            marken = [(tab_rect(f.bereich.unter, seite.t.titel), 1), (knopf(seite, "Richtwerte laden"), 2),
+                      (seite.ansicht, 3)]
         if seite.t.name == "zusatzarbeiten":
             z = f.zusatz
             z.auswaehlen(next(x["id"] for x in z.sichtbar if x["name"] == "Feuerverzinken"))

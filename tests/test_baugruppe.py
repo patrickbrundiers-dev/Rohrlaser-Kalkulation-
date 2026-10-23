@@ -12,6 +12,7 @@
 - B11 Editor (PR 2): Neue Position 'Schweißbaugruppe' mit markierten Teilen, Unterbaugruppe, Nahtgruppe, Vorrichtung
 - B12 Editor: Bearbeiten über ein Einzelteil, gemerkte Kennwerte, Teil herausnehmen, Anzahl folgt in der Liste
 - B13 Editor: Zyklus abgewiesen, ungültige Zahl, Status führt in den Editor
+- B14 Richtwerte laden (nur fehlende Zeilen, eigene bleiben) und Arbeitsgang aus Zusatzarbeiten
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -391,7 +392,43 @@ for text in ("WARNUNG: Nahtgruppe 1: kein Kennwert für MAG Kehlnaht 3 mm", "WAR
              "HINWEIS: Schweißzeit aus ungeprüften Richtwerten", "WARNUNG: Stundensatz fehlt (Schleifen)"):
     assert status_ziel(text)[0] == "baugruppe_bearbeiten", text
 assert QDialog.Rejected == d.result()
-f.close()
 ok("B13 Editor: Zyklus abgewiesen, ungültige Zahl gemeldet, Status der Baugruppe öffnet den Editor")
+
+# ------------------------------------------------------------------ B14 Richtwerte laden, Arbeitsgang aus Katalog
+eigen = {(z["verfahren"], z["nahtart"], z["mass_bis"]): z["min_m"] for z in db.zeilen("schweiss_kennwerte")}
+fehlt = baugruppe.richtwerte_fehlend(db.tabellen())
+assert all(z["verfahren"] != "MAG" for z in fehlt["schweissverfahren"])          # MAG ist schon da (geprüft)
+assert ("MAG", "Kehlnaht", 4) not in {(z["verfahren"], z["nahtart"], z["mass_bis"]) for z in fehlt["schweiss_kennwerte"]}
+seite_kw = next(s_ for s_ in f.seiten if s_.t.name == "schweiss_kennwerte")
+n = seite_kw.schweiss_richtwerte(bestaetigt=True)
+assert n == sum(len(x) for x in fehlt.values()) > 0
+for z in db.zeilen("schweiss_kennwerte"):
+    if (z["verfahren"], z["nahtart"], z["mass_bis"]) in eigen:
+        assert z["min_m"] == eigen[(z["verfahren"], z["nahtart"], z["mass_bis"])] and z["status"] == "geprüft"
+assert next(z for z in db.zeilen("schweissverfahren") if z["verfahren"] == "MAG")["lichtbogen"] == 40
+assert seite_kw.schweiss_richtwerte(bestaetigt=True) == 0                        # zweimal: nichts doppelt
+assert db.anzahl("schweiss_faktoren") == len(baugruppe.RICHT_FAKTOREN)            # PF war schon da
+k_ = db.kontext()
+for t_ in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
+    for z in db.zeilen(t_):
+        assert pruefen(TABELLE[t_], z, k_) == "OK", (t_, z)
+ag = baugruppe.arbeitsgang_vorlage(dict(name="Strahlen", art="€/Stück", preis=4.5, material=0.5, fremd="ja"))
+assert (ag["name"], ag["kosten_einheit"], ag["fremd"], ag["vorlage"]) == ("Strahlen", 5.0, True, "Strahlen")
+ag = baugruppe.arbeitsgang_vorlage(dict(name="Richten", art="€/h", zeit=90, zeit_einheit="s", satz_id="Schweißen"))
+assert ag["satz_id"] == "Schweißen" and ag["zeit_min"] == 1.5 and "kosten_einheit" not in ag
+assert baugruppe.arbeitsgang_vorlage(dict(name="Prüfprotokoll", art="€/Angebot", preis=80))["einmal_eur"] == 80
+nah(baugruppe.arbeitsgang_rechnen(ag, saetze)["laufend"], 1.5 / 60 * 75, "Richten 1,5 min × 75 €/h")
+d = BaugruppeDialog(None, next(q for q in seite.positionen if q["id"] == bgp["id"]), seite.positionen,
+                    dict(seite.tabellen, zusatzarbeiten=[dict(name="Richten", art="€/h", zeit=2, zeit_einheit="min",
+                                                              satz_id="Schweißen", aktiv="ja"),
+                                                         dict(name="Gravur", art="s/Stück", preis=20)]),
+                    saetze)
+assert set(d._katalog()) == {"Richten"}
+vorher = d.erg["eigen"]
+d.arbeitsgang_aus_katalog("Richten")
+nah(d.erg["eigen"] - vorher, 2 / 60 * 75, "Richten aus dem Katalog im Editor")
+d.reject()
+f.close()
+ok(f"B14 Richtwerte laden: {n} Zeilen neu, eigene MAG-Werte unverändert; Arbeitsgang aus Zusatzarbeiten")
 
 print("\nAlle Baugruppen-Tests bestanden.")

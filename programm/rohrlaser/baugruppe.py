@@ -493,3 +493,39 @@ def richtwerte():
         faktoren.append(dict(art=art, wert=wert, faktor=f, status="Richtwert",
                              bemerkung=(LAGEN.get(wert, "") + ", " if wert in LAGEN else "") + "Richtwert"))
     return dict(schweissverfahren=verfahren, schweiss_kennwerte=kennwerte, schweiss_faktoren=faktoren)
+
+
+SCHLUESSEL = {"schweissverfahren": ("verfahren",), "schweiss_kennwerte": ("verfahren", "nahtart", "mass_bis"),
+              "schweiss_faktoren": ("art", "wert")}
+
+
+def richtwerte_fehlend(tabellen):
+    """Richtwert-Zeilen, die in den Stammdaten noch fehlen (gleicher Schlüssel = vorhanden, wird nie geändert)."""
+    out = {}
+    for name, zeilen in richtwerte().items():
+        da = {tuple(z.get(k) for k in SCHLUESSEL[name]) for z in tabellen.get(name) or ()}
+        out[name] = [z for z in zeilen if tuple(z.get(k) for k in SCHLUESSEL[name]) not in da]
+    return out
+
+
+def arbeitsgang_vorlage(z):
+    """Arbeitsgang aus einer Zusatzarbeit der Stammdaten (Katalog): Name, Stundensatz-ID oder eigener Satz, Zeit je
+    Einheit in min, Kosten je Einheit (Festpreis bei €/Stück, €/kg, €/m², €/m, dazu Material; die Menge in kg, m² bzw.
+    m trägt man im Arbeitsgang ein), Einmalbetrag bei €/Angebot, Fremdleistung. Werte, die die Zusatzarbeit nicht hat,
+    bleiben leer; s/Stück (Laserzeit) gibt es an der Baugruppe nicht."""
+    from .stammdaten import ZEITEINHEITEN
+    ag = dict(id=neue_id(), name=z.get("name"), umlage=UMLAGE_AUFTRAG, fremd=z.get("fremd") == "ja" or None,
+              vorlage=z.get("name"))
+    if z.get("satz_id"):
+        ag["satz_id"] = z["satz_id"]
+    elif _zahl(z.get("satz")):
+        ag["satz"] = z["satz"]
+    if _zahl(z.get("zeit")) and z["zeit"] > 0:
+        ag["zeit_min"] = round(z["zeit"] * ZEITEINHEITEN.get(z.get("zeit_einheit") or "s", 1) / 60, 4)
+    preis = z.get("preis") if _zahl(z.get("preis")) else 0
+    kosten = (preis if z.get("art") in ("€/Stück", "€/kg", "€/m²", "€/m") else 0) + _n(z.get("material"))
+    if kosten:
+        ag["kosten_einheit"] = kosten
+    if z.get("art") == "€/Angebot" and preis:
+        ag["einmal_eur"] = preis
+    return {k: v for k, v in ag.items() if v is not None}
