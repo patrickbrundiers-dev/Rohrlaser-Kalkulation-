@@ -18,17 +18,19 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget)
 
 from . import anbau, blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
-    teilen, vorschau, zukauf, zukauf_ek
+    teilen, vorschau, zukauf, zukauf_ek, baugruppe
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from .zusatz_dialog import ZusatzDialog
 from .schneidweg_dialog import SchneidwegDialog, gewinde_liste
 from .naht_dialog import NahtDialog
+from .baugruppe_dialog import BaugruppeDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
-from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
+from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
+    ist_zukaufteil, kein_laserteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
@@ -469,6 +471,14 @@ BOHRBILD_SPALTEN = ("gewinde", "bohrungen", "gewinde_vorschlag")     # Doppelkli
 # Doppelklick auf den Status: (Stichwort im Status, Ziel, Tooltip); erstes passendes gilt. Ziel = Methode der
 # Angebotsseite (bekommt die Zeile) oder "feld:" + Spalte (Zelle zum Eintragen öffnen, Spalte notfalls einblenden).
 STATUS_ZIELE = (
+    # Schweißbaugruppe (Status der Baugruppe und ihrer Teile): Editor; vor 'Naht', 'Zusatzarbeit' und 'Stückzahl'
+    ("Baugruppe", "baugruppe_bearbeiten", "Schweißbaugruppe bearbeiten"),
+    ("Nahtgruppe", "baugruppe_bearbeiten", "Schweißbaugruppe bearbeiten"),
+    ("Stundensatz fehlt", "baugruppe_bearbeiten", "Schweißbaugruppe bearbeiten"),
+    ("doppelt?", "baugruppe_bearbeiten", "Schweißbaugruppe bearbeiten"),
+    ("Richtwerten", "baugruppe_bearbeiten", "Schweißbaugruppe bearbeiten"),
+    ("Vorrichtung", "baugruppe_bearbeiten", "Schweißbaugruppe bearbeiten"),
+    ("keine Nahtgruppen", "baugruppe_bearbeiten", "Schweißbaugruppe bearbeiten"),
     ("Bohrungen prüfen", "bohrungen_pruefen", "Bohrungen prüfen"),
     ("Anbauteile prüfen", "anbauteile_pruefen", "Anbauteile prüfen"),
     ("Zukaufartikel fehlt", "zukaufteile", "Zukaufteile wählen"),
@@ -548,7 +558,7 @@ class PositionenModell(QAbstractTableModel):
                     neu = vorschaubild(entpacken(self.s.db.netz(pid)), 64, 18)
                 elif blech.lesen(p.get("technik")):
                     neu = vorschau.bild(p, None)
-                elif not ist_zukaufteil(p):
+                elif not kein_laserteil(p):
                     neu = vorschau.rohr(p, self.k.profile.get(p.get("profil_id")))
                 else:
                     neu = None
@@ -572,11 +582,11 @@ class PositionenModell(QAbstractTableModel):
             self.meterpreise.append(rechnen.meterpreis(p, s.kopf, self.daten, s.k, s.tabellen))  # (berechnet, wirksam, fehlt)
             self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand_schneiden"), s.tabellen, s.k)[2])   # berechnet [s]
             # Programmierzeit ohne Eintrag von Hand: Grundzeit + Zeit je Innenkontur [min] (Zukaufteile: keine)
-            self.prog_zeiten.append(None if ist_zukaufteil(p) else
+            self.prog_zeiten.append(None if kein_laserteil(p) else
                                     rechnen.programmier_zeit(dict(p, prog_zeit=None), s.einst)[0])
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
-            w["eingeplant"] = ein if p.get("profil_id") and not ist_zukaufteil(p) else None
-            if ist_zukaufteil(p):
+            w["eingeplant"] = ein if p.get("profil_id") and not kein_laserteil(p) else None
+            if kein_laserteil(p):
                 ein = None              # Zukaufteile werden nicht eingeplant
             w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
             self.werte.append(w)
@@ -674,8 +684,8 @@ class PositionenModell(QAbstractTableModel):
             if rolle in (Qt.DisplayRole, Qt.EditRole) and not eigen:
                 return _z(anzeige, 2) if anzeige is not None else ""
             if rolle == Qt.ToolTipRole:
-                if ist_zukaufteil(self.daten[index.row()]):
-                    return "Zukaufteil: kein Materialpreis je m."
+                if kein_laserteil(self.daten[index.row()]):
+                    return "Zukaufteil bzw. Schweißbaugruppe: kein Materialpreis je m."
                 t = (f"Berechnet: {_z(berechnet, 2)} €/m (Lieferlänge, Preise bzw. Tonnenpreis, mit Aufpreis der "
                      "Oberfläche). " if berechnet is not None else "Kein berechneter Meterpreis: Preis von Hand "
                                                                     "eintragen. ")
@@ -711,7 +721,7 @@ class PositionenModell(QAbstractTableModel):
                 return (text + "\n" if text else "") + "Doppelklick aufs Bild: " + \
                     ("Blech-Editor" if blech.lesen(p.get("technik")) else "Schneidweg-Rechner") + \
                     " · Tippen oder F2: Artikelnummer ändern"
-            if x.name in RECHNER_SPALTEN and not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile:
+            if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
             if art == "bohrbild" and rolle == Qt.ToolTipRole:
@@ -1564,6 +1574,8 @@ class AngebotSeite(QWidget):
         self._fremd_anzeigen()
         self.ergebnis = a["ergebnis"]
         self.positionen = self.db.positionen(self.id)
+        if not self.db.nur_lesen:
+            self._baugruppen_abgleichen()
         # festgeschriebene Materialpreise und Schneiddaten gehen den aktuellen Stammdaten vor
         self.k_aktuell, self.tabellen_aktuell = self.db.kontext(), self.db.tabellen()
         self.k, self.tabellen = rechnen.preisbasis_anwenden(a, self.k_aktuell, self.tabellen_aktuell)
@@ -1582,6 +1594,17 @@ class AngebotSeite(QWidget):
         self._ergebnisse_anzeigen()
         self.f.reiter_titel(self)
         self.verlauf.merken()
+
+    def _baugruppen_abgleichen(self):
+        """Satz, Stück je Satz und Stückzahl der Schweißbaugruppen und ihrer Teile folgen der Struktur
+        (baugruppe.abgleich), z. B. nach geänderter Anzahl Baugruppen. Ohne Baugruppen ändert sich nichts."""
+        aenderungen = baugruppe.abgleich(self.positionen)
+        for i, feld, wert in aenderungen:
+            self.db.position_aendern(self.positionen[i]["id"], feld, wert)
+        if aenderungen:
+            self.positionen = self.db.positionen(self.id)
+            self.f.meldung(f"Stückzahlen von {len({i for i, _, _ in aenderungen})} Position(en) an die "
+                           "Schweißbaugruppe angepasst.")
 
     def _konturen_einteilen(self):
         """Konturklassen neu einteilen, wenn die Regel (Grenzen und Faktoren der Maschine, Wandstärke des Profils) nicht
@@ -1665,7 +1688,7 @@ class AngebotSeite(QWidget):
         """Material (Eigenmaterial / Kunde beigestellt) für alle Rohrlaserteil-Positionen setzen."""
         n = 0
         for p in self.positionen:
-            if not ist_zukaufteil(p) and (p.get("material_herkunft") or EIGENMATERIAL) != herkunft:
+            if not kein_laserteil(p) and (p.get("material_herkunft") or EIGENMATERIAL) != herkunft:
                 self.db.position_aendern(p["id"], "material_herkunft", herkunft)
                 n += 1
         self.neu_laden()
@@ -1916,7 +1939,7 @@ class AngebotSeite(QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, LEER, ROHR, ZUKAUF, TypDialog
+        from .neue_position import BLECH, LEER, ROHR, SCHWEISS, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -1931,6 +1954,8 @@ class AngebotSeite(QWidget):
             return typ if self.zukauf_schnell(zeilen=[], blech=False) else None
         if typ == ROHR:
             return typ if self.rohr_neu(dialog=dialog) else None
+        if typ == SCHWEISS:
+            return typ if self.baugruppe_neu(dialog=dialog) else None
         self.db.position_neu(self.id, {"pos": self._naechste_pos()})
         self.neu_laden()
         r = len(self.positionen) - 1
@@ -1952,7 +1977,7 @@ class AngebotSeite(QWidget):
         if not self.k.profile:
             QMessageBox.information(self, "Neue Position", "Es gibt noch keine Profile in den Stammdaten.")
             return False
-        letzte = next((p for p in reversed(self.positionen) if not ist_zukaufteil(p)
+        letzte = next((p for p in reversed(self.positionen) if not kein_laserteil(p)
                        and p.get("profil_id") in self.k.profile), {})
         pid = letzte.get("profil_id") or sorted(self.k.profile, key=str.lower)[0]
         wst = letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff") or None
@@ -2061,7 +2086,7 @@ class AngebotSeite(QWidget):
             return False
         if werte is None:
             weitere = {}
-            if len(zeilen) == 1 and not ist_zukaufteil(self.positionen[zeilen[0]]):
+            if len(zeilen) == 1 and not kein_laserteil(self.positionen[zeilen[0]]):
                 weitere = {"Schweißnaht …": lambda: self.schweissnaht(list(zeilen)),
                            "Bohrungen prüfen …": lambda: self.bohrungen_pruefen(list(zeilen))}
             d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen,
@@ -2091,6 +2116,9 @@ class AngebotSeite(QWidget):
         if art == "status":
             self.status_beheben(r)
             return
+        if ist_baugruppe(p) and art != "zukauf":
+            self.baugruppe_bearbeiten([r])
+            return
         ziel = {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile, "naht": self.schweissnaht,
                 "bohrbild": self.bohrungen_pruefen, "anbau": self.anbauteile_pruefen}.get(art)
         if ziel:
@@ -2098,12 +2126,12 @@ class AngebotSeite(QWidget):
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
                 name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
             self.blech_bearbeiten(r)            # Blech (auch aus STEP): Editor; Nummer mit 3D-Modell: 3D-Ansicht
-        elif (name in RECHNER_SPALTEN or art == "abweichung") and not ist_zukaufteil(p) \
+        elif (name in RECHNER_SPALTEN or art == "abweichung") and not kein_laserteil(p) \
                 and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)
         elif name == "artikel" and (p.get("id") in self.pos_modell.mit_netz or self.pos_modell.vorschau(r)):
             auf_bild = self._auf_bild(i, auf_bild)
-            rechner = not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile
+            rechner = not kein_laserteil(p) and p.get("profil_id") in self.k.profile
             if p.get("id") not in self.pos_modell.mit_netz and not auf_bild:
                 if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt: Nummer bearbeiten
                     self.pos_ansicht.edit(i)
@@ -2113,6 +2141,63 @@ class AngebotSeite(QWidget):
                 self.ansicht_3d(r)
         elif self.pos_modell.flags(i) & Qt.ItemIsEditable:
             self.pos_ansicht.edit(i)
+
+    def baugruppe_neu(self, dialog=None):
+        """Neue Schweißbaugruppe im Editor anlegen; markierte Positionen sind als Einzelteile vorgewählt.
+        dialog(d) bedient den Editor statt exec (Tests). Ergebnis: True = angelegt."""
+        markiert = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
+        vorwahl = {self.positionen[r]["id"] for r in markiert if r < len(self.positionen)
+                   and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
+        p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
+        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl)
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return False
+        werte = dict(d.ergebnis["position"], pos=p["pos"])
+        pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
+        self._baugruppe_teile(d.ergebnis["teile"], None)
+        self.neu_laden()
+        self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt.")
+        self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
+        return True
+
+    def baugruppe_bearbeiten(self, zeilen, dialog=None):
+        """Editor der Schweißbaugruppe in der Zeile; bei einem Einzelteil der Editor seiner Baugruppe.
+        Ergebnis: True = gespeichert."""
+        p = self.positionen[zeilen[0]]
+        if not ist_baugruppe(p):
+            bg_id = baugruppe.zuordnung(p)[0]
+            ziel = baugruppe.baugruppen(self.positionen).get(bg_id)
+            if ziel is None:
+                self.f.meldung("Die Baugruppe dieser Position gibt es nicht mehr: Spalte 'Baugruppe (Zuordnung)' "
+                               "leeren oder das Teil im Editor einer Baugruppe neu zuordnen.", fehler=True)
+                return False
+            p = self.positionen[ziel[0]]
+        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze())
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return False
+        alt_name = baugruppe.name(p)
+        for feld, wert in d.ergebnis["position"].items():
+            if p.get(feld) != wert:
+                self.db.position_aendern(p["id"], feld, wert)
+        self._baugruppe_teile(d.ergebnis["teile"], alt_name)
+        self.neu_laden()
+        self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert.")
+        return True
+
+    def _baugruppe_teile(self, teile, alt_name):
+        """Zuordnung der Einzelteile schreiben; ein herausgenommenes Teil verliert auch Satz und Stück je Satz der
+        Baugruppe (Satz und Stückzahlen setzt danach _baugruppen_abgleichen)."""
+        nach_id = {q["id"]: q for q in self.positionen}
+        for pid, z in teile.items():
+            for feld, wert in z.items():
+                self.db.position_aendern(pid, feld, wert)
+            q = nach_id.get(pid) or {}
+            if z.get("bg_knoten") is None and q.get("bg_knoten") and (q.get("satz") or None) in (alt_name, None):
+                self.db.position_aendern(pid, "satz", None)
+                self.db.position_aendern(pid, "je_satz", None)
+
+    def _saetze(self):
+        return rechnen.zeitbasis(self.kopf, self.k, self.tabellen)["saetze"]
 
     def _auf_bild(self, i, auf_bild=None):
         """Doppelklick auf das kleine Bild der Zelle i (auf_bild vorgegeben: Tests), sonst aus der Mausposition."""
@@ -2259,7 +2344,7 @@ class AngebotSeite(QWidget):
             zeile = zeilen[0]
         p = self.positionen[zeile]
         profil = self.k.profile.get(p.get("profil_id"))
-        if ist_zukaufteil(p) or not profil:
+        if kein_laserteil(p) or not profil:
             self.f.meldung("Schneidweg-Rechner: Die Position braucht ein Profil aus den Stammdaten (kein Zukaufteil).",
                            fehler=True)
             return False
@@ -2312,7 +2397,7 @@ class AngebotSeite(QWidget):
         dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
         if zeilen is None:
             zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
-        zeilen = [z for z in zeilen if not ist_zukaufteil(self.positionen[z])]
+        zeilen = [z for z in zeilen if not kein_laserteil(self.positionen[z])]
         if not zeilen:
             self.f.meldung("Bitte zuerst die Rohrlaserteil-Position(en) markieren.", fehler=True)
             return False

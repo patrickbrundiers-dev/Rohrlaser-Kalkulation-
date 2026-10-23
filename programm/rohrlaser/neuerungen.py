@@ -21,13 +21,23 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.2", "<b>CSV-Export neu</b>: Knopf <b>CSV-Export</b> rechts bei der Ausgabe mit <i>Kopf + Positionen "
+    ["0.9.3", "<b>CSV-Export neu</b>: Knopf <b>CSV-Export</b> rechts bei der Ausgabe mit <i>Kopf + Positionen "
                "(ZIP)</i>, <i>Nur Angebotskopf</i> und <i>Nur Angebotspositionen</i>. Angebotskopf.csv (26 Spalten, "
                "eine Zeile) und Angebotspositionen.csv (40 Spalten, eine Zeile je Position) im vorgegebenen Format: "
                "Semikolon, UTF-8 mit BOM, CRLF, Dezimalpunkt (79.98), Zeiten HH:MM:SS; ZIP heißt Angebot_&lt;Nr&gt;.zip "
                "([[csv_export]]). Der bisherige CSV-Export der Kalkulation entfällt; alle Werte stehen weiter im "
                "Kalkulations-PDF.",
      "CSV-Export Angebotskopf.csv + Angebotspositionen.csv (einzeln oder als ZIP) im festen Spaltenformat"],
+    ["0.9.2", "<b>Schweißbaugruppen</b>: neue Positionsart <i>Schweißbaugruppe</i>. <i>Neue Position → "
+               "Schweißbaugruppe</i> öffnet den Editor mit Struktur und Teilen (Unterbaugruppen mit Menge, markierte "
+               "Positionen vorgewählt), Nahtgruppen, Arbeitsgängen und Vorrichtungen (Einmalkosten je Auftrag, "
+               "anteilig oder wiederverwendbar), Stammdaten und Übersicht; gerechnet wird bei jeder Eingabe. Die "
+               "Einzelteile bleiben normale Positionen, die Baugruppe rechnet nur ihre eigenen Leistungen dazu; Satz "
+               "und Stückzahlen der Teile folgen der Baugruppe. <b>Aus Zusatzarbeiten …</b> übernimmt eine "
+               "Zusatzarbeit als Arbeitsgang ([[schweissbaugruppe]]). Neue Unterreiter Schweißverfahren, "
+               "Schweiß-Kennwerte und Schweiß-Faktoren; <b>Richtwerte laden</b> trägt fehlende Zeilen ein, eigene "
+               "bleiben ([[schweiss_stammdaten]]). Angebote ohne Baugruppe rechnen genau wie bisher.",
+     "Schweißbaugruppen: Editor, Nahtgruppen, Arbeitsgänge, Richtwerte laden ([[schweissbaugruppe]])."],
     ["0.9.1", "<b>STEP-Import robuster</b>: Die Messung zeigt Datei, Körper und Restzeit. Ein Körper, der länger als "
               "das Zeitlimit braucht (Vorgabe 120 s) oder abstürzt, wird ausgelassen und als <i>nicht gemessen</i> "
               "gemeldet, der Rest der Datei wird gemessen. Schon gemessene Dateien kommen sofort aus dem "
