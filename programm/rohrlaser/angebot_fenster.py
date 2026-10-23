@@ -2992,7 +2992,7 @@ class AngebotSeite(QWidget):
                 kunde=self.db.kunde(self.kopf.get("kundennr")),
                 ersteller=teilen.mitarbeiter(self.db, bearbeiter).get("name") if bearbeiter else None)
             if art == "zip":
-                export.zip_schreiben(pfad, kopfzeile, pos_zeilen)
+                export.zip_schreiben(pfad, kopfzeile, pos_zeilen, export.baugruppen_zeilen(self.positionen, zeilen))
             elif art == "kopf":
                 export.kopf_csv(pfad, kopfzeile)
             else:
