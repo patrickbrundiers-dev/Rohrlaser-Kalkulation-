@@ -3337,6 +3337,37 @@ def kapitel_stammdaten(i):
            "Tabellen beim ersten Start von Version 0.8.2 (Schema 37).")
     i.bild("stamm_blechlaser", "Einstellungen, Blechlaser (Richtwerte) je Kategorie, Gas und Blechdicke",
            hoehe=100 * mm)
+    i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
+    i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
+           "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
+           "pflegst. Neue Datendateien bekommen die Tabellen leer; ohne Kennwert rechnet das Programm keine Zeit, "
+           "sondern zeigt eine Warnung.")
+    i.tabelle(["Tabelle", "Inhalt"], [
+        ["<b>Schweißverfahren</b>", "Verfahren (MAG, MIG, WIG, E-Hand, Heften, Roboter …, frei erweiterbar), "
+                                    "Stundensatz-ID, <b>Lichtbogenzeitfaktor [%]</b> (Anteil der Lichtbogenzeit an "
+                                    "der Schweißarbeitszeit) und Zeit je Heftpunkt [s]"],
+        ["<b>Schweiß-Kennwerte</b>", "Lichtbogenzeit in min je m Naht nach Verfahren, Nahtart (Kehl-, Stumpf-, "
+                                     "Ecknaht) und Nahtgröße: Kehlnaht nach a-Maß, Stumpf- und Ecknaht nach "
+                                     "Blechdicke (Spalte <i>a-Maß bzw. Blechdicke bis [mm]</i>). Es gilt die Zeile "
+                                     "mit dem kleinsten <i>bis</i>, das die Nahtgröße abdeckt; <i>Herkunft / "
+                                     "Bemerkung</i> sagt, woher der Wert stammt."],
+        ["<b>Schweiß-Faktoren</b>", "Zuschläge auf die Lichtbogenzeit für Schweißlage (PA … PG), Zugänglichkeit und "
+                                    "Qualitätsanforderung: je Art und <i>Ausprägung</i> ein <i>Faktor auf die "
+                                    "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"]], [45, 220])
+    i.genauer()
+    i.text("Rechnung je Nahtgruppe: Naht [m] = Länge je Naht × Anzahl (beidseitig doppelt); Lichtbogenzeit = Naht × "
+           "Kennwert × Faktoren; Schweißzeit = Lichtbogenzeit ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit je "
+           "Heftpunkt. Lichtbogenzeit und Arbeitszeit sind nicht dasselbe: der Lichtbogenzeitfaktor deckt die "
+           "Nebenzeiten am Platz ab (Brenner ansetzen, Schlacke, Drahtwechsel). Rüsten, Vorrichten, Wenden und "
+           "Schleifen sind eigene Arbeitsgänge der Baugruppe. Ist eine Zeit von Hand eingetragen, gilt sie. In der "
+           "Kalkulation stehen die Kosten als Kostenarten <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> "
+           "(mit Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung).")
+    i.text("Jede Zeile hat einen <b>Status</b>: <i>Richtwert</i> oder <i>geprüft</i>. Richtwerte sind aus dem "
+           "Nahtquerschnitt hergeleitet (Kehlnaht a² × 1,1; V-Naht 60° mit 1,5 mm Spalt; × Dichte ÷ "
+           "Abschmelzleistung des Verfahrens, z. B. MAG 3,5 kg/h) und keine Erfahrungswerte der eigenen Fertigung. "
+           "Solange eine Baugruppe mit Richtwerten rechnet, zeigt ihr Status einen HINWEIS. Stelle die Werte nach "
+           "den ersten Aufträgen auf <i>geprüft</i>. Verschickte Angebote ändern sich nicht: jede Nahtgruppe merkt "
+           "sich die Kennwerte, mit denen sie gerechnet wurde.")
     i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "

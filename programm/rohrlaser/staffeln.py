@@ -309,7 +309,7 @@ def abmessungen(positionen):
     """Abmessungen der Rohrlaserteile mit eigenem Material: [(Abmessung, [Positionsnummern])]."""
     out = {}
     for p in positionen:
-        if position_aktiv(p) and not rechnen.ist_zukaufteil(p) and not rechnen.beigestellt(p) and txt(p.get("profil_id")):
+        if position_aktiv(p) and not rechnen.kein_laserteil(p) and not rechnen.beigestellt(p) and txt(p.get("profil_id")):
             out.setdefault(abmessung(p), []).append(txt(p.get("pos")))
     return list(out.items())
 
@@ -454,7 +454,8 @@ _FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stunde
               ("Gewinde", "gewinde_teil", "Gewindezeit × Stundensatz bzw. Festpreis"),
               ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
               ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),
-              ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"))
+              ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"),
+              ("Schweißbaugruppe", "bg_eigen_teil", "Nahtgruppen, Arbeitsgänge und Einmalkosten der Baugruppe"))
 _RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschine, auf alle Teile der Stufe umgelegt"),
             ("Rüsten je Abmessung", "ruesten_abm_teil", "Rüstzeit je Abmessung, auf deren Teile umgelegt"),
             ("Stangenwechsel", "stangenwechsel_teil", "Stangenwechsel der Stufe, auf alle Teile umgelegt"))
@@ -468,10 +469,10 @@ def _bausteine_teil(kz, idx, summen):
         return sum(_zahl(z.get(n)) * _zahl(z.get("stueck")) for z in zeilen)
     fert = [(n, summe(f), e) for n, f, e in _FERTIGUNG if n == "Laser schneiden" or abs(summe(f)) >= 0.005]
     ruest = [(n, summe(f), e) for n, f, e in _RUESTEN if n == "Rüsten Maschine" or abs(summe(f)) >= 0.005]
-    ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil")
+    ohne_preis = sum(1 for z in zeilen if not z["material_gruppe"] and not z.get("zukaufteil") and not z.get("baugruppe")
                      and not (z.get("kundenmaterial") and z["eingeplant"]))      # Kundenmaterial: 0 € ist richtig
     return dict(material=summe("material_teil"), material_fehlt=ohne_preis, fertigung=fert, ruesten=ruest,
-                fremd=summe("zusatz_fremd_teil"), pauschalen=summe("pauschale_abm_teil"),
+                fremd=summe("zusatz_fremd_teil") + summe("bg_fremd_teil"), pauschalen=summe("pauschale_abm_teil"),
                 programmierung=summe("programmierung_anteil"), angebotsaufschlag=summe("angebotsaufschlag_teil"),
                 fracht=summe("fracht_teil"), skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
                 zukauf_einstand=summe("zukauf_einstand_teil"), zukauf_aufschlag=summe("zukauf_aufschlag_teil"),
@@ -625,8 +626,10 @@ def bausteine(summen, ohne_materialpreis=0):
         fert.append(("Zusatzarbeiten", summen["zusatz_eigen"], "Stammdaten Zusatzarbeiten"))
     if abs(summen.get("handling_beistellung", 0)) >= 0.005:
         fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/m × Stangenlänge Kundenmaterial"))
+    if abs(summen.get("baugruppe_eigen", 0)) >= 0.005:
+        fert.append(("Schweißbaugruppen", summen["baugruppe_eigen"], "Nahtgruppen, Arbeitsgänge und Einmalkosten"))
     return dict(material=summen["material"], material_fehlt=ohne_materialpreis, fertigung=fert, ruesten=ruest,
-                fremd=summen["zusatz_fremd"], pauschalen=summen["pauschalen"],
+                fremd=summen["zusatz_fremd"] + summen.get("baugruppe_fremd", 0.0), pauschalen=summen["pauschalen"],
                 programmierung=summen["programmierung"], angebotsaufschlag=summen["angebotsaufschlag"],
                 fracht=summen["fracht"], skonto_satz=summen["skonto_satz"], satz_maschine=summen["satz_maschine"],
                 zukauf_einstand=summen.get("zukauf_einstand", 0), zukauf_aufschlag=summen.get("zukauf_aufschlag", 0),

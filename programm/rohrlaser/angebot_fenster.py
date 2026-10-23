@@ -28,7 +28,7 @@ from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
-from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil
+from .angebot import EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_zukaufteil, kein_laserteil
 from .angebot_oben import KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, _kundennr
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN
@@ -548,7 +548,7 @@ class PositionenModell(QAbstractTableModel):
                     neu = vorschaubild(entpacken(self.s.db.netz(pid)), 64, 18)
                 elif blech.lesen(p.get("technik")):
                     neu = vorschau.bild(p, None)
-                elif not ist_zukaufteil(p):
+                elif not kein_laserteil(p):
                     neu = vorschau.rohr(p, self.k.profile.get(p.get("profil_id")))
                 else:
                     neu = None
@@ -572,11 +572,11 @@ class PositionenModell(QAbstractTableModel):
             self.meterpreise.append(rechnen.meterpreis(p, s.kopf, self.daten, s.k, s.tabellen))  # (berechnet, wirksam, fehlt)
             self.zeiten.append(rechnen.schneidzeit(p, s.kopf, w.get("wand_schneiden"), s.tabellen, s.k)[2])   # berechnet [s]
             # Programmierzeit ohne Eintrag von Hand: Grundzeit + Zeit je Innenkontur [min] (Zukaufteile: keine)
-            self.prog_zeiten.append(None if ist_zukaufteil(p) else
+            self.prog_zeiten.append(None if kein_laserteil(p) else
                                     rechnen.programmier_zeit(dict(p, prog_zeit=None), s.einst)[0])
             ein = eingeplant.get(rechnen.schluessel(p, i), 0) if eingeplant is not None else None
-            w["eingeplant"] = ein if p.get("profil_id") and not ist_zukaufteil(p) else None
-            if ist_zukaufteil(p):
+            w["eingeplant"] = ein if p.get("profil_id") and not kein_laserteil(p) else None
+            if kein_laserteil(p):
                 ein = None              # Zukaufteile werden nicht eingeplant
             w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
             self.werte.append(w)
@@ -674,8 +674,8 @@ class PositionenModell(QAbstractTableModel):
             if rolle in (Qt.DisplayRole, Qt.EditRole) and not eigen:
                 return _z(anzeige, 2) if anzeige is not None else ""
             if rolle == Qt.ToolTipRole:
-                if ist_zukaufteil(self.daten[index.row()]):
-                    return "Zukaufteil: kein Materialpreis je m."
+                if kein_laserteil(self.daten[index.row()]):
+                    return "Zukaufteil bzw. Schweißbaugruppe: kein Materialpreis je m."
                 t = (f"Berechnet: {_z(berechnet, 2)} €/m (Lieferlänge, Preise bzw. Tonnenpreis, mit Aufpreis der "
                      "Oberfläche). " if berechnet is not None else "Kein berechneter Meterpreis: Preis von Hand "
                                                                     "eintragen. ")
@@ -711,7 +711,7 @@ class PositionenModell(QAbstractTableModel):
                 return (text + "\n" if text else "") + "Doppelklick aufs Bild: " + \
                     ("Blech-Editor" if blech.lesen(p.get("technik")) else "Schneidweg-Rechner") + \
                     " · Tippen oder F2: Artikelnummer ändern"
-            if x.name in RECHNER_SPALTEN and not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile:
+            if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
             if art == "bohrbild" and rolle == Qt.ToolTipRole:
@@ -1652,7 +1652,7 @@ class AngebotSeite(QWidget):
         """Material (Eigenmaterial / Kunde beigestellt) für alle Rohrlaserteil-Positionen setzen."""
         n = 0
         for p in self.positionen:
-            if not ist_zukaufteil(p) and (p.get("material_herkunft") or EIGENMATERIAL) != herkunft:
+            if not kein_laserteil(p) and (p.get("material_herkunft") or EIGENMATERIAL) != herkunft:
                 self.db.position_aendern(p["id"], "material_herkunft", herkunft)
                 n += 1
         self.neu_laden()
@@ -1937,7 +1937,7 @@ class AngebotSeite(QWidget):
         if not self.k.profile:
             QMessageBox.information(self, "Neue Position", "Es gibt noch keine Profile in den Stammdaten.")
             return False
-        letzte = next((p for p in reversed(self.positionen) if not ist_zukaufteil(p)
+        letzte = next((p for p in reversed(self.positionen) if not kein_laserteil(p)
                        and p.get("profil_id") in self.k.profile), {})
         pid = letzte.get("profil_id") or sorted(self.k.profile, key=str.lower)[0]
         wst = letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff") or None
@@ -2046,7 +2046,7 @@ class AngebotSeite(QWidget):
             return False
         if werte is None:
             weitere = {}
-            if len(zeilen) == 1 and not ist_zukaufteil(self.positionen[zeilen[0]]):
+            if len(zeilen) == 1 and not kein_laserteil(self.positionen[zeilen[0]]):
                 weitere = {"Schweißnaht …": lambda: self.schweissnaht(list(zeilen)),
                            "Bohrungen prüfen …": lambda: self.bohrungen_pruefen(list(zeilen))}
             d = ZusatzDialog(self, self.positionen[zeilen[0]], len(zeilen), self.k, self.tabellen,
@@ -2083,12 +2083,12 @@ class AngebotSeite(QWidget):
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
                 name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
             self.blech_bearbeiten(r)            # Blech (auch aus STEP): Editor; Nummer mit 3D-Modell: 3D-Ansicht
-        elif (name in RECHNER_SPALTEN or art == "abweichung") and not ist_zukaufteil(p) \
+        elif (name in RECHNER_SPALTEN or art == "abweichung") and not kein_laserteil(p) \
                 and p.get("profil_id") in self.k.profile:
             self.schneidweg_berechnen(r)
         elif name == "artikel" and (p.get("id") in self.pos_modell.mit_netz or self.pos_modell.vorschau(r)):
             auf_bild = self._auf_bild(i, auf_bild)
-            rechner = not ist_zukaufteil(p) and p.get("profil_id") in self.k.profile
+            rechner = not kein_laserteil(p) and p.get("profil_id") in self.k.profile
             if p.get("id") not in self.pos_modell.mit_netz and not auf_bild:
                 if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt: Nummer bearbeiten
                     self.pos_ansicht.edit(i)
@@ -2244,7 +2244,7 @@ class AngebotSeite(QWidget):
             zeile = zeilen[0]
         p = self.positionen[zeile]
         profil = self.k.profile.get(p.get("profil_id"))
-        if ist_zukaufteil(p) or not profil:
+        if kein_laserteil(p) or not profil:
             self.f.meldung("Schneidweg-Rechner: Die Position braucht ein Profil aus den Stammdaten (kein Zukaufteil).",
                            fehler=True)
             return False
@@ -2297,7 +2297,7 @@ class AngebotSeite(QWidget):
         dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos). Ergebnis: True = gespeichert."""
         if zeilen is None:
             zeilen = sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()})
-        zeilen = [z for z in zeilen if not ist_zukaufteil(self.positionen[z])]
+        zeilen = [z for z in zeilen if not kein_laserteil(self.positionen[z])]
         if not zeilen:
             self.f.meldung("Bitte zuerst die Rohrlaserteil-Position(en) markieren.", fehler=True)
             return False
