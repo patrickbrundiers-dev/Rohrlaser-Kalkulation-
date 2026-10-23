@@ -51,6 +51,7 @@ import step_ergebnis  # noqa: E402
 import step_geometrie  # noqa: E402
 from step_geometrie import FLACHSTAHL_BIS, analysiere_datei  # noqa: E402
 
+TEILEN_AB = int(os.environ.get("STEP_MESSEN_TEILEN_AB", 4))    # Datei auf Prozesse verteilen ab so vielen Körpern
 PROZESSE_MAX = 4      # ohne Zeitlimit: gleichzeitige Messprozesse bei vielen Dateien (jeder lädt OpenCascade einmal)
 SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wandstaerke", "flaeche", "laenge",
            "schneidweg", "konturen", "ende_a", "ende_a_gerade", "ende_b", "ende_b_gerade", "innen",
@@ -74,11 +75,11 @@ def _text(s):
     return str(s).replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
 
-def _analysiere(datei, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None, melden=None):
-    """Wie analysiere_datei; Pfade mit Umlauten o. ä. über eine Kopie mit einfachem Namen lesen,
-    weil OpenCascade solche Pfade unter Windows nicht in jeder Version öffnet."""
+def _lesen(datei):
+    """Datei lesen (step_geometrie.datei_lesen); Pfade mit Umlauten o. ä. über eine Kopie mit einfachem Namen, weil
+    OpenCascade solche Pfade unter Windows nicht in jeder Version öffnet."""
     if str(datei).isascii() or not datei.is_file():
-        return analysiere_datei(datei, netz, flach_bis, auslassen, melden)
+        return step_geometrie.datei_lesen(datei)
     ordner = None   # auch der Temp-Ordner kann Umlaute enthalten (Benutzername)
     if not tempfile.gettempdir().isascii():
         ordner = next((p for p in (os.environ.get("PUBLIC"), os.environ.get("SystemDrive", "C:") + "\\")
@@ -86,24 +87,23 @@ def _analysiere(datei, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None, mel
     with tempfile.TemporaryDirectory(dir=ordner) as tmp:
         kopie = Path(tmp) / "teil.step"
         shutil.copyfile(datei, kopie)
-        teile = analysiere_datei(kopie, netz, flach_bis, auslassen, melden)
-    for t in teile:
-        t.datei = datei.stem
-    return teile
+        return step_geometrie.datei_lesen(kopie, datei.stem)
 
 
-def zeilen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
-    """Messwerte einer Datei als Zeilen (Liste von Feldern in der Reihenfolge SPALTEN). netze: Ordner für die
-    Dreiecksnetze (None = keine), nr: laufende Nummer der Datei (Name der Netzdateien)."""
-    return messen(datei, netze, nr, flach_bis)[0]
-
-
-def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslassen=None, melden=None):
+def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslassen=None, melden=None, gel=None,
+           vorgemessen=None):
     """Wie zeilen, dazu das Ergebnis im versionierten JSON-Format (step_ergebnis.datei). einst: Grenzwerte der
-    Erkennung (step_geometrie.einstellen), auslassen/melden wie analysiere_datei."""
+    Erkennung (step_geometrie.einstellen), auslassen/melden wie analysiere_datei. gel: schon gelesene Datei (_lesen);
+    vorgemessen: {Körpernummer: Teil} aus anderen Prozessen, dann nur noch datei_abschliessen."""
     step_geometrie.einstellen(einst)
     try:
-        teile = _analysiere(datei, netze is not None, flach_bis, auslassen, melden)
+        gel = gel or _lesen(datei)
+        if vorgemessen is not None:
+            if melden:
+                melden(len(gel.koerper) + 1, len(gel.koerper))
+            teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen)
+        else:
+            teile = analysiere_datei(datei, netze is not None, flach_bis, auslassen, melden, gel)
     except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
         return _fehler_ergebnis(datei, _text(e) or type(e).__name__)
     out = []
@@ -238,8 +238,12 @@ def cache_begrenzen(ordner, mb):
 
 # ------------------------------------------------------------------ Messung unter Aufsicht (Zeitlimit)
 def _arbeiter(auftraege, ereignisse, wid):
-    """Messprozess: misst Aufträge (nr, datei, netze, flach_bis, einst, auslassen) und meldet Körper und Ergebnis.
-    Endet von selbst, wenn der aufsichtführende Prozess nicht mehr läuft (Abbruch im Programm beendet nur ihn)."""
+    """Messprozess: erledigt Aufträge (Schlüssel, Datei, netze, flach_bis, einst, auslassen, Zusatz) und meldet Körper
+    und Ergebnis. Schlüssel ("datei", nr): ganze Datei messen; ist Zusatz = teilen_ab > 0 und hat die Datei
+    mindestens so viele zu messende Körper, nur lesen und die Körper zurückmelden ("geteilt"). ("koerper", nr, k):
+    einen Körper messen ("teil"). ("abschluss", nr): Zusatz = gemessene Teile, Datei fertig auswerten. Die zuletzt
+    gelesene Datei bleibt im Speicher. Endet von selbst, wenn der aufsichtführende Prozess nicht mehr läuft (Abbruch
+    im Programm beendet nur ihn)."""
     import multiprocessing as mp
     import threading
 
@@ -249,19 +253,50 @@ def _arbeiter(auftraege, ereignisse, wid):
             time.sleep(1)
         os._exit(3)
     threading.Thread(target=wache, daemon=True).start()
+    gelesen = {}
     while True:
         a = auftraege.get()
         if a is None:
             return
-        nr, datei, netze, flach_bis, einst, auslassen = a
+        schluessel, datei, netze, flach_bis, einst, auslassen, zusatz = a
+        datei = Path(datei)
         haengt = os.environ.get("STEP_MESSEN_TEST_HAENGT", "")      # nur für Tests: "Datei:Körper" hängt
 
-        def melden(k, n, nr=nr, datei=datei):
-            ereignisse.put(("koerper", wid, nr, k, n))
-            if haengt == f"{Path(datei).name}:{k}" and k not in auslassen:
+        def melden(k, n, schluessel=schluessel, datei=datei):
+            ereignisse.put(("koerper", wid, schluessel, k, n))
+            if haengt == f"{datei.name}:{k}" and k not in auslassen:
                 time.sleep(3600)
-        erg = messen(Path(datei), netze, nr, flach_bis, einst, auslassen, melden)
-        ereignisse.put(("fertig", wid, nr, erg))
+        if schluessel[0] == "datei":
+            gelesen.clear()
+            try:
+                step_geometrie.einstellen(einst)
+                gel = _lesen(datei)
+            except Exception as e:  # wie messen: Fehlerzeile
+                ereignisse.put(("fertig", wid, schluessel, _fehler_ergebnis(datei, _text(e) or type(e).__name__)))
+                continue
+            gelesen[str(datei)] = gel
+            n = len(gel.koerper)
+            messbar = [k for k in range(1, n + 1) if k not in gel.gleich and k not in auslassen]
+            if zusatz and len(messbar) >= zusatz:
+                ereignisse.put(("geteilt", wid, schluessel, messbar, n))
+                continue
+            erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel)
+            ereignisse.put(("fertig", wid, schluessel, erg))
+            continue
+        gel = gelesen.get(str(datei))
+        if gel is None:
+            gelesen.clear()
+            step_geometrie.einstellen(einst)
+            gel = gelesen[str(datei)] = _lesen(datei)
+        if schluessel[0] == "koerper":
+            step_geometrie.einstellen(einst)
+            k = schluessel[2]
+            melden(k, len(gel.koerper))
+            t = step_geometrie.koerper_messen(gel, k, netze is not None, flach_bis, auslassen)
+            ereignisse.put(("teil", wid, schluessel, step_geometrie.teil_uebergeben(t)))
+        else:
+            erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel, zusatz)
+            ereignisse.put(("fertig", wid, schluessel, erg))
 
 
 def _fehler_ergebnis(datei, text):
@@ -269,15 +304,18 @@ def _fehler_ergebnis(datei, text):
             step_ergebnis.datei(datei.name, fehler=text))
 
 
-def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None):
+def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None, teilen_ab=TEILEN_AB):
     """Aufträge {nr: (datei, netze, flach_bis, einst)} in prozesse Messprozessen messen. Braucht ein Körper länger
     als zeitlimit Sekunden oder stirbt der Prozess, wird er beendet und die Datei ohne diesen Körper neu gemessen
-    (der Körper steht als "nicht gemessen" im Ergebnis). fertig(nr, ergebnis) je fertiger Datei; Fortschritt je
-    Körper als JSON-Zeile, je Datei als "[n/m] Datei"."""
+    (der Körper steht als "nicht gemessen" im Ergebnis). Sind Prozesse frei, wird eine Datei mit mindestens
+    teilen_ab zu messenden Körpern auf die Prozesse verteilt (je Körper ein Auftrag, danach ein Abschluss mit den
+    Auswertungen über die Baugruppe); das Ergebnis ist dasselbe. fertig(nr, ergebnis) je fertiger Datei; Fortschritt
+    je Körper als JSON-Zeile, je Datei als "[n/m] Datei"."""
     import multiprocessing as mp
     ereignisse = mp.Queue()
-    offen = sorted(auftraege)
+    offen = [("datei", nr) for nr in sorted(auftraege)]
     auslassen = {nr: {} for nr in auftraege}
+    geteilt = {}            # nr: {n, ausstehend (Körper), teile {k: Teil}}
     gesamt = gesamt or len(auftraege)
     stand = dict(erledigt=vorher)
 
@@ -285,41 +323,73 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         q = mp.Queue()
         p = mp.Process(target=_arbeiter, args=(q, ereignisse, wid), daemon=True)
         p.start()
-        return dict(p=p, q=q, nr=None, koerper=None, seit=None)
+        return dict(p=p, q=q, auftrag=None, koerper=None, seit=None)
 
     def abschliessen(nr, erg):
+        geteilt.pop(nr, None)
         stand["erledigt"] += 1
         fertig(nr, erg)
         print(f"[{stand['erledigt']}/{gesamt}] {Path(auftraege[nr][0]).name}", flush=True)
 
+    def koerper_fertig(nr):
+        g = geteilt[nr]
+        if not g["ausstehend"]:
+            offen.insert(0, ("abschluss", nr))
+
     def verarbeiten(ev):
         w = arbeiter[ev[1]]
-        if w["nr"] != ev[2]:            # Meldung eines beendeten Auftrags
+        if w["auftrag"] != ev[2]:       # Meldung eines beendeten Auftrags
             return
+        nr = ev[2][1]
         if ev[0] == "koerper":
             k, n = ev[3], ev[4]
             w.update(koerper=k or None, seit=time.monotonic() if k else None)
-            print(json.dumps(dict(datei=stand["erledigt"] + 1, dateien=gesamt, name=Path(auftraege[ev[2]][0]).name,
-                                  koerper=k, koerper_n=n), ensure_ascii=False), flush=True)
+            if nr in geteilt:           # verteilt: Fortschritt = fertige Körper der Datei
+                k = min(n, n - len(geteilt[nr]["ausstehend"]) + 1)
+            print(json.dumps(dict(datei=stand["erledigt"] + 1, dateien=gesamt, name=Path(auftraege[nr][0]).name,
+                                  koerper=min(k, n), koerper_n=n), ensure_ascii=False), flush=True)
+            return
+        w.update(auftrag=None, koerper=None, seit=None)
+        if ev[0] == "geteilt":
+            geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={})
+            offen[0:0] = [("koerper", nr, k) for k in ev[3]]
+        elif ev[0] == "teil":
+            g = geteilt[nr]
+            g["teile"][ev[2][2]] = ev[3]
+            g["ausstehend"].discard(ev[2][2])
+            koerper_fertig(nr)
         else:
-            w.update(nr=None, koerper=None, seit=None)
-            abschliessen(ev[2], ev[3])
+            abschliessen(nr, ev[3])
 
-    arbeiter = [starten(wid) for wid in range(max(1, min(prozesse, len(offen))))]
+    def vergeben(w, auftrag):
+        nr = auftrag[1]
+        frei = prozesse - sum(1 for x in arbeiter if x["auftrag"] is not None) - 1
+        dateien_offen = sum(1 for a in offen if a[0] == "datei")
+        zusatz = None
+        if auftrag[0] == "datei":       # verteilen nur, wenn sonst Prozesse ohne Arbeit blieben
+            zusatz = teilen_ab if frei > dateien_offen and teilen_ab > 0 else 0
+        elif auftrag[0] == "abschluss":
+            zusatz = geteilt[nr]["teile"]
+        w.update(auftrag=auftrag, koerper=None, seit=None)
+        w["q"].put((auftrag, *auftraege[nr], dict(auslassen[nr]), zusatz))
+
+    prozesse = max(1, prozesse)
+    arbeiter = [starten(wid) for wid in range(min(prozesse, len(offen)))]
     try:
         while stand["erledigt"] < gesamt:
             for w in arbeiter:
-                if w["nr"] is None and offen:
-                    nr = offen.pop(0)
-                    w.update(nr=nr, koerper=None, seit=None)
-                    w["q"].put((nr, *auftraege[nr], dict(auslassen[nr])))
+                if w["auftrag"] is None and offen:
+                    vergeben(w, offen.pop(0))
+            while offen and len(arbeiter) < prozesse:      # verteilte Datei: weitere Prozesse starten
+                arbeiter.append(starten(len(arbeiter)))
+                vergeben(arbeiter[-1], offen.pop(0))
             try:
                 verarbeiten(ereignisse.get(timeout=0.5))
             except queue.Empty:
                 pass
             jetzt = time.monotonic()
             for wid, w in enumerate(arbeiter):
-                if w["nr"] is None:
+                if w["auftrag"] is None:
                     continue
                 zu_lang = zeitlimit > 0 and w["seit"] is not None and jetzt - w["seit"] > zeitlimit
                 if not w["p"].is_alive():       # gestorben: letzte Meldungen noch abholen
@@ -331,18 +401,23 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
                             break
                 elif not zu_lang:
                     continue
-                nr, k = w["nr"], w["koerper"]
+                auftrag, k = w["auftrag"], w["koerper"]
                 w["p"].kill()
                 w["p"].join(5)
                 arbeiter[wid] = starten(wid)
-                if nr is None:                  # doch noch fertig geworden
+                if auftrag is None:             # doch noch fertig geworden
                     continue
+                nr = auftrag[1]
                 if k is None:                   # beim Lesen der Datei abgestürzt
                     abschliessen(nr, _fehler_ergebnis(Path(auftraege[nr][0]),
                                                       "Messung abgebrochen (Absturz beim Lesen der Datei)"))
                     continue
                 auslassen[nr][k] = f"Zeitlimit {zeitlimit:g} s überschritten" if zu_lang else "Messung abgestürzt"
-                offen.insert(0, nr)
+                if auftrag[0] == "koerper":     # verteilt: ohne diesen Körper weiter, er kommt in den Abschluss
+                    geteilt[nr]["ausstehend"].discard(k)
+                    koerper_fertig(nr)
+                else:
+                    offen.insert(0, auftrag)
     finally:
         for w in arbeiter:
             try:

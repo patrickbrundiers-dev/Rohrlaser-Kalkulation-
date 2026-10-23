@@ -55,6 +55,7 @@ except ImportError:  # ältere OCP-Versionen
                               TopTools_HSequenceOfShape)
 from OCP.BRep import BRep_Tool
 from OCP.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Vec, gp_Ax3, gp_Trsf
+from OCP.TopLoc import TopLoc_Location
 
 import sys as _sys
 from pathlib import Path as _Path
@@ -3227,25 +3228,37 @@ def _getrennt_messen(solid, datei, koerper, netz, ohne=None):
     return t
 
 
-def _beruehrende_anbauteile(teile, koerper, netz):
+def _ist_rohr(t):
+    return getattr(t, "_rahmen", None) is not None or getattr(t, "_rohr", False)
+
+
+def _beruehrende_anbauteile(teile, koerper, netz, rahmen=None):
     """Baugruppe: eigene Körper (Bleche, Rundstahl/Bolzen, nicht messbare), die ein gemessenes Hohlprofil berühren,
     sind dessen Anbauteile (Patrick 22.10.2026, F2 a: sie bleiben zusätzlich eigene Positionen). Rohre, die andere
-    Rohre berühren (Gestell), bleiben unberührt."""
+    Rohre berühren (Gestell), bleiben unberührt. rahmen(t): Abwicklung eines Rohrs, dessen _rahmen fehlt (in einem
+    anderen Prozess gemessen); wird nur für Rohre mit Anbauteil gebraucht."""
     from OCP.BRepExtrema import BRepExtrema_DistShapeShape
-    rohre = [t for t in teile if getattr(t, "_rahmen", None) is not None]
+    rohre = [(t, k) for t, (art, k) in zip(teile, koerper) if _ist_rohr(t)]
     andere = [(t, k) for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and
-              getattr(t, "_rahmen", None) is None and (t.bauteiltyp in ("Blech", "Blech gekantet") or
-                                                       t.profilform in ("Rundstahl", "Vierkantstahl", ""))]
-    for t in rohre:
+              not _ist_rohr(t) and (t.bauteiltyp in ("Blech", "Blech gekantet") or
+                                    t.profilform in ("Rundstahl", "Vierkantstahl", ""))]
+    for t, k in rohre:
+        if not andere:
+            break
+        solid = t._rahmen["solid"] if getattr(t, "_rahmen", None) is not None else k
         rb = Bnd_Box()
-        BRepBndLib.Add_s(t._rahmen["solid"], rb, False)
+        BRepBndLib.Add_s(solid, rb, False)
         rb.Enlarge(ANBAU_KONTAKT)
         for ta, ka in andere:
             kb = Bnd_Box()
             BRepBndLib.Add_s(ka, kb, False)
             if rb.IsOut(kb):
                 continue
-            dist = BRepExtrema_DistShapeShape(t._rahmen["solid"], ka)
+            if getattr(t, "_rahmen", None) is None:
+                if rahmen is None or rahmen(t) is None:
+                    break
+                solid = t._rahmen["solid"]
+            dist = BRepExtrema_DistShapeShape(solid, ka)
             if dist.IsDone() and dist.Value() <= ANBAU_KONTAKT:
                 try:
                     _anbau_beschreiben(t, [TopoDS.Solid(ka)], f"Körper {ta.koerper}", netz, mit_flaechen=False)
@@ -3525,69 +3538,193 @@ def einstellen(werte):
         globals()[glob] = float(v) if v is not None else vorgabe[name]
 
 
-def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None, melden=None):
-    """Alle Körper einer STEP-Datei messen. Je Körper ein Teil, auch für nicht messbare (Flächenmodell offen,
-    Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist.
-    auslassen = {Körpernummer: Grund}: diese Körper nicht messen (z. B. Zeitlimit überschritten), nur Importdaten
-    und Rohnetz. melden(i, n): vor jedem Körper aufgerufen (i = 0: Datei gelesen), für Fortschritt und Zeitlimit."""
-    from pathlib import Path
-    name = Path(pfad).stem
+@dataclass
+class Gelesen:
+    """Eine gelesene STEP-Datei: Körper wie lies_step_info, Name (Dateiname ohne Endung) und gleiche Körper
+    (_instanzen: {Körpernummer: (Nummer des Vorbilds, Verschiebung)}), die nur einmal gemessen werden."""
+    name: str
+    koerper: list
+    info: dict
+    gleich: dict
+
+
+def datei_lesen(pfad, name=None):
+    """STEP-Datei lesen (lies_step_info) und gleiche Körper suchen. Wirft ValueError, wenn sie nicht lesbar ist."""
+    import os
     koerper, info = lies_step_info(pfad)
-    if not koerper:
-        t = Teil(datei=name, koerper=0, einheit=info["einheit"], meldungen=info["meldungen"])
-        t.hinweise.append("Kein Körper und keine Fläche in der Datei")
-        return [t]
-    out = []
-    auslassen = auslassen or {}
-    if melden:
-        melden(0, len(koerper))
-    for i, (art, k) in enumerate(koerper, start=1):
-        if melden:
-            melden(i, len(koerper))
-        if i in auslassen:
-            t = Teil(datei=name, koerper=i)
-            t.hinweise.append(f"nicht gemessen: {auslassen[i]}")
-        elif art == "Flächenmodell offen":
-            t = Teil(datei=name, koerper=i)
-            t.hinweise.append("Flächenmodell nicht geschlossen, nicht messbar")
+    einzeln = os.environ.get("STEP_MESSEN_EINZELN")         # nur für Tests: jeden Körper selbst messen
+    return Gelesen(name or _Path(pfad).stem, koerper, info, {} if einzeln else _instanzen(koerper))
+
+
+def _instanzen(koerper):
+    """Körper, die nur verschobene Kopien eines früheren sind (dieselbe Geometrie im CAD, z. B. 8 gleiche Stützen
+    einer Baugruppe): {Nummer: (Nummer des Vorbilds, Verschiebung (x, y, z))}. Gedrehte oder gespiegelte Kopien
+    werden einzeln gemessen, weil die Messung Ende A und die Lage der Konturen nach der Lage im Raum wählt."""
+    gleich, vorbilder = {}, []
+    for nr, (art, k) in enumerate(koerper, start=1):
+        if art != "Volumenkörper":
+            continue
+        for vnr, vk in vorbilder:
+            if not k.IsPartner(vk):
+                continue
+            rel = k.Location().Transformation().Multiplied(vk.Location().Transformation().Inverted())
+            m = rel.HVectorialPart()
+            if abs(rel.ScaleFactor() - 1) < 1e-12 and all(abs(m.Value(a, b) - (a == b)) < 1e-12
+                                                          for a in (1, 2, 3) for b in (1, 2, 3)):
+                v = rel.TranslationPart()
+                gleich[nr] = (vnr, (v.X(), v.Y(), v.Z()))
+                break
         else:
-            try:
-                t = analysiere(k, name, i, netz, flach_bis)
-            except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
-                t = Teil(datei=name, koerper=i)
-                t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")
-        t.einheit, t.meldungen = info["einheit"], info["meldungen"]
-        t.bauteil, t.pfad, t.knoten = info["bauteile"].get(i, ("", "", ""))
-        t.struktur = info["struktur"]
-        if t.meldungen:
-            t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
-                              + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
-        _koerper_daten(t, k, art)
-        if netz and not t.netz:
-            _rohnetz(t, k)
-        if t.alternative is not None:       # Importdaten gelten für beide Arten
-            for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
-                      "n_kanten", "huelle", "bauteil", "pfad", "knoten", "struktur"):
-                setattr(t.alternative, n, getattr(t, n))
-        out.append(t)
+            vorbilder.append((nr, k))
+    return gleich
+
+
+def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
+    """Körper i (ab 1) einer gelesenen Datei messen: Teil mit Importdaten, Bauteilname und Rohnetz, wenn nicht
+    messbar. Das Teil lässt sich zwischen Prozessen übergeben (ohne _rahmen, siehe teil_uebergeben)."""
+    art, k = gel.koerper[i - 1]
+    info = gel.info
+    auslassen = auslassen or {}
+    if i in auslassen:
+        t = Teil(datei=gel.name, koerper=i)
+        t.hinweise.append(f"nicht gemessen: {auslassen[i]}")
+    elif art == "Flächenmodell offen":
+        t = Teil(datei=gel.name, koerper=i)
+        t.hinweise.append("Flächenmodell nicht geschlossen, nicht messbar")
+    else:
+        try:
+            t = analysiere(k, gel.name, i, netz, flach_bis)
+        except Exception as e:  # Messung dieses Körpers gescheitert: melden, andere Körper weiter messen
+            t = Teil(datei=gel.name, koerper=i)
+            t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")
+    t.einheit, t.meldungen = info["einheit"], info["meldungen"]
+    t.bauteil, t.pfad, t.knoten = info["bauteile"].get(i, ("", "", ""))
+    t.struktur = info["struktur"]
+    if t.meldungen:
+        t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
+                          + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
+    _koerper_daten(t, k, art)
+    if netz and not t.netz:
+        _rohnetz(t, k)
+    if t.alternative is not None:       # Importdaten gelten für beide Arten
+        for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
+                  "n_kanten", "huelle", "bauteil", "pfad", "knoten", "struktur"):
+            setattr(t.alternative, n, getattr(t, n))
+    t._rohr = getattr(t, "_rahmen", None) is not None       # Hohlprofil mit Abwicklung (Anbauteile)
+    return t
+
+
+def teil_uebergeben(t):
+    """Teil ohne die OpenCascade-Daten (_rahmen), damit es sich an einen anderen Prozess schicken lässt."""
+    t.__dict__.pop("_rahmen", None)
+    if t.alternative is not None:
+        t.alternative.__dict__.pop("_rahmen", None)
+    return t
+
+
+def _instanz(vorbild, nr, info, v):
+    """Teil für Körper nr als verschobene Kopie des gemessenen Vorbilds (Lage um v verschoben)."""
+    import copy
+    rahmen = vorbild.__dict__.pop("_rahmen", None)
     try:
-        _beruehrende_anbauteile(out, koerper, netz)
-    except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
-        pass
-    try:
-        _verbund_pruefen(out, koerper)
-    except Exception:  # wie oben
-        pass
-    try:
-        naehte = _nahtkandidaten(out, koerper, info.get("struktur"))
-    except Exception:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
+        t = copy.deepcopy(vorbild)
+    finally:
+        if rahmen is not None:
+            vorbild._rahmen = rahmen
+    t.koerper = nr
+    t.bauteil, t.pfad, t.knoten = info["bauteile"].get(nr, ("", "", ""))
+    for x in (t, t.alternative):
+        if x is None:
+            continue
+        if x is not t:
+            x.koerper, x.bauteil, x.pfad, x.knoten = nr, t.bauteil, t.pfad, t.knoten
+        if x.ende_a_global:
+            x.ende_a_global = tuple(a + b for a, b in zip(x.ende_a_global, v))
+    if rahmen is not None:
+        tr = gp_Trsf()
+        tr.SetTranslation(gp_Vec(*v))
+        t._rahmen = dict(rahmen, solid=rahmen["solid"].Moved(TopLoc_Location(tr)))
+    return t
+
+
+def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
+    """Gemessene Teile {Körpernummer: Teil} einer Datei vervollständigen: Kopien für gleiche Körper, dann die
+    Auswertungen über die ganze Baugruppe (Anbauteile, Verbundprofile, Nahtkandidaten). Ergebnis: Liste der Teile
+    in der Reihenfolge der Körper. auslassen[n + 1] (n = Zahl der Körper): diese Auswertungen auslassen."""
+    koerper, info = gel.koerper, gel.info
+    auslassen = dict(auslassen or {})
+    for i, (vnr, _) in gel.gleich.items():         # Kopien eines ausgelassenen Körpers ebenso
+        if vnr in auslassen and i not in auslassen:
+            auslassen[i] = auslassen[vnr]
+    out = []
+    for i in range(1, len(koerper) + 1):
+        if i in teile:
+            out.append(teile[i])
+        elif i in gel.gleich and gel.gleich[i][0] in teile and i not in auslassen:
+            vnr, v = gel.gleich[i]
+            t = _instanz(teile[vnr], i, info, v)
+            if netz and t.netz and "lage" in t.netz:     # Rohnetz in Dateilage: für diese Lage neu
+                t.netz = None
+                _rohnetz(t, koerper[i - 1][1])
+            out.append(t)
+        else:
+            out.append(koerper_messen(gel, i, netz, flach_bis, auslassen))
+
+    def rahmen(t):          # Abwicklung eines Rohrs, das in einem anderen Prozess gemessen wurde: neu messen
+        if getattr(t, "_rahmen", None) is None:
+            t._rahmen = getattr(koerper_messen(gel, t.koerper, False, flach_bis), "_rahmen", None)
+        return t._rahmen
+    n = len(koerper)
+    if n + 1 in auslassen:
+        if out:
+            out[0].hinweise.append(f"Anbauteile, Verbund und Nahtkandidaten nicht bestimmt: {auslassen[n + 1]}")
         naehte = []
+    else:
+        try:
+            _beruehrende_anbauteile(out, koerper, netz, rahmen)
+        except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
+            pass
+        try:
+            _verbund_pruefen(out, koerper)
+        except Exception:  # wie oben
+            pass
+        try:
+            naehte = _nahtkandidaten(out, koerper, info.get("struktur"))
+        except Exception:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
+            naehte = []
     for t in out:
         t.naehte = naehte
         if t.alternative is not None:
             t.alternative.naehte = naehte
     for t in out:
-        t.__dict__.pop("_rahmen", None)
-        if t.alternative is not None:
-            t.alternative.__dict__.pop("_rahmen", None)
+        teil_uebergeben(t)
+        t.__dict__.pop("_rohr", None)
     return out
+
+
+def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None, melden=None, gel=None):
+    """Alle Körper einer STEP-Datei messen. Je Körper ein Teil, auch für nicht messbare (Flächenmodell offen,
+    Messfehler) – mit Hinweis statt Maßen. Wirft ValueError, wenn die Datei nicht lesbar ist.
+    auslassen = {Körpernummer: Grund}: diese Körper nicht messen (z. B. Zeitlimit überschritten), nur Importdaten
+    und Rohnetz; n + 1 = die Auswertungen über die Baugruppe. melden(i, n): vor jedem gemessenen Körper aufgerufen
+    (i = 0: Datei gelesen, i = n + 1: Auswertungen), für Fortschritt und Zeitlimit. Gleiche Körper (verschobene
+    Kopien) werden nur einmal gemessen. gel: schon gelesene Datei (datei_lesen)."""
+    gel = gel or datei_lesen(pfad)
+    if not gel.koerper:
+        t = Teil(datei=gel.name, koerper=0, einheit=gel.info["einheit"], meldungen=gel.info["meldungen"])
+        t.hinweise.append("Kein Körper und keine Fläche in der Datei")
+        return [t]
+    n = len(gel.koerper)
+    auslassen = auslassen or {}
+    if melden:
+        melden(0, n)
+    teile = {}
+    for i in range(1, n + 1):
+        if i in gel.gleich and i not in auslassen:
+            continue
+        if melden:
+            melden(i, n)
+        teile[i] = koerper_messen(gel, i, netz, flach_bis, auslassen)
+    if melden:
+        melden(n + 1, n)
+    return datei_abschliessen(gel, teile, netz, flach_bis, auslassen)

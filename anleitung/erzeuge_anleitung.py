@@ -1234,7 +1234,9 @@ def kapitel_step(i):
             "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
             "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
             "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
-            "Datei weiter gemessen. Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
+            "Datei weiter gemessen. Gleiche Teile einer Baugruppe (z. B. acht gleiche Stützen, im CAD nur "
+            "verschoben) werden nur einmal gemessen, und eine große Datei wird auf mehrere Messprozesse verteilt. "
+            "Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
             "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
             "sollen ([[einstellungen]]).",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
@@ -1373,7 +1375,9 @@ def kapitel_step(i):
            "Schneidzeit kommen aus der Messung", hoehe=110 * mm, kurz=False)
     i.abschnitt("3D-Ansicht")
     i.text("<b>3D-Ansicht …</b> zeigt die STEP-Teile drehbar: Anfangsschnitt orange, Endschnitt violett, "
-           "Innenkonturen rot, Gravur grün. Linke Maustaste drehen, Mausrad zoomen, Doppelklick zurück.", kurz=True)
+           "Innenkonturen rot, Gravur grün. Linke Maustaste drehen, Mausrad zoomen, Doppelklick zurück. Große "
+           "Baugruppen zeigt die Ansicht beim Drehen und Zoomen vereinfacht (ohne kleine Rundungen, Bohrungen und "
+           "Linien), damit sie flüssig bleibt; beim Loslassen wieder vollständig.", kurz=True)
     i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
         (1, "Feste Blickrichtungen: <b>Schräg</b>, <b>Vorn</b>, <b>Oben</b> und <b>Stirnseite</b>.")])
     i.genauer()
@@ -3022,12 +3026,15 @@ def kapitel_einstellungen(i):
          "Wie aus den Namen in der STEP-Datei Artikelnummern werden und welche Teile als Normteil abgewählt sind; "
          "je Kunde änderbar im Importprofil ([[importprofile]])."],
         ["STEP-Import", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)",
-         "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1). Weniger "
+         "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1); eine "
+         "einzelne große Baugruppe wird auf so viele Prozesse verteilt (mit Zeitlimit). Weniger "
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
         ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper nicht gemessen)",
          "Braucht ein einzelner Körper länger (Vorgabe 120 s) oder stürzt seine Messung ab, wird nur dieser "
          "Körper ausgelassen: er steht im Prüfdialog als nicht übernehmbar mit dem Hinweis <i>nicht gemessen: "
-         "Zeitlimit … überschritten</i>, alle anderen Körper der Datei werden gemessen ([[step]])."],
+         "Zeitlimit … überschritten</i>, alle anderen Körper der Datei werden gemessen ([[step]]). Gleiche "
+         "Kopien dieses Körpers ebenso. Dauern die Auswertungen über die ganze Baugruppe (Anbauteile, "
+         "Nahtkandidaten) zu lange, fehlen nur diese, mit Hinweis am ersten Teil."],
         ["STEP-Import", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen), Messung: Zwischenspeicher "
                         "höchstens [MB]",
          "ja (Vorgabe) = eine schon gemessene Datei mit gleichem Inhalt, gleicher Programmversion und gleichen "
