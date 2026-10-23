@@ -12,7 +12,7 @@ from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QKeySequence, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFileDialog, QFrame,
-    QFormLayout, QMenu, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QFormLayout, QInputDialog, QMenu, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyledItemDelegate, QTableView,
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
@@ -1345,6 +1345,7 @@ class AngebotSeite(QWidget):
                            ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen()),
                            ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
+                           ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren()),
                            ("Blech-Editor …", lambda: self.blech_bearbeiten()),
                            ("Positionen löschen", self.positionen_loeschen)):
             self.pos_menue.addAction(text, lambda ziel=ziel: ziel())
@@ -2163,6 +2164,47 @@ class AngebotSeite(QWidget):
         elif self.pos_modell.flags(i) & Qt.ItemIsEditable:
             self.pos_ansicht.edit(i)
 
+    def _vorlagen_db(self):
+        """Datenbank für Baugruppen-Vorlagen im Editor; im Lesemodus keine (Speichern schreibt)."""
+        return None if self.db.nur_lesen else self.db
+
+    def baugruppe_kopieren(self, zeilen=None, ziel=None):
+        """Schweißbaugruppe der Zeile (oder des Einzelteils) mit allen Einzelteilen in ein anderes Angebot kopieren
+        (P7): neue Kennung, Zuordnung der Teile mitgenommen, Pos.-Nummern hinter den vorhandenen, 3D-Modelle mit.
+        ziel = Angebots-ID (sonst Auswahl). Ergebnis: Anzahl kopierter Positionen (0 = nichts kopiert)."""
+        if self.db.nur_lesen:
+            self.f.meldung("Im Lesemodus kann nichts kopiert werden.", fehler=True)
+            return 0
+        zeilen = zeilen if zeilen is not None else sorted({i.row() for i in self.pos_ansicht.selectedIndexes()})
+        if not zeilen or zeilen[0] >= len(self.positionen):
+            self.f.meldung("Bitte eine Schweißbaugruppe oder eines ihrer Teile markieren.", fehler=True)
+            return 0
+        p = self.positionen[zeilen[0]]
+        bg_id = (baugruppe.lesen(p.get("baugruppe")) or {}).get("id") if ist_baugruppe(p) else baugruppe.zuordnung(p)[0]
+        if not bg_id or bg_id not in baugruppe.baugruppen(self.positionen):
+            self.f.meldung("Bitte eine Schweißbaugruppe oder eines ihrer Teile markieren.", fehler=True)
+            return 0
+        if ziel is None:
+            andere = [a for a in self.db.angebote() if a["id"] != self.id and not a.get("fremd")]
+            if not andere:
+                self.f.meldung("Es gibt kein anderes eigenes Angebot.", fehler=True)
+                return 0
+            texte = [f"{a.get('nummer') or a['id']}  {a.get('kunde') or ''}".strip() for a in andere]
+            wahl, ok = QInputDialog.getItem(self, "Baugruppe kopieren", "In welches Angebot?", texte, 0, False)
+            if not ok:
+                return 0
+            ziel = andere[texte.index(wahl)]["id"]
+        vorhanden = [q.get("pos") for q in self.db.positionen(ziel) if isinstance(q.get("pos"), (int, float))]
+        neu = baugruppe.kopie(self.positionen, bg_id, int(max(vorhanden, default=0)) + 10)
+        netze = self.db.netze(self.id)
+        for alt, werte in neu:
+            i = self.db.position_neu(ziel, werte)
+            if alt.get("id") in netze:
+                self.db.netz_speichern(i, netze[alt["id"]])
+        nummer = (self.db.angebot(ziel) or {}).get("nummer") or ziel
+        self.f.meldung(f"Schweißbaugruppe mit {len(neu) - 1} Einzelteil(en) in Angebot {nummer} kopiert.")
+        return len(neu)
+
     def _baugruppen_kosten(self):
         """Kostenbalken je Schweißbaugruppe für die Übersicht (D2): Titel, Kostenteile und größte Posten je Baugruppe."""
         out, saetze = [], None
@@ -2182,7 +2224,7 @@ class AngebotSeite(QWidget):
         vorwahl = {self.positionen[r]["id"] for r in markiert if r < len(self.positionen)
                    and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
         p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
-        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl)
+        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db())
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
         werte = dict(d.ergebnis["position"], pos=p["pos"])
@@ -2207,7 +2249,7 @@ class AngebotSeite(QWidget):
                                "leeren oder das Teil im Editor einer Baugruppe neu zuordnen.", fehler=True)
                 return False
             p = self.positionen[ziel[0]]
-        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze())
+        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db())
         if fokus:
             d.fokus(fokus)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
