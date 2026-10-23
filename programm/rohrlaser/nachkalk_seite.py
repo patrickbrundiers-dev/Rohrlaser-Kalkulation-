@@ -2,13 +2,15 @@
 import datetime
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
+from . import baugruppe, stil
 from . import nachkalkulation as nk
 from .spaltenbreite import AutoGroesse
+from .stil import GRUEN, GRUEN_FLAECHE, ROT, ROT_FLAECHE
 from .stammdaten import zahl_als_text, zahl_aus_text
 
 VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", None, 60),
@@ -83,10 +85,14 @@ class NachkalkulationSeite(QWidget):
         bl.addWidget(self.bg_tabelle)
         el.addWidget(self.bg_rahmen)
         knoepfe = QHBoxLayout()
-        for text, ziel in (("Ist-Werte löschen", self.loeschen), ("Nachkalkulation (PDF)", self.pdf)):
+        for text, ziel in (("Rest wie geplant", self.rest_wie_geplant), ("Ist-Werte löschen", self.loeschen),
+                           ("Nachkalkulation (PDF)", self.pdf)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             knoepfe.addWidget(b)
+            if text == "Rest wie geplant":
+                b.setToolTip("Alle noch leeren Ist-Werte auf das Soll setzen; nur Abweichungen von Hand eintragen. "
+                             "Eingetragene Werte bleiben.")
         knoepfe.addStretch(1)
         el.addLayout(knoepfe)
 
@@ -147,9 +153,9 @@ class NachkalkulationSeite(QWidget):
                     it.setToolTip(f"Leer = kalkulierter Meterpreis {_z(g['meterpreis'], 2)} €/m")
                 if c not in EINGABE:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c >= 2:
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 self.gruppen.setItem(r, c, it)
@@ -180,26 +186,52 @@ class NachkalkulationSeite(QWidget):
         self.bg_rahmen.setVisible(bool(info))
         self.bg_tabelle.setRowCount(len(info))
         ist_bg = self.ist.get("baugruppen") or {}
+        vorlagen = {}
+        for p in s.positionen:
+            g = baugruppe.lesen(p.get("baugruppe")) if p.get("baugruppe") else None
+            if g and g.get("vorlage"):
+                vorlagen[g["id"]] = g["vorlage"]
         for r, b in enumerate(info):
             e, w = ist_bg.get(b["id"]) or {}, soll[b["id"]]["werte"]
-            texte = [b["name"]]
+            texte, urteil = [b["name"]], {}
             for n, _, einheit, st in nk.BG_FELDER:
                 menge, betrag = w[n]
-                texte += [_z(menge if einheit == "h" else betrag, st),
-                          "" if e.get(n) is None else _z(e.get(n), st)]
+                sw = menge if einheit == "h" else betrag
+                texte += [_z(sw, st), "" if e.get(n) is None else _z(e.get(n), st)]
+                urteil[len(texte) - 1] = nk.bewertung(sw, e.get(n))
             texte += [b["grund"], _z(b["soll_min_m"], 2), _z(b["ist_min_m"], 2)]
+            urteil[len(texte) - 1] = nk.bewertung(b["soll_min_m"], b["ist_min_m"])
+            verlauf = self._verlauf(vorlagen.get(b["id"]))
             for c, (feld, _) in enumerate(BG_SPALTEN):
                 it = QTableWidgetItem(texte[c])
                 it.setData(Qt.UserRole, b["id"])
+                if c == 0 and verlauf:
+                    it.setToolTip(verlauf)
                 if feld is None:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    it.setBackground(QBrush(QColor("#F2F2F2")))
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(QColor("#FFF9E5")))
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c and feld != "grund":
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                if urteil.get(c):                   # D5: ab 10 % Abweichung rot (teurer) bzw. grün (günstiger)
+                    hoch = urteil[c] == "hoch"
+                    it.setForeground(QBrush(stil.farbe(ROT if hoch else GRUEN)))
+                    it.setBackground(QBrush(stil.farbe(ROT_FLAECHE if hoch else GRUEN_FLAECHE)))
+                    it.setToolTip(f"Ist {'über' if hoch else 'unter'} Soll um mindestens "
+                                  f"{nk.ABWEICHUNG_GRENZE:.0%}".replace("%", " %"))
                 self.bg_tabelle.setItem(r, c, it)
         self.bg_tabelle.resizeColumnsToContents()
+
+    def _verlauf(self, vorlage):
+        """Tooltip: Schweißzeit Ist ÷ Soll der bisherigen Aufträge aus derselben Vorlage (D5), leer ohne Vorlage."""
+        if not vorlage:
+            return ""
+        from . import kennwerte
+        zeilen = [f"{v['angebot']} ({str(v['datum'])[:10]}): Ist ÷ Soll {_z(v['faktor'], 2)}"
+                  for v in kennwerte.verlauf_vorlage(self.s.db, vorlage) if v["faktor"] is not None]
+        return (f"Vorlage {vorlage}: Schweißzeit bisher\n" + "\n".join(zeilen[-10:])) if zeilen else \
+            f"Vorlage {vorlage}: noch keine nachkalkulierten Aufträge"
 
     def _bg_geaendert(self, it):
         feld = BG_SPALTEN[it.column()][0]
@@ -300,6 +332,22 @@ class NachkalkulationSeite(QWidget):
             return
         st[it.data(Qt.UserRole)] = wert
         self._speichern()
+
+    def rest_wie_geplant(self):
+        """Leere Ist-Werte = Soll (Plan Arbeitsabläufe W9). Ergebnis: Anzahl gesetzter Werte (None = nicht möglich)."""
+        s = self.s
+        if not s.ergebnis or not s.ergebnis.get("stangen") or s.stand_optimierung() != "aktuell":
+            s.f.meldung("Nachkalkulation: bitte zuerst (neu) optimieren, das Soll passt sonst nicht.", fehler=True)
+            return None
+        v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
+        self.ist, n = nk.rest_wie_geplant(v, self.ist)
+        if not n:
+            s.f.meldung("Alle Ist-Werte sind schon eingetragen.")
+            return 0
+        self._speichern()
+        self.neu_laden()
+        s.f.meldung(f"{n} Ist-Wert(e) wie geplant übernommen.")
+        return n
 
     def loeschen(self):
         if not self.ist:

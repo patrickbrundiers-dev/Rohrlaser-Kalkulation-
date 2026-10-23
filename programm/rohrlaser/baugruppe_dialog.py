@@ -14,12 +14,12 @@ import json
 import re
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
                                QGroupBox, QInputDialog, QMessageBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import baugruppe, hilfe
+from . import baugruppe, hilfe, stil
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe
 from .stammdaten import NAHTARTEN, zahl_als_text, zahl_aus_text
@@ -184,7 +184,7 @@ class ZeilenTabelle(QTableWidget):
             kopf = self.verticalHeaderItem(r) or QTableWidgetItem(str(r + 1))
             kopf.setText(f"⚠ {r + 1}" if r in self.warnzeilen else str(r + 1))
             kopf.setToolTip("Zeile prüfen (Hinweis)" if r in self.warnzeilen else "")
-            kopf.setBackground(QColor(GELB_FLAECHE) if r in self.warnzeilen else QBrush())
+            kopf.setBackground(stil.farbe(GELB_FLAECHE) if r in self.warnzeilen else QBrush())
             self.setVerticalHeaderItem(r, kopf)
 
     def zeigen(self, r):
@@ -202,7 +202,7 @@ class BaugruppeDialog(QDialog):
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
 
-    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None):
+    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False):
         super().__init__(parent)
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
         self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
@@ -212,7 +212,9 @@ class BaugruppeDialog(QDialog):
         self.stand_verwerfen = False
         self.ergebnis, self.erg, self.status = None, None, None
         self._teile_aufbauen(vorwahl)
-        self.setWindowTitle(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, self.bg)}".strip())
+        self.nur_lesen = nur_lesen  # T6: Angebot eines Kollegen bzw. Lesemodus – ansehen, nicht speichern
+        self.setWindowTitle(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, self.bg)}".strip()
+                            + (" (nur ansehen)" if nur_lesen else ""))
         self.resize(1400, 720)
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
@@ -247,6 +249,7 @@ class BaugruppeDialog(QDialog):
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
+        knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
         unten = QHBoxLayout()
         if db is not None:
             einsetzen = QPushButton("Vorlage einsetzen …")
@@ -437,7 +440,10 @@ class BaugruppeDialog(QDialog):
         stamm = QPushButton("Kennwerte neu aus Stammdaten")
         stamm.setToolTip("Gemerkte Kennwerte aller Nahtgruppen verwerfen und mit den aktuellen Stammdaten rechnen")
         stamm.clicked.connect(self.kennwerte_neu)
-        for b in (neu, kopie, weg, stamm):
+        regel = QPushButton("a-Maß bestätigen")
+        regel.setToolTip("a-Maß nach Regel der markierten Nahtgruppen als geprüft übernehmen")
+        regel.clicked.connect(lambda: self.regel_bestaetigen(self.naht_tab.markierte()))
+        for b in (neu, kopie, weg, stamm, regel):
             leiste.addWidget(b)
         leiste.addStretch(1)
         lay.addLayout(leiste)
@@ -468,8 +474,12 @@ class BaugruppeDialog(QDialog):
         uebernehmen.clicked.connect(lambda: self.vorschlaege_uebernehmen())
         verwerfen = QPushButton("Markierte verwerfen")
         verwerfen.clicked.connect(lambda: self.vorschlaege_verwerfen())
+        self.regel_haken = QCheckBox("a-Maß nach Regel vorschlagen")
+        self.regel_haken.setToolTip(f"Kehlnaht: a = {_text(self._regel_faktor())} × kleinere Wanddicke, abgerundet auf "
+                                    "0,5 mm (Faktor unter Einstellungen); bis zur Bestätigung als Hinweis markiert")
         leiste.addWidget(uebernehmen)
         leiste.addWidget(verwerfen)
+        leiste.addWidget(self.regel_haken)
         leiste.addStretch(1)
         vl.addLayout(leiste)
         self._vorschlaege_zeigen()
@@ -496,9 +506,21 @@ class BaugruppeDialog(QDialog):
         """Markierte Vorschläge (zeilen: Indizes, sonst die Auswahl) als Nahtgruppen anlegen und aus der Liste nehmen.
         Ergebnis: IDs der neuen Nahtgruppen."""
         zeilen = self._vorschlag_zeilen(zeilen)
-        neu = [self.naht_neu(baugruppe.vorschlag_naht(self.bg["vorschlaege"][r])) for r in zeilen]
+        regel = self._regel_faktor() if self.regel_haken.isChecked() else None
+        neu = [self.naht_neu(baugruppe.vorschlag_naht(self.bg["vorschlaege"][r], regel)) for r in zeilen]
         self.vorschlaege_verwerfen(zeilen)
         return neu
+
+    def _regel_faktor(self):
+        w = self.db.einstellung("schweiss_a_regel") if self.db is not None else None
+        return w if isinstance(w, (int, float)) and w > 0 else baugruppe.A_REGEL_VORGABE
+
+    def regel_bestaetigen(self, zeilen=None):
+        """a-Maß nach Regel der markierten Nahtgruppen (zeilen: Indizes, sonst alle) als geprüft übernehmen."""
+        zeilen = range(len(self.bg["naehte"])) if zeilen is None else zeilen
+        for r in zeilen:
+            self.bg["naehte"][r].pop("mass_regel", None)
+        self.aktualisieren()
 
     def vorschlaege_verwerfen(self, zeilen=None):
         weg = set(self._vorschlag_zeilen(zeilen))
@@ -721,6 +743,12 @@ class BaugruppeDialog(QDialog):
                 teile.append("Zeit von Hand")
             elif w.get("richtwert"):
                 teile.append(RICHTWERT)
+            if w.get("material"):
+                teile.append(f"Zusatz/Gas {_euro(w['material'] * r['faktor'])}")
+            if w.get("verbrauch_hinweis"):
+                teile.append(w["verbrauch_hinweis"])
+            if baugruppe.regel_offen(z):
+                return (", ".join(teile + ["a-Maß nach Regel, bitte bestätigen"]), WARNUNG)
             if self._naht_aktuell(z).get("stand"):
                 teile.append(f"Kennwerte vom {z['stand'].get('datum') or '?'}")
             return ", ".join(teile)
@@ -846,7 +874,7 @@ class BaugruppeDialog(QDialog):
         if not isinstance(v, dict):
             self.fehler.setText("Die Vorlage ist leer oder beschädigt.")
             return False
-        knoten = baugruppe.vorlage_einsetzen(self.bg, v)
+        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"))
         for t in self.teile:
             if t.get("knoten") and t["knoten"] not in knoten:
                 t["knoten"] = ""
@@ -906,6 +934,8 @@ class BaugruppeDialog(QDialog):
         return None
 
     def _ok(self):
+        if self.nur_lesen:
+            return
         f = self.pruefen()
         if f:
             self.fehler.setText(f)

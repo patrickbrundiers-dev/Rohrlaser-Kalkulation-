@@ -29,7 +29,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import passwort, teilen, zukauf
+from . import kennwerte, passwort, teilen, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          schweiss_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 49     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 50     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -91,6 +91,8 @@ SCHEMA_VERSION = 49     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 47: K-Faktoren der Abwicklung (Tabelle blech_kfaktoren mit Beispielwerten nach DIN 6935)
                         # 48: Fertigungsprüfung (Tabelle pruefregeln mit den Vorgaben, maschinen.min_teil leer)
                         # 49: Baugruppen-Vorlagen (Tabelle baugruppen_vorlagen, leer)
+                        # 50: Schweißverfahren mit Verbrauch (dichte, draht_eur_kg, gas_l_min, gas_eur_l leer)
+                        #     und Kennwerte-Historie (Tabelle kennwerte_historie, leer; Freigaben aus der Nachkalkulation)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -99,8 +101,9 @@ UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), (
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
-ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN,)
-ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN}
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, kennwerte.HISTORIE)
+ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
+                kennwerte.HISTORIE.name: kennwerte.HISTORIE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
@@ -1467,7 +1470,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1476,7 +1479,14 @@ class Datenbank:
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
             werte = [f"%{suche}%"] * 6
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
-        return [dict(r) for r in self.con.execute(sql, werte)]
+        from .nachkalkulation import erfasst
+        zeilen = []
+        for r in self.con.execute(sql, werte):
+            z = dict(r)
+            nk = z.pop("_nk")      # ist_erfasst: echte Ist-Werte (nicht nur eine Bemerkung), Filter Nachkalkulation offen
+            z["ist_erfasst"] = bool(nk) and erfasst(json.loads(nk))
+            zeilen.append(z)
+        return zeilen
 
     @liest
     def angebot(self, angebot_id):

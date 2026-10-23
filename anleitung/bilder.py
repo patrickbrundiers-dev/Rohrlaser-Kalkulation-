@@ -85,6 +85,8 @@ class Fotograf:
 
 
 def tab_rect(reiter, text):
+    if hasattr(reiter, "eintrag_rect"):  # Einstellungen: Navigation links
+        return reiter.eintrag_rect(text)
     if hasattr(reiter, "ort"):          # Angebot: auch Unterreiter (z. B. Stangenbild im Schnittplan)
         r, i = reiter.ort(text)
         return (r.tabBar(), r.tabBar().tabRect(i))
@@ -316,6 +318,12 @@ def main(ziel):
     leiste.setValue(leiste.maximum())
     foto.foto("einstellungen_unten", f)
     leiste.setValue(0)
+    nav = f.bereich.unter
+    nav.suche.setText("gewinn")
+    QApplication.processEvents()
+    foto.foto("einstellungen_suche", f, [(nav.suche, 1), (nav.baum, 2), (f.einstellungen.boxen[0], 3)],
+              ausschnitt=QRect(0, 0, f.width(), 360))
+    nav.suche.setText("")
 
     # 5) Angebote: Beispielangebot Maschinengestell (2 Gestelle), dazu zwei ältere Angebote für die Liste
     vorlagen = {a["nummer"]: a for a in ANGEBOTE}
@@ -351,7 +359,8 @@ def main(ziel):
     foto.foto("angebot_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
                                         (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
                                         (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
-                                        ((s.pos_seite, QRect(0, 0, s.pos_seite.width(), s.pos_ansicht.y() - 2)), 8)])
+                                        ((s.pos_seite, QRect(0, 0, s.pos_seite.width(), s.pos_ansicht.y() - 2)), 8),
+                                        (s.schritte, 9)])
     kb = s.kopf_bereich
     s.kopf_bereich.erweitert_bereich.aufklappen(True)
     s.kopf_bereich.maschinen_bereich.aufklappen(True)
@@ -478,6 +487,19 @@ def main(ziel):
     foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, 2), 1), (d.ag_tab.cellWidget(1, 7), 2),
                                              (d.ag_tab.cellWidget(1, 8), 3), (d.ag_tab.cellWidget(1, 10), 4),
                                              (knopf(d, "Vorrichtung hinzufügen"), 5)])
+    # Nahtkandidaten aus STEP (D6): wie nach dem Import mit Häkchen „als Schweißbaugruppe“
+    kand = ([dict(teile=[1, 3], knoten=konsole, laenge_mm=125.7, stossart="Kehlnaht", dicke_mm=4.0)] * 4
+            + [dict(teile=[1, 2], knoten="", laenge_mm=188.5, stossart="Kehlnaht", dicke_mm=3.0)] * 2
+            + [dict(teile=[2, 4], knoten="", laenge_mm=60.0, stossart="Stumpfnaht", dicke_mm=5.0)])
+    d.bg["vorschlaege"] = baugruppe.vorschlaege_aus_step(d.bg, kand)
+    d._vorschlaege_zeigen()
+    d.reiter.setCurrentIndex(1)
+    d.regel_haken.setChecked(True)
+    d.vorschlag_tab.resizeColumnsToContents()
+    d.vorschlag_tab.selectRow(0)
+    QApplication.processEvents()
+    foto.foto("baugruppe_vorschlaege", d.vorschlag_rahmen, [(d.vorschlag_tab, 1), (knopf(d, "Markierte übernehmen"), 2),
+                                                            (d.regel_haken, 3)])
     d.reject()
 
     # 7a3) Materialanfrage (nur Foto, Schließen: nichts geöffnet)
@@ -695,9 +717,9 @@ def main(ziel):
     bereit()
     unterkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() + 34
     oberkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() - 10
-    foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Werkstattpapiere (PDF)"), 2),
-                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "Materialanfrage (E-Mail)"), 4),
-                                    (knopf(s, "CSV-Export"), 5), (knopf(s, "Weitere Aktionen"), 6)],
+    oberkante = min(oberkante, s.schritte.mapTo(f, QPoint(0, 0)).y() - 6)
+    unterkante = max(unterkante, s.schritte.mapTo(f, QPoint(0, 0)).y() + s.schritte.height() + 6)
+    foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Ausgaben"), 2), (s.schritte, 3)],
               ausschnitt=QRect(0, oberkante, f.width(), unterkante - oberkante))
     pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf(),
                 nachkalkulation=s.nachkalk.pdf())

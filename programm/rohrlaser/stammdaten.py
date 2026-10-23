@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import dfm, naht, normprofile, rp_profile
+from .stil import DICHTEN, THEMES
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
@@ -517,12 +518,19 @@ SCHWEISSVERFAHREN = Tabelle(
      Feld("heft_s", "Zeit je Heftpunkt [s]", "zahl", 0, 600, stellen=1, breite=80),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
      Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Bemerkung", breite=260),
+     # Verbrauch (P5, Schema 50): leer = Schweißzusatz und Gas stecken im Stundensatz
+     Feld("dichte", "Dichte Schweißzusatz [kg/dm³]", "zahl", 0.5, 25, stellen=2, breite=90),
+     Feld("draht_eur_kg", "Preis Schweißzusatz [€/kg]", "zahl", 0, 1000, stellen=2, breite=90),
+     Feld("gas_l_min", "Schutzgas [l/min]", "zahl", 0, 100, stellen=1, breite=80),
+     Feld("gas_eur_l", "Preis Schutzgas [€/l]", "zahl", 0, 100, stellen=4, breite=80)),
     ("verfahren",),
     "Schweißverfahren der Baugruppen-Kalkulation (MAG, MIG, WIG, E-Hand, Heften, Roboter … frei erweiterbar). "
     "Lichtbogenzeitfaktor = Anteil der Lichtbogenzeit an der Schweißarbeitszeit: Arbeitszeit = Lichtbogenzeit ÷ "
     "Faktor (Nebenzeiten wie Brenner ansetzen, Schlacke entfernen, Drahtwechsel). Heftpunkte rechnen mit der Zeit "
-    "je Heftpunkt. Kosten = Zeit × Stundensatz. Status 'Richtwert' = noch nicht an der eigenen Fertigung geprüft.")
+    "je Heftpunkt. Kosten = Zeit × Stundensatz. Status 'Richtwert' = noch nicht an der eigenen Fertigung geprüft. "
+    "Schweißzusatz und Schutzgas (optional): Draht = Nahtquerschnitt × Nahtlänge × Dichte, Gas = Lichtbogenzeit × "
+    "l/min, jeweils × Preis; leer = steckt im Stundensatz. Fehlt nur ein Teil der Werte, zählt er 0 € mit Hinweis.")
 
 SCHWEISS_KENNWERTE = Tabelle(
     "schweiss_kennwerte", "Schweiß-Kennwerte",
@@ -729,6 +737,9 @@ EINSTELLUNGEN = (
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
     Einstellung("flach_als", "STEP-Import: ebene flache Teile vorgeben als", "STEP-Import", "auswahl", FLACH_ALS[0],
                 auswahl="flachals"),
+    # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
+    Einstellung("schweiss_a_regel", "Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)",
+                "Schweißbaugruppen", "zahl", 0.7, 0.1, 2),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "STEP-Import", "zahl", 150.0, 1, 10000),
     # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
@@ -771,6 +782,9 @@ EINSTELLUNGEN = (
     Einstellung("lieferzeit_wert", "Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, KW/Jahr oder Datum)",
                 "Angebot", "text", ""),
     Einstellung("lieferzeit_zusatz", "Lieferzeit neuer Angebote: Freitext", "Angebot", "text", "nach Absprache"),
+    # Standard-Staffeln (Plan Arbeitsabläufe W3): Faktoren auf die Bestellmenge, angelegt vor dem ersten Angebots-PDF
+    Einstellung("staffeln_standard", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
+                "Angebot", "text", "1; 2; 5"),
     Einstellung("briefkopf_1", "Briefkopf Zeile 1 (Firma)", "Angebots-PDF", "text", "Firmenname"),
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
@@ -814,6 +828,12 @@ EINSTELLUNGEN = (
     # 3D-Ansicht zeichnen mit OpenGL (Grafikkarte) oder QPainter (Software); Automatisch = OpenGL, wenn möglich
     Einstellung("ansicht_3d", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)", "Ansicht", "auswahl",
                 DARSTELLUNG_3D[0], auswahl="renderer"),
+    # Theme, Schriftgröße und Dichte (stil.anwenden, Layout-Plan D2): nur dieser Arbeitsplatz, gelten ab dem nächsten Start
+    Einstellung("ansicht_thema", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)", "Ansicht", "auswahl", "Hell",
+                auswahl="thema"),
+    Einstellung("ansicht_schrift", "Schriftgröße [%] (90 bis 150)", "Ansicht", "ganz", 100, 90, 150),
+    Einstellung("ansicht_dichte", "Dichte (kompakt, normal, komfortabel)", "Ansicht", "auswahl", "normal",
+                auswahl="dichte"),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
     # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel steht vorn in der Angebotsnummer
     # (PB-2026-0001); über den gemeinsamen Ordner sehen alle die Angebote der anderen und teilen die Stammdaten.
@@ -946,7 +966,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
