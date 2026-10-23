@@ -17,7 +17,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 
 from rohrlaser import teilen  # noqa: E402
 from rohrlaser.angebot import kuerzel_sauber, nummer_mit_kuerzel  # noqa: E402
-from rohrlaser.datenbank import Datenbank  # noqa: E402
+from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 
 
 def ok(text):
@@ -243,6 +243,6 @@ c.commit()
 c.close()
 db41 = Datenbank(alt)
 assert all(r[0] for r in db41.con.execute("SELECT uid FROM kunden"))
-assert db41.con.execute("PRAGMA user_version").fetchone()[0] == 44
+assert db41.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 ok("Datei Schema 43: Kennungen vergeben, Spalten ergänzt")
 print("OK: mehrere Arbeitsplätze mit gemeinsamem Ordner")

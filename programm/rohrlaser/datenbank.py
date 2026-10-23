@@ -38,10 +38,11 @@ from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
-                         beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten,
+                         beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
+                         schweiss_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 44     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 45     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -83,6 +84,7 @@ SCHEMA_VERSION = 44     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     ruest_sonder, duese_min (neue Spalten leer = 0 bzw. keine Prüfung)
                         # 44: Mehrere Arbeitsplätze (teilen.py): Kennung uid je Stammdatenzeile, Tabelle teilen_basis,
                         #     angebote.bearbeiter (Kürzel), angebote.fremd/fremd_stand (Angebote anderer Mitarbeiter)
+                        # 45: Mindestauftragswert je Angebot ein/aus (angebote.mindestpreis_anwenden: leer = ja)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -100,6 +102,7 @@ RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Prof
 RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen)
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
+SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -129,6 +132,7 @@ class Datenbank:
             self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+            self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
         self._rp_anpassen()
 
     def schliessen(self):
@@ -263,6 +267,8 @@ class Datenbank:
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             if version > 0 and self.einstellung("bohr_zusatz_stand") != BOHR_ZUSATZ_STAND:
                 self._bohr_zusatz_ergaenzen()
+            if version > 0 and self.einstellung("schweissen_stand") != SCHWEISSEN_STAND:
+                self._schweissen_ergaenzen()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
@@ -282,6 +288,14 @@ class Datenbank:
             self.con.execute("UPDATE gewinde SET preis=ROUND(zeit / 3600.0 * ?, 2) WHERE preis IS NULL AND zeit > 0",
                              (satz[0],))
         self._einstellung_schreiben("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+
+    def _schweissen_ergaenzen(self):
+        """Einmalig: Stundensatz 'Schweißen' (75 €/h) und Zusatzarbeit 'Schweißen' (Abrechnung €/h, Sekunden je Teil
+        im Angebot) anlegen, wenn es sie (dem Namen nach) noch nicht gibt (Patrick 23.10.2026)."""
+        self._einfuegen("stundensaetze", [z for z in beispiel_stundensaetze() if z["satz_id"] == SATZ_SCHWEISSEN],
+                        ergaenzen=True)
+        self._einfuegen("zusatzarbeiten", schweiss_zusatzarbeiten(), ergaenzen=True)
+        self._einstellung_schreiben("schweissen_stand", SCHWEISSEN_STAND)
 
     def _programmierung_zeit(self):
         """Schema 39: Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026: 5 min je Position +

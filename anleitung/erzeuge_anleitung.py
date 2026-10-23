@@ -855,7 +855,8 @@ def kapitel_angebot(i):
             "genau der kalkulierte Preis. 0 % = kein Skonto.",
             "<b>Kalkulation dieses Angebots</b>: Zuschlag Fremdleistung, Gewinn, Rüstzeit und "
             "Pauschale je Abmessung, Programmierzeit je Position und Angebotsaufschlag. Mindestpreis, Zuschlag "
-            "Material und Zuschlag Fertigung gelten immer aus den Einstellungen und sind im Angebot nicht änderbar "
+            "Material und Zuschlag Fertigung gelten immer aus den Einstellungen und sind im Angebot nicht änderbar; "
+            "das Häkchen <b>Mindestauftragswert anwenden</b> schaltet den Mindestpreis nur für dieses Angebot ab "
             "([[mindestpreis]]). Ein neues Angebot übernimmt die "
             "Werte aus den Einstellungen (Gruppe Kalkulation); hier lassen sie sich für dieses Angebot ändern, ohne "
             "die Einstellungen zu ändern. Werte, die von den Einstellungen abweichen, sind <b>gelb</b> hinterlegt "
@@ -922,7 +923,9 @@ def kapitel_angebot(i):
             "Staffelpreise rechnen das Kundenmaterial in jeder Stufe ohne Materialkosten.")
     i.abschnitt("Mindestpreis", marke="mindestpreis")
     i.text("Liegt ein Angebot unter dem <b>Mindestpreis</b> (Mindestauftragswert, Vorgabe 200,00 € netto), hebt das "
-           "Programm alle Stückpreise im gleichen Verhältnis an. Einstellen nur in den Einstellungen.")
+           "Programm alle Stückpreise im gleichen Verhältnis an. Der Betrag steht nur in den Einstellungen; je "
+           "Angebot lässt er sich mit dem Häkchen <b>Mindestauftragswert anwenden</b> (Karte <i>Kalkulation dieses "
+           "Angebots</i>) ausschalten.", kurz=True)
     i.genauer()
     i.text("Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie kalkuliert. "
            "Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
@@ -938,7 +941,12 @@ def kapitel_angebot(i):
             "Staffelpreise: jede Mengenstufe ist ein eigenes Angebot und wird für sich mit dem Mindestpreis "
             "verglichen ([[staffeln]]).",
             "Der Wert steht nur in den Einstellungen (Gruppe Kalkulation, durch das Passwort geschützt) und gilt für "
-            "alle Angebote, auch für ältere; im Angebot selbst lässt er sich nicht ändern. 0 = kein Mindestpreis.",
+            "alle Angebote, auch für ältere; im Angebot selbst lässt sich der Betrag nicht ändern. 0 = kein "
+            "Mindestpreis.",
+            "<b>Mindestauftragswert anwenden</b> (Karte <i>Kalkulation dieses Angebots</i>, oben unter den "
+            "Hinweisen): Vorgabe an. Ohne Haken rechnet das Angebot ohne Mindestpreis, auch in den Staffelpreisen "
+            "und im Angebots-PDF (kein Hinweis „Mindestauftragswert …“); die Kurzzeile der zugeklappten Karte zeigt "
+            "dann „ohne Mindestauftragswert“. Die Statuszeile nennt, wie sich der Preis dadurch ändert.",
             "Die Prüfung läuft bei jeder Änderung neu (Position, Stückzahl, Zuschläge, Staffelstufe, PDF). Die "
             "Werte des Angebots (Gewinn, Zuschläge …) bleiben dabei unverändert; steigt der Preis über den "
             "Mindestpreis, entfällt die Anhebung von selbst.")
@@ -1045,8 +1053,8 @@ def kapitel_angebot(i):
            hoehe=80 * mm, legende=[
                (1, "<b>Gewinde (geprüft)</b>: Anzahl x Größe, mehrere mit Semikolon. Darunter der Festpreis je Teil "
                    "aus den Stammdaten Gewinde."),
-               (2, "<b>Zusatzarbeit</b> aus der Liste wählen; die Abrechnung (€/kg, €/m², €/m, €/Stück, s/Stück) "
-                   "kommt aus den Stammdaten."),
+               (2, "<b>Zusatzarbeit</b> aus der Liste wählen; die Abrechnung (€/kg, €/m², €/m, €/Stück, s/Stück, "
+                   "€/h) kommt aus den Stammdaten."),
                (3, "<b>Menge je Teil</b> und <b>Preis bzw. Zeit</b>: leer lassen = automatisch (grau angezeigt). "
                    "Ein Eintrag gilt nur für diese Position, z. B. eine andere Fläche oder ein Sonderpreis."),
                (4, "<b>Text</b> für das Angebot, z. B. die RAL-Farbe beim Pulverbeschichten."),
@@ -1062,6 +1070,12 @@ def kapitel_angebot(i):
             "Länge) rechnet jede Position für sich.",
             "Die Kosten erscheinen in der Kalkulation in der Spalte <i>Zusatzarbeiten je Teil</i> und in der Summe "
             "<i>Zusatzarbeiten</i>; Zeiten (s/Stück, z. B. Gravur extra) erhöhen die Laserzeit.",
+            "<b>Schweißen</b> (Abrechnung €/h): in <i>Menge bzw. Sekunden je Teil</i> die Schweißzeit je Teil in "
+            "Sekunden eintragen, gerechnet wird Sekunden ÷ 3600 × Stundensatz (Vorgabe 75 €/h, Stundensatz "
+            "<i>Schweißen</i>), z. B. 48 s → 1,00 € je Teil. Ein Wert in der Preisspalte ist ein eigener Stundensatz "
+            "nur für diese Position. Ohne Sekunden zeigt der Status <b>WARNUNG: Schweißen ohne Zeit</b> und es "
+            "rechnet 0 €. Die Schweißzeit kommt nicht zur Laserzeit; danach Zuschlag Fertigung und Gewinn wie bei "
+            "den übrigen Zusatzarbeiten. Im Angebot steht „inkl. geschweißt“.",
             "Im Angebot steht jede Arbeit mit ihrem Text hinter <i>Zusatzarbeiten:</i>.",
             "Die Liste zeigt nur aktive Zusatzarbeiten: zuerst die häufig verwendeten, dann nach Kategorie.",
             "Der Preis der Stammdaten wird beim Hinzufügen in der Position gespeichert (Preisstand, im Feld Preis grau "
@@ -3347,7 +3361,8 @@ def kapitel_stammdaten(i):
         ["Aktiv", "nur aktive Zusatzarbeiten lassen sich im Angebot neu wählen"],
         ["Festpreis [€] bzw. Zeit [s] je Einheit", "fester Preis je Einheit (z. B. Preis der Verzinkerei); bei "
                                                     "s/Stück die Maschinenzeit je Stück"],
-        ["Zeitaufwand je Einheit, Zeiteinheit", "Arbeitszeit je Einheit in s, min oder h"],
+        ["Zeitaufwand je Einheit, Zeiteinheit", "Arbeitszeit je Einheit in s, min oder h; bei €/h die "
+                                                "<i>Vorgabezeit je Teil</i> (leer = im Angebot je Position eintragen)"],
         ["Stundensatz-ID, Stundensatz eigener", "Stundensatz aus Stundensätze und Zeitvorgaben oder ein eigener Wert "
                                                 "in €/h"],
         ["Materialkosten je Einheit", "Material, das die Zusatzarbeit selbst braucht (z. B. Schutzkappen)"],
@@ -3376,7 +3391,10 @@ def kapitel_stammdaten(i):
         ["€/m", "Teilelänge in m", "Menge × Preis"],
         ["s/Stück", "1 (Anzahl, z. B. 2 Gravuren)",
          "Menge × Zeit in Sekunden kommt zur Schneidzeit dazu und wird mit dem Stundensatz der Maschine gerechnet "
-         "(z. B. <i>Gravur extra</i>)."]], [30, 95, 140])
+         "(z. B. <i>Gravur extra</i>)."],
+        ["€/h", "keine: Sekunden je Teil im Angebot (sonst die Vorgabezeit)",
+         "Sekunden ÷ 3600 × Stundensatz, z. B. <i>Schweißen</i> mit 75 €/h; Festpreis und Material zählen nicht, "
+         "nicht zur Laserzeit"]], [30, 95, 140])
     i.abschnitt("Duplizieren, Deaktivieren und Löschen")
     i.liste("<b>Duplizieren</b> öffnet das Formular mit allen Werten des markierten Eintrags und dem Namen „… (Kopie)“. "
             "Angelegt wird die Kopie erst mit <b>Speichern</b>.",
