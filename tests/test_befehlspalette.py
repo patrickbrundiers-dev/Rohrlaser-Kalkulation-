@@ -57,6 +57,14 @@ assert e.art == "Einstellung" and f.reiter.currentWidget() is f.bereich
 assert f.bereich.unter.suche.text() == "Gewinn"
 ok("Einstellung: öffnet die Einstellungen mit gefilterter Suche")
 
+from rohrlaser.stammdaten import EINSTELLUNGEN  # noqa: E402
+fracht = next(e for e in EINSTELLUNGEN if e.gruppe == "Frachtkosten")
+e = next(x for x in eintraege(f) if x.art == "Einstellung" and x.titel == fracht.titel)
+assert "Frachtkosten" in e.zusatz
+e.aktion()
+assert f.reiter.currentWidget() is f.fracht
+ok("Frachtkosten-Einstellung: Reiter Frachtkosten statt Vorgaben (dort fehlt sie)")
+
 d = f.befehlspalette()
 d.suche.setText("QR 40x40x3")
 QTest.keyClick(d.suche, Qt.Key_Down)

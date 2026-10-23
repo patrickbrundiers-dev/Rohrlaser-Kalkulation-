@@ -46,7 +46,8 @@ k = cockpit.kennzahlen(zeilen, heute)
 assert k["angebote"] == 7 and k["beauftragt"] == 1 and k["auftragswert"] == 1000.0, k
 assert k["trefferquote"] == 0.5 and k["summe"] == 2050.5 and k["durchschnitt"] == round(2050.5 / 6, 2), k
 assert cockpit.kennzahlen([], heute)["trefferquote"] is None
-ok("Kennzahlen: 90 Tage, Trefferquote beauftragt / (beauftragt + abgelehnt)")
+assert cockpit.kennzahlen(zeilen + [dict(id=10, vorgang="Entwurf", vk_netto=7.0, datum="2026-11-30")], heute) == k
+ok("Kennzahlen: 90 Tage (ohne vordatierte), Trefferquote beauftragt / (beauftragt + abgelehnt)")
 
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 f = Hauptfenster(db, stumm=True)

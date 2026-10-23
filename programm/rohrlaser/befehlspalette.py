@@ -68,6 +68,11 @@ def eintraege(f):
                 aus.append(Eintrag(art, wert, f"Einstellungen → {seite.t.titel}",
                                    lambda seite=seite, wert=wert: _stammdaten(f, seite, wert)))
     for e in EINSTELLUNGEN:
+        if e.gruppe == "Frachtkosten":      # stehen nicht in den Vorgaben, sondern im Reiter Frachtkosten
+            if getattr(f, "fracht", None) is not None:
+                aus.append(Eintrag("Einstellung", e.titel, "Frachtkosten → Historie, Einstellungen",
+                                   lambda e=e: _fracht_einstellung(f, e.titel)))
+            continue
         aus.append(Eintrag("Einstellung", e.titel, f"Vorgaben, Gruppe {e.gruppe}",
                            lambda e=e: _einstellung(f, e.titel)))
     return aus
@@ -84,6 +89,12 @@ def _einstellung(f, titel):
     nav = f.bereich.unter
     if hasattr(nav, "suche"):
         nav.suche.setText(titel)
+
+
+def _fracht_einstellung(f, titel):
+    seite = f.fracht.historie
+    f.fracht.zeigen(seite)
+    seite.einstellungen.filtern(titel)
 
 
 def treffer(liste, suche, anzahl=MAX_TREFFER):

@@ -57,10 +57,10 @@ def wiedervorlagen(zeilen, tage, heute=None, vorlauf=VORLAUF_TAGE):
 
 
 def kennzahlen(zeilen, heute=None, zeitraum=ZEITRAUM_TAGE):
-    """Kennzahlen der eigenen Angebote mit Datum in den letzten zeitraum Tagen."""
+    """Kennzahlen der eigenen Angebote mit Datum in den letzten zeitraum Tagen (vordatierte zählen nicht mit)."""
     heute = heute or datetime.date.today()
     ab = heute - datetime.timedelta(days=zeitraum)
-    auswahl = [z for z in zeilen if not z.get("fremd") and (_datum(z.get("datum")) or heute) >= ab]
+    auswahl = [z for z in zeilen if not z.get("fremd") and ab <= (_datum(z.get("datum")) or heute) <= heute]
     beauftragt = [z for z in auswahl if _vorgang(z) == "Beauftragt"]
     abgelehnt = [z for z in auswahl if _vorgang(z) == "Abgelehnt"]
     entschieden = len(beauftragt) + len(abgelehnt)
