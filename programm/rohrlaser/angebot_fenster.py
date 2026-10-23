@@ -1625,7 +1625,7 @@ class AngebotSeite(QWidget):
     def _kopf_speichern(self, fd, wert):
         if self._laden or wert == self.kopf.get(fd.name):
             return
-        vorher = self._verkauf() if fd.name in KALK_NAMEN else None
+        vorher = self._verkauf() if fd.name in KALK_NAMEN or fd.name == "mindestpreis_anwenden" else None
         try:
             self.db.angebot_aendern(self.id, fd.name, wert)
         except ValueError as e:

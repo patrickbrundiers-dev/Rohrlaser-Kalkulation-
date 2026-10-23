@@ -299,6 +299,14 @@ class KopfBereich(QWidget):
         self.abweichung_text.setStyleSheet(f"color: {GELB_TEXT};")
         self.abweichung_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
         kal.addWidget(self.abweichung_text)
+        # Mindestauftragswert je Angebot ein/aus; der Betrag kommt nur aus den Einstellungen (Patrick 23.10.2026)
+        self.mindest_an = QCheckBox("Mindestauftragswert anwenden")
+        self.mindest_an.setToolTip("Liegt der Verkaufspreis unter dem Mindestauftragswert der Einstellungen, werden "
+                                   "alle Stückpreise anteilig angehoben. Ohne Haken gilt für dieses Angebot kein "
+                                   "Mindestauftragswert.")
+        self.mindest_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["mindestpreis_anwenden"], None if an else "nein"))
+        kal.addWidget(self.mindest_an)
         gruppen = QGridLayout()
         gruppen.setHorizontalSpacing(18)
         self.gruppen_leer = {}
@@ -519,6 +527,8 @@ class KopfBereich(QWidget):
                         titel, einheit = titel.split("[", 1)
                         einheit = einheit.rstrip("]")
                     teile.append(f"{titel.strip()} {_z(v, fd.stellen if fd.stellen is not None else (0 if fd.art == "ganz" else 2))} {einheit}".strip())
+        if self.s.kopf.get("mindestpreis_anwenden") == "nein":
+            teile.append("ohne Mindestauftragswert")
         n = getattr(self, "_n_abweichend", 0)
         self.kalk_kurz.setText("   " + " · ".join(teile)
                                + (f"   <b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>" if n else ""))
@@ -628,6 +638,13 @@ class KopfBereich(QWidget):
         self.mat_vorgabe.blockSignals(True)
         self.mat_vorgabe.setCurrentText(s.kopf.get("material_vorgabe") or EIGENMATERIAL)
         self.mat_vorgabe.blockSignals(False)
+        betrag = rechnen.einstellungen_fest(s.tabellen, s.db.einstellungen()).get("mindestpreis")
+        self.mindest_an.blockSignals(True)
+        self.mindest_an.setChecked(s.kopf.get("mindestpreis_anwenden") != "nein")
+        self.mindest_an.setText(f"Mindestauftragswert anwenden ({_z(betrag)} € netto, aus den Einstellungen)"
+                                if isinstance(betrag, (int, float)) and betrag > 0 else
+                                "Mindestauftragswert anwenden (in den Einstellungen 0 €)")
+        self.mindest_an.blockSignals(False)
         self._abweichungen_anzeigen()
         self.sichtbarkeit()
         self._kurzfassung()
