@@ -487,6 +487,19 @@ def main(ziel):
     foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, 2), 1), (d.ag_tab.cellWidget(1, 7), 2),
                                              (d.ag_tab.cellWidget(1, 8), 3), (d.ag_tab.cellWidget(1, 10), 4),
                                              (knopf(d, "Vorrichtung hinzufügen"), 5)])
+    # Nahtkandidaten aus STEP (D6): wie nach dem Import mit Häkchen „als Schweißbaugruppe“
+    kand = ([dict(teile=[1, 3], knoten=konsole, laenge_mm=125.7, stossart="Kehlnaht", dicke_mm=4.0)] * 4
+            + [dict(teile=[1, 2], knoten="", laenge_mm=188.5, stossart="Kehlnaht", dicke_mm=3.0)] * 2
+            + [dict(teile=[2, 4], knoten="", laenge_mm=60.0, stossart="Stumpfnaht", dicke_mm=5.0)])
+    d.bg["vorschlaege"] = baugruppe.vorschlaege_aus_step(d.bg, kand)
+    d._vorschlaege_zeigen()
+    d.reiter.setCurrentIndex(1)
+    d.regel_haken.setChecked(True)
+    d.vorschlag_tab.resizeColumnsToContents()
+    d.vorschlag_tab.selectRow(0)
+    QApplication.processEvents()
+    foto.foto("baugruppe_vorschlaege", d.vorschlag_rahmen, [(d.vorschlag_tab, 1), (knopf(d, "Markierte übernehmen"), 2),
+                                                            (d.regel_haken, 3)])
     d.reject()
 
     # 7a3) Materialanfrage (nur Foto, Schließen: nichts geöffnet)
