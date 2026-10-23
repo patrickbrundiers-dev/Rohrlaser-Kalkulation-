@@ -17,7 +17,7 @@ from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, 
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
 from . import fracht_angebot
-from . import anbau, baugruppe, dreid, naht, rp_profile, zukauf
+from . import anbau, baugruppe, dfm, dreid, naht, rp_profile, zukauf
 
 EPS = opt.EPS
 ZEILE0 = 13   # Teil.zeile = ZEILE0 + Index der Position (so stehen sie in gespeicherten Ergebnissen)
@@ -157,6 +157,8 @@ def position_werte(p, kopf, k, tabellen):
                                  is not None or _n(werkstoff.get("tonnenpreis")) > 0)
     w["zusatzarbeiten"] = tabellen.get("zusatzarbeiten")
     w["gewinde_stamm"] = tabellen.get("gewinde")
+    w["pruefregeln"] = tabellen.get("pruefregeln")
+    w["einstellungen"] = tabellen.get("einstellungen")       # Kantbarkeit der Blech-Positionen (dfm.blech_position)
     w["vorschub"] = None
     w["gas"] = None
     if ist_baugruppe(p):         # Schweißbaugruppe: Daten für ihren Status (Kennwerte, Stundensätze des Angebots)
@@ -301,8 +303,9 @@ def pruefungen(p, w=None, positionen=None, zusatz=None, gewinde=None):
     return erg
 
 
-def zukaufteil_status(p, positionen=None):
-    """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht)."""
+def zukaufteil_status(p, positionen=None, pruefregeln=None, einst=None):
+    """Status einer Zukaufteil-Position: Stückzahl, Zukaufartikel und Einkaufspreis (0 € zählt nicht); Blechteile
+    aus dem Blech-Editor zusätzlich mit der Fertigungsprüfung (dfm.blech_position, Tabelle pruefregeln)."""
     if _leer(p.get("stueck")) or p["stueck"] < 1:
         return "FEHLER: Stückzahl fehlt"
     eintraege = zukauf.eintraege(p)
@@ -311,18 +314,21 @@ def zukaufteil_status(p, positionen=None):
     for e in eintraege:
         if zukauf.ek_fehlt(dict(bezuege=[(e.get("stand") or {}).get("bezug") or {}])):
             return "WARNUNG: EK fehlt (Zukaufteil ohne Einkaufspreis)"
+    befunde = dfm.blech_position(p, pruefregeln, einst)
+    if befunde and befunde[0].stufe == dfm.FEHLER:
+        return dfm.status(befunde)
     pr = pruefungen(p, positionen=positionen)
     for schluessel in ("satz_vielfach", "satz", "baugruppe"):
         if schluessel in pr:
             return "WARNUNG: " + pr[schluessel]
-    return "OK"
+    return dfm.status(befunde) or "OK"
 
 
 def status(p, w, kopf, k, eingeplant=None, positionen=None):
     """Status einer Position. eingeplant = Anzahl eingeplanter Teile laut Optimierung (oder None), positionen = alle
     Positionen des Angebots (Prüfung der Sätze)."""
     if ist_zukaufteil(p):
-        return zukaufteil_status(p, positionen)
+        return zukaufteil_status(p, positionen, *((w.get("pruefregeln"), w.get("einstellungen")) if w else ()))
     if ist_baugruppe(p):
         return baugruppe.status(p, w, positionen)
     if all(_leer(p.get(f)) for f in ("profil_id", "werkstoff_id", "laenge", "stueck")):
@@ -358,6 +364,10 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     rest = dreid.rest_letztes(p, m)
     if rest > w["greif"] and p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"] + w["greif"] - rest:
         return "FEHLER: Teil zu lang für das 3D-Greifmaß der Maschine"
+    befunde = dfm.rohr(p, k.profile.get(p.get("profil_id")), m, w.get("pruefregeln"), w.get("wand"))
+    stufe = {b.stufe for b in befunde}
+    if dfm.FEHLER in stufe:
+        return dfm.status(befunde)
     if eingeplant is not None and _n(p.get("stueck")) - eingeplant > 0:
         return "WARNUNG: nicht vollständig eingeplant"
     if w["preis_hinterlegt"] is False:
@@ -384,6 +394,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     manuell = not _leer(p.get("zeit_manuell"))
     if "kontur" in pr:
         return "WARNUNG: " + pr["kontur"]
+    if dfm.WARNUNG in stufe:
+        return dfm.status(befunde)
     if not manuell and w.get("fehlt_3d"):
         return "WARNUNG: " + w["fehlt_3d"]
     sonder = sonderprofil_pruefen(p, k.profile.get(p.get("profil_id")), m)
@@ -399,6 +411,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "HINWEIS: Bohrungen prüfen (Doppelklick)"
     if "anbau" in pr:
         return "HINWEIS: Anbauteile prüfen (Doppelklick)"
+    if befunde:
+        return dfm.status(befunde)
     if d3_status:
         return d3_status
     if manuell:

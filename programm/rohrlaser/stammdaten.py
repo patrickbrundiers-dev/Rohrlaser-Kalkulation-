@@ -7,7 +7,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import naht, normprofile, rp_profile
+from . import dfm, naht, normprofile, rp_profile
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
@@ -320,7 +320,8 @@ MASCHINEN = Tabelle(
      Feld("faktor_3d", "3D: Faktor Schneidzeit", "zahl", 0.1, 10, stellen=2, breite=80),
      Feld("sonder_spannbar", "RP-/Sonderprofile spannbar", "auswahl", auswahl="janein", breite=85),
      Feld("ruest_sonder", "Rüstzuschlag Sonderprofil [min je Abmessung]", "zahl", 0, 1440, stellen=0, breite=95),
-     Feld("duese_min", "Mindestabstand Düse [mm]", "zahl", 0, 200, stellen=1, breite=85)),
+     Feld("duese_min", "Mindestabstand Düse [mm]", "zahl", 0, 200, stellen=1, breite=85),
+     Feld("min_teil", "Kürzestes Teil [mm]", "zahl", 0, 20000, stellen=0, breite=80)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -337,7 +338,9 @@ MASCHINEN = Tabelle(
     "'nein' = Positionen mit RP-Profil oder Sonderprofil bekommen WARNUNG (Maschine prüfen), leer = ja. "
     "Rüstzuschlag Sonderprofil: zusätzliche Rüstzeit je RP-/Sonderprofil-Abmessung (wie Rüsten je Abmessung). "
     "Mindestabstand Düse: tiefer als dieses Maß steht der Anschlag eines RP-Profils über; Innenkonturen können "
-    "darunter liegen und bekommen WARNUNG (prüfen), leer = keine Prüfung.")
+    "darunter liegen und bekommen WARNUNG (prüfen), leer = keine Prüfung. Kürzestes Teil: kürzere Teile kann die "
+    "Maschine nicht fertigen; sie bekommen die Stufe der Prüfregel 'Teil zu kurz für die Maschine' (leer = keine "
+    "Grenze).")
 
 SCHNEIDDATEN = Tabelle(
     "schneiddaten", "Schneiddaten",
@@ -482,6 +485,21 @@ BLECH_KFAKTOREN = Tabelle(
     "Abkantpresse bzw. den Lieferanten anpassen. Einstellung 'Abwicklung: K-Faktor aus' = je Werkstoff schaltet "
     "die Tabelle ab.")
 
+# Fertigungsprüfung (dfm.py, Plan S5): Regel, aktiv, Grenzwert, Stufe; Vorgaben und Beispielzeilen in dfm.REGELN
+PRUEFREGELN = Tabelle(
+    "pruefregeln", "Prüfregeln (Fertigung)",
+    (Feld("regel", "Regel", "auswahl", auswahl="pruefregel", pflicht=True, breite=190),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("grenzwert", "Grenzwert [× Wand bzw. Dicke]", "zahl", 0, 100, stellen=2, breite=95),
+     Feld("stufe", "Stufe", "auswahl", auswahl="pruefstufe", breite=90),
+     Feld("bemerkung", "Bemerkung", breite=360)),
+    ("regel",),
+    "Fertigungsprüfung für Rohr- und Blechteile: jede Regel einzeln an- oder abschaltbar, mit Grenzwert und Stufe "
+    "(HINWEIS, WARNUNG oder FEHLER), die im Status der Position erscheint. Bohrung zu klein, Steg zu schmal und "
+    "Kontur zu nah am Rand rechnen mit Grenzwert × Wandstärke bzw. Blechdicke; Teil zu kurz mit 'Kürzestes Teil' "
+    "der Maschine; Kantbarkeit mit den Faktoren unter Einstellungen. Fehlt eine Regel, gilt ihre Vorgabe; leerer "
+    "Grenzwert = Vorgabe. Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen.")
+
 # Schweißbaugruppen (Patrick 23.10.2026, Plan 3a/4a): Schweißzeit je Nahtgruppe aus Lichtbogenzeit je m Naht
 # (Verfahren × Nahtart × a-Maß bzw. Blechdicke) × Faktoren, geteilt durch den Lichtbogenzeitfaktor des Verfahrens,
 # dazu Heftpunkte. Neue Dateien bekommen die Tabellen leer; 'Richtwerte laden' (baugruppe.richtwerte) trägt
@@ -535,6 +553,7 @@ SCHWEISS_FAKTOREN = Tabelle(
 BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
 DARSTELLUNG_3D = ("Automatisch", "Software", "OpenGL")       # wie ansicht3d.RENDERER
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")            # wie blech.ABWICKLUNG_K
+MATERIAL_AUS = ("Tafelausnutzung", "pauschaler Verschnitt")    # wie blech.MATERIAL_AUS
 IMPORTPROFILE = Tabelle(
     "importprofile", "Importprofile (STEP)",
     (Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", pflicht=True, breite=110),
@@ -556,7 +575,7 @@ IMPORTPROFILE = Tabelle(
 
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
-            SCHWEISSVERFAHREN,
+            PRUEFREGELN, SCHWEISSVERFAHREN,
             SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, IMPORTPROFILE)
 TABELLE = {t.name: t for t in TABELLEN}
 
@@ -664,6 +683,13 @@ EINSTELLUNGEN = (
                 30.0, 0, 100000),
     Einstellung("blech_verschnitt", "Verschnitt Tafel (auf das Hüllrechteck)", "Blech-Richtpreis", "anteil", 0.15,
                 0, 5),
+    # Tafelausnutzung (blech.tafelbedarf): Material je Losgröße aus den Tafelformaten statt pauschalem Verschnitt
+    Einstellung("blech_material", "Material: Tafelausnutzung oder pauschaler Verschnitt", "Blech-Richtpreis",
+                "auswahl", MATERIAL_AUS[0], auswahl="blechmaterial"),
+    Einstellung("blech_tafeln", "Tafelformate: Länge × Breite in mm, mit ; getrennt (Beispiel, bitte anpassen)",
+                "Blech-Richtpreis", "text", "3000 × 1500; 2500 × 1250"),
+    Einstellung("blech_tafel_rand", "Tafel: Randabstand [mm]", "Blech-Richtpreis", "zahl", 10.0, 0, 200),
+    Einstellung("blech_tafel_steg", "Tafel: Steg zwischen den Teilen [mm]", "Blech-Richtpreis", "zahl", 5.0, 0, 100),
     Einstellung("blech_kantung", "Kanten: Preis je Kantung [€]", "Blech-Richtpreis", "zahl", 1.20, 0, 10000),
     Einstellung("blech_ruesten_kanten", "Kanten: Rüsten je Auftrag [€]", "Blech-Richtpreis", "zahl", 25.0, 0, 100000),
     Einstellung("blech_aufschlag", "Aufschlag des Lieferanten (Gewinn)", "Blech-Richtpreis", "anteil", 0.15, 0, 5),
@@ -907,7 +933,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
@@ -1093,6 +1119,7 @@ def beispieldaten():
         "blech_werkstoffe": zeilen(BLECH_WERKSTOFFE, beispiel_blech_werkstoffe()),
         "blechlaser": zeilen(BLECHLASER, beispiel_blechlaser()),
         "blech_kfaktoren": zeilen(BLECH_KFAKTOREN, beispiel_blech_kfaktoren()),
+        "pruefregeln": zeilen(PRUEFREGELN, dfm.beispiel_regeln()),
     }
 
 

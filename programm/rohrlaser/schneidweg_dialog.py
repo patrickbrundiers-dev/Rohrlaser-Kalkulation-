@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
                                QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
+from . import dfm, dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
 from .stammdaten import zahl_aus_text
@@ -853,6 +853,17 @@ class SchneidwegDialog(QDialog):
             self.tabelle.removeRow(r)
         self.rechnen()
 
+    def pruefung(self, eingaben=None):
+        """Befunde der Fertigungsprüfung (dfm.rohr) für die aktuellen Eingaben und Teilelänge."""
+        p = dict(self.p, technik=sw.speichern(eingaben or self.eingaben()),
+                 laenge=self.k_laenge.value() if hasattr(self, "k_laenge") else self.p.get("laenge"))
+        return dfm.rohr(p, self.profil, self.maschine, (self.tabellen or {}).get("pruefregeln"))
+
+    def _pruefung_zeigen(self, eingaben):
+        farbe = {dfm.FEHLER: "#B42318", dfm.WARNUNG: "#B26A00", dfm.HINWEIS: "#7A5A00"}
+        return [f"<span style='color:{farbe[b.stufe]}'>Prüfung {b.stufe}: {b.zeile()}</span>"
+                for b in self.pruefung(eingaben)]
+
     def eingaben(self):
         konturen = []
         for r in range(self.tabelle.rowCount()):
@@ -961,6 +972,7 @@ class SchneidwegDialog(QDialog):
             teile.append("<span style='color:#7A5A00'>Die Position hat eine Schneidzeit von Hand; sie gilt weiter, "
                          "bis sie in der Positionsliste gelöscht wird.</span>")
         teile += self._d3_zeigen(eingaben)
+        teile += self._pruefung_zeigen(eingaben)
         fehler = erg["fehler"] + self.kopf_fehler()
         if fehler:
             teile.append("<span style='color:#B42318'>" + "<br>".join(fehler) + "</span>")

@@ -43,7 +43,7 @@ from .stammdaten import (TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE
                          schweiss_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 47     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 48     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -89,6 +89,7 @@ SCHEMA_VERSION = 47     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 46: Schweißbaugruppen (positionen.baugruppe/bg_knoten/je_knoten, Positionsart
                         #     Schweißbaugruppe; Tabellen schweissverfahren, schweiss_kennwerte, schweiss_faktoren leer)
                         # 47: K-Faktoren der Abwicklung (Tabelle blech_kfaktoren mit Beispielwerten nach DIN 6935)
+                        # 48: Fertigungsprüfung (Tabelle pruefregeln mit den Vorgaben, maschinen.min_teil leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -333,6 +334,8 @@ class Datenbank:
                         self._einfuegen(t, beispieldaten()[t])
             if 0 < version < 47 and not self.anzahl("blech_kfaktoren"):
                 self._einfuegen("blech_kfaktoren", beispieldaten()["blech_kfaktoren"])
+            if 0 < version < 48 and not self.anzahl("pruefregeln"):
+                self._einfuegen("pruefregeln", beispieldaten()["pruefregeln"])
             if version > 0 and self.einstellung("maschinen_stand") != MASCHINEN_STAND:
                 self._maschinen_anpassen()
             if version > 0 and self.einstellung("gravur_stand") != GRAVUR_STAND:
@@ -1128,7 +1131,7 @@ class Datenbank:
         Arbeitsschritte)."""
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
-                                           "schweiss_kennwerte", "schweiss_faktoren")}
+                                           "schweiss_kennwerte", "schweiss_faktoren", "pruefregeln")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         return tab
 

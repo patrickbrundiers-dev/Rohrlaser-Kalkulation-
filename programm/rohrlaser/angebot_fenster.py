@@ -1842,6 +1842,7 @@ class AngebotSeite(QWidget):
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"]))
+        self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
@@ -2161,6 +2162,18 @@ class AngebotSeite(QWidget):
         elif self.pos_modell.flags(i) & Qt.ItemIsEditable:
             self.pos_ansicht.edit(i)
 
+    def _baugruppen_kosten(self):
+        """Kostenbalken je Schweißbaugruppe für die Übersicht (D2): Titel, Kostenteile und größte Posten je Baugruppe."""
+        out, saetze = [], None
+        for p in self.positionen:
+            if not ist_baugruppe(p) or baugruppe.daten_fehler(p.get("baugruppe")):
+                continue
+            saetze = saetze if saetze is not None else self._saetze()
+            r = baugruppe.rechnen(p, self.tabellen, saetze)
+            out.append((f"Pos. {p.get('pos') or ''} {baugruppe.name(p)}".strip(), baugruppe.kostenaufteilung(r),
+                        baugruppe.groesste_posten(r)))
+        return out
+
     def baugruppe_neu(self, dialog=None):
         """Neue Schweißbaugruppe im Editor anlegen; markierte Positionen sind als Einzelteile vorgewählt.
         dialog(d) bedient den Editor statt exec (Tests). Ergebnis: True = angelegt."""
@@ -2179,10 +2192,12 @@ class AngebotSeite(QWidget):
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
         return True
 
-    def baugruppe_bearbeiten(self, zeilen, dialog=None):
+    def baugruppe_bearbeiten(self, zeilen, dialog=None, fokus=None):
         """Editor der Schweißbaugruppe in der Zeile; bei einem Einzelteil der Editor seiner Baugruppe.
-        Ergebnis: True = gespeichert."""
+        fokus: Status, dessen Zeile der Editor zeigt (Doppelklick auf den Status). Ergebnis: True = gespeichert."""
         p = self.positionen[zeilen[0]]
+        if fokus and not ist_baugruppe(p):
+            fokus = f"Pos. {p.get('pos') or ''}: {fokus}"
         if not ist_baugruppe(p):
             bg_id = baugruppe.zuordnung(p)[0]
             ziel = baugruppe.baugruppen(self.positionen).get(bg_id)
@@ -2192,6 +2207,8 @@ class AngebotSeite(QWidget):
                 return False
             p = self.positionen[ziel[0]]
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze())
+        if fokus:
+            d.fokus(fokus)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
         alt_name = baugruppe.name(p)
@@ -2266,6 +2283,8 @@ class AngebotSeite(QWidget):
             self.optimieren()
         elif ziel == "schneidweg_berechnen":
             self.schneidweg_berechnen(zeile)
+        elif ziel == "baugruppe_bearbeiten":
+            self.baugruppe_bearbeiten([zeile], fokus=self.pos_modell.status[zeile])
         else:
             getattr(self, ziel)([zeile])
         return ziel

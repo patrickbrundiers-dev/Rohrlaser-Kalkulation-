@@ -181,6 +181,7 @@ assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Pro
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)",
+                                                                 "Prüfregeln (Fertigung)",
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren",
                                                                  "Importprofile (STEP)",

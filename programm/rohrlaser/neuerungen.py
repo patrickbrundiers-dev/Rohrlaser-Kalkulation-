@@ -27,6 +27,23 @@ NEUERUNGEN = [
                "<b>Entfernen</b> schaltet es ab ([[passwort]]). Dazu laufen die Programmtests jetzt gemeinsam und "
                "schneller.",
      "Passwort der Einstellungen verschlüsselt gespeichert ([[passwort]])."],
+    ["0.9.19", "<b>Schweißbaugruppen schneller und übersichtlicher</b>: Der Status großer Angebote mit Baugruppen "
+     "rechnet die Sollwerte nur noch einmal je Stand (500 Teile rund fünfmal schneller); Nahtgruppen ohne Kennwert "
+     "oder a-Maß sind im Editor gelb markiert, Richtwerte als Etikett; der Doppelklick auf den Status springt zur "
+     "betroffenen Zeile; beschädigte Baugruppendaten nennen Ort und Grund; neuer <b>Kostenbalken</b> je Baugruppe in "
+     "der Übersicht und im Editor ([[schweissbaugruppe]]).",
+     "Baugruppen: schnellerer Status, gelbe Nahtgruppen, Sprung zur Zeile, Kostenbalken ([[schweissbaugruppe]])."],
+    ["0.9.18", "<b>Fertigungsprüfung</b>: Rohr-, Profil- und Blechteile werden auf zu kleine Bohrungen, zu schmale "
+     "Stege, Konturen zu nah am Ende bzw. an der Blechkante, Gravuren über eine Kante, zu kurze Teile und die "
+     "Kantbarkeit geprüft. Der Befund steht mit der Lage am Teil im Status, im Schneidweg-Rechner und im "
+     "Blech-Editor. Jede Regel ist im Unterreiter Prüfregeln (Fertigung) abschaltbar, mit Grenzwert und Stufe; neu "
+     "bei den Maschinen: Kürzestes Teil ([[pruefregeln]]).",
+     "Fertigungsprüfung mit Regeltabelle ([[pruefregeln]])."],
+    ["0.9.17", "<b>Tafelausnutzung</b>: Das Material eines Blechteils kommt aus dem Tafelbedarf der Stückzahl "
+     "(Hüllrechtecke mit Steg auf den Tafelformaten, die letzte Tafel nur mit der belegten Fläche) statt aus einem "
+     "festen Verschnitt; größere Lose und Staffelpreise werden dadurch günstiger. Tafelformate, Randabstand und Steg "
+     "stehen in den Einstellungen ([[blech_tafel]]).",
+     "Blech-Material aus dem Tafelbedarf je Stückzahl ([[blech_tafel]])."],
     ["0.9.16", "<b>Kantbarkeit prüfen</b>: Der Blech-Editor weist bei Kantteilen auf zu kurze Schenkel (nach "
                "V-Öffnung), zu kleine Innenradien, Bohrungen zu nah an der Biegelinie und fehlende Freischnitte an "
                "Biegeecken hin; die Regeln stehen unter Einstellungen ([[blech_kantbarkeit]]).",

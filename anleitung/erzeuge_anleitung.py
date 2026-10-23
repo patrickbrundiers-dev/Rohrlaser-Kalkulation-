@@ -2594,7 +2594,8 @@ def kapitel_zukauf_angebot(i):
             "Innenradius r, Dicke s, Biegewinkel φ und K-Faktor k je Biegung aus der Tabelle K-Faktoren "
             "([[blech_stammdaten]]; ohne passende Zeile der des Blech-Werkstoffs, Vorgabe 0,33). Beispiel "
             "Winkel 50 × 80 aus 2 mm, r = 2: v = 3,8 mm, Zuschnitt 126,2 mm.",
-            "<b>Material</b> = Hüllrechteck des Zuschnitts × (1 + Verschnitt Tafel) × Dicke × Dichte × Preis je kg.",
+            "<b>Material</b> = Tafelbedarf der Stückzahl ÷ Stückzahl × Dicke × Dichte × Preis je kg "
+            "([[blech_tafel]]).",
             "<b>Laser</b> = (Außenkontur ÷ Vorschub Außenkontur + Innenkonturen ÷ Vorschub Innenkonturen + "
             "Einstiche × Einstechzeit) × Stundensatz Blechlaser; Einstiche = 1 + Anzahl der Innenkonturen.",
             "<b>Kanten</b> = Anzahl Kantungen × Preis je Kantung; <b>Rüsten</b> = (Rüsten und Programmieren "
@@ -2605,6 +2606,21 @@ def kapitel_zukauf_angebot(i):
            "Staffelzeile <i>ab Stückzahl der Position</i> in den Artikel, und die Position bekommt den neuen "
            "Preisstand. Der Richtpreis ersetzt kein Angebot des Blechlieferanten; liegt eines vor, den echten EK "
            "mit <b>EK eintragen …</b> ([[zukauf_positionen]]) oder im Reiter Zukaufartikel eintragen.")
+    i.abschnitt("Tafelausnutzung", marke="blech_tafel")
+    i.text("Das Material eines Blechteils kommt aus dem <b>Tafelbedarf</b> der Stückzahl, nicht aus einem festen "
+           "Verschnitt. Größere Lose nutzen die Tafel besser; deshalb sinkt der Materialanteil je Stück mit der "
+           "Stückzahl, auch in den Staffelpreisen.", kurz=True)
+    i.liste("Das Programm legt die Hüllrechtecke der Teile mit Steg auf jedes Tafelformat: als Raster in einer Lage, "
+            "den Reststreifen gedreht. Gewählt wird das Format mit dem kleinsten Bedarf.",
+            "Volle Tafeln zählen ganz. Die letzte Tafel zählt nur mit der belegten Fläche samt Rand, denn der Rest "
+            "der Tafel bleibt beim Lieferanten.",
+            "Unter dem Richtpreis steht zum Beispiel <i>Tafel 3000 × 1500: 203 Stück je Tafel, Bedarf 0,49 Tafeln "
+            "für 100 Stück, Ausnutzung 91 %</i> (Zuschnitt 200 × 100 mm).",
+            "Freie Außenkonturen zählen mit ihrem Hüllrechteck; verschiedene Teile auf einer Tafel schachtelt das "
+            "Programm nicht zusammen.",
+            "Passt ein Zuschnitt auf kein Tafelformat, gilt der pauschale Verschnitt, und unter dem Richtpreis steht "
+            "ein Hinweis. Mit der Einstellung <i>Material: pauschaler Verschnitt</i> gilt er immer "
+            "([[einstellungen]]).")
     i.abschnitt("Kantbarkeit prüfen", marke="blech_kantbarkeit")
     i.text("Bei Kantteilen und mehrachsig gekanteten Zuschnitten prüft der Blech-Editor einfache Regeln und zeigt "
            "Befunde als <b>Hinweis: Kantbarkeit …</b> unter dem Richtpreis. Der Preis bleibt gleich; die Hinweise "
@@ -2662,16 +2678,17 @@ def kapitel_baugruppen(i):
            "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
     i.abschnitt("Nahtgruppen")
     i.text("Je Zeile eine Gruppe gleicher Nähte. Die Schweißzeit kommt aus den Kennwerten unter Einstellungen "
-           "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert, steht der Grund rot in der Spalte "
-           "<i>Hinweis</i> und die Baugruppe zeigt eine WARNUNG.", kurz=True)
+           "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert oder das a-Maß, ist die Zeile gelb "
+           "markiert (Warnzeichen an der Zeilennummer, Grund in der Spalte <i>Hinweis</i>) und die Baugruppe zeigt "
+           "eine WARNUNG.", kurz=True)
     i.bild("baugruppe_naehte", "Reiter Nahtgruppen (Kennwerte hier aus den Richtwerten)", hoehe=60 * mm, legende=[
         (1, "<b>Verfahren</b> und <b>Nahtart</b> (Kehlnaht, Stumpfnaht, Ecknaht)."),
         (2, "<b>a-Maß / Dicke</b>: Kehlnaht a-Maß, Stumpf- und Ecknaht Blechdicke; dazu Länge je Naht und Anzahl."),
         (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
         (4, "<b>Lage</b> (PA … PG), Zugänglichkeit und Qualität: Faktoren auf die Lichtbogenzeit."),
         (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
-        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Richtwert, "
-            "Datum der gemerkten Kennwerte oder was fehlt.")])
+        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Etikett "
+            "<i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
     i.genauer()
     i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
            "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
@@ -2708,7 +2725,8 @@ def kapitel_baugruppen(i):
            "<i>wiederverwendbare Vorrichtung nicht berechnet</i>, damit das bewusst bleibt. Der Reiter "
            "<i>Stammdaten</i> nimmt Zeichnungsnummer, Revisionsstand, Werkstoff, Oberfläche und Bemerkungen auf; "
            "Zeichnung, Revision, Werkstoff und Oberfläche stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet "
-           "alle Nahtgruppen und Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+           "oben einen <b>Kostenbalken</b> (Schweißen, Arbeitsgänge, umgelegte Einmalkosten, Fremdleistung je "
+           "Baugruppe) und darunter alle Nahtgruppen und Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
     i.text("Aus einer STEP-Baugruppe: im Prüfdialog des STEP-Imports bei <b>Sätze</b> das Häkchen <b>als "
            "Schweißbaugruppe</b> setzen ([[step]]); Unterbaugruppen und Zuordnung der Teile kommen dann aus der "
            "Datei.")
@@ -2726,7 +2744,13 @@ def kapitel_baugruppen(i):
     i.text("In der Kalkulation stehen die Kosten als <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> (mit "
            "Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung); danach "
            "Gewinn und Skonto wie bei jeder Position. Der Status der Baugruppe führt per Doppelklick in den Editor, "
-           "auch der Status eines Einzelteils mit einem Fehler der Zuordnung.")
+           "direkt zur betroffenen Zeile (Nahtgruppe, Arbeitsgang, Unterbaugruppe oder Einzelteil), auch der Status "
+           "eines Einzelteils mit einem Fehler der Zuordnung. Sind die gespeicherten Daten einer Baugruppe "
+           "beschädigt, nennt der Status, was und wo (z. B. <i>Nahtgruppe 3 hat eine doppelte Kennung</i>).")
+    i.text("Rechts in der <b>Übersicht</b> des Angebots steht je Baugruppe ein <b>Kostenbalken</b>: Schweißen, "
+           "Arbeitsgänge, umgelegte Einmalkosten und Fremdleistung je Baugruppe mit Anteil in %, darunter die drei "
+           "größten Posten. So sieht man sofort, wo sich das Nachprüfen von Kennwerten oder Vorrichtungen lohnt. "
+           "Angebote ohne Baugruppe zeigen den Bereich nicht.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
@@ -3132,6 +3156,11 @@ def kapitel_einstellungen(i):
                              "Dicke",
          "Regeln der Kantbarkeits-Hinweise im Blech-Editor (Vorgabe 8; 0,7; 2; 0,5); Faktor 0 schaltet eine Regel "
          "ab ([[blech_kantbarkeit]])."],
+        ["Blech-Richtpreis", "Material: Tafelausnutzung oder pauschaler Verschnitt, Tafelformate: Länge × Breite "
+                             "in mm, mit ; getrennt, Tafel: Randabstand [mm], Tafel: Steg zwischen den Teilen [mm]",
+         "<i>Tafelausnutzung</i> (Vorgabe): Material aus dem Tafelbedarf der Stückzahl; <i>pauschaler "
+         "Verschnitt</i>: Hüllrechteck × (1 + Verschnitt Tafel). Tafelformate als Beispiel 3000 × 1500 und "
+         "2500 × 1250, Randabstand 10 mm, Steg 5 mm; bitte an die eigenen Tafeln anpassen ([[blech_tafel]])."],
         ["Blech-Richtpreis", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle oder je Werkstoff)",
          "<i>K-Faktor-Tabelle</i> (Vorgabe): je Biegung aus der Tabelle K-Faktoren nach Dicke und Innenradius; "
          "<i>je Werkstoff</i>: der K-Faktor des Blech-Werkstoffs für alle Biegungen ([[blech_stammdaten]])."],
@@ -3555,6 +3584,9 @@ def kapitel_stammdaten(i):
                                      "Innenkonturen die WARNUNG <i>Innenkonturen unter dem Anschlag prüfen</i> "
                                      "(die Düse kommt unter dem Anschlag schlecht an die Wand); leer = keine "
                                      "Prüfung"],
+        ["Kürzestes Teil [mm]", "kürzere Teile kann die Maschine nicht fertigen; sie bekommen die Stufe der "
+                                "Prüfregel <i>Teil zu kurz für die Maschine</i> ([[pruefregeln]]); leer = keine "
+                                "Grenze"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.tabelle(["Schneiddaten", "Bedeutung"], [
         ["<b>Maschinen-ID</b>, <b>Wandstärke bis [mm]</b>",
@@ -3659,6 +3691,36 @@ def kapitel_stammdaten(i):
            "von Version 0.9.14 (Schema 47).")
     i.bild("stamm_blech_kfaktoren", "Einstellungen, K-Faktoren (Abwicklung) je Kategorie, Blechdicke und "
            "Innenradius ÷ Dicke", hoehe=90 * mm)
+    i.abschnitt("Prüfregeln (Fertigung)", marke="pruefregeln")
+    i.text("Die <b>Fertigungsprüfung</b> sieht sich jedes Rohr-, Profil- und Blechteil an und meldet, was sich "
+           "schlecht fertigen lässt. Der Befund steht im Status der Position (mit Lage am Teil, z. B. <i>bei x = "
+           "120 mm, oben</i>), im Schneidweg-Rechner und im Blech-Editor. Jede Regel ist im Unterreiter "
+           "<b>Prüfregeln (Fertigung)</b> einzeln an- oder abschaltbar und hat einen Grenzwert und eine Stufe.",
+           kurz=True)
+    i.tabelle(["Prüfregeln (Fertigung)", "Bedeutung"], [
+        ["<b>Regel</b>", "Bohrung zu klein, Steg zu schmal, Kontur zu nah am Rand, Teil zu kurz für die Maschine, "
+                         "Gravur über Kante, Kantbarkeit"],
+        ["Aktiv", "<i>nein</i> schaltet die Regel ab"],
+        ["Grenzwert [× Wand bzw. Dicke]", "Faktor auf die Wandstärke des Profils bzw. die Blechdicke; leer = "
+                                          "Vorgabe"],
+        ["Stufe", "HINWEIS, WARNUNG oder FEHLER: so erscheint der Befund im Status; FEHLER sperrt die Position "
+                  "wie jeder andere Fehler"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.liste("<b>Bohrung zu klein</b>: Bohrung oder Senkung mit Ø unter 1,0 × Wand (Vorgabe WARNUNG). Unter "
+            "0,7 × Wand bleibt zusätzlich die Warnung, dass gebohrt werden muss ([[bohrungen_pruefen]]).",
+            "<b>Steg zu schmal</b>: zwei Konturen näher als 1,5 × Wand beieinander, auch über eine Kante des "
+            "Profils hinweg (Abwicklung).",
+            "<b>Kontur zu nah am Rand</b>: Kontur näher als 1,0 × Wand am Ende des Teils bzw. an der Blechkante. "
+            "Schlitze und Ausklinkungen sind zum Ende offen und zählen nicht; Gehrungen rechnen mit dem Ende bei "
+            "x = 0 bzw. x = Länge.",
+            "<b>Teil zu kurz für die Maschine</b>: kürzer als <i>Kürzestes Teil</i> der Maschine (Vorgabe FEHLER).",
+            "<b>Gravur über Kante</b>: eine Gravur aus dem STEP-Import läuft über mehrere Flächen.",
+            "<b>Kantbarkeit</b>: die Hinweise der Kantbarkeit ([[blech_kantbarkeit]]) im Status der Blech-Position "
+            "(Vorgabe HINWEIS).",
+            "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
+    i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
+           "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48).")
+    i.bild("stamm_pruefregeln", "Einstellungen, Prüfregeln (Fertigung)", hoehe=60 * mm)
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
