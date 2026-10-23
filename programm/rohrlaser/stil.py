@@ -18,6 +18,8 @@ BLAU_FLAECHE = "#DDEBF7"
 RAHMEN = "#D5DBE3"
 LINIE = "#E3E7EC"
 FLAECHE = "#F5F7FA"
+# Abschnitte in Balken (kostenbalken.py) der Reihe nach: gut unterscheidbar, auch in Graustufen
+BALKEN_FARBEN = ("#1F4E78", "#5B8DB8", "#B35C00", "#7F8A99", "#1E6B34", "#B07AA1")
 ROTER_RAHMEN = f"border: 1px solid {ROT}; border-radius: 3px; background: {ROT_FLAECHE};"
 
 # Einheitliches Aussehen angelehnt an die PDF-Ausgaben: Dunkelblau #1F4E78 als Akzent (aktiver Reiter, Titel,

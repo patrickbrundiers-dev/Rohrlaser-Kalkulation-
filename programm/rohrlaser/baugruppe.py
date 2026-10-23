@@ -79,6 +79,47 @@ def lesen(text):
     return d
 
 
+_LISTEN = (("knoten", "Unterbaugruppe", "Unterbaugruppen"), ("arbeitsgaenge", "Arbeitsgang", "Arbeitsgänge"),
+           ("naehte", "Nahtgruppe", "Nahtgruppen"))
+
+
+def daten_fehler(text):
+    """Erster Fehler der gespeicherten Baugruppendaten mit Ort (T5), sonst None: lesen() verwirft Beschädigtes still,
+    der Status nennt so, was und wo (JSON-Stelle, Liste, Eintrag, doppelte Kennung)."""
+    if not text:
+        return "Baugruppendaten fehlen"
+    try:
+        d = json.loads(text) if isinstance(text, str) else dict(text)
+    except ValueError as e:
+        return f"Baugruppendaten beschädigt (JSON, Zeile {getattr(e, 'lineno', '?')}, Zeichen {getattr(e, 'colno', '?')})"
+    except TypeError:
+        return "Baugruppendaten beschädigt (kein JSON-Text)"
+    if not isinstance(d, dict):
+        return "Baugruppendaten beschädigt (kein Datensatz)"
+    if not d.get("id") or not isinstance(d["id"], str):
+        return "Baugruppendaten: Kennung der Baugruppe fehlt"
+    if d.get("stamm") is not None and not isinstance(d["stamm"], dict):
+        return "Baugruppendaten: Stammdaten sind kein Datensatz"
+    for liste, titel, mehrzahl in _LISTEN:
+        x = d.get(liste)
+        if x is None:
+            continue
+        if not isinstance(x, list):
+            return f"Baugruppendaten: {mehrzahl} sind keine Liste ('{liste}')"
+        ids = set()
+        for n, e in enumerate(x, 1):
+            if not isinstance(e, dict):
+                return f"Baugruppendaten: {titel} Nr. {n} ist kein Datensatz"
+            kenn = e.get("id")
+            if kenn is not None and not isinstance(kenn, (str, int)):
+                return f"Baugruppendaten: {titel} {e.get('nr') or e.get('name') or f'Nr. {n}'} hat eine ungültige Kennung"
+            if kenn and kenn in ids:
+                ort = e.get("nr") or e.get("name") or f"Nr. {n}"
+                return f"Baugruppendaten: {titel} {ort} hat eine doppelte Kennung ({kenn})"
+            ids.add(kenn)
+    return None
+
+
 def speichern(bg):
     return json.dumps(bg, ensure_ascii=False, sort_keys=True)
 
@@ -173,7 +214,31 @@ def teile(positionen, bg_id):
     return [i for i, p in enumerate(positionen) if not ist_baugruppe(p) and zuordnung(p)[0] == bg_id]
 
 
+_FINGER = ("art", "bg_knoten", "je_knoten", "stueck", "bezeichnung", "artikel", "pos", "baugruppe")
+_KONTEXT = (None, None)          # (Fingerabdruck, (baugruppen, soll_werte, {id(Position): Index})); als Ganzes ersetzt,
+                                 # damit der Hintergrundlauf der Staffeln nie ein halbes Paar liest
+
+
+def _kontext(positionen):
+    """Baugruppen, Sollwerte und Index je Position einmal je Stand der Positionsliste (T1): der Status prüft jede Zeile
+    gegen dieselben Sollwerte; ein Fingerabdruck der Felder, die sie bestimmen, erkennt jede Änderung."""
+    global _KONTEXT
+    finger = (id(positionen), len(positionen),
+              tuple((id(p),) + tuple(p.get(n) for n in _FINGER) for p in positionen))
+    alt = _KONTEXT
+    if alt[0] == finger:
+        return alt[1]
+    wert = (baugruppen(positionen), _soll_werte(positionen), {id(p): i for i, p in enumerate(positionen)})
+    _KONTEXT = (finger, wert)
+    return wert
+
+
 def soll_werte(positionen):
+    """Wie _soll_werte, aber je Stand der Positionen nur einmal gerechnet (Kopie, damit Aufrufer ändern dürfen)."""
+    return {i: dict(v) for i, v in _kontext(positionen)[1].items()}
+
+
+def _soll_werte(positionen):
     """{Index: {satz, je_satz, stueck}}: Werte, die Baugruppen-Position und Einzelteile nach der Struktur haben müssen
     (Satz = Name der Baugruppe, Stück je Satz = Stück je Knoten × Menge der Knoten, Stückzahl = Stück je Satz ×
     Anzahl Baugruppen). Teile mit unbekannter Baugruppe oder fehlerhafter Struktur fehlen."""
@@ -183,9 +248,13 @@ def soll_werte(positionen):
         satz = name(p, bg)
         anzahl = p.get("stueck") if _zahl(p.get("stueck")) else None
         out[i] = dict(satz=satz, je_satz=1)
+        faktoren = {}           # je Knoten nur einmal (Strukturprüfung inbegriffen)
         for j in teile(positionen, bg_id):
             q = positionen[j]
-            f = faktor(bg, zuordnung(q)[1])
+            kn = zuordnung(q)[1]
+            if kn not in faktoren:
+                faktoren[kn] = faktor(bg, kn)
+            f = faktoren[kn]
             je = q.get("je_knoten") if _zahl(q.get("je_knoten")) and q["je_knoten"] >= 1 else 1
             if f is None:
                 continue
@@ -209,13 +278,13 @@ def teil_pruefen(p, positionen):
     bg_id, kn = zuordnung(p)
     if bg_id is None or positionen is None:
         return None
-    alle = baugruppen(positionen)
+    alle, soll_alle, index = _kontext(positionen)
     if bg_id not in alle:
         return "Baugruppe der Zuordnung fehlt"
     bg = alle[bg_id][1]
     if kn and kn not in knoten_map(bg):
         return "Unterbaugruppe der Zuordnung fehlt"
-    soll = soll_werte(positionen).get(next((j for j, q in enumerate(positionen) if q is p), -1))
+    soll = soll_alle.get(index.get(id(p), -1))
     if soll and (str(p.get("satz") or "").strip() != soll["satz"] or p.get("je_satz") != soll["je_satz"]
                  or p.get("stueck") != soll["stueck"]):
         return "Stückzahl passt nicht zur Baugruppe (neu abgleichen)"
@@ -463,13 +532,32 @@ def rechnen(p, tabellen, saetze, anzahl=None):
     return out
 
 
+KOSTENTEILE = ("Schweißen", "Arbeitsgänge", "Einmalkosten (umgelegt)", "Fremdleistung")
+
+
+def kostenaufteilung(r):
+    """Kosten je Baugruppe aus rechnen() nach KOSTENTEILE (Kostenbalken, D2): [(Bezeichnung, €)]; Summe = eigen + fremd."""
+    schweissen = sum(z["kosten"] for z in r["zeilen"] if z["art"] == "Naht")
+    arbeit = sum(z["kosten"] for z in r["zeilen"] if z["art"] == "Arbeitsgang" and not z["fremd"])
+    fremd = r["fremd"] - r["einmal_fremd"]
+    return list(zip(KOSTENTEILE, (schweissen, arbeit, r["einmal"], fremd)))
+
+
+def groesste_posten(r, n=3):
+    """Die n teuersten Zeilen (Nahtgruppe, Arbeitsgang) je Baugruppe inkl. umgelegter Einmalkosten: [(Name, €)]."""
+    anteil = r["einmal"] / r["einmal_gesamt"] if r["einmal_gesamt"] else 0.0
+    posten = [(z["name"], z["kosten"] + z["einmal"] * anteil) for z in r["zeilen"]]
+    return sorted((x for x in posten if x[1] > 0), key=lambda x: -x[1])[:n]
+
+
 def status(p, w, positionen=None):
     """Status einer Baugruppen-Position (wie rechnen.status): FEHLER, WARNUNG, HINWEIS oder OK."""
     if not _zahl(p.get("stueck")) or p["stueck"] < 1:
         return "FEHLER: Stückzahl fehlt (Anzahl Baugruppen)"
+    df = daten_fehler(p.get("baugruppe"))
+    if df:
+        return "FEHLER: " + df
     bg = lesen(p.get("baugruppe"))
-    if bg is None:
-        return "FEHLER: Baugruppendaten fehlen"
     sf = struktur_fehler(bg)
     if sf:
         return "FEHLER: " + sf
@@ -488,8 +576,9 @@ def status(p, w, positionen=None):
         if not teile(positionen, bg["id"]):
             return "WARNUNG: Baugruppe ohne Einzelteile"
         for i, q in enumerate(positionen):
-            if not ist_baugruppe(q) and zuordnung(q)[0] == bg["id"] and teil_pruefen(q, positionen):
-                return f"WARNUNG: Pos. {q.get('pos') or i + 1}: {teil_pruefen(q, positionen)}"
+            t = teil_pruefen(q, positionen) if not ist_baugruppe(q) and zuordnung(q)[0] == bg["id"] else None
+            if t:
+                return f"WARNUNG: Pos. {q.get('pos') or i + 1}: {t}"
         doppelt = doppelt_schweissen(p, positionen)
         if doppelt:
             return "WARNUNG: " + doppelt

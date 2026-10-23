@@ -2678,16 +2678,17 @@ def kapitel_baugruppen(i):
            "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
     i.abschnitt("Nahtgruppen")
     i.text("Je Zeile eine Gruppe gleicher Nähte. Die Schweißzeit kommt aus den Kennwerten unter Einstellungen "
-           "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert, steht der Grund rot in der Spalte "
-           "<i>Hinweis</i> und die Baugruppe zeigt eine WARNUNG.", kurz=True)
+           "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert oder das a-Maß, ist die Zeile gelb "
+           "markiert (Warnzeichen an der Zeilennummer, Grund in der Spalte <i>Hinweis</i>) und die Baugruppe zeigt "
+           "eine WARNUNG.", kurz=True)
     i.bild("baugruppe_naehte", "Reiter Nahtgruppen (Kennwerte hier aus den Richtwerten)", hoehe=60 * mm, legende=[
         (1, "<b>Verfahren</b> und <b>Nahtart</b> (Kehlnaht, Stumpfnaht, Ecknaht)."),
         (2, "<b>a-Maß / Dicke</b>: Kehlnaht a-Maß, Stumpf- und Ecknaht Blechdicke; dazu Länge je Naht und Anzahl."),
         (3, "<b>beidseitig</b> zählt die Naht doppelt; Heftpunkte je Naht rechnen mit der Zeit je Heftpunkt."),
         (4, "<b>Lage</b> (PA … PG), Zugänglichkeit und Qualität: Faktoren auf die Lichtbogenzeit."),
         (5, "<b>Zeit von Hand</b> geht immer vor (Zeit je Stück der Unterbaugruppe)."),
-        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Richtwert, "
-            "Datum der gemerkten Kennwerte oder was fehlt.")])
+        (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: Nahtlänge, Etikett "
+            "<i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
     i.genauer()
     i.text("Beim Speichern merkt sich jede Nahtgruppe die Kennwerte, mit denen sie gerechnet hat (Hinweis "
            "<i>Kennwerte vom …</i>). Spätere Änderungen unter Einstellungen ändern das Angebot nicht. Ändert man "
@@ -2724,7 +2725,8 @@ def kapitel_baugruppen(i):
            "<i>wiederverwendbare Vorrichtung nicht berechnet</i>, damit das bewusst bleibt. Der Reiter "
            "<i>Stammdaten</i> nimmt Zeichnungsnummer, Revisionsstand, Werkstoff, Oberfläche und Bemerkungen auf; "
            "Zeichnung, Revision, Werkstoff und Oberfläche stehen im Angebotstext. Der Reiter <i>Übersicht</i> listet "
-           "alle Nahtgruppen und Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
+           "oben einen <b>Kostenbalken</b> (Schweißen, Arbeitsgänge, umgelegte Einmalkosten, Fremdleistung je "
+           "Baugruppe) und darunter alle Nahtgruppen und Arbeitsgänge mit Zeit und Kosten je Baugruppe.")
     i.text("Aus einer STEP-Baugruppe: im Prüfdialog des STEP-Imports bei <b>Sätze</b> das Häkchen <b>als "
            "Schweißbaugruppe</b> setzen ([[step]]); Unterbaugruppen und Zuordnung der Teile kommen dann aus der "
            "Datei.")
@@ -2742,7 +2744,13 @@ def kapitel_baugruppen(i):
     i.text("In der Kalkulation stehen die Kosten als <b>Schweißbaugruppen: Schweißen und Arbeitsgänge</b> (mit "
            "Zuschlag Fertigung) und <b>Schweißbaugruppen: Fremdleistungen</b> (mit Zuschlag Fremdleistung); danach "
            "Gewinn und Skonto wie bei jeder Position. Der Status der Baugruppe führt per Doppelklick in den Editor, "
-           "auch der Status eines Einzelteils mit einem Fehler der Zuordnung.")
+           "direkt zur betroffenen Zeile (Nahtgruppe, Arbeitsgang, Unterbaugruppe oder Einzelteil), auch der Status "
+           "eines Einzelteils mit einem Fehler der Zuordnung. Sind die gespeicherten Daten einer Baugruppe "
+           "beschädigt, nennt der Status, was und wo (z. B. <i>Nahtgruppe 3 hat eine doppelte Kennung</i>).")
+    i.text("Rechts in der <b>Übersicht</b> des Angebots steht je Baugruppe ein <b>Kostenbalken</b>: Schweißen, "
+           "Arbeitsgänge, umgelegte Einmalkosten und Fremdleistung je Baugruppe mit Anteil in %, darunter die drei "
+           "größten Posten. So sieht man sofort, wo sich das Nachprüfen von Kennwerten oder Vorrichtungen lohnt. "
+           "Angebote ohne Baugruppe zeigen den Bereich nicht.")
 
 
 def kapitel_ausgabe(i, seiten, ablage):
