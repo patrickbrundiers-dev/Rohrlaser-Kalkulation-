@@ -376,7 +376,8 @@ def main(ziel):
         reiter_waehlen(s, text)
         if text == "Schnittplan":
             s.stangen_ansicht.selectRow(2)
-        foto.foto(name, f, ausschnitt=reiterflaeche(s))
+        marken = [(s.kompakt_ansicht, 1), (s.kalk_kompakt, 2)] if name == "erg_kalkulation" else ()
+        foto.foto(name, f, marken, ausschnitt=reiterflaeche(s))
     # Zeiten & Arbeitskosten mit Beispielzeiten, danach wieder die Vorgaben (Preise der übrigen Bilder unverändert)
     zb = db.zeitbasis_vorgabe(s.kopf.get("maschine"))
     beispiel = {"Materialbereitstellung": dict(ruestzeit=10), "Entgraten / Nachbearbeitung": dict(zeit=20),
