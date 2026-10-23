@@ -269,7 +269,8 @@ def abfrage(werte):
 
 
 st = admin_stelle()
-pruefe(st.zustand.admin and st.admin_passwort_noetig(), "L16 Admin-Lizenz mit Passwort: Abfrage nötig")
+pruefe(st.zustand.stufe == "admin" and not st.zustand.admin and st.admin_passwort_noetig(),
+       "L16 Admin-Lizenz mit Passwort: Abfrage nötig, vorher keine Admin-Rechte")
 pruefe(admin_beim_start(st, abfrage(["geheim"])) and st.zustand.admin and not st.zustand.admin_aus,
        "L16 richtiges Passwort: Admin-Rechte")
 eingaben.clear()
@@ -292,6 +293,18 @@ eingaben.clear()
 pruefe(admin_beim_start(st, abfrage([])) and not eingaben and st.zustand.admin,
        "L16 ohne Passwort in den Einstellungen: keine Abfrage, Admin-Rechte")
 pruefe(not admin_beim_start(None), "L16 ohne Lizenzstelle: keine Abfrage")
+pruefe(not admin_stelle().zustand.admin, "L16 ohne Passworteingabe (z. B. Abfrage abgestürzt): keine Admin-Rechte")
+o2 = tmp / "adminladen"
+o2.mkdir()
+(o2 / lizenz.AKTIV).write_text(json.dumps(lizenzdatei(bis=datetime.date.today() + datetime.timedelta(days=90),
+                                                       gueltig_ab=datetime.date.today().isoformat())), encoding="utf-8")
+st = lizenz.LizenzStelle(o2, _Db("geheim"), SCHL, RECHNER, durchsetzung=True)
+pruefe(st.pruefen().stufe == "gueltig", "L16 Benutzerlizenz geladen")
+neu = tmp / "admin_neu.lizenz"
+neu.write_text(json.dumps(lizenzdatei("admin", bis=None, rechner=[RECHNER], lizenz_id="L-2026-0009",
+                                      gueltig_ab=datetime.date.today().isoformat())), encoding="utf-8")
+z = st.laden(neu)
+pruefe(z.stufe == "admin" and not z.admin and z.admin_aus, "L16 Admin-Lizenz im laufenden Programm geladen: erst Passwort")
 pruefe(lizenz.STANDARD_MONATE == 3, "Vorgabe-Laufzeit Benutzerlizenz 3 Monate")
 
 # ------------------------------------------------------------------ Lizenz-Werkzeug

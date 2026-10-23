@@ -320,7 +320,7 @@ def main(argv=None):
             admin_beim_start(stelle)                # Admin-Lizenz: Passwort, sonst ohne Admin-Rechte
         except Exception:       # noqa: BLE001
             from . import protokoll
-            protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen:\n" + traceback.format_exc())
+            protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen (ohne Admin-Rechte weiter):\n" + traceback.format_exc())
         f = Hauptfenster(db, programmordner(), orte=o, lizenz=stelle)
         f.starten()
         code = app.exec()

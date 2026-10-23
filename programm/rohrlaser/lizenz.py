@@ -441,7 +441,7 @@ class LizenzStelle:
         self.rechner = rechner_id() if rechner is None else rechner
         self.durchsetzung = durchsetzung
         self.zustand = None
-        self.admin_gesperrt = False     # Admin-Passwort beim Start nicht eingegeben
+        self.admin_ok = False           # Admin-Passwort in dieser Sitzung eingegeben (ohne: keine Admin-Rechte)
 
     ADMIN_HINWEIS = "Ohne Admin-Rechte gestartet (Admin-Passwort nicht eingegeben) – Hilfe → Lizenz …"
 
@@ -454,7 +454,7 @@ class LizenzStelle:
             if neu and neu != db_wert:
                 self.db.einstellung_setzen(EINSTELLUNG_ZULETZT, neu)
             self.db.lesemodus(z.nur_lesen)
-        if z.stufe == "admin" and self.admin_gesperrt:
+        if z.stufe == "admin" and not self.admin_ok and self.admin_passwort():
             z.admin_aus, z.hinweis, z.farbe = True, self.ADMIN_HINWEIS, "gelb"
         self.zustand = z
         return z
@@ -466,19 +466,19 @@ class LizenzStelle:
     def admin_passwort_noetig(self):
         """True, wenn eine Admin-Lizenz geladen ist und beim Start das Admin-Passwort abgefragt werden muss."""
         z = self.zustand or self.pruefen()
-        return z.stufe == "admin" and not self.admin_gesperrt and bool(self.admin_passwort())
+        return z.admin_aus
 
     def admin_freigeben(self, passwort):
         """Admin-Rechte mit dem Passwort freischalten. Ergebnis: True = richtig (Admin-Rechte an)."""
         if passwort != self.admin_passwort():
             return False
-        self.admin_gesperrt = False
+        self.admin_ok = True
         self.pruefen()
         return True
 
     def admin_sperren(self):
         """Ohne Admin-Rechte weiter (Passwort abgebrochen oder falsch): Einstellungen wieder mit Passwort."""
-        self.admin_gesperrt = True
+        self.admin_ok = False
         return self.pruefen()
 
     def laden(self, quelle, heute=None):
