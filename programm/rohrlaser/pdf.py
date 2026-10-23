@@ -550,6 +550,70 @@ def _fuss(einst, text):
     return "   |   ".join(t for t in (firma, text) if t)
 
 
+def _schweissplan(plan):
+    """Schweißplan je Baugruppe für die Werkstatt (Verbesserung P2): Struktur, Einzelteile, Nahtgruppen, Arbeitsgänge
+    und Vorrichtungen zum Abhaken, Vorgabezeit; ohne Preise. Jede Baugruppe auf einer neuen Seite."""
+    out = []
+    klein_grau = ParagraphStyle("sg", parent=S_KLEIN, textColor=GRAU)
+    for b in plan:
+        stamm = b.get("stamm") or {}
+        angaben = " · ".join(t for t in (
+            f"Zeichnung {stamm['zeichnung']}" + (f" Rev. {stamm['revision']}" if stamm.get("revision") else "")
+            if stamm.get("zeichnung") else "", stamm.get("werkstoff") or "", stamm.get("oberflaeche") or "") if t)
+        out += [PageBreak(), _p(f"Schweißplan Pos. {_z(b['pos'], 0)} {b['name']} – {_z(b['anzahl'], 0)} Stück", S_H2)]
+        if angaben:
+            out.append(_p(angaben, klein_grau))
+        out += [Spacer(1, 2 * mm), _kacheln([
+            ("Vorgabezeit je Baugruppe", f"{_z(b['vorgabe_min'], 1)} min"),
+            ("davon Schweißen", f"{_z(b['schweiss_min'], 1)} min"), ("Naht je Baugruppe", f"{_z(b['naht_m'], 2)} m"),
+            ("Vorgabe gesamt", f"{_z((b['vorgabe_min'] or 0) * (b['anzahl'] or 0) / 60, 2)} h")], 186 * mm),
+            Spacer(1, 3 * mm)]
+        if b["struktur"]:
+            daten = [_kopfzeile(["Unterbaugruppe", "Menge", "gehört zu", "Stück je Baugruppe"])]
+            for k in b["struktur"]:
+                daten.append([_p(k["name"], S_FETT), _z(k["menge"], 0), _p(k["unter"], S_KLEIN), _z(k["je_bg"], 0)])
+            out += [_p("Struktur", S_FETT), _tabelle(daten, [70 * mm, 25 * mm, 61 * mm, 30 * mm], rechts=(1, 3)),
+                    Spacer(1, 3 * mm)]
+        daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Unterbaugruppe", "je Unter-BG", "je BG",
+                             "Stück", "bereit"])]
+        for t in b["teile"]:
+            daten.append([_p(_z(t["pos"], 0), S_FETT), _p(t["artikel"], S_KLEIN), _p(t["bezeichnung"], S_KLEIN),
+                          _p(t["knoten"], S_KLEIN), _z(t["je_knoten"], 0), _z(t["je_bg"], 0), _z(t["stueck"], 0),
+                          Kaestchen()])
+        tab = _tabelle(daten, [w * mm for w in (12, 30, 50, 36, 16, 14, 14, 14)], rechts=(4, 5, 6))
+        tab.setStyle(TableStyle([("ALIGN", (7, 0), (7, -1), "CENTER")]))
+        out += [_p("Einzelteile", S_FETT), tab, Spacer(1, 3 * mm)]
+        if b["naehte"]:
+            daten = [_kopfzeile(["Nr.", "Unterbaugruppe", "Verfahren", "Nahtart", "a-Maß / Dicke [mm]",
+                                 "Länge [mm]", "Anzahl", "Lage", "Heftp.", "Zeit je BG [min]", "erl."])]
+            for n in b["naehte"]:
+                daten.append([_p(str(n["nr"] or ""), S_FETT), _p(n["knoten"], S_KLEIN), _p(n["verfahren"] or "", S_KLEIN),
+                              _p((n["nahtart"] or "") + (" beidseitig" if n["beidseitig"] else ""), S_KLEIN),
+                              _z(n["mass"], 1) if n["mass"] is not None else "fehlt", _z(n["laenge"], 0),
+                              _z(n["anzahl"], 0), _p(n["lage"] or "", S_KLEIN), _z(n["heftpunkte"], 0)
+                              if n["heftpunkte"] else "", _z(n["zeit_min"], 1), Kaestchen()])
+            tab = _tabelle(daten, [w * mm for w in (10, 28, 18, 26, 17, 17, 13, 13, 12, 20, 12)],
+                           rechts=(4, 5, 6, 8, 9))
+            tab.setStyle(TableStyle([("ALIGN", (10, 0), (10, -1), "CENTER")]))
+            out += [_p("Nahtgruppen", S_FETT), tab, Spacer(1, 3 * mm)]
+        if b["arbeitsgaenge"]:
+            daten = [_kopfzeile(["Nr.", "Arbeitsgang", "Unterbaugruppe", "Menge", "Rüsten [min]", "Zeit je BG [min]",
+                                 "Art", "erl."])]
+            for i, a in enumerate(b["arbeitsgaenge"], 1):
+                art = "Fremdleistung" if a["fremd"] else "Vorrichtung" if a["vorrichtung"] else ""
+                if a["vorrichtung"] and a.get("umlage"):
+                    art += f" ({a['umlage']})"
+                daten.append([_z(i, 0), _p(a["name"], S_FETT), _p(a["knoten"], S_KLEIN),
+                              _z(a["menge"], 2) if a["menge"] else "", _z(a["ruest_min"], 0) if a["ruest_min"] else "",
+                              _z(a["zeit_min"], 1) if a["zeit_min"] else "", _p(art, S_KLEIN), Kaestchen()])
+            tab = _tabelle(daten, [w * mm for w in (10, 48, 32, 16, 18, 22, 28, 12)], rechts=(3, 4, 5))
+            tab.setStyle(TableStyle([("ALIGN", (7, 0), (7, -1), "CENTER")]))
+            out += [_p("Arbeitsgänge und Vorrichtungen (in dieser Reihenfolge)", S_FETT), tab]
+        out += [Spacer(1, 2 * mm), _p("Zeiten je Baugruppe (Vorgabe aus der Kalkulation, Rüstzeiten auf die Stückzahl umgelegt); "
+                                      "Vorgabe gesamt = Vorgabezeit × Stück.", klein_grau)]
+    return out
+
+
 def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     """wp = ausgabe.werkstatt(...). Schnittpläne hochkant, danach das Stangenbild quer – eine Datei."""
     nr = kopf.get("nummer") or ""
@@ -608,6 +672,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
             inhalt.append(KeepTogether(kopfteil + [tab, Spacer(1, 6 * mm)]))
         else:
             inhalt += [CondPageBreak(60 * mm)] + kopfteil + [tab, Spacer(1, 6 * mm)]
+    inhalt += _schweissplan(wp.get("schweissplan") or ())
     if wp["muster"]:
         inhalt += [NextPageTemplate("quer"), PageBreak()]
         inhalt += _stangenbild(kopf, einst, wp["muster"], None if aktuell else achtung.replace("Schnittplan", "Stangenbild"))
@@ -767,6 +832,35 @@ def _material_tabelle(material, profile):
     return tab, bool(fett)
 
 
+def _baugruppen_abschnitt(zeilen, breite):
+    """Je Schweißbaugruppe (Verbesserung P3): Nahtgruppen und Arbeitsgänge mit Stück je Baugruppe, Zeit, Kosten,
+    Einmalbetrag und Herkunft der Zeit (Kennwert, Richtwert, von Hand). Leer ohne Baugruppe."""
+    out = []
+    for z in zeilen:
+        if not z or not z.get("baugruppe"):
+            continue
+        daten = [_kopfzeile(["Art", "Name", "Unterbaugruppe", "Stück je BG", "Zeit je BG [min]", "Kosten je BG [€]",
+                             "einmalig [€]", "Herkunft"])]
+        for x in z.get("bg_zeilen") or ():
+            w = x.get("werte") or {}
+            herkunft = ("fehlt: " + w["fehlt"] if w.get("fehlt") else "von Hand" if w.get("hand")
+                        else "Richtwert" if w.get("richtwert") else "Fremdleistung" if x.get("fremd")
+                        else "Kennwert" if x["art"] == "Naht" else "")
+            daten.append([_p(x["art"], S_KLEIN), _p(x["name"], S_KLEIN), _p(x.get("knoten") or "Baugruppe", S_KLEIN),
+                          _z(x.get("faktor"), 0), _z(x.get("zeit_min"), 1), _z(x.get("kosten")),
+                          _z(x.get("einmal")) if x.get("einmal") else "", _p(herkunft, S_KLEIN)])
+        naht = ", ".join(f"{v} {_z(m, 2)} m" for v, m in sorted((z.get("bg_naht_m") or {}).items())) or "keine"
+        titel = f"Schweißbaugruppe Pos. {_z(z.get('pos'), 0)} {z.get('artikel') or ''}".strip()
+        tab = _tabelle(daten, [w * mm for w in (22, 62, 40, 20, 26, 26, 24, 53)], rechts=(3, 4, 5, 6))
+        out += [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p(titel, S_H2), tab, Spacer(1, 1.5 * mm),
+                _p(f"Je Baugruppe: Schweißzeit {_z(z.get('bg_schweiss_min'), 1)} min, Zeit gesamt "
+                   f"{_z(z.get('bg_zeit_min'), 1)} min, Naht {naht}; Fertigung {_z(z.get('bg_eigen_teil'))} €, "
+                   f"Fremdleistung {_z(z.get('bg_fremd_teil'))} €, davon Einmalkosten umgelegt "
+                   f"{_z(z.get('bg_einmal_teil'))} €. Einmalig = Betrag je Auftrag vor der Umlage.",
+                   ParagraphStyle("bgh", parent=S_KLEIN, textColor=GRAU))]
+    return out
+
+
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None):
     """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
     ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
@@ -837,6 +931,7 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                Spacer(1, 1.5 * mm),
                _p("Beträge und Zeiten je Teil, außer den Spalten 'Position'. Spalten ohne Wert sind ausgeblendet.",
                   ParagraphStyle("kh", parent=S_KLEIN, textColor=GRAU))]
+    inhalt += _baugruppen_abschnitt(zeilen, breite)
     # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse
     liste = [z for z in zeilen if z is not None and not z.get("zukaufteil")]
     if liste:
