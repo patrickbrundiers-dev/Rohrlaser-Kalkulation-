@@ -429,14 +429,16 @@ def main(ziel):
         d.naht_vorgabe.setCurrentText("feste Position")
         if hasattr(d.naht_winkel, "setCurrentIndex"):
             d.naht_winkel.setCurrentIndex(2)        # 180° unten
-        d.resize(1250, 980)
+        d.resize(1450, 980)
         QApplication.processEvents()
         d.tabelle.selectRow(1)
         d.skizze.zoom = 2.0                 # Ausschnitt: erste Hälfte des Teils
+        d.editor.aktualisieren()            # Merkmale und Prüfmeldungen sofort (sonst 0,15 s nach der Eingabe)
         foto.foto("schneidweg_dialog", d, [(d.winkel["a"], 1), (d.tabelle, 2), (knopf(d, "+ Bohrung"), 3),
                                            (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6),
                                            (d.naht_vorgabe, 7), (d.erklaerung, 8),
-                                           (knopf(d, "Zeichnung als PDF …"), 9)])
+                                           (knopf(d, "Zeichnung als PDF …"), 9), (d.editor.baum, 10),
+                                           (d.editor.meldungen, 11), (d.editor.rueck, 12)])
         d.ansicht_wahl.setCurrentText("Abwicklung")
         d.skizze.resize(d.skizze.width(), 300)
         d.skizze.zoom = 2.0
@@ -554,12 +556,14 @@ def main(ziel):
         d.kontur_neu(dict(art="Bohrung", anzahl=1, d=6.6, x=40, y=56))
         d.kontur_neu(dict(art="Langloch", anzahl=1, l=20, b=8.5, x=260, y=56))
         d.stueck.setValue(20)
-        d.resize(1150, 860)
+        d.resize(1350, 900)
         d.show()
+        d.editor.aktualisieren()
         QApplication.processEvents()
         foto.foto("blech_editor", d, [(d.bezeichnung, 1), (d.werkstoff, 2), (d.art, 3), (d.schenkel, 4),
                                       (d.tabelle, 5), (d.skizze, 6), (d.summe, 7), (d.ok_knopf, 8),
-                                      (d.ansicht3d, 9), (d.form, 10)])
+                                      (d.ansicht3d, 9), (d.form, 10), (d.editor.baum, 11),
+                                      (d.editor.meldungen, 12)])
         d.reject()
         return QDialog.Rejected
     sz.blech_neu(dialog=blech_ausfuellen)

@@ -11,11 +11,13 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QCompleter, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
                                QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
-                               QVBoxLayout, QWidget)
+                               QTabWidget, QVBoxLayout, QWidget)
 
 from . import dfm, dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
+from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
+from .teile_editor import EditorRahmen
 from .stammdaten import zahl_aus_text
 from .step import KERNLOCH
 
@@ -347,7 +349,14 @@ class SchneidwegDialog(QDialog):
         self.skizze = Skizze(profil, p.get("laenge"))
         self.skizze.gewaehlt.connect(self._auswahl_skizze)
         self.skizze.verschoben.connect(self._verschoben)
-        ml.addWidget(self.skizze, 1)
+        # Skizze und 3D-Ansicht des STEP-Imports (Teile-Editor: Auswahl und Messen) als Reiter
+        self.bilder = QTabWidget()
+        self.bilder.addTab(self.skizze, "Skizze")
+        self.ansicht3d = Ansicht3DMitKnoepfen()
+        netz = db.netz(p["id"]) if db is not None and p.get("id") and hasattr(db, "netz") else None
+        self.ansicht3d.setzen(netz, "3D-Ansicht (STEP-Import)")
+        self.bilder.addTab(self.ansicht3d, "3D")
+        ml.addWidget(self.bilder, 1)
         # unten nebeneinander: Skizze (breit, das Rohr ist lang) und Ergebnis je Teil; die Eingaben oben behalten
         # die Höhe für die Konturtabelle (Patrick 22.10.2026: ab der 2. Bohrung musste gescrollt werden)
         self.teiler_unten = QSplitter(Qt.Horizontal)
@@ -390,7 +399,9 @@ class SchneidwegDialog(QDialog):
         for z in e["konturen"]:
             self.zeile_neu(z, rechnen_=False)
         self._step_hinweis()
+        self.editor = None
         self.rechnen()
+        EditorRahmen(self, "rohr")
 
     # ------------------------------------------------------------------ Kopf (neue Position) und Profil
     def _info_zeigen(self):
@@ -935,6 +946,11 @@ class SchneidwegDialog(QDialog):
 
     # ------------------------------------------------------------------ Ergebnis
     def rechnen(self, *_):
+        self._rechnen()
+        if getattr(self, "editor", None) is not None:
+            self.editor.geaendert()
+
+    def _rechnen(self):
         eingaben = self.eingaben()
         erg = sw.rechnen(eingaben, self.profil, self.grenzen, self.gewinde, self.maschine)
         self.ergebnis = erg
