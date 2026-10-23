@@ -180,6 +180,7 @@ def _baugruppen_zeilen(soll, ist, zeile):
             else:
                 zeilen.append(zeile(f"{b['name']}: {titel}", "€", None, None, betrag, m if m is not None else betrag,
                                     m is not None))
+            zeilen[-1].update(bg_id=b["id"], bg_feld=n)       # eindeutig, auch bei gleichen Namen (rest_wie_geplant)
         sm, ih = b["werte"]["schweiss_h"][0], _n(e.get("schweiss_h"))
         info.append(dict(id=b["id"], name=b["name"], naht_m=b["naht_m"],
                          soll_min_m=sm * 60 / b["naht_m"] if b["naht_m"] else None,
@@ -197,6 +198,41 @@ def bewertung(soll, ist, grenze=ABWEICHUNG_GRENZE):
         return None
     a = (ist - soll) / soll
     return "hoch" if a >= grenze - 1e-9 else "niedrig" if a <= -grenze + 1e-9 else None
+
+
+def rest_wie_geplant(v, ist):
+    """Plan Arbeitsabläufe W9: alle noch leeren Ist-Werte auf das Soll setzen (Stangen je Gruppe, Laserzeit, Rüsten,
+    Zusatzarbeiten, Zukauf, Sonstiges 0, Erlös = Verkaufspreis, Baugruppen); eingetragene Werte bleiben, die
+    Meterpreise bleiben leer (= kalkuliert). v = vergleich(...) mit diesem ist. Ergebnis: (neues ist, Anzahl)."""
+    ist = dict(ist or {})
+    n = 0
+
+    def setzen(d, name, wert):
+        nonlocal n
+        if _n(d.get(name)) is None and wert is not None:
+            d[name] = wert
+            n += 1
+    stangen = dict(ist.get("stangen") or {})
+    for g in v["gruppen"]:
+        setzen(stangen, g["schluessel"], g["soll"])
+    if stangen:
+        ist["stangen"] = stangen
+    z = {x["text"]: x for x in v["zeilen"]}
+    setzen(ist, "laser_h", z["Laserzeit"]["soll_menge"])
+    setzen(ist, "ruest_min", z["Rüsten + Stangenwechsel"]["soll_menge"])
+    setzen(ist, "zusatz", z["Gewinde und Zusatzarbeiten"]["soll"])
+    setzen(ist, "zukauf", z["Zukaufteile (Einstand)"]["soll"])
+    setzen(ist, "sonstiges", 0.0)
+    setzen(ist, "erloes", v["erloes"]["soll"])
+    einheiten = {name: einheit for name, _, einheit, _ in BG_FELDER}
+    bg_zeilen = [x for x in v["zeilen"] if x.get("bg_id") is not None]
+    if bg_zeilen:
+        bg = {k: dict(e) for k, e in (ist.get("baugruppen") or {}).items()}
+        for x in bg_zeilen:
+            setzen(bg.setdefault(x["bg_id"], {}), x["bg_feld"],
+                   x["soll_menge"] if einheiten[x["bg_feld"]] == "h" else x["soll"])
+        ist["baugruppen"] = bg
+    return ist, n
 
 
 def erfasst(ist):

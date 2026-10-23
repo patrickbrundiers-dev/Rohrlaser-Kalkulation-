@@ -1181,6 +1181,11 @@ class Hauptfenster(QMainWindow):
                                    ("optimieren", "Optimieren", ["F9"]),
                                    ("importieren", "STEP importieren …", ["Ctrl+I"]),
                                    ("drucken", "Angebot (PDF)", [QKeySequence.Print]),
+                                   ("werkstatt", "Werkstattpapiere (PDF)", ["Ctrl+Shift+P"]),
+                                   ("kalkulation", "Kalkulation (PDF)", ["Ctrl+Shift+K"]),
+                                   ("staffeln", "Staffelpreise rechnen", ["F8"]),
+                                   ("stueck", "Stückzahl ändern …", ["Ctrl+Shift+S"]),
+                                   ("material", "Materialanfrage (E-Mail) …", ["Ctrl+Shift+M"]),
                                    ("schliessen", "Angebot schließen", ["Ctrl+W", "Ctrl+F4"])):
             if name is None:
                 bearbeiten.addSeparator()
@@ -1392,7 +1397,7 @@ class Hauptfenster(QMainWindow):
 
     # -------------------------------------------------------------- Lizenz
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
-                           "optimieren", "importieren", "drucken")
+                           "optimieren", "importieren", "drucken", "staffeln", "stueck")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen")
 
     def lizenz_anwenden(self):

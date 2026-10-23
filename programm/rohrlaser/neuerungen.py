@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.31", "<b>Schweißbaugruppen lernen aus der Nachkalkulation</b>: Unter Einstellungen → Schweiß-Kennwerte "
+    ["0.9.33", "<b>Schweißbaugruppen lernen aus der Nachkalkulation</b>: Unter Einstellungen → Schweiß-Kennwerte "
      "schlägt <i>Kennwerte aus Nachkalkulation …</i> je Verfahren und Nahtart einen Faktor Ist ÷ Soll vor (Median, "
      "Ausreißer ausgeschlossen); geändert wird erst nach Freigabe mit Begründung, jede Freigabe lässt sich "
      "zurücknehmen. Dazu wahlweise Schweißzusatz und Schutzgas je Verfahren, ein a-Maß-Vorschlag nach Regel "
@@ -29,6 +29,15 @@ NEUERUNGEN = [
      "mit Verlauf je Vorlage und eine gruppierte Positionsliste (Einzelteile unter ihrer Baugruppe, zuklappbar) "
      "([[schweiss_stammdaten]], [[schweissbaugruppe]]).",
      "Kennwerte aus der Nachkalkulation, Schweißzusatz/Gas, a-Maß nach Regel ([[schweiss_stammdaten]])."],
+    ["0.9.31", "<b>Schneller durch den Ablauf</b>: <b>Standard-Staffeln</b> (Vorgabe Menge × 1, × 2, × 5, in den "
+               "Einstellungen änderbar) legt ein Knopf im Reiter Staffeln an, und das erste Angebots-PDF ohne Stufe "
+               "macht es selbst ([[staffeln]]). <b>Stückzahl ändern …</b> setzt die Stückzahl markierter oder aller "
+               "Positionen × Faktor oder auf einen Wert ([[rueckgaengig]]). In der Nachkalkulation übernimmt "
+               "<b>Rest wie geplant</b> alle leeren Ist-Werte aus dem Soll, die Angebotsliste filtert "
+               "<i>Nachkalkulation offen</i> ([[nachkalkulation]]). Neue Tastenkürzel: F8 Staffelpreise, "
+               "Strg+Umschalt+P Werkstattpapiere, Strg+Umschalt+K Kalkulation, Strg+Umschalt+M Materialanfrage, "
+               "Strg+Umschalt+S Stückzahl ändern.",
+     "Standard-Staffeln, Stückzahl ändern, Nachkalkulation „Rest wie geplant“ und neue Tastenkürzel."],
     ["0.9.30", "<b>Schweißplan und Baugruppen in Kalkulation und CSV</b>: Die Werkstattpapiere haben je "
      "Schweißbaugruppe eine Seite Schweißplan (Struktur, Einzelteile, Nahtgruppen, Arbeitsgänge und Vorrichtungen "
      "zum Abhaken, Vorgabezeit, ohne Preise); die Kalkulation-PDF zeigt je Baugruppe Nahtgruppen und Arbeitsgänge "

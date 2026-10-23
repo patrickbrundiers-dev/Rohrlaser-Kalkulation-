@@ -85,10 +85,14 @@ class NachkalkulationSeite(QWidget):
         bl.addWidget(self.bg_tabelle)
         el.addWidget(self.bg_rahmen)
         knoepfe = QHBoxLayout()
-        for text, ziel in (("Ist-Werte löschen", self.loeschen), ("Nachkalkulation (PDF)", self.pdf)):
+        for text, ziel in (("Rest wie geplant", self.rest_wie_geplant), ("Ist-Werte löschen", self.loeschen),
+                           ("Nachkalkulation (PDF)", self.pdf)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             knoepfe.addWidget(b)
+            if text == "Rest wie geplant":
+                b.setToolTip("Alle noch leeren Ist-Werte auf das Soll setzen; nur Abweichungen von Hand eintragen. "
+                             "Eingetragene Werte bleiben.")
         knoepfe.addStretch(1)
         el.addLayout(knoepfe)
 
@@ -328,6 +332,22 @@ class NachkalkulationSeite(QWidget):
             return
         st[it.data(Qt.UserRole)] = wert
         self._speichern()
+
+    def rest_wie_geplant(self):
+        """Leere Ist-Werte = Soll (Plan Arbeitsabläufe W9). Ergebnis: Anzahl gesetzter Werte (None = nicht möglich)."""
+        s = self.s
+        if not s.ergebnis or not s.ergebnis.get("stangen") or s.stand_optimierung() != "aktuell":
+            s.f.meldung("Nachkalkulation: bitte zuerst (neu) optimieren, das Soll passt sonst nicht.", fehler=True)
+            return None
+        v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
+        self.ist, n = nk.rest_wie_geplant(v, self.ist)
+        if not n:
+            s.f.meldung("Alle Ist-Werte sind schon eingetragen.")
+            return 0
+        self._speichern()
+        self.neu_laden()
+        s.f.meldung(f"{n} Ist-Wert(e) wie geplant übernommen.")
+        return n
 
     def loeschen(self):
         if not self.ist:
