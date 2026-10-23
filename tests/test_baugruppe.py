@@ -18,6 +18,7 @@
 - B17 Nachkalkulation: Soll/Ist je Baugruppe (Schweißen, Arbeitsgänge, Material/Einmal, Fremd), min/m Naht
 - B18 Nahtkandidaten aus STEP als Vorschläge im Editor (Übernehmen/Verwerfen)
 - B19 Sollwerte einmal je Stand (T1), Datenprüfung mit Ort (T5), Nahtgruppen gelb + Sprung vom Status (D4)
+- B20 Baugruppen-Vorlagen speichern/einsetzen (P1), Baugruppe mit Teilen in ein anderes Angebot kopieren (P7)
 
 Aufruf: python tests/test_baugruppe.py
 """
@@ -665,5 +666,53 @@ nah(ub.bg_balken[0].summe(), sum(dict(baugruppe.kostenaufteilung(baugruppe.rechn
     seite.positionen[zeile], seite.tabellen, seite._saetze()))).values()), "Balken in der Übersicht")
 ub.bg_balken[0].grab()                                           # zeichnet ohne Fehler
 ok("B19 Sollwerte einmal je Stand, Datenfehler mit Ort, Nahtgruppe ohne a-Maß gelb, Sprung vom Status zur Zeile")
+
+# ------------------------------------------------------------------ B20 P1 Vorlagen, P7 Kopie in anderes Angebot
+assert SCHEMA_VERSION >= 49 and db.anzahl("baugruppen_vorlagen") == 0
+zeile = next(i for i, q in enumerate(seite.positionen) if q["id"] == bgp["id"])
+quelle = baugruppe.lesen(seite.positionen[zeile]["baugruppe"])
+d = BaugruppeDialog(None, seite.positionen[zeile], seite.positionen, seite.tabellen, saetze, db=db)
+vid = d.vorlage_speichern("Gestell", "für Folgeaufträge")
+try:
+    d.vorlage_speichern("Gestell")
+    raise AssertionError("doppelter Name angenommen")
+except ValueError as e:
+    assert "gibt es schon" in str(e)
+assert d.vorlage_speichern("Gestell", ueberschreiben=True) == vid
+d.reject()
+v = db.zeilen("baugruppen_vorlagen")[0]
+vd = json.loads(v["daten"])
+assert "id" not in vd and all("stand" not in n for n in vd["naehte"]) and "vorschlaege" not in vd
+assert len(vd["naehte"]) == len(quelle["naehte"]) and v["inhalt"].startswith("1 Unterbaugruppe")
+leer = dict(pos=900, art=BAUGRUPPE, stueck=1)
+d = BaugruppeDialog(None, leer, seite.positionen, seite.tabellen, saetze, db=db)
+alt_id = d.bg["id"]
+assert d.vorlage_einsetzen(vid) and d.bg["id"] == alt_id
+assert d.knoten_tab.rowCount() == len(quelle["knoten"]) and d.naht_tab.rowCount() == len(quelle["naehte"])
+assert d.ag_tab.rowCount() == len(quelle["arbeitsgaenge"]) and d.erg["schweiss_min"] > 0
+assert not d.vorlage_einsetzen(12345) and "beschädigt" in d.fehler.text()
+d.reject()
+assert BaugruppeDialog(None, leer, seite.positionen, seite.tabellen, saetze).db is None      # ohne db: keine Vorlagen
+
+seite.pos_ansicht.clearSelection()
+seite.pos_ansicht.selectRow(zeile + 1)
+mi = seite.pos_modell.index(zeile, 0)
+seite._menue_zeile(seite.pos_ansicht.visualRect(mi).center())                # Rechtsklick auf andere Zeile
+assert {x.row() for x in seite.pos_ansicht.selectedIndexes()} == {zeile}
+vorher = db.positionen(a)
+n = seite.baugruppe_kopieren([zeile], ziel=a)
+nachher = db.positionen(a)
+teile_quelle = baugruppe.teile(seite.positionen, quelle["id"])
+assert n == 1 + len(teile_quelle) and len(nachher) == len(vorher) + n
+neu_pos = nachher[len(vorher):]
+g_neu = baugruppe.lesen(neu_pos[0]["baugruppe"])
+assert g_neu["id"] != quelle["id"] and len(baugruppe.baugruppen(nachher)) == 2
+assert all(baugruppe.zuordnung(q)[0] == g_neu["id"] for q in neu_pos[1:])
+assert [q["pos"] for q in neu_pos] == [max(q["pos"] for q in vorher) + 10 * (k + 1) for k in range(n)]
+assert baugruppe.abgleich(nachher) == [] and baugruppe.teil_pruefen(neu_pos[1], nachher) is None
+assert {q["artikel"] for q in neu_pos[1:]} == {seite.positionen[j]["artikel"] for j in teile_quelle}
+for q in neu_pos:
+    db.positionen_loeschen([q["id"]])
+ok(f"B20 Vorlage 'Gestell' ({v['inhalt']}) gespeichert und eingesetzt, Baugruppe mit {n - 1} Teilen kopiert")
 
 print("\nAlle Baugruppen-Tests bestanden.")

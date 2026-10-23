@@ -8,14 +8,16 @@ Kennwerte einer Nahtgruppe: Beim Speichern merkt sich jede vollständig berechen
 Nahtart, Nahtgröße, Lage, Zugänglichkeit oder Qualität, gilt der neue Stand aus den Stammdaten; 'Kennwerte neu aus
 Stammdaten' setzt alle Nahtgruppen auf die aktuellen Stammdaten."""
 import copy
+import datetime
 import html
+import json
 import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
-                               QGroupBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QGroupBox, QInputDialog, QMessageBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import baugruppe, hilfe
 from .kostenbalken import Kostenbalken
@@ -26,6 +28,7 @@ from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
 FEHLER_FARBE = "#B42318"
 GRAU = "#5F6B7A"
 WARNUNG = "warnung"         # Anzeige (Text, WARNUNG): Zeile gelb hinterlegt (D4)
+VORLAGEN = "baugruppen_vorlagen"
 RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
              "</span>")
 DIREKT = "(Baugruppe selbst)"
@@ -199,9 +202,10 @@ class BaugruppeDialog(QDialog):
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
 
-    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=()):
+    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None):
         super().__init__(parent)
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
+        self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
         self.bg = baugruppe.lesen(p.get("baugruppe")) or baugruppe.leer()
         self.bg = copy.deepcopy(self.bg)
         self.stand_alt = {n.get("id"): {k: n.get(k) for k in NAHT_SCHLUESSEL} for n in self.bg["naehte"]}
@@ -243,7 +247,19 @@ class BaugruppeDialog(QDialog):
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
-        lay.addWidget(knoepfe)
+        unten = QHBoxLayout()
+        if db is not None:
+            einsetzen = QPushButton("Vorlage einsetzen …")
+            einsetzen.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge aus einer gespeicherten Vorlage übernehmen")
+            einsetzen.clicked.connect(lambda: self.vorlage_waehlen())
+            merken = QPushButton("Als Vorlage speichern …")
+            merken.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) für spätere Baugruppen merken")
+            merken.clicked.connect(lambda: self.vorlage_merken())
+            unten.addWidget(einsetzen)
+            unten.addWidget(merken)
+        unten.addStretch(1)
+        unten.addWidget(knoepfe)
+        lay.addLayout(unten)
         self.aktualisieren()
 
     # -------------------------------------------------------------- Struktur und Teile
@@ -795,6 +811,84 @@ class BaugruppeDialog(QDialog):
     def _naht_ergebnis(self, n):
         x = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == "Naht" and x["id"] == n.get("id")), None)
         return x["werte"] if x else {}
+
+    # -------------------------------------------------------------- Vorlagen (P1)
+    def vorlagen(self):
+        return self.db.zeilen(VORLAGEN) if self.db is not None else []
+
+    def vorlage_speichern(self, name, bemerkung=None, ueberschreiben=False):
+        """Aktuelle Baugruppe ohne Einzelteile als Vorlage name speichern. ValueError, wenn es den Namen schon gibt und
+        ueberschreiben nicht gesetzt ist. Ergebnis: ID der Vorlage."""
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("Bitte einen Namen für die Vorlage eintragen.")
+        v = baugruppe.vorlage_aus(self.daten())
+        werte = dict(name=name, inhalt=baugruppe.vorlage_inhalt(v), daten=json.dumps(v, ensure_ascii=False),
+                     angelegt=datetime.datetime.now().isoformat(timespec="seconds"), bemerkung=bemerkung)
+        alt = next((z for z in self.vorlagen() if z["name"] == name), None)
+        if alt and not ueberschreiben:
+            raise ValueError(f"Die Vorlage '{name}' gibt es schon.")
+        if alt:
+            for feld in ("inhalt", "daten", "angelegt", "bemerkung"):
+                self.db.aendern(VORLAGEN, alt["id"], feld, werte[feld])
+            return alt["id"]
+        return self.db.neu(VORLAGEN, werte)
+
+    def vorlage_einsetzen(self, vorlage_id):
+        """Vorlage übernehmen: Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge werden ersetzt, die Teile
+        bleiben in der Baugruppe (in einer Unterbaugruppe, die es nicht mehr gibt: direkt an der Baugruppe).
+        Kennwerte gelten aus den aktuellen Stammdaten. Ergebnis: True = eingesetzt."""
+        z = next((x for x in self.vorlagen() if x["id"] == vorlage_id), None)
+        try:
+            v = json.loads(z["daten"]) if z else None
+        except (TypeError, ValueError):
+            v = None
+        if not isinstance(v, dict):
+            self.fehler.setText("Die Vorlage ist leer oder beschädigt.")
+            return False
+        knoten = baugruppe.vorlage_einsetzen(self.bg, v)
+        for t in self.teile:
+            if t.get("knoten") and t["knoten"] not in knoten:
+                t["knoten"] = ""
+        self.stand_alt = {}
+        for n, f in self.stamm_felder.items():
+            w = str(self.bg["stamm"].get(n) or "")
+            f.setPlainText(w) if isinstance(f, QPlainTextEdit) else f.setText(w)
+        for n, f in self.stamm_wahl.items():
+            f.setChecked(bool(self.bg["stamm"].get(n)))
+        for tab in (self.knoten_tab, self.teile_tab, self.naht_tab, self.ag_tab):
+            tab.aufbauen()
+        self._vorschlaege_zeigen()
+        self.aktualisieren()
+        return True
+
+    def vorlage_merken(self):
+        name, ok = QInputDialog.getText(self, "Als Vorlage speichern", "Name der Vorlage:",
+                                        text=self.bezeichnung.text().strip())
+        if not ok:
+            return None
+        try:
+            return self.vorlage_speichern(name)
+        except ValueError as e:
+            if "gibt es schon" not in str(e):
+                QMessageBox.warning(self, "Vorlage", str(e))
+                return None
+            if QMessageBox.question(self, "Vorlage", f"{e} Überschreiben?") != QMessageBox.Yes:
+                return None
+            return self.vorlage_speichern(name, ueberschreiben=True)
+
+    def vorlage_waehlen(self):
+        liste = self.vorlagen()
+        if not liste:
+            QMessageBox.information(self, "Vorlagen", "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
+                                                      "„Als Vorlage speichern …“ merken.")
+            return False
+        texte = [f"{z['name']} ({z.get('inhalt') or ''})" for z in liste]
+        wahl, ok = QInputDialog.getItem(self, "Vorlage einsetzen", "Vorlage (ersetzt Struktur, Nahtgruppen und "
+                                        "Arbeitsgänge):", texte, 0, False)
+        if not ok:
+            return False
+        return self.vorlage_einsetzen(liste[texte.index(wahl)]["id"])
 
     def pruefen(self):
         """Fehlertext (ungültige Zahlen, Struktur), sonst None."""
