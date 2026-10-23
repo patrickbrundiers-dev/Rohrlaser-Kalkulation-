@@ -35,6 +35,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0
+          # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+            libxcb-xkb1 libxkbcommon-x11-0
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
       - name: STEP-Messung und Optimierung
         run: |
@@ -53,6 +57,7 @@ jobs:
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_messung_robust.py
           /usr/bin/python3 tests/test_step_struktur.py
           /usr/bin/python3 tests/test_step_leistung.py
+          /usr/bin/python3 tests/test_ansicht_gl.py
           /usr/bin/python3 tests/test_optimierung.py
           /usr/bin/python3 tests/test_lieferlaengen.py
       - name: STEP-Referenztests mit Testbericht

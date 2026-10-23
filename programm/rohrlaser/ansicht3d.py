@@ -12,6 +12,7 @@ lage = [Ende A, Rohrachse, X-Richtung] in der STEP-Datei; damit setzt baugruppe(
 """
 import json
 import math
+import sys
 import zlib
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
@@ -34,6 +35,11 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
+# Darstellung (Einstellung 'ansicht_3d', je Arbeitsplatz): Automatisch = OpenGL, wenn möglich und nicht über
+# Remote-Desktop; Software = immer QPainter; OpenGL = OpenGL, wenn möglich (Rückfall auf QPainter)
+RENDERER = ("Automatisch", "Software", "OpenGL")
+_renderer = RENDERER[0]
+_gl_fehler = None       # OpenGL ist in diesem Programmlauf schon einmal gescheitert: Grund
 GROB_DREIECKE = 10000   # beim Drehen/Zoomen höchstens so viele Dreiecke zeichnen (grobe Stufe, Modell.grob)
 # Baugruppen-Ansicht: je Teil (Zeile gleicher Teile) eine Farbe, ohne Eintrag in der Legende
 TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
@@ -105,6 +111,38 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=()):
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
     return (dict(p=punkte, t=dreiecke, l={}) if punkte else None), ohne
+
+
+def renderer_setzen(wert):
+    """Darstellung für neu geöffnete 3D-Ansichten (RENDERER; Unbekanntes = Automatisch)."""
+    global _renderer
+    _renderer = wert if wert in RENDERER else RENDERER[0]
+
+
+def _remote_desktop():
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        return bool(ctypes.windll.user32.GetSystemMetrics(0x1000))       # SM_REMOTESESSION
+    except (OSError, AttributeError):
+        return False
+
+
+def renderer_waehlen():
+    """("OpenGL" | "Software", Grund) für eine neue Ansicht nach Einstellung, Rechner und bisherigen Fehlern."""
+    if _renderer == "Software":
+        return "Software", "Einstellung Software"
+    if _gl_fehler:
+        return "Software", f"OpenGL gescheitert: {_gl_fehler}"
+    if _renderer == "Automatisch" and _remote_desktop():
+        return "Software", "Remote-Desktop"
+    try:
+        from .ansicht3d_gl import gl_moeglich
+    except ImportError as e:            # PySide6 ohne OpenGL-Module
+        return "Software", f"OpenGL fehlt: {e}"
+    ok, grund = gl_moeglich()
+    return ("OpenGL", grund) if ok else ("Software", grund)
 
 
 class Modell:
@@ -266,6 +304,7 @@ class Ansicht3D(QWidget):
     Doppelklick = Ausgangsansicht."""
     GRUND = (-0.45, 0.45)
     gedreht = Signal()
+    _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -278,7 +317,34 @@ class Ansicht3D(QWidget):
         self._ruhe.setSingleShot(True)
         self._ruhe.setInterval(250)
         self._ruhe.timeout.connect(self._fein)
+        self.renderer, self.renderer_grund = renderer_waehlen()
+        self._gl = None
+        if self.renderer == "OpenGL":
+            from .ansicht3d_gl import GLFlaeche
+            self._gl = GLFlaeche(self)
+            self._gl.setGeometry(self.rect())
         self.zuruecksetzen()
+
+    def _gl_aus(self, grund):
+        """OpenGL gescheitert: diese und alle weiteren Ansichten zeichnen mit QPainter."""
+        global _gl_fehler
+        _gl_fehler = grund
+        self.renderer, self.renderer_grund = "Software", f"OpenGL gescheitert: {grund}"
+        if self._gl is not None:
+            gl, self._gl = self._gl, None
+            gl.hide()
+            gl.deleteLater()
+        QTimer.singleShot(0, self.update)
+
+    def update(self, *args):
+        super().update(*args)
+        if self._gl is not None:
+            self._gl.update()
+
+    def resizeEvent(self, e):
+        if self._gl is not None:
+            self._gl.setGeometry(self.rect())
+        super().resizeEvent(e)
 
     def _fein(self):
         self._eilig = False
@@ -310,6 +376,8 @@ class Ansicht3D(QWidget):
         self.update()
 
     def paintEvent(self, _):
+        if self._gl is not None:        # zeichnet die OpenGL-Fläche (mit _beschriften)
+            return
         p = QPainter(self)
         p.fillRect(self.rect(), HINTERGRUND)
         if self.modell is None:
@@ -332,6 +400,15 @@ class Ansicht3D(QWidget):
             q.end()
             self._bild = (schluessel, bild)
         p.drawPixmap(0, 0, self._bild[1])
+        self._beschriften(p)
+
+    def _beschriften(self, p):
+        """Titel, Legende der Flächenarten und Bedienhinweis über dem Bild (QPainter und OpenGL)."""
+        if self.modell is None:
+            p.setPen(QColor("#7F7F7F"))
+            p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
+                       "Keine 3D-Daten.\nDie 3D-Ansicht gibt es für Teile, die per STEP-Import übernommen wurden.")
+            return
         p.setRenderHint(QPainter.Antialiasing, False)
         y = 8
         p.setPen(QColor("#202020"))
