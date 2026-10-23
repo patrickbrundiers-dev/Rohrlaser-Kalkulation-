@@ -635,8 +635,8 @@ class EditorRahmen(QObject):
         e = d.eingaben()
         if art == "kontur" and int(nr) < len(step.get("konturen") or []) and int(nr) < len(e["konturen"]):
             e["konturen"][int(nr)] = copy.deepcopy(step["konturen"][int(nr)])
-        elif art == "biegung" and step.get("schenkel"):
-            e["schenkel"] = copy.deepcopy(step["schenkel"])
+        elif art == "biegung" and int(nr) < min(len(step.get("schenkel") or []), len(e["schenkel"])):
+            e["schenkel"][int(nr)] = copy.deepcopy(step["schenkel"][int(nr)])      # nur diese Biegung
         elif art == "teil":
             for k in ("art", "form", "punkte", "laenge", "breite", "eckradius", "kantlaenge", "dicke"):
                 e[k] = step.get(k)

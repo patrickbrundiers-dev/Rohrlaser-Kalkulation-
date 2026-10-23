@@ -189,6 +189,12 @@ be.verlauf.undo()
 assert bd.eingaben()["konturen"][0]["d"] == 14
 be.waehlen("biegung:0")
 assert bd.schenkel.currentRow() == 0 and bd.skizze.markiert == "biegung:0"
+# Zurücksetzen einer Biegung lässt die anderen Schenkel, wie sie von Hand geändert sind
+bd.schenkel.item(0, 1).setText("80")
+bd.schenkel.item(1, 0).setText("55")
+be.aktualisieren()
+assert be.zuruecksetzen("biegung:0")
+assert [(x["laenge"], x["winkel"]) for x in bd.eingaben()["schenkel"]] == [(50, 90), (55, 0)], bd.eingaben()["schenkel"]
 # 3D: Klick auf eine Konturlinie des gefalteten Teils wählt die Zeile
 a = bd.ansicht3d.ansicht
 a.resize(700, 400)
