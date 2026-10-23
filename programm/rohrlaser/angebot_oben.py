@@ -905,8 +905,12 @@ class UebersichtBereich(QWidget):
         kl.addWidget(self.wasserfall_bereich)
         # Zeiten je Arbeitsschritt (Reiter 'Zeiten & Arbeitskosten'), Zeilen mit 0 ausgeblendet
         self.zeiten = QLabel()
-        self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.zeiten.setToolTip("Einzelheiten je Arbeitsschritt im Reiter „Zeiten & Arbeitskosten“")
+        self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        self.zeiten.setToolTip("Maschine und Personal mit ▸ per Klick aufklappen; Einzelheiten je Arbeitsschritt im "
+                               "Reiter „Zeiten & Arbeitskosten“. Durchlaufzeit = Maschinenzeit + Personalzeit, die "
+                               "nicht parallel zur Maschine läuft.")
+        self.zeiten.linkActivated.connect(self._zeiten_umschalten)
+        self.offene_zeiten, self._zeit_summen = set(), None
         kl.addWidget(self.zeiten)
         # Kosten je Schweißbaugruppe als Balken (D2); nur sichtbar, wenn das Angebot Baugruppen hat
         self.bg_inhalt = QWidget()
@@ -1073,17 +1077,54 @@ class UebersichtBereich(QWidget):
             self.kosten_setzen(self._kosten)
 
     def zeiten_setzen(self, k):
-        """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten; Zeilen mit 0 ausgeblendet."""
-        zeilen = (("Maschinenzeit", k["maschine_min"], True), ("Personalzeit", k["personal_min"], True),
-                  ("Rüstzeit", k["ruest_min"], True), ("Durchlaufzeit", k["durchlauf_min"], True),
-                  ("Arbeitskosten", k["arbeitskosten"], False))
+        """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten aufgeschlüsselt: Maschine und Personal aufklappbar je
+        Arbeitsschritt (Zeit, Kosten), Rüstzeit als Teil der Maschinen- bzw. Personalzeit, Arbeitszeit gesamt,
+        Durchlaufzeit und Zeit je Teil; Zeilen mit 0 ausgeblendet."""
+        self._zeit_summen = k
         linie = "border-top:1px solid #C9D0D8"
-        html = f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>" \
-               f"<b>Zeiten</b></td></tr>"
+        grau = f"color:{GRAU}"
+        html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='3' style='{linie}'>"
+                f"<b>Zeiten</b></td></tr>")
         n = 0
-        for t, w, zeit in zeilen:
-            if sichtbar(w):
-                n += 1
-                html += f"<tr><td>{t}</td><td align='right'>{rechnen.zeit_text(w) if zeit else _z(w) + ' €'}</td></tr>"
+        titel = {"Maschine": ("Maschine", k["maschine_min"], k["maschinenkosten"], k.get("ruest_maschine_min", 0)),
+                 "Personal": ("Personal", k["personal_min"], k["personalkosten"], k.get("ruest_personal_min", 0))}
+        for art, schritte in k.get("gruppen") or ():
+            name, minuten, kosten, ruest = titel[art]
+            if not schritte:
+                continue
+            n += 1
+            offen = art in self.offene_zeiten
+            text = f"<a href='{art}' style='color:#1F2937;text-decoration:none'>{'▾' if offen else '▸'} {name}</a>"
+            html += (f"<tr><td>{text}</td><td align='right'>{rechnen.zeit_text(minuten)}</td>"
+                     f"<td align='right'>{_z(kosten)} €</td></tr>")
+            if offen:
+                for z in schritte:
+                    zusatz = " (parallel)" if art == "Personal" and z["parallel"] else ""
+                    html += (f"<tr><td style='{grau};padding-left:14px'>{z['schritt']}{zusatz}</td>"
+                             f"<td align='right' style='{grau}'>{rechnen.zeit_text(z['gesamt_min'])}</td>"
+                             f"<td align='right' style='{grau}'>{_z(z['kosten'])} €</td></tr>")
+            if sichtbar(ruest):
+                html += (f"<tr><td style='{grau};padding-left:14px'>davon Rüsten</td>"
+                         f"<td align='right' style='{grau}'>{rechnen.zeit_text(ruest)}</td><td></td></tr>")
+        if n:
+            html += (f"<tr><td style='{linie}'><b>= Arbeitszeit gesamt</b></td>"
+                     f"<td align='right' style='{linie}'><b>{rechnen.zeit_text(k['bearbeitung_min'])}</b></td>"
+                     f"<td align='right' style='{linie}'><b>{_z(k['arbeitskosten'])} €</b></td></tr>")
+            parallel = (f" (ohne {rechnen.zeit_text(k['parallel_min'])} parallel)"
+                        if sichtbar(k.get("parallel_min", 0)) else "")
+            html += (f"<tr><td>Durchlaufzeit{parallel}</td><td align='right'>{rechnen.zeit_text(k['durchlauf_min'])}"
+                     "</td><td></td></tr>")
+            if k.get("je_teil_min"):
+                html += (f"<tr><td>Ø Arbeitszeit je Teil</td><td align='right'>{rechnen.zeit_text(k['je_teil_min'])}"
+                         "</td><td></td></tr>")
+            if sichtbar(k["sonstige"]):
+                html += (f"<tr><td style='{grau}'>Kosten ohne Zeit (Festpreise, Fremdleistung)</td><td></td>"
+                         f"<td align='right' style='{grau}'>{_z(k['sonstige'])} €</td></tr>")
         self.zeiten.setText(html + "</table>")
         self.zeiten.setVisible(bool(n))
+
+    def _zeiten_umschalten(self, art):
+        """Klick auf Maschine oder Personal in den Zeiten: Arbeitsschritte auf- oder zuklappen."""
+        self.offene_zeiten ^= {art}
+        if self._zeit_summen is not None:
+            self.zeiten_setzen(self._zeit_summen)
