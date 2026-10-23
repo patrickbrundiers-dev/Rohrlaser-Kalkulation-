@@ -3634,6 +3634,8 @@ def kapitel_stammdaten(i):
            "K-Faktor aus</i> = <i>je Werkstoff</i> gilt nur dieser ([[einstellungen]]). Bitte an die eigene "
            "Abkantpresse bzw. den Lieferanten anpassen. Ältere Datendateien bekommen die Tabelle beim ersten Start "
            "von Version 0.9.14 (Schema 47).")
+    i.bild("stamm_blech_kfaktoren", "Einstellungen, K-Faktoren (Abwicklung) je Kategorie, Blechdicke und "
+           "Innenradius ÷ Dicke", hoehe=90 * mm)
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
