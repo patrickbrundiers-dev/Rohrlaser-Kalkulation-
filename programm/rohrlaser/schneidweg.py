@@ -290,6 +290,156 @@ def ende_neu(profil, e):
     return None
 
 
+GESCHLOSSEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
+FORMEL_ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON)
+
+
+def _messprofil(text):
+    """messprofil_text -> Profil-dict (form, a, b, wand) oder None."""
+    try:
+        form, a, b, wand = str(text or "").split("|")
+        return dict(form=form, a=float(a), b=float(b) or None, wand=float(wand))
+    except ValueError:
+        return None
+
+
+def anderer_querschnitt(e, profil):
+    """Wurde die Kontur e auf einem anderen Querschnitt gemessen als profil (Form, Maße ±0,3 mm, Wand ±0,15 mm)?"""
+    alt = _messprofil(e.get("messprofil"))
+    if not alt:
+        return False
+    if alt["form"] != profil.get("form") or abs(alt["wand"] - _z(profil.get("wand"))) > 0.15:
+        return True
+    return any(abs(x - y) > 0.3 for x, y in zip(_masse(alt["form"], alt["a"], alt["b"]),
+                                                _masse(alt["form"], profil.get("a"), profil.get("b"))))
+
+
+def _umfang_t(qs, s):
+    """Stelle s der Abwicklung -> Flächenkoordinate t (Fläche + Anteil, 0 … 4): Rundrohr in Vierteln ab 315°, wie
+    die Kastenprofile ab der linken Kante der Breitseite oben."""
+    s %= qs.umfang
+    if qs.r:
+        return 4 * s / qs.umfang
+    for i, f in enumerate(qs.flaechen):
+        if s < f.breite or i == len(qs.flaechen) - 1:
+            return i + min(max(s, 0.0), f.breite) / f.breite
+        s -= f.breite
+    return 0.0
+
+
+def _umfang_s(qs, t):
+    if qs.r:
+        return t / 4 * qs.umfang
+    i = min(int(t), len(qs.flaechen) - 1)
+    return sum(f.breite for f in qs.flaechen[:i]) + (t - i) * qs.flaechen[i].breite
+
+
+def _umriss_neu(e, alt, profil):
+    """Echten Umriss einer Kontur (Sonderkontur, Gravur) vom gemessenen Querschnitt alt auf profil übertragen
+    (Patrick 23.10.2026, 3b): jeder Punkt behält Fläche und Anteil der Fläche (Kante bleibt Kante), längs bleibt
+    gleich. Ergebnis (umriss [[dx, ds]], Faktor Länge, Faktor Hüllmaß, seite, q) oder None (offenes Profil)."""
+    from . import skizze as sk
+    if alt["form"] not in GESCHLOSSEN or profil.get("form") not in GESCHLOSSEN:
+        return None
+    q0, q1 = sk.Querschnitt(alt), sk.Querschnitt(profil)
+    if q0.umfang <= 0 or q1.umfang <= 0:
+        return None
+    pts = sk._dicht([(float(x), float(y)) for x, y in e["umriss"]])
+    s0 = sk.s_lage(q0, e)
+    m1 = _umfang_s(q1, _umfang_t(q0, s0))
+    neu, vor_alt, vor_neu = [], 0.0, 0.0
+    for dx, ds in pts:
+        d1 = _umfang_s(q1, _umfang_t(q0, s0 + ds)) - m1
+        soll = vor_neu + (ds - vor_alt) * q1.umfang / q0.umfang       # über den Anfang der Abwicklung: stetig
+        d1 += q1.umfang * round((soll - d1) / q1.umfang)
+        neu.append((dx, d1))
+        vor_alt, vor_neu = ds, d1
+
+    def umfang(p):
+        return sum(math.dist(p[i], p[(i + 1) % len(p)]) for i in range(len(p)))
+
+    def ausdehnung(p):
+        return max(max(x for x, _ in p) - min(x for x, _ in p), max(y for _, y in p) - min(y for _, y in p))
+    if umfang(pts) <= 0 or ausdehnung(pts) <= 0:
+        return None
+    seite, q = sk.s_zu_seite(q1, m1)
+    return ([[round(x, 2), round(y, 2)] for x, y in neu], umfang(neu) / umfang(pts),
+            ausdehnung(neu) / ausdehnung(pts), seite, q)
+
+
+def kontur_umstellen(e, profil):
+    """Kontur e aus dem STEP-Import für ein anderes Profil als gemessen (Profil von Hand geändert, Patrick 23.10.2026):
+    Formel-Konturen (Bohrung, Langloch, Rechteck …) rechnen mit ihren Maßen neu (gemessene Länge fällt weg),
+    Sonderkontur und Gravur mit echtem Umriss werden auf den neuen Querschnitt übertragen (_umriss_neu). Was nicht
+    geht (sonstige Kontur, offenes Profil), behält die gemessene Länge und bleibt zum Prüfen markiert.
+    Ergebnis (Kontur, (alt, neu) Länge je Stück oder None)."""
+    if not e.get("messprofil") or not anderer_querschnitt(e, profil):
+        return e, None
+    art = e.get("art")
+    neu_text = messprofil_text(profil.get("form"), profil.get("a"), profil.get("b"), profil.get("wand"))
+    if art in FORMEL_ARTEN and _z(e.get("gemessen")) > 0:
+        alt = _z(e["gemessen"])
+        z = {k_: v for k_, v in e.items() if k_ not in ("gemessen", "huelle_gemessen")}
+        z["messprofil"] = neu_text
+        try:
+            lg = kontur(z)[0]
+        except ValueError:
+            return e, None
+        if profil.get("form") == "Rundrohr" and art in (BOHRUNG, SENKUNG) and not z.get("d3"):
+            lg = dreid.bohrung_2d_rundrohr(_z(z.get("d")), profil.get("a"), profil.get("wand")) or lg
+        return z, (alt, lg)
+    if art in MIT_UMRISS and e.get("umriss"):
+        um = _umriss_neu(e, _messprofil(e["messprofil"]), profil)
+        if um is None:
+            return e, None
+        punkte_, f_lg, f_h, seite, q = um
+        alt = _z(e.get("gemessen")) or _z(e.get("laenge"))
+        z = {k_: v for k_, v in e.items() if k_ not in ("gemessen", "huelle_gemessen", "seite", "q")}
+        z.update(umriss=punkte_, laenge=round(alt * f_lg, 1), messprofil=neu_text)
+        h = _z(e.get("huelle_gemessen")) or _z(e.get("huelle"))
+        if h:
+            z["huelle"] = round(h * f_h, 1)
+        if seite is not None and seite != "oben":
+            z["seite"] = seite
+        if abs(q) > 0.05:
+            z["q"] = q
+        return z, (alt, z["laenge"])
+    return e, None
+
+
+def konturen_umstellen(eingaben, profil):
+    """Alle Konturen der Eingaben für profil (kontur_umstellen). Ergebnis (Eingaben, Hinweise, Differenz Schneidweg,
+    Differenz Gravur) in mm je Teil; Hinweise 'Schneidweg alt → neu' und was gemessen bleibt."""
+    from .rechnen import zahl
+    if not eingaben:
+        return eingaben, [], 0.0, 0.0
+    konturen, d_schnitt, d_gravur, neu_n, alt_sum, neu_sum, bleibt = [], 0.0, 0.0, 0, 0.0, 0.0, 0
+    for e in eingaben.get("konturen") or ():
+        z, lg = kontur_umstellen(e, profil)
+        konturen.append(z)
+        n = int(_z(e.get("anzahl")) or 1)
+        if lg:
+            neu_n += 1
+            if e.get("art") == GRAVUR:
+                d_gravur += n * (lg[1] - lg[0])
+            elif e.get("art") != FLOWDRILL:
+                d_schnitt += n * (lg[1] - lg[0])
+                alt_sum += n * lg[0]
+                neu_sum += n * lg[1]
+        elif e.get("messprofil") and anderer_querschnitt(e, profil):
+            bleibt += 1
+    hinweise = []
+    if neu_n:
+        hinweise.append(f"{neu_n} Kontur{'en' if neu_n > 1 else ''} für Profil {profil.get('profil_id') or ''} neu "
+                        f"gerechnet: Schneidweg {zahl(alt_sum, 1)} → {zahl(neu_sum, 1)} mm".replace("  ", " ")
+                        + (f", Gravur {'+' if d_gravur > 0 else '−'}{zahl(abs(d_gravur), 1)} mm"
+                           if abs(d_gravur) >= 0.05 else ""))
+    if bleibt:
+        hinweise.append(f"{bleibt} Kontur{'en' if bleibt > 1 else ''} nicht umrechenbar (gemessen an einem anderen "
+                        "Querschnitt): gemessene Länge übernommen, bitte prüfen")
+    return dict(eingaben, konturen=konturen), hinweise, d_schnitt, d_gravur
+
+
 def richtung_pruefen(profil, richtung, achse):
     """Passt die Richtung (am längsten …) zur Gehrungsachse? Beim Rechteckrohr liegt die Breitseite oben: 0°/180°
     kippt über die kürzere Seite, 90°/270° über die längere. Ergebnis: Fehlertext oder None."""
@@ -458,7 +608,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             else:
                 gehrung[seite] = naht.ende_text(w, e["richtung"])
         enden.append(("A" if seite == "a" else "E", schritte[-1]["huelle"], lg))
+    umgestellt, bleibt = 0, 0
     for e in eingaben.get("konturen") or ():
+        e, lg_neu = kontur_umstellen(e, profil)        # anderes Profil als gemessen: neu bzw. übertragen
+        if lg_neu:
+            umgestellt += 1
+        elif e.get("messprofil") and _z(e.get("gemessen")) and anderer_querschnitt(e, profil):
+            bleibt += 1
         try:
             lg, hk, n = kontur(e)
         except ValueError as f:
@@ -539,6 +695,12 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
                         f"({', '.join(richtung_fehlt_text)}). Bei frei drehbaren Teilen (Schweißnaht ohne Vorgabe) "
                         "dreht die Optimierung das Teil passend und legt die Gehrungen ineinander. Nur wenn die Lage "
                         "fest ist (Werkstattpapiere, Bohrbild), die längste Seite von Hand wählen.")
+    if umgestellt:
+        hinweise_ende.append(f"{umgestellt} Kontur{'en' if umgestellt > 1 else ''} aus dem STEP-Import für "
+                             f"{profil.get('profil_id') or 'das Profil'} neu gerechnet (anderer Querschnitt als gemessen)")
+    if bleibt:
+        hinweise_ende.append(f"{bleibt} Kontur{'en' if bleibt > 1 else ''} an einem anderen Querschnitt gemessen und "
+                             "nicht umrechenbar: gemessene Länge gilt, bitte prüfen (gelb)")
     hinweise += hinweise_ende + hinweise_3d
     return dict(schritte=schritte, felder=felder, schneidweg=felder["schneidweg"], einstiche=einstiche,
                 schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise,

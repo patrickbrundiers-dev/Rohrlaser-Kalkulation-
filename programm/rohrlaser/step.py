@@ -293,6 +293,12 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     a_, b_ = float(a or 0), float(b or a or 0)
     breit, schmal = max(a_, b_), min(a_, b_)
     kasten = form in ("Quadratrohr", "Rechteckrohr")
+    # echte Umrisse (Sonderkontur, Gravur, komplexe Enden) liegen auf dem gemessenen Querschnitt; bei anderem Profil
+    # überträgt sie schneidweg.kontur_umstellen
+    mform = m.get("profilform") or form
+    ma = _z(m, "abm_a") or a_
+    mb = _z(m, "abm_b") or ma
+    mbreit, mschmal, mkasten = max(ma, mb), min(ma, mb), mform in ("Quadratrohr", "Rechteckrohr")
     offen = None
     if form in OFFEN:
         kopf = next((d for d in liste if isinstance(d, dict) and d.get("art") == "Ende A"), {})
@@ -301,6 +307,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             profil_id=m.get("normprofil") or m.get("profil_id_vorschlag")))
     eing = dict(quelle=QUELLE_STEP, a={}, b={}, konturen=[])
     gravur_zeilen = 0.0
+    mp = messprofil_text(m["profilform"], m.get("abm_a"), m.get("abm_b"), _wand(m)) \
+        if m.get("profilform") and _z(m, "abm_a") > 0 else None       # gemessener Querschnitt (Profilwechsel)
     if d3:
         eing["d3"] = True
     for d in liste:
@@ -309,8 +317,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         art = d.get("art")
         if art in ("Ende A", "Ende B"):
             e = dict(gemessen=round(float(d.get("schnittlaenge") or 0), 2), form=d.get("form"))
-            if m.get("profilform") and _z(m, "abm_a") > 0:      # gemessener Querschnitt (Profilwechsel)
-                e["messprofil"] = messprofil_text(m["profilform"], m.get("abm_a"), m.get("abm_b"), _wand(m))
+            if mp:
+                e["messprofil"] = mp
             if d.get("huellmass"):
                 e["huelle_gemessen"] = round(float(d["huellmass"]), 2)
             if d.get("form") in ("Gehrung", "Schrägschnitt zweiachsig") and d.get("gehrung"):
@@ -335,8 +343,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 e["schwenk"] = round(float(d["schwenk"]), 2)
             if d.get("flaechen") and d.get("huelle"):        # 3D-Ende (STEP-JSON 1.8): Flächen der Messung
                 e.update(flaechen=d["flaechen"], huelle=d["huelle"])
-            if d.get("form") == "komplex" and (form == "Rundrohr" or kasten):     # Umriss für die Abwicklung
-                um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), *_umfang_versatz(form, breit, schmal, a_))
+            if d.get("form") == "komplex" and (mform == "Rundrohr" or mkasten):     # Umriss für die Abwicklung
+                um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), *_umfang_versatz(mform, mbreit, mschmal, ma))
                 if um:
                     e["umriss"] = um
             if e["gemessen"] > 0:
@@ -355,7 +363,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["huelle_gemessen"] = round(float(d["huellmass"]), 2)
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
-        umriss = _umriss_relativ(d) if form == "Rundrohr" or kasten else None
+        umriss = _umriss_relativ(d) if mform == "Rundrohr" or mkasten else None
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -385,15 +393,17 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
         else:
             k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
-        if form == "Rundrohr" and d.get("winkel") is not None:
+        if umriss and mform == "Rundrohr" and d.get("winkel") is not None:
             k["seite"] = round(float(d["winkel"]) % 360, 1)
-        elif kasten and umriss and d.get("u") is not None:      # über Ecken: Mitte aus der Umfangsposition
-            versatz, umfang = _umfang_versatz(form, breit, schmal, a_)
-            seite, q = _kasten_seite((float(d["u"]) + versatz) % umfang, breit, schmal)
+        elif umriss and mkasten and d.get("u") is not None:      # über Ecken: Mitte aus der Umfangsposition
+            versatz, umfang = _umfang_versatz(mform, mbreit, mschmal, ma)
+            seite, q = _kasten_seite((float(d["u"]) + versatz) % umfang, mbreit, mschmal)
             if abs(q) > 0.05:
                 k["q"] = q
             if seite != "oben":
                 k["seite"] = seite
+        elif form == "Rundrohr" and d.get("winkel") is not None:
+            k["seite"] = round(float(d["winkel"]) % 360, 1)
         elif kasten and d.get("seite") in SEITE_KASTEN:
             seite = SEITE_KASTEN[d["seite"]]
             breite_f = breit if seite in ("oben", "unten") else schmal
@@ -406,6 +416,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
             if abs(q) > 0.05:
                 k["q"] = round(q, 1)
+        if mp:
+            k["messprofil"] = mp
         eing["konturen"].append(k)
     rest = _z(m, "gravur") - gravur_zeilen      # Gravur ohne eigene Zeile (z. B. Anbauteile) nur als Länge
     if rest > 0.05:
@@ -688,7 +700,8 @@ VON_HAND = "von Hand nachgetragen"
 def von_hand(m, form, profil_id, profile):
     """Nicht erkanntes Teil von Hand als Rohr/Profil nachtragen (Patrick 22.10.2026): Profilform und Profil-ID aus dem
     Prüfdialog, Maße aus den Stammdaten bzw. der Profil-ID ('QR 40x40x3'), sonst aus dem Hüllmaß; Länge = größtes
-    Hüllmaß, zwei gerade Enden, keine Konturen (im Schneidweg-Rechner ergänzen). Prüfstatus 'prüfen', angehakt.
+    Hüllmaß, zwei gerade Enden; Konturen der Messung bleiben, wenn ihre Länge zum Hüllmaß passt (sonst im
+    Schneidweg-Rechner ergänzen). Prüfstatus 'prüfen', angehakt.
     Die Messung bleibt unter '_original' (zurück mit von_hand_zuruecknehmen). False, wenn kein Hüllmaß bekannt ist."""
     from .optimierung import profil_aus_name, schnittlaenge
     try:
@@ -704,6 +717,14 @@ def von_hand(m, form, profil_id, profile):
     wand = float(pr.get("wand") or 0)
     ende = schnittlaenge(form, a, b, wand, pr.get("flaeche_manuell")) or 2 * (a + b)
     netz = m.get("_netz")
+    # Konturen der Messung übernehmen (Patrick 23.10.2026), wenn sie längs zum Hüllmaß passen (Länge gemessen)
+    try:
+        liste = json.loads(original.get("konturen_liste") or "[]")
+    except (TypeError, ValueError):
+        liste = []
+    konturen = [d for d in liste if isinstance(d, dict) and d.get("art") not in ("Ende A", "Ende B")
+                and d.get("z") is not None] if isinstance(liste, list) else []
+    behalten = bool(konturen) and abs(_z(original, "laenge") - h[0]) <= 1.0
     m.clear()
     m.update(original)
     m.update(profilform=form, abm_a=str(a), abm_b=str(b), wandstaerke=str(wand), laenge=str(h[0]),
@@ -713,6 +734,16 @@ def von_hand(m, form, profil_id, profile):
              sicherheit="profil=von Hand", alternative="", anbauteile="", trennung="", bauteiltyp="Profil",
              hinweise=f"{VON_HAND} ({original.get('hinweise') or 'nicht messbar'}): Länge aus Hüllmaß, gerade "
                       "Enden, Konturen im Schneidweg-Rechner ergänzen")
+    if behalten:
+        innen = _z(original, "innen")
+        m.update(konturen_liste=json.dumps(konturen, ensure_ascii=False), innen=str(innen),
+                 innen_konturen=original.get("innen_konturen") or "0", gravur=original.get("gravur") or "0",
+                 gravur_konturen=original.get("gravur_konturen") or "0", bohrungen=original.get("bohrungen") or "",
+                 innen_liste=original.get("innen_liste") or "", schneidweg=str(2 * ende + innen),
+                 konturen=str(2 + int(_z(original, "innen_konturen"))),
+                 hinweise=m["hinweise"].replace("Konturen im Schneidweg-Rechner ergänzen",
+                                                f"{len(konturen)} Konturen aus der Messung übernommen, im "
+                                                "Schneidweg-Rechner prüfen"))
     m["_original"], m["_uebernehmen"], m["_profil"] = original, True, profil_id or None
     if netz:        # Rohnetz der Messung (Art N = nicht übernehmbar) jetzt als Außenwand
         import zlib
@@ -1113,6 +1144,16 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     p[f"{x}_schnitt"] = round(lg, 1)
                 p["schneidweg"] = round(p["schneidweg"] + neu_enden["differenz"], 1)
                 hinweise += neu_enden["hinweise"]
+            if rechner and profile.get(pid):      # Konturen für das Profil der Position (Profil von Hand geändert)
+                from .schneidweg import konturen_umstellen
+                rechner_neu, h_k, d_s, d_g = konturen_umstellen(rechner, dict(profile[pid], profil_id=pid))
+                if h_k:
+                    p["technik"] = json.dumps(rechner_neu, ensure_ascii=False)
+                    p["schneidweg"] = round(p["schneidweg"] + d_s, 1)
+                    p["innen"] = round(max(p["innen"] + d_s, 0.0), 1)
+                    if abs(d_g) >= 0.05:
+                        p["gravur"] = round(max(p["gravur"] + d_g, 0.0), 1)
+                    hinweise += h_k
             for name, (n, l) in zip(("klein", "mittel", "gross"), kl):
                 p[f"{name}_n"], p[f"{name}_mm"] = n, round(l, 1)
             if m.get("innen_liste") or enden:
