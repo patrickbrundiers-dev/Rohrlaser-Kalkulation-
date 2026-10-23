@@ -55,16 +55,19 @@ def lies_messwerte(pfad):
 
 
 def struktur_anhaengen(messwerte, json_pfad):
-    """Baugruppenstruktur je Datei aus dem JSON-Ergebnis der Messung (ab STEP-JSON 1.13) an die Messwerte hängen
-    (Schlüssel '_struktur', None = keine Baugruppe); Spalten bauteil/pfad/knoten stehen schon in den Messwerten."""
+    """Baugruppenstruktur und Nahtkandidaten je Datei aus dem JSON-Ergebnis der Messung (ab STEP-JSON 1.13 bzw.
+    1.14) an die Messwerte hängen (Schlüssel '_struktur', None = keine Baugruppe; '_nahtkandidaten', Liste);
+    Spalten bauteil/pfad/knoten stehen schon in den Messwerten."""
     import json
     try:
         daten = json.loads(Path(json_pfad).read_text(encoding="utf-8"))
-        je_datei = {d.get("datei"): d.get("struktur") for d in daten.get("dateien", [])}
+        je_datei = {d.get("datei"): d for d in daten.get("dateien", [])}
     except (OSError, ValueError, AttributeError):
         je_datei = {}
     for m in messwerte:
-        m["_struktur"] = je_datei.get(m.get("datei"))
+        d = je_datei.get(m.get("datei")) or {}
+        m["_struktur"] = d.get("struktur")
+        m["_nahtkandidaten"] = d.get("nahtkandidaten") or []
     return messwerte
 
 
