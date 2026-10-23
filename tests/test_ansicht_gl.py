@@ -58,6 +58,10 @@ def farbe(img, x, y):
     return c.red(), c.green(), c.blue()
 
 
+def abstand(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b))
+
+
 def nah(a, b, tol=14):
     return all(abs(x - y) <= tol for x, y in zip(a, b))
 
@@ -76,13 +80,20 @@ if GL_KIND:
     mitte = (gl.width() // 2, gl.height() // 2)
     vorn, hinten = farbe(sw, *mitte), farbe(sw, gl.width() // 2, 60)
     assert not nah(vorn, hinten, 6), "Testbild: Außen- und Innenwand unterscheidbar"
-    assert nah(farbe(gl, *mitte), vorn), ("Tiefenpuffer: vordere Fläche verdeckt die hintere", farbe(gl, *mitte), vorn)
+    # Farben je nach Mesa-Version leicht anders (bis etwa 20 je Kanal): Verdeckung am Abstand zu vorn/hinten prüfen
+    def vorn_sichtbar(img, v=vorn, h=hinten):
+        g, gh = farbe(img, *mitte), farbe(img, gl.width() // 2, 60)
+        return abstand(g, v) < abstand(g, h) and not nah(g, gh, 6) and nah(g, v, 30), (g, gh, v, h)
+
+    ergebnis, werte = vorn_sichtbar(gl)
+    assert ergebnis, ("Tiefenpuffer: vordere Fläche verdeckt die hintere", werte)
     # zweites Bild (QPainter der Beschriftung hat den Zustand verändert) und vergrößert: weiter richtig verdeckt
     gl2 = w_gl._gl.grabFramebuffer()
-    assert nah(farbe(gl2, *mitte), vorn), "zweites Bild"
+    assert vorn_sichtbar(gl2)[0], ("zweites Bild", vorn_sichtbar(gl2)[1])
     _, gl3 = bild("OpenGL", zoom=3.0)
     _, sw3 = bild("Software", zoom=3.0)
-    assert nah(farbe(gl3, *mitte), farbe(sw3, *mitte)), "vergrößert"
+    g3, v3 = farbe(gl3, *mitte), farbe(sw3, *mitte)
+    assert abstand(g3, v3) < abstand(g3, hinten) and nah(g3, v3, 30), ("vergrößert", g3, v3, hinten)
     abweichend = sum(not nah(farbe(gl, x, y), farbe(sw, x, y), 30)
                      for x in range(0, gl.width(), 8) for y in range(0, gl.height(), 8))
     assert abweichend < 0.05 * (gl.width() // 8) * (gl.height() // 8), f"{abweichend} Bildpunkte anders"
