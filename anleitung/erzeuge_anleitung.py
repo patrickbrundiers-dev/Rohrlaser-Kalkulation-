@@ -1228,6 +1228,11 @@ def kapitel_step(i):
             "Angebotsfenster; beim Ziehen färbt sich das Feld blau). Ein leeres Angebot zeigt statt der leeren "
             "Positionsliste ein großes Ablagefeld; ein Klick auf eines der Felder öffnet den Dateidialog wie "
             "<i>STEP importieren …</i>. Aus Ordnern (samt Unterordnern) werden alle .step/.stp-Dateien genommen.",
+            "Während der Messung zeigt das Fenster Datei, Körper und die Restzeit. Bleibt ein Körper hängen "
+            "(Einstellung <i>Messung: Zeitlimit je Körper</i>, Vorgabe 120 s), wird nur er ausgelassen und die "
+            "Datei weiter gemessen. Schon gemessene Dateien kommen beim nächsten Import sofort aus dem "
+            "Zwischenspeicher. <b>Abbrechen</b> fragt, ob die bis dahin gemessenen Dateien übernommen werden "
+            "sollen ([[einstellungen]]).",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien wechseln "
             "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
@@ -2806,24 +2811,48 @@ def kapitel_einstellungen(i):
          "behalten ihre Werte."],
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
                                              "A-2026-0042)."],
-        ["Angebot", "STEP-Import: ebene flache Teile vorgeben als",
+        ["STEP-Import", "STEP-Import: ebene flache Teile vorgeben als",
          "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
          "Spalte Art wählbar. Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
-        ["Angebot", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
+        ["STEP-Import", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
          "Nur bei <i>ebene flache Teile vorgeben als: Flachstahl bis Breite</i>. Grenze zwischen Flachstahl und "
          "Blech beim STEP-Import (Vorgabe 150 mm). Ein flaches Teil gilt nur als "
          "Flachstahl, wenn es höchstens so breit ist, mindestens dreimal so lang wie breit ist und gerade "
          "Längsseiten hat. Alles andere Flache ist ein Blech ([[bleche]])."],
-        ["Angebot", "STEP-Import: Flowdrill-Bohrung am Laser",
+        ["STEP-Import", "STEP-Import: Flowdrill-Bohrung am Laser",
          "Was der Laser bei einer erkannten Fließlochbohrung macht: Gravur Ø0,5 (Vorgabe) oder Loch Ø0,5. Im Fenster "
          "Bohrungen prüfen je Zeile änderbar ([[bohrungen_pruefen]])."],
-        ["Angebot", "STEP-Import: Standardordner (leer = zuletzt benutzter Ordner)",
+        ["STEP-Import", "STEP-Import: Standardordner (leer = zuletzt benutzter Ordner)",
          "Ordner, in dem der Dateidialog <i>STEP importieren …</i> startet, z. B. das Laufwerk mit den "
          "Kundenzeichnungen. <b>Ordner wählen …</b> sucht ihn aus, <b>Leeren</b> nimmt ihn heraus; leer (oder der "
          "Ordner ist nicht erreichbar) = der Dialog startet im zuletzt benutzten STEP-Ordner ([[step]])."],
-        ["Angebot", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
+        ["STEP-Import", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["STEP-Import", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)",
+         "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1). Weniger "
+         "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],
+        ["STEP-Import", "Messung: Zeitlimit je Körper [s] (0 = ohne; länger = Körper nicht gemessen)",
+         "Braucht ein einzelner Körper länger (Vorgabe 120 s) oder stürzt seine Messung ab, wird nur dieser "
+         "Körper ausgelassen: er steht im Prüfdialog als nicht übernehmbar mit dem Hinweis <i>nicht gemessen: "
+         "Zeitlimit … überschritten</i>, alle anderen Körper der Datei werden gemessen ([[step]])."],
+        ["STEP-Import", "Messung: Zwischenspeicher (gleiche Datei nicht neu messen), Messung: Zwischenspeicher "
+                        "höchstens [MB]",
+         "ja (Vorgabe) = eine schon gemessene Datei mit gleichem Inhalt, gleicher Programmversion und gleichen "
+         "Einstellungen kommt sofort aus dem Ordner <i>STEP-Cache</i> neben der Datenbank. Ist er größer als "
+         "angegeben (Vorgabe 500 MB), fallen die am längsten nicht benutzten Messungen weg. <b>Zwischenspeicher "
+         "leeren</b> löscht alle gemerkten Messungen. Messungen mit ausgelassenen Körpern werden nicht gemerkt. "
+         "Gilt nur für diesen Arbeitsplatz."],
+        ["STEP-Import", "Toleranz Profil aus den Stammdaten ± [mm], Toleranz gleiche Teile einer Baugruppe ± [mm], "
+                        "Toleranz Kernloch für Gewinde-Vorschlag ± [mm]",
+         "Wie genau die Messung zu einem Profil der Stammdaten passen muss (Vorgabe 0,15 mm), ab wann Körper einer "
+         "Baugruppe als gleiches Teil zusammengefasst werden (0,2 mm) und wie nah eine Bohrung am Kernloch-Ø liegen "
+         "muss, damit ein Gewinde vorgeschlagen wird (0,05 mm)."],
+        ["STEP-Import", "Experte: Flachstahl ab Länge × Breite, Experte: gekantetes Blech statt Profil, wenn Volumen "
+                        "unter Anteil von Querschnitt × Länge",
+         "Grenzwerte der Erkennung, nur nach Rücksprache ändern: ein flaches Teil ist erst ab dieser Länge "
+         "(Vorgabe 3 × Breite) Flachstahl; ein gekantetes Teil gilt als Blech statt Profil, wenn sein Volumen unter "
+         "diesem Anteil (Vorgabe 85 %) von Querschnitt × Länge liegt ([[bleche]])."],
         ["Blech-Richtpreis", "Stundensatz Blechlaser [€/h], Rüsten und Programmieren Blechlaser je Auftrag [€], "
                              "Verschnitt Tafel (auf das Hüllrechteck), Kanten: Preis je Kantung [€], Kanten: "
                              "Rüsten je Auftrag [€], Aufschlag des Lieferanten (Gewinn)",
