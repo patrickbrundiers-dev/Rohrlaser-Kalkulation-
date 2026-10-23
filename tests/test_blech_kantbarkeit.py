@@ -67,6 +67,16 @@ assert pruefen(frei) == []
 loch = dict(frei, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=8, x=25, y=100)])
 assert "1 Innenkontur(en) näher" in pruefen(loch)[0]
 assert pruefen(dict(schale, biegelinien=schale["biegelinien"][:1], kantungen=1)) == []
+# gemessener Innenradius aus dem STEP-Import: Abstand mit r = 8 statt Dicke, kleiner Radius als Hinweis
+mitte = dict(frei, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=8, x=33, y=100)])      # Rand 9 mm von x = 20
+assert pruefen(mitte) == []
+gemessen = dict(mitte, biegelinien=[dict(b, radius=8) for b in frei["biegelinien"]])
+assert "1 Innenkontur(en) näher" in pruefen(gemessen)[0]
+assert "Innenradius unter 1 mm" in pruefen(dict(frei, biegelinien=[dict(frei["biegelinien"][0], radius=0.4)]))[0]
+st = blech.aus_step(dict(dicke=2, laenge=240, breite=200, kontur="gekantet", abwicklung=dict(
+    laenge=240, breite=200, mehrachsig=True, kantungen=1,
+    biegelinien=[dict(punkte=[[20, 0], [20, 200]], winkel=-90, radius=8, ba=15)])), "S235JR")
+assert st["biegelinien"][0]["radius"] == 8, st
 assert pruefen(dict(winkel, art=blech.ZUSCHNITT, laenge=100, breite=50)) == []          # flaches Blech
 ok("KB4 Mehrachsig: Freischnitt an Biegeecken, Abstand zu schrägen Biegelinien")
 

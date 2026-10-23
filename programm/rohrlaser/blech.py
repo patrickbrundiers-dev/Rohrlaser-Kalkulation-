@@ -11,7 +11,8 @@ Eingaben (JSON in positionen.technik, quelle QUELLE):
             nächsten Schenkel, + nach oben, − nach unten), radius (Innenradius, leer = Blechdicke)}]; mit form
             POLYGON und punkte eine freie Außenkontur der Abwicklung (x längs der Kante, y ab Schenkel 1)
   Mehrachsig gekantet (STEP-Import, Schale, Kasten): Zuschnitt mit kantungen (Anzahl) und biegelinien [{punkte
-            (Mittellinie [[x, y], [x, y]]), winkel, ba (Bogenlänge)}] für Skizze und 3D-Ansicht
+            (Mittellinie [[x, y], [x, y]]), winkel, ba (Bogenlänge), radius (gemessener Innenradius, None = scharf)}] für Skizze, 3D-Ansicht
+            und Kantbarkeit
   konturen: Innenkonturen wie im Schneidweg-Rechner (Bohrung, Senkung, Langloch, Rechteck, Polygon, sonstige)
             mit Anzahl, optional x/y = Mitte in der Abwicklung [mm]
 
@@ -219,7 +220,10 @@ def kantbarkeit(e, zs, w=None):
                 (x1, y1), (x2, y2) = x["punkte"]
             except (TypeError, ValueError, KeyError):
                 continue
-            linien.append(((x1, y1), (x2, y2), s))
+            r = _z(x.get("radius")) if x.get("radius") is not None else None    # gemessen (STEP), sonst = Dicke
+            if r is not None:
+                radien.append(r)
+            linien.append(((x1, y1), (x2, y2), s if r is None else r))
     r_min = _z(w.get("blech_kant_radius")) * s
     if r_min > 0 and any(r < r_min - 1e-9 for r in radien):
         out.append(f"Kantbarkeit: Innenradius unter {zahl_mm(r_min)} mm ({zahl_mm(_z(w.get('blech_kant_radius')))} × "
@@ -399,7 +403,8 @@ def aus_step(b, werkstoff, stueck=1):
         else:
             e.update(art=ZUSCHNITT, schenkel=[], kantlaenge=e["laenge"],
                      kantungen=int(_z(abw.get("kantungen")) or len(abw.get("biegelinien") or ())),
-                     biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"))
+                     biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"),
+                                       radius=x.get("radius"))
                                   for x in abw.get("biegelinien") or () if len(x.get("punkte") or ()) == 2])
         return e
     lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
