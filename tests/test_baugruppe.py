@@ -595,7 +595,9 @@ for text, erwartet in (
         (json.dumps(dict(g, arbeitsgaenge=g["arbeitsgaenge"] + [7])), "Baugruppendaten: Arbeitsgang Nr. 7 ist kein "
                                                                        "Datensatz"),
         (json.dumps(dict(g, naehte=g["naehte"] + [dict(g["naehte"][0], nr="9")])),
-         "Baugruppendaten: Nahtgruppe 9 hat eine doppelte Kennung (n1)")):
+         "Baugruppendaten: Nahtgruppe 9 hat eine doppelte Kennung (n1)"),
+        (json.dumps(dict(g, naehte=[dict(g["naehte"][0], id=["x"])])),
+         "Baugruppendaten: Nahtgruppe 1 hat eine ungültige Kennung")):
     assert baugruppe.daten_fehler(text) == erwartet, (baugruppe.daten_fehler(text), erwartet)
     assert rechnen.status(dict(pos[0], baugruppe=text), w, kopf, k, None, pos) == "FEHLER: " + erwartet
 assert baugruppe.daten_fehler(pos[0]["baugruppe"]) is None

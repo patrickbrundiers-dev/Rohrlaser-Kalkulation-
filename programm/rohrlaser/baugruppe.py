@@ -96,7 +96,7 @@ def daten_fehler(text):
         return "Baugruppendaten beschädigt (kein JSON-Text)"
     if not isinstance(d, dict):
         return "Baugruppendaten beschädigt (kein Datensatz)"
-    if not d.get("id"):
+    if not d.get("id") or not isinstance(d["id"], str):
         return "Baugruppendaten: Kennung der Baugruppe fehlt"
     if d.get("stamm") is not None and not isinstance(d["stamm"], dict):
         return "Baugruppendaten: Stammdaten sind kein Datensatz"
@@ -111,6 +111,8 @@ def daten_fehler(text):
             if not isinstance(e, dict):
                 return f"Baugruppendaten: {titel} Nr. {n} ist kein Datensatz"
             kenn = e.get("id")
+            if kenn is not None and not isinstance(kenn, (str, int)):
+                return f"Baugruppendaten: {titel} {e.get('nr') or e.get('name') or f'Nr. {n}'} hat eine ungültige Kennung"
             if kenn and kenn in ids:
                 ort = e.get("nr") or e.get("name") or f"Nr. {n}"
                 return f"Baugruppendaten: {titel} {ort} hat eine doppelte Kennung ({kenn})"
