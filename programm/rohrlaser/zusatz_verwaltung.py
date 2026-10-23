@@ -17,7 +17,7 @@ from .stammdaten import (TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORI
                          ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, zahl_als_text, zahl_aus_text)
 
 TITEL = "Zusatzarbeiten"
-BREIT = 1280        # ab dieser Breite steht das Formular neben der Tabelle, darunter in einem eigenen Fenster
+BREIT = 1060        # ab dieser Breite (der Seite, ohne Navigation links) steht das Formular neben der Tabelle, darunter in einem eigenen Fenster
 EIGENER_SATZ = "eigener Stundensatz"
 from .stil import ROT, ROTER_RAHMEN, TEXT_GRAU as GRAU  # noqa: E402
 FELD = {f.name: f for f in TABELLE["zusatzarbeiten"].felder}
@@ -536,6 +536,7 @@ WEGLASSEN = ("zuschlag_material", "weitere", "arbeit", "satz", "mindest", "mater
 
 class ZusatzVerwaltung(QWidget):
     titel = TITEL
+    schluessel = "zusatzarbeiten"       # Navigation der Einstellungen
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "tabelle")}     # Tastenkürzel, siehe tastatur.py
 
     def __init__(self, db, meldung):

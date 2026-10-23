@@ -11,7 +11,7 @@ from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QP
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
                                QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import hilfe, querschnitt, rechnen
+from . import hilfe, querschnitt, rechnen, stil
 from .stammdaten import EIGENMATERIAL, KUNDENMATERIAL, MATERIAL_HERKUNFT, ROH, zahl_als_text, zahl_aus_text
 
 GRAU = "#5F6B7A"
@@ -119,7 +119,7 @@ class MeterpreisDialog(QDialog):
                 if c >= 7:
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if c == 11:
-                    it.setForeground(QColor(GRAU))
+                    it.setForeground(stil.farbe(GRAU))
                     if g["fehlt"]:
                         it.setToolTip(g["fehlt"])
                 if c == 1:

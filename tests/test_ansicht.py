@@ -228,7 +228,7 @@ assert ub.preis_titel["verkauf"][0].text() == "Verkaufspreis"
 kb.kalk_knopf.click()
 assert kb.kalk_offen() and db.einstellung(KALK_OFFEN_EINSTELLUNG) is True
 assert s.pos_info.text().startswith("203 Positionen")
-assert s.reiter.cornerWidget(Qt.TopRightCorner) is None and s.spalten_knopf.isVisibleTo(s.pos_seite)
+assert s.reiter.cornerWidget(Qt.TopRightCorner) is s.schritte and s.spalten_knopf.isVisibleTo(s.pos_seite)
 kopf = s.pos_ansicht.horizontalHeader()
 fm = kopf.fontMetrics()
 for c in range(s.pos_modell.columnCount()):
@@ -251,7 +251,7 @@ QApplication.processEvents()
 # eine Zeile, sobald die Breite reicht (wie breit die Knöpfe sind, hängt von der Schrift des Systems ab)
 assert s.leiste.width() > 1366 - 400 and s.leiste.zweizeilig == (s.leiste.width() < s.leiste._bedarf()), \
     (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
-ok("Angebot bei 1366 px: Ausgabe und Weitere Aktionen in zweiter Zeile, bei 1920 px eine Zeile, wenn die Breite reicht")
+ok("Angebot bei 1366 px: Angebot (PDF) und Ausgaben in zweiter Zeile, bei 1920 px eine Zeile, wenn die Breite reicht")
 # Übersicht rechts über die ganze Höhe, Angebotskopf mit Kunde und Positionen zugeklappt auf eine Zeile
 kb = s.kopf_bereich
 assert s.spalten.widget(1) is s.uebersicht_rahmen and s.uebersicht_rahmen.widget() is s.uebersicht_bereich

@@ -2,10 +2,10 @@
 Sicherung '_vor_Kundenimport' an."""
 from pathlib import Path
 
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QHeaderView, QLabel, QVBoxLayout
 
-from . import kunden_csv
+from . import kunden_csv, stil
 from .zukauf_preise import _fuellen, _tabelle
 
 FARBE = {kunden_csv.NEU: "#E2F0D9", kunden_csv.AENDERN: "#FFF2CC", kunden_csv.UEBERSPRUNGEN: "#EDEDED",
@@ -57,7 +57,7 @@ class KundenImportDialog(QDialog):
         for r, z in enumerate(zeilen):
             if z["aktion"] in FARBE:
                 for c in range(len(self.SPALTEN)):
-                    self.tabelle.item(r, c).setBackground(QBrush(QColor(FARBE[z["aktion"]])))
+                    self.tabelle.item(r, c).setBackground(QBrush(stil.farbe(FARBE[z["aktion"]])))
         self.importieren_knopf.setEnabled(zahl[kunden_csv.NEU] + zahl[kunden_csv.AENDERN] > 0)
 
 

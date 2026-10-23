@@ -21,7 +21,9 @@ LESEMODUS_TIPP = "Lesemodus: Ändern ist erst mit gültiger Lizenz möglich (Hil
 # Knöpfe, die auch im Lesemodus gehen: ansehen, blättern, Daten exportieren
 FREI = {"Öffnen", "Angebot öffnen", "Ablage öffnen", "3D-Ansicht …", "Kalkulation anzeigen", "Alle aufklappen",
         "Schließen", "Abbrechen", "Einpassen", "◀", "▶", "Weitere Spalten", "12-m-Lösung ansehen …",
-        "Frachtdaten öffnen", "Einstellungen öffnen", "Einstellungen sperren", "CSV exportieren", "Material …"}
+        "Frachtdaten öffnen", "Einstellungen öffnen", "Einstellungen sperren", "CSV exportieren", "Material …", "Ausgaben"}
+
+NUR_FREIE_EINTRAEGE = {"Ausgaben"}      # Menüknöpfe, die offen bleiben, deren Einträge aber nur frei nach FREI
 
 
 def stufe_text(z):
@@ -204,6 +206,10 @@ def lesemodus_anwenden(widget, frei=FREI):
         if k.text() not in frei and k.isEnabled():
             k.setEnabled(False)
             k.setToolTip(LESEMODUS_TIPP)
+        elif k.text() in NUR_FREIE_EINTRAEGE and k.menu() is not None:     # darin nur die freien Einträge
+            for a in k.menu().actions():
+                if a.text() and a.text() not in frei:
+                    a.setEnabled(False)
     for v in widget.findChildren(QAbstractItemView):
         v.setEditTriggers(QAbstractItemView.NoEditTriggers)
         v.setAcceptDrops(False)

@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import dfm, naht, normprofile, rp_profile
+from .stil import DICHTEN, THEMES
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
@@ -817,6 +818,12 @@ EINSTELLUNGEN = (
     # 3D-Ansicht zeichnen mit OpenGL (Grafikkarte) oder QPainter (Software); Automatisch = OpenGL, wenn möglich
     Einstellung("ansicht_3d", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)", "Ansicht", "auswahl",
                 DARSTELLUNG_3D[0], auswahl="renderer"),
+    # Theme, Schriftgröße und Dichte (stil.anwenden, Layout-Plan D2): nur dieser Arbeitsplatz, gelten ab dem nächsten Start
+    Einstellung("ansicht_thema", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)", "Ansicht", "auswahl", "Hell",
+                auswahl="thema"),
+    Einstellung("ansicht_schrift", "Schriftgröße [%] (90 bis 150)", "Ansicht", "ganz", 100, 90, 150),
+    Einstellung("ansicht_dichte", "Dichte (kompakt, normal, komfortabel)", "Ansicht", "auswahl", "normal",
+                auswahl="dichte"),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
     # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel steht vorn in der Angebotsnummer
     # (PB-2026-0001); über den gemeinsamen Ordner sehen alle die Angebote der anderen und teilen die Stammdaten.
@@ -949,7 +956,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
