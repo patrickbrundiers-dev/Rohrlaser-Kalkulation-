@@ -1525,7 +1525,9 @@ def kapitel_step(i):
             "Profiltyp, Außen- und Innenmaße, Wandstärke mit allen Einzelmessungen, Länge, Längsachse, Konturen "
             "mit Lage, Schnittwinkel, Prüfstatus, Warnungen und die Erkennungssicherheit je Merkmal. Werte, die "
             "nicht gemessen werden konnten, stehen als <i>null</i> darin, nie als 0 oder Schätzwert. Das Format "
-            "trägt eine Versionsnummer (<i>schema_version</i>).",
+            "trägt eine Versionsnummer (<i>schema_version</i>). Bei Baugruppen steht dort ab Version 1.13 auch die "
+            "<b>Baugruppenstruktur</b> aus der STEP-Datei: Unterbaugruppen mit Menge, je Körper der Bauteilname "
+            "aus der Konstruktion und sein Pfad (z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>).",
             "<i>STEP-Import.exe</i> kann auch ohne das Programm messen: <i>STEP-Import.exe --ausgabe messwerte.txt "
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "

@@ -2893,7 +2893,7 @@ class AngebotSeite(QWidget):
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
-            messwerte = step.lade_netze(step.lies_messwerte(ausgabe), netze)
+            messwerte = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(ausgabe), netze), ergebnis)
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage else None
         return (messwerte, json_ablage) if mit_ablage else messwerte
 

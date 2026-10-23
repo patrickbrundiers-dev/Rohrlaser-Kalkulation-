@@ -67,11 +67,17 @@ Versionen von SCHEMA_VERSION:
   einer Kette paralleler Kanten, sonst null, biegelinien [{punkte, winkel, radius, scharf, ba, von, bis}], kantungen,
   mehrachsig, scharf, k_faktor}; scharfkantig gezeichnete Kantteile werden erkannt (Grenzfall Profil/Kantteil).
   Felder aus 1.11 unverändert.
+- 1.13 (23.10.2026): Baugruppenstruktur aus der STEP-Datei (Produktstruktur, Namen). Je Datei "struktur" = null
+  (keine Baugruppe) oder {"knoten": [{id, name, eltern (id|null), menge (Instanzen je übergeordnetem Knoten)}],
+  "teile": [{teil_index (= Körper "nr", erster Körper des Bauteils), knoten, anzahl (je Knoten)}]}; weitere
+  Instanzen einer Unterbaugruppe stehen nicht noch einmal in "teile". Je Körper "bauteil" (Produktname, null =
+  keiner), "pfad" ("Gestell/Rahmenseite[2]/Strebe", Instanznummer ab 2) und "knoten" (id oder null). Felder aus
+  1.12 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.12"
+SCHEMA_VERSION = "1.13"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -161,6 +167,9 @@ def koerper(t):
         "kammern": t.kammern or None,
         "kontur_umfang": _r(t.kontur_umfang, 2) if t.kontur_umfang else None,
         "verbund": t.verbund or None,
+        "bauteil": t.bauteil or None,
+        "pfad": t.pfad or None,
+        "knoten": t.knoten or None,
         "traeger": dict(stegdicke=_r(t.stegdicke), flanschdicke=_r(t.flanschdicke), symmetrisch=t.symmetrisch,
                         ausrundung=_r(t.radius, 1) if t.radius else None)
         if gemessen and t.profilform in ("I-/H-Träger", "T-Profil") else None,
@@ -178,8 +187,8 @@ def datei(name, teile=None, fehler=None):
     """Ergebnis einer STEP-Datei. teile: Liste step_geometrie.Teil; fehler: Text, wenn die Datei nicht lesbar war."""
     if fehler is not None or not teile:
         return {"datei": name, "importstatus": "nicht lesbar", "fehler": fehler, "einheit_datei": None,
-                "einheit_ausgabe": "mm", "meldungen": [], "warnungen": [], "baugruppe": None, "anzahl_koerper": 0,
-                "koerper": []}
+                "einheit_ausgabe": "mm", "meldungen": [], "warnungen": [], "baugruppe": None, "struktur": None,
+                "anzahl_koerper": 0, "koerper": []}
     meldungen = teile[0].meldungen
     leer = [h for t in teile if not t.koerper for h in t.hinweise]     # z. B. "Kein Körper … in der Datei"
     return {
@@ -191,6 +200,7 @@ def datei(name, teile=None, fehler=None):
         "meldungen": list(meldungen),
         "warnungen": leer,
         "baugruppe": len(teile) > 1,
+        "struktur": teile[0].struktur,
         "anzahl_koerper": len([t for t in teile if t.koerper]),
         "koerper": [koerper(t) for t in teile if t.koerper],
     }

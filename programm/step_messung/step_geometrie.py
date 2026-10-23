@@ -108,6 +108,10 @@ class Teil:
     # Import (je Datei bzw. je Körper)
     einheit: str = ""           # Längeneinheit laut Datei (mm, cm, m, inch, ft); gemessen wird immer in mm
     meldungen: list = field(default_factory=list)  # Meldungen des STEP-Lesers zur Datei
+    bauteil: str = ""           # Name des Bauteils in der STEP-Datei (Produktname), leer = keiner
+    pfad: str = ""              # Lage in der Baugruppe: "Gestell/Rahmenseite[2]/Strebe" (Instanznummer ab 2)
+    knoten: str = ""            # Knoten der Baugruppenstruktur, in dem das Bauteil steckt (struktur["knoten"])
+    struktur: dict = None       # Baugruppenstruktur der Datei (je Datei gleich), siehe _struktur
     koerperart: str = ""        # Volumenkörper / aus Flächenmodell genäht / Flächenmodell offen
     gueltig: bool = None        # Geometrieprüfung (OpenCascade) bestanden; None = nicht geprüft
     volumen: float = 0.0        # mm³
@@ -229,7 +233,13 @@ def lies_step_info(pfad):
     alles, was weder Volumenkörper noch nähbar ist, kommt als 'Flächenmodell offen' zurück.
     Wirft ValueError, wenn die Datei nicht lesbar ist."""
     from OCP.IFSelect import IFSelect_RetVoid
-    r = STEPControl_Reader()
+    try:            # mit Baugruppenstruktur und Namen (XCAF); Körper in derselben Reihenfolge wie ohne
+        from OCP.STEPCAFControl import STEPCAFControl_Reader
+        caf = STEPCAFControl_Reader()
+        caf.SetNameMode(True)
+        r = caf.ChangeReader()
+    except ImportError:
+        caf, r = None, STEPControl_Reader()
     status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
     fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
     if status != IFSelect_RetDone:
@@ -243,7 +253,17 @@ def lies_step_info(pfad):
         meldungen += [f"Fehler: {c.CFail(i)}" for i in range(1, c.NbFails() + 1)]
         meldungen += [f"Warnung: {c.CWarning(i)}" for i in range(1, c.NbWarnings() + 1)]
         chk.Next()
-    r.TransferRoots()
+    doc = None
+    if caf is not None:
+        try:
+            doc = _caf_uebertragen(caf)
+        except Exception:  # Struktur und Namen sind Zusatz: ohne sie wie bisher messen
+            doc = None
+    if doc is None:
+        if caf is not None:         # Übertragung abgebrochen: neu lesen ohne Struktur
+            r = STEPControl_Reader()
+            r.ReadFile(str(pfad))
+        r.TransferRoots()
     shape = r.OneShape()
     koerper = [("Volumenkörper", TopoDS.Solid(x)) for x in _liste(shape, TopAbs_SOLID)]
     # Flächen außerhalb von Volumenkörpern (Flächenmodelle): zusammennähen, geschlossene Schalen werden Volumen
@@ -255,7 +275,143 @@ def lies_step_info(pfad):
     if lose:
         koerper += _naehen(lose)
     meldungen = list(dict.fromkeys(m for m in meldungen if m))
-    return koerper, dict(einheit=_einheit(pfad), meldungen=meldungen[:20], baugruppe=len(koerper) > 1)
+    info = dict(einheit=_einheit(pfad), meldungen=meldungen[:20], baugruppe=len(koerper) > 1, struktur=None,
+                bauteile={})
+    if doc is not None:
+        try:
+            info["struktur"], info["bauteile"] = _struktur(doc, koerper, _Path(pfad).stem)
+        except Exception:  # wie oben: Struktur darf die Messung nie verhindern
+            pass
+    return koerper, info
+
+
+def _caf_uebertragen(caf):
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDocStd import TDocStd_Document
+    doc = TDocStd_Document(TCollection_ExtendedString("XmlOcaf"))
+    if not caf.Transfer(doc):
+        return None
+    return doc
+
+
+def _name(lab):
+    from OCP.TDataStd import TDataStd_Name
+    n = TDataStd_Name()
+    if lab.FindAttribute(TDataStd_Name.GetID_s(), n):
+        text = n.Get().ToExtString().strip()
+        if text and not text.startswith("=>") and not text.startswith("Open CASCADE STEP translator"):
+            return text
+    return ""
+
+
+def _struktur(doc, koerper, dateiname):
+    """Baugruppenstruktur aus dem XCAF-Dokument. Ergebnis (struktur, bauteile):
+    struktur = None (kein Baugruppe) oder {"knoten": [{id, name, eltern, menge}], "teile": [{teil_index, knoten,
+    anzahl}]}: Knoten = Baugruppen (menge = Instanzen je übergeordnetem Knoten, Wurzel 1); Teile = je Knoten und
+    Bauteil der erste Körper (teil_index = Körpernummer) mit Anzahl im Knoten. Weitere Instanzen derselben
+    Unterbaugruppe stehen nicht noch einmal in teile, ihre Körper aber mit ihrem Pfad in bauteile.
+    bauteile = {Körpernummer: (Bauteilname, Pfad, Knoten-ID)} für alle Volumenkörper."""
+    from OCP.TDF import TDF_Label
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.collections import IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher as TopTools_IndexedMapOfShape
+    from OCP.XCAFDoc import XCAFDoc_DocumentTool
+    from OCP.collections import Sequence_TDF_Label
+    st = XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())
+    index = TopTools_IndexedMapOfShape()
+    nummer = {}
+    for i, (art, k) in enumerate(koerper, start=1):
+        if art == "Volumenkörper":
+            nummer[index.Add(k)] = i
+
+    def kinder(lab):
+        seq = Sequence_TDF_Label()
+        st.GetComponents_s(lab, seq)
+        out = []
+        for j in range(1, seq.Length() + 1):
+            ref = TDF_Label()
+            if st.GetReferredShape_s(seq.Value(j), ref):
+                out.append((seq.Value(j), ref))
+        return out
+
+    def eintrag(lab):
+        from OCP.TDF import TDF_Tool
+        from OCP.TCollection import TCollection_AsciiString
+        e = TCollection_AsciiString()
+        TDF_Tool.Entry_s(lab, e)
+        return e.ToCString()
+
+    frei = Sequence_TDF_Label()
+    st.GetFreeShapes(frei)
+    wurzeln = [frei.Value(j) for j in range(1, frei.Length() + 1)]
+    knoten, teile, bauteile = [], [], {}
+
+    def koerper_von(lab, loc):
+        """Körpernummern eines Bauteils in seiner Einbaulage."""
+        out = []
+        for so in _liste(st.GetShape_s(lab).Located(loc.Multiplied(st.GetShape_s(lab).Location())), TopAbs_SOLID):
+            i = index.FindIndex(so)
+            if i:
+                out.append(nummer[i])
+        if not out:     # Lage anders zusammengesetzt: über die Teilform (TShape) suchen
+            for so in _liste(st.GetShape_s(lab), TopAbs_SOLID):
+                for j in range(1, index.Extent() + 1):
+                    if index.FindKey(j).TShape() == so.TShape() and nummer[j] not in bauteile:
+                        out.append(nummer[j])
+                        break
+        return out
+
+    def ablaufen(lab, loc, kid, pfad, erste):
+        """Baugruppe lab (Knoten kid) durchlaufen; erste = erste Instanz dieses Knotens (Teile zählen)."""
+        anzahl_bg, anzahl_teil, unter, eigene = {}, {}, {}, {}
+        for komp, ref in kinder(lab):
+            l2 = loc.Multiplied(st.GetLocation_s(komp))
+            e = eintrag(ref)
+            name = _name(ref) or (_name(komp) if not _name(komp).isdigit() else "")
+            if st.IsAssembly_s(ref):
+                anzahl_bg[e] = anzahl_bg.get(e, 0) + 1
+                if e not in unter:
+                    unter[e] = f"K{len(knoten) + 1}"
+                    knoten.append(dict(id=unter[e], name=name or f"Baugruppe {len(knoten) + 1}", eltern=kid, menge=0))
+                nr = anzahl_bg[e]
+                ablaufen(ref, l2, unter[e], pfad + [name + (f"[{nr}]" if nr > 1 else "")], erste and nr == 1)
+            else:
+                anzahl_teil[e] = anzahl_teil.get(e, 0) + 1
+                nr = anzahl_teil[e]
+                for i in koerper_von(ref, l2):
+                    bauteile[i] = (name, "/".join(pfad + [name + (f"[{nr}]" if nr > 1 else "")]), kid)
+                if erste and nr == 1:
+                    eigene[e] = [dict(teil_index=i, knoten=kid, anzahl=1) for i in koerper_von(ref, l2)]
+                    teile.extend(eigene[e])
+                elif erste:
+                    for t in eigene.get(e, ()):
+                        t["anzahl"] += 1
+        if erste:
+            for e, n in anzahl_bg.items():
+                next(k for k in knoten if k["id"] == unter[e])["menge"] = n
+
+    baugruppen = [w for w in wurzeln if st.IsAssembly_s(w)]
+    if not baugruppen:
+        for w in wurzeln:           # Einzelteile: nur Namen
+            name = _name(w)
+            for i in koerper_von(w, TopLoc_Location()):
+                bauteile[i] = (name, name, "")
+        return None, bauteile
+    if len(wurzeln) == 1:
+        knoten.append(dict(id="K1", name=_name(wurzeln[0]) or dateiname, eltern=None, menge=1))
+        ablaufen(wurzeln[0], TopLoc_Location(), "K1", [knoten[0]["name"]], True)
+    else:                           # mehrere freie Formen: gemeinsame Wurzel mit dem Dateinamen
+        knoten.append(dict(id="K1", name=dateiname, eltern=None, menge=1))
+        for w in wurzeln:
+            name = _name(w)
+            if st.IsAssembly_s(w):
+                kid = f"K{len(knoten) + 1}"
+                knoten.append(dict(id=kid, name=name or f"Baugruppe {len(knoten) + 1}", eltern="K1", menge=1))
+                ablaufen(w, TopLoc_Location(), kid, [dateiname, knoten[-1]["name"]], True)
+            else:
+                for i in koerper_von(w, TopLoc_Location()):
+                    bauteile[i] = (name, f"{dateiname}/{name}", "K1")
+                    teile.append(dict(teil_index=i, knoten="K1", anzahl=1))
+    return dict(knoten=knoten, teile=teile), bauteile
 
 
 def _naehen(flaechen, tol=0.01):
@@ -3287,6 +3443,8 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
                 t = Teil(datei=name, koerper=i)
                 t.hinweise.append(f"Messung fehlgeschlagen: {e or type(e).__name__}")
         t.einheit, t.meldungen = info["einheit"], info["meldungen"]
+        t.bauteil, t.pfad, t.knoten = info["bauteile"].get(i, ("", "", ""))
+        t.struktur = info["struktur"]
         if t.meldungen:
             t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
                               + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
@@ -3295,7 +3453,7 @@ def analysiere_datei(pfad, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None,
             _rohnetz(t, k)
         if t.alternative is not None:       # Importdaten gelten für beide Arten
             for n in ("einheit", "meldungen", "koerperart", "gueltig", "volumen", "oberflaeche", "n_flaechen",
-                      "n_kanten", "huelle"):
+                      "n_kanten", "huelle", "bauteil", "pfad", "knoten", "struktur"):
                 setattr(t.alternative, n, getattr(t, n))
         out.append(t)
     try:

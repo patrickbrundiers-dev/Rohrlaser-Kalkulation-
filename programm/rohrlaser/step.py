@@ -54,6 +54,20 @@ def lies_messwerte(pfad):
     return [dict(zip(kopf, z.split("\t") + [""] * (len(kopf) - len(z.split("\t"))))) for z in zeilen[1:] if z]
 
 
+def struktur_anhaengen(messwerte, json_pfad):
+    """Baugruppenstruktur je Datei aus dem JSON-Ergebnis der Messung (ab STEP-JSON 1.13) an die Messwerte hängen
+    (Schlüssel '_struktur', None = keine Baugruppe); Spalten bauteil/pfad/knoten stehen schon in den Messwerten."""
+    import json
+    try:
+        daten = json.loads(Path(json_pfad).read_text(encoding="utf-8"))
+        je_datei = {d.get("datei"): d.get("struktur") for d in daten.get("dateien", [])}
+    except (OSError, ValueError, AttributeError):
+        je_datei = {}
+    for m in messwerte:
+        m["_struktur"] = je_datei.get(m.get("datei"))
+    return messwerte
+
+
 def lade_netze(messwerte, ordner):
     """Dreiecksnetze der Messung (Spalte 'netz' = JSON-Datei im Ordner) als komprimierte Bytes an die Messwerte
     hängen (Schlüssel '_netz'); fehlt die Datei (ältere STEP-Import.exe), bleibt das Teil ohne 3D-Ansicht."""

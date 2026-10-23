@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.3", "<b>STEP-Baugruppen</b>: Die Messung liest jetzt die Baugruppenstruktur und die Bauteilnamen aus der "
+              "STEP-Datei (Unterbaugruppen mit Menge, je Körper Name und Pfad wie <i>Gestell/Rahmenseite[2]/Strebe"
+              "</i>). Sie stehen im Messergebnis (JSON) und sind die Grundlage für Benennung, Normteile und "
+              "Schweißbaugruppen. Die Messwerte der Teile bleiben unverändert ([[step]]).",
+     "STEP: Baugruppenstruktur und Bauteilnamen werden gelesen ([[step]])."],
     ["0.9.1", "<b>STEP-Import robuster</b>: Die Messung zeigt Datei, Körper und Restzeit. Ein Körper, der länger als "
               "das Zeitlimit braucht (Vorgabe 120 s) oder abstürzt, wird ausgelassen und als <i>nicht gemessen</i> "
               "gemeldet, der Rest der Datei wird gemessen. Schon gemessene Dateien kommen sofort aus dem "
