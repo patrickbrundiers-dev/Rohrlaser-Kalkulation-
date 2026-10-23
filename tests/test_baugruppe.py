@@ -711,7 +711,6 @@ for q in neu_pos:
 ok(f"B20 Vorlage 'Gestell' ({v['inhalt']}) gespeichert und eingesetzt, Baugruppe mit {n - 1} Teilen kopiert")
 
 # ------------------------------------------------------------------ B21 P2 Schweißplan, P3 Kalkulation-PDF und CSV
-import io as _io  # noqa: E402
 import zipfile as _zip  # noqa: E402
 from rohrlaser import export  # noqa: E402
 
