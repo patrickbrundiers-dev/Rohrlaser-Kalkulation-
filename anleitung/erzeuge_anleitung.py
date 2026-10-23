@@ -789,8 +789,8 @@ def kapitel_angebot(i):
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Die Trennlinien zwischen oben und unten und zur Übersicht "
-           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. CSV-Export und Ablage "
-           "öffnen liegen unter <b>Weitere Aktionen</b>.",
+           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ablage öffnen</b> "
+           "liegt unter <b>Weitere Aktionen</b>, der <b>CSV-Export</b> rechts bei der Ausgabe.",
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
            "Punkte, Zeiten 420; die letzte Spalte füllt den Rest). Langer Text bricht um, höchstens drei Zeilen, der "
            "Rest steht gekürzt mit „…“ und vollständig im Tooltip. Beim Tippen werden Spalten nur breiter. Eine von "
@@ -934,7 +934,7 @@ def kapitel_angebot(i):
     i.text("Es entsteht keine zusätzliche Position, und Zeiten, Material und Herstellkosten bleiben wie kalkuliert. "
            "Der Mindestpreis ist netto: nach eingerechnetem Skonto und vor der Umsatzsteuer.")
     i.liste("Beispiel: kalkuliert 148,00 € netto, Mindestpreis 200,00 € → jeder Stückpreis × 200 ÷ 148; "
-            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation, Kalkulations-PDF und CSV steht die "
+            "Angebotspreis netto 200,00 €. In Übersicht, Reiter Kalkulation und Kalkulations-PDF steht die "
             "Differenz als Kostenart <b>Anhebung auf Mindestpreis</b> (mit kalkuliertem Preis und Mindestpreis), "
             "je Position in der Spalte <i>Mindestpreis je Teil</i>.",
             "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
@@ -1498,6 +1498,35 @@ def kapitel_step(i):
     i.text("Wird das Feld <b>geleert</b> (auf 0), wird jeder Körper eine eigene Position ohne Satz, mit der Stückzahl aus "
            "der Rohrliste. Bei mehreren Dateien gilt das Feld je Datei. Staffelpreise und Angebot rechnen den Satz "
            "wie einen von Hand angelegten ([[staffeln]]).")
+    i.abschnitt("Bauteilnamen, Normteile und Importprofile", marke="importprofile")
+    i.text("Hat die Konstruktion Namen, wird der <b>Bauteilname</b> die Artikelnummer. <b>Normteile</b> (Schrauben, "
+           "Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest.", kurz=True)
+    i.genauer()
+    i.liste("Die Messung liest die Baugruppenstruktur und die Namen der Bauteile aus der STEP-Datei. Wie die "
+            "Artikelnummer entsteht, steht in der Einstellung <i>Artikelnummer aus (Bauteilname, Dateiname oder "
+            "beides)</i> (Vorgabe Bauteilname). Ohne Namen in der Datei bleibt es wie bisher beim Dateinamen mit "
+            "Körpernummer (<i>Gestell-K3</i>). Der Tooltip auf dem Artikel im Prüfdialog zeigt die Lage in der "
+            "Baugruppe, z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>.",
+            "Steht im Bauteilnamen ein Begriff aus der Einstellung <i>Normteile: Begriffe im Bauteilnamen (mit ; "
+            "getrennt)</i> als eigenes Wort (Vorgabe ISO, DIN, Schraube, Mutter, Scheibe, Stift, Niet, Normteil), "
+            "ist das Teil ein Normteil. Es ist im Prüfdialog abgewählt (Hinweis <i>Normteil … – zum Übernehmen "
+            "anhaken</i>) und steht im Bericht als nicht übernommen.",
+            "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
+            "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
+    i.tabelle(["Importprofile (STEP)", "Bedeutung"], [
+        ["<b>Kunde</b>", "Kundennummer; das Profil gilt in allen Angeboten dieses Kunden"],
+        ["Artikel aus", "Bauteilname, Dateiname oder Dateiname + Bauteilname (leer = Einstellung)"],
+        ["Artikelnummer im Namen (Muster)", "regulärer Ausdruck: sein erster Klammerausdruck (sonst der ganze "
+                                            "Treffer) wird die Artikelnummer, der ganze Name die Bezeichnung der "
+                                            "Position. Beispiel <i>^(\\d+)</i>: aus <i>4711 Strebe</i> wird Artikel "
+                                            "4711, Bezeichnung <i>4711 Strebe</i>"],
+        ["Normteile zusätzlich (Begriffe mit ; getrennt)", "weitere Wörter für Normteile dieses Kunden, z. B. "
+                                                            "Kaufteil; Zukauf"],
+        ["Werkstoff Rohre/Profile, Flache Teile als, Anbauteile nicht übernehmen",
+         "Vorbelegung im Prüfdialog statt der Einstellungen <i>Standard-Werkstoff</i>, <i>ebene flache Teile "
+         "vorgeben als</i> und des Häkchens für Anbauteile"],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
     i.abschnitt("Prüfstatus und Messergebnis als Datei")
     i.text("<i>plausibel</i> = Messung stimmig, <i>prüfen</i> = bitte ansehen, <i>nicht messbar</i> = kein Profil "
            "erkannt. Unsichere Teile sind nicht angehakt.")
@@ -1529,7 +1558,9 @@ def kapitel_step(i):
             "Profiltyp, Außen- und Innenmaße, Wandstärke mit allen Einzelmessungen, Länge, Längsachse, Konturen "
             "mit Lage, Schnittwinkel, Prüfstatus, Warnungen und die Erkennungssicherheit je Merkmal. Werte, die "
             "nicht gemessen werden konnten, stehen als <i>null</i> darin, nie als 0 oder Schätzwert. Das Format "
-            "trägt eine Versionsnummer (<i>schema_version</i>).",
+            "trägt eine Versionsnummer (<i>schema_version</i>). Bei Baugruppen steht dort ab Version 1.13 auch die "
+            "<b>Baugruppenstruktur</b> aus der STEP-Datei: Unterbaugruppen mit Menge, je Körper der Bauteilname "
+            "aus der Konstruktion und sein Pfad (z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>).",
             "<i>STEP-Import.exe</i> kann auch ohne das Programm messen: <i>STEP-Import.exe --ausgabe messwerte.txt "
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
@@ -1605,13 +1636,13 @@ def kapitel_optimieren(i):
     i.genauer()
     i.text("Der Reiter <i>Kalkulation</i> zeigt oben in einem Kasten die Summen des Angebots und darunter je Position "
            "Material, Laserzeit, Gewinde, Rüsten, Herstellkosten und Verkaufspreis je Teil und je Position. Beträge "
-           "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; Kalkulations-PDF und "
-           "CSV-Export rechnen weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
+           "stehen mit 2 Nachkommastellen da, der genaue Wert (3 Stellen) im Tooltip; das Kalkulations-PDF "
+           "rechnet weiter genau. Spalten, die in allen Positionen 0 oder leer sind (z. B. Gewindezeit, "
            "Zusatzarbeiten, Handling Kundenmaterial), sind ausgeblendet; die Zeile über der Tabelle nennt ihre "
            "Anzahl. Pos., Artikelnummer, Stückzahl, Material, Herstellkosten und Verkaufspreis bleiben immer.")
-    i.text("Reiter Kalkulation, Kalkulations-PDF und CSV-Export führen jede Kostenart des Angebots einzeln auf "
+    i.text("Reiter Kalkulation und Kalkulations-PDF führen jede Kostenart des Angebots einzeln auf "
            "(die Übersicht nach Gruppen, einzeln unter <i>Kostenarten einzeln</i>); im Reiter fehlen Kostenarten "
-           "mit 0,00 €, PDF und CSV enthalten alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
+           "mit 0,00 €, das PDF enthält alle: Material, Laser schneiden, Gewinde, Rüsten Maschine, Rüsten je "
            "Abmessung, Stangenwechsel, Weitere Arbeitsschritte, Zusatzarbeiten, Zuschlag Material, Zuschlag Fertigung, Zuschlag "
            "Fremdleistung ergeben die <b>Herstellkosten</b>; dazu Gewinn, Pauschale je Abmessung, "
            "Programmierkosten, Angebotsaufschlag, Fracht, Skonto und ggf. die Anhebung auf Mindestpreis "
@@ -1678,7 +1709,7 @@ def kapitel_optimieren(i):
             "Ältere Angebote ohne gespeicherte Stundensätze rechnen mit den aktuellen Einstellungen; der Reiter "
             "sagt das. Die erste Änderung oder <i>Stundensätze aus Einstellungen</i> speichert sie im Angebot.",
             "Die Übersicht rechts oben zeigt Maschinenzeit, Personalzeit, Rüstzeit, Durchlaufzeit und "
-            "Arbeitskosten; das Kalkulations-PDF und der CSV-Export enthalten die Tabelle der Arbeitsschritte mit "
+            "Arbeitskosten; das Kalkulations-PDF enthält die Tabelle der Arbeitsschritte mit "
             "Zeit oder Kosten.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
@@ -2645,7 +2676,9 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "<b>Werkstattpapiere (PDF)</b>: Materialliste und Schnittpläne zum Abhaken, Stangenbild."),
         (3, "<b>Kalkulation (PDF)</b>: alle Kosten und Zeiten für die interne Ablage."),
         (4, "<b>Materialanfrage (E-Mail)</b>: Stangenbedarf beim Lieferanten anfragen ([[materialanfrage]])."),
-        (5, "<b>Weitere Aktionen</b>: <b>CSV-Export</b> und <b>Ablage öffnen</b>.")])
+        (5, "<b>CSV-Export</b>: Angebotskopf und Angebotspositionen als CSV, einzeln oder zusammen als ZIP "
+            "([[csv_export]])."),
+        (6, "<b>Weitere Aktionen</b>: u. a. <b>Ablage öffnen</b>.")])
     i.text("Jede Datei wird im Ablageordner gespeichert und gleich geöffnet. Ist die Optimierung veraltet, fragt das "
            "Programm vorher.", kurz=True)
     i.genauer()
@@ -2668,9 +2701,8 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Querschnitt ([[material_fenster]]), Zeiten je Arbeitsschritt, alle Kalkulationswerte je Position für die "
            "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
            "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
-           "<b>CSV-Export</b> schreibt Angebotskopf, alle Kostenarten und die Kalkulation je Position als CSV-Datei "
-           "(Semikolon, Dezimalkomma), z. B. zum Weiterverarbeiten in einer Tabellenkalkulation; <b>Ablage "
-           "öffnen</b> zeigt den Ablageordner im Explorer.")
+           "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
+           "([[csv_export]]); <b>Ablage öffnen</b> (unter Weitere Aktionen) zeigt den Ablageordner im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
            "Reihenfolge: Profil, Länge, Werkstoff (<i>inkl. Material</i> mit dem Text im Angebot des Werkstoffs), "
            "Oberfläche, dann je Zusatzarbeit, Gewinde oder Gravur eine Zeile <i>inkl. …</i> und je Zukaufteil mit "
@@ -2679,6 +2711,56 @@ def kapitel_ausgabe(i, seiten, ablage):
            "inkl. Senken</i><br/>"
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile.")
     i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
+    i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
+    i.text("<b>CSV-Export</b> → <b>Kopf + Positionen (ZIP)</b> speichert <i>Angebot_&lt;Nr&gt;.zip</i> mit "
+           "<i>Angebotskopf.csv</i> (eine Zeile) und <i>Angebotspositionen.csv</i> (eine Zeile je Position) in der "
+           "Ablage; <b>Nur Angebotskopf</b> bzw. <b>Nur Angebotspositionen</b> speichern eine Datei.", kurz=True)
+    i.genauer()
+    i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
+           "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
+           "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
+           "keine zusätzlichen Spalten. Der Export ändert nichts am Angebot; die Werte stammen aus derselben "
+           "Rechnung wie Übersicht und Kalkulation, Stückpreis und Preis genau wie im Angebots-PDF. Staffelmengen "
+           "sind nicht enthalten, nur die Menge der Position. Werte, die es im Programm nicht gibt, bleiben leer.")
+    i.tabelle(["Angebotskopf.csv", "Inhalt"], [
+        ["Erstellungsdatum / Datum Kunde:", "Anlagedatum des Angebots / Angebotsdatum"],
+        ["Kunden Nr., Kunde:, Nachname", "Kundennummer, Kundenname, Ansprechpartner des Kunden"],
+        ["Versandzone:", "Zone der Frachtberechnung, sonst Lieferbedingung des Kunden"],
+        ["Kundenanfrage:, Kommentar", "Ihre Anfrage / Zeichen, Bemerkung"],
+        ["Versandkosten, Feste Versandkosten, Versand inkl.", "Fracht in €; True bei Frachtart manuell; True bei "
+         "<i>im Artikelpreis enthalten</i>"],
+        ["Lieferzeit", "z. B. <i>ca. 2 Wochen nach Auftragseingang</i> ([[lieferzeit]])"],
+        ["%Kunde Mat, %Kunde Arb., %Fremdarb., %Aufschlag", "Zuschlag Material, Fertigung, Fremdleistung und Gewinn "
+         "in % (2 = 2 %)"],
+        ["Bearbeitungszeit, Gesamtzeit", "Summe der Spalten der Positionen"],
+        ["Restblech min.€", "Mindestauftragswert, wenn er für das Angebot gilt ([[mindestpreis]])"],
+        ["Preis", "Angebotssumme netto wie im Angebots-PDF"],
+        ["Aufrunden, Angebot erstellt von", "+0.01 (Rundung auf den Cent); Name bzw. Kürzel des Bearbeiters"],
+        ["Kundenkurzbez., Position, Anrede, Rabatt(Euros)", "leer (gibt es im Programm nicht)"]],
+        [150, 115])
+    i.tabelle(["Angebotspositionen.csv", "Inhalt"], [
+        ["Angebot, Art, ArtikelNr., Pos.", "Angebotsnummer, laufende Nummer 1, 2 …, Artikelnummer, Pos. der Position"],
+        ["Bestellt, Preis geändert, zum Schneiden", "0 bzw. 1; Preis geändert = 1 bei Meterpreis oder Schneidzeit von "
+         "Hand"],
+        ["Format, Anz. Baugruppe, Menge", "Stangenlänge [mm], Stück je Satz (sonst 1), Stückzahl"],
+        ["Stückpr., Preis", "Preis je Teil und Positionspreis wie im Angebots-PDF"],
+        ["Werkstoff, Werkstofftyp, Dicke", "Kategorie (Stahl …), Text im Angebot des Werkstoffs, Wandstärke [mm]"],
+        ["Fläche, Gew., Umfang, L.", "Mantelfläche außen [m²], Gewicht je Teil [kg], Schneidweg je Teil [mm], "
+         "Teilelänge [mm]"],
+        ["Maschine, Schneiden, Date", "Maschine des Angebots, Schneidgas, Angebotsdatum"],
+        ["Artikeltext", "Angebotstext der Position in einer Zeile"],
+        ["Bearbeitungszeit, Gesamtzeit", "Laserzeit je Teil; Laserzeit × Menge + Anteil Rüsten, Stangenwechsel, "
+         "Rüsten je Abmessung + Programmierzeit"],
+        ["Gesamt HK(€), HK(), Marge Netto(), Marge Netto%", "Herstellkosten der Position und je Teil; Preis − "
+         "Herstellkosten, in % der Herstellkosten"],
+        ["Kommentar", "Hinweis der Kalkulation"],
+        ["Einsatzgewicht, Gesamt Einkauf(Kg), Verschnitt", "Stangengewicht anteilig je Teil bzw. × Menge; "
+         "(Einsatz − Gewicht) ÷ Einsatz in %"],
+        ["Gesamt Einkauf(), Preis/Kg", "Material + Einkauf Zukaufteile der Position; Material € je kg Einsatz"],
+        ["Liste der Arbeitsgänge", "<i>Profile [Rechteckrohr 120x60x3], Gewinde [4xM6], Zusatzarbeit […]</i>, "
+         "durch Komma getrennt"],
+        ["Pos.Nr., Anzahl Tafeln, Arb., B.", "leer (Blech-Angaben, gibt es beim Rohr nicht)"]],
+        [150, 115])
     i.abschnitt("Preise festschreiben", marke="preise_festschreiben")
     i.text("Mit dem Angebots-PDF schreibt das Programm die Preise fest: spätere Änderungen der Stammdaten (z. B. "
            "Stahlpreis) ändern das verschickte Angebot nicht. <b>Aktuelle Preise übernehmen …</b> holt sie bei Bedarf.")
@@ -2922,6 +3004,10 @@ def kapitel_einstellungen(i):
         ["STEP-Import", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["STEP-Import", "Artikelnummer aus (Bauteilname, Dateiname oder beides), Normteile: Begriffe im "
+                        "Bauteilnamen (mit ; getrennt)",
+         "Wie aus den Namen in der STEP-Datei Artikelnummern werden und welche Teile als Normteil abgewählt sind; "
+         "je Kunde änderbar im Importprofil ([[importprofile]])."],
         ["STEP-Import", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)",
          "So viele Dateien misst <i>STEP-Import.exe</i> gleichzeitig (Vorgabe 0 = Prozessorkerne − 1). Weniger "
          "Prozesse entlasten einen langsamen Arbeitsplatz. Gilt nur für diesen Arbeitsplatz."],

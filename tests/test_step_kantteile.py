@@ -209,7 +209,7 @@ assert [x.profilform for x in teile] == ["Quadratrohr", "Quadratrohr"] and not a
     [(x.profilform, x.verbund) for x in teile]
 ok("V1 gekreuzte Streben gleicher Hülle: beide Quadratrohr, kein Verbundkern")
 j = step_ergebnis.koerper(messen("K1_Winkel")[0])
-assert step_ergebnis.SCHEMA_VERSION == "1.12" and j["blech"]["abwicklung"]["schenkel"][0]["laenge"] == 100
+assert step_ergebnis.SCHEMA_VERSION >= "1.12" and j["blech"]["abwicklung"]["schenkel"][0]["laenge"] == 100
 j = step_ergebnis.koerper(messen("S1_Ecke")[0])
 assert j["konturen"][0]["umriss"] and j["konturen"][0]["waende"]
 json.dumps(j)

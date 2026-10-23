@@ -29,7 +29,8 @@ KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", 
                   "profil_id_vorschlag", "blech", "normprofil", "kammern", "kontur_umfang", "verbund", "traeger",
                   "aussenmasse", "innenmasse", "querschnittsflaeche_mm2", "wandstaerke", "laenge", "laengsachse",
                   "schnittwinkel", "schneidweg", "konturen", "enden", "senkungen", "fliessloecher", "pruefstatus", "warnungen",
-                  "erkennungssicherheit", "ersatzwerte", "alternative", "anbauteile", "trennung"}
+                  "erkennungssicherheit", "ersatzwerte", "alternative", "anbauteile", "trennung", "bauteil", "pfad",
+                  "knoten"}
 fehler = 0
 
 

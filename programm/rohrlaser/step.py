@@ -54,6 +54,20 @@ def lies_messwerte(pfad):
     return [dict(zip(kopf, z.split("\t") + [""] * (len(kopf) - len(z.split("\t"))))) for z in zeilen[1:] if z]
 
 
+def struktur_anhaengen(messwerte, json_pfad):
+    """Baugruppenstruktur je Datei aus dem JSON-Ergebnis der Messung (ab STEP-JSON 1.13) an die Messwerte hängen
+    (Schlüssel '_struktur', None = keine Baugruppe); Spalten bauteil/pfad/knoten stehen schon in den Messwerten."""
+    import json
+    try:
+        daten = json.loads(Path(json_pfad).read_text(encoding="utf-8"))
+        je_datei = {d.get("datei"): d.get("struktur") for d in daten.get("dateien", [])}
+    except (OSError, ValueError, AttributeError):
+        je_datei = {}
+    for m in messwerte:
+        m["_struktur"] = je_datei.get(m.get("datei"))
+    return messwerte
+
+
 def lade_netze(messwerte, ordner):
     """Dreiecksnetze der Messung (Spalte 'netz' = JSON-Datei im Ordner) als komprimierte Bytes an die Messwerte
     hängen (Schlüssel '_netz'); fehlt die Datei (ältere STEP-Import.exe), bleibt das Teil ohne 3D-Ansicht."""
@@ -793,8 +807,9 @@ def unsicher(m):
 
 def gewaehlt(m):
     """False, wenn das Teil im Prüfdialog abgewählt wurde (Schlüssel '_uebernehmen'). Ohne Entscheidung im Dialog
-    werden Teile mit unsicherer Erkennung nicht übernommen (erst nach Bestätigung durch Anhaken)."""
-    return m.get("_uebernehmen", not unsicher(m)) is not False
+    werden Teile mit unsicherer Erkennung und Normteile (_normteil, importprofil.py) nicht übernommen (erst nach
+    Bestätigung durch Anhaken)."""
+    return m.get("_uebernehmen", not unsicher(m) and not m.get("_normteil")) is not False
 
 
 TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wenn alle Maße so nah beieinander liegen
@@ -1051,6 +1066,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         if erster is not None and erster != i:
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
+        elif m.get("_normteil") and m.get("_uebernehmen") is not True:
+            hinweise.append(f"nicht übernommen: Normteil ({m.get('bauteil')}, Begriff {m['_normteil']})")
         elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):
             hinweise.append(f"nicht übernommen: {blech_text(m)} ist kein Rohrlaserteil")
         elif i in anbauteil_von and m.get("_anbau_weglassen", anbau_weglassen) and m.get("_uebernehmen") is not True:
@@ -1107,7 +1124,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             stk = m.get("_stueck", stueck)
             form = (profile.get(pid) or {}).get("form") or m.get("profilform")
             enden_n = sum(1 for n in ("ende_a", "ende_b") if _z(m, n) > 0)
-            p = dict(pos=naechste, artikel=art, profil_id=pid, werkstoff_id=wst or None,
+            p = dict(pos=naechste, artikel=art, profil_id=pid, werkstoff_id=wst or None, **(
+                         dict(bezeichnung=m["_bezeichnung"]) if m.get("_bezeichnung") else {}),
                      laenge=round(_z(m, "laenge"), 1), stueck=stk or None,
                      schneidweg=round(_z(m, "schneidweg"), 1),
                      einstiche=int(_z(m, "konturen")) + (rechnen.einstiche_ende(form) - 1) * enden_n,

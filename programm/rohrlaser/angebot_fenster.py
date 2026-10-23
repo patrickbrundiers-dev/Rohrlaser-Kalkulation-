@@ -1289,6 +1289,15 @@ class AngebotSeite(QWidget):
                 b.setObjectName("primaer")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
+        # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
+        self.csv_knopf = QPushButton("CSV-Export")
+        self.csv_knopf.setToolTip("Angebotskopf.csv und Angebotspositionen.csv (Semikolon, für Excel) in die Ablage")
+        menue = QMenu(self.csv_knopf)
+        for text, ziel in (("Kopf + Positionen (ZIP)", self.csv_export), ("Nur Angebotskopf", self.csv_kopf),
+                           ("Nur Angebotspositionen", self.csv_positionen)):
+            menue.addAction(text, lambda ziel=ziel: ziel())
+        self.csv_knopf.setMenu(menue)
+        leiste.addWidget(self.csv_knopf)
         # Material je Abmessung (Patrick 22.10.2026) neben der Materialanfrage; links ist die Leiste schon voll
         self.material_knopf = QPushButton("Material …")
         self.material_knopf.setToolTip("Materialeinsatz je Abmessung; Werkstoff, Oberfläche, Lieferlänge, Material und "
@@ -1305,7 +1314,7 @@ class AngebotSeite(QWidget):
         menue = QMenu(self.weitere)
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
-                           ("CSV-Export", self.csv_export), ("Ablage öffnen", self.f.ablage_oeffnen)):
+                           ("Ablage öffnen", self.f.ablage_oeffnen)):
             menue.addAction(text, lambda ziel=ziel: ziel())
         self.weitere.setMenu(menue)
         leiste.addWidget(self.weitere)
@@ -2848,12 +2857,60 @@ class AngebotSeite(QWidget):
                                lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell,
                                                              material, muster, self.k.profile))
 
-    def csv_export(self):
+    def csv_export(self, art="zip"):
+        """CSV-Export in die Ablage: art 'zip' (Angebot_<Nr>.zip mit beiden Dateien), 'kopf' oder 'positionen'
+        ('<Nr> Angebotskopf.csv' …). Liest nur, speichert nichts im Angebot. Ergebnis: Pfad oder None."""
+        def fehler(text):
+            QApplication.restoreOverrideCursor()
+            if self.f.stumm:
+                self.f.meldung("CSV-Export: " + text.replace("\n", " "), fehler=True)
+            else:
+                QMessageBox.warning(self, "CSV-Export", text)
+            return None
+
         if not self._vor_ausgabe():
             return None
-        zeilen, summen = self._rechnung()
-        return self._schreiben("CSV-Export", self._ziel("Kalkulation", ".csv", mit_kunde=True),
-                               lambda p: export.angebot_csv(p, self.kopf, zeilen, summen, self.einst))
+        if not any(position_aktiv(p) for p in self.positionen):
+            return fehler("Das Angebot hat keine Positionen.")
+        try:
+            ablage = self.f.ablage()
+        except OSError as e:
+            return fehler(f"Der Ablageordner lässt sich nicht anlegen:\n{e}")
+        if art == "zip":
+            pfad = ablage / export.zip_name(self.kopf)
+        else:
+            pfad = ablage / (ausgabe.dateiname(self.kopf, "Angebotskopf" if art == "kopf" else "Angebotspositionen")
+                             + ".csv")
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            zeilen, summen = self._rechnung()
+            bearbeiter = self.kopf.get("bearbeiter")
+            kopfzeile, pos_zeilen = export.daten(
+                self.kopf, self.positionen, self.ergebnis, zeilen, summen, self.k, self.tabellen, self.einst,
+                kunde=self.db.kunde(self.kopf.get("kundennr")),
+                ersteller=teilen.mitarbeiter(self.db, bearbeiter).get("name") if bearbeiter else None)
+            if art == "zip":
+                export.zip_schreiben(pfad, kopfzeile, pos_zeilen)
+            elif art == "kopf":
+                export.kopf_csv(pfad, kopfzeile)
+            else:
+                export.positionen_csv(pfad, pos_zeilen)
+        except PermissionError:
+            return fehler(f"Die Datei konnte nicht gespeichert werden:\n{pfad}\n\n"
+                          "Ist sie noch in einem anderen Programm geöffnet?")
+        except (OSError, ValueError) as e:
+            return fehler(f"Der Export ist nicht gelungen:\n{pfad}\n\n{e}")
+        QApplication.restoreOverrideCursor()
+        self.f.meldung(f"CSV-Export gespeichert: {pfad} ({len(pos_zeilen)} Positionen)")
+        if not self.f.stumm:
+            QMessageBox.information(self, "CSV-Export", f"Gespeichert ({len(pos_zeilen)} Positionen):\n{pfad}")
+        return pfad
+
+    def csv_kopf(self):
+        return self.csv_export("kopf")
+
+    def csv_positionen(self):
+        return self.csv_export("positionen")
 
     # -------------------------------------------------------------- Material je Abmessung
     def material_einstellen(self, dialog=None):
@@ -2943,11 +3000,19 @@ class AngebotSeite(QWidget):
             ereignis.acceptProposedAction()
             self.step_importieren([str(d) for d in dateien])
 
+    def importprofil(self):
+        """Importprofil (STEP) des Kunden dieses Angebots oder None."""
+        from . import importprofil
+        return importprofil.fuer_kunde(self.db, (self.kopf or {}).get("kundennr"))
+
     def flach_bis(self):
         """Grenze Flachstahl/Blech für die Messung: 0 = ebene flache Teile immer als Blech (Einstellung flach_als,
-        Vorgabe), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
+        Vorgabe, oder Importprofil des Kunden), Flachstahl bleibt im Prüfdialog als andere Art wählbar."""
         from .stammdaten import FLACH_ALS
-        if (self.db.einstellung("flach_als") or FLACH_ALS[0]) == FLACH_ALS[0]:
+        from . import importprofil
+        profil = importprofil.fuer_kunde(self.db, (getattr(self, "kopf", None) or {}).get("kundennr"))
+        flach_als = (profil or {}).get("flach_als") or self.db.einstellung("flach_als") or FLACH_ALS[0]
+        if flach_als == FLACH_ALS[0]:
             return 0
         return self.db.einstellung("flachstahl_bis") or 150
 
@@ -2978,20 +3043,29 @@ class AngebotSeite(QWidget):
             if not ausgabe.exists():
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
-            messwerte = step.lade_netze(step.lies_messwerte(ausgabe), netze)
+            messwerte = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(ausgabe), netze), ergebnis)
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage else None
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None):
         """STEP-Dateien messen und übernehmen. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja)."""
-        if werkstoff is None:       # Vorgabe für Rohre und Profile (Einstellung), Bleche bleiben offen
-            werkstoff = self.db.einstellung("step_werkstoff") or None
+        from . import importprofil
+        profil = self.importprofil()
+        vorgaben = importprofil.vorgaben(profil)
+        if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
+            werkstoff = vorgaben.get("werkstoff") or self.db.einstellung("step_werkstoff") or None
             werkstoff = werkstoff if werkstoff in self.k.werkstoffe else None
         gemessen = self.step_messen(dateien, mit_ablage=True)
         if gemessen is None:
             return None
         messwerte, json_ablage = gemessen
+        # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
+        importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
+                                                                                     "step_normteile")})
+        if "anbau_weglassen" in vorgaben:
+            for m in messwerte:
+                m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
         zukauf_liste = self.db.zukauf_artikel_liste()     # Bleche werden Zukaufteile (Dubletten aus dieser Liste)
         # Bleche: Blech-Werkstoffe und Richtpreis wie im Blech-Editor (nie die Rohrlaser-Daten)
         blech_daten = dict(werkstoffe={z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")

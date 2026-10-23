@@ -182,6 +182,7 @@ assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Pro
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren",
+                                                                 "Importprofile (STEP)",
                                                                  "Stundensätze und Zeitvorgaben"]
 assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
 fenster.zeigen(seite)
@@ -346,18 +347,20 @@ assert abs(ang["netto"] - 992.2) < 1e-9 and ang["mwst"] == 188.52, ang   # Refer
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
-                     (s4.kalkulation_pdf, "Kalkulation.pdf"), (s4.csv_export, "Kalkulation.csv")):
+                     (s4.kalkulation_pdf, "Kalkulation.pdf")):
     datei = aufruf()
     assert datei and datei.parent == tmp / "Ablage" and datei.name.endswith(name) and datei.stat().st_size > 1000, datei
-    if name.endswith(".pdf"):
-        assert datei.read_bytes()[:5] == b"%PDF-"
+    assert datei.read_bytes()[:5] == b"%PDF-"
 import csv  # noqa: E402
-with open(datei, encoding="utf-8-sig", newline="") as f_:
-    csv_zeilen = list(csv.reader(f_, delimiter=";"))
-assert csv_zeilen[1] == ["Angebotsnummer", db.angebot(a4)["nummer"]], csv_zeilen[:3]
-assert any(z[:1] == ["Verkaufspreis"] for z in csv_zeilen), csv_zeilen
-kopfzeile = next(i for i, z in enumerate(csv_zeilen) if z[:2] == ["Pos.", "Artikelnummer"])
-assert len(csv_zeilen) - kopfzeile - 1 == 5 and csv_zeilen[kopfzeile + 1][:3] == ["10", "4711-001", "24"]
+import io  # noqa: E402
+import zipfile  # noqa: E402
+datei = s4.csv_export()         # Angebot_<Nr>.zip mit Angebotskopf.csv und Angebotspositionen.csv (test_csv_export.py)
+assert datei and datei.parent == tmp / "Ablage" and datei.suffix == ".zip", datei
+with zipfile.ZipFile(datei) as z_:
+    csv_zeilen = list(csv.reader(io.StringIO(z_.read("Angebotspositionen.csv").decode("utf-8-sig"), newline=""),
+                                 delimiter=";"))
+assert csv_zeilen[0][:3] == ["Angebot", "Art", "ArtikelNr."], csv_zeilen[:2]
+assert len(csv_zeilen) == 6 and csv_zeilen[1][:5] == [db.angebot(a4)["nummer"], "1", "4711-001", "10", ""], csv_zeilen[1]
 assert ausgabe.nummern_text([1, 2, 3, 7, 9, 10]) == "1–3, 7, 9–10"
 assert ausgabe.dateiname(dict(nummer="A/1", kunde="X: Y"), "Angebot", True) == "A_1 X_ Y Angebot"
 assert ausgabe.zahl_kurz(2.0) == "2" and ausgabe.zahl_kurz(42.4) == "42,4" and ausgabe.kaufm_runden(2.675) == 2.68

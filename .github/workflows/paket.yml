@@ -51,6 +51,7 @@ jobs:
           /usr/bin/python3 tests/test_step_fase.py
           /usr/bin/python3 tests/test_step_kantteile.py
           QT_QPA_PLATFORM=offscreen /usr/bin/python3 tests/test_step_messung_robust.py
+          /usr/bin/python3 tests/test_step_struktur.py
           /usr/bin/python3 tests/test_optimierung.py
           /usr/bin/python3 tests/test_lieferlaengen.py
       - name: STEP-Referenztests mit Testbericht
@@ -67,6 +68,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           /usr/bin/python3 tests/test_programm.py
+          /usr/bin/python3 tests/test_csv_export.py
           /usr/bin/python3 tests/test_konturklassen.py
           /usr/bin/python3 tests/test_zusatzarbeiten.py
           /usr/bin/python3 tests/test_zusatz_verwaltung.py
@@ -81,6 +83,7 @@ jobs:
           /usr/bin/python3 tests/test_blech_position.py
           /usr/bin/python3 tests/test_step_satz.py
           /usr/bin/python3 tests/test_step_ablage.py
+          /usr/bin/python3 tests/test_importprofil.py
           /usr/bin/python3 tests/test_bohrbild.py
           /usr/bin/python3 tests/test_rp_profile.py
           /usr/bin/python3 tests/test_step_rp.py
