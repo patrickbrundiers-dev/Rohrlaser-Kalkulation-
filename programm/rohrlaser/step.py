@@ -1232,15 +1232,28 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
     nächste freie Pos."""
     from . import baugruppe
     from .angebot import BAUGRUPPE
+
+    def wert(datei, n):
+        return next((m.get(n) for m in messwerte if m.get("datei") == datei and m.get(n)), None)
+    bg_dateien = {d for d in satz_teile if wert(d, "_baugruppe")}
+    # P8: Dateien „in Baugruppe …“ werden Unterbaugruppen einer anderen Schweißbaugruppe dieses Imports
+    ziel_von = {d: wert(d, "_in_baugruppe") for d in bg_dateien if wert(d, "_in_baugruppe") in bg_dateien}
+    ziel_von = {d: z for d, z in ziel_von.items() if z not in ziel_von and z != d}       # nur eine Ebene
     for datei, liste in satz_teile.items():
-        eigene = [m for m in messwerte if m.get("datei") == datei]
-        if not any(m.get("_baugruppe") for m in eigene):
+        if datei not in bg_dateien or datei in ziel_von:
             continue
         name = satzname(datei)
-        struktur = next((m.get("_struktur") for m in eigene if m.get("_struktur")), None)
-        kandidaten = next((m.get("_nahtkandidaten") for m in eigene if m.get("_nahtkandidaten")), ())
+        struktur = wert(datei, "_struktur")
+        kandidaten = wert(datei, "_nahtkandidaten") or ()
+        unter = [dict(name=satzname(d), menge=wert(d, "_saetze") or 1, struktur=wert(d, "_struktur"),
+                      teile=satz_teile[d], kandidaten=wert(d, "_nahtkandidaten") or ())
+                 for d in satz_teile if ziel_von.get(d) == datei]
+        if unter:
+            struktur, liste, kandidaten = baugruppe.unter_einhaengen(struktur, liste, kandidaten, unter)
+            bericht.append(f"Schweißbaugruppe {name}: " + ", ".join(f"{u['name']} ({u['menge']} Stück)" for u in unter)
+                           + " als Unterbaugruppe eingehängt")
         bg, hinweise = baugruppe.aus_step(name, struktur, liste, kandidaten)
-        anzahl = next((m.get("_saetze") for m in eigene if m.get("_saetze")), None) or stueck or 1
+        anzahl = wert(datei, "_saetze") or stueck or 1
         neu.append(dict(pos=naechste, art=BAUGRUPPE, bezeichnung=name, stueck=anzahl, satz=name, je_satz=1,
                         baugruppe=baugruppe.speichern(bg)))
         bericht.append(f"Schweißbaugruppe {name}: Pos. {naechste}, {len(liste)} Einzelteil-Positionen, "

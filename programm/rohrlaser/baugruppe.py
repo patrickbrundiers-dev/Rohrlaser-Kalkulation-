@@ -356,6 +356,45 @@ def aus_step(name_bg, struktur, teile_gruppen, nahtkandidaten=()):
     return bg, hinweise
 
 
+def unter_einhaengen(struktur, teile_gruppen, kandidaten, unter):
+    """Mehrere STEP-Dateien als eine Baugruppe (P8): jede Datei aus unter = [dict(name, menge, struktur, teile,
+    kandidaten)] wird eine Unterbaugruppe (Name der Datei, menge Stück je Baugruppe) mit ihrer eigenen Struktur
+    darunter. Kennungen bekommen das Präfix U1_, U2_ …; Körper ohne Unterbaugruppe kommen in die Unterbaugruppe der
+    Datei. Stück je Satz der Teile wird mit menge multipliziert (ändert die Positionen). Ergebnis: (struktur,
+    teile_gruppen, kandidaten) für aus_step."""
+    knoten = [dict(k) for k in (struktur or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
+    wurzeln = [k["id"] for k in knoten if not k.get("eltern")]
+    wurzel = wurzeln[0] if len(wurzeln) == 1 else None
+    if wurzel is None:          # ohne eine Wurzel: künstliche, damit die Dateien Unterbaugruppen werden
+        wurzel = "W0"
+        for k in knoten:
+            if not k.get("eltern"):
+                k["eltern"] = wurzel
+        knoten.append(dict(id=wurzel, name="", menge=1, eltern=None))
+    teile_gruppen, kandidaten = list(teile_gruppen), list(kandidaten or ())
+    for n, u in enumerate(unter, 1):
+        menge = int(u.get("menge")) if _zahl(u.get("menge")) and u["menge"] >= 1 else 1
+        kid = f"U{n}"
+        knoten.append(dict(id=kid, name=str(u.get("name") or kid), menge=menge, eltern=wurzel))
+        uk = [k for k in (u.get("struktur") or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
+        uw = [k["id"] for k in uk if not k.get("eltern")]
+        u_wurzel = uw[0] if len(uw) == 1 else None
+        ids = {k["id"] for k in uk}
+
+        def neu(x, ids=ids, u_wurzel=u_wurzel, kid=kid):
+            return kid if not x or x == u_wurzel or x not in ids else f"{kid}_{x}"
+        for k in uk:
+            if k["id"] != u_wurzel:
+                knoten.append(dict(k, id=neu(k["id"]), eltern=neu(k.get("eltern"))))
+        for p, kn in u.get("teile") or ():
+            if _zahl(p.get("je_satz")):
+                p["je_satz"] = p["je_satz"] * menge
+            teile_gruppen.append((p, [neu(x) for x in kn] * menge))
+        kandidaten += [dict(k, knoten=neu(k.get("knoten"))) for k in u.get("kandidaten") or ()
+                       if isinstance(k, dict)] * menge
+    return dict(knoten=knoten), teile_gruppen, kandidaten
+
+
 def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
     """Nahtkandidaten der STEP-Messung als Vorschläge für Nahtgruppen: gleiche Stoßart, Länge (auf mm) und Dicke in
     derselben Unterbaugruppe werden ein Vorschlag mit Anzahl je Stück der Unterbaugruppe (Kandidaten ÷ Menge; geht

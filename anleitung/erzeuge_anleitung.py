@@ -1511,6 +1511,11 @@ def kapitel_step(i):
            "Stück je Unterbaugruppe. Liegen gleiche Teile in mehreren Unterbaugruppen, hängen sie direkt an der "
            "Baugruppe (Hinweis im Bericht, Stückzahl stimmt). Nahtgruppen und Arbeitsgänge legt der Import nicht an: "
            "die STEP-Datei kennt keine Nähte, also im Editor ergänzen.")
+    i.text("Liefert der Kunde Unterbaugruppen als eigene Dateien, alle zusammen einlesen und bei der Unterbaugruppe "
+           "rechts neben dem Häkchen statt <i>eigene Baugruppe</i> den Eintrag <b>in Baugruppe „…“</b> wählen. Die "
+           "Datei wird dann eine Unterbaugruppe der anderen Schweißbaugruppe (mit ihrer eigenen Struktur darunter); "
+           "<i>Sätze</i> gilt bei ihr als Stück je übergeordneter Baugruppe. Die andere Datei wird dabei selbst "
+           "Schweißbaugruppe. Es entsteht nur eine Baugruppen-Position; der Bericht nennt die eingehängten Dateien.")
     i.abschnitt("Bauteilnamen, Normteile und Importprofile", marke="importprofile")
     i.text("Hat die Konstruktion Namen, wird der <b>Bauteilname</b> die Artikelnummer. <b>Normteile</b> (Schrauben, "
            "Muttern …) sind abgewählt. Ein <b>Importprofil</b> legt das je Kunde fest.", kurz=True)
