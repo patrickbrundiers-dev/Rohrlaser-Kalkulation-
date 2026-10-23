@@ -73,11 +73,15 @@ Versionen von SCHEMA_VERSION:
   Instanzen einer Unterbaugruppe stehen nicht noch einmal in "teile". Je Körper "bauteil" (Produktname, null =
   keiner), "pfad" ("Gestell/Rahmenseite[2]/Strebe", Instanznummer ab 2) und "knoten" (id oder null). Felder aus
   1.12 unverändert.
+- 1.14 (23.10.2026): Je Datei "nahtkandidaten" = Liste möglicher Schweißnähte zwischen sich berührenden Körpern
+  {teile [a, b] (Körper "nr"), knoten (gemeinsamer Knoten der Struktur oder null), laenge_mm (Umfang der
+  Berührung), stossart (Kehlnaht/Stumpfnaht/Ecknaht), dicke_mm (dünnere Wand bzw. Blechdicke), status "prüfen"};
+  nur ein Vorschlag, erst nach Bestätigung übernehmen. Leer bei Einzelteilen. Felder aus 1.13 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.13"
+SCHEMA_VERSION = "1.14"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -187,7 +191,7 @@ def datei(name, teile=None, fehler=None):
     """Ergebnis einer STEP-Datei. teile: Liste step_geometrie.Teil; fehler: Text, wenn die Datei nicht lesbar war."""
     if fehler is not None or not teile:
         return {"datei": name, "importstatus": "nicht lesbar", "fehler": fehler, "einheit_datei": None,
-                "einheit_ausgabe": "mm", "meldungen": [], "warnungen": [], "baugruppe": None, "struktur": None,
+                "einheit_ausgabe": "mm", "meldungen": [], "warnungen": [], "baugruppe": None, "struktur": None, "nahtkandidaten": [],
                 "anzahl_koerper": 0, "koerper": []}
     meldungen = teile[0].meldungen
     leer = [h for t in teile if not t.koerper for h in t.hinweise]     # z. B. "Kein Körper … in der Datei"
@@ -201,6 +205,7 @@ def datei(name, teile=None, fehler=None):
         "warnungen": leer,
         "baugruppe": len(teile) > 1,
         "struktur": teile[0].struktur,
+        "nahtkandidaten": list(teile[0].naehte or []),
         "anzahl_koerper": len([t for t in teile if t.koerper]),
         "koerper": [koerper(t) for t in teile if t.koerper],
     }

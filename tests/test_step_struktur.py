@@ -78,3 +78,27 @@ assert step.struktur_anhaengen([dict(datei="x")], tmp / "fehlt.json")[0]["_struk
 # Messwerte der Rohre unverändert gegenüber der Messung ohne Namen (Profil, Länge)
 assert {x["profilform"] for x in m} >= {"Rechteckrohr", "Quadratrohr", "Rundrohr"}
 print("OK: Messwerte mit Bauteil, Pfad und Knoten; Struktur je Datei an den Messwerten")
+
+# S4: Nahtkandidaten (STEP-JSON 1.14) – geschweißter Rahmen
+aus2, js2 = tmp / "n.txt", tmp / "n.json"
+r = subprocess.run([sys.executable, str(MESSEN), "--ausgabe", str(aus2), "--json", str(js2),
+                    str(ORDNER / "S03_Rahmen_geschweisst.step"), str(ORDNER / "S02_Einzelteil_benannt.step")],
+                   capture_output=True, text=True, timeout=600)
+assert r.returncode == 0, r.stderr
+d = {x["datei"]: x for x in json.loads(js2.read_text(encoding="utf-8"))["dateien"]}
+rahmen = d["S03_Rahmen_geschweisst.step"]
+name = {k["nr"]: k["bauteil"] for k in rahmen["koerper"]}
+assert name[1].startswith("Längsrohr") and name[5].startswith("Fußplatte"), name     # Umlaute aus der Datei
+naehte = {(name[n["teile"][0]].split()[0], name[n["teile"][1]].split()[0], n["stossart"]): n
+          for n in rahmen["nahtkandidaten"]}
+assert sorted((a, b, s) for a, b, s in naehte) == [
+    ("Längsrohr", "Fußplatte", "Kehlnaht"), ("Längsrohr", "Querrohr", "Kehlnaht"),
+    ("Längsrohr", "Verlängerung", "Stumpfnaht")], sorted(naehte)
+assert len(rahmen["nahtkandidaten"]) == 6        # 4 Querrohr-Enden, Fußplatte, Verlängerung
+for n in rahmen["nahtkandidaten"]:
+    assert abs(n["laenge_mm"] - 152.3) < 0.2 and n["dicke_mm"] == 3.0 and n["status"] == "prüfen", n
+    assert n["knoten"] == "K1"
+assert d["S02_Einzelteil_benannt.step"]["nahtkandidaten"] == []
+m = step.struktur_anhaengen(step.lies_messwerte(aus2), js2)
+assert len(m[0]["_nahtkandidaten"]) == 6
+print("OK: Nahtkandidaten (Kehlnaht, Stumpfnaht, Länge = Umfang am Rohrende, Dicke, Knoten)")

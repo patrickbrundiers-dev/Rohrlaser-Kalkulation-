@@ -1560,7 +1560,11 @@ def kapitel_step(i):
             "nicht gemessen werden konnten, stehen als <i>null</i> darin, nie als 0 oder Schätzwert. Das Format "
             "trägt eine Versionsnummer (<i>schema_version</i>). Bei Baugruppen steht dort ab Version 1.13 auch die "
             "<b>Baugruppenstruktur</b> aus der STEP-Datei: Unterbaugruppen mit Menge, je Körper der Bauteilname "
-            "aus der Konstruktion und sein Pfad (z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>).",
+            "aus der Konstruktion und sein Pfad (z. B. <i>Gestell/Rahmenseite[2]/Strebe</i>). Ab Version 1.14 kommen "
+            "<b>Nahtkandidaten</b> dazu: je Paar sich berührender Teile eine mögliche Schweißnaht mit Länge (Umfang "
+            "am Rohrende bzw. der Berührung), Stoßart (Kehlnaht, Stumpfnaht in einer Flucht, Ecknaht bei Gehrung) "
+            "und Dicke der dünneren Wand. Sie sind nur ein Vorschlag mit Status <i>prüfen</i> für die "
+            "Schweißbaugruppen.",
             "<i>STEP-Import.exe</i> kann auch ohne das Programm messen: <i>STEP-Import.exe --ausgabe messwerte.txt "
             "--json ergebnis.json Ordner</i>.")
     i.text("Wie die Messung Profil, Schneidweg, Konturen und Enden bestimmt, welche Fälle geprüft sind und wo die "
