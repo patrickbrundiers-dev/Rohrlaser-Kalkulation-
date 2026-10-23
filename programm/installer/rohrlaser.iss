@@ -67,6 +67,7 @@ Source: "{#Quelle}\*"; DestDir: "{app}"; Excludes: "\Portabel.ini,\Daten,\Angebo
 [Icons]
 Name: "{autoprograms}\{#Name}"; Filename: "{app}\{#Exe}"
 Name: "{autoprograms}\{#Name} – Bedienungsanleitung"; Filename: "{app}\Bedienungsanleitung.pdf"
+Name: "{autoprograms}\{#Name} – Kurzanleitung"; Filename: "{app}\Kurzanleitung.pdf"
 Name: "{autodesktop}\{#Name}"; Filename: "{app}\{#Exe}"; Tasks: desktop
 
 [Run]
@@ -81,4 +82,5 @@ Type: files; Name: "{app}\Update.json"
 Type: files; Name: "{app}\Update.json.neu"
 Type: files; Name: "{app}\{#Exe}"
 Type: files; Name: "{app}\Bedienungsanleitung.pdf"
+Type: files; Name: "{app}\Kurzanleitung.pdf"
 Type: dirifempty; Name: "{app}"

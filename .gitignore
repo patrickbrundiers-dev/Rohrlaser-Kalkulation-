@@ -6,6 +6,7 @@ dist/
 programm/Daten/
 programm/Angebote/
 anleitung/Bedienungsanleitung.pdf
+anleitung/Kurzanleitung.pdf
 .gradle/
 .kotlin/
 local.properties

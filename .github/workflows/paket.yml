@@ -158,11 +158,13 @@ jobs:
       - name: Bedienungsanleitung erzeugen (Verweise, Bildschirmfotos, alle Fotos verwendet)
         env:
           QT_QPA_PLATFORM: offscreen
-        run: /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung.pdf
+        run: /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung.pdf --kurz Kurzanleitung.pdf
       - uses: actions/upload-artifact@v4
         with:
           name: Bedienungsanleitung
-          path: Bedienungsanleitung.pdf
+          path: |
+            Bedienungsanleitung.pdf
+            Kurzanleitung.pdf
           retention-days: 30
 
   windows:
@@ -276,6 +278,7 @@ jobs:
         run: |
           Copy-Item -Recurse dist/STEP-Import dist/Rohrlaser-Angebotskalkulation/STEP-Import
           Copy-Item Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
+          Copy-Item Kurzanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           Copy-Item Windows-Vertrauen-einrichten.cmd dist/Rohrlaser-Angebotskalkulation/
           $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
           $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe" `
@@ -434,7 +437,7 @@ jobs:
             Rohrlaser-Angebotskalkulation.zip: dieselbe Version portabel ohne Installation (Angebote, STEP-Import,
             Optimierung, Staffelpreise, PDF, CSV-Export). Entpacken, Rohrlaser-Angebotskalkulation.exe starten; die
             Daten liegen im Ordner Daten neben dem Programm.
-            Bedienungsanleitung.pdf liegt im Programmordner (auch im Programm unter Hilfe, F1).
+            Bedienungsanleitung.pdf und Kurzanleitung.pdf liegen im Programmordner (auch im Programm unter Hilfe, F1).
             Umziehen zwischen beiden: Datei → Daten exportieren … / Daten importieren …
             Vor dem ersten Start bzw. Entpacken: Rechtsklick auf Setup.exe bzw. ZIP → Eigenschaften → „Zulassen“ → OK.
             Dann warnt Windows nicht und prüft beim Entpacken nicht jede Datei einzeln. Windows-Vertrauen-einrichten.cmd
@@ -451,6 +454,7 @@ jobs:
             Rohrlaser-Angebotskalkulation.zip.sha256
             update_dateien/Update.json
             Bedienungsanleitung.pdf
+            Kurzanleitung.pdf
             Windows-Vertrauen-einrichten.cmd
           make_latest: true
       - name: Update-Pakete hochladen (Repository Rohrlaser-Updates, Release "update-dateien", nur neue Pakete)
