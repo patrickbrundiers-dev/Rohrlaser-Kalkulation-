@@ -506,9 +506,12 @@ class EditorRahmen(QObject):
                 f.setFixedWidth(70)
                 g.widget(f)
         g = ans.gruppe("Blickrichtung")
+        blick = QMenu(self.band)            # ein Knopf mit Menü: das Menüband passt auf 1366 px
         for text, (gi, ni) in (("Schräg", Ansicht3D.GRUND), ("Vorn", (0.0, 0.0)), ("Oben", (0.0, 1.5)),
                                ("Stirnseite", (-1.5708, 0.0))):
-            g.knopf(text, None, lambda _=False, gi=gi, ni=ni: self._blick(gi, ni), gross=False)
+            blick.addAction(text, lambda gi=gi, ni=ni: self._blick(gi, ni))
+        g.knopf("Blick", "wuerfel", lambda: self._blick(*Ansicht3D.GRUND), menue=blick,
+                tipp="Ausgangsansicht schräg; Pfeil: Vorn, Oben, Stirnseite (oder den Ansichtswürfel anklicken)")
         if rohr:
             g = ans.gruppe("Modell")
             self.step_knopf = g.knopf("STEP-Modell", "step", lambda an: self.modell_setzen(an), umschalter=True,

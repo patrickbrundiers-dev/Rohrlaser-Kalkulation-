@@ -233,4 +233,32 @@ assert set(dfm.KNICK_REGELN) <= {z["regel"] for z in db.zeilen("pruefregeln")}
 assert db.einstellung("knick_k") == 0.5 and db.einstellung("knick_z") == 0
 db.schliessen()
 ok("K5 Prüfregeln: Schenkel zu kurz, Kontur im Knickbereich, Wand zu dick, abschaltbar; ältere Datei ergänzt")
+
+# ------------------------------------------------------------------ K6 Freistich nimmt Material weg (Patrick 24.10.)
+def _kreuzen(pk):
+    n = len(pk)
+    for i in range(n):
+        for j in range(i + 2, n):
+            if i == 0 and j == n - 1:
+                continue
+            p, q, r_, s_ = pk[i], pk[(i + 1) % n], pk[j], pk[(j + 1) % n]
+            d = (q[0] - p[0]) * (s_[1] - r_[1]) - (q[1] - p[1]) * (s_[0] - r_[0])
+            if abs(d) < 1e-12:
+                continue
+            u = ((r_[0] - p[0]) * (s_[1] - r_[1]) - (r_[1] - p[1]) * (s_[0] - r_[0])) / d
+            w = ((r_[0] - p[0]) * (q[1] - p[1]) - (r_[1] - p[1]) * (q[0] - p[0])) / d
+            if 1e-9 < u < 1 - 1e-9 and 1e-9 < w < 1 - 1e-9:
+                return True
+    return False
+
+
+def _flaeche(pk):
+    return abs(sum(pk[i][0] * pk[i - 1][1] - pk[i - 1][0] * pk[i][1] for i in range(len(pk)))) / 2
+
+
+ohne, mit = kn.v_umriss(40, 40, 2, 90), kn.v_umriss(40, 40, 2, 90, 8)
+assert not _kreuzen(mit), "Umriss mit Freistich darf sich nicht selbst kreuzen (sonst bleibt Material stehen)"
+assert _flaeche(mit) > _flaeche(ohne) + 2 * 0.5 * math.pi * 16          # mindestens die äußeren Halbkreise mehr
+assert max(y for _, y in mit) > max(y for _, y in ohne) + 3.9             # Kreis reicht über die Spitze hinaus
+ok("K6 Freistich: Umriss läuft außen um den Kreis, nimmt Material weg statt es stehen zu lassen")
 print("Alle Knickrahmen-Tests bestanden.")
