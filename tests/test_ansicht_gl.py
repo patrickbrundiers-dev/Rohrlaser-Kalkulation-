@@ -86,7 +86,15 @@ if GL_KIND:
         return abstand(g, v) < abstand(g, h) and not nah(g, gh, 6) and nah(g, v, 30), (g, gh, v, h)
 
     ergebnis, werte = vorn_sichtbar(gl)
-    assert ergebnis, ("Tiefenpuffer: vordere Fläche verdeckt die hintere", werte)
+    if not ergebnis:            # Hinweise für die Fehlersuche (Treiber, Hintergrund, Licht ohne Zusätze)
+        diag = [grund, ("ecke", farbe(gl, 2, 2), farbe(sw, 2, 2))]
+        lw, l2 = ansicht3d.LICHT_WERTE, ansicht3d.LICHT2
+        for name, werte_l, licht2 in (("ohne Glanz", (lw[0], lw[1], lw[2], 0.0, lw[4]), l2),
+                                      ("alt", (0.42, 0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.0))):
+            ansicht3d.LICHT_WERTE, ansicht3d.LICHT2 = werte_l, licht2
+            diag.append((name, farbe(bild("OpenGL")[1], *mitte)))
+        ansicht3d.LICHT_WERTE, ansicht3d.LICHT2 = lw, l2
+    assert ergebnis, ("Tiefenpuffer: vordere Fläche verdeckt die hintere", werte, diag)
     # zweites Bild (QPainter der Beschriftung hat den Zustand verändert) und vergrößert: weiter richtig verdeckt
     gl2 = w_gl._gl.grabFramebuffer()
     assert vorn_sichtbar(gl2)[0], ("zweites Bild", vorn_sichtbar(gl2)[1])
