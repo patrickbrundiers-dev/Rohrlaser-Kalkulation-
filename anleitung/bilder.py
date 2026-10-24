@@ -484,6 +484,19 @@ def main(ziel):
     foto.foto("biegerohr_rechner", d, [(d.editor.baum, 1), (d.skizze, 2), (d.editor.meldungen, 3)])
     d.reject()
 
+    # 7a2a2) Knickrahmen im Schneidweg-Rechner (Position nur für das Foto, nichts gespeichert): 500 × 300 aus QR 40
+    qr = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"),
+              dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3"))
+    p_k = dict(id=None, pos=910, artikel="Rahmen 500 × 300", profil_id=qr["profil_id"], laenge=1600, stueck=10,
+               werkstoff_id="S235-10219")
+    d = SchneidwegDialog(s, p_k, qr, s.kopf, s.k, s.tabellen, db, s.positionen)
+    d.knickrahmen(werte=dict(schenkel=[500, 300, 500, 300], geschlossen=True, beta=90, steg="unten"))
+    d.resize(1450, 980)
+    d.ansicht_wahl.setCurrentText("Abwicklung")
+    QApplication.processEvents()
+    foto.foto("knickrahmen_rechner", d, [(d.knick_knopf, 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
+    d.reject()
+
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog

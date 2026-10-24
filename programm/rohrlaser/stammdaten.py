@@ -771,6 +771,12 @@ EINSTELLUNGEN = (
                 1),
     Einstellung("biegerohr_faktor", "Biegerohr: Faktor neutrale Faser für die gestreckte Länge (1,0 = Rohrmitte)",
                 "STEP-Import", "zahl", 1.0, 0.5, 1.5),
+    Einstellung("knick_z", "Knickrahmen: Knickzugabe je Knick [mm] (+ = Rohr länger)", "Knickrahmen", "zahl", 0.0,
+                -20, 20),
+    Einstellung("knick_freistich", "Knickrahmen: Freistich-Ø an den Spitzen des V [mm] (0 = ohne)", "Knickrahmen",
+                "zahl", 0.0, 0, 20),
+    Einstellung("knick_k", "Knickrahmen: K-Faktor der Stegwand (0,5 = Wandmitte)", "Knickrahmen", "zahl", 0.5, 0.1,
+                1),
     Einstellung("step_flach_laenge", "Experte: Flachstahl ab Länge × Breite", "STEP-Import", "zahl", 3.0, 1, 100),
     Einstellung("step_gekantet_anteil", "Experte: gekantetes Blech statt Profil, wenn Volumen unter Anteil von Querschnitt × Länge", "STEP-Import",
                 "anteil", 0.85, 0.1, 1),
@@ -1393,7 +1399,7 @@ def beispiel_zusatzarbeiten():
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
-        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten()
+        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1425,6 +1431,16 @@ def biege_zusatzarbeiten():
     return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_BIEGEN, art="€/Stück", preis=BIEGEN_PREIS,
                  fremd="nein", angebotstext="gebogen",
                  bemerkung="Preis je Biegung; Menge = Zahl der Biegungen je Teil (STEP-Import Biegerohr)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
+
+
+def knick_zusatzarbeiten():
+    """Vorbelegung Knicken (Knickrahmen, Plan K1): € je Knick, die Menge (Zahl der V-Ausschnitte je Teil) trägt der
+    Schneidweg-Rechner ein. Beispielpreis, bitte anpassen."""
+    from .knickrahmen import KNICKEN_PREIS, ZUSATZ_KNICKEN
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_KNICKEN, art="€/Stück",
+                 preis=KNICKEN_PREIS, fremd="nein", angebotstext="geknickt",
+                 bemerkung="Preis je Knick; Menge = Zahl der Knicke je Teil (Knickrahmen im Schneidweg-Rechner)",
                  kategorie="Nachbearbeitung", aktiv="ja")]
 
 

@@ -28,6 +28,9 @@ Formeln (Maße in mm, Winkel = Abweichung von rechtwinklig in Grad, 0 = gerader 
   wird dafür nicht gekürzt (zur sicheren Seite); sonstige Kontur und Sonderkontur (freie Form, auch über mehrere
   Flächen): Länge wie eingegeben bzw. gemessen; Gravur: nicht im Schneidweg, ihre Länge zählt zur Gravur. Jede Innenkontur 1 Einstich, jedes Ende
   rechnen.einstiche_ende(Profilform) Einstiche.
+V-Ausschnitt (Knickrahmen, knickrahmen.py): Maße aus dem Profil und der Stegwand (Spalte Seite),
+  2 × b + 4 × (h − s) / cos(β/2) (+ 2 π d Freistich), 1 Einstich; Block 'knickrahmen' = Schenkel des Rahmens, daraus
+  die gestreckte Länge (Ergebnis 'laenge').
 Hüllmaß (für die Konturklassen klein/mittel/groß): Bohrung und Senkung d, Ausklinkung max(l, b), Langloch l, Rechteck max(b, h), Schlitz max(l, b),
 sonstige Kontur wie eingegeben (leer = groß), Polygon größte Ausdehnung in x oder y.
 Flowdrill: Kernloch Ø d, nicht im Schneidweg (der Laser markiert nur; Gravur bzw. Loch Ø 0,5 kommt über das Bohrbild
@@ -47,8 +50,9 @@ BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE = ("Bohrung", "Langloch"
                                                           "sonstige Kontur")
 SENKUNG, AUSKLINKUNG, FLOWDRILL = "Senkung", "Ausklinkung", "Flowdrill"
 SONDERKONTUR, GRAVUR = "Sonderkontur", "Gravur"
+V_AUSSCHNITT = "V-Ausschnitt"           # Knickrahmen (knickrahmen.py): Seite = Stegwand, Maße aus dem Profil
 ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONDERKONTUR, SONSTIGE,
-         GRAVUR)
+         GRAVUR, V_AUSSCHNITT)
 MIT_UMRISS = (SONDERKONTUR, GRAVUR)     # Konturarten mit echtem Umriss (umriss, waende, tiefe)
 MIT_GEWINDE = (BOHRUNG, FLOWDRILL)      # Konturarten mit Spalte Gewinde (gewinde: fehlt = nach Kernloch, '' = keins)
 # Maße je Art: (Schlüssel, Titel) in der Eingabetabelle
@@ -61,7 +65,8 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"
          POLYGON: (("punkte", "Eckpunkte x,y; x,y; … [mm]"),),
          SONDERKONTUR: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
          SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
-         GRAVUR: (("laenge", "Gravurlänge"),)}
+         GRAVUR: (("laenge", "Gravurlänge"),),
+         V_AUSSCHNITT: (("beta", "Knickwinkel β [°]"), ("freistich", "Freistich-Ø (0 = ohne)"))}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
 # Schrägschnitt zweiachsig: die Schnittebene kippt über Höhe und Breite zugleich (winkel_h, winkel_b); winkel ist dann
 # der Gesamtwinkel der Ebene (Kopf in 3D, Skizze), gesamtwinkel
@@ -533,6 +538,9 @@ def kontur(e):
         if lg <= 0:
             raise ValueError("Gravur: Gravurlänge fehlt.")
         return lg, None, n
+    if art == V_AUSSCHNITT:
+        from . import knickrahmen
+        return (*knickrahmen.kontur(e), n)
     raise ValueError(f"Unbekannte Konturart '{art}'.")
 
 
@@ -545,6 +553,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     Ergebnis dict(schritte=[{text, anzahl, laenge_stueck, laenge, einstiche, huelle, klasse, schaetzung}],
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
+    from . import knickrahmen as kn
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
     schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
     richtung_fehlt_text = []
@@ -611,6 +620,12 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     umgestellt, bleibt = 0, 0
     for e in eingaben.get("konturen") or ():
         e, lg_neu = kontur_umstellen(e, profil)        # anderes Profil als gemessen: neu bzw. übertragen
+        if e.get("art") == V_AUSSCHNITT:
+            try:
+                e = kn.zeile_ergaenzen(e, profil)
+            except ValueError as f:
+                fehler.append(str(f))
+                continue
         if lg_neu:
             umgestellt += 1
         elif e.get("messprofil") and _z(e.get("gemessen")) and anderer_querschnitt(e, profil):
@@ -622,6 +637,10 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             continue
         masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
+        if e.get("art") == V_AUSSCHNITT:
+            masse = (f"β {zahl(_z(e.get('beta')), 1)}°, Steg {e.get('seite') or 'oben'}"
+                     + (f", Freistich Ø {zahl(_z(e.get('freistich')), 1)}" if _z(e.get("freistich")) else "")
+                     + (f" bei x = {zahl(_z(e.get('x')), 1)}" if e.get("x") is not None else ""))
         if form == "Rundrohr" and e.get("art") in (BOHRUNG, SENKUNG) and not _z(e.get("gemessen")) \
                 and not (mit_3d and e.get("d3")):
             # 2D: Strahl zur Rohrmitte, außen breiter als die Konstruktion (Messung macht das schon selbst)
@@ -702,9 +721,21 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
         hinweise_ende.append(f"{bleibt} Kontur{'en' if bleibt > 1 else ''} an einem anderen Querschnitt gemessen und "
                              "nicht umrechenbar: gemessene Länge gilt, bitte prüfen (gelb)")
     hinweise += hinweise_ende + hinweise_3d
+    laenge = None
+    k = kn.lesen(eingaben)
+    if k:                               # Knickrahmen: gestreckte Länge aus den Schenkeln
+        try:
+            r = kn.rahmen(k, profil)
+            laenge = round(r["laenge"], 1)
+            hinweise.insert(0, f"Knickrahmen: {kn.kurz(r)}; die Teilelänge wird beim Übernehmen gesetzt")
+            if r["enden"]:
+                hinweise.insert(1, "Knickrahmen geschlossen: Stoß schweißen, Zusatzarbeit Schweißen in der Position "
+                                   "eintragen")
+        except ValueError as f:
+            fehler.append(str(f))
     return dict(schritte=schritte, felder=felder, schneidweg=felder["schneidweg"], einstiche=einstiche,
                 schaetzung=any(s["schaetzung"] for s in schritte), fehler=fehler, hinweise=hinweise,
-                hinweise_3d=hinweise_3d)
+                hinweise_3d=hinweise_3d, laenge=laenge, knicke=kn.anzahl(eingaben))
 
 
 def aus_position(e, p, profil):
@@ -759,6 +790,23 @@ def achse_zu_richtung(profil, richtung):
     a, b = _z(profil.get("a")), _z(profil.get("b")) or _z(profil.get("a"))
     quer = min(a, b) if float(richtung) % 180 == 0 else max(a, b)
     return ACHSEN[0] if abs(quer - a) < 1e-6 else ACHSEN[1]
+
+
+def v_ergaenzen(eingaben, profil):
+    """Eingaben mit Querschnitt und Umriss je V-Ausschnitt für das Profil (Skizze, Prüfung, Zeichnung); Zeilen, die
+    zum Profil nicht passen, bleiben ohne (der Rechner meldet sie)."""
+    from . import knickrahmen as kn
+    if not any(z.get("art") == V_AUSSCHNITT for z in eingaben.get("konturen") or ()):
+        return eingaben
+    konturen = []
+    for z in eingaben["konturen"]:
+        if z.get("art") == V_AUSSCHNITT:
+            try:
+                z = kn.zeile_ergaenzen(z, profil)
+            except ValueError:
+                z = {k_: v for k_, v in z.items() if k_ not in ("qs", "umriss")}
+        konturen.append(z)
+    return dict(eingaben, konturen=konturen)
 
 
 def speichern(eingaben):
