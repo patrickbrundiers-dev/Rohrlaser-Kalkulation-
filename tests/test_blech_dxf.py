@@ -6,6 +6,7 @@
 - D3 Layernamen aus der Einstellung (unzulässige Zeichen ersetzt, leere = Vorgabe), Biegelinien abschaltbar,
   Hinweise für Konturen ohne Lage, mehrfache und sonstige Konturen.
 - D4 Blech-Editor: Knopf „DXF speichern …“ schreibt eine lesbare Datei (R12, Codepage 1252, Umlaute).
+- D5 Zeichnung als PDF (Plan S7): Zuschnitt und Kantteil mit Maßstab, Biegungen und Innenkonturen mit Lage.
 
 Aufruf: python tests/test_blech_dxf.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -138,6 +139,25 @@ blech_dialog.QMessageBox.warning = staticmethod(lambda *a: None)
 d2 = BlechDialog(None, db, dict(e, werkstoff=werkstoff, konturen=[dict(art=sw.BOHRUNG, anzahl=0, d=8, x=20, y=20)]))
 d2.stumm = True
 assert d2.dxf_speichern(str(tmp / "falsch.dxf")) is None and not (tmp / "falsch.dxf").exists()
+# ------------------------------------------------------------------ D5 Zeichnung als PDF
+import subprocess  # noqa: E402
+d.stumm = True
+pdf = Path(d.zeichnung_pdf(str(tmp / "L-01.pdf")))
+assert pdf.read_bytes()[:5] == b"%PDF-" and d.zeichnung_knopf.text() == "Zeichnung als PDF …"
+d3 = BlechDialog(None, db, dict(kant, werkstoff=werkstoff, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=9, x=60,
+                                                                          y=40)]),
+                 kopf=dict(bezeichnung="Winkel", artikelnr="W-02"))
+pdf2 = Path(d3.zeichnung_pdf(str(tmp / "W-02.pdf")))
+try:
+    texte = [subprocess.run(["pdftotext", "-layout", str(x), "-"], capture_output=True, text=True).stdout
+             for x in (pdf, pdf2)]
+except FileNotFoundError:        # ohne Poppler nur die Datei prüfen
+    texte = None
+if texte:
+    assert "Zeichnung Blech" in texte[0] and "Maßstab 1 :" in texte[0] and texte[0].count("\f") <= 2, texte[0]
+    assert "Innenkonturen" in texte[0] and "Biegungen" not in texte[0]
+    assert "Biegungen" in texte[1] and "B1" in texte[1] and "B2" in texte[1] and "zur Außenseite" in texte[1]
 db.schliessen()
+ok("D5 Zeichnung als PDF: Zuschnitt mit Konturliste, Kantteil mit Biegungen B1/B2 und Maßstab")
 ok("D4 Blech-Editor: DXF speichern schreibt eine lesbare R12-Datei mit Beschriftung und Umlauten; "
    "Konturfehler sperren die Datei")
