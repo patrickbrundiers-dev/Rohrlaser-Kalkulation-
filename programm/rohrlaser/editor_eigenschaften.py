@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import massbild, optimierung as opt, rechenfeld as rf, schneidweg as sw, skizze as sk, stil
+from . import blech, massbild, optimierung as opt, rechenfeld as rf, schneidweg as sw, skizze as sk, stil
 
 BEZUG = {"mitte_a": "Mitte ab Ende A", "kante_a": "Kante ab Ende A", "mitte_b": "Mitte ab Ende B",
          "kante_b": "Kante ab Ende B"}
@@ -236,6 +236,12 @@ class Eigenschaften(QWidget):
             self._zelle("Anzahl", t, r, BLECH_SPALTEN["anzahl"], einheit="Stück")
             self._zelle("Mitte x", t, r, BLECH_SPALTEN["x"], tipp="in der Abwicklung ab links")
             self._zelle("Mitte y", t, r, BLECH_SPALTEN["y"], tipp="in der Abwicklung ab unten")
+            if art in blech.DREH_ARTEN:
+                eig = getattr(combo, "eig", None) or {}
+                self._rechen("Drehwinkel", sw._z(eig.get("drehung")) or 0.0,
+                             lambda v: self._eig_setzen(combo, "drehung", round(v, 3) % 360 if v else None), "°",
+                             "Drehung der Kontur um ihre Mitte, + = gegen den Uhrzeiger; 0 = Länge waagerecht in der "
+                             "Abwicklung", schluessel="Drehwinkel")
         self._knoepfe(r)
         return f"{art} · Zeile {r + 1} von {t.rowCount()}"
 

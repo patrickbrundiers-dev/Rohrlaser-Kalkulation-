@@ -383,6 +383,7 @@ class EditorRahmen(QObject):
         else:
             d.tabelle.itemSelectionChanged.connect(lambda: self._tabelle_gewaehlt())
             d.schenkel.itemSelectionChanged.connect(self._schenkel_gewaehlt)
+            d.skizze.gewaehlt.connect(self.waehlen)
         self._modus_knoepfe(self.ansichten.modus)
         self.tabelle_zeigen(self._einstellung("editor_tabelle", True) is not False)
         # Tastatur: Entf in Baum, Tabelle und 3D entfernt die gewählte Kontur, Strg+D dupliziert sie
@@ -453,6 +454,14 @@ class EditorRahmen(QObject):
                         tipp=d.vorlagen_knopf.toolTip())
             k.setEnabled(d.vorlagen_knopf.isEnabled())
         else:
+            g = kon.gruppe("Außenkontur")
+            g.knopf("Zeichnen", "polygon", lambda: d.skizze.zeichnen_starten(),
+                    tipp="Außenkontur der Abwicklung mit Klicks zeichnen (Umschalt = waagerecht/senkrecht); auf den "
+                         "ersten Punkt, Doppelklick oder Eingabe schließt. Eckpunkte danach am Griff ziehen, "
+                         "Rechtsklick auf eine Ecke rundet oder fast sie")
+            g.knopf("Als Polygon", None, lambda: d.skizze.als_polygon(), gross=False,
+                    tipp="Rechteck bzw. Abwicklung als Polygon mit vier Ecken übernehmen (z. B. zum Abrunden einer "
+                         "Ecke oder für eine Ausklinkung)")
             g = kon.gruppe("Kantteil")
             for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):
                 g.knopf(b.text().replace("+ ", ""), sym, lambda _=False, b=b: b.click(), gross=False,

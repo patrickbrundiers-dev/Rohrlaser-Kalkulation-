@@ -67,8 +67,28 @@ def _polygon(layer, pk):
             if math.dist(pk[i], pk[(i + 1) % len(pk)]) > 1e-9]
 
 
+def _gedreht(elemente, cx, cy, w):
+    """Linien, Bögen und Kreise um (cx, cy) um w Grad gedreht."""
+    def p(q):
+        return blech.gedreht([(q[0] - cx, q[1] - cy)], w, cx, cy)[0]
+    out = []
+    for el in elemente:
+        if el[0] == "LINE":
+            out.append(_linie(el[1], p(el[2]), p(el[3])))
+        elif el[0] == "ARC":
+            out.append(_bogen(el[1], p(el[2]), el[3], el[4] + w, el[5] + w))
+        elif el[0] == "CIRCLE":
+            out.append(_kreis(el[1], p(el[2]), el[3]))
+        else:
+            out.append(el)
+    return out
+
+
 def kontur_elemente(z, cx, cy, layer=INNEN):
-    """Elemente einer Innenkontur mit Mitte (cx, cy); [] bei sonstiger Kontur ohne Form."""
+    """Elemente einer Innenkontur mit Mitte (cx, cy); [] bei sonstiger Kontur ohne Form. Mit Drehwinkel gedreht."""
+    w = blech.drehung(z)
+    if w:
+        return _gedreht(kontur_elemente(dict(z, drehung=None), cx, cy, layer), cx, cy, w)
     art = z.get("art")
     if art in (sw.BOHRUNG, sw.SENKUNG):
         d = _z(z.get("d"))

@@ -282,30 +282,10 @@ def konturzuege(e, zs):
         if art in (sw.BOHRUNG, sw.SENKUNG):
             r = _z(z.get("d")) / 2
             zug = [(cx + r * math.cos(i * math.pi / 12), cy + r * math.sin(i * math.pi / 12)) for i in range(25)]
-        elif art == sw.LANGLOCH:
-            l_, b_ = _z(z.get("l")), _z(z.get("b"))
-            r = b_ / 2
-            quer = bool(z.get("quer"))
-            h = max(l_ / 2 - r, 0)
-            zug = []
-            for mx, w0 in ((h, -90), (-h, 90)):
-                zug += [(mx + r * math.cos(math.radians(w0 + 15 * i)), r * math.sin(math.radians(w0 + 15 * i)))
-                        for i in range(13)]
-            zug.append(zug[0])
-            zug = [((y, x) if quer else (x, y)) for x, y in zug]
-            zug = [(cx + x, cy + y) for x, y in zug]
-        elif art == sw.RECHTECK:
-            b_, h_ = _z(z.get("b")) / 2, _z(z.get("h")) / 2
-            zug = [(cx - b_, cy - h_), (cx + b_, cy - h_), (cx + b_, cy + h_), (cx - b_, cy + h_), (cx - b_, cy - h_)]
-        elif art == sw.POLYGON:
-            try:
-                pk = sw.punkte(z.get("punkte"))
-            except ValueError:
+        elif art in blech.DREH_ARTEN:
+            zug = [(cx + x, cy + y) for x, y in blech.kontur_umriss(z)]
+            if not zug:
                 continue
-            if len(pk) < 3:
-                continue
-            mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
-            zug = [(cx + x - mx, cy + y - my) for x, y in pk] + [(cx + pk[0][0] - mx, cy + pk[0][1] - my)]
         elif art == sw.TEXT_GRAVUR:      # je Strich ein Linienzug
             from . import gravur_text
             out += [(z, zug) for zug in gravur_text.gedreht(gravur_text.linien(z.get("text"), _z(z.get("hoehe"))),

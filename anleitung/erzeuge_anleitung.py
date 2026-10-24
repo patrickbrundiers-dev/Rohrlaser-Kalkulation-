@@ -3167,6 +3167,25 @@ def kapitel_zukauf_angebot(i):
            "Teile-Editor ([[teile_editor]]). Die Trennlinien lassen sich ziehen. Ist die Skizze höher als breit, steht die "
            "Seitenansicht unter der Abwicklung, im selben Maßstab, solange sie passt. In der Positionsliste "
            "zeigt das kleine Bild vor der Artikelnummer den Zuschnitt; Doppelklick darauf öffnet den Editor wieder.")
+    i.text("<b>In der Abwicklung zeichnen und ziehen</b> (Teile-Editor):", kurz=True)
+    i.liste("<b>Ziehen</b> mit der Maus: eine Innenkontur verschiebt ihre Mitte x/y, die rechte bzw. obere Kante "
+            "ändert Länge, Breite oder Kantlänge, eine <b>Biegelinie</b> des Kantteils verschiebt die Biegung "
+            "(der Schenkel davor wird länger, der danach kürzer), die untere bzw. obere Kante des Kantteils "
+            "verlängert den ersten bzw. letzten Schenkel. Gefangen wird auf 1 mm. Ein Klick wählt das Merkmal; "
+            "Winkel und Radius einer Biegung stehen dann in den Eigenschaften.",
+            "<b>Außenkontur zeichnen</b> (<i>Konstruktion → Außenkontur → Zeichnen</i>): Eckpunkte nacheinander "
+            "anklicken, mit Umschalt waagerecht bzw. senkrecht zum letzten Punkt; ein Klick auf den ersten Punkt, "
+            "ein Doppelklick oder die Eingabetaste schließt die Kontur, die Rücktaste nimmt den letzten Punkt "
+            "zurück, Esc bricht ab. Die Kontur wird zum Polygon der Abwicklung.",
+            "Ist <b>Teil</b> gewählt, hat jede Ecke des Polygons einen Griff zum Ziehen. <b>Rechtsklick</b> auf eine "
+            "Ecke: <i>Ecke abrunden …</i> (Radius), <i>Ecke fasen …</i> (Fase je Kante) oder <i>Punkt löschen</i>; "
+            "auf eine Kante: <i>Punkt einfügen</i>; überall: <i>Außenkontur neu zeichnen</i>, beim Rechteck <i>Als Polygon "
+            "bearbeiten</i>. <i>Als Polygon</i> macht aus dem Rechteck ein Polygon mit vier "
+            "Ecken, z. B. um eine Ecke zu runden.",
+            "<b>Drehwinkel</b> für Langloch, Rechteck und Polygon (Eigenschaften der Kontur): dreht die Kontur um "
+            "ihre Mitte, + = gegen den Uhrzeiger. Skizze, 3D, DXF, Zeichnung und der Abstand zu den Biegelinien "
+            "rechnen gedreht; die Schnittlänge bleibt gleich.",
+            "Jede Änderung lässt sich mit Strg+Z zurücknehmen.")
     i.text("<b>Aus dem STEP-Import</b>: Gekantete Bleche kommen vollständig an. Ein Kantteil mit parallelen "
            "Biegungen (Winkel, U, Z, Hut) hat Kantlänge, Schenkel mit Winkel und Radius, die Innenkonturen an ihrer "
            "Stelle und bei Ausklinkungen die Außenkontur als Polygon. Ein mehrachsig gekantetes Teil (Schale, "
