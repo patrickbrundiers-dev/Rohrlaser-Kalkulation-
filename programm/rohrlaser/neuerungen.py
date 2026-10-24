@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.83", "<b>Stangenbild wie in Lantek</b>: Umschalter <i>Stangenmuster</i> / <i>Übersicht</i> / <i>Detail</i> im "
+               "Reiter Stangenbild und im Abmessungs-Fenster. Die Übersicht zeigt jede Stange als dünne Zeile, nach "
+               "Abmessung gruppiert; ein Klick öffnet das Detail mit Kennzahlen, den Teilen als Kacheln und der "
+               "<b>Abwicklung der ganzen Stange</b> (alle Konturen an ihrem Platz, Naht SN). Die Abwicklung steht "
+               "auch in den Werkstattpapieren unter jedem Stangenmuster. Im Reiter Schnittplan links ein "
+               "<b>Teilebaum</b> mit Benötigt/Eingeplant/Offen, Status-Punkt und 3D-Vorschau ([[optimieren]]).",
+     "Stangen-Übersicht, Stangen-Detail mit Abwicklung, Teilebaum mit 3D im Schnittplan ([[optimieren]])."],
     ["0.9.82", "<b>Schneller bei großen Angeboten</b>: <b>Optimieren</b> rechnet ab etwa 1.500 Teilen die "
      "Profilgruppen auf mehreren Prozessorkernen gleichzeitig (500 Positionen: 10 s statt 28 s, mit Vergleich der "
      "Lieferlängen 17 s statt 45 s), der Schnittplan ist derselbe. Die <b>Suche in der Angebotsliste</b> filtert, "

@@ -12,7 +12,7 @@ gibt das Fenster an MeterpreisDialog.schliessen_mit weiter; ausgeführt werden s
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QHBoxLayout,
-                               QHeaderView, QLabel, QMenu, QPushButton, QScrollArea, QSplitter, QTableWidget,
+                               QHeaderView, QLabel, QMenu, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
 from . import abmessung, hilfe, rechnen, stil
@@ -112,16 +112,19 @@ class AbmessungFenster(QDialog):
         lay.addWidget(self.warnung)
 
         teiler = QSplitter(Qt.Vertical)
-        from .angebot_fenster import Stangenbild
-        self.bild = Stangenbild()
-        self.bild.setzen(dict(stangen=[x for x, _ in self.paare]))
+        # Umschalter Stangenmuster / Übersicht / Detail wie im Reiter Stangenbild (Lantek-Ideen, F2a)
+        from .angebot_fenster import STANGENBILD_EINSTELLUNG
+        from .stangen_ansicht import StangenSeite
+        db = getattr(s, "db", None)
+        self.stangen_seite = StangenSeite(db.einstellung(STANGENBILD_EINSTELLUNG) if db else None,
+                                          (lambda a: db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a)) if db else None)
+        self.stangen_seite.setzen(self.paare, s._abwicklung_funktion() if self.paare and
+                                  hasattr(s, "_abwicklung_funktion") else None)
+        self.bild, self.rolle = self.stangen_seite.bild, self.stangen_seite.rolle
         self.bild.setToolTip("Klick auf ein Teil: in der Teileliste zeigen · Doppelklick: zur Position")
-        self.bild.klick.connect(self.teil_waehlen)
-        self.bild.doppelklick.connect(lambda ref: self.zur_position(ref))
-        self.rolle = QScrollArea()
-        self.rolle.setWidgetResizable(True)
-        self.rolle.setWidget(self.bild)
-        teiler.addWidget(self.rolle)
+        self.stangen_seite.klick.connect(self.teil_waehlen)
+        self.stangen_seite.doppelklick.connect(lambda ref: self.zur_position(ref))
+        teiler.addWidget(self.stangen_seite)
 
         mitte = QWidget()
         ml = QHBoxLayout(mitte)
@@ -182,7 +185,7 @@ class AbmessungFenster(QDialog):
         self.summe.setStyleSheet(f"color: {stil.TEXT_GRAU};")
         tl.addWidget(self.summe)
         teiler.addWidget(gt)
-        teiler.setSizes([270, 240, 310])
+        teiler.setSizes([330, 210, 280])
         lay.addWidget(teiler, 1)
 
         knoepfe = QHBoxLayout()
@@ -275,18 +278,14 @@ class AbmessungFenster(QDialog):
 
     def teil_waehlen(self, ref, tabelle=True):
         """Teil hervorheben: im Stangenbild markieren und hinscrollen, in der Teileliste die Zeile wählen."""
-        self.bild.markieren(ref)
-        i = next((i for i, (s, _) in enumerate(self.bild.muster) if any(t["ref"] == ref for t in s["teile"])), None)
-        if i is not None:
-            self.rolle.ensureVisible(0, self.bild.muster_y(i), 0, self.bild.ZEILE)
+        self.stangen_seite.markieren(ref)
         if tabelle:
             r = next((r for r, t in enumerate(self.teile) if t["ref"] == ref), None)
             if r is not None:
                 self.teile_tab.selectRow(r)
 
     def muster_waehlen(self, r, _c=None):
-        self.bild.markieren(None)
-        self.rolle.ensureVisible(0, self.bild.muster_y(r), 0, self.bild.ZEILE)
+        self.stangen_seite.muster_zeigen(r)
 
     def zur_position(self, ref):
         self.schliessen_mit("position", ref)

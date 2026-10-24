@@ -16,7 +16,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe, querschnitt, rechnen
+from . import ausgabe, querschnitt, rechnen, stangen_abwicklung
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
@@ -524,9 +524,101 @@ class StangenBalken(Flowable):
         c.drawRightString(self.breite, y - 3 * mm, f"{_z(lang, 0)} mm")
 
 
-def _stangenbild(kopf, einst, muster, warnung=None):
+class StangenAbwicklung(Flowable):
+    """Abwicklung der ganzen Stange unter ihrem Balken (Lantek-Idee L4, F4a; Daten aus stangen_abwicklung.stange):
+    Mantel als Band (Umfang quer, gestreckt), Teile in Positionsfarbe mit Schnittkanten, Konturen rot, Gravur grün,
+    Schweißnaht der Stange rot strichpunktiert (SN), Flächennamen links neben dem Band."""
+    BAND, LINKS = 20 * mm, 0      # bündig mit dem Balken darüber; Flächennamen links im Seitenrand
+
+    def __init__(self, d, farben):
+        super().__init__()
+        self.d, self.farben = d, farben
+
+    def wrap(self, breite, hoehe):
+        self.breite = breite
+        return breite, self.BAND + 9 * mm
+
+    def draw(self):
+        c, d = self.canv, self.d
+        breite = self.breite - self.LINKS
+        fx, fy = breite / (d["laenge"] or 1), self.BAND / (d["umfang"] or 1)
+        y0 = 4 * mm + self.BAND          # oberer Rand des Bands (s = 0 oben)
+
+        def pkt(x, s_):
+            return self.LINKS + x * fx, y0 - s_ * fy
+
+        def flaeche(punkte, fuellen, rand, breite_=0.4, dash=None):
+            pfad = c.beginPath()
+            pfad.moveTo(*pkt(*punkte[0]))
+            for q in punkte[1:]:
+                pfad.lineTo(*pkt(*q))
+            pfad.close()
+            c.setLineWidth(breite_)
+            c.setStrokeColor(rand)
+            c.setDash(*(dash or ()))
+            if fuellen is not None:
+                c.setFillColor(fuellen)
+            c.drawPath(pfad, fill=1 if fuellen is not None else 0, stroke=1)
+            c.setDash()
+        c.setFont(SCHRIFT, 6.5)
+        c.setFillColor(GRAU)
+        c.drawString(self.LINKS, y0 + 1.5 * mm, f"Abwicklung Stange (Ende A links, Umfang {_z(d['umfang'], 1)} mm, quer "
+                                                 "gestreckt)")
+        c.setFillColor(colors.HexColor("#F2F2F2"))
+        c.rect(self.LINKS, y0 - self.BAND, breite, self.BAND, fill=1, stroke=0)
+        c.setFillColor(colors.HexColor("#7F7F7F"))
+        c.rect(self.LINKS, y0 - self.BAND, d["end"] * fx, self.BAND, fill=1, stroke=0)
+        c.setFillColor(colors.HexColor("#FF9999"))
+        c.rect(self.LINKS + (d["laenge"] - d["greif"]) * fx, y0 - self.BAND, d["greif"] * fx, self.BAND, fill=1, stroke=0)
+        for t in d["teile"]:
+            flaeche(t["umriss"], colors.HexColor(self.farben.get(t["pos"], TEILFARBEN[0])), colors.black, 0.8)
+        c.saveState()
+        weg = c.beginPath()
+        weg.rect(self.LINKS, y0 - self.BAND, breite, self.BAND)
+        c.clipPath(weg, stroke=0, fill=0)
+        for t in d["teile"]:
+            for k in t["konturen"]:
+                farbe = GRUEN if k["gravur"] else colors.HexColor("#C00000")
+                for stueck in stangen_abwicklung.kontur_teile(k["punkte"], d["umfang"]):
+                    xs = [pkt(*q) for q in stueck]
+                    if max(x for x, _ in xs) - min(x for x, _ in xs) < 0.8 and \
+                            max(y for _, y in xs) - min(y for _, y in xs) < 0.8:
+                        c.setFillColor(farbe)
+                        c.circle(sum(x for x, _ in xs) / len(xs), sum(y for _, y in xs) / len(xs), 0.4, fill=1, stroke=0)
+                    else:
+                        flaeche(stueck, None, farbe, 0.5, (1, 1) if k["verteilt"] else None)
+        c.restoreState()
+        c.setLineWidth(0.3)
+        c.setStrokeColor(colors.HexColor("#7F7F7F"))
+        c.setFont(SCHRIFT, 5.5)
+        for i, (name, s0, s1) in enumerate(d["streifen"]):
+            if i:
+                c.setDash(2, 1.5)
+                c.line(*pkt(0, s0), *pkt(d["laenge"], s0))
+                c.setDash()
+            c.setFillColor(GRAU)
+            c.drawRightString(self.LINKS - 1 * mm, y0 - (s0 + s1) / 2 * fy - 2, name)
+        if d["naht"] is not None:
+            c.setStrokeColor(colors.HexColor("#D0021B"))
+            c.setLineWidth(0.9)
+            c.setDash(4, 1.5, 1, 1.5)
+            c.line(*pkt(0, d["naht"]), *pkt(d["laenge"], d["naht"]))
+            c.setDash()
+            c.setFillColor(colors.HexColor("#D0021B"))
+            c.drawString(self.LINKS + 1 * mm, y0 - d["naht"] * fy + 1, "SN")
+        c.setStrokeColor(colors.HexColor("#7F7F7F"))
+        c.setLineWidth(0.4)
+        c.rect(self.LINKS, y0 - self.BAND, breite, self.BAND, fill=0, stroke=1)
+        if d["fehlt"]:
+            c.setFillColor(ROT)
+            c.setFont(SCHRIFT, 6.5)
+            c.drawString(self.LINKS, 1 * mm, "Ohne Daten (nicht gezeichnet): Pos. " + ", ".join(str(x) for x in d["fehlt"]))
+
+
+def _stangenbild(kopf, einst, muster, warnung=None, abwicklung=False):
     """Seite(n) 'Stangenbild' (A4 quer, 273 mm breit) für Werkstattpapiere und Kalkulation: Kopf, Legende und je
-    Stangenmuster ein maßstäblicher Balken (StangenBalken); Farbe je Position über alle Stangen gleich."""
+    Stangenmuster ein maßstäblicher Balken (StangenBalken); Farbe je Position über alle Stangen gleich. abwicklung:
+    unter jedem Balken die Abwicklung der Stange (Werkstattpapiere, F4a)."""
     farben, n = {}, 0
     for m in muster:
         for t in m["teile"]:
@@ -540,9 +632,19 @@ def _stangenbild(kopf, einst, muster, warnung=None):
                   "von oben). Roter Strich = Schweißnaht (gestrichelt: hinten liegend); hinter den Stangendaten der "
                   "Querschnitt von Ende A mit rotem Punkt an der Naht und die Zahl gedrehter Teile (Lage je Teil im "
                   "Schnittplan). Grüne Linien = Gehrungen ineinandergelegt; das gesparte Material steht einmal je "
-                  "Stange in der Titelzeile und ist in Rest und Ausnutzung schon enthalten.",
+                  "Stange in der Titelzeile und ist in Rest und Ausnutzung schon enthalten."
+                  + (" Darunter die Abwicklung der Stange: Mantel abgewickelt (oben, vorne, unten, hinten von Ende A "
+                     "gesehen), Teile mit Schnittkanten, Konturen rot, Gravur grün, rot strichpunktiert = Schweißnaht "
+                     "(SN)." if abwicklung else ""),
                   ParagraphStyle("le", parent=S_KLEIN, textColor=GRAU)), Spacer(1, 3 * mm)]
-    return inhalt + [StangenBalken(m, farben) for m in muster]
+    if not abwicklung:
+        return inhalt + [StangenBalken(m, farben) for m in muster]
+    for m in muster:
+        teile = [StangenBalken(m, farben)]
+        if m.get("abwicklung"):
+            teile.append(StangenAbwicklung(m["abwicklung"], farben))
+        inhalt.append(KeepTogether(teile + [Spacer(1, 2 * mm)]))
+    return inhalt
 
 
 def _fuss(einst, text):
@@ -675,7 +777,8 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     inhalt += _schweissplan(wp.get("schweissplan") or ())
     if wp["muster"]:
         inhalt += [NextPageTemplate("quer"), PageBreak()]
-        inhalt += _stangenbild(kopf, einst, wp["muster"], None if aktuell else achtung.replace("Schnittplan", "Stangenbild"))
+        inhalt += _stangenbild(kopf, einst, wp["muster"], None if aktuell else achtung.replace("Schnittplan", "Stangenbild"),
+                               abwicklung=True)
     else:
         inhalt.append(_p("Der Schnittplan ist leer. Bitte zuerst optimieren.", S_FETT))
     doc.build(inhalt, canvasmaker=leinwand)

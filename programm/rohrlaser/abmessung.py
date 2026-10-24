@@ -193,3 +193,47 @@ def laengen_indizes(ergebnis, gruppe):
         if (vg["profil"], vg["werkstoff"], vg.get("oberflaeche") or "", vg["stange"]) == tuple(gruppe["gruppe"][:4]):
             out.append(i)
     return out
+
+
+# Status im Teilebaum (Lantek-Idee L3): alle eingeplant, Teile fehlen, kein Rohrlaserteil, noch nicht optimiert
+OK, FEHLT, KEIN, OFFEN = "ok", "fehlt", "kein", "offen"
+
+
+def teilebaum(kopf, positionen, ergebnis):
+    """Teilebaum des Reiters Schnittplan (Lantek-Idee L3, Patrick 24.10.2026): je Abmessung die Positionen mit
+    Benötigt, Eingeplant, Offen und Status (OK, FEHLT, KEIN, OFFEN = noch nicht optimiert), Zukaufteile und
+    Schweißbaugruppen zuletzt als „Ohne Rohrlaser“. Ergebnis: [dict(titel, benoetigt, eingeplant, offen, status,
+    positionen=[dict(zeile, ref, id, pos, artikel, bezeichnung, laenge, benoetigt, eingeplant, offen, status,
+    grund)])]; grund = warum nicht eingeplant (Fehlerliste der Optimierung)."""
+    from .angebot import kein_laserteil
+    ein = rechnen.eingeplant_je_position(ergebnis)
+    gruende = {f["index"]: f["grund"] for f in (ergebnis or {}).get("fehler") or ()}
+    gruppen, ohne = {}, []
+    for i, p in enumerate(positionen):
+        if all(rechnen._leer(p.get(f)) for f in ("profil_id", "laenge", "stueck", "artikel")):
+            continue
+        n = _n(p.get("stueck"))
+        x = dict(zeile=i, ref=rechnen.schluessel(p, i), id=p.get("id"), pos=p.get("pos"), artikel=p.get("artikel"),
+                 bezeichnung=p.get("bezeichnung"), laenge=p.get("laenge"), benoetigt=n, grund=gruende.get(i))
+        if kein_laserteil(p) or rechnen._leer(p.get("profil_id")):
+            x.update(eingeplant=None, offen=None, status=KEIN)
+            ohne.append(x)
+            continue
+        e = ein.get(x["ref"], 0)
+        x.update(eingeplant=e, offen=max(n - e, 0), status=OFFEN if not ergebnis else OK if e >= n else FEHLT)
+        gruppen.setdefault(rechnen.gruppe_von(p, kopf), []).append(x)
+
+    def summe(titel, xs, status):
+        return dict(titel=titel, positionen=xs, benoetigt=sum(x["benoetigt"] for x in xs),
+                    eingeplant=sum(x["eingeplant"] or 0 for x in xs), offen=sum(x["offen"] or 0 for x in xs),
+                    status=status)
+    out = []
+    for gr, xs in gruppen.items():
+        titel = (f"{gr[0]} · {rechnen.material_text(gr[1], gr[2])} · "
+                 f"{zahl_als_text(gr[3], 0) + ' mm' if isinstance(gr[3], (int, float)) else 'Stangenlänge fehlt'}"
+                 + (" · Kundenmaterial" if len(gr) > 4 else ""))
+        status = OFFEN if not ergebnis else FEHLT if any(x["status"] == FEHLT for x in xs) else OK
+        out.append(summe(titel, xs, status))
+    if ohne:
+        out.append(summe("Ohne Rohrlaser (Zukaufteile, Schweißbaugruppen)", ohne, KEIN))
+    return out
