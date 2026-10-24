@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 53     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 54     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -98,6 +98,8 @@ SCHEMA_VERSION = 53     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Nummer der neueren Fassung; ältere Angebote leer; Plan Arbeitsabläufe W10)
                         # 53: Vorkalkulation Schweißbaugruppe (Tabelle schweiss_regeln leer, positionen.bg_hilfe leer =
                         #     Positionierhilfe nach Vorschlag)
+                        # 54: Außenradius von Quadrat-/Rechteckrohr (profile.r_aussen, leer = Vorgabe nach EN 10219; angebote.radien
+                        #     = Radius je Profil + Werkstoff im Angebot, JSON, leer)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -292,6 +294,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
             if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
+            if "radien" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN radien TEXT")          # vor Schema 54: leer
             if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
@@ -1282,6 +1286,14 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET naht_stangen=?, geaendert=? WHERE id=?",
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
+    @schreibt
+    def radien_speichern(self, angebot_id, radien):
+        """Außenradius je Profil + Werkstoff im Angebot {naht.gruppe_schluessel: mm} (fehlt = Stammdaten/Norm)."""
+        radien = {g: float(r) for g, r in (radien or {}).items() if isinstance(r, (int, float)) and r >= 0}
+        with self.con:
+            self.con.execute("UPDATE angebote SET radien=?, geaendert=? WHERE id=?",
+                             (json.dumps(radien, ensure_ascii=False) if radien else None, self._jetzt(), angebot_id))
+
     # -------------------------------------------------------------- Frachtkosten
     @liest
     def fracht_daten(self):
@@ -1630,6 +1642,7 @@ class Datenbank:
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
+        a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
         return a
 
@@ -1730,6 +1743,8 @@ class Datenbank:
             self.laengenwahl_speichern(neu, a["laengenwahl"])
         if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
             self.naht_stangen_speichern(neu, a["naht_stangen"])
+        if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso
+            self.radien_speichern(neu, a["radien"])
         netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
             i = self.position_neu(neu, p)

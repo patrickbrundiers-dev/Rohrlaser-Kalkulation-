@@ -367,7 +367,7 @@ class Skizze(QWidget):
         def p(u, v):
             return QPointF(c.x() + u * m, c.y() - v * m)
         pfad = QPainterPath()
-        for poly in qs.umriss:
+        for poly in qs.umriss_rund():
             pfad.addPolygon(QPolygonF([p(u, v) for u, v in poly] + [p(*poly[0])]))
         pfad.setFillRule(Qt.OddEvenFill)
         g.setPen(QPen(FARBE_TEIL, 1.2))
