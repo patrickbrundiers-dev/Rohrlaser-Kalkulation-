@@ -9,7 +9,13 @@ Richtung der Gehrung (längste Seite = Außenseite der Ecke).
 
 Im Prüfdialog trägt der erste Schenkel (Leitteil) den Block _knickrahmen und _knick_teile = [{i, umgekehrt}] in
 Reihenfolge; die übrigen Rohre tragen _knick_von = Index des Leitteils und werden nicht einzeln übernommen. Beim
-Übernehmen (step.uebernehmen) kommen die Konturen aller Schenkel auf das gestreckte Rohr (eingaben)."""
+Übernehmen (step.uebernehmen) kommen die Konturen aller Schenkel auf das gestreckte Rohr (eingaben).
+
+Knickrahmen aus einem Körper (Plan K1-3, Fall A): Die Messung (step_messung/step_knickrahmen.py) teilt den Körper an
+den Ecken in gerade Rohrstücke mit Gehrung (Spalte knick_schenkel). koerper_vorbereiten verbindet sie wie Einzelrohre;
+der Körper selbst trägt dann den Block, _knick_teile zählt in _knick_schenkel (die Stücke), nicht in den Messwerten.
+Ist der Rahmen gestreckt gezeichnet (gerades Rohr mit V-Ausschnitten, „vor dem Knicken“), kommen Knickwinkel und
+Schenkel aus den V-Ausschnitten der Messung (v_rahmen); der Block steht dann mit _knick_v (Lage der V) am Rohr."""
 import json
 import math
 import zlib
@@ -20,6 +26,7 @@ TOL_PROFIL = 0.15       # mm
 TOL_WINKEL = 1.5        # Grad: Achsenwinkel gegen Summe der Gehrungen
 NAH = 1.5               # Achsenden einer Ecke liegen höchstens 1,5 × größte Seite auseinander
 HERKUNFT = "STEP-Einzelrohre"
+HERKUNFT_KOERPER = "STEP-Körper"
 SEITEN = {0: "oben", 90: "vorne", 180: "unten", 270: "hinten"}
 WINKEL = {s: w for w, s in SEITEN.items()}
 
@@ -265,14 +272,15 @@ def vorschlaege(messwerte, belegt=()):
     return out
 
 
-def erstellen(messwerte, k, freistich=None, z=None, kf=None, schraeg=False):
+def erstellen(messwerte, k, freistich=None, z=None, kf=None, schraeg=False, ziel=None):
     """Knickverbindung k (kette) in die Messwerte schreiben (Leitteil = erster Schenkel). Ergebnis: Index des
-    Leitteils. ValueError, wenn der Rahmen nicht geht (knickrahmen.rahmen)."""
+    Leitteils. ValueError, wenn der Rahmen nicht geht (knickrahmen.rahmen). ziel: Körper, der den Block trägt
+    (Knickrahmen aus einem Körper, messwerte = seine Rohrstücke)."""
     leit = k["teile"][0]["i"]
-    m = messwerte[leit]
+    m = messwerte[leit] if ziel is None else ziel
     block = dict(schenkel=k["schenkel"], beta=k["beta"], geschlossen=k["geschlossen"], steg=k["steg"],
-                 freistich=freistich or None, z=z or None, k=kf or kn.K_FAKTOR, schraeg=bool(schraeg) or None,
-                 herkunft=HERKUNFT)
+                 freistich=_z(freistich) or None, z=_z(z) or None, k=_z(kf) or kn.K_FAKTOR,
+                 schraeg=bool(schraeg) or None, herkunft=HERKUNFT if ziel is None else HERKUNFT_KOERPER)
     profil = dict(form=m.get("profilform"), a=_z(m.get("abm_a")), b=_z(m.get("abm_b")) or _z(m.get("abm_a")),
                   wand=_z(m.get("wandstaerke")))
     r = kn.rahmen(block, profil)
@@ -281,9 +289,137 @@ def erstellen(messwerte, k, freistich=None, z=None, kf=None, schraeg=False):
     m["_knickrahmen"] = block
     m["_knick_teile"] = [dict(i=t["i"], umgekehrt=t["umgekehrt"], steg_winkel=t["steg_winkel"]) for t in k["teile"]]
     m["_knick_laenge"] = round(r["laenge"], 1)
-    for t in k["teile"][1:]:
-        messwerte[t["i"]]["_knick_von"] = leit
+    if ziel is None:
+        for t in k["teile"][1:]:
+            messwerte[t["i"]]["_knick_von"] = leit
     return leit
+
+
+def stuecke(m):
+    """Rohrstücke eines Knickrahmens aus einem Körper (Spalte knick_schenkel der Messung) als Messwerte mit Lage im
+    Netz, Artikel „… Schenkel n“; [] bei anderen Teilen."""
+    if m.get("_knick_schenkel") is not None:
+        return m["_knick_schenkel"]
+    try:
+        liste = json.loads(m.get("knick_schenkel") or "[]")
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(liste, list) or not all(isinstance(d, dict) for d in liste):
+        return []
+    out = []
+    for nr, d in enumerate(liste, 1):
+        x = dict(d, datei=m.get("datei"), koerper=m.get("koerper"), artikel=f"{m.get('artikel')} Schenkel {nr}")
+        lg = x.pop("lage", None)
+        x["_netz"] = {"lage": lg} if isinstance(lg, list) and len(lg) == 9 else None
+        out.append(x)
+    return out
+
+
+def ist_koerper(m):
+    """Knickrahmen aus einem Körper (geknickt oder gestreckt gezeichnet), nicht aus Einzelrohren?"""
+    return m.get("_knick_schenkel") is not None or m.get("_knick_v") is not None
+
+
+TOL_V = 0.03            # Anteil: Schnittlänge eines V-Ausschnitts gegen die Formel
+
+
+def v_ausschnitte(m):
+    """Gestreckt gezeichneter Knickrahmen: V-Ausschnitte eines geraden Quadrat- oder Rechteckrohrs = durchgehende
+    Sonderkonturen durch drei Wände (die vierte, die Stegwand, bleibt). Ergebnis [dict(x, breite, steg,
+    schnittlaenge)] nach x."""
+    if m.get("profilform") not in kn.FORMEN or m.get("biegerohr") or m.get("knick_schenkel"):
+        return []
+    try:
+        liste = json.loads(m.get("konturen_liste") or "[]")
+    except (TypeError, ValueError):
+        return []
+    out = []
+    for d in liste if isinstance(liste, list) else ():
+        if not isinstance(d, dict) or d.get("art") != "Sonderkontur" or not d.get("durchgehend") \
+                or d.get("z") is None or not d.get("breite"):
+            continue
+        try:
+            waende = {int(round(float(str(w).rstrip("°")))) % 360 for w in d.get("waende") or ()}
+        except ValueError:
+            continue
+        if len(waende) != 3 or not waende <= set(SEITEN):
+            continue
+        out.append(dict(x=float(d["z"]), breite=float(d["breite"]), steg=SEITEN[(set(SEITEN) - waende).pop()],
+                        schnittlaenge=_z(d.get("schnittlaenge"))))
+    return sorted(out, key=lambda v: v["x"])
+
+
+def v_rahmen(m, vorgaben=None):
+    """Block eines gestreckt gezeichneten Knickrahmens aus den V-Ausschnitten (v_ausschnitte) oder None: Knickwinkel
+    aus der Breite an der Innenwand (w = 2 · (h − s) · tan(β/2)), die Schnittlänge muss zur Formel passen; Schenkel so,
+    dass die Knicke an den gemessenen Stellen liegen (gestreckte Länge = gemessene Länge). Geschlossen, wenn beide
+    Enden die halbe Gehrung des Stoßes haben. Ergebnis (Block, Lage der V)."""
+    vs = v_ausschnitte(m)
+    if not vs or len({v["steg"] for v in vs}) != 1:
+        return None
+    profil = dict(form=m.get("profilform"), a=_z(m.get("abm_a")), b=_z(m.get("abm_b")) or _z(m.get("abm_a")),
+                  wand=_z(m.get("wandstaerke")))
+    steg = vs[0]["steg"]
+    b, h, s = kn.querschnitt(profil, steg)
+    if h <= s:
+        return None
+    betas = [2 * math.degrees(math.atan(v["breite"] / 2 / (h - s))) for v in vs]
+    if max(betas) - min(betas) > TOL_WINKEL:
+        return None
+    beta = round(sum(betas) / len(betas), 1)
+    if abs(beta - round(beta)) <= 0.6:
+        beta = float(round(beta))
+    soll = kn.v_masse(b, h, s, beta)["laenge"]
+    if any(v["schnittlaenge"] and abs(v["schnittlaenge"] - soll) > TOL_V * soll for v in vs):
+        return None
+    v = vorgaben or {}
+    kf, zug = _z(v.get("k")) or kn.K_FAKTOR, _z(v.get("z"))
+    netto = kn.ausgleich(beta, s, kf) - zug
+    xs = [x["x"] for x in vs]
+    L = _z(m.get("laenge"))
+    schenkel = [xs[0] + netto / 2] + [xs[i] - xs[i - 1] + netto for i in range(1, len(xs))] + [L - xs[-1] + netto / 2]
+    e = enden(m)
+    stoss = 360.0 - len(xs) * beta
+    geschlossen = 0 < stoss < 180 and all(e[x_] and abs(e[x_][0] - stoss / 2) <= TOL_WINKEL for x_ in "AB")
+    block = dict(schenkel=[round(x, 2) for x in schenkel], beta=beta, geschlossen=geschlossen, steg=steg,
+                 freistich=_z(v.get("freistich")) or None, z=zug or None, k=kf, herkunft=HERKUNFT_KOERPER)
+    try:
+        kn.rahmen(block, profil)
+    except ValueError:
+        return None
+    return block, xs
+
+
+def koerper_vorbereiten(m, vorgaben=None):
+    """Knickrahmen aus einem Körper: die Rohrstücke wie Einzelrohre verbinden und den Block in m schreiben (nur
+    einmal, Änderungen aus dem Prüfdialog bleiben). vorgaben = Einstellungen {z, freistich, k}. Ergebnis: True, wenn m
+    ein Knickrahmen ist; geht die Kette nicht, steht der Grund in m['_knick_fehler']."""
+    if m.get("_knickrahmen"):
+        return True
+    teile = stuecke(m)
+    if len(teile) < 2:
+        gestreckt = v_rahmen(m, vorgaben)
+        if not gestreckt:
+            return False
+        block, xs = gestreckt
+        m.update(_knickrahmen=block, _knick_v=xs, pruefstatus="prüfen",
+                 _knick_laenge=round(kn.rahmen(block, dict(form=m.get("profilform"), a=_z(m.get("abm_a")),
+                                                           b=_z(m.get("abm_b")) or _z(m.get("abm_a")),
+                                                           wand=_z(m.get("wandstaerke"))))["laenge"], 1))
+        return True
+    m["_knick_schenkel"] = teile
+    v = vorgaben or {}
+    try:
+        erstellen(teile, kette(teile, range(len(teile))), v.get("freistich"), v.get("z"), v.get("k"), ziel=m)
+    except ValueError as f:
+        m["_knick_fehler"] = str(f)
+        return False
+    return True
+
+
+def _quelle(messwerte, m):
+    """Messwerte, in die _knick_teile von m zählen: die Rohrstücke eines Körpers oder die Messwerte selbst."""
+    return m["_knick_schenkel"] if m.get("_knick_schenkel") is not None else messwerte
 
 
 def loesen(messwerte, i):
@@ -302,6 +438,11 @@ def text(m):
     if not k:
         return ""
     n = len(k["schenkel"]) - 1
+    if ist_koerper(m):
+        return (f"Knickrahmen ({n} Knick{'e' if n != 1 else ''}) aus einem Körper"
+                + (" (gestreckt gezeichnet)" if m.get("_knick_v") is not None else "")
+                + (", geschlossen" if k.get("geschlossen") else ", offen")
+                + f", gestreckt {kn._zahl(m.get('_knick_laenge') or 0)} mm")
     return (f"Knickrahmen aus {len(k['schenkel'])} Rohren, {n} Knick{'e' if n != 1 else ''}"
             + (", geschlossen" if k.get("geschlossen") else ", offen")
             + f", gestreckt {kn._zahl(m.get('_knick_laenge') or 0)} mm")
@@ -378,13 +519,15 @@ def eingaben(m_leit, rechner_je_teil, profil):
     if gravur:
         out["gravur"] = round(gravur, 1)
     from .schneidweg import v_ergaenzen
-    neu, r = kn.anwenden(out, dict(k, herkunft=HERKUNFT), profil)
+    neu, r = kn.anwenden(out, dict(k, herkunft=k.get("herkunft") or HERKUNFT), profil)
     return v_ergaenzen(neu, profil), r
 
 
 def netz_gefaltet(messwerte, m_leit):
     """Netz des gefalteten Rahmens im System des Leitteils (alle Schenkel in ihrer Lage), gepackt wie die Netze der
-    Messung; None ohne Netze."""
+    Messung; None ohne Netze. Knickrahmen aus einem Körper: das Netz des Körpers."""
+    if ist_koerper(m_leit):
+        return m_leit.get("_netz")
     basis = lage(m_leit)
     if not basis:
         return None
@@ -425,7 +568,7 @@ def kandidaten_filtern(kandidaten, messwerte, datei):
     eines geschlossenen Rahmens bleibt."""
     weg = set()
     for m in messwerte:
-        if m.get("datei") != datei or not m.get("_knickrahmen"):
+        if m.get("datei") != datei or not m.get("_knickrahmen") or ist_koerper(m):
             continue
         nrs = [str(messwerte[t["i"]].get("koerper")) for t in m["_knick_teile"]]
         for a, b in zip(nrs, nrs[1:]):
@@ -439,6 +582,7 @@ def kandidaten_filtern(kandidaten, messwerte, datei):
 def summe(messwerte, m_leit, spalte):
     """Spalte mit Paaren 'Ø:Anzahl|…' (bohrungen, senkungen, fliessloecher) über alle Schenkel zusammengezählt."""
     n = {}
+    messwerte = _quelle(messwerte, m_leit)
     for t in m_leit.get("_knick_teile") or ():
         for teil in str(messwerte[t["i"]].get(spalte) or "").split("|"):
             if ":" in teil:

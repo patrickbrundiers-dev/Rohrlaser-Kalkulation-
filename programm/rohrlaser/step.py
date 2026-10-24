@@ -1040,10 +1040,16 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     Ohne zukauf_liste werden Bleche wie bisher nicht übernommen.
     d3 bzw. je Teil _d3 (Häkchen 3D-Schnittbearbeitung im Prüfdialog): Gehrungen und schräge Bohrungen in 3D
     (rechner_eingaben); ohne Häkchen bekommen Teile mit schrägen Bohrungen den Hinweis „3D prüfen“.
+    Knickrahmen (Prüfdialog bzw. Messung mit knick_schenkel, knickverbindung.py): eine Position mit dem gestreckten
+    Rohr aller Schenkel.
     Biegerohre (Messung mit Block 'biegerohr'): Länge und Konturen auf das gestreckte Rohr mit biegerohr_faktor
     (Faktor neutrale Faser, Vorgabe 1,0) umgerechnet, Block in technik; mit zusatz_katalog (Zeilen der Zusatzarbeiten)
     die Zusatzarbeit 'Biegen' mit der Zahl der Biegungen als Menge."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
+    from . import knickverbindung
+    for m in messwerte:     # Knickrahmen aus einem Körper ohne Prüfdialog: mit den Vorgaben verbinden
+        if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:
+            knickverbindung.koerper_vorbereiten(m)
     gewinde = [(g["gewinde"], g["kernloch"]) for g in gewinde_zeilen
                if g.get("gewinde") and isinstance(g.get("kernloch"), (int, float))] or KERNLOCH
     (klein, mittel), vorgabe = rechnen.kontur_grenzen(maschine)
@@ -1297,11 +1303,19 @@ def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, ma
     Rohr, V-Ausschnitte, Länge, Schneidweg und Enden aus dem Schneidweg-Rechner, gefaltetes Netz und Zusatzarbeit
     Knicken. Ergebnis: Messwerte für das Bohrbild (Bohrungen aller Schenkel)."""
     from . import knickrahmen, knickverbindung, schneidweg
-    teile = m["_knick_teile"]
-    je_teil = {t["i"]: rechner_eingaben(messwerte[t["i"]], form, profil.get("a"), profil.get("b"), mit_3d)
-               for t in teile}
+    teile = m.get("_knick_teile") or []
+    quelle = knickverbindung._quelle(messwerte, m)
     try:
-        eing, r = knickverbindung.eingaben(m, je_teil, profil)
+        if m.get("_knick_v") is not None:      # gestreckt gezeichnet: gemessene V-Ausschnitte durch die des Rahmens
+            eing = rechner_eingaben(m, form, profil.get("a"), profil.get("b"), mit_3d)
+            eing["konturen"] = [z for z in eing.get("konturen") or () if not (
+                z.get("art") == "Sonderkontur" and any(abs(_z(z, "x") - x) < 1.0 for x in m["_knick_v"]))]
+            eing, r = knickrahmen.anwenden(eing, m["_knickrahmen"], profil)
+            eing = schneidweg.v_ergaenzen(eing, profil)
+        else:
+            je_teil = {t["i"]: rechner_eingaben(quelle[t["i"]], form, profil.get("a"), profil.get("b"), mit_3d)
+                       for t in teile}
+            eing, r = knickverbindung.eingaben(m, je_teil, profil)
     except ValueError as f:
         hinweise.append(f"Knickverbindung nicht möglich: {f}")
         return m
@@ -1320,8 +1334,11 @@ def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, ma
         p["zusatz"] = zu
     if fehlt and zusatz_katalog is not None:
         hinweise.append(f"Zusatzarbeit '{knickrahmen.ZUSATZ_KNICKEN}' fehlt in den Stammdaten")
-    hinweise.append(f"Knickrahmen aus {len(teile)} Rohren ({', '.join(str(messwerte[t['i']].get('artikel')) for t in teile)}): "
-                    f"{knickrahmen.kurz(r)}" + ("; Stoß schweißen" if r["enden"] else ""))
+    herkunft = "einem Körper" if knickverbindung.ist_koerper(m) else \
+        f"{len(teile)} Rohren ({', '.join(str(messwerte[t['i']].get('artikel')) for t in teile)})"
+    hinweise.append(f"Knickrahmen aus {herkunft}: {knickrahmen.kurz(r)}" + ("; Stoß schweißen" if r["enden"] else ""))
+    if not teile:
+        return m
     return dict(m, **{n: knickverbindung.summe(messwerte, m, n) for n in ("bohrungen", "senkungen", "fliessloecher")})
 
 

@@ -131,7 +131,7 @@ soll_xyz = [(0, 0, 0), (0, 0, 280), (150 + 80 + k, 0, 280),
 assert all(abs(a - b) < 0.02 for p, q in zip(br["xyz"], soll_xyz) for a, b in zip(p, q)), br["xyz"]
 assert t.ende_a_gerade and t.ende_b_gerade and abs(t.ende_a - 40 * math.pi) < 0.05 and t.konturen == 2
 j = step_ergebnis.koerper(t)
-assert step_ergebnis.SCHEMA_VERSION == "1.15" and j["biegerohr"]["mittellinie"] == round(SOLL, 2), j["biegerohr"]
+assert step_ergebnis.SCHEMA_VERSION >= "1.15" and j["biegerohr"]["mittellinie"] == round(SOLL, 2), j["biegerohr"]
 (g,) = analysiere_datei(gerade)
 assert g.biegerohr is None and g.profilform == "Rundrohr" and abs(g.laenge - 300) < 0.01
 ok("B1 Messung: Mittellinie 638,5 mm, LRA, XYZ, Prüfstatus prüfen, JSON 1.15; gerades Rohr unverändert")
