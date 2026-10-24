@@ -102,7 +102,7 @@ class Updater:
         if self.lokal is not None:
             QTimer.singleShot(SUCHEN_NACH_MS, lambda: self.suchen(still=True))
         if (self.ordner / update.ARBEITSORDNER).exists():       # alte Dateien nach dem Neustart frei: aufräumen
-            QTimer.singleShot(15000, lambda: update.aufraeumen(self.ordner))
+            QTimer.singleShot(15000, lambda: (update.nachholen(self.ordner), update.aufraeumen(self.ordner)))
 
     def suchen(self, still=False):
         if self._laeuft:
@@ -262,7 +262,7 @@ def nach_beenden(ordner, ausstehend, starten=None, exe=None):
 
     def warten(gesperrt, rest):
         fortschritt.setLabelText(f"Warte, bis {gesperrt[0]} frei ist … (noch {rest:.0f} s)\n"
-                                 f"{update.sperr_grund(gesperrt[0])}")
+                                 f"{update.sperr_grund(gesperrt[0], ordner)}")
         QApplication.processEvents()
 
     ergebnis = None
@@ -280,11 +280,19 @@ def nach_beenden(ordner, ausstehend, starten=None, exe=None):
                 gesperrt = e.dateien
             except (update.UpdateFehler, OSError) as e:
                 fehler = str(e)
+        if gesperrt and update.nur_anleitungen(gesperrt):
+            # nur die Anleitung hält jemand fest (PDF-Programm, Vorschau, Virenscanner): das Programm trotzdem
+            # aktualisieren, die Anleitung tauscht der nächste Start (update.nachholen)
+            protokoll.info("Update: Anleitung gesperrt, wird beim nächsten Start getauscht: " + ", ".join(
+                f"{r} ({update.sperr_grund(r, ordner)})" for r in gesperrt))
+            plan = update.zurueckstellen(ordner, plan, neu_ordner, online, gesperrt)
+            continue
         if gesperrt:
-            protokoll.info("Update: gesperrt " + ", ".join(gesperrt))
+            protokoll.info("Update: gesperrt " + "; ".join(f"{r} ({update.sperr_grund(r, ordner)})"
+                                                            for r in gesperrt))
             fortschritt.hide()
             antwort = QMessageBox.warning(
-                None, f"{NAME} – Update", f"{update.sperr_text(gesperrt)}\n\nBitte schließen und „Wiederholen“ "
+                None, f"{NAME} – Update", f"{update.sperr_text(gesperrt, ordner)}\n\nBitte schließen und „Wiederholen“ "
                 "klicken. „Abbrechen“ startet die bisherige Version, es wurde nichts geändert.",
                 QMessageBox.Retry | QMessageBox.Cancel, QMessageBox.Retry)
             if antwort == QMessageBox.Retry:

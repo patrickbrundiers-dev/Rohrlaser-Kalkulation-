@@ -69,19 +69,71 @@ def ist_sperre(e):
     return isinstance(e, PermissionError) or getattr(e, "winerror", None) in (5, 32, 33)
 
 
-def sperr_grund(rel):
-    """Wahrscheinlicher Grund, warum die Datei rel festgehalten wird (für die Meldung)."""
+NACHHOLEN = "nachholen"              # in _update: Anleitungen, die beim Update gesperrt waren (nachholen())
+
+
+def wer_sperrt(pfad):
+    """Namen der Programme, die die Datei gerade festhalten (Windows-Neustart-Manager), sonst []. Nur für die Meldung
+    und das Protokoll; jeder Fehler ergibt []."""
+    if os.name != "nt":
+        return []
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _Prozess(ctypes.Structure):
+            _fields_ = [("pid", wintypes.DWORD), ("start", wintypes.FILETIME)]
+
+        class _Info(ctypes.Structure):
+            _fields_ = [("prozess", _Prozess), ("name", wintypes.WCHAR * 256), ("dienst", wintypes.WCHAR * 64),
+                        ("art", wintypes.DWORD), ("status", wintypes.ULONG), ("sitzung", wintypes.DWORD),
+                        ("neustartbar", wintypes.BOOL)]
+
+        rm = ctypes.WinDLL("rstrtmgr")
+        sitzung, schluessel = wintypes.DWORD(), ctypes.create_unicode_buffer(64)
+        if rm.RmStartSession(ctypes.byref(sitzung), 0, schluessel):
+            return []
+        try:
+            dateien = (wintypes.LPCWSTR * 1)(str(pfad))
+            if rm.RmRegisterResources(sitzung, 1, dateien, 0, None, 0, None):
+                return []
+            noetig, anzahl, grund = wintypes.UINT(0), wintypes.UINT(0), wintypes.DWORD()
+            rm.RmGetList(sitzung, ctypes.byref(noetig), ctypes.byref(anzahl), None, ctypes.byref(grund))
+            if not noetig.value:
+                return []
+            infos = (_Info * noetig.value)()
+            anzahl = wintypes.UINT(noetig.value)
+            if rm.RmGetList(sitzung, ctypes.byref(noetig), ctypes.byref(anzahl), infos, ctypes.byref(grund)):
+                return []
+            return sorted({i.name or f"Prozess {i.prozess.pid}" for i in infos[:anzahl.value]})
+        finally:
+            rm.RmEndSession(sitzung)
+    except Exception:       # noqa: BLE001 – nur Zusatzinfo
+        return []
+
+
+def nur_anleitungen(dateien):
+    """True, wenn alle gesperrten Dateien Anleitungen (PDF) sind: die tauscht das Update später (nachholen)."""
+    return bool(dateien) and all(str(r).lower().endswith(".pdf") for r in dateien)
+
+
+def sperr_grund(rel, ordner=None):
+    """Wahrscheinlicher Grund, warum die Datei rel festgehalten wird (für die Meldung); mit ordner auch das
+    Programm, das sie festhält (wer_sperrt)."""
+    wer = wer_sperrt(Path(ordner) / rel) if ordner is not None else []
+    if wer:
+        return f"geöffnet in {', '.join(wer)} – bitte dort schließen"
     p = str(rel).replace("\\", "/").lower()
     if p.endswith(".pdf"):
-        return "wahrscheinlich im PDF-Programm geöffnet – bitte dort schließen"
+        return "in einem PDF-Programm, der Explorer-Vorschau oder vom Virenscanner geöffnet"
     if p.startswith("step-import/"):
         return "der STEP-Import läuft noch – bitte im Task-Manager „STEP-Import“ beenden"
     return ("von einem anderen Programm benutzt (Virenscanner, Explorer-Vorschau oder ein zweites "
             f"{NAME}-Fenster) – bitte schließen")
 
 
-def sperr_text(dateien):
-    zeilen = [f"• {rel}: {sperr_grund(rel)}" for rel in list(dateien)[:8]]
+def sperr_text(dateien, ordner=None):
+    zeilen = [f"• {rel}: {sperr_grund(rel, ordner)}" for rel in list(dateien)[:8]]
     if len(dateien) > 8:
         zeilen.append(f"• … und {len(dateien) - 8} weitere")
     return "Diese Programmdateien sind noch geöffnet und lassen sich nicht austauschen:\n" + "\n".join(zeilen)
@@ -414,9 +466,47 @@ def verwerfen(ordner):
         shutil.rmtree(Path(ordner) / ARBEITSORDNER / name, ignore_errors=True)
 
 
+def zurueckstellen(ordner, plan, neu_ordner, online, dateien):
+    """Gesperrte Anleitungen aus dem Plan nehmen und ihre neue Fassung nach _update/nachholen legen (nachholen()
+    tauscht sie beim nächsten Start). Ergebnis: Plan ohne diese Dateien."""
+    ordner = Path(ordner)
+    for rel in dateien:
+        if rel in plan["neu"]:
+            ziel = ordner / ARBEITSORDNER / NACHHOLEN / rel
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path(neu_ordner) / online["dateien"][rel]["sha256"], ziel)
+    return dict(plan, neu=[r for r in plan["neu"] if r not in dateien],
+                weg=[r for r in plan["weg"] if r not in dateien])
+
+
+def nachholen(ordner):
+    """Beim Start: zurückgestellte Anleitungen an ihren Platz. Ergebnis: rel. Pfade, die noch gesperrt sind (bleiben
+    für den nächsten Start liegen)."""
+    ordner = Path(ordner)
+    quelle = ordner / ARBEITSORDNER / NACHHOLEN
+    offen = []
+    for datei in sorted(p for p in quelle.rglob("*") if p.is_file()) if quelle.is_dir() else []:
+        rel = datei.relative_to(quelle).as_posix()
+        if not sicherer_pfad(rel):
+            datei.unlink(missing_ok=True)
+            continue
+        try:
+            _ersetzen(datei, ordner / rel)
+        except OSError:
+            offen.append(rel)
+    return offen
+
+
 def aufraeumen(ordner):
-    """Beim Start: Reste eines Updates löschen (alte Dateien sind jetzt frei). Fehler stören nicht."""
-    shutil.rmtree(Path(ordner) / ARBEITSORDNER, ignore_errors=True)
+    """Beim Start: Reste eines Updates löschen (alte Dateien sind jetzt frei). Fehler stören nicht. Noch nicht
+    nachgeholte Anleitungen (_update/nachholen) bleiben."""
+    arbeit = Path(ordner) / ARBEITSORDNER
+    if (arbeit / NACHHOLEN).is_dir() and any(p.is_file() for p in (arbeit / NACHHOLEN).rglob("*")):
+        for p in arbeit.iterdir() if arbeit.is_dir() else []:
+            if p.name != NACHHOLEN:
+                shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(missing_ok=True)
+    else:
+        shutil.rmtree(arbeit, ignore_errors=True)
     (Path(ordner) / (DATEILISTE + ".neu")).unlink(missing_ok=True)
 
 

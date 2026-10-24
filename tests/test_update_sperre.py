@@ -95,6 +95,8 @@ ok("Warten bis frei: Sperre weg -> weiter, Sperre bleibt -> Liste nach der Frist
 
 # 3) Gründe verständlich
 assert "PDF-Programm" in update.sperr_grund("Bedienungsanleitung.pdf")
+assert update.nur_anleitungen(["Bedienungsanleitung.pdf", "Kurzanleitung.pdf"])
+assert not update.nur_anleitungen(["Bedienungsanleitung.pdf", "_internal/a.dll"]) and not update.nur_anleitungen([])
 assert "STEP-Import" in update.sperr_grund("STEP-Import/STEP-Import.exe")
 assert "Virenscanner" in update.sperr_grund("_internal/a.dll")
 assert "Bedienungsanleitung.pdf" in update.sperr_text(["Bedienungsanleitung.pdf"])
@@ -111,7 +113,8 @@ except update.DateiGesperrt as e:
 assert inhalt(alt) == vorher and neu_ordner.exists()
 ok("Sperre beim Austausch: zurückgestellt, Download bleibt für einen neuen Versuch")
 
-# 5) nach_beenden: erst Wiederholen (Sperre noch da), dann ist sie weg -> ok, Neustart mit --nach-update ok
+# 5) nach_beenden: erst Wiederholen (Programmdatei noch gesperrt), dann ist sie weg -> ok, Neustart mit
+#    --nach-update ok
 app = QApplication.instance() or QApplication([])
 update.SPERR_WARTEN_S = 0
 fragen = []
@@ -120,21 +123,46 @@ fragen = []
 def warnung(*a, **k):
     fragen.append(a[2])
     if len(fragen) == 1:
-        gesperrt.clear()            # Benutzer schließt das PDF-Programm und klickt Wiederholen
+        gesperrt.clear()            # Benutzer schließt das andere Programm und klickt Wiederholen
         return QMessageBox.Retry
     return QMessageBox.Cancel
 
 
 QMessageBox.warning = staticmethod(warnung)
-gesperrt.add("Bedienungsanleitung.pdf")
+gesperrt.add("a.dll")
 neustart = []
 ausstehend = dict(online=online, plan=plan, neu_ordner=neu_ordner)
 assert update_fenster.nach_beenden(alt, ausstehend, starten=lambda exe, arg: neustart.append(arg)) == "ok"
-assert len(fragen) == 1 and "PDF-Programm" in fragen[0], fragen
+assert len(fragen) == 1 and "_internal/a.dll" in fragen[0] and "Virenscanner" in fragen[0], fragen
 assert neustart == [["--nach-update", "ok"]]
 assert inhalt(alt) == inhalt(neu) | {update.DATEILISTE: inhalt(alt)[update.DATEILISTE]}
 assert update.lokale_liste(alt)["stand"] == 2
 ok("Nach dem Beenden: Wiederholen nach dem Schließen, dann ausgetauscht und neu gestartet")
+
+# 5b) Nur die Anleitung bleibt gesperrt (Patrick 24.10.: Anleitung war gar nicht offen): ohne Rückfrage
+#     aktualisieren, die Anleitung tauscht der nächste Start
+alt3 = programm(tmp / "alt3", b"v1:")
+shutil.copyfile(tmp / "pakete_alt" / update.DATEILISTE, alt3 / update.DATEILISTE)
+plan3 = update.planen(alt3, online, update.lokale_liste(alt3))
+aus3 = dict(online=online, plan=plan3, neu_ordner=update.laden(alt3, quelle, online, plan3))
+fragen.clear()
+neustart.clear()
+gesperrt.add("Bedienungsanleitung.pdf")
+assert update_fenster.nach_beenden(alt3, aus3, starten=lambda exe, arg: neustart.append(arg)) == "ok"
+assert not fragen and neustart == [["--nach-update", "ok"]], fragen
+assert (alt3 / "Bedienungsanleitung.pdf").read_bytes() == b"v1:Bedienungsanleitung.pdf"
+assert (alt3 / "Rohrlaser-Angebotskalkulation.exe").read_bytes() == b"v2:Rohrlaser-Angebotskalkulation.exe"
+assert update.lokale_liste(alt3)["stand"] == 2
+update.aufraeumen(alt3)                                       # Start, Anleitung noch gesperrt: bleibt liegen
+assert update.nachholen(alt3) == ["Bedienungsanleitung.pdf"]
+update.aufraeumen(alt3)
+gesperrt.clear()
+assert update.nachholen(alt3) == []                           # nächster Start: jetzt getauscht
+assert (alt3 / "Bedienungsanleitung.pdf").read_bytes() == b"v2:Bedienungsanleitung.pdf"
+update.aufraeumen(alt3)
+assert not (alt3 / update.ARBEITSORDNER).exists()
+assert update.wer_sperrt(alt3 / "Bedienungsanleitung.pdf") == []          # außerhalb von Windows: keine Angabe
+ok("Nur die Anleitung gesperrt: Programm trotzdem aktualisiert, Anleitung beim nächsten Start nachgeholt")
 
 # 6) Abbrechen: alte Version bleibt, Download verworfen, Neustart mit --nach-update abgebrochen
 alt2 = programm(tmp / "alt2", b"v1:")

@@ -288,6 +288,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     from . import orte, update
+    update.nachholen(programmordner())         # beim Update gesperrte Anleitungen jetzt tauschen
     update.aufraeumen(programmordner())        # Reste eines Updates (alte Dateien sind jetzt frei)
 
     from PySide6.QtCore import QLocale, QStandardPaths

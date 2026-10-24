@@ -4890,7 +4890,9 @@ def kapitel_pflege(i):
             "gemeinsamen Ordner, sichert wie beim Beenden und gibt die Datendatei frei. Erst danach tauscht es die "
             "Dateien aus und startet neu; die Statuszeile meldet <i>Update eingespielt</i>.",
             "Hält ein anderes Programm eine Datei fest (Virenscanner, Explorer-Vorschau), wartet das Programm bis zu "
-            "30 Sekunden. Danach nennt es Datei und wahrscheinlichen Grund: Programm schließen und "
+            "30 Sekunden. Ist dann nur die Anleitung (PDF) noch gesperrt, aktualisiert es trotzdem und tauscht die "
+            "Anleitung beim nächsten Start. Bei anderen Dateien nennt es Datei und das Programm, das sie festhält: "
+            "dieses schließen und "
             "<b>Wiederholen</b>, oder <b>Abbrechen</b>. Bei Abbruch oder Fehler stellt es alle Dateien zurück und "
             "startet die bisherige Version wieder; nichts ist verändert. Einzelheiten stehen im Protokoll "
             "(<i>Daten\\Protokoll\\fehler.log</i>).",
