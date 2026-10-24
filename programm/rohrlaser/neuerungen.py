@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.64", "<b>3D der Baugruppe</b>: Steckt ein Teil öfter in der Baugruppe, als die STEP-Datei Körper dafür hat "
+               "(Menge von Hand erhöht oder Unterbaugruppe aus eigener Datei), nennt die Zeile unter der Ansicht "
+               "jetzt die Teile mit „1 von 4 Stück“ ([[baugruppe_baum]]).",
+     "3D der Baugruppe: Hinweis, wenn nicht alle Stück eines Teils im 3D stehen ([[baugruppe_baum]])."],
     ["0.9.61", "<b>Eigener Ordner je Angebot</b>: Alles, was das Programm zu einem Angebot speichert (Angebot, "
                "Kalkulation, Werkstattpapiere, Nachkalkulation, Zeichnungen, CSV-Export, Materialanfrage, STEP-Messung), "
                "kommt in den Ordner <i>Nummer Kunde</i> in der Ablage; Fassungen als Unterordner <i>Fassung 2</i>. Neuer "

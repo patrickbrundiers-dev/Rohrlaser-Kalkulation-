@@ -3065,7 +3065,10 @@ def kapitel_baugruppen(i):
            "Baugruppe selbst ziehen: das ändert seine Zuordnung wie im Reiter Struktur und Teile, das Stück je "
            "Baugruppe bleibt, wenn die Teilung aufgeht. Je Teil zeigt die 3D-Ansicht alle gleichen Körper der "
            "STEP-Datei; bei Teilen aus einem Import vor Version 0.9.52 nur einen, Teile ohne STEP-Import fehlen "
-           "(die Zeile unter der Ansicht nennt, wie viele).")
+           "(die Zeile unter der Ansicht nennt, wie viele). Steckt ein Teil öfter in der Baugruppe, als die "
+           "STEP-Datei Körper dafür hat (Menge von Hand erhöht, Unterbaugruppe aus einer eigenen Datei mit mehreren "
+           "Sätzen), zeigt die Ansicht nur die vorhandenen Körper und nennt die Teile mit „1 von 4 Stück“; die Lage "
+           "der übrigen ist unbekannt und wird nicht erfunden.")
     i.text("Den Nahtverlauf liefert der STEP-Import ab Version 0.9.56 (die Schnittkante der sich berührenden "
            "Körper). Nähte sind immer sichtbar, auch wenn ein Teil davor liegt. Von Hand angelegte Nahtgruppen und "
            "Nahtgruppen aus einem älteren Import haben keinen Verlauf; die Zeile unter der Ansicht nennt, wie viele "
