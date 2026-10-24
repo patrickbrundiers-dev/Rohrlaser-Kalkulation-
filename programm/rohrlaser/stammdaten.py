@@ -672,6 +672,21 @@ BAUGRUPPEN_VORLAGEN = Tabelle(
     "Vorlagen für Schweißbaugruppen: im Editor der Baugruppe speichern und in neue Baugruppen einsetzen.")
 
 
+# Kontur-Vorlagen (Plan 3D-Editor E1, Schritt 3E-6): Konturzeilen als JSON in 'konturen' (konturvorlagen.py). Gepflegt
+# im Teile-Editor, nicht als Stammdaten-Reiter; mit den übrigen Stammdaten zwischen Arbeitsplätzen geteilt.
+KONTUR_VORLAGEN = Tabelle(
+    "kontur_vorlagen", "Kontur-Vorlagen",
+    (Feld("name", "Vorlage", pflicht=True, breite=200),
+     Feld("art", "Rohr/Blech", breite=70),
+     Feld("kunde", "Nur für Kunde", breite=110),
+     Feld("profilform", "Profilform", breite=110),
+     Feld("inhalt", "Inhalt", breite=260),
+     Feld("konturen", "Konturen", breite=100),
+     Feld("angelegt", "Angelegt", breite=130),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("name", "art", "kunde"),
+    "Kontur-Vorlagen (z. B. Bohrbild, Steckverbindung): im Teile-Editor speichern und in andere Teile einsetzen.")
+
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             PRUEFREGELN, SCHWEISSVERFAHREN,

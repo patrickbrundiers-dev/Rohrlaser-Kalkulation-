@@ -1545,6 +1545,9 @@ def kapitel_step(i):
            "Linien), damit sie flüssig bleibt; beim Loslassen wieder vollständig.", kurz=True)
     i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
         (1, "Feste Blickrichtungen: <b>Schräg</b>, <b>Vorn</b>, <b>Oben</b> und <b>Stirnseite</b>.")])
+    i.text("<b>Im Editor öffnen</b> (oder Doppelklick auf das Teil in der Ansicht bzw. auf die Zeile der Liste) "
+           "schließt das Fenster und öffnet die gewählte Position im passenden Editor: Rohr im Schneidweg-Rechner, "
+           "Blech im Blech-Editor, Schweißbaugruppe im Baugruppen-Fenster.", kurz=True)
     i.genauer()
     i.text("Jedes per STEP-Import angelegte Teil wird mit seinem 3D-Modell gespeichert. In der Positionsliste steht "
            "neben der Artikelnummer ein kleines Vorschaubild. Selbst angelegte Teile bekommen ebenfalls ein Bild: "
@@ -1989,7 +1992,7 @@ def kapitel_optimieren(i):
                    "Doppelklick auf einen Reiter klappt das Band ein."),
                (2, "<b>Bohrung</b>, <b>Langloch</b>, <b>Rechteck</b>, unter <b>Weitere</b> alle anderen Konturarten: "
                    "fügt eine Kontur ein und wählt sie; daneben <b>Knickrahmen</b>, <b>Aus Position</b>, "
-                   "<b>Vorlagen</b>."),
+                   "<b>Teil-Vorlagen</b> und <b>Kontur-Vorlagen</b>."),
                (3, "<b>Merkmale</b> mit Herkunft STEP, manuell oder Vorgabe ([[teile_editor]])."),
                (4, "<b>3D-Modell</b> aus den Eingaben: jede Gehrung und Kontur sofort sichtbar; Klick auf eine Kontur "
                    "wählt sie."),
@@ -2077,7 +2080,17 @@ def kapitel_optimieren(i):
             "Muster) und Gravur unter einem Namen, für alle Angebote; <i>Vorlage laden</i> ersetzt damit die "
             "Eingaben, <i>Vorlage löschen</i> entfernt sie. Eine Vorlage eines anderen Profils trägt die Profilform "
             "im Namen; Seiten, die das Profil nicht hat, landen auf der ersten Fläche. <b>Aus Position kopieren …</b> "
-            "hängt die Konturen einer anderen Position dieses Angebots an (Enden bleiben).",
+            "hängt die Konturen einer anderen Position dieses Angebots an (Enden bleiben); die Auswahl zeigt je "
+            "Position ein Vorschaubild. Der Knopf heißt jetzt <b>Teil-Vorlagen</b>.",
+            "<b>Kontur-Vorlagen</b> merken sich nur einzelne Konturen mit ihren Abständen, z. B. ein Bohrbild oder "
+            "eine Steckverbindung: Konturen in der Tabelle markieren (Strg-Klick für mehrere) und <i>Kontur-Vorlagen → "
+            "Markierte Konturen als Vorlage speichern …</i> wählen, oder im Kontextmenü einer Kontur <i>Als "
+            "Kontur-Vorlage speichern …</i>. Im Fenster <i>Kontur-Vorlage speichern</i> den Namen eintragen; mit dem "
+            "Haken gilt die Vorlage nur für den Kunden des Angebots. Das Menü zeigt jede Vorlage mit Bild (die des "
+            "Kunden zuerst); ein Klick hängt die Konturen an das Teil an. Die Lage bleibt, wenn sie ins Teil passt, "
+            "sonst rückt die ganze Gruppe in die Mitte. <i>Vorlage löschen</i> entfernt eine Vorlage. Rohr und Blech "
+            "haben getrennte Vorlagen (Blech mit x/y in der Abwicklung, im Blech-Editor in der Gruppe "
+            "<b>Übernehmen</b>). Die Vorlagen werden mit den Stammdaten geteilt.",
             "<b>Lage der Konturen</b> (nur für die Skizze, ändert den Schneidweg nicht): <i>Lage ab Anfang</i> = "
             "Mitte der Kontur in mm ab Ende A (leer = gleichmäßig verteilt, Schlitz ohne Lage am Ende A). "
             "<i>Abstand</i> macht aus der Anzahl ein <b>Muster</b>: 4 Bohrungen, Lage 200, Abstand 100 liegen bei "
@@ -2343,8 +2356,8 @@ def kapitel_optimieren(i):
            "ein Merkmal, eine Meldung oder eine Kontur im 3D zeigt die Stelle überall.", kurz=True)
     i.genauer()
     i.liste("<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
-            "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Aus Position und Vorlagen, beim "
-            "Blech Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
+            "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Aus Position, Teil-Vorlagen und "
+            "Kontur-Vorlagen, beim Blech Kontur-Vorlagen und Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
             "<b>Blick</b> (Klick: schräg, Pfeil: Vorn, Oben, Stirnseite); beim Rohr STEP-Modell, Skizzenart und "
             "Querschnitt; Messen, Winkel, Maße löschen) und <i>Ausgabe</i> (Zeichnung als PDF, "
             "STEP neu einlesen bzw. beim Blech Zeichnung als PDF und DXF speichern). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "

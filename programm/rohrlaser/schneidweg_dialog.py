@@ -1186,10 +1186,16 @@ class SchneidwegDialog(QDialog):
             QMessageBox.information(self, "Konturen kopieren", "Keine andere Position dieses Angebots hat Konturen im "
                                     "Schneidweg-Rechner.")
             return
-        text, ok = QInputDialog.getItem(self, "Konturen kopieren", "Konturen anhängen von:", [t for t, _ in liste], 0,
-                                        False)
-        if ok:
-            self.konturen_kopieren(dict(liste)[text])
+        from . import konturvorlagen, vorschau
+        eintraege = [(text, vorschau.bild(x, self.k.profile.get(x.get("profil_id")), 220, 56), i)
+                     for i, (text, x) in enumerate(liste)]
+        d = konturvorlagen.AuswahlMitBild(self, "Konturen kopieren", "Konturen anhängen von (Doppelklick übernimmt):",
+                                          eintraege)
+        if getattr(self, "stumm", False):
+            return d
+        if d.exec() == QDialog.Accepted and d.wert is not None:
+            self.konturen_kopieren(liste[d.wert][1])
+        return d
 
     # ------------------------------------------------------------------ Skizze <-> Tabelle
     def _auswahl_tabelle(self):
