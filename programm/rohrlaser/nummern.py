@@ -14,7 +14,7 @@ import socket
 from . import angebotsordner, teilen
 
 MUSTER = re.compile(r"^(\d{4})-(\d{5,})$")
-VORLAEUFIG = re.compile(r"^V-[A-Z0-9ÄÖÜ]*-(\d+)$")
+VORLAEUFIG = re.compile(r"^V-[A-Z0-9ÄÖÜ]*-(\d+)(-\d+)?$")     # mit Zusatz -2 …: neue Fassung (W10)
 ORDNER = "Nummern"
 ENDUNG = ".nummer"
 
@@ -101,24 +101,45 @@ def neue_nummer(db, datum=None):
     return nummer(jahr, n)
 
 
+def _grund(nr):
+    """'V-PB-1-2' -> ('V-PB-1', '-2'); ohne Zusatz ('V-PB-1', '')."""
+    m = VORLAEUFIG.match(str(nr or ""))
+    zusatz = (m.group(2) or "") if m else ""
+    return str(nr)[:len(str(nr)) - len(zusatz)], zusatz
+
+
 def endgueltig(db, angebot_id=None):
-    """Eigene Angebote mit vorläufiger Nummer bekommen eine reservierte Nummer (älteste zuerst); angebot_id: nur
-    dieses. Ergebnis: [(alte, neue Nummer)]. OSError: Ordner nicht erreichbar."""
-    sql = "SELECT id, nummer FROM angebote WHERE fremd IS NULL AND nummer LIKE 'V-%'"
-    werte = ()
+    """Eigene Angebote mit vorläufiger Nummer bekommen eine reservierte Nummer (älteste zuerst); neue Fassungen
+    (V-PB-1-2) bekommen dieselbe Nummer wie ihre Grundnummer mit ihrem Zusatz (2026-00042-2), Fassungsbezüge
+    (fassung_basis, ersetzt_durch) werden mitgeändert. angebot_id: nur dieses Angebot samt seinen Fassungen.
+    Ergebnis: [(alte, neue Nummer)]. OSError: Ordner nicht erreichbar."""
+    zeilen = [(i, alt, datum) for i, alt, datum in db.con.execute(
+        "SELECT id, nummer, datum FROM angebote WHERE fremd IS NULL AND nummer LIKE 'V-%' ORDER BY id").fetchall()
+        if vorlaeufig(alt)]
+    gruppen = {}                        # Grundnummer -> [(id, alte Nummer, Zusatz, Datum)], älteste Gruppe zuerst
+    for i, alt, datum in zeilen:
+        grund, zusatz = _grund(alt)
+        gruppen.setdefault(grund, []).append((i, alt, zusatz, datum))
     if angebot_id is not None:
-        sql, werte = sql + " AND id=?", (angebot_id,)
+        gruppen = {g: z for g, z in gruppen.items() if any(i == angebot_id for i, *_ in z)}
+    spalten = {r[1] for r in db.con.execute("PRAGMA table_info(angebote)")}
     out = []
-    for i, alt in db.con.execute(sql + " ORDER BY id", werte).fetchall():
-        if not vorlaeufig(alt):
-            continue
-        datum = (db.con.execute("SELECT datum FROM angebote WHERE id=?", (i,)).fetchone() or [None])[0]
-        nr = reservieren(db, _jahr(datum))
+    for grund, glieder in gruppen.items():
+        nr = reservieren(db, _jahr(glieder[0][3]))
+        neu_von = {grund: nr}
+        neu_von.update({alt: nr + zusatz for _, alt, zusatz, _ in glieder})
         with db.con:
-            db.con.execute("UPDATE angebote SET nummer=? WHERE id=?", (nr, i))
+            for i, alt, zusatz, _ in glieder:
+                db.con.execute("UPDATE angebote SET nummer=? WHERE id=?", (nr + zusatz, i))
+            for spalte in ("fassung_basis", "ersetzt_durch"):
+                if spalte in spalten:
+                    for alt, neu in neu_von.items():
+                        db.con.execute(f"UPDATE angebote SET {spalte}=? WHERE {spalte}=? AND fremd IS NULL", (neu, alt))
             db._einstellung_schreiben("letzte_angebotsnummer", nr)
             # Ordner des Angebots in der Ablage wird beim nächsten Zugriff umbenannt (angebotsordner)
             offen = db.einstellung(angebotsordner.UMNUMMERIERT) or []
-            db._einstellung_schreiben(angebotsordner.UMNUMMERIERT, offen + [[alt, nr]])
-        out.append((alt, nr))
+            db._einstellung_schreiben(angebotsordner.UMNUMMERIERT,
+                                      offen + [[grund, nr]] + [[alt, nr + zusatz] for _, alt, zusatz, _ in glieder
+                                                               if zusatz])
+        out += [(alt, nr + zusatz) for _, alt, zusatz, _ in glieder]
     return out
