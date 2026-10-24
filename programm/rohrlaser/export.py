@@ -240,7 +240,8 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
         flaeche = None          # Mantelfläche außen [m²] = Umfang des Querschnitts × Teilelänge
         if pr and _zahl(p.get("laenge")):
             u = umfang(pr.get("form"), _zahl(pr.get("a")) or 0, _zahl(pr.get("b")), _zahl(pr.get("wand")),
-                       _zahl(pr.get("flaeche")), p.get("profil_id"))
+                       _zahl(pr.get("flaeche")), p.get("profil_id"),
+                       _zahl(rechnen.profil_im_angebot(pr, None, p.get("profil_id"), p.get("werkstoff_id"), k).get("r_aussen")))
             flaeche = u / 1000 * _zahl(p["laenge"]) / 1000 if u else None
         werkstoff = k.werkstoffe.get(p.get("werkstoff_id")) or {}
         bearb = None if zk else _zahl(z.get("laser_netto"))

@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import massbild, rechenfeld as rf, schneidweg as sw, stil
+from . import massbild, optimierung as opt, rechenfeld as rf, schneidweg as sw, stil
 
 ROHR_SPALTEN = dict(anzahl=1, lage=5, abstand=6, seite=7, quer=8, text=12, gewinde=13)
 BLECH_SPALTEN = dict(anzahl=1, x=5, y=6)
@@ -259,6 +259,8 @@ class Eigenschaften(QWidget):
             info.setWordWrap(True)
             self._form.addRow(info)
             self._spin("Gravur je Teil", d.gravur, "mm")
+            if d.profil.get("form") in opt.RADIUS_FORMEN:
+                self._radius()
             self._haken("3D-Schnittbearbeitung", d.d3)
             return "Teil"
         self._combo("Werkstoff", d.werkstoff)
@@ -271,6 +273,19 @@ class Eigenschaften(QWidget):
             self._spin("Breite", d.breite, "mm")
             self._spin("Eckradius", d.eckradius, "mm")
         return "Teil"
+
+    def _radius(self):
+        """Außenradius (gilt im Angebot je Profil + Werkstoff): leer = Stammdaten bzw. Vorgabe nach Norm (als Platzhalter
+        angezeigt)."""
+        d = self.d
+        eigen = getattr(d, "r_aussen", None)
+        f = self._rechen("Außenradius", eigen, d.radius_setzen, "mm",
+                         "Radius der Außenecken für Schnittlänge, Skizze und 3D. Gilt beim Übernehmen für alle "
+                         "Positionen des Angebots mit gleichem Profil und Werkstoff. Leer = Wert der Stammdaten, bei "
+                         "Aluminium 0, sonst Vorgabe nach EN 10219; 0 = scharfkantig.")
+        alu = d.profil.get("r_aussen") == 0 and (d.k.profile.get(d.p.get("profil_id")) or {}).get("r_aussen") in (None, "")
+        f.setPlaceholderText(f"{rf.zahl_text(sw.radius(d.profil))} ({'Aluminium' if alu else 'Stammdaten'})")
+        return f
 
     def _naht(self):
         d = self.d

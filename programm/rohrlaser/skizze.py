@@ -13,7 +13,7 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 """
 import math
 
-from . import normprofile, rp_profile
+from . import normprofile, optimierung as opt, rp_profile
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ,
                          SENKUNG, SONDERKONTUR, _z, kontur, punkte)
 
@@ -46,6 +46,7 @@ class Querschnitt:
         form = profil.get("form")
         a, b, t = _z(profil.get("a")) or 40.0, _z(profil.get("b")), _z(profil.get("wand"))
         self.form, self.r, self.flaechen, self.umriss = form, None, [], []
+        self.radius, self.wand = 0.0, t     # Außenradius (Quadrat-/Rechteckrohr), nur für Bilder (umriss_rund)
         self.a_waagrecht = False        # Maß a liegt waagrecht (Gehrung "über Höhe" kippt dann über u)
         if form == "Rundrohr":
             self.r = a / 2
@@ -117,6 +118,27 @@ class Querschnitt:
                              Flaeche("unten", (u1, -v1), (-u1, -v1), (0, -1)),
                              Flaeche("hinten", (-u1, -v1), (-u1, v1), (-1, 0))]
         self.umfang = sum(f.breite for f in self.flaechen)
+        self.radius = opt.aussenradius(form, a, b, t, profil.get("r_aussen")) if form in opt.RADIUS_FORMEN else 0.0
+
+    def umriss_rund(self, teile=6):
+        """Umriss für Bilder (3D, Ansicht von A): Quadrat-/Rechteckrohr mit Außenradius (innen Radius − Wand), je
+        Ecke teile Stücke; außen und innen gleich viele Punkte. Sonst umriss. Die Rechnung (Konturlage, Schnittkanten)
+        bleibt beim scharfkantigen umriss."""
+        if not self.radius or self.form not in opt.RADIUS_FORMEN:
+            return self.umriss
+        u1, v1 = self.B / 2, self.H / 2
+
+        def ecken(du, dv, r):
+            pts = []
+            for cu, cv, w0 in ((-du + r, dv - r, 90), (du - r, dv - r, 0), (du - r, -dv + r, -90), (-du + r, -dv + r, -180)):
+                for k in range(teile + 1):
+                    w = math.radians(w0 + 90 - 90 * k / teile)
+                    pts.append((cu + r * math.cos(w), cv + r * math.sin(w)))
+            return pts
+        out = [ecken(u1, v1, self.radius)]
+        if len(self.umriss) > 1 and 0 < self.wand < min(u1, v1):
+            out.append(ecken(u1 - self.wand, v1 - self.wand, max(0.0, self.radius - self.wand)))
+        return out
 
     # ------------------------------------------------------------------ Seiten
     def seiten(self):

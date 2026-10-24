@@ -1980,7 +1980,8 @@ def kapitel_optimieren(i):
     i.liste("<b>Anfangs- und Endschnitt</b>: Gehrung in Grad als Abweichung vom rechtwinkligen Schnitt (0° = gerade, "
             "höchstens 79,9°). Rundrohr: Schnittlänge als Ellipse. Alle anderen Profile: wählbar, ob die Gehrung "
             "<i>über Höhe</i> (Maß a) oder <i>über Breite</i> (Maß b) läuft; der Anteil der gekippten Richtung wird "
-            "mit 1 / cos Winkel gestreckt (Quadratrohr 40 × 40, 45°: 2 × 40 / cos 45° + 2 × 40 = 193,1 mm; beim "
+            "mit 1 / cos Winkel gestreckt (Quadratrohr 40 × 40 scharfkantig, 45°: 2 × 40 / cos 45° + 2 × 40 = 193,1 mm; mit "
+            "Außenradius werden die Ecken zur Ellipse, bei r = 6 mm 181,0 mm, [[profile]]; beim "
             "Träger Steg bzw. Flansche). Nur bei einer unbekannten Profilform ist die Gehrung eine "
             "<i>Schätzung</i> (gerade Schnittlänge / cos Winkel); der Dialog kennzeichnet sie. Je Ende zählen die "
             "Einstiche wie beim STEP-Import (Träger und U-Profil 4, T-Profil 2, sonst 1).",
@@ -2238,7 +2239,12 @@ def kapitel_optimieren(i):
             "Außendurchmesser, S = Wanddicke; beim Blech L und B = Zuschnitt, S = Dicke. <i>Abstand Muster</i> "
             "versteht <i>3x25</i> als 3 Stück im Abstand 25 mm. Eine falsche Eingabe wird rot umrandet, der Wert "
             "bleibt dann unverändert. Komma und Punkt gehen beide.",
-            "<b>3D-Modell aus den Eingaben</b>: Das Rohr wird aus Profil, Enden und Konturen gebaut, auch ohne "
+            "<b>Außenradius</b> (Quadrat- und Rechteckrohr, Eigenschaften des Teils): leer = Wert der Stammdaten, bei "
+            "<b>Aluminium</b> 0, sonst Vorgabe nach Norm (als grauer Text angezeigt); 0 = scharfkantig. Er gilt im ganzen <b>Angebot</b> für "
+            "alle Positionen mit gleichem Profil und Werkstoff: Beim Übernehmen rechnet das Programm die übrigen "
+            "Positionen dieser Gruppe mit Eingaben des Schneidweg-Rechners neu; gemessene STEP-Werte bleiben. "
+            "Ein anderer Werkstoff im selben Angebot hat seinen eigenen Radius.",
+                        "<b>3D-Modell aus den Eingaben</b>: Das Rohr wird aus Profil, Enden und Konturen gebaut, auch ohne "
             "STEP-Datei; jede Änderung ist sofort zu sehen. <i>Ansicht → STEP-Modell</i> zeigt stattdessen das "
             "gemessene Modell aus dem STEP-Import (Biegerohre immer).",
             "<b>Ansichtswürfel</b> oben rechts im 3D: Klick auf eine Fläche (oben, vorne, A, B …), eine Kante oder "
@@ -4088,7 +4094,7 @@ def kapitel_stammdaten(i):
             "formatieren.",
             "Vor dem Import legt das Programm eine Datensicherung an (Name endet auf <i>_vor_Kundenimport</i>), "
             "der alte Stand lässt sich zurückholen ([[datensicherung]]).")
-    i.abschnitt("Profile")
+    i.abschnitt("Profile", marke="profile")
     i.text("Profil-ID, Form, Maße und Wandstärke. Unbekannte Rohre im Angebot oder STEP-Import legt das Programm "
            "selbst an.", kurz=True)
     i.genauer("Felder")
@@ -4128,6 +4134,13 @@ def kapitel_stammdaten(i):
         ["Lieferlängen vergleichen", "leer oder ja = Lieferlängen aus der Tabelle Lieferlängen werden verglichen; "
                                      "nein = das Profil wird nur mit der Stangenlänge des Angebots geplant (z. B. "
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
+        ["Außenradius [mm]", "nur Quadrat- und Rechteckrohr: Radius der Außenecken. Leer = Vorgabe nach EN 10219 "
+                             "(2 × Wand bis 6 mm, 2,5 × Wand bis 10 mm, darüber 3 × Wand; Spalte <i>Außenradius "
+                             "wirksam</i>); bei Werkstoff Aluminium ist leer = 0 (Aluminiumprofile sind meist "
+                             "scharfkantig); 0 = scharfkantig. Er kürzt die Schnittlänge der Enden um (8 − 2π) × r "
+                             "(QR 40 × 40 × 3 mit r = 6: 149,7 statt 160 mm), auch schräg (die Ecken werden zur "
+                             "Ellipse), und die Außenfläche; Skizze und 3D-Modell zeigen die runden Ecken. Im Angebot "
+                             "lässt er sich je Profil und Werkstoff abweichend festlegen ([[teile_editor]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("RP-Profile (Rohre mit Anschlag)", marke="rp_profile")
     i.text("RP-Profile sind mitgeliefert. Neue kommen mit <b>RP-Profile aus MegaCAD laden …</b> aus den .mac-Dateien; "

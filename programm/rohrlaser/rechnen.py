@@ -425,13 +425,39 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
 
 
 # ------------------------------------------------------------------ Optimierung
+def radius_angebot(kopf, profil_id, werkstoff_id):
+    """Außenradius, den das Angebot für Profil + Werkstoff festlegt (angebote.radien), oder None (dann Stammdaten bzw.
+    Vorgabe nach Norm). Gleiche Rohre im gleichen Werkstoff haben im Angebot immer denselben Radius."""
+    r = ((kopf or {}).get("radien") or {}).get(naht.gruppe_schluessel(profil_id, werkstoff_id))
+    return float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 else None
+
+
+def aluminium(werkstoff_id, k):
+    """Werkstoff der Kategorie Aluminium (Profile meist scharfkantig gepresst)."""
+    return k is not None and kategorie(werkstoff_id, k) == "Aluminium"
+
+
+def profil_im_angebot(profil, kopf, profil_id, werkstoff_id, k=None):
+    """Profil (Stammdaten-Zeile) mit dem wirksamen Außenradius: Radius des Angebots, sonst der Stammdaten; ohne beides
+    bei Aluminium 0 = scharfkantig (Patrick 24.10.2026), sonst leer = Vorgabe nach EN 10219."""
+    if not profil or profil.get("form") not in opt.RADIUS_FORMEN:
+        return profil
+    r = radius_angebot(kopf, profil_id, werkstoff_id)
+    if r is None:
+        if not _leer(profil.get("r_aussen")) or not aluminium(werkstoff_id, k):
+            return profil
+        r = 0.0
+    return dict(profil, r_aussen=r)
+
+
 def gruppen_bilden(kopf, positionen, k):
     """Optimierungsgruppen (Profil + Werkstoff + Oberfläche + Stangenlänge) aus den Positionen.
     Ergebnis: (gruppen, fehler, neue_profile). Unbekannte Profile, deren ID dem Schema entspricht
     (z. B. 'RR 42,4x2,0'), werden aus dem Namen angelegt: sie stehen in neue_profile
     und zählen hier schon als vorhanden."""
     profile = {pid: dict(form=z.get("form"), a=_n(z.get("a")), b=z.get("b"), wand=z.get("wand"),
-                         end=z.get("endbeschnitt"), greif=z.get("greiferrest"), flaeche=flaeche_wirksam(z))
+                         end=z.get("endbeschnitt"), greif=z.get("greiferrest"), flaeche=flaeche_wirksam(z),
+                         r_aussen=z.get("r_aussen"))
                for pid, z in k.profile.items()}
     neue_profile = []
     for p in positionen:
@@ -490,7 +516,8 @@ def gruppen_bilden(kopf, positionen, k):
                                                beistellung=bs, querschnitt=querschnitt_gehrung(pr)))
         a_ger = p.get("a_gerade") != "nein"
         b_ger = p.get("b_gerade") != "nein"
-        u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"], pid)
+        u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"], pid,
+                              profil_im_angebot(pr, kopf, pid, wst, k).get("r_aussen"))
         h = p.get("schneidweg")
         if h:
             u = min(u, h / 2)
@@ -1549,7 +1576,8 @@ def oberflaeche(p, k):
     pr = k.profile.get(p.get("profil_id"))
     if not pr or _leer(p.get("laenge")) or pr.get("a") is None:
         return None
-    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), p.get("profil_id"))
+    u = opt.umfang(pr.get("form"), pr["a"], pr.get("b"), pr.get("wand"), flaeche_wirksam(pr), p.get("profil_id"),
+                   profil_im_angebot(pr, None, p.get("profil_id"), p.get("werkstoff_id"), k).get("r_aussen"))
     return u * p["laenge"] / 1e6 if u else None
 
 
