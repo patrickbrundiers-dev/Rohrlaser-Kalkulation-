@@ -132,6 +132,7 @@ else:
     seite.dragEnterEvent(z)
     assert z.angenommen and seite._gezogene_dateien(z) == [BAUGRUPPE]
     seite.dropEvent(z)                                        # ohne Rückfragen: als Satz, Stückzahl leer
+    app.processEvents()                                      # Import startet erst nach dem Drop
     p = db.positionen(a)
     assert [(x["artikel"], x["profil_id"], x["laenge"], x["satz"], x["je_satz"], x["stueck"]) for x in p] == [
         ("T08_Gestell_Baugruppe-K1", "QR 40x40x3", 600.0, "T08_Gestell_Baugruppe", 3, None),

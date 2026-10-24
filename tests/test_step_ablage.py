@@ -66,6 +66,7 @@ farbe = seite.ablage_gross.styleSheet()
 seite.dragEnterEvent(QDragEnterEvent(QPoint(5, 5), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
 assert seite.ablage_gross.styleSheet() != farbe and "#DCE9F8" in seite.ablage_klein.styleSheet()
 seite.dropEvent(QDropEvent(QPointF(5, 5), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
+app.processEvents()                                    # Import startet nach dem Drop
 assert seite.ablage_gross.styleSheet() == farbe, "nach dem Ablegen wieder normal"
 assert geoeffnet[-1] == [str(datei)]
 

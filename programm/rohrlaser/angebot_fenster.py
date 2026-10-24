@@ -255,10 +255,35 @@ FASSUNG = object()        # Ergebnis des Kopieren-Dialogs: neue Fassung statt Ko
 
 
 def step_neu_pfade(ereignis):
-    """Gezogene Dateien/Ordner, wenn STEP-Dateien darunter sind (Angebotsliste, Startseite), sonst []."""
+    """Gezogene Dateien/Ordner, wenn STEP-Dateien oder Ordner darunter sind (Angebotsliste, Startseite), sonst [].
+    Ordner werden hier nicht durchsucht (das stockt beim Ziehen), sondern erst nach dem Ablegen."""
     urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
     pfade = [u.toLocalFile() for u in urls if u.isLocalFile()]
-    return pfade if step.step_dateien(pfade) else []
+    return pfade if step.step_kandidaten(pfade) else []
+
+
+def step_drop(fenster, ereignis, ziel, aufruf):
+    """Abgelegte STEP-Dateien: Drop sofort annehmen und den Import erst danach starten. Windows hält den Explorer
+    fest, bis dropEvent zurückkehrt – liefe der Import (Messung, Prüfdialog) darin, hinge der Explorer so lange.
+    Während ein Import läuft, wird ein weiterer Drop mit Hinweis abgelehnt. ziel: Widget, dessen Fenster nach vorne
+    kommt; aufruf: startet den Import. Ergebnis: True = angenommen."""
+    if fenster.step_drop_laeuft:
+        ereignis.ignore()
+        fenster.meldung("Es läuft schon ein STEP-Import. Bitte erst diesen abschließen.", fehler=True)
+        return False
+    ereignis.acceptProposedAction()
+    fenster.step_drop_laeuft = True
+
+    def starten():
+        try:
+            if not fenster.stumm:       # Explorer liegt meist vorne: Programm nach vorne holen (Prüfdialog)
+                ziel.window().raise_()
+                ziel.window().activateWindow()
+            aufruf()
+        finally:
+            fenster.step_drop_laeuft = False
+    QTimer.singleShot(0, starten)
+    return True
 
 
 class AngeboteSeite(QWidget):
@@ -451,8 +476,7 @@ class AngeboteSeite(QWidget):
     def dropEvent(self, ereignis):
         pfade = step_neu_pfade(ereignis)
         if pfade:
-            ereignis.acceptProposedAction()
-            self.neu_aus_step(pfade)
+            step_drop(self.f, ereignis, self, lambda: self.neu_aus_step(pfade))
 
     def oeffnen_gewaehlt(self):
         i = self._gewaehlt()
@@ -3636,15 +3660,18 @@ class AngebotSeite(QWidget):
 
     # -------------------------------------------------------------- STEP-Import
     def _gezogene_dateien(self, ereignis):
-        urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
-        return step.step_dateien([u.toLocalFile() for u in urls if u.isLocalFile()])
+        return step.step_dateien(self._gezogene_pfade(ereignis))
 
     def _ablage_hervorheben(self, an):
         for feld in (self.ablage_klein, self.ablage_gross):
             feld.hervorheben(an)
 
+    def _gezogene_pfade(self, ereignis):
+        urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
+        return [u.toLocalFile() for u in urls if u.isLocalFile()]
+
     def dragEnterEvent(self, ereignis):
-        if self._gezogene_dateien(ereignis):
+        if step.step_kandidaten(self._gezogene_pfade(ereignis)):   # ohne Ordnersuche, die stockt beim Ziehen
             ereignis.acceptProposedAction()
             self._ablage_hervorheben(True)
 
@@ -3653,10 +3680,17 @@ class AngebotSeite(QWidget):
 
     def dropEvent(self, ereignis):
         self._ablage_hervorheben(False)
-        dateien = self._gezogene_dateien(ereignis)
-        if dateien and not self.fremd():
-            ereignis.acceptProposedAction()
-            self.step_importieren([str(d) for d in dateien])
+        pfade = self._gezogene_pfade(ereignis)
+        if step.step_kandidaten(pfade) and not self.fremd():
+            step_drop(self.f, ereignis, self, lambda: self._drop_importieren(pfade))
+
+    def _drop_importieren(self, pfade):
+        """Nach dem Drop (step_drop): Ordner durchsuchen und importieren."""
+        dateien = step.step_dateien(pfade)
+        if not dateien:
+            self.f.meldung("Keine STEP-Dateien gefunden.", fehler=True)
+            return None
+        return self.step_importieren([str(d) for d in dateien])
 
     def importprofil(self):
         """Importprofil (STEP) des Kunden dieses Angebots oder None."""
@@ -3842,7 +3876,7 @@ class AngebotSeite(QWidget):
         proz = QProcess(self)
         fortschritt = QProgressDialog("STEP-Dateien werden gemessen …", "Abbrechen", 0, anzahl, self)
         fortschritt.setWindowModality(Qt.WindowModal)
-        fortschritt.setMinimumDuration(300)
+        fortschritt.setMinimumDuration(0 if getattr(self.f, "step_drop_laeuft", False) else 300)   # nach einem Drop gleich zeigen
         schleife = QEventLoop()
         start, stand = time.monotonic(), dict(fertig=0, aus_speicher=0)
 
