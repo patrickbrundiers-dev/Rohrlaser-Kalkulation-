@@ -1,10 +1,10 @@
-# Richtet auf Patricks PC den eigenen GitHub-Runner für den Windows-Build ein (kostet kein Actions-Kontingent).
-# Anleitung: werkzeuge/runner/ANLEITUNG.md. Aufruf in PowerShell „Als Administrator ausführen“:
+﻿# Richtet auf Patricks PC den eigenen GitHub-Runner für den Windows-Build ein (kostet kein Actions-Kontingent).
+# Anleitung: werkzeuge/runner/ANLEITUNG.md. Aufruf in PowerShell 'Als Administrator ausführen':
 #   powershell -ExecutionPolicy Bypass -File windows_einrichten.ps1 -Token <Token von GitHub>
 # Installiert Git, Python 3.12, PowerShell 7, Inno Setup, GitHub CLI und die C++-Build-Tools (für den selbst übersetzten
-# PyInstaller-Bootloader), legt den Windows-Benutzer „github-runner“ ohne Adminrechte an und richtet den Runner
-# „rohrlaser-windows“ (Label rohrlaser) als Dienst unter diesem Benutzer ein. Der Build installiert das Programm
-# testweise – unter diesem Benutzer, deine eigene Installation und deine Daten bleiben unberührt.
+# PyInstaller-Bootloader), legt den Windows-Benutzer 'github-runner' ohne Adminrechte an und richtet den Runner
+# 'rohrlaser-windows' (Label rohrlaser) als Dienst unter diesem Benutzer ein. Der Build installiert das Programm
+# testweise - unter diesem Benutzer, deine eigene Installation und deine Daten bleiben unberührt.
 # Erneut ausführbar: Vorhandenes wird übersprungen.
 param(
     [Parameter(Mandatory = $true)][string]$Token,
@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 $istAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $istAdmin) { throw "Bitte PowerShell mit Rechtsklick → „Als Administrator ausführen“ starten." }
+if (-not $istAdmin) { throw "Bitte PowerShell mit Rechtsklick → 'Als Administrator ausführen' starten." }
 
 Write-Host "1/5 Werkzeuge installieren (winget, kann 15-30 Minuten dauern) ..."
 $pakete = @(
@@ -33,7 +33,7 @@ foreach ($p in $pakete) {
     $arg = @("install", "--id", $p[0], "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements")
     if ($p[1]) { $arg += @("--override", $p[1]) }
     winget @arg --scope machine           # für alle Benutzer, damit auch github-runner es findet
-    if ($LASTEXITCODE -ne 0) { winget @arg }   # Paket ohne Auswahl „für alle Benutzer“
+    if ($LASTEXITCODE -ne 0) { winget @arg }   # Paket ohne Auswahl 'für alle Benutzer'
     if ($LASTEXITCODE -ne 0) { throw "Installation von $($p[0]) fehlgeschlagen (Rückgabewert $LASTEXITCODE)" }
 }
 
@@ -76,7 +76,7 @@ if ($angemeldet) {
 Pop-Location
 
 if ($WslAktivHalten) {
-    Write-Host "5/5 Aufgabe „WSL für GitHub-Runner“ bei deiner Anmeldung ..."
+    Write-Host "5/5 Aufgabe 'WSL für GitHub-Runner' bei deiner Anmeldung ..."
     $aktion = New-ScheduledTaskAction -Execute "powershell.exe" `
         -Argument "-WindowStyle Hidden -Command wsl.exe -d Ubuntu-24.04 --exec sleep infinity"
     $ausloeser = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
@@ -87,4 +87,4 @@ if ($WslAktivHalten) {
     Write-Host "5/5 (WSL-Aufgabe übersprungen; mit -WslAktivHalten anlegen)"
 }
 Write-Host ""
-Write-Host "Fertig. Unter GitHub → Settings → Actions → Runners steht jetzt „rohrlaser-windows“ (Idle)."
+Write-Host "Fertig. Unter GitHub → Settings → Actions → Runners steht jetzt 'rohrlaser-windows' (Idle)."
