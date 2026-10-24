@@ -243,6 +243,7 @@ class BlechDialog(QDialog):
         self.teiler.setChildrenCollapsible(False)
         haupt.addWidget(self.teiler, 1)
         links = QWidget()
+        self.eingabe_bereich = links    # Teile-Editor: Eingaben links neben den Ansichten
         lay = QVBoxLayout(links)
         lay.setContentsMargins(0, 0, 6, 0)
         self.teiler.addWidget(links)
@@ -317,10 +318,12 @@ class BlechDialog(QDialog):
         self.vorlage.addItems(["Vorlage …"] + list(VORLAGEN))
         self.vorlage.activated.connect(self._vorlage)
         zeile.addWidget(self.vorlage)
+        self.schenkel_knoepfe = []
         for text, ziel in (("+ Schenkel", lambda: self.schenkel_neu()), ("Schenkel entfernen", self._schenkel_weg)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             zeile.addWidget(b)
+            self.schenkel_knoepfe.append(b)
         zeile.addStretch(1)
         kl.addLayout(zeile)
         self.schenkel = QTableWidget(0, len(SCHENKEL_SPALTEN))
@@ -372,6 +375,7 @@ class BlechDialog(QDialog):
         weg.clicked.connect(self._kontur_weg)
         knoepfe.rechts_layout.addWidget(weg)
         bl.addWidget(knoepfe)
+        self.kontur_leiste = knoepfe    # Teile-Editor: die Befehle stehen im Menüband
         lay.addWidget(box, 3)
         for z in e.get("konturen") or []:
             self.kontur_neu(z, rechnen_=False)
@@ -389,6 +393,7 @@ class BlechDialog(QDialog):
         bilder.addWidget(self.skizze)
         bilder.addWidget(self.ansicht3d)
         lay.addWidget(bilder, 1)
+        self.bilder_teiler, self.ergebnis_bereich = bilder, rechts
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
