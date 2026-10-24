@@ -11,6 +11,7 @@ import copy
 import datetime
 import html
 import json
+import math
 import re
 
 from PySide6.QtCore import Qt, QTimer
@@ -215,6 +216,54 @@ class ZeilenTabelle(QTableWidget):
 
     def markierte(self):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
+
+
+NAHT_TOLERANZ = 1.0      # mm: gezeichneter Nahtpunkt gilt als am Teil, wenn er so nah an dessen Oberfläche liegt
+
+
+def _abstand_dreieck(q, a, b, c):
+    """Abstand Punkt q zum Dreieck a, b, c (nächster Punkt nach Ericson, Real-Time Collision Detection 5.1.5)."""
+    ab, ac, aq = [b[k] - a[k] for k in range(3)], [c[k] - a[k] for k in range(3)], [q[k] - a[k] for k in range(3)]
+    dot = lambda u, v: u[0] * v[0] + u[1] * v[1] + u[2] * v[2]  # noqa: E731
+    d1, d2 = dot(ab, aq), dot(ac, aq)
+    if d1 <= 0 and d2 <= 0:
+        return math.dist(q, a)
+    bq = [q[k] - b[k] for k in range(3)]
+    d3, d4 = dot(ab, bq), dot(ac, bq)
+    if d3 >= 0 and d4 <= d3:
+        return math.dist(q, b)
+    vc = d1 * d4 - d3 * d2
+    if vc <= 0 and d1 >= 0 and d3 <= 0:
+        v = d1 / (d1 - d3)
+        return math.dist(q, [a[k] + v * ab[k] for k in range(3)])
+    cq = [q[k] - c[k] for k in range(3)]
+    d5, d6 = dot(ab, cq), dot(ac, cq)
+    if d6 >= 0 and d5 <= d6:
+        return math.dist(q, c)
+    vb = d5 * d2 - d1 * d6
+    if vb <= 0 and d2 >= 0 and d6 <= 0:
+        w = d2 / (d2 - d6)
+        return math.dist(q, [a[k] + w * ac[k] for k in range(3)])
+    va = d3 * d6 - d5 * d4
+    if va <= 0 and d4 - d3 >= 0 and d5 - d6 >= 0:
+        w = (d4 - d3) / ((d4 - d3) + (d5 - d6))
+        return math.dist(q, [b[k] + w * (c[k] - b[k]) for k in range(3)])
+    n = 1.0 / (va + vb + vc)
+    v, w = vb * n, vc * n
+    return math.dist(q, [a[k] + ab[k] * v + ac[k] * w for k in range(3)])
+
+
+def _abstand_flaeche(q, p, dreiecke):
+    """Kleinster Abstand von q zu den Dreiecken (Punktnummern je 3) im Punktfeld p."""
+    beste = math.inf
+    for i in range(0, len(dreiecke) - 2, 3):
+        a, b, c = (p[3 * dreiecke[i + j]:3 * dreiecke[i + j] + 3] for j in range(3))
+        if any(q[k] < min(a[k], b[k], c[k]) - beste or q[k] > max(a[k], b[k], c[k]) + beste for k in range(3)):
+            continue                                        # Hüllquader des Dreiecks weiter weg als der beste
+        beste = min(beste, _abstand_dreieck(q, a, b, c))
+        if beste < 1e-6:
+            break
+    return beste
 
 
 class StrukturBaum(QTreeWidget):
@@ -1032,13 +1081,35 @@ class BaugruppeDialog(QDialog):
         ll.addWidget(hilfe.Hinweis(
             "Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt die Teile in der 3D-Ansicht blau "
             "hervor. Ein Einzelteil auf eine andere (Unter-)Baugruppe ziehen ändert seine Zuordnung; die Stück je "
-            "Baugruppe bleiben, wenn es aufgeht.", schluessel="baugruppe_baum"))
+            "Baugruppe bleiben, wenn es aufgeht. Naht zeichnen: Punkte entlang der Naht am Modell anklicken, dann als "
+            "Nahtgruppe übernehmen.", schluessel="baugruppe_baum"))
         self.baum_rechts = QWidget()
         self.baum_rechts_lay = QVBoxLayout(self.baum_rechts)
         self.baum_rechts_lay.setContentsMargins(0, 0, 0, 0)
         self.baum_info = QLabel()
         self.baum_info.setWordWrap(True)
         self.baum_rechts_lay.addWidget(self.baum_info)
+        # Naht im 3D von Hand zeichnen (N2): Punkte am Modell anklicken, Länge und Teile ermittelt das Programm
+        self.zeichnen_leiste = QWidget()
+        zl = QHBoxLayout(self.zeichnen_leiste)
+        zl.setContentsMargins(0, 0, 0, 0)
+        self.zeichnen_knopf = QPushButton("Naht zeichnen")
+        self.zeichnen_knopf.setCheckable(True)
+        self.zeichnen_knopf.setToolTip("Punkte entlang der Naht am Modell anklicken (fängt die nächste Ecke); "
+                                       "danach als Nahtgruppe übernehmen")
+        self.zeichnen_knopf.toggled.connect(self.naht_zeichnen)
+        self.zeichnen_art = QComboBox()
+        self.zeichnen_art.addItems(NAHTARTEN)
+        self.zeichnen_zurueck = QPushButton("Punkt zurück")
+        self.zeichnen_zurueck.clicked.connect(lambda: self.ansicht3d and self.ansicht3d.ansicht.punkt_zurueck())
+        self.zeichnen_ok = QPushButton("Als Nahtgruppe übernehmen")
+        self.zeichnen_ok.clicked.connect(lambda: self.naht_aus_punkten())
+        self.zeichnen_text = QLabel()
+        for x in (self.zeichnen_knopf, self.zeichnen_art, self.zeichnen_zurueck, self.zeichnen_ok):
+            zl.addWidget(x)
+        zl.addWidget(self.zeichnen_text, 1)
+        self.zeichnen_leiste.setVisible(False)
+        self.baum_rechts_lay.addWidget(self.zeichnen_leiste)
         teil.addWidget(links)
         teil.addWidget(self.baum_rechts)
         teil.setSizes([540, 760])
@@ -1109,6 +1180,9 @@ class BaugruppeDialog(QDialog):
             from .ansicht3d import Ansicht3DMitKnoepfen
             self.ansicht3d = Ansicht3DMitKnoepfen()
             self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
+            self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
+            self.zeichnen_leiste.setVisible(not self.nur_lesen)
+            self._zeichnen_stand()
         self.baum_gewaehlt()
 
     def _gewaehlte_teile(self, daten):
@@ -1161,13 +1235,15 @@ class BaugruppeDialog(QDialog):
     def zeige_3d(self, hervor=(), text="", naht=None):
         """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau,
         dazu die Schweißnähte (naht = ID der gewählten Nahtgruppe, rot). Ergebnis: Anzahl gezeigter Körper."""
-        netze, besitzer, farbe = [], [], []
+        netze, besitzer, farbe, koerper = [], [], [], []
         for n, t in enumerate(x for x in self.teile if x.get("drin")):
             netz = self._netz(t["_id"])
-            for lage in netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else []):
+            nummern = netz.get("koerper") or []
+            for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
                 netze.append(dict(netz, lage=lage))
                 besitzer.append(t["_id"])
                 farbe.append(n)
+                koerper.append(nummern[j] if j < len(nummern) else None)
         n_teile = sum(1 for t in self.teile if t.get("drin"))
         ohne = n_teile - len(set(besitzer))
         if self.ansicht3d is None:
@@ -1175,7 +1251,10 @@ class BaugruppeDialog(QDialog):
                                    "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
             return 0
         from .ansicht3d import baugruppe as zusammen
-        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe)
+        bereiche = []
+        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe, bereiche=bereiche)
+        self._koerper_3d = [(besitzer[nr], koerper[nr], netz["p"], von, bis, dreiecke)
+                            for nr, von, bis, dreiecke in bereiche] if netz else []
         info = f"{len(netze)} Körper in Einbaulage, {text}."
         if netz:
             linien = self.naht_linien(naht)
@@ -1185,13 +1264,98 @@ class BaugruppeDialog(QDialog):
             if linien:
                 info += " Schweißnähte schwarz, Vorschläge magenta, gewählte Naht rot."
             if ohne_verlauf:
-                info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (von Hand "
-                         "angelegt oder älterer STEP-Import: neu importieren).")
+                info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (im Reiter "
+                         "Nahtgruppen angelegt oder älterer STEP-Import: neu importieren oder im 3D zeichnen).")
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten fehlen."
         self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
         self.baum_info.setText("")
         return len(netze)
+
+    # -------------------------------------------------------------- Naht im 3D zeichnen (N2)
+    def naht_zeichnen(self, an):
+        """Zeichenmodus der 3D-Ansicht an/aus: Klicks setzen Punkte eines Linienzugs (fängt die nächste Ecke)."""
+        if self.ansicht3d is not None:
+            self.ansicht3d.ansicht.messen_setzen(bool(an), punkte=0)
+        if self.zeichnen_knopf.isChecked() != bool(an):
+            self.zeichnen_knopf.setChecked(bool(an))
+        self._zeichnen_stand()
+
+    def _zeichnen_stand(self):
+        a = self.ansicht3d.ansicht if self.ansicht3d is not None else None
+        n = len(a.messpunkte) if a is not None and a.messen else 0
+        self.zeichnen_zurueck.setEnabled(n > 0)
+        self.zeichnen_ok.setEnabled(n > 1)
+        self.zeichnen_text.setText(f"{n} Punkt{'e' if n != 1 else ''}, {zahl_als_text(round(a.abstand(), 1))} mm"
+                                   if n > 1 else f"{n} Punkt" if n else "")
+
+    def teile_an(self, punkte, toleranz=NAHT_TOLERANZ):
+        """Körper, die alle Punkte berühren (Abstand zur Oberfläche ≤ toleranz mm): [(Positions-ID, Körpernummer)],
+        nächste zuerst."""
+        treffer = []
+        for pid, kn, p, von, bis, dreiecke in getattr(self, "_koerper_3d", []):
+            box = [(min(p[3 * von + k:3 * bis:3]) - toleranz, max(p[3 * von + k:3 * bis:3]) + toleranz)
+                   for k in range(3)]
+            if any(not all(box[k][0] <= q[k] <= box[k][1] for k in range(3)) for q in punkte):
+                continue
+            abstand = max(_abstand_flaeche(q, p, dreiecke) for q in punkte)
+            if abstand <= toleranz:
+                treffer.append((abstand, pid, kn))
+        return [(pid, kn) for _, pid, kn in sorted(treffer, key=lambda x: x[0])]
+
+    def _gemeinsamer_knoten(self, knoten):
+        """Unterste (Unter-)Baugruppe, die alle knoten enthält ('' = Baugruppe)."""
+        def kette(k):
+            out = [k]
+            while k:
+                k = next((x.get("parent") or "" for x in self.bg["knoten"] if x["id"] == k), "")
+                out.append(k)
+            return out
+        ketten = [kette(k or "") for k in knoten]
+        if not ketten:
+            return ""
+        return next((k for k in ketten[0] if all(k in c for c in ketten[1:])), "")
+
+    def _wand(self, pids):
+        """Kleinste Wanddicke der Teile pids aus den Profilen (Stammdaten) oder None."""
+        if self.db is None:
+            return None
+        ids = {str(t["_q"].get("profil_id")) for t in self.teile if t["_id"] in pids and t["_q"].get("profil_id")}
+        werte = [z["wand"] for z in self.db.zeilen("profile")
+                 if str(z.get("profil_id")) in ids and isinstance(z.get("wand"), (int, float)) and z["wand"] > 0]
+        return min(werte) if werte else None
+
+    def naht_aus_punkten(self, punkte=None, nahtart=None):
+        """Nahtgruppe aus einem im 3D gezeichneten Linienzug (punkte, sonst die geklickten): Länge = Länge des Zugs,
+        Teile = Körper, die den ganzen Zug berühren, Unterbaugruppe = gemeinsame der Teile, Dicke = dünnste Wand.
+        Ergebnis: ID der Nahtgruppe oder None (weniger als 2 Punkte)."""
+        if punkte is None:
+            punkte = self.ansicht3d.ansicht.messpunkte if self.ansicht3d is not None else []
+        punkte = [tuple(q) for q in punkte]
+        if len(punkte) < 2 or self.nur_lesen:
+            return None
+        laenge = sum(math.dist(a, b) for a, b in zip(punkte, punkte[1:]))
+        teile = self.teile_an(punkte)
+        pids = {pid for pid, _ in teile}
+        knoten = self._gemeinsamer_knoten([next((t.get("knoten") or "" for t in self.teile if t["_id"] == pid), "")
+                                           for pid in pids])
+        werte = dict(knoten=knoten, nahtart=nahtart or self.zeichnen_art.currentText(), laenge=round(laenge, 1),
+                     anzahl=1, quelle="3D", linien=[[round(v, 1) for q in punkte for v in q]])
+        if teile and all(kn is not None for _, kn in teile):
+            werte["koerper"] = sorted({str(kn) for _, kn in teile})
+        wand = self._wand(pids)
+        if wand:
+            werte["dicke"] = wand
+            if werte["nahtart"] != "Kehlnaht":
+                werte["mass"] = wand
+        nid = self.naht_neu(werte)
+        if self.ansicht3d is not None:
+            self.ansicht3d.ansicht.messen_setzen(self.zeichnen_knopf.isChecked(), punkte=0)
+        self.baum_aufbauen()
+        if ("naht", nid) in self.baum_items:
+            self.baum.setCurrentItem(self.baum_items[("naht", nid)])
+        self._zeichnen_stand()
+        return nid
 
     def teil_verschieben(self, pid, knoten):
         """Einzelteil pid in die (Unter-)Baugruppe knoten ('' = Baugruppe selbst) legen (Ziehen im Baum). Stück je
