@@ -163,7 +163,8 @@ for quelle in (str(tmp / "fehlt" / update.DATEILISTE), str(tmp / "pakete2" / "Ro
     except update.UpdateFehler:
         pass
 
-# Oberfläche: Hinweis beim neuen Stand, „Jetzt aktualisieren“ sichert die Datendatei, tauscht aus, startet neu
+# Oberfläche: Hinweis beim neuen Stand, „Jetzt aktualisieren“ lädt, sichert die Datendatei, beendet das Programm,
+# danach wird ausgetauscht und neu gestartet
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
@@ -182,17 +183,22 @@ assert "Stand 1" in f.windowTitle(), f.windowTitle()
 meldungen, neustart = [], []
 QMessageBox.information = staticmethod(lambda *a, **k: meldungen.append(a[2]))
 QMessageBox.warning = staticmethod(lambda *a, **k: meldungen.append("WARNUNG " + a[2]))
-f.updater.neu_starten = lambda: neustart.append(True)
 m = update_fenster.frage(f, online, f.updater.lokal)
 assert "Stand 2" in m.text() and "Stand 1" in m.text() and "Test" in m.text()
 assert [b.text() for b in m.buttons()] == ["Jetzt aktualisieren", "Später"], [b.text() for b in m.buttons()]
 update_fenster.frage = lambda *a: type("Frage", (), dict(exec=lambda s: 0, clickedButton=lambda s: s.jetzt,
                                                          jetzt=object()))()
 f.updater._gefunden(online, None, still=True)
-assert neustart and "Stand 2" in meldungen[-1], meldungen
+# geladen, aber noch nichts ausgetauscht: erst beendet sich das Programm, dann tauscht nach_beenden aus
+assert f.updater.ausstehend and "Stand 2" in meldungen[-1] and not f.isVisible(), meldungen
+assert update.lokale_liste(v3)["stand"] == 1
+assert update_fenster.nach_beenden(v3, f.updater.ausstehend, starten=lambda exe, arg: neustart.append(arg)) == "ok"
+assert neustart == [["--nach-update", "ok"]], neustart
 stimmt(v3, l2)
+f.updater.ausstehend = None
 assert any((v3 / "Daten" / "Sicherung").glob("rohrlaser_*_vor_update.db")), "Datendatei vor dem Update gesichert"
-assert f.updater.lokal["stand"] == 2
+assert update.lokale_liste(v3)["stand"] == 2
+f.updater.lokal = update.lokale_liste(v3)
 f.updater._gefunden(online, None, still=False)              # jetzt aktuell
 assert "aktuell" in meldungen[-1], meldungen
 f.updater._gefunden(None, "keine Verbindung", still=True)   # still: keine Meldung

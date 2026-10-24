@@ -9,6 +9,9 @@ hochgeladen, und das Programm lädt nur die Pakete, in denen eine geänderte Dat
 Austausch im laufenden Programm: Windows erlaubt, eine laufende .exe und geladene DLLs umzubenennen, aber nicht zu
 überschreiben. Die alten Dateien wandern deshalb nach _update/alt, die neuen an ihren Platz; beim nächsten Start
 wird _update gelöscht. Geht unterwegs etwas schief, kommt jede alte Datei an ihren Platz zurück.
+Seit 0.9.53 tauscht das Programm erst aus, nachdem es sich geordnet beendet hat (update_fenster.nach_beenden).
+Vorher prüft gesperrte_dateien jede betroffene Datei (Umbenennen hin und zurück); hält ein anderes Programm eine
+Datei fest (z. B. die Anleitung im PDF-Betrachter, der Virenscanner), wartet warten_bis_frei bis zu SPERR_WARTEN_S.
 Nur Dateien aus der Dateiliste werden angefasst, Daten, Angebote und andere eigene Dateien nie.
 
 Ohne Qt, damit der Build dieselbe Paketbildung benutzt (programm/update_paket.py).
@@ -19,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import time
 import urllib.request
 import zipfile
 import zlib
@@ -39,6 +43,9 @@ PAKET_MAX = 8 << 20                 # kleine Dateien eines Ordners (3 Ebenen) bi
 # nie in der Dateiliste, nie angefasst; Portabel.ini liegt nur im ZIP (installiert fehlt sie, siehe orte.py)
 NIE = (DATEILISTE, ARBEITSORDNER, "Daten", "Angebote", "Portabel.ini")
 STUECK = 1 << 16
+SPERR_WARTEN_S = 30                 # so lange auf eine gesperrte Datei warten, bevor das Programm nachfragt
+KURZ_WARTEN_S = 5                   # beim Austausch selbst: kurze Sperren (Virenscanner) abwarten
+_ersetzen = os.replace              # Tests setzen hier eine Sperre ein
 
 
 class UpdateFehler(Exception):
@@ -47,6 +54,89 @@ class UpdateFehler(Exception):
 
 class Abbruch(UpdateFehler):
     pass
+
+
+class DateiGesperrt(UpdateFehler):
+    """Eine Programmdatei lässt sich nicht austauschen, weil ein anderes Programm sie festhält. dateien: rel. Pfade."""
+
+    def __init__(self, dateien, text=""):
+        self.dateien = list(dateien)
+        super().__init__(text or sperr_text(self.dateien))
+
+
+def ist_sperre(e):
+    """OSError durch eine von einem anderen Prozess benutzte Datei (Windows: Fehler 5, 32, 33)."""
+    return isinstance(e, PermissionError) or getattr(e, "winerror", None) in (5, 32, 33)
+
+
+NACHHOLEN = "nachholen"              # in _update: Anleitungen, die beim Update gesperrt waren (nachholen())
+
+
+def wer_sperrt(pfad):
+    """Namen der Programme, die die Datei gerade festhalten (Windows-Neustart-Manager), sonst []. Nur für die Meldung
+    und das Protokoll; jeder Fehler ergibt []."""
+    if os.name != "nt":
+        return []
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _Prozess(ctypes.Structure):
+            _fields_ = [("pid", wintypes.DWORD), ("start", wintypes.FILETIME)]
+
+        class _Info(ctypes.Structure):
+            _fields_ = [("prozess", _Prozess), ("name", wintypes.WCHAR * 256), ("dienst", wintypes.WCHAR * 64),
+                        ("art", wintypes.DWORD), ("status", wintypes.ULONG), ("sitzung", wintypes.DWORD),
+                        ("neustartbar", wintypes.BOOL)]
+
+        rm = ctypes.WinDLL("rstrtmgr")
+        sitzung, schluessel = wintypes.DWORD(), ctypes.create_unicode_buffer(64)
+        if rm.RmStartSession(ctypes.byref(sitzung), 0, schluessel):
+            return []
+        try:
+            dateien = (wintypes.LPCWSTR * 1)(str(pfad))
+            if rm.RmRegisterResources(sitzung, 1, dateien, 0, None, 0, None):
+                return []
+            noetig, anzahl, grund = wintypes.UINT(0), wintypes.UINT(0), wintypes.DWORD()
+            rm.RmGetList(sitzung, ctypes.byref(noetig), ctypes.byref(anzahl), None, ctypes.byref(grund))
+            if not noetig.value:
+                return []
+            infos = (_Info * noetig.value)()
+            anzahl = wintypes.UINT(noetig.value)
+            if rm.RmGetList(sitzung, ctypes.byref(noetig), ctypes.byref(anzahl), infos, ctypes.byref(grund)):
+                return []
+            return sorted({i.name or f"Prozess {i.prozess.pid}" for i in infos[:anzahl.value]})
+        finally:
+            rm.RmEndSession(sitzung)
+    except Exception:       # noqa: BLE001 – nur Zusatzinfo
+        return []
+
+
+def nur_anleitungen(dateien):
+    """True, wenn alle gesperrten Dateien Anleitungen (PDF) sind: die tauscht das Update später (nachholen)."""
+    return bool(dateien) and all(str(r).lower().endswith(".pdf") for r in dateien)
+
+
+def sperr_grund(rel, ordner=None):
+    """Wahrscheinlicher Grund, warum die Datei rel festgehalten wird (für die Meldung); mit ordner auch das
+    Programm, das sie festhält (wer_sperrt)."""
+    wer = wer_sperrt(Path(ordner) / rel) if ordner is not None else []
+    if wer:
+        return f"geöffnet in {', '.join(wer)} – bitte dort schließen"
+    p = str(rel).replace("\\", "/").lower()
+    if p.endswith(".pdf"):
+        return "in einem PDF-Programm, der Explorer-Vorschau oder vom Virenscanner geöffnet"
+    if p.startswith("step-import/"):
+        return "der STEP-Import läuft noch – bitte im Task-Manager „STEP-Import“ beenden"
+    return ("von einem anderen Programm benutzt (Virenscanner, Explorer-Vorschau oder ein zweites "
+            f"{NAME}-Fenster) – bitte schließen")
+
+
+def sperr_text(dateien, ordner=None):
+    zeilen = [f"• {rel}: {sperr_grund(rel, ordner)}" for rel in list(dateien)[:8]]
+    if len(dateien) > 8:
+        zeilen.append(f"• … und {len(dateien) - 8} weitere")
+    return "Diese Programmdateien sind noch geöffnet und lassen sich nicht austauschen:\n" + "\n".join(zeilen)
 
 
 def pruefsumme(pfad):
@@ -271,11 +361,57 @@ def laden(ordner, quelle, online, plan, fortschritt=None):
     return neu_ordner
 
 
+def gesperrte_dateien(ordner, plan):
+    """Vorabprüfung: rel. Pfade der betroffenen Dateien, die sich jetzt nicht wegschieben lassen (jede wird probehalber
+    umbenannt und gleich zurück; dabei wird nichts ausgetauscht)."""
+    ordner = Path(ordner)
+    out = []
+    for rel in list(plan["neu"]) + list(plan["weg"]):
+        ziel = ordner / rel
+        if not ziel.is_file():
+            continue
+        probe = ziel.with_name(ziel.name + ".probe")
+        try:
+            _ersetzen(ziel, probe)
+        except OSError:
+            out.append(rel)
+            continue
+        _zurueck(probe, ziel)
+    return out
+
+
+def _zurueck(von, nach, sekunden=None, schlafen=time.sleep):
+    """Umbenennen, bei einer kurzen Sperre (Virenscanner prüft die Datei gerade) einige Sekunden wiederholen."""
+    ende = time.monotonic() + (KURZ_WARTEN_S if sekunden is None else sekunden)
+    while True:
+        try:
+            return _ersetzen(von, nach)
+        except OSError as e:
+            if not ist_sperre(e) or time.monotonic() >= ende:
+                raise
+            schlafen(0.25)
+
+
+def warten_bis_frei(ordner, plan, sekunden=None, melden=None, schlafen=time.sleep, uhr=time.monotonic):
+    """Bis zu sekunden warten, bis keine betroffene Datei mehr gesperrt ist. melden(gesperrt, rest_s) nach jeder
+    Runde (Anzeige). Ergebnis: rel. Pfade, die dann noch gesperrt sind ([] = alles frei)."""
+    ende = uhr() + (SPERR_WARTEN_S if sekunden is None else sekunden)
+    while True:
+        gesperrt = gesperrte_dateien(ordner, plan)
+        rest = ende - uhr()
+        if not gesperrt or rest <= 0:
+            return gesperrt
+        if melden:
+            melden(gesperrt, rest)
+        schlafen(1)
+
+
 def einspielen(ordner, online, plan, neu_ordner):
     """Alte Dateien nach _update/alt verschieben, neue an ihren Platz, zuletzt die Dateiliste.
-    Bei einem Fehler alles zurück und UpdateFehler (der Programmordner ist dann wie vorher)."""
+    Bei einem Fehler alles zurück und UpdateFehler bzw. DateiGesperrt (der Programmordner ist dann wie vorher, der
+    Download in _update/neu bleibt für einen neuen Versuch)."""
     ordner = Path(ordner)
-    alt = ordner / ARBEITSORDNER / f"alt-{datetime.datetime.now():%Y%m%d-%H%M%S}"
+    alt = ordner / ARBEITSORDNER / f"alt-{datetime.datetime.now():%Y%m%d-%H%M%S-%f}"
     getan = []          # [Ziel, gesicherte alte Datei oder None, neue Datei angelegt]
 
     def wegschieben(ziel):
@@ -283,7 +419,7 @@ def einspielen(ordner, online, plan, neu_ordner):
             return None
         b = alt / ziel.relative_to(ordner)
         b.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(ziel, b)         # klappt auch bei laufender .exe und geladenen DLLs
+        _zurueck(ziel, b)           # klappt auch bei laufender .exe und geladenen DLLs
         return b
 
     try:
@@ -305,12 +441,20 @@ def einspielen(ordner, online, plan, neu_ordner):
                 if angelegt and ziel.exists():
                     ziel.unlink()
                 if b is not None:
-                    os.replace(b, ziel)
+                    _zurueck(b, ziel)
             except OSError as e2:
                 fehler.append(f"{ziel}: {e2}")
-        text = f"Die Datei {getattr(e, 'filename', '') or ''} lässt sich nicht austauschen: {e}"
+        datei = getattr(e, "filename", "") or ""
+        text = f"Die Datei {datei} lässt sich nicht austauschen: {e}"
         if fehler:
             text += "\n\nNicht zurückgestellt (aus " + str(alt) + " von Hand zurückkopieren):\n" + "\n".join(fehler)
+            raise UpdateFehler(text) from e
+        if ist_sperre(e) and datei:
+            try:
+                rel = Path(datei).resolve().relative_to(ordner.resolve()).as_posix()
+            except ValueError:
+                rel = Path(datei).name
+            raise DateiGesperrt([rel]) from e
         raise UpdateFehler(text) from e
     shutil.rmtree(neu_ordner, ignore_errors=True)
     return alt
@@ -322,9 +466,47 @@ def verwerfen(ordner):
         shutil.rmtree(Path(ordner) / ARBEITSORDNER / name, ignore_errors=True)
 
 
+def zurueckstellen(ordner, plan, neu_ordner, online, dateien):
+    """Gesperrte Anleitungen aus dem Plan nehmen und ihre neue Fassung nach _update/nachholen legen (nachholen()
+    tauscht sie beim nächsten Start). Ergebnis: Plan ohne diese Dateien."""
+    ordner = Path(ordner)
+    for rel in dateien:
+        if rel in plan["neu"]:
+            ziel = ordner / ARBEITSORDNER / NACHHOLEN / rel
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path(neu_ordner) / online["dateien"][rel]["sha256"], ziel)
+    return dict(plan, neu=[r for r in plan["neu"] if r not in dateien],
+                weg=[r for r in plan["weg"] if r not in dateien])
+
+
+def nachholen(ordner):
+    """Beim Start: zurückgestellte Anleitungen an ihren Platz. Ergebnis: rel. Pfade, die noch gesperrt sind (bleiben
+    für den nächsten Start liegen)."""
+    ordner = Path(ordner)
+    quelle = ordner / ARBEITSORDNER / NACHHOLEN
+    offen = []
+    for datei in sorted(p for p in quelle.rglob("*") if p.is_file()) if quelle.is_dir() else []:
+        rel = datei.relative_to(quelle).as_posix()
+        if not sicherer_pfad(rel):
+            datei.unlink(missing_ok=True)
+            continue
+        try:
+            _ersetzen(datei, ordner / rel)
+        except OSError:
+            offen.append(rel)
+    return offen
+
+
 def aufraeumen(ordner):
-    """Beim Start: Reste eines Updates löschen (alte Dateien sind jetzt frei). Fehler stören nicht."""
-    shutil.rmtree(Path(ordner) / ARBEITSORDNER, ignore_errors=True)
+    """Beim Start: Reste eines Updates löschen (alte Dateien sind jetzt frei). Fehler stören nicht. Noch nicht
+    nachgeholte Anleitungen (_update/nachholen) bleiben."""
+    arbeit = Path(ordner) / ARBEITSORDNER
+    if (arbeit / NACHHOLEN).is_dir() and any(p.is_file() for p in (arbeit / NACHHOLEN).rglob("*")):
+        for p in arbeit.iterdir() if arbeit.is_dir() else []:
+            if p.name != NACHHOLEN:
+                shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(missing_ok=True)
+    else:
+        shutil.rmtree(arbeit, ignore_errors=True)
     (Path(ordner) / (DATEILISTE + ".neu")).unlink(missing_ok=True)
 
 

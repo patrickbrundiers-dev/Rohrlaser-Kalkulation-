@@ -4940,10 +4940,12 @@ def kapitel_pflege(i):
            "wie beides geht und wie die Daten auf einen anderen Rechner umziehen.")
     i.abschnitt("Updates", marke="updates")
     i.bild("update_hinweis", "Hinweis auf eine neue Version", hoehe=55 * mm, legende=[
-        (1, "<b>Jetzt aktualisieren</b>: lädt die neue Version und startet das Programm neu. <b>Später</b>: "
+        (1, "<b>Jetzt aktualisieren</b>: lädt die neue Version, schließt alles, tauscht die Dateien aus und "
+            "startet das Programm neu. <b>Später</b>: "
             "nichts ändern, beim nächsten Start kommt der Hinweis wieder.")])
     i.text("Gibt es eine neue Version, meldet sich das Programm beim Start: <b>Jetzt aktualisieren</b>. Von Hand: "
-           "<b>Hilfe → Nach Updates suchen …</b>. Vorher sichert es die Daten.", kurz=True)
+           "<b>Hilfe → Nach Updates suchen …</b>. Vorher sichert es die Daten und schließt alles, was den Austausch "
+           "behindern könnte.", kurz=True)
     i.genauer()
     i.text("Das Programm sucht bei jedem Start im Hintergrund nach einer neueren Version (öffentliches Verzeichnis "
            "<i>Rohrlaser-Updates</i> auf GitHub, ohne Anmeldung), installiert wie portabel. Gibt es eine, erscheint das Fenster <b>Update verfügbar</b> mit dem installierten und dem neuen Stand und der letzten "
@@ -4953,12 +4955,21 @@ def kapitel_pflege(i):
     i.liste("Das Programm vergleicht jede Programmdatei über ihre Prüfsumme mit der neuen Version und lädt <b>nur die "
             "geänderten Dateien</b>. Meist sind das wenige MB statt des ganzen ZIP mit rund 180 MB. Beschädigte oder "
             "fehlende Programmdateien werden dabei gleich mit ersetzt.",
-            "Vor dem Austausch legt es eine geprüfte Sicherung der Datendatei an (Ordner <i>Sicherung</i> im "
-            "Datenordner, Name endet auf <i>_vor_update</i>), danach startet es neu. Scheitert diese Sicherung, "
-            "bricht das Update ab.",
-            "Klappt der Austausch einer Datei nicht (z. B. weil die Bedienungsanleitung gerade in einem PDF-Programm "
-            "offen ist), stellt das Programm alle Dateien zurück und bleibt, wie es war. Datei schließen und noch "
-            "einmal versuchen.",
+            "Nach dem Laden legt es eine geprüfte Sicherung der Datendatei an (Ordner <i>Sicherung</i> im "
+            "Datenordner, Name endet auf <i>_vor_update</i>). Scheitert diese Sicherung, bricht das Update ab.",
+            "Dann <b>schließt das Programm alles</b>, was den Austausch behindern kann: weitere Fenster und Dialoge, "
+            "eine laufende STEP-Messung, Hintergrund-Rechnungen (Staffelpreise), es legt die Angebote in den "
+            "gemeinsamen Ordner, sichert wie beim Beenden und gibt die Datendatei frei. Erst danach tauscht es die "
+            "Dateien aus und startet neu; die Statuszeile meldet <i>Update eingespielt</i>.",
+            "Hält ein anderes Programm eine Datei fest (Virenscanner, Explorer-Vorschau), wartet das Programm bis zu "
+            "30 Sekunden. Ist dann nur die Anleitung (PDF) noch gesperrt, aktualisiert es trotzdem und tauscht die "
+            "Anleitung beim nächsten Start. Bei anderen Dateien nennt es Datei und das Programm, das sie festhält: "
+            "dieses schließen und "
+            "<b>Wiederholen</b>, oder <b>Abbrechen</b>. Bei Abbruch oder Fehler stellt es alle Dateien zurück und "
+            "startet die bisherige Version wieder; nichts ist verändert. Einzelheiten stehen im Protokoll "
+            "(<i>Daten\\Protokoll\\fehler.log</i>).",
+            "<i>Hilfe → Bedienungsanleitung</i> öffnet eine Kopie im Datenordner (Ordner <i>Anleitung</i>). Eine "
+            "offene Anleitung blockiert das Update deshalb nicht mehr.",
             "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
             "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
             "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",

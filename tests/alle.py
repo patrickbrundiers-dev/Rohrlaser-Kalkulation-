@@ -54,7 +54,7 @@ TESTS = [
     "test_step_bleche.py", "test_werkstoffe.py", "test_meterpreis.py", "test_material_fenster.py", "test_abmessung_fenster.py",
     "test_maschinen.py",
     "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_spaltenbreite.py", "test_zeiten.py",
-    "test_staffelpreise.py", "test_gewinn_basis.py", "test_update.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
+    "test_staffelpreise.py", "test_gewinn_basis.py", "test_update.py", "test_update_sperre.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
     "test_fracht_richtwerte.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
     "test_angebot_vorgaben.py", "test_angebot_einstellungen.py", "test_kundenmaterial.py", "test_schneidweg.py",
     "test_blech_editor.py", "test_blech_dxf.py", "test_blech_kfaktor.py", "test_blech_kantbarkeit.py", "test_blech_tafel.py",
