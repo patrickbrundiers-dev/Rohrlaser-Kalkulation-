@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
-from . import abmessung, anbau, blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
     teilen, vorschau, zukauf, zukauf_ek, baugruppe
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -2361,7 +2361,8 @@ class AngebotSeite(QWidget):
             from . import rohr3d
             profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
             netz = rohr3d.netz(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], profil,
-                               p.get("laenge"))
+                               p.get("laenge"), p.get("naht_winkel") if naht.vorgabe(p) == naht.FEST else None,
+                               dreid.schwenk_grenze(rechnen.maschine(self.kopf, self.k)))
         except (ValueError, TypeError, KeyError, ZeroDivisionError):
             netz = None
         return netz, "3D-Modell aus den Eingaben" if netz else ""
@@ -2458,7 +2459,7 @@ class AngebotSeite(QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, LEER, ROHR, SCHWEISS, ZUKAUF, TypDialog
+        from .neue_position import BLECH, DXF, LEER, ROHR, SCHWEISS, ZUKAUF, TypDialog
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -2469,6 +2470,8 @@ class AngebotSeite(QWidget):
                 typ = d.typ
         if typ == BLECH:
             return typ if self.blech_neu(dialog=dialog) else None
+        if typ == DXF:
+            return typ if self.blech_aus_dxf() else None
         if typ == ZUKAUF:
             return typ if self.zukauf_schnell(zeilen=[], blech=False) else None
         if typ == ROHR:
@@ -2554,7 +2557,11 @@ class AngebotSeite(QWidget):
         d = BlechDialog(self, self.db, neu=True)
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
-        e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
+        return self._blech_anlegen(d.eingaben(), d.ergebnis, d.kopf_werte())
+
+    def _blech_anlegen(self, e, erg, kopf):
+        """Neue Position (Zukaufteil) mit neuem Zukaufartikel aus Blech-Eingaben e und Ergebnis erg (blech.rechnen);
+        kopf: bezeichnung, artikelnr, lieferant, stueck. Ergebnis: True = angelegt."""
         zs = erg["zuschnitt"]
         werte, bezuege = artikel_werte(kopf["bezeichnung"], kopf["artikelnr"], "Blechteile", kopf["lieferant"],
                                        erg["richtpreis"], None)
@@ -2575,6 +2582,43 @@ class AngebotSeite(QWidget):
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
                        "je Stück als EK (Zukaufteil).")
         return True
+
+    def blech_aus_dxf(self, pfade=None, dialog=None):
+        """Bleche aus DXF-Dateien (3E-9): je Datei das Importfenster (alle Teile mit Haken), je angehaktem Teil eine
+        Position wie aus dem Blech-Editor. dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Anzahl."""
+        from .dxf_import_dialog import DxfImportDialog
+        if self.fremd():
+            return 0
+        if not pfade:
+            pfade, _ = QFileDialog.getOpenFileNames(self, "Bleche aus DXF", str(self.db.einstellung("dxf_ordner") or ""),
+                                                    "DXF-Dateien (*.dxf *.DXF)")
+            if not pfade:
+                return 0
+            self.db.einstellung_setzen("dxf_ordner", str(Path(pfade[0]).parent))
+        werkstoffe = {z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
+                      if z.get("blech_werkstoff_id")}
+        laser, einst = self.db.zeilen("blechlaser"), self.db.blech_einstellungen()
+        n = 0
+        for pfad in pfade:
+            d = DxfImportDialog(self, self.db, pfad)
+            if d.fehler:
+                self.f.meldung(f"{Path(pfad).name}: {d.fehler}", fehler=True)
+                continue
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                continue
+            for e, kopf in d.ergebnisse():
+                erg = blech.rechnen(e, werkstoffe, laser, einst)
+                if erg["fehler"] or not erg.get("richtpreis"):
+                    self.f.meldung(f"{kopf.get('bezeichnung') or Path(pfad).name}: " + "; ".join(erg["fehler"]
+                                   or ["kein Richtpreis"]), fehler=True)
+                    continue
+                bez = kopf.get("bezeichnung") or blech.bezeichnung_vorschlag(e, erg["zuschnitt"])
+                if self._blech_anlegen(e, erg, dict(bezeichnung=bez, artikelnr=None, stueck=kopf["stueck"],
+                                                    lieferant=zukauf.lieferant_vorgabe("Blechteile"))):
+                    n += 1
+        if n > 1:
+            self.f.meldung(f"{n} Bleche aus DXF angelegt.")
+        return n
 
     def blech_bearbeiten(self, zeile=None, dialog=None):
         """Blech-Editor einer Position aus dem Blech-Editor wieder öffnen; der neue Richtpreis wird als EK ab der
@@ -3994,8 +4038,13 @@ class AngebotSeite(QWidget):
         urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
         return [u.toLocalFile() for u in urls if u.isLocalFile()]
 
+    @staticmethod
+    def _dxf_pfade(pfade):
+        return [p for p in pfade if str(p).lower().endswith(".dxf")]
+
     def dragEnterEvent(self, ereignis):
-        if step.step_kandidaten(self._gezogene_pfade(ereignis)):   # ohne Ordnersuche, die stockt beim Ziehen
+        pfade = self._gezogene_pfade(ereignis)
+        if step.step_kandidaten(pfade) or self._dxf_pfade(pfade):   # ohne Ordnersuche, die stockt beim Ziehen
             ereignis.acceptProposedAction()
             self._ablage_hervorheben(True)
 
@@ -4005,8 +4054,13 @@ class AngebotSeite(QWidget):
     def dropEvent(self, ereignis):
         self._ablage_hervorheben(False)
         pfade = self._gezogene_pfade(ereignis)
-        if step.step_kandidaten(pfade) and not self.fremd():
-            step_drop(self.f, ereignis, self, lambda: self._drop_importieren(pfade))
+        dxf_pfade = self._dxf_pfade(pfade)
+        rest = [p for p in pfade if p not in dxf_pfade]
+        if dxf_pfade and not self.fremd() and not step.step_kandidaten(rest):    # DXF: je Datei Bleche (3E-9)
+            step_drop(self.f, ereignis, self, lambda: self.blech_aus_dxf(dxf_pfade))
+        elif step.step_kandidaten(rest) and not self.fremd():
+            step_drop(self.f, ereignis, self, lambda: (self._drop_importieren(rest),
+                                                       self.blech_aus_dxf(dxf_pfade) if dxf_pfade else 0))
 
     def _drop_importieren(self, pfade):
         """Nach dem Drop (step_drop): Ordner durchsuchen und importieren."""
@@ -4095,7 +4149,8 @@ class AngebotSeite(QWidget):
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
             knick = {n: self.db.einstellung(f"knick_{n}") for n in ("z", "freistich", "k")}
             dlg = StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
-                                  zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren)
+                                  zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren,
+                                  maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)))
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None

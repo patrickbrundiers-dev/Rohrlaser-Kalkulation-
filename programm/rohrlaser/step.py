@@ -1191,19 +1191,18 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):                 # 3D-Ansicht; speichert der Aufrufer nach position_neu
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             p.update(gehrungen(m))
-            mit_3d = bool(m.get("_d3", d3))
+            # 3D (Häkchen im Prüfdialog, Vorgabe an, wenn die Maschine 3D kann; Patrick 24.10.2026) gilt nur für Teile
+            # mit Schnitten, die nicht senkrecht zur Oberfläche stehen; die anderen bleiben 2D
+            gehr_3d, bohr_3d = kandidaten_3d(m)
+            mit_3d = bool(m.get("_d3", d3)) and bool(gehr_3d or bohr_3d)
             rechner = rechner_eingaben(m, form, (profile.get(pid) or {}).get("a") or m.get("abm_a"),
                                        (profile.get(pid) or {}).get("b") or m.get("abm_b"), mit_3d)
             br = biegerohr.lesen(m.get("biegerohr"))
             if br and rechner:      # Konturen von der Mittellinie auf das gestreckte Rohr
                 biegerohr.technik_umrechnen(rechner, br, biegerohr_faktor)
-            gehr_3d, bohr_3d = kandidaten_3d(m)
             if bohr_3d and not mit_3d:
                 hinweise.append(f"3D prüfen: {bohr_3d} schräge Bohrung{'en' if bohr_3d > 1 else ''}, ohne "
                                 "3D-Schnittbearbeitung als 2D gerechnet")
-            elif mit_3d and not (gehr_3d or bohr_3d):
-                hinweise.append("3D-Schnittbearbeitung gewählt, aber keine Gehrung und keine Bohrung, die nicht "
-                                "senkrecht zur Oberfläche steht")
             sonst_3d = schraege_konturen(m)
             if sonst_3d:
                 hinweise.append(f"3D prüfen: {sonst_3d} Kontur{'en' if sonst_3d > 1 else ''} nicht senkrecht zur "
@@ -1239,7 +1238,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 p["kontur_grenzen"] = rechnen.grenzen_text(regel)
             m_bild = m
             if m.get("_knickrahmen") and profile.get(pid):     # Knickverbindung: gestrecktes Rohr aller Schenkel
-                m_bild = _knick_uebernehmen(p, m, messwerte, dict(profile[pid], profil_id=pid), form, mit_3d, regel,
+                m_bild = _knick_uebernehmen(p, m, messwerte, dict(profile[pid], profil_id=pid), form,
+                                            bool(m.get("_d3", d3)), regel,
                                             gewinde, maschine, zusatz_katalog, hinweise)
             # Gewinde-Vorschläge, Senkungen, Fließlochbohrungen, Bohren (< 0,7 × Wand): offen bis 'Bohrungen prüfen'
             # (bohrbild.py), erst dann die Zusatzarbeiten Senken, Flowdrill, Bohren

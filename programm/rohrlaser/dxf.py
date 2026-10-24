@@ -67,6 +67,37 @@ def _polygon(layer, pk):
             if math.dist(pk[i], pk[(i + 1) % len(pk)]) > 1e-9]
 
 
+def _polygon_roh(layer, roh, dx=0.0, dy=0.0):
+    """Polygon mit Bögen (schneidweg.punkte_roh: x, y, Bulge) als Linien und echte Bögen, um (dx, dy) verschoben."""
+    out = []
+    for i, (x, y, b) in enumerate(roh):
+        q = roh[(i + 1) % len(roh)]
+        p0, p1 = (x + dx, y + dy), (q[0] + dx, q[1] + dy)
+        if math.dist(p0, p1) <= 1e-9:
+            continue
+        if not b:
+            out.append(_linie(layer, p0, p1))
+            continue
+        c = math.dist(p0, p1)
+        th = 4 * math.atan(b)
+        r = c / (2 * math.sin(abs(th) / 2))
+        d = r * math.cos(th / 2) * (1 if th > 0 else -1)
+        m = ((p0[0] + p1[0]) / 2 - (p1[1] - p0[1]) / c * d, (p0[1] + p1[1]) / 2 + (p1[0] - p0[0]) / c * d)
+        a0 = math.degrees(math.atan2(p0[1] - m[1], p0[0] - m[0]))
+        a1 = math.degrees(math.atan2(p1[1] - m[1], p1[0] - m[0]))
+        out.append(_bogen(layer, m, r, a0, a1) if th > 0 else _bogen(layer, m, r, a1, a0))
+    return out
+
+
+def _linien(layer, z, cx, cy):
+    """Linienzüge einer Gravur oder offenen Schnittlinie aus dem DXF-Import (z['linien'], relativ zur Mitte)."""
+    out = []
+    for zug in z.get("linien") or ():
+        pk = [(cx + float(x), cy + float(y)) for x, y in zug]
+        out += [_linie(layer, a, b) for a, b in zip(pk, pk[1:]) if math.dist(a, b) > 1e-9]
+    return out
+
+
 def _gedreht(elemente, cx, cy, w):
     """Linien, Bögen und Kreise um (cx, cy) um w Grad gedreht."""
     def p(q):
@@ -105,13 +136,15 @@ def kontur_elemente(z, cx, cy, layer=INNEN):
         return _rechteck(layer, cx, cy, b, h, _z(z.get("r"))) if b > 0 and h > 0 else []
     if art == sw.POLYGON:
         try:
-            pk = sw.punkte(z.get("punkte"))
+            pk, roh = sw.punkte(z.get("punkte")), sw.punkte_roh(z.get("punkte"))
         except ValueError:
             return []
         if len(pk) < 3:
             return []
         mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
-        return _polygon(layer, [(cx + x - mx, cy + y - my) for x, y in pk])
+        return _polygon_roh(layer, roh, cx - mx, cy - my)       # Bögen bleiben Bögen (DXF-Import)
+    if art in (sw.GRAVUR, sw.SONSTIGE) and z.get("linien"):
+        return _linien(GRAVUR if art == sw.GRAVUR else layer, z, cx, cy)
     if art == sw.TEXT_GRAVUR:           # Einstrich-Schrift, immer auf dem Layer Gravur
         from . import gravur_text
         zuege = gravur_text.gedreht(gravur_text.linien(z.get("text"), _z(z.get("hoehe"))), z.get("winkel"), cx, cy)
@@ -141,7 +174,14 @@ def elemente(e, zs, beschriftung=None, biegelinien=True):
     minx = miny = 0.0
     if zs.get("punkte"):
         minx, miny = min(x for x, _ in zs["punkte"]), min(y for _, y in zs["punkte"])
-        out += _polygon(AUSSEN, [(x - minx, y - miny) for x, y in zs["punkte"]])
+        try:
+            roh = sw.punkte_roh(e.get("punkte")) if e.get("form") == blech.POLYGON else []
+        except ValueError:
+            roh = []
+        if any(b for *_, b in roh):         # mit Bögen (DXF-Import): echte Bögen statt vieler Linien
+            out += _polygon_roh(AUSSEN, roh, -minx, -miny)
+        else:
+            out += _polygon(AUSSEN, [(x - minx, y - miny) for x, y in zs["punkte"]])
     else:
         r = _z(e.get("eckradius")) if e.get("art") != blech.KANTTEIL else 0.0
         out += _rechteck(AUSSEN, lg / 2, br / 2, lg, br, r)

@@ -20,7 +20,7 @@ vorne/90°).
 import bisect
 import math
 
-from . import skizze as sk
+from . import schnittflaeche as sf, skizze as sk
 from .blech3d import _flaeche2, _ohrschnitt
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, GRAVUR, GRAVUREN, LANGLOCH, POLYGON, RECHTECK, SCHLITZ, SENKUNG,
                          SONDERKONTUR, V_AUSSCHNITT, _z, mit_radius)
@@ -192,8 +192,11 @@ def zelle_frei(feld, loch_liste):
     return out
 
 
-def netz(e, profil, laenge):
-    """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt."""
+def netz(e, profil, laenge, naht_winkel=None, grenze=None):
+    """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt.
+    naht_winkel: Lage der Längsschweißnaht (naht.py, von Ende A gesehen 0° oben, 90° rechts) als rote Linie 'NL'
+    über die ganze Länge (Patrick 24.10.2026), None = keine feste Naht. grenze: Kopfschwenk der Maschine [°] für
+    Enden in 3D (schnittflaeche.py: 2D Strahl senkrecht zum Mantel, 3D bis zur Grenze, darüber gelb 'GB')."""
     L = _z(laenge)
     if L <= 0:
         return None
@@ -224,11 +227,16 @@ def netz(e, profil, laenge):
         normalen.setdefault(art, []).append([round(c, 3) for c in mitte_n])
         kennung.setdefault(art, []).append(merkmal)
 
+    innen_x = {"a": {}, "b": {}}        # Innenkante der Enden je Punkt des Innenumrisses (schnittflaeche.punkt)
+    gelb = {"a": set(), "b": set()}     # Stücke des Umrisses über der 3D-Grenze
+
     def za(u, v):
-        return sk.schnitt_x(qs, ea, u, v)
+        x = innen_x["a"].get((round(u, 6), round(v, 6)))
+        return sk.schnitt_x(qs, ea, u, v) if x is None else x
 
     def zb(u, v):
-        return L - sk.schnitt_x(qs, eb, u, v)
+        x = innen_x["b"].get((round(u, 6), round(v, 6)))
+        return L - (sk.schnitt_x(qs, eb, u, v) if x is None else x)
 
     roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
     aussen, teile = _unterteilen(roh_a)
@@ -238,6 +246,13 @@ def netz(e, profil, laenge):
         # gleiche Ecke zuerst wie außen (nächster Punkt), damit Stirnfläche innen/außen zusammenpasst
         k = min(range(len(roh_i)), key=lambda i: math.dist(roh_i[i], roh_a[0]))
         innen, _ = _unterteilen(roh_i[k:] + roh_i[:k], teile)
+        g = sf.GRENZE if grenze is None else abs(float(grenze))
+        for s_, es in (("a", ea), ("b", eb)):
+            d3 = e.get("d3") is True and bool(es.get("d3"))
+            werte = [sf.punkt(qs, es, pa, pi, d3, g) for pa, pi in zip(aussen, innen)]
+            for pi, w in zip(innen, werte):
+                innen_x[s_][(round(pi[0], 6), round(pi[1], 6))] = w["x_innen"]
+            gelb[s_] = {i for i in range(len(werte)) if werte[i]["begrenzt"] or werte[(i + 1) % len(werte)]["begrenzt"]}
 
     def mantel(poly, art, nach_aussen, auslassen=()):
         n = len(poly)
@@ -380,14 +395,18 @@ def netz(e, profil, laenge):
                         continue
                 a0, a1 = _xyz(z(*p0), *p0), _xyz(z(*p1), *p1)
                 b0, b1 = _xyz(z(*q0), *q0), _xyz(z(*q1), *q1)
-                dreieck(art, a0, a1, b1, soll, ende)
-                dreieck(art, a0, b1, b0, soll, ende)
+                art_i = "GB" if i in gelb[art[1].lower()] else art     # 3D über der Grenze: gelb
+                dreieck(art_i, a0, a1, b1, soll, ende)
+                dreieck(art_i, a0, b1, b0, soll, ende)
         elif not qs.r:
             for a, b, c in _ohrschnitt(aussen):
                 dreieck(art, _xyz(z(*a), *a), _xyz(z(*b), *b), _xyz(z(*c), *c), soll, ende)
         # Schnittkante als Linie (Merkmal Ende)
         zug = [_xyz(z(u, v), u, v) for u, v in aussen + aussen[:1]]
         linie(art, zug, (0, 1, 0), f"ende:{art[1].lower()}")
+        for i in sorted(gelb[art[1].lower()]):         # über der 3D-Grenze: gelb über der Schnittkante
+            p0, p1 = aussen[i], aussen[(i + 1) % len(aussen)]
+            linie("GB", [_xyz(z(*p0), *p0), _xyz(z(*p1), *p1)], (0, 1, 0), ende)
     # Konturen auf der Außenwand
     for d in sk.lagen(e.get("konturen") or [], L, qs):
         try:
@@ -402,4 +421,16 @@ def netz(e, profil, laenge):
         if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+    # Längsschweißnaht: rote Linie auf der Außenwand von Anfangs- bis Endschnitt
+    try:
+        pt = sk.naht_punkt(qs, naht_winkel)
+    except (ValueError, TypeError):
+        pt = None
+    if pt is not None:
+        r = math.hypot(*pt) or 1.0
+        u, v = pt[0] + pt[0] / r * ABSTAND, pt[1] + pt[1] / r * ABSTAND
+        x0, x1 = za(*pt), zb(*pt)
+        schritte = max(1, int(abs(x1 - x0) // 50))
+        zug = [_xyz(x0 + (x1 - x0) * i / schritte, u, v) for i in range(schritte + 1)]
+        linie("NL", zug, _xyz(0, pt[0] / r, pt[1] / r), "naht")
     return dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True)

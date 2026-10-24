@@ -124,6 +124,13 @@ def neigung_begrenzen(laengs, quer, m=None):
     return l2, q2, grenze, f"Neigung wurde auf {_zahl(grenze)}° begrenzt (Eingabe {_zahl(g)}°)."
 
 
+def schwenk_grenze(m=None):
+    """Kopfschwenk für Schnitte, die beim Drehen des Rohrs beide Richtungen brauchen (Gehrung, Enden in 3D): die
+    kleinere der beiden Grenzen der Maschine [°]."""
+    lo, hi = grenzen(m)
+    return min(-lo, hi)
+
+
 def gehrung_begrenzen(winkel, m=None):
     """Gehrung in 3D: Kopfschwenk = Gehrungswinkel (Betrag). Beim Drehen des Rohrs schwenkt der Kopf in beide
     Richtungen, es gilt die kleinere Grenze der Maschine. (verwendet, Hinweis oder None)."""
@@ -191,16 +198,59 @@ def technik(p):
     return d if isinstance(d, dict) else {}
 
 
+def vorschlag(e, m):
+    """3D-Vorgabe für die Eingaben eines Teils (Patrick 24.10.2026: „wenn ich 3D an der Maschine zulasse, gilt das
+    für alle Konturen“): kann die Maschine 3D und ist am Teil noch nichts gewählt (kein Schlüssel d3), werden
+    Gehrungen an den Enden und schräge Bohrungen 3D und das Teil bekommt das Häkchen. Schnitte, die senkrecht zur
+    Oberfläche stehen, bleiben 2D; ein abgewähltes Häkchen (d3 False) bleibt aus. Ergebnis: neue Eingaben oder None."""
+    if not kann_3d(m) or not isinstance(e, dict) or "d3" in e:
+        return None
+    neu = json.loads(json.dumps(e))
+    n = 0
+    for s in ("a", "b"):
+        x = neu.get(s)
+        if isinstance(x, dict) and "d3" not in x and _z(x.get("winkel")):
+            x["d3"] = True
+            n += 1
+    for z in neu.get("konturen") or ():
+        if isinstance(z, dict) and z.get("art") == "Bohrung" and "d3" not in z and \
+                (_z(z.get("neigung_l")) or _z(z.get("neigung_q"))):
+            z["d3"] = True
+            n += 1
+    if not n:
+        return None
+    neu["d3"] = True
+    return neu
+
+
+def _sf():
+    from . import schnittflaeche
+    return schnittflaeche
+
+
+def _stuecke(profil, t, e, m):
+    """Stücke der Schnittkante eines Endes in 3D (schnittflaeche.abschnitte) oder [] (offenes/volles Profil)."""
+    from . import skizze as sk
+    from .schneidweg import mit_radius
+    try:
+        return _sf().abschnitte(sk.Querschnitt(mit_radius(profil, t)), e, True, schwenk_grenze(m))
+    except (ValueError, TypeError, ZeroDivisionError, KeyError):
+        return []
+
+
 def aktiv(p):
     """Bauteil mit eingeschalteter 3D-Schnittbearbeitung."""
     return technik(p).get("d3") is True
 
 
-def bearbeitungen(p, m=None, einstiche_ende=1):
+def bearbeitungen(p, m=None, einstiche_ende=1, profil=None):
     """3D-Bearbeitungen eines Teils (nur mit Häkchen am Bauteil), je eine Zeile:
     dict(art, winkel_eingabe, winkel (verwendet = Kopfschwenk bzw. Gesamtneigung), laengs, quer, laenge (je Stück),
     anzahl, einstiche (je Stück), huelle, abstand_b (Abstand der hintersten Stelle vom Ende B [mm]), hinweis, fehler).
-    Lage einer Bohrung unbekannt: abstand_b 0 (zur sicheren Seite)."""
+    Lage einer Bohrung unbekannt: abstand_b 0 (zur sicheren Seite).
+    Mit profil (Stammdaten-Zeile, Plan 3E-10): Gehrung je Stück der Schnittkante mit dem dort nötigen Kopfwinkel
+    (schnittflaeche.abschnitte, Liste 'abschnitte'), winkel = größter verwendeter, hinweis nennt die Länge über der
+    Grenze; ohne profil wie bisher ein Winkel für den ganzen Schnitt."""
     if not aktiv(p):
         return []
     t = technik(p)
@@ -219,6 +269,12 @@ def bearbeitungen(p, m=None, einstiche_ende=1):
         if z["winkel"] == 0 and not z["fehler"]:
             z["fehler"] = "Gehrung in 3D ohne Gehrungswinkel"
         z["laenge"] = _z(p.get(schnitt))
+        if profil and not z["fehler"]:
+            stuecke = _stuecke(profil, t, e, m)
+            if stuecke:
+                z["abschnitte"] = stuecke
+                z["winkel"] = max(x["winkel"] for x in stuecke)
+                z["hinweis"] = _sf().hinweis(art, stuecke, schwenk_grenze(m))
         erg.append(z)
     for e in t.get("konturen") or ():
         if e.get("d3") and e.get("art") == "V-Ausschnitt":     # nur die Innenwand ist geschwenkt (β/2)
@@ -275,19 +331,22 @@ def rest_letztes(p, m=None, bearb=None):
     return max(0.0, greifmass(m) - min(b["abstand_b"] for b in gueltig))
 
 
-def pruefen(p, m=None, bearb=None):
+def pruefen(p, m=None, bearb=None, profil=None):
     """Status der 3D-Bearbeitung einer Position: 'FEHLER: …', 'WARNUNG: …', 'HINWEIS: …' oder None (kein 3D bzw.
     in Ordnung). Eine Maschine ohne 3D rechnet keine 3D-Bearbeitung, auch nicht stillschweigend als 2D."""
     if not aktiv(p):
         return None
     if not kann_3d(m):
         return f"FEHLER: Maschine {(m or {}).get('maschinen_id') or '?'} kann keine 3D-Bearbeitung"
-    bearb = bearbeitungen(p, m) if bearb is None else bearb
+    bearb = bearbeitungen(p, m, profil=profil) if bearb is None else bearb
     fehler = next((b for b in bearb if b["fehler"]), None)
     if fehler:
         return f"FEHLER: {fehler['art']}: {fehler['fehler']}"
-    if any(b["hinweis"] for b in bearb):
-        return "WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig"
+    hinweise = [b["hinweis"] for b in bearb if b["hinweis"]]
+    if hinweise:        # Plan 3E-10 G3: mit Ende und Länge
+        return "WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig" + \
+            ("" if not any(b.get("abschnitte") for b in bearb) else " – " + "; ".join(
+                b["hinweis"] for b in bearb if b["hinweis"] and b.get("abschnitte")))
     if not bearb:
         return "HINWEIS: 3D aktiviert, aber keine Bearbeitung in 3D"
     return None

@@ -113,6 +113,7 @@ class SchneidwegDialog(QDialog):
         e, self.aus_position = sw.aus_position(sw.lesen(p.get("technik")), p, profil)
         # Profil der Position anders als gemessen (von Hand geändert): Konturen umrechnen bzw. Umriss übertragen
         e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(profil, profil_id=p.get("profil_id")))
+        e = dreid.vorschlag(e, rechnen.maschine(kopf or {}, k)) or e     # Maschine mit 3D: Vorgabe 3D an
         self.biegerohr = biegerohr.lesen(e)        # Biegerohr aus dem STEP-Import: bleibt in den Eingaben
         self.knick = knickrahmen.lesen(e)          # Knickrahmen: Schenkel, daraus die gestreckte Länge
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
@@ -367,6 +368,7 @@ class SchneidwegDialog(QDialog):
         self.zeichnung_knopf = zeichnung
         ml.addWidget(self.skizze_kopf)
         self.skizze = Skizze(profil, p.get("laenge"))
+        self.skizze.grenze = self.schwenk_grenze()
         self.skizze.gewaehlt.connect(self._auswahl_skizze)
         self.skizze.verschoben.connect(self._verschoben)
         # Skizze und 3D-Ansicht des STEP-Imports (Teile-Editor: Auswahl und Messen) als Reiter
@@ -1005,6 +1007,8 @@ class SchneidwegDialog(QDialog):
             out["r_aussen"] = self.r_aussen
         if self.d3.isChecked():
             out["d3"] = True
+        elif dreid.kann_3d(rechnen.maschine(self.kopf or {}, self.k)):
+            out["d3"] = False           # bewusst abgewählt: keine 3D-Vorgabe beim nächsten Öffnen
         if self.biegerohr:
             out["biegerohr"] = self.biegerohr
         if self.knick:
@@ -1266,9 +1270,13 @@ class SchneidwegDialog(QDialog):
         if not an:
             return []
         p = dict(self.p, **(self.ergebnis or {}).get("felder", {}), technik=sw.speichern(eingaben))
-        st = dreid.pruefen(p, m)
+        st = dreid.pruefen(p, m, profil=self.profil)
         return [f"<span style='color:{'#B42318' if st.startswith('FEHLER') else '#7A5A00'}'>3D: {st}</span>"] \
             if st else []
+
+    def schwenk_grenze(self):
+        """Kopfschwenk der Maschine für Enden in 3D [°] (kleinere der beiden Grenzen, dreid.gehrung_begrenzen)."""
+        return dreid.schwenk_grenze(rechnen.maschine(self.kopf or {}, self.k))
 
     def knickrahmen(self, werte=None, dialog=None):
         """Knickrahmen eingeben (KnickrahmenDialog): V-Ausschnitte, Enden und gestreckte Länge setzen. werte = Block

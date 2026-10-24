@@ -2766,9 +2766,12 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         except Exception as e:  # ohne Abwicklung bleibt es bei den Außenmaßen
             fl["abwicklung"] = dict(fehler=str(e))
     mehrachsig = bool(fl and (fl.get("abwicklung") or {}).get("mehrachsig"))
+    # geschlossenes Hohlprofil (Rohr) mit sicherer Achse bleibt Rohr: Gehrungen an beiden Enden drücken das Volumen
+    # unter Querschnitt × Länge (RE 80x40, 480 mm, 2 × 45°: 83 %), das ist kein ausgeschnittenes Kantteil
+    rohr = t is not None and bool(t.kammern) and t.sicherheit.get("achse") == "sicher" and not mehrachsig
     if fl and fl["art"] == "gekantet" and (t is None or not t.profilform or t.sicherheit.get("achse") != "sicher"
                                            or t.profilform == "offenes Sonderprofil" or mehrachsig
-                                           or volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge):
+                                           or (volumen < GEKANTET_ANTEIL * t.flaeche * t.laenge and not rohr)):
         b = _blech_teil(solid, datei, koerper, fl, volumen, netz)
         b.alternative = _als_profil(solid, b, None, t)
         return b
