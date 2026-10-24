@@ -12,6 +12,11 @@
 # Release und Online-Update läuft nur, wenn der Workflow von Hand gestartet wird (Actions > Paket > Run workflow,
 # Zweig main) – einmal nach mehreren zusammen gemergten Pull Requests (Sammel-Release).
 # Von einem anderen Zweig gestartet, baut und prüft er das Paket nur, ohne zu veröffentlichen.
+#
+# Eigener Runner (24.10.2026, kostet kein Actions-Kontingent): Steht unter Settings → Secrets and variables → Actions →
+# Variables die Variable RUNNER auf „pc“, laufen die Tests im Runner „rohrlaser“ unter WSL-Ubuntu und der Windows-Build
+# im Runner „rohrlaser“ unter Windows auf Patricks PC; sonst (Variable fehlt oder anderer Wert) auf den GitHub-Runnern.
+# Einrichtung: werkzeuge/runner/ANLEITUNG.md. Nur Pull Requests aus diesem Repository, keine Forks.
 name: Paket
 
 on:
@@ -29,8 +34,10 @@ permissions:
 
 jobs:
   tests:
-    runs-on: ubuntu-24.04
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ${{ vars.RUNNER == 'pc' && fromJSON('["self-hosted", "Linux", "rohrlaser"]') || 'ubuntu-24.04' }}
+    if: >
+      github.event_name != 'pull_request' ||
+      (!github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 30            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen
     steps:
       - uses: actions/checkout@v4
@@ -40,10 +47,12 @@ jobs:
         if: github.event_name == 'pull_request'
         run: python3 tests/pruefe_anleitung_geaendert.py "origin/${{ github.base_ref }}"
       - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'   # eigener PC behält die Pakete ohnehin
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('requirements*.txt', 'programm/requirements.txt') }}
-      - name: Python-Pakete
+      - name: Systempakete (eigener PC einmalig mit werkzeuge/runner/wsl_einrichten.sh)
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
@@ -51,6 +60,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xkb1 libxkbcommon-x11-0
+      - name: Python-Pakete
+        run: |
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
@@ -95,7 +106,7 @@ jobs:
 
 
   windows:
-    runs-on: windows-latest
+    runs-on: ${{ vars.RUNNER == 'pc' && fromJSON('["self-hosted", "Windows", "rohrlaser"]') || 'windows-latest' }}
     needs: [tests]
     if: github.event_name == 'workflow_dispatch'   # Windows-Minuten zählen doppelt: nur von Hand (Sammel-Release)
     timeout-minutes: 45
@@ -107,8 +118,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
         with:
           python-version: "3.12"
+      - name: Eigene Python-Umgebung (eigener PC, Python 3.12 aus werkzeuge/runner/windows_einrichten.ps1)
+        if: runner.environment == 'self-hosted'
+        shell: pwsh
+        run: |
+          $venv = Join-Path $env:USERPROFILE "rohrlaser-venv"
+          if (-not (Test-Path "$venv\Scripts\python.exe")) {
+            py -3.12 -m venv $venv
+            if ($LASTEXITCODE -ne 0) { throw "Python 3.12 fehlt (werkzeuge/runner/windows_einrichten.ps1 ausführen)" }
+          }
+          "$venv\Scripts" >> $env:GITHUB_PATH
       - name: Python-Pakete
         run: |
           python -m pip install --upgrade pip
@@ -187,6 +209,13 @@ jobs:
           "SIGNATUR_FP=$($z.Thumbprint)" >> $env:GITHUB_ENV
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
             Where-Object FullName -like "*\x64\*" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) {         # PC ohne Windows SDK: signtool aus dem NuGet-Paket der SDK-Werkzeuge
+            $z = "$env:RUNNER_TEMP\sdk_buildtools"
+            Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.Windows.SDK.BuildTools" -OutFile "$z.zip"
+            Expand-Archive -Force "$z.zip" $z
+            $signtool = Get-ChildItem $z -Recurse -Filter signtool.exe | Where-Object FullName -like "*\x64\*" |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
           if (-not $signtool) { throw "signtool.exe nicht gefunden" }
           "SIGNTOOL=$signtool" >> $env:GITHUB_ENV
           "SIGNATUR_DATEI=$pfx" >> $env:GITHUB_ENV
@@ -306,6 +335,13 @@ jobs:
       - name: Windows-Vertrauen testen (Markierung „aus dem Internet“ weg, Zertifikat eingetragen, Signaturen gültig, entfernen)
         shell: pwsh
         run: |
+          $istAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+            [Security.Principal.WindowsBuiltInRole]::Administrator)
+          if (-not $istAdmin) {
+            # Eigener PC (Dienst ohne Adminrechte): Eintragen beim Benutzer fragt per Fenster nach – im Dienst hinge das
+            "::notice::Ohne Adminrechte (eigener PC): Windows-Vertrauen nicht getestet"
+            exit 0
+          }
           $t = (New-Item -ItemType Directory -Force vertrauen_test).FullName
           Copy-Item Windows-Vertrauen-einrichten.cmd, Rohrlaser-Angebotskalkulation-Setup.exe $t
           $setup = "$t\Rohrlaser-Angebotskalkulation-Setup.exe"
