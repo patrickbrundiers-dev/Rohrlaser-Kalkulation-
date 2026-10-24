@@ -960,19 +960,37 @@ def pruefe_zuschnitt(g, stangen, lieferlaenge, max_werkstueck, saege, min_werkst
 OFFEN = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil")
 
 
-def umfang(form, a, b, wand=None, flaeche=None, pid=None):
+RADIUS_FORMEN = ("Quadratrohr", "Rechteckrohr")
+
+
+def aussenradius(form, a, b=None, wand=None, r=None):
+    """Außenradius der Ecken [mm] von Quadrat- und Rechteckrohr: r aus Stammdaten bzw. Position (Zahl ≥ 0, 0 =
+    scharfkantig) oder leer = Vorgabe nach EN 10219 (2 × Wand bis 6 mm, 2,5 × Wand bis 10 mm, darüber 3 × Wand);
+    höchstens die halbe kleinere Seite. Andere Formen: 0."""
+    if form not in RADIUS_FORMEN or not a:
+        return 0.0
+    if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0:
+        wert = float(r)
+    else:
+        t = wand if isinstance(wand, (int, float)) and wand > 0 else 0.0
+        wert = 2 * t if t <= 6 else 2.5 * t if t <= 10 else 3 * t
+    return max(0.0, min(wert, min(a, b or a) / 2))
+
+
+def umfang(form, a, b, wand=None, flaeche=None, pid=None, r=None):
     """Umfang des Querschnitts (Außenfläche je m Länge). Offene Profile: beide Seiten, aus Querschnittsfläche und
     Blechdicke (dünnwandig: 2 × Fläche / Dicke + 2 × Dicke an den Kanten), damit gilt es auch für C-Profile mit
-    Abkantung und Profile mit Radien. RP-Profil: Außenkontur aus der RP-Bibliothek (pid = Profil-ID)."""
+    Abkantung und Profile mit Radien. RP-Profil: Außenkontur aus der RP-Bibliothek (pid = Profil-ID). Quadrat- und
+    Rechteckrohr mit Außenradius (aussenradius, r = Wert der Stammdaten/Position): je Ecke (2 − π/2) × r kürzer."""
     if form == rp_profile.FORM:
         r = rp_profile.daten(pid)
         return r["umfang"] if r else 0.0
     if form == "Rundrohr":
         return math.pi * a
     if form == "Quadratrohr":
-        return 4 * a
+        return 4 * a - (8 - 2 * math.pi) * aussenradius(form, a, a, wand, r)
     if form == "Rechteckrohr":
-        return 2 * (a + (b or a))
+        return 2 * (a + (b or a)) - (8 - 2 * math.pi) * aussenradius(form, a, b, wand, r)
     if form == "I-/H-Träger" and b:       # scharfkantig: Flansche außen und innen, Flanschkanten, Steg
         return 2 * a + 4 * b - 2 * (wand or 0)
     if form == "T-Profil" and b:
@@ -982,13 +1000,14 @@ def umfang(form, a, b, wand=None, flaeche=None, pid=None):
     return 0.0
 
 
-def schnittlaenge(form, a, b, wand=None, flaeche=None, pid=None):
+def schnittlaenge(form, a, b, wand=None, flaeche=None, pid=None, r=None):
     """Länge eines geraden Trennschnitts: Rohre = Außenumfang, offene Profile = halber Umfang (der Laser schneidet
-    jede Wand nur einmal). RP-Profil: aus der Kontur, der doppelt liegende Anschlag zählt einmal (rp_profile)."""
+    jede Wand nur einmal). RP-Profil: aus der Kontur, der doppelt liegende Anschlag zählt einmal (rp_profile).
+    r = Außenradius von Quadrat-/Rechteckrohr (leer = Vorgabe nach Norm, aussenradius)."""
     if form == rp_profile.FORM:
-        r = rp_profile.daten(pid)
-        return r["schnitt"] if r else 0.0
-    u = umfang(form, a, b, wand, flaeche)
+        rp = rp_profile.daten(pid)
+        return rp["schnitt"] if rp else 0.0
+    u = umfang(form, a, b, wand, flaeche, r=r)
     return u / 2 if form in OFFEN else u
 
 

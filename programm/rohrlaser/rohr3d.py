@@ -14,7 +14,7 @@ import math
 
 from . import skizze as sk
 from .blech3d import _flaeche2, _ohrschnitt
-from .schneidweg import GRAVUR, _z
+from .schneidweg import GRAVUR, _z, mit_radius
 
 SCHRITT = 4.0           # Kanten des Querschnitts höchstens so lang [mm] (Ausklinkung, Sattel folgen der Kurve)
 TEILE_MAX = 24          # je Kante höchstens so viele Stücke
@@ -41,8 +41,9 @@ def netz(e, profil, laenge):
     L = _z(laenge)
     if L <= 0:
         return None
-    qs = sk.Querschnitt(profil)
-    if not qs.umriss or len(qs.umriss[0]) < 3:
+    qs = sk.Querschnitt(mit_radius(profil, e))
+    umriss = qs.umriss_rund()               # Quadrat-/Rechteckrohr mit Außenradius
+    if not umriss or len(umriss[0]) < 3:
         return None
     ea, eb = e.get("a") or {}, e.get("b") or {}
     punkte, dreiecke, linien, normalen, kennung = [], {}, {}, {}, {}
@@ -72,11 +73,11 @@ def netz(e, profil, laenge):
     def zb(u, v):
         return L - sk.schnitt_x(qs, eb, u, v)
 
-    roh_a = list(qs.umriss[0]) if _flaeche2(qs.umriss[0]) > 0 else list(qs.umriss[0])[::-1]   # ccw in (u, v)
+    roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
     aussen, teile = _unterteilen(roh_a)
     innen = None
-    if len(qs.umriss) > 1 and len(qs.umriss[1]) == len(qs.umriss[0]):
-        roh_i = list(qs.umriss[1]) if _flaeche2(qs.umriss[1]) > 0 else list(qs.umriss[1])[::-1]
+    if len(umriss) > 1 and len(umriss[1]) == len(umriss[0]):
+        roh_i = list(umriss[1]) if _flaeche2(umriss[1]) > 0 else list(umriss[1])[::-1]
         # gleiche Ecke zuerst wie außen (nächster Punkt), damit Stirnfläche innen/außen zusammenpasst
         k = min(range(len(roh_i)), key=lambda i: math.dist(roh_i[i], roh_a[0]))
         innen, _ = _unterteilen(roh_i[k:] + roh_i[:k], teile)

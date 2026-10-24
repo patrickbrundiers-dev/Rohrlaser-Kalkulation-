@@ -149,6 +149,13 @@ def huellkreis(p):
     return None
 
 
+def _radius_wirksam(z):
+    from .optimierung import aussenradius
+    if z.get("form") not in ("Quadratrohr", "Rechteckrohr"):
+        return None
+    return aussenradius(z.get("form"), z.get("a"), z.get("b"), z.get("wand"), z.get("r_aussen"))
+
+
 def flaeche_wirksam(p):
     """Herstellerwert (Fläche manuell) vor berechnetem Querschnitt."""
     if not p.get("profil_id"):
@@ -206,7 +213,8 @@ PROFILE = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=220),
      # hinten angefügt: Beispieldaten und Import älterer Dateien zählen die Felder nach Reihenfolge
      Feld("wand_max", "Wandstärke max. [mm]", "zahl", 0, 500, stellen=2),
-     Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85)),
+     Feld("laengenvergleich", "Lieferlängen vergleichen", "auswahl", auswahl="janein", breite=85),
+     Feld("r_aussen", "Außenradius [mm]", "zahl", 0, 100, stellen=1)),
     ("profil_id",),
     "Abmessung A = Ø (Rundrohr) bzw. Breite, Abmessung B = Höhe (nur Rechteckrohr). U- und C-Profil: A = Steg, "
     "B = Flansch; L-Profil: A und B = Schenkel; Flachstahl: A = Breite, Wandstärke = Dicke; I-/H-Träger und "
@@ -217,10 +225,14 @@ PROFILE = Tabelle(
     "Schnittlänge aus der Kontur der RP-Bibliothek bzw. des geladenen MegaCAD-Makros. Endbeschnitt und "
     "Greiferrest nur eintragen, wenn sie vom Maschinenwert abweichen. Fläche manuell = Herstellerwert "
     "(Eckradien, Sonderprofile, C-Profil). Lieferlängen vergleichen = nein: das Profil wird nur mit der "
-    "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen.",
+    "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen. Außenradius "
+    "(Quadrat- und Rechteckrohr): Radius der Außenecken für Schnittlänge, Skizze und 3D; leer = Vorgabe nach EN 10219 "
+    "(2 × Wand bis 6 mm, 2,5 × Wand bis 10 mm, darüber 3 × Wand), bei Werkstoff Aluminium leer = 0; "
+    "0 = scharfkantig; je Teil im Schneidweg-Rechner änderbar.",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
                ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1),
-               ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1)))
+               ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1),
+               ("Außenradius wirksam [mm]", lambda z, k: _radius_wirksam(z), 1)))
 
 WERKSTOFFE = Tabelle(
     "werkstoffe", "Werkstoffe",

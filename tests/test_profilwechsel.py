@@ -46,6 +46,9 @@ aus = tmp / "m.txt"
 step_messen.main(["--ausgabe", str(aus)] + [str(f) for f in sorted(ORDNER.glob("*.step"))])
 mw = {m["artikel"]: m for m in step.lies_messwerte(aus)}
 db = Datenbank(tmp / "rohrlaser.db")
+for z in db.zeilen("profile"):          # die STEP-Testteile sind scharfkantig: Außenradius 0
+    if z["form"] in ("Quadratrohr", "Rechteckrohr"):
+        db.aendern("profile", z["id"], "r_aussen", 0)
 k = db.kontext()
 
 
