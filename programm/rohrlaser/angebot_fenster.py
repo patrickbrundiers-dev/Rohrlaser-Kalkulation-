@@ -35,7 +35,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import angebot_check, schritte, step_ablage, step_einstellungen, stil
+from . import angebot_check, schritte, step_ablage, step_einstellungen, stil, tabellen_eingabe
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -269,6 +269,8 @@ class AngeboteSeite(QWidget):
                ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
                                       vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else "")), None, 140),
                ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
+               ("Auftragsnr.", "auftragsnr", None, 100),
+               ("Liefertermin", lambda z: _datum(z.get("liefertermin")), None, 85),
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
@@ -287,7 +289,7 @@ class AngeboteSeite(QWidget):
         _breiten(self.ansicht, self.SPALTEN)
         self.ansicht.doubleClicked.connect(lambda i: self.oeffnen.emit(self._id(i)))
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel …")
+        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel, Auftragsnummer …")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
         tastatur.suche_esc(self.suche)
@@ -306,7 +308,7 @@ class AngeboteSeite(QWidget):
         self.abgleich_knopf.clicked.connect(lambda: self.f.abgleichen())
         self.vorgang_knopf = QPushButton("Vorgang ▾")
         self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
-                                      "Angebots-PDF selbst), Beauftragt, Abgelehnt")
+                                      "Angebots-PDF selbst), Beauftragt (mit Auftragsnummer und Liefertermin), Abgelehnt")
         menue = QMenu(self.vorgang_knopf)
         for v in VORGAENGE:
             menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
@@ -353,7 +355,7 @@ class AngeboteSeite(QWidget):
         self.modell.setzen(zeilen)
         self._leere_spalten()
 
-    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert")     # ohne einen Eintrag ausgeblendet (Layout-Plan L6)
+    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "Liefertermin")    # leer: ausgeblendet (L6, W8)
 
     def _leere_spalten(self):
         for c, (titel, quelle, _, _) in enumerate(self.SPALTEN):
@@ -386,8 +388,9 @@ class AngeboteSeite(QWidget):
                        "Zum Weiterarbeiten „Kopieren“ (eigene Kopie mit eigener Nummer).", fehler=True)
         return True
 
-    def vorgang_setzen(self, v, angebot_id=None):
-        """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …)."""
+    def vorgang_setzen(self, v, angebot_id=None, auftrag=None):
+        """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …). Beauftragt: Fenster für Auftragsnummer
+        und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster."""
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "den Vorgang setzen"):
             return False
@@ -397,9 +400,19 @@ class AngeboteSeite(QWidget):
             seite = self.f.angebot_oeffnen(i)
             if seite is None or not seite.vor_verschickt():
                 return False
+        if v == "Beauftragt" and auftrag is None and not self.f.stumm and not self.db.nur_lesen:
+            from . import auftrag as auftrag_fenster
+            auftrag = auftrag_fenster.abfragen(self, a)
+            if auftrag is None:
+                return False
         self.db.vorgang_setzen(i, v)
+        text = ""
+        if v == "Beauftragt" and auftrag is not None:
+            self.db.auftrag_setzen(i, *auftrag)
+            text = "".join((f", Auftrag {auftrag[0]}" if auftrag[0] else "",
+                            f", Liefertermin {_datum(auftrag[1])}" if auftrag[1] else ""))
         self.neu_laden()
-        self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}.")
+        self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}{text}.")
         return True
 
     def _id(self, index):
@@ -1495,6 +1508,10 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
+        # Eingabe springt weiter, ↓ in der letzten Zeile = neue Position, Strg+D = Wert von oben (Plan W5)
+        self.excel = tabellen_eingabe.ExcelEingabe(
+            self.pos_ansicht, lambda: self.db.einstellung("eingabe_richtung"), self.zeile_anhaengen,
+            lambda: self._gesammelt(tabellen_eingabe.von_oben))
         self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
             self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld",) + EIGENE else (240 if art == "status" else 85))
@@ -2296,6 +2313,20 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setCurrentIndex(i)
         self.pos_ansicht.edit(i)
         return typ
+
+    def zeile_anhaengen(self):
+        """Leere Position am Ende (↓ bzw. Eingabe in der letzten Zeile, W5), ohne Dialog; nicht, solange die letzte
+        Position noch ganz leer ist (gehaltenes ↓ legt keine Reihe leerer Zeilen an). Ergebnis: True = angelegt."""
+        if self.db.nur_lesen or self.fremd():
+            return False
+        if self.positionen and not any(self.positionen[-1].get(n) for n in ("artikel", "bezeichnung", "profil_id",
+                                                                             "laenge", "stueck", "zukauf")):
+            self.f.meldung("Die letzte Position ist noch leer.")
+            return False
+        self.db.position_neu(self.id, {"pos": self._naechste_pos()})
+        self.neu_laden()
+        self.f.meldung("Neue Position angelegt.")
+        return True
 
     def _naechste_pos(self):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
