@@ -122,6 +122,7 @@ class SchneidwegDialog(QDialog):
         teiler = QSplitter(Qt.Vertical)
         haupt.addWidget(teiler, 1)
         oben = QWidget()
+        self.eingabe_bereich = oben     # Teile-Editor: Eingaben unter den Ansichten (aufklappbar)
         lay = QVBoxLayout(oben)
         lay.setContentsMargins(0, 0, 0, 0)
         teiler.addWidget(oben)
@@ -331,11 +332,14 @@ class SchneidwegDialog(QDialog):
         leiste.addWidget(self.vorlagen_knopf)
         leiste.addWidget(weg)
         lay.addWidget(umbruch)
+        self.kontur_leiste = umbruch    # Teile-Editor: die Befehle stehen im Menüband
 
         mitte = QWidget()
         ml = QVBoxLayout(mitte)
         ml.setContentsMargins(0, 0, 0, 0)
-        kopfzeile = QHBoxLayout()
+        self.skizze_kopf = QWidget()    # Teile-Editor: die Befehle stehen im Menüband
+        kopfzeile = QHBoxLayout(self.skizze_kopf)
+        kopfzeile.setContentsMargins(0, 0, 0, 0)
         kopfzeile.addWidget(QLabel("<b>Skizze</b> (maßstäblich)"))
         self.ansicht_wahl = QComboBox()
         self.ansicht_wahl.addItems(MODI)
@@ -344,6 +348,7 @@ class SchneidwegDialog(QDialog):
         einpassen = QPushButton("Einpassen")
         einpassen.clicked.connect(lambda: self.skizze.einpassen())
         kopfzeile.addWidget(einpassen)
+        self.einpassen_knopf = einpassen
         kopfzeile.addStretch(1)
         self.step_knopf = QPushButton("STEP neu einlesen …")
         self.step_knopf.setToolTip("STEP-Datei dieses Teils messen und Konturen, Bohrungen, Enden und Gravur mit Lage "
@@ -356,7 +361,8 @@ class SchneidwegDialog(QDialog):
                              "Schweißnaht als PDF in der Ablage des Angebots")
         zeichnung.clicked.connect(lambda: self.zeichnung_pdf())
         kopfzeile.addWidget(zeichnung)
-        ml.addLayout(kopfzeile)
+        self.zeichnung_knopf = zeichnung
+        ml.addWidget(self.skizze_kopf)
         self.skizze = Skizze(profil, p.get("laenge"))
         self.skizze.gewaehlt.connect(self._auswahl_skizze)
         self.skizze.verschoben.connect(self._verschoben)
@@ -374,6 +380,7 @@ class SchneidwegDialog(QDialog):
         self.teiler_unten.addWidget(mitte)
         teiler.addWidget(self.teiler_unten)
         unten = QWidget()
+        self.ergebnis_bereich = unten   # Teile-Editor: rechts neben den Ansichten
         lay = QVBoxLayout(unten)
         lay.setContentsMargins(0, 0, 0, 0)
         self.teiler_unten.addWidget(unten)
