@@ -43,11 +43,12 @@ def rohr(pos, stueck, laenge, gewicht, abm, pid=None):
 
 
 # ------------------------------------------------------------------ Vorgaben
-assert V == dict(hoehe_gesamt=1200, fuellgrad=0.9, max_brutto=1000.0, zwischenlage=0.0, mischen=False)
+assert V == dict(hoehe_gesamt=1200, fuellgrad=0.9, max_brutto=1500.0, zwischenlage=0.0,
+              mischen=paletten.MISCHEN_RESTE)
 assert paletten.vorgaben({"palette_max_brutto": None})["max_brutto"] is None
 assert paletten.stapelhoehe(EUR, V) == 1056 and paletten.stapelhoehe(GB, V) == 970
-assert paletten.nutzlast(EUR, V) == 975 and paletten.nutzlast(EUR, dict(V, max_brutto=None)) == 1500
-ok("Vorgaben: 1.200 mm inkl. Palette (1.056 mm Stapel), 1.000 kg brutto (975 kg Zuladung), Gitterbox Innenhöhe")
+assert paletten.nutzlast(EUR, V) == 1475 and paletten.nutzlast(EUR, dict(V, max_brutto=1000)) == 975
+ok("Vorgaben: 1.200 mm inkl. Palette (1.056 mm Stapel), 1.500 kg brutto (1.475 kg Zuladung), Gitterbox Innenhöhe")
 
 # ------------------------------------------------------------------ Lagen (von Hand nachgerechnet)
 # Quadratrohr 40 × 40, 1.000 mm: 1 Reihe, 800/40 = 20 quer, × 0,9 = 18 je Lage; 1.056/40 = 26 Lagen = 468 Stück
@@ -73,35 +74,42 @@ assert p.voll == 1 and "Sonderladung" in h
 ok("Lagen: Reihen × quer × 0,9, Überstand bis max. Teillänge, Rundrohre versetzt, flach/hochkant, Zwischenlage")
 
 # ------------------------------------------------------------------ Packen: Gewicht und Höhe
-# 3.000 Rundrohre 42,4 × 2, 1.250 mm, 2,49 kg: Lagen 448 je Palette, Gewicht 975/2,49 = 391 -> 8 Paletten
-pos, werte = zip(rohr(10, 3000, 1250.0, 2.49, ("Rundrohr", 42.4, None, 2.0)))
+# 3.000 Rundrohre Ø 42,4, 1.250 mm, 4,0 kg: Lagen 448 je Palette, Gewicht 1.475/4,0 = 368 -> 9 Paletten (nicht 3)
+pos, werte = zip(rohr(10, 3000, 1250.0, 4.0, ("Rundrohr", 42.4, None, 3.2)))
 e = paletten.packen(list(pos), list(werte), [EUR, LG], "EUR", "LG")
-assert e["anzahl"] == 8 and e["stuecke"][0]["je_palette"] == 391, (e["anzahl"], e["stuecke"][0]["je_palette"])
-assert [sum(n for _, n in p["inhalt"]) for p in e["paletten"]] == [391] * 7 + [263]
-assert all(p["brutto"] <= 1000 + 1e-6 for p in e["paletten"]) and e["gesamt_stueck"] == 3000
-assert "Lagen" in e["paletten"][0]["aufbau"][0] and paletten.kurz(e) == "8 Paletten (8 × EUR)"
-# leicht (Alu-ähnlich 0,8 kg): die Höhe begrenzt -> 448 je Palette, 3.000 / 448 = 7 Paletten
-e = paletten.packen([dict(pos[0])], [dict(werte[0], gewicht=0.8)], [EUR, LG], "EUR", "LG")
+assert e["anzahl"] == 9 and e["stuecke"][0]["je_palette"] == 368, (e["anzahl"], e["stuecke"][0]["je_palette"])
+assert [sum(n for _, n in p["inhalt"]) for p in e["paletten"]] == [368] * 8 + [56]
+assert all(p["brutto"] <= 1500 + 1e-6 for p in e["paletten"]) and e["gesamt_stueck"] == 3000
+assert "Lagen" in e["paletten"][0]["aufbau"][0] and paletten.kurz(e) == "9 Paletten (9 × EUR)"
+# leichter (2,49 kg): die Höhe begrenzt -> 448 je Palette, 3.000 / 448 = 7 Paletten
+e = paletten.packen([dict(pos[0])], [dict(werte[0], gewicht=2.49)], [EUR, LG], "EUR", "LG")
 assert e["anzahl"] == 7 and e["stuecke"][0]["je_palette"] == 448
 assert all(p["hoehe"] <= 1200 + 1e-6 for p in e["paletten"])
 # lang -> Langgut; länger als Langgut -> Hinweis
 e = paletten.packen(*map(list, zip(rohr(20, 10, 3000.0, 9.0, ("Quadratrohr", 40.0, None, 3.0)),
                                    rohr(30, 1, 7000.0, 20.0, ("Quadratrohr", 40.0, None, 3.0)))),
                     [EUR, LG], "EUR", "LG")
-assert e["je_lht"] == {"LG": 2} and any("Sonderladung" in h for h in e["hinweise"])
-# Mischen: zwei kleine Positionen teilen sich eine Palette, ohne Mischen je eine
+assert e["je_lht"] == {"LG": 1} and any("Sonderladung" in h for h in e["hinweise"])
+# Mischen: Vorgabe „Reste zusammenpacken“ = zwei angefangene Paletten werden eine, „nie“ = je eine
 zwei = list(map(list, zip(rohr(10, 20, 1000.0, 3.0, ("Quadratrohr", 40.0, None, 3.0)),
                           rohr(20, 30, 600.0, 2.0, ("Quadratrohr", 40.0, None, 3.0)))))
-assert paletten.packen(*zwei, [EUR, LG], "EUR", "LG")["anzahl"] == 2
-e = paletten.packen(*zwei, [EUR, LG], "EUR", "LG", {"palette_mischen": "ja"})
+e = paletten.packen(*zwei, [EUR, LG], "EUR", "LG")
+assert e["anzahl"] == 1 and [k for k, _ in e["paletten"][0]["inhalt"]] == [0, 1] and len(e["paletten"][0]["aufbau"]) == 2
+assert paletten.packen(*zwei, [EUR, LG], "EUR", "LG", {"palette_mischen": "nie"})["anzahl"] == 2
+e = paletten.packen(*zwei, [EUR, LG], "EUR", "LG", {"palette_mischen": "immer"})
 assert e["anzahl"] == 1 and [k for k, _ in e["paletten"][0]["inhalt"]] == [0, 1]
+# volle Paletten bleiben allein, nur die Reste kommen zusammen: 500 + 500 Stück QR 40, 1.000 mm (468 je Palette)
+e = paletten.packen(*map(list, zip(rohr(10, 500, 1000.0, 1.0, ("Quadratrohr", 40.0, None, 2.0)),
+                                   rohr(20, 500, 1000.0, 1.0, ("Quadratrohr", 40.0, None, 2.0)))),
+                    [EUR, LG], "EUR", "LG")
+assert e["anzahl"] == 3 and [len(p["inhalt"]) for p in e["paletten"]] == [1, 2, 1], [p["inhalt"] for p in e["paletten"]]
 # Max. Stück je Palette von Hand
 e = paletten.packen(*zwei, [EUR, LG], "EUR", "LG", max_je={"10": 7})
 assert e["anzahl"] == 4 and [sum(n for _, n in p["inhalt"]) for p in e["paletten"]][:3] == [7, 7, 6]
 # Ohne Ladungsträger: nichts berechnet, Hinweis
 e = paletten.packen(*zwei, [], "EUR", "LG")
 assert e["anzahl"] == 0 and e["hinweise"]
-ok("Packen: Gewichtsgrenze (8 statt 7 Paletten), Höhe, Langgut, Sonderladung, Mischen, max. je Palette von Hand")
+ok("Packen: Gewichtsgrenze (9 Paletten), Höhe, Langgut, Sonderladung, Reste zusammen/nie/immer, max. je Palette")
 
 # ------------------------------------------------------------------ Feiertage
 assert feiertage.ostersonntag(2026) == datetime.date(2026, 4, 5) and feiertage.ostersonntag(2027) == \
@@ -166,10 +174,10 @@ assert db.palettenschein(aid) == palettenschein.leer() and db.versand_auftraege(
 gruppen = palettenschein.schritte(db.einstellung("versand_schritte"))
 assert "Intern" in gruppen and "Extern" in gruppen and gruppen["Intern"]
 z = palettenschein.zusammenstellen(db, aid)
-assert z["packliste"]["anzahl"] == 5 and z["packliste"]["je_lht"] == {"EUR": 3, "LG": 2}, paletten.kurz(z["packliste"])
+assert z["packliste"]["anzahl"] == 2 and z["packliste"]["je_lht"] == {"EUR": 1, "LG": 1}, paletten.kurz(z["packliste"])
 assert z["schein"]["arbeiten"], "Vorschlag der Arbeitsschritte aus dem Angebot"
 assert all(k.partition(palettenschein.TRENNER)[0] in gruppen for k in z["schein"]["arbeiten"])
-ok("Schema 59, Beispielangebot: 5 Paletten (3 × EUR, 2 × LG), Arbeitsschritte vorgeschlagen")
+ok("Schema 59, Beispielangebot: 2 Paletten (1 × EUR, 1 × LG, Reste zusammengepackt), Arbeitsschritte vorgeschlagen")
 
 # Datei mit Schema 58: Sicherung vor_Schema_59, Spalte leer ergänzt
 alt = tmp / "alt.db"
@@ -186,7 +194,7 @@ ok("Umstellung von Schema 58: Sicherung vor_Schema_59, Spalte palettenschein erg
 
 # Druckseiten
 seiten = palettenschein.seiten(z["kopf"], z["schein"], z["packliste"], z["gruppen"], heute)
-assert [s["nr"] for s in seiten] == [1, 2, 3, 4, 5] and all(s["gesamt"] == 5 for s in seiten)
+assert [s["nr"] for s in seiten] == [1, 2] and all(s["gesamt"] == 2 for s in seiten)
 assert seiten[0]["inhalt"] and seiten[0]["stueck"] == sum(r[3] for r in seiten[0]["inhalt"]) and seiten[0]["gewicht"]
 d = dict(palettenschein.leer(), unbekannt=True)
 s = palettenschein.seiten(z["kopf"], d, z["packliste"], z["gruppen"], heute)
@@ -202,11 +210,10 @@ liste = db.versand_auftraege()
 assert [x["id"] for x in liste] == [aid] and liste[0]["auftragsnr"] == "PO-4711"
 seite = fenster.versand
 seite.neu_laden()
-assert seite.tabelle.rowCount() == 1 and "5" in seite.tabelle.item(0, 0).text() + "".join(
-    seite.tabelle.item(0, c).text() for c in range(seite.tabelle.columnCount()) if seite.tabelle.item(0, c))
+assert seite.tabelle.rowCount() == 1 and seite.tabelle.item(0, 4).text() == "2"
 
 dlg = palettenschein_dialog.oeffnen(fenster, aid)
-assert dlg.bestellnr.text() == "PO-4711" and dlg.auto.isChecked() and dlg.packliste.rowCount() == 5
+assert dlg.bestellnr.text() == "PO-4711" and dlg.auto.isChecked() and dlg.packliste.rowCount() == 2
 dlg.hinweis.setPlainText("Kanten schützen")
 dlg.status[palettenschein.VERLADEBEREIT].setChecked(True)
 assert db.palettenschein(aid)["hinweis"] == "Kanten schützen"
@@ -215,7 +222,7 @@ pfad = dlg.drucken()
 assert pfad and Path(pfad).is_file() and Path(pfad).name.endswith("Palettenbegleitschein.pdf"), pfad
 assert db.palettenschein(aid)["gedruckt_am"] == datetime.date.today().isoformat()
 dlg.close()
-ok("Reiter Versand, Fenster (Bestellnr., automatisch 5 Paletten, Hinweis/Status gespeichert), PDF im Angebotsordner")
+ok("Reiter Versand, Fenster (Bestellnr., automatisch 2 Paletten, Hinweis/Status gespeichert), PDF im Angebotsordner")
 
 seite.filter.setCurrentIndex(seite.filter.findData("Alle"))
 seite.neu_laden()
@@ -235,7 +242,7 @@ ok("Versandübersicht: Versendet, Verladeliste-PDF, Lieferdatum ändern, Archivi
 # PDFs direkt, Werkstattpapiere mit Palettenscheinen
 p1 = tmp / "scheine.pdf"
 pdf.palettenschein_pdf(p1, seiten, db.einstellungen())
-assert p1.read_bytes().count(b"/Type /Page") - p1.read_bytes().count(b"/Type /Pages") == 5
+assert p1.read_bytes().count(b"/Type /Page") - p1.read_bytes().count(b"/Type /Pages") == 2
 ok("PDF: ein Blatt je Palette")
 
 assert db.einstellung("palettenschein_werkstatt") == "ja"
@@ -244,7 +251,7 @@ assert s.optimieren()
 w = s.werkstatt_pdf()
 text = subprocess.run(["pdftotext", str(w), "-"], capture_output=True, text=True).stdout \
     if shutil.which("pdftotext") else None
-assert text is None or text.upper().count("PALETTENBEGLEITSCHEIN") >= 5, text
+assert text is None or text.upper().count("PALETTENBEGLEITSCHEIN") >= 2, text
 db.einstellung_setzen("palettenschein_werkstatt", "nein")
 w2 = s.werkstatt_pdf()
 assert text is None or "PALETTENBEGLEITSCHEIN" not in subprocess.run(["pdftotext", str(w2), "-"],

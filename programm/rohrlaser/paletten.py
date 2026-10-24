@@ -27,9 +27,14 @@ Lage: die längste Seite liegt immer waagrecht; probiert werden die liegenden Au
   Ladungsträger' − Höhe des Ladungsträgers (Gitterbox: ihre Innenhöhe).
 Gewicht: je Palette höchstens 'max. Bruttogewicht' − Eigengewicht bzw. die Nutzlast (das kleinere).
 
-Packen: je Ladungsträger-Art. 'Positionen mischen' = nein (Vorgabe): jede Position bekommt eigene Paletten, je
-Palette so viele Lagen, wie Höhe und Gewicht zulassen. = ja: Positionen teilen sich Paletten, lange unten; eine
-angefangene Lage zählt mit ihrer vollen Höhe. 'Max. Stück je Palette' von Hand ersetzt die Lagenrechnung der
+Packen: je Ladungsträger-Art. 'Positionen mischen' (Patrick 24.10.: „Vorgabe einzeln packen, wenn Platz ist, auch
+zusammen“):
+  Reste zusammenpacken (Vorgabe)  jede Position zuerst auf eigene Paletten, je Palette so viele Lagen, wie Höhe und
+                                  Gewicht zulassen; danach kommen angefangene Paletten als ganzer Stapel auf eine
+                                  andere angefangene Palette, wenn Höhe und Gewicht reichen (lange unten)
+  nie                             jede Position nur auf eigenen Paletten
+  immer                           Positionen teilen sich Paletten lagenweise, lange unten
+Eine angefangene Lage zählt immer mit ihrer vollen Höhe. 'Max. Stück je Palette' von Hand ersetzt die Lagenrechnung der
 Position (sie liegt dann allein auf der Palette). Ergebnis ist reproduzierbar (keine Zufallswahl).
 """
 import json
@@ -42,7 +47,9 @@ from .stammdaten import zahl_als_text
 
 EPS = 1e-9
 HOEHE_GESAMT = 1200         # Vorgabe max. Höhe der beladenen Palette inkl. Ladungsträger [mm]
-MAX_BRUTTO = 1000.0         # Vorgabe max. Bruttogewicht je Palette [kg]
+MAX_BRUTTO = 1500.0         # Vorgabe max. Bruttogewicht je Palette [kg] (Patrick 24.10.: 1,2 m und 1,5 t)
+MISCHEN_RESTE, MISCHEN_NIE, MISCHEN_IMMER = "Reste zusammenpacken", "nie", "immer"
+MISCHEN = (MISCHEN_RESTE, MISCHEN_NIE, MISCHEN_IMMER)
 FUELLGRAD = 0.9             # Vorgabe Lagenausnutzung (Bündel, Umreifung, Kantenschutz)
 GITTERBOX = "Gitterbox"
 WURZEL3_2 = math.sqrt(3) / 2
@@ -67,7 +74,7 @@ def vorgaben(einst):
                 fuellgrad=float(f) if _zahl(f) and 0 < f <= 1 else FUELLGRAD,
                 max_brutto=float(b) if _zahl(b) and b > 0 else (None if "palette_max_brutto" in einst else MAX_BRUTTO),
                 zwischenlage=float(z) if _zahl(z) and z > 0 else 0.0,
-                mischen=einst.get("palette_mischen") == "ja")
+                mischen=einst.get("palette_mischen") if einst.get("palette_mischen") in MISCHEN else MISCHEN_RESTE)
 
 
 def _mm(x):
@@ -323,7 +330,7 @@ def lagenplan(masse, rund, z, v):
 
 # ------------------------------------------------------------------ Packen
 def _neue(paletten, z):
-    pal = dict(lht=z, hoehe=0.0, gewicht=0.0, inhalt=[], aufbau=[])
+    pal = dict(lht=z, hoehe=0.0, gewicht=0.0, inhalt=[], aufbau=[], unbekannt=False)
     paletten.append(pal)
     return pal
 
@@ -338,6 +345,28 @@ def _passen(pal, it, frei, last):
     lagen = min(plan.lagen_in(hoehe), plan.lagen_max)
     n = min(plan.stueck(lagen), n_g, it["rest"])
     return (n, plan.lagen_fuer(n)) if n > 0 else (0, 0)
+
+
+def _reste_zusammen(liste, frei, last, zl):
+    """Angefangene Paletten (je eine Position) als ganzen Stapel auf eine frühere Palette setzen, wenn Höhe und
+    Gewicht reichen; Paletten mit Teilen ohne Maße bleiben allein. Ergebnis: verbleibende Paletten."""
+    for b in reversed(liste[1:]):
+        if b["unbekannt"] or not b["hoehe"]:
+            continue
+        for a in liste:
+            if a is b:
+                break
+            if a["unbekannt"] or not a["hoehe"] or a.get("weg"):
+                continue
+            if a["hoehe"] + zl + b["hoehe"] <= frei + EPS and (last is None or a["gewicht"] + b["gewicht"] <=
+                                                                 last + 1e-6):
+                a["hoehe"] += zl + b["hoehe"]
+                a["gewicht"] += b["gewicht"]
+                a["inhalt"] += b["inhalt"]
+                a["aufbau"] += b["aufbau"]
+                b["weg"] = True
+                break
+    return [p for p in liste if not p.get("weg")]
 
 
 def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None):
@@ -392,7 +421,7 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
         liste = []
         for it in items:
             while it["rest"] > 0:
-                kandidaten = liste if v["mischen"] else [p for p in liste if p["inhalt"] and
+                kandidaten = liste if v["mischen"] == MISCHEN_IMMER else [p for p in liste if p["inhalt"] and
                                                          p["inhalt"][0][0] == it["k"]]
                 ziel = None
                 for pal in kandidaten:
@@ -411,9 +440,12 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
                     davor = pal["hoehe"] + (it["zl"] if pal["hoehe"] > EPS else 0.0)
                     pal["hoehe"] = davor + it["plan"].hoehe(lagen)
                 pal["gewicht"] += n * it["g"]
+                pal["unbekannt"] = pal["unbekannt"] or it["plan"] is None
                 pal["inhalt"].append([it["k"], n])
                 pal["aufbau"].append((it["k"], n, lagen))
                 it["rest"] -= n
+        if v["mischen"] == MISCHEN_RESTE:
+            liste = _reste_zusammen(liste, frei, last, v["zwischenlage"])
         je_lht[lht_id] = len(liste)
         for pal in liste:
             netto = sum(stuecke[k]["gewicht"] * n for k, n in pal["inhalt"] if stuecke[k]["gewicht"] is not None)

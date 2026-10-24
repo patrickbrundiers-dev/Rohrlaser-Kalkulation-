@@ -281,8 +281,8 @@ class PalettenscheinDialog(QDialog):
             text += f", {zahl_als_text(e['netto'], 0)} kg netto"
         text += (f"<br><span style='color:#68727E'>Grundlage: max. {zahl_als_text(v['hoehe_gesamt'], 0)} mm hoch inkl. "
                  f"Palette, max. {zahl_als_text(v['max_brutto'], 0) + ' kg brutto' if v['max_brutto'] else 'Nutzlast'}"
-                 f", Lagenausnutzung {zahl_als_text(v['fuellgrad'] * 100, 0)} %, Positionen "
-                 f"{'gemischt' if v['mischen'] else 'je eigene Paletten'} (Einstellungen › Versand)</span>")
+                 f", Lagenausnutzung {zahl_als_text(v['fuellgrad'] * 100, 0)} %, Positionen mischen: "
+                 f"{v['mischen']} (Einstellungen › Versand)</span>")
         if e["hinweise"]:
             text += "<br><span style='color:#B54708'>" + "<br>".join(e["hinweise"]) + "</span>"
         self.ergebnis.setText(text)

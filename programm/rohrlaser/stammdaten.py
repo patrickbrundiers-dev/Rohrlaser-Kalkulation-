@@ -975,14 +975,14 @@ EINSTELLUNGEN = (
     # Versand und Palettenschein (Plan Palettenbegleitschein 24.10.2026): Paletten nach Gewicht und Packraum
     # (paletten.py, auch im Packvorschlag der Fracht), Feiertage für Arbeitstage, Arbeitsschritte des Scheins
     # Richtwerte Stückgut/Palettennetz (Recherche 24.10.2026): Europalette 1200 × 800, Eigenhöhe 144 mm, Nutzlast
-    # 1.500 kg; Sammelgut meist bis 2,20 m und 1.200 kg je Vollpalette, stapelbar oft nur bis 1,20 m. Vorgabe
-    # vorsichtig 1.200 mm und 1.000 kg, jede Position auf eigenen Paletten (an die eigene Praxis anpassen)
+    # 1.500 kg; Sammelgut meist bis 2,20 m und 1.200 kg je Vollpalette, stapelbar oft nur bis 1,20 m. Vorgabe nach
+    # Patrick 24.10.: 1.200 mm und 1.500 kg, Positionen einzeln packen, angefangene Paletten zusammen, wenn Platz ist
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
                 1200, 200, 3000),
     Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",
-                "zahl_leer", 1000.0, 0, 100000),
+                "zahl_leer", 1500.0, 0, 100000),
     Einstellung("palette_mischen", "Paletten: verschiedene Positionen gemeinsam auf eine Palette", "Versand",
-                "auswahl", "nein", auswahl="janein"),
+                "auswahl", "Reste zusammenpacken", auswahl="palettenmischen"),
     Einstellung("palette_fuellgrad", "Paletten: Lagenausnutzung (Bündel, Umreifung, Kantenschutz)", "Versand",
                 "anteil", 0.9, 0.1, 1),
     Einstellung("palette_zwischenlage", "Paletten: Zwischenlage zwischen zwei Lagen [mm] (0 = keine)", "Versand",
@@ -1152,7 +1152,8 @@ class Kontext:
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
-                         "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL), "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
+                         "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
+                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
