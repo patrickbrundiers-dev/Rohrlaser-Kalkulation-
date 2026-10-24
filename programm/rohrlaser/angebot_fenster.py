@@ -242,6 +242,13 @@ def bearbeiter(z):
 MEINE, ALLE = "Meine Angebote", "Alle Mitarbeiter"
 
 
+def step_neu_pfade(ereignis):
+    """Gezogene Dateien/Ordner, wenn STEP-Dateien darunter sind (Angebotsliste, Startseite), sonst []."""
+    urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
+    pfade = [u.toLocalFile() for u in urls if u.isLocalFile()]
+    return pfade if step.step_dateien(pfade) else []
+
+
 class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
@@ -297,11 +304,15 @@ class AngeboteSeite(QWidget):
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
             k.setContext(Qt.WidgetShortcut)
         leiste = QHBoxLayout()
-        for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
+        for text, ziel in (("Neues Angebot", self.neu), ("Aus STEP …", self.neu_aus_step),
+                           ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
                            ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
             b = QPushButton(text)
             if text == "Neues Angebot":
                 b.setObjectName("primaer")
+            if text == "Aus STEP …":
+                b.setToolTip("Neues Angebot aus STEP-Dateien: Kunde wählen (Vorschlag aus dem Ordnernamen), dann "
+                             "startet der STEP-Import. STEP-Dateien oder einen Ordner auf die Liste ziehen geht auch.")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addWidget(self.vorgang_knopf)
@@ -313,6 +324,7 @@ class AngeboteSeite(QWidget):
         lay = QVBoxLayout(self)
         lay.addLayout(leiste)
         lay.addWidget(self.ansicht, 1)
+        self.setAcceptDrops(True)
         self.neu_laden()
 
     def neu_laden(self, *_):
@@ -388,6 +400,22 @@ class AngeboteSeite(QWidget):
         i = self.db.angebot_neu()
         self.neu_laden()
         self.oeffnen.emit(i)
+
+    def neu_aus_step(self, dateien=None, kundennr=None):
+        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py)."""
+        from . import step_neu
+        return step_neu.neues_angebot(self.f, dateien, kundennr)
+
+    # STEP-Dateien oder Ordner auf die Liste ziehen: neues Angebot (W11)
+    def dragEnterEvent(self, ereignis):
+        if step_neu_pfade(ereignis):
+            ereignis.acceptProposedAction()
+
+    def dropEvent(self, ereignis):
+        pfade = step_neu_pfade(ereignis)
+        if pfade:
+            ereignis.acceptProposedAction()
+            self.neu_aus_step(pfade)
 
     def oeffnen_gewaehlt(self):
         i = self._gewaehlt()

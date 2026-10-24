@@ -979,10 +979,13 @@ class StartSeite(QWidget):
         angebote, al = karte("Angebote")
         zeile = QHBoxLayout()
         for text, ziel, primaer in (("Neues Angebot", lambda: fenster.angebote.neu(), True),
+                                    ("Aus STEP …", lambda: fenster.angebote.neu_aus_step(), False),
                                     ("Alle Angebote", lambda: fenster.reiter.setCurrentWidget(fenster.angebote), False)):
             b = QPushButton(text)
             if primaer:
                 b.setObjectName("primaer")
+            if text == "Aus STEP …":
+                b.setToolTip("Neues Angebot aus STEP-Dateien (oder STEP-Dateien hierher ziehen)")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             zeile.addWidget(b)
         zeile.addStretch(1)
@@ -998,7 +1001,9 @@ class StartSeite(QWidget):
         self.zuletzt_ansicht.doubleClicked.connect(
             lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
         al.addWidget(self.zuletzt_ansicht, 1)
-        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an.")
+        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an, oder STEP-Dateien "
+                            "hierher ziehen.")
+        self.keine.setWordWrap(True)
         self.keine.setStyleSheet("color: #5F6B7A;")
         al.addWidget(self.keine)
         al.addStretch(0)                    # ohne Angebote: Knöpfe und Hinweis oben statt verteilt (L8)
@@ -1076,7 +1081,21 @@ class StartSeite(QWidget):
         kopf.addStretch(1)
         lay.addLayout(kopf)
         lay.addLayout(raster, 1)
+        self.setAcceptDrops(True)
         self.neu_laden()
+
+    # STEP-Dateien oder Ordner auf die Startseite ziehen: neues Angebot (Plan Arbeitsabläufe W11)
+    def dragEnterEvent(self, ereignis):
+        from .angebot_fenster import step_neu_pfade
+        if step_neu_pfade(ereignis):
+            ereignis.acceptProposedAction()
+
+    def dropEvent(self, ereignis):
+        from .angebot_fenster import step_neu_pfade
+        pfade = step_neu_pfade(ereignis)
+        if pfade:
+            ereignis.acceptProposedAction()
+            self.f.angebote.neu_aus_step(pfade)
 
     def neu_laden(self):
         db = self.f.db
