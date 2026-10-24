@@ -49,6 +49,9 @@ UninstallDisplayName={#Name}
 CloseApplications=yes
 RestartApplications=no
 ShowLanguageDialog=no
+; Lizenzbedingungen (Plan „Quellcode schützen“ Q4): müssen vor dem Installieren angenommen werden; dieselbe Datei
+; zeigt das Programm unter Hilfe → Lizenzbedingungen
+LicenseFile=..\rohrlaser\Lizenzbedingungen.txt
 SetupLogging=yes
 #ifdef Signieren
 SignTool=signieren

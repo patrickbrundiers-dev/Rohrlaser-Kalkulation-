@@ -32,7 +32,7 @@ def pruefe(bedingung, text):
 
 
 def methoden():
-    return {n: m for n, m in inspect.getmembers(Datenbank, inspect.isfunction) if not n.startswith("_")}
+    return {n: m for n, m in inspect.getmembers(Datenbank, inspect.isroutine) if not n.startswith("_")}
 
 
 # ------------------------------------------------------------------ S3 Einordnung

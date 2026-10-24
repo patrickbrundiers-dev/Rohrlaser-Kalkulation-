@@ -21,11 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.97", "<b>Knickrahmen aus einem Körper sicherer erkannt</b>: Hatte ein Rahmen Bohrungen oder Ausschnitte nur "
+    ["0.9.98", "<b>Knickrahmen aus einem Körper sicherer erkannt</b>: Hatte ein Rahmen Bohrungen oder Ausschnitte nur "
                "in einer Wand (z. B. eine Lochreihe oben an einem Schenkel), lag die berechnete Rahmenebene minimal "
                "schief und der STEP-Import erkannte den Knickrahmen nicht. Die Ebene kommt jetzt genau von der "
                "Rahmenwand ([[knickrahmen_koerper]]).",
      "Knickrahmen aus einem Körper auch mit einseitigen Bohrungen erkannt."],
+    ["0.9.97", "<b>Programmcode geschützt</b>: Der eigene Programmcode wird jetzt zu Maschinencode übersetzt "
+               "ausgeliefert, in Programm und Online-Updates steckt kein lesbarer Quelltext mehr ([[updates]]). Neu "
+               "sind die <b>Lizenzbedingungen</b>: Das Setup zeigt sie vor dem Installieren, im Programm stehen sie "
+               "unter <i>Hilfe → Lizenzbedingungen …</i> ([[lizenz]]). Setup und ZIP gibt es zusätzlich im "
+               "<b>Download-Bereich</b> des Update-Repositorys ([[start]]). Das erste Update danach ist größer, weil "
+               "alle Programmdateien neu sind.",
+     "Programmcode übersetzt, Lizenzbedingungen, Download-Bereich ([[updates]], [[lizenz]])."],
     ["0.9.96", "<b>Dunkelmodus verbessert</b>: Eingabezellen sind im Dunkelmodus blaugrau statt olivbraun, berechnete "
                "Zellen etwas dunkler, sodass beides gut zu unterscheiden ist. Das Feld „STEP-Dateien hierher ziehen“, "
                "die Skizzen und Zeichnungen in Rohr-, Blech-, Naht- und Profil-Editor und die 3D-Ansicht sind jetzt "
