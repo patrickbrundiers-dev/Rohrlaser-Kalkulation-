@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
-from . import NAME, VERSION, ausgabe, hilfe, pdf, tastatur, teilen, update
+from . import NAME, VERSION, angebotsordner, ausgabe, hilfe, pdf, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
@@ -762,9 +762,12 @@ class EinstellungenSeite(QScrollArea):
             w = LogoEingabe()
             w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
         elif e.art == "ordner":
-            w = OrdnerEingabe("Gemeinsamen Ordner wählen" if e.name == "teilen_ordner" else "Standardordner wählen")
+            w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
+                               "ablageordner": "Ablageordner wählen"}.get(e.name, "Standardordner wählen"))
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
+            if e.name == "ablageordner":
+                w.pfad.setPlaceholderText("Vorgabe: Ordner 'Angebote' neben dem Programm")
             w.setMaximumWidth(self.BREITE_TEXT + 160)
             w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
@@ -1302,6 +1305,7 @@ class Hauptfenster(QMainWindow):
         ersten Start) und Angebote der anderen Mitarbeiter holen."""
         self.reiter.setCurrentWidget(self.angebote)
         self.showMaximized()
+        self.lose_dateien_verschieben()
         if not self.stumm:
             QTimer.singleShot(200, self._start_teilen)
             z = self.lizenz.zustand if self.lizenz else None
@@ -1915,6 +1919,35 @@ class Hauptfenster(QMainWindow):
             self.datei_oeffnen(self.ablage())
         except OSError as e:
             QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht öffnen:\n{e}")
+
+    def angebot_ordner(self, kopf):
+        """Ordner des Angebots in der Ablage ('2026-00042 Kunde', Fassungen 'Fassung 2' darin), wird angelegt.
+        Vorher werden Ordner vorläufiger Nummern auf die endgültige umbenannt. OSError: nicht anlegbar."""
+        ablage = self.ablage()
+        angebotsordner.umnummerieren_offen(self.db, ablage)
+        return angebotsordner.ordner(ablage, kopf)
+
+    def angebot_ordner_oeffnen(self, kopf):
+        """Knopf „Ordner öffnen“: Ordner des Angebots im Explorer (ohne Angebot: die ganze Ablage)."""
+        if not kopf:
+            return self.ablage_oeffnen()
+        try:
+            ordner = self.angebot_ordner(kopf)
+        except OSError as e:
+            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
+            return None
+        self.datei_oeffnen(ordner)
+        return ordner
+
+    def lose_dateien_verschieben(self):
+        """Einmalig je Ablage: Dateien aus der Zeit vor den Angebotsordnern in den Ordner ihres Angebots."""
+        try:
+            n = angebotsordner.lose_verschieben_einmal(self.db, self.ablage())
+        except (OSError, sqlite3.Error):
+            return 0
+        if n:
+            self.meldung(f"{n} Datei(en) der Ablage in die Ordner ihrer Angebote verschoben.")
+        return n
 
     def datei_oeffnen(self, pfad):
         """Datei oder Ordner mit dem zugehörigen Programm öffnen (im Selbsttest nicht)."""
