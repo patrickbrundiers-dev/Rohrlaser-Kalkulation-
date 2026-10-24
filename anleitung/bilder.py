@@ -387,9 +387,14 @@ def main(ziel):
     for text, name in (("Kalkulation", "erg_kalkulation"), ("Schnittplan", "erg_schnittplan"),
                        ("Stangenbild", "erg_stangenbild"), ("Auswertung", "erg_auswertung")):
         reiter_waehlen(s, text)
-        if text == "Schnittplan":
+        if text == "Schnittplan":       # erste Position im Teilebaum mit 3D-Vorschau, Stange 3 im Schnittplan
+            erste = s.teile_baum.baum.topLevelItem(0)
+            if erste is not None and erste.childCount():
+                s.teile_baum.baum.setCurrentItem(erste.child(0))
             s.stangen_ansicht.selectRow(2)
+            QApplication.processEvents()
         if text == "Stangenbild":
+            s.stangen_seite.markieren(None)
             s.stangen_seite.ansicht_setzen("Stangenmuster", melden=False)
         marken = [(s.kompakt_ansicht, 1), (s.kalk_kompakt, 2)] if name == "erg_kalkulation" else \
             [(s.teile_baum.baum, 1), (s.teile_baum.vorschau, 2), (s.stangen_ansicht, 3)] if name == "erg_schnittplan" \

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.81", "<b>Stangenbild wie in Lantek</b>: Umschalter <i>Stangenmuster</i> / <i>Übersicht</i> / <i>Detail</i> im "
+               "Reiter Stangenbild und im Abmessungs-Fenster. Die Übersicht zeigt jede Stange als dünne Zeile, nach "
+               "Abmessung gruppiert; ein Klick öffnet das Detail mit Kennzahlen, den Teilen als Kacheln und der "
+               "<b>Abwicklung der ganzen Stange</b> (alle Konturen an ihrem Platz, Naht SN). Die Abwicklung steht "
+               "auch in den Werkstattpapieren unter jedem Stangenmuster. Im Reiter Schnittplan links ein "
+               "<b>Teilebaum</b> mit Benötigt/Eingeplant/Offen, Status-Punkt und 3D-Vorschau ([[optimieren]]).",
+     "Stangen-Übersicht, Stangen-Detail mit Abwicklung, Teilebaum mit 3D im Schnittplan ([[optimieren]])."],
     ["0.9.80", "<b>Update abgesichert</b>: Das Programm prüft die Dateiliste eines Updates, bevor es sie benutzt "
                "(nur https von der offiziellen Adresse, keine Pfade außerhalb des Programmordners, Prüfsummen, "
                "Größengrenzen, freier Speicherplatz) und schützt vor manipulierten Paketen. Bricht ein Update hart "
