@@ -3408,8 +3408,8 @@ def kapitel_baugruppen(i):
            "und die Vorgabezeit je Baugruppe und gesamt.", kurz=True)
     i.text("Die <b>Kalkulation (PDF)</b> zeigt je Baugruppe einen Abschnitt mit allen Nahtgruppen und Arbeitsgängen: "
            "Stück je Baugruppe, Zeit und Kosten je Baugruppe, Einmalbetrag und Herkunft der Zeit (Kennwert, "
-           "Richtwert, von Hand, Fremdleistung oder was fehlt). Der <b>CSV-Export</b> als ZIP enthält bei Angeboten "
-           "mit Baugruppen zusätzlich <i>Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
+           "Richtwert, von Hand, Fremdleistung oder was fehlt). Der <b>CSV-Export</b> (Kopf + Positionen) schreibt bei "
+           "Angeboten mit Baugruppen zusätzlich <i>&lt;Nr&gt; Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
            "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
            "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
@@ -3435,9 +3435,11 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "Menü <b>Ausgaben</b>: <b>Werkstattpapiere (PDF)</b> (Materialliste und Schnittpläne zum Abhaken, "
             "Stangenbild), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
             "<b>Materialanfrage (E-Mail)</b> (Stangenbedarf beim Lieferanten anfragen, [[materialanfrage]]), "
-            "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen, einzeln oder zusammen als ZIP, [[csv_export]]), "
+            "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen als einzelne Dateien in einen Ordner Ihrer Wahl, "
+            "[[csv_export]]), "
             "darunter <b>Schneidweg berechnen …</b>, <b>Schweißnaht …</b> und <b>Ordner öffnen</b>."),
-        (3, "<b>Schrittanzeige</b>: ④ Verschickt wird erledigt, sobald das Angebot verschickt ist (Vorgang, [[angebote]]).")])
+        (3, "<b>Schrittanzeige</b>: ④ Verschickt wird erst grün, wenn das Angebot verschickt ist (Vorgang, "
+            "[[angebote]]) <b>und</b> der CSV-Export gemacht wurde ([[csv_export]]).")])
     i.text("Jede Datei wird im Ordner des Angebots gespeichert ([[angebotsordner]]) und gleich geöffnet. Ist die "
            "Optimierung veraltet, fragt das Programm vorher.", kurz=True)
     i.genauer()
@@ -3493,10 +3495,19 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Die Ablage gilt je Arbeitsplatz. Sollen Kollegen die Ordner sehen, als <i>Ablageordner</i> einen "
            "Netzordner eintragen ([[einstellungen]]).")
     i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
-    i.text("<b>CSV-Export</b> → <b>Kopf + Positionen (ZIP)</b> speichert <i>Angebot_&lt;Nr&gt;.zip</i> mit "
-           "<i>Angebotskopf.csv</i> (eine Zeile) und <i>Angebotspositionen.csv</i> (eine Zeile je Position) in der "
-           "Ablage; <b>Nur Angebotskopf</b> bzw. <b>Nur Angebotspositionen</b> speichern eine Datei.", kurz=True)
+    i.text("<b>Ausgaben → CSV-Export → Kopf + Positionen …</b> fragt nach dem Ordner und speichert dort zwei "
+           "einzelne Dateien: <i>&lt;Nr&gt; Angebotskopf.csv</i> (eine Zeile) und <i>&lt;Nr&gt; "
+           "Angebotspositionen.csv</i> (eine Zeile je Position). <b>Nur Angebotskopf …</b> bzw. <b>Nur "
+           "Angebotspositionen …</b> speichern eine Datei. Erst nach dem CSV-Export wird in der Schrittanzeige "
+           "<b>④ Verschickt</b> grün.", kurz=True)
     i.genauer()
+    i.text("Die Ordnerauswahl beginnt im zuletzt gewählten Ordner (z. B. dem Importordner der Warenwirtschaft), "
+           "beim ersten Mal im Ordner des Angebots ([[angebotsordner]]); der Ordner gilt je Arbeitsplatz "
+           "(Einstellung <i>CSV-Export: zuletzt gewählter Ordner (leer = Ordner des Angebots)</i> unter Ablage). Dateien "
+           "gleichen Namens werden überschrieben. Jeder Export steht mit Datum und Dateinamen im Versandverlauf "
+           "(Mauszeiger auf den Preisstand in der Übersicht); er zählt nicht als Versand für Wiedervorlage und "
+           "Nachfassen. Ältere Angebote ohne CSV-Export zeigen ④ Verschickt so lange grau, bis Sie den Export "
+           "nachholen.")
     i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
            "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "

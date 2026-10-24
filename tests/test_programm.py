@@ -356,12 +356,10 @@ for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkst
     assert datei.read_bytes()[:5] == b"%PDF-"
 import csv  # noqa: E402
 import io  # noqa: E402
-import zipfile  # noqa: E402
-datei = s4.csv_export()         # Angebot_<Nr>.zip mit Angebotskopf.csv und Angebotspositionen.csv (test_csv_export.py)
-assert datei and datei.parent.parent == tmp / "Ablage" and datei.suffix == ".zip", datei   # Ordner je Angebot
-with zipfile.ZipFile(datei) as z_:
-    csv_zeilen = list(csv.reader(io.StringIO(z_.read("Angebotspositionen.csv").decode("utf-8-sig"), newline=""),
-                                 delimiter=";"))
+dateien = s4.csv_export()       # <Nr> Angebotskopf.csv und <Nr> Angebotspositionen.csv (test_csv_export.py)
+datei = dateien[1]
+assert datei.parent.parent == tmp / "Ablage" and datei.name.endswith("Angebotspositionen.csv"), dateien   # Ordner je Angebot
+csv_zeilen = list(csv.reader(io.StringIO(datei.read_bytes().decode("utf-8-sig"), newline=""), delimiter=";"))
 assert csv_zeilen[0][:3] == ["Angebot", "Art", "ArtikelNr."], csv_zeilen[:2]
 assert len(csv_zeilen) == 6 and csv_zeilen[1][:5] == [db.angebot(a4)["nummer"], "1", "4711-001", "10", ""], csv_zeilen[1]
 assert ausgabe.nummern_text([1, 2, 3, 7, 9, 10]) == "1–3, 7, 9–10"

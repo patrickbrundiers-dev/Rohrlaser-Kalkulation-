@@ -67,7 +67,7 @@ ziel = ablage / "2026-00007 Stahlbau Ostermann"
 k = s.kalkulation_pdf()
 assert k == ziel / "2026-00007 Kalkulation.pdf" and k.is_file(), k
 c = s.csv_export()
-assert c == ziel / "Angebot_2026-00007.zip" and c.is_file(), c
+assert c == [ziel / "2026-00007 Angebotskopf.csv", ziel / "2026-00007 Angebotspositionen.csv"], c
 w = s.werkstatt_pdf()
 assert w.parent == ziel and w.name.startswith("2026-00007 "), w
 ok("O3 Kalkulation, CSV und Werkstattpapiere im Ordner des Angebots")

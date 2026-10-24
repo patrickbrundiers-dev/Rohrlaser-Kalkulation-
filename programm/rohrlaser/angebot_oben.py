@@ -152,6 +152,8 @@ def _versand_text(v):
     Nachfassen und Wiedervorlage (Plan A9)."""
     if v.get("art") == "nachgefasst":
         return f"{datum_text(v.get('datum'))}: nachgefasst ({v.get('wie') or 'E-Mail'})"
+    if v.get("art") == "csv":
+        return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
     if v.get("art") == "wiedervorlage":
         return (f"{datum_text(v.get('datum'))}: Wiedervorlage am {datum_text(v['am'])}" if v.get("am") else
                 f"{datum_text(v.get('datum'))}: Wiedervorlage entfernt")
