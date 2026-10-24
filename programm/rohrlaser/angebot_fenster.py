@@ -1681,6 +1681,53 @@ class AngebotSeite(QWidget):
             self._neu_laden()
         finally:
             self._kalk_merken = None
+        self._auto_planen()
+
+    # Plan Arbeitsabläufe W1: kurz nach einer Änderung selbst optimieren (nur Entwürfe, kleine Angebote, eigene)
+    AUTO_PAUSE_MS = 800
+    AUTO_BIS_TEILEN = 500       # darüber dauert es spürbar (1.500 Teile ≈ 1,3 s): dann weiter F9 bzw. Knopf;
+                                # ab HINTERGRUND_AB_TEILEN rechnet auch das automatische Optimieren im Hintergrund
+
+    def auto_optimieren_moeglich(self):
+        """True, wenn das Angebot jetzt automatisch optimiert werden soll: Optimierung nicht aktuell, Entwurf, eigenes
+        Angebot ohne Lesemodus, 1 … Einstellung 'auto_optimieren_bis' aktive Positionen, weniger als AUTO_BIS_TEILEN
+        Teile, und nicht schon mit genau diesen Eingaben gescheitert."""
+        grenze = self.db.einstellung("auto_optimieren_bis") or 0
+        aktiv = [p for p in self.positionen if position_aktiv(p)]
+        if not grenze or not aktiv or len(aktiv) > grenze or self.fremd() or self.db.nur_lesen:
+            return False
+        if (self.kopf.get("vorgang") or "Entwurf") != "Entwurf":
+            return False        # verschickte Angebote behalten ihren Schnittplan, bis jemand von Hand optimiert
+        if sum(int(rechnen._n(p.get("stueck"))) for p in aktiv) >= self.AUTO_BIS_TEILEN:
+            return False
+        if self.stand_optimierung() == "aktuell":
+            return False
+        kennung = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        return kennung != getattr(self, "_auto_fehlgeschlagen", None)
+
+    def _auto_planen(self):
+        if not hasattr(self, "_auto_timer"):
+            self._auto_timer = QTimer(self)
+            self._auto_timer.setSingleShot(True)
+            self._auto_timer.timeout.connect(self.auto_optimieren)
+        if self.auto_optimieren_moeglich():
+            self._auto_timer.start(self.AUTO_PAUSE_MS)      # jede weitere Änderung schiebt den Lauf hinaus
+        else:
+            self._auto_timer.stop()
+
+    def auto_optimieren(self):
+        """Automatisch optimieren (W1), ohne Meldungsfenster. Ergebnis: True = optimiert, False = nicht nötig oder
+        gescheitert (Grund in der Statuszeile, gleiche Eingaben werden nicht erneut versucht)."""
+        if QApplication.activeModalWidget() is not None:     # Dialog offen: danach erneut versuchen
+            self._auto_timer.start(self.AUTO_PAUSE_MS)
+            return False
+        if not self.auto_optimieren_moeglich():
+            return False
+        kennung = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        ok = self.optimieren(automatisch=True)
+        if not ok:
+            self._auto_fehlgeschlagen = kennung
+        return ok
 
     def _neu_laden(self):
         a = self.db.angebot(self.id)
@@ -2928,7 +2975,8 @@ class AngebotSeite(QWidget):
             raise ende["fehler"]
         return ende["erg"]
 
-    def optimieren(self):
+    def optimieren(self, automatisch=False):
+        """Optimieren und speichern. automatisch=True (W1): Fehler nur in der Statuszeile, Meldung „automatisch“."""
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             erg = self._optimierung_rechnen()
@@ -2938,11 +2986,17 @@ class AngebotSeite(QWidget):
             return False
         except ValueError as e:
             QApplication.restoreOverrideCursor()
-            QMessageBox.warning(self, "Optimieren", str(e))
+            if automatisch:
+                self.f.meldung(f"Automatisch optimieren nicht möglich: {e}", fehler=True)
+            else:
+                QMessageBox.warning(self, "Optimieren", str(e))
             return False
         except AssertionError as e:   # Kontrolle der Optimierung angeschlagen: nie ein falsches Ergebnis speichern
             QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Optimieren", f"Die Kontrolle der Optimierung hat angeschlagen: {e}")
+            if automatisch:
+                self.f.meldung(f"Automatisch optimieren: Kontrolle hat angeschlagen ({e}), bitte F9.", fehler=True)
+            else:
+                QMessageBox.critical(self, "Optimieren", f"Die Kontrolle der Optimierung hat angeschlagen: {e}")
             return False
         QApplication.restoreOverrideCursor()
         if erg["neue_profile"]:
@@ -2957,7 +3011,7 @@ class AngebotSeite(QWidget):
             text += f", {sum(f['anzahl'] for f in erg['fehler'])} Teile nicht eingeplant (siehe Auswertung)"
         if erg["neue_profile"]:
             text += f", {len(erg['neue_profile'])} Profil(e) aus dem Namen angelegt"
-        self.f.meldung(text + ".")
+        self.f.meldung(("Automatisch optimiert: " if automatisch else "") + text + ".")
         return True
 
     def laengen_zeigen(self, nur=None):
