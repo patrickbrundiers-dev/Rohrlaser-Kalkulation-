@@ -18,6 +18,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
 from rohrlaser import __main__ as start, orte, update, update_fenster  # noqa: E402
+
+# Unsignierte Test-Dateilisten; die Signaturpflicht prüft tests/test_update_signatur.py.
+update.update_schluessel = lambda: {}
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster, anleitung_kopie  # noqa: E402
 

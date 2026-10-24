@@ -7,4 +7,5 @@ Sobald hier ein Schlüssel steht, nimmt das Programm nur noch gültig signierte 
 Wechsel: U2 dazunehmen und U1 stehen lassen, ein Release mit beiden ausliefern, erst danach mit U2 signieren.
 """
 SCHLUESSEL = {
+    "U1": "6KP0JWBpFspe3JdOTiXzyAKKZGqJIEzM3KlHQGIWVuM=",      # Patrick, 24.10.2026
 }

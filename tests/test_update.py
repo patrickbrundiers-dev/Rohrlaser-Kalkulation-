@@ -14,6 +14,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
 from rohrlaser import update  # noqa: E402
 
+# Diese Tests prüfen Laden und Austausch mit unsignierten Test-Dateilisten; die Signaturpflicht prüft
+# tests/test_update_signatur.py.
+update.update_schluessel = lambda: {}
+
 tmp = Path(tempfile.mkdtemp(prefix="update_"))
 
 
