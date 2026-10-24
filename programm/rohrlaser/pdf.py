@@ -781,6 +781,8 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
                                abwicklung=True)
     else:
         inhalt.append(_p("Der Schnittplan ist leer. Bitte zuerst optimieren.", S_FETT))
+    if wp.get("palettenscheine"):       # beauftragtes Angebot: Palettenbegleitscheine hinten (je Palette eine Seite)
+        inhalt += [NextPageTemplate("quer"), PageBreak()] + palettenschein_inhalt(wp["palettenscheine"], einst)
     doc.build(inhalt, canvasmaker=leinwand)
 
 
@@ -1153,4 +1155,282 @@ def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True, einst=None):
                    _tabelle(daten, [50 * mm, 20 * mm, 22 * mm, 22 * mm, 72 * mm], rechts=(1, 2, 3)), Spacer(1, 2 * mm),
                    _p("Hinweis zum Prüfen der Schweiß-Kennwerte; die Stammdaten ändern sich dadurch nicht.",
                       ParagraphStyle("nb", parent=S_KLEIN, textColor=GRAU))]
+    doc.build(inhalt, canvasmaker=leinwand)
+
+
+# ------------------------------------------------------------------ Palettenbegleitschein
+PS_LINIE = colors.HexColor("#A9CCE8")
+PS_FLAECHE = colors.HexColor("#EEF7FC")
+PS_BLAU = colors.HexColor("#1676C8")
+PS_TINTE = colors.HexColor("#171A1F")
+PS_GRAU = colors.HexColor("#68727E")
+HINWEIS_SCHRIFT = {"normal": 11, "klein": 9.5, "sehr klein": 8.5, "zu lang": 8, "leer": 11}
+
+
+def _datum_text(iso):
+    try:
+        return datetime.date.fromisoformat(iso).strftime("%d.%m.%Y") if iso else ""
+    except ValueError:
+        return str(iso)
+
+
+def _passend(text, schrift, groesse, breite, mindest=6):
+    """Schriftgröße, mit der text in breite passt (höchstens groesse, mindestens mindest)."""
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    while groesse > mindest and stringWidth(text, schrift, groesse) > breite:
+        groesse -= 0.5
+    return groesse
+
+
+class PalettenscheinSeite(Flowable):
+    """Ein Palettenbegleitschein (A4 quer, ganze Seite) wie im Tool v97: Logo und Titel, Auftrag mit Kunde und
+    Bestellnummer, Lieferdatum, Paletten gesamt und Palette x / n, Arbeitsschritte zum Abhaken je Gruppe, Inhalt
+    dieser Palette (aus der Packliste), Auftragsstatus, Hinweis, Stück auf Palette, Bearbeiter und Datum.
+    s = ein Eintrag aus palettenschein.seiten."""
+
+    def __init__(self, s, einst=None):
+        super().__init__()
+        self.s, self.einst = s, einst or {}
+
+    def wrap(self, breite, hoehe):
+        self.b, self.h = breite, min(hoehe, 183 * mm)
+        return self.b, self.h
+
+    # ---------------------------------------------------- Zeichenhilfen
+    def _box(self, x, oben, w, h, titel, flaeche=False, titel_gr=9):
+        c = self.canv
+        y = oben - h
+        c.setStrokeColor(PS_LINIE)
+        c.setLineWidth(0.8)
+        c.setFillColor(PS_FLAECHE if flaeche else colors.white)
+        c.roundRect(x, y, w, h, 2.2 * mm, stroke=1, fill=1)
+        band = 7.5 * mm
+        c.setFillColor(PS_BLAU)
+        c.rect(x + 0.4, oben - band, 2.6 * mm, band - 0.6, stroke=0, fill=1)
+        c.setStrokeColor(PS_LINIE)
+        c.line(x, oben - band, x + w, oben - band)
+        c.setFillColor(PS_BLAU)
+        c.setFont(FETT, titel_gr)
+        c.drawString(x + 6 * mm, oben - band + 2.4 * mm, titel.upper())
+        return oben - band
+
+    def _kaestchen(self, x, y, g=3.6 * mm):
+        c = self.canv
+        c.setStrokeColor(colors.HexColor("#404040"))
+        c.setLineWidth(0.8)
+        c.rect(x, y, g, g, stroke=1, fill=0)
+
+    def _text(self, x, y, text, schrift=SCHRIFT, gr=10, farbe=PS_TINTE, breite=None, mitte=False, rechts=False):
+        c = self.canv
+        if breite:
+            gr = _passend(text, schrift, gr, breite)
+        c.setFont(schrift, gr)
+        c.setFillColor(farbe)
+        (c.drawCentredString if mitte else c.drawRightString if rechts else c.drawString)(x, y, text)
+        return gr
+
+    # ---------------------------------------------------- Seite
+    def draw(self):
+        from reportlab.lib.utils import simpleSplit
+        s, c, W, H = self.s, self.canv, self.b, self.h
+        luecke = 3 * mm
+        oben = H
+        # Kopf: Logo links, Titel
+        kopf_h = 22 * mm
+        c.setStrokeColor(PS_LINIE)
+        c.setFillColor(colors.white)
+        c.roundRect(0, oben - kopf_h, W, kopf_h, 2.2 * mm, stroke=1, fill=1)
+        c.setStrokeColor(PS_BLAU)
+        c.setLineWidth(1.5)
+        c.line(1.5 * mm, oben - kopf_h, W - 1.5 * mm, oben - kopf_h)
+        logo = logo_bild(self.einst, 70 * mm, 16 * mm)
+        if logo is not None:
+            logo.drawOn(c, 6 * mm, oben - kopf_h + (kopf_h - logo.drawHeight) / 2)
+        self._text(W * 0.62, oben - kopf_h / 2 - 3 * mm, "PALETTENBEGLEITSCHEIN", FETT, 22, mitte=True)
+        oben -= kopf_h + luecke
+        # Zeile 1: Auftrag, Lieferdatum, Paletten
+        z1 = 31 * mm
+        w_a, w_l = W * 0.39, W * 0.28
+        w_p = W - w_a - w_l - 2 * luecke
+        y = self._box(0, oben, w_a, z1, "Auftragsnummer", True)
+        self._text(6 * mm, y - 10 * mm, s.get("auftrag") or "", FETT, 22, breite=w_a - 12 * mm)
+        self._text(6 * mm, y - 15.5 * mm, f"Kunde: {s.get('kunde') or ''}", FETT, 9.5, PS_GRAU, breite=w_a - 12 * mm)
+        if s.get("bestellnummer"):
+            self._text(6 * mm, y - 20 * mm, f"Bestellnummer: {s['bestellnummer']}", FETT, 8.5, PS_GRAU,
+                       breite=w_a - 12 * mm)
+        x = w_a + luecke
+        y = self._box(x, oben, w_l, z1, "Lieferdatum", True)
+        self._text(x + w_l / 2, y - 13 * mm, _datum_text(s.get("lieferdatum")) or "–", FETT, 22, mitte=True)
+        x += w_l + luecke
+        halb = w_p / 2
+        y = self._box(x, oben, halb, z1, "Paletten gesamt", True, 8)
+        self._box(x + halb, oben, w_p - halb, z1, "Palette", True, 8)
+        gesamt = s.get("gesamt")
+        self._text(x + halb / 2, y - 13 * mm, str(gesamt) if gesamt else "", FETT, 22, mitte=True)
+        self._text(x + halb + (w_p - halb) / 2, y - 13 * mm, f"{s['nr']} / {gesamt}" if s.get("nr") else "", FETT, 22,
+                   PS_BLAU, mitte=True)
+        self._text(x + halb - 3 * mm, oben - z1 + 2.5 * mm, "GESAMT", FETT, 6, PS_GRAU, rechts=True)
+        self._text(x + w_p - 3 * mm, oben - z1 + 2.5 * mm, "AKTUELL", FETT, 6, PS_GRAU, rechts=True)
+        oben -= z1 + luecke
+        # Zeile 3 (unten) zuerst festlegen, Zeile 2 nimmt den Rest
+        z3 = 40 * mm
+        z2 = oben - z3 - luecke
+        inhalt = s.get("inhalt") or []
+        w_s = W * 0.25
+        w_i = W * 0.27 if inhalt else 0
+        w_ar = W - w_s - w_i - (2 if inhalt else 1) * luecke
+        # Arbeitsschritte
+        y = self._box(0, oben, w_ar, z2, "Arbeitsschritte")
+        gruppen = [(g, liste) for g, liste in (s.get("arbeiten") or {}).items() if liste]
+        if not gruppen:
+            self._text(6 * mm, y - 8 * mm, "Keine Arbeitsschritte ausgewählt", SCHRIFT, 9, PS_GRAU)
+        else:
+            frei = y - (oben - z2) - 12 * mm
+            for zeile_h, gr in ((5.6 * mm, 10), (4.6 * mm, 8.5), (3.9 * mm, 7.5), (3.4 * mm, 6.5)):
+                je_spalte = max(1, int(frei // zeile_h))
+                spalten = sum(-(-len(liste) // je_spalte) for _, liste in gruppen)
+                sw = min((w_ar - 8 * mm) / spalten, 62 * mm)
+                if sw >= 30 * mm or gr == 6.5:
+                    break
+            xs = 4 * mm
+            for g, liste in gruppen:
+                n = -(-len(liste) // je_spalte)
+                gw = sw * n - 2 * mm
+                c.setStrokeColor(PS_TINTE)
+                c.setLineWidth(0.6)
+                self._text(xs, y - 5.5 * mm, g.upper(), FETT, gr, breite=gw)
+                c.line(xs, y - 6.8 * mm, xs + gw, y - 6.8 * mm)
+                for i, schritt in enumerate(liste):
+                    sp, zl = divmod(i, je_spalte)
+                    xx = xs + sp * sw
+                    yy = y - 6.8 * mm - (zl + 1) * zeile_h
+                    k = min(3.6 * mm, zeile_h * 0.7)
+                    self._kaestchen(xx, yy, k)
+                    self._text(xx + k + 1.6 * mm, yy + 0.4 * mm, schritt, SCHRIFT, gr, breite=sw - k - 3 * mm)
+                xs += sw * n
+        x = w_ar + luecke
+        # Inhalt dieser Palette
+        if inhalt:
+            y = self._box(x, oben, w_i, z2, "Inhalt dieser Palette")
+            gr, zh = 8.5, 4.4 * mm
+            self._text(x + 4 * mm, y - 5 * mm, "Pos.", FETT, 7.5, PS_GRAU)
+            self._text(x + 14 * mm, y - 5 * mm, "Artikel / Bezeichnung", FETT, 7.5, PS_GRAU)
+            self._text(x + w_i - 4 * mm, y - 5 * mm, "Stück", FETT, 7.5, PS_GRAU, rechts=True)
+            platz = int((y - 6.5 * mm - (oben - z2) - 9 * mm) // zh)
+            zeigen = inhalt if len(inhalt) <= platz else inhalt[:max(1, platz - 1)]
+            yy = y - 6.5 * mm
+            for pos, artikel, bez, n in zeigen:
+                yy -= zh
+                self._text(x + 4 * mm, yy, str(pos if pos is not None else ""), FETT, gr)
+                text = " · ".join(t for t in (artikel, bez) if t) or "–"
+                self._text(x + 14 * mm, yy, text, SCHRIFT, gr, breite=w_i - 32 * mm)
+                self._text(x + w_i - 4 * mm, yy, zahl_als_text(n, 0), FETT, gr, rechts=True)
+            if len(zeigen) < len(inhalt):
+                yy -= zh
+                self._text(x + 14 * mm, yy, f"… und {len(inhalt) - len(zeigen)} weitere Positionen", SCHRIFT, gr,
+                           PS_GRAU)
+            unten = oben - z2 + 3 * mm
+            c.setStrokeColor(PS_LINIE)
+            c.line(x + 3 * mm, unten + 4.5 * mm, x + w_i - 3 * mm, unten + 4.5 * mm)
+            summe = f"{zahl_als_text(s.get('stueck') or 0, 0)} Stück"
+            if s.get("gewicht"):
+                summe += f" · ca. {zahl_als_text(s['gewicht'], 0)} kg brutto"
+            if s.get("lht"):
+                summe += f" · {s['lht']}"
+            self._text(x + 4 * mm, unten, summe, FETT, 8, breite=w_i - 8 * mm)
+            x += w_i + luecke
+        # Auftragsstatus
+        y = self._box(x, oben, W - x, z2, "Auftragsstatus")
+        if s.get("status"):
+            yy = y - 2 * mm
+            for st in s["status"]:
+                yy -= 7 * mm
+                self._kaestchen(x + 5 * mm, yy - 0.6 * mm, 4.2 * mm)
+                self._text(x + 12 * mm, yy, st, FETT if st == "Versendet" else SCHRIFT, 10.5,
+                           PS_BLAU if st == "Versendet" else PS_TINTE, breite=W - x - 16 * mm)
+        else:
+            self._text(x + 6 * mm, y - 8 * mm, "Kein Status ausgewählt", SCHRIFT, 9, PS_GRAU)
+        oben -= z2 + luecke
+        # Zeile 3: Hinweis, Stück auf Palette, Bearbeiter, Datum
+        w_h, w_st, w_b = W * 0.4, W * 0.18, W * 0.18
+        w_d = W - w_h - w_st - w_b - 3 * luecke
+        y = self._box(0, oben, w_h, z3, "Hinweis")
+        stufe = palettenschein_stufe(s.get("hinweis"))
+        gr = HINWEIS_SCHRIFT[stufe]
+        zeilen = []
+        for absatz in str(s.get("hinweis") or "").split("\n"):
+            zeilen += simpleSplit(absatz, SCHRIFT, gr, w_h - 12 * mm) or [""]
+        platz = int((y - (oben - z3) - 4 * mm) // (gr * 1.25))
+        c.setFont(SCHRIFT, gr)
+        c.setFillColor(PS_TINTE)
+        for i, z in enumerate(zeilen[:platz]):
+            c.drawString(6 * mm, y - 6 * mm - i * gr * 1.25, z)
+        x = w_h + luecke
+        einzel = s.get("gesamt") == 1 and s.get("stueck") is not None
+        y = self._box(x, oben, w_st, z3, "Stückzahl auf Palette" if einzel else "Stück auf Palette", titel_gr=7.5)
+        if s.get("stueck") is not None:
+            self._text(x + w_st / 2, y - 14 * mm, zahl_als_text(s["stueck"], 0), FETT, 24, mitte=True)
+            self._text(x + w_st / 2, y - 19.5 * mm, "STÜCK", FETT, 8, PS_GRAU, mitte=True)
+        else:
+            for i, t in enumerate(simpleSplit("Stück werden beim Packen ergänzt", FETT, 8, w_st - 8 * mm)):
+                self._text(x + w_st / 2, y - 6 * mm - i * 10, t, FETT, 8, PS_GRAU, mitte=True)
+            c.setStrokeColor(PS_TINTE)
+            c.line(x + 4 * mm, oben - z3 + 10 * mm, x + w_st - 4 * mm, oben - z3 + 10 * mm)
+        if s.get("auftragsmenge"):
+            self._text(x + w_st / 2, oben - z3 + 3.5 * mm, f"Auftragsmenge: {zahl_als_text(s['auftragsmenge'], 0)} Stück",
+                       FETT, 6.5, PS_GRAU, mitte=True, breite=w_st - 6 * mm)
+        x += w_st + luecke
+        self._box(x, oben, w_b, z3, "Bearbeiter")
+        c.setStrokeColor(PS_TINTE)
+        c.line(x + 5 * mm, oben - z3 + 12 * mm, x + w_b - 5 * mm, oben - z3 + 12 * mm)
+        x += w_b + luecke
+        y = self._box(x, oben, w_d, z3, "Datum")
+        self._text(x + 6 * mm, y - 8 * mm, _datum_text(s.get("datum")), FETT, 11)
+        c.setStrokeColor(PS_TINTE)
+        c.line(x + 5 * mm, oben - z3 + 12 * mm, x + w_d - 5 * mm, oben - z3 + 12 * mm)
+        meta = f"Auftrag {s.get('auftrag') or ''}" + (f" · Palette {s['nr']} / {s['gesamt']}" if s.get("nr") else "")
+        self._text(x + 6 * mm, oben - z3 + 4 * mm, meta, FETT, 6.5, PS_GRAU, breite=w_d - 10 * mm)
+
+
+def palettenschein_stufe(text):
+    from .palettenschein import hinweis_stufe
+    return hinweis_stufe(text)
+
+
+def palettenschein_inhalt(seiten, einst=None):
+    """Flowables: je Schein eine Seite (für ein Dokument mit Vorlage 'quer')."""
+    out = []
+    for i, s in enumerate(seiten):
+        if i:
+            out.append(PageBreak())
+        out.append(PalettenscheinSeite(s, einst))
+    return out
+
+
+def palettenschein_pdf(pfad, seiten, einst=None, titel=None):
+    """Palettenbegleitscheine als PDF (A4 quer, je Palette eine Seite; seiten aus palettenschein.seiten, auch von
+    mehreren Aufträgen hintereinander)."""
+    nr = titel or (seiten[0].get("auftrag") if seiten else "")
+    doc, leinwand = _dokument(pfad, f"Palettenbegleitschein {nr}", _fuss(einst, f"Palettenbegleitschein {nr}"),
+                              quer=True)
+    doc.build(palettenschein_inhalt(seiten, einst) or [_p("Keine Palettenscheine.", S_FETT)], canvasmaker=leinwand)
+
+
+def verladeliste_pdf(pfad, zeilen, einst=None, titel="Verladeliste"):
+    """Liste der gewählten Aufträge zum Verladen: [{auftrag, kunde, bestellnummer, lieferdatum, paletten, stueck,
+    gewicht, stand}]."""
+    doc, leinwand = _dokument(pfad, titel, _fuss(einst, titel), quer=True)
+    breite = 273 * mm
+    inhalt = _dok_kopf(titel, {}, einst, breite, angaben=[("erstellt", _erstellt()), ("Aufträge", str(len(zeilen)))])
+    daten = [_kopfzeile(["Auftrag", "Kunde", "Bestellnummer", "Lieferdatum", "Paletten", "Stück", "Gewicht [kg]",
+                         "Stand", "verladen"])]
+    for z in zeilen:
+        daten.append([_p(z.get("auftrag"), S_FETT), _p(z.get("kunde")), _p(z.get("bestellnummer")),
+                      _datum_text(z.get("lieferdatum")), _z(z.get("paletten"), 0), _z(z.get("stueck"), 0),
+                      _z(z.get("gewicht"), 0), _p(z.get("stand"), S_KLEIN), Kaestchen()])
+    tab = _tabelle(daten, [30 * mm, 62 * mm, 36 * mm, 24 * mm, 18 * mm, 18 * mm, 24 * mm, 41 * mm, 20 * mm],
+                   rechts=(4, 5, 6))
+    tab.setStyle(TableStyle([("ALIGN", (8, 0), (8, -1), "CENTER")]))
+    summe = sum(z.get("paletten") or 0 for z in zeilen)
+    inhalt += [tab, Spacer(1, 3 * mm), _p(f"Paletten gesamt: {summe}", S_FETT)]
     doc.build(inhalt, canvasmaker=leinwand)

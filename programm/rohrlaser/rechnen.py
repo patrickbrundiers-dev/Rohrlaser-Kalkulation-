@@ -133,6 +133,7 @@ def position_werte(p, kopf, k, tabellen):
     w["profilform"] = pr.get("form") if pr else None
     w["querschnitt"] = flaeche_wirksam(pr) if pr else None
     w["huellkreis"] = huellkreis(pr) if pr else None
+    w["profil_abm"] = (pr.get("form"), pr.get("a"), pr.get("b"), pr.get("wand")) if pr else None   # Packmaß (paletten)
     w["wand"] = (_n(pr.get("wand")) if pr else None)
     w["wand_schneiden"] = wand_schneiden(pr) if pr else None     # größte Wandstärke: Schneiddaten
     kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if w["querschnitt"] is not None else None

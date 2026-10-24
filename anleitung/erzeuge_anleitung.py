@@ -779,7 +779,7 @@ def kapitel_angebote(i):
            "Spalten <b>Auftragsnr.</b> und <b>Liefertermin</b>, die Suche findet die Auftragsnummer. Erneut "
            "<i>Beauftragt</i> wählen ändert die Angaben, <i>Abbrechen</i> lässt den Vorgang, wie er war. Kopie und "
            "neue Fassung übernehmen beides nicht. Werkstattpapiere und Materialanfrage erstellen Sie wie bisher im "
-           "Angebot.",
+           "Angebot; Palettenschein und Versand stehen im Reiter Versand ([[versand]]).",
            "Die Spalte <b>Bearbeiter</b> zeigt das Kürzel des Mitarbeiters, der ein Angebot angelegt hat. Mit "
            "gemeinsamem Ordner stehen auch die Angebote der Kollegen in der Liste, <b>grau und kursiv</b>; die Auswahl "
            "<b>Meine Angebote / Alle Mitarbeiter / Kürzel</b> filtert danach, <b>Abgleichen</b> holt den neuesten "
@@ -2968,9 +2968,10 @@ def kapitel_fracht(i):
                                  "Bruttogewicht). <b>+ Ladungsträger</b> fügt eine Zeile an, <b>Ladungsträger "
                                  "entfernen</b> löscht die markierte. Darunter Anzahl, Stellplätze, Eigengewicht und "
                                  "Volumen."],
-        ["6", "Packvorschlag", "füllt die Liste aus Nettogewicht und längstem Teil: Anzahl = Gewicht ÷ Nutzlast "
-                               "(aufgerundet); Teile länger als die max. Teillänge des Ladungsträgers kommen auf "
-                               "Langgut. Danach von Hand änderbar."],
+        ["6", "Packvorschlag", "füllt die Liste aus den Positionen mit derselben Lagenrechnung wie der "
+                               "Palettenschein ([[paletten_rechnung]]): Höhe, Gewicht und Teillänge je Palette; Teile "
+                               "länger als die max. Teillänge des Ladungsträgers kommen auf Langgut. Ohne Positionen "
+                               "(freier Rechner): Anzahl = Gewicht ÷ Nutzlast. Danach von Hand änderbar."],
         ["7", "Zusatzleistungen", "Zuschläge mit der Bedingung „nur wenn gewählt“ zum Ankreuzen (im Beispiel "
                                   "Avisierung, Hebebühne, Wartezeit mit Stunden). Ohne solche Zuschläge ist der Bereich "
                                   "ausgeblendet."],
@@ -3847,6 +3848,96 @@ def kapitel_nachkalkulation(i):
            "derselben Vorlage. Aus den nachkalkulierten "
            "Baugruppen schlägt das Programm geänderte Schweiß-Kennwerte vor ([[schweiss_stammdaten]]).")
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
+
+
+def kapitel_versand(i):
+    i.kapitel("Versand und Palettenbegleitschein", marke="versand")
+    i.text("Sobald ein Angebot auf <b>Beauftragt</b> steht ([[angebote]]), erscheint es im Reiter <b>Versand</b>. "
+           "Dort rechnet das Programm die <b>Anzahl der Paletten</b> aus den Positionen, druckt je Palette einen "
+           "<b>Palettenbegleitschein</b> (A4 quer) und führt den Stand bis <i>Versendet</i>. Das bisherige "
+           "Palettenschein-Tool (HTML) wird damit nicht mehr gebraucht.", kurz=True)
+    i.liste("<b>Reiter Versand</b>: alle beauftragten Aufträge mit Auftrag (Angebotsnummer), Kunde, Bestellnummer, "
+            "Lieferdatum, Paletten, Stück, Stand, gedruckt und versendet. Der Filter oben zeigt <i>Aktuell</i>, "
+            "<i>Überfällig</i>, <i>Heute fällig</i>, <i>Morgen</i>, <i>Diese Woche</i>, <i>In Bearbeitung</i>, "
+            "<i>Verladebereit</i>, <i>Versendet</i>, <i>Alle</i> oder <i>Archiviert</i>, jeweils mit Anzahl. "
+            "Überfällige Termine sind rot, heute fällige gelb, verladebereite grün hinterlegt. Fällt ein Lieferdatum "
+            "auf ein Wochenende oder einen Feiertag, steht das dahinter.",
+            "Mehrere Aufträge markieren: <b>Palettenscheine drucken</b> (ein PDF für alle), <b>Verladeliste</b> "
+            "(Übersicht für die Verladung), <b>✓ Verladebereit</b>, <b>✓ Versendet</b>, <b>Lieferdatum …</b> und "
+            "<b>Archivieren</b> (im Filter <i>Archiviert</i> holt derselbe Knopf sie zurück).",
+            "<b>Palettenschein …</b> (oder Doppelklick; im Angebot <i>Vorgang ▾</i> bzw. <i>Weitere ▾ → "
+            "Palettenbegleitschein …</i>) öffnet das Fenster des Auftrags.", kurz=True)
+    i.abschnitt("Palettenschein eines Auftrags", marke="palettenschein")
+    i.liste("<b>Auftragsdaten</b>: Auftrag = Angebotsnummer, <b>Bestellnummer</b> = Auftragsnummer des Kunden und "
+            "<b>Lieferdatum</b> = Liefertermin aus <i>Beauftragt</i>; beides lässt sich hier ändern. Die Knöpfe "
+            "<i>Heute</i>, <i>+5</i>, <i>+10</i>, <i>+15 AT</i> zählen Arbeitstage ohne Wochenende und Feiertage.",
+            "<b>Paletten</b>: <i>Automatisch berechnen</i> (Vorgabe, siehe unten), <i>Von Hand</i> mit "
+            "<b>Stück pro Palette</b> („100“ = jede Palette 100, „100, 100, 50“ je Palette, „3x80, 10“ = drei "
+            "Paletten mit 80, dann 10; <i>Verteilen</i> teilt die Auftragsmenge gleichmäßig auf) oder <i>Anzahl "
+            "noch nicht bekannt</i> (ein Schein ohne „Palette x / n“ zum Eintragen von Hand).",
+            "<b>Packliste</b>: je Palette Ladungsträger, Inhalt, Höhe, Gewicht und der Aufbau als Text, z. B. "
+            "„Pos. 10: 24 Stück in 2 Lagen à 16 Stück je Lage (1 Reihe, 50 mm Überstand, versetzt gestapelt)“. "
+            "In der Tabelle <b>Positionen</b> lässt sich je Position <b>max. je Palette (von Hand)</b> eintragen, "
+            "wenn man es aus der Praxis besser weiß; das ersetzt die Lagenrechnung dieser Position.",
+            "<b>Arbeitsschritte</b> (Intern, Extern, Oberfläche): aus den Zusatzarbeiten und der Oberfläche des "
+            "Angebots vorgewählt (<i>Vorschlag</i>), Häkchen frei änderbar. Die Liste steht in den Einstellungen "
+            "(<i>Versand: Arbeitsschritte</i>, je Zeile „Gruppe: Schritt“).",
+            "<b>Auftragsstatus</b> von <i>Auftrag unvollständig</i> bis <i>Fertig zur Verladung</i> und "
+            "<i>Versendet</i> (setzt das Versanddatum) und ein <b>Hinweis</b>; lange Hinweise werden kleiner "
+            "gedruckt, das Fenster zeigt, wie groß.",
+            "<b>Palettenscheine drucken (PDF)</b>: je Palette ein Blatt mit Auftrag, Kunde, Bestellnummer, "
+            "Lieferdatum, „Palette x / n“, Arbeitsschritten, <b>Inhalt dieser Palette</b> (Positionen und Stück, "
+            "ca. Bruttogewicht, Ladungsträger), Status, Hinweis, Stück auf der Palette, Bearbeiter und Datum. Die "
+            "Datei „&lt;Nr&gt; Palettenbegleitschein.pdf“ liegt im Ordner des Angebots ([[angebotsordner]]); "
+            "<i>Nachdruck</i> druckt nur eine Palette neu.",
+            "Alles wird sofort gespeichert. Kopie und neue Fassung eines Angebots übernehmen den Palettenschein nicht.")
+    i.abschnitt("So rechnet das Programm die Paletten", marke="paletten_rechnung")
+    i.text("Gerechnet wird lagenweise wie beim Packen, damit die Zahl nicht zu klein ausfällt: Jede Palette ist ein "
+           "Stapel aus Lagen; jede Position wird zuerst einzeln gepackt, Reste kommen zusammen, wenn Platz ist. Jeder Schritt steht in der Packliste "
+           "und lässt sich nachrechnen. Wo die Praxis anders packt (Bündel, Kanthölzer, Gitterbox), "
+           "<i>max. je Palette (von Hand)</i> eintragen.", kurz=True)
+    i.liste("<b>Packmaß</b> je Teil: Rohr und Profil Länge × Außenmaß, Blech Zuschnitt bzw. Hüllmaß des Kantteils, "
+            "Knickrahmen und Biegerohr ihr Hüllquader, Schweißbaugruppe die Abmessungen aus ihren Stammdaten "
+            "(ihre Einzelteile reisen in ihr mit).",
+            "<b>Ladungsträger</b> aus den Frachtkosten ([[frachtkosten]]): bis zur <i>max. Teillänge</i> "
+            "des Standard-Ladungsträgers (Europalette 1.200 × 800 mm, bis 1.400 mm mit Überstand) auf ihn, längere "
+            "auf Langgut, noch längere als Sonderladung (Hinweis).",
+            "<b>Lage</b>: die längste Seite liegt waagrecht. Reihen = Palettenlänge ÷ Teillänge (länger als die "
+            "Palette: eine Reihe mit Überstand), quer = Palettenbreite ÷ Teilbreite, davon die "
+            "<b>Lagenausnutzung</b> (Vorgabe 90 % für Bündel, Umreifung, Kantenschutz). Rundrohre liegen versetzt in "
+            "den Mulden, wenn das mehr ergibt. Beispiel Rundrohr Ø 42,4 × 1.250 mm: 800 ÷ 42,4 = 18 quer, × 0,9 = "
+            "16 je Lage.",
+            "<b>Höhe</b>: Lagen bis zur <i>max. Höhe inkl. Ladungsträger</i> (Vorgabe 1.200 mm, also 1.056 mm "
+            "Ladung auf der Europalette), auf Wunsch mit Zwischenlage (Holz, Pappe) je Lage. Gitterbox: ihre "
+            "Innenhöhe.",
+            "<b>Gewicht</b>: höchstens <i>max. Bruttogewicht</i> je Palette (Vorgabe 1.500 kg) minus Eigengewicht, "
+            "und nicht mehr als die Nutzlast. Beispiel: 3.000 Rohre Ø 42,4 × 1.250 mm zu 4,0 kg, nach Lagen 448 je "
+            "Palette, nach Gewicht 1.475 ÷ 4,0 = 368 je Palette, also <b>9 Paletten</b>.",
+            "<b>Packen</b>: jede Position zuerst auf eigene Paletten; angefangene Paletten werden zusammengelegt, "
+            "wenn Höhe und Gewicht reichen (die längeren Teile unten).")
+    i.genauer()
+    i.text("Die Werte stehen in den Einstellungen, Gruppe <b>Versand</b>:")
+    i.tabelle(["Einstellung", "Vorgabe und Wirkung"], [
+        ["Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "1.200; begrenzt die Zahl der Lagen"],
+        ["Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "1.500; zusätzlich gilt die Nutzlast "
+         "des Ladungsträgers (Frachtkosten)"],
+        ["Paletten: verschiedene Positionen gemeinsam auf eine Palette", "<i>Reste zusammenpacken</i>: jede "
+         "Position zuerst auf eigene Paletten, angefangene Paletten kommen zusammen, wenn Höhe und Gewicht reichen; "
+         "<i>nie</i>; <i>immer</i> (lagenweise gemischt)"],
+        ["Paletten: Lagenausnutzung (Bündel, Umreifung, Kantenschutz)", "90 %; kleiner = mehr Luft je Lage"],
+        ["Paletten: Zwischenlage zwischen zwei Lagen [mm] (0 = keine)", "0; z. B. 20 für Kanthölzer"],
+        ["Feiertage für Arbeitstage (Bundesland)", "Nordrhein-Westfalen; auch für den Liefertermin-Vorschlag bei "
+         "<i>Beauftragt</i>"],
+        ["Palettenschein: Arbeitsschritte (je Zeile 'Gruppe: Schritt')", "Liste wie im bisherigen Tool; im Fenster "
+         "unter <i>Arbeitsschritte – Auswahl für den Ausdruck (abgehakt wird in der Produktion)</i>"],
+        ["Palettenscheine an die Werkstattpapiere anhängen (beauftragte Angebote)", "ja"],
+    ], [80 * mm, BREITE - 80 * mm])
+    i.text("Dieselbe Rechnung liefert den Packvorschlag der Fracht ([[fracht]]): automatische Fracht und "
+           "<i>Fracht kalkulieren</i> nehmen so viele Ladungsträger, wie der Palettenschein zeigt; bereits "
+           "gespeicherte Frachtberechnungen bleiben wie sie waren. <b>Lieferdatum …</b> im Reiter Versand öffnet "
+           "das Fenster <i>Lieferdatum setzen</i> für alle markierten Aufträge.",
+           "Bei einem beauftragten Angebot hängen die <b>Werkstattpapiere</b> die Palettenscheine hinten an "
+           "([[ausgabe]]); die Einstellung schaltet das ab.")
 
 
 def kapitel_einstellungen(i):
@@ -6047,7 +6138,7 @@ def kapitel_schnellstart(i):
 # auf der Trennseite des Teils; test_anleitung.py prüft, dass jedes Kapitel einen Eintrag hat.
 STECKBRIEFE = {
     "ueberblick": ("Was das Programm kann, wie ein Angebot abläuft und was die Farben bedeuten.",
-                   "Hauptfenster mit den Reitern Start, Angebote, Kunden, Frachtkosten, Zukaufartikel, Einstellungen"),
+                   "Hauptfenster mit den Reitern Start, Angebote, Versand, Kunden, Frachtkosten, Zukaufartikel, Einstellungen"),
     "start": ("Programm installieren oder portabel entpacken, Windows-Warnungen, erster Start.",
               "Release <i>aktuell</i> auf GitHub; im Programm der Reiter <i>Start</i>"),
     "schnellstart": ("Einmal durch ein ganzes Angebot, vom Anlegen bis zum PDF.",
@@ -6070,6 +6161,8 @@ STECKBRIEFE = {
                           "<b>Neue Position</b> → <b>Schweißbaugruppe</b>; Doppelklick auf die Baugruppe"),
     "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Materialanfrage.",
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
+    "versand": ("Paletten eines Auftrags rechnen, Palettenbegleitscheine drucken und den Versand verfolgen.",
+                "Reiter <i>Versand</i>; im Angebot <i>Vorgang ▾ → Palettenbegleitschein …</i>"),
     "nachkalkulation": ("Nach dem Auftrag Ist-Werte eintragen und mit der Kalkulation vergleichen.",
                         "Im Angebot Reiter <i>Nachkalkulation</i>"),
     "einstellungen": ("Zuschläge, Briefkopf, Ablage, Vorgaben für neue Angebote, Stundensätze.",
@@ -6104,7 +6197,8 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_nachkalkulation]),
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_versand,
+      kapitel_nachkalkulation]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,

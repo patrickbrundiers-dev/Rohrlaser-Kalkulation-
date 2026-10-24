@@ -17,6 +17,11 @@ Fracht mit dem gespeicherten Tarif-Snapshot neu; in den übrigen Modi gilt der B
 """
 import json
 
+from . import paletten
+
+PALETTEN_EINST = ("palette_hoehe_gesamt", "palette_max_brutto", "palette_mischen", "palette_fuellgrad",
+                  "palette_zwischenlage")
+
 MANUELL, BERECHNET, KEINE, ENTHALTEN = "manuell", "berechnet", "keine Fracht", "im Artikelpreis enthalten"
 MODI = (MANUELL, BERECHNET, KEINE, ENTHALTEN)
 JE_STUECK, NACH_GEWICHT = "je Stück", "nach Gewicht"
@@ -96,7 +101,9 @@ def auto_rechnen(fdaten, kopf, positionen, werte, kunde, einst):
     if fehlt:
         d["fehler"] = f"Gewicht fehlt bei Pos. {', '.join(fehlt)}"
         return d
-    s["lht"], _ = fracht.packvorschlag([(netto, laenge)], fdaten.get("lht", []), d["lht_standard"], d["lht_langgut"])
+    d["paletten"] = paletten_einst(einst)
+    s["lht"], _ = paletten.ladung(positionen, werte, fdaten.get("lht", []), d["lht_standard"], d["lht_langgut"],
+                                  d["paletten"])
     e = fracht.rechnen(fdaten, s)
     d.update(snapshot=e.get("snapshot"), gesamt=e.get("gesamt"), text=fracht.zusammenfassung(e),
              zone=(e.get("zone_empfang") or {}).get("text"), hinweise=e.get("hinweise", []) + e.get("warnungen", []))
@@ -105,6 +112,11 @@ def auto_rechnen(fdaten, kopf, positionen, werte, kunde, einst):
         if not s["versandart"] and "Mehrere Tarife" in d["fehler"]:
             d["fehler"] += " (Einstellungen › Frachtkosten: 'Versandart für automatische Fracht' festlegen)"
     return d
+
+
+def paletten_einst(einst):
+    """Rechenwerte der Paletten (Einstellungen palette_…) für die gespeicherte Frachtberechnung."""
+    return {n: (einst or {}).get(n) for n in PALETTEN_EINST}
 
 
 def ware(positionen, werte):
@@ -145,15 +157,20 @@ def anteile(positionen, werte, betrag, art):
     return out, hinweis, JE_STUECK
 
 
-def sendung_der_menge(d, netto, max_laenge):
+def sendung_der_menge(d, netto, max_laenge, positionen=None, werte=None):
     """Sendung einer Mengenstufe aus der gespeicherten Frachtberechnung d: neues Nettogewicht und längstes Teil,
     Ladungsträger per Packvorschlag (mit den Ladungsträgern des Snapshots); Verpackung und frachtpflichtiges
-    Gewicht nach Tarif (von Hand eingetragene Werte gelten nur für die Menge des Angebots)."""
+    Gewicht nach Tarif (von Hand eingetragene Werte gelten nur für die Menge des Angebots). Frachtberechnungen ab
+    0.9.87 (mit 'paletten') packen nach Gewicht und Packraum (paletten.py), ältere wie bisher nur nach Gewicht."""
     from . import fracht        # erst hier: fracht -> ausgabe -> rechnen -> fracht_angebot
     s = dict(d.get("sendung") or {})
     s.update(netto=netto, max_laenge=max_laenge or None, verpackung=None, frachtpflichtig=None)
-    lht, hinweise = fracht.packvorschlag([(netto, max_laenge)], d["snapshot"].get("lht", []),
-                                         d.get("lht_standard"), d.get("lht_langgut"))
+    if d.get("paletten") is not None and positionen is not None:
+        lht, hinweise = paletten.ladung(positionen, werte, d["snapshot"].get("lht", []), d.get("lht_standard"),
+                                        d.get("lht_langgut"), d["paletten"])
+    else:
+        lht, hinweise = fracht.packvorschlag([(netto, max_laenge)], d["snapshot"].get("lht", []),
+                                             d.get("lht_standard"), d.get("lht_langgut"))
     if lht:
         s["lht"] = lht
     else:
@@ -177,7 +194,7 @@ def stufe(kopf, positionen, werte):
     netto, laenge, fehlt = ware(positionen, werte)
     if fehlt:
         return None, "", f"Fracht nicht berechnet: Gewicht fehlt bei Pos. {', '.join(fehlt)}"
-    s, hinweise = sendung_der_menge(d, netto, laenge)
+    s, hinweise = sendung_der_menge(d, netto, laenge, positionen, werte)
     e = fracht.nachrechnen(d["snapshot"], s)
     if e.get("gesamt") is None:
         return None, "", "Fracht nicht berechnet: " + "; ".join(e.get("fehler") or ["–"])
