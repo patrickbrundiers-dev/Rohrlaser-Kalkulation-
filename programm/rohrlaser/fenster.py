@@ -1741,7 +1741,7 @@ class Hauptfenster(QMainWindow):
         if not such:
             return 0
         self.reiter.setCurrentWidget(self.angebote)
-        self.angebote.suche.setText(such)
+        self.angebote.suchen(such)
         return self.angebote.filter.rowCount()
 
     def meldung(self, text, fehler=False):
