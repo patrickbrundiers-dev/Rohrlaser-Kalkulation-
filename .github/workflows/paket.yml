@@ -113,7 +113,7 @@ jobs:
     runs-on: windows-latest
     needs: [tests]
     if: github.event_name == 'workflow_dispatch'   # Windows-Minuten zählen doppelt: nur von Hand (Sammel-Release)
-    timeout-minutes: 45
+    timeout-minutes: 90             # das Übersetzen des eigenen Codes (Cython) braucht zusätzlich Zeit
     permissions:
       contents: write         # Release „aktuell“ im eigenen Repository
       id-token: write         # Herkunftsnachweis (Build-Provenance)
@@ -130,6 +130,9 @@ jobs:
       # Kennwort des PFX aus dem Secret SIGNATUR_PFX_PASSWORT; ohne Secret das Kennwort des bisherigen Zertifikats
       # (es schützt nur den Secret-Inhalt selbst, siehe Audit B11; bei einem neuen Zertifikat eigenes Secret setzen)
       PFX_KENNWORT: ${{ secrets.SIGNATUR_PFX_PASSWORT || 'rohrlaser-signatur' }}
+      # Plan „Quellcode schützen“ Q3: übersetzte eigene Module (programm/kompilieren.py); die .spec-Dateien legen sie
+      # statt des Bytecodes in die .exe, „Programmordner prüfen --kompiliert“ bricht ab, wenn doch Bytecode drin ist
+      RL_KOMPILIERT: ${{ github.workspace }}\build_kompiliert
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -147,6 +150,10 @@ jobs:
         run: |
           pip install --no-binary pyinstaller --no-cache-dir pyinstaller==6.22.3
           python -c "import PyInstaller, os; b = os.path.join(os.path.dirname(PyInstaller.__file__), 'bootloader', 'Windows-64bit-intel'); print(os.listdir(b))"
+      - name: Eigenen Code übersetzen (Cython, kein lesbarer Bytecode in .exe und Update-Paketen)
+        run: |
+          pip install cython==3.2.4 setuptools==84.2.1
+          python programm/kompilieren.py "$env:RL_KOMPILIERT"
       - name: STEP-Import.exe bauen
         run: pyinstaller --noconfirm --clean programm/step_messung/step_messung.spec
       - name: STEP-Import.exe gegen Python-Messung prüfen
@@ -254,7 +261,7 @@ jobs:
           UPDATE_SIGNATUR: ${{ secrets.UPDATE_SIGNATUR }}
           SIGNATUR_PFX_PASSWORT: ${{ secrets.SIGNATUR_PFX_PASSWORT }}
           UPDATES_TOKEN: ${{ secrets.UPDATES_TOKEN }}
-        run: python programm/release_pruefen.py pruefen dist/Rohrlaser-Angebotskalkulation
+        run: python programm/release_pruefen.py pruefen dist/Rohrlaser-Angebotskalkulation --kompiliert
       - name: Update-Dateien erzeugen (Dateiliste Update.json mit Prüfsummen, Pakete, Signatur Update.json.sig)
         env:
           # privater Ed25519-Schlüssel (Base64), erzeugt im Lizenz-Werkzeug („Update-Schlüssel erzeugen …“); ohne ihn
@@ -536,3 +543,36 @@ jobs:
             if ($gebraucht -notcontains $name) { gh release delete-asset $tag $name --yes --repo $repo }
           }
           $global:LASTEXITCODE = 0
+      - name: Download für Kunden (Repository Rohrlaser-Updates, Release "download"; ohne Zugriff auf den Quellcode)
+        # Plan „Quellcode schützen“ Q2: Setup, ZIP und Anleitungen auch im öffentlichen Update-Repository, damit
+        # Kunden und Kollegen nichts aus diesem Repository brauchen (auch wenn es privat ist). Nur fertige, signierte
+        # Programmdateien; Release-Zusammenfassung (Commit) und Lizenz-Werkzeug bleiben im Release „aktuell“.
+        if: github.ref == 'refs/heads/main' && inputs.kanal != 'test'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
+        run: |
+          $repo = $env:UPDATE_REPO
+          $version = (Get-Content -Raw -Encoding utf8 update_dateien/Update.json | ConvertFrom-Json).version
+          $text = "Rohrlaser Angebotskalkulation $version (Stand $env:RL_STAND).`n`n" +
+                  "Rohrlaser-Angebotskalkulation-Setup.exe: Installation für den angemeldeten Benutzer (keine Adminrechte).`n" +
+                  "Rohrlaser-Angebotskalkulation.zip: dieselbe Version portabel ohne Installation.`n" +
+                  "Vorher: Rechtsklick → Eigenschaften → „Zulassen“, oder Windows-Vertrauen-einrichten.cmd in denselben Ordner laden und doppelklicken.`n" +
+                  "Danach kommen Updates automatisch (Hilfe → Nach Updates suchen). Nutzung nur mit Lizenz, siehe Lizenzbedingungen.txt.`n" +
+                  "SHA256-Prüfsummen: *.sha256"
+          gh release view download --repo $repo *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create download --repo $repo --latest=false --title "Rohrlaser Angebotskalkulation (Download)" --notes $text
+            if ($LASTEXITCODE -ne 0) { throw "Release download in $repo lässt sich nicht anlegen (Token-Rechte prüfen)" }
+          }
+          Copy-Item programm/rohrlaser/Lizenzbedingungen.txt Lizenzbedingungen.txt
+          foreach ($datei in @("Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalkulation-Setup.exe.sha256",
+                               "Rohrlaser-Angebotskalkulation.zip", "Rohrlaser-Angebotskalkulation.zip.sha256",
+                               "Bedienungsanleitung.pdf", "Kurzanleitung.pdf", "Windows-Vertrauen-einrichten.cmd",
+                               "Lizenzbedingungen.txt")) {
+            gh release upload download $datei --repo $repo --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Hochladen von $datei nach download fehlgeschlagen" }
+          }
+          gh release edit download --repo $repo --notes $text
+          if ($LASTEXITCODE -ne 0) { throw "Beschreibung von download lässt sich nicht setzen" }
+          "Download: https://github.com/$repo/releases/tag/download"
