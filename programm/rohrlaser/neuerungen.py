@@ -26,7 +26,8 @@ NEUERUNGEN = [
                "so im 3D, wie sie gerechnet werden: aus den Eingaben, mit den Schlitzen und Nasen der "
                "Steckverbindungen. Schweißnähte als Raupe (Kehlnaht als Dreieck mit dem a-Maß, Stumpfnaht flach); "
                "fehlt der Nahtverlauf, kommt er aus dem Stoß der Rohre. Auch im Teile-Editor sind die Nasen jetzt "
-               "modelliert. [[baugruppe_baum]]"],
+               "modelliert. [[baugruppe_baum]]",
+     "3D der Schweißbaugruppe wie im Rohr-Editor: Nasen und Schlitze im Modell, Nähte als Raupe."],
     ["0.9.92", "<b>Lizenz-Werkzeug des Herstellers</b>: zeigt je Lizenz den Status (läuft ab, abgelaufen, gesperrt), "
                "erinnert 30 Tage vor Ablauf, verlängert eine Lizenz mit einem Klick, hat eine Kundenübersicht und lädt "
                "die Sperrliste direkt zum Update-Server hoch. Am Programm selbst ändert sich nichts.",
