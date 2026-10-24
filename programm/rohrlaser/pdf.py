@@ -627,7 +627,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
                       _z(m["gewicht"], 1)])
     tab = _tabelle(daten, [55 * mm, 55 * mm, 25 * mm, 25 * mm, 26 * mm], rechts=(2, 3, 4))
     tab.setStyle(TableStyle([("FONT", (3, 1), (3, -1), FETT, 8.5)]))
-    inhalt += [tab, Spacer(1, 4 * mm)]
+    inhalt += [tab, Spacer(1, 4 * mm)] + _laser_hinweise(wp.get("hinweise"))
     if wp.get("zukaufteile"):        # Bleche usw.: werden nicht gelasert, nur bereitgestellt
         daten = [_kopfzeile(["Pos.", "Artikelnummer", "Bezeichnung", "Zukaufteil", "Stück", "bereit"])]
         for z in wp["zukaufteile"]:
@@ -864,10 +864,20 @@ def _baugruppen_abschnitt(zeilen, breite):
     return out
 
 
-def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None):
+def _laser_hinweise(hinweise):
+    """Abschnitt 'Hinweise zum Werkstoff' (rechnen.laser_hinweise), leer ohne Hinweise."""
+    if not hinweise:
+        return []
+    daten = [_kopfzeile(["Werkstoff", "Hinweis für den Rohrlaser"])]
+    daten += [[_p(h["werkstoff"], S_FETT), _p(h["text"], S_KLEIN)] for h in hinweise]
+    return [_p("Hinweise zum Werkstoff", S_H2), _tabelle(daten, [45 * mm, 141 * mm], zebra=False), Spacer(1, 4 * mm)]
+
+
+def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,
+                    hinweise=None):
     """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
     ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
-    Querschnitte."""
+    Querschnitte, hinweise = rechnen.laser_hinweise (Laser-Hinweise der Werkstoffe)."""
     nr = kopf.get("nummer") or ""
     doc, leinwand = _dokument(pfad, f"Kalkulation {nr}", _fuss(einst, f"Kalkulation {nr}"), quer=True)
     breite = 273 * mm
@@ -913,6 +923,8 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
             hinweis += " * = Meterpreis von Hand (Fenster 'Material …' bzw. Spalte Materialpreis [€/m])."
         inhalt += [Spacer(1, 1.5 * mm), _p(hinweis, ParagraphStyle("mh", parent=S_KLEIN, textColor=GRAU)),
                    Spacer(1, 5 * mm)]
+    if hinweise:
+        inhalt += [CondPageBreak(30 * mm)] + _laser_hinweise(hinweise)
     # Zeiten und Kosten je Arbeitsschritt, nach Maschine, Personal und ohne Zeit geordnet (Schritte ohne Zeit und
     # Kosten ausgeblendet); parallele Personalzeit gekennzeichnet
     daten = [[_p(t, S_KOPF7) for t in ("Arbeitsschritt", "Art", "Menge", "Rüstzeit", "Zeit je Einheit", "Gesamtzeit",

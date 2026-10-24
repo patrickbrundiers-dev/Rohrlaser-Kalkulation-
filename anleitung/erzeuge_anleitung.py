@@ -1295,7 +1295,11 @@ def kapitel_angebot(i):
             "hat, rechnet mit dem <i>Stangenwechsel SN</i> der Maschine (Vorgabe 29 s, die Naht wird ausgerichtet), "
             "alle anderen Stangen mit dem normalen <i>Stangenwechsel</i> (Vorgabe 24 s). Beide Zeiten stehen je "
             "Maschine in den Stammdaten ([[stammdaten]]); der Reiter Zeiten zeigt die Aufteilung, z. B. "
-            "„3 × 24 s + 2 × 29 s (SN)“ ([[zeiten]]).")
+            "„3 × 24 s + 2 × 29 s (SN)“ ([[zeiten]]).",
+            "<b>Werkstoff ohne Naht</b>: hat der Werkstoff die Rohrart <i>nahtlos</i> oder <i>stranggepresst</i> "
+            "([[werkstoffe]]), entfällt eine Nahtvorgabe: die Position meldet <b>HINWEIS: Werkstoff … ohne "
+            "Schweißnaht – Nahtvorgabe entfällt</b>, das Teil dreht frei, es gibt keinen Stangenwechsel SN und keine "
+            "Naht der Lieferstange in der Materialanfrage.")
     i.abschnitt("Rückgängig, Kopieren und Einfügen", marke="rueckgaengig")
     i.tabelle(["Taste", "Wirkung im Angebot"], [
         ["Strg+Z / Strg+Y", "letzte Änderung zurücknehmen / wiederherstellen (bis 100 Schritte)"],
@@ -3410,7 +3414,9 @@ def kapitel_ausgabe(i, seiten, ablage):
          "geändert; Preis weicht vom verschickten Angebot ab", "HINWEIS",
          "Staffeln, Mindestauftragswert, Aktuelle Preise übernehmen …"],
         ["Kunde ohne E-Mail-Adresse; Lieferzeit leer; Kundenreferenz leer; Gültigkeit abgelaufen", "HINWEIS",
-         "Kunde bzw. Feld im Angebotskopf"]], [95, 22, 55])
+         "Kunde bzw. Feld im Angebotskopf"],
+        ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
+         "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
     i.genauer()
     i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
            "Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)</i>, Vorgabe 0). Gemeint ist der Gewinn aus dem "
@@ -3990,9 +3996,11 @@ def kapitel_stammdaten(i):
          "Abmessung A = Ø bzw. Breite, B = Höhe (nur Rechteckrohr). Endbeschnitt und Greiferrest nur bei "
          "Abweichung von der Maschine. Unbekannte Profile im Angebot legt das Programm aus der ID selbst an "
          "(RR/QR/RE-Schema)."],
-        ["Werkstoffe", "Werkstoff-ID, Kategorie (Stahl, Edelstahl, Aluminium), Dichte, Tonnenpreis, Text im Angebot",
+        ["Werkstoffe", "Werkstoff-ID, Kategorie (Stahl, Edelstahl, Aluminium, Buntmetall), Dichte, Tonnenpreis, Text im "
+         "Angebot, Rohrlaser-Eigenschaften",
          "Der Tonnenpreis ergibt den Preis je kg, je m und je Stange, wenn unter Preise nichts steht. Die Kategorie "
-         "ordnet die Auswahl im Angebot und liefert Schneiddaten, wenn der Werkstoff keine eigenen hat."],
+         "ordnet die Auswahl im Angebot und liefert Schneiddaten, wenn der Werkstoff keine eigenen hat; Schneidgas "
+         "und Vorschub-Faktor passen sie je Werkstoff an ([[werkstoffe]])."],
         ["Oberflächen", "Oberfläche (z. B. roh, K240, gestrahlt), Kategorie, Aufpreis [€/m], Text im Angebot",
          "Je Position wählbar, leer = roh. Der Aufpreis kommt je Meter Stange auf den Materialpreis."],
         ["Preise", "Preis je Profil + Werkstoff in €/kg, €/m oder €/Stange",
@@ -4168,16 +4176,18 @@ def kapitel_stammdaten(i):
             "<b>Maschine</b>: <i>RP-/Sonderprofile spannbar</i>, <i>Rüstzuschlag Sonderprofil</i> und "
             "<i>Mindestabstand Düse</i> in den Maschinen legen fest, ob die Maschine RP-Profile spannt, wie viel "
             "Rüstzeit je RP-Abmessung dazukommt und ab wann Innenkonturen unter dem Anschlag geprüft werden müssen.")
-    i.abschnitt("Werkstoffe und Oberflächen")
+    i.abschnitt("Werkstoffe und Oberflächen", marke="werkstoffe")
     i.bild("stamm_werkstoffe", "Einstellungen, Werkstoffe mit Kategorie", hoehe=100 * mm)
-    i.text("Werkstoff mit Kategorie (Stahl, Edelstahl, Aluminium), Dichte und Tonnenpreis. Oberflächen mit Aufpreis "
-           "je Meter.", kurz=True)
+    i.text("Werkstoff mit Kategorie (Stahl, Edelstahl, Aluminium, Buntmetall), Dichte, Tonnenpreis und "
+           "Rohrlaser-Eigenschaften (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis). Oberflächen mit "
+           "Aufpreis je Meter.", kurz=True)
     i.bild("stamm_oberflaechen", "Einstellungen, Oberflächen mit Beispiel-Aufpreisen", hoehe=80 * mm, kurz=False)
     i.genauer("Felder")
     i.tabelle(["Werkstoffe", "Bedeutung"], [
         ["<b>Werkstoff-ID</b>", "Schlüssel für Preise, Schneiddaten und Positionen, z. B. <i>S235-10219</i>"],
-        ["Kategorie", "Stahl, Edelstahl oder Aluminium (Liste in den Einstellungen). Im Angebot sind die Werkstoffe "
-                      "danach gruppiert; ohne eigene Schneiddaten gelten die der Kategorie."],
+        ["Kategorie", "Stahl, Edelstahl, Aluminium oder Buntmetall (Liste in den Einstellungen). Im Angebot sind die "
+                      "Werkstoffe danach gruppiert; ohne eigene Schneiddaten gelten die der Kategorie. Aluminium-"
+                      "Profile gelten ohne Angabe als scharfkantig (Außenradius 0)."],
         ["Werkstoff, Werkstoff-Nr., Norm / Qualität", "Bezeichnung, Nummer (z. B. 1.0039) und Norm, nur zur Info"],
         ["<b>Dichte [kg/dm³]</b>", "für Gewicht und Preis je kg"],
         ["Tonnenpreis [€/t]", "Materialpreis, wenn unter Preise nichts steht"],
@@ -4185,11 +4195,30 @@ def kapitel_stammdaten(i):
         ["Anfrage: Prüfbescheinigung, Anfrage: Herkunft EU, Anfrage: Maßtoleranzen nach Norm",
          "Anforderungen, die in der Materialanfrage unter dem Werkstoff stehen: Prüfbescheinigung 2.2, 3.1 oder 3.2 "
          "nach EN 10204, ja/nein für Herkunft EU und Maßtoleranzen nach Norm; leer = keine ([[materialanfrage]])"],
+        ["Rohrart", "geschweißt, nahtlos oder stranggepresst. Nahtlos und stranggepresst = ohne Schweißnaht: eine "
+                    "Nahtvorgabe der Teile entfällt (HINWEIS in der Position), die Teile drehen frei und die Stangen "
+                    "rechnen ohne Stangenwechsel SN; die Materialanfrage nennt die Rohrart ([[schweissnaht]])"],
+        ["Schneidgas", "automatisch (leer) = N₂, solange es eine N₂-Zeile gibt, darüber O₂; <i>nur N₂</i> bzw. "
+                       "<i>nur O₂</i> nimmt nur Schneiddaten dieses Gases, z. B. verzinkt nur N₂, Kupfer nur O₂. Gibt "
+                       "es für die Wandstärke keine Zeile mit diesem Gas, meldet die Position „keine Schneiddaten“"],
+        ["Vorschub-Faktor", "z. B. 0,90: Vorschübe der Kategorie-Schneiddaten × Faktor (leer = 1). Eigene "
+                            "Schneiddaten-Zeilen des Werkstoffs gelten unverändert"],
+        ["Laser", "<i>nur Faser</i> für reflektierende Werkstoffe (Kupfer, Messing): auf einer CO₂-Maschine (Bemerkung "
+                  "oder Bezeichnung nennt CO₂) meldet die Position eine WARNUNG"],
+        ["Laser-Hinweis", "Hinweis für Arbeitsvorbereitung und Bediener, z. B. „Zinkdampf, Absaugung prüfen“. Er "
+                          "steht als Tooltip in der Werkstoffwahl, als HINWEIS im Angebots-Check ([[angebots_check]]) und "
+                          "unter „Hinweise zum Werkstoff“ in der Kalkulation und den Werkstattpapieren"],
         ["Bemerkung", "freier Text"]], [75, 190])
-    i.text("Vorbelegt sind Stahl (S235JRH, S355J2H, E235, E355), Edelstahl (1.4301, 1.4307, 1.4404, 1.4571, "
-           "1.4509) und Aluminium (EN AW-6060, 6063, 6082) mit Beispiel-Tonnenpreisen. Ältere Datendateien "
-           "bekommen beim ersten Start die fehlenden Werkstoffe dazu; vorhandene bleiben unverändert und erhalten "
-           "eine Kategorie (Dichte unter 4 = Aluminium, 1.4… = Edelstahl, sonst Stahl).")
+    i.text("Vorbelegt sind 29 Werkstoffe mit Beispiel-Tonnenpreisen: Stahl (S235JRH, S355J2H nach EN 10219 und "
+           "EN 10210, E195, E235, E355, DX51D+Z275 sendzimirverzinkt, P235TR1, P235GH nahtlos, S420MH, S460MH, "
+           "S355J2WH wetterfest), Edelstahl (1.4301, 1.4307, 1.4404, 1.4571, 1.4541, 1.4509, 1.4016, 1.4003, "
+           "1.4462 Duplex), Aluminium (EN AW-6060, 6063, 6082, 6061, 6005A) und Buntmetall (CuZn37, Cu-DHP), dazu "
+           "Rohrart, Schneidgas, Vorschub-Faktor und Hinweis als Richtwerte. Buntmetall hat Schneiddaten nur für die "
+           "Faserlaser T11 und LT7. Ältere Datendateien bekommen beim ersten Start die fehlenden Werkstoffe und die "
+           "Kategorie Buntmetall dazu; vorhandene Werkstoffe bleiben unverändert (die bisherigen Beispielwerkstoffe "
+           "erhalten nur ihre leeren Rohrlaser-Felder) und erhalten eine Kategorie (Dichte unter 4 = Aluminium, "
+           "1.4… = Edelstahl, CW…/Cu… = Buntmetall, sonst Stahl). Festgeschriebene Angebote behalten Schneidgas und "
+           "Vorschub-Faktor ihrer Werkstoffe.")
     i.tabelle(["Oberflächen", "Bedeutung"], [
         ["<b>Oberfläche</b>", "Name, z. B. <i>roh</i>, <i>K240</i>, <i>gestrahlt</i>; Auswahl in der Position"],
         ["Kategorie (leer = alle)", "für welche Werkstoffe die Oberfläche passt; sonst Warnung in der Position"],

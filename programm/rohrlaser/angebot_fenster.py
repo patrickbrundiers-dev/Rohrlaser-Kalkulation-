@@ -2155,7 +2155,8 @@ class AngebotSeite(QWidget):
             gueltig_bis(self.kopf, self.db.einstellung("gueltigkeit")), kalk_zeilen=zeilen,
             kunde=(self.db.kunde(kundennr) or {}) if kundennr else None, preis_abweichung=preis_abweichung,
             mindestmarge=self.db.einstellung("mindestmarge") or 0,
-            admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin))
+            admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin),
+            laser_hinweise=rechnen.laser_hinweise(self.positionen, self.k))
 
     def check_link(self, ziel):
         """„Hinspringen“ aus dem Angebots-Check (Übersicht oder Fenster); ziel wie angebot_check (ohne 'check:')."""
@@ -3542,7 +3543,8 @@ class AngebotSeite(QWidget):
             if self.ergebnis and self.ergebnis.get("stangen") else None
         return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
                                lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell,
-                                                             material, muster, self.k.profile))
+                                                             material, muster, self.k.profile,
+                                                             rechnen.laser_hinweise(self.positionen, self.k)))
 
     def csv_export(self, art="zip"):
         """CSV-Export in die Ablage: art 'zip' (Angebot_<Nr>.zip mit beiden Dateien), 'kopf' oder 'positionen'
