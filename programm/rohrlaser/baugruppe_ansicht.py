@@ -367,7 +367,7 @@ def _raupe_stueck(pts, nahtart, groesse, flaechen):
 
     ringe = [[_add(q, d) for d in qs] for q, qs in zip(pts, quer)]
     # nur die freien Seiten: Kehlnaht die Nahtoberfläche (die Schenkel liegen an den Teilen), sonst beide Flanken
-    sichtbar = (1,) if nahtart == "Kehlnaht" else (1, 2)
+    sichtbar = [1] if nahtart == "Kehlnaht" else [1, 2]
     for r0, r1 in zip(ringe, ringe[1:]):
         mitte = tuple(sum(v[k] for v in r0 + r1) / 6 for k in range(3))
         for k in sichtbar:

@@ -22,10 +22,15 @@ site = sysconfig.get_paths()["purelib"]
 for ordner in glob.glob(os.path.join(site, "*ocp*.libs")):
     binaries += [(f, ".") for f in glob.glob(os.path.join(ordner, "*")) if os.path.isfile(f)]
 
-a = Analysis([os.path.join(SPECPATH, "step_messen.py")], pathex=[SPECPATH, os.path.dirname(SPECPATH)],
+# Startdatei nur mit dem Aufruf: die Messung selbst (step_messen) kann so übersetzt werden (kompilieren.py)
+a = Analysis([os.path.join(SPECPATH, "step_start.py")], pathex=[SPECPATH, os.path.dirname(SPECPATH)],
              binaries=binaries, datas=datas,
              hiddenimports=hiddenimports, excludes=["vtk", "vtkmodules", "tkinter", "matplotlib", "numpy.tests"],
              noarchive=False)
+# Plan „Quellcode schützen“ Q3: eigene Module als übersetzte Erweiterungsmodule statt Bytecode (kompilieren.py)
+if os.environ.get("RL_KOMPILIERT"):
+    from kompilieren import kompiliert_tauschen  # noqa: E402
+    print("kompiliert:", kompiliert_tauschen(a, os.environ["RL_KOMPILIERT"]), "Module")
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="STEP-Import", console=True, upx=False,
           version=versionsinfo("STEP-Import", "STEP-Messung der Rohrlaser Angebotskalkulation", workpath))

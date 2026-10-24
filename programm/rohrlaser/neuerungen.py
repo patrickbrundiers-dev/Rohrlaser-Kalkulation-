@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.97", "<b>3D-Ansichten: Blick, Perspektive, Darstellung, exaktes Messen</b> – in allen 3D-Fenstern gleich "
+    ["0.9.98", "<b>3D-Ansichten: Blick, Perspektive, Darstellung, exaktes Messen</b> – in allen 3D-Fenstern gleich "
                "(Teile-Editor, Positionen, STEP-Prüfdialog, Teilebaum, Schweißbaugruppe, Satz in 3D) mit Leiste und "
                "Ansichtswürfel. <i>Blick</i>: Isometrie, Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um "
                "90° drehen (Strg + Pfeiltasten). <i>Perspektivisch</i> umschaltbar (Vorgabe orthogonal, je Benutzer "
@@ -30,6 +30,13 @@ NEUERUNGEN = [
                "der echten Geometrie (Bohrung Ø 8 = 8,000), Abstand mit Δ längs/quer/hoch, Fläche–Fläche, "
                "Kante–Kante, Punkt–Fläche und Winkel in der kopierbaren Mess-Tafel. [[ansicht_3d_bedienung]]",
      "3D-Ansichten: sechs Seiten, Perspektive, Drahtgitter, verdeckte Kanten, Messen mit exakten Kernwerten."],
+    ["0.9.97", "<b>Programmcode geschützt</b>: Der eigene Programmcode wird jetzt zu Maschinencode übersetzt "
+               "ausgeliefert, in Programm und Online-Updates steckt kein lesbarer Quelltext mehr ([[updates]]). Neu "
+               "sind die <b>Lizenzbedingungen</b>: Das Setup zeigt sie vor dem Installieren, im Programm stehen sie "
+               "unter <i>Hilfe → Lizenzbedingungen …</i> ([[lizenz]]). Setup und ZIP gibt es zusätzlich im "
+               "<b>Download-Bereich</b> des Update-Repositorys ([[start]]). Das erste Update danach ist größer, weil "
+               "alle Programmdateien neu sind.",
+     "Programmcode übersetzt, Lizenzbedingungen, Download-Bereich ([[updates]], [[lizenz]])."],
     ["0.9.96", "<b>Dunkelmodus verbessert</b>: Eingabezellen sind im Dunkelmodus blaugrau statt olivbraun, berechnete "
                "Zellen etwas dunkler, sodass beides gut zu unterscheiden ist. Das Feld „STEP-Dateien hierher ziehen“, "
                "die Skizzen und Zeichnungen in Rohr-, Blech-, Naht- und Profil-Editor und die 3D-Ansicht sind jetzt "

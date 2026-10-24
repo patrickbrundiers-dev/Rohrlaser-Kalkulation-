@@ -40,7 +40,9 @@ def anzahl_prozesse(auftraege):
 def _befehl(adresse, schluessel):
     if getattr(sys, "frozen", False):           # Rohrlaser-Angebotskalkulation.exe (start.py)
         return [sys.executable, "--optimierer", adresse, schluessel]
-    return [sys.executable, "-m", "rohrlaser.parallel", adresse, schluessel]
+    # -c statt -m: geht auch, wenn dieses Modul übersetzt ist (kompilieren.py; -m startet nur Python-Quelltext)
+    return [sys.executable, "-c", "import sys; from rohrlaser.parallel import dienst; sys.exit(dienst(*sys.argv[1:]))",
+            adresse, schluessel]
 
 
 def _starten(n):

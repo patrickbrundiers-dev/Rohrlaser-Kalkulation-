@@ -1,0 +1,33 @@
+﻿Lizenzbedingungen Rohrlaser Angebotskalkulation
+
+Copyright (c) 2026 Patrick Brundiers. Alle Rechte vorbehalten.
+
+1. Gegenstand
+Diese Bedingungen gelten für das Programm „Rohrlaser Angebotskalkulation“ einschließlich STEP-Import, Bedienungsanleitung, Online-Updates und aller zugehörigen Dateien (zusammen „Software“). Mit der Installation, dem Entpacken oder der Nutzung der Software stimmen Sie diesen Bedingungen zu.
+
+2. Nutzungsrecht
+Sie erhalten ein einfaches, nicht übertragbares Recht, die Software im Rahmen einer gültigen Lizenz (Lizenzdatei) auf der darin genannten Zahl von Rechnern für eigene betriebliche Zwecke zu nutzen. Alle Rechte, die nicht ausdrücklich eingeräumt werden, bleiben bei Patrick Brundiers.
+
+3. Was nicht erlaubt ist
+Ohne vorherige schriftliche Zustimmung ist es nicht erlaubt,
+- die Software oder Teile davon zu verkaufen, zu vermieten, zu verleihen, weiterzugeben oder Dritten zugänglich zu machen,
+- die Software zu verändern, zu übersetzen, zurückzuentwickeln (Reverse Engineering), zu dekompilieren oder zu disassemblieren, soweit dies nicht nach § 69e UrhG zwingend erlaubt ist,
+- Schutzmechanismen wie Lizenzprüfung, Signaturprüfung oder Update-Prüfung zu umgehen oder zu entfernen,
+- Urheberrechtsvermerke, Kennzeichnungen oder diese Bedingungen zu entfernen oder zu verändern.
+
+4. Updates
+Updates werden über die Funktion „Nach Updates suchen“ bereitgestellt. Für Updates gelten ebenfalls diese Bedingungen.
+
+5. Ihre Daten
+Angebote, Kunden und Einstellungen bleiben auf Ihrem Rechner und gehören Ihnen. Die Software überträgt keine Angebots- oder Kundendaten an Patrick Brundiers.
+
+6. Gewährleistung und Haftung
+Die Software berechnet Angebote und Materialbedarf nach den eingegebenen Werten. Prüfen Sie Ergebnisse vor der Weitergabe an Kunden. Für Schäden haftet Patrick Brundiers nur bei Vorsatz und grober Fahrlässigkeit, bei Verletzung von Leben, Körper oder Gesundheit sowie nach dem Produkthaftungsgesetz. Im Übrigen ist die Haftung auf den vorhersehbaren, vertragstypischen Schaden begrenzt.
+
+7. Ende der Nutzung
+Das Nutzungsrecht endet mit Ablauf oder Widerruf der Lizenz oder bei einem Verstoß gegen diese Bedingungen. Ihre Daten bleiben auch danach lesbar.
+
+8. Recht
+Es gilt deutsches Recht. Sollte eine Bestimmung unwirksam sein, bleiben die übrigen wirksam.
+
+Kontakt: patrick.brundiers@gmail.com
