@@ -496,6 +496,31 @@ def main(ziel):
     foto.foto("biegerohr_rechner", d, [(d.editor.baum, 1), (d.skizze, 2), (d.editor.meldungen, 3)])
     d.reject()
 
+    # 7a2a1) Am 3D-Modell bearbeiten (Position nur für das Foto): Griffe, Maße und Schnittebenen am Langloch
+    qr40 = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"),
+                dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3"))
+    technik = dict(quelle=sw.QUELLE, a=dict(winkel=45, achse="über Höhe"), b={}, konturen=[
+        dict(art="Bohrung", anzahl=2, d=8.5, x=80, abstand=60),
+        dict(art="Langloch", anzahl=1, l=30, b=10, x=330, seite="vorne"),
+        dict(art="Bohrung", anzahl=1, d=8.5, x=230, seite="vorne")])
+    p_g = dict(id=None, pos=910, artikel="Strebe", profil_id=qr40["profil_id"], laenge=600, stueck=10,
+               technik=json.dumps(technik))
+    d = SchneidwegDialog(s, p_g, qr40, s.kopf, s.k, s.tabellen, db, s.positionen)
+    ed = d.editor
+    d.resize(1700, 820)
+    ed.modus_setzen("3D")
+    ed.tabelle_zeigen(False)
+    ed.darstellung_setzen("Mit Kanten")
+    QApplication.processEvents()
+    ed.waehlen("kontur:1")
+    d.ansicht3d.ansicht.zoom = 0.92
+    QApplication.processEvents()
+    foto.foto("editor_griffe", d.ansicht3d.ansicht, [])
+    ed.darstellung_setzen("Schattiert")             # gemerkte Einstellungen für die weiteren Fotos zurück
+    ed.modus_setzen("Beides")
+    ed.tabelle_zeigen(True)
+    d.reject()
+
     # 7a2a2) Knickrahmen im Schneidweg-Rechner (Position nur für das Foto, nichts gespeichert): 500 × 300 aus QR 40
     qr = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"),
               dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3"))
