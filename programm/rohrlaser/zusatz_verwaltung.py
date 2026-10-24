@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QToolButton, QVBoxLayout,
                                QWidget)
 
-from . import hilfe, rechnen, tastatur
+from . import hilfe, rechnen, stil, tastatur
 from .stammdaten import (TABELLE, ZEITEINHEITEN, ZUSATZ_EINHEIT, ZUSATZ_KATEGORIEN, ZUSATZART_TEXT, ZUSATZARTEN,
                          ZUSCHLAG_ARTEN, ZUSCHLAG_BASIS, zahl_als_text, zahl_aus_text)
 
@@ -730,7 +730,7 @@ class ZusatzVerwaltung(QWidget):
                     f.setBold(True)
                     it.setFont(f)
                 if not aktiv(z):
-                    it.setForeground(Qt.gray)
+                    it.setForeground(stil.farbe(GRAU))
                 if n == "art":
                     it.setToolTip(grundlage_text(z))
                 self.tabelle.setItem(r, c, it)

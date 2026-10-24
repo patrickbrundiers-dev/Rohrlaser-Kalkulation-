@@ -4159,15 +4159,17 @@ def kapitel_einstellungen(i):
         ["Ansicht", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)",
          "<i>Hell</i> (Vorgabe) wie bisher; <i>Dunkel</i>: dunkle Flächen, helle Schrift, für dunkle Räume und lange "
          "Arbeit am Bildschirm; <i>Hoher Kontrast</i>: dunklere Schrift und deutlich umrandete Knöpfe; <i>Wie "
-         "Windows</i>: hell oder dunkel wie in den Windows-Einstellungen. Der Tastaturfokus ist in Dunkel und Hoher "
-         "Kontrast blau bzw. schwarz umrandet. Zeichnungen (3D-Ansicht, Skizzen, Stangenbild) bleiben hell. Gilt ab "
-         "dem nächsten Start, nur an diesem Arbeitsplatz."],
+         "Windows</i>: hell oder dunkel wie in den Windows-Einstellungen (Personalisierung › Farben › Standard-App-"
+         "Modus). Im Dunkelmodus sind Eingabezellen blaugrau und berechnete Zellen dunkler, auch Skizzen, "
+         "Editoren und die 3D-Ansicht sind dunkel; Zeichnungen und alle PDF-Ausgaben bleiben weiß. Hell bleibt hell, "
+         "auch wenn Windows dunkel eingestellt ist. Der Tastaturfokus ist in Dunkel und Hoher Kontrast blau bzw. "
+         "schwarz umrandet. Gilt sofort, nur an diesem Arbeitsplatz."],
         ["Ansicht", "Schriftgröße [%] (90 bis 150)",
-         "Schrift im ganzen Programm größer oder kleiner (Vorgabe 100 %), z. B. 120 % für große Bildschirme. Gilt ab "
-         "dem nächsten Start, nur an diesem Arbeitsplatz."],
+         "Schrift im ganzen Programm größer oder kleiner (Vorgabe 100 %), z. B. 120 % für große Bildschirme. Gilt "
+         "sofort, nur an diesem Arbeitsplatz."],
         ["Ansicht", "Dichte (kompakt, normal, komfortabel)",
          "Zeilenhöhe der Tabellen und Abstand in Knöpfen und Feldern: <i>kompakt</i> zeigt mehr Zeilen, "
-         "<i>komfortabel</i> mehr Luft (Vorgabe normal). Gilt ab dem nächsten Start, nur an diesem Arbeitsplatz."],
+         "<i>komfortabel</i> mehr Luft (Vorgabe normal). Gilt sofort, nur an diesem Arbeitsplatz."],
         ["Lieferlängen", "Lieferlängen: beim Optimieren andere Lieferlängen vergleichen (z. B. 12 m)",
          "ja = beim Optimieren auch andere Lieferlängen planen und vergleichen ([[lieferlaengen]]); Vorgabe nein "
          "(schneller). Ist die Stangenlänge des Angebots nicht lieferbar, wird trotzdem mit einer lieferbaren Länge "
