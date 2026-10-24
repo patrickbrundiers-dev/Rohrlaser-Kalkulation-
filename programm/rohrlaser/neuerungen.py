@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.95", "<b>Satz in 3D</b>: Ein Satz aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen "
+               "als Stecksystem), steht im neuen Fenster <i>Satz in 3D …</i> (Rechtsklick auf eine Position) in der "
+               "Einbaulage der STEP-Datei. Dort "
+               "legen Sie Steckverbindungen an wie in der Schweißbaugruppe: zwei Rohre markieren (auch per Klick im "
+               "3D) oder <i>Alle Stöße stecken</i>; Schlitze und Nasen stehen sofort im Modell. <b>Längsnaht per "
+               "Klick</b>: <i>Längsnaht wählen</i> und die Fläche eines Rohrs anklicken – auch im 3D der "
+               "Schweißbaugruppe. [[satz_3d]]",
+     "Satz in 3D: Steckverbindungen für Sätze ohne Schweißbaugruppe, Längsnaht per Klick auf die Fläche."],
     ["0.9.94", "<b>3D der Schweißbaugruppe wie im Rohr-Editor</b>: Leiste mit Blick, Ansichtswürfel, Darstellung "
                "(auch Durchsichtig), <i>Nur Gewähltes</i>, <i>Nähte</i> ein/aus, Messen und Winkel. Die Rohre stehen "
                "so im 3D, wie sie gerechnet werden: aus den Eingaben, mit den Schlitzen und Nasen der "

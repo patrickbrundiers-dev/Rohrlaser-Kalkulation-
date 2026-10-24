@@ -12,6 +12,7 @@ B3 Schweißnähte als Raupe: Kehlnaht als Dreieck mit dem a-Maß (Schenkel a·�
 
 Gleiche Netzform wie ansicht3d (p, t, l); Koordinaten der Baugruppe = Dateilage der STEP-Datei.
 """
+import bisect
 import math
 
 from PySide6.QtCore import QEvent, QObject
@@ -388,7 +389,7 @@ def naehte_einsetzen(netz, naehte, flaechen=None):
     if flaechen is None:
         flaechen = Flaechen(netz)
     p, t = netz["p"], netz.setdefault("t", {})
-    linien, n = {}, 0
+    linien, n = {a: list(z) for a, z in (netz.get("l") or {}).items()}, 0     # z. B. Längsnähte NL bleiben
     for art, zuege, nahtart, groesse in naehte:
         for zug in zuege or ():
             linien.setdefault(art, []).append(zug)       # Linie bleibt: von weitem und verdeckt sichtbar
@@ -423,6 +424,71 @@ def verlauf_aus_stoss(naht, stoesse, koerper_netz):
     return out
 
 
+# ------------------------------------------------------------------ Satz in 3D: Teile und Längsnaht
+def teil_kennung(netz, bereiche, kennungen):
+    """Kennung je Dreieck (netz 'ti') aus den Bereichen von ansicht3d.baugruppe: kennungen[Nummer im Netz-Liste],
+    damit ein Klick auf eine Fläche sein Teil findet. Ändert netz."""
+    grenzen = sorted((von, bis, kennungen[nr]) for nr, von, bis, _ in bereiche)
+    starts = [g[0] for g in grenzen]
+
+    def von(i):
+        k = bisect.bisect_right(starts, i) - 1
+        return grenzen[k][2] if k >= 0 and i < grenzen[k][1] else None
+    netz["ti"] = {art: [von(idx[n]) for n in range(0, len(idx) - 2, 3)] for art, idx in netz["t"].items()}
+    return netz
+
+
+def _spannen(netz):
+    """(halbe Breite X, halbe Höhe Y, z von, z bis) eines Netzes im Rohrsystem."""
+    p = netz.get("p") or [0, 0, 0]
+    xs, ys, zs = p[0::3], p[1::3], p[2::3]
+    return (max(xs) - min(xs)) / 2, (max(ys) - min(ys)) / 2, min(zs), max(zs)
+
+
+def _hochkant(netz, form):
+    """True, wenn die Breitseite eines Rechteckrohrs im Rohrsystem senkrecht steht (Bezug der Naht: Breitseite oben,
+    naht.py)."""
+    bx, by, _, _ = _spannen(netz)
+    return form == "Rechteckrohr" and by > bx + 0.5
+
+
+def laengsnaht_winkel(punkt, lage, netz, form):
+    """Nahtwinkel (naht.py: von Ende A gesehen 0° oben, 90° rechts, im Bezug Breitseite oben) für einen Klick auf die
+    Fläche eines Rohrs: Quadrat-/Rechteckrohr die Mitte der angeklickten Wand, Rundrohr auf 1° gerundet. None ohne
+    Lage oder auf der Achse."""
+    if not lage or len(lage) != 9:
+        return None
+    o, x, y, _ = _lage_achsen(lage)
+    d = _sub(punkt, o)
+    lx, ly = _dot(d, x), _dot(d, y)
+    if math.hypot(lx, ly) < 1e-6:
+        return None
+    if form in ("Quadratrohr", "Rechteckrohr"):
+        bx, by, _, _ = _spannen(netz)
+        lx, ly = lx / max(bx, 1e-6), ly / max(by, 1e-6)        # Wand: größter Anteil am halben Querschnitt
+        lx, ly = (lx, 0.0) if abs(lx) >= abs(ly) else (0.0, ly)
+    w = math.degrees(math.atan2(-lx, ly))
+    if _hochkant(netz, form):
+        w -= 90.0
+    return round(w % 360.0, 0 if form != "Rundrohr" else 1) % 360.0
+
+
+def laengsnaht_linie(lage, netz, winkel, form):
+    """Längsnaht (Winkel wie laengsnaht_winkel) als Linie über die ganze Länge des Rohrs in der Dateilage, knapp
+    außen auf der Wand (wie die Linie NL des Rohr-Editors). [x, y, z, x, y, z] oder None."""
+    if winkel is None or not lage or len(lage) != 9 or not netz.get("p"):
+        return None
+    bx, by, z0, z1 = _spannen(netz)
+    w = math.radians(float(winkel) + (90.0 if _hochkant(netz, form) else 0.0))
+    ux, uy = -math.sin(w), math.cos(w)
+    if form == "Rundrohr":
+        f = max(bx, by)
+    else:
+        f = min(bx / abs(ux) if abs(ux) > 1e-9 else 1e18, by / abs(uy) if abs(uy) > 1e-9 else 1e18)
+    f += 0.4
+    return [round(c, 3) for z in (z0, z1) for c in in_lage((ux * f, uy * f, z), lage)]
+
+
 # ------------------------------------------------------------------ B1 Bedienung
 class _Groesse(QObject):
     """Würfel bei jeder Größenänderung der 3D-Ansicht in die Ecke setzen."""
@@ -452,19 +518,9 @@ class BaugruppenAnsicht(QWidget):
         self.ansicht, self.info = self.d3.ansicht, self.d3.info
         self.nur_gewaehlt, self.naehte = False, True
         leiste = QWidget()
-        ll = QHBoxLayout(leiste)
+        self._leiste = ll = QHBoxLayout(leiste)
         ll.setContentsMargins(0, 0, 0, 0)
-
-        def knopf(text, tipp, umschalter=False, wenn=None):
-            k = QToolButton()
-            k.setText(text)
-            k.setToolTip(tipp)
-            k.setCheckable(umschalter)
-            k.setAutoRaise(False)
-            if wenn is not None:
-                (k.toggled if umschalter else k.clicked).connect(wenn)
-            ll.addWidget(k)
-            return k
+        knopf = self.knopf
         blick = QMenu(self)
         for text, (g, n) in (("Schräg", Ansicht3D.GRUND), ("Vorn", (0.0, 0.0)), ("Oben", (0.0, 1.5)),
                              ("Seite", (-1.5708, 0.0))):
@@ -498,6 +554,19 @@ class BaugruppenAnsicht(QWidget):
         self.wuerfel = Ansichtswuerfel(self.ansicht)
         self.ansicht.installEventFilter(_Groesse(self.wuerfel))
         self.ansicht.gemessen.connect(lambda _: self._mass_zeigen())
+
+    def knopf(self, text, tipp, umschalter=False, wenn=None):
+        """Knopf der Leiste (vor der Maßanzeige); der Besitzer ergänzt so eigene Werkzeuge (Satz in 3D)."""
+        k = QToolButton()
+        k.setText(text)
+        k.setToolTip(tipp)
+        k.setCheckable(umschalter)
+        k.setAutoRaise(False)
+        if wenn is not None:
+            (k.toggled if umschalter else k.clicked).connect(wenn)
+        mass = getattr(self, "mass", None)
+        self._leiste.insertWidget(self._leiste.indexOf(mass) if mass is not None else self._leiste.count(), k)
+        return k
 
     def setzen(self, netz, titel="", info=""):
         """Netz zeigen; die Blickrichtung bleibt, wenn schon eins da war (Auswahl im Baum, Nähte ein/aus)."""
