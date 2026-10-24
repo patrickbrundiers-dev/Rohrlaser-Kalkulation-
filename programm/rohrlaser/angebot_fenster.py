@@ -2589,7 +2589,7 @@ class AngebotSeite(QWidget):
                    and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
         p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
-                            einstellungen=self._vk_einstellungen())
+                            einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id))
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
         werte = dict(d.ergebnis["position"], pos=p["pos"])
@@ -2615,7 +2615,8 @@ class AngebotSeite(QWidget):
                 return False
             p = self.positionen[ziel[0]]
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db(),
-                            nur_lesen=bool(self.fremd() or self.db.nur_lesen), einstellungen=self._vk_einstellungen())
+                            nur_lesen=bool(self.fremd() or self.db.nur_lesen), einstellungen=self._vk_einstellungen(),
+                            netze=self.db.netze(self.id))
         if fokus:
             d.fokus(fokus)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:

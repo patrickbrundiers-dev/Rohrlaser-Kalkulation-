@@ -82,6 +82,33 @@ def lade_netze(messwerte, ordner):
     return messwerte
 
 
+def netz_mit_lagen(messwerte, gruppe):
+    """Netz der Position aus gleichen Körpern (gruppe = Indizes in messwerte, der erste ist das Muster): dazu
+    'lagen' = Einbaulage jedes gleichen Körpers derselben Datei und 'koerper' = ihre Körpernummern, damit der
+    Baugruppen-Editor die ganze Baugruppe in 3D zeigt und Nahtgruppen ihren Teilen zuordnet (D1). Ergebnis: gepackte
+    Bytes wie '_netz'."""
+    from .ansicht3d import entpacken, packen
+    m0 = messwerte[gruppe[0]]
+    netz = entpacken(m0["_netz"])
+    if not netz:
+        return m0["_netz"]
+    lagen, koerper = [], []
+    for j in gruppe:
+        m = messwerte[j]
+        if m.get("datei") != m0.get("datei"):
+            continue
+        lage = (entpacken(m["_netz"]) or {}).get("lage") if j != gruppe[0] and m.get("_netz") else netz.get("lage")
+        if lage and len(lage) == 9:
+            lagen.append(lage)
+        if m.get("koerper") not in (None, ""):
+            koerper.append(str(m["koerper"]))
+    if len(lagen) > 1:
+        netz["lagen"] = lagen
+    if koerper:
+        netz["koerper"] = koerper
+    return packen(netz)
+
+
 def _z(m, name):
     try:
         return float(m.get(name) or 0)
@@ -1104,7 +1131,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                      stueck=stk or None, gewicht_teil=blech_gewicht(b, wst, k, (blech_daten or {}).get("werkstoffe")),
                      technik=technik, _zukauf=verweis)
             if m.get("_netz"):
-                p["_netz"] = m["_netz"]
+                p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
             if not wst:
                 hinweise.append("Werkstoff offen")
@@ -1139,8 +1166,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                      einstiche=int(_z(m, "konturen")) + (rechnen.einstiche_ende(form) - 1) * enden_n,
                      innen=round(_z(m, "innen"), 1), gravur=round(_z(m, "gravur"), 1),
                      bohrungen=bohrungen_text(m.get("bohrungen")) or None, gewinde_vorschlag=vorschlag or None)
-            if m.get("_netz"):
-                p["_netz"] = m["_netz"]         # 3D-Ansicht; speichert der Aufrufer nach position_neu
+            if m.get("_netz"):                 # 3D-Ansicht; speichert der Aufrufer nach position_neu
+                p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             p.update(gehrungen(m))
             mit_3d = bool(m.get("_d3", d3))
             rechner = rechner_eingaben(m, form, (profile.get(pid) or {}).get("a") or m.get("abm_a"),

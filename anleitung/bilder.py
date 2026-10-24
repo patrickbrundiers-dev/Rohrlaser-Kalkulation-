@@ -854,6 +854,24 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("step_satz_positionen", f, [(s3.pos_ansicht, 1)])
 
+    # 11a2) Strukturbaum mit 3D im Baugruppen-Editor (D1): Teile des Gestells, ein Teil in einer Unterbaugruppe
+    from rohrlaser.baugruppe_dialog import BaugruppeDialog
+    d = BaugruppeDialog(s3, dict(pos=900, stueck=4), s3.positionen, s3.tabellen, s3._saetze(),
+                        {q["id"] for q in s3.positionen}, netze=db.netze(s3.id))
+    d.bezeichnung.setText("Gestell T08")
+    seite_kn = d.knoten_neu("Seitenteil", 2)
+    erstes = next((t for t in d.teile if t.get("drin") and (t.get("je") or 1) % 2 == 0),
+                  next(t for t in d.teile if t.get("drin")))
+    d.teil_verschieben(erstes["_id"], seite_kn)
+    d.resize(1400, 700)
+    d.show()
+    d.reiter.setCurrentIndex(d.BAUM)
+    d.baum.setCurrentItem(d.baum_items[("knoten", seite_kn)])
+    QApplication.processEvents()
+    foto.foto("baugruppe_baum", d, [(d.baum, 1), ((d.baum.viewport(), d.baum.visualItemRect(
+        d.baum_items[("knoten", seite_kn)])), 2), (d.ansicht3d, 3)])
+    d.reject()
+
     # 11b) Bohrungen prüfen: Rechteckrohr mit Senkungen und Flowdrill (K04), Dialog per Doppelklick
     from rohrlaser.bohrbild_dialog import BohrbildDialog
     senk = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Senkungen und Flowdrill"))
