@@ -232,3 +232,18 @@ assert dlg.tabelle.currentRow() == r or r in {i.row() for i in dlg.tabelle.selec
 ed.waehlen("knickrahmen")
 dlg.reject()
 ok("R6 Teile-Editor: Gruppe Knicke (3 Knicke + Rahmen, Herkunft STEP), Auswahl zeigt die V-Zeile")
+
+# ------------------------------------------------------------------ R7 Bohrungen nur in einer Wand (Fehler 24.10.)
+# Bohrungen nur durch die Oberwand, gehäuft an einem Ende: die Hauptträgheitsachse kippt leicht aus der
+# Rahmennormalen, der Strahl quer zur Ebene traf die Wände nicht mehr an zmin/zmax und der Rahmen wurde nicht erkannt.
+# Die Normale kommt jetzt von der größten ebenen Wand.
+lang_ = schenkel(1200)
+for x in range(60, 400, 20):
+    lang_ = BRepAlgoAPI_Cut(lang_, BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(x, 20, 30), gp_Dir(0, 0, 1)), 4.0,
+                                                            20).Shape()).Shape()
+from step_knickrahmen import _ebene  # noqa: E402
+L_RAHMEN = koerper([lage(lang_, 0, 0, 0), lage(schenkel(800), 90, 1200, 0)])
+assert abs(_ebene(L_RAHMEN).Direction().Z()) > 1 - 1e-9
+mk, _ = messen(speichern([L_RAHMEN], "einseitig"))
+assert mk[0].get("knick_schenkel") and "2 Schenkel 1200,0 / 800,0 mm" in mk[0]["hinweise"], mk[0]["hinweise"]
+ok("R7 Bohrungen nur in der Oberwand: Rahmenebene aus der Wand, L-Rahmen 1200/800 erkannt")

@@ -19,7 +19,7 @@ from OCP.BRepGProp import BRepGProp
 from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism
 from OCP.GProp import GProp_GProps
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
-from OCP.TopAbs import TopAbs_SOLID
+from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
 from OCP.gp import gp_Ax3, gp_Dir, gp_Lin, gp_Pnt, gp_Trsf, gp_Vec
 
 import step_geometrie as g
@@ -29,18 +29,32 @@ TOL = 0.15              # mm: gleiche Wand, gleiches Maß
 TOL_WINKEL = 1.5        # Grad: gleiche Knickwinkel
 BELEGT = 0.7            # Anteil einer Hüllseite mit Material: Schenkel
 DICKE_MIN = 5.0         # mm: kleinste Profilhöhe quer zur Ebene
+SNAP_GRAD = 2.0         # Grad: so weit darf die Trägheitsachse von der Wandnormale abweichen
 
 
 def _ebene(solid):
-    """System mit Z = Normale der Rahmenebene (Hauptträgheitsachse mit dem größten Moment), Ursprung im
-    Schwerpunkt."""
+    """System mit Z = Normale der Rahmenebene, Ursprung im Schwerpunkt. Grob die Hauptträgheitsachse mit dem größten
+    Moment; sind Bohrungen oder Ausschnitte nicht symmetrisch zur Mittelebene verteilt, kippt sie leicht (Bruchteile
+    eines Grads, bei 1 m Schenkel schon Zehntel mm). Deshalb genau: die Normale der flächengrößten ebenen Wand, die
+    höchstens SNAP_GRAD von der Achse abweicht (Ober- oder Unterwand des Rahmens)."""
     p = GProp_GProps()
     BRepGProp.VolumeProperties_s(solid, p)
     m = p.MatrixOfInertia()
     werte, vek = g._eigen3([[m.Value(i, j) for j in (1, 2, 3)] for i in (1, 2, 3)])
     k = max(range(3), key=lambda i: werte[i])
     n = gp_Dir(vek[0][k], vek[1][k], vek[2][k])
-    return gp_Ax3(p.CentreOfMass(), n)
+    best, gross = None, 0.0
+    for f in g._liste(solid, TopAbs_FACE):
+        pl = g._ebene(f)
+        if pl is None:
+            continue
+        d = pl.Axis().Direction()
+        if abs(d.Dot(n)) < math.cos(math.radians(SNAP_GRAD)):
+            continue
+        a = g._flaeche(f)
+        if a > gross:
+            best, gross = (d if d.Dot(n) > 0 else d.Reversed()), a
+    return gp_Ax3(p.CentreOfMass(), best or n)
 
 
 def _huelle(pts):
@@ -320,7 +334,6 @@ def messen(solid, datei="", koerper=1, netz=False):
 def _netz(solid, r):
     """3D-Ansicht des gefalteten Rahmens in Dateilage: ebene Flächen als Außenwand, die übrigen (Bohrungen,
     Ausschnitte) als Innenkontur."""
-    from OCP.TopAbs import TopAbs_FACE
     from OCP.TopExp import TopExp
     try:
         faces = g.TopTools_IndexedMapOfShape()
