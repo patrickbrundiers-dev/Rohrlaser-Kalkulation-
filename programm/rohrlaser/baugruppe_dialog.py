@@ -364,6 +364,13 @@ class BaugruppeDialog(QDialog):
             Spalte("_hilfe_vk", "Vorschlag", "anzeige", 200, anzeige=self._hilfe_text)],
             self.teile, self.aktualisieren, self._teil_herkunft)
         rechts.addWidget(self.teile_tab, 1)
+        gehrung = [z for z in self.teile if z["_q"].get("a_ende") or z["_q"].get("b_ende")]
+        if len(gehrung) >= 2:       # Knickrahmen nur im STEP-Prüfdialog (Patrick 24.10.2026: Lage je Rohr nötig)
+            self.knick_hinweis = QLabel("Rahmen aus Rohren mit Gehrung als Knickrahmen? STEP-Datei neu einlesen und "
+                                        "im Prüfdialog <i>Knickverbindung erstellen</i> wählen.")
+            self.knick_hinweis.setWordWrap(True)
+            self.knick_hinweis.setStyleSheet("color: #595959;")
+            rechts.addWidget(self.knick_hinweis)
         if self.fremd:
             rechts.addWidget(QLabel(f"{self.fremd} weitere Position(en) gehören zu einer anderen Baugruppe."))
         lay.addLayout(rechts, 3)

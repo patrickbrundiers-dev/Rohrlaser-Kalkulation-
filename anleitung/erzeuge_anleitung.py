@@ -2176,7 +2176,9 @@ def kapitel_optimieren(i):
             "Stoß und der Zusatzarbeit Knicken. Bohrungen und Konturen aller Rohre stehen an ihrer Stelle auf dem "
             "gestreckten Rohr. Die übrigen Rohre werden nicht einzeln übernommen (Bericht: <i>Schenkel des "
             "Knickrahmens …</i>). Die 3D-Ansicht zeigt den gefalteten Rahmen.",
-            "<b>Schweißbaugruppe</b>: Nahtkandidaten an den Knicken fallen weg, der Stoß bleibt als Vorschlag.",
+            "<b>Schweißbaugruppe</b>: Nahtkandidaten an den Knicken fallen weg, der Stoß bleibt als Vorschlag. Im "
+            "Baugruppen-Editor gibt es die Knickverbindung nicht (dort sind gleiche Rohre schon eine Position und ihre "
+            "Lage fehlt); er erinnert bei Rohren mit Gehrung daran, die STEP-Datei neu einzulesen.",
             "<b>Lösen</b>: Rechtsklick auf die Zeile → <b>Knickverbindung lösen</b>; die Rohre stehen wieder einzeln "
             "in der Liste.")
     i.abschnitt("Teile-Editor: Merkmale, Prüfmeldungen, Rückgängig", marke="teile_editor")
