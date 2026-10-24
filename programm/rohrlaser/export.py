@@ -358,6 +358,10 @@ def positionen_csv(pfad, pos_zeilen):
     _sicher_schreiben(pfad, csv_bytes(POSITION_SPALTEN, pos_zeilen))
 
 
+def baugruppen_csv(pfad, bg_zeilen):
+    _sicher_schreiben(pfad, csv_bytes(BAUGRUPPE_SPALTEN, bg_zeilen))
+
+
 def zip_schreiben(pfad, kopfzeile, pos_zeilen, bg_zeilen=None):
     """ZIP mit Angebotskopf.csv und Angebotspositionen.csv, mit Baugruppen dazu Schweissbaugruppen.csv."""
     puffer = io.BytesIO()

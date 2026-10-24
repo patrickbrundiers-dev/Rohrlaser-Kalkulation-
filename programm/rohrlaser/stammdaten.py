@@ -927,6 +927,9 @@ EINSTELLUNGEN = (
                 "ganz", 10, 0, 365),
     # je Angebot ein Ordner darin (angebotsordner.py): '2026-00042 Kunde', Fassungen als 'Fassung 2'
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "ordner", ""),
+    # CSV-Export (Patrick 24.10.2026): zuletzt gewählter Zielordner, nur dieser Arbeitsplatz
+    Einstellung("csv_ordner", "CSV-Export: zuletzt gewählter Ordner (leer = Ordner des Angebots)", "Ablage", "ordner",
+                ""),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",

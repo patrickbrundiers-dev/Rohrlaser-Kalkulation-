@@ -21,11 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.75", "<b>Zeichnung des Blechteils als PDF</b>: Im Blech-Editor (unten und im Menüband unter <i>Ausgabe</i>) "
+    ["0.9.76", "<b>Zeichnung des Blechteils als PDF</b>: Im Blech-Editor (unten und im Menüband unter <i>Ausgabe</i>) "
                "schreibt <i>Zeichnung als PDF …</i> eine maßstäbliche Zeichnung: Abwicklung bzw. Zuschnitt mit "
                "Außenmaßen und Biegelinien, beim Kantteil die Seitenansicht, dazu die Biegungen (Lage, Winkel, "
                "Richtung, Radius, Ausgleich) und die Innenkonturen mit Lage ([[blech_zeichnung]]).",
      "Zeichnung des Blechteils als PDF ([[blech_zeichnung]])"],
+    ["0.9.75", "<b>CSV-Export als einzelne Dateien</b>: <i>Ausgaben → CSV-Export</i> fragt nach dem Ordner (Start: "
+               "zuletzt gewählter Ordner) und speichert <i>&lt;Nr&gt; Angebotskopf.csv</i> und <i>&lt;Nr&gt; "
+               "Angebotspositionen.csv</i> einzeln statt als ZIP. In der Schrittanzeige wird <b>④ Verschickt</b> "
+               "erst grün, wenn auch der CSV-Export gemacht ist ([[csv_export]]).",
+     "CSV-Export einzeln in wählbaren Ordner; „Verschickt“ erst nach CSV-Export grün."],
     ["0.9.74", "<b>Steckverbindung anlegen</b>: Im Editor der Schweißbaugruppe gibt es den Reiter "
                "<i>Steckverbindungen</i>. <b>Steckverbindung hinzufügen</b> verbindet die zwei markierten Rohre "
                "(Aufnahme und Stecker), mit Lage x, Seite, Nasen, Nasenbreite, Spiel, Überstand, Wänden und Winkel; die "
