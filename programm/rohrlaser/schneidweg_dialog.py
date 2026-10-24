@@ -975,7 +975,11 @@ class SchneidwegDialog(QDialog):
             out["biegerohr"] = self.biegerohr
         if self.knick:
             out["knickrahmen"] = self.knick
-        return sw.v_ergaenzen(out, self.profil)
+        out = sw.v_ergaenzen(out, self.profil)
+        neu = knickrahmen.nachfuehren(out, self.profil) if self.knick else None
+        if neu:                 # Knick verschoben oder geändert: Schenkel folgen, gestreckte Länge bleibt
+            self.knick = out["knickrahmen"] = neu
+        return out
 
     # ------------------------------------------------------------------ Ergebnis
     def rechnen(self, *_):

@@ -2169,7 +2169,10 @@ def kapitel_optimieren(i):
             "V-Ausschnitte wieder heraus.",
             "<b>Teile-Editor</b> ([[teile_editor]]): Gruppe <b>Knicke</b> mit je Knick einem Eintrag (Knickwinkel, Lage, "
             "Stegwand) und dem Rahmen (Schenkel, offen/geschlossen, Herkunft STEP oder manuell). Ein Klick wählt den "
-            "V-Ausschnitt in Tabelle, Skizze und 3D; Prüfmeldungen zu einem Knick führen ebenso dorthin.")
+            "V-Ausschnitt in Tabelle, Skizze und 3D; Prüfmeldungen zu einem Knick führen ebenso dorthin.",
+            "<b>Knick verschieben</b> (Pfeile im 3D, Lage in der Tabelle) oder Knickwinkel ändern: Die Schenkel "
+            "folgen, die gestreckte Länge bleibt, der letzte Schenkel gleicht aus. Löschst du einen Knick, passt der "
+            "Rahmen nicht mehr; dann mit <b>Knickrahmen …</b> neu anlegen.")
     i.abschnitt("Knickverbindung aus Einzelrohren (STEP)", marke="knickverbindung")
     i.text("Ist der Rahmen in der STEP-Datei aus <b>einzelnen Rohren mit Gehrung</b> gezeichnet, schlägt der "
            "Prüfdialog über der Rohrliste <b>Knickrahmen möglich</b> vor. <b>Knickverbindung erstellen …</b> macht "
