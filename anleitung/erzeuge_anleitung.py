@@ -2402,8 +2402,15 @@ def kapitel_optimieren(i):
             "gewählte Kontur bzw. das Ende selbst hervorgehoben, im STEP-Modell der Bereich längs der Rohrachse. "
             "Beim Blech ist es die Kontur bzw. Biegelinie.",
             "<b>Messen</b> (<i>Ansicht → Messen</i>): Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt die "
-            "nächste Ecke des Modells und zeigt den Abstand in mm mit Δx, Δy und Δz. Noch einmal drücken beendet "
-            "das Messen.",
+            "nächste Ecke des Modells oder die <b>Mitte einer Kontur</b> (z. B. Bohrungsmitte) und zeigt den Abstand "
+            "in mm mit Δx, Δy und Δz. <b>Winkel</b>: drei Punkte anklicken, der mittlere ist der Scheitel. Jedes "
+            "fertige Maß <b>bleibt im 3D stehen</b>, bis <i>Maße löschen</i> gedrückt wird; noch einmal auf "
+            "<i>Messen</i> bzw. <i>Winkel</i> drücken beendet das Messen.",
+            "<b>Querschnitt</b> (<i>Ansicht → Skizze → Querschnitt</i>, Rohr): ein kleines Fenster zeigt das Rohr an einer "
+            "Stelle x quer geschnitten, von Ende A gesehen; Stelle mit Feld oder Schieber wählen. Konturen, die dort "
+            "durch die Wand gehen, sind als Lücke mit rotem Rand zu sehen (auch auf mehreren Wänden und bei Kopien am "
+            "Umfang), darunter die Zeilen. Die Stelle ist im 3D als gestrichelter Ring markiert. Die Abwicklung des "
+            "ganzen Mantels zeigt die Skizze (<i>Ansicht → Skizze → Abwicklung</i>).",
             "<b>Rückgängig</b> (Strg+Z) und <b>Wiederholen</b> (Strg+Y) nehmen Eingaben im Fenster zurück bzw. "
             "stellen sie wieder her, mit den gemessenen Werten. In einem Eingabefeld mit Cursor wirkt Strg+Z zuerst "
             "im Text.",

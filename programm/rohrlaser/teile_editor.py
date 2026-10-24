@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import biegerohr, dfm, editor_griffe, rechnen, rohr3d, schneidweg as sw, stil, symbole
-from .ansicht3d import DARSTELLUNGEN, SCHATTIERT, Ansicht3D
+from .ansicht3d import DARSTELLUNGEN, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
@@ -375,7 +375,7 @@ class EditorRahmen(QObject):
             a3.werkzeug_setzen(self.werkzeug)
             self._darstellung_laden()
             a3.angeklickt.connect(self._3d_geklickt)
-            a3.gemessen.connect(lambda w: self.mass.setText(f"Abstand {rechnen.zahl(w, 1)} mm"))
+            a3.gemessen.connect(lambda _w: self.mass.setText(a3.mess_text() or ""))
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:
@@ -517,10 +517,16 @@ class EditorRahmen(QObject):
             g = ans.gruppe("Skizze")
             g.widget(d.ansicht_wahl)
             g.knopf("Einpassen", None, lambda: d.skizze.einpassen(), gross=False)
+            self.schnitt_knopf = g.knopf("Querschnitt", None, self._schnitt, umschalter=True, gross=False,
+                                         tipp="Querschnitt an einer Stelle längs des Rohrs: Wand mit allen "
+                                              "Konturen, die dort schneiden; Stelle im 3D markiert")
         g = ans.gruppe("Messen")
-        self.messen_knopf = g.knopf("Messen", "messen", self._messen, umschalter=True,
-                                    tipp="In der 3D-Ansicht zwei Punkte anklicken (die nächste Ecke wird gefangen): "
-                                         "Abstand in mm")
+        self.messen_knopf = g.knopf("Messen", "messen", self._messen, umschalter=True, gross=False,
+                                    tipp="In der 3D-Ansicht zwei Punkte anklicken (die nächste Ecke oder Konturmitte "
+                                         "wird gefangen): Abstand in mm; das Maß bleibt stehen")
+        self.winkel_knopf = g.knopf("Winkel", None, self._winkel_messen, umschalter=True, gross=False,
+                                    tipp="Drei Punkte anklicken, der mittlere ist der Scheitel: Winkel in Grad")
+        g.knopf("Maße löschen", None, self._masse_loeschen, gross=False, tipp="Alle stehenden Maße im 3D entfernen")
         # Ausgabe
         g = aus.gruppe("Ausgabe")
         if rohr:
@@ -796,14 +802,44 @@ class EditorRahmen(QObject):
         a = getattr(self.d, "ansicht3d", None)
         return a.ansicht if a is not None else None
 
-    def _messen(self, an):
+    def _messen(self, an, art=None):
         a = self.ansicht()
         if a is None:
             return
+        andere = self.winkel_knopf if art is None else self.messen_knopf
+        if an and andere.isChecked():
+            andere.blockSignals(True)
+            andere.setChecked(False)
+            andere.blockSignals(False)
         if an:
             self.ansichten.setCurrentWidget(self.d.ansicht3d)
-        a.messen_setzen(an)
-        self.mass.setText("Zwei Punkte in der 3D-Ansicht anklicken" if an else "")
+        a.messen_setzen(an, art=art)
+        self.mass.setText(("Drei Punkte anklicken, der mittlere ist der Scheitel" if art == MESS_WINKEL
+                           else "Zwei Punkte in der 3D-Ansicht anklicken") if an else "")
+
+    def _winkel_messen(self, an):
+        self._messen(an, MESS_WINKEL)
+
+    def _masse_loeschen(self):
+        a = self.ansicht()
+        if a is not None:
+            a.masse_loeschen()
+        self.mass.setText("")
+
+    def _schnitt(self, an):
+        """Querschnitt-Fenster (editor_schnitt) ein/aus; die Stelle markiert das 3D."""
+        from . import editor_schnitt
+        if an:
+            if getattr(self, "schnitt_fenster", None) is None:
+                self.schnitt_fenster = editor_schnitt.SchnittFenster(self)
+                self.schnitt_fenster.geschlossen.connect(lambda: self.schnitt_knopf.setChecked(False))
+            self.schnitt_fenster.show()
+            self.schnitt_fenster.auffrischen()
+        elif getattr(self, "schnitt_fenster", None) is not None:
+            self.schnitt_fenster.hide()
+            a = self.ansicht()
+            if a is not None:
+                a.markieren(a.markiert)
 
     # -------------------------------------------------------------- Zustand und Rückgängig
     def zustand(self):
@@ -896,6 +932,8 @@ class EditorRahmen(QObject):
         self._modell_zeigen(z["e"])
         self._kacheln()
         self.eigenschaften.auffrischen()
+        if getattr(self, "schnitt_fenster", None) is not None and self.schnitt_fenster.isVisible():
+            self.schnitt_fenster.auffrischen()
 
     # -------------------------------------------------------------- Merkmale
     def _merkmale(self, z):

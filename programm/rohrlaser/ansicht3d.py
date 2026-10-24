@@ -71,6 +71,7 @@ KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (g
 KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
 GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = QColor("#B42318")
+SCHNITT = QColor("#1F4E78")          # Querschnitt-Stelle (editor_schnitt)
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
@@ -140,6 +141,19 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
     return (dict(p=punkte, t=dreiecke, l={}) if punkte else None), ohne
 
 
+MESS_ABSTAND, MESS_WINKEL = "Abstand", "Winkel"
+
+
+def winkel_bei(a, b, c):
+    """Winkel [°] am Punkt b zwischen den Strecken b→a und b→c."""
+    u = [a[i] - b[i] for i in range(3)]
+    w = [c[i] - b[i] for i in range(3)]
+    lu, lw = math.sqrt(sum(x * x for x in u)), math.sqrt(sum(x * x for x in w))
+    if lu < 1e-12 or lw < 1e-12:
+        return 0.0
+    return math.degrees(math.acos(max(-1.0, min(1.0, sum(u[i] * w[i] for i in range(3)) / (lu * lw)))))
+
+
 def _zahl(w):
     return f"{w:.1f}".replace(".", ",")
 
@@ -198,6 +212,7 @@ class Modell:
                     self.dreiecke_id.append(kn[n // 3] if n // 3 < len(kn) else None)
         self.linien = []
         self.linien_id = []                     # je Liniensegment: Merkmal (netz 'li', Teile-Editor) oder None
+        self.mitten = []                        # Mitte je Konturlinie (Messen fängt Kreismitten)
         normalen = netz.get("ln") or {}         # Normale je Linienzug (Blech), sonst radial zur Rohrachse
         kennung = netz.get("li") or {}
         for art, zuege in (netz.get("l") or {}).items():
@@ -206,6 +221,9 @@ class Modell:
                 n = (normalen.get(art) or [])[nr] if nr < len(normalen.get(art) or []) else None
                 kn = (kennung.get(art) or [])[nr] if nr < len(kennung.get(art) or []) else None
                 self.linien_id += [kn] * max(len(pk) - 1, 0)
+                if art in ("K", "G") and len(pk) >= 4:
+                    ring = pk[:-1] if pk[0] == pk[-1] else pk
+                    self.mitten.append(tuple(sum(q[i] for q in ring) / len(ring) for i in range(3)))
                 for a, b in zip(pk, pk[1:]):
                     if n is None:
                         m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
@@ -481,7 +499,10 @@ class Ansicht3D(QWidget):
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
-        self.mess_max = 2                       # Messen: 2 Punkte; Naht zeichnen (Baugruppe): beliebig viele
+        self.mess_max = 2                       # Messen: 2 Punkte, Winkel 3; Naht zeichnen (Baugruppe): beliebig viele
+        self.mess_art = MESS_ABSTAND
+        self.masse_fest = []                    # fertige Messungen [(Punkte, Text)]: bleiben stehen bis gelöscht
+        self.schnitt_linie = []                 # Querschnitt (editor_schnitt): Ring an der Stelle x
         self._druck = self._rechts = None
         self.darstellung, self.nur_gewaehlt = SCHATTIERT, False       # Darstellungsarten (A4)
         # Werkzeug des Teile-Editors (editor_griffe): zeichnet Griffe/Maße über das Bild und bekommt Maus und Tasten
@@ -557,17 +578,50 @@ class Ansicht3D(QWidget):
         self.markiert, self.markiert_z = set(ids or ()), z_bereich
         self.update()
 
-    def messen_setzen(self, an, punkte=2):
-        """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke), Abstand in mm. punkte = 0: Linienzug
-        mit beliebig vielen Punkten (Naht zeichnen), Signal gemessen nach jedem Punkt mit der Länge des Zugs."""
+    def messen_setzen(self, an, punkte=2, art=None):
+        """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke oder Konturmitte), Abstand in mm;
+        art MESS_WINKEL: drei Punkte, Winkel am mittleren. punkte = 0: Linienzug mit beliebig vielen Punkten (Naht
+        zeichnen), Signal gemessen nach jedem Punkt mit der Länge des Zugs. Fertige Messungen bleiben als Maß
+        stehen (masse_loeschen)."""
+        self.mess_art = art or MESS_ABSTAND
+        if self.mess_art == MESS_WINKEL and punkte:
+            punkte = 3
         self.messen, self.messpunkte, self.mess_max = bool(an), [], punkte or 0
         self.setCursor(Qt.CrossCursor if an else Qt.ArrowCursor)
         self.update()
 
+    def schnitt_setzen(self, punkte):
+        """Stelle des Querschnitts als Linienzug [(x, y, z)] hervorheben ([] = aus)."""
+        self.schnitt_linie = list(punkte or ())
+        self.update()
+
+    def masse_loeschen(self):
+        self.masse_fest, self.messpunkte = [], []
+        self.update()
+
     def abstand(self):
-        """Gemessener Abstand [mm] (Linienzug: Länge des Zugs) oder None."""
+        """Gemessener Abstand [mm] (Linienzug: Länge des Zugs) oder None (auch beim Winkel)."""
+        if self.mess_art == MESS_WINKEL:
+            return None
         if len(self.messpunkte) == 2 or (not self.mess_max and len(self.messpunkte) > 1):
             return sum(math.dist(a, b) for a, b in zip(self.messpunkte, self.messpunkte[1:]))
+        return None
+
+    def winkel(self):
+        """Gemessener Winkel [°] am mittleren von drei Punkten oder None."""
+        if self.mess_art != MESS_WINKEL or len(self.messpunkte) != 3:
+            return None
+        return winkel_bei(*self.messpunkte)
+
+    def mess_text(self, punkte=None):
+        """Ergebnis als Text: Abstand mit Δx/Δy/Δz bzw. Winkel; None solange unvollständig."""
+        pk = self.messpunkte if punkte is None else punkte
+        if len(pk) == 3:
+            return f"Winkel {_zahl(winkel_bei(*pk))}°"
+        if len(pk) == 2:
+            a, b = pk
+            return (f"Abstand {_zahl(math.dist(a, b))} mm (Δx {_zahl(abs(b[0] - a[0]))}, "
+                    f"Δy {_zahl(abs(b[1] - a[1]))}, Δz {_zahl(abs(b[2] - a[2]))})")
         return None
 
     def punkt_zurueck(self):
@@ -603,7 +657,7 @@ class Ansicht3D(QWidget):
         if self.messen:
             beste = None
             # Ecken des Netzes und Punkte der Schnittkonturen (Mitte zwischen zwei Konturen messen)
-            for v in itertools.chain(self.modell.punkte, (li[0] for li in self.modell.linien)):
+            for v in itertools.chain(self.modell.punkte, (li[0] for li in self.modell.linien), self.modell.mitten):
                 px, py, t = bild(v)
                 d = math.hypot(px - x, py - y)
                 if d <= 14 and (beste is None or (d - t * 1e-3) < beste[0]):
@@ -614,9 +668,12 @@ class Ansicht3D(QWidget):
                 return beste[1]                             # Linienzug: derselbe Punkt nochmal zählt nicht
             voll = self.mess_max and len(self.messpunkte) >= self.mess_max
             self.messpunkte = ([] if voll else self.messpunkte) + [tuple(beste[1])]
+            fertig = self.mess_max and len(self.messpunkte) == self.mess_max
+            if fertig:
+                self.masse_fest.append((list(self.messpunkte), self.mess_text()))
             self.update()
-            if len(self.messpunkte) == 2 or not self.mess_max:
-                self.gemessen.emit(self.abstand())
+            if fertig or not self.mess_max:
+                self.gemessen.emit(self.winkel() if self.mess_art == MESS_WINKEL else self.abstand())
             return beste[1]
         beste = None
         for nr, (a, b, _, _) in enumerate(self.modell.linien):
@@ -729,7 +786,8 @@ class Ansicht3D(QWidget):
         p.setPen(QColor("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
         p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
-                   ("Messen: zwei Punkte anklicken (fängt die nächste Ecke)" if self.mess_max else
+                   ("Winkel: drei Punkte anklicken, der mittlere ist der Scheitel" if self.mess_art == MESS_WINKEL
+                    else "Messen: zwei Punkte anklicken (fängt die nächste Ecke oder Konturmitte)" if self.mess_max else
                     "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
                    hinweis or
                    "Linke Maustaste drehen · rechte verschieben · Mausrad zoomen · Doppelklick Ausgangsansicht")
@@ -740,10 +798,15 @@ class Ansicht3D(QWidget):
             p.save()
             self.werkzeug.zeichnen(p, self.bildpunkt())
             p.restore()
-        if not (self.markiert or self.markiert_z or self.messpunkte):
+        if not (self.markiert or self.markiert_z or self.messpunkte or self.masse_fest or self.schnitt_linie):
             return
         bild = self.bildpunkt()
         p.setRenderHint(QPainter.Antialiasing, True)
+        if self.schnitt_linie:
+            p.setPen(QPen(SCHNITT, 2.5, Qt.DashLine))
+            pk = [bild(v) for v in self.schnitt_linie]
+            for a, b in zip(pk, pk[1:]):
+                p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
         p.setPen(QPen(MARKIERT, 4.0, Qt.SolidLine, Qt.RoundCap))
         z = self.markiert_z
         for nr, (a, b, _, _) in enumerate(self.modell.linien):
@@ -752,8 +815,11 @@ class Ansicht3D(QWidget):
                     (z is not None and z[0] - 1e-6 <= a[2] <= z[1] + 1e-6 and z[0] - 1e-6 <= b[2] <= z[1] + 1e-6):
                 pa, pb = bild(a), bild(b)
                 p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
-        if self.messpunkte:
-            pk = [bild(v) for v in self.messpunkte]
+        offen = [] if self.mess_max and len(self.messpunkte) == self.mess_max else [(self.messpunkte, None)]
+        for punkte, text in self.masse_fest + offen:
+            if not punkte:
+                continue
+            pk = [bild(v) for v in punkte]
             p.setPen(QPen(MESSEN, 2.0))
             for a, b in zip(pk, pk[1:]):
                 p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
@@ -761,12 +827,9 @@ class Ansicht3D(QWidget):
             for q in pk:
                 p.drawEllipse(QPointF(q[0], q[1]), 4, 4)
             p.setBrush(Qt.NoBrush)
-            if len(pk) == 2 and self.mess_max:
-                a, b = self.messpunkte
-                text = (f"Abstand {_zahl(math.dist(a, b))} mm (Δx {_zahl(abs(b[0] - a[0]))}, "
-                        f"Δy {_zahl(abs(b[1] - a[1]))}, Δz {_zahl(abs(b[2] - a[2]))})")
-                p.drawText(QRectF((pk[0][0] + pk[1][0]) / 2 + 8, (pk[0][1] + pk[1][1]) / 2 - 20, 360, 18),
-                           Qt.AlignLeft | Qt.AlignVCenter, text)
+            if text:
+                m = pk[1] if len(pk) == 3 else ((pk[0][0] + pk[1][0]) / 2, (pk[0][1] + pk[1][1]) / 2)
+                p.drawText(QRectF(m[0] + 8, m[1] - 20, 360, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
 
     def mousePressEvent(self, e):
         w = self.werkzeug

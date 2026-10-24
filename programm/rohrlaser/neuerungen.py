@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.82", "<b>Messen und Querschnitt im Teile-Editor</b>: Messen fängt auch Konturmitten, <i>Winkel</i> misst "
+               "aus drei Punkten, fertige Maße bleiben im 3D stehen bis <i>Maße löschen</i>. <i>Querschnitt</i> "
+               "zeigt das Rohr an einer Stelle x quer geschnitten mit allen Konturen, die dort durch die Wand gehen; "
+               "die Stelle ist im 3D markiert ([[teile_editor]]).",
+     "Messen: Konturmitten, Winkel, Maße bleiben; Querschnitt an Stelle x ([[teile_editor]])."],
     ["0.9.81", "<b>Eigenschaften je Kontur wie in AlmaCAM</b> (Teile-Editor, Rohr): Bezug der Lage (Mitte oder "
                "Kante, ab Ende A oder B; ab B bleibt der Abstand bei neuer Teilelänge), Drehwinkel der Kontur, Wände "
                "(beide durchgehend, alle vier Seiten, am Umfang verteilt – jede Kopie zählt im Schneidweg und ist in "
