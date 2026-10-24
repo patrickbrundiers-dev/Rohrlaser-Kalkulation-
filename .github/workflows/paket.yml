@@ -6,17 +6,23 @@
 # Aus demselben Programmordner entsteht Rohrlaser-Angebotskalkulation-Setup.exe (Inno Setup, Installation nur für den
 # Benutzer); das ZIP unterscheidet sich nur durch Portabel.ini (Daten neben dem Programm statt im Benutzerprofil).
 #
-# Actions-Minuten sparen: Pull Requests und Pushes auf main prüfen nur unter Linux (Tests, Anleitung bei PRs).
-# Der Windows-Build mit Release und Online-Update läuft nur, wenn der Workflow von Hand gestartet wird
-# (Actions > Paket > Run workflow, Zweig main) – einmal nach mehreren zusammen gemergten Pull Requests.
+# Actions-Minuten sparen (24.10.2026): Pull Requests prüfen nur unter Linux in einem Job (Tests, ruff, Anleitung),
+# Entwurfs-PRs gar nicht (erst bei „Ready for review“), und je PR nur der neueste Lauf (ältere werden abgebrochen).
+# Ein Push auf main startet nichts mehr – der Stand ist im PR schon geprüft. Der Windows-Build mit den langsamen Tests,
+# Release und Online-Update läuft nur, wenn der Workflow von Hand gestartet wird (Actions > Paket > Run workflow,
+# Zweig main) – einmal nach mehreren zusammen gemergten Pull Requests (Sammel-Release).
 # Von einem anderen Zweig gestartet, baut und prüft er das Paket nur, ohne zu veröffentlichen.
 name: Paket
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
+
+# PR: neuer Push bricht den alten Lauf ab. Von Hand: Läufe nacheinander, damit Dateiliste und Pakete zusammenpassen.
+concurrency:
+  group: paket-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
@@ -24,6 +30,8 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    timeout-minutes: 30            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,10 +39,14 @@ jobs:
       - name: Programm geändert, Anleitung auch? (sonst Begründung in einer Commit-Nachricht)
         if: github.event_name == 'pull_request'
         run: python3 tests/pruefe_anleitung_geaendert.py "origin/${{ github.base_ref }}"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements*.txt', 'programm/requirements.txt') }}
       - name: Python-Pakete
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
           # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py
           sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
@@ -53,7 +65,7 @@ jobs:
         run: |
           /usr/bin/python3 -m pip install --break-system-packages -r requirements-dev.txt
           /usr/bin/python3 -m ruff check programm tests werkzeuge anleitung
-      - name: Alle Tests parallel (tests/alle.py; langsame Tests nur auf main bzw. von Hand)
+      - name: Alle Tests parallel (tests/alle.py; langsame Tests nur beim Sammel-Release von Hand)
         run: /usr/bin/python3 tests/alle.py ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY"
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
@@ -67,19 +79,8 @@ jobs:
           name: Abnahmeprotokoll
           path: Abnahmeprotokoll.md
           retention-days: 90
-
-  # Die Bedienungsanleitung entsteht nur hier, aus dem aktuellen Programm (Bildschirmfotos) und
-  # anleitung/erzeuge_anleitung.py; sie liegt nicht im Repository. Das Windows-Paket nimmt genau diese PDF.
-  anleitung:
-    runs-on: ubuntu-24.04
-    if: github.event_name != 'push'   # auf main nach dem Merge schon im PR geprüft, gebraucht nur für Windows
-    steps:
-      - uses: actions/checkout@v4
-      - name: Python-Pakete
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
-          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
+      # Die Bedienungsanleitung entsteht nur hier, aus dem aktuellen Programm (Bildschirmfotos) und
+      # anleitung/erzeuge_anleitung.py; sie liegt nicht im Repository. Das Windows-Paket nimmt genau diese PDF.
       - name: Bedienungsanleitung erzeugen (Verweise, Bildschirmfotos, alle Fotos verwendet)
         env:
           QT_QPA_PLATFORM: offscreen
@@ -90,16 +91,14 @@ jobs:
           path: |
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
-          retention-days: 30
+          retention-days: ${{ github.event_name == 'pull_request' && 7 || 30 }}
+
 
   windows:
     runs-on: windows-latest
-    needs: [tests, anleitung]
+    needs: [tests]
     if: github.event_name == 'workflow_dispatch'   # Windows-Minuten zählen doppelt: nur von Hand (Sammel-Release)
-    # Veröffentlichungen auf main nacheinander, damit Dateiliste und Pakete zusammenpassen
-    concurrency:
-      group: paket-${{ github.ref }}
-      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+    timeout-minutes: 45
     env:
       RL_STAND: ${{ github.run_number }}     # Stand des Online-Updates, auch 4. Stelle der Dateiversion
       # Online-Update aus einem öffentlichen Repository (dieses ist privat, Release-Dateien ohne Anmeldung 404);
@@ -346,12 +345,6 @@ jobs:
           $h = (Get-FileHash -Algorithm SHA256 Rohrlaser-Angebotskalkulation-Setup.exe).Hash
           "$h  Rohrlaser-Angebotskalkulation-Setup.exe" | Set-Content -Encoding ascii Rohrlaser-Angebotskalkulation-Setup.exe.sha256
           Get-Content Rohrlaser-Angebotskalkulation-Setup.exe.sha256
-      - uses: actions/upload-artifact@v4
-        continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
-        with:
-          name: Rohrlaser-Angebotskalkulation
-          path: dist/Rohrlaser-Angebotskalkulation/
-          retention-days: 3           # rund 500 MB; das fertige Paket liegt ohnehin im Release
       - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP)
         if: github.ref == 'refs/heads/main'
         shell: pwsh
