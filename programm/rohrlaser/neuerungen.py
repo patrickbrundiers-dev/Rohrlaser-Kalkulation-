@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.47", "<b>Gemeinsamer Nummernkreis</b>: Angebotsnummern ohne Kürzel, <b>2026-00001</b>, 2026-00002 … für "
+     "alle Mitarbeiter gemeinsam; der Zähler läuft über den Jahreswechsel weiter. Jede Nummer wird im gemeinsamen "
+     "Ordner reserviert, so kommt keine doppelt vor, auch wenn zwei gleichzeitig ein Angebot anlegen. Ist der Ordner "
+     "nicht erreichbar, gibt es eine vorläufige Nummer (V-PB-1), die endgültige kommt beim nächsten Abgleich; "
+     "Angebots-PDF und Materialanfrage erst mit endgültiger Nummer. Das Kürzel bleibt als Bearbeiter, ältere "
+     "Nummern bleiben ([[mehrere_arbeitsplaetze]]).",
+     "Gemeinsamer Nummernkreis 2026-00001 ohne Kürzel, keine Nummer doppelt ([[mehrere_arbeitsplaetze]])."],
     ["0.9.46", "<b>Neue Fassung</b>: <i>Datei → Neue Fassung des Angebots</i> oder der Haken im Dialog Kopieren legt "
                "das Angebot mit gleicher Nummer und Zusatz -2, -3 … an: gleicher Kunde, heutiges Datum, aktuelle "
                "Preise, Positionen und Staffeln. Die alte Fassung steht auf <b>Ersetzt durch …</b> und zählt in "
