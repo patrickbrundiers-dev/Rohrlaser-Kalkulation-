@@ -8,6 +8,7 @@
 - R4 Prüfdialog: eine Zeile „Knickrahmen (3 Knicke) aus einem Körper“ mit der gestreckten Länge, bearbeiten.
 - R5 gestreckt gezeichnet (gerades Rohr mit drei V-Ausschnitten, Enden 45°): Knickwinkel, Schenkel 500/300/500/300,
   geschlossen; Übernahme mit V-Ausschnitten statt Sonderkonturen und Knicken × 3; ein Schlitz ist kein V.
+- R6 Teile-Editor: Gruppe „Knicke“ mit Rahmen und je Knick einem Eintrag (Herkunft STEP), Klick wählt die V-Zeile.
 
 Aufruf: python tests/test_knickrahmen_koerper.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -144,6 +145,7 @@ assert zu["name"] == kn.ZUSATZ_KNICKEN and zu["menge"] == 3
 assert "Knickrahmen aus einem Körper" in "; ".join(erg["bericht"])
 from rohrlaser.ansicht3d import entpacken  # noqa: E402
 assert entpacken(p["_netz"])["p"] and entpacken(p["_netz"])["lage"]
+TECHNIK_R2 = p["technik"]
 ok("R2 Übernahme: 1592,7 mm, 3 V-Ausschnitte, Bohrung am Schenkel, Knicken × 3, Herkunft STEP-Körper, Netz")
 
 # ------------------------------------------------------------------ R3 offener U-Rahmen
@@ -209,3 +211,24 @@ schlitz, _ = messen(speichern([gestreckt(False)], "schlitz"))
 assert not kv.v_ausschnitte(schlitz[0]) or not kv.koerper_vorbereiten(schlitz[0])
 ok("R5 gestreckt gezeichnet: β 90°, Schenkel 500/300/500/300, geschlossen, V-Ausschnitte statt Sonderkonturen, "
    "Knicken × 3; Schlitz kein V")
+
+# ------------------------------------------------------------------ R6 Teile-Editor, Gruppe Knicke
+from rohrlaser import teile_editor as te  # noqa: E402
+from rohrlaser.schneidweg_dialog import SchneidwegDialog  # noqa: E402
+e = sw.lesen(TECHNIK_R2)
+knicke = [x for x in te.merkmale_rohr(e, 1592.7) if x.gruppe == "Knicke"]
+assert len(knicke) == 4 and all(x.herkunft == te.STEP for x in knicke), knicke
+assert knicke[-1].id == "knickrahmen" and "4 Schenkel 500 / 300 / 500 / 300" in knicke[-1].text, knicke[-1].text
+assert not any(x.gruppe == "Innenkonturen" and "V-Ausschnitt" in x.text for x in te.merkmale_rohr(e, 1592.7))
+k_ = db.kontext()
+pd = dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=1592.7, stueck=10, technik=TECHNIK_R2)
+dlg = SchneidwegDialog(None, pd, k_.profile["QR 40x40x3"], dict(maschine="T11", stange=6000), k_, db.tabellen(), db)
+ed = dlg.editor
+gruppen = [ed.baum.topLevelItem(i).text(0) for i in range(ed.baum.topLevelItemCount())]
+assert gruppen.index("Knicke") == gruppen.index("Innenkonturen") + 1, gruppen
+ed.waehlen(knicke[1].id)
+r = int(knicke[1].id.split(":")[1])
+assert dlg.tabelle.currentRow() == r or r in {i.row() for i in dlg.tabelle.selectedIndexes()}
+ed.waehlen("knickrahmen")
+dlg.reject()
+ok("R6 Teile-Editor: Gruppe Knicke (3 Knicke + Rahmen, Herkunft STEP), Auswahl zeigt die V-Zeile")
