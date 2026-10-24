@@ -1,4 +1,4 @@
-"""Testplan Online-Update (Absicherungsplan Phase 9): Fälle, die test_update*.py noch nicht abdeckt –
+"""Testplan Online-Update (Absicherungsplan Phase 9): Fälle, die test_update*.py noch nicht abdeckt – falscher Datei-Hash,
 Update ohne Änderung, bösartige ZIP-Einträge (../, absolute Pfade, Laufwerk, UNC, doppelte Einträge), zu viele Einträge,
 abgebrochener Download, fehlendes Paket (404), Daten/Angebote/Portabel.ini bleiben bei jedem Fehler unberührt.
 
@@ -121,6 +121,20 @@ assert (ziel / "Rohrlaser-Angebotskalkulation.exe").read_bytes() == inhalt
 assert not any(p.name.startswith("ausbruch") for p in tmp.rglob("*"))
 nutzer_unberuehrt(ziel)
 ok("Fall 11/12: ../, absolute, Laufwerks- und UNC-Einträge und Daten/ im ZIP ignoriert, doppelter Eintrag geprüft")
+
+# Fall 10: Eintrag mit richtigem Namen und richtiger Größe, aber anderem Inhalt
+puffer = io.BytesIO()
+with zipfile.ZipFile(puffer, "w") as z:
+    z.writestr(sha, inhalt[:-1] + b"X")
+(boese / paket).write_bytes(puffer.getvalue())
+o10 = dict(o, pakete={paket: dict(groesse=len(puffer.getvalue()))})
+ziel10 = programm("datei_hash", alt)
+vorher = stand(ziel10)
+fehler_erwartet(update.laden, ziel10, str(boese / update.DATEILISTE), o10, update.planen(ziel10, o10),
+                text="Prüfsumme falsch")
+update.verwerfen(ziel10)
+assert stand(ziel10) == vorher
+ok("Fall 10: falscher Datei-Hash im Paket abgelehnt, Programm unverändert")
 
 # Fall 11 (Dateiliste): dieselben Pfade als Ziel in der Liste werden vorher abgelehnt
 for rel in ("../ausbruch.txt", "/etc/x", "C:/x.dll", "//server/x", "Daten/rohrlaser.db", "portabel.ini"):
