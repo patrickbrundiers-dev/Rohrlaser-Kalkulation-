@@ -63,6 +63,7 @@ ALPHA = 0.32            # Deckkraft der Flächen bei „Durchsichtig“
 BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Weiß gemischt
 KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (große Baugruppen: keine)
 KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
+GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = QColor("#B42318")
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
@@ -182,9 +183,13 @@ class Modell:
         self.groesse = max(1e-6, math.dist(self.min, self.max))
         laenge = self.max[2] - self.min[2]
         self.dreiecke = []
+        self.dreiecke_id = []                   # je Dreieck: Merkmal (netz 'ti', Teile-Editor) – leer ohne 'ti'
+        kennung = netz.get("ti") or {}
         for art, idx in (netz.get("t") or {}).items():
+            kn = kennung.get(art) or []
             for n in range(0, len(idx) - 2, 3):
-                self._dreieck(idx[n], idx[n + 1], idx[n + 2], art)
+                if self._dreieck(idx[n], idx[n + 1], idx[n + 2], art) and kennung:
+                    self.dreiecke_id.append(kn[n // 3] if n // 3 < len(kn) else None)
         self.linien = []
         self.linien_id = []                     # je Liniensegment: Merkmal (netz 'li', Teile-Editor) oder None
         normalen = netz.get("ln") or {}         # Normale je Linienzug (Blech), sonst radial zur Rohrachse
@@ -231,10 +236,51 @@ class Modell:
                         neu[x] = len(g.punkte)
                         g.punkte.append(p[x])
                 g.dreiecke.append((neu[i], neu[j], neu[k], art, n))
-            g.linien, g.linien_id = [], []
+            g.linien, g.linien_id, g.dreiecke_id = [], [], []
+            g._glatt = None
             g._grob = g
             self._grob = g
         return self._grob
+
+    def glatte_normalen(self):
+        """Normale je Ecke für glatte Rundungen (OpenGL schattiert zwischen den Ecken): Mittel der Flächennormalen
+        aller Dreiecke an derselben Stelle, gewichtet mit der Fläche, nur über glatte Übergänge (Knick flacher als
+        KANTEN_WINKEL) – Kanten wie Rohrwand/Stirnfläche oder scharfe Profilecken bleiben scharf. [(n_i, n_j, n_k)]
+        je Dreieck; große Netze: None (flach)."""
+        if getattr(self, "_glatt", 0) != 0:
+            return self._glatt
+        self._glatt = None
+        if not self.dreiecke or len(self.dreiecke) > GLATT_MAX:
+            return None
+        p = self.punkte
+        orte = {}
+        gewicht = []
+        for nr, (i, j, k, _, n) in enumerate(self.dreiecke):
+            a, b, c = p[i], p[j], p[k]
+            u = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            v = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+            f = math.sqrt((u[1] * v[2] - u[2] * v[1]) ** 2 + (u[2] * v[0] - u[0] * v[2]) ** 2
+                          + (u[0] * v[1] - u[1] * v[0]) ** 2)
+            gewicht.append(f)
+            for x in (i, j, k):
+                orte.setdefault((round(p[x][0], 2), round(p[x][1], 2), round(p[x][2], 2)), []).append(nr)
+        out = []
+        for i, j, k, _, n in self.dreiecke:
+            ecken = []
+            for x in (i, j, k):
+                s = [0.0, 0.0, 0.0]
+                for m in orte[(round(p[x][0], 2), round(p[x][1], 2), round(p[x][2], 2))]:
+                    q = self.dreiecke[m][4]
+                    if q[0] * n[0] + q[1] * n[1] + q[2] * n[2] > KANTEN_WINKEL:
+                        w = gewicht[m]
+                        s[0] += q[0] * w
+                        s[1] += q[1] * w
+                        s[2] += q[2] * w
+                betrag = math.sqrt(s[0] ** 2 + s[1] ** 2 + s[2] ** 2)
+                ecken.append((s[0] / betrag, s[1] / betrag, s[2] / betrag) if betrag > 1e-12 else n)
+            out.append(ecken)
+        self._glatt = out
+        return out
 
     def kanten(self):
         """Körperkanten für „Mit Kanten“: [(a, b, Normale)] – Ränder des Netzes und Knicke zwischen zwei Dreiecken
@@ -270,8 +316,9 @@ class Modell:
         n = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
         betrag = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2)
         if betrag < 1e-12:
-            return
+            return False
         self.dreiecke.append((i, j, k, art, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
+        return True
 
 
 def _drehung(gier, nick):
@@ -550,11 +597,39 @@ class Ansicht3D(QWidget):
             if d <= 8 and (beste is None or d < beste[0]):
                 beste = (d, nr, tuple(a[k] + t * (b[k] - a[k]) for k in range(3)))
         if beste is None:
-            return None
+            treffer = self._flaeche_treffer(bild, x, y)
+            if treffer is None:
+                return None
+            self.angeklickt.emit(treffer)
+            return treffer
         kn = self.modell.linien_id[beste[1]] if beste[1] < len(self.modell.linien_id) else None
         treffer = dict(id=kn, punkt=beste[2])
         self.angeklickt.emit(treffer)
         return treffer
+
+    def _flaeche_treffer(self, bild, x, y):
+        """Vorderstes Dreieck mit Merkmal (netz 'ti') unter dem Pixel (x, y): dict(id, punkt) oder None."""
+        mo = self.modell
+        if not mo.dreiecke_id:
+            return None
+        beste = None
+        for (i, j, k, _, _), kn in zip(mo.dreiecke, mo.dreiecke_id):
+            if kn is None:
+                continue
+            a, b, c = bild(mo.punkte[i]), bild(mo.punkte[j]), bild(mo.punkte[k])
+            det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+            if abs(det) < 1e-9:
+                continue
+            l1 = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / det
+            l2 = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / det
+            l3 = 1 - l1 - l2
+            if min(l1, l2, l3) < -1e-6:
+                continue
+            tiefe = l1 * a[2] + l2 * b[2] + l3 * c[2]           # größer = näher am Betrachter
+            if beste is None or tiefe > beste[0]:
+                pa, pb, pc = mo.punkte[i], mo.punkte[j], mo.punkte[k]
+                beste = (tiefe, kn, tuple(l1 * pa[m] + l2 * pb[m] + l3 * pc[m] for m in range(3)))
+        return None if beste is None else dict(id=beste[1], punkt=beste[2])
 
     def modus_setzen(self, modus):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
