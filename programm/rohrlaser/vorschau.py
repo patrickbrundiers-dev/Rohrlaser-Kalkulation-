@@ -32,7 +32,7 @@ def rohr(p, profil, breite=64, hoehe=18, dpr=2.0):
     try:
         qs = sk.Querschnitt(profil)
         e = sw.aus_position(sw.lesen(p.get("technik")), p, profil)[0]
-        lagen = sk.lagen(e.get("konturen"), L)
+        lagen = sk.lagen(e.get("konturen"), L, qs)
         formen = [sk.platzieren(qs, d) for d in lagen]
         # die Ansicht, die mehr zeigt (sichtbare Konturen, Gehrung zählt doppelt); gleich: Draufsicht
         silh = {a: sk.silhouette(qs, e["a"], e["b"], L, a, n=24) for a in ("oben", "vorne")}

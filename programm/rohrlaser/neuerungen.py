@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.81", "<b>Eigenschaften je Kontur wie in AlmaCAM</b> (Teile-Editor, Rohr): Bezug der Lage (Mitte oder "
+               "Kante, ab Ende A oder B; ab B bleibt der Abstand bei neuer Teilelänge), Drehwinkel der Kontur, Wände "
+               "(beide durchgehend, alle vier Seiten, am Umfang verteilt – jede Kopie zählt im Schneidweg und ist in "
+               "Skizze und 3D zu sehen) und beim Rundrohr die Schnittrichtung parallel zur Konturachse (3D) "
+               "([[teile_editor]]).",
+     "Kontur: Bezug der Lage, Drehwinkel, beide Wände/am Umfang, Schnitt parallel ([[teile_editor]])."],
     ["0.9.80", "<b>Update abgesichert</b>: Das Programm prüft die Dateiliste eines Updates, bevor es sie benutzt "
                "(nur https von der offiziellen Adresse, keine Pfade außerhalb des Programmordners, Prüfsummen, "
                "Größengrenzen, freier Speicherplatz) und schützt vor manipulierten Paketen. Bricht ein Update hart "

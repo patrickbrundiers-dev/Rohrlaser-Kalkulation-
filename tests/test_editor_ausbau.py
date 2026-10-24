@@ -9,6 +9,9 @@
 - E6 Eigenschaften: Felder der gewählten Kontur schreiben in die Tabelle (Rechnung L/2, Muster 3x25), Ende und
   Teil, Einfügen, Duplizieren (ohne Messwerte), Entfernen; Blech: Kontur und Biegung.
 - E7 Maßbilder und Menüband zeichnen ohne Fehler (alle Konturarten).
+- E8 Eigenschaften je Kontur wie AlmaCAM (3E-4): Drehwinkel, Bezug der Lage (Mitte/Kante ab Ende A/B, Abstand zu B
+  bleibt bei neuer Teilelänge), Wände (beide durchgehend, alle Seiten, am Umfang verteilt: Kopien in Skizze, 3D und
+  Schneidweg), Schnittrichtung parallel (Rundrohr, nur mit 3D: Länge π·d, Lochwand parallel).
 
 Aufruf: python tests/test_editor_ausbau.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -249,7 +252,7 @@ f = ei.felder["Länge l"]
 f.setText("2 × 20")
 f.uebernehmen()
 assert d.tabelle.item(1, 2).text() == "40" and d.eingaben()["konturen"][1]["l"] == 40
-f = ei.felder["Lage ab Ende A"]
+f = ei.felder["Lage"]
 f.setText("L/2")
 f.uebernehmen()
 assert d.eingaben()["konturen"][1]["x"] == 250
@@ -327,4 +330,80 @@ app.processEvents()
 assert bd.width() <= 1366 and bd.height() <= 728, (bd.width(), bd.height())
 bd.grab()
 ok("E7 Maßbilder aller Konturarten; Rohr- und Blech-Editor passen auf 1366 × 728")
+
+# ------------------------------------------------------------------ E8 Eigenschaften je Kontur (3E-4)
+from rohrlaser import skizze as sk  # noqa: E402
+
+qs_q = sk.Querschnitt(QR)
+z = dict(art=sw.RECHTECK, anzahl=1, b=40, h=10, x=100, seite="oben", q=5, wand="beide")
+assert sk.umlauf(qs_q, z) == [dict(seite="unten", q=-5, spiegeln=True)]
+alle = sk.umlauf(qs_q, dict(z, wand="alle"))
+assert [k_["seite"] for k_ in alle] == ["vorne", "unten", "hinten"] and all(k_["q"] == 5 for k_ in alle)
+qs_r = sk.Querschnitt(dict(form="Rundrohr", a=42.4, wand=2))
+um = sk.umlauf(qs_r, dict(z, seite=30, wand="umfang", umfang_n=4))
+assert [k_["seite"] for k_ in um] == [120, 210, 300]
+assert sk.umlauf(qs_r, dict(z, wand="umfang", umfang_n=1)) == [] and sk.umlauf(qs_q, dict(z, wand="umfang")) == []
+assert sk.waende_arten(sk.Querschnitt(dict(form="U-Profil", a=80, b=45, wand=6))) == ["", "beide"]
+assert sk.waende_arten(sk.Querschnitt(dict(form="L-Profil", a=40, b=40, wand=4))) == [""]
+assert abs(sk.laenge_x(dict(z, drehung=90)) - 10) < 1e-6 and abs(sk.laenge_x(z) - 40) < 1e-6
+assert abs(sk.laenge_x(dict(art=sw.BOHRUNG, anzahl=1, d=10, drehung=30)) - 10) < 1e-6
+pts = sk.umriss_kontur(dict(art=sw.POLYGON, anzahl=1, punkte="0,0; 20,0; 0,10", spiegeln=True))
+assert pts[2][1] < 0                                   # gespiegelt quer
+zk = dict(z, kopien=sk.umlauf(qs_q, z))
+la = sk.lagen([zk], 500)
+assert len(la) == 2 and la[1]["kopie"] and la[1]["eingabe"]["seite"] == "unten" and la[1]["nr"] == 1
+er1 = sw.rechnen(dict(a={}, b={}, konturen=[dict(z, wand=None)]), QR, (10, 50))
+er2 = sw.rechnen(dict(a={}, b={}, konturen=[zk]), QR, (10, 50))
+assert abs(er2["felder"]["innen"] - 2 * er1["felder"]["innen"]) < 0.2 and er2["einstiche"] == er1["einstiche"] + 1
+assert "beide Wände" in er2["schritte"][2]["text"]
+# Schnitt parallel (Rundrohr): nur mit 3D
+RR = dict(form="Rundrohr", a=42.4, wand=2, profil_id="RR 42,4x2")
+bo = dict(art=sw.BOHRUNG, anzahl=1, d=20, x=100, schnitt="parallel")
+ohne = sw.rechnen(dict(a={}, b={}, konturen=[bo]), RR, (10, 50))
+mit = sw.rechnen(dict(a={}, b={}, konturen=[bo], d3=True), RR, (10, 50))
+assert ohne["schritte"][2]["laenge"] > math.pi * 20 + 0.05 and any("parallel" in h for h in ohne["hinweise"])
+assert abs(mit["schritte"][2]["laenge"] - math.pi * 20) < 0.01 and "parallel (3D)" in mit["schritte"][2]["text"]
+
+
+def lochwand_innen(e):
+    nz = rohr3d.netz(e, RR, 300)
+    p_, idx = nz["p"], nz["t"]["K"]
+    pk = [p_[3 * i:3 * i + 3] for i in idx]
+    innen_ = [q for q in pk if abs(math.hypot(q[0], q[1]) - 19.2) < 0.3]
+    return max(abs(q[0]) for q in innen_)                # halbe Breite des Lochs innen quer
+
+
+radial, par = lochwand_innen(dict(a={}, b={}, konturen=[bo])), lochwand_innen(dict(a={}, b={}, konturen=[bo], d3=True))
+aussen_q = 21.2 * math.sin(10 / 21.2)                  # Rand außen (Bogen 10 auf R 21,2) quer gemessen
+assert radial < aussen_q - 0.5 and abs(par - aussen_q) < 0.1, (radial, par)     # parallel: innen so breit wie außen
+# Dialog: Felder schreiben in die Zeile, Kopien in 3D, Bezug ab Ende B
+d.eingaben_setzen(dict(a={}, b={}, konturen=[dict(art=sw.RECHTECK, anzahl=1, b=40, h=10, r=0, x=100)]))
+ed.waehlen("kontur:0")
+assert "Drehwinkel" in ei.felder and "Wände" in ei.felder and "Schnittrichtung" not in ei.felder
+ei.felder["Drehwinkel"].setText("90")
+ei.felder["Drehwinkel"].uebernehmen()
+assert d.eingaben()["konturen"][0]["drehung"] == 90
+w = ei.felder["Wände"]
+w.setCurrentIndex(w.findData("beide"))
+w.activated.emit(w.currentIndex())
+z0 = d.eingaben()["konturen"][0]
+assert z0["wand"] == "beide" and z0["kopien"] == [dict(seite="unten", q=None, spiegeln=True)]
+assert "beide Wände" in d.ergebnis["schritte"][2]["text"] and d.ergebnis["schritte"][2]["einstiche"] == 2
+nz = rohr3d.netz(d.eingaben(), QR, 500)
+assert nz["li"]["K"].count("kontur:0") == 2
+b = ei.felder["Bezug der Lage"]
+b.setCurrentIndex(b.findData("mitte_b"))
+b.activated.emit(b.currentIndex())
+assert d.eingaben()["konturen"][0]["bezug"] == "mitte_b" and ei.felder["Lage"].text() == "400"
+ei.felder["Lage"].setText("50")
+ei.felder["Lage"].uebernehmen()
+assert d.eingaben()["konturen"][0]["x"] == 450
+d.laenge_setzen(600)
+assert d.eingaben()["konturen"][0]["x"] == 550
+b = ei.felder["Bezug der Lage"]
+b.setCurrentIndex(b.findData("kante_a"))
+b.activated.emit(b.currentIndex())
+assert ei.felder["Lage"].text() == "545"           # Kante zu A: 550 − 10/2 (90° gedreht: 10 lang)
+d.laenge_setzen(500)
+ok("E8 Eigenschaften je Kontur: Drehwinkel, Bezug der Lage, beide Wände/alle Seiten/am Umfang, Schnitt parallel")
 print("Alle Tests Editor-Ausbau bestanden.")
