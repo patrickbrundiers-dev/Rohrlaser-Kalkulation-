@@ -151,7 +151,9 @@ ed.band.einklappen(False)
 ed.aktualisieren()
 titel = [kc.titel.text() for kc in ed.leiste_unten.kacheln if not kc.isHidden()]
 assert titel[:3] == ["Schneidweg", "Einstiche", "Schneidzeit"], titel
-assert ed.leiste_unten.kacheln[0].wert.text() == f"{d.ergebnis['felder']['schneidweg']:.1f} mm".replace(".", ",")
+from rohrlaser import rechnen  # noqa: E402
+assert ed.leiste_unten.kacheln[0].wert.text() == f"{rechnen.zahl(d.ergebnis['felder']['schneidweg'], 1)} mm", \
+    ed.leiste_unten.kacheln[0].wert.text()
 from rohrlaser import dfm  # noqa: E402
 from rohrlaser.editor_ergebnis import zaehler_text  # noqa: E402
 

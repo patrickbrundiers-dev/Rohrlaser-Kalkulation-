@@ -109,18 +109,34 @@ def ellipse(a, b):
     return math.pi * (a + b) * (1 + 3 * h / (10 + math.sqrt(4 - 3 * h)))
 
 
+def radius(profil):
+    """Wirksamer Außenradius [mm] von Quadrat-/Rechteckrohr (Stammdaten bzw. Position, leer = Norm), sonst 0."""
+    return opt.aussenradius(profil.get("form"), _z(profil.get("a")), _z(profil.get("b")), _z(profil.get("wand")),
+                            profil.get("r_aussen"))
+
+
+def mit_radius(profil, eingaben):
+    """Profil mit dem Außenradius aus den Eingaben des Rechners (eingaben['r_aussen'], Zahl; beim Speichern wird er
+    zum Radius des Angebots für Profil + Werkstoff), sonst unverändert."""
+    r = (eingaben or {}).get("r_aussen")
+    if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 and profil.get("form") in opt.RADIUS_FORMEN:
+        return dict(profil, r_aussen=float(r))
+    return profil
+
+
 def zerlegung(profil):
     """Gerade Schnittlänge eines Profils (außer Rundrohr) als (Anteil Höhe H, Anteil Breite W) [mm], passend zu
     optimierung.schnittlaenge; None für unbekannte Formen. Höhe = Maß a, Breite = Maß b."""
     form, a, b = profil.get("form"), _z(profil.get("a")), _z(profil.get("b"))
     gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
-                               profil.get("profil_id"))
+                               profil.get("profil_id"), profil.get("r_aussen"))
     if gerade <= 0:
         return None
+    r = radius(profil)          # Rohre mit Außenradius: nur die geraden Stücke, die Ecken rechnet schraeg
     if form == "Quadratrohr":
-        return 2 * a, 2 * a
+        return 2 * (a - 2 * r), 2 * (a - 2 * r)
     if form == "Rechteckrohr":
-        return 2 * a, 2 * (b or a)
+        return 2 * (a - 2 * r), 2 * ((b or a) - 2 * r)
     if form in ("I-/H-Träger", "T-Profil", "U-Profil", "C-Profil", "L-Profil", "Flachstahl") and 0 < a <= gerade:
         return a, gerade - a           # Steg bzw. Schenkel a in der Höhe, der Rest (Flansche, Dicke) in der Breite
     return None
@@ -154,7 +170,7 @@ def schraeg(profil, th, tb):
     achsparallele Kanten); unbekannte Form: gerade Schnittlänge × √(1 + th² + tb²) (Schätzung)."""
     form, a = profil.get("form"), _z(profil.get("a"))
     gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
-                               profil.get("profil_id"))
+                               profil.get("profil_id"), profil.get("r_aussen"))
     if not th and not tb:
         return gerade, False
     if form == "Rundrohr":
@@ -163,8 +179,10 @@ def schraeg(profil, th, tb):
     if rp:          # über Höhe = Maß A = Breite x des Querschnitts
         return rp_profile.schnitt_schraeg(rp, th, tb), False
     hw = zerlegung(profil)
-    if hw:
-        return hw[0] * math.sqrt(1 + th * th) + hw[1] * math.sqrt(1 + tb * tb), False
+    if hw:          # Ecken mit Radius: vier Viertelkreise auf der schrägen Ebene = eine Ellipse
+        r = radius(profil)
+        ecken = ellipse(r, r * math.sqrt(1 + th * th + tb * tb)) if r else 0.0
+        return hw[0] * math.sqrt(1 + th * th) + hw[1] * math.sqrt(1 + tb * tb) + ecken, False
     return gerade * math.sqrt(1 + th * th + tb * tb), True
 
 
@@ -555,6 +573,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
     from . import knickrahmen as kn
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
+    profil = mit_radius(profil, eingaben)
     schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
     richtung_fehlt_text = []
     hinweise_3d, hinweise_ende = [], []
@@ -814,8 +833,9 @@ def v_ergaenzen(eingaben, profil):
 
 
 def speichern(eingaben):
-    """Eingaben als JSON für positionen.technik (mit Quelle)."""
-    return json.dumps(dict(eingaben, quelle=QUELLE), ensure_ascii=False)
+    """Eingaben als JSON für positionen.technik (mit Quelle). Der Außenradius gehört dem Angebot (angebote.radien,
+    je Profil + Werkstoff) und wird nicht je Position gespeichert."""
+    return json.dumps({k: v for k, v in dict(eingaben, quelle=QUELLE).items() if k != "r_aussen"}, ensure_ascii=False)
 
 
 def angenommene_richtung(profil, achse):

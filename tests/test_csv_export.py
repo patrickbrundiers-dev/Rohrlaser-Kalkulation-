@@ -133,7 +133,8 @@ for p, z, az in zip(P, [x for x in zeilen if x], [x for x in ang["zeilen"] if x[
     assert abs(euro(p["Gesamt Einkauf(Kg)"]) - euro(p["Einsatzgewicht"]) * int(p["Menge"])) < 0.01
     assert p["Liste der Arbeitsgänge"].startswith("Profile [Rechteckrohr 120x60x3]")
 p1, p2 = P
-assert p1["L."] == "2958" and p1["Umfang"] == "904" and p1["Fläche"] == "1.065", p1      # 360 mm × 2,958 m
+assert p1["L."] == "2958" and p1["Umfang"] == "904" and p1["Fläche"] == "1.034", p1      # (360 − (8 − 2π) × 6) mm × 2,958 m
+# (Umfang mit Außenradius 6 mm nach Norm)
 assert "Gewinde [4xM6]" in p2["Liste der Arbeitsgänge"] and "Gewinde 4xM6" in p2["Artikeltext"]
 # Zeiten im Kopf = Summe der Positionen
 sek = [sum(int(x) * f for x, f in zip(t.split(":"), (3600, 60, 1))) for t in (p1["Bearbeitungszeit"], p2["Bearbeitungszeit"])]

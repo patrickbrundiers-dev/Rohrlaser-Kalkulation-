@@ -35,7 +35,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import angebot_check, nummern as angebotsnummern, schritte, step_ablage, step_einstellungen, stil, vorkalk
+from . import angebot_check, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, step_einstellungen, stil, vorkalk
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -2407,6 +2407,7 @@ class AngebotSeite(QWidget):
             werte["laenge"] = erg["laenge"]
         self._knicken_eintragen(werte, werte, erg)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
+        self._radius_uebernehmen(dict(werte, id=pid_neu), eingaben)
         self.neu_laden()
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
                        f"{rechnen.zahl(erg['schneidweg'], 1)} mm.")
@@ -2898,6 +2899,7 @@ class AngebotSeite(QWidget):
             naht_neu = d.naht_geaendert()
         else:
             naht_neu = {}
+        profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"))
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
         erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"]:
@@ -2930,10 +2932,47 @@ class AngebotSeite(QWidget):
         self._knicken_eintragen(felder, dict(p, **felder), erg)
         for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
+        weitere = self._radius_uebernehmen(p, eingaben)
         self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
-                       f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen.")
+                       f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen."
+                       + (f" Außenradius auch für {weitere} weitere Position(en) neu gerechnet." if weitere else ""))
         self.neu_laden()
         return True
+
+    def _radius_uebernehmen(self, p, eingaben):
+        """Außenradius aus dem Rechner (eingaben['r_aussen']) als Radius des Angebots für Profil + Werkstoff speichern
+        und die übrigen Positionen der Gruppe mit Eingaben des Rechners neu rechnen (Positionen ohne Eingaben rechnen
+        die Schnittlänge ohnehin mit dem Radius des Angebots, gemessene STEP-Werte bleiben). Ergebnis: Anzahl der
+        neu gerechneten Positionen."""
+        r = eingaben.get("r_aussen")
+        r = float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 else None
+        pid, wst = p.get("profil_id"), p.get("werkstoff_id")
+        if r == rechnen.radius_angebot(self.kopf, pid, wst) or (self.k.profile.get(pid) or {}).get("form") \
+                not in opt.RADIUS_FORMEN:
+            return 0
+        radien = dict(self.kopf.get("radien") or {})
+        radien[naht.gruppe_schluessel(pid, wst)] = r
+        radien = {g: w for g, w in radien.items() if w is not None}
+        self.db.radien_speichern(self.id, radien)
+        self.kopf["radien"] = radien or None
+        n = 0
+        for q in self.positionen:
+            if q["id"] == p["id"] or q.get("profil_id") != pid or q.get("werkstoff_id") != wst:
+                continue
+            e = schneidweg.lesen(q.get("technik"))
+            if not q.get("technik") or e.get("quelle") != schneidweg.QUELLE:
+                continue
+            profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, wst)
+            grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
+            erg = schneidweg.rechnen(e, profil, grenzen, gewinde_liste(self.tabellen),
+                                     rechnen.maschine(self.kopf, self.k))
+            if erg["fehler"]:
+                continue
+            for name in ("schneidweg", "a_schnitt", "b_schnitt"):
+                if name in erg["felder"]:
+                    self.db.position_aendern(q["id"], name, erg["felder"][name])
+            n += 1
+        return n
 
     def _knicken_eintragen(self, felder, p, erg):
         """Zusatzarbeit Knicken mit der Zahl der V-Ausschnitte (Knickrahmen) in felder['zusatz'] eintragen bzw. wieder
