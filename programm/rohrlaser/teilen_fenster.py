@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
                                QLineEdit, QMessageBox, QPushButton, QWidget)
 
-from . import teilen
+from . import nummern, teilen
 from .angebot import kuerzel_sauber
 
 
@@ -19,9 +19,9 @@ class BenutzerDialog(QDialog):
         self.setMinimumWidth(560)
         form = QFormLayout(self)
         text = QLabel(("Willkommen! " if erststart else "") +
-                      "Das Kürzel steht vorn in jeder neuen Angebotsnummer (z. B. PB-2026-0001), so unterscheiden "
-                      "sich die Angebote jedes Mitarbeiters. Name, E-Mail und Telefon stehen im Angebots-PDF als "
-                      "Ansprechpartner.<br><br>Mit einem gemeinsamen Ordner (Netzlaufwerk oder OneDrive-/SharePoint-"
+                      "Das Kürzel zeigt, wer ein Angebot bearbeitet (Spalte Bearbeiter, Angebotskopf). Name, E-Mail "
+                      "und Telefon stehen im Angebots-PDF als Ansprechpartner. Die Angebotsnummern (z. B. 2026-00001) "
+                      "zählen für alle Mitarbeiter gemeinsam fortlaufend.<br><br>Mit einem gemeinsamen Ordner (Netzlaufwerk oder OneDrive-/SharePoint-"
                       "Ordner, den alle erreichen) sieht jeder die Angebote der anderen, und alle arbeiten mit denselben "
                       "Stammdaten. Abgeglichen wird beim Start, beim Beenden und mit dem Knopf „Abgleichen“.")
         text.setWordWrap(True)
@@ -145,9 +145,10 @@ def abgleichen(fenster, lesen=True, schreiben=True, leise=False):
             fenster.meldung("Zum Abgleichen unter Datei → Benutzer und gemeinsamer Ordner Kürzel und Ordner eintragen.",
                             fehler=True)
         return None
-    modus, uebernehmen, bericht = None, False, {}
+    modus, uebernehmen, bericht, umnummeriert = None, False, {}, []
     QApplication.setOverrideCursor(Qt.WaitCursor)
     try:
+        umnummeriert = nummern.endgueltig(db)
         for _ in range(3):
             try:
                 if lesen:
@@ -183,7 +184,8 @@ def abgleichen(fenster, lesen=True, schreiben=True, leise=False):
     finally:
         if QApplication.overrideCursor() is not None:
             QApplication.restoreOverrideCursor()
-    if lesen or uebernehmen:
+    bericht["nummern"] = umnummeriert
+    if lesen or uebernehmen or umnummeriert:
         for i in bericht.get("entfernte_ids", ()):
             fenster.angebot_schliessen(i)
         fenster.alles_neu_laden()

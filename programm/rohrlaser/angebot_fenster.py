@@ -35,7 +35,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import angebot_check, schritte, step_ablage, step_einstellungen, stil
+from . import angebot_check, nummern as angebotsnummern, schritte, step_ablage, step_einstellungen, stil
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -1741,7 +1741,30 @@ class AngebotSeite(QWidget):
 
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
-        return f"Angebot {self.kopf.get('nummer') or ''}" + (f" ({self.kopf['fremd']})" if self.kopf.get("fremd") else "")
+        nr = self.kopf.get("nummer") or ""
+        return (f"Angebot {nr}" + (" (vorläufige Nummer)" if angebotsnummern.vorlaeufig(nr) else "")
+                + (f" ({self.kopf['fremd']})" if self.kopf.get("fremd") else ""))
+
+    def nummer_endgueltig(self, wofuer):
+        """Vor Angebots-PDF und Materialanfrage: eine vorläufige Nummer (Ordner war beim Anlegen nicht erreichbar) jetzt
+        im gemeinsamen Ordner endgültig vergeben. False = Ordner weiter nicht erreichbar (Meldung)."""
+        if self.fremd() or not angebotsnummern.vorlaeufig(self.kopf.get("nummer")):
+            return True
+        try:
+            umn = angebotsnummern.endgueltig(self.db, self.id)
+        except OSError:
+            text = (f"{wofuer} erst mit endgültiger Angebotsnummer: der gemeinsame Ordner ist nicht erreichbar. "
+                    "Die Nummer kommt beim nächsten Abgleich.")
+            if self.f.stumm:
+                self.f.meldung(text, fehler=True)
+            else:
+                QMessageBox.warning(self, wofuer, text)
+            return False
+        self.neu_laden()
+        self.f.angebote.neu_laden()
+        if umn:
+            self.f.meldung(f"Angebotsnummer {umn[0][0]} → {umn[0][1]} (endgültig).")
+        return True
 
     def fremd(self):
         """Kürzel des Kollegen, wenn das Angebot einem anderen Mitarbeiter gehört (nur ansehen), sonst None."""
@@ -3320,6 +3343,8 @@ class AngebotSeite(QWidget):
         return ang
 
     def angebot_pdf(self):
+        if not self.nummer_endgueltig("Angebots-PDF"):
+            return None
         if not any(position_aktiv(p) for p in self.positionen):
             QMessageBox.warning(self, "Angebot", "Das Angebot hat keine Positionen.")
             return None
@@ -3543,6 +3568,8 @@ class AngebotSeite(QWidget):
         dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests). gruppe = nur diese
         Abmessung (Material-Fenster, rechnen.material_abmessungen)."""
         from .materialanfrage_dialog import AnfrageDialog
+        if not self.nummer_endgueltig("Materialanfrage"):
+            return None
         if not self.ergebnis or not self.ergebnis.get("stangen"):
             self.f.meldung("Materialanfrage: bitte zuerst optimieren (der Stangenbedarf kommt aus der Optimierung).",
                            fehler=True)

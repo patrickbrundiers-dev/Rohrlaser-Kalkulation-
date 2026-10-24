@@ -1,4 +1,5 @@
-"""Prüft mehrere Arbeitsplätze mit gemeinsamem Ordner (teilen.py, Patrick 22.10.2026): Kürzel in der Angebotsnummer,
+"""Prüft mehrere Arbeitsplätze mit gemeinsamem Ordner (teilen.py, Patrick 22.10.2026): Kürzel als Bearbeiter, ein
+gemeinsamer Nummernkreis (2026-00001, nummern.py; ausführlich in test_nummern.py),
 eigene Datei je Mitarbeiter, Stammdaten zeilenweise zusammenführen (neueste Änderung gewinnt, Löschen kommt an,
 gleiche Schlüssel werden eine Zeile, Zukaufartikel über die Kennung), Angebote der anderen nur lesen und kopieren,
 erster Abgleich (übernehmen), Kürzel belegt, neuere Programmversion, Umstellung älterer Dateien (Schema 43).
@@ -15,8 +16,8 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 
-from rohrlaser import teilen  # noqa: E402
-from rohrlaser.angebot import kuerzel_sauber, nummer_mit_kuerzel  # noqa: E402
+from rohrlaser import nummern, teilen  # noqa: E402
+from rohrlaser.angebot import kuerzel_sauber  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 
 
@@ -44,19 +45,17 @@ POS = dict(pos=10, artikel="T-1", bezeichnung="Holm", profil_id="QR 40x40x3", we
 
 # ---------------------------------------------------------------- Kürzel und Nummer
 assert kuerzel_sauber(" pb-1 ") == "PB1" and kuerzel_sauber("abcdefg") == "ABCDE"
-assert nummer_mit_kuerzel("PB", "2026", ["PB-2026-0007", "XY-2026-0100", "A-2026-0041", None]) == "PB-2026-0008"
-assert nummer_mit_kuerzel("PB", "2027", ["PB-2026-0007"]) == "PB-2027-0001"
 pb = arbeitsplatz("Patrick", "pb")
 a1 = pb.angebot_neu(dict(kunde="Kunde A", datum="2026-10-22"))
 a2 = pb.angebot_neu(dict(kunde="Kunde B", datum="2026-10-22"))
-assert pb.angebot(a1)["nummer"] == "PB-2026-0001" and pb.angebot(a2)["nummer"] == "PB-2026-0002"
+assert pb.angebot(a1)["nummer"] == "2026-00001" and pb.angebot(a2)["nummer"] == "2026-00002"
 assert pb.angebot(a1)["bearbeiter"] == "PB"
 pb.angebot_loeschen(a2)
 a2 = pb.angebot_neu(dict(kunde="Kunde B", datum="2026-10-22"))
-assert pb.angebot(a2)["nummer"] == "PB-2026-0003", "gelöschte Nummer wird nicht wieder vergeben"
+assert pb.angebot(a2)["nummer"] == "2026-00003", "gelöschte Nummer wird nicht wieder vergeben"
 ohne = Datenbank(tmp / "ohne" / "rohrlaser.db")
-assert ohne.angebot(ohne.angebot_neu())["nummer"] == "A-2026-0002", "ohne Kürzel wie bisher"
-ok("Nummer mit Kürzel (PB-2026-0001), eigener Zähler je Kürzel und Jahr, ohne Kürzel wie bisher, Bearbeiter im Kopf")
+assert ohne.angebot(ohne.angebot_neu(dict(datum="2026-10-22")))["nummer"] == "2026-00001", "ohne Ordner lokal gezählt"
+ok("Nummer ohne Kürzel (2026-00001) im gemeinsamen Ordner reserviert, gelöschte nicht wieder vergeben, Bearbeiter im Kopf")
 
 for p in (POS, dict(POS, pos=20, artikel="T-2", laenge=750, stueck=8)):
     pb.position_neu(a1, p)
@@ -106,7 +105,7 @@ assert {(z["profil_id"], z.get("bemerkung")) for z in mk.zeilen("profile", True)
 assert {z["uid"] for z in mk.zeilen("profile", True)} == {z["uid"] for z in pb.zeilen("profile", True)}
 fremd = [a for a in mk.angebote() if a["fremd"] == "PB"]
 assert len(fremd) == 2 and all(a["bearbeiter"] == "PB" for a in fremd)
-f1 = next(a for a in fremd if a["nummer"] == "PB-2026-0001")
+f1 = next(a for a in fremd if a["nummer"] == "2026-00001")
 assert len(mk.positionen(f1["id"])) == 2 and len(mk.staffeln(f1["id"])) == 1
 assert mk.staffeln(f1["id"])[0]["stufe_id"] == mk.staffel_stufen(f1["id"])[0]["id"]
 assert list(mk.netze(f1["id"]).values()) == [b"NETZ" * 100]
@@ -114,13 +113,13 @@ ok("erster Abgleich (übernehmen): Stammdaten wie bei PB, gleiche Kennungen, PB-
    "Staffeln (Stufe neu verknüpft) und 3D-Netz")
 
 m1 = mk.angebot_neu(dict(kunde="Kunde M"))
-assert mk.angebot(m1)["nummer"].startswith("MK-")
+assert nummern.zaehler(mk.angebot(m1)["nummer"]) == 4 and mk.angebot(m1)["bearbeiter"] == "MK"
 mk.position_neu(m1, POS)
 kopie = mk.angebot_kopieren(f1["id"])
 k = mk.angebot(kopie)
-assert k["nummer"].startswith("MK-") and k["bearbeiter"] == "MK" and not k.get("fremd")
+assert nummern.zaehler(k["nummer"]) == 5 and k["bearbeiter"] == "MK" and not k.get("fremd")
 assert len(mk.positionen(kopie)) == 2
-ok("fremdes Angebot als Kopie übernehmen: eigene Nummer MK-…, Bearbeiter MK, eigenes Angebot")
+ok("Kollege MK zählt im selben Nummernkreis weiter (2026-00004); Kopie: neue Nummer, Bearbeiter MK, eigenes Angebot")
 
 # ---------------------------------------------------------------- Änderungen in beiden Richtungen
 time.sleep(0.01)
@@ -185,7 +184,7 @@ teilen.abgleichen(mk)
 art = next(z for z in mk.zeilen("zukauf_artikel", True) if z["bezeichnung"] == "Schraube M8")
 bez = [z for z in mk.zeilen("zukauf_bezug", True) if z["artikel_id"] == art["id"]]
 assert len(bez) == 1 and bez[0]["lieferant"] == "Würth"
-f1 = next(a for a in mk.angebote() if a["nummer"] == "PB-2026-0001")
+f1 = next(a for a in mk.angebote() if a["nummer"] == "2026-00001")
 zk = json.loads(next(p for p in mk.positionen(f1["id"]) if p.get("art") == "Zukaufteil")["zukauf"])
 assert zk[0]["artikel_id"] == art["id"], (zk, art["id"])
 ok("Zukaufartikel mit Einkauf je Lieferant und Zukaufteil im Angebot zeigen beim anderen auf den richtigen Artikel")
@@ -202,7 +201,7 @@ assert b["angebote_geaendert"] == 0, "unverändertes Angebot wird nicht neu eing
 pb.angebot_loeschen(a2)
 teilen.abgleichen(pb)
 b = teilen.abgleichen(mk)
-assert b["angebote_weg"] == 1 and "PB-2026-0003" not in {a["nummer"] for a in mk.angebote()}
+assert b["angebote_weg"] == 1 and "2026-00003" not in {a["nummer"] for a in mk.angebote()}
 ok("fremde Angebote: gleiche ID beim Neueinlesen, örtliche Änderungen überschrieben, gelöschte verschwinden")
 
 # ---------------------------------------------------------------- Kürzel belegt, neuer Rechner
@@ -214,8 +213,9 @@ try:
 except teilen.KuerzelBelegt as e:
     assert e.info["name"] == "Patrick"
 teilen.schreiben(pb2, uebernehmen=True)
-assert {a["nummer"] for a in pb2.angebote() if not a["fremd"]} >= {"PB-2026-0001"}
-assert pb2.angebot(pb2.angebot_neu())["nummer"] == "PB-2026-0004"
+assert {a["nummer"] for a in pb2.angebote() if not a["fremd"]} >= {"2026-00001"}
+hoch = max(nummern.zaehler(a["nummer"]) for a in pb2.angebote())
+assert nummern.zaehler(pb2.angebot(pb2.angebot_neu())["nummer"]) > hoch
 ok("Kürzel schon belegt: Hinweis; auf neuem Rechner übernehmen holt die eigenen Angebote zurück, Zähler geht weiter")
 
 # ---------------------------------------------------------------- neuere Programmversion
