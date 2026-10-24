@@ -1,7 +1,7 @@
 """Schrittanzeige im Angebot (Layout-Plan L10): ① Positionen erfasst → ② Optimiert → ③ Geprüft → ④ Verschickt.
 
 Erledigte Schritte grün mit Haken, der aktuelle (erste offene) blau und fett, die übrigen grau. Grundlage sind die
-vorhandenen Stände: Positionen, Stand der Optimierung, offene Punkte unter „Prüfen vor Freigabe“ und der Vorgang.
+vorhandenen Stände: Positionen, Stand der Optimierung, offene Punkte im „Angebots-Check“ und der Vorgang.
 """
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
@@ -13,7 +13,7 @@ NUMMERN = "①②③④"
 # was im jeweils aktuellen Schritt zu tun ist (Tooltip)
 NAECHSTES = ("Positionen anlegen: Neue Position oder STEP importieren.",
              "Optimieren (F9) – plant die Stangen und rechnet die Preise.",
-             "Offene Punkte unter „Prüfen vor Freigabe“ in der Übersicht erledigen.",
+             "Offene Punkte im „Angebots-Check“ in der Übersicht erledigen.",
              "Angebot (PDF) erstellen und verschicken; der Vorgang wird dabei Verschickt.",
              "Alle Schritte erledigt.")
 VERSCHICKT = ("Verschickt", "Beauftragt", "Abgelehnt")
