@@ -601,7 +601,7 @@ class StangenAbwicklung(Flowable):
         if d["naht"] is not None:
             c.setStrokeColor(colors.HexColor("#D0021B"))
             c.setLineWidth(0.9)
-            c.setDash(4, 1.5, 1, 1.5)
+            c.setDash([4, 1.5, 1, 1.5])
             c.line(*pkt(0, d["naht"]), *pkt(d["laenge"], d["naht"]))
             c.setDash()
             c.setFillColor(colors.HexColor("#D0021B"))
