@@ -36,7 +36,7 @@ from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT
     kompakt_zeilen
 from .leiste import UmbruchLeiste
 from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, \
-    step_einstellungen, stil, vorkalk
+    step_einstellungen, stil, teile_editor, vorkalk
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -2395,7 +2395,7 @@ class AngebotSeite(QWidget):
                  stueck=1)
         d = SchneidwegDialog(self, p, self.k.profile[pid], self.kopf, self.k, self.tabellen, self.db, self.positionen,
                              neu=True)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
             return False
         eingaben = d.eingaben()
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(d.profil))
@@ -2429,7 +2429,7 @@ class AngebotSeite(QWidget):
         dialog(d) bedient den Editor statt exec (Tests). Ergebnis: True = angelegt."""
         from .blech_dialog import BlechDialog
         d = BlechDialog(self, self.db, neu=True)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
         zs = erg["zuschnitt"]
@@ -2473,7 +2473,7 @@ class AngebotSeite(QWidget):
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
                         dict(bezeichnung=p.get("bezeichnung"), artikelnr=None, lieferant=lief,
                              stueck=p.get("stueck")), neu=False)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
+        if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
         self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], kopf["lieferant"], ab=kopf["stueck"],
@@ -2902,7 +2902,7 @@ class AngebotSeite(QWidget):
         if eingaben is None:
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
                                  step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
-            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+            if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
             naht_neu = d.naht_geaendert()

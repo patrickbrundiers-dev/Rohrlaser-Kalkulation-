@@ -180,4 +180,13 @@ mo = ansicht3d.Modell(rohr3d.netz(eing, dict(QR, r_aussen=None), 500))
 kanten = mo.kanten()
 assert kanten and len(kanten) < len(mo.dreiecke) and mo.kanten() is kanten
 ok("G6 Darstellungsarten zeichnen, nur Gewähltes blass, je Benutzer gemerkt; Körperkanten einmal je Modell")
+# Editor öffnet immer maximiert (Patrick 24.10.2026)
+from PySide6.QtCore import QTimer  # noqa: E402
+from rohrlaser import teile_editor  # noqa: E402
+
+zustand = {}
+QTimer.singleShot(0, lambda: (zustand.update(max=bool(d2.windowState() & Qt.WindowMaximized)), d2.reject()))
+teile_editor.ausfuehren(d2)
+assert zustand["max"] and d2.windowFlags() & Qt.WindowMaximizeButtonHint
+ok("G7 Teile-Editor öffnet maximiert")
 print("OK: 3D-Editor am Modell bearbeiten (3E-3)")

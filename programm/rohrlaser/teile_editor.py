@@ -181,6 +181,15 @@ def ziele(befund):
     return ["teil"]
 
 
+def ausfuehren(dialog):
+    """Teile-Editor (Schneidweg-Rechner, Blech-Editor) öffnen: immer maximiert (Patrick 24.10.2026), mit Knöpfen zum
+    Verkleinern; Ergebnis wie QDialog.exec()."""
+    dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+    dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
+    dialog.setWindowState(dialog.windowState() | Qt.WindowMaximized)
+    return dialog.exec()
+
+
 class _Schritt(QUndoCommand):
     """Ein Rückgängig-Schritt: Zustand vorher und nachher (das erste redo beim Ablegen ist schon geschehen)."""
 
