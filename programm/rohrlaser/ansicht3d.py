@@ -88,13 +88,14 @@ def entpacken(daten):
         return None
 
 
-def baugruppe(netze, hervor=(), farben=None, fehlend=()):
+def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
     hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden;
     fehlend: Nummern der nicht übernehmbaren Teile, immer magenta (Art N), außer sie sind gewählt. Ohne Innenwände und
     Schnittlinien (bei vielen Teilen verdeckt bzw. zu unruhig). Ergebnis: (Netz oder None, Anzahl Teile ohne
-    Einbaulage, z. B. aus einer älteren Messung)."""
+    Einbaulage, z. B. aus einer älteren Messung). bereiche: Liste, bekommt je Netz (Nummer, erster Punkt, Ende,
+    Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil."""
     punkte, dreiecke, ohne = [], {}, 0
     for nr, netz in enumerate(netze):
         if isinstance(netz, (bytes, bytearray, memoryview)):
@@ -110,6 +111,9 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=()):
         for i in range(0, len(p) - 2, 3):
             a, b, c = p[i], p[i + 1], p[i + 2]
             punkte += [round(o[k] + a * x[k] + b * y[k] + c * z[k], 2) for k in range(3)]
+        if bereiche is not None:
+            bereiche.append((nr, basis, len(punkte) // 3, [basis + i for a, idx in (netz.get("t") or {}).items()
+                                                            if a != "I" for i in idx]))
         for art, idx in (netz.get("t") or {}).items():
             if art == "I":
                 continue
@@ -337,6 +341,7 @@ class Ansicht3D(QWidget):
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
+        self.mess_max = 2                       # Messen: 2 Punkte; Naht zeichnen (Baugruppe): beliebig viele
         self._druck = None
         self._bild, self._eilig = None, False      # gezeichnetes Bild (solange sich die Ansicht nicht ändert)
         self._ruhe = QTimer(self)                   # nach dem Zoomen wieder fein zeichnen
@@ -391,17 +396,24 @@ class Ansicht3D(QWidget):
         self.markiert, self.markiert_z = set(ids or ()), z_bereich
         self.update()
 
-    def messen_setzen(self, an):
-        """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke), Abstand in mm."""
-        self.messen, self.messpunkte = bool(an), []
+    def messen_setzen(self, an, punkte=2):
+        """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke), Abstand in mm. punkte = 0: Linienzug
+        mit beliebig vielen Punkten (Naht zeichnen), Signal gemessen nach jedem Punkt mit der Länge des Zugs."""
+        self.messen, self.messpunkte, self.mess_max = bool(an), [], punkte or 0
         self.setCursor(Qt.CrossCursor if an else Qt.ArrowCursor)
         self.update()
 
     def abstand(self):
-        """Gemessener Abstand [mm] oder None."""
-        if len(self.messpunkte) == 2:
-            return math.dist(*self.messpunkte)
+        """Gemessener Abstand [mm] (Linienzug: Länge des Zugs) oder None."""
+        if len(self.messpunkte) == 2 or (not self.mess_max and len(self.messpunkte) > 1):
+            return sum(math.dist(a, b) for a, b in zip(self.messpunkte, self.messpunkte[1:]))
         return None
+
+    def punkt_zurueck(self):
+        """Letzten Punkt des Linienzugs entfernen."""
+        self.messpunkte = self.messpunkte[:-1]
+        self.update()
+        self.gemessen.emit(self.abstand())
 
     def bildpunkt(self):
         """Funktion Modellpunkt (x, y, z) -> (Pixel x, Pixel y, Tiefe) für die aktuelle Ansicht (wie gezeichnet)."""
@@ -436,9 +448,12 @@ class Ansicht3D(QWidget):
                     beste = (d - t * 1e-3, v)
             if beste is None:
                 return None
-            self.messpunkte = (self.messpunkte if len(self.messpunkte) < 2 else []) + [tuple(beste[1])]
+            if not self.mess_max and self.messpunkte and self.messpunkte[-1] == tuple(beste[1]):
+                return beste[1]                             # Linienzug: derselbe Punkt nochmal zählt nicht
+            voll = self.mess_max and len(self.messpunkte) >= self.mess_max
+            self.messpunkte = ([] if voll else self.messpunkte) + [tuple(beste[1])]
             self.update()
-            if len(self.messpunkte) == 2:
+            if len(self.messpunkte) == 2 or not self.mess_max:
                 self.gemessen.emit(self.abstand())
             return beste[1]
         beste = None
@@ -523,7 +538,8 @@ class Ansicht3D(QWidget):
         self._markierung_zeichnen(p)
         p.setPen(QColor("#7F7F7F"))
         p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
-                   "Messen: zwei Punkte anklicken (fängt die nächste Ecke)" if self.messen else
+                   ("Messen: zwei Punkte anklicken (fängt die nächste Ecke)" if self.mess_max else
+                    "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
                    "Linke Maustaste drehen · rechte verschieben · Mausrad zoomen · Doppelklick Ausgangsansicht")
 
     def _markierung_zeichnen(self, p):
@@ -543,13 +559,13 @@ class Ansicht3D(QWidget):
         if self.messpunkte:
             pk = [bild(v) for v in self.messpunkte]
             p.setPen(QPen(MESSEN, 2.0))
-            if len(pk) == 2:
-                p.drawLine(QPointF(pk[0][0], pk[0][1]), QPointF(pk[1][0], pk[1][1]))
+            for a, b in zip(pk, pk[1:]):
+                p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
             p.setBrush(QBrush(MESSEN))
             for q in pk:
                 p.drawEllipse(QPointF(q[0], q[1]), 4, 4)
             p.setBrush(Qt.NoBrush)
-            if len(pk) == 2:
+            if len(pk) == 2 and self.mess_max:
                 a, b = self.messpunkte
                 text = (f"Abstand {_zahl(math.dist(a, b))} mm (Δx {_zahl(abs(b[0] - a[0]))}, "
                         f"Δy {_zahl(abs(b[1] - a[1]))}, Δz {_zahl(abs(b[2] - a[2]))})")
