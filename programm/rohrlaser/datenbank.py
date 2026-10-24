@@ -29,12 +29,12 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import kennwerte, passwort, teilen, zukauf
+from . import kennwerte, nummern, passwort, teilen, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
 from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
-                      lieferzeit_wert, naechste_nummer, nummer_mit_kuerzel)
+                      lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
@@ -1623,21 +1623,12 @@ class Datenbank:
 
     @schreibt
     def angebot_neu(self, kopf=None, zaehler=True):
-        """Neues Angebot mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch. zaehler=False (neue
-        Fassung mit fester Nummer): die letzte Angebotsnummer bleibt, wie sie ist."""
+        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
+        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
         kopf = dict(kopf or {})
         kuerzel = kuerzel_sauber(self.einstellung("benutzer_kuerzel"))
         if not kopf.get("nummer"):
-            if kuerzel:          # Kürzel vorn, eigener Zähler je Kürzel und Jahr (auch über gelöschte Angebote)
-                jahr = str(kopf.get("datum") or datetime.date.today().isoformat())[:4]
-                vergeben = [r[0] for r in self.con.execute("SELECT nummer FROM angebote")]
-                vergeben.append(self.einstellung("letzte_angebotsnummer"))
-                nr = nummer_mit_kuerzel(kuerzel, jahr, vergeben)
-            else:
-                nr = naechste_nummer(self.einstellung("letzte_angebotsnummer"))
-            while self.con.execute("SELECT 1 FROM angebote WHERE nummer=?", (nr,)).fetchone():
-                nr = naechste_nummer(nr)
-            kopf["nummer"] = nr
+            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         if kuerzel:
             kopf.setdefault("bearbeiter", kuerzel)
         kopf.setdefault("datum", datetime.date.today().isoformat())
@@ -1664,7 +1655,7 @@ class Datenbank:
                     f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
                     f'({", ".join("?" * len(namen))}, ?, ?, ?)',
                     [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
-                if zaehler:
+                if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
                     self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")

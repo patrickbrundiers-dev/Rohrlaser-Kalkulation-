@@ -869,11 +869,12 @@ EINSTELLUNGEN = (
     Einstellung("eingabe_richtung", "Positionsliste: Eingabe springt (nach unten oder nach rechts)", "Ansicht",
                 "auswahl", EINGABE_RICHTUNGEN[0], auswahl="eingaberichtung"),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
-    # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel steht vorn in der Angebotsnummer
-    # (PB-2026-0001); über den gemeinsamen Ordner sehen alle die Angebote der anderen und teilen die Stammdaten.
+    # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel zeigt den Bearbeiter (die Nummer ist
+    # seit 23.10.2026 ohne Kürzel, nummern.py); über den gemeinsamen Ordner sehen alle die Angebote der anderen und
+    # teilen die Stammdaten.
     # Gelten nur für diesen Arbeitsplatz (teilen.LOKAL), werden also nicht mit den anderen abgeglichen.
     Einstellung("benutzer_name", "Name", "Benutzer", "text", ""),
-    Einstellung("benutzer_kuerzel", "Kürzel (vorn in der Angebotsnummer, z. B. PB)", "Benutzer", "text", ""),
+    Einstellung("benutzer_kuerzel", "Kürzel (Bearbeiter, z. B. PB)", "Benutzer", "text", ""),
     Einstellung("benutzer_email", "E-Mail (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),

@@ -21,13 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.47", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
+    ["0.9.48", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
                "Auftragsnummer des Kunden und den Liefertermin ab (Vorschlag aus der Lieferzeit); beides steht in "
                "der Angebotsliste und lässt sich suchen. <b>Eingabe wie in Excel</b> in der Positionsliste: "
                "Eingabe springt weiter (nach unten oder rechts, Einstellung), ↓ in der letzten Zeile legt eine "
                "Position an, <b>Strg+D</b> übernimmt den Wert von oben, im Profil-Feld findet „40x3“ das Profil "
                "„QR 40x40x3“ ([[excel_eingabe]]).",
      "Beauftragt mit Auftragsnummer und Termin; Positionsliste: Eingabe, ↓, Strg+D wie in Excel."],
+    ["0.9.47", "<b>Gemeinsamer Nummernkreis</b>: Angebotsnummern ohne Kürzel, <b>2026-00001</b>, 2026-00002 … für "
+     "alle Mitarbeiter gemeinsam; der Zähler läuft über den Jahreswechsel weiter. Jede Nummer wird im gemeinsamen "
+     "Ordner reserviert, so kommt keine doppelt vor, auch wenn zwei gleichzeitig ein Angebot anlegen. Ist der Ordner "
+     "nicht erreichbar, gibt es eine vorläufige Nummer (V-PB-1), die endgültige kommt beim nächsten Abgleich; "
+     "Angebots-PDF und Materialanfrage erst mit endgültiger Nummer. Das Kürzel bleibt als Bearbeiter, ältere "
+     "Nummern bleiben ([[mehrere_arbeitsplaetze]]).",
+     "Gemeinsamer Nummernkreis 2026-00001 ohne Kürzel, keine Nummer doppelt ([[mehrere_arbeitsplaetze]])."],
     ["0.9.46", "<b>Neue Fassung</b>: <i>Datei → Neue Fassung des Angebots</i> oder der Haken im Dialog Kopieren legt "
                "das Angebot mit gleicher Nummer und Zusatz -2, -3 … an: gleicher Kunde, heutiges Datum, aktuelle "
                "Preise, Positionen und Staffeln. Die alte Fassung steht auf <b>Ersetzt durch …</b> und zählt in "

@@ -277,11 +277,3 @@ def naechste_nummer(nr):
 def kuerzel_sauber(text):
     """Kürzel eines Mitarbeiters: nur Buchstaben und Ziffern, groß geschrieben, höchstens 5 Zeichen ('pb ' -> 'PB')."""
     return re.sub(r"[^A-Z0-9ÄÖÜ]", "", str(text or "").upper())[:5]
-
-
-def nummer_mit_kuerzel(kuerzel, jahr, nummern):
-    """Nächste Angebotsnummer eines Mitarbeiters: 'PB-2026-0001', 'PB-2026-0002' …; jedes Kürzel zählt je Jahr
-    für sich. nummern: alle vorhandenen bzw. schon vergebenen Nummern (auch die letzte, falls gelöscht)."""
-    muster = re.compile(rf"^{re.escape(kuerzel)}-{jahr}-(\d+)$")
-    hoch = max((int(m.group(1)) for m in (muster.match(str(n or "")) for n in nummern) if m), default=0)
-    return f"{kuerzel}-{jahr}-{hoch + 1:04d}"
