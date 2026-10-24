@@ -113,6 +113,7 @@ class SchneidwegDialog(QDialog):
         e, self.aus_position = sw.aus_position(sw.lesen(p.get("technik")), p, profil)
         # Profil der Position anders als gemessen (von Hand geändert): Konturen umrechnen bzw. Umriss übertragen
         e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(profil, profil_id=p.get("profil_id")))
+        e = dreid.vorschlag(e, rechnen.maschine(kopf or {}, k)) or e     # Maschine mit 3D: Vorgabe 3D an
         self.biegerohr = biegerohr.lesen(e)        # Biegerohr aus dem STEP-Import: bleibt in den Eingaben
         self.knick = knickrahmen.lesen(e)          # Knickrahmen: Schenkel, daraus die gestreckte Länge
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
@@ -1005,6 +1006,8 @@ class SchneidwegDialog(QDialog):
             out["r_aussen"] = self.r_aussen
         if self.d3.isChecked():
             out["d3"] = True
+        elif dreid.kann_3d(rechnen.maschine(self.kopf or {}, self.k)):
+            out["d3"] = False           # bewusst abgewählt: keine 3D-Vorgabe beim nächsten Öffnen
         if self.biegerohr:
             out["biegerohr"] = self.biegerohr
         if self.knick:

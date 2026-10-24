@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QMessageBox,
                                QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import biegerohr, dfm, editor_griffe, rechnen, rohr3d, schneidweg as sw, stil, symbole
+from . import biegerohr, dfm, editor_griffe, naht, rechnen, rohr3d, schneidweg as sw, stil, symbole
 from .ansicht3d import DARSTELLUNGEN, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
@@ -883,7 +883,9 @@ class EditorRahmen(QObject):
         else:
             laenge = d.k_laenge.value() if getattr(d, "neu", False) and hasattr(d, "k_laenge") else d.p.get("laenge")
             try:
-                netz = rohr3d.netz(e, d.profil, laenge)
+                nw = d.naht_werte() if hasattr(d, "naht_werte") else {}
+                netz = rohr3d.netz(e, d.profil, laenge,
+                                   nw.get("naht_winkel") if nw.get("naht_vorgabe") == naht.FEST else None)
             except (ValueError, TypeError, ZeroDivisionError):
                 netz = None
             netz, titel = netz or self.step_netz, "3D-Modell (aus den Eingaben)"

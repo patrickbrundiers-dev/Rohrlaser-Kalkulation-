@@ -117,6 +117,11 @@ d.werte_schreiben()
 assert all(m["_d3"] is True for m in werte)
 assert StepPruefDialog(None, werte, k, "S235-10219", 1).d3.isChecked()
 ok("T3 Prüfdialog: Häkchen 3D mit gefundenen Kandidaten, Wahl geht an die Übernahme")
+# Maschine des Angebots kann 3D (Patrick 24.10.2026): Häkchen von selbst an, nur bei Kandidaten; einmal gewählt gilt
+assert StepPruefDialog(None, [dict(m) for m in mw], k, "S235-10219", 1, maschine_3d=True).d3.isChecked()
+assert not StepPruefDialog(None, [dict(m) for m in mw], k, "S235-10219", 1).d3.isChecked()
+assert not StepPruefDialog(None, [dict(m, _d3=False) for m in mw], k, "S235-10219", 1, maschine_3d=True).d3.isChecked()
+ok("T3 Maschine mit 3D: Häkchen 3D im Prüfdialog vorgewählt")
 # ------------------------------------------------------------------ T4 nur 3D, wenn nicht 90° zur Oberfläche
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Common  # noqa: E402
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox  # noqa: E402
@@ -151,6 +156,7 @@ erg = step.uebernehmen([dict(m, _d3=True) for m in mw2], [], k, gew, None, "S235
 p_eben, p_2d = erg["positionen"]
 assert json.loads(p_eben["technik"])["b"].get("d3") is True and not dreid.pruefen(p_eben, m)
 assert not json.loads(p_2d["technik"])["b"].get("d3") and not dreid.bearbeitungen(p_2d, m)
+assert "d3" not in json.loads(p_2d["technik"])           # 3D gewählt, aber nur senkrechte Schnitte: Teil bleibt 2D
 ok("T4 3D nur, wenn die Schnittfläche nicht senkrecht zur Oberfläche steht: ebene Gehrung 30° = 3D, gleiche "
    "Gehrung mit Strahl senkrecht zur Wand = 2D (gemessen 0°)")
 print("Alle 3D-STEP-Tests bestanden.")

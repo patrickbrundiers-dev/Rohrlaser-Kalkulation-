@@ -191,6 +191,31 @@ def technik(p):
     return d if isinstance(d, dict) else {}
 
 
+def vorschlag(e, m):
+    """3D-Vorgabe für die Eingaben eines Teils (Patrick 24.10.2026: „wenn ich 3D an der Maschine zulasse, gilt das
+    für alle Konturen“): kann die Maschine 3D und ist am Teil noch nichts gewählt (kein Schlüssel d3), werden
+    Gehrungen an den Enden und schräge Bohrungen 3D und das Teil bekommt das Häkchen. Schnitte, die senkrecht zur
+    Oberfläche stehen, bleiben 2D; ein abgewähltes Häkchen (d3 False) bleibt aus. Ergebnis: neue Eingaben oder None."""
+    if not kann_3d(m) or not isinstance(e, dict) or "d3" in e:
+        return None
+    neu = json.loads(json.dumps(e))
+    n = 0
+    for s in ("a", "b"):
+        x = neu.get(s)
+        if isinstance(x, dict) and "d3" not in x and _z(x.get("winkel")):
+            x["d3"] = True
+            n += 1
+    for z in neu.get("konturen") or ():
+        if isinstance(z, dict) and z.get("art") == "Bohrung" and "d3" not in z and \
+                (_z(z.get("neigung_l")) or _z(z.get("neigung_q"))):
+            z["d3"] = True
+            n += 1
+    if not n:
+        return None
+    neu["d3"] = True
+    return neu
+
+
 def aktiv(p):
     """Bauteil mit eingeschalteter 3D-Schnittbearbeitung."""
     return technik(p).get("d3") is True

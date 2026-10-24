@@ -110,6 +110,29 @@ d4 = SchneidwegDialog(s, dict(p, technik=sw.speichern(e)), QR, s.kopf, s.k, s.ta
 assert "kann keine 3D" in d4.d3_info.text() and "B42318" in d4.d3_info.text()
 assert "FEHLER" in d4.summe.text()
 ok("E4 Schneidzeit mit 3D höher; Maschine ohne 3D: Hinweis rot und FEHLER")
+
+# ------------------------------------------------------------------ E6 Vorgabe 3D, wenn die Maschine 3D kann
+# Patrick 24.10.2026: 3D an der Maschine zugelassen -> Teile mit Gehrung bzw. schräger Bohrung von selbst 3D,
+# abwählbar; die Abwahl bleibt; senkrechte Schnitte bleiben 2D
+db.aendern("maschinen", mid, "d3", "ja")
+s.neu_laden()
+M3 = rechnen.maschine(s.kopf, s.k)
+roh = dict(quelle=sw.QUELLE, a={}, b=dict(winkel=30, richtung=0),
+           konturen=[dict(art="Bohrung", anzahl=1, d=10, x=500, seite=0, neigung_l=20),
+                     dict(art="Bohrung", anzahl=1, d=8, x=300, seite=0)])
+v = dreid.vorschlag(roh, M3)
+assert v["d3"] is True and v["b"]["d3"] is True and "d3" not in v["a"] and v["konturen"][0]["d3"] is True
+assert "d3" not in v["konturen"][1] and "d3" not in roh
+assert dreid.vorschlag(roh, dict(d3="nein")) is None and dreid.vorschlag(dict(roh, d3=False), M3) is None
+assert dreid.vorschlag(dict(quelle=sw.QUELLE, a={}, b={}, konturen=[]), M3) is None     # alles senkrecht
+d6 = SchneidwegDialog(s, dict(p, technik=sw.speichern(roh)), QR, s.kopf, s.k, s.tabellen)
+assert d6.d3.isChecked() and d6.ende_3d["b"].isChecked()
+d6.d3.setChecked(False)
+e6 = d6.eingaben()
+assert e6["d3"] is False
+d7 = SchneidwegDialog(s, dict(p, technik=sw.speichern(e6)), QR, s.kopf, s.k, s.tabellen)
+assert not d7.d3.isChecked()
+ok("E6 Maschine mit 3D: Gehrung und schräge Bohrung von selbst 3D, abgewählt bleibt aus, senkrecht bleibt 2D")
 print("Alle Tests Rohr-Editor 3D bestanden.")
 
 # ------------------------------------------------------------------ E5 Skizze
@@ -124,3 +147,25 @@ from rohrlaser.schneidweg_dialog import ohne_3d  # noqa: E402
 assert "d3" not in ohne_3d(dict(konturen=[b]))["konturen"][0] and ohne_3d(dict(d3=True, konturen=[b]))["konturen"][0]["d3"]
 ok("E5 Skizze: schräge Bohrung als Ellipse mit „3D“, ohne Häkchen am Bauteil rund")
 print("Skizze 3D bestanden.")
+
+# ------------------------------------------------------------------ E7 Längsschweißnaht als rote Linie im 3D
+# Patrick 24.10.2026: Schweißnaht in der 3D-Ansicht als rote Linie; nur bei fester Nahtlage, von Ende zu Ende
+from rohrlaser import naht, rohr3d  # noqa: E402
+re_ = dict(form="Rechteckrohr", a=60, b=40, wand=3)
+n90 = rohr3d.netz(dict(a={}, b={}, konturen=[]), re_, 500, 90)
+(zug,) = n90["l"]["NL"]
+pk = [zug[i:i + 3] for i in range(0, len(zug), 3)]
+assert all(abs(abs(q[0]) - 30.4) < 1e-6 and abs(q[1]) < 1e-6 for q in pk), pk[:2]    # rechte Seite, Mitte
+assert pk[0][2] == 0 and pk[-1][2] == 500 and n90["li"]["NL"] == ["naht"]
+n0 = rohr3d.netz(dict(a={}, b={}, konturen=[]), re_, 500, 0)
+assert all(abs(q[1] - 20.4) < 1e-6 for q in (n0["l"]["NL"][0][i:i + 3] for i in range(0, 6, 3)))   # oben
+assert "NL" not in rohr3d.netz(dict(a={}, b={}, konturen=[]), re_, 500)["l"]
+d8 = SchneidwegDialog(s, p, QR, s.kopf, s.k, s.tabellen)
+d8.naht_vorgabe.setCurrentText(naht.FEST)
+d8.naht_winkel.setCurrentText("90° vorne (rechts)")
+d8.editor.aktualisieren()
+assert "NL" in (d8.editor.ansicht().netz or {}).get("l", {}), list((d8.editor.ansicht().netz or {}).get("l", {}))
+d8.naht_vorgabe.setCurrentText(naht.KEINE)
+d8.editor.aktualisieren()
+assert "NL" not in (d8.editor.ansicht().netz or {}).get("l", {})
+ok("E7 Längsschweißnaht als rote Linie im 3D (nur feste Nahtlage), Klick wählt die Naht")

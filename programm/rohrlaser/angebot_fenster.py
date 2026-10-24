@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTextBrowser, QToolTip,
     QVBoxLayout, QWidget)
 
-from . import abmessung, anbau, blech, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
+from . import abmessung, anbau, blech, dreid, fracht_angebot, ausgabe, export, materialanfrage, naht, pdf, rechnen, schneidweg, step, tastatur, \
     teilen, vorschau, zukauf, zukauf_ek, baugruppe
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
@@ -2355,7 +2355,7 @@ class AngebotSeite(QWidget):
             from . import rohr3d
             profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
             netz = rohr3d.netz(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], profil,
-                               p.get("laenge"))
+                               p.get("laenge"), p.get("naht_winkel") if naht.vorgabe(p) == naht.FEST else None)
         except (ValueError, TypeError, KeyError, ZeroDivisionError):
             netz = None
         return netz, "3D-Modell aus den Eingaben" if netz else ""
@@ -4138,7 +4138,8 @@ class AngebotSeite(QWidget):
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
             knick = {n: self.db.einstellung(f"knick_{n}") for n in ("z", "freistich", "k")}
             dlg = StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
-                                  zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren)
+                                  zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren,
+                                  maschine_3d=dreid.kann_3d(rechnen.maschine(self.kopf, self.k)))
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None

@@ -28,7 +28,11 @@ NEUERUNGEN = [
                "Werkstoff und Dicke werden aus Dateiname und Texten vorgeschlagen; Biegelinien machen ein Kantteil "
                "([[dxf_import]]). <b>STEP-Import</b>: ein Rechteckrohr mit Gehrungen an beiden Enden wurde manchmal als "
                "gekantetes Blech erkannt (und die anstoßenden Rohre bekamen es als Anbauteil); geschlossene Rohre "
-               "bleiben jetzt Rohr.",
+               "bleiben jetzt Rohr. <b>3D</b>: Kann die Maschine des Angebots 3D, ist die 3D-Schnittbearbeitung bei Teilen "
+               "mit Gehrung oder schräger Bohrung von selbst an (im Rohr-Editor und im STEP-Prüfdialog, je Teil "
+               "abwählbar); senkrechte Schnitte bleiben 2D. Fehler „NoneType … __round__“ beim Knickrahmen mit "
+               "schräger Innenwand in 3D behoben. <b>Schweißnaht im 3D</b>: eine feste Nahtlage zeigt der Rohr-Editor "
+               "(und die 3D-Ansicht der Position) als rote Linie über die ganze Länge.",
      "DXF-Import: genaue Kontur, Rahmen weg, mehrere Bleche, Werkstoff/Dicke vorgeschlagen ([[dxf_import]])."],
     ["0.9.86", "<b>Kontur-Vorlagen im Teile-Editor</b>: markierte Konturen (z. B. ein Bohrbild mit seinen Abständen) "
                "unter einem Namen speichern, wahlweise nur für den Kunden, und in andere Rohre oder Bleche einsetzen; "

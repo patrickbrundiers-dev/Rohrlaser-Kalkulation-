@@ -228,6 +228,14 @@ assert w_["fehlt_3d"] == d3["fehlt"]
 assert rechnen.status(p0, w_, s.kopf, s.k) == "WARNUNG: " + d3["fehlt"]
 ok(f"D5 {d3['fehlt']}: WARNUNG, keine Mehrzeit geraten")
 
+# Knickrahmen: V-Ausschnitt mit schräger Innenwand in 3D (Patrick 24.10.2026: TypeError round(None) in zeit_3d,
+# die Innenwand hat kein Hüllmaß; sie ist ein gerader Schnitt durch die Wand wie ein Ende -> Konturklasse groß)
+technik(d3=True, konturen=[dict(art="V-Ausschnitt", anzahl=1, beta=90, x=450, seite="oben", d3=True,
+                                qs=[40.0, 20.0, 20.0])])
+zv, _, stv = rechnung()
+assert stv == "OK" and zv["zeit_3d_gesamt"] > 0, (stv, zv["zeit_3d_gesamt"])
+ok("D5 V-Ausschnitt mit schräger Innenwand in 3D: Zeit ohne Fehler (Konturklasse groß)")
+
 # Schema 39
 pfad = tmp / "alt" / "rohrlaser.db"
 Datenbank(pfad).schliessen()

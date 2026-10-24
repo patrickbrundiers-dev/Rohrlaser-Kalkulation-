@@ -2080,7 +2080,8 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
         g3 = _n(sd["vorschub_gross"])
         m3 = _n(sd.get("vorschub_mittel")) or g3
         k3 = _n(sd.get("vorschub_klein")) or m3
-        c = 2 if b["ende"] else kontur_klasse(b["huelle"], regel)
+        # Enden und die schräge Innenwand eines V-Ausschnitts (gerader Schnitt durch die Wand, kein Hüllmaß): groß
+        c = 2 if b["ende"] or b.get("huelle") is None else kontur_klasse(b["huelle"], regel)
         lg, n = b["laenge"] * b["anzahl"], b["einstiche"] * b["anzahl"]
         ref += 60 * lg / (j, i_, h)[c] + n * _n(l)
         zeit += (60 * lg / (k3, m3, g3)[c] + n * _n(sd.get("einstechzeit"))) * faktor + zusatz * b["anzahl"]

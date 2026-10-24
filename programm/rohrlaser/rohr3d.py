@@ -192,8 +192,10 @@ def zelle_frei(feld, loch_liste):
     return out
 
 
-def netz(e, profil, laenge):
-    """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt."""
+def netz(e, profil, laenge, naht_winkel=None):
+    """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt.
+    naht_winkel: Lage der Längsschweißnaht (naht.py, von Ende A gesehen 0° oben, 90° rechts) als rote Linie 'NL'
+    über die ganze Länge (Patrick 24.10.2026), None = keine feste Naht."""
     L = _z(laenge)
     if L <= 0:
         return None
@@ -402,4 +404,16 @@ def netz(e, profil, laenge):
         if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+    # Längsschweißnaht: rote Linie auf der Außenwand von Anfangs- bis Endschnitt
+    try:
+        pt = sk.naht_punkt(qs, naht_winkel)
+    except (ValueError, TypeError):
+        pt = None
+    if pt is not None:
+        r = math.hypot(*pt) or 1.0
+        u, v = pt[0] + pt[0] / r * ABSTAND, pt[1] + pt[1] / r * ABSTAND
+        x0, x1 = za(*pt), zb(*pt)
+        schritte = max(1, int(abs(x1 - x0) // 50))
+        zug = [_xyz(x0 + (x1 - x0) * i / schritte, u, v) for i in range(schritte + 1)]
+        linie("NL", zug, _xyz(0, pt[0] / r, pt[1] / r), "naht")
     return dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True)
