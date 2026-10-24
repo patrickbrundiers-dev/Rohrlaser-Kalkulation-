@@ -16,11 +16,17 @@ import copy
 import math
 
 from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
-from PySide6.QtGui import QColor, QKeySequence, QUndoCommand, QUndoStack
-from PySide6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QListWidget, QListWidgetItem, QPushButton, QSplitter,
-                               QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtGui import QColor, QKeySequence, QShortcut, QUndoCommand, QUndoStack
+from PySide6.QtWidgets import (QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu, QScrollArea, QSplitter,
+                               QTreeWidget,
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import biegerohr, dfm, rechnen, schneidweg as sw, stil
+from . import biegerohr, dfm, rechnen, rohr3d, schneidweg as sw, stil, symbole
+from .ansicht3d import Ansicht3D
+from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
+from .editor_eigenschaften import Eigenschaften
+from .editor_ergebnis import Ergebnisleiste
+from .menueband import Menueband
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
@@ -28,6 +34,10 @@ GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Biegungen", "Anbauteile", "Schwei�
 FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, VORGABE: stil.TEXT_GRAU}
 FARBE_STUFE = {dfm.FEHLER: stil.ROT, dfm.WARNUNG: stil.GELB_TEXT, dfm.HINWEIS: stil.TEXT_GRAU}
 VERZOEGERUNG = 150          # ms nach der letzten Eingabe: Baum, Prüfmeldungen, Rückgängig-Schritt
+BAND_SYMBOL = {sw.BOHRUNG: "bohrung", sw.SENKUNG: "bohrung", sw.FLOWDRILL: "bohrung", sw.LANGLOCH: "langloch",
+               sw.RECHTECK: "rechteck", sw.SCHLITZ: "ausklinkung", sw.AUSKLINKUNG: "ausklinkung",
+               sw.POLYGON: "polygon", sw.SONDERKONTUR: "sonderkontur", sw.SONSTIGE: "sonderkontur",
+               sw.GRAVUR: "gravur", sw.V_AUSSCHNITT: "v_ausschnitt"}
 
 
 class Merkmal:
@@ -208,38 +218,17 @@ class EditorRahmen(QObject):
         self._letzter = self.zustand()
         dialog.editor = self
         self.aktualisieren()
+        self.eigenschaften.zeigen("teil")
 
     # -------------------------------------------------------------- Oberfläche
     def _bauen(self):
+        """Menüband oben, links Merkmale, in der Mitte die Ansichten (3D und Skizze bzw. Abwicklung), rechts das
+        Ergebnis, unten Kennzahlen und Prüfmeldungen (Plan 3D-Editor 3E-1). Die Eingaben der Fenster bleiben: beim
+        Rohr unter den Ansichten (aufklappbar), beim Blech links unter den Merkmalen."""
         d = self.d
-        leiste = QHBoxLayout()
-        self.rueck = QToolButton()
-        self.vor = QToolButton()
-        for knopf, aktion, text, taste in ((self.rueck, self.verlauf.createUndoAction(self, "Rückgängig"),
-                                            "Rückgängig", QKeySequence.Undo),
-                                           (self.vor, self.verlauf.createRedoAction(self, "Wiederholen"),
-                                            "Wiederholen", QKeySequence.Redo)):
-            aktion.setShortcut(taste)
-            aktion.setShortcutContext(Qt.WindowShortcut)
-            aktion.setToolTip(f"{text} ({QKeySequence(taste).toString(QKeySequence.NativeText)})")
-            d.addAction(aktion)
-            knopf.setDefaultAction(aktion)
-            knopf.setToolButtonStyle(Qt.ToolButtonTextOnly)
-            leiste.addWidget(knopf)
-        self.zurueck_knopf = QPushButton("Auf STEP-Wert zurücksetzen")
-        self.zurueck_knopf.setToolTip("Das gewählte Merkmal wieder so setzen, wie es im STEP-Import gemessen wurde")
-        self.zurueck_knopf.clicked.connect(lambda: self.zuruecksetzen())
-        leiste.addWidget(self.zurueck_knopf)
-        self.messen_knopf = QPushButton("Messen")
-        self.messen_knopf.setCheckable(True)
-        self.messen_knopf.setToolTip("In der 3D-Ansicht zwei Punkte anklicken (die nächste Ecke wird gefangen): "
-                                     "Abstand in mm mit Δx, Δy, Δz")
-        self.messen_knopf.toggled.connect(self._messen)
-        leiste.addWidget(self.messen_knopf)
-        self.mass = QLabel()
-        self.mass.setStyleSheet(f"color: {stil.TEXT_GRAU};")
-        leiste.addWidget(self.mass, 1)
-        # links Merkmalsbaum, in der Mitte das Fenster, unten Prüfmeldungen
+        rohr = self.art == "rohr"
+        self._band_bauen()
+        # links Merkmalsbaum, unten Prüfmeldungen
         self.baum = QTreeWidget()
         self.baum.setHeaderLabels(["Merkmal", "Herkunft"])
         kopf = self.baum.header()
@@ -250,6 +239,7 @@ class EditorRahmen(QObject):
                              "Grundwert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
         self.baum.currentItemChanged.connect(lambda neu, _: self._baum_gewaehlt(neu))
         self.meldungen = QListWidget()
+        self.meldungen.setWordWrap(True)
         self.meldungen.setToolTip("Prüfmeldungen der Fertigungsprüfung und der Rechnung; Klick zeigt die Stelle")
         self.meldungen.currentItemChanged.connect(lambda neu, _: self._meldung_gewaehlt(neu))
         self.meldungen.itemClicked.connect(self._meldung_gewaehlt)
@@ -262,35 +252,372 @@ class EditorRahmen(QObject):
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(QLabel("<b>Merkmale</b>"))
         ll.addWidget(self.baum, 1)
+        links.setMinimumWidth(200)
+        d.ergebnis_bereich.setMinimumWidth(260)
+        # Ansichten aus den Fenstern holen (Rohr: früher Reiter, Blech: früher untereinander rechts)
+        self.ansichten = Ansichtsbereich(d.skizze, d.ansicht3d, self._einstellung("editor_ansicht", BEIDES))
+        d.kontur_leiste.hide()
         self.waagerecht = QSplitter(Qt.Horizontal)
-        self.waagerecht.addWidget(links)
-        self.waagerecht.addWidget(teiler)
+        self.waagerecht.setChildrenCollapsible(False)
+        self.eigenschaften = Eigenschaften(d, self.art)
+        self.eigenschaften.setMinimumWidth(260)
+        self.eigenschaften.duplizieren.connect(self.duplizieren)
+        self.eigenschaften.entfernen.connect(self.entfernen)
+        rechts = QSplitter(Qt.Vertical)
+        rechts.setChildrenCollapsible(False)
+        rechts.addWidget(self.eigenschaften)
+        erg_rollen = QScrollArea()          # Ergebnis-Text rollt, statt die Fensterhöhe zu erzwingen
+        erg_rollen.setWidgetResizable(True)
+        erg_rollen.setFrameShape(QScrollArea.NoFrame)
+        erg_rollen.setWidget(d.ergebnis_bereich)
+        rechts.addWidget(erg_rollen)
+        rechts.setStretchFactor(0, 3)
+        rechts.setStretchFactor(1, 2)
+        rechts.setSizes([420, 280])
+        self.rechts = rechts
+        if rohr:
+            d.skizze_kopf.hide()
+            d.bilder.hide()
+            d.bilder = self.ansichten
+            self.mitte = QSplitter(Qt.Vertical)
+            self.mitte.setChildrenCollapsible(True)
+            self.mitte.addWidget(self.ansichten)
+            rollen = QScrollArea()          # schmaler Bildschirm: die Eingaben rollen statt das Fenster zu verbreitern
+            rollen.setWidgetResizable(True)
+            rollen.setFrameShape(QScrollArea.NoFrame)
+            rollen.setWidget(d.eingabe_bereich)
+            self.mitte.addWidget(rollen)
+            self.tabelle_bereich = rollen
+            self.mitte.setStretchFactor(0, 3)
+            self.mitte.setStretchFactor(1, 2)
+            self.waagerecht.addWidget(links)
+            self.waagerecht.addWidget(self.mitte)
+            self.waagerecht.addWidget(rechts)
+            teiler.hide()
+        else:
+            d.bilder_teiler.hide()
+            spalte = QSplitter(Qt.Vertical)
+            spalte.addWidget(links)
+            rollen = QScrollArea()
+            rollen.setWidgetResizable(True)
+            rollen.setFrameShape(QScrollArea.NoFrame)
+            rollen.setWidget(d.eingabe_bereich)
+            spalte.addWidget(rollen)
+            spalte.setStretchFactor(0, 1)
+            spalte.setStretchFactor(1, 4)
+            spalte.setSizes([170, max(500, d.height() - 400)])
+            d.ergebnis_bereich.layout().addStretch(1)
+            self.mitte = self.ansichten
+            self.tabelle_bereich = rollen
+            self.waagerecht.addWidget(spalte)
+            self.waagerecht.addWidget(self.ansichten)
+            self.waagerecht.addWidget(rechts)
+            teiler.hide()
         self.waagerecht.setStretchFactor(0, 0)
         self.waagerecht.setStretchFactor(1, 1)
-        self.waagerecht.setSizes([250, max(600, d.width() - 250)])
+        self.waagerecht.setStretchFactor(2, 0)
+        breite = max(900, d.width())
+        links_b, rechts_b = (240, 340) if rohr else (500, 320)
+        self.waagerecht.setSizes([links_b, breite - links_b - rechts_b, rechts_b])
+        if rohr:
+            hoehe = max(500, d.height() - 260)
+            self.mitte.setSizes([int(hoehe * 0.55), hoehe - int(hoehe * 0.55)])
         unten = QWidget()
         ul = QVBoxLayout(unten)
         ul.setContentsMargins(0, 0, 0, 0)
         self.meldung_titel = QLabel()
         ul.addWidget(self.meldung_titel)
         ul.addWidget(self.meldungen, 1)
+        self.meldung_bereich = unten
         self.senkrecht = QSplitter(Qt.Vertical)
         self.senkrecht.addWidget(self.waagerecht)
         self.senkrecht.addWidget(unten)
         self.senkrecht.setStretchFactor(0, 1)
         self.senkrecht.setStretchFactor(1, 0)
         self.senkrecht.setSizes([max(400, d.height() - 140), 110])
+        self.leiste_unten = Ergebnisleiste()
+        self.mass = self.leiste_unten.mass
+        self.leiste_unten.aufgeklappt.connect(unten.setVisible)
+        unten.setVisible(False)
+        haupt.insertWidget(stelle, self.leiste_unten)
         haupt.insertWidget(stelle, self.senkrecht, 1)
-        haupt.insertLayout(stelle, leiste)
+        haupt.insertWidget(stelle, self.band)
         a3 = self.ansicht()
         if a3 is not None:
             a3.angeklickt.connect(self._3d_geklickt)
             a3.gemessen.connect(lambda w: self.mass.setText(f"Abstand {rechnen.zahl(w, 1)} mm"))
-        if self.art == "rohr":
+        self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
+        self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
+        if rohr:
             d.tabelle.itemSelectionChanged.connect(self._tabelle_gewaehlt)
         else:
             d.tabelle.itemSelectionChanged.connect(lambda: self._tabelle_gewaehlt())
             d.schenkel.itemSelectionChanged.connect(self._schenkel_gewaehlt)
+        self._modus_knoepfe(self.ansichten.modus)
+        self.tabelle_zeigen(self._einstellung("editor_tabelle", True) is not False)
+        # Tastatur: Entf in Baum, Tabelle und 3D entfernt die gewählte Kontur, Strg+D dupliziert sie
+        for w in (self.baum, d.tabelle, d.ansicht3d.ansicht):
+            k = QShortcut(QKeySequence.Delete, w, context=Qt.WidgetWithChildrenShortcut)
+            k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.entfernen(self._gewaehlte_zeile()))
+        k = QShortcut(QKeySequence("Ctrl+D"), d, context=Qt.WindowShortcut)
+        k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.duplizieren(self._gewaehlte_zeile()))
+
+    def _einstellung(self, name, vorgabe):
+        db = getattr(self.d, "db", None)
+        try:
+            v = db.einstellung(name) if db is not None else None
+        except Exception:           # z. B. Lesemodus fremder Daten
+            v = None
+        return v if v not in (None, "") else vorgabe
+
+    def _band_bauen(self):
+        d = self.d
+        rohr = self.art == "rohr"
+        self.band = Menueband()
+        kon, ans, aus = (self.band.reiter(n) for n in ("Konstruktion", "Ansicht", "Ausgabe"))
+        g = kon.gruppe("Bearbeiten")
+        for attr, aktion, text, taste, sym in (
+                ("rueck", self.verlauf.createUndoAction(self, "Rückgängig"), "Rückgängig", QKeySequence.Undo,
+                 "rueckgaengig"),
+                ("vor", self.verlauf.createRedoAction(self, "Wiederholen"), "Wiederholen", QKeySequence.Redo,
+                 "wiederholen")):
+            aktion.setShortcut(taste)
+            aktion.setShortcutContext(Qt.WindowShortcut)
+            aktion.setToolTip(f"{text} ({QKeySequence(taste).toString(QKeySequence.NativeText)})")
+            aktion.setIcon(symbole.symbol(sym))
+            d.addAction(aktion)
+            knopf = g.knopf(text, sym)
+            knopf.setDefaultAction(aktion)
+            knopf.setText(text)
+            setattr(self, attr, knopf)
+        self.zurueck_knopf = g.knopf("Auf STEP-Wert", "wiederherstellen", lambda: self.zuruecksetzen(), gross=False,
+                                     tipp="Das gewählte Merkmal wieder so setzen, wie es im STEP-Import gemessen wurde")
+        g.knopf("Duplizieren", "duplizieren", lambda: self._gewaehlte_zeile() is not None and
+                self.duplizieren(self._gewaehlte_zeile()), gross=False, tipp="Gewählte Kontur kopieren",
+                taste="Strg+D")
+        g.knopf("Entfernen", "loeschen", lambda: (d._entfernen if rohr else d._kontur_weg)(), gross=False,
+                tipp="Markierte Konturzeilen entfernen", taste="Entf")
+        # Konturen: die häufigsten groß, alle weiteren im Menü
+        g = kon.gruppe("Konturen")
+        arten = sw.ARTEN if rohr else (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE)
+        haupt = (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK)
+        for art in haupt:
+            g.knopf(art, BAND_SYMBOL.get(art), lambda _=False, art=art: self.kontur_einfuegen(art),
+                    tipp=f"{art} einfügen: neue Zeile, Lage und Maße im Eingabebereich")
+        mehr = QMenu(self.band)
+        for art in arten:
+            if art not in haupt:
+                a = mehr.addAction(symbole.symbol(BAND_SYMBOL.get(art, "mehr")), art)
+                a.triggered.connect(lambda _=False, art=art: self.kontur_einfuegen(art))
+        g.knopf("Weitere", "mehr", menue=mehr, tipp="Weitere Konturarten")
+        if rohr:
+            g = kon.gruppe("Rohr")
+            k = g.knopf("Knickrahmen", "v_ausschnitt", lambda: d.knickrahmen(),
+                        tipp=d.knick_knopf.toolTip())
+            k.setEnabled(d.knick_knopf.isEnabled())
+            g = kon.gruppe("Übernehmen")
+            k = g.knopf("Aus Position", "kopieren", lambda: d._kopieren_waehlen(), gross=False,
+                        tipp="Konturen einer anderen Position dieses Angebots anhängen")
+            k.setEnabled(bool(d.positionen))
+            k = g.knopf("Vorlagen", "vorlage", menue=d.vorlagen_knopf.menu(), gross=False,
+                        tipp=d.vorlagen_knopf.toolTip())
+            k.setEnabled(d.vorlagen_knopf.isEnabled())
+        else:
+            g = kon.gruppe("Kantteil")
+            for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):
+                g.knopf(b.text().replace("+ ", ""), sym, lambda _=False, b=b: b.click(), gross=False,
+                        tipp="Schenkel anhängen" if sym == "neu" else "Markierte Schenkel entfernen")
+        # Ansicht
+        g = ans.gruppe("Darstellung")
+        self.modus_knoepfe = {}
+        for modus, text, sym in ((D3, "3D", "wuerfel"), (SKIZZE, "Skizze" if rohr else "Abwicklung", "abwicklung"),
+                                 (BEIDES, "Beides", "beides")):
+            self.modus_knoepfe[modus] = g.knopf(text, sym, lambda an, m=modus: an and self.modus_setzen(m),
+                                                umschalter=True, tipp=f"Mitte: {text}")
+        self.tabelle_knopf = g.knopf("Tabelle", "liste", self.tabelle_zeigen, umschalter=True,
+                                     tipp="Eingaben als Tabelle zeigen (zum schnellen Durchtippen vieler Zeilen)")
+        g = ans.gruppe("Blickrichtung")
+        for text, (gi, ni) in (("Schräg", Ansicht3D.GRUND), ("Vorn", (0.0, 0.0)), ("Oben", (0.0, 1.5)),
+                               ("Stirnseite", (-1.5708, 0.0))):
+            g.knopf(text, None, lambda _=False, gi=gi, ni=ni: self._blick(gi, ni), gross=False)
+        if rohr:
+            g = ans.gruppe("Modell")
+            self.step_knopf = g.knopf("STEP-Modell", "step", lambda an: self.modell_setzen(an), umschalter=True,
+                                      tipp="3D: gemessenes Modell aus dem STEP-Import statt des Modells aus den "
+                                           "Eingaben (das zeigt jede Änderung sofort)")
+            g = ans.gruppe("Skizze")
+            g.widget(d.ansicht_wahl)
+            g.knopf("Einpassen", None, lambda: d.skizze.einpassen(), gross=False)
+        g = ans.gruppe("Messen")
+        self.messen_knopf = g.knopf("Messen", "messen", self._messen, umschalter=True,
+                                    tipp="In der 3D-Ansicht zwei Punkte anklicken (die nächste Ecke wird gefangen): "
+                                         "Abstand in mm")
+        # Ausgabe
+        g = aus.gruppe("Ausgabe")
+        if rohr:
+            g.knopf("Zeichnung als PDF", "pdf", lambda: d.zeichnung_pdf(), tipp=d.zeichnung_knopf.toolTip())
+            k = g.knopf("STEP neu einlesen", "step", lambda: d.step_einlesen(), tipp=d.step_knopf.toolTip())
+            k.setEnabled(d.step_knopf.isEnabled())
+        else:
+            g.knopf("DXF speichern", "dxf", lambda: d.dxf_speichern(), tipp=d.dxf_knopf.toolTip())
+        self.band.eingeklappt_geaendert.connect(lambda an: self._merken("editor_band_zu", an))
+        if self._einstellung("editor_band_zu", False) is True:
+            self.band.einklappen(True)
+
+    def _merken(self, name, wert):
+        db = getattr(self.d, "db", None)
+        try:
+            if db is not None:
+                db.einstellung_setzen(name, wert)
+        except Exception:           # Lesemodus: dann eben nicht merken
+            pass
+
+    def _modus_knoepfe(self, modus):
+        for m, b in self.modus_knoepfe.items():
+            b.blockSignals(True)
+            b.setChecked(m == modus)
+            b.blockSignals(False)
+
+    def modus_setzen(self, modus):
+        """Mitte: 3D, Skizze/Abwicklung oder beides (wird je Benutzer gemerkt)."""
+        self.ansichten.modus_setzen(modus)
+        self._modus_knoepfe(modus)
+        self._merken("editor_ansicht", modus)
+
+    def tabelle_zeigen(self, an):
+        """Eingabetabelle(n) zeigen oder nur Ansichten + Eigenschaften (wird je Benutzer gemerkt)."""
+        an = bool(an)
+        self.tabelle_bereich.setVisible(an)
+        self.tabelle_knopf.blockSignals(True)
+        self.tabelle_knopf.setChecked(an)
+        self.tabelle_knopf.blockSignals(False)
+        self._merken("editor_tabelle", an)
+
+    def _gewaehlte_zeile(self):
+        art, _, nr = (self.gewaehlt or "").partition(":")
+        if art == "kontur" and nr.isdigit() and int(nr) < self.d.tabelle.rowCount():
+            return int(nr)
+        return None
+
+    def duplizieren(self, r):
+        """Konturzeile r kopieren (ohne Messwerte des STEP-Imports) und die Kopie wählen."""
+        d = self.d
+        konturen = d.eingaben().get("konturen") or []
+        if not 0 <= r < len(konturen):
+            return False
+        z = {k: v for k, v in copy.deepcopy(konturen[r]).items() if k not in ("gemessen", "huelle_gemessen")}
+        (d.zeile_neu if self.art == "rohr" else d.kontur_neu)(z)
+        neu = d.tabelle.rowCount() - 1
+        d.tabelle.selectRow(neu)
+        self.aktualisieren()
+        self.waehlen(f"kontur:{neu}")
+        return True
+
+    def entfernen(self, r):
+        """Konturzeile r entfernen."""
+        d = self.d
+        if not 0 <= r < d.tabelle.rowCount():
+            return False
+        d.tabelle.removeRow(r)
+        self.gewaehlt = None
+        d.rechnen()
+        self.aktualisieren()
+        self.eigenschaften.zeigen(None)
+        return True
+
+    def _blick(self, gier, nick):
+        a = self.ansicht()
+        if a is None:
+            return
+        if self.ansichten.modus == SKIZZE:
+            self.modus_setzen(BEIDES)
+        a.ansicht(gier, nick)
+
+    def kontur_einfuegen(self, art):
+        """Neue Konturzeile der Art anhängen und wählen."""
+        d = self.d
+        if self.art == "rohr":
+            d.zeile_neu(dict(art=art, anzahl=1))
+        else:
+            d.kontur_neu(dict(art=art, anzahl=1))
+        r = d.tabelle.rowCount() - 1
+        if r >= 0:
+            d.tabelle.selectRow(r)
+            d.tabelle.setFocus()
+            self.aktualisieren()
+            self.waehlen(f"kontur:{r}")
+
+    def modell_setzen(self, step):
+        """Rohr: 3D-Modell aus dem STEP-Import (step=True) oder aus den Eingaben."""
+        self.modell_step = bool(step) and bool(self.step_netz)
+        self._modell_zeigen(self.d.eingaben())
+
+    def _modell_zeigen(self, e):
+        """Rohr: Netz der 3D-Ansicht setzen, Blickrichtung behalten."""
+        d = self.d
+        a = self.ansicht()
+        if a is None or self.art != "rohr":
+            return
+        if hasattr(self, "step_knopf"):
+            self.step_knopf.setEnabled(bool(self.step_netz))
+            self.step_knopf.blockSignals(True)
+            self.step_knopf.setChecked(self.modell_step)
+            self.step_knopf.blockSignals(False)
+        if self.modell_step or getattr(d, "biegerohr", None):
+            netz, titel = self.step_netz, "3D-Ansicht (STEP-Import)"
+        else:
+            laenge = d.k_laenge.value() if getattr(d, "neu", False) and hasattr(d, "k_laenge") else d.p.get("laenge")
+            try:
+                netz = rohr3d.netz(e, d.profil, laenge)
+            except (ValueError, TypeError, ZeroDivisionError):
+                netz = None
+            netz, titel = netz or self.step_netz, "3D-Modell (aus den Eingaben)"
+        if netz is a.netz:
+            return
+        alt = a.netz is not None
+        blick = (a.gier, a.nick, a.zoom, a.versatz)
+        d.ansicht3d.setzen(netz, titel)
+        if alt and netz:            # beim Tippen die Blickrichtung behalten
+            a.gier, a.nick, a.zoom, a.versatz = blick
+            a.update()
+        if self.gewaehlt:
+            self._3d_markieren([self.gewaehlt])
+
+    def _modell_aus_eingaben(self):
+        a = self.ansicht()
+        return a is not None and bool((a.netz or {}).get("eingaben"))
+
+    def _kacheln(self):
+        d, erg = self.d, self.d.ergebnis or {}
+        if self.art == "rohr":
+            f = erg.get("felder") or {}
+            if not f:
+                self.leiste_unten.kacheln_setzen([])
+                return
+            try:
+                zeit = d.schneidzeit()
+            except Exception:       # ohne Schneiddaten bzw. unvollständige Eingaben
+                zeit = None
+            self.leiste_unten.kacheln_setzen([
+                ("Schneidweg", f"{rechnen.zahl(f.get('schneidweg'), 1)} mm",
+                 f"Enden {rechnen.zahl(f.get('a_schnitt'), 1)} + {rechnen.zahl(f.get('b_schnitt'), 1)} mm, "
+                 f"Innenkonturen {rechnen.zahl(f.get('innen'), 1)} mm"),
+                ("Einstiche", str(f.get("einstiche") or 0), ""),
+                ("Schneidzeit", f"{rechnen.zahl(zeit, 1)} s" if zeit is not None else "–",
+                 "je Teil mit den Schneiddaten der Maschine" if zeit is not None else "keine Schneiddaten"),
+                ("Konturen klein/mittel/groß", f"{f.get('klein_n', 0)} / {f.get('mittel_n', 0)} / {f.get('gross_n', 0)}",
+                 "Konturklassen nach Hüllmaß")])
+            return
+        if not erg.get("richtpreis"):
+            self.leiste_unten.kacheln_setzen([])
+            return
+        zs = erg.get("zuschnitt") or {}
+        self.leiste_unten.kacheln_setzen([
+            ("Richtpreis je Stück", f"{erg['richtpreis']:.2f} €".replace(".", ","), "EK-Vorschlag"),
+            ("Zuschnitt", f"{rechnen.zahl(zs.get('laenge'), 1)} × {rechnen.zahl(zs.get('breite'), 1)} mm", ""),
+            ("Gewicht", f"{rechnen.zahl(erg.get('gewicht'), 2)} kg", "je Teil"),
+            ("Laserzeit", f"{rechnen.zahl(erg.get('zeit'), 1)} s",
+             f"Schneidweg {rechnen.zahl(erg.get('schneidweg'), 0)} mm, {erg.get('einstiche')} Einstiche")])
 
     def ansicht(self):
         a = getattr(self.d, "ansicht3d", None)
@@ -300,8 +627,8 @@ class EditorRahmen(QObject):
         a = self.ansicht()
         if a is None:
             return
-        if an and self.art == "rohr":
-            self.d.bilder.setCurrentWidget(self.d.ansicht3d)
+        if an:
+            self.ansichten.setCurrentWidget(self.d.ansicht3d)
         a.messen_setzen(an)
         self.mass.setText("Zwei Punkte in der 3D-Ansicht anklicken" if an else "")
 
@@ -393,6 +720,9 @@ class EditorRahmen(QObject):
         self._baum_fuellen()
         self._meldungen_fuellen()
         self._zurueck_pruefen()
+        self._modell_zeigen(z["e"])
+        self._kacheln()
+        self.eigenschaften.auffrischen()
 
     # -------------------------------------------------------------- Merkmale
     def _merkmale(self, z):
@@ -469,6 +799,7 @@ class EditorRahmen(QObject):
         liste.blockSignals(False)
         n = len(eintraege)
         self.meldung_titel.setText(f"<b>Prüfmeldungen</b> ({n})" if n else "<b>Prüfmeldungen</b>")
+        self.leiste_unten.zaehler_setzen([e[0] for e in eintraege])
 
     def _zurueck_pruefen(self):
         m = next((x for x in self.merkmale if x.id == self.gewaehlt), None)
@@ -549,12 +880,14 @@ class EditorRahmen(QObject):
         if self.art == "blech":
             d.skizze.markieren(mid)
         self._3d_markieren([mid])
+        if self.eigenschaften.mid != mid:
+            self.eigenschaften.zeigen(mid)
 
     def _3d_markieren(self, ids):
         a = self.ansicht()
         if a is None:
             return
-        if self.art == "blech":
+        if self.art == "blech" or self._modell_aus_eingaben():
             a.markieren(ids)
             return
         a.markieren((), self._z_bereich(ids))
@@ -588,7 +921,7 @@ class EditorRahmen(QObject):
     def _3d_geklickt(self, treffer):
         """Klick auf eine Linie in der 3D-Ansicht: Merkmal wählen (Blech: Kennung der Linie, Rohr: nächste Kontur
         bzw. Ende längs der Achse)."""
-        if self.art == "blech":
+        if self.art == "blech" or (self._modell_aus_eingaben() and treffer.get("id")):
             if treffer.get("id"):
                 self.waehlen(treffer["id"])
             return
