@@ -12,6 +12,8 @@ installiert im Benutzerprofil (%LOCALAPPDATA%\\Rohrlaser Angebotskalkulation\\Da
 --update-test QUELLE  Online-Update aus QUELLE (Dateiliste Update.json, Adresse oder Pfad) bei offenem
                    Hauptfenster einspielen und beenden; --alle tauscht jede Programmdatei aus (prüft im Build,
                    dass sich die laufende .exe und alle geladenen Bibliotheken austauschen lassen).
+--nach-update ERGEBNIS  Start durch das Online-Update (ok, abgebrochen, fehler): wartet, bis die alte Version
+                   die Datensperre freigegeben hat, und meldet das Ergebnis in der Statuszeile.
 Lizenz: nur der normale Start prüft sie (lizenz.py, Ordner Lizenz im Datenordner); --selbsttest und --update-test
 arbeiten mit einer temporären Datendatei und brauchen keine. --info schreibt Zustand und Rechner-ID mit aus.
 """
@@ -23,6 +25,25 @@ import traceback
 from pathlib import Path
 
 from . import NAME, VERSION
+
+
+NACH_UPDATE_WARTEN_S = 30      # so lange wartet der Neustart nach dem Update auf die Datensperre der alten Version
+NACH_UPDATE_TEXT = dict(ok="Update eingespielt: {stand}.",
+                        abgebrochen="Update abgebrochen, das Programm ist unverändert ({stand}).",
+                        fehler="Update nicht gelungen, das Programm ist unverändert ({stand}).")
+
+
+def sperre_holen(orte_modul, ordner, warten_s=0, schlafen=None):
+    """Datensperre holen; nach einem Update bis zu warten_s warten, bis die alte Version sie freigegeben hat."""
+    import time
+    ende = time.monotonic() + warten_s
+    while True:
+        try:
+            return orte_modul.Sperre(ordner)
+        except orte_modul.Gesperrt:
+            if time.monotonic() >= ende:
+                raise
+            (schlafen or time.sleep)(0.5)
 
 
 def programmordner():
@@ -263,9 +284,11 @@ def main(argv=None):
     ap.add_argument("--step", nargs="*", default=[])
     ap.add_argument("--update-test")
     ap.add_argument("--alle", action="store_true")
+    ap.add_argument("--nach-update", choices=("ok", "abgebrochen", "fehler"))
     a = ap.parse_args(argv)
 
     from . import orte, update
+    update.nachholen(programmordner())         # beim Update gesperrte Anleitungen jetzt tauschen
     update.aufraeumen(programmordner())        # Reste eines Updates (alte Dateien sind jetzt frei)
 
     from PySide6.QtCore import QLocale, QStandardPaths
@@ -295,7 +318,7 @@ def main(argv=None):
     protokoll.einrichten(o.daten / "Protokoll")
     protokoll.info(f"Start {NAME} {VERSION} ({o.art}, Daten {o.daten})")
     try:
-        sperre = orte.Sperre(o.daten)
+        sperre = sperre_holen(orte, o.daten, warten_s=NACH_UPDATE_WARTEN_S if a.nach_update else 0)
     except orte.Gesperrt as e:
         QMessageBox.warning(None, NAME, f"{e}\n\nBitte dort zuerst beenden. Zwei Programme dürfen nicht "
                                         "gleichzeitig mit derselben Datendatei arbeiten.")
@@ -326,11 +349,18 @@ def main(argv=None):
             protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen (ohne Admin-Rechte weiter):\n" + traceback.format_exc())
         f = Hauptfenster(db, programmordner(), orte=o, lizenz=stelle)
         f.starten()
+        if a.nach_update:
+            f.meldung(NACH_UPDATE_TEXT[a.nach_update].format(stand=update.stand_text(f.updater.lokal)),
+                      fehler=a.nach_update != "ok")
         code = app.exec()
+        ausstehend = f.updater.ausstehend
         db.schliessen()
-        return code
     finally:
         sperre.freigeben()
+    if ausstehend:          # Online-Update: erst jetzt (alles zu, Sperre frei) austauschen, dann neu starten
+        from .update_fenster import nach_beenden
+        nach_beenden(programmordner(), ausstehend)
+    return code
 
 
 if __name__ == "__main__":

@@ -438,6 +438,9 @@ def vorschlag_naht(v, regel=None):
     der a-Maß-Regel (P6): Kehlnaht mit a = Faktor × Dicke, gekennzeichnet (mass_regel) bis zur Bestätigung."""
     n = dict(knoten=v.get("knoten") or "", nahtart=v.get("nahtart"), laenge=v.get("laenge"),
              anzahl=v.get("anzahl") or 1, quelle="STEP")
+    koerper = sorted({str(k) for paar in v.get("teile") or () if isinstance(paar, (list, tuple)) for k in paar})
+    if koerper:                                         # beteiligte Körper: 3D-Ansicht im Editor (D1)
+        n["koerper"] = koerper
     if _zahl(v.get("dicke")) and v["dicke"] > 0:          # Wanddicke für das Heften der Vorkalkulation
         n["dicke"] = v["dicke"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):

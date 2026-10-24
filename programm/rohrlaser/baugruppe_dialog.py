@@ -13,11 +13,12 @@ import html
 import json
 import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
-                               QGroupBox, QInputDialog, QMessageBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import baugruppe, hilfe, stil, vorkalk
 from .kostenbalken import Kostenbalken
@@ -216,17 +217,45 @@ class ZeilenTabelle(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
+class StrukturBaum(QTreeWidget):
+    """Baum Baugruppe → Unterbaugruppen → Einzelteile und Nahtgruppen (D1). Einzelteile lassen sich auf eine
+    (Unter-)Baugruppe ziehen: verschieben(Positions-ID, Knoten-ID); den Baum baut danach der Dialog neu."""
+
+    def __init__(self, verschieben):
+        super().__init__()
+        self.verschieben = verschieben
+        self.setHeaderLabels(["Struktur", "Menge", "Stück je Baugruppe"])
+        self.setColumnWidth(0, 300)
+        self.setColumnWidth(1, 60)
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+
+    def dropEvent(self, e):
+        quelle, ziel = self.currentItem(), self.itemAt(e.position().toPoint())
+        e.ignore()                  # nichts im Baum selbst verschieben: der Dialog ordnet zu und baut neu auf
+        if quelle is None or ziel is None:
+            return
+        art, pid = quelle.data(0, Qt.UserRole)
+        while ziel is not None and ziel.data(0, Qt.UserRole)[0] not in ("bg", "knoten"):
+            ziel = ziel.parent()
+        if art == "teil" and ziel is not None:
+            kn = ziel.data(0, Qt.UserRole)[1]
+            QTimer.singleShot(0, lambda: self.verschieben(pid, kn))
+
+
 class BaugruppeDialog(QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
 
     def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False,
-                 einstellungen=None):
+                 einstellungen=None, netze=None):
         super().__init__(parent)
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
         self.einstellungen = einstellungen or {}     # Stundensätze der Vorkalkulation (schweiss_vk_satz …)
         self.hilfe_vk, self.vk_ergebnis = {}, None
+        self.netze = netze or {}    # {Positions-ID: Netz-Bytes} aus dem STEP-Import (3D im Strukturbaum, D1)
+        self._netz_cache, self.ansicht3d = {}, None
         self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
         self.bg = baugruppe.lesen(p.get("baugruppe")) or baugruppe.leer()
         self.bg = copy.deepcopy(self.bg)
@@ -260,6 +289,8 @@ class BaugruppeDialog(QDialog):
         self.reiter.addTab(self._seite_arbeitsgaenge(), "Arbeitsgänge und Vorrichtungen")
         self.reiter.addTab(self._seite_stamm(), "Stammdaten")
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
+        self.reiter.addTab(self._seite_baum(), "Strukturbaum und 3D")
+        self.reiter.currentChanged.connect(self._reiter_gewechselt)
         lay.addWidget(self.reiter, 1)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
@@ -984,6 +1015,174 @@ class BaugruppeDialog(QDialog):
     def _naht_ergebnis(self, n):
         x = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == "Naht" and x["id"] == n.get("id")), None)
         return x["werte"] if x else {}
+
+    # -------------------------------------------------------------- Strukturbaum und 3D (D1)
+    BAUM = 5                    # Index des Reiters
+
+    def _seite_baum(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        teil = QSplitter(Qt.Horizontal)
+        links = QWidget()
+        ll = QVBoxLayout(links)
+        ll.setContentsMargins(0, 0, 0, 0)
+        self.baum = StrukturBaum(self.teil_verschieben)
+        self.baum.itemSelectionChanged.connect(self.baum_gewaehlt)
+        ll.addWidget(self.baum, 1)
+        ll.addWidget(hilfe.Hinweis(
+            "Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt die Teile in der 3D-Ansicht blau "
+            "hervor. Ein Einzelteil auf eine andere (Unter-)Baugruppe ziehen ändert seine Zuordnung; die Stück je "
+            "Baugruppe bleiben, wenn es aufgeht.", schluessel="baugruppe_baum"))
+        self.baum_rechts = QWidget()
+        self.baum_rechts_lay = QVBoxLayout(self.baum_rechts)
+        self.baum_rechts_lay.setContentsMargins(0, 0, 0, 0)
+        self.baum_info = QLabel()
+        self.baum_info.setWordWrap(True)
+        self.baum_rechts_lay.addWidget(self.baum_info)
+        teil.addWidget(links)
+        teil.addWidget(self.baum_rechts)
+        teil.setSizes([540, 760])
+        lay.addWidget(teil, 1)
+        return w
+
+    def _reiter_gewechselt(self, i):
+        if i == self.BAUM:
+            self.baum_aufbauen()
+
+    def _teil_knoten(self, kid):
+        """Knoten-IDs kid und aller Unterbaugruppen darunter ('' = ganze Baugruppe)."""
+        ids, neu = {kid}, True
+        while neu:
+            neu = {k["id"] for k in self.bg["knoten"] if (k.get("parent") or "") in ids} - ids
+            ids |= neu
+        return ids
+
+    def _teil_titel(self, q):
+        return " ".join(str(x) for x in (f"Pos. {q.get('pos') or ''}", q.get("artikel") or q.get("bezeichnung") or "")
+                        if x).strip()
+
+    def baum_aufbauen(self):
+        """Baum neu: Baugruppe, Unterbaugruppen mit Menge, darin die Einzelteile (Stück je Unterbaugruppe und je
+        Baugruppe) und Nahtgruppen; die gewählte Zeile bleibt gewählt."""
+        alt = self.baum.currentItem().data(0, Qt.UserRole) if self.baum.currentItem() else ("bg", "")
+        self.baum.blockSignals(True)
+        self.baum.clear()
+        self.baum_items = {}
+
+        def item(eltern, daten, texte, ziehen=False):
+            it = QTreeWidgetItem(eltern, [str(t) for t in texte])
+            it.setData(0, Qt.UserRole, daten)
+            for c in (1, 2):
+                it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
+            flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable | (Qt.ItemIsDragEnabled if ziehen else Qt.ItemIsDropEnabled)
+            it.setFlags(flags)
+            self.baum_items[daten] = it
+            return it
+
+        def fuellen(eltern, kid):
+            for t in self.teile:
+                if t.get("drin") and (t.get("knoten") or "") == kid:
+                    f = baugruppe.faktor(self.bg, kid)
+                    je = t.get("je") or 1
+                    it = item(eltern, ("teil", t["_id"]), (self._teil_titel(t["_q"]), _text(je),
+                                                           _text(je * f) if f is not None else "?"), True)
+                    it.setToolTip(0, self._teil_text(t, 0) + ("" if t["_id"] in self.netze else " (ohne 3D-Daten)"))
+            for n in self.bg["naehte"]:
+                if (n.get("knoten") or "") == kid:
+                    text = f"Nahtgruppe {n.get('nr') or ''}: {n.get('nahtart') or ''} {_text(n.get('laenge'))} mm"
+                    it = item(eltern, ("naht", n.get("id")), (text.strip(), _text(n.get("anzahl") or 1), ""))
+                    it.setForeground(0, QBrush(stil.farbe(GRAU)))
+            for k in self.bg["knoten"]:
+                if (k.get("parent") or "") == kid:
+                    f = baugruppe.faktor(self.bg, k["id"])
+                    it = item(eltern, ("knoten", k["id"]), (k.get("name") or "Unterbaugruppe", _text(k.get("menge") or 1),
+                                                            _text(f) if f is not None else "?"))
+                    fuellen(it, k["id"])
+
+        wurzel = item(self.baum, ("bg", ""), (self.bezeichnung.text().strip() or "Baugruppe", "",
+                                              _text(1)))
+        fuellen(wurzel, "")
+        self.baum.expandAll()
+        self.baum.setCurrentItem(self.baum_items.get(alt) or wurzel)
+        self.baum.blockSignals(False)
+        if self.ansicht3d is None and self.netze and any(t["_id"] in self.netze for t in self.teile):
+            from .ansicht3d import Ansicht3DMitKnoepfen
+            self.ansicht3d = Ansicht3DMitKnoepfen()
+            self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
+        self.baum_gewaehlt()
+
+    def _gewaehlte_teile(self, daten):
+        """(Positions-IDs zum Hervorheben, Text) für eine Zeile des Baums."""
+        art, wert = daten
+        drin = [t for t in self.teile if t.get("drin")]
+        if art == "teil":
+            q = next((t["_q"] for t in drin if t["_id"] == wert), {})
+            return {wert}, f"blau: {self._teil_titel(q)}"
+        if art == "knoten":
+            ids = self._teil_knoten(wert)
+            name = next((k.get("name") for k in self.bg["knoten"] if k["id"] == wert), "")
+            return {t["_id"] for t in drin if (t.get("knoten") or "") in ids}, f"blau: Teile von {name}"
+        if art == "naht":
+            n = next((x for x in self.bg["naehte"] if x.get("id") == wert), {})
+            koerper = set(n.get("koerper") or ())
+            mit = {t["_id"] for t in drin if koerper & set(self._netz(t["_id"]).get("koerper") or ())}
+            if mit:
+                return mit, f"blau: Teile der Nahtgruppe {n.get('nr') or ''} (aus den Nahtkandidaten)"
+            ids = self._teil_knoten(n.get("knoten") or "")
+            return ({t["_id"] for t in drin if (t.get("knoten") or "") in ids},
+                    f"blau: Teile der Unterbaugruppe der Nahtgruppe {n.get('nr') or ''}")
+        return set(), "gleiche Teile in gleicher Farbe"
+
+    def baum_gewaehlt(self):
+        it = self.baum.currentItem()
+        hervor, text = self._gewaehlte_teile(it.data(0, Qt.UserRole) if it else ("bg", ""))
+        self.baum_hervor = hervor
+        self.zeige_3d(hervor, text)
+
+    def _netz(self, pid):
+        if pid not in self._netz_cache:
+            from .ansicht3d import entpacken
+            self._netz_cache[pid] = entpacken(self.netze.get(pid)) or {}
+        return self._netz_cache[pid]
+
+    def zeige_3d(self, hervor=(), text=""):
+        """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau.
+        Ergebnis: Anzahl gezeigter Körper."""
+        netze, besitzer, farbe = [], [], []
+        for n, t in enumerate(x for x in self.teile if x.get("drin")):
+            netz = self._netz(t["_id"])
+            for lage in netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else []):
+                netze.append(dict(netz, lage=lage))
+                besitzer.append(t["_id"])
+                farbe.append(n)
+        n_teile = sum(1 for t in self.teile if t.get("drin"))
+        ohne = n_teile - len(set(besitzer))
+        if self.ansicht3d is None:
+            self.baum_info.setText("Keine 3D-Daten: die Teile kommen nicht aus dem STEP-Import (oder aus einer älteren "
+                                   "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
+            return 0
+        from .ansicht3d import baugruppe as zusammen
+        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe)
+        info = f"{len(netze)} Körper in Einbaulage, {text}."
+        if ohne:
+            info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten fehlen."
+        self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
+        self.baum_info.setText("")
+        return len(netze)
+
+    def teil_verschieben(self, pid, knoten):
+        """Einzelteil pid in die (Unter-)Baugruppe knoten ('' = Baugruppe selbst) legen (Ziehen im Baum). Stück je
+        Unterbaugruppe so, dass das Stück je Baugruppe bleibt, wenn die Teilung aufgeht."""
+        t = next((x for x in self.teile if x["_id"] == pid), None)
+        if t is None or self.nur_lesen or (t.get("knoten") or "") == knoten:
+            return False
+        alt = baugruppe.faktor(self.bg, t.get("knoten") or "") or 1
+        neu = baugruppe.faktor(self.bg, knoten) or 1
+        gesamt = (t.get("je") or 1) * alt
+        je = gesamt // neu if gesamt % neu == 0 else (t.get("je") or 1)
+        self.teil_setzen(pid, True, knoten, int(je))
+        self.baum_aufbauen()
+        return True
 
     # -------------------------------------------------------------- Vorlagen (P1)
     def vorlagen(self):
