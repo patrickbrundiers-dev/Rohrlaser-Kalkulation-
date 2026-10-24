@@ -1373,6 +1373,11 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
             bericht.append(f"Schweißbaugruppe {name}: " + ", ".join(f"{u['name']} ({u['menge']} Stück)" for u in unter)
                            + " als Unterbaugruppe eingehängt")
         bg, hinweise = baugruppe.aus_step(name, struktur, liste, kandidaten)
+        # Stöße Rohrende an Rohrwand (STEP-JSON 1.18) für „Alle Stöße stecken“; Körpernummern gelten je Datei, darum
+        # nur ohne eingehängte Unterbaugruppen aus anderen Dateien
+        stoesse = [k["stoss"] for k in kandidaten or () if isinstance(k, dict) and isinstance(k.get("stoss"), dict)]
+        if stoesse and not unter:
+            bg["stoesse"] = stoesse
         anzahl = wert(datei, "_saetze") or stueck or 1
         neu.append(dict(pos=naechste, art=BAUGRUPPE, bezeichnung=name, stueck=anzahl, satz=name, je_satz=1,
                         baugruppe=baugruppe.speichern(bg)))

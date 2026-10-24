@@ -19,8 +19,8 @@ gehen bis zum kleinsten Winkel WINKEL_MIN.
 
 Daten: die Baugruppe hält die Liste 'steckverbindungen' mit je
   {id, aufnahme: {pos, knoten}, stecker: {pos, knoten, ende: 'a'|'b'}, x, seite, anzahl, bN, ueberstand, lN, c,
-   waende, winkel, wandbreite, abstand}
-(x = Mitte des Steckers auf der Aufnahme ab Ende A, seite = Wand bzw. Winkel der Aufnahme zum Stecker; wandbreite und
+   waende, winkel, wandbreite, abstand, schlitze, nasen}
+(schlitze/nasen = False: bei gleichen Teilen schneidet eine andere Verbindung die Schlitze bzw. Nasen schon; x = Mitte des Steckers auf der Aufnahme ab Ende A, seite = Wand bzw. Winkel der Aufnahme zum Stecker; wandbreite und
 abstand = Breite der Nasenwand und Außenabstand der beiden Nasenwände des Steckers, leer = aus dem Profil). Die
 Schlitze sind Konturzeilen der Aufnahme mit der Quelle 'Steckverbindung id', das Ende des Steckers trägt den Block
 'nasen' mit derselben id. Die Positionen findet die Verbindung über diese Kennung (bleibt beim Kopieren gleich)."""
@@ -198,7 +198,10 @@ def anwenden(v, eingaben_a, eingaben_s, profil_a, profil_s):
         raise ValueError("Steckverbindung: Ende des Steckers (A oder E) fehlt.")
     a, _ = entfernen(eingaben_a, v["id"])
     s, weniger = entfernen(eingaben_s, v["id"])
-    a["konturen"] = list(a["konturen"]) + schlitz_zeilen(v, profil_a, profil_s)
+    if v.get("schlitze") is not False:      # False: gleiches Teil, die Schlitze schneidet eine andere Verbindung
+        a["konturen"] = list(a["konturen"]) + schlitz_zeilen(v, profil_a, profil_s)
+    if v.get("nasen") is False:             # False: dieses Ende hat die Nasen schon aus einer anderen Verbindung
+        return a, s, round(-weniger, 3)
     blk = nasen_block(v, profil_a, profil_s)
     s[ende] = dict(s.get(ende) or {}, nasen=blk)
     return a, s, round(blk["laenge_plus"] - weniger, 3)
@@ -267,12 +270,17 @@ def text(v, m=None):
     t += f", Spiel {zahl(_z(v.get('c')), 2)} mm"
     if _z(v.get("winkel")) and _z(v["winkel"]) < 90 - 1e-6:
         t += f", schräg {zahl(_z(v['winkel']), 1)}°"
+    ohne = [n for n, k in (("Schlitze", "schlitze"), ("Nasen", "nasen")) if v.get(k) is False]
+    if ohne:
+        t += f"; {' und '.join(ohne)} schon aus einer gleichen Verbindung"
     return t
 
 
 # ------------------------------------------------------------------ Editor der Baugruppe
 SEITEN_KASTEN = ("oben", "vorne", "unten", "hinten")
-FELDER = ("x", "seite", "anzahl", "bN", "c", "ueberstand", "waende", "winkel", "wandbreite", "abstand")
+SEITE_STEP = dict(zip(("0°", "90°", "180°", "270°"), SEITEN_KASTEN))     # Seite der STEP-Messung (wie step.SEITE_KASTEN)
+FELDER = ("x", "seite", "anzahl", "bN", "c", "ueberstand", "waende", "winkel", "wandbreite", "abstand", "schlitze",
+          "nasen")
 
 
 def neu(aufnahme, stecker, profil_s, einst=None, ende="a", x=None, seite=None, kennung=None):
@@ -297,7 +305,7 @@ def tauschen(v, profil_s_neu, einst=None):
     Nasenbreite folgt dem neuen Stecker."""
     a, s_ = dict(v.get("aufnahme") or {}), dict(v.get("stecker") or {})
     s_.pop("ende", None)
-    out = {k: w for k, w in v.items() if k not in ("x", "seite", "wandbreite", "abstand")}
+    out = {k: w for k, w in v.items() if k not in ("x", "seite", "wandbreite", "abstand", "schlitze", "nasen")}
     out.update(aufnahme=s_, stecker=dict(a, ende="a"), bN=vorgaben(profil_s_neu, einst, v.get("waende") or "quer")["bN"])
     return out
 

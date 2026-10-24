@@ -2304,12 +2304,20 @@ def kapitel_optimieren(i):
         (1, "<b>Aufnahme</b> (bekommt die Schlitze) und <b>Stecker</b> (bekommt die Nasen) mit dem Ende, das "
             "anstößt."),
         (2, "<b>Lage x</b> und <b>Seite</b>: Mitte des Steckers auf der Aufnahme, ab Ende A."),
-        (3, "Nasen, Nasenbreite, Spiel, Überstand, Wände und Winkel; Vorgaben aus den Einstellungen."),
+        (3, "Nasen, Nasenbreite, Spiel, Überstand, Wände und Winkel (Vorgaben aus den Einstellungen); Haken "
+            "Schlitze bzw. Nasen schneiden."),
         (4, "Schlitz und Nasen, wie sie beim Speichern entstehen, oder was noch fehlt."),
         (5, "<b>Steckverbindung hinzufügen</b>: zwischen den zwei markierten Teilen im Reiter Struktur und Teile.")])
     i.genauer()
     i.liste("<b>Hinzufügen</b>: Markieren Sie im Reiter <i>Struktur und Teile</i> zwei Rohre. Das zweite wird "
             "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe.",
+            "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
+            "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
+            "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
+            "<b>Gleiche Teile</b> (eine Position, mehrere Körper): Die Aufnahme bekommt die Schlitze nur vom ersten "
+            "Körper, jedes Ende des Steckers die Nasen nur einmal. Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
+            "schneiden</i> zeigen das; eine Verbindung ohne Haken liefert nur die Lage. Zwei Verbindungen mit Nasen am "
+            "selben Ende meldet die Spalte <i>Schlitz und Nasen</i> als Fehler.",
             "<b>Aufnahme und Stecker tauschen</b> dreht die markierte Verbindung um (Vorgaben neu nach dem neuen "
             "Stecker).",
             "<b>Markierte entfernen</b>: Beim Speichern fallen Schlitze und Nasen in beiden Teilen weg, die Länge "

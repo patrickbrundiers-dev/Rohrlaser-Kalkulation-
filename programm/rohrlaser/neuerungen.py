@@ -26,9 +26,12 @@ NEUERUNGEN = [
                "(Aufnahme und Stecker), mit Lage x, Seite, Nasen, Nasenbreite, Spiel, Überstand, Wänden und Winkel; die "
                "Spalte <i>Schlitz und Nasen</i> zeigt das Ergebnis oder was fehlt. Beim Speichern bekommt die Aufnahme "
                "die Schlitze, der Stecker die Nasen; Schneidweg, Einstiche und Länge werden neu gerechnet. Entfernen "
-               "nimmt beides wieder heraus. Im Teile-Editor bleiben Schlitze und Nasen beim Übernehmen erhalten "
-               "([[steckverbindung_anlegen]]).",
-     "Steckverbindungen im Editor der Schweißbaugruppe anlegen ([[steckverbindung_anlegen]])"],
+               "nimmt beides wieder heraus. Im Teile-Editor bleiben Schlitze und Nasen beim Übernehmen erhalten. <b>Alle Stöße "
+               "stecken</b> legt bei Baugruppen aus dem STEP-Import alle Verbindungen auf einmal an: Der Import merkt "
+               "sich jedes Rohrende auf einem anderen Rohr mit Lage, Seite und Winkel (STEP-JSON 1.18); bei gleichen "
+               "Teilen kommen Schlitze und Nasen nur einmal ([[steckverbindung_anlegen]]).",
+     "Steckverbindungen im Editor der Schweißbaugruppe anlegen, „Alle Stöße stecken“ aus STEP "
+     "([[steckverbindung_anlegen]])"],
     ["0.9.73", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
                "Auftragsnummer des Kunden und den Liefertermin ab (Vorschlag aus der Lieferzeit); beides steht in "
                "der Angebotsliste und lässt sich suchen. <b>Eingabe wie in Excel</b> in der Positionsliste: "
