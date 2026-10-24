@@ -2292,8 +2292,30 @@ def kapitel_optimieren(i):
             "Rand</i>. Fehlt ein Teil der Verbindung in der Baugruppe, zeigt die Baugruppe den FEHLER "
             "<i>Steckverbindung ohne Gegenstück</i>.",
             "Die Verbindung steht in der Schweißbaugruppe; Schlitze und Nasen verweisen auf sie. Wird die "
-            "Verbindung entfernt, fallen Schlitze und Nasen in beiden Teilen weg. Anlegen im Baugruppen- und "
-            "STEP-Prüfdialog folgt mit dem nächsten Schritt.")
+            "Verbindung entfernt, fallen Schlitze und Nasen in beiden Teilen weg.",
+            "Im <b>Teile-Editor</b> ([[schneidweg_rechner]]) stehen die Schlitze als Zeilen mit Herkunft "
+            "<i>Steckverbindung</i>, die Nasen beim Ende (blau). Ändern und Entfernen nur im Reiter "
+            "Steckverbindungen der Schweißbaugruppe.")
+    i.abschnitt("Steckverbindung anlegen", marke="steckverbindung_anlegen")
+    i.text("Angelegt wird die Steckverbindung im Editor der Schweißbaugruppe ([[schweissbaugruppe]]), Reiter "
+           "<b>Steckverbindungen</b>. Beim Speichern schreibt das Programm Schlitze und Nasen in beide Teile und "
+           "rechnet Schneidweg, Einstiche und Länge neu.", kurz=True)
+    i.bild("baugruppe_stecken", "Reiter Steckverbindungen im Editor der Schweißbaugruppe", hoehe=55 * mm, legende=[
+        (1, "<b>Aufnahme</b> (bekommt die Schlitze) und <b>Stecker</b> (bekommt die Nasen) mit dem Ende, das "
+            "anstößt."),
+        (2, "<b>Lage x</b> und <b>Seite</b>: Mitte des Steckers auf der Aufnahme, ab Ende A."),
+        (3, "Nasen, Nasenbreite, Spiel, Überstand, Wände und Winkel; Vorgaben aus den Einstellungen."),
+        (4, "Schlitz und Nasen, wie sie beim Speichern entstehen, oder was noch fehlt."),
+        (5, "<b>Steckverbindung hinzufügen</b>: zwischen den zwei markierten Teilen im Reiter Struktur und Teile.")])
+    i.genauer()
+    i.liste("<b>Hinzufügen</b>: Markieren Sie im Reiter <i>Struktur und Teile</i> zwei Rohre. Das zweite wird "
+            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe.",
+            "<b>Aufnahme und Stecker tauschen</b> dreht die markierte Verbindung um (Vorgaben neu nach dem neuen "
+            "Stecker).",
+            "<b>Markierte entfernen</b>: Beim Speichern fallen Schlitze und Nasen in beiden Teilen weg, die Länge "
+            "des Steckers geht zurück.",
+            "Ohne Lage x oder mit zu kleinem Winkel lässt sich die Baugruppe nicht speichern; die Spalte "
+            "<i>Schlitz und Nasen</i> nennt, was fehlt.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "

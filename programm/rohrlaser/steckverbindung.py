@@ -226,8 +226,10 @@ def rollen(technik_text):
     return out
 
 
-def teile_finden(positionen, indizes, vid):
-    """(Index der Aufnahme, Index des Steckers) der Verbindung vid unter den Positionen indizes, je None ohne."""
+def teile_finden(positionen, indizes, vid, v=None):
+    """(Index der Aufnahme, Index des Steckers) der Verbindung vid unter den Positionen indizes, je None ohne. Gesucht
+    über die Kennung in den Eingaben (Schlitze, Nasen); mit v (Verbindung) auch über die Positions-ID, solange die
+    Konturen noch nicht geschrieben sind (Editor der Baugruppe vor OK)."""
     auf = st = None
     for i in indizes:
         r = rollen(positionen[i].get("technik")).get(vid) or ()
@@ -235,13 +237,20 @@ def teile_finden(positionen, indizes, vid):
             auf = i
         if "stecker" in r and st is None:
             st = i
+    if v:
+        for i in indizes:
+            pid = positionen[i].get("id")
+            if auf is None and pid is not None and pid == (v.get("aufnahme") or {}).get("id"):
+                auf = i
+            if st is None and pid is not None and pid == (v.get("stecker") or {}).get("id"):
+                st = i
     return auf, st
 
 
 def fehler(bg, positionen, indizes):
     """Erster Fehler der Steckverbindungen einer Baugruppe als Text (Teil fehlt = ohne Gegenstück), sonst None."""
     for n, v in enumerate(liste(bg), 1):
-        auf, st = teile_finden(positionen, indizes, v["id"])
+        auf, st = teile_finden(positionen, indizes, v["id"], v)
         if auf is None or st is None:
             fehlt = " und ".join(t for t, i in (("Aufnahme", auf), ("Stecker", st)) if i is None)
             return f"Steckverbindung {n} ohne Gegenstück ({fehlt} nicht in der Baugruppe)"
@@ -259,3 +268,60 @@ def text(v, m=None):
     if _z(v.get("winkel")) and _z(v["winkel"]) < 90 - 1e-6:
         t += f", schräg {zahl(_z(v['winkel']), 1)}°"
     return t
+
+
+# ------------------------------------------------------------------ Editor der Baugruppe
+SEITEN_KASTEN = ("oben", "vorne", "unten", "hinten")
+FELDER = ("x", "seite", "anzahl", "bN", "c", "ueberstand", "waende", "winkel", "wandbreite", "abstand")
+
+
+def neu(aufnahme, stecker, profil_s, einst=None, ende="a", x=None, seite=None, kennung=None):
+    """Neue Verbindung zwischen den Positionen aufnahme und stecker (dicts mit id, pos, bg_knoten) mit den Vorgaben
+    der Einstellungen."""
+    import uuid
+    from . import baugruppe
+    v = dict(vorgaben(profil_s, einst), id=kennung or uuid.uuid4().hex[:10],
+             aufnahme=dict(id=aufnahme.get("id"), pos=aufnahme.get("pos"),
+                           knoten=baugruppe.zuordnung(aufnahme)[1] or ""),
+             stecker=dict(id=stecker.get("id"), pos=stecker.get("pos"), knoten=baugruppe.zuordnung(stecker)[1] or "",
+                          ende=ende if ende in ("a", "b") else "a"))
+    if x is not None:
+        v["x"] = x
+    if seite:
+        v["seite"] = seite
+    return v
+
+
+def tauschen(v, profil_s_neu, einst=None):
+    """Aufnahme und Stecker vertauschen (Ende des neuen Steckers: A, Lage auf der neuen Aufnahme unbekannt); die
+    Nasenbreite folgt dem neuen Stecker."""
+    a, s_ = dict(v.get("aufnahme") or {}), dict(v.get("stecker") or {})
+    s_.pop("ende", None)
+    out = {k: w for k, w in v.items() if k not in ("x", "seite", "wandbreite", "abstand")}
+    out.update(aufnahme=s_, stecker=dict(a, ende="a"), bN=vorgaben(profil_s_neu, einst, v.get("waende") or "quer")["bN"])
+    return out
+
+
+def aenderungen(alt, neu_):
+    """Vergleich zweier Listen von Verbindungen: (weg = [alte Verbindung], dazu = [neue oder geänderte Verbindung]);
+    eine geänderte Verbindung steht in beiden (erst entfernen, dann neu anlegen)."""
+    a = {v["id"]: v for v in liste(dict(steckverbindungen=alt))}
+    n = {v["id"]: v for v in liste(dict(steckverbindungen=neu_))}
+    weg = [v for k, v in a.items() if k not in n or n[k] != v]
+    dazu = [v for k, v in n.items() if k not in a or a[k] != v]
+    return weg, dazu
+
+
+def pruefen(v, profil_a, profil_s):
+    """Fehlertext einer Verbindung im Editor oder None."""
+    if not (v.get("aufnahme") or {}).get("id") or not (v.get("stecker") or {}).get("id"):
+        return "Aufnahme und Stecker wählen"
+    if v["aufnahme"]["id"] == v["stecker"]["id"]:
+        return "Aufnahme und Stecker sind dasselbe Teil"
+    if v.get("x") is None:
+        return "Lage x auf der Aufnahme fehlt"
+    try:
+        masse(v, profil_a, profil_s)
+    except ValueError as f:
+        return str(f).replace("Steckverbindung: ", "")
+    return None

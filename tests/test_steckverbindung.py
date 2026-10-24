@@ -4,6 +4,8 @@
 - S2 Vorgaben aus den Einstellungen (halbe Wandbreite, mindestens 10 mm), Wände 'längs', 4 Nasen, Fehler.
 - S3 Rundrohr (Aufnahme mit Sattel, Stecker mit Bogen-Nase) und schräger Stoß (Flanken und Schlitz länger).
 - S4 Anwenden und Entfernen auf beiden Eingaben, Lage der Schlitze, erneutes Anwenden ersetzt.
+- S6 Editor der Schweißbaugruppe: Reiter Steckverbindungen, hinzufügen, tauschen, Speichern schreibt Schlitze und
+  Nasen in beide Teile (Schneidweg, Länge), Entfernen nimmt sie wieder heraus.
 - S5 Prüfung: Nase zu schmal (abschaltbar, ältere Datei bekommt die Regel), Steckverbindung ohne Gegenstück (FEHLER
   im Status der Baugruppe), Daten der Baugruppe.
 
@@ -152,4 +154,84 @@ db = Datenbank(tmp / "rohrlaser.db")
 assert dfm.NASE_SCHMAL in {z["regel"] for z in db.zeilen("pruefregeln")}
 db.schliessen()
 ok("S5 Nase zu schmal (abschaltbar, ältere Datei ergänzt), ohne Gegenstück = FEHLER, Daten der Baugruppe")
+
+# ------------------------------------------------------------------ S6 Editor der Schweißbaugruppe
+import os  # noqa: E402
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtWidgets import QApplication  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+from rohrlaser.angebot import ist_baugruppe  # noqa: E402
+
+app = QApplication.instance() or QApplication([])
+tmp = Path(tempfile.mkdtemp())
+db = Datenbank(tmp / "rohrlaser.db")
+f = Hauptfenster(db, stumm=True)
+a = db.angebot_neu(dict(kunde="Test"))
+r_a = db.position_neu(a, dict(pos=10, artikel="Holm", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=800,
+                              stueck=1))
+r_s = db.position_neu(a, dict(pos=20, artikel="Strebe", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=400,
+                              stueck=1))
+seite = f.angebot_oeffnen(a)
+vorher = {q["id"]: q for q in db.positionen(a)}
+seite.schneidweg_berechnen(next(i for i, q in enumerate(seite.positionen) if q["id"] == r_a), dict(LEER),
+                           ueberschreiben=True)
+seite.schneidweg_berechnen(next(i for i, q in enumerate(seite.positionen) if q["id"] == r_s), dict(LEER),
+                           ueberschreiben=True)
+vorher = {q["id"]: q for q in db.positionen(a)}
+gesehen = {}
+
+
+def dialog(d):
+    d.teil_setzen(r_a, True)
+    d.teil_setzen(r_s, True)
+    vid = d.steck_neu(r_s, r_a, x=1, seite="oben")         # erst falsch herum, dann tauschen
+    d.steck_tauschen([0])
+    z = d.bg["steckverbindungen"][0]
+    gesehen.update(auf=z["_auf"], st=z["_st"], fehler=d._steck_fehler(z), vid=vid)
+    z["x"], z["seite"] = 300.0, "vorne"
+    gesehen["text"] = d._steck_text(z, 0)
+    d._ok()
+    return d.result()
+
+
+assert seite.baugruppe_neu(dialog=dialog)
+assert gesehen["auf"] == r_a and gesehen["st"] == r_s and gesehen["fehler"] == "Lage x auf der Aufnahme fehlt", gesehen
+assert "Schlitz 3,2 × 20,2 mm" in gesehen["text"], gesehen
+pos = {q["id"]: q for q in db.positionen(a)}
+ea, es = sw.lesen(pos[r_a]["technik"]), sw.lesen(pos[r_s]["technik"])
+assert [z["x"] for z in ea["konturen"]] == [318.5, 281.5] and {z["seite"] for z in ea["konturen"]} == {"vorne"}
+assert nah(pos[r_a]["schneidweg"] - vorher[r_a]["schneidweg"], 93.6, 0.06)
+assert pos[r_a]["einstiche"] == vorher[r_a]["einstiche"] + 2
+assert es["a"]["nasen"]["id"] == gesehen["vid"] and pos[r_s]["laenge"] == 403
+assert nah(pos[r_s]["a_schnitt"] - vorher[r_s]["a_schnitt"], 12, 0.06)
+from rohrlaser.schneidweg_dialog import SchneidwegDialog  # noqa: E402
+for rid in (r_a, r_s):          # Teile-Editor: Schlitze (Herkunft) und Nasen bleiben beim Übernehmen
+    d = SchneidwegDialog(seite, pos[rid], seite.k.profile["QR 40x40x3"], seite.kopf, seite.k, seite.tabellen)
+    e = d.eingaben()
+    if rid == r_a:
+        assert [z.get("quelle") for z in e["konturen"]] == [ea["konturen"][0]["quelle"]] * 2, e["konturen"]
+    else:
+        assert e["a"]["nasen"] == es["a"]["nasen"] and "Nasen" in d.gemessen_text["a"].text()
+    d.reject()
+bg_pos = next(q for q in pos.values() if ist_baugruppe(q))
+bg = bgm.lesen(bg_pos["baugruppe"])
+assert bg["steckverbindungen"][0]["aufnahme"]["id"] == r_a and bg["steckverbindungen"][0]["stecker"]["ende"] == "a"
+assert "Steckverbindung" not in bgm.status(bg_pos, {}, list(pos.values()))
+i = next(i for i, q in enumerate(seite.positionen) if ist_baugruppe(q))
+
+
+def weg(d):
+    d.steck_tab.selectRow(0)
+    d._entfernen(d.bg["steckverbindungen"], d.steck_tab)
+    d._ok()
+    return d.result()
+
+
+assert seite.baugruppe_bearbeiten([i], dialog=weg)
+pos = {q["id"]: q for q in db.positionen(a)}
+assert not sw.lesen(pos[r_a]["technik"])["konturen"] and "nasen" not in sw.lesen(pos[r_s]["technik"])["a"]
+assert pos[r_s]["laenge"] == 400 and nah(pos[r_a]["schneidweg"], vorher[r_a]["schneidweg"], 0.06)
+assert not bgm.lesen(next(q for q in pos.values() if ist_baugruppe(q))["baugruppe"]).get("steckverbindungen")
+db.schliessen()
+ok("S6 Editor: hinzufügen, tauschen, Speichern schreibt Schlitze (x ± 18,5) und Nasen (+3 mm), Entfernen")
 print("Alle Steckverbindungs-Tests bestanden.")

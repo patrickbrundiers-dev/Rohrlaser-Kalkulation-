@@ -632,6 +632,19 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("baugruppe_vorschlaege", d.vorschlag_rahmen, [(d.vorschlag_tab, 1), (knopf(d, "Markierte übernehmen"), 2),
                                                             (d.regel_haken, 3)])
+    # Steckverbindung (K2-2): Reiter Steckverbindungen mit einer Verbindung zwischen zwei Teilen
+    from rohrlaser import steckverbindung as sv_
+    rohre_ = [t["_id"] for t in d.teile if (s.k.profile.get(t["_q"].get("profil_id")) or {}).get("form") in sv_.FORMEN]
+    if len(rohre_) >= 2 and d.steck_neu(rohre_[0], rohre_[1], x=300, seite="oben"):
+        d.reiter.setCurrentIndex(3)
+        d.steck_tab.resizeRowsToContents()
+        QApplication.processEvents()
+        sp = [x.schluessel for x in d.steck_tab.spalten]
+        foto.foto("baugruppe_stecken", d, [(d.steck_tab.cellWidget(0, sp.index("_auf")), 1),
+                                           (d.steck_tab.cellWidget(0, sp.index("x")), 2),
+                                           (d.steck_tab.cellWidget(0, sp.index("anzahl")), 3),
+                                           (d.steck_tab.cellWidget(0, sp.index("_text")), 4),
+                                           (knopf(d, "Steckverbindung hinzufügen"), 5)])
     d.reject()
 
     # 7a3) Materialanfrage (nur Foto, Schließen: nichts geöffnet)

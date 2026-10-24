@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.74", "<b>Steckverbindung anlegen</b>: Im Editor der Schweißbaugruppe gibt es den Reiter "
+               "<i>Steckverbindungen</i>. <b>Steckverbindung hinzufügen</b> verbindet die zwei markierten Rohre "
+               "(Aufnahme und Stecker), mit Lage x, Seite, Nasen, Nasenbreite, Spiel, Überstand, Wänden und Winkel; die "
+               "Spalte <i>Schlitz und Nasen</i> zeigt das Ergebnis oder was fehlt. Beim Speichern bekommt die Aufnahme "
+               "die Schlitze, der Stecker die Nasen; Schneidweg, Einstiche und Länge werden neu gerechnet. Entfernen "
+               "nimmt beides wieder heraus. Im Teile-Editor bleiben Schlitze und Nasen beim Übernehmen erhalten "
+               "([[steckverbindung_anlegen]]).",
+     "Steckverbindungen im Editor der Schweißbaugruppe anlegen ([[steckverbindung_anlegen]])"],
     ["0.9.73", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
                "Auftragsnummer des Kunden und den Liefertermin ab (Vorschlag aus der Lieferzeit); beides steht in "
                "der Angebotsliste und lässt sich suchen. <b>Eingabe wie in Excel</b> in der Positionsliste: "
