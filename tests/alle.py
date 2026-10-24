@@ -7,7 +7,7 @@ TESTS, LANGSAM oder EIGEN stehen – eine neue Testdatei ohne Eintrag macht den 
 
 Aufruf: python tests/alle.py [-j N] [--langsam] [--nur MUSTER …] [--markdown DATEI] [--coverage]
   -j N        so viele Tests gleichzeitig (Vorgabe: Anzahl Prozessorkerne)
-  --langsam   auch die langsamen Tests (LANGSAM; im Workflow nur auf main bzw. von Hand)
+  --langsam   auch die langsamen Tests (LANGSAM; im Workflow nur beim Sammel-Release von Hand)
   --nur       nur Tests, deren Name eines der Muster enthält
   --markdown  Zusammenfassung als Markdown-Tabelle anhängen (z. B. "$GITHUB_STEP_SUMMARY")
   --coverage  jeden Test mit coverage (nur Entwicklung, requirements-dev.txt) laufen lassen; danach

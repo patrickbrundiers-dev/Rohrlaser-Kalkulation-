@@ -1135,9 +1135,10 @@ class BaugruppeDialog(QDialog):
 
     def baum_gewaehlt(self):
         it = self.baum.currentItem()
-        hervor, text = self._gewaehlte_teile(it.data(0, Qt.UserRole) if it else ("bg", ""))
+        art, kid = it.data(0, Qt.UserRole) if it else ("bg", "")
+        hervor, text = self._gewaehlte_teile((art, kid))
         self.baum_hervor = hervor
-        self.zeige_3d(hervor, text)
+        self.zeige_3d(hervor, text, naht=kid if art == "naht" else None)
 
     def _netz(self, pid):
         if pid not in self._netz_cache:
@@ -1145,9 +1146,21 @@ class BaugruppeDialog(QDialog):
             self._netz_cache[pid] = entpacken(self.netze.get(pid)) or {}
         return self._netz_cache[pid]
 
-    def zeige_3d(self, hervor=(), text=""):
-        """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau.
-        Ergebnis: Anzahl gezeigter Körper."""
+    def naht_linien(self, naht=None):
+        """Schweißnähte für die 3D-Ansicht: {Art: [Linienzüge]} mit SN = Nahtgruppen, SV = noch offene Nahtvorschläge
+        aus dem STEP-Import, SH = Nahtgruppe naht (gewählt). Nur Nähte mit Nahtverlauf (STEP-JSON 1.16)."""
+        linien = {}
+        for n in self.bg.get("naehte") or []:
+            if n.get("linien"):
+                linien.setdefault("SH" if n.get("id") == naht else "SN", []).extend(n["linien"])
+        for v in self.bg.get("vorschlaege") or []:
+            if v.get("linien"):
+                linien.setdefault("SV", []).extend(v["linien"])
+        return linien
+
+    def zeige_3d(self, hervor=(), text="", naht=None):
+        """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau,
+        dazu die Schweißnähte (naht = ID der gewählten Nahtgruppe, rot). Ergebnis: Anzahl gezeigter Körper."""
         netze, besitzer, farbe = [], [], []
         for n, t in enumerate(x for x in self.teile if x.get("drin")):
             netz = self._netz(t["_id"])
@@ -1164,6 +1177,16 @@ class BaugruppeDialog(QDialog):
         from .ansicht3d import baugruppe as zusammen
         netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe)
         info = f"{len(netze)} Körper in Einbaulage, {text}."
+        if netz:
+            linien = self.naht_linien(naht)
+            netz["l"] = linien
+            netz["ln"] = {a: [(0.0, 0.0, 0.0)] * len(z) for a, z in linien.items()}    # Nähte immer sichtbar
+            ohne_verlauf = sum(1 for n in self.bg.get("naehte") or [] if not n.get("linien"))
+            if linien:
+                info += " Schweißnähte schwarz, Vorschläge magenta, gewählte Naht rot."
+            if ohne_verlauf:
+                info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (von Hand "
+                         "angelegt oder älterer STEP-Import: neu importieren).")
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten fehlen."
         self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)

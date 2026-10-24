@@ -85,10 +85,13 @@ Versionen von SCHEMA_VERSION:
   Biegung), drehung (Biegeebene gegen die vorige, Grad), winkel, radius}; letzte Zeile = Gerade nach der letzten
   Biegung], xyz [[x, y, z] Eckpunkte des Tangentenzugs ab Ende A, z = Richtung der ersten Geraden]}. Prüfstatus
   immer "prüfen". Felder aus 1.14 unverändert.
+- 1.16 (24.10.2026): Je Nahtkandidat "linien" = Nahtverlauf für die 3D-Ansicht der Baugruppe: Liste von Linienzügen
+  [x, y, z, x, y, z, …] in Dateilage (mm, 0,1 mm gerundet), je Kante des längsten Berührungszugs einer, Stützpunkte
+  etwa alle 5 mm. Felder aus 1.15 unverändert.
 - 1.17 (24.10.2026): Knickrahmen aus einem Körper (Quadrat- oder Rechteckrohr, Ecken mit Gehrung ohne Spalt): Je
   Körper "knick_schenkel" = null oder Liste der geraden Rohrstücke zwischen den Ecken (an den Winkelhalbierenden
   geteilt) in Reihenfolge, je Stück gleicher Aufbau wie ein Körper (ohne "nr", mit Längsachse und Enden); "laenge" des
-  Körpers = Summe der Schenkel außen, Prüfstatus immer "prüfen". Übrige Felder unverändert.
+  Körpers = Summe der Schenkel außen, Prüfstatus immer "prüfen". Felder aus 1.16 unverändert.
 """
 from datetime import datetime
 

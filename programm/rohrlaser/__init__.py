@@ -1,3 +1,3 @@
 """Rohrlaser Angebotskalkulation als eigenständiges Windows-Programm."""
-VERSION = "0.9.56"
+VERSION = "0.9.58"
 NAME = "Rohrlaser Angebotskalkulation"

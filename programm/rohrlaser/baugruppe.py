@@ -415,8 +415,12 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
         f = faktor(bg, kn) or 1
         if len(liste) % f:
             kn, f = "", 1
-        out.append(dict(id=neue_id(), knoten=kn, nahtart=art, laenge=laenge, anzahl=len(liste) // f,
-                        dicke=dicke, teile=[x.get("teile") for x in liste], quelle="STEP"))
+        v = dict(id=neue_id(), knoten=kn, nahtart=art, laenge=laenge, anzahl=len(liste) // f,
+                 dicke=dicke, teile=[x.get("teile") for x in liste], quelle="STEP")
+        linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
+        if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
+            v["linien"] = linien
+        out.append(v)
     return out
 
 
@@ -441,6 +445,8 @@ def vorschlag_naht(v, regel=None):
     koerper = sorted({str(k) for paar in v.get("teile") or () if isinstance(paar, (list, tuple)) for k in paar})
     if koerper:                                         # beteiligte Körper: 3D-Ansicht im Editor (D1)
         n["koerper"] = koerper
+    if v.get("linien"):                                 # Nahtverlauf in Dateilage (3D-Ansicht)
+        n["linien"] = v["linien"]
     if _zahl(v.get("dicke")) and v["dicke"] > 0:          # Wanddicke für das Heften der Vorkalkulation
         n["dicke"] = v["dicke"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
