@@ -98,6 +98,10 @@ if GL_KIND:
             diag.append((name, farbe(behalten[-1][1], *mitte)))
             print("DIAG", diag, flush=True)
         ansicht3d.LICHT_WERTE, ansicht3d.LICHT2 = lw, l2
+        ansicht3d_gl.MIT_VERLAUF = False
+        behalten.append(bild("OpenGL"))
+        diag.append(("ohne Verlauf", farbe(behalten[-1][1], *mitte), farbe(behalten[-1][1], 2, 2)))
+        ansicht3d_gl.MIT_VERLAUF = True
         print("DIAG", diag, flush=True)
     assert ergebnis, ("Tiefenpuffer: vordere Fläche verdeckt die hintere", werte, diag)
     # zweites Bild (QPainter der Beschriftung hat den Zustand verändert) und vergrößert: weiter richtig verdeckt

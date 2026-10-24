@@ -18,6 +18,8 @@ GL_DEPTH_TEST, GL_LEQUAL, GL_SCISSOR_TEST = 0x0B71, 0x0203, 0x0C11
 GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT = 0x4000, 0x0100
 GL_BLEND, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA = 0x0BE2, 0x0302, 0x0303
 GL_VERSION, GL_RENDERER = 0x1F02, 0x1F01
+GL_STENCIL_TEST, GL_CULL_FACE = 0x0B90, 0x0B44
+MIT_VERLAUF = True      # Hintergrundverlauf (aus: einfarbig wie glClear)
 
 # Licht wie ansicht3d.licht_wert (QPainter je Dreieck), hier je Ecke mit der glatten Normalen (Gouraud): Grundlicht
 # oben heller, Hauptlicht links oben vorn, Fülllicht rechts unten, Glanzlicht wie bei blankem Metall.
@@ -269,10 +271,13 @@ class GLFlaeche(QOpenGLWidget):
         h = ansicht3d.HINTERGRUND
         # QPainter (Beschriftung) lässt das Schreiben in den Tiefenpuffer abgeschaltet: vor dem Löschen wieder an
         fn.glDepthMask(True)
-        fn.glDisable(GL_SCISSOR_TEST)
+        fn.glColorMask(True, True, True, True)
+        for art in (GL_SCISSOR_TEST, GL_STENCIL_TEST, GL_CULL_FACE, GL_BLEND, GL_DEPTH_TEST):
+            fn.glDisable(art)
         fn.glClearColor(h.redF(), h.greenF(), h.blueF(), 1.0)
         fn.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        self._hintergrund(fn)
+        if MIT_VERLAUF:
+            self._hintergrund(fn)
         modell = a.modell
         if modell is None:
             return
