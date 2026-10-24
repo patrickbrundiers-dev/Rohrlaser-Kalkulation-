@@ -19,6 +19,9 @@ GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT = 0x4000, 0x0100
 GL_BLEND, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA = 0x0BE2, 0x0302, 0x0303
 GL_VERSION, GL_RENDERER = 0x1F02, 0x1F01
 
+# Licht wie ansicht3d.licht_wert (QPainter je Dreieck), hier je Ecke mit der glatten Normalen (Gouraud): Grundlicht
+# oben heller, Hauptlicht links oben vorn, Fülllicht rechts unten, Glanzlicht wie bei blankem Metall.
+# hg = 1: Hintergrundverlauf (pos.xy schon Bildschirmkoordinaten, Farbe unverändert, ganz hinten)
 VERTEX = """
 #version 120
 attribute vec3 pos;
@@ -32,62 +35,51 @@ uniform vec4 abb;       // x = ax, y = bx, z = ay, w = by: Bildschirm aus gedreh
 uniform float tiefe;
 uniform float linie;
 uniform float blass;    // „nur Gewähltes hervorheben“: Anteil Weiß
+uniform float hg;
+uniform vec3 licht;
+uniform vec3 licht2;
+uniform float grund;
+uniform float neigung;
+uniform float fuell;
+uniform float glanz;
+uniform float glanz_exp;
 varying vec3 farbe;
-varying vec3 nv;
 varying float nz;
 void main() {
+    if (hg > 0.5) {
+        farbe = col;
+        nz = 1.0;
+        gl_Position = vec4(pos.x, pos.y, 0.999, 1.0);
+        return;
+    }
     vec3 d = pos - mitte;
     vec3 q = vec3(dot(r0, d), dot(r1, d), dot(r2, d));
-    nv = vec3(dot(r0, nrm), dot(r1, nrm), dot(r2, nrm));
-    nz = nv.z;
-    farbe = mix(col, vec3(1.0, 1.0, 1.0), blass);
+    vec3 n = vec3(dot(r0, nrm), dot(r1, nrm), dot(r2, nrm));
+    nz = n.z;
+    vec3 c = mix(col, vec3(1.0, 1.0, 1.0), blass);
+    if (linie > 0.5) {
+        farbe = c;
+    } else {
+        if (n.z < 0.0) n = -n;
+        float diff = grund + neigung * n.y + (1.0 - grund) * max(0.0, dot(n, licht))
+                     + fuell * max(0.0, dot(n, licht2));
+        vec3 h = normalize(licht + vec3(0.0, 0.0, 1.0));
+        float spec = glanz * pow(max(0.0, dot(n, h)), glanz_exp);
+        farbe = min(c * diff + vec3(spec, spec, spec), vec3(1.0, 1.0, 1.0));
+    }
     gl_Position = vec4(abb.x * q.x + abb.y, abb.z * q.y + abb.w, -q.z * tiefe - linie * 0.002, 1.0);
 }
 """
-# Licht je Bildpunkt (Phong), gleiche Formel wie ansicht3d.licht_wert (QPainter je Dreieck): Grundlicht oben heller,
-# Hauptlicht von links oben vorn, Fülllicht von rechts unten, Glanzlicht wie bei blankem Metall
 FRAGMENT = """
 #version 120
 varying vec3 farbe;
-varying vec3 nv;
 varying float nz;
 uniform float linie;
 uniform float alle;     // Durchsichtig: Rückseiten und verdeckte Linien nicht verwerfen
 uniform float alpha;
-uniform vec3 licht;
-uniform vec3 licht2;
-uniform float grund;    // Grundlicht
-uniform float neigung;  // oben heller
-uniform float fuell;    // Fülllicht
-uniform float glanz;
-uniform float glanz_exp;
 void main() {
     if (alle < 0.5 && (nz < 0.0 || (linie < 0.5 && nz <= 0.0))) discard;     // Rückseiten wie in ansicht3d.zeichnen
-    if (linie > 0.5) { gl_FragColor = vec4(farbe, alpha); return; }
-    vec3 n = normalize(nv);
-    if (n.z < 0.0) n = -n;
-    float diff = grund + neigung * n.y + (1.0 - grund) * max(0.0, dot(n, licht))
-                 + fuell * max(0.0, dot(n, licht2));
-    vec3 h = normalize(licht + vec3(0.0, 0.0, 1.0));
-    float spec = glanz * pow(max(0.0, dot(n, h)), glanz_exp);
-    gl_FragColor = vec4(min(farbe * diff + vec3(spec), vec3(1.0)), alpha);
-}
-"""
-HG_VERTEX = """
-#version 120
-attribute vec2 pos;
-attribute vec3 col;
-varying vec3 farbe;
-void main() {
-    farbe = col;
-    gl_Position = vec4(pos, 0.999, 1.0);
-}
-"""
-HG_FRAGMENT = """
-#version 120
-varying vec3 farbe;
-void main() {
-    gl_FragColor = vec4(farbe, 1.0);
+    gl_FragColor = vec4(farbe, alpha);
 }
 """
 _PRUEFUNG = None        # (möglich, Grund) – einmal je Programmstart
@@ -186,7 +178,7 @@ class GLFlaeche(QOpenGLWidget):
         self.setFormat(fmt)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.prog, self.puffer, self._modell, self.fehler = None, {}, None, None
-        self.prog_hg, self.puffer_hg = None, None
+        self.puffer_hg = None
         self._kanten = False
 
     def initializeGL(self):
@@ -195,10 +187,6 @@ class GLFlaeche(QOpenGLWidget):
             if not (self.prog.addShaderFromSourceCode(QOpenGLShader.Vertex, VERTEX) and
                     self.prog.addShaderFromSourceCode(QOpenGLShader.Fragment, FRAGMENT) and self.prog.link()):
                 raise RuntimeError("Shader: " + (self.prog.log() or "").strip()[:200])
-            hg = QOpenGLShaderProgram(self)         # Hintergrundverlauf (fehlt er, bleibt der Hintergrund einfarbig)
-            if (hg.addShaderFromSourceCode(QOpenGLShader.Vertex, HG_VERTEX) and
-                    hg.addShaderFromSourceCode(QOpenGLShader.Fragment, HG_FRAGMENT) and hg.link()):
-                self.prog_hg = hg
         except Exception as e:  # OpenGL nicht nutzbar: zurück zu QPainter
             self._fehler(e)
 
@@ -238,13 +226,13 @@ class GLFlaeche(QOpenGLWidget):
         p.end()
 
     def _hintergrund(self, fn):
-        """Verlauf oben → unten (ansicht3d.HINTERGRUND_OBEN → HINTERGRUND) als zwei Dreiecke ohne Tiefe."""
+        """Verlauf oben → unten (ansicht3d.HINTERGRUND_OBEN → HINTERGRUND): zwei Dreiecke mit demselben Programm
+        (hg = 1), ohne Tiefe."""
         from . import ansicht3d
-        if self.prog_hg is None:
-            return
-        o, u = _farbe(ansicht3d.HINTERGRUND_OBEN), _farbe(ansicht3d.HINTERGRUND)
-        daten = array("f", [-1, 1, *o, 1, 1, *o, 1, -1, *u, -1, 1, *o, 1, -1, *u, -1, -1, *u])
         if self.puffer_hg is None:
+            o, u = _farbe(ansicht3d.HINTERGRUND_OBEN), _farbe(ansicht3d.HINTERGRUND)
+            ecken = [((-1, 1), o), ((1, 1), o), ((1, -1), u), ((-1, 1), o), ((1, -1), u), ((-1, -1), u)]
+            daten = array("f", [c for (x, y), f in ecken for c in (x, y, 0.0, 0.0, 0.0, 1.0, *f)])
             b = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
             b.create()
             b.bind()
@@ -252,19 +240,27 @@ class GLFlaeche(QOpenGLWidget):
             b.allocate(roh, len(roh))
             b.release()
             self.puffer_hg = b
-        pr, b = self.prog_hg, self.puffer_hg
+        pr = self.prog
         pr.bind()
-        b.bind()
-        lp, lc = pr.attributeLocation("pos"), pr.attributeLocation("col")
-        pr.enableAttributeArray(lp)
-        pr.enableAttributeArray(lc)
-        pr.setAttributeBuffer(lp, GL_FLOAT, 0, 2, 20)
-        pr.setAttributeBuffer(lc, GL_FLOAT, 8, 3, 20)
-        fn.glDrawArrays(GL_TRIANGLES, 0, 6)
-        pr.disableAttributeArray(lp)
-        pr.disableAttributeArray(lc)
-        b.release()
+        pr.setUniformValue1f(pr.uniformLocation("hg"), 1.0)
+        pr.setUniformValue1f(pr.uniformLocation("linie"), 1.0)
+        pr.setUniformValue1f(pr.uniformLocation("alle"), 1.0)
+        pr.setUniformValue1f(pr.uniformLocation("alpha"), 1.0)
+        self._puffer_zeichnen(pr, self.puffer_hg, GL_TRIANGLES, 6, fn)
+        pr.setUniformValue1f(pr.uniformLocation("hg"), 0.0)
         pr.release()
+
+    @staticmethod
+    def _puffer_zeichnen(pr, b, art, n, fn):
+        b.bind()
+        for k, attr in enumerate(("pos", "nrm", "col")):
+            loc = pr.attributeLocation(attr)
+            pr.enableAttributeArray(loc)
+            pr.setAttributeBuffer(loc, GL_FLOAT, 12 * k, 3, 36)
+        fn.glDrawArrays(art, 0, n)
+        for attr in ("pos", "nrm", "col"):
+            pr.disableAttributeArray(pr.attributeLocation(attr))
+        b.release()
 
     def _zeichnen(self):
         from . import ansicht3d
@@ -315,15 +311,7 @@ class GLFlaeche(QOpenGLWidget):
             if ist_linie:
                 fn.glLineWidth(1.1 if name == "kanten" else
                                ansicht3d.NAHT_BREITE if set(modell.arten) & set(ansicht3d.NAEHTE) else 2.2)
-            b.bind()
-            for k, attr in enumerate(("pos", "nrm", "col")):
-                loc = pr.attributeLocation(attr)
-                pr.enableAttributeArray(loc)
-                pr.setAttributeBuffer(loc, GL_FLOAT, 12 * k, 3, 36)
-            fn.glDrawArrays(art, 0, n)
-            for attr in ("pos", "nrm", "col"):
-                pr.disableAttributeArray(pr.attributeLocation(attr))
-            b.release()
+            self._puffer_zeichnen(pr, b, art, n, fn)
         pr.release()
         if roentgen:
             fn.glDepthMask(True)
