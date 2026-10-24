@@ -13,6 +13,10 @@ Regeln (Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen):
   Kontur in der Biegezone Biegerohr: Kontur in einem Bogen oder näher als Grenzwert × Wand daran (0, WARNUNG)
   Gerade zwischen Biegungen zu kurz
                           Biegerohr: Gerade zwischen zwei Biegungen kürzer als Grenzwert × Außen-Ø (1,5, WARNUNG)
+  Schenkel zu kurz        Knickrahmen: Schenkel kürzer als Grenzwert × Rohrmaß h in der Rahmenebene (2,0, WARNUNG)
+  Kontur im Knickbereich  Knickrahmen: Kontur näher am V-Ausschnitt als Grenzwert × Wand (2,0, WARNUNG)
+  Wand zu dick zum Knicken
+                          Knickrahmen: Wandstärke über Grenzwert in mm (4, HINWEIS)
 
 Geometrie: jede Kontur mit Lage als Linienzug (skizze.umriss_kontur) auf der Abwicklung des Rohrs (x längs,
 s am Umfang, skizze.s_lage) bzw. im Zuschnitt (x, y); Steg = kleinster Abstand zweier Linienzüge, Rand = Abstand
@@ -27,6 +31,8 @@ BOHRUNG_KLEIN, STEG, RAND, KURZ, GRAVUR_KANTE, KANTBARKEIT = (
     "Bohrung zu klein", "Steg zu schmal", "Kontur zu nah am Rand", "Teil zu kurz für die Maschine",
     "Gravur über Kante", "Kantbarkeit")
 BIEGEZONE, GERADE_KURZ = "Kontur in der Biegezone", "Gerade zwischen Biegungen zu kurz"
+SCHENKEL_KURZ, KNICKBEREICH, KNICK_WAND = "Schenkel zu kurz", "Kontur im Knickbereich", "Wand zu dick zum Knicken"
+KNICK_REGELN = (SCHENKEL_KURZ, KNICKBEREICH, KNICK_WAND)
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
     BOHRUNG_KLEIN: (1.0, WARNUNG, "Bohrung bzw. Senkung Ø kleiner als Grenzwert × Wandstärke bzw. Blechdicke"),
@@ -39,6 +45,9 @@ REGELN = {
     BIEGEZONE: (0.0, WARNUNG, "Biegerohr: Kontur in einem Bogen oder näher als Grenzwert × Wandstärke daran"),
     GERADE_KURZ: (1.5, WARNUNG, "Biegerohr: Gerade zwischen zwei Biegungen kürzer als Grenzwert × Außen-Ø "
                                 "(Spannlänge der Biegemaschine)"),
+    SCHENKEL_KURZ: (2.0, WARNUNG, "Knickrahmen: Schenkel kürzer als Grenzwert × Rohrmaß in der Rahmenebene"),
+    KNICKBEREICH: (2.0, WARNUNG, "Knickrahmen: Kontur näher am V-Ausschnitt als Grenzwert × Wandstärke"),
+    KNICK_WAND: (4.0, HINWEIS, "Knickrahmen: Wandstärke über Grenzwert in mm (Knicken von Hand schwer)"),
 }
 RANG = {HINWEIS: 0, WARNUNG: 1, FEHLER: 2}
 
@@ -166,7 +175,9 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
                                              f"{_zahl(min_teil, 0)} mm"))
     e = sw.lesen(technik) if technik else None
     if e:
+        e = sw.v_ergaenzen(e, dict(profil))
         out += _biegerohr(e, laenge, dict(profil), wand, r)
+        out += _knickrahmen(e, laenge, dict(profil), wand, r)
     if not e or not e.get("konturen"):
         return tuple(out)
     konturen = e["konturen"]
@@ -262,6 +273,58 @@ def _biegerohr(e, laenge, profil, wand, r):
                                                 f"{', '.join(map(str, sorted(zonen)))})"
                               + (f", Abstand unter {_zahl(abstand)} mm" if abstand else "")
                               + _lage_rohr(treffer[0]["eingabe"], treffer[0]["x"]),
+                              sorted({zeilen_e[d["zeile"]] for d in treffer})))
+    return out
+
+
+def _knickrahmen(e, laenge, profil, wand, r):
+    """Befunde eines Knickrahmens (V-Ausschnitte, Block 'knickrahmen'): kurze Schenkel, Konturen im Knickbereich,
+    dicke Wand."""
+    from . import knickrahmen as kn, schneidweg as sw, skizze as sk
+    konturen = e.get("konturen") or ()
+    v_zeilen = [i for i, z in enumerate(konturen) if z.get("art") == sw.V_AUSSCHNITT]
+    k = kn.lesen(e)
+    if not v_zeilen and not k:
+        return []
+    out = []
+    if KNICK_WAND in r and r[KNICK_WAND][0] and wand and wand > r[KNICK_WAND][0] + 1e-9:
+        out.append(Befund(KNICK_WAND, r[KNICK_WAND][1], f"Wand {_zahl(wand)} mm über {_zahl(r[KNICK_WAND][0])} mm: "
+                                                        "Knicken an der Abkantbank prüfen", v_zeilen))
+    if k and SCHENKEL_KURZ in r:
+        g, stufe = r[SCHENKEL_KURZ]
+        try:
+            rm = kn.rahmen(k, profil)
+        except ValueError:
+            rm = None
+        if rm and g:
+            kurz = [(i, a) for i, a in enumerate(rm["schenkel"], start=1) if a < g * rm["h"] - 1e-9]
+            if kurz:
+                i, a = min(kurz, key=lambda t: t[1])
+                out.append(Befund(SCHENKEL_KURZ, stufe, f"{len(kurz)} Schenkel unter {_zahl(g)} × {_zahl(rm['h'])} mm "
+                                                        f"({_zahl(g * rm['h'])} mm), kürzester Schenkel {i} mit "
+                                                        f"{_zahl(a)} mm", v_zeilen))
+    if KNICKBEREICH in r and v_zeilen:
+        g, stufe = r[KNICKBEREICH]
+        abstand = (g or 0.0) * (wand or 0.0)
+        lagen = [d for d in sk.lagen(_schnittkonturen(konturen), laenge) if not d.get("verteilt")]
+        schnitt = _schnittkonturen(konturen)
+        zeilen_e = [i for i, z in enumerate(konturen) if z.get("art") != sw.GRAVUR]
+        zonen = []
+        for d in lagen:
+            if d["art"] == sw.V_AUSSCHNITT:
+                pts = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
+                zonen.append((d["x"] + min(p[0] for p in pts) - abstand, d["x"] + max(p[0] for p in pts) + abstand))
+        treffer = []
+        for d in lagen:
+            if d["art"] == sw.V_AUSSCHNITT:
+                continue
+            pts = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
+            x0, x1 = d["x"] + min(p[0] for p in pts), d["x"] + max(p[0] for p in pts)
+            if any(x1 > a + 1e-6 and x0 < b - 1e-6 for a, b in zonen):
+                treffer.append(d)
+        if treffer and schnitt:
+            out.append(Befund(KNICKBEREICH, stufe, f"{len(treffer)} Kontur(en) näher als {_zahl(abstand)} mm am "
+                                                   "V-Ausschnitt" + _lage_rohr(treffer[0]["eingabe"], treffer[0]["x"]),
                               sorted({zeilen_e[d["zeile"]] for d in treffer})))
     return out
 
