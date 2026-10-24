@@ -35,7 +35,7 @@ assert kompilieren.SCHNELL <= set(module) | {"rohrlaser.rohr3d"}, kompilieren.SC
 assert kompilieren.DIREKTIVEN["annotation_typing"] is False and kompilieren.DIREKTIVEN["binding"] is True
 # was Python bleibt, ist nur Kopf und Aufruf
 kopf = (PROGRAMM / "rohrlaser" / "__init__.py").read_text(encoding="utf-8")
-assert len(kopf.splitlines()) < 20 and "def lizenzbedingungen" in kopf
+assert len(kopf.splitlines()) < 30 and "def lizenzbedingungen" in kopf and "qt_slots.einschalten()" in kopf
 start = (PROGRAMM / "step_messung" / "step_start.py").read_text(encoding="utf-8")
 assert "step_messen.main()" in start and "freeze_support" in start and len(start.splitlines()) < 15
 ok(f"Q3 {len(module)} eigene Module werden übersetzt, Python bleiben nur Paketkopf und Startdateien")
@@ -127,5 +127,57 @@ assert '"Lizenzbedingungen.txt"), "rohrlaser")' in (PROGRAMM / "rohrlaser.spec")
 fenster = (PROGRAMM / "rohrlaser" / "fenster.py").read_text(encoding="utf-8")
 assert 'QAction("Lizenzbedingungen …"' in fenster and "{URHEBER}" in fenster
 ok("Q4 Lizenzbedingungen: Setup, Programmpaket, Hilfe-Menü, Urheberrechtsvermerk unter Über")
+
+# ------------------------------------------------------------------ Q3 Qt-Slots bei übersetztem Code
+import os  # noqa: E402
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
+
+from rohrlaser import qt_slots  # noqa: E402
+
+app = QApplication.instance() or QApplication([])
+
+
+class cython_function_or_method:       # so heißt der Typ übersetzter Funktionen; PySide sieht keine Python-Funktion
+    def __init__(self, fn):
+        self.fn, self.__code__, self.__defaults__ = fn, fn.__code__, fn.__defaults__
+        self.__name__ = self.__qualname__ = fn.__name__
+
+    def __call__(self, *a, **k):
+        return self.fn(*a, **k)
+
+
+def python(fn):
+    return fn
+
+
+aufrufe = []
+knopf = QPushButton()
+knopf.setCheckable(True)
+ziele = [lambda offen: aufrufe.append(("eins", offen)),
+         lambda: aufrufe.append(("keins",)),
+         lambda e="E", w="W": aufrufe.append(("vorgabe", e, w)),
+         lambda *a: aufrufe.append(("rest", a))]
+roh = cython_function_or_method(ziele[0])
+assert qt_slots.huelle(ziele[0]) is ziele[0] and qt_slots.huelle(knopf.click) == knopf.click
+h = qt_slots.huelle(roh)
+assert type(h).__name__ == "function" and h.__code__.co_argcount == 1 and h(True) is None and aufrufe.pop() == ("eins", True)
+qt_slots.einschalten()
+qt_slots.einschalten()                     # zweimal schadet nicht
+assert getattr(type(knopf.clicked).connect, "rohrlaser_huelle", False)
+for z in ziele:
+    knopf.clicked.connect(z)
+knopf.click()
+wie_python = list(aufrufe)
+assert wie_python[:3] == [("eins", True), ("keins",), ("vorgabe", True, "W")], wie_python
+knopf.clicked.disconnect()
+aufrufe.clear()
+for z in ziele:
+    knopf.clicked.connect(cython_function_or_method(z))
+knopf.setChecked(False)
+knopf.click()
+assert aufrufe == wie_python, (aufrufe, wie_python)
+ok("Q3 Qt-Slots: übersetzte Funktionen bekommen die Signalwerte wie Python-Funktionen (Hülle mit gleicher Parameterliste)")
 
 print("Alle Tests Quellcode-Schutz bestanden")
