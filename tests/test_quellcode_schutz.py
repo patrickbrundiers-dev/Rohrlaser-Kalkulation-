@@ -40,6 +40,31 @@ start = (PROGRAMM / "step_messung" / "step_start.py").read_text(encoding="utf-8"
 assert "step_messen.main()" in start and "freeze_support" in start and len(start.splitlines()) < 15
 ok(f"Q3 {len(module)} eigene Module werden übersetzt, Python bleiben nur Paketkopf und Startdateien")
 
+# Cython lehnt einen bedingten Ausdruck mit unterschiedlich langen Tupeln aus Zahlen ab („Incompatible types in
+# conditional expression“), der Windows-Build bricht dann ab. Listen statt Tupel nehmen.
+import ast  # noqa: E402
+
+
+def _zahl(e):
+    if isinstance(e, ast.UnaryOp) and isinstance(e.op, (ast.USub, ast.UAdd)):
+        e = e.operand
+    return isinstance(e, ast.Constant) and type(e.value) in (int, float)
+
+
+def _zahlen_tupel(knoten):
+    return isinstance(knoten, ast.Tuple) and knoten.elts and all(_zahl(e) for e in knoten.elts)
+
+
+verboten = []
+for name, rel in module.items():
+    baum = ast.parse((PROGRAMM / rel).read_text(encoding="utf-8"))
+    for k in ast.walk(baum):
+        if (isinstance(k, ast.IfExp) and _zahlen_tupel(k.body) and _zahlen_tupel(k.orelse)
+                and len(k.body.elts) != len(k.orelse.elts)):
+            verboten.append(f"{rel}:{k.lineno}")
+assert not verboten, "bedingter Ausdruck mit unterschiedlich langen Tupeln (Cython-Fehler), Listen nehmen: " + ", ".join(verboten)
+ok("Q3 kein bedingter Ausdruck mit unterschiedlich langen Tupeln (übersetzt sonst nicht)")
+
 # ------------------------------------------------------------------ Q3 Tausch in der .spec
 
 

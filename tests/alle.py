@@ -64,7 +64,7 @@ TESTS = [
     "test_konturvorlagen.py", "test_dxf_import.py", "test_schnittflaeche.py", "test_gegenrohr.py", "test_editor_griffe.py", "test_biegerohr.py", "test_knickrahmen.py",
     "test_knickverbindung.py", "test_knickrahmen_koerper.py", "test_steckverbindung.py", "test_naht.py",
     "test_stangenwechsel_sn.py", "test_3d.py", "test_3d_greifmass.py", "test_3d_editor.py", "test_programmierung.py",
-    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_baugruppe_baum.py", "test_gravur.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
+    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_gravur.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py",
     "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_nachfassen.py", "test_anleitung.py",
