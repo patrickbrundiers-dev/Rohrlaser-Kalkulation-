@@ -557,6 +557,23 @@ def main(ziel):
     foto.foto("knickrahmen_koerper", d, [(d.start, 1), (d.vorschau, 2)])
     d.reject()
 
+    # Steckverbindung (K2-1): Aufnahme mit den Schlitzen für einen Stecker QR 40 × 40 × 2 (nur für das Foto)
+    from rohrlaser import schneidweg as sw_, steckverbindung as sv_
+    qr2 = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"
+                and pr.get("a") == 40 and pr.get("wand") == 2), dict(form="Quadratrohr", a=40, b=40, wand=2,
+                                                                       profil_id="QR 40x40x2"))
+    v_ = dict(sv_.vorgaben(qr2), id="foto", stecker=dict(ende="a"), x=400, seite="oben")
+    auf_ = sv_.anwenden(v_, sw_.lesen(None), sw_.lesen(None), qr2, qr2)[0]
+    p_s = dict(id=None, pos=920, artikel="Aufnahme", profil_id=qr2["profil_id"], laenge=800, stueck=10,
+               werkstoff_id="S235-10219", technik=sw_.speichern(dict(auf_, quelle=sw_.QUELLE)))
+    d = SchneidwegDialog(s, p_s, qr2, s.kopf, s.k, s.tabellen, db, s.positionen)
+    d.resize(1450, 980)
+    d.ansicht_wahl.setCurrentText("Abwicklung")
+    d.editor.aktualisieren()
+    QApplication.processEvents()
+    foto.foto("steckverbindung", d, [(d.tabelle, 1), (d.skizze, 2), (d.summe, 3)])
+    d.reject()
+
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog

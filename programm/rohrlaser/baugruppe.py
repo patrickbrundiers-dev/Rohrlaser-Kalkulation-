@@ -73,14 +73,14 @@ def lesen(text):
         return None
     if not isinstance(d, dict) or not d.get("id"):
         return None
-    for n in ("knoten", "arbeitsgaenge", "naehte"):
+    for n in ("knoten", "arbeitsgaenge", "naehte", "steckverbindungen"):
         d[n] = [x for x in d.get(n) or () if isinstance(x, dict)]
     d["stamm"] = d.get("stamm") if isinstance(d.get("stamm"), dict) else {}
     return d
 
 
 _LISTEN = (("knoten", "Unterbaugruppe", "Unterbaugruppen"), ("arbeitsgaenge", "Arbeitsgang", "Arbeitsgänge"),
-           ("naehte", "Nahtgruppe", "Nahtgruppen"))
+           ("naehte", "Nahtgruppe", "Nahtgruppen"), ("steckverbindungen", "Steckverbindung", "Steckverbindungen"))
 
 
 def daten_fehler(text):
@@ -704,6 +704,10 @@ def status(p, w, positionen=None):
     if r["warnungen"]:
         return "WARNUNG: " + r["warnungen"][0]
     if positionen is not None:
+        from . import steckverbindung
+        sf = steckverbindung.fehler(bg, positionen, teile(positionen, bg["id"]))
+        if sf:
+            return "FEHLER: " + sf
         if not teile(positionen, bg["id"]):
             return "WARNUNG: Baugruppe ohne Einzelteile"
         for i, q in enumerate(positionen):

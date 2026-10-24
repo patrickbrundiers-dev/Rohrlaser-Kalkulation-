@@ -2256,6 +2256,41 @@ def kapitel_optimieren(i):
             "<b>Nicht erkannt</b> werden ein räumlicher Rahmen, unterschiedliche Eckwinkel oder Ecken mit Spalt; sie "
             "bleiben ein normales Teil (meist <i>nicht messbar</i>).",
             "Die 3D-Ansicht zeigt den Körper gefaltet, wie er in der Datei steht.")
+    i.abschnitt("Steckverbindung", marke="steckverbindung")
+    i.text("Bei einer <b>Steckverbindung</b> stecken zwei Rohre einer Schweißbaugruppe ineinander: Das Rohr, das mit "
+           "dem Ende anstößt (<b>Stecker</b>), bekommt am Ende <b>Nasen</b>, das andere (<b>Aufnahme</b>) an der Stelle "
+           "je Nase einen <b>Schlitz</b>. Die Teile richten sich beim Heften selbst aus. Das Programm rechnet beide "
+           "Teile: Schlitze als Konturen der Aufnahme, Nasen als längeres Ende des Steckers.", kurz=True)
+    i.bild("steckverbindung", "Aufnahme QR 40 × 40 × 2 mit zwei Schlitzen 2,2 × 20,2 mm für einen Stecker QR 40 × 40 × 2",
+           hoehe=70 * mm,
+           legende=[(1, "<b>Schlitze</b>: Konturart Rechteck, Herkunft <i>Steckverbindung</i>, je Schlitz ein "
+                        "Einstich."),
+                    (2, "Lage der Schlitze auf der Abwicklung: mittig unter den Nasen."),
+                    (3, "Schneidweg und Einstiche mit den Schlitzen.")])
+    i.genauer()
+    i.liste("<b>Maße</b> (Wand Aufnahme s<sub>A</sub>, Wand Stecker s<sub>B</sub>, Nasenbreite b<sub>N</sub>, "
+            "Spiel c je Seite): Nasenlänge l<sub>N</sub> = s<sub>A</sub> + Überstand; Schlitz (s<sub>B</sub> + 2c) × "
+            "(b<sub>N</sub> + 2c); das Ende des Steckers wird je Nase um 2 · l<sub>N</sub> länger (zwei Flanken), die "
+            "Rohlänge um l<sub>N</sub>.",
+            "<b>Beispiel</b>: QR 40 × 40 × 2 auf QR 40 × 40 × 2, Nase 20 mm, Spiel 0,1 mm: Schlitz 2,2 × 20,2 mm = "
+            "44,8 mm Schnittlänge, Aufnahme + 89,6 mm und + 2 Einstiche; Stecker-Ende 168 statt 160 mm, Teil 2 mm "
+            "länger.",
+            "<b>Nasen</b>: 2 auf gegenüberliegenden Wänden (Vorgabe: die Wände quer zur Achse der Aufnahme, die Nasen "
+            "liegen dann hintereinander längs der Aufnahme), 1 oder 4 sind auch möglich. Vorgabe der Nasenbreite: "
+            "halbe Wandbreite des Steckers, mindestens 10 mm.",
+            "<b>Rundrohr</b>: Als Stecker ist die Nase ein Bogenstück, der Schlitz wird um die Bogenhöhe breiter; als "
+            "Aufnahme ist das Ende des Steckers ein Sattel ([[schneidweg_rechner]]) mit den Nasen darauf.",
+            "<b>Schräger Stoß</b> (30° bis 90° zwischen den Achsen): Flanken der Nasen = l<sub>N</sub> / sin α, der "
+            "Schlitz wird längs der Aufnahme um s<sub>A</sub> / tan α länger, damit die schräge Nase durch die Wand "
+            "passt.",
+            "Einstellungen unter <b>Steckverbindung</b> ([[einstellungen]]): Nasen je Verbindung, Nasenbreite "
+            "mindestens, Spiel je Seite und Überstand.",
+            "<b>Prüfregeln</b> ([[pruefregeln]]): <i>Nase zu schmal</i>; für die Schlitze gilt <i>Kontur zu nah am "
+            "Rand</i>. Fehlt ein Teil der Verbindung in der Baugruppe, zeigt die Baugruppe den FEHLER "
+            "<i>Steckverbindung ohne Gegenstück</i>.",
+            "Die Verbindung steht in der Schweißbaugruppe; Schlitze und Nasen verweisen auf sie. Wird die "
+            "Verbindung entfernt, fallen Schlitze und Nasen in beiden Teilen weg. Anlegen im Baugruppen- und "
+            "STEP-Prüfdialog folgt mit dem nächsten Schritt.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
@@ -2271,7 +2306,10 @@ def kapitel_optimieren(i):
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
             "<b>Eigenschaften</b> rechts: alle Werte des gewählten Merkmals untereinander, bei Konturen mit einem "
             "<b>Maßbild</b>, das zeigt, welches Maß wohin gehört. Änderungen wirken sofort in Tabelle, Skizze und 3D. "
-            "Ohne Auswahl zeigt das Feld das Teil (Länge bzw. Werkstoff, Dicke und Art).",
+            "Ohne Auswahl zeigt das Feld das Teil (Länge bzw. Werkstoff, Dicke und Art). <b>Profil und Teil</b> "
+            "(Klick auf die Rohrwand): Profil, Profilform, Abmessung, Wandstärke, Werkstoff mit Kategorie und "
+            "Teilelänge, dazu Gravur, Außenradius und 3D-Schnittbearbeitung; bei einer neuen Position sind Profil, "
+            "Werkstoff, Teilelänge und Stückzahl hier änderbar, sonst in der Positionstabelle des Angebots.",
             "<b>Rechnen im Feld</b>: Maßfelder der Eigenschaften nehmen einfache Rechnungen an, z. B. <i>1200/2+15</i>, "
             "<i>3×25</i> oder <i>L-40</i>. Namen beim Rohr: L = Teilelänge, B und H = Profilmaße, D = "
             "Außendurchmesser, S = Wanddicke; beim Blech L und B = Zuschnitt, S = Dicke. <i>Abstand Muster</i> "
@@ -2283,7 +2321,11 @@ def kapitel_optimieren(i):
             "Positionen dieser Gruppe mit Eingaben des Schneidweg-Rechners neu; gemessene STEP-Werte bleiben. "
             "Ein anderer Werkstoff im selben Angebot hat seinen eigenen Radius.",
                         "<b>3D-Modell aus den Eingaben</b>: Das Rohr wird aus Profil, Enden und Konturen gebaut, auch ohne "
-            "STEP-Datei; jede Änderung ist sofort zu sehen. <i>Ansicht → STEP-Modell</i> zeigt stattdessen das "
+            "STEP-Datei; jede Änderung ist sofort zu sehen. Bei Rund-, Quadrat- und Rechteckrohr sind Bohrungen, "
+            "Langlöcher, Rechtecke, Ausklinkungen, Schlitze, Polygone, V-Ausschnitte und Sonderkonturen <b>echt "
+            "ausgeschnitten</b>, mit roter Lochwand durch die Wandstärke; Ausschnitte am Ende fehlen auch in der "
+            "Stirnfläche. Gravur und Flowdrill bleiben Linien. Rundungen (Rundrohr, Eckradius, Bohrungen) sind mit "
+            "OpenGL glatt schattiert, Kanten bleiben scharf. <i>Ansicht → STEP-Modell</i> zeigt stattdessen das "
             "gemessene Modell aus dem STEP-Import (Biegerohre immer).",
             "<b>Ansichtswürfel</b> oben rechts im 3D: Klick auf eine Fläche (oben, vorne, A, B …), eine Kante oder "
             "Ecke dreht das Modell in diese Richtung; ⌂ stellt die Ausgangsansicht wieder her.",
@@ -2303,7 +2345,8 @@ def kapitel_optimieren(i):
             "Rechnung, Fehler zuerst. Ein Klick wählt das betroffene Merkmal; bei einem zu schmalen Steg sind beide "
             "Konturen markiert, in der Skizze blau und in der 3D-Ansicht grün hervorgehoben.",
             "<b>Auswahl überall gleich</b>: Klick auf eine Zeile der Tabelle, ein Merkmal, eine Kontur in der Skizze "
-            "oder eine Linie in der 3D-Ansicht wählt überall dasselbe Merkmal. Im Modell aus den Eingaben ist die "
+            "oder eine Linie bzw. Fläche in der 3D-Ansicht wählt überall dasselbe Merkmal: Lochwand = Kontur, "
+            "Stirnfläche = Ende, Rohrwand = Profil und Teil. Im Modell aus den Eingaben ist die "
             "gewählte Kontur bzw. das Ende selbst hervorgehoben, im STEP-Modell der Bereich längs der Rohrachse. "
             "Beim Blech ist es die Kontur bzw. Biegelinie.",
             "<b>Messen</b> (<i>Ansicht → Messen</i>): Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt die "
@@ -3839,6 +3882,11 @@ def kapitel_einstellungen(i):
                         "den Spitzen des V [mm] (0 = ohne), Knickrahmen: K-Faktor der Stegwand (0,5 = Wandmitte)",
          "Vorgaben im Fenster Knickrahmen des Schneidweg-Rechners: Zugabe je Knick (Vorgabe 0), Freistich (Vorgabe "
          "ohne) und Lage der neutralen Faser für den Ausgleichswert nach DIN 6935 (Vorgabe 0,5, [[knickrahmen]])."],
+        ["Steckverbindung", "Steckverbindung: Nasen je Verbindung (1, 2 oder 4), Steckverbindung: Nasenbreite "
+                            "mindestens [mm], Steckverbindung: Spiel je Seite im Schlitz [mm], Steckverbindung: "
+                            "Überstand der Nase über die Aufnahme [mm]",
+         "Vorgaben einer neuen Steckverbindung: 2 Nasen, Nasenbreite halbe Wandbreite des Steckers und mindestens "
+         "10 mm, Spiel 0,1 mm, Überstand 0 ([[steckverbindung]])."],
         ["STEP-Import", "Experte: Flachstahl ab Länge × Breite, Experte: gekantetes Blech statt Profil, wenn Volumen "
                         "unter Anteil von Querschnitt × Länge",
          "Grenzwerte der Erkennung, nur nach Rücksprache ändern: ein flaches Teil ist erst ab dieser Länge "
@@ -4571,6 +4619,8 @@ def kapitel_stammdaten(i):
             "<b>Kontur im Knickbereich</b> (Knickrahmen): Kontur näher am V-Ausschnitt als Grenzwert × Wand (Vorgabe "
             "2,0, WARNUNG).",
             "<b>Wand zu dick zum Knicken</b> (Knickrahmen): Wandstärke über dem Grenzwert in mm (Vorgabe 4, HINWEIS).",
+            "<b>Nase zu schmal</b> (Steckverbindung): Nasenbreite unter Grenzwert × Wand des Steckers (Vorgabe 3,0, "
+            "WARNUNG, [[steckverbindung]]).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
