@@ -217,6 +217,9 @@ class Eigenschaften(QWidget):
                 self._zelle(titel, t, r, 2 + i, text=True, tipp="Eckpunkte x,y in mm, getrennt mit Semikolon")
             elif k == "beta":
                 self._zelle("Knickwinkel β", t, r, 2 + i, einheit="°")
+            elif k in ("winkel", "reihen"):
+                self._zelle(titel.split(" (")[0].replace(" [°]", ""), t, r, 2 + i,
+                            einheit="°" if k == "winkel" else "Stück", tipp=titel)
             else:
                 self._zelle(titel.split(" (")[0], t, r, 2 + i)
         if self.art == "rohr":
@@ -297,7 +300,8 @@ class Eigenschaften(QWidget):
     def _rohr_eigenschaften(self, combo, art):
         d = self.d
         eig = getattr(combo, "eig", None) or {}
-        if art not in sk.DREH_OHNE and art not in (sw.SCHLITZ, sw.AUSKLINKUNG, sw.V_AUSSCHNITT):
+        self._extra_3e7(combo, art)
+        if art not in sk.DREH_OHNE and art not in (sw.SCHLITZ, sw.AUSKLINKUNG, sw.V_AUSSCHNITT, sw.DURCHBRUCH):
             self._rechen("Drehwinkel", sw._z(eig.get("drehung")) or 0.0,
                          lambda v: self._eig_setzen(combo, "drehung", round(v, 3) % 360 if v else None), "°",
                          "Drehung der Kontur auf der Fläche um ihre Mitte, + = gegen den Uhrzeiger (von außen gesehen); "
@@ -328,6 +332,34 @@ class Eigenschaften(QWidget):
                              lambda v: self._eig_setzen(combo, "umfang_n", max(2, int(round(v or 2)))), "Stück",
                              "so viele Konturen gleichmäßig am Umfang (z. B. 4 = alle 90°)", schluessel="Anzahl am Umfang")
 
+    def _extra_3e7(self, combo, art):
+        """Eigenschaften aus Schritt 3E-7: Lochfeld (Langloch, versetzt), Durchbruch (Versatz am Rundrohr, Eckradius
+        des Gegenrohrs), Fase der Ecken (Rechteck, Ausklinkung)."""
+        eig = getattr(combo, "eig", None) or {}
+        if art == sw.LOCHFELD:
+            self._rechen("Langloch-Länge", sw._z(eig.get("lang")) or None,
+                         lambda v: self._eig_setzen(combo, "lang", round(v, 3) if v else None), "mm",
+                         "leer = Bohrungen; sonst Langlöcher dieser Länge (Breite = Ø)", schluessel="Langloch-Länge")
+            f = QCheckBox("jede 2. Reihe versetzt")
+            f.setChecked(bool(eig.get("versetzt")))
+            f.setToolTip("Reihen quer abwechselnd um die halbe Teilung längs verschoben")
+            f.toggled.connect(lambda an: self._eig_setzen(combo, "versetzt", True if an else None))
+            self._form.addRow("", f)
+            self.felder["versetzt"] = f
+        elif art == sw.DURCHBRUCH:
+            if self.d.qs.r:
+                self._rechen("Versatz", sw._z(eig.get("versatz")) or 0.0,
+                             lambda v: self._eig_setzen(combo, "versatz", round(v, 3) if v else None), "mm",
+                             "Achse des Gegenrohrs quer zur Rohrachse verschoben", schluessel="Versatz")
+            self._rechen("Eckradius Gegenrohr", sw._z(eig.get("r_gegen")) or 0.0,
+                         lambda v: self._eig_setzen(combo, "r_gegen", round(v, 3) if v else None), "mm",
+                         "nur rechteckiges Gegenrohr (Tiefe eingegeben)", schluessel="Eckradius Gegenrohr")
+        elif art in sw.MIT_FASE:
+            self._rechen("Fase je Ecke", sw._z(eig.get("fase")) or 0.0,
+                         lambda v: self._eig_setzen(combo, "fase", round(v, 3) if v else None), "mm",
+                         "Ecken gefast statt gerundet (0 = Eckradius gilt); Rechtsklick auf die Kontur: Ecken",
+                         schluessel="Fase je Ecke")
+
     def _ende(self, s):
         d = self.d
         self._spin("Gehrungswinkel", d.winkel[s], "°", "Abweichung vom rechtwinkligen Schnitt (0 = gerade)")
@@ -336,8 +368,14 @@ class Eigenschaften(QWidget):
             self._spin("Winkel über Breite", d.winkel_b[s], "°")
         if d.richtung[s].isEnabled():
             self._combo("längste Seite", d.richtung[s])
-        if d.sattel[s].isEnabled():
+        if d.sattel[s].isEnabled() and not d.gegen.get(s):
             self._spin("Ausklinkung auf Rundrohr Ø", d.sattel[s], "mm")
+        if d.gegen_knopf[s].isEnabled():
+            b = QPushButton(d.gegen_knopf[s].text())
+            b.setToolTip(d.gegen_knopf[s].toolTip())
+            b.clicked.connect(lambda: d.gegenrohr(s))
+            self._form.addRow("Gegenrohr", b)
+            self.felder["Gegenrohr"] = b
         if d.d3.isChecked():
             self._haken("Gehrung in 3D", d.ende_3d[s])
         return "Anfangsschnitt (Ende A)" if s == "a" else "Endschnitt (Ende B)"

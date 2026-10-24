@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.91", "<b>3D-Editor: Gegenrohr, Lochfeld, Fase, Schrift</b>: Ein Rohrende lässt sich auf ein "
+               "<b>Gegenrohr</b> setzen – rund oder rechteckig, schräg, mit Versatz, auf Rund-, Quadrat- und "
+               "Rechteckrohr; das Programm rechnet die echte Schnittkurve, im 3D steht das Gegenrohr pink. Neu als "
+               "Konturen: <b>Durchbruch</b> (Loch für ein Rohr, das durch die Wand geht, auch schräg und beidseitig) und "
+               "<b>Lochfeld</b> (Raster aus Bohrungen oder Langlöchern in einer Zeile, Reihen quer, versetzt). Rechteck "
+               "und Ausklinkung bekommen gefaste Ecken (Rechtsklick → Ecken). Text-Gravuren erscheinen im 3D als echte "
+               "Schrift. Die Ausklinkung auf Rundrohr ist jetzt richtig herum gezeichnet "
+               "([[schneidweg_rechner]], [[teile_editor]]).",
+     "3D-Editor: Gegenrohr (schräg, Versatz, eckig), Durchbruch, Lochfeld, Fase, Schrift im 3D."],
     ["0.9.90", "<b>DXF-Import für Bleche</b>: im Blech-Editor <i>DXF importieren</i>, im Angebot <i>Neue Position → "
                "Bleche aus DXF</i> oder DXF-Dateien aufs Angebot ziehen. Die Kontur kommt genau wie gezeichnet "
                "(Bögen bleiben Bögen), Bohrung/Langloch/Rechteck nur bei exakter Form. Rahmen und Schriftfeld fallen "
