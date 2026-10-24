@@ -2059,7 +2059,7 @@ def kapitel_optimieren(i):
             "<b>Ausklinkung auf Rundrohr Ø</b> (nur Rundrohr): das Ende wird rechtwinklig auf ein Rundrohr mit "
             "diesem Durchmesser gesetzt (Sattelschnitt); das Programm rechnet die Länge der Schnittkurve. Der "
             "Durchmesser muss mindestens so groß sein wie das eigene Rohr; eine Gehrung zusätzlich geht nicht.",
-            "<b>Gegenrohr</b> (seit 0.9.91, Rund-, Quadrat- und Rechteckrohr): Knopf <i>Gegenrohr …</i> neben dem "
+            "<b>Gegenrohr</b> (seit 0.9.93, Rund-, Quadrat- und Rechteckrohr): Knopf <i>Gegenrohr …</i> neben dem "
             "Ende, im Menüband <i>Gegenrohr</i> oder Rechtsklick auf das Ende. Das Gegenrohr ist rund (Ø) oder "
             "rechteckig (Breite quer, Tiefe, Eckradius), steht rechtwinklig oder schräg (<i>Winkel</i> = Abweichung "
             "von rechtwinklig, + = Rohr vorne bzw. oben länger), kann quer versetzt sein (<i>Versatz</i>) und liegt "
@@ -2067,7 +2067,7 @@ def kapitel_optimieren(i):
             "Schnittkurve, ihre Länge und wie tief der Ausschnitt ist; im 3D steht das Gegenrohr als pinker "
             "Hilfskörper. Ein Gegenrohr ersetzt Gehrung und Ausklinkung dieses Endes (Gehrung von Hand eintragen = "
             "Gegenrohr fällt weg; <i>Kein Gegenrohr</i> im Dialog entfernt es). Zu kleine Gegenrohre (Rohr ragt seitlich heraus) meldet der Dialog rot. Die alte "
-            "Ausklinkung auf Rundrohr Ø rechnet genauso und ist seit 0.9.91 richtig herum gezeichnet (oben und unten "
+            "Ausklinkung auf Rundrohr Ø rechnet genauso und ist seit 0.9.93 richtig herum gezeichnet (oben und unten "
             "am längsten).",
             "<b>Innenkonturen</b> mit Anzahl je Teil: <i>Bohrung</i> (Ø: π × d; im Rundrohr etwas mehr, siehe "
             "unten), <i>Senkung</i> (Bohrung Ø d und "
@@ -2429,7 +2429,7 @@ def kapitel_optimieren(i):
             "Langlöcher, Rechtecke, Ausklinkungen, Schlitze, Polygone, V-Ausschnitte und Sonderkonturen <b>echt "
             "ausgeschnitten</b>, mit roter Lochwand durch die Wandstärke; Ausschnitte am Ende fehlen auch in der "
             "Stirnfläche; Lochfelder und Durchbrüche ebenso. Gravur und Flowdrill bleiben Linien, eine Text-Gravur "
-            "steht seit 0.9.91 als echte Schrift auf der Wand (von außen lesbar, von Ende A nach B). Ein Gegenrohr "
+            "steht seit 0.9.93 als echte Schrift auf der Wand (von außen lesbar, von Ende A nach B). Ein Gegenrohr "
             "(am Ende oder durch einen Durchbruch) zeigt das 3D als pinken Hilfskörper (Linien), es gehört nicht zum "
             "Teil. Rechtsklick auf ein Rechteck oder eine Ausklinkung: <i>Ecken → Runden, Fasen, Scharf</i>; auf ein "
             "Ende: <i>Gegenrohr …</i>. Rundungen (Rundrohr, Eckradius, Bohrungen) sind mit "
@@ -5612,6 +5612,10 @@ def kapitel_pflege(i):
             "prüft vorher den freien Speicherplatz und jede Datei über ihre Prüfsumme. Die Dateiliste ist "
             "zusätzlich digital signiert: Ab Version 0.9.87 spielt das Programm nur noch eine vom Hersteller gültig "
             "signierte Liste ein, sonst bleibt die bisherige Version unverändert.",
+            "Jede Version wird vor dem Veröffentlichen geprüft: Im Paket sind nur Programmdateien, keine Daten, "
+            "Angebote, Lizenzen, Schlüssel oder Testdateien. <b>Vorabkanal</b> für einen Test-PC: Umgebungsvariable "
+            "<i>RL_UPDATE_QUELLE</i> auf die Dateiliste im Release <i>update-test</i> setzen; dieser PC bekommt dann "
+            "die Testversionen (ebenfalls signiert), alle anderen nicht.",
             "Bricht der Austausch hart ab (Stromausfall, Absturz), stellt das Programm beim nächsten Start die "
             "bisherigen Dateien aus <i>_update</i> wieder her und meldet <i>Ein unterbrochenes Update wurde "
             "zurückgenommen</i>. Danach einfach noch einmal nach Updates suchen.",
