@@ -7,12 +7,11 @@ Bezug 'Breitseite oben'.
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QFont, QPainter, QPen
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel,
                                QVBoxLayout, QWidget)
 
-from . import hilfe, naht
-
+from . import hilfe, naht, stil
 from .stil import TEXT_GRAU as GRAU  # noqa: E402
 NAHT_FARBE = "#C0392B"
 
@@ -58,17 +57,17 @@ class Querschnitt(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         r = self._rahmen()
-        p.setPen(QPen(QColor("#1F2937"), 3))
-        p.setBrush(QColor("#E8EEF5"))
+        p.setPen(QPen(stil.farbe("#1F2937"), 3))
+        p.setBrush(stil.farbe("#E8EEF5"))
         if self.form == "Rundrohr":
             p.drawEllipse(r)
         elif self.form:
             p.drawRect(r)
         else:
-            p.setPen(QColor(GRAU))
+            p.setPen(stil.farbe(GRAU))
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap, "Kein Rohrprofil:\nSeite nicht darstellbar")
             return
-        p.setPen(QColor(GRAU))
+        p.setPen(stil.farbe(GRAU))
         klein = QFont(self.font())
         klein.setPointSizeF(max(7.0, klein.pointSizeF() - 1))
         p.setFont(klein)
@@ -92,13 +91,13 @@ class Querschnitt(QWidget):
                    "Blick von Ende A in Richtung Ende B")
         if self.winkel is not None:
             q = self._punkt(r, self.winkel)
-            p.setPen(QPen(QColor(NAHT_FARBE), 2, Qt.DashLine))
+            p.setPen(QPen(stil.farbe(NAHT_FARBE), 2, Qt.DashLine))
             p.drawLine(c, q)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor(NAHT_FARBE))
+            p.setBrush(stil.farbe(NAHT_FARBE))
             p.drawEllipse(q, 7, 7)
         if not self.aktiv:
-            p.setPen(QColor(GRAU))
+            p.setPen(stil.farbe(GRAU))
             p.drawText(r, Qt.AlignCenter, "keine feste Position")
 
     def mousePressEvent(self, e):

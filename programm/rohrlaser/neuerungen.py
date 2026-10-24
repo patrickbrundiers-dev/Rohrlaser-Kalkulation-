@@ -21,11 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.96", "<b>Knickrahmen aus einem Körper sicherer erkannt</b>: Hatte ein Rahmen Bohrungen oder Ausschnitte nur "
+    ["0.9.97", "<b>Knickrahmen aus einem Körper sicherer erkannt</b>: Hatte ein Rahmen Bohrungen oder Ausschnitte nur "
                "in einer Wand (z. B. eine Lochreihe oben an einem Schenkel), lag die berechnete Rahmenebene minimal "
                "schief und der STEP-Import erkannte den Knickrahmen nicht. Die Ebene kommt jetzt genau von der "
                "Rahmenwand ([[knickrahmen_koerper]]).",
      "Knickrahmen aus einem Körper auch mit einseitigen Bohrungen erkannt."],
+    ["0.9.96", "<b>Dunkelmodus verbessert</b>: Eingabezellen sind im Dunkelmodus blaugrau statt olivbraun, berechnete "
+               "Zellen etwas dunkler, sodass beides gut zu unterscheiden ist. Das Feld „STEP-Dateien hierher ziehen“, "
+               "die Skizzen und Zeichnungen in Rohr-, Blech-, Naht- und Profil-Editor und die 3D-Ansicht sind jetzt "
+               "auch dunkel; Zeichnungen im PDF bleiben weiß. <b>Wie Windows</b> erkennt den Windows-Dunkelmodus "
+               "zuverlässig über die Windows-Einstellung, und Hell bleibt hell, auch wenn Windows dunkel ist (vorher "
+               "mischten sich weiße Karten mit dunklen Fenstern). Farbschema, Schriftgröße und Dichte wirken sofort, "
+               "ohne Neustart. Spaltenköpfe lassen Platz für den Sortierpfeil und werden nicht mehr abgeschnitten "
+               "(z. B. „Programmierzei…“) ([[einstellungen]]).",
+     "Dunkelmodus: blaugraue Eingabezellen, dunkle Skizzen und 3D, Wie Windows zuverlässig, Wechsel sofort"],
     ["0.9.95", "<b>Satz in 3D</b>: Ein Satz aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen "
                "als Stecksystem), steht im neuen Fenster <i>Satz in 3D …</i> (Rechtsklick auf eine Position) in der "
                "Einbaulage der STEP-Datei. Dort "

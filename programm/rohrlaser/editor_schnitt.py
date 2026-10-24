@@ -5,13 +5,13 @@ Wänden, Kopien am Umfang, Ausklinkungen). Die Stelle zeigt die 3D-Ansicht als R
 Gerechnet wird aus den Eingaben (Abwicklung wie skizze.lagen/umriss_kontur/s_lage), nicht aus dem STEP-Körper.
 """
 from PySide6.QtCore import QPointF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QDialog, QDoubleSpinBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget
 
 from . import rechnen, skizze as sk, schneidweg as sw, stil
 
-WAND = QColor("#9AA5B1")
-LOCH = QColor("#C62828")
+WAND = stil.farbe_fest("#9AA5B1")
+LOCH = stil.farbe_fest("#C62828")
 OHNE = (sw.FLOWDRILL,) + sw.GRAVUREN       # nur markiert bzw. graviert: kein Loch in der Wand
 
 
@@ -90,7 +90,7 @@ class SchnittBild(QWidget):
         for poly in um:
             pfad.addPolygon(QPolygonF([bp(u, v) for u, v in poly] + [bp(*poly[0])]))
         p.fillPath(pfad, WAND)
-        p.setPen(QPen(QColor("#5A6470"), 1.2))
+        p.setPen(QPen(stil.farbe("#5A6470"), 1.2))
         p.drawPath(pfad)
         wand = qs.wand or 0.0
         for s0, s1, _, _ in self.liste:

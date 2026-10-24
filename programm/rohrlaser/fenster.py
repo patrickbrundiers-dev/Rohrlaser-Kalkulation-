@@ -849,7 +849,10 @@ class EinstellungenSeite(QScrollArea):
         if e.name in step_einstellungen.EINSTELLUNGEN:
             step_einstellungen.anwenden(self.db)
         if e.name in ("ansicht_thema", "ansicht_schrift", "ansicht_dichte"):
-            self.meldung(f"{e.titel} gespeichert, gilt ab dem nächsten Start.")
+            haupt = self.window()
+            if hasattr(haupt, "ansicht_anwenden"):
+                haupt.ansicht_anwenden()            # sofort wirksam (Dunkelmodus verbessern, 24.10.2026)
+            self.meldung(f"{e.titel} gespeichert und angewendet.")
             return
         if e.name == "ansicht_3d":
             from . import ansicht3d
@@ -1259,7 +1262,7 @@ class Hauptfenster(QMainWindow):
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
-        self.setStyleSheet(stil.aktuell())     # Theme und Dichte aus stil.anwenden (beim Start)
+        stil.fenster_stil(self)                # Theme und Dichte aus stil.anwenden (beim Start)
         self.resize(1400, 800)
         self.reiter = HauptReiter()     # feste Reiter oben, geöffnete Angebote in eigener Zeile (Layout-Plan L13)
         self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
@@ -1796,6 +1799,12 @@ class Hauptfenster(QMainWindow):
         if seite is not None:
             seite.kopf["versand"] = (self.db.angebot(angebot_id) or {}).get("versand") or []
             seite._ergebnisse_anzeigen()
+
+    def ansicht_anwenden(self):
+        """Theme, Schriftgröße und Dichte aus den Einstellungen sofort übernehmen (ohne Neustart)."""
+        from PySide6.QtWidgets import QApplication
+        stil.ansicht_wechseln(QApplication.instance(), self, self.db.einstellung("ansicht_thema"),
+                              self.db.einstellung("ansicht_schrift"), self.db.einstellung("ansicht_dichte"))
 
     def alles_neu_laden(self):
         self.start.neu_laden()
