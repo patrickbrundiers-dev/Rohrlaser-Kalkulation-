@@ -21,13 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.80", "<b>Schneller bei großen Angeboten</b>: <b>Optimieren</b> rechnet ab etwa 1.500 Teilen die "
+    ["0.9.81", "<b>Schneller bei großen Angeboten</b>: <b>Optimieren</b> rechnet ab etwa 1.500 Teilen die "
      "Profilgruppen auf mehreren Prozessorkernen gleichzeitig (500 Positionen: 10 s statt 28 s, mit Vergleich der "
      "Lieferlängen 17 s statt 45 s), der Schnittplan ist derselbe. Die <b>Suche in der Angebotsliste</b> filtert, "
      "sobald man kurz mit dem Tippen aufhört, statt bei jeder Taste (1.000 Angebote: 0,3 s statt 4,6 s). Tabellen "
      "messen die Spaltenbreite an den sichtbaren und höchstens 100 Zeilen; ein sehr langer Eintrag weiter unten "
      "kann gekürzt sein und steht ganz im Tooltip ([[optimieren]]).",
      "Optimieren großer Angebote auf mehreren Kernen, schnellere Suche in der Angebotsliste ([[optimieren]])."],
+    ["0.9.80", "<b>Update abgesichert</b>: Das Programm prüft die Dateiliste eines Updates, bevor es sie benutzt "
+               "(nur https von der offiziellen Adresse, keine Pfade außerhalb des Programmordners, Prüfsummen, "
+               "Größengrenzen, freier Speicherplatz) und schützt vor manipulierten Paketen. Bricht ein Update hart "
+               "ab, stellt der nächste Start die bisherige Version wieder her. Die Dateiliste wird digital "
+               "signiert; die Pflicht zur Signatur folgt mit dem nächsten Update ([[updates]]).",
+     "Update geprüft und signiert, Wiederherstellung nach abgebrochenem Update ([[updates]])."],
     ["0.9.79", "<b>Kalkulation je Teil einzeln</b>: Reiter Kalkulation und Kalkulations-PDF zeigen je Teil jede "
                "Kostenart in einer eigenen Spalte statt zusammengefasst (Laser schneiden und Gewinde, Rüsten "
                "Maschine, Rüsten je Abmessung und Stangenwechsel, die drei Zuschläge, Programmierung, Pauschale je "

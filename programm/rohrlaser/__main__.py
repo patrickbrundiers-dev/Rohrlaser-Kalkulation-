@@ -312,6 +312,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     from . import orte, update
+    absturz = update.nach_absturz(programmordner())   # unterbrochener Austausch: alte Dateien zurück
     update.nachholen(programmordner())         # beim Update gesperrte Anleitungen jetzt tauschen
     update.aufraeumen(programmordner())        # Reste eines Updates (alte Dateien sind jetzt frei)
 
@@ -373,6 +374,11 @@ def main(argv=None):
             protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen (ohne Admin-Rechte weiter):\n" + traceback.format_exc())
         f = Hauptfenster(db, programmordner(), orte=o, lizenz=stelle)
         f.starten()
+        if absturz is not None:
+            protokoll.info("Unterbrochenes Update zurückgenommen" + (": " + "; ".join(absturz) if absturz else ""))
+            f.meldung("Ein unterbrochenes Update wurde zurückgenommen, das Programm ist auf dem vorigen Stand."
+                      if not absturz else "Ein unterbrochenes Update ließ sich nicht ganz zurücknehmen (Protokoll). "
+                      "Bitte das Setup neu installieren; die Daten bleiben.", fehler=bool(absturz))
         if a.nach_update:
             f.meldung(NACH_UPDATE_TEXT[a.nach_update].format(stand=update.stand_text(f.updater.lokal)),
                       fehler=a.nach_update != "ok")
