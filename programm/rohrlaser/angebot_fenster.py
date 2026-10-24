@@ -2837,6 +2837,7 @@ class AngebotSeite(QWidget):
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], None)
         self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
+        hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt." + "".join(f" {h}" for h in hinweise))
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
@@ -2870,6 +2871,7 @@ class AngebotSeite(QWidget):
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], alt_name)
         self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
+        hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
         return True
@@ -2982,6 +2984,11 @@ class AngebotSeite(QWidget):
         def saetze(q):
             je, st = q.get("je_satz") or 1, q.get("stueck")
             return st / je if isinstance(st, (int, float)) and je else None
+
+        def je_knoten(q, je):
+            """Stück je Unterbaugruppe (Teil einer Schweißbaugruppe) im Verhältnis zu je Satz."""
+            alt, js = q.get("je_knoten"), q.get("je_satz") or 1
+            return max(1, round(alt * je / js)) if isinstance(alt, (int, float)) and alt > 0 else alt
         hinweise, nr = [], int(max((q["pos"] for q in self.positionen if isinstance(q.get("pos"), (int, float))),
                                    default=0))
         for gr in gruppen.values():
@@ -2990,12 +2997,15 @@ class AngebotSeite(QWidget):
             nr += 10
             s_ = saetze(q)
             werte.update(pos=nr, je_satz=len(gr) if q.get("satz") else None,
-                         stueck=round(s_ * len(gr)) if s_ else q.get("stueck"))
+                         stueck=round(s_ * len(gr)) if s_ else q.get("stueck"), je_knoten=je_knoten(q, len(gr)))
             pid = self.db.position_neu(self.id, werte)
             netz = entpacken(gr[0]["netz"]) if gr[0].get("netz") else None
             if netz:
                 if len(gr) > 1:
                     netz["lagen"] = [(entpacken(k["netz"]) or {}).get("lage") for k in gr]
+                nummern = [x for k in gr for x in k.get("nummern") or ()]
+                if nummern:             # Körper der Schenkel: Nahtgruppen und Stöße finden das Teil
+                    netz["koerper"] = nummern
                 self.db.netz_speichern(pid, packen(netz))
             self.neu_laden()
             zeile = next(r for r, x in enumerate(self.positionen) if x["id"] == pid)
@@ -3019,6 +3029,8 @@ class AngebotSeite(QWidget):
                 weg.append(pid)
                 continue
             s_ = saetze(q)
+            if q.get("bg_knoten") and q.get("je_knoten"):
+                self.db.position_aendern(pid, "je_knoten", je_knoten(q, je))
             self.db.position_aendern(pid, "je_satz", je)
             if s_:
                 self.db.position_aendern(pid, "stueck", round(s_ * je))
@@ -3037,6 +3049,7 @@ class AngebotSeite(QWidget):
             hinweise.append("Im Knickrahmen aufgegangen und entfernt: Pos. "
                             + ", ".join(str(nach_id[p].get("pos") or "") for p in weg) + ".")
         self.neu_laden()
+        self._baugruppen_abgleichen()           # Teile einer Schweißbaugruppe: Satz und Stück folgen der Struktur
         return hinweise
 
     def gravur_vorgeben(self, pos, bericht):

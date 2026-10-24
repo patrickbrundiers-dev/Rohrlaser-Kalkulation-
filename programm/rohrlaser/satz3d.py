@@ -16,16 +16,15 @@ Verbindung über die Kennung in Schlitzen und Nasen (bleibt beim Kopieren des An
 Länge und Schneidweg schreibt das Angebot mit OK (AngebotSeite.stecken_anwenden), die Längsnaht in die Felder
 naht_vorgabe, naht_winkel und naht_quelle."""
 import copy
-import json
 
 from PySide6.QtCore import QItemSelectionModel, Qt
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView,
-                               QLabel, QMessageBox, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QHeaderView,
+                               QLabel, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QVBoxLayout, QWidget)
 
 from . import schneidweg as sw, steckverbindung
 from .angebot import ist_baugruppe
-from .baugruppe_dialog import FEHLER_FARBE, LaengsnahtEditor, SteckEditor, _text
+from .baugruppe_dialog import FEHLER_FARBE, KnickEditor, LaengsnahtEditor, SteckEditor, _text
 
 TEIL = "teil:"              # Kennung der Dreiecke im 3D: teil:<Nummer des Körpers>
 
@@ -60,44 +59,12 @@ def verbindungen_laden(daten, positionen, indizes):
     return out
 
 
-def knick_messwerte(teile, netz, profil):
-    """Je Körper der Teile (teile = [(Positions-ID, Position)], netz(pid) = entpacktes Netz mit lage bzw. lagen,
-    profil(pid) = Profil der Stammdaten) Messwerte wie aus der STEP-Messung für knickverbindung.kette: Profil, Länge,
-    Lage und die Gehrungen der Enden aus den Eingaben der Position. pid und lage_nr sagen, welcher Körper es ist."""
-    out = []
-    for pid, q in teile:
-        n, p, e = netz(pid) or {}, profil(pid) or {}, sw.lesen(q.get("technik"))
-        liste = [dict(art=art, form="Gehrung", gehrung=x["winkel"], richtung=x["richtung"])
-                 for art, x in (("Ende A", e.get("a") or {}), ("Ende B", e.get("b") or {}))
-                 if x.get("winkel") and x.get("richtung") is not None and x.get("achse") != sw.ACHSE_ZWEI]
-        lagen = n.get("lagen") or ([n["lage"]] if n.get("lage") else [None])
-        koerper = n.get("koerper") or []
-        for j, lage in enumerate(lagen):
-            mehr = f" ({j + 1}/{len(lagen)})" if len(lagen) > 1 else ""
-            out.append(dict(artikel=f"Pos. {_text(q.get('pos'))} {q.get('artikel') or ''}".strip() + mehr,
-                            koerper=koerper[j] if j < len(koerper) else None, profilform=p.get("form"),
-                            abm_a=p.get("a"), abm_b=p.get("b"), wandstaerke=p.get("wand"), laenge=q.get("laenge"),
-                            _netz=dict(n, lage=lage) if lage else None, konturen_liste=json.dumps(liste), pid=pid,
-                            lage_nr=j))
-    return out
-
-
-def knick_grund(q):
-    """Grund, warum die Position nicht in einen Knickrahmen kann, oder None."""
-    e = sw.lesen(q.get("technik"))
-    if e.get("knickrahmen"):
-        return "ist schon ein Knickrahmen"
-    if steckverbindung.rollen(q.get("technik")):
-        return "hat eine Steckverbindung (erst entfernen)"
-    return None
-
-
 class _Teile(QTableWidget):
     def markierte(self):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
-class Satz3dDialog(SteckEditor, LaengsnahtEditor, QDialog):
+class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -170,19 +137,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, QDialog):
         self.teile_tab.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         self.teile_tab.itemSelectionChanged.connect(self.zeigen)
         lay.addWidget(self.teile_tab, 1)
-        zeile = QHBoxLayout()
-        self.knick_knopf = QPushButton("Knickrahmen erstellen …")
-        self.knick_knopf.setToolTip("Markierte Quadrat- oder Rechteckrohre, die mit Gehrung aneinanderstoßen, werden ein "
-                                    "Knickrahmen: eine Position mit dem gestreckten Rohr und einem V-Ausschnitt je Ecke")
-        self.knick_knopf.clicked.connect(lambda: self.knick_erstellen())
-        self.knick_weg_knopf = QPushButton("Knickrahmen lösen")
-        self.knick_weg_knopf.setToolTip("Knickrahmen der markierten Teile wieder lösen (nur die in diesem Fenster "
-                                        "erstellten)")
-        self.knick_weg_knopf.clicked.connect(self.knick_loesen)
-        for k in (self.knick_knopf, self.knick_weg_knopf):
-            k.setEnabled(not self.nur_lesen)
-            zeile.addWidget(k)
-        zeile.addStretch(1)
+        zeile = self.knick_knoepfe()
         lay.addLayout(zeile)
         return w
 
@@ -286,97 +241,13 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, QDialog):
         self.zeigen()
         return pid
 
-    # -------------------------------------------------------------- Knickrahmen (Schritt 2b)
-    def _knick_melden(self, text, melden):
-        if melden:
-            QMessageBox.information(self, "Knickrahmen", text)
-        return text
-
-    def knick_erstellen(self, dialog=None, melden=True):
-        """Knickrahmen aus den markierten Rohren (alle ihre Körper, ohne die schon verbundenen) wie im STEP-Prüfdialog:
-        Kette erkennen, Dialog (erster Schenkel, Laufrichtung, Freistich, Zugabe, K-Faktor, Innenwand), gestreckte
-        Eingaben und gefaltetes Netz. Mehrere getrennte Rahmen bekommen dieselben Werte. dialog(d) bedient den Dialog
-        statt exec (Tests). Ergebnis: Anzahl neuer Knickrahmen bzw. Text, warum keiner geht."""
-        from . import knickverbindung as kv
-        from .knickrahmen_dialog import KnickverbindungDialog
-        if self.nur_lesen:
-            return 0
-        teile = [self.teile[r] for r in self.teile_tab.markierte() if r < len(self.teile)]
-        if len(teile) < 1:
-            return self._knick_melden("Rohre markieren (Reiter Teile oder Strg+Klick im 3D), die mit Gehrung "
-                                      "aneinanderstoßen.", melden)
-        for t in teile:
-            grund = knick_grund(t["_q"])
-            if grund:
-                return self._knick_melden(f"Pos. {_text(t['_q'].get('pos'))}: {grund}.", melden)
-        belegt = {kp for k in self.knicke for kp in k["koerper"]}
-        steck = {z.get(r) for z in self.bg["steckverbindungen"] for r in ("_auf", "_st")}
-        if steck & {t["_id"] for t in teile}:
-            return self._knick_melden("Ein markiertes Teil hat eine Steckverbindung (erst im Reiter Steckverbindungen "
-                                      "entfernen).", melden)
-        mw = [m for m in knick_messwerte([(t["_id"], t["_q"]) for t in teile], self._netz, self._steck_profil)
-              if (m["pid"], m["lage_nr"]) not in belegt]
-        gruppen = kv.vorschlaege(mw)
-        if not gruppen:
-            try:
-                kv.kette(mw, list(range(len(mw))))
-                grund = "Die markierten Rohre ergeben keinen Knickrahmen."
-            except ValueError as f:
-                grund = str(f)
-            return self._knick_melden(grund, melden)
-        vorgaben = {n: self.einstellungen.get(f"knick_{n}") for n in ("z", "freistich", "k")}
-        try:
-            d = KnickverbindungDialog(self, mw, gruppen[0], vorgaben)
-        except ValueError as f:
-            return self._knick_melden(str(f), melden)
-        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
-            return 0
-        werte = d.werte()
-        start_pid = mw[d.kette["teile"][0]["i"]]["pid"]
-        neu = []
-        try:
-            for nr, gruppe in enumerate(gruppen):
-                if nr == 0:
-                    k = d.kette
-                else:
-                    start = next((i for i in gruppe if mw[i]["pid"] == start_pid), None)
-                    k = kv.kette(mw, gruppe, start, d.umkehren.isChecked())
-                leit = kv.erstellen(mw, k, **werte)
-                m = mw[leit]
-                profil = dict(self._steck_profil(m["pid"]) or {})
-                je_teil = {t["i"]: sw.lesen(self._teil_q(mw[t["i"]]["pid"]).get("technik")) for t in k["teile"]}
-                eing, _ = kv.eingaben(m, je_teil, profil)
-                neu.append(dict(koerper=[(mw[t["i"]]["pid"], mw[t["i"]]["lage_nr"]) for t in k["teile"]],
-                                leit=m["pid"], eingaben=eing, netz=kv.netz_gefaltet(mw, m), text=kv.text(m)))
-        except ValueError as f:
-            return self._knick_melden(str(f), melden)
-        self.knicke += neu
-        self.aktualisieren()
-        return len(neu)
-
-    def _teil_q(self, pid):
-        return next(t["_q"] for t in self.teile if t["_id"] == pid)
-
-    def knick_loesen(self):
-        """Neue Knickrahmen, zu denen die markierten Teile gehören, wieder lösen. Ergebnis: Anzahl gelöster."""
-        ids = {self.teile[r]["_id"] for r in self.teile_tab.markierte() if r < len(self.teile)}
-        vorher = len(self.knicke)
-        self.knicke = [k for k in self.knicke if not ids & {pid for pid, _ in k["koerper"]}]
-        if len(self.knicke) != vorher:
-            self.aktualisieren()
-        return vorher - len(self.knicke)
-
     # -------------------------------------------------------------- Speichern
     def pruefen(self):
         for n, z in enumerate(self.bg["steckverbindungen"], 1):
             f = self._steck_fehler(z)
             if f:
                 return f"Steckverbindung {n}: {f}"
-        im_knick = {pid for k in self.knicke for pid, _ in k["koerper"]}
-        for n, z in enumerate(self.bg["steckverbindungen"], 1):
-            if {z.get("_auf"), z.get("_st")} & im_knick:
-                return f"Steckverbindung {n}: Teil ist in einem neuen Knickrahmen (erst Knickrahmen lösen)."
-        return None
+        return self.knick_pruefen()
 
     def werte(self):
         verbindungen = [self._steck_daten(z) for z in self.bg["steckverbindungen"]]

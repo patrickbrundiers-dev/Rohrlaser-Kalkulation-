@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.100", "<b>Knickrahmen im Editor der Schweißbaugruppe</b>: wie im Fenster Satz in 3D Rohre mit Gehrung "
+                "markieren und <i>Knickrahmen erstellen …</i>. Die Nahtvorschläge an den Ecken fallen weg, der Stoß "
+                "bleibt; mit OK wird der Rahmen eine Position der Baugruppe. [[knickverbindung]]",
+     "Knickrahmen auch im Editor der Schweißbaugruppe erstellen."],
     ["0.9.99", "<b>Knickrahmen im Fenster Satz in 3D</b>: Rohre mit Gehrung markieren und <i>Knickrahmen erstellen "
                "…</i> – wie im STEP-Prüfdialog, auch wenn der Satz schon im Angebot steht. Mit OK wird der Rahmen "
                "eine Position (gestreckt, V-Ausschnitte, Zusatzarbeit Knicken, gefaltet im 3D); die Rohre fallen weg "

@@ -5,6 +5,8 @@
 - OK: eine neue Position mit gestreckter Länge 1592,7 mm, 3 V-Ausschnitten, Zusatzarbeit Knicken × 3 und gefaltetem
   Netz; die Rohre sind weg
 - nicht markierte Rohre bleiben, ein Rohr allein gibt einen Grund
+- dasselbe im Editor der Schweißbaugruppe (Regel: Schritte eines Editors auch in den anderen): Nahtvorschläge an den
+  Ecken fallen weg, der Stoß bleibt; die neue Position gehört zur Baugruppe, Körper der Schenkel im Netz
 
 Aufruf: python tests/test_satz_knick.py
 """
@@ -137,5 +139,56 @@ netz = entpacken(db.netz(p["id"]))
 assert netz["lage"] and len(netz["p"]) > 3 * punkte
 ok("Satz in 3D: Knickrahmen aus 4 Körpern (2 Positionen je 2), lösen, OK: 1 Position 1592,7 mm, 3 V, Knicken × 3, "
    "gefaltetes Netz, Holm entfernt, übrige Strebe 1 je Satz")
+
+# ------------------------------------------------------------------ Editor der Schweißbaugruppe
+from rohrlaser import baugruppe  # noqa: E402
+from rohrlaser.angebot import BAUGRUPPE  # noqa: E402
+for x in mw:
+    for n in [n for n in x if n.startswith("_knick")]:
+        x.pop(n)
+    x.update(_baugruppe=True)
+erg = step.uebernehmen(mw, [], k, db.zeilen("gewinde"), None, "S235-10219", None, neue_profile=True, zukauf_liste=[])
+a2 = db.angebot_neu(dict(kunde="Test", maschine="T11"))
+for q in erg["positionen"]:
+    netz = q.pop("_netz", None)
+    q.pop("_zukauf", None)
+    pid = db.position_neu(a2, q)
+    if netz:
+        db.netz_speichern(pid, netz)
+pos2 = db.positionen(a2)
+bgp = next(q for q in pos2 if q.get("art") == BAUGRUPPE)
+vorschlaege = baugruppe.lesen(bgp["baugruppe"])["vorschlaege"]
+paare = sum(len(v["teile"]) for v in vorschlaege)
+assert paare >= 4, vorschlaege
+seite = f.angebot_oeffnen(a2)
+bg_seh = {}
+
+
+def editor(d):
+    rohre = [r for r, t in enumerate(d.teile) if t.get("drin")]
+    d.teile_tab.clearSelection()
+    sel = d.teile_tab.selectionModel()
+    from PySide6.QtCore import QItemSelectionModel
+    for r in rohre:
+        sel.select(d.teile_tab.model().index(r, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+    bg_seh["n"] = d.knick_erstellen(dialog=lambda dlg: (dlg.k.setValue(0.5), QDialog.Accepted)[1], melden=False)
+    bg_seh["paare"] = sum(len(v["teile"]) for v in d.bg["vorschlaege"])
+    bg_seh["info"] = d.knick_info.text()
+    d._ok()
+    return d.result()
+
+
+zeile = next(r for r, q in enumerate(seite.positionen) if q["id"] == bgp["id"])
+assert seite.baugruppe_bearbeiten([zeile], dialog=editor)
+assert bg_seh["n"] == 1 and bg_seh["paare"] == paare - 3 and "Knickrahmen 1" in bg_seh["info"], bg_seh
+nach = db.positionen(a2)
+rahmen = [q for q in nach if q.get("art") != BAUGRUPPE and q.get("bg_knoten")]
+assert [q["laenge"] for q in rahmen if q["laenge"] > 1000] == [1592.7], [(q["artikel"], q["laenge"]) for q in nach]
+rq = next(q for q in rahmen if q["laenge"] > 1000)
+assert baugruppe.zuordnung(rq)[0] == baugruppe.lesen(bgp["baugruppe"])["id"] and rq["je_knoten"] == 1
+assert len(entpacken(db.netz(rq["id"]))["koerper"]) == 4
+rest = [q for q in rahmen if q is not rq]
+assert len(rest) == 1 and rest[0]["je_knoten"] == 1, [(q["artikel"], q.get("je_knoten")) for q in rest]
+ok("Schweißbaugruppe: Knickrahmen im Editor, Nahtvorschläge an 3 Ecken weg, Position in der Baugruppe, Strebe 1")
 db.schliessen()
 print("Knickrahmen im Satz: alle Tests bestanden.")
