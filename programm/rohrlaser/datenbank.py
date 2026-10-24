@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 58     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 59     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -107,6 +107,8 @@ SCHEMA_VERSION = 58     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 57: Auftragsnummer und Liefertermin bei Beauftragt (angebote.auftragsnr, angebote.liefertermin;
                         #     ältere Angebote leer; Plan Arbeitsabläufe W8)
                         # 58: Kontur-Vorlagen des Teile-Editors (Tabelle kontur_vorlagen, leer; Plan 3D-Editor E1)
+                        # 59: Palettenbegleitschein und Versand je beauftragtem Angebot (angebote.palettenschein, JSON,
+                        #     leer; palettenschein.py)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -314,6 +316,8 @@ class Datenbank:
             if "auftragsnr" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN auftragsnr TEXT")     # vor Schema 57: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin TEXT")
+            if "palettenschein" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN palettenschein TEXT")  # vor Schema 59: leer
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -1495,7 +1499,8 @@ class Datenbank:
         k, tab = self.kontext(), self.tabellen()
         werte = [position_werte(p, a, k, tab) if aktiv(p) else None for p in pos]
         einst = {n: self.einstellung(n) for n in ("absender_plz", "absender_land", "fracht_versandart",
-                                                  "fracht_lht_standard", "fracht_lht_langgut")}
+                                                  "fracht_lht_standard", "fracht_lht_langgut")
+                 + fracht_angebot.PALETTEN_EINST}
         return a, pos, werte, lambda: fracht_angebot.auto_rechnen(self.fracht_daten(), a, pos, werte,
                                                                   self.kunde(a.get("kundennr")), einst)
 
@@ -1889,6 +1894,35 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET auftragsnr=?, liefertermin=? WHERE id=?",
                              ((auftragsnr or "").strip() or None, liefertermin or None, angebot_id))
+
+    @liest
+    def palettenschein(self, angebot_id):
+        """Versanddaten des Palettenscheins (palettenschein.lesen; ohne Eintrag die Vorgaben)."""
+        from . import palettenschein
+        r = self.con.execute("SELECT palettenschein FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        return palettenschein.lesen(r[0] if r else None)
+
+    @schreibt
+    def palettenschein_speichern(self, angebot_id, d):
+        """Versanddaten speichern (None = löschen). Ändert 'geändert am' nicht."""
+        from . import palettenschein
+        with self.con:
+            self.con.execute("UPDATE angebote SET palettenschein=? WHERE id=?",
+                             (palettenschein.speichern(d) if d is not None else None, angebot_id))
+
+    @liest
+    def versand_auftraege(self):
+        """Eigene beauftragte Angebote für die Versandübersicht: [{id, nummer, kunde, kundennr, auftragsnr,
+        liefertermin, bearbeiter, schein (palettenschein.lesen)}]."""
+        from . import palettenschein
+        out = []
+        for r in self.con.execute("SELECT id, nummer, kunde, kundennr, auftragsnr, liefertermin, bearbeiter, "
+                                  "palettenschein FROM angebote WHERE vorgang='Beauftragt' AND "
+                                  "COALESCE(fremd, '')='' AND COALESCE(ersetzt_durch, '')='' ORDER BY nummer"):
+            z = dict(r)
+            z["schein"] = palettenschein.lesen(z.pop("palettenschein"))
+            out.append(z)
+        return out
 
     @schreibt
     def staffelpreise_speichern(self, angebot_id, staffelpreise):

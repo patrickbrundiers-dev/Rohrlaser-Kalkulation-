@@ -175,7 +175,7 @@ fenster.einstellungen.felder["gewinn"].editingFinished.emit()
 assert db.einstellung("gewinn") == 0.125
 # Reiter: Kunden eigener Reiter, die übrigen Stammdaten und die Vorgaben unter Einstellungen (mit Passwort)
 haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
-assert haupt == ["Start", "Angebote", "Kunden", "Frachtkosten", "Zukaufartikel", "Einstellungen"], haupt
+assert haupt == ["Start", "Angebote", "Versand", "Kunden", "Frachtkosten", "Zukaufartikel", "Einstellungen"], haupt
 b = fenster.bereich
 assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Maschinen", "Schneiddaten", "Gewinde",
