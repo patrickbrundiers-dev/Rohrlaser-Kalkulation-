@@ -5,6 +5,8 @@
   Klick auf Unterbaugruppe, Teil oder Nahtgruppe hebt die Teile hervor
 - Ziehen eines Teils auf eine Unterbaugruppe ändert die Zuordnung (Stück je Baugruppe bleibt)
 - ohne 3D-Daten nur der Baum mit Hinweis
+- Schweißnähte sichtbar (N1): Nahtkandidaten tragen den Nahtverlauf (STEP-JSON 1.16 'linien'), Vorschlag und
+  übernommene Nahtgruppe behalten ihn, die 3D-Ansicht zeichnet Nähte (SN), offene Vorschläge (SV), gewählte Naht (SH)
 
 Testdatei: tests/step_struktur/S03_Rahmen_geschweisst.step. Aufruf: python tests/test_baugruppe_baum.py
 """
@@ -67,6 +69,8 @@ v = baugruppe.lesen(bgp["baugruppe"])["vorschlaege"]
 stumpf = next(x for x in v if x["nahtart"] == "Stumpfnaht")
 n = baugruppe.vorschlag_naht(stumpf)
 assert len(n["koerper"]) == 2, n
+assert stumpf.get("linien") and n["linien"] == stumpf["linien"], stumpf
+assert all(len(z) >= 6 and len(z) % 3 == 0 for z in stumpf["linien"])
 ok(f"STEP-Import: Netz je Position mit allen Lagen und Körpern ({koerper_alle} Körper), Nahtgruppe kennt ihre Körper")
 
 # ------------------------------------------------------------------ Baum und 3D im Editor
@@ -88,10 +92,19 @@ assert len(d.baum_hervor) in (1, 2) and d.baum_hervor <= {p["id"] for p in teile
 koerper_naht = set(naht["koerper"])
 assert all(koerper_naht & set(entpacken(netze[pid])["koerper"]) for pid in d.baum_hervor)
 assert "S" in d.ansicht3d.ansicht.netz["t"]                     # blau = hervorgehoben
+# Schweißnähte: gewählte Naht rot (SH), übrige Vorschläge hellorange (SV), Nahtverlauf liegt am Modell
+nl = d.ansicht3d.ansicht.netz["l"]
+assert nl.get("SH") == naht["linien"] and "SV" in nl and "SN" not in nl, list(nl)
+pk = d.ansicht3d.ansicht.netz["p"]
+box = [(min(pk[k::3]) - 1, max(pk[k::3]) + 1) for k in range(3)]
+assert all(box[k][0] <= z[i + k] <= box[k][1] for z in nl["SH"] for i in range(0, len(z), 3) for k in range(3))
+assert all(x == (0.0, 0.0, 0.0) for x in d.ansicht3d.ansicht.netz["ln"]["SH"])
+assert {"SH", "SV"} <= set(d.ansicht3d.ansicht.modell.arten)
 # Teil wählen
 t0 = mehrfach[0]
 d.baum.setCurrentItem(d.baum_items[("teil", t0["id"])])
 assert d.baum_hervor == {t0["id"]}
+assert "SN" in d.ansicht3d.ansicht.netz["l"] and "SH" not in d.ansicht3d.ansicht.netz["l"]
 # Ziehen: Teil in eine neue Unterbaugruppe mit Menge 2 → Stück je Unterbaugruppe halbiert, je Baugruppe gleich
 je_alt = next(t for t in d.teile if t["_id"] == t0["id"])["je"]
 kid = d.knoten_neu("Seite", 2)
@@ -106,7 +119,7 @@ assert not d.teil_verschieben(t0["id"], kid)                      # schon dort
 w = d.werte()
 assert w["teile"][t0["id"]]["bg_knoten"] == baugruppe.zuordnung_text(d.bg["id"], kid)
 ok("Reiter Strukturbaum und 3D: ganze Baugruppe in Einbaulage, Nahtgruppe/Teil/Unterbaugruppe hervorgehoben, "
-   "Ziehen ordnet zu")
+   "Schweißnähte und Vorschläge sichtbar, Ziehen ordnet zu")
 
 # ------------------------------------------------------------------ ohne 3D-Daten
 d2 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0})
