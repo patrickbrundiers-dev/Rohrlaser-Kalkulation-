@@ -261,7 +261,7 @@ def netz(e, zs):
         linien.setdefault("B", []).append([c for v, _ in pk for c in _ansicht(v)])
         normalen.setdefault("B", []).append([round(c, 3) for c in _ansicht(pk[4][1])])
         kennung.setdefault("B", []).append(f"biegung:{nr}")
-    return dict(p=punkte, t={"BL": dreiecke},
+    return dict(p=punkte, t={"BL": dreiecke}, ti={"BL": ["teil"] * (len(dreiecke) // 3)},
                 l={a: [[round(c, 3) for c in zug] for zug in z] for a, z in linien.items()}, ln=normalen,
                 li=kennung, flach=True)
 

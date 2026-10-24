@@ -2241,7 +2241,10 @@ def kapitel_optimieren(i):
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
             "<b>Eigenschaften</b> rechts: alle Werte des gewählten Merkmals untereinander, bei Konturen mit einem "
             "<b>Maßbild</b>, das zeigt, welches Maß wohin gehört. Änderungen wirken sofort in Tabelle, Skizze und 3D. "
-            "Ohne Auswahl zeigt das Feld das Teil (Länge bzw. Werkstoff, Dicke und Art).",
+            "Ohne Auswahl zeigt das Feld das Teil (Länge bzw. Werkstoff, Dicke und Art). <b>Profil und Teil</b> "
+            "(Klick auf die Rohrwand): Profil, Profilform, Abmessung, Wandstärke, Werkstoff mit Kategorie und "
+            "Teilelänge, dazu Gravur, Außenradius und 3D-Schnittbearbeitung; bei einer neuen Position sind Profil, "
+            "Werkstoff, Teilelänge und Stückzahl hier änderbar, sonst in der Positionstabelle des Angebots.",
             "<b>Rechnen im Feld</b>: Maßfelder der Eigenschaften nehmen einfache Rechnungen an, z. B. <i>1200/2+15</i>, "
             "<i>3×25</i> oder <i>L-40</i>. Namen beim Rohr: L = Teilelänge, B und H = Profilmaße, D = "
             "Außendurchmesser, S = Wanddicke; beim Blech L und B = Zuschnitt, S = Dicke. <i>Abstand Muster</i> "
@@ -2253,7 +2256,10 @@ def kapitel_optimieren(i):
             "Positionen dieser Gruppe mit Eingaben des Schneidweg-Rechners neu; gemessene STEP-Werte bleiben. "
             "Ein anderer Werkstoff im selben Angebot hat seinen eigenen Radius.",
                         "<b>3D-Modell aus den Eingaben</b>: Das Rohr wird aus Profil, Enden und Konturen gebaut, auch ohne "
-            "STEP-Datei; jede Änderung ist sofort zu sehen. <i>Ansicht → STEP-Modell</i> zeigt stattdessen das "
+            "STEP-Datei; jede Änderung ist sofort zu sehen. Bei Rund-, Quadrat- und Rechteckrohr sind Bohrungen, "
+            "Langlöcher, Rechtecke, Ausklinkungen, Schlitze, Polygone, V-Ausschnitte und Sonderkonturen <b>echt "
+            "ausgeschnitten</b>, mit roter Lochwand durch die Wandstärke; Ausschnitte am Ende fehlen auch in der "
+            "Stirnfläche. Gravur und Flowdrill bleiben Linien. <i>Ansicht → STEP-Modell</i> zeigt stattdessen das "
             "gemessene Modell aus dem STEP-Import (Biegerohre immer).",
             "<b>Ansichtswürfel</b> oben rechts im 3D: Klick auf eine Fläche (oben, vorne, A, B …), eine Kante oder "
             "Ecke dreht das Modell in diese Richtung; ⌂ stellt die Ausgangsansicht wieder her.",
@@ -2273,7 +2279,8 @@ def kapitel_optimieren(i):
             "Rechnung, Fehler zuerst. Ein Klick wählt das betroffene Merkmal; bei einem zu schmalen Steg sind beide "
             "Konturen markiert, in der Skizze blau und in der 3D-Ansicht grün hervorgehoben.",
             "<b>Auswahl überall gleich</b>: Klick auf eine Zeile der Tabelle, ein Merkmal, eine Kontur in der Skizze "
-            "oder eine Linie in der 3D-Ansicht wählt überall dasselbe Merkmal. Im Modell aus den Eingaben ist die "
+            "oder eine Linie bzw. Fläche in der 3D-Ansicht wählt überall dasselbe Merkmal: Lochwand = Kontur, "
+            "Stirnfläche = Ende, Rohrwand = Profil und Teil. Im Modell aus den Eingaben ist die "
             "gewählte Kontur bzw. das Ende selbst hervorgehoben, im STEP-Modell der Bereich längs der Rohrachse. "
             "Beim Blech ist es die Kontur bzw. Biegelinie.",
             "<b>Messen</b> (<i>Ansicht → Messen</i>): Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt die "
