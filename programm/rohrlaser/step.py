@@ -38,11 +38,20 @@ def messprogramm(programmordner):
 
 def step_dateien(pfade):
     """STEP-Dateien aus Dateien und Ordnern (Ordner samt Unterordnern), sortiert und ohne doppelte."""
-    out = []
+    out, gesehen = [], set()
     for p in map(Path, pfade):
         kandidaten = sorted(x for x in p.rglob("*") if x.is_file()) if p.is_dir() else [p]
-        out += [x for x in kandidaten if x.suffix.lower() in (".step", ".stp") and x not in out]
+        for x in kandidaten:
+            if x.suffix.lower() in (".step", ".stp") and x not in gesehen:
+                gesehen.add(x)
+                out.append(x)
     return out
+
+
+def step_kandidaten(pfade):
+    """Schnelle Vorprüfung beim Darüberziehen (ohne Suche in Ordnern): True, wenn eine STEP-Datei oder ein Ordner
+    dabei ist. Ob ein Ordner STEP-Dateien enthält, zeigt erst step_dateien() nach dem Ablegen."""
+    return any(Path(p).suffix.lower() in (".step", ".stp") or Path(p).is_dir() for p in pfade)
 
 
 def lies_messwerte(pfad):
