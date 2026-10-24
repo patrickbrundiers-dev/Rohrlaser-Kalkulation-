@@ -751,14 +751,16 @@ def kapitel_angebote(i):
         (3, "<b>Kopieren</b>: Kopie mit neuer Nummer, z. B. für eine Nachbestellung oder einen anderen Kunden. "
             "Daneben <b>Öffnen</b>, <b>Löschen</b> und <b>Ordner öffnen</b> (Ordner des markierten Angebots mit "
             "allen PDFs, [[angebotsordner]])."),
-        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Bemerkung, Artikelnummer oder Bezeichnung.")])
+        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Bemerkung, Auftragsnummer, Artikelnummer oder "
+            "Bezeichnung.")])
     i.tabelle(["Spalte", "Farben und Werte"], [
         ["Status", "<i>Nicht optimiert</i> gelb · <i>Optimiert</i> grün · <i>Veraltet</i> rot (neu optimieren) · "
                    "<i>Nachkalkuliert</i> blau"],
-        ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün · "
-                    "<i>Abgelehnt</i> grau · „Verschickt (abgelaufen)“ rot"]], [30, 235], kurz=True)
-    i.text("Die Spalten <b>Bearbeiter</b> und <b>Nachkalkuliert</b> erscheinen nur, wenn mindestens ein Angebot dort "
-           "einen Eintrag hat.", kurz=True)
+        ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün "
+                    "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau · „Verschickt (abgelaufen)“ rot"]],
+              [30, 235], kurz=True)
+    i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
+           "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
     i.genauer()
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
@@ -770,6 +772,14 @@ def kapitel_angebote(i):
            "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
+           "<b>Vorgang ▾ → Beauftragt</b> öffnet ein kleines Fenster: <b>Auftragsnummer des Kunden</b> (z. B. seine "
+           "Bestellnummer) und <b>Liefertermin</b> eintragen, beides freiwillig. Den Termin schlägt das Programm aus "
+           "der Lieferzeit des Angebots vor, gerechnet ab heute (10 Arbeitstage, 3 Wochen, Freitag der Kalenderwoche "
+           "oder das Lieferdatum; ohne Lieferzeit in 14 Tagen); ohne Haken bleibt er leer. Beides steht danach in den "
+           "Spalten <b>Auftragsnr.</b> und <b>Liefertermin</b>, die Suche findet die Auftragsnummer. Erneut "
+           "<i>Beauftragt</i> wählen ändert die Angaben, <i>Abbrechen</i> lässt den Vorgang, wie er war. Kopie und "
+           "neue Fassung übernehmen beides nicht. Werkstattpapiere und Materialanfrage erstellen Sie wie bisher im "
+           "Angebot.",
            "Die Spalte <b>Bearbeiter</b> zeigt das Kürzel des Mitarbeiters, der ein Angebot angelegt hat. Mit "
            "gemeinsamem Ordner stehen auch die Angebote der Kollegen in der Liste, <b>grau und kursiv</b>; die Auswahl "
            "<b>Meine Angebote / Alle Mitarbeiter / Kürzel</b> filtert danach, <b>Abgleichen</b> holt den neuesten "
@@ -1334,6 +1344,26 @@ def kapitel_angebot(i):
     i.text("In Textfeldern (Kopf, Suchfelder, eine Zelle in Bearbeitung) wirken Strg+Z, Strg+C, Strg+V und Entf wie "
            "gewohnt nur im Text. Alle Kürzel stehen im Anhang ([[tastenkuerzel]]) und im Programm unter "
            "<i>Hilfe → Tastenkürzel …</i>.")
+    i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
+    i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
+        ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],
+        ["↓ in der letzten Zeile", "neue Position am Ende (Pos. + 10)"],
+        ["Strg+D", "Wert der Zeile darüber übernehmen, auch für mehrere markierte Zellen"],
+        ["Profil tippen", "„40x3“ findet „QR 40x40x3“"]], [55, 210], kurz=True)
+    i.genauer()
+    i.liste("<b>Eingabe</b> bestätigt eine Zelle und springt weiter, ohne Bearbeiten springt sie nur. Die Richtung "
+            "stellen Sie in den Einstellungen unter <i>Ansicht → Positionsliste: Eingabe springt</i> ein (nur für "
+            "diesen Arbeitsplatz). <i>Nach rechts</i> überspringt grau berechnete Spalten und geht am Zeilenende in "
+            "die erste Eingabespalte der nächsten Zeile. In der letzten Zeile legt Eingabe eine neue Position an.",
+            "<b>Pfeil ↓</b> in der letzten Zeile legt eine leere Position an und bleibt in derselben Spalte. Solange "
+            "die letzte Position noch ganz leer ist, kommt keine weitere dazu. Im Lesemodus und in Angeboten der "
+            "Kollegen entsteht keine Position.",
+            "<b>Strg+D</b> füllt die markierte Zelle mit dem Wert der Zeile darüber. Sind mehrere Zeilen markiert, "
+            "füllt die oberste die übrigen, je Spalte (wie in Excel). Ein Schritt für Strg+Z.",
+            "<b>Profil-ID</b>: Beim Tippen zeigt eine Liste die passenden Profile, beste zuerst. Gleich lange Seiten "
+            "dürfen fehlen (<b>40x3</b> = QR 40x40x3), Maße am Anfang reichen (<b>40</b> = alle Profile ab 40), "
+            "Buchstaben vorn grenzen ein (<b>re 60</b>). Wird ohne Auswahl bestätigt, gilt der Treffer mit genau "
+            "diesen Maßen oder der einzige Treffer; sonst bleibt die Eingabe stehen und die Prüfung meldet sie.")
 
 
 def kapitel_step(i):

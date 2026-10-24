@@ -186,7 +186,7 @@ try:
     assert db.angebot(b)["vorgang"] == "Verschickt"
     v = db.angebot(b)["versand"][-1]
     assert v["datei"] is None and v["check"]["punkte"], v
-    assert liste_seite.vorgang_setzen("Beauftragt", angebot_id=b) and db.angebot(b)["vorgang"] == "Beauftragt"
+    assert liste_seite.vorgang_setzen("Beauftragt", angebot_id=b, auftrag=(None, None)) and db.angebot(b)["vorgang"] == "Beauftragt"
 finally:
     angebot_check_dialog.CheckDialog.exec = alt_exec
 from rohrlaser.angebot_oben import _versand_text  # noqa: E402

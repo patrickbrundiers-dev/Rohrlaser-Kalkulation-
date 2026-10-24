@@ -35,6 +35,11 @@ UEBERSICHT = [
     ("Strg+Umschalt+M", "Materialanfrage (E-Mail) an den Lieferanten", "geöffnetes Angebot"),
     ("F5", "Aktualisieren: Seite neu laden und rechnen", "überall"),
     ("F2", "Zelle bearbeiten", "Tabellen"),
+    ("Eingabe", "Zur nächsten Zelle (nach unten oder rechts, Einstellung „Positionsliste: Eingabe springt“); in "
+                "der letzten Zeile neue Position", "Positionsliste"),
+    ("↓", "In der letzten Zeile: neue Position anlegen", "Positionsliste"),
+    ("Strg+D", "Wert der Zeile darüber in die markierten Zellen übernehmen (mehrere Zeilen: die oberste füllt die "
+               "übrigen)", "Positionsliste"),
     ("Eingabe", "Markiertes Angebot öffnen", "Angebote"),
     ("Esc", "Eingabe abbrechen; im Suchfeld: Suche leeren", "Tabellen, Suchfelder"),
     ("Strg+W", "Geöffnetes Angebot schließen (auch Strg+F4)", "geöffnetes Angebot"),
