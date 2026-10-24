@@ -144,7 +144,7 @@ from rohrlaser import ansicht3d_gl  # noqa: E402
 
 m = ansicht3d.Modell(NETZ)
 farben = {a: (0.1, 0.2, 0.3) for a in ansicht3d.FARBE}
-d, l = ansicht3d_gl.puffer_daten(m, farben, farben)
+d, l, _ = ansicht3d_gl.puffer_daten(m, farben, farben)
 assert len(d) == len(m.dreiecke) * 3 * 9 and len(l) == 0
 assert tuple(d[0:3]) == m.punkte[m.dreiecke[0][0]] and tuple(round(x, 6) for x in d[3:6]) == (-1, 0, 0)
 s, ox, oy = ansicht3d_gl.abbildung(m, 400, 300, ansicht3d._drehung(0.0, 0.0), 1.0, (5.0, -3.0))
