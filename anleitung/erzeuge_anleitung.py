@@ -2337,7 +2337,8 @@ def kapitel_staffeln(i):
     i.text("<b>Standard-Staffeln automatisch</b>: Hat das Angebot noch keine Stufe, legt das <b>Angebots-PDF</b> die "
            "Standard-Staffeln selbst an und rechnet sie, z. B. für 10 Stück die Stufen 10, 20 und 50. Die Faktoren "
            "stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
-           "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5). Wer alle Stufen löscht, bekommt sie "
+           "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5); eigene Faktoren je Kunde stehen in den "
+           "Kundenvorgaben ([[kundenvorgaben]]). Wer alle Stufen löscht, bekommt sie "
            "beim nächsten PDF nicht wieder, solange das Angebot geöffnet bleibt.")
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
@@ -3727,6 +3728,30 @@ def kapitel_stammdaten(i):
         ["Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
          "den Preis eingerechnet ([[kalkulation]])."],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.abschnitt("Kundenvorgaben", marke="kundenvorgaben")
+    i.text("Einstellungen → <b>Kundenvorgaben</b>: je Kunde Maschine, Stangenlänge, Gewinn, Lieferzeit, Material und "
+           "Standard-Staffeln. Wählen Sie den Kunden im Angebot, sind diese Kopffelder gleich richtig gefüllt.",
+           kurz=True)
+    i.genauer()
+    i.text("Die Kundenvorgaben sind eine eigene Tabelle, getrennt von den Importprofilen (STEP) "
+           "([[importprofile]]): je Kunde eine Zeile, leere Felder = Einstellungen. Ein neues Angebot für den Kunden "
+           "bekommt die Vorgaben statt der Einstellungen. Wählen Sie den Kunden in einem vorhandenen Angebot, ersetzt "
+           "das Programm ein Kopffeld nur, solange es leer ist oder noch die Vorgabe aus den Einstellungen bzw. des "
+           "vorher gewählten Kunden hat. Von Hand geänderte Werte bleiben. Die Statuszeile nennt, was übernommen "
+           "wurde. Wechseln Sie auf einen Kunden ohne Vorgabe, gelten für diese Felder wieder die Einstellungen.")
+    i.bild("stamm_kundenvorgaben", "Einstellungen, Kundenvorgaben: je Kunde eine Zeile", hoehe=70 * mm)
+    i.tabelle(["Kundenvorgaben", "Bedeutung"], [
+        ["<b>Kunde</b>", "Kundennummer aus dem Reiter Kunden"],
+        ["Maschine, Stangenlänge [mm], Gewinn [%]", "statt Standard-Maschine, Standard-Stangenlänge und Gewinn aus den "
+                                                     "Einstellungen"],
+        ["Lieferzeit als, Lieferzeit, Lieferbedingungen (Freitext)",
+         "wie im Angebotskopf ([[lieferzeit]]); passt der Wert nicht zur Art, wird die Lieferzeit nicht übernommen"],
+        ["Material neuer Positionen", "z. B. <i>Kunde beigestellt</i> für Kunden, die ihr Material immer selbst "
+                                      "liefern ([[kundenmaterial]])"],
+        ["Standard-Staffeln (Faktoren, 0 = keine)", "Faktoren wie in der Einstellung <i>Standard-Staffeln</i>, z. B. "
+                                                    "1; 3; 10; 0 = für diesen Kunden keine Standard-Staffeln "
+                                                    "([[staffeln]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
     i.liste("<b>CSV exportieren</b>: alle Kunden als Datei für Excel.",

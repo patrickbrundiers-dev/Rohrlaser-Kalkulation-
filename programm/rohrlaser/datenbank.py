@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 50     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 51     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -93,6 +93,7 @@ SCHEMA_VERSION = 50     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 49: Baugruppen-Vorlagen (Tabelle baugruppen_vorlagen, leer)
                         # 50: Schweißverfahren mit Verbrauch (dichte, draht_eur_kg, gas_l_min, gas_eur_l leer)
                         #     und Kennwerte-Historie (Tabelle kennwerte_historie, leer; Freigaben aus der Nachkalkulation)
+                        # 51: Kundenvorgaben (Tabelle kundenvorgaben, leer; Plan Arbeitsabläufe W2)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -1525,12 +1526,47 @@ class Datenbank:
         """Kundennummer ins Angebot; steht sie im Kundenstamm, auch Name und Zahlungsbedingungen.
         Ergebnis: Kundenzeile oder None."""
         k = self.kunde(kundennr)
+        a = self.angebot(angebot_id) or {}
         self.angebot_aendern(angebot_id, "kundennr", kundennr)
         if k:
             self.angebot_aendern(angebot_id, "kunde", k["name"])
             for n, w in self.zahlungsbedingungen(kundennr).items():
                 self.angebot_aendern(angebot_id, n, w)
+        geaendert = self.kundenvorgaben_anwenden(angebot_id, a, kundennr)
+        if k:
+            k["vorgaben"] = geaendert
         return k
+
+    @liest
+    def kopf_vorgaben(self, datum=None):
+        """Werte der Felder aus kundenvorgabe.FELDER, wie ein neues Angebot sie aus den Einstellungen bekommt."""
+        return dict(maschine=self.einstellung("standard_maschine"), stange=self.einstellung("standard_stange"),
+                    gewinn=self.kalkulation_vorgaben().get("gewinn"), material_vorgabe=None,
+                    **self.lieferzeit_vorgabe(datum))
+
+    @schreibt
+    def kundenvorgaben_anwenden(self, angebot_id, alt, kundennr):
+        """Kundenvorgaben (W2) nach dem Wechsel auf kundennr: ein Feld wird nur ersetzt, solange es leer ist oder die
+        Vorgabe der Einstellungen bzw. des Kunden aus alt (Kopf vor dem Wechsel) hat. Ohne Vorgabe des neuen Kunden
+        gilt wieder die Einstellung. Ergebnis: Titel der geänderten Felder."""
+        from .kundenvorgabe import ersetzen, kopfwerte
+        einst = self.kopf_vorgaben(alt.get("datum"))
+        frueher = kopfwerte(self, alt.get("kundennr"), alt.get("datum")) if alt.get("kundennr") != kundennr else {}
+        neu = {**einst, **kopfwerte(self, kundennr, alt.get("datum"))}
+        aenderung = ersetzen(alt, neu, einst, frueher)
+        titel = {f.name: f.titel for f in KOPF}
+        geaendert = []
+        for n in ("maschine", "stange", "gewinn", "material_vorgabe", "lieferzeit_art", "lieferzeit_wert",
+                  "lieferzeit_zusatz"):
+            if n in aenderung:
+                try:
+                    self.angebot_aendern(angebot_id, n, aenderung[n])
+                except ValueError:
+                    continue
+                t = "Lieferzeit" if n.startswith("lieferzeit") else titel[n].split(" [")[0]
+                if t not in geaendert:
+                    geaendert.append(t)
+        return geaendert
 
     # -------------------------------------------------------------- Angebote
     @liest
@@ -1593,6 +1629,9 @@ class Datenbank:
         if kuerzel:
             kopf.setdefault("bearbeiter", kuerzel)
         kopf.setdefault("datum", datetime.date.today().isoformat())
+        from .kundenvorgabe import kopfwerte          # Vorgaben des Kunden (W2) vor den Einstellungen
+        for n, w in kopfwerte(self, kopf.get("kundennr"), kopf["datum"]).items():
+            kopf.setdefault(n, w)
         kopf.setdefault("maschine", self.einstellung("standard_maschine"))
         kopf.setdefault("stange", self.einstellung("standard_stange"))
         k = self.kunde(kopf.get("kundennr"))

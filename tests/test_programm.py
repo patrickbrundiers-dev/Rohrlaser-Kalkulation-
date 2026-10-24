@@ -184,7 +184,7 @@ assert [b.unter.tabText(i) for i in range(b.unter.count())] == ["Vorgaben", "Pro
                                                                  "Prüfregeln (Fertigung)",
                                                                  "Schweißverfahren",
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren",
-                                                                 "Importprofile (STEP)",
+                                                                 "Importprofile (STEP)", "Kundenvorgaben",
                                                                  "Stundensätze und Zeitvorgaben"]
 assert db.einstellung("passwort") == "av" and b.gesperrt() and b.stapel.currentIndex() == 0
 fenster.zeigen(seite)
