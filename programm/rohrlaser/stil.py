@@ -19,6 +19,9 @@ RAHMEN = "#D5DBE3"
 LINIE = "#E3E7EC"
 FLAECHE = "#F5F7FA"
 # Abschnitte in Balken (kostenbalken.py) der Reihe nach: gut unterscheidbar, auch in Graustufen
+# Farben der Positionen im Stangenbild, in der Stangen-Übersicht und in der Abwicklung der Stange (je Position gleich)
+TEIL_FARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F", "#E15759",
+               "#BAB0AC")
 BALKEN_FARBEN = ("#1F4E78", "#5B8DB8", "#B35C00", "#7F8A99", "#1E6B34", "#B07AA1")
 ROTER_RAHMEN = f"border: 1px solid {ROT}; border-radius: 3px; background: {ROT_FLAECHE};"
 

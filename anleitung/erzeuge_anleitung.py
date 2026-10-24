@@ -790,7 +790,8 @@ def kapitel_angebote(i):
     i.text("Beim Kopieren ist der bisherige Kunde vorgeschlagen. Ein anderer Kunde bringt Name und "
            "Zahlungsbedingungen aus dem Kundenstamm mit; Positionen und Staffeln werden mitkopiert.",
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
-           "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es. <b>Strg+Tab</b> wechselt zwischen "
+           "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es; die Liste filtert, sobald man kurz "
+           "mit dem Tippen aufhört. <b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
     i.abschnitt("Nachfassen und Wiedervorlage", marke="nachfassen")
     i.text("Verschickte Angebote ohne Antwort kommen nach einigen Tagen (Einstellung <i>Nachfassen: Wiedervorlage "
@@ -1244,8 +1245,9 @@ def kapitel_angebot(i):
     i.text("Im Fenster <b>Material …</b> öffnet ein <b>Doppelklick auf Stangen</b> die Abmessung in einem eigenen "
            "Fenster: Stangenbild, Schnittmuster, Bilanz und alle Teile dieser Abmessung.", kurz=True)
     i.bild("abmessung_fenster", "Abmessung im eigenen Fenster", hoehe=110 * mm, legende=[
-        (1, "<b>Stangenbild</b> nur dieser Abmessung (wie im Reiter Schnittplan, [[optimieren]]). Klick auf ein Teil "
-            "zeigt es in der Teileliste, Doppelklick springt zur Position."),
+        (1, "<b>Stangenbild</b> nur dieser Abmessung mit demselben Umschalter Stangenmuster / Übersicht / Detail wie "
+            "im Reiter Stangenbild ([[optimieren]]). Klick auf ein Teil zeigt es in der Teileliste, Doppelklick "
+            "springt zur Position."),
         (2, "<b>Schnittmuster</b>: gleich belegte Stangen einmal, mit Anzahl, Stangennummern, Teilen je Stange, Rest, "
             "Ausnutzung und Material je Stange. Klick zeigt das Muster im Stangenbild."),
         (3, "<b>Meter- und Gewichtsbilanz</b>: Lieferlänge gesamt = Teile + Schnittfugen + Endbeschnitt + "
@@ -1842,7 +1844,8 @@ def kapitel_optimieren(i):
             "Schranke, unter die es nicht gehen kann; wird sie erreicht, ist das Ergebnis nachweislich optimal, "
             "auch bei großen Aufträgen. Bei Gruppen bis 60 Teile folgt bei Bedarf noch eine exakte Suche. Alle "
             "Suchen sind nach Schritten begrenzt, nicht nach Zeit: dasselbe Angebot ergibt auf jedem Rechner "
-            "denselben Schnittplan.",
+            "denselben Schnittplan. Große Angebote (ab etwa 1.500 Teilen) rechnet das Programm auf mehreren "
+            "Prozessorkernen gleichzeitig, je Profilgruppe ein Hilfsprozess; der Schnittplan ist derselbe.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,
@@ -2505,9 +2508,16 @@ def kapitel_optimieren(i):
            "nach Konturklassen</i>. Widersprechen sich Schneidweg und Konturklassen, zeigt der Status eine WARNUNG "
            "([[fragen]]).")
     i.abschnitt("Schnittplan")
-    i.bild("erg_schnittplan", "Reiter Schnittplan, Stange 3 gewählt", hoehe=85 * mm)
-    i.text("Oben alle Stangen mit Belegung, Rest und Ausnutzung; unten die Teile der gewählten Stange in "
-           "Schnittreihenfolge.", kurz=True)
+    i.bild("erg_schnittplan", "Reiter Schnittplan, Stange 3 gewählt", hoehe=85 * mm, legende=[
+        (1, "<b>Teilebaum</b>: je Abmessung die Positionen mit <i>Benötigt</i>, <i>Eingeplant</i> "
+            "und <i>Offen</i>. Grüner Punkt = alle Teile eingeplant, rot = Teile fehlen (Tooltip: warum), grau = "
+            "kein Rohrlaserteil, hohl = noch nicht optimiert. Klick hebt das Teil im Stangenbild hervor und wählt "
+            "seine erste Stange, Doppelklick springt zur Position."),
+        (2, "<b>3D-Vorschau</b> der gewählten Position: aus dem STEP-Import, sonst das Modell aus den Eingaben des "
+            "Teile-Editors. Das Häkchen schaltet sie ab."),
+        (3, "<b>Stangen</b> mit Belegung, Rest und Ausnutzung; darunter die Teile der gewählten Stange.")])
+    i.text("Links der Teilebaum mit Offen-Spalte und 3D-Vorschau, rechts oben alle Stangen mit Belegung, Rest und "
+           "Ausnutzung, unten die Teile der gewählten Stange in Schnittreihenfolge.", kurz=True)
     i.genauer()
     i.text("Oben stehen alle Stangen mit Belegung, Rest und Ausnutzung. Was für alle Stangen gleich ist (z. B. "
            "Stangenlänge, Endbeschnitt, Greiferrest, Profil), steht nur einmal in der Zeile darüber („für alle gleich: "
@@ -2522,9 +2532,29 @@ def kapitel_optimieren(i):
            "Die Werkstattpapiere zeigen Lage und Naht in derselben Spalte.")
     i.text("Ein Doppelklick auf ein Teil in der unteren Liste springt zu seiner Position.")
     i.abschnitt("Stangenbild")
-    i.bild("erg_stangenbild", "Reiter Stangenbild", hoehe=85 * mm)
+    i.bild("erg_stangenbild", "Reiter Stangenbild, Ansicht Stangenmuster", hoehe=85 * mm, legende=[
+        (1, "<b>Umschalter</b>: <i>Stangenmuster</i> (gleich belegte Stangen zusammengefasst, wie "
+            "bisher), <i>Übersicht</i> (jede Stange eine Zeile) und <i>Detail</i> (eine Stange groß). Das Programm "
+            "merkt sich die zuletzt gewählte Ansicht, auch für das Abmessungs-Fenster ([[abmessung_fenster]]).")])
     i.text("Jede Stange als Balken: Teile farbig mit Positionsnummer, Rest hellgrau, Greiferrest rot. Doppelklick "
-           "auf ein Teil springt zur Position.", kurz=True)
+           "auf ein Teil springt zur Position. Oben wählt man zwischen Stangenmuster, Übersicht und Detail.", kurz=True)
+    i.bild("erg_stangen_uebersicht", "Ansicht Übersicht: jede Stange eine Zeile, nach Abmessung gruppiert",
+           hoehe=85 * mm, legende=[
+               (1, "<b>Übersicht</b> wählen."),
+               (2, "Je Abmessung eine Kopfzeile (Profil, Werkstoff, Lieferlänge, Anzahl Stangen, Ausnutzung), darunter "
+                   "<b>jede Stange als dünne Zeile</b> mit Nummer und Nutzung in %, auch gleich belegte Stangen "
+                   "einzeln. Klick auf eine Zeile öffnet die Stange im Detail, die Pfeiltasten blättern.")])
+    i.bild("erg_stangen_detail", "Ansicht Detail: eine Stange mit Kennzahlen, Teilen als Kacheln und Abwicklung",
+           hoehe=95 * mm, legende=[
+               (1, "<b>Kennzahlen</b> der Stange: Lieferlänge, Teile, Nutzung, Rest (Verschnitt, es gibt keine "
+                   "Reststücke), Endbeschnitt, Greiferrest, Gewicht, Material und gemeinsame Schnitte."),
+               (2, "<b>Teile als Kacheln</b> in Schnittreihenfolge und Positionsfarbe: Pos., Länge, Artikel, Naht/"
+                   "Drehung bzw. Trennung zum Vorgänger. Klick hebt das Teil hervor, Doppelklick springt zur "
+                   "Position."),
+               (3, "<b>Abwicklung der ganzen Stange</b>: der Mantel abgewickelt (oben, vorne, unten, hinten, von Ende "
+                   "A gesehen; quer gestreckt), jedes Teil mit seinen Schnittkanten, Konturen rot, Gravur grün, die "
+                   "Schweißnaht der Stange rot strichpunktiert (SN). Gedrehte Teile erscheinen gedreht."),
+               (4, "<b>◀ ▶</b> blättern zur vorigen bzw. nächsten Stange.")])
     i.genauer()
     i.text("Jede Stange als maßstäblicher Balken: Endbeschnitt grau, Teile farbig mit Positionsnummer und Länge, "
            "dicke Linie = Schnitt, Rest hellgrau, Greiferrest rot (mit <i>3D</i> beschriftet, wenn dort das größere "
@@ -2545,6 +2575,9 @@ def kapitel_optimieren(i):
            "einmal je Stange rechts oben (<i>Gehrungen ineinander: 173,4 mm gespart</i>). Diese Ersparnis ist in "
            "<b>Rest</b> und <b>Ausnutzung</b> schon enthalten: die Teile liegen um diesen Betrag enger, der Rest "
            "wird entsprechend länger. Das Stangenbild der Werkstattpapiere zeigt dasselbe.")
+    i.text("<b>Abwicklung in den Werkstattpapieren:</b> Im Stangenbild der Werkstattpapiere steht unter jedem "
+           "Stangenmuster die Abwicklung der Stange wie im Detail, bündig unter dem Balken. Fehlen zu einem Teil die "
+           "Daten (kein Profil), steht <i>Ohne Daten: Pos. …</i> darunter. Das Kalkulation-PDF zeigt nur die Balken.")
     i.abschnitt("Auswertung und nicht eingeplante Teile")
     i.bild("erg_auswertung", "Reiter Auswertung", hoehe=85 * mm)
     i.text("Je Gruppe: Stangen optimiert gegen eine einfache Einteilung von Hand, Verschnitt und Ausnutzung. Grün "
