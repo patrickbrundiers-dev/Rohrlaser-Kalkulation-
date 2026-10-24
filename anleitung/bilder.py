@@ -484,6 +484,19 @@ def main(ziel):
     foto.foto("biegerohr_rechner", d, [(d.editor.baum, 1), (d.skizze, 2), (d.editor.meldungen, 3)])
     d.reject()
 
+    # 7a2a2) Knickrahmen im Schneidweg-Rechner (Position nur für das Foto, nichts gespeichert): 500 × 300 aus QR 40
+    qr = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"),
+              dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3"))
+    p_k = dict(id=None, pos=910, artikel="Rahmen 500 × 300", profil_id=qr["profil_id"], laenge=1600, stueck=10,
+               werkstoff_id="S235-10219")
+    d = SchneidwegDialog(s, p_k, qr, s.kopf, s.k, s.tabellen, db, s.positionen)
+    d.knickrahmen(werte=dict(schenkel=[500, 300, 500, 300], geschlossen=True, beta=90, steg="unten"))
+    d.resize(1450, 980)
+    d.ansicht_wahl.setCurrentText("Abwicklung")
+    QApplication.processEvents()
+    foto.foto("knickrahmen_rechner", d, [(d.knick_knopf, 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
+    d.reject()
+
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog
@@ -507,14 +520,28 @@ def main(ziel):
                                         (d.summe, 5)])
     d.reiter.setCurrentIndex(1)
     QApplication.processEvents()
-    foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, 2), 1), (d.naht_tab.cellWidget(0, 4), 2),
-                                      (d.naht_tab.cellWidget(1, 7), 3), (d.naht_tab.cellWidget(0, 9), 4),
-                                      (d.naht_tab.cellWidget(0, 12), 5), (d.naht_tab.cellWidget(1, 15), 6)])
+    sp = [x.schluessel for x in d.naht_tab.spalten]
+    foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, sp.index("verfahren")), 1),
+                                      (d.naht_tab.cellWidget(0, sp.index("mass")), 2),
+                                      (d.naht_tab.cellWidget(1, sp.index("beidseitig")), 3),
+                                      (d.naht_tab.cellWidget(0, sp.index("lage")), 4),
+                                      (d.naht_tab.cellWidget(0, sp.index("zeit_hand")), 5),
+                                      (d.naht_tab.cellWidget(1, sp.index("_hinweis")), 6)])
     d.reiter.setCurrentIndex(2)
     QApplication.processEvents()
     foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, 2), 1), (d.ag_tab.cellWidget(1, 7), 2),
                                              (d.ag_tab.cellWidget(1, 8), 3), (d.ag_tab.cellWidget(1, 10), 4),
                                              (knopf(d, "Vorrichtung hinzufügen"), 5)])
+    # Vorkalkulation (Regeln aus den Richtwerten): Rüsten, Positionieren, Wenden, Verputzen als gelbe Vorschläge
+    d.stamm_felder["gewicht"].setText("18")
+    d.wenden.setValue(1)
+    d.vorkalkulation()
+    QApplication.processEvents()
+    zeile = next(r for r, a in enumerate(d.bg["arbeitsgaenge"]) if (a.get("vk") or {}).get("art") == "ruesten")
+    sp = [x.schluessel for x in d.ag_tab.spalten]
+    foto.foto("baugruppe_vorkalk", d, [(knopf(d, "Vorkalkulation rechnen"), 1),
+                                       (d.ag_tab.cellWidget(zeile, sp.index("ruest_min")), 2), (d.wenden, 3),
+                                       (d.vk_info, 4), (knopf(d, "Vorschläge bestätigen"), 5)])
     # Nahtkandidaten aus STEP (D6): wie nach dem Import mit Häkchen „als Schweißbaugruppe“
     kand = ([dict(teile=[1, 3], knoten=konsole, laenge_mm=125.7, stossart="Kehlnaht", dicke_mm=4.0)] * 4
             + [dict(teile=[1, 2], knoten="", laenge_mm=188.5, stossart="Kehlnaht", dicke_mm=3.0)] * 2

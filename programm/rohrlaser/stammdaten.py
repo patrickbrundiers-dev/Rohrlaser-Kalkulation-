@@ -559,6 +559,30 @@ SCHWEISS_FAKTOREN = Tabelle(
     "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit "
     "und Qualitätsanforderung. Leer bzw. nicht gefunden = Faktor 1.")
 
+# Vorkalkulation der Schweißbaugruppe (Plan Vorkalkulation, Patrick 24.10.2026 „alles a außer 8b“, vorkalk.py):
+# Regelwerte für Rüsten, Positionieren je Positionierhilfe, Heften, Wenden und Nacharbeit; neue Dateien leer,
+# 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
+SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit")
+POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
+NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
+
+SCHWEISS_REGELN = Tabelle(
+    "schweiss_regeln", "Schweiß-Vorkalkulation",
+    (Feld("art", "Art", "auswahl", auswahl="schweissregelart", pflicht=True, breite=100),
+     Feld("wert", "Ausprägung", pflicht=True, breite=190),
+     Feld("bis", "bis Wanddicke [mm] bzw. Gewicht [kg]", "zahl", 0, 100000, stellen=1, breite=95),
+     Feld("zahl", "Wert", "zahl", 0, 100000, stellen=2, pflicht=True, breite=80),
+     Feld("einheit", "Einheit", breite=90),
+     Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
+     Feld("bemerkung", "Bemerkung", breite=260)),
+    ("art", "wert"),
+    "Regeln der Vorkalkulation im Baugruppen-Editor (Knopf 'Vorkalkulation rechnen'): Rüsten einmalig je Auftrag = "
+    "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
+    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
+    "Heftpunkte je Naht = größer von Mindestzahl und Nahtlänge ÷ Heftabstand (nach kleinerer Wanddicke, gesteckt × "
+    "Faktor); Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe. Das Ergebnis sind "
+    "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
+
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
 BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
 DARSTELLUNG_3D = ("Automatisch", "Software", "OpenGL")       # wie ansicht3d.RENDERER
@@ -619,7 +643,7 @@ BAUGRUPPEN_VORLAGEN = Tabelle(
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             PRUEFREGELN, SCHWEISSVERFAHREN,
-            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, IMPORTPROFILE, KUNDENVORGABEN)
+            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -763,6 +787,13 @@ EINSTELLUNGEN = (
     # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
     Einstellung("schweiss_a_regel", "Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)",
                 "Schweißbaugruppen", "zahl", 0.7, 0.1, 2),
+    # Vorkalkulation (vorkalk.py): Stundensätze der vorgeschlagenen Arbeitsgänge
+    Einstellung("schweiss_vk_satz", "Schweißbaugruppen: Stundensatz für Rüsten, Positionieren und Wenden",
+                "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
+    Einstellung("schweiss_vk_satz_nacharbeit", "Schweißbaugruppen: Stundensatz für Verputzen und Schleifen",
+                "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
+    Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)",
+                "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "STEP-Import", "zahl", 150.0, 1, 10000),
     # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
@@ -794,6 +825,12 @@ EINSTELLUNGEN = (
                 1),
     Einstellung("biegerohr_faktor", "Biegerohr: Faktor neutrale Faser für die gestreckte Länge (1,0 = Rohrmitte)",
                 "STEP-Import", "zahl", 1.0, 0.5, 1.5),
+    Einstellung("knick_z", "Knickrahmen: Knickzugabe je Knick [mm] (+ = Rohr länger)", "Knickrahmen", "zahl", 0.0,
+                -20, 20),
+    Einstellung("knick_freistich", "Knickrahmen: Freistich-Ø an den Spitzen des V [mm] (0 = ohne)", "Knickrahmen",
+                "zahl", 0.0, 0, 20),
+    Einstellung("knick_k", "Knickrahmen: K-Faktor der Stegwand (0,5 = Wandmitte)", "Knickrahmen", "zahl", 0.5, 0.1,
+                1),
     Einstellung("step_flach_laenge", "Experte: Flachstahl ab Länge × Breite", "STEP-Import", "zahl", 3.0, 1, 100),
     Einstellung("step_gekantet_anteil", "Experte: gekantetes Blech statt Profil, wenn Volumen unter Anteil von Querschnitt × Länge", "STEP-Import",
                 "anteil", 0.85, 0.1, 1),
@@ -1011,7 +1048,9 @@ class Kontext:
                          "zukauflieferant": list(self.zukauf_lieferanten),
                          "schweissverfahren": list(self.schweissverfahren), "nahtart": list(NAHTARTEN),
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
-                         "kennwertstatus": list(KENNWERT_STATUS)}.get(quelle, []))]
+                         "kennwertstatus": list(KENNWERT_STATUS),
+                         "schweissregelart": list(SCHWEISSREGEL_ARTEN),
+                         "positionierhilfe": list(POSITIONIERHILFEN), "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
@@ -1429,7 +1468,7 @@ def beispiel_zusatzarbeiten():
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
-        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten()
+        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1461,6 +1500,16 @@ def biege_zusatzarbeiten():
     return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_BIEGEN, art="€/Stück", preis=BIEGEN_PREIS,
                  fremd="nein", angebotstext="gebogen",
                  bemerkung="Preis je Biegung; Menge = Zahl der Biegungen je Teil (STEP-Import Biegerohr)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
+
+
+def knick_zusatzarbeiten():
+    """Vorbelegung Knicken (Knickrahmen, Plan K1): € je Knick, die Menge (Zahl der V-Ausschnitte je Teil) trägt der
+    Schneidweg-Rechner ein. Beispielpreis, bitte anpassen."""
+    from .knickrahmen import KNICKEN_PREIS, ZUSATZ_KNICKEN
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_KNICKEN, art="€/Stück",
+                 preis=KNICKEN_PREIS, fremd="nein", angebotstext="geknickt",
+                 bemerkung="Preis je Knick; Menge = Zahl der Knicke je Teil (Knickrahmen im Schneidweg-Rechner)",
                  kategorie="Nachbearbeitung", aktiv="ja")]
 
 

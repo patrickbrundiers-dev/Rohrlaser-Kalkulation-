@@ -438,6 +438,8 @@ def vorschlag_naht(v, regel=None):
     der a-Maß-Regel (P6): Kehlnaht mit a = Faktor × Dicke, gekennzeichnet (mass_regel) bis zur Bestätigung."""
     n = dict(knoten=v.get("knoten") or "", nahtart=v.get("nahtart"), laenge=v.get("laenge"),
              anzahl=v.get("anzahl") or 1, quelle="STEP")
+    if _zahl(v.get("dicke")) and v["dicke"] > 0:          # Wanddicke für das Heften der Vorkalkulation
+        n["dicke"] = v["dicke"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
         n["mass"] = v["dicke"]
     elif v.get("nahtart") == "Kehlnaht" and regel:
@@ -585,8 +587,9 @@ def arbeitsgang_rechnen(ag, saetze):
 def rechnen(p, tabellen, saetze, anzahl=None):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
     der Position. Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
-    zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, text}], fehler, warnungen, richtwert).
+    zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, werte, vorschlag (Vorkalkulation offen)}], fehler, warnungen, richtwert).
     eigen/fremd enthalten den umgelegten Einmalanteil (einmal)."""
+    from .vorkalk import NAHT_FELDER, VORSCHLAG, ag_status, naht_status
     bg = lesen(p.get("baugruppe"))
     n = anzahl if anzahl is not None else p.get("stueck")
     n = n if _zahl(n) and n > 0 else 0
@@ -621,7 +624,8 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         out["verbrauch"] += r["material"] * f
         out["zeilen"].append(dict(art="Naht", id=nt.get("id"), name=f"Nahtgruppe {nt.get('nr') or ''}".strip(),
                                   knoten=kname(nt.get("knoten")), faktor=f, zeit_min=r["zeit_min"] * f,
-                                  kosten=r["kosten"] * f, einmal=0.0, fremd=False, werte=r))
+                                  kosten=r["kosten"] * f, einmal=0.0, fremd=False, werte=r,
+                                  vorschlag=any(naht_status(nt, x) == VORSCHLAG for x in NAHT_FELDER)))
     for ag in bg["arbeitsgaenge"]:
         f = faktor(bg, ag.get("knoten") or "")
         if f is None:
@@ -642,7 +646,8 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         out["fremd" if r["fremd"] else "eigen"] += je
         out["zeilen"].append(dict(art="Arbeitsgang", id=ag.get("id"), name=ag.get("name") or "Arbeitsgang",
                                   knoten=kname(ag.get("knoten")), faktor=f, zeit_min=r["laufend_min"] * f,
-                                  kosten=r["laufend"] * f, einmal=einmal, fremd=r["fremd"], werte=r))
+                                  kosten=r["laufend"] * f, einmal=einmal, fremd=r["fremd"], werte=r,
+                                  vorschlag=ag_status(ag) == VORSCHLAG))
     return out
 
 
@@ -701,6 +706,10 @@ def status(p, w, positionen=None):
             return "WARNUNG: " + doppelt
     if not bg["naehte"] and not bg["arbeitsgaenge"]:
         return "HINWEIS: keine Nahtgruppen und Arbeitsgänge"
+    from .vorkalk import offen
+    n = offen(bg)
+    if n:
+        return f"HINWEIS: {n} Vorschl{'ag' if n == 1 else 'äge'} der Vorkalkulation offen (prüfen und bestätigen)"
     if r["richtwert"]:
         return "HINWEIS: Schweißzeit aus ungeprüften Richtwerten"
     regel = next((n for n in bg["naehte"] if regel_offen(n)), None)
@@ -813,11 +822,13 @@ def richtwerte():
     for art, wert, f in RICHT_FAKTOREN:
         faktoren.append(dict(art=art, wert=wert, faktor=f, status="Richtwert",
                              bemerkung=(LAGEN.get(wert, "") + ", " if wert in LAGEN else "") + "Richtwert"))
-    return dict(schweissverfahren=verfahren, schweiss_kennwerte=kennwerte, schweiss_faktoren=faktoren)
+    from .vorkalk import richtwerte as regeln
+    return dict(schweissverfahren=verfahren, schweiss_kennwerte=kennwerte, schweiss_faktoren=faktoren,
+                schweiss_regeln=regeln())
 
 
 SCHLUESSEL = {"schweissverfahren": ("verfahren",), "schweiss_kennwerte": ("verfahren", "nahtart", "mass_bis"),
-              "schweiss_faktoren": ("art", "wert")}
+              "schweiss_faktoren": ("art", "wert"), "schweiss_regeln": ("art", "wert")}
 
 
 def richtwerte_fehlend(tabellen):

@@ -36,7 +36,7 @@ from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT
     kompakt_zeilen
 from .leiste import UmbruchLeiste
 from . import angebot_check, nummern as angebotsnummern, schritte, step_ablage, step_einstellungen, stil, \
-    tabellen_eingabe
+    tabellen_eingabe, vorkalk
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -2411,6 +2411,9 @@ class AngebotSeite(QWidget):
             werte.update(bohrbild.anwenden(werte, bild, None, self.tabellen.get("zusatzarbeiten") or [],
                                            rechnen.stundensaetze(self.tabellen)))
             werte.pop("_fehlt", None)
+        if erg.get("laenge"):           # Knickrahmen: gestreckte Länge
+            werte["laenge"] = erg["laenge"]
+        self._knicken_eintragen(werte, werte, erg)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         self.neu_laden()
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
@@ -2617,7 +2620,8 @@ class AngebotSeite(QWidget):
         vorwahl = {self.positionen[r]["id"] for r in markiert if r < len(self.positionen)
                    and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
         p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
-        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db())
+        d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
+                            einstellungen=self._vk_einstellungen())
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
         werte = dict(d.ergebnis["position"], pos=p["pos"])
@@ -2643,7 +2647,7 @@ class AngebotSeite(QWidget):
                 return False
             p = self.positionen[ziel[0]]
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db(),
-                            nur_lesen=bool(self.fremd() or self.db.nur_lesen))
+                            nur_lesen=bool(self.fremd() or self.db.nur_lesen), einstellungen=self._vk_einstellungen())
         if fokus:
             d.fokus(fokus)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
@@ -2668,6 +2672,22 @@ class AngebotSeite(QWidget):
             if z.get("bg_knoten") is None and q.get("bg_knoten") and (q.get("satz") or None) in (alt_name, None):
                 self.db.position_aendern(pid, "satz", None)
                 self.db.position_aendern(pid, "je_satz", None)
+
+    def _vk_einstellungen(self):
+        return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit")}
+
+    def _vorkalkulieren(self, pos, bericht):
+        """Vorkalkulation der neuen Schweißbaugruppen (Pos.-Nummern pos) nach dem STEP-Import (Einstellung
+        schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
+        einst = self._vk_einstellungen()
+        for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
+            r = vorkalk.vorkalkulieren(p, self.positionen, self.tabellen, einst)
+            if r["bg"] is None:
+                continue
+            self.db.position_aendern(p["id"], "baugruppe", baugruppe.speichern(r["bg"]))
+            bericht.append(f"Schweißbaugruppe {baugruppe.name(p)}: Vorkalkulation, {len(r['aenderungen'])} "
+                           "Vorschläge" + (", " + "; ".join(r["hinweise"]) if r["hinweise"] else ""))
+        self.neu_laden()
 
     def _saetze(self):
         return rechnen.zeitbasis(self.kopf, self.k, self.tabellen)["saetze"]
@@ -2912,12 +2932,29 @@ class AngebotSeite(QWidget):
                                             self.tabellen.get("zusatzarbeiten") or [],
                                             rechnen.stundensaetze(self.tabellen)))
             felder.pop("_fehlt", None)
+        if erg.get("laenge"):           # Knickrahmen: gestreckte Länge
+            felder["laenge"] = erg["laenge"]
+        self._knicken_eintragen(felder, dict(p, **felder), erg)
         for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         self.f.meldung(f"Pos. {p.get('pos') or ''}: Schneidweg {rechnen.zahl(erg['schneidweg'], 1)} mm, "
                        f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen.")
         self.neu_laden()
         return True
+
+    def _knicken_eintragen(self, felder, p, erg):
+        """Zusatzarbeit Knicken mit der Zahl der V-Ausschnitte (Knickrahmen) in felder['zusatz'] eintragen bzw. wieder
+        herausnehmen (nur Einträge aus dem Schneidweg-Rechner)."""
+        from . import knickrahmen
+        n = erg.get("knicke") or 0
+        alt = p.get("zusatz") or None
+        if not n and knickrahmen.ZUSATZ_KNICKEN not in str(alt or ""):
+            return
+        zu, fehlt = knickrahmen.zusatz_eintragen(alt, n, self.tabellen.get("zusatzarbeiten") or [], schneidweg.QUELLE)
+        if zu != alt:
+            felder["zusatz"] = zu
+        if fehlt:
+            self.f.meldung(f"Zusatzarbeit '{knickrahmen.ZUSATZ_KNICKEN}' fehlt in den Stammdaten.", fehler=True)
 
     def schweissnaht(self, zeilen=None, werte=None, dialog=None, stange=None):
         """Schweißnaht der markierten Positionen wählen (Dialog mit Querschnitt). werte = dict der Nahtfelder setzt
@@ -3771,6 +3808,8 @@ class AngebotSeite(QWidget):
                 self.db.netz_speichern(pid, netz)
         self.db.protokoll_anhaengen(self.id, erg["protokoll"])
         self.neu_laden()
+        if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("schweiss_vk_step") == "ja":
+            self._vorkalkulieren({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if json_ablage:
             erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."

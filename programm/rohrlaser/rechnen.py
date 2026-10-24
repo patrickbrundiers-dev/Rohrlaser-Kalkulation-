@@ -163,7 +163,7 @@ def position_werte(p, kopf, k, tabellen):
     w["gas"] = None
     if ist_baugruppe(p):         # Schweißbaugruppe: Daten für ihren Status (Kennwerte, Stundensätze des Angebots)
         w["bg_tabellen"] = {n: tabellen.get(n) or () for n in ("schweissverfahren", "schweiss_kennwerte",
-                                                               "schweiss_faktoren")}
+                                                               "schweiss_faktoren", "schweiss_regeln")}
         w["saetze"] = zeitbasis(kopf, k, tabellen)["saetze"]
     if kein_laserteil(p):        # eingekauftes Teil, Baugruppe: nur Gewicht (Fracht), keine Fertigungswerte
         g = p.get("gewicht_teil")

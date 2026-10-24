@@ -2038,7 +2038,8 @@ def kapitel_optimieren(i):
             "<i>sonstige Kontur</i> mit Schnittlänge von Hand und Hüllmaß (leer = groß), <i>Sonderkontur</i> (freie "
             "Form, auch über mehrere Flächen; aus dem STEP-Import mit ihrem echten Umriss, der in Skizze, Abwicklung "
             "und Zeichnung über die Kanten läuft) und <i>Gravur</i> (Gravurlänge an dieser Stelle, grün gezeichnet, "
-            "nie im Schneidweg, zählt zur Gravur). Jede Kontur außer Gravur und Flowdrill ist ein Einstich. "
+            "nie im Schneidweg, zählt zur Gravur), dazu der <i>V-Ausschnitt</i> für einen Knickrahmen (Knickwinkel, "
+            "Freistich-Ø; Seite = Stegwand, [[knickrahmen]]). Jede Kontur außer Gravur und Flowdrill ist ein Einstich. "
             "Unmögliche Maße (Langloch kürzer als "
             "breit, Eckradius über der halben Seite) werden rot gemeldet, <i>In Position übernehmen</i> ist dann "
             "gesperrt.",
@@ -2139,6 +2140,42 @@ def kapitel_optimieren(i):
             "STEP-Import. Hat die Position schon Werte aus dem STEP-Import, fragt das Programm vorher. Die Eingaben "
             "bleiben gespeichert und erscheinen beim nächsten Öffnen wieder.",
             "Eine von Hand eingetragene Schneidzeit gilt weiter, bis sie in der Positionsliste gelöscht wird.")
+    i.abschnitt("Knickrahmen", marke="knickrahmen")
+    i.text("Ein <b>Knickrahmen</b> ist ein Rahmen aus einem einzigen Quadrat- oder Rechteckrohr. Der Laser schneidet "
+           "an jeder Ecke einen V-Ausschnitt, nur die <b>Stegwand</b> bleibt stehen; daran wird das Rohr geknickt. "
+           "Im Schneidweg-Rechner: <b>Knickrahmen …</b>, Schenkel eingeben, fertig.", kurz=True)
+    i.bild("knickrahmen_rechner", "Knickrahmen 500 × 300 aus QR 40 × 40 × 3 im Schneidweg-Rechner: Abwicklung mit "
+           "drei V-Ausschnitten", hoehe=110 * mm, legende=[
+               (1, "Knopf <b>Knickrahmen …</b>: Schenkel, Knickwinkel, Stegwand, Freistich, Knickzugabe, K-Faktor."),
+               (2, "Drei Zeilen <b>V-Ausschnitt</b> mit Knickwinkel und Lage der Knicke, Seite = Stegwand."),
+               (3, "<b>Abwicklung</b>: V über Innenwand und Seitenwände, Spitzen an der Stegwand; Gehrung 45° an "
+                   "beiden Enden (Stoß)."),
+               (4, "Ergebnis mit gestreckter Länge und Hinweis zum Stoß.")])
+    i.genauer()
+    i.liste("<b>Schenkel</b> = Außenmaße entlang der Stegwand in Reihenfolge ab Ende A, getrennt mit Semikolon, "
+            "z. B. <i>500; 300; 500; 300</i>. <b>Geschlossen</b>: Anfang und Ende stoßen an einer Ecke zusammen, "
+            "beide Enden bekommen die halbe Gehrung des Stoßes (Rechteck 45°), längste Seite = Stegwand. "
+            "<b>Offen</b> (U-Rahmen): die Enden bleiben, wie sie sind.",
+            "<b>Knickwinkel β</b> = Umlenkung am Knick (Rechteck 90°, Dreieck 120°), eine Zahl für alle Knicke oder "
+            "je Knick. <b>Stegwand</b> = Wand, die stehen bleibt (Vorgabe unten); das Maß quer dazu ist h.",
+            "<b>V-Ausschnitt</b>: Breite an der Innenwand w = 2 × (h − s) × tan(β/2), Schnittlänge je Knick "
+            "2 × b + 4 × (h − s) / cos(β/2), 1 Einstich. Mit <b>Freistich</b> kommt an jeder Spitze ein Loch dazu "
+            "(2 × π × Ø). Beispiel QR 40 × 40 × 2, β = 90°: w = 76 mm, 295,0 mm je Knick.",
+            "<b>Gestreckte Länge</b> = Summe der Schenkel − Knicke × (v − z). v ist der Ausgleichswert nach DIN 6935 "
+            "für die Stegwand (Innenradius 0, K-Faktor 0,5 = Wandmitte), z die Knickzugabe je Knick. Beispiel "
+            "Rahmen 500 × 300 aus QR 40 × 40 × 2: 1600 − 3 × 2,43 = <b>1592,7 mm</b>. Mit <i>In Position "
+            "übernehmen</i> wird das die Teilelänge.",
+            "Einstellungen unter <b>Knickrahmen</b>: <i>Knickrahmen: Knickzugabe je Knick [mm] (+ = Rohr länger)</i>, "
+            "<i>Knickrahmen: Freistich-Ø an den Spitzen des V [mm] (0 = ohne)</i> und <i>Knickrahmen: K-Faktor der "
+            "Stegwand (0,5 = Wandmitte)</i>; sie sind die Vorgaben im Fenster Knickrahmen ([[einstellungen]]).",
+            "<b>Zusatzarbeit Knicken</b>: € je Knick (Beispielpreis 2,00 €, Stammdaten Zusatzarbeiten); der Rechner "
+            "trägt die Zahl der V-Ausschnitte als Menge ein. Beim geschlossenen Rahmen erinnert ein Hinweis an das "
+            "Schweißen des Stoßes.",
+            "Ein einzelner Knick geht auch ohne Rahmen: <b>+ V-Ausschnitt</b> in der Tabelle, Lage und Stegwand "
+            "eintragen. Die Teilelänge bleibt dann, wie sie ist.",
+            "<b>Prüfregeln</b> ([[pruefregeln]]): <i>Schenkel zu kurz</i>, <i>Kontur im Knickbereich</i> und "
+            "<i>Wand zu dick zum Knicken</i>. <b>Knickrahmen entfernen</b> im Fenster nimmt Schenkel und "
+            "V-Ausschnitte wieder heraus.")
     i.abschnitt("Teile-Editor: Merkmale, Prüfmeldungen, Rückgängig", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: links die <b>Merkmale</b> des Teils mit ihrer "
            "Herkunft, unten die <b>Prüfmeldungen</b>, oben <b>Rückgängig</b>, <b>Wiederholen</b>, <b>Auf STEP-Wert "
@@ -3011,6 +3048,47 @@ def kapitel_baugruppen(i):
     i.text("Aus einer STEP-Baugruppe: im Prüfdialog des STEP-Imports bei <b>Sätze</b> das Häkchen <b>als "
            "Schweißbaugruppe</b> setzen ([[step]]); Unterbaugruppen und Zuordnung der Teile kommen dann aus der "
            "Datei.")
+    i.abschnitt("Vorkalkulation: Rüsten, Positionieren, Heften, Verputzen", marke="vorkalkulation_baugruppe")
+    i.text("<b>Vorkalkulation rechnen</b> unten im Editor füllt, was sich aus Struktur und Teilen ableiten lässt: "
+           "Heftpunkte und Nacharbeit je Nahtgruppe, die Positionierhilfe je Einzelteil und die Arbeitsgänge "
+           "<i>Rüsten Schweißplatz</i>, <i>Teile positionieren</i>, <i>Wenden / Umspannen</i> und <i>Verputzen</i>. "
+           "Gelbe Felder sind Vorschläge, der Tooltip zeigt Formel und Zahlen. <b>Vorschläge bestätigen</b> macht sie "
+           "weiß; einen Wert, den du änderst, lässt jede neue Vorkalkulation stehen.", kurz=True)
+    i.bild("baugruppe_vorkalk", "Reiter Arbeitsgänge nach Vorkalkulation rechnen (Regeln aus den Richtwerten)",
+           hoehe=60 * mm, legende=[
+               (1, "<b>Vorkalkulation rechnen</b>: Vorschläge aus Struktur, Teilen und den Regeln."),
+               (2, "Gelb = Vorschlag, im Tooltip die Rechnung (z. B. 15 + 1 × 3 Teilenummern = 18 min)."),
+               (3, "<b>Wendevorgänge je Baugruppe</b>: Zeit je Wenden × Faktor nach Gewicht (Reiter Stammdaten)."),
+               (4, "Ergebnis der Vorkalkulation und was fehlt (fehlende Regel, Wanddicke, Gewicht)."),
+               (5, "<b>Vorschläge bestätigen</b>: alle gelben Werte als geprüft übernehmen.")])
+    i.genauer()
+    i.tabelle(["Wert", "Rechnung (Werte aus Einstellungen → Schweiß-Vorkalkulation)"], [
+        ["Rüsten (einmalig)", "Grundrüstzeit + Zeit je Teilenummer × Einzelteil-Positionen, mit Arbeitsgang "
+                              "Vorrichtung + Rüsten Vorrichtung; Umlage je Auftrag"],
+        ["Positionieren", "je Unterbaugruppe das erste Teil als Basisteil, jedes weitere Stück × Zeit seiner "
+                          "Positionierhilfe; eingebaute Unterbaugruppen zählen als Teil <i>frei</i>"],
+        ["Positionierhilfe", "Steckverbindung (Teil einer Steckverbindung der Baugruppe), Vorrichtung (Arbeitsgang "
+                             "Vorrichtung an seiner Unterbaugruppe), Gravur (Zukaufteil, dessen Lage auf dem Rohr "
+                             "graviert ist: Anbauteil mit Umriss oder Marke), sonst frei"],
+        ["Heftpunkte je Naht", "größer von Mindestzahl (gerade, rundum, gesteckt) und Nahtlänge ÷ Heftabstand; "
+                               "Heftabstand nach der kleineren <b>Wanddicke</b>, gesteckt × Faktor"],
+        ["Verputzen", "Naht [m] × min je m der <b>Nacharbeit</b> × Faktor Zugänglichkeit; Nacharbeit aus Qualität "
+                      "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
+                      "verzinkt = Spritzer entfernen)"],
+        ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe"]], [40, 225])
+    i.text("Im Reiter Nahtgruppen gehören dazu die Spalten <b>Wanddicke</b>, <b>gesteckt</b>, <b>rundum</b> und "
+           "<b>Nacharbeit</b>; in der Teileliste die Spalten <b>Positionierhilfe</b> (leer = Vorschlag, daneben "
+           "<i>Vorschlag</i> mit Grund) und Stück je Baugruppe. Fehlt eine Regel oder ein Wert, gibt es keinen "
+           "Vorschlag, sondern einen Hinweis unter der Summe: das Programm erfindet nichts. Gerechnet wird wie immer "
+           "über Nahtgruppen und Arbeitsgänge; die vorgeschlagenen Arbeitsgänge laufen mit dem Stundensatz aus den "
+           "Einstellungen <i>Schweißbaugruppen: Stundensatz für Rüsten, Positionieren und Wenden</i> bzw. "
+           "<i>Schweißbaugruppen: Stundensatz für Verputzen und Schleifen</i>.")
+    i.text("Solange Vorschläge offen sind, zeigt der Status den HINWEIS <i>… Vorschläge der Vorkalkulation offen</i>; "
+           "Doppelklick führt zur ersten gelben Zeile. Drucken geht trotzdem; die Kalkulation (PDF) schreibt bei "
+           "diesen Zeilen <i>(Vorschlag)</i> in die Spalte Herkunft. Mit der Einstellung <i>Schweißbaugruppen: "
+           "Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)</i> auf <i>ja</i> rechnet das Programm "
+           "die Vorschläge gleich für jede Schweißbaugruppe aus dem STEP-Import ([[step]]); der Bericht nennt das "
+           "Ergebnis.")
     i.abschnitt("Im Angebot und in den Staffeln")
     i.text("Das Angebot zeigt <b>eine Zeile je Baugruppe</b>: <i>Schweißbaugruppe</i> mit Bezeichnung, darunter "
            "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "
@@ -3526,6 +3604,10 @@ def kapitel_einstellungen(i):
         ["STEP-Import", "Biegerohr: Faktor neutrale Faser für die gestreckte Länge (1,0 = Rohrmitte)",
          "Gestreckte Länge eines Biegerohrs = Geraden + Faktor × Bögen (Vorgabe 1,0, [[biegerohre]]); gilt beim "
          "Übernehmen aus dem STEP-Import."],
+        ["Knickrahmen", "Knickrahmen: Knickzugabe je Knick [mm] (+ = Rohr länger), Knickrahmen: Freistich-Ø an "
+                        "den Spitzen des V [mm] (0 = ohne), Knickrahmen: K-Faktor der Stegwand (0,5 = Wandmitte)",
+         "Vorgaben im Fenster Knickrahmen des Schneidweg-Rechners: Zugabe je Knick (Vorgabe 0), Freistich (Vorgabe "
+         "ohne) und Lage der neutralen Faser für den Ausgleichswert nach DIN 6935 (Vorgabe 0,5, [[knickrahmen]])."],
         ["STEP-Import", "Experte: Flachstahl ab Länge × Breite, Experte: gekantetes Blech statt Profil, wenn Volumen "
                         "unter Anteil von Querschnitt × Länge",
          "Grenzwerte der Erkennung, nur nach Rücksprache ändern: ein flaches Teil ist erst ab dieser Länge "
@@ -4218,10 +4300,16 @@ def kapitel_stammdaten(i):
             "(Vorgabe 0 = nur im Bogen, WARNUNG, [[biegerohre]]).",
             "<b>Gerade zwischen Biegungen zu kurz</b> (Biegerohr): Gerade zwischen zwei Biegungen kürzer als "
             "Grenzwert × Außen-Ø (Vorgabe 1,5, Spannlänge der Biegemaschine).",
+            "<b>Schenkel zu kurz</b> (Knickrahmen): Schenkel kürzer als Grenzwert × Rohrmaß h in der Rahmenebene "
+            "(Vorgabe 2,0, WARNUNG, [[knickrahmen]]).",
+            "<b>Kontur im Knickbereich</b> (Knickrahmen): Kontur näher am V-Ausschnitt als Grenzwert × Wand (Vorgabe "
+            "2,0, WARNUNG).",
+            "<b>Wand zu dick zum Knicken</b> (Knickrahmen): Wandstärke über dem Grenzwert in mm (Vorgabe 4, HINWEIS).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
-           "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39.")
+           "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39, die drei Regeln für "
+           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.49.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
@@ -4238,7 +4326,13 @@ def kapitel_stammdaten(i):
                                      "Bemerkung</i> sagt, woher der Wert stammt."],
         ["<b>Schweiß-Faktoren</b>", "Zuschläge auf die Lichtbogenzeit für Schweißlage (PA … PG), Zugänglichkeit und "
                                     "Qualitätsanforderung: je Art und <i>Ausprägung</i> ein <i>Faktor auf die "
-                                    "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"]], [45, 220])
+                                    "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"],
+        ["<b>Schweiß-Vorkalkulation</b>", "Regeln für <b>Vorkalkulation rechnen</b> im Baugruppen-Editor "
+                                          "([[vorkalkulation_baugruppe]]): je Art (Rüsten, Positionieren, Heften, "
+                                          "Heftabstand, Wenden, Nacharbeit) und Ausprägung ein Wert mit Einheit; "
+                                          "Heftabstand und Wenden in Stufen über <i>bis Wanddicke [mm] bzw. Gewicht "
+                                          "[kg]</i> (es gilt das kleinste <i>bis</i>, das passt, sonst die Zeile ohne "
+                                          "<i>bis</i>)"]], [45, 220])
     i.bild("stamm_schweiss_kennwerte", "Einstellungen, Schweiß-Kennwerte nach Richtwerte laden", hoehe=85 * mm,
            legende=[(1, "Unterreiter <b>Schweißverfahren</b>, <b>Schweiß-Kennwerte</b>, <b>Schweiß-Faktoren</b>."),
                     (2, "<b>Richtwerte laden</b> trägt fehlende Verfahren, Kennwerte und Faktoren als Richtwerte ein; "
@@ -4278,6 +4372,12 @@ def kapitel_stammdaten(i):
            "Datum, Begründung und Programmversion unter <i>Bisherige Freigaben</i>; <b>Gewählte Freigabe "
            "zurücknehmen</b> stellt die alten Werte wieder her (Werte, die du seitdem von Hand geändert hast, "
            "bleiben). Verschickte Angebote ändern sich nie.")
+    i.text("Der Unterreiter <b>Schweiß-Vorkalkulation</b> hält die Regeln für <b>Vorkalkulation rechnen</b> "
+           "([[vorkalkulation_baugruppe]]). Neue Datendateien bekommen ihn leer; <b>Richtwerte laden</b> trägt die "
+           "fehlenden Zeilen mit Status <i>Richtwert</i> ein. Ändere die Werte nach den ersten Aufträgen und stelle "
+           "sie auf <i>geprüft</i>.")
+    i.bild("stamm_schweiss_regeln", "Einstellungen, Schweiß-Vorkalkulation nach Richtwerte laden", hoehe=85 * mm,
+           kurz=False)
     i.abschnitt("Zusatzarbeiten", marke="zusatzarbeiten_verwalten")
     i.text("Hier stehen alle Arbeiten, die zusätzlich zum Laserschneiden je Bauteil gewählt werden können, z. B. "
            "Feuerverzinken, galvanisch Verzinken, Pulverbeschichten, Entgraten oder eine Gravur, die nicht im "
