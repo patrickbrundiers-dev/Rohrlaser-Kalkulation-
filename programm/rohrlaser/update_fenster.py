@@ -1,16 +1,22 @@
 """Online-Update in der Oberfläche: beim Start im Hintergrund nachsehen, auf Klick nur Geändertes laden,
-vorher die Datendatei sichern, austauschen und neu starten (Logik in update.py)."""
+vorher die Datendatei sichern. Dann beendet sich das Programm geordnet (Fenster, STEP-Messung, Abgleich, Sicherung,
+Datendatei, Datensperre) und tauscht erst danach die Dateien aus (nach_beenden): gesperrte Dateien abwarten,
+Wiederholen/Abbrechen, bei Fehler alles zurück, dann neu starten (Logik in update.py)."""
 import html
 import sys
 import threading
+import time
 
 from PySide6.QtCore import QObject, QProcess, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QMessageBox,
                                QProgressDialog, QStyle, QVBoxLayout)
 
-from . import NAME, update
+from . import NAME, protokoll, update
 
 SUCHEN_NACH_MS = 3000        # nach dem Start etwas warten, das Fenster soll zuerst da sein
+SPAETER_FRAGEN_MS = 30000    # ist gerade ein Dialog offen (z. B. STEP-Import), später nachfragen
+HINTERGRUND = ("Optimieren", "Staffelpreise")   # Threads, die vor dem Austausch fertig sein sollen
+HINTERGRUND_WARTEN_S = 15
 
 
 class _Suche(QObject):
@@ -45,8 +51,9 @@ class Frage(QDialog):
             f"<b>Eine neue Version ist verfügbar.</b><br><br>"
             f"Installiert: {update.stand_text(lokal)}<br>Neu: {update.stand_text(online)}"
             + (f"<br>Zuletzt geändert: <i>{aenderung}</i>" if aenderung else "")
-            + "<br><br>Es werden nur die geänderten Programmdateien geladen. Vorher sichert das Programm die "
-              "Datendatei, danach startet es neu. Daten und Angebote bleiben, wie sie sind.")
+            + "<br><br>Es werden nur die geänderten Programmdateien geladen. Danach sichert das Programm die "
+              "Datendatei, schließt alles, tauscht die Dateien aus und startet neu. Daten und Angebote bleiben, "
+              "wie sie sind.")
         self.hinweis.setWordWrap(True)
         self.hinweis.setMinimumWidth(460)
         knoepfe = QDialogButtonBox()
@@ -88,6 +95,7 @@ class Updater:
         self.lokal = update.lokale_liste(self.ordner)
         self._suche = None
         self._laeuft = False
+        self.ausstehend = None       # geladenes Update, wird nach dem Beenden eingespielt (nach_beenden)
 
     def beim_start(self):
         """Nur im fertigen Programm (Dateiliste aus dem ZIP), still: meldet sich nur bei einem neuen Stand."""
@@ -129,13 +137,18 @@ class Updater:
                 QMessageBox.information(self.f, "Nach Updates suchen",
                                         f"Das Programm ist aktuell: {update.stand_text(self.lokal)}.")
             return
+        if still and QApplication.activeModalWidget() is not None:
+            # gerade ist ein Dialog offen (STEP-Import, Optimieren …): nicht dazwischenfunken, später fragen
+            QTimer.singleShot(SPAETER_FRAGEN_MS, lambda: self._gefunden(online, None, still))
+            return
         m = frage(self.f, online, self.lokal)
         m.exec()
         if m.clickedButton() is m.jetzt:
             self.einspielen(online)
 
     def einspielen(self, online):
-        """Prüfen, laden, Datendatei sichern, austauschen, neu starten. Ergebnis: True wenn eingespielt."""
+        """Prüfen, laden, Datendatei sichern, dann das Programm geordnet beenden; ausgetauscht wird danach
+        (nach_beenden). Ergebnis: True wenn das Programm zum Einspielen beendet wird."""
         fortschritt = QProgressDialog("Programmdateien prüfen …", "Abbrechen", 0, len(online["dateien"]), self.f)
         fortschritt.setWindowTitle("Update")
         fortschritt.setMinimumDuration(0)
@@ -182,9 +195,6 @@ class Updater:
             _, fehler = self.f.db.sicherungen(zusatz="vor_update")
             if fehler:
                 self.f.meldung(fehler, fehler=True)
-            fortschritt.setLabelText("Dateien austauschen …")
-            QApplication.processEvents()
-            update.einspielen(self.ordner, online, plan, neu_ordner)
         except update.Abbruch:
             fortschritt.close()
             update.verwerfen(self.ordner)
@@ -193,19 +203,106 @@ class Updater:
         except (update.UpdateFehler, OSError) as e:
             fortschritt.close()
             update.verwerfen(self.ordner)
-            QMessageBox.warning(self.f, "Update", f"Das Update ist nicht gelungen, das Programm bleibt wie es "
-                                f"war.\n\n{e}\n\nTipp: geöffnete Bedienungsanleitung oder STEP-Import schließen "
-                                "und noch einmal versuchen.")
+            QMessageBox.warning(self.f, "Update", f"Das Update ließ sich nicht laden, das Programm bleibt wie es "
+                                f"war.\n\n{e}")
             return False
         fortschritt.close()
-        self.lokal = online
-        QMessageBox.information(self.f, "Update", f"{NAME} ist jetzt auf {update.stand_text(online)}"
-                                f" ({len(plan['neu'])} Dateien, {mb(plan['groesse'])} geladen).\n\n"
-                                "Das Programm startet jetzt neu.")
-        self.neu_starten()
+        protokoll.info(f"Update: {update.stand_text(online)} geladen ({len(plan['neu'])} Dateien), Programm wird "
+                       "zum Austauschen beendet")
+        QMessageBox.information(self.f, "Update", f"{update.stand_text(online)} ist geladen "
+                                f"({len(plan['neu'])} Dateien, {mb(plan['groesse'])}).\n\n"
+                                f"{NAME} schließt jetzt alle Fenster, legt die Angebote ab, sichert die Daten, "
+                                "tauscht die Dateien aus und startet neu.")
+        self.ausstehend = dict(online=online, plan=plan, neu_ordner=neu_ordner)
+        if not self.beenden():
+            self.ausstehend = None
+            update.verwerfen(self.ordner)
+            self.f.meldung("Update abgebrochen (Programm nicht beendet), nichts geändert.")
+            return False
         return True
 
-    def neu_starten(self):
-        """Erst schließen (der Benutzer kann beim Beenden noch abbrechen), dann die neue Version starten."""
-        if self.f.close() and getattr(sys, "frozen", False):
-            QProcess.startDetached(sys.executable, [])
+    def beenden(self):
+        """Alles schließen, was den Austausch behindern kann: andere Fenster und Dialoge, laufende Prozesse (STEP-
+        Messung), dann das Hauptfenster wie beim normalen Beenden (Abgleich, Sicherung; der Benutzer kann dort
+        abbrechen), Hintergrund-Rechnungen abwarten, Ereignisschleife beenden. True = Programm wird beendet."""
+        for w in QApplication.topLevelWidgets():
+            if w is not self.f and w.isVisible():
+                w.close()
+        for p in self.f.findChildren(QProcess):
+            if p.state() != QProcess.NotRunning:
+                p.kill()
+                p.waitForFinished(5000)
+        if not self.f.close():
+            return False
+        hintergrund_abwarten()
+        QApplication.closeAllWindows()
+        QApplication.quit()
+        return True
+
+
+def hintergrund_abwarten(namen=HINTERGRUND, sekunden=HINTERGRUND_WARTEN_S):
+    """Laufende Hintergrund-Rechnungen (Threads mit diesen Namen) bis zu sekunden zu Ende rechnen lassen."""
+    ende = time.monotonic() + sekunden
+    for t in threading.enumerate():
+        if t.name in namen and t.is_alive() and t is not threading.current_thread():
+            t.join(max(0.0, ende - time.monotonic()))
+
+
+def nach_beenden(ordner, ausstehend, starten=None, exe=None):
+    """Nach dem Beenden (Datendatei zu, Sperre frei): Dateien austauschen. Gesperrte Dateien bis zu
+    update.SPERR_WARTEN_S abwarten, dann Wiederholen/Abbrechen anbieten; bei Fehler ist alles zurückgestellt.
+    Danach das Programm neu starten (neue oder bei Abbruch die alte Version). Ergebnis: 'ok', 'abgebrochen' oder
+    'fehler'. starten(exe, argumente) ersetzt QProcess.startDetached (Tests)."""
+    online, plan, neu_ordner = ausstehend["online"], ausstehend["plan"], ausstehend["neu_ordner"]
+    fortschritt = QProgressDialog("Dateien werden ausgetauscht …", None, 0, 0)
+    fortschritt.setWindowTitle(f"{NAME} – Update")
+    fortschritt.setMinimumDuration(0)
+    fortschritt.show()
+    QApplication.processEvents()
+
+    def warten(gesperrt, rest):
+        fortschritt.setLabelText(f"Warte, bis {gesperrt[0]} frei ist … (noch {rest:.0f} s)\n"
+                                 f"{update.sperr_grund(gesperrt[0])}")
+        QApplication.processEvents()
+
+    ergebnis = None
+    while ergebnis is None:
+        gesperrt = update.warten_bis_frei(ordner, plan, melden=warten)
+        fehler = None
+        if not gesperrt:
+            fortschritt.setLabelText("Dateien werden ausgetauscht …")
+            QApplication.processEvents()
+            try:
+                update.einspielen(ordner, online, plan, neu_ordner)
+                ergebnis = "ok"
+                break
+            except update.DateiGesperrt as e:
+                gesperrt = e.dateien
+            except (update.UpdateFehler, OSError) as e:
+                fehler = str(e)
+        if gesperrt:
+            protokoll.info("Update: gesperrt " + ", ".join(gesperrt))
+            fortschritt.hide()
+            antwort = QMessageBox.warning(
+                None, f"{NAME} – Update", f"{update.sperr_text(gesperrt)}\n\nBitte schließen und „Wiederholen“ "
+                "klicken. „Abbrechen“ startet die bisherige Version, es wurde nichts geändert.",
+                QMessageBox.Retry | QMessageBox.Cancel, QMessageBox.Retry)
+            if antwort == QMessageBox.Retry:
+                fortschritt.show()
+                continue
+            ergebnis = "abgebrochen"
+        else:
+            protokoll.info("Update fehlgeschlagen: " + fehler)
+            fortschritt.hide()
+            QMessageBox.warning(None, f"{NAME} – Update", "Das Update ist nicht gelungen, die bisherige Version "
+                                f"bleibt und startet wieder.\n\n{fehler}")
+            ergebnis = "fehler"
+    fortschritt.close()
+    if ergebnis != "ok":
+        update.verwerfen(ordner)
+    protokoll.info(f"Update: {ergebnis}" + (f", jetzt {update.stand_text(online)}" if ergebnis == "ok" else ""))
+    if starten is None and getattr(sys, "frozen", False):
+        starten = QProcess.startDetached
+    if starten is not None:
+        starten(exe or sys.executable, ["--nach-update", ergebnis])
+    return ergebnis

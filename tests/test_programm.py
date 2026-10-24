@@ -272,7 +272,8 @@ for name in ("Bedienungsanleitung.pdf", "Kurzanleitung.pdf"):    # erzeugt erst 
     ohne_pdf = not anleitung_pdf.is_file()
     if ohne_pdf:
         anleitung_pdf.write_bytes(b"%PDF-1.4")
-    assert fenster.anleitung_oeffnen(name) == anleitung_pdf   # Hilfe-Menü
+    kopie = fenster.anleitung_oeffnen(name)                   # Hilfe-Menü: Kopie im Datenordner (Online-Update)
+    assert kopie == db.pfad.parent / "Anleitung" / name and kopie.read_bytes() == anleitung_pdf.read_bytes(), kopie
     if ohne_pdf:
         anleitung_pdf.unlink()
 del fenster.datei_oeffnen
