@@ -2,7 +2,7 @@
 Release-Zusammenfassung schreiben (Build, GitHub Actions).
 
 Aufruf:
-  python programm/release_pruefen.py pruefen dist/Rohrlaser-Angebotskalkulation
+  python programm/release_pruefen.py pruefen dist/Rohrlaser-Angebotskalkulation [--kompiliert]
   python programm/release_pruefen.py zusammenfassung --liste update_dateien/Update.json --kanal produktiv
          --commit SHA --lauf 123 --ausgabe Release-Zusammenfassung [--datei Setup.exe …] [--markdown DATEI]
 
@@ -10,6 +10,9 @@ pruefen         bricht ab (Rückgabe 1), wenn etwas im Programmordner liegt, das
                 Schlüssel und Zertifikate mit privatem Teil, Lizenzen, Datenbanken, Logs, Daten/Angebote/Update-Ordner,
                 Tests, das Lizenz-Werkzeug, eigener Quelltext (.py nur in der Positivliste PY_ERLAUBT) oder der Wert
                 eines Secrets (Umgebungsvariablen in SECRETS, auch als rohe Bytes).
+                --kompiliert (Plan „Quellcode schützen“ Q3): zusätzlich Abbruch, wenn ein eigenes Modul (rohrlaser.*,
+                step_*) als Bytecode im PYZ-Archiv einer .exe steckt oder eine .exe kein übersetztes eigenes Modul hat.
+                Braucht PyInstaller (liest die Archive der .exe).
 zusammenfassung schreibt <ausgabe>.md und <ausgabe>.json: Version, Stand, Kanal, Commit, Lauf, Datum, Dateien je
                 Endung, Prüfsumme und Größe jeder Datei (aus Update.json) und der zusätzlichen Dateien (Setup, ZIP).
                 Die Zusammenfassung liegt nur im privaten Release, nie im öffentlichen Update-Repository.
@@ -40,6 +43,8 @@ SECRETS = ("UPDATE_SIGNATUR", "SIGNATUR_PFX_PASSWORT", "UPDATES_TOKEN", "GH_TOKE
 # ein echter privater Schlüssel im PEM-Format (nur der Kopf allein steht auch in OpenSSL-Bibliotheken)
 _PEM = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE[ ]KEY-----\s*[A-Za-z0-9+/=]{40}")
 STUECK = 4 << 20
+# Programme, deren PYZ-Archiv bei --kompiliert geprüft wird (Pfad im Programmordner, Ordner der Erweiterungsmodule)
+EXE_KOMPILIERT = (("Rohrlaser-Angebotskalkulation.exe", "_internal"), ("STEP-Import/STEP-Import.exe", "STEP-Import/_internal"))
 
 
 def _muster(umgebung):
@@ -105,6 +110,38 @@ def pruefen(ordner, umgebung=None):
     return befunde
 
 
+def bytecode_eigen(exe):
+    """Namen eigener Module (kompilieren.eigen), die als Bytecode im PYZ-Archiv der .exe stecken. Der Paketkopf
+    rohrlaser (__init__.py: nur Version und Name) bleibt bewusst Python."""
+    from PyInstaller.archive.readers import PKG_ITEM_PYZ, CArchiveReader
+
+    import kompilieren
+    archiv = CArchiveReader(str(exe))
+    namen = []
+    for name, eintrag in archiv.toc.items():
+        if eintrag[-1] == PKG_ITEM_PYZ:
+            namen += [n for n in archiv.open_embedded_archive(name).toc if kompilieren.eigen(n) and n != "rohrlaser"]
+    return sorted(namen)
+
+
+def kompiliert_pruefen(ordner, lesen=bytecode_eigen):
+    """Befunde zu Q3: kein eigener Bytecode in den .exe, je .exe mindestens ein übersetztes eigenes Modul."""
+    ordner = Path(ordner)
+    befunde = []
+    for rel, intern in EXE_KOMPILIERT:
+        exe = ordner / rel
+        if not exe.is_file():
+            befunde.append(f"{rel}: fehlt")
+            continue
+        for name in lesen(exe):
+            befunde.append(f"{rel}: eigenes Modul {name} als Bytecode (nicht übersetzt)")
+        uebersetzt = [p for p in (ordner / intern).rglob("*") if p.suffix.lower() in (".pyd", ".so")
+                      and (p.parent.name == "rohrlaser" or p.name.startswith("step_"))]
+        if not uebersetzt:
+            befunde.append(f"{rel}: keine übersetzten eigenen Module in {intern}")
+    return befunde
+
+
 def zusammenfassung(liste, kanal="", commit="", lauf="", dateien=(), datum=None):
     """Release-Zusammenfassung als dict aus der Dateiliste (Update.json) und zusätzlichen Dateien."""
     endungen = {}
@@ -145,6 +182,7 @@ def main(argv=None):
     unter = ap.add_subparsers(dest="befehl", required=True)
     p = unter.add_parser("pruefen")
     p.add_argument("ordner")
+    p.add_argument("--kompiliert", action="store_true")
     z = unter.add_parser("zusammenfassung")
     z.add_argument("--liste", required=True)
     z.add_argument("--kanal", default="")
@@ -155,7 +193,7 @@ def main(argv=None):
     z.add_argument("--markdown")
     a = ap.parse_args(argv)
     if a.befehl == "pruefen":
-        befunde = pruefen(a.ordner)
+        befunde = pruefen(a.ordner) + (kompiliert_pruefen(a.ordner) if a.kompiliert else [])
         for b in befunde:
             print(f"::error::{b}")
         print(f"{a.ordner}: {'in Ordnung' if not befunde else f'{len(befunde)} Befunde, Build abgebrochen'}")
