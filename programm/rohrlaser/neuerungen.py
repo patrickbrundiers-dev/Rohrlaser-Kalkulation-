@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.89", "<b>DXF-Import für Bleche</b>: im Blech-Editor <i>DXF importieren</i>, im Angebot <i>Neue Position → "
+    ["0.9.90", "<b>DXF-Import für Bleche</b>: im Blech-Editor <i>DXF importieren</i>, im Angebot <i>Neue Position → "
                "Bleche aus DXF</i> oder DXF-Dateien aufs Angebot ziehen. Die Kontur kommt genau wie gezeichnet "
                "(Bögen bleiben Bögen), Bohrung/Langloch/Rechteck nur bei exakter Form. Rahmen und Schriftfeld fallen "
                "weg, mehrere Bleche einer Zeichnung werden einzelne Positionen, Maßstab aus Bemaßung oder Schriftfeld. "
@@ -38,6 +38,16 @@ NEUERUNGEN = [
                "steht er auf 45° – diese Stücke sind gelb, die Position bekommt eine WARNUNG mit Ende und Länge, die "
                "Schneidzeit rechnet je Stück mit seinem Winkel.",
      "DXF-Import: genaue Kontur, Rahmen weg, mehrere Bleche, Werkstoff/Dicke vorgeschlagen ([[dxf_import]])."],
+    ["0.9.89", "<b>Palettenbegleitschein und Versand im Programm</b> (ersetzt das Palettenschein-Tool): neuer Reiter "
+               "<b>Versand</b> mit allen beauftragten Aufträgen, Filtern (überfällig, heute, diese Woche, "
+               "verladebereit, versendet, archiviert), Sammeldruck, Verladeliste und Status. Je Auftrag rechnet das "
+               "Programm die <b>Anzahl der Paletten</b> lagenweise aus Teilmaßen, Höhe (1,2 m) und Gewicht (1,5 t): "
+               "jede Position zuerst einzeln, angefangene Paletten zusammen, wenn Platz ist; die Packliste zeigt den "
+               "Aufbau je Palette. Je Palette ein Schein A4 quer mit <i>Inhalt dieser Palette</i>, Arbeitsschritte "
+               "aus dem Angebot vorgeschlagen, PDF im Angebotsordner und hinten an den Werkstattpapieren. Der "
+               "Packvorschlag der Fracht rechnet genauso. Arbeitstage und Liefertermin-Vorschlag ohne Feiertage des "
+               "Bundeslands ([[versand]], [[paletten_rechnung]]).",
+     "Reiter Versand mit Palettenbegleitschein und genauer Palettenanzahl"],
     ["0.9.88", "Fehler behoben: Die Werkstatt-PDF mit Stangenbild brach bei der Strichpunkt-Linie ab.",
      "Werkstatt-PDF mit Stangenbild wieder fehlerfrei."],
     ["0.9.87", "<b>Updates nur noch signiert</b>: Das Programm spielt nur noch Updates ein, deren Dateiliste mit dem "

@@ -1268,6 +1268,10 @@ class Hauptfenster(QMainWindow):
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
+        # Versand: beauftragte Angebote mit Palettenschein, Lieferdatum und Stand (Plan Palettenbegleitschein P3)
+        from .versand_seite import VersandSeite
+        self.versand = VersandSeite(self)
+        self.reiter.addTab(self.versand, "Versand")
         self.seiten = [StammdatenSeite(db, t, self.meldung) for t in TABELLEN]
         for s in self.seiten:           # Kunden als eigener Reiter, die übrigen Stammdaten unter Einstellungen
             if s.t.name == "kunden":
@@ -1774,6 +1778,16 @@ class Hauptfenster(QMainWindow):
         if hasattr(w, "neu_laden") and w is not getattr(self, "_frisch", None):
             w.neu_laden()
 
+    def palettenschein(self, angebot_id):
+        """Fenster „Palettenbegleitschein“ eines Angebots (nur beauftragte; sonst Hinweis)."""
+        a = self.db.angebot(angebot_id) or {}
+        if a.get("vorgang") != "Beauftragt":
+            self.meldung(f"Angebot {a.get('nummer') or ''}: Palettenschein erst nach „Beauftragt“ (Vorgang ▾).",
+                         fehler=True)
+            return None
+        from . import palettenschein_dialog
+        return palettenschein_dialog.oeffnen(self, angebot_id)
+
     def nachfassen_geaendert(self, angebot_id):
         """Nach Nachfassen/Wiedervorlage (Plan A9): Startseite, Angebotsliste und Versandverlauf im Angebot neu."""
         self.start.neu_laden()
@@ -1786,6 +1800,7 @@ class Hauptfenster(QMainWindow):
     def alles_neu_laden(self):
         self.start.neu_laden()
         self.angebote.neu_laden()
+        self.versand.neu_laden()
         for seite in self.offen.values():
             seite.neu_laden()
         for s in self.seiten:
