@@ -182,6 +182,7 @@ class RechnerSeite(QWidget):
         self.f, self.db = fenster, fenster.db
         self.daten = {}
         self.ergebnis = None
+        self.ware = None            # (Positionen, Werte) eines Angebots für den Packvorschlag
         self._laden = False
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
@@ -459,10 +460,17 @@ class RechnerSeite(QWidget):
         return out
 
     def packvorschlag(self):
-        """Ladungsträger aus Nettogewicht und längstem Teil vorschlagen (ersetzt die Liste)."""
-        vorschlag, hinweise = fracht.packvorschlag(
-            [(self.netto.value(), _zahl(self.max_laenge.text()) or 0)], self.daten.get("lht", []),
-            self.db.einstellung("fracht_lht_standard"), self.db.einstellung("fracht_lht_langgut"))
+        """Ladungsträger vorschlagen (ersetzt die Liste): aus einem Angebot (ware = (Positionen, Werte), gesetzt vom
+        Dialog 'Fracht berechnen …') nach Gewicht und Packraum (paletten.py), sonst aus Nettogewicht und längstem
+        Teil."""
+        std, lg = self.db.einstellung("fracht_lht_standard"), self.db.einstellung("fracht_lht_langgut")
+        if self.ware is not None:
+            from . import fracht_angebot, paletten
+            vorschlag, hinweise = paletten.ladung(*self.ware, self.daten.get("lht", []), std, lg,
+                                                  {n: self.db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST})
+        else:
+            vorschlag, hinweise = fracht.packvorschlag(
+                [(self.netto.value(), _zahl(self.max_laenge.text()) or 0)], self.daten.get("lht", []), std, lg)
         self.lht_tabelle.setRowCount(0)
         for e in vorschlag:
             self.lht_neu(e["lht_id"], e["anzahl"])
@@ -581,6 +589,7 @@ class FrachtDialog(QDialog):
         r.bezeichnung.setText(f"Angebot {seite.kopf.get('nummer') or ''}")
         r.netto.setValue(netto)
         r.max_laenge.setText(zahl_als_text(laenge, 0) if laenge else "")
+        r.ware = (seite.positionen, werte)          # Packvorschlag nach Gewicht und Packraum (paletten.py)
         if not (alt and alt.get("sendung", {}).get("lht")):
             r.packvorschlag()
         r.rechnen()
@@ -599,6 +608,8 @@ class FrachtDialog(QDialog):
     def uebernehmen(self):
         """Ergebnis ins Angebot schreiben. Ergebnis: True, wenn übernommen."""
         import json
+
+        from . import fracht_angebot
         e = self.rechner.rechnen()
         if e.get("gesamt") is None:
             self.s.f.meldung("Fracht nicht berechnet – nichts übernommen: " + "; ".join(e.get("fehler") or []),
@@ -617,7 +628,8 @@ class FrachtDialog(QDialog):
         else:
             daten = dict(sendung=e["eingaben"], snapshot=snap, gesamt=e["gesamt"], text=text,
                          lht_standard=db.einstellung("fracht_lht_standard"),
-                         lht_langgut=db.einstellung("fracht_lht_langgut"))
+                         lht_langgut=db.einstellung("fracht_lht_langgut"),
+                         paletten={n: db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST})
         db.angebot_aendern(self.s.id, "fracht_sendung", json.dumps(daten, ensure_ascii=False, default=str))
         db.angebot_aendern(self.s.id, "fracht", e["gesamt"])
         db.angebot_aendern(self.s.id, "fracht_modus", "berechnet" if snap is not None else "keine Fracht")

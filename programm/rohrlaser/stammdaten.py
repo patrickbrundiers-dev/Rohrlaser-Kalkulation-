@@ -7,7 +7,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import dfm, naht, normprofile, rp_profile
+from . import dfm, feiertage, naht, normprofile, rp_profile
 from .stil import DICHTEN, THEMES
 
 EINGABE_RICHTUNGEN = ("nach unten", "nach rechts")      # Einstellung eingabe_richtung (tabellen_eingabe.py)
@@ -723,6 +723,18 @@ MATERIAL_HERKUNFT = (EIGENMATERIAL, KUNDENMATERIAL)
 
 
 # ------------------------------------------------------------------ Einstellungen
+# Arbeitsschritte des Palettenscheins (wie im Palettenschein-Tool v97): je Zeile 'Gruppe: Schritt'
+VERSAND_SCHRITTE = "\n".join(
+    [f"Intern: {x}" for x in ("Rohrlaser", "Entgraten", "Bohren", "Flowdrill", "Senken", "Passungen", "Gewinde",
+                              "Schweißen", "Schleifen", "Einziehmuttern")]
+    + [f"Extern: {x}" for x in ("Blechzukauf", "CNC-Bearbeitung", "Rohr biegen", "Schweißen", "Glühen")]
+    + [f"Oberfläche: {x}" for x in ("Strahlen", "Feuerverzinken", "galvanisch Verzinken", "Lackieren",
+                                    "Pulverbeschichten", "Polieren", "Brünieren", "Bürsten", "Gleitschleifen",
+                                    "KTL-Beschichtung", "Nasslackierung", "Grundieren", "Beizen", "Passivieren",
+                                    "Elektropolieren", "Eloxieren", "Harteloxieren", "Phosphatieren", "Laserpolieren",
+                                    "Verchromen", "Vernickeln")])
+
+
 @dataclass(frozen=True)
 class Einstellung:
     name: str
@@ -960,6 +972,27 @@ EINSTELLUNGEN = (
                 auswahl="lht"),
     Einstellung("fracht_lht_langgut", "Ladungsträger für lange Teile (Langgut)", "Frachtkosten", "auswahl", "LG",
                 auswahl="lht"),
+    # Versand und Palettenschein (Plan Palettenbegleitschein 24.10.2026): Paletten nach Gewicht und Packraum
+    # (paletten.py, auch im Packvorschlag der Fracht), Feiertage für Arbeitstage, Arbeitsschritte des Scheins
+    # Richtwerte Stückgut/Palettennetz (Recherche 24.10.2026): Europalette 1200 × 800, Eigenhöhe 144 mm, Nutzlast
+    # 1.500 kg; Sammelgut meist bis 2,20 m und 1.200 kg je Vollpalette, stapelbar oft nur bis 1,20 m. Vorgabe nach
+    # Patrick 24.10.: 1.200 mm und 1.500 kg, Positionen einzeln packen, angefangene Paletten zusammen, wenn Platz ist
+    Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
+                1200, 200, 3000),
+    Einstellung("palette_max_brutto", "Paletten: max. Bruttogewicht je Palette [kg] (leer = Nutzlast)", "Versand",
+                "zahl_leer", 1500.0, 0, 100000),
+    Einstellung("palette_mischen", "Paletten: verschiedene Positionen gemeinsam auf eine Palette", "Versand",
+                "auswahl", "Reste zusammenpacken", auswahl="palettenmischen"),
+    Einstellung("palette_fuellgrad", "Paletten: Lagenausnutzung (Bündel, Umreifung, Kantenschutz)", "Versand",
+                "anteil", 0.9, 0.1, 1),
+    Einstellung("palette_zwischenlage", "Paletten: Zwischenlage zwischen zwei Lagen [mm] (0 = keine)", "Versand",
+                "zahl", 0.0, 0, 200),
+    Einstellung("versand_bundesland", "Feiertage für Arbeitstage (Bundesland)", "Versand", "auswahl",
+                "Nordrhein-Westfalen", auswahl="bundesland"),
+    Einstellung("versand_schritte", "Palettenschein: Arbeitsschritte (je Zeile 'Gruppe: Schritt')", "Versand",
+                "mehrzeilig", VERSAND_SCHRITTE),
+    Einstellung("palettenschein_werkstatt", "Palettenscheine an die Werkstattpapiere anhängen (beauftragte Angebote)",
+                "Versand", "auswahl", "ja", auswahl="janein"),
     # Der Reiter Einstellungen (mit den Stammdaten außer Kunden) öffnet nur mit diesem Passwort; leer = ohne
     # Hilfetexte über den Tabellen: aufklappbar (erster Satz, 'ⓘ mehr') oder nur als Tooltip (siehe hilfe.py)
     Einstellung("ansicht_hilfe", "Hilfetexte über Tabellen und Seiten", "Ansicht", "auswahl", "aufklappbar",
@@ -1119,7 +1152,8 @@ class Kontext:
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
-                         "positionierhilfe": list(POSITIONIERHILFEN), "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
+                         "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
+                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):

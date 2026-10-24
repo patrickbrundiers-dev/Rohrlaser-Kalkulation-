@@ -10,25 +10,21 @@ from PySide6.QtCore import QDate
 from PySide6.QtWidgets import QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, \
     QLineEdit, QVBoxLayout
 
+from . import feiertage
 from .stammdaten import ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, WOCHEN
 
 OHNE_LIEFERZEIT_TAGE = 14        # Vorschlag für den Termin, wenn das Angebot keine auswertbare Lieferzeit hat
 
 
-def arbeitstage_spaeter(start, n):
-    """Datum n Arbeitstage (Montag bis Freitag) nach start."""
-    d = start
-    while n > 0:
-        d += datetime.timedelta(days=1)
-        if d.weekday() < 5:
-            n -= 1
-    return d
+def arbeitstage_spaeter(start, n, land=None):
+    """Datum n Arbeitstage (Montag bis Freitag, ohne die Feiertage des Bundeslands land) nach start."""
+    return feiertage.arbeitstage_spaeter(start, n, land)
 
 
-def termin_vorschlag(kopf, heute=None):
+def termin_vorschlag(kopf, heute=None, land=None):
     """Vorschlag für den Liefertermin aus der Lieferzeit des Angebots, gerechnet ab heute (Auftragseingang):
-    Arbeitstage/Wochen ab heute, Kalenderwoche = Freitag der Woche, Lieferdatum = das Datum; sonst heute + 14 Tage.
-    Ein schon eingetragener Termin geht vor."""
+    Arbeitstage/Wochen ab heute (Arbeitstage ohne die Feiertage des Bundeslands land), Kalenderwoche = Freitag der
+    Woche, Lieferdatum = das Datum; sonst heute + 14 Tage. Ein schon eingetragener Termin geht vor."""
     heute = heute or datetime.date.today()
     kopf = kopf or {}
     try:
@@ -36,7 +32,7 @@ def termin_vorschlag(kopf, heute=None):
             return datetime.date.fromisoformat(kopf["liefertermin"])
         art, w = kopf.get("lieferzeit_art"), str(kopf.get("lieferzeit_wert") or "")
         if w and art == ARBEITSTAGE:
-            return arbeitstage_spaeter(heute, int(w))
+            return arbeitstage_spaeter(heute, int(w), land)
         if w and art == WOCHEN:
             return heute + datetime.timedelta(weeks=int(w))
         if w and art == KALENDERWOCHE:
@@ -52,7 +48,7 @@ def termin_vorschlag(kopf, heute=None):
 class AuftragDialog(QDialog):
     """Auftragsnummer des Kunden und Liefertermin (Häkchen aus = noch kein Termin)."""
 
-    def __init__(self, parent, angebot):
+    def __init__(self, parent, angebot, land=None):
         super().__init__(parent)
         self.setWindowTitle(f"Angebot {angebot.get('nummer') or ''} beauftragt")
         lay = QVBoxLayout(self)
@@ -66,7 +62,7 @@ class AuftragDialog(QDialog):
         form.addRow("Auftragsnummer des Kunden", self.nummer)
         self.mit_termin = QCheckBox()
         self.mit_termin.setChecked(bool(angebot.get("liefertermin")) or not angebot.get("auftragsnr"))
-        self.termin = QDateEdit(QDate(termin_vorschlag(angebot)))
+        self.termin = QDateEdit(QDate(termin_vorschlag(angebot, land=land)))
         self.termin.setDisplayFormat("dd.MM.yyyy")
         self.termin.setCalendarPopup(True)
         self.mit_termin.toggled.connect(self.termin.setEnabled)
@@ -87,7 +83,7 @@ class AuftragDialog(QDialog):
         return self.nummer.text().strip() or None, t
 
 
-def abfragen(parent, angebot):
+def abfragen(parent, angebot, land=None):
     """Fenster zeigen. Ergebnis: (Auftragsnummer, Liefertermin) oder None (abgebrochen)."""
-    d = AuftragDialog(parent, angebot)
+    d = AuftragDialog(parent, angebot, land)
     return d.werte() if d.exec() == QDialog.Accepted else None
