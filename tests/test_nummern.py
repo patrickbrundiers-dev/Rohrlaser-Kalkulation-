@@ -38,6 +38,7 @@ def arbeitsplatz(k, ordner=gemeinsam):
 
 # ---------------------------------------------------------------- Format und Zähler
 assert nummern.zaehler("2026-00042") == 42 and nummern.zaehler("2027-123456") == 123456
+assert nummern.zaehler("2026-00042-2") == 0, "neue Fassung mit Zusatz zählt nicht mit"
 assert nummern.zaehler("PB-2026-0007") == 0 and nummern.zaehler("A-2026-0001") == 0 and nummern.zaehler(None) == 0
 assert nummern.nummer("2026", 7) == "2026-00007"
 assert nummern.vorlaeufig("V-PB-3") and not nummern.vorlaeufig("2026-00003")

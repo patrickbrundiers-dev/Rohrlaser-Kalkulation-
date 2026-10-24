@@ -77,11 +77,19 @@ Versionen von SCHEMA_VERSION:
   {teile [a, b] (Körper "nr"), knoten (gemeinsamer Knoten der Struktur oder null), laenge_mm (Umfang der
   Berührung), stossart (Kehlnaht/Stumpfnaht/Ecknaht), dicke_mm (dünnere Wand bzw. Blechdicke), status "prüfen"};
   nur ein Vorschlag, erst nach Bestätigung übernehmen. Leer bei Einzelteilen. Felder aus 1.13 unverändert.
+- 1.15 (23.10.2026): Biegerohre (Rundrohr bzw. Rundstahl aus Geraden und Bögen): "laenge" = Länge der Mittellinie
+  (gestreckte Länge mit neutraler Faser in Rohrmitte), Konturen mit "z" = Lage auf der Mittellinie ab Ende A, "winkel"
+  um die Rohrachse (0° = Innenseite der ersten Biegung, ohne Verdrehung mitgeführt), "s_von"/"s_bis" (Bereich auf der
+  Mittellinie) und "biegezone": true, wenn die Kontur in einem Bogen liegt. Je Körper "biegerohr" = null oder
+  {mittellinie, aussen_d, elemente [{art gerade/bogen, s0, s1, laenge, radius, winkel}], lra [{gerade (vor der
+  Biegung), drehung (Biegeebene gegen die vorige, Grad), winkel, radius}; letzte Zeile = Gerade nach der letzten
+  Biegung], xyz [[x, y, z] Eckpunkte des Tangentenzugs ab Ende A, z = Richtung der ersten Geraden]}. Prüfstatus
+  immer "prüfen". Felder aus 1.14 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.14"
+SCHEMA_VERSION = "1.15"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -171,6 +179,7 @@ def koerper(t):
         "kammern": t.kammern or None,
         "kontur_umfang": _r(t.kontur_umfang, 2) if t.kontur_umfang else None,
         "verbund": t.verbund or None,
+        "biegerohr": t.biegerohr if gemessen and t.biegerohr else None,
         "bauteil": t.bauteil or None,
         "pfad": t.pfad or None,
         "knoten": t.knoten or None,

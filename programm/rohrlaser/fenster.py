@@ -979,10 +979,13 @@ class StartSeite(QWidget):
         angebote, al = karte("Angebote")
         zeile = QHBoxLayout()
         for text, ziel, primaer in (("Neues Angebot", lambda: fenster.angebote.neu(), True),
+                                    ("Aus STEP …", lambda: fenster.angebote.neu_aus_step(), False),
                                     ("Alle Angebote", lambda: fenster.reiter.setCurrentWidget(fenster.angebote), False)):
             b = QPushButton(text)
             if primaer:
                 b.setObjectName("primaer")
+            if text == "Aus STEP …":
+                b.setToolTip("Neues Angebot aus STEP-Dateien (oder STEP-Dateien hierher ziehen)")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             zeile.addWidget(b)
         zeile.addStretch(1)
@@ -998,7 +1001,9 @@ class StartSeite(QWidget):
         self.zuletzt_ansicht.doubleClicked.connect(
             lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
         al.addWidget(self.zuletzt_ansicht, 1)
-        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an.")
+        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an, oder STEP-Dateien "
+                            "hierher ziehen.")
+        self.keine.setWordWrap(True)
         self.keine.setStyleSheet("color: #5F6B7A;")
         al.addWidget(self.keine)
         al.addStretch(0)                    # ohne Angebote: Knöpfe und Hinweis oben statt verteilt (L8)
@@ -1076,7 +1081,21 @@ class StartSeite(QWidget):
         kopf.addStretch(1)
         lay.addLayout(kopf)
         lay.addLayout(raster, 1)
+        self.setAcceptDrops(True)
         self.neu_laden()
+
+    # STEP-Dateien oder Ordner auf die Startseite ziehen: neues Angebot (Plan Arbeitsabläufe W11)
+    def dragEnterEvent(self, ereignis):
+        from .angebot_fenster import step_neu_pfade
+        if step_neu_pfade(ereignis):
+            ereignis.acceptProposedAction()
+
+    def dropEvent(self, ereignis):
+        from .angebot_fenster import step_neu_pfade
+        pfade = step_neu_pfade(ereignis)
+        if pfade:
+            ereignis.acceptProposedAction()
+            self.f.angebote.neu_aus_step(pfade)
 
     def neu_laden(self):
         db = self.f.db
@@ -1170,6 +1189,8 @@ class Hauptfenster(QMainWindow):
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
+        from . import spaltenbreite
+        spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
@@ -1219,6 +1240,8 @@ class Hauptfenster(QMainWindow):
         self.verlauf = Verlauf()
         self.statusBar().addPermanentWidget(self.verlauf)
         self.statusBar().showMessage("Bereit")
+        from . import symbole
+        symbole.versehen(self)          # Symbole an Hauptaktionen und Menüpunkten (Layout-Plan L19)
         self.lizenz_anwenden()
         if not stumm:
             self.updater.beim_start()
@@ -1260,7 +1283,9 @@ class Hauptfenster(QMainWindow):
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
-        for text, ziel, taste in (("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
+        for text, ziel, taste in (("Neues Angebot aus STEP …", lambda: self.angebote.neu_aus_step(), None),
+                                  (None, None, None),
+                                  ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
@@ -1511,6 +1536,8 @@ class Hauptfenster(QMainWindow):
         neu = seite is None
         if neu:
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
+            from . import symbole
+            symbole.versehen(seite)
             self.offen[angebot_id] = seite
             self.lesemodus_anwenden(seite)
             self.reiter.addTab(seite, seite.titel())

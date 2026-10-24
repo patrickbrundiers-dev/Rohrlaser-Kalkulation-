@@ -580,6 +580,26 @@ IMPORTPROFILE = Tabelle(
     "Normteile zusätzlich: Begriffe zu denen aus der Einstellung, Teile mit diesen Wörtern im Namen sind im "
     "Prüfdialog abgewählt.")
 
+# Plan Arbeitsabläufe W2 (Freigabe F3b): Vorgaben je Kunde für den Angebotskopf, getrennt von den Importprofilen;
+# angewandt von kundenvorgabe.py beim Anlegen eines Angebots und beim Wählen des Kunden
+KUNDENVORGABEN = Tabelle(
+    "kundenvorgaben", "Kundenvorgaben",
+    (Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", pflicht=True, breite=110),
+     Feld("maschine", "Maschine", "auswahl", auswahl="maschine", breite=110),
+     Feld("stange", "Stangenlänge [mm]", "ganz", 500, 20000, breite=85),
+     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1, breite=70),
+     Feld("lieferzeit_art", "Lieferzeit als", "auswahl", auswahl="lieferzeitart", breite=110),
+     Feld("lieferzeit_wert", "Lieferzeit", breite=80),
+     Feld("lieferzeit_zusatz", "Lieferbedingungen (Freitext)", breite=170),
+     Feld("material_vorgabe", "Material neuer Positionen", "auswahl", auswahl="materialherkunft", breite=120),
+     Feld("staffeln", "Standard-Staffeln (Faktoren, 0 = keine)", breite=120),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("kundennr",),
+    "Vorgaben je Kunde für neue Angebote: Wählen Sie im Angebot den Kunden, übernimmt das Programm Maschine, "
+    "Stangenlänge, Gewinn, Lieferzeit, Material und Standard-Staffeln von hier. Ein Feld im Angebot wird nur "
+    "ersetzt, solange es noch die Vorgabe aus den Einstellungen (oder des vorher gewählten Kunden) hat. Leere "
+    "Felder = Einstellungen.")
+
 # Baugruppen-Vorlagen (Verbesserung P1): Struktur, Nahtgruppen und Arbeitsgänge einer Schweißbaugruppe ohne
 # Einzelteile (JSON in 'daten', baugruppe.vorlage_aus). Gepflegt im Editor der Baugruppe, nicht als Stammdaten-Reiter;
 # mit den übrigen Stammdaten zwischen Arbeitsplätzen geteilt.
@@ -597,17 +617,18 @@ BAUGRUPPEN_VORLAGEN = Tabelle(
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             PRUEFREGELN, SCHWEISSVERFAHREN,
-            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, IMPORTPROFILE)
+            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, IMPORTPROFILE, KUNDENVORGABEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
 VERWEISE = {
-    ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr")),
+    ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr"), ("kundenvorgaben", "kundennr")),
     ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id")),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
                                      ("schneiddaten", "werkstoff_id")),
     # Angebote: dazu die Snapshots im Angebot und die Standard-Maschine (Datenbank._maschine_umbenannt)
-    ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine")),
+    ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine"),
+                                    ("kundenvorgaben", "maschine")),
     ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id"),
                                    ("schweissverfahren", "satz_id")),
     ("schweissverfahren", "verfahren"): (("schweiss_kennwerte", "verfahren"),),
@@ -769,6 +790,8 @@ EINSTELLUNGEN = (
     Einstellung("step_tol_gleich", "Toleranz gleiche Teile einer Baugruppe ± [mm]", "STEP-Import", "zahl", 0.2, 0, 5),
     Einstellung("step_tol_kernloch", "Toleranz Kernloch für Gewinde-Vorschlag ± [mm]", "STEP-Import", "zahl", 0.05, 0,
                 1),
+    Einstellung("biegerohr_faktor", "Biegerohr: Faktor neutrale Faser für die gestreckte Länge (1,0 = Rohrmitte)",
+                "STEP-Import", "zahl", 1.0, 0.5, 1.5),
     Einstellung("step_flach_laenge", "Experte: Flachstahl ab Länge × Breite", "STEP-Import", "zahl", 3.0, 1, 100),
     Einstellung("step_gekantet_anteil", "Experte: gekantetes Blech statt Profil, wenn Volumen unter Anteil von Querschnitt × Länge", "STEP-Import",
                 "anteil", 0.85, 0.1, 1),
@@ -782,6 +805,12 @@ EINSTELLUNGEN = (
     Einstellung("lieferzeit_wert", "Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, KW/Jahr oder Datum)",
                 "Angebot", "text", ""),
     Einstellung("lieferzeit_zusatz", "Lieferzeit neuer Angebote: Freitext", "Angebot", "text", "nach Absprache"),
+    # Plan Arbeitsabläufe W1: Entwürfe bis zu so vielen Positionen nach jeder Änderung selbst optimieren
+    Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
+                100, 0, 10000),
+    # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
+    Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)", "Angebot", "anteil",
+                0.0, 0, 1),
     # Standard-Staffeln (Plan Arbeitsabläufe W3): Faktoren auf die Bestellmenge, angelegt vor dem ersten Angebots-PDF
     Einstellung("staffeln_standard", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
                 "Angebot", "text", "1; 2; 5"),
@@ -1392,7 +1421,7 @@ def beispiel_zusatzarbeiten():
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
-        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten()
+        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1413,6 +1442,18 @@ ZUSATZ_SENKEN, ZUSATZ_FLOWDRILL, ZUSATZ_BOHREN = "Senken", "Flowdrill", "Bohren"
 
 
 BOHR_PREISE = {ZUSATZ_SENKEN: 0.40, ZUSATZ_FLOWDRILL: 0.60, ZUSATZ_BOHREN: 0.40}   # Beispielpreise € je Stück
+
+
+ZUSATZ_BIEGEN, BIEGEN_PREIS = "Biegen", 1.50     # € je Biegung (Beispielpreis)
+
+
+def biege_zusatzarbeiten():
+    """Vorbelegung Biegen (Biegerohre aus dem STEP-Import, Plan S9): € je Biegung, die Menge (Zahl der Biegungen
+    je Teil) trägt der STEP-Import ein. Beispielpreis, bitte anpassen."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_BIEGEN, art="€/Stück", preis=BIEGEN_PREIS,
+                 fremd="nein", angebotstext="gebogen",
+                 bemerkung="Preis je Biegung; Menge = Zahl der Biegungen je Teil (STEP-Import Biegerohr)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
 
 
 def bohr_zusatzarbeiten():
