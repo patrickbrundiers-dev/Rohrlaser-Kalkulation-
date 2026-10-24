@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 52     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 53     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -96,6 +96,8 @@ SCHEMA_VERSION = 52     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 51: Kundenvorgaben (Tabelle kundenvorgaben, leer; Plan Arbeitsabläufe W2)
                         # 52: Neue Fassung (angebote.fassung_basis = Nummer ohne Zusatz, angebote.ersetzt_durch =
                         #     Nummer der neueren Fassung; ältere Angebote leer; Plan Arbeitsabläufe W10)
+                        # 53: Vorkalkulation Schweißbaugruppe (Tabelle schweiss_regeln leer, positionen.bg_hilfe leer =
+                        #     Positionierhilfe nach Vorschlag)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -1222,7 +1224,7 @@ class Datenbank:
     def _tabellen_bauen(self):
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
-                                           "schweiss_kennwerte", "schweiss_faktoren", "pruefregeln")}
+                                           "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         return tab
 

@@ -254,7 +254,10 @@ POSITIONEN = Tabelle(
      # und die Menge je direkt übergeordneter (Unter-)Baugruppe. Leer = keine Baugruppe (ältere Positionen)
      Feld("baugruppe", "Schweißbaugruppe", breite=150),
      Feld("bg_knoten", "Baugruppe (Zuordnung)", breite=120),
-     Feld("je_knoten", "Stück je Baugruppe", "ganz", 1, 100000, breite=70)),
+     Feld("je_knoten", "Stück je Baugruppe", "ganz", 1, 100000, breite=70),
+     # Vorkalkulation (vorkalk.py, Schema 53): Positionierhilfe des Einzelteils beim Schweißen; leer = Vorschlag des
+     # Programms (Steckverbindung, Vorrichtung, Gravur, frei), sonst bestätigt bzw. von Hand
+     Feld("bg_hilfe", "Positionierhilfe", "auswahl", auswahl="positionierhilfe", breite=110)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

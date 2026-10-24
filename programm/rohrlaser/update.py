@@ -9,7 +9,7 @@ hochgeladen, und das Programm lädt nur die Pakete, in denen eine geänderte Dat
 Austausch im laufenden Programm: Windows erlaubt, eine laufende .exe und geladene DLLs umzubenennen, aber nicht zu
 überschreiben. Die alten Dateien wandern deshalb nach _update/alt, die neuen an ihren Platz; beim nächsten Start
 wird _update gelöscht. Geht unterwegs etwas schief, kommt jede alte Datei an ihren Platz zurück.
-Seit 0.9.50 tauscht das Programm erst aus, nachdem es sich geordnet beendet hat (update_fenster.nach_beenden).
+Seit 0.9.51 tauscht das Programm erst aus, nachdem es sich geordnet beendet hat (update_fenster.nach_beenden).
 Vorher prüft gesperrte_dateien jede betroffene Datei (Umbenennen hin und zurück); hält ein anderes Programm eine
 Datei fest (z. B. die Anleitung im PDF-Betrachter, der Virenscanner), wartet warten_bis_frei bis zu SPERR_WARTEN_S.
 Nur Dateien aus der Dateiliste werden angefasst, Daten, Angebote und andere eigene Dateien nie.
