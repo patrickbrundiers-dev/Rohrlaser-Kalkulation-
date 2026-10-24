@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.64", "<b>Werkstoffliste für den Rohrlaser</b>: 17 neue Werkstoffe (u. a. EN 10210 warmgefertigt, "
+               "DX51D+Z275 sendzimirverzinkt, P235TR1, P235GH nahtlos, S420MH/S460MH, S355J2WH wetterfest, 1.4541, "
+               "1.4016, 1.4003, 1.4462 Duplex, EN AW-6061/6005A) und die Kategorie <b>Buntmetall</b> (CuZn37, "
+               "Cu-DHP) mit Faser-Richtwerten. Neue Felder je Werkstoff: <b>Rohrart</b> (nahtlos/stranggepresst = "
+               "keine Nahtvorgabe, kein Stangenwechsel SN), <b>Schneidgas</b> (nur N₂/nur O₂), <b>Vorschub-Faktor</b> "
+               "auf die Schneiddaten der Kategorie, <b>Laser</b> (nur Faser warnt auf T03) und <b>Laser-Hinweis</b> "
+               "(Tooltip, Angebots-Check, Kalkulation, Werkstattpapiere). Bestehende Dateien bekommen die neuen "
+               "Werkstoffe einmalig dazu, eigene bleiben unverändert ([[werkstoffe]]).",
+     "Werkstoffliste für den Rohrlaser: 17 neue Werkstoffe, Buntmetall, Schneidgas, Vorschub-Faktor, Rohrart "
+     "([[werkstoffe]])."],
     ["0.9.63", "<b>Teile-Editor: Gruppe Knicke</b>: Bei einem Knickrahmen zeigt der Merkmalsbaum des Schneidweg-Rechners "
                "die Knicke (Knickwinkel, Lage, Stegwand) und den Rahmen mit seiner Herkunft (STEP oder manuell). Ein "
                "Klick zeigt den V-Ausschnitt in Tabelle, Skizze und 3D ([[knickrahmen]]).",

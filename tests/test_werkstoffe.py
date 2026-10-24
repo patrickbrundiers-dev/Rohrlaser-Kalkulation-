@@ -22,7 +22,7 @@ tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 k, tab = db.kontext(), db.tabellen()
 kat = {w["werkstoff_id"]: w["kategorie"] for w in db.zeilen("werkstoffe")}
-assert len(kat) == 12 and set(kat.values()) == {"Stahl", "Edelstahl", "Aluminium"}, kat
+assert len(kat) == 29 and set(kat.values()) == {"Stahl", "Edelstahl", "Aluminium", "Buntmetall"}, kat
 assert kat["1.4404"] == "Edelstahl" and kat["AW6082-T6"] == "Aluminium" and kat["E355-10305"] == "Stahl"
 assert [o["oberflaeche"] for o in db.zeilen("oberflaechen")] == ["roh", "gestrahlt", "K240", "K320", "gebeizt", "E6/EV1"]
 for t in ("werkstoffe", "oberflaechen", "schneiddaten"):
@@ -33,10 +33,10 @@ assert {z["maschinen_id"] for z in db.zeilen("schneiddaten")} == {"T03", "T11", 
 
 # Auswahl im Angebot nach Kategorie gruppiert, Oberflächen 'roh' und die für alle zuerst
 gr = k.gruppiert("werkstoff")
-assert [g for g, _ in gr] == ["Stahl", "Edelstahl", "Aluminium"], gr
-assert gr[1][1] == ["1.4301", "1.4307", "1.4404", "1.4509", "1.4571"]
+assert [g for g, _ in gr] == ["Stahl", "Edelstahl", "Aluminium", "Buntmetall"], gr
+assert gr[1][1] == ["1.4003", "1.4016", "1.4301", "1.4307", "1.4404", "1.4462", "1.4509", "1.4541", "1.4571"]
 assert k.gruppiert("oberflaeche")[0] == ("alle Werkstoffe", ["roh", "gestrahlt"])
-assert len(k.auswahl("werkstoff")) == 12 and "K240" in k.auswahl("oberflaeche")
+assert len(k.auswahl("werkstoff")) == 29 and "K240" in k.auswahl("oberflaeche")
 
 # Prüfung der Schneiddaten: Werkstoff-ID oder Kategorie, eins von beiden; ohne Gas Warnung
 z = dict(maschinen_id="LT7", wand_bis=2, vorschub_gross=100, gas="N₂")
@@ -62,10 +62,10 @@ tab = db.tabellen()
 assert sd("LT7", "S235-10219", 2)["vorschub_gross"] == 4000 and sd("LT7", "S355-10219", 2)["vorschub_gross"] == 7000
 assert sd("LT7", "S235-10219", 4)["kategorie"] == "Stahl"
 # Werkstoff ohne Kategorie und ohne eigene Zeilen: keine Schneiddaten
-db.neu("werkstoffe", dict(werkstoff_id="CuZn37", dichte=8.4, tonnenpreis=9000))
+db.neu("werkstoffe", dict(werkstoff_id="CuSn8", dichte=8.8, tonnenpreis=9000))
 k = db.kontext()
-assert sd("LT7", "CuZn37", 2) is None
-assert pruefen(TABELLE["werkstoffe"], k.werkstoffe["CuZn37"], k) == "WARNUNG: Kategorie fehlt"
+assert sd("LT7", "CuSn8", 2) is None
+assert pruefen(TABELLE["werkstoffe"], k.werkstoffe["CuSn8"], k) == "WARNUNG: Kategorie fehlt"
 # Kalkulation zeigt Wandstärke-Stufe und Schneidgas
 kopf = dict(maschine="LT7", stange=6000)
 p0 = dict(pos=10, artikel="A", profil_id="RE 120x60x4", werkstoff_id="1.4301", laenge=1000, stueck=2, schneidweg=800,
@@ -165,7 +165,7 @@ def schema10(pfad, eigene):
 d = schema10(tmp / "b" / "rohrlaser.db", eigene=False)
 assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 assert d.anzahl("schneiddaten") == len(beispiel_schneiddaten()) and d.anzahl("oberflaechen") == 6
-assert d.anzahl("werkstoffe") == 12 and all(w["kategorie"] for w in d.zeilen("werkstoffe"))
+assert d.anzahl("werkstoffe") == 29 and all(w["kategorie"] for w in d.zeilen("werkstoffe"))
 assert d.einstellung("stammdaten_herkunft") == "Beispieldaten"
 d.schliessen()
 # b) eigene Werte: bleiben erhalten und gehen vor; Kategorie wird geraten, Beispielwerte je Kategorie kommen dazu
@@ -191,6 +191,6 @@ app = QApplication.instance() or QApplication([])
 cb = QComboBox()
 liste_fuellen(cb, k, "werkstoff")
 texte = [cb.itemText(i) for i in range(cb.count())]
-assert texte[:3] == ["", "— Stahl —", "E235-10305"] and "— Edelstahl —" in texte and "— ohne Kategorie —" in texte
+assert texte[:3] == ["", "— Stahl —", "DX51D+Z275"] and "— Edelstahl —" in texte and "— ohne Kategorie —" in texte
 assert not cb.model().item(1).isEnabled() and cb.model().item(2).isEnabled()
 print("OK: Werkstoff-Kategorien, Oberflächen und Schneiddaten je Kategorie und Schneidgas")
