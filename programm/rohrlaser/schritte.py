@@ -1,7 +1,8 @@
 """Schrittanzeige im Angebot (Layout-Plan L10): ① Positionen erfasst → ② Optimiert → ③ Geprüft → ④ Verschickt.
 
 Erledigte Schritte grün mit Haken, der aktuelle (erste offene) blau und fett, die übrigen grau. Grundlage sind die
-vorhandenen Stände: Positionen, Stand der Optimierung, offene Punkte im „Angebots-Check“ und der Vorgang.
+vorhandenen Stände: Positionen, Stand der Optimierung, offene Punkte im „Angebots-Check“, der Vorgang und der
+CSV-Export (Vermerk im Versandverlauf).
 """
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
@@ -14,15 +15,17 @@ NUMMERN = "①②③④"
 NAECHSTES = ("Positionen anlegen: Neue Position oder STEP importieren.",
              "Optimieren (F9) – plant die Stangen und rechnet die Preise.",
              "Offene Punkte im „Angebots-Check“ in der Übersicht erledigen.",
-             "Angebot (PDF) erstellen und verschicken; der Vorgang wird dabei Verschickt.",
+             "Angebot (PDF) erstellen und verschicken (der Vorgang wird dabei Verschickt) und CSV-Export "
+             "(Ausgaben → CSV-Export); erst mit beidem wird „Verschickt“ grün.",
              "Alle Schritte erledigt.")
 VERSCHICKT = ("Verschickt", "Beauftragt", "Abgelehnt")
 
 
-def erledigt(positionen, stand, offene_punkte, vorgang):
-    """Je Schritt erledigt ja/nein. stand: Ergebnis von stand_optimierung ('aktuell' = optimiert)."""
+def erledigt(positionen, stand, offene_punkte, vorgang, csv=False):
+    """Je Schritt erledigt ja/nein. stand: Ergebnis von stand_optimierung ('aktuell' = optimiert); „Verschickt“ erst,
+    wenn auch der CSV-Export gemacht ist (csv, Patrick 24.10.2026)."""
     return (bool(positionen), stand == "aktuell", bool(positionen) and stand == "aktuell" and not offene_punkte,
-            vorgang in VERSCHICKT)
+            vorgang in VERSCHICKT and bool(csv))
 
 
 def aktuell(fertig):

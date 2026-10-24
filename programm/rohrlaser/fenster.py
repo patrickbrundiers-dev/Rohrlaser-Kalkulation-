@@ -773,7 +773,8 @@ class EinstellungenSeite(QScrollArea):
             w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
         elif e.art == "ordner":
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
-                               "ablageordner": "Ablageordner wählen"}.get(e.name, "Standardordner wählen"))
+                               "ablageordner": "Ablageordner wählen",
+                               "csv_ordner": "Ordner für den CSV-Export wählen"}.get(e.name, "Standardordner wählen"))
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
             if e.name == "ablageordner":

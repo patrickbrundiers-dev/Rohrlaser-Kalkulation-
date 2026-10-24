@@ -1541,11 +1541,11 @@ class AngebotSeite(QWidget):
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
         menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
         menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
-        # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
+        # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
         csv = menue.addMenu("CSV-Export")
         csv.setToolTipsVisible(True)
-        for text, ziel in (("Kopf + Positionen (ZIP)", self.csv_export), ("Nur Angebotskopf", self.csv_kopf),
-                           ("Nur Angebotspositionen", self.csv_positionen)):
+        for text, ziel in (("Kopf + Positionen …", self.csv_export), ("Nur Angebotskopf …", self.csv_kopf),
+                           ("Nur Angebotspositionen …", self.csv_positionen)):
             csv.addAction(text, lambda ziel=ziel: ziel())
         menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
@@ -2219,6 +2219,13 @@ class AngebotSeite(QWidget):
             self.check_link(d.ziel)
         return ok, d.text_begruendung()
 
+    def _schritte_setzen(self):
+        """Schrittanzeige; „Verschickt“ erst mit CSV-Export im Versandverlauf (Patrick 24.10.2026)."""
+        csv = any(isinstance(e, dict) and e.get("art") == "csv" for e in self.kopf.get("versand") or ())
+        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(),
+                                               angebot_check.offen(getattr(self, "_punkte", [])), vorgang(self.kopf),
+                                               csv))
+
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
@@ -2239,8 +2246,8 @@ class AngebotSeite(QWidget):
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         punkte = self.freigabe_punkte(summen, zeilen, preis_abw)
         self.uebersicht_bereich.freigabe_setzen(punkte)
-        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(), angebot_check.offen(punkte),
-                                               vorgang(self.kopf)))
+        self._punkte = punkte
+        self._schritte_setzen()
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
@@ -3700,9 +3707,14 @@ class AngebotSeite(QWidget):
                                                              material, muster, self.k.profile,
                                                              rechnen.laser_hinweise(self.positionen, self.k)))
 
-    def csv_export(self, art="zip"):
-        """CSV-Export in die Ablage: art 'zip' (Angebot_<Nr>.zip mit beiden Dateien), 'kopf' oder 'positionen'
-        ('<Nr> Angebotskopf.csv' …). Liest nur, speichert nichts im Angebot. Ergebnis: Pfad oder None."""
+    CSV_ARTEN = {"kopf": "Angebotskopf", "positionen": "Angebotspositionen", "baugruppen": "Schweissbaugruppen"}
+
+    def csv_export(self, art="alle", ordner=None):
+        """CSV-Export als einzelne Dateien ('<Nr> Angebotskopf.csv', '<Nr> Angebotspositionen.csv', mit Baugruppen
+        '<Nr> Schweissbaugruppen.csv'); art 'alle', 'kopf' oder 'positionen'. Den Ordner wählt der Bediener (Start:
+        zuletzt gewählter Ordner, sonst Ordner des Angebots); ordner setzt ihn ohne Dialog, ohne Rückfragen (stumm)
+        gilt der Ordner des Angebots. Der Export wird im Versandverlauf vermerkt (Schritt „Verschickt“ erst danach
+        grün). Ergebnis: Liste der Pfade (art 'alle') bzw. Pfad, None bei Abbruch oder Fehler."""
         def fehler(text):
             QApplication.restoreOverrideCursor()
             if self.f.stumm:
@@ -3716,15 +3728,19 @@ class AngebotSeite(QWidget):
         if not any(position_aktiv(p) for p in self.positionen):
             return fehler("Das Angebot hat keine Positionen.")
         try:
-            ablage = self.f.angebot_ordner(self.kopf)
+            angebot_ordner = self.f.angebot_ordner(self.kopf)
         except OSError as e:
             return fehler(f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
-        if art == "zip":
-            pfad = ablage / export.zip_name(self.kopf)
-        else:
-            pfad = ablage / (ausgabe.dateiname(self.kopf, "Angebotskopf" if art == "kopf" else "Angebotspositionen")
-                             + ".csv")
+        if ordner is None and not self.f.stumm:
+            zuletzt = self.db.einstellung("csv_ordner")
+            start = zuletzt if zuletzt and Path(zuletzt).is_dir() else str(angebot_ordner)
+            ordner = QFileDialog.getExistingDirectory(self, "CSV-Export: Ordner wählen", start)
+            if not ordner:
+                return None
+            self.db.einstellung_setzen("csv_ordner", ordner)
+        ziel = Path(ordner) if ordner else angebot_ordner
         QApplication.setOverrideCursor(Qt.WaitCursor)
+        geschrieben = []
         try:
             zeilen, summen = self._rechnung()
             bearbeiter = self.kopf.get("bearbeiter")
@@ -3732,26 +3748,39 @@ class AngebotSeite(QWidget):
                 self.kopf, self.positionen, self.ergebnis, zeilen, summen, self.k, self.tabellen, self.einst,
                 kunde=self.db.kunde(self.kopf.get("kundennr")),
                 ersteller=teilen.mitarbeiter(self.db, bearbeiter).get("name") if bearbeiter else None)
-            if art == "zip":
-                export.zip_schreiben(pfad, kopfzeile, pos_zeilen, export.baugruppen_zeilen(self.positionen, zeilen))
-            elif art == "kopf":
-                export.kopf_csv(pfad, kopfzeile)
-            else:
-                export.positionen_csv(pfad, pos_zeilen)
+            arten = ["kopf", "positionen"] if art == "alle" else [art]
+            bg_zeilen = export.baugruppen_zeilen(self.positionen, zeilen) if art == "alle" else None
+            if bg_zeilen:
+                arten.append("baugruppen")
+            for a in arten:
+                pfad = ziel / (ausgabe.dateiname(self.kopf, self.CSV_ARTEN[a]) + ".csv")
+                if a == "kopf":
+                    export.kopf_csv(pfad, kopfzeile)
+                elif a == "positionen":
+                    export.positionen_csv(pfad, pos_zeilen)
+                else:
+                    export.baugruppen_csv(pfad, bg_zeilen)
+                geschrieben.append(pfad)
         except PermissionError:
             return fehler(f"Die Datei konnte nicht gespeichert werden:\n{pfad}\n\n"
                           "Ist sie noch in einem anderen Programm geöffnet?")
         except (OSError, ValueError) as e:
-            return fehler(f"Der Export ist nicht gelungen:\n{pfad}\n\n{e}")
+            return fehler(f"Der Export ist nicht gelungen:\n{ziel}\n\n{e}")
         QApplication.restoreOverrideCursor()
-        self.f.meldung(f"CSV-Export gespeichert: {pfad} ({len(pos_zeilen)} Positionen)")    # Einblendung (L14)
-        return pfad
+        if not self.db.nur_lesen and not self.fremd():      # Vermerk für die Schrittanzeige (Patrick 24.10.2026)
+            self.db.versand_merken(self.id, dict(art="csv", datum=datetime.date.today().isoformat(),
+                                                 datei=", ".join(p.name for p in geschrieben), ordner=str(ziel)))
+            self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand") or []
+            self._schritte_setzen()
+        self.f.meldung(f"CSV-Export gespeichert in {ziel}: " + ", ".join(p.name for p in geschrieben)
+                       + f" ({len(pos_zeilen)} Positionen)")    # Einblendung (L14)
+        return geschrieben if art == "alle" else geschrieben[0]
 
-    def csv_kopf(self):
-        return self.csv_export("kopf")
+    def csv_kopf(self, ordner=None):
+        return self.csv_export("kopf", ordner)
 
-    def csv_positionen(self):
-        return self.csv_export("positionen")
+    def csv_positionen(self, ordner=None):
+        return self.csv_export("positionen", ordner)
 
     # -------------------------------------------------------------- Material je Abmessung
     def material_einstellen(self, dialog=None):
