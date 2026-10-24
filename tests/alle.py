@@ -27,6 +27,7 @@ QT = {"QT_QPA_PLATFORM": "offscreen"}
 # (Datei, Umgebung) – erst STEP-Messung und Optimierung, dann die Programm-Tests (Reihenfolge wie bisher im Workflow)
 TESTS = [
     ("test_step_import.py", {}),
+    ("test_step_drop.py", QT),
     ("test_step_regression.py", {}),
     ("test_step_einlesen.py", {}),
     ("test_step_profile.py", QT),
