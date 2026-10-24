@@ -2229,7 +2229,8 @@ def kapitel_optimieren(i):
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
-           "<b>Eigenschaften</b> des gewählten Merkmals, unten Kennzahlen und <b>Prüfmeldungen</b>. Ein Klick auf "
+           "<b>Eigenschaften</b> des gewählten Merkmals, unten Kennzahlen und <b>Prüfmeldungen</b>. Das Fenster öffnet "
+           "immer im Vollbild (maximiert). Ein Klick auf "
            "ein Merkmal, eine Meldung oder eine Kontur im 3D zeigt die Stelle überall.", kurz=True)
     i.genauer()
     i.liste("<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
@@ -2270,7 +2271,7 @@ def kapitel_optimieren(i):
             "dann wieder.",
             "<b>Prüfmeldungen</b>: die Befunde der Fertigungsprüfung ([[pruefregeln]]) sowie Fehler und Hinweise der "
             "Rechnung, Fehler zuerst. Ein Klick wählt das betroffene Merkmal; bei einem zu schmalen Steg sind beide "
-            "Konturen markiert, in der Skizze und in der 3D-Ansicht blau hervorgehoben.",
+            "Konturen markiert, in der Skizze blau und in der 3D-Ansicht grün hervorgehoben.",
             "<b>Auswahl überall gleich</b>: Klick auf eine Zeile der Tabelle, ein Merkmal, eine Kontur in der Skizze "
             "oder eine Linie in der 3D-Ansicht wählt überall dasselbe Merkmal. Im Modell aus den Eingaben ist die "
             "gewählte Kontur bzw. das Ende selbst hervorgehoben, im STEP-Modell der Bereich längs der Rohrachse. "
@@ -2284,6 +2285,41 @@ def kapitel_optimieren(i):
             "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s), damit "
             "beim Tippen nichts hängt. Gerechnet wird wie bisher im Schneidweg-Rechner bzw. Blech-Editor; der "
             "Rahmen rechnet nichts eigenes.")
+    i.abschnitt("Am 3D-Modell bearbeiten: Griffe, Maße, Schnittebenen", marke="editor_griffe")
+    i.text("Beim Rohr lässt sich das Teil direkt im 3D-Modell ändern, wie in einem CAM-Programm: die gewählte Kontur "
+           "an den Pfeilen ziehen, ein Maß doppelt anklicken und eintippen, die Gehrung an der Schnittebene "
+           "stellen. Rechtsklick öffnet ein Menü mit den passenden Befehlen.", kurz=True)
+    i.bild("editor_griffe", "3D-Modell mit gewähltem Langloch: Pfeile längs (blau) und quer (türkis), Maße ab Ende A "
+           "und bis Ende B, Schnittebenen an beiden Enden mit Griff und Winkel; Darstellung Mit Kanten",
+           hoehe=70 * mm)
+    i.genauer()
+    i.liste("<b>Pfeile ziehen</b>: Der blaue Pfeil schiebt die Kontur längs am Rohr, der türkise quer um den Umfang, "
+            "über die Kante auf die nächste Fläche. Während des Ziehens steht das Maß am Mauszeiger, das Modell "
+            "zieht sofort mit; der ganze Zug ist ein Schritt für Rückgängig.",
+            "<b>Fangen</b> (<i>Ansicht → Fangen</i>): Die Lage springt auf das Raster (Vorgabe 5 mm, am Rundrohr "
+            "15°), auf die Teilmitte und auf die Mitte der Fläche. Mit gedrückter <b>Alt</b>-Taste wird frei "
+            "geschoben. Raster und Winkel stehen neben dem Knopf.",
+            "<b>Maße am Modell</b>: Die gewählte Kontur zeigt ihre Lage ab Ende A, bis Ende B und den Abstand zur "
+            "nächsten Kontur auf derselben Fläche. <b>Doppelklick</b> auf ein Maß öffnet ein Feld an dieser Stelle; "
+            "Rechnungen wie <i>L/2</i> gehen, Enter übernimmt.",
+            "<b>Schnittebenen</b>: An Ende A (orange) und B (lila) steht die Schnittfläche halb durchsichtig. Der "
+            "Griff (Kreis) an der Ebene stellt den Gehrungswinkel, er springt auf ganze Grad und fängt 15°, 30°, "
+            "45° …; der Winkel steht daneben. Die Richtung der Gehrung bleibt, wie sie bei <i>gekippt über</i> "
+            "eingestellt ist.",
+            "<b>Pfeiltasten</b> in der 3D-Ansicht: links/rechts verschieben längs, hoch/runter quer um einen "
+            "Rasterschritt, mit Umschalt das Zehnfache. Ist ein Ende gewählt, ändern hoch/runter die Gehrung um 1° "
+            "(Umschalt 10°).",
+            "<b>Rechtsklick</b> auf eine Kontur (im 3D oder im Merkmalsbaum): Duplizieren, Spiegeln zur Teilmitte "
+            "(ein Muster bleibt ein Muster), Auf die Gegenseite (oben ↔ unten, vorne ↔ hinten, Rundrohr +180°), Auf "
+            "STEP-Wert zurücksetzen, Entfernen und <i>Messen von hier</i> (der Punkt beim Rechtsklick ist der erste "
+            "Messpunkt). Auf einem Ende: gerade schneiden oder Gehrung 45°.",
+            "<b>Darstellung</b> (<i>Ansicht → 3D-Darstellung</i> oder Rechtsklick): <i>Schattiert</i> = Flächen und "
+            "Schnittkonturen, <i>Mit Kanten</i> = dazu die Körperkanten dunkel, <i>Durchsichtig</i> = wie ein "
+            "Röntgenbild, Konturen auf der Rückseite sind gestrichelt zu sehen. <i>Nur Gewähltes hervorheben</i> (Knopf <i>Nur Gewähltes</i>) zeigt alles "
+            "außer dem gewählten Merkmal blass. Gewähltes ist grün umrandet.",
+            "Griffe und Maße gibt es im Modell aus den Eingaben (nicht im STEP-Modell und nicht beim Biegerohr). "
+            "Darstellung, Schnittebenen, Maße und Raster merkt sich das Programm je Benutzer. Beim Blech gibt es "
+            "Darstellung und Rechtsklick-Menü; Griffe für das Blech kommen später.")
     i.abschnitt("Konturklassen in der Schneidzeit", marke="konturklassen")
     i.bild("angebot_zusatz", "Positionen mit Zusatzarbeiten und angepasster Schneidzeit", hoehe=110 * mm, legende=[
         (1, "Spalte <b>Schneidzeit je Teil [s]</b>: grau berechnet, fett angepasst."),

@@ -17,12 +17,11 @@ import math
 
 from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QShortcut, QUndoCommand, QUndoStack
-from PySide6.QtWidgets import (QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu, QScrollArea, QSplitter,
-                               QTreeWidget,
-                               QTreeWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu,
+                               QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import biegerohr, dfm, rechnen, rohr3d, schneidweg as sw, stil, symbole
-from .ansicht3d import Ansicht3D
+from . import biegerohr, dfm, editor_griffe, rechnen, rohr3d, schneidweg as sw, stil, symbole
+from .ansicht3d import DARSTELLUNGEN, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
@@ -199,6 +198,15 @@ def ziele(befund):
     return ["teil"]
 
 
+def ausfuehren(dialog):
+    """Teile-Editor (Schneidweg-Rechner, Blech-Editor) öffnen: immer maximiert (Patrick 24.10.2026), mit Knöpfen zum
+    Verkleinern; Ergebnis wie QDialog.exec()."""
+    dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+    dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
+    dialog.setWindowState(dialog.windowState() | Qt.WindowMaximized)
+    return dialog.exec()
+
+
 class _Schritt(QUndoCommand):
     """Ein Rückgängig-Schritt: Zustand vorher und nachher (das erste redo beim Ablegen ist schon geschehen)."""
 
@@ -255,6 +263,8 @@ class EditorRahmen(QObject):
         self.baum.setToolTip("Merkmale des Teils. Herkunft: STEP = wie gemessen, manuell = von Hand, Vorgabe = "
                              "Grundwert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
         self.baum.currentItemChanged.connect(lambda neu, _: self._baum_gewaehlt(neu))
+        self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.baum.customContextMenuRequested.connect(self._baum_menue)
         self.meldungen = QListWidget()
         self.meldungen.setWordWrap(True)
         self.meldungen.setToolTip("Prüfmeldungen der Fertigungsprüfung und der Rechnung; Klick zeigt die Stelle")
@@ -360,7 +370,10 @@ class EditorRahmen(QObject):
         haupt.insertWidget(stelle, self.senkrecht, 1)
         haupt.insertWidget(stelle, self.band)
         a3 = self.ansicht()
+        self.werkzeug = editor_griffe.Werkzeug(self) if a3 is not None else None
         if a3 is not None:
+            a3.werkzeug_setzen(self.werkzeug)
+            self._darstellung_laden()
             a3.angeklickt.connect(self._3d_geklickt)
             a3.gemessen.connect(lambda w: self.mass.setText(f"Abstand {rechnen.zahl(w, 1)} mm"))
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
@@ -453,6 +466,45 @@ class EditorRahmen(QObject):
                                                 umschalter=True, tipp=f"Mitte: {text}")
         self.tabelle_knopf = g.knopf("Tabelle", "liste", self.tabelle_zeigen, umschalter=True,
                                      tipp="Eingaben als Tabelle zeigen (zum schnellen Durchtippen vieler Zeilen)")
+        g = ans.gruppe("3D-Darstellung")
+        self.darstellung_wahl = QComboBox()
+        self.darstellung_wahl.addItems(DARSTELLUNGEN)
+        self.darstellung_wahl.setToolTip("Schattiert = Flächen und Schnittkonturen, Mit Kanten = dazu die Körperkanten, "
+                                         "Durchsichtig = Röntgen (Rückseite und verdeckte Konturen sichtbar)")
+        self.darstellung_wahl.currentTextChanged.connect(lambda t: self.darstellung_setzen(t))
+        g.widget(self.darstellung_wahl)
+        self.nur_gewaehlt_knopf = g.knopf("Nur Gewähltes", None, lambda an: self.darstellung_setzen(nur_gewaehlt=an),
+                                          gross=False, umschalter=True,
+                                          tipp="Gewähltes Merkmal hervorheben, den Rest blass zeigen")
+        if rohr:
+            self.ebenen_knopf = g.knopf("Schnittebenen", None, lambda an: self.anzeige_setzen("ebenen", an),
+                                        gross=False, umschalter=True,
+                                        tipp="Schnittebenen an Ende A/B zeigen; der Griff an der Ebene stellt die "
+                                             "Gehrung")
+            self.masse_knopf = g.knopf("Maße am Modell", None, lambda an: self.anzeige_setzen("masse", an),
+                                       gross=False, umschalter=True,
+                                       tipp="Gewählte Kontur: Lage ab Ende A, bis Ende B und zur Nachbarkontur; "
+                                            "Doppelklick aufs Maß ändert es")
+            g = ans.gruppe("Fangen")
+            self.fangen_knopf = g.knopf("Fangen", None, lambda an: self.anzeige_setzen("fangen_an", an), gross=False,
+                                        umschalter=True, tipp="Beim Ziehen der Griffe auf das Raster, die Teilmitte "
+                                                              "und die Flächenmitte fangen (Alt beim Ziehen = frei)")
+            self.raster_feld = QDoubleSpinBox()
+            self.raster_feld.setRange(0.1, 500)
+            self.raster_feld.setDecimals(1)
+            self.raster_feld.setSuffix(" mm")
+            self.raster_feld.setToolTip("Raster für Griffe und Pfeiltasten (Umschalt = ×10)")
+            self.raster_feld.valueChanged.connect(lambda v: self.anzeige_setzen("raster", v))
+            self.raster_winkel_feld = QDoubleSpinBox()
+            self.raster_winkel_feld.setRange(0.5, 90)
+            self.raster_winkel_feld.setDecimals(1)
+            self.raster_winkel_feld.setSuffix(" °")
+            self.raster_winkel_feld.setToolTip("Rundrohr: Winkelraster am Umfang für Griffe und Pfeiltasten")
+            self.raster_winkel_feld.valueChanged.connect(lambda v: self.anzeige_setzen("raster_winkel", v))
+            for f in (self.raster_feld, self.raster_winkel_feld):
+                f.setButtonSymbols(QDoubleSpinBox.NoButtons)
+                f.setFixedWidth(70)
+                g.widget(f)
         g = ans.gruppe("Blickrichtung")
         for text, (gi, ni) in (("Schräg", Ansicht3D.GRUND), ("Vorn", (0.0, 0.0)), ("Oben", (0.0, 1.5)),
                                ("Stirnseite", (-1.5708, 0.0))):
@@ -480,6 +532,109 @@ class EditorRahmen(QObject):
         self.band.eingeklappt_geaendert.connect(lambda an: self._merken("editor_band_zu", an))
         if self._einstellung("editor_band_zu", False) is True:
             self.band.einklappen(True)
+
+    # -------------------------------------------------------------- Darstellung und Werkzeug (3E-3)
+    ANZEIGE = dict(ebenen=("editor_ebenen", True), masse=("editor_masse", True), fangen_an=("editor_fangen", True),
+                   raster=("editor_raster", editor_griffe.RASTER),
+                   raster_winkel=("editor_raster_winkel", editor_griffe.RASTER_WINKEL))
+
+    def _darstellung_laden(self):
+        """Gemerkte Darstellung und Fangen (je Benutzer) in Ansicht, Werkzeug und Menüband."""
+        a = self.ansicht()
+        dar = self._einstellung("editor_darstellung", SCHATTIERT)
+        a.darstellung_setzen(dar if dar in DARSTELLUNGEN else SCHATTIERT,
+                             self._einstellung("editor_nur_gewaehlt", False) is True)
+        for attr, (name, vorgabe) in self.ANZEIGE.items():
+            v = self._einstellung(name, vorgabe)
+            if isinstance(vorgabe, bool):
+                v = v is not False
+            else:
+                try:
+                    v = float(v) if float(v) > 0 else vorgabe
+                except (TypeError, ValueError):
+                    v = vorgabe
+            setattr(self.werkzeug, attr, v)
+        self._darstellung_knoepfe()
+
+    def _darstellung_knoepfe(self):
+        a, w = self.ansicht(), self.werkzeug
+        paare = [(self.darstellung_wahl, a.darstellung), (self.nur_gewaehlt_knopf, a.nur_gewaehlt)]
+        if self.art == "rohr":
+            paare += [(self.ebenen_knopf, w.ebenen), (self.masse_knopf, w.masse), (self.fangen_knopf, w.fangen_an),
+                      (self.raster_feld, w.raster), (self.raster_winkel_feld, w.raster_winkel)]
+        for knopf, wert in paare:
+            knopf.blockSignals(True)
+            if isinstance(knopf, QComboBox):
+                knopf.setCurrentText(wert)
+            elif isinstance(knopf, QDoubleSpinBox):
+                knopf.setValue(wert)
+            else:
+                knopf.setChecked(bool(wert))
+            knopf.blockSignals(False)
+        if self.art == "rohr":
+            self.raster_feld.setEnabled(w.fangen_an)
+            self.raster_winkel_feld.setEnabled(w.fangen_an)
+
+    def darstellung_setzen(self, darstellung=None, nur_gewaehlt=None):
+        """Darstellungsart der 3D-Ansicht bzw. „nur Gewähltes hervorheben“ (je Benutzer gemerkt)."""
+        a = self.ansicht()
+        if a is None:
+            return
+        a.darstellung_setzen(darstellung, nur_gewaehlt)
+        if darstellung in DARSTELLUNGEN:
+            self._merken("editor_darstellung", darstellung)
+        if nur_gewaehlt is not None:
+            self._merken("editor_nur_gewaehlt", bool(nur_gewaehlt))
+        self._darstellung_knoepfe()
+
+    def anzeige_setzen(self, attr, wert):
+        """Schnittebenen, Maße am Modell, Fangen und Raster des Werkzeugs (je Benutzer gemerkt)."""
+        if self.werkzeug is None or attr not in self.ANZEIGE:
+            return
+        setattr(self.werkzeug, attr, wert)
+        self._merken(self.ANZEIGE[attr][0], wert)
+        self._darstellung_knoepfe()
+        self.ansicht().update()
+
+    def kontextmenue(self, mid, punkt=None):
+        """Kontextmenü zum Merkmal (3D-Ansicht und Merkmalsbaum); punkt = Bildpunkt im 3D für „Messen von hier“."""
+        return editor_griffe.menue_bauen(self, mid, punkt, self.d)
+
+    def _baum_menue(self, pos):
+        it = self.baum.itemAt(pos)
+        mid = it.data(0, Qt.UserRole) if it is not None else None
+        if mid:
+            self.waehlen(mid)
+        self.kontextmenue(mid).exec(self.baum.viewport().mapToGlobal(pos))
+
+    def teil_laenge(self):
+        d = self.d
+        return sw._z(d.k_laenge.value() if getattr(d, "neu", False) and hasattr(d, "k_laenge") else d.p.get("laenge"))
+
+    def spiegeln(self, r):
+        """Konturzeile r zur Teilmitte spiegeln (ein Muster bleibt ein Muster)."""
+        neu = editor_griffe.gespiegelt(self.d.eingaben()["konturen"][r], self.werkzeug.lagen(r), self.teil_laenge())
+        if not neu:
+            return False
+        self.d._verschoben(r, neu)
+        self.waehlen(f"kontur:{r}")
+        return True
+
+    def gegenseite(self, r):
+        """Konturzeile r auf die gegenüberliegende Seite setzen."""
+        neu = editor_griffe.gegenseite(self.d.qs, self.d.eingaben()["konturen"][r])
+        if not neu:
+            return False
+        self.d._verschoben(r, neu)
+        self.waehlen(f"kontur:{r}")
+        return True
+
+    def messen_ab(self, punkt):
+        """Messen einschalten, erster Punkt = Ecke beim Rechtsklick."""
+        self.messen_knopf.setChecked(True)
+        a = self.ansicht()
+        if a is not None and a.messen:
+            a.klicken(*punkt)
 
     def _merken(self, name, wert):
         db = getattr(self.d, "db", None)
