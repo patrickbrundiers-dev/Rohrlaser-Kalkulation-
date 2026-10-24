@@ -585,7 +585,7 @@ def kapitel_start(i):
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
-        ["Datei im Release <i>aktuell</i>", "Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalkulation.zip"],
+        ["Datei im Download-Bereich", "Rohrlaser-Angebotskalkulation-Setup.exe", "Rohrlaser-Angebotskalkulation.zip"],
         ["Gedacht für", "den Arbeitsplatz, an dem dauerhaft kalkuliert wird",
          "Tests, einen Rechner ohne Erlaubnis für Setup-Programme, Mitnahme auf einem USB-Stick"],
         ["Programm", "%LOCALAPPDATA%\\Programs\\Rohrlaser Angebotskalkulation", "beliebiger Ordner, z. B. C:\\Rohrlaser"],
@@ -600,12 +600,13 @@ def kapitel_start(i):
            "das schlecht. Für eine Kopie auf OneDrive oder ein Netzlaufwerk ist der <b>zweite Sicherungsordner</b> da "
            "([[datensicherung]]).")
     i.abschnitt("Programm installieren")
-    i.liste("Auf GitHub unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation-Setup.exe</b> "
-            "herunterladen.",
+    i.liste("Im <b>Download-Bereich</b> (github.com/patrickbrundiers-dev/Rohrlaser-Updates, <i>Releases → "
+            "download</i>) die Datei <b>Rohrlaser-Angebotskalkulation-Setup.exe</b> herunterladen.",
             "Beim ersten Mal: rechte Maustaste auf die Datei → <i>Eigenschaften</i> → unten <i>Zulassen</i> anhaken → "
             "OK ([[windows_warnungen]]). Dann das Setup starten.",
             "Warnt Windows trotzdem, siehe [[windows_warnungen]]. Das Setup fragt nach der Desktop-Verknüpfung "
-            "und installiert nur für den angemeldeten Benutzer.",
+            "und installiert nur für den angemeldeten Benutzer. Vorher zeigt es die <b>Lizenzbedingungen</b>, die "
+            "angenommen werden müssen ([[lizenz]]).",
             "Das Programm aus dem Startmenü starten (<i>Rohrlaser Angebotskalkulation</i>; daneben liegt die "
             "Bedienungsanleitung).",
             "Eine neue Version des Setups lässt sich jederzeit über die alte installieren; die Daten bleiben. Meist "
@@ -615,7 +616,7 @@ def kapitel_start(i):
            "werden nur die Programmdateien. Datendatei, Sicherungen und PDF bleiben, eine spätere Installation findet "
            "sie wieder.")
     i.abschnitt("Portable Version entpacken")
-    i.liste("Unter <b>Releases → aktuell</b> die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
+    i.liste("Im Download-Bereich die Datei <b>Rohrlaser-Angebotskalkulation.zip</b> herunterladen.",
             "<b>Vor dem Entpacken</b>: rechte Maustaste auf das ZIP → <i>Eigenschaften</i> → unten <i>Zulassen</i> "
             "anhaken → OK ([[windows_warnungen]]).",
             "In einen Ordner entpacken, in dem man schreiben darf, z. B. <i>C:\\Rohrlaser</i>. Nicht nach "
@@ -673,7 +674,7 @@ def kapitel_start(i):
            "Ein solches Zertifikat kennt Windows nicht von sich aus. Die Datei <b>Windows-Vertrauen-einrichten.cmd</b> "
            "trägt es für den angemeldeten Benutzer ein und gibt gleich die Dateien frei. Sie braucht <b>keine "
            "Administratorrechte</b> und ist einmal je PC und Benutzer nötig.")
-    i.liste("Unter <b>Releases → aktuell</b> <i>Windows-Vertrauen-einrichten.cmd</i> in denselben Ordner laden wie "
+    i.liste("Im Download-Bereich <i>Windows-Vertrauen-einrichten.cmd</i> in denselben Ordner laden wie "
             "Setup bzw. ZIP (z. B. <i>Downloads</i>).",
             "Doppelklick auf die Datei. Fragt Windows „Möchten Sie diese Datei ausführen?“ oder zeigt „Der Computer "
             "wurde durch Windows geschützt“: <i>Ausführen</i> bzw. <i>Weitere Informationen → Trotzdem ausführen</i>.",
@@ -5675,7 +5676,8 @@ def kapitel_pflege(i):
             "zusätzlich digital signiert: Ab Version 0.9.87 spielt das Programm nur noch eine vom Hersteller gültig "
             "signierte Liste ein, sonst bleibt die bisherige Version unverändert.",
             "Jede Version wird vor dem Veröffentlichen geprüft: Im Paket sind nur Programmdateien, keine Daten, "
-            "Angebote, Lizenzen, Schlüssel oder Testdateien. <b>Vorabkanal</b> für einen Test-PC: Umgebungsvariable "
+            "Angebote, Lizenzen, Schlüssel oder Testdateien. Der eigene Programmcode ist zu Maschinencode übersetzt, "
+            "lesbarer Quelltext wird nicht ausgeliefert. <b>Vorabkanal</b> für einen Test-PC: Umgebungsvariable "
             "<i>RL_UPDATE_QUELLE</i> auf die Dateiliste im Release <i>update-test</i> setzen; dieser PC bekommt dann "
             "die Testversionen (ebenfalls signiert), alle anderen nicht.",
             "Bricht der Austausch hart ab (Stromausfall, Absturz), stellt das Programm beim nächsten Start die "
@@ -6034,6 +6036,9 @@ def kapitel_lizenz(i):
     i.text("Das Programm braucht eine Lizenz. Sie ist eine kleine Datei (<i>.lizenz</i>), die Patrick für einen "
            "Rechner ausstellt. Sie gilt ohne Internet und ohne Anmeldung. Ohne gültige Lizenz bleiben alle Angebote "
            "und Daten erhalten und lassen sich ansehen und exportieren, nur ändern geht dann nicht mehr.")
+    i.text("Für die Nutzung gelten die <b>Lizenzbedingungen</b> (Setup und <i>Hilfe → Lizenzbedingungen …</i>): "
+           "Nutzung nur mit gültiger Lizenz, keine Weitergabe, kein Zurückentwickeln oder Umgehen der Lizenzprüfung. "
+           "Angebote, Kunden und Einstellungen bleiben auf dem eigenen Rechner.")
     i.bild("lizenz_dialog", "Hilfe → Lizenz …", hoehe=85 * mm, legende=[
         (1, "Zustand der Lizenz: gültig bis, läuft bald ab, abgelaufen oder Lesemodus"),
         (2, "<b>Rechner-ID</b> dieses Rechners"),
@@ -6272,7 +6277,7 @@ STECKBRIEFE = {
     "ueberblick": ("Was das Programm kann, wie ein Angebot abläuft und was die Farben bedeuten.",
                    "Hauptfenster mit den Reitern Start, Angebote, Versand, Kunden, Frachtkosten, Zukaufartikel, Einstellungen"),
     "start": ("Programm installieren oder portabel entpacken, Windows-Warnungen, erster Start.",
-              "Release <i>aktuell</i> auf GitHub; im Programm der Reiter <i>Start</i>"),
+              "Download-Bereich auf GitHub (Rohrlaser-Updates, <i>download</i>); im Programm der Reiter <i>Start</i>"),
     "schnellstart": ("Einmal durch ein ganzes Angebot, vom Anlegen bis zum PDF.",
                      "Reiter <i>Angebote</i> und das geöffnete Angebot"),
     "angebote": ("Angebote finden, öffnen, kopieren und löschen.", "Reiter <i>Angebote</i>"),

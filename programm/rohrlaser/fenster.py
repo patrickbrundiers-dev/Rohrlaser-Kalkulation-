@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
-from . import NAME, VERSION, angebotsordner, ausgabe, hilfe, pdf, tabellen_eingabe, tastatur, teilen, update
+from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, hilfe, lizenzbedingungen, pdf, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
@@ -1444,12 +1444,16 @@ class Hauptfenster(QMainWindow):
         a = QAction("Lizenz …", self)
         a.triggered.connect(lambda: self.lizenz_zeigen())
         hilfe.addAction(a)
+        a = QAction("Lizenzbedingungen …", self)
+        a.triggered.connect(self.lizenzbedingungen_zeigen)
+        hilfe.addAction(a)
         a = QAction("Nach Updates suchen …", self)
         a.triggered.connect(lambda: self.updater.suchen())
         hilfe.addAction(a)
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
             self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
+                        f"{URHEBER}<br>"
                         f"Daten: {self.db.pfad}{self.datenort_text()}"
                         + (f"<br>{self.lizenz.text()}<br>Rechner-ID: {self.lizenz.rechner}" if self.lizenz else "")))
         hilfe.addAction(a)
@@ -1576,6 +1580,23 @@ class Hauptfenster(QMainWindow):
                       f"<th align='left'>Wo</th></tr>{zeilen}</table><p>In Textfeldern wirken Strg+Z, Strg+C, "
                       "Strg+V, Strg+X und Entf wie gewohnt im Text.</p>")
         text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        lay.addWidget(text)
+        lay.addWidget(knoepfe)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def lizenzbedingungen_zeigen(self):
+        """Hilfe → Lizenzbedingungen …: derselbe Text wie im Setup (rohrlaser/Lizenzbedingungen.txt)."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser
+        d = QDialog(self)
+        d.setWindowTitle("Lizenzbedingungen")
+        d.resize(760, 640)
+        text = QTextBrowser()
+        text.setPlainText(lizenzbedingungen())
         knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
         knoepfe.rejected.connect(d.reject)
         lay = QVBoxLayout(d)
