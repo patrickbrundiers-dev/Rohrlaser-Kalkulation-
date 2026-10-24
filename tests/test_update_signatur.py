@@ -46,8 +46,11 @@ PRIVAT, FREMD = Ed25519PrivateKey.generate(), Ed25519PrivateKey.generate()
 SCHL = {"U1": lizenz.oeffentlich_text(PRIVAT)}
 
 # --- 1. Eingebaut: noch kein Schlüssel (PR-A), daher noch keine Pflicht -------------------------------------------
-assert update.update_schluessel() == {} or all(k.startswith("U") for k in update.update_schluessel())
-ok("update_schluessel.py lesbar, nur U-Schlüssel")
+EINGEBAUT = update.update_schluessel()
+assert EINGEBAUT and all(k.startswith("U") for k in EINGEBAUT), EINGEBAUT
+assert all(len(base64.b64decode(t, validate=True)) == 32 for t in EINGEBAUT.values())
+assert not set(EINGEBAUT.values()) & set(lizenz.standard_schluessel().values())
+ok("Signaturpflicht an: öffentlicher Update-Schlüssel eingebaut, nur U-Schlüssel")
 
 # --- 2. Signieren / Prüfen ------------------------------------------------------------------------------------------
 daten = json.dumps({"format": 1, "stand": 5}).encode()
@@ -119,6 +122,8 @@ try:
 finally:
     update.update_schluessel = eingebaut
 
+fehler_erwartet(update.online_liste, str(quelle / update.DATEILISTE), text="nicht gültig signiert")
+ok("eingebauter Schlüssel: mit Testschlüssel signierte Liste abgelehnt")
 # --- 5. Änderungstext statt Commit ----------------------------------------------------------------------------------
 n = [("9.9.9", "Kurz [[updates]] mit <b>Fett</b>", "Lang (Kapitel [[updates]]), mit <i>mehr</i>"), ("9.9.8", "Alt")]
 assert update_paket.letzte_aenderung("9.9.9", n) == "Lang, mit mehr", update_paket.letzte_aenderung("9.9.9", n)
@@ -136,7 +141,11 @@ ok("U1 erzeugt, privat verschlüsselt, Secret-Wert nirgends gespeichert")
 privat = Ed25519PrivateKey.from_private_bytes(base64.b64decode(geheim))
 assert lizenz.oeffentlich_text(privat) == oeff
 assert wz.update_secret(ordner, "U1", b"testpasswort") == (oeff, geheim)
-assert update_paket.signieren(quelle, {"UPDATE_SIGNATUR": geheim}) == "U1"
+update.update_schluessel = lambda: {"U1": oeff}
+try:
+    assert update_paket.signieren(quelle, {"UPDATE_SIGNATUR": geheim}) == "U1"
+finally:
+    update.update_schluessel = eingebaut
 update.signatur_pruefen(liste_bytes, (quelle / update.SIGNATUR).read_bytes(), {"U1": oeff})
 ok("Secret-Wert passt zum öffentlichen Schlüssel und signiert im Build")
 try:

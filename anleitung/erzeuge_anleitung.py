@@ -5486,9 +5486,9 @@ def kapitel_pflege(i):
             "offene Anleitung blockiert das Update deshalb nicht mehr.",
             "<b>Geprüft wird alles</b>: Das Programm lädt nur über https von der offiziellen Adresse, lehnt "
             "unplausible Dateilisten ab (Pfade außerhalb des Programmordners, unbekannte Pakete, übergroße Dateien), "
-            "prüft vorher den freien Speicherplatz und jede Datei über ihre Prüfsumme. Die Dateiliste wird "
-            "zusätzlich digital signiert; sobald das Programm den Signaturschlüssel kennt, spielt es nur noch eine "
-            "gültig signierte Liste ein, sonst bleibt die bisherige Version unverändert.",
+            "prüft vorher den freien Speicherplatz und jede Datei über ihre Prüfsumme. Die Dateiliste ist "
+            "zusätzlich digital signiert: Ab Version 0.9.87 spielt das Programm nur noch eine vom Hersteller gültig "
+            "signierte Liste ein, sonst bleibt die bisherige Version unverändert.",
             "Bricht der Austausch hart ab (Stromausfall, Absturz), stellt das Programm beim nächsten Start die "
             "bisherigen Dateien aus <i>_update</i> wieder her und meldet <i>Ein unterbrochenes Update wurde "
             "zurückgenommen</i>. Danach einfach noch einmal nach Updates suchen.",
