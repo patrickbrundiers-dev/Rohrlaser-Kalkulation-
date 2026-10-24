@@ -751,14 +751,16 @@ def kapitel_angebote(i):
         (3, "<b>Kopieren</b>: Kopie mit neuer Nummer, z. B. für eine Nachbestellung oder einen anderen Kunden. "
             "Daneben <b>Öffnen</b>, <b>Löschen</b> und <b>Ordner öffnen</b> (Ordner des markierten Angebots mit "
             "allen PDFs, [[angebotsordner]])."),
-        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Bemerkung, Artikelnummer oder Bezeichnung.")])
+        (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Bemerkung, Auftragsnummer, Artikelnummer oder "
+            "Bezeichnung.")])
     i.tabelle(["Spalte", "Farben und Werte"], [
         ["Status", "<i>Nicht optimiert</i> gelb · <i>Optimiert</i> grün · <i>Veraltet</i> rot (neu optimieren) · "
                    "<i>Nachkalkuliert</i> blau"],
-        ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün · "
-                    "<i>Abgelehnt</i> grau · „Verschickt (abgelaufen)“ rot"]], [30, 235], kurz=True)
-    i.text("Die Spalten <b>Bearbeiter</b> und <b>Nachkalkuliert</b> erscheinen nur, wenn mindestens ein Angebot dort "
-           "einen Eintrag hat.", kurz=True)
+        ["Vorgang", "<i>Entwurf</i> · <i>Verschickt</i> blau (setzt das Angebots-PDF) · <i>Beauftragt</i> grün "
+                    "(fragt Auftragsnummer und Liefertermin) · <i>Abgelehnt</i> grau · „Verschickt (abgelaufen)“ rot"]],
+              [30, 235], kurz=True)
+    i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
+           "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
     i.genauer()
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
@@ -770,6 +772,14 @@ def kapitel_angebote(i):
            "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
+           "<b>Vorgang ▾ → Beauftragt</b> öffnet ein kleines Fenster: <b>Auftragsnummer des Kunden</b> (z. B. seine "
+           "Bestellnummer) und <b>Liefertermin</b> eintragen, beides freiwillig. Den Termin schlägt das Programm aus "
+           "der Lieferzeit des Angebots vor, gerechnet ab heute (10 Arbeitstage, 3 Wochen, Freitag der Kalenderwoche "
+           "oder das Lieferdatum; ohne Lieferzeit in 14 Tagen); ohne Haken bleibt er leer. Beides steht danach in den "
+           "Spalten <b>Auftragsnr.</b> und <b>Liefertermin</b>, die Suche findet die Auftragsnummer. Erneut "
+           "<i>Beauftragt</i> wählen ändert die Angaben, <i>Abbrechen</i> lässt den Vorgang, wie er war. Kopie und "
+           "neue Fassung übernehmen beides nicht. Werkstattpapiere und Materialanfrage erstellen Sie wie bisher im "
+           "Angebot.",
            "Die Spalte <b>Bearbeiter</b> zeigt das Kürzel des Mitarbeiters, der ein Angebot angelegt hat. Mit "
            "gemeinsamem Ordner stehen auch die Angebote der Kollegen in der Liste, <b>grau und kursiv</b>; die Auswahl "
            "<b>Meine Angebote / Alle Mitarbeiter / Kürzel</b> filtert danach, <b>Abgleichen</b> holt den neuesten "
@@ -1334,6 +1344,26 @@ def kapitel_angebot(i):
     i.text("In Textfeldern (Kopf, Suchfelder, eine Zelle in Bearbeitung) wirken Strg+Z, Strg+C, Strg+V und Entf wie "
            "gewohnt nur im Text. Alle Kürzel stehen im Anhang ([[tastenkuerzel]]) und im Programm unter "
            "<i>Hilfe → Tastenkürzel …</i>.")
+    i.abschnitt("Eingabe wie in Excel", marke="excel_eingabe")
+    i.tabelle(["Taste", "Wirkung in der Positionsliste"], [
+        ["Eingabe", "zur nächsten Zelle, nach unten (Vorgabe) oder nach rechts, auch direkt nach einer Eingabe"],
+        ["↓ in der letzten Zeile", "neue Position am Ende (Pos. + 10)"],
+        ["Strg+D", "Wert der Zeile darüber übernehmen, auch für mehrere markierte Zellen"],
+        ["Profil tippen", "„40x3“ findet „QR 40x40x3“"]], [55, 210], kurz=True)
+    i.genauer()
+    i.liste("<b>Eingabe</b> bestätigt eine Zelle und springt weiter, ohne Bearbeiten springt sie nur. Die Richtung "
+            "stellen Sie in den Einstellungen unter <i>Ansicht → Positionsliste: Eingabe springt</i> ein (nur für "
+            "diesen Arbeitsplatz). <i>Nach rechts</i> überspringt grau berechnete Spalten und geht am Zeilenende in "
+            "die erste Eingabespalte der nächsten Zeile. In der letzten Zeile legt Eingabe eine neue Position an.",
+            "<b>Pfeil ↓</b> in der letzten Zeile legt eine leere Position an und bleibt in derselben Spalte. Solange "
+            "die letzte Position noch ganz leer ist, kommt keine weitere dazu. Im Lesemodus und in Angeboten der "
+            "Kollegen entsteht keine Position.",
+            "<b>Strg+D</b> füllt die markierte Zelle mit dem Wert der Zeile darüber. Sind mehrere Zeilen markiert, "
+            "füllt die oberste die übrigen, je Spalte (wie in Excel). Ein Schritt für Strg+Z.",
+            "<b>Profil-ID</b>: Beim Tippen zeigt eine Liste die passenden Profile, beste zuerst. Gleich lange Seiten "
+            "dürfen fehlen (<b>40x3</b> = QR 40x40x3), Maße am Anfang reichen (<b>40</b> = alle Profile ab 40), "
+            "Buchstaben vorn grenzen ein (<b>re 60</b>). Wird ohne Auswahl bestätigt, gilt der Treffer mit genau "
+            "diesen Maßen oder der einzige Treffer; sonst bleibt die Eingabe stehen und die Prüfung meldet sie.")
 
 
 def kapitel_step(i):
@@ -1529,7 +1559,7 @@ def kapitel_step(i):
             "Schneidweg zählt.",
             "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.",
             "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
-            "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt je Bildpunkt wie auf blankes Metall "
+            "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt wie auf blankes Metall "
             "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "
             "Grafikkarte, mit demselben Licht je Dreieck. "
             "Einstellen unter Vorgaben, Gruppe Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
@@ -2171,7 +2201,10 @@ def kapitel_optimieren(i):
             "V-Ausschnitte wieder heraus.",
             "<b>Teile-Editor</b> ([[teile_editor]]): Gruppe <b>Knicke</b> mit je Knick einem Eintrag (Knickwinkel, Lage, "
             "Stegwand) und dem Rahmen (Schenkel, offen/geschlossen, Herkunft STEP oder manuell). Ein Klick wählt den "
-            "V-Ausschnitt in Tabelle, Skizze und 3D; Prüfmeldungen zu einem Knick führen ebenso dorthin.")
+            "V-Ausschnitt in Tabelle, Skizze und 3D; Prüfmeldungen zu einem Knick führen ebenso dorthin.",
+            "<b>Knick verschieben</b> (Pfeile im 3D, Lage in der Tabelle) oder Knickwinkel ändern: Die Schenkel "
+            "folgen, die gestreckte Länge bleibt, der letzte Schenkel gleicht aus. Löschst du einen Knick, passt der "
+            "Rahmen nicht mehr; dann mit <b>Knickrahmen …</b> neu anlegen.")
     i.abschnitt("Knickverbindung aus Einzelrohren (STEP)", marke="knickverbindung")
     i.text("Ist der Rahmen in der STEP-Datei aus <b>einzelnen Rohren mit Gehrung</b> gezeichnet, schlägt der "
            "Prüfdialog über der Rohrliste <b>Knickrahmen möglich</b> vor. <b>Knickverbindung erstellen …</b> macht "
@@ -2228,6 +2261,71 @@ def kapitel_optimieren(i):
             "<b>Nicht erkannt</b> werden ein räumlicher Rahmen, unterschiedliche Eckwinkel oder Ecken mit Spalt; sie "
             "bleiben ein normales Teil (meist <i>nicht messbar</i>).",
             "Die 3D-Ansicht zeigt den Körper gefaltet, wie er in der Datei steht.")
+    i.abschnitt("Steckverbindung", marke="steckverbindung")
+    i.text("Bei einer <b>Steckverbindung</b> stecken zwei Rohre einer Schweißbaugruppe ineinander: Das Rohr, das mit "
+           "dem Ende anstößt (<b>Stecker</b>), bekommt am Ende <b>Nasen</b>, das andere (<b>Aufnahme</b>) an der Stelle "
+           "je Nase einen <b>Schlitz</b>. Die Teile richten sich beim Heften selbst aus. Das Programm rechnet beide "
+           "Teile: Schlitze als Konturen der Aufnahme, Nasen als längeres Ende des Steckers.", kurz=True)
+    i.bild("steckverbindung", "Aufnahme QR 40 × 40 × 2 mit zwei Schlitzen 2,2 × 20,2 mm für einen Stecker QR 40 × 40 × 2",
+           hoehe=70 * mm,
+           legende=[(1, "<b>Schlitze</b>: Konturart Rechteck, Herkunft <i>Steckverbindung</i>, je Schlitz ein "
+                        "Einstich."),
+                    (2, "Lage der Schlitze auf der Abwicklung: mittig unter den Nasen."),
+                    (3, "Schneidweg und Einstiche mit den Schlitzen.")])
+    i.genauer()
+    i.liste("<b>Maße</b> (Wand Aufnahme s<sub>A</sub>, Wand Stecker s<sub>B</sub>, Nasenbreite b<sub>N</sub>, "
+            "Spiel c je Seite): Nasenlänge l<sub>N</sub> = s<sub>A</sub> + Überstand; Schlitz (s<sub>B</sub> + 2c) × "
+            "(b<sub>N</sub> + 2c); das Ende des Steckers wird je Nase um 2 · l<sub>N</sub> länger (zwei Flanken), die "
+            "Rohlänge um l<sub>N</sub>.",
+            "<b>Beispiel</b>: QR 40 × 40 × 2 auf QR 40 × 40 × 2, Nase 20 mm, Spiel 0,1 mm: Schlitz 2,2 × 20,2 mm = "
+            "44,8 mm Schnittlänge, Aufnahme + 89,6 mm und + 2 Einstiche; Stecker-Ende 168 statt 160 mm, Teil 2 mm "
+            "länger.",
+            "<b>Nasen</b>: 2 auf gegenüberliegenden Wänden (Vorgabe: die Wände quer zur Achse der Aufnahme, die Nasen "
+            "liegen dann hintereinander längs der Aufnahme), 1 oder 4 sind auch möglich. Vorgabe der Nasenbreite: "
+            "halbe Wandbreite des Steckers, mindestens 10 mm.",
+            "<b>Rundrohr</b>: Als Stecker ist die Nase ein Bogenstück, der Schlitz wird um die Bogenhöhe breiter; als "
+            "Aufnahme ist das Ende des Steckers ein Sattel ([[schneidweg_rechner]]) mit den Nasen darauf.",
+            "<b>Schräger Stoß</b> (30° bis 90° zwischen den Achsen): Flanken der Nasen = l<sub>N</sub> / sin α, der "
+            "Schlitz wird längs der Aufnahme um s<sub>A</sub> / tan α länger, damit die schräge Nase durch die Wand "
+            "passt.",
+            "Einstellungen unter <b>Steckverbindung</b> ([[einstellungen]]): Nasen je Verbindung, Nasenbreite "
+            "mindestens, Spiel je Seite und Überstand.",
+            "<b>Prüfregeln</b> ([[pruefregeln]]): <i>Nase zu schmal</i>; für die Schlitze gilt <i>Kontur zu nah am "
+            "Rand</i>. Fehlt ein Teil der Verbindung in der Baugruppe, zeigt die Baugruppe den FEHLER "
+            "<i>Steckverbindung ohne Gegenstück</i>.",
+            "Die Verbindung steht in der Schweißbaugruppe; Schlitze und Nasen verweisen auf sie. Wird die "
+            "Verbindung entfernt, fallen Schlitze und Nasen in beiden Teilen weg.",
+            "Im <b>Teile-Editor</b> ([[schneidweg_rechner]]) stehen die Schlitze als Zeilen mit Herkunft "
+            "<i>Steckverbindung</i>, die Nasen beim Ende (blau). Ändern und Entfernen nur im Reiter "
+            "Steckverbindungen der Schweißbaugruppe.")
+    i.abschnitt("Steckverbindung anlegen", marke="steckverbindung_anlegen")
+    i.text("Angelegt wird die Steckverbindung im Editor der Schweißbaugruppe ([[schweissbaugruppe]]), Reiter "
+           "<b>Steckverbindungen</b>. Beim Speichern schreibt das Programm Schlitze und Nasen in beide Teile und "
+           "rechnet Schneidweg, Einstiche und Länge neu.", kurz=True)
+    i.bild("baugruppe_stecken", "Reiter Steckverbindungen im Editor der Schweißbaugruppe", hoehe=55 * mm, legende=[
+        (1, "<b>Aufnahme</b> (bekommt die Schlitze) und <b>Stecker</b> (bekommt die Nasen) mit dem Ende, das "
+            "anstößt."),
+        (2, "<b>Lage x</b> und <b>Seite</b>: Mitte des Steckers auf der Aufnahme, ab Ende A."),
+        (3, "Nasen, Nasenbreite, Spiel, Überstand, Wände und Winkel (Vorgaben aus den Einstellungen); Haken "
+            "Schlitze bzw. Nasen schneiden."),
+        (4, "Schlitz und Nasen, wie sie beim Speichern entstehen, oder was noch fehlt."),
+        (5, "<b>Steckverbindung hinzufügen</b>: zwischen den zwei markierten Teilen im Reiter Struktur und Teile.")])
+    i.genauer()
+    i.liste("<b>Hinzufügen</b>: Markieren Sie im Reiter <i>Struktur und Teile</i> zwei Rohre. Das zweite wird "
+            "Stecker. Ohne Markierung nimmt das Programm die ersten beiden Rohre der Baugruppe.",
+            "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
+            "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
+            "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
+            "<b>Gleiche Teile</b> (eine Position, mehrere Körper): Die Aufnahme bekommt die Schlitze nur vom ersten "
+            "Körper, jedes Ende des Steckers die Nasen nur einmal. Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
+            "schneiden</i> zeigen das; eine Verbindung ohne Haken liefert nur die Lage. Zwei Verbindungen mit Nasen am "
+            "selben Ende meldet die Spalte <i>Schlitz und Nasen</i> als Fehler.",
+            "<b>Aufnahme und Stecker tauschen</b> dreht die markierte Verbindung um (Vorgaben neu nach dem neuen "
+            "Stecker).",
+            "<b>Markierte entfernen</b>: Beim Speichern fallen Schlitze und Nasen in beiden Teilen weg, die Länge "
+            "des Steckers geht zurück.",
+            "Ohne Lage x oder mit zu kleinem Winkel lässt sich die Baugruppe nicht speichern; die Spalte "
+            "<i>Schlitz und Nasen</i> nennt, was fehlt.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
@@ -2239,7 +2337,7 @@ def kapitel_optimieren(i):
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Aus Position und Vorlagen, beim "
             "Blech Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
             "Blickrichtung; beim Rohr STEP-Modell und Skizzenart; Messen) und <i>Ausgabe</i> (Zeichnung als PDF, "
-            "STEP neu einlesen bzw. DXF speichern). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
+            "STEP neu einlesen bzw. beim Blech Zeichnung als PDF und DXF speichern). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
             "<b>Eigenschaften</b> rechts: alle Werte des gewählten Merkmals untereinander, bei Konturen mit einem "
             "<b>Maßbild</b>, das zeigt, welches Maß wohin gehört. Änderungen wirken sofort in Tabelle, Skizze und 3D. "
@@ -3076,6 +3174,17 @@ def kapitel_zukauf_angebot(i):
             "Form fehlt. Das meldet der Editor nach dem Speichern, damit die Datei vor der Weitergabe geprüft wird.",
             "Layernamen und ob Biegelinien in die Datei kommen, stehen unter Einstellungen, Gruppe "
             "Blech-Richtpreis ([[einstellungen]]).")
+    i.abschnitt("Zeichnung des Blechteils als PDF", marke="blech_zeichnung")
+    i.text("<b>Zeichnung als PDF …</b> unten im Blech-Editor (im Menüband unter <i>Ausgabe</i>) schreibt eine "
+           "maßstäbliche Zeichnung (A4 quer) in den Ordner des Angebots und öffnet sie: Abwicklung bzw. Zuschnitt "
+           "mit Außenmaßen und Biegelinien, beim Kantteil die Seitenansicht daneben, darunter die Biegungen und die "
+           "Innenkonturen mit Lage.", kurz=True)
+    i.liste("Kopf: Werkstoff, Dicke, Zuschnitt, Stückzahl, Kantungen, Schneidweg, Einstiche und Gewicht je Teil.",
+            "<b>Biegungen</b> B1, B2 … mit Lage ab Anfang der Abwicklung, Winkel, Richtung (zur Außen- bzw. "
+            "Innenseite), Innenradius und Ausgleich, wie im Editor gerechnet.",
+            "<b>Innenkonturen</b> mit Art, Anzahl, Maßen und Lage x/y (Mitte ab der linken unteren Ecke); ohne Lage "
+            "steht „verteilt“.",
+            "Für die Rohrteile gibt es die Zeichnung im Schneidweg-Rechner ([[schneidweg_rechner]]).")
 
 
 def kapitel_baugruppen(i):
@@ -3269,10 +3378,16 @@ def kapitel_baugruppen(i):
            "<i>Schweißbaugruppen: Stundensatz für Verputzen und Schleifen</i>.")
     i.text("Solange Vorschläge offen sind, zeigt der Status den HINWEIS <i>… Vorschläge der Vorkalkulation offen</i>; "
            "Doppelklick führt zur ersten gelben Zeile. Drucken geht trotzdem; die Kalkulation (PDF) schreibt bei "
-           "diesen Zeilen <i>(Vorschlag)</i> in die Spalte Herkunft. Mit der Einstellung <i>Schweißbaugruppen: "
-           "Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)</i> auf <i>ja</i> rechnet das Programm "
-           "die Vorschläge gleich für jede Schweißbaugruppe aus dem STEP-Import ([[step]]); der Bericht nennt das "
-           "Ergebnis.")
+           "diesen Zeilen <i>(Vorschlag)</i> in die Spalte Herkunft.")
+    i.text("<b>Vorkalkulation automatisch</b> (Häkchen unten im Editor, je Baugruppe): Die Baugruppe übernimmt alle "
+           "Nahtvorschläge aus dem STEP als Nahtgruppen (Kehlnaht mit a-Maß nach der Regel, gelb bis zur "
+           "Bestätigung) und schlägt Schweißen, Heften, Verputzen, Rüsten, Positionieren und Wenden bei jeder "
+           "Änderung neu vor, spätestens beim OK; Werte von Hand und bestätigte bleiben. Die Einstellung "
+           "<i>Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim STEP-Import: "
+           "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)</i> gibt das Häkchen für "
+           "Baugruppen ohne eigene Wahl vor; auf <i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
+           "STEP-Import gleich durch ([[step]]), der Bericht nennt das Ergebnis. Nimmt man das Häkchen bei einer "
+           "Baugruppe heraus, bleibt es dort aus, auch wenn die Einstellung ja ist.", kurz=True)
     i.abschnitt("Im Angebot und in den Staffeln")
     i.text("Das Angebot zeigt <b>eine Zeile je Baugruppe</b>: <i>Schweißbaugruppe</i> mit Bezeichnung, darunter "
            "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "
@@ -3306,8 +3421,8 @@ def kapitel_baugruppen(i):
            "und die Vorgabezeit je Baugruppe und gesamt.", kurz=True)
     i.text("Die <b>Kalkulation (PDF)</b> zeigt je Baugruppe einen Abschnitt mit allen Nahtgruppen und Arbeitsgängen: "
            "Stück je Baugruppe, Zeit und Kosten je Baugruppe, Einmalbetrag und Herkunft der Zeit (Kennwert, "
-           "Richtwert, von Hand, Fremdleistung oder was fehlt). Der <b>CSV-Export</b> als ZIP enthält bei Angeboten "
-           "mit Baugruppen zusätzlich <i>Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
+           "Richtwert, von Hand, Fremdleistung oder was fehlt). Der <b>CSV-Export</b> (Kopf + Positionen) schreibt bei "
+           "Angeboten mit Baugruppen zusätzlich <i>&lt;Nr&gt; Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
            "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
            "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
     i.abschnitt("Vorlagen und Kopie in ein anderes Angebot")
@@ -3333,9 +3448,11 @@ def kapitel_ausgabe(i, seiten, ablage):
         (2, "Menü <b>Ausgaben</b>: <b>Werkstattpapiere (PDF)</b> (Materialliste und Schnittpläne zum Abhaken, "
             "Stangenbild), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
             "<b>Materialanfrage (E-Mail)</b> (Stangenbedarf beim Lieferanten anfragen, [[materialanfrage]]), "
-            "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen, einzeln oder zusammen als ZIP, [[csv_export]]), "
+            "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen als einzelne Dateien in einen Ordner Ihrer Wahl, "
+            "[[csv_export]]), "
             "darunter <b>Schneidweg berechnen …</b>, <b>Schweißnaht …</b> und <b>Ordner öffnen</b>."),
-        (3, "<b>Schrittanzeige</b>: ④ Verschickt wird erledigt, sobald das Angebot verschickt ist (Vorgang, [[angebote]]).")])
+        (3, "<b>Schrittanzeige</b>: ④ Verschickt wird erst grün, wenn das Angebot verschickt ist (Vorgang, "
+            "[[angebote]]) <b>und</b> der CSV-Export gemacht wurde ([[csv_export]]).")])
     i.text("Jede Datei wird im Ordner des Angebots gespeichert ([[angebotsordner]]) und gleich geöffnet. Ist die "
            "Optimierung veraltet, fragt das Programm vorher.", kurz=True)
     i.genauer()
@@ -3391,10 +3508,19 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Die Ablage gilt je Arbeitsplatz. Sollen Kollegen die Ordner sehen, als <i>Ablageordner</i> einen "
            "Netzordner eintragen ([[einstellungen]]).")
     i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
-    i.text("<b>CSV-Export</b> → <b>Kopf + Positionen (ZIP)</b> speichert <i>Angebot_&lt;Nr&gt;.zip</i> mit "
-           "<i>Angebotskopf.csv</i> (eine Zeile) und <i>Angebotspositionen.csv</i> (eine Zeile je Position) in der "
-           "Ablage; <b>Nur Angebotskopf</b> bzw. <b>Nur Angebotspositionen</b> speichern eine Datei.", kurz=True)
+    i.text("<b>Ausgaben → CSV-Export → Kopf + Positionen …</b> fragt nach dem Ordner und speichert dort zwei "
+           "einzelne Dateien: <i>&lt;Nr&gt; Angebotskopf.csv</i> (eine Zeile) und <i>&lt;Nr&gt; "
+           "Angebotspositionen.csv</i> (eine Zeile je Position). <b>Nur Angebotskopf …</b> bzw. <b>Nur "
+           "Angebotspositionen …</b> speichern eine Datei. Erst nach dem CSV-Export wird in der Schrittanzeige "
+           "<b>④ Verschickt</b> grün.", kurz=True)
     i.genauer()
+    i.text("Die Ordnerauswahl beginnt im zuletzt gewählten Ordner (z. B. dem Importordner der Warenwirtschaft), "
+           "beim ersten Mal im Ordner des Angebots ([[angebotsordner]]); der Ordner gilt je Arbeitsplatz "
+           "(Einstellung <i>CSV-Export: zuletzt gewählter Ordner (leer = Ordner des Angebots)</i> unter Ablage). Dateien "
+           "gleichen Namens werden überschrieben. Jeder Export steht mit Datum und Dateinamen im Versandverlauf "
+           "(Mauszeiger auf den Preisstand in der Übersicht); er zählt nicht als Versand für Wiedervorlage und "
+           "Nachfassen. Ältere Angebote ohne CSV-Export zeigen ④ Verschickt so lange grau, bis Sie den Export "
+           "nachholen.")
     i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
            "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
@@ -3819,6 +3945,11 @@ def kapitel_einstellungen(i):
                         "den Spitzen des V [mm] (0 = ohne), Knickrahmen: K-Faktor der Stegwand (0,5 = Wandmitte)",
          "Vorgaben im Fenster Knickrahmen des Schneidweg-Rechners: Zugabe je Knick (Vorgabe 0), Freistich (Vorgabe "
          "ohne) und Lage der neutralen Faser für den Ausgleichswert nach DIN 6935 (Vorgabe 0,5, [[knickrahmen]])."],
+        ["Steckverbindung", "Steckverbindung: Nasen je Verbindung (1, 2 oder 4), Steckverbindung: Nasenbreite "
+                            "mindestens [mm], Steckverbindung: Spiel je Seite im Schlitz [mm], Steckverbindung: "
+                            "Überstand der Nase über die Aufnahme [mm]",
+         "Vorgaben einer neuen Steckverbindung: 2 Nasen, Nasenbreite halbe Wandbreite des Steckers und mindestens "
+         "10 mm, Spiel 0,1 mm, Überstand 0 ([[steckverbindung]])."],
         ["STEP-Import", "Experte: Flachstahl ab Länge × Breite, Experte: gekantetes Blech statt Profil, wenn Volumen "
                         "unter Anteil von Querschnitt × Länge",
          "Grenzwerte der Erkennung, nur nach Rücksprache ändern: ein flaches Teil ist erst ab dieser Länge "
@@ -4551,6 +4682,8 @@ def kapitel_stammdaten(i):
             "<b>Kontur im Knickbereich</b> (Knickrahmen): Kontur näher am V-Ausschnitt als Grenzwert × Wand (Vorgabe "
             "2,0, WARNUNG).",
             "<b>Wand zu dick zum Knicken</b> (Knickrahmen): Wandstärke über dem Grenzwert in mm (Vorgabe 4, HINWEIS).",
+            "<b>Nase zu schmal</b> (Steckverbindung): Nasenbreite unter Grenzwert × Wand des Steckers (Vorgabe 3,0, "
+            "WARNUNG, [[steckverbindung]]).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "

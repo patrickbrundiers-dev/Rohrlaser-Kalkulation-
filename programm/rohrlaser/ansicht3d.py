@@ -54,7 +54,7 @@ LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 NAEHTE, NAHT_BREITE = ("SN", "SV", "SH"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
 HINTERGRUND = QColor("#FFFFFF")         # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
 HINTERGRUND_OBEN = QColor("#DCE3EA")
-# Licht (QPainter je Dreieck, OpenGL je Bildpunkt, gleiche Formel): Hauptlicht links oben vorn, Fülllicht rechts unten;
+# Licht (QPainter je Dreieck, OpenGL je Ecke, gleiche Formel): Hauptlicht links oben vorn, Fülllicht rechts unten;
 # LICHT_WERTE = (Grundlicht, Neigung oben heller, Fülllicht, Glanz, Glanz-Exponent) – Metall-Look
 LICHT = (-0.35, 0.45, 0.82)
 LICHT2 = (0.55, -0.35, 0.76)

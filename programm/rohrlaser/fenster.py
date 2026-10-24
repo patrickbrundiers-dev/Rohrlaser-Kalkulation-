@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
-from . import NAME, VERSION, angebotsordner, ausgabe, hilfe, pdf, tastatur, teilen, update
+from . import NAME, VERSION, angebotsordner, ausgabe, hilfe, pdf, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
@@ -225,6 +225,8 @@ class Auswahl(QStyledItemDelegate):
             cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "materialherkunft",
                                               "zeugnis"))
             liste_fuellen(cb, quelle.model().k, f.auswahl)
+            if f.auswahl == "profil":           # „40x3“ findet „QR 40x40x3“ (Plan Arbeitsabläufe W5)
+                tabellen_eingabe.profil_vervollstaendigen(cb)
             return cb
         return super().createEditor(parent, option, index)
 
@@ -236,7 +238,10 @@ class Auswahl(QStyledItemDelegate):
 
     def setModelData(self, editor, modell, index):
         if isinstance(editor, QComboBox):
-            modell.setData(index, editor.currentText(), Qt.EditRole)
+            text = editor.currentText()
+            if editor.property("profil_namen") is not None:
+                text = tabellen_eingabe.profil_aufloesen(text, editor.property("profil_namen"))
+            modell.setData(index, text, Qt.EditRole)
         else:
             super().setModelData(editor, modell, index)
 
@@ -768,7 +773,8 @@ class EinstellungenSeite(QScrollArea):
             w.geaendert.connect(lambda daten, e=e: self._speichern(e, daten))
         elif e.art == "ordner":
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
-                               "ablageordner": "Ablageordner wählen"}.get(e.name, "Standardordner wählen"))
+                               "ablageordner": "Ablageordner wählen",
+                               "csv_ordner": "Ordner für den CSV-Export wählen"}.get(e.name, "Standardordner wählen"))
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
             if e.name == "ablageordner":

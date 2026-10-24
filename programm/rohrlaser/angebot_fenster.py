@@ -36,7 +36,7 @@ from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT
     kompakt_zeilen
 from .leiste import UmbruchLeiste
 from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, \
-    step_einstellungen, stil, teile_editor, vorkalk
+    step_einstellungen, stil, tabellen_eingabe, teile_editor, vorkalk
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -297,6 +297,8 @@ class AngeboteSeite(QWidget):
                ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
                                       vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else "")), None, 140),
                ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
+               ("Auftragsnr.", "auftragsnr", None, 100),
+               ("Liefertermin", lambda z: _datum(z.get("liefertermin")), None, 85),
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
@@ -315,7 +317,7 @@ class AngeboteSeite(QWidget):
         _breiten(self.ansicht, self.SPALTEN)
         self.ansicht.doubleClicked.connect(lambda i: self.oeffnen.emit(self._id(i)))
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel …")
+        self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel, Auftragsnummer …")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
         tastatur.suche_esc(self.suche)
@@ -334,7 +336,7 @@ class AngeboteSeite(QWidget):
         self.abgleich_knopf.clicked.connect(lambda: self.f.abgleichen())
         self.vorgang_knopf = QPushButton("Vorgang ▾")
         self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
-                                      "Angebots-PDF selbst), Beauftragt, Abgelehnt; Nachfassen vermerken "
+                                      "Angebots-PDF selbst), Beauftragt (mit Auftragsnummer und Liefertermin), Abgelehnt; Nachfassen vermerken "
                                       "und Wiedervorlage")
         menue = QMenu(self.vorgang_knopf)
         for v in VORGAENGE:
@@ -392,7 +394,7 @@ class AngeboteSeite(QWidget):
         self.modell.setzen(zeilen)
         self._leere_spalten()
 
-    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert")     # ohne einen Eintrag ausgeblendet (Layout-Plan L6)
+    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "Liefertermin")    # leer: ausgeblendet (L6, W8)
 
     def _leere_spalten(self):
         for c, (titel, quelle, _, _) in enumerate(self.SPALTEN):
@@ -425,8 +427,9 @@ class AngeboteSeite(QWidget):
                        "Zum Weiterarbeiten „Kopieren“ (eigene Kopie mit eigener Nummer).", fehler=True)
         return True
 
-    def vorgang_setzen(self, v, angebot_id=None):
-        """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …)."""
+    def vorgang_setzen(self, v, angebot_id=None, auftrag=None):
+        """Vorgang des gewählten Angebots setzen (Beauftragt, Abgelehnt …). Beauftragt: Fenster für Auftragsnummer
+        und Liefertermin (W8); auftrag = (Auftragsnummer, ISO-Termin) setzt beides ohne Fenster."""
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "den Vorgang setzen"):
             return False
@@ -436,9 +439,19 @@ class AngeboteSeite(QWidget):
             seite = self.f.angebot_oeffnen(i)
             if seite is None or not seite.vor_verschickt():
                 return False
+        if v == "Beauftragt" and auftrag is None and not self.f.stumm and not self.db.nur_lesen:
+            from . import auftrag as auftrag_fenster
+            auftrag = auftrag_fenster.abfragen(self, a)
+            if auftrag is None:
+                return False
         self.db.vorgang_setzen(i, v)
+        text = ""
+        if v == "Beauftragt" and auftrag is not None:
+            self.db.auftrag_setzen(i, *auftrag)
+            text = "".join((f", Auftrag {auftrag[0]}" if auftrag[0] else "",
+                            f", Liefertermin {_datum(auftrag[1])}" if auftrag[1] else ""))
         self.neu_laden()
-        self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}.")
+        self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}{text}.")
         return True
 
     def nachfassen(self, angebot_id=None, dialog=None):
@@ -1528,11 +1541,11 @@ class AngebotSeite(QWidget):
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
         menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
         menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
-        # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
+        # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
         csv = menue.addMenu("CSV-Export")
         csv.setToolTipsVisible(True)
-        for text, ziel in (("Kopf + Positionen (ZIP)", self.csv_export), ("Nur Angebotskopf", self.csv_kopf),
-                           ("Nur Angebotspositionen", self.csv_positionen)):
+        for text, ziel in (("Kopf + Positionen …", self.csv_export), ("Nur Angebotskopf …", self.csv_kopf),
+                           ("Nur Angebotspositionen …", self.csv_positionen)):
             csv.addAction(text, lambda ziel=ziel: ziel())
         menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
@@ -1551,6 +1564,10 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
+        # Eingabe springt weiter, ↓ in der letzten Zeile = neue Position, Strg+D = Wert von oben (Plan W5)
+        self.excel = tabellen_eingabe.ExcelEingabe(
+            self.pos_ansicht, lambda: self.db.einstellung("eingabe_richtung"), self.zeile_anhaengen,
+            lambda: self._gesammelt(tabellen_eingabe.von_oben))
         self.pos_ansicht.horizontalHeader().setStretchLastSection(True)
         for i, (art, x) in enumerate(self.pos_modell.spalten):
             self.pos_ansicht.setColumnWidth(i, x.breite if art in ("feld",) + EIGENE else (240 if art == "status" else 85))
@@ -2202,6 +2219,13 @@ class AngebotSeite(QWidget):
             self.check_link(d.ziel)
         return ok, d.text_begruendung()
 
+    def _schritte_setzen(self):
+        """Schrittanzeige; „Verschickt“ erst mit CSV-Export im Versandverlauf (Patrick 24.10.2026)."""
+        csv = any(isinstance(e, dict) and e.get("art") == "csv" for e in self.kopf.get("versand") or ())
+        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(),
+                                               angebot_check.offen(getattr(self, "_punkte", [])), vorgang(self.kopf),
+                                               csv))
+
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
@@ -2222,8 +2246,8 @@ class AngebotSeite(QWidget):
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
         punkte = self.freigabe_punkte(summen, zeilen, preis_abw)
         self.uebersicht_bereich.freigabe_setzen(punkte)
-        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(), angebot_check.offen(punkte),
-                                               vorgang(self.kopf)))
+        self._punkte = punkte
+        self._schritte_setzen()
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
@@ -2376,6 +2400,20 @@ class AngebotSeite(QWidget):
         self.pos_ansicht.setCurrentIndex(i)
         self.pos_ansicht.edit(i)
         return typ
+
+    def zeile_anhaengen(self):
+        """Leere Position am Ende (↓ bzw. Eingabe in der letzten Zeile, W5), ohne Dialog; nicht, solange die letzte
+        Position noch ganz leer ist (gehaltenes ↓ legt keine Reihe leerer Zeilen an). Ergebnis: True = angelegt."""
+        if self.db.nur_lesen or self.fremd():
+            return False
+        if self.positionen and not any(self.positionen[-1].get(n) for n in ("artikel", "bezeichnung", "profil_id",
+                                                                             "laenge", "stueck", "zukauf")):
+            self.f.meldung("Die letzte Position ist noch leer.")
+            return False
+        self.db.position_neu(self.id, {"pos": self._naechste_pos()})
+        self.neu_laden()
+        self.f.meldung("Neue Position angelegt.")
+        return True
 
     def _naechste_pos(self):
         vorher = [p["pos"] for p in self.positionen if isinstance(p.get("pos"), (int, float))]
@@ -2661,12 +2699,14 @@ class AngebotSeite(QWidget):
                    and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
         p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
-                            einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id))
+                            einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id),
+                            profile=self.k.profile)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
         werte = dict(d.ergebnis["position"], pos=p["pos"])
         pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], None)
+        hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt." + "".join(f" {h}" for h in hinweise))
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
@@ -2688,7 +2728,7 @@ class AngebotSeite(QWidget):
             p = self.positionen[ziel[0]]
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db(),
                             nur_lesen=bool(self.fremd() or self.db.nur_lesen), einstellungen=self._vk_einstellungen(),
-                            netze=self.db.netze(self.id))
+                            netze=self.db.netze(self.id), profile=self.k.profile)
         if fokus:
             d.fokus(fokus)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
@@ -2698,6 +2738,7 @@ class AngebotSeite(QWidget):
             if p.get(feld) != wert:
                 self.db.position_aendern(p["id"], feld, wert)
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], alt_name)
+        hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
         return True
@@ -2722,7 +2763,64 @@ class AngebotSeite(QWidget):
 
     def _vk_einstellungen(self):
         return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit", "gravur_artikel",
-                                                    "gravur_schrifthoehe")}
+                                                    "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
+                                                    "steck_anzahl", "steck_nase_min",
+                                                    "steck_spiel", "steck_ueberstand")}
+
+    def stecken_anwenden(self, stecken):
+        """Steckverbindungen aus dem Editor der Baugruppe in die Teile schreiben (stecken = dict(weg, dazu) aus
+        steckverbindung.aenderungen): Schlitze in die Aufnahme, Nasen an das Ende des Steckers, Schneidweg neu,
+        Länge des Steckers um die Nasen länger (bzw. wieder kürzer). Ergebnis: Hinweise."""
+        from . import steckverbindung as sv
+        if not stecken or not (stecken.get("weg") or stecken.get("dazu")):
+            return []
+        self.neu_laden()
+        nach_id = {q["id"]: q for q in self.positionen}
+        eing, laenge, hinweise = {}, {}, []
+
+        def eingaben(pid):
+            if pid not in eing:
+                q = nach_id[pid]
+                profil = self.k.profile.get(q.get("profil_id")) or {}
+                eing[pid] = schneidweg.aus_position(schneidweg.lesen(q.get("technik")), q, profil)[0]
+                laenge[pid] = 0.0
+            return eing[pid]
+        for v in stecken.get("weg") or ():
+            for pid in {q["id"] for q in self.positionen if v["id"] in sv.rollen(q.get("technik"))}:
+                eing[pid], weniger = sv.entfernen(eingaben(pid), v["id"])
+                laenge[pid] -= weniger
+        for v in stecken.get("dazu") or ():
+            a, s_ = (v.get("aufnahme") or {}).get("id"), (v.get("stecker") or {}).get("id")
+            if a not in nach_id or s_ not in nach_id:
+                hinweise.append(f"Steckverbindung {v['id']}: Teil fehlt, nicht übernommen")
+                continue
+            pa, ps = (self.k.profile.get(nach_id[x].get("profil_id")) or {} for x in (a, s_))
+            try:
+                eing[a], eing[s_], plus = sv.anwenden(v, eingaben(a), eingaben(s_), pa, ps)
+            except ValueError as f:
+                hinweise.append(f"Steckverbindung Pos. {nach_id[a].get('pos') or ''}/{nach_id[s_].get('pos') or ''}: {f}")
+                continue
+            laenge[s_] += plus
+        for pid, e in eing.items():
+            zeile = next((r for r, q in enumerate(self.positionen) if q["id"] == pid), None)
+            if zeile is None:
+                continue
+            if laenge[pid] and isinstance(self.positionen[zeile].get("laenge"), (int, float)):
+                self.db.position_aendern(pid, "laenge", round(self.positionen[zeile]["laenge"] + laenge[pid], 1))
+                self.neu_laden()
+                zeile = next(r for r, q in enumerate(self.positionen) if q["id"] == pid)
+            alt_stumm, self.f.stumm = self.f.stumm, True
+            try:
+                ok = self.schneidweg_berechnen(zeile, e, ueberschreiben=True)
+            finally:
+                self.f.stumm = alt_stumm
+            if not ok:
+                hinweise.append(f"Pos. {self.positionen[zeile].get('pos') or ''}: Steckverbindung, Schneidweg nicht "
+                                "gerechnet (Schneidweg-Rechner öffnen)")
+        n = len(stecken.get("dazu") or ())
+        if n:
+            hinweise.append(f"{n} Steckverbindung(en) in die Teile geschrieben (Schlitze und Nasen).")
+        return hinweise
 
     def gravur_vorgeben(self, pos, bericht):
         """Einstellung gravur_artikel = ja nach dem STEP-Import: Artikelnummer auf alle Bleche und Rohre der neuen
@@ -2749,9 +2847,10 @@ class AngebotSeite(QWidget):
         schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
         einst = self._vk_einstellungen()
         for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
-            r = vorkalk.vorkalkulieren(p, self.positionen, self.tabellen, einst)
+            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst)
             if r["bg"] is None:
                 continue
+            r["bg"]["stamm"]["vk_auto"] = True
             self.db.position_aendern(p["id"], "baugruppe", baugruppe.speichern(r["bg"]))
             bericht.append(f"Schweißbaugruppe {baugruppe.name(p)}: Vorkalkulation, {len(r['aenderungen'])} "
                            "Vorschläge" + (", " + "; ".join(r["hinweise"]) if r["hinweise"] else ""))
@@ -3610,9 +3709,14 @@ class AngebotSeite(QWidget):
                                                              material, muster, self.k.profile,
                                                              rechnen.laser_hinweise(self.positionen, self.k)))
 
-    def csv_export(self, art="zip"):
-        """CSV-Export in die Ablage: art 'zip' (Angebot_<Nr>.zip mit beiden Dateien), 'kopf' oder 'positionen'
-        ('<Nr> Angebotskopf.csv' …). Liest nur, speichert nichts im Angebot. Ergebnis: Pfad oder None."""
+    CSV_ARTEN = {"kopf": "Angebotskopf", "positionen": "Angebotspositionen", "baugruppen": "Schweissbaugruppen"}
+
+    def csv_export(self, art="alle", ordner=None):
+        """CSV-Export als einzelne Dateien ('<Nr> Angebotskopf.csv', '<Nr> Angebotspositionen.csv', mit Baugruppen
+        '<Nr> Schweissbaugruppen.csv'); art 'alle', 'kopf' oder 'positionen'. Den Ordner wählt der Bediener (Start:
+        zuletzt gewählter Ordner, sonst Ordner des Angebots); ordner setzt ihn ohne Dialog, ohne Rückfragen (stumm)
+        gilt der Ordner des Angebots. Der Export wird im Versandverlauf vermerkt (Schritt „Verschickt“ erst danach
+        grün). Ergebnis: Liste der Pfade (art 'alle') bzw. Pfad, None bei Abbruch oder Fehler."""
         def fehler(text):
             QApplication.restoreOverrideCursor()
             if self.f.stumm:
@@ -3626,15 +3730,19 @@ class AngebotSeite(QWidget):
         if not any(position_aktiv(p) for p in self.positionen):
             return fehler("Das Angebot hat keine Positionen.")
         try:
-            ablage = self.f.angebot_ordner(self.kopf)
+            angebot_ordner = self.f.angebot_ordner(self.kopf)
         except OSError as e:
             return fehler(f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
-        if art == "zip":
-            pfad = ablage / export.zip_name(self.kopf)
-        else:
-            pfad = ablage / (ausgabe.dateiname(self.kopf, "Angebotskopf" if art == "kopf" else "Angebotspositionen")
-                             + ".csv")
+        if ordner is None and not self.f.stumm:
+            zuletzt = self.db.einstellung("csv_ordner")
+            start = zuletzt if zuletzt and Path(zuletzt).is_dir() else str(angebot_ordner)
+            ordner = QFileDialog.getExistingDirectory(self, "CSV-Export: Ordner wählen", start)
+            if not ordner:
+                return None
+            self.db.einstellung_setzen("csv_ordner", ordner)
+        ziel = Path(ordner) if ordner else angebot_ordner
         QApplication.setOverrideCursor(Qt.WaitCursor)
+        geschrieben = []
         try:
             zeilen, summen = self._rechnung()
             bearbeiter = self.kopf.get("bearbeiter")
@@ -3642,26 +3750,39 @@ class AngebotSeite(QWidget):
                 self.kopf, self.positionen, self.ergebnis, zeilen, summen, self.k, self.tabellen, self.einst,
                 kunde=self.db.kunde(self.kopf.get("kundennr")),
                 ersteller=teilen.mitarbeiter(self.db, bearbeiter).get("name") if bearbeiter else None)
-            if art == "zip":
-                export.zip_schreiben(pfad, kopfzeile, pos_zeilen, export.baugruppen_zeilen(self.positionen, zeilen))
-            elif art == "kopf":
-                export.kopf_csv(pfad, kopfzeile)
-            else:
-                export.positionen_csv(pfad, pos_zeilen)
+            arten = ["kopf", "positionen"] if art == "alle" else [art]
+            bg_zeilen = export.baugruppen_zeilen(self.positionen, zeilen) if art == "alle" else None
+            if bg_zeilen:
+                arten.append("baugruppen")
+            for a in arten:
+                pfad = ziel / (ausgabe.dateiname(self.kopf, self.CSV_ARTEN[a]) + ".csv")
+                if a == "kopf":
+                    export.kopf_csv(pfad, kopfzeile)
+                elif a == "positionen":
+                    export.positionen_csv(pfad, pos_zeilen)
+                else:
+                    export.baugruppen_csv(pfad, bg_zeilen)
+                geschrieben.append(pfad)
         except PermissionError:
             return fehler(f"Die Datei konnte nicht gespeichert werden:\n{pfad}\n\n"
                           "Ist sie noch in einem anderen Programm geöffnet?")
         except (OSError, ValueError) as e:
-            return fehler(f"Der Export ist nicht gelungen:\n{pfad}\n\n{e}")
+            return fehler(f"Der Export ist nicht gelungen:\n{ziel}\n\n{e}")
         QApplication.restoreOverrideCursor()
-        self.f.meldung(f"CSV-Export gespeichert: {pfad} ({len(pos_zeilen)} Positionen)")    # Einblendung (L14)
-        return pfad
+        if not self.db.nur_lesen and not self.fremd():      # Vermerk für die Schrittanzeige (Patrick 24.10.2026)
+            self.db.versand_merken(self.id, dict(art="csv", datum=datetime.date.today().isoformat(),
+                                                 datei=", ".join(p.name for p in geschrieben), ordner=str(ziel)))
+            self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand") or []
+            self._schritte_setzen()
+        self.f.meldung(f"CSV-Export gespeichert in {ziel}: " + ", ".join(p.name for p in geschrieben)
+                       + f" ({len(pos_zeilen)} Positionen)")    # Einblendung (L14)
+        return geschrieben if art == "alle" else geschrieben[0]
 
-    def csv_kopf(self):
-        return self.csv_export("kopf")
+    def csv_kopf(self, ordner=None):
+        return self.csv_export("kopf", ordner)
 
-    def csv_positionen(self):
-        return self.csv_export("positionen")
+    def csv_positionen(self, ordner=None):
+        return self.csv_export("positionen", ordner)
 
     # -------------------------------------------------------------- Material je Abmessung
     def material_einstellen(self, dialog=None):

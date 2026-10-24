@@ -92,11 +92,15 @@ Versionen von SCHEMA_VERSION:
   Körper "knick_schenkel" = null oder Liste der geraden Rohrstücke zwischen den Ecken (an den Winkelhalbierenden
   geteilt) in Reihenfolge, je Stück gleicher Aufbau wie ein Körper (ohne "nr", mit Längsachse und Enden); "laenge" des
   Körpers = Summe der Schenkel außen, Prüfstatus immer "prüfen". Felder aus 1.16 unverändert.
+- 1.18 (24.10.2026): Je Nahtkandidat (Kehlnaht, genau ein Rohrende sitzt auf einem anderen Rohr) "stoss" = {stecker,
+  ende ("a"/"b"), aufnahme (Körper "nr"), z (Mitte des Kontakts auf der Aufnahme ab Ende A), seite ("0°", "90°", …
+  wie Anbauteile, Quadrat-/Rechteckrohr) bzw. winkel (Umfangswinkel, Rundrohr), achswinkel (Winkel der Achsen, 90 =
+  senkrecht)} für Steckverbindungen; sonst fehlt das Feld. Felder aus 1.17 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.17"
+SCHEMA_VERSION = "1.18"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

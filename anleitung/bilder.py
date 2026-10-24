@@ -557,6 +557,23 @@ def main(ziel):
     foto.foto("knickrahmen_koerper", d, [(d.start, 1), (d.vorschau, 2)])
     d.reject()
 
+    # Steckverbindung (K2-1): Aufnahme mit den Schlitzen für einen Stecker QR 40 × 40 × 2 (nur für das Foto)
+    from rohrlaser import schneidweg as sw_, steckverbindung as sv_
+    qr2 = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"
+                and pr.get("a") == 40 and pr.get("wand") == 2), dict(form="Quadratrohr", a=40, b=40, wand=2,
+                                                                       profil_id="QR 40x40x2"))
+    v_ = dict(sv_.vorgaben(qr2), id="foto", stecker=dict(ende="a"), x=400, seite="oben")
+    auf_ = sv_.anwenden(v_, sw_.lesen(None), sw_.lesen(None), qr2, qr2)[0]
+    p_s = dict(id=None, pos=920, artikel="Aufnahme", profil_id=qr2["profil_id"], laenge=800, stueck=10,
+               werkstoff_id="S235-10219", technik=sw_.speichern(dict(auf_, quelle=sw_.QUELLE)))
+    d = SchneidwegDialog(s, p_s, qr2, s.kopf, s.k, s.tabellen, db, s.positionen)
+    d.resize(1450, 980)
+    d.ansicht_wahl.setCurrentText("Abwicklung")
+    d.editor.aktualisieren()
+    QApplication.processEvents()
+    foto.foto("steckverbindung", d, [(d.tabelle, 1), (d.skizze, 2), (d.summe, 3)])
+    d.reject()
+
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog
@@ -615,6 +632,19 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("baugruppe_vorschlaege", d.vorschlag_rahmen, [(d.vorschlag_tab, 1), (knopf(d, "Markierte übernehmen"), 2),
                                                             (d.regel_haken, 3)])
+    # Steckverbindung (K2-2): Reiter Steckverbindungen mit einer Verbindung zwischen zwei Teilen
+    from rohrlaser import steckverbindung as sv_
+    rohre_ = [t["_id"] for t in d.teile if (s.k.profile.get(t["_q"].get("profil_id")) or {}).get("form") in sv_.FORMEN]
+    if len(rohre_) >= 2 and d.steck_neu(rohre_[0], rohre_[1], x=300, seite="oben"):
+        d.reiter.setCurrentIndex(3)
+        d.steck_tab.resizeRowsToContents()
+        QApplication.processEvents()
+        sp = [x.schluessel for x in d.steck_tab.spalten]
+        foto.foto("baugruppe_stecken", d, [(d.steck_tab.cellWidget(0, sp.index("_auf")), 1),
+                                           (d.steck_tab.cellWidget(0, sp.index("x")), 2),
+                                           (d.steck_tab.cellWidget(0, sp.index("anzahl")), 3),
+                                           (d.steck_tab.cellWidget(0, sp.index("_text")), 4),
+                                           (knopf(d, "Steckverbindung hinzufügen"), 5)])
     d.reject()
 
     # 7a3) Materialanfrage (nur Foto, Schließen: nichts geöffnet)

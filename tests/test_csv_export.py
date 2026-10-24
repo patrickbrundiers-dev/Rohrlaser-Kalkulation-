@@ -16,7 +16,6 @@ import os
 import sys
 import tempfile
 import time
-import zipfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
@@ -86,13 +85,15 @@ s = fenster.angebot_oeffnen(a)
 assert s.optimieren()
 
 # ------------------------------------------------------------------ C1/C2 Kopf, Spalten, Positionen
-vorher = db_stand(db_pfad)
-pfad = s.csv_export()
-assert pfad and pfad.name == "Angebot_2613000461.zip" and pfad.parent == tmp / "Ablage" / "2613000461 AP Glas GmbH", pfad   # Ordner je Angebot
-with zipfile.ZipFile(pfad) as z:
-    assert sorted(z.namelist()) == ["Angebotskopf.csv", "Angebotspositionen.csv"], z.namelist()
-    kopf = lesen(z.read("Angebotskopf.csv"))
-    pos = lesen(z.read("Angebotspositionen.csv"))
+vorher = db.positionen(a), {k: v for k, v in db.angebot(a).items() if k != "versand"}
+assert not s.schritte.fertig[3]
+dateien = s.csv_export()
+ordner_a = tmp / "Ablage" / "2613000461 AP Glas GmbH"                    # ohne Dialog: Ordner des Angebots
+assert [p.name for p in dateien] == ["2613000461 Angebotskopf.csv", "2613000461 Angebotspositionen.csv"], dateien
+assert all(p.parent == ordner_a and p.is_file() for p in dateien) and not list(ordner_a.glob("*.zip"))
+pfad = dateien[0]
+kopf = lesen(dateien[0].read_bytes())
+pos = lesen(dateien[1].read_bytes())
 assert ";".join(kopf[0]) == KOPF and len(kopf[0]) == 26 and ";".join(export.KOPF_SPALTEN) == KOPF
 assert ";".join(pos[0]) == POS and len(pos[0]) == 40 and ";".join(export.POSITION_SPALTEN) == POS
 assert len(kopf) == 2, kopf                         # genau eine Zeile je Angebot
@@ -144,7 +145,7 @@ assert abs(kz(K["Bearbeitungszeit"]) - sum(sek)) <= 1 and abs(kz(K["Gesamtzeit"]
 ok("C3 Werte aus Kunde, Kopf und Kalkulation; Stückpreis/Preis wie Angebots-PDF, Zeiten HH:MM:SS, Kopfzeiten = Summe")
 
 # ------------------------------------------------------------------ C4 Sonderzeichen und Maskierung
-roh = zipfile.ZipFile(pfad).read("Angebotskopf.csv").decode("utf-8-sig")
+roh = pfad.read_bytes().decode("utf-8-sig")
 assert '"Text mit ; und ""Zitat""\nzweite Zeile"' in roh, roh
 assert K["Kommentar"] == 'Text mit ; und "Zitat"\nzweite Zeile'
 assert "Restblech min.€" in roh and "Jürgen Weiß" in roh
@@ -158,13 +159,30 @@ assert export.zahl(12345.5, 2) == "12345.50"          # kein Tausendertrennzeich
 ok("C5 leere Felder ohne Verschiebung, Dezimalpunkt ohne Tausendertrennzeichen, Beträge mit 2 Stellen")
 
 # ------------------------------------------------------------------ C6 einzelne Dateien, Datenbank unverändert
-pk = s.csv_kopf()
-pp = s.csv_positionen()
-assert pk.name == "2613000461 Angebotskopf.csv" and pp.name == "2613000461 Angebotspositionen.csv"
+anders = tmp / "Import Warenwirtschaft"
+anders.mkdir()
+pk = s.csv_kopf(anders)
+pp = s.csv_positionen(anders)
+assert pk == anders / "2613000461 Angebotskopf.csv" and pp == anders / "2613000461 Angebotspositionen.csv"
 assert lesen(pk.read_bytes()) == kopf and lesen(pp.read_bytes()) == pos
-assert db_stand(db_pfad) == vorher, "Export hat die Datenbank verändert"
-assert not list((tmp / "Ablage").rglob(".export_*"))
-ok("C6 ZIP mit beiden Dateien, einzelne CSV gleich, Datenbank unverändert, wieder einlesbar")
+assert (db.positionen(a), {k: v for k, v in db.angebot(a).items() if k != "versand"}) == vorher, \
+    "Export hat das Angebot verändert"
+csv_eintraege = [e for e in db.angebot(a)["versand"] if e.get("art") == "csv"]
+assert len(csv_eintraege) == 3 and csv_eintraege[-1]["ordner"] == str(anders), csv_eintraege
+assert not list((tmp / "Ablage").rglob(".export_*")) and not list(anders.glob(".export_*"))
+ok("C6 einzelne Dateien statt ZIP, gewählter Ordner, Angebot unverändert (nur Vermerk im Versandverlauf)")
+
+# Schrittanzeige: „Verschickt“ erst mit Vorgang Verschickt UND CSV-Export (Patrick 24.10.2026)
+from rohrlaser import cockpit, schritte  # noqa: E402
+assert not schritte.erledigt([1], "aktuell", [], "Verschickt")[3]
+assert not schritte.erledigt([1], "aktuell", [], "Entwurf", csv=True)[3]
+assert schritte.erledigt([1], "aktuell", [], "Verschickt", csv=True)[3]
+db.vorgang_setzen(a, "Verschickt")
+s.neu_laden()
+assert s.schritte.fertig[3], s.schritte.fertig
+z = next(z for z in db.angebote() if z["id"] == a)
+assert cockpit.verlauf(z)[0] is None                  # CSV-Export zählt nicht als Versand (Wiedervorlage)
+ok("Schrittanzeige: Verschickt grün erst mit CSV-Export; CSV-Export zählt nicht als Versand")
 
 # ------------------------------------------------------------------ C7 Formate, leeres Angebot, großes Angebot
 assert export.zeit(83) == "00:01:23" and export.zeit(2697) == "00:44:57" and export.zeit(90000) == "25:00:00"
@@ -189,8 +207,7 @@ assert sg.optimieren()
 t0 = time.time()
 pg = sg.csv_export()
 dauer = time.time() - t0
-with zipfile.ZipFile(pg) as z:
-    assert len(lesen(z.read("Angebotspositionen.csv"))) == 201
+assert len(lesen(pg[1].read_bytes())) == 201
 assert dauer < 30, dauer
 ok(f"C7 Formate HH:MM:SS/TT.MM.JJJJ, Text-Zahlen, leeres Angebot abgewiesen, 200 Positionen in {dauer:.1f} s")
 

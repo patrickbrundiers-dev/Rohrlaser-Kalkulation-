@@ -652,6 +652,10 @@ class SchneidwegDialog(QDialog):
     def _step_enden(self, e):
         """Gemessene Enden merken (gelten, solange Winkel, Achse, Sattel und Richtung bleiben) und anzeigen."""
         self._ende_step = {}
+        # Nasen einer Steckverbindung (Editor der Schweißbaugruppe): gehören zum Teil, bleiben auch beim Laden einer
+        # Vorlage oder eines anderen Teils am Ende, solange es die Verbindung gibt
+        if not hasattr(self, "_nasen"):
+            self._nasen = {s: (e.get(s) or {})["nasen"] for s in ("a", "b") if (e.get(s) or {}).get("nasen")}
         for s in ("a", "b"):
             x = e.get(s) or {}
             gm = self.gemessen_text[s]
@@ -665,6 +669,10 @@ class SchneidwegDialog(QDialog):
             else:
                 self.winkel[s].setStyleSheet("")
                 gm.setText("<span style='color:#595959'>–</span>")
+            if s in self._nasen:
+                n = self._nasen[s]
+                gm.setText(gm.text() + f" <span style='color:#1F4E79'>· Steckverbindung {n.get('id', '')}: "
+                           f"{n.get('anzahl', '')} Nasen (in der Schweißbaugruppe ändern)</span>")
 
     def _step_hinweis(self):
         konturen = [self.tabelle.cellWidget(r, 0) for r in range(self.tabelle.rowCount())]
@@ -841,7 +849,7 @@ class SchneidwegDialog(QDialog):
         self._kopf_hinweise(r)
         art.quer = bool(z.get("quer"))
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
-        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil") if z.get(k_) is not None}
+        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle") if z.get(k_) is not None}
         art.extra = (art.currentText(), extra) if extra else None
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
             art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
@@ -966,6 +974,8 @@ class SchneidwegDialog(QDialog):
         for s in ("a", "b"):
             if self.ende_3d[s].isChecked():
                 enden[s]["d3"] = True
+            if s in getattr(self, "_nasen", {}):
+                enden[s]["nasen"] = self._nasen[s]
         out = dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
         if isinstance(getattr(self, "r_aussen", None), (int, float)):      # Außenradius je Teil (sonst Stammdaten/Norm)
             out["r_aussen"] = self.r_aussen
@@ -975,7 +985,11 @@ class SchneidwegDialog(QDialog):
             out["biegerohr"] = self.biegerohr
         if self.knick:
             out["knickrahmen"] = self.knick
-        return sw.v_ergaenzen(out, self.profil)
+        out = sw.v_ergaenzen(out, self.profil)
+        neu = knickrahmen.nachfuehren(out, self.profil) if self.knick else None
+        if neu:                 # Knick verschoben oder geändert: Schenkel folgen, gestreckte Länge bleibt
+            self.knick = out["knickrahmen"] = neu
+        return out
 
     # ------------------------------------------------------------------ Ergebnis
     def rechnen(self, *_):

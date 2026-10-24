@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from . import dfm, naht, normprofile, rp_profile
 from .stil import DICHTEN, THEMES
 
+EINGABE_RICHTUNGEN = ("nach unten", "nach rechts")      # Einstellung eingabe_richtung (tabellen_eingabe.py)
+
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
                 "I-/H-Träger", "T-Profil", rp_profile.FORM, "Sonderprofil")
@@ -822,7 +824,8 @@ EINSTELLUNGEN = (
                 "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
     Einstellung("schweiss_vk_satz_nacharbeit", "Schweißbaugruppen: Stundensatz für Verputzen und Schleifen",
                 "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
-    Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)",
+    Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim "
+                "STEP-Import: Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)",
                 "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     # Positionsgravur (gravur_text.py): Artikelnummer auf Bleche und Rohre gravieren, Höhe je Teil änderbar
     Einstellung("gravur_artikel", "Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
@@ -869,6 +872,14 @@ EINSTELLUNGEN = (
                 "zahl", 0.0, 0, 20),
     Einstellung("knick_k", "Knickrahmen: K-Faktor der Stegwand (0,5 = Wandmitte)", "Knickrahmen", "zahl", 0.5, 0.1,
                 1),
+    Einstellung("steck_anzahl", "Steckverbindung: Nasen je Verbindung (1, 2 oder 4)", "Steckverbindung", "ganz", 2,
+                1, 4),
+    Einstellung("steck_nase_min", "Steckverbindung: Nasenbreite mindestens [mm] (Vorgabe halbe Wandbreite)",
+                "Steckverbindung", "zahl", 10.0, 1, 100),
+    Einstellung("steck_spiel", "Steckverbindung: Spiel je Seite im Schlitz [mm]", "Steckverbindung", "zahl", 0.1, 0,
+                2),
+    Einstellung("steck_ueberstand", "Steckverbindung: Überstand der Nase über die Aufnahme [mm]", "Steckverbindung",
+                "zahl", 0.0, 0, 20),
     Einstellung("step_flach_laenge", "Experte: Flachstahl ab Länge × Breite", "STEP-Import", "zahl", 3.0, 1, 100),
     Einstellung("step_gekantet_anteil", "Experte: gekantetes Blech statt Profil, wenn Volumen unter Anteil von Querschnitt × Länge", "STEP-Import",
                 "anteil", 0.85, 0.1, 1),
@@ -917,6 +928,9 @@ EINSTELLUNGEN = (
                 "ganz", 10, 0, 365),
     # je Angebot ein Ordner darin (angebotsordner.py): '2026-00042 Kunde', Fassungen als 'Fassung 2'
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "ordner", ""),
+    # CSV-Export (Patrick 24.10.2026): zuletzt gewählter Zielordner, nur dieser Arbeitsplatz
+    Einstellung("csv_ordner", "CSV-Export: zuletzt gewählter Ordner (leer = Ordner des Angebots)", "Ablage", "ordner",
+                ""),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",
@@ -944,6 +958,9 @@ EINSTELLUNGEN = (
     Einstellung("ansicht_schrift", "Schriftgröße [%] (90 bis 150)", "Ansicht", "ganz", 100, 90, 150),
     Einstellung("ansicht_dichte", "Dichte (kompakt, normal, komfortabel)", "Ansicht", "auswahl", "normal",
                 auswahl="dichte"),
+    # Tabellen-Eingabe wie Excel (Plan Arbeitsabläufe W5, tabellen_eingabe.py): wohin Eingabe in der Positionsliste springt
+    Einstellung("eingabe_richtung", "Positionsliste: Eingabe springt (nach unten oder nach rechts)", "Ansicht",
+                "auswahl", EINGABE_RICHTUNGEN[0], auswahl="eingaberichtung"),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
     # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel zeigt den Bearbeiter (die Nummer ist
     # seit 23.10.2026 ohne Kürzel, nummern.py); über den gemeinsamen Ordner sehen alle die Angebote der anderen und
@@ -1078,7 +1095,7 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
