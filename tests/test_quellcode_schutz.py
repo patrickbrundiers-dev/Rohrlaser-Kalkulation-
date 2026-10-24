@@ -128,6 +128,8 @@ wf = (WURZEL / ".github" / "workflows" / "paket.yml").read_text(encoding="utf-8"
 assert wf.index("programm/kompilieren.py") < wf.index("pyinstaller --noconfirm --clean programm/step_messung/step_messung.spec")
 assert "cython==3.2.4" in wf and "RL_KOMPILIERT:" in wf
 assert "release_pruefen.py pruefen dist/Rohrlaser-Angebotskalkulation --kompiliert" in wf
+# der Selbsttest legt Angebote (Test-PDFs) neben die .exe; vor der Release-Prüfung muss der Ordner weg
+assert wf.index('@("Angebote", "Daten")') < wf.index("release_pruefen.py pruefen dist/")
 # Q2: Download im öffentlichen Update-Repository, nur Kundendateien, nicht im Vorabkanal
 i = wf.index('Release "download"')
 schritt = wf[i:wf.find("\n      - ", i)]
