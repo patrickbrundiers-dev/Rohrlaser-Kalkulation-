@@ -5455,6 +5455,10 @@ def kapitel_pflege(i):
             "prüft vorher den freien Speicherplatz und jede Datei über ihre Prüfsumme. Die Dateiliste ist "
             "zusätzlich digital signiert: Ab Version 0.9.87 spielt das Programm nur noch eine vom Hersteller gültig "
             "signierte Liste ein, sonst bleibt die bisherige Version unverändert.",
+            "Jede Version wird vor dem Veröffentlichen geprüft: Im Paket sind nur Programmdateien, keine Daten, "
+            "Angebote, Lizenzen, Schlüssel oder Testdateien. <b>Vorabkanal</b> für einen Test-PC: Umgebungsvariable "
+            "<i>RL_UPDATE_QUELLE</i> auf die Dateiliste im Release <i>update-test</i> setzen; dieser PC bekommt dann "
+            "die Testversionen (ebenfalls signiert), alle anderen nicht.",
             "Bricht der Austausch hart ab (Stromausfall, Absturz), stellt das Programm beim nächsten Start die "
             "bisherigen Dateien aus <i>_update</i> wieder her und meldet <i>Ein unterbrochenes Update wurde "
             "zurückgenommen</i>. Danach einfach noch einmal nach Updates suchen.",

@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.89", "<b>Sicherer Release-Ablauf</b>: Vor jeder Veröffentlichung prüft der Build, dass im Paket nur "
+               "Programmdateien liegen (keine Daten, Angebote, Lizenzen, Schlüssel, Tests oder Quelltext) und "
+               "schreibt eine Release-Zusammenfassung mit allen Prüfsummen. Neu ist ein <b>Vorabkanal</b> für "
+               "Test-PCs ([[updates]]).",
+     "Release-Prüfung und Vorabkanal für Test-PCs ([[updates]])."],
     ["0.9.88", "Fehler behoben: Die Werkstatt-PDF mit Stangenbild brach bei der Strichpunkt-Linie ab.",
      "Werkstatt-PDF mit Stangenbild wieder fehlerfrei."],
     ["0.9.87", "<b>Updates nur noch signiert</b>: Das Programm spielt nur noch Updates ein, deren Dateiliste mit dem "
