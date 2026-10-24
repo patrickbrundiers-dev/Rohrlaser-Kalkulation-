@@ -89,10 +89,8 @@ ok("Ohne STEP-Dateien und im Lesemodus: kein Angebot")
 # Ablageziele: Angebotsliste und Startseite nehmen gezogene Dateien an, Knöpfe vorhanden
 from PySide6.QtWidgets import QPushButton  # noqa: E402
 assert fenster.angebote.acceptDrops() and fenster.start.acceptDrops()
-texte = {b.text() for b in fenster.angebote.findChildren(QPushButton)} | \
-    {b.text() for b in fenster.start.findChildren(QPushButton)}
-assert "Aus STEP …" in {b.text() for b in fenster.angebote.findChildren(QPushButton)}
+assert "Neues Angebot aus STEP …" in fenster.datei_aktionen
 assert "Aus STEP …" in {b.text() for b in fenster.start.findChildren(QPushButton)}
-ok("Angebotsliste und Startseite: Ziehen und Knopf „Aus STEP …“")
+ok("Angebotsliste und Startseite: Ziehen; Knopf „Aus STEP …“ auf der Startseite, Menü Datei")
 
 print("Alle Prüfungen bestanden.")

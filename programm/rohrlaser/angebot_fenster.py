@@ -304,15 +304,14 @@ class AngeboteSeite(QWidget):
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
             k.setContext(Qt.WidgetShortcut)
         leiste = QHBoxLayout()
-        for text, ziel in (("Neues Angebot", self.neu), ("Aus STEP …", self.neu_aus_step),
-                           ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
+        for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
                            ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
             b = QPushButton(text)
             if text == "Neues Angebot":
                 b.setObjectName("primaer")
-            if text == "Aus STEP …":
-                b.setToolTip("Neues Angebot aus STEP-Dateien: Kunde wählen (Vorschlag aus dem Ordnernamen), dann "
-                             "startet der STEP-Import. STEP-Dateien oder einen Ordner auf die Liste ziehen geht auch.")
+            if text == "Neues Angebot":
+                b.setToolTip("Neues Angebot anlegen. Aus STEP-Dateien: Dateien oder einen Ordner auf die Liste "
+                             "ziehen oder Datei → Neues Angebot aus STEP …")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addWidget(self.vorgang_knopf)

@@ -780,8 +780,8 @@ def kapitel_angebote(i):
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
 
     i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
-    i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <b>Aus STEP …</b> "
-           "(auch auf der Startseite): Kunde bestätigen, das Programm legt das Angebot an und "
+    i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <i>Datei → Neues "
+           "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): Kunde bestätigen, das Programm legt das Angebot an und "
            "startet gleich den STEP-Import.", kurz=True)
     i.genauer()
     i.text("Den Kunden schlägt das Programm aus dem Ordnernamen vor: Steht der Kundenname (ab 3 Zeichen) oder die "

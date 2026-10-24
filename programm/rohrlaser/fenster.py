@@ -1283,7 +1283,9 @@ class Hauptfenster(QMainWindow):
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
-        for text, ziel, taste in (("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
+        for text, ziel, taste in (("Neues Angebot aus STEP …", lambda: self.angebote.neu_aus_step(), None),
+                                  (None, None, None),
+                                  ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
