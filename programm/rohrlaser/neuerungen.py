@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.80", "<b>Update abgesichert</b>: Das Programm prüft die Dateiliste eines Updates, bevor es sie benutzt "
+               "(nur https von der offiziellen Adresse, keine Pfade außerhalb des Programmordners, Prüfsummen, "
+               "Größengrenzen, freier Speicherplatz) und schützt vor manipulierten Paketen. Bricht ein Update hart "
+               "ab, stellt der nächste Start die bisherige Version wieder her. Die Dateiliste wird digital "
+               "signiert; die Pflicht zur Signatur folgt mit dem nächsten Update ([[updates]]).",
+     "Update geprüft und signiert, Wiederherstellung nach abgebrochenem Update ([[updates]])."],
     ["0.9.79", "<b>Kalkulation je Teil einzeln</b>: Reiter Kalkulation und Kalkulations-PDF zeigen je Teil jede "
                "Kostenart in einer eigenen Spalte statt zusammengefasst (Laser schneiden und Gewinde, Rüsten "
                "Maschine, Rüsten je Abmessung und Stangenwechsel, die drei Zuschläge, Programmierung, Pauschale je "

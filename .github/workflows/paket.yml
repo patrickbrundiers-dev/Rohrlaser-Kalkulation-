@@ -223,10 +223,14 @@ jobs:
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt
           if ($p.ExitCode -ne 0) { throw "Selbsttest Rückgabewert $($p.ExitCode)" }
-      - name: Update-Dateien erzeugen (Dateiliste Update.json mit Prüfsummen, Pakete)
+      - name: Update-Dateien erzeugen (Dateiliste Update.json mit Prüfsummen, Pakete, Signatur Update.json.sig)
+        env:
+          # privater Ed25519-Schlüssel (Base64), erzeugt im Lizenz-Werkzeug („Update-Schlüssel erzeugen …“); ohne ihn
+          # bricht der Build ab, sobald rohrlaser/update_schluessel.py einen öffentlichen Schlüssel enthält
+          UPDATE_SIGNATUR: ${{ secrets.UPDATE_SIGNATUR }}
         run: >
           python programm/update_paket.py --programm dist/Rohrlaser-Angebotskalkulation --ziel update_dateien
-          --stand ${{ github.run_number }} --commit ${{ github.sha }} --in-programm
+          --stand ${{ github.run_number }} --in-programm
           --adresse "https://github.com/${{ env.UPDATE_REPO }}/releases/download/update-dateien/"
       - name: Online-Update testen (laufendes Programm tauscht alle eigenen Dateien aus, startet danach)
         shell: pwsh
@@ -429,9 +433,14 @@ jobs:
           # bisherige Dateiliste merken: ihre Pakete bleiben einen Stand länger liegen (siehe nächster Schritt)
           gh release download update-dateien -p Update.json -O update_vorher.json --repo $repo --clobber
           if ($LASTEXITCODE -ne 0) { "{}" | Set-Content update_vorher.json; $global:LASTEXITCODE = 0 }
-          # Dateiliste erst, wenn alle ihre Pakete da sind
+          # Dateiliste erst, wenn alle ihre Pakete da sind; Signatur direkt danach (das Programm lädt bei einer nicht
+          # passenden Signatur einmal neu)
           gh release upload update-dateien update_dateien/Update.json --repo $repo --clobber
           if ($LASTEXITCODE -ne 0) { throw "Hochladen von Update.json fehlgeschlagen" }
+          if (Test-Path update_dateien/Update.json.sig) {
+            gh release upload update-dateien update_dateien/Update.json.sig --repo $repo --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Hochladen von Update.json.sig fehlgeschlagen" }
+          }
           # anonym (wie das Programm) prüfen, dass die Dateiliste ankommt
           $url = "https://github.com/$repo/releases/download/update-dateien/Update.json"
           for ($i = 1; $i -le 6; $i++) {
@@ -452,7 +461,7 @@ jobs:
           $repo = $env:UPDATE_REPO
           # Pakete des neuen und des vorigen Stands bleiben: ein Programm, das die vorige Dateiliste schon geholt hat,
           # findet seine Pakete noch (und holt sonst die neue Liste, update.neuere_liste)
-          $gebraucht = @("Update.json", "Sperrliste.json")     # Sperrliste (Lizenz) lädt Patrick von Hand hoch
+          $gebraucht = @("Update.json", "Update.json.sig", "Sperrliste.json")   # Sperrliste lädt Patrick von Hand hoch
           foreach ($liste in @("update_dateien/Update.json", "update_vorher.json")) {
             $pakete = (Get-Content -Raw -Encoding utf8 $liste | ConvertFrom-Json).pakete
             if ($pakete) { $gebraucht += @($pakete.PSObject.Properties.Name) }

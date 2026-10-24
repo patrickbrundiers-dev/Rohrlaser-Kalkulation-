@@ -13,6 +13,10 @@ Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
   pruefen DATEI [--rechner RL-…]         Inhalt und Prüfergebnis einer Lizenzdatei
   sperren L-JJJJ-NNNN …                  neue Sperrliste Sperrliste.json (Stand + 1) für den Release update-dateien
   liste                                  alle ausgestellten Lizenzen nach Ablaufdatum
+  update-schluessel-erzeugen [--id U1]   Schlüsselpaar für die Signatur der Update-Dateiliste (eigener Schlüssel,
+                                         nicht der Lizenzschlüssel): öffentlich für update_schluessel.py, privat als
+                                         Wert für das GitHub-Secret UPDATE_SIGNATUR
+  update-secret [--id U1]                Wert für UPDATE_SIGNATUR noch einmal ausgeben (aus privat_U1.pem)
   (ohne Befehl)                          Fenster mit allem oben (lizenz_werkzeug_fenster.py, Lizenz-Werkzeug.exe)
 Passwort: wird abgefragt (oder Umgebungsvariable ROHRLASER_LIZENZ_PASSWORT, z. B. für Tests).
 """
@@ -72,7 +76,7 @@ def privat_laden(ordner, sid, pw=None):
         raise SystemExit("Passwort falsch oder Schlüsseldatei beschädigt.") from None
 
 
-def schluessel_erzeugen(ordner, sid, pw=None):
+def schluessel_erzeugen(ordner, sid, pw=None, ausgabe=True):
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     ordner = Path(ordner)
@@ -85,10 +89,32 @@ def schluessel_erzeugen(ordner, sid, pw=None):
                                           serialization.BestAvailableEncryption(pw or passwort(neu=True))))
     text = lizenz.oeffentlich_text(privat)
     (ordner / f"oeffentlich_{sid}.txt").write_text(text + "\n", encoding="ascii")
+    if not ausgabe:
+        return text
     print(f"Privater Schlüssel: {pfad}\n  -> jetzt zwei Kopien sichern (USB-Stick im Tresor, Passwortmanager).\n")
     print("Öffentlicher Schlüssel für programm/rohrlaser/lizenz_schluessel.py:\n")
     print(f'    "{sid}": "{text}",')
     return text
+
+
+def update_schluessel_erzeugen(ordner, sid="U1", pw=None):
+    """Schlüsselpaar für die Signatur von Update.json (Audit H3). Der private Schlüssel kommt passwortgeschützt nach
+    privat_<sid>.pem (sichern wie den Lizenzschlüssel!). Ergebnis: (öffentlicher Schlüssel für update_schluessel.py,
+    Wert für das GitHub-Secret UPDATE_SIGNATUR). Der Secret-Wert wird nirgends gespeichert."""
+    if not re.fullmatch(r"U\d+", sid):
+        raise SystemExit("Update-Schlüssel heißen U1, U2 …")
+    schluessel_erzeugen(ordner, sid, pw, ausgabe=False)
+    return update_secret(ordner, sid, pw)
+
+
+def update_secret(ordner, sid="U1", pw=None):
+    """(öffentlicher Schlüssel, Base64 der 32 Byte des privaten Schlüssels für das Secret UPDATE_SIGNATUR)."""
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    privat = privat_laden(ordner, sid, pw)
+    roh = privat.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
+                               serialization.NoEncryption())
+    return lizenz.oeffentlich_text(privat), base64.b64encode(roh).decode("ascii")
 
 
 def register_lesen(ordner):
@@ -230,6 +256,9 @@ def main(argv=None):
     sp = sub.add_parser("sperren")
     sp.add_argument("ids", nargs="+")
     sub.add_parser("liste")
+    for name in ("update-schluessel-erzeugen", "update-secret"):
+        u = sub.add_parser(name)
+        u.add_argument("--id", default="U1")
     a = ap.parse_args(argv)
     ordner = lizenzordner(a.ordner)
     if a.befehl is None:            # ohne Befehl (Doppelklick auf Lizenz-Werkzeug.exe): Fenster
@@ -255,6 +284,14 @@ def main(argv=None):
         sperren(ordner, a.ids)
     elif a.befehl == "liste":
         liste(ordner)
+    elif a.befehl in ("update-schluessel-erzeugen", "update-secret"):
+        if a.befehl == "update-schluessel-erzeugen":
+            oeffentlich, geheim = update_schluessel_erzeugen(ordner, a.id, passwort(neu=True))
+        else:
+            oeffentlich, geheim = update_secret(ordner, a.id)
+        print(f"Öffentlicher Schlüssel für programm/rohrlaser/update_schluessel.py:\n\n    \"{a.id}\": \"{oeffentlich}\",\n")
+        print("Wert für das GitHub-Secret UPDATE_SIGNATUR (Settings → Secrets and variables → Actions), GEHEIM, nicht "
+              f"in den Chat oder eine Datei:\n\n    {geheim}\n")
     return 0
 
 
