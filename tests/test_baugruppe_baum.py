@@ -124,6 +124,19 @@ assert w["teile"][t0["id"]]["bg_knoten"] == baugruppe.zuordnung_text(d.bg["id"],
 ok("Reiter Strukturbaum und 3D: ganze Baugruppe in Einbaulage, Nahtgruppe/Teil/Unterbaugruppe hervorgehoben, "
    "Schweißnähte und Vorschläge sichtbar, Ziehen ordnet zu")
 
+# Menge von Hand höher als Körper in der STEP-Datei: Hinweis, welche Teile nicht alle im 3D stehen
+assert "Nicht alle Stück" not in d.ansicht3d.info.text()
+tt = next(t for t in d.teile if t["_id"] == t0["id"])
+je_vorher, kn_vorher = tt["je"], tt.get("knoten") or ""
+d.teil_setzen(t0["id"], True, kn_vorher, je_vorher + 3)
+d.zeige_3d()
+assert "Nicht alle Stück im 3D" in d.ansicht3d.info.text() and f"von {(je_vorher + 3) * 2} Stück" in \
+    d.ansicht3d.info.text(), d.ansicht3d.info.text()
+d.teil_setzen(t0["id"], True, kn_vorher, je_vorher)
+d.zeige_3d()
+assert "Nicht alle Stück" not in d.ansicht3d.info.text()
+ok("Hinweis, wenn ein Teil öfter vorkommt, als die STEP-Datei Körper hat")
+
 # ------------------------------------------------------------------ Naht im 3D zeichnen (N2)
 d.baum.setCurrentItem(d.baum_items[("bg", "")])
 a3 = d.ansicht3d.ansicht

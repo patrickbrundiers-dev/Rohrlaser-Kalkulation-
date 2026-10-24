@@ -3122,7 +3122,10 @@ def kapitel_baugruppen(i):
            "Baugruppe selbst ziehen: das ändert seine Zuordnung wie im Reiter Struktur und Teile, das Stück je "
            "Baugruppe bleibt, wenn die Teilung aufgeht. Je Teil zeigt die 3D-Ansicht alle gleichen Körper der "
            "STEP-Datei; bei Teilen aus einem Import vor Version 0.9.52 nur einen, Teile ohne STEP-Import fehlen "
-           "(die Zeile unter der Ansicht nennt, wie viele).")
+           "(die Zeile unter der Ansicht nennt, wie viele). Steckt ein Teil öfter in der Baugruppe, als die "
+           "STEP-Datei Körper dafür hat (Menge von Hand erhöht, Unterbaugruppe aus einer eigenen Datei mit mehreren "
+           "Sätzen), zeigt die Ansicht nur die vorhandenen Körper und nennt die Teile mit „1 von 4 Stück“; die Lage "
+           "der übrigen ist unbekannt und wird nicht erfunden.")
     i.text("Den Nahtverlauf liefert der STEP-Import ab Version 0.9.56 (die Schnittkante der sich berührenden "
            "Körper). Nähte sind immer sichtbar, auch wenn ein Teil davor liegt. Von Hand angelegte Nahtgruppen und "
            "Nahtgruppen aus einem älteren Import haben keinen Verlauf; die Zeile unter der Ansicht nennt, wie viele "
@@ -3930,7 +3933,9 @@ def kapitel_mehrere(i):
             "<b>Ordner nicht erreichbar</b> (Laptop unterwegs, Netz weg): das Angebot bekommt eine <b>vorläufige "
             "Nummer</b> (V-PB-1); der Reiter zeigt <i>(vorläufige Nummer)</i>. Die endgültige Nummer kommt beim "
             "nächsten Abgleich von selbst (Meldung in der Statuszeile). Angebots-PDF und Materialanfrage gehen erst "
-            "mit endgültiger Nummer: das Programm versucht sie dann sofort zu holen.",
+            "mit endgültiger Nummer: das Programm versucht sie dann sofort zu holen. Neue Fassungen eines solchen "
+            "Angebots (V-PB-1-2, [[neue_fassung]]) bekommen dieselbe endgültige Nummer mit ihrem Zusatz "
+            "(2026-00042-2); <i>Ersetzt durch …</i> stimmt danach weiter.",
             "Ohne gemeinsamen Ordner (nur ein Arbeitsplatz) zählt das Programm im gleichen Format auf diesem Rechner. "
             "Den Startwert setzt die Einstellung <i>Letzte Angebotsnummer</i> (z. B. 2026-00500: das nächste Angebot "
             "bekommt 2026-00501).",
