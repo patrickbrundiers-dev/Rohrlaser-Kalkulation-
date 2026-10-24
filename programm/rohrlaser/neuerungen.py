@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.93", "<b>3D-Editor: Gegenrohr, Lochfeld, Fase, Schrift</b>: Ein Rohrende lässt sich auf ein "
+               "<b>Gegenrohr</b> setzen – rund oder rechteckig, schräg, mit Versatz, auf Rund-, Quadrat- und "
+               "Rechteckrohr; das Programm rechnet die echte Schnittkurve, im 3D steht das Gegenrohr pink. Neu als "
+               "Konturen: <b>Durchbruch</b> (Loch für ein Rohr, das durch die Wand geht, auch schräg und beidseitig) und "
+               "<b>Lochfeld</b> (Raster aus Bohrungen oder Langlöchern in einer Zeile, Reihen quer, versetzt). Rechteck "
+               "und Ausklinkung bekommen gefaste Ecken (Rechtsklick → Ecken). Text-Gravuren erscheinen im 3D als echte "
+               "Schrift. Die Ausklinkung auf Rundrohr ist jetzt richtig herum gezeichnet "
+               "([[schneidweg_rechner]], [[teile_editor]]).",
+     "3D-Editor: Gegenrohr (schräg, Versatz, eckig), Durchbruch, Lochfeld, Fase, Schrift im 3D."],
     ["0.9.92", "<b>Lizenz-Werkzeug des Herstellers</b>: zeigt je Lizenz den Status (läuft ab, abgelaufen, gesperrt), "
                "erinnert 30 Tage vor Ablauf, verlängert eine Lizenz mit einem Klick, hat eine Kundenübersicht und lädt "
                "die Sperrliste direkt zum Update-Server hoch. Am Programm selbst ändert sich nichts.",

@@ -43,6 +43,8 @@ def _bild(skizze, modus, hoehe_max_mm):
 
 def ende_text(e, profil):
     """Ausführung eines Endes: gerade, Gehrung 45° über Höhe, länger rechts (90°), Ausklinkung auf Rundrohr Ø …"""
+    if isinstance(e.get("gegen"), dict) and sw._z(e["gegen"].get("d")):
+        return f"auf Gegenrohr {sw.gegen_text(e['gegen'])}"
     if sw._z(e.get("sattel")):
         return f"Ausklinkung auf Rundrohr Ø {rechnen.zahl(e['sattel'], 1)}"
     w = sw._z(e.get("winkel"))

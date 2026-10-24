@@ -22,7 +22,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QAction, QActionGroup, QBrush, QColor, QFont, QPen, QPolygonF
 from PySide6.QtWidgets import QMenu
 
-from . import rechnen, skizze as sk, schneidweg as sw
+from . import durchdringung as dd, rechnen, skizze as sk, schneidweg as sw
 from .ansicht3d import DARSTELLUNGEN
 from .rechenfeld import RechenFeld
 
@@ -145,7 +145,7 @@ def ebene_griff(qs, e):
     gegenüber der längsten Seite, dort liegt die Schnittkante 2·ext·tan(w) hinter der Spitze. None: Sattel bzw.
     Schrägschnitt zweiachsig (Ebene ohne Griff)."""
     e = e or {}
-    if sw._z(e.get("sattel")) or e.get("achse") == sw.ACHSE_ZWEI:
+    if dd.gegen_lesen(e) or e.get("achse") == sw.ACHSE_ZWEI:
         return None
     th = math.radians(sk._richtung(qs, e))
     ext = qs.ausdehnung(math.degrees(th))
@@ -159,7 +159,7 @@ def ebene_ecken(qs, e, L, seite, rand=8.0):
     u0, u1, v0, v1 = min(us) - rand, max(us) + rand, min(vs) - rand, max(vs) + rand
     out = []
     for u, v in ((u0, v0), (u1, v0), (u1, v1), (u0, v1)):
-        z = sk.schnitt_x(qs, e, u, v) if not sw._z((e or {}).get("sattel")) else 0.0
+        z = sk.schnitt_x(qs, e, u, v) if not dd.gegen_lesen(e) else 0.0
         out.append((z if seite == "a" else L - z, u, v))
     return out
 
@@ -285,7 +285,7 @@ class Werkzeug:
         qs = self.d.qs
         for s in ("a", "b"):
             ee = e.get(s) or {}
-            if sw._z(ee.get("sattel")):
+            if dd.gegen_lesen(ee):
                 continue
             ecken = [self._punkt(bild, *c) for c in ebene_ecken(qs, ee, L, s)]
             gewaehlt = self.ende() == s
@@ -616,12 +616,20 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
             eintrag("Spiegeln zur Teilmitte", lambda: rahmen.spiegeln(r))
             eintrag("Auf die Gegenseite", lambda: rahmen.gegenseite(r))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
+        if rohr and d.tabelle.cellWidget(r, 0).currentText() in sw.MIT_FASE:      # G6: Ecken runden/fasen
+            em = m.addMenu("Ecken")
+            em.addAction("Runden …", lambda: rahmen.ecken_fragen(r, "runden"))
+            em.addAction("Fasen …", lambda: rahmen.ecken_fragen(r, "fasen"))
+            em.addAction("Scharf", lambda: rahmen.ecken(r, "scharf"))
         eintrag("Entfernen", lambda: rahmen.entfernen(r), taste="Entf")
         eintrag("Als Kontur-Vorlage speichern …", lambda: rahmen._vorlage_speichern_fragen(),
                 getattr(d, "db", None) is not None)
     elif art == "ende" and rohr:
         eintrag("Gerade schneiden (0°)", lambda: d.winkel[nr].setValue(0))
         eintrag("Gehrung 45°", lambda: d.winkel[nr].setValue(45))
+        eintrag("Gegenrohr …", lambda: d.gegenrohr(nr), d.gegen_knopf[nr].isEnabled())
+        if d.gegen.get(nr):
+            eintrag("Gegenrohr entfernen", lambda: d.gegenrohr(nr, None))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
     if punkt is not None and rahmen.ansicht() is not None:
         m.addSeparator()

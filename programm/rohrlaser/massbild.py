@@ -119,6 +119,27 @@ def zeichnen(p, art, breite=BREITE, hoehe=HOEHE):
         for x, y in punkte:
             p.drawEllipse(QPointF(x, y), 2.5, 2.5)
         p.drawText(QRectF(-60, 20, 40, 14), Qt.AlignCenter, "x,y")
+    elif art == sw.LOCHFELD:            # 4 × 2 Löcher, zweite Reihe versetzt
+        for i in range(4):
+            for j, dx in ((0, 0), (1, 12)):
+                pfad = QPainterPath()
+                pfad.addEllipse(QPointF(-42 + i * 24 + dx, -10 + j * 22), 6, 6)
+                kontur_zeichnen(pfad)
+        _pfeil(p, (-42, -24), (-18, -24), "Abstand")
+        _pfeil(p, (62, -10), (62, 12), "Teilung q")
+        p.drawText(QRectF(-60, 22, 70, 14), Qt.AlignLeft, "Ø d · Reihen")
+    elif art == sw.DURCHBRUCH:          # Loch in der Wand, Gegenrohr (gestrichelt) schräg hindurch
+        pfad = QPainterPath()
+        pfad.addEllipse(QPointF(0, 0), 26, 16)
+        kontur_zeichnen(pfad)
+        gegen = QPainterPath(QPointF(-34, -hoehe / 2 + 10))
+        gegen.lineTo(-10, hoehe / 2 - 10)
+        gegen.moveTo(18, -hoehe / 2 + 10)
+        gegen.lineTo(42, hoehe / 2 - 10)
+        kontur_zeichnen(gegen, True)
+        _pfeil(p, (-26, 24), (26, 24), "t längs", -1)
+        _pfeil(p, (34, -16), (34, 16), "d")
+        p.drawText(QRectF(-70, -hoehe / 2 + 8, 40, 14), Qt.AlignLeft, "Winkel")
     elif art == sw.V_AUSSCHNITT:
         pfad = QPainterPath()
         pfad.moveTo(-30, -hoehe / 2 + 14)
