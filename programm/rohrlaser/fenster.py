@@ -1102,11 +1102,10 @@ class StartSeite(QWidget):
             ereignis.acceptProposedAction()
 
     def dropEvent(self, ereignis):
-        from .angebot_fenster import step_neu_pfade
+        from .angebot_fenster import step_drop, step_neu_pfade
         pfade = step_neu_pfade(ereignis)
         if pfade:
-            ereignis.acceptProposedAction()
-            self.f.angebote.neu_aus_step(pfade)
+            step_drop(self.f, ereignis, self, lambda: self.f.angebote.neu_aus_step(pfade))
 
     def neu_laden(self):
         db = self.f.db
@@ -1207,6 +1206,7 @@ class Hauptfenster(QMainWindow):
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
+        self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
         try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.28 entfernt)
             db.zeichnungen_entfernen(self.ablage())
