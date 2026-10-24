@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.63", "<b>Teile-Editor: Gruppe Knicke</b>: Bei einem Knickrahmen zeigt der Merkmalsbaum des Schneidweg-Rechners "
+               "die Knicke (Knickwinkel, Lage, Stegwand) und den Rahmen mit seiner Herkunft (STEP oder manuell). Ein "
+               "Klick zeigt den V-Ausschnitt in Tabelle, Skizze und 3D ([[knickrahmen]]).",
+     "Teile-Editor: Gruppe Knicke für Knickrahmen ([[knickrahmen]])."],
     ["0.9.62", "<b>Außenradius bei Quadrat- und Rechteckrohr</b>: neues Feld in den Profilen (leer = Vorgabe nach "
                "EN 10219: 2 × Wand bis 6 mm, 2,5 × bis 10 mm, darüber 3 ×; 0 = scharfkantig). Er kürzt die "
                "Schnittlänge der Enden (QR 40 × 40 × 3 gerade 149,7 statt 160 mm, schräg mit elliptischen Ecken) und "
