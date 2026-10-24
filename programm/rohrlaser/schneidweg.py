@@ -672,13 +672,28 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             continue
         masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
+        kopien = len(e.get("kopien") or ())
+        if kopien:                      # Kopien am Umfang (beide Wände, alle Seiten …): je Lage 1 + kopien Stück
+            n *= 1 + kopien
+            masse += {"beide": ", beide Wände", "alle": ", alle vier Seiten"}.get(e.get("wand"),
+                                                                                  f", {1 + kopien}× am Umfang")
+        if _z(e.get("drehung")) and e.get("art") not in (BOHRUNG, SENKUNG, FLOWDRILL, GRAVUR):
+            masse += f", gedreht {zahl(_z(e.get('drehung')), 1)}°"
+        parallel = e.get("schnitt") == "parallel" and form == "Rundrohr" and e.get("art") not in GRAVUREN \
+            and e.get("art") != FLOWDRILL
+        if parallel and not mit_3d:
+            hinweise_3d.append(f"{e.get('art')}: Schnitt parallel zur Konturachse braucht die 3D-Schnittbearbeitung "
+                               "(Häkchen am Teil); gerechnet senkrecht zur Oberfläche.")
+            parallel = False
+        elif parallel:
+            masse += ", Schnitt parallel (3D)"
         if e.get("art") == V_AUSSCHNITT:
             masse = (f"β {zahl(_z(e.get('beta')), 1)}°, Steg {e.get('seite') or 'oben'}"
                      + (f", Freistich Ø {zahl(_z(e.get('freistich')), 1)}" if _z(e.get("freistich")) else "")
                      + (f" bei x = {zahl(_z(e.get('x')), 1)}" if e.get("x") is not None else "")
                      + (f", Innenwand schräg 3D (Kopf {zahl(_z(e.get('beta')) / 2, 1)}°)" if e.get("d3") else ""))
         if form == "Rundrohr" and e.get("art") in (BOHRUNG, SENKUNG) and not _z(e.get("gemessen")) \
-                and not (mit_3d and e.get("d3")):
+                and not (mit_3d and e.get("d3")) and not parallel:
             # 2D: Strahl zur Rohrmitte, außen breiter als die Konstruktion (Messung macht das schon selbst)
             lg = dreid.bohrung_2d_rundrohr(_z(e.get("d")), profil.get("a"), profil.get("wand")) or lg
         if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:

@@ -17,6 +17,7 @@ from . import normprofile, optimierung as opt, rp_profile
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ,
                          SENKUNG, SONDERKONTUR, TEXT_GRAVUR, _z, kontur, punkte)
 
+DREH_OHNE = (BOHRUNG, SENKUNG, FLOWDRILL, GRAVUR)     # rund bzw. Kreuz: Drehwinkel ohne Wirkung
 RUND_SEITEN = {"oben (0°)": 0.0, "vorne (90°)": 90.0, "unten (180°)": 180.0, "hinten (270°)": 270.0}
 KASTEN = ("Quadratrohr", "Rechteckrohr", "Flachstahl")
 # Quadrat- und Rechteckrohr: Seite nur 0°/90°/180°/270° (Patrick 22.10.2026), Anzeige mit Winkel, gespeichert der
@@ -483,6 +484,12 @@ def umriss_kontur(e, n=36):
         pts = [(r * math.cos(2 * math.pi * i / n), r * math.sin(2 * math.pi * i / n)) for i in range(n)]
     if e.get("quer"):
         pts = [(-q, x) for x, q in pts]
+    w = _z(e.get("drehung"))
+    if w and art not in DREH_OHNE:      # Drehwinkel der Kontur auf der Fläche (+ = gegen den Uhrzeiger von außen)
+        c, s_ = math.cos(math.radians(w)), math.sin(math.radians(w))
+        pts = [(x * c - q * s_, x * s_ + q * c) for x, q in pts]
+    if e.get("spiegeln"):               # Gegenwand einer durchgehenden Kontur: quer gespiegelt
+        pts = [(x, -q) for x, q in pts]
     return pts
 
 
@@ -518,10 +525,11 @@ def laenge_x(e):
     return (max(x for x, _ in pts) - min(x for x, _ in pts)) if pts else 0.0
 
 
-def lagen(konturen, L):
+def lagen(konturen, L, qs=None):
     """Jede Kontur einzeln mit Lage: [dict(zeile, nr, art, x, eingabe)]. x aus der Eingabe (Mitte der ersten),
     Muster mit Abstand längs (x + i × Abstand); ohne Lage gleichmäßig über die Länge verteilt (wie bisher), Schlitze
-    und Ausklinkungen ohne Lage am Ende A."""
+    und Ausklinkungen ohne Lage am Ende A. Kopien am Umfang (beide Wände, alle Seiten, am Umfang verteilt: Eingabe
+    'kopien' aus umlauf, mit qs neu für diesen Querschnitt) folgen mit eigener Seite und kopie=True (nr ab Anzahl)."""
     liste = []
     for z, e in enumerate(konturen or ()):
         try:
@@ -531,9 +539,15 @@ def lagen(konturen, L):
         x0, ab = e.get("x"), _z(e.get("abstand"))
         if x0 is None and e.get("art") in (SCHLITZ, AUSKLINKUNG):
             x0 = laenge_x(e) / 2
-        for i in range(n):
-            x = None if x0 is None else (x0 + i * ab if ab else x0)
-            liste.append(dict(zeile=z, nr=i, art=e.get("art"), x=x, huelle=hk, eingabe=e))
+        kopien = umlauf(qs, e) if qs is not None and e.get("wand") else e.get("kopien") or ()
+        for j, k in enumerate([None] + list(kopien)):
+            ein = e if k is None else dict(e, kopien=None, **k)
+            for i in range(n):
+                x = None if x0 is None else (x0 + i * ab if ab else x0)
+                d = dict(zeile=z, nr=j * n + i, art=e.get("art"), x=x, huelle=hk, eingabe=ein)
+                if k is not None:
+                    d["kopie"] = True
+                liste.append(d)
     frei = [d for d in liste if d["x"] is None]
     for j, d in enumerate(frei):
         d["x"] = L * (j + 1) / (len(frei) + 1)
@@ -580,6 +594,49 @@ def normalen(qs, d):
         return [qs.s_zu_uv(s_lage(qs, e, dq) % qs.umfang)[1] for _, dq in pts]
     n = platzieren(qs, d)[1]
     return [n] * len(pts)
+
+
+WAENDE = {"": "nur diese Wand", "beide": "beide Wände (durchgehend)", "alle": "alle vier Seiten",
+          "umfang": "am Umfang verteilt"}
+
+
+def waende_arten(qs):
+    """Auswahl „Wände“ einer Kontur für den Querschnitt: Schlüssel aus WAENDE (leer = nur diese Wand)."""
+    if qs.r:
+        return ["", "beide", "umfang"]
+    namen = [f.name for f in qs.flaechen]
+    if len(namen) == 4:
+        return ["", "beide", "alle"]
+    return ["", "beide"] if {"Flansch oben", "Flansch unten"} <= set(namen) else [""]
+
+
+GEGENWAND = {"oben": "unten", "unten": "oben", "vorne": "hinten", "hinten": "vorne", "Flansch oben": "Flansch unten",
+             "Flansch unten": "Flansch oben"}
+
+
+def umlauf(qs, e):
+    """Kopien einer Kontur am Umfang nach e['wand'] (Plan 3D-Editor 3E-4, AlmaCAM „eine/beide Wände“): 'beide' =
+    durchgehend auf der gegenüberliegenden Wand (quer gespiegelt, Versatz −q), 'alle' = auf allen vier Seiten
+    (gleiche Lage je Seite), 'umfang' = Rundrohr e['umfang_n'] Stück gleichmäßig am Umfang. Ergebnis
+    [dict(seite, q, spiegeln)] ohne die Kontur selbst; [] wenn nichts passt."""
+    art = e.get("wand")
+    if art not in waende_arten(qs) or not art:
+        return []
+    if qs.r:
+        w0 = winkel_aus_text(e.get("seite")) or 0.0
+        n = 2 if art == "beide" else int(_z(e.get("umfang_n")))
+        if n < 2:
+            return []
+        return [dict(seite=round((w0 + k * 360 / n) % 360, 3) or None, q=None, spiegeln=art == "beide" or None)
+                for k in range(1, n)]
+    namen = [f.name for f in qs.flaechen]
+    seite = e.get("seite") if e.get("seite") in namen else namen[0]
+    q = _z(e.get("q"))
+    if art == "beide":
+        neu = GEGENWAND.get(seite)
+        return [dict(seite=neu, q=-q or None, spiegeln=True)] if neu in namen else []
+    i = namen.index(seite)
+    return [dict(seite=namen[(i + k) % 4], q=q or None, spiegeln=None) for k in range(1, 4)]
 
 
 def s_lage(qs, e, dq=0.0):

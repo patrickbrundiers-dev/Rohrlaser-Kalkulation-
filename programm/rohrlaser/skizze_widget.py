@@ -60,7 +60,7 @@ class Skizze(QWidget):
             self.update()
 
     def lagen(self):
-        return sk.lagen(self.eingaben.get("konturen"), self.L)
+        return sk.lagen(self.eingaben.get("konturen"), self.L, self.qs)
 
     def formen(self):
         """[(x Mitte ab Anfang, Hüllmaß, Art)] je Kontur (Anzahl einzeln), x aus der Eingabe, als Muster oder

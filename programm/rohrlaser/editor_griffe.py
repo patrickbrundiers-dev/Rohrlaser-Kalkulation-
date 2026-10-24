@@ -216,7 +216,7 @@ class Werkzeug:
 
     def lagen(self, r=None):
         e = self.d.eingaben()
-        alle = sk.lagen(e.get("konturen") or [], self.laenge())
+        alle = sk.lagen(e.get("konturen") or [], self.laenge(), getattr(self.d, "qs", None))
         return [x for x in alle if x["zeile"] == r] if r is not None else alle
 
     def kontur_geometrie(self, r):

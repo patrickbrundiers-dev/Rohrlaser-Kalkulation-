@@ -2358,6 +2358,17 @@ def kapitel_optimieren(i):
             "Außendurchmesser, S = Wanddicke; beim Blech L und B = Zuschnitt, S = Dicke. <i>Abstand Muster</i> "
             "versteht <i>3x25</i> als 3 Stück im Abstand 25 mm. Eine falsche Eingabe wird rot umrandet, der Wert "
             "bleibt dann unverändert. Komma und Punkt gehen beide.",
+            "<b>Eigenschaften je Kontur</b> (Rohr, wie in AlmaCAM): <b>Bezug der Lage</b> – Mitte oder Kante der "
+            "Kontur, gemessen ab Ende A oder Ende B (in der Tabelle steht weiter die Mitte ab Ende A; mit Bezug ab "
+            "Ende B bleibt der Abstand zu Ende B, wenn sich die Teilelänge ändert). <b>Drehwinkel</b> – dreht "
+            "Langloch, Rechteck, Polygon oder Sonderkontur auf der Fläche um ihre Mitte (+ = gegen den Uhrzeiger, von "
+            "außen gesehen). <b>Wände</b> – <i>beide Wände (durchgehend)</i> setzt dieselbe Kontur genau gegenüber "
+            "(z. B. Durchgangsbohrung), <i>alle vier Seiten</i> beim Quadrat- und Rechteckrohr, <i>am Umfang "
+            "verteilt</i> beim Rundrohr mit <i>Anzahl am Umfang</i> (4 = alle 90°); jede Kopie zählt im Schneidweg "
+            "und bei den Einstichen und ist in Skizze und 3D zu sehen. <b>Schnittrichtung</b> (Rundrohr): "
+            "<i>senkrecht zur Oberfläche</i> (Strahl zur Rohrmitte, Standard) oder <i>parallel zur Konturachse</i> "
+            "wie gebohrt – das braucht die 3D-Schnittbearbeitung am Teil, die Schnittlänge ist dann die der Kontur "
+            "(Bohrung π × d).",
             "<b>Außenradius</b> (Quadrat- und Rechteckrohr, Eigenschaften des Teils): leer = Wert der Stammdaten, bei "
             "<b>Aluminium</b> 0, sonst Vorgabe nach Norm (als grauer Text angezeigt); 0 = scharfkantig. Er gilt im ganzen <b>Angebot</b> für "
             "alle Positionen mit gleichem Profil und Werkstoff: Beim Übernehmen rechnet das Programm die übrigen "
