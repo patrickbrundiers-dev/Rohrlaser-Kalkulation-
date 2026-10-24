@@ -16,7 +16,7 @@ import re
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QBrush
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
                                QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
@@ -381,6 +381,19 @@ class BaugruppeDialog(QDialog):
         bestaetigen = QPushButton("Vorschläge bestätigen")
         bestaetigen.setToolTip("Alle gelben Vorschläge als geprüft übernehmen (eine neue Vorkalkulation lässt sie stehen)")
         bestaetigen.clicked.connect(lambda: self.vorschlaege_bestaetigen())
+        self.vk_auto = QCheckBox("Vorkalkulation automatisch")
+        self.vk_auto.setToolTip("Nahtvorschläge aus dem STEP übernehmen (a-Maß nach Regel), Schweißen, Heften, Verputzen, "
+                                "Rüsten, Positionieren und Wenden bei jeder Änderung neu vorschlagen; Werte von Hand und "
+                                "bestätigte bleiben. Vorgabe: Einstellung Vorkalkulation automatisch")
+        self.vk_auto.setChecked(baugruppe.vk_auto(self.bg, self.einstellungen.get("schweiss_vk_step") == "ja"))
+        self.vk_auto.setEnabled(not nur_lesen)
+        self._vk_laeuft = False
+        self._vk_timer = QTimer(self)
+        self._vk_timer.setSingleShot(True)
+        self._vk_timer.setInterval(800)
+        self._vk_timer.timeout.connect(self._vk_nach_eingabe)
+        self.vk_auto.toggled.connect(lambda an: self.vorkalkulation() if an else self.aktualisieren())
+        unten.addWidget(self.vk_auto)
         for b in (rechnen_k, bestaetigen):
             b.setEnabled(not nur_lesen)
             unten.addWidget(b)
@@ -397,6 +410,8 @@ class BaugruppeDialog(QDialog):
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
         self.aktualisieren()
+        if self.vk_auto.isChecked() and not nur_lesen:
+            self.vorkalkulation()
 
     # -------------------------------------------------------------- Struktur und Teile
     def _teile_aufbauen(self, vorwahl):
@@ -923,6 +938,8 @@ class BaugruppeDialog(QDialog):
         for n, f in getattr(self, "stamm_wahl", {}).items():
             if f.isChecked():
                 bg["stamm"][n] = True
+        if hasattr(self, "vk_auto"):
+            bg["stamm"]["vk_auto"] = self.vk_auto.isChecked()
         return bg
 
     def _position(self, bg=None):
@@ -985,6 +1002,9 @@ class BaugruppeDialog(QDialog):
         return ""
 
     def aktualisieren(self, *_):
+        if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
+                and not self.nur_lesen:
+            self._vk_timer.start()      # Vorkalkulation automatisch: nach der Eingabe neu vorschlagen
         bg = self.daten()
         p = self._position(bg)
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze)
@@ -1078,9 +1098,33 @@ class BaugruppeDialog(QDialog):
 
     def vorkalkulation(self):
         """Vorschläge rechnen (Knopf 'Vorkalkulation rechnen'): Heftpunkte und Nacharbeit der Nahtgruppen, Arbeitsgänge
-        Rüsten, Positionieren, Wenden, Verputzen; Werte von Hand und bestätigte bleiben. Ergebnis: vorkalk-Ergebnis."""
+        Rüsten, Positionieren, Wenden, Verputzen; Werte von Hand und bestätigte bleiben. Mit 'Vorkalkulation
+        automatisch' vorher alle Nahtvorschläge aus dem STEP als Nahtgruppen (a-Maß nach Regel). Ergebnis:
+        vorkalk-Ergebnis."""
         if self.nur_lesen:
             return None
+        self._vk_timer.stop()
+        self._vk_laeuft = True
+        try:
+            return self._vorkalkulation()
+        finally:
+            self._vk_laeuft = False
+
+    def _vk_nach_eingabe(self):
+        """Vorkalkulation automatisch nach einer Eingabe; solange in Nahtgruppen oder Arbeitsgängen getippt wird,
+        warten (die Tabellen werden dabei neu aufgebaut)."""
+        f = QApplication.focusWidget()
+        if f is not None and any(t.isAncestorOf(f) for t in (self.naht_tab, self.ag_tab)):
+            self._vk_timer.start()
+            return
+        self.vorkalkulation()
+
+    def _vorkalkulation(self):
+        n_neu = 0
+        if self.vk_auto.isChecked() and self.bg.get("vorschlaege"):
+            verfahren = next((v for _, v in self._verfahren_optionen() if v), None)
+            n_neu = baugruppe.vorschlaege_anlegen(self.bg, self._regel_faktor(), verfahren)
+            self._vorschlaege_zeigen()
         p = self._position()
         r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen)
         neu = {n.get("id"): n for n in r["bg"]["naehte"]}
@@ -1099,6 +1143,7 @@ class BaugruppeDialog(QDialog):
         self.ag_tab.aufbauen()
         self.aktualisieren()
         teile = [f"Vorkalkulation: {len(r['aenderungen'])} Änderung(en)"
+                 + (f", {n_neu} Nahtgruppe(n) aus den STEP-Vorschlägen" if n_neu else "")
                  + (", Werte noch Richtwerte" if r["richtwert"] else "")]
         teile += r["hinweise"]
         self.vk_info.setText(" · ".join(teile))
@@ -1553,6 +1598,8 @@ class BaugruppeDialog(QDialog):
         if f:
             self.fehler.setText(f)
             return
+        if self.vk_auto.isChecked():
+            self.vorkalkulation()
         self.ergebnis = self.werte()
         self.accept()
 

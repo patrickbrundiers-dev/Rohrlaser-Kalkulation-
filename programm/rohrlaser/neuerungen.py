@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.72", "<b>Vorkalkulation automatisch</b> je Schweißbaugruppe: Häkchen im Editor, vorbelegt aus der "
+               "Einstellung. Bei ja übernimmt die Baugruppe alle Nahtvorschläge aus dem STEP (a-Maß nach Regel) und "
+               "schlägt Schweißen, Heften, Verputzen, Rüsten, Positionieren und Wenden bei jeder Änderung neu vor; "
+               "Werte von Hand und bestätigte bleiben ([[vorkalkulation_baugruppe]]).",
+     "Vorkalkulation automatisch je Schweißbaugruppe, Vorgabe aus der Einstellung ([[vorkalkulation_baugruppe]])."],
     ["0.9.70", "<b>Teile-Editor: echte Ausschnitte im 3D</b>: Bei Rund-, Quadrat- und Rechteckrohr sind Bohrungen, "
                "Langlöcher, Rechtecke, Ausklinkungen, Schlitze, Polygone, V-Ausschnitte und Sonderkonturen ausgeschnitten, "
                "mit roter Lochwand durch die Wandstärke; Ausschnitte am Ende fehlen auch in der Stirnfläche. Gravur und "

@@ -822,7 +822,8 @@ EINSTELLUNGEN = (
                 "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
     Einstellung("schweiss_vk_satz_nacharbeit", "Schweißbaugruppen: Stundensatz für Verputzen und Schleifen",
                 "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
-    Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)",
+    Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim "
+                "STEP-Import: Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)",
                 "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     # Positionsgravur (gravur_text.py): Artikelnummer auf Bleche und Rohre gravieren, Höhe je Teil änderbar
     Einstellung("gravur_artikel", "Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
