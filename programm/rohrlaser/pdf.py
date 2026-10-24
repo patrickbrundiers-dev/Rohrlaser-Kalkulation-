@@ -834,7 +834,8 @@ def _material_tabelle(material, profile):
 
 def _baugruppen_abschnitt(zeilen, breite):
     """Je Schweißbaugruppe (Verbesserung P3): Nahtgruppen und Arbeitsgänge mit Stück je Baugruppe, Zeit, Kosten,
-    Einmalbetrag und Herkunft der Zeit (Kennwert, Richtwert, von Hand). Leer ohne Baugruppe."""
+    Einmalbetrag und Herkunft der Zeit (Kennwert, Richtwert, von Hand; offene Vorschläge der Vorkalkulation
+    mit '(Vorschlag)'). Leer ohne Baugruppe."""
     out = []
     for z in zeilen:
         if not z or not z.get("baugruppe"):
@@ -846,6 +847,8 @@ def _baugruppen_abschnitt(zeilen, breite):
             herkunft = ("fehlt: " + w["fehlt"] if w.get("fehlt") else "von Hand" if w.get("hand")
                         else "Richtwert" if w.get("richtwert") else "Fremdleistung" if x.get("fremd")
                         else "Kennwert" if x["art"] == "Naht" else "")
+            if x.get("vorschlag"):
+                herkunft = (herkunft + " " if herkunft else "") + "(Vorschlag)"
             daten.append([_p(x["art"], S_KLEIN), _p(x["name"], S_KLEIN), _p(x.get("knoten") or "Baugruppe", S_KLEIN),
                           _z(x.get("faktor"), 0), _z(x.get("zeit_min"), 1), _z(x.get("kosten")),
                           _z(x.get("einmal")) if x.get("einmal") else "", _p(herkunft, S_KLEIN)])
