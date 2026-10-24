@@ -1012,6 +1012,7 @@ class StartSeite(QWidget):
         self.pipeline.linkActivated.connect(self.vorgang_zeigen)
         hl.addWidget(self.pipeline)
         self.wv_titel = QLabel()
+        self.wv_titel.setWordWrap(True)
         hl.addWidget(self.wv_titel)
         self.wiedervorlage = QListWidget()
         self.wiedervorlage.setToolTip("Angebote zum Nachfassen: verschickt und seit einigen Tagen ohne Antwort, "
@@ -1138,8 +1139,7 @@ class StartSeite(QWidget):
             self.wiedervorlage.addItem(it)
         n = len(self.wiedervorlagen)
         self.wv_titel.setText(f"<b>Wiedervorlage</b> ({n})" if n else
-                              "<b>Wiedervorlage:</b> nichts fällig (kein Angebot zum Nachfassen, keins läuft in den "
-                              f"nächsten {cockpit.VORLAUF_TAGE} Tagen ab)")
+                              "<b>Wiedervorlage:</b> nichts fällig")
         self.wiedervorlage.setVisible(bool(n))
         self.wv_knoepfe.setVisible(bool(n))
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
