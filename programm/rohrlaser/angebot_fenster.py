@@ -1632,7 +1632,8 @@ class AngebotSeite(QWidget):
 
     # Plan Arbeitsabläufe W1: kurz nach einer Änderung selbst optimieren (nur Entwürfe, kleine Angebote, eigene)
     AUTO_PAUSE_MS = 800
-    AUTO_BIS_TEILEN = 500       # darüber dauert es spürbar (1.500 Teile ≈ 1,3 s): dann weiter F9 bzw. Knopf
+    AUTO_BIS_TEILEN = 500       # darüber dauert es spürbar (1.500 Teile ≈ 1,3 s): dann weiter F9 bzw. Knopf;
+                                # ab HINTERGRUND_AB_TEILEN rechnet auch das automatische Optimieren im Hintergrund
 
     def auto_optimieren_moeglich(self):
         """True, wenn das Angebot jetzt automatisch optimiert werden soll: Optimierung nicht aktuell, Entwurf, eigenes
@@ -2823,13 +2824,13 @@ class AngebotSeite(QWidget):
     # ab so vielen Teilen rechnet die Optimierung im Hintergrund mit Fortschritt und Abbruch (Prüfbericht B-6)
     HINTERGRUND_AB_TEILEN = 150
 
-    def _optimierung_rechnen(self, automatisch=False):
+    def _optimierung_rechnen(self):
         """rechnen.optimieren für dieses Angebot. Große Angebote rechnen in einem Hintergrund-Thread; das Fenster
         zeigt solange Fortschritt und Abbrechen (Eingaben gesperrt, damit sich die Daten nicht ändern). Ergebnis wie
         rechnen.optimieren; abgebrochen: rechnen.Abbruch."""
         args = (self.kopf, self.positionen, self.k, self.tabellen, self.einst)
         teile = sum(int(rechnen._n(p.get("stueck"))) for p in self.positionen if position_aktiv(p))
-        if teile < self.HINTERGRUND_AB_TEILEN or automatisch:      # automatisch: nur kleine Angebote (W1)
+        if teile < self.HINTERGRUND_AB_TEILEN:
             return rechnen.optimieren(*args)
         stand, ende, abbrechen = dict(schritt=0, schritte=1, text="Gruppen bilden"), {}, threading.Event()
 
@@ -2871,7 +2872,7 @@ class AngebotSeite(QWidget):
         """Optimieren und speichern. automatisch=True (W1): Fehler nur in der Statuszeile, Meldung „automatisch“."""
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            erg = self._optimierung_rechnen(automatisch) if automatisch else self._optimierung_rechnen()
+            erg = self._optimierung_rechnen()
         except rechnen.Abbruch:
             QApplication.restoreOverrideCursor()
             self.f.meldung("Optimieren abgebrochen, nichts gespeichert.")
