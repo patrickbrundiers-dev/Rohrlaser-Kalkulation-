@@ -1679,9 +1679,9 @@ class AngebotSeite(QWidget):
         self._kalk_merken = {}
         try:
             self._neu_laden()
+            self._auto_planen()          # nutzt den eben geprüften Optimierungsstand mit (Plan C2)
         finally:
             self._kalk_merken = None
-        self._auto_planen()
 
     # Plan Arbeitsabläufe W1: kurz nach einer Änderung selbst optimieren (nur Entwürfe, kleine Angebote, eigene)
     AUTO_PAUSE_MS = 800
@@ -1702,8 +1702,7 @@ class AngebotSeite(QWidget):
             return False
         if self.stand_optimierung() == "aktuell":
             return False
-        kennung = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
-        return kennung != getattr(self, "_auto_fehlgeschlagen", None)
+        return self._eingabe_kennung() != getattr(self, "_auto_fehlgeschlagen", None)
 
     def _auto_planen(self):
         if not hasattr(self, "_auto_timer"):
@@ -1975,9 +1974,17 @@ class AngebotSeite(QWidget):
     def stand_optimierung(self):
         if not self.ergebnis:
             return "noch nicht optimiert"
-        aktuell = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst) \
-            == self.ergebnis.get("kennung")
+        aktuell = self._eingabe_kennung() == self.ergebnis.get("kennung")
         return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
+
+    def _eingabe_kennung(self):
+        """rechnen.eingabe_kennung der jetzigen Eingaben; während neu_laden nur einmal gerechnet (Plan C2)."""
+        merken = getattr(self, "_kalk_merken", None)
+        if merken is None:
+            return rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        if "kennung" not in merken:
+            merken["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        return merken["kennung"]
 
     def freigabe_punkte(self, summen=None):
         """Offene Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte)."""

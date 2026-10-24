@@ -1767,6 +1767,9 @@ def kapitel_optimieren(i):
     i.text("Große Angebote (ab 150 Teilen) rechnen im Hintergrund: ein Fenster zeigt die gerade geplante Abmessung "
            "und die Zeit, <b>Abbrechen</b> beendet die Optimierung nach der laufenden Abmessung, ohne etwas zu "
            "speichern.")
+    i.text("Die Stammdaten liest das Programm nur neu, wenn sie sich geändert haben (auch durch den Abgleich mit "
+           "Kollegen oder eine Wiederherstellung). Jede Änderung am Angebot wird deshalb spürbar schneller angezeigt; "
+           "der Stand <b>Veraltet</b> wird dabei weiter zuverlässig erkannt.")
     i.abschnitt("Kalkulation", marke="kalkulation")
     i.bild("erg_kalkulation", "Reiter Kalkulation, kompakte Übersicht", hoehe=80 * mm, legende=[
         (1, "<b>Kompakte Übersicht</b> je Bauteil: Profil, Stückzahl, Länge, Material, Oberfläche, "

@@ -362,6 +362,51 @@ class Datenbank:
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
+        self._stand_einrichten()
+
+    # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
+    # Zwischenspeicher von kontext() und tabellen() (Plan C2)
+    ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
+                         "staffel_stufen", "teilen_basis")
+
+    def _stand_einrichten(self):
+        """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
+        Einfügen, Ändern und Löschen in einer Stammdaten-Tabelle, gleich über welchen Weg (auch db.con direkt,
+        Abgleich, Import). Schreiben anderer Programme in die Datei zeigt PRAGMA data_version. Nach dem Anlegen oder
+        Wiederherstellen neu eingerichtet und einmal erhöht."""
+        self._zwischen = {}
+        self.con.execute("CREATE TEMP TABLE IF NOT EXISTS stammdaten_stand (n INTEGER)")
+        if self.con.execute("SELECT COUNT(*) FROM temp.stammdaten_stand").fetchone()[0] == 0:
+            self.con.execute("INSERT INTO temp.stammdaten_stand VALUES (0)")
+        tabellen = [r[0] for r in self.con.execute("SELECT name FROM main.sqlite_master WHERE type='table'")
+                    if r[0] not in self.ANGEBOTS_TABELLEN and not r[0].startswith("sqlite_")]
+        for t in tabellen:
+            for art in ("INSERT", "UPDATE", "DELETE"):
+                name = f"stand_{t}_{art.lower()}"
+                self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
+                self.con.execute(f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" '
+                                 "BEGIN UPDATE stammdaten_stand SET n = n + 1; END")
+        self.con.execute("UPDATE temp.stammdaten_stand SET n = n + 1")
+        self.con.commit()
+
+    @liest
+    def stammdaten_stand(self):
+        """Ändert sich, sobald sich Stammdaten ändern (Zähler der Trigger, Schreiben anderer Verbindungen)."""
+        return (self.con.execute("SELECT n FROM temp.stammdaten_stand").fetchone()[0],
+                self.con.execute("PRAGMA data_version").fetchone()[0])
+
+    def _zwischengespeichert(self, name, bauen):
+        """Ergebnis von bauen() je Stammdaten-Stand merken. Die Aufrufer ändern das Ergebnis nicht (geprüft mit
+        ROHRLASER_ZWISCHEN_PRUEFEN=1: dann wird jeder Treffer mit einem frisch gebauten Ergebnis verglichen)."""
+        stand = self.stammdaten_stand()
+        treffer = self._zwischen.get(name)
+        if treffer and treffer[0] == stand:
+            if os.environ.get("ROHRLASER_ZWISCHEN_PRUEFEN") and treffer[1] != bauen():
+                raise AssertionError(f"Zwischenspeicher {name}: Ergebnis wurde von einem Aufrufer verändert")
+            return treffer[1]
+        wert = bauen()
+        self._zwischen[name] = (stand, wert)
+        return wert
 
     def _bohr_zusatz_ergaenzen(self):
         """Einmalig: Zusatzarbeiten Senken, Flowdrill und Bohren anlegen, wenn es sie (dem Namen nach) noch nicht gibt
@@ -1136,6 +1181,10 @@ class Datenbank:
 
     @liest
     def kontext(self):
+        """Stammdaten-Kontext für die Rechnung; neu gebaut nur, wenn sich Stammdaten geändert haben (Plan C2)."""
+        return self._zwischengespeichert("kontext", self._kontext_bauen)
+
+    def _kontext_bauen(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
@@ -1148,7 +1197,10 @@ class Datenbank:
     @liest
     def tabellen(self):
         """Stammdaten, die die Rechnung braucht (Preise, Lieferlängen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
-        Arbeitsschritte)."""
+        Arbeitsschritte); neu gelesen nur, wenn sich Stammdaten geändert haben (Plan C2)."""
+        return self._zwischengespeichert("tabellen", self._tabellen_bauen)
+
+    def _tabellen_bauen(self):
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
                                            "schweiss_kennwerte", "schweiss_faktoren", "pruefregeln")}
