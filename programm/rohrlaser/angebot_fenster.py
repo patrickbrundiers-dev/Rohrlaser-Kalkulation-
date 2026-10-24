@@ -83,6 +83,9 @@ def _tabelle(modell, sortieren=True):
     return v
 
 
+LISTE_ROLLEN = frozenset((Qt.DisplayRole, Qt.ToolTipRole, Qt.UserRole, Qt.TextAlignmentRole, Qt.BackgroundRole))
+
+
 class Liste(QAbstractTableModel):
     """Nur-Lese-Tabelle aus dicts. spalten: [(Titel, Schlüssel oder Funktion(zeile), Nachkommastellen, Breite)]."""
 
@@ -113,7 +116,7 @@ class Liste(QAbstractTableModel):
         return schl(z) if callable(schl) else z.get(schl)
 
     def data(self, index, rolle=Qt.DisplayRole):
-        if not index.isValid():
+        if not index.isValid() or rolle not in LISTE_ROLLEN:     # andere Rollen fragt Qt oft ab, Antwort immer None
             return None
         w = self.wert(index.row(), index.column())
         stellen = self.spalten[index.column()][2]
@@ -225,7 +228,11 @@ def angebot_status(z):
 
 
 class AngeboteListe(Liste):
+    EIGENE_ROLLEN = frozenset((Qt.ForegroundRole, Qt.FontRole, Qt.BackgroundRole, Qt.ToolTipRole))
+
     def data(self, index, rolle=Qt.DisplayRole):
+        if rolle not in self.EIGENE_ROLLEN:        # schneller Weg für die übrigen Rollen (Liste.data)
+            return super().data(index, rolle)
         if rolle == Qt.ForegroundRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
             return QBrush(stil.farbe(FREMD_FARBE))          # Angebote anderer Mitarbeiter: grau, nur zum Ansehen
         if rolle == Qt.FontRole and index.isValid() and self.zeilen[index.row()].get("fremd"):
@@ -250,6 +257,7 @@ def bearbeiter(z):
     """Kürzel des Bearbeiters; Angebote eines Kollegen ohne Kürzel (vor 0.8.30 angelegt): das Kürzel seiner Datei."""
     return z.get("bearbeiter") or z.get("fremd") or ""
 MEINE, ALLE = "Meine Angebote", "Alle Mitarbeiter"
+SUCHE_PAUSE_MS = 250
 
 
 FASSUNG = object()        # Ergebnis des Kopieren-Dialogs: neue Fassung statt Kopie
@@ -319,7 +327,12 @@ class AngeboteSeite(QWidget):
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen nach Angebot, Kunde, Artikel, Auftragsnummer …")
         self.suche.setClearButtonEnabled(True)
-        self.suche.textChanged.connect(self.neu_laden)
+        # Suche erst nach einer kurzen Tipp-Pause (Performance-Audit F1): nicht bei jeder Taste die ganze Liste
+        self._such_timer = QTimer(self)
+        self._such_timer.setSingleShot(True)
+        self._such_timer.setInterval(SUCHE_PAUSE_MS)
+        self._such_timer.timeout.connect(self.neu_laden)
+        self.suche.textChanged.connect(self._such_timer.start)
         tastatur.suche_esc(self.suche)
         self.vorgang_filter = QComboBox()
         self.vorgang_filter.addItems(list(VORGANG_FILTER))
@@ -374,7 +387,13 @@ class AngeboteSeite(QWidget):
         self.setAcceptDrops(True)
         self.neu_laden()
 
+    def suchen(self, text):
+        """Suchtext setzen und die Liste sofort filtern (ohne Tipp-Pause), z. B. Angebote eines Kunden zeigen."""
+        self.suche.setText(text)
+        self.neu_laden()
+
     def neu_laden(self, *_):
+        self._such_timer.stop()
         tage = self.db.einstellung("gueltigkeit")
         passt = VORGANG_FILTER.get(self.vorgang_filter.currentText(), VORGANG_FILTER["Alle Angebote"])
         alle = self.db.angebote(self.suche.text().strip())

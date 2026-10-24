@@ -790,7 +790,8 @@ def kapitel_angebote(i):
     i.text("Beim Kopieren ist der bisherige Kunde vorgeschlagen. Ein anderer Kunde bringt Name und "
            "Zahlungsbedingungen aus dem Kundenstamm mit; Positionen und Staffeln werden mitkopiert.",
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
-           "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es. <b>Strg+Tab</b> wechselt zwischen "
+           "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es; die Liste filtert, sobald man kurz "
+           "mit dem Tippen aufhört. <b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
     i.abschnitt("Nachfassen und Wiedervorlage", marke="nachfassen")
     i.text("Verschickte Angebote ohne Antwort kommen nach einigen Tagen (Einstellung <i>Nachfassen: Wiedervorlage "
@@ -1843,7 +1844,8 @@ def kapitel_optimieren(i):
             "Schranke, unter die es nicht gehen kann; wird sie erreicht, ist das Ergebnis nachweislich optimal, "
             "auch bei großen Aufträgen. Bei Gruppen bis 60 Teile folgt bei Bedarf noch eine exakte Suche. Alle "
             "Suchen sind nach Schritten begrenzt, nicht nach Zeit: dasselbe Angebot ergibt auf jedem Rechner "
-            "denselben Schnittplan.",
+            "denselben Schnittplan. Große Angebote (ab etwa 1.500 Teilen) rechnet das Programm auf mehreren "
+            "Prozessorkernen gleichzeitig, je Profilgruppe ein Hilfsprozess; der Schnittplan ist derselbe.",
             "Keine Restverwaltung: Reste zählen als Verschnitt.")
     i.abschnitt("Optimierung veraltet", marke="veraltet")
     i.bild("angebot_veraltet", "Nach einer Änderung der Stückzahl: Stand Veraltet", hoehe=125 * mm,

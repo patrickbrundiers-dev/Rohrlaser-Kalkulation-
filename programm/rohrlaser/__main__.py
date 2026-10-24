@@ -70,6 +70,28 @@ BEISPIEL = [dict(pos=10, artikel="BSP-001", bezeichnung="Holm", profil_id="RR 42
                  laenge=2150, stueck=6, schneidweg=345, einstiche=3)]
 
 
+def hilfsprozesse_pruefen(db, aid):
+    """Schnittpläne einmal auf 2 Hilfsprozessen (parallel.py, in der .exe: --optimierer) und einmal selbst rechnen;
+    beide Ergebnisse müssen gleich sein. Ergebnis: Zeile für das Protokoll."""
+    from . import parallel, rechnen
+    kopf, pos, k, tab = db.angebot(aid), db.positionen(aid), db.kontext(), db.tabellen()
+    einst = rechnen.einstellungen_angebot(kopf, db.einstellungen())
+    allein = json.dumps(rechnen.optimieren(kopf, pos, k, tab, einst), sort_keys=True, default=repr)
+    alt = parallel.anzahl_prozesse
+    parallel.anzahl_prozesse = lambda auftraege: 2
+    try:
+        verteilt = json.dumps(rechnen.optimieren(kopf, pos, k, tab, einst), sort_keys=True, default=repr)
+        n = len(parallel._helfer)
+    finally:
+        parallel.anzahl_prozesse = alt
+        parallel.beenden()
+    if n != 2:
+        raise RuntimeError("Hilfsprozesse für Schnittpläne starten nicht")
+    if verteilt != allein:
+        raise RuntimeError("Schnittpläne auf Hilfsprozessen anders als selbst gerechnet")
+    return "Schnittpläne auf 2 Hilfsprozessen: gleiches Ergebnis"
+
+
 def selbsttest(app, ergebnis, step_dateien=()):
     from .datenbank import Datenbank
     from .fenster import Hauptfenster
@@ -90,6 +112,7 @@ def selbsttest(app, ergebnis, step_dateien=()):
             seite = f.angebot_oeffnen(aid)
             if not seite.optimieren():
                 raise RuntimeError("Optimierung fehlgeschlagen")
+            protokoll.append(hilfsprozesse_pruefen(db, aid))
             for i in range(seite.reiter.count()):
                 seite.reiter.setCurrentIndex(i)
                 app.processEvents()
