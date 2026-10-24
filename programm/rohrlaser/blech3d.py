@@ -286,6 +286,9 @@ def konturzuege(e, zs):
             zug = [(cx + x, cy + y) for x, y in blech.kontur_umriss(z)]
             if not zug:
                 continue
+        elif z.get("linien"):            # Gravur bzw. offene Schnittlinie aus dem DXF-Import
+            out += [(z, [(cx + float(x), cy + float(y)) for x, y in zug]) for zug in z["linien"]]
+            continue
         elif art == sw.TEXT_GRAVUR:      # je Strich ein Linienzug
             from . import gravur_text
             out += [(z, zug) for zug in gravur_text.gedreht(gravur_text.linien(z.get("text"), _z(z.get("hoehe"))),

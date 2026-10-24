@@ -38,7 +38,7 @@ ZUSCHNITT, KANTTEIL = "Zuschnitt (flach)", "Kantteil"
 ARTEN = (ZUSCHNITT, KANTTEIL)
 RECHTECK, POLYGON = "Rechteck", "Polygon"
 FORMEN = (RECHTECK, POLYGON)
-KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE, sw.TEXT_GRAVUR)
+KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE, sw.TEXT_GRAVUR, sw.GRAVUR)
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
@@ -560,6 +560,15 @@ def tafelbedarf(laenge, breite, stueck, tafeln, rand=10.0, steg=5.0):
     return best
 
 
+def k_fuer(wst, dicke, einst=None):
+    """K-Faktor (Zahl) bzw. Funktion Innenradius -> K-Faktor für Werkstoff-Zeile wst und Dicke, wie rechnen()."""
+    w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
+    k = _z((wst or {}).get("k_faktor")) or K_FAKTOR
+    if w.get("blech_abwicklung") != ABWICKLUNG_K[1] and w.get("kfaktoren"):
+        k = (lambda r, k0=k: k_faktor(w["kfaktoren"], (wst or {}).get("kategorie"), _z(dicke), r, k0))
+    return k
+
+
 def rechnen(e, werkstoffe, laserdaten, einst=None):
     """Richtpreis. werkstoffe: {ID: Zeile blech_werkstoffe}; laserdaten: Zeilen blechlaser; einst: Werte der
     Einstellungen 'blech_…' (fehlende: EINSTELLUNGEN). Ergebnis dict mit fehler [Texte], zuschnitt, gewicht,
@@ -574,9 +583,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         erg["fehler"].append("Blech-Werkstoff wählen.")
     if s <= 0:
         erg["fehler"].append("Blechdicke eingeben.")
-    k = _z((wst or {}).get("k_faktor")) or K_FAKTOR
-    if w.get("blech_abwicklung") != ABWICKLUNG_K[1] and w.get("kfaktoren"):
-        k = (lambda r, k0=k: k_faktor(w["kfaktoren"], (wst or {}).get("kategorie"), s, r, k0))
+    k = k_fuer(wst, s, w)
     try:
         zs = zuschnitt(e, k)
     except ValueError as x:

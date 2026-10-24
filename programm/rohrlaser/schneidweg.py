@@ -481,19 +481,59 @@ def richtung_pruefen(profil, richtung, achse):
     return None
 
 
-def punkte(text):
-    """'0,0; 40,0; 40,20' -> [(0, 0), (40, 0), (40, 20)] (Komma oder Leerzeichen zwischen x und y)."""
+def punkte_roh(text):
+    """'0,0; 40,0; 40,20,0.4142' -> [(0, 0, 0), (40, 0, 0), (40, 20, 0.4142)]: Eckpunkte mit Bogen zum nächsten
+    Punkt (dritte Zahl = Bulge wie in DXF: tan(Öffnungswinkel/4), + = gegen den Uhrzeiger, 0/leer = Gerade; DXF-Import
+    3E-9). Komma oder Leerzeichen zwischen den Zahlen."""
     out = []
     for teil in str(text or "").split(";"):
         z = teil.replace(",", " ").split()
         if not z:
             continue
-        if len(z) != 2:
+        if len(z) not in (2, 3):
             raise ValueError(f"Polygon: Punkt '{teil.strip()}' als x,y eingeben.")
         try:
-            out.append((float(z[0]), float(z[1])))
+            out.append((float(z[0]), float(z[1]), float(z[2]) if len(z) == 3 else 0.0))
         except ValueError:
             raise ValueError(f"Polygon: Punkt '{teil.strip()}' ist keine Zahl.")
+    return out
+
+
+BOGEN_SEHNE = 0.02      # mm: größter Abstand Sehne–Bogen, wenn Bögen für Länge, Fläche und Bild in Punkte zerfallen
+
+
+def bogen_punkte(p, q, bulge, sehne=BOGEN_SEHNE):
+    """Punkte des Bogens von p nach q (ohne p, mit q) für einen Bulge; Gerade: [q]."""
+    if abs(bulge) < 1e-12:
+        return [q]
+    c = math.dist(p, q)
+    if c < 1e-12:
+        return [q]
+    th = 4 * math.atan(bulge)                       # Öffnungswinkel mit Vorzeichen
+    r = c / (2 * math.sin(abs(th) / 2))
+    mx, my = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2
+    d = r * math.cos(th / 2)                        # Abstand Sehnenmitte–Mittelpunkt (vorzeichenrichtig über th)
+    nx, ny = -(q[1] - p[1]) / c, (q[0] - p[0]) / c  # links von p->q
+    s = 1 if th > 0 else -1
+    cx, cy = mx + nx * d * s, my + ny * d * s
+    a0 = math.atan2(p[1] - cy, p[0] - cx)
+    schritt = 2 * math.acos(max(-1.0, 1 - sehne / r)) if r > sehne else math.pi / 2
+    n = max(2, min(720, math.ceil(abs(th) / max(min(schritt, math.radians(5)), 1e-6))))
+    return [(cx + r * math.cos(a0 + th * k / n), cy + r * math.sin(a0 + th * k / n)) for k in range(1, n)] + [q]
+
+
+def punkte(text):
+    """'0,0; 40,0; 40,20' -> [(0, 0), (40, 0), (40, 20)] (Komma oder Leerzeichen zwischen x und y); Bögen (dritte
+    Zahl, siehe punkte_roh) als Punkte mit höchstens BOGEN_SEHNE Abweichung."""
+    roh = punkte_roh(text)
+    if not any(b for *_, b in roh):
+        return [(x, y) for x, y, _ in roh]
+    out = []
+    for i, (x, y, b) in enumerate(roh):
+        out.append((x, y))
+        if b:
+            q = roh[(i + 1) % len(roh)]
+            out += bogen_punkte((x, y), (q[0], q[1]), b)[:-1]
     return out
 
 
@@ -670,7 +710,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
         except ValueError as f:
             fehler.append(str(f))
             continue
-        masse = (f"{len(punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
+        masse = (f"{len(punkte_roh(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
         kopien = len(e.get("kopien") or ())
         if kopien:                      # Kopien am Umfang (beide Wände, alle Seiten …): je Lage 1 + kopien Stück

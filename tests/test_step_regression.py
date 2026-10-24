@@ -7,6 +7,9 @@
 - R06: Körper 13 aus Patricks Baugruppe 00_Rahmengestell (22.10.2026): RE 40x30x3 mit je zwei gegenüberliegenden
   Langlöchern 30x9, drei von sieben Lageschnitten zerfallen in zwei Wandstücke gleicher Fläche. Früher: Netto-Fläche
   ≈ 0, Schwerpunkt weit außerhalb, Achse gekippt -> „Kein Profilquerschnitt gefunden“ (nicht übernehmbar).
+- R08: Patricks Rahmen aus vier RE 80x40x3 mit 45°-Gehrungen (24.10.2026). Früher: ein 480-mm-Rohr als „Blech
+  gekantet“ (Volumen durch die Gehrungen nur 83 % von Querschnitt × Länge), die beiden langen Rohre bekamen es dann
+  als Anbauteil mit Gravur.
 
 Sollwerte sind aus den Konstruktionsmaßen in tests/erzeuge_testteile.py berechnet, nicht aus einer Messung.
 Aufruf: python tests/test_step_regression.py
@@ -92,5 +95,18 @@ for name, (form, a, b, w, fl, lg, sw, k) in SOLL.items():
     except AssertionError as e:
         fehler += 1
         print(f"FEHLER {e}")
+
+# R08: Rahmen mit vier Körpern, alle Rechteckrohr ohne Anbauteile
+try:
+    teile = analysiere_datei(ORDNER / "R08_Rahmen_4xRE80x40x3_Gehrung.step")
+    assert len(teile) == 4, f"R08: {len(teile)} Körper"
+    for t in teile:
+        assert t.profilform == "Rechteckrohr" and t.profil_id_vorschlag == "RE 80x40x3", f"R08: {t.profilform!r}"
+        assert t.gravur == 0 and not t.hinweise, f"R08 K{t.koerper}: Gravur {t.gravur}, Hinweise {t.hinweise}"
+    assert sorted(round(t.laenge) for t in teile) == [480, 480, 860, 860], [t.laenge for t in teile]
+    print("OK     R08_Rahmen_4xRE80x40x3_Gehrung")
+except AssertionError as e:
+    fehler += 1
+    print(f"FEHLER {e}")
 
 sys.exit(1 if fehler else 0)

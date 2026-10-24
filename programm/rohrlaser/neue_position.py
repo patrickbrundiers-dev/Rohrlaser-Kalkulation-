@@ -1,17 +1,20 @@
 """Fenster 'Neue Position': zuerst der Typ (Patrick 22.10.2026), danach öffnet das Angebot das passende Fenster:
 Rohr / Profil = Schneidweg-Rechner mit Kopfzeile (Artikel, Profil, Werkstoff, Länge, Stückzahl), Blech / Kantteil =
-Schnellanlage eines Zukaufartikels (Kategorie Blechteile), Zukaufteil = dieselbe Schnellanlage ohne Kategorie,
+Schnellanlage eines Zukaufartikels (Kategorie Blechteile), Bleche aus DXF = DXF-Import (dxf_import_dialog), Zukaufteil = dieselbe Schnellanlage ohne Kategorie,
 Schweißbaugruppe = Editor der Baugruppe (baugruppe_dialog), leere
 Zeile = wie bisher alles in der Positionsliste eintragen."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QPushButton, QVBoxLayout
 
 ROHR, BLECH, ZUKAUF, LEER = "Rohr / Profil", "Blech / Kantteil", "Zukaufteil", "Leere Zeile"
+DXF = "Bleche aus DXF"
 SCHWEISS = "Schweißbaugruppe"
 TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und Stückzahl, dazu Enden, Bohrungen und "
                "Konturen im Schneidweg-Rechner mit Skizze.",
          BLECH: "Blech- oder Kantteil (vom Blechlaser, als Zukaufteil): Bezeichnung, Lieferant (Technik "
                 "vorbelegt), Einkaufspreis und Menge.",
+         DXF: "Eine oder mehrere DXF-Dateien einlesen: jedes Blech der Zeichnung wird eine Position wie aus dem "
+              "Blech-Editor (Werkstoff und Dicke vorgeschlagen, Rahmen und Schriftfeld fallen weg).",
          ZUKAUF: "Anderes Zukaufteil (Normteil, Schrauben, Handelsware …): Bezeichnung, Kategorie, Lieferant, "
                  "Einkaufspreis und Menge.",
          SCHWEISS: "Baugruppe aus Einzelteilen dieses Angebots: Unterbaugruppen, Nahtgruppen, Arbeitsgänge und "
@@ -20,7 +23,7 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
 
 
 class TypDialog(QDialog):
-    """Auswahl des Typs; nach OK steht er in self.typ (ROHR, BLECH, ZUKAUF, SCHWEISS oder LEER)."""
+    """Auswahl des Typs; nach OK steht er in self.typ (ROHR, BLECH, DXF, ZUKAUF, SCHWEISS oder LEER)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)

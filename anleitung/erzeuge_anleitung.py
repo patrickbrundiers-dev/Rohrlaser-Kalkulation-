@@ -888,6 +888,8 @@ def kapitel_angebot(i):
                ["<b>Rohr / Profil</b>", "den Schneidweg-Rechner mit Profil, Werkstoff, Länge, Stückzahl "
                 "([[schneidweg_rechner]])"],
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
+               ["<b>Bleche aus DXF</b>", "eine oder mehrere DXF-Dateien; jedes Blech wird eine Position wie aus dem "
+                "Blech-Editor ([[dxf_import]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
                ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
                 "vorgewählt ([[schweissbaugruppe]])"],
@@ -3199,6 +3201,33 @@ def kapitel_zukauf_angebot(i):
             "ihre Mitte, + = gegen den Uhrzeiger. Skizze, 3D, DXF, Zeichnung und der Abstand zu den Biegelinien "
             "rechnen gedreht; die Schnittlänge bleibt gleich.",
             "Jede Änderung lässt sich mit Strg+Z zurücknehmen.")
+    i.abschnitt("DXF importieren", marke="dxf_import")
+    i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
+           "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Bleche aus DXF</i> oder DXF-Dateien auf "
+           "das Angebot ziehen (dann wird jedes Blech eine eigene Position).", kurz=True)
+    i.genauer()
+    i.liste("<b>Genaue Kontur</b>: Außenkontur und Innenkonturen kommen so, wie sie gezeichnet sind; Bögen bleiben "
+            "echte Bögen (im Feld Eckpunkte als dritte Zahl je Punkt, z. B. <i>100,0,1</i> = Halbkreis zum nächsten "
+            "Punkt). Eine Kontur wird nur dann Bohrung, Langloch oder Rechteck (auch gedreht, mit Eckradius), wenn sie "
+            "genau diese Form hat; sonst bleibt sie die Originalkontur (Polygon). Schnittlänge, Fläche, Skizze, 3D "
+            "und DXF-Export rechnen mit den Bögen.",
+            "<b>Was erkannt wird</b>: Linien, Bögen, Kreise, Polylinien, Ellipsen, Splines und Blöcke; Einheit (mm, "
+            "Zoll) aus der Datei. Ausgeblendete Layer, Bemaßung, Mittel- und Hilfslinien fallen weg. Layer mit GRAV "
+            "oder MARK im Namen (bzw. der Layer Gravur aus der Einstellung DXF-Layer) werden graviert, Texte darauf "
+            "werden Text-Gravur. Offene Schnittlinien kommen als sonstige Kontur mit ihrer Länge und einem Hinweis.",
+            "<b>Zeichenblatt</b>: Rahmen und Schriftfeld werden erkannt und nicht übernommen. Liegen mehrere Bleche "
+            "auf einer Zeichnung, zeigt das Fenster jedes mit Vorschaubild und Haken; ein Kästchen mit Text (z. B. "
+            "aus dem Schriftfeld) ist nicht angehakt. Den <b>Maßstab</b> schlägt das Programm aus der Bemaßung oder "
+            "dem Schriftfeld vor (z. B. M 1:2); ändern liest die Datei neu.",
+            "<b>Werkstoff und Dicke</b> stehen meist nicht als Wert in der DXF: Vorschlag aus dem Dateinamen (z. B. "
+            "Halter_3mm_1.4301.dxf), sonst aus Texten der Zeichnung (t=3, 3 mm, S235, V2A), sonst wie beim letzten "
+            "Import. Je Teil sind Bezeichnung, Werkstoff, Dicke und Stückzahl änderbar.",
+            "<b>Biegelinien</b> (Layer mit BIEG, BEND oder KANT, bzw. die Layer der Einstellung): mit dem Haken "
+            "<i>Als Kantteil (Biegelinien aus der DXF)</i> wird das Teil ein Kantteil; die Biegewinkel stehen je "
+            "Biegelinie im Fenster (+ hoch, − runter), die Schenkel rechnet das Programm so, dass die Abwicklung "
+            "gleich bleibt.",
+            "Eine Außenkontur mit Bögen hat keine Eckgriffe; <i>Bögen in Eckpunkte umwandeln</i> (Rechtsklick in "
+            "der Abwicklung) macht daraus ein Polygon zum Bearbeiten.")
     i.text("<b>Aus dem STEP-Import</b>: Gekantete Bleche kommen vollständig an. Ein Kantteil mit parallelen "
            "Biegungen (Winkel, U, Z, Hut) hat Kantlänge, Schenkel mit Winkel und Radius, die Innenkonturen an ihrer "
            "Stelle und bei Ausklinkungen die Außenkontur als Polygon. Ein mehrachsig gekantetes Teil (Schale, "

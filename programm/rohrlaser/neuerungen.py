@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.87", "<b>DXF-Import für Bleche</b>: im Blech-Editor <i>DXF importieren</i>, im Angebot <i>Neue Position → "
+               "Bleche aus DXF</i> oder DXF-Dateien aufs Angebot ziehen. Die Kontur kommt genau wie gezeichnet "
+               "(Bögen bleiben Bögen), Bohrung/Langloch/Rechteck nur bei exakter Form. Rahmen und Schriftfeld fallen "
+               "weg, mehrere Bleche einer Zeichnung werden einzelne Positionen, Maßstab aus Bemaßung oder Schriftfeld. "
+               "Werkstoff und Dicke werden aus Dateiname und Texten vorgeschlagen; Biegelinien machen ein Kantteil "
+               "([[dxf_import]]). <b>STEP-Import</b>: ein Rechteckrohr mit Gehrungen an beiden Enden wurde manchmal als "
+               "gekantetes Blech erkannt (und die anstoßenden Rohre bekamen es als Anbauteil); geschlossene Rohre "
+               "bleiben jetzt Rohr.",
+     "DXF-Import: genaue Kontur, Rahmen weg, mehrere Bleche, Werkstoff/Dicke vorgeschlagen ([[dxf_import]])."],
     ["0.9.86", "<b>Kontur-Vorlagen im Teile-Editor</b>: markierte Konturen (z. B. ein Bohrbild mit seinen Abständen) "
                "unter einem Namen speichern, wahlweise nur für den Kunden, und in andere Rohre oder Bleche einsetzen; "
                "das Menü zeigt jede Vorlage mit Bild. <i>Aus Position</i> zeigt je Position ein Vorschaubild. In der "

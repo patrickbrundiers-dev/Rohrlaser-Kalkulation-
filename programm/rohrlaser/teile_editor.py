@@ -475,6 +475,9 @@ class EditorRahmen(QObject):
                     tipp="Rechteck bzw. Abwicklung als Polygon mit vier Ecken übernehmen (z. B. zum Abrunden einer "
                          "Ecke oder für eine Ausklinkung)")
             g = kon.gruppe("Übernehmen")
+            g.knopf("DXF importieren", "oeffnen", lambda: d.dxf_importieren(), gross=False,
+                    tipp="Abwicklung aus einer DXF-Datei übernehmen: genaue Außenkontur mit Bögen, Innenkonturen, "
+                         "Gravur und Biegelinien; Werkstoff und Dicke werden vorgeschlagen")
             self._vorlagen_knopf_bauen(g)
             g = kon.gruppe("Kantteil")
             for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):

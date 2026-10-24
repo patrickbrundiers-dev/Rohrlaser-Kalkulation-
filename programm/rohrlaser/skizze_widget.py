@@ -12,6 +12,7 @@ from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, Q
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
 from . import biegerohr, rechnen, skizze as sk
+from . import schneidweg as sw
 from .schneidweg import GRAVUREN, MASSE, POLYGON, _z
 
 ANSICHTEN, ABWICKLUNG = "Draufsicht und Seitenansicht", "Abwicklung"
@@ -554,7 +555,7 @@ class Skizze(QWidget):
 
     def beschreibung(self, d):
         e = d["eingabe"]
-        masse = (f"{len(sk.punkte(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
+        masse = (f"{len(sw.punkte_roh(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(rechnen.zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
         if self.qs.r:
             seite = sk.winkel_text(sk.winkel_aus_text(e.get("seite")) or 0.0)
