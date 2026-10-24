@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.69", "<b>Teile-Editor: echte Ausschnitte im 3D</b>: Bei Rund-, Quadrat- und Rechteckrohr sind Bohrungen, "
+    ["0.9.70", "<b>Teile-Editor: echte Ausschnitte im 3D</b>: Bei Rund-, Quadrat- und Rechteckrohr sind Bohrungen, "
                "Langlöcher, Rechtecke, Ausklinkungen, Schlitze, Polygone, V-Ausschnitte und Sonderkonturen ausgeschnitten, "
                "mit roter Lochwand durch die Wandstärke; Ausschnitte am Ende fehlen auch in der Stirnfläche. Gravur und "
                "Flowdrill bleiben Linien. <b>Klick auf eine Fläche</b> im 3D wählt: Lochwand = Kontur, Stirnfläche = "
@@ -29,6 +29,13 @@ NEUERUNGEN = [
                "([[teile_editor]]). <b>Rundungen glatt</b>: Rundrohr, Eckradien und Lochwände sehen in der 3D-Ansicht "
                "(OpenGL) rund aus statt gestreift; Kanten bleiben scharf.",
      "Teile-Editor: Konturen im 3D echt ausgeschnitten, Flächen anklickbar, Profil-Einstellungen, glatte Rundungen ([[teile_editor]])."],
+    ["0.9.69", "<b>Artikelnummer gravieren</b> als Hilfe beim Schweißen: im Editor der Schweißbaugruppe Haken "
+               "<i>Artikelnr. gravieren</i> und Schrifthöhe je Teil, <i>Alle gravieren</i>; Einstellung ja/nein "
+               "gibt den Haken vor (auch beim STEP-Import), Schrifthöhe 10 mm. Rohre: die Gravur zählt in die "
+               "Laserzeit. Bleche: Zeile <i>Text-Gravur</i> im Blech-Editor, Lage automatisch in der größten freien "
+               "Fläche (mindestens 0,5 mm Abstand), verschiebbar, mit Feld <i>Vorschub Gravur</i> in den "
+               "Blechlaser-Richtwerten ([[positionsgravur]]).",
+     "Artikelnummer auf Rohre und Bleche der Schweißbaugruppe gravieren ([[positionsgravur]])."],
     ["0.9.68", "<b>3D der Baugruppe</b>: Steckt ein Teil öfter in der Baugruppe, als die STEP-Datei Körper dafür hat "
                "(Menge von Hand erhöht oder Unterbaugruppe aus eigener Datei), nennt die Zeile unter der Ansicht "
                "jetzt die Teile mit „1 von 4 Stück“ ([[baugruppe_baum]]).",

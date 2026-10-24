@@ -133,7 +133,7 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     zus = []
     if p.get("gewinde"):
         zus.append(f"Gewinde {p['gewinde']}")
-    if _wert(p.get("gravur")) > 0:
+    if _wert(p.get("gravur")) > 0 or rechnen.gravur_artikel(p) > 0:
         zus.append("Gravur")
     for e in zusatz or ():
         t_e = e["angebotstext"] + (f" {e['text']}" if e.get("text") else "")

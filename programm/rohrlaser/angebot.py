@@ -257,7 +257,10 @@ POSITIONEN = Tabelle(
      Feld("je_knoten", "Stück je Baugruppe", "ganz", 1, 100000, breite=70),
      # Vorkalkulation (vorkalk.py, Schema 53): Positionierhilfe des Einzelteils beim Schweißen; leer = Vorschlag des
      # Programms (Steckverbindung, Vorrichtung, Gravur, frei), sonst bestätigt bzw. von Hand
-     Feld("bg_hilfe", "Positionierhilfe", "auswahl", auswahl="positionierhilfe", breite=110)),
+     Feld("bg_hilfe", "Positionierhilfe", "auswahl", auswahl="positionierhilfe", breite=110),
+     # Positionsgravur (Schema 56): Artikelnummer gravieren mit dieser Schrifthöhe [mm]; leer = noch nicht gewählt
+     # (Einstellung gravur_artikel gibt das Häkchen im Baugruppen-Editor vor), 0 = nicht gravieren
+     Feld("bg_gravur", "Gravur Artikelnr. h [mm]", "zahl", 0, 200, stellen=1, breite=90)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

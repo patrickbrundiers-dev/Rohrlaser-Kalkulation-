@@ -145,7 +145,7 @@ def _arbeitsgaenge(p, z, k):
             out.append(f"Oberfläche [{ob}]")
         if _text(p.get("gewinde")):
             out.append(f"Gewinde [{_einzeilig(p['gewinde']).replace(', ', '; ')}]")
-        if (_zahl(p.get("gravur")) or 0) > 0:
+        if (_zahl(p.get("gravur")) or 0) > 0 or rechnen.gravur_artikel(p) > 0:
             out.append("Gravur")
     for e in (z or {}).get("zusatzarbeiten") or ():
         out.append(f"Zusatzarbeit [{e['name']} {zahl(e.get('menge'))} {e.get('einheit') or ''}]".replace(" ]", "]"))

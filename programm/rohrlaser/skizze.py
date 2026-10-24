@@ -14,8 +14,8 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 import math
 
 from . import normprofile, optimierung as opt, rp_profile
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ,
-                         SENKUNG, SONDERKONTUR, _z, kontur, punkte)
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ,
+                         SENKUNG, SONDERKONTUR, TEXT_GRAVUR, _z, kontur, punkte)
 
 RUND_SEITEN = {"oben (0°)": 0.0, "vorne (90°)": 90.0, "unten (180°)": 180.0, "hinten (270°)": 270.0}
 KASTEN = ("Quadratrohr", "Rechteckrohr", "Flachstahl")
@@ -254,6 +254,8 @@ def kurz(e):
     if art == SONDERKONTUR:
         return f"Sonderkontur L {zahl(_z(e.get('laenge')), 1)}" + (
             f" über {len(e['waende'])} Wände" if len(e.get("waende") or ()) > 1 else "")
+    if art == TEXT_GRAVUR:
+        return f"Text-Gravur „{e.get('text') or ''}“ h {zahl(_z(e.get('hoehe')), 1)}"
     if art == GRAVUR:
         return f"Gravur {zahl(_z(e.get('laenge')), 1)}" + (f", {zahl(_z(e.get('tiefe')), 2)} tief"
                                                           if _z(e.get("tiefe")) else "")
@@ -450,7 +452,11 @@ def umriss_kontur(e, n=36):
             return _dicht([(float(dx), float(dq)) for dx, dq in e["umriss"]])
         except (TypeError, ValueError):
             pass
-    if art == GRAVUR:                   # ohne Umriss: kleines Kreuz an der Stelle
+    if art in GRAVUREN:                 # ohne Umriss: kleines Kreuz an der Stelle (Text-Gravur: Hüllrechteck)
+        if art == TEXT_GRAVUR:
+            from . import gravur_text
+            b, h = gravur_text.masse(e.get("text"), _z(e.get("hoehe")))
+            return [(-b / 2, -h / 2), (b / 2, -h / 2), (b / 2, h / 2), (-b / 2, h / 2)] if b and h else None
         return [(-3.0, 0.0), (3.0, 0.0), (0.0, 0.0), (0.0, 3.0), (0.0, -3.0), (0.0, 0.0)]
     if art in (BOHRUNG, SENKUNG, FLOWDRILL):
         r = _z(e.get("d")) / 2
