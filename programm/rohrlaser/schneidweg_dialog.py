@@ -1209,10 +1209,13 @@ class SchneidwegDialog(QDialog):
         eing = self.eingaben()
         if not werte:
             self.knick = None
-            self.eingaben_setzen(knickrahmen.anwenden(eing, None, self.profil)[0], mit_messung=True)
+            eing = knickrahmen.anwenden(eing, None, self.profil)[0]
+            self.d3.setChecked(eing.get("d3") is True)
+            self.eingaben_setzen(eing, mit_messung=True)
             return True
         eing, r = knickrahmen.anwenden(eing, werte, self.profil)
         self.knick = eing["knickrahmen"]
+        self.d3.setChecked(eing.get("d3") is True)       # schräge Innenwand = 3D
         self.laenge_setzen(round(r["laenge"], 1))
         self.eingaben_setzen(eing, mit_messung=True)
         return True

@@ -129,10 +129,12 @@ class StepPruefDialog(QDialog):
                "Schneidweg [mm]", "Konturen", "Anbauteile", "Hinweis")
     SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
 
-    def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None):
+    def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
+                 knick_vorgaben=None):
         from . import step
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
+        self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
         if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
             step.kantteile_vorbelegen(messwerte, k.profile)
         self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
@@ -211,6 +213,8 @@ class StepPruefDialog(QDialog):
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
         self.baum.itemDoubleClicked.connect(self._doppelklick)
+        self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.baum.customContextMenuRequested.connect(self._kontextmenue)
         self._baum_fuellen()
         for c, b in enumerate((250, 55, 150, 130, 120, 75, 80, 95, 65, 130, 260)):
             self.baum.setColumnWidth(c, b)
@@ -266,10 +270,24 @@ class StepPruefDialog(QDialog):
         self.anbau_weg.toggled.connect(self.anbau_weglassen_setzen)
         zeile_3d.addWidget(self.anbau_weg)
 
+        # Knickrahmen aus Einzelrohren (K1-2): Vorschlag, wenn Rohre mit passenden Gehrungen aneinanderstoßen
+        self.knick_zeile = QWidget()
+        kz = QHBoxLayout(self.knick_zeile)
+        kz.setContentsMargins(0, 0, 0, 0)
+        self.knick_info = QLabel()
+        self.knick_info.setStyleSheet("color: #7A5A00;")
+        self.knick_info.setWordWrap(True)
+        self.knick_knopf = QPushButton("Knickverbindung erstellen …")
+        self.knick_knopf.setToolTip("Die vorgeschlagenen Rohre zu einem Knickrahmen verbinden (ein gestrecktes Rohr "
+                                    "mit V-Ausschnitten). Eigene Auswahl: Rohre markieren, Rechtsklick.")
+        self.knick_knopf.clicked.connect(lambda: self.knick_erstellen())
+        kz.addWidget(self.knick_info, 1)
+        kz.addWidget(self.knick_knopf)
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(self.kopf)
+        ll.addWidget(self.knick_zeile)
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
         ll.addLayout(zeile_3d)
@@ -320,7 +338,8 @@ class StepPruefDialog(QDialog):
                 b.setBackground(0, QBrush(stil.farbe("#FFF2CC")))
                 b.setExpanded(True)
         teile = step.teile_gruppen(messwerte, mit_blechen)
-        fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())]
+        fehler = [i for i, m in enumerate(messwerte) if not any(i in l for l in teile.values())
+                  and m.get("_knick_von") is None]
         profile = k.auswahl("profil")
         reihe = sorted(teile.items(), key=lambda e: (self.dateien.index(messwerte[e[0]].get("datei")),
                                                      step.profil_vorschlag(messwerte[e[0]], k.profile) or ""))
@@ -350,8 +369,12 @@ class StepPruefDialog(QDialog):
                 gewaehlt = False
             it.setCheckState(0, Qt.Checked if gewaehlt else Qt.Unchecked)
             it.setText(1, str(len(liste)))
-            for c, w in ((self.SP_LAENGE, _f(m, "laenge")), (self.SP_SCHNEIDWEG, _f(m, "schneidweg"))):
+            for c, w in ((self.SP_LAENGE, m.get("_knick_laenge") or _f(m, "laenge")),
+                         (self.SP_SCHNEIDWEG, _f(m, "schneidweg"))):
                 it.setText(c, zahl_als_text(w, 1))
+            if m.get("_knickrahmen"):
+                it.setToolTip(self.SP_LAENGE, "Gestreckte Länge des Knickrahmens; Schneidweg wird beim Übernehmen "
+                                              "für das ganze Rohr gerechnet")
             it.setText(self.SP_KONTUREN, str(int(_f(m, "konturen"))))
             anbauteile = anbau.lesen(m.get("anbauteile"))
             if anbauteile:
@@ -360,6 +383,9 @@ class StepPruefDialog(QDialog):
                 if anbau.offen(anbauteile):
                     it.setBackground(self.SP_ANBAU, QBrush(stil.farbe("#FFEB9C")))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if m.get("_knickrahmen"):
+                from . import knickverbindung
+                hinweis.append(knickverbindung.text(m) + " (Rechtsklick: lösen)")
             if anbauteil is not None:
                 hinweis.append(f"Anbauteil von {anbauteil}: nicht übernehmen (nur Gravur auf dem Rohr)")
             if ist_blech:
@@ -494,6 +520,65 @@ class StepPruefDialog(QDialog):
             g.setText(0, f"Nicht übernehmbar – {n} Teil{'e' if n != 1 else ''} (in der 3D-Ansicht magenta)")
 
 
+    def _knick_anzeigen(self):
+        """Vorschlag für Knickrahmen aus Einzelrohren in der gezeigten Datei."""
+        from . import knickverbindung
+        v = [g for g in knickverbindung.vorschlaege(self.messwerte) if self.messwerte[g[0]].get("datei") == self.datei]
+        self.knick_vorschlag = v[0] if v else None
+        if v:
+            namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in v[0])
+            self.knick_info.setText(f"Knickrahmen möglich: {len(v[0])} Rohre stoßen mit passenden Gehrungen aneinander "
+                                    f"({namen})" + (f", {len(v) - 1} weitere" if len(v) > 1 else ""))
+        self.knick_zeile.setVisible(bool(v))
+
+    def _markierte_koerper(self):
+        return [i for z in self._markiert() for i in z.liste]
+
+    def _kontextmenue(self, pos):
+        from PySide6.QtWidgets import QMenu
+        it = self.baum.itemAt(pos)
+        z = self._zeile(it)
+        menue = QMenu(self)
+        koerper = self._markierte_koerper()
+        a = menue.addAction("Knickverbindung erstellen …")
+        a.setEnabled(len(koerper) >= 2)
+        a.triggered.connect(lambda: self.knick_erstellen(koerper))
+        if z and self.messwerte[z.liste[0]].get("_knickrahmen"):
+            b = menue.addAction("Knickverbindung lösen")
+            b.triggered.connect(lambda: self.knick_loesen(z.liste[0]))
+        menue.exec(self.baum.viewport().mapToGlobal(pos))
+
+    def knick_erstellen(self, indizes=None, dialog=None):
+        """Knickverbindung aus den Rohren indizes (Vorgabe: der Vorschlag der Datei) im Dialog erstellen; dialog(d)
+        bedient ihn statt exec (Tests, Bildschirmfotos). Ergebnis: Index des Leitteils oder None."""
+        from PySide6.QtWidgets import QMessageBox
+        from . import knickverbindung
+        from .knickrahmen_dialog import KnickverbindungDialog
+        indizes = indizes or getattr(self, "knick_vorschlag", None)
+        if not indizes:
+            return None
+        self.werte_schreiben()
+        try:
+            d = KnickverbindungDialog(self, self.messwerte, indizes, self.knick_vorgaben)
+        except ValueError as f:
+            QMessageBox.information(self, "Knickverbindung", str(f))
+            return None
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+            return None
+        try:
+            leit = knickverbindung.erstellen(self.messwerte, d.kette, **d.werte())
+        except ValueError as f:
+            QMessageBox.information(self, "Knickverbindung", str(f))
+            return None
+        self._neu_aufbauen(leit)
+        return leit
+
+    def knick_loesen(self, i):
+        from . import knickverbindung
+        self.werte_schreiben()
+        knickverbindung.loesen(self.messwerte, i)
+        self._neu_aufbauen(i)
+
     def _modus(self, datei):
         return "satz" if self.saetze.get(datei) else "einzeln"
 
@@ -530,6 +615,7 @@ class StepPruefDialog(QDialog):
         self.satz_spin.setValue(self.saetze.get(d, 0))
         self.satz_spin.blockSignals(False)
         self._satz_anzeigen()
+        self._knick_anzeigen()
         self.baum.clearSelection()
         erste = [z for z in self.zeilen if z.datei == d]
         if d in self.baugruppen:
@@ -649,6 +735,11 @@ class StepPruefDialog(QDialog):
         z = self._zeile(it)
         if z:
             m = self.messwerte[z.liste[0]]
+            if m.get("_knickrahmen"):           # Knickrahmen: alle Schenkel gefaltet
+                from . import knickverbindung
+                self.ansicht.setzen(knickverbindung.netz_gefaltet(self.messwerte, m) or m.get("_netz"),
+                                    m.get("artikel") or "", knickverbindung.text(m))
+                return
             self.ansicht.setzen(m.get("_netz"), m.get("artikel") or "", _messinfo(m))
         elif it is not None and it.data(1, Qt.UserRole) is not None:   # nicht übernehmbar: Grund und wo es sitzt
             i = it.data(1, Qt.UserRole)
