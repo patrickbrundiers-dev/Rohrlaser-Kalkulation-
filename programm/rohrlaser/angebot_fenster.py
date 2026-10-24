@@ -2468,7 +2468,6 @@ class AngebotSeite(QWidget):
         if e is None or not liste:
             self.f.meldung("Diese Position stammt nicht aus dem Blech-Editor.", fehler=True)
             return False
-        aid = liste[0].get("artikel_id")
         lief = ((liste[0].get("stand") or {}).get("bezug") or {}).get("lieferant") or \
             zukauf.lieferant_vorgabe("Blechteile")
         d = BlechDialog(self, self.db, dict(e, stueck=p.get("stueck") or e.get("stueck")),
@@ -2477,19 +2476,57 @@ class AngebotSeite(QWidget):
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
         e, erg, kopf = d.eingaben(), d.ergebnis, d.kopf_werte()
-        self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], kopf["lieferant"], ab=kopf["stueck"],
-                                    bemerkung=f"Richtpreis Blech-Editor (ab {kopf['stueck']} St)")
-        liste[0]["stand"] = self.db.zukauf_stand(aid, kopf["lieferant"])
-        ab = max(1, float(kopf["stueck"] or 1))      # gemerkte Richtpreise: so unterscheiden die Stufen sie vom EK
-        merk = [r for r in (blech.lesen(p.get("technik")) or {}).get("richtpreise") or ()
-                if isinstance(r, dict) and r.get("ab") != ab] + [dict(ab=ab, preis=erg["richtpreis"])]
-        for feld, wert in (("technik", blech.speichern(dict(e, richtpreise=merk))), ("stueck", kopf["stueck"]),
-                           ("gewicht_teil", round(erg["gewicht"], 3)),
-                           ("zukauf", json.dumps(liste, ensure_ascii=False))):
-            self.db.position_aendern(p["id"], feld, wert)
+        self._blech_uebernehmen(p, e, erg, kopf["lieferant"], kopf["stueck"])
         self.neu_laden()
         self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
         return True
+
+    def _blech_uebernehmen(self, p, e, erg, lieferant, stueck):
+        """Eingaben e und Richtpreis erg des Blech-Editors in die Position p und als EK ab stueck in den Artikel."""
+        liste = zukauf.json_liste(p.get("zukauf"))
+        aid = liste[0].get("artikel_id")
+        self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lieferant, ab=stueck,
+                                    bemerkung=f"Richtpreis Blech-Editor (ab {stueck} St)")
+        liste[0]["stand"] = self.db.zukauf_stand(aid, lieferant)
+        ab = max(1, float(stueck or 1))      # gemerkte Richtpreise: so unterscheiden die Stufen sie vom EK
+        merk = [r for r in (blech.lesen(p.get("technik")) or {}).get("richtpreise") or ()
+                if isinstance(r, dict) and r.get("ab") != ab] + [dict(ab=ab, preis=erg["richtpreis"])]
+        for feld, wert in (("technik", blech.speichern(dict(e, richtpreise=merk))), ("stueck", stueck),
+                           ("gewicht_teil", round(erg["gewicht"], 3)),
+                           ("zukauf", json.dumps(liste, ensure_ascii=False))):
+            self.db.position_aendern(p["id"], feld, wert)
+
+    def blech_gravur(self, p, hoehe):
+        """Text-Gravur der Artikelnummer im Blechteil p setzen (hoehe > 0, Lage automatisch bzw. wie bisher) oder
+        entfernen und den Richtpreis neu rechnen. Ergebnis: Hinweis oder None."""
+        e = blech.lesen(p.get("technik"))
+        liste = zukauf.json_liste(p.get("zukauf"))
+        if e is None or not liste:
+            return None
+        text = str(p.get("artikel") or "").strip()
+        alt = next((z for z in e.get("konturen") or () if z.get("art") == schneidweg.TEXT_GRAVUR and z.get("artikel")),
+                   None)
+        konturen = [z for z in e.get("konturen") or () if z is not alt]
+        if hoehe and text:
+            z = dict(alt or {}, art=schneidweg.TEXT_GRAVUR, anzahl=1, text=text, hoehe=hoehe, artikel=True)
+            if alt is None or alt.get("text") != text or alt.get("hoehe") != hoehe:
+                lage = blech.gravur_lage(dict(e, konturen=konturen), z) or {}
+                z.update({n: lage[n] for n in ("x", "y", "winkel") if n in lage})
+            konturen.append(z)
+        if konturen == list(e.get("konturen") or ()):
+            return None
+        e = dict(e, konturen=konturen)
+        werkstoffe = {z["blech_werkstoff_id"]: z for z in self.db.zeilen("blech_werkstoffe")
+                      if z.get("blech_werkstoff_id")}
+        stueck = p.get("stueck") or e.get("stueck")
+        erg = blech.rechnen(dict(e, stueck=stueck), werkstoffe, self.db.zeilen("blechlaser"),
+                            self.db.blech_einstellungen())
+        if not erg.get("richtpreis"):
+            return f"Pos. {p.get('pos') or ''}: Gravur nicht übernommen, " + " ".join(erg["fehler"])
+        lief = ((liste[0].get("stand") or {}).get("bezug") or {}).get("lieferant") or \
+            zukauf.lieferant_vorgabe("Blechteile")
+        self._blech_uebernehmen(p, e, erg, lief, stueck)
+        return "; ".join(f"Pos. {p.get('pos') or ''}: {h}" for h in erg["hinweise"] if "Gravur" in h) or None
 
     def zusatzarbeiten(self, zeilen=None, werte=None):
         """Gewinde und Zusatzarbeiten der markierten Positionen wählen (Dialog). werte = (Gewinde, JSON) setzt
@@ -2629,9 +2666,9 @@ class AngebotSeite(QWidget):
             return False
         werte = dict(d.ergebnis["position"], pos=p["pos"])
         pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
-        self._baugruppe_teile(d.ergebnis["teile"], None)
+        hinweise = self._baugruppe_teile(d.ergebnis["teile"], None)
         self.neu_laden()
-        self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt.")
+        self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt." + "".join(f" {h}" for h in hinweise))
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
         return True
 
@@ -2660,25 +2697,52 @@ class AngebotSeite(QWidget):
         for feld, wert in d.ergebnis["position"].items():
             if p.get(feld) != wert:
                 self.db.position_aendern(p["id"], feld, wert)
-        self._baugruppe_teile(d.ergebnis["teile"], alt_name)
+        hinweise = self._baugruppe_teile(d.ergebnis["teile"], alt_name)
         self.neu_laden()
-        self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert.")
+        self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
         return True
 
     def _baugruppe_teile(self, teile, alt_name):
         """Zuordnung der Einzelteile schreiben; ein herausgenommenes Teil verliert auch Satz und Stück je Satz der
         Baugruppe (Satz und Stückzahlen setzt danach _baugruppen_abgleichen)."""
         nach_id = {q["id"]: q for q in self.positionen}
+        hinweise = []
         for pid, z in teile.items():
             for feld, wert in z.items():
                 self.db.position_aendern(pid, feld, wert)
+            if "bg_gravur" in z and nach_id.get(pid):     # Blechteil: Gravur als Zeile des Blech-Editors
+                h = self.blech_gravur(dict(nach_id[pid], bg_gravur=z["bg_gravur"]), z["bg_gravur"])
+                if h:
+                    hinweise.append(h)
             q = nach_id.get(pid) or {}
             if z.get("bg_knoten") is None and q.get("bg_knoten") and (q.get("satz") or None) in (alt_name, None):
                 self.db.position_aendern(pid, "satz", None)
                 self.db.position_aendern(pid, "je_satz", None)
+        return hinweise
 
     def _vk_einstellungen(self):
-        return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit")}
+        return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit", "gravur_artikel",
+                                                    "gravur_schrifthoehe")}
+
+    def gravur_vorgeben(self, pos, bericht):
+        """Einstellung gravur_artikel = ja nach dem STEP-Import: Artikelnummer auf alle Bleche und Rohre der neuen
+        Schweißbaugruppen (Pos.-Nummern pos) gravieren, die noch keine Wahl haben."""
+        from .baugruppe_dialog import gravierbar
+        h = self.db.einstellung("gravur_schrifthoehe") or 10
+        ids = {baugruppe.lesen(p.get("baugruppe")).get("id") for p in self.positionen if ist_baugruppe(p)
+               and p.get("pos") in pos and baugruppe.lesen(p.get("baugruppe"))} - {None}
+        n = 0
+        for q in self.positionen:
+            if baugruppe.zuordnung(q)[0] not in ids or q.get("bg_gravur") is not None or not gravierbar(q):
+                continue
+            self.db.position_aendern(q["id"], "bg_gravur", float(h))
+            hinweis = self.blech_gravur(dict(q, bg_gravur=h), h)
+            if hinweis:
+                bericht.append(hinweis)
+            n += 1
+        if n:
+            bericht.append(f"Gravur Artikelnummer (Einstellung): {n} Teil(e) der Schweißbaugruppe(n)")
+            self.neu_laden()
 
     def _vorkalkulieren(self, pos, bericht):
         """Vorkalkulation der neuen Schweißbaugruppen (Pos.-Nummern pos) nach dem STEP-Import (Einstellung
@@ -3866,6 +3930,8 @@ class AngebotSeite(QWidget):
                 self.db.netz_speichern(pid, netz)
         self.db.protokoll_anhaengen(self.id, erg["protokoll"])
         self.neu_laden()
+        if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("gravur_artikel") == "ja":
+            self.gravur_vorgeben({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("schweiss_vk_step") == "ja":
             self._vorkalkulieren({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if json_ablage:

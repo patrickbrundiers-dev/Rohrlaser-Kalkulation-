@@ -1465,6 +1465,16 @@ def gravur_anbau(p):
     return min(anbau.gravur(anbau.lesen(p["anbauteile"])), _n(p.get("gravur")))
 
 
+def gravur_artikel(p):
+    """Gravur der Artikelnummer je Rohrlaserteil [mm] (Spalte bg_gravur = Schrifthöhe, gravur_text; Patrick
+    24.10.2026), zusätzlich zu 'gravur'. Blechteile tragen sie als Zeile Text-Gravur im Blech-Editor."""
+    h = _n(p.get("bg_gravur"))
+    if h <= 0 or _leer(p.get("artikel")) or kein_laserteil(p):
+        return 0.0
+    from . import gravur_text
+    return gravur_text.laenge(p["artikel"], h)
+
+
 def bohrbild_offen(p):
     """Gewinde-Vorschlag, Senkung oder Fließlochbohrung noch nicht bestätigt bzw. abgelehnt (bohrbild.py); ohne
     Bohrbild wie früher: Gewinde-Vorschlag da, Gewinde geprüft leer."""
@@ -1919,7 +1929,7 @@ def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None):
         return None
     try:
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
-                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p)) / kv,
+                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p) + gravur_artikel(p)) / kv,
                     gravur_anbau=60 * gravur_anbau(p) / kv,
                     einstiche=_n(p.get("einstiche")) * _n(l), d3=_n(mehr_3d),
                     ecken=_n((enden or {}).get("ecken")), doppel=_n((enden or {}).get("doppel")))
@@ -2588,7 +2598,7 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z.update(zeit_3d_gesamt=d3["zeit"] if d3 else None, mm_3d=d3["laenge"] if d3 else None,
                  bearbeitungen_3d=d3["anzahl"] if d3 else None)
         z.update(mm_gross=gross_rest(p), mm_mittel=_n(p.get("mittel_mm")), mm_klein=_n(p.get("klein_mm")),
-                 mm_gravur=_n(p.get("gravur")), mm_gravur_anbau=gravur_anbau(p), einstiche_teil=_n(p.get("einstiche")))
+                 mm_gravur=_n(p.get("gravur")) + gravur_artikel(p), mm_gravur_anbau=gravur_anbau(p), einstiche_teil=_n(p.get("einstiche")))
         ein = eingespart.get(schluessel(p, i), [0, 0.0, 0])
         if h is None or c == 0 or not h:
             nz = 0

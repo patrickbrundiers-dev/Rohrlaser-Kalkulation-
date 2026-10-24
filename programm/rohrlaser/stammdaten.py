@@ -492,12 +492,14 @@ BLECHLASER = Tabelle(
      Feld("vorschub", "Vorschub Außenkontur [mm/min]", "zahl", 1, 200000, stellen=0, pflicht=True),
      Feld("vorschub_innen", "Vorschub Innenkonturen [mm/min]", "zahl", 1, 200000, stellen=0),
      Feld("einstechzeit", "Einstechzeit [s]", "zahl", 0, 60, stellen=1),
+     Feld("vorschub_gravur", "Vorschub Gravur [mm/min]", "zahl", 1, 200000, stellen=0),
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("kategorie", "gas", "dicke_bis"),
     "Schneiddaten eines Flachbettlasers nur für den Richtpreis im Blech-Editor; sie gehören nicht zu den Rohrlaser-"
     "Maschinen. Je Kategorie und Schneidgas gestaffelt nach Blechdicke: es gilt die Zeile mit der kleinsten "
     "'Blechdicke bis', die mindestens der Blechdicke entspricht; N₂, solange es dafür eine Zeile gibt, darüber O₂. "
-    "Leerer Vorschub Innenkonturen = halber Vorschub Außenkontur. Vorbelegt sind Richtwerte eines Faserlasers mit "
+    "Leerer Vorschub Innenkonturen = halber Vorschub Außenkontur. Vorschub Gravur gilt für Text-Gravuren (z. B. "
+    "Artikelnummer); leer = die Gravur kostet keine Zeit, der Blech-Editor zeigt einen Hinweis. Vorbelegt sind Richtwerte eines Faserlasers mit "
     "etwa 6 kW, bitte an den eigenen Blechlaser bzw. Lieferanten anpassen.")
 
 # K-Faktoren der Abwicklung je Kategorie, Blechdicke und Innenradius ÷ Dicke (Plan S4, Patrick 23.10.2026 „2a“)
@@ -822,6 +824,11 @@ EINSTELLUNGEN = (
                 "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
     Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)",
                 "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
+    # Positionsgravur (gravur_text.py): Artikelnummer auf Bleche und Rohre gravieren, Höhe je Teil änderbar
+    Einstellung("gravur_artikel", "Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
+                "(Vorgabe des Häkchens im Baugruppen-Editor)", "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
+    Einstellung("gravur_schrifthoehe", "Gravur: Schrifthöhe der Artikelnummer [mm]", "Schweißbaugruppen", "zahl", 10.0,
+                1, 200),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "STEP-Import", "zahl", 150.0, 1, 10000),
     # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
@@ -1332,7 +1339,7 @@ def beispiel_blech_kfaktoren():
 
 
 def beispiel_blechlaser():
-    return [(kat, gas, d, v, round(v * 0.5, -1), ein, "Richtwert Faser 6 kW")
+    return [(kat, gas, d, v, round(v * 0.5, -1), ein, None, "Richtwert Faser 6 kW")
             for (kat, gas), stufen in BLECHLASER_RICHTWERTE.items() for d, v, ein in stufen]
 
 
