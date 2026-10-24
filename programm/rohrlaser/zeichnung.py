@@ -13,7 +13,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import CondPageBreak, Image, Spacer
 
-from . import naht as naht_, rechnen, schneidweg as sw, skizze as sk
+from . import naht as naht_, rechnen, schneidweg as sw, skizze as sk, stil
 from .pdf import GRAU, S_H2, S_KLEIN, _dok_kopf, _dokument, _erstellt, _fuss, _kacheln, _kopfzeile, _p, _tabelle
 from .skizze_widget import ABWICKLUNG, ANSICHTEN, Skizze
 
@@ -187,7 +187,8 @@ def blech_pdf(pfad, kopf, teil, e, erg, einst=None):
     skizze = BlechSkizze()
     skizze.resize(breite_px, hoehe_px)
     skizze.setzen(e, zs)
-    img = skizze.grab().toImage()
+    with stil.druckfarben():                    # Zeichnung (PDF) immer hell, auch im Dunkelmodus
+        img = skizze.grab().toImage()
     hoehe_mm = hoehe_px * (BREITE / mm) / breite_px
     papier = getattr(skizze, "m", 0) * (BREITE / mm) / breite_px
     n = 1 / papier if papier > 0 else 0

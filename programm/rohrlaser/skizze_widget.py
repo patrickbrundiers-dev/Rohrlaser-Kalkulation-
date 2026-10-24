@@ -11,7 +11,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
-from . import biegerohr, rechnen, schnittflaeche as sf, skizze as sk
+from . import biegerohr, rechnen, schnittflaeche as sf, skizze as sk, stil
 from . import schneidweg as sw
 from .schneidweg import GRAVUREN, MASSE, POLYGON, _z
 
@@ -21,12 +21,13 @@ LINKS, RECHTS, OBEN, UNTEN = 96, 24, 52, 44     # Ränder [px] für Beschriftung
 ABSTAND_ANSICHTEN = 46                          # zwischen Draufsicht und Seitenansicht [px]
 EINSATZ = 180                                   # Ansicht von A [px]
 
-FARBE_TEIL, FARBE_FLAECHE, FARBE_SCHNITT = QColor("#1F3864"), QColor("#F4F7FB"), QColor("#DCE6F2")
-FARBE_KONTUR, FARBE_WAHL, FARBE_MASS = QColor("#B42318"), QColor("#E67E00"), QColor("#595959")
-FARBE_NAHT = QColor("#C0392B")
-FARBE_BEGRENZT = QColor("#F2C200")             # 3D über der Schwenkgrenze (gelb wie im 3D)
-FARBE_GRAVUR = QColor("#2E7D32")                # Gravur grün wie in der 3D-Ansicht
-FARBE_BIEGUNG = QColor("#7F6000")               # Biegezone (Biegerohr)
+# Farben im Theme (stil.farbe_fest: im Dunkelmodus umgefärbt, für die Zeichnung im PDF stil.druckfarben)
+FARBE_TEIL, FARBE_FLAECHE, FARBE_SCHNITT = (stil.farbe_fest(f) for f in ("#1F3864", "#F4F7FB", "#DCE6F2"))
+FARBE_KONTUR, FARBE_WAHL, FARBE_MASS = (stil.farbe_fest(f) for f in ("#B42318", "#E67E00", "#595959"))
+FARBE_NAHT = stil.farbe_fest("#C0392B")
+FARBE_BEGRENZT = stil.farbe_fest("#F2C200")     # 3D über der Schwenkgrenze (gelb wie im 3D)
+FARBE_GRAVUR = stil.farbe_fest("#2E7D32")       # Gravur grün wie in der 3D-Ansicht
+FARBE_BIEGUNG = stil.farbe_fest("#7F6000")      # Biegezone (Biegerohr)
 
 
 class Skizze(QWidget):
@@ -116,7 +117,7 @@ class Skizze(QWidget):
     def paintEvent(self, _):
         g = QPainter(self)
         g.setRenderHint(QPainter.Antialiasing)
-        g.fillRect(self.rect(), QColor("#FFFFFF"))
+        g.fillRect(self.rect(), stil.farbe("#FFFFFF"))
         self.treffer = []
         e_a, e_b = self.eingaben.get("a") or {}, self.eingaben.get("b") or {}
         lagen = self.lagen()
@@ -357,13 +358,13 @@ class Skizze(QWidget):
         letzte = -1e9
         for x, verteilt in werte:
             px = self._bild(oben, x, 0).x()
-            g.setPen(QPen(FARBE_MASS if not verteilt else QColor("#A0A0A0"), 0.6, Qt.DotLine))
+            g.setPen(QPen(FARBE_MASS if not verteilt else stil.farbe("#A0A0A0"), 0.6, Qt.DotLine))
             g.drawLine(QPointF(px, y_top - 2), QPointF(px, y_top - 10))
             if px - letzte >= 14:
                 g.save()
                 g.translate(px + 4, y_top - 12)
                 g.rotate(-90)
-                g.setPen(FARBE_MASS if not verteilt else QColor("#A0A0A0"))
+                g.setPen(FARBE_MASS if not verteilt else stil.farbe("#A0A0A0"))
                 g.drawText(QRectF(0, -12, 40, 14), Qt.AlignLeft | Qt.AlignVCenter, rechnen.zahl(x, 1))
                 g.restore()
                 letzte = px
@@ -372,8 +373,8 @@ class Skizze(QWidget):
         """Ansicht von A (Querschnitt) oben rechts mit Flächennamen und der Lage der Konturen."""
         qs = self.qs
         box = QRectF(self.width() - EINSATZ - 6, OBEN - 26, EINSATZ, EINSATZ)
-        g.setPen(QPen(QColor("#D0D7E2"), 1))
-        g.setBrush(QBrush(QColor("#FFFFFF")))
+        g.setPen(QPen(stil.farbe("#D0D7E2"), 1))
+        g.setBrush(QBrush(stil.farbe("#FFFFFF")))
         g.drawRect(box)
         m = min((box.width() - 130) / max(qs.B, 1e-6), (box.height() - 80) / max(qs.H, 1e-6))
         c = box.center() - QPointF(0, 6)
@@ -446,8 +447,9 @@ class Skizze(QWidget):
         self.modus, self.zoom, self.pan, self.druck = modus if modus in MODI else ANSICHTEN, 1.0, QPointF(0, 0), True
         img = QImage(int(breite * faktor), int(hoehe * faktor), QImage.Format_ARGB32)
         img.setDevicePixelRatio(faktor)
-        img.fill(QColor("#FFFFFF"))
-        self.render(img)
+        img.fill(QColor("#FFFFFF"))            # fest: Papier der Zeichnung
+        with stil.druckfarben():                # Zeichnung (PDF) immer hell, auch im Dunkelmodus
+            self.render(img)
         s = self.massstab()
         self.resize(alt[0])
         self.modus, self.zoom, self.pan, self.druck = alt[1:]

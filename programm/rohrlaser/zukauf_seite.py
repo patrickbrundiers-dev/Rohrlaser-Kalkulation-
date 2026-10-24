@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QListWidgetItem, QMenu, QMessageBox, QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from . import hilfe, tastatur, zukauf
+from . import hilfe, stil, tastatur, zukauf
 from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
 TITEL = "Zukaufartikel"
@@ -1036,11 +1036,11 @@ class ArtikelSeite(QWidget):
                     f.setBold(True)
                     it.setFont(f)
                 if archiviert(a):
-                    it.setForeground(Qt.gray)
+                    it.setForeground(stil.farbe(GRAU))
                 elif (n == "ek" and w[n] in ("kein Preis", EK_FEHLT)) or (n == "aufschlag" and w[n] == "kein Aufschlag"):
-                    it.setForeground(Qt.red)
+                    it.setForeground(stil.farbe(ROT))
                 elif n == "status" and w[n] == "Preis abgelaufen":
-                    it.setForeground(Qt.darkYellow)
+                    it.setForeground(stil.farbe(GELB))
                 self.tabelle.setItem(r, c, it)
         self.zellen_text = zellen
         self._einpassen()

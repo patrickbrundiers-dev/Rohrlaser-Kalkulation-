@@ -20,6 +20,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
+from . import stil
+
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("A", "Außenwand", "#B9C3CD", None),
     ("I", "Innenwand", "#8A96A3", None),
@@ -52,18 +54,18 @@ GROB_DREIECKE = 10000   # beim Drehen/Zoomen höchstens so viele Dreiecke zeichn
 TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
               "#BAB0AC", "#2F4B7C", "#A05195")
 FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
-FARBE["X"] = QColor("#D9DDE2")         # nicht gewählte Teile, wenn andere hervorgehoben sind
+FARBE["X"] = stil.farbe_fest("#D9DDE2")     # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 NAEHTE, NAHT_BREITE = ("SN", "SV", "SH"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
-HINTERGRUND = QColor("#FFFFFF")         # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
-HINTERGRUND_OBEN = QColor("#DCE3EA")
+HINTERGRUND = stil.farbe_fest("#FFFFFF")     # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
+HINTERGRUND_OBEN = stil.farbe_fest("#DCE3EA")
 # Licht (QPainter je Dreieck, OpenGL je Ecke, gleiche Formel): Hauptlicht links oben vorn, Fülllicht rechts unten;
 # LICHT_WERTE = (Grundlicht, Neigung oben heller, Fülllicht, Glanz, Glanz-Exponent) – Metall-Look
 LICHT = (-0.35, 0.45, 0.82)
 LICHT2 = (0.55, -0.35, 0.76)
 LICHT_WERTE = (0.38, 0.06, 0.16, 0.22, 36.0)
-MARKIERT = QColor("#00A040")        # Teile-Editor: gewähltes Merkmal (grün umrandet wie im CAM, Plan G3)
-KANTE = QColor("#3C4650")           # Darstellung „Mit Kanten“: Körperkanten
+MARKIERT = stil.farbe_fest("#00A040")       # Teile-Editor: gewähltes Merkmal (grün umrandet wie im CAM, Plan G3)
+KANTE = stil.farbe_fest("#3C4650")          # Darstellung „Mit Kanten“: Körperkanten
 # Darstellungsarten (Plan 3D-Editor A4): Schattiert = Flächen und Schnittkonturen (wie bisher), Mit Kanten = dazu die
 # Körperkanten dunkel, Durchsichtig = Röntgen (Rückseiten und verdeckte Konturen sichtbar)
 SCHATTIERT, MIT_KANTEN, DURCHSICHTIG = "Schattiert", "Mit Kanten", "Durchsichtig"
@@ -73,8 +75,8 @@ BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Wei�
 KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (große Baugruppen: keine)
 KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
 GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
-MESSEN = QColor("#B42318")
-SCHNITT = QColor("#1F4E78")          # Querschnitt-Stelle (editor_schnitt)
+MESSEN = stil.farbe_fest("#B42318")
+SCHNITT = stil.farbe_fest("#1F4E78")        # Querschnitt-Stelle (editor_schnitt)
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
@@ -449,7 +451,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             liste.append((2, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb), "_kante", 1.0))
     liste.sort(key=lambda e: (e[0], e[1]))
     p.setRenderHint(QPainter.Antialiasing, glatt)
-    stift_linie = {a: QPen(_blass(LINIE.get(a, QColor("#C00000")), blass), NAHT_BREITE if a in NAEHTE else 2.2,
+    stift_linie = {a: QPen(_blass(LINIE.get(a, stil.farbe("#C00000")), blass), NAHT_BREITE if a in NAEHTE else 2.2,
                            Qt.SolidLine, Qt.RoundCap) for a in LINIE}
     stift_linie["_kante"] = QPen(_blass(KANTE, blass), 1.1)
     verdeckt = {a: QPen(QColor(s.color().red(), s.color().green(), s.color().blue(), 110), 1.4, Qt.DashLine)
@@ -744,7 +746,7 @@ class Ansicht3D(QWidget):
         p = QPainter(self)
         hintergrund_malen(p, self.rect())
         if self.modell is None:
-            p.setPen(QColor("#7F7F7F"))
+            p.setPen(stil.farbe("#7F7F7F"))
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
                        "Keine 3D-Daten.\nDie 3D-Ansicht gibt es für Teile, die per STEP-Import übernommen wurden.")
             return
@@ -768,13 +770,13 @@ class Ansicht3D(QWidget):
     def _beschriften(self, p):
         """Titel, Legende der Flächenarten und Bedienhinweis über dem Bild (QPainter und OpenGL)."""
         if self.modell is None:
-            p.setPen(QColor("#7F7F7F"))
+            p.setPen(stil.farbe("#7F7F7F"))
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
                        "Keine 3D-Daten.\nDie 3D-Ansicht gibt es für Teile, die per STEP-Import übernommen wurden.")
             return
         p.setRenderHint(QPainter.Antialiasing, False)
         y = 8
-        p.setPen(QColor("#202020"))
+        p.setPen(stil.farbe("#202020"))
         if self.titel:
             p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, self.titel)
             y += 20
@@ -782,11 +784,11 @@ class Ansicht3D(QWidget):
             if art not in self.modell.arten:
                 continue
             p.fillRect(QRectF(10, y + 3, 12, 12), QColor(linie or farbe))
-            p.setPen(QColor("#202020"))
+            p.setPen(stil.farbe("#202020"))
             p.drawText(QRectF(28, y, 200, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
             y += 18
         self._markierung_zeichnen(p)
-        p.setPen(QColor("#7F7F7F"))
+        p.setPen(stil.farbe("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
         p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
                    ("Winkel: drei Punkte anklicken, der mittlere ist der Scheitel" if self.mess_art == MESS_WINKEL

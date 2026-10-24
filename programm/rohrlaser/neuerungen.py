@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.95", "<b>Dunkelmodus verbessert</b>: Eingabezellen sind im Dunkelmodus blaugrau statt olivbraun, berechnete "
+               "Zellen etwas dunkler, sodass beides gut zu unterscheiden ist. Das Feld „STEP-Dateien hierher ziehen“, "
+               "die Skizzen und Zeichnungen in Rohr-, Blech-, Naht- und Profil-Editor und die 3D-Ansicht sind jetzt "
+               "auch dunkel; Zeichnungen im PDF bleiben weiß. <b>Wie Windows</b> erkennt den Windows-Dunkelmodus "
+               "zuverlässig über die Windows-Einstellung, und Hell bleibt hell, auch wenn Windows dunkel ist (vorher "
+               "mischten sich weiße Karten mit dunklen Fenstern). Farbschema, Schriftgröße und Dichte wirken sofort, "
+               "ohne Neustart. Spaltenköpfe lassen Platz für den Sortierpfeil und werden nicht mehr abgeschnitten "
+               "(z. B. „Programmierzei…“) ([[einstellungen]]).",
+     "Dunkelmodus: blaugraue Eingabezellen, dunkle Skizzen und 3D, Wie Windows zuverlässig, Wechsel sofort"],
     ["0.9.93", "<b>3D-Editor: Gegenrohr, Lochfeld, Fase, Schrift</b>: Ein Rohrende lässt sich auf ein "
                "<b>Gegenrohr</b> setzen – rund oder rechteckig, schräg, mit Versatz, auf Rund-, Quadrat- und "
                "Rechteckrohr; das Programm rechnet die echte Schnittkurve, im 3D steht das Gegenrohr pink. Neu als "

@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFileDialog, QHeaderView, QLabel,
                                QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
+from . import stil
 from .datenbank import SCHEMA_VERSION, _geschuetzt, datei_info
 
 SPALTEN = ("Zeit", "Art", "Angebote", "Positionen", "Schema", "Ordner")
@@ -85,7 +86,7 @@ class WiederherstellenDialog(QDialog):
                 if j in (2, 3, 4):
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if z["fehler"] or (z["schema"] or 0) > SCHEMA_VERSION:
-                    item.setForeground(Qt.gray)
+                    item.setForeground(stil.farbe(stil.TEXT_GRAU))
                     item.setToolTip(z["fehler"] or "Sicherung einer neueren Programmversion")
                 self.tabelle.setItem(i, j, item)
         self.tabelle.resizeColumnsToContents()

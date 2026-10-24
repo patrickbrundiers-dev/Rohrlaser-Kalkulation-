@@ -7,14 +7,14 @@ import math
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
                                QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
                                QMessageBox,
                                QPushButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from . import hilfe
+from . import hilfe, stil
 from . import blech, blech3d, blech_zeichnen as bz, dfm, dxf, gravur_text, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
@@ -93,10 +93,10 @@ class BlechSkizze(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         if not self.mini:
-            p.fillRect(self.rect(), QColor("white"))
+            p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
         zs = self.zuschnitt
         if not zs:
-            p.setPen(QColor("#5F6B7A"))
+            p.setPen(stil.farbe("#5F6B7A"))
             p.drawText(self.rect(), Qt.AlignCenter, "Maße eingeben, dann erscheint hier die Abwicklung.")
             return
         kant = self.eingaben.get("art") == blech.KANTTEIL and not self.mini
@@ -123,8 +123,8 @@ class BlechSkizze(QWidget):
             return QPointF(x0 + x * m, y0 + (br - y) * m)
 
         p.setFont(QFont(self.font().family(), 8))
-        p.setPen(QPen(QColor(FARBE_LINIE), 1.0 if self.mini else 1.6))
-        p.setBrush(QColor(FARBE_BLECH))
+        p.setPen(QPen(stil.farbe(FARBE_LINIE), 1.0 if self.mini else 1.6))
+        p.setBrush(stil.farbe(FARBE_BLECH))
         if zs.get("punkte"):
             pfad = QPainterPath(pkt(zs["punkte"][0][0] - minx, zs["punkte"][0][1] - miny))
             for x, y in zs["punkte"][1:]:
@@ -136,13 +136,13 @@ class BlechSkizze(QWidget):
             p.drawRoundedRect(QRectF(pkt(0, br), pkt(lg, 0)), r, r)
         # Biegelinien quer zur Abwicklungsbreite (parallel zur Kantlänge)
         for i, (lage, winkel, radius, _) in enumerate(zs.get("biegungen") or [], 1):
-            p.setPen(QPen(QColor(FARBE_MARKIERT), 3.0) if self.markiert == f"biegung:{i - 1}" else
-                     QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
+            p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 3.0) if self.markiert == f"biegung:{i - 1}" else
+                     QPen(stil.farbe(FARBE_BIEGUNG), 1.2, Qt.DashLine))
             a, b = pkt(0, lage), pkt(lg, lage)
             p.drawLine(a, b)
             if self.mini:
                 continue
-            p.setPen(QColor(FARBE_BIEGUNG))
+            p.setPen(stil.farbe(FARBE_BIEGUNG))
             p.drawText(QPointF(b.x() + 4, b.y() + 4),
                        f"B{i} {zahl_als_text(abs(winkel), 0)}° {'↑' if winkel > 0 else '↓'} r{zahl_als_text(radius, 1)}")
         # mehrachsig gekantet (STEP-Import): Biegelinien in beliebiger Richtung
@@ -152,12 +152,12 @@ class BlechSkizze(QWidget):
                     (x1, y1), (x2, y2) = x["punkte"]
                 except (TypeError, ValueError, KeyError):
                     continue
-                p.setPen(QPen(QColor(FARBE_MARKIERT), 3.0) if self.markiert == f"biegung:{i - 1}" else
-                         QPen(QColor(FARBE_BIEGUNG), 1.2, Qt.DashLine))
+                p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 3.0) if self.markiert == f"biegung:{i - 1}" else
+                         QPen(stil.farbe(FARBE_BIEGUNG), 1.2, Qt.DashLine))
                 a, b = pkt(x1 - minx, y1 - miny), pkt(x2 - minx, y2 - miny)
                 p.drawLine(a, b)
                 if not self.mini:
-                    p.setPen(QColor(FARBE_BIEGUNG))
+                    p.setPen(stil.farbe(FARBE_BIEGUNG))
                     w = sw._z(x.get("winkel"))
                     p.drawText(QPointF((a.x() + b.x()) / 2 + 4, (a.y() + b.y()) / 2 - 4),
                                f"B{i} {zahl_als_text(abs(w), 0)}° {'↑' if w > 0 else '↓'}")
@@ -173,14 +173,14 @@ class BlechSkizze(QWidget):
                 cx, cy = lg * (k + 1) / (len(frei) + 1), br / 2
             else:               # im System der Außenkontur (Polygon ab 0, 0 gezeichnet)
                 cx, cy = z["x"] - minx, z["y"] - miny
-            p.setPen(QPen(QColor(FARBE_MARKIERT), 3.0) if self.markiert == f"kontur:{zeile[id(z)]}" else
-                     QPen(QColor(FARBE_KONTUR), 1.2))
+            p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 3.0) if self.markiert == f"kontur:{zeile[id(z)]}" else
+                     QPen(stil.farbe(FARBE_KONTUR), 1.2))
             self._kontur(p, z, pkt(cx, cy), m)
         if self.mini:
             return
         self._griffe_zeichnen(p)
         # Maße
-        p.setPen(QColor("#333333"))
+        p.setPen(stil.farbe("#333333"))
         p.drawText(QRectF(x0, y0 + br * m + 4, lg * m, 16), Qt.AlignCenter, f"{zahl_als_text(lg, 1)} mm")
         p.save()
         p.translate(x0 - 6, y0 + br * m / 2)
@@ -212,24 +212,24 @@ class BlechSkizze(QWidget):
 
     def _griffe_zeichnen(self, p):
         zs = self.zuschnitt
-        p.setBrush(QColor("white"))
+        p.setBrush(stil.farbe("#FFFFFF"))
         if self._neu is None and zs.get("punkte") and self.markiert == "teil" and not self.boegen():
-            p.setPen(QPen(QColor(FARBE_MARKIERT), 1.4))
+            p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 1.4))
             for x, y in zs["punkte"]:
                 q = self.px(x, y)
                 p.drawRect(QRectF(q.x() - 3.5, q.y() - 3.5, 7, 7))
         if self._neu is not None:
             pk = list(self._neu) + ([self._maus] if self._maus else [])
-            p.setPen(QPen(QColor(FARBE_MARKIERT), 1.8, Qt.DashLine if self._maus else Qt.SolidLine))
+            p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 1.8, Qt.DashLine if self._maus else Qt.SolidLine))
             if len(pk) > 1:
                 p.drawPolyline([self.px(*q) for q in pk])
-            p.setPen(QPen(QColor(FARBE_MARKIERT), 1.4))
+            p.setPen(QPen(stil.farbe(FARBE_MARKIERT), 1.4))
             for i, q in enumerate(self._neu):
                 c = self.px(*q)
                 p.drawRect(QRectF(c.x() - 3.5, c.y() - 3.5, 7, 7))
                 if i == 0 and len(self._neu) >= 3:
                     p.drawEllipse(c, 7, 7)
-            p.setPen(QColor("#333333"))
+            p.setPen(stil.farbe("#333333"))
             text = ("Außenkontur zeichnen: Punkte anklicken (Umschalt = waagerecht/senkrecht), auf den ersten Punkt, "
                     "Doppelklick oder Eingabe schließt; Rücktaste nimmt den letzten zurück, Esc bricht ab")
             if self._maus:
@@ -521,12 +521,12 @@ class BlechSkizze(QWidget):
         m = min((feld.width() - 80) / w, (feld.height() - 70) / h, m_abw or 1e9)
         ox = feld.x() + 20 + (feld.width() - 40 - w * m) / 2 - min(xs) * m
         oy = feld.y() + 30 + (feld.height() - 50 + h * m) / 2 + min(ys) * m
-        p.setPen(QColor("#333333"))
+        p.setPen(stil.farbe("#333333"))
         p.drawText(QPointF(feld.x(), feld.y() - 8), "Seitenansicht (Außenmaße)")
-        p.setPen(QPen(QColor(FARBE_LINIE), min(max(2.0, sw._z(self.eingaben.get("dicke")) * m), 8.0)))
+        p.setPen(QPen(stil.farbe(FARBE_LINIE), min(max(2.0, sw._z(self.eingaben.get("dicke")) * m), 8.0)))
         for (x1, y1), (x2, y2) in zip(pk, pk[1:]):
             p.drawLine(QPointF(ox + x1 * m, oy - y1 * m), QPointF(ox + x2 * m, oy - y2 * m))
-        p.setPen(QColor("#333333"))
+        p.setPen(stil.farbe("#333333"))
         schenkel = [z for z in self.eingaben.get("schenkel") or [] if sw._z(z.get("laenge")) > 0]
         mx, my = sum(xs) / len(xs), sum(ys) / len(ys)          # Maße von der Mitte weg nach außen schieben
         for (x1, y1), (x2, y2), z in zip(pk, pk[1:], schenkel):
