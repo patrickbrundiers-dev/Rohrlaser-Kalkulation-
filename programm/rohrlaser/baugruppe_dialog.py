@@ -1268,9 +1268,25 @@ class BaugruppeDialog(QDialog):
                          "Nahtgruppen angelegt oder älterer STEP-Import: neu importieren oder im 3D zeichnen).")
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten fehlen."
+        weniger = self.weniger_im_3d(besitzer)
+        if weniger:
+            info += (" Nicht alle Stück im 3D (die STEP-Datei enthält weniger Körper, z. B. Menge von Hand erhöht oder "
+                     "Unterbaugruppe aus eigener Datei): " + "; ".join(weniger) + ".")
         self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
         self.baum_info.setText("")
         return len(netze)
+
+    def weniger_im_3d(self, besitzer):
+        """Teile, die öfter in der Baugruppe stecken, als die 3D-Ansicht Körper hat: ['Pos. 10 …: 1 von 4 Stück']."""
+        out = []
+        for t in self.teile:
+            if not t.get("drin") or t["_id"] not in besitzer:
+                continue
+            soll = (t.get("je") or 1) * (baugruppe.faktor(self.bg, t.get("knoten") or "") or 1)
+            ist = besitzer.count(t["_id"])
+            if ist < soll:
+                out.append(f"{self._teil_titel(t['_q'])}: {ist} von {soll} Stück")
+        return out
 
     # -------------------------------------------------------------- Naht im 3D zeichnen (N2)
     def naht_zeichnen(self, an):
