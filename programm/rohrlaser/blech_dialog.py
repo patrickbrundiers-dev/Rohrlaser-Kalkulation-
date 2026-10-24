@@ -84,6 +84,7 @@ class BlechSkizze(QWidget):
         rand = 1.5 if self.mini else 46
         lg, br = max(zs["laenge"], 1), max(zs["breite"], 1)
         m = min((breite_abw - 2 * rand) / lg, (hoehe_abw - 2 * rand) / br)
+        self.m = m              # Pixel je mm der Abwicklung (Maßstab der Zeichnung als PDF)
         x0 = rand + ((breite_abw - 2 * rand - lg * m) / 2 if self.mini else 0)      # Vorschau mittig
         y0 = rand + (hoehe_abw - 2 * rand - br * m) / 2
 
@@ -419,6 +420,10 @@ class BlechDialog(QDialog):
         self.dxf_knopf.setToolTip("Abwicklung als DXF (R12) mit Layern für Außenkontur, Innenkonturen, Biegelinien "
                                   "und Beschriftung, z. B. für den Blechlaser oder den Lieferanten")
         self.dxf_knopf.clicked.connect(lambda: self.dxf_speichern())
+        self.zeichnung_knopf = self.knoepfe.addButton("Zeichnung als PDF …", QDialogButtonBox.ActionRole)
+        self.zeichnung_knopf.setToolTip("Maßstäbliche Zeichnung: Abwicklung bzw. Zuschnitt mit Bemaßung, Biegelinien "
+                                        "und Seitenansicht, Liste der Biegungen und Innenkonturen mit Lage")
+        self.zeichnung_knopf.clicked.connect(lambda: self.zeichnung_pdf())
         self.knoepfe.accepted.connect(self.accept)
         self.knoepfe.rejected.connect(self.reject)
         lay.addWidget(self.knoepfe)
@@ -686,6 +691,35 @@ class BlechDialog(QDialog):
         if hinweise and not getattr(self, "stumm", False):
             QMessageBox.information(self, "DXF gespeichert", "Gespeichert. Bitte prüfen:\n– " + "\n– ".join(hinweise))
         return hinweise
+
+    def zeichnung_pdf(self, pfad=None):
+        """Zeichnung als PDF (zeichnung.blech_pdf). Ohne pfad: in die Ablage des Angebots schreiben und öffnen (ohne
+        Angebot: Dateidialog). Ergebnis: Pfad oder None."""
+        from . import zeichnung
+        erg = self.rechnen()
+        if not erg.get("zuschnitt"):
+            QMessageBox.warning(self, "Zeichnung als PDF", "Erst die Maße eingeben: " + "; ".join(erg["fehler"]))
+            return None
+        seite = self.parent()
+        einst = dict(getattr(seite, "einst", None) or {})
+        if not einst and self.db is not None:
+            einst = {n: self.db.einstellung(n) for n in ("briefkopf_1", "logo")}
+
+        def schreiben(ziel):
+            zeichnung.blech_pdf(ziel, getattr(seite, "kopf", None) or {}, self.kopf_werte(), self.eingaben(), erg,
+                                einst)
+        if pfad is not None:
+            schreiben(pfad)
+            return pfad
+        kopf = self.kopf_werte()
+        name = f"Zeichnung {kopf['artikelnr'] or kopf['bezeichnung'] or 'Blech'}".strip()
+        if hasattr(seite, "_ziel"):
+            return seite._schreiben("Zeichnung", seite._ziel(name, ".pdf"), schreiben)
+        pfad, _ = QFileDialog.getSaveFileName(self, "Zeichnung als PDF speichern", f"{name}.pdf", "PDF (*.pdf)")
+        if not pfad:
+            return None
+        schreiben(pfad)
+        return pfad
 
     def accept(self):
         if self.rechnen()["fehler"]:

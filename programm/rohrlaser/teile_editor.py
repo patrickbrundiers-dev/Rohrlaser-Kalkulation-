@@ -528,6 +528,7 @@ class EditorRahmen(QObject):
             k = g.knopf("STEP neu einlesen", "step", lambda: d.step_einlesen(), tipp=d.step_knopf.toolTip())
             k.setEnabled(d.step_knopf.isEnabled())
         else:
+            g.knopf("Zeichnung als PDF", "pdf", lambda: d.zeichnung_pdf(), tipp=d.zeichnung_knopf.toolTip())
             g.knopf("DXF speichern", "dxf", lambda: d.dxf_speichern(), tipp=d.dxf_knopf.toolTip())
         self.band.eingeklappt_geaendert.connect(lambda an: self._merken("editor_band_zu", an))
         if self._einstellung("editor_band_zu", False) is True:
