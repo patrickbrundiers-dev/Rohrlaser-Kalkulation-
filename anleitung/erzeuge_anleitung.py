@@ -2991,11 +2991,13 @@ def kapitel_baugruppen(i):
     i.text("Der Reiter <b>Strukturbaum und 3D</b> zeigt die Baugruppe als Baum (Baugruppe → Unterbaugruppen → "
            "Einzelteile und Nahtgruppen, mit Menge und Stück je Baugruppe) und rechts in 3D in Einbaulage, wenn die "
            "Teile aus dem STEP-Import kommen. Ein Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt "
-           "die Teile blau hervor.", kurz=True)
+           "die Teile blau hervor. Die Schweißnähte sind als Linien eingezeichnet: Nahtgruppen schwarz, noch offene "
+           "Nahtvorschläge aus dem STEP-Import magenta, die gewählte Nahtgruppe rot.", kurz=True)
     i.bild("baugruppe_baum", "Reiter Strukturbaum und 3D, Unterbaugruppe gewählt", hoehe=70 * mm, legende=[
         (1, "<b>Strukturbaum</b>: Baugruppe, Unterbaugruppen mit Menge, darin Einzelteile und Nahtgruppen."),
         (2, "Gewählte Zeile: ihre Teile sind rechts blau, alle anderen grau."),
-        (3, "3D-Ansicht der ganzen Baugruppe in Einbaulage (Knöpfe Schräg, Vorn, Oben, Stirnseite).")])
+        (3, "3D-Ansicht der ganzen Baugruppe in Einbaulage mit den Schweißnähten (Knöpfe Schräg, Vorn, Oben, "
+            "Stirnseite).")])
     i.genauer()
     i.text("Ohne Auswahl zeigt die Ansicht gleiche Teile in gleicher Farbe. Bei einer Nahtgruppe aus den "
            "Nahtkandidaten sind die beiden gestoßenen Teile blau; bei einer von Hand angelegten Nahtgruppe die Teile "
@@ -3004,6 +3006,10 @@ def kapitel_baugruppen(i):
            "Baugruppe bleibt, wenn die Teilung aufgeht. Je Teil zeigt die 3D-Ansicht alle gleichen Körper der "
            "STEP-Datei; bei Teilen aus einem Import vor Version 0.9.52 nur einen, Teile ohne STEP-Import fehlen "
            "(die Zeile unter der Ansicht nennt, wie viele).")
+    i.text("Den Nahtverlauf liefert der STEP-Import ab Version 0.9.56 (die Schnittkante der sich berührenden "
+           "Körper). Nähte sind immer sichtbar, auch wenn ein Teil davor liegt. Von Hand angelegte Nahtgruppen und "
+           "Nahtgruppen aus einem älteren Import haben keinen Verlauf; die Zeile unter der Ansicht nennt, wie viele "
+           "(STEP-Datei neu importieren, dann erscheinen sie).")
     i.abschnitt("Nahtgruppen")
     i.text("Je Zeile eine Gruppe gleicher Nähte. Die Schweißzeit kommt aus den Kennwerten unter Einstellungen "
            "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert oder das a-Maß, ist die Zeile gelb "

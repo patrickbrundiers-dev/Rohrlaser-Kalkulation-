@@ -218,7 +218,7 @@ class GLFlaeche(QOpenGLWidget):
             b, n = self.puffer[name]
             pr.setUniformValue1f(pr.uniformLocation("linie"), ist_linie)
             if ist_linie:
-                fn.glLineWidth(2.2)
+                fn.glLineWidth(ansicht3d.NAHT_BREITE if set(modell.arten) & set(ansicht3d.NAEHTE) else 2.2)
             b.bind()
             for k, attr in enumerate(("pos", "nrm", "col")):
                 loc = pr.attributeLocation(attr)
