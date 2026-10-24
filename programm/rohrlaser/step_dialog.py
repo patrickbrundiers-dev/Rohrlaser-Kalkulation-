@@ -1053,18 +1053,36 @@ class StepPruefDialog(QDialog):
 class Positionen3DDialog(_Mit3D):
     """3D-Ansicht der Positionen eines Angebots (Teile aus dem STEP-Import)."""
 
-    def __init__(self, parent, positionen, netze, gewaehlt=0):
+    def __init__(self, parent, positionen, netze, gewaehlt=0, bearbeiten=None):
+        """bearbeiten(zeile): Editor der Position öffnen (Plan 3D-Editor F1: Doppelklick auf das Teil im 3D oder in
+        der Liste, Knopf „Im Editor öffnen“); None = nur ansehen."""
         super().__init__(parent, "3D-Ansicht der Positionen", ("Pos.", "Artikelnummer", "Bezeichnung", "Profil-ID",
                                                               "Teilelänge [mm]", "3D"))
-        self.positionen, self.netze = positionen, netze
+        self.positionen, self.netze, self.bearbeiten = positionen, netze, bearbeiten
+        self.geoeffnet = None
         self._fuellen([(p.get("pos"), p.get("artikel"), p.get("bezeichnung"), p.get("profil_id"), p.get("laenge"),
                         "ja" if p["id"] in netze else "–") for p in positionen])
         knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
         knoepfe.rejected.connect(self.reject)
+        if bearbeiten is not None:
+            b = knoepfe.addButton("Im Editor öffnen", QDialogButtonBox.ActionRole)
+            b.setToolTip("Die gewählte Position im Teile-Editor öffnen (auch Doppelklick auf das Teil oder die Zeile)")
+            b.clicked.connect(self.editor_oeffnen)
+            self.liste.cellDoubleClicked.connect(lambda *_: self.editor_oeffnen())
+            self.ansicht.ansicht.doppelklick_ziel = self.editor_oeffnen
         self.lay.addWidget(knoepfe)
         if positionen:
             self.liste.selectRow(gewaehlt)
             self._zeigen(gewaehlt)
+
+    def editor_oeffnen(self):
+        """Fenster schließen und den Editor der gewählten Position öffnen (bearbeiten)."""
+        r = self.liste.currentRow()
+        if self.bearbeiten is None or not 0 <= r < len(self.positionen):
+            return
+        self.geoeffnet = r
+        self.accept()
+        self.bearbeiten(r)
 
     def _zeigen(self, r):
         if 0 <= r < len(self.positionen):

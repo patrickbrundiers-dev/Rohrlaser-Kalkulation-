@@ -36,14 +36,14 @@ from .fracht_angebot import UMLAGE_NEU
 from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
                       lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
-from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 57     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 58     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -106,6 +106,7 @@ SCHEMA_VERSION = 57     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     positionen.bg_gravur = Schrifthöhe der Artikelnummer, leer = nicht gewählt)
                         # 57: Auftragsnummer und Liefertermin bei Beauftragt (angebote.auftragsnr, angebote.liefertermin;
                         #     ältere Angebote leer; Plan Arbeitsabläufe W8)
+                        # 58: Kontur-Vorlagen des Teile-Editors (Tabelle kontur_vorlagen, leer; Plan 3D-Editor E1)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -114,8 +115,9 @@ UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), (
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
-ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, kennwerte.HISTORIE)
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
+                KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
                 kennwerte.HISTORIE.name: kennwerte.HISTORIE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)

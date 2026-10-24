@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.86", "<b>Kontur-Vorlagen im Teile-Editor</b>: markierte Konturen (z. B. ein Bohrbild mit seinen Abständen) "
+               "unter einem Namen speichern, wahlweise nur für den Kunden, und in andere Rohre oder Bleche einsetzen; "
+               "das Menü zeigt jede Vorlage mit Bild. <i>Aus Position</i> zeigt je Position ein Vorschaubild. In der "
+               "<b>3D-Ansicht der Positionen</b> öffnet ein Doppelklick auf das Teil (oder <i>Im Editor öffnen</i>) "
+               "die Position im Editor ([[teile_editor]], [[step_3d_ansicht]]).",
+     "Kontur-Vorlagen mit Bild, je Kunde; 3D-Ansicht der Positionen öffnet den Editor ([[teile_editor]])."],
     ["0.9.85", "<b>Blech zeichnen im Teile-Editor</b>: Außenkontur mit Klicks in der Abwicklung zeichnen, Eckpunkte am "
                "Griff ziehen, Rechtsklick rundet oder fast eine Ecke; Innenkonturen, Biegelinien und Außenkanten mit "
                "der Maus ziehen (Biegelinie ändert die Schenkel). Langloch, Rechteck und Polygon haben einen "

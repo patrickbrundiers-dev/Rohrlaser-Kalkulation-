@@ -617,6 +617,8 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
             eintrag("Auf die Gegenseite", lambda: rahmen.gegenseite(r))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
         eintrag("Entfernen", lambda: rahmen.entfernen(r), taste="Entf")
+        eintrag("Als Kontur-Vorlage speichern …", lambda: rahmen._vorlage_speichern_fragen(),
+                getattr(d, "db", None) is not None)
     elif art == "ende" and rohr:
         eintrag("Gerade schneiden (0°)", lambda: d.winkel[nr].setValue(0))
         eintrag("Gehrung 45°", lambda: d.winkel[nr].setValue(45))

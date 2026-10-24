@@ -16,8 +16,9 @@ import copy
 import math
 
 from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
-from PySide6.QtGui import QColor, QKeySequence, QShortcut, QUndoCommand, QUndoStack
+from PySide6.QtGui import QColor, QIcon, QKeySequence, QShortcut, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu,
+                               QMessageBox,
                                QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import biegerohr, dfm, editor_griffe, rechnen, rohr3d, schneidweg as sw, stil, symbole
@@ -393,6 +394,16 @@ class EditorRahmen(QObject):
         k = QShortcut(QKeySequence("Ctrl+D"), d, context=Qt.WindowShortcut)
         k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.duplizieren(self._gewaehlte_zeile()))
 
+    def _vorlagen_knopf_bauen(self, g):
+        m = QMenu(self.band)
+        m.aboutToShow.connect(lambda: self._vorlagen_menue(m))
+        self.konturvorlagen_menue = m
+        k = g.knopf("Kontur-Vorlagen", "vorlage", menue=m, gross=False,
+                    tipp="Markierte Konturen (z. B. Bohrbild, Steckverbindung) mit ihren Abständen als Vorlage "
+                         "speichern oder eine Vorlage einsetzen; auf Wunsch nur für den Kunden des Angebots")
+        k.setEnabled(getattr(self.d, "db", None) is not None)
+        return k
+
     def _einstellung(self, name, vorgabe):
         db = getattr(self.d, "db", None)
         try:
@@ -450,9 +461,10 @@ class EditorRahmen(QObject):
             k = g.knopf("Aus Position", "kopieren", lambda: d._kopieren_waehlen(), gross=False,
                         tipp="Konturen einer anderen Position dieses Angebots anhängen")
             k.setEnabled(bool(d.positionen))
-            k = g.knopf("Vorlagen", "vorlage", menue=d.vorlagen_knopf.menu(), gross=False,
+            k = g.knopf("Teil-Vorlagen", "vorlage", menue=d.vorlagen_knopf.menu(), gross=False,
                         tipp=d.vorlagen_knopf.toolTip())
             k.setEnabled(d.vorlagen_knopf.isEnabled())
+            self._vorlagen_knopf_bauen(g)
         else:
             g = kon.gruppe("Außenkontur")
             g.knopf("Zeichnen", "polygon", lambda: d.skizze.zeichnen_starten(),
@@ -462,6 +474,8 @@ class EditorRahmen(QObject):
             g.knopf("Als Polygon", None, lambda: d.skizze.als_polygon(), gross=False,
                     tipp="Rechteck bzw. Abwicklung als Polygon mit vier Ecken übernehmen (z. B. zum Abrunden einer "
                          "Ecke oder für eine Ausklinkung)")
+            g = kon.gruppe("Übernehmen")
+            self._vorlagen_knopf_bauen(g)
             g = kon.gruppe("Kantteil")
             for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):
                 g.knopf(b.text().replace("+ ", ""), sym, lambda _=False, b=b: b.click(), gross=False,
@@ -737,6 +751,113 @@ class EditorRahmen(QObject):
             d.tabelle.setFocus()
             self.aktualisieren()
             self.waehlen(f"kontur:{r}")
+
+    # -------------------------------------------------------------- Kontur-Vorlagen (3E-6, Plan E1)
+    def _vorlagen_art(self):
+        from . import konturvorlagen as kv
+        return kv.ROHR if self.art == "rohr" else kv.BLECH
+
+    def kunde(self):
+        """Kundennummer des Angebots (für Vorlagen nur dieses Kunden) oder None."""
+        kopf = getattr(self.d, "kopf", None)
+        if not isinstance(kopf, dict):
+            kopf = getattr(self.d.parent(), "kopf", None) if self.d.parent() is not None else None
+        return (kopf or {}).get("kundennr") or None if isinstance(kopf, dict) else None
+
+    def markierte_zeilen(self):
+        """Markierte Konturzeilen der Tabelle, sonst die gewählte Kontur."""
+        zeilen = sorted({i.row() for i in self.d.tabelle.selectedIndexes()})
+        if not zeilen and self._gewaehlte_zeile() is not None:
+            zeilen = [self._gewaehlte_zeile()]
+        return zeilen
+
+    def vorlage_speichern(self, name, zeilen=None, nur_kunde=False, ueberschreiben=False):
+        """Konturzeilen (Vorgabe: markierte) als Kontur-Vorlage speichern; ValueError wie konturvorlagen.speichern."""
+        from . import konturvorlagen as kv
+        d = self.d
+        zeilen = self.markierte_zeilen() if zeilen is None else zeilen
+        alle = d.eingaben().get("konturen") or []
+        k = [alle[r] for r in zeilen if 0 <= r < len(alle)]
+        form = (getattr(d, "profil", None) or {}).get("form") if self.art == "rohr" else None
+        return kv.speichern(d.db, name, self._vorlagen_art(), k, kunde=self.kunde() if nur_kunde else None,
+                            profilform=form, ueberschreiben=ueberschreiben)
+
+    def vorlage_einsetzen(self, vorlage_id):
+        """Konturzeilen der Vorlage anhängen (außerhalb des Teils mittig hineingeschoben) und die erste wählen."""
+        from . import konturvorlagen as kv
+        d = self.d
+        z = next((x for x in d.db.zeilen(kv.TABELLE) if x["id"] == vorlage_id), None) if d.db is not None else None
+        if self.art == "rohr":
+            k = kv.einsetzbar(z, kv.ROHR, self.teil_laenge())
+        else:
+            zs = (d.ergebnis or {}).get("zuschnitt") or {}
+            k = kv.einsetzbar(z, kv.BLECH, zs.get("laenge"), zs.get("breite"))
+        if not k:
+            return 0
+        erste = d.tabelle.rowCount()
+        for x in k:
+            (d.zeile_neu if self.art == "rohr" else d.kontur_neu)(x, rechnen_=False)
+        d.rechnen()
+        d.tabelle.selectRow(erste)
+        self.aktualisieren()
+        self.waehlen(f"kontur:{erste}")
+        return len(k)
+
+    def _vorlagen_menue(self, m):
+        """Menü der Kontur-Vorlagen: speichern, einsetzen (mit Bild), löschen."""
+        from . import konturvorlagen as kv
+        m.clear()
+        d = self.d
+        db = getattr(d, "db", None)
+        a = m.addAction("Markierte Konturen als Vorlage speichern …", self._vorlage_speichern_fragen)
+        a.setEnabled(db is not None and bool(self.markierte_zeilen()))
+        zeilen = kv.liste(db, self._vorlagen_art(), self.kunde())
+        if zeilen:
+            m.addSeparator()
+        profil = getattr(d, "profil", None) if self.art == "rohr" else None
+        for z in zeilen:
+            pm = kv.bild(z, self._vorlagen_art(), profil, 120, 30)
+            text = f"{z['name']}  ({z.get('inhalt') or ''})" + (f" · Kunde {z['kunde']}" if z.get("kunde") else "")
+            x = m.addAction(QIcon(pm) if pm is not None else QIcon(), text)
+            x.triggered.connect(lambda _=False, i=z["id"]: self.vorlage_einsetzen(i))
+        weg = m.addMenu("Vorlage löschen")
+        for z in zeilen:
+            weg.addAction(z["name"], lambda i=z["id"], n=z["name"]: self._vorlage_loeschen_fragen(i, n))
+        weg.setEnabled(bool(zeilen))
+
+    def _vorlage_speichern_fragen(self):
+        from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QLineEdit
+        dlg = QDialog(self.d)
+        dlg.setWindowTitle("Kontur-Vorlage speichern")
+        f = QFormLayout(dlg)
+        name = QLineEdit()
+        name.setPlaceholderText("z. B. Bohrbild Flansch 4 × M8")
+        f.addRow("Name", name)
+        kunde = self.kunde()
+        nur = QCheckBox(f"nur für Kunde {kunde}" if kunde else "nur für den Kunden (kein Kunde im Angebot)")
+        nur.setEnabled(bool(kunde))
+        f.addRow(nur)
+        f.addRow(QLabel(f"{len(self.markierte_zeilen())} Konturzeile(n) mit ihrer Lage"))
+        kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        kn.accepted.connect(dlg.accept)
+        kn.rejected.connect(dlg.reject)
+        f.addRow(kn)
+        if dlg.exec() != QDialog.Accepted:
+            return None
+        try:
+            return self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked())
+        except ValueError as x:
+            if "gibt es schon" in str(x) and QMessageBox.question(
+                    self.d, "Kontur-Vorlage", f"{x} Ersetzen?") == QMessageBox.Yes:
+                return self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked(), ueberschreiben=True)
+            if "gibt es schon" not in str(x):
+                QMessageBox.information(self.d, "Kontur-Vorlage", str(x))
+        return None
+
+    def _vorlage_loeschen_fragen(self, vorlage_id, name):
+        from . import konturvorlagen as kv
+        if QMessageBox.question(self.d, "Kontur-Vorlage löschen", f"Vorlage „{name}“ löschen?") == QMessageBox.Yes:
+            kv.loeschen(self.d.db, vorlage_id)
 
     def modell_setzen(self, step):
         """Rohr: 3D-Modell aus dem STEP-Import (step=True) oder aus den Eingaben."""

@@ -4170,6 +4170,23 @@ class AngebotSeite(QWidget):
             return None
         return ziel
 
+    def editor_oeffnen(self, r):
+        """Editor der Position in Zeile r: Baugruppe, Blech-Editor oder Schneidweg-Rechner (Teile-Editor); False, wenn
+        die Position keinen hat."""
+        if not 0 <= r < len(self.positionen):
+            return False
+        p = self.positionen[r]
+        if ist_baugruppe(p):
+            self.baugruppe_bearbeiten([r])
+        elif ist_zukaufteil(p) and blech.lesen(p.get("technik")):
+            self.blech_bearbeiten(r)
+        elif not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
+            self.schneidweg_berechnen(r)
+        else:
+            self.f.meldung("Für diese Position gibt es keinen Teile-Editor (kein Laserteil).", fehler=True)
+            return False
+        return True
+
     def ansicht_3d(self, zeile=None):
         """3D-Ansicht der Positionen (Teile aus dem STEP-Import); zeigt zuerst die markierte Position."""
         from .step_dialog import Positionen3DDialog
@@ -4181,7 +4198,7 @@ class AngebotSeite(QWidget):
         if zeile is None:
             i = self.pos_ansicht.currentIndex()
             zeile = i.row() if i.isValid() else next(r for r, p in enumerate(self.positionen) if p["id"] in netze)
-        d = Positionen3DDialog(self, self.positionen, netze, zeile)
+        d = Positionen3DDialog(self, self.positionen, netze, zeile, bearbeiten=self.editor_oeffnen)
         if not self.f.stumm:
             d.exec()
         return d

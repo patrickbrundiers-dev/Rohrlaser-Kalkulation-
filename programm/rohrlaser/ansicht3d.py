@@ -878,7 +878,28 @@ class Ansicht3D(QWidget):
     def mouseDoubleClickEvent(self, e):
         if self.werkzeug is not None and e is not None and self.werkzeug.doppelklick(e.position()):
             return
+        ziel = getattr(self, "doppelklick_ziel", None)
+        if ziel is not None and e is not None and self.auf_modell(e.position().x(), e.position().y()):
+            ziel()                      # z. B. 3D-Ansicht der Positionen: Teil im Editor öffnen (Plan 3D-Editor F1)
+            return
         self.zuruecksetzen()
+
+    def auf_modell(self, x, y):
+        """Liegt das Pixel (x, y) auf dem Modell (irgendeinem Dreieck)?"""
+        mo = self.modell
+        if mo is None:
+            return False
+        bild = self.bildpunkt()
+        for i, j, k, _, _ in mo.dreiecke:
+            a, b, c = bild(mo.punkte[i]), bild(mo.punkte[j]), bild(mo.punkte[k])
+            det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+            if abs(det) < 1e-9:
+                continue
+            l1 = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / det
+            l2 = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / det
+            if min(l1, l2, 1 - l1 - l2) >= -1e-6:
+                return True
+        return False
 
     def keyPressEvent(self, e):
         if self.werkzeug is not None and self.werkzeug.taste(e):
