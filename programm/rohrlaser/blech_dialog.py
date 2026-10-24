@@ -4,6 +4,7 @@ Richtpreis je Stück als EK-Vorschlag des Zukaufteils (Rechnung in blech.py). Sc
 Rohrlaser-Daten."""
 import json
 import math
+from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
@@ -212,7 +213,7 @@ class BlechSkizze(QWidget):
     def _griffe_zeichnen(self, p):
         zs = self.zuschnitt
         p.setBrush(QColor("white"))
-        if self._neu is None and zs.get("punkte") and self.markiert == "teil":
+        if self._neu is None and zs.get("punkte") and self.markiert == "teil" and not self.boegen():
             p.setPen(QPen(QColor(FARBE_MARKIERT), 1.4))
             for x, y in zs["punkte"]:
                 q = self.px(x, y)
@@ -234,6 +235,18 @@ class BlechSkizze(QWidget):
             if self._maus:
                 text += f"  ·  x {zahl_als_text(self._maus[0], 1)}  y {zahl_als_text(self._maus[1], 1)}"
             p.drawText(QRectF(8, self.height() - 22, self.width() - 16, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
+
+    def boegen(self):
+        """Außenkontur mit Bögen (DXF-Import)? Dann keine Eckgriffe, erst 'Bögen in Eckpunkte umwandeln'."""
+        try:
+            return self.eingaben.get("form") == blech.POLYGON and \
+                any(b for *_, b in sw.punkte_roh(self.eingaben.get("punkte")))
+        except ValueError:
+            return False
+
+    def boegen_aufloesen(self):
+        """Bögen der Außenkontur in Eckpunkte (wie gerechnet, höchstens 0,02 mm Abweichung) zum Bearbeiten."""
+        self._melden(dict(self.eingaben, punkte=bz.text(sw.punkte(self.eingaben.get("punkte")))))
 
     def zeichnen_starten(self):
         """Außenkontur neu mit Klicks zeichnen (ersetzt Rechteck bzw. Polygon beim Schließen)."""
@@ -286,7 +299,7 @@ class BlechSkizze(QWidget):
             return None
         q, tol = self.mm(pos), self._tol()
         e = self.eingaben
-        if zs.get("punkte"):
+        if zs.get("punkte") and not self.boegen():
             i = bz.naechste_ecke(zs["punkte"], q, tol)
             if i is not None:
                 return ("ecke", i)
@@ -423,7 +436,9 @@ class BlechSkizze(QWidget):
             return None
         m = QMenu(self)
         q, tol = self.mm(QPointF(pos)), self._tol()
-        pk = list(zs.get("punkte") or ())
+        pk = list(zs.get("punkte") or ()) if not self.boegen() else []
+        if self.boegen():
+            m.addAction("Bögen in Eckpunkte umwandeln", self.boegen_aufloesen)
         i = bz.naechste_ecke(pk, q, tol) if pk else None
         if i is not None:
             m.addAction("Ecke abrunden …", lambda: self._ecke_fragen(i, "runden"))
@@ -433,7 +448,7 @@ class BlechSkizze(QWidget):
         elif pk and (k := bz.naechste_kante(pk, q, tol)) is not None:
             f = (round(bz.fangen(k[1][0], self.raster), 3), round(bz.fangen(k[1][1], self.raster), 3))
             m.addAction("Punkt einfügen", lambda: self.ecke_aendern(bz.punkt_einfuegen, k[0], f))
-        if not pk:
+        if not zs.get("punkte"):
             m.addAction("Als Polygon bearbeiten", self.als_polygon)
         m.addAction("Außenkontur neu zeichnen", self.zeichnen_starten)
         return m
@@ -456,7 +471,10 @@ class BlechSkizze(QWidget):
 
     def _kontur(self, p, z, c, m):
         art = z.get("art")
-        if blech.drehung(z):                    # gedreht (3E-4b): Umriss als Linienzug
+        if z.get("linien"):                     # DXF-Import: Gravur bzw. offene Schnittlinie wie gezeichnet
+            for zug in z["linien"]:
+                p.drawPolyline([QPointF(c.x() + float(x) * m, c.y() - float(y) * m) for x, y in zug])
+        elif blech.drehung(z):                    # gedreht (3E-4b): Umriss als Linienzug
             zug = blech.kontur_umriss(z, 10)
             if zug:
                 p.drawPolyline([QPointF(c.x() + x * m, c.y() - y * m) for x, y in zug])
@@ -792,6 +810,7 @@ class BlechDialog(QDialog):
         art.quer = bool(z.get("quer"))      # Langloch quer (STEP-Import); bleibt beim Speichern erhalten
         art.artikel = bool(z.get("artikel"))    # Text-Gravur der Artikelnummer aus dem Baugruppen-Editor
         art.eig = {"drehung": z["drehung"]} if z.get("drehung") else {}     # Drehwinkel (Teile-Editor)
+        art.linien = z.get("linien")        # Linien einer Gravur bzw. offenen Schnittlinie aus dem DXF-Import
         art.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, 0, art)
         masse = [k for k, _ in MASSE.get(z.get("art"), ())]
@@ -845,6 +864,8 @@ class BlechDialog(QDialog):
             eig = getattr(self.tabelle.cellWidget(r, 0), "eig", None) or {}
             if eig.get("drehung") and art in blech.DREH_ARTEN:
                 z["drehung"] = eig["drehung"]
+            if getattr(self.tabelle.cellWidget(r, 0), "linien", None) and art in (sw.GRAVUR, sw.SONSTIGE):
+                z["linien"] = self.tabelle.cellWidget(r, 0).linien
             konturen.append(z)
         schenkel = [dict(laenge=_zahl_text(self._text(self.schenkel, r, 0)),
                          winkel=_zahl_text(self._text(self.schenkel, r, 1)) or 0,
@@ -970,6 +991,37 @@ class BlechDialog(QDialog):
             except ValueError:
                 return []
         return dfm.blech(e, zs, self.db.zeilen("pruefregeln") if self.db else None, kantbarkeit=False)
+
+    def dxf_importieren(self, pfad=None, dialog=None):
+        """Abwicklung aus einer DXF-Datei übernehmen (3E-9, dxf_import_dialog): ersetzt Außenkontur, Konturen, Art,
+        Werkstoff und Dicke. dialog(d) bedient das Importfenster statt exec (Tests). Ergebnis: True = übernommen."""
+        from .dxf_import_dialog import DxfImportDialog
+        if pfad is None:
+            pfad, _ = QFileDialog.getOpenFileName(self, "DXF importieren", str(self.db.einstellung("dxf_ordner") or ""),
+                                                  "DXF-Dateien (*.dxf *.DXF)")
+            if not pfad:
+                return False
+            if not self.db.nur_lesen:
+                self.db.einstellung_setzen("dxf_ordner", str(Path(pfad).parent))
+        d = DxfImportDialog(self, self.db, pfad, vorgabe=dict(werkstoff=self.werkstoff.currentText(),
+                                                              dicke=self.dicke.value()), mehrere=False)
+        if d.fehler:
+            QMessageBox.warning(self, "DXF importieren", d.fehler)
+            return False
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnisse():
+            return False
+        e, kopf = d.ergebnisse()[0]
+        alt = self.eingaben()
+        neu = dict(alt, form=blech.RECHTECK, punkte=None, eckradius=0, kantungen=0, biegelinien=[])
+        neu.update(e)
+        neu["stueck"] = kopf["stueck"] or alt.get("stueck")
+        self.eingaben_setzen(neu)
+        if kopf.get("bezeichnung") and not self.bezeichnung.text().strip():
+            self.bezeichnung.setText(kopf["bezeichnung"])
+            self._bez_von_hand = True
+        if self.editor is not None:
+            self.editor.aktualisieren()
+        return True
 
     def dxf_speichern(self, pfad=None):
         """Abwicklung als DXF speichern (pfad None: Dateidialog). Rückgabe: Hinweise oder None (abgebrochen)."""

@@ -888,6 +888,8 @@ def kapitel_angebot(i):
                ["<b>Rohr / Profil</b>", "den Schneidweg-Rechner mit Profil, Werkstoff, Länge, Stückzahl "
                 "([[schneidweg_rechner]])"],
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
+               ["<b>Bleche aus DXF</b>", "eine oder mehrere DXF-Dateien; jedes Blech wird eine Position wie aus dem "
+                "Blech-Editor ([[dxf_import]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
                ["<b>Schweißbaugruppe</b>", "den Editor der Baugruppe; markierte Positionen sind als Einzelteile "
                 "vorgewählt ([[schweissbaugruppe]])"],
@@ -1452,7 +1454,9 @@ def kapitel_step(i):
             "jedem Ende und jeder Kontur den Winkel zwischen Schnittfläche und Oberfläche (ab 0,5° = 3D). Eine "
             "Gehrung, die im CAD als ebene Fläche gezeichnet ist, steht an den schräg geschnittenen Wänden nicht "
             "senkrecht und ist damit 3D; ist sie so gezeichnet, wie ein 2D-Laser schneidet (überall senkrecht zur "
-            "Wand), bleibt sie 2D. Schräge Langlöcher und Ausschnitte bekommen nur „3D prüfen“. Mit Häkchen werden "
+            "Wand), bleibt sie 2D. Schräge Langlöcher und Ausschnitte bekommen nur „3D prüfen“. Kann die Maschine "
+            "des Angebots 3D (Stammdaten › Maschinen: <i>3D: Bearbeitung verfügbar</i>), ist das Häkchen schon "
+            "gesetzt, sobald ein Teil solche Schnitte hat; Teile ohne sie bleiben auch mit Häkchen 2D. Mit Häkchen werden "
             "Gehrungen an den Enden, die nicht senkrecht zur Oberfläche stehen, und schräge Bohrungen (Achse ab 0,5° gegen die Wand geneigt) werden in 3D "
             "übernommen, die Bohrungen mit gemessener Neigung längs und quer. Daneben steht, wie viele Gehrungen und "
             "schrägen Bohrungen gefunden wurden. Ohne Häkchen bleibt alles 2D; Teile mit schrägen Bohrungen bekommen "
@@ -2110,8 +2114,19 @@ def kapitel_optimieren(i):
             "auf der Wand. Das Hüllmaß für die Konturklasse bleibt der Ø.",
             "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): 3D ist ein Schnitt nur, wenn die "
             "Schnittfläche nicht senkrecht (90°) zur Rohroberfläche steht und der Laserkopf dafür geschwenkt wird. "
-            "Bleibt der Strahl senkrecht zur Oberfläche, ist es 2D, auch bei einer Gehrung. Das Häkchen <i>3D-Schnittbearbeitung "
-            "aktivieren</i> über den Enden schaltet sie für das Teil ein; daneben steht, ob die Maschine 3D kann, "
+            "Bleibt der Strahl senkrecht zur Oberfläche, ist es 2D, auch bei einer Gehrung. <b>Schnittfläche</b> "
+            "(seit 0.9.90): In 2D steht der Strahl überall senkrecht zur Mantelfläche, die Innenkante liegt unter der "
+            "Außenkante – so zeichnet das 3D eine Gehrung in 2D (innen nicht eben). In 3D schwenkt der Kopf je Stelle "
+            "so weit, dass die Schnittfläche eben durch die Wand geht: an den Wänden quer zur Kippachse um den "
+            "Gehrungswinkel, an den Wänden parallel dazu gar nicht, beim Rundrohr stetig dazwischen. Braucht eine "
+            "Stelle mehr als die Schwenkgrenze der Maschine (Vorgabe 45°), steht der Kopf dort auf der Grenze: diese "
+            "Stücke sind im 3D und in der Abwicklung <b>gelb</b>, die Position bekommt eine WARNUNG mit Ende und Länge "
+            "(z. B. „Ende B: 127 mm des Schnitts brauchen bis 60°, auf 45° begrenzt“). Die Schneidzeit in 3D rechnet "
+            "jedes Stück mit seinem Kopfwinkel (Dicke Wand ÷ cos Winkel); die Schnittlänge bleibt die der Außenkante. "
+            "Das Häkchen <i>3D-Schnittbearbeitung "
+            "aktivieren</i> über den Enden schaltet sie für das Teil ein; kann die Maschine des Angebots 3D, ist es "
+            "bei einem Teil mit Gehrung oder schräger Bohrung schon gesetzt (diese Schnitte dann in 3D), und ein "
+            "abgewähltes Häkchen bleibt beim nächsten Öffnen aus. Daneben steht, ob die Maschine 3D kann, "
             "ihr Schwenkwinkel und das Greifmaß (rot, wenn die Maschine kein 3D kann, die Position bekommt dann einen "
             "FEHLER). Danach je Ende <i>Gehrung in 3D</i> (nur mit Gehrung: der Kopf wird auf den Gehrungswinkel "
             "geschwenkt, die Schnittfläche ist eben durch die Wand) und je Bohrung die Spalte <i>3D</i> mit "
@@ -2169,7 +2184,8 @@ def kapitel_optimieren(i):
             "<b>Schweißnaht (SN)</b>: Vorgabe (keine Vorgabe, feste Position, unbekannt), Lage und Quelle wie im "
             "Fenster Schweißnaht ([[schweissnaht]]); Rechteck- und Quadratrohr nur 0° oben, 90° vorne (rechts), 180° "
             "unten, 270° hinten (links), Rundrohr frei im Winkel. Die Naht erscheint rot strichpunktiert (SN) in "
-            "Skizze und Zeichnung. Gespeichert wird sie mit <i>In Position übernehmen</i>, nur wenn sie im Rechner "
+            "Skizze und Zeichnung und bei fester Position als rote Linie über die ganze Länge im 3D (Klick darauf "
+            "wählt die Naht). Gespeichert wird sie mit <i>In Position übernehmen</i>, nur wenn sie im Rechner "
             "geändert wurde.",
             "<b>Zeichnung als PDF</b> (<i>Ausgabe</i>): maßstäbliche Zeichnung des Teils (A4 quer, gleiches Design wie Angebot und "
             "Kalkulation) mit Draufsicht, Seitenansicht, Ansicht von A und Abwicklung, Lage und Maß jeder Kontur, "
@@ -3200,6 +3216,33 @@ def kapitel_zukauf_angebot(i):
             "ihre Mitte, + = gegen den Uhrzeiger. Skizze, 3D, DXF, Zeichnung und der Abstand zu den Biegelinien "
             "rechnen gedreht; die Schnittlänge bleibt gleich.",
             "Jede Änderung lässt sich mit Strg+Z zurücknehmen.")
+    i.abschnitt("DXF importieren", marke="dxf_import")
+    i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
+           "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Bleche aus DXF</i> oder DXF-Dateien auf "
+           "das Angebot ziehen (dann wird jedes Blech eine eigene Position).", kurz=True)
+    i.genauer()
+    i.liste("<b>Genaue Kontur</b>: Außenkontur und Innenkonturen kommen so, wie sie gezeichnet sind; Bögen bleiben "
+            "echte Bögen (im Feld Eckpunkte als dritte Zahl je Punkt, z. B. <i>100,0,1</i> = Halbkreis zum nächsten "
+            "Punkt). Eine Kontur wird nur dann Bohrung, Langloch oder Rechteck (auch gedreht, mit Eckradius), wenn sie "
+            "genau diese Form hat; sonst bleibt sie die Originalkontur (Polygon). Schnittlänge, Fläche, Skizze, 3D "
+            "und DXF-Export rechnen mit den Bögen.",
+            "<b>Was erkannt wird</b>: Linien, Bögen, Kreise, Polylinien, Ellipsen, Splines und Blöcke; Einheit (mm, "
+            "Zoll) aus der Datei. Ausgeblendete Layer, Bemaßung, Mittel- und Hilfslinien fallen weg. Layer mit GRAV "
+            "oder MARK im Namen (bzw. der Layer Gravur aus der Einstellung DXF-Layer) werden graviert, Texte darauf "
+            "werden Text-Gravur. Offene Schnittlinien kommen als sonstige Kontur mit ihrer Länge und einem Hinweis.",
+            "<b>Zeichenblatt</b>: Rahmen und Schriftfeld werden erkannt und nicht übernommen. Liegen mehrere Bleche "
+            "auf einer Zeichnung, zeigt das Fenster jedes mit Vorschaubild und Haken; ein Kästchen mit Text (z. B. "
+            "aus dem Schriftfeld) ist nicht angehakt. Den <b>Maßstab</b> schlägt das Programm aus der Bemaßung oder "
+            "dem Schriftfeld vor (z. B. M 1:2); ändern liest die Datei neu.",
+            "<b>Werkstoff und Dicke</b> stehen meist nicht als Wert in der DXF: Vorschlag aus dem Dateinamen (z. B. "
+            "Halter_3mm_1.4301.dxf), sonst aus Texten der Zeichnung (t=3, 3 mm, S235, V2A), sonst wie beim letzten "
+            "Import. Je Teil sind Bezeichnung, Werkstoff, Dicke und Stückzahl änderbar.",
+            "<b>Biegelinien</b> (Layer mit BIEG, BEND oder KANT, bzw. die Layer der Einstellung): mit dem Haken "
+            "<i>Als Kantteil (Biegelinien aus der DXF)</i> wird das Teil ein Kantteil; die Biegewinkel stehen je "
+            "Biegelinie im Fenster (+ hoch, − runter), die Schenkel rechnet das Programm so, dass die Abwicklung "
+            "gleich bleibt.",
+            "Eine Außenkontur mit Bögen hat keine Eckgriffe; <i>Bögen in Eckpunkte umwandeln</i> (Rechtsklick in "
+            "der Abwicklung) macht daraus ein Polygon zum Bearbeiten.")
     i.text("<b>Aus dem STEP-Import</b>: Gekantete Bleche kommen vollständig an. Ein Kantteil mit parallelen "
            "Biegungen (Winkel, U, Z, Hut) hat Kantlänge, Schenkel mit Winkel und Radius, die Innenkonturen an ihrer "
            "Stelle und bei Ausklinkungen die Außenkontur als Polygon. Ein mehrachsig gekantetes Teil (Schale, "
