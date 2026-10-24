@@ -90,7 +90,7 @@ bo = sorted((x for x in tr["konturen"] if x.get("d3")), key=lambda x: x["x"])
 assert len(bo) == 2 and nah(bo[0]["neigung_q"], 30 * vz, 1.5) and nah(bo[1]["neigung_l"], -60), bo
 k = db.kontext()
 m = rechnen.maschine(kopf, k)
-assert dreid.pruefen(rohr, m) == "WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig"
+assert dreid.pruefen(rohr, m).startswith("WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig")
 assert not dreid.pruefen(kasten, m)
 bearb = dreid.bearbeitungen(kasten, m)
 assert [x["art"] for x in bearb] == [dreid.ENDE_B] and nah(bearb[0]["winkel"], 30), bearb

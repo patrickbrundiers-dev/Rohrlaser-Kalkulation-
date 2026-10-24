@@ -21,7 +21,8 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from rohrlaser import dreid, rechnen  # noqa: E402
+from rohrlaser import dreid, rechnen, schnittflaeche as sf, skizze as sk  # noqa: E402
+from rohrlaser.schneidweg import mit_radius  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
@@ -177,10 +178,21 @@ for winkel in (0, 30, -30, 45, -45):
     if w == 0:
         assert st.startswith("FEHLER: Gehrung 3D Ende B"), st
         continue
+    # Plan 3E-10 G4: je Stück der Schnittkante mit dem dort nötigen Kopfwinkel (Wände parallel zur Kippachse 0°)
+    st_ = sf.abschnitte(sk.Querschnitt(mit_radius(s.k.profile["QR 40x40x3"], {})), dict(winkel=winkel, richtung=0),
+                        True)
+    summe_ = sum(x["laenge"] for x in st_)
+    anteile = {}
+    for x in st_:
+        anteile[round(x["winkel"])] = anteile.get(round(x["winkel"]), 0) + x["laenge"] / summe_
+    assert max(anteile) == w and min(anteile) == 0, anteile
+    soll = sum(60 * 180 * a_ / vorschub(3 / math.cos(math.radians(w_)))["vorschub_gross"]
+               for w_, a_ in anteile.items()) + vorschub(3 / math.cos(math.radians(w)))["einstechzeit"]
     sd = vorschub(3 / math.cos(math.radians(w)))
-    soll = 60 * 180 / sd["vorschub_gross"] + sd["einstechzeit"]
+    alt = 60 * 180 / sd["vorschub_gross"] + sd["einstechzeit"]            # früher: ein Winkel für alles
     ref = 60 * 180 / v3["vorschub_gross"] + v3["einstechzeit"]
     assert nah(z["zeit_3d_gesamt"], soll) and nah(z["zeit_d3"], soll - ref), (winkel, z["zeit_3d_gesamt"], soll)
+    assert ref <= soll <= alt + 1e-9, (ref, soll, alt)
     assert nah(z["laser_brutto"], z0["laser_brutto"] + soll - ref) and st == "OK", (winkel, st)
     assert z["mm_3d"] == 180 and z["bearbeitungen_3d"] == 1
     assert nah(sum(z[f"zeit_{n}"] for n in rechnen.ZEITANTEILE), z["laser_brutto"])
@@ -201,16 +213,18 @@ basis = z["zeit_3d_gesamt"] - 5
 assert nah(z["zeit_d3"], basis + 5 - basis / 1.5), (z["zeit_d3"], basis)
 ok("D5 Bohrung 3D bei 0°: keine Mehrzeit; Faktor 1,5 und Zusatzzeit 5 s je Bearbeitung")
 
-# Begrenzung: Eingabe +60° -> WARNUNG, gerechnet mit 45° (gleich wie Eingabe 45°)
+# Begrenzung: Eingabe +60° -> WARNUNG mit Ende und Länge (Plan 3E-10 G3); nur die Stücke über 45° stehen auf 45°,
+# Zeit fast wie Eingabe 45° (nur die Ecken unterscheiden sich)
 db.aendern("maschinen", mid, "zeit_3d", 0)
 db.aendern("maschinen", mid, "faktor_3d", 1.0)
 technik(d3=True, b=dict(winkel=60, richtung=0, d3=True))
 z60, _, st60 = rechnung()
-assert st60 == "WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig", st60
-assert nah(z60["zeit_3d_gesamt"], ergebnisse[45][0])
+assert st60.startswith("WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig – Gehrung 3D Ende B: ") and \
+    "brauchen bis 60°, auf 45° begrenzt" in st60, st60
+assert abs(z60["zeit_3d_gesamt"] / ergebnisse[45][0] - 1) < 0.03, (z60["zeit_3d_gesamt"], ergebnisse[45][0])
 db.aendern("maschinen", mid, "schwenk_max", 30)                # Maschine: Gehrung 3D höchstens 30°
-z30, _, _ = rechnung()
-assert nah(z30["zeit_3d_gesamt"], ergebnisse[30][0])
+z30, _, st30 = rechnung()
+assert abs(z30["zeit_3d_gesamt"] / ergebnisse[30][0] - 1) < 0.03 and "auf 30° begrenzt" in st30, st30
 db.aendern("maschinen", mid, "schwenk_max", 45)
 technik(d3=True, b=dict(winkel="abc", richtung=0, d3=True))
 assert rechnung()[2].startswith("FEHLER: Gehrung 3D Ende B: Winkel"), rechnung()[2]

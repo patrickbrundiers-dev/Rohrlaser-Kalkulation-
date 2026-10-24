@@ -418,7 +418,7 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
                                                     naht.stange_eingetragen(kopf, p.get("profil_id"), p.get("werkstoff_id")))
     if naht_status and naht_status.startswith("FEHLER"):
         return naht_status
-    d3_status = dreid.pruefen(p, m)     # Maschine ohne 3D, ungültiger Winkel: FEHLER, nicht stillschweigend 2D
+    d3_status = dreid.pruefen(p, m, profil=k.profile.get(p.get("profil_id")))   # ohne 3D-Maschine: FEHLER
     if d3_status and d3_status.startswith("FEHLER"):
         return d3_status
     rest = dreid.rest_letztes(p, m)
@@ -2061,7 +2061,8 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
     if not dreid.aktiv(p) or not dreid.kann_3d(m) or not wand:
         return None
     pr = k.profile.get(p.get("profil_id")) if k else None
-    bearb = [b for b in dreid.bearbeitungen(p, m, einstiche_ende((pr or {}).get("form"))) if not b["fehler"]]
+    bearb = [b for b in dreid.bearbeitungen(p, m, einstiche_ende((pr or {}).get("form")), profil=pr)
+             if not b["fehler"]]
     h, i_, j, kv, l = vorschuebe
     if not bearb or not h:
         return None
@@ -2071,20 +2072,34 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
     zeit = ref = laenge = 0.0
     anzahl = 0
     for b in bearb:
-        dicke = dreid.wirksame_dicke(wand, b["winkel"])
-        sd = schneiddaten(m.get("maschinen_id"), p.get("werkstoff_id"), dicke, tabellen,
-                          kategorie(p.get("werkstoff_id"), k), werkstoff_zeile(p.get("werkstoff_id"), k))
-        if not (sd and _n(sd.get("vorschub_gross"))):
-            return dict(zeit=0.0, mehr=0.0, laenge=0.0, anzahl=0,
-                        fehlt=f"keine Schneiddaten für 3D (Dicke {zahl(dicke, 1)} mm)")
-        g3 = _n(sd["vorschub_gross"])
-        m3 = _n(sd.get("vorschub_mittel")) or g3
-        k3 = _n(sd.get("vorschub_klein")) or m3
         # Enden und die schräge Innenwand eines V-Ausschnitts (gerader Schnitt durch die Wand, kein Hüllmaß): groß
         c = 2 if b["ende"] or b.get("huelle") is None else kontur_klasse(b["huelle"], regel)
         lg, n = b["laenge"] * b["anzahl"], b["einstiche"] * b["anzahl"]
+        # je Stück der Schnittkante mit seinem Kopfwinkel (Plan 3E-10 G4), sonst ein Winkel für den ganzen Schnitt
+        st = b.get("abschnitte") or ()
+        summe = sum(x["laenge"] for x in st)
+        teile = {}
+        for x in st:
+            w_ = round(x["winkel"])
+            teile[w_] = teile.get(w_, 0.0) + x["laenge"] / summe
+        if not teile:
+            teile = {b["winkel"]: 1.0}
+        t3 = 0.0
+        for w_, anteil in sorted(teile.items(), reverse=True):     # größte Dicke zuerst (Meldung)
+            dicke = dreid.wirksame_dicke(wand, w_)
+            sd = schneiddaten(m.get("maschinen_id"), p.get("werkstoff_id"), dicke, tabellen,
+                              kategorie(p.get("werkstoff_id"), k), werkstoff_zeile(p.get("werkstoff_id"), k))
+            if not (sd and _n(sd.get("vorschub_gross"))):
+                return dict(zeit=0.0, mehr=0.0, laenge=0.0, anzahl=0,
+                            fehlt=f"keine Schneiddaten für 3D (Dicke {zahl(dicke, 1)} mm)")
+            g3 = _n(sd["vorschub_gross"])
+            m3 = _n(sd.get("vorschub_mittel")) or g3
+            k3 = _n(sd.get("vorschub_klein")) or m3
+            t3 += 60 * lg * anteil / (k3, m3, g3)[c]
+            if w_ == max(teile):        # Einstich bei der größten Schnittdicke (sichere Seite)
+                ein = _n(sd.get("einstechzeit"))
         ref += 60 * lg / (j, i_, h)[c] + n * _n(l)
-        zeit += (60 * lg / (k3, m3, g3)[c] + n * _n(sd.get("einstechzeit"))) * faktor + zusatz * b["anzahl"]
+        zeit += (t3 + n * ein) * faktor + zusatz * b["anzahl"]
         laenge += lg
         anzahl += b["anzahl"]
     return dict(zeit=zeit, mehr=zeit - ref, laenge=laenge, anzahl=anzahl, fehlt=None)
@@ -2701,8 +2716,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = "keine Schneiddaten"
         elif "kontur" in pr:
             hinweis = pr["kontur"]
-        elif not manuell and dreid.pruefen(p, maschine(kopf, k)):
-            hinweis = dreid.pruefen(p, maschine(kopf, k)).split(": ", 1)[1]
+        elif not manuell and dreid.pruefen(p, maschine(kopf, k), profil=k.profile.get(p.get("profil_id"))):
+            hinweis = dreid.pruefen(p, maschine(kopf, k), profil=k.profile.get(p.get("profil_id"))).split(": ", 1)[1]
         elif not manuell and d3 and d3["fehlt"]:
             hinweis = d3["fehlt"]
         elif "zusatz" in pr:

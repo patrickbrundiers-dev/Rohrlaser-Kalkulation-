@@ -885,7 +885,8 @@ class EditorRahmen(QObject):
             try:
                 nw = d.naht_werte() if hasattr(d, "naht_werte") else {}
                 netz = rohr3d.netz(e, d.profil, laenge,
-                                   nw.get("naht_winkel") if nw.get("naht_vorgabe") == naht.FEST else None)
+                                   nw.get("naht_winkel") if nw.get("naht_vorgabe") == naht.FEST else None,
+                                   d.schwenk_grenze() if hasattr(d, "schwenk_grenze") else None)
             except (ValueError, TypeError, ZeroDivisionError):
                 netz = None
             netz, titel = netz or self.step_netz, "3D-Modell (aus den Eingaben)"

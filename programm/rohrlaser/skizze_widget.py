@@ -11,7 +11,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
-from . import biegerohr, rechnen, skizze as sk
+from . import biegerohr, rechnen, schnittflaeche as sf, skizze as sk
 from . import schneidweg as sw
 from .schneidweg import GRAVUREN, MASSE, POLYGON, _z
 
@@ -24,6 +24,7 @@ EINSATZ = 180                                   # Ansicht von A [px]
 FARBE_TEIL, FARBE_FLAECHE, FARBE_SCHNITT = QColor("#1F3864"), QColor("#F4F7FB"), QColor("#DCE6F2")
 FARBE_KONTUR, FARBE_WAHL, FARBE_MASS = QColor("#B42318"), QColor("#E67E00"), QColor("#595959")
 FARBE_NAHT = QColor("#C0392B")
+FARBE_BEGRENZT = QColor("#F2C200")             # 3D über der Schwenkgrenze (gelb wie im 3D)
 FARBE_GRAVUR = QColor("#2E7D32")                # Gravur grün wie in der 3D-Ansicht
 FARBE_BIEGUNG = QColor("#7F6000")               # Biegezone (Biegerohr)
 
@@ -39,6 +40,7 @@ class Skizze(QWidget):
         self.profil, self.laenge = profil, laenge if isinstance(laenge, (int, float)) and laenge > 0 else None
         self.qs = sk.Querschnitt(profil)
         self.eingaben, self.ergebnis = {}, None
+        self.grenze = 45.0          # Schwenkgrenze der Maschine für Enden in 3D [°] (schnittflaeche)
         self.modus, self.zoom, self.pan = ANSICHTEN, 1.0, QPointF(0, 0)
         self.markiert = None
         self.naht = None            # Winkel der Schweißnaht (Bezug Breitseite oben) oder None
@@ -209,6 +211,17 @@ class Skizze(QWidget):
         g.setBrush(QBrush(FARBE_FLAECHE))
         g.drawPolygon(QPolygonF(umriss))
         g.setBrush(Qt.NoBrush)
+        # Enden in 3D: Stücke über der Schwenkgrenze gelb (Plan 3E-10, wie im 3D)
+        wand = getattr(qs, "wand", 0) or 0
+        for e_, linie_, hinten in ((e_a, la, False), (e_b, lb, True)):
+            if not (wand and self.eingaben.get("d3") is True and (e_ or {}).get("d3")):
+                continue
+            g.setPen(QPen(FARBE_BEGRENZT, 3.0))
+            for (s0, d0), (s1, d1) in zip(linie_, linie_[1:]):
+                (u, v), (nu, nv) = qs.s_zu_uv((s0 + s1) / 2)
+                if sf.punkt(qs, e_, (u, v), (u - wand * nu, v - wand * nv), True, self.grenze)["begrenzt"]:
+                    g.drawLine(self._bild(a, self.L - d0 if hinten else d0, s0),
+                               self._bild(a, self.L - d1 if hinten else d1, s1))
         for i, (name, s0, s1) in enumerate(qs.abwicklung_streifen()):
             if i:
                 g.setPen(QPen(FARBE_TEIL, 0.7, Qt.DashLine))     # Kante bzw. Biegelinie

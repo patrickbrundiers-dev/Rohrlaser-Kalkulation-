@@ -368,6 +368,7 @@ class SchneidwegDialog(QDialog):
         self.zeichnung_knopf = zeichnung
         ml.addWidget(self.skizze_kopf)
         self.skizze = Skizze(profil, p.get("laenge"))
+        self.skizze.grenze = self.schwenk_grenze()
         self.skizze.gewaehlt.connect(self._auswahl_skizze)
         self.skizze.verschoben.connect(self._verschoben)
         # Skizze und 3D-Ansicht des STEP-Imports (Teile-Editor: Auswahl und Messen) als Reiter
@@ -1269,9 +1270,13 @@ class SchneidwegDialog(QDialog):
         if not an:
             return []
         p = dict(self.p, **(self.ergebnis or {}).get("felder", {}), technik=sw.speichern(eingaben))
-        st = dreid.pruefen(p, m)
+        st = dreid.pruefen(p, m, profil=self.profil)
         return [f"<span style='color:{'#B42318' if st.startswith('FEHLER') else '#7A5A00'}'>3D: {st}</span>"] \
             if st else []
+
+    def schwenk_grenze(self):
+        """Kopfschwenk der Maschine für Enden in 3D [°] (kleinere der beiden Grenzen, dreid.gehrung_begrenzen)."""
+        return dreid.schwenk_grenze(rechnen.maschine(self.kopf or {}, self.k))
 
     def knickrahmen(self, werte=None, dialog=None):
         """Knickrahmen eingeben (KnickrahmenDialog): V-Ausschnitte, Enden und gestreckte Länge setzen. werte = Block

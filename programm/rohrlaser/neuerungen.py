@@ -32,7 +32,11 @@ NEUERUNGEN = [
                "mit Gehrung oder schräger Bohrung von selbst an (im Rohr-Editor und im STEP-Prüfdialog, je Teil "
                "abwählbar); senkrechte Schnitte bleiben 2D. Fehler „NoneType … __round__“ beim Knickrahmen mit "
                "schräger Innenwand in 3D behoben. <b>Schweißnaht im 3D</b>: eine feste Nahtlage zeigt der Rohr-Editor "
-               "(und die 3D-Ansicht der Position) als rote Linie über die ganze Länge.",
+               "(und die 3D-Ansicht der Position) als rote Linie über die ganze Länge. <b>Schnittflächen 2D/3D</b>: in 2D "
+               "steht der Strahl überall senkrecht zum Mantel (Innenkante unter der Außenkante, so auch im 3D "
+               "gezeichnet); in 3D schwenkt der Kopf je Stelle nur so weit wie nötig, über 45° (Grenze der Maschine) "
+               "steht er auf 45° – diese Stücke sind gelb, die Position bekommt eine WARNUNG mit Ende und Länge, die "
+               "Schneidzeit rechnet je Stück mit seinem Winkel.",
      "DXF-Import: genaue Kontur, Rahmen weg, mehrere Bleche, Werkstoff/Dicke vorgeschlagen ([[dxf_import]])."],
     ["0.9.87", "<b>Updates nur noch signiert</b>: Das Programm spielt nur noch Updates ein, deren Dateiliste mit dem "
                "Schlüssel des Herstellers digital signiert ist. Eine veränderte oder fremde Dateiliste lehnt es ab "
