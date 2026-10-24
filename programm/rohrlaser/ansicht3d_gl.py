@@ -102,11 +102,12 @@ def puffer_daten(modell, farben, linien_farben, kanten=False):
     """Modell -> (Dreiecke, Linien, Körperkanten) als array('f') je Ecke: Ort (3), Normale (3), Farbe (3)."""
     p = modell.punkte
     dreiecke = array("f")
-    for i, j, k, art, n in modell.dreiecke:
+    glatt = modell.glatte_normalen()            # Rundungen glatt: Normale je Ecke (große Netze flach)
+    for nr, (i, j, k, art, n) in enumerate(modell.dreiecke):
         c = farben.get(art) or farben["K"]
-        for x in (i, j, k):
+        for e, x in enumerate((i, j, k)):
             dreiecke.extend(p[x])
-            dreiecke.extend(n)
+            dreiecke.extend(glatt[nr][e] if glatt else n)
             dreiecke.extend(c)
     linien = array("f")
     for a, b, art, n in modell.linien:

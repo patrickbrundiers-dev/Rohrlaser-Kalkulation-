@@ -253,16 +253,15 @@ class Eigenschaften(QWidget):
     def _teil(self):
         d = self.d
         if self.art == "rohr":
-            if getattr(d, "neu", False) and hasattr(d, "k_laenge"):
-                self._spin("Teilelänge", d.k_laenge, "mm")
-            info = QLabel(d.info.text())
-            info.setWordWrap(True)
-            self._form.addRow(info)
+            self._profil()
             self._spin("Gravur je Teil", d.gravur, "mm")
             if d.profil.get("form") in opt.RADIUS_FORMEN:
                 self._radius()
             self._haken("3D-Schnittbearbeitung", d.d3)
-            return "Teil"
+            info = QLabel("<span style='color:%s'>%s</span>" % (stil.umsetzen(stil.TEXT_GRAU), d.info.text()))
+            info.setWordWrap(True)
+            self._form.addRow(info)
+            return "Profil und Teil"
         self._combo("Werkstoff", d.werkstoff)
         self._spin("Dicke", d.dicke, "mm")
         self._combo("Art", d.art)
@@ -273,6 +272,38 @@ class Eigenschaften(QWidget):
             self._spin("Breite", d.breite, "mm")
             self._spin("Eckradius", d.eckradius, "mm")
         return "Teil"
+
+    def _profil(self):
+        """Profil-Einstellungen (Klick aufs Profil im 3D, Patrick 24.10.2026): neue Position Profilform, Profil,
+        Werkstoff, Teilelänge und Stückzahl änderbar; bestehende Position zeigt die Profilwerte (Profil und
+        Werkstoff ändert man in der Positionstabelle des Angebots)."""
+        d = self.d
+        neu = getattr(d, "neu", False) and hasattr(d, "k_profil")
+        if neu:
+            self._combo("Profilform", d.k_form)
+            self._combo("Profil", d.k_profil)
+            self._combo("Werkstoff", d.k_werkstoff)
+            self._spin("Teilelänge", d.k_laenge, "mm")
+            self._spin("Stückzahl", d.k_stueck, "Stück")
+        pr, p = d.profil or {}, d.p or {}
+        werte = [] if neu else [("Profil", p.get("profil_id")), ("Profilform", pr.get("form"))]
+        masse = " × ".join(rf.zahl_text(pr[k]) for k in ("a", "b") if sw._z(pr.get(k)))
+        werte += [("Abmessung", masse and f"{masse} mm"),
+                  ("Wandstärke", sw._z(pr.get("wand")) and f"{rf.zahl_text(pr['wand'])} mm")]
+        if not neu:
+            kat = (d.k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("kategorie") if p.get("werkstoff_id") else None
+            werte += [("Werkstoff", (p.get("werkstoff_id") or "–") + (f" ({kat})" if kat else "")),
+                      ("Teilelänge", sw._z(p.get("laenge")) and f"{rf.zahl_text(p['laenge'])} mm")]
+        for titel, wert in werte:
+            lab = QLabel(str(wert) if wert else "–")
+            lab.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            self._form.addRow(titel, lab)
+            self.felder[titel] = lab
+        if not neu:
+            h = QLabel("<span style='color:%s'>Profil und Werkstoff ändern: in der Positionstabelle des Angebots."
+                       "</span>" % stil.umsetzen(stil.TEXT_GRAU))
+            h.setWordWrap(True)
+            self._form.addRow(h)
 
     def _radius(self):
         """Außenradius (gilt im Angebot je Profil + Werkstoff): leer = Stammdaten bzw. Vorgabe nach Norm (als Platzhalter

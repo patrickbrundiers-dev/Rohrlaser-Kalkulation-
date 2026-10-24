@@ -99,7 +99,7 @@ eing = dict(a=dict(winkel=45, achse="über Höhe"), b={},
                       dict(art=sw.LANGLOCH, anzahl=1, l=30, b=10, x=300, seite="vorne"),
                       dict(art=sw.GRAVUR, anzahl=1, laenge=20, x=400)])
 n = rohr3d.netz(eing, QR, 500)
-assert set(n["t"]) == {"A", "I", "EA", "EB"} and n["eingaben"] is True
+assert set(n["t"]) == {"A", "I", "EA", "EB", "K"} and n["eingaben"] is True
 assert n["li"]["K"] == ["kontur:0", "kontur:0", "kontur:1"] and n["li"]["G"] == ["kontur:2"]
 assert n["li"]["EA"] == ["ende:a"] and n["li"]["EB"] == ["ende:b"]
 mo = ansicht3d.Modell(n)
@@ -114,6 +114,67 @@ u = rohr3d.netz(eing, dict(form="U-Profil", a=80, b=45, wand=6), 500)
 assert "I" not in u["t"] and {"A", "EA", "EB"} <= set(u["t"])
 assert rohr3d.netz(eing, QR, 0) is None
 ok("E4 3D-Modell aus den Eingaben: Wände, Stirnflächen, Linien mit Merkmal, Gehrung, Rund- und U-Profil")
+
+
+def _mitten(nz, art):
+    p, idx = nz["p"], nz["t"].get(art) or []
+    return [[sum(p[3 * idx[i + j] + k] for j in range(3)) / 3 for k in range(3)] for i in range(0, len(idx), 3)]
+
+
+# Bohrung Ø10 oben bei x 100: kein Dreieck der Außen-/Innenwand in der Lochmitte, Lochwand rot (K) rundum
+voll = rohr3d.netz(dict(a={}, b={}, konturen=[]), QR, 300)
+loch = rohr3d.netz(dict(a={}, b={}, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=10, x=100, seite="oben")]), QR, 300)
+assert "K" not in voll["t"] and len(loch["t"]["K"]) > 0
+wand = _mitten(loch, "K")
+assert all(95 - 0.1 <= c[2] <= 105 + 0.1 for c in wand)                  # Lochwand nur im Bereich der Bohrung
+assert all(abs(math.hypot(c[0], c[2] - 100) - 5) < 0.3 for c in wand)    # Ø 10 auf der Oberseite (X quer, Z Achse)
+assert all(17 - 0.1 <= c[1] <= 20 + 0.1 for c in wand)                   # durch die Wand 3 mm
+for art in ("A", "I"):
+    assert not [c for c in _mitten(loch, art) if c[1] > 16 and math.hypot(c[0], c[2] - 100) < 4.5], art
+# Ausklinkung am Ende B: Stirnfläche fehlt im Ausschnitt; Gravur und Flowdrill bleiben Linien (keine Lochwand)
+kl = rohr3d.netz(dict(a={}, b={}, konturen=[dict(art=sw.AUSKLINKUNG, anzahl=1, l=30, b=15, x=290, seite="oben")]),
+                 QR, 300)
+assert not [c for c in _mitten(kl, "EB") if c[1] > 16 and abs(c[0]) < 6]
+assert len(kl["t"]["EB"]) < len(voll["t"]["EB"])
+gr = rohr3d.netz(dict(a={}, b={}, konturen=[dict(art=sw.GRAVUR, anzahl=1, laenge=20, x=100),
+                                            dict(art=sw.FLOWDRILL, anzahl=1, d=7, x=200)]), QR, 300)
+assert "K" not in gr["t"]
+# Rundrohr: Bohrung über die Naht (t = 0) geschnitten; offenes Profil (U) ohne Ausschnitt
+rl = rohr3d.netz(dict(a={}, b={}, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=12, x=150)]),
+                 dict(form="Rundrohr", a=40, wand=2), 300)
+assert all(144 - 0.1 <= c[2] <= 156 + 0.1 for c in _mitten(rl, "K"))
+assert "K" not in rohr3d.netz(eing, dict(form="U-Profil", a=80, b=45, wand=6), 500)["t"]
+# Klick auf Flächen wählt das Merkmal (netz 'ti'): Wand = Teil, Stirnfläche = Ende, Lochwand = Kontur
+sicht = ansicht3d.Ansicht3D()
+sicht.setzen(loch)
+w2 = math.sqrt(0.5)
+
+
+def schraeg(v):     # von oben und von Ende A her (45°): rechts X, oben (Y+Z)/√2, zum Betrachter (Y−Z)/√2
+    return v[0], (v[1] + v[2]) * w2, (v[1] - v[2]) * w2
+
+
+def axial(v):       # von Ende A her
+    return v[0], v[1], -v[2]
+
+
+assert sicht._flaeche_treffer(schraeg, 0, (20 + 200) * w2)["id"] == "teil"
+assert sicht._flaeche_treffer(schraeg, 0, (18.5 + 105) * w2)["id"] == "kontur:0"      # Lochwand hinten
+assert sicht._flaeche_treffer(axial, 0, 18.5)["id"] == "ende:a"
+assert sicht._flaeche_treffer(axial, 0, 0) is None                                      # Blick ins Rohr
+# glatte Rundungen: Normale je Ecke radial (Rundrohr), Stirnfläche bleibt axial (Kante scharf)
+rm = ansicht3d.Modell(rohr3d.netz(dict(a={}, b={}, konturen=[]), dict(form="Rundrohr", a=40, wand=2), 300))
+gl = rm.glatte_normalen()
+assert gl is not None and len(gl) == len(rm.dreiecke)
+for (i, j, k, art, n), ecken in zip(rm.dreiecke, gl):
+    for x, q in zip((i, j, k), ecken):
+        pt = rm.punkte[x]
+        if art == "A":
+            r = math.hypot(pt[0], pt[1])
+            assert abs((q[0] * pt[0] + q[1] * pt[1]) / r - 1) < 1e-3, (q, pt)
+        elif art in ("EA", "EB"):
+            assert abs(abs(q[2]) - 1) < 1e-6
+ok("E4b Ausschnitte im 3D: Loch durch die Wand mit Lochwand, Ausklinkung am Ende, Gravur nur Linie")
 
 # ------------------------------------------------------------------ E5 Rahmen
 from rohrlaser.blech_dialog import BlechDialog  # noqa: E402
