@@ -759,7 +759,8 @@ def kapitel_angebote(i):
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
            "nicht geöffnet wurden, haben dort noch keinen Wert.",
-           "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand. <b>Gültig bis</b> ist das "
+           "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand; vor <i>Verschickt</i> öffnet sich "
+           "das Angebot mit dem Angebots-Check, wenn noch etwas offen ist ([[angebots_check]]). <b>Gültig bis</b> ist das "
            "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
            "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i> oder <i>Verschickt und "
            "abgelaufen</i> zum Nachfassen, <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
@@ -1015,7 +1016,7 @@ def kapitel_angebot(i):
          "Schneidzeit, Materialpreis, Status"]], [32, 80, 70])
     i.abschnitt("Übersicht")
     i.text("Rechts im Angebot: Stand, <b>Herstellkosten</b> und <b>Verkaufspreis</b> groß, darunter Meldungen, "
-           "<b>Prüfen vor Freigabe</b>, Kennzahlen, <b>Preisaufbau</b> und Zeiten. Vor dem Optimieren stehen die "
+           "<b>Angebots-Check</b>, Kennzahlen, <b>Preisaufbau</b> und Zeiten. Vor dem Optimieren stehen die "
            "Preise grau mit „(vorläufig)“.")
     i.genauer()
     i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
@@ -1030,11 +1031,10 @@ def kapitel_angebot(i):
             "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
             "<b>Meldungen</b>: die Anzahl der Fehler, Warnungen und Hinweise der Positionen (rot, gelb); aufklappen "
             "zeigt jede Meldung mit ihrer Positionsnummer.",
-            "<b>Prüfen vor Freigabe</b>: alle offenen Punkte vor dem Angebots-PDF in einer Liste: kein Kunde, "
-            "Schnittplan nicht aktuell, Positionen mit FEHLER oder WARNUNG, ungeprüfte Bohrungen/Gewinde-Vorschläge, "
-            "Fracht nicht berechnet, veraltete Staffeln, Abweichung vom verschickten Angebot, abgelaufene Gültigkeit. "
-            "Ist alles erledigt, steht dort grün „alles erledigt“. Beim Angebots-PDF fragt das Programm bei offenen "
-            "Punkten mit dieser Liste nach.",
+            "<b>Angebots-Check</b>: alle offenen Punkte vor dem Versand laufend in einer Liste, jeder mit "
+            "<b>Hinspringen</b> zur Stelle (Position, Feld im Kopf, Staffeln …). Der Titel zählt die offenen Punkte "
+            "(FEHLER, WARNUNG) und die Hinweise; ist alles erledigt, steht dort grün „alles erledigt“. Welche Punkte "
+            "es gibt und wie die eine Rückfrage vor dem PDF aussieht: [[angebots_check]].",
             "Kennzahlen: Positionen, Stückzahl und Gewicht. Stangenbedarf und Längen stehen je Abmessung in den "
             "Reitern <i>Schnittplan</i> und <i>Stangenbild</i>.",
             "<b>Preisaufbau</b> Schritt für Schritt: Material, + Laser schneiden, + Rüsten (Rüsten Maschine, Rüsten "
@@ -1775,9 +1775,8 @@ def kapitel_optimieren(i):
     i.text("Nach jeder Änderung steht das Angebot rot auf <b>Veraltet</b>: einfach neu optimieren.", kurz=True)
     i.genauer()
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
-           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand bietet "
-           "das Programm nur <b>Optimieren und weiter</b> oder <b>Abbrechen</b> an, damit kein PDF mit altem "
-           "Materialbedarf entsteht.")
+           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand optimiert "
+           "das Programm ohne Rückfrage neu, damit kein PDF mit altem Materialbedarf entsteht.")
     i.text("Große Angebote (ab 150 Teilen) rechnen im Hintergrund: ein Fenster zeigt die gerade geplante Abmessung "
            "und die Zeit, <b>Abbrechen</b> beendet die Optimierung nach der laufenden Abmessung, ohne etwas zu "
            "speichern.")
@@ -2549,8 +2548,8 @@ def kapitel_fracht(i):
             "Zone und nimmt die teurere; die Karte nennt alle Zonen mit ihrem Betrag.",
             "In den Staffelpreisen rechnet jede Menge ihre eigene Fracht ([[staffeln]]).",
             "Kann das Programm nicht rechnen (Ziel-PLZ fehlt, Gewicht fehlt, kein Tarif), steht der Grund rot in der "
-            "Karte, das Feld Frachtkosten ist leer, die Kalkulation rechnet bis dahin ohne Fracht und vor dem "
-            "Angebots-PDF fragt das Programm nach. Es setzt nie still 0 € ein. Ist der Grund behoben (Gewicht "
+            "Karte, das Feld Frachtkosten ist leer, die Kalkulation rechnet bis dahin ohne Fracht und der Angebots-Check "
+            "nennt es in seiner Rückfrage vor dem Angebots-PDF ([[angebots_check]]). Es setzt nie still 0 € ein. Ist der Grund behoben (Gewicht "
             "eingetragen, Versandart in den Einstellungen gesetzt), rechnet die nächste Änderung oder das Zurückkehren "
             "ins Angebot die Fracht von selbst neu.",
             "Solange der Haken gesetzt ist, ist die Frachtart fest auf berechnet. Haken aus: der letzte Betrag bleibt "
@@ -3120,6 +3119,39 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Eine <b>Kopie</b> eines Angebots rechnet mit den aktuellen Stammdaten.",
             "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert ("
             "[[zeiten]]), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")
+    i.abschnitt("Angebots-Check vor dem Versand", marke="angebots_check")
+    i.text("Vor dem <b>Angebot (PDF)</b> und vor dem Vorgang <i>Verschickt</i> prüft das Programm das Angebot. Nur "
+           "wenn ein FEHLER oder eine WARNUNG offen ist, kommt <b>eine</b> Rückfrage mit allen Punkten; Hinweise "
+           "allein fragen nicht.", kurz=True)
+    i.liste("<b>Hinspringen</b> schließt das Fenster und springt zur Stelle; danach einfach erneut <b>Angebot "
+            "(PDF)</b>.",
+            "Bei WARNUNG geht es mit <b>Angebot erstellen</b> (bzw. <b>Als verschickt markieren</b>) weiter.",
+            "Bei FEHLER heißt der Knopf <b>Trotzdem weiter</b> und geht erst mit einer <b>Begründung</b>. Die "
+            "übergangenen Punkte und die Begründung stehen danach im Versandverlauf (Mauszeiger auf den Preisstand "
+            "in der Übersicht).",
+            "Ein veralteter Schnittplan wird vorher ohne Rückfrage neu optimiert. Werkstattpapiere, Kalkulation und "
+            "Materialanfrage fragen nur, wenn die Fracht nicht berechnet ist.",
+            "Jederzeit ansehen: <i>Ausgaben → Angebots-Check …</i> oder Strg+K „Angebots-Check“; laufend steht die "
+            "Liste in der Übersicht.", kurz=True)
+    i.tabelle(["Prüfung", "Stufe", "Hinspringen zu"], [
+        ["keine Positionen; Positionen mit FEHLER (z. B. Profil fehlt, Schweißbaugruppe ohne Werte)", "FEHLER",
+         "erste betroffene Position"],
+        ["Positionen mit WARNUNG (z. B. Gewinde ohne Preis), ungeprüfte Bohrungen/Gewinde-Vorschläge und "
+         "Anbauteile, Hinweis in der Kalkulation (z. B. kein Preis, nicht eingeplant), Zukaufteil ohne "
+         "Einkaufspreis", "WARNUNG", "erste betroffene Position"],
+        ["kein Kunde; Schnittplan nicht aktuell; Fracht nicht berechnet", "WARNUNG", "Kunde, Optimieren, Fracht"],
+        ["Marge unter der Mindestmarge (Einstellung, 0 = aus; Zahlen nur im Admin-Bereich)", "WARNUNG",
+         "Reiter Kalkulation"],
+        ["Staffelstufen veraltet; Mindestauftragswert greift (Preis angehoben); Stammdaten seit dem Festschreiben "
+         "geändert; Preis weicht vom verschickten Angebot ab", "HINWEIS",
+         "Staffeln, Mindestauftragswert, Aktuelle Preise übernehmen …"],
+        ["Kunde ohne E-Mail-Adresse; Lieferzeit leer; Kundenreferenz leer; Gültigkeit abgelaufen", "HINWEIS",
+         "Kunde bzw. Feld im Angebotskopf"]], [95, 22, 55])
+    i.genauer()
+    i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
+           "Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)</i>, Vorgabe 0). Gemeint ist der Gewinn aus dem "
+           "Preisaufbau geteilt durch den Verkaufspreis. Angebote der Kollegen lassen sich ansehen und ausgeben, "
+           "ohne dass der Check fragt.")
     i.abschnitt("Angebot (PDF)")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
     i.abschnitt("Werkstattpapiere (PDF)")
@@ -4974,7 +5006,7 @@ def kapitel_step_messung(i):
            hoehe=55 * mm, legende=[(1, "Vorschau umschalten.")])
     i.text("<b>Im Angebot</b> stehen die Anbauteile in der Spalte <i>Anbauteile</i> der Positionen (erscheint, "
            "sobald eine Position welche hat). Solange ein unsicher erkanntes Anbauteil offen ist, zeigt der Status "
-           "<b>HINWEIS: Anbauteile prüfen (Doppelklick)</b>, und <i>Prüfen vor Freigabe</i> meldet „Anbauteile "
+           "<b>HINWEIS: Anbauteile prüfen (Doppelklick)</b>, und der <i>Angebots-Check</i> meldet „Anbauteile "
            "ungeprüft“. Ein <b>Doppelklick</b> auf die Spalte oder den Status (oder Rechtsklick, <i>Anbauteile prüfen "
            "…</i>) öffnet dasselbe Fenster; <b>Übernehmen</b> ändert die Gravur der Position um den Unterschied.")
     i.bild("anbau_position", "Position mit Anbauteilen im Angebot: Spalte Anbauteile (hier alle geprüft)",
