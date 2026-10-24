@@ -424,6 +424,26 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None):
     return dict(bg=bg, aenderungen=out, hinweise=hinweise, hilfen=hilfen, richtwert=regeln.richtwert)
 
 
+def komplett(p, positionen, tabellen, einstellungen=None):
+    """Vorkalkulation automatisch: erst alle Nahtvorschläge aus dem STEP als Nahtgruppen (a-Maß nach der Regel
+    schweiss_a_regel, Verfahren = erstes aktives), dann vorkalkulieren. Ergebnis wie vorkalkulieren, zusätzlich
+    naehte_neu (Anzahl)."""
+    einst = einstellungen or {}
+    bg = baugruppe.lesen(p.get("baugruppe"))
+    if bg is None:
+        return vorkalkulieren(p, positionen, tabellen, einst)
+    regel = einst.get("schweiss_a_regel")
+    regel = regel if _zahl(regel) and regel > 0 else baugruppe.A_REGEL_VORGABE
+    verfahren = next((z["verfahren"] for z in tabellen.get("schweissverfahren") or ()
+                      if z.get("verfahren") and z.get("aktiv", True) is not False), None)
+    n = baugruppe.vorschlaege_anlegen(bg, regel, verfahren)
+    r = vorkalkulieren(dict(p, baugruppe=baugruppe.speichern(bg)), positionen, tabellen, einst)
+    r["naehte_neu"] = n
+    if n:
+        r["aenderungen"].insert(0, f"{n} Nahtgruppe(n) aus den STEP-Vorschlägen")
+    return r
+
+
 def bestaetigen(bg):
     """Alle offenen Vorschläge der Baugruppe als bestätigt merken (Werte bleiben). Ergebnis: Anzahl."""
     n = 0

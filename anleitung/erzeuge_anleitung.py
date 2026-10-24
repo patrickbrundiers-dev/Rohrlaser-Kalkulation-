@@ -3365,10 +3365,16 @@ def kapitel_baugruppen(i):
            "<i>Schweißbaugruppen: Stundensatz für Verputzen und Schleifen</i>.")
     i.text("Solange Vorschläge offen sind, zeigt der Status den HINWEIS <i>… Vorschläge der Vorkalkulation offen</i>; "
            "Doppelklick führt zur ersten gelben Zeile. Drucken geht trotzdem; die Kalkulation (PDF) schreibt bei "
-           "diesen Zeilen <i>(Vorschlag)</i> in die Spalte Herkunft. Mit der Einstellung <i>Schweißbaugruppen: "
-           "Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)</i> auf <i>ja</i> rechnet das Programm "
-           "die Vorschläge gleich für jede Schweißbaugruppe aus dem STEP-Import ([[step]]); der Bericht nennt das "
-           "Ergebnis.")
+           "diesen Zeilen <i>(Vorschlag)</i> in die Spalte Herkunft.")
+    i.text("<b>Vorkalkulation automatisch</b> (Häkchen unten im Editor, je Baugruppe): Die Baugruppe übernimmt alle "
+           "Nahtvorschläge aus dem STEP als Nahtgruppen (Kehlnaht mit a-Maß nach der Regel, gelb bis zur "
+           "Bestätigung) und schlägt Schweißen, Heften, Verputzen, Rüsten, Positionieren und Wenden bei jeder "
+           "Änderung neu vor, spätestens beim OK; Werte von Hand und bestätigte bleiben. Die Einstellung "
+           "<i>Schweißbaugruppen: Vorkalkulation automatisch (Vorgabe je Baugruppe, auch beim STEP-Import: "
+           "Nahtvorschläge, a-Maß nach Regel, Schweißen, Heften, Verputzen, Rüsten)</i> gibt das Häkchen für "
+           "Baugruppen ohne eigene Wahl vor; auf <i>ja</i> rechnet das Programm auch jede Schweißbaugruppe aus dem "
+           "STEP-Import gleich durch ([[step]]), der Bericht nennt das Ergebnis. Nimmt man das Häkchen bei einer "
+           "Baugruppe heraus, bleibt es dort aus, auch wenn die Einstellung ja ist.", kurz=True)
     i.abschnitt("Im Angebot und in den Staffeln")
     i.text("Das Angebot zeigt <b>eine Zeile je Baugruppe</b>: <i>Schweißbaugruppe</i> mit Bezeichnung, darunter "
            "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "

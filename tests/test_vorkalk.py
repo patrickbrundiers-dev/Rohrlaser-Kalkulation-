@@ -262,4 +262,40 @@ bg_db = baugruppe.lesen(db.position(pb)["baugruppe"]) if hasattr(db, "position")
     next(q for q in db.positionen(a) if q["id"] == pb)["baugruppe"])
 assert vorkalk.offen(bg_db) == 5 and "Vorkalkulation" in bericht[0], (vorkalk.offen(bg_db), bericht)
 ok("V2b Positionierhilfe bestätigt = bg_hilfe, Kalkulation-PDF „(Vorschlag)“, Vorkalkulation beim STEP-Import")
+assert bg_db["stamm"]["vk_auto"] is True, "STEP-Import mit Einstellung: Häkchen Vorkalkulation automatisch"
+
+# ------------------------------------------------------------------ Vorkalkulation automatisch (Patrick 24.10.2026)
+VOR = dict(teile=[[1, 2]], knoten="", nahtart="Kehlnaht", laenge=160, anzahl=2, dicke=3)
+bg_k = baugruppe.lesen(next(q for q in db.positionen(a) if q["id"] == pb)["baugruppe"])
+bg_k["vorschlaege"] = [dict(VOR)]
+bg_k["stamm"].pop("vk_auto", None)
+db.position_aendern(pb, "baugruppe", baugruppe.speichern(bg_k))
+seite.neu_laden()
+p_k = next(q for q in seite.positionen if q["id"] == pb)
+r = vorkalk.komplett(p_k, seite.positionen, seite.tabellen, dict(schweiss_a_regel=0.7))
+neu = r["bg"]["naehte"][-1]
+assert r["naehte_neu"] == 1 and not r["bg"]["vorschlaege"], r["naehte_neu"]
+assert neu["nahtart"] == "Kehlnaht" and neu["mass"] == neu["mass_regel"] == 2 and neu["verfahren"], neu
+assert baugruppe.regel_offen(neu) and vorkalk.naht_status(neu, "heftpunkte") == vorkalk.VORSCHLAG
+assert "1 Nahtgruppe(n) aus den STEP-Vorschlägen" in r["aenderungen"][0]
+# Editor: Vorgabe aus der Einstellung, ohne Wahl der Baugruppe
+d0 = BaugruppeDialog(None, p_k, seite.positionen, seite.tabellen, {"Schweißen": 75.0})
+assert not d0.vk_auto.isChecked() and d0.bg["vorschlaege"], "Einstellung nein: aus, Vorschläge bleiben"
+d1 = BaugruppeDialog(None, p_k, seite.positionen, seite.tabellen, {"Schweißen": 75.0},
+                     einstellungen=dict(schweiss_vk_step="ja"))
+assert d1.vk_auto.isChecked() and not d1.bg["vorschlaege"], "Einstellung ja: beim Öffnen alles vorgeschlagen"
+assert len(d1.bg["naehte"]) == len(bg_k["naehte"]) + 1 and d1.daten()["stamm"]["vk_auto"] is True
+n_vorher = len(d1.bg["naehte"])
+d1.anzahl.setValue(7)
+d1._vk_nach_eingabe()                                                   # wie nach der Eingabe (Timer)
+assert len(d1.bg["naehte"]) == n_vorher and "Vorkalkulation" in d1.vk_info.text()
+d1.vk_auto.setChecked(False)
+assert d1.daten()["stamm"]["vk_auto"] is False
+d1._ok()
+w = d1.ergebnis["position"]
+assert baugruppe.vk_auto(baugruppe.lesen(w["baugruppe"]), True) is False, "je Baugruppe abgeschaltet bleibt aus"
+d2 = BaugruppeDialog(None, dict(p_k, baugruppe=w["baugruppe"]), seite.positionen, seite.tabellen, {"Schweißen": 75.0},
+                     einstellungen=dict(schweiss_vk_step="ja"))
+assert not d2.vk_auto.isChecked()
+ok("Vorkalkulation automatisch: Vorgabe aus der Einstellung, je Baugruppe ja/nein, Nahtvorschläge mit a-Maß-Regel")
 print("Vorkalkulation V1 und V2: alle Tests bestanden.")
