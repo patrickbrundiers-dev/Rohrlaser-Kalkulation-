@@ -148,7 +148,13 @@ class Aufklapper(QWidget):
 
 
 def _versand_text(v):
-    """Eine Zeile des Versandverlaufs: PDF mit Netto oder Vorgang von Hand, dazu ein übergangener Angebots-Check."""
+    """Eine Zeile des Versandverlaufs: PDF mit Netto oder Vorgang von Hand, dazu ein übergangener Angebots-Check;
+    Nachfassen und Wiedervorlage (Plan A9)."""
+    if v.get("art") == "nachgefasst":
+        return f"{datum_text(v.get('datum'))}: nachgefasst ({v.get('wie') or 'E-Mail'})"
+    if v.get("art") == "wiedervorlage":
+        return (f"{datum_text(v.get('datum'))}: Wiedervorlage am {datum_text(v['am'])}" if v.get("am") else
+                f"{datum_text(v.get('datum'))}: Wiedervorlage entfernt")
     t = (f"{datum_text(v.get('datum'))}: {_z(v.get('netto'))} € netto ({v.get('datei') or 'PDF'})" if v.get("datei")
          or v.get("netto") is not None else f"{datum_text(v.get('datum'))}: als verschickt markiert (ohne PDF)")
     c = v.get("check")
@@ -987,7 +993,7 @@ class UebersichtBereich(QWidget):
             self.preisstand.setToolTip("Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile und Maschine "
                                        "stimmen mit den Stammdaten überein.")
         if versand:                 # Verlauf der verschickten Angebots-PDFs (Versionsstand)
-            self.preisstand.setToolTip((self.preisstand.toolTip() + "\n\n").lstrip() + "Verschickt:\n" + "\n".join(
+            self.preisstand.setToolTip((self.preisstand.toolTip() + "\n\n").lstrip() + "Versandverlauf:\n" + "\n".join(
                 _versand_text(v) for v in versand))
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 

@@ -1,4 +1,4 @@
-"""Cockpit der Startseite (Layout-Plan L21): Wiedervorlagen, Pipeline je Vorgang und Kennzahlen (nur Admin).
+"""Cockpit der Startseite (Layout-Plan L21, Plan A9): Wiedervorlagen, Pipeline je Vorgang und Kennzahlen (nur Admin).
 
 Alles wird aus der Angebotsliste (Datenbank.angebote) gerechnet, damit die Summen hier genau denen der
 Angebotsliste entsprechen: Verkaufspreis netto ist der beim letzten Öffnen gemerkte Wert (vk_netto).
@@ -36,9 +36,52 @@ def pipeline(zeilen):
     return aus
 
 
-def wiedervorlagen(zeilen, tage, heute=None, vorlauf=VORLAUF_TAGE):
-    """Verschickte eigene Angebote, deren Gültigkeit abgelaufen ist oder in vorlauf Tagen endet, nach Datum:
-    [(Zeile, Gültig bis, Resttage)]; Resttage < 0 = abgelaufen."""
+class Wiedervorlage(tuple):
+    """(Zeile, fällig am, Resttage) wie bisher, dazu gruende [Text] und bis (Gültig bis); Resttage < 0 = überfällig."""
+
+    def __new__(cls, z, faellig, rest, gruende, bis):
+        w = super().__new__(cls, (z, faellig, rest))
+        w.gruende, w.bis = gruende, bis
+        return w
+
+    @property
+    def z(self):
+        return self[0]
+
+    @property
+    def faellig(self):
+        return self[1]
+
+    @property
+    def rest(self):
+        return self[2]
+
+
+def verlauf(z):
+    """Aus dem Versandverlauf (angebote.versand): (zuletzt verschickt, zuletzt nachgefasst, Wiedervorlage von Hand)
+    als Datum oder None. Einträge: Angebots-PDF bzw. „als verschickt markiert“ (ohne art), art 'nachgefasst',
+    art 'wiedervorlage' mit am (None = entfernt)."""
+    versandt = nachgefasst = wv = None
+    for e in z.get("versand") or ():
+        if not isinstance(e, dict):
+            continue
+        d = _datum(e.get("datum"))
+        art = e.get("art")
+        if art == "nachgefasst":
+            nachgefasst = max(nachgefasst, d) if nachgefasst and d else d or nachgefasst
+        elif art == "wiedervorlage":
+            wv = _datum(e.get("am"))
+        elif d:
+            versandt = max(versandt, d) if versandt else d
+    return versandt, nachgefasst, wv
+
+
+def wiedervorlagen(zeilen, tage, heute=None, vorlauf=VORLAUF_TAGE, nachfassen=0):
+    """Eigene Angebote zum Nachfassen (Plan A9), nach Fälligkeit: [Wiedervorlage]. Gründe:
+    - verschickt, Gültigkeit abgelaufen oder endet in vorlauf Tagen
+    - verschickt und seit nachfassen Tagen (0 = aus) ohne Entscheidung, gerechnet ab dem letzten Versand bzw.
+      Nachfassen
+    - Wiedervorlage von Hand (Entwurf oder verschickt) erreicht; sie ersetzt bis dahin das automatische Nachfassen."""
     heute = heute or datetime.date.today()
     try:
         tage = int(tage or 0)
@@ -47,13 +90,30 @@ def wiedervorlagen(zeilen, tage, heute=None, vorlauf=VORLAUF_TAGE):
     aus = []
     for z in zeilen:
         d = _datum(z.get("datum"))
-        if _vorgang(z) != "Verschickt" or z.get("fremd") or d is None:
+        v = _vorgang(z)
+        if z.get("fremd") or d is None or v not in ("Entwurf", "Verschickt"):
             continue
+        versandt, nachgefasst, wv = verlauf(z)
         bis = d + datetime.timedelta(days=tage)
-        rest = (bis - heute).days
-        if rest <= vorlauf:
-            aus.append((z, bis, rest))
-    return sorted(aus, key=lambda x: x[1])
+        faellig, gruende = [], []
+        if v == "Verschickt" and (bis - heute).days <= vorlauf:
+            faellig.append(bis)
+            gruende.append(f"gültig bis {bis.strftime('%d.%m.%Y')}")
+        if wv is not None:
+            if wv <= heute:
+                faellig.append(wv)
+                gruende.append(f"Wiedervorlage {wv.strftime('%d.%m.%Y')}")
+        elif v == "Verschickt" and nachfassen:
+            basis = max(x for x in (versandt or d, nachgefasst) if x)
+            seit = (heute - basis).days
+            if seit >= nachfassen:
+                faellig.append(basis + datetime.timedelta(days=nachfassen))
+                gruende.append(f"seit {seit} Tagen ohne Antwort" + (
+                    f" (nachgefasst am {nachgefasst.strftime('%d.%m.%Y')})" if nachgefasst else ""))
+        if faellig:
+            f = min(faellig)
+            aus.append(Wiedervorlage(z, f, (f - heute).days, gruende, bis))
+    return sorted(aus, key=lambda w: w.faellig)
 
 
 def kennzahlen(zeilen, heute=None, zeitraum=ZEITRAUM_TAGE):
