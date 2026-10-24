@@ -50,6 +50,10 @@ def eintraege(f):
             kurz = a.shortcut().toString()
             aus.append(Eintrag("Befehl", a.text().replace("&", ""), f"Menü {name}" + (f" · {kurz}" if kurz else ""),
                                lambda a=a: a.trigger()))
+    seite = f.reiter.currentWidget()
+    if hasattr(seite, "check_zeigen"):          # geöffnetes Angebot: Angebots-Check (Plan A2)
+        aus.append(Eintrag("Befehl", "Angebots-Check …", f"Angebot {seite.kopf.get('nummer') or ''}".strip(),
+                           lambda seite=seite: seite.check_zeigen()))
     for z in f.db.angebote()[:MAX_ANGEBOTE]:
         aus.append(Eintrag("Angebot", str(z.get("nummer") or ""),
                            " · ".join(str(x) for x in (z.get("kunde"), z.get("datum"), z.get("vorgang")) if x),
