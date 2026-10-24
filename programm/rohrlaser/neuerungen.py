@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.88", "<b>Palettenbegleitschein und Versand im Programm</b> (ersetzt das Palettenschein-Tool): neuer Reiter "
+    ["0.9.89", "<b>Palettenbegleitschein und Versand im Programm</b> (ersetzt das Palettenschein-Tool): neuer Reiter "
                "<b>Versand</b> mit allen beauftragten Aufträgen, Filtern (überfällig, heute, diese Woche, "
                "verladebereit, versendet, archiviert), Sammeldruck, Verladeliste und Status. Je Auftrag rechnet das "
                "Programm die <b>Anzahl der Paletten</b> lagenweise aus Teilmaßen, Höhe (1,2 m) und Gewicht (1,5 t): "
@@ -31,6 +31,8 @@ NEUERUNGEN = [
                "Packvorschlag der Fracht rechnet genauso. Arbeitstage und Liefertermin-Vorschlag ohne Feiertage des "
                "Bundeslands ([[versand]], [[paletten_rechnung]]).",
      "Reiter Versand mit Palettenbegleitschein und genauer Palettenanzahl"],
+    ["0.9.88", "Fehler behoben: Die Werkstatt-PDF mit Stangenbild brach bei der Strichpunkt-Linie ab.",
+     "Werkstatt-PDF mit Stangenbild wieder fehlerfrei."],
     ["0.9.87", "<b>Updates nur noch signiert</b>: Das Programm spielt nur noch Updates ein, deren Dateiliste mit dem "
                "Schlüssel des Herstellers digital signiert ist. Eine veränderte oder fremde Dateiliste lehnt es ab "
                "und bleibt auf der bisherigen Version ([[updates]]).",
