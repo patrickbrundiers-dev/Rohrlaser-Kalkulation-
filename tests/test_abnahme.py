@@ -171,6 +171,21 @@ def pruefen(angebot, kopf, positionen, erg, sw, zeilen, summen, stamm):
     assert nahe(summen["laser_schneiden"] + summen["gewinde"], summen["laser"])
     assert nahe(summen["ruesten_maschine"] + summen["ruesten_abmessungen"] + summen["stangenwechsel_kosten"],
                 summen["ruesten"])
+    # Je Teil: die einzelnen Spalten der Kalkulation ergeben Herstellkosten und Preis je Teil
+    for z in zeilen:
+        if not z or not z["stueck"] or z.get("zukaufteil") or z.get("baugruppe"):
+            continue
+        h = sum(z[n] for n in ("material_teil", "laser_schneiden_teil", "gewinde_teil", "zusatz_teil", "arbeit_teil",
+                               "handling_teil", "ruesten_maschine_teil", "ruesten_abm_teil", "stangenwechsel_teil",
+                               "zuschlag_material_teil", "zuschlag_fertigung_teil", "zuschlag_fremdleistung_teil"))
+        assert nahe(h, z["herstell_teil"]), f"{name} Pos. {z['pos']}: Spalten je Teil {h} ≠ Herstellkosten {z['herstell_teil']}"
+        assert nahe(z["ruesten_maschine_teil"] + z["ruesten_abm_teil"] + z["stangenwechsel_teil"], z["ruesten_teil"])
+        assert nahe(z["programmierung_anteil"] + z["pauschale_abm_teil"] + z["angebotsaufschlag_teil"] + z["fracht_teil"],
+                    z["pauschalen_teil"])
+        t = z["herstell_teil"] + sum(z.get(n) or 0 for n in (
+            "programmierung_anteil", "pauschale_abm_teil", "angebotsaufschlag_teil", "zukauf_einstand_teil",
+            "zukauf_aufschlag_teil", "gewinn_teil", "fracht_teil", "skonto_teil", "mindestpreis_teil"))
+        assert nahe(t, z["preis_teil"]), f"{name} Pos. {z['pos']}: Spalten je Teil {t} ≠ Preis je Teil {z['preis_teil']}"
 
     # 4. Gegen manuelle Einteilung und Untergrenze
     zeilen_protokoll = []

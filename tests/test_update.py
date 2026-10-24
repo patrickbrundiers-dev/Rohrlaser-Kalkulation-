@@ -79,8 +79,17 @@ assert plan["weg"] == ["_internal/veraltet.pyd"]
 assert plan["groesse"] < sum(d["groesse"] for d in online["pakete"].values()) / 2, "nur ein Teil wird geladen"
 
 # Geladen wird über die Adresse aus der Dateiliste, bei einem Ordner aus diesem Ordner
-assert update.paket_adresse("https://x/aktuell/Update.json", l1, "p-1.zip") == "https://example.invalid/update-dateien/p-1.zip"
-assert update.paket_adresse("https://x/aktuell/Update.json", l2, "p-1.zip") == "https://x/aktuell/p-1.zip"
+# (nur https und nur von der erwarteten Adresse, Audit H1)
+p1 = "p-" + "1" * 40 + ".zip"
+offiziell = dict(l1, adresse=update.ERLAUBTE_ADRESSEN[0] + "update-dateien/")
+assert update.paket_adresse("https://x/aktuell/Update.json", offiziell, p1) == offiziell["adresse"] + p1
+assert update.paket_adresse("https://x/aktuell/Update.json", l2, p1) == "https://x/aktuell/" + p1
+for falsch in (l1, dict(l1, adresse="http://github.com/x/"), dict(l1, adresse="https://github.com.evil/")):
+    try:
+        update.paket_adresse("https://x/aktuell/Update.json", falsch, p1)
+        raise AssertionError("Fehler erwartet")
+    except update.UpdateFehler:
+        pass
 
 # Austausch schlägt fehl (Ziel ist ein Ordner, nicht ersetzbar) -> alles wieder wie vorher
 vorher = {p.relative_to(v1).as_posix(): p.read_bytes() for p in v1.rglob("*") if p.is_file()}

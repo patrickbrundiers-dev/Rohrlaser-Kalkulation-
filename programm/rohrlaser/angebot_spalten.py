@@ -1,17 +1,33 @@
 """Spalten der Ergebnistabellen eines Angebots (Anzeige im Programm und Kalkulation-PDF):
 [(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
 
+def _position(z, schluessel):
+    """Betrag je Teil × Stückzahl (leer, wenn der Betrag fehlt)."""
+    w = z.get(schluessel)
+    return w * (z.get("stueck") or 0) if isinstance(w, (int, float)) else None
+
+
 KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130), ("Stückzahl", "stueck", 0, 60),
                 ("Kundenmaterial", "kundenmaterial", None, 70),
                 ("Material je Teil [€]", "material_teil", 3, 80), ("Laserzeit netto je Teil [s]", "laser_netto", 1, 80),
-                ("Gewindezeit je Teil [s]", "gewindezeit", 1, 75), ("Laser + Gewinde je Teil [€]", "laser_teil", 3, 80),
+                ("Gewindezeit je Teil [s]", "gewindezeit", 1, 75),
+                ("Laser schneiden je Teil [€]", "laser_schneiden_teil", 3, 80), ("Gewinde je Teil [€]", "gewinde_teil", 3, 75),
                 ("Zusatzarbeiten je Teil [€]", "zusatz_teil", 3, 85),
                 ("Weitere Arbeitsschritte je Teil [€]", "arbeit_teil", 3, 100),
-                ("Rüsten + Stangenwechsel je Teil [€]", "ruesten_teil", 3, 110),
+                ("Rüsten Maschine je Teil [€]", "ruesten_maschine_teil", 3, 85),
+                ("Rüsten je Abmessung je Teil [€]", "ruesten_abm_teil", 3, 90),
+                ("Stangenwechsel je Teil [€]", "stangenwechsel_teil", 3, 85),
                 ("Handling Kundenmaterial je Teil [€]", "handling_teil", 3, 100),
+                ("Zuschlag Material je Teil [€]", "zuschlag_material_teil", 3, 85),
+                ("Zuschlag Fertigung je Teil [€]", "zuschlag_fertigung_teil", 3, 85),
+                ("Zuschlag Fremdleistung je Teil [€]", "zuschlag_fremdleistung_teil", 3, 95),
                 ("Herstellkosten je Teil [€]", "herstell_teil", 3, 85),
-                ("Pauschalen, Programmierung, Aufschlag, Fracht je Teil [€]", "pauschalen_teil", 3, 120),
-                ("Zukaufteile je Teil [€]", "zukauf_teil", 3, 85),
+                ("Programmierung je Teil [€]", "programmierung_anteil", 3, 85),
+                ("Pauschale je Abmessung je Teil [€]", "pauschale_abm_teil", 3, 95),
+                ("Angebotsaufschlag je Teil [€]", "angebotsaufschlag_teil", 3, 90),
+                ("Zukaufteile Einstand je Teil [€]", "zukauf_einstand_teil", 3, 90),
+                ("Aufschlag Zukaufteile je Teil [€]", "zukauf_aufschlag_teil", 3, 90),
+                ("Gewinn je Teil [€]", "gewinn_teil", 3, 75), ("Fracht je Teil [€]", "fracht_teil", 3, 75),
                 ("Skonto je Teil [€]", "skonto_teil", 3, 75),
                 ("Mindestpreis je Teil [€]", "mindestpreis_teil", 3, 85),
                 ("Verkaufspreis je Teil [€]", "preis_teil", 3, 85),
@@ -34,12 +50,12 @@ KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130),
                 ("Einsparung gemeinsame Schnitte je Teil [s]", "einsparung", 1, 95),
                 ("Schneidzeit manuell", "zeit_manuell", None, 70),
                 ("Programmierzeit [min]", "prog_min", 1, 80),
-                ("Programmierung je Teil [€]", "programmierung_anteil", 3, 85),
                 ("Zusatzzeit (z. B. Gravur extra) je Teil [s]", "zeit_extra", 1, 95),
                 ("Prüfzeit Anbauteile je Teil [s]", "zeit_pruefung", 1, 85),
                 ("Gewinde Festpreis je Teil [€]", "gewinde_preis", 3, 85),
                 ("Zusatzarbeiten (Menge je Teil)", "zusatz_text", None, 220),
-                ("Material Position [€]", "material_position", 2, 85), ("Laser + Gewinde Position [€]", "laser_position", 2, 85),
+                ("Material Position [€]", "material_position", 2, 85), ("Laser schneiden Position [€]", lambda z: _position(z, "laser_schneiden_teil"), 2, 85),
+                ("Gewinde Position [€]", lambda z: _position(z, "gewinde_teil"), 2, 80),
                 ("Zusatzarbeiten Position [€]", "zusatz_position", 2, 85)]
 STANGEN_SPALTEN = [("Stange Nr.", "nr", 0, 55), ("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100),
                    ("Oberfläche", lambda z: z.get("oberflaeche") or "roh", None, 75),

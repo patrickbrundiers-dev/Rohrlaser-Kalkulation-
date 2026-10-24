@@ -14,8 +14,15 @@ Vorher prüft gesperrte_dateien jede betroffene Datei (Umbenennen hin und zurüc
 Datei fest (z. B. die Anleitung im PDF-Betrachter, der Virenscanner), wartet warten_bis_frei bis zu SPERR_WARTEN_S.
 Nur Dateien aus der Dateiliste werden angefasst, Daten, Angebote und andere eigene Dateien nie.
 
+Prüfungen gegen eine gefälschte oder kaputte Dateiliste (Audit 24.10.2026, H1): Pfade nach Windows-Regeln
+(sicherer_pfad: Groß-/Kleinschreibung, Punkt/Leerzeichen am Ende, reservierte Namen), Prüfsummen nur als Hex,
+Pakete nur per https von der erwarteten Adresse, Größengrenzen für Dateiliste, Pakete und Dateien, freier
+Speicherplatz vor dem Laden. Absturz mitten im Austausch (H2): vor dem ersten Verschieben steht ein Journal in
+_update/journal.json; findet der nächste Start es noch, stellt nach_absturz() die alten Dateien zurück.
+
 Ohne Qt, damit der Build dieselbe Paketbildung benutzt (programm/update_paket.py).
 """
+import base64
 import datetime
 import hashlib
 import json
@@ -46,6 +53,23 @@ STUECK = 1 << 16
 SPERR_WARTEN_S = 30                 # so lange auf eine gesperrte Datei warten, bevor das Programm nachfragt
 KURZ_WARTEN_S = 5                   # beim Austausch selbst: kurze Sperren (Virenscanner) abwarten
 _ersetzen = os.replace              # Tests setzen hier eine Sperre ein
+JOURNAL = "journal.json"            # in _update: laufender Austausch (einspielen), nach_absturz() stellt zurück
+# Grenzen gegen kaputte oder gefälschte Dateilisten und Pakete
+LISTE_MAX = 16 << 20                # Update.json
+DATEI_MAX = 1 << 30                 # eine Programmdatei
+PAKET_GROESSE_MAX = 1 << 30         # ein Paket
+DATEIEN_MAX = 20000                 # Einträge in der Dateiliste
+PLATZ_RESERVE = 100 << 20           # so viel soll nach Laden und Entpacken noch frei bleiben
+# Pakete nur von hier (bzw. aus dem Ordner der Dateiliste); nur https
+ERLAUBTE_ADRESSEN = (f"https://github.com/{UPDATE_REPO}/releases/download/",)
+SIGNATUR = DATEILISTE + ".sig"      # neben Update.json: Ed25519-Signatur der exakten Bytes (signatur_pruefen)
+SIGNATUR_KONTEXT = b"Rohrlaser-Update.json/1\n"    # vor die Bytes gesetzt: die Signatur gilt nur für Dateilisten
+SIGNATUR_MAX = 16 << 10
+_SHA = re.compile(r"[0-9a-f]{64}")
+_PAKET = re.compile(r"[dp]-[0-9a-f]{40}\.zip")
+_RESERVIERT = {"con", "prn", "aux", "nul", "clock$", "conin$", "conout$",
+               *(f"com{i}" for i in range(10)), *(f"lpt{i}" for i in range(10))}
+_VERBOTEN = set('\\:*?"<>|')
 
 
 class UpdateFehler(Exception):
@@ -203,12 +227,14 @@ def erstellen(programm, ziel, stand, commit="", aenderung="", adresse="", datum=
         with zipfile.ZipFile(datei, "w") as z:
             for sha in sorted(eintraege):
                 z.writestr(_zip_eintrag(sha), eintraege[sha].read_bytes(), compresslevel=6)
-        pakete[paket] = dict(groesse=datei.stat().st_size)
+        pakete[paket] = dict(groesse=datei.stat().st_size, sha256=pruefsumme(datei))
     liste = dict(format=1, programm=NAME, version=VERSION, stand=int(stand), commit=commit,
                  datum=datum or datetime.date.today().isoformat(), aenderung=aenderung, adresse=adresse,
                  dateien={rel: dict(sha256=info[rel][0], groesse=info[rel][1], paket=zuordnung[rel])
                           for rel in sorted(info)},
                  pakete=pakete)
+    if not commit:
+        del liste["commit"]         # öffentlich: kein Commit des privaten Repositorys (Audit H4)
     (ziel / DATEILISTE).write_text(json.dumps(liste, indent=1, ensure_ascii=False), encoding="utf-8")
     return liste
 
@@ -234,7 +260,7 @@ def stand_text(liste):
 
 
 def _ist_url(quelle):
-    return str(quelle).startswith(("http://", "https://"))
+    return str(quelle).startswith(("http://", "https://"))      # http:// lehnt holen() ab
 
 
 def _oeffnen(quelle, timeout=30):
@@ -244,44 +270,133 @@ def _oeffnen(quelle, timeout=30):
     return open(quelle, "rb")
 
 
-def holen(quelle, ziel=None, fortschritt=None, timeout=30):
-    """Datei von einer Adresse (http/https) oder einem Pfad lesen; mit ziel dorthin schreiben, sonst Bytes zurück.
-    fortschritt(bytes) wird je Stück aufgerufen und kann mit Abbruch abbrechen."""
+def holen(quelle, ziel=None, fortschritt=None, timeout=30, grenze=None):
+    """Datei von einer Adresse (https) oder einem Pfad lesen; mit ziel dorthin schreiben, sonst Bytes zurück.
+    fortschritt(bytes) wird je Stück aufgerufen und kann mit Abbruch abbrechen. grenze: höchstens so viele Bytes,
+    sonst UpdateFehler (gegen endlose oder aufgeblähte Downloads)."""
+    if str(quelle).startswith("http://"):
+        raise UpdateFehler(f"{quelle}: nur verschlüsselte Verbindungen (https) sind erlaubt.")
     try:
         with _oeffnen(quelle, timeout) as r:
             if ziel is None:
-                return r.read()
+                daten = r.read() if grenze is None else r.read(grenze + 1)
+                if grenze is not None and len(daten) > grenze:
+                    raise UpdateFehler(f"{quelle} ist größer als erwartet ({grenze} Byte).")
+                return daten
+            n = 0
             with open(ziel, "wb") as f:
                 for teil in iter(lambda: r.read(STUECK), b""):
+                    n += len(teil)
+                    if grenze is not None and n > grenze:
+                        raise UpdateFehler(f"{quelle} ist größer als erwartet ({grenze} Byte).")
                     f.write(teil)
                     if fortschritt:
                         fortschritt(len(teil))
-    except Abbruch:
+    except (Abbruch, UpdateFehler):
         raise
     except Exception as e:      # Netzwerk-, HTTP- und Dateifehler einheitlich melden
         raise UpdateFehler(f"{quelle} lässt sich nicht laden: {e}") from e
     return ziel
 
 
-def online_liste(quelle=ADRESSE, timeout=15):
+def update_schluessel():
+    from .update_schluessel import SCHLUESSEL
+    return SCHLUESSEL
+
+
+def daneben(quelle, name):
+    """Adresse bzw. Pfad einer Datei im selben Ordner wie die Dateiliste (Signatur, Sperrliste)."""
+    if not _ist_url(quelle):
+        return str(Path(quelle).parent / name)
+    return str(quelle).rsplit("/", 1)[0] + "/" + name
+
+
+def signatur_erstellen(daten, privat, schluessel_id):
+    """Signatur (Inhalt von Update.json.sig) zu den exakten Bytes daten. privat: Ed25519PrivateKey (nur im Build bzw.
+    Lizenz-Werkzeug)."""
+    sig = privat.sign(SIGNATUR_KONTEXT + bytes(daten))
+    return dict(format=1, algorithmus="ed25519", schluessel_id=schluessel_id,
+                signatur=base64.b64encode(sig).decode("ascii"))
+
+
+def signatur_pruefen(daten, signatur, schluessel):
+    """Prüft die Signatur (Bytes oder dict aus Update.json.sig) zu den exakten Bytes daten mit einem der fest
+    eingebauten öffentlichen Schlüssel. Nur Ed25519, nur bekannte Schlüssel-IDs; sonst UpdateFehler."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     try:
-        liste = json.loads(holen(quelle, timeout=timeout))
+        s = json.loads(signatur) if isinstance(signatur, (bytes, str)) else signatur
+        if not isinstance(s, dict) or s.get("format") != 1 or s.get("algorithmus") != "ed25519":
+            raise ValueError("unbekanntes Format oder Verfahren")
+        text = (schluessel or {}).get(s.get("schluessel_id"))
+        if not text:
+            raise ValueError(f"unbekannter Schlüssel {s.get('schluessel_id')!r}")
+        Ed25519PublicKey.from_public_bytes(base64.b64decode(text)).verify(
+            base64.b64decode(str(s.get("signatur")), validate=True), SIGNATUR_KONTEXT + bytes(daten))
+    except (InvalidSignature, ValueError, TypeError) as e:
+        raise UpdateFehler("Die Dateiliste des Updates ist nicht gültig signiert"
+                           + (f" ({e})" if str(e) else "") + ". Das Update wird nicht eingespielt, das Programm "
+                           "bleibt, wie es ist.") from e
+
+
+def online_liste(quelle=ADRESSE, timeout=15, schluessel=None):
+    """Dateiliste laden und prüfen. Stehen öffentliche Schlüssel in update_schluessel.py (bzw. schluessel), gilt
+    sie nur mit gültiger Signatur Update.json.sig – geprüft vor jeder Verwendung ihres Inhalts. Passen Liste und
+    Signatur nicht zusammen, wird einmal neu geladen (der Build lädt beide gerade hoch)."""
+    schluessel = update_schluessel() if schluessel is None else schluessel
+    for versuch in range(2):
+        daten = holen(quelle, timeout=timeout, grenze=LISTE_MAX)
+        if not schluessel:
+            break
+        try:
+            signatur_pruefen(daten, holen(daneben(quelle, SIGNATUR), timeout=timeout, grenze=SIGNATUR_MAX),
+                             schluessel)
+            break
+        except UpdateFehler:
+            if versuch:
+                raise
+            time.sleep(3 if _ist_url(quelle) else 0)
+    try:
+        liste = json.loads(daten)
     except ValueError as e:
         raise UpdateFehler(f"Die Dateiliste {quelle} ist beschädigt: {e}") from e
-    if liste.get("format") != 1 or not liste.get("dateien"):
-        raise UpdateFehler(f"Die Dateiliste {quelle} hat ein unbekanntes Format.")
-    for rel, d in liste["dateien"].items():
-        if not sicherer_pfad(rel) or not re.fullmatch(r"[dp]-[0-9a-f]{40}\.zip", str(d.get("paket"))):
-            raise UpdateFehler(f"Die Dateiliste {quelle} enthält einen ungültigen Eintrag: {rel}")
+    liste_pruefen(liste, quelle)
     return liste
+
+
+def _ganzzahl(wert, hoechstens):
+    return isinstance(wert, int) and not isinstance(wert, bool) and 0 <= wert <= hoechstens
+
+
+def liste_pruefen(liste, quelle=""):
+    """Aufbau der Dateiliste prüfen, bevor irgendein Wert benutzt wird: Format, Pfade (sicherer_pfad, unter Windows
+    ohne Groß-/Kleinschreibung eindeutig), Prüfsummen als Hex, Größen, Paketnamen, jedes Paket mit Größe."""
+    if not isinstance(liste, dict) or liste.get("format") != 1 or not isinstance(liste.get("dateien"), dict) \
+            or not liste["dateien"] or not isinstance(liste.get("pakete"), dict):
+        raise UpdateFehler(f"Die Dateiliste {quelle} hat ein unbekanntes Format.")
+    if len(liste["dateien"]) > DATEIEN_MAX or not _ganzzahl(liste.get("stand"), 10 ** 9):
+        raise UpdateFehler(f"Die Dateiliste {quelle} ist unplausibel.")
+    gesehen = set()
+    for rel, d in liste["dateien"].items():
+        if not sicherer_pfad(rel) or not isinstance(d, dict) or not _SHA.fullmatch(str(d.get("sha256"))) \
+                or not _ganzzahl(d.get("groesse"), DATEI_MAX) or not _PAKET.fullmatch(str(d.get("paket"))) \
+                or d["paket"] not in liste["pakete"] or rel.casefold() in gesehen:
+            raise UpdateFehler(f"Die Dateiliste {quelle} enthält einen ungültigen Eintrag: {rel}")
+        gesehen.add(rel.casefold())
+    for name, p in liste["pakete"].items():
+        if not _PAKET.fullmatch(str(name)) or not isinstance(p, dict) \
+                or not _ganzzahl(p.get("groesse"), PAKET_GROESSE_MAX) \
+                or ("sha256" in p and not _SHA.fullmatch(str(p["sha256"]))):
+            raise UpdateFehler(f"Die Dateiliste {quelle} enthält ein ungültiges Paket: {name}")
+    adresse = liste.get("adresse")
+    if adresse and not (isinstance(adresse, str) and adresse.startswith(ERLAUBTE_ADRESSEN)):
+        raise UpdateFehler(f"Die Dateiliste {quelle} verweist auf eine unbekannte Adresse: {adresse}")
 
 
 def lizenz_zusatz(quelle=ADRESSE, timeout=10):
     """Für die Lizenz beim Update-Check: Sperrliste (Bytes oder None) neben der Dateiliste und das Datum des Servers
     (HTTP-Kopf Date, als datetime.date oder None). Fehler zählen nicht: ohne Netz bleibt alles, wie es ist."""
-    adresse = str(quelle).replace("\\", "/").rsplit("/", 1)[0] + "/" + SPERRLISTE
-    if not _ist_url(quelle):
-        adresse = str(Path(quelle).parent / SPERRLISTE)
+    adresse = daneben(quelle, SPERRLISTE)
     daten, datum = None, None
     try:
         with _oeffnen(adresse, timeout) as r:
@@ -296,10 +411,19 @@ def lizenz_zusatz(quelle=ADRESSE, timeout=10):
 
 
 def sicherer_pfad(rel):
-    """Nur Pfade innerhalb des Programmordners, nie Daten, Angebote oder der Update-Ordner."""
-    teile = str(rel).split("/")
-    return (bool(rel) and "\\" not in rel and ":" not in rel and not rel.startswith("/")
-            and all(t not in ("", ".", "..") for t in teile) and teile[0] not in NIE)
+    """Nur Pfade innerhalb des Programmordners, nie Daten, Angebote oder der Update-Ordner – nach Windows-Regeln:
+    ohne Groß-/Kleinschreibung (daten/ = Daten/), ohne Punkt oder Leerzeichen am Ende eines Teils (Windows schneidet
+    sie ab: "Daten." = Daten), ohne reservierte Gerätenamen (CON, NUL, COM1 …), Steuer- und Sonderzeichen
+    (\\ : * ? " < > |, auch keine Laufwerke, UNC-Pfade oder alternativen Datenströme)."""
+    if not isinstance(rel, str) or not rel or len(rel) > 400 or rel.startswith("/"):
+        return False
+    if any(c in _VERBOTEN or ord(c) < 32 for c in rel):
+        return False
+    teile = rel.split("/")
+    for t in teile:
+        if t in ("", ".", "..") or t != t.rstrip(" .") or t.split(".")[0].rstrip(" ").casefold() in _RESERVIERT:
+            return False
+    return teile[0].casefold() not in {n.casefold() for n in NIE}
 
 
 def neuer(online, lokal):
@@ -308,10 +432,15 @@ def neuer(online, lokal):
 
 
 def paket_adresse(quelle, online, paket):
-    """Pakete liegen unter "adresse" der Dateiliste; kommt die Liste aus einem Ordner, im selben Ordner."""
+    """Pakete liegen unter "adresse" der Dateiliste (nur ERLAUBTE_ADRESSEN, https); ohne Angabe bzw. wenn die Liste
+    aus einem Ordner kommt, im selben Ordner wie die Liste."""
+    if not _PAKET.fullmatch(str(paket)):
+        raise UpdateFehler(f"Ungültiger Paketname: {paket}")
     if not _ist_url(quelle):
         return str(Path(quelle).parent / paket)
     basis = online.get("adresse") or quelle.rpartition("/")[0] + "/"
+    if not basis.startswith("https://") or (online.get("adresse") and not basis.startswith(ERLAUBTE_ADRESSEN)):
+        raise UpdateFehler(f"Pakete nur von {ERLAUBTE_ADRESSEN[0]} (https), nicht von {basis}")
     return basis.rstrip("/") + "/" + paket
 
 
@@ -331,7 +460,22 @@ def planen(ordner, online, lokal=None, alle=False, fortschritt=None):
     weg = sorted(rel for rel in alt - set(dateien) if (ordner / rel).is_file())
     pakete = sorted({dateien[rel]["paket"] for rel in neu})
     groesse = sum((online.get("pakete") or {}).get(p, {}).get("groesse", 0) for p in pakete)
-    return dict(neu=neu, weg=weg, pakete=pakete, groesse=groesse)
+    entpackt = sum(dateien[rel]["groesse"] for rel in neu)
+    return dict(neu=neu, weg=weg, pakete=pakete, groesse=groesse, entpackt=entpackt)
+
+
+def platz_pruefen(ordner, plan, frei=None):
+    """Genug Platz für Pakete, entpackte Dateien und eine Reserve? Sonst UpdateFehler, bevor etwas geladen wird.
+    frei: freie Bytes (Tests), sonst vom Laufwerk."""
+    noetig = plan.get("groesse", 0) + plan.get("entpackt", 0) + PLATZ_RESERVE
+    if frei is None:
+        try:
+            frei = shutil.disk_usage(ordner).free
+        except OSError:
+            return
+    if frei < noetig:
+        raise UpdateFehler(f"Zu wenig Speicherplatz für das Update: nötig etwa {noetig / 1e6:.0f} MB, frei "
+                           f"{frei / 1e6:.0f} MB. Bitte Platz schaffen und noch einmal versuchen.")
 
 
 def laden(ordner, quelle, online, plan, fortschritt=None):
@@ -341,18 +485,33 @@ def laden(ordner, quelle, online, plan, fortschritt=None):
     shutil.rmtree(neu_ordner, ignore_errors=True)
     (arbeit / "pakete").mkdir(parents=True, exist_ok=True)
     neu_ordner.mkdir(parents=True, exist_ok=True)
+    platz_pruefen(ordner, plan)
     gebraucht = {}
     for rel in plan["neu"]:
         d = online["dateien"][rel]
-        gebraucht.setdefault(d["paket"], set()).add(d["sha256"])
+        if not _SHA.fullmatch(str(d["sha256"])):
+            raise UpdateFehler(f"Ungültige Prüfsumme in der Dateiliste: {rel}")
+        gebraucht.setdefault(d["paket"], {})[d["sha256"]] = d["groesse"]
     for paket in plan["pakete"]:
-        datei = holen(paket_adresse(quelle, online, paket), arbeit / "pakete" / paket, fortschritt)
+        info = (online.get("pakete") or {}).get(paket) or {}
+        datei = holen(paket_adresse(quelle, online, paket), arbeit / "pakete" / paket, fortschritt,
+                      grenze=info.get("groesse", PAKET_GROESSE_MAX))
+        if info.get("sha256") and pruefsumme(datei) != info["sha256"]:
+            raise UpdateFehler(f"Prüfsumme des Pakets {paket} falsch")
         try:
             with zipfile.ZipFile(datei) as z:
-                for sha in gebraucht[paket]:
+                for sha, groesse in gebraucht[paket].items():
+                    eintrag = z.getinfo(sha)
+                    if eintrag.file_size != groesse or eintrag.is_dir():
+                        raise UpdateFehler(f"Paket {paket}: Eintrag hat nicht die erwartete Größe")
                     ziel = neu_ordner / sha
-                    with z.open(sha) as quelle_datei, open(ziel, "wb") as f:
-                        shutil.copyfileobj(quelle_datei, f, 1 << 20)
+                    with z.open(eintrag) as quelle_datei, open(ziel, "wb") as f:
+                        kopiert = 0      # nie mehr als angekündigt entpacken (ZIP-Bombe)
+                        for teil in iter(lambda: quelle_datei.read(1 << 20), b""):
+                            kopiert += len(teil)
+                            if kopiert > groesse:
+                                raise UpdateFehler(f"Paket {paket}: Eintrag größer als angekündigt")
+                            f.write(teil)
                     if pruefsumme(ziel) != sha:
                         raise UpdateFehler(f"Prüfsumme falsch in {paket}")
         except (zipfile.BadZipFile, KeyError) as e:
@@ -422,6 +581,9 @@ def einspielen(ordner, online, plan, neu_ordner):
         _zurueck(ziel, b)           # klappt auch bei laufender .exe und geladenen DLLs
         return b
 
+    journal = ordner / ARBEITSORDNER / JOURNAL
+    _journal_schreiben(journal, dict(alt=alt.name, neu=list(plan["neu"]), weg=list(plan["weg"]),
+                                     vorher={rel: (ordner / rel).exists() for rel in plan["neu"]}))
     try:
         for rel in plan["neu"]:
             ziel = ordner / rel
@@ -444,6 +606,8 @@ def einspielen(ordner, online, plan, neu_ordner):
                     _zurueck(b, ziel)
             except OSError as e2:
                 fehler.append(f"{ziel}: {e2}")
+        if not fehler:
+            journal.unlink(missing_ok=True)     # vollständig zurückgestellt; sonst versucht es der nächste Start
         datei = getattr(e, "filename", "") or ""
         text = f"Die Datei {datei} lässt sich nicht austauschen: {e}"
         if fehler:
@@ -456,8 +620,52 @@ def einspielen(ordner, online, plan, neu_ordner):
                 rel = Path(datei).name
             raise DateiGesperrt([rel]) from e
         raise UpdateFehler(text) from e
+    journal.unlink(missing_ok=True)             # Dateiliste steht: Austausch abgeschlossen
     shutil.rmtree(neu_ordner, ignore_errors=True)
     return alt
+
+
+def _journal_schreiben(pfad, daten):
+    pfad.parent.mkdir(parents=True, exist_ok=True)
+    tmp = pfad.with_name(pfad.name + ".neu")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(daten, f, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, pfad)
+
+
+def nach_absturz(ordner):
+    """Beim Start vor allem anderen: Steht noch ein Journal in _update, wurde ein Austausch unterbrochen (Absturz,
+    Stromausfall, Programm beendet). Dann jede schon verschobene alte Datei zurück an ihren Platz und neu angelegte
+    Dateien weg; die Dateiliste ist noch die alte. Ergebnis: None (nichts zu tun) oder Liste der Fehler ([] = alles
+    zurückgestellt). Bei Fehlern bleibt das Journal für den nächsten Start stehen."""
+    ordner = Path(ordner)
+    journal = ordner / ARBEITSORDNER / JOURNAL
+    if not journal.is_file():
+        return None
+    try:
+        j = json.loads(journal.read_text(encoding="utf-8"))
+        alt = ordner / ARBEITSORDNER / Path(str(j["alt"])).name
+        neu, weg, vorher = list(j["neu"]), list(j["weg"]), dict(j.get("vorher") or {})
+    except (OSError, ValueError, KeyError, TypeError):
+        journal.unlink(missing_ok=True)
+        return ["Journal unlesbar"]
+    fehler = []
+    for rel in neu + weg:
+        if not sicherer_pfad(rel):
+            continue
+        ziel, b = ordner / rel, alt / rel
+        try:
+            if b.is_file():
+                _zurueck(b, ziel)                       # alte Datei zurück (ersetzt die neue)
+            elif rel in neu and not vorher.get(rel, True) and ziel.is_file():
+                ziel.unlink()                           # vorher gab es sie nicht: neue Datei wieder weg
+        except OSError as e:
+            fehler.append(f"{rel}: {e}")
+    if not fehler:
+        journal.unlink(missing_ok=True)
+    return fehler
 
 
 def verwerfen(ordner):
@@ -499,8 +707,11 @@ def nachholen(ordner):
 
 def aufraeumen(ordner):
     """Beim Start: Reste eines Updates löschen (alte Dateien sind jetzt frei). Fehler stören nicht. Noch nicht
-    nachgeholte Anleitungen (_update/nachholen) bleiben."""
+    nachgeholte Anleitungen (_update/nachholen) bleiben; steht noch ein Journal (nach_absturz() konnte nicht alles
+    zurückstellen), bleibt alles liegen."""
     arbeit = Path(ordner) / ARBEITSORDNER
+    if (arbeit / JOURNAL).is_file():
+        return
     if (arbeit / NACHHOLEN).is_dir() and any(p.is_file() for p in (arbeit / NACHHOLEN).rglob("*")):
         for p in arbeit.iterdir() if arbeit.is_dir() else []:
             if p.name != NACHHOLEN:
