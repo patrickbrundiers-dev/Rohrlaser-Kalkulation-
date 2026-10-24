@@ -1032,6 +1032,18 @@ def kapitel_angebot(i):
             "ihrer Mengenangabe, der <b>Kostenwasserfall</b> dieselben Gruppen als Balken: jeder beginnt dort, wo der "
             "vorige endet, die Summen (Herstellkosten, Selbstkosten, Verkaufspreis) reichen von 0 bis zum Betrag. So ist auf einen Blick zu "
             "sehen, welcher Posten den Preis treibt.")
+    i.abschnitt("Wiederholteile", marke="wiederholteile")
+    i.text("Wurde ein Teil schon einmal angeboten, auch von einem Kollegen, zeigt die Übersicht <b>Wiederholteile</b>: "
+           "wie oft, zuletzt wann und in welchem Angebot, den damaligen Preis je Stück aus den Staffelpreisen und ob "
+           "das Angebot beauftragt war.", kurz=True)
+    i.liste("<b>sicher</b>: gleiche Artikelnummer beim selben Kunden; <b>prüfen</b>: gleiche Artikelnummer bei einem "
+            "anderen Kunden; <b>ähnlich</b>: ohne passende Nummer, aber gleiches Profil und gleicher Werkstoff, Länge "
+            "± 0,5 mm, Schneidweg ± 1 % und gleich viele Konturen. Beauftragte und neuere Angebote stehen vorn.",
+            "<b>Werte übernehmen …</b> bietet die Eingaben der alten Position an, die man sonst von Hand wiederholt "
+            "(Schneidzeit von Hand, Programmierzeit, Einstiche, Zusatzarbeiten, Gewinde, Schweißnaht); jeder Wert "
+            "lässt sich einzeln abwählen, Strg+Z nimmt die Übernahme zurück.",
+            "Der <b>Preis wird nie übernommen</b>, er entsteht immer neu aus der Kalkulation mit den heutigen "
+            "Stammdaten. <b>Angebot öffnen</b> zeigt das alte Angebot, <b>Hinspringen</b> markiert die Position.")
     i.abschnitt("Positionen", marke="positionen")
     i.text("Eine Zeile je Teil. Pflicht sind <b>Profil-ID</b>, <b>Werkstoff-ID</b>, <b>Teilelänge</b> und "
            "<b>Stückzahl</b>; gelbe Felder sind Eingaben, graue rechnet das Programm. Optionale Spalten erscheinen, "
@@ -4077,7 +4089,7 @@ def kapitel_stammdaten(i):
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
            "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39, die drei Regeln für "
-           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.40.")
+           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.41.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
