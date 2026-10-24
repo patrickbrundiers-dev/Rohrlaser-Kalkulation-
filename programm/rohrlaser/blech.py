@@ -171,9 +171,67 @@ def zuschnitt(e, k=K_FAKTOR):
                 aussen=2 * (lg + br) - 8 * r + 2 * math.pi * r, biegungen=[], punkte=None)
 
 
+DREH_ARTEN = (sw.LANGLOCH, sw.RECHTECK, sw.POLYGON)     # Drehwinkel je Kontur (3E-4b); Text-Gravur hat 'winkel'
+
+
+def drehung(z):
+    """Drehwinkel einer Innenkontur [Grad, + = gegen den Uhrzeiger] oder 0."""
+    return _z(z.get("drehung")) % 360 if z.get("art") in DREH_ARTEN else 0.0
+
+
+def gedreht(pk, w, cx=0.0, cy=0.0):
+    """Punkte [(x, y)] um den Ursprung um w Grad gedreht und nach (cx, cy) verschoben."""
+    c, s = math.cos(math.radians(w)), math.sin(math.radians(w))
+    return [(cx + x * c - y * s, cy + x * s + y * c) for x, y in pk]
+
+
+def kontur_umriss(z, schritt=15):
+    """Umriss einer Innenkontur (Langloch, Rechteck, Polygon) als geschlossener Linienzug um ihre Mitte, mit
+    'quer' und Drehwinkel; [] bei anderen Arten oder fehlenden Maßen."""
+    art = z.get("art")
+    if art == sw.LANGLOCH:
+        lg, b = _z(z.get("l")), _z(z.get("b"))
+        if b <= 0 or lg < b:
+            return []
+        r, h = b / 2, (lg - b) / 2
+        zug = []
+        for mx, w0 in ((h, -90), (-h, 90)):
+            zug += [(mx + r * math.cos(math.radians(w0 + schritt * i)), r * math.sin(math.radians(w0 + schritt * i)))
+                    for i in range(180 // schritt + 1)]
+        if z.get("quer"):
+            zug = [(y, x) for x, y in zug]
+    elif art == sw.RECHTECK:
+        b, h = _z(z.get("b")) / 2, _z(z.get("h")) / 2
+        if b <= 0 or h <= 0:
+            return []
+        r = max(0.0, min(_z(z.get("r")), b, h))
+        zug = []
+        for (mx, my), w0 in (((b - r, -h + r), -90), ((b - r, h - r), 0), ((-b + r, h - r), 90),
+                             ((-b + r, -h + r), 180)):
+            n = 90 // schritt if r > 1e-9 else 0
+            zug += [(mx + r * math.cos(math.radians(w0 + schritt * i)), my + r * math.sin(math.radians(w0 + schritt * i)))
+                    for i in range(n + 1)]
+    elif art == sw.POLYGON:
+        try:
+            pk = sw.punkte(z.get("punkte"))
+        except ValueError:
+            return []
+        if len(pk) < 3:
+            return []
+        mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
+        zug = [(x - mx, y - my) for x, y in pk]
+    else:
+        return []
+    zug = gedreht(zug, drehung(z))
+    return zug + zug[:1]
+
+
 def _halbmass(z):
     """Halbe Ausdehnung einer Innenkontur quer zu den Biegelinien (y) und größte halbe Ausdehnung [mm]."""
     art = z.get("art")
+    if drehung(z):
+        zug = kontur_umriss(z)
+        return (max(abs(y) for _, y in zug), max(math.hypot(x, y) for x, y in zug)) if zug else None
     if art in (sw.BOHRUNG, sw.SENKUNG):
         r = _z(z.get("d")) / 2
         return r, r

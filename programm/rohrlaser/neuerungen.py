@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.85", "<b>Blech zeichnen im Teile-Editor</b>: Außenkontur mit Klicks in der Abwicklung zeichnen, Eckpunkte am "
+               "Griff ziehen, Rechtsklick rundet oder fast eine Ecke; Innenkonturen, Biegelinien und Außenkanten mit "
+               "der Maus ziehen (Biegelinie ändert die Schenkel). Langloch, Rechteck und Polygon haben einen "
+               "<i>Drehwinkel</i> ([[blech_editor]]).",
+     "Blech: Außenkontur zeichnen, Ecken runden/fasen, Konturen und Biegelinien ziehen, Drehwinkel ([[blech_editor]])."],
     ["0.9.84", "<b>Messen und Querschnitt im Teile-Editor</b>: Messen fängt auch Konturmitten, <i>Winkel</i> misst "
                "aus drei Punkten, fertige Maße bleiben im 3D stehen bis <i>Maße löschen</i>. <i>Querschnitt</i> "
                "zeigt das Rohr an einer Stelle x quer geschnitten mit allen Konturen, die dort durch die Wand gehen; "

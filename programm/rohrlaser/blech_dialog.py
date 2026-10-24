@@ -2,15 +2,19 @@
 Biegungen, Innenkonturen), Abwicklung und Seitenansicht als Skizze, darunter das gefaltete Teil in 3D (blech3d),
 Richtpreis je Stück als EK-Vorschlag des Zukaufteils (Rechnung in blech.py). Schreibt nichts in die
 Rohrlaser-Daten."""
-from PySide6.QtCore import QPointF, QRectF, Qt
+import json
+import math
+
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog,
-                               QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
+                               QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
+                               QMessageBox,
                                QPushButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
 from . import hilfe
-from . import blech, blech3d, dfm, dxf, gravur_text, schneidweg as sw, zukauf
+from . import blech, blech3d, blech_zeichnen as bz, dfm, dxf, gravur_text, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .teile_editor import EditorRahmen
@@ -48,15 +52,33 @@ def _feld(v):
     return "" if v in (None, "") else (v if isinstance(v, str) else zahl_als_text(float(v), None, tausender=False))
 
 
+def _z_pos(alt, delta):
+    neu = sw._z(alt) + delta
+    if neu <= 0:
+        raise ValueError("Maß würde 0")
+    return neu
+
+
 class BlechSkizze(QWidget):
     """Abwicklung (Zuschnitt mit Biegelinien und Innenkonturen) und beim Kantteil die Seitenansicht. mini=True:
     nur der Zuschnitt ohne Beschriftung und Rand (Vorschaubild der Positionsliste, siehe vorschau.py)."""
+
+    gewaehlt = Signal(str)          # Merkmal unter der Maus ('kontur:3', 'biegung:0', 'teil')
+    geaendert = Signal(dict)        # neue Eingaben nach Ziehen oder Zeichnen (Plan 3D-Editor C5)
 
     def __init__(self, mini=False):
         super().__init__()
         self.eingaben, self.zuschnitt, self.mini = {}, None, mini
         self.markiert = None            # Teile-Editor: gewähltes Merkmal ('kontur:3', 'biegung:0') blau
+        self.raster = 1.0               # mm: Fangraster beim Ziehen und Zeichnen
+        self._rahmen = self._fest = None    # (x0, y0, m, br, minx, miny) der letzten Zeichnung; fest beim Ziehen
+        self._ziehen = None
+        self._neu = None                # beim Zeichnen der Außenkontur: Punkte [(x, y)]
+        self._maus = None
         self.setMinimumHeight(0 if mini else 260)
+        if not mini:
+            self.setMouseTracking(True)
+            self.setFocusPolicy(Qt.ClickFocus)
 
     def markieren(self, merkmal):
         self.markiert = merkmal
@@ -84,9 +106,17 @@ class BlechSkizze(QWidget):
         rand = 1.5 if self.mini else 46
         lg, br = max(zs["laenge"], 1), max(zs["breite"], 1)
         m = min((breite_abw - 2 * rand) / lg, (hoehe_abw - 2 * rand) / br)
-        self.m = m              # Pixel je mm der Abwicklung (Maßstab der Zeichnung als PDF)
         x0 = rand + ((breite_abw - 2 * rand - lg * m) / 2 if self.mini else 0)      # Vorschau mittig
         y0 = rand + (hoehe_abw - 2 * rand - br * m) / 2
+        minx = miny = 0.0
+        if zs.get("punkte"):
+            minx, miny = min(x for x, _ in zs["punkte"]), min(y for _, y in zs["punkte"])
+        if self._fest:          # beim Ziehen bleibt der Maßstab stehen
+            x0, y0, m, br0, fx, fy = self._fest
+            y0 += (br0 - br) * m
+            x0, y0 = x0 + (minx - fx) * m, y0 - (miny - fy) * m
+        self.m = m              # Pixel je mm der Abwicklung (Maßstab der Zeichnung als PDF)
+        self._rahmen = (x0, y0, m, br, minx, miny)
 
         def pkt(x, y):          # mm (y nach oben) -> Pixel
             return QPointF(x0 + x * m, y0 + (br - y) * m)
@@ -94,9 +124,7 @@ class BlechSkizze(QWidget):
         p.setFont(QFont(self.font().family(), 8))
         p.setPen(QPen(QColor(FARBE_LINIE), 1.0 if self.mini else 1.6))
         p.setBrush(QColor(FARBE_BLECH))
-        minx = miny = 0.0
         if zs.get("punkte"):
-            minx, miny = min(x for x, _ in zs["punkte"]), min(y for _, y in zs["punkte"])
             pfad = QPainterPath(pkt(zs["punkte"][0][0] - minx, zs["punkte"][0][1] - miny))
             for x, y in zs["punkte"][1:]:
                 pfad.lineTo(pkt(x - minx, y - miny))
@@ -149,6 +177,7 @@ class BlechSkizze(QWidget):
             self._kontur(p, z, pkt(cx, cy), m)
         if self.mini:
             return
+        self._griffe_zeichnen(p)
         # Maße
         p.setPen(QColor("#333333"))
         p.drawText(QRectF(x0, y0 + br * m + 4, lg * m, 16), Qt.AlignCenter, f"{zahl_als_text(lg, 1)} mm")
@@ -166,9 +195,272 @@ class BlechSkizze(QWidget):
         elif kant:
             self._seitenansicht(p, QRectF(breite_abw + 10, 24, self.width() - breite_abw - 20, self.height() - 40), m)
 
+    # ------------------------------------------------------------------ Zeichnen und Ziehen (Plan 3D-Editor C5)
+    def px(self, x, y):
+        """mm im System der Eingaben -> Pixel (nach dem letzten Zeichnen)."""
+        x0, y0, m, br, minx, miny = self._rahmen
+        return QPointF(x0 + (x - minx) * m, y0 + (br - (y - miny)) * m)
+
+    def mm(self, pos):
+        """Pixel -> mm im System der Eingaben."""
+        x0, y0, m, br, minx, miny = self._rahmen
+        return (pos.x() - x0) / m + minx, br - (pos.y() - y0) / m + miny
+
+    def _tol(self):
+        return bz.FANG_PX / (self._rahmen[2] or 1)
+
+    def _griffe_zeichnen(self, p):
+        zs = self.zuschnitt
+        p.setBrush(QColor("white"))
+        if self._neu is None and zs.get("punkte") and self.markiert == "teil":
+            p.setPen(QPen(QColor(FARBE_MARKIERT), 1.4))
+            for x, y in zs["punkte"]:
+                q = self.px(x, y)
+                p.drawRect(QRectF(q.x() - 3.5, q.y() - 3.5, 7, 7))
+        if self._neu is not None:
+            pk = list(self._neu) + ([self._maus] if self._maus else [])
+            p.setPen(QPen(QColor(FARBE_MARKIERT), 1.8, Qt.DashLine if self._maus else Qt.SolidLine))
+            if len(pk) > 1:
+                p.drawPolyline([self.px(*q) for q in pk])
+            p.setPen(QPen(QColor(FARBE_MARKIERT), 1.4))
+            for i, q in enumerate(self._neu):
+                c = self.px(*q)
+                p.drawRect(QRectF(c.x() - 3.5, c.y() - 3.5, 7, 7))
+                if i == 0 and len(self._neu) >= 3:
+                    p.drawEllipse(c, 7, 7)
+            p.setPen(QColor("#333333"))
+            text = ("Außenkontur zeichnen: Punkte anklicken (Umschalt = waagerecht/senkrecht), auf den ersten Punkt, "
+                    "Doppelklick oder Eingabe schließt; Rücktaste nimmt den letzten zurück, Esc bricht ab")
+            if self._maus:
+                text += f"  ·  x {zahl_als_text(self._maus[0], 1)}  y {zahl_als_text(self._maus[1], 1)}"
+            p.drawText(QRectF(8, self.height() - 22, self.width() - 16, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
+
+    def zeichnen_starten(self):
+        """Außenkontur neu mit Klicks zeichnen (ersetzt Rechteck bzw. Polygon beim Schließen)."""
+        if self._rahmen is None:
+            return
+        self._neu, self._maus = [], None
+        self.setCursor(Qt.CrossCursor)
+        self.setFocus()
+        self.update()
+
+    def zeichnen_abbrechen(self):
+        self._neu, self._maus = None, None
+        self.unsetCursor()
+        self.update()
+
+    def zeichnen_schliessen(self):
+        pk = self._neu or []
+        if len(pk) >= 2 and math.dist(pk[0], pk[-1]) < 1e-6:
+            pk = pk[:-1]
+        self.zeichnen_abbrechen()
+        if len(pk) >= 3:
+            self._melden(dict(self.eingaben, form=blech.POLYGON, punkte=bz.text(pk)))
+
+    def als_polygon(self):
+        """Rechteck (bzw. Abwicklung des Kantteils) als Polygon mit vier Ecken übernehmen, z. B. zum Abrunden."""
+        if self.zuschnitt and not self.zuschnitt.get("punkte"):
+            self._melden(dict(self.eingaben, form=blech.POLYGON,
+                              punkte=bz.text(bz.polygon_aus(self.eingaben, self.zuschnitt))))
+
+    def _melden(self, e):
+        self.eingaben = e
+        try:
+            self.zuschnitt = blech.zuschnitt(e)
+        except ValueError:
+            pass
+        self.update()
+        self.geaendert.emit(e)
+
+    def _punkt(self, pos, tasten=Qt.NoModifier):
+        x, y = self.mm(pos)
+        q = (bz.fangen(x, self.raster), bz.fangen(y, self.raster))
+        if tasten & Qt.ShiftModifier and self._neu:
+            q = bz.rechtwinklig(self._neu[-1], q)
+        return q
+
+    def treffer(self, pos):
+        """Was liegt unter der Maus: ('ecke', i), ('kontur', Zeile), ('biegung', i), ('kante', Name) oder None."""
+        zs = self.zuschnitt
+        if not zs or self._rahmen is None:
+            return None
+        q, tol = self.mm(pos), self._tol()
+        e = self.eingaben
+        if zs.get("punkte"):
+            i = bz.naechste_ecke(zs["punkte"], q, tol)
+            if i is not None:
+                return ("ecke", i)
+        kand = [(math.dist(q, (x, y)), r) for r, x, y in bz.kontur_mitten(e, zs)
+                if math.dist(q, (x, y)) <= bz.kontur_radius(e["konturen"][r]) + tol]
+        if kand:
+            return ("kontur", min(kand)[1])
+        minx = min((x for x, _ in zs.get("punkte") or ()), default=0.0)
+        miny = min((y for _, y in zs.get("punkte") or ()), default=0.0)
+        for i, (lage, *_rest) in enumerate(zs.get("biegungen") or ()):
+            if abs(q[1] - miny - lage) <= tol and minx - tol <= q[0] <= minx + zs["laenge"] + tol:
+                return ("biegung", i)
+        if not zs.get("punkte"):
+            lg, br = zs["laenge"], zs["breite"]
+            if abs(q[0] - lg) <= tol and -tol <= q[1] <= br + tol:
+                return ("kante", "rechts")
+            if abs(q[1] - br) <= tol and -tol <= q[0] <= lg + tol:
+                return ("kante", "oben")
+            if abs(q[1]) <= tol and -tol <= q[0] <= lg + tol and e.get("art") == blech.KANTTEIL:
+                return ("kante", "unten")
+        return None
+
+    def mousePressEvent(self, ereignis):
+        if self.mini or self._rahmen is None:
+            return
+        pos = ereignis.position()
+        if self._neu is not None:
+            if ereignis.button() == Qt.LeftButton:
+                q = self._punkt(pos, ereignis.modifiers())
+                if len(self._neu) >= 3 and (self.px(*self._neu[0]) - pos).manhattanLength() <= 2 * bz.FANG_PX:
+                    self.zeichnen_schliessen()
+                    return
+                if not self._neu or q != self._neu[-1]:
+                    self._neu.append(q)
+                self.update()
+            return
+        if ereignis.button() != Qt.LeftButton:
+            return
+        t = self.treffer(pos)
+        art = t[0] if t else None
+        mid = {"kontur": f"kontur:{t[1]}" if t else None, "biegung": f"biegung:{t[1]}" if t else None}.get(art, "teil")
+        self.markieren(mid)
+        self.gewaehlt.emit(mid)
+        if t:
+            self._ziehen = dict(t=t, start=self.mm(pos), e=json.loads(json.dumps(self.eingaben)), neu=None)
+            self._fest = self._rahmen
+
+    def mouseMoveEvent(self, ereignis):
+        if self.mini or self._rahmen is None:
+            return
+        pos = ereignis.position()
+        if self._neu is not None:
+            self._maus = self._punkt(pos, ereignis.modifiers())
+            self.update()
+            return
+        z = self._ziehen
+        if z is None:
+            t = self.treffer(pos)
+            self.setCursor(Qt.SizeAllCursor if t and t[0] in ("ecke", "kontur") else
+                           Qt.SizeVerCursor if t and (t[0] == "biegung" or t[1] in ("oben", "unten")) else
+                           Qt.SizeHorCursor if t else Qt.ArrowCursor)
+            return
+        x, y = self.mm(pos)
+        dx = bz.fangen(x - z["start"][0], self.raster)
+        dy = bz.fangen(y - z["start"][1], self.raster)
+        try:
+            neu = self.gezogen(z["e"], z["t"], dx, dy)
+            zs = blech.zuschnitt(neu)
+        except (ValueError, TypeError, IndexError):
+            return
+        z["neu"] = neu
+        self.eingaben, self.zuschnitt = neu, zs
+        self.update()
+
+    def gezogen(self, e, t, dx, dy):
+        """Eingaben e, nachdem das Merkmal t um (dx, dy) mm gezogen wurde (ValueError, wenn es so nicht geht)."""
+        e = json.loads(json.dumps(e))
+        art, i = t
+        if art == "ecke":
+            pk = sw.punkte(e.get("punkte"))
+            pk[i] = (round(pk[i][0] + dx, 3), round(pk[i][1] + dy, 3))
+            e["punkte"] = bz.text(pk)
+        elif art == "kontur":
+            zs = blech.zuschnitt(e)
+            _, cx, cy = next(m for m in bz.kontur_mitten(e, zs) if m[0] == i)
+            e["konturen"][i].update(x=round(cx + dx, 3), y=round(cy + dy, 3))
+        elif art == "biegung":
+            e["schenkel"] = bz.schenkel_ziehen(e.get("schenkel") or [], i, dy)
+        elif i == "unten":
+            e["schenkel"] = bz.schenkel_ziehen(e.get("schenkel") or [], -1, -dy)
+        elif i == "oben" and e.get("art") == blech.KANTTEIL:
+            e["schenkel"] = bz.schenkel_ziehen(e.get("schenkel") or [], len(e.get("schenkel") or []), dy)
+        elif i == "oben":
+            e["breite"] = round(_z_pos(e.get("breite"), dy), 3)
+        else:
+            schl = "kantlaenge" if e.get("art") == blech.KANTTEIL else "laenge"
+            e[schl] = round(_z_pos(e.get(schl), dx), 3)
+        return e
+
+    def mouseReleaseEvent(self, ereignis):
+        z, self._ziehen = self._ziehen, None
+        self._fest = None
+        if z and z.get("neu"):
+            self._melden(z["neu"])
+        self.update()
+
+    def mouseDoubleClickEvent(self, ereignis):
+        if self._neu is not None:
+            self.zeichnen_schliessen()
+
+    def keyPressEvent(self, ereignis):
+        if self._neu is None:
+            return super().keyPressEvent(ereignis)
+        k = ereignis.key()
+        if k == Qt.Key_Escape:
+            self.zeichnen_abbrechen()
+        elif k in (Qt.Key_Return, Qt.Key_Enter):
+            self.zeichnen_schliessen()
+        elif k == Qt.Key_Backspace and self._neu:
+            self._neu.pop()
+            self.update()
+
+    def contextMenuEvent(self, ereignis):
+        if self.mini or self._rahmen is None or self._neu is not None:
+            return
+        menue = self.menue(ereignis.pos())
+        if menue is not None and not menue.isEmpty():
+            menue.exec(ereignis.globalPos())
+
+    def menue(self, pos):
+        """Kontextmenü an der Stelle pos: Ecke abrunden/fasen, Punkt löschen/einfügen, Außenkontur zeichnen."""
+        zs = self.zuschnitt
+        if not zs:
+            return None
+        m = QMenu(self)
+        q, tol = self.mm(QPointF(pos)), self._tol()
+        pk = list(zs.get("punkte") or ())
+        i = bz.naechste_ecke(pk, q, tol) if pk else None
+        if i is not None:
+            m.addAction("Ecke abrunden …", lambda: self._ecke_fragen(i, "runden"))
+            m.addAction("Ecke fasen …", lambda: self._ecke_fragen(i, "fasen"))
+            a = m.addAction("Punkt löschen", lambda: self.ecke_aendern(bz.punkt_weg, i))
+            a.setEnabled(len(pk) > 3)
+        elif pk and (k := bz.naechste_kante(pk, q, tol)) is not None:
+            f = (round(bz.fangen(k[1][0], self.raster), 3), round(bz.fangen(k[1][1], self.raster), 3))
+            m.addAction("Punkt einfügen", lambda: self.ecke_aendern(bz.punkt_einfuegen, k[0], f))
+        if not pk:
+            m.addAction("Als Polygon bearbeiten", self.als_polygon)
+        m.addAction("Außenkontur neu zeichnen", self.zeichnen_starten)
+        return m
+
+    def _ecke_fragen(self, i, art):
+        w, ok = QInputDialog.getDouble(self, "Ecke abrunden" if art == "runden" else "Ecke fasen",
+                                       "Radius [mm]" if art == "runden" else "Fase je Kante [mm]", 5.0, 0.1, 10000, 1)
+        if ok:
+            self.ecke_aendern(bz.ecke_runden if art == "runden" else bz.ecke_fasen, i, w)
+
+    def ecke_aendern(self, fn, *args):
+        """Außenkontur mit fn(Punkte, *args) ändern; Fehler als Meldung."""
+        try:
+            pk = fn(sw.punkte(self.eingaben.get("punkte")), *args)
+        except ValueError as x:
+            QMessageBox.information(self, "Außenkontur", str(x))
+            return False
+        self._melden(dict(self.eingaben, form=blech.POLYGON, punkte=bz.text(pk)))
+        return True
+
     def _kontur(self, p, z, c, m):
         art = z.get("art")
-        if art in (sw.BOHRUNG, sw.SENKUNG):
+        if blech.drehung(z):                    # gedreht (3E-4b): Umriss als Linienzug
+            zug = blech.kontur_umriss(z, 10)
+            if zug:
+                p.drawPolyline([QPointF(c.x() + x * m, c.y() - y * m) for x, y in zug])
+        elif art in (sw.BOHRUNG, sw.SENKUNG):
             r = sw._z(z.get("d")) / 2 * m
             p.drawEllipse(c, r, r)
         elif art == sw.LANGLOCH:
@@ -395,6 +687,9 @@ class BlechDialog(QDialog):
         lay.setContentsMargins(6, 0, 0, 0)
         self.teiler.addWidget(rechts)
         self.skizze = BlechSkizze()
+        self.skizze.setToolTip("Abwicklung: Innenkonturen, Biegelinien, Außenkanten und Eckpunkte mit der Maus ziehen; "
+                               "Rechtsklick auf eine Ecke rundet oder fast sie")
+        self.skizze.geaendert.connect(self.skizze_geaendert)
         self.ansicht3d = Ansicht3DMitKnoepfen()
         self.ansicht3d.setToolTip("Das gefaltete Teil aus den Eingaben (zur Anschauung): Innenkonturen rot, "
                                   "Biegelinien grün")
@@ -496,6 +791,7 @@ class BlechDialog(QDialog):
         art.setCurrentText(z.get("art") or sw.BOHRUNG)
         art.quer = bool(z.get("quer"))      # Langloch quer (STEP-Import); bleibt beim Speichern erhalten
         art.artikel = bool(z.get("artikel"))    # Text-Gravur der Artikelnummer aus dem Baugruppen-Editor
+        art.eig = {"drehung": z["drehung"]} if z.get("drehung") else {}     # Drehwinkel (Teile-Editor)
         art.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, 0, art)
         masse = [k for k, _ in MASSE.get(z.get("art"), ())]
@@ -546,6 +842,9 @@ class BlechDialog(QDialog):
                 z["quer"] = True
             if art == sw.TEXT_GRAVUR and getattr(self.tabelle.cellWidget(r, 0), "artikel", False):
                 z["artikel"] = True
+            eig = getattr(self.tabelle.cellWidget(r, 0), "eig", None) or {}
+            if eig.get("drehung") and art in blech.DREH_ARTEN:
+                z["drehung"] = eig["drehung"]
             konturen.append(z)
         schenkel = [dict(laenge=_zahl_text(self._text(self.schenkel, r, 0)),
                          winkel=_zahl_text(self._text(self.schenkel, r, 1)) or 0,
@@ -590,6 +889,14 @@ class BlechDialog(QDialog):
         for z in e.get("konturen") or []:
             self.kontur_neu(z, rechnen_=False)
         return self.rechnen()
+
+    def skizze_geaendert(self, e):
+        """In der Abwicklung gezogen oder gezeichnet: Eingaben übernehmen (Rückgängig wie jede Eingabe)."""
+        e = dict(e)
+        e["stueck"] = self.stueck.value()
+        self.eingaben_setzen(e)
+        if self.editor is not None:
+            self.editor.aktualisieren()
 
     def kopf_werte(self):
         return dict(bezeichnung=self.bezeichnung.text().strip() or self.bezeichnung.placeholderText(),
