@@ -1607,6 +1607,7 @@ class AngebotSeite(QWidget):
                            ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen()),
                            ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen()),
                            ("Zukaufteile bearbeiten …", lambda: self.zukaufteile()),
+                           ("Satz in 3D …", lambda: self.satz_3d()),
                            ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren()),
                            ("Blech-Editor …", lambda: self.blech_bearbeiten()),
                            ("Stückzahl ändern …", lambda: self.stueck_aendern()),
@@ -2834,6 +2835,7 @@ class AngebotSeite(QWidget):
         werte = dict(d.ergebnis["position"], pos=p["pos"])
         pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], None)
+        self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt." + "".join(f" {h}" for h in hinweise))
@@ -2866,6 +2868,7 @@ class AngebotSeite(QWidget):
             if p.get(feld) != wert:
                 self.db.position_aendern(p["id"], feld, wert)
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], alt_name)
+        self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
@@ -2894,6 +2897,12 @@ class AngebotSeite(QWidget):
                                                     "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
                                                     "steck_anzahl", "steck_nase_min",
                                                     "steck_spiel", "steck_ueberstand")}
+
+    def naehte_schreiben(self, naehte):
+        """Längsnähte aus dem 3D (Längsnaht per Klick) in die Positionen: {Positions-ID: Nahtfelder}."""
+        for pid, felder in (naehte or {}).items():
+            for name, wert in felder.items():
+                self.db.position_aendern(pid, name, wert)
 
     def stecken_anwenden(self, stecken):
         """Steckverbindungen aus dem Editor der Baugruppe in die Teile schreiben (stecken = dict(weg, dazu) aus
@@ -4193,6 +4202,9 @@ class AngebotSeite(QWidget):
             if netz:
                 self.db.netz_speichern(pid, netz)
         self.db.protokoll_anhaengen(self.id, erg["protokoll"])
+        alt = self.db.satz_daten(self.id)
+        for satz, daten in (erg.get("satz_daten") or {}).items():    # Stöße je Satz für „Satz in 3D“
+            self.db.satz_daten_speichern(self.id, satz, dict(alt.get(satz) or {}, **daten))
         self.neu_laden()
         if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("gravur_artikel") == "ja":
             self.gravur_vorgeben({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
@@ -4267,6 +4279,48 @@ class AngebotSeite(QWidget):
         if not self.f.stumm:
             d.exec()
         return d
+
+    def satz_3d(self, zeile=None, satz=None, dialog=None):
+        """Fenster „Satz in 3D“ (satz3d.py) für den Satz der markierten Position (ohne Satz: der einzige Satz des
+        Angebots bzw. Auswahl). Mit OK: Längsnähte, Steckverbindungen (Schlitze, Nasen, Länge, Schneidweg) und die
+        Daten des Satzes speichern. dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: True = gespeichert."""
+        from .satz3d import Satz3dDialog, saetze, satz_teile
+        if satz is None:
+            if zeile is None:
+                i = self.pos_ansicht.currentIndex()
+                zeile = i.row() if i.isValid() else None
+            if zeile is not None and 0 <= zeile < len(self.positionen):
+                satz = self.positionen[zeile].get("satz")
+            alle = saetze(self.positionen)
+            if not satz and len(alle) == 1:
+                satz = alle[0]
+            elif not satz and alle and not self.f.stumm:
+                satz, ok = QInputDialog.getItem(self, "Satz in 3D", "Satz:", alle, 0, False)
+                satz = satz if ok else None
+            if not satz:
+                if not alle:
+                    self.f.meldung("Satz in 3D: Im Angebot gibt es keinen Satz (Teile mit Eintrag in der Spalte Satz, "
+                                   "z. B. aus dem STEP-Import einer Baugruppe).", fehler=True)
+                return False
+        teile = [self.positionen[i] for i in satz_teile(self.positionen, satz)]
+        bg = next((r for r, q in enumerate(self.positionen) if ist_baugruppe(q) and q.get("satz") == satz), None)
+        if bg is not None or any(q.get("bg_knoten") for q in teile):
+            self.f.meldung(f"Satz {satz} ist eine Schweißbaugruppe: Steckverbindungen und 3D im Editor der "
+                           "Schweißbaugruppe.")
+            return self.baugruppe_bearbeiten([bg if bg is not None else self.positionen.index(teile[0])],
+                                             dialog=dialog)
+        d = Satz3dDialog(self, satz, self.positionen, self.k.profile, self._vk_einstellungen(), self.db.netze(self.id),
+                         self.db.satz_daten(self.id).get(satz), nur_lesen=bool(self.fremd() or self.db.nur_lesen))
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
+            return False
+        self.naehte_schreiben(d.ergebnis["naehte"])
+        self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
+        hinweise = self.stecken_anwenden(d.ergebnis["stecken"])
+        self.neu_laden()
+        n = len(d.ergebnis["naehte"])
+        self.f.meldung(f"Satz {satz} gespeichert." + (f" Längsnaht für {n} Teil(e) gesetzt." if n else "")
+                       + "".join(f" {h}" for h in hinweise))
+        return True
 
     def _teilergebnis(self, ausgabe_datei, anzahl):
         """Nach Abbruch: gibt es schon gemessene Dateien, fragen, ob sie übernommen werden sollen."""

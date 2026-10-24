@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 59     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 60     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -109,6 +109,8 @@ SCHEMA_VERSION = 59     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 58: Kontur-Vorlagen des Teile-Editors (Tabelle kontur_vorlagen, leer; Plan 3D-Editor E1)
                         # 59: Palettenbegleitschein und Versand je beauftragtem Angebot (angebote.palettenschein, JSON,
                         #     leer; palettenschein.py)
+                        # 60: Steckverbindungen und Stöße je Satz (angebote.satz_daten, JSON, leer; Fenster
+                        #     „Satz in 3D“, satz3d.py)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -318,6 +320,8 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin TEXT")
             if "palettenschein" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN palettenschein TEXT")  # vor Schema 59: leer
+            if "satz_daten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -1801,6 +1805,8 @@ class Datenbank:
             self.naht_stangen_speichern(neu, a["naht_stangen"])
         if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso
             self.radien_speichern(neu, a["radien"])
+        for satz, d in self.satz_daten(angebot_id).items():     # Steckverbindungen je Satz (über die Kennung)
+            self.satz_daten_speichern(neu, satz, d)
         netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
             i = self.position_neu(neu, p)
@@ -1909,6 +1915,29 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET palettenschein=? WHERE id=?",
                              (palettenschein.speichern(d) if d is not None else None, angebot_id))
+
+    @liest
+    def satz_daten(self, angebot_id):
+        """Daten je Satz des Angebots {Satz: {steckverbindungen: [...], stoesse: [...]}} (Fenster „Satz in 3D“)."""
+        r = self.con.execute("SELECT satz_daten FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        try:
+            d = json.loads(r[0]) if r and r[0] else {}
+        except ValueError:
+            return {}
+        return {str(k): v for k, v in d.items() if isinstance(v, dict)} if isinstance(d, dict) else {}
+
+    @schreibt
+    def satz_daten_speichern(self, angebot_id, satz, daten):
+        """Daten eines Satzes ersetzen (leer = löschen). Ändert 'geändert am' nicht (die Teile ändern sich mit)."""
+        alle = self.satz_daten(angebot_id)
+        daten = {k: v for k, v in (daten or {}).items() if v}
+        if daten:
+            alle[str(satz)] = daten
+        else:
+            alle.pop(str(satz), None)
+        with self.con:
+            self.con.execute("UPDATE angebote SET satz_daten=? WHERE id=?",
+                             (json.dumps(alle, ensure_ascii=False) if alle else None, angebot_id))
 
     @liest
     def versand_auftraege(self):
