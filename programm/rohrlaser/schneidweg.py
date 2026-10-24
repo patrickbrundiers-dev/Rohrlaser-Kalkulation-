@@ -571,7 +571,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     Ergebnis dict(schritte=[{text, anzahl, laenge_stueck, laenge, einstiche, huelle, klasse, schaetzung}],
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
-    from . import knickrahmen as kn
+    from . import knickrahmen as kn, steckverbindung as sv
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
     profil = mit_radius(profil, eingaben)
     schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
@@ -582,6 +582,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
     n_ende = einstiche_ende(form)
+    nasen_plus = 0.0
     for seite, titel in (("a", "Anfangsschnitt"), ("b", "Endschnitt")):
         e = eingaben.get(seite) or {}
         zwei = e.get("achse") == ACHSE_ZWEI
@@ -615,6 +616,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
                     hinweise_ende.append(f"{titel}: gemessen an einem anderen Querschnitt "
                                          f"({str(e.get('messprofil')).split('|')[0]}), Form {e.get('form') or '?'} "
                                          "nicht neu rechenbar: gemessene Länge gilt, bitte prüfen")
+        nb = sv.nasen(e)
+        if nb:                          # Steckverbindung: Nasen am Ende, je Nase zwei Flanken
+            lg += _z(nb.get("plus"))
+            gerade = False
+            text += (f", {int(_z(nb.get('anzahl')))} Nase{'n' if _z(nb.get('anzahl')) != 1 else ''} "
+                     f"{zahl(_z(nb.get('bN')), 1)} × {zahl(_z(nb.get('lN')), 1)} (Steckverbindung)")
+            nasen_plus += _z(nb.get("laenge_plus"))
         if mit_3d and e.get("d3") and w and not sat:
             v, h_ = dreid.gehrung_begrenzen(w, maschine)
             text += f", in 3D (Kopf {zahl(v, 1)}°)"
@@ -741,6 +749,9 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
         hinweise_ende.append(f"{bleibt} Kontur{'en' if bleibt > 1 else ''} an einem anderen Querschnitt gemessen und "
                              "nicht umrechenbar: gemessene Länge gilt, bitte prüfen (gelb)")
     hinweise += hinweise_ende + hinweise_3d
+    if nasen_plus:
+        hinweise.append(f"Steckverbindung: Nasen am Ende, das Teil ist {zahl(nasen_plus, 1)} mm länger als bis zum "
+                        "Stoß (in der Teilelänge enthalten)")
     laenge = None
     k = kn.lesen(eingaben)
     if k:                               # Knickrahmen: gestreckte Länge aus den Schenkeln

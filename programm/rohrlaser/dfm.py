@@ -33,6 +33,8 @@ BOHRUNG_KLEIN, STEG, RAND, KURZ, GRAVUR_KANTE, KANTBARKEIT = (
 BIEGEZONE, GERADE_KURZ = "Kontur in der Biegezone", "Gerade zwischen Biegungen zu kurz"
 SCHENKEL_KURZ, KNICKBEREICH, KNICK_WAND = "Schenkel zu kurz", "Kontur im Knickbereich", "Wand zu dick zum Knicken"
 KNICK_REGELN = (SCHENKEL_KURZ, KNICKBEREICH, KNICK_WAND)
+NASE_SCHMAL = "Nase zu schmal"
+STECK_REGELN = (NASE_SCHMAL,)
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
     BOHRUNG_KLEIN: (1.0, WARNUNG, "Bohrung bzw. Senkung Ø kleiner als Grenzwert × Wandstärke bzw. Blechdicke"),
@@ -48,6 +50,7 @@ REGELN = {
     SCHENKEL_KURZ: (2.0, WARNUNG, "Knickrahmen: Schenkel kürzer als Grenzwert × Rohrmaß in der Rahmenebene"),
     KNICKBEREICH: (2.0, WARNUNG, "Knickrahmen: Kontur näher am V-Ausschnitt als Grenzwert × Wandstärke"),
     KNICK_WAND: (4.0, HINWEIS, "Knickrahmen: Wandstärke über Grenzwert in mm (Knicken von Hand schwer)"),
+    NASE_SCHMAL: (3.0, WARNUNG, "Steckverbindung: Nasenbreite kleiner als Grenzwert × Wandstärke des Steckers"),
 }
 RANG = {HINWEIS: 0, WARNUNG: 1, FEHLER: 2}
 
@@ -178,6 +181,7 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
         e = sw.v_ergaenzen(e, dict(profil))
         out += _biegerohr(e, laenge, dict(profil), wand, r)
         out += _knickrahmen(e, laenge, dict(profil), wand, r)
+        out += _nasen(e, wand, r)
     if not e or not e.get("konturen"):
         return tuple(out)
     konturen = e["konturen"]
@@ -326,6 +330,21 @@ def _knickrahmen(e, laenge, profil, wand, r):
             out.append(Befund(KNICKBEREICH, stufe, f"{len(treffer)} Kontur(en) näher als {_zahl(abstand)} mm am "
                                                    "V-Ausschnitt" + _lage_rohr(treffer[0]["eingabe"], treffer[0]["x"]),
                               sorted({zeilen_e[d["zeile"]] for d in treffer})))
+    return out
+
+
+def _nasen(e, wand, r):
+    """Befund 'Nase zu schmal' für die Nasen einer Steckverbindung an den Enden."""
+    from . import steckverbindung as sv
+    if NASE_SCHMAL not in r or not r[NASE_SCHMAL][0] or not wand:
+        return []
+    g, stufe = r[NASE_SCHMAL]
+    out = []
+    for s, titel in (("a", "Anfang"), ("b", "Ende")):
+        nb = sv.nasen(e.get(s))
+        if nb and sv._z(nb.get("bN")) < g * wand - 1e-9:
+            out.append(Befund(NASE_SCHMAL, stufe, f"{titel}: Nase {_zahl(sv._z(nb['bN']))} mm unter {_zahl(g)} × Wand "
+                                                  f"({_zahl(g * wand)} mm), Nase kann beim Heften abbrechen"))
     return out
 
 

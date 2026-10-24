@@ -1,0 +1,155 @@
+"""Steckverbindung (Plan K2-1): Rechenkern für Schlitze in der Aufnahme und Nasen am Ende des Steckers.
+- S1 Beispiel aus dem Plan (QR 40 × 40 × 2 auf QR 40 × 40 × 2, bN 20, Spiel 0,1): Schlitz 20,2 × 2,2 mm, 44,8 mm je
+  Schlitz, Aufnahme + 89,6 mm und + 2 Einstiche, Stecker-Ende 168 statt 160 mm, Länge + 2 mm.
+- S2 Vorgaben aus den Einstellungen (halbe Wandbreite, mindestens 10 mm), Wände 'längs', 4 Nasen, Fehler.
+- S3 Rundrohr (Aufnahme mit Sattel, Stecker mit Bogen-Nase) und schräger Stoß (Flanken und Schlitz länger).
+- S4 Anwenden und Entfernen auf beiden Eingaben, Lage der Schlitze, erneutes Anwenden ersetzt.
+- S5 Prüfung: Nase zu schmal (abschaltbar, ältere Datei bekommt die Regel), Steckverbindung ohne Gegenstück (FEHLER
+  im Status der Baugruppe), Daten der Baugruppe.
+
+Aufruf: python tests/test_steckverbindung.py
+"""
+import json
+import math
+import sys
+import tempfile
+from pathlib import Path
+
+HIER = Path(__file__).parent
+sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import baugruppe as bgm, dfm, schneidweg as sw, steckverbindung as sv  # noqa: E402
+from rohrlaser.datenbank import Datenbank  # noqa: E402
+
+
+def ok(t):
+    print("OK    ", t)
+
+
+def nah(a, b, tol=0.01):
+    return abs(a - b) <= tol
+
+
+def fehler(f):
+    try:
+        f()
+    except ValueError as x:
+        return str(x)
+    raise AssertionError("muss abgelehnt werden")
+
+
+QR2 = dict(form="Quadratrohr", a=40, b=40, wand=2, profil_id="QR 40x40x2", r_aussen=0)
+RR = dict(form="Rundrohr", a=60, wand=3, profil_id="RR 60x3")
+RE = dict(form="Rechteckrohr", a=60, b=40, wand=3, profil_id="RE 60x40x3")
+V = dict(id="sv1", aufnahme=dict(pos=10, knoten=""), stecker=dict(pos=20, knoten="", ende="a"), x=300,
+         seite="oben", anzahl=2, bN=20, c=0.1, ueberstand=0, waende="quer", winkel=90)
+LEER = dict(a={}, b={}, konturen=[])
+
+# ------------------------------------------------------------------ S1 Beispiel 5.2
+m = sv.masse(V, QR2, QR2)
+assert nah(m["schlitz_l"], 2.2) and nah(m["schlitz_b"], 20.2) and nah(m["schlitz"], 44.8)
+assert nah(m["aufnahme_plus"], 89.6) and m["einstiche_plus"] == 2
+assert nah(m["ende_plus"], 8) and nah(m["laenge_plus"], 2) and nah(m["lN"], 2)
+auf, st, dl = sv.anwenden(V, LEER, LEER, QR2, QR2)
+assert dl == 2
+r0_a, r0_s = sw.rechnen(LEER, QR2, (10, 50)), sw.rechnen(LEER, QR2, (10, 50))
+ra, rs = sw.rechnen(auf, QR2, (10, 50)), sw.rechnen(st, QR2, (10, 50))
+assert not ra["fehler"] and not rs["fehler"], (ra["fehler"], rs["fehler"])
+assert nah(ra["schneidweg"] - r0_a["schneidweg"], 89.6, 0.06) and ra["einstiche"] == r0_a["einstiche"] + 2
+assert nah(rs["felder"]["a_schnitt"], 168) and nah(r0_s["felder"]["a_schnitt"], 160)
+assert rs["felder"]["a_gerade"] == "nein" and "2 Nasen 20 × 2 (Steckverbindung)" in rs["schritte"][0]["text"]
+assert any("2 mm länger" in h for h in rs["hinweise"])
+ok("S1 Beispiel: Schlitz 20,2 × 2,2 = 44,8 mm, Aufnahme + 89,6 mm + 2 Einstiche, Ende 168 mm, Länge + 2 mm")
+
+# ------------------------------------------------------------------ S2 Vorgaben, Wände, Fehler
+vg = sv.vorgaben(QR2)
+assert vg["anzahl"] == 2 and vg["bN"] == 20 and vg["c"] == 0.1 and vg["ueberstand"] == 0 and vg["winkel"] == 90
+assert sv.vorgaben(dict(QR2, a=16, b=16, wand=1.5))["bN"] == 10            # mindestens 10 mm
+assert sv.vorgaben(RE)["bN"] == 30 and sv.vorgaben(RE, waende="längs")["bN"] == 20
+e = sv.vorgaben(QR2, dict(anzahl=4, spiel=0.2, ueberstand=1, nase_min=25))
+assert e["anzahl"] == 4 and e["c"] == 0.2 and e["ueberstand"] == 1 and e["bN"] == 25
+m = sv.masse(dict(V, waende="längs"), QR2, QR2)
+assert nah(m["schlitz_l"], 20.2) and nah(m["schlitz_b"], 2.2) and m["nasen"] == [(0.0, 19.0), (0.0, -19.0)]
+m4 = sv.masse(dict(V, anzahl=4), QR2, QR2)
+assert m4["einstiche_plus"] == 4 and nah(m4["aufnahme_plus"], 4 * 44.8) and nah(m4["ende_plus"], 16)
+assert {(round(dx, 1), round(dq, 1)) for dx, dq in m4["nasen"]} == {(19, 0), (-19, 0), (0, 19), (0, -19)}
+m = sv.masse(dict(V, ueberstand=1), QR2, QR2)
+assert nah(m["lN"], 3) and nah(m["ende_plus"], 12) and nah(m["schlitz_l"], 2.2)    # Überstand ändert den Schlitz nicht
+assert "1, 2 oder 4" in fehler(lambda: sv.masse(dict(V, anzahl=3), QR2, QR2))
+assert "breiter als die Wand" in fehler(lambda: sv.masse(dict(V, bN=37), QR2, QR2))
+assert "30° bis 90°" in fehler(lambda: sv.masse(dict(V, winkel=20), QR2, QR2))
+assert "Rundrohr sein" in fehler(lambda: sv.masse(V, dict(form="Flachstahl", a=40, wand=5), QR2))
+assert "Ende des Steckers" in fehler(lambda: sv.anwenden(dict(V, stecker={}), LEER, LEER, QR2, QR2))
+ok("S2 Vorgaben (halbe Wand, min. 10 mm, Einstellungen), Wände längs, 4 Nasen, Fehler")
+
+# ------------------------------------------------------------------ S3 Rundrohr und schräg
+m = sv.masse(dict(V, bN=30), RR, RR)               # Stecker RR 60 × 3: Bogenhöhe der Nase über der Sehne 30
+bogen = 30 - math.sqrt(30 ** 2 - 15 ** 2)
+assert nah(m["staerke"], 3 + bogen) and nah(m["schlitz_l"], 3 + bogen + 0.2)
+assert nah(m["schlitz_b"], 2 * 30 * math.asin(30.2 / 60))       # auf dem Bogen der Aufnahme
+z = sv.schlitz_zeilen(dict(V, waende="längs", seite="oben (0°)"), RR, QR2)
+assert {x["seite"] for x in z} == {f"{round(math.degrees(19 / 30), 1):g}°", f"{round(360 - math.degrees(19 / 30), 1):g}°"}
+assert all("q" not in x for x in z)
+st = sv.anwenden(dict(V, bN=30), LEER, dict(a=dict(sattel=60), b={}, konturen=[]), RR, RR)[1]
+rs = sw.rechnen(st, RR, (10, 50))
+r0 = sw.rechnen(dict(a=dict(sattel=60), b={}, konturen=[]), RR, (10, 50))
+assert not rs["fehler"] and nah(rs["felder"]["a_schnitt"] - r0["felder"]["a_schnitt"], 4 * 3)
+m = sv.masse(dict(V, winkel=60), QR2, QR2)
+s60, t60 = math.sin(math.radians(60)), math.tan(math.radians(60))
+assert nah(m["flanke"], 2 / s60) and nah(m["ende_plus"], 8 / s60) and nah(m["laenge_plus"], 2 / s60)
+assert nah(m["schlitz_l"], 2 / s60 + 2 / t60 + 0.2) and nah(m["nasen"][0][0], 19 / s60)
+assert "schräg 60°" in sv.text(dict(V, winkel=60))
+ok("S3 Rundrohr (Bogen-Nase, Schlitz auf dem Bogen, Sattel + Nasen) und schräger Stoß 60°")
+
+# ------------------------------------------------------------------ S4 Anwenden, Entfernen
+alt = dict(a={}, b=dict(winkel=45), konturen=[dict(art="Bohrung", anzahl=1, d=8, x=100)])
+auf, st, dl = sv.anwenden(V, alt, alt, QR2, QR2)
+assert [z_["x"] for z_ in auf["konturen"][1:]] == [319, 281] and auf["konturen"][1]["seite"] == "oben"
+assert all(z_["quelle"] == "Steckverbindung sv1" for z_ in auf["konturen"][1:]) and auf["konturen"][0]["d"] == 8
+assert st["a"]["nasen"]["id"] == "sv1" and st["b"] == dict(winkel=45) and alt["konturen"][1:] == []
+auf2, st2, dl2 = sv.anwenden(dict(V, bN=16, x=200), auf, st, QR2, QR2)     # ersetzt die eigenen Zeilen
+assert len(auf2["konturen"]) == 3 and dl2 == 0 and auf2["konturen"][1]["h"] == 16.2
+st3 = sv.anwenden(dict(V, stecker=dict(V["stecker"], ende="b")), auf2, st2, QR2, QR2)[1]
+assert "nasen" not in st3["a"] and st3["b"]["nasen"]["id"] == "sv1" and st3["b"]["winkel"] == 45
+ohne_a, w_a = sv.entfernen(auf2, "sv1")
+ohne_s, w_s = sv.entfernen(st3, "sv1")
+assert ohne_a["konturen"] == alt["konturen"] and w_a == 0 and w_s == 2 and ohne_s["b"] == dict(winkel=45)
+assert sv.rollen(sw.speichern(auf2)) == {"sv1": {"aufnahme"}} and sv.rollen(sw.speichern(st3)) == {"sv1": {"stecker"}}
+ok("S4 Anwenden auf beide Teile (Lage x ± 19 mm), erneut anwenden ersetzt, Ende tauschen, Entfernen")
+
+# ------------------------------------------------------------------ S5 Prüfung und Baugruppe
+schmal = sv.anwenden(dict(V, bN=5), LEER, LEER, QR2, QR2)[1]
+p_s = dict(technik=sw.speichern(schmal), laenge=500)
+b = {x.regel: x for x in dfm.rohr(p_s, QR2)}
+assert b[dfm.NASE_SCHMAL].stufe == dfm.WARNUNG and "Nase 5 mm unter 3 × Wand (6 mm)" in b[dfm.NASE_SCHMAL].text
+p_ok = dict(technik=sw.speichern(sv.anwenden(V, LEER, LEER, QR2, QR2)[1]), laenge=500)
+assert dfm.NASE_SCHMAL not in {x.regel for x in dfm.rohr(p_ok, QR2)}
+assert dfm.NASE_SCHMAL not in {x.regel for x in dfm.rohr(p_s, QR2, zeilen=[dict(regel=dfm.NASE_SCHMAL, aktiv="nein")])}
+bg = bgm.leer()
+bg["steckverbindungen"] = [V]
+auf, st, _ = sv.anwenden(V, LEER, LEER, QR2, QR2)
+kopf = dict(art="Baugruppe", stueck=1, baugruppe=bgm.speichern(bg), pos=1)
+teil_a = dict(pos=10, stueck=1, je_satz=1, bg_knoten=bgm.zuordnung_text(bg["id"]), technik=sw.speichern(auf))
+teil_s = dict(pos=20, stueck=1, je_satz=1, bg_knoten=bgm.zuordnung_text(bg["id"]), technik=sw.speichern(st))
+pos = [kopf, teil_a, teil_s]
+assert bgm.lesen(kopf["baugruppe"])["steckverbindungen"][0]["id"] == "sv1"
+assert sv.teile_finden(pos, bgm.teile(pos, bg["id"]), "sv1") == (1, 2)
+assert sv.fehler(bg, pos, bgm.teile(pos, bg["id"])) is None
+assert "Steckverbindung" not in bgm.status(kopf, {}, pos)
+t = bgm.status(kopf, {}, [kopf, teil_a])
+assert t == "FEHLER: Steckverbindung 1 ohne Gegenstück (Stecker nicht in der Baugruppe)", t
+d = json.loads(kopf["baugruppe"])
+d["steckverbindungen"] = [V, dict(V)]
+assert "Steckverbindung Nr. 2 hat eine doppelte Kennung (sv1)" in bgm.daten_fehler(json.dumps(d))
+tmp = Path(tempfile.mkdtemp())
+db = Datenbank(tmp / "rohrlaser.db")
+assert dfm.NASE_SCHMAL in {z["regel"] for z in db.zeilen("pruefregeln")}
+assert db.einstellung("steck_anzahl") == 2 and db.einstellung("steck_spiel") == 0.1
+db.con.execute("DELETE FROM pruefregeln WHERE regel=?", (dfm.NASE_SCHMAL,))
+db.con.execute("DELETE FROM einstellungen WHERE name='steck_stand'")
+db.con.commit()
+db.schliessen()
+db = Datenbank(tmp / "rohrlaser.db")
+assert dfm.NASE_SCHMAL in {z["regel"] for z in db.zeilen("pruefregeln")}
+db.schliessen()
+ok("S5 Nase zu schmal (abschaltbar, ältere Datei ergänzt), ohne Gegenstück = FEHLER, Daten der Baugruppe")
+print("Alle Steckverbindungs-Tests bestanden.")

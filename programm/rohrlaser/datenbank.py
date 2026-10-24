@@ -121,6 +121,7 @@ BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
 BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
+STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -199,6 +200,7 @@ class Datenbank:
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
             self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
             self.einstellung_setzen("knick_stand", KNICK_STAND)
+            self.einstellung_setzen("steck_stand", STECK_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -374,6 +376,8 @@ class Datenbank:
                 self._biegerohr_ergaenzen()
             if version > 0 and self.einstellung("knick_stand") != KNICK_STAND:
                 self._knick_ergaenzen()
+            if version > 0 and self.einstellung("steck_stand") != STECK_STAND:
+                self._steck_ergaenzen()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
@@ -467,6 +471,14 @@ class Datenbank:
             neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.KNICK_REGELN]
             self._einfuegen("pruefregeln", neu, ergaenzen=True)
         self._einstellung_schreiben("knick_stand", KNICK_STAND)
+
+    def _steck_ergaenzen(self):
+        """Einmalig: Prüfregel 'Nase zu schmal' für Steckverbindungen anlegen, wenn es sie noch nicht gibt (Plan K2)."""
+        from . import dfm
+        if self.anzahl("pruefregeln"):
+            neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.STECK_REGELN]
+            self._einfuegen("pruefregeln", neu, ergaenzen=True)
+        self._einstellung_schreiben("steck_stand", STECK_STAND)
 
     def _programmierung_zeit(self):
         """Schema 39: Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026: 5 min je Position +
