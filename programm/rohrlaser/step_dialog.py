@@ -130,7 +130,7 @@ class StepPruefDialog(QDialog):
     SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
-                 knick_vorgaben=None):
+                 knick_vorgaben=None, step_kopieren=None):
         from . import step
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
@@ -318,7 +318,17 @@ class StepPruefDialog(QDialog):
         knoepfe.addButton("Abbrechen", QDialogButtonBox.RejectRole)
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
-        lay.addWidget(knoepfe)
+        # Ordner je Angebot (B3): STEP-Dateien in den Unterordner STEP kopieren, Vorgabe aus den Einstellungen
+        self.kopieren_haken = QCheckBox("STEP-Dateien in den Ordner des Angebots kopieren")
+        self.kopieren_haken.setToolTip("Beim Übernehmen werden die gewählten STEP-Dateien in den Unterordner „STEP“ "
+                                       "im Ordner des Angebots kopiert. Vorgabe: Einstellungen → STEP-Import.")
+        self.kopieren_haken.setChecked(bool(step_kopieren))
+        self.kopieren_haken.setVisible(step_kopieren is not None)
+        unten = QHBoxLayout()
+        unten.addWidget(self.kopieren_haken)
+        unten.addStretch(1)
+        unten.addWidget(knoepfe)
+        lay.addLayout(unten)
         self.datei_waehlen(0)
 
     def _baum_fuellen(self):

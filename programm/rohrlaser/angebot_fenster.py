@@ -35,7 +35,8 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import angebot_check, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, step_einstellungen, stil, vorkalk
+from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, \
+    step_einstellungen, stil, vorkalk
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -347,13 +348,16 @@ class AngeboteSeite(QWidget):
             k.setContext(Qt.WidgetShortcut)
         leiste = QHBoxLayout()
         for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
-                           ("Löschen", self.loeschen), ("Ablage öffnen", self.f.ablage_oeffnen)):
+                           ("Löschen", self.loeschen), ("Ordner öffnen", self.ordner_oeffnen)):
             b = QPushButton(text)
             if text == "Neues Angebot":
                 b.setObjectName("primaer")
             if text == "Neues Angebot":
                 b.setToolTip("Neues Angebot anlegen. Aus STEP-Dateien: Dateien oder einen Ordner auf die Liste "
                              "ziehen oder Datei → Neues Angebot aus STEP …")
+            if text == "Ordner öffnen":
+                b.setToolTip("Ordner des markierten Angebots in der Ablage öffnen (PDFs, CSV, Materialanfrage, "
+                             "STEP); ohne Markierung die ganze Ablage")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addWidget(self.vorgang_knopf)
@@ -482,6 +486,11 @@ class AngeboteSeite(QWidget):
         i = self._gewaehlt()
         if i:
             self.oeffnen.emit(i)
+
+    def ordner_oeffnen(self):
+        """Ordner des markierten Angebots öffnen, ohne Markierung die Ablage. Ergebnis: Ordner oder None."""
+        i = self._gewaehlt()
+        return self.f.angebot_ordner_oeffnen(self.db.angebot(i) if i else None)
 
     def kopieren(self, kundennr=None):
         """Angebot kopieren; im Dialog lässt sich ein anderer Kunde wählen (kundennr setzt ihn ohne Dialog)."""
@@ -1528,7 +1537,7 @@ class AngebotSeite(QWidget):
         menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),
                            ("Schweißnaht …", lambda: self.schweissnaht()),
-                           ("Ablage öffnen", self.f.ablage_oeffnen)):
+                           ("Ordner öffnen", lambda: self.f.angebot_ordner_oeffnen(self.kopf))):
             menue.addAction(text, lambda ziel=ziel: ziel())
         self.weitere.setMenu(menue)
         leiste.addWidget(self.weitere)
@@ -3378,9 +3387,9 @@ class AngebotSeite(QWidget):
 
     def _ziel(self, zusatz, endung, mit_kunde=False):
         try:
-            return self.f.ablage() / (ausgabe.dateiname(self.kopf, zusatz, mit_kunde) + endung)
+            return self.f.angebot_ordner(self.kopf) / (ausgabe.dateiname(self.kopf, zusatz, mit_kunde) + endung)
         except OSError as e:
-            QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht anlegen:\n{e}")
+            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
             return None
 
     def _schreiben(self, art, pfad, schreiben):
@@ -3551,9 +3560,9 @@ class AngebotSeite(QWidget):
         if not any(position_aktiv(p) for p in self.positionen):
             return fehler("Das Angebot hat keine Positionen.")
         try:
-            ablage = self.f.ablage()
+            ablage = self.f.angebot_ordner(self.kopf)
         except OSError as e:
-            return fehler(f"Der Ablageordner lässt sich nicht anlegen:\n{e}")
+            return fehler(f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
         if art == "zip":
             pfad = ablage / export.zip_name(self.kopf)
         else:
@@ -3766,6 +3775,7 @@ class AngebotSeite(QWidget):
         step_einstellungen.anwenden(self.db)
         with tempfile.TemporaryDirectory() as tmp:
             liste, ausgabe = Path(tmp) / "liste.txt", Path(tmp) / "messwerte.txt"
+            self.step_dateien_zuletzt = [str(d) for d in dateien]     # für die Kopie in den Angebotsordner
             liste.write_text("\n".join(str(d) for d in dateien), encoding="utf-8")
             netze, ergebnis = Path(tmp) / "netze", Path(tmp) / "messung.json"
             if not self._messen(befehl + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
@@ -3804,14 +3814,17 @@ class AngebotSeite(QWidget):
                                        if z.get("blech_werkstoff_id")},
                            laserdaten=self.db.zeilen("blechlaser"),
                            einst=self.db.blech_einstellungen())
+        kopieren = self.db.einstellung("step_kopieren") == "ja"    # STEP-Dateien in den Angebotsordner
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
             knick = {n: self.db.einstellung(f"knick_{n}") for n in ("z", "freistich", "k")}
-            if StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
-                               zukauf_liste, blech_daten["werkstoffe"], knick).exec() != QDialog.Accepted:
+            dlg = StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
+                                  zukauf_liste, blech_daten["werkstoffe"], knick, step_kopieren=kopieren)
+            if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
+            kopieren = dlg.kopieren_haken.isChecked()
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)
         neue_profile = erneut = False
         if fehlend:
@@ -3855,6 +3868,8 @@ class AngebotSeite(QWidget):
             self._vorkalkulieren({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
         if json_ablage:
             erg["bericht"].append(f"Messergebnis (JSON): {json_ablage}")
+        if kopieren:
+            erg["bericht"].append(self._step_kopieren(getattr(self, "step_dateien_zuletzt", [])))
         text = f"{len(erg['positionen'])} Position(en) in das Angebot übernommen."
         self.f.meldung(text)
         if not self.f.stumm:
@@ -3862,6 +3877,16 @@ class AngebotSeite(QWidget):
             box.setDetailedText("\n".join(erg["bericht"]))
             box.exec()
         return erg
+
+    def _step_kopieren(self, dateien):
+        """STEP-Dateien in den Unterordner STEP des Angebotsordners kopieren. Ergebnis: Zeile für den Bericht."""
+        try:
+            ziel = self.f.angebot_ordner(self.kopf) / angebotsordner.STEP_ORDNER
+        except OSError as e:
+            return f"STEP-Dateien nicht kopiert: {e}"
+        kopiert, fehler = angebotsordner.step_kopieren(dateien, ziel)
+        text = f"{kopiert} STEP-Datei(en) nach {ziel} kopiert"
+        return text + (" (nicht kopiert: " + "; ".join(fehler) + ")" if fehler else "")
 
     def _messung_ablegen(self, ergebnis):
         """Messergebnis im JSON-Format (versioniert, siehe step_messung/step_ergebnis.py) in die Ablage kopieren:

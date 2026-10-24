@@ -352,13 +352,13 @@ assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil",
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
                      (s4.kalkulation_pdf, "Kalkulation.pdf")):
     datei = aufruf()
-    assert datei and datei.parent == tmp / "Ablage" and datei.name.endswith(name) and datei.stat().st_size > 1000, datei
+    assert datei and datei.parent.parent == tmp / "Ablage" and datei.name.endswith(name) and datei.stat().st_size > 1000, datei
     assert datei.read_bytes()[:5] == b"%PDF-"
 import csv  # noqa: E402
 import io  # noqa: E402
 import zipfile  # noqa: E402
 datei = s4.csv_export()         # Angebot_<Nr>.zip mit Angebotskopf.csv und Angebotspositionen.csv (test_csv_export.py)
-assert datei and datei.parent == tmp / "Ablage" and datei.suffix == ".zip", datei
+assert datei and datei.parent.parent == tmp / "Ablage" and datei.suffix == ".zip", datei   # Ordner je Angebot
 with zipfile.ZipFile(datei) as z_:
     csv_zeilen = list(csv.reader(io.StringIO(z_.read("Angebotspositionen.csv").decode("utf-8-sig"), newline=""),
                                  delimiter=";"))
