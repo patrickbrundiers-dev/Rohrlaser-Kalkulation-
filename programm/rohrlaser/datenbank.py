@@ -41,9 +41,9 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
-                         beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
+                         beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 54     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 55     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -100,6 +100,8 @@ SCHEMA_VERSION = 54     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Positionierhilfe nach Vorschlag)
                         # 54: Außenradius von Quadrat-/Rechteckrohr (profile.r_aussen, leer = Vorgabe nach EN 10219; angebote.radien
                         #     = Radius je Profil + Werkstoff im Angebot, JSON, leer)
+                        # 55: Rohrlaser-Eigenschaften der Werkstoffe (werkstoffe.rohrart, gas_vorgabe, vorschub_faktor,
+                        #     laser, laser_hinweis; leer = wie bisher)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -122,6 +124,7 @@ SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stunden
 BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
+WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -201,6 +204,7 @@ class Datenbank:
             self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
             self.einstellung_setzen("knick_stand", KNICK_STAND)
             self.einstellung_setzen("steck_stand", STECK_STAND)
+            self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -378,6 +382,8 @@ class Datenbank:
                 self._knick_ergaenzen()
             if version > 0 and self.einstellung("steck_stand") != STECK_STAND:
                 self._steck_ergaenzen()
+            if version > 0 and self.einstellung("werkstoffe_stand") != WERKSTOFFE_STAND:
+                self._werkstoffe_rohrlaser()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
@@ -461,6 +467,29 @@ class Datenbank:
             neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in (dfm.BIEGEZONE, dfm.GERADE_KURZ)]
             self._einfuegen("pruefregeln", neu, ergaenzen=True)
         self._einstellung_schreiben("biegerohr_stand", BIEGEROHR_STAND)
+
+    def _werkstoffe_rohrlaser(self):
+        """Einmalig (Patrick 24.10.2026, „3a“): fehlende Beispielwerkstoffe ergänzen (vorhandene Werkstoff-IDs bleiben
+        unverändert); die alten Beispielwerkstoffe bekommen ihre Lasereigenschaften nur, wo alle neuen Spalten leer
+        sind. Kategorie Buntmetall: in eine gespeicherte Kategorienliste eintragen, ihre Richtwerte für die
+        vorhandenen Faser-Maschinen ergänzen (vorhandene Schneiddaten-Zeilen bleiben)."""
+        neu = beispieldaten()
+        felder = ("rohrart", "gas_vorgabe", "vorschub_faktor", "laser", "laser_hinweis")
+        vorlage = {z["werkstoff_id"]: z for z in neu["werkstoffe"]}
+        for wid in ALTE_BEISPIEL_WERKSTOFFE:
+            self.con.execute(f'UPDATE werkstoffe SET {", ".join(f + "=?" for f in felder)} WHERE werkstoff_id=? AND '
+                             + " AND ".join(f"{f} IS NULL" for f in felder),
+                             [vorlage[wid][f] for f in felder] + [wid])
+        self._einfuegen("werkstoffe", neu["werkstoffe"], ergaenzen=True)
+        gespeichert = self.con.execute("SELECT wert FROM einstellungen WHERE name='kategorien'").fetchone()
+        if gespeichert:
+            liste = [s.strip() for s in str(json.loads(gespeichert[0]) or "").splitlines() if s.strip()]
+            if "Buntmetall" not in liste:
+                self._einstellung_schreiben("kategorien", "\n".join(liste + ["Buntmetall"]))
+        maschinen = {z["maschinen_id"] for z in self.zeilen("maschinen")}
+        self._einfuegen("schneiddaten", [z for z in neu["schneiddaten"] if z["kategorie"] == "Buntmetall"
+                                         and z["maschinen_id"] in maschinen], ergaenzen=True)
+        self._einstellung_schreiben("werkstoffe_stand", WERKSTOFFE_STAND)
 
     def _knick_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem

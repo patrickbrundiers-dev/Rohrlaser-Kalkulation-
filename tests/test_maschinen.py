@@ -75,6 +75,10 @@ pm = lambda mid: pruefen(TABELLE["maschinen"], km.maschinen[mid], km)
 assert pm("X1") == "WARNUNG: keine Schneiddaten" and pm("T11") == "OK"
 db.neu("schneiddaten", dict(maschinen_id="X1", kategorie="Stahl", gas="N₂", wand_bis=2, vorschub_gross=5000))
 km = db.kontext()
+assert pm("X1") == "WARNUNG: keine Schneiddaten für Edelstahl, Aluminium, Buntmetall", pm("X1")
+# CO₂-Laser: Buntmetall (alle Werkstoffe nur Faser) fehlt nicht
+db.aendern("maschinen", km.maschinen["X1"]["id"], "bemerkung", "CO₂-Laser")
+km = db.kontext()
 assert pm("X1") == "WARNUNG: keine Schneiddaten für Edelstahl, Aluminium", pm("X1")
 
 # 3) Umbenennen: Angebote (Kopf und Snapshots) und Standard-Maschine ziehen mit
