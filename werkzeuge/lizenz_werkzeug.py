@@ -419,8 +419,8 @@ def liste(ordner, heute=None):
         print("Noch keine Lizenzen ausgestellt.")
     for z in zeilen:
         print(f"{z['lizenz_id']}  {z['art']:8}  bis {z['gueltig_bis']:11}  {z['inhaber']} / {z['firma']}  "
-              f"Rechner {z['rechner']}  {status_text(z, heute)}"
-              + (f" {z['gesperrt']}" if z.get("gesperrt") else ""))
+              f"Rechner {z['rechner']}  "
+              + (f"GESPERRT {z['gesperrt']}" if z.get("gesperrt") else status_text(z, heute)))
     return zeilen
 
 
