@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.96", "<b>3D-Ansichten: Blick, Perspektive, Darstellung, exaktes Messen</b> – in allen 3D-Fenstern gleich "
+               "(Teile-Editor, Positionen, STEP-Prüfdialog, Teilebaum, Schweißbaugruppe, Satz in 3D) mit Leiste und "
+               "Ansichtswürfel. <i>Blick</i>: Isometrie, Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um "
+               "90° drehen (Strg + Pfeiltasten). <i>Perspektivisch</i> umschaltbar (Vorgabe orthogonal, je Benutzer "
+               "gemerkt). Neue Darstellungen <i>Drahtgitter</i> und <i>Verdeckt gestrichelt</i>, Tangentenkanten an "
+               "Rundungen. <b>Messen mit exakten Kernwerten</b>: fängt Kreismitte, Kantenmitte, Ecke und Fläche aus "
+               "der echten Geometrie (Bohrung Ø 8 = 8,000), Abstand mit Δ längs/quer/hoch, Fläche–Fläche, "
+               "Kante–Kante, Punkt–Fläche und Winkel in der kopierbaren Mess-Tafel. [[ansicht_3d_bedienung]]",
+     "3D-Ansichten: sechs Seiten, Perspektive, Drahtgitter, verdeckte Kanten, Messen mit exakten Kernwerten."],
     ["0.9.95", "<b>Satz in 3D</b>: Ein Satz aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen "
                "als Stecksystem), steht im neuen Fenster <i>Satz in 3D …</i> (Rechtsklick auf eine Position) in der "
                "Einbaulage der STEP-Datei. Dort "

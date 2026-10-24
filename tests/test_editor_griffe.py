@@ -173,7 +173,7 @@ a.grab()
 assert not w._mass_felder
 # gemerkt: neuer Editor übernimmt Darstellung und Raster
 d2 = SchneidwegDialog(None, p, k.profile["QR 40x40x3"], dict(maschine="T11", stange=6000), k, db.tabellen(), db)
-assert d2.ansicht3d.ansicht.darstellung == ansicht3d.DURCHSICHTIG and d2.editor.werkzeug.raster == 2.5
+assert d2.ansicht3d.ansicht.darstellung == ansicht3d.DARSTELLUNGEN[-1] and d2.editor.werkzeug.raster == 2.5
 assert d2.editor.werkzeug.masse is False and d2.editor.raster_feld.value() == 2.5
 # Körperkanten: Stirnflächen und Gehrung sind Kanten, die glatte Rundung nicht
 mo = ansicht3d.Modell(rohr3d.netz(eing, dict(QR, r_aussen=None), 500))

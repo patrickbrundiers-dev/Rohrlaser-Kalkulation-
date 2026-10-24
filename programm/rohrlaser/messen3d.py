@@ -63,13 +63,17 @@ def winkel_zwischen(a, b, gerichtet=False):
 
 # ---------------------------------------------------------------- Kreis aus Punkten
 def kreis_einpassen(pk):
-    """Ausgleichskreis durch einen geschlossenen Linienzug: dict(m, n, d, abw) oder None (kein Kreis). abw = größte
-    Abweichung eines Punkts vom Kreis [mm]."""
-    ring = pk[:-1] if len(pk) > 2 and math.dist(pk[0], pk[-1]) < 1e-6 else list(pk)
-    if len(ring) < 8:
+    """Ausgleichskreis durch einen geschlossenen Linienzug (Ende beim Anfang): dict(m, n, d, abw) oder None
+    (kein Kreis). abw = größte Abweichung eines Punkts vom Kreis [mm]."""
+    if len(pk) < 6:
         return None
+    schritt = max(math.dist(a, b) for a, b in zip(pk, pk[1:]))
+    bogen = math.dist(pk[0], pk[-1]) > 2 * schritt          # offen: Bogen (z. B. Ende eines Langlochs)
+    if not bogen and len(pk) < 9:
+        return None
+    ring = pk[:-1] if math.dist(pk[0], pk[-1]) < 1e-6 else list(pk)
     s = [0.0, 0.0, 0.0]                 # Normale nach Newell (auch für leicht gewölbte Ringe stabil)
-    for a, b in zip(ring, ring[1:] + ring[:1]):
+    for a, b in zip(ring, ring[1:] + ring[:1]):         # offener Bogen: über die Sehne geschlossen
         s[0] += (a[1] - b[1]) * (a[2] + b[2])
         s[1] += (a[2] - b[2]) * (a[0] + b[0])
         s[2] += (a[0] - b[0]) * (a[1] + b[1])
@@ -109,10 +113,12 @@ def kreis_einpassen(pk):
     r = math.sqrt(r2)
     abw = max(abs(math.hypot(x - mx, y - my) - r) for x, y in uv)
     tiefe = max(abs(_dot(_sub(q, c), n)) for q in ring)
-    if abw > max(0.02, 0.004 * r) or tiefe > max(0.05, 0.02 * r):
+    if abw > min(0.05, max(0.02, 0.004 * r)) or tiefe > max(0.05, 0.02 * r):
         return None
+    if bogen and sum(math.dist(a, b) for a, b in zip(pk, pk[1:])) / r < math.radians(60):
+        return None                     # zu kurzer Bogen: Mitte unsicher
     mitte = tuple(c[i] + e1[i] * mx + e2[i] * my for i in range(3))
-    return dict(m=mitte, n=n, d=2 * r, abw=abw)
+    return dict(m=mitte, n=n, d=2 * r, abw=abw, bogen=bogen)
 
 
 def stellen_fuer(abw):
@@ -136,18 +142,24 @@ class Geometrie:
         self.mitten = [dict(p=tuple(k["p"]), n=tuple(k.get("n") or (0, 1, 0)), id=k.get("id"))
                        for k in geo.get("mitten") or ()]
         exakt = {k["id"] for k in self.kreise} | {k["id"] for k in self.mitten}
+        # Genauigkeit der Netzpunkte: STEP-Netze sind auf 0,01 mm gerundet, dann höchstens zwei Stellen
+        p = netz.get("p") or []
+        self.raster = 3 if any(abs(c * 100 - round(c * 100)) > 1e-6 for c in p[:3000]) else 2
         segmente = []               # [(a, b, Linienzug-Nr.)] für Kanten
         for art, zuege in (netz.get("l") or {}).items():
             kennung = (netz.get("li") or {}).get(art) or []
             for nr, zug in enumerate(zuege):
                 pk = [tuple(zug[i:i + 3]) for i in range(0, len(zug) - 2, 3)]
                 kid = kennung[nr] if nr < len(kennung) else None
-                if art in ("K", "G", "EA", "EB") and kid not in exakt and len(pk) >= 9:
+                if art in ("K", "G", "EA", "EB") and kid not in exakt and len(pk) >= 6:
                     k = kreis_einpassen(pk)
                     if k is not None:
-                        self.kreise.append(dict(m=k["m"], n=k["n"], d=self._rohr_d(k["d"]), id=kid,
-                                                stellen=stellen_fuer(k["abw"])))
-                        continue
+                        d = self._rohr_d(k["d"])         # Rohrende: Ø genau aus dem Profil
+                        self.kreise.append(dict(m=k["m"], n=k["n"], d=d, id=kid, bogen=k["bogen"],
+                                                stellen=3 if d != k["d"] else min(self.raster,
+                                                                                 stellen_fuer(k["abw"]))))
+                        if not k["bogen"]:
+                            continue
                 if art in ("K", "G", "EA", "EB", "B", "HK"):
                     segmente += [(a, b) for a, b in zip(pk, pk[1:]) if math.dist(a, b) > 1e-6]
         segmente += [(a, b) for a, b, _ in modell.kanten()]
@@ -173,7 +185,7 @@ class Geometrie:
         mo = self.modell
         nummer, ebenen = mo.ebenen()
         i, j, k, _, n = mo.dreiecke[dreieck_nr]
-        z = self._zylinder(mo.punkte[i], mo.punkte[j], mo.punkte[k], n)
+        z = None if self.namen == NAMEN_GLOBAL else self._zylinder(mo.punkte[i], mo.punkte[j], mo.punkte[k], n)
         if z is not None:
             return z
         if dreieck_nr < len(nummer):
@@ -274,7 +286,8 @@ class Geometrie:
         zeilen = []
         if typ == "kreis":
             st = el.get("stellen", 3)
-            zeilen.append(f"Kreis Ø {zahl(el['d'], st)} mm" + ("" if st == 3 else " (aus dem Netz eingepasst)"))
+            groesse = f"Bogen R {zahl(el['d'] / 2, st)} mm" if el.get("bogen") else f"Kreis Ø {zahl(el['d'], st)} mm"
+            zeilen.append(groesse + ("" if st == 3 else " (aus dem Netz eingepasst)"))
             zeilen.append(f"Mitte: {self.lage(el['m'])}")
             zeilen.append(f"Achse: {self.richtung(el['n'])}")
         elif typ == "mitte":
@@ -537,7 +550,7 @@ class MessTafel(QFrame):
         QGuiApplication.clipboard().setText(self.klartext())
 
     def anordnen(self):
-        if not self.isVisible():
+        if self.isHidden():
             return
         self.adjustSize()
         a = self.ansicht

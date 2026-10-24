@@ -45,7 +45,10 @@ a.messen_setzen(True)
 for v in (m0, mo.mitten[1]):
     px, py, _ = bild(v)
     a.klicken(px, py)
-assert a.messpunkte[0] == m0 and abs(a.abstand() - math.dist(m0, mo.mitten[1])) < 1e-9
+# seit 3E-11 fängt Messen die exakte Kreismitte (auf der Wand, nicht 0,4 mm darüber) und die Mitte des Langlochs
+soll = [(0.0, 20.0, 100.0), (-20.0, 0.0, 300.0)]
+assert all(math.dist(p, q) < 1e-6 for p, q in zip(a.messpunkte, soll)), a.messpunkte
+assert abs(a.abstand() - math.dist(*soll)) < 1e-9
 assert a.mess_text().startswith("Abstand") and len(a.masse_fest) == 1
 # Winkel: drei Ecken
 a.messen_setzen(True, art=ansicht3d.MESS_WINKEL)

@@ -151,7 +151,7 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
             art = "S" if nr in hervor else "N" if nr in fehlend else "X" if hervor else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
-    return (dict(p=punkte, t=dreiecke, l={}) if punkte else None), ohne
+    return (dict(p=punkte, t=dreiecke, l={}, **{"global": True}) if punkte else None), ohne
 
 
 MESS_ABSTAND, MESS_WINKEL = "Abstand", "Winkel"
