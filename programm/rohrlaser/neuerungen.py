@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.98", "<b>Knickrahmen aus einem Körper sicherer erkannt</b>: Hatte ein Rahmen Bohrungen oder Ausschnitte nur "
+               "in einer Wand (z. B. eine Lochreihe oben an einem Schenkel), lag die berechnete Rahmenebene minimal "
+               "schief und der STEP-Import erkannte den Knickrahmen nicht. Die Ebene kommt jetzt genau von der "
+               "Rahmenwand ([[knickrahmen_koerper]]).",
+     "Knickrahmen aus einem Körper auch mit einseitigen Bohrungen erkannt."],
     ["0.9.97", "<b>Programmcode geschützt</b>: Der eigene Programmcode wird jetzt zu Maschinencode übersetzt "
                "ausgeliefert, in Programm und Online-Updates steckt kein lesbarer Quelltext mehr ([[updates]]). Neu "
                "sind die <b>Lizenzbedingungen</b>: Das Setup zeigt sie vor dem Installieren, im Programm stehen sie "

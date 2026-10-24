@@ -2293,7 +2293,8 @@ def kapitel_optimieren(i):
     i.text("Ist der geknickte Rahmen in der STEP-Datei <b>ein Körper</b> (Ecken ohne Spalt, Stegwand durchgehend), "
            "erkennt ihn der Import selbst, ebenso ein gestreckt gezeichnetes Rohr mit V-Ausschnitten. Die Rohrliste zeigt eine Zeile <b>Knickrahmen (n Knicke) aus einem "
            "Körper</b> mit der gestreckten Länge; übernommen wird sie wie eine Knickverbindung "
-           "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>.", kurz=True)
+           "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>. Bohrungen oder Ausschnitte nur in einer Wand "
+           "(z. B. eine Lochreihe oben) stören die Erkennung seit 0.9.98 nicht mehr.", kurz=True)
     i.bild("knickrahmen_koerper", "Knickrahmen aus einem Körper bearbeiten (Rechtsklick auf die Zeile)",
            hoehe=70 * mm,
            legende=[(1, "<b>Erster Schenkel</b>: dort liegt beim geschlossenen Rahmen der Stoß (Vorgabe: der erste "
