@@ -708,7 +708,8 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
-    i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
+    i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Aus STEP …</b> "
+           "([[angebot_aus_step]]), <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
            "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
            "Hinweis auf Beispielwerte, aufklappbar die Anzahl je Tabelle, <b>Einstellungen öffnen</b>) "
            "und <b>Daten und Sicherung</b>.", kurz=True)
@@ -804,6 +805,32 @@ def kapitel_angebote(i):
            "Die Signatur kommt wie bei der Materialanfrage aus Outlook bzw. aus den Einstellungen. "
            "<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
            "Wiedervorlagen von Hand bleiben.")
+    i.abschnitt("Neue Fassung", marke="neue_fassung")
+    i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
+           "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "
+           "Liste markierte Angebot) oder im Dialog <b>Kopieren</b> der Haken <i>Neue Fassung … statt Kopie</i>.",
+           kurz=True)
+    i.genauer()
+    i.text("Die neue Fassung behält die Nummer mit dem Zusatz <b>-2</b>, <b>-3</b> … (aus A-2026-0123 wird "
+           "A-2026-0123-2, aus der -2 die -3), den Kunden, die Positionen und die Staffeln. Sie bekommt das heutige "
+           "Datum, den Vorgang Entwurf und rechnet mit den aktuellen Preisen und Stundensätzen; festgeschrieben ist "
+           "noch nichts ([[preise_festschreiben]]). Der Zähler der Angebotsnummern zählt dabei nicht weiter.",
+           "Die bisherige Fassung steht danach in der Angebotsliste auf <b>Ersetzt durch …</b> (grau). Sie zählt auf "
+           "der Startseite in keinem Vorgang, erscheint nicht in der Wiedervorlage und nicht unter <i>Offen</i>; der "
+           "Filter <i>Ersetzt (alte Fassungen)</i> zeigt alle alten Fassungen. Ihr Reiter schließt sich, öffnen und "
+           "ansehen lässt sie sich weiter. Angebote der Kollegen bekommen keine Fassung, dort hilft <b>Kopieren</b>.")
+    i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
+    i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <i>Datei → Neues "
+           "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): Kunde bestätigen, das Programm legt das Angebot an und "
+           "startet gleich den STEP-Import.", kurz=True)
+    i.genauer()
+    i.text("Den Kunden schlägt das Programm aus dem Ordnernamen vor: Steht der Kundenname (ab 3 Zeichen) oder die "
+           "Kundennummer im Ordner der Dateien oder bis zu drei Ordnern darüber, z. B. <i>Anfragen\\Müller GmbH\\"
+           "2026-10</i>, ist dieser Kunde gewählt. Sonst steht der Kunde des zuletzt geänderten eigenen Angebots mit "
+           "Importprofil ([[importprofile]]) vorne; <i>(ohne Kunde)</i> geht auch. Das neue Angebot bekommt die "
+           "Kundenvorgaben ([[kundenvorgaben]]) und öffnet sich; danach läuft der Import wie mit <b>STEP "
+           "importieren</b> mit allen STEP-Dateien des Ordners samt Unterordnern ([[step]]). Andere Dateien (z. B. "
+           "PDF) bleiben unbeachtet; sind keine STEP-Dateien dabei, legt das Programm kein Angebot an.")
 
 
 def kapitel_angebot(i):

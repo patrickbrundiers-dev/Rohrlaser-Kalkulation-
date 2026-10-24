@@ -12,6 +12,8 @@ ZEITRAUM_TAGE = 90          # Kennzahlen: Angebote mit Datum in den letzten so v
 
 
 def _vorgang(z):
+    if z.get("ersetzt_durch"):          # alte Fassung (W10): zählt in keinem Vorgang, keine Wiedervorlage
+        return "Ersetzt"
     return z.get("vorgang") or VORGAENGE[0]
 
 

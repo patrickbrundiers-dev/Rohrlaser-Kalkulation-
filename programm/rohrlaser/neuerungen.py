@@ -21,13 +21,23 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.45", "<b>Nachfassen und Wiedervorlage</b>: Verschickte Angebote ohne Antwort stehen nach 10 Tagen "
+    ["0.9.47", "<b>Nachfassen und Wiedervorlage</b>: Verschickte Angebote ohne Antwort stehen nach 10 Tagen "
                "(Einstellung) auf der Startseite unter Wiedervorlage und im neuen Filter <i>Wiedervorlage fällig</i>, "
                "mit Grund. <b>Nachfassen …</b> bereitet die E-Mail an den Kunden aus einer Vorlage vor (gesendet wird "
                "in Outlook), <b>Nur vermerken</b> trägt einen Anruf "
                "ein; jedes Nachfassen steht im Versandverlauf. <b>Wiedervorlage …</b> setzt ein eigenes Datum, auch "
                "für Entwürfe ([[nachfassen]]).",
      "Nachfassen: automatische Wiedervorlage, E-Mail an den Kunden, eigenes Wiedervorlage-Datum ([[nachfassen]])."],
+    ["0.9.46", "<b>Neue Fassung</b>: <i>Datei → Neue Fassung des Angebots</i> oder der Haken im Dialog Kopieren legt "
+               "das Angebot mit gleicher Nummer und Zusatz -2, -3 … an: gleicher Kunde, heutiges Datum, aktuelle "
+               "Preise, Positionen und Staffeln. Die alte Fassung steht auf <b>Ersetzt durch …</b> und zählt in "
+               "keinem Vorgang mehr; Filter <i>Ersetzt (alte Fassungen)</i> ([[neue_fassung]]).",
+     "Neue Fassung -2, -3 statt Kopie; alte Fassung „Ersetzt“."],
+    ["0.9.45", "<b>Neues Angebot aus STEP</b>: STEP-Dateien oder einen Ordner auf die Angebotsliste oder die "
+               "Startseite ziehen oder <i>Datei → Neues Angebot aus STEP …</i>: Das Programm schlägt den Kunden aus dem Ordnernamen vor "
+               "(sonst den Kunden des letzten Angebots mit Importprofil), legt das Angebot mit den Kundenvorgaben an "
+               "und startet gleich den STEP-Import ([[angebot_aus_step]]).",
+     "Neues Angebot direkt aus STEP-Dateien oder Ordner, Kunde aus dem Ordnernamen."],
     ["0.9.44", "<b>Angebots-Check</b> vor dem Versand: Die Übersicht zeigt laufend alle offenen Punkte mit "
                "<b>Hinspringen</b> (Positionen mit FEHLER oder WARNUNG, Kunde, Fracht, Zukauf ohne Einkaufspreis, "
                "Hinweise der Kalkulation, Mindestmarge, Mindestauftragswert, Stammdaten geändert, Kunde ohne E-Mail, "
