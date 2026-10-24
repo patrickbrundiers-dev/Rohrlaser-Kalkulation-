@@ -2115,7 +2115,7 @@ def kapitel_optimieren(i):
             "<b>3D-Schnittbearbeitung</b> (seit 0.8.18, nur wenn ausgewählt): 3D ist ein Schnitt nur, wenn die "
             "Schnittfläche nicht senkrecht (90°) zur Rohroberfläche steht und der Laserkopf dafür geschwenkt wird. "
             "Bleibt der Strahl senkrecht zur Oberfläche, ist es 2D, auch bei einer Gehrung. <b>Schnittfläche</b> "
-            "(seit 0.9.88): In 2D steht der Strahl überall senkrecht zur Mantelfläche, die Innenkante liegt unter der "
+            "(seit 0.9.89): In 2D steht der Strahl überall senkrecht zur Mantelfläche, die Innenkante liegt unter der "
             "Außenkante – so zeichnet das 3D eine Gehrung in 2D (innen nicht eben). In 3D schwenkt der Kopf je Stelle "
             "so weit, dass die Schnittfläche eben durch die Wand geht: an den Wänden quer zur Kippachse um den "
             "Gehrungswinkel, an den Wänden parallel dazu gar nicht, beim Rundrohr stetig dazwischen. Braucht eine "

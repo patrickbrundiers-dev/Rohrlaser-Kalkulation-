@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.88", "<b>DXF-Import für Bleche</b>: im Blech-Editor <i>DXF importieren</i>, im Angebot <i>Neue Position → "
+    ["0.9.89", "<b>DXF-Import für Bleche</b>: im Blech-Editor <i>DXF importieren</i>, im Angebot <i>Neue Position → "
                "Bleche aus DXF</i> oder DXF-Dateien aufs Angebot ziehen. Die Kontur kommt genau wie gezeichnet "
                "(Bögen bleiben Bögen), Bohrung/Langloch/Rechteck nur bei exakter Form. Rahmen und Schriftfeld fallen "
                "weg, mehrere Bleche einer Zeichnung werden einzelne Positionen, Maßstab aus Bemaßung oder Schriftfeld. "
@@ -38,6 +38,8 @@ NEUERUNGEN = [
                "steht er auf 45° – diese Stücke sind gelb, die Position bekommt eine WARNUNG mit Ende und Länge, die "
                "Schneidzeit rechnet je Stück mit seinem Winkel.",
      "DXF-Import: genaue Kontur, Rahmen weg, mehrere Bleche, Werkstoff/Dicke vorgeschlagen ([[dxf_import]])."],
+    ["0.9.88", "Fehler behoben: Die Werkstatt-PDF mit Stangenbild brach bei der Strichpunkt-Linie ab.",
+     "Werkstatt-PDF mit Stangenbild wieder fehlerfrei."],
     ["0.9.87", "<b>Updates nur noch signiert</b>: Das Programm spielt nur noch Updates ein, deren Dateiliste mit dem "
                "Schlüssel des Herstellers digital signiert ist. Eine veränderte oder fremde Dateiliste lehnt es ab "
                "und bleibt auf der bisherigen Version ([[updates]]).",
