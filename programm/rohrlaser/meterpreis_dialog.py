@@ -11,7 +11,7 @@ Gewicht öffnet das Abmessungs-Fenster (Stangenbild, Schnittmuster, Bilanz, Teil
 €/m den Preis-Aufbau, auf Querschnitt oder Abmessung die Profil-Info; Rechtsklick auf eine Zeile zeigt alle Schritte.
 """
 from PySide6.QtCore import QPointF, QSize, Qt
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
                                QLabel, QLineEdit, QMenu, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
@@ -59,8 +59,8 @@ def querschnitt_pixmap(profil, groesse=BILD, farbe="#1F4E78"):
             for x in poly[1:]:
                 pfad.lineTo(punkt(*x))
             pfad.closeSubpath()
-        p.setPen(QPen(QColor(farbe), 1))
-        p.setBrush(QColor("#BDD7EE"))
+        p.setPen(QPen(stil.farbe(farbe), 1))
+        p.setBrush(stil.farbe("#BDD7EE"))
         p.drawPath(pfad)
     if q["linien"]:
         pfad = QPainterPath()
@@ -68,7 +68,7 @@ def querschnitt_pixmap(profil, groesse=BILD, farbe="#1F4E78"):
             pfad.moveTo(punkt(*zug[0]))
             for x in zug[1:]:
                 pfad.lineTo(punkt(*x))
-        p.setPen(QPen(QColor(farbe), 1.2))
+        p.setPen(QPen(stil.farbe(farbe), 1.2))
         p.setBrush(Qt.NoBrush)
         p.drawPath(pfad)
     p.end()

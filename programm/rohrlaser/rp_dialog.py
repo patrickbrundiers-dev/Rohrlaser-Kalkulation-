@@ -2,10 +2,10 @@
 
 Die Rechnung steckt in rp_profile.py; hier nur Dateiauswahl, Meldungen und die Zeichnung."""
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QLabel, QMessageBox, QVBoxLayout, QWidget
 
-from . import rp_profile
+from . import rp_profile, stil
 
 
 def _z(x, stellen=1):
@@ -37,7 +37,7 @@ class QuerschnittBild(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor("white"))
+        p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
         b, h = max(self.e["breite"], 1), max(self.e["hoehe"], 1)
         rand = 16
         m = min((self.width() - 2 * rand) / b, (self.height() - 2 * rand) / h)
@@ -56,9 +56,9 @@ class QuerschnittBild(QWidget):
                 pfad.moveTo(punkt(*pts[0]))
                 for q in pts[1:]:
                     pfad.lineTo(punkt(*q))
-        p.setPen(QPen(QColor("#1f4e79"), 1.6))
+        p.setPen(QPen(stil.farbe("#1F4E79"), 1.6))
         p.drawPath(pfad)
-        p.setPen(QPen(QColor("#999999"), 1, Qt.DashLine))
+        p.setPen(QPen(stil.farbe("#999999"), 1, Qt.DashLine))
         p.drawRect(QRectF(punkt(0, h), punkt(b, 0)))
         p.end()
 

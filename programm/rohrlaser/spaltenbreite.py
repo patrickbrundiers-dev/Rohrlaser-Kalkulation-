@@ -67,14 +67,33 @@ def _titel(ansicht, c):
     return str(ansicht.model().headerData(c, Qt.Horizontal, Qt.DisplayRole) or "")
 
 
+def _kopf_rand(ansicht):
+    """Platz im Spaltenkopf neben dem Text: Innenabstand je nach Dichte und der Sortierpfeil (der fehlte bisher,
+    dann stand z. B. „Programmierzei“ im Kopf; Dunkelmodus verbessern 24.10.2026)."""
+    from . import stil
+    rand = {"kompakt": 16, "komfortabel": 26}.get(stil._dichte, 20)
+    kopf = ansicht.horizontalHeader()
+    if kopf.isSortIndicatorShown() or getattr(ansicht, "isSortingEnabled", lambda: False)():
+        rand += 14
+    return rand
+
+
+def wortbreite(ansicht, c):
+    """Breite des längsten Worts im Spaltenkopf samt Rand: schmaler wird eine Spalte nie (auch nicht von Hand)."""
+    schrift = QFont(ansicht.horizontalHeader().font())
+    schrift.setBold(True)
+    fm = QFontMetrics(schrift)
+    return max([fm.horizontalAdvance(w) for w in _titel(ansicht, c).split()] or [0]) + _kopf_rand(ansicht)
+
+
 def kopfbreite(ansicht, c):
     """Breite, die der Spaltenkopf mindestens braucht: höchstens zweizeilig, kein Wort abgeschnitten."""
     schrift = QFont(ansicht.horizontalHeader().font())
     schrift.setBold(True)           # Spaltenköpfe sind fett (STIL), sonst wird der Kopf abgeschnitten
     fm = QFontMetrics(schrift)
-    titel = str(ansicht.model().headerData(c, Qt.Horizontal, Qt.DisplayRole) or "")
+    titel = _titel(ansicht, c)
     woerter = [fm.horizontalAdvance(w) for w in titel.split()] or [0]
-    return max(max(woerter), fm.horizontalAdvance(titel) / 2) + 20
+    return max(max(woerter), fm.horizontalAdvance(titel) / 2) + _kopf_rand(ansicht)
 
 
 def passende_breite(ansicht, c, max_breite=MAX_BREITE):
@@ -160,7 +179,8 @@ class AutoGroesse(QObject):
             for c in range(m.columnCount()):
                 b = breiten.get(_titel(a, c))
                 if isinstance(b, int) and b > 0 and c != letzte and not a.isColumnHidden(c):
-                    a.setColumnWidth(c, max(b, MIN_BREITE // 2))
+                    # gemerkte Breite nie schmaler als das längste Wort des Kopfes (sonst „Programmierzei“)
+                    a.setColumnWidth(c, max(b, MIN_BREITE // 2, min(wortbreite(a, c), self.max_breite)))
                     self.von_hand.add(c)
         finally:
             self._selbst = False
