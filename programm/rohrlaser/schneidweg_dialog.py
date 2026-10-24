@@ -69,6 +69,7 @@ LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitt
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE, GEWINDE_SPALTE = range(5, 14)
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
+EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -560,7 +561,21 @@ class SchneidwegDialog(QDialog):
             f.append("Teilelänge eingeben.")
         return f
 
+    def bezug_b_nachfuehren(self, alt, neu):
+        """Teilelänge geändert: Konturen mit Lage ab Ende B (Bezug im Eigenschaften-Feld) behalten ihren Abstand zu
+        Ende B, die Mitte ab Ende A wandert mit."""
+        if not alt or not neu or abs(neu - alt) < 1e-9 or not hasattr(self, "tabelle"):
+            return
+        self.tabelle.blockSignals(True)
+        for r in range(self.tabelle.rowCount()):
+            eig = getattr(self.tabelle.cellWidget(r, 0), "eig", None) or {}
+            x = _zahl(self.tabelle.item(r, LAGE_SPALTE).text())
+            if str(eig.get("bezug", "")).endswith("_b") and x is not None:
+                self.tabelle.item(r, LAGE_SPALTE).setText(rechnen.zahl(round(x + neu - alt, 3), 3))
+        self.tabelle.blockSignals(False)
+
     def _kopf_geaendert(self, *_):
+        self.bezug_b_nachfuehren(sw._z(self.p.get("laenge")), self.k_laenge.value())
         self.p = dict(self.p, werkstoff_id=self.k_werkstoff.currentText() or None, laenge=self.k_laenge.value() or None,
                       stueck=self.k_stueck.value() or None)
         pid = self.p.get("profil_id")
@@ -848,6 +863,8 @@ class SchneidwegDialog(QDialog):
         self.tabelle.setCellWidget(r, GEWINDE_SPALTE, g)
         self._kopf_hinweise(r)
         art.quer = bool(z.get("quer"))
+        # Eigenschaften je Kontur (3E-4, nur im Eigenschaften-Feld): Drehwinkel, Bezug der Lage, Schnittrichtung, Wände
+        art.eig = {k_: z[k_] for k_ in EIGENSCHAFTEN if z.get(k_) not in (None, "", 0)}
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
         extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle") if z.get(k_) is not None}
         art.extra = (art.currentText(), extra) if extra else None
@@ -954,6 +971,13 @@ class SchneidwegDialog(QDialog):
             combo = self.tabelle.cellWidget(r, 0)
             if getattr(combo, "quer", False):
                 z["quer"] = True
+            z.update(getattr(combo, "eig", None) or {})
+            kopien = sk.umlauf(self.qs, z)
+            if kopien:
+                z["kopien"] = kopien
+            else:
+                z.pop("wand", None)
+                z.pop("umfang_n", None)
             step = getattr(combo, "step", None)
             if step and step[0] == art and step[1] == self._mass_texte(r):
                 z.update(step[2])
@@ -1267,9 +1291,10 @@ class SchneidwegDialog(QDialog):
 
     def laenge_setzen(self, laenge):
         """Teilelänge im Dialog (neue Position: Kopfzeile; sonst gilt sie beim Übernehmen über das Ergebnis)."""
+        self.bezug_b_nachfuehren(sw._z(self.p.get("laenge")), laenge)
+        self.p = dict(self.p, laenge=laenge)
         if self.neu:
             self.k_laenge.setValue(laenge)
-        self.p = dict(self.p, laenge=laenge)
         self.skizze.laenge = laenge
         self._info_zeigen()
 

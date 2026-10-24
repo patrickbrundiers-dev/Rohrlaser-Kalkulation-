@@ -13,8 +13,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import massbild, optimierung as opt, rechenfeld as rf, schneidweg as sw, stil
+from . import massbild, optimierung as opt, rechenfeld as rf, schneidweg as sw, skizze as sk, stil
 
+BEZUG = {"mitte_a": "Mitte ab Ende A", "kante_a": "Kante ab Ende A", "mitte_b": "Mitte ab Ende B",
+         "kante_b": "Kante ab Ende B"}
+SCHNITT = {"": "senkrecht zur Oberfläche", "parallel": "parallel zur Konturachse (3D)"}
 ROHR_SPALTEN = dict(anzahl=1, lage=5, abstand=6, seite=7, quer=8, text=12, gewinde=13)
 BLECH_SPALTEN = dict(anzahl=1, x=5, y=6)
 
@@ -218,13 +221,13 @@ class Eigenschaften(QWidget):
                 self._zelle(titel.split(" (")[0], t, r, 2 + i)
         if self.art == "rohr":
             self._zelle("Anzahl", t, r, ROHR_SPALTEN["anzahl"], einheit="Stück")
-            self._zelle("Lage ab Ende A", t, r, ROHR_SPALTEN["lage"], tipp="Mitte der (ersten) Kontur ab Ende A; "
-                        "leer = gleichmäßig verteilt. Rechnung möglich, z. B. L/2")
+            self._lage(r, combo)
             self._zelle("Abstand Muster", t, r, ROHR_SPALTEN["abstand"], muster_zu=ROHR_SPALTEN["anzahl"])
             self._combo("Seite", t.cellWidget(r, ROHR_SPALTEN["seite"]))
             if not d.qs.r:
                 self._zelle("Versatz quer", t, r, ROHR_SPALTEN["quer"],
                             tipp="Versatz zur Flächenmitte (+ zur nächsten Fläche hin)")
+            self._rohr_eigenschaften(combo, art)
             if art in sw.MIT_GEWINDE:
                 self._combo("Gewinde", t.cellWidget(r, ROHR_SPALTEN["gewinde"]))
             self._zelle("Bemerkung", t, r, ROHR_SPALTEN["text"], text=True,
@@ -235,6 +238,89 @@ class Eigenschaften(QWidget):
             self._zelle("Mitte y", t, r, BLECH_SPALTEN["y"], tipp="in der Abwicklung ab unten")
         self._knoepfe(r)
         return f"{art} · Zeile {r + 1} von {t.rowCount()}"
+
+    # -------------------------------------------------------------- Eigenschaften je Kontur (3E-4, wie AlmaCAM)
+    def _eig_setzen(self, combo, schl, wert):
+        eig = dict(getattr(combo, "eig", None) or {})
+        if wert in (None, "", 0):
+            eig.pop(schl, None)
+        else:
+            eig[schl] = wert
+        if eig != (getattr(combo, "eig", None) or {}):
+            combo.eig = eig
+            self.d.rechnen()
+            self.zeigen(self.mid)       # Lage im neuen Bezug, Felder je Wahl (Anzahl am Umfang)
+
+    def _lage(self, r, combo):
+        """Lage mit Bezugspunkt: Mitte oder Kante der Kontur, ab Ende A oder B. In der Tabelle steht immer die Mitte
+        ab Ende A; mit Bezug ab Ende B bleibt der Abstand zu Ende B, wenn sich die Teilelänge ändert."""
+        t = self.d.tabelle
+        eig = getattr(combo, "eig", None) or {}
+        bezug = eig.get("bezug") or "mitte_a"
+        b = QComboBox()
+        for k, text in BEZUG.items():
+            b.addItem(text, k)
+        b.setCurrentIndex(max(0, b.findData(bezug)))
+        b.setToolTip("Bezugspunkt der Lage: Mitte oder Kante der Kontur (bei Ende A die Kante zu A hin, bei Ende B "
+                     "die zu B hin), gemessen ab Ende A oder Ende B")
+        b.activated.connect(lambda _=None: self._eig_setzen(combo, "bezug", "" if b.currentData() == "mitte_a"
+                                                            else b.currentData()))
+        self._form.addRow("Bezug der Lage", b)
+        self.felder["Bezug der Lage"] = b
+        L = self.groessen()["L"]
+        try:
+            halb = sk.laenge_x(self.d.eingaben()["konturen"][r]) / 2
+        except (IndexError, KeyError, TypeError, ValueError):
+            halb = 0.0
+        mitte = _zelle_zahl(t, r, ROHR_SPALTEN["lage"])
+
+        def anzeige(x):
+            if x is None:
+                return None
+            return {"kante_a": x - halb, "mitte_b": L - x, "kante_b": L - x - halb}.get(bezug, x)
+
+        def schreiben(v):
+            x = None if v is None else {"kante_a": v + halb, "mitte_b": L - v, "kante_b": L - v - halb}.get(bezug, v)
+            self._setzen(t, r, ROHR_SPALTEN["lage"], rf.zahl_text(round(x, 3), 3) if x is not None else "")
+        titel = BEZUG[bezug].replace("Mitte", "Lage Mitte").replace("Kante", "Lage Kante")
+        f = self._rechen(titel, anzeige(mitte), schreiben, "mm",
+                         "Lage der (ersten) Kontur; leer = gleichmäßig verteilt. Rechnung möglich, z. B. L/2",
+                         schluessel="Lage")
+        return f
+
+    def _rohr_eigenschaften(self, combo, art):
+        d = self.d
+        eig = getattr(combo, "eig", None) or {}
+        if art not in sk.DREH_OHNE and art not in (sw.SCHLITZ, sw.AUSKLINKUNG, sw.V_AUSSCHNITT):
+            self._rechen("Drehwinkel", sw._z(eig.get("drehung")) or 0.0,
+                         lambda v: self._eig_setzen(combo, "drehung", round(v, 3) % 360 if v else None), "°",
+                         "Drehung der Kontur auf der Fläche um ihre Mitte, + = gegen den Uhrzeiger (von außen gesehen); "
+                         "0 = Länge längs zum Teil", schluessel="Drehwinkel")
+        if d.qs.r and art not in sw.GRAVUREN and art != sw.FLOWDRILL:
+            f = QComboBox()
+            for k, text in SCHNITT.items():
+                f.addItem(text, k)
+            f.setCurrentIndex(max(0, f.findData(eig.get("schnitt") or "")))
+            f.setToolTip("Senkrecht: Strahl zur Rohrmitte (2D, Standard). Parallel: Lochwand parallel zur Achse der "
+                         "Kontur wie gebohrt – braucht die 3D-Schnittbearbeitung (Häkchen am Teil)")
+            f.activated.connect(lambda _=None: self._eig_setzen(combo, "schnitt", f.currentData()))
+            self._form.addRow("Schnittrichtung", f)
+            self.felder["Schnittrichtung"] = f
+        arten = sk.waende_arten(d.qs)
+        if len(arten) > 1:
+            w = QComboBox()
+            for k in arten:
+                w.addItem(sk.WAENDE[k], k)
+            w.setCurrentIndex(max(0, w.findData(eig.get("wand") or "")))
+            w.setToolTip("Beide Wände: dieselbe Kontur durchgehend auf der gegenüberliegenden Wand (zählt doppelt im "
+                         "Schneidweg). Alle vier Seiten bzw. am Umfang verteilt: Kopien rundherum")
+            w.activated.connect(lambda _=None: self._eig_setzen(combo, "wand", w.currentData()))
+            self._form.addRow("Wände", w)
+            self.felder["Wände"] = w
+            if eig.get("wand") == "umfang":
+                self._rechen("Anzahl am Umfang", sw._z(eig.get("umfang_n")) or 2,
+                             lambda v: self._eig_setzen(combo, "umfang_n", max(2, int(round(v or 2)))), "Stück",
+                             "so viele Konturen gleichmäßig am Umfang (z. B. 4 = alle 90°)", schluessel="Anzahl am Umfang")
 
     def _ende(self, s):
         d = self.d
