@@ -328,9 +328,9 @@ def gesperrte_dateien(ordner, plan):
     return out
 
 
-def _zurueck(von, nach, sekunden=KURZ_WARTEN_S, schlafen=time.sleep):
+def _zurueck(von, nach, sekunden=None, schlafen=time.sleep):
     """Umbenennen, bei einer kurzen Sperre (Virenscanner prüft die Datei gerade) einige Sekunden wiederholen."""
-    ende = time.monotonic() + sekunden
+    ende = time.monotonic() + (KURZ_WARTEN_S if sekunden is None else sekunden)
     while True:
         try:
             return _ersetzen(von, nach)
@@ -340,10 +340,10 @@ def _zurueck(von, nach, sekunden=KURZ_WARTEN_S, schlafen=time.sleep):
             schlafen(0.25)
 
 
-def warten_bis_frei(ordner, plan, sekunden=SPERR_WARTEN_S, melden=None, schlafen=time.sleep, uhr=time.monotonic):
+def warten_bis_frei(ordner, plan, sekunden=None, melden=None, schlafen=time.sleep, uhr=time.monotonic):
     """Bis zu sekunden warten, bis keine betroffene Datei mehr gesperrt ist. melden(gesperrt, rest_s) nach jeder
     Runde (Anzeige). Ergebnis: rel. Pfade, die dann noch gesperrt sind ([] = alles frei)."""
-    ende = uhr() + sekunden
+    ende = uhr() + (SPERR_WARTEN_S if sekunden is None else sekunden)
     while True:
         gesperrt = gesperrte_dateien(ordner, plan)
         rest = ende - uhr()
