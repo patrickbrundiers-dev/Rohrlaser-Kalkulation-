@@ -2699,12 +2699,14 @@ class AngebotSeite(QWidget):
                    and not ist_baugruppe(self.positionen[r]) and not self.positionen[r].get("bg_knoten")}
         p = dict(pos=self._naechste_pos(), art=BAUGRUPPE, stueck=1)
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), vorwahl, db=self._vorlagen_db(),
-                            einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id))
+                            einstellungen=self._vk_einstellungen(), netze=self.db.netze(self.id),
+                            profile=self.k.profile)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return False
         werte = dict(d.ergebnis["position"], pos=p["pos"])
         pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], None)
+        hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt." + "".join(f" {h}" for h in hinweise))
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
@@ -2726,7 +2728,7 @@ class AngebotSeite(QWidget):
             p = self.positionen[ziel[0]]
         d = BaugruppeDialog(self, p, self.positionen, self.tabellen, self._saetze(), db=self._vorlagen_db(),
                             nur_lesen=bool(self.fremd() or self.db.nur_lesen), einstellungen=self._vk_einstellungen(),
-                            netze=self.db.netze(self.id))
+                            netze=self.db.netze(self.id), profile=self.k.profile)
         if fokus:
             d.fokus(fokus)
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
@@ -2736,6 +2738,7 @@ class AngebotSeite(QWidget):
             if p.get(feld) != wert:
                 self.db.position_aendern(p["id"], feld, wert)
         hinweise = self._baugruppe_teile(d.ergebnis["teile"], alt_name)
+        hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
         return True
@@ -2760,7 +2763,63 @@ class AngebotSeite(QWidget):
 
     def _vk_einstellungen(self):
         return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit", "gravur_artikel",
-                                                    "gravur_schrifthoehe")}
+                                                    "gravur_schrifthoehe", "steck_anzahl", "steck_nase_min",
+                                                    "steck_spiel", "steck_ueberstand")}
+
+    def stecken_anwenden(self, stecken):
+        """Steckverbindungen aus dem Editor der Baugruppe in die Teile schreiben (stecken = dict(weg, dazu) aus
+        steckverbindung.aenderungen): Schlitze in die Aufnahme, Nasen an das Ende des Steckers, Schneidweg neu,
+        Länge des Steckers um die Nasen länger (bzw. wieder kürzer). Ergebnis: Hinweise."""
+        from . import steckverbindung as sv
+        if not stecken or not (stecken.get("weg") or stecken.get("dazu")):
+            return []
+        self.neu_laden()
+        nach_id = {q["id"]: q for q in self.positionen}
+        eing, laenge, hinweise = {}, {}, []
+
+        def eingaben(pid):
+            if pid not in eing:
+                q = nach_id[pid]
+                profil = self.k.profile.get(q.get("profil_id")) or {}
+                eing[pid] = schneidweg.aus_position(schneidweg.lesen(q.get("technik")), q, profil)[0]
+                laenge[pid] = 0.0
+            return eing[pid]
+        for v in stecken.get("weg") or ():
+            for pid in {q["id"] for q in self.positionen if v["id"] in sv.rollen(q.get("technik"))}:
+                eing[pid], weniger = sv.entfernen(eingaben(pid), v["id"])
+                laenge[pid] -= weniger
+        for v in stecken.get("dazu") or ():
+            a, s_ = (v.get("aufnahme") or {}).get("id"), (v.get("stecker") or {}).get("id")
+            if a not in nach_id or s_ not in nach_id:
+                hinweise.append(f"Steckverbindung {v['id']}: Teil fehlt, nicht übernommen")
+                continue
+            pa, ps = (self.k.profile.get(nach_id[x].get("profil_id")) or {} for x in (a, s_))
+            try:
+                eing[a], eing[s_], plus = sv.anwenden(v, eingaben(a), eingaben(s_), pa, ps)
+            except ValueError as f:
+                hinweise.append(f"Steckverbindung Pos. {nach_id[a].get('pos') or ''}/{nach_id[s_].get('pos') or ''}: {f}")
+                continue
+            laenge[s_] += plus
+        for pid, e in eing.items():
+            zeile = next((r for r, q in enumerate(self.positionen) if q["id"] == pid), None)
+            if zeile is None:
+                continue
+            if laenge[pid] and isinstance(self.positionen[zeile].get("laenge"), (int, float)):
+                self.db.position_aendern(pid, "laenge", round(self.positionen[zeile]["laenge"] + laenge[pid], 1))
+                self.neu_laden()
+                zeile = next(r for r, q in enumerate(self.positionen) if q["id"] == pid)
+            alt_stumm, self.f.stumm = self.f.stumm, True
+            try:
+                ok = self.schneidweg_berechnen(zeile, e, ueberschreiben=True)
+            finally:
+                self.f.stumm = alt_stumm
+            if not ok:
+                hinweise.append(f"Pos. {self.positionen[zeile].get('pos') or ''}: Steckverbindung, Schneidweg nicht "
+                                "gerechnet (Schneidweg-Rechner öffnen)")
+        n = len(stecken.get("dazu") or ())
+        if n:
+            hinweise.append(f"{n} Steckverbindung(en) in die Teile geschrieben (Schlitze und Nasen).")
+        return hinweise
 
     def gravur_vorgeben(self, pos, bericht):
         """Einstellung gravur_artikel = ja nach dem STEP-Import: Artikelnummer auf alle Bleche und Rohre der neuen

@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, blech, hilfe, stil, vorkalk
+from . import baugruppe, blech, hilfe, skizze, steckverbindung, stil, vorkalk
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
@@ -315,8 +315,10 @@ class BaugruppeDialog(QDialog):
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
 
     def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False,
-                 einstellungen=None, netze=None):
+                 einstellungen=None, netze=None, profile=None):
         super().__init__(parent)
+        # Profile der Stammdaten {profil_id: Zeile} für die Steckverbindungen (ohne: die der Angebotsseite)
+        self.profile = profile or getattr(getattr(parent, "k", None), "profile", None) or {}
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
         self.einstellungen = einstellungen or {}     # Stundensätze der Vorkalkulation (schweiss_vk_satz …)
         self.hilfe_vk, self.vk_ergebnis = {}, None
@@ -325,6 +327,8 @@ class BaugruppeDialog(QDialog):
         self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
         self.bg = baugruppe.lesen(p.get("baugruppe")) or baugruppe.leer()
         self.bg = copy.deepcopy(self.bg)
+        self.bg["steckverbindungen"] = [self._steck_flach(v) for v in steckverbindung.liste(self.bg)]
+        self.steck_alt = copy.deepcopy(steckverbindung.liste(baugruppe.lesen(p.get("baugruppe")) or {}))
         self.stand_alt = {n.get("id"): {k: n.get(k) for k in NAHT_SCHLUESSEL} for n in self.bg["naehte"]}
         self.stand_verwerfen = False
         self.ergebnis, self.erg, self.status = None, None, None
@@ -353,6 +357,7 @@ class BaugruppeDialog(QDialog):
         self.reiter.addTab(self._seite_struktur(), "Struktur und Teile")
         self.reiter.addTab(self._seite_naehte(), "Nahtgruppen")
         self.reiter.addTab(self._seite_arbeitsgaenge(), "Arbeitsgänge und Vorrichtungen")
+        self.reiter.addTab(self._seite_stecken(), "Steckverbindungen")
         self.reiter.addTab(self._seite_stamm(), "Stammdaten")
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
         self.reiter.addTab(self._seite_baum(), "Strukturbaum und 3D")
@@ -876,6 +881,207 @@ class BaugruppeDialog(QDialog):
         tab.aufbauen()
         self.aktualisieren()
 
+    # -------------------------------------------------------------- Steckverbindungen (Plan K2)
+    def _steck_flach(self, v):
+        """Verbindung als Zeile der Tabelle: Aufnahme, Stecker und Ende als eigene Felder."""
+        z = copy.deepcopy(v)
+        z["_auf"] = (v.get("aufnahme") or {}).get("id")
+        z["_st"] = (v.get("stecker") or {}).get("id")
+        z["_ende"] = (v.get("stecker") or {}).get("ende") or "a"
+        z["_schlitze"], z["_nasen"] = v.get("schlitze") is not False, v.get("nasen") is not False
+        return z
+
+    def _steck_daten(self, z):
+        """Zeile der Tabelle -> gespeicherte Verbindung (Aufnahme und Stecker mit Position und Unterbaugruppe)."""
+        v = {k: w for k, w in z.items() if not k.startswith("_")}
+        teile = {t["_id"]: t for t in self.teile}
+        for rolle, pid in (("aufnahme", z.get("_auf")), ("stecker", z.get("_st"))):
+            t = teile.get(pid)
+            v[rolle] = dict(id=pid, pos=t["_q"].get("pos") if t else None, knoten=(t or {}).get("knoten") or "")
+        v["stecker"]["ende"] = z.get("_ende") or "a"
+        for k in ("schlitze", "nasen"):
+            v.pop(k, None)
+            if z.get("_" + k) is False:
+                v[k] = False
+        return v
+
+    def _steck_profil(self, pid):
+        t = next((t for t in self.teile if t["_id"] == pid), None)
+        return self.profile.get(t["_q"].get("profil_id")) if t else None
+
+    def _steck_einst(self):
+        return {n[6:]: w for n, w in self.einstellungen.items() if n.startswith("steck_")}
+
+    def _steck_fehler(self, z):
+        ids = {t["_id"] for t in self.teile if t.get("drin")}
+        if z.get("_auf") not in ids or z.get("_st") not in ids:
+            return "Aufnahme und Stecker müssen Teile dieser Baugruppe sein"
+        if z.get("_nasen") is not False:        # je Ende des Steckers nur eine Verbindung mit Nasen
+            for n, y in enumerate(self.bg["steckverbindungen"], 1):
+                if y is z:
+                    break
+                if y.get("_st") == z.get("_st") and y.get("_ende") == z.get("_ende") and y.get("_nasen") is not False:
+                    return (f"Ende {'A' if z.get('_ende') == 'a' else 'E'} des Steckers hat schon Nasen aus "
+                            f"Steckverbindung {n}: Haken „Nasen schneiden“ weg")
+        return steckverbindung.pruefen(self._steck_daten(z), self._steck_profil(z["_auf"]) or {},
+                                       self._steck_profil(z["_st"]) or {})
+
+    def _steck_teile(self):
+        return [(f"Pos. {t['_q'].get('pos') or ''} {t['_q'].get('artikel') or t['_q'].get('profil_id') or ''}".strip(),
+                 t["_id"]) for t in self.teile if t.get("drin") and t["_q"].get("profil_id")]
+
+    def _steck_text(self, z, _r):
+        f = self._steck_fehler(z)
+        if f:
+            return (f, True)
+        v = self._steck_daten(z)
+        return steckverbindung.text(v, steckverbindung.masse(v, self._steck_profil(z["_auf"]),
+                                                              self._steck_profil(z["_st"])))
+
+    def _seite_stecken(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        self.steck_tab = ZeilenTabelle([
+            Spalte("_auf", "Aufnahme\n(Schlitze)", "auswahl", 170, optionen=self._steck_teile),
+            Spalte("_st", "Stecker\n(Nasen)", "auswahl", 170, optionen=self._steck_teile),
+            Spalte("_ende", "Ende\nStecker", "auswahl", 60, optionen=[("A", "a"), ("E", "b")]),
+            Spalte("x", "Lage x auf der\nAufnahme [mm]", "zahl", 95, tipp="Mitte des Steckers ab Ende A der Aufnahme"),
+            Spalte("seite", "Seite der\nAufnahme", "auswahl", 80, frei=True,
+                   optionen=[(t, t) for t in steckverbindung.SEITEN_KASTEN],
+                   tipp="Wand der Aufnahme, an der der Stecker sitzt (Rundrohr: Winkel, z. B. 90°)"),
+            Spalte("anzahl", "Nasen", "auswahl", 55, optionen=[(str(n), n) for n in steckverbindung.ANZAHLEN]),
+            Spalte("bN", "Nasen-\nbreite [mm]", "zahl", 70),
+            Spalte("c", "Spiel je\nSeite [mm]", "zahl", 65),
+            Spalte("ueberstand", "Über-\nstand [mm]", "zahl", 60),
+            Spalte("waende", "Wände mit\nNasen", "auswahl", 75, optionen=[(t, t) for t in steckverbindung.WAENDE],
+                   tipp="quer = Wände quer zur Achse der Aufnahme (Vorgabe), längs = um 90° gedreht"),
+            Spalte("winkel", "Winkel der\nAchsen [°]", "zahl", 70, tipp="90 = senkrecht, schräg bis 30°"),
+            Spalte("_schlitze", "Schlitze\nschneiden", "haken", 65,
+                   tipp="Aus: gleiches Teil, die Schlitze schneidet schon eine andere Verbindung"),
+            Spalte("_nasen", "Nasen\nschneiden", "haken", 65,
+                   tipp="Aus: dieses Ende des Steckers hat die Nasen schon aus einer anderen Verbindung"),
+            Spalte("_text", "Schlitz und Nasen", "anzeige", 260, anzeige=self._steck_text)],
+            self.bg["steckverbindungen"], self.aktualisieren)
+        lay.addWidget(self.steck_tab, 1)
+        leiste = QHBoxLayout()
+        neu = QPushButton("Steckverbindung hinzufügen")
+        neu.setToolTip("Zwischen den zwei im Reiter „Struktur und Teile“ markierten Teilen (sonst den ersten beiden Rohren "
+                       "der Baugruppe); Vorgaben aus den Einstellungen")
+        neu.clicked.connect(lambda: self.steck_neu())
+        tausch = QPushButton("Aufnahme und Stecker tauschen")
+        tausch.clicked.connect(lambda: self.steck_tauschen())
+        alle = QPushButton("Alle Stöße stecken")
+        alle.setToolTip("Je Rohrende, das in der STEP-Datei auf einem anderen Rohr sitzt, eine Steckverbindung mit "
+                        "Lage und Seite aus der Datei (nur Baugruppen aus dem STEP-Import)")
+        alle.clicked.connect(lambda: self.steck_alle())
+        weg = QPushButton("Markierte entfernen")
+        weg.setToolTip("Schlitze und Nasen fallen beim Speichern in beiden Teilen weg")
+        weg.clicked.connect(lambda: self._entfernen(self.bg["steckverbindungen"], self.steck_tab))
+        for b in (neu, alle, tausch, weg):
+            b.setEnabled(not self.nur_lesen if hasattr(self, "nur_lesen") else True)
+            leiste.addWidget(b)
+        leiste.addStretch(1)
+        lay.addLayout(leiste)
+        lay.addWidget(hilfe.Hinweis(
+            "Der Stecker stößt mit einem Ende an die Aufnahme. Beim Speichern bekommt die Aufnahme je Nase einen "
+            "Schlitz (Rechteck mit Spiel), das Ende des Steckers die Nasen; Schneidweg, Einstiche und die Länge des "
+            "Steckers werden neu gerechnet. Lage x und Seite: Mitte des Steckers auf der Aufnahme.",
+            schluessel="baugruppe_steckverbindungen"))
+        return w
+
+    def steck_neu(self, auf=None, st=None, **werte):
+        """Neue Steckverbindung (auf/st = Positions-IDs; ohne: markierte Teile bzw. die ersten beiden Rohre). Der
+        Stecker ist das zweite Teil. Ergebnis: Kennung oder None."""
+        if auf is None or st is None:
+            rohre = [t for t in self.teile if t.get("drin") and (self.profile.get(t["_q"].get("profil_id")) or {})
+                     .get("form") in steckverbindung.FORMEN]
+            mark = [self.teile[r] for r in self.teile_tab.markierte() if r < len(self.teile)]
+            wahl = [t for t in mark if t in rohre] if len(mark) == 2 else rohre[:2]
+            if len(wahl) < 2:
+                QMessageBox.information(self, "Steckverbindung", "Die Baugruppe braucht zwei Rohre (Quadrat-, "
+                                        "Rechteck- oder Rundrohr); im Reiter „Struktur und Teile“ zwei markieren.")
+                return None
+            auf, st = wahl[0]["_id"], wahl[1]["_id"]
+        teile = {t["_id"]: t["_q"] for t in self.teile}
+        v = steckverbindung.neu(teile[auf], teile[st], self._steck_profil(st) or {}, self._steck_einst(),
+                                **werte) if (self._steck_profil(st) or {}).get("form") in steckverbindung.FORMEN \
+            else dict(id=baugruppe.neue_id(), aufnahme=dict(id=auf), stecker=dict(id=st, ende=werte.get("ende") or "a"),
+                      anzahl=2, c=0.1, **{k: w for k, w in werte.items() if k in ("x", "seite") and w is not None})
+        self.bg["steckverbindungen"].append(self._steck_flach(v))
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        return v["id"]
+
+    def steck_alle(self, melden=True):
+        """„Alle Stöße stecken“: je Stoß der STEP-Messung (bg['stoesse']: Rohrende an Rohrwand, Körpernummern) eine
+        Verbindung mit Lage, Seite und Achswinkel aus der Datei. Gleiche Teile: Schlitze nur am ersten Körper der
+        Aufnahme, Nasen je Ende des Steckers nur einmal; schon vorhandene Verbindungen bleiben. Ergebnis: (neu,
+        übersprungen)."""
+        stoesse = [s_ for s_ in self.bg.get("stoesse") or () if isinstance(s_, dict)]
+        if not stoesse:
+            if melden:
+                QMessageBox.information(self, "Alle Stöße stecken", "Keine Stöße aus der STEP-Datei: Nur Baugruppen aus "
+                                        "dem STEP-Import (Häkchen „als Schweißbaugruppe“) kennen die Lage der Rohrenden. "
+                                        "Sonst mit „Steckverbindung hinzufügen“ anlegen.")
+            return 0, 0
+        besitzer = {}
+        for t in self.teile:
+            if t.get("drin") and (self._steck_profil(t["_id"]) or {}).get("form") in steckverbindung.FORMEN:
+                for k in self._netz(t["_id"]).get("koerper") or ():
+                    besitzer.setdefault(str(k), set()).add(t["_id"])
+        erster = {}                 # Aufnahme -> erster Körper (dort die Schlitze)
+        for s_ in sorted(stoesse, key=lambda x: (len(str(x.get("aufnahme"))), str(x.get("aufnahme")))):
+            ids = besitzer.get(str(s_.get("aufnahme"))) or ()
+            if len(ids) == 1:
+                erster.setdefault(next(iter(ids)), str(s_.get("aufnahme")))
+        vorhanden = self.bg["steckverbindungen"]
+        schlitze = {(z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
+                    for z in vorhanden if z.get("_schlitze") is not False}
+        nasen = {(z.get("_st"), z.get("_ende")) for z in vorhanden if z.get("_nasen") is not False}
+        neu = weg = 0
+        for s_ in stoesse:
+            auf_, st_ = besitzer.get(str(s_.get("aufnahme"))) or (), besitzer.get(str(s_.get("stecker"))) or ()
+            ende = s_.get("ende") if s_.get("ende") in ("a", "b") else None
+            if len(auf_) != 1 or len(st_) != 1 or not ende or not isinstance(s_.get("z"), (int, float)):
+                weg += 1
+                continue
+            auf, st = next(iter(auf_)), next(iter(st_))
+            if self._steck_profil(auf).get("form") == "Rundrohr":
+                seite = skizze.winkel_text(s_["winkel"]) if isinstance(s_.get("winkel"), (int, float)) else None
+            else:
+                seite = steckverbindung.SEITE_STEP.get(s_.get("seite"))
+            x = round(float(s_["z"]), 1)
+            mit_schlitz = erster.get(auf) == str(s_.get("aufnahme")) and (auf, round(x), str(seite or "")) not in schlitze
+            mit_nasen = (st, ende) not in nasen
+            if not (mit_schlitz or mit_nasen):
+                continue
+            vid = self.steck_neu(auf, st, ende=ende, x=x, seite=seite)
+            z = vorhanden[-1]
+            w = s_.get("achswinkel")
+            if isinstance(w, (int, float)) and steckverbindung.WINKEL_MIN <= w < 89.5:
+                z["winkel"] = round(w, 1)
+            z["_schlitze"], z["_nasen"] = mit_schlitz, mit_nasen
+            schlitze.add((auf, round(x), str(seite or "")))
+            nasen.add((st, ende))
+            neu += 1 if vid else 0
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        if melden:
+            QMessageBox.information(self, "Alle Stöße stecken", f"{neu} Steckverbindung(en) angelegt"
+                                    + (f", {weg} Stoß/Stöße nicht zuordenbar (Teil fehlt in der Baugruppe oder ist "
+                                       "kein Rohr)" if weg else "") + ". Lage und Seite bitte prüfen.")
+        return neu, weg
+
+    def steck_tauschen(self, zeilen=None):
+        for r in zeilen if zeilen is not None else self.steck_tab.markierte():
+            z = self.bg["steckverbindungen"][r]
+            v = steckverbindung.tauschen(self._steck_daten(z), self._steck_profil(z.get("_auf")) or {},
+                                         self._steck_einst()) if self._steck_profil(z.get("_auf")) else None
+            if v:
+                self.bg["steckverbindungen"][r] = self._steck_flach(v)
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+
     # -------------------------------------------------------------- Stammdaten und Übersicht
     def _seite_stamm(self):
         w = QWidget()
@@ -923,6 +1129,9 @@ class BaugruppeDialog(QDialog):
         for n, f in getattr(self, "stamm_wahl", {}).items():
             if f.isChecked():
                 bg["stamm"][n] = True
+        bg["steckverbindungen"] = [self._steck_daten(v) for v in self.bg["steckverbindungen"]]
+        if not bg["steckverbindungen"]:
+            bg.pop("steckverbindungen")
         return bg
 
     def _position(self, bg=None):
@@ -1130,7 +1339,7 @@ class BaugruppeDialog(QDialog):
         return x["werte"] if x else {}
 
     # -------------------------------------------------------------- Strukturbaum und 3D (D1)
-    BAUM = 5                    # Index des Reiters
+    BAUM = 6                    # Index des Reiters
 
     def _seite_baum(self):
         w = QWidget()
@@ -1531,7 +1740,7 @@ class BaugruppeDialog(QDialog):
 
     def pruefen(self):
         """Fehlertext (ungültige Zahlen, Struktur), sonst None."""
-        for tab in (self.knoten_tab, self.teile_tab, self.naht_tab, self.ag_tab):
+        for tab in (self.knoten_tab, self.teile_tab, self.naht_tab, self.ag_tab, self.steck_tab):
             if tab.ungueltig:
                 return "Bitte nur Zahlen eintragen (rot markierte Felder)."
         fehler = baugruppe.struktur_fehler(self.bg)
@@ -1539,6 +1748,10 @@ class BaugruppeDialog(QDialog):
             return fehler
         if any(t.get("drin") and t.get("gravur") and not 1 <= (t.get("gravur_h") or 0) <= 200 for t in self.teile):
             return "Schrifthöhe der Gravur zwischen 1 und 200 mm eingeben."
+        for n, v in enumerate(self.bg["steckverbindungen"], 1):
+            f = self._steck_fehler(v)
+            if f:
+                return f"Steckverbindung {n}: {f}"
         for liste in (self.bg["naehte"], self.bg["arbeitsgaenge"]):
             for x in liste:
                 for k, v in x.items():
@@ -1572,5 +1785,6 @@ class BaugruppeDialog(QDialog):
             q = t["_q"]
             if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
+        weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
         return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel")},
-                    teile=teile)
+                    teile=teile, stecken=dict(weg=weg, dazu=dazu))
