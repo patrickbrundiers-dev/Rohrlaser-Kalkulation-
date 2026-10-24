@@ -11,6 +11,7 @@ lizenz (Tests, Entwicklung) voller Zugriff ohne Hinweise."""
 import datetime
 import os
 import re
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -33,12 +34,34 @@ from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
+ANLEITUNG_KOPIE = "Anleitung"     # Unterordner im Datenordner (anleitung_kopie)
 KURZANLEITUNG = "Kurzanleitung.pdf"
 FARBE_EINGABE = stil.farbe_fest("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
 FARBE_BERECHNET = stil.farbe_fest("#EDEDED")
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
 FARBE_STATUS = {"FEHLER": stil.farbe_fest("#F8CBAD"), "WARNUNG": stil.farbe_fest("#FFD966"), "OK": FARBE_BERECHNET}
 
+
+
+def anleitung_kopie(pfad, ordner):
+    """Kopie der Anleitung im Datenordner (Unterordner Anleitung), damit der PDF-Betrachter nie die Datei im
+    Programmordner festhält: die ließe sich sonst beim Online-Update nicht austauschen (WinError 32). Die Kopie wird
+    erneuert, wenn sie fehlt oder sich Größe bzw. Zeitstempel unterscheiden. Ist die alte Kopie gerade geöffnet,
+    bleibt sie; ganz ohne Kopie das Original."""
+    ziel = Path(ordner) / Path(pfad).name
+    try:
+        q = Path(pfad).stat()
+        if ziel.is_file():
+            z = ziel.stat()
+            if z.st_size == q.st_size and int(z.st_mtime) == int(q.st_mtime):
+                return ziel
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ziel.with_name(ziel.name + ".neu")
+        shutil.copy2(pfad, tmp)
+        os.replace(tmp, ziel)
+        return ziel
+    except OSError:
+        return ziel if ziel.is_file() else Path(pfad)
 
 class StammdatenModell(QAbstractTableModel):
     """Eine Stammdatentabelle: Eingabefelder, berechnete Spalten, Prüfung. Jede Änderung wird sofort
@@ -1108,11 +1131,10 @@ class StartSeite(QWidget):
             ereignis.acceptProposedAction()
 
     def dropEvent(self, ereignis):
-        from .angebot_fenster import step_neu_pfade
+        from .angebot_fenster import step_drop, step_neu_pfade
         pfade = step_neu_pfade(ereignis)
         if pfade:
-            ereignis.acceptProposedAction()
-            self.f.angebote.neu_aus_step(pfade)
+            step_drop(self.f, ereignis, self, lambda: self.f.angebote.neu_aus_step(pfade))
 
     def neu_laden(self):
         db = self.f.db
@@ -1213,6 +1235,7 @@ class Hauptfenster(QMainWindow):
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
+        self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
         try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.28 entfernt)
             db.zeichnungen_entfernen(self.ablage())
@@ -1764,9 +1787,10 @@ class Hauptfenster(QMainWindow):
 
     def anleitung_oeffnen(self, datei=ANLEITUNG):
         """Bedienungsanleitung.pdf bzw. Kurzanleitung.pdf neben dem Programm (liegt im ZIP), beim Entwickeln aus dem
-        Ordner anleitung."""
+        Ordner anleitung. Geöffnet wird eine Kopie im Datenordner (anleitung_kopie). Ergebnis: geöffnete Datei."""
         for pfad in (self.programmordner / datei, self.programmordner.parent / "anleitung" / datei):
             if pfad.is_file():
+                pfad = anleitung_kopie(pfad, self.db.pfad.parent / ANLEITUNG_KOPIE)
                 self.datei_oeffnen(pfad)
                 return pfad
         QMessageBox.warning(self, Path(datei).stem, f"{datei} wurde nicht gefunden.\n\n"
