@@ -32,6 +32,9 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("N", "nicht übernehmbar", "#FF00FF", None),    # nicht messbare Teile (Rohnetz in Dateilage), magenta
     ("BL", "Blech", "#C9D6E3", None),               # Blech-Editor (blech3d)
     ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
+    ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen
+    ("SV", "Nahtvorschläge (STEP)", "#D000D0", "#D000D0"),  # Teilfarben sichtbar), offene Nahtkandidaten magenta
+    ("SH", "gewählte Naht", "#FF0000", "#FF0000"),
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -47,6 +50,7 @@ TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", 
 FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
 FARBE["X"] = QColor("#D9DDE2")         # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
+NAEHTE, NAHT_BREITE = ("SN", "SV", "SH"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
 HINTERGRUND = QColor("#FFFFFF")
 MARKIERT = QColor("#2E75B6")        # Teile-Editor: gewähltes Merkmal
 MESSEN = QColor("#B42318")
@@ -288,7 +292,8 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             liste.append((2, (ra[2] + rb[2]) / 2, (ra, rb), art, 1.0))
     liste.sort(key=lambda e: (e[0], e[1]))
     p.setRenderHint(QPainter.Antialiasing, glatt)
-    stift_linie = {a: QPen(LINIE.get(a, QColor("#C00000")), 2.2, Qt.SolidLine, Qt.RoundCap) for a in LINIE}
+    stift_linie = {a: QPen(LINIE.get(a, QColor("#C00000")), NAHT_BREITE if a in NAEHTE else 2.2, Qt.SolidLine,
+                           Qt.RoundCap) for a in LINIE}
     for schicht, _, punkte, art, hell in liste:
         poly = [QPointF(ox + q[0] * massstab, oy - q[1] * massstab) for q in punkte]
         if schicht == 2:
