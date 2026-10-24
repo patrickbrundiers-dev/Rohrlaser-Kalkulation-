@@ -716,9 +716,11 @@ def kapitel_start(i):
     i.liste("<b>Heute, Eigene Angebote</b>: Anzahl und Verkaufspreis netto der eigenen Angebote je Vorgang (Entwurf, "
             "Verschickt, Beauftragt, Abgelehnt), dieselben Summen wie in der Angebotsliste. Ein Klick auf den Vorgang "
             "öffnet die Angebotsliste mit diesem Filter ([[angebote]]).",
-            "<b>Wiedervorlage</b>: verschickte Angebote, deren Gültigkeit ([[vorgaben]], <i>Gültigkeit</i>) in den "
-            "nächsten 7 Tagen endet oder schon vorbei ist (rot); Doppelklick öffnet das Angebot. Ein guter Zeitpunkt "
-            "zum Nachfassen beim Kunden.",
+            "<b>Wiedervorlage</b>: eigene Angebote zum Nachfassen, mit Grund: verschickt und seit einigen Tagen ohne "
+            "Antwort, Gültigkeit ([[vorgaben]], <i>Gültigkeit</i>) endet in den nächsten 7 Tagen oder ist vorbei, "
+            "oder eine Wiedervorlage von Hand ist erreicht; überfällige rot. Doppelklick bzw. <b>Öffnen</b> öffnet "
+            "das Angebot, <b>Nachfassen vermerken …</b> und <b>Wiedervorlage …</b> gelten für das markierte "
+            "([[nachfassen]]).",
             "<b>Letzte 90 Tage</b> (nur mit Admin-Lizenz): Zahl und Summe der Angebote, Durchschnittswert, beauftragte "
             "Angebote mit Auftragswert und die Trefferquote (beauftragt geteilt durch beauftragt + abgelehnt).")
     i.abschnitt("Suchen und ausführen (Strg+K)", marke="befehlspalette")
@@ -762,8 +764,8 @@ def kapitel_angebote(i):
            "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand; vor <i>Verschickt</i> öffnet sich "
            "das Angebot mit dem Angebots-Check, wenn noch etwas offen ist ([[angebots_check]]). <b>Gültig bis</b> ist das "
            "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
-           "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i> oder <i>Verschickt und "
-           "abgelaufen</i> zum Nachfassen, <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
+           "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i>, <i>Verschickt und "
+           "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
            "Gelöschte Angebote enthält die tägliche Sicherung weiter.",
            "Die Spalte <b>Bearbeiter</b> zeigt das Kürzel des Mitarbeiters, der ein Angebot angelegt hat. Mit "
@@ -778,6 +780,23 @@ def kapitel_angebote(i):
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
            "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es. <b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
+    i.abschnitt("Nachfassen und Wiedervorlage", marke="nachfassen")
+    i.text("Verschickte Angebote ohne Antwort kommen nach einigen Tagen (Einstellung <i>Nachfassen: Wiedervorlage "
+           "nach Tagen</i>, Vorgabe 10) von selbst auf die Startseite unter <b>Wiedervorlage</b> und in den Filter "
+           "<i>Wiedervorlage fällig</i>. Nach dem Anruf oder der E-Mail an den Kunden <b>Nachfassen vermerken …</b>.",
+           kurz=True)
+    i.liste("<b>Nachfassen vermerken …</b> (Angebotsliste <i>Vorgang ▾</i>, Startseite, im Angebot <i>Ausgaben</i>): "
+            "heute nachgefasst, per Telefon, E-Mail oder persönlich. Das steht mit Datum im Versandverlauf "
+            "(Mauszeiger auf <i>Preise festgeschrieben</i> in der Übersicht), und die Tage zählen ab dann neu. "
+            "Die E-Mail selbst schreibt man wie bisher im Mailprogramm.",
+            "<b>Wiedervorlage …</b>: ein eigenes Datum, auch für einen Entwurf (z. B. „Kunde meldet sich Mitte "
+            "November“). Bis dahin ruht das automatische Nachfassen; am Tag steht das Angebot in der Wiedervorlage. "
+            "<b>Keine Wiedervorlage</b> nimmt das Datum wieder weg.",
+            "Mit Beauftragt oder Abgelehnt fällt ein Angebot aus der Wiedervorlage. Angebote der Kollegen erscheinen "
+            "dort nicht; vermerken kann nur, wer das Angebot angelegt hat.")
+    i.genauer()
+    i.text("<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
+           "Wiedervorlagen von Hand bleiben.")
     i.abschnitt("Neue Fassung", marke="neue_fassung")
     i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
            "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "
@@ -3535,6 +3554,8 @@ def kapitel_einstellungen(i):
                             "(E-Mail-Datei; leer = Briefkopf)",
          "ja = Outlook setzt seine Standardsignatur, der Text kommt davor; die E-Mail-Datei bekommt die eigene "
          "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
+        ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",
+         "Tage bis zur automatischen Wiedervorlage eines verschickten Angebots ([[nachfassen]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten, zugleich Admin-Passwort beim Start; verschlüsselt gespeichert, Feld bleibt "
                                                     "leer; <b>Entfernen</b> = ohne Passwort"]],
