@@ -798,6 +798,9 @@ EINSTELLUNGEN = (
     Einstellung("step_ordner", "STEP-Import: Standardordner (leer = zuletzt benutzter Ordner)", "STEP-Import",
                 "ordner",
                 ""),
+    # Ordner je Angebot (B3): Vorgabe für das Häkchen im STEP-Prüfdialog (Kopie in <Angebotsordner>\\STEP)
+    Einstellung("step_kopieren", "STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren (Vorgabe)",
+                "STEP-Import", "auswahl", "nein", auswahl="janein"),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),
@@ -875,7 +878,8 @@ EINSTELLUNGEN = (
     # Nachfassen verschickter Angebote (Plan A9): Wiedervorlage nach Tagen ohne Entscheidung
     Einstellung("nachfassen_tage", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)", "Nachfassen",
                 "ganz", 10, 0, 365),
-    Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "text", ""),
+    # je Angebot ein Ordner darin (angebotsordner.py): '2026-00042 Kunde', Fassungen als 'Fassung 2'
+    Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "ordner", ""),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
     Einstellung("profilformen", "Profilformen (eine je Zeile)", "Auswahllisten", "mehrzeilig",

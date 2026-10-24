@@ -640,7 +640,8 @@ def kapitel_start(i):
         ["Daten\\rohrlaser.db", "Datendatei: Stammdaten, Einstellungen, alle Angebote. Wird beim ersten Start "
                                 "angelegt."],
         ["Daten\\Sicherung\\", "automatische Sicherungen der Datendatei ([[datensicherung]])"],
-        ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht)"],
+        ["Angebote\\", "Ablage für PDF und CSV-Export (wenn in den Einstellungen nichts anderes steht), je "
+                       "Angebot ein Ordner ([[angebotsordner]])"],
         ["Update.json", "Liste der Programmdateien des installierten Stands (für das Update, Abschnitt "
                         "<i>Updates</i>)"]],
         [60, 205])
@@ -748,7 +749,8 @@ def kapitel_angebote(i):
         (1, "Reiter <b>Angebote</b>: alle Angebote, die neuesten oben."),
         (2, "<b>Neues Angebot</b>: nächste Nummer, heutiges Datum, Standard-Maschine und -Stangenlänge."),
         (3, "<b>Kopieren</b>: Kopie mit neuer Nummer, z. B. für eine Nachbestellung oder einen anderen Kunden. "
-            "Daneben <b>Öffnen</b> und <b>Löschen</b>."),
+            "Daneben <b>Öffnen</b>, <b>Löschen</b> und <b>Ordner öffnen</b> (Ordner des markierten Angebots mit "
+            "allen PDFs, [[angebotsordner]])."),
         (4, "<b>Suchen</b> nach Nummer, Kunde, Kundennummer, Bemerkung, Artikelnummer oder Bezeichnung.")])
     i.tabelle(["Spalte", "Farben und Werte"], [
         ["Status", "<i>Nicht optimiert</i> gelb · <i>Optimiert</i> grün · <i>Veraltet</i> rot (neu optimieren) · "
@@ -859,7 +861,7 @@ def kapitel_angebot(i):
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, abweichende Werte orange „(n abweichend von den Einstellungen)“. Auf- und Zuklappen von "
            "Fracht und Kalkulation gilt für alle Angebote. Die Trennlinien zwischen oben und unten und zur Übersicht "
-           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ablage öffnen</b> "
+           "lassen sich mit der Maus verschieben; bei kleinen Fenstern rollt der obere Teil. <b>Ordner öffnen</b> "
            "und der <b>CSV-Export</b> liegen im Menü <b>Ausgaben</b>.",
            "<b>Spaltenbreite und Zeilenhöhe</b> passen sich in allen Tabellen dem Inhalt an (höchstens etwa 260 "
            "Punkte, Zeiten 420; die letzte Spalte füllt den Rest). Langer Text bricht um, höchstens drei Zeilen, der "
@@ -1368,7 +1370,9 @@ def kapitel_step(i):
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien wechseln "
             "die Pfeil-Knöpfe oben zwischen den Dateien (<i>Datei 2 von 7: …</i>). Dort je Teil festlegen, ob es "
             "übernommen wird, und Profil, Werkstoff und Stückzahl wählen. <b>Übernehmen</b> legt die Positionen "
-            "aller Dateien an, <b>Abbrechen</b> verwirft die Messung.",
+            "aller Dateien an, <b>Abbrechen</b> verwirft die Messung. Ist unten <b>STEP-Dateien in den Ordner des "
+            "Angebots kopieren</b> angehakt, kommen die STEP-Dateien beim Übernehmen in den Unterordner <i>STEP</i> "
+            "im Ordner des Angebots ([[angebotsordner]]; Vorgabe in den Einstellungen).",
             "Enthält eine STEP mehrere Teile, steht sie als <b>Baugruppe</b> in der Liste und die 3D-Ansicht zeigt "
             "sie zusammengebaut. Oben steht das Feld <b>Sätze</b>, vorbelegt mit 1: die Baugruppe wird ein Satz; "
             "leer = jedes Teil als Einzelposition (siehe Baugruppen als Satz).",
@@ -1725,7 +1729,7 @@ def kapitel_step(i):
             "Lässt sich ein Ende oder eine Kontur nicht neu rechnen (z. B. sonstige Kontur, Wechsel auf ein offenes "
             "Profil), gilt die gemessene Länge mit Hinweis; im Schneidweg-Rechner ist die Zeile <b>gelb</b>.",
             "Bei jedem STEP-Import legt das Programm das vollständige Messergebnis als <b>JSON-Datei</b> in die "
-            "Ablage: <i>&lt;Angebot&gt; STEP-Messung &lt;Datum Uhrzeit&gt;.json</i>. Der Pfad steht im Bericht. Die "
+            "Ordner des Angebots: <i>&lt;Angebot&gt; STEP-Messung &lt;Datum Uhrzeit&gt;.json</i>. Der Pfad steht im Bericht. Die "
             "Datei enthält je STEP-Datei den Importstatus, die Einheit und die Meldungen. Je Körper kommen dazu "
             "Profiltyp, Außen- und Innenmaße, Wandstärke mit allen Einzelmessungen, Länge, Längsachse, Konturen "
             "mit Lage, Schnittwinkel, Prüfstatus, Warnungen und die Erkennungssicherheit je Merkmal. Werte, die "
@@ -3245,10 +3249,10 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Stangenbild), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
             "<b>Materialanfrage (E-Mail)</b> (Stangenbedarf beim Lieferanten anfragen, [[materialanfrage]]), "
             "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen, einzeln oder zusammen als ZIP, [[csv_export]]), "
-            "darunter <b>Schneidweg berechnen …</b>, <b>Schweißnaht …</b> und <b>Ablage öffnen</b>."),
+            "darunter <b>Schneidweg berechnen …</b>, <b>Schweißnaht …</b> und <b>Ordner öffnen</b>."),
         (3, "<b>Schrittanzeige</b>: ④ Verschickt wird erledigt, sobald das Angebot verschickt ist (Vorgang, [[angebote]]).")])
-    i.text("Jede Datei wird im Ablageordner gespeichert und gleich geöffnet. Ist die Optimierung veraltet, fragt das "
-           "Programm vorher.", kurz=True)
+    i.text("Jede Datei wird im Ordner des Angebots gespeichert ([[angebotsordner]]) und gleich geöffnet. Ist die "
+           "Optimierung veraltet, fragt das Programm vorher.", kurz=True)
     i.genauer()
     i.text("Bei schmalem Fenster (z. B. 1366 px Bildschirmbreite) rücken <b>Angebot (PDF)</b> und <b>Ausgaben</b> "
            "rechtsbündig in eine zweite Zeile unter die Arbeitsknöpfe.",
@@ -3270,7 +3274,7 @@ def kapitel_ausgabe(i, seiten, ablage):
            "interne Ablage und die Schneidzeit je Teil nach Konturklassen; zum Schluss das Stangenbild wie in den "
            "Werkstattpapieren. Spalten ohne Wert (z. B. Gewinde, Gravur, Mehrzeit 3D) sind ausgeblendet.",
            "<b>CSV-Export</b> schreibt Angebotskopf und Angebotspositionen im festen Spaltenformat "
-           "([[csv_export]]); <b>Ablage öffnen</b> (im Menü Ausgaben) zeigt den Ablageordner im Explorer.")
+           "([[csv_export]]); <b>Ordner öffnen</b> (im Menü Ausgaben) zeigt den Ordner des Angebots im Explorer.")
     i.text("<b>Angebotstext einer Position</b>: jede Angabe steht in einer eigenen Zeile, nicht hintereinander. "
            "Reihenfolge: Profil, Länge, Werkstoff (<i>inkl. Material</i> mit dem Text im Angebot des Werkstoffs), "
            "Oberfläche, dann je Zusatzarbeit, Gewinde oder Gravur eine Zeile <i>inkl. …</i> und je Zukaufteil mit "
@@ -3278,7 +3282,29 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>Quadratrohr 40 x 40 x 3<br/>L = 550 mm<br/>inkl. Material S235 EN10219<br/>inkl. Gewinde 4xM6<br/>"
            "inkl. Senken</i><br/>"
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile.")
-    i.text("Die Dateien heißen nach der Angebotsnummer, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".")
+    i.abschnitt("Ordner je Angebot", marke="angebotsordner")
+    i.text("Jedes Angebot hat in der Ablage einen eigenen Ordner <i>Nummer Kunde</i>, z. B. "
+           "<i>2026-00042 Stahlbau Ostermann</i>. Alles, was das Programm zum Angebot speichert, kommt dort hinein: "
+           "Angebot, Kalkulation, Werkstattpapiere, Nachkalkulation, Zeichnungen, CSV-Export, Materialanfrage und "
+           "STEP-Messung. <b>Ordner öffnen</b> (Übersicht und Menü Ausgaben) zeigt ihn im Explorer.", kurz=True)
+    i.genauer()
+    i.text("Die Dateien behalten die Angebotsnummer vorne im Namen, damit sie auch als E-Mail-Anhang erkennbar "
+           "bleiben, z. B.: " + ", ".join(f"<i>{a}</i>" for a in ablage) + ".",
+           "<b>Fassungen</b> (-2, -3, [[neue_fassung]]) liegen als Unterordner <i>Fassung 2</i>, <i>Fassung 3</i> im "
+           "Ordner der ersten Fassung.",
+           "Der Ordner wird bei der ersten Ausgabe angelegt und behält seinen Namen, auch wenn sich der Kunde "
+           "später ändert. Bekommt ein Angebot mit vorläufiger Nummer (<i>V-PB-1</i>, [[mehrere_arbeitsplaetze]]) seine "
+           "endgültige, benennt das Programm Ordner und Dateien darin auf die neue Nummer um.",
+           "<b>STEP-Dateien</b>: Mit dem Haken <i>STEP-Dateien in den Ordner des Angebots kopieren</i> im Prüfdialog "
+           "kommen die importierten STEP-Dateien in den Unterordner <i>STEP</i>. Vorbelegt wird der Haken mit der "
+           "Einstellung <i>STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren</i> (Vorgabe nein). Eine "
+           "gleichnamige Datei mit anderem Inhalt wird nicht überschrieben, sondern als <i>Name (2).stp</i> "
+           "abgelegt. Nachträglich geht das nicht, weil das Angebot sich die Herkunft der Teile nicht merkt.",
+           "<b>Ältere Dateien</b>, die noch lose in der Ablage liegen, verschiebt das Programm beim ersten Start "
+           "einmalig in den Ordner ihres Angebots (unten im Fenster steht, wie viele). Gerade geöffnete Dateien "
+           "und Dateien, die es im Ordner schon gibt, bleiben liegen.",
+           "Die Ablage gilt je Arbeitsplatz. Sollen Kollegen die Ordner sehen, als <i>Ablageordner</i> einen "
+           "Netzordner eintragen ([[einstellungen]]).")
     i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
     i.text("<b>CSV-Export</b> → <b>Kopf + Positionen (ZIP)</b> speichert <i>Angebot_&lt;Nr&gt;.zip</i> mit "
            "<i>Angebotskopf.csv</i> (eine Zeile) und <i>Angebotspositionen.csv</i> (eine Zeile je Position) in der "
@@ -3430,7 +3456,7 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff und Text "
             "im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
             "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "
-            "das Programm eine E-Mail-Datei (<i>&lt;Angebot&gt; Materialanfrage.eml</i>) in der Ablage und öffnet sie "
+            "das Programm eine E-Mail-Datei (<i>&lt;Angebot&gt; Materialanfrage.eml</i>) im Ordner des Angebots und öffnet sie "
             "im Standard-Mailprogramm. Sie ist als Entwurf markiert; dort prüfen und senden. "
             "<b>Als E-Mail-Datei speichern</b> geht diesen Weg direkt.",
             "Mehrere Lieferanten: je Lieferant eine Anfrage (oben wählen, öffnen, dann den nächsten). Zeilen ohne "
@@ -3478,7 +3504,7 @@ def kapitel_nachkalkulation(i):
             "Rechnung</b> [€] und eine <b>Bemerkung Nachkalkulation</b>. Grau steht im leeren Feld das Soll."),
         (3, "Vergleich je Kostenart: Menge und Betrag Soll und Ist, Abweichung in € und %. Darunter Einzelkosten, "
             "Erlös und <b>Deckungsbeitrag</b> (Erlös − Einzelkosten)."),
-        (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ablageordner: oben Kacheln mit Erlös, "
+        (4, "<b>Nachkalkulation (PDF)</b> speichert den Vergleich im Ordner des Angebots: oben Kacheln mit Erlös, "
             "Einzelkosten Ist, Abweichung und Deckungsbeitrag Ist/Soll, Abweichungen farbig (rot = teurer bzw. "
             "schlechter als kalkuliert, grün = günstiger bzw. besser). <b>Ist-Werte löschen</b> setzt "
             "alles zurück. <b>Rest wie geplant</b> setzt alle noch leeren Ist-Werte auf das Soll, so dass nur die "
@@ -3667,6 +3693,9 @@ def kapitel_einstellungen(i):
          "Ordner, in dem der Dateidialog <i>STEP importieren …</i> startet, z. B. das Laufwerk mit den "
          "Kundenzeichnungen. <b>Ordner wählen …</b> sucht ihn aus, <b>Leeren</b> nimmt ihn heraus; leer (oder der "
          "Ordner ist nicht erreichbar) = der Dialog startet im zuletzt benutzten STEP-Ordner ([[step]])."],
+        ["STEP-Import", "STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren (Vorgabe)",
+         "ja = der Haken im STEP-Prüfdialog ist vorbelegt und die STEP-Dateien kommen in den Unterordner "
+         "<i>STEP</i> im Ordner des Angebots ([[angebotsordner]]); im Dialog je Import änderbar."],
         ["STEP-Import", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
@@ -3742,9 +3771,10 @@ def kapitel_einstellungen(i):
                     "Absenderzeile über der Anschrift, alle Zeilen in der Fußzeile. Die Zahlungsbedingung (Skonto, "
                     "Zahlungsziel) setzt das Programm aus dem Angebotskopf vor die Bedingungen, sie gehört nicht in "
                     "dieses Feld."],
-        ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export; leer = Ordner <i>Angebote</i> neben dem "
+        ["Ablage", "Ablageordner", "Ziel für PDF und CSV-Export, darin je Angebot ein Ordner "
+                                   "([[angebotsordner]]); leer = Ordner <i>Angebote</i> neben dem "
                                    "Programm (portabel) bzw. <i>Dokumente\\Rohrlaser Angebote</i> (installiert). "
-                                   "Auch ein Netzlaufwerk ist möglich."],
+                                   "<b>Ordner wählen …</b> sucht ihn aus. Auch ein Netzlaufwerk ist möglich."],
         ["Ablage", "Zweiter Sicherungsordner", "zusätzliche Sicherung beim Beenden und mit <i>Datensicherung "
                                                "erstellen</i>, z. B. Netzlaufwerk, OneDrive oder USB-Stick; leer = "
                                                "keiner ([[datensicherung]])"],

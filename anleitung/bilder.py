@@ -822,7 +822,9 @@ def main(ziel):
         seiten[art] = n
         for nr in range(1, n + 1):
             pdf_seite(pfad, foto, f"pdf_{art}_{nr}", nr)
-    ablage = sorted(p.name for p in (programmordner / "Angebote").iterdir())
+    # je Angebot ein Ordner (angebotsordner.py): Ordnername + Dateien darin
+    ordner = Path(pdfs["angebot"]).parent
+    ablage = [ordner.name + "\\"] + sorted(p.name for p in ordner.iterdir() if p.is_file())
 
     # 10) STEP-Import in ein neues Angebot (Testteile aus tests/step)
     neu = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Teile laut Zeichnung (STEP)"))
