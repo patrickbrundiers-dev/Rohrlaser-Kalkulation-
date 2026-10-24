@@ -3925,7 +3925,9 @@ def kapitel_mehrere(i):
             "<b>Ordner nicht erreichbar</b> (Laptop unterwegs, Netz weg): das Angebot bekommt eine <b>vorläufige "
             "Nummer</b> (V-PB-1); der Reiter zeigt <i>(vorläufige Nummer)</i>. Die endgültige Nummer kommt beim "
             "nächsten Abgleich von selbst (Meldung in der Statuszeile). Angebots-PDF und Materialanfrage gehen erst "
-            "mit endgültiger Nummer: das Programm versucht sie dann sofort zu holen.",
+            "mit endgültiger Nummer: das Programm versucht sie dann sofort zu holen. Neue Fassungen eines solchen "
+            "Angebots (V-PB-1-2, [[neue_fassung]]) bekommen dieselbe endgültige Nummer mit ihrem Zusatz "
+            "(2026-00042-2); <i>Ersetzt durch …</i> stimmt danach weiter.",
             "Ohne gemeinsamen Ordner (nur ein Arbeitsplatz) zählt das Programm im gleichen Format auf diesem Rechner. "
             "Den Startwert setzt die Einstellung <i>Letzte Angebotsnummer</i> (z. B. 2026-00500: das nächste Angebot "
             "bekommt 2026-00501).",

@@ -116,6 +116,23 @@ teilen.schreiben(pb)
 assert nummern.zaehler(pb.angebot(v3)["nummer"]) == 109
 ok("Schreiben in den gemeinsamen Ordner vergibt vorläufige Nummern vorher endgültig")
 
+# neue Fassung eines Angebots mit vorläufiger Nummer: endgültig mit Zusatz, Fassungsbezüge mitgeändert
+pb.einstellung_setzen("teilen_ordner", str(weg))
+g = pb.angebot_neu(dict(datum="2027-01-05", kunde="Fassung"))
+f2 = pb.angebot_fassung(g)
+f3 = pb.angebot_fassung(f2)
+gn = pb.angebot(g)["nummer"]
+assert nummern.vorlaeufig(gn) and pb.angebot(f3)["nummer"] == gn + "-3" and nummern.vorlaeufig(gn + "-3")
+pb.einstellung_setzen("teilen_ordner", str(gemeinsam))
+umn = nummern.endgueltig(pb, f3)                    # vor dem Angebots-PDF der neuesten Fassung: ganze Gruppe
+nr = pb.angebot(g)["nummer"]
+assert nummern.zaehler(nr) == 110 and [n for _, n in umn] == [nr, nr + "-2", nr + "-3"], umn
+assert pb.angebot(f2)["nummer"] == nr + "-2" and pb.angebot(f3)["fassung_basis"] == nr
+assert pb.angebot(g)["ersetzt_durch"] == nr + "-2" and pb.angebot(f2)["ersetzt_durch"] == nr + "-3"
+assert pb.fassung_nummer(f3) == nr + "-4"
+ok("neue Fassung einer vorläufigen Nummer (V-PB-1-3) wird mit der Grundnummer endgültig (2027-00110-3), "
+   "Bezüge Ersetzt durch und Grundnummer stimmen")
+
 # ---------------------------------------------------------------- ohne gemeinsamen Ordner: lokal
 lokal = Datenbank(tmp / "lokal" / "rohrlaser.db")
 lokal.einstellung_setzen("letzte_angebotsnummer", "A-2026-0099")
