@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.57", "<b>Naht im 3D zeichnen</b>: Im Baugruppen-Editor (Reiter <i>Strukturbaum und 3D</i>) lässt sich eine "
+               "Schweißnaht direkt am Modell zeichnen: <i>Naht zeichnen</i>, Punkte entlang der Naht anklicken, "
+               "<i>Als Nahtgruppe übernehmen</i>. Länge, beteiligte Teile, Unterbaugruppe und Wanddicke ermittelt das "
+               "Programm ([[baugruppe_baum]]).",
+     "Schweißnaht im 3D der Baugruppe von Hand zeichnen ([[baugruppe_baum]])."],
     ["0.9.56", "<b>Schweißnähte in 3D</b>: Im Baugruppen-Editor zeigt der Reiter <i>Strukturbaum und 3D</i> die "
                "Schweißnähte als Linien am Modell: Nahtgruppen schwarz, offene Nahtvorschläge magenta, die gewählte "
                "Nahtgruppe rot. Den Nahtverlauf liefert der STEP-Import ab dieser Version; ältere Importe neu "

@@ -7,9 +7,12 @@
 - ohne 3D-Daten nur der Baum mit Hinweis
 - Schweißnähte sichtbar (N1): Nahtkandidaten tragen den Nahtverlauf (STEP-JSON 1.16 'linien'), Vorschlag und
   übernommene Nahtgruppe behalten ihn, die 3D-Ansicht zeichnet Nähte (SN), offene Vorschläge (SV), gewählte Naht (SH)
+- Naht im 3D zeichnen (N2): Punkte anklicken (Linienzug), Länge, berührte Teile (Körper), Unterbaugruppe und Wanddicke
+  ermittelt das Programm, daraus wird eine Nahtgruppe mit Nahtverlauf
 
 Testdatei: tests/step_struktur/S03_Rahmen_geschweisst.step. Aufruf: python tests/test_baugruppe_baum.py
 """
+import math
 import os
 import sys
 import tempfile
@@ -74,7 +77,7 @@ assert all(len(z) >= 6 and len(z) % 3 == 0 for z in stumpf["linien"])
 ok(f"STEP-Import: Netz je Position mit allen Lagen und Körpern ({koerper_alle} Körper), Nahtgruppe kennt ihre Körper")
 
 # ------------------------------------------------------------------ Baum und 3D im Editor
-d = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0}, netze=netze)
+d = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0}, db=db, netze=netze)
 d.vorschlaege_uebernehmen([d.bg["vorschlaege"].index(next(x for x in d.bg["vorschlaege"]
                                                          if x["nahtart"] == "Stumpfnaht"))])
 naht = d.bg["naehte"][0]
@@ -121,10 +124,47 @@ assert w["teile"][t0["id"]]["bg_knoten"] == baugruppe.zuordnung_text(d.bg["id"],
 ok("Reiter Strukturbaum und 3D: ganze Baugruppe in Einbaulage, Nahtgruppe/Teil/Unterbaugruppe hervorgehoben, "
    "Schweißnähte und Vorschläge sichtbar, Ziehen ordnet zu")
 
+# ------------------------------------------------------------------ Naht im 3D zeichnen (N2)
+d.baum.setCurrentItem(d.baum_items[("bg", "")])
+a3 = d.ansicht3d.ansicht
+assert d.zeichnen_leiste.isVisibleTo(d) and not d.zeichnen_ok.isEnabled()
+d.zeichnen_knopf.setChecked(True)
+assert a3.messen and a3.mess_max == 0
+zug = [tuple(z[i:i + 3]) for z in naht["linien"][:2] for i in range(0, len(z), 3)]
+zug = [q for i, q in enumerate(zug) if i == 0 or q != zug[i - 1]]      # Ecke zwischen zwei Kanten nur einmal
+assert len(zug) >= 3, zug
+a3.messpunkte = list(zug) + [(9999.0, 9999.0, 9999.0)]
+a3.punkt_zurueck()                                                      # letzten (falschen) Punkt zurück
+assert a3.messpunkte == zug
+d._zeichnen_stand()
+assert d.zeichnen_ok.isEnabled() and "mm" in d.zeichnen_text.text()
+soll = sum(math.dist(x, y) for x, y in zip(zug, zug[1:]))
+assert abs(a3.abstand() - soll) < 1e-6
+d.zeichnen_art.setCurrentText("Stumpfnaht")
+anzahl = len(d.bg["naehte"])
+nid = d.naht_aus_punkten()
+assert len(d.bg["naehte"]) == anzahl + 1
+neu = next(x for x in d.bg["naehte"] if x["id"] == nid)
+assert neu["quelle"] == "3D" and neu["nahtart"] == "Stumpfnaht" and abs(neu["laenge"] - round(soll, 1)) < 0.05, neu
+assert neu["koerper"] == sorted(naht["koerper"]), (neu, naht)          # dieselben zwei Rohre wie der Kandidat
+assert neu.get("dicke") and neu.get("mass") == neu["dicke"], neu       # Wand aus dem Profil
+assert len(neu["linien"]) == 1 and len(neu["linien"][0]) == 3 * len(zug)
+assert d.baum.currentItem() is d.baum_items[("naht", nid)] and "SH" in a3.netz["l"]
+assert a3.messen and a3.messpunkte == []                                # Zeichenmodus bleibt, Zug leer
+# Punkte frei im Raum: keine Teile, Nahtgruppe der Baugruppe ohne Körper
+nid2 = d.naht_aus_punkten([(9999.0, 0.0, 0.0), (9999.0, 50.0, 0.0)], nahtart="Kehlnaht")
+neu2 = next(x for x in d.bg["naehte"] if x["id"] == nid2)
+assert neu2["knoten"] == "" and "koerper" not in neu2 and neu2["laenge"] == 50.0
+assert d.naht_aus_punkten([(0.0, 0.0, 0.0)]) is None
+d.zeichnen_knopf.setChecked(False)
+assert not a3.messen
+ok("Naht im 3D zeichnen: Linienzug, Teile, Länge und Wand ermittelt, Nahtgruppe mit Nahtverlauf")
+
 # ------------------------------------------------------------------ ohne 3D-Daten
 d2 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0})
 d2.reiter.setCurrentIndex(d2.BAUM)
 assert d2.ansicht3d is None and "Keine 3D-Daten" in d2.baum_info.text()
+assert not d2.zeichnen_leiste.isVisibleTo(d2)
 assert d2.baum.topLevelItem(0).childCount() >= len(teile)
 ok("ohne 3D-Daten: Baum mit Hinweis")
 print("Strukturbaum mit 3D: alle Tests bestanden.")
