@@ -14,7 +14,8 @@ Eingaben (JSON in positionen.technik, quelle QUELLE):
             (Mittellinie [[x, y], [x, y]]), winkel, ba (Bogenlänge), radius (gemessener Innenradius, None = scharf)}] für Skizze, 3D-Ansicht
             und Kantbarkeit
   konturen: Innenkonturen wie im Schneidweg-Rechner (Bohrung, Senkung, Langloch, Rechteck, Polygon, sonstige)
-            mit Anzahl, optional x/y = Mitte in der Abwicklung [mm]
+            mit Anzahl, optional x/y = Mitte in der Abwicklung [mm]; Text-Gravur (text, hoehe, winkel, x/y, z. B. die
+            Artikelnummer) wird nur graviert: Gravurlänge ÷ Vorschub Gravur der Richtwerte, kein Einstich
   step: True aus dem STEP-Import; der Blech-Editor ersetzt es beim ersten Öffnen durch die Eingaben wie gemessen
             (ohne stueck). Der Teile-Editor zeigt damit je Merkmal die Herkunft STEP oder manuell und setzt zurück.
 
@@ -37,7 +38,7 @@ ZUSCHNITT, KANTTEIL = "Zuschnitt (flach)", "Kantteil"
 ARTEN = (ZUSCHNITT, KANTTEIL)
 RECHTECK, POLYGON = "Rechteck", "Polygon"
 FORMEN = (RECHTECK, POLYGON)
-KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE)
+KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE, sw.TEXT_GRAVUR)
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
 ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
@@ -192,6 +193,149 @@ def _halbmass(z):
         mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
         return max(abs(y - my) for _, y in pk), max(math.hypot(x - mx, y - my) for x, y in pk)
     return None
+
+
+def _punkt_strecke(p, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy or 1.0)))
+    return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
+
+
+def _innen(p, pk):
+    """Punkt p im Polygon pk (Strahlverfahren)."""
+    x, y = p
+    drin = False
+    for (x1, y1), (x2, y2) in zip(pk, pk[1:] + pk[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            drin = not drin
+    return drin
+
+
+def _abstand_rechteck(r, a, b):
+    """Abstand der Strecke a–b vom achsparallelen Rechteck r = (x1, y1, x2, y2); 0 wenn sie es schneidet."""
+    x1, y1, x2, y2 = r
+    ecken = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+    if any(x1 <= px <= x2 and y1 <= py <= y2 for px, py in (a, b)):
+        return 0.0
+    def kreuz(p, q, u, v):
+        def d(o, s, t):
+            return (s[0] - o[0]) * (t[1] - o[1]) - (s[1] - o[1]) * (t[0] - o[0])
+        return d(p, q, u) * d(p, q, v) < 0 and d(u, v, p) * d(u, v, q) < 0
+    if any(kreuz(a, b, ecken[i], ecken[(i + 1) % 4]) for i in range(4)):
+        return 0.0
+    return min([_punkt_strecke(c, a, b) for c in ecken] +
+               [_punkt_strecke(p, ecken[i], ecken[(i + 1) % 4]) for p in (a, b) for i in range(4)])
+
+
+GRAVUR_ABSTAND = 0.5    # mm: Gravur mindestens so weit von Außenkontur, Innenkonturen und Biegelinien (Patrick)
+
+
+def _gravur_hindernisse(e, z, k=K_FAKTOR):
+    """(Außenkontur, Strecken, Kreise) für die Lage einer Text-Gravur z; None ohne Zuschnitt."""
+    from . import gravur_text
+    try:
+        zs = zuschnitt(e, k)
+    except ValueError:
+        return None
+    if not zs:
+        return None
+    pk = zs.get("punkte")
+    if pk:
+        rand = list(pk)
+    else:
+        lg, br = zs["laenge"], zs["breite"]
+        rand = [(0.0, 0.0), (lg, 0.0), (lg, br), (0.0, br)]
+    xs = [x for x, _ in rand]
+    strecken = list(zip(rand, rand[1:] + rand[:1]))
+    if e.get("art") == KANTTEIL:
+        strecken += [((min(xs), lage), (max(xs), lage)) for lage, _, _, _ in zs.get("biegungen") or ()]
+    else:
+        for x in e.get("biegelinien") or ():
+            try:
+                (x1, y1), (x2, y2) = x["punkte"]
+            except (TypeError, ValueError, KeyError):
+                continue
+            strecken.append(((x1, y1), (x2, y2)))
+    kreise = []
+    for k_ in e.get("konturen") or ():
+        if k_ is z or k_.get("x") is None or k_.get("y") is None:
+            continue
+        if k_.get("art") == sw.TEXT_GRAVUR:
+            bb, hh = gravur_text.masse(k_.get("text"), _z(k_.get("hoehe")))
+            m = (None, math.hypot(bb, hh) / 2)
+        else:
+            m = _halbmass(k_)
+        if m:
+            kreise.append((_z(k_["x"]), _z(k_["y"]), m[1]))
+    return rand, strecken, kreise
+
+
+def _gravur_frei(hindernisse, cx, cy, b, h):
+    """Kleinster Abstand des Hüllrechtecks b × h um (cx, cy) zu den Hindernissen [mm]; None, wenn es aus dem Blech
+    ragt."""
+    rand, strecken, kreise = hindernisse
+    r = (cx - b / 2, cy - h / 2, cx + b / 2, cy + h / 2)
+    if not all(_innen(c, rand) for c in ((r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3]))):
+        return None
+    frei = min(_abstand_rechteck(r, a, bb) for a, bb in strecken)
+    for kx, ky, kr in kreise:
+        dx, dy = max(r[0] - kx, 0, kx - r[2]), max(r[1] - ky, 0, ky - r[3])
+        frei = min(frei, math.hypot(dx, dy) - kr)
+    return frei
+
+
+def gravur_masse(z):
+    """(Breite, Höhe) des Hüllrechtecks einer Text-Gravur in der Abwicklung (90° = quer)."""
+    from . import gravur_text
+    b, h = gravur_text.masse(z.get("text"), _z(z.get("hoehe")))
+    return (h, b) if round(_z(z.get("winkel"))) % 180 == 90 else (b, h)
+
+
+def gravur_lage(e, z, k=K_FAKTOR, schritte=40):
+    """Lage einer Text-Gravur z (text, hoehe) im Zuschnitt (Patrick 24.10.2026 F3a: Mitte der größten freien Fläche):
+    das Hüllrechteck des Texts dort, wo es den größten Abstand zu Außenkontur, Innenkonturen (mit Lage) und
+    Biegelinien hat; quer (90°), wenn es dort mehr Abstand hat. dict(x, y, winkel, frei = Abstand [mm]) im System der
+    Innenkonturen, None ohne Zuschnitt oder Text oder wenn der Text nicht ins Blech passt."""
+    hind = _gravur_hindernisse(e, z, k)
+    b, h = gravur_masse(dict(z, winkel=0))
+    if not hind or b <= 0:
+        return None
+    xs, ys = [x for x, _ in hind[0]], [y for _, y in hind[0]]
+    mx, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    best = None
+    for winkel, (bw, hw) in ((0, (b, h)), (90, (h, b))):
+        for i in range(1, schritte):
+            for j in range(1, schritte):
+                cx = min(xs) + (max(xs) - min(xs)) * i / schritte
+                cy = min(ys) + (max(ys) - min(ys)) * j / schritte
+                frei = _gravur_frei(hind, cx, cy, bw, hw)
+                if frei is None:
+                    continue
+                # gleich viel Platz: lieber waagerecht und näher an der Mitte
+                wert = (round(frei, 1), -winkel, -math.hypot(cx - mx, cy - my))
+                if best is None or wert > best[0]:
+                    best = (wert, dict(x=round(cx, 1), y=round(cy, 1), winkel=winkel, frei=round(frei, 2)))
+    return best[1] if best else None
+
+
+def gravur_hinweise(e, k=K_FAKTOR):
+    """Hinweise zu Text-Gravuren mit Lage, die aus dem Blech ragen oder näher als GRAVUR_ABSTAND an Kontur oder
+    Biegelinie liegen."""
+    out = []
+    for i, z in enumerate(e.get("konturen") or (), 1):
+        if z.get("art") != sw.TEXT_GRAVUR or z.get("x") is None or z.get("y") is None:
+            continue
+        hind = _gravur_hindernisse(e, z, k)
+        b, h = gravur_masse(z)
+        if not hind or b <= 0:
+            continue
+        frei = _gravur_frei(hind, _z(z["x"]), _z(z["y"]), b, h)
+        if frei is None or frei < GRAVUR_ABSTAND - 1e-9:
+            out.append(f"Kontur {i} Text-Gravur „{z.get('text') or ''}“: " +
+                       ("ragt aus dem Blech" if frei is None else
+                        f"nur {zahl_mm(max(frei, 0))} mm Abstand (mindestens {zahl_mm(GRAVUR_ABSTAND)} mm)") +
+                       ", Lage oder Schrifthöhe ändern")
+    return out
 
 
 def kantbarkeit(e, zs, w=None):
@@ -364,7 +508,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     schneidweg, einstiche, zeit [s], kosten {Material, Laser, Kanten, Rüsten}, summe, richtpreis (je Stück)."""
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     erg = dict(fehler=[], zuschnitt=None, gewicht=None, gewicht_tafel=None, schneidweg=None, aussen=None, innen=None,
-               einstiche=None, zeit=None, kosten={}, summe=None, richtpreis=None, gas=None, kantungen=0,
+               einstiche=None, zeit=None, kosten={}, summe=None, richtpreis=None, gas=None, kantungen=0, gravur=0.0,
                konturen=[], hinweise=[], k_faktoren=[], tafel=None)
     wst = werkstoffe.get(e.get("werkstoff"))
     s = _z(e.get("dicke"))
@@ -382,13 +526,17 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         return erg
     erg["zuschnitt"] = zs
     erg["k_faktoren"] = sorted({round(k(r) if callable(k) else k, 3) for _, _, r, _ in zs.get("biegungen") or ()})
-    erg["hinweise"] = list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w)
+    erg["hinweise"] = list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w) + gravur_hinweise(e, k)
     innen, einstiche, loch = 0.0, 1, 0.0
     for i, z in enumerate(e.get("konturen") or [], 1):
         try:
             lg, huelle, n = sw.kontur(z)
         except ValueError as x:
             erg["fehler"].append(f"Kontur {i}: {x}")
+            continue
+        if z.get("art") in sw.GRAVUREN:     # nur graviert: kein Einstich, kein Loch
+            erg["gravur"] += lg * n
+            erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
             continue
         innen += lg * n
         einstiche += n
@@ -419,6 +567,12 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     v_innen = _z(sd.get("vorschub_innen")) or _z(sd["vorschub"]) / 2
     erg["zeit"] = (zs["aussen"] / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
                    + einstiche * _z(sd.get("einstechzeit")))
+    if erg["gravur"] > 0:
+        if _z(sd.get("vorschub_gravur")) > 0:
+            erg["zeit"] += erg["gravur"] / _z(sd["vorschub_gravur"]) * 60
+        else:
+            erg["hinweise"].append(f"Gravur {erg['gravur']:.0f} mm ohne Zeit: Vorschub Gravur fehlt in den "
+                                   f"Blechlaser-Richtwerten ({wst.get('kategorie')} {s:g} mm)")
     ruesten = _z(w["blech_ruesten"]) + (_z(w["blech_ruesten_kanten"]) if erg["kantungen"] else 0)
     erg["kosten"] = {"Material": erg["gewicht_tafel"] * _z(wst.get("preis_kg")),
                      "Laser": erg["zeit"] / 3600 * _z(w["blech_stundensatz"]),

@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 55     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 56     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -102,6 +102,8 @@ SCHEMA_VERSION = 55     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     = Radius je Profil + Werkstoff im Angebot, JSON, leer)
                         # 55: Rohrlaser-Eigenschaften der Werkstoffe (werkstoffe.rohrart, gas_vorgabe, vorschub_faktor,
                         #     laser, laser_hinweis; leer = wie bisher)
+                        # 56: Positionsgravur (blechlaser.vorschub_gravur, leer = Gravur ohne Zeit mit Hinweis;
+                        #     positionen.bg_gravur = Schrifthöhe der Artikelnummer, leer = nicht gewählt)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

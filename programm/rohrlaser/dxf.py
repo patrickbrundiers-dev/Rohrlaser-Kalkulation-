@@ -92,6 +92,10 @@ def kontur_elemente(z, cx, cy, layer=INNEN):
             return []
         mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
         return _polygon(layer, [(cx + x - mx, cy + y - my) for x, y in pk])
+    if art == sw.TEXT_GRAVUR:           # Einstrich-Schrift, immer auf dem Layer Gravur
+        from . import gravur_text
+        zuege = gravur_text.gedreht(gravur_text.linien(z.get("text"), _z(z.get("hoehe"))), z.get("winkel"), cx, cy)
+        return [_linie(GRAVUR, a, b) for zug in zuege for a, b in zip(zug, zug[1:]) if math.dist(a, b) > 1e-9]
     return []
 
 

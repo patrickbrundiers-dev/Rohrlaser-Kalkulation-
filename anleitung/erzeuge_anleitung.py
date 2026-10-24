@@ -3052,7 +3052,8 @@ def kapitel_zukauf_angebot(i):
             "<b>Material</b> = Tafelbedarf der Stückzahl ÷ Stückzahl × Dicke × Dichte × Preis je kg "
             "([[blech_tafel]]).",
             "<b>Laser</b> = (Außenkontur ÷ Vorschub Außenkontur + Innenkonturen ÷ Vorschub Innenkonturen + "
-            "Einstiche × Einstechzeit) × Stundensatz Blechlaser; Einstiche = 1 + Anzahl der Innenkonturen.",
+            "Einstiche × Einstechzeit + Text-Gravuren ÷ Vorschub Gravur) × Stundensatz Blechlaser; Einstiche = 1 + "
+            "Anzahl der Innenkonturen ohne Gravuren ([[positionsgravur]]).",
             "<b>Kanten</b> = Anzahl Kantungen × Preis je Kantung; <b>Rüsten</b> = (Rüsten und Programmieren "
             "Blechlaser + beim Kantteil Rüsten Kanten) ÷ Stückzahl.",
             "<b>Richtpreis</b> = Summe × (1 + Aufschlag des Lieferanten), kaufmännisch auf Cent.")
@@ -3131,6 +3132,31 @@ def kapitel_baugruppen(i):
     i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
            "Position</i> an die Zeile der Baugruppe ([[zukauf_angebot]]); eigene Zukaufteil-Positionen können auch "
            "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
+    i.abschnitt("Artikelnummer gravieren", marke="positionsgravur")
+    i.text("Als Hilfe beim Schweißen kann das Programm die <b>Artikelnummer</b> auf jedes Rohr und jedes Blech der "
+           "Baugruppe gravieren. Im Reiter <i>Struktur und Teile</i>: Haken <b>Artikelnr. gravieren</b> je Teil, "
+           "daneben die <b>Schrifthöhe</b>; <b>Alle gravieren</b> bzw. <b>Keine gravieren</b> setzt alle Haken.",
+           kurz=True)
+    i.genauer()
+    i.text("Die Einstellung <i>Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
+           "(Vorgabe des Häkchens im Baugruppen-Editor)</i> (ja/nein, Gruppe Schweißbaugruppen) gibt den Haken für "
+           "Teile vor, die noch keine Wahl haben; bei <i>ja</i> bekommen auch die Teile einer Baugruppe aus dem "
+           "STEP-Import die Gravur gleich beim Import. <i>Gravur: Schrifthöhe der Artikelnummer [mm]</i> ist die "
+           "Vorgabe der Höhe (10 mm), je Teil änderbar. Graviert wird in einer Einstrich-Schrift (jede Linie "
+           "einmal) in Großbuchstaben; ä, ö, ü werden zu A, O, U, unbekannte Zeichen zu ?. Die Spalte "
+           "<i>Gravur</i> zeigt die Größe des Texts oder warnt, wenn die Artikelnummer fehlt oder das Rohr zu "
+           "kurz ist.")
+    i.text("<b>Rohre</b>: Die Gravurlänge zählt in die Gravurzeit des Rohrlasers (Vorschub Gravur der "
+           "Schneiddaten). Die Spalte <i>Gravur Artikelnr. h [mm]</i> der Position hält die Schrifthöhe (0 = keine "
+           "Gravur). <b>Bleche</b>: Beim Speichern der Baugruppe bekommt das Blech im Blech-Editor eine Zeile "
+           "<i>Text-Gravur</i> mit der Artikelnummer, der Richtpreis wird neu gerechnet. Die Lage sucht das "
+           "Programm selbst: die Mitte der größten freien Fläche, mit Abstand zu Außenkontur, Innenkonturen und "
+           "Biegelinien, quer, wenn dort mehr Platz ist. Im Blech-Editor lässt sie sich verschieben (Mitte x/y, "
+           "Winkel). Liegt der Text näher als 0,5 mm an einer Kontur oder ragt er aus dem Blech, meldet der "
+           "Blech-Editor das. Ändert sich die Artikelnummer, schreibt das nächste Speichern der Baugruppe den "
+           "neuen Text.")
+    i.text("Die Lage eines aufgeschweißten Blechs auf dem Rohr (Umriss als Gravur) ist etwas anderes: sie kommt aus "
+           "den Anbauteilen, wenn Rohr und Blech als getrennte Körper in einer STEP-Datei liegen ([[anbauteile]]).")
     i.abschnitt("Strukturbaum und 3D", marke="baugruppe_baum")
     i.text("Der Reiter <b>Strukturbaum und 3D</b> zeigt die Baugruppe als Baum (Baugruppe → Unterbaugruppen → "
            "Einzelteile und Nahtgruppen, mit Menge und Stück je Baugruppe) und rechts in 3D in Einbaulage, wenn die "
@@ -4496,6 +4522,8 @@ def kapitel_stammdaten(i):
         ["<b>Vorschub Außenkontur [mm/min]</b>, Vorschub Innenkonturen [mm/min]",
          "für Außenkontur bzw. Innenkonturen; Innenkonturen leer = halber Vorschub Außenkontur"],
         ["Einstechzeit [s]", "Zeit je Einstich"],
+        ["Vorschub Gravur [mm/min]", "für Text-Gravuren (z. B. die Artikelnummer, [[positionsgravur]]); leer = "
+                                     "die Gravur bekommt keine Zeit, der Blech-Editor weist darauf hin"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.text("Vorbelegt sind Richtwerte eines Faserlasers mit etwa 6 kW: Stahl mit N₂ bis 6 mm (1 mm 30.000, 3 mm "
            "10.000, 6 mm 3.200 mm/min), darüber O₂ bis 20 mm (10 mm 2.000, 20 mm 800 mm/min); Edelstahl und "

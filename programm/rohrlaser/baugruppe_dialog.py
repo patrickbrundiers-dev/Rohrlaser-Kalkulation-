@@ -21,9 +21,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, hilfe, stil, vorkalk
+from . import baugruppe, blech, hilfe, stil, vorkalk
 from .kostenbalken import Kostenbalken
-from .angebot import BAUGRUPPE, ist_baugruppe
+from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
 from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
 
@@ -218,6 +218,23 @@ class ZeilenTabelle(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
+def gravierbar(q):
+    """Artikelnummer gravierbar: Rohrlaserteil oder Blechteil aus dem Blech-Editor."""
+    return not kein_laserteil(q) or blech.lesen(q.get("technik")) is not None
+
+
+def blech_gravur_alt(q, hoehe):
+    """Blechteil, dessen Gravur-Zeile nicht mehr zur Artikelnummer bzw. Schrifthöhe passt (neu schreiben)."""
+    e = blech.lesen(q.get("technik"))
+    if e is None:
+        return False
+    z = next((z for z in e.get("konturen") or () if z.get("art") == blech.sw.TEXT_GRAVUR and z.get("artikel")),
+             None)
+    if not hoehe:
+        return z is not None
+    return z is None or z.get("text") != str(q.get("artikel") or "").strip() or z.get("hoehe") != hoehe
+
+
 NAHT_TOLERANZ = 1.0      # mm: gezeichneter Nahtpunkt gilt als am Teil, wenn er so nah an dessen Oberfläche liegt
 
 
@@ -397,7 +414,25 @@ class BaugruppeDialog(QDialog):
             self.teile.append(dict(_id=q["id"], _q=q, drin=drin, knoten=kn or "",
                                    je=q.get("je_knoten") if drin and bg_id else
                                    (q.get("je_satz") or 1) if drin else 1,
-                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None))
+                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None, **self._gravur_vorgabe(q)))
+
+    def _gravur_vorgabe(self, q):
+        """Häkchen und Schrifthöhe der Artikelnummer-Gravur: gespeichert (Spalte bg_gravur), sonst nach den
+        Einstellungen gravur_artikel und gravur_schrifthoehe."""
+        h_einst = self.einstellungen.get("gravur_schrifthoehe") or 10
+        h = q.get("bg_gravur")
+        if h is None:
+            return dict(gravur=bool(gravierbar(q) and self.einstellungen.get("gravur_artikel") == "ja"),
+                        gravur_h=h_einst)
+        return dict(gravur=h > 0, gravur_h=h if h > 0 else h_einst)
+
+    def alle_gravieren(self, an=True):
+        """Häkchen Artikelnr. gravieren für alle Teile der Baugruppe setzen bzw. entfernen."""
+        for t in self.teile:
+            if t.get("drin") and gravierbar(t["_q"]):
+                t["gravur"] = an
+        self.teile_tab.aufbauen()
+        self.aktualisieren()
 
     def _knoten_optionen(self, ohne=None):
         out = [(DIREKT, "")]
@@ -441,9 +476,23 @@ class BaugruppeDialog(QDialog):
             Spalte("hilfe", "Positionier-\nhilfe", "auswahl", 125, vk=True,
                    optionen=[("(Vorschlag)", None)] + [(h, h) for h in POSITIONIERHILFEN],
                    tipp="Wie das Teil beim Schweißen seine Lage findet; leer = Vorschlag der Vorkalkulation"),
+            Spalte("gravur", "Artikelnr.\ngravieren", "haken", 75,
+                   tipp="Artikelnummer auf das Rohr bzw. Blech gravieren (Positionierhilfe beim Schweißen); Lage "
+                        "automatisch, beim Blech im Blech-Editor verschiebbar"),
+            Spalte("gravur_h", "Schrift-\nhöhe [mm]", "zahl", 70, tipp="Schrifthöhe der Gravur (Vorgabe in den "
+                                                                       "Einstellungen)"),
+            Spalte("_gravur_info", "Gravur", "anzeige", 140, anzeige=self._gravur_text),
             Spalte("_hilfe_vk", "Vorschlag", "anzeige", 200, anzeige=self._hilfe_text)],
             self.teile, self.aktualisieren, self._teil_herkunft)
         rechts.addWidget(self.teile_tab, 1)
+        leiste = QHBoxLayout()
+        for text, an in (("Alle gravieren", True), ("Keine gravieren", False)):
+            b = QPushButton(text)
+            b.setToolTip("Häkchen Artikelnr. gravieren für alle Bleche und Rohre der Baugruppe")
+            b.clicked.connect(lambda _=False, an=an: self.alle_gravieren(an))
+            leiste.addWidget(b)
+        leiste.addStretch(1)
+        rechts.addLayout(leiste)
         gehrung = [z for z in self.teile if z["_q"].get("a_ende") or z["_q"].get("b_ende")]
         if len(gehrung) >= 2:       # Knickrahmen nur im STEP-Prüfdialog (Patrick 24.10.2026: Lage je Rohr nötig)
             self.knick_hinweis = QLabel("Rahmen aus Rohren mit Gehrung als Knickrahmen? STEP-Datei neu einlesen und "
@@ -473,6 +522,20 @@ class BaugruppeDialog(QDialog):
         if f is None:
             return ("?", True)
         return _text((z.get("je") or 1) * f)
+
+    def _gravur_text(self, z, _r):
+        if not z.get("drin") or not z.get("gravur"):
+            return ""
+        q = z["_q"]
+        if not gravierbar(q):
+            return ("nur Rohrlaser- und Blechteile", True)
+        if not str(q.get("artikel") or "").strip():
+            return ("Artikelnummer fehlt", WARNUNG)
+        from . import gravur_text
+        b, h = gravur_text.masse(q["artikel"], z.get("gravur_h") or 0)
+        if not kein_laserteil(q) and q.get("laenge") and not gravur_text.lage_laengs(q["laenge"], (), b):
+            return (f"{_text(b, 0)} mm lang: Rohr zu kurz", WARNUNG)
+        return f"{_text(b, 0)} × {_text(h, 0)} mm"
 
     def _hilfe_text(self, z, _r):
         v = self.hilfe_vk.get(z["_id"]) if z.get("drin") else None
@@ -884,9 +947,10 @@ class BaugruppeDialog(QDialog):
 
     def _zuordnung(self, t):
         if not t.get("drin"):
-            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None)
+            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None, bg_gravur=None)
         return dict(bg_knoten=baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or ""), je_knoten=t.get("je") or 1,
-                    bg_hilfe=t.get("hilfe") or None)
+                    bg_hilfe=t.get("hilfe") or None,
+                    bg_gravur=float(t.get("gravur_h") or 0) if t.get("gravur") and gravierbar(t["_q"]) else 0.0)
 
     def _zeile_wert(self, art, z, was):
         r = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == art and x["id"] == z.get("id")), None)
@@ -1473,6 +1537,8 @@ class BaugruppeDialog(QDialog):
         fehler = baugruppe.struktur_fehler(self.bg)
         if fehler:
             return fehler
+        if any(t.get("drin") and t.get("gravur") and not 1 <= (t.get("gravur_h") or 0) <= 200 for t in self.teile):
+            return "Schrifthöhe der Gravur zwischen 1 und 200 mm eingeben."
         for liste in (self.bg["naehte"], self.bg["arbeitsgaenge"]):
             for x in liste:
                 for k, v in x.items():
@@ -1504,7 +1570,7 @@ class BaugruppeDialog(QDialog):
         for t in self.teile:
             neu = self._zuordnung(t)
             q = t["_q"]
-            if any(w != (q.get(k) or None) for k, w in neu.items()):
+            if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
         return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel")},
                     teile=teile)

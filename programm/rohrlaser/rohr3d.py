@@ -14,7 +14,7 @@ import math
 
 from . import skizze as sk
 from .blech3d import _flaeche2, _ohrschnitt
-from .schneidweg import GRAVUR, _z, mit_radius
+from .schneidweg import GRAVUR, GRAVUREN, _z, mit_radius
 
 SCHRITT = 4.0           # Kanten des Querschnitts höchstens so lang [mm] (Ausklinkung, Sattel folgen der Kurve)
 TEILE_MAX = 24          # je Kante höchstens so viele Stücke
@@ -126,5 +126,5 @@ def netz(e, profil, laenge):
         ein = d["eingabe"]
         if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
-        linie("G" if ein.get("art") == GRAVUR else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+        linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
     return dict(p=punkte, t=dreiecke, l=linien, ln=normalen, li=kennung, eingaben=True)

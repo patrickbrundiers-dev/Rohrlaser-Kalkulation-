@@ -50,9 +50,11 @@ BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE = ("Bohrung", "Langloch"
                                                           "sonstige Kontur")
 SENKUNG, AUSKLINKUNG, FLOWDRILL = "Senkung", "Ausklinkung", "Flowdrill"
 SONDERKONTUR, GRAVUR = "Sonderkontur", "Gravur"
+TEXT_GRAVUR = "Text-Gravur"             # Text (Spalte Bemerkung) in Einstrich-Schrift (gravur_text), z. B. Artikelnr.
+GRAVUREN = (GRAVUR, TEXT_GRAVUR)        # nur Gravur, nie im Schneidweg
 V_AUSSCHNITT = "V-Ausschnitt"           # Knickrahmen (knickrahmen.py): Seite = Stegwand, Maße aus dem Profil
 ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONDERKONTUR, SONSTIGE,
-         GRAVUR, V_AUSSCHNITT)
+         GRAVUR, TEXT_GRAVUR, V_AUSSCHNITT)
 MIT_UMRISS = (SONDERKONTUR, GRAVUR)     # Konturarten mit echtem Umriss (umriss, waende, tiefe)
 MIT_GEWINDE = (BOHRUNG, FLOWDRILL)      # Konturarten mit Spalte Gewinde (gewinde: fehlt = nach Kernloch, '' = keins)
 # Maße je Art: (Schlüssel, Titel) in der Eingabetabelle
@@ -66,6 +68,7 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"
          SONDERKONTUR: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
          SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
          GRAVUR: (("laenge", "Gravurlänge"),),
+         TEXT_GRAVUR: (("hoehe", "Schrifthöhe h"), ("winkel", "Winkel [°]")),
          V_AUSSCHNITT: (("beta", "Knickwinkel β [°]"), ("freistich", "Freistich-Ø (0 = ohne)"))}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
 # Schrägschnitt zweiachsig: die Schnittebene kippt über Höhe und Breite zugleich (winkel_h, winkel_b); winkel ist dann
@@ -556,6 +559,11 @@ def kontur(e):
         if lg <= 0:
             raise ValueError("Gravur: Gravurlänge fehlt.")
         return lg, None, n
+    if art == TEXT_GRAVUR:
+        from . import gravur_text
+        if _z(e.get("hoehe")) <= 0 or not str(e.get("text") or "").strip():
+            raise ValueError("Text-Gravur: Text und Schrifthöhe eingeben.")
+        return gravur_text.laenge(e["text"], _z(e["hoehe"])), None, n
     if art == V_AUSSCHNITT:
         from . import knickrahmen
         return (*knickrahmen.kontur(e), n)
@@ -685,11 +693,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
             if h_:
                 hinweise_3d.append(f"Bohrung Ø {zahl(_z(e.get('d')), 2)}: {h_} Die Bohrung ist dann nicht maßhaltig.")
-        if e.get("art") == GRAVUR:         # nicht im Schneidweg: zählt zur Gravurlänge
+        if e.get("art") in GRAVUREN:       # nicht im Schneidweg: zählt zur Gravurlänge
             gravur_zeilen += n * lg
-            schritte.append(dict(text=f"{n} × {GRAVUR} {masse} (nicht im Schneidweg)" +
+            schritte.append(dict(text=f"{n} × {e['art']} {masse} (nicht im Schneidweg)" +
                                  (f" ({e['text']})" if e.get("text") else ""), anzahl=n, laenge_stueck=0.0, laenge=0.0,
-                                 einstiche=0, huelle=None, klasse="Gravur", schaetzung=False, gerade=None, art=GRAVUR,
+                                 einstiche=0, huelle=None, klasse="Gravur", schaetzung=False, gerade=None, art=e["art"],
                                  eingabe=e))
             continue
         if e.get("art") == FLOWDRILL:      # nicht im Schneidweg: Markierung kommt über das Bohrbild dazu
