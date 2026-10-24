@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.92", "<b>Lizenz-Werkzeug des Herstellers</b>: zeigt je Lizenz den Status (läuft ab, abgelaufen, gesperrt), "
+               "erinnert 30 Tage vor Ablauf, verlängert eine Lizenz mit einem Klick, hat eine Kundenübersicht und lädt "
+               "die Sperrliste direkt zum Update-Server hoch. Am Programm selbst ändert sich nichts.",
+     "Lizenz-Werkzeug: Erinnerung, Verlängern, Kundenübersicht, Sperrliste hochladen."],
     ["0.9.91", "<b>Sicherer Release-Ablauf</b>: Vor jeder Veröffentlichung prüft der Build, dass im Paket nur "
                "Programmdateien liegen (keine Daten, Angebote, Lizenzen, Schlüssel, Tests oder Quelltext) und "
                "schreibt eine Release-Zusammenfassung mit allen Prüfsummen. Neu ist ein <b>Vorabkanal</b> für "
