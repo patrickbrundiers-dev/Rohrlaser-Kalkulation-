@@ -85,6 +85,8 @@ class Fotograf:
 
 
 def tab_rect(reiter, text):
+    if hasattr(reiter, "eintrag_rect"):  # Einstellungen: Navigation links
+        return reiter.eintrag_rect(text)
     if hasattr(reiter, "ort"):          # Angebot: auch Unterreiter (z. B. Stangenbild im Schnittplan)
         r, i = reiter.ort(text)
         return (r.tabBar(), r.tabBar().tabRect(i))
@@ -316,6 +318,12 @@ def main(ziel):
     leiste.setValue(leiste.maximum())
     foto.foto("einstellungen_unten", f)
     leiste.setValue(0)
+    nav = f.bereich.unter
+    nav.suche.setText("gewinn")
+    QApplication.processEvents()
+    foto.foto("einstellungen_suche", f, [(nav.suche, 1), (nav.baum, 2), (f.einstellungen.boxen[0], 3)],
+              ausschnitt=QRect(0, 0, f.width(), 360))
+    nav.suche.setText("")
 
     # 5) Angebote: Beispielangebot Maschinengestell (2 Gestelle), dazu zwei ältere Angebote für die Liste
     vorlagen = {a["nummer"]: a for a in ANGEBOTE}
@@ -351,7 +359,8 @@ def main(ziel):
     foto.foto("angebot_positionen", f, [(kopf_box, 1), (s.stand.parentWidget(), 2), (s.pos_ansicht, 3),
                                         (knopf(s, "Neue Position"), 4), (knopf(s, "Zusatzarbeiten …"), 5),
                                         (knopf(s, "STEP importieren …"), 6), (knopf(s, "Optimieren"), 7),
-                                        ((s.pos_seite, QRect(0, 0, s.pos_seite.width(), s.pos_ansicht.y() - 2)), 8)])
+                                        ((s.pos_seite, QRect(0, 0, s.pos_seite.width(), s.pos_ansicht.y() - 2)), 8),
+                                        (s.schritte, 9)])
     kb = s.kopf_bereich
     s.kopf_bereich.erweitert_bereich.aufklappen(True)
     s.kopf_bereich.maschinen_bereich.aufklappen(True)
@@ -447,6 +456,64 @@ def main(ziel):
         return QDialog.Rejected
     s.schneidweg_berechnen(0, dialog=schneidweg_ausfuellen)
 
+    # 7a2a) Biegerohr im Schneidweg-Rechner (Position nur für das Foto, nichts gespeichert): RR 40 × 2 mit 90° und 45°
+    from rohrlaser import schneidweg as sw
+    from rohrlaser.schneidweg_dialog import SchneidwegDialog
+    rr = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Rundrohr"),
+              dict(form="Rundrohr", a=40, wand=2, profil_id="RR 40x2"))
+    biege = dict(mittellinie=638.5, aussen_d=40.0, faktor=1.0, elemente=[
+        dict(art="gerade", s0=0, s1=200, laenge=200), dict(art="bogen", s0=200, s1=325.66, laenge=125.66, radius=80,
+                                                             winkel=90),
+        dict(art="gerade", s0=325.66, s1=475.66, laenge=150), dict(art="bogen", s0=475.66, s1=538.5, laenge=62.83,
+                                                                     radius=80, winkel=45),
+        dict(art="gerade", s0=538.5, s1=638.5, laenge=100)],
+        lra=[dict(gerade=200, drehung=0, winkel=90, radius=80), dict(gerade=150, drehung=90, winkel=45, radius=80),
+             dict(gerade=100, drehung=0, winkel=0, radius=None)],
+        xyz=[[0, 0, 0], [0, 0, 280], [263.14, 0, 280], [357.28, 94.14, 280]])
+    technik = dict(quelle=sw.QUELLE_STEP, a=dict(gemessen=125.66, form="gerade"), b=dict(gemessen=125.66, form="gerade"),
+                   konturen=[dict(art="Bohrung", anzahl=1, d=8, x=100, seite=0.0, gemessen=26.6),
+                             dict(art="Bohrung", anzahl=1, d=6, x=262.8, seite=90.0, gemessen=20.0)],
+                   biegerohr=biege)
+    p_b = dict(id=None, pos=900, artikel="Bügel gebogen", profil_id=rr["profil_id"], laenge=638.5, stueck=10,
+               technik=json.dumps(technik))
+    d = SchneidwegDialog(s, p_b, rr, s.kopf, s.k, s.tabellen, db, s.positionen)
+    d.resize(1450, 980)
+    d.ansicht_wahl.setCurrentText("Abwicklung")
+    QApplication.processEvents()
+    d.editor.aktualisieren()
+    foto.foto("biegerohr_rechner", d, [(d.editor.baum, 1), (d.skizze, 2), (d.editor.meldungen, 3)])
+    d.reject()
+
+    # 7a2a2) Knickrahmen im Schneidweg-Rechner (Position nur für das Foto, nichts gespeichert): 500 × 300 aus QR 40
+    qr = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"),
+              dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3"))
+    p_k = dict(id=None, pos=910, artikel="Rahmen 500 × 300", profil_id=qr["profil_id"], laenge=1600, stueck=10,
+               werkstoff_id="S235-10219")
+    d = SchneidwegDialog(s, p_k, qr, s.kopf, s.k, s.tabellen, db, s.positionen)
+    d.knickrahmen(werte=dict(schenkel=[500, 300, 500, 300], geschlossen=True, beta=90, steg="unten"))
+    d.resize(1450, 980)
+    d.ansicht_wahl.setCurrentText("Abwicklung")
+    QApplication.processEvents()
+    foto.foto("knickrahmen_rechner", d, [(d.knick_knopf, 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
+    d.reject()
+
+    # 7a2a3) Knickverbindung aus vier Einzelrohren mit Gehrung (Lage wie aus einer STEP-Baugruppe, nur für das Foto)
+    import zlib
+    from rohrlaser.knickrahmen_dialog import KnickverbindungDialog
+
+    def schenkel(nr, o, z, lg):
+        enden = [dict(art=f"Ende {e}", form="Gehrung", gehrung=45.0, richtung=180.0) for e in "AB"]
+        netz = dict(p=[], t={}, lage=[*o, *z, 0, 0, 1])
+        return dict(datei="Rahmen.step", artikel=f"Rahmen-K{nr}", koerper=str(nr), profilform="Quadratrohr",
+                    abm_a="40", abm_b="40", wandstaerke="2", laenge=str(lg), konturen_liste=json.dumps(enden),
+                    _netz=zlib.compress(json.dumps(netz).encode("utf-8")))
+    mw_k = [schenkel(1, (0, 20, 0), (1, 0, 0), 500), schenkel(2, (480, 0, 0), (0, 1, 0), 300),
+            schenkel(3, (500, 280, 0), (-1, 0, 0), 500), schenkel(4, (20, 300, 0), (0, -1, 0), 300)]
+    d = KnickverbindungDialog(s, mw_k, [0, 1, 2, 3], dict(z=0, freistich=0, k=0.5))
+    d.resize(640, 420)
+    foto.foto("knickverbindung", d, [(d.start, 1), (d.umkehren, 2), (d.schraeg, 3), (d.vorschau, 4)])
+    d.reject()
+
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog
@@ -470,14 +537,41 @@ def main(ziel):
                                         (d.summe, 5)])
     d.reiter.setCurrentIndex(1)
     QApplication.processEvents()
-    foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, 2), 1), (d.naht_tab.cellWidget(0, 4), 2),
-                                      (d.naht_tab.cellWidget(1, 7), 3), (d.naht_tab.cellWidget(0, 9), 4),
-                                      (d.naht_tab.cellWidget(0, 12), 5), (d.naht_tab.cellWidget(1, 15), 6)])
+    sp = [x.schluessel for x in d.naht_tab.spalten]
+    foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, sp.index("verfahren")), 1),
+                                      (d.naht_tab.cellWidget(0, sp.index("mass")), 2),
+                                      (d.naht_tab.cellWidget(1, sp.index("beidseitig")), 3),
+                                      (d.naht_tab.cellWidget(0, sp.index("lage")), 4),
+                                      (d.naht_tab.cellWidget(0, sp.index("zeit_hand")), 5),
+                                      (d.naht_tab.cellWidget(1, sp.index("_hinweis")), 6)])
     d.reiter.setCurrentIndex(2)
     QApplication.processEvents()
     foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, 2), 1), (d.ag_tab.cellWidget(1, 7), 2),
                                              (d.ag_tab.cellWidget(1, 8), 3), (d.ag_tab.cellWidget(1, 10), 4),
                                              (knopf(d, "Vorrichtung hinzufügen"), 5)])
+    # Vorkalkulation (Regeln aus den Richtwerten): Rüsten, Positionieren, Wenden, Verputzen als gelbe Vorschläge
+    d.stamm_felder["gewicht"].setText("18")
+    d.wenden.setValue(1)
+    d.vorkalkulation()
+    QApplication.processEvents()
+    zeile = next(r for r, a in enumerate(d.bg["arbeitsgaenge"]) if (a.get("vk") or {}).get("art") == "ruesten")
+    sp = [x.schluessel for x in d.ag_tab.spalten]
+    foto.foto("baugruppe_vorkalk", d, [(knopf(d, "Vorkalkulation rechnen"), 1),
+                                       (d.ag_tab.cellWidget(zeile, sp.index("ruest_min")), 2), (d.wenden, 3),
+                                       (d.vk_info, 4), (knopf(d, "Vorschläge bestätigen"), 5)])
+    # Nahtkandidaten aus STEP (D6): wie nach dem Import mit Häkchen „als Schweißbaugruppe“
+    kand = ([dict(teile=[1, 3], knoten=konsole, laenge_mm=125.7, stossart="Kehlnaht", dicke_mm=4.0)] * 4
+            + [dict(teile=[1, 2], knoten="", laenge_mm=188.5, stossart="Kehlnaht", dicke_mm=3.0)] * 2
+            + [dict(teile=[2, 4], knoten="", laenge_mm=60.0, stossart="Stumpfnaht", dicke_mm=5.0)])
+    d.bg["vorschlaege"] = baugruppe.vorschlaege_aus_step(d.bg, kand)
+    d._vorschlaege_zeigen()
+    d.reiter.setCurrentIndex(1)
+    d.regel_haken.setChecked(True)
+    d.vorschlag_tab.resizeColumnsToContents()
+    d.vorschlag_tab.selectRow(0)
+    QApplication.processEvents()
+    foto.foto("baugruppe_vorschlaege", d.vorschlag_rahmen, [(d.vorschlag_tab, 1), (knopf(d, "Markierte übernehmen"), 2),
+                                                            (d.regel_haken, 3)])
     d.reject()
 
     # 7a3) Materialanfrage (nur Foto, Schließen: nichts geöffnet)
@@ -497,6 +591,16 @@ def main(ziel):
         z = d.tabelle
         foto.foto("material_fenster", d, [((z.viewport(), z.visualItemRect(z.item(0, 0))), 1), (d.laengen[0], 2),
                                           (d.summe, 3), (d.felder[0], 4), (d.handling, 5)])
+
+        def abmessung_foto(f):            # Doppelklick auf Stangen: Abmessungs-Fenster
+            f.resize(1250, 860)
+            QApplication.processEvents()
+            if f.teile:
+                f.teil_waehlen(f.teile[0]["ref"])
+            foto.foto("abmessung_fenster", f, [(f.rolle, 1), (f.muster_tab, 2), (f.bilanz_box, 3), (f.teile_tab, 4),
+                                               (f.k_drucken, 5)])
+        d.zeigen = abmessung_foto
+        d.oeffnen(0, 7)
         return QDialog.Rejected
     s.material_einstellen(dialog=material_foto)
     bereit()
@@ -685,9 +789,9 @@ def main(ziel):
     bereit()
     unterkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() + 34
     oberkante = knopf(s, "Angebot (PDF)").mapTo(f, QPoint(0, 0)).y() - 10
-    foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Werkstattpapiere (PDF)"), 2),
-                                    (knopf(s, "Kalkulation (PDF)"), 3), (knopf(s, "Materialanfrage (E-Mail)"), 4),
-                                    (knopf(s, "CSV-Export"), 5), (knopf(s, "Weitere Aktionen"), 6)],
+    oberkante = min(oberkante, s.schritte.mapTo(f, QPoint(0, 0)).y() - 6)
+    unterkante = max(unterkante, s.schritte.mapTo(f, QPoint(0, 0)).y() + s.schritte.height() + 6)
+    foto.foto("ausgabe_leiste", f, [(knopf(s, "Angebot (PDF)"), 1), (knopf(s, "Ausgaben"), 2), (s.schritte, 3)],
               ausschnitt=QRect(0, oberkante, f.width(), unterkante - oberkante))
     pdfs = dict(angebot=s.angebot_pdf(), werkstatt=s.werkstatt_pdf(), kalkulation=s.kalkulation_pdf(),
                 nachkalkulation=s.nachkalk.pdf())
@@ -766,6 +870,24 @@ def main(ziel):
     s3.pos_ansicht.scrollTo(s3.pos_modell.index(0, max(spalten)))
     QApplication.processEvents()
     foto.foto("step_satz_positionen", f, [(s3.pos_ansicht, 1)])
+
+    # 11a2) Strukturbaum mit 3D im Baugruppen-Editor (D1): Teile des Gestells, ein Teil in einer Unterbaugruppe
+    from rohrlaser.baugruppe_dialog import BaugruppeDialog
+    d = BaugruppeDialog(s3, dict(pos=900, stueck=4), s3.positionen, s3.tabellen, s3._saetze(),
+                        {q["id"] for q in s3.positionen}, netze=db.netze(s3.id))
+    d.bezeichnung.setText("Gestell T08")
+    seite_kn = d.knoten_neu("Seitenteil", 2)
+    erstes = next((t for t in d.teile if t.get("drin") and (t.get("je") or 1) % 2 == 0),
+                  next(t for t in d.teile if t.get("drin")))
+    d.teil_verschieben(erstes["_id"], seite_kn)
+    d.resize(1400, 700)
+    d.show()
+    d.reiter.setCurrentIndex(d.BAUM)
+    d.baum.setCurrentItem(d.baum_items[("knoten", seite_kn)])
+    QApplication.processEvents()
+    foto.foto("baugruppe_baum", d, [(d.baum, 1), ((d.baum.viewport(), d.baum.visualItemRect(
+        d.baum_items[("knoten", seite_kn)])), 2), (d.ansicht3d, 3)])
+    d.reject()
 
     # 11b) Bohrungen prüfen: Rechteckrohr mit Senkungen und Flowdrill (K04), Dialog per Doppelklick
     from rohrlaser.bohrbild_dialog import BohrbildDialog

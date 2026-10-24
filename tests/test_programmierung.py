@@ -90,8 +90,9 @@ s.neu_laden()
 z1, su1 = rechnung()
 assert s.positionen[1]["prog_zeit"] == 12 and z1[1]["prog_hand"] and abs(su1["programmierung_min"] - (minuten + 7)) < EPS
 assert "von Hand bei 1 Pos." in next(x for x in su1["zeiten"] if x["schritt"] == "Programmierung")["quelle"]
-assert abs((su1["verkauf_kalkuliert"] - su0["verkauf_kalkuliert"]) - 7 / (1 - su0["skonto_satz"] / 100)) < EPS, \
-    "ohne Zuschläge und Gewinn, nur Skonto"
+assert abs((su1["verkauf_kalkuliert"] - su0["verkauf_kalkuliert"])
+           - 7 * (1 + s.einst["gewinn"]) / (1 - su0["skonto_satz"] / 100)) < EPS, \
+    "ohne Zuschläge, in den Selbstkosten mit Gewinn, dazu Skonto"
 assert not m.setData(m.index(0, spalte), "7"), "berechnete Zeit bestätigt: bleibt berechnet"
 db.angebot_aendern(a, "programmierung_zeit", 10.0)
 db.angebot_aendern(a, "programmierung_kontur", 1.0)

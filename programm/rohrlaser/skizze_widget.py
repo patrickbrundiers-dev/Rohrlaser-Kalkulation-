@@ -2,7 +2,8 @@
 Ansicht von A als kleines Bild. Bemaßung (Länge, Lage der Konturen ab Anfang), Zoom mit dem Mausrad, Verschieben des
 Bildes mit gedrückter Maus auf freier Fläche, Doppelklick = einpassen. Klick auf eine Kontur markiert ihre Zeile,
 Ziehen verschiebt sie (Lage längs; quer in der Abwicklung und auf Flächen, die man in der Ansicht von vorn sieht).
-Jede Kontur trägt ihr Maß (Ø, Länge × Breite), die Schweißnaht (SN) erscheint rot strichpunktiert. bild() zeichnet
+Jede Kontur trägt ihr Maß (Ø, Länge × Breite), die Schweißnaht (SN) erscheint rot strichpunktiert. Biegerohre zeigen
+die Biegezonen am gestreckten Rohr als schraffierte Bänder mit Nummer und Winkel. bild() zeichnet
 die Skizze ohne Bedienhinweise für die Zeichnung als PDF. Die Geometrie steht in skizze.py."""
 import math
 
@@ -10,7 +11,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
-from . import rechnen, skizze as sk
+from . import biegerohr, rechnen, skizze as sk
 from .schneidweg import GRAVUR, MASSE, POLYGON, _z
 
 ANSICHTEN, ABWICKLUNG = "Draufsicht und Seitenansicht", "Abwicklung"
@@ -23,6 +24,7 @@ FARBE_TEIL, FARBE_FLAECHE, FARBE_SCHNITT = QColor("#1F3864"), QColor("#F4F7FB"),
 FARBE_KONTUR, FARBE_WAHL, FARBE_MASS = QColor("#B42318"), QColor("#E67E00"), QColor("#595959")
 FARBE_NAHT = QColor("#C0392B")
 FARBE_GRAVUR = QColor("#2E7D32")                # Gravur grün wie in der 3D-Ansicht
+FARBE_BIEGUNG = QColor("#7F6000")               # Biegezone (Biegerohr)
 
 
 class Skizze(QWidget):
@@ -124,6 +126,7 @@ class Skizze(QWidget):
                 self._abwicklung(g, a, e_a, e_b)
             else:
                 self._ansicht(g, a, e_a, e_b)
+            self._biegezonen(g, a)
             self._konturen(g, a, lagen)
             g.setPen(FARBE_MASS)
             g.drawText(QRectF(4, a[2] - 2, LINKS - 10, 18), Qt.AlignLeft, a[1])
@@ -221,6 +224,23 @@ class Skizze(QWidget):
             p0 = self._bild(a, self._d_bei(la, s_n), s_n)
             g.drawLine(p0, self._bild(a, self.L - self._d_bei(lb, s_n), s_n))
             g.drawText(QRectF(p0.x() + 4, p0.y() - 15, 40, 14), Qt.AlignLeft | Qt.AlignVCenter, "SN")
+
+    def _biegezonen(self, g, a):
+        """Biegerohr: je Biegung ein schraffiertes Band über die ganze Höhe der Ansicht, oben 'B1 90°'."""
+        br = biegerohr.lesen(self.eingaben)
+        if not br:
+            return
+        _, _, _, lo, hi = a
+        for b in biegerohr.biegungen(br):
+            p0, p1 = self._bild(a, b["x0"], lo), self._bild(a, b["x1"], hi)
+            r = QRectF(p0, p1).normalized()
+            g.setPen(QPen(FARBE_BIEGUNG, 0.8, Qt.DashLine))
+            g.setBrush(QBrush(FARBE_BIEGUNG, Qt.BDiagPattern))
+            g.drawRect(r)
+            g.setBrush(Qt.NoBrush)
+            g.setPen(FARBE_BIEGUNG)
+            g.drawText(QRectF(r.left() - 30, r.top() - 15, r.width() + 60, 14), Qt.AlignCenter,
+                       f"B{b['nr']} {rechnen.zahl(b['winkel'], 0)}°")
 
     @staticmethod
     def _d_bei(linie, s):

@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import dfm, naht, normprofile, rp_profile
+from .stil import DICHTEN, THEMES
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
@@ -517,12 +518,19 @@ SCHWEISSVERFAHREN = Tabelle(
      Feld("heft_s", "Zeit je Heftpunkt [s]", "zahl", 0, 600, stellen=1, breite=80),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
      Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Bemerkung", breite=260),
+     # Verbrauch (P5, Schema 50): leer = Schweißzusatz und Gas stecken im Stundensatz
+     Feld("dichte", "Dichte Schweißzusatz [kg/dm³]", "zahl", 0.5, 25, stellen=2, breite=90),
+     Feld("draht_eur_kg", "Preis Schweißzusatz [€/kg]", "zahl", 0, 1000, stellen=2, breite=90),
+     Feld("gas_l_min", "Schutzgas [l/min]", "zahl", 0, 100, stellen=1, breite=80),
+     Feld("gas_eur_l", "Preis Schutzgas [€/l]", "zahl", 0, 100, stellen=4, breite=80)),
     ("verfahren",),
     "Schweißverfahren der Baugruppen-Kalkulation (MAG, MIG, WIG, E-Hand, Heften, Roboter … frei erweiterbar). "
     "Lichtbogenzeitfaktor = Anteil der Lichtbogenzeit an der Schweißarbeitszeit: Arbeitszeit = Lichtbogenzeit ÷ "
     "Faktor (Nebenzeiten wie Brenner ansetzen, Schlacke entfernen, Drahtwechsel). Heftpunkte rechnen mit der Zeit "
-    "je Heftpunkt. Kosten = Zeit × Stundensatz. Status 'Richtwert' = noch nicht an der eigenen Fertigung geprüft.")
+    "je Heftpunkt. Kosten = Zeit × Stundensatz. Status 'Richtwert' = noch nicht an der eigenen Fertigung geprüft. "
+    "Schweißzusatz und Schutzgas (optional): Draht = Nahtquerschnitt × Nahtlänge × Dichte, Gas = Lichtbogenzeit × "
+    "l/min, jeweils × Preis; leer = steckt im Stundensatz. Fehlt nur ein Teil der Werte, zählt er 0 € mit Hinweis.")
 
 SCHWEISS_KENNWERTE = Tabelle(
     "schweiss_kennwerte", "Schweiß-Kennwerte",
@@ -549,6 +557,30 @@ SCHWEISS_FAKTOREN = Tabelle(
     "Zuschläge auf die Lichtbogenzeit je Nahtgruppe: Schweißlage (PA Wannenlage … PE Überkopf), Zugänglichkeit "
     "und Qualitätsanforderung. Leer bzw. nicht gefunden = Faktor 1.")
 
+# Vorkalkulation der Schweißbaugruppe (Plan Vorkalkulation, Patrick 24.10.2026 „alles a außer 8b“, vorkalk.py):
+# Regelwerte für Rüsten, Positionieren je Positionierhilfe, Heften, Wenden und Nacharbeit; neue Dateien leer,
+# 'Richtwerte laden' trägt Richtwerte mit Status 'Richtwert' ein
+SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wenden", "Nacharbeit")
+POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
+NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
+
+SCHWEISS_REGELN = Tabelle(
+    "schweiss_regeln", "Schweiß-Vorkalkulation",
+    (Feld("art", "Art", "auswahl", auswahl="schweissregelart", pflicht=True, breite=100),
+     Feld("wert", "Ausprägung", pflicht=True, breite=190),
+     Feld("bis", "bis Wanddicke [mm] bzw. Gewicht [kg]", "zahl", 0, 100000, stellen=1, breite=95),
+     Feld("zahl", "Wert", "zahl", 0, 100000, stellen=2, pflicht=True, breite=80),
+     Feld("einheit", "Einheit", breite=90),
+     Feld("status", "Status", "auswahl", auswahl="kennwertstatus", breite=85),
+     Feld("bemerkung", "Bemerkung", breite=260)),
+    ("art", "wert"),
+    "Regeln der Vorkalkulation im Baugruppen-Editor (Knopf 'Vorkalkulation rechnen'): Rüsten einmalig je Auftrag = "
+    "Grundrüstzeit + Zeit je Teilenummer (+ Vorrichtung); Positionieren je Baugruppe = Teile × Zeit je Teil nach "
+    "Positionierhilfe (Steckverbindung, Vorrichtung, Gravur, frei; das erste Teil jeder Unterbaugruppe als Basisteil); "
+    "Heftpunkte je Naht = größer von Mindestzahl und Nahtlänge ÷ Heftabstand (nach kleinerer Wanddicke, gesteckt × "
+    "Faktor); Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe. Das Ergebnis sind "
+    "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
+
 # STEP-Import je Kunde (importprofil.py): wie Artikelnummern entstehen, Normteile, Vorgaben des Prüfdialogs
 BENENNUNGEN = ("Bauteilname", "Dateiname", "Dateiname + Bauteilname")
 DARSTELLUNG_3D = ("Automatisch", "Software", "OpenGL")       # wie ansicht3d.RENDERER
@@ -572,6 +604,26 @@ IMPORTPROFILE = Tabelle(
     "Normteile zusätzlich: Begriffe zu denen aus der Einstellung, Teile mit diesen Wörtern im Namen sind im "
     "Prüfdialog abgewählt.")
 
+# Plan Arbeitsabläufe W2 (Freigabe F3b): Vorgaben je Kunde für den Angebotskopf, getrennt von den Importprofilen;
+# angewandt von kundenvorgabe.py beim Anlegen eines Angebots und beim Wählen des Kunden
+KUNDENVORGABEN = Tabelle(
+    "kundenvorgaben", "Kundenvorgaben",
+    (Feld("kundennr", "Kunde", "auswahl", auswahl="kunde", pflicht=True, breite=110),
+     Feld("maschine", "Maschine", "auswahl", auswahl="maschine", breite=110),
+     Feld("stange", "Stangenlänge [mm]", "ganz", 500, 20000, breite=85),
+     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1, breite=70),
+     Feld("lieferzeit_art", "Lieferzeit als", "auswahl", auswahl="lieferzeitart", breite=110),
+     Feld("lieferzeit_wert", "Lieferzeit", breite=80),
+     Feld("lieferzeit_zusatz", "Lieferbedingungen (Freitext)", breite=170),
+     Feld("material_vorgabe", "Material neuer Positionen", "auswahl", auswahl="materialherkunft", breite=120),
+     Feld("staffeln", "Standard-Staffeln (Faktoren, 0 = keine)", breite=120),
+     Feld("bemerkung", "Bemerkung", breite=160)),
+    ("kundennr",),
+    "Vorgaben je Kunde für neue Angebote: Wählen Sie im Angebot den Kunden, übernimmt das Programm Maschine, "
+    "Stangenlänge, Gewinn, Lieferzeit, Material und Standard-Staffeln von hier. Ein Feld im Angebot wird nur "
+    "ersetzt, solange es noch die Vorgabe aus den Einstellungen (oder des vorher gewählten Kunden) hat. Leere "
+    "Felder = Einstellungen.")
+
 # Baugruppen-Vorlagen (Verbesserung P1): Struktur, Nahtgruppen und Arbeitsgänge einer Schweißbaugruppe ohne
 # Einzelteile (JSON in 'daten', baugruppe.vorlage_aus). Gepflegt im Editor der Baugruppe, nicht als Stammdaten-Reiter;
 # mit den übrigen Stammdaten zwischen Arbeitsplätzen geteilt.
@@ -589,17 +641,18 @@ BAUGRUPPEN_VORLAGEN = Tabelle(
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             PRUEFREGELN, SCHWEISSVERFAHREN,
-            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, IMPORTPROFILE)
+            SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
 VERWEISE = {
-    ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr")),
+    ("kunden", "kundennr"): (("angebote", "kundennr"), ("importprofile", "kundennr"), ("kundenvorgaben", "kundennr")),
     ("profile", "profil_id"): (("preise", "profil_id"), ("lieferlaengen", "profil_id")),
     ("werkstoffe", "werkstoff_id"): (("preise", "werkstoff_id"), ("lieferlaengen", "werkstoff_id"),
                                      ("schneiddaten", "werkstoff_id")),
     # Angebote: dazu die Snapshots im Angebot und die Standard-Maschine (Datenbank._maschine_umbenannt)
-    ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine")),
+    ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine"),
+                                    ("kundenvorgaben", "maschine")),
     ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id"),
                                    ("schweissverfahren", "satz_id")),
     ("schweissverfahren", "verfahren"): (("schweiss_kennwerte", "verfahren"),),
@@ -729,6 +782,16 @@ EINSTELLUNGEN = (
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
     Einstellung("flach_als", "STEP-Import: ebene flache Teile vorgeben als", "STEP-Import", "auswahl", FLACH_ALS[0],
                 auswahl="flachals"),
+    # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
+    Einstellung("schweiss_a_regel", "Schweißbaugruppen: a-Maß-Regel, a = Faktor × kleinere Wanddicke (Vorschlag)",
+                "Schweißbaugruppen", "zahl", 0.7, 0.1, 2),
+    # Vorkalkulation (vorkalk.py): Stundensätze der vorgeschlagenen Arbeitsgänge
+    Einstellung("schweiss_vk_satz", "Schweißbaugruppen: Stundensatz für Rüsten, Positionieren und Wenden",
+                "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
+    Einstellung("schweiss_vk_satz_nacharbeit", "Schweißbaugruppen: Stundensatz für Verputzen und Schleifen",
+                "Schweißbaugruppen", "auswahl", "Schweißen", auswahl="zusatzsatz"),
+    Einstellung("schweiss_vk_step", "Schweißbaugruppen: Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)",
+                "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     Einstellung("flachstahl_bis", "STEP-Import: Flachstahl bis Breite [mm] (breitere flache Teile sind Bleche)",
                 "STEP-Import", "zahl", 150.0, 1, 10000),
     # Ordner, in dem der Dateidialog „STEP importieren …“ startet; leer = zuletzt benutzter STEP-Ordner
@@ -758,6 +821,14 @@ EINSTELLUNGEN = (
     Einstellung("step_tol_gleich", "Toleranz gleiche Teile einer Baugruppe ± [mm]", "STEP-Import", "zahl", 0.2, 0, 5),
     Einstellung("step_tol_kernloch", "Toleranz Kernloch für Gewinde-Vorschlag ± [mm]", "STEP-Import", "zahl", 0.05, 0,
                 1),
+    Einstellung("biegerohr_faktor", "Biegerohr: Faktor neutrale Faser für die gestreckte Länge (1,0 = Rohrmitte)",
+                "STEP-Import", "zahl", 1.0, 0.5, 1.5),
+    Einstellung("knick_z", "Knickrahmen: Knickzugabe je Knick [mm] (+ = Rohr länger)", "Knickrahmen", "zahl", 0.0,
+                -20, 20),
+    Einstellung("knick_freistich", "Knickrahmen: Freistich-Ø an den Spitzen des V [mm] (0 = ohne)", "Knickrahmen",
+                "zahl", 0.0, 0, 20),
+    Einstellung("knick_k", "Knickrahmen: K-Faktor der Stegwand (0,5 = Wandmitte)", "Knickrahmen", "zahl", 0.5, 0.1,
+                1),
     Einstellung("step_flach_laenge", "Experte: Flachstahl ab Länge × Breite", "STEP-Import", "zahl", 3.0, 1, 100),
     Einstellung("step_gekantet_anteil", "Experte: gekantetes Blech statt Profil, wenn Volumen unter Anteil von Querschnitt × Länge", "STEP-Import",
                 "anteil", 0.85, 0.1, 1),
@@ -771,6 +842,15 @@ EINSTELLUNGEN = (
     Einstellung("lieferzeit_wert", "Lieferzeit neuer Angebote: Wert (Arbeitstage, Wochen, KW/Jahr oder Datum)",
                 "Angebot", "text", ""),
     Einstellung("lieferzeit_zusatz", "Lieferzeit neuer Angebote: Freitext", "Angebot", "text", "nach Absprache"),
+    # Plan Arbeitsabläufe W1: Entwürfe bis zu so vielen Positionen nach jeder Änderung selbst optimieren
+    Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
+                100, 0, 10000),
+    # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
+    Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)", "Angebot", "anteil",
+                0.0, 0, 1),
+    # Standard-Staffeln (Plan Arbeitsabläufe W3): Faktoren auf die Bestellmenge, angelegt vor dem ersten Angebots-PDF
+    Einstellung("staffeln_standard", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
+                "Angebot", "text", "1; 2; 5"),
     Einstellung("briefkopf_1", "Briefkopf Zeile 1 (Firma)", "Angebots-PDF", "text", "Firmenname"),
     Einstellung("briefkopf_2", "Briefkopf Zeile 2", "Angebots-PDF", "text", "Straße Nr."),
     Einstellung("briefkopf_3", "Briefkopf Zeile 3", "Angebots-PDF", "text", "PLZ Ort"),
@@ -792,6 +872,9 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
+    # Nachfassen verschickter Angebote (Plan A9): Wiedervorlage nach Tagen ohne Entscheidung
+    Einstellung("nachfassen_tage", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)", "Nachfassen",
+                "ganz", 10, 0, 365),
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "text", ""),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
@@ -814,12 +897,19 @@ EINSTELLUNGEN = (
     # 3D-Ansicht zeichnen mit OpenGL (Grafikkarte) oder QPainter (Software); Automatisch = OpenGL, wenn möglich
     Einstellung("ansicht_3d", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)", "Ansicht", "auswahl",
                 DARSTELLUNG_3D[0], auswahl="renderer"),
+    # Theme, Schriftgröße und Dichte (stil.anwenden, Layout-Plan D2): nur dieser Arbeitsplatz, gelten ab dem nächsten Start
+    Einstellung("ansicht_thema", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)", "Ansicht", "auswahl", "Hell",
+                auswahl="thema"),
+    Einstellung("ansicht_schrift", "Schriftgröße [%] (90 bis 150)", "Ansicht", "ganz", 100, 90, 150),
+    Einstellung("ansicht_dichte", "Dichte (kompakt, normal, komfortabel)", "Ansicht", "auswahl", "normal",
+                auswahl="dichte"),
     Einstellung("passwort", "Passwort für die Einstellungen (leer = ohne Passwort)", "Zugang", "passwort", "av"),
-    # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel steht vorn in der Angebotsnummer
-    # (PB-2026-0001); über den gemeinsamen Ordner sehen alle die Angebote der anderen und teilen die Stammdaten.
+    # Benutzer dieses Arbeitsplatzes (teilen.py, Patrick 22.10.2026): das Kürzel zeigt den Bearbeiter (die Nummer ist
+    # seit 23.10.2026 ohne Kürzel, nummern.py); über den gemeinsamen Ordner sehen alle die Angebote der anderen und
+    # teilen die Stammdaten.
     # Gelten nur für diesen Arbeitsplatz (teilen.LOKAL), werden also nicht mit den anderen abgeglichen.
     Einstellung("benutzer_name", "Name", "Benutzer", "text", ""),
-    Einstellung("benutzer_kuerzel", "Kürzel (vorn in der Angebotsnummer, z. B. PB)", "Benutzer", "text", ""),
+    Einstellung("benutzer_kuerzel", "Kürzel (Bearbeiter, z. B. PB)", "Benutzer", "text", ""),
     Einstellung("benutzer_email", "E-Mail (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("benutzer_telefon", "Telefon (im Angebots-PDF)", "Benutzer", "text", ""),
     Einstellung("teilen_ordner", "Gemeinsamer Ordner der Mitarbeiter (leer = nicht teilen)", "Benutzer", "ordner", ""),
@@ -946,14 +1036,16 @@ class Kontext:
                          "zukaufquelle": list(ZUKAUF_QUELLEN), "zukaufstatus": list(ZUKAUF_STATUS),
                          "zukauftyp": list(ZUKAUF_TYPEN), "positionsart": ["Rohrlaserteil", "Zukaufteil", "Schweißbaugruppe"],
                          "lieferzeitart": list(LIEFERZEIT_ARTEN), "fliesslochlaser": list(FLIESSLOCH_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten),
                          "schweissverfahren": list(self.schweissverfahren), "nahtart": list(NAHTARTEN),
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
-                         "kennwertstatus": list(KENNWERT_STATUS)}.get(quelle, []))]
+                         "kennwertstatus": list(KENNWERT_STATUS),
+                         "schweissregelart": list(SCHWEISSREGEL_ARTEN),
+                         "positionierhilfe": list(POSITIONIERHILFEN), "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
@@ -1371,7 +1463,7 @@ def beispiel_zusatzarbeiten():
              ("Gravur extra", "s/Stück", 20.0, None, "nein", "Gravur",
               "Zeit je Gravur in s, wird zur Schneidzeit addiert (Gravur, die nicht im STEP-Modell ist)", "Laser")]
     return [{f.name: (w[i] if i < len(w) else None) for i, f in enumerate(ZUSATZARBEITEN.felder)} for w in werte] \
-        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten()
+        + bohr_zusatzarbeiten() + schweiss_zusatzarbeiten() + biege_zusatzarbeiten() + knick_zusatzarbeiten()
 
 
 # Schweißen (Patrick 23.10.2026): Abrechnung nach Zeit, Sekunden je Teil im Angebot × Stundensatz 75 €/h
@@ -1392,6 +1484,28 @@ ZUSATZ_SENKEN, ZUSATZ_FLOWDRILL, ZUSATZ_BOHREN = "Senken", "Flowdrill", "Bohren"
 
 
 BOHR_PREISE = {ZUSATZ_SENKEN: 0.40, ZUSATZ_FLOWDRILL: 0.60, ZUSATZ_BOHREN: 0.40}   # Beispielpreise € je Stück
+
+
+ZUSATZ_BIEGEN, BIEGEN_PREIS = "Biegen", 1.50     # € je Biegung (Beispielpreis)
+
+
+def biege_zusatzarbeiten():
+    """Vorbelegung Biegen (Biegerohre aus dem STEP-Import, Plan S9): € je Biegung, die Menge (Zahl der Biegungen
+    je Teil) trägt der STEP-Import ein. Beispielpreis, bitte anpassen."""
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_BIEGEN, art="€/Stück", preis=BIEGEN_PREIS,
+                 fremd="nein", angebotstext="gebogen",
+                 bemerkung="Preis je Biegung; Menge = Zahl der Biegungen je Teil (STEP-Import Biegerohr)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
+
+
+def knick_zusatzarbeiten():
+    """Vorbelegung Knicken (Knickrahmen, Plan K1): € je Knick, die Menge (Zahl der V-Ausschnitte je Teil) trägt der
+    Schneidweg-Rechner ein. Beispielpreis, bitte anpassen."""
+    from .knickrahmen import KNICKEN_PREIS, ZUSATZ_KNICKEN
+    return [dict({f.name: None for f in ZUSATZARBEITEN.felder}, name=ZUSATZ_KNICKEN, art="€/Stück",
+                 preis=KNICKEN_PREIS, fremd="nein", angebotstext="geknickt",
+                 bemerkung="Preis je Knick; Menge = Zahl der Knicke je Teil (Knickrahmen im Schneidweg-Rechner)",
+                 kategorie="Nachbearbeitung", aktiv="ja")]
 
 
 def bohr_zusatzarbeiten():

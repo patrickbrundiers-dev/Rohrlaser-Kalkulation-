@@ -7,7 +7,7 @@ TESTS, LANGSAM oder EIGEN stehen – eine neue Testdatei ohne Eintrag macht den 
 
 Aufruf: python tests/alle.py [-j N] [--langsam] [--nur MUSTER …] [--markdown DATEI] [--coverage]
   -j N        so viele Tests gleichzeitig (Vorgabe: Anzahl Prozessorkerne)
-  --langsam   auch die langsamen Tests (LANGSAM; im Workflow nur auf main bzw. von Hand)
+  --langsam   auch die langsamen Tests (LANGSAM; im Workflow nur beim Sammel-Release von Hand)
   --nur       nur Tests, deren Name eines der Muster enthält
   --markdown  Zusammenfassung als Markdown-Tabelle anhängen (z. B. "$GITHUB_STEP_SUMMARY")
   --coverage  jeden Test mit coverage (nur Entwicklung, requirements-dev.txt) laufen lassen; danach
@@ -27,6 +27,7 @@ QT = {"QT_QPA_PLATFORM": "offscreen"}
 # (Datei, Umgebung) – erst STEP-Messung und Optimierung, dann die Programm-Tests (Reihenfolge wie bisher im Workflow)
 TESTS = [
     ("test_step_import.py", {}),
+    ("test_step_drop.py", QT),
     ("test_step_regression.py", {}),
     ("test_step_einlesen.py", {}),
     ("test_step_profile.py", QT),
@@ -51,18 +52,20 @@ TESTS = [
     "test_zukauf_preise.py", "test_kunden_csv.py", "test_zukauf_schnell.py", "test_zukauf_ek.py", "test_zukauf_blech.py",
     "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_bohrbild.py",
     "test_rp_profile.py", "test_step_rp.py", "test_profilwechsel.py", "test_doppelklick.py", "test_mausrad.py",
-    "test_step_bleche.py", "test_werkstoffe.py", "test_meterpreis.py", "test_material_fenster.py", "test_maschinen.py",
+    "test_step_bleche.py", "test_werkstoffe.py", "test_meterpreis.py", "test_material_fenster.py", "test_abmessung_fenster.py",
+    "test_maschinen.py",
     "test_offene_profile.py", "test_wand_einstiche.py", "test_ansicht.py", "test_spaltenbreite.py",
     "test_angebot_leistung.py", "test_zeiten.py",
-    "test_staffelpreise.py", "test_update.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
+    "test_staffelpreise.py", "test_gewinn_basis.py", "test_update.py", "test_update_sperre.py", "test_fracht.py", "test_fracht_angebot.py", "test_fracht_auto.py",
     "test_fracht_richtwerte.py", "test_sicherung.py", "test_preisbasis.py", "test_rundung.py",
     "test_angebot_vorgaben.py", "test_angebot_einstellungen.py", "test_kundenmaterial.py", "test_schneidweg.py",
     "test_blech_editor.py", "test_blech_dxf.py", "test_blech_kfaktor.py", "test_blech_kantbarkeit.py", "test_blech_tafel.py",
-    "test_dfm.py", "test_teile_editor.py", "test_naht.py",
+    "test_dfm.py", "test_teile_editor.py", "test_biegerohr.py", "test_knickrahmen.py", "test_knickverbindung.py", "test_naht.py",
     "test_stangenwechsel_sn.py", "test_3d.py", "test_3d_greifmass.py", "test_3d_editor.py", "test_programmierung.py",
-    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
+    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_baugruppe_baum.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
-    "test_teilen_fenster.py", "test_lizenz.py", "test_lesemodus.py", "test_passwort.py", "test_anleitung.py",
+    "test_teilen_fenster.py", "test_nummern.py", "test_lizenz.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py",
+    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_nachfassen.py", "test_anleitung.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
 LANGSAM = [("test_gehrung.py", QT)]

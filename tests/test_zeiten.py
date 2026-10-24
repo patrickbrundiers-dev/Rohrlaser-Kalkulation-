@@ -196,7 +196,7 @@ q = schritt(z, "Qualitätskontrolle")
 assert q["zeit_einheit_s"] == 45 and q["quelle"] == "von Hand (Angebot)" and z["arbeitsschritte"] > 0
 assert not zs.ansicht.isRowHidden(next(i for i, x in enumerate(zs.modell.zeilen) if x["schritt"] == "Qualitätskontrolle"))
 assert "Weitere Arbeitsschritte" in s2.uebersicht_bereich.einzeln.text()
-assert "Personalzeit" in s2.uebersicht_bereich.zeiten.text()
+assert "Personal</a>" in s2.uebersicht_bereich.zeiten.text()
 r = next(i for i, x in enumerate(zs.modell.zeilen) if x["schritt"] == "Laser schneiden")
 assert not zs.modell.bearbeitbar(r, 4) and zs.modell.bearbeitbar(r, 6)
 db.zeitbasis_speichern(a2, None)                                         # wie ein Angebot vor Schema 13

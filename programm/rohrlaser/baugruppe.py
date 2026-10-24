@@ -214,6 +214,24 @@ def teile(positionen, bg_id):
     return [i for i, p in enumerate(positionen) if not ist_baugruppe(p) and zuordnung(p)[0] == bg_id]
 
 
+def gruppen_reihenfolge(positionen):
+    """Anzeige der Positionsliste gruppiert (D3): Reihenfolge der Zeilen (Indizes; Einzelteile direkt unter ihrer
+    Baugruppe, sonst wie im Angebot) und {Index: Baugruppen-ID} der Einzelteile. Ohne Baugruppe: unverändert."""
+    alle = baugruppen(positionen)
+    if not alle:
+        return list(range(len(positionen))), {}
+    zu = {i: bg_id for bg_id in alle for i in teile(positionen, bg_id)}
+    folge = []
+    for i, p in enumerate(positionen):
+        if i in zu:
+            continue
+        folge.append(i)
+        bg = lesen(p.get("baugruppe")) if ist_baugruppe(p) else None
+        if bg and alle.get(bg["id"], (None,))[0] == i:
+            folge += [j for j in sorted(zu) if zu[j] == bg["id"]]
+    return folge, zu
+
+
 _FINGER = ("art", "bg_knoten", "je_knoten", "stueck", "bezeichnung", "artikel", "pos", "baugruppe")
 _KONTEXT = (None, None)          # (Fingerabdruck, (baugruppen, soll_werte, {id(Position): Index})); als Ganzes ersetzt,
                                  # damit der Hintergrundlauf der Staffeln nie ein halbes Paar liest
@@ -338,6 +356,45 @@ def aus_step(name_bg, struktur, teile_gruppen, nahtkandidaten=()):
     return bg, hinweise
 
 
+def unter_einhaengen(struktur, teile_gruppen, kandidaten, unter):
+    """Mehrere STEP-Dateien als eine Baugruppe (P8): jede Datei aus unter = [dict(name, menge, struktur, teile,
+    kandidaten)] wird eine Unterbaugruppe (Name der Datei, menge Stück je Baugruppe) mit ihrer eigenen Struktur
+    darunter. Kennungen bekommen das Präfix U1_, U2_ …; Körper ohne Unterbaugruppe kommen in die Unterbaugruppe der
+    Datei. Stück je Satz der Teile wird mit menge multipliziert (ändert die Positionen). Ergebnis: (struktur,
+    teile_gruppen, kandidaten) für aus_step."""
+    knoten = [dict(k) for k in (struktur or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
+    wurzeln = [k["id"] for k in knoten if not k.get("eltern")]
+    wurzel = wurzeln[0] if len(wurzeln) == 1 else None
+    if wurzel is None:          # ohne eine Wurzel: künstliche, damit die Dateien Unterbaugruppen werden
+        wurzel = "W0"
+        for k in knoten:
+            if not k.get("eltern"):
+                k["eltern"] = wurzel
+        knoten.append(dict(id=wurzel, name="", menge=1, eltern=None))
+    teile_gruppen, kandidaten = list(teile_gruppen), list(kandidaten or ())
+    for n, u in enumerate(unter, 1):
+        menge = int(u.get("menge")) if _zahl(u.get("menge")) and u["menge"] >= 1 else 1
+        kid = f"U{n}"
+        knoten.append(dict(id=kid, name=str(u.get("name") or kid), menge=menge, eltern=wurzel))
+        uk = [k for k in (u.get("struktur") or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
+        uw = [k["id"] for k in uk if not k.get("eltern")]
+        u_wurzel = uw[0] if len(uw) == 1 else None
+        ids = {k["id"] for k in uk}
+
+        def neu(x, ids=ids, u_wurzel=u_wurzel, kid=kid):
+            return kid if not x or x == u_wurzel or x not in ids else f"{kid}_{x}"
+        for k in uk:
+            if k["id"] != u_wurzel:
+                knoten.append(dict(k, id=neu(k["id"]), eltern=neu(k.get("eltern"))))
+        for p, kn in u.get("teile") or ():
+            if _zahl(p.get("je_satz")):
+                p["je_satz"] = p["je_satz"] * menge
+            teile_gruppen.append((p, [neu(x) for x in kn] * menge))
+        kandidaten += [dict(k, knoten=neu(k.get("knoten"))) for k in u.get("kandidaten") or ()
+                       if isinstance(k, dict)] * menge
+    return dict(knoten=knoten), teile_gruppen, kandidaten
+
+
 def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
     """Nahtkandidaten der STEP-Messung als Vorschläge für Nahtgruppen: gleiche Stoßart, Länge (auf mm) und Dicke in
     derselben Unterbaugruppe werden ein Vorschlag mit Anzahl je Stück der Unterbaugruppe (Kandidaten ÷ Menge; geht
@@ -358,19 +415,52 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
         f = faktor(bg, kn) or 1
         if len(liste) % f:
             kn, f = "", 1
-        out.append(dict(id=neue_id(), knoten=kn, nahtart=art, laenge=laenge, anzahl=len(liste) // f,
-                        dicke=dicke, teile=[x.get("teile") for x in liste], quelle="STEP"))
+        v = dict(id=neue_id(), knoten=kn, nahtart=art, laenge=laenge, anzahl=len(liste) // f,
+                 dicke=dicke, teile=[x.get("teile") for x in liste], quelle="STEP")
+        linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
+        if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
+            v["linien"] = linien
+        out.append(v)
     return out
 
 
-def vorschlag_naht(v):
+A_REGEL_VORGABE = 0.7          # a-Maß-Regel (P6): a = Faktor × kleinere Wanddicke, abgerundet auf 0,5 mm
+
+
+def a_mass_regel(dicke, faktor=A_REGEL_VORGABE):
+    """Vorschlag a-Maß [mm] nach der Regel a = Faktor × kleinere Wanddicke, auf 0,5 mm abgerundet; None, wenn keine
+    Dicke bekannt ist oder weniger als 0,5 mm herauskommt."""
+    if not _zahl(dicke) or not _zahl(faktor) or dicke <= 0 or faktor <= 0:
+        return None
+    a = math.floor(faktor * dicke * 2 + 1e-9) / 2
+    return a if a >= 0.5 else None
+
+
+def vorschlag_naht(v, regel=None):
     """Werte einer Nahtgruppe aus einem Vorschlag: Stumpf- und Ecknaht mit der gemessenen Dicke als Maß, Kehlnaht
-    ohne a-Maß (trägt man im Editor ein; bis dahin rechnet die Zeile keine Zeit und zeigt den Grund)."""
+    ohne a-Maß (trägt man im Editor ein; bis dahin rechnet die Zeile keine Zeit und zeigt den Grund). regel = Faktor
+    der a-Maß-Regel (P6): Kehlnaht mit a = Faktor × Dicke, gekennzeichnet (mass_regel) bis zur Bestätigung."""
     n = dict(knoten=v.get("knoten") or "", nahtart=v.get("nahtart"), laenge=v.get("laenge"),
              anzahl=v.get("anzahl") or 1, quelle="STEP")
+    koerper = sorted({str(k) for paar in v.get("teile") or () if isinstance(paar, (list, tuple)) for k in paar})
+    if koerper:                                         # beteiligte Körper: 3D-Ansicht im Editor (D1)
+        n["koerper"] = koerper
+    if v.get("linien"):                                 # Nahtverlauf in Dateilage (3D-Ansicht)
+        n["linien"] = v["linien"]
+    if _zahl(v.get("dicke")) and v["dicke"] > 0:          # Wanddicke für das Heften der Vorkalkulation
+        n["dicke"] = v["dicke"]
     if v.get("nahtart") != "Kehlnaht" and _zahl(v.get("dicke")):
         n["mass"] = v["dicke"]
+    elif v.get("nahtart") == "Kehlnaht" and regel:
+        a = a_mass_regel(v.get("dicke"), regel)
+        if a:
+            n["mass"] = n["mass_regel"] = a
     return n
+
+
+def regel_offen(n):
+    """True, wenn das a-Maß einer Nahtgruppe nach der Regel vorgeschlagen und noch nicht bestätigt ist."""
+    return _zahl(n.get("mass_regel")) and n.get("mass") == n["mass_regel"]
 
 
 # ------------------------------------------------------------------ Schweißkennwerte
@@ -405,7 +495,39 @@ def naht_stand(naht, tabellen, datum=None):
                 f_lage=_n((fz["Schweißlage"] or {}).get("faktor")) or 1.0,
                 f_zugang=_n((fz["Zugänglichkeit"] or {}).get("faktor")) or 1.0,
                 f_qualitaet=_n((fz["Qualität"] or {}).get("faktor")) or 1.0,
-                richtwert=bool(richt), datum=datum or datetime.date.today().isoformat())
+                richtwert=bool(richt), datum=datum or datetime.date.today().isoformat(),
+                **{k: (v or {}).get(k) for k in VERBRAUCH if _zahl((v or {}).get(k))})
+
+
+VERBRAUCH = ("dichte", "draht_eur_kg", "gas_l_min", "gas_eur_l")     # Schweißverfahren (P5), leer = nicht rechnen
+
+
+def verbrauch(naht, st, naht_m, lichtbogen_min):
+    """Schweißzusatz und Schutzgas einer Nahtgruppe (P5): Draht [kg] = Nahtquerschnitt × Naht × Dichte, Gas [l] =
+    Lichtbogenzeit × Gasverbrauch; Kosten mit den Preisen des Verfahrens. Fehlt ein Preis oder Wert, zählt der Teil
+    0 € und hinweis nennt, was fehlt (nur wenn das Verfahren überhaupt Verbrauchswerte hat).
+    Ergebnis: dict(draht_kg, gas_l, material, hinweis)."""
+    out = dict(draht_kg=0.0, gas_l=0.0, material=0.0, hinweis=None)
+    if not any(_zahl(st.get(k)) for k in VERBRAUCH):
+        return out
+    fehlt = []
+    if _zahl(naht.get("mass")) and _zahl(st.get("dichte")):
+        out["draht_kg"] = nahtquerschnitt(naht.get("nahtart"), naht["mass"]) * naht_m * st["dichte"] / 1000
+    elif not _zahl(st.get("dichte")):
+        fehlt.append("Dichte Zusatz")
+    if lichtbogen_min and _zahl(st.get("gas_l_min")):
+        out["gas_l"] = lichtbogen_min * st["gas_l_min"]
+    elif not _zahl(st.get("gas_l_min")):
+        fehlt.append("Gasverbrauch")
+    elif _zahl(naht.get("zeit_hand")):     # Zeit von Hand: Lichtbogenzeit unbekannt, Gas nicht schätzen
+        fehlt.append("Lichtbogenzeit (Zeit von Hand) für Gas")
+    if out["draht_kg"] and not _zahl(st.get("draht_eur_kg")):
+        fehlt.append("Preis Draht")
+    if out["gas_l"] and not _zahl(st.get("gas_eur_l")):
+        fehlt.append("Preis Gas")
+    out["material"] = out["draht_kg"] * _n(st.get("draht_eur_kg")) + out["gas_l"] * _n(st.get("gas_eur_l"))
+    out["hinweis"] = ("Verbrauch: " + ", ".join(fehlt) + " fehlt (0 €)") if fehlt else None
+    return out
 
 
 def naht_rechnen(naht, tabellen, saetze):
@@ -439,7 +561,9 @@ def naht_rechnen(naht, tabellen, saetze):
             out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft)
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
-    out["kosten"] = out["zeit_min"] / 60 * _n(satz)
+    vb = verbrauch(naht, st, naht_m, out["lichtbogen_min"])
+    out.update(draht_kg=vb["draht_kg"], gas_l=vb["gas_l"], material=vb["material"], verbrauch_hinweis=vb["hinweis"])
+    out["kosten"] = out["zeit_min"] / 60 * _n(satz) + vb["material"]
     return out
 
 
@@ -472,13 +596,14 @@ def arbeitsgang_rechnen(ag, saetze):
 def rechnen(p, tabellen, saetze, anzahl=None):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
     der Position. Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
-    zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, text}], fehler, warnungen, richtwert).
+    zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, werte, vorschlag (Vorkalkulation offen)}], fehler, warnungen, richtwert).
     eigen/fremd enthalten den umgelegten Einmalanteil (einmal)."""
+    from .vorkalk import NAHT_FELDER, VORSCHLAG, ag_status, naht_status
     bg = lesen(p.get("baugruppe"))
     n = anzahl if anzahl is not None else p.get("stueck")
     n = n if _zahl(n) and n > 0 else 0
     out = dict(eigen=0.0, fremd=0.0, einmal=0.0, einmal_fremd=0.0, einmal_gesamt=0.0, zeit_min=0.0, schweiss_min=0.0, naht_m={},
-               zeilen=[], fehler=None, warnungen=[], richtwert=False, wiederverwendbar=0)
+               zeilen=[], fehler=None, warnungen=[], richtwert=False, wiederverwendbar=0, verbrauch=0.0)
     if bg is None:
         out["fehler"] = "Baugruppendaten fehlen"
         return out
@@ -505,9 +630,11 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         out["zeit_min"] += r["zeit_min"] * f
         out["schweiss_min"] += r["zeit_min"] * f
         out["eigen"] += r["kosten"] * f
+        out["verbrauch"] += r["material"] * f
         out["zeilen"].append(dict(art="Naht", id=nt.get("id"), name=f"Nahtgruppe {nt.get('nr') or ''}".strip(),
                                   knoten=kname(nt.get("knoten")), faktor=f, zeit_min=r["zeit_min"] * f,
-                                  kosten=r["kosten"] * f, einmal=0.0, fremd=False, werte=r))
+                                  kosten=r["kosten"] * f, einmal=0.0, fremd=False, werte=r,
+                                  vorschlag=any(naht_status(nt, x) == VORSCHLAG for x in NAHT_FELDER)))
     for ag in bg["arbeitsgaenge"]:
         f = faktor(bg, ag.get("knoten") or "")
         if f is None:
@@ -528,19 +655,23 @@ def rechnen(p, tabellen, saetze, anzahl=None):
         out["fremd" if r["fremd"] else "eigen"] += je
         out["zeilen"].append(dict(art="Arbeitsgang", id=ag.get("id"), name=ag.get("name") or "Arbeitsgang",
                                   knoten=kname(ag.get("knoten")), faktor=f, zeit_min=r["laufend_min"] * f,
-                                  kosten=r["laufend"] * f, einmal=einmal, fremd=r["fremd"], werte=r))
+                                  kosten=r["laufend"] * f, einmal=einmal, fremd=r["fremd"], werte=r,
+                                  vorschlag=ag_status(ag) == VORSCHLAG))
     return out
 
 
-KOSTENTEILE = ("Schweißen", "Arbeitsgänge", "Einmalkosten (umgelegt)", "Fremdleistung")
+KOSTENTEILE = ("Schweißen", "Arbeitsgänge", "Einmalkosten (umgelegt)", "Fremdleistung", "Schweißzusatz und Gas")
 
 
 def kostenaufteilung(r):
-    """Kosten je Baugruppe aus rechnen() nach KOSTENTEILE (Kostenbalken, D2): [(Bezeichnung, €)]; Summe = eigen + fremd."""
-    schweissen = sum(z["kosten"] for z in r["zeilen"] if z["art"] == "Naht")
+    """Kosten je Baugruppe aus rechnen() nach KOSTENTEILE (Kostenbalken, D2): [(Bezeichnung, €)]; Summe = eigen + fremd.
+    Schweißzusatz und Gas (P5) nur, wenn sie etwas kosten."""
+    vb = r.get("verbrauch") or 0.0
+    schweissen = sum(z["kosten"] for z in r["zeilen"] if z["art"] == "Naht") - vb
     arbeit = sum(z["kosten"] for z in r["zeilen"] if z["art"] == "Arbeitsgang" and not z["fremd"])
     fremd = r["fremd"] - r["einmal_fremd"]
-    return list(zip(KOSTENTEILE, (schweissen, arbeit, r["einmal"], fremd)))
+    teile = list(zip(KOSTENTEILE, (schweissen, arbeit, r["einmal"], fremd, vb)))
+    return teile if vb else teile[:4]
 
 
 def groesste_posten(r, n=3):
@@ -584,8 +715,15 @@ def status(p, w, positionen=None):
             return "WARNUNG: " + doppelt
     if not bg["naehte"] and not bg["arbeitsgaenge"]:
         return "HINWEIS: keine Nahtgruppen und Arbeitsgänge"
+    from .vorkalk import offen
+    n = offen(bg)
+    if n:
+        return f"HINWEIS: {n} Vorschl{'ag' if n == 1 else 'äge'} der Vorkalkulation offen (prüfen und bestätigen)"
     if r["richtwert"]:
         return "HINWEIS: Schweißzeit aus ungeprüften Richtwerten"
+    regel = next((n for n in bg["naehte"] if regel_offen(n)), None)
+    if regel:
+        return f"HINWEIS: Nahtgruppe {regel.get('nr') or ''}: a-Maß nach Regel, bitte bestätigen".replace("  ", " ")
     if r["wiederverwendbar"]:
         return "HINWEIS: wiederverwendbare Vorrichtung nicht berechnet"
     return "OK"
@@ -693,11 +831,13 @@ def richtwerte():
     for art, wert, f in RICHT_FAKTOREN:
         faktoren.append(dict(art=art, wert=wert, faktor=f, status="Richtwert",
                              bemerkung=(LAGEN.get(wert, "") + ", " if wert in LAGEN else "") + "Richtwert"))
-    return dict(schweissverfahren=verfahren, schweiss_kennwerte=kennwerte, schweiss_faktoren=faktoren)
+    from .vorkalk import richtwerte as regeln
+    return dict(schweissverfahren=verfahren, schweiss_kennwerte=kennwerte, schweiss_faktoren=faktoren,
+                schweiss_regeln=regeln())
 
 
 SCHLUESSEL = {"schweissverfahren": ("verfahren",), "schweiss_kennwerte": ("verfahren", "nahtart", "mass_bis"),
-              "schweiss_faktoren": ("art", "wert")}
+              "schweiss_faktoren": ("art", "wert"), "schweiss_regeln": ("art", "wert")}
 
 
 def richtwerte_fehlend(tabellen):
@@ -739,6 +879,7 @@ def vorlage_aus(bg):
     out = json.loads(speichern(bg))
     out.pop("vorschlaege", None)
     out.pop("id", None)
+    out.pop("vorlage", None)
     for n in out["naehte"]:
         n.pop("stand", None)
     return out
@@ -752,11 +893,13 @@ def vorlage_inhalt(v):
     return ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
 
 
-def vorlage_einsetzen(bg, v):
+def vorlage_einsetzen(bg, v, name=None):
     """Vorlage v in die Baugruppe bg übernehmen (Kennung von bg bleibt, damit zugeordnete Teile dabei bleiben; Nahtkandidaten
     aus STEP bleiben). Ergebnis: Kennungen der Unterbaugruppen der Vorlage (Teile und Kandidaten in anderen
-    Unterbaugruppen kommen an die Baugruppe)."""
+    Unterbaugruppen kommen an die Baugruppe). name = Name der Vorlage (Verlauf in der Nachkalkulation, D5)."""
     v = json.loads(json.dumps(v))
+    if name:
+        bg["vorlage"] = name
     bg["stamm"] = v.get("stamm") if isinstance(v.get("stamm"), dict) else {}
     for liste in ("knoten", "arbeitsgaenge", "naehte"):
         bg[liste][:] = [x for x in v.get(liste) or () if isinstance(x, dict)]     # gleiche Liste (Tabellen im Editor)

@@ -23,7 +23,7 @@ from .staffeln import EURO, PROZENT, UMLEGEN
 from .stammdaten import Feld, wert_aus_text, zahl_als_text
 
 GRAU = QColor(stil.TEXT_GRAU)
-FARBE_SUMME = QColor("#DDEBF7")
+FARBE_SUMME = stil.farbe_fest("#DDEBF7")
 ZEILENHOEHE = 20
 
 
@@ -467,27 +467,28 @@ ERGEBNIS = (
     ("gk_fremd", "Zuschlag Fremdleistung", lambda z: _p(z).get("gk_fremd"), "kind"),
     ("fremd", "Fremdleistungen", lambda z: _p(z).get("fremd"), "gruppe"),
     ("neben", "Verpackung / Nebenkosten", lambda z: _p(z).get("neben"), "gruppe"),
-    ("selbst", "Selbstkosten", lambda z: _p(z).get("selbst"), "summe"),
-    ("gewinn", "Gewinn", lambda z: _p(z).get("gewinn"), "gruppe"),
-    ("marge", "Gewinnmarge (vom Nettopreis)", lambda z: _p(z).get("marge"), "prozent"),
-    ("zukauf", "Zukaufteile (eigener Aufschlag statt Zuschläge und Gewinn)", lambda z: (
-        (_p(z).get("zukauf_einstand") or 0) + (_p(z).get("zukauf_aufschlag") or 0)) if _p(z) else None, "gruppe"),
-    ("zukauf_einstand", "Einstand Zukaufteile (Einkauf + Bezugskosten)", lambda z: _p(z).get("zukauf_einstand"), "kind"),
-    ("zukauf_aufschlag", "Aufschlag Zukaufteile", lambda z: _p(z).get("zukauf_aufschlag"), "kind"),
-    ("weitere", "Weitere Kosten (ohne Zuschläge)", lambda z: sum(_p(z).get(n) or 0 for n in (
-        "pauschalen", "programmierung", "angebotsaufschlag", "fracht", "skonto")) if _p(z) else None, "gruppe"),
+    ("herstell", "Herstellkosten", lambda z: _p(z).get("herstell"), "summe"),
+    ("weitere", "Programmierung, Pauschalen, Aufschlag (ohne Zuschläge)", lambda z: sum(_p(z).get(n) or 0 for n in (
+        "pauschalen", "programmierung", "angebotsaufschlag")) if _p(z) else None, "gruppe"),
     ("pauschalen", "Pauschale je Abmessung", lambda z: _p(z).get("pauschalen"), "kind"),
     ("programmierung", "Programmierkosten", lambda z: _p(z).get("programmierung"), "kind"),
     ("angebotsaufschlag", "Angebotsaufschlag", lambda z: _p(z).get("angebotsaufschlag"), "kind"),
-    ("fracht", "Fracht", lambda z: _p(z).get("fracht"), "kind"),
-    ("skonto", "Skonto (eingerechnet)", lambda z: _p(z).get("skonto"), "kind"),
+    ("zukauf", "Zukaufteile (eigener Aufschlag statt Zuschläge)", lambda z: (
+        (_p(z).get("zukauf_einstand") or 0) + (_p(z).get("zukauf_aufschlag") or 0)) if _p(z) else None, "gruppe"),
+    ("zukauf_einstand", "Einstand Zukaufteile (Einkauf + Bezugskosten)", lambda z: _p(z).get("zukauf_einstand"), "kind"),
+    ("zukauf_aufschlag", "Aufschlag Zukaufteile", lambda z: _p(z).get("zukauf_aufschlag"), "kind"),
+    ("selbst", "Selbstkosten", lambda z: _p(z).get("selbst"), "summe"),
+    ("gewinn", "Gewinn", lambda z: _p(z).get("gewinn"), "gruppe"),
+    ("marge", "Gewinnmarge (vom Nettopreis)", lambda z: _p(z).get("marge"), "prozent"),
+    ("fracht", "Fracht (ohne Gewinn)", lambda z: _p(z).get("fracht"), "gruppe"),
+    ("skonto", "Skonto (eingerechnet)", lambda z: _p(z).get("skonto"), "gruppe"),
     ("vk", "Verkaufspreis netto je Einheit", lambda z: z.get("preis_einheit"), "summe_einheit"),
     ("einmalig", "Einmalige Rüstkosten (separat)", lambda z: _p(z).get("einmalig"), "gruppe"),
     ("netto", "Gesamtpreis netto", lambda z: z.get("preis_gesamt"), "summe"),
     ("mwst", "Umsatzsteuer", lambda z: _p(z).get("mwst"), "gruppe"),
     ("brutto", "Gesamtpreis brutto", lambda z: _p(z).get("brutto"), "summe"),
 )
-IMMER = {"material", "fertigung", "ruesten", "selbst", "gewinn", "vk", "netto", "mwst", "brutto"}
+IMMER = {"material", "fertigung", "ruesten", "herstell", "selbst", "gewinn", "vk", "netto", "mwst", "brutto"}
 
 
 class ErgebnisBaum(QTreeWidget):
@@ -631,11 +632,17 @@ class ErgebnisBaum(QTreeWidget):
 
 
 class Vergleich(QWidget):
-    """Preisentwicklung: Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position eine Reihe."""
+    """Staffelkurve (Layout-Plan L22): Verkaufspreis netto je Einheit über die Mengen, je Satz bzw. Position ein
+    eigenes Feld untereinander mit eigenem Maßstab (ein Satz zu 200 € und eine Position zu 5 € blieben in einem
+    gemeinsamen Feld nicht lesbar). Die Mengen stehen in gleichen Abständen, die senkrechte Achse beginnt bei 0,
+    damit der Preisrückgang nicht übertrieben wirkt."""
+    FARBEN = stil.BALKEN_FARBEN
+    OBEN = 24               # Titel
+    RAND = (52, 20, 16, 30)     # je Feld: links, oben (Name), rechts, unten (Mengen)
 
     def __init__(self):
         super().__init__()
-        self.reihen = []
+        self.reihen, self.mengen = [], []
         self.setMinimumWidth(260)
 
     def setzen(self, zeilen):
@@ -644,36 +651,67 @@ class Vergleich(QWidget):
             if isinstance(z.get("preis_einheit"), (int, float)):
                 reihen.setdefault((z.get("einheit"), z["schluessel"]), []).append((z["menge"], z["preis_einheit"]))
         self.reihen = [(k, sorted(v)) for k, v in reihen.items()]
+        self.mengen = sorted({m for _, punkte in self.reihen for m, _ in punkte})
+        self.setToolTip("\n".join(f"{self.name(k)}: " + ", ".join(f"{_z(m, 0)} × {_z(w)} €" for m, w in punkte)
+                                   for k, punkte in self.reihen))
         self.update()
 
+    @staticmethod
+    def name(kennung):
+        einheit, schl = kennung
+        return f"{'Satz' if einheit == 'Satz' else 'Pos.'} {schl}"
+
+    def punkte(self, breite, hoehe):
+        """Je Reihe ihr Feld und ihre Bildpunkte: [(Kennung, (oben, unten, Höchstwert), [(x, y, Menge, Preis)])]."""
+        li, ob, re, un = self.RAND
+        je = (hoehe - self.OBEN) / max(1, len(self.reihen))
+        aus = []
+        for r, (k, pk) in enumerate(self.reihen):
+            top = self.OBEN + r * je
+            y0, y1 = top + ob, top + je - un
+            maxp = max([w for _, w in pk] + [0.01])
+            n = len(pk)
+            aus.append((k, (y0, y1, maxp), [(li + (breite - li - re) * (i + 0.5) / n,
+                                              y1 - (y1 - y0) * w / (maxp * 1.15), m, w)
+                                             for i, (m, w) in enumerate(pk)]))
+        return aus
+
     def paintEvent(self, _):
+        from PySide6.QtGui import QPen
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor("white"))
-        p.setPen(QColor("#404040"))
-        p.drawText(QRectF(8, 4, self.width() - 16, 20), Qt.AlignLeft, "Preisentwicklung: VK netto je Einheit")
+        p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
+        text, grau, linie = stil.farbe(stil.TEXT), stil.farbe(stil.TEXT_GRAU), stil.farbe(stil.LINIE)
+        p.setPen(text)
+        p.drawText(QRectF(8, 4, self.width() - 16, 18), Qt.AlignLeft, "Staffelkurve: VK netto je Einheit")
         if not self.reihen:
+            p.setPen(grau)
             p.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignCenter, "noch keine Staffelpreise")
             return
-        farben = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#E15759", "#76B7B2"]
-        y0, hoehe = 30, max(40, self.height() - 30)
-        je = hoehe / len(self.reihen)
-        for r, ((einheit, schl), punkte) in enumerate(self.reihen):
-            top = y0 + r * je
-            p.setPen(QColor("#404040"))
-            p.drawText(QRectF(8, top, self.width() - 16, 16), Qt.AlignLeft,
-                       f"{'Satz' if einheit == 'Satz' else 'Pos.'} {schl}")
-            maxp = max(w for _, w in punkte) or 1
-            balken = min(24, (je - 22) / max(1, len(punkte)))
-            for i, (m, w) in enumerate(punkte):
-                y = top + 18 + i * balken
-                breite = (self.width() - 150) * w / maxp
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor(farben[r % len(farben)]))
-                p.drawRect(QRectF(60, y + 1, max(1, breite), max(3, balken - 3)))
-                p.setPen(QColor("#404040"))
-                p.drawText(QRectF(4, y, 54, balken), Qt.AlignRight | Qt.AlignVCenter, _z(m, 0))
-                p.drawText(QRectF(64 + breite, y, 90, balken), Qt.AlignLeft | Qt.AlignVCenter, f"{_z(w)} €")
+        li, _, re, _ = self.RAND
+        rechts = self.width() - re
+        for i, (k, (y0, y1, maxp), pk) in enumerate(self.punkte(self.width(), self.height())):
+            farbe = QColor(stil.umsetzen(self.FARBEN[i % len(self.FARBEN)]))
+            p.setPen(text)
+            p.drawText(QRectF(8, y0 - 18, self.width() - 16, 16), Qt.AlignLeft | Qt.AlignVCenter, self.name(k))
+            p.setPen(linie)
+            p.drawLine(int(li), int(y1), int(rechts), int(y1))
+            p.setPen(grau)
+            p.drawText(QRectF(0, y1 - 9, li - 6, 18), Qt.AlignRight | Qt.AlignVCenter, "0")
+            for px, _, m, _ in pk:
+                p.drawText(QRectF(px - 30, y1 + 2, 60, 14), Qt.AlignHCenter, _z(m, 0))
+            p.setPen(QPen(farbe, 2))
+            for (x1, ya, _, _), (x2, yb, _, _) in zip(pk, pk[1:]):
+                p.drawLine(int(x1), int(ya), int(x2), int(yb))
+            p.setBrush(farbe)
+            p.setPen(Qt.NoPen)
+            for px, py, _, _ in pk:
+                p.drawEllipse(QRectF(px - 3, py - 3, 6, 6))
+            p.setPen(text)
+            for px, py, _, w in pk:                     # Preis über jedem Punkt
+                p.drawText(QRectF(px - 40, py - 17, 80, 14), Qt.AlignHCenter, f"{_z(w)} €")
+        p.setPen(grau)
+        p.drawText(QRectF(li, self.height() - 14, rechts - li, 14), Qt.AlignRight, "Menge")
 
 
 class _Bote(QObject):
@@ -705,12 +743,17 @@ class StaffelSeite(QWidget):
         self.vergleich = Vergleich()
         self.knoepfe = {}
         leiste = QHBoxLayout()
-        for text, ziel in (("Neue Stufe …", self.neu), ("Stufe bearbeiten …", self.bearbeiten),
+        for text, ziel in (("Neue Stufe …", self.neu), ("Standard-Staffeln", self.standard),
+                           ("Stufe bearbeiten …", self.bearbeiten),
                            ("Stufen löschen", self.loeschen), ("Staffelpreise rechnen", self.rechnen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
             self.knoepfe[text] = b
+        self.knoepfe["Standard-Staffeln"].setToolTip(
+            "Je Faktor aus Einstellungen → Angebot („Standard-Staffeln“) eine Stufe mit Menge des Angebots × Faktor. "
+            "Hat das Angebot noch keine Stufe, legt das Angebots-PDF sie selbst an.")
+        self._auto_aus = False          # Stufen in dieser Sitzung gelöscht: das PDF legt keine Standard-Staffeln an
         leiste.addStretch(1)
         self.hinweis = hilfe.Hinweis("Je Zeile eine Stufe, gerechnet wie ein eigener Auftrag: alle Sätze und "
                                      "Positionen mit Menge zusammen. Doppelklick öffnet die Stufe mit Einstellungen, "
@@ -874,6 +917,37 @@ class StaffelSeite(QWidget):
         self.s.db.staffel_stufen_loeschen([self.modell.daten[r]["id"] for r in zeilen])
         self.s.neu_laden()
         self.s.verlauf.merken()
+        if not staffeln.gueltige(self.s.stufen):
+            self._auto_aus = True
+
+    def standard_auto(self):
+        return self.standard(automatisch=True)
+
+    def standard(self, automatisch=False):
+        """Standard-Staffeln (Plan Arbeitsabläufe W3): je Faktor der Einstellung 'staffeln_standard' eine Stufe mit
+        den Mengen des Angebots × Faktor. automatisch=True (vor dem Angebots-PDF): nur, wenn das Angebot noch keine
+        Stufe hat und in dieser Sitzung keine gelöscht wurden, ohne Fehlermeldung. Ergebnis: IDs der neuen Stufen."""
+        if automatisch and (self._auto_aus or staffeln.gueltige(self.s.stufen)):
+            return []
+        from .kundenvorgabe import staffeln_text      # Faktoren des Kunden (W2), sonst der Einstellung
+        faktoren = staffeln.standard_faktoren(staffeln_text(self.s.db, self.s.kopf.get("kundennr")))
+        mengen = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.s.positionen) if menge]
+        if not faktoren or not mengen:
+            if not automatisch:
+                self.s.f.meldung("Keine Standard-Staffeln eingestellt (Einstellungen → Angebot bzw. Kundenvorgaben)." if not faktoren else
+                                 "Im Angebot hat noch kein Satz und keine Position eine Stückzahl.", fehler=True)
+            return []
+        ids = []
+        for f in faktoren:
+            sid = self.s.db.staffel_stufe_neu(self.s.id)
+            for schl, menge in mengen:
+                self.s.db.staffel_neu(self.s.id, dict(schluessel=schl, menge=staffeln.standard_menge(menge, f),
+                                                      stufe_id=sid))
+            ids.append(sid)
+        self.s.neu_laden()
+        self.s.f.meldung(f"{len(ids)} Standard-Staffeln angelegt (Menge × " + "; ".join(
+            zahl_als_text(f, 2 if f != int(f) else 0) for f in faktoren) + ").")
+        return ids
 
     # -------------------------------------------------------------- Rechnen
     def speichern(self, zeilen, am=None):
@@ -949,7 +1023,7 @@ class StaffelSeite(QWidget):
                 self._bote.fertig.emit(nr, zeilen, kenn)
             except Exception as e:          # noqa: BLE001 – Fehler im Programmablauf melden
                 self._bote.fertig.emit(nr, None, str(e))
-        threading.Thread(target=lauf, daemon=True).start()
+        threading.Thread(target=lauf, name="Staffelpreise", daemon=True).start()   # Name: update_fenster
         self.stand()
 
     def _hintergrund_fertig(self, nr, zeilen, kenn):

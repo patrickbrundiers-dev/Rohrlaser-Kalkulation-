@@ -7,13 +7,13 @@ OK schreibt die Werte in die Position (Angebotsseite.schneidweg_berechnen), Zeic
 import json
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QCompleter, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
                                QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
-from . import dfm, dreid, hilfe, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
+from . import stil
+from . import biegerohr, dfm, dreid, hilfe, knickrahmen, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
@@ -60,7 +60,11 @@ ART_HILFE = {
     sw.SONDERKONTUR: "Freie Kontur, auch über mehrere Flächen (aus dem STEP-Import mit echtem Umriss): Maß 1 = "
                      "Schnittlänge, Maß 2 = Hüllmaß für die Konturklasse.",
     sw.GRAVUR: "Gravur (Markierung, Prägung) an dieser Stelle: Maß 1 = Gravurlänge; zählt zur Gravur, nie zum "
-               "Schneidweg. In der Skizze grün."}
+               "Schneidweg. In der Skizze grün.",
+    sw.V_AUSSCHNITT: "V-Ausschnitt für einen Knick (Knickrahmen, nur Quadrat- und Rechteckrohr): Maß 1 = Knickwinkel β "
+                     "(Rechteck-Rahmen 90°), Maß 2 = Freistich-Ø an den Spitzen (0 = ohne), Lage = Mitte des V, Seite "
+                     "= Stegwand, die stehen bleibt. Schnittlänge 2 × b + 4 × (h − s) / cos(β/2), 1 Einstich. Den "
+                     "ganzen Rahmen mit gestreckter Länge legt der Knopf „Knickrahmen …“ an."}
 LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitte, Seite = Fläche von Ende A gesehen, "
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE, GEWINDE_SPALTE = range(5, 14)
@@ -106,6 +110,8 @@ class SchneidwegDialog(QDialog):
         e, self.aus_position = sw.aus_position(sw.lesen(p.get("technik")), p, profil)
         # Profil der Position anders als gemessen (von Hand geändert): Konturen umrechnen bzw. Umriss übertragen
         e, self._umstell_hinweise, _, _ = sw.konturen_umstellen(e, dict(profil, profil_id=p.get("profil_id")))
+        self.biegerohr = biegerohr.lesen(e)        # Biegerohr aus dem STEP-Import: bleibt in den Eingaben
+        self.knick = knickrahmen.lesen(e)          # Knickrahmen: Schenkel, daraus die gestreckte Länge
         self._ende_step = {}            # je Ende: Eingaben wie gemessen und gemessene Werte (STEP-Import)
         self.setWindowTitle(f"Neue Position {p.get('pos') or ''} – Rohr / Profil".strip() if neu else
                             f"Schneidweg berechnen – Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip())
@@ -304,6 +310,12 @@ class SchneidwegDialog(QDialog):
             b.clicked.connect(lambda _=False, art=art: self.zeile_neu(dict(art=art, anzahl=1)))
             leiste.addWidget(b)
         leiste = umbruch.rechts_layout
+        self.knick_knopf = QPushButton("Knickrahmen …")
+        self.knick_knopf.setToolTip("Rahmen aus einem Rohr: Schenkel eingeben, das Programm setzt die V-Ausschnitte, "
+                                    "die Enden und die gestreckte Länge (nur Quadrat- und Rechteckrohr)")
+        self.knick_knopf.clicked.connect(lambda: self.knickrahmen())
+        self.knick_knopf.setEnabled(self.kasten)
+        leiste.addWidget(self.knick_knopf)
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(self._entfernen)
         kopieren = QPushButton("Aus Position kopieren …")
@@ -822,11 +834,11 @@ class SchneidwegDialog(QDialog):
                 art.setToolTip(f"gemessen an einem anderen Querschnitt ({str(z['messprofil']).split('|')[0]}), nicht "
                                f"umrechenbar: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm gilt, bitte "
                                "prüfen")
-                self.tabelle.item(r, 1).setBackground(QColor("#FFF4CC"))
+                self.tabelle.item(r, 1).setBackground(stil.farbe("#FFF4CC"))
             else:
                 art.setToolTip(f"aus dem STEP-Import: gemessene Schnittlänge {rechnen.zahl(z['gemessen'], 1)} mm "
                                "(gilt, solange Art und Maße unverändert bleiben)")
-                self.tabelle.item(r, 1).setBackground(QColor("#E8F5E9"))
+                self.tabelle.item(r, 1).setBackground(stil.farbe("#E8F5E9"))
         self.tabelle.blockSignals(False)
         if rechnen_:
             self.rechnen()
@@ -941,7 +953,11 @@ class SchneidwegDialog(QDialog):
         out = dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
         if self.d3.isChecked():
             out["d3"] = True
-        return out
+        if self.biegerohr:
+            out["biegerohr"] = self.biegerohr
+        if self.knick:
+            out["knickrahmen"] = self.knick
+        return sw.v_ergaenzen(out, self.profil)
 
     # ------------------------------------------------------------------ Ergebnis
     def rechnen(self, *_):
@@ -1178,6 +1194,39 @@ class SchneidwegDialog(QDialog):
         st = dreid.pruefen(p, m)
         return [f"<span style='color:{'#B42318' if st.startswith('FEHLER') else '#7A5A00'}'>3D: {st}</span>"] \
             if st else []
+
+    def knickrahmen(self, werte=None, dialog=None):
+        """Knickrahmen eingeben (KnickrahmenDialog): V-Ausschnitte, Enden und gestreckte Länge setzen. werte = Block
+        ohne Dialog ({} = entfernen), dialog(d) bedient den Dialog statt exec (Tests, Bildschirmfotos)."""
+        from .knickrahmen_dialog import KnickrahmenDialog
+        if werte is None:
+            vorgaben = {n: (self.db.einstellung(f"knick_{n}") if self.db is not None else None)
+                        for n in ("z", "freistich", "k")}
+            d = KnickrahmenDialog(self, self.profil, self.knick, vorgaben)
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+                return False
+            werte = {} if d.entfernen else d.block()
+        eing = self.eingaben()
+        if not werte:
+            self.knick = None
+            eing = knickrahmen.anwenden(eing, None, self.profil)[0]
+            self.d3.setChecked(eing.get("d3") is True)
+            self.eingaben_setzen(eing, mit_messung=True)
+            return True
+        eing, r = knickrahmen.anwenden(eing, werte, self.profil)
+        self.knick = eing["knickrahmen"]
+        self.d3.setChecked(eing.get("d3") is True)       # schräge Innenwand = 3D
+        self.laenge_setzen(round(r["laenge"], 1))
+        self.eingaben_setzen(eing, mit_messung=True)
+        return True
+
+    def laenge_setzen(self, laenge):
+        """Teilelänge im Dialog (neue Position: Kopfzeile; sonst gilt sie beim Übernehmen über das Ergebnis)."""
+        if self.neu:
+            self.k_laenge.setValue(laenge)
+        self.p = dict(self.p, laenge=laenge)
+        self.skizze.laenge = laenge
+        self._info_zeigen()
 
     def schneidzeit(self):
         """Schneidzeit je Teil [s] mit den neuen Werten oder None ohne Schneiddaten (mit 3D-Mehrzeit)."""

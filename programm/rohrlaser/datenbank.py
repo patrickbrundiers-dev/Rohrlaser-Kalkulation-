@@ -29,21 +29,21 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from . import passwort, teilen, zukauf
+from . import kennwerte, nummern, passwort, teilen, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
 from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL, POSITIONEN, ZAHLUNG, ZUKAUFTEIL, kuerzel_sauber,
-                      lieferzeit_wert, naechste_nummer, nummer_mit_kuerzel)
+                      lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
-                         schweiss_zusatzarbeiten,
+                         schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 49     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 53     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -91,6 +91,13 @@ SCHEMA_VERSION = 49     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 47: K-Faktoren der Abwicklung (Tabelle blech_kfaktoren mit Beispielwerten nach DIN 6935)
                         # 48: Fertigungsprüfung (Tabelle pruefregeln mit den Vorgaben, maschinen.min_teil leer)
                         # 49: Baugruppen-Vorlagen (Tabelle baugruppen_vorlagen, leer)
+                        # 50: Schweißverfahren mit Verbrauch (dichte, draht_eur_kg, gas_l_min, gas_eur_l leer)
+                        #     und Kennwerte-Historie (Tabelle kennwerte_historie, leer; Freigaben aus der Nachkalkulation)
+                        # 51: Kundenvorgaben (Tabelle kundenvorgaben, leer; Plan Arbeitsabläufe W2)
+                        # 52: Neue Fassung (angebote.fassung_basis = Nummer ohne Zusatz, angebote.ersetzt_durch =
+                        #     Nummer der neueren Fassung; ältere Angebote leer; Plan Arbeitsabläufe W10)
+                        # 53: Vorkalkulation Schweißbaugruppe (Tabelle schweiss_regeln leer, positionen.bg_hilfe leer =
+                        #     Positionierhilfe nach Vorschlag)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -99,8 +106,9 @@ UMBENANNT_EINSTELLUNGEN = (("letzte_auftragsnummer", "letzte_angebotsnummer"), (
 ALTE_INDIZES = ("auftraege_nummer", "positionen_auftrag")
 SQL_ART = {"zahl": "REAL", "ganz": "INTEGER"}
 SICHERUNGEN_BEHALTEN = 30
-ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN,)
-ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN}
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, kennwerte.HISTORIE)
+ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
+                kennwerte.HISTORIE.name: kennwerte.HISTORIE}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
@@ -109,6 +117,8 @@ RICHTWERTE_STAND = "2026-10-21"    # Rohr-Richtwerte Schneiddaten (Datenbank._ri
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
+BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
+KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -185,6 +195,8 @@ class Datenbank:
             self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
             self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
+            self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
+            self.einstellung_setzen("knick_stand", KNICK_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -280,6 +292,9 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
             if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
+            if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
+                self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -351,9 +366,58 @@ class Datenbank:
                 self._bohr_zusatz_ergaenzen()
             if version > 0 and self.einstellung("schweissen_stand") != SCHWEISSEN_STAND:
                 self._schweissen_ergaenzen()
+            if version > 0 and self.einstellung("biegerohr_stand") != BIEGEROHR_STAND:
+                self._biegerohr_ergaenzen()
+            if version > 0 and self.einstellung("knick_stand") != KNICK_STAND:
+                self._knick_ergaenzen()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
+        self._stand_einrichten()
+
+    # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
+    # Zwischenspeicher von kontext() und tabellen() (Plan C2)
+    ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
+                         "staffel_stufen", "teilen_basis")
+
+    def _stand_einrichten(self):
+        """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
+        Einfügen, Ändern und Löschen in einer Stammdaten-Tabelle, gleich über welchen Weg (auch db.con direkt,
+        Abgleich, Import). Schreiben anderer Programme in die Datei zeigt PRAGMA data_version. Nach dem Anlegen oder
+        Wiederherstellen neu eingerichtet und einmal erhöht."""
+        self._zwischen = {}
+        self.con.execute("CREATE TEMP TABLE IF NOT EXISTS stammdaten_stand (n INTEGER)")
+        if self.con.execute("SELECT COUNT(*) FROM temp.stammdaten_stand").fetchone()[0] == 0:
+            self.con.execute("INSERT INTO temp.stammdaten_stand VALUES (0)")
+        tabellen = [r[0] for r in self.con.execute("SELECT name FROM main.sqlite_master WHERE type='table'")
+                    if r[0] not in self.ANGEBOTS_TABELLEN and not r[0].startswith("sqlite_")]
+        for t in tabellen:
+            for art in ("INSERT", "UPDATE", "DELETE"):
+                name = f"stand_{t}_{art.lower()}"
+                self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
+                self.con.execute(f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" '
+                                 "BEGIN UPDATE stammdaten_stand SET n = n + 1; END")
+        self.con.execute("UPDATE temp.stammdaten_stand SET n = n + 1")
+        self.con.commit()
+
+    @liest
+    def stammdaten_stand(self):
+        """Ändert sich, sobald sich Stammdaten ändern (Zähler der Trigger, Schreiben anderer Verbindungen)."""
+        return (self.con.execute("SELECT n FROM temp.stammdaten_stand").fetchone()[0],
+                self.con.execute("PRAGMA data_version").fetchone()[0])
+
+    def _zwischengespeichert(self, name, bauen):
+        """Ergebnis von bauen() je Stammdaten-Stand merken. Die Aufrufer ändern das Ergebnis nicht (geprüft mit
+        ROHRLASER_ZWISCHEN_PRUEFEN=1: dann wird jeder Treffer mit einem frisch gebauten Ergebnis verglichen)."""
+        stand = self.stammdaten_stand()
+        treffer = self._zwischen.get(name)
+        if treffer and treffer[0] == stand:
+            if os.environ.get("ROHRLASER_ZWISCHEN_PRUEFEN") and treffer[1] != bauen():
+                raise AssertionError(f"Zwischenspeicher {name}: Ergebnis wurde von einem Aufrufer verändert")
+            return treffer[1]
+        wert = bauen()
+        self._zwischen[name] = (stand, wert)
+        return wert
 
     def _bohr_zusatz_ergaenzen(self):
         """Einmalig: Zusatzarbeiten Senken, Flowdrill und Bohren anlegen, wenn es sie (dem Namen nach) noch nicht gibt
@@ -378,6 +442,27 @@ class Datenbank:
                         ergaenzen=True)
         self._einfuegen("zusatzarbeiten", schweiss_zusatzarbeiten(), ergaenzen=True)
         self._einstellung_schreiben("schweissen_stand", SCHWEISSEN_STAND)
+
+    def _biegerohr_ergaenzen(self):
+        """Einmalig: Zusatzarbeit 'Biegen' (€ je Biegung) und die Prüfregeln für Biegerohre anlegen, wenn es sie (dem
+        Namen nach) noch nicht gibt (Plan S9). Eine Datei ohne Prüfregeln (vor Schema 48) bekommt sie mit allen
+        Vorgaben schon oben."""
+        from . import dfm
+        self._einfuegen("zusatzarbeiten", biege_zusatzarbeiten(), ergaenzen=True)
+        if self.anzahl("pruefregeln"):
+            neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in (dfm.BIEGEZONE, dfm.GERADE_KURZ)]
+            self._einfuegen("pruefregeln", neu, ergaenzen=True)
+        self._einstellung_schreiben("biegerohr_stand", BIEGEROHR_STAND)
+
+    def _knick_ergaenzen(self):
+        """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem
+        Namen nach) noch nicht gibt (Plan K1)."""
+        from . import dfm
+        self._einfuegen("zusatzarbeiten", knick_zusatzarbeiten(), ergaenzen=True)
+        if self.anzahl("pruefregeln"):
+            neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.KNICK_REGELN]
+            self._einfuegen("pruefregeln", neu, ergaenzen=True)
+        self._einstellung_schreiben("knick_stand", KNICK_STAND)
 
     def _programmierung_zeit(self):
         """Schema 39: Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026: 5 min je Position +
@@ -1117,6 +1202,10 @@ class Datenbank:
 
     @liest
     def kontext(self):
+        """Stammdaten-Kontext für die Rechnung; neu gebaut nur, wenn sich Stammdaten geändert haben (Plan C2)."""
+        return self._zwischengespeichert("kontext", self._kontext_bauen)
+
+    def _kontext_bauen(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
@@ -1129,10 +1218,13 @@ class Datenbank:
     @liest
     def tabellen(self):
         """Stammdaten, die die Rechnung braucht (Preise, Lieferlängen, Schneiddaten, Gewinde, Zusatzarbeiten, Stundensätze,
-        Arbeitsschritte)."""
+        Arbeitsschritte); neu gelesen nur, wenn sich Stammdaten geändert haben (Plan C2)."""
+        return self._zwischengespeichert("tabellen", self._tabellen_bauen)
+
+    def _tabellen_bauen(self):
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
-                                           "schweiss_kennwerte", "schweiss_faktoren", "pruefregeln")}
+                                           "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         return tab
 
@@ -1455,19 +1547,54 @@ class Datenbank:
         """Kundennummer ins Angebot; steht sie im Kundenstamm, auch Name und Zahlungsbedingungen.
         Ergebnis: Kundenzeile oder None."""
         k = self.kunde(kundennr)
+        a = self.angebot(angebot_id) or {}
         self.angebot_aendern(angebot_id, "kundennr", kundennr)
         if k:
             self.angebot_aendern(angebot_id, "kunde", k["name"])
             for n, w in self.zahlungsbedingungen(kundennr).items():
                 self.angebot_aendern(angebot_id, n, w)
+        geaendert = self.kundenvorgaben_anwenden(angebot_id, a, kundennr)
+        if k:
+            k["vorgaben"] = geaendert
         return k
+
+    @liest
+    def kopf_vorgaben(self, datum=None):
+        """Werte der Felder aus kundenvorgabe.FELDER, wie ein neues Angebot sie aus den Einstellungen bekommt."""
+        return dict(maschine=self.einstellung("standard_maschine"), stange=self.einstellung("standard_stange"),
+                    gewinn=self.kalkulation_vorgaben().get("gewinn"), material_vorgabe=None,
+                    **self.lieferzeit_vorgabe(datum))
+
+    @schreibt
+    def kundenvorgaben_anwenden(self, angebot_id, alt, kundennr):
+        """Kundenvorgaben (W2) nach dem Wechsel auf kundennr: ein Feld wird nur ersetzt, solange es leer ist oder die
+        Vorgabe der Einstellungen bzw. des Kunden aus alt (Kopf vor dem Wechsel) hat. Ohne Vorgabe des neuen Kunden
+        gilt wieder die Einstellung. Ergebnis: Titel der geänderten Felder."""
+        from .kundenvorgabe import ersetzen, kopfwerte
+        einst = self.kopf_vorgaben(alt.get("datum"))
+        frueher = kopfwerte(self, alt.get("kundennr"), alt.get("datum")) if alt.get("kundennr") != kundennr else {}
+        neu = {**einst, **kopfwerte(self, kundennr, alt.get("datum"))}
+        aenderung = ersetzen(alt, neu, einst, frueher)
+        titel = {f.name: f.titel for f in KOPF}
+        geaendert = []
+        for n in ("maschine", "stange", "gewinn", "material_vorgabe", "lieferzeit_art", "lieferzeit_wert",
+                  "lieferzeit_zusatz"):
+            if n in aenderung:
+                try:
+                    self.angebot_aendern(angebot_id, n, aenderung[n])
+                except ValueError:
+                    continue
+                t = "Lieferzeit" if n.startswith("lieferzeit") else titel[n].split(" [")[0]
+                if t not in geaendert:
+                    geaendert.append(t)
+        return geaendert
 
     # -------------------------------------------------------------- Angebote
     @liest
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.versand AS _versand, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1476,7 +1603,19 @@ class Datenbank:
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
             werte = [f"%{suche}%"] * 6
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
-        return [dict(r) for r in self.con.execute(sql, werte)]
+        from .nachkalkulation import erfasst
+        zeilen = []
+        for r in self.con.execute(sql, werte):
+            z = dict(r)
+            v = z.pop("_versand")   # Versandverlauf: Wiedervorlage und Nachfassen (cockpit.verlauf)
+            try:
+                z["versand"] = json.loads(v) if v else []
+            except ValueError:
+                z["versand"] = []
+            nk = z.pop("_nk")      # ist_erfasst: echte Ist-Werte (nicht nur eine Bemerkung), Filter Nachkalkulation offen
+            z["ist_erfasst"] = bool(nk) and erfasst(json.loads(nk))
+            zeilen.append(z)
+        return zeilen
 
     @liest
     def angebot(self, angebot_id):
@@ -1498,24 +1637,19 @@ class Datenbank:
         return datetime.datetime.now().isoformat(timespec="seconds")
 
     @schreibt
-    def angebot_neu(self, kopf=None):
-        """Neues Angebot mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch."""
+    def angebot_neu(self, kopf=None, zaehler=True):
+        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
+        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
         kopf = dict(kopf or {})
         kuerzel = kuerzel_sauber(self.einstellung("benutzer_kuerzel"))
         if not kopf.get("nummer"):
-            if kuerzel:          # Kürzel vorn, eigener Zähler je Kürzel und Jahr (auch über gelöschte Angebote)
-                jahr = str(kopf.get("datum") or datetime.date.today().isoformat())[:4]
-                vergeben = [r[0] for r in self.con.execute("SELECT nummer FROM angebote")]
-                vergeben.append(self.einstellung("letzte_angebotsnummer"))
-                nr = nummer_mit_kuerzel(kuerzel, jahr, vergeben)
-            else:
-                nr = naechste_nummer(self.einstellung("letzte_angebotsnummer"))
-            while self.con.execute("SELECT 1 FROM angebote WHERE nummer=?", (nr,)).fetchone():
-                nr = naechste_nummer(nr)
-            kopf["nummer"] = nr
+            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         if kuerzel:
             kopf.setdefault("bearbeiter", kuerzel)
         kopf.setdefault("datum", datetime.date.today().isoformat())
+        from .kundenvorgabe import kopfwerte          # Vorgaben des Kunden (W2) vor den Einstellungen
+        for n, w in kopfwerte(self, kopf.get("kundennr"), kopf["datum"]).items():
+            kopf.setdefault(n, w)
         kopf.setdefault("maschine", self.einstellung("standard_maschine"))
         kopf.setdefault("stange", self.einstellung("standard_stange"))
         k = self.kunde(kopf.get("kundennr"))
@@ -1536,7 +1670,8 @@ class Datenbank:
                     f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
                     f'({", ".join("?" * len(namen))}, ?, ?, ?)',
                     [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
-                self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
+                if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
+                    self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
         return i
@@ -1574,19 +1709,23 @@ class Datenbank:
             raise ValueError(f"Angebotsnummer '{wert}' gibt es schon.")
 
     @schreibt
-    def angebot_kopieren(self, angebot_id, kundennr=None):
+    def angebot_kopieren(self, angebot_id, kundennr=None, nummer=None):
         """Kopie mit neuer Nummer und heutigem Datum. kundennr: anderer Kunde (Name und Zahlungsbedingungen
-        aus dem Kundenstamm, sonst bleibt nur die Nummer); None = gleicher Kunde."""
+        aus dem Kundenstamm, sonst bleibt nur die Nummer); None = gleicher Kunde. nummer: feste Nummer (neue
+        Fassung, angebot_fassung): Stundensätze nach den Einstellungen, Zähler der Angebotsnummern unberührt."""
         a = self.angebot(angebot_id)
         kopf = {f.name: a[f.name] for f in KOPF if f.name not in ("nummer", "bearbeiter")}     # Kopie: eigene Nummer
         kopf["datum"] = datetime.date.today().isoformat()
-        kopf["zeitbasis"] = a.get("zeitbasis")      # gleiche Stundensätze; ältere Angebote: aktuelle Vorgaben
+        if nummer:
+            kopf["nummer"] = nummer
+        else:
+            kopf["zeitbasis"] = a.get("zeitbasis")  # gleiche Stundensätze; ältere Angebote: aktuelle Vorgaben
         if kundennr is not None and kundennr != a.get("kundennr"):
             k = self.kunde(kundennr)
             kopf["kundennr"] = kundennr or None
             kopf["kunde"] = k["name"] if k else None
             kopf.update(self.zahlungsbedingungen(kundennr))
-        neu = self.angebot_neu(kopf)
+        neu = self.angebot_neu(kopf, zaehler=not nummer)
         if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
             self.laengenwahl_speichern(neu, a["laengenwahl"])
         if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
@@ -1599,6 +1738,32 @@ class Datenbank:
         stufen = {st["id"]: self.staffel_stufe_neu(neu, st) for st in self.staffel_stufen(angebot_id)}
         for st in self.staffeln(angebot_id):
             self.staffel_neu(neu, dict(st, stufe_id=stufen.get(st.get("stufe_id"))))
+        return neu
+
+    @liest
+    def fassung_nummer(self, angebot_id):
+        """Nummer der nächsten Fassung (Plan Arbeitsabläufe W10): Nummer ohne Zusatz + '-2', '-3' … (höchste
+        vorhandene Fassung + 1)."""
+        a = self.angebot(angebot_id)
+        basis = a.get("fassung_basis") or a["nummer"]
+        hoch = 1
+        for (nr,) in self.con.execute("SELECT nummer FROM angebote WHERE nummer LIKE ?", (basis + "-%",)):
+            rest = str(nr)[len(basis) + 1:]
+            if rest.isdigit():
+                hoch = max(hoch, int(rest))
+        return f"{basis}-{hoch + 1}"
+
+    @schreibt
+    def angebot_fassung(self, angebot_id):
+        """Neue Fassung (W10): Kopie mit gleicher Nummer und Zusatz -2, -3 …, gleichem Kunden, heutigem Datum und den
+        aktuellen Preisen und Stundensätzen (nichts festgeschrieben); Vorgang Entwurf. Die bisherige Fassung bekommt
+        ersetzt_durch = neue Nummer. Ergebnis: ID der neuen Fassung."""
+        a = self.angebot(angebot_id)
+        nummer = self.fassung_nummer(angebot_id)
+        neu = self.angebot_kopieren(angebot_id, nummer=nummer)
+        with self.con:
+            self.con.execute("UPDATE angebote SET fassung_basis=? WHERE id=?", (a.get("fassung_basis") or a["nummer"], neu))
+            self.con.execute("UPDATE angebote SET ersetzt_durch=? WHERE id=?", (nummer, angebot_id))
         return neu
 
     @schreibt
@@ -1629,6 +1794,18 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
                              (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
+
+    @schreibt
+    def nachgefasst_merken(self, angebot_id, wie="E-Mail"):
+        """Nachfassen (Plan A9) im Versandverlauf vermerken; das automatische Nachfassen zählt ab heute neu."""
+        self.versand_merken(angebot_id, dict(art="nachgefasst", datum=datetime.date.today().isoformat(), wie=wie))
+
+    @schreibt
+    def wiedervorlage_setzen(self, angebot_id, am):
+        """Wiedervorlage von Hand (Datum oder None = keine) im Versandverlauf; ersetzt bis dahin das automatische
+        Nachfassen."""
+        self.versand_merken(angebot_id, dict(art="wiedervorlage", datum=datetime.date.today().isoformat(),
+                                             am=am.isoformat() if am else None))
 
     @schreibt
     def vorgang_setzen(self, angebot_id, vorgang):

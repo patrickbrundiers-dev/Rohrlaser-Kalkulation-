@@ -147,6 +147,24 @@ class Aufklapper(QWidget):
         return self.knopf.isChecked()
 
 
+def _versand_text(v):
+    """Eine Zeile des Versandverlaufs: PDF mit Netto oder Vorgang von Hand, dazu ein übergangener Angebots-Check;
+    Nachfassen und Wiedervorlage (Plan A9)."""
+    if v.get("art") == "nachgefasst":
+        return f"{datum_text(v.get('datum'))}: nachgefasst ({v.get('wie') or 'E-Mail'})"
+    if v.get("art") == "wiedervorlage":
+        return (f"{datum_text(v.get('datum'))}: Wiedervorlage am {datum_text(v['am'])}" if v.get("am") else
+                f"{datum_text(v.get('datum'))}: Wiedervorlage entfernt")
+    t = (f"{datum_text(v.get('datum'))}: {_z(v.get('netto'))} € netto ({v.get('datei') or 'PDF'})" if v.get("datei")
+         or v.get("netto") is not None else f"{datum_text(v.get('datum'))}: als verschickt markiert (ohne PDF)")
+    c = v.get("check")
+    if isinstance(c, dict) and c.get("punkte"):
+        t += f" – Angebots-Check übergangen ({len(c['punkte'])} Punkte)"
+        if c.get("begruendung"):
+            t += f": {c['begruendung']}"
+    return t
+
+
 class KopfBereich(QWidget):
     """Angebotskopf, Maschinenparameter und Kalkulationseinstellungen (links auf der Angebotsseite)."""
 
@@ -466,6 +484,18 @@ class KopfBereich(QWidget):
         if merken:
             self.s.db.einstellung_setzen(KALK_OFFEN_EINSTELLUNG, offen)
             self.s.oben_anpassen()
+
+    def feld_zeigen(self, name):
+        """Angebots-Check „Hinspringen“: Kopf (bzw. Erweiterte Einstellungen) aufklappen und das Feld fokussieren.
+        name = Feld des Angebotskopfs oder 'lieferzeit'. Ergebnis: das Eingabefeld oder None."""
+        w = self.lz_art if name == "lieferzeit" else self.felder.get(name) or self.erweitert.get(name)
+        if w is None:
+            return None
+        self.kopf_aufklappen(True)
+        if name in self.erweitert:
+            self.erweitert_bereich.aufklappen(True)
+        w.setFocus()
+        return w
 
     def kopf_aufklappen(self, offen=True, automatisch=False):
         """Angebotskopf auf- oder zuklappen; zugeklappt steht die Kurzfassung in der Titelzeile. Eine Wahl von Hand
@@ -860,12 +890,21 @@ class UebersichtBereich(QWidget):
         self.meldungen.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.meldungen_bereich = Aufklapper("Meldungen", self.meldungen)
         kl.addWidget(self.meldungen_bereich)
-        # Prüfen vor Freigabe: alle offenen Punkte vor dem Angebots-PDF (Kunde, Schnittplan, Meldungen, Bohrungen …)
+        # Angebots-Check (früher Prüfen vor Freigabe): alle offenen Punkte vor dem Angebots-PDF (Kunde, Schnittplan, Meldungen, Bohrungen …)
+        # Angebots-Check (Plan A2): Links check:<Ziel> verbindet die Angebotsseite (check_link)
         self.freigabe = QLabel()
         self.freigabe.setWordWrap(True)
-        self.freigabe.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.freigabe_bereich = Aufklapper("Prüfen vor Freigabe", self.freigabe)
+        self.freigabe.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        self.freigabe_bereich = Aufklapper("Angebots-Check", self.freigabe)
         kl.addWidget(self.freigabe_bereich)
+        # Wiederholteile (Plan A1): Positionen, die schon angeboten wurden; Links übernehmen / öffnen / hinspringen,
+        # die Angebotsseite verbindet linkActivated (wiederholteil_link)
+        self.wiederholteile = QLabel()
+        self.wiederholteile.setWordWrap(True)
+        self.wiederholteile.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        self.wiederholteile_bereich = Aufklapper("Wiederholteile", self.wiederholteile)
+        self.wiederholteile_bereich.setVisible(False)
+        kl.addWidget(self.wiederholteile_bereich)
         # Kennzahlen
         self.kennzahlen = QGridLayout()
         self.kennzahlen.setHorizontalSpacing(6)
@@ -898,10 +937,19 @@ class UebersichtBereich(QWidget):
         self.einzeln.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.einzeln_bereich = Aufklapper("Kostenarten einzeln", self.einzeln)
         kl.addWidget(self.einzeln_bereich)
+        # Kostenwasserfall (Layout-Plan L22): wie der Preisaufbau Stufe für Stufe zum Verkaufspreis kommt
+        from .kostenbalken import Kostenwasserfall
+        self.wasserfall = Kostenwasserfall()
+        self.wasserfall_bereich = Aufklapper("Kostenwasserfall", self.wasserfall)
+        kl.addWidget(self.wasserfall_bereich)
         # Zeiten je Arbeitsschritt (Reiter 'Zeiten & Arbeitskosten'), Zeilen mit 0 ausgeblendet
         self.zeiten = QLabel()
-        self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.zeiten.setToolTip("Einzelheiten je Arbeitsschritt im Reiter „Zeiten & Arbeitskosten“")
+        self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        self.zeiten.setToolTip("Maschine und Personal mit ▸ per Klick aufklappen; Einzelheiten je Arbeitsschritt im "
+                               "Reiter „Zeiten & Arbeitskosten“. Durchlaufzeit = Maschinenzeit + Personalzeit, die "
+                               "nicht parallel zur Maschine läuft.")
+        self.zeiten.linkActivated.connect(self._zeiten_umschalten)
+        self.offene_zeiten, self._zeit_summen = set(), None
         kl.addWidget(self.zeiten)
         # Kosten je Schweißbaugruppe als Balken (D2); nur sichtbar, wenn das Angebot Baugruppen hat
         self.bg_inhalt = QWidget()
@@ -945,8 +993,8 @@ class UebersichtBereich(QWidget):
             self.preisstand.setToolTip("Materialpreise, Schneiddaten, Gewinde, Einstellungen, Profile und Maschine "
                                        "stimmen mit den Stammdaten überein.")
         if versand:                 # Verlauf der verschickten Angebots-PDFs (Versionsstand)
-            self.preisstand.setToolTip((self.preisstand.toolTip() + "\n\n").lstrip() + "Verschickt:\n" + "\n".join(
-                f"{datum_text(v.get('datum'))}: {_z(v.get('netto'))} € netto ({v.get('datei') or 'PDF'})" for v in versand))
+            self.preisstand.setToolTip((self.preisstand.toolTip() + "\n\n").lstrip() + "Versandverlauf:\n" + "\n".join(
+                _versand_text(v) for v in versand))
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):
@@ -979,23 +1027,63 @@ class UebersichtBereich(QWidget):
         k.style().polish(k)
 
     def freigabe_setzen(self, punkte):
-        """punkte: rechnen.freigabe_punkte(...)."""
+        """punkte: angebot_check.punkte(...) (Paare (Art, Text) mit ziel und details)."""
+        from html import escape
+        from . import stil
         self.freigabe_punkte = punkte
         k = self.freigabe_bereich.knopf
-        if not punkte:
-            self.freigabe_bereich.setze_titel("Prüfen vor Freigabe: alles erledigt")
+        offen = [p for p in punkte if p[0] != "HINWEIS"]
+        hinweise = len(punkte) - len(offen)
+        zusatz = f" · {hinweise} Hinweis{'e' if hinweise > 1 else ''}" if hinweise else ""
+        if not offen:
+            self.freigabe_bereich.setze_titel("Angebots-Check: alles erledigt" + zusatz)
             k.setObjectName("meldung_ok")
+        else:
+            self.freigabe_bereich.setze_titel(f"Angebots-Check: {len(offen)} offene{'r' if len(offen) == 1 else ''} "
+                                              f"Punkt{'e' if len(offen) > 1 else ''}" + zusatz)
+            k.setObjectName("meldung_fehler" if any(a == "FEHLER" for a, _ in punkte) else "meldung_warnung")
+        if not punkte:
             self.freigabe.setText("Kunde, Schnittplan, Positionen, Bohrungen, Fracht und Staffeln sind in Ordnung.")
         else:
-            offen = sum(1 for a, _ in punkte if a != "HINWEIS")
-            self.freigabe_bereich.setze_titel(f"Prüfen vor Freigabe: {len(punkte)} offene{'r' if len(punkte) == 1 else ''} "
-                                              f"Punkt{'e' if len(punkte) > 1 else ''}")
-            k.setObjectName("meldung_fehler" if any(a == "FEHLER" for a, _ in punkte)
-                            else "meldung_warnung" if offen else "meldung_ok")
-            farbe = {"FEHLER": "#B42318", "WARNUNG": "#7A5A00", "HINWEIS": "#5F6B7A"}
-            self.freigabe.setText("<br>".join(f"<span style='color:{farbe[a]}'>• {t}</span>" for a, t in punkte))
+            farbe = {"FEHLER": stil.ROT, "WARNUNG": stil.GELB_TEXT, "HINWEIS": stil.TEXT_GRAU}
+            link = f"color:{stil.umsetzen(stil.AKZENT)}"
+            zeilen = []
+            for p in punkte:
+                z = f"<span style='color:{stil.umsetzen(farbe[p[0]])}'>• {escape(p[1])}</span>"
+                if getattr(p, "details", ""):
+                    z += f" <span style='color:{stil.umsetzen(stil.TEXT_GRAU)}'>({escape(p.details)})</span>"
+                if getattr(p, "ziel", None):
+                    z += f" <a style='{link}' href='check:{p.ziel}'>Hinspringen</a>"
+                zeilen.append(z)
+            self.freigabe.setText("<br>".join(zeilen))
         k.style().unpolish(k)
         k.style().polish(k)
+
+    def wiederholteile_setzen(self, eintraege):
+        """eintraege: [(Zeile, Positionstext, Treffer-Liste)] (wiederholteile.suchen), nur Positionen mit Treffern."""
+        from html import escape
+        from .wiederholteile import SICHER, text
+        n = len(eintraege)
+        self.wiederholteile_bereich.setVisible(bool(n))
+        if not n:
+            self.wiederholteile.clear()
+            return
+        sicher = sum(1 for _, _, t in eintraege if t[0].art == SICHER)
+        self.wiederholteile_bereich.setze_titel(
+            f"Wiederholteile: {n} Position{'en' if n > 1 else ''} schon angeboten"
+            + (f" ({sicher} sicher)" if sicher and sicher < n else ""))
+        link = "color:#1F4E78"
+        zeilen = []
+        for zeile, titel, treffer in eintraege:
+            t = treffer[0]
+            aktionen = [f"<a style='{link}' href='hin:{zeile}'>Hinspringen</a>",
+                        f"<a style='{link}' href='oeffnen:{t.angebot['id']}'>Angebot öffnen</a>"]
+            if t.werte:
+                aktionen.insert(0, f"<a style='{link}' href='werte:{zeile}'>Werte übernehmen …</a>")
+            zeilen.append(f"💡 <b>{escape(titel)}</b>: {escape(text(treffer))}<br>"
+                          f"<span style='color:{GRAU}'>{' · '.join(aktionen)}</span>")
+        self.wiederholteile.setText("<br>".join(zeilen) + f"<br><span style='color:{GRAU}'>Der Preis wird nie "
+                                    "übernommen, er entsteht immer neu aus der Kalkulation.</span>")
 
     def baugruppen_setzen(self, gruppen):
         """gruppen: [(Titel, [(Kostenteil, €)], [(größter Posten, €)])] je Schweißbaugruppe, Beträge je Baugruppe."""
@@ -1059,6 +1147,7 @@ class UebersichtBereich(QWidget):
             elif sichtbar(w):
                 html += f"<tr><td style='color:{GRAU}'>{t}</td><td align='right' style='color:{GRAU}'>{_z(w)} €</td></tr>"
         self.einzeln.setText(html + "</table>")
+        self.wasserfall.setzen(kosten)
 
     def _gruppe_umschalten(self, titel):
         """Klick auf eine Gruppe im Preisaufbau: ihre Kostenarten auf- oder zuklappen."""
@@ -1067,17 +1156,54 @@ class UebersichtBereich(QWidget):
             self.kosten_setzen(self._kosten)
 
     def zeiten_setzen(self, k):
-        """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten; Zeilen mit 0 ausgeblendet."""
-        zeilen = (("Maschinenzeit", k["maschine_min"], True), ("Personalzeit", k["personal_min"], True),
-                  ("Rüstzeit", k["ruest_min"], True), ("Durchlaufzeit", k["durchlauf_min"], True),
-                  ("Arbeitskosten", k["arbeitskosten"], False))
+        """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten aufgeschlüsselt: Maschine und Personal aufklappbar je
+        Arbeitsschritt (Zeit, Kosten), Rüstzeit als Teil der Maschinen- bzw. Personalzeit, Arbeitszeit gesamt,
+        Durchlaufzeit und Zeit je Teil; Zeilen mit 0 ausgeblendet."""
+        self._zeit_summen = k
         linie = "border-top:1px solid #C9D0D8"
-        html = f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>" \
-               f"<b>Zeiten</b></td></tr>"
+        grau = f"color:{GRAU}"
+        html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='3' style='{linie}'>"
+                f"<b>Zeiten</b></td></tr>")
         n = 0
-        for t, w, zeit in zeilen:
-            if sichtbar(w):
-                n += 1
-                html += f"<tr><td>{t}</td><td align='right'>{rechnen.zeit_text(w) if zeit else _z(w) + ' €'}</td></tr>"
+        titel = {"Maschine": ("Maschine", k["maschine_min"], k["maschinenkosten"], k.get("ruest_maschine_min", 0)),
+                 "Personal": ("Personal", k["personal_min"], k["personalkosten"], k.get("ruest_personal_min", 0))}
+        for art, schritte in k.get("gruppen") or ():
+            name, minuten, kosten, ruest = titel[art]
+            if not schritte:
+                continue
+            n += 1
+            offen = art in self.offene_zeiten
+            text = f"<a href='{art}' style='color:#1F2937;text-decoration:none'>{'▾' if offen else '▸'} {name}</a>"
+            html += (f"<tr><td>{text}</td><td align='right'>{rechnen.zeit_text(minuten)}</td>"
+                     f"<td align='right'>{_z(kosten)} €</td></tr>")
+            if offen:
+                for z in schritte:
+                    zusatz = " (parallel)" if art == "Personal" and z["parallel"] else ""
+                    html += (f"<tr><td style='{grau};padding-left:14px'>{z['schritt']}{zusatz}</td>"
+                             f"<td align='right' style='{grau}'>{rechnen.zeit_text(z['gesamt_min'])}</td>"
+                             f"<td align='right' style='{grau}'>{_z(z['kosten'])} €</td></tr>")
+            if sichtbar(ruest):
+                html += (f"<tr><td style='{grau};padding-left:14px'>davon Rüsten</td>"
+                         f"<td align='right' style='{grau}'>{rechnen.zeit_text(ruest)}</td><td></td></tr>")
+        if n:
+            html += (f"<tr><td style='{linie}'><b>= Arbeitszeit gesamt</b></td>"
+                     f"<td align='right' style='{linie}'><b>{rechnen.zeit_text(k['bearbeitung_min'])}</b></td>"
+                     f"<td align='right' style='{linie}'><b>{_z(k['arbeitskosten'])} €</b></td></tr>")
+            parallel = (f" (ohne {rechnen.zeit_text(k['parallel_min'])} parallel)"
+                        if sichtbar(k.get("parallel_min", 0)) else "")
+            html += (f"<tr><td>Durchlaufzeit{parallel}</td><td align='right'>{rechnen.zeit_text(k['durchlauf_min'])}"
+                     "</td><td></td></tr>")
+            if k.get("je_teil_min"):
+                html += (f"<tr><td>Ø Arbeitszeit je Teil</td><td align='right'>{rechnen.zeit_text(k['je_teil_min'])}"
+                         "</td><td></td></tr>")
+            if sichtbar(k["sonstige"]):
+                html += (f"<tr><td style='{grau}'>Kosten ohne Zeit (Festpreise, Fremdleistung)</td><td></td>"
+                         f"<td align='right' style='{grau}'>{_z(k['sonstige'])} €</td></tr>")
         self.zeiten.setText(html + "</table>")
         self.zeiten.setVisible(bool(n))
+
+    def _zeiten_umschalten(self, art):
+        """Klick auf Maschine oder Personal in den Zeiten: Arbeitsschritte auf- oder zuklappen."""
+        self.offene_zeiten ^= {art}
+        if self._zeit_summen is not None:
+            self.zeiten_setzen(self._zeit_summen)

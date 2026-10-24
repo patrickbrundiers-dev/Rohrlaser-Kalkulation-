@@ -35,6 +35,7 @@ GREIFMASS = 300.0
 SCHNELLWAHL = (-45, -30, 0, 30, 45)
 GRENZE_ABS = 89.0          # mehr ist geometrisch kein Schwenk mehr
 ENDE_A, ENDE_B, BOHRUNG = "Gehrung 3D Ende A", "Gehrung 3D Ende B", "Bohrung 3D"
+V_INNEN = "Knick 3D Innenwand"          # Knickrahmen mit schräger Innenwand (knickrahmen.py, schraeg)
 
 
 def _z(v):
@@ -220,6 +221,18 @@ def bearbeitungen(p, m=None, einstiche_ende=1):
         z["laenge"] = _z(p.get(schnitt))
         erg.append(z)
     for e in t.get("konturen") or ():
+        if e.get("d3") and e.get("art") == "V-Ausschnitt":     # nur die Innenwand ist geschwenkt (β/2)
+            qs = e.get("qs") or ()
+            z = dict(art=V_INNEN, winkel_eingabe=_z(e.get("beta")) / 2, laengs=None, quer=None,
+                     anzahl=int(_z(e.get("anzahl")) or 1), einstiche=0, huelle=None, hinweis=None, fehler=None,
+                     ende=False, laenge=2 * _z(qs[0]) if len(qs) == 3 else 0.0)
+            try:
+                z["winkel"], z["hinweis"] = gehrung_begrenzen(z["winkel_eingabe"], m)
+            except ValueError as f:
+                z.update(winkel=None, fehler=str(f))
+            z["abstand_b"] = max(0.0, lg - _z(e.get("x"))) if lg > 0 and e.get("x") is not None else 0.0
+            erg.append(z)
+            continue
         if not e.get("d3") or e.get("art") != "Bohrung":
             continue
         n = int(_z(e.get("anzahl")) or 0)

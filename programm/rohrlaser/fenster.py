@@ -10,31 +10,58 @@ schaltet im Lesemodus die ändernden Aktionen ab; mit der Admin-Lizenz (Admin-Pa
 lizenz (Tests, Entwicklung) voller Zugriff ohne Hinweise."""
 import datetime
 import os
+import re
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray
-from PySide6.QtGui import QAction, QBrush, QColor, QDesktopServices, QImage, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
-    QHeaderView, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
+    QSpinBox, QSplitter, QStackedWidget, QStyledItemDelegate, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
+from . import stil
 from . import NAME, VERSION, ausgabe, hilfe, pdf, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
+from .einstellungen_nav import NavigationsReiter
+from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
 from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
+ANLEITUNG_KOPIE = "Anleitung"     # Unterordner im Datenordner (anleitung_kopie)
 KURZANLEITUNG = "Kurzanleitung.pdf"
-FARBE_EINGABE = QColor("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
-FARBE_BERECHNET = QColor("#EDEDED")
+FARBE_EINGABE = stil.farbe_fest("#FFFCF0")   # Eingabefelder (dezent gelb, Layout-Plan L3)
+FARBE_BERECHNET = stil.farbe_fest("#EDEDED")
 # Prüfstatus: nur Auffälliges ist farbig (FEHLER rot, WARNUNG gelb), OK bleibt neutral grau
-FARBE_STATUS = {"FEHLER": QColor("#F8CBAD"), "WARNUNG": QColor("#FFD966"), "OK": FARBE_BERECHNET}
+FARBE_STATUS = {"FEHLER": stil.farbe_fest("#F8CBAD"), "WARNUNG": stil.farbe_fest("#FFD966"), "OK": FARBE_BERECHNET}
 
+
+
+def anleitung_kopie(pfad, ordner):
+    """Kopie der Anleitung im Datenordner (Unterordner Anleitung), damit der PDF-Betrachter nie die Datei im
+    Programmordner festhält: die ließe sich sonst beim Online-Update nicht austauschen (WinError 32). Die Kopie wird
+    erneuert, wenn sie fehlt oder sich Größe bzw. Zeitstempel unterscheiden. Ist die alte Kopie gerade geöffnet,
+    bleibt sie; ganz ohne Kopie das Original."""
+    ziel = Path(ordner) / Path(pfad).name
+    try:
+        q = Path(pfad).stat()
+        if ziel.is_file():
+            z = ziel.stat()
+            if z.st_size == q.st_size and int(z.st_mtime) == int(q.st_mtime):
+                return ziel
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ziel.with_name(ziel.name + ".neu")
+        shutil.copy2(pfad, tmp)
+        os.replace(tmp, ziel)
+        return ziel
+    except OSError:
+        return ziel if ziel.is_file() else Path(pfad)
 
 class StammdatenModell(QAbstractTableModel):
     """Eine Stammdatentabelle: Eingabefelder, berechnete Spalten, Prüfung. Jede Änderung wird sofort
@@ -248,12 +275,18 @@ class StammdatenSeite(QWidget):
                                 "Richtwerte ersetzen")
             standard.clicked.connect(self.schneiddaten_zuruecksetzen)
             leiste.addWidget(standard)
-        if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
+        if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
-            richt.setToolTip("Fehlende Schweißverfahren, Kennwerte und Faktoren als Richtwerte eintragen; vorhandene "
-                             "Zeilen bleiben unverändert")
+            richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
+                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert")
             richt.clicked.connect(lambda: self.schweiss_richtwerte())
             leiste.addWidget(richt)
+        if tabelle.name == "schweiss_kennwerte":
+            lernen = QPushButton("Kennwerte aus Nachkalkulation …")
+            lernen.setToolTip("Vorschläge Ist ÷ Soll aus nachkalkulierten Schweißbaugruppen prüfen, mit Begründung "
+                              "freigeben oder frühere Freigaben zurücknehmen")
+            lernen.clicked.connect(lambda: self.kennwerte_lernen())
+            leiste.addWidget(lernen)
         if tabelle.name == "kunden":
             export = QPushButton("CSV exportieren")
             export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
@@ -431,7 +464,8 @@ class StammdatenSeite(QWidget):
             return 0
         if bestaetigt is None:
             text = (f"{len(fehlt['schweissverfahren'])} Schweißverfahren, {len(fehlt['schweiss_kennwerte'])} "
-                    f"Kennwerte und {len(fehlt['schweiss_faktoren'])} Faktoren fehlen und werden als Richtwerte "
+                    f"Kennwerte, {len(fehlt['schweiss_faktoren'])} Faktoren und {len(fehlt['schweiss_regeln'])} "
+                    "Regeln der Vorkalkulation fehlen und werden als Richtwerte "
                     "eingetragen (Status Richtwert). Vorhandene Zeilen bleiben unverändert.\n\nRichtwerte sind aus "
                     "dem Nahtquerschnitt hergeleitet, keine Erfahrungswerte der eigenen Fertigung: bitte prüfen und "
                     "danach auf 'geprüft' stellen.\n\nJetzt eintragen?")
@@ -439,13 +473,23 @@ class StammdatenSeite(QWidget):
                                               QMessageBox.Yes) == QMessageBox.Yes
         if not bestaetigt:
             return 0
-        for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):    # Verfahren zuerst (Verweis)
+        for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):  # Verfahren zuerst
             for z in fehlt[name]:
                 self.db.neu(name, z)
         f = self.window()
         f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
         self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu, vorhandene unverändert.")
         return n
+
+    def kennwerte_lernen(self, dialog=None):
+        """Fenster Kennwerte aus der Nachkalkulation (kennwerte_dialog); dialog(d) statt exec (Tests)."""
+        from .kennwerte_dialog import KennwerteDialog
+        d = KennwerteDialog(self, self.db)
+        dialog(d) if dialog else d.exec()
+        if d.geaendert:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        return d
 
     def schneiddaten_zuruecksetzen(self):
         """Schneiddaten einer Maschine oder aller Maschinen mit Richtwerten (T03, T11, LT7) nach Sicherheitsabfrage
@@ -620,6 +664,7 @@ class EinstellungenSeite(QScrollArea):
         self.felder = {}
         gruppen = {}
         self.boxen = []
+        self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
         for e in self.liste:
             if e.gruppe not in gruppen:
                 box = QGroupBox(e.gruppe)
@@ -628,9 +673,12 @@ class EinstellungenSeite(QScrollArea):
                 self.boxen.append(box)
             w = self._eingabe(e)
             self.felder[e.name] = w
-            titel = QLabel(e.titel)
+            titel = QLabel(self._kurztitel(e, w))
+            titel.setToolTip(e.titel)
             titel.setWordWrap(True)
             titel.setFixedWidth(self.BREITE_TITEL)
+            form = gruppen[e.gruppe]
+            self.zeilen.append((e, form, form.rowCount(), form.parentWidget()))
             gruppen[e.gruppe].addRow(titel, w)
         if "STEP-Import" in gruppen:
             knopf = QPushButton("Zwischenspeicher leeren")
@@ -642,6 +690,19 @@ class EinstellungenSeite(QScrollArea):
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
+
+    schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
+
+    def filtern(self, suche):
+        """Suche der Einstellungen: nur passende Einstellungen und Karten zeigen (leer = alle)."""
+        from .einstellungen_nav import passt
+        sichtbar = {}
+        for e, form, zeile, box in self.zeilen:
+            ja = not suche.strip() or passt(f"{e.titel} {e.gruppe}", suche)
+            form.setRowVisible(zeile, ja)
+            sichtbar[id(box)] = sichtbar.get(id(box), False) or ja
+        for box in self.boxen:
+            box.setVisible(sichtbar.get(id(box), True))
 
     def _anordnen(self, zwei):
         """Karten auf eine oder zwei Spalten verteilen (Reihenfolge bleibt, je Karte in die kürzere Spalte)."""
@@ -719,6 +780,31 @@ class EinstellungenSeite(QScrollArea):
             w.setMaximumWidth(self.BREITE_TEXT + 160)
         return w
 
+    EINHEIT = re.compile(r"\s*\[([^\]]{1,12})\]")
+    SONDER = re.compile(r"\s*\((0|leer) = ([^);]+)\)")
+
+    def _kurztitel(self, e, w):
+        """Vorgaben-Formular (Layout-Plan L12): Einheit als Suffix rechts im Feld statt im Titel, Sonderfall
+        („0 = aus“, „leer = keiner“) als grauer Text im Feld. Der volle Titel bleibt Tooltip."""
+        titel = e.titel
+        if isinstance(w, (QSpinBox, QDoubleSpinBox)) and e.art in ("zahl", "ganz"):
+            m = self.EINHEIT.search(titel)
+            if m:
+                w.setSuffix(" " + m.group(1))
+                titel = titel[:m.start()] + titel[m.end():]
+            m = self.SONDER.search(titel)
+            if m and m.group(1) == "0" and w.minimum() == 0:
+                w.setSpecialValueText(m.group(2).strip())
+                titel = titel[:m.start()] + titel[m.end():]
+        elif e.art in ("text", "zahl_leer", "ordner"):
+            m = self.SONDER.search(titel)
+            feld = getattr(w, "pfad", w)
+            if m and m.group(1) == "leer" and isinstance(feld, QLineEdit):
+                if e.art != "ordner" or not feld.placeholderText():
+                    feld.setPlaceholderText(m.group(2).strip())
+                titel = titel[:m.start()] + titel[m.end():]
+        return titel.strip()
+
     def _zahl_leer(self, e, w):
         try:
             wert = wert_aus_text(Feld(e.name, e.titel, "zahl", e.von, e.bis), w.text())
@@ -748,6 +834,9 @@ class EinstellungenSeite(QScrollArea):
         from . import step_einstellungen
         if e.name in step_einstellungen.EINSTELLUNGEN:
             step_einstellungen.anwenden(self.db)
+        if e.name in ("ansicht_thema", "ansicht_schrift", "ansicht_dichte"):
+            self.meldung(f"{e.titel} gespeichert, gilt ab dem nächsten Start.")
+            return
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
@@ -784,10 +873,12 @@ class EinstellungenSeite(QScrollArea):
 class ZeitvorgabenSeite(QWidget):
     """Unterreiter 'Stundensätze und Zeitvorgaben': Stundensätze oben, Arbeitsschritte darunter."""
     titel = "Stundensätze und Zeitvorgaben"
+    schluessel = "zeitvorgaben"
 
     def __init__(self, saetze, schritte):
         super().__init__()
         self.saetze, self.schritte = saetze, schritte
+        self.teilseiten = (saetze, schritte)        # für die Suche der Einstellungen
         teiler = QSplitter(Qt.Vertical)
         for s in (saetze, schritte):
             box = QGroupBox(s.t.titel)
@@ -838,19 +929,17 @@ class EinstellungenBereich(QWidget):
         ls.addStretch(1)
         # Inhalt
         inhalt = QWidget()
-        self.unter = QTabWidget()
+        self.unter = NavigationsReiter()     # Navigation links mit Suche (Layout-Plan L11)
         self.unter.addTab(vorgaben, "Vorgaben")
         for s in seiten:
             self.unter.addTab(s, getattr(s, "titel", None) or s.t.titel)
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
         sperren = QPushButton("Einstellungen sperren")
         sperren.clicked.connect(self.sperren)
-        oben = QHBoxLayout()
-        oben.addStretch(1)
-        oben.addWidget(sperren)
+        sperren.setMinimumWidth(90)                 # schmale Fenster (1024 px): Navigation darf schmaler werden
+        self.unter.links.addWidget(sperren)         # unter der Navigation: oben bleibt keine Leerzeile
         li = QVBoxLayout(inhalt)
         li.setContentsMargins(0, 0, 0, 0)
-        li.addLayout(oben)
         li.addWidget(self.unter, 1)
         self.stapel.addWidget(sperre)
         self.stapel.addWidget(inhalt)
@@ -914,10 +1003,13 @@ class StartSeite(QWidget):
         angebote, al = karte("Angebote")
         zeile = QHBoxLayout()
         for text, ziel, primaer in (("Neues Angebot", lambda: fenster.angebote.neu(), True),
+                                    ("Aus STEP …", lambda: fenster.angebote.neu_aus_step(), False),
                                     ("Alle Angebote", lambda: fenster.reiter.setCurrentWidget(fenster.angebote), False)):
             b = QPushButton(text)
             if primaer:
                 b.setObjectName("primaer")
+            if text == "Aus STEP …":
+                b.setToolTip("Neues Angebot aus STEP-Dateien (oder STEP-Dateien hierher ziehen)")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             zeile.addWidget(b)
         zeile.addStretch(1)
@@ -933,11 +1025,45 @@ class StartSeite(QWidget):
         self.zuletzt_ansicht.doubleClicked.connect(
             lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
         al.addWidget(self.zuletzt_ansicht, 1)
-        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an.")
+        self.keine = QLabel("Noch keine Angebote. <b>Neues Angebot</b> legt das erste an, oder STEP-Dateien "
+                            "hierher ziehen.")
+        self.keine.setWordWrap(True)
         self.keine.setStyleSheet("color: #5F6B7A;")
         al.addWidget(self.keine)
         al.addStretch(0)                    # ohne Angebote: Knöpfe und Hinweis oben statt verteilt (L8)
         self.angebote_layout = al
+
+        # Cockpit (Layout-Plan L21): Pipeline je Vorgang, Wiedervorlagen, Kennzahlen nur für Admin
+        heute, hl = karte("Heute")
+        self.pipeline = QLabel()
+        self.pipeline.setTextFormat(Qt.RichText)
+        self.pipeline.setToolTip("Klick auf einen Vorgang zeigt die Angebotsliste mit diesem Filter")
+        self.pipeline.linkActivated.connect(self.vorgang_zeigen)
+        hl.addWidget(self.pipeline)
+        self.wv_titel = QLabel()
+        self.wv_titel.setWordWrap(True)
+        hl.addWidget(self.wv_titel)
+        self.wiedervorlage = QListWidget()
+        self.wiedervorlage.setToolTip("Angebote zum Nachfassen: verschickt und seit einigen Tagen ohne Antwort, "
+                                      "Gültigkeit endet bald, oder Wiedervorlage erreicht (Doppelklick öffnet)")
+        self.wiedervorlage.itemActivated.connect(
+            lambda it: fenster.angebot_oeffnen(it.data(Qt.UserRole)))
+        hl.addWidget(self.wiedervorlage)
+        self.wv_knoepfe = QWidget()          # Plan A9: für das markierte Angebot
+        wk = QHBoxLayout(self.wv_knoepfe)
+        wk.setContentsMargins(0, 0, 0, 0)
+        for text, ziel in (("Öffnen", fenster.angebot_oeffnen), ("Nachfassen vermerken …", self.nachfassen),
+                           ("Wiedervorlage …", self.wiedervorlage_setzen)):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, ziel=ziel: self._wv_aktion(ziel))
+            wk.addWidget(b)
+        wk.addStretch(1)
+        hl.addWidget(self.wv_knoepfe)
+        self.kennzahlen = QLabel()
+        self.kennzahlen.setTextFormat(Qt.RichText)
+        self.kennzahlen.setWordWrap(True)
+        hl.addWidget(self.kennzahlen)
+        hl.addStretch(1)
 
         # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
         stamm, sl = karte("Stammdaten")
@@ -975,12 +1101,13 @@ class StartSeite(QWidget):
 
         raster = QGridLayout()
         raster.setSpacing(10)
-        raster.addWidget(angebote, 0, 0, 2, 1)
-        raster.addWidget(stamm, 0, 1)
-        raster.addWidget(sicherung, 1, 1)
+        raster.addWidget(angebote, 0, 0, 3, 1)
+        raster.addWidget(heute, 0, 1)
+        raster.addWidget(stamm, 1, 1)
+        raster.addWidget(sicherung, 2, 1)
         raster.setColumnStretch(0, 3)
         raster.setColumnStretch(1, 2)
-        raster.setRowStretch(0, 1)
+        raster.setRowStretch(0, 1)          # Heute: die Wiedervorlage bekommt den Platz
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
         kopf.addWidget(titel)
@@ -989,7 +1116,20 @@ class StartSeite(QWidget):
         kopf.addStretch(1)
         lay.addLayout(kopf)
         lay.addLayout(raster, 1)
+        self.setAcceptDrops(True)
         self.neu_laden()
+
+    # STEP-Dateien oder Ordner auf die Startseite ziehen: neues Angebot (Plan Arbeitsabläufe W11)
+    def dragEnterEvent(self, ereignis):
+        from .angebot_fenster import step_neu_pfade
+        if step_neu_pfade(ereignis):
+            ereignis.acceptProposedAction()
+
+    def dropEvent(self, ereignis):
+        from .angebot_fenster import step_drop, step_neu_pfade
+        pfade = step_neu_pfade(ereignis)
+        if pfade:
+            step_drop(self.f, ereignis, self, lambda: self.f.angebote.neu_aus_step(pfade))
 
     def neu_laden(self):
         db = self.f.db
@@ -1011,11 +1151,73 @@ class StartSeite(QWidget):
         self.stamm_aufklapper.setze_titel(f"{len(tabellen)} Tabellen, {sum(n for _, n in tabellen)} Einträge")
         self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
                           f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
-        zuletzt = sorted(db.angebote(), key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
+        alle = db.angebote()
+        self.cockpit_laden(alle)
+        zuletzt = sorted(alle, key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
         self.zuletzt.setzen(zuletzt)
         self.zuletzt_ansicht.setVisible(bool(zuletzt))
         self.keine.setVisible(not zuletzt)
         self.angebote_layout.setStretch(self.angebote_layout.count() - 1, 0 if zuletzt else 1)
+
+    def cockpit_laden(self, alle):
+        from . import cockpit
+        from .ausgabe import euro_text
+        self.pipeline_werte = cockpit.pipeline(alle)
+        teile = [f"<a href='{v}'>{v}</a>: <b>{n}</b>" + (f" · {euro_text(summe)} €" if summe else "")
+                 for v, n, summe in self.pipeline_werte]
+        self.pipeline.setText("<b>Eigene Angebote</b><br>" + "<br>".join(teile))
+        self.wiedervorlagen = cockpit.wiedervorlagen(alle, self.f.db.einstellung("gueltigkeit"),
+                                                     nachfassen=self.f.db.einstellung("nachfassen_tage"))
+        self.wiedervorlage.clear()
+        for w in self.wiedervorlagen:
+            z, rest = w.z, w.rest
+            wann = (f"seit {-rest} Tagen fällig" if rest < -1 else "seit gestern fällig" if rest == -1
+                    else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
+            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
+                                 f"({wann})")
+            it.setData(Qt.UserRole, z["id"])
+            if rest < 0:
+                it.setForeground(QBrush(stil.farbe("#B42318")))
+            self.wiedervorlage.addItem(it)
+        n = len(self.wiedervorlagen)
+        self.wv_titel.setText(f"<b>Wiedervorlage</b> ({n})" if n else
+                              "<b>Wiedervorlage:</b> nichts fällig")
+        self.wiedervorlage.setVisible(bool(n))
+        self.wv_knoepfe.setVisible(bool(n))
+        admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
+        self.kennzahlen.setVisible(admin)
+        if admin:
+            k = cockpit.kennzahlen(alle)
+            quote = f"{k['trefferquote'] * 100:.0f} %" if k["trefferquote"] is not None else "–"
+            schnitt = f"{euro_text(k['durchschnitt'])} €" if k["durchschnitt"] is not None else "–"
+            self.kennzahlen.setText(
+                f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
+                f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
+                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+
+    def _wv_aktion(self, ziel):
+        it = self.wiedervorlage.currentItem() or (self.wiedervorlage.item(0) if self.wiedervorlage.count() else None)
+        if it is None:
+            return None
+        return ziel(it.data(Qt.UserRole))
+
+    def nachfassen(self, angebot_id):
+        from .nachfassen_dialog import nachfassen_dialog
+        return nachfassen_dialog(self.f, angebot_id, self)
+
+    def wiedervorlage_setzen(self, angebot_id):
+        from .nachfassen_dialog import wiedervorlage_dialog
+        return wiedervorlage_dialog(self.f, angebot_id, self)
+
+    def vorgang_zeigen(self, v):
+        """Angebotsliste mit dem Filter des Vorgangs (nur eigene Angebote wie in der Pipeline)."""
+        from .angebot_fenster import MEINE
+        a = self.f.angebote
+        a.suche.clear()
+        if a.wer_filter.findText(MEINE) >= 0:
+            a.wer_filter.setCurrentText(MEINE)
+        a.vorgang_filter.setCurrentText(v)
+        self.f.reiter.setCurrentWidget(a)
 
 
 class Hauptfenster(QMainWindow):
@@ -1028,6 +1230,7 @@ class Hauptfenster(QMainWindow):
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
+        self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
         try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.28 entfernt)
             db.zeichnungen_entfernen(self.ablage())
@@ -1037,13 +1240,14 @@ class Hauptfenster(QMainWindow):
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
+        from . import spaltenbreite
+        spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater
         self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
-        self.setStyleSheet(STIL)
+        self.setStyleSheet(stil.aktuell())     # Theme und Dichte aus stil.anwenden (beim Start)
         self.resize(1400, 800)
-        self.reiter = QTabWidget()
-        self.reiter.setTabsClosable(True)
+        self.reiter = HauptReiter()     # feste Reiter oben, geöffnete Angebote in eigener Zeile (Layout-Plan L13)
         self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
         self.start = StartSeite(self)
         self.reiter.addTab(self.start, "Start")
@@ -1074,8 +1278,7 @@ class Hauptfenster(QMainWindow):
         self.zukauf = ZukaufBereich(db, self.meldung)
         self.reiter.addTab(self.zukauf, self.zukauf.titel)
         self.reiter.addTab(self.bereich, "Einstellungen")
-        for i in range(self.reiter.count()):     # feste Reiter ohne Schließen-Knopf
-            self.reiter.tabBar().setTabButton(i, QTabBar.RightSide, None)
+        self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
         self._menue()
@@ -1083,7 +1286,13 @@ class Hauptfenster(QMainWindow):
         self.lizenz_hinweis.setTextFormat(Qt.PlainText)
         self.lizenz_hinweis.hide()
         self.statusBar().addPermanentWidget(self.lizenz_hinweis)
+        from .einblendung import Einblendung, Verlauf
+        self.einblendung = Einblendung(self)        # ruhige Meldungen unten rechts (Layout-Plan L14)
+        self.verlauf = Verlauf()
+        self.statusBar().addPermanentWidget(self.verlauf)
         self.statusBar().showMessage("Bereit")
+        from . import symbole
+        symbole.versehen(self)          # Symbole an Hauptaktionen und Menüpunkten (Layout-Plan L19)
         self.lizenz_anwenden()
         if not stumm:
             self.updater.beim_start()
@@ -1125,7 +1334,10 @@ class Hauptfenster(QMainWindow):
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
-        for text, ziel, taste in (("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
+        for text, ziel, taste in (("Neues Angebot aus STEP …", lambda: self.angebote.neu_aus_step(), None),
+                                  ("Neue Fassung des Angebots", self.neue_fassung, None),
+                                  (None, None, None),
+                                  ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
@@ -1165,6 +1377,11 @@ class Hauptfenster(QMainWindow):
                                    ("optimieren", "Optimieren", ["F9"]),
                                    ("importieren", "STEP importieren …", ["Ctrl+I"]),
                                    ("drucken", "Angebot (PDF)", [QKeySequence.Print]),
+                                   ("werkstatt", "Werkstattpapiere (PDF)", ["Ctrl+Shift+P"]),
+                                   ("kalkulation", "Kalkulation (PDF)", ["Ctrl+Shift+K"]),
+                                   ("staffeln", "Staffelpreise rechnen", ["F8"]),
+                                   ("stueck", "Stückzahl ändern …", ["Ctrl+Shift+S"]),
+                                   ("material", "Materialanfrage (E-Mail) …", ["Ctrl+Shift+M"]),
                                    ("schliessen", "Angebot schließen", ["Ctrl+W", "Ctrl+F4"])):
             if name is None:
                 bearbeiten.addSeparator()
@@ -1183,6 +1400,11 @@ class Hauptfenster(QMainWindow):
             a.setShortcut(QKeySequence(taste))
             a.triggered.connect(lambda _=False, schritt=schritt, innen=innen: self.reiter_weiter(schritt, innen))
             ansicht.addAction(a)
+        ansicht.addSeparator()
+        a = QAction("Suchen und ausführen …", self)       # Befehlspalette (Layout-Plan L20)
+        a.setShortcut(QKeySequence("Ctrl+K"))
+        a.triggered.connect(lambda: self.befehlspalette())
+        ansicht.addAction(a)
         hilfe = self.menuBar().addMenu("&Hilfe")
         a = QAction("Bedienungsanleitung (PDF)", self)
         a.setShortcut(QKeySequence.HelpContents)
@@ -1285,12 +1507,14 @@ class Hauptfenster(QMainWindow):
                 w = self._seite()
             ziel = None
             while w is not None and w is not self.reiter:
-                if isinstance(w, QTabWidget):
+                if isinstance(w, (QTabWidget, NavigationsReiter)):
                     ziel = getattr(w, "gruppe_von", None) or w     # Unterreiter-Gruppe: Reiter des Angebots
                     break
                 w = w.parentWidget()
             if ziel is None:            # Fokus außerhalb: erster Unterreiter der sichtbaren Seite
-                ziel = next((t for t in self.reiter.currentWidget().findChildren(QTabWidget) if t.isVisible()), None)
+                seite = self.reiter.currentWidget()
+                ziel = next((t for t in seite.findChildren(NavigationsReiter) + seite.findChildren(QTabWidget)
+                             if t.isVisible()), None)
             if ziel is None:
                 return None
             reiter = ziel
@@ -1364,6 +1588,8 @@ class Hauptfenster(QMainWindow):
         neu = seite is None
         if neu:
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
+            from . import symbole
+            symbole.versehen(seite)
             self.offen[angebot_id] = seite
             self.lesemodus_anwenden(seite)
             self.reiter.addTab(seite, seite.titel())
@@ -1376,7 +1602,7 @@ class Hauptfenster(QMainWindow):
 
     # -------------------------------------------------------------- Lizenz
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
-                           "optimieren", "importieren", "drucken")
+                           "optimieren", "importieren", "drucken", "staffeln", "stueck")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen")
 
     def lizenz_anwenden(self):
@@ -1448,6 +1674,12 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
+    def neue_fassung(self):
+        """Datei → Neue Fassung des Angebots (W10): für das offene Angebot, sonst für das in der Liste gewählte."""
+        from .angebot_fenster import AngebotSeite
+        seite = self.reiter.currentWidget()
+        return self.angebote.neue_fassung(seite.id if isinstance(seite, AngebotSeite) else None)
+
     def angebot_schliessen(self, angebot_id):
         seite = self.offen.pop(angebot_id, None)
         if seite is not None:
@@ -1464,6 +1696,14 @@ class Hauptfenster(QMainWindow):
         i = self.reiter.indexOf(seite)
         if i >= 0:
             self.reiter.setTabText(i, seite.titel())
+
+    def befehlspalette(self):
+        """Strg+K: Angebote, Kunden, Profile, Einstellungen und Befehle suchen und ausführen."""
+        from .befehlspalette import Befehlspalette
+        d = Befehlspalette(self)
+        if not self.stumm:
+            d.exec()
+        return d
 
     def kunde_zeigen(self, kundennr, name=None):
         """Reiter Kunden mit diesem Kunden (gesucht nach Kundennummer, sonst Name) zeigen. Ergebnis: Treffer."""
@@ -1492,6 +1732,16 @@ class Hauptfenster(QMainWindow):
     def meldung(self, text, fehler=False):
         self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
         self.statusBar().showMessage(text, 8000)
+        if getattr(self, "verlauf", None) is None:  # noch beim Aufbau des Fensters
+            return
+        self.verlauf.merken(text, fehler)
+        if not self.stumm:                          # Selbsttest und Bildschirmfotos ohne Einblendung
+            self.einblendung.zeigen(text, fehler)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if getattr(self, "einblendung", None) is not None and self.einblendung.isVisible():
+            self.einblendung.platzieren()
 
     def zeigen(self, seite):
         """Reiter oder Unterreiter der Einstellungen anzeigen (gesperrt: erst die Passwortabfrage)."""
@@ -1509,6 +1759,15 @@ class Hauptfenster(QMainWindow):
         if hasattr(w, "neu_laden") and w is not getattr(self, "_frisch", None):
             w.neu_laden()
 
+    def nachfassen_geaendert(self, angebot_id):
+        """Nach Nachfassen/Wiedervorlage (Plan A9): Startseite, Angebotsliste und Versandverlauf im Angebot neu."""
+        self.start.neu_laden()
+        self.angebote.neu_laden()
+        seite = self.offen.get(angebot_id)
+        if seite is not None:
+            seite.kopf["versand"] = (self.db.angebot(angebot_id) or {}).get("versand") or []
+            seite._ergebnisse_anzeigen()
+
     def alles_neu_laden(self):
         self.start.neu_laden()
         self.angebote.neu_laden()
@@ -1523,9 +1782,10 @@ class Hauptfenster(QMainWindow):
 
     def anleitung_oeffnen(self, datei=ANLEITUNG):
         """Bedienungsanleitung.pdf bzw. Kurzanleitung.pdf neben dem Programm (liegt im ZIP), beim Entwickeln aus dem
-        Ordner anleitung."""
+        Ordner anleitung. Geöffnet wird eine Kopie im Datenordner (anleitung_kopie). Ergebnis: geöffnete Datei."""
         for pfad in (self.programmordner / datei, self.programmordner.parent / "anleitung" / datei):
             if pfad.is_file():
+                pfad = anleitung_kopie(pfad, self.db.pfad.parent / ANLEITUNG_KOPIE)
                 self.datei_oeffnen(pfad)
                 return pfad
         QMessageBox.warning(self, Path(datei).stem, f"{datei} wurde nicht gefunden.\n\n"

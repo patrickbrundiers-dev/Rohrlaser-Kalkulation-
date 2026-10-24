@@ -13,16 +13,17 @@ import html
 import json
 import re
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
-                               QGroupBox, QInputDialog, QMessageBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, hilfe
+from . import baugruppe, hilfe, stil, vorkalk
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe
-from .stammdaten import NAHTARTEN, zahl_als_text, zahl_aus_text
+from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
 from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
 
 FEHLER_FARBE = "#B42318"
@@ -37,6 +38,8 @@ ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "E
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
 LANGTEXT = ("beschreibung", "bemerkung", "intern")
+HERKUNFT = {vorkalk.VORSCHLAG: "Vorschlag der Vorkalkulation (gelb, mit „Vorschläge bestätigen“ übernehmen)",
+            vorkalk.BESTAETIGT: "Vorschlag bestätigt", vorkalk.HAND: "von Hand (die Vorkalkulation lässt den Wert stehen)"}
 
 
 def _text(w, stellen=None):
@@ -54,20 +57,23 @@ def _min(w):
 class Spalte:
     """Spalte einer ZeilenTabelle. typ: text, zahl, ganz, auswahl (optionen() = [(Text, Wert)], frei = eigene Texte
     erlaubt), haken oder anzeige (anzeige(zeile, index) = Text, nur lesen; (Text, True) rot, (Text, WARNUNG) gelb
-    hinterlegt mit markierter Zeilennummer)."""
+    hinterlegt mit markierter Zeilennummer). vk: Feld zeigt die Herkunft der Vorkalkulation (Vorschlag gelb, Tooltip
+    mit Begründung), siehe ZeilenTabelle.herkunft."""
 
-    def __init__(self, schluessel, titel, typ="text", breite=90, optionen=None, frei=False, anzeige=None, tipp=""):
+    def __init__(self, schluessel, titel, typ="text", breite=90, optionen=None, frei=False, anzeige=None, tipp="",
+                 vk=False):
         self.schluessel, self.titel, self.typ, self.breite = schluessel, titel, typ, breite
-        self.optionen, self.frei, self.anzeige, self.tipp = optionen, frei, anzeige, tipp
+        self.optionen, self.frei, self.anzeige, self.tipp, self.vk = optionen, frei, anzeige, tipp, vk
 
 
 class ZeilenTabelle(QTableWidget):
     """Tabelle über einer Liste von dicts (self.zeilen): jede Eingabe ändert sofort das dict und ruft geaendert();
-    Anzeigespalten werden mit auffrischen() neu beschriftet. Ungültige Zahlen: Feld rot, Wert None, in self.ungueltig."""
+    Anzeigespalten werden mit auffrischen() neu beschriftet. Ungültige Zahlen: Feld rot, Wert None, in self.ungueltig.
+    herkunft(zeile, schlüssel) = (Status, Begründung) oder None für Spalten mit vk (Vorkalkulation)."""
 
-    def __init__(self, spalten, zeilen, geaendert):
+    def __init__(self, spalten, zeilen, geaendert, herkunft=None):
         super().__init__(0, len(spalten))
-        self.spalten, self.zeilen, self.geaendert = spalten, zeilen, geaendert
+        self.spalten, self.zeilen, self.geaendert, self.herkunft = spalten, zeilen, geaendert, herkunft
         self.ungueltig = set()
         self.setHorizontalHeaderLabels([s.titel for s in spalten])
         for c, s in enumerate(spalten):
@@ -181,11 +187,25 @@ class ZeilenTabelle(QTableWidget):
                         w.setStyleSheet(f"color: {GELB_TEXT}; background: {GELB_FLAECHE}; padding-left: 4px;")
                     else:
                         w.setStyleSheet(f"color: {FEHLER_FARBE if art else GRAU}; padding-left: 4px;")
+                elif s.vk and self.herkunft:
+                    self._herkunft_zeigen(self.cellWidget(r, c), z, s)
             kopf = self.verticalHeaderItem(r) or QTableWidgetItem(str(r + 1))
             kopf.setText(f"⚠ {r + 1}" if r in self.warnzeilen else str(r + 1))
             kopf.setToolTip("Zeile prüfen (Hinweis)" if r in self.warnzeilen else "")
-            kopf.setBackground(QColor(GELB_FLAECHE) if r in self.warnzeilen else QBrush())
+            kopf.setBackground(stil.farbe(GELB_FLAECHE) if r in self.warnzeilen else QBrush())
             self.setVerticalHeaderItem(r, kopf)
+
+    def _herkunft_zeigen(self, w, z, s):
+        """Vorschlag gelb mit Begründung im Tooltip; bestätigt und von Hand normal, Tooltip nennt die Herkunft."""
+        if (id(z), s.schluessel) in self.ungueltig:
+            return
+        h = self.herkunft(z, s.schluessel)
+        st, grund = h if h else (None, None)
+        stil_neu = f"background: {GELB_FLAECHE}; color: {GELB_TEXT};" if st == vorkalk.VORSCHLAG else ""
+        ziel = getattr(w, "feld", w)
+        if ziel.styleSheet() != stil_neu:
+            ziel.setStyleSheet(stil_neu)
+        w.setToolTip(f"{HERKUNFT[st]}: {grund}" if st and grund else HERKUNFT.get(st, ""))
 
     def zeigen(self, r):
         """Zeile r markieren und hineinscrollen (Sprung vom Status, D4)."""
@@ -197,14 +217,45 @@ class ZeilenTabelle(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
+class StrukturBaum(QTreeWidget):
+    """Baum Baugruppe → Unterbaugruppen → Einzelteile und Nahtgruppen (D1). Einzelteile lassen sich auf eine
+    (Unter-)Baugruppe ziehen: verschieben(Positions-ID, Knoten-ID); den Baum baut danach der Dialog neu."""
+
+    def __init__(self, verschieben):
+        super().__init__()
+        self.verschieben = verschieben
+        self.setHeaderLabels(["Struktur", "Menge", "Stück je Baugruppe"])
+        self.setColumnWidth(0, 300)
+        self.setColumnWidth(1, 60)
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+
+    def dropEvent(self, e):
+        quelle, ziel = self.currentItem(), self.itemAt(e.position().toPoint())
+        e.ignore()                  # nichts im Baum selbst verschieben: der Dialog ordnet zu und baut neu auf
+        if quelle is None or ziel is None:
+            return
+        art, pid = quelle.data(0, Qt.UserRole)
+        while ziel is not None and ziel.data(0, Qt.UserRole)[0] not in ("bg", "knoten"):
+            ziel = ziel.parent()
+        if art == "teil" and ziel is not None:
+            kn = ziel.data(0, Qt.UserRole)[1]
+            QTimer.singleShot(0, lambda: self.verschieben(pid, kn))
+
+
 class BaugruppeDialog(QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
 
-    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None):
+    def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False,
+                 einstellungen=None, netze=None):
         super().__init__(parent)
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
+        self.einstellungen = einstellungen or {}     # Stundensätze der Vorkalkulation (schweiss_vk_satz …)
+        self.hilfe_vk, self.vk_ergebnis = {}, None
+        self.netze = netze or {}    # {Positions-ID: Netz-Bytes} aus dem STEP-Import (3D im Strukturbaum, D1)
+        self._netz_cache, self.ansicht3d = {}, None
         self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
         self.bg = baugruppe.lesen(p.get("baugruppe")) or baugruppe.leer()
         self.bg = copy.deepcopy(self.bg)
@@ -212,7 +263,9 @@ class BaugruppeDialog(QDialog):
         self.stand_verwerfen = False
         self.ergebnis, self.erg, self.status = None, None, None
         self._teile_aufbauen(vorwahl)
-        self.setWindowTitle(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, self.bg)}".strip())
+        self.nur_lesen = nur_lesen  # T6: Angebot eines Kollegen bzw. Lesemodus – ansehen, nicht speichern
+        self.setWindowTitle(f"Schweißbaugruppe Pos. {p.get('pos') or ''} {baugruppe.name(p, self.bg)}".strip()
+                            + (" (nur ansehen)" if nur_lesen else ""))
         self.resize(1400, 720)
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
@@ -236,10 +289,16 @@ class BaugruppeDialog(QDialog):
         self.reiter.addTab(self._seite_arbeitsgaenge(), "Arbeitsgänge und Vorrichtungen")
         self.reiter.addTab(self._seite_stamm(), "Stammdaten")
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
+        self.reiter.addTab(self._seite_baum(), "Strukturbaum und 3D")
+        self.reiter.currentChanged.connect(self._reiter_gewechselt)
         lay.addWidget(self.reiter, 1)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         lay.addWidget(self.summe)
+        self.vk_info = QLabel()
+        self.vk_info.setWordWrap(True)
+        self.vk_info.setStyleSheet(f"color: {GRAU};")
+        lay.addWidget(self.vk_info)
         self.fehler = QLabel()
         self.fehler.setWordWrap(True)
         self.fehler.setStyleSheet(f"color: {FEHLER_FARBE};")
@@ -247,7 +306,18 @@ class BaugruppeDialog(QDialog):
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
+        knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
         unten = QHBoxLayout()
+        rechnen_k = QPushButton("Vorkalkulation rechnen")
+        rechnen_k.setToolTip("Rüsten, Positionieren, Wenden, Heftpunkte und Verputzen aus Struktur, Teilen und den Regeln "
+                             "(Einstellungen → Schweiß-Vorkalkulation) vorschlagen; Werte von Hand bleiben")
+        rechnen_k.clicked.connect(lambda: self.vorkalkulation())
+        bestaetigen = QPushButton("Vorschläge bestätigen")
+        bestaetigen.setToolTip("Alle gelben Vorschläge als geprüft übernehmen (eine neue Vorkalkulation lässt sie stehen)")
+        bestaetigen.clicked.connect(lambda: self.vorschlaege_bestaetigen())
+        for b in (rechnen_k, bestaetigen):
+            b.setEnabled(not nur_lesen)
+            unten.addWidget(b)
         if db is not None:
             einsetzen = QPushButton("Vorlage einsetzen …")
             einsetzen.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge aus einer gespeicherten Vorlage übernehmen")
@@ -277,7 +347,8 @@ class BaugruppeDialog(QDialog):
             drin = bg_id == self.bg["id"] or q["id"] in vorwahl
             self.teile.append(dict(_id=q["id"], _q=q, drin=drin, knoten=kn or "",
                                    je=q.get("je_knoten") if drin and bg_id else
-                                   (q.get("je_satz") or 1) if drin else 1))
+                                   (q.get("je_satz") or 1) if drin else 1,
+                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None))
 
     def _knoten_optionen(self, ohne=None):
         out = [(DIREKT, "")]
@@ -317,9 +388,20 @@ class BaugruppeDialog(QDialog):
             Spalte("_teil", "Teil", "anzeige", 260, anzeige=self._teil_text),
             Spalte("knoten", "Unterbaugruppe", "auswahl", 150, optionen=lambda: self._knoten_optionen()),
             Spalte("je", "Stück je Unter-\nbaugruppe", "ganz", 90),
-            Spalte("_je", "Stück je\nBaugruppe", "anzeige", 110, anzeige=self._teil_je)],
-            self.teile, self.aktualisieren)
+            Spalte("_je", "Stück je\nBaugruppe", "anzeige", 110, anzeige=self._teil_je),
+            Spalte("hilfe", "Positionier-\nhilfe", "auswahl", 125, vk=True,
+                   optionen=[("(Vorschlag)", None)] + [(h, h) for h in POSITIONIERHILFEN],
+                   tipp="Wie das Teil beim Schweißen seine Lage findet; leer = Vorschlag der Vorkalkulation"),
+            Spalte("_hilfe_vk", "Vorschlag", "anzeige", 200, anzeige=self._hilfe_text)],
+            self.teile, self.aktualisieren, self._teil_herkunft)
         rechts.addWidget(self.teile_tab, 1)
+        gehrung = [z for z in self.teile if z["_q"].get("a_ende") or z["_q"].get("b_ende")]
+        if len(gehrung) >= 2:       # Knickrahmen nur im STEP-Prüfdialog (Patrick 24.10.2026: Lage je Rohr nötig)
+            self.knick_hinweis = QLabel("Rahmen aus Rohren mit Gehrung als Knickrahmen? STEP-Datei neu einlesen und "
+                                        "im Prüfdialog <i>Knickverbindung erstellen</i> wählen.")
+            self.knick_hinweis.setWordWrap(True)
+            self.knick_hinweis.setStyleSheet("color: #595959;")
+            rechts.addWidget(self.knick_hinweis)
         if self.fremd:
             rechts.addWidget(QLabel(f"{self.fremd} weitere Position(en) gehören zu einer anderen Baugruppe."))
         lay.addLayout(rechts, 3)
@@ -342,6 +424,18 @@ class BaugruppeDialog(QDialog):
         if f is None:
             return ("?", True)
         return _text((z.get("je") or 1) * f)
+
+    def _hilfe_text(self, z, _r):
+        v = self.hilfe_vk.get(z["_id"]) if z.get("drin") else None
+        return f"{v[0]}: {v[1]}" if v else ""
+
+    def _teil_herkunft(self, z, feld):
+        if feld != "hilfe" or not z.get("drin"):
+            return None
+        v = self.hilfe_vk.get(z["_id"])
+        if z.get("hilfe"):
+            return (vorkalk.HAND, f"Vorschlag wäre {v[0]}" if v else None)
+        return (vorkalk.VORSCHLAG, f"{v[0]}, {v[1]}") if v else None
 
     def knoten_neu(self, name=None, menge=1, parent=""):
         k = dict(id=baugruppe.neue_id(), name=name or f"Unterbaugruppe {len(self.bg['knoten']) + 1}", menge=menge,
@@ -412,20 +506,28 @@ class BaugruppeDialog(QDialog):
             Spalte("verfahren", "Verfahren", "auswahl", 90, optionen=self._verfahren_optionen),
             Spalte("nahtart", "Nahtart", "auswahl", 95, optionen=[(n, n) for n in NAHTARTEN]),
             Spalte("mass", "a-Maß /\nDicke [mm]", "zahl", 80, tipp="Kehlnaht: a-Maß; Stumpf- und Ecknaht: Blechdicke"),
+            Spalte("dicke", "Wand-\ndicke [mm]", "zahl", 70,
+                   tipp="Kleinere Wanddicke der verbundenen Teile (Heftabstand der Vorkalkulation); leer bei Stumpf- "
+                        "und Ecknaht = Dicke"),
             Spalte("laenge", "Länge je\nNaht [mm]", "zahl", 85),
             Spalte("anzahl", "Anzahl", "ganz", 55, tipp="Gleiche Nähte je Stück der Unterbaugruppe"),
             Spalte("beidseitig", "beidseitig", "haken", 65),
-            Spalte("heftpunkte", "Heftpunkte\nje Naht", "ganz", 75),
+            Spalte("heftpunkte", "Heftpunkte\nje Naht", "ganz", 75, vk=True),
+            Spalte("gesteckt", "gesteckt", "haken", 60, tipp="Teile gesteckt (Stecknase): weniger Heftpunkte"),
+            Spalte("rundum", "rundum", "haken", 55, tipp="Umfangsnaht um ein Rohr (Mindestzahl Heftpunkte rundum)"),
             Spalte("lage", "Lage", "auswahl", 60, optionen=lambda: self._faktor_optionen("Schweißlage", baugruppe.LAGEN),
                    tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items())),
             Spalte("zugang", "Zugänglichkeit", "auswahl", 95, optionen=lambda: self._faktor_optionen("Zugänglichkeit")),
             Spalte("qualitaet", "Qualität", "auswahl", 85, optionen=lambda: self._faktor_optionen("Qualität")),
+            Spalte("nacharbeit", "Nacharbeit", "auswahl", 120, vk=True,
+                   optionen=[("", None)] + [(n, n) for n in NACHARBEIT_STUFEN],
+                   tipp="Verputzen bzw. Schleifen der Naht (Arbeitsgang Verputzen der Vorkalkulation)"),
             Spalte("zeit_hand", "Zeit von\nHand [min]", "zahl", 80, tipp="Zeit je Stück der Unterbaugruppe; geht vor"),
             Spalte("_zeit", "Zeit je\nBaugruppe", "anzeige", 95, anzeige=lambda z, r: self._zeile_wert("Naht", z, "zeit")),
             Spalte("_kosten", "Kosten je\nBaugruppe", "anzeige", 95,
                    anzeige=lambda z, r: self._zeile_wert("Naht", z, "kosten")),
             Spalte("_hinweis", "Hinweis", "anzeige", 200, anzeige=lambda z, r: self._zeile_wert("Naht", z, "hinweis"))],
-            self.bg["naehte"], self.aktualisieren)
+            self.bg["naehte"], self.aktualisieren, self._naht_herkunft)
         lay.addWidget(self.naht_tab, 1)
         leiste = QHBoxLayout()
         neu = QPushButton("Nahtgruppe hinzufügen")
@@ -437,7 +539,10 @@ class BaugruppeDialog(QDialog):
         stamm = QPushButton("Kennwerte neu aus Stammdaten")
         stamm.setToolTip("Gemerkte Kennwerte aller Nahtgruppen verwerfen und mit den aktuellen Stammdaten rechnen")
         stamm.clicked.connect(self.kennwerte_neu)
-        for b in (neu, kopie, weg, stamm):
+        regel = QPushButton("a-Maß bestätigen")
+        regel.setToolTip("a-Maß nach Regel der markierten Nahtgruppen als geprüft übernehmen")
+        regel.clicked.connect(lambda: self.regel_bestaetigen(self.naht_tab.markierte()))
+        for b in (neu, kopie, weg, stamm, regel):
             leiste.addWidget(b)
         leiste.addStretch(1)
         lay.addLayout(leiste)
@@ -468,8 +573,12 @@ class BaugruppeDialog(QDialog):
         uebernehmen.clicked.connect(lambda: self.vorschlaege_uebernehmen())
         verwerfen = QPushButton("Markierte verwerfen")
         verwerfen.clicked.connect(lambda: self.vorschlaege_verwerfen())
+        self.regel_haken = QCheckBox("a-Maß nach Regel vorschlagen")
+        self.regel_haken.setToolTip(f"Kehlnaht: a = {_text(self._regel_faktor())} × kleinere Wanddicke, abgerundet auf "
+                                    "0,5 mm (Faktor unter Einstellungen); bis zur Bestätigung als Hinweis markiert")
         leiste.addWidget(uebernehmen)
         leiste.addWidget(verwerfen)
+        leiste.addWidget(self.regel_haken)
         leiste.addStretch(1)
         vl.addLayout(leiste)
         self._vorschlaege_zeigen()
@@ -496,9 +605,21 @@ class BaugruppeDialog(QDialog):
         """Markierte Vorschläge (zeilen: Indizes, sonst die Auswahl) als Nahtgruppen anlegen und aus der Liste nehmen.
         Ergebnis: IDs der neuen Nahtgruppen."""
         zeilen = self._vorschlag_zeilen(zeilen)
-        neu = [self.naht_neu(baugruppe.vorschlag_naht(self.bg["vorschlaege"][r])) for r in zeilen]
+        regel = self._regel_faktor() if self.regel_haken.isChecked() else None
+        neu = [self.naht_neu(baugruppe.vorschlag_naht(self.bg["vorschlaege"][r], regel)) for r in zeilen]
         self.vorschlaege_verwerfen(zeilen)
         return neu
+
+    def _regel_faktor(self):
+        w = self.db.einstellung("schweiss_a_regel") if self.db is not None else None
+        return w if isinstance(w, (int, float)) and w > 0 else baugruppe.A_REGEL_VORGABE
+
+    def regel_bestaetigen(self, zeilen=None):
+        """a-Maß nach Regel der markierten Nahtgruppen (zeilen: Indizes, sonst alle) als geprüft übernehmen."""
+        zeilen = range(len(self.bg["naehte"])) if zeilen is None else zeilen
+        for r in zeilen:
+            self.bg["naehte"][r].pop("mass_regel", None)
+        self.aktualisieren()
 
     def vorschlaege_verwerfen(self, zeilen=None):
         weg = set(self._vorschlag_zeilen(zeilen))
@@ -539,13 +660,13 @@ class BaugruppeDialog(QDialog):
         w = QWidget()
         lay = QVBoxLayout(w)
         self.ag_tab = ZeilenTabelle([
-            Spalte("name", "Arbeitsgang", "auswahl", 150, optionen=[(a, a) for a in ARBEITSGAENGE], frei=True),
+            Spalte("name", "Arbeitsgang", "auswahl", 150, optionen=[(a, a) for a in ARBEITSGAENGE], frei=True, vk=True),
             Spalte("knoten", "Unterbaugruppe", "auswahl", 130, optionen=lambda: self._knoten_optionen()),
             Spalte("satz_id", "Stundensatz", "auswahl", 150, optionen=self._satz_optionen),
-            Spalte("menge", "Menge", "zahl", 55, tipp="Einheiten je Stück der Unterbaugruppe (leer = 1)"),
-            Spalte("zeit_min", "Zeit je\nEinheit [min]", "zahl", 80),
+            Spalte("menge", "Menge", "zahl", 55, tipp="Einheiten je Stück der Unterbaugruppe (leer = 1)", vk=True),
+            Spalte("zeit_min", "Zeit je\nEinheit [min]", "zahl", 80, vk=True),
             Spalte("kosten_einheit", "Kosten je\nEinheit [€]", "zahl", 80, tipp="z. B. Fremdleistung, Material"),
-            Spalte("ruest_min", "Rüstzeit\n[min]", "zahl", 70, tipp="einmal je Auftrag bzw. Staffelstufe"),
+            Spalte("ruest_min", "Rüstzeit\n[min]", "zahl", 70, tipp="einmal je Auftrag bzw. Staffelstufe", vk=True),
             Spalte("einmal_eur", "Einmal-\nbetrag [€]", "zahl", 80, tipp="Vorrichtung, Lehre, Prüfmittel, Programm …"),
             Spalte("umlage", "Umlage", "auswahl", 115, optionen=[(u, u) for u in baugruppe.UMLAGEN]),
             Spalte("anteil", "Anteil [%]", "zahl", 60, tipp="nur bei Umlage 'anteilig'"),
@@ -556,7 +677,7 @@ class BaugruppeDialog(QDialog):
                    anzeige=lambda z, r: self._zeile_wert("Arbeitsgang", z, "einmal")),
             Spalte("_hinweis", "Hinweis", "anzeige", 160,
                    anzeige=lambda z, r: self._zeile_wert("Arbeitsgang", z, "hinweis"))],
-            self.bg["arbeitsgaenge"], self.aktualisieren)
+            self.bg["arbeitsgaenge"], self.aktualisieren, self._ag_herkunft)
         lay.addWidget(self.ag_tab, 1)
         leiste = QHBoxLayout()
         neu = QPushButton("Arbeitsgang hinzufügen")
@@ -575,6 +696,14 @@ class BaugruppeDialog(QDialog):
         for b in (neu, vor, katalog, kopie, weg):
             leiste.addWidget(b)
         leiste.addStretch(1)
+        leiste.addWidget(QLabel("Wendevorgänge je Baugruppe"))
+        self.wenden = QSpinBox()
+        self.wenden.setRange(0, 99)
+        self.wenden.setValue(int(self.bg.get("wenden") or 0))
+        self.wenden.setToolTip("Wie oft die Baugruppe beim Schweißen gewendet oder umgespannt wird (Vorkalkulation: "
+                               "Zeit je Wenden × Faktor nach Gewicht aus den Stammdaten der Baugruppe)")
+        self.wenden.valueChanged.connect(self._wenden_geaendert)
+        leiste.addWidget(self.wenden)
         lay.addLayout(leiste)
         lay.addWidget(hilfe.Hinweis(
             "Laufende Kosten je Stück: Zeit je Einheit × Menge × Stundensatz + Kosten je Einheit × Menge. Rüstzeit "
@@ -582,6 +711,13 @@ class BaugruppeDialog(QDialog):
             "'je Auftrag' ganz, 'anteilig' mit dem Anteil in %, 'wiederverwendbar' gar nicht (Vorrichtung schon "
             "vorhanden). Fremd = Fremdleistung mit Zuschlag Fremdleistung.", schluessel="baugruppe_arbeitsgaenge"))
         return w
+
+    def _wenden_geaendert(self, n):
+        if n:
+            self.bg["wenden"] = n
+        else:
+            self.bg.pop("wenden", None)
+        self.aktualisieren()
 
     def arbeitsgang_neu(self, werte=None):
         a = dict(id=baugruppe.neue_id(), name="Vorrichten", umlage=baugruppe.UMLAGE_AUFTRAG,
@@ -614,7 +750,7 @@ class BaugruppeDialog(QDialog):
 
     def _kopieren(self, liste, tab):
         for r in tab.markierte():
-            neu = {k: v for k, v in copy.deepcopy(liste[r]).items() if k != "stand"}
+            neu = {k: v for k, v in copy.deepcopy(liste[r]).items() if k not in ("stand", "vk")}
             neu["id"] = baugruppe.neue_id()
             if "nr" in neu:
                 neu["nr"] = str(max([int(n["nr"]) for n in liste if str(n.get("nr") or "").isdigit()], default=0) + 1)
@@ -699,8 +835,9 @@ class BaugruppeDialog(QDialog):
 
     def _zuordnung(self, t):
         if not t.get("drin"):
-            return dict(bg_knoten=None, je_knoten=None)
-        return dict(bg_knoten=baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or ""), je_knoten=t.get("je") or 1)
+            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None)
+        return dict(bg_knoten=baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or ""), je_knoten=t.get("je") or 1,
+                    bg_hilfe=t.get("hilfe") or None)
 
     def _zeile_wert(self, art, z, was):
         r = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == art and x["id"] == z.get("id")), None)
@@ -721,6 +858,12 @@ class BaugruppeDialog(QDialog):
                 teile.append("Zeit von Hand")
             elif w.get("richtwert"):
                 teile.append(RICHTWERT)
+            if w.get("material"):
+                teile.append(f"Zusatz/Gas {_euro(w['material'] * r['faktor'])}")
+            if w.get("verbrauch_hinweis"):
+                teile.append(w["verbrauch_hinweis"])
+            if baugruppe.regel_offen(z):
+                return (", ".join(teile + ["a-Maß nach Regel, bitte bestätigen"]), WARNUNG)
             if self._naht_aktuell(z).get("stand"):
                 teile.append(f"Kennwerte vom {z['stand'].get('datum') or '?'}")
             return ", ".join(teile)
@@ -732,6 +875,8 @@ class BaugruppeDialog(QDialog):
         bg = self.daten()
         p = self._position(bg)
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze)
+        positionen = self._positionen_neu(p)
+        self.hilfe_vk = {positionen[i]["id"]: v for i, v in vorkalk.hilfen_vorschlag(bg, positionen, bg["id"]).items()}
         for tab in (getattr(self, "knoten_tab", None), getattr(self, "teile_tab", None),
                     getattr(self, "naht_tab", None), getattr(self, "ag_tab", None)):
             if tab is not None:
@@ -739,7 +884,6 @@ class BaugruppeDialog(QDialog):
         if not hasattr(self, "summe"):
             return
         w = dict(bg_tabellen=self.tabellen, saetze=self.saetze)
-        positionen = self._positionen_neu(p)
         self.status = baugruppe.status(p, w, positionen)
         e = self.erg
         anzahl = self.anzahl.value()
@@ -786,6 +930,14 @@ class BaugruppeDialog(QDialog):
         if m:
             r = next((i for i, k in enumerate(self.bg["knoten"]) if (k.get("name") or k.get("id")) == m.group(1)), None)
             return self._springen(reiter["struktur"], self.knoten_tab, r)
+        if "der Vorkalkulation offen" in t:
+            r = next((i for i, n in enumerate(self.bg["naehte"]) if any(vorkalk.naht_status(n, f) == vorkalk.VORSCHLAG
+                                                                        for f in vorkalk.NAHT_FELDER)), None)
+            if r is not None:
+                return self._springen(reiter["naht"], self.naht_tab, r)
+            r = next((i for i, a in enumerate(self.bg["arbeitsgaenge"]) if vorkalk.ag_status(a) == vorkalk.VORSCHLAG),
+                     None)
+            return self._springen(reiter["ag"], self.ag_tab, r)
         if "Richtwert" in t:
             r = next((i for i, n in enumerate(self.bg["naehte"]) if self._naht_ergebnis(n).get("richtwert")), None)
             return self._springen(reiter["naht"], self.naht_tab, r)
@@ -802,6 +954,58 @@ class BaugruppeDialog(QDialog):
             return self._springen(reiter["naht"], self.naht_tab, r)
         return None
 
+    # -------------------------------------------------------------- Vorkalkulation (vorkalk.py)
+    def _naht_herkunft(self, z, feld):
+        st = vorkalk.naht_status(z, feld)
+        return (st, ((z.get("vk") or {}).get(feld) or {}).get("text")) if st else None
+
+    def _ag_herkunft(self, z, _feld):
+        st = vorkalk.ag_status(z)
+        return (st, (z.get("vk") or {}).get("text")) if st else None
+
+    def vorkalkulation(self):
+        """Vorschläge rechnen (Knopf 'Vorkalkulation rechnen'): Heftpunkte und Nacharbeit der Nahtgruppen, Arbeitsgänge
+        Rüsten, Positionieren, Wenden, Verputzen; Werte von Hand und bestätigte bleiben. Ergebnis: vorkalk-Ergebnis."""
+        if self.nur_lesen:
+            return None
+        p = self._position()
+        r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen)
+        neu = {n.get("id"): n for n in r["bg"]["naehte"]}
+        for n in self.bg["naehte"]:
+            x = neu.get(n.get("id"))
+            if x is None:
+                continue
+            for feld in vorkalk.NAHT_FELDER + ("vk",):
+                if x.get(feld) is None:
+                    n.pop(feld, None)
+                else:
+                    n[feld] = x[feld]
+        self.bg["arbeitsgaenge"][:] = r["bg"]["arbeitsgaenge"]       # gleiche Liste, die Tabelle zeigt sie
+        self.vk_ergebnis = r
+        self.naht_tab.aufbauen()
+        self.ag_tab.aufbauen()
+        self.aktualisieren()
+        teile = [f"Vorkalkulation: {len(r['aenderungen'])} Änderung(en)"
+                 + (", Werte noch Richtwerte" if r["richtwert"] else "")]
+        teile += r["hinweise"]
+        self.vk_info.setText(" · ".join(teile))
+        return r
+
+    def vorschlaege_bestaetigen(self):
+        """Alle offenen Vorschläge (gelb) bestätigen, auch die Positionierhilfe der Teile. Ergebnis: Anzahl."""
+        if self.nur_lesen:
+            return 0
+        n = vorkalk.bestaetigen(self.bg)
+        for t in self.teile:
+            v = self.hilfe_vk.get(t["_id"])
+            if t.get("drin") and not t.get("hilfe") and v:
+                t["hilfe"] = v[0]
+                n += 1
+        self.teile_tab.aufbauen()
+        self.aktualisieren()
+        self.vk_info.setText(f"{n} Vorschläge bestätigt.")
+        return n
+
     def _springen(self, reiter, tab, r):
         self.reiter.setCurrentIndex(reiter)
         if r is not None:
@@ -811,6 +1015,197 @@ class BaugruppeDialog(QDialog):
     def _naht_ergebnis(self, n):
         x = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == "Naht" and x["id"] == n.get("id")), None)
         return x["werte"] if x else {}
+
+    # -------------------------------------------------------------- Strukturbaum und 3D (D1)
+    BAUM = 5                    # Index des Reiters
+
+    def _seite_baum(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        teil = QSplitter(Qt.Horizontal)
+        links = QWidget()
+        ll = QVBoxLayout(links)
+        ll.setContentsMargins(0, 0, 0, 0)
+        self.baum = StrukturBaum(self.teil_verschieben)
+        self.baum.itemSelectionChanged.connect(self.baum_gewaehlt)
+        ll.addWidget(self.baum, 1)
+        ll.addWidget(hilfe.Hinweis(
+            "Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt die Teile in der 3D-Ansicht blau "
+            "hervor. Ein Einzelteil auf eine andere (Unter-)Baugruppe ziehen ändert seine Zuordnung; die Stück je "
+            "Baugruppe bleiben, wenn es aufgeht.", schluessel="baugruppe_baum"))
+        self.baum_rechts = QWidget()
+        self.baum_rechts_lay = QVBoxLayout(self.baum_rechts)
+        self.baum_rechts_lay.setContentsMargins(0, 0, 0, 0)
+        self.baum_info = QLabel()
+        self.baum_info.setWordWrap(True)
+        self.baum_rechts_lay.addWidget(self.baum_info)
+        teil.addWidget(links)
+        teil.addWidget(self.baum_rechts)
+        teil.setSizes([540, 760])
+        lay.addWidget(teil, 1)
+        return w
+
+    def _reiter_gewechselt(self, i):
+        if i == self.BAUM:
+            self.baum_aufbauen()
+
+    def _teil_knoten(self, kid):
+        """Knoten-IDs kid und aller Unterbaugruppen darunter ('' = ganze Baugruppe)."""
+        ids, neu = {kid}, True
+        while neu:
+            neu = {k["id"] for k in self.bg["knoten"] if (k.get("parent") or "") in ids} - ids
+            ids |= neu
+        return ids
+
+    def _teil_titel(self, q):
+        return " ".join(str(x) for x in (f"Pos. {q.get('pos') or ''}", q.get("artikel") or q.get("bezeichnung") or "")
+                        if x).strip()
+
+    def baum_aufbauen(self):
+        """Baum neu: Baugruppe, Unterbaugruppen mit Menge, darin die Einzelteile (Stück je Unterbaugruppe und je
+        Baugruppe) und Nahtgruppen; die gewählte Zeile bleibt gewählt."""
+        alt = self.baum.currentItem().data(0, Qt.UserRole) if self.baum.currentItem() else ("bg", "")
+        self.baum.blockSignals(True)
+        self.baum.clear()
+        self.baum_items = {}
+
+        def item(eltern, daten, texte, ziehen=False):
+            it = QTreeWidgetItem(eltern, [str(t) for t in texte])
+            it.setData(0, Qt.UserRole, daten)
+            for c in (1, 2):
+                it.setTextAlignment(c, int(Qt.AlignRight | Qt.AlignVCenter))
+            flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable | (Qt.ItemIsDragEnabled if ziehen else Qt.ItemIsDropEnabled)
+            it.setFlags(flags)
+            self.baum_items[daten] = it
+            return it
+
+        def fuellen(eltern, kid):
+            for t in self.teile:
+                if t.get("drin") and (t.get("knoten") or "") == kid:
+                    f = baugruppe.faktor(self.bg, kid)
+                    je = t.get("je") or 1
+                    it = item(eltern, ("teil", t["_id"]), (self._teil_titel(t["_q"]), _text(je),
+                                                           _text(je * f) if f is not None else "?"), True)
+                    it.setToolTip(0, self._teil_text(t, 0) + ("" if t["_id"] in self.netze else " (ohne 3D-Daten)"))
+            for n in self.bg["naehte"]:
+                if (n.get("knoten") or "") == kid:
+                    text = f"Nahtgruppe {n.get('nr') or ''}: {n.get('nahtart') or ''} {_text(n.get('laenge'))} mm"
+                    it = item(eltern, ("naht", n.get("id")), (text.strip(), _text(n.get("anzahl") or 1), ""))
+                    it.setForeground(0, QBrush(stil.farbe(GRAU)))
+            for k in self.bg["knoten"]:
+                if (k.get("parent") or "") == kid:
+                    f = baugruppe.faktor(self.bg, k["id"])
+                    it = item(eltern, ("knoten", k["id"]), (k.get("name") or "Unterbaugruppe", _text(k.get("menge") or 1),
+                                                            _text(f) if f is not None else "?"))
+                    fuellen(it, k["id"])
+
+        wurzel = item(self.baum, ("bg", ""), (self.bezeichnung.text().strip() or "Baugruppe", "",
+                                              _text(1)))
+        fuellen(wurzel, "")
+        self.baum.expandAll()
+        self.baum.setCurrentItem(self.baum_items.get(alt) or wurzel)
+        self.baum.blockSignals(False)
+        if self.ansicht3d is None and self.netze and any(t["_id"] in self.netze for t in self.teile):
+            from .ansicht3d import Ansicht3DMitKnoepfen
+            self.ansicht3d = Ansicht3DMitKnoepfen()
+            self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
+        self.baum_gewaehlt()
+
+    def _gewaehlte_teile(self, daten):
+        """(Positions-IDs zum Hervorheben, Text) für eine Zeile des Baums."""
+        art, wert = daten
+        drin = [t for t in self.teile if t.get("drin")]
+        if art == "teil":
+            q = next((t["_q"] for t in drin if t["_id"] == wert), {})
+            return {wert}, f"blau: {self._teil_titel(q)}"
+        if art == "knoten":
+            ids = self._teil_knoten(wert)
+            name = next((k.get("name") for k in self.bg["knoten"] if k["id"] == wert), "")
+            return {t["_id"] for t in drin if (t.get("knoten") or "") in ids}, f"blau: Teile von {name}"
+        if art == "naht":
+            n = next((x for x in self.bg["naehte"] if x.get("id") == wert), {})
+            koerper = set(n.get("koerper") or ())
+            mit = {t["_id"] for t in drin if koerper & set(self._netz(t["_id"]).get("koerper") or ())}
+            if mit:
+                return mit, f"blau: Teile der Nahtgruppe {n.get('nr') or ''} (aus den Nahtkandidaten)"
+            ids = self._teil_knoten(n.get("knoten") or "")
+            return ({t["_id"] for t in drin if (t.get("knoten") or "") in ids},
+                    f"blau: Teile der Unterbaugruppe der Nahtgruppe {n.get('nr') or ''}")
+        return set(), "gleiche Teile in gleicher Farbe"
+
+    def baum_gewaehlt(self):
+        it = self.baum.currentItem()
+        art, kid = it.data(0, Qt.UserRole) if it else ("bg", "")
+        hervor, text = self._gewaehlte_teile((art, kid))
+        self.baum_hervor = hervor
+        self.zeige_3d(hervor, text, naht=kid if art == "naht" else None)
+
+    def _netz(self, pid):
+        if pid not in self._netz_cache:
+            from .ansicht3d import entpacken
+            self._netz_cache[pid] = entpacken(self.netze.get(pid)) or {}
+        return self._netz_cache[pid]
+
+    def naht_linien(self, naht=None):
+        """Schweißnähte für die 3D-Ansicht: {Art: [Linienzüge]} mit SN = Nahtgruppen, SV = noch offene Nahtvorschläge
+        aus dem STEP-Import, SH = Nahtgruppe naht (gewählt). Nur Nähte mit Nahtverlauf (STEP-JSON 1.16)."""
+        linien = {}
+        for n in self.bg.get("naehte") or []:
+            if n.get("linien"):
+                linien.setdefault("SH" if n.get("id") == naht else "SN", []).extend(n["linien"])
+        for v in self.bg.get("vorschlaege") or []:
+            if v.get("linien"):
+                linien.setdefault("SV", []).extend(v["linien"])
+        return linien
+
+    def zeige_3d(self, hervor=(), text="", naht=None):
+        """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau,
+        dazu die Schweißnähte (naht = ID der gewählten Nahtgruppe, rot). Ergebnis: Anzahl gezeigter Körper."""
+        netze, besitzer, farbe = [], [], []
+        for n, t in enumerate(x for x in self.teile if x.get("drin")):
+            netz = self._netz(t["_id"])
+            for lage in netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else []):
+                netze.append(dict(netz, lage=lage))
+                besitzer.append(t["_id"])
+                farbe.append(n)
+        n_teile = sum(1 for t in self.teile if t.get("drin"))
+        ohne = n_teile - len(set(besitzer))
+        if self.ansicht3d is None:
+            self.baum_info.setText("Keine 3D-Daten: die Teile kommen nicht aus dem STEP-Import (oder aus einer älteren "
+                                   "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
+            return 0
+        from .ansicht3d import baugruppe as zusammen
+        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe)
+        info = f"{len(netze)} Körper in Einbaulage, {text}."
+        if netz:
+            linien = self.naht_linien(naht)
+            netz["l"] = linien
+            netz["ln"] = {a: [(0.0, 0.0, 0.0)] * len(z) for a, z in linien.items()}    # Nähte immer sichtbar
+            ohne_verlauf = sum(1 for n in self.bg.get("naehte") or [] if not n.get("linien"))
+            if linien:
+                info += " Schweißnähte schwarz, Vorschläge magenta, gewählte Naht rot."
+            if ohne_verlauf:
+                info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (von Hand "
+                         "angelegt oder älterer STEP-Import: neu importieren).")
+        if ohne:
+            info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten fehlen."
+        self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
+        self.baum_info.setText("")
+        return len(netze)
+
+    def teil_verschieben(self, pid, knoten):
+        """Einzelteil pid in die (Unter-)Baugruppe knoten ('' = Baugruppe selbst) legen (Ziehen im Baum). Stück je
+        Unterbaugruppe so, dass das Stück je Baugruppe bleibt, wenn die Teilung aufgeht."""
+        t = next((x for x in self.teile if x["_id"] == pid), None)
+        if t is None or self.nur_lesen or (t.get("knoten") or "") == knoten:
+            return False
+        alt = baugruppe.faktor(self.bg, t.get("knoten") or "") or 1
+        neu = baugruppe.faktor(self.bg, knoten) or 1
+        gesamt = (t.get("je") or 1) * alt
+        je = gesamt // neu if gesamt % neu == 0 else (t.get("je") or 1)
+        self.teil_setzen(pid, True, knoten, int(je))
+        self.baum_aufbauen()
+        return True
 
     # -------------------------------------------------------------- Vorlagen (P1)
     def vorlagen(self):
@@ -846,7 +1241,7 @@ class BaugruppeDialog(QDialog):
         if not isinstance(v, dict):
             self.fehler.setText("Die Vorlage ist leer oder beschädigt.")
             return False
-        knoten = baugruppe.vorlage_einsetzen(self.bg, v)
+        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"))
         for t in self.teile:
             if t.get("knoten") and t["knoten"] not in knoten:
                 t["knoten"] = ""
@@ -906,6 +1301,8 @@ class BaugruppeDialog(QDialog):
         return None
 
     def _ok(self):
+        if self.nur_lesen:
+            return
         f = self.pruefen()
         if f:
             self.fehler.setText(f)
@@ -915,7 +1312,7 @@ class BaugruppeDialog(QDialog):
 
     def werte(self):
         """Ergebnis: dict(position = Felder der Baugruppen-Position, teile = {Positions-ID: dict(bg_knoten,
-        je_knoten)} nur für geänderte Zuordnungen)."""
+        je_knoten, bg_hilfe)} nur für geänderte Zuordnungen)."""
         bg = self.daten()
         for n in bg["naehte"]:          # Kennwerte merken, wenn die Nahtgruppe damit vollständig rechnet
             if "stand" not in n:
@@ -927,7 +1324,7 @@ class BaugruppeDialog(QDialog):
         for t in self.teile:
             neu = self._zuordnung(t)
             q = t["_q"]
-            if neu["bg_knoten"] != (q.get("bg_knoten") or None) or neu["je_knoten"] != q.get("je_knoten"):
+            if any(w != (q.get(k) or None) for k, w in neu.items()):
                 teile[t["_id"]] = neu
         return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel")},
                     teile=teile)
