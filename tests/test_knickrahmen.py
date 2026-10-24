@@ -261,4 +261,29 @@ assert not _kreuzen(mit), "Umriss mit Freistich darf sich nicht selbst kreuzen (
 assert _flaeche(mit) > _flaeche(ohne) + 2 * 0.5 * math.pi * 16          # mindestens die äußeren Halbkreise mehr
 assert max(y for _, y in mit) > max(y for _, y in ohne) + 3.9             # Kreis reicht über die Spitze hinaus
 ok("K6 Freistich: Umriss läuft außen um den Kreis, nimmt Material weg statt es stehen zu lassen")
+
+# ------------------------------------------------------------------ K7 keine Längslinien „Mit Kanten“ (Patrick 24.10.)
+from rohrlaser import rohr3d  # noqa: E402
+from rohrlaser.ansicht3d import Ansicht3D  # noqa: E402
+
+qr50 = dict(QR3, a=50, b=50, wand=4)
+netz = rohr3d.netz(dict(a={}, b={}, konturen=[kn.zeile_ergaenzen(dict(art=sw.V_AUSSCHNITT, anzahl=1, beta=90,
+                                                                       freistich=8, x=300, seite="oben"), qr50)]),
+                   qr50, 600)
+P = netz["p"]
+for wand in ("A", "I"):
+    t = netz["t"][wand]
+    seiten = {}
+    for j in range(0, len(t), 3):
+        ecken = [tuple(P[3 * t[j + q] + c] for c in range(3)) for q in range(3)]
+        for q in range(3):
+            a_, b_ = ecken[q], ecken[(q + 1) % 3]
+            seiten[(a_, b_) if a_ < b_ else (b_, a_)] = seiten.get((a_, b_) if a_ < b_ else (b_, a_), 0) + 1
+    laengs = [k_ for k_, n_ in seiten.items() if n_ == 1 and abs(k_[0][0] - k_[1][0]) < 1e-6
+              and abs(k_[0][1] - k_[1][1]) < 1e-6 and abs(k_[0][2] - k_[1][2]) > 1]
+    assert not laengs, f"{wand}: {len(laengs)} offene Längskanten (T-Stöße zwischen den Spalten)"
+a3 = Ansicht3D()
+a3.setzen(netz)
+assert len(a3.modell.kanten()) < 1500
+ok("K7 Wand mit V-Ausschnitt ohne T-Stöße: „Mit Kanten“ zeigt keine Längslinien über das ganze Rohr")
 print("Alle Knickrahmen-Tests bestanden.")

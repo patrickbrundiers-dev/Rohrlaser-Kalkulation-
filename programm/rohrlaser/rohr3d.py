@@ -298,26 +298,46 @@ def netz(e, profil, laenge):
     loch_innen = [innen_parallel(q) if z in parallel else q for q, z in loch_zeile]
 
     def mantel_loch(poly, art, nach_aussen, loch=loch):
+        """Wand mit Löchern: jede Spalte in Trapeze ohne die Löcher. Die Kanten zwischen zwei Spalten bekommen die
+        Eckpunkte beider Nachbarn (sonst T-Stöße: feine Risse, die als Längslinien über das ganze Rohr laufen)."""
         n = len(poly)
+        spalten = []
         for i in range(n):
             t0, t1 = cum[i], cum[i + 1]
             hier = [q for q in loch if min(p[0] for p in q) < t1 and max(p[0] for p in q) > t0]
-            if not hier:
-                continue
+            (u0, v0), (u1, v1) = poly[i], poly[(i + 1) % n]
+            feld = [(t0, za(u0, v0)), (t1, za(u1, v1)), (t1, zb(u1, v1)), (t0, zb(u0, v0))]
+            zellen = zelle_frei(feld, hier)
+            links = {x for tl0, _, x0, tl1, _, x1 in zellen if abs(tl0 - t0) < 1e-9 and abs(tl1 - t0) < 1e-9
+                     for x in (x0, x1)}
+            rechts = {x for _, tr0, x0, _, tr1, x1 in zellen if abs(tr0 - t1) < 1e-9 and abs(tr1 - t1) < 1e-9
+                      for x in (x0, x1)}
+            spalten.append((t0, t1, zellen, links, rechts))
+        grenze = [spalten[i][4] | spalten[(i + 1) % n][3] for i in range(n)]     # rechts von Spalte i
+        for i, (t0, t1, zellen, _, _) in enumerate(spalten):
             (u0, v0), (u1, v1) = poly[i], poly[(i + 1) % n]
             du, dv = u1 - u0, v1 - v0
             soll = _xyz(0, *((dv, -du) if nach_aussen else (-dv, du)))
-            feld = [(t0, za(u0, v0)), (t1, za(u1, v1)), (t1, zb(u1, v1)), (t0, zb(u0, v0))]
 
-            def p3(t, x):
+            def p3(t, x, t0=t0, t1=t1, u0=u0, v0=v0, du=du, dv=dv):
                 f = 0.0 if t1 - t0 < 1e-12 else (t - t0) / (t1 - t0)
                 return _xyz(x, u0 + f * du, v0 + f * dv)
-            for tl0, tr0, x0, tl1, tr1, x1 in zelle_frei(feld, hier):
-                a, b, c, d = p3(tl0, x0), p3(tr0, x0), p3(tr1, x1), p3(tl1, x1)
-                dreieck(art, a, b, c, soll)
-                dreieck(art, a, c, d, soll)
-        return {i for i in range(n) if any(min(p[0] for p in q) < cum[i + 1] and max(p[0] for p in q) > cum[i]
-                                           for q in loch)}
+            for tl0, tr0, x0, tl1, tr1, x1 in zellen:
+                rechts = sorted(x for x in grenze[i] if x0 + 1e-7 < x < x1 - 1e-7) \
+                    if abs(tr0 - t1) < 1e-9 and abs(tr1 - t1) < 1e-9 else []
+                links = sorted((x for x in grenze[i - 1] if x0 + 1e-7 < x < x1 - 1e-7), reverse=True) \
+                    if abs(tl0 - t0) < 1e-9 and abs(tl1 - t0) < 1e-9 else []
+                if not rechts and not links:
+                    a, b, c, d = p3(tl0, x0), p3(tr0, x0), p3(tr1, x1), p3(tl1, x1)
+                    dreieck(art, a, b, c, soll)
+                    dreieck(art, a, c, d, soll)
+                    continue
+                zug = [(tl0, x0), (tr0, x0)] + [(t1, x) for x in rechts] + [(tr1, x1), (tl1, x1)] + \
+                    [(t0, x) for x in links]
+                m = p3(sum(q[0] for q in zug) / len(zug), sum(q[1] for q in zug) / len(zug))
+                for q, r in zip(zug, zug[1:] + zug[:1]):
+                    dreieck(art, m, p3(*q), p3(*r), soll)
+        return set(range(n))
 
     gelocht = mantel_loch(aussen, "A", True) if loch else set()
     mantel(aussen, "A", True, gelocht)
