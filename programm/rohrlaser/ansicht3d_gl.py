@@ -56,17 +56,20 @@ uniform float alle;     // Durchsichtig: Rückseiten und verdeckte Linien nicht 
 uniform float alpha;
 uniform vec3 licht;
 uniform vec3 licht2;
-uniform vec4 werte;     // x = Grundlicht, y = Neigung oben, z = Fülllicht, w = Glanz
+uniform float grund;    // Grundlicht
+uniform float neigung;  // oben heller
+uniform float fuell;    // Fülllicht
+uniform float glanz;
 uniform float glanz_exp;
 void main() {
     if (alle < 0.5 && (nz < 0.0 || (linie < 0.5 && nz <= 0.0))) discard;     // Rückseiten wie in ansicht3d.zeichnen
     if (linie > 0.5) { gl_FragColor = vec4(farbe, alpha); return; }
     vec3 n = normalize(nv);
     if (n.z < 0.0) n = -n;
-    float diff = werte.x + werte.y * n.y + (1.0 - werte.x) * max(0.0, dot(n, licht))
-                 + werte.z * max(0.0, dot(n, licht2));
+    float diff = grund + neigung * n.y + (1.0 - grund) * max(0.0, dot(n, licht))
+                 + fuell * max(0.0, dot(n, licht2));
     vec3 h = normalize(licht + vec3(0.0, 0.0, 1.0));
-    float spec = werte.w * pow(max(0.0, dot(n, h)), glanz_exp);
+    float spec = glanz * pow(max(0.0, dot(n, h)), glanz_exp);
     gl_FragColor = vec4(min(farbe * diff + vec3(spec), vec3(1.0)), alpha);
 }
 """
@@ -289,10 +292,10 @@ class GLFlaeche(QOpenGLWidget):
         pr = self.prog
         pr.bind()
         for name, wert in (("r0", m[0]), ("r1", m[1]), ("r2", m[2]), ("mitte", modell.mitte),
-                           ("licht", ansicht3d.LICHT), ("licht2", ansicht3d.LICHT2),
-                           ("werte", ansicht3d.LICHT_WERTE[:4])):
+                           ("licht", ansicht3d.LICHT), ("licht2", ansicht3d.LICHT2)):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
-        pr.setUniformValue1f(pr.uniformLocation("glanz_exp"), float(ansicht3d.LICHT_WERTE[4]))
+        for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp"), ansicht3d.LICHT_WERTE):
+            pr.setUniformValue1f(pr.uniformLocation(name), float(wert))
         pr.setUniformValue(pr.uniformLocation("abb"), 2 * s / w, 2 * ox / w - 1, 2 * s / hh, 1 - 2 * oy / hh)
         # einzelne Zahlen ausdrücklich als float (setUniformValue nimmt sonst glUniform1i: GL-Fehler, Wert bleibt 0)
         pr.setUniformValue1f(pr.uniformLocation("tiefe"), 1.0 / max(1e-6, modell.groesse))
