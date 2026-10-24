@@ -43,7 +43,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
 
-SCHEMA_VERSION = 51     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 52     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -94,6 +94,8 @@ SCHEMA_VERSION = 51     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 50: Schweißverfahren mit Verbrauch (dichte, draht_eur_kg, gas_l_min, gas_eur_l leer)
                         #     und Kennwerte-Historie (Tabelle kennwerte_historie, leer; Freigaben aus der Nachkalkulation)
                         # 51: Kundenvorgaben (Tabelle kundenvorgaben, leer; Plan Arbeitsabläufe W2)
+                        # 52: Neue Fassung (angebote.fassung_basis = Nummer ohne Zusatz, angebote.ersetzt_durch =
+                        #     Nummer der neueren Fassung; ältere Angebote leer; Plan Arbeitsabläufe W10)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -286,6 +288,9 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
             if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
+            if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
+                self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -1573,7 +1578,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1611,8 +1616,9 @@ class Datenbank:
         return datetime.datetime.now().isoformat(timespec="seconds")
 
     @schreibt
-    def angebot_neu(self, kopf=None):
-        """Neues Angebot mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch."""
+    def angebot_neu(self, kopf=None, zaehler=True):
+        """Neues Angebot mit Vorgaben aus den Einstellungen; die Nummer zählt die letzte hoch. zaehler=False (neue
+        Fassung mit fester Nummer): die letzte Angebotsnummer bleibt, wie sie ist."""
         kopf = dict(kopf or {})
         kuerzel = kuerzel_sauber(self.einstellung("benutzer_kuerzel"))
         if not kopf.get("nummer"):
@@ -1652,7 +1658,8 @@ class Datenbank:
                     f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
                     f'({", ".join("?" * len(namen))}, ?, ?, ?)',
                     [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
-                self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
+                if zaehler:
+                    self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
         return i
@@ -1690,19 +1697,23 @@ class Datenbank:
             raise ValueError(f"Angebotsnummer '{wert}' gibt es schon.")
 
     @schreibt
-    def angebot_kopieren(self, angebot_id, kundennr=None):
+    def angebot_kopieren(self, angebot_id, kundennr=None, nummer=None):
         """Kopie mit neuer Nummer und heutigem Datum. kundennr: anderer Kunde (Name und Zahlungsbedingungen
-        aus dem Kundenstamm, sonst bleibt nur die Nummer); None = gleicher Kunde."""
+        aus dem Kundenstamm, sonst bleibt nur die Nummer); None = gleicher Kunde. nummer: feste Nummer (neue
+        Fassung, angebot_fassung): Stundensätze nach den Einstellungen, Zähler der Angebotsnummern unberührt."""
         a = self.angebot(angebot_id)
         kopf = {f.name: a[f.name] for f in KOPF if f.name not in ("nummer", "bearbeiter")}     # Kopie: eigene Nummer
         kopf["datum"] = datetime.date.today().isoformat()
-        kopf["zeitbasis"] = a.get("zeitbasis")      # gleiche Stundensätze; ältere Angebote: aktuelle Vorgaben
+        if nummer:
+            kopf["nummer"] = nummer
+        else:
+            kopf["zeitbasis"] = a.get("zeitbasis")  # gleiche Stundensätze; ältere Angebote: aktuelle Vorgaben
         if kundennr is not None and kundennr != a.get("kundennr"):
             k = self.kunde(kundennr)
             kopf["kundennr"] = kundennr or None
             kopf["kunde"] = k["name"] if k else None
             kopf.update(self.zahlungsbedingungen(kundennr))
-        neu = self.angebot_neu(kopf)
+        neu = self.angebot_neu(kopf, zaehler=not nummer)
         if a.get("laengenwahl"):                    # übernommene Lieferlängen gelten auch für die Kopie
             self.laengenwahl_speichern(neu, a["laengenwahl"])
         if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
@@ -1715,6 +1726,32 @@ class Datenbank:
         stufen = {st["id"]: self.staffel_stufe_neu(neu, st) for st in self.staffel_stufen(angebot_id)}
         for st in self.staffeln(angebot_id):
             self.staffel_neu(neu, dict(st, stufe_id=stufen.get(st.get("stufe_id"))))
+        return neu
+
+    @liest
+    def fassung_nummer(self, angebot_id):
+        """Nummer der nächsten Fassung (Plan Arbeitsabläufe W10): Nummer ohne Zusatz + '-2', '-3' … (höchste
+        vorhandene Fassung + 1)."""
+        a = self.angebot(angebot_id)
+        basis = a.get("fassung_basis") or a["nummer"]
+        hoch = 1
+        for (nr,) in self.con.execute("SELECT nummer FROM angebote WHERE nummer LIKE ?", (basis + "-%",)):
+            rest = str(nr)[len(basis) + 1:]
+            if rest.isdigit():
+                hoch = max(hoch, int(rest))
+        return f"{basis}-{hoch + 1}"
+
+    @schreibt
+    def angebot_fassung(self, angebot_id):
+        """Neue Fassung (W10): Kopie mit gleicher Nummer und Zusatz -2, -3 …, gleichem Kunden, heutigem Datum und den
+        aktuellen Preisen und Stundensätzen (nichts festgeschrieben); Vorgang Entwurf. Die bisherige Fassung bekommt
+        ersetzt_durch = neue Nummer. Ergebnis: ID der neuen Fassung."""
+        a = self.angebot(angebot_id)
+        nummer = self.fassung_nummer(angebot_id)
+        neu = self.angebot_kopieren(angebot_id, nummer=nummer)
+        with self.con:
+            self.con.execute("UPDATE angebote SET fassung_basis=? WHERE id=?", (a.get("fassung_basis") or a["nummer"], neu))
+            self.con.execute("UPDATE angebote SET ersetzt_durch=? WHERE id=?", (nummer, angebot_id))
         return neu
 
     @schreibt

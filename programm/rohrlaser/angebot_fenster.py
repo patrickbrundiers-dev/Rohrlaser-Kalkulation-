@@ -173,7 +173,8 @@ def _breiten(ansicht, spalten):
 # Stand eines Angebots in der Liste: Text und Farbe (wie die Etiketten in der Übersicht des Angebots)
 STATUS_FARBE = {"Nachkalkuliert": "#DDEBF7", "Optimiert": "#E3F4E8", "Veraltet": "#FDECEA",
                 "Nicht optimiert": "#FFF6DB"}
-VORGANG_FARBE = {"Verschickt": "#DDEBF7", "Beauftragt": "#E3F4E8", "Abgelehnt": "#ECEEF1", "Abgelaufen": "#FDECEA"}
+VORGANG_FARBE = {"Verschickt": "#DDEBF7", "Beauftragt": "#E3F4E8", "Abgelehnt": "#ECEEF1", "Abgelaufen": "#FDECEA",
+                 "Ersetzt": "#ECEEF1"}
 # Filter der Angebotsliste: Titel -> Prüfung je Zeile (Vorgang, abgelaufen)
 # Filter der Angebotsliste: (Vorgang, abgelaufen, Zeile der Liste) -> zeigen
 VORGANG_FILTER = {"Alle Angebote": lambda v, ab, z: True,
@@ -183,10 +184,16 @@ VORGANG_FILTER = {"Alle Angebote": lambda v, ab, z: True,
                   "Beauftragt": lambda v, ab, z: v == "Beauftragt",
                   # Plan Arbeitsabläufe W9: beauftragt, aber noch ohne Ist-Werte (eine Bemerkung allein zählt nicht)
                   "Nachkalkulation offen": lambda v, ab, z: v == "Beauftragt" and not z.get("ist_erfasst"),
-                  "Abgelehnt": lambda v, ab, z: v == "Abgelehnt"}
+                  "Abgelehnt": lambda v, ab, z: v == "Abgelehnt",
+                  "Ersetzt (alte Fassungen)": lambda v, ab, z: v == "Ersetzt"}
+
+
+ERSETZT = "Ersetzt"      # alte Fassung (Plan Arbeitsabläufe W10, angebote.ersetzt_durch), kein eigener Vorgang
 
 
 def vorgang(z):
+    if z.get("ersetzt_durch"):
+        return ERSETZT
     return z.get("vorgang") or VORGAENGE[0]
 
 
@@ -242,6 +249,9 @@ def bearbeiter(z):
 MEINE, ALLE = "Meine Angebote", "Alle Mitarbeiter"
 
 
+FASSUNG = object()        # Ergebnis des Kopieren-Dialogs: neue Fassung statt Kopie
+
+
 def step_neu_pfade(ereignis):
     """Gezogene Dateien/Ordner, wenn STEP-Dateien darunter sind (Angebotsliste, Startseite), sonst []."""
     urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
@@ -256,7 +266,8 @@ class AngeboteSeite(QWidget):
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Bearbeiter", lambda z: bearbeiter(z), None, 70),
                ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
-               ("Vorgang", lambda z: vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else ""), None, 140),
+               ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
+                                      vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else "")), None, 140),
                ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
@@ -436,6 +447,8 @@ class AngeboteSeite(QWidget):
             kundennr = self._kunde_fuer_kopie(self.db.angebot(i))
             if kundennr is False:
                 return None
+            if kundennr is FASSUNG:
+                return self.neue_fassung(i)
         neu = self.db.angebot_kopieren(i, kundennr)
         self.neu_laden()
         self.oeffnen.emit(neu)
@@ -463,13 +476,38 @@ class AngeboteSeite(QWidget):
         d.setMinimumWidth(460)
         form.addRow(text)
         form.addRow("Kunde", kunde)
+        fassung = None
+        if not a.get("fremd"):          # W10: neue Fassung statt Kopie (nur eigene Angebote)
+            fassung = QCheckBox(f"Neue Fassung {self.db.fassung_nummer(a['id'])} statt Kopie (gleicher Kunde, "
+                                f"aktuelle Preise; {a['nummer']} wird „ersetzt“)")
+            fassung.toggled.connect(kunde.setDisabled)
+            form.addRow(fassung)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(d.accept)
         knoepfe.rejected.connect(d.reject)
         form.addRow(knoepfe)
         if d.exec() != QDialog.Accepted:
             return False
+        if fassung is not None and fassung.isChecked():
+            return FASSUNG
         return _kundennr(kunde.currentText())
+
+    def neue_fassung(self, angebot_id=None):
+        """Neue Fassung des gewählten Angebots (Plan Arbeitsabläufe W10): gleiche Nummer mit Zusatz -2, -3 …,
+        gleicher Kunde, aktuelle Preise; die bisherige Fassung steht danach auf „Ersetzt“. Ergebnis: neue ID."""
+        i = angebot_id or self._gewaehlt()
+        if not i or self._fremd(i, "eine neue Fassung anlegen"):
+            return None
+        if self.db.nur_lesen:
+            self.f.meldung("Lesemodus: es lassen sich keine Angebote anlegen.", fehler=True)
+            return None
+        alt = self.db.angebot(i)["nummer"]
+        neu = self.db.angebot_fassung(i)
+        self.f.angebot_schliessen(i)            # offene alte Fassung: Reiter zu, sie ist jetzt ersetzt
+        self.neu_laden()
+        self.oeffnen.emit(neu)
+        self.f.meldung(f"Neue Fassung {self.db.angebot(neu)['nummer']} angelegt; {alt} ist ersetzt.")
+        return neu
 
     def loeschen(self):
         i = self._gewaehlt()
