@@ -22,7 +22,14 @@ PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil
 TRAEGER = ("I-/H-Träger", "T-Profil")
 OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "Flachstahl") + TRAEGER
 MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", rp_profile.FORM) + TRAEGER
-KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium")
+KATEGORIEN = ("Stahl", "Edelstahl", "Aluminium", "Buntmetall")
+# Lasereigenschaften je Werkstoff (Patrick 24.10.2026 „Werkstoffliste spezifischer auf Rohrlaser“, alle leer = wie
+# bisher): Schneidgas-Vorgabe, nur Faserlaser (reflektierende Werkstoffe), Rohrart (ohne Naht: keine Nahtvorgabe)
+GAS_VORGABEN = ("automatisch", "nur N₂", "nur O₂")
+LASERARTEN = ("Faser + CO₂", "nur Faser")
+NUR_FASER = "nur Faser"
+ROHRARTEN = ("geschweißt", "nahtlos", "stranggepresst")
+OHNE_NAHT = ("nahtlos", "stranggepresst")
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
 ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
@@ -248,13 +255,24 @@ WERKSTOFFE = Tabelle(
      # Anforderungen in der Materialanfrage (unter der Materialzeile); leer = keine
      Feld("anfrage_zeugnis", "Anfrage: Prüfbescheinigung", "auswahl", auswahl="zeugnis", breite=100),
      Feld("anfrage_herkunft_eu", "Anfrage: Herkunft EU", "auswahl", auswahl="janein", breite=80),
-     Feld("anfrage_toleranz", "Anfrage: Maßtoleranzen nach Norm", "auswahl", auswahl="janein", breite=100)),
+     Feld("anfrage_toleranz", "Anfrage: Maßtoleranzen nach Norm", "auswahl", auswahl="janein", breite=100),
+     # Rohrlaser (Schema 55, leer = wie bisher)
+     Feld("rohrart", "Rohrart", "auswahl", auswahl="rohrart", breite=95),
+     Feld("gas_vorgabe", "Schneidgas", "auswahl", auswahl="gasvorgabe", breite=90),
+     Feld("vorschub_faktor", "Vorschub-Faktor", "zahl", 0.1, 3, stellen=2, breite=75),
+     Feld("laser", "Laser", "auswahl", auswahl="laserart", breite=85),
+     Feld("laser_hinweis", "Laser-Hinweis", breite=220)),
     ("werkstoff_id",),
     "Die Werkstoff-ID ist der Schlüssel für Preise, Schneiddaten und Angebot. Die Kategorie (Stahl, Edelstahl, "
     "Aluminium) ordnet die Auswahl im Angebot und liefert Schneiddaten und Oberflächen, wenn der Werkstoff keine "
     "eigenen hat. Der Tonnenpreis ergibt automatisch den Preis je kg, je m und je Stange; Abweichungen unter "
     "'Preise' eintragen. Die Spalten 'Anfrage: …' setzen die Anforderungen, die in der Materialanfrage unter dem "
-    "Werkstoff stehen (Prüfbescheinigung nach EN 10204, Herkunft EU, Maßtoleranzen nach Norm).")
+    "Werkstoff stehen (Prüfbescheinigung nach EN 10204, Herkunft EU, Maßtoleranzen nach Norm). Rohrlaser: "
+    "Rohrart nahtlos oder stranggepresst = ohne Schweißnaht (eine Nahtvorgabe der Teile entfällt, kein "
+    "Stangenwechsel SN); Schneidgas 'nur N₂'/'nur O₂' nimmt nur die Schneiddaten-Zeilen dieses Gases; "
+    "Vorschub-Faktor wirkt auf die Schneiddaten der Kategorie (nicht auf eigene Zeilen des Werkstoffs); Laser "
+    "'nur Faser' warnt auf einer CO₂-Maschine; der Laser-Hinweis steht in Werkstoffwahl, Angebots-Check, "
+    "Kalkulation und Werkstattpapieren.")
 
 OBERFLAECHEN = Tabelle(
     "oberflaechen", "Oberflächen",
@@ -1044,7 +1062,8 @@ class Kontext:
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
-                         "gas": list(GASE), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
+                         "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN),
+                         "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "ruestbezug": list(RUESTBEZUG),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
@@ -1083,13 +1102,43 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
 
 def kategorie_raten(z):
     """Kategorie eines Werkstoffs ohne Angabe (ältere Datendateien): Dichte unter 4 = Aluminium,
-    Werkstoff-Nr. 1.4… = Edelstahl, sonst Stahl."""
+    Werkstoff-Nr. 1.4… = Edelstahl, Kupfer und Messing (CW…, Cu…) = Buntmetall, sonst Stahl."""
     texte = " ".join(str(z.get(n) or "") for n in ("werkstoff_id", "werkstoff", "werkstoff_nr"))
     if isinstance(z.get("dichte"), (int, float)) and z["dichte"] < 4:
         return "Aluminium"
     if re.search(r"(?<![\d.])1\.4\d{3}", texte) or re.search(r"(?i)\bX\d+Cr", texte):
         return "Edelstahl"
+    if re.search(r"\bCW\d{3}[A-Z]\b|\bCu(Zn|-|\b)|(?i:messing|kupfer)", texte):
+        return "Buntmetall"
     return "Stahl"
+
+
+def co2_maschine(m):
+    """Maschine mit CO₂-Laser: ID, Bezeichnung oder Bemerkung nennt CO₂ (z. B. T03 'CO₂-Laser')."""
+    m = m or {}
+    text = " ".join(str(m.get(n) or "") for n in ("maschinen_id", "bezeichnung", "bemerkung")).upper()
+    return "CO₂" in text or "CO2" in text or LASER.get(m.get("maschinen_id")) == "CO₂"
+
+
+def werkstoff_info(z):
+    """Kurzinfo eines Werkstoffs für den Tooltip der Werkstoffwahl: Norm, Rohrart, Schneidgas, Faktor, Laser und
+    Laser-Hinweis (leer = nichts zu sagen)."""
+    z = z or {}
+    teile = [str(z[n]) for n in ("werkstoff", "norm") if z.get(n)]
+    laser = [str(z["rohrart"])] if z.get("rohrart") else []
+    if z.get("gas_vorgabe") in GAS_VORGABEN[1:]:
+        laser.append(z["gas_vorgabe"])
+    f = z.get("vorschub_faktor")
+    if isinstance(f, (int, float)) and f > 0 and abs(f - 1) > 1e-9:
+        laser.append(f"Vorschub × {zahl_als_text(f)}")
+    if z.get("laser") == NUR_FASER:
+        laser.append(NUR_FASER)
+    zeilen = [" · ".join(teile)] if teile else []
+    if laser:
+        zeilen.append("Rohrlaser: " + ", ".join(laser))
+    if z.get("laser_hinweis"):
+        zeilen.append(str(z["laser_hinweis"]))
+    return "\n".join(zeilen)
 
 
 def pruefen(t, z, k):
@@ -1167,7 +1216,10 @@ def pruefen(t, z, k):
     if t is MASCHINEN and k.schneiddaten:
         da = {s.get("kategorie") or (k.werkstoffe.get(s.get("werkstoff_id")) or {}).get("kategorie")
               for s in k.schneiddaten if s.get("maschinen_id") == z.get("maschinen_id")}
-        fehlt = [kat for kat in k.kategorien if kat not in da]
+        # auf einem CO₂-Laser fehlen Kategorien nicht, deren Werkstoffe alle nur mit Faserlaser gehen (Buntmetall)
+        nur_faser = {kat for kat in k.kategorien if co2_maschine(z) and (ws := [w for w in k.werkstoffe.values()
+                     if w.get("kategorie") == kat]) and all(w.get("laser") == NUR_FASER for w in ws)}
+        fehlt = [kat for kat in k.kategorien if kat not in da and kat not in nur_faser]
         if len(fehlt) == len(k.kategorien):
             return "WARNUNG: keine Schneiddaten"
         if fehlt:
@@ -1285,23 +1337,72 @@ def beispiel_blechlaser():
 
 
 def beispiel_werkstoffe():
-    """Werkstoffe mit Kategorie (Beispiel-Tonnenpreise, bitte durch eigene ersetzen)."""
-    st, es, al = "Stahl", "Edelstahl", "Aluminium"
-    rohr_s, praez = "EN 10219 kaltgefertigt, geschweißt", "EN 10305-3 Präzisionsstahlrohr, geschweißt, maßgewalzt"
-    rohr_e = "EN 10217-7 / ASTM A554"
-    return [
-        ("S235-10219", st, "S235JRH", "1.0039", rohr_s, 7.85, "Beispiel", 1000, "S235 EN10219"),
-        ("S355-10219", st, "S355J2H", "1.0576", rohr_s, 7.85, "Beispiel", 1050, "S355 EN10219"),
-        ("E235-10305", st, "E235", "1.0308", praez, 7.85, "Beispiel", 1150, "E235 EN10305-3"),
-        ("E355-10305", st, "E355", "1.0580", praez, 7.85, "Beispiel", 1250, "E355 EN10305-3"),
-        ("1.4301", es, "X5CrNi18-10", "1.4301", rohr_e, 7.90, "Beispiel", 4200, "1.4301 EN10217-7"),
-        ("1.4307", es, "X2CrNi18-9", "1.4307", rohr_e, 7.90, "Beispiel", 4300, "1.4307 EN10217-7"),
-        ("1.4404", es, "X2CrNiMo17-12-2", "1.4404", rohr_e, 8.00, "Beispiel", 5600, "1.4404 EN10217-7"),
-        ("1.4571", es, "X6CrNiMoTi17-12-2", "1.4571", rohr_e, 8.00, "Beispiel", 5900, "1.4571 EN10217-7"),
-        ("1.4509", es, "X2CrTiNb18", "1.4509", "EN 10296-2 (ferritisch)", 7.70, "Beispiel", 3600, "1.4509 EN10296-2"),
-        ("AW6060-T66", al, "EN AW-6060 T66", "3.3206", "EN 755-2", 2.70, "Beispiel", 4500, "EN AW-6060 T66"),
-        ("AW6063-T66", al, "EN AW-6063 T66", None, "EN 755-2", 2.70, "Beispiel", 4600, "EN AW-6063 T66"),
-        ("AW6082-T6", al, "EN AW-6082 T6", "3.2315", "EN 755-2", 2.70, "Beispiel", 4800, "EN AW-6082 T6")]
+    """Werkstoffe mit Kategorie (Beispiel-Tonnenpreise, bitte durch eigene ersetzen) und Lasereigenschaften
+    (Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis; Richtwerte, Patrick 24.10.2026). Je Zeile alle
+    Felder der Tabelle Werkstoffe in deren Reihenfolge (Anfrage-Spalten leer)."""
+    return [w[:9] + (None, None, None) + w[9:] for w in _BEISPIEL_WERKSTOFFE]
+
+
+_ST, _ES, _AL, _BM = "Stahl", "Edelstahl", "Aluminium", "Buntmetall"
+_ROHR_S, _PRAEZ = "EN 10219 kaltgefertigt, geschweißt", "EN 10305-3 Präzisionsstahlrohr, geschweißt, maßgewalzt"
+_ROHR_W, _ROHR_E = "EN 10210 warmgefertigt", "EN 10217-7 / ASTM A554"
+_GS, _NL, _SP = ROHRARTEN
+_N2, _O2 = GAS_VORGABEN[1:]
+_ZINK = "verzinkt: Zinkdampf, Absaugung prüfen; nur N₂ (O₂ brennt die Zinkschicht ab), leichter Grat innen"
+_ZUNDER = "warmgefertigt: Zunder auf der Oberfläche, Vorschub etwas geringer, Einstich unruhiger"
+_HOCHFEST = "hochfest: Vorschub etwas geringer, Kante bei O₂ härter (Gewinde/Senkungen prüfen)"
+_BUNT = "stark reflektierend: nur Faserlaser"
+# (Werkstoff-ID, Kategorie, Werkstoff, Werkstoff-Nr., Norm, Dichte, Bemerkung, Tonnenpreis, Angebotstext,
+#  Rohrart, Schneidgas, Vorschub-Faktor, Laser, Laser-Hinweis)
+_BEISPIEL_WERKSTOFFE = [
+    ("S235-10219", _ST, "S235JRH", "1.0039", _ROHR_S, 7.85, "Beispiel", 1000, "S235 EN10219", _GS),
+    ("S355-10219", _ST, "S355J2H", "1.0576", _ROHR_S, 7.85, "Beispiel", 1050, "S355 EN10219", _GS),
+    ("E235-10305", _ST, "E235", "1.0308", _PRAEZ, 7.85, "Beispiel", 1150, "E235 EN10305-3", _GS),
+    ("E355-10305", _ST, "E355", "1.0580", _PRAEZ, 7.85, "Beispiel", 1250, "E355 EN10305-3", _GS),
+    ("1.4301", _ES, "X5CrNi18-10", "1.4301", _ROHR_E, 7.90, "Beispiel", 4200, "1.4301 EN10217-7", _GS),
+    ("1.4307", _ES, "X2CrNi18-9", "1.4307", _ROHR_E, 7.90, "Beispiel", 4300, "1.4307 EN10217-7", _GS),
+    ("1.4404", _ES, "X2CrNiMo17-12-2", "1.4404", _ROHR_E, 8.00, "Beispiel", 5600, "1.4404 EN10217-7", _GS),
+    ("1.4571", _ES, "X6CrNiMoTi17-12-2", "1.4571", _ROHR_E, 8.00, "Beispiel", 5900, "1.4571 EN10217-7", _GS, None,
+     0.95),
+    ("1.4509", _ES, "X2CrTiNb18", "1.4509", "EN 10296-2 (ferritisch)", 7.70, "Beispiel", 3600, "1.4509 EN10296-2",
+     _GS),
+    ("AW6060-T66", _AL, "EN AW-6060 T66", "3.3206", "EN 755-2", 2.70, "Beispiel", 4500, "EN AW-6060 T66", _SP),
+    ("AW6063-T66", _AL, "EN AW-6063 T66", None, "EN 755-2", 2.70, "Beispiel", 4600, "EN AW-6063 T66", _SP),
+    ("AW6082-T6", _AL, "EN AW-6082 T6", "3.2315", "EN 755-2", 2.70, "Beispiel", 4800, "EN AW-6082 T6", _SP),
+    # seit 24.10.2026: typische Rohr- und Profilwerkstoffe am Rohrlaser
+    ("S235-10210", _ST, "S235JRH", "1.0039", _ROHR_W, 7.85, "Beispiel", 1050, "S235 EN10210", _GS, None, 0.95, None,
+     _ZUNDER),
+    ("S355-10210", _ST, "S355J2H", "1.0576", _ROHR_W, 7.85, "Beispiel", 1100, "S355 EN10210", _GS, None, 0.95, None,
+     _ZUNDER),
+    ("DX51D+Z275", _ST, "DX51D+Z275", "1.0226", "EN 10305-3 / EN 10346 sendzimirverzinkt", 7.85, "Beispiel", 1300,
+     "DX51D+Z275 sendzimirverzinkt", _GS, _N2, 0.90, None, _ZINK),
+    ("E195-10305", _ST, "E195", "1.0034", _PRAEZ, 7.85, "Beispiel", 1150, "E195 EN10305-3", _GS),
+    ("P235TR1", _ST, "P235TR1", "1.0254", "EN 10217-1 geschweißt (Leitungsrohr)", 7.85, "Beispiel", 1100,
+     "P235TR1 EN10217-1", _GS),
+    ("P235GH-10216", _ST, "P235GH", "1.0345", "EN 10216-2 nahtlos (Kesselrohr)", 7.85, "Beispiel", 1400,
+     "P235GH EN10216-2 nahtlos", _NL),
+    ("S420MH", _ST, "S420MH", "1.8750", _ROHR_S + " (Feinkorn)", 7.85, "Beispiel", 1250, "S420MH EN10219", _GS, None,
+     0.95, None, _HOCHFEST),
+    ("S460MH", _ST, "S460MH", "1.8953", _ROHR_S + " (Feinkorn)", 7.85, "Beispiel", 1350, "S460MH EN10219", _GS, None,
+     0.95, None, _HOCHFEST),
+    ("S355J2WH", _ST, "S355J2WH", "1.8965", "EN 10219 wetterfest (Corten)", 7.85, "Beispiel", 1600,
+     "S355J2WH wetterfest", _GS, None, 0.95, None, "wetterfest: Kante mit N₂ schneiden, damit die Patina gleichmäßig "
+     "wächst"),
+    ("1.4541", _ES, "X6CrNiTi18-10", "1.4541", _ROHR_E, 7.90, "Beispiel", 4600, "1.4541 EN10217-7", _GS, None, 0.95),
+    ("1.4016", _ES, "X6Cr17", "1.4016", "EN 10296-2 (ferritisch)", 7.70, "Beispiel", 2900, "1.4016 EN10296-2", _GS),
+    ("1.4003", _ES, "X2CrNi12", "1.4003", "EN 10296-2 (ferritisch, 3CR12)", 7.70, "Beispiel", 2600,
+     "1.4003 EN10296-2", _GS, None, 0.95),
+    ("1.4462", _ES, "X2CrNiMoN22-5-3", "1.4462", "EN 10217-7 (Duplex)", 7.80, "Beispiel", 8000, "1.4462 Duplex", _GS,
+     _N2, 0.80, None, "Duplex: zäh, Vorschub rund 20 % geringer, nur N₂"),
+    ("AW6061-T6", _AL, "EN AW-6061 T6", "3.3211", "EN 755-2", 2.70, "Beispiel", 5000, "EN AW-6061 T6", _SP),
+    ("AW6005A-T6", _AL, "EN AW-6005A T6", "3.3210", "EN 755-2", 2.70, "Beispiel", 4700, "EN AW-6005A T6", _SP),
+    ("CuZn37", _BM, "CuZn37 (Messing)", "CW508L", "EN 12449 nahtlos gezogen", 8.44, "Beispiel", 7500,
+     "Messing CuZn37", _NL, _N2, None, NUR_FASER, "Messing " + _BUNT + ", N₂"),
+    ("Cu-DHP", _BM, "Cu-DHP (Kupfer)", "CW024A", "EN 12449 / EN 1057 nahtlos", 8.94, "Beispiel", 9500,
+     "Kupfer Cu-DHP", _NL, _O2, None, NUR_FASER, "Kupfer " + _BUNT + ", mit O₂, Vorschub gering")]
+_BEISPIEL_WERKSTOFFE = [w + (None,) * (14 - len(w)) for w in _BEISPIEL_WERKSTOFFE]
+# bis Schema 54 vorhandene Beispielwerkstoffe (bekommen beim Update nur ihre leeren Lasereigenschaften)
+ALTE_BEISPIEL_WERKSTOFFE = tuple(w[0] for w in _BEISPIEL_WERKSTOFFE[:12])
 
 
 def beispiel_oberflaechen():
@@ -1362,6 +1463,14 @@ _CO2 = {
                           (5, 1200, 1.0), (6, 900, 1.2), (8, 500, 1.8)],
     ("Aluminium", "N₂"): [(1, 5500, 0.15), (1.5, 4500, 0.2), (2, 3500, 0.3), (3, 2000, 0.5), (4, 1300, 0.8),
                           (5, 900, 1.0), (6, 600, 1.2)]}
+# Buntmetall (24.10.2026): nur Faser (CO₂ reflektiert), Messing mit N₂, Kupfer mit O₂; Schätzwerte nach Faser-
+# Rohrtabellen, bitte mit echten Schnitten abgleichen. T03 (CO₂) bekommt keine Zeilen.
+_FASER_3KW[("Buntmetall", "N₂")] = [(1, 6000, 0.2), (1.5, 5000, 0.3), (2, 3500, 0.4), (3, 1800, 0.6), (4, 1000, 0.8),
+                                   (5, 600, 1.0)]
+_FASER_3KW[("Buntmetall", "O₂")] = [(1, 4000, 0.2), (1.5, 3000, 0.3), (2, 1800, 0.5), (3, 900, 0.8), (4, 500, 1.2)]
+_FASER_4KW[("Buntmetall", "N₂")] = [(1, 6000, 0.2), (1.5, 5000, 0.3), (2, 3500, 0.4), (3, 2300, 0.6), (4, 1300, 0.8),
+                                   (5, 800, 1.0)]
+_FASER_4KW[("Buntmetall", "O₂")] = [(1, 4000, 0.2), (1.5, 3000, 0.3), (2, 1800, 0.5), (3, 1200, 0.8), (4, 650, 1.2)]
 RICHTWERTE = {"T03": _CO2, "T11": _FASER_4KW, "LT7": _FASER_3KW}
 # Richtwerte 0.5.13 bis 0.6.18 (Flachbett-Tabellen mit ≈ 40 % Rohrabschlag, T11 = Faser × 1,2); unveränderte Zeilen
 # dieser Fassung ersetzt das Update einmalig (Datenbank._richtwerte_anpassen)

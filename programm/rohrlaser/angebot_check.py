@@ -51,11 +51,12 @@ def _n_pos(n):
 
 
 def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig_bis=None, heute=None, *,
-           kalk_zeilen=None, kunde=None, preis_abweichung=(), mindestmarge=0, admin=False):
+           kalk_zeilen=None, kunde=None, preis_abweichung=(), mindestmarge=0, admin=False, laser_hinweise=()):
     """Alle Punkte [Punkt], FEHLER zuerst. status = Status je Position, stand = Stand der Optimierung, summen =
     rechnen.kalkulation(...)[1], kalk_zeilen = deren Zeilen (Hinweise, Zukauf ohne EK je Position), kunde = Zeile des
     Kunden (None = nicht prüfen), preis_abweichung = rechnen.preisbasis_abweichung, mindestmarge = Anteil (0 = aus),
-    admin = Marge mit Zahlen nennen (sonst ohne)."""
+    admin = Marge mit Zahlen nennen (sonst ohne), laser_hinweise = rechnen.laser_hinweise (Werkstoff-Hinweise für den
+    Rohrlaser, Patrick 24.10.2026 „5b“)."""
     from .angebot import aktiv as position_aktiv
     from .rechnen import anbau_offen, bohrbild_offen, verschickt_abweichung
     from .stammdaten import zahl_als_text as zahl
@@ -100,6 +101,11 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
     if staffeln_veraltet:
         out.append(Punkt(HINWEIS, f"{staffeln_veraltet} Staffelstufe(n) veraltet (werden vor dem PDF neu gerechnet)",
                          "staffeln"))
+    for h in laser_hinweise or ():
+        z = [i for i in h["zeilen"] if i in st]
+        if z:
+            out.append(Punkt(HINWEIS, f"Werkstoff {h['werkstoff']}: {h['text']}", f"pos:{z[0]}",
+                             _pos_liste(z, positionen)))
     if summen.get("mindestpreis_gilt"):
         out.append(Punkt(HINWEIS, f"Mindestauftragswert greift: Preis wurde auf {zahl(summen.get('verkauf'), 2)} € "
                          f"angehoben (+{zahl(summen.get('mindestpreis_anhebung') or 0, 2)} €)",

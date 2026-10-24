@@ -25,7 +25,7 @@ from pathlib import Path
 import mimetypes
 
 from . import naht, rechnen
-from .stammdaten import EINSTELLUNG
+from .stammdaten import EINSTELLUNG, OHNE_NAHT
 from .ausgabe import kaufm_runden, profiltext
 from .angebot import ist_zukaufteil
 
@@ -74,8 +74,9 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
     for z in out:
         z.setdefault("zuschnitte", [])
         z["anforderungen"] = anforderungen(z["werkstoff"], k)
-        z["naht_noetig"] = bool(naht.stange_gefordert(positionen, z["profil"], z["werkstoff"], k.profile))
-        z["naht"] = naht.stange_lage(kopf, positionen, z["profil"], z["werkstoff"], k.profile)[0]
+        nahtlos = (k.werkstoffe.get(z["werkstoff"]) or {}).get("rohrart") in OHNE_NAHT    # ohne Naht: keine Lage
+        z["naht_noetig"] = not nahtlos and bool(naht.stange_gefordert(positionen, z["profil"], z["werkstoff"], k.profile))
+        z["naht"] = None if nahtlos else naht.stange_lage(kopf, positionen, z["profil"], z["werkstoff"], k.profile)[0]
         z["text"] = zeile_text(z, k)
     return out
 
@@ -96,13 +97,16 @@ ZEUGNISSE = {"2.2": "Werkszeugnis 2.2 nach EN 10204", "3.1": "Abnahmeprüfzeugni
 
 
 def anforderungen(werkstoff, k):
-    """Anforderungen des Werkstoffs für die Anfrage (Stammdaten Werkstoffe, Spalten 'Anfrage: …'), '' = keine."""
+    """Anforderungen des Werkstoffs für die Anfrage (Stammdaten Werkstoffe, Spalten 'Anfrage: …', Rohrart ohne Naht),
+    '' = keine."""
     w = k.werkstoffe.get(werkstoff) or {}
     teile = [ZEUGNISSE[w["anfrage_zeugnis"]]] if w.get("anfrage_zeugnis") in ZEUGNISSE else []
     if (w.get("anfrage_herkunft_eu") or "").strip().lower() == "ja":
         teile.append("Herkunft EU")
     if (w.get("anfrage_toleranz") or "").strip().lower() == "ja":
         teile.append("Maßtoleranzen nach Norm")
+    if w.get("rohrart") in OHNE_NAHT:        # Rohrart aus den Werkstoffen (24.10.2026)
+        teile.append(str(w["rohrart"]))
     return ", ".join(teile)
 
 
