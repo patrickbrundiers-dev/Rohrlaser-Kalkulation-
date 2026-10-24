@@ -21,13 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.48", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
+    ["0.9.49", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
                "Auftragsnummer des Kunden und den Liefertermin ab (Vorschlag aus der Lieferzeit); beides steht in "
                "der Angebotsliste und lässt sich suchen. <b>Eingabe wie in Excel</b> in der Positionsliste: "
                "Eingabe springt weiter (nach unten oder rechts, Einstellung), ↓ in der letzten Zeile legt eine "
                "Position an, <b>Strg+D</b> übernimmt den Wert von oben, im Profil-Feld findet „40x3“ das Profil "
                "„QR 40x40x3“ ([[excel_eingabe]]).",
      "Beauftragt mit Auftragsnummer und Termin; Positionsliste: Eingabe, ↓, Strg+D wie in Excel."],
+    ["0.9.48", "<b>Nachfassen und Wiedervorlage</b>: Verschickte Angebote ohne Antwort stehen nach 10 Tagen "
+               "(Einstellung) auf der Startseite unter Wiedervorlage und im neuen Filter <i>Wiedervorlage fällig</i>, "
+               "mit Grund. <b>Nachfassen vermerken …</b> trägt Anruf oder E-Mail in den Versandverlauf ein, die Tage "
+               "zählen dann neu. <b>Wiedervorlage …</b> setzt ein eigenes Datum, auch für Entwürfe ([[nachfassen]]).",
+     "Nachfassen: automatische Wiedervorlage, Nachfassen vermerken, eigenes Wiedervorlage-Datum ([[nachfassen]])."],
     ["0.9.47", "<b>Gemeinsamer Nummernkreis</b>: Angebotsnummern ohne Kürzel, <b>2026-00001</b>, 2026-00002 … für "
      "alle Mitarbeiter gemeinsam; der Zähler läuft über den Jahreswechsel weiter. Jede Nummer wird im gemeinsamen "
      "Ordner reserviert, so kommt keine doppelt vor, auch wenn zwei gleichzeitig ein Angebot anlegen. Ist der Ordner "

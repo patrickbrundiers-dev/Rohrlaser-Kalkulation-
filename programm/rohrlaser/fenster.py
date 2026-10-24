@@ -1022,13 +1022,24 @@ class StartSeite(QWidget):
         self.pipeline.linkActivated.connect(self.vorgang_zeigen)
         hl.addWidget(self.pipeline)
         self.wv_titel = QLabel()
+        self.wv_titel.setWordWrap(True)
         hl.addWidget(self.wv_titel)
         self.wiedervorlage = QListWidget()
-        self.wiedervorlage.setToolTip("Verschickte Angebote, deren Gültigkeit bald endet oder vorbei ist "
-                                      "(Doppelklick öffnet)")
+        self.wiedervorlage.setToolTip("Angebote zum Nachfassen: verschickt und seit einigen Tagen ohne Antwort, "
+                                      "Gültigkeit endet bald, oder Wiedervorlage erreicht (Doppelklick öffnet)")
         self.wiedervorlage.itemActivated.connect(
             lambda it: fenster.angebot_oeffnen(it.data(Qt.UserRole)))
         hl.addWidget(self.wiedervorlage)
+        self.wv_knoepfe = QWidget()          # Plan A9: für das markierte Angebot
+        wk = QHBoxLayout(self.wv_knoepfe)
+        wk.setContentsMargins(0, 0, 0, 0)
+        for text, ziel in (("Öffnen", fenster.angebot_oeffnen), ("Nachfassen vermerken …", self.nachfassen),
+                           ("Wiedervorlage …", self.wiedervorlage_setzen)):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, ziel=ziel: self._wv_aktion(ziel))
+            wk.addWidget(b)
+        wk.addStretch(1)
+        hl.addWidget(self.wv_knoepfe)
         self.kennzahlen = QLabel()
         self.kennzahlen.setTextFormat(Qt.RichText)
         self.kennzahlen.setWordWrap(True)
@@ -1137,22 +1148,24 @@ class StartSeite(QWidget):
         teile = [f"<a href='{v}'>{v}</a>: <b>{n}</b>" + (f" · {euro_text(summe)} €" if summe else "")
                  for v, n, summe in self.pipeline_werte]
         self.pipeline.setText("<b>Eigene Angebote</b><br>" + "<br>".join(teile))
-        self.wiedervorlagen = cockpit.wiedervorlagen(alle, self.f.db.einstellung("gueltigkeit"))
+        self.wiedervorlagen = cockpit.wiedervorlagen(alle, self.f.db.einstellung("gueltigkeit"),
+                                                     nachfassen=self.f.db.einstellung("nachfassen_tage"))
         self.wiedervorlage.clear()
-        for z, bis, rest in self.wiedervorlagen:
-            wann = (f"seit {-rest} Tagen abgelaufen" if rest < -1 else "seit gestern abgelaufen" if rest == -1
-                    else "heute letzter Tag" if rest == 0 else f"noch {rest} Tage" if rest > 1 else "noch 1 Tag")
-            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  gültig bis "
-                                 f"{bis.strftime('%d.%m.%Y')} ({wann})")
+        for w in self.wiedervorlagen:
+            z, rest = w.z, w.rest
+            wann = (f"seit {-rest} Tagen fällig" if rest < -1 else "seit gestern fällig" if rest == -1
+                    else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
+            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
+                                 f"({wann})")
             it.setData(Qt.UserRole, z["id"])
             if rest < 0:
                 it.setForeground(QBrush(stil.farbe("#B42318")))
             self.wiedervorlage.addItem(it)
         n = len(self.wiedervorlagen)
         self.wv_titel.setText(f"<b>Wiedervorlage</b> ({n})" if n else
-                              "<b>Wiedervorlage:</b> kein verschicktes Angebot läuft in den nächsten "
-                              f"{cockpit.VORLAUF_TAGE} Tagen ab")
+                              "<b>Wiedervorlage:</b> nichts fällig")
         self.wiedervorlage.setVisible(bool(n))
+        self.wv_knoepfe.setVisible(bool(n))
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
         self.kennzahlen.setVisible(admin)
         if admin:
@@ -1163,6 +1176,20 @@ class StartSeite(QWidget):
                 f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
                 f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+
+    def _wv_aktion(self, ziel):
+        it = self.wiedervorlage.currentItem() or (self.wiedervorlage.item(0) if self.wiedervorlage.count() else None)
+        if it is None:
+            return None
+        return ziel(it.data(Qt.UserRole))
+
+    def nachfassen(self, angebot_id):
+        from .nachfassen_dialog import nachfassen_dialog
+        return nachfassen_dialog(self.f, angebot_id, self)
+
+    def wiedervorlage_setzen(self, angebot_id):
+        from .nachfassen_dialog import wiedervorlage_dialog
+        return wiedervorlage_dialog(self.f, angebot_id, self)
 
     def vorgang_zeigen(self, v):
         """Angebotsliste mit dem Filter des Vorgangs (nur eigene Angebote wie in der Pipeline)."""
@@ -1712,6 +1739,15 @@ class Hauptfenster(QMainWindow):
         w = self.reiter.currentWidget()
         if hasattr(w, "neu_laden") and w is not getattr(self, "_frisch", None):
             w.neu_laden()
+
+    def nachfassen_geaendert(self, angebot_id):
+        """Nach Nachfassen/Wiedervorlage (Plan A9): Startseite, Angebotsliste und Versandverlauf im Angebot neu."""
+        self.start.neu_laden()
+        self.angebote.neu_laden()
+        seite = self.offen.get(angebot_id)
+        if seite is not None:
+            seite.kopf["versand"] = (self.db.angebot(angebot_id) or {}).get("versand") or []
+            seite._ergebnisse_anzeigen()
 
     def alles_neu_laden(self):
         self.start.neu_laden()

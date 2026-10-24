@@ -182,6 +182,8 @@ VORGANG_FILTER = {"Alle Angebote": lambda v, ab, z: True,
                   "Offen (Entwurf, Verschickt)": lambda v, ab, z: v in ("Entwurf", "Verschickt"),
                   "Entwurf": lambda v, ab, z: v == "Entwurf", "Verschickt": lambda v, ab, z: v == "Verschickt",
                   "Verschickt und abgelaufen": lambda v, ab, z: v == "Verschickt" and ab,
+                  # Plan A9: wie die Wiedervorlage der Startseite (nachfassen, Gültigkeit endet, Datum von Hand)
+                  "Wiedervorlage fällig": lambda v, ab, z: bool(z.get("_wv")),
                   "Beauftragt": lambda v, ab, z: v == "Beauftragt",
                   # Plan Arbeitsabläufe W9: beauftragt, aber noch ohne Ist-Werte (eine Bemerkung allein zählt nicht)
                   "Nachkalkulation offen": lambda v, ab, z: v == "Beauftragt" and not z.get("ist_erfasst"),
@@ -309,10 +311,14 @@ class AngeboteSeite(QWidget):
         self.abgleich_knopf.clicked.connect(lambda: self.f.abgleichen())
         self.vorgang_knopf = QPushButton("Vorgang ▾")
         self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
-                                      "Angebots-PDF selbst), Beauftragt (mit Auftragsnummer und Liefertermin), Abgelehnt")
+                                      "Angebots-PDF selbst), Beauftragt (mit Auftragsnummer und Liefertermin), Abgelehnt; Nachfassen vermerken "
+                                      "und Wiedervorlage")
         menue = QMenu(self.vorgang_knopf)
         for v in VORGAENGE:
             menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
+        menue.addSeparator()            # Plan A9
+        menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen())
+        menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -345,8 +351,12 @@ class AngeboteSeite(QWidget):
         passt = VORGANG_FILTER.get(self.vorgang_filter.currentText(), VORGANG_FILTER["Alle Angebote"])
         alle = self.db.angebote(self.suche.text().strip())
         wer = self._wer_fuellen(alle)
+        from . import cockpit
+        faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
+                                                             nachfassen=self.db.einstellung("nachfassen_tage"))}
         zeilen = []
         for z in alle:
+            z["_wv"] = faellig.get(id(z))
             z["_gueltig"], z["_abgelaufen"] = gueltig_bis(z, tage), abgelaufen(z, tage)
             if not passt(vorgang(z), z["_abgelaufen"], z):
                 continue
@@ -415,6 +425,17 @@ class AngeboteSeite(QWidget):
         self.neu_laden()
         self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}{text}.")
         return True
+
+    def nachfassen(self, angebot_id=None, dialog=None):
+        """Nachfassen beim Kunden vermerken (Plan A9, nachfassen_dialog)."""
+        from .nachfassen_dialog import nachfassen_dialog
+        i = angebot_id or self._gewaehlt()
+        return nachfassen_dialog(self.f, i, self, dialog) if i else None
+
+    def wiedervorlage_setzen(self, angebot_id=None, dialog=None):
+        from .nachfassen_dialog import wiedervorlage_dialog
+        i = angebot_id or self._gewaehlt()
+        return wiedervorlage_dialog(self.f, i, self, dialog) if i else None
 
     def _id(self, index):
         return self.modell.zeilen[self.filter.mapToSource(index).row()]["id"]
@@ -1486,6 +1507,8 @@ class AngebotSeite(QWidget):
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
+        menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
+        menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
         csv = menue.addMenu("CSV-Export")
         csv.setToolTipsVisible(True)

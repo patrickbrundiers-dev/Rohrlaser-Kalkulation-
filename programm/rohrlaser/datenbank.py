@@ -1583,7 +1583,7 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
@@ -1597,6 +1597,11 @@ class Datenbank:
         zeilen = []
         for r in self.con.execute(sql, werte):
             z = dict(r)
+            v = z.pop("_versand")   # Versandverlauf: Wiedervorlage und Nachfassen (cockpit.verlauf)
+            try:
+                z["versand"] = json.loads(v) if v else []
+            except ValueError:
+                z["versand"] = []
             nk = z.pop("_nk")      # ist_erfasst: echte Ist-Werte (nicht nur eine Bemerkung), Filter Nachkalkulation offen
             z["ist_erfasst"] = bool(nk) and erfasst(json.loads(nk))
             zeilen.append(z)
@@ -1779,6 +1784,18 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
                              (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
+
+    @schreibt
+    def nachgefasst_merken(self, angebot_id, wie="E-Mail"):
+        """Nachfassen (Plan A9) im Versandverlauf vermerken; das automatische Nachfassen zählt ab heute neu."""
+        self.versand_merken(angebot_id, dict(art="nachgefasst", datum=datetime.date.today().isoformat(), wie=wie))
+
+    @schreibt
+    def wiedervorlage_setzen(self, angebot_id, am):
+        """Wiedervorlage von Hand (Datum oder None = keine) im Versandverlauf; ersetzt bis dahin das automatische
+        Nachfassen."""
+        self.versand_merken(angebot_id, dict(art="wiedervorlage", datum=datetime.date.today().isoformat(),
+                                             am=am.isoformat() if am else None))
 
     @schreibt
     def vorgang_setzen(self, angebot_id, vorgang):
