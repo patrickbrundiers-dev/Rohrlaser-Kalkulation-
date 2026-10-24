@@ -10,13 +10,14 @@ Netz: {p: [x, y, z, …], t: {Art: [i, j, k, …]}, l: {Art: [[x, y, z, …], �
 step_messung/step_geometrie.py). Gespeichert wird es zlib-komprimiert je Position. Neuere Messungen haben dazu
 lage = [Ende A, Rohrachse, X-Richtung] in der STEP-Datei; damit setzt baugruppe() die Teile einer Datei zusammen.
 """
+import itertools
 import json
 import math
 import sys
 import zlib
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
@@ -51,8 +52,24 @@ FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
 FARBE["X"] = QColor("#D9DDE2")         # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 NAEHTE, NAHT_BREITE = ("SN", "SV", "SH"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
-HINTERGRUND = QColor("#FFFFFF")
-MARKIERT = QColor("#2E75B6")        # Teile-Editor: gewähltes Merkmal
+HINTERGRUND = QColor("#FFFFFF")         # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
+HINTERGRUND_OBEN = QColor("#DCE3EA")
+# Licht (QPainter je Dreieck, OpenGL je Ecke, gleiche Formel): Hauptlicht links oben vorn, Fülllicht rechts unten;
+# LICHT_WERTE = (Grundlicht, Neigung oben heller, Fülllicht, Glanz, Glanz-Exponent) – Metall-Look
+LICHT = (-0.35, 0.45, 0.82)
+LICHT2 = (0.55, -0.35, 0.76)
+LICHT_WERTE = (0.38, 0.06, 0.16, 0.22, 36.0)
+MARKIERT = QColor("#00A040")        # Teile-Editor: gewähltes Merkmal (grün umrandet wie im CAM, Plan G3)
+KANTE = QColor("#3C4650")           # Darstellung „Mit Kanten“: Körperkanten
+# Darstellungsarten (Plan 3D-Editor A4): Schattiert = Flächen und Schnittkonturen (wie bisher), Mit Kanten = dazu die
+# Körperkanten dunkel, Durchsichtig = Röntgen (Rückseiten und verdeckte Konturen sichtbar)
+SCHATTIERT, MIT_KANTEN, DURCHSICHTIG = "Schattiert", "Mit Kanten", "Durchsichtig"
+DARSTELLUNGEN = (SCHATTIERT, MIT_KANTEN, DURCHSICHTIG)
+ALPHA = 0.32            # Deckkraft der Flächen bei „Durchsichtig“
+BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Weiß gemischt
+KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (große Baugruppen: keine)
+KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
+GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = QColor("#B42318")
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
@@ -88,13 +105,14 @@ def entpacken(daten):
         return None
 
 
-def baugruppe(netze, hervor=(), farben=None, fehlend=()):
+def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
     hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden;
     fehlend: Nummern der nicht übernehmbaren Teile, immer magenta (Art N), außer sie sind gewählt. Ohne Innenwände und
     Schnittlinien (bei vielen Teilen verdeckt bzw. zu unruhig). Ergebnis: (Netz oder None, Anzahl Teile ohne
-    Einbaulage, z. B. aus einer älteren Messung)."""
+    Einbaulage, z. B. aus einer älteren Messung). bereiche: Liste, bekommt je Netz (Nummer, erster Punkt, Ende,
+    Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil."""
     punkte, dreiecke, ohne = [], {}, 0
     for nr, netz in enumerate(netze):
         if isinstance(netz, (bytes, bytearray, memoryview)):
@@ -110,6 +128,9 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=()):
         for i in range(0, len(p) - 2, 3):
             a, b, c = p[i], p[i + 1], p[i + 2]
             punkte += [round(o[k] + a * x[k] + b * y[k] + c * z[k], 2) for k in range(3)]
+        if bereiche is not None:
+            bereiche.append((nr, basis, len(punkte) // 3, [basis + i for a, idx in (netz.get("t") or {}).items()
+                                                            if a != "I" for i in idx]))
         for art, idx in (netz.get("t") or {}).items():
             if art == "I":
                 continue
@@ -168,9 +189,13 @@ class Modell:
         self.groesse = max(1e-6, math.dist(self.min, self.max))
         laenge = self.max[2] - self.min[2]
         self.dreiecke = []
+        self.dreiecke_id = []                   # je Dreieck: Merkmal (netz 'ti', Teile-Editor) – leer ohne 'ti'
+        kennung = netz.get("ti") or {}
         for art, idx in (netz.get("t") or {}).items():
+            kn = kennung.get(art) or []
             for n in range(0, len(idx) - 2, 3):
-                self._dreieck(idx[n], idx[n + 1], idx[n + 2], art)
+                if self._dreieck(idx[n], idx[n + 1], idx[n + 2], art) and kennung:
+                    self.dreiecke_id.append(kn[n // 3] if n // 3 < len(kn) else None)
         self.linien = []
         self.linien_id = []                     # je Liniensegment: Merkmal (netz 'li', Teile-Editor) oder None
         normalen = netz.get("ln") or {}         # Normale je Linienzug (Blech), sonst radial zur Rohrachse
@@ -217,10 +242,78 @@ class Modell:
                         neu[x] = len(g.punkte)
                         g.punkte.append(p[x])
                 g.dreiecke.append((neu[i], neu[j], neu[k], art, n))
-            g.linien, g.linien_id = [], []
+            g.linien, g.linien_id, g.dreiecke_id = [], [], []
+            g._glatt = None
             g._grob = g
             self._grob = g
         return self._grob
+
+    def glatte_normalen(self):
+        """Normale je Ecke für glatte Rundungen (OpenGL schattiert zwischen den Ecken): Mittel der Flächennormalen
+        aller Dreiecke an derselben Stelle, gewichtet mit der Fläche, nur über glatte Übergänge (Knick flacher als
+        KANTEN_WINKEL) – Kanten wie Rohrwand/Stirnfläche oder scharfe Profilecken bleiben scharf. [(n_i, n_j, n_k)]
+        je Dreieck; große Netze: None (flach)."""
+        if getattr(self, "_glatt", 0) != 0:
+            return self._glatt
+        self._glatt = None
+        if not self.dreiecke or len(self.dreiecke) > GLATT_MAX:
+            return None
+        p = self.punkte
+        orte = {}
+        gewicht = []
+        for nr, (i, j, k, _, n) in enumerate(self.dreiecke):
+            a, b, c = p[i], p[j], p[k]
+            u = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            v = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+            f = math.sqrt((u[1] * v[2] - u[2] * v[1]) ** 2 + (u[2] * v[0] - u[0] * v[2]) ** 2
+                          + (u[0] * v[1] - u[1] * v[0]) ** 2)
+            gewicht.append(f)
+            for x in (i, j, k):
+                orte.setdefault((round(p[x][0], 2), round(p[x][1], 2), round(p[x][2], 2)), []).append(nr)
+        out = []
+        for i, j, k, _, n in self.dreiecke:
+            ecken = []
+            for x in (i, j, k):
+                s = [0.0, 0.0, 0.0]
+                for m in orte[(round(p[x][0], 2), round(p[x][1], 2), round(p[x][2], 2))]:
+                    q = self.dreiecke[m][4]
+                    if q[0] * n[0] + q[1] * n[1] + q[2] * n[2] > KANTEN_WINKEL:
+                        w = gewicht[m]
+                        s[0] += q[0] * w
+                        s[1] += q[1] * w
+                        s[2] += q[2] * w
+                betrag = math.sqrt(s[0] ** 2 + s[1] ** 2 + s[2] ** 2)
+                ecken.append((s[0] / betrag, s[1] / betrag, s[2] / betrag) if betrag > 1e-12 else n)
+            out.append(ecken)
+        self._glatt = out
+        return out
+
+    def kanten(self):
+        """Körperkanten für „Mit Kanten“: [(a, b, Normale)] – Ränder des Netzes und Knicke zwischen zwei Dreiecken
+        (stumpfer als KANTEN_WINKEL). Punkte gleicher Lage gelten als derselbe Punkt (das Netz hat je Dreieck eigene
+        Punkte). Einmal je Modell gerechnet; große Netze: keine."""
+        if getattr(self, "_kanten", None) is not None:
+            return self._kanten
+        self._kanten = []
+        if len(self.dreiecke) > KANTEN_MAX:
+            return self._kanten
+        p = self.punkte
+
+        def schl(i):
+            return (round(p[i][0], 2), round(p[i][1], 2), round(p[i][2], 2))
+        seiten = {}
+        for i, j, k, _, n in self.dreiecke:
+            a, b, c = schl(i), schl(j), schl(k)
+            for x, y in ((a, b), (b, c), (c, a)):
+                if x != y:
+                    seiten.setdefault((x, y) if x < y else (y, x), []).append(n)
+        for (a, b), ns in seiten.items():
+            if len(ns) == 2 and sum(ns[0][q] * ns[1][q] for q in range(3)) > KANTEN_WINKEL:
+                continue
+            n = tuple(sum(x[q] for x in ns[:2]) for q in range(3))
+            betrag = math.sqrt(sum(c * c for c in n)) or 1.0
+            self._kanten.append((a, b, tuple(c / betrag for c in n)))
+        return self._kanten
 
     def _dreieck(self, i, j, k, art):
         a, b, c = self.punkte[i], self.punkte[j], self.punkte[k]
@@ -229,8 +322,9 @@ class Modell:
         n = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
         betrag = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2)
         if betrag < 1e-12:
-            return
+            return False
         self.dreiecke.append((i, j, k, art, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
+        return True
 
 
 def _drehung(gier, nick):
@@ -263,46 +357,96 @@ def projektion(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0
     return m, proj, massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
 
 
-def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True):
-    """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller)."""
+def _blass(c, an):
+    """Farbe für „nur Gewähltes hervorheben“: zu Weiß gemischt."""
+    if not an:
+        return c
+    return QColor(*(int(x + (255 - x) * BLASS) for x in (c.red(), c.green(), c.blue())))
+
+
+def hintergrund_bei(y, hoehe):
+    """Farbe des Hintergrundverlaufs in Bildzeile y (0 = oben)."""
+    f = max(0.0, min(1.0, y / max(1, hoehe - 1)))
+    o, u = HINTERGRUND_OBEN, HINTERGRUND
+    return QColor(round(o.red() + (u.red() - o.red()) * f), round(o.green() + (u.green() - o.green()) * f),
+                  round(o.blue() + (u.blue() - o.blue()) * f))
+
+
+def hintergrund_malen(p, rechteck):
+    verlauf = QLinearGradient(0, rechteck.top(), 0, rechteck.bottom())
+    verlauf.setColorAt(0.0, HINTERGRUND_OBEN)
+    verlauf.setColorAt(1.0, HINTERGRUND)
+    p.fillRect(rechteck, QBrush(verlauf))
+
+
+def licht_wert(nx, ny, nz):
+    """(Faktor für die Farbe, Glanz-Zugabe 0..1) zur Normalen in Bildkoordinaten (zum Betrachter gedreht)."""
+    a, neig, fuell, glanz, exp = LICHT_WERTE
+    hell = a + neig * ny + (1 - a) * max(0.0, nx * LICHT[0] + ny * LICHT[1] + nz * LICHT[2]) \
+        + fuell * max(0.0, nx * LICHT2[0] + ny * LICHT2[1] + nz * LICHT2[2])
+    hx, hy, hz = LICHT[0], LICHT[1], LICHT[2] + 1.0
+    b = math.sqrt(hx * hx + hy * hy + hz * hz)
+    return hell, glanz * max(0.0, (nx * hx + ny * hy + nz * hz) / b) ** exp
+
+
+def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True,
+             darstellung=SCHATTIERT, blass=False):
+    """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller). darstellung:
+    DARSTELLUNGEN; blass: alles blass (der Teile-Editor zeichnet das Gewählte kräftig darüber)."""
     m, proj, massstab, ox, oy = projektion(modell, breite, hoehe, gier, nick, zoom, verschiebung)
     cx, cy, cz = modell.mitte
-    licht = (-0.35, 0.45, 0.82)
+    roentgen = darstellung == DURCHSICHTIG
     liste = []
     for i, j, k, art, n in modell.dreiecke:
         nz = m[2][0] * n[0] + m[2][1] * n[1] + m[2][2] * n[2]
-        if nz <= 0:
+        if nz <= 0 and not roentgen:
             continue                     # Rückseite
         nx = m[0][0] * n[0] + m[0][1] * n[1] + m[0][2] * n[2]
         ny = m[1][0] * n[0] + m[1][1] * n[1] + m[1][2] * n[2]
-        hell = 0.42 + 0.58 * max(0.0, nx * licht[0] + ny * licht[1] + nz * licht[2])
+        if nz <= 0:
+            nx, ny, nz = -nx, -ny, -nz
         a, b, c = proj[i], proj[j], proj[k]
-        liste.append((0 if art == "I" else 1, (a[2] + b[2] + c[2]) / 3, (a, b, c), art, hell))
+        liste.append((1 if roentgen else 0 if art == "I" else 1, (a[2] + b[2] + c[2]) / 3, (a, b, c), art,
+                      licht_wert(nx, ny, nz)))
+
+    def gedreht(a):
+        return (m[0][0] * (a[0] - cx) + m[0][1] * (a[1] - cy) + m[0][2] * (a[2] - cz),
+                m[1][0] * (a[0] - cx) + m[1][1] * (a[1] - cy) + m[1][2] * (a[2] - cz),
+                m[2][0] * (a[0] - cx) + m[2][1] * (a[1] - cy) + m[2][2] * (a[2] - cz))
     if linien:
         for a, b, art, n in modell.linien:
             nz = m[2][0] * n[0] + m[2][1] * n[1] + m[2][2] * n[2]
-            if nz < 0.0:
+            if nz < 0.0 and not roentgen:
                 continue
-            ra = (m[0][0] * (a[0] - cx) + m[0][1] * (a[1] - cy) + m[0][2] * (a[2] - cz),
-                  m[1][0] * (a[0] - cx) + m[1][1] * (a[1] - cy) + m[1][2] * (a[2] - cz),
-                  m[2][0] * (a[0] - cx) + m[2][1] * (a[1] - cy) + m[2][2] * (a[2] - cz))
-            rb = (m[0][0] * (b[0] - cx) + m[0][1] * (b[1] - cy) + m[0][2] * (b[2] - cz),
-                  m[1][0] * (b[0] - cx) + m[1][1] * (b[1] - cy) + m[1][2] * (b[2] - cz),
-                  m[2][0] * (b[0] - cx) + m[2][1] * (b[1] - cy) + m[2][2] * (b[2] - cz))
-            liste.append((2, (ra[2] + rb[2]) / 2, (ra, rb), art, 1.0))
+            ra, rb = gedreht(a), gedreht(b)
+            liste.append((2, (ra[2] + rb[2]) / 2, (ra, rb), art, 1.0 if nz >= 0.0 else 0.0))
+    if linien and darstellung == MIT_KANTEN:
+        for a, b, n in modell.kanten():
+            if m[2][0] * n[0] + m[2][1] * n[1] + m[2][2] * n[2] < -0.05:
+                continue
+            ra, rb = gedreht(a), gedreht(b)
+            liste.append((2, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb), "_kante", 1.0))
     liste.sort(key=lambda e: (e[0], e[1]))
     p.setRenderHint(QPainter.Antialiasing, glatt)
-    stift_linie = {a: QPen(LINIE.get(a, QColor("#C00000")), NAHT_BREITE if a in NAEHTE else 2.2, Qt.SolidLine,
-                           Qt.RoundCap) for a in LINIE}
+    stift_linie = {a: QPen(_blass(LINIE.get(a, QColor("#C00000")), blass), NAHT_BREITE if a in NAEHTE else 2.2,
+                           Qt.SolidLine, Qt.RoundCap) for a in LINIE}
+    stift_linie["_kante"] = QPen(_blass(KANTE, blass), 1.1)
+    verdeckt = {a: QPen(QColor(s.color().red(), s.color().green(), s.color().blue(), 110), 1.4, Qt.DashLine)
+                for a, s in stift_linie.items()}
     for schicht, _, punkte, art, hell in liste:
         poly = [QPointF(ox + q[0] * massstab, oy - q[1] * massstab) for q in punkte]
         if schicht == 2:
-            p.setPen(stift_linie.get(art, stift_linie["K"]))
+            p.setPen((stift_linie if hell else verdeckt).get(art, stift_linie["K"]))
             p.drawLine(poly[0], poly[1])
             continue
-        f = FARBE.get(art, FARBE["K"])
-        farbe = QColor(int(f.red() * hell), int(f.green() * hell), int(f.blue() * hell))
-        p.setPen(QPen(farbe, 0.8))
+        f = _blass(FARBE.get(art, FARBE["K"]), blass)
+        faktor, glanz = hell
+        farbe = QColor(*(min(255, int(c * faktor + 255 * glanz)) for c in (f.red(), f.green(), f.blue())))
+        if roentgen:
+            farbe.setAlphaF(ALPHA)
+            p.setPen(Qt.NoPen)
+        else:
+            p.setPen(QPen(farbe, 0.8))
         p.setBrush(QBrush(farbe))
         p.drawPolygon(QPolygonF(poly))
 
@@ -337,7 +481,12 @@ class Ansicht3D(QWidget):
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
-        self._druck = None
+        self.mess_max = 2                       # Messen: 2 Punkte; Naht zeichnen (Baugruppe): beliebig viele
+        self._druck = self._rechts = None
+        self.darstellung, self.nur_gewaehlt = SCHATTIERT, False       # Darstellungsarten (A4)
+        # Werkzeug des Teile-Editors (editor_griffe): zeichnet Griffe/Maße über das Bild und bekommt Maus und Tasten
+        # zuerst (druck/ziehen/loslassen/schweben/doppelklick/kontext/taste/zeichnen/hinweis)
+        self.werkzeug, self._werkzeug_zieht = None, False
         self._bild, self._eilig = None, False      # gezeichnetes Bild (solange sich die Ansicht nicht ändert)
         self._ruhe = QTimer(self)                   # nach dem Zoomen wieder fein zeichnen
         self._ruhe.setSingleShot(True)
@@ -386,22 +535,46 @@ class Ansicht3D(QWidget):
         self.messpunkte = []
         self.zuruecksetzen()
 
+    def darstellung_setzen(self, darstellung=None, nur_gewaehlt=None):
+        """Darstellungsart (DARSTELLUNGEN) und „nur Gewähltes hervorheben“ (Rest blass)."""
+        if darstellung in DARSTELLUNGEN:
+            self.darstellung = darstellung
+        if nur_gewaehlt is not None:
+            self.nur_gewaehlt = bool(nur_gewaehlt)
+        self.update()
+
+    def blass(self):
+        """Rest blass zeichnen: nur Gewähltes hervorheben und etwas ist gewählt."""
+        return self.nur_gewaehlt and bool(self.markiert or self.markiert_z)
+
+    def werkzeug_setzen(self, werkzeug):
+        self.werkzeug = werkzeug
+        self.setMouseTracking(werkzeug is not None)
+        self.update()
+
     def markieren(self, ids=(), z_bereich=None):
         """Linien der Merkmale ids (netz 'li') bzw. alle Linien mit z im Bereich (z0, z1) hervorheben."""
         self.markiert, self.markiert_z = set(ids or ()), z_bereich
         self.update()
 
-    def messen_setzen(self, an):
-        """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke), Abstand in mm."""
-        self.messen, self.messpunkte = bool(an), []
+    def messen_setzen(self, an, punkte=2):
+        """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke), Abstand in mm. punkte = 0: Linienzug
+        mit beliebig vielen Punkten (Naht zeichnen), Signal gemessen nach jedem Punkt mit der Länge des Zugs."""
+        self.messen, self.messpunkte, self.mess_max = bool(an), [], punkte or 0
         self.setCursor(Qt.CrossCursor if an else Qt.ArrowCursor)
         self.update()
 
     def abstand(self):
-        """Gemessener Abstand [mm] oder None."""
-        if len(self.messpunkte) == 2:
-            return math.dist(*self.messpunkte)
+        """Gemessener Abstand [mm] (Linienzug: Länge des Zugs) oder None."""
+        if len(self.messpunkte) == 2 or (not self.mess_max and len(self.messpunkte) > 1):
+            return sum(math.dist(a, b) for a, b in zip(self.messpunkte, self.messpunkte[1:]))
         return None
+
+    def punkt_zurueck(self):
+        """Letzten Punkt des Linienzugs entfernen."""
+        self.messpunkte = self.messpunkte[:-1]
+        self.update()
+        self.gemessen.emit(self.abstand())
 
     def bildpunkt(self):
         """Funktion Modellpunkt (x, y, z) -> (Pixel x, Pixel y, Tiefe) für die aktuelle Ansicht (wie gezeichnet)."""
@@ -429,16 +602,20 @@ class Ansicht3D(QWidget):
         bild = self.bildpunkt()
         if self.messen:
             beste = None
-            for v in self.modell.punkte:
+            # Ecken des Netzes und Punkte der Schnittkonturen (Mitte zwischen zwei Konturen messen)
+            for v in itertools.chain(self.modell.punkte, (li[0] for li in self.modell.linien)):
                 px, py, t = bild(v)
                 d = math.hypot(px - x, py - y)
                 if d <= 14 and (beste is None or (d - t * 1e-3) < beste[0]):
                     beste = (d - t * 1e-3, v)
             if beste is None:
                 return None
-            self.messpunkte = (self.messpunkte if len(self.messpunkte) < 2 else []) + [tuple(beste[1])]
+            if not self.mess_max and self.messpunkte and self.messpunkte[-1] == tuple(beste[1]):
+                return beste[1]                             # Linienzug: derselbe Punkt nochmal zählt nicht
+            voll = self.mess_max and len(self.messpunkte) >= self.mess_max
+            self.messpunkte = ([] if voll else self.messpunkte) + [tuple(beste[1])]
             self.update()
-            if len(self.messpunkte) == 2:
+            if len(self.messpunkte) == 2 or not self.mess_max:
                 self.gemessen.emit(self.abstand())
             return beste[1]
         beste = None
@@ -451,11 +628,39 @@ class Ansicht3D(QWidget):
             if d <= 8 and (beste is None or d < beste[0]):
                 beste = (d, nr, tuple(a[k] + t * (b[k] - a[k]) for k in range(3)))
         if beste is None:
-            return None
+            treffer = self._flaeche_treffer(bild, x, y)
+            if treffer is None:
+                return None
+            self.angeklickt.emit(treffer)
+            return treffer
         kn = self.modell.linien_id[beste[1]] if beste[1] < len(self.modell.linien_id) else None
         treffer = dict(id=kn, punkt=beste[2])
         self.angeklickt.emit(treffer)
         return treffer
+
+    def _flaeche_treffer(self, bild, x, y):
+        """Vorderstes Dreieck mit Merkmal (netz 'ti') unter dem Pixel (x, y): dict(id, punkt) oder None."""
+        mo = self.modell
+        if not mo.dreiecke_id:
+            return None
+        beste = None
+        for (i, j, k, _, _), kn in zip(mo.dreiecke, mo.dreiecke_id):
+            if kn is None:
+                continue
+            a, b, c = bild(mo.punkte[i]), bild(mo.punkte[j]), bild(mo.punkte[k])
+            det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+            if abs(det) < 1e-9:
+                continue
+            l1 = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / det
+            l2 = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / det
+            l3 = 1 - l1 - l2
+            if min(l1, l2, l3) < -1e-6:
+                continue
+            tiefe = l1 * a[2] + l2 * b[2] + l3 * c[2]           # größer = näher am Betrachter
+            if beste is None or tiefe > beste[0]:
+                pa, pb, pc = mo.punkte[i], mo.punkte[j], mo.punkte[k]
+                beste = (tiefe, kn, tuple(l1 * pa[m] + l2 * pb[m] + l3 * pc[m] for m in range(3)))
+        return None if beste is None else dict(id=beste[1], punkt=beste[2])
 
     def modus_setzen(self, modus):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
@@ -477,7 +682,7 @@ class Ansicht3D(QWidget):
         if self._gl is not None:        # zeichnet die OpenGL-Fläche (mit _beschriften)
             return
         p = QPainter(self)
-        p.fillRect(self.rect(), HINTERGRUND)
+        hintergrund_malen(p, self.rect())
         if self.modell is None:
             p.setPen(QColor("#7F7F7F"))
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
@@ -486,7 +691,7 @@ class Ansicht3D(QWidget):
         grob = self._eilig or self._maus is not None
         modell = self.modell.grob() if grob else self.modell
         schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick,
-                      self.zoom, self.versatz)
+                      self.zoom, self.versatz, self.darstellung, self.blass())
         if self._bild is None or self._bild[0] != schluessel:
             dpr = self.devicePixelRatioF()
             bild = QPixmap(int(self.width() * dpr), int(self.height() * dpr))
@@ -494,7 +699,7 @@ class Ansicht3D(QWidget):
             bild.fill(Qt.transparent)
             q = QPainter(bild)
             zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
-                     linien=modell is self.modell, glatt=not grob)
+                     linien=modell is self.modell, glatt=not grob, darstellung=self.darstellung, blass=self.blass())
             q.end()
             self._bild = (schluessel, bild)
         p.drawPixmap(0, 0, self._bild[1])
@@ -522,12 +727,19 @@ class Ansicht3D(QWidget):
             y += 18
         self._markierung_zeichnen(p)
         p.setPen(QColor("#7F7F7F"))
+        hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
         p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
-                   "Messen: zwei Punkte anklicken (fängt die nächste Ecke)" if self.messen else
+                   ("Messen: zwei Punkte anklicken (fängt die nächste Ecke)" if self.mess_max else
+                    "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
+                   hinweis or
                    "Linke Maustaste drehen · rechte verschieben · Mausrad zoomen · Doppelklick Ausgangsansicht")
 
     def _markierung_zeichnen(self, p):
-        """Hervorgehobene Linien (Teile-Editor) und Messung über dem Bild."""
+        """Hervorgehobene Linien (Teile-Editor), Messung und Werkzeug (Griffe, Maße) über dem Bild."""
+        if self.werkzeug is not None:
+            p.save()
+            self.werkzeug.zeichnen(p, self.bildpunkt())
+            p.restore()
         if not (self.markiert or self.markiert_z or self.messpunkte):
             return
         bild = self.bildpunkt()
@@ -543,13 +755,13 @@ class Ansicht3D(QWidget):
         if self.messpunkte:
             pk = [bild(v) for v in self.messpunkte]
             p.setPen(QPen(MESSEN, 2.0))
-            if len(pk) == 2:
-                p.drawLine(QPointF(pk[0][0], pk[0][1]), QPointF(pk[1][0], pk[1][1]))
+            for a, b in zip(pk, pk[1:]):
+                p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
             p.setBrush(QBrush(MESSEN))
             for q in pk:
                 p.drawEllipse(QPointF(q[0], q[1]), 4, 4)
             p.setBrush(Qt.NoBrush)
-            if len(pk) == 2:
+            if len(pk) == 2 and self.mess_max:
                 a, b = self.messpunkte
                 text = (f"Abstand {_zahl(math.dist(a, b))} mm (Δx {_zahl(abs(b[0] - a[0]))}, "
                         f"Δy {_zahl(abs(b[1] - a[1]))}, Δz {_zahl(abs(b[2] - a[2]))})")
@@ -557,11 +769,21 @@ class Ansicht3D(QWidget):
                            Qt.AlignLeft | Qt.AlignVCenter, text)
 
     def mousePressEvent(self, e):
+        w = self.werkzeug
+        if w is not None and self.modell is not None and not self.messen and w.druck(e.position(), e.button()):
+            self._werkzeug_zieht = True
+            return
         self._maus = (e.position(), e.button())
         self._druck = e.position() if e.button() == Qt.LeftButton else None
+        self._rechts = e.position() if e.button() == Qt.RightButton else None
 
     def mouseMoveEvent(self, e):
+        if self._werkzeug_zieht:
+            self.werkzeug.ziehen(e.position(), e.modifiers())
+            return
         if not self._maus:
+            if self.werkzeug is not None and self.modell is not None and not self.messen:
+                self.werkzeug.schweben(e.position())
             return
         alt, knopf = self._maus
         d = e.position() - alt
@@ -575,14 +797,31 @@ class Ansicht3D(QWidget):
         self.gedreht.emit()
 
     def mouseReleaseEvent(self, e):
+        if self._werkzeug_zieht:
+            self._werkzeug_zieht = False
+            self.werkzeug.loslassen(e.position() if e is not None else None)
+            self.update()
+            return
         self._maus = None
         druck, self._druck = self._druck, None
+        rechts, self._rechts = self._rechts, None
         if druck is not None and e is not None and (e.position() - druck).manhattanLength() < 4:
             self.klicken(e.position().x(), e.position().y())
+        elif (rechts is not None and e is not None and self.werkzeug is not None
+              and (e.position() - rechts).manhattanLength() < 4):
+            self.werkzeug.kontext(e.position(), e.globalPosition().toPoint())      # Rechtsklick ohne Ziehen: Menü
         self.update()
 
-    def mouseDoubleClickEvent(self, _):
+    def mouseDoubleClickEvent(self, e):
+        if self.werkzeug is not None and e is not None and self.werkzeug.doppelklick(e.position()):
+            return
         self.zuruecksetzen()
+
+    def keyPressEvent(self, e):
+        if self.werkzeug is not None and self.werkzeug.taste(e):
+            e.accept()
+            return
+        super().keyPressEvent(e)
 
     def wheelEvent(self, e):
         self.zoom = max(0.2, min(40.0, self.zoom * (1.15 ** (e.angleDelta().y() / 120))))

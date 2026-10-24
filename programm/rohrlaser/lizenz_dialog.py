@@ -19,7 +19,7 @@ STUFEN = dict(admin="Admin-Lizenz – voller Zugriff", gueltig="Lizenz gültig",
 FARBEN = {"": ("#E8F5E9", "#2E7D32"), "gelb": ("#FFF4D6", "#E8C66B"), "rot": ("#FDECEA", "#B42318")}
 LESEMODUS_TIPP = "Lesemodus: Ändern ist erst mit gültiger Lizenz möglich (Hilfe → Lizenz …)."
 # Knöpfe, die auch im Lesemodus gehen: ansehen, blättern, Daten exportieren
-FREI = {"Öffnen", "Angebot öffnen", "Ablage öffnen", "3D-Ansicht …", "Kalkulation anzeigen", "Alle aufklappen",
+FREI = {"Öffnen", "Angebot öffnen", "Ablage öffnen", "Ordner öffnen", "3D-Ansicht …", "Kalkulation anzeigen", "Alle aufklappen",
         "Schließen", "Abbrechen", "Einpassen", "◀", "▶", "Weitere Spalten", "12-m-Lösung ansehen …",
         "Frachtdaten öffnen", "Einstellungen öffnen", "Einstellungen sperren", "CSV exportieren", "Material …", "Ausgaben"}
 

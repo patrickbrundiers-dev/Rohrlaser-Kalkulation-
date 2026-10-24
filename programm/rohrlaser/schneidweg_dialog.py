@@ -100,7 +100,9 @@ class SchneidwegDialog(QDialog):
     def __init__(self, parent, p, profil, kopf, k, tabellen, db=None, positionen=None, step_lesen=None, neu=False):
         super().__init__(parent)
         self.neu = neu                  # neue Position: Kopfzeile mit Artikel, Profil, Werkstoff, Länge, Stückzahl
+        profil = rechnen.profil_im_angebot(profil, kopf, p.get("profil_id"), p.get("werkstoff_id"), k)
         self.p, self.profil, self.kopf, self.k, self.tabellen = p, profil, kopf, k, tabellen
+        self.r_aussen = self.radius_angebot()       # Außenradius des Angebots für Profil + Werkstoff (oder None)
         self.db, self.positionen = db, [x for x in (positionen or ()) if x.get("id") != p.get("id")]
         self.step_lesen = step_lesen    # Funktion: STEP-Datei wählen und messen -> [Messwerte] oder None
         m = rechnen.maschine(kopf, k)
@@ -122,6 +124,7 @@ class SchneidwegDialog(QDialog):
         teiler = QSplitter(Qt.Vertical)
         haupt.addWidget(teiler, 1)
         oben = QWidget()
+        self.eingabe_bereich = oben     # Teile-Editor: Eingaben unter den Ansichten (aufklappbar)
         lay = QVBoxLayout(oben)
         lay.setContentsMargins(0, 0, 0, 0)
         teiler.addWidget(oben)
@@ -331,11 +334,14 @@ class SchneidwegDialog(QDialog):
         leiste.addWidget(self.vorlagen_knopf)
         leiste.addWidget(weg)
         lay.addWidget(umbruch)
+        self.kontur_leiste = umbruch    # Teile-Editor: die Befehle stehen im Menüband
 
         mitte = QWidget()
         ml = QVBoxLayout(mitte)
         ml.setContentsMargins(0, 0, 0, 0)
-        kopfzeile = QHBoxLayout()
+        self.skizze_kopf = QWidget()    # Teile-Editor: die Befehle stehen im Menüband
+        kopfzeile = QHBoxLayout(self.skizze_kopf)
+        kopfzeile.setContentsMargins(0, 0, 0, 0)
         kopfzeile.addWidget(QLabel("<b>Skizze</b> (maßstäblich)"))
         self.ansicht_wahl = QComboBox()
         self.ansicht_wahl.addItems(MODI)
@@ -344,6 +350,7 @@ class SchneidwegDialog(QDialog):
         einpassen = QPushButton("Einpassen")
         einpassen.clicked.connect(lambda: self.skizze.einpassen())
         kopfzeile.addWidget(einpassen)
+        self.einpassen_knopf = einpassen
         kopfzeile.addStretch(1)
         self.step_knopf = QPushButton("STEP neu einlesen …")
         self.step_knopf.setToolTip("STEP-Datei dieses Teils messen und Konturen, Bohrungen, Enden und Gravur mit Lage "
@@ -356,7 +363,8 @@ class SchneidwegDialog(QDialog):
                              "Schweißnaht als PDF in der Ablage des Angebots")
         zeichnung.clicked.connect(lambda: self.zeichnung_pdf())
         kopfzeile.addWidget(zeichnung)
-        ml.addLayout(kopfzeile)
+        self.zeichnung_knopf = zeichnung
+        ml.addWidget(self.skizze_kopf)
         self.skizze = Skizze(profil, p.get("laenge"))
         self.skizze.gewaehlt.connect(self._auswahl_skizze)
         self.skizze.verschoben.connect(self._verschoben)
@@ -374,6 +382,7 @@ class SchneidwegDialog(QDialog):
         self.teiler_unten.addWidget(mitte)
         teiler.addWidget(self.teiler_unten)
         unten = QWidget()
+        self.ergebnis_bereich = unten   # Teile-Editor: rechts neben den Ansichten
         lay = QVBoxLayout(unten)
         lay.setContentsMargins(0, 0, 0, 0)
         self.teiler_unten.addWidget(unten)
@@ -554,6 +563,11 @@ class SchneidwegDialog(QDialog):
     def _kopf_geaendert(self, *_):
         self.p = dict(self.p, werkstoff_id=self.k_werkstoff.currentText() or None, laenge=self.k_laenge.value() or None,
                       stueck=self.k_stueck.value() or None)
+        pid = self.p.get("profil_id")
+        if pid in self.k.profile:       # Außenradius hängt am Werkstoff (Aluminium: scharfkantig)
+            self.profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, self.p.get("werkstoff_id"),
+                                                    self.k)
+            self.r_aussen = self.radius_angebot()
         if hasattr(self, "skizze"):
             self.skizze.laenge = self.p["laenge"]
             self._info_zeigen()
@@ -573,8 +587,10 @@ class SchneidwegDialog(QDialog):
         """Anderes Profil: Querschnitt, Konturgrenzen, Enden, Naht, Seiten und Skizze passend neu aufbauen; die
         Eingaben bleiben (Seiten, die das Profil nicht hat, fallen auf die erste Fläche)."""
         e = self.eingaben()
-        self.profil = self.k.profile[pid]
         self.p = dict(self.p, profil_id=pid)
+        self.profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, self.p.get("werkstoff_id"), self.k)
+        e.pop("r_aussen", None)                     # Radius gehört zu Profil + Werkstoff: der des neuen Profils
+        self.r_aussen = self.radius_angebot()
         self.grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(self.profil))
         self.qs = sk.Querschnitt(self.profil)
         form = self.profil.get("form")
@@ -636,6 +652,10 @@ class SchneidwegDialog(QDialog):
     def _step_enden(self, e):
         """Gemessene Enden merken (gelten, solange Winkel, Achse, Sattel und Richtung bleiben) und anzeigen."""
         self._ende_step = {}
+        # Nasen einer Steckverbindung (Editor der Schweißbaugruppe): gehören zum Teil, bleiben auch beim Laden einer
+        # Vorlage oder eines anderen Teils am Ende, solange es die Verbindung gibt
+        if not hasattr(self, "_nasen"):
+            self._nasen = {s: (e.get(s) or {})["nasen"] for s in ("a", "b") if (e.get(s) or {}).get("nasen")}
         for s in ("a", "b"):
             x = e.get(s) or {}
             gm = self.gemessen_text[s]
@@ -649,6 +669,10 @@ class SchneidwegDialog(QDialog):
             else:
                 self.winkel[s].setStyleSheet("")
                 gm.setText("<span style='color:#595959'>–</span>")
+            if s in self._nasen:
+                n = self._nasen[s]
+                gm.setText(gm.text() + f" <span style='color:#1F4E79'>· Steckverbindung {n.get('id', '')}: "
+                           f"{n.get('anzahl', '')} Nasen (in der Schweißbaugruppe ändern)</span>")
 
     def _step_hinweis(self):
         konturen = [self.tabelle.cellWidget(r, 0) for r in range(self.tabelle.rowCount())]
@@ -825,7 +849,7 @@ class SchneidwegDialog(QDialog):
         self._kopf_hinweise(r)
         art.quer = bool(z.get("quer"))
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
-        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil") if z.get(k_) is not None}
+        extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle") if z.get(k_) is not None}
         art.extra = (art.currentText(), extra) if extra else None
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
             art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
@@ -950,20 +974,38 @@ class SchneidwegDialog(QDialog):
         for s in ("a", "b"):
             if self.ende_3d[s].isChecked():
                 enden[s]["d3"] = True
+            if s in getattr(self, "_nasen", {}):
+                enden[s]["nasen"] = self._nasen[s]
         out = dict(enden, gravur=self.gravur.value() or None, konturen=konturen)
+        if isinstance(getattr(self, "r_aussen", None), (int, float)):      # Außenradius je Teil (sonst Stammdaten/Norm)
+            out["r_aussen"] = self.r_aussen
         if self.d3.isChecked():
             out["d3"] = True
         if self.biegerohr:
             out["biegerohr"] = self.biegerohr
         if self.knick:
             out["knickrahmen"] = self.knick
-        return sw.v_ergaenzen(out, self.profil)
+        out = sw.v_ergaenzen(out, self.profil)
+        neu = knickrahmen.nachfuehren(out, self.profil) if self.knick else None
+        if neu:                 # Knick verschoben oder geändert: Schenkel folgen, gestreckte Länge bleibt
+            self.knick = out["knickrahmen"] = neu
+        return out
 
     # ------------------------------------------------------------------ Ergebnis
     def rechnen(self, *_):
         self._rechnen()
         if getattr(self, "editor", None) is not None:
             self.editor.geaendert()
+
+    def radius_angebot(self):
+        """Außenradius, den das Angebot für Profil + Werkstoff dieser Position festlegt, oder None."""
+        return rechnen.radius_angebot(self.kopf, self.p.get("profil_id"), self.p.get("werkstoff_id"))
+
+    def radius_setzen(self, r):
+        """Außenradius (Quadrat-/Rechteckrohr) setzen; gilt beim Übernehmen für alle Positionen des Angebots mit
+        gleichem Profil und Werkstoff. None = Stammdaten bzw. Norm."""
+        self.r_aussen = float(r) if isinstance(r, (int, float)) and r >= 0 else None
+        self.rechnen()
 
     def _rechnen(self):
         eingaben = self.eingaben()
@@ -1036,6 +1078,9 @@ class SchneidwegDialog(QDialog):
                 self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
                                                       if v == x.get("richtung")), sw.AUTOMATISCH))
             self.gravur.setValue(sw._z(e.get("gravur")))
+            r = e.get("r_aussen")       # Rückgängig: Wert des Rechners, sonst der Radius des Angebots
+            self.r_aussen = float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 else \
+                self.radius_angebot()
             self._step_enden(e)
             self.tabelle.setRowCount(0)
         for z in e.get("konturen") or ():

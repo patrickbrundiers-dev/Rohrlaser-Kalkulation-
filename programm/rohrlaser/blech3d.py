@@ -246,7 +246,7 @@ def netz(e, zs):
     kennung = {}
     zeile = {id(z): i for i, z in enumerate(e.get("konturen") or [])}
     for z, zug in konturzuege(e, zs):
-        for seite in (1, -1):
+        for seite in ((1,) if z.get("art") == sw.TEXT_GRAVUR else (1, -1)):    # Gravur nur oben
             pk = [haut(q, seite * 1.02) for q in zug]
             linien.setdefault("K", []).append([c for v, _ in pk for c in _ansicht(v)])
             normalen.setdefault("K", []).append([round(c * seite, 3) for c in _ansicht(pk[len(pk) // 2][1])])
@@ -261,7 +261,7 @@ def netz(e, zs):
         linien.setdefault("B", []).append([c for v, _ in pk for c in _ansicht(v)])
         normalen.setdefault("B", []).append([round(c, 3) for c in _ansicht(pk[4][1])])
         kennung.setdefault("B", []).append(f"biegung:{nr}")
-    return dict(p=punkte, t={"BL": dreiecke},
+    return dict(p=punkte, t={"BL": dreiecke}, ti={"BL": ["teil"] * (len(dreiecke) // 3)},
                 l={a: [[round(c, 3) for c in zug] for zug in z] for a, z in linien.items()}, ln=normalen,
                 li=kennung, flach=True)
 
@@ -306,6 +306,11 @@ def konturzuege(e, zs):
                 continue
             mx, my = sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk)
             zug = [(cx + x - mx, cy + y - my) for x, y in pk] + [(cx + pk[0][0] - mx, cy + pk[0][1] - my)]
+        elif art == sw.TEXT_GRAVUR:      # je Strich ein Linienzug
+            from . import gravur_text
+            out += [(z, zug) for zug in gravur_text.gedreht(gravur_text.linien(z.get("text"), _z(z.get("hoehe"))),
+                                                           z.get("winkel"), cx, cy)]
+            continue
         else:
             zug = [(cx - 4, cy - 4), (cx + 4, cy - 4), (cx + 4, cy + 4), (cx - 4, cy + 4), (cx - 4, cy - 4)]
         out.append((z, zug))

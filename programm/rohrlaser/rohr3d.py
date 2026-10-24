@@ -1,0 +1,354 @@
+"""3D-Modell eines Rohrs/Profils aus den Eingaben des Schneidweg-Rechners (Plan 3D-Editor A2/G3): damit hat der
+Teile-Editor auch ohne STEP-Datei ein drehbares Modell, und jede Eingabe (Gehrung, Ausklinkung, Kontur) ist sofort
+im 3D zu sehen – wie in den CAM-Programmen.
+
+Grundlage ist dieselbe Geometrie wie für die Skizze (skizze.py): Querschnitt (Außen- und Innenumriss), Schnittkante
+der Enden (skizze.schnitt_x) und Lage der Konturen (skizze.lagen/platzieren). Geschnittene Konturen (Bohrung,
+Langloch, Rechteck, Ausklinkung, Polygon, V-Ausschnitt, Sonderkontur mit Umriss …) sind bei geschlossenen Rohren
+ausgeschnitten, mit Lochwand durch die Wandstärke (Patrick 24.10.2026); dazu je Kontur ein Linienzug auf der
+Außenwand, der ihr Merkmal trägt (li 'kontur:3', 'ende:a'), damit ein Klick im 3D die Zeile wählt. Gravur und
+Flowdrill (nur markiert) bleiben Linien.
+
+Ausschneiden: Der Mantel ist abgewickelt ein Rechteck (t = Bogenlänge am Umriss, x = Rohrachse). Je Spalte zwischen
+zwei Umrisspunkten wird das Viereck zwischen den Enden in waagerechte Streifen an allen Ecken zerlegt; in jedem
+Streifen sind die Ränder gerade, die freien Stücke zwischen den Löchern werden Trapeze (zwei Dreiecke). Innenwand
+gleich, Punkt für Punkt auf dem Innenumriss.
+
+Netz wie ansicht3d: Rohrachse = Z ab Ende A, Y = oben, X = −u (vorne = −X, so zeigt die Ansicht „Vorn“ die Seite
+vorne/90°).
+"""
+import bisect
+import math
+
+from . import skizze as sk
+from .blech3d import _flaeche2, _ohrschnitt
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, GRAVUR, GRAVUREN, LANGLOCH, POLYGON, RECHTECK, SCHLITZ, SENKUNG,
+                         SONDERKONTUR, V_AUSSCHNITT, _z, mit_radius)
+
+SCHRITT = 4.0           # Kanten des Querschnitts höchstens so lang [mm] (Ausklinkung, Sattel folgen der Kurve)
+TEILE_MAX = 24          # je Kante höchstens so viele Stücke
+ABSTAND = 0.4           # Linien so weit über der Wand [mm] (verdecken sich nicht mit der Fläche)
+
+
+def _xyz(x, u, v):
+    return (-u, v, x)
+
+
+def _unterteilen(poly, teile=None):
+    """Geschlossenes Polygon an den Kanten unterteilen; teile = Anzahl je Kante (für gleiche Teilung innen/außen)."""
+    out, anzahl = [], []
+    for i, a in enumerate(poly):
+        b = poly[(i + 1) % len(poly)]
+        n = teile[i] if teile else max(1, min(TEILE_MAX, math.ceil(math.dist(a, b) / SCHRITT)))
+        anzahl.append(n)
+        out += [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n)]
+    return out, anzahl
+
+
+# ausgeschnittene Konturarten (Gravur, Flowdrill, Sonstige und künftige Gravurarten bleiben Linien)
+LOCH_ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, V_AUSSCHNITT)
+
+
+def _laengen(poly):
+    """Bogenlänge an jedem Punkt des geschlossenen Polygons (letzter Eintrag = Umfang)."""
+    cum = [0.0]
+    for i, a in enumerate(poly):
+        cum.append(cum[-1] + math.dist(a, poly[(i + 1) % len(poly)]))
+    return cum
+
+
+def _t_von(poly, cum, u, v):
+    """Bogenlänge des nächsten Punkts auf dem Polygon zu (u, v)."""
+    beste = None
+    for i, a in enumerate(poly):
+        b = poly[(i + 1) % len(poly)]
+        du, dv = b[0] - a[0], b[1] - a[1]
+        lg = du * du + dv * dv
+        f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, ((u - a[0]) * du + (v - a[1]) * dv) / lg))
+        d = (a[0] + f * du - u) ** 2 + (a[1] + f * dv - v) ** 2
+        if beste is None or d < beste[0]:
+            beste = (d, cum[i] + f * (cum[i + 1] - cum[i]))
+    return beste[1]
+
+
+def _innen(pt, poly):
+    """Punkt in Polygon (gerade/ungerade Regel)."""
+    x, y = pt
+    drin = False
+    for i, (ax, ay) in enumerate(poly):
+        bx, by = poly[i - 1]
+        if (ay > y) != (by > y) and x < ax + (y - ay) * (bx - ax) / (by - ay):
+            drin = not drin
+    return drin
+
+
+def loecher(e, qs, aussen, cum, L):
+    """Geschnittene Konturen als [(Polygon [(t, x)], Zeile)] in der Abwicklung des Außenumrisses; über die Naht
+    (t = 0) reichende zusätzlich um den Umfang verschoben."""
+    T = cum[-1]
+    out = []
+    for d in sk.lagen(e.get("konturen") or [], L):
+        ein = d["eingabe"]
+        art = ein.get("art")
+        if art not in LOCH_ARTEN and not (art == SONDERKONTUR and ein.get("umriss")):
+            continue
+        pts = sk.umriss_kontur(ein)
+        if not pts or len(pts) < 3:
+            continue
+        try:
+            s0 = sk.s_lage(qs, ein)
+            poly, t_alt = [], None
+            for dx, dq in sk._dicht(pts, 2.0):
+                (u, v), _ = qs.s_zu_uv((s0 + dq) % qs.umfang)
+                t = _t_von(aussen, cum, u, v)
+                if t_alt is not None:           # über die Naht: stetig weiterzählen
+                    t += T * round((t_alt - t) / T)
+                poly.append((t, d["x"] + dx))
+                t_alt = t
+        except (ValueError, TypeError, ZeroDivisionError, AttributeError):
+            continue
+        out.append((poly, d["zeile"]))
+        t_min, t_max = min(p[0] for p in poly), max(p[0] for p in poly)
+        if t_min < 0:
+            out.append(([(t + T, x) for t, x in poly], d["zeile"]))
+        if t_max > T:
+            out.append(([(t - T, x) for t, x in poly], d["zeile"]))
+    return out
+
+
+def _schnitte(poly, x):
+    """Schnitte der Waagerechten x mit den Kanten des Polygons: [(t, Kante (a, b))]."""
+    out = []
+    n = len(poly)
+    for i in range(n):
+        a, b = poly[i], poly[(i + 1) % n]
+        if (a[1] > x) != (b[1] > x):
+            out.append((a[0] + (x - a[1]) * (b[0] - a[0]) / (b[1] - a[1]), (a, b)))
+    return sorted(out, key=lambda q: q[0])
+
+
+def _t_bei(kante, x):
+    a, b = kante
+    if abs(b[1] - a[1]) < 1e-12:
+        return a[0]
+    return a[0] + (x - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+
+
+def _kreuz(p, q, r, s):
+    """Schnittpunkt-x der Strecken p–q und r–s oder None."""
+    d = (q[0] - p[0]) * (s[1] - r[1]) - (q[1] - p[1]) * (s[0] - r[0])
+    if abs(d) < 1e-12:
+        return None
+    u = ((r[0] - p[0]) * (s[1] - r[1]) - (r[1] - p[1]) * (s[0] - r[0])) / d
+    w = ((r[0] - p[0]) * (q[1] - p[1]) - (r[1] - p[1]) * (q[0] - p[0])) / d
+    if -1e-9 <= u <= 1 + 1e-9 and -1e-9 <= w <= 1 + 1e-9:
+        return p[1] + u * (q[1] - p[1])
+    return None
+
+
+def zelle_frei(feld, loch_liste):
+    """Viereck feld [(t, x)] (Spalte zwischen den Enden) ohne die Löcher als Trapeze [(t_l0, t_r0, x0, t_l1, t_r1, x1)]
+    (unten links/rechts, oben links/rechts)."""
+    hoehen = {p[1] for p in feld}
+    t0, t1 = min(p[0] for p in feld), max(p[0] for p in feld)
+    kanten_feld = [(feld[i], feld[(i + 1) % 4]) for i in range(4)]
+    for poly in loch_liste:
+        n = len(poly)
+        for i in range(n):
+            a, b = poly[i], poly[(i + 1) % n]
+            if t0 - 1e-9 <= a[0] <= t1 + 1e-9:
+                hoehen.add(a[1])
+            for p, q in kanten_feld:
+                x = _kreuz(a, b, p, q)
+                if x is not None:
+                    hoehen.add(x)
+    hoehen = sorted(hoehen)
+    x_min, x_max = min(p[1] for p in feld), max(p[1] for p in feld)
+    out = []
+    for xa, xb in zip(hoehen, hoehen[1:]):
+        if xb - xa < 1e-7 or xb <= x_min or xa >= x_max:
+            continue
+        xm = (xa + xb) / 2
+        q = _schnitte(feld, xm)
+        if len(q) < 2:
+            continue
+        frei = [(q[0][0], q[0][1], q[-1][0], q[-1][1])]       # (t links, Kante, t rechts, Kante)
+        for poly in loch_liste:
+            s = _schnitte(poly, xm)
+            for k in range(0, len(s) - 1, 2):
+                (la, ka), (ra, kb) = s[k], s[k + 1]
+                neu = []
+                for fl, kl, fr, kr in frei:
+                    if ra <= fl or la >= fr:
+                        neu.append((fl, kl, fr, kr))
+                        continue
+                    if la > fl:
+                        neu.append((fl, kl, la, ka))
+                    if ra < fr:
+                        neu.append((ra, kb, fr, kr))
+                frei = neu
+        for _, kl, _, kr in frei:
+            out.append((_t_bei(kl, xa), _t_bei(kr, xa), xa, _t_bei(kl, xb), _t_bei(kr, xb), xb))
+    return out
+
+
+def netz(e, profil, laenge):
+    """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt."""
+    L = _z(laenge)
+    if L <= 0:
+        return None
+    qs = sk.Querschnitt(mit_radius(profil, e))
+    umriss = qs.umriss_rund(12)             # Quadrat-/Rechteckrohr mit Außenradius (je Ecke 12 Stücke)
+    if not umriss or len(umriss[0]) < 3:
+        return None
+    ea, eb = e.get("a") or {}, e.get("b") or {}
+    punkte, dreiecke, linien, normalen, kennung, flaeche_id = [], {}, {}, {}, {}, {}
+
+    def punkt(v):
+        punkte.extend(round(c, 3) for c in v)
+        return len(punkte) // 3 - 1
+
+    def dreieck(art, a, b, c, soll, merkmal="teil"):
+        u = [b[i] - a[i] for i in range(3)]
+        w = [c[i] - a[i] for i in range(3)]
+        n = (u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0])
+        if n[0] ** 2 + n[1] ** 2 + n[2] ** 2 < 1e-12:
+            return
+        if sum(n[i] * soll[i] for i in range(3)) < 0:
+            b, c = c, b
+        dreiecke.setdefault(art, []).extend((punkt(a), punkt(b), punkt(c)))
+        flaeche_id.setdefault(art, []).append(merkmal)       # Klick auf die Fläche wählt das Merkmal
+
+    def linie(art, zug, mitte_n, merkmal):
+        linien.setdefault(art, []).append([round(c, 3) for p in zug for c in p])
+        normalen.setdefault(art, []).append([round(c, 3) for c in mitte_n])
+        kennung.setdefault(art, []).append(merkmal)
+
+    def za(u, v):
+        return sk.schnitt_x(qs, ea, u, v)
+
+    def zb(u, v):
+        return L - sk.schnitt_x(qs, eb, u, v)
+
+    roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
+    aussen, teile = _unterteilen(roh_a)
+    innen = None
+    if len(umriss) > 1 and len(umriss[1]) == len(umriss[0]):
+        roh_i = list(umriss[1]) if _flaeche2(umriss[1]) > 0 else list(umriss[1])[::-1]
+        # gleiche Ecke zuerst wie außen (nächster Punkt), damit Stirnfläche innen/außen zusammenpasst
+        k = min(range(len(roh_i)), key=lambda i: math.dist(roh_i[i], roh_a[0]))
+        innen, _ = _unterteilen(roh_i[k:] + roh_i[:k], teile)
+
+    def mantel(poly, art, nach_aussen, auslassen=()):
+        n = len(poly)
+        for i in range(n):
+            if i in auslassen:
+                continue
+            (u0, v0), (u1, v1) = poly[i], poly[(i + 1) % n]
+            du, dv = u1 - u0, v1 - v0
+            nu, nv = (dv, -du) if nach_aussen else (-dv, du)        # Polygon ccw: rechts der Kante = außen
+            soll = _xyz(0, nu, nv)
+            a0, a1 = _xyz(za(u0, v0), u0, v0), _xyz(za(u1, v1), u1, v1)
+            b0, b1 = _xyz(zb(u0, v0), u0, v0), _xyz(zb(u1, v1), u1, v1)
+            dreieck(art, a0, a1, b1, soll)
+            dreieck(art, a0, b1, b0, soll)
+
+    cum = _laengen(aussen)
+    T = cum[-1]
+    loch_zeile = loecher(e, qs, aussen, cum, L) if innen and T > 0 else []
+    loch = [q for q, _ in loch_zeile]
+
+    def ort(t, x, wand):
+        """Punkt (t, x) der Abwicklung auf der Außen- bzw. Innenwand (gleiche Spalte, gleicher Anteil)."""
+        t = t % T
+        i = max(0, min(len(aussen) - 1, bisect.bisect_right(cum, t) - 1))
+        f = 0.0 if cum[i + 1] - cum[i] < 1e-12 else (t - cum[i]) / (cum[i + 1] - cum[i])
+        (u0, v0), (u1, v1) = wand[i], wand[(i + 1) % len(wand)]
+        return x, u0 + f * (u1 - u0), v0 + f * (v1 - v0)
+
+    def mantel_loch(poly, art, nach_aussen):
+        n = len(poly)
+        for i in range(n):
+            t0, t1 = cum[i], cum[i + 1]
+            hier = [q for q in loch if min(p[0] for p in q) < t1 and max(p[0] for p in q) > t0]
+            if not hier:
+                continue
+            (u0, v0), (u1, v1) = poly[i], poly[(i + 1) % n]
+            du, dv = u1 - u0, v1 - v0
+            soll = _xyz(0, *((dv, -du) if nach_aussen else (-dv, du)))
+            feld = [(t0, za(u0, v0)), (t1, za(u1, v1)), (t1, zb(u1, v1)), (t0, zb(u0, v0))]
+
+            def p3(t, x):
+                f = 0.0 if t1 - t0 < 1e-12 else (t - t0) / (t1 - t0)
+                return _xyz(x, u0 + f * du, v0 + f * dv)
+            for tl0, tr0, x0, tl1, tr1, x1 in zelle_frei(feld, hier):
+                a, b, c, d = p3(tl0, x0), p3(tr0, x0), p3(tr1, x1), p3(tl1, x1)
+                dreieck(art, a, b, c, soll)
+                dreieck(art, a, c, d, soll)
+        return {i for i in range(n) if any(min(p[0] for p in q) < cum[i + 1] and max(p[0] for p in q) > cum[i]
+                                           for q in loch)}
+
+    gelocht = mantel_loch(aussen, "A", True) if loch else set()
+    mantel(aussen, "A", True, gelocht)
+    if innen:
+        mantel_loch(innen, "I", False)
+        mantel(innen, "I", False, gelocht)
+    # Lochwände: je Kante des Lochs ein Viereck von außen nach innen, Vorderseite zur Lochmitte
+    for q, zeile in loch_zeile:
+        dreh = 1 if sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(q, q[1:] + q[:1])) > 0 else -1
+        for a, b in zip(q, q[1:] + q[:1]):
+            tm, xm = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            if not 0 <= tm < T:
+                continue
+            xa, ua, va = ort(tm, xm, aussen)
+            if not za(ua, va) - 1e-6 <= xm <= zb(ua, va) + 1e-6:
+                continue
+            dt, dx = b[0] - a[0], b[1] - a[1]
+            nt, nx = (-dx * dreh, dt * dreh)          # links der Kante = Lochinneres bei ccw
+            i = max(0, min(len(aussen) - 1, bisect.bisect_right(cum, tm) - 1))
+            (u0, v0), (u1, v1) = aussen[i], aussen[(i + 1) % len(aussen)]
+            lg = math.hypot(u1 - u0, v1 - v0) or 1.0
+            tu, tv = (u1 - u0) / lg, (v1 - v0) / lg
+            soll = (-(nt * tu), nt * tv, nx)
+            pa, pb = _xyz(*ort(a[0], a[1], aussen)), _xyz(*ort(b[0], b[1], aussen))
+            qa, qb = _xyz(*ort(a[0], a[1], innen)), _xyz(*ort(b[0], b[1], innen))
+            dreieck("K", pa, pb, qb, soll, f"kontur:{zeile}")
+            dreieck("K", pa, qb, qa, soll, f"kontur:{zeile}")
+    # Stirnflächen (Schnittflächen der Enden): Ring zwischen außen und innen bzw. volles Profil
+    for art, z, soll in (("EA", za, (0, 0, -1)), ("EB", zb, (0, 0, 1))):
+        ende = f"ende:{art[1].lower()}"
+        if innen:
+            n = len(aussen)
+            for i in range(n):
+                p0, p1, q0, q1 = aussen[i], aussen[(i + 1) % n], innen[i], innen[(i + 1) % n]
+                if loch:        # Ausklinkung / Schlitz am Ende: Stück der Stirnfläche im Loch weglassen
+                    tm = (cum[i] + cum[i + 1]) / 2
+                    xm = (z(*p0) + z(*p1)) / 2
+                    xm += 1e-3 if art == "EA" else -1e-3
+                    if any(_innen((tm, xm), q) for q in loch):
+                        continue
+                a0, a1 = _xyz(z(*p0), *p0), _xyz(z(*p1), *p1)
+                b0, b1 = _xyz(z(*q0), *q0), _xyz(z(*q1), *q1)
+                dreieck(art, a0, a1, b1, soll, ende)
+                dreieck(art, a0, b1, b0, soll, ende)
+        elif not qs.r:
+            for a, b, c in _ohrschnitt(aussen):
+                dreieck(art, _xyz(z(*a), *a), _xyz(z(*b), *b), _xyz(z(*c), *c), soll, ende)
+        # Schnittkante als Linie (Merkmal Ende)
+        zug = [_xyz(z(u, v), u, v) for u, v in aussen + aussen[:1]]
+        linie(art, zug, (0, 1, 0), f"ende:{art[1].lower()}")
+    # Konturen auf der Außenwand
+    for d in sk.lagen(e.get("konturen") or [], L):
+        try:
+            pts, n_mitte = sk.platzieren(qs, d)
+            ns = sk.normalen(qs, d)
+        except (ValueError, TypeError, ZeroDivisionError):
+            continue
+        if len(pts) < 2:
+            continue
+        zug = [_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND) for (x, u, v), (nu, nv) in zip(pts, ns + ns[-1:] * len(pts))]
+        ein = d["eingabe"]
+        if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
+            zug.append(zug[0])
+        linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+    return dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True)

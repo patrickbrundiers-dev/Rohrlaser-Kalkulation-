@@ -145,7 +145,7 @@ def _arbeitsgaenge(p, z, k):
             out.append(f"Oberfläche [{ob}]")
         if _text(p.get("gewinde")):
             out.append(f"Gewinde [{_einzeilig(p['gewinde']).replace(', ', '; ')}]")
-        if (_zahl(p.get("gravur")) or 0) > 0:
+        if (_zahl(p.get("gravur")) or 0) > 0 or rechnen.gravur_artikel(p) > 0:
             out.append("Gravur")
     for e in (z or {}).get("zusatzarbeiten") or ():
         out.append(f"Zusatzarbeit [{e['name']} {zahl(e.get('menge'))} {e.get('einheit') or ''}]".replace(" ]", "]"))
@@ -240,7 +240,8 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
         flaeche = None          # Mantelfläche außen [m²] = Umfang des Querschnitts × Teilelänge
         if pr and _zahl(p.get("laenge")):
             u = umfang(pr.get("form"), _zahl(pr.get("a")) or 0, _zahl(pr.get("b")), _zahl(pr.get("wand")),
-                       _zahl(pr.get("flaeche")), p.get("profil_id"))
+                       _zahl(pr.get("flaeche")), p.get("profil_id"),
+                       _zahl(rechnen.profil_im_angebot(pr, None, p.get("profil_id"), p.get("werkstoff_id"), k).get("r_aussen")))
             flaeche = u / 1000 * _zahl(p["laenge"]) / 1000 if u else None
         werkstoff = k.werkstoffe.get(p.get("werkstoff_id")) or {}
         bearb = None if zk else _zahl(z.get("laser_netto"))
@@ -355,6 +356,10 @@ def kopf_csv(pfad, kopfzeile):
 
 def positionen_csv(pfad, pos_zeilen):
     _sicher_schreiben(pfad, csv_bytes(POSITION_SPALTEN, pos_zeilen))
+
+
+def baugruppen_csv(pfad, bg_zeilen):
+    _sicher_schreiben(pfad, csv_bytes(BAUGRUPPE_SPALTEN, bg_zeilen))
 
 
 def zip_schreiben(pfad, kopfzeile, pos_zeilen, bg_zeilen=None):

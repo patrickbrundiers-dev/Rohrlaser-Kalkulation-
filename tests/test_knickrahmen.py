@@ -4,7 +4,8 @@
   Dreieck (β = 120°) gegen eine Kontrollrechnung; Rechteckrohr: b und h nach Stegwand; Fehler bei falschen Eingaben.
 - K2 Schneidweg: V-Ausschnitt als Konturart (1 Einstich, Text, Umriss auf drei Wänden), Rundrohr abgelehnt,
   gestreckte Länge und Zahl der Knicke im Ergebnis.
-- K3 Dialog: Knopf „Knickrahmen …“ setzt V-Ausschnitte, Gehrung der Enden und Teilelänge; Skizze zeichnet; Entfernen.
+- K3 Dialog: Knopf „Knickrahmen …“ setzt V-Ausschnitte, Gehrung der Enden und Teilelänge; Skizze zeichnet; Knick
+  verschieben führt die Schenkel nach (Länge bleibt); Entfernen.
 - K4 Angebot: Übernehmen setzt Länge und Zusatzarbeit Knicken (Menge = Knicke), ohne Knicke fällt sie wieder weg.
 - K5 Prüfregeln: Schenkel zu kurz, Kontur im Knickbereich, Wand zu dick; ältere Datei bekommt Regeln und Zusatzarbeit.
 
@@ -162,6 +163,26 @@ assert d.winkel["a"].value() == 45 and d.richtung["b"].currentText() == "länger
 assert d.ergebnis["laenge"] == L3 and not d.ergebnis["fehler"] and d.ok_knopf.isEnabled()
 d.skizze.resize(900, 400)
 d.skizze.bild(900, 400)                       # V-Ausschnitte über drei Wände zeichnen ohne Fehler
+# Knick verschieben (Teile-Editor, Tabelle): die Schenkel folgen, die gestreckte Länge bleibt, kein Fehler
+neu = d.eingaben()
+x2 = sorted(z["x"] for z in neu["konturen"])[1]
+for z in neu["konturen"]:
+    if z["x"] == x2:
+        z["x"] = x2 + 20
+d.eingaben_setzen(neu, mit_messung=True)
+d.rechnen()
+eing = d.eingaben()
+assert [round(a_, 1) for a_ in eing["knickrahmen"]["schenkel"]] == [500, 320, 480, 300], eing["knickrahmen"]
+assert d.ergebnis["laenge"] == L3 and not d.ergebnis["fehler"], d.ergebnis["fehler"]
+assert kn.nachfuehren(eing, QR3) is None                  # passt jetzt
+zwei = dict(eing, konturen=eing["konturen"][:2])           # Knick gelöscht: nicht nachführbar, Fehler bleibt
+assert kn.nachfuehren(zwei, QR3) is None and sw.rechnen(zwei, QR3, (10, 50))["fehler"]
+neu = d.eingaben()
+for z in neu["konturen"]:
+    if z["x"] == x2 + 20:
+        z["x"] = x2
+d.eingaben_setzen(neu, mit_messung=True)
+assert [round(a_, 1) for a_ in d.eingaben()["knickrahmen"]["schenkel"]] == [500, 300, 500, 300]
 # erneut öffnen: Dialog zeigt den Block; Entfernen nimmt Block und V-Ausschnitte heraus
 k = KnickrahmenDialog(d, QR3, d.knick)
 assert k.schenkel.text() == "500; 300; 500; 300" and k.geschlossen.isChecked()

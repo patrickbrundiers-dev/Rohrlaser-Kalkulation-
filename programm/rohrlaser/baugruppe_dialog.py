@@ -11,18 +11,19 @@ import copy
 import datetime
 import html
 import json
+import math
 import re
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QBrush
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox,
                                QGroupBox, QInputDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import baugruppe, hilfe, stil, vorkalk
+from . import baugruppe, blech, hilfe, skizze, steckverbindung, stil, vorkalk
 from .kostenbalken import Kostenbalken
-from .angebot import BAUGRUPPE, ist_baugruppe
+from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
 from .stil import BLAU_FLAECHE, GELB_FLAECHE, GELB_TEXT
 
@@ -217,6 +218,71 @@ class ZeilenTabelle(QTableWidget):
         return sorted({i.row() for i in self.selectionModel().selectedRows()})
 
 
+def gravierbar(q):
+    """Artikelnummer gravierbar: Rohrlaserteil oder Blechteil aus dem Blech-Editor."""
+    return not kein_laserteil(q) or blech.lesen(q.get("technik")) is not None
+
+
+def blech_gravur_alt(q, hoehe):
+    """Blechteil, dessen Gravur-Zeile nicht mehr zur Artikelnummer bzw. Schrifthöhe passt (neu schreiben)."""
+    e = blech.lesen(q.get("technik"))
+    if e is None:
+        return False
+    z = next((z for z in e.get("konturen") or () if z.get("art") == blech.sw.TEXT_GRAVUR and z.get("artikel")),
+             None)
+    if not hoehe:
+        return z is not None
+    return z is None or z.get("text") != str(q.get("artikel") or "").strip() or z.get("hoehe") != hoehe
+
+
+NAHT_TOLERANZ = 1.0      # mm: gezeichneter Nahtpunkt gilt als am Teil, wenn er so nah an dessen Oberfläche liegt
+
+
+def _abstand_dreieck(q, a, b, c):
+    """Abstand Punkt q zum Dreieck a, b, c (nächster Punkt nach Ericson, Real-Time Collision Detection 5.1.5)."""
+    ab, ac, aq = [b[k] - a[k] for k in range(3)], [c[k] - a[k] for k in range(3)], [q[k] - a[k] for k in range(3)]
+    dot = lambda u, v: u[0] * v[0] + u[1] * v[1] + u[2] * v[2]  # noqa: E731
+    d1, d2 = dot(ab, aq), dot(ac, aq)
+    if d1 <= 0 and d2 <= 0:
+        return math.dist(q, a)
+    bq = [q[k] - b[k] for k in range(3)]
+    d3, d4 = dot(ab, bq), dot(ac, bq)
+    if d3 >= 0 and d4 <= d3:
+        return math.dist(q, b)
+    vc = d1 * d4 - d3 * d2
+    if vc <= 0 and d1 >= 0 and d3 <= 0:
+        v = d1 / (d1 - d3)
+        return math.dist(q, [a[k] + v * ab[k] for k in range(3)])
+    cq = [q[k] - c[k] for k in range(3)]
+    d5, d6 = dot(ab, cq), dot(ac, cq)
+    if d6 >= 0 and d5 <= d6:
+        return math.dist(q, c)
+    vb = d5 * d2 - d1 * d6
+    if vb <= 0 and d2 >= 0 and d6 <= 0:
+        w = d2 / (d2 - d6)
+        return math.dist(q, [a[k] + w * ac[k] for k in range(3)])
+    va = d3 * d6 - d5 * d4
+    if va <= 0 and d4 - d3 >= 0 and d5 - d6 >= 0:
+        w = (d4 - d3) / ((d4 - d3) + (d5 - d6))
+        return math.dist(q, [b[k] + w * (c[k] - b[k]) for k in range(3)])
+    n = 1.0 / (va + vb + vc)
+    v, w = vb * n, vc * n
+    return math.dist(q, [a[k] + ab[k] * v + ac[k] * w for k in range(3)])
+
+
+def _abstand_flaeche(q, p, dreiecke):
+    """Kleinster Abstand von q zu den Dreiecken (Punktnummern je 3) im Punktfeld p."""
+    beste = math.inf
+    for i in range(0, len(dreiecke) - 2, 3):
+        a, b, c = (p[3 * dreiecke[i + j]:3 * dreiecke[i + j] + 3] for j in range(3))
+        if any(q[k] < min(a[k], b[k], c[k]) - beste or q[k] > max(a[k], b[k], c[k]) + beste for k in range(3)):
+            continue                                        # Hüllquader des Dreiecks weiter weg als der beste
+        beste = min(beste, _abstand_dreieck(q, a, b, c))
+        if beste < 1e-6:
+            break
+    return beste
+
+
 class StrukturBaum(QTreeWidget):
     """Baum Baugruppe → Unterbaugruppen → Einzelteile und Nahtgruppen (D1). Einzelteile lassen sich auf eine
     (Unter-)Baugruppe ziehen: verschieben(Positions-ID, Knoten-ID); den Baum baut danach der Dialog neu."""
@@ -249,8 +315,10 @@ class BaugruppeDialog(QDialog):
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
 
     def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False,
-                 einstellungen=None, netze=None):
+                 einstellungen=None, netze=None, profile=None):
         super().__init__(parent)
+        # Profile der Stammdaten {profil_id: Zeile} für die Steckverbindungen (ohne: die der Angebotsseite)
+        self.profile = profile or getattr(getattr(parent, "k", None), "profile", None) or {}
         self.p, self.positionen, self.tabellen, self.saetze = p, positionen, tabellen, saetze
         self.einstellungen = einstellungen or {}     # Stundensätze der Vorkalkulation (schweiss_vk_satz …)
         self.hilfe_vk, self.vk_ergebnis = {}, None
@@ -259,6 +327,8 @@ class BaugruppeDialog(QDialog):
         self.db = db                # Datenbank für Vorlagen (P1); ohne db keine Vorlagen-Knöpfe
         self.bg = baugruppe.lesen(p.get("baugruppe")) or baugruppe.leer()
         self.bg = copy.deepcopy(self.bg)
+        self.bg["steckverbindungen"] = [self._steck_flach(v) for v in steckverbindung.liste(self.bg)]
+        self.steck_alt = copy.deepcopy(steckverbindung.liste(baugruppe.lesen(p.get("baugruppe")) or {}))
         self.stand_alt = {n.get("id"): {k: n.get(k) for k in NAHT_SCHLUESSEL} for n in self.bg["naehte"]}
         self.stand_verwerfen = False
         self.ergebnis, self.erg, self.status = None, None, None
@@ -287,6 +357,7 @@ class BaugruppeDialog(QDialog):
         self.reiter.addTab(self._seite_struktur(), "Struktur und Teile")
         self.reiter.addTab(self._seite_naehte(), "Nahtgruppen")
         self.reiter.addTab(self._seite_arbeitsgaenge(), "Arbeitsgänge und Vorrichtungen")
+        self.reiter.addTab(self._seite_stecken(), "Steckverbindungen")
         self.reiter.addTab(self._seite_stamm(), "Stammdaten")
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
         self.reiter.addTab(self._seite_baum(), "Strukturbaum und 3D")
@@ -315,6 +386,19 @@ class BaugruppeDialog(QDialog):
         bestaetigen = QPushButton("Vorschläge bestätigen")
         bestaetigen.setToolTip("Alle gelben Vorschläge als geprüft übernehmen (eine neue Vorkalkulation lässt sie stehen)")
         bestaetigen.clicked.connect(lambda: self.vorschlaege_bestaetigen())
+        self.vk_auto = QCheckBox("Vorkalkulation automatisch")
+        self.vk_auto.setToolTip("Nahtvorschläge aus dem STEP übernehmen (a-Maß nach Regel), Schweißen, Heften, Verputzen, "
+                                "Rüsten, Positionieren und Wenden bei jeder Änderung neu vorschlagen; Werte von Hand und "
+                                "bestätigte bleiben. Vorgabe: Einstellung Vorkalkulation automatisch")
+        self.vk_auto.setChecked(baugruppe.vk_auto(self.bg, self.einstellungen.get("schweiss_vk_step") == "ja"))
+        self.vk_auto.setEnabled(not nur_lesen)
+        self._vk_laeuft = False
+        self._vk_timer = QTimer(self)
+        self._vk_timer.setSingleShot(True)
+        self._vk_timer.setInterval(800)
+        self._vk_timer.timeout.connect(self._vk_nach_eingabe)
+        self.vk_auto.toggled.connect(lambda an: self.vorkalkulation() if an else self.aktualisieren())
+        unten.addWidget(self.vk_auto)
         for b in (rechnen_k, bestaetigen):
             b.setEnabled(not nur_lesen)
             unten.addWidget(b)
@@ -331,6 +415,8 @@ class BaugruppeDialog(QDialog):
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
         self.aktualisieren()
+        if self.vk_auto.isChecked() and not nur_lesen:
+            self.vorkalkulation()
 
     # -------------------------------------------------------------- Struktur und Teile
     def _teile_aufbauen(self, vorwahl):
@@ -348,7 +434,25 @@ class BaugruppeDialog(QDialog):
             self.teile.append(dict(_id=q["id"], _q=q, drin=drin, knoten=kn or "",
                                    je=q.get("je_knoten") if drin and bg_id else
                                    (q.get("je_satz") or 1) if drin else 1,
-                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None))
+                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None, **self._gravur_vorgabe(q)))
+
+    def _gravur_vorgabe(self, q):
+        """Häkchen und Schrifthöhe der Artikelnummer-Gravur: gespeichert (Spalte bg_gravur), sonst nach den
+        Einstellungen gravur_artikel und gravur_schrifthoehe."""
+        h_einst = self.einstellungen.get("gravur_schrifthoehe") or 10
+        h = q.get("bg_gravur")
+        if h is None:
+            return dict(gravur=bool(gravierbar(q) and self.einstellungen.get("gravur_artikel") == "ja"),
+                        gravur_h=h_einst)
+        return dict(gravur=h > 0, gravur_h=h if h > 0 else h_einst)
+
+    def alle_gravieren(self, an=True):
+        """Häkchen Artikelnr. gravieren für alle Teile der Baugruppe setzen bzw. entfernen."""
+        for t in self.teile:
+            if t.get("drin") and gravierbar(t["_q"]):
+                t["gravur"] = an
+        self.teile_tab.aufbauen()
+        self.aktualisieren()
 
     def _knoten_optionen(self, ohne=None):
         out = [(DIREKT, "")]
@@ -392,9 +496,23 @@ class BaugruppeDialog(QDialog):
             Spalte("hilfe", "Positionier-\nhilfe", "auswahl", 125, vk=True,
                    optionen=[("(Vorschlag)", None)] + [(h, h) for h in POSITIONIERHILFEN],
                    tipp="Wie das Teil beim Schweißen seine Lage findet; leer = Vorschlag der Vorkalkulation"),
+            Spalte("gravur", "Artikelnr.\ngravieren", "haken", 75,
+                   tipp="Artikelnummer auf das Rohr bzw. Blech gravieren (Positionierhilfe beim Schweißen); Lage "
+                        "automatisch, beim Blech im Blech-Editor verschiebbar"),
+            Spalte("gravur_h", "Schrift-\nhöhe [mm]", "zahl", 70, tipp="Schrifthöhe der Gravur (Vorgabe in den "
+                                                                       "Einstellungen)"),
+            Spalte("_gravur_info", "Gravur", "anzeige", 140, anzeige=self._gravur_text),
             Spalte("_hilfe_vk", "Vorschlag", "anzeige", 200, anzeige=self._hilfe_text)],
             self.teile, self.aktualisieren, self._teil_herkunft)
         rechts.addWidget(self.teile_tab, 1)
+        leiste = QHBoxLayout()
+        for text, an in (("Alle gravieren", True), ("Keine gravieren", False)):
+            b = QPushButton(text)
+            b.setToolTip("Häkchen Artikelnr. gravieren für alle Bleche und Rohre der Baugruppe")
+            b.clicked.connect(lambda _=False, an=an: self.alle_gravieren(an))
+            leiste.addWidget(b)
+        leiste.addStretch(1)
+        rechts.addLayout(leiste)
         gehrung = [z for z in self.teile if z["_q"].get("a_ende") or z["_q"].get("b_ende")]
         if len(gehrung) >= 2:       # Knickrahmen nur im STEP-Prüfdialog (Patrick 24.10.2026: Lage je Rohr nötig)
             self.knick_hinweis = QLabel("Rahmen aus Rohren mit Gehrung als Knickrahmen? STEP-Datei neu einlesen und "
@@ -424,6 +542,20 @@ class BaugruppeDialog(QDialog):
         if f is None:
             return ("?", True)
         return _text((z.get("je") or 1) * f)
+
+    def _gravur_text(self, z, _r):
+        if not z.get("drin") or not z.get("gravur"):
+            return ""
+        q = z["_q"]
+        if not gravierbar(q):
+            return ("nur Rohrlaser- und Blechteile", True)
+        if not str(q.get("artikel") or "").strip():
+            return ("Artikelnummer fehlt", WARNUNG)
+        from . import gravur_text
+        b, h = gravur_text.masse(q["artikel"], z.get("gravur_h") or 0)
+        if not kein_laserteil(q) and q.get("laenge") and not gravur_text.lage_laengs(q["laenge"], (), b):
+            return (f"{_text(b, 0)} mm lang: Rohr zu kurz", WARNUNG)
+        return f"{_text(b, 0)} × {_text(h, 0)} mm"
 
     def _hilfe_text(self, z, _r):
         v = self.hilfe_vk.get(z["_id"]) if z.get("drin") else None
@@ -764,6 +896,207 @@ class BaugruppeDialog(QDialog):
         tab.aufbauen()
         self.aktualisieren()
 
+    # -------------------------------------------------------------- Steckverbindungen (Plan K2)
+    def _steck_flach(self, v):
+        """Verbindung als Zeile der Tabelle: Aufnahme, Stecker und Ende als eigene Felder."""
+        z = copy.deepcopy(v)
+        z["_auf"] = (v.get("aufnahme") or {}).get("id")
+        z["_st"] = (v.get("stecker") or {}).get("id")
+        z["_ende"] = (v.get("stecker") or {}).get("ende") or "a"
+        z["_schlitze"], z["_nasen"] = v.get("schlitze") is not False, v.get("nasen") is not False
+        return z
+
+    def _steck_daten(self, z):
+        """Zeile der Tabelle -> gespeicherte Verbindung (Aufnahme und Stecker mit Position und Unterbaugruppe)."""
+        v = {k: w for k, w in z.items() if not k.startswith("_")}
+        teile = {t["_id"]: t for t in self.teile}
+        for rolle, pid in (("aufnahme", z.get("_auf")), ("stecker", z.get("_st"))):
+            t = teile.get(pid)
+            v[rolle] = dict(id=pid, pos=t["_q"].get("pos") if t else None, knoten=(t or {}).get("knoten") or "")
+        v["stecker"]["ende"] = z.get("_ende") or "a"
+        for k in ("schlitze", "nasen"):
+            v.pop(k, None)
+            if z.get("_" + k) is False:
+                v[k] = False
+        return v
+
+    def _steck_profil(self, pid):
+        t = next((t for t in self.teile if t["_id"] == pid), None)
+        return self.profile.get(t["_q"].get("profil_id")) if t else None
+
+    def _steck_einst(self):
+        return {n[6:]: w for n, w in self.einstellungen.items() if n.startswith("steck_")}
+
+    def _steck_fehler(self, z):
+        ids = {t["_id"] for t in self.teile if t.get("drin")}
+        if z.get("_auf") not in ids or z.get("_st") not in ids:
+            return "Aufnahme und Stecker müssen Teile dieser Baugruppe sein"
+        if z.get("_nasen") is not False:        # je Ende des Steckers nur eine Verbindung mit Nasen
+            for n, y in enumerate(self.bg["steckverbindungen"], 1):
+                if y is z:
+                    break
+                if y.get("_st") == z.get("_st") and y.get("_ende") == z.get("_ende") and y.get("_nasen") is not False:
+                    return (f"Ende {'A' if z.get('_ende') == 'a' else 'E'} des Steckers hat schon Nasen aus "
+                            f"Steckverbindung {n}: Haken „Nasen schneiden“ weg")
+        return steckverbindung.pruefen(self._steck_daten(z), self._steck_profil(z["_auf"]) or {},
+                                       self._steck_profil(z["_st"]) or {})
+
+    def _steck_teile(self):
+        return [(f"Pos. {t['_q'].get('pos') or ''} {t['_q'].get('artikel') or t['_q'].get('profil_id') or ''}".strip(),
+                 t["_id"]) for t in self.teile if t.get("drin") and t["_q"].get("profil_id")]
+
+    def _steck_text(self, z, _r):
+        f = self._steck_fehler(z)
+        if f:
+            return (f, True)
+        v = self._steck_daten(z)
+        return steckverbindung.text(v, steckverbindung.masse(v, self._steck_profil(z["_auf"]),
+                                                              self._steck_profil(z["_st"])))
+
+    def _seite_stecken(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        self.steck_tab = ZeilenTabelle([
+            Spalte("_auf", "Aufnahme\n(Schlitze)", "auswahl", 170, optionen=self._steck_teile),
+            Spalte("_st", "Stecker\n(Nasen)", "auswahl", 170, optionen=self._steck_teile),
+            Spalte("_ende", "Ende\nStecker", "auswahl", 60, optionen=[("A", "a"), ("E", "b")]),
+            Spalte("x", "Lage x auf der\nAufnahme [mm]", "zahl", 95, tipp="Mitte des Steckers ab Ende A der Aufnahme"),
+            Spalte("seite", "Seite der\nAufnahme", "auswahl", 80, frei=True,
+                   optionen=[(t, t) for t in steckverbindung.SEITEN_KASTEN],
+                   tipp="Wand der Aufnahme, an der der Stecker sitzt (Rundrohr: Winkel, z. B. 90°)"),
+            Spalte("anzahl", "Nasen", "auswahl", 55, optionen=[(str(n), n) for n in steckverbindung.ANZAHLEN]),
+            Spalte("bN", "Nasen-\nbreite [mm]", "zahl", 70),
+            Spalte("c", "Spiel je\nSeite [mm]", "zahl", 65),
+            Spalte("ueberstand", "Über-\nstand [mm]", "zahl", 60),
+            Spalte("waende", "Wände mit\nNasen", "auswahl", 75, optionen=[(t, t) for t in steckverbindung.WAENDE],
+                   tipp="quer = Wände quer zur Achse der Aufnahme (Vorgabe), längs = um 90° gedreht"),
+            Spalte("winkel", "Winkel der\nAchsen [°]", "zahl", 70, tipp="90 = senkrecht, schräg bis 30°"),
+            Spalte("_schlitze", "Schlitze\nschneiden", "haken", 65,
+                   tipp="Aus: gleiches Teil, die Schlitze schneidet schon eine andere Verbindung"),
+            Spalte("_nasen", "Nasen\nschneiden", "haken", 65,
+                   tipp="Aus: dieses Ende des Steckers hat die Nasen schon aus einer anderen Verbindung"),
+            Spalte("_text", "Schlitz und Nasen", "anzeige", 260, anzeige=self._steck_text)],
+            self.bg["steckverbindungen"], self.aktualisieren)
+        lay.addWidget(self.steck_tab, 1)
+        leiste = QHBoxLayout()
+        neu = QPushButton("Steckverbindung hinzufügen")
+        neu.setToolTip("Zwischen den zwei im Reiter „Struktur und Teile“ markierten Teilen (sonst den ersten beiden Rohren "
+                       "der Baugruppe); Vorgaben aus den Einstellungen")
+        neu.clicked.connect(lambda: self.steck_neu())
+        tausch = QPushButton("Aufnahme und Stecker tauschen")
+        tausch.clicked.connect(lambda: self.steck_tauschen())
+        alle = QPushButton("Alle Stöße stecken")
+        alle.setToolTip("Je Rohrende, das in der STEP-Datei auf einem anderen Rohr sitzt, eine Steckverbindung mit "
+                        "Lage und Seite aus der Datei (nur Baugruppen aus dem STEP-Import)")
+        alle.clicked.connect(lambda: self.steck_alle())
+        weg = QPushButton("Markierte entfernen")
+        weg.setToolTip("Schlitze und Nasen fallen beim Speichern in beiden Teilen weg")
+        weg.clicked.connect(lambda: self._entfernen(self.bg["steckverbindungen"], self.steck_tab))
+        for b in (neu, alle, tausch, weg):
+            b.setEnabled(not self.nur_lesen if hasattr(self, "nur_lesen") else True)
+            leiste.addWidget(b)
+        leiste.addStretch(1)
+        lay.addLayout(leiste)
+        lay.addWidget(hilfe.Hinweis(
+            "Der Stecker stößt mit einem Ende an die Aufnahme. Beim Speichern bekommt die Aufnahme je Nase einen "
+            "Schlitz (Rechteck mit Spiel), das Ende des Steckers die Nasen; Schneidweg, Einstiche und die Länge des "
+            "Steckers werden neu gerechnet. Lage x und Seite: Mitte des Steckers auf der Aufnahme.",
+            schluessel="baugruppe_steckverbindungen"))
+        return w
+
+    def steck_neu(self, auf=None, st=None, **werte):
+        """Neue Steckverbindung (auf/st = Positions-IDs; ohne: markierte Teile bzw. die ersten beiden Rohre). Der
+        Stecker ist das zweite Teil. Ergebnis: Kennung oder None."""
+        if auf is None or st is None:
+            rohre = [t for t in self.teile if t.get("drin") and (self.profile.get(t["_q"].get("profil_id")) or {})
+                     .get("form") in steckverbindung.FORMEN]
+            mark = [self.teile[r] for r in self.teile_tab.markierte() if r < len(self.teile)]
+            wahl = [t for t in mark if t in rohre] if len(mark) == 2 else rohre[:2]
+            if len(wahl) < 2:
+                QMessageBox.information(self, "Steckverbindung", "Die Baugruppe braucht zwei Rohre (Quadrat-, "
+                                        "Rechteck- oder Rundrohr); im Reiter „Struktur und Teile“ zwei markieren.")
+                return None
+            auf, st = wahl[0]["_id"], wahl[1]["_id"]
+        teile = {t["_id"]: t["_q"] for t in self.teile}
+        v = steckverbindung.neu(teile[auf], teile[st], self._steck_profil(st) or {}, self._steck_einst(),
+                                **werte) if (self._steck_profil(st) or {}).get("form") in steckverbindung.FORMEN \
+            else dict(id=baugruppe.neue_id(), aufnahme=dict(id=auf), stecker=dict(id=st, ende=werte.get("ende") or "a"),
+                      anzahl=2, c=0.1, **{k: w for k, w in werte.items() if k in ("x", "seite") and w is not None})
+        self.bg["steckverbindungen"].append(self._steck_flach(v))
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        return v["id"]
+
+    def steck_alle(self, melden=True):
+        """„Alle Stöße stecken“: je Stoß der STEP-Messung (bg['stoesse']: Rohrende an Rohrwand, Körpernummern) eine
+        Verbindung mit Lage, Seite und Achswinkel aus der Datei. Gleiche Teile: Schlitze nur am ersten Körper der
+        Aufnahme, Nasen je Ende des Steckers nur einmal; schon vorhandene Verbindungen bleiben. Ergebnis: (neu,
+        übersprungen)."""
+        stoesse = [s_ for s_ in self.bg.get("stoesse") or () if isinstance(s_, dict)]
+        if not stoesse:
+            if melden:
+                QMessageBox.information(self, "Alle Stöße stecken", "Keine Stöße aus der STEP-Datei: Nur Baugruppen aus "
+                                        "dem STEP-Import (Häkchen „als Schweißbaugruppe“) kennen die Lage der Rohrenden. "
+                                        "Sonst mit „Steckverbindung hinzufügen“ anlegen.")
+            return 0, 0
+        besitzer = {}
+        for t in self.teile:
+            if t.get("drin") and (self._steck_profil(t["_id"]) or {}).get("form") in steckverbindung.FORMEN:
+                for k in self._netz(t["_id"]).get("koerper") or ():
+                    besitzer.setdefault(str(k), set()).add(t["_id"])
+        erster = {}                 # Aufnahme -> erster Körper (dort die Schlitze)
+        for s_ in sorted(stoesse, key=lambda x: (len(str(x.get("aufnahme"))), str(x.get("aufnahme")))):
+            ids = besitzer.get(str(s_.get("aufnahme"))) or ()
+            if len(ids) == 1:
+                erster.setdefault(next(iter(ids)), str(s_.get("aufnahme")))
+        vorhanden = self.bg["steckverbindungen"]
+        schlitze = {(z.get("_auf"), round(float(z.get("x") or 0)), str(z.get("seite") or ""))
+                    for z in vorhanden if z.get("_schlitze") is not False}
+        nasen = {(z.get("_st"), z.get("_ende")) for z in vorhanden if z.get("_nasen") is not False}
+        neu = weg = 0
+        for s_ in stoesse:
+            auf_, st_ = besitzer.get(str(s_.get("aufnahme"))) or (), besitzer.get(str(s_.get("stecker"))) or ()
+            ende = s_.get("ende") if s_.get("ende") in ("a", "b") else None
+            if len(auf_) != 1 or len(st_) != 1 or not ende or not isinstance(s_.get("z"), (int, float)):
+                weg += 1
+                continue
+            auf, st = next(iter(auf_)), next(iter(st_))
+            if self._steck_profil(auf).get("form") == "Rundrohr":
+                seite = skizze.winkel_text(s_["winkel"]) if isinstance(s_.get("winkel"), (int, float)) else None
+            else:
+                seite = steckverbindung.SEITE_STEP.get(s_.get("seite"))
+            x = round(float(s_["z"]), 1)
+            mit_schlitz = erster.get(auf) == str(s_.get("aufnahme")) and (auf, round(x), str(seite or "")) not in schlitze
+            mit_nasen = (st, ende) not in nasen
+            if not (mit_schlitz or mit_nasen):
+                continue
+            vid = self.steck_neu(auf, st, ende=ende, x=x, seite=seite)
+            z = vorhanden[-1]
+            w = s_.get("achswinkel")
+            if isinstance(w, (int, float)) and steckverbindung.WINKEL_MIN <= w < 89.5:
+                z["winkel"] = round(w, 1)
+            z["_schlitze"], z["_nasen"] = mit_schlitz, mit_nasen
+            schlitze.add((auf, round(x), str(seite or "")))
+            nasen.add((st, ende))
+            neu += 1 if vid else 0
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        if melden:
+            QMessageBox.information(self, "Alle Stöße stecken", f"{neu} Steckverbindung(en) angelegt"
+                                    + (f", {weg} Stoß/Stöße nicht zuordenbar (Teil fehlt in der Baugruppe oder ist "
+                                       "kein Rohr)" if weg else "") + ". Lage und Seite bitte prüfen.")
+        return neu, weg
+
+    def steck_tauschen(self, zeilen=None):
+        for r in zeilen if zeilen is not None else self.steck_tab.markierte():
+            z = self.bg["steckverbindungen"][r]
+            v = steckverbindung.tauschen(self._steck_daten(z), self._steck_profil(z.get("_auf")) or {},
+                                         self._steck_einst()) if self._steck_profil(z.get("_auf")) else None
+            if v:
+                self.bg["steckverbindungen"][r] = self._steck_flach(v)
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+
     # -------------------------------------------------------------- Stammdaten und Übersicht
     def _seite_stamm(self):
         w = QWidget()
@@ -811,6 +1144,11 @@ class BaugruppeDialog(QDialog):
         for n, f in getattr(self, "stamm_wahl", {}).items():
             if f.isChecked():
                 bg["stamm"][n] = True
+        bg["steckverbindungen"] = [self._steck_daten(v) for v in self.bg["steckverbindungen"]]
+        if not bg["steckverbindungen"]:
+            bg.pop("steckverbindungen")
+        if hasattr(self, "vk_auto"):
+            bg["stamm"]["vk_auto"] = self.vk_auto.isChecked()
         return bg
 
     def _position(self, bg=None):
@@ -835,9 +1173,10 @@ class BaugruppeDialog(QDialog):
 
     def _zuordnung(self, t):
         if not t.get("drin"):
-            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None)
+            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None, bg_gravur=None)
         return dict(bg_knoten=baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or ""), je_knoten=t.get("je") or 1,
-                    bg_hilfe=t.get("hilfe") or None)
+                    bg_hilfe=t.get("hilfe") or None,
+                    bg_gravur=float(t.get("gravur_h") or 0) if t.get("gravur") and gravierbar(t["_q"]) else 0.0)
 
     def _zeile_wert(self, art, z, was):
         r = next((x for x in (self.erg or {}).get("zeilen", ()) if x["art"] == art and x["id"] == z.get("id")), None)
@@ -872,6 +1211,9 @@ class BaugruppeDialog(QDialog):
         return ""
 
     def aktualisieren(self, *_):
+        if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
+                and not self.nur_lesen:
+            self._vk_timer.start()      # Vorkalkulation automatisch: nach der Eingabe neu vorschlagen
         bg = self.daten()
         p = self._position(bg)
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze)
@@ -965,9 +1307,33 @@ class BaugruppeDialog(QDialog):
 
     def vorkalkulation(self):
         """Vorschläge rechnen (Knopf 'Vorkalkulation rechnen'): Heftpunkte und Nacharbeit der Nahtgruppen, Arbeitsgänge
-        Rüsten, Positionieren, Wenden, Verputzen; Werte von Hand und bestätigte bleiben. Ergebnis: vorkalk-Ergebnis."""
+        Rüsten, Positionieren, Wenden, Verputzen; Werte von Hand und bestätigte bleiben. Mit 'Vorkalkulation
+        automatisch' vorher alle Nahtvorschläge aus dem STEP als Nahtgruppen (a-Maß nach Regel). Ergebnis:
+        vorkalk-Ergebnis."""
         if self.nur_lesen:
             return None
+        self._vk_timer.stop()
+        self._vk_laeuft = True
+        try:
+            return self._vorkalkulation()
+        finally:
+            self._vk_laeuft = False
+
+    def _vk_nach_eingabe(self):
+        """Vorkalkulation automatisch nach einer Eingabe; solange in Nahtgruppen oder Arbeitsgängen getippt wird,
+        warten (die Tabellen werden dabei neu aufgebaut)."""
+        f = QApplication.focusWidget()
+        if f is not None and any(t.isAncestorOf(f) for t in (self.naht_tab, self.ag_tab)):
+            self._vk_timer.start()
+            return
+        self.vorkalkulation()
+
+    def _vorkalkulation(self):
+        n_neu = 0
+        if self.vk_auto.isChecked() and self.bg.get("vorschlaege"):
+            verfahren = next((v for _, v in self._verfahren_optionen() if v), None)
+            n_neu = baugruppe.vorschlaege_anlegen(self.bg, self._regel_faktor(), verfahren)
+            self._vorschlaege_zeigen()
         p = self._position()
         r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen)
         neu = {n.get("id"): n for n in r["bg"]["naehte"]}
@@ -986,6 +1352,7 @@ class BaugruppeDialog(QDialog):
         self.ag_tab.aufbauen()
         self.aktualisieren()
         teile = [f"Vorkalkulation: {len(r['aenderungen'])} Änderung(en)"
+                 + (f", {n_neu} Nahtgruppe(n) aus den STEP-Vorschlägen" if n_neu else "")
                  + (", Werte noch Richtwerte" if r["richtwert"] else "")]
         teile += r["hinweise"]
         self.vk_info.setText(" · ".join(teile))
@@ -1017,7 +1384,7 @@ class BaugruppeDialog(QDialog):
         return x["werte"] if x else {}
 
     # -------------------------------------------------------------- Strukturbaum und 3D (D1)
-    BAUM = 5                    # Index des Reiters
+    BAUM = 6                    # Index des Reiters
 
     def _seite_baum(self):
         w = QWidget()
@@ -1032,13 +1399,35 @@ class BaugruppeDialog(QDialog):
         ll.addWidget(hilfe.Hinweis(
             "Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt die Teile in der 3D-Ansicht blau "
             "hervor. Ein Einzelteil auf eine andere (Unter-)Baugruppe ziehen ändert seine Zuordnung; die Stück je "
-            "Baugruppe bleiben, wenn es aufgeht.", schluessel="baugruppe_baum"))
+            "Baugruppe bleiben, wenn es aufgeht. Naht zeichnen: Punkte entlang der Naht am Modell anklicken, dann als "
+            "Nahtgruppe übernehmen.", schluessel="baugruppe_baum"))
         self.baum_rechts = QWidget()
         self.baum_rechts_lay = QVBoxLayout(self.baum_rechts)
         self.baum_rechts_lay.setContentsMargins(0, 0, 0, 0)
         self.baum_info = QLabel()
         self.baum_info.setWordWrap(True)
         self.baum_rechts_lay.addWidget(self.baum_info)
+        # Naht im 3D von Hand zeichnen (N2): Punkte am Modell anklicken, Länge und Teile ermittelt das Programm
+        self.zeichnen_leiste = QWidget()
+        zl = QHBoxLayout(self.zeichnen_leiste)
+        zl.setContentsMargins(0, 0, 0, 0)
+        self.zeichnen_knopf = QPushButton("Naht zeichnen")
+        self.zeichnen_knopf.setCheckable(True)
+        self.zeichnen_knopf.setToolTip("Punkte entlang der Naht am Modell anklicken (fängt die nächste Ecke); "
+                                       "danach als Nahtgruppe übernehmen")
+        self.zeichnen_knopf.toggled.connect(self.naht_zeichnen)
+        self.zeichnen_art = QComboBox()
+        self.zeichnen_art.addItems(NAHTARTEN)
+        self.zeichnen_zurueck = QPushButton("Punkt zurück")
+        self.zeichnen_zurueck.clicked.connect(lambda: self.ansicht3d and self.ansicht3d.ansicht.punkt_zurueck())
+        self.zeichnen_ok = QPushButton("Als Nahtgruppe übernehmen")
+        self.zeichnen_ok.clicked.connect(lambda: self.naht_aus_punkten())
+        self.zeichnen_text = QLabel()
+        for x in (self.zeichnen_knopf, self.zeichnen_art, self.zeichnen_zurueck, self.zeichnen_ok):
+            zl.addWidget(x)
+        zl.addWidget(self.zeichnen_text, 1)
+        self.zeichnen_leiste.setVisible(False)
+        self.baum_rechts_lay.addWidget(self.zeichnen_leiste)
         teil.addWidget(links)
         teil.addWidget(self.baum_rechts)
         teil.setSizes([540, 760])
@@ -1109,6 +1498,9 @@ class BaugruppeDialog(QDialog):
             from .ansicht3d import Ansicht3DMitKnoepfen
             self.ansicht3d = Ansicht3DMitKnoepfen()
             self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
+            self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
+            self.zeichnen_leiste.setVisible(not self.nur_lesen)
+            self._zeichnen_stand()
         self.baum_gewaehlt()
 
     def _gewaehlte_teile(self, daten):
@@ -1161,13 +1553,15 @@ class BaugruppeDialog(QDialog):
     def zeige_3d(self, hervor=(), text="", naht=None):
         """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau,
         dazu die Schweißnähte (naht = ID der gewählten Nahtgruppe, rot). Ergebnis: Anzahl gezeigter Körper."""
-        netze, besitzer, farbe = [], [], []
+        netze, besitzer, farbe, koerper = [], [], [], []
         for n, t in enumerate(x for x in self.teile if x.get("drin")):
             netz = self._netz(t["_id"])
-            for lage in netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else []):
+            nummern = netz.get("koerper") or []
+            for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
                 netze.append(dict(netz, lage=lage))
                 besitzer.append(t["_id"])
                 farbe.append(n)
+                koerper.append(nummern[j] if j < len(nummern) else None)
         n_teile = sum(1 for t in self.teile if t.get("drin"))
         ohne = n_teile - len(set(besitzer))
         if self.ansicht3d is None:
@@ -1175,7 +1569,10 @@ class BaugruppeDialog(QDialog):
                                    "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
             return 0
         from .ansicht3d import baugruppe as zusammen
-        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe)
+        bereiche = []
+        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe, bereiche=bereiche)
+        self._koerper_3d = [(besitzer[nr], koerper[nr], netz["p"], von, bis, dreiecke)
+                            for nr, von, bis, dreiecke in bereiche] if netz else []
         info = f"{len(netze)} Körper in Einbaulage, {text}."
         if netz:
             linien = self.naht_linien(naht)
@@ -1185,13 +1582,114 @@ class BaugruppeDialog(QDialog):
             if linien:
                 info += " Schweißnähte schwarz, Vorschläge magenta, gewählte Naht rot."
             if ohne_verlauf:
-                info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (von Hand "
-                         "angelegt oder älterer STEP-Import: neu importieren).")
+                info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (im Reiter "
+                         "Nahtgruppen angelegt oder älterer STEP-Import: neu importieren oder im 3D zeichnen).")
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten fehlen."
+        weniger = self.weniger_im_3d(besitzer)
+        if weniger:
+            info += (" Nicht alle Stück im 3D (die STEP-Datei enthält weniger Körper, z. B. Menge von Hand erhöht oder "
+                     "Unterbaugruppe aus eigener Datei): " + "; ".join(weniger) + ".")
         self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
         self.baum_info.setText("")
         return len(netze)
+
+    def weniger_im_3d(self, besitzer):
+        """Teile, die öfter in der Baugruppe stecken, als die 3D-Ansicht Körper hat: ['Pos. 10 …: 1 von 4 Stück']."""
+        out = []
+        for t in self.teile:
+            if not t.get("drin") or t["_id"] not in besitzer:
+                continue
+            soll = (t.get("je") or 1) * (baugruppe.faktor(self.bg, t.get("knoten") or "") or 1)
+            ist = besitzer.count(t["_id"])
+            if ist < soll:
+                out.append(f"{self._teil_titel(t['_q'])}: {ist} von {soll} Stück")
+        return out
+
+    # -------------------------------------------------------------- Naht im 3D zeichnen (N2)
+    def naht_zeichnen(self, an):
+        """Zeichenmodus der 3D-Ansicht an/aus: Klicks setzen Punkte eines Linienzugs (fängt die nächste Ecke)."""
+        if self.ansicht3d is not None:
+            self.ansicht3d.ansicht.messen_setzen(bool(an), punkte=0)
+        if self.zeichnen_knopf.isChecked() != bool(an):
+            self.zeichnen_knopf.setChecked(bool(an))
+        self._zeichnen_stand()
+
+    def _zeichnen_stand(self):
+        a = self.ansicht3d.ansicht if self.ansicht3d is not None else None
+        n = len(a.messpunkte) if a is not None and a.messen else 0
+        self.zeichnen_zurueck.setEnabled(n > 0)
+        self.zeichnen_ok.setEnabled(n > 1)
+        self.zeichnen_text.setText(f"{n} Punkt{'e' if n != 1 else ''}, {zahl_als_text(round(a.abstand(), 1))} mm"
+                                   if n > 1 else f"{n} Punkt" if n else "")
+
+    def teile_an(self, punkte, toleranz=NAHT_TOLERANZ):
+        """Körper, die alle Punkte berühren (Abstand zur Oberfläche ≤ toleranz mm): [(Positions-ID, Körpernummer)],
+        nächste zuerst."""
+        treffer = []
+        for pid, kn, p, von, bis, dreiecke in getattr(self, "_koerper_3d", []):
+            box = [(min(p[3 * von + k:3 * bis:3]) - toleranz, max(p[3 * von + k:3 * bis:3]) + toleranz)
+                   for k in range(3)]
+            if any(not all(box[k][0] <= q[k] <= box[k][1] for k in range(3)) for q in punkte):
+                continue
+            abstand = max(_abstand_flaeche(q, p, dreiecke) for q in punkte)
+            if abstand <= toleranz:
+                treffer.append((abstand, pid, kn))
+        return [(pid, kn) for _, pid, kn in sorted(treffer, key=lambda x: x[0])]
+
+    def _gemeinsamer_knoten(self, knoten):
+        """Unterste (Unter-)Baugruppe, die alle knoten enthält ('' = Baugruppe)."""
+        def kette(k):
+            out = [k]
+            while k:
+                k = next((x.get("parent") or "" for x in self.bg["knoten"] if x["id"] == k), "")
+                out.append(k)
+            return out
+        ketten = [kette(k or "") for k in knoten]
+        if not ketten:
+            return ""
+        return next((k for k in ketten[0] if all(k in c for c in ketten[1:])), "")
+
+    def _wand(self, pids):
+        """Kleinste Wanddicke der Teile pids aus den Profilen (Stammdaten) oder None."""
+        if self.db is None:
+            return None
+        ids = {str(t["_q"].get("profil_id")) for t in self.teile if t["_id"] in pids and t["_q"].get("profil_id")}
+        werte = [z["wand"] for z in self.db.zeilen("profile")
+                 if str(z.get("profil_id")) in ids and isinstance(z.get("wand"), (int, float)) and z["wand"] > 0]
+        return min(werte) if werte else None
+
+    def naht_aus_punkten(self, punkte=None, nahtart=None):
+        """Nahtgruppe aus einem im 3D gezeichneten Linienzug (punkte, sonst die geklickten): Länge = Länge des Zugs,
+        Teile = Körper, die den ganzen Zug berühren, Unterbaugruppe = gemeinsame der Teile, Dicke = dünnste Wand.
+        Ergebnis: ID der Nahtgruppe oder None (weniger als 2 Punkte)."""
+        if punkte is None:
+            punkte = self.ansicht3d.ansicht.messpunkte if self.ansicht3d is not None else []
+        punkte = [tuple(q) for q in punkte]
+        if len(punkte) < 2 or self.nur_lesen:
+            return None
+        laenge = sum(math.dist(a, b) for a, b in zip(punkte, punkte[1:]))
+        teile = self.teile_an(punkte)
+        pids = {pid for pid, _ in teile}
+        knoten = self._gemeinsamer_knoten([next((t.get("knoten") or "" for t in self.teile if t["_id"] == pid), "")
+                                           for pid in pids])
+        werte = dict(knoten=knoten, nahtart=nahtart or self.zeichnen_art.currentText(), laenge=round(laenge, 1),
+                     anzahl=1, quelle="3D", linien=[[round(v, 1) for q in punkte for v in q]])
+        if teile and all(kn is not None for _, kn in teile):
+            werte["koerper"] = sorted({str(kn) for _, kn in teile})
+        wand = self._wand(pids)
+        if wand:
+            werte["dicke"] = wand
+            if werte["nahtart"] != "Kehlnaht":
+                werte["mass"] = wand
+        nid = self.naht_neu(werte)
+        if self.ansicht3d is not None:
+            self.ansicht3d.ansicht.messen_setzen(self.zeichnen_knopf.isChecked(), punkte=0)
+        self.baum_aufbauen()
+        if ("naht", nid) in self.baum_items:
+            self.baum.setCurrentItem(self.baum_items[("naht", nid)])
+        self._zeichnen_stand()
+        return nid
 
     def teil_verschieben(self, pid, knoten):
         """Einzelteil pid in die (Unter-)Baugruppe knoten ('' = Baugruppe selbst) legen (Ziehen im Baum). Stück je
@@ -1287,12 +1785,18 @@ class BaugruppeDialog(QDialog):
 
     def pruefen(self):
         """Fehlertext (ungültige Zahlen, Struktur), sonst None."""
-        for tab in (self.knoten_tab, self.teile_tab, self.naht_tab, self.ag_tab):
+        for tab in (self.knoten_tab, self.teile_tab, self.naht_tab, self.ag_tab, self.steck_tab):
             if tab.ungueltig:
                 return "Bitte nur Zahlen eintragen (rot markierte Felder)."
         fehler = baugruppe.struktur_fehler(self.bg)
         if fehler:
             return fehler
+        if any(t.get("drin") and t.get("gravur") and not 1 <= (t.get("gravur_h") or 0) <= 200 for t in self.teile):
+            return "Schrifthöhe der Gravur zwischen 1 und 200 mm eingeben."
+        for n, v in enumerate(self.bg["steckverbindungen"], 1):
+            f = self._steck_fehler(v)
+            if f:
+                return f"Steckverbindung {n}: {f}"
         for liste in (self.bg["naehte"], self.bg["arbeitsgaenge"]):
             for x in liste:
                 for k, v in x.items():
@@ -1307,6 +1811,8 @@ class BaugruppeDialog(QDialog):
         if f:
             self.fehler.setText(f)
             return
+        if self.vk_auto.isChecked():
+            self.vorkalkulation()
         self.ergebnis = self.werte()
         self.accept()
 
@@ -1324,7 +1830,8 @@ class BaugruppeDialog(QDialog):
         for t in self.teile:
             neu = self._zuordnung(t)
             q = t["_q"]
-            if any(w != (q.get(k) or None) for k, w in neu.items()):
+            if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
+        weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
         return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel")},
-                    teile=teile)
+                    teile=teile, stecken=dict(weg=weg, dazu=dazu))

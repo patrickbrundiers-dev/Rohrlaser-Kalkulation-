@@ -12,7 +12,7 @@ from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, Q
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
 from . import biegerohr, rechnen, skizze as sk
-from .schneidweg import GRAVUR, MASSE, POLYGON, _z
+from .schneidweg import GRAVUREN, MASSE, POLYGON, _z
 
 ANSICHTEN, ABWICKLUNG = "Draufsicht und Seitenansicht", "Abwicklung"
 MODI = (ANSICHTEN, ABWICKLUNG)
@@ -264,7 +264,7 @@ class Skizze(QWidget):
                     g.save()
                     oben_, unten_ = self._bild(a, 0, 0), self._bild(a, self.L, qs.umfang)
                     g.setClipRect(QRectF(0, oben_.y(), self.width(), unten_.y() - oben_.y()))
-                    farbe = FARBE_GRAVUR if d["art"] == GRAVUR else FARBE_KONTUR
+                    farbe = FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
                     g.setPen(QPen(farbe, 1.3))
                     g.setBrush(Qt.NoBrush)
                     for k_ in (-1, 1):
@@ -280,7 +280,7 @@ class Skizze(QWidget):
                     if sicht < 0.12:
                         continue
                     wahl = d["zeile"] == self.markiert and not self.druck
-                    farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] == GRAVUR else FARBE_KONTUR
+                    farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
                     g.setPen(QPen(farbe, 2.2 if wahl else 1.3))
                     for i in range(len(pts3)):
                         j = (i + 1) % len(pts3)
@@ -296,13 +296,13 @@ class Skizze(QWidget):
                 if abs(sicht) < 0.12:
                     continue                # Fläche von der Kante gesehen
             wahl = d["zeile"] == self.markiert and not self.druck
-            farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] == GRAVUR else FARBE_KONTUR
+            farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
             if d.get("verteilt"):
                 farbe = QColor(farbe).lighter(135)
             stift = QPen(farbe, 2.2 if wahl else 1.3, Qt.SolidLine if sicht > 0 else Qt.DashLine)
             g.setPen(stift)
             g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 and
-                       d["art"] != GRAVUR else Qt.NoBrush)
+                       d["art"] not in GRAVUREN else Qt.NoBrush)
             r = poly.boundingRect()
             if r.width() < 3 and r.height() < 3:
                 g.drawEllipse(r.center(), 2.5, 2.5)
@@ -367,7 +367,7 @@ class Skizze(QWidget):
         def p(u, v):
             return QPointF(c.x() + u * m, c.y() - v * m)
         pfad = QPainterPath()
-        for poly in qs.umriss:
+        for poly in qs.umriss_rund():
             pfad.addPolygon(QPolygonF([p(u, v) for u, v in poly] + [p(*poly[0])]))
         pfad.setFillRule(Qt.OddEvenFill)
         g.setPen(QPen(FARBE_TEIL, 1.2))

@@ -43,8 +43,25 @@ def nah(a, b, tol=0.05):
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
 db.neu("profile", dict(profil_id="IPE 200", form="I-/H-Träger", a=200, b=100, wand=5.6))
+QR_N = dict(db.kontext().profile["QR 40x40x3"])     # Außenradius leer = Vorgabe nach Norm (2 × Wand = 6 mm)
+for z in db.zeilen("profile"):              # die Formeln unten scharfkantig (Außenradius 0)
+    if z["form"] in ("Quadratrohr", "Rechteckrohr"):
+        db.aendern("profile", z["id"], "r_aussen", 0)
 k = db.kontext()
 RR, QR, RE, IPE = (k.profile[n] for n in ("RR 42,4x2,0", "QR 40x40x3", "RE 60x40x3", "IPE 200"))
+
+# ------------------------------------------------------------------ Außenradius (Quadrat-/Rechteckrohr)
+assert opt.aussenradius("Quadratrohr", 40, 40, 3) == 6 and opt.aussenradius("Rechteckrohr", 100, 50, 8) == 20
+assert opt.aussenradius("Rechteckrohr", 200, 100, 12) == 36 and opt.aussenradius("Quadratrohr", 40, 40, 3, 0) == 0
+assert opt.aussenradius("Quadratrohr", 20, 20, 8) == 10 and opt.aussenradius("Rundrohr", 40, None, 3) == 0
+assert nah(sw.ende(QR_N)[0], 160 - (8 - 2 * math.pi) * 6, 1e-6)
+ecken = sw.ellipse(6, 6 / math.cos(math.radians(45)))       # vier Viertelkreise auf der schrägen Ebene
+assert nah(sw.ende(QR_N, 45)[0], 2 * 28 / math.cos(math.radians(45)) + 2 * 28 + ecken, 1e-6)
+assert nah(sw.ende(dict(QR_N, r_aussen=4))[0], 160 - (8 - 2 * math.pi) * 4, 1e-6)
+assert nah(sw.ende(sw.mit_radius(QR_N, dict(r_aussen=0)))[0], 160, 1e-9)
+assert "r_aussen" not in json.loads(sw.speichern(dict(sw.lesen(None), r_aussen=3)))
+assert nah(sw.rechnen(dict(sw.lesen(None), r_aussen=0), QR_N, (10, 50))["felder"]["a_schnitt"], 160)
+ok("Außenradius: Vorgabe nach EN 10219, Schnittlänge gerade und schräg, Wert des Rechners, nicht in technik")
 
 # ------------------------------------------------------------------ S1 Enden
 assert nah(sw.ende(RR)[0], math.pi * 42.4) and sw.ende(RR)[0] == opt.schnittlaenge("Rundrohr", 42.4, None, 2.0, None)
@@ -135,6 +152,28 @@ assert s.schneidweg_berechnen(2, EIN) is False                                  
 assert s.schneidweg_berechnen(0, dict(a={}, b={}, konturen=[dict(art="Bohrung", anzahl=1)])) is False
 assert db.positionen(a)[0]["schneidweg"] == f["schneidweg"]                      # Fehler: nichts geändert
 ok("S4 Übernahme: Felder der Position, Schneidzeit aus Schneiddaten, Eingaben gespeichert, STEP-Werte nur nach Rückfrage")
+
+# Außenradius gilt im Angebot für Profil + Werkstoff: der Rechner von Pos. 10 rechnet Pos. 20 mit
+r4 = 160 - (8 - 2 * math.pi) * 4
+assert s.schneidweg_berechnen(0, dict(EIN, r_aussen=4))
+assert s.kopf["radien"] == db.angebot(a)["radien"] == {"QR 40x40x3|S235-10219": 4.0}, db.angebot(a)["radien"]
+p0, p1 = db.positionen(a)[:2]
+assert nah(p0["b_schnitt"], r4, 0.05) and nah(p1["b_schnitt"], r4, 0.05), (p0["b_schnitt"], p1["b_schnitt"])
+assert "r_aussen" not in sw.lesen(p0["technik"]) and rechnen.radius_angebot(s.kopf, "QR 40x40x3", "S235-10219") == 4
+assert rechnen.radius_angebot(s.kopf, "QR 40x40x3", "S355-10219") is None              # anderer Werkstoff: eigener
+assert db.angebot(db.angebot_kopieren(a))["radien"] == {"QR 40x40x3|S235-10219": 4.0}
+assert s.schneidweg_berechnen(0, dict(EIN, r_aussen=0)) and db.positionen(a)[1]["b_schnitt"] == 160
+ok("Außenradius im Angebot je Profil + Werkstoff: gespeichert, gleiche Positionen neu gerechnet, beim Kopieren dabei")
+# Aluminium: ohne Angebot und Stammdaten scharfkantig (0), sonst gilt, was festgelegt ist
+norm_qr = dict(s.k.profile["QR 40x40x3"], r_aussen=None)
+assert rechnen.profil_im_angebot(norm_qr, None, "QR 40x40x3", "AW6060-T66", s.k)["r_aussen"] == 0
+assert rechnen.profil_im_angebot(norm_qr, None, "QR 40x40x3", "S235-10219", s.k)["r_aussen"] is None
+assert rechnen.profil_im_angebot(dict(norm_qr, r_aussen=2), None, "QR 40x40x3", "AW6060-T66", s.k)["r_aussen"] == 2
+assert rechnen.profil_im_angebot(norm_qr, dict(radien={"QR 40x40x3|AW6060-T66": 3}), "QR 40x40x3", "AW6060-T66",
+                                 s.k)["r_aussen"] == 3
+assert sw.radius(rechnen.profil_im_angebot(norm_qr, None, "QR 40x40x3", "AW6060-T66", s.k)) == 0
+assert sw.radius(norm_qr) > 0
+ok("Außenradius bei Aluminium: Vorgabe 0 (scharfkantig), Stammdaten und Angebot gehen vor")
 
 # ------------------------------------------------------------------ S5 Dialog
 gesehen = {}

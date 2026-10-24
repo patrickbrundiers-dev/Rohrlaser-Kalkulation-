@@ -220,6 +220,49 @@ def passt(eingaben, r):
     return ist == soll
 
 
+def nachfuehren(eingaben, profil):
+    """Block 'knickrahmen' passend zu den V-Ausschnitten der Eingaben, wenn diese von Hand geändert wurden (verschoben
+    im Teile-Editor, Knickwinkel, Stegwand oder Freistich in der Tabelle): Schenkel aus der Lage der Knicke, die
+    gestreckte Länge bleibt (der letzte Schenkel gleicht aus). Ergebnis neuer Block oder None (passt schon, kein
+    Rahmen oder nicht nachführbar: andere Zahl der Knicke, Muster, verschiedene Stegwände, unmöglicher Rahmen)."""
+    k = lesen(eingaben)
+    if not k:
+        return None
+    try:
+        r = rahmen(k, profil)
+    except ValueError:
+        return None
+    if passt(eingaben, r):
+        return None
+    zeilen = [z for z in eingaben.get("konturen") or () if z.get("art") == "V-Ausschnitt"]
+    if len(zeilen) != len(r["knicke"]) or any(int(_z(z.get("anzahl")) or 0) != 1 or z.get("x") is None
+                                              for z in zeilen):
+        return None
+    zeilen.sort(key=lambda z: _z(z["x"]))
+    stege = {z.get("seite") or "oben" for z in zeilen}
+    freistiche = {round(_z(z.get("freistich")), 3) for z in zeilen}
+    if len(stege) != 1 or len(freistiche) != 1:
+        return None
+    steg = stege.pop()
+    try:
+        s = querschnitt(profil, steg)[2]
+        betas = [_beta(z.get("beta")) for z in zeilen]
+    except ValueError:
+        return None
+    netto = [ausgleich(be, s, r["k"]) - r["z"] for be in betas]
+    xs = [_z(z["x"]) for z in zeilen]
+    schenkel = [xs[0] + netto[0] / 2]
+    schenkel += [xs[i] - xs[i - 1] + netto[i - 1] / 2 + netto[i] / 2 for i in range(1, len(xs))]
+    schenkel.append(r["laenge"] - xs[-1] + netto[-1] / 2)
+    neu = dict(k, schenkel=[round(a, 2) for a in schenkel], beta=betas if len(set(betas)) > 1 else betas[0],
+               steg=steg, freistich=freistiche.pop() or 0.0)
+    try:
+        rahmen(neu, profil)
+    except ValueError:
+        return None
+    return neu
+
+
 def anzahl(eingaben):
     """Zahl der V-Ausschnitte (Knicke) je Teil in den Eingaben."""
     return sum(int(_z(z.get("anzahl")) or 0) for z in (eingaben or {}).get("konturen") or ()

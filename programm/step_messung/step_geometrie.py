@@ -144,6 +144,7 @@ class Teil:
     kontur_umfang: float = 0.0
     verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
     biegerohr: dict = None      # Biegerohr (step_biegerohr): Mittellinie, Elemente, LRA, XYZ; sonst None
+    knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
 
     @property
     def pruefstatus(self):
@@ -2713,6 +2714,13 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         b = None
     if b is not None:
         return b
+    try:        # Knickrahmen aus einem Körper (Plan K1-3): in gerade Stücke mit Gehrung teilen, je Stück messen
+        from step_knickrahmen import messen as knickrahmen_messen
+        b = knickrahmen_messen(solid, datei, koerper, netz)
+    except Exception:  # Knickrahmen-Erkennung darf die übrige Messung nie verhindern
+        b = None
+    if b is not None:
+        return b
     p = GProp_GProps()
     BRepGProp.VolumeProperties_s(solid, p)
     volumen = abs(p.Mass())
@@ -3330,14 +3338,15 @@ def _naht_linie(c, laenge):
     return out
 
 
-def _nahtkandidaten(teile, koerper, struktur=None):
+def _nahtkandidaten(teile, koerper, struktur=None, rahmen=None):
     """Mögliche Schweißnähte einer Baugruppe: je Paar sich berührender Volumenkörper ein Kandidat
     {teile [a, b] (Körpernummern), knoten, laenge_mm, stossart, dicke_mm, status 'prüfen', linien (Nahtverlauf:
     je Kante des längsten Berührungszugs ein Linienzug in Dateilage)}. Länge = Schnittlänge
     des Rohrendes, das auf dem anderen Teil sitzt, sonst längster Linienzug der Berührung (Umfang der
     Kontaktfläche); Stoßart: Rohrende an Rohrende in einer
     Flucht = Stumpfnaht, Enden über Eck (Gehrung) = Ecknaht, sonst Kehlnaht; Dicke = dünnere Wand bzw. Blechdicke.
-    Nur Vorschlag: übernommen wird erst nach Bestätigung (Schweißbaugruppen)."""
+    Nur Vorschlag: übernommen wird erst nach Bestätigung (Schweißbaugruppen). Sitzt genau ein Rohrende auf einem
+    anderen Rohr, beschreibt "stoss" die Lage (_stoss; rahmen(t) wie bei _beruehrende_anbauteile)."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Section
     from OCP.BRepExtrema import BRepExtrema_DistShapeShape
     koerper_ = [(t, k) for t, (art, k) in zip(teile, koerper) if art != "Flächenmodell offen" and t.koerper]
@@ -3400,10 +3409,43 @@ def _nahtkandidaten(teile, koerper, struktur=None):
                      for x in [t.ende_a if e == "A" else t.ende_b] if isinstance(x, (int, float)) and x > 0]
             laenge = min(enden) if enden else max(laengen)
             dicken = [d for d in (_naht_dicke(ta), _naht_dicke(tb)) if d]
-            out.append(dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
-                            laenge_mm=round(laenge, 1), stossart=stossart,
-                            dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
-                            linien=zuege[laengen.index(max(laengen))]))
+            k_ = dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
+                      laenge_mm=round(laenge, 1), stossart=stossart,
+                      dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
+                      linien=zuege[laengen.index(max(laengen))])
+            if stossart == "Kehlnaht" and bool(ea) != bool(eb):
+                try:
+                    st = _stoss(tb if eb else ta, eb or ea, ta if eb else tb, mitte, rahmen)
+                except Exception:  # Lage des Stoßes ist nur ein Vorschlag: nie die Nahtkandidaten verhindern
+                    st = None
+                if st:
+                    k_["stoss"] = st
+            out.append(k_)
+    return out
+
+
+def _stoss(st, ende, auf, mitte, rahmen=None):
+    """Rohrende an Rohrwand (Stecker an Aufnahme, für Steckverbindungen, STEP-JSON 1.18): {stecker, ende ('a'/'b'),
+    aufnahme (Körpernummern), z (Mitte des Kontakts auf der Aufnahme ab Ende A), seite ('0°', '90°', … der Aufnahme,
+    Kastenprofil) bzw. winkel (Umfangswinkel, Rundrohr), achswinkel (90 = senkrecht)} oder None (kein Rohr)."""
+    if not (_ist_rohr(st) and _ist_rohr(auf)) or not auf.achse_global or not st.achse_global or not auf.laenge:
+        return None
+    r = auf._rahmen if getattr(auf, "_rahmen", None) is not None else (rahmen(auf) if rahmen else None)
+    if r is None:
+        return None
+    tr = gp_Trsf()
+    tr.SetTransformation(_rohr_ax3(auf))
+    q = gp_Pnt(*mitte).Transformed(tr)
+    if not -1 <= q.Z() <= auf.laenge + 1:
+        return None
+    theta = r["abw"].theta(q.X(), q.Y())
+    cos = min(1.0, abs(sum(x * y for x, y in zip(st.achse_global, auf.achse_global))))
+    out = dict(stecker=st.koerper, ende=ende.lower(), aufnahme=auf.koerper, z=round(q.Z(), 1),
+               achswinkel=round(math.degrees(math.acos(cos)), 1))
+    if r["kasten"]:
+        out["seite"] = f"{round(theta / 90) % 4 * 90}°"
+    else:
+        out["winkel"] = round(theta % 360, 1)
     return out
 
 
@@ -3717,7 +3759,7 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
         except Exception:  # wie oben
             pass
         try:
-            naehte = _nahtkandidaten(out, koerper, info.get("struktur"))
+            naehte = _nahtkandidaten(out, koerper, info.get("struktur"), rahmen)
         except Exception:  # Nahtkandidaten sind ein Vorschlag: nie die Messung verhindern
             naehte = []
     for t in out:

@@ -50,9 +50,11 @@ BOHRUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON, SONSTIGE = ("Bohrung", "Langloch"
                                                           "sonstige Kontur")
 SENKUNG, AUSKLINKUNG, FLOWDRILL = "Senkung", "Ausklinkung", "Flowdrill"
 SONDERKONTUR, GRAVUR = "Sonderkontur", "Gravur"
+TEXT_GRAVUR = "Text-Gravur"             # Text (Spalte Bemerkung) in Einstrich-Schrift (gravur_text), z. B. Artikelnr.
+GRAVUREN = (GRAVUR, TEXT_GRAVUR)        # nur Gravur, nie im Schneidweg
 V_AUSSCHNITT = "V-Ausschnitt"           # Knickrahmen (knickrahmen.py): Seite = Stegwand, Maße aus dem Profil
 ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, SONDERKONTUR, SONSTIGE,
-         GRAVUR, V_AUSSCHNITT)
+         GRAVUR, TEXT_GRAVUR, V_AUSSCHNITT)
 MIT_UMRISS = (SONDERKONTUR, GRAVUR)     # Konturarten mit echtem Umriss (umriss, waende, tiefe)
 MIT_GEWINDE = (BOHRUNG, FLOWDRILL)      # Konturarten mit Spalte Gewinde (gewinde: fehlt = nach Kernloch, '' = keins)
 # Maße je Art: (Schlüssel, Titel) in der Eingabetabelle
@@ -66,6 +68,7 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"
          SONDERKONTUR: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
          SONSTIGE: (("laenge", "Schnittlänge"), ("huelle", "Hüllmaß")),
          GRAVUR: (("laenge", "Gravurlänge"),),
+         TEXT_GRAVUR: (("hoehe", "Schrifthöhe h"), ("winkel", "Winkel [°]")),
          V_AUSSCHNITT: (("beta", "Knickwinkel β [°]"), ("freistich", "Freistich-Ø (0 = ohne)"))}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
 # Schrägschnitt zweiachsig: die Schnittebene kippt über Höhe und Breite zugleich (winkel_h, winkel_b); winkel ist dann
@@ -109,18 +112,34 @@ def ellipse(a, b):
     return math.pi * (a + b) * (1 + 3 * h / (10 + math.sqrt(4 - 3 * h)))
 
 
+def radius(profil):
+    """Wirksamer Außenradius [mm] von Quadrat-/Rechteckrohr (Stammdaten bzw. Position, leer = Norm), sonst 0."""
+    return opt.aussenradius(profil.get("form"), _z(profil.get("a")), _z(profil.get("b")), _z(profil.get("wand")),
+                            profil.get("r_aussen"))
+
+
+def mit_radius(profil, eingaben):
+    """Profil mit dem Außenradius aus den Eingaben des Rechners (eingaben['r_aussen'], Zahl; beim Speichern wird er
+    zum Radius des Angebots für Profil + Werkstoff), sonst unverändert."""
+    r = (eingaben or {}).get("r_aussen")
+    if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 and profil.get("form") in opt.RADIUS_FORMEN:
+        return dict(profil, r_aussen=float(r))
+    return profil
+
+
 def zerlegung(profil):
     """Gerade Schnittlänge eines Profils (außer Rundrohr) als (Anteil Höhe H, Anteil Breite W) [mm], passend zu
     optimierung.schnittlaenge; None für unbekannte Formen. Höhe = Maß a, Breite = Maß b."""
     form, a, b = profil.get("form"), _z(profil.get("a")), _z(profil.get("b"))
     gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
-                               profil.get("profil_id"))
+                               profil.get("profil_id"), profil.get("r_aussen"))
     if gerade <= 0:
         return None
+    r = radius(profil)          # Rohre mit Außenradius: nur die geraden Stücke, die Ecken rechnet schraeg
     if form == "Quadratrohr":
-        return 2 * a, 2 * a
+        return 2 * (a - 2 * r), 2 * (a - 2 * r)
     if form == "Rechteckrohr":
-        return 2 * a, 2 * (b or a)
+        return 2 * (a - 2 * r), 2 * ((b or a) - 2 * r)
     if form in ("I-/H-Träger", "T-Profil", "U-Profil", "C-Profil", "L-Profil", "Flachstahl") and 0 < a <= gerade:
         return a, gerade - a           # Steg bzw. Schenkel a in der Höhe, der Rest (Flansche, Dicke) in der Breite
     return None
@@ -154,7 +173,7 @@ def schraeg(profil, th, tb):
     achsparallele Kanten); unbekannte Form: gerade Schnittlänge × √(1 + th² + tb²) (Schätzung)."""
     form, a = profil.get("form"), _z(profil.get("a"))
     gerade = opt.schnittlaenge(form, a, profil.get("b"), profil.get("wand"), flaeche_wirksam(profil),
-                               profil.get("profil_id"))
+                               profil.get("profil_id"), profil.get("r_aussen"))
     if not th and not tb:
         return gerade, False
     if form == "Rundrohr":
@@ -163,8 +182,10 @@ def schraeg(profil, th, tb):
     if rp:          # über Höhe = Maß A = Breite x des Querschnitts
         return rp_profile.schnitt_schraeg(rp, th, tb), False
     hw = zerlegung(profil)
-    if hw:
-        return hw[0] * math.sqrt(1 + th * th) + hw[1] * math.sqrt(1 + tb * tb), False
+    if hw:          # Ecken mit Radius: vier Viertelkreise auf der schrägen Ebene = eine Ellipse
+        r = radius(profil)
+        ecken = ellipse(r, r * math.sqrt(1 + th * th + tb * tb)) if r else 0.0
+        return hw[0] * math.sqrt(1 + th * th) + hw[1] * math.sqrt(1 + tb * tb) + ecken, False
     return gerade * math.sqrt(1 + th * th + tb * tb), True
 
 
@@ -538,6 +559,11 @@ def kontur(e):
         if lg <= 0:
             raise ValueError("Gravur: Gravurlänge fehlt.")
         return lg, None, n
+    if art == TEXT_GRAVUR:
+        from . import gravur_text
+        if _z(e.get("hoehe")) <= 0 or not str(e.get("text") or "").strip():
+            raise ValueError("Text-Gravur: Text und Schrifthöhe eingeben.")
+        return gravur_text.laenge(e["text"], _z(e["hoehe"])), None, n
     if art == V_AUSSCHNITT:
         from . import knickrahmen
         return (*knickrahmen.kontur(e), n)
@@ -553,8 +579,9 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     Ergebnis dict(schritte=[{text, anzahl, laenge_stueck, laenge, einstiche, huelle, klasse, schaetzung}],
     felder={Feldname der Position: Wert}, schneidweg, einstiche, schaetzung, fehler=[Texte]).
     gewinde = [(Gewinde, Kernloch-Ø)] aus den Stammdaten für den Gewinde-Vorschlag (leer: übliche Kernlöcher)."""
-    from . import knickrahmen as kn
+    from . import knickrahmen as kn, steckverbindung as sv
     from .rechnen import einstiche_ende, grenzen_text, kontur_klasse, konturen_text, konturklassen, zahl
+    profil = mit_radius(profil, eingaben)
     schritte, fehler, liste, enden, gehrung, richtung_fehlt = [], [], [], [], {}, []
     richtung_fehlt_text = []
     hinweise_3d, hinweise_ende = [], []
@@ -563,6 +590,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     form = profil.get("form")
     hk_ende = max(_z(profil.get("a")), _z(profil.get("b")))
     n_ende = einstiche_ende(form)
+    nasen_plus = 0.0
     for seite, titel in (("a", "Anfangsschnitt"), ("b", "Endschnitt")):
         e = eingaben.get(seite) or {}
         zwei = e.get("achse") == ACHSE_ZWEI
@@ -596,6 +624,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
                     hinweise_ende.append(f"{titel}: gemessen an einem anderen Querschnitt "
                                          f"({str(e.get('messprofil')).split('|')[0]}), Form {e.get('form') or '?'} "
                                          "nicht neu rechenbar: gemessene Länge gilt, bitte prüfen")
+        nb = sv.nasen(e)
+        if nb:                          # Steckverbindung: Nasen am Ende, je Nase zwei Flanken
+            lg += _z(nb.get("plus"))
+            gerade = False
+            text += (f", {int(_z(nb.get('anzahl')))} Nase{'n' if _z(nb.get('anzahl')) != 1 else ''} "
+                     f"{zahl(_z(nb.get('bN')), 1)} × {zahl(_z(nb.get('lN')), 1)} (Steckverbindung)")
+            nasen_plus += _z(nb.get("laenge_plus"))
         if mit_3d and e.get("d3") and w and not sat:
             v, h_ = dreid.gehrung_begrenzen(w, maschine)
             text += f", in 3D (Kopf {zahl(v, 1)}°)"
@@ -658,11 +693,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
             masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
             if h_:
                 hinweise_3d.append(f"Bohrung Ø {zahl(_z(e.get('d')), 2)}: {h_} Die Bohrung ist dann nicht maßhaltig.")
-        if e.get("art") == GRAVUR:         # nicht im Schneidweg: zählt zur Gravurlänge
+        if e.get("art") in GRAVUREN:       # nicht im Schneidweg: zählt zur Gravurlänge
             gravur_zeilen += n * lg
-            schritte.append(dict(text=f"{n} × {GRAVUR} {masse} (nicht im Schneidweg)" +
+            schritte.append(dict(text=f"{n} × {e['art']} {masse} (nicht im Schneidweg)" +
                                  (f" ({e['text']})" if e.get("text") else ""), anzahl=n, laenge_stueck=0.0, laenge=0.0,
-                                 einstiche=0, huelle=None, klasse="Gravur", schaetzung=False, gerade=None, art=GRAVUR,
+                                 einstiche=0, huelle=None, klasse="Gravur", schaetzung=False, gerade=None, art=e["art"],
                                  eingabe=e))
             continue
         if e.get("art") == FLOWDRILL:      # nicht im Schneidweg: Markierung kommt über das Bohrbild dazu
@@ -722,6 +757,9 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
         hinweise_ende.append(f"{bleibt} Kontur{'en' if bleibt > 1 else ''} an einem anderen Querschnitt gemessen und "
                              "nicht umrechenbar: gemessene Länge gilt, bitte prüfen (gelb)")
     hinweise += hinweise_ende + hinweise_3d
+    if nasen_plus:
+        hinweise.append(f"Steckverbindung: Nasen am Ende, das Teil ist {zahl(nasen_plus, 1)} mm länger als bis zum "
+                        "Stoß (in der Teilelänge enthalten)")
     laenge = None
     k = kn.lesen(eingaben)
     if k:                               # Knickrahmen: gestreckte Länge aus den Schenkeln
@@ -814,8 +852,9 @@ def v_ergaenzen(eingaben, profil):
 
 
 def speichern(eingaben):
-    """Eingaben als JSON für positionen.technik (mit Quelle)."""
-    return json.dumps(dict(eingaben, quelle=QUELLE), ensure_ascii=False)
+    """Eingaben als JSON für positionen.technik (mit Quelle). Der Außenradius gehört dem Angebot (angebote.radien,
+    je Profil + Werkstoff) und wird nicht je Position gespeichert."""
+    return json.dumps({k: v for k, v in dict(eingaben, quelle=QUELLE).items() if k != "r_aussen"}, ensure_ascii=False)
 
 
 def angenommene_richtung(profil, achse):

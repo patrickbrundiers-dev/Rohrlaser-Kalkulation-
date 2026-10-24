@@ -41,9 +41,9 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, 
                          alte_richtwerte, ALTE_GRAVUR, GRAVUR,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten,
-                         beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE)
+                         beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 53     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 57     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -98,6 +98,14 @@ SCHEMA_VERSION = 53     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Nummer der neueren Fassung; ältere Angebote leer; Plan Arbeitsabläufe W10)
                         # 53: Vorkalkulation Schweißbaugruppe (Tabelle schweiss_regeln leer, positionen.bg_hilfe leer =
                         #     Positionierhilfe nach Vorschlag)
+                        # 54: Außenradius von Quadrat-/Rechteckrohr (profile.r_aussen, leer = Vorgabe nach EN 10219; angebote.radien
+                        #     = Radius je Profil + Werkstoff im Angebot, JSON, leer)
+                        # 55: Rohrlaser-Eigenschaften der Werkstoffe (werkstoffe.rohrart, gas_vorgabe, vorschub_faktor,
+                        #     laser, laser_hinweis; leer = wie bisher)
+                        # 56: Positionsgravur (blechlaser.vorschub_gravur, leer = Gravur ohne Zeit mit Hinweis;
+                        #     positionen.bg_gravur = Schrifthöhe der Artikelnummer, leer = nicht gewählt)
+                        # 57: Auftragsnummer und Liefertermin bei Beauftragt (angebote.auftragsnr, angebote.liefertermin;
+                        #     ältere Angebote leer; Plan Arbeitsabläufe W8)
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -119,6 +127,8 @@ BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
 BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegerohr (_biegerohr_ergaenzen)
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
+STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
+WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -197,6 +207,8 @@ class Datenbank:
             self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
             self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
             self.einstellung_setzen("knick_stand", KNICK_STAND)
+            self.einstellung_setzen("steck_stand", STECK_STAND)
+            self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
         self._rp_anpassen()
         self._passwort_umstellen()
 
@@ -292,9 +304,14 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
             if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
+            if "radien" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN radien TEXT")          # vor Schema 54: leer
             if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
+            if "auftragsnr" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN auftragsnr TEXT")     # vor Schema 57: leer
+                self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin TEXT")
             for tabelle, felder in [(t.name, t.felder) for t in ALLE_TABELLEN] + [("angebote", KOPF),
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
@@ -370,6 +387,10 @@ class Datenbank:
                 self._biegerohr_ergaenzen()
             if version > 0 and self.einstellung("knick_stand") != KNICK_STAND:
                 self._knick_ergaenzen()
+            if version > 0 and self.einstellung("steck_stand") != STECK_STAND:
+                self._steck_ergaenzen()
+            if version > 0 and self.einstellung("werkstoffe_stand") != WERKSTOFFE_STAND:
+                self._werkstoffe_rohrlaser()
             teilen.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.con.execute("PRAGMA foreign_keys=ON")
@@ -454,6 +475,29 @@ class Datenbank:
             self._einfuegen("pruefregeln", neu, ergaenzen=True)
         self._einstellung_schreiben("biegerohr_stand", BIEGEROHR_STAND)
 
+    def _werkstoffe_rohrlaser(self):
+        """Einmalig (Patrick 24.10.2026, „3a“): fehlende Beispielwerkstoffe ergänzen (vorhandene Werkstoff-IDs bleiben
+        unverändert); die alten Beispielwerkstoffe bekommen ihre Lasereigenschaften nur, wo alle neuen Spalten leer
+        sind. Kategorie Buntmetall: in eine gespeicherte Kategorienliste eintragen, ihre Richtwerte für die
+        vorhandenen Faser-Maschinen ergänzen (vorhandene Schneiddaten-Zeilen bleiben)."""
+        neu = beispieldaten()
+        felder = ("rohrart", "gas_vorgabe", "vorschub_faktor", "laser", "laser_hinweis")
+        vorlage = {z["werkstoff_id"]: z for z in neu["werkstoffe"]}
+        for wid in ALTE_BEISPIEL_WERKSTOFFE:
+            self.con.execute(f'UPDATE werkstoffe SET {", ".join(f + "=?" for f in felder)} WHERE werkstoff_id=? AND '
+                             + " AND ".join(f"{f} IS NULL" for f in felder),
+                             [vorlage[wid][f] for f in felder] + [wid])
+        self._einfuegen("werkstoffe", neu["werkstoffe"], ergaenzen=True)
+        gespeichert = self.con.execute("SELECT wert FROM einstellungen WHERE name='kategorien'").fetchone()
+        if gespeichert:
+            liste = [s.strip() for s in str(json.loads(gespeichert[0]) or "").splitlines() if s.strip()]
+            if "Buntmetall" not in liste:
+                self._einstellung_schreiben("kategorien", "\n".join(liste + ["Buntmetall"]))
+        maschinen = {z["maschinen_id"] for z in self.zeilen("maschinen")}
+        self._einfuegen("schneiddaten", [z for z in neu["schneiddaten"] if z["kategorie"] == "Buntmetall"
+                                         and z["maschinen_id"] in maschinen], ergaenzen=True)
+        self._einstellung_schreiben("werkstoffe_stand", WERKSTOFFE_STAND)
+
     def _knick_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Knicken' (€ je Knick) und die Prüfregeln für Knickrahmen anlegen, wenn es sie (dem
         Namen nach) noch nicht gibt (Plan K1)."""
@@ -463,6 +507,14 @@ class Datenbank:
             neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.KNICK_REGELN]
             self._einfuegen("pruefregeln", neu, ergaenzen=True)
         self._einstellung_schreiben("knick_stand", KNICK_STAND)
+
+    def _steck_ergaenzen(self):
+        """Einmalig: Prüfregel 'Nase zu schmal' für Steckverbindungen anlegen, wenn es sie noch nicht gibt (Plan K2)."""
+        from . import dfm
+        if self.anzahl("pruefregeln"):
+            neu = [z for z in beispieldaten()["pruefregeln"] if z.get("regel") in dfm.STECK_REGELN]
+            self._einfuegen("pruefregeln", neu, ergaenzen=True)
+        self._einstellung_schreiben("steck_stand", STECK_STAND)
 
     def _programmierung_zeit(self):
         """Schema 39: Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026: 5 min je Position +
@@ -1282,6 +1334,14 @@ class Datenbank:
             self.con.execute("UPDATE angebote SET naht_stangen=?, geaendert=? WHERE id=?",
                              (json.dumps(wahl, ensure_ascii=False) if wahl else None, self._jetzt(), angebot_id))
 
+    @schreibt
+    def radien_speichern(self, angebot_id, radien):
+        """Außenradius je Profil + Werkstoff im Angebot {naht.gruppe_schluessel: mm} (fehlt = Stammdaten/Norm)."""
+        radien = {g: float(r) for g, r in (radien or {}).items() if isinstance(r, (int, float)) and r >= 0}
+        with self.con:
+            self.con.execute("UPDATE angebote SET radien=?, geaendert=? WHERE id=?",
+                             (json.dumps(radien, ensure_ascii=False) if radien else None, self._jetzt(), angebot_id))
+
     # -------------------------------------------------------------- Frachtkosten
     @liest
     def fracht_daten(self):
@@ -1594,14 +1654,15 @@ class Datenbank:
     def angebote(self, suche=""):
         """Übersicht: Kopf, Anzahl Positionen und Teile, Zeitpunkt der Optimierung."""
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.versand AS _versand, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
                "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = []
         if suche:
             sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
+                    "OR a.auftragsnr LIKE ? "
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
-            werte = [f"%{suche}%"] * 6
+            werte = [f"%{suche}%"] * 7
         sql += " GROUP BY a.id ORDER BY a.datum DESC, a.id DESC"
         from .nachkalkulation import erfasst
         zeilen = []
@@ -1630,6 +1691,7 @@ class Datenbank:
         a["preisbasis"] = json.loads(a["preisbasis"]) if a.get("preisbasis") else None
         a["laengenwahl"] = json.loads(a["laengenwahl"]) if a.get("laengenwahl") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
+        a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
         return a
 
@@ -1730,6 +1792,8 @@ class Datenbank:
             self.laengenwahl_speichern(neu, a["laengenwahl"])
         if a.get("naht_stangen"):                   # Nahtlage der Lieferstangen ebenso
             self.naht_stangen_speichern(neu, a["naht_stangen"])
+        if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso
+            self.radien_speichern(neu, a["radien"])
         netze = self.netze(angebot_id)
         for p in self.positionen(angebot_id):
             i = self.position_neu(neu, p)
@@ -1815,6 +1879,14 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET vorgang=? WHERE id=?",
                              (None if vorgang == VORGAENGE[0] else vorgang, angebot_id))
+
+    @schreibt
+    def auftrag_setzen(self, angebot_id, auftragsnr, liefertermin):
+        """Auftragsnummer des Kunden und Liefertermin (ISO-Datum) eines beauftragten Angebots (W8; None = leer).
+        Ändert 'geändert am' nicht."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET auftragsnr=?, liefertermin=? WHERE id=?",
+                             ((auftragsnr or "").strip() or None, liefertermin or None, angebot_id))
 
     @schreibt
     def staffelpreise_speichern(self, angebot_id, staffelpreise):

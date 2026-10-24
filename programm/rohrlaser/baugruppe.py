@@ -73,14 +73,14 @@ def lesen(text):
         return None
     if not isinstance(d, dict) or not d.get("id"):
         return None
-    for n in ("knoten", "arbeitsgaenge", "naehte"):
+    for n in ("knoten", "arbeitsgaenge", "naehte", "steckverbindungen"):
         d[n] = [x for x in d.get(n) or () if isinstance(x, dict)]
     d["stamm"] = d.get("stamm") if isinstance(d.get("stamm"), dict) else {}
     return d
 
 
 _LISTEN = (("knoten", "Unterbaugruppe", "Unterbaugruppen"), ("arbeitsgaenge", "Arbeitsgang", "Arbeitsgänge"),
-           ("naehte", "Nahtgruppe", "Nahtgruppen"))
+           ("naehte", "Nahtgruppe", "Nahtgruppen"), ("steckverbindungen", "Steckverbindung", "Steckverbindungen"))
 
 
 def daten_fehler(text):
@@ -458,6 +458,29 @@ def vorschlag_naht(v, regel=None):
     return n
 
 
+def vorschlaege_anlegen(bg, regel=None, verfahren=None):
+    """Alle Nahtvorschläge aus dem STEP als Nahtgruppen anlegen (wie 'Markierte übernehmen' für alle; Vorkalkulation
+    automatisch): Verfahren und Nahtart wie die letzte Nahtgruppe, sonst verfahren; Kehlnaht mit a-Maß nach der
+    Regel (gelb bis zur Bestätigung). Ändert bg. Ergebnis: Anzahl."""
+    n = 0
+    for v in bg.get("vorschlaege") or ():
+        nr = max([int(x["nr"]) for x in bg["naehte"] if str(x.get("nr") or "").isdigit()], default=0) + 1
+        vorlage = bg["naehte"][-1] if bg["naehte"] else {}
+        x = dict(id=neue_id(), nr=str(nr), anzahl=1, verfahren=vorlage.get("verfahren") or verfahren)
+        x.update(vorschlag_naht(v, regel))
+        bg["naehte"].append({k: w for k, w in x.items() if w is not None})
+        n += 1
+    bg["vorschlaege"] = []
+    return n
+
+
+def vk_auto(bg, vorgabe=False):
+    """Vorkalkulation automatisch (Patrick 24.10.2026): Häkchen der Baugruppe (stamm.vk_auto), ohne Wahl die Vorgabe
+    der Einstellung schweiss_vk_step."""
+    w = (bg.get("stamm") or {}).get("vk_auto")
+    return bool(vorgabe) if w is None else bool(w)
+
+
 def regel_offen(n):
     """True, wenn das a-Maß einer Nahtgruppe nach der Regel vorgeschlagen und noch nicht bestätigt ist."""
     return _zahl(n.get("mass_regel")) and n.get("mass") == n["mass_regel"]
@@ -704,6 +727,10 @@ def status(p, w, positionen=None):
     if r["warnungen"]:
         return "WARNUNG: " + r["warnungen"][0]
     if positionen is not None:
+        from . import steckverbindung
+        sf = steckverbindung.fehler(bg, positionen, teile(positionen, bg["id"]))
+        if sf:
+            return "FEHLER: " + sf
         if not teile(positionen, bg["id"]):
             return "WARNUNG: Baugruppe ohne Einzelteile"
         for i, q in enumerate(positionen):

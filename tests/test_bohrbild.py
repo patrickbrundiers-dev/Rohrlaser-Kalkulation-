@@ -287,7 +287,8 @@ def _():
         (z,) = bohrbild.lesen(p["bohrbild"])
         assert z["art"] == "Bohren" and z["status"] == "bestätigt", z
         assert [e["name"] for e in rechnen.zusatz_liste(p)] == ["Bohren"]
-        rw = 2 * 160 + 2 * PI * 2           # Enden QR 40x40 (Umfang) + 2 Bohrungen, dann ohne die Bohrungen
+        rw = 2 * (160 - (8 - 2 * PI) * 6) + 2 * PI * 2      # Enden QR 40x40x3 (Umfang, Außenradius 6 nach Norm)
+        #                                                   + 2 Bohrungen, dann ohne die Bohrungen
         assert nah(p["schneidweg"] + 2 * PI * 2, rw, 2), p["schneidweg"]
         seite.close()
         db.con.close()

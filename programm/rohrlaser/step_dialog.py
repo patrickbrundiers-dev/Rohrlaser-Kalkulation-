@@ -130,11 +130,15 @@ class StepPruefDialog(QDialog):
     SP_ART, SP_PROFIL, SP_WERKSTOFF, SP_STUECK, SP_LAENGE, SP_SCHNEIDWEG, SP_KONTUREN, SP_ANBAU, SP_HINWEIS = range(2, 11)
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
-                 knick_vorgaben=None):
+                 knick_vorgaben=None, step_kopieren=None):
         from . import step
         super().__init__(parent)
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
+        from . import knickverbindung
+        for m in messwerte:     # Knickrahmen aus einem Körper (K1-3), geknickt oder gestreckt gezeichnet
+            if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:
+                knickverbindung.koerper_vorbereiten(m, self.knick_vorgaben)
         if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
             step.kantteile_vorbelegen(messwerte, k.profile)
         self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
@@ -314,7 +318,17 @@ class StepPruefDialog(QDialog):
         knoepfe.addButton("Abbrechen", QDialogButtonBox.RejectRole)
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
-        lay.addWidget(knoepfe)
+        # Ordner je Angebot (B3): STEP-Dateien in den Unterordner STEP kopieren, Vorgabe aus den Einstellungen
+        self.kopieren_haken = QCheckBox("STEP-Dateien in den Ordner des Angebots kopieren")
+        self.kopieren_haken.setToolTip("Beim Übernehmen werden die gewählten STEP-Dateien in den Unterordner „STEP“ "
+                                       "im Ordner des Angebots kopiert. Vorgabe: Einstellungen → STEP-Import.")
+        self.kopieren_haken.setChecked(bool(step_kopieren))
+        self.kopieren_haken.setVisible(step_kopieren is not None)
+        unten = QHBoxLayout()
+        unten.addWidget(self.kopieren_haken)
+        unten.addStretch(1)
+        unten.addWidget(knoepfe)
+        lay.addLayout(unten)
         self.datei_waehlen(0)
 
     def _baum_fuellen(self):
@@ -385,7 +399,11 @@ class StepPruefDialog(QDialog):
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
             if m.get("_knickrahmen"):
                 from . import knickverbindung
-                hinweis.append(knickverbindung.text(m) + " (Rechtsklick: lösen)")
+                hinweis.append(knickverbindung.text(m) + (
+                    "" if m.get("_knick_v") is not None else " (Rechtsklick: bearbeiten)"
+                    if knickverbindung.ist_koerper(m) else " (Rechtsklick: lösen)"))
+            elif m.get("_knick_fehler"):
+                hinweis.append(f"Knickrahmen aus einem Körper nicht verbindbar: {m['_knick_fehler']}")
             if anbauteil is not None:
                 hinweis.append(f"Anbauteil von {anbauteil}: nicht übernehmen (nur Gravur auf dem Rohr)")
             if ist_blech:
@@ -543,7 +561,12 @@ class StepPruefDialog(QDialog):
         a = menue.addAction("Knickverbindung erstellen …")
         a.setEnabled(len(koerper) >= 2)
         a.triggered.connect(lambda: self.knick_erstellen(koerper))
-        if z and self.messwerte[z.liste[0]].get("_knickrahmen"):
+        from . import knickverbindung
+        if z and self.messwerte[z.liste[0]].get("_knick_schenkel") is not None:
+            b = menue.addAction("Knickrahmen bearbeiten …")
+            b.triggered.connect(lambda: self.knick_bearbeiten(z.liste[0]))
+        elif z and self.messwerte[z.liste[0]].get("_knickrahmen") and not knickverbindung.ist_koerper(
+                self.messwerte[z.liste[0]]):
             b = menue.addAction("Knickverbindung lösen")
             b.triggered.connect(lambda: self.knick_loesen(z.liste[0]))
         menue.exec(self.baum.viewport().mapToGlobal(pos))
@@ -572,6 +595,33 @@ class StepPruefDialog(QDialog):
             return None
         self._neu_aufbauen(leit)
         return leit
+
+    def knick_bearbeiten(self, i, dialog=None):
+        """Knickrahmen aus einem Körper (Teil i): Anfang, Laufrichtung, Freistich, Zugabe, K-Faktor und Innenwand im
+        Dialog ändern; dialog(d) wie bei knick_erstellen. Ergebnis: True, wenn geändert."""
+        from PySide6.QtWidgets import QMessageBox
+        from . import knickverbindung
+        from .knickrahmen_dialog import KnickverbindungDialog
+        m = self.messwerte[i]
+        teile = knickverbindung.stuecke(m)
+        self.werte_schreiben()
+        block = m.get("_knickrahmen") or {}
+        vorgaben = dict(self.knick_vorgaben, z=block.get("z"), freistich=block.get("freistich"), k=block.get("k"),
+                        schraeg=block.get("schraeg"), start=(m.get("_knick_teile") or [{}])[0].get("i"))
+        try:
+            d = KnickverbindungDialog(self, teile, list(range(len(teile))), vorgaben, koerper=True)
+        except ValueError as f:
+            QMessageBox.information(self, "Knickrahmen", str(f))
+            return False
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
+            return False
+        try:
+            knickverbindung.erstellen(teile, d.kette, **d.werte(), ziel=m)
+        except ValueError as f:
+            QMessageBox.information(self, "Knickrahmen", str(f))
+            return False
+        self._neu_aufbauen(i)
+        return True
 
     def knick_loesen(self, i):
         from . import knickverbindung
