@@ -58,8 +58,7 @@ assert nachfassen.betreff(kopf, None, einst) == "Unser Angebot 2026-00042"
 assert nachfassen.text(kopf, dict(ansprechpartner="Frau Meier"), einst, datetime.date(2026, 10, 31)) == \
     "Guten Tag Frau Meier, 2026-00042 vom 01.10.2026 bis 31.10.2026 {x}"
 assert nachfassen.text(kopf, {}, einst).startswith("Sehr geehrte Damen und Herren,")
-assert nachfassen.letztes_pdf(kopf) == "neu.pdf" and nachfassen.letztes_pdf({}) is None
-ok("Vorlage mit Platzhaltern, Anrede mit/ohne Ansprechpartner, letztes Angebots-PDF")
+ok("Vorlage mit Platzhaltern, Anrede mit/ohne Ansprechpartner")
 
 assert _versand_text(dict(art="nachgefasst", datum="2026-10-20", wie="Telefon")) == "20.10.2026: nachgefasst (Telefon)"
 assert _versand_text(dict(art="wiedervorlage", datum="2026-10-20", am="2026-11-01")) == \
@@ -93,22 +92,22 @@ befehle = []
 d = liste.nachfassen(a, dialog=lambda d: d.in_outlook(), ausfuehren=lambda bef: befehle.append(bef) or
                      type("R", (), dict(returncode=0, stdout="", stderr=""))())
 assert d.ergebnis == "outlook" and befehle and d.an.text() == (kunde.get("email") or "")
-assert d.mit_pdf.isChecked() and d.mail()[3] == [ablage / "Angebot.pdf"]
+assert len(d.mail()) == 3 and not any(b[-1].endswith(".pdf") for b in befehle)
 v = db.angebot(a)["versand"][-1]
 assert v["art"] == "nachgefasst" and v["wie"] == "E-Mail" and v["datum"] == datetime.date.today().isoformat()
 assert [x["id"] for x in liste.modell.zeilen] == [] and f.start.wiedervorlage.count() == 0
-ok("Nachfassen in Outlook (nur angezeigt), PDF angehängt, vermerkt: nicht mehr fällig")
+ok("Nachfassen in Outlook (nur angezeigt, ohne Angebots-PDF: F2b), vermerkt: nicht mehr fällig")
 
 d = liste.nachfassen(a, dialog=lambda d: d.als_datei())
 eml = BytesParser(policy=policy.default).parsebytes(Path(geoeffnet[-1]).read_bytes())
 assert eml["Subject"] == f"Unser Angebot {db.angebot(a)['nummer']}" and eml["X-Unsent"] == "1"
-assert [t.get_filename() for t in eml.iter_attachments()] == ["Angebot.pdf"]
+assert list(eml.iter_attachments()) == []
 d = liste.nachfassen(a, dialog=lambda d: (d.wie_auswahl.setCurrentText("Telefon"), d.vermerken()))
 assert db.angebot(a)["versand"][-1]["wie"] == "Telefon"
 n = len(db.angebot(a)["versand"])
 liste.nachfassen(a, dialog=lambda d: d.reject())
 assert len(db.angebot(a)["versand"]) == n
-ok("als E-Mail-Datei mit Anhang, „Nur vermerken“ (Telefon), Abbrechen vermerkt nichts")
+ok("als E-Mail-Datei ohne Anhang, „Nur vermerken“ (Telefon), Abbrechen vermerkt nichts")
 
 morgen = datetime.date.today() + datetime.timedelta(days=1)
 liste.wiedervorlage_setzen(b, dialog=lambda d: (d.datum.setDate(morgen), d._ok()))

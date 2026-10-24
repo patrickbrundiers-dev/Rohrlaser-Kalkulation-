@@ -32,10 +32,3 @@ def betreff(kopf, kunde, einst, gueltig_bis=None):
 def text(kopf, kunde, einst, gueltig_bis=None):
     return ma._vorlage(ma._einst(einst, "nachfassen_text"), werte(kopf, kunde, einst, gueltig_bis))
 
-
-def letztes_pdf(kopf):
-    """Dateiname des zuletzt verschickten Angebots-PDF aus dem Versandverlauf (oder None)."""
-    for e in reversed(kopf.get("versand") or []):
-        if isinstance(e, dict) and e.get("datei"):
-            return e["datei"]
-    return None

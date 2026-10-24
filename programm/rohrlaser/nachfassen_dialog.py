@@ -1,7 +1,7 @@
 """Nachfassen und Wiedervorlage (Plan A9), aufrufbar aus der Angebotsliste, der Startseite und dem Angebot.
 
-„Nachfassen …“ zeigt den E-Mail-Entwurf an den Kunden (Vorlage aus den Einstellungen, das zuletzt verschickte
-Angebots-PDF auf Wunsch als Anhang). Wie bei der Materialanfrage sendet das Programm nie selbst: Outlook zeigt die
+„Nachfassen …“ zeigt den E-Mail-Entwurf an den Kunden (Vorlage aus den Einstellungen, ohne Anhang: das Angebot
+selbst verschickt das Programm nicht, Arbeitsabläufe F2b). Wie bei der Materialanfrage sendet das Programm nie selbst: Outlook zeigt die
 E-Mail, sonst entsteht eine E-Mail-Datei. Danach steht „nachgefasst am“ im Versandverlauf, und das automatische
 Nachfassen zählt neu. „Nur vermerken“ trägt ein Nachfassen per Telefon o. Ä. ein.
 
@@ -9,7 +9,7 @@ Nachfassen zählt neu. „Nur vermerken“ trägt ein Nachfassen per Telefon o. 
 import datetime
 
 from PySide6.QtCore import QDate
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout)
 
 from . import cockpit, nachfassen
@@ -22,9 +22,9 @@ class NachfassDialog(QDialog):
     """Nach einer Aktion: self.ergebnis ('outlook', 'eml', 'vermerkt' oder None), self.wie (für den Vermerk),
     self.meldung (Statuszeile). ausfuehren ersetzt den Outlook-Aufruf (Tests)."""
 
-    def __init__(self, parent, kopf, kunde, einst, gueltig_bis, anhang, eml_ziel, oeffnen, ausfuehren=None):
+    def __init__(self, parent, kopf, kunde, einst, gueltig_bis, eml_ziel, oeffnen, ausfuehren=None):
         super().__init__(parent)
-        self.einst, self.anhang, self.eml_ziel = einst, anhang, eml_ziel
+        self.einst, self.eml_ziel = einst, eml_ziel
         self.oeffnen, self.ausfuehren = oeffnen, ausfuehren
         self.ergebnis, self.wie, self.meldung = None, None, ""
         self.setWindowTitle(f"Nachfassen – Angebot {kopf.get('nummer') or ''}".strip())
@@ -48,11 +48,6 @@ class NachfassDialog(QDialog):
         lay.addLayout(form)
         self.text = QPlainTextEdit(nachfassen.text(kopf, kunde, einst, gueltig_bis))
         lay.addWidget(self.text, 1)
-        self.mit_pdf = QCheckBox(f"Angebots-PDF anhängen ({anhang.name})" if anhang else
-                                 "Angebots-PDF anhängen (keins in der Ablage)")
-        self.mit_pdf.setChecked(bool(anhang))
-        self.mit_pdf.setEnabled(bool(anhang))
-        lay.addWidget(self.mit_pdf)
         hinweis = QLabel("Das Programm sendet nicht: Outlook zeigt die E-Mail, gesendet wird dort. Danach steht "
                          "„nachgefasst“ im Versandverlauf.")
         hinweis.setWordWrap(True)
@@ -82,8 +77,7 @@ class NachfassDialog(QDialog):
     def mail(self, signatur=False):
         text = self.text.toPlainText()
         return (self.an.text().strip(), self.betreff.text().strip(),
-                ma.mit_signatur(text, ma.signatur(self.einst)) if signatur else text,
-                [self.anhang] if self.anhang and self.mit_pdf.isChecked() else [])
+                ma.mit_signatur(text, ma.signatur(self.einst)) if signatur else text)
 
     def als_datei(self, oeffnen=True):
         if self.eml_ziel is None:
@@ -98,8 +92,7 @@ class NachfassDialog(QDialog):
 
     def in_outlook(self):
         aus_outlook = ma.outlook_signatur(self.einst)
-        an, betreff, text, anhaenge = self.mail(signatur=not aus_outlook)
-        ok, fehler = ma.outlook_oeffnen(an, betreff, text, anhaenge, ausfuehren=self.ausfuehren,
+        ok, fehler = ma.outlook_oeffnen(*self.mail(signatur=not aus_outlook), ausfuehren=self.ausfuehren,
                                         signatur_=aus_outlook)
         if ok:
             self.ergebnis, self.wie = "outlook", "E-Mail"
@@ -176,11 +169,9 @@ def nachfassen_dialog(f, angebot_id, parent=None, dialog=None, ausfuehren=None):
         ablage = f.ablage()
     except OSError:
         ablage = None
-    datei = nachfassen.letztes_pdf(a)
-    anhang = ablage / datei if ablage and datei and (ablage / datei).is_file() else None
     ziel = ablage / (ausgabe.dateiname(a, "Nachfassen") + ".eml") if ablage else None
     d = NachfassDialog(parent or f, a, kunde, f.db.einstellungen(), gueltig_bis(a, f.db.einstellung("gueltigkeit")),
-                       anhang, ziel, f.datei_oeffnen, ausfuehren)
+                       ziel, f.datei_oeffnen, ausfuehren)
     (dialog(d) if dialog else d.exec())
     if d.ergebnis:
         f.db.nachgefasst_merken(angebot_id, d.wie)

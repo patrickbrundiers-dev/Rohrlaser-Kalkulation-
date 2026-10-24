@@ -23,8 +23,8 @@ def als_html(neuerungen=None):
 NEUERUNGEN = [
     ["0.9.45", "<b>Nachfassen und Wiedervorlage</b>: Verschickte Angebote ohne Antwort stehen nach 10 Tagen "
                "(Einstellung) auf der Startseite unter Wiedervorlage und im neuen Filter <i>Wiedervorlage fällig</i>, "
-               "mit Grund. <b>Nachfassen …</b> bereitet die E-Mail an den Kunden aus einer Vorlage vor, auf Wunsch "
-               "mit dem letzten Angebots-PDF (gesendet wird in Outlook), <b>Nur vermerken</b> trägt einen Anruf "
+               "mit Grund. <b>Nachfassen …</b> bereitet die E-Mail an den Kunden aus einer Vorlage vor (gesendet wird "
+               "in Outlook), <b>Nur vermerken</b> trägt einen Anruf "
                "ein; jedes Nachfassen steht im Versandverlauf. <b>Wiedervorlage …</b> setzt ein eigenes Datum, auch "
                "für Entwürfe ([[nachfassen]]).",
      "Nachfassen: automatische Wiedervorlage, E-Mail an den Kunden, eigenes Wiedervorlage-Datum ([[nachfassen]])."],

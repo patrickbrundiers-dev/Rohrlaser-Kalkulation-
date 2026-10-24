@@ -786,7 +786,8 @@ def kapitel_angebote(i):
            "Outlook.", kurz=True)
     i.liste("<b>Nachfassen …</b> (Angebotsliste <i>Vorgang ▾</i>, Startseite, im Angebot <i>Ausgaben → Nachfassen "
             "beim Kunden …</i>): An (E-Mail des Kunden aus dem Kundenstamm), Betreff und Text aus den Vorlagen der "
-            "Einstellungen, alles änderbar; das zuletzt verschickte Angebots-PDF aus der Ablage hängt auf Wunsch an. "
+            "Einstellungen, alles änderbar. Ein Anhang kommt nicht dazu: das Angebot selbst verschickt man wie bisher "
+            "von Hand. "
             "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b> wie bei der Materialanfrage "
             "([[materialanfrage]]): das Programm sendet nie selbst.",
             "<b>Nur vermerken</b>: schon nachgefasst, z. B. angerufen (Telefon, E-Mail, persönlich). Jedes "
