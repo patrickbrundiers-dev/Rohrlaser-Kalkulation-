@@ -12,12 +12,27 @@
 # Release und Online-Update läuft nur, wenn der Workflow von Hand gestartet wird (Actions > Paket > Run workflow,
 # Zweig main) – einmal nach mehreren zusammen gemergten Pull Requests (Sammel-Release).
 # Von einem anderen Zweig gestartet, baut und prüft er das Paket nur, ohne zu veröffentlichen.
+#
+# Lieferkette (Absicherungsplan 24.10.2026, Phase 6): Rechte nur lesen, Schreiben nur im Job windows; alle Actions auf
+# Commit-SHAs gepinnt (Kommentar = Version, Update per Hand prüfen); vor dem Veröffentlichen prüft
+# programm/release_pruefen.py den Programmordner (keine Schlüssel, Lizenzen, Datenbanken, Tests, eigener Quelltext,
+# Secret-Werte) und schreibt die Release-Zusammenfassung (Version, Commit, Dateien, Prüfsummen).
+# Kanal „test“ (Vorabkanal, auch von einem anderen Zweig): Dateiliste und Pakete gehen in das Release update-test von
+# Rohrlaser-Updates statt update-dateien, das Release „aktuell“ bleibt unverändert. Eine Testinstallation holt sie mit
+# der Umgebungsvariable RL_UPDATE_QUELLE=https://github.com/patrickbrundiers-dev/Rohrlaser-Updates/releases/download/update-test/Update.json
+# (signiert wie der normale Kanal).
 name: Paket
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
+    inputs:
+      kanal:
+        description: "produktiv (nur Zweig main: Release aktuell + Online-Update) oder test (Vorabkanal update-test)"
+        type: choice
+        options: [produktiv, test]
+        default: produktiv
 
 # PR: neuer Push bricht den alten Lauf ab. Von Hand: Läufe nacheinander, damit Dateiliste und Pakete zusammenpassen.
 concurrency:
@@ -25,7 +40,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
-  contents: write
+  contents: read      # Vorgabe für alle Jobs; nur der Job windows darf Releases schreiben
 
 jobs:
   tests:
@@ -33,13 +48,13 @@ jobs:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     timeout-minutes: 30            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0             # volle Historie für die Prüfung „Anleitung angepasst?“
       - name: Programm geändert, Anleitung auch? (sonst Begründung in einer Commit-Nachricht)
         if: github.event_name == 'pull_request'
         run: python3 tests/pruefe_anleitung_geaendert.py "origin/${{ github.base_ref }}"
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('requirements*.txt', 'programm/requirements.txt') }}
@@ -54,7 +69,7 @@ jobs:
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
       - name: STEP-Referenztests mit Testbericht
         run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         if: always()
         with:
@@ -73,7 +88,7 @@ jobs:
         run: |
           /usr/bin/python3 tests/test_abnahme.py --protokoll Abnahmeprotokoll.md
           cat Abnahmeprotokoll.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         with:
           name: Abnahmeprotokoll
@@ -85,7 +100,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung.pdf --kurz Kurzanleitung.pdf
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Bedienungsanleitung
           path: |
@@ -99,14 +114,25 @@ jobs:
     needs: [tests]
     if: github.event_name == 'workflow_dispatch'   # Windows-Minuten zählen doppelt: nur von Hand (Sammel-Release)
     timeout-minutes: 45
+    permissions:
+      contents: write         # Release „aktuell“ im eigenen Repository
+      id-token: write         # Herkunftsnachweis (Build-Provenance)
+      attestations: write
     env:
       RL_STAND: ${{ github.run_number }}     # Stand des Online-Updates, auch 4. Stelle der Dateiversion
       # Online-Update aus einem öffentlichen Repository (dieses ist privat, Release-Dateien ohne Anmeldung 404);
       # muss zu UPDATE_REPO in programm/rohrlaser/update.py passen. Schreibzugriff über das Secret UPDATES_TOKEN.
       UPDATE_REPO: patrickbrundiers-dev/Rohrlaser-Updates
+      # Release im Update-Repository: update-dateien (alle Installationen) oder update-test (Vorabkanal)
+      UPDATE_TAG: ${{ inputs.kanal == 'test' && 'update-test' || 'update-dateien' }}
+      # veröffentlichen: produktiv nur von main, test von jedem Zweig
+      VEROEFFENTLICHEN: ${{ (github.ref == 'refs/heads/main' || inputs.kanal == 'test') && '1' || '' }}
+      # Kennwort des PFX aus dem Secret SIGNATUR_PFX_PASSWORT; ohne Secret das Kennwort des bisherigen Zertifikats
+      # (es schützt nur den Secret-Inhalt selbst, siehe Audit B11; bei einem neuen Zertifikat eigenes Secret setzen)
+      PFX_KENNWORT: ${{ secrets.SIGNATUR_PFX_PASSWORT || 'rohrlaser-signatur' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - name: Python-Pakete
@@ -177,8 +203,8 @@ jobs:
           }
           $pfx = "$env:RUNNER_TEMP\signatur.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNATUR_PFX))
-          # Kennwort wie beim Erzeugen festgelegt; es schützt nichts, geheim ist das Secret selbst
-          $z = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, "rohrlaser-signatur")
+          # Kennwort wie beim Erzeugen festgelegt (PFX_KENNWORT); geheim ist vor allem das Secret selbst
+          $z = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $env:PFX_KENNWORT)
           "Zertifikat: $($z.Subject), $($z.Thumbprint), gültig bis $($z.NotAfter)"
           if (-not $z.HasPrivateKey) { throw "SIGNATUR_PFX ohne privaten Schlüssel" }
           $oeffentlich = [Convert]::ToBase64String($z.Export("Cert"))
@@ -193,7 +219,7 @@ jobs:
           $dateien = @("dist/STEP-Import/STEP-Import.exe", "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe")
           # Zeitstempel: die Signatur bleibt auch nach Ablauf des Zertifikats gültig; Zeitstempeldienst notfalls erneut
           for ($i = 1; $i -le 3; $i++) {
-            & $signtool sign /f $pfx /p rohrlaser-signatur /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d "Rohrlaser Angebotskalkulation" @dateien
+            & $signtool sign /f $pfx /p $env:PFX_KENNWORT /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d "Rohrlaser Angebotskalkulation" @dateien
             if ($LASTEXITCODE -eq 0) { break }
             Start-Sleep -Seconds (10 * $i)
           }
@@ -208,7 +234,7 @@ jobs:
             "{0}: {1} / {2} / {3}" -f $exe, $v.CompanyName, $v.ProductName, $v.FileVersion
             if (-not $v.CompanyName -or -not $v.ProductName -or -not $v.FileVersion) { throw "$exe ohne Versionsangaben" }
           }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: Bedienungsanleitung
       - name: Rohrlaser-Angebotskalkulation.exe Selbsttest (Beispielangebot, Optimierung, Ausgaben, STEP-Import)
@@ -223,6 +249,12 @@ jobs:
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt
           if ($p.ExitCode -ne 0) { throw "Selbsttest Rückgabewert $($p.ExitCode)" }
+      - name: Programmordner prüfen (nur Kundendateien, keine Schlüssel, Lizenzen, Datenbanken, Tests, Quelltext, Secrets)
+        env:
+          UPDATE_SIGNATUR: ${{ secrets.UPDATE_SIGNATUR }}
+          SIGNATUR_PFX_PASSWORT: ${{ secrets.SIGNATUR_PFX_PASSWORT }}
+          UPDATES_TOKEN: ${{ secrets.UPDATES_TOKEN }}
+        run: python programm/release_pruefen.py pruefen dist/Rohrlaser-Angebotskalkulation
       - name: Update-Dateien erzeugen (Dateiliste Update.json mit Prüfsummen, Pakete, Signatur Update.json.sig)
         env:
           # privater Ed25519-Schlüssel (Base64), erzeugt im Lizenz-Werkzeug („Update-Schlüssel erzeugen …“); ohne ihn
@@ -231,7 +263,7 @@ jobs:
         run: >
           python programm/update_paket.py --programm dist/Rohrlaser-Angebotskalkulation --ziel update_dateien
           --stand ${{ github.run_number }} --in-programm
-          --adresse "https://github.com/${{ env.UPDATE_REPO }}/releases/download/update-dateien/"
+          --adresse "https://github.com/${{ env.UPDATE_REPO }}/releases/download/${{ env.UPDATE_TAG }}/"
       - name: Online-Update testen (laufendes Programm tauscht alle eigenen Dateien aus, startet danach)
         shell: pwsh
         run: |
@@ -258,7 +290,7 @@ jobs:
           $v = python -c "import sys; sys.path.insert(0, 'programm'); from versionsinfo import version; print(version())"
           $signieren = @()
           if ($env:SIGNIERT) {          # Setup und Uninstaller mit demselben Zertifikat ($f = Datei, $q = Anführungszeichen)
-            $signieren = @("/DSignieren", "/Ssignieren=`$q$env:SIGNTOOL`$q sign /f `$q$env:SIGNATUR_DATEI`$q /p rohrlaser-signatur /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d `$qRohrlaser Angebotskalkulation Setup`$q `$f")
+            $signieren = @("/DSignieren", "/Ssignieren=`$q$env:SIGNTOOL`$q sign /f `$q$env:SIGNATUR_DATEI`$q /p `$q$env:PFX_KENNWORT`$q /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d `$qRohrlaser Angebotskalkulation Setup`$q `$f")
           }
           & $iscc "/DVersion=$v.${{ github.run_number }}" "/DQuelle=$PWD\dist\Rohrlaser-Angebotskalkulation" "/DAusgabe=$PWD" @signieren programm\installer\rohrlaser.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC Rückgabewert $LASTEXITCODE" }
@@ -349,8 +381,31 @@ jobs:
           $h = (Get-FileHash -Algorithm SHA256 Rohrlaser-Angebotskalkulation-Setup.exe).Hash
           "$h  Rohrlaser-Angebotskalkulation-Setup.exe" | Set-Content -Encoding ascii Rohrlaser-Angebotskalkulation-Setup.exe.sha256
           Get-Content Rohrlaser-Angebotskalkulation-Setup.exe.sha256
+      - name: Release-Zusammenfassung (Version, Commit, Dateien, Prüfsummen)
+        run: >
+          python programm/release_pruefen.py zusammenfassung --liste update_dateien/Update.json
+          --kanal "${{ inputs.kanal }}" --commit "${{ github.sha }}" --lauf "${{ github.run_number }}"
+          --datei Rohrlaser-Angebotskalkulation-Setup.exe --datei Rohrlaser-Angebotskalkulation.zip
+          --ausgabe Release-Zusammenfassung --markdown "${{ github.step_summary }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: Release-Zusammenfassung
+          path: |
+            Release-Zusammenfassung.md
+            Release-Zusammenfassung.json
+          retention-days: 90
+      - name: Herkunftsnachweis (Build-Provenance) für Setup, ZIP und Update.json
+        if: env.VEROEFFENTLICHEN
+        continue-on-error: true      # nur für öffentliche Repositorys bzw. GitHub Enterprise; ersetzt keine Signatur
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: |
+            Rohrlaser-Angebotskalkulation-Setup.exe
+            Rohrlaser-Angebotskalkulation.zip
+            update_dateien/Update.json
       - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && inputs.kanal != 'test'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -360,8 +415,8 @@ jobs:
           }
           $global:LASTEXITCODE = 0
       - name: Release "aktuell" aktualisieren
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' && inputs.kanal != 'test'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: aktuell
           name: Rohrlaser Angebotskalkulation (aktueller Stand)
@@ -394,9 +449,11 @@ jobs:
             Kurzanleitung.pdf
             Windows-Vertrauen-einrichten.cmd
             dist_werkzeug/Lizenz-Werkzeug.exe
+            Release-Zusammenfassung.md
+            Release-Zusammenfassung.json
           make_latest: true
-      - name: Update-Pakete hochladen (Repository Rohrlaser-Updates, Release "update-dateien", nur neue Pakete)
-        if: github.ref == 'refs/heads/main'
+      - name: Update-Pakete hochladen (Repository Rohrlaser-Updates, Release update-dateien bzw. update-test, nur neue Pakete)
+        if: env.VEROEFFENTLICHEN
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
@@ -406,6 +463,7 @@ jobs:
                    "anlegen und unter Settings → Secrets and variables → Actions als UPDATES_TOKEN eintragen.")
           }
           $repo = $env:UPDATE_REPO
+          $tag = $env:UPDATE_TAG
           # Ein leeres Repository hat keinen Commit, daran lässt sich kein Release hängen: README anlegen
           gh api "repos/$repo/contents/README.md" *> $null
           if ($LASTEXITCODE -ne 0) {
@@ -415,34 +473,40 @@ jobs:
             gh api -X PUT "repos/$repo/contents/README.md" -f message="README für die Update-Releases" -f content=$inhalt
             if ($LASTEXITCODE -ne 0) { throw "README in $repo lässt sich nicht anlegen (Token-Rechte prüfen)" }
           }
-          gh release view update-dateien --repo $repo *> $null
+          gh release view $tag --repo $repo *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create update-dateien --repo $repo --latest `
-              --title "Update-Dateien (für Hilfe → Nach Updates suchen)" `
-              --notes "Dateiliste Update.json und Pakete für das Online-Update der Rohrlaser Angebotskalkulation. Nicht von Hand herunterladen."
-            if ($LASTEXITCODE -ne 0) { throw "Release update-dateien lässt sich nicht anlegen" }
+            if ($tag -eq "update-dateien") {
+              gh release create $tag --repo $repo --latest `
+                --title "Update-Dateien (für Hilfe → Nach Updates suchen)" `
+                --notes "Dateiliste Update.json und Pakete für das Online-Update der Rohrlaser Angebotskalkulation. Nicht von Hand herunterladen."
+            } else {
+              gh release create $tag --repo $repo --prerelease --latest=false `
+                --title "Update-Dateien Vorabkanal (nur Testinstallationen)" `
+                --notes "Vorabkanal für Testinstallationen (RL_UPDATE_QUELLE). Nicht von Hand herunterladen."
+            }
+            if ($LASTEXITCODE -ne 0) { throw "Release $tag lässt sich nicht anlegen" }
           }
-          $id = gh api "repos/$repo/releases/tags/update-dateien" --jq ".id"
+          $id = gh api "repos/$repo/releases/tags/$tag" --jq ".id"
           $vorhanden = @(gh api --paginate "repos/$repo/releases/$id/assets?per_page=100" --jq ".[].name")
           $neu = @(Get-ChildItem update_dateien -Filter *.zip | Where-Object { $vorhanden -notcontains $_.Name })
           "{0} Pakete schon vorhanden, {1} neu ({2:N1} MB)" -f $vorhanden.Count, $neu.Count, (($neu | Measure-Object Length -Sum).Sum / 1MB)
           foreach ($datei in $neu) {
-            gh release upload update-dateien $datei.FullName --repo $repo --clobber
+            gh release upload $tag $datei.FullName --repo $repo --clobber
             if ($LASTEXITCODE -ne 0) { throw "Hochladen von $($datei.Name) fehlgeschlagen" }
           }
           # bisherige Dateiliste merken: ihre Pakete bleiben einen Stand länger liegen (siehe nächster Schritt)
-          gh release download update-dateien -p Update.json -O update_vorher.json --repo $repo --clobber
+          gh release download $tag -p Update.json -O update_vorher.json --repo $repo --clobber
           if ($LASTEXITCODE -ne 0) { "{}" | Set-Content update_vorher.json; $global:LASTEXITCODE = 0 }
           # Dateiliste erst, wenn alle ihre Pakete da sind; Signatur direkt danach (das Programm lädt bei einer nicht
           # passenden Signatur einmal neu)
-          gh release upload update-dateien update_dateien/Update.json --repo $repo --clobber
+          gh release upload $tag update_dateien/Update.json --repo $repo --clobber
           if ($LASTEXITCODE -ne 0) { throw "Hochladen von Update.json fehlgeschlagen" }
           if (Test-Path update_dateien/Update.json.sig) {
-            gh release upload update-dateien update_dateien/Update.json.sig --repo $repo --clobber
+            gh release upload $tag update_dateien/Update.json.sig --repo $repo --clobber
             if ($LASTEXITCODE -ne 0) { throw "Hochladen von Update.json.sig fehlgeschlagen" }
           }
           # anonym (wie das Programm) prüfen, dass die Dateiliste ankommt
-          $url = "https://github.com/$repo/releases/download/update-dateien/Update.json"
+          $url = "https://github.com/$repo/releases/download/$tag/Update.json"
           for ($i = 1; $i -le 6; $i++) {
             try { $stand = ([Text.Encoding]::UTF8.GetString((Invoke-WebRequest -UseBasicParsing $url).RawContentStream.ToArray()) | ConvertFrom-Json).stand }
             catch { $stand = "Fehler: $_" }
@@ -453,12 +517,13 @@ jobs:
           if ("$stand" -ne "$env:RL_STAND") { throw "$url liefert nicht Stand $env:RL_STAND" }
           "Update.json Stand $env:RL_STAND ohne Anmeldung abrufbar"
       - name: Nicht mehr gebrauchte Update-Pakete löschen
-        if: github.ref == 'refs/heads/main'
+        if: env.VEROEFFENTLICHEN
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
         run: |
           $repo = $env:UPDATE_REPO
+          $tag = $env:UPDATE_TAG
           # Pakete des neuen und des vorigen Stands bleiben: ein Programm, das die vorige Dateiliste schon geholt hat,
           # findet seine Pakete noch (und holt sonst die neue Liste, update.neuere_liste)
           $gebraucht = @("Update.json", "Update.json.sig", "Sperrliste.json")   # Sperrliste lädt Patrick von Hand hoch
@@ -466,8 +531,8 @@ jobs:
             $pakete = (Get-Content -Raw -Encoding utf8 $liste | ConvertFrom-Json).pakete
             if ($pakete) { $gebraucht += @($pakete.PSObject.Properties.Name) }
           }
-          $id = gh api "repos/$repo/releases/tags/update-dateien" --jq ".id"
+          $id = gh api "repos/$repo/releases/tags/$tag" --jq ".id"
           foreach ($name in @(gh api --paginate "repos/$repo/releases/$id/assets?per_page=100" --jq ".[].name")) {
-            if ($gebraucht -notcontains $name) { gh release delete-asset update-dateien $name --yes --repo $repo }
+            if ($gebraucht -notcontains $name) { gh release delete-asset $tag $name --yes --repo $repo }
           }
           $global:LASTEXITCODE = 0
