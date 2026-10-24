@@ -256,6 +256,11 @@ jobs:
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt
           if ($p.ExitCode -ne 0) { throw "Selbsttest Rückgabewert $($p.ExitCode)" }
+          # Der Selbsttest läuft portabel und legt seine Test-PDFs in Angebote neben die .exe: nie ausliefern
+          foreach ($o in @("Angebote", "Daten")) {
+            $pfad = "dist/Rohrlaser-Angebotskalkulation/$o"
+            if (Test-Path $pfad) { Remove-Item -Recurse -Force $pfad; "Selbsttest-Ordner $o entfernt" }
+          }
       - name: Programmordner prüfen (nur Kundendateien, keine Schlüssel, Lizenzen, Datenbanken, Tests, Quelltext, Secrets)
         env:
           UPDATE_SIGNATUR: ${{ secrets.UPDATE_SIGNATUR }}

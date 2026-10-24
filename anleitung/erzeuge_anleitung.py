@@ -2288,13 +2288,16 @@ def kapitel_optimieren(i):
             "<b>Schweißbaugruppe</b>: Nahtkandidaten an den Knicken fallen weg, der Stoß bleibt als Vorschlag. Im "
             "Baugruppen-Editor gibt es die Knickverbindung nicht (dort sind gleiche Rohre schon eine Position und ihre "
             "Lage fehlt); er erinnert bei Rohren mit Gehrung daran, die STEP-Datei neu einzulesen.",
+            "<b>Später</b>: Wurde der Rahmen als Satz ohne Knickverbindung übernommen, geht es auch im Fenster Satz "
+            "in 3D ([[satz_3d]]): Rohre markieren → <i>Knickrahmen erstellen …</i>.",
             "<b>Lösen</b>: Rechtsklick auf die Zeile → <b>Knickverbindung lösen</b>; die Rohre stehen wieder einzeln "
             "in der Liste.")
     i.abschnitt("Knickrahmen aus einem Körper (STEP)", marke="knickrahmen_koerper")
     i.text("Ist der geknickte Rahmen in der STEP-Datei <b>ein Körper</b> (Ecken ohne Spalt, Stegwand durchgehend), "
            "erkennt ihn der Import selbst, ebenso ein gestreckt gezeichnetes Rohr mit V-Ausschnitten. Die Rohrliste zeigt eine Zeile <b>Knickrahmen (n Knicke) aus einem "
            "Körper</b> mit der gestreckten Länge; übernommen wird sie wie eine Knickverbindung "
-           "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>.", kurz=True)
+           "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>. Bohrungen oder Ausschnitte nur in einer Wand "
+           "(z. B. eine Lochreihe oben) stören die Erkennung seit 0.9.98 nicht mehr.", kurz=True)
     i.bild("knickrahmen_koerper", "Knickrahmen aus einem Körper bearbeiten (Rechtsklick auf die Zeile)",
            hoehe=70 * mm,
            legende=[(1, "<b>Erster Schenkel</b>: dort liegt beim geschlossenen Rahmen der Stoß (Vorgabe: der erste "
@@ -2391,7 +2394,8 @@ def kapitel_optimieren(i):
            "Stecksystem möchte), lässt sich im Fenster <b>Satz in 3D</b> bearbeiten: Rechtsklick auf eine Position des "
            "Satzes → <i>Satz in 3D …</i>. Es zeigt alle Teile in der "
            "Einbaulage der STEP-Datei und legt Steckverbindungen an wie der Editor der Schweißbaugruppe; die "
-           "Längsnaht wählt man per Klick auf die Fläche eines Rohrs.", kurz=True)
+           "Längsnaht wählt man per Klick auf die Fläche eines Rohrs. Rohre mit Gehrung werden dort auch ein "
+           "Knickrahmen.", kurz=True)
     i.genauer()
     i.liste("<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
             "3D blau. Ein Klick auf ein Teil im 3D markiert es, mit Strg kommt es dazu bzw. fällt wieder weg.",
@@ -2408,7 +2412,16 @@ def kapitel_optimieren(i):
             "<b>OK</b> schreibt Schlitze, Nasen, Länge, Schneidweg und Längsnähte in die Teile; die Verbindungen "
             "speichert das Angebot je Satz (sie bleiben beim Kopieren des Angebots erhalten). Ist der Satz eine "
             "Schweißbaugruppe, öffnet der Knopf ihren Editor.",
-            "Knickrahmen aus den Rohren eines Satzes legen Sie weiter im STEP-Prüfdialog an ([[knickrahmen]]).")
+            "<b>Knickrahmen erstellen …</b> (unter der Teileliste): Quadrat- oder Rechteckrohre markieren, die mit "
+            "Gehrung aneinanderstoßen – alle ihre Körper zählen, auch mehrere gleiche Rohre einer Position. Es öffnet "
+            "dasselbe Fenster wie im STEP-Prüfdialog ([[knickverbindung]]: erster Schenkel, Laufrichtung, Freistich, "
+            "Knickzugabe, K-Faktor, Innenwand schräg). Der Rahmen ist dann im 3D in einer Farbe, die Spalte "
+            "<i>Knickrahmen</i> nennt ihn; <b>Knickrahmen lösen</b> nimmt ihn vor dem OK wieder heraus. Ergeben die "
+            "markierten Rohre mehrere getrennte Rahmen, bekommen alle dieselben Werte.",
+            "Mit <b>OK</b> wird jeder Knickrahmen eine neue Position: das gestreckte Rohr mit V-Ausschnitten, Länge, "
+            "Schneidweg und Zusatzarbeit Knicken, im 3D gefaltet. Gleiche Rahmen werden eine Position mit "
+            "<i>je Satz</i> = Anzahl. Die Rohre zählen je Satz entsprechend weniger; bleibt von einer Position kein "
+            "Rohr übrig, wird sie gelöscht. Rohre mit Steckverbindung oder schon als Knickrahmen gehen nicht.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
