@@ -12,7 +12,7 @@ import math
 import json
 import re
 
-from .stammdaten import (GASE, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
+from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, co2_maschine, OHNE_NAHT, ROH, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_zukaufteil, kein_laserteil
@@ -173,7 +173,7 @@ def position_werte(p, kopf, k, tabellen):
         return w
     if w["wand_schneiden"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
         sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand_schneiden"], tabellen,
-                          kategorie(p["werkstoff_id"], k))
+                          kategorie(p["werkstoff_id"], k), werkstoff_zeile(p["werkstoff_id"], k))
         w["vorschub"] = _n(sd.get("vorschub_gross")) if sd else None
         w["gas"] = sd.get("gas") if sd else None
         d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (1, 1, 1, 1, 0)) if sd else None
@@ -192,21 +192,80 @@ def preis_zeile(profil_id, werkstoff_id, k, tabellen):
     return None
 
 
-def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None):
+def schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None, werkstoff=None):
     """Schneiddaten-Zeile für Maschine + Werkstoff und Wandstärke, sonst None.
     Zuerst die Zeilen des Werkstoffs, ohne passende die Zeilen seiner Kategorie (Werkstoff-ID leer). Je Schneidgas
     gilt die Zeile mit der kleinsten 'Wandstärke bis' ≥ wand; N₂ geht vor O₂, Zeilen ohne Gas zuletzt. So endet N₂
-    dort, wo die N₂-Zeilen enden, darüber gilt O₂."""
+    dort, wo die N₂-Zeilen enden, darüber gilt O₂. werkstoff = Stammdatenzeile des Werkstoffs (24.10.2026):
+    Schneidgas 'nur N₂'/'nur O₂' lässt nur dieses Gas (und Zeilen ohne Gas) zu, der Vorschub-Faktor gilt für die
+    Zeilen der Kategorie (Patrick „2a“: nicht für eigene Zeilen des Werkstoffs)."""
     zeilen = [z for z in tabellen["schneiddaten"] if z.get("maschinen_id") == maschinen_id
               and z.get("wand_bis") is not None and z["wand_bis"] >= wand]
     eigene = [z for z in zeilen if z.get("werkstoff_id") == werkstoff_id and not _leer(werkstoff_id)]
     kat = [z for z in zeilen if _leer(z.get("werkstoff_id")) and not _leer(kategorie) and z.get("kategorie") == kategorie]
+    gase = gase_von(werkstoff)
     for kandidaten in (eigene, kat):
-        for gas in GASE + (None,):
+        for gas in gase + (None,):
             je_gas = [z for z in kandidaten if (z.get("gas") or None) == gas]
             if je_gas:
-                return min(je_gas, key=lambda z: z["wand_bis"])
+                z = min(je_gas, key=lambda z: z["wand_bis"])
+                f = vorschub_faktor(werkstoff)
+                if kandidaten is kat and f != 1:
+                    z = dict(z, **{n: round(z[n] * f) for n in VORSCHUB_FELDER if isinstance(z.get(n), (int, float))})
+                return z
     return None
+
+
+# ------------------------------------------------------------------ Werkstoff am Rohrlaser (Patrick 24.10.2026)
+VORSCHUB_FELDER = ("vorschub_gross", "vorschub_mittel", "vorschub_klein", "vorschub_gravur")
+
+
+def werkstoff_zeile(werkstoff_id, k):
+    return (k.werkstoffe.get(werkstoff_id) if k is not None and not _leer(werkstoff_id) else None) or {}
+
+
+def gase_von(werkstoff):
+    """Zulässige Schneidgase in der Reihenfolge der Suche: Vorgabe des Werkstoffs, sonst N₂ vor O₂."""
+    v = (werkstoff or {}).get("gas_vorgabe")
+    return (v.removeprefix("nur "),) if v in GAS_VORGABEN[1:] else GASE
+
+
+def vorschub_faktor(werkstoff):
+    """Vorschub-Faktor des Werkstoffs; leer oder ungültig = 1."""
+    f = (werkstoff or {}).get("vorschub_faktor")
+    return float(f) if isinstance(f, (int, float)) and not isinstance(f, bool) and 0 < f <= 3 else 1.0
+
+
+def ohne_naht(werkstoff_id, k):
+    """Werkstoff ohne Schweißnaht (Rohrart nahtlos oder stranggepresst): eine Nahtvorgabe der Teile entfällt, sie
+    drehen frei und rechnen ohne Stangenwechsel SN (Patrick „4b“)."""
+    return werkstoff_zeile(werkstoff_id, k).get("rohrart") in OHNE_NAHT
+
+
+def naht_wirksam(p, k):
+    """Nahtvorgabe der Position, wie sie gilt: bei Werkstoff ohne Naht 'keine Vorgabe'."""
+    return naht.KEINE if ohne_naht(p.get("werkstoff_id"), k) else naht.vorgabe(p)
+
+
+def laser_pruefen(p, m, k):
+    """Text, wenn der Werkstoff nur mit Faserlaser geht und die Maschine ein CO₂-Laser ist, sonst None."""
+    w = werkstoff_zeile(p.get("werkstoff_id"), k)
+    if w.get("laser") == NUR_FASER and m and co2_maschine(m):
+        return f"{p.get('werkstoff_id')} nur mit Faserlaser – Maschine {m.get('maschinen_id')} ist ein CO₂-Laser"
+    return None
+
+
+def laser_hinweise(positionen, k):
+    """Laser-Hinweise der Werkstoffe im Angebot (Angebots-Check, Kalkulation, Werkstattpapiere):
+    [dict(werkstoff, text, zeilen)] in der Reihenfolge der ersten Position, nur aktive Rohrlaser-Positionen."""
+    out = {}
+    for i, p in enumerate(positionen or ()):
+        if not position_aktiv(p) or kein_laserteil(p):
+            continue
+        t = werkstoff_zeile(p.get("werkstoff_id"), k).get("laser_hinweis")
+        if t:
+            out.setdefault(p["werkstoff_id"], dict(werkstoff=p["werkstoff_id"], text=str(t), zeilen=[]))["zeilen"].append(i)
+    return list(out.values())
 
 
 # ------------------------------------------------------------------ Status
@@ -354,8 +413,9 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "FEHLER: " + grenze
     if w["nutz"] is None or p["laenge"] + _n(m.get("schnittverlust")) > w["nutz"]:
         return "FEHLER: Teil länger als Nutzlänge"
-    naht_status = naht.pruefen(p, k.profile.get(p.get("profil_id")),
-                               naht.stange_eingetragen(kopf, p.get("profil_id"), p.get("werkstoff_id")))
+    nahtlos = ohne_naht(p.get("werkstoff_id"), k)     # Werkstoff ohne Naht: Vorgabe entfällt (HINWEIS unten)
+    naht_status = None if nahtlos else naht.pruefen(p, k.profile.get(p.get("profil_id")),
+                                                    naht.stange_eingetragen(kopf, p.get("profil_id"), p.get("werkstoff_id")))
     if naht_status and naht_status.startswith("FEHLER"):
         return naht_status
     d3_status = dreid.pruefen(p, m)     # Maschine ohne 3D, ungültiger Winkel: FEHLER, nicht stillschweigend 2D
@@ -387,6 +447,9 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return f"WARNUNG: Gewinde '{pr['gewinde']}' nicht erkannt (Format 4xM6; 2xM8)"
     if "gewinde_preis" in pr:
         return f"WARNUNG: Gewinde {pr['gewinde_preis']} ohne Preis je Stück (Einstellungen › Gewinde)"
+    laser = laser_pruefen(p, m, k)
+    if laser:
+        return "WARNUNG: " + laser
     if naht_status:
         return naht_status
     if d3_status and d3_status.startswith("WARNUNG"):
@@ -407,6 +470,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
         return "HINWEIS: keine Schneiddaten"
+    if nahtlos and naht.vorgabe(p) != naht.KEINE:
+        return f"HINWEIS: Werkstoff {p.get('werkstoff_id')} ohne Schweißnaht – Nahtvorgabe entfällt"
     if "bohrungen" in pr:
         return "HINWEIS: Bohrungen prüfen (Doppelklick)"
     if "anbau" in pr:
@@ -525,7 +590,7 @@ def gruppen_bilden(kopf, positionen, k):
         b_s = p.get("b_schnitt") or u
         geh = dict(a_gehrung=None if a_ger else naht.ende_lesen(p.get("a_ende")),
                    b_gehrung=None if b_ger else naht.ende_lesen(p.get("b_ende")),
-                   drehung={naht.FEST: opt.FEST, naht.UNBEKANNT: opt.UNBEKANNT}.get(naht.vorgabe(p), opt.FREI))
+                   drehung={naht.FEST: opt.FEST, naht.UNBEKANNT: opt.UNBEKANNT}.get(naht_wirksam(p, k), opt.FREI))
         if geh["drehung"] == opt.FEST:
             try:
                 geh["naht"] = naht.normieren(p.get("naht_winkel"))
@@ -1826,7 +1891,7 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
     gemeinsamer Schnitte und ohne Zusatzzeiten). Ergebnis: (Schneiddaten-Zeile, (Vorschub groß, mittel, klein,
     Gravur, Einstechzeit), Zeit oder None ohne Schneiddaten)."""
     sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen,
-                      kategorie(p.get("werkstoff_id"), k) if k else None)
+                      kategorie(p.get("werkstoff_id"), k) if k else None, werkstoff_zeile(p.get("werkstoff_id"), k))
     if sd and sd.get("wand_bis"):
         h = _n(sd.get("vorschub_gross"))
         i_ = _n(sd.get("vorschub_mittel")) or h
@@ -1915,7 +1980,7 @@ def zeit_enden(p, kopf, sd, tabellen, k, h):
         enden = [_n(p.get(f)) for f in ("a_schnitt", "b_schnitt")]
         mm = sum(rp_profile.doppel_anteil(e, x or None) for x in enden)
         sd2 = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), 2 * _n(e.get("wand")), tabellen,
-                           kategorie(p.get("werkstoff_id"), k))
+                           kategorie(p.get("werkstoff_id"), k), werkstoff_zeile(p.get("werkstoff_id"), k))
         v2 = _n((sd2 or {}).get("vorschub_gross"))
         out["doppel_mm"] = mm
         if not v2:
@@ -1949,7 +2014,7 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
     for b in bearb:
         dicke = dreid.wirksame_dicke(wand, b["winkel"])
         sd = schneiddaten(m.get("maschinen_id"), p.get("werkstoff_id"), dicke, tabellen,
-                          kategorie(p.get("werkstoff_id"), k))
+                          kategorie(p.get("werkstoff_id"), k), werkstoff_zeile(p.get("werkstoff_id"), k))
         if not (sd and _n(sd.get("vorschub_gross"))):
             return dict(zeit=0.0, mehr=0.0, laenge=0.0, anzahl=0,
                         fehlt=f"keine Schneiddaten für 3D (Dicke {zahl(dicke, 1)} mm)")
@@ -2082,6 +2147,8 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
     return dict(datum=datum or datetime.date.today().isoformat(), maschine=m, preise=preise, schneiddaten=sd,
                 lieferlaengen=lief,
                 tonnenpreise={w: (k.werkstoffe.get(w) or {}).get("tonnenpreis") for w in sorted(werkstoffe, key=str)},
+                # ab 24.10.2026 (Schema 55): Schneidgas und Vorschub-Faktor der Werkstoffe (nur gesetzte)
+                werkstoff_laser={w: v for w in sorted(werkstoffe, key=str) if (v := _laser_werte(k.werkstoffe.get(w)))},
                 aufpreise={o: (k.oberflaechen.get(o) or {}).get("aufpreis_m") for o in sorted(ofl)},
                 # ab 0.7.0: Gewinde, preisrelevante Einstellungen, Profil- und Maschinenzeile (Prüfbericht B-4)
                 gewinde=[dict(z) for z in tabellen.get("gewinde") or []],
@@ -2140,12 +2207,25 @@ def preisbasis_anwenden(kopf, k, tabellen):
     tab["einstellungen"] = e
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
+    if isinstance(pb.get("werkstoff_laser"), dict):     # ältere Snapshots: aktuelle Werte
+        fest_l = pb["werkstoff_laser"]
+        ws = {w: dict(z, **{n: (fest_l.get(w) or {}).get(n) for n in LASER_FELDER})
+              if w in (pb.get("tonnenpreise") or {}) and _laser_werte(z) != (fest_l.get(w) or {}) else z
+              for w, z in ws.items()}
     of = {o: dict(z, aufpreis_m=pb["aufpreise"][o]) if o in (pb.get("aufpreise") or {}) else z
           for o, z in k.oberflaechen.items()}
     pr = {pid: _fest(z, (pb.get("profile") or {}).get(pid)) for pid, z in k.profile.items()}
     ma = {m: _fest(z, (pb.get("maschinen") or {}).get(m)) if m == kopf.get("maschine") else z
           for m, z in k.maschinen.items()}
     return dataclasses.replace(k, werkstoffe=ws, oberflaechen=of, profile=pr, maschinen=ma), tab
+
+
+LASER_FELDER = ("gas_vorgabe", "vorschub_faktor")
+
+
+def _laser_werte(z):
+    """Festgeschriebene Lasereigenschaften eines Werkstoffs (nur gesetzte Felder)."""
+    return {n: (z or {}).get(n) for n in LASER_FELDER if not _leer((z or {}).get(n))}
 
 
 def _json_liste(zeilen):
@@ -2178,7 +2258,8 @@ def _vergleich(pb):
     return dict(maschine=pb.get("maschine"), preise={_preis_schl(z): z for z in pb.get("preise") or []}, schneiddaten=sd,
                 tonnenpreise=pb.get("tonnenpreise") or {}, aufpreise=pb.get("aufpreise") or {}, lieferlaengen=lief,
                 gewinde=_json_liste(pb.get("gewinde") or []), einstellungen=pb.get("einstellungen") or {},
-                profile=pb.get("profile") or {}, maschinen=pb.get("maschinen") or {})
+                profile=pb.get("profile") or {}, maschinen=pb.get("maschinen") or {},
+                werkstoff_laser=pb.get("werkstoff_laser") if "werkstoff_laser" in pb else None)
 
 
 def preisbasis_gleich(a, b):
@@ -2215,6 +2296,10 @@ def preisbasis_abweichung(kopf, k, tabellen):
             out.append(f"Aufpreis {o}: {zahl(a)} → {zahl(neu['aufpreise'].get(o))} €/m")
     if alt["schneiddaten"] != neu["schneiddaten"]:
         out.append(f"Schneiddaten der Maschine {pb.get('maschine')} geändert")
+    if alt["werkstoff_laser"] is not None:
+        for w in pb.get("tonnenpreise") or {}:
+            if (alt["werkstoff_laser"].get(w) or {}) != (neu["werkstoff_laser"].get(w) or {}):
+                out.append(f"Schneidgas/Vorschub-Faktor {w} geändert")
     if "lieferlaengen" in pb and alt["lieferlaengen"] != neu["lieferlaengen"]:
         out.append("Lieferlängen geändert")
     if "gewinde" in pb and alt["gewinde"] != neu["gewinde"]:
@@ -2257,7 +2342,7 @@ def freigabe_punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0
                     **weitere):
     """'Prüfen vor Freigabe' (Prüfbericht C-2, 3.4), seit Plan A2 der Angebots-Check (angebot_check.punkte): alle
     offenen Punkte vor dem Angebots-PDF als Liste von Paaren (Art, Text) mit ziel und details; Art FEHLER, WARNUNG
-    oder HINWEIS. weitere: kalk_zeilen, kunde, preis_abweichung, mindestmarge, admin."""
+    oder HINWEIS. weitere: kalk_zeilen, kunde, preis_abweichung, mindestmarge, admin, laser_hinweise."""
     from .angebot_check import punkte
     return punkte(kopf, positionen, status, stand, summen, staffeln_veraltet, gueltig_bis, heute, **weitere)
 
