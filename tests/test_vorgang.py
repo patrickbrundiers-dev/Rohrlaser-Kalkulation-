@@ -76,7 +76,7 @@ assert db.angebot(kopie)["vorgang"] is None
 v = db.angebot(ids[1])["versand"]
 assert len(v) == 2 and v[0]["netto"] > 0 and v[0]["datei"].endswith(".pdf"), v
 s.neu_laden()
-assert "Verschickt:" in s.uebersicht_bereich.preisstand.toolTip()
+assert "Versandverlauf:" in s.uebersicht_bereich.preisstand.toolTip()
 assert db.angebot(kopie)["versand"] == []
 ok("Verlauf der verschickten Angebots-PDFs (Datum, netto, Datei) im Tooltip des Preisstands; Kopie ohne Verlauf")
 ok("Beauftragt und Abgelehnt von Hand, Filter je Vorgang, Kopie beginnt als Entwurf")
