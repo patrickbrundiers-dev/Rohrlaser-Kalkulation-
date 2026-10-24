@@ -2162,7 +2162,10 @@ def kapitel_optimieren(i):
             "(Maschine mit 3D, [[schneidweg_rechner]]).",
             "<b>Prüfregeln</b> ([[pruefregeln]]): <i>Schenkel zu kurz</i>, <i>Kontur im Knickbereich</i> und "
             "<i>Wand zu dick zum Knicken</i>. <b>Knickrahmen entfernen</b> im Fenster nimmt Schenkel und "
-            "V-Ausschnitte wieder heraus.")
+            "V-Ausschnitte wieder heraus.",
+            "<b>Teile-Editor</b> ([[teile_editor]]): Gruppe <b>Knicke</b> mit je Knick einem Eintrag (Knickwinkel, Lage, "
+            "Stegwand) und dem Rahmen (Schenkel, offen/geschlossen, Herkunft STEP oder manuell). Ein Klick wählt den "
+            "V-Ausschnitt in Tabelle, Skizze und 3D; Prüfmeldungen zu einem Knick führen ebenso dorthin.")
     i.abschnitt("Knickverbindung aus Einzelrohren (STEP)", marke="knickverbindung")
     i.text("Ist der Rahmen in der STEP-Datei aus <b>einzelnen Rohren mit Gehrung</b> gezeichnet, schlägt der "
            "Prüfdialog über der Rohrliste <b>Knickrahmen möglich</b> vor. <b>Knickverbindung erstellen …</b> macht "
@@ -2253,7 +2256,7 @@ def kapitel_optimieren(i):
             "<b>Kennzahlen</b> unten: beim Rohr Schneidweg, Einstiche, Schneidzeit und Konturklassen, beim Blech "
             "Richtpreis, Zuschnitt, Gewicht und Laserzeit. Rechts daneben der <b>Zähler</b> der Prüfmeldungen "
             "(✕ Fehler, ! Warnungen, i Hinweise); ein Klick klappt die Liste auf.")
-    i.liste("<b>Merkmale</b>: Teil (Länge bzw. Werkstoff, Dicke und Zuschnitt), Enden, Innenkonturen, Biegungen, "
+    i.liste("<b>Merkmale</b>: Teil (Länge bzw. Werkstoff, Dicke und Zuschnitt), Enden, Innenkonturen, Knicke, Biegungen, "
             "Anbauteile, Schweißnaht und Gravur, je Eintrag mit der <b>Herkunft</b>: <i>STEP</i> (grün) = wie im "
             "STEP-Import gemessen, <i>manuell (STEP geändert)</i> (orange) = gemessen und von Hand geändert, "
             "<i>manuell</i> = von Hand eingetragen, <i>Vorgabe</i> (grau) = unveränderter Grundwert. Beim Blech "

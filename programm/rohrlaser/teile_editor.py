@@ -2,7 +2,7 @@
 
 Die Rechnung bleibt in den Fenstern (schneidweg.py, blech.py über SchneidwegDialog bzw. BlechDialog); der Rahmen legt
 nur dazu:
-- links den Merkmalsbaum (Teil, Enden, Innenkonturen, Biegungen, Anbauteile, Schweißnaht, Gravur) mit der Herkunft
+- links den Merkmalsbaum (Teil, Enden, Innenkonturen, Knicke, Biegungen, Anbauteile, Schweißnaht, Gravur) mit der Herkunft
   jedes Werts: STEP (wie gemessen), manuell (von Hand, bei geänderten STEP-Werten mit „auf STEP-Wert
   zurücksetzen“) oder Vorgabe (unverändert aus den Grundwerten);
 - unten die Prüfmeldungen (Fertigungsprüfung dfm.py, Fehler und Hinweise der Rechnung); ein Klick wählt das
@@ -29,7 +29,7 @@ from .menueband import Menueband
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
-GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Biegungen", "Anbauteile", "Schweißnaht", "Gravur")
+GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Knicke", "Biegungen", "Anbauteile", "Schweißnaht", "Gravur")
 FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, VORGABE: stil.TEXT_GRAU}
 FARBE_STUFE = {dfm.FEHLER: stil.ROT, dfm.WARNUNG: stil.GELB_TEXT, dfm.HINWEIS: stil.TEXT_GRAU}
 VERZOEGERUNG = 150          # ms nach der letzten Eingabe: Baum, Prüfmeldungen, Rückgängig-Schritt
@@ -97,9 +97,26 @@ def merkmale_rohr(e, laenge=None, step_enden=None, step_zeilen=None, naht_text=N
         x = e.get(s) or {}
         gerade = not sw._z(x.get("winkel")) and not sw._z(x.get("sattel"))
         out.append(Merkmal(f"ende:{s}", "Enden", f"{titel}: {ende_text(x)}", herkunft(step_enden.get(s), gerade)))
+    from . import knickrahmen as kn
+    knick = kn.lesen(e)
+    knick_herkunft = STEP if knick and str(knick.get("herkunft") or "").startswith("STEP") else MANUELL
+    nr = 0
     for i, z in enumerate(e.get("konturen") or ()):
+        if z.get("art") == sw.V_AUSSCHNITT:     # Knickrahmen: V-Ausschnitte in der Gruppe Knicke
+            nr += 1
+            out.append(Merkmal(f"kontur:{i}", "Knicke",
+                               f"K{nr}: β {_z(z.get('beta'))}° bei x = {_z(z.get('x'))}, Stegwand {z.get('seite') or 'oben'}"
+                               + (f", Freistich Ø {_z(z['freistich'])}" if sw._z(z.get("freistich")) else "")
+                               + (", Innenwand schräg 3D" if z.get("d3") else ""), knick_herkunft))
+            continue
         out.append(Merkmal(f"kontur:{i}", "Gravur" if z.get("art") == sw.GRAVUR else "Innenkonturen",
                            kontur_text(i, z), herkunft(step_zeilen.get(i))))
+    if knick:
+        sch = knick.get("schenkel") or []
+        text = (f"Knickrahmen: {len(sch)} Schenkel " + " / ".join(_z(x) for x in sch) + " mm, "
+                + ("geschlossen" if knick.get("geschlossen") else "offen")
+                + (f" ({knick['herkunft']})" if knick.get("herkunft") else ""))
+        out.append(Merkmal("knickrahmen", "Knicke", text, knick_herkunft))
     br = biegerohr.lesen(e)
     if br:      # Biegerohr aus dem STEP-Import: Biegedaten fest aus der Messung
         out[0] = Merkmal("teil", "Teil", f"Länge {_z(laenge)} mm gestreckt, Biegerohr" if laenge else
@@ -1032,6 +1049,8 @@ class EditorRahmen(QObject):
             d.naht_vorgabe.setFocus()
         elif art == "gravur":
             d.gravur.setFocus()
+        elif art == "knickrahmen" and hasattr(d, "knick_knopf"):
+            d.knick_knopf.setFocus()
         if self.art == "blech":
             d.skizze.markieren(mid)
         self._3d_markieren([mid])
