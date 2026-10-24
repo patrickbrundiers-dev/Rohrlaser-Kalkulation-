@@ -86,7 +86,24 @@ if GL_KIND:
         return abstand(g, v) < abstand(g, h) and not nah(g, gh, 6) and nah(g, v, 30), (g, gh, v, h)
 
     ergebnis, werte = vorn_sichtbar(gl)
-    assert ergebnis, ("Tiefenpuffer: vordere Fläche verdeckt die hintere", werte)
+    if not ergebnis:
+        print("DIAG", grund, werte, farbe(gl, 2, 2), flush=True)
+    if not ergebnis:            # Hinweise für die Fehlersuche (Treiber, Hintergrund, Licht ohne Zusätze)
+        diag, behalten = [grund, ("ecke", farbe(gl, 2, 2), farbe(sw, 2, 2))], []
+        lw, l2 = ansicht3d.LICHT_WERTE, ansicht3d.LICHT2
+        for name, werte_l, licht2 in (("ohne Glanz", (lw[0], lw[1], lw[2], 0.0, lw[4]), l2),
+                                      ("alt", (0.42, 0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.0))):
+            ansicht3d.LICHT_WERTE, ansicht3d.LICHT2 = werte_l, licht2
+            behalten.append(bild("OpenGL"))
+            diag.append((name, farbe(behalten[-1][1], *mitte)))
+            print("DIAG", diag, flush=True)
+        ansicht3d.LICHT_WERTE, ansicht3d.LICHT2 = lw, l2
+        ansicht3d_gl.MIT_VERLAUF = False
+        behalten.append(bild("OpenGL"))
+        diag.append(("ohne Verlauf", farbe(behalten[-1][1], *mitte), farbe(behalten[-1][1], 2, 2)))
+        ansicht3d_gl.MIT_VERLAUF = True
+        print("DIAG", diag, flush=True)
+    assert ergebnis, ("Tiefenpuffer: vordere Fläche verdeckt die hintere", werte, diag)
     # zweites Bild (QPainter der Beschriftung hat den Zustand verändert) und vergrößert: weiter richtig verdeckt
     gl2 = w_gl._gl.grabFramebuffer()
     assert vorn_sichtbar(gl2)[0], ("zweites Bild", vorn_sichtbar(gl2)[1])
@@ -156,7 +173,7 @@ if sys.platform.startswith("linux") and shutil.which("xvfb-run"):
     env = dict(os.environ, TEST_GL_KIND="1", QT_QPA_PLATFORM="xcb")
     r = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", sys.executable, __file__],
                        capture_output=True, text=True, env=env, timeout=300)
-    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
     if "GL_OK" in r.stdout:
         ok("OpenGL wie QPainter, Verdeckung über Tiefenpuffer, Rückfall bei Fehler: "
            + r.stdout.split("GL_OK", 1)[1].strip())

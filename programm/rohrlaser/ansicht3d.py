@@ -17,7 +17,7 @@ import sys
 import zlib
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
@@ -52,7 +52,13 @@ FARBE.update({f"F{n}": QColor(f) for n, f in enumerate(TEILFARBEN)})
 FARBE["X"] = QColor("#D9DDE2")         # nicht gewählte Teile, wenn andere hervorgehoben sind
 LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 NAEHTE, NAHT_BREITE = ("SN", "SV", "SH"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
-HINTERGRUND = QColor("#FFFFFF")
+HINTERGRUND = QColor("#FFFFFF")         # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
+HINTERGRUND_OBEN = QColor("#DCE3EA")
+# Licht (QPainter je Dreieck, OpenGL je Ecke, gleiche Formel): Hauptlicht links oben vorn, Fülllicht rechts unten;
+# LICHT_WERTE = (Grundlicht, Neigung oben heller, Fülllicht, Glanz, Glanz-Exponent) – Metall-Look
+LICHT = (-0.35, 0.45, 0.82)
+LICHT2 = (0.55, -0.35, 0.76)
+LICHT_WERTE = (0.38, 0.06, 0.16, 0.22, 36.0)
 MARKIERT = QColor("#00A040")        # Teile-Editor: gewähltes Merkmal (grün umrandet wie im CAM, Plan G3)
 KANTE = QColor("#3C4650")           # Darstellung „Mit Kanten“: Körperkanten
 # Darstellungsarten (Plan 3D-Editor A4): Schattiert = Flächen und Schnittkonturen (wie bisher), Mit Kanten = dazu die
@@ -358,13 +364,37 @@ def _blass(c, an):
     return QColor(*(int(x + (255 - x) * BLASS) for x in (c.red(), c.green(), c.blue())))
 
 
+def hintergrund_bei(y, hoehe):
+    """Farbe des Hintergrundverlaufs in Bildzeile y (0 = oben)."""
+    f = max(0.0, min(1.0, y / max(1, hoehe - 1)))
+    o, u = HINTERGRUND_OBEN, HINTERGRUND
+    return QColor(round(o.red() + (u.red() - o.red()) * f), round(o.green() + (u.green() - o.green()) * f),
+                  round(o.blue() + (u.blue() - o.blue()) * f))
+
+
+def hintergrund_malen(p, rechteck):
+    verlauf = QLinearGradient(0, rechteck.top(), 0, rechteck.bottom())
+    verlauf.setColorAt(0.0, HINTERGRUND_OBEN)
+    verlauf.setColorAt(1.0, HINTERGRUND)
+    p.fillRect(rechteck, QBrush(verlauf))
+
+
+def licht_wert(nx, ny, nz):
+    """(Faktor für die Farbe, Glanz-Zugabe 0..1) zur Normalen in Bildkoordinaten (zum Betrachter gedreht)."""
+    a, neig, fuell, glanz, exp = LICHT_WERTE
+    hell = a + neig * ny + (1 - a) * max(0.0, nx * LICHT[0] + ny * LICHT[1] + nz * LICHT[2]) \
+        + fuell * max(0.0, nx * LICHT2[0] + ny * LICHT2[1] + nz * LICHT2[2])
+    hx, hy, hz = LICHT[0], LICHT[1], LICHT[2] + 1.0
+    b = math.sqrt(hx * hx + hy * hy + hz * hz)
+    return hell, glanz * max(0.0, (nx * hx + ny * hy + nz * hz) / b) ** exp
+
+
 def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True,
              darstellung=SCHATTIERT, blass=False):
     """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller). darstellung:
     DARSTELLUNGEN; blass: alles blass (der Teile-Editor zeichnet das Gewählte kräftig darüber)."""
     m, proj, massstab, ox, oy = projektion(modell, breite, hoehe, gier, nick, zoom, verschiebung)
     cx, cy, cz = modell.mitte
-    licht = (-0.35, 0.45, 0.82)
     roentgen = darstellung == DURCHSICHTIG
     liste = []
     for i, j, k, art, n in modell.dreiecke:
@@ -375,9 +405,9 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
         ny = m[1][0] * n[0] + m[1][1] * n[1] + m[1][2] * n[2]
         if nz <= 0:
             nx, ny, nz = -nx, -ny, -nz
-        hell = 0.42 + 0.58 * max(0.0, nx * licht[0] + ny * licht[1] + nz * licht[2])
         a, b, c = proj[i], proj[j], proj[k]
-        liste.append((1 if roentgen else 0 if art == "I" else 1, (a[2] + b[2] + c[2]) / 3, (a, b, c), art, hell))
+        liste.append((1 if roentgen else 0 if art == "I" else 1, (a[2] + b[2] + c[2]) / 3, (a, b, c), art,
+                      licht_wert(nx, ny, nz)))
 
     def gedreht(a):
         return (m[0][0] * (a[0] - cx) + m[0][1] * (a[1] - cy) + m[0][2] * (a[2] - cz),
@@ -410,7 +440,8 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             p.drawLine(poly[0], poly[1])
             continue
         f = _blass(FARBE.get(art, FARBE["K"]), blass)
-        farbe = QColor(int(f.red() * hell), int(f.green() * hell), int(f.blue() * hell))
+        faktor, glanz = hell
+        farbe = QColor(*(min(255, int(c * faktor + 255 * glanz)) for c in (f.red(), f.green(), f.blue())))
         if roentgen:
             farbe.setAlphaF(ALPHA)
             p.setPen(Qt.NoPen)
@@ -651,7 +682,7 @@ class Ansicht3D(QWidget):
         if self._gl is not None:        # zeichnet die OpenGL-Fläche (mit _beschriften)
             return
         p = QPainter(self)
-        p.fillRect(self.rect(), HINTERGRUND)
+        hintergrund_malen(p, self.rect())
         if self.modell is None:
             p.setPen(QColor("#7F7F7F"))
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
