@@ -1,4 +1,5 @@
-"""Fenster des Lizenz-Werkzeugs (nur bei Patrick): Schlüssel erzeugen, Lizenz ausstellen, Register, sperren.
+"""Fenster des Lizenz-Werkzeugs (nur bei Patrick): Schlüssel erzeugen, Lizenz ausstellen, Register mit Status und
+Erinnerung, verlängern, Kundenübersicht, sperren und Sperrliste hochladen.
 
 Start: Doppelklick auf Lizenz-Werkzeug.exe bzw. python werkzeuge/lizenz_werkzeug.py ohne Befehl. Die Logik steht
 in lizenz_werkzeug.py; hier nur die Bedienung. Fehler meldet die Logik als SystemExit mit Text.
@@ -8,7 +9,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QDate, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QGuiApplication
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
                                QMessageBox, QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
@@ -18,6 +19,11 @@ import lizenz_werkzeug as wz
 from rohrlaser import lizenz
 
 ARTEN = (("Benutzer", "benutzer"), ("Testlizenz (Aufdruck TESTVERSION)", "test"), ("Admin (unbefristet)", "admin"))
+# Spalten der Tabelle: Registerfelder plus der berechnete Status
+ANZEIGE = (("lizenz_id", "Lizenz-ID"), ("art", "Art"), ("inhaber", "Inhaber"), ("firma", "Firma"),
+           ("rechner", "Rechner"), ("ausgestellt", "Ausgestellt"), ("gueltig_bis", "Gültig bis"),
+           ("status", "Status"), ("gesperrt", "Gesperrt"), ("datei", "Datei"))
+FARBE = dict(abgelaufen="#FDE2E1", laeuft_ab="#FEF3C7", gesperrt="#E5E7EB")
 
 
 class Fenster(QWidget):
@@ -27,6 +33,11 @@ class Fenster(QWidget):
         self.setWindowTitle("Lizenz-Werkzeug – Rohrlaser Angebotskalkulation")
         self.resize(980, 720)
         lay = QVBoxLayout(self)
+        # Erinnerung: Lizenzen, die bald ablaufen oder abgelaufen sind (ohne Nachfolger)
+        self.erinnerung = QLabel()
+        self.erinnerung.setWordWrap(True)
+        self.erinnerung.setStyleSheet("background:#FEF3C7; border:1px solid #F59E0B; padding:6px;")
+        lay.addWidget(self.erinnerung)
         # Schlüssel
         kopf = QHBoxLayout()
         self.ordner_text = QLabel()
@@ -72,16 +83,21 @@ class Fenster(QWidget):
         # Register
         box = QGroupBox("Ausgestellte Lizenzen (lizenzen.csv)")
         bl = QVBoxLayout(box)
-        self.tabelle = QTableWidget(0, len(wz.SPALTEN))
-        self.tabelle.setHorizontalHeaderLabels(["Lizenz-ID", "Art", "Inhaber", "Firma", "Rechner", "Ausgestellt",
-                                                "Gültig bis", "Gesperrt", "Datei"])
+        self.filter = QLineEdit()
+        self.filter.setPlaceholderText("Suchen: Firma, Inhaber, Lizenz-ID oder Rechner-ID")
+        self.filter.setClearButtonEnabled(True)
+        self.filter.textChanged.connect(self.filtern)
+        bl.addWidget(self.filter)
+        self.tabelle = QTableWidget(0, len(ANZEIGE))
+        self.tabelle.setHorizontalHeaderLabels([t for _, t in ANZEIGE])
         self.tabelle.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tabelle.setSelectionBehavior(QTableWidget.SelectRows)
         self.tabelle.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         bl.addWidget(self.tabelle, 1)
         zeile = QHBoxLayout()
-        for text, ziel in (("Markierte sperren …", self.sperren), ("Lizenzdatei prüfen …", self.pruefen),
-                           ("Aktualisieren", self.neu_laden)):
+        for text, ziel in (("Verlängern …", self.verlaengern), ("Kunden …", self.kunden_zeigen),
+                           ("Markierte sperren …", self.sperren), ("Sperrliste hochladen …", self.hochladen),
+                           ("Lizenzdatei prüfen …", self.pruefen), ("Aktualisieren", self.neu_laden)):
             b = QPushButton(text)
             b.clicked.connect(ziel)
             zeile.addWidget(b)
@@ -111,11 +127,38 @@ class Fenster(QWidget):
                                  + (f"<b>{sid}</b> vorhanden" if sid else "<b style='color:#B42318'>noch keiner – "
                                                                           "zuerst „Schlüssel erzeugen …“</b>"))
         self.schluessel_knopf.setEnabled(not sid)
-        zeilen = sorted(wz.register_lesen(self.ordner), key=lambda z: z["gueltig_bis"])
+        alle = wz.register_lesen(self.ordner)
+        zeilen = sorted(alle, key=lambda z: z["gueltig_bis"])
         self.tabelle.setRowCount(len(zeilen))
         for i, z in enumerate(zeilen):
-            for j, s in enumerate(wz.SPALTEN):
-                self.tabelle.setItem(i, j, QTableWidgetItem(z.get(s) or ""))
+            st, _ = wz.status(z)
+            farbe = FARBE.get(st)
+            if st in ("abgelaufen", "laeuft_ab") and wz.hat_nachfolger(z, alle):
+                farbe = None            # schon verlängert
+            for j, (s, _) in enumerate(ANZEIGE):
+                item = QTableWidgetItem(wz.status_text(z) if s == "status" else z.get(s) or "")
+                if farbe:
+                    item.setBackground(QColor(farbe))
+                self.tabelle.setItem(i, j, item)
+        faellig = wz.faellig(alle)
+        self.erinnerung.setVisible(bool(faellig))
+        if faellig:
+            self.erinnerung.setText(
+                f"<b>Erinnerung:</b> {len(faellig)} Lizenz{'en' if len(faellig) != 1 else ''} "
+                f"{'laufen' if len(faellig) != 1 else 'läuft'} in den nächsten {wz.ERINNERUNG_TAGE} Tagen ab oder "
+                f"{'sind' if len(faellig) != 1 else 'ist'} abgelaufen: "
+                + ", ".join(f"{z['lizenz_id']} {wz._kunde(z)} ({wz.status_text(z)})" for z, _, _ in faellig)
+                + ". Markieren und <i>Verlängern …</i>.")
+        self.filtern()
+
+    def filtern(self, *_):
+        text = self.filter.text().strip().casefold()
+        for i in range(self.tabelle.rowCount()):
+            zeile = " ".join(self.tabelle.item(i, j).text() for j in range(self.tabelle.columnCount())).casefold()
+            self.tabelle.setRowHidden(i, bool(text) and text not in zeile)
+
+    def markierte(self):
+        return sorted({self.tabelle.item(i.row(), 0).text() for i in self.tabelle.selectedIndexes()})
 
     def art_gewechselt(self):
         art = self.art.currentData()
@@ -241,8 +284,81 @@ class Fenster(QWidget):
                                 "Benutzer schicken; er lädt sie unter Hilfe → Lizenz …") == QMessageBox.Yes:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(datei.parent)))
 
+    def verlaengern(self):
+        ids = self.markierte()
+        if len(ids) != 1:
+            return self.fehler("Bitte genau eine Lizenz in der Liste markieren.")
+        z = next((z for z in wz.register_lesen(self.ordner) if z["lizenz_id"] == ids[0]), None)
+        if z is None:
+            return
+        if z["art"] == "admin":
+            return self.fehler("Admin-Lizenzen sind unbefristet, eine Verlängerung ist nicht nötig.")
+        d = QDialog(self)
+        d.setWindowTitle(f"{ids[0]} verlängern")
+        form = QFormLayout(d)
+        form.addRow("Kunde:", QLabel(f"{z['inhaber']} / {z['firma']}"))
+        form.addRow("Rechner:", QLabel(z["rechner"]))
+        form.addRow("Bisher gültig bis:", QLabel(z["gueltig_bis"]))
+        bis = QDateEdit()
+        bis.setCalendarPopup(True)
+        bis.setDisplayFormat("dd.MM.yyyy")
+        vorgabe = wz.verlaengerung_bis(z)
+        bis.setDate(QDate(vorgabe.year, vorgabe.month, vorgabe.day))
+        form.addRow("Neu gültig bis:", bis)
+        k = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        k.accepted.connect(d.accept)
+        k.rejected.connect(d.reject)
+        form.addRow(k)
+        if d.exec() != QDialog.Accepted:
+            return
+        pw = self.passwort()
+        if not pw:
+            return
+        q = bis.date()
+        try:
+            datei = wz.verlaengern(self.ordner, ids[0], datetime.date(q.year(), q.month(), q.day()), pw=pw)
+        except (SystemExit, lizenz.LizenzFehler, ValueError) as e:
+            return self.fehler(e)
+        self.neu_laden()
+        if QMessageBox.question(self, "Lizenz verlängert", f"Neue Lizenzdatei:\n{datei}\n\nOrdner öffnen? Die Datei an "
+                                "den Benutzer schicken; er lädt sie unter Hilfe → Lizenz …") == QMessageBox.Yes:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(datei.parent)))
+
+    def kunden_zeigen(self):
+        liste = wz.kunden(wz.register_lesen(self.ordner))
+        d = QDialog(self)
+        d.setWindowTitle("Kunden")
+        d.resize(700, 400)
+        lay = QVBoxLayout(d)
+        t = QTableWidget(len(liste), 6)
+        t.setHorizontalHeaderLabels(["Kunde", "Aktiv", "Rechner", "Nächster Ablauf", "Gesperrt", "Insgesamt"])
+        t.setEditTriggers(QTableWidget.NoEditTriggers)
+        t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        for i, k in enumerate(liste):
+            for j, s in enumerate(("kunde", "aktiv", "rechner", "naechster_ablauf", "gesperrt", "gesamt")):
+                t.setItem(i, j, QTableWidgetItem(str(k[s] if k[s] != "" else "–")))
+        lay.addWidget(t)
+        k = QDialogButtonBox(QDialogButtonBox.Ok)
+        k.accepted.connect(d.accept)
+        lay.addWidget(k)
+        self.kunden_dialog = d
+        d.exec()
+
+    def hochladen(self):
+        token, ok = QInputDialog.getText(
+            self, "Sperrliste hochladen", "GitHub-Token für Rohrlaser-Updates (Fine-grained, Contents: Read and write). "
+            "Er wird nicht gespeichert:", QLineEdit.Password)
+        if not ok or not token.strip():
+            return
+        try:
+            stand = wz.sperrliste_hochladen(self.ordner, token.strip())
+        except SystemExit as e:
+            return self.fehler(e)
+        QMessageBox.information(self, "Sperrliste hochladen", f"Sperrliste Stand {stand} ist veröffentlicht und "
+                                "geprüft. Die Programme übernehmen sie beim nächsten Update-Check.")
+
     def sperren(self):
-        ids = sorted({self.tabelle.item(i.row(), 0).text() for i in self.tabelle.selectedIndexes()})
+        ids = self.markierte()
         if not ids:
             return self.fehler("Bitte zuerst Lizenzen in der Liste markieren.")
         if QMessageBox.question(self, "Sperren", f"Diese Lizenzen sperren?\n\n{', '.join(ids)}") != QMessageBox.Yes:
@@ -255,10 +371,10 @@ class Fenster(QWidget):
         except SystemExit as e:
             return self.fehler(e)
         self.neu_laden()
-        QMessageBox.information(self, "Sperrliste", f"Neue Sperrliste:\n{p}\n\nJetzt als Sperrliste.json in den "
-                                "Release update-dateien des Repositorys Rohrlaser-Updates hochladen (vorhandene Datei "
-                                "ersetzen). Die Programme holen sie beim nächsten Update-Check.")
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.parent)))
+        if QMessageBox.question(self, "Sperrliste", f"Neue Sperrliste:\n{p}\n\nJetzt veröffentlichen (Release "
+                                "update-dateien von Rohrlaser-Updates)? Die Programme holen sie beim nächsten "
+                                "Update-Check.") == QMessageBox.Yes:
+            self.hochladen()
 
     def pruefen(self):
         datei, _ = QFileDialog.getOpenFileName(self, "Lizenzdatei prüfen", str(self.ordner),
