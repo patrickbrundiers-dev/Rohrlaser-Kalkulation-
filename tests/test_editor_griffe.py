@@ -161,7 +161,7 @@ for dar in ansicht3d.DARSTELLUNGEN:
     ed.darstellung_setzen(dar)
     assert a.darstellung == dar and ed.darstellung_wahl.currentText() == dar
     a.grab()
-assert db.einstellung("editor_darstellung") == ansicht3d.DURCHSICHTIG
+assert db.einstellung("editor_darstellung") == ansicht3d.DARSTELLUNGEN[-1]
 ed.darstellung_setzen(nur_gewaehlt=True)
 assert a.blass() and ed.nur_gewaehlt_knopf.isChecked() and db.einstellung("editor_nur_gewaehlt") is True
 a.grab()

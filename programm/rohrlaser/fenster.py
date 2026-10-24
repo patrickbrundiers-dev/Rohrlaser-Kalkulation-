@@ -1254,6 +1254,7 @@ class Hauptfenster(QMainWindow):
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
+        ansicht3d.speicher_setzen(db)       # Perspektive je Benutzer merken (3E-11)
         from . import spaltenbreite
         spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater

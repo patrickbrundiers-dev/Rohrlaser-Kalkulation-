@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QMessageBox,
                                QScrollArea, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import biegerohr, dfm, editor_griffe, naht, rechnen, rohr3d, schneidweg as sw, stil, symbole
+from . import ansicht3d_leiste, biegerohr, dfm, editor_griffe, naht, rechnen, rohr3d, schneidweg as sw, stil, symbole
 from .ansicht3d import DARSTELLUNGEN, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
@@ -550,12 +550,11 @@ class EditorRahmen(QObject):
                 f.setFixedWidth(70)
                 g.widget(f)
         g = ans.gruppe("Blickrichtung")
-        blick = QMenu(self.band)            # ein Knopf mit Menü: das Menüband passt auf 1366 px
-        for text, (gi, ni) in (("Schräg", Ansicht3D.GRUND), ("Vorn", (0.0, 0.0)), ("Oben", (0.0, 1.5)),
-                               ("Stirnseite", (-1.5708, 0.0))):
-            blick.addAction(text, lambda gi=gi, ni=ni: self._blick(gi, ni))
+        # ein Knopf mit Menü (das Menüband passt auf 1366 px), dasselbe Menü wie in allen 3D-Fenstern (3E-11)
+        blick = ansicht3d_leiste.blick_menue(QMenu(self.band), self.ansicht, vorher=self._3d_zeigen)
         g.knopf("Blick", "wuerfel", lambda: self._blick(*Ansicht3D.GRUND), menue=blick,
-                tipp="Ausgangsansicht schräg; Pfeil: Vorn, Oben, Stirnseite (oder den Ansichtswürfel anklicken)")
+                tipp="Isometrie; Pfeil: Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um 90° drehen "
+                     "(Strg + Pfeiltasten), Perspektivisch (oder den Ansichtswürfel anklicken)")
         if rohr:
             g = ans.gruppe("Modell")
             self.step_knopf = g.knopf("STEP-Modell", "step", lambda an: self.modell_setzen(an), umschalter=True,
@@ -751,12 +750,15 @@ class EditorRahmen(QObject):
         self.eigenschaften.zeigen(None)
         return True
 
+    def _3d_zeigen(self):
+        if self.ansichten.modus == SKIZZE:
+            self.modus_setzen(BEIDES)
+
     def _blick(self, gier, nick):
         a = self.ansicht()
         if a is None:
             return
-        if self.ansichten.modus == SKIZZE:
-            self.modus_setzen(BEIDES)
+        self._3d_zeigen()
         a.ansicht(gier, nick)
 
     def _gewaehltes_ende(self):
