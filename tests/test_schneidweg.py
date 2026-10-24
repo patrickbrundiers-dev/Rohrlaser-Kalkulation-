@@ -164,6 +164,16 @@ assert rechnen.radius_angebot(s.kopf, "QR 40x40x3", "S355-10219") is None       
 assert db.angebot(db.angebot_kopieren(a))["radien"] == {"QR 40x40x3|S235-10219": 4.0}
 assert s.schneidweg_berechnen(0, dict(EIN, r_aussen=0)) and db.positionen(a)[1]["b_schnitt"] == 160
 ok("Außenradius im Angebot je Profil + Werkstoff: gespeichert, gleiche Positionen neu gerechnet, beim Kopieren dabei")
+# Aluminium: ohne Angebot und Stammdaten scharfkantig (0), sonst gilt, was festgelegt ist
+norm_qr = dict(s.k.profile["QR 40x40x3"], r_aussen=None)
+assert rechnen.profil_im_angebot(norm_qr, None, "QR 40x40x3", "AW6060-T66", s.k)["r_aussen"] == 0
+assert rechnen.profil_im_angebot(norm_qr, None, "QR 40x40x3", "S235-10219", s.k)["r_aussen"] is None
+assert rechnen.profil_im_angebot(dict(norm_qr, r_aussen=2), None, "QR 40x40x3", "AW6060-T66", s.k)["r_aussen"] == 2
+assert rechnen.profil_im_angebot(norm_qr, dict(radien={"QR 40x40x3|AW6060-T66": 3}), "QR 40x40x3", "AW6060-T66",
+                                 s.k)["r_aussen"] == 3
+assert sw.radius(rechnen.profil_im_angebot(norm_qr, None, "QR 40x40x3", "AW6060-T66", s.k)) == 0
+assert sw.radius(norm_qr) > 0
+ok("Außenradius bei Aluminium: Vorgabe 0 (scharfkantig), Stammdaten und Angebot gehen vor")
 
 # ------------------------------------------------------------------ S5 Dialog
 gesehen = {}

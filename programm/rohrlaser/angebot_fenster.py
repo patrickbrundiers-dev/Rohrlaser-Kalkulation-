@@ -2899,7 +2899,7 @@ class AngebotSeite(QWidget):
             naht_neu = d.naht_geaendert()
         else:
             naht_neu = {}
-        profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"))
+        profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
         erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k))
         if erg["fehler"]:
@@ -2962,7 +2962,7 @@ class AngebotSeite(QWidget):
             e = schneidweg.lesen(q.get("technik"))
             if not q.get("technik") or e.get("quelle") != schneidweg.QUELLE:
                 continue
-            profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, wst)
+            profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, wst, self.k)
             grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
             erg = schneidweg.rechnen(e, profil, grenzen, gewinde_liste(self.tabellen),
                                      rechnen.maschine(self.kopf, self.k))

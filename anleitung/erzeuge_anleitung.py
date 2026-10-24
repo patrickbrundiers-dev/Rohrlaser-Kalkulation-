@@ -2235,8 +2235,8 @@ def kapitel_optimieren(i):
             "Außendurchmesser, S = Wanddicke; beim Blech L und B = Zuschnitt, S = Dicke. <i>Abstand Muster</i> "
             "versteht <i>3x25</i> als 3 Stück im Abstand 25 mm. Eine falsche Eingabe wird rot umrandet, der Wert "
             "bleibt dann unverändert. Komma und Punkt gehen beide.",
-            "<b>Außenradius</b> (Quadrat- und Rechteckrohr, Eigenschaften des Teils): leer = Wert der Stammdaten bzw. "
-            "Vorgabe nach Norm (als grauer Text angezeigt), 0 = scharfkantig. Er gilt im ganzen <b>Angebot</b> für "
+            "<b>Außenradius</b> (Quadrat- und Rechteckrohr, Eigenschaften des Teils): leer = Wert der Stammdaten, bei "
+            "<b>Aluminium</b> 0, sonst Vorgabe nach Norm (als grauer Text angezeigt); 0 = scharfkantig. Er gilt im ganzen <b>Angebot</b> für "
             "alle Positionen mit gleichem Profil und Werkstoff: Beim Übernehmen rechnet das Programm die übrigen "
             "Positionen dieser Gruppe mit Eingaben des Schneidweg-Rechners neu; gemessene STEP-Werte bleiben. "
             "Ein anderer Werkstoff im selben Angebot hat seinen eigenen Radius.",
@@ -4103,7 +4103,8 @@ def kapitel_stammdaten(i):
                                      "kleine Rohre, auch wenn es eine 12-m-Zeile gibt)"],
         ["Außenradius [mm]", "nur Quadrat- und Rechteckrohr: Radius der Außenecken. Leer = Vorgabe nach EN 10219 "
                              "(2 × Wand bis 6 mm, 2,5 × Wand bis 10 mm, darüber 3 × Wand; Spalte <i>Außenradius "
-                             "wirksam</i>), 0 = scharfkantig. Er kürzt die Schnittlänge der Enden um (8 − 2π) × r "
+                             "wirksam</i>); bei Werkstoff Aluminium ist leer = 0 (Aluminiumprofile sind meist "
+                             "scharfkantig); 0 = scharfkantig. Er kürzt die Schnittlänge der Enden um (8 − 2π) × r "
                              "(QR 40 × 40 × 3 mit r = 6: 149,7 statt 160 mm), auch schräg (die Ecken werden zur "
                              "Ellipse), und die Außenfläche; Skizze und 3D-Modell zeigen die runden Ecken. Im Angebot "
                              "lässt er sich je Profil und Werkstoff abweichend festlegen ([[teile_editor]])"],

@@ -281,9 +281,10 @@ class Eigenschaften(QWidget):
         eigen = getattr(d, "r_aussen", None)
         f = self._rechen("Außenradius", eigen, d.radius_setzen, "mm",
                          "Radius der Außenecken für Schnittlänge, Skizze und 3D. Gilt beim Übernehmen für alle "
-                         "Positionen des Angebots mit gleichem Profil und Werkstoff. Leer = Wert der Stammdaten bzw. "
-                         "Vorgabe nach EN 10219, 0 = scharfkantig.")
-        f.setPlaceholderText(f"{rf.zahl_text(sw.radius(d.profil))} (Stammdaten)")
+                         "Positionen des Angebots mit gleichem Profil und Werkstoff. Leer = Wert der Stammdaten, bei "
+                         "Aluminium 0, sonst Vorgabe nach EN 10219; 0 = scharfkantig.")
+        alu = d.profil.get("r_aussen") == 0 and (d.k.profile.get(d.p.get("profil_id")) or {}).get("r_aussen") in (None, "")
+        f.setPlaceholderText(f"{rf.zahl_text(sw.radius(d.profil))} ({'Aluminium' if alu else 'Stammdaten'})")
         return f
 
     def _naht(self):

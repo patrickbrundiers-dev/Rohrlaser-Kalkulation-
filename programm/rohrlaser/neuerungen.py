@@ -26,7 +26,8 @@ NEUERUNGEN = [
                "Schnittlänge der Enden (QR 40 × 40 × 3 gerade 149,7 statt 160 mm, schräg mit elliptischen Ecken) und "
                "die Außenfläche; Skizze und 3D-Modell zeigen runde Ecken. Im Schneidweg-Rechner (Eigenschaften des "
                "Teils) lässt er sich für das Angebot ändern; er gilt dann für alle Positionen mit gleichem Profil und "
-               "Werkstoff ([[profile]], [[teile_editor]]).",
+               "Werkstoff ([[profile]], [[teile_editor]]). Bei Werkstoff <b>Aluminium</b> ist die Vorgabe 0 "
+               "(scharfkantig), solange Stammdaten oder Angebot nichts anderes festlegen.",
      "Außenradius für Quadrat- und Rechteckrohr, im Angebot je Profil und Werkstoff ([[profile]])."],
     ["0.9.60", "<b>Knickrahmen aus einem Körper</b>: Ist ein geknickter Rahmen aus Quadrat- oder Rechteckrohr in "
                "der STEP-Datei ein einziger Körper, erkennt ihn der Import (auch gestreckt gezeichnet mit "

@@ -100,6 +100,7 @@ class SchneidwegDialog(QDialog):
     def __init__(self, parent, p, profil, kopf, k, tabellen, db=None, positionen=None, step_lesen=None, neu=False):
         super().__init__(parent)
         self.neu = neu                  # neue Position: Kopfzeile mit Artikel, Profil, Werkstoff, Länge, Stückzahl
+        profil = rechnen.profil_im_angebot(profil, kopf, p.get("profil_id"), p.get("werkstoff_id"), k)
         self.p, self.profil, self.kopf, self.k, self.tabellen = p, profil, kopf, k, tabellen
         self.r_aussen = self.radius_angebot()       # Außenradius des Angebots für Profil + Werkstoff (oder None)
         self.db, self.positionen = db, [x for x in (positionen or ()) if x.get("id") != p.get("id")]
@@ -562,6 +563,11 @@ class SchneidwegDialog(QDialog):
     def _kopf_geaendert(self, *_):
         self.p = dict(self.p, werkstoff_id=self.k_werkstoff.currentText() or None, laenge=self.k_laenge.value() or None,
                       stueck=self.k_stueck.value() or None)
+        pid = self.p.get("profil_id")
+        if pid in self.k.profile:       # Außenradius hängt am Werkstoff (Aluminium: scharfkantig)
+            self.profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, self.p.get("werkstoff_id"),
+                                                    self.k)
+            self.r_aussen = self.radius_angebot()
         if hasattr(self, "skizze"):
             self.skizze.laenge = self.p["laenge"]
             self._info_zeigen()
@@ -581,8 +587,8 @@ class SchneidwegDialog(QDialog):
         """Anderes Profil: Querschnitt, Konturgrenzen, Enden, Naht, Seiten und Skizze passend neu aufbauen; die
         Eingaben bleiben (Seiten, die das Profil nicht hat, fallen auf die erste Fläche)."""
         e = self.eingaben()
-        self.profil = self.k.profile[pid]
         self.p = dict(self.p, profil_id=pid)
+        self.profil = rechnen.profil_im_angebot(self.k.profile[pid], self.kopf, pid, self.p.get("werkstoff_id"), self.k)
         e.pop("r_aussen", None)                     # Radius gehört zu Profil + Werkstoff: der des neuen Profils
         self.r_aussen = self.radius_angebot()
         self.grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(self.profil))

@@ -227,8 +227,8 @@ PROFILE = Tabelle(
     "(Eckradien, Sonderprofile, C-Profil). Lieferlängen vergleichen = nein: das Profil wird nur mit der "
     "Stangenlänge des Angebots geplant, weitere Lieferlängen (z. B. 12 m) werden nicht verglichen. Außenradius "
     "(Quadrat- und Rechteckrohr): Radius der Außenecken für Schnittlänge, Skizze und 3D; leer = Vorgabe nach EN 10219 "
-    "(2 × Wand bis 6 mm, 2,5 × Wand bis 10 mm, darüber 3 × Wand), 0 = scharfkantig; je Teil im Schneidweg-Rechner "
-    "änderbar.",
+    "(2 × Wand bis 6 mm, 2,5 × Wand bis 10 mm, darüber 3 × Wand), bei Werkstoff Aluminium leer = 0; "
+    "0 = scharfkantig; je Teil im Schneidweg-Rechner änderbar.",
     berechnet=(("Fläche berechnet [mm²]", lambda z, k: flaeche_berechnet(z), 1),
                ("Fläche wirksam [mm²]", lambda z, k: flaeche_wirksam(z), 1),
                ("Hüllkreis-Ø [mm]", lambda z, k: huellkreis(z), 1),
