@@ -1526,7 +1526,8 @@ def kapitel_step(i):
     i.abschnitt("Biegerohre", marke="biegerohre")
     i.text("Ein <b>gebogenes Rundrohr</b> (Geraden und Bögen) erkennt der Import selbst. Er rechnet die gestreckte "
            "Länge, setzt die Bohrungen an die richtige Stelle am geraden Rohr und liefert die Biegedaten. Der "
-           "Prüfstatus ist immer <i>prüfen</i>.", kurz=True)
+           "Prüfstatus ist immer <i>prüfen</i>. Rahmen aus Einzelrohren mit Gehrung werden auf Wunsch ein Knickrahmen "
+           "([[knickverbindung]]).", kurz=True)
     i.bild("biegerohr_rechner", "Biegerohr im Schneidweg-Rechner: Abwicklung des gestreckten Rohrs mit den "
            "Biegezonen", hoehe=110 * mm, legende=[
                (1, "Gruppe <b>Biegungen</b>: je Biegung L (Gerade davor), R (Drehung der Biegeebene), A (Winkel) und "
@@ -2143,9 +2144,39 @@ def kapitel_optimieren(i):
             "Schweißen des Stoßes.",
             "Ein einzelner Knick geht auch ohne Rahmen: <b>+ V-Ausschnitt</b> in der Tabelle, Lage und Stegwand "
             "eintragen. Die Teilelänge bleibt dann, wie sie ist.",
+            "<b>Innenwand schräg (3D)</b>: Die Wand gegenüber der Stegwand wird um β/2 geschwenkt geschnitten, damit "
+            "die Stirnflächen nach dem Knicken voll aufeinanderliegen. Vorgabe aus: der gerade Schnitt lässt sich "
+            "ebenso knicken, innen bleibt dann ein kleiner Keilspalt. Mit Haken ist das Teil eine 3D-Bearbeitung "
+            "(Maschine mit 3D, [[schneidweg_rechner]]).",
             "<b>Prüfregeln</b> ([[pruefregeln]]): <i>Schenkel zu kurz</i>, <i>Kontur im Knickbereich</i> und "
             "<i>Wand zu dick zum Knicken</i>. <b>Knickrahmen entfernen</b> im Fenster nimmt Schenkel und "
             "V-Ausschnitte wieder heraus.")
+    i.abschnitt("Knickverbindung aus Einzelrohren (STEP)", marke="knickverbindung")
+    i.text("Ist der Rahmen in der STEP-Datei aus <b>einzelnen Rohren mit Gehrung</b> gezeichnet, schlägt der "
+           "Prüfdialog über der Rohrliste <b>Knickrahmen möglich</b> vor. <b>Knickverbindung erstellen …</b> macht "
+           "aus den Rohren eine Position: das gestreckte Rohr mit den V-Ausschnitten.", kurz=True)
+    i.bild("knickverbindung", "Knickverbindung aus vier Rohren QR 40 × 40 × 2 (Rahmen 500 × 300)", hoehe=70 * mm,
+           legende=[(1, "<b>Erster Schenkel</b> = Ende A des gestreckten Rohrs; beim geschlossenen Rahmen liegt "
+                        "dort der Stoß."),
+                    (2, "<b>Laufrichtung umkehren</b>: die Schenkel in der anderen Reihenfolge."),
+                    (3, "<b>Innenwand schräg (3D)</b>, Vorgabe aus."),
+                    (4, "Schenkel in Reihenfolge, Stegwand, gestreckte Länge und Lage der Knicke.")])
+    i.genauer()
+    i.liste("<b>Erkennung</b>: gleiches Quadrat- oder Rechteckrohr, je zwei Enden mit Gehrung berühren sich, der "
+            "Winkel zwischen den Rohren ist die Summe der beiden Gehrungen (45° + 45° = 90°), alle Rohre liegen in "
+            "einer Ebene. Ein räumlicher Rahmen wird nicht vorgeschlagen. Die Stegwand ist die Außenseite der Ecken "
+            "(längste Seite der Gehrung).",
+            "<b>Eigene Auswahl</b>: Rohre in der Liste markieren (Strg), Rechtsklick → <b>Knickverbindung "
+            "erstellen …</b>. Passen die Rohre nicht zusammen, nennt das Programm den Grund.",
+            "<b>Schenkel</b> = gemessene Länge der Rohre (Außenmaß an der Stegwand). Knickzugabe, Freistich und "
+            "K-Faktor kommen aus den Einstellungen und sind im Fenster änderbar.",
+            "<b>Übernehmen</b>: Das erste Rohr wird die Position mit gestreckter Länge, V-Ausschnitten, Gehrung am "
+            "Stoß und der Zusatzarbeit Knicken. Bohrungen und Konturen aller Rohre stehen an ihrer Stelle auf dem "
+            "gestreckten Rohr. Die übrigen Rohre werden nicht einzeln übernommen (Bericht: <i>Schenkel des "
+            "Knickrahmens …</i>). Die 3D-Ansicht zeigt den gefalteten Rahmen.",
+            "<b>Schweißbaugruppe</b>: Nahtkandidaten an den Knicken fallen weg, der Stoß bleibt als Vorschlag.",
+            "<b>Lösen</b>: Rechtsklick auf die Zeile → <b>Knickverbindung lösen</b>; die Rohre stehen wieder einzeln "
+            "in der Liste.")
     i.abschnitt("Teile-Editor: Merkmale, Prüfmeldungen, Rückgängig", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: links die <b>Merkmale</b> des Teils mit ihrer "
            "Herkunft, unten die <b>Prüfmeldungen</b>, oben <b>Rückgängig</b>, <b>Wiederholen</b>, <b>Auf STEP-Wert "

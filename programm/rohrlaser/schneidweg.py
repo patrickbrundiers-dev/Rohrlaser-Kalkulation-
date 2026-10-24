@@ -640,7 +640,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
         if e.get("art") == V_AUSSCHNITT:
             masse = (f"β {zahl(_z(e.get('beta')), 1)}°, Steg {e.get('seite') or 'oben'}"
                      + (f", Freistich Ø {zahl(_z(e.get('freistich')), 1)}" if _z(e.get("freistich")) else "")
-                     + (f" bei x = {zahl(_z(e.get('x')), 1)}" if e.get("x") is not None else ""))
+                     + (f" bei x = {zahl(_z(e.get('x')), 1)}" if e.get("x") is not None else "")
+                     + (f", Innenwand schräg 3D (Kopf {zahl(_z(e.get('beta')) / 2, 1)}°)" if e.get("d3") else ""))
         if form == "Rundrohr" and e.get("art") in (BOHRUNG, SENKUNG) and not _z(e.get("gemessen")) \
                 and not (mit_3d and e.get("d3")):
             # 2D: Strahl zur Rohrmitte, außen breiter als die Konstruktion (Messung macht das schon selbst)

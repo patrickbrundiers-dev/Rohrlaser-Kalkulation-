@@ -819,13 +819,17 @@ TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wen
 
 
 def _rohrteil(m):
+    """Rohr oder Profil, das eine eigene Zeile bzw. Position wird (Schenkel einer Knickverbindung nicht: sie gehen im
+    ersten Schenkel auf, knickverbindung.py)."""
     return (not m.get("fehler") and bool(m.get("profilform")) and m.get("profilform") not in NICHT_KALKULIERT
-            and _z(m, "laenge") > 0)
+            and _z(m, "laenge") > 0 and m.get("_knick_von") is None)
 
 
 def _gleich(a, b):
     """Zwei gemessene Körper sind dasselbe Teil (Lage im Raum und vertauschte Enden egal)."""
     if a.get("profilform") != b.get("profilform") or bohrungen_text(a.get("bohrungen")) != bohrungen_text(b.get("bohrungen")):
+        return False
+    if a.get("_knickrahmen") != b.get("_knickrahmen"):       # Knickverbindung nur mit gleichem Rahmen
         return False
     if any(int(_z(a, n)) != int(_z(b, n)) for n in ("konturen", "innen_konturen", "gravur_konturen")):
         return False
@@ -1073,6 +1077,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         if erster is not None and erster != i:
             ziel = ergebnis[erster]
             hinweise.append(f"gleich wie {messwerte[erster].get('artikel')}" + (f" (Satz {satz})" if ziel else ""))
+        elif m.get("_knick_von") is not None:
+            hinweise.append(f"Schenkel des Knickrahmens {messwerte[m['_knick_von']].get('artikel')} (nicht einzeln "
+                            "übernommen)")
         elif m.get("_normteil") and m.get("_uebernehmen") is not True:
             hinweise.append(f"nicht übernommen: Normteil ({m.get('bauteil')}, Begriff {m['_normteil']})")
         elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):
@@ -1188,9 +1195,13 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("innen_liste") or enden:
                 p["konturen"] = rechnen.konturen_text(_paare(m.get("innen_liste")), enden)
                 p["kontur_grenzen"] = rechnen.grenzen_text(regel)
+            m_bild = m
+            if m.get("_knickrahmen") and profile.get(pid):     # Knickverbindung: gestrecktes Rohr aller Schenkel
+                m_bild = _knick_uebernehmen(p, m, messwerte, dict(profile[pid], profil_id=pid), form, mit_3d, regel,
+                                            gewinde, maschine, zusatz_katalog, hinweise)
             # Gewinde-Vorschläge, Senkungen, Fließlochbohrungen, Bohren (< 0,7 × Wand): offen bis 'Bohrungen prüfen'
             # (bohrbild.py), erst dann die Zusatzarbeiten Senken, Flowdrill, Bohren
-            bild = bohrbild.aus_messung(m, gewinde, fliessloch_laser or bohrbild.GRAVUR,
+            bild = bohrbild.aus_messung(m_bild, gewinde, fliessloch_laser or bohrbild.GRAVUR,
                                         regel[4] if len(regel) >= 5 else None)
             if bild:
                 p.update(bohrbild.anwenden(p, bild))
@@ -1245,11 +1256,44 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel)
 
 
+def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, maschine, zusatz_katalog, hinweise):
+    """Leitteil einer Knickverbindung (Prüfdialog, knickverbindung.py): Konturen aller Schenkel auf dem gestreckten
+    Rohr, V-Ausschnitte, Länge, Schneidweg und Enden aus dem Schneidweg-Rechner, gefaltetes Netz und Zusatzarbeit
+    Knicken. Ergebnis: Messwerte für das Bohrbild (Bohrungen aller Schenkel)."""
+    from . import knickrahmen, knickverbindung, schneidweg
+    teile = m["_knick_teile"]
+    je_teil = {t["i"]: rechner_eingaben(messwerte[t["i"]], form, profil.get("a"), profil.get("b"), mit_3d)
+               for t in teile}
+    try:
+        eing, r = knickverbindung.eingaben(m, je_teil, profil)
+    except ValueError as f:
+        hinweise.append(f"Knickverbindung nicht möglich: {f}")
+        return m
+    erg = schneidweg.rechnen(eing, profil, regel, gewinde, maschine)
+    if erg["fehler"]:
+        hinweise.append("Knickverbindung: " + " ".join(erg["fehler"]))
+        return m
+    p.update({n: w for n, w in erg["felder"].items() if n not in ("bohrungen", "gewinde_vorschlag")})
+    p.update(laenge=erg["laenge"], technik=json.dumps(eing, ensure_ascii=False))
+    netz = knickverbindung.netz_gefaltet(messwerte, m)
+    if netz:
+        p["_netz"] = netz
+    zu, fehlt = knickrahmen.zusatz_eintragen(p.get("zusatz"), knickrahmen.anzahl(eing), zusatz_katalog or [],
+                                             schneidweg.QUELLE_STEP)
+    if zu:
+        p["zusatz"] = zu
+    if fehlt and zusatz_katalog is not None:
+        hinweise.append(f"Zusatzarbeit '{knickrahmen.ZUSATZ_KNICKEN}' fehlt in den Stammdaten")
+    hinweise.append(f"Knickrahmen aus {len(teile)} Rohren ({', '.join(str(messwerte[t['i']].get('artikel')) for t in teile)}): "
+                    f"{knickrahmen.kurz(r)}" + ("; Stoß schweißen" if r["enden"] else ""))
+    return dict(m, **{n: knickverbindung.summe(messwerte, m, n) for n in ("bohrungen", "senkungen", "fliessloecher")})
+
+
 def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=None):
     """Sätze aus Dateien mit Häkchen „als Schweißbaugruppe“ im Prüfdialog (_baugruppe): Position der Art
     Schweißbaugruppe mit den Unterbaugruppen der STEP-Struktur (baugruppe.aus_step), Teile zugeordnet. Ergebnis:
     nächste freie Pos."""
-    from . import baugruppe
+    from . import baugruppe, knickverbindung
     from .angebot import BAUGRUPPE
 
     def wert(datei, n):
@@ -1266,9 +1310,10 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
             continue
         name = satzname(datei)
         struktur = wert(datei, "_struktur")
-        kandidaten = wert(datei, "_nahtkandidaten") or ()
+        kandidaten = knickverbindung.kandidaten_filtern(wert(datei, "_nahtkandidaten"), messwerte, datei)
         unter = [dict(name=satzname(d), menge=wert(d, "_saetze") or 1, struktur=wert(d, "_struktur"),
-                      teile=satz_teile[d], kandidaten=wert(d, "_nahtkandidaten") or ())
+                      teile=satz_teile[d], kandidaten=knickverbindung.kandidaten_filtern(
+                          wert(d, "_nahtkandidaten"), messwerte, d))
                  for d in satz_teile if ziel_von.get(d) == datei]
         if unter:
             struktur, liste, kandidaten = baugruppe.unter_einhaengen(struktur, liste, kandidaten, unter)

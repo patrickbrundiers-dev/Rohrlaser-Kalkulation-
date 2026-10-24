@@ -497,6 +497,23 @@ def main(ziel):
     foto.foto("knickrahmen_rechner", d, [(d.knick_knopf, 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
     d.reject()
 
+    # 7a2a3) Knickverbindung aus vier Einzelrohren mit Gehrung (Lage wie aus einer STEP-Baugruppe, nur für das Foto)
+    import zlib
+    from rohrlaser.knickrahmen_dialog import KnickverbindungDialog
+
+    def schenkel(nr, o, z, lg):
+        enden = [dict(art=f"Ende {e}", form="Gehrung", gehrung=45.0, richtung=180.0) for e in "AB"]
+        netz = dict(p=[], t={}, lage=[*o, *z, 0, 0, 1])
+        return dict(datei="Rahmen.step", artikel=f"Rahmen-K{nr}", koerper=str(nr), profilform="Quadratrohr",
+                    abm_a="40", abm_b="40", wandstaerke="2", laenge=str(lg), konturen_liste=json.dumps(enden),
+                    _netz=zlib.compress(json.dumps(netz).encode("utf-8")))
+    mw_k = [schenkel(1, (0, 20, 0), (1, 0, 0), 500), schenkel(2, (480, 0, 0), (0, 1, 0), 300),
+            schenkel(3, (500, 280, 0), (-1, 0, 0), 500), schenkel(4, (20, 300, 0), (0, -1, 0), 300)]
+    d = KnickverbindungDialog(s, mw_k, [0, 1, 2, 3], dict(z=0, freistich=0, k=0.5))
+    d.resize(640, 420)
+    foto.foto("knickverbindung", d, [(d.start, 1), (d.umkehren, 2), (d.schraeg, 3), (d.vorschau, 4)])
+    d.reject()
+
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe
     from rohrlaser.baugruppe_dialog import BaugruppeDialog
