@@ -144,6 +144,7 @@ class Teil:
     kontur_umfang: float = 0.0
     verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
     biegerohr: dict = None      # Biegerohr (step_biegerohr): Mittellinie, Elemente, LRA, XYZ; sonst None
+    knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
 
     @property
     def pruefstatus(self):
@@ -2713,6 +2714,13 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         b = None
     if b is not None:
         return b
+    try:        # Knickrahmen aus einem Körper (Plan K1-3): in gerade Stücke mit Gehrung teilen, je Stück messen
+        from step_knickrahmen import messen as knickrahmen_messen
+        b = knickrahmen_messen(solid, datei, koerper, netz)
+    except Exception:  # Knickrahmen-Erkennung darf die übrige Messung nie verhindern
+        b = None
+    if b is not None:
+        return b
     p = GProp_GProps()
     BRepGProp.VolumeProperties_s(solid, p)
     volumen = abs(p.Mass())
@@ -3314,9 +3322,26 @@ def _naht_knoten(a, b, struktur):
     return next((k for k in kette(b.knoten) if k in ka), None)
 
 
+NAHT_LINIE_SCHRITT = 5.0      # mm je Stützpunkt des Nahtverlaufs (3D-Ansicht), höchstens 24 Abschnitte je Kante
+
+
+def _naht_linie(c, laenge):
+    """Kante als Linienzug [x, y, z, x, y, z, …] in Dateilage, auf 0,1 mm gerundet (Nahtverlauf, STEP-JSON 1.16)."""
+    n = max(1, min(24, int(math.ceil(laenge / NAHT_LINIE_SCHRITT))))
+    if c.GetType() == GeomAbs_Line:
+        n = 1
+    t0, t1 = c.FirstParameter(), c.LastParameter()
+    out = []
+    for i in range(n + 1):
+        p = c.Value(t0 + (t1 - t0) * i / n)
+        out += [round(p.X(), 1), round(p.Y(), 1), round(p.Z(), 1)]
+    return out
+
+
 def _nahtkandidaten(teile, koerper, struktur=None):
     """Mögliche Schweißnähte einer Baugruppe: je Paar sich berührender Volumenkörper ein Kandidat
-    {teile [a, b] (Körpernummern), knoten, laenge_mm, stossart, dicke_mm, status 'prüfen'}. Länge = Schnittlänge
+    {teile [a, b] (Körpernummern), knoten, laenge_mm, stossart, dicke_mm, status 'prüfen', linien (Nahtverlauf:
+    je Kante des längsten Berührungszugs ein Linienzug in Dateilage)}. Länge = Schnittlänge
     des Rohrendes, das auf dem anderen Teil sitzt, sonst längster Linienzug der Berührung (Umfang der
     Kontaktfläche); Stoßart: Rohrende an Rohrende in einer
     Flucht = Stumpfnaht, Enden über Eck (Gehrung) = Ecknaht, sonst Kehlnaht; Dicke = dünnere Wand bzw. Blechdicke.
@@ -3354,9 +3379,9 @@ def _nahtkandidaten(teile, koerper, struktur=None):
             if kanten.Length() == 0:
                 continue
             draehte = ShapeAnalysis_FreeBounds.ConnectEdgesToWires_s(kanten, 0.01, False)
-            laengen, mitte, gesamt = [], [0.0, 0.0, 0.0], 0.0
+            laengen, mitte, gesamt, zuege = [], [0.0, 0.0, 0.0], 0.0, []
             for w in range(1, draehte.Length() + 1):
-                lw = 0.0
+                lw, zug = 0.0, []
                 for e in _liste(draehte.Value(w), TopAbs_EDGE):
                     c = BRepAdaptor_Curve(TopoDS.Edge(e))
                     lg = GCPnts_AbscissaPoint.Length_s(c)
@@ -3365,7 +3390,9 @@ def _nahtkandidaten(teile, koerper, struktur=None):
                         mitte[n] += v * lg
                     gesamt += lg
                     lw += lg
+                    zug.append(_naht_linie(c, lg))
                 laengen.append(lw)
+                zuege.append(zug)
             if not laengen or max(laengen) < 0.5:
                 continue        # nur Punkt- oder Linienberührung ohne Länge
             mitte = [v / gesamt for v in mitte] if gesamt else mitte
@@ -3383,7 +3410,8 @@ def _nahtkandidaten(teile, koerper, struktur=None):
             dicken = [d for d in (_naht_dicke(ta), _naht_dicke(tb)) if d]
             out.append(dict(teile=[ta.koerper, tb.koerper], knoten=_naht_knoten(ta, tb, struktur),
                             laenge_mm=round(laenge, 1), stossart=stossart,
-                            dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen"))
+                            dicke_mm=round(min(dicken), 2) if dicken else None, status="prüfen",
+                            linien=zuege[laengen.index(max(laengen))]))
     return out
 
 

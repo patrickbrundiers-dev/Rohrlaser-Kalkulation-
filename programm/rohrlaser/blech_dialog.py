@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QVBoxLayout, QWidget)
 
 from . import hilfe
-from . import blech, blech3d, dfm, dxf, schneidweg as sw, zukauf
+from . import blech, blech3d, dfm, dxf, gravur_text, schneidweg as sw, zukauf
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .teile_editor import EditorRahmen
@@ -24,6 +24,11 @@ SCHENKEL_SPALTEN = ("Schenkel außen [mm]", "Biegewinkel danach [°]", "Innenrad
 VORLAGEN = {"Winkel": [(50, 90), (50, 0)], "U-Profil": [(30, 90), (60, 90), (30, 0)],
             "Z-Profil": [(30, 90), (60, -90), (30, 0)], "Hutprofil": [(20, -90), (30, 90), (50, 90), (30, -90),
                                                                      (20, 0)]}
+
+
+# Maße je Kontur-Art in der Tabelle; Text-Gravur: Text in Maß 1 (der Rohr-Rechner hat dafür die Spalte Bemerkung)
+MASSE = dict(sw.MASSE, **{sw.TEXT_GRAVUR: (("text", "Text"),) + sw.MASSE[sw.TEXT_GRAVUR]})
+TEXT_MASSE = ("punkte", "text")         # bleiben Text, keine Zahl
 
 
 def _euro(w):
@@ -185,6 +190,9 @@ class BlechSkizze(QWidget):
                     pfad.lineTo(QPointF(c.x() + (x - mx) * m, c.y() - (y - my) * m))
                 pfad.closeSubpath()
                 p.drawPath(pfad)
+        elif art == sw.TEXT_GRAVUR:      # Einstrich-Schrift wie graviert (y nach oben)
+            for zug in gravur_text.gedreht(gravur_text.linien(z.get("text"), sw._z(z.get("hoehe"))), z.get("winkel")):
+                p.drawPolyline([QPointF(c.x() + x * m, c.y() - y * m) for x, y in zug])
         else:
             p.drawRect(QRectF(c.x() - 4, c.y() - 4, 8, 8))
         n = int(sw._z(z.get("anzahl")) or 1)
@@ -243,6 +251,7 @@ class BlechDialog(QDialog):
         self.teiler.setChildrenCollapsible(False)
         haupt.addWidget(self.teiler, 1)
         links = QWidget()
+        self.eingabe_bereich = links    # Teile-Editor: Eingaben links neben den Ansichten
         lay = QVBoxLayout(links)
         lay.setContentsMargins(0, 0, 6, 0)
         self.teiler.addWidget(links)
@@ -317,10 +326,12 @@ class BlechDialog(QDialog):
         self.vorlage.addItems(["Vorlage …"] + list(VORLAGEN))
         self.vorlage.activated.connect(self._vorlage)
         zeile.addWidget(self.vorlage)
+        self.schenkel_knoepfe = []
         for text, ziel in (("+ Schenkel", lambda: self.schenkel_neu()), ("Schenkel entfernen", self._schenkel_weg)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             zeile.addWidget(b)
+            self.schenkel_knoepfe.append(b)
         zeile.addStretch(1)
         kl.addLayout(zeile)
         self.schenkel = QTableWidget(0, len(SCHENKEL_SPALTEN))
@@ -359,19 +370,21 @@ class BlechDialog(QDialog):
         self.tabelle.verticalHeader().setDefaultSectionSize(26)
         self.tabelle.setMinimumHeight(self.tabelle.horizontalHeader().sizeHint().height() + 5 * 26 + 6)
         self.tabelle.setToolTip("Maße je Art: Bohrung Maß 1 = Ø; Langloch Länge, Breite; Rechteck Breite, Höhe, "
-                                "Eckradius; Polygon Eckpunkte in Maß 1; sonstige Kontur Schnittlänge, Hüllmaß. "
+                                "Eckradius; Polygon Eckpunkte in Maß 1; sonstige Kontur Schnittlänge, Hüllmaß; "
+                                "Text-Gravur Text, Schrifthöhe, Winkel (nur graviert). "
                                 "Mitte x/y in der Abwicklung (leer = nur für die Skizze verteilt)")
         self.tabelle.currentCellChanged.connect(lambda r, *_: self._spalten_erklaeren(r))
         bl.addWidget(self.tabelle, 1)
         knoepfe = UmbruchLeiste()           # bei schmaler Spalte rückt 'Markierte entfernen' in eine zweite Zeile
-        for art in (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE):
+        for art in (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE, sw.TEXT_GRAVUR):
             b = QPushButton(f"+ {art}")
-            b.clicked.connect(lambda _=False, art=art: self.kontur_neu(dict(art=art, anzahl=1)))
+            b.clicked.connect(lambda _=False, art=art: self.kontur_neu(self._kontur_vorgabe(art)))
             knoepfe.links_layout.addWidget(b)
         weg = QPushButton("Markierte entfernen")
         weg.clicked.connect(self._kontur_weg)
         knoepfe.rechts_layout.addWidget(weg)
         bl.addWidget(knoepfe)
+        self.kontur_leiste = knoepfe    # Teile-Editor: die Befehle stehen im Menüband
         lay.addWidget(box, 3)
         for z in e.get("konturen") or []:
             self.kontur_neu(z, rechnen_=False)
@@ -389,6 +402,7 @@ class BlechDialog(QDialog):
         bilder.addWidget(self.skizze)
         bilder.addWidget(self.ansicht3d)
         lay.addWidget(bilder, 1)
+        self.bilder_teiler, self.ergebnis_bereich = bilder, rechts
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         self.summe.setTextFormat(Qt.RichText)
@@ -476,9 +490,10 @@ class BlechDialog(QDialog):
         art.addItems(list(blech.KONTUR_ARTEN))
         art.setCurrentText(z.get("art") or sw.BOHRUNG)
         art.quer = bool(z.get("quer"))      # Langloch quer (STEP-Import); bleibt beim Speichern erhalten
+        art.artikel = bool(z.get("artikel"))    # Text-Gravur der Artikelnummer aus dem Baugruppen-Editor
         art.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, 0, art)
-        masse = [k for k, _ in sw.MASSE.get(z.get("art"), ())]
+        masse = [k for k, _ in MASSE.get(z.get("art"), ())]
         werte = [z.get("anzahl", 1)] + [z.get(k) for k in masse] + [None] * (3 - len(masse)) + [z.get("x"), z.get("y")]
         for c, v in enumerate(werte, 1):
             self.tabelle.setItem(r, c, QTableWidgetItem(_feld(v)))
@@ -486,10 +501,20 @@ class BlechDialog(QDialog):
         if rechnen_:
             self.rechnen()
 
+    def _kontur_vorgabe(self, art):
+        """Neue Zeile; Text-Gravur mit Artikelnummer (Kopf) und Schrifthöhe aus der Einstellung, Lage frei gesucht."""
+        z = dict(art=art, anzahl=1)
+        if art == sw.TEXT_GRAVUR:
+            z.update(text=self.artikelnr.text().strip() if hasattr(self, "artikelnr") else "",
+                     hoehe=self.db.einstellung("gravur_schrifthoehe") or 10, winkel=0)
+            lage = blech.gravur_lage(self.eingaben(), z) or {}
+            z.update({n: lage[n] for n in ("x", "y", "winkel") if n in lage})
+        return z
+
     def _spalten_erklaeren(self, zeile):
         """Überschriften Maß 1–3 nach der Art der markierten Zeile (z. B. Langloch: Länge l, Breite b)."""
         art = self.tabelle.cellWidget(zeile, 0).currentText() if 0 <= zeile < self.tabelle.rowCount() else None
-        titel = [f"{t} [mm]" if k != "punkte" else t for k, t in sw.MASSE.get(art, ())]
+        titel = [f"{t} [mm]" if k not in TEXT_MASSE and "[" not in t else t for k, t in MASSE.get(art, ())]
         for c in range(3):
             self.tabelle.horizontalHeaderItem(2 + c).setText(titel[c] if c < len(titel) else f"Maß {c + 1}")
 
@@ -508,12 +533,14 @@ class BlechDialog(QDialog):
         for r in range(self.tabelle.rowCount()):
             art = self.tabelle.cellWidget(r, 0).currentText()
             z = dict(art=art, anzahl=_zahl_text(self._text(self.tabelle, r, 1)) or 0)
-            for c, (k, _) in enumerate(sw.MASSE.get(art, ()), 2):
+            for c, (k, _) in enumerate(MASSE.get(art, ()), 2):
                 t = self._text(self.tabelle, r, c)
-                z[k] = t.strip() if k == "punkte" else _zahl_text(t)
+                z[k] = t.strip() if k in TEXT_MASSE else _zahl_text(t)
             z["x"], z["y"] = _zahl_text(self._text(self.tabelle, r, 5)), _zahl_text(self._text(self.tabelle, r, 6))
             if art == sw.LANGLOCH and getattr(self.tabelle.cellWidget(r, 0), "quer", False):
                 z["quer"] = True
+            if art == sw.TEXT_GRAVUR and getattr(self.tabelle.cellWidget(r, 0), "artikel", False):
+                z["artikel"] = True
             konturen.append(z)
         schenkel = [dict(laenge=_zahl_text(self._text(self.schenkel, r, 0)),
                          winkel=_zahl_text(self._text(self.schenkel, r, 1)) or 0,

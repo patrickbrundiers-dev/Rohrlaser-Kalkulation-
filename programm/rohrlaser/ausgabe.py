@@ -133,7 +133,7 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     zus = []
     if p.get("gewinde"):
         zus.append(f"Gewinde {p['gewinde']}")
-    if _wert(p.get("gravur")) > 0:
+    if _wert(p.get("gravur")) > 0 or rechnen.gravur_artikel(p) > 0:
         zus.append("Gravur")
     for e in zusatz or ():
         t_e = e["angebotstext"] + (f" {e['text']}" if e.get("text") else "")
@@ -349,12 +349,14 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     """Materialliste und je Stangenmuster ein Block (WerkstattpapierFuellen).
     Ergebnis: dict(material=[{profil, werkstoff, stange, stangen, gewicht}],
                    muster=[{nummern, anzahl, stange (Schnittplanzeile), rest, ausnutzung, teile=[…]}],
-                   zukaufteile=[{pos, artikel, bezeichnung, stueck, text}] (Zukaufteil-Positionen, nicht gelasert))."""
+                   zukaufteile=[{pos, artikel, bezeichnung, stueck, text}] (Zukaufteil-Positionen, nicht gelasert),
+                   schweissplan, hinweise=rechnen.laser_hinweise)."""
     zk = [dict(pos=p.get("pos"), artikel=p.get("artikel"), bezeichnung=p.get("bezeichnung"), stueck=p.get("stueck"),
                text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
     plan = schweissplan(positionen, tabellen)
+    hinweise = rechnen.laser_hinweise(positionen, k)      # Laser-Hinweise der Werkstoffe (24.10.2026)
     if not ergebnis or not ergebnis.get("stangen"):
-        return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan)
+        return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan, hinweise=hinweise)
     # so, wie die Maschine lädt: zugeschnittene Lieferstangen als ihre Werkstücke (rechnen.anzeige_stangen)
     paare = rechnen.anzeige_stangen(ergebnis, rechnen.stangen_werte(ergebnis, kopf, positionen, k, tabellen))
     werte = {s["nr"]: w for s, w in paare}
@@ -381,7 +383,7 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile,
                            gespart=rechnen.gehrung_gespart(s)))
-    return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan)
+    return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan, hinweise=hinweise)
 
 
 def schweissplan(positionen, tabellen):

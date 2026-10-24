@@ -162,7 +162,7 @@ def _befunde_sortiert(liste):
 # ------------------------------------------------------------------ Rohr und Profil
 def _schnittkonturen(konturen):
     from . import schneidweg as sw
-    return [z for z in konturen or () if z.get("art") != sw.GRAVUR]
+    return [z for z in konturen or () if z.get("art") not in sw.GRAVUREN]
 
 
 @functools.lru_cache(maxsize=4096)
@@ -201,7 +201,7 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
     qs = sk.Querschnitt(dict(profil))
     teile = []
     schnitt = _schnittkonturen(konturen)
-    zeile = [i for i, z in enumerate(konturen) if z.get("art") != sw.GRAVUR]    # Tabellenzeile je Schnittkontur
+    zeile = [i for i, z in enumerate(konturen) if z.get("art") not in sw.GRAVUREN]    # Tabellenzeile je Schnittkontur
     for d in sk.lagen(schnitt, laenge):
         if d.get("verteilt"):
             continue
@@ -268,7 +268,7 @@ def _biegerohr(e, laenge, profil, wand, r):
                 treffer.append(d)
                 zonen.update(nr)
         if treffer:
-            zeilen_e = [i for i, z in enumerate(e.get("konturen") or ()) if z.get("art") != sw.GRAVUR]
+            zeilen_e = [i for i, z in enumerate(e.get("konturen") or ()) if z.get("art") not in sw.GRAVUREN]
             out.append(Befund(BIEGEZONE, stufe, f"{len(treffer)} Kontur(en) in der Biegezone (Biegung "
                                                 f"{', '.join(map(str, sorted(zonen)))})"
                               + (f", Abstand unter {_zahl(abstand)} mm" if abstand else "")
@@ -308,7 +308,7 @@ def _knickrahmen(e, laenge, profil, wand, r):
         abstand = (g or 0.0) * (wand or 0.0)
         lagen = [d for d in sk.lagen(_schnittkonturen(konturen), laenge) if not d.get("verteilt")]
         schnitt = _schnittkonturen(konturen)
-        zeilen_e = [i for i, z in enumerate(konturen) if z.get("art") != sw.GRAVUR]
+        zeilen_e = [i for i, z in enumerate(konturen) if z.get("art") not in sw.GRAVUREN]
         zonen = []
         for d in lagen:
             if d["art"] == sw.V_AUSSCHNITT:
@@ -393,7 +393,7 @@ def blech(e, zs, zeilen=None, kantbarkeit=True, einst=None):
               [(0.0, 0.0), (zs["laenge"], 0.0), (zs["laenge"], zs["breite"]), (0.0, zs["breite"])])
     teile = []
     for i, z in enumerate(konturen):
-        if z.get("x") is None or z.get("y") is None or z.get("art") == sw.GRAVUR:
+        if z.get("x") is None or z.get("y") is None or z.get("art") in sw.GRAVUREN:
             continue
         pts = sk.umriss_kontur(z)
         if not pts:

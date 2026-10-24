@@ -330,7 +330,7 @@ sp = s4.staffelpreise_rechnen()
 assert len(sp) == 6 and [z["einheit"] for z in sp] == ["Satz"] * 3 + ["Stück"] * 3
 # Stufe 24 Stück: 154,08 € netto liegt unter dem Mindestpreis 200 € (ab 0.6.0) -> 200 / 24 auf den Cent aufgerundet
 # 8,34 € (ohne Mindestpreis 6,42 €)
-assert [z["preis_einheit"] for z in sp] == [149.02, 145.07, 136.44, 8.34, 6.32, 5.94], sp   # Referenzwerte (T11, Stangenwechsel 24 s ab 0.8.10; bis 0.8.9 mit 29 s: 149,81 145,86 137,20 8,34 6,39 6,00; Rohr-Richtwerte Faserlaser 4 kW ab 0.6.19, Händler +50 mm je 6-m-Stange; bis 0.6.18: 149,75 145,80 137,14 8,34 6,35 5,96; bis 0.6.13: 148,64 144,68 136,07 8,34 6,30 5,92; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
+assert [z["preis_einheit"] for z in sp] == [149.05, 145.09, 136.46, 8.34, 6.32, 5.94], sp   # Referenzwerte (Außenradius nach Norm ab 0.9.62; bis 0.9.61 scharfkantig: 149,02 145,07 136,44 8,34 6,32 5,94; T11, Stangenwechsel 24 s ab 0.8.10; bis 0.8.9 mit 29 s: 149,81 145,86 137,20 8,34 6,39 6,00; Rohr-Richtwerte Faserlaser 4 kW ab 0.6.19, Händler +50 mm je 6-m-Stange; bis 0.6.18: 149,75 145,80 137,14 8,34 6,35 5,96; bis 0.6.13: 148,64 144,68 136,07 8,34 6,30 5,92; bis 0.5.8 mit RL-1: 158,96 149,47 138,12 7,30 6,70 6,09)
 assert "aktuell" in s4.staffel_info.text()
 st_mod = s4.staffel_modell
 assert [x[0] for x in staffeln.auswahl(s4.positionen)] == ["Rahmen"] + [str(p["pos"]) for p in s4.positionen
@@ -346,19 +346,19 @@ assert db.staffeln(a4)[5]["menge"] == 200
 assert "VERALTET" in s4.staffel_info.text()
 ang = s4.angebot_daten()      # rechnet veraltete Staffelpreise neu
 assert ang["staffeln"][-1]["menge"] == 200 and "aktuell" in s4.staffel_info.text()
-assert abs(ang["netto"] - 992.2) < 1e-9 and ang["mwst"] == 188.52, ang   # Referenzwerte (T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
+assert abs(ang["netto"] - 992.32) < 1e-9 and ang["mwst"] == 188.54, ang   # Referenzwerte (Außenradius nach Norm ab 0.9.62, bis 0.9.61: 992,20 / 188,52; T11, Stangenwechsel 24 s ab 0.8.10, bis 0.8.9: 999,40 / 189,89; Händler +50 mm, Rohr-Richtwerte ab 0.6.19; bis 0.6.18: 997,52 / 189,53; bis 0.6.13: 989,64 / 188,03; bis 0.5.8 RL-1: 1005,80 / 191,10)
 assert ang["zeilen"][0]["text"] == "Rundrohr Ø 42,4 x 2\nL = 1250 mm\ninkl. Material S235 EN10219"
 assert [z["art"] for z in ang["zeilen"]] == ["teil", "teil", "satz", "satzteil", "satzteil", "teil"]
 for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkstattpapiere.pdf"),
                      (s4.kalkulation_pdf, "Kalkulation.pdf")):
     datei = aufruf()
-    assert datei and datei.parent == tmp / "Ablage" and datei.name.endswith(name) and datei.stat().st_size > 1000, datei
+    assert datei and datei.parent.parent == tmp / "Ablage" and datei.name.endswith(name) and datei.stat().st_size > 1000, datei
     assert datei.read_bytes()[:5] == b"%PDF-"
 import csv  # noqa: E402
 import io  # noqa: E402
 import zipfile  # noqa: E402
 datei = s4.csv_export()         # Angebot_<Nr>.zip mit Angebotskopf.csv und Angebotspositionen.csv (test_csv_export.py)
-assert datei and datei.parent == tmp / "Ablage" and datei.suffix == ".zip", datei
+assert datei and datei.parent.parent == tmp / "Ablage" and datei.suffix == ".zip", datei   # Ordner je Angebot
 with zipfile.ZipFile(datei) as z_:
     csv_zeilen = list(csv.reader(io.StringIO(z_.read("Angebotspositionen.csv").decode("utf-8-sig"), newline=""),
                                  delimiter=";"))

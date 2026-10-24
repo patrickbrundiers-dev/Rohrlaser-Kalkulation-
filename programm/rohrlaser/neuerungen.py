@@ -21,13 +21,96 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.54", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
+    ["0.9.70", "<b>Beauftragt mit Auftragsnummer und Liefertermin</b>: <i>Vorgang ▾ → Beauftragt</i> fragt die "
                "Auftragsnummer des Kunden und den Liefertermin ab (Vorschlag aus der Lieferzeit); beides steht in "
                "der Angebotsliste und lässt sich suchen. <b>Eingabe wie in Excel</b> in der Positionsliste: "
                "Eingabe springt weiter (nach unten oder rechts, Einstellung), ↓ in der letzten Zeile legt eine "
                "Position an, <b>Strg+D</b> übernimmt den Wert von oben, im Profil-Feld findet „40x3“ das Profil "
                "„QR 40x40x3“ ([[excel_eingabe]]).",
      "Beauftragt mit Auftragsnummer und Termin; Positionsliste: Eingabe, ↓, Strg+D wie in Excel."],
+    ["0.9.69", "<b>Artikelnummer gravieren</b> als Hilfe beim Schweißen: im Editor der Schweißbaugruppe Haken "
+               "<i>Artikelnr. gravieren</i> und Schrifthöhe je Teil, <i>Alle gravieren</i>; Einstellung ja/nein "
+               "gibt den Haken vor (auch beim STEP-Import), Schrifthöhe 10 mm. Rohre: die Gravur zählt in die "
+               "Laserzeit. Bleche: Zeile <i>Text-Gravur</i> im Blech-Editor, Lage automatisch in der größten freien "
+               "Fläche (mindestens 0,5 mm Abstand), verschiebbar, mit Feld <i>Vorschub Gravur</i> in den "
+               "Blechlaser-Richtwerten ([[positionsgravur]]).",
+     "Artikelnummer auf Rohre und Bleche der Schweißbaugruppe gravieren ([[positionsgravur]])."],
+    ["0.9.68", "<b>3D der Baugruppe</b>: Steckt ein Teil öfter in der Baugruppe, als die STEP-Datei Körper dafür hat "
+               "(Menge von Hand erhöht oder Unterbaugruppe aus eigener Datei), nennt die Zeile unter der Ansicht "
+               "jetzt die Teile mit „1 von 4 Stück“ ([[baugruppe_baum]]).",
+     "3D der Baugruppe: Hinweis, wenn nicht alle Stück eines Teils im 3D stehen ([[baugruppe_baum]])."],
+    ["0.9.67", "<b>Neue Fassung offline</b>: Fassungen eines Angebots mit vorläufiger Nummer (V-PB-1-2) bekommen "
+     "beim Abgleich bzw. vor dem Angebots-PDF dieselbe endgültige Nummer wie das erste Angebot, mit ihrem Zusatz "
+     "(2026-00042-2); <i>Ersetzt durch …</i> und die Grundnummer werden mitgeändert ([[mehrere_arbeitsplaetze]]).",
+     "Fassungen vorläufiger Nummern bekommen die endgültige Nummer mit Zusatz ([[mehrere_arbeitsplaetze]])."],
+    ["0.9.66", "<b>Teile-Editor: am 3D-Modell bearbeiten</b> wie im CAM-Programm. Die gewählte Kontur hat Pfeile "
+               "zum Ziehen (längs und quer um den Umfang, auch auf die Nachbarfläche), das Maß steht dabei am "
+               "Mauszeiger; <b>Fangen</b> auf Raster (5 mm, Rundrohr 15°), Teilmitte und Flächenmitte, Alt = frei. "
+               "<b>Maße am Modell</b> (ab A, bis B, zur Nachbarkontur) mit Doppelklick ändern, Rechnungen wie L/2 gehen. "
+               "<b>Schnittebenen</b> an den Enden mit Griff für den Gehrungswinkel. <b>Pfeiltasten</b> verschieben um "
+               "den Rasterschritt (Umschalt ×10). <b>Rechtsklick</b>: Duplizieren, Spiegeln, Gegenseite, Auf "
+               "STEP-Wert, Entfernen, Messen von hier. <b>Darstellung</b> Schattiert, Mit Kanten, Durchsichtig und "
+               "<i>nur Gewähltes</i>; Gewähltes ist grün. Der Editor öffnet immer maximiert ([[editor_griffe]]).",
+     "Teile-Editor: Konturen und Gehrung direkt am 3D-Modell ziehen, Maße am Modell, Rechtsklick-Menü, "
+     "Darstellungsarten ([[editor_griffe]])."],
+    ["0.9.64", "<b>Werkstoffliste für den Rohrlaser</b>: 17 neue Werkstoffe (u. a. EN 10210 warmgefertigt, "
+               "DX51D+Z275 sendzimirverzinkt, P235TR1, P235GH nahtlos, S420MH/S460MH, S355J2WH wetterfest, 1.4541, "
+               "1.4016, 1.4003, 1.4462 Duplex, EN AW-6061/6005A) und die Kategorie <b>Buntmetall</b> (CuZn37, "
+               "Cu-DHP) mit Faser-Richtwerten. Neue Felder je Werkstoff: <b>Rohrart</b> (nahtlos/stranggepresst = "
+               "keine Nahtvorgabe, kein Stangenwechsel SN), <b>Schneidgas</b> (nur N₂/nur O₂), <b>Vorschub-Faktor</b> "
+               "auf die Schneiddaten der Kategorie, <b>Laser</b> (nur Faser warnt auf T03) und <b>Laser-Hinweis</b> "
+               "(Tooltip, Angebots-Check, Kalkulation, Werkstattpapiere). Bestehende Dateien bekommen die neuen "
+               "Werkstoffe einmalig dazu, eigene bleiben unverändert ([[werkstoffe]]).",
+     "Werkstoffliste für den Rohrlaser: 17 neue Werkstoffe, Buntmetall, Schneidgas, Vorschub-Faktor, Rohrart "
+     "([[werkstoffe]])."],
+    ["0.9.63", "<b>Teile-Editor: Gruppe Knicke</b>: Bei einem Knickrahmen zeigt der Merkmalsbaum des Schneidweg-Rechners "
+               "die Knicke (Knickwinkel, Lage, Stegwand) und den Rahmen mit seiner Herkunft (STEP oder manuell). Ein "
+               "Klick zeigt den V-Ausschnitt in Tabelle, Skizze und 3D ([[knickrahmen]]).",
+     "Teile-Editor: Gruppe Knicke für Knickrahmen ([[knickrahmen]])."],
+    ["0.9.62", "<b>Außenradius bei Quadrat- und Rechteckrohr</b>: neues Feld in den Profilen (leer = Vorgabe nach "
+               "EN 10219: 2 × Wand bis 6 mm, 2,5 × bis 10 mm, darüber 3 ×; 0 = scharfkantig). Er kürzt die "
+               "Schnittlänge der Enden (QR 40 × 40 × 3 gerade 149,7 statt 160 mm, schräg mit elliptischen Ecken) und "
+               "die Außenfläche; Skizze und 3D-Modell zeigen runde Ecken. Im Schneidweg-Rechner (Eigenschaften des "
+               "Teils) lässt er sich für das Angebot ändern; er gilt dann für alle Positionen mit gleichem Profil und "
+               "Werkstoff ([[profile]], [[teile_editor]]). Bei Werkstoff <b>Aluminium</b> ist die Vorgabe 0 "
+               "(scharfkantig), solange Stammdaten oder Angebot nichts anderes festlegen.",
+     "Außenradius für Quadrat- und Rechteckrohr, im Angebot je Profil und Werkstoff ([[profile]])."],
+    ["0.9.61", "<b>Eigener Ordner je Angebot</b>: Alles, was das Programm zu einem Angebot speichert (Angebot, "
+               "Kalkulation, Werkstattpapiere, Nachkalkulation, Zeichnungen, CSV-Export, Materialanfrage, STEP-Messung), "
+               "kommt in den Ordner <i>Nummer Kunde</i> in der Ablage; Fassungen als Unterordner <i>Fassung 2</i>. Neuer "
+               "Knopf <b>Ordner öffnen</b> in der Übersicht und im Menü Ausgaben. Auf Wunsch kopiert der STEP-Import die "
+               "STEP-Dateien in den Unterordner <i>STEP</i> (Haken im Prüfdialog, Vorgabe in den Einstellungen). Lose "
+               "Dateien in der Ablage werden einmalig in den Ordner ihres Angebots verschoben ([[angebotsordner]]).",
+     "Eigener Ordner je Angebot, Knopf Ordner öffnen, STEP-Dateien optional mitkopieren ([[angebotsordner]])."],
+    ["0.9.60", "<b>Knickrahmen aus einem Körper</b>: Ist ein geknickter Rahmen aus Quadrat- oder Rechteckrohr in "
+               "der STEP-Datei ein einziger Körper, erkennt ihn der Import (auch gestreckt gezeichnet mit "
+               "V-Ausschnitten). Er teilt ihn an den Ecken, misst jeden Schenkel und zeigt eine Zeile <i>Knickrahmen (n Knicke) aus einem Körper</i>. Übernommen wird sie wie "
+               "eine Knickverbindung: gestrecktes Rohr, V-Ausschnitte, Bohrungen an ihrer Stelle, Zusatzarbeit Knicken. "
+               "Rechtsklick → <i>Knickrahmen bearbeiten …</i> ([[knickrahmen_koerper]]).",
+     "Knickrahmen aus einem STEP-Körper wird erkannt ([[knickrahmen_koerper]])."],
+    ["0.9.58", "<b>Teile-Editor neu aufgebaut</b> (Schneidweg-Rechner und Blech-Editor) wie ein CAM-Programm: "
+     "oben ein <b>Menüband</b> (Konstruktion, Ansicht, Ausgabe), in der Mitte das <b>3D-Modell</b> mit "
+     "Ansichtswürfel und die Skizze, rechts die <b>Eigenschaften</b> des gewählten Merkmals mit Maßbild, unten "
+     "Kennzahlen und der Zähler der Prüfmeldungen. Das Rohr hat jetzt auch ohne STEP-Datei ein 3D-Modell, das jede "
+     "Eingabe sofort zeigt. Maßfelder rechnen (z. B. 1200/2+15, 3x25, L-40); Duplizieren mit Strg+D, Entfernen mit "
+     "Entf. Die Tabelle bleibt über Ansicht → Tabelle erreichbar ([[teile_editor]]).",
+     "Teile-Editor mit Menüband, 3D-Modell, Eigenschaften und Rechenfeldern ([[teile_editor]])."],
+    ["0.9.57", "<b>Naht im 3D zeichnen</b>: Im Baugruppen-Editor (Reiter <i>Strukturbaum und 3D</i>) lässt sich eine "
+               "Schweißnaht direkt am Modell zeichnen: <i>Naht zeichnen</i>, Punkte entlang der Naht anklicken, "
+               "<i>Als Nahtgruppe übernehmen</i>. Länge, beteiligte Teile, Unterbaugruppe und Wanddicke ermittelt das "
+               "Programm ([[baugruppe_baum]]).",
+     "Schweißnaht im 3D der Baugruppe von Hand zeichnen ([[baugruppe_baum]])."],
+    ["0.9.56", "<b>Schweißnähte in 3D</b>: Im Baugruppen-Editor zeigt der Reiter <i>Strukturbaum und 3D</i> die "
+               "Schweißnähte als Linien am Modell: Nahtgruppen schwarz, offene Nahtvorschläge magenta, die gewählte "
+               "Nahtgruppe rot. Den Nahtverlauf liefert der STEP-Import ab dieser Version; ältere Importe neu "
+               "einlesen ([[baugruppe_baum]]).",
+     "Schweißnähte in der 3D-Ansicht der Baugruppe ([[baugruppe_baum]])."],
+    ["0.9.55", "<b>Knickverbindung aus Einzelrohren</b>: Ist ein Rahmen in der STEP-Datei aus einzelnen Rohren mit "
+               "Gehrung gezeichnet, schlägt der Prüfdialog einen Knickrahmen vor (auch: Rohre markieren, Rechtsklick). "
+               "Daraus wird eine Position mit gestrecktem Rohr, V-Ausschnitten, den Bohrungen aller Rohre an ihrer "
+               "Stelle und der Zusatzarbeit Knicken; die Nahtkandidaten an den Knicken fallen weg. Neu im Fenster "
+               "Knickrahmen: <b>Innenwand schräg (3D)</b>, Vorgabe aus ([[knickverbindung]], [[knickrahmen]]).",
+     "Knickverbindung aus STEP-Einzelrohren, Innenwand schräg (3D) wählbar ([[knickverbindung]])."],
     ["0.9.53", "<b>Online-Update zuverlässiger</b>: Nach <i>Jetzt aktualisieren</i> lädt das Programm die neuen "
                "Dateien, schließt dann alles (Fenster, STEP-Messung, Abgleich, Sicherung, Datendatei) und tauscht "
                "erst danach aus. Ist eine Datei noch geöffnet, wartet es bis zu 30 s und nennt dann Datei und Grund "

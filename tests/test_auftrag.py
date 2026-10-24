@@ -41,28 +41,28 @@ ok("Termin-Vorschlag: Arbeitstage, Wochen, Freitag der KW, Lieferdatum, sonst 14
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
-assert SCHEMA_VERSION >= 54
+assert SCHEMA_VERSION >= 57
 a = db.angebot_neu()
 assert db.angebot(a)["auftragsnr"] is None and db.angebot(a)["liefertermin"] is None
 db.auftrag_setzen(a, " B-4711 ", "2026-11-13")
 k = db.angebot(a)
 assert (k["auftragsnr"], k["liefertermin"]) == ("B-4711", "2026-11-13")
 assert [z["id"] for z in db.angebote("4711")] == [a]
-ok("Spalten auftragsnr/liefertermin (Schema 54), Suche findet die Auftragsnummer")
+ok("Spalten auftragsnr/liefertermin (Schema 57), Suche findet die Auftragsnummer")
 
-# Datei mit Schema 53 (ohne die Spalten): Sicherung vor_Schema_54, Spalten leer ergänzt, Angebote bleiben
+# Datei mit Schema 56 (ohne die Spalten): Sicherung vor_Schema_57, Spalten leer ergänzt, Angebote bleiben
 alt = tmp / "alt.db"
 d0 = Datenbank(alt)
 n0 = len(d0.angebote())
 d0.con.execute("ALTER TABLE angebote DROP COLUMN auftragsnr")
 d0.con.execute("ALTER TABLE angebote DROP COLUMN liefertermin")
-d0.con.execute("PRAGMA user_version = 53")
+d0.con.execute("PRAGMA user_version = 56")
 d0.con.commit()
 d0.con.close()
 d1 = Datenbank(alt)
-assert d1.sicherungen(zusatz="vor_Schema_54") and len(d1.angebote()) == n0
+assert d1.sicherungen(zusatz="vor_Schema_57") and len(d1.angebote()) == n0
 assert all(z["auftragsnr"] is None and z["liefertermin"] is None for z in d1.angebote())
-ok("Umstellung von Schema 53: Sicherung vor_Schema_54, neue Spalten leer")
+ok("Umstellung von Schema 56: Sicherung vor_Schema_57, neue Spalten leer")
 
 # Kopie und neue Fassung: ohne Auftragsnummer und Termin
 for neu in (db.angebot_kopieren(a), db.angebot_fassung(a)):

@@ -58,6 +58,10 @@ class Fotograf:
             w, r = ziel if isinstance(ziel, tuple) else (ziel, None)
             r = QRect(r) if r is not None else w.rect()
             r.moveTopLeft(w.mapTo(wurzel, r.topLeft()))
+            eltern = w.parentWidget()
+            while eltern is not None and eltern is not wurzel:      # in einem Rollbereich nur den sichtbaren Teil
+                r = r.intersected(QRect(eltern.mapTo(wurzel, QPoint(0, 0)), eltern.size()))
+                eltern = eltern.parentWidget()
             r = r.adjusted(-2, -2, 2, 2)
             p.setPen(QPen(ROT, 2.2))
             p.setBrush(Qt.NoBrush)
@@ -442,12 +446,18 @@ def main(ziel):
         QApplication.processEvents()
         d.tabelle.selectRow(1)
         d.skizze.zoom = 2.0                 # Ausschnitt: erste Hälfte des Teils
-        d.editor.aktualisieren()            # Merkmale und Prüfmeldungen sofort (sonst 0,15 s nach der Eingabe)
-        foto.foto("schneidweg_dialog", d, [(d.winkel["a"], 1), (d.tabelle, 2), (knopf(d, "+ Bohrung"), 3),
-                                           (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6),
-                                           (d.naht_vorgabe, 7), (d.erklaerung, 8),
-                                           (knopf(d, "Zeichnung als PDF …"), 9), (d.editor.baum, 10),
-                                           (d.editor.meldungen, 11), (d.editor.rueck, 12)])
+        ed = d.editor
+        ed.modus_setzen("Beides")
+        ed.tabelle_zeigen(True)
+        ed.leiste_unten.zaehler.setChecked(True)            # Prüfmeldungen aufgeklappt
+        ed.aktualisieren()                  # Merkmale und Prüfmeldungen sofort (sonst 0,15 s nach der Eingabe)
+        ed.waehlen("kontur:1")
+        QApplication.processEvents()
+        foto.foto("schneidweg_dialog", d, [(ed.band, 1), (ed.band.knopf("Bohrung"), 2), (ed.baum, 3),
+                                           (d.ansicht3d, 4), (ed.ansichten.wuerfel, 5), (d.skizze, 6),
+                                           (ed.eigenschaften, 7), (d.tabelle, 8), (d.ergebnis_tabelle, 9),
+                                           (ed.leiste_unten.kacheln[0], 10), (ed.leiste_unten.zaehler, 11),
+                                           (ed.rueck, 12)])
         d.ansicht_wahl.setCurrentText("Abwicklung")
         d.skizze.resize(d.skizze.width(), 300)
         d.skizze.zoom = 2.0
@@ -480,8 +490,35 @@ def main(ziel):
     d.resize(1450, 980)
     d.ansicht_wahl.setCurrentText("Abwicklung")
     QApplication.processEvents()
+    d.editor.leiste_unten.zaehler.setChecked(True)
     d.editor.aktualisieren()
+    QApplication.processEvents()
     foto.foto("biegerohr_rechner", d, [(d.editor.baum, 1), (d.skizze, 2), (d.editor.meldungen, 3)])
+    d.reject()
+
+    # 7a2a1) Am 3D-Modell bearbeiten (Position nur für das Foto): Griffe, Maße und Schnittebenen am Langloch
+    qr40 = next((dict(pr, profil_id=pid) for pid, pr in s.k.profile.items() if pr.get("form") == "Quadratrohr"),
+                dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3"))
+    technik = dict(quelle=sw.QUELLE, a=dict(winkel=45, achse="über Höhe"), b={}, konturen=[
+        dict(art="Bohrung", anzahl=2, d=8.5, x=80, abstand=60),
+        dict(art="Langloch", anzahl=1, l=30, b=10, x=330, seite="vorne"),
+        dict(art="Bohrung", anzahl=1, d=8.5, x=230, seite="vorne")])
+    p_g = dict(id=None, pos=910, artikel="Strebe", profil_id=qr40["profil_id"], laenge=600, stueck=10,
+               technik=json.dumps(technik))
+    d = SchneidwegDialog(s, p_g, qr40, s.kopf, s.k, s.tabellen, db, s.positionen)
+    ed = d.editor
+    d.resize(1700, 820)
+    ed.modus_setzen("3D")
+    ed.tabelle_zeigen(False)
+    ed.darstellung_setzen("Mit Kanten")
+    QApplication.processEvents()
+    ed.waehlen("kontur:1")
+    d.ansicht3d.ansicht.zoom = 0.92
+    QApplication.processEvents()
+    foto.foto("editor_griffe", d.ansicht3d.ansicht, [])
+    ed.darstellung_setzen("Schattiert")             # gemerkte Einstellungen für die weiteren Fotos zurück
+    ed.modus_setzen("Beides")
+    ed.tabelle_zeigen(True)
     d.reject()
 
     # 7a2a2) Knickrahmen im Schneidweg-Rechner (Position nur für das Foto, nichts gespeichert): 500 × 300 aus QR 40
@@ -493,8 +530,31 @@ def main(ziel):
     d.knickrahmen(werte=dict(schenkel=[500, 300, 500, 300], geschlossen=True, beta=90, steg="unten"))
     d.resize(1450, 980)
     d.ansicht_wahl.setCurrentText("Abwicklung")
+    d.editor.aktualisieren()
     QApplication.processEvents()
-    foto.foto("knickrahmen_rechner", d, [(d.knick_knopf, 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
+    foto.foto("knickrahmen_rechner", d, [(d.editor.band.knopf("Knickrahmen"), 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
+    d.reject()
+
+    # 7a2a3) Knickverbindung aus vier Einzelrohren mit Gehrung (Lage wie aus einer STEP-Baugruppe, nur für das Foto)
+    import zlib
+    from rohrlaser.knickrahmen_dialog import KnickverbindungDialog
+
+    def schenkel(nr, o, z, lg):
+        enden = [dict(art=f"Ende {e}", form="Gehrung", gehrung=45.0, richtung=180.0) for e in "AB"]
+        netz = dict(p=[], t={}, lage=[*o, *z, 0, 0, 1])
+        return dict(datei="Rahmen.step", artikel=f"Rahmen-K{nr}", koerper=str(nr), profilform="Quadratrohr",
+                    abm_a="40", abm_b="40", wandstaerke="2", laenge=str(lg), konturen_liste=json.dumps(enden),
+                    _netz=zlib.compress(json.dumps(netz).encode("utf-8")))
+    mw_k = [schenkel(1, (0, 20, 0), (1, 0, 0), 500), schenkel(2, (480, 0, 0), (0, 1, 0), 300),
+            schenkel(3, (500, 280, 0), (-1, 0, 0), 500), schenkel(4, (20, 300, 0), (0, -1, 0), 300)]
+    d = KnickverbindungDialog(s, mw_k, [0, 1, 2, 3], dict(z=0, freistich=0, k=0.5))
+    d.resize(640, 420)
+    foto.foto("knickverbindung", d, [(d.start, 1), (d.umkehren, 2), (d.schraeg, 3), (d.vorschau, 4)])
+    d.reject()
+    # Knickrahmen aus einem Körper (K1-3): dieselben Schenkel, wie sie die Messung aus dem Körper schneidet
+    d = KnickverbindungDialog(s, mw_k, [0, 1, 2, 3], dict(z=0, freistich=0, k=0.5), koerper=True)
+    d.resize(640, 420)
+    foto.foto("knickrahmen_koerper", d, [(d.start, 1), (d.vorschau, 2)])
     d.reject()
 
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
@@ -645,6 +705,7 @@ def main(ziel):
         d.stueck.setValue(20)
         d.resize(1350, 900)
         d.show()
+        d.editor.leiste_unten.zaehler.setChecked(True)
         d.editor.aktualisieren()
         QApplication.processEvents()
         foto.foto("blech_editor", d, [(d.bezeichnung, 1), (d.werkstoff, 2), (d.art, 3), (d.schenkel, 4),
@@ -786,7 +847,9 @@ def main(ziel):
         seiten[art] = n
         for nr in range(1, n + 1):
             pdf_seite(pfad, foto, f"pdf_{art}_{nr}", nr)
-    ablage = sorted(p.name for p in (programmordner / "Angebote").iterdir())
+    # je Angebot ein Ordner (angebotsordner.py): Ordnername + Dateien darin
+    ordner = Path(pdfs["angebot"]).parent
+    ablage = [ordner.name + "\\"] + sorted(p.name for p in ordner.iterdir() if p.is_file())
 
     # 10) STEP-Import in ein neues Angebot (Testteile aus tests/step)
     neu = db.angebot_neu(dict(kunde="Stahlbau Ostermann", kundennr="10588", bemerkung="Teile laut Zeichnung (STEP)"))
