@@ -203,8 +203,20 @@ d3.zeichnen_knopf.setChecked(True)                                            # 
 assert not v3.messen_knopf.isChecked() and v3.ansicht.mess_max == 0
 d3.zeichnen_knopf.setChecked(False)
 assert v3.wuerfel is not None and v3.blick_knopf.menu() is not None
+from rohrlaser.baugruppe_ansicht import in_lage  # noqa: E402
+d3.laengsnaht_knopf.setChecked(True)                                          # Längsnaht per Klick (wie im Satz)
+assert not d3.zeichnen_knopf.isChecked() and not v3.ansicht.messen
+nr = next(i for i, (pid, _, _) in enumerate(d3._koerper_lage) if pid in rohre)
+pid, lage, _ = d3._koerper_lage[nr]
+w = d3._3d_geklickt(dict(id=f"teil:{nr}", punkt=in_lage((0.0, 30.0, 50.0), lage)))
+assert w is not None and d3.laengsnaht_werte()[pid]["naht_winkel"] == w, (w, d3.laengsnaht_werte())
+assert d3.werte()["naehte"][pid]["naht_quelle"] == "manuell"
+assert v3.ansicht.netz["l"].get("NL"), v3.ansicht.netz["l"].keys()
+d3.zeichnen_knopf.setChecked(True)                                            # Naht zeichnen schaltet sie aus
+assert not d3.laengsnaht_knopf.isChecked()
+d3.zeichnen_knopf.setChecked(False)
 ok("3D wie im Rohr-Editor: Rohre aus den Eingaben, Nähte als Raupe, Nur Gewähltes, Nähte aus, Darstellung, "
-   "Messen")
+   "Messen, Längsnaht per Klick")
 
 # ------------------------------------------------------------------ ohne 3D-Daten
 d2 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0})
