@@ -17,7 +17,7 @@ GRUPPEN = (
     ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen")),
     ("Maschinen", ("maschinen", "schneiddaten", "gewinde", "pruefregeln")),
     ("Blech", ("blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
-    ("Schweißen", ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren")),
+    ("Schweißen", ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln")),
     ("Kunden", ("kundenvorgaben",)),
     ("STEP-Import", ("importprofile",)),
 )

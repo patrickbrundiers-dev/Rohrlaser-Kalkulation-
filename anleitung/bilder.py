@@ -520,14 +520,28 @@ def main(ziel):
                                         (d.summe, 5)])
     d.reiter.setCurrentIndex(1)
     QApplication.processEvents()
-    foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, 2), 1), (d.naht_tab.cellWidget(0, 4), 2),
-                                      (d.naht_tab.cellWidget(1, 7), 3), (d.naht_tab.cellWidget(0, 9), 4),
-                                      (d.naht_tab.cellWidget(0, 12), 5), (d.naht_tab.cellWidget(1, 15), 6)])
+    sp = [x.schluessel for x in d.naht_tab.spalten]
+    foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, sp.index("verfahren")), 1),
+                                      (d.naht_tab.cellWidget(0, sp.index("mass")), 2),
+                                      (d.naht_tab.cellWidget(1, sp.index("beidseitig")), 3),
+                                      (d.naht_tab.cellWidget(0, sp.index("lage")), 4),
+                                      (d.naht_tab.cellWidget(0, sp.index("zeit_hand")), 5),
+                                      (d.naht_tab.cellWidget(1, sp.index("_hinweis")), 6)])
     d.reiter.setCurrentIndex(2)
     QApplication.processEvents()
     foto.foto("baugruppe_arbeitsgaenge", d, [(d.ag_tab.cellWidget(0, 2), 1), (d.ag_tab.cellWidget(1, 7), 2),
                                              (d.ag_tab.cellWidget(1, 8), 3), (d.ag_tab.cellWidget(1, 10), 4),
                                              (knopf(d, "Vorrichtung hinzufügen"), 5)])
+    # Vorkalkulation (Regeln aus den Richtwerten): Rüsten, Positionieren, Wenden, Verputzen als gelbe Vorschläge
+    d.stamm_felder["gewicht"].setText("18")
+    d.wenden.setValue(1)
+    d.vorkalkulation()
+    QApplication.processEvents()
+    zeile = next(r for r, a in enumerate(d.bg["arbeitsgaenge"]) if (a.get("vk") or {}).get("art") == "ruesten")
+    sp = [x.schluessel for x in d.ag_tab.spalten]
+    foto.foto("baugruppe_vorkalk", d, [(knopf(d, "Vorkalkulation rechnen"), 1),
+                                       (d.ag_tab.cellWidget(zeile, sp.index("ruest_min")), 2), (d.wenden, 3),
+                                       (d.vk_info, 4), (knopf(d, "Vorschläge bestätigen"), 5)])
     # Nahtkandidaten aus STEP (D6): wie nach dem Import mit Häkchen „als Schweißbaugruppe“
     kand = ([dict(teile=[1, 3], knoten=konsole, laenge_mm=125.7, stossart="Kehlnaht", dicke_mm=4.0)] * 4
             + [dict(teile=[1, 2], knoten="", laenge_mm=188.5, stossart="Kehlnaht", dicke_mm=3.0)] * 2
