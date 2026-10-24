@@ -2763,7 +2763,8 @@ class AngebotSeite(QWidget):
 
     def _vk_einstellungen(self):
         return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit", "gravur_artikel",
-                                                    "gravur_schrifthoehe", "steck_anzahl", "steck_nase_min",
+                                                    "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
+                                                    "steck_anzahl", "steck_nase_min",
                                                     "steck_spiel", "steck_ueberstand")}
 
     def stecken_anwenden(self, stecken):
@@ -2846,9 +2847,10 @@ class AngebotSeite(QWidget):
         schweiss_vk_step): Vorschläge in die Baugruppe schreiben, Ergebnis in den Bericht."""
         einst = self._vk_einstellungen()
         for p in [p for p in self.positionen if ist_baugruppe(p) and p.get("pos") in pos]:
-            r = vorkalk.vorkalkulieren(p, self.positionen, self.tabellen, einst)
+            r = vorkalk.komplett(p, self.positionen, self.tabellen, einst)
             if r["bg"] is None:
                 continue
+            r["bg"]["stamm"]["vk_auto"] = True
             self.db.position_aendern(p["id"], "baugruppe", baugruppe.speichern(r["bg"]))
             bericht.append(f"Schweißbaugruppe {baugruppe.name(p)}: Vorkalkulation, {len(r['aenderungen'])} "
                            "Vorschläge" + (", " + "; ".join(r["hinweise"]) if r["hinweise"] else ""))
