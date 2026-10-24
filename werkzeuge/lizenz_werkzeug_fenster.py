@@ -32,7 +32,8 @@ class Fenster(QWidget):
         self.ordner_text = QLabel()
         self.ordner_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
         kopf.addWidget(self.ordner_text, 1)
-        for text, ziel in (("Ordner öffnen", self.ordner_oeffnen), ("Schlüssel erzeugen …", self.schluessel)):
+        for text, ziel in (("Ordner öffnen", self.ordner_oeffnen), ("Schlüssel erzeugen …", self.schluessel),
+                           ("Update-Schlüssel …", self.update_schluessel)):
             b = QPushButton(text)
             b.clicked.connect(ziel)
             kopf.addWidget(b)
@@ -163,6 +164,56 @@ class Fenster(QWidget):
         lay.addWidget(k)
         d.exec()
         self.neu_laden()
+
+    def update_schluessel(self):
+        """Schlüssel für die Signatur der Update-Dateiliste (U1): erzeugen bzw. den Secret-Wert noch einmal zeigen."""
+        sid = "U1"
+        da = wz.schluessel_pfad(self.ordner, sid).exists()
+        if da:
+            pw = self.passwort(f"Passwort des Update-Schlüssels {sid}")
+        else:
+            pw = self.passwort("Neues Passwort für den Update-Schlüssel (mindestens 8 Zeichen)")
+            if pw and len(pw) < 8:
+                return self.fehler("Bitte ein Passwort mit mindestens 8 Zeichen.")
+            if pw and self.passwort("Passwort wiederholen") != pw:
+                return self.fehler("Die Passwörter stimmen nicht überein.")
+        if not pw:
+            return
+        try:
+            oeffentlich, geheim = (wz.update_secret if da else wz.update_schluessel_erzeugen)(self.ordner, sid, pw)
+        except SystemExit as e:
+            return self.fehler(e)
+        d = QDialog(self)
+        d.setWindowTitle(f"Update-Schlüssel {sid}")
+        lay = QVBoxLayout(d)
+        info = QLabel(f"Privater Schlüssel: {wz.schluessel_pfad(self.ordner, sid)} – <b>zwei Kopien sichern</b> "
+                      "(USB-Stick im Tresor, Passwortmanager). Geht er verloren, brauchen alle Installationen einmal "
+                      "das Setup.<br><br><b>1. Geheim:</b> diesen Wert in GitHub eintragen (Repository "
+                      "Rohrlaser-Kalkulation- → Settings → Secrets and variables → Actions → New repository secret, "
+                      "Name <b>UPDATE_SIGNATUR</b>). Nicht in den Chat, keine Datei:")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        feld_geheim = QLineEdit(geheim)
+        feld_geheim.setReadOnly(True)
+        feld_geheim.setEchoMode(QLineEdit.Password)
+        kopieren = QPushButton("Geheimen Wert kopieren")
+        kopieren.clicked.connect(lambda: QGuiApplication.clipboard().setText(geheim))
+        zeile = QHBoxLayout()
+        zeile.addWidget(feld_geheim, 1)
+        zeile.addWidget(kopieren)
+        lay.addLayout(zeile)
+        info2 = QLabel("<b>2. Öffentlich:</b> diese Zeile ins Programm übernehmen lassen (z. B. im Chat schicken), sie "
+                       "ist kein Geheimnis:")
+        info2.setWordWrap(True)
+        lay.addWidget(info2)
+        feld = QLineEdit(f'"{sid}": "{oeffentlich}",')
+        feld.setReadOnly(True)
+        lay.addWidget(feld)
+        k = QDialogButtonBox(QDialogButtonBox.Ok)
+        k.accepted.connect(d.accept)
+        lay.addWidget(k)
+        d.exec()
+        QGuiApplication.clipboard().setText(f'"{sid}": "{oeffentlich}",')    # Geheimes nicht in der Ablage lassen
 
     def erstellen(self):
         art = self.art.currentData()

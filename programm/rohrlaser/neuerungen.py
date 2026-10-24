@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.79", "<b>Update abgesichert</b>: Das Programm prüft die Dateiliste eines Updates, bevor es sie benutzt "
+               "(nur https von der offiziellen Adresse, keine Pfade außerhalb des Programmordners, Prüfsummen, "
+               "Größengrenzen, freier Speicherplatz) und schützt vor manipulierten Paketen. Bricht ein Update hart "
+               "ab, stellt der nächste Start die bisherige Version wieder her. Die Dateiliste wird digital "
+               "signiert; die Pflicht zur Signatur folgt mit dem nächsten Update ([[updates]]).",
+     "Update geprüft und signiert, Wiederherstellung nach abgebrochenem Update ([[updates]])."],
     ["0.9.78", "<b>3D-Ansicht schöner</b>: Licht wie auf blankem Metall mit Glanzlicht und Fülllicht, "
                "Hintergrund mit Verlauf; Rundungen bleiben glatt, Kanten scharf. Ohne Grafikkarte (Software, "
                "Remote-Desktop) gilt dasselbe Licht ([[step_3d_ansicht]]).",

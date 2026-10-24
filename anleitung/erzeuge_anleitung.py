@@ -5360,6 +5360,14 @@ def kapitel_pflege(i):
             "(<i>Daten\\Protokoll\\fehler.log</i>).",
             "<i>Hilfe → Bedienungsanleitung</i> öffnet eine Kopie im Datenordner (Ordner <i>Anleitung</i>). Eine "
             "offene Anleitung blockiert das Update deshalb nicht mehr.",
+            "<b>Geprüft wird alles</b>: Das Programm lädt nur über https von der offiziellen Adresse, lehnt "
+            "unplausible Dateilisten ab (Pfade außerhalb des Programmordners, unbekannte Pakete, übergroße Dateien), "
+            "prüft vorher den freien Speicherplatz und jede Datei über ihre Prüfsumme. Die Dateiliste wird "
+            "zusätzlich digital signiert; sobald das Programm den Signaturschlüssel kennt, spielt es nur noch eine "
+            "gültig signierte Liste ein, sonst bleibt die bisherige Version unverändert.",
+            "Bricht der Austausch hart ab (Stromausfall, Absturz), stellt das Programm beim nächsten Start die "
+            "bisherigen Dateien aus <i>_update</i> wieder her und meldet <i>Ein unterbrochenes Update wurde "
+            "zurückgenommen</i>. Danach einfach noch einmal nach Updates suchen.",
             "Ist zwischen Suche und Klick auf <i>Jetzt aktualisieren</i> schon eine noch neuere Version erschienen, "
             "holt das Programm von selbst deren Dateiliste und spielt gleich diese ein. Meldet es trotzdem "
             "<i>HTTP Error 404</i>, einfach <i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen.",
@@ -5807,6 +5815,15 @@ def kapitel_fragen(i):
          "Eine Programmdatei ließ sich nicht austauschen, meist weil sie gerade offen ist (Bedienungsanleitung im "
          "PDF-Programm, laufender STEP-Import). Das Programm hat alles zurückgestellt. Datei schließen und "
          "<i>Hilfe → Nach Updates suchen …</i> noch einmal aufrufen."],
+        ["Update meldet <b>nicht gültig signiert</b> oder <b>unbekanntes Format</b>",
+         "Die geladene Dateiliste war unvollständig oder nicht vom Hersteller. Das Programm hat nichts verändert. "
+         "Ein paar Minuten warten (ein Update wird vielleicht gerade hochgeladen) und noch einmal suchen; bleibt "
+         "die Meldung, den Hersteller fragen und nicht von Hand Dateien tauschen ([[updates]])."],
+        ["Beim Start: <b>Ein unterbrochenes Update wurde zurückgenommen</b>",
+         "Das letzte Update wurde mittendrin abgebrochen (Absturz, Stromausfall). Das Programm hat die vorherige "
+         "Version wiederhergestellt; Daten sind nicht betroffen. <i>Hilfe → Nach Updates suchen …</i> noch einmal "
+         "aufrufen. Meldet es, dass das nicht vollständig ging, das Setup bzw. ZIP neu installieren, die Daten "
+         "bleiben erhalten ([[updates]])."],
         ["<b>Keine Verbindung zum Update</b>",
          "Kein Internet, oder eine Firewall sperrt github.com. Bei einer Version vor 0.5.5 liegt es an der alten "
          "Update-Adresse ([[updates]]). Später noch einmal versuchen; sonst das Setup "
