@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.71", "<b>3D-Ansicht schöner</b>: Licht je Bildpunkt wie auf blankem Metall mit Glanzlicht und Fülllicht, "
+               "Hintergrund mit Verlauf; Rundungen bleiben glatt, Kanten scharf. Ohne Grafikkarte (Software, "
+               "Remote-Desktop) gilt dasselbe Licht je Dreieck ([[step_3d_ansicht]]).",
+     "3D-Ansicht im Metall-Look mit Glanz- und Fülllicht ([[step_3d_ansicht]])."],
     ["0.9.70", "<b>Teile-Editor: echte Ausschnitte im 3D</b>: Bei Rund-, Quadrat- und Rechteckrohr sind Bohrungen, "
                "Langlöcher, Rechtecke, Ausklinkungen, Schlitze, Polygone, V-Ausschnitte und Sonderkonturen ausgeschnitten, "
                "mit roter Lochwand durch die Wandstärke; Ausschnitte am Ende fehlen auch in der Stirnfläche. Gravur und "

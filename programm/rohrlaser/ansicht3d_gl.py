@@ -32,29 +32,59 @@ uniform vec4 abb;       // x = ax, y = bx, z = ay, w = by: Bildschirm aus gedreh
 uniform float tiefe;
 uniform float linie;
 uniform float blass;    // „nur Gewähltes hervorheben“: Anteil Weiß
-uniform vec3 licht;
 varying vec3 farbe;
+varying vec3 nv;
 varying float nz;
 void main() {
     vec3 d = pos - mitte;
     vec3 q = vec3(dot(r0, d), dot(r1, d), dot(r2, d));
-    vec3 n = vec3(dot(r0, nrm), dot(r1, nrm), dot(r2, nrm));
-    nz = n.z;
-    float hell = linie > 0.5 ? 1.0 : 0.42 + 0.58 * max(0.0, dot(n.z < 0.0 ? -n : n, licht));
-    farbe = mix(col, vec3(1.0, 1.0, 1.0), blass) * hell;
+    nv = vec3(dot(r0, nrm), dot(r1, nrm), dot(r2, nrm));
+    nz = nv.z;
+    farbe = mix(col, vec3(1.0, 1.0, 1.0), blass);
     gl_Position = vec4(abb.x * q.x + abb.y, abb.z * q.y + abb.w, -q.z * tiefe - linie * 0.002, 1.0);
 }
 """
+# Licht je Bildpunkt (Phong), gleiche Formel wie ansicht3d.licht_wert (QPainter je Dreieck): Grundlicht oben heller,
+# Hauptlicht von links oben vorn, Fülllicht von rechts unten, Glanzlicht wie bei blankem Metall
 FRAGMENT = """
 #version 120
 varying vec3 farbe;
+varying vec3 nv;
 varying float nz;
 uniform float linie;
 uniform float alle;     // Durchsichtig: Rückseiten und verdeckte Linien nicht verwerfen
 uniform float alpha;
+uniform vec3 licht;
+uniform vec3 licht2;
+uniform vec4 werte;     // x = Grundlicht, y = Neigung oben, z = Fülllicht, w = Glanz
+uniform float glanz_exp;
 void main() {
     if (alle < 0.5 && (nz < 0.0 || (linie < 0.5 && nz <= 0.0))) discard;     // Rückseiten wie in ansicht3d.zeichnen
-    gl_FragColor = vec4(farbe, alpha);
+    if (linie > 0.5) { gl_FragColor = vec4(farbe, alpha); return; }
+    vec3 n = normalize(nv);
+    if (n.z < 0.0) n = -n;
+    float diff = werte.x + werte.y * n.y + (1.0 - werte.x) * max(0.0, dot(n, licht))
+                 + werte.z * max(0.0, dot(n, licht2));
+    vec3 h = normalize(licht + vec3(0.0, 0.0, 1.0));
+    float spec = werte.w * pow(max(0.0, dot(n, h)), glanz_exp);
+    gl_FragColor = vec4(min(farbe * diff + vec3(spec), vec3(1.0)), alpha);
+}
+"""
+HG_VERTEX = """
+#version 120
+attribute vec2 pos;
+attribute vec3 col;
+varying vec3 farbe;
+void main() {
+    farbe = col;
+    gl_Position = vec4(pos, 0.999, 1.0);
+}
+"""
+HG_FRAGMENT = """
+#version 120
+varying vec3 farbe;
+void main() {
+    gl_FragColor = vec4(farbe, 1.0);
 }
 """
 _PRUEFUNG = None        # (möglich, Grund) – einmal je Programmstart
@@ -153,6 +183,7 @@ class GLFlaeche(QOpenGLWidget):
         self.setFormat(fmt)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.prog, self.puffer, self._modell, self.fehler = None, {}, None, None
+        self.prog_hg, self.puffer_hg = None, None
         self._kanten = False
 
     def initializeGL(self):
@@ -161,6 +192,10 @@ class GLFlaeche(QOpenGLWidget):
             if not (self.prog.addShaderFromSourceCode(QOpenGLShader.Vertex, VERTEX) and
                     self.prog.addShaderFromSourceCode(QOpenGLShader.Fragment, FRAGMENT) and self.prog.link()):
                 raise RuntimeError("Shader: " + (self.prog.log() or "").strip()[:200])
+            hg = QOpenGLShaderProgram(self)         # Hintergrundverlauf (fehlt er, bleibt der Hintergrund einfarbig)
+            if (hg.addShaderFromSourceCode(QOpenGLShader.Vertex, HG_VERTEX) and
+                    hg.addShaderFromSourceCode(QOpenGLShader.Fragment, HG_FRAGMENT) and hg.link()):
+                self.prog_hg = hg
         except Exception as e:  # OpenGL nicht nutzbar: zurück zu QPainter
             self._fehler(e)
 
@@ -199,6 +234,35 @@ class GLFlaeche(QOpenGLWidget):
         self.ansicht._beschriften(p)
         p.end()
 
+    def _hintergrund(self, fn):
+        """Verlauf oben → unten (ansicht3d.HINTERGRUND_OBEN → HINTERGRUND) als zwei Dreiecke ohne Tiefe."""
+        from . import ansicht3d
+        if self.prog_hg is None:
+            return
+        o, u = _farbe(ansicht3d.HINTERGRUND_OBEN), _farbe(ansicht3d.HINTERGRUND)
+        daten = array("f", [-1, 1, *o, 1, 1, *o, 1, -1, *u, -1, 1, *o, 1, -1, *u, -1, -1, *u])
+        if self.puffer_hg is None:
+            b = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
+            b.create()
+            b.bind()
+            roh = daten.tobytes()
+            b.allocate(roh, len(roh))
+            b.release()
+            self.puffer_hg = b
+        pr, b = self.prog_hg, self.puffer_hg
+        pr.bind()
+        b.bind()
+        lp, lc = pr.attributeLocation("pos"), pr.attributeLocation("col")
+        pr.enableAttributeArray(lp)
+        pr.enableAttributeArray(lc)
+        pr.setAttributeBuffer(lp, GL_FLOAT, 0, 2, 20)
+        pr.setAttributeBuffer(lc, GL_FLOAT, 8, 3, 20)
+        fn.glDrawArrays(GL_TRIANGLES, 0, 6)
+        pr.disableAttributeArray(lp)
+        pr.disableAttributeArray(lc)
+        b.release()
+        pr.release()
+
     def _zeichnen(self):
         from . import ansicht3d
         a = self.ansicht
@@ -209,6 +273,7 @@ class GLFlaeche(QOpenGLWidget):
         fn.glDisable(GL_SCISSOR_TEST)
         fn.glClearColor(h.redF(), h.greenF(), h.blueF(), 1.0)
         fn.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        self._hintergrund(fn)
         modell = a.modell
         if modell is None:
             return
@@ -224,8 +289,10 @@ class GLFlaeche(QOpenGLWidget):
         pr = self.prog
         pr.bind()
         for name, wert in (("r0", m[0]), ("r1", m[1]), ("r2", m[2]), ("mitte", modell.mitte),
-                           ("licht", (-0.35, 0.45, 0.82))):
+                           ("licht", ansicht3d.LICHT), ("licht2", ansicht3d.LICHT2),
+                           ("werte", ansicht3d.LICHT_WERTE[:4])):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
+        pr.setUniformValue1f(pr.uniformLocation("glanz_exp"), float(ansicht3d.LICHT_WERTE[4]))
         pr.setUniformValue(pr.uniformLocation("abb"), 2 * s / w, 2 * ox / w - 1, 2 * s / hh, 1 - 2 * oy / hh)
         # einzelne Zahlen ausdrücklich als float (setUniformValue nimmt sonst glUniform1i: GL-Fehler, Wert bleibt 0)
         pr.setUniformValue1f(pr.uniformLocation("tiefe"), 1.0 / max(1e-6, modell.groesse))

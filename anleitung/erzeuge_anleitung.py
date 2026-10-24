@@ -1529,7 +1529,9 @@ def kapitel_step(i):
             "Schneidweg zählt.",
             "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.",
             "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
-            "Baugruppen beim Drehen fein. Sonst und über Remote-Desktop zeichnet sie wie bisher ohne Grafikkarte. "
+            "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt je Bildpunkt wie auf blankes Metall "
+            "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "
+            "Grafikkarte, mit demselben Licht je Dreieck. "
             "Einstellen unter Vorgaben, Gruppe Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
               "Prozessorkernen gleichzeitig.")
