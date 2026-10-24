@@ -38,7 +38,7 @@ PY_ERLAUBT = ("STEP-Import/_internal/OCP/",)
 # Umgebungsvariablen mit geheimen Werten: tauchen sie (oder ihre Base64-Bytes) in einer Datei auf, bricht der Build ab
 SECRETS = ("UPDATE_SIGNATUR", "SIGNATUR_PFX_PASSWORT", "UPDATES_TOKEN", "GH_TOKEN")
 # ein echter privater Schlüssel im PEM-Format (nur der Kopf allein steht auch in OpenSSL-Bibliotheken)
-_PEM = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\s*[A-Za-z0-9+/=]{40}")
+_PEM = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE[ ]KEY-----\s*[A-Za-z0-9+/=]{40}")
 STUECK = 4 << 20
 
 

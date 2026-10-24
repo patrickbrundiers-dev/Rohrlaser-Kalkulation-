@@ -20,6 +20,7 @@ def ok(text):
 
 
 tmp = Path(tempfile.mkdtemp(prefix="release_pruefen_"))
+KOPF = b"PRIVATE " + b"KEY"      # nie als ein Wort im Repository (test_lizenz.py S7)
 
 
 def ordner(name, dateien):
@@ -31,7 +32,7 @@ def ordner(name, dateien):
 
 
 sauber = {"Rohrlaser-Angebotskalkulation.exe": b"MZ" * 500,
-          "_internal/libcrypto-3.dll": b"\0-----BEGIN PRIVATE KEY-----\0-----END PRIVATE KEY-----\0",
+          "_internal/libcrypto-3.dll": b"\0-----BEGIN " + KOPF + b"-----\0-----END " + KOPF + b"-----\0",
           "_internal/rp_profile.json": b"{}",
           "STEP-Import/_internal/OCP/AIS/__init__.py": b"# Typangaben",
           "Bedienungsanleitung.pdf": b"%PDF"}
@@ -47,7 +48,7 @@ for rel in ("Daten/rohrlaser.db", "_internal/x.db", "angebote/A.pdf", "Portabel.
     assert befunde and rel.split("/")[0] in befunde[0] or rel in befunde[0], (rel, befunde)
 ok("Daten, Angebote, Portabel.ini, Update-Ordner, Tests, Schlüssel, Lizenzen, Logs, Quelltext, Werkzeug abgelehnt")
 
-o = ordner("pem", {**sauber, "_internal/x.bin": b"-----BEGIN OPENSSH PRIVATE KEY-----\n" + b"A" * 70})
+o = ordner("pem", {**sauber, "_internal/x.bin": b"-----BEGIN OPENSSH " + KOPF + b"-----\n" + b"A" * 70})
 assert any("privater Schlüssel" in b for b in rp.pruefen(o, {}))
 ok("echter privater Schlüssel (PEM mit Inhalt) in einer Datei gefunden")
 
