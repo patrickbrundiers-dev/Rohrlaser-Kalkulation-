@@ -1295,7 +1295,25 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         bericht.append(f"{art}: " + (f"Pos. {ziel}" if ziel else "nicht übernommen") +
                        (", " + "; ".join(hinweise) if hinweise else ", OK"))
     naechste = _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck)
-    return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel)
+    return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel,
+                satz_daten=_satz_stoesse(messwerte, satz_teile))
+
+
+def _satz_stoesse(messwerte, satz_teile):
+    """Stöße Rohrende an Rohrwand (STEP-JSON 1.18) je Satz ohne Häkchen „als Schweißbaugruppe“ für das Fenster
+    „Satz in 3D“ (Alle Stöße stecken): {Satz: {stoesse: [...]}}; die Baugruppen tragen sie selbst (bg['stoesse'])."""
+    from . import knickverbindung
+    out = {}
+    for datei in satz_teile:
+        if any(m.get("datei") == datei and m.get("_baugruppe") for m in messwerte):
+            continue
+        kandidaten = knickverbindung.kandidaten_filtern(
+            next((m.get("_nahtkandidaten") for m in messwerte if m.get("datei") == datei and m.get("_nahtkandidaten")),
+                 None), messwerte, datei)
+        stoesse = [k["stoss"] for k in kandidaten or () if isinstance(k, dict) and isinstance(k.get("stoss"), dict)]
+        if stoesse:
+            out[satzname(datei)] = dict(stoesse=stoesse)
+    return out
 
 
 def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, maschine, zusatz_katalog, hinweise):
