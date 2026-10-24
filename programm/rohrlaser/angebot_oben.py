@@ -866,6 +866,14 @@ class UebersichtBereich(QWidget):
         self.freigabe.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.freigabe_bereich = Aufklapper("Prüfen vor Freigabe", self.freigabe)
         kl.addWidget(self.freigabe_bereich)
+        # Wiederholteile (Plan A1): Positionen, die schon angeboten wurden; Links übernehmen / öffnen / hinspringen,
+        # die Angebotsseite verbindet linkActivated (wiederholteil_link)
+        self.wiederholteile = QLabel()
+        self.wiederholteile.setWordWrap(True)
+        self.wiederholteile.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        self.wiederholteile_bereich = Aufklapper("Wiederholteile", self.wiederholteile)
+        self.wiederholteile_bereich.setVisible(False)
+        kl.addWidget(self.wiederholteile_bereich)
         # Kennzahlen
         self.kennzahlen = QGridLayout()
         self.kennzahlen.setHorizontalSpacing(6)
@@ -1005,6 +1013,32 @@ class UebersichtBereich(QWidget):
             self.freigabe.setText("<br>".join(f"<span style='color:{farbe[a]}'>• {t}</span>" for a, t in punkte))
         k.style().unpolish(k)
         k.style().polish(k)
+
+    def wiederholteile_setzen(self, eintraege):
+        """eintraege: [(Zeile, Positionstext, Treffer-Liste)] (wiederholteile.suchen), nur Positionen mit Treffern."""
+        from html import escape
+        from .wiederholteile import SICHER, text
+        n = len(eintraege)
+        self.wiederholteile_bereich.setVisible(bool(n))
+        if not n:
+            self.wiederholteile.clear()
+            return
+        sicher = sum(1 for _, _, t in eintraege if t[0].art == SICHER)
+        self.wiederholteile_bereich.setze_titel(
+            f"Wiederholteile: {n} Position{'en' if n > 1 else ''} schon angeboten"
+            + (f" ({sicher} sicher)" if sicher and sicher < n else ""))
+        link = "color:#1F4E78"
+        zeilen = []
+        for zeile, titel, treffer in eintraege:
+            t = treffer[0]
+            aktionen = [f"<a style='{link}' href='hin:{zeile}'>Hinspringen</a>",
+                        f"<a style='{link}' href='oeffnen:{t.angebot['id']}'>Angebot öffnen</a>"]
+            if t.werte:
+                aktionen.insert(0, f"<a style='{link}' href='werte:{zeile}'>Werte übernehmen …</a>")
+            zeilen.append(f"💡 <b>{escape(titel)}</b>: {escape(text(treffer))}<br>"
+                          f"<span style='color:{GRAU}'>{' · '.join(aktionen)}</span>")
+        self.wiederholteile.setText("<br>".join(zeilen) + f"<br><span style='color:{GRAU}'>Der Preis wird nie "
+                                    "übernommen, er entsteht immer neu aus der Kalkulation.</span>")
 
     def baugruppen_setzen(self, gruppen):
         """gruppen: [(Titel, [(Kostenteil, €)], [(größter Posten, €)])] je Schweißbaugruppe, Beträge je Baugruppe."""

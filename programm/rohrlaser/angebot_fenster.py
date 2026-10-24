@@ -1120,6 +1120,58 @@ def laengen_sinnvoll(erg, kopf, positionen, k, tabellen, einst):
     return " · ".join(texte) or None
 
 
+class WerteUebernehmenDialog(QDialog):
+    """Wiederholteil (Plan A1): übernehmbare Werte der alten Position einzeln an- oder abwählen; nie den Preis."""
+
+    def __init__(self, parent, position, treffer, felder):
+        from .wiederholteile import text
+        super().__init__(parent)
+        self.setWindowTitle("Werte übernehmen")
+        lay = QVBoxLayout(self)
+        kopf = QLabel(f"<b>Pos. {position.get('pos')} · {position.get('artikel') or position.get('bezeichnung') or ''}"
+                      f"</b><br>{text([treffer])}<br>Aus Pos. {treffer.position.get('pos')} in "
+                      f"{treffer.angebot['nummer']} ({treffer.angebot.get('kunde') or ''}):")
+        kopf.setWordWrap(True)
+        lay.addWidget(kopf)
+        self.haken = {}
+        for f, titel in felder:
+            if f not in treffer.werte:
+                continue
+            alt, neu = position.get(f), treffer.werte[f]
+            c = QCheckBox(f"{titel}: {_wert_kurz(neu)}" + (f"   (bisher {_wert_kurz(alt)})" if alt not in (None, "") else ""))
+            c.setChecked(True)
+            lay.addWidget(c)
+            self.haken[f] = c
+        hinweis = QLabel("Der Preis wird nicht übernommen, er entsteht neu aus der Kalkulation.")
+        hinweis.setStyleSheet(f"color: {stil.TEXT_GRAU};")
+        lay.addWidget(hinweis)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.button(QDialogButtonBox.Ok).setText("Übernehmen")
+        knoepfe.accepted.connect(self.accept)
+        knoepfe.rejected.connect(self.reject)
+        lay.addWidget(knoepfe)
+
+    def gewaehlt(self):
+        return [f for f, c in self.haken.items() if c.isChecked()]
+
+
+def _wert_kurz(w, laenge=60):
+    if isinstance(w, float):
+        return zahl_als_text(w, 2 if w % 1 else 0)
+    t = str(w)
+    if t.startswith(("[", "{")):        # Zusatzarbeiten, Naht: JSON
+        try:
+            daten = json.loads(t)
+            if isinstance(daten, list):
+                t = ", ".join(str(x.get("name") or x.get("bezeichnung") or x) if isinstance(x, dict) else str(x)
+                              for x in daten)
+            elif isinstance(daten, dict):
+                t = ", ".join(f"{k}: {v}" for k, v in daten.items() if v not in (None, ""))
+        except ValueError:
+            pass
+    return t if len(t) <= laenge else t[:laenge - 1] + "…"
+
+
 class LaengenDialog(QDialog):
     """Vergleich der Lieferlängen (6 m gegen 12 m) groß in einem eigenen Fenster; Links übernehmen eine Länge."""
 
@@ -1284,6 +1336,7 @@ class AngebotSeite(QWidget):
         self.stand = self.uebersicht_bereich.stand
         self.uebersicht = self.uebersicht_bereich.uebersicht
         self.uebersicht_bereich.preise_knopf.clicked.connect(lambda _=False: self.preise_aktualisieren())
+        self.uebersicht_bereich.wiederholteile.linkActivated.connect(self.wiederholteil_link)
         oben_rahmen = QScrollArea()          # kleine Fenster: Kopf und Kalkulation scrollen
         oben_rahmen.setWidgetResizable(True)
         oben_rahmen.setFrameShape(QFrame.NoFrame)
@@ -1964,6 +2017,7 @@ class AngebotSeite(QWidget):
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet")
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
+        self.wiederholteile_anzeigen()
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
@@ -2411,6 +2465,59 @@ class AngebotSeite(QWidget):
         maus = self.pos_ansicht.viewport().mapFromGlobal(QCursor.pos())
         zelle = self.pos_ansicht.visualRect(i)
         return zelle.contains(maus) and maus.x() <= zelle.left() + self.pos_ansicht.iconSize().width() + 8
+
+    # -------------------------------------------------------------- Wiederholteile (Plan A1, wiederholteile.py)
+    def wiederholteile_suchen(self):
+        """{Positions-ID: [Treffer]}; gerechnet nur, wenn sich die suchrelevanten Werte oder andere Angebote geändert
+        haben."""
+        from . import wiederholteile
+        kennung = (wiederholteile.stand(self.db), self.kopf.get("kundennr"),
+                   tuple(tuple(p.get(f) for f in wiederholteile.FELDER) for p in self.positionen))
+        if getattr(self, "_wt_kennung", None) != kennung:
+            self._wt_kennung = kennung
+            self._wt = wiederholteile.suchen(self.db, self.id, self.kopf.get("kundennr"), self.positionen)
+        return self._wt
+
+    def wiederholteile_anzeigen(self):
+        treffer = self.wiederholteile_suchen()
+        self.uebersicht_bereich.wiederholteile_setzen(
+            [(r, " · ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") is not None else None,
+                                            p.get("artikel") or p.get("bezeichnung")) if x), treffer[p["id"]])
+             for r, p in enumerate(self.positionen) if p["id"] in treffer])
+
+    def wiederholteil_link(self, ziel):
+        art, _, wert = ziel.partition(":")
+        if art == "hin":
+            self.f.reiter.setCurrentWidget(self)
+            self.zur_position(zeile=int(wert))
+        elif art == "oeffnen":
+            self.f.angebot_oeffnen(int(wert))
+        elif art == "werte":
+            self.werte_uebernehmen(int(wert))
+
+    def werte_uebernehmen(self, zeile, felder=None):
+        """Übernehmbare Werte des besten Treffers in die Position (Dialog mit Haken je Wert; felder = ohne Dialog).
+        Der Preis wird nie übernommen. Ergebnis: Liste der übernommenen Felder."""
+        from .wiederholteile import UEBERNEHMBAR
+        p = self.positionen[zeile]
+        treffer = (self.wiederholteile_suchen().get(p["id"]) or [None])[0]
+        if treffer is None or not treffer.werte:
+            return []
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return []
+        if felder is None:
+            d = WerteUebernehmenDialog(self, p, treffer, UEBERNEHMBAR)
+            if d.exec() != QDialog.Accepted:
+                return []
+            felder = d.gewaehlt()
+        felder = [f for f in felder if f in treffer.werte]
+        for f in felder:
+            self.db.position_aendern(p["id"], f, treffer.werte[f])
+        if felder:
+            self.f.meldung(f"{len(felder)} Wert(e) aus {treffer.angebot['nummer']} übernommen.")
+            self.neu_laden()
+        return felder
 
     def zur_position(self, ref=None, zeile=None):
         """Reiter Positionen zeigen und die Position markieren (ref = Bezug aus der Optimierung oder zeile).
