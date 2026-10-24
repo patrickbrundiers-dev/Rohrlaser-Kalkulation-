@@ -1495,8 +1495,8 @@ class BaugruppeDialog(QDialog):
         self.baum.setCurrentItem(self.baum_items.get(alt) or wurzel)
         self.baum.blockSignals(False)
         if self.ansicht3d is None and self.netze and any(t["_id"] in self.netze for t in self.teile):
-            from .ansicht3d import Ansicht3DMitKnoepfen
-            self.ansicht3d = Ansicht3DMitKnoepfen()
+            from .baugruppe_ansicht import BaugruppenAnsicht
+            self.ansicht3d = BaugruppenAnsicht(geaendert=self.baum_gewaehlt, vor_messen=lambda: self.naht_zeichnen(False))
             self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
             self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
             self.zeichnen_leiste.setVisible(not self.nur_lesen)
@@ -1542,51 +1542,124 @@ class BaugruppeDialog(QDialog):
         """Schweißnähte für die 3D-Ansicht: {Art: [Linienzüge]} mit SN = Nahtgruppen, SV = noch offene Nahtvorschläge
         aus dem STEP-Import, SH = Nahtgruppe naht (gewählt). Nur Nähte mit Nahtverlauf (STEP-JSON 1.16)."""
         linien = {}
-        for n in self.bg.get("naehte") or []:
-            if n.get("linien"):
-                linien.setdefault("SH" if n.get("id") == naht else "SN", []).extend(n["linien"])
-        for v in self.bg.get("vorschlaege") or []:
-            if v.get("linien"):
-                linien.setdefault("SV", []).extend(v["linien"])
+        for art, zuege, _, _ in self._naehte_3d(naht):
+            linien.setdefault(art, []).extend(zuege)
         return linien
+
+    def _naehte_3d(self, naht=None, koerper_netz=None, nur_koerper=None):
+        """Nähte für die Raupen (B3): [(Art, Linienzüge, Nahtart, Größe)]; Größe = a-Maß bzw. Dicke (ohne: nur
+        für das Bild eine Vorgabe). Nahtgruppen ohne Verlauf bekommen ihn aus dem Stoß (koerper_netz, 3a).
+        nur_koerper: nur Nähte zwischen diesen Körpern (Nur Gewähltes) und die gewählte."""
+        from .baugruppe_ansicht import verlauf_aus_stoss
+        out, self._abgeleitet = [], 0
+        for n in self.bg.get("naehte") or []:
+            zuege = n.get("linien")
+            if not zuege and koerper_netz:
+                zuege = verlauf_aus_stoss(n, self.bg.get("stoesse"), koerper_netz)
+                self._abgeleitet += 1 if zuege else 0
+            if nur_koerper is not None and n.get("id") != naht and \
+                    not {str(k) for k in n.get("koerper") or ()} <= nur_koerper:
+                continue
+            if zuege:
+                groesse = n.get("mass") if isinstance(n.get("mass"), (int, float)) and n["mass"] > 0 else \
+                    (0.7 * n["dicke"] if n.get("nahtart") == "Kehlnaht" else n["dicke"]) \
+                    if isinstance(n.get("dicke"), (int, float)) and n["dicke"] > 0 else None
+                out.append(("SH" if n.get("id") == naht else "SN", zuege, n.get("nahtart"), groesse))
+        for v in self.bg.get("vorschlaege") or []:
+            koerper = {str(k) for paar in v.get("teile") or () if isinstance(paar, (list, tuple)) for k in paar}
+            if nur_koerper is not None and not koerper <= nur_koerper:
+                continue
+            if v.get("linien"):
+                d = v.get("dicke") if isinstance(v.get("dicke"), (int, float)) and v["dicke"] > 0 else None
+                out.append(("SV", v["linien"], v.get("nahtart"),
+                            (0.7 * d if v.get("nahtart") == "Kehlnaht" else d) if d else None))
+        return out
+
+    def _rohr_modelle(self):
+        """Rohre aus den Eingaben (B2): {Positions-ID: Netz im Rohrsystem} mit den Steckverbindungen des Editors;
+        Teile ohne Eingaben, Biegerohr, Knickrahmen oder mit Anbauteilen fehlen (dort bleibt das STEP-Netz)."""
+        from .baugruppe_ansicht import eigenes_modell, eingaben_stecken, nasen_winkel, rohr_netz
+        drin = {t["_id"]: t["_q"] for t in self.teile if t.get("drin") and self._steck_profil(t["_id"])}
+        verbindungen = [self._steck_daten(z) for z in self.bg.get("steckverbindungen") or ()
+                        if z.get("_auf") in drin and z.get("_st") in drin]
+        eing = eingaben_stecken(drin, verbindungen, self._steck_profil)
+        winkel = {}
+        for v in verbindungen:
+            if v.get("nasen") is False:
+                continue
+            auf, st = self._netz(v["aufnahme"]["id"]), self._netz(v["stecker"]["id"])
+            la = (auf.get("lagen") or [auf.get("lage")])[0]
+            ls = (st.get("lagen") or [st.get("lage")])[0]
+            w = nasen_winkel(v, la, ls, (self._steck_profil(v["stecker"]["id"]) or {}).get("form"))
+            if w is not None:
+                winkel.setdefault(v["stecker"]["id"], {})[v["stecker"]["ende"]] = w
+        cache = self.__dict__.setdefault("_rohr_cache", {})
+        out = {}
+        for pid, (e, laenge) in eing.items():
+            if not eigenes_modell(e, self._netz(pid)) or not laenge:
+                continue
+            schluessel = json.dumps([e, laenge, winkel.get(pid)], sort_keys=True, default=str)
+            if (cache.get(pid) or (None,))[0] != schluessel:
+                cache[pid] = (schluessel, rohr_netz(e, self._steck_profil(pid), laenge, winkel.get(pid)))
+            if cache[pid][1]:
+                out[pid] = cache[pid][1]
+        return out
 
     def zeige_3d(self, hervor=(), text="", naht=None):
         """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau,
-        dazu die Schweißnähte (naht = ID der gewählten Nahtgruppe, rot). Ergebnis: Anzahl gezeigter Körper."""
-        netze, besitzer, farbe, koerper = [], [], [], []
+        dazu die Schweißnähte als Raupe (naht = ID der gewählten Nahtgruppe, rot). Rohre aus den Eingaben mit
+        Schlitzen und Nasen (B2), sonst das STEP-Netz. Ergebnis: Anzahl gezeigter Körper."""
+        nur = bool(hervor) and getattr(self.ansicht3d, "nur_gewaehlt", False)
+        rohre = self._rohr_modelle() if self.ansicht3d is not None else {}
+        netze, besitzer, farbe, koerper, koerper_netz = [], [], [], [], {}
         for n, t in enumerate(x for x in self.teile if x.get("drin")):
             netz = self._netz(t["_id"])
             nummern = netz.get("koerper") or []
+            modell = rohre.get(t["_id"])
             for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
-                netze.append(dict(netz, lage=lage))
+                kn = nummern[j] if j < len(nummern) else None
+                if kn is not None:
+                    koerper_netz[str(kn)] = (modell or netz, lage)
+                if nur and t["_id"] not in hervor:
+                    continue
+                netze.append(dict(modell or netz, lage=lage))
                 besitzer.append(t["_id"])
                 farbe.append(n)
-                koerper.append(nummern[j] if j < len(nummern) else None)
+                koerper.append(kn)
         n_teile = sum(1 for t in self.teile if t.get("drin"))
-        ohne = n_teile - len(set(besitzer))
+        ohne = n_teile - len(set(besitzer)) if not nur else 0
         if self.ansicht3d is None:
             self.baum_info.setText("Keine 3D-Daten: die Teile kommen nicht aus dem STEP-Import (oder aus einer älteren "
                                    "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
             return 0
         from .ansicht3d import baugruppe as zusammen
+        from .baugruppe_ansicht import Flaechen, naehte_einsetzen
         bereiche = []
-        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor}, farbe, bereiche=bereiche)
+        netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur}, farbe,
+                           bereiche=bereiche)
         self._koerper_3d = [(besitzer[nr], koerper[nr], netz["p"], von, bis, dreiecke)
                             for nr, von, bis, dreiecke in bereiche] if netz else []
         info = f"{len(netze)} Körper in Einbaulage, {text}."
-        if netz:
-            linien = self.naht_linien(naht)
-            netz["l"] = linien
-            netz["ln"] = {a: [(0.0, 0.0, 0.0)] * len(z) for a, z in linien.items()}    # Nähte immer sichtbar
-            ohne_verlauf = sum(1 for n in self.bg.get("naehte") or [] if not n.get("linien"))
-            if linien:
-                info += " Schweißnähte schwarz, Vorschläge magenta, gewählte Naht rot."
-            if ohne_verlauf:
+        if rohre:
+            info += " Rohre aus den Eingaben (mit Schlitzen und Nasen der Steckverbindungen)."
+        if netz and getattr(self.ansicht3d, "naehte", True):
+            naehte = self._naehte_3d(naht, koerper_netz, {str(k) for k in koerper} if nur else None)
+            schluessel = json.dumps([[b, k] for b, k in zip(besitzer, koerper)] + [sorted(
+                (pid, (self._rohr_cache.get(pid) or ("",))[0]) for pid in rohre)], default=str)
+            if getattr(self, "_flaechen", (None,))[0] != schluessel:
+                self._flaechen = (schluessel, Flaechen(netz))
+            raupen = naehte_einsetzen(netz, naehte, self._flaechen[1])
+            ohne_verlauf = sum(1 for n in self.bg.get("naehte") or [] if not n.get("linien")) - self._abgeleitet
+            if naehte:
+                info += (" Schweißnähte als Raupe schwarz, Vorschläge magenta, gewählte Naht rot" +
+                         (f" ({self._abgeleitet} Verlauf aus dem Stoß abgeleitet)" if self._abgeleitet else "") + "."
+                         if raupen else " Schweißnähte schwarz, Vorschläge magenta, gewählte Naht rot.")
+            if ohne_verlauf > 0:
                 info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (im Reiter "
                          "Nahtgruppen angelegt oder älterer STEP-Import: neu importieren oder im 3D zeichnen).")
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten fehlen."
-        weniger = self.weniger_im_3d(besitzer)
+        weniger = self.weniger_im_3d(besitzer) if not nur else []
         if weniger:
             info += (" Nicht alle Stück im 3D (die STEP-Datei enthält weniger Körper, z. B. Menge von Hand erhöht oder "
                      "Unterbaugruppe aus eigener Datei): " + "; ".join(weniger) + ".")
@@ -1610,6 +1683,8 @@ class BaugruppeDialog(QDialog):
     def naht_zeichnen(self, an):
         """Zeichenmodus der 3D-Ansicht an/aus: Klicks setzen Punkte eines Linienzugs (fängt die nächste Ecke)."""
         if self.ansicht3d is not None:
+            if an and hasattr(self.ansicht3d, "messen_aus"):
+                self.ansicht3d.messen_aus()             # Messen der Leiste aus, die Klicks gehören der Naht
             self.ansicht3d.ansicht.messen_setzen(bool(an), punkte=0)
         if self.zeichnen_knopf.isChecked() != bool(an):
             self.zeichnen_knopf.setChecked(bool(an))
