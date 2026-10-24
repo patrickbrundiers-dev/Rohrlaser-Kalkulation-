@@ -2895,7 +2895,8 @@ class AngebotSeite(QWidget):
     def _vk_einstellungen(self):
         return {n: self.db.einstellung(n) for n in ("schweiss_vk_satz", "schweiss_vk_satz_nacharbeit", "gravur_artikel",
                                                     "gravur_schrifthoehe", "schweiss_vk_step", "schweiss_a_regel",
-                                                    "steck_anzahl", "steck_nase_min",
+                                                    "steck_anzahl", "steck_nase_min", "knick_z", "knick_freistich",
+                                                    "knick_k",
                                                     "steck_spiel", "steck_ueberstand")}
 
     def naehte_schreiben(self, naehte):
@@ -2957,6 +2958,85 @@ class AngebotSeite(QWidget):
         n = len(stecken.get("dazu") or ())
         if n:
             hinweise.append(f"{n} Steckverbindung(en) in die Teile geschrieben (Schlitze und Nasen).")
+        return hinweise
+
+    def knicke_anwenden(self, knicke):
+        """Neue Knickrahmen aus dem Fenster „Satz in 3D“ (knicke = [dict(koerper, leit, eingaben, netz, text)]):
+        je Rahmen eine Position wie das Leitteil mit dem gestreckten Rohr (Schneidweg-Rechner, Länge, Zusatzarbeit
+        Knicken) und dem gefalteten Netz; gleiche Rahmen werden eine Position mit „je Satz“ = Anzahl. Die Rohre
+        zählen je Satz weniger, ohne übrige Körper fällt die Position weg. Ergebnis: Hinweise."""
+        from .ansicht3d import entpacken, packen
+        if not knicke:
+            return []
+        self.neu_laden()
+        nach_id = {q["id"]: q for q in self.positionen}
+        gruppen = {}
+        for k in knicke:
+            if k["leit"] in nach_id:
+                gruppen.setdefault(json.dumps([k["leit"], k["eingaben"]], sort_keys=True, default=str), []).append(k)
+        verbraucht = {}
+        for k in knicke:
+            for pid, j in k["koerper"]:
+                verbraucht.setdefault(pid, set()).add(j)
+
+        def saetze(q):
+            je, st = q.get("je_satz") or 1, q.get("stueck")
+            return st / je if isinstance(st, (int, float)) and je else None
+        hinweise, nr = [], int(max((q["pos"] for q in self.positionen if isinstance(q.get("pos"), (int, float))),
+                                   default=0))
+        for gr in gruppen.values():
+            q = nach_id[gr[0]["leit"]]
+            werte = {n: w for n, w in q.items() if n not in ("id", "nr", "angebot_id")}
+            nr += 10
+            s_ = saetze(q)
+            werte.update(pos=nr, je_satz=len(gr) if q.get("satz") else None,
+                         stueck=round(s_ * len(gr)) if s_ else q.get("stueck"))
+            pid = self.db.position_neu(self.id, werte)
+            netz = entpacken(gr[0]["netz"]) if gr[0].get("netz") else None
+            if netz:
+                if len(gr) > 1:
+                    netz["lagen"] = [(entpacken(k["netz"]) or {}).get("lage") for k in gr]
+                self.db.netz_speichern(pid, packen(netz))
+            self.neu_laden()
+            zeile = next(r for r, x in enumerate(self.positionen) if x["id"] == pid)
+            alt_stumm, self.f.stumm = self.f.stumm, True
+            try:
+                ok = self.schneidweg_berechnen(zeile, gr[0]["eingaben"], ueberschreiben=True)
+            finally:
+                self.f.stumm = alt_stumm
+            hinweise.append(f"Pos. {nr}: {gr[0]['text']}" + (f", {len(gr)} je Satz" if len(gr) > 1 else "") + "."
+                            + ("" if ok else " Schneidweg nicht gerechnet (Schneidweg-Rechner öffnen)."))
+        weg = []
+        for pid, nrs in verbraucht.items():
+            q = nach_id.get(pid)
+            if q is None:
+                continue
+            netz = entpacken(self.db.netz(pid)) or {}
+            lagen = netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])
+            rest = [j for j in range(len(lagen)) if j not in nrs]
+            je = (q.get("je_satz") or len(lagen) or 1) - len(nrs)
+            if je <= 0 or not rest:
+                weg.append(pid)
+                continue
+            s_ = saetze(q)
+            self.db.position_aendern(pid, "je_satz", je)
+            if s_:
+                self.db.position_aendern(pid, "stueck", round(s_ * je))
+            koerper = netz.get("koerper") or []
+            netz["lage"] = lagen[rest[0]]
+            if len(rest) > 1:
+                netz["lagen"] = [lagen[j] for j in rest]
+            else:
+                netz.pop("lagen", None)
+            if len(koerper) == len(lagen):
+                netz["koerper"] = [koerper[j] for j in rest]
+            self.db.netz_speichern(pid, packen(netz))
+            hinweise.append(f"Pos. {q.get('pos') or ''}: {je} je Satz (übrige im Knickrahmen).")
+        if weg:
+            self.db.positionen_loeschen(weg)
+            hinweise.append("Im Knickrahmen aufgegangen und entfernt: Pos. "
+                            + ", ".join(str(nach_id[p].get("pos") or "") for p in weg) + ".")
+        self.neu_laden()
         return hinweise
 
     def gravur_vorgeben(self, pos, bericht):
@@ -4315,7 +4395,7 @@ class AngebotSeite(QWidget):
             return False
         self.naehte_schreiben(d.ergebnis["naehte"])
         self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
-        hinweise = self.stecken_anwenden(d.ergebnis["stecken"])
+        hinweise = self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
         self.neu_laden()
         n = len(d.ergebnis["naehte"])
         self.f.meldung(f"Satz {satz} gespeichert." + (f" Längsnaht für {n} Teil(e) gesetzt." if n else "")
