@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.84", "<b>Messen und Querschnitt im Teile-Editor</b>: Messen fängt auch Konturmitten, <i>Winkel</i> misst "
+               "aus drei Punkten, fertige Maße bleiben im 3D stehen bis <i>Maße löschen</i>. <i>Querschnitt</i> "
+               "zeigt das Rohr an einer Stelle x quer geschnitten mit allen Konturen, die dort durch die Wand gehen; "
+               "die Stelle ist im 3D markiert. <b>Knickrahmen</b>: der Freistich an der Spitze des V-Ausschnitts "
+               "nimmt jetzt im 3D Material weg (vorher blieb der Teil des Kreises innerhalb des V stehen) "
+               "([[teile_editor]], [[knickrahmen]]).",
+     "Messen: Konturmitten, Winkel, Maße bleiben; Querschnitt an Stelle x ([[teile_editor]])."],
     ["0.9.83", "<b>Stangenbild wie in Lantek</b>: Umschalter <i>Stangenmuster</i> / <i>Übersicht</i> / <i>Detail</i> im "
                "Reiter Stangenbild und im Abmessungs-Fenster. Die Übersicht zeigt jede Stange als dünne Zeile, nach "
                "Abmessung gruppiert; ein Klick öffnet das Detail mit Kennzahlen, den Teilen als Kacheln und der "

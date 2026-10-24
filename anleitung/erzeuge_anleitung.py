@@ -2345,7 +2345,8 @@ def kapitel_optimieren(i):
     i.liste("<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Aus Position und Vorlagen, beim "
             "Blech Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
-            "Blickrichtung; beim Rohr STEP-Modell und Skizzenart; Messen) und <i>Ausgabe</i> (Zeichnung als PDF, "
+            "<b>Blick</b> (Klick: schräg, Pfeil: Vorn, Oben, Stirnseite); beim Rohr STEP-Modell, Skizzenart und "
+            "Querschnitt; Messen, Winkel, Maße löschen) und <i>Ausgabe</i> (Zeichnung als PDF, "
             "STEP neu einlesen bzw. beim Blech Zeichnung als PDF und DXF speichern). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
             "<b>Eigenschaften</b> rechts: alle Werte des gewählten Merkmals untereinander, bei Konturen mit einem "
@@ -2405,8 +2406,15 @@ def kapitel_optimieren(i):
             "gewählte Kontur bzw. das Ende selbst hervorgehoben, im STEP-Modell der Bereich längs der Rohrachse. "
             "Beim Blech ist es die Kontur bzw. Biegelinie.",
             "<b>Messen</b> (<i>Ansicht → Messen</i>): Knopf drücken, dann in der 3D-Ansicht zwei Punkte anklicken; das Programm fängt die "
-            "nächste Ecke des Modells und zeigt den Abstand in mm mit Δx, Δy und Δz. Noch einmal drücken beendet "
-            "das Messen.",
+            "nächste Ecke des Modells oder die <b>Mitte einer Kontur</b> (z. B. Bohrungsmitte) und zeigt den Abstand "
+            "in mm mit Δx, Δy und Δz. <b>Winkel</b>: drei Punkte anklicken, der mittlere ist der Scheitel. Jedes "
+            "fertige Maß <b>bleibt im 3D stehen</b>, bis <i>Maße löschen</i> gedrückt wird; noch einmal auf "
+            "<i>Messen</i> bzw. <i>Winkel</i> drücken beendet das Messen.",
+            "<b>Querschnitt</b> (<i>Ansicht → Skizze → Querschnitt</i>, Rohr): ein kleines Fenster zeigt das Rohr an einer "
+            "Stelle x quer geschnitten, von Ende A gesehen; Stelle mit Feld oder Schieber wählen. Konturen, die dort "
+            "durch die Wand gehen, sind als Lücke mit rotem Rand zu sehen (auch auf mehreren Wänden und bei Kopien am "
+            "Umfang), darunter die Zeilen. Die Stelle ist im 3D als gestrichelter Ring markiert. Die Abwicklung des "
+            "ganzen Mantels zeigt die Skizze (<i>Ansicht → Skizze → Abwicklung</i>).",
             "<b>Rückgängig</b> (Strg+Z) und <b>Wiederholen</b> (Strg+Y) nehmen Eingaben im Fenster zurück bzw. "
             "stellen sie wieder her, mit den gemessenen Werten. In einem Eingabefeld mit Cursor wirkt Strg+Z zuerst "
             "im Text.",

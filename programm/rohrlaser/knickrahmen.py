@@ -74,18 +74,28 @@ def v_masse(b, h, s, beta, freistich=0.0):
 
 def v_umriss(b, h, s, beta, freistich=0.0, n=12):
     """Umriss des V-Ausschnitts auf der Abwicklung [[dx längs, ds am Umfang]] um die Mitte der Stegwand (Spalte
-    Seite): Innenwand gegenüber (ds = b + h), die Spitzen auf den Seitenwänden an der Innenseite der Stegwand."""
+    Seite): Innenwand gegenüber (ds = b + h), die Spitzen auf den Seitenwänden an der Innenseite der Stegwand.
+    Freistich: Kreis um jede Spitze; der Umriss läuft die Flanken bis an den Kreis und außen um ihn herum (ein
+    einfacher Linienzug, sonst zählte der Kreis innerhalb des V doppelt und bliebe als Material stehen)."""
     m = v_masse(b, h, s, beta)
     w, t, c = m["w"], m["tiefe"], b + h
     r = max(0.0, _z(freistich)) / 2
 
-    def spitze(ds):         # Freistich: Kreis um die Spitze (Linienzug läuft einmal herum)
+    def spitze(ds, links, rechts):
+        """Spitze bei (0, ds) zwischen den Flanken zu den Punkten links und rechts (der offenen Seite des V)."""
         if not r:
             return [(0.0, ds)]
-        return [(r * math.sin(2 * math.pi * i / n), ds + r * math.cos(2 * math.pi * i / n) * (1 if ds > c else -1))
-                for i in range(n + 1)]
-    pts = [(-w / 2, c + b / 2)] + spitze(c + b / 2 + t) + [(w / 2, c + b / 2), (w / 2, c - b / 2)] \
-        + spitze(c - b / 2 - t) + [(-w / 2, c - b / 2)]
+        r_ = min(r, 0.95 * math.hypot(links[0], links[1] - ds), 0.95 * math.hypot(rechts[0], rechts[1] - ds))
+        a1 = math.atan2(links[1] - ds, links[0])
+        a2 = math.atan2(rechts[1] - ds, rechts[0])
+        weg = (a2 - a1) % (2 * math.pi)          # gegen den Uhrzeiger von links nach rechts
+        if weg < math.pi:                           # außen herum = der lange Bogen
+            weg -= 2 * math.pi
+        k = max(n, 4)
+        return [(r_ * math.cos(a1 + weg * i / k), ds + r_ * math.sin(a1 + weg * i / k)) for i in range(k + 1)]
+    oben, unten = c + b / 2, c - b / 2
+    pts = [(-w / 2, oben)] + spitze(oben + t, (-w / 2, oben), (w / 2, oben)) + [(w / 2, oben), (w / 2, unten)] \
+        + spitze(unten - t, (w / 2, unten), (-w / 2, unten)) + [(-w / 2, unten)]
     return [[round(x, 2), round(y, 2)] for x, y in pts]
 
 
