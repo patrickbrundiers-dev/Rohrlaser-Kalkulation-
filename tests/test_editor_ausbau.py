@@ -162,6 +162,18 @@ assert sicht._flaeche_treffer(schraeg, 0, (20 + 200) * w2)["id"] == "teil"
 assert sicht._flaeche_treffer(schraeg, 0, (18.5 + 105) * w2)["id"] == "kontur:0"      # Lochwand hinten
 assert sicht._flaeche_treffer(axial, 0, 18.5)["id"] == "ende:a"
 assert sicht._flaeche_treffer(axial, 0, 0) is None                                      # Blick ins Rohr
+# glatte Rundungen: Normale je Ecke radial (Rundrohr), Stirnfläche bleibt axial (Kante scharf)
+rm = ansicht3d.Modell(rohr3d.netz(dict(a={}, b={}, konturen=[]), dict(form="Rundrohr", a=40, wand=2), 300))
+gl = rm.glatte_normalen()
+assert gl is not None and len(gl) == len(rm.dreiecke)
+for (i, j, k, art, n), ecken in zip(rm.dreiecke, gl):
+    for x, q in zip((i, j, k), ecken):
+        pt = rm.punkte[x]
+        if art == "A":
+            r = math.hypot(pt[0], pt[1])
+            assert abs((q[0] * pt[0] + q[1] * pt[1]) / r - 1) < 1e-3, (q, pt)
+        elif art in ("EA", "EB"):
+            assert abs(abs(q[2]) - 1) < 1e-6
 ok("E4b Ausschnitte im 3D: Loch durch die Wand mit Lochwand, Ausklinkung am Ende, Gravur nur Linie")
 
 # ------------------------------------------------------------------ E5 Rahmen

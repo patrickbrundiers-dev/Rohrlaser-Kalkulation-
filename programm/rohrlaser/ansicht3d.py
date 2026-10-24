@@ -63,6 +63,7 @@ ALPHA = 0.32            # Deckkraft der Flächen bei „Durchsichtig“
 BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Weiß gemischt
 KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (große Baugruppen: keine)
 KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
+GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = QColor("#B42318")
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
@@ -236,9 +237,50 @@ class Modell:
                         g.punkte.append(p[x])
                 g.dreiecke.append((neu[i], neu[j], neu[k], art, n))
             g.linien, g.linien_id, g.dreiecke_id = [], [], []
+            g._glatt = None
             g._grob = g
             self._grob = g
         return self._grob
+
+    def glatte_normalen(self):
+        """Normale je Ecke für glatte Rundungen (OpenGL schattiert zwischen den Ecken): Mittel der Flächennormalen
+        aller Dreiecke an derselben Stelle, gewichtet mit der Fläche, nur über glatte Übergänge (Knick flacher als
+        KANTEN_WINKEL) – Kanten wie Rohrwand/Stirnfläche oder scharfe Profilecken bleiben scharf. [(n_i, n_j, n_k)]
+        je Dreieck; große Netze: None (flach)."""
+        if getattr(self, "_glatt", 0) != 0:
+            return self._glatt
+        self._glatt = None
+        if not self.dreiecke or len(self.dreiecke) > GLATT_MAX:
+            return None
+        p = self.punkte
+        orte = {}
+        gewicht = []
+        for nr, (i, j, k, _, n) in enumerate(self.dreiecke):
+            a, b, c = p[i], p[j], p[k]
+            u = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            v = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+            f = math.sqrt((u[1] * v[2] - u[2] * v[1]) ** 2 + (u[2] * v[0] - u[0] * v[2]) ** 2
+                          + (u[0] * v[1] - u[1] * v[0]) ** 2)
+            gewicht.append(f)
+            for x in (i, j, k):
+                orte.setdefault((round(p[x][0], 2), round(p[x][1], 2), round(p[x][2], 2)), []).append(nr)
+        out = []
+        for i, j, k, _, n in self.dreiecke:
+            ecken = []
+            for x in (i, j, k):
+                s = [0.0, 0.0, 0.0]
+                for m in orte[(round(p[x][0], 2), round(p[x][1], 2), round(p[x][2], 2))]:
+                    q = self.dreiecke[m][4]
+                    if q[0] * n[0] + q[1] * n[1] + q[2] * n[2] > KANTEN_WINKEL:
+                        w = gewicht[m]
+                        s[0] += q[0] * w
+                        s[1] += q[1] * w
+                        s[2] += q[2] * w
+                betrag = math.sqrt(s[0] ** 2 + s[1] ** 2 + s[2] ** 2)
+                ecken.append((s[0] / betrag, s[1] / betrag, s[2] / betrag) if betrag > 1e-12 else n)
+            out.append(ecken)
+        self._glatt = out
+        return out
 
     def kanten(self):
         """Körperkanten für „Mit Kanten“: [(a, b, Normale)] – Ränder des Netzes und Knicke zwischen zwei Dreiecken

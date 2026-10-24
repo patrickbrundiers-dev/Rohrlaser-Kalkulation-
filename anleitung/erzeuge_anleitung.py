@@ -2259,7 +2259,8 @@ def kapitel_optimieren(i):
             "STEP-Datei; jede Änderung ist sofort zu sehen. Bei Rund-, Quadrat- und Rechteckrohr sind Bohrungen, "
             "Langlöcher, Rechtecke, Ausklinkungen, Schlitze, Polygone, V-Ausschnitte und Sonderkonturen <b>echt "
             "ausgeschnitten</b>, mit roter Lochwand durch die Wandstärke; Ausschnitte am Ende fehlen auch in der "
-            "Stirnfläche. Gravur und Flowdrill bleiben Linien. <i>Ansicht → STEP-Modell</i> zeigt stattdessen das "
+            "Stirnfläche. Gravur und Flowdrill bleiben Linien. Rundungen (Rundrohr, Eckradius, Bohrungen) sind mit "
+            "OpenGL glatt schattiert, Kanten bleiben scharf. <i>Ansicht → STEP-Modell</i> zeigt stattdessen das "
             "gemessene Modell aus dem STEP-Import (Biegerohre immer).",
             "<b>Ansichtswürfel</b> oben rechts im 3D: Klick auf eine Fläche (oben, vorne, A, B …), eine Kante oder "
             "Ecke dreht das Modell in diese Richtung; ⌂ stellt die Ausgangsansicht wieder her.",

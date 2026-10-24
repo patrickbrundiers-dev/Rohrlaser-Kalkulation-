@@ -198,7 +198,7 @@ def netz(e, profil, laenge):
     if L <= 0:
         return None
     qs = sk.Querschnitt(mit_radius(profil, e))
-    umriss = qs.umriss_rund()               # Quadrat-/Rechteckrohr mit Außenradius
+    umriss = qs.umriss_rund(12)             # Quadrat-/Rechteckrohr mit Außenradius (je Ecke 12 Stücke)
     if not umriss or len(umriss[0]) < 3:
         return None
     ea, eb = e.get("a") or {}, e.get("b") or {}
