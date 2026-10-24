@@ -442,12 +442,19 @@ def main(ziel):
         QApplication.processEvents()
         d.tabelle.selectRow(1)
         d.skizze.zoom = 2.0                 # Ausschnitt: erste Hälfte des Teils
-        d.editor.aktualisieren()            # Merkmale und Prüfmeldungen sofort (sonst 0,15 s nach der Eingabe)
-        foto.foto("schneidweg_dialog", d, [(d.winkel["a"], 1), (d.tabelle, 2), (knopf(d, "+ Bohrung"), 3),
-                                           (d.ergebnis_tabelle, 4), (d.summe, 5), (d.skizze, 6),
-                                           (d.naht_vorgabe, 7), (d.erklaerung, 8),
-                                           (knopf(d, "Zeichnung als PDF …"), 9), (d.editor.baum, 10),
-                                           (d.editor.meldungen, 11), (d.editor.rueck, 12)])
+        ed = d.editor
+        ed.modus_setzen("Beides")
+        ed.tabelle_zeigen(True)
+        ed.leiste_unten.zaehler.setChecked(True)            # Prüfmeldungen aufgeklappt
+        ed.aktualisieren()                  # Merkmale und Prüfmeldungen sofort (sonst 0,15 s nach der Eingabe)
+        ed.waehlen("kontur:1")
+        QApplication.processEvents()
+        sichtbar = d.tabelle.visibleRegion().boundingRect()     # Tabelle rollt: nur den sichtbaren Teil markieren
+        foto.foto("schneidweg_dialog", d, [(ed.band, 1), (ed.band.knopf("Bohrung"), 2), (ed.baum, 3),
+                                           (d.ansicht3d, 4), (ed.ansichten.wuerfel, 5), (d.skizze, 6),
+                                           (ed.eigenschaften, 7), ((d.tabelle, sichtbar), 8), (d.ergebnis_tabelle, 9),
+                                           (ed.leiste_unten.kacheln[0], 10), (ed.leiste_unten.zaehler, 11),
+                                           (ed.rueck, 12)])
         d.ansicht_wahl.setCurrentText("Abwicklung")
         d.skizze.resize(d.skizze.width(), 300)
         d.skizze.zoom = 2.0
@@ -480,7 +487,9 @@ def main(ziel):
     d.resize(1450, 980)
     d.ansicht_wahl.setCurrentText("Abwicklung")
     QApplication.processEvents()
+    d.editor.leiste_unten.zaehler.setChecked(True)
     d.editor.aktualisieren()
+    QApplication.processEvents()
     foto.foto("biegerohr_rechner", d, [(d.editor.baum, 1), (d.skizze, 2), (d.editor.meldungen, 3)])
     d.reject()
 
@@ -494,7 +503,7 @@ def main(ziel):
     d.resize(1450, 980)
     d.ansicht_wahl.setCurrentText("Abwicklung")
     QApplication.processEvents()
-    foto.foto("knickrahmen_rechner", d, [(d.knick_knopf, 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
+    foto.foto("knickrahmen_rechner", d, [(d.editor.band.knopf("Knickrahmen"), 1), (d.tabelle, 2), (d.skizze, 3), (d.summe, 4)])
     d.reject()
 
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
@@ -645,12 +654,15 @@ def main(ziel):
         d.stueck.setValue(20)
         d.resize(1350, 900)
         d.show()
+        d.editor.leiste_unten.zaehler.setChecked(True)
         d.editor.aktualisieren()
         QApplication.processEvents()
+        sichtbar = d.tabelle.visibleRegion().boundingRect()     # Tabelle rollt: nur den sichtbaren Teil markieren
         foto.foto("blech_editor", d, [(d.bezeichnung, 1), (d.werkstoff, 2), (d.art, 3), (d.schenkel, 4),
-                                      (d.tabelle, 5), (d.skizze, 6), (d.summe, 7), (d.ok_knopf, 8),
+                                      ((d.tabelle, sichtbar), 5), (d.skizze, 6), (d.summe, 7), (d.ok_knopf, 8),
                                       (d.ansicht3d, 9), (d.form, 10), (d.editor.baum, 11),
-                                      (d.editor.meldungen, 12)])
+                                      (d.editor.meldungen, 12), (d.editor.eigenschaften, 13),
+                                      (d.editor.band, 14)])
         d.reject()
         return QDialog.Rejected
     sz.blech_neu(dialog=blech_ausfuellen)
