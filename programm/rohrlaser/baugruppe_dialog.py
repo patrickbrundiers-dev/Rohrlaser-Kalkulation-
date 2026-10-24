@@ -1183,7 +1183,7 @@ class BaugruppeDialog(QDialog):
             netz["ln"] = {a: [(0.0, 0.0, 0.0)] * len(z) for a, z in linien.items()}    # Nähte immer sichtbar
             ohne_verlauf = sum(1 for n in self.bg.get("naehte") or [] if not n.get("linien"))
             if linien:
-                info += " Schweißnähte orange, Vorschläge hellorange, gewählte Naht rot."
+                info += " Schweißnähte schwarz, Vorschläge magenta, gewählte Naht rot."
             if ohne_verlauf:
                 info += (f" {ohne_verlauf} Nahtgruppe{'n' if ohne_verlauf != 1 else ''} ohne Nahtverlauf (von Hand "
                          "angelegt oder älterer STEP-Import: neu importieren).")

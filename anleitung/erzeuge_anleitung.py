@@ -2991,8 +2991,8 @@ def kapitel_baugruppen(i):
     i.text("Der Reiter <b>Strukturbaum und 3D</b> zeigt die Baugruppe als Baum (Baugruppe → Unterbaugruppen → "
            "Einzelteile und Nahtgruppen, mit Menge und Stück je Baugruppe) und rechts in 3D in Einbaulage, wenn die "
            "Teile aus dem STEP-Import kommen. Ein Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt "
-           "die Teile blau hervor. Die Schweißnähte sind als Linien eingezeichnet: Nahtgruppen orange, noch offene "
-           "Nahtvorschläge aus dem STEP-Import hellorange, die gewählte Nahtgruppe rot.", kurz=True)
+           "die Teile blau hervor. Die Schweißnähte sind als Linien eingezeichnet: Nahtgruppen schwarz, noch offene "
+           "Nahtvorschläge aus dem STEP-Import magenta, die gewählte Nahtgruppe rot.", kurz=True)
     i.bild("baugruppe_baum", "Reiter Strukturbaum und 3D, Unterbaugruppe gewählt", hoehe=70 * mm, legende=[
         (1, "<b>Strukturbaum</b>: Baugruppe, Unterbaugruppen mit Menge, darin Einzelteile und Nahtgruppen."),
         (2, "Gewählte Zeile: ihre Teile sind rechts blau, alle anderen grau."),

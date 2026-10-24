@@ -22,7 +22,7 @@ def als_html(neuerungen=None):
 
 NEUERUNGEN = [
     ["0.9.56", "<b>Schweißnähte in 3D</b>: Im Baugruppen-Editor zeigt der Reiter <i>Strukturbaum und 3D</i> die "
-               "Schweißnähte als Linien am Modell: Nahtgruppen orange, offene Nahtvorschläge hellorange, die gewählte "
+               "Schweißnähte als Linien am Modell: Nahtgruppen schwarz, offene Nahtvorschläge magenta, die gewählte "
                "Nahtgruppe rot. Den Nahtverlauf liefert der STEP-Import ab dieser Version; ältere Importe neu "
                "einlesen ([[baugruppe_baum]]).",
      "Schweißnähte in der 3D-Ansicht der Baugruppe ([[baugruppe_baum]])."],

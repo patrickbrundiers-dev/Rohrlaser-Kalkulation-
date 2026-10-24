@@ -32,9 +32,9 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("N", "nicht übernehmbar", "#FF00FF", None),    # nicht messbare Teile (Rohnetz in Dateilage), magenta
     ("BL", "Blech", "#C9D6E3", None),               # Blech-Editor (blech3d)
     ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
-    ("SN", "Schweißnähte", "#E8590C", "#E8590C"),        # Baugruppen-Ansicht: Nahtgruppen
-    ("SV", "Nahtvorschläge (STEP)", "#F2B880", "#E9A15C"),  # noch nicht übernommene Nahtkandidaten
-    ("SH", "gewählte Naht", "#C00000", "#C00000"),
+    ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen
+    ("SV", "Nahtvorschläge (STEP)", "#D000D0", "#D000D0"),  # Teilfarben sichtbar), offene Nahtkandidaten magenta
+    ("SH", "gewählte Naht", "#FF0000", "#FF0000"),
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
