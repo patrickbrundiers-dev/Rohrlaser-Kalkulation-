@@ -389,8 +389,27 @@ def main(ziel):
         reiter_waehlen(s, text)
         if text == "Schnittplan":
             s.stangen_ansicht.selectRow(2)
-        marken = [(s.kompakt_ansicht, 1), (s.kalk_kompakt, 2)] if name == "erg_kalkulation" else ()
+        if text == "Stangenbild":
+            s.stangen_seite.ansicht_setzen("Stangenmuster", melden=False)
+        marken = [(s.kompakt_ansicht, 1), (s.kalk_kompakt, 2)] if name == "erg_kalkulation" else \
+            [(s.teile_baum.baum, 1), (s.teile_baum.vorschau, 2), (s.stangen_ansicht, 3)] if name == "erg_schnittplan" \
+            else [(s.stangen_seite.knoepfe.buttons()[0], 1)] if name == "erg_stangenbild" else ()
         foto.foto(name, f, marken, ausschnitt=reiterflaeche(s))
+    # Stangenbild: Übersicht (jede Stange eine Zeile) und Detail einer Stange mit Kacheln und Abwicklung
+    st = s.stangen_seite
+    reiter_waehlen(s, "Stangenbild")
+    st.ansicht_setzen("Übersicht", melden=False)
+    QApplication.processEvents()
+    foto.foto("erg_stangen_uebersicht", f, [(st.knoepfe.buttons()[1], 1), (st.uebersicht, 2)],
+              ausschnitt=reiterflaeche(s))
+    st.stange_zeigen(st.stangen[0]["nr"] if st.stangen else None, ansicht="Detail")
+    if st.stangen:
+        st.markieren(st.stangen[0]["teile"][0]["ref"], springen=False)
+    QApplication.processEvents()
+    foto.foto("erg_stangen_detail", f, [(st.detail.werte, 1), (st.detail.kacheln, 2), (st.detail.abwicklung, 3),
+                                        (st.detail.k_vor, 4)], ausschnitt=reiterflaeche(s))
+    st.markieren(None)
+    st.ansicht_setzen("Stangenmuster", melden=False)
     # Zeiten & Arbeitskosten mit Beispielzeiten, danach wieder die Vorgaben (Preise der übrigen Bilder unverändert)
     zb = db.zeitbasis_vorgabe(s.kopf.get("maschine"))
     beispiel = {"Materialbereitstellung": dict(ruestzeit=10), "Entgraten / Nachbearbeitung": dict(zeit=20),

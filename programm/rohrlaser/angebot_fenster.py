@@ -38,14 +38,14 @@ from .leiste import UmbruchLeiste
 from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, schritte, step_ablage, \
     step_einstellungen, stil, tabellen_eingabe, teile_editor, vorkalk
 from .schritte import Schrittanzeige
+from .stangen_ansicht import MUSTER as STANGEN_MUSTER, StangenSeite
+from .teile_baum import TeileBaum
+from . import stangen_abwicklung
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
 from .verlauf import Verlauf
 from .stammdaten import wert_aus_text, wert_als_text, zahl_als_text
-
-FARBE_TEILE = ["#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F",
-               "#E15759", "#BAB0AC"]
 
 
 def preis_aenderung(vorher, nachher):
@@ -1035,14 +1035,14 @@ class Stangenbild(QWidget):
     def _legende(self):
         return any(rechnen.gehrung_gespart(s) > 0 or rechnen.stange_zeichen(s)[2] for s, _ in self.muster)
 
-    def setzen(self, ergebnis):
+    def setzen(self, ergebnis, farben=None):
+        """farben = {ref: Farbe} von außen (Stangen-Detail: dieselben Farben wie in der Übersicht), sonst je Position
+        in der Reihenfolge des ersten Auftretens."""
         self.muster = rechnen.stangenmuster(ergebnis)
-        refs = []
-        for s, _ in self.muster:
-            for t in s["teile"]:
-                if t["ref"] not in refs:
-                    refs.append(t["ref"])
-        self.farben = {r: QColor(FARBE_TEILE[i % len(FARBE_TEILE)]) for i, r in enumerate(refs)}
+        if farben is None:
+            from .stangen_ansicht import teil_farben
+            farben = teil_farben([s for s, _ in self.muster])
+        self.farben = {r: QColor(f) for r, f in farben.items()}
         hoehe = 20 + self.ZEILE * len(self.muster) + (self.LEGENDE if self._legende() else 0)
         self.setMinimumHeight(max(60, hoehe))
         self.update()
@@ -1379,6 +1379,7 @@ PROT_SPALTEN = [(t, (lambda i: lambda z: z[i] if i < len(z) else None)(i), None,
 KALK_IMMER = {"pos", "artikel", "stueck", "material_teil", "herstell_teil", "preis_teil", "preis_position"}
 KOMPAKT_IMMER = {"pos", "artikel", "profil", "stueck", "laenge", "material", "oberflaeche", "laser_brutto", "laser_netto",
                  "preis_teil", "preis_position"}
+STANGENBILD_EINSTELLUNG = "ansicht_stangenbild"   # Reiter Stangenbild: Stangenmuster, Übersicht oder Detail
 KOMPAKT_EINSTELLUNG = "ansicht_kalk_kompakt"    # Reiter Kalkulation: kompakte Übersicht (Vorgabe) oder alle Spalten
 PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}   # einmal über dem Schnittplan
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
@@ -1651,14 +1652,14 @@ class AngebotSeite(QWidget):
         pu.addWidget(teile_ansicht, 1)
         plan.addWidget(plan_oben)
         plan.addWidget(plan_unten)
-        self.bild = Stangenbild()
-        self.bild.doppelklick.connect(self.zur_position)
+        # Stangenbild: Umschalter Stangenmuster / Übersicht / Detail (Lantek-Ideen L1, L2, L4)
+        self.stangen_seite = StangenSeite(self.db.einstellung(STANGENBILD_EINSTELLUNG) or STANGEN_MUSTER,
+                                          lambda a: self.db.einstellung_setzen(STANGENBILD_EINSTELLUNG, a))
+        self.stangen_seite.doppelklick.connect(self.zur_position)
+        self.bild = self.stangen_seite.bild
         teile_ansicht.setToolTip("Doppelklick auf ein Teil: zur Position")
         teile_ansicht.doubleClicked.connect(
             lambda i: self.zur_position(self.teile.zeilen[i.row()].get("ref")) if i.row() < len(self.teile.zeilen) else None)
-        bild_rahmen = QScrollArea()
-        bild_rahmen.setWidgetResizable(True)
-        bild_rahmen.setWidget(self.bild)
         ausw_seite = QWidget()
         al = QVBoxLayout(ausw_seite)
         ausw_ansicht = _tabelle(self.ausw)
@@ -1721,7 +1722,16 @@ class AngebotSeite(QWidget):
         self.zeiten_seite = ZeitenSeite(self)
         self.reiter.gruppe("Kalkulation", [(kalk_seite, "Kalkulation"), (self.zeiten_seite, "Zeiten && Arbeitskosten")])
         self.reiter.addTab(zk_seite, "Zukaufteile")
-        self.reiter.gruppe("Schnittplan", [(plan, "Schnittplan"), (bild_rahmen, "Stangenbild"),
+        # Teilebaum mit Offen-Spalte und 3D-Vorschau links neben dem Schnittplan (Lantek-Idee L3)
+        self.teile_baum = TeileBaum(self._vorschau_netz)
+        self.teile_baum.gewaehlt.connect(self._baum_gewaehlt)
+        self.teile_baum.doppelklick.connect(self.zur_position)
+        plan_seite = QSplitter(Qt.Horizontal)
+        plan_seite.addWidget(self.teile_baum)
+        plan_seite.addWidget(plan)
+        plan_seite.setStretchFactor(1, 1)
+        plan_seite.setSizes([440, 860])
+        self.reiter.gruppe("Schnittplan", [(plan_seite, "Schnittplan"), (self.stangen_seite, "Stangenbild"),
                                            (ausw_seite, "Auswertung")])
         self.reiter.addTab(st_seite, "Staffeln")
         self.nachkalk = NachkalkulationSeite(self)
@@ -2269,11 +2279,13 @@ class AngebotSeite(QWidget):
         if erg:
             sw = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen)
             # Schnittplan wie geladen: zugeschnittene Lieferstangen als ihre Werkstücke
-            self.stangen.setzen([dict(s, **w) for s, w in rechnen.anzeige_stangen(erg, sw)])
+            paare = rechnen.anzeige_stangen(erg, sw)
+            self.stangen.setzen([dict(s, **w) for s, w in paare])
             ausw = rechnen.auswertung_zeilen(erg, sw)
             self.ausw.setzen(ausw)
             self.fehler.setzen(erg["fehler"])
         else:
+            paare = []
             self.stangen.setzen([])
             self.ausw.setzen([])
             self.fehler.setzen([])
@@ -2292,7 +2304,8 @@ class AngebotSeite(QWidget):
         self.laengen_knopf.setVisible(bool(hinweis))
         self.laengen_hinweis.setVisible(bool(hinweis))
         self.laengen_hinweis.setText(f"<b>Lieferlängen:</b> {hinweis}" if hinweis else "")
-        self.bild.setzen(dict(erg, stangen=rechnen.anzeige_stangen(erg)) if erg else erg)
+        self.stangen_seite.setzen(paare, self._abwicklung_funktion() if erg else None)
+        self.teile_baum.setzen(abmessung.teilebaum(self.kopf, self.positionen, erg))
         self.prot.setzen(self.db.protokoll(self.id))
         self.st_seite.setzen()
         self.nachkalk.neu_laden()
@@ -2300,6 +2313,52 @@ class AngebotSeite(QWidget):
             zeile = max(self.stangen_ansicht.currentIndex().row(), 0)
             self.stangen_ansicht.selectRow(min(zeile, len(self.stangen.zeilen) - 1))
             self._stange_gewaehlt(self.stangen_ansicht.currentIndex())
+
+    def _abwicklung_funktion(self):
+        """Abwicklung einer Stange für Stangen-Detail (stangen_abwicklung.stange) mit den Positionen dieses Stands."""
+        positionen, profil_von = list(self.positionen), stangen_abwicklung.profil_funktion(self.kopf, self.k)
+        return lambda s: stangen_abwicklung.stange(s, positionen, profil_von)
+
+    def _vorschau_netz(self, zeile):
+        """3D-Modell einer Position für die Vorschau im Teilebaum: (Netz oder None, Titel). Netz aus dem STEP-Import,
+        sonst aus den Eingaben des Teile-Editors (rohr3d)."""
+        if not 0 <= zeile < len(self.positionen):
+            return None, ""
+        p = self.positionen[zeile]
+        if p.get("id") is not None:
+            daten = self.db.netz(p["id"])
+            if daten:
+                return daten, "3D aus dem STEP-Import"
+        profil = self.k.profile.get(p.get("profil_id"))
+        if not profil or kein_laserteil(p):
+            return None, ""
+        try:
+            from . import rohr3d
+            profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
+            netz = rohr3d.netz(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], profil,
+                               p.get("laenge"))
+        except (ValueError, TypeError, KeyError, ZeroDivisionError):
+            netz = None
+        return netz, "3D-Modell aus den Eingaben" if netz else ""
+
+    def _baum_gewaehlt(self, ref):
+        """Position im Teilebaum gewählt: im Stangenbild hervorheben, im Schnittplan die erste Stange mit dem Teil."""
+        self.stangen_seite.markieren(ref)
+        if not self.ergebnis:
+            return
+        stangen = rechnen.anzeige_stangen(self.ergebnis)
+        i = next((i for i, s in enumerate(stangen) if any(t["ref"] == ref for t in s["teile"])), None)
+        if i is None:
+            return
+        modell = self.stangen_ansicht.model()
+        quelle = modell.sourceModel() if hasattr(modell, "sourceModel") else None
+        index = modell.mapFromSource(quelle.index(i, 0)) if quelle is not None else modell.index(i, 0)
+        if index.isValid():
+            self.stangen_ansicht.setCurrentIndex(index)
+            self.stangen_ansicht.scrollTo(index)
+            r = next((j for j, t in enumerate(self.teile.zeilen) if t.get("ref") == ref), None)
+            if r is not None:
+                self.teile_ansicht.selectRow(r)
 
     def _stange_gewaehlt(self, aktuell, _=None):
         if not aktuell.isValid() or not self.ergebnis:
