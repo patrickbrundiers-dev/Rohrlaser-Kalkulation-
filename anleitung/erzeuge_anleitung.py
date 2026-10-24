@@ -3705,6 +3705,7 @@ def kapitel_stammdaten(i):
            "das Programm ein Kopffeld nur, solange es leer ist oder noch die Vorgabe aus den Einstellungen bzw. des "
            "vorher gewählten Kunden hat. Von Hand geänderte Werte bleiben. Die Statuszeile nennt, was übernommen "
            "wurde. Wechseln Sie auf einen Kunden ohne Vorgabe, gelten für diese Felder wieder die Einstellungen.")
+    i.bild("stamm_kundenvorgaben", "Einstellungen, Kundenvorgaben: je Kunde eine Zeile", hoehe=70 * mm)
     i.tabelle(["Kundenvorgaben", "Bedeutung"], [
         ["<b>Kunde</b>", "Kundennummer aus dem Reiter Kunden"],
         ["Maschine, Stangenlänge [mm], Gewinn [%]", "statt Standard-Maschine, Standard-Stangenlänge und Gewinn aus den "
