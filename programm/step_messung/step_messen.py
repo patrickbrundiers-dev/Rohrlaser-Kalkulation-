@@ -61,10 +61,12 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
            "trennung", "gravur_anbau", "kammern", "kontur_umfang", "verbund", "bauteil", "pfad", "knoten", "ersatz",
-           "biegerohr", "alternative", "fehler"]
+           "biegerohr", "knick_schenkel", "alternative", "fehler"]
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
 # bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "knoten", "alternative", "fehler")
+# Spalte "knick_schenkel": Knickrahmen aus einem Körper (step_knickrahmen), die geraden Rohrstücke in Reihenfolge als
+# JSON-Liste [{Spalte: Wert, "lage": [Ende A, Achse, X-Richtung in der Datei]}] (ohne OHNE_ALTERNATIVE); leer = keiner
 
 
 def _z(x):
@@ -156,7 +158,20 @@ def _zeile(t, name, artikel, netz):
             _z(t.gravur_anbau) if t.anbauteile else "",
             str(t.kammern) if t.kammern else "", _z(t.kontur_umfang) if t.kontur_umfang else "", _text(t.verbund),
             _text(t.bauteil), _text(t.pfad), t.knoten, "1" if t.ersatz else "",
-            json.dumps(t.biegerohr, ensure_ascii=False, separators=(",", ":")) if t.biegerohr else "", "", ""])
+            json.dumps(t.biegerohr, ensure_ascii=False, separators=(",", ":")) if t.biegerohr else "",
+            _knick_schenkel(t), "", ""])
+
+
+def _knick_schenkel(t):
+    if not t.knick_schenkel:
+        return ""
+    out = []
+    for x in t.knick_schenkel:
+        d = {k: v for k, v in zip(SPALTEN, _zeile(x, "", "", "")) if k not in OHNE_ALTERNATIVE + ("knick_schenkel",)}
+        if x.ende_a_global and x.achse_global and x.x_global:
+            d["lage"] = [round(v, 6) for v in (*x.ende_a_global, *x.achse_global, *x.x_global)]
+        out.append(d)
+    return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
 
 
 def step_dateien(pfade):

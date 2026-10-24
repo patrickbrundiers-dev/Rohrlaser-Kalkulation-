@@ -21,13 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.59", "<b>Außenradius bei Quadrat- und Rechteckrohr</b>: neues Feld in den Profilen (leer = Vorgabe nach "
+    ["0.9.62", "<b>Außenradius bei Quadrat- und Rechteckrohr</b>: neues Feld in den Profilen (leer = Vorgabe nach "
                "EN 10219: 2 × Wand bis 6 mm, 2,5 × bis 10 mm, darüber 3 ×; 0 = scharfkantig). Er kürzt die "
                "Schnittlänge der Enden (QR 40 × 40 × 3 gerade 149,7 statt 160 mm, schräg mit elliptischen Ecken) und "
                "die Außenfläche; Skizze und 3D-Modell zeigen runde Ecken. Im Schneidweg-Rechner (Eigenschaften des "
                "Teils) lässt er sich für das Angebot ändern; er gilt dann für alle Positionen mit gleichem Profil und "
                "Werkstoff ([[profile]], [[teile_editor]]).",
      "Außenradius für Quadrat- und Rechteckrohr, im Angebot je Profil und Werkstoff ([[profile]])."],
+    ["0.9.60", "<b>Knickrahmen aus einem Körper</b>: Ist ein geknickter Rahmen aus Quadrat- oder Rechteckrohr in "
+               "der STEP-Datei ein einziger Körper, erkennt ihn der Import (auch gestreckt gezeichnet mit "
+               "V-Ausschnitten). Er teilt ihn an den Ecken, misst jeden Schenkel und zeigt eine Zeile <i>Knickrahmen (n Knicke) aus einem Körper</i>. Übernommen wird sie wie "
+               "eine Knickverbindung: gestrecktes Rohr, V-Ausschnitte, Bohrungen an ihrer Stelle, Zusatzarbeit Knicken. "
+               "Rechtsklick → <i>Knickrahmen bearbeiten …</i> ([[knickrahmen_koerper]]).",
+     "Knickrahmen aus einem STEP-Körper wird erkannt ([[knickrahmen_koerper]])."],
     ["0.9.58", "<b>Teile-Editor neu aufgebaut</b> (Schneidweg-Rechner und Blech-Editor) wie ein CAM-Programm: "
      "oben ein <b>Menüband</b> (Konstruktion, Ansicht, Ausgabe), in der Mitte das <b>3D-Modell</b> mit "
      "Ansichtswürfel und die Skizze, rechts die <b>Eigenschaften</b> des gewählten Merkmals mit Maßbild, unten "

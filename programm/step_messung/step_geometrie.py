@@ -144,6 +144,7 @@ class Teil:
     kontur_umfang: float = 0.0
     verbund: str = ""           # Verbundprofil: Kern (Kunststoff o. ä.) in der Kammer eines anderen Körpers
     biegerohr: dict = None      # Biegerohr (step_biegerohr): Mittellinie, Elemente, LRA, XYZ; sonst None
+    knick_schenkel: list = None  # Knickrahmen aus einem Körper (step_knickrahmen): gemessene Rohrstücke; sonst None
 
     @property
     def pruefstatus(self):
@@ -2710,6 +2711,13 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         from step_biegerohr import messen as biegerohr_messen
         b = biegerohr_messen(solid, datei, koerper, netz)
     except Exception:  # Biegerohr-Erkennung darf die übrige Messung nie verhindern
+        b = None
+    if b is not None:
+        return b
+    try:        # Knickrahmen aus einem Körper (Plan K1-3): in gerade Stücke mit Gehrung teilen, je Stück messen
+        from step_knickrahmen import messen as knickrahmen_messen
+        b = knickrahmen_messen(solid, datei, koerper, netz)
+    except Exception:  # Knickrahmen-Erkennung darf die übrige Messung nie verhindern
         b = None
     if b is not None:
         return b

@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory() as tmp:
     db.einstellung_setzen("mindestpreis", 0)
 
     # 1) Abnahmeangebote mit 25 % Gewinn und 2 % Skonto: neu und alt von Hand nachgerechnet
-    erwartet = {"ABN-01": (475.30, 498.89), "ABN-07": (376.99, 407.60), "ABN-08": (555.61, 590.69)}     # ABN-08 bis 0.9.58 scharfkantig: 555,60 / 590,68
+    erwartet = {"ABN-01": (475.30, 498.89), "ABN-07": (376.99, 407.60), "ABN-08": (555.61, 590.69)}     # ABN-08 bis 0.9.61 scharfkantig: 555,60 / 590,68
     for a in ANGEBOTE:
         kopf = dict({n: a[n] for n in ("kunde", "maschine", "stange")}, skonto=2, gewinn=25)
         _, s_neu = rechne(db, dict(kopf, nummer=a["nummer"] + "-n"), programm_positionen(a))
