@@ -681,8 +681,7 @@ def main(ziel):
         foto.foto("blech_editor", d, [(d.bezeichnung, 1), (d.werkstoff, 2), (d.art, 3), (d.schenkel, 4),
                                       (d.tabelle, 5), (d.skizze, 6), (d.summe, 7), (d.ok_knopf, 8),
                                       (d.ansicht3d, 9), (d.form, 10), (d.editor.baum, 11),
-                                      (d.editor.meldungen, 12), (d.editor.eigenschaften, 13),
-                                      (d.editor.band, 14)])
+                                      (d.editor.meldungen, 12)])
         d.reject()
         return QDialog.Rejected
     sz.blech_neu(dialog=blech_ausfuellen)

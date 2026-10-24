@@ -2903,10 +2903,7 @@ def kapitel_zukauf_angebot(i):
                (10, "<b>Außenkontur</b>: <i>Rechteck</i> aus den Maßen (Kantteil: Kantlänge × Abwicklung) oder "
                     "<i>Polygon</i> mit Eckpunkten x,y der Abwicklung, z. B. mit Ausklinkungen."),
                (11, "<b>Merkmale</b> mit Herkunft (Teil, Biegungen, Innenkonturen; [[teile_editor]])."),
-               (12, "<b>Prüfmeldungen</b>: Klick hebt die Kontur bzw. Biegung in Skizze und 3D blau hervor; "
-                    "aufklappbar über den Zähler unten rechts."),
-               (13, "<b>Eigenschaften</b> des gewählten Merkmals, z. B. einer Kontur mit Maßbild."),
-               (14, "<b>Menüband</b>: Konturen, Schenkel, Ansicht, DXF ([[teile_editor]]).")])
+               (12, "<b>Prüfmeldungen</b>: Klick hebt die Kontur bzw. Biegung in Skizze und 3D blau hervor.")])
     i.text("<b>Neue Position</b> → <i>Blech / Kantteil</i>: Zuschnitt oder Kantteil beschreiben, das Programm "
            "schätzt einen Richtpreis als Einkaufspreis.", kurz=True)
     i.genauer()
