@@ -1926,9 +1926,15 @@ class AngebotSeite(QWidget):
     def stand_optimierung(self):
         if not self.ergebnis:
             return "noch nicht optimiert"
+        merken = getattr(self, "_kalk_merken", None)      # während neu_laden nur einmal prüfen (Plan C2)
+        if merken is not None and "stand" in merken:
+            return merken["stand"]
         aktuell = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst) \
             == self.ergebnis.get("kennung")
-        return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
+        stand = "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
+        if merken is not None:
+            merken["stand"] = stand
+        return stand
 
     def freigabe_punkte(self, summen=None):
         """Offene Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte)."""
