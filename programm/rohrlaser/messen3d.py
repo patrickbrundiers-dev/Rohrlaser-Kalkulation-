@@ -15,8 +15,10 @@ in den Koordinaten der STEP-Datei (Netz 'global'): dann x, y, z.
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QGuiApplication, QPen
+from PySide6.QtGui import QBrush, QGuiApplication, QPen
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton, QVBoxLayout
+
+from . import stil
 
 KREISMITTE, KONTURMITTE, KANTENMITTE, ECKE, PUNKT, FLAECHE = ("Kreismitte", "Konturmitte", "Kantenmitte", "Ecke",
                                                              "Punkt", "Fläche")
@@ -486,7 +488,7 @@ def fang_zeichnen(p, bild, t, farbe, beschriften=False):
     q = bild(t["punkt"])
     c = QPointF(q[0], q[1])
     p.setPen(QPen(farbe, 2.0))
-    p.setBrush(QBrush(QColor(255, 255, 255)))
+    p.setBrush(QBrush(stil.farbe("#FFFFFF")))
     if t["art"] in (KREISMITTE, KONTURMITTE):
         p.drawLine(c + QPointF(-7, 0), c + QPointF(7, 0))
         p.drawLine(c + QPointF(0, -7), c + QPointF(0, 7))
@@ -500,7 +502,7 @@ def fang_zeichnen(p, bild, t, farbe, beschriften=False):
         text = t["art"] + (f" Ø {zahl(el['d'], el.get('stellen', 3))}" if el.get("typ") == "kreis" else "")
         r = QRectF(q[0] + 10, q[1] + 8, p.fontMetrics().horizontalAdvance(text) + 10, 18)
         p.setPen(Qt.NoPen)
-        p.setBrush(QBrush(QColor(255, 255, 255, 225)))
+        p.setBrush(QBrush(stil.farbe("#FFFFFF", 225)))
         p.drawRoundedRect(r, 3, 3)
         p.setPen(QPen(farbe))
         p.drawText(r, Qt.AlignCenter, text)
@@ -515,8 +517,8 @@ class MessTafel(QFrame):
         super().__init__(ansicht)
         self.ansicht = ansicht
         self.setObjectName("messtafel")
-        self.setStyleSheet("#messtafel {background: rgba(255, 255, 255, 235); border: 1px solid #B42318; "
-                           "border-radius: 4px;} QLabel {color: #202020;}")
+        self._stil = None
+        self._stil_setzen()
         lay = QHBoxLayout(self)
         lay.setContentsMargins(8, 4, 4, 4)
         self.text = QLabel()
@@ -537,7 +539,16 @@ class MessTafel(QFrame):
         self.zeilen = []
         self.hide()
 
+    def _stil_setzen(self):
+        """Farben nach dem Theme (Dunkelmodus: dunkle Tafel, helle Schrift); beim Zeigen neu, falls umgeschaltet."""
+        t = stil.umsetzen("#messtafel {background: #FFFFFF; border: 1px solid #B42318; border-radius: 4px;} "
+                          "QLabel {color: #202020;}")
+        if t != self._stil:
+            self._stil = t
+            self.setStyleSheet(t)
+
     def zeigen(self, zeilen):
+        self._stil_setzen()
         self.zeilen = [z for z in zeilen if z]
         self.text.setText("\n".join(self.zeilen))
         self.setVisible(bool(self.zeilen))

@@ -22,7 +22,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QAction, QActionGroup, QBrush, QColor, QFont, QPen, QPolygonF
 from PySide6.QtWidgets import QMenu
 
-from . import durchdringung as dd, rechnen, skizze as sk, schneidweg as sw
+from . import durchdringung as dd, rechnen, schneidweg as sw, skizze as sk, stil
 from .ansicht3d import DARSTELLUNGEN
 from .rechenfeld import RechenFeld
 
@@ -32,7 +32,7 @@ GRIFF_PX, FANG_PX = 44, 9           # Pfeillänge und Fangabstand der Griffe [Bi
 MASS_PX = 16                        # Maßlinie so weit über der Oberfläche [Bildpunkte]
 LAENGS, QUER, EBENE = "#1565C0", "#00838F", "#B35C00"
 EBENE_FARBE = {"a": QColor(242, 142, 43, 55), "b": QColor(176, 122, 161, 55)}     # wie Anfangs-/Endschnitt
-MASS = QColor("#1F2937")
+MASS = stil.farbe_fest("#1F2937")
 GEGENSEITE = {"oben": "unten", "unten": "oben", "vorne": "hinten", "hinten": "vorne"}
 
 
@@ -271,7 +271,7 @@ class Werkzeug:
             p.setFont(f)
             rect = QRectF(pos.x() + 14, pos.y() + 10, 320, 20)
             p.fillRect(QRectF(rect.x() - 3, rect.y(), p.fontMetrics().horizontalAdvance(self.live) + 8, 20),
-                       QColor(255, 255, 255, 220))
+                       stil.farbe("#FFFFFF", 220))
             p.setPen(MASS)
             p.drawText(rect, Qt.AlignLeft | Qt.AlignVCenter, self.live)
 
@@ -302,12 +302,12 @@ class Werkzeug:
             (u, v), _ = griff
             z = sk.schnitt_x(qs, ee, u, v)
             pg = self._punkt(bild, z if s == "a" else L - z, u, v)
-            p.setPen(QPen(QColor(EBENE), 2.0))
-            p.setBrush(QBrush(QColor("#FFFFFF")))
+            p.setPen(QPen(stil.farbe(EBENE), 2.0))
+            p.setBrush(QBrush(stil.farbe("#FFFFFF")))
             p.drawEllipse(pg, 6, 6)
             p.setBrush(Qt.NoBrush)
             w = sw._z(ee.get("winkel"))
-            p.setPen(QColor(EBENE))
+            p.setPen(stil.farbe(EBENE))
             p.drawText(QRectF(pg.x() + 9, pg.y() - 20, 120, 18), Qt.AlignLeft | Qt.AlignVCenter,
                        f"{rechnen.zahl(w, 1)}°" if w else "gerade")
             richtung = self._achsrichtung(bild, (z if s == "a" else L - z, u, v))
@@ -338,13 +338,13 @@ class Werkzeug:
                   self._punkt(bild, x, u + n[0] * ab + t[0] * lg, v + n[1] * ab + t[1] * lg))
         if self.masse:
             self._masse_zeichnen(p, bild, d0, (x, u, v), n, s, L)
-        _pfeil(p, la, lb, QColor(LAENGS))
+        _pfeil(p, la, lb, stil.farbe(LAENGS))
         if math.hypot(qb.x() - qa.x(), qb.y() - qa.y()) > 12:        # quer nur, wenn nicht genau von der Seite
-            _pfeil(p, qa, qb, QColor(QUER))
+            _pfeil(p, qa, qb, stil.farbe(QUER))
             self._griffe.append(dict(art="quer", a=qa, b=qb, richtung=(qb - qa) / (2 * lg), zeile=r))
         self._griffe.append(dict(art="laengs", a=la, b=lb, richtung=(lb - la) / (2 * lg), zeile=r))
-        p.setPen(QPen(QColor("#FFFFFF"), 1.5))
-        p.setBrush(QBrush(QColor(LAENGS)))
+        p.setPen(QPen(QColor("#FFFFFF"), 1.5))     # fest: weißer Rand um den farbigen Griff
+        p.setBrush(QBrush(stil.farbe(LAENGS)))
         p.drawEllipse(pm, 4.5, 4.5)
         p.setBrush(Qt.NoBrush)
 
@@ -374,7 +374,7 @@ class Werkzeug:
             p.setPen(QPen(MASS, 1.0))
             p.drawLine(a, b)
             for xx in (x0, x1):         # Hilfslinien von der Oberfläche
-                p.setPen(QPen(QColor(31, 41, 55, 120), 0.8, Qt.DashLine))
+                p.setPen(QPen(stil.farbe("#1F2937", 120), 0.8, Qt.DashLine))
                 p.drawLine(self._punkt(bild, xx, u, v), self._punkt(bild, xx, ua + n[0] * hoch * 0.3,
                                                                     va + n[1] * hoch * 0.3))
             p.setPen(QPen(MASS, 1.0))
@@ -388,7 +388,7 @@ class Werkzeug:
             breite = fm.horizontalAdvance(text) + 8
             m = (a + b) / 2
             rect = QRectF(m.x() - breite / 2, m.y() - 17, breite, 15)
-            p.fillRect(rect, QColor(255, 255, 255, 215))
+            p.fillRect(rect, stil.farbe("#FFFFFF", 215))
             p.drawText(rect, Qt.AlignCenter, text)
             self._mass_felder.append(dict(art=art, rect=rect, wert=wert,
                                           bezug=nachbar["x"] if art == "nachbar" else None))

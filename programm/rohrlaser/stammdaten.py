@@ -1000,7 +1000,7 @@ EINSTELLUNGEN = (
     # 3D-Ansicht zeichnen mit OpenGL (Grafikkarte) oder QPainter (Software); Automatisch = OpenGL, wenn möglich
     Einstellung("ansicht_3d", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)", "Ansicht", "auswahl",
                 DARSTELLUNG_3D[0], auswahl="renderer"),
-    # Theme, Schriftgröße und Dichte (stil.anwenden, Layout-Plan D2): nur dieser Arbeitsplatz, gelten ab dem nächsten Start
+    # Theme, Schriftgröße und Dichte (stil.anwenden, Layout-Plan D2): nur dieser Arbeitsplatz, gelten sofort (Hauptfenster.ansicht_anwenden)
     Einstellung("ansicht_thema", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)", "Ansicht", "auswahl", "Hell",
                 auswahl="thema"),
     Einstellung("ansicht_schrift", "Schriftgröße [%] (90 bis 150)", "Ansicht", "ganz", 100, 90, 150),
