@@ -1023,7 +1023,7 @@ class StaffelSeite(QWidget):
                 self._bote.fertig.emit(nr, zeilen, kenn)
             except Exception as e:          # noqa: BLE001 – Fehler im Programmablauf melden
                 self._bote.fertig.emit(nr, None, str(e))
-        threading.Thread(target=lauf, daemon=True).start()
+        threading.Thread(target=lauf, name="Staffelpreise", daemon=True).start()   # Name: update_fenster
         self.stand()
 
     def _hintergrund_fertig(self, nr, zeilen, kenn):

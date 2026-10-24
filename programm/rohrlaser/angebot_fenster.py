@@ -3768,8 +3768,9 @@ class AngebotSeite(QWidget):
         if not self.f.stumm:        # Rohre und Bleche prüfen: je Teil übernehmen, Profil bzw. Zukaufartikel, Werkstoff
             from .step_dialog import StepPruefDialog
             # Stückzahl der Einzelteile im Dialog: 1 vorbelegt (Sätze zählt das Feld „Sätze“, Vorgabe 1 Satz)
+            knick = {n: self.db.einstellung(f"knick_{n}") for n in ("z", "freistich", "k")}
             if StepPruefDialog(self, messwerte, self.k, werkstoff, 1 if stueck is None else stueck,
-                               zukauf_liste, blech_daten["werkstoffe"]).exec() != QDialog.Accepted:
+                               zukauf_liste, blech_daten["werkstoffe"], knick).exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
         fehlend, doppelt = step.vorpruefung(messwerte, self.positionen, self.k)

@@ -21,6 +21,28 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.56", "<b>Teile-Editor neu aufgebaut</b> (Schneidweg-Rechner und Blech-Editor) wie ein CAM-Programm: "
+     "oben ein <b>Menüband</b> (Konstruktion, Ansicht, Ausgabe), in der Mitte das <b>3D-Modell</b> mit "
+     "Ansichtswürfel und die Skizze, rechts die <b>Eigenschaften</b> des gewählten Merkmals mit Maßbild, unten "
+     "Kennzahlen und der Zähler der Prüfmeldungen. Das Rohr hat jetzt auch ohne STEP-Datei ein 3D-Modell, das jede "
+     "Eingabe sofort zeigt. Maßfelder rechnen (z. B. 1200/2+15, 3x25, L-40); Duplizieren mit Strg+D, Entfernen mit "
+     "Entf. Die Tabelle bleibt über Ansicht → Tabelle erreichbar ([[teile_editor]]).",
+     "Teile-Editor mit Menüband, 3D-Modell, Eigenschaften und Rechenfeldern ([[teile_editor]])."],
+    ["0.9.55", "<b>Knickverbindung aus Einzelrohren</b>: Ist ein Rahmen in der STEP-Datei aus einzelnen Rohren mit "
+               "Gehrung gezeichnet, schlägt der Prüfdialog einen Knickrahmen vor (auch: Rohre markieren, Rechtsklick). "
+               "Daraus wird eine Position mit gestrecktem Rohr, V-Ausschnitten, den Bohrungen aller Rohre an ihrer "
+               "Stelle und der Zusatzarbeit Knicken; die Nahtkandidaten an den Knicken fallen weg. Neu im Fenster "
+               "Knickrahmen: <b>Innenwand schräg (3D)</b>, Vorgabe aus ([[knickverbindung]], [[knickrahmen]]).",
+     "Knickverbindung aus STEP-Einzelrohren, Innenwand schräg (3D) wählbar ([[knickverbindung]])."],
+    ["0.9.53", "<b>Online-Update zuverlässiger</b>: Nach <i>Jetzt aktualisieren</i> lädt das Programm die neuen "
+               "Dateien, schließt dann alles (Fenster, STEP-Messung, Abgleich, Sicherung, Datendatei) und tauscht "
+               "erst danach aus. Ist eine Datei noch geöffnet, wartet es bis zu 30 s und nennt dann Datei und Grund "
+               "mit <i>Wiederholen</i> oder <i>Abbrechen</i>; bei Abbruch oder Fehler bleibt die alte Version. Ist nur die "
+               "Anleitung gesperrt, wird sie beim nächsten Start getauscht. Die "
+               "Bedienungsanleitung öffnet sich aus einer Kopie im Datenordner und blockiert das Update nicht mehr "
+               "([[updates]]).",
+     "Update: erst alles schließen, dann austauschen; gesperrte Dateien abwarten, Wiederholen/Abbrechen "
+     "([[updates]])."],
     ["0.9.52", "<b>Strukturbaum und 3D</b> im Editor der Schweißbaugruppe: Baum aus Baugruppe, Unterbaugruppen, "
      "Einzelteilen und Nahtgruppen, rechts die ganze Baugruppe in 3D in Einbaulage. Klick auf eine Unterbaugruppe, "
      "ein Teil oder eine Nahtgruppe hebt die Teile hervor; ein Teil auf eine Unterbaugruppe ziehen ordnet es neu zu. "

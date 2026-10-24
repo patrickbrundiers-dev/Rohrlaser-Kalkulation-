@@ -116,7 +116,6 @@ assert rohr3d.netz(eing, QR, 0) is None
 ok("E4 3D-Modell aus den Eingaben: Wände, Stirnflächen, Linien mit Merkmal, Gehrung, Rund- und U-Profil")
 
 # ------------------------------------------------------------------ E5 Rahmen
-from rohrlaser import teile_editor as te  # noqa: E402
 from rohrlaser.blech_dialog import BlechDialog  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.editor_ansicht import BEIDES, D3, SKIZZE  # noqa: E402

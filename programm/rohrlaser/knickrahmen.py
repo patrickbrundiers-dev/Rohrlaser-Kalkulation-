@@ -14,7 +14,10 @@ Gehrung des Stoßes (Rechteck 45°), längste Seite = Stegwand außen.
 
 Die Konturzeile 'V-Ausschnitt' im Schneidweg-Rechner hat die Maße beta (Knickwinkel) und freistich (Ø), Lage x und
 Seite = Stegwand. Der Block 'knickrahmen' in positionen.technik hält die Schenkel:
-  {schenkel: [Außenmaße], beta: [Knickwinkel je Knick], geschlossen, steg, freistich, z, k, herkunft}"""
+  {schenkel: [Außenmaße], beta: [Knickwinkel je Knick], geschlossen, steg, freistich, z, k, schraeg, herkunft}
+schraeg (Patrick 24.10.2026, Vorgabe aus): die Innenwand gegenüber der Stegwand wird um β/2 geschwenkt geschnitten
+(3D), damit die Stirnflächen nach dem Knicken voll aufeinanderliegen; gerade (2D) lässt sich auch knicken, innen
+bleibt dann ein kleiner Keilspalt. Die V-Zeilen tragen dann d3, die Eingaben das Häkchen 3D (dreid.bearbeitungen)."""
 import math
 
 FORMEN = ("Quadratrohr", "Rechteckrohr")
@@ -158,7 +161,8 @@ def rahmen(k, profil):
     if knicke[-1]["x"] + knicke[-1]["w"] / 2 > laenge - rand + 1e-6:
         raise ValueError(f"Knickrahmen: Schenkel {n + 1} ist kürzer als der V-Ausschnitt an seinem Ende.")
     return dict(laenge=laenge, v=vs[0] if len(set(round(x, 6) for x in vs)) == 1 else None, vs=vs, knicke=knicke,
-                enden=enden, stoss=stoss, schenkel=schenkel, b=b, h=h, s=s, steg=steg, z=zug, k=kf, freistich=fs)
+                enden=enden, stoss=stoss, schenkel=schenkel, b=b, h=h, s=s, steg=steg, z=zug, k=kf, freistich=fs,
+                schraeg=bool(k.get("schraeg")))
 
 
 def konturen(r, k=None):
@@ -170,6 +174,8 @@ def konturen(r, k=None):
             z["seite"] = r["steg"]
         if r["freistich"]:
             z["freistich"] = r["freistich"]
+        if r.get("schraeg"):
+            z["d3"] = True
         out.append(z)
     return out
 
@@ -186,6 +192,11 @@ def anwenden(eingaben, k, profil):
     r = rahmen(k, profil) if k else None
     if alt and alt.get("geschlossen") and not (r and r["enden"]):
         neu["a"], neu["b"] = {}, {}         # Gehrung des Stoßes kam vom Rahmen
+    if alt and alt.get("schraeg") and not (r and r["schraeg"]) and not any(
+            (neu.get(s) or {}).get("d3") for s in ("a", "b")) and not any(z.get("d3") for z in neu["konturen"]):
+        neu.pop("d3", None)                 # 3D kam nur von der schrägen Innenwand
+    if r and r["schraeg"]:
+        neu["d3"] = True
     if not k:
         return neu, None
     neu["konturen"] += konturen(r)
@@ -227,7 +238,8 @@ def kurz(r):
     n = len(r["knicke"])
     v = f"{_zahl(r['v'], 2)} mm je Knick" if r["v"] is not None else "je Knick verschieden"
     return (f"{'geschlossen' if r['enden'] else 'offen'}, {n} Knick{'e' if n != 1 else ''}, gestreckt "
-            f"{_zahl(r['laenge'])} mm (Ausgleich {v}" + (f", Zugabe {_zahl(r['z'], 2)} mm" if r["z"] else "") + ")")
+            f"{_zahl(r['laenge'])} mm (Ausgleich {v}" + (f", Zugabe {_zahl(r['z'], 2)} mm" if r["z"] else "") + ")"
+            + (", Innenwand schräg (3D)" if r.get("schraeg") else ""))
 
 
 def zusatz_eintragen(zusatz_json, n, katalog, quelle):
