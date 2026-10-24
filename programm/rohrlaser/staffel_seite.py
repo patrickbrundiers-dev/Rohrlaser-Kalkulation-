@@ -929,11 +929,12 @@ class StaffelSeite(QWidget):
         Stufe hat und in dieser Sitzung keine gelöscht wurden, ohne Fehlermeldung. Ergebnis: IDs der neuen Stufen."""
         if automatisch and (self._auto_aus or staffeln.gueltige(self.s.stufen)):
             return []
-        faktoren = staffeln.standard_faktoren(self.s.db.einstellung("staffeln_standard"))
+        from .kundenvorgabe import staffeln_text      # Faktoren des Kunden (W2), sonst der Einstellung
+        faktoren = staffeln.standard_faktoren(staffeln_text(self.s.db, self.s.kopf.get("kundennr")))
         mengen = [(schl, menge) for schl, _, menge in staffeln.auswahl(self.s.positionen) if menge]
         if not faktoren or not mengen:
             if not automatisch:
-                self.s.f.meldung("Keine Standard-Staffeln eingestellt (Einstellungen → Angebot)." if not faktoren else
+                self.s.f.meldung("Keine Standard-Staffeln eingestellt (Einstellungen → Angebot bzw. Kundenvorgaben)." if not faktoren else
                                  "Im Angebot hat noch kein Satz und keine Position eine Stückzahl.", fehler=True)
             return []
         ids = []
