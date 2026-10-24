@@ -1955,7 +1955,9 @@ class AngebotSeite(QWidget):
         if self._laden or kundennr == self.kopf.get("kundennr"):
             return
         k = self.db.kunde_uebernehmen(self.id, kundennr)
-        self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen)." if k
+        vorgaben = (k or {}).get("vorgaben")
+        self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen"
+                       + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")." if k
                        else "Kundennummer gespeichert (nicht im Kundenstamm).")
         if k and fracht_angebot.auto(self.kopf):     # automatische Fracht: Ziel des neuen Kunden
             plz, land = fracht_angebot.ziel_aus_kunde(k)
