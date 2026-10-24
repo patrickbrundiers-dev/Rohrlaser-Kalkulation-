@@ -778,7 +778,20 @@ def kapitel_angebote(i):
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
            "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es. <b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
-
+    i.abschnitt("Neue Fassung", marke="neue_fassung")
+    i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
+           "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "
+           "Liste markierte Angebot) oder im Dialog <b>Kopieren</b> der Haken <i>Neue Fassung … statt Kopie</i>.",
+           kurz=True)
+    i.genauer()
+    i.text("Die neue Fassung behält die Nummer mit dem Zusatz <b>-2</b>, <b>-3</b> … (aus A-2026-0123 wird "
+           "A-2026-0123-2, aus der -2 die -3), den Kunden, die Positionen und die Staffeln. Sie bekommt das heutige "
+           "Datum, den Vorgang Entwurf und rechnet mit den aktuellen Preisen und Stundensätzen; festgeschrieben ist "
+           "noch nichts ([[preise_festschreiben]]). Der Zähler der Angebotsnummern zählt dabei nicht weiter.",
+           "Die bisherige Fassung steht danach in der Angebotsliste auf <b>Ersetzt durch …</b> (grau). Sie zählt auf "
+           "der Startseite in keinem Vorgang, erscheint nicht in der Wiedervorlage und nicht unter <i>Offen</i>; der "
+           "Filter <i>Ersetzt (alte Fassungen)</i> zeigt alle alten Fassungen. Ihr Reiter schließt sich, öffnen und "
+           "ansehen lässt sie sich weiter. Angebote der Kollegen bekommen keine Fassung, dort hilft <b>Kopieren</b>.")
     i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
     i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <i>Datei → Neues "
            "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): Kunde bestätigen, das Programm legt das Angebot an und "

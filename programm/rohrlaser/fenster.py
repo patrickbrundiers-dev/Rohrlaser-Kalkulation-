@@ -1284,6 +1284,7 @@ class Hauptfenster(QMainWindow):
         datei = self.menuBar().addMenu("&Datei")
         self.datei_aktionen = {}
         for text, ziel, taste in (("Neues Angebot aus STEP …", lambda: self.angebote.neu_aus_step(), None),
+                                  ("Neue Fassung des Angebots", self.neue_fassung, None),
                                   (None, None, None),
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
@@ -1621,6 +1622,12 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def neue_fassung(self):
+        """Datei → Neue Fassung des Angebots (W10): für das offene Angebot, sonst für das in der Liste gewählte."""
+        from .angebot_fenster import AngebotSeite
+        seite = self.reiter.currentWidget()
+        return self.angebote.neue_fassung(seite.id if isinstance(seite, AngebotSeite) else None)
 
     def angebot_schliessen(self, angebot_id):
         seite = self.offen.pop(angebot_id, None)
