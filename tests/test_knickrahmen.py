@@ -79,6 +79,11 @@ assert "zwei Schenkel" in fehler(lambda: kn.rahmen(dict(schenkel=[500]), QR2))
 assert "schließen keinen Rahmen" in fehler(lambda: kn.rahmen(dict(BEISPIEL, beta=45), QR2))
 assert "Schenkel 2 ist kürzer" in fehler(lambda: kn.rahmen(dict(BEISPIEL, schenkel=[500, 60, 500, 300]), QR2))
 assert "3 Knickwinkel erwartet" in fehler(lambda: kn.rahmen(dict(BEISPIEL, beta=[90, 90]), QR2))
+# V darf nicht über das Ende hinaus (offen: x − w/2 ≥ 0; geschlossen: auch nicht in die Gehrung des Stoßes)
+assert "Schenkel 1 ist kürzer" in fehler(lambda: kn.rahmen(dict(schenkel=[30, 300, 200], beta=90), QR2))
+assert "Schenkel 3 ist kürzer" in fehler(lambda: kn.rahmen(dict(schenkel=[200, 300, 30], beta=90), QR2))
+kn.rahmen(dict(schenkel=[40, 300, 200], beta=90), QR2)                  # offen: 40 − 1,2 − 38 ≥ 0
+assert "Schenkel 1 ist kürzer" in fehler(lambda: kn.rahmen(dict(BEISPIEL, schenkel=[70, 300, 500, 300]), QR2))
 ok("K1 Rechenkern: Beispiel 1592,7 mm, V 76 mm / 295,0 mm, Lage der Knicke, U-Rahmen, Dreieck, Rechteckrohr")
 
 # ------------------------------------------------------------------ K2 Schneidweg-Rechner
@@ -104,6 +109,16 @@ assert "nur bei Quadrat- und Rechteckrohr" in sw.rechnen(eing, RR, (10, 50))["fe
 hand = sw.rechnen(dict(a={}, b={}, konturen=[dict(art=sw.V_AUSSCHNITT, anzahl=2, beta=90, x=300, abstand=200)]),
                   QR2, (10, 50))
 assert not hand["fehler"] and hand["laenge"] is None and hand["knicke"] == 2 and nah(hand["felder"]["innen"], 589.9)
+# V-Ausschnitte von Hand geändert: passt nicht mehr zu den Schenkeln -> Fehler statt falscher Länge
+geaendert = dict(eing, konturen=[dict(z, beta=80) if z.get("knick") == 2 else z for z in eing["konturen"]])
+assert "von Hand geändert" in " ".join(sw.rechnen(geaendert, QR2, (10, 50))["fehler"])
+weniger = dict(eing, konturen=[z for z in eing["konturen"] if z.get("knick") != 3])
+assert "von Hand geändert" in " ".join(sw.rechnen(weniger, QR2, (10, 50))["fehler"])
+# geschlossen -> offen: Gehrung des Stoßes fällt weg; Entfernen nimmt Block, V-Ausschnitte und Gehrung heraus
+offen, ro = kn.anwenden(eing, dict(BEISPIEL, geschlossen=False), QR2)
+assert ro["enden"] is None and offen["a"] == offen["b"] == {} and len(offen["konturen"]) == 4
+weg, _ = kn.anwenden(eing, None, QR2)
+assert "knickrahmen" not in weg and [z["art"] for z in weg["konturen"]] == ["Bohrung"] and weg["a"] == {}
 ok("K2 Schneidweg: V-Ausschnitt 1 Einstich, Umriss auf drei Wänden, gestreckte Länge, Rundrohr abgelehnt")
 
 # ------------------------------------------------------------------ K3 Dialog

@@ -1209,8 +1209,7 @@ class SchneidwegDialog(QDialog):
         eing = self.eingaben()
         if not werte:
             self.knick = None
-            eing = dict(eing, konturen=[z for z in eing["konturen"] if z.get("art") != sw.V_AUSSCHNITT])
-            self.eingaben_setzen(eing, mit_messung=True)
+            self.eingaben_setzen(knickrahmen.anwenden(eing, None, self.profil)[0], mit_messung=True)
             return True
         eing, r = knickrahmen.anwenden(eing, werte, self.profil)
         self.knick = eing["knickrahmen"]

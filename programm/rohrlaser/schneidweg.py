@@ -726,6 +726,9 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None):
     if k:                               # Knickrahmen: gestreckte Länge aus den Schenkeln
         try:
             r = kn.rahmen(k, profil)
+            if not kn.passt(eingaben, r):
+                raise ValueError("Knickrahmen: V-Ausschnitte wurden von Hand geändert und passen nicht mehr zu den "
+                                 "Schenkeln. Mit „Knickrahmen …“ neu anlegen oder den Knickrahmen entfernen.")
             laenge = round(r["laenge"], 1)
             hinweise.insert(0, f"Knickrahmen: {kn.kurz(r)}; die Teilelänge wird beim Übernehmen gesetzt")
             if r["enden"]:

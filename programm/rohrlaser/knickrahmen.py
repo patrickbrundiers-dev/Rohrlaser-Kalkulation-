@@ -145,12 +145,18 @@ def rahmen(k, profil):
     for i in range(1, n):       # Mitte des V muss im Rohr liegen, V dürfen sich nicht überschneiden
         if knicke[i]["x"] - knicke[i]["w"] / 2 < knicke[i - 1]["x"] + knicke[i - 1]["w"] / 2:
             raise ValueError(f"Knickrahmen: Schenkel {i + 1} ist kürzer als die V-Ausschnitte an seinen Enden.")
+    rand = 0.0                  # Gehrung am Stoß: die Innenwand endet um h · tan(Gehrung) früher
     if k.get("geschlossen"):
         stoss = 360.0 - sum(betas)
         if not 0 < stoss < 180:
             raise ValueError(f"Knickrahmen: Die Knickwinkel ({'+'.join(f'{x:g}' for x in betas)}°) schließen keinen "
                              "Rahmen (Summe muss zwischen 180° und 360° liegen).")
         enden = dict(winkel=round(stoss / 2, 2), richtung=STEG_RICHTUNG.get(steg, 180))
+        rand = h * math.tan(math.radians(stoss / 2))
+    if knicke[0]["x"] - knicke[0]["w"] / 2 < rand - 1e-6:
+        raise ValueError("Knickrahmen: Schenkel 1 ist kürzer als der V-Ausschnitt an seinem Ende.")
+    if knicke[-1]["x"] + knicke[-1]["w"] / 2 > laenge - rand + 1e-6:
+        raise ValueError(f"Knickrahmen: Schenkel {n + 1} ist kürzer als der V-Ausschnitt an seinem Ende.")
     return dict(laenge=laenge, v=vs[0] if len(set(round(x, 6) for x in vs)) == 1 else None, vs=vs, knicke=knicke,
                 enden=enden, stoss=stoss, schenkel=schenkel, b=b, h=h, s=s, steg=steg, z=zug, k=kf, freistich=fs)
 
@@ -170,14 +176,19 @@ def konturen(r, k=None):
 
 def anwenden(eingaben, k, profil):
     """Eingaben des Rechners mit Knickrahmen k: V-Ausschnitte aus dem Rahmen (vorhandene V-Ausschnitte fallen weg),
-    beim geschlossenen Rahmen die Gehrung beider Enden; ohne k (None) bleibt alles bis auf den Block. Ergebnis
-    (neue Eingaben, rahmen oder None)."""
+    beim geschlossenen Rahmen die Gehrung beider Enden. Ohne k (None) fallen Block und V-Ausschnitte weg. War der
+    Rahmen vorher geschlossen und ist es nicht mehr, werden die Enden wieder gerade. Ergebnis (neue Eingaben,
+    rahmen oder None)."""
     from . import schneidweg as sw
+    alt = lesen(eingaben)
     neu = {x: y for x, y in eingaben.items() if x != "knickrahmen"}
+    neu["konturen"] = [z for z in eingaben.get("konturen") or () if z.get("art") != sw.V_AUSSCHNITT]
+    r = rahmen(k, profil) if k else None
+    if alt and alt.get("geschlossen") and not (r and r["enden"]):
+        neu["a"], neu["b"] = {}, {}         # Gehrung des Stoßes kam vom Rahmen
     if not k:
         return neu, None
-    r = rahmen(k, profil)
-    neu["konturen"] = [z for z in eingaben.get("konturen") or () if z.get("art") != sw.V_AUSSCHNITT] + konturen(r)
+    neu["konturen"] += konturen(r)
     if r["enden"]:
         richtung = r["enden"]["richtung"]
         for seite in ("a", "b"):
@@ -185,6 +196,17 @@ def anwenden(eingaben, k, profil):
                               richtung=richtung)
     neu["knickrahmen"] = dict(k, schenkel=r["schenkel"], steg=r["steg"], herkunft=k.get("herkunft") or HERKUNFT_HAND)
     return neu, r
+
+
+def passt(eingaben, r):
+    """Stimmen die V-Ausschnitte der Eingaben noch mit dem Rahmen r überein (Zahl, Lage, Knickwinkel, Stegwand,
+    Freistich)? False, wenn sie von Hand geändert wurden."""
+    ist = sorted(((round(_z(z.get("x")), 1), round(_z(z.get("beta")), 2), z.get("seite") or "oben",
+                   round(_z(z.get("freistich")), 2)) for z in (eingaben or {}).get("konturen") or ()
+                  for _ in range(int(_z(z.get("anzahl")) or 0)) if z.get("art") == "V-Ausschnitt"))
+    soll = sorted(((round(_z(z["x"]), 1), round(_z(z["beta"]), 2), z.get("seite") or "oben",
+                    round(_z(z.get("freistich")), 2)) for z in konturen(r)))
+    return ist == soll
 
 
 def anzahl(eingaben):
