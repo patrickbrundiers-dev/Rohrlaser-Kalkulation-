@@ -21,6 +21,8 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.88", "Fehler behoben: Die Werkstatt-PDF mit Stangenbild brach bei der Strichpunkt-Linie ab.",
+     "Werkstatt-PDF mit Stangenbild wieder fehlerfrei."],
     ["0.9.87", "<b>Updates nur noch signiert</b>: Das Programm spielt nur noch Updates ein, deren Dateiliste mit dem "
                "Schlüssel des Herstellers digital signiert ist. Eine veränderte oder fremde Dateiliste lehnt es ab "
                "und bleibt auf der bisherigen Version ([[updates]]).",
