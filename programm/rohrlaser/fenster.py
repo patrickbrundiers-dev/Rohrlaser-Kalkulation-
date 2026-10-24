@@ -252,10 +252,10 @@ class StammdatenSeite(QWidget):
                                 "Richtwerte ersetzen")
             standard.clicked.connect(self.schneiddaten_zuruecksetzen)
             leiste.addWidget(standard)
-        if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
+        if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
-            richt.setToolTip("Fehlende Schweißverfahren, Kennwerte und Faktoren als Richtwerte eintragen; vorhandene "
-                             "Zeilen bleiben unverändert")
+            richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
+                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert")
             richt.clicked.connect(lambda: self.schweiss_richtwerte())
             leiste.addWidget(richt)
         if tabelle.name == "schweiss_kennwerte":
@@ -441,7 +441,8 @@ class StammdatenSeite(QWidget):
             return 0
         if bestaetigt is None:
             text = (f"{len(fehlt['schweissverfahren'])} Schweißverfahren, {len(fehlt['schweiss_kennwerte'])} "
-                    f"Kennwerte und {len(fehlt['schweiss_faktoren'])} Faktoren fehlen und werden als Richtwerte "
+                    f"Kennwerte, {len(fehlt['schweiss_faktoren'])} Faktoren und {len(fehlt['schweiss_regeln'])} "
+                    "Regeln der Vorkalkulation fehlen und werden als Richtwerte "
                     "eingetragen (Status Richtwert). Vorhandene Zeilen bleiben unverändert.\n\nRichtwerte sind aus "
                     "dem Nahtquerschnitt hergeleitet, keine Erfahrungswerte der eigenen Fertigung: bitte prüfen und "
                     "danach auf 'geprüft' stellen.\n\nJetzt eintragen?")
@@ -449,7 +450,7 @@ class StammdatenSeite(QWidget):
                                               QMessageBox.Yes) == QMessageBox.Yes
         if not bestaetigt:
             return 0
-        for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):    # Verfahren zuerst (Verweis)
+        for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):  # Verfahren zuerst
             for z in fehlt[name]:
                 self.db.neu(name, z)
         f = self.window()

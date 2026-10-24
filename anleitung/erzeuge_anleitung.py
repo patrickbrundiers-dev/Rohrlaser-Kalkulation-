@@ -2962,6 +2962,47 @@ def kapitel_baugruppen(i):
     i.text("Aus einer STEP-Baugruppe: im Prüfdialog des STEP-Imports bei <b>Sätze</b> das Häkchen <b>als "
            "Schweißbaugruppe</b> setzen ([[step]]); Unterbaugruppen und Zuordnung der Teile kommen dann aus der "
            "Datei.")
+    i.abschnitt("Vorkalkulation: Rüsten, Positionieren, Heften, Verputzen", marke="vorkalkulation_baugruppe")
+    i.text("<b>Vorkalkulation rechnen</b> unten im Editor füllt, was sich aus Struktur und Teilen ableiten lässt: "
+           "Heftpunkte und Nacharbeit je Nahtgruppe, die Positionierhilfe je Einzelteil und die Arbeitsgänge "
+           "<i>Rüsten Schweißplatz</i>, <i>Teile positionieren</i>, <i>Wenden / Umspannen</i> und <i>Verputzen</i>. "
+           "Gelbe Felder sind Vorschläge, der Tooltip zeigt Formel und Zahlen. <b>Vorschläge bestätigen</b> macht sie "
+           "weiß; einen Wert, den du änderst, lässt jede neue Vorkalkulation stehen.", kurz=True)
+    i.bild("baugruppe_vorkalk", "Reiter Arbeitsgänge nach Vorkalkulation rechnen (Regeln aus den Richtwerten)",
+           hoehe=60 * mm, legende=[
+               (1, "<b>Vorkalkulation rechnen</b>: Vorschläge aus Struktur, Teilen und den Regeln."),
+               (2, "Gelb = Vorschlag, im Tooltip die Rechnung (z. B. 15 + 1 × 3 Teilenummern = 18 min)."),
+               (3, "<b>Wendevorgänge je Baugruppe</b>: Zeit je Wenden × Faktor nach Gewicht (Reiter Stammdaten)."),
+               (4, "Ergebnis der Vorkalkulation und was fehlt (fehlende Regel, Wanddicke, Gewicht)."),
+               (5, "<b>Vorschläge bestätigen</b>: alle gelben Werte als geprüft übernehmen.")])
+    i.genauer()
+    i.tabelle(["Wert", "Rechnung (Werte aus Einstellungen → Schweiß-Vorkalkulation)"], [
+        ["Rüsten (einmalig)", "Grundrüstzeit + Zeit je Teilenummer × Einzelteil-Positionen, mit Arbeitsgang "
+                              "Vorrichtung + Rüsten Vorrichtung; Umlage je Auftrag"],
+        ["Positionieren", "je Unterbaugruppe das erste Teil als Basisteil, jedes weitere Stück × Zeit seiner "
+                          "Positionierhilfe; eingebaute Unterbaugruppen zählen als Teil <i>frei</i>"],
+        ["Positionierhilfe", "Steckverbindung (Teil einer Steckverbindung der Baugruppe), Vorrichtung (Arbeitsgang "
+                             "Vorrichtung an seiner Unterbaugruppe), Gravur (Zukaufteil, dessen Lage auf dem Rohr "
+                             "graviert ist: Anbauteil mit Umriss oder Marke), sonst frei"],
+        ["Heftpunkte je Naht", "größer von Mindestzahl (gerade, rundum, gesteckt) und Nahtlänge ÷ Heftabstand; "
+                               "Heftabstand nach der kleineren <b>Wanddicke</b>, gesteckt × Faktor"],
+        ["Verputzen", "Naht [m] × min je m der <b>Nacharbeit</b> × Faktor Zugänglichkeit; Nacharbeit aus Qualität "
+                      "(erhöht = verschleifen, Sichtnaht = bündig planschleifen) bzw. Oberfläche (beschichtet, "
+                      "verzinkt = Spritzer entfernen)"],
+        ["Wenden", "Wendevorgänge × Zeit je Wenden × Faktor nach Gewicht der Baugruppe"]], [40, 225])
+    i.text("Im Reiter Nahtgruppen gehören dazu die Spalten <b>Wanddicke</b>, <b>gesteckt</b>, <b>rundum</b> und "
+           "<b>Nacharbeit</b>; in der Teileliste die Spalten <b>Positionierhilfe</b> (leer = Vorschlag, daneben "
+           "<i>Vorschlag</i> mit Grund) und Stück je Baugruppe. Fehlt eine Regel oder ein Wert, gibt es keinen "
+           "Vorschlag, sondern einen Hinweis unter der Summe: das Programm erfindet nichts. Gerechnet wird wie immer "
+           "über Nahtgruppen und Arbeitsgänge; die vorgeschlagenen Arbeitsgänge laufen mit dem Stundensatz aus den "
+           "Einstellungen <i>Schweißbaugruppen: Stundensatz für Rüsten, Positionieren und Wenden</i> bzw. "
+           "<i>Schweißbaugruppen: Stundensatz für Verputzen und Schleifen</i>.")
+    i.text("Solange Vorschläge offen sind, zeigt der Status den HINWEIS <i>… Vorschläge der Vorkalkulation offen</i>; "
+           "Doppelklick führt zur ersten gelben Zeile. Drucken geht trotzdem; die Kalkulation (PDF) schreibt bei "
+           "diesen Zeilen <i>(Vorschlag)</i> in die Spalte Herkunft. Mit der Einstellung <i>Schweißbaugruppen: "
+           "Vorkalkulation beim STEP-Import (Vorschläge sofort rechnen)</i> auf <i>ja</i> rechnet das Programm "
+           "die Vorschläge gleich für jede Schweißbaugruppe aus dem STEP-Import ([[step]]); der Bericht nennt das "
+           "Ergebnis.")
     i.abschnitt("Im Angebot und in den Staffeln")
     i.text("Das Angebot zeigt <b>eine Zeile je Baugruppe</b>: <i>Schweißbaugruppe</i> mit Bezeichnung, darunter "
            "Zeichnung, Werkstoff und Oberfläche, Menge in Stück, Preis je Baugruppe. Die Einzelteile stehen nur "
@@ -4187,7 +4228,13 @@ def kapitel_stammdaten(i):
                                      "Bemerkung</i> sagt, woher der Wert stammt."],
         ["<b>Schweiß-Faktoren</b>", "Zuschläge auf die Lichtbogenzeit für Schweißlage (PA … PG), Zugänglichkeit und "
                                     "Qualitätsanforderung: je Art und <i>Ausprägung</i> ein <i>Faktor auf die "
-                                    "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"]], [45, 220])
+                                    "Lichtbogenzeit</i>; nicht eingetragen = Faktor 1"],
+        ["<b>Schweiß-Vorkalkulation</b>", "Regeln für <b>Vorkalkulation rechnen</b> im Baugruppen-Editor "
+                                          "([[vorkalkulation_baugruppe]]): je Art (Rüsten, Positionieren, Heften, "
+                                          "Heftabstand, Wenden, Nacharbeit) und Ausprägung ein Wert mit Einheit; "
+                                          "Heftabstand und Wenden in Stufen über <i>bis Wanddicke [mm] bzw. Gewicht "
+                                          "[kg]</i> (es gilt das kleinste <i>bis</i>, das passt, sonst die Zeile ohne "
+                                          "<i>bis</i>)"]], [45, 220])
     i.bild("stamm_schweiss_kennwerte", "Einstellungen, Schweiß-Kennwerte nach Richtwerte laden", hoehe=85 * mm,
            legende=[(1, "Unterreiter <b>Schweißverfahren</b>, <b>Schweiß-Kennwerte</b>, <b>Schweiß-Faktoren</b>."),
                     (2, "<b>Richtwerte laden</b> trägt fehlende Verfahren, Kennwerte und Faktoren als Richtwerte ein; "
