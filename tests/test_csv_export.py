@@ -88,7 +88,7 @@ assert s.optimieren()
 # ------------------------------------------------------------------ C1/C2 Kopf, Spalten, Positionen
 vorher = db_stand(db_pfad)
 pfad = s.csv_export()
-assert pfad and pfad.name == "Angebot_2613000461.zip" and pfad.parent == tmp / "Ablage", pfad
+assert pfad and pfad.name == "Angebot_2613000461.zip" and pfad.parent == tmp / "Ablage" / "2613000461 AP Glas GmbH", pfad   # Ordner je Angebot
 with zipfile.ZipFile(pfad) as z:
     assert sorted(z.namelist()) == ["Angebotskopf.csv", "Angebotspositionen.csv"], z.namelist()
     kopf = lesen(z.read("Angebotskopf.csv"))
@@ -162,7 +162,7 @@ pp = s.csv_positionen()
 assert pk.name == "2613000461 Angebotskopf.csv" and pp.name == "2613000461 Angebotspositionen.csv"
 assert lesen(pk.read_bytes()) == kopf and lesen(pp.read_bytes()) == pos
 assert db_stand(db_pfad) == vorher, "Export hat die Datenbank verändert"
-assert not list((tmp / "Ablage").glob(".export_*"))
+assert not list((tmp / "Ablage").rglob(".export_*"))
 ok("C6 ZIP mit beiden Dateien, einzelne CSV gleich, Datenbank unverändert, wieder einlesbar")
 
 # ------------------------------------------------------------------ C7 Formate, leeres Angebot, großes Angebot

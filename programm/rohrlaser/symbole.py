@@ -45,7 +45,7 @@ PFADE = {
 # bleiben ohne, sonst passt die Knopfleiste des Angebots nicht mehr in 1366 px (test_ansicht)
 KNOPF_SYMBOL = {
     "Neues Angebot": "neu", "Neue Position": "neu", "Öffnen": "oeffnen", "Kopieren": "kopieren", "Löschen": "loeschen",
-    "Ablage öffnen": "ordner", "Abgleichen": "abgleich", "STEP importieren …": "step", "Optimieren": "optimieren",
+    "Ablage öffnen": "ordner", "Ordner öffnen": "ordner", "Abgleichen": "abgleich", "STEP importieren …": "step", "Optimieren": "optimieren",
     "3D-Ansicht …": "ansicht3d",
     "Angebot (PDF)": "pdf", "Ausgaben": "ausgaben", "Werkstattpapiere (PDF)": "pdf", "Kalkulation (PDF)": "pdf",
     "Materialanfrage (E-Mail)": "mail", "Alle Angebote": "liste", "Datensicherung erstellen": "sichern",

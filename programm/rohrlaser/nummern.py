@@ -11,7 +11,7 @@ import os
 import re
 import socket
 
-from . import teilen
+from . import angebotsordner, teilen
 
 MUSTER = re.compile(r"^(\d{4})-(\d{5,})$")
 VORLAEUFIG = re.compile(r"^V-[A-Z0-9ÄÖÜ]*-(\d+)$")
@@ -117,5 +117,8 @@ def endgueltig(db, angebot_id=None):
         with db.con:
             db.con.execute("UPDATE angebote SET nummer=? WHERE id=?", (nr, i))
             db._einstellung_schreiben("letzte_angebotsnummer", nr)
+            # Ordner des Angebots in der Ablage wird beim nächsten Zugriff umbenannt (angebotsordner)
+            offen = db.einstellung(angebotsordner.UMNUMMERIERT) or []
+            db._einstellung_schreiben(angebotsordner.UMNUMMERIERT, offen + [[alt, nr]])
         out.append((alt, nr))
     return out
