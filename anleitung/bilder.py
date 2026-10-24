@@ -526,6 +526,11 @@ def main(ziel):
     d.resize(640, 420)
     foto.foto("knickverbindung", d, [(d.start, 1), (d.umkehren, 2), (d.schraeg, 3), (d.vorschau, 4)])
     d.reject()
+    # Knickrahmen aus einem Körper (K1-3): dieselben Schenkel, wie sie die Messung aus dem Körper schneidet
+    d = KnickverbindungDialog(s, mw_k, [0, 1, 2, 3], dict(z=0, freistich=0, k=0.5), koerper=True)
+    d.resize(640, 420)
+    foto.foto("knickrahmen_koerper", d, [(d.start, 1), (d.vorschau, 2)])
+    d.reject()
 
     # 7a2b) Schweißbaugruppe (nur Foto, Abbrechen: nichts gespeichert); Kennwerte aus den Richtwerten
     from rohrlaser import baugruppe

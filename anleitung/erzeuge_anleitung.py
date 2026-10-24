@@ -1533,7 +1533,8 @@ def kapitel_step(i):
     i.text("Ein <b>gebogenes Rundrohr</b> (Geraden und Bögen) erkennt der Import selbst. Er rechnet die gestreckte "
            "Länge, setzt die Bohrungen an die richtige Stelle am geraden Rohr und liefert die Biegedaten. Der "
            "Prüfstatus ist immer <i>prüfen</i>. Rahmen aus Einzelrohren mit Gehrung werden auf Wunsch ein Knickrahmen "
-           "([[knickverbindung]]).", kurz=True)
+           "([[knickverbindung]]), ein geknickter Rahmen als ein Körper wird es von selbst "
+           "([[knickrahmen_koerper]]).", kurz=True)
     i.bild("biegerohr_rechner", "Biegerohr im Schneidweg-Rechner: Abwicklung des gestreckten Rohrs mit den "
            "Biegezonen", hoehe=110 * mm, legende=[
                (1, "Gruppe <b>Biegungen</b>: je Biegung L (Gerade davor), R (Drehung der Biegeebene), A (Winkel) und "
@@ -2189,6 +2190,34 @@ def kapitel_optimieren(i):
             "Lage fehlt); er erinnert bei Rohren mit Gehrung daran, die STEP-Datei neu einzulesen.",
             "<b>Lösen</b>: Rechtsklick auf die Zeile → <b>Knickverbindung lösen</b>; die Rohre stehen wieder einzeln "
             "in der Liste.")
+    i.abschnitt("Knickrahmen aus einem Körper (STEP)", marke="knickrahmen_koerper")
+    i.text("Ist der geknickte Rahmen in der STEP-Datei <b>ein Körper</b> (Ecken ohne Spalt, Stegwand durchgehend), "
+           "erkennt ihn der Import selbst, ebenso ein gestreckt gezeichnetes Rohr mit V-Ausschnitten. Die Rohrliste zeigt eine Zeile <b>Knickrahmen (n Knicke) aus einem "
+           "Körper</b> mit der gestreckten Länge; übernommen wird sie wie eine Knickverbindung "
+           "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>.", kurz=True)
+    i.bild("knickrahmen_koerper", "Knickrahmen aus einem Körper bearbeiten (Rechtsklick auf die Zeile)",
+           hoehe=70 * mm,
+           legende=[(1, "<b>Erster Schenkel</b>: dort liegt beim geschlossenen Rahmen der Stoß (Vorgabe: der erste "
+                        "lange Schenkel)."),
+                    (2, "Schenkel, Stegwand, gestreckte Länge und Lage der Knicke.")])
+    i.genauer()
+    i.liste("<b>Erkennung</b>: Der Körper liegt in einer Ebene, seine Außenkontur hat lange gerade Seiten "
+            "(Schenkel), jeder Schenkel ist ein Quadrat- oder Rechteckrohr mit gleicher Wand, alle Ecken haben "
+            "denselben Winkel. Eine lange offene Seite heißt offener Rahmen (U-Form).",
+            "<b>Schenkel</b> = Außenmaß von Ecke zu Ecke. Der Import teilt den Körper an den Winkelhalbierenden der "
+            "Ecken in gerade Rohrstücke mit Gehrung und misst jedes Stück wie ein Einzelrohr. So stehen Bohrungen "
+            "und Ausschnitte an ihrer Stelle auf dem gestreckten Rohr.",
+            "<b>Bearbeiten</b>: Rechtsklick → <b>Knickrahmen bearbeiten …</b>: erster Schenkel (Stoß), "
+            "Laufrichtung, Freistich, Knickzugabe, K-Faktor und Innenwand schräg. Lösen gibt es hier nicht, der "
+            "Körper ist ja ein Teil.",
+            "<b>Gestreckt gezeichnet</b> (gerades Rohr mit V-Ausschnitten, Rahmen vor dem Knicken): Jeder Ausschnitt "
+            "durch drei Wände, der die vierte (Stegwand) stehen lässt und dessen Schnittlänge zur Formel passt, wird "
+            "ein Knick. Knickwinkel aus der Breite des V, Schenkel so, dass die Knicke an den gezeichneten Stellen "
+            "liegen; die gestreckte Länge bleibt wie gezeichnet. Bearbeiten danach im Schneidweg-Rechner "
+            "([[knickrahmen]]).",
+            "<b>Nicht erkannt</b> werden ein räumlicher Rahmen, unterschiedliche Eckwinkel oder Ecken mit Spalt; sie "
+            "bleiben ein normales Teil (meist <i>nicht messbar</i>).",
+            "Die 3D-Ansicht zeigt den Körper gefaltet, wie er in der Datei steht.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
