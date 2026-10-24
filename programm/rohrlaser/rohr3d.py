@@ -20,10 +20,10 @@ vorne/90°).
 import bisect
 import math
 
-from . import schnittflaeche as sf, skizze as sk, steckverbindung as stv
+from . import durchdringung as dd, schnittflaeche as sf, skizze as sk, steckverbindung as stv
 from .blech3d import _flaeche2, _ohrschnitt
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, GRAVUR, GRAVUREN, LANGLOCH, POLYGON, RECHTECK, SCHLITZ, SENKUNG,
-                         SONDERKONTUR, V_AUSSCHNITT, _z, mit_radius)
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON, RECHTECK,
+                         SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, V_AUSSCHNITT, _z, mit_radius)
 
 SCHRITT = 4.0           # Kanten des Querschnitts höchstens so lang [mm] (Ausklinkung, Sattel folgen der Kurve)
 TEILE_MAX = 24          # je Kante höchstens so viele Stücke
@@ -46,7 +46,7 @@ def _unterteilen(poly, teile=None):
 
 
 # ausgeschnittene Konturarten (Gravur, Flowdrill, Sonstige und künftige Gravurarten bleiben Linien)
-LOCH_ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, V_AUSSCHNITT)
+LOCH_ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, V_AUSSCHNITT, LOCHFELD, DURCHBRUCH)
 
 
 def _laengen(poly):
@@ -438,8 +438,37 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None):
         for i in sorted(gelb[art[1].lower()]):         # über der 3D-Grenze: gelb über der Schnittkante
             p0, p1 = aussen[i], aussen[(i + 1) % len(aussen)]
             linie("GB", [_xyz(z(*p0), *p0), _xyz(z(*p1), *p1)], (0, 1, 0), ende)
+    # Gegenrohr (Hilfskörper, pink): am Ende und je Durchbruch, als Linien (Plan 3D-Editor G2/G3)
+    for s_, es in (("a", ea), ("b", eb)):
+        g = dd.gegen_lesen(es)
+        if g and (qs.r or es.get("gegen")):
+            try:
+                for zug in dd.gegen_koerper(qs, g, L, s_):
+                    linie("HK", [_xyz(*p) for p in zug], (0, 1, 0), f"ende:{s_}")
+            except (ValueError, ZeroDivisionError):
+                pass
+    for d in sk.lagen(e.get("konturen") or [], L, qs):
+        if d["art"] == DURCHBRUCH and not d.get("kopie") and d["eingabe"].get("umriss"):
+            for zug in durchbruch_koerper(qs, d):
+                linie("HK", [_xyz(*p) for p in zug], (0, 1, 0), f"kontur:{d['zeile']}")
     # Konturen auf der Außenwand
     for d in sk.lagen(e.get("konturen") or [], L, qs):
+        ein = d["eingabe"]
+        if ein.get("art") == TEXT_GRAVUR and not ein.get("umriss"):     # Schrift: je Strich ein Linienzug
+            from . import gravur_text
+            for strich in gravur_text.gedreht(gravur_text.linien(ein.get("text"), _z(ein.get("hoehe"))),
+                                              ein.get("winkel")):
+                try:            # quer gespiegelt: von außen lesbar, Leserichtung von Ende A nach B
+                    pts, n_mitte = sk.platzieren(qs, d, [(x, -y) for x, y in strich])
+                except (ValueError, TypeError, ZeroDivisionError):
+                    continue
+                zug = []
+                for x, u, v in pts:
+                    r = math.hypot(u, v) or 1.0
+                    nu, nv = (u / r, v / r) if qs.r else n_mitte
+                    zug.append(_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND))
+                linie("G", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+            continue
         try:
             pts, n_mitte = sk.platzieren(qs, d)
             ns = sk.normalen(qs, d)
@@ -448,7 +477,6 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None):
         if len(pts) < 2:
             continue
         zug = [_xyz(x, u + nu * ABSTAND, v + nv * ABSTAND) for (x, u, v), (nu, nv) in zip(pts, ns + ns[-1:] * len(pts))]
-        ein = d["eingabe"]
         if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
@@ -505,3 +533,31 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None):
     if stuecke:
         out["nasen"] = stuecke
     return out
+
+
+def durchbruch_koerper(qs, d, n=40):
+    """Gegenrohr eines Durchbruchs als Linien [(x, u, v)]: zwei Umrissringe und Längslinien entlang seiner Achse
+    (durch den Kreuzungspunkt bei x, gekippt um den Winkel zur Wand in Richtung Ende B)."""
+    e = d["eingabe"]
+    gq = dd.querschnitt_gegen(dict(d=e.get("d"), t=e.get("t"), r=e.get("r_gegen")))
+    w = math.radians(_z(e.get("winkel")))
+    if qs.r:
+        phi = math.radians(sk.winkel_aus_text(e.get("seite")) or 0.0)
+        nu, nv = math.sin(phi), math.cos(phi)
+        versatz = _z(e.get("versatz"))
+    else:
+        f = qs.flaeche(e.get("seite")) or qs.flaechen[0]
+        nu, nv = f.n
+        versatz = _z(e.get("q"))
+    tu, tv = nv, -nu                    # quer auf der Fläche
+    ou, ov = tu * versatz, tv * versatz
+    halb = 0.75 * max(qs.B, qs.H, 2 * (qs.r or 0)) + max(gq.quer, gq.tief)
+    ringe = []
+    for s in (-halb, halb):
+        ring = []
+        for gx, gy in gq.umriss(n):     # gx = tief (längs zum Rohr), gy = quer
+            x = d["x"] + s * math.sin(w) + gx * math.cos(w)
+            m = s * math.cos(w) - gx * math.sin(w)
+            ring.append((x, ou + m * nu + gy * tu, ov + m * nv + gy * tv))
+        ringe.append(ring + ring[:1])
+    return ringe + [[ringe[0][i], ringe[1][i]] for i in range(0, n, max(1, n // 8))]

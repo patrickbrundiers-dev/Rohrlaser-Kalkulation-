@@ -288,9 +288,11 @@ sil_v = sk.silhouette(qs, e45, {}, 800, "vorne")
 assert nah(sil_v[0][1], 40) and nah(sil_v[-1][1], 0) and nah(sil_v[0][4], 800)        # schräg in der Seitenansicht
 sil_o = sk.silhouette(qs, e45, {}, 800, "oben")
 assert all(nah(z[1], 0) and nah(z[2], 0) and nah(z[3], 40) for z in sil_o)        # oben gerade, unten verdeckt bei 40
-# Ausklinkung Rundrohr: Sattel R − √(R² − v²)
+# Ausklinkung Rundrohr (Gegenrohr quer): oben/unten am längsten (die „Hörner“ greifen um das Gegenrohr), an den Seiten
+# R − √(R² − r²) dahinter (seit 3E-7 über durchdringung, vorher spiegelverkehrt gezeichnet)
 qr_ = sk.Querschnitt(RR)
-assert nah(sk.schnitt_x(qr_, dict(sattel=60.3), 0, 21.2), 30.15 - math.sqrt(30.15 ** 2 - 21.2 ** 2), 0.01)
+assert nah(sk.schnitt_x(qr_, dict(sattel=60.3), 0, 21.2), 0, 0.01)
+assert nah(sk.schnitt_x(qr_, dict(sattel=60.3), 21.2, 0), 30.15 - math.sqrt(30.15 ** 2 - 21.2 ** 2), 0.01)
 # Lage auf dem Teil und zurück (Abwicklung)
 for seite, q in (("oben", 0), ("vorne", 12.5), ("hinten", -20)):
     assert sk.s_zu_seite(qs, sk.s_lage(qs, dict(seite=seite, q=q))) == (seite, q)

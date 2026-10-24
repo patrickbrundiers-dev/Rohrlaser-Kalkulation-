@@ -13,9 +13,9 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 """
 import math
 
-from . import normprofile, optimierung as opt, rp_profile
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, OHNE_HUELLE, POLYGON, RECHTECK, SCHLITZ,
-                         SENKUNG, SONDERKONTUR, TEXT_GRAVUR, _z, kontur, punkte)
+from . import durchdringung as dd, normprofile, optimierung as opt, rp_profile
+from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, OHNE_HUELLE, POLYGON,
+                         RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, _z, kontur, punkte)
 
 DREH_OHNE = (BOHRUNG, SENKUNG, FLOWDRILL, GRAVUR)     # rund bzw. Kreuz: Drehwinkel ohne Wirkung
 RUND_SEITEN = {"oben (0°)": 0.0, "vorne (90°)": 90.0, "unten (180°)": 180.0, "hinten (270°)": 270.0}
@@ -298,12 +298,14 @@ def winkel_text(w):
 # ---------------------------------------------------------------------- Enden
 def schnitt_x(qs, e, u, v):
     """Wie weit die Schnittkante eines Endes an der Stelle (u, v) des Querschnitts hinter der äußersten Spitze liegt
-    [mm, ≥ 0]. e = Eingabe des Endes {winkel, achse, richtung, sattel}."""
+    [mm, ≥ 0]. e = Eingabe des Endes {winkel, achse, richtung, sattel | gegen} (Gegenrohr: durchdringung)."""
     e = e or {}
-    sat = _z(e.get("sattel"))
-    if sat and qs.r:                # Ausklinkung: Gegenrohr quer (Achse u), Sattel in der Seitenansicht sichtbar
-        R = max(sat / 2, qs.r)
-        return R - math.sqrt(max(R * R - v * v, 0.0))
+    g = dd.gegen_lesen(e)
+    if g and (qs.r or e.get("gegen")):      # Gegenrohr (auch die alte Ausklinkung auf Rundrohr)
+        try:
+            return dd.schnitt_x(qs, g, u, v)
+        except (ValueError, ZeroDivisionError):
+            return 0.0
     w = abs(_z(e.get("winkel")))
     if not w or w >= 80:
         return 0.0
@@ -465,15 +467,19 @@ def umriss_kontur(e, n=36):
         nl, nq = (neigung_3d(e) if art == BOHRUNG else None) or (0, 0)
         fx, fq = 1 / math.cos(math.radians(nl)), 1 / math.cos(math.radians(nq))
         pts = [(fx * r * math.cos(2 * math.pi * i / n), fq * r * math.sin(2 * math.pi * i / n)) for i in range(n)]
-    elif art == LANGLOCH:
-        l_, b_ = _z(e.get("l")), _z(e.get("b"))
+    elif art == LOCHFELD and _z(e.get("lang")) <= _z(e.get("d")):     # ein Loch des Felds (lagen: _dx/_dq)
+        r = _z(e.get("d")) / 2
+        pts = [(r * math.cos(2 * math.pi * i / n), r * math.sin(2 * math.pi * i / n)) for i in range(n)]
+    elif art in (LANGLOCH, LOCHFELD):
+        l_, b_ = _z(e.get("l" if art == LANGLOCH else "lang")), _z(e.get("b" if art == LANGLOCH else "d"))
         r, m = b_ / 2, (l_ - b_) / 2
         pts = [(m + r * math.cos(a), r * math.sin(a)) for a in _bogen(-90, 90, n // 2)]
         pts += [(-m + r * math.cos(a), r * math.sin(a)) for a in _bogen(90, 270, n // 2)]
     elif art in (RECHTECK, SCHLITZ, AUSKLINKUNG):
         b_, h_ = (_z(e.get("b")), _z(e.get("h"))) if art == RECHTECK else (_z(e.get("l")), _z(e.get("b")))
         r = _z(e.get("r")) if art in (RECHTECK, AUSKLINKUNG) else 0.0
-        pts = _rechteck(b_, h_, r)
+        f = _z(e.get("fase")) if art in (RECHTECK, AUSKLINKUNG) else 0.0
+        pts = _rechteck_fase(b_, h_, f) if f else _rechteck(b_, h_, r)
     elif art == POLYGON:
         pk = punkte(e.get("punkte"))
         cx = (max(x for x, _ in pk) + min(x for x, _ in pk)) / 2
@@ -484,6 +490,8 @@ def umriss_kontur(e, n=36):
         pts = [(r * math.cos(2 * math.pi * i / n), r * math.sin(2 * math.pi * i / n)) for i in range(n)]
     if e.get("quer"):
         pts = [(-q, x) for x, q in pts]
+    if e.get("_dx") or e.get("_dq"):    # Loch eines Lochfelds: Lage in der Reihe (dreht mit dem Feld)
+        pts = [(x + _z(e.get("_dx")), q + _z(e.get("_dq"))) for x, q in pts]
     w = _z(e.get("drehung"))
     if w and art not in DREH_OHNE:      # Drehwinkel der Kontur auf der Fläche (+ = gegen den Uhrzeiger von außen)
         c, s_ = math.cos(math.radians(w)), math.sin(math.radians(w))
@@ -519,6 +527,26 @@ def _rechteck(b, h, r, n=6):
     return pts
 
 
+def _rechteck_fase(b, h, f):
+    """Rechteck b × h um die Mitte mit gefasten Ecken (je Kante f von der Ecke)."""
+    f = min(f, b / 2, h / 2)
+    u, v = b / 2, h / 2
+    return [(-u + f, -v), (u - f, -v), (u, -v + f), (u, v - f), (u - f, v), (-u + f, v), (-u, v - f), (-u, -v + f)]
+
+
+def lochfeld(e):
+    """Löcher eines Lochfelds: [(dx längs ab der ersten Spalte, dq quer zur Feldmitte)] je Loch (Reihen quer mit
+    Teilung quer um die Mitte, jede 2. Reihe bei versetzt um die halbe Teilung längs verschoben)."""
+    n, reihen = int(_z(e.get("anzahl")) or 1), int(_z(e.get("reihen")) or 1)
+    ab, tq = _z(e.get("abstand")), _z(e.get("teilung_q"))
+    out = []
+    for r in range(reihen):
+        dq = (r - (reihen - 1) / 2) * tq
+        dx0 = ab / 2 if e.get("versetzt") and r % 2 else 0.0
+        out += [(dx0 + i * ab, dq) for i in range(n)]
+    return out
+
+
 def laenge_x(e):
     """Ausdehnung einer Kontur in x [mm] (für Schlitze am Ende)."""
     pts = umriss_kontur(e)
@@ -539,9 +567,19 @@ def lagen(konturen, L, qs=None):
         x0, ab = e.get("x"), _z(e.get("abstand"))
         if x0 is None and e.get("art") in (SCHLITZ, AUSKLINKUNG):
             x0 = laenge_x(e) / 2
+        elif x0 is None and e.get("art") == LOCHFELD:      # ohne Lage: Feld mittig auf dem Teil
+            x0 = (L - (int(_z(e.get("anzahl")) or 1) - 1) * ab) / 2
         kopien = umlauf(qs, e) if qs is not None and e.get("wand") else e.get("kopien") or ()
         for j, k in enumerate([None] + list(kopien)):
             ein = e if k is None else dict(e, kopien=None, **k)
+            if e.get("art") == LOCHFELD:        # jedes Loch einzeln, Lage x = erste Spalte
+                for i, (dx, dq) in enumerate(lochfeld(e)):
+                    d = dict(zeile=z, nr=j * n + i, art=LOCHFELD, x=x0, huelle=hk,
+                             eingabe=dict(ein, _dx=dx or None, _dq=dq or None))
+                    if k is not None:
+                        d["kopie"] = True
+                    liste.append(d)
+                continue
             for i in range(n):
                 x = None if x0 is None else (x0 + i * ab if ab else x0)
                 d = dict(zeile=z, nr=j * n + i, art=e.get("art"), x=x, huelle=hk, eingabe=ein)
@@ -555,10 +593,11 @@ def lagen(konturen, L, qs=None):
     return liste
 
 
-def platzieren(qs, d):
-    """3D-Linienzug [(x, u, v)] einer Kontur und ihre Normale (u, v) in der Mitte."""
+def platzieren(qs, d, pts=None):
+    """3D-Linienzug [(x, u, v)] einer Kontur und ihre Normale (u, v) in der Mitte. pts = eigener Linienzug (dx, dq)
+    um die Mitte der Kontur statt ihres Umrisses (z. B. ein Strich einer Text-Gravur)."""
     e = d["eingabe"]
-    pts = umriss_kontur(e) or [(0.0, 0.0)]
+    pts = pts or umriss_kontur(e) or [(0.0, 0.0)]
     if e.get("umriss") and not qs.r and qs.flaechen:      # über mehrere Flächen: entlang der Abwicklung
         out = [(d["x"] + dx, *_um_kante(qs, sk_s)) for dx, sk_s in
                ((dx, s_lage(qs, e, dq)) for dx, dq in pts)]

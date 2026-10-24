@@ -13,6 +13,7 @@ Baum und Prüfmeldungen werden 150 ms nach der letzten Eingabe neu aufgebaut (be
 Zwischenstand ist dann ein Schritt für Rückgängig.
 """
 import copy
+import json
 import math
 
 from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
@@ -37,7 +38,10 @@ VERZOEGERUNG = 150          # ms nach der letzten Eingabe: Baum, Prüfmeldungen,
 BAND_SYMBOL = {sw.BOHRUNG: "bohrung", sw.SENKUNG: "bohrung", sw.FLOWDRILL: "bohrung", sw.LANGLOCH: "langloch",
                sw.RECHTECK: "rechteck", sw.SCHLITZ: "ausklinkung", sw.AUSKLINKUNG: "ausklinkung",
                sw.POLYGON: "polygon", sw.SONDERKONTUR: "sonderkontur", sw.SONSTIGE: "sonderkontur",
-               sw.GRAVUR: "gravur", sw.V_AUSSCHNITT: "v_ausschnitt"}
+               sw.GRAVUR: "gravur", sw.V_AUSSCHNITT: "v_ausschnitt", sw.LOCHFELD: "lochfeld",
+               sw.DURCHBRUCH: "gegenrohr"}
+# Vorgaben beim Einfügen (3E-7): Lochfeld 5 × 2 Löcher Ø 8, Durchbruch halb so breit wie das Rohr
+EINFUEGEN = {sw.LOCHFELD: dict(anzahl=5, d=8, abstand=25, reihen=2, teilung_q=20)}
 
 
 class Merkmal:
@@ -76,6 +80,8 @@ def kontur_text(i, z):
 
 def ende_text(x):
     x = x or {}
+    if isinstance(x.get("gegen"), dict) and sw._z(x["gegen"].get("d")):
+        return f"auf Gegenrohr {sw.gegen_text(x['gegen'])}"
     if sw._z(x.get("sattel")):
         return f"Sattel auf Ø {_z(x['sattel'])}"
     if x.get("achse") == sw.ACHSE_ZWEI:
@@ -96,7 +102,7 @@ def merkmale_rohr(e, laenge=None, step_enden=None, step_zeilen=None, naht_text=N
     out = [Merkmal("teil", "Teil", f"Länge {_z(laenge)} mm" if laenge else "Länge –", MANUELL)]
     for s, titel in (("a", "Ende A"), ("b", "Ende B")):
         x = e.get(s) or {}
-        gerade = not sw._z(x.get("winkel")) and not sw._z(x.get("sattel"))
+        gerade = not sw._z(x.get("winkel")) and not sw._z(x.get("sattel")) and not x.get("gegen")
         out.append(Merkmal(f"ende:{s}", "Enden", f"{titel}: {ende_text(x)}", herkunft(step_enden.get(s), gerade)))
     from . import knickrahmen as kn
     knick = kn.lesen(e)
@@ -457,6 +463,18 @@ class EditorRahmen(QObject):
             k = g.knopf("Knickrahmen", "v_ausschnitt", lambda: d.knickrahmen(),
                         tipp=d.knick_knopf.toolTip())
             k.setEnabled(d.knick_knopf.isEnabled())
+            gm = QMenu(self.band)
+            gm.addAction("An Ende A …", lambda: d.gegenrohr("a"))
+            gm.addAction("An Ende B …", lambda: d.gegenrohr("b"))
+            gm.addAction("Durchbruch (Rohr durch die Wand)", lambda: self.kontur_einfuegen(sw.DURCHBRUCH))
+            k = g.knopf("Gegenrohr", "gegenrohr", lambda: d.gegenrohr(self._gewaehltes_ende() or "a"), menue=gm,
+                        tipp="Ende auf ein Gegenrohr setzen (rund oder rechteckig, schräg, mit Versatz) oder einen "
+                             "Durchbruch einfügen; das Gegenrohr erscheint im 3D pink")
+            k.setEnabled(d.gegen_knopf["a"].isEnabled())
+            g.knopf("Lochfeld", "lochfeld", lambda: self.kontur_einfuegen(sw.LOCHFELD),
+                    tipp="Raster aus Bohrungen (oder Langlöchern) als eine Zeile: Löcher längs, Reihen quer, versetzt")
+            g.knopf("Ecken", "fase", menue=self._ecken_menue(), gross=False,
+                    tipp="Ecken der gewählten Ausklinkung bzw. des Rechtecks runden oder fasen")
             g = kon.gruppe("Übernehmen")
             k = g.knopf("Aus Position", "kopieren", lambda: d._kopieren_waehlen(), gross=False,
                         tipp="Konturen einer anderen Position dieses Angebots anhängen")
@@ -741,11 +759,55 @@ class EditorRahmen(QObject):
             self.modus_setzen(BEIDES)
         a.ansicht(gier, nick)
 
+    def _gewaehltes_ende(self):
+        mid = self.gewaehlt or ""
+        return mid.split(":")[1] if mid.startswith("ende:") else None
+
+    def _ecken_menue(self):
+        m = QMenu(self.band)
+        m.addAction("Ecken runden …", lambda: self.ecken_fragen(self._gewaehlte_zeile(), "runden"))
+        m.addAction("Ecken fasen …", lambda: self.ecken_fragen(self._gewaehlte_zeile(), "fasen"))
+        m.addAction("Ecken scharf", lambda: self.ecken(self._gewaehlte_zeile(), "scharf"))
+        return m
+
+    def ecken(self, r, art, mass=0.0):
+        """Ecken der Konturzeile r (Rechteck, Ausklinkung): art 'runden' (Eckradius r), 'fasen' (Eigenschaft fase)
+        oder 'scharf'. Plan 3D-Editor G6."""
+        d = self.d
+        if r is None or not 0 <= r < d.tabelle.rowCount():
+            return False
+        combo = d.tabelle.cellWidget(r, 0)
+        if combo.currentText() not in sw.MIT_FASE:
+            return False
+        spalte = 2 + [k for k, _ in sw.MASSE[combo.currentText()]].index("r")
+        eig = dict(getattr(combo, "eig", None) or {})
+        eig.pop("fase", None)
+        if art == "fasen" and mass > 0:
+            eig["fase"] = round(mass, 3)
+        combo.eig = eig
+        d.tabelle.item(r, spalte).setText(rechnen.zahl(mass, 3) if art == "runden" and mass > 0 else "")
+        d.rechnen()
+        return True
+
+    def ecken_fragen(self, r, art):
+        from PySide6.QtWidgets import QInputDialog
+        d = self.d
+        if r is None or not 0 <= r < d.tabelle.rowCount() or d.tabelle.cellWidget(r, 0).currentText() not in sw.MIT_FASE:
+            QMessageBox.information(d, "Ecken", "Erst eine Ausklinkung oder ein Rechteck wählen.")
+            return
+        mass, ok = QInputDialog.getDouble(d, "Ecken " + art, "Eckradius [mm]" if art == "runden" else
+                                          "Fase je Kante [mm]", 3.0, 0.1, 500, 1)
+        if ok:
+            self.ecken(r, art, mass)
+
     def kontur_einfuegen(self, art):
         """Neue Konturzeile der Art anhängen und wählen."""
         d = self.d
         if self.art == "rohr":
-            d.zeile_neu(dict(art=art, anzahl=1))
+            z = dict(EINFUEGEN.get(art) or dict(anzahl=1), art=art)
+            if art == sw.DURCHBRUCH:
+                z["d"] = round(min(d.qs.B, d.qs.H) / 2, 1)
+            d.zeile_neu(z)
         else:
             d.kontur_neu(dict(art=art, anzahl=1))
         r = d.tabelle.rowCount() - 1
@@ -1305,7 +1367,9 @@ class EditorRahmen(QObject):
         art, _, nr = mid.partition(":")
         if self.art == "rohr":
             if art == "ende" and nr in d._ende_step:
-                w, achse, sattel, richtung, wb = d._ende_step[nr][0]
+                w, achse, sattel, richtung, wb, gegen = d._ende_step[nr][0]
+                d.gegen[nr] = json.loads(gegen)
+                d._gegen_text(nr)
                 d.achse[nr].setCurrentText(achse)
                 d.winkel[nr].setValue(w)
                 d.winkel_b[nr].setValue(wb)

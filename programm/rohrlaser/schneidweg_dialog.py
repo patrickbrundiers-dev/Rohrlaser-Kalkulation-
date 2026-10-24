@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QComplet
                                QTabWidget, QVBoxLayout, QWidget)
 
 from . import stil
-from . import biegerohr, dfm, dreid, hilfe, knickrahmen, naht, profil_neu, rechnen, schneidweg as sw, skizze as sk
+from . import (biegerohr, dfm, dreid, durchdringung as dd, hilfe, knickrahmen, naht, profil_neu, rechnen,
+               schneidweg as sw, skizze as sk)
 from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .skizze_widget import MODI, Skizze
@@ -69,7 +70,7 @@ LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitt
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE, GEWINDE_SPALTE = range(5, 14)
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
-EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n")
+EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -161,6 +162,7 @@ class SchneidwegDialog(QDialog):
         self.winkel, self.achse, self.sattel, self.richtung, self.gemessen_text = {}, {}, {}, {}, {}
         self.winkel_b = {}          # zweiachsiger Schrägschnitt: Winkel über Breite (Gehrungswinkel = über Höhe)
         self.ende_3d = {}
+        self.gegen, self.gegen_knopf = {}, {}      # Gegenrohr je Ende (durchdringung, Plan 3D-Editor G2)
         rund = form == "Rundrohr"
         for c, (titel, tipp) in enumerate((
                 ("Gehrungswinkel", "Abweichung vom rechtwinkligen Schnitt in Grad (gerade = 0°)"),
@@ -176,7 +178,9 @@ class SchneidwegDialog(QDialog):
                 ("3D", "Gehrung in 3D: Schnittfläche nicht senkrecht zur Rohroberfläche, der Kopf wird auf den "
                        "Gehrungswinkel geschwenkt (ebene Schnittfläche durch die Wand). Ohne Häkchen ist die Gehrung "
                        "2D (Strahl senkrecht zur Oberfläche). Nur mit „3D-Schnittbearbeitung aktivieren“ und einer "
-                       "Gehrung")),
+                       "Gehrung"),
+                ("Gegenrohr", "Ende auf ein Gegenrohr setzen: rund oder rechteckig, schräg, mit Versatz (Rund-, "
+                              "Quadrat- und Rechteckrohr); das Programm rechnet die Schnittkurve")),
                 start=1):
             kopf_ = QLabel(f"<span style='color:#595959'>{titel}</span>")
             kopf_.setToolTip(tipp)
@@ -244,6 +248,15 @@ class SchneidwegDialog(QDialog):
             d3.toggled.connect(self.rechnen)
             self.ende_3d[seite] = d3
             enden.addWidget(d3, r, 7)
+            self.gegen[seite] = e[seite].get("gegen") if isinstance(e[seite].get("gegen"), dict) else None
+            gk = QPushButton()
+            gk.setEnabled(form in dd.GESCHLOSSEN)
+            gk.clicked.connect(lambda _=False, s_=seite: self.gegenrohr(s_))
+            for f_ in (w, sa):          # Gehrung bzw. Ausklinkung von Hand: Gegenrohr dieses Endes fällt weg
+                f_.valueChanged.connect(lambda v, s_=seite: v and self.gegen.get(s_) and self.gegenrohr(s_, None))
+            self.gegen_knopf[seite] = gk
+            enden.addWidget(gk, r, 8)
+            self._gegen_text(seite)
         self._step_enden(e)
         self.gravur = QDoubleSpinBox()
         self.gravur.setRange(0, 100000)
@@ -618,6 +631,10 @@ class SchneidwegDialog(QDialog):
             if form != "Rundrohr":
                 self.sattel[s_].setValue(0)
             self.richtung[s_].setEnabled(form in sw.MIT_RICHTUNG)
+            self.gegen_knopf[s_].setEnabled(form in dd.GESCHLOSSEN)
+            if form not in dd.GESCHLOSSEN and self.gegen.get(s_):
+                self.gegen[s_] = None
+                self._gegen_text(s_)
         self.naht_form = naht.form_von(self.profil)
         alt = self.naht_winkel
         neu_ = self._naht_winkel_bauen(self.naht_werte_roh())
@@ -889,9 +906,34 @@ class SchneidwegDialog(QDialog):
     def _mass_texte(self, r):
         return tuple(self.tabelle.item(r, 2 + i).text() for i in range(3))
 
+    def _gegen_text(self, s):
+        g = self.gegen.get(s)
+        k = self.gegen_knopf[s]
+        k.setText(f"auf {sw.gegen_text(g)} …" if g else "Gegenrohr …")
+        k.setToolTip("Gegenrohr ändern oder entfernen" if g else
+                     "Ende auf ein Gegenrohr setzen (rund oder rechteckig, schräg, mit Versatz)")
+
+    def gegenrohr(self, s, g=False):
+        """Gegenrohr an Ende s setzen: g = dict bzw. None (entfernen); ohne g fragt der Dialog. Ein Gegenrohr ersetzt
+        Gehrung und Ausklinkung dieses Endes."""
+        if g is False:
+            from .gegenrohr_dialog import fragen
+            geaendert, g = fragen(self.profil, self.gegen.get(s), "Ende A" if s == "a" else "Ende B", self)
+            if not geaendert:
+                return
+        self.gegen[s] = g or None
+        if g:
+            for f in (self.winkel[s], self.winkel_b[s], self.sattel[s]):
+                f.blockSignals(True)
+                f.setValue(0)
+                f.blockSignals(False)
+        self._gegen_text(s)
+        self.rechnen()
+
     def _ende_werte(self, s):
         return (self.winkel[s].value(), self.achse[s].currentText(), self.sattel[s].value(),
-                self.richtung[s].currentText(), self.winkel_b[s].value())
+                self.richtung[s].currentText(), self.winkel_b[s].value(),
+                json.dumps(self.gegen.get(s), sort_keys=True))
 
     def _art_geaendert(self, combo):
         for r in range(self.tabelle.rowCount()):
@@ -998,6 +1040,8 @@ class SchneidwegDialog(QDialog):
             if self._ende_werte(s) == werte:
                 enden[s].update(gemessen)
         for s in ("a", "b"):
+            if self.gegen.get(s):
+                enden[s]["gegen"] = dict(self.gegen[s])
             if self.ende_3d[s].isChecked():
                 enden[s]["d3"] = True
             if s in getattr(self, "_nasen", {}):
@@ -1105,6 +1149,9 @@ class SchneidwegDialog(QDialog):
                 self.sattel[s].setValue(sw._z(x.get("sattel")) if self.sattel[s].isEnabled() else 0)
                 self.richtung[s].setCurrentText(next((t for t, v in sw.RICHTUNGEN.items()
                                                       if v == x.get("richtung")), sw.AUTOMATISCH))
+                self.gegen[s] = x.get("gegen") if isinstance(x.get("gegen"), dict) and \
+                    self.gegen_knopf[s].isEnabled() else None
+                self._gegen_text(s)
             self.gravur.setValue(sw._z(e.get("gravur")))
             r = e.get("r_aussen")       # Rückgängig: Wert des Rechners, sonst der Radius des Angebots
             self.r_aussen = float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) and r >= 0 else \
