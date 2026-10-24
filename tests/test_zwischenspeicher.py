@@ -75,7 +75,7 @@ try:
     s.neu_laden()
 finally:
     rechnen.eingabe_kennung = alt
-assert len(aufrufe) == 1, len(aufrufe)
+assert len(aufrufe) == 1, len(aufrufe)          # auch mit der Prüfung fürs automatische Optimieren
 assert s.stand_optimierung() == "aktuell"
 db.aendern("profile", zid, "endbeschnitt", 30.0)
 s.neu_laden()
