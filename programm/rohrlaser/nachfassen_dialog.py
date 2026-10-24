@@ -1,108 +1,46 @@
 """Nachfassen und Wiedervorlage (Plan A9), aufrufbar aus der Angebotsliste, der Startseite und dem Angebot.
 
-„Nachfassen …“ zeigt den E-Mail-Entwurf an den Kunden (Vorlage aus den Einstellungen, ohne Anhang: das Angebot
-selbst verschickt das Programm nicht, Arbeitsabläufe F2b). Wie bei der Materialanfrage sendet das Programm nie selbst: Outlook zeigt die
-E-Mail, sonst entsteht eine E-Mail-Datei. Danach steht „nachgefasst am“ im Versandverlauf, und das automatische
-Nachfassen zählt neu. „Nur vermerken“ trägt ein Nachfassen per Telefon o. Ä. ein.
+„Nachfassen vermerken …“ trägt ein Nachfassen (Telefon, E-Mail, persönlich) in den Versandverlauf ein; das automatische
+Nachfassen zählt dann neu. Eine E-Mail bereitet das Programm nicht vor (Patrick 24.10.: nur vermerken).
 
 „Wiedervorlage …“ setzt ein freies Datum (oder keins); bis dahin ersetzt es das automatische Nachfassen."""
 import datetime
 
 from PySide6.QtCore import QDate
-from PySide6.QtWidgets import (QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
-                               QLabel, QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout)
+from PySide6.QtWidgets import QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QLabel
 
-from . import cockpit, nachfassen
-from . import materialanfrage as ma
+from . import cockpit
 
-WIE = ("Telefon", "E-Mail", "persönlich")      # Auswahl bei „Nur vermerken“
+WIE = ("Telefon", "E-Mail", "persönlich")
 
 
 class NachfassDialog(QDialog):
-    """Nach einer Aktion: self.ergebnis ('outlook', 'eml', 'vermerkt' oder None), self.wie (für den Vermerk),
-    self.meldung (Statuszeile). ausfuehren ersetzt den Outlook-Aufruf (Tests)."""
+    """Nachfassen vermerken: wie (Telefon, E-Mail, persönlich). Nach OK: self.ergebnis = 'vermerkt', self.wie,
+    self.meldung (Statuszeile)."""
 
-    def __init__(self, parent, kopf, kunde, einst, gueltig_bis, eml_ziel, oeffnen, ausfuehren=None):
+    def __init__(self, parent, kopf):
         super().__init__(parent)
-        self.einst, self.eml_ziel = einst, eml_ziel
-        self.oeffnen, self.ausfuehren = oeffnen, ausfuehren
         self.ergebnis, self.wie, self.meldung = None, None, ""
-        self.setWindowTitle(f"Nachfassen – Angebot {kopf.get('nummer') or ''}".strip())
-        self.resize(640, 520)
-        lay = QVBoxLayout(self)
+        self.setWindowTitle(f"Nachfassen vermerken – Angebot {kopf.get('nummer') or ''}".strip())
+        form = QFormLayout(self)
         versandt, nachgefasst, _ = cockpit.verlauf(kopf)
         info = [f"Kunde: {kopf.get('kunde') or '–'}"]
         if versandt:
             info.append(f"verschickt am {versandt.strftime('%d.%m.%Y')}")
         if nachgefasst:
             info.append(f"zuletzt nachgefasst am {nachgefasst.strftime('%d.%m.%Y')}")
-        k = QLabel(" · ".join(info))
+        k = QLabel(" · ".join(info) + "<br>Heute beim Kunden nachgefasst; die Tage bis zur nächsten Wiedervorlage "
+                   "zählen ab heute neu.")
         k.setWordWrap(True)
-        lay.addWidget(k)
-        form = QFormLayout()
-        self.an = QLineEdit(((kunde or {}).get("email") or "").strip())
-        self.an.setPlaceholderText("E-Mail-Adresse des Kunden (im Kundenstamm leer)")
-        form.addRow("An", self.an)
-        self.betreff = QLineEdit(nachfassen.betreff(kopf, kunde, einst, gueltig_bis))
-        form.addRow("Betreff", self.betreff)
-        lay.addLayout(form)
-        self.text = QPlainTextEdit(nachfassen.text(kopf, kunde, einst, gueltig_bis))
-        lay.addWidget(self.text, 1)
-        hinweis = QLabel("Das Programm sendet nicht: Outlook zeigt die E-Mail, gesendet wird dort. Danach steht "
-                         "„nachgefasst“ im Versandverlauf.")
-        hinweis.setWordWrap(True)
-        hinweis.setStyleSheet("color: #5F6B7A;")
-        lay.addWidget(hinweis)
-        knoepfe = QHBoxLayout()
-        self.outlook_knopf = QPushButton("In Outlook öffnen")
-        self.outlook_knopf.setObjectName("primaer")
-        self.outlook_knopf.clicked.connect(lambda: self.in_outlook())
-        self.eml_knopf = QPushButton("Als E-Mail-Datei speichern")
-        self.eml_knopf.clicked.connect(lambda: self.als_datei())
+        form.addRow(k)
         self.wie_auswahl = QComboBox()
         self.wie_auswahl.addItems(WIE)
-        self.vermerk_knopf = QPushButton("Nur vermerken")
-        self.vermerk_knopf.setToolTip("Ohne E-Mail nachgefasst (z. B. angerufen): nur im Versandverlauf eintragen")
-        self.vermerk_knopf.clicked.connect(lambda: self.vermerken())
-        zu = QPushButton("Abbrechen")
-        zu.clicked.connect(self.reject)
-        for b in (self.outlook_knopf, self.eml_knopf):
-            knoepfe.addWidget(b)
-        knoepfe.addStretch(1)
-        knoepfe.addWidget(self.wie_auswahl)
-        knoepfe.addWidget(self.vermerk_knopf)
-        knoepfe.addWidget(zu)
-        lay.addLayout(knoepfe)
-
-    def mail(self, signatur=False):
-        text = self.text.toPlainText()
-        return (self.an.text().strip(), self.betreff.text().strip(),
-                ma.mit_signatur(text, ma.signatur(self.einst)) if signatur else text)
-
-    def als_datei(self, oeffnen=True):
-        if self.eml_ziel is None:
-            return None
-        pfad = ma.eml(self.eml_ziel, *self.mail(signatur=True))
-        if oeffnen:
-            self.oeffnen(pfad)
-        self.ergebnis, self.wie = "eml", "E-Mail"
-        self.meldung = f"E-Mail-Datei gespeichert: {pfad} – im Mailprogramm prüfen und senden."
-        self.accept()
-        return pfad
-
-    def in_outlook(self):
-        aus_outlook = ma.outlook_signatur(self.einst)
-        ok, fehler = ma.outlook_oeffnen(*self.mail(signatur=not aus_outlook), ausfuehren=self.ausfuehren,
-                                        signatur_=aus_outlook)
-        if ok:
-            self.ergebnis, self.wie = "outlook", "E-Mail"
-            self.meldung = "Nachfassen: E-Mail in Outlook geöffnet – bitte dort prüfen und senden."
-            self.accept()
-            return True
-        pfad = self.als_datei()
-        self.meldung = (f"Outlook ließ sich nicht ansteuern ({fehler}). Ersatz: E-Mail-Datei {pfad} "
-                        "im Standard-Mailprogramm geöffnet.")
-        return False
+        form.addRow("Wie", self.wie_auswahl)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.button(QDialogButtonBox.Ok).setText("Vermerken")
+        knoepfe.accepted.connect(self.vermerken)
+        knoepfe.rejected.connect(self.reject)
+        form.addRow(knoepfe)
 
     def vermerken(self):
         self.ergebnis, self.wie = "vermerkt", self.wie_auswahl.currentText()
@@ -156,22 +94,13 @@ def _angebot(f, angebot_id, was):
     return a
 
 
-def nachfassen_dialog(f, angebot_id, parent=None, dialog=None, ausfuehren=None):
-    """Dialog Nachfassen für das Angebot; f = Hauptfenster. dialog(d) bedient den Dialog statt exec (Tests).
+def nachfassen_dialog(f, angebot_id, parent=None, dialog=None):
+    """Dialog Nachfassen vermerken; f = Hauptfenster. dialog(d) bedient den Dialog statt exec (Tests).
     Ergebnis: der Dialog oder None."""
-    from . import ausgabe
     a = _angebot(f, angebot_id, "Nachfassen")
     if a is None:
         return None
-    kunde = f.db.kunde(a["kundennr"]) if a.get("kundennr") else None
-    from .angebot_fenster import gueltig_bis
-    try:
-        ablage = f.ablage()
-    except OSError:
-        ablage = None
-    ziel = ablage / (ausgabe.dateiname(a, "Nachfassen") + ".eml") if ablage else None
-    d = NachfassDialog(parent or f, a, kunde, f.db.einstellungen(), gueltig_bis(a, f.db.einstellung("gueltigkeit")),
-                       ziel, f.datei_oeffnen, ausfuehren)
+    d = NachfassDialog(parent or f, a)
     (dialog(d) if dialog else d.exec())
     if d.ergebnis:
         f.db.nachgefasst_merken(angebot_id, d.wie)

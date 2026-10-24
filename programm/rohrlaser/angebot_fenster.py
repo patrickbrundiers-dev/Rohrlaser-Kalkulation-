@@ -308,13 +308,13 @@ class AngeboteSeite(QWidget):
         self.abgleich_knopf.clicked.connect(lambda: self.f.abgleichen())
         self.vorgang_knopf = QPushButton("Vorgang ▾")
         self.vorgang_knopf.setToolTip("Vorgang des gewählten Angebots setzen: Entwurf, Verschickt (setzt das "
-                                      "Angebots-PDF selbst), Beauftragt, Abgelehnt; Nachfassen (E-Mail an den "
-                                      "Kunden) und Wiedervorlage")
+                                      "Angebots-PDF selbst), Beauftragt, Abgelehnt; Nachfassen vermerken "
+                                      "und Wiedervorlage")
         menue = QMenu(self.vorgang_knopf)
         for v in VORGAENGE:
             menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
         menue.addSeparator()            # Plan A9
-        menue.addAction("Nachfassen …", lambda: self.nachfassen())
+        menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen())
         menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
@@ -412,11 +412,11 @@ class AngeboteSeite(QWidget):
         self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}.")
         return True
 
-    def nachfassen(self, angebot_id=None, dialog=None, ausfuehren=None):
-        """Nachfassen beim Kunden (Plan A9, nachfassen_dialog)."""
+    def nachfassen(self, angebot_id=None, dialog=None):
+        """Nachfassen beim Kunden vermerken (Plan A9, nachfassen_dialog)."""
         from .nachfassen_dialog import nachfassen_dialog
         i = angebot_id or self._gewaehlt()
-        return nachfassen_dialog(self.f, i, self, dialog, ausfuehren) if i else None
+        return nachfassen_dialog(self.f, i, self, dialog) if i else None
 
     def wiedervorlage_setzen(self, angebot_id=None, dialog=None):
         from .nachfassen_dialog import wiedervorlage_dialog
@@ -1493,7 +1493,7 @@ class AngebotSeite(QWidget):
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
-        menue.addAction("Nachfassen beim Kunden …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
+        menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id))     # Plan A9
         menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen, einzeln oder beide als ZIP
         csv = menue.addMenu("CSV-Export")

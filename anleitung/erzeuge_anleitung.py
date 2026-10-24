@@ -719,7 +719,7 @@ def kapitel_start(i):
             "<b>Wiedervorlage</b>: eigene Angebote zum Nachfassen, mit Grund: verschickt und seit einigen Tagen ohne "
             "Antwort, Gültigkeit ([[vorgaben]], <i>Gültigkeit</i>) endet in den nächsten 7 Tagen oder ist vorbei, "
             "oder eine Wiedervorlage von Hand ist erreicht; überfällige rot. Doppelklick bzw. <b>Öffnen</b> öffnet "
-            "das Angebot, <b>Nachfassen …</b> und <b>Wiedervorlage …</b> gelten für das markierte "
+            "das Angebot, <b>Nachfassen vermerken …</b> und <b>Wiedervorlage …</b> gelten für das markierte "
             "([[nachfassen]]).",
             "<b>Letzte 90 Tage</b> (nur mit Admin-Lizenz): Zahl und Summe der Angebote, Durchschnittswert, beauftragte "
             "Angebote mit Auftragswert und die Trefferquote (beauftragt geteilt durch beauftragt + abgelehnt).")
@@ -783,27 +783,19 @@ def kapitel_angebote(i):
     i.abschnitt("Nachfassen und Wiedervorlage", marke="nachfassen")
     i.text("Verschickte Angebote ohne Antwort kommen nach einigen Tagen (Einstellung <i>Nachfassen: Wiedervorlage "
            "nach Tagen</i>, Vorgabe 10) von selbst auf die Startseite unter <b>Wiedervorlage</b> und in den Filter "
-           "<i>Wiedervorlage fällig</i>. <b>Nachfassen …</b> bereitet die E-Mail an den Kunden vor; gesendet wird in "
-           "Outlook.", kurz=True)
-    i.liste("<b>Nachfassen …</b> (Angebotsliste <i>Vorgang ▾</i>, Startseite, im Angebot <i>Ausgaben → Nachfassen "
-            "beim Kunden …</i>): An (E-Mail des Kunden aus dem Kundenstamm), Betreff und Text aus den Vorlagen der "
-            "Einstellungen, alles änderbar. Ein Anhang kommt nicht dazu: das Angebot selbst verschickt man wie bisher "
-            "von Hand. "
-            "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b> wie bei der Materialanfrage "
-            "([[materialanfrage]]): das Programm sendet nie selbst.",
-            "<b>Nur vermerken</b>: schon nachgefasst, z. B. angerufen (Telefon, E-Mail, persönlich). Jedes "
-            "Nachfassen steht mit Datum im Versandverlauf (Mauszeiger auf <i>Preise festgeschrieben</i> in der "
-            "Übersicht), und die Tage zählen ab dann neu.",
+           "<i>Wiedervorlage fällig</i>. Nach dem Anruf oder der E-Mail an den Kunden <b>Nachfassen vermerken …</b>.",
+           kurz=True)
+    i.liste("<b>Nachfassen vermerken …</b> (Angebotsliste <i>Vorgang ▾</i>, Startseite, im Angebot <i>Ausgaben</i>): "
+            "heute nachgefasst, per Telefon, E-Mail oder persönlich. Das steht mit Datum im Versandverlauf "
+            "(Mauszeiger auf <i>Preise festgeschrieben</i> in der Übersicht), und die Tage zählen ab dann neu. "
+            "Die E-Mail selbst schreibt man wie bisher im Mailprogramm.",
             "<b>Wiedervorlage …</b>: ein eigenes Datum, auch für einen Entwurf (z. B. „Kunde meldet sich Mitte "
             "November“). Bis dahin ruht das automatische Nachfassen; am Tag steht das Angebot in der Wiedervorlage. "
             "<b>Keine Wiedervorlage</b> nimmt das Datum wieder weg.",
             "Mit Beauftragt oder Abgelehnt fällt ein Angebot aus der Wiedervorlage. Angebote der Kollegen erscheinen "
-            "dort nicht; nachfassen kann nur, wer das Angebot angelegt hat.")
+            "dort nicht; vermerken kann nur, wer das Angebot angelegt hat.")
     i.genauer()
-    i.text("Platzhalter der Vorlagen: {anrede} (<i>Guten Tag &lt;Ansprechpartner&gt;,</i> bzw. <i>Sehr geehrte Damen "
-           "und Herren,</i>), {ansprechpartner}, {kunde}, {angebot}, {angebot_datum}, {gueltig_bis}, {absender}. "
-           "Die Signatur kommt wie bei der Materialanfrage aus Outlook bzw. aus den Einstellungen. "
-           "<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
+    i.text("<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
            "Wiedervorlagen von Hand bleiben.")
     i.abschnitt("Neue Fassung", marke="neue_fassung")
     i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
@@ -3561,10 +3553,8 @@ def kapitel_einstellungen(i):
                             "(E-Mail-Datei; leer = Briefkopf)",
          "ja = Outlook setzt seine Standardsignatur, der Text kommt davor; die E-Mail-Datei bekommt die eigene "
          "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
-        ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus), Nachfassen: Betreff, "
-                       "Nachfassen: Text der E-Mail",
-         "Tage bis zur automatischen Wiedervorlage eines verschickten Angebots und die Vorlagen der E-Mail mit "
-         "Platzhaltern {anrede}, {kunde}, {angebot}, {angebot_datum}, {gueltig_bis}; leer = Vorgabe ([[nachfassen]])"],
+        ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",
+         "Tage bis zur automatischen Wiedervorlage eines verschickten Angebots ([[nachfassen]])"],
         ["Zugang", "Passwort für die Einstellungen", "Passwort für den Reiter Einstellungen und die Pflegebereiche der "
                                                     "Frachtkosten, zugleich Admin-Passwort beim Start; verschlüsselt gespeichert, Feld bleibt "
                                                     "leer; <b>Entfernen</b> = ohne Passwort"]],

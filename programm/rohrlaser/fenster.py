@@ -1028,7 +1028,7 @@ class StartSeite(QWidget):
         self.wv_knoepfe = QWidget()          # Plan A9: für das markierte Angebot
         wk = QHBoxLayout(self.wv_knoepfe)
         wk.setContentsMargins(0, 0, 0, 0)
-        for text, ziel in (("Öffnen", fenster.angebot_oeffnen), ("Nachfassen …", self.nachfassen),
+        for text, ziel in (("Öffnen", fenster.angebot_oeffnen), ("Nachfassen vermerken …", self.nachfassen),
                            ("Wiedervorlage …", self.wiedervorlage_setzen)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, ziel=ziel: self._wv_aktion(ziel))
