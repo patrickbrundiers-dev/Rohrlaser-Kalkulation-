@@ -153,13 +153,23 @@ UMSETZUNG = {
         "#9AA3AF": "#6B7685", "#EEF4FB": "#1F2F44", "#C9DAEE": "#34506F", "#E3F4E8": "#173523", "#1E6B34": "#7FD39A",
         "#B7DFC3": "#2F6B43", "#FFF6DB": "#3A3016", "#7A5A00": "#F0C75E", "#F0D98C": "#6B5A22", "#FDECEA": "#3D1D1B",
         "#8C1D18": "#F4A29B", "#F3B8B2": "#7A3530", "#B42318": "#F28B82", "#FFF4CE": "#3A3016", "#B35C00": "#F5A55B",
-        "#DDEBF7": "#1F3247", "#000000": "#F3F4F6", "#FFFCF0": "#2A2818", "#FFF9E0": "#2A2818", "#EDEDED": "#262C36",
+        "#DDEBF7": "#1F3247", "#000000": "#F3F4F6", "#FFFCF0": "#243041", "#EDEDED": "#1A1F27",
         "#F8CBAD": "#4A2620", "#FFD966": "#4D4016", "#FFF2CC": "#3D3418", "#595959": "#B8C0CC", "#404040": "#CDD3DC",
         "#202020": "#E6EAF0", "#333333": "#D5DAE1", "#6B4A00": "#F0C75E", "#B7791F": "#E9B44C", "#2E7D32": "#81C784",
         "#C00000": "#F28B82", "#FFF4D6": "#3A3016", "#E8F5E9": "#173523", "#B26A00": "#F5A55B", "#7F7F7F": "#9AA6B5",
-        "#FCE4D6": "#4A2B1E", "#E2EFDA": "#1E3320", "#FFEB9C": "#4D4016", "#F2F2F2": "#262C36", "#FFF9E5": "#2A2818",
+        "#FCE4D6": "#4A2B1E", "#E2EFDA": "#1E3320", "#FFEB9C": "#4D4016",
         "#BDD7EE": "#2D4A6B", "#FFF4CC": "#3D3418", "#E8EEF5": "#2A3240", "#ECEEF1": "#2A3038", "#6B7280": "#9AA3AF",
         "#E2F0D9": "#1E3320",
+        # Dunkelmodus verbessert (24.10.2026): Eingabezellen blaugrau statt olivbraun, berechnete Zellen dunkler
+        # (Unterschied bleibt sichtbar), dazu Flächen und Linien von Skizzen, 3D-Ansicht und STEP-Ablagefeld
+        "#FFF9E0": "#243041", "#FFF9E5": "#243041", "#F2F2F2": "#1A1F27", "#F4F7FB": "#1F2732", "#DCE9F8": "#1F3550",
+        "#8FA6C1": "#5A7090", "#1F5FAD": "#8BBBE8", "#3D5573": "#A9BBD0", "#F1F3F6": "#232A35", "#EAF1F8": "#2A3646",
+        "#E9EEF4": "#2A3240", "#DCE6F2": "#2D3A4C", "#DCE3EA": "#2A3340", "#F8D7DA": "#4A2422", "#C6EFCE": "#1E4A2C",
+        "#FFC7CE": "#4F2328", "#D0D7E2": "#3A4555", "#BFBFBF": "#4A5566", "#E8C66B": "#7A6326", "#7A5B00": "#F0C75E",
+        "#68727E": "#A3ADBA", "#B54708": "#F5A55B", "#2E6B30": "#81C784", "#1E7B34": "#7FD39A", "#1E6B35": "#7FD39A",
+        "#1F4E79": "#6CA6DE", "#1F3864": "#8FB3E8", "#5A6470": "#A3ADBA", "#C0392B": "#F28B82", "#7F6000": "#E0C060",
+        "#A0A0A0": "#7A8494", "#999999": "#7A8494", "#C62828": "#F28B82", "#1565C0": "#64A8F0", "#00838F": "#4DD0E1",
+        "#E8F0FA": "#22324A",
     },
     "Hoher Kontrast": {
         "#1F2937": "#000000", "#111827": "#000000", "#3A4656": "#111111", "#5F6B7A": "#2F3742", "#9AA3AF": "#5F6B7A",
@@ -192,17 +202,36 @@ def thema():
     return _thema
 
 
-def thema_aufloesen(name, windows_dunkel=None):
-    """„Wie Windows“ -> Dunkel oder Hell (Qt 6.5+: QStyleHints.colorScheme); Unbekanntes -> Hell."""
+def windows_dunkel():
+    """Ist das System auf dunkel gestellt? Unter Windows zuerst die Einstellung „Standard-App-Modus“ (Registry
+    AppsUseLightTheme), denn Qt meldet das Farbschema beim Start nicht immer (dann wurde bisher Hell gewählt, Windows
+    färbte Fenster aber dunkel: weiße Karten auf dunklem Grund, 24.10.2026). Sonst Qt (QStyleHints.colorScheme)."""
+    import sys
+    if sys.platform == "win32":
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as schluessel:
+                return winreg.QueryValueEx(schluessel, "AppsUseLightTheme")[0] == 0
+        except OSError:
+            pass
+    try:
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QGuiApplication
+        schema = QGuiApplication.styleHints().colorScheme()
+        if schema != Qt.ColorScheme.Unknown:
+            return schema == Qt.ColorScheme.Dark
+        return QGuiApplication.palette().window().color().lightness() < 128
+    except Exception:       # noqa: BLE001 – ältere Qt-Version oder ohne Anwendung
+        return False
+
+
+def thema_aufloesen(name, windows_dunkel_=None):
+    """„Wie Windows“ -> Dunkel oder Hell; Unbekanntes -> Hell."""
     if name == "Wie Windows":
-        if windows_dunkel is None:
-            try:
-                from PySide6.QtCore import Qt
-                from PySide6.QtGui import QGuiApplication
-                windows_dunkel = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
-            except Exception:       # noqa: BLE001 – ältere Qt-Version oder ohne Anwendung
-                windows_dunkel = False
-        return "Dunkel" if windows_dunkel else "Hell"
+        if windows_dunkel_ is None:
+            windows_dunkel_ = windows_dunkel()
+        return "Dunkel" if windows_dunkel_ else "Hell"
     return name if name in UMSETZUNG or name == "Hell" else "Hell"
 
 
@@ -218,10 +247,13 @@ def umsetzen(text, name=None):
     return _HEX.sub(lambda m: tabelle.get(m.group(0).upper(), m.group(0)), text)
 
 
-def farbe(hell):
-    """QColor einer Hell-Farbe im aktuellen Theme (für Farben, die beim Zeichnen entstehen)."""
+def farbe(hell, alpha=None):
+    """QColor einer Hell-Farbe im aktuellen Theme (für Farben, die beim Zeichnen entstehen); alpha 0 … 255."""
     from PySide6.QtGui import QColor
-    return QColor(umsetzen(hell))
+    c = QColor(umsetzen(hell))
+    if alpha is not None:
+        c.setAlpha(alpha)
+    return c
 
 
 def farbe_fest(hell):
@@ -260,12 +292,13 @@ KONTRAST_PAARE = [
 
 
 def palette(name):
-    """QPalette für Fenster, Eingabefelder und Standarddialoge (Fusion); None = Standard (Hell)."""
-    if name == "Hell":
-        return None
+    """QPalette für Fenster, Eingabefelder und Standarddialoge (Fusion). Auch Hell wird fest gesetzt: sonst übernimmt
+    Qt im Windows-Dunkelmodus die dunklen Systemfarben und mischt sie mit dem hellen Stylesheet."""
     from PySide6.QtGui import QColor, QPalette
     from PySide6.QtWidgets import QApplication
-    p = QPalette(QApplication.style().standardPalette())
+    p = QPalette(QApplication.style().standardPalette())      # Fusion: immer die helle Standardpalette
+    if name == "Hell":
+        return p
     u = lambda h: QColor(umsetzen(h, name))     # noqa: E731
     rollen = {QPalette.Window: FLAECHE, QPalette.WindowText: TEXT, QPalette.Base: "#FFFFFF",
               QPalette.AlternateBase: "#F5F8FB", QPalette.Text: TEXT, QPalette.Button: "#EEF1F5",
@@ -280,17 +313,35 @@ def palette(name):
 
 
 _gepatcht = False
+_HELL_TEXT, _HELL_STIL = "hell_text", "hell_stil"      # Eigenschaften: Text bzw. Stylesheet in Hell-Farben
 
 
 def _farben_in_texten():
-    """Andere Themes: Farben in setStyleSheet und Beschriftungstexten (HTML) des Programms umsetzen."""
+    """Farben in setStyleSheet und Beschriftungstexten (HTML) des Programms auf das Theme umsetzen. Die Hell-Fassung
+    bleibt am Widget stehen, damit ein Themewechsel im laufenden Programm (umfaerben) wieder von ihr ausgeht."""
     global _gepatcht
     if _gepatcht:
         return
     from PySide6.QtWidgets import QLabel, QWidget
     alt_stil, alt_text = QWidget.setStyleSheet, QLabel.setText
-    QWidget.setStyleSheet = lambda self, text: alt_stil(self, umsetzen(text))
-    QLabel.setText = lambda self, text: alt_text(self, umsetzen(text) if isinstance(text, str) else text)
+
+    def stil_setzen(self, text):
+        if text and "#" in text:
+            self.setProperty(_HELL_STIL, text)
+        elif self.property(_HELL_STIL) is not None:
+            self.setProperty(_HELL_STIL, None)
+        alt_stil(self, umsetzen(text))
+
+    def text_setzen(self, text):
+        if isinstance(text, str):
+            if "#" in text:
+                self.setProperty(_HELL_TEXT, text)
+            elif self.property(_HELL_TEXT) is not None:
+                self.setProperty(_HELL_TEXT, None)
+            text = umsetzen(text)
+        alt_text(self, text)
+    QWidget.setStyleSheet, QLabel.setText = stil_setzen, text_setzen
+    QWidget._stil_roh, QLabel._text_roh = alt_stil, alt_text
     _gepatcht = True
 
 
@@ -304,51 +355,124 @@ class _TexteBeimZeigen:
 
         class Filter(QObject):
             def eventFilter(self, obj, ereignis):
-                if ereignis.type() == QEvent.Polish and isinstance(obj, QLabel):
+                if ereignis.type() == QEvent.Polish and isinstance(obj, QLabel) and _thema != "Hell":
                     t = obj.text()
-                    if "#" in t:
+                    if "#" in t and obj.property(_HELL_TEXT) is None:
                         neu = umsetzen(t)
                         if neu != t:
-                            obj.setText(neu)
+                            obj.setText(t)          # merkt die Hell-Fassung und setzt um
                 return False
         return Filter()
 
 
+def _farbschema_setzen(name):
+    """Qt mitteilen, ob hell oder dunkel (Qt 6.8+): Titelleisten und Standarddialoge von Windows passen dann dazu."""
+    try:
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QGuiApplication
+        QGuiApplication.styleHints().setColorScheme(Qt.ColorScheme.Dark if name == "Dunkel" else Qt.ColorScheme.Light)
+    except Exception:       # noqa: BLE001 – ältere Qt-Version
+        pass
+
+
 def anwenden(app, name="Hell", schrift=100, dichte="normal"):
     """Theme, Schriftgröße [%] und Dichte für die ganze Anwendung (beim Start, vor dem Hauptfenster).
-    Ergebnis: wirksames Theme. Hell, 100 %, normal ändert nichts gegenüber bisher."""
-    global _thema
+    Ergebnis: wirksames Theme. Hell, 100 %, normal ändert am Aussehen nichts gegenüber bisher."""
+    global _thema, _filter
     _thema = thema_aufloesen(name)
     for c, hell in _FEST:
         c.setRgba(farbe(hell).rgba())
-    p = palette(_thema)
-    if p is not None:
-        app.setPalette(p)
-        _farben_in_texten()
-        global _filter
-        if _filter is None:
-            _filter = _TexteBeimZeigen()
-            app.installEventFilter(_filter)
+    _farbschema_setzen(_thema)
+    app.setPalette(palette(_thema))
+    _farben_in_texten()
+    if _filter is None:
+        _filter = _TexteBeimZeigen()
+        app.installEventFilter(_filter)
     try:
         prozent = max(90, min(150, int(schrift or 100)))
     except (TypeError, ValueError):
         prozent = 100
-    if prozent != 100:
-        f = app.font()
-        if f.pointSizeF() > 0:
-            f.setPointSizeF(f.pointSizeF() * prozent / 100)
-        else:
-            f.setPixelSize(round(f.pixelSize() * prozent / 100))
+    if _basis_schrift is None:
+        _schrift_merken(app)
+    f = app.font()
+    if _basis_schrift[0] > 0:
+        f.setPointSizeF(_basis_schrift[0] * prozent / 100)
+    elif _basis_schrift[1] > 0:
+        f.setPixelSize(round(_basis_schrift[1] * prozent / 100))
+    if prozent != 100 or f != app.font():
         app.setFont(f)
     global _dichte
     _dichte = dichte if dichte in DICHTEN else "normal"
     return _thema
 
 
+def _schrift_merken(app):
+    global _basis_schrift
+    _basis_schrift = (app.font().pointSizeF(), app.font().pixelSize())
+
+
+def umfaerben(app):
+    """Themewechsel im laufenden Programm (nach anwenden): Stylesheets und Beschriftungen aller Widgets aus ihrer
+    Hell-Fassung neu umsetzen und alles neu zeichnen."""
+    from PySide6.QtWidgets import QLabel, QWidget
+    for w in app.allWidgets():
+        roh = None if w.isWindow() else w.property(_HELL_STIL)    # Fenster: Stylesheet aus aktuell() setzt der Aufrufer
+        if roh is None and "#" in (w.styleSheet() or "") and not w.isWindow():
+            roh = w.styleSheet()            # vor dem ersten Umsetzen gesetzt: steht noch in Hell da
+        if roh:
+            w.setProperty(_HELL_STIL, roh)
+            QWidget._stil_roh(w, umsetzen(roh))
+        if isinstance(w, QLabel):
+            roh = w.property(_HELL_TEXT)
+            if roh is None and "#" in (w.text() or ""):
+                roh = w.text()
+            if roh:
+                w.setProperty(_HELL_TEXT, roh)
+                QLabel._text_roh(w, umsetzen(roh))
+        w.update()
+
+
+class druckfarben:
+    """with stil.druckfarben(): … – Bilder für PDF-Ausgaben (Zeichnung, Skizze) immer in Hell-Farben zeichnen, auch
+    wenn das Programm dunkel läuft."""
+
+    def __enter__(self):
+        global _thema
+        self.alt = _thema
+        if self.alt != "Hell":
+            _thema = "Hell"
+            for c, hell in _FEST:
+                c.setRgba(farbe(hell).rgba())
+        return self
+
+    def __exit__(self, *_):
+        global _thema
+        if self.alt != "Hell":
+            _thema = self.alt
+            for c, hell in _FEST:
+                c.setRgba(farbe(hell).rgba())
+        return False
+
+
 _dichte = "normal"
 _filter = None
+_basis_schrift = None
 
 
 def aktuell():
     """Stylesheet des Hauptfensters für das wirksame Theme und die Dichte."""
     return stylesheet(_thema, _dichte)
+
+
+def fenster_stil(fenster):
+    """Stylesheet des Hauptfensters setzen; ohne zweites Umsetzen der schon umgesetzten Farben."""
+    from PySide6.QtWidgets import QWidget
+    getattr(QWidget, "_stil_roh", QWidget.setStyleSheet)(fenster, aktuell())
+
+
+def ansicht_wechseln(app, fenster, name, schrift=100, dichte="normal"):
+    """Theme, Schrift und Dichte im laufenden Programm wechseln (Einstellungen › Ansicht): sofort wirksam."""
+    ergebnis = anwenden(app, name, schrift, dichte)
+    umfaerben(app)
+    fenster_stil(fenster)
+    return ergebnis

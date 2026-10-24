@@ -1196,7 +1196,7 @@ class Stangenbild(QWidget):
                 self.flaechen.append((QRectF(r), t))
                 text = f"{t['pos'] if t['pos'] is not None else t['artikel']}\n{_z(t['laenge'], 1)}"
                 if r.width() > 28:
-                    p.setPen(QColor("white"))
+                    p.setPen(QColor("white"))        # fest: weiße Schrift auf der Teilfarbe
                     p.setFont(klein)
                     p.drawText(r, Qt.AlignCenter, text if r.width() > 46 else str(t["pos"] or ""))
                 vorher = t
