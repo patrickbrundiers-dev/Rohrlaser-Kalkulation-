@@ -35,7 +35,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
-from . import schritte, step_ablage, step_einstellungen, stil
+from . import angebot_check, nummern as angebotsnummern, schritte, step_ablage, step_einstellungen, stil
 from .schritte import Schrittanzeige
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
@@ -173,7 +173,8 @@ def _breiten(ansicht, spalten):
 # Stand eines Angebots in der Liste: Text und Farbe (wie die Etiketten in der Übersicht des Angebots)
 STATUS_FARBE = {"Nachkalkuliert": "#DDEBF7", "Optimiert": "#E3F4E8", "Veraltet": "#FDECEA",
                 "Nicht optimiert": "#FFF6DB"}
-VORGANG_FARBE = {"Verschickt": "#DDEBF7", "Beauftragt": "#E3F4E8", "Abgelehnt": "#ECEEF1", "Abgelaufen": "#FDECEA"}
+VORGANG_FARBE = {"Verschickt": "#DDEBF7", "Beauftragt": "#E3F4E8", "Abgelehnt": "#ECEEF1", "Abgelaufen": "#FDECEA",
+                 "Ersetzt": "#ECEEF1"}
 # Filter der Angebotsliste: Titel -> Prüfung je Zeile (Vorgang, abgelaufen)
 # Filter der Angebotsliste: (Vorgang, abgelaufen, Zeile der Liste) -> zeigen
 VORGANG_FILTER = {"Alle Angebote": lambda v, ab, z: True,
@@ -183,10 +184,16 @@ VORGANG_FILTER = {"Alle Angebote": lambda v, ab, z: True,
                   "Beauftragt": lambda v, ab, z: v == "Beauftragt",
                   # Plan Arbeitsabläufe W9: beauftragt, aber noch ohne Ist-Werte (eine Bemerkung allein zählt nicht)
                   "Nachkalkulation offen": lambda v, ab, z: v == "Beauftragt" and not z.get("ist_erfasst"),
-                  "Abgelehnt": lambda v, ab, z: v == "Abgelehnt"}
+                  "Abgelehnt": lambda v, ab, z: v == "Abgelehnt",
+                  "Ersetzt (alte Fassungen)": lambda v, ab, z: v == "Ersetzt"}
+
+
+ERSETZT = "Ersetzt"      # alte Fassung (Plan Arbeitsabläufe W10, angebote.ersetzt_durch), kein eigener Vorgang
 
 
 def vorgang(z):
+    if z.get("ersetzt_durch"):
+        return ERSETZT
     return z.get("vorgang") or VORGAENGE[0]
 
 
@@ -242,6 +249,16 @@ def bearbeiter(z):
 MEINE, ALLE = "Meine Angebote", "Alle Mitarbeiter"
 
 
+FASSUNG = object()        # Ergebnis des Kopieren-Dialogs: neue Fassung statt Kopie
+
+
+def step_neu_pfade(ereignis):
+    """Gezogene Dateien/Ordner, wenn STEP-Dateien darunter sind (Angebotsliste, Startseite), sonst []."""
+    urls = ereignis.mimeData().urls() if ereignis.mimeData().hasUrls() else []
+    pfade = [u.toLocalFile() for u in urls if u.isLocalFile()]
+    return pfade if step.step_dateien(pfade) else []
+
+
 class AngeboteSeite(QWidget):
     oeffnen = Signal(int)
     KUERZEL = {"neu": "neu", "loeschen": ("loeschen", "ansicht")}     # Tastenkürzel, siehe tastatur.py
@@ -249,7 +266,8 @@ class AngeboteSeite(QWidget):
     SPALTEN = [("Angebotsnummer", "nummer", None, 120), ("Bearbeiter", lambda z: bearbeiter(z), None, 70),
                ("Kunde", "kunde", None, 200), ("Kundennr.", "kundennr", None, 90),
                ("Datum", lambda z: _datum(z.get("datum")), None, 85),
-               ("Vorgang", lambda z: vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else ""), None, 140),
+               ("Vorgang", lambda z: (f"Ersetzt durch {z['ersetzt_durch']}" if z.get("ersetzt_durch") else
+                                      vorgang(z) + (" (abgelaufen)" if z.get("_abgelaufen") else "")), None, 140),
                ("Gültig bis", lambda z: _datum(z["_gueltig"].isoformat()) if z.get("_gueltig") else "", None, 85),
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110), ("Maschine", "maschine", None, 70),
@@ -302,6 +320,9 @@ class AngeboteSeite(QWidget):
             b = QPushButton(text)
             if text == "Neues Angebot":
                 b.setObjectName("primaer")
+            if text == "Neues Angebot":
+                b.setToolTip("Neues Angebot anlegen. Aus STEP-Dateien: Dateien oder einen Ordner auf die Liste "
+                             "ziehen oder Datei → Neues Angebot aus STEP …")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             leiste.addWidget(b)
         leiste.addWidget(self.vorgang_knopf)
@@ -313,6 +334,7 @@ class AngeboteSeite(QWidget):
         lay = QVBoxLayout(self)
         lay.addLayout(leiste)
         lay.addWidget(self.ansicht, 1)
+        self.setAcceptDrops(True)
         self.neu_laden()
 
     def neu_laden(self, *_):
@@ -369,6 +391,12 @@ class AngeboteSeite(QWidget):
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "den Vorgang setzen"):
             return False
+        a = self.db.angebot(i) or {}
+        if v == "Verschickt" and (a.get("vorgang") or "Entwurf") == "Entwurf" and not self.f.stumm:
+            # Angebots-Check auch vor „Verschickt“ von Hand (Plan A2): das Angebot öffnet sich dafür
+            seite = self.f.angebot_oeffnen(i)
+            if seite is None or not seite.vor_verschickt():
+                return False
         self.db.vorgang_setzen(i, v)
         self.neu_laden()
         self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}.")
@@ -389,6 +417,22 @@ class AngeboteSeite(QWidget):
         self.neu_laden()
         self.oeffnen.emit(i)
 
+    def neu_aus_step(self, dateien=None, kundennr=None):
+        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py)."""
+        from . import step_neu
+        return step_neu.neues_angebot(self.f, dateien, kundennr)
+
+    # STEP-Dateien oder Ordner auf die Liste ziehen: neues Angebot (W11)
+    def dragEnterEvent(self, ereignis):
+        if step_neu_pfade(ereignis):
+            ereignis.acceptProposedAction()
+
+    def dropEvent(self, ereignis):
+        pfade = step_neu_pfade(ereignis)
+        if pfade:
+            ereignis.acceptProposedAction()
+            self.neu_aus_step(pfade)
+
     def oeffnen_gewaehlt(self):
         i = self._gewaehlt()
         if i:
@@ -403,6 +447,8 @@ class AngeboteSeite(QWidget):
             kundennr = self._kunde_fuer_kopie(self.db.angebot(i))
             if kundennr is False:
                 return None
+            if kundennr is FASSUNG:
+                return self.neue_fassung(i)
         neu = self.db.angebot_kopieren(i, kundennr)
         self.neu_laden()
         self.oeffnen.emit(neu)
@@ -430,13 +476,38 @@ class AngeboteSeite(QWidget):
         d.setMinimumWidth(460)
         form.addRow(text)
         form.addRow("Kunde", kunde)
+        fassung = None
+        if not a.get("fremd"):          # W10: neue Fassung statt Kopie (nur eigene Angebote)
+            fassung = QCheckBox(f"Neue Fassung {self.db.fassung_nummer(a['id'])} statt Kopie (gleicher Kunde, "
+                                f"aktuelle Preise; {a['nummer']} wird „ersetzt“)")
+            fassung.toggled.connect(kunde.setDisabled)
+            form.addRow(fassung)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         knoepfe.accepted.connect(d.accept)
         knoepfe.rejected.connect(d.reject)
         form.addRow(knoepfe)
         if d.exec() != QDialog.Accepted:
             return False
+        if fassung is not None and fassung.isChecked():
+            return FASSUNG
         return _kundennr(kunde.currentText())
+
+    def neue_fassung(self, angebot_id=None):
+        """Neue Fassung des gewählten Angebots (Plan Arbeitsabläufe W10): gleiche Nummer mit Zusatz -2, -3 …,
+        gleicher Kunde, aktuelle Preise; die bisherige Fassung steht danach auf „Ersetzt“. Ergebnis: neue ID."""
+        i = angebot_id or self._gewaehlt()
+        if not i or self._fremd(i, "eine neue Fassung anlegen"):
+            return None
+        if self.db.nur_lesen:
+            self.f.meldung("Lesemodus: es lassen sich keine Angebote anlegen.", fehler=True)
+            return None
+        alt = self.db.angebot(i)["nummer"]
+        neu = self.db.angebot_fassung(i)
+        self.f.angebot_schliessen(i)            # offene alte Fassung: Reiter zu, sie ist jetzt ersetzt
+        self.neu_laden()
+        self.oeffnen.emit(neu)
+        self.f.meldung(f"Neue Fassung {self.db.angebot(neu)['nummer']} angelegt; {alt} ist ersetzt.")
+        return neu
 
     def loeschen(self):
         i = self._gewaehlt()
@@ -1337,6 +1408,7 @@ class AngebotSeite(QWidget):
         self.uebersicht = self.uebersicht_bereich.uebersicht
         self.uebersicht_bereich.preise_knopf.clicked.connect(lambda _=False: self.preise_aktualisieren())
         self.uebersicht_bereich.wiederholteile.linkActivated.connect(self.wiederholteil_link)
+        self.uebersicht_bereich.freigabe.linkActivated.connect(self.check_link)
         oben_rahmen = QScrollArea()          # kleine Fenster: Kopf und Kalkulation scrollen
         oben_rahmen.setWidgetResizable(True)
         oben_rahmen.setFrameShape(QFrame.NoFrame)
@@ -1394,6 +1466,8 @@ class AngebotSeite(QWidget):
         self.weitere = QPushButton("Ausgaben")
         self.weitere.setToolTip("Werkstattpapiere, Kalkulation, Materialanfrage, CSV-Export und weitere Aktionen")
         menue = QMenu(self.weitere)
+        menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
+        menue.addSeparator()
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
@@ -1644,7 +1718,30 @@ class AngebotSeite(QWidget):
 
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
-        return f"Angebot {self.kopf.get('nummer') or ''}" + (f" ({self.kopf['fremd']})" if self.kopf.get("fremd") else "")
+        nr = self.kopf.get("nummer") or ""
+        return (f"Angebot {nr}" + (" (vorläufige Nummer)" if angebotsnummern.vorlaeufig(nr) else "")
+                + (f" ({self.kopf['fremd']})" if self.kopf.get("fremd") else ""))
+
+    def nummer_endgueltig(self, wofuer):
+        """Vor Angebots-PDF und Materialanfrage: eine vorläufige Nummer (Ordner war beim Anlegen nicht erreichbar) jetzt
+        im gemeinsamen Ordner endgültig vergeben. False = Ordner weiter nicht erreichbar (Meldung)."""
+        if self.fremd() or not angebotsnummern.vorlaeufig(self.kopf.get("nummer")):
+            return True
+        try:
+            umn = angebotsnummern.endgueltig(self.db, self.id)
+        except OSError:
+            text = (f"{wofuer} erst mit endgültiger Angebotsnummer: der gemeinsame Ordner ist nicht erreichbar. "
+                    "Die Nummer kommt beim nächsten Abgleich.")
+            if self.f.stumm:
+                self.f.meldung(text, fehler=True)
+            else:
+                QMessageBox.warning(self, wofuer, text)
+            return False
+        self.neu_laden()
+        self.f.angebote.neu_laden()
+        if umn:
+            self.f.meldung(f"Angebotsnummer {umn[0][0]} → {umn[0][1]} (endgültig).")
+        return True
 
     def fremd(self):
         """Kürzel des Kollegen, wenn das Angebot einem anderen Mitarbeiter gehört (nur ansehen), sonst None."""
@@ -1679,8 +1776,54 @@ class AngebotSeite(QWidget):
         self._kalk_merken = {}
         try:
             self._neu_laden()
+            self._auto_planen()          # nutzt den eben geprüften Optimierungsstand mit (Plan C2)
         finally:
             self._kalk_merken = None
+
+    # Plan Arbeitsabläufe W1: kurz nach einer Änderung selbst optimieren (nur Entwürfe, kleine Angebote, eigene)
+    AUTO_PAUSE_MS = 800
+    AUTO_BIS_TEILEN = 500       # darüber dauert es spürbar (1.500 Teile ≈ 1,3 s): dann weiter F9 bzw. Knopf;
+                                # ab HINTERGRUND_AB_TEILEN rechnet auch das automatische Optimieren im Hintergrund
+
+    def auto_optimieren_moeglich(self):
+        """True, wenn das Angebot jetzt automatisch optimiert werden soll: Optimierung nicht aktuell, Entwurf, eigenes
+        Angebot ohne Lesemodus, 1 … Einstellung 'auto_optimieren_bis' aktive Positionen, weniger als AUTO_BIS_TEILEN
+        Teile, und nicht schon mit genau diesen Eingaben gescheitert."""
+        grenze = self.db.einstellung("auto_optimieren_bis") or 0
+        aktiv = [p for p in self.positionen if position_aktiv(p)]
+        if not grenze or not aktiv or len(aktiv) > grenze or self.fremd() or self.db.nur_lesen:
+            return False
+        if (self.kopf.get("vorgang") or "Entwurf") != "Entwurf":
+            return False        # verschickte Angebote behalten ihren Schnittplan, bis jemand von Hand optimiert
+        if sum(int(rechnen._n(p.get("stueck"))) for p in aktiv) >= self.AUTO_BIS_TEILEN:
+            return False
+        if self.stand_optimierung() == "aktuell":
+            return False
+        return self._eingabe_kennung() != getattr(self, "_auto_fehlgeschlagen", None)
+
+    def _auto_planen(self):
+        if not hasattr(self, "_auto_timer"):
+            self._auto_timer = QTimer(self)
+            self._auto_timer.setSingleShot(True)
+            self._auto_timer.timeout.connect(self.auto_optimieren)
+        if self.auto_optimieren_moeglich():
+            self._auto_timer.start(self.AUTO_PAUSE_MS)      # jede weitere Änderung schiebt den Lauf hinaus
+        else:
+            self._auto_timer.stop()
+
+    def auto_optimieren(self):
+        """Automatisch optimieren (W1), ohne Meldungsfenster. Ergebnis: True = optimiert, False = nicht nötig oder
+        gescheitert (Grund in der Statuszeile, gleiche Eingaben werden nicht erneut versucht)."""
+        if QApplication.activeModalWidget() is not None:     # Dialog offen: danach erneut versuchen
+            self._auto_timer.start(self.AUTO_PAUSE_MS)
+            return False
+        if not self.auto_optimieren_moeglich():
+            return False
+        kennung = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        ok = self.optimieren(automatisch=True)
+        if not ok:
+            self._auto_fehlgeschlagen = kennung
+        return ok
 
     def _neu_laden(self):
         a = self.db.angebot(self.id)
@@ -1909,7 +2052,9 @@ class AngebotSeite(QWidget):
         if self._laden or kundennr == self.kopf.get("kundennr"):
             return
         k = self.db.kunde_uebernehmen(self.id, kundennr)
-        self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen)." if k
+        vorgaben = (k or {}).get("vorgaben")
+        self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen"
+                       + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")." if k
                        else "Kundennummer gespeichert (nicht im Kundenstamm).")
         if k and fracht_angebot.auto(self.kopf):     # automatische Fracht: Ziel des neuen Kunden
             plz, land = fracht_angebot.ziel_aus_kunde(k)
@@ -1926,27 +2071,87 @@ class AngebotSeite(QWidget):
     def stand_optimierung(self):
         if not self.ergebnis:
             return "noch nicht optimiert"
-        aktuell = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst) \
-            == self.ergebnis.get("kennung")
+        aktuell = self._eingabe_kennung() == self.ergebnis.get("kennung")
         return "aktuell" if aktuell else "VERALTET – Angebot oder Stammdaten geändert, bitte neu optimieren"
 
-    def freigabe_punkte(self, summen=None):
-        """Offene Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte)."""
-        if summen is None:
-            summen = self._rechnung()[1]
+    def _eingabe_kennung(self):
+        """rechnen.eingabe_kennung der jetzigen Eingaben; während neu_laden nur einmal gerechnet (Plan C2)."""
+        merken = getattr(self, "_kalk_merken", None)
+        if merken is None:
+            return rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        if "kennung" not in merken:
+            merken["kennung"] = rechnen.eingabe_kennung(self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        return merken["kennung"]
+
+    def freigabe_punkte(self, summen=None, zeilen=None, preis_abweichung=None):
+        """Angebots-Check (Plan A2): alle offenen Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte)."""
+        if summen is None or zeilen is None:
+            zeilen, summen = self._rechnung()
         try:
             veraltet = self.st_seite.anzahl_veraltet() if self.stufen else 0
         except (ValueError, TypeError, KeyError):
             veraltet = 0
-        return rechnen.freigabe_punkte(self.kopf, self.positionen, self.pos_modell.status, self.stand_optimierung(),
-                                       summen, veraltet, gueltig_bis(self.kopf, self.db.einstellung("gueltigkeit")))
+        if preis_abweichung is None:
+            preis_abweichung = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
+        kundennr = self.kopf.get("kundennr")
+        return rechnen.freigabe_punkte(
+            self.kopf, self.positionen, self.pos_modell.status, self.stand_optimierung(), summen, veraltet,
+            gueltig_bis(self.kopf, self.db.einstellung("gueltigkeit")), kalk_zeilen=zeilen,
+            kunde=(self.db.kunde(kundennr) or {}) if kundennr else None, preis_abweichung=preis_abweichung,
+            mindestmarge=self.db.einstellung("mindestmarge") or 0,
+            admin=bool(getattr(self.f, "bereich", None) and self.f.bereich.admin))
+
+    def check_link(self, ziel):
+        """„Hinspringen“ aus dem Angebots-Check (Übersicht oder Fenster); ziel wie angebot_check (ohne 'check:')."""
+        art, _, wert = ziel.removeprefix("check:").partition(":")
+        self.f.reiter.setCurrentWidget(self)
+        if art == "pos":
+            return self.zur_position(zeile=int(wert))
+        if art == "kopf":
+            return self.kopf_bereich.feld_zeigen(wert)
+        if art == "kunde":
+            return self.kunde_zeigen()
+        if art == "fracht":
+            return self.kopf_bereich.feld_zeigen("fracht_modus")
+        if art == "optimieren":
+            return self.optimieren()
+        if art == "staffeln":
+            return self.reiter.setCurrentWidget(self.st_seite)
+        if art == "preise":
+            return self.preise_aktualisieren()
+        if art == "kalkulation":
+            return self.reiter.setCurrentWidget(self.kalk_seite)
+        return None
+
+    def vor_verschickt(self):
+        """Angebots-Check vor dem Vorgang „Verschickt“ ohne PDF. Wurde ein FEHLER oder eine WARNUNG übergangen, steht das
+        mit Begründung im Versandverlauf. Ergebnis: True = Vorgang setzen."""
+        punkte = self.freigabe_punkte()
+        if not angebot_check.offen(punkte):
+            return True
+        ok, begruendung = self.check_zeigen("Als verschickt markieren", punkte)
+        if ok:
+            self.db.versand_merken(self.id, dict(datum=datetime.date.today().isoformat(), netto=None, datei=None,
+                                                 check=angebot_check.versand_eintrag(punkte, begruendung)))
+        return ok
+
+    def check_zeigen(self, weiter=None, punkte=None):
+        """Fenster Angebots-Check; weiter = Text des Weiter-Knopfs (None = nur ansehen). Ergebnis: (weiter ja/nein,
+        Begründung). „Hinspringen“ springt nach dem Schließen zur Stelle und zählt als Abbrechen."""
+        from .angebot_check_dialog import CheckDialog
+        d = CheckDialog(self, self.freigabe_punkte() if punkte is None else punkte, weiter)
+        ok = d.exec() == QDialog.Accepted
+        if d.ziel:
+            self.check_link(d.ziel)
+        return ok, d.text_begruendung()
 
     def _ergebnisse_anzeigen(self):
         self.uebersicht_bereich.stand_setzen(self.stand_optimierung())
         erg = self.ergebnis
         zeilen, summen = self._rechnung()
+        preis_abw = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
         self.uebersicht_bereich.preisstand_setzen(
-            self.kopf.get("preisbasis"), rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell),
+            self.kopf.get("preisbasis"), preis_abw,
             rechnen.verschickt_abweichung(self.kopf.get("preisbasis"), summen.get("verkauf")),
             self.kopf.get("versand"))
         self.kalk.setzen([z for z in zeilen if z])
@@ -1958,9 +2163,10 @@ class AngebotSeite(QWidget):
             gewicht=f"{_z(gewicht)} kg"))
         self.uebersicht_bereich.meldungen_setzen(
             [(p.get("pos"), st) for p, st in zip(self.positionen, stat) if st.startswith(("FEHLER", "WARNUNG", "HINWEIS"))])
-        punkte = self.freigabe_punkte(summen)
+        punkte = self.freigabe_punkte(summen, zeilen, preis_abw)
         self.uebersicht_bereich.freigabe_setzen(punkte)
-        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(), punkte, vorgang(self.kopf)))
+        self.schritte.setzen(schritte.erledigt(self.positionen, self.stand_optimierung(), angebot_check.offen(punkte),
+                                               vorgang(self.kopf)))
         kosten = rechnen.kostenarten(summen, self.einst)
         self.uebersicht_bereich.kosten_setzen(kosten)
         vk = next(w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN) if n == "verkauf")
@@ -2948,7 +3154,8 @@ class AngebotSeite(QWidget):
             raise ende["fehler"]
         return ende["erg"]
 
-    def optimieren(self):
+    def optimieren(self, automatisch=False):
+        """Optimieren und speichern. automatisch=True (W1): Fehler nur in der Statuszeile, Meldung „automatisch“."""
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             erg = self._optimierung_rechnen()
@@ -2958,11 +3165,17 @@ class AngebotSeite(QWidget):
             return False
         except ValueError as e:
             QApplication.restoreOverrideCursor()
-            QMessageBox.warning(self, "Optimieren", str(e))
+            if automatisch:
+                self.f.meldung(f"Automatisch optimieren nicht möglich: {e}", fehler=True)
+            else:
+                QMessageBox.warning(self, "Optimieren", str(e))
             return False
         except AssertionError as e:   # Kontrolle der Optimierung angeschlagen: nie ein falsches Ergebnis speichern
             QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Optimieren", f"Die Kontrolle der Optimierung hat angeschlagen: {e}")
+            if automatisch:
+                self.f.meldung(f"Automatisch optimieren: Kontrolle hat angeschlagen ({e}), bitte F9.", fehler=True)
+            else:
+                QMessageBox.critical(self, "Optimieren", f"Die Kontrolle der Optimierung hat angeschlagen: {e}")
             return False
         QApplication.restoreOverrideCursor()
         if erg["neue_profile"]:
@@ -2977,7 +3190,7 @@ class AngebotSeite(QWidget):
             text += f", {sum(f['anzahl'] for f in erg['fehler'])} Teile nicht eingeplant (siehe Auswertung)"
         if erg["neue_profile"]:
             text += f", {len(erg['neue_profile'])} Profil(e) aus dem Namen angelegt"
-        self.f.meldung(text + ".")
+        self.f.meldung(("Automatisch optimiert: " if automatisch else "") + text + ".")
         return True
 
     def laengen_zeigen(self, nur=None):
@@ -3036,28 +3249,28 @@ class AngebotSeite(QWidget):
         return self.st_seite.aktuell()
 
     # -------------------------------------------------------------- Ausgabe (PDF, CSV)
-    def _vor_ausgabe(self):
-        """Bei veralteter Optimierung fragen, bei nicht berechneter automatischer Fracht warnen. True = weiter."""
-        if fracht_angebot.auto(self.kopf):
-            _, summen = self._rechnung()
-            if summen.get("fracht_fehler"):
-                if self.f.stumm:
-                    self.f.meldung(summen["fracht_fehler"] + " – Angebot ohne Fracht.", fehler=True)
-                elif QMessageBox.question(self, "Fracht", f"{summen['fracht_fehler']}.\n\nDas Angebot enthält dann "
-                                          "keine Fracht. Trotzdem weiter?") != QMessageBox.Yes:
-                    return False
-        if self.stand_optimierung() == "aktuell":
+    def _vor_ausgabe(self, pruefen=False, weiter="Weiter"):
+        """Vor einer Ausgabe (Plan W7, eine Sammelrückfrage): veralteten Schnittplan ohne Rückfrage neu optimieren
+        (ein Schnittplan, der nicht zum Angebot passt, ergäbe falschen Materialbedarf, B-10), dann höchstens eine
+        Rückfrage. pruefen = ganzer Angebots-Check (Angebots-PDF, Verschickt), sonst nur die Fracht. Ergebnis: True =
+        weiter; die Begründung beim Übergehen eines FEHLERS steht danach in self.check_uebergangen."""
+        self.check_uebergangen = None
+        if self.stand_optimierung() != "aktuell":
+            if not self.optimieren(automatisch=self.f.stumm):
+                return False
+        punkte = self.freigabe_punkte()
+        if not pruefen:
+            punkte = [p for p in punkte if p.ziel == "fracht"]
+        if not angebot_check.offen(punkte):
             return True
-        if self.f.stumm:
-            return self.optimieren()
-        # nur Optimieren oder Abbrechen: ein PDF mit altem Schnittplan hätte einen falschen Materialbedarf (B-10)
-        m = QMessageBox(QMessageBox.Question, "Optimierung veraltet",
-                        "Der Schnittplan passt nicht mehr zum Angebot (oder es wurde noch nicht optimiert).\n\n"
-                        "Vor der Ausgabe wird neu optimiert.", QMessageBox.Cancel, self)
-        knopf = m.addButton("Optimieren und weiter", QMessageBox.AcceptRole)
-        m.setDefaultButton(knopf)
-        m.exec()
-        return m.clickedButton() is knopf and self.optimieren()
+        if self.f.stumm:                        # Tests: Punkte melden, nicht fragen
+            self.f.meldung("Angebots-Check: " + "; ".join(p.text for p in angebot_check.offen(punkte)), fehler=True)
+            self.check_uebergangen = angebot_check.versand_eintrag(punkte, "")
+            return True
+        ok, begruendung = self.check_zeigen(weiter, punkte)
+        if ok:
+            self.check_uebergangen = angebot_check.versand_eintrag(punkte, begruendung)
+        return ok
 
     def _ziel(self, zusatz, endung, mit_kunde=False):
         try:
@@ -3127,31 +3340,28 @@ class AngebotSeite(QWidget):
         return ang
 
     def angebot_pdf(self):
-        if not self._vor_ausgabe():
+        if not self.nummer_endgueltig("Angebots-PDF"):
             return None
         if not any(position_aktiv(p) for p in self.positionen):
             QMessageBox.warning(self, "Angebot", "Das Angebot hat keine Positionen.")
             return None
+        # Angebots-Check (Plan A2/W7): eine Sammelrückfrage, nur wenn FEHLER oder WARNUNG offen sind
+        if not self._vor_ausgabe(pruefen=not self.fremd(), weiter="Angebot erstellen"):
+            return None
+        uebergangen = self.check_uebergangen
         if not self.fremd() and not self.db.nur_lesen:
             self.st_seite.standard_auto()       # Standard-Staffeln, falls das Angebot noch keine Stufe hat (W3)
         ang = self.angebot_daten()
         if ang is None:
             return None
-        punkte = [t for a, t in self.freigabe_punkte() if a != "HINWEIS"]
-        if ang["hinweise"]:
-            punkte.append(f"{ang['hinweise']} Position(en) mit Hinweis in der Kalkulation, z. B. kein Preis oder nicht "
-                          "eingeplant")
-        if punkte and not self.f.stumm and QMessageBox.question(
-                self, "Prüfen vor Freigabe", "Vor dem Angebot sind noch Punkte offen:\n\n"
-                + "\n".join("• " + t for t in punkte) + "\n\nAngebot trotzdem erstellen?") != QMessageBox.Yes:
-            self.reiter.setCurrentWidget(self.kalk_seite)
-            return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
                                lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst))
         if pfad is not None and not self.fremd():     # Angebot eines Kollegen: nur ansehen, nichts festschreiben
             self.preise_festschreiben()
-            self.db.versand_merken(self.id, dict(datum=datetime.date.today().isoformat(), netto=ang["netto"],
-                                                 datei=Path(pfad).name))
+            eintrag = dict(datum=datetime.date.today().isoformat(), netto=ang["netto"], datei=Path(pfad).name)
+            if uebergangen:
+                eintrag["check"] = uebergangen
+            self.db.versand_merken(self.id, eintrag)
             if not (self.db.angebot(self.id) or {}).get("vorgang"):     # Entwurf -> Verschickt (sonst bleibt er)
                 self.db.vorgang_setzen(self.id, "Verschickt")
                 self.f.angebote.neu_laden()
@@ -3355,6 +3565,8 @@ class AngebotSeite(QWidget):
         dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests). gruppe = nur diese
         Abmessung (Material-Fenster, rechnen.material_abmessungen)."""
         from .materialanfrage_dialog import AnfrageDialog
+        if not self.nummer_endgueltig("Materialanfrage"):
+            return None
         if not self.ergebnis or not self.ergebnis.get("stangen"):
             self.f.meldung("Materialanfrage: bitte zuerst optimieren (der Stangenbedarf kommt aus der Optimierung).",
                            fehler=True)

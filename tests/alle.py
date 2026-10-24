@@ -61,8 +61,8 @@ TESTS = [
     "test_stangenwechsel_sn.py", "test_3d.py", "test_3d_greifmass.py", "test_3d_editor.py", "test_programmierung.py",
     "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_teilen.py",
-    "test_teilen_fenster.py", "test_lizenz.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py",
-    "test_arbeitsablaeufe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_anleitung.py",
+    "test_teilen_fenster.py", "test_nummern.py", "test_lizenz.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py",
+    "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_anleitung.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
 LANGSAM = [("test_gehrung.py", QT)]

@@ -21,13 +21,53 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.41", "<b>Knickrahmen</b> im Schneidweg-Rechner: Rahmen aus einem Quadrat- oder Rechteckrohr, an jeder Ecke "
+    ["0.9.48", "<b>Knickrahmen</b> im Schneidweg-Rechner: Rahmen aus einem Quadrat- oder Rechteckrohr, an jeder Ecke "
                "ein V-Ausschnitt, nur die Stegwand bleibt stehen. <b>Knickrahmen …</b> nimmt die Schenkel (z. B. "
                "500; 300; 500; 300), Knickwinkel und Stegwand und setzt die V-Ausschnitte, die Gehrung am Stoß und die "
                "<b>gestreckte Länge</b> (Außenmaße − Ausgleich nach DIN 6935 je Knick + Knickzugabe). Neue Konturart "
                "<i>V-Ausschnitt</i>, neue Zusatzarbeit <i>Knicken</i> (€ je Knick), neue Prüfregeln <i>Schenkel zu "
                "kurz</i>, <i>Kontur im Knickbereich</i>, <i>Wand zu dick zum Knicken</i> ([[knickrahmen]]).",
      "Knickrahmen: V-Ausschnitte, gestreckte Länge, Zusatzarbeit Knicken, Prüfregeln ([[knickrahmen]])."],
+    ["0.9.47", "<b>Gemeinsamer Nummernkreis</b>: Angebotsnummern ohne Kürzel, <b>2026-00001</b>, 2026-00002 … für "
+     "alle Mitarbeiter gemeinsam; der Zähler läuft über den Jahreswechsel weiter. Jede Nummer wird im gemeinsamen "
+     "Ordner reserviert, so kommt keine doppelt vor, auch wenn zwei gleichzeitig ein Angebot anlegen. Ist der Ordner "
+     "nicht erreichbar, gibt es eine vorläufige Nummer (V-PB-1), die endgültige kommt beim nächsten Abgleich; "
+     "Angebots-PDF und Materialanfrage erst mit endgültiger Nummer. Das Kürzel bleibt als Bearbeiter, ältere "
+     "Nummern bleiben ([[mehrere_arbeitsplaetze]]).",
+     "Gemeinsamer Nummernkreis 2026-00001 ohne Kürzel, keine Nummer doppelt ([[mehrere_arbeitsplaetze]])."],
+    ["0.9.46", "<b>Neue Fassung</b>: <i>Datei → Neue Fassung des Angebots</i> oder der Haken im Dialog Kopieren legt "
+               "das Angebot mit gleicher Nummer und Zusatz -2, -3 … an: gleicher Kunde, heutiges Datum, aktuelle "
+               "Preise, Positionen und Staffeln. Die alte Fassung steht auf <b>Ersetzt durch …</b> und zählt in "
+               "keinem Vorgang mehr; Filter <i>Ersetzt (alte Fassungen)</i> ([[neue_fassung]]).",
+     "Neue Fassung -2, -3 statt Kopie; alte Fassung „Ersetzt“."],
+    ["0.9.45", "<b>Neues Angebot aus STEP</b>: STEP-Dateien oder einen Ordner auf die Angebotsliste oder die "
+               "Startseite ziehen oder <i>Datei → Neues Angebot aus STEP …</i>: Das Programm schlägt den Kunden aus dem Ordnernamen vor "
+               "(sonst den Kunden des letzten Angebots mit Importprofil), legt das Angebot mit den Kundenvorgaben an "
+               "und startet gleich den STEP-Import ([[angebot_aus_step]]).",
+     "Neues Angebot direkt aus STEP-Dateien oder Ordner, Kunde aus dem Ordnernamen."],
+    ["0.9.44", "<b>Angebots-Check</b> vor dem Versand: Die Übersicht zeigt laufend alle offenen Punkte mit "
+               "<b>Hinspringen</b> (Positionen mit FEHLER oder WARNUNG, Kunde, Fracht, Zukauf ohne Einkaufspreis, "
+               "Hinweise der Kalkulation, Mindestmarge, Mindestauftragswert, Stammdaten geändert, Kunde ohne E-Mail, "
+               "Lieferzeit, Kundenreferenz). Vor dem Angebots-PDF und vor <i>Verschickt</i> kommt höchstens "
+               "<b>eine</b> Rückfrage; ein veralteter Schnittplan wird ohne Rückfrage neu optimiert. FEHLER lassen "
+               "sich nur mit Begründung übergehen, sie steht im Versandverlauf. Neue Einstellung <i>Mindestmarge</i> "
+               "([[angebots_check]]).",
+     "Angebots-Check: eine Rückfrage vor dem PDF, Hinspringen, FEHLER nur mit Begründung ([[angebots_check]])."],
+    ["0.9.43", "<b>Kundenvorgaben</b>: Einstellungen → Kundenvorgaben hält je Kunde Maschine, Stangenlänge, Gewinn, "
+               "Lieferzeit, Material neuer Positionen und eigene Standard-Staffeln (0 = keine). Ein neues Angebot "
+               "für den Kunden und das Wählen des Kunden im Angebot übernehmen sie; von Hand geänderte Kopfwerte "
+               "bleiben, die Statuszeile nennt, was übernommen wurde ([[kundenvorgaben]]).",
+     "Kundenvorgaben je Kunde: Maschine, Gewinn, Lieferzeit, Material, Staffeln."],
+    ["0.9.42", "<b>Schneller nach jeder Änderung</b>: Die Stammdaten werden nur neu gelesen, wenn sie sich geändert "
+               "haben (auch Abgleich mit Kollegen, Wiederherstellen, andere Programme), und der Optimierungsstand wird "
+               "je Anzeige nur einmal geprüft. Ein Angebot zeigt Änderungen dadurch rund ein Drittel schneller an "
+               "([[optimieren]]).",
+     "Schneller nach jeder Änderung: Stammdaten zwischengespeichert ([[optimieren]])."],
+    ["0.9.41", "<b>Automatisch optimieren</b>: Entwürfe bis 100 Positionen (und unter 500 Teilen) optimieren sich etwa "
+               "0,8 Sekunden nach jeder Änderung selbst, F9 ist meist nicht mehr nötig. Einstellung <i>Automatisch "
+               "optimieren: Entwürfe bis Positionen (0 = aus)</i>; verschickte Angebote, fremde Angebote und der "
+               "Lesemodus bleiben unverändert, ein Fehler steht nur in der Statuszeile ([[optimieren]]).",
+     "Entwürfe bis 100 Positionen optimieren sich nach jeder Änderung selbst."],
     ["0.9.40", "<b>Wiederholteile erkennen</b>: Wurde ein Teil schon angeboten (auch von Kollegen), zeigt die Übersicht "
                "im Angebot wie oft, zuletzt wann und wo, den damaligen Stückpreis aus den Staffelpreisen und ob es "
                "beauftragt war; Treffer über gleiche Artikelnummer (sicher beim selben Kunden) oder gleiche Geometrie. "

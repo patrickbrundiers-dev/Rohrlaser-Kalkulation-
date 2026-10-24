@@ -18,7 +18,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from rohrlaser import pdf, teilen, teilen_fenster  # noqa: E402
+from rohrlaser import nummern, pdf, teilen, teilen_fenster  # noqa: E402
 from rohrlaser.angebot_fenster import ALLE, MEINE  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -55,7 +55,7 @@ d.ordner.setText(str(gemeinsam))
 assert d.pruefen() is None
 d._ok()
 assert d.geaendert and teilen.aktiv(pb) and pb.einstellung("benutzer_kuerzel") == "PB"
-assert pb.angebot(alt)["nummer"] == "A-2026-0002" and pb.angebot(alt)["bearbeiter"] == "PB"
+assert pb.angebot(alt)["nummer"].endswith("-00001") and pb.angebot(alt)["bearbeiter"] == "PB"
 ok("Benutzer-Dialog: Kürzel groß und Pflicht, Ordner muss erreichbar sein, speichert Name, E-Mail, Telefon, Ordner; "
    "ältere eigene Angebote bekommen den Bearbeiter")
 
@@ -99,7 +99,7 @@ assert au.modell.data(idx) == "PB" and au.modell.data(idx, Qt.FontRole).italic()
 au.wer_filter.setCurrentText(MEINE)
 assert au.modell.rowCount() == 0
 au.wer_filter.setCurrentText("PB")
-assert au.modell.rowCount() == 2, "auch das ältere Angebot A-2026-0002"
+assert au.modell.rowCount() == 2, "auch das ältere Angebot"
 ok("Liste: Spalte Bearbeiter, Auswahl Meine Angebote / Alle Mitarbeiter / PB, Angebote der Kollegen kursiv und grau")
 
 au.ansicht.setCurrentIndex(au.filter.mapFromSource(au.modell.index(
@@ -120,10 +120,10 @@ assert fs.angebot_daten()["ansprechpartner"]["name"] == "Patrick Brundiers"
 ok("geöffnetes Angebot des Kollegen: gelber Hinweis, Kopf, Knöpfe und Positionen gesperrt, Titel mit Kürzel")
 neu = fs.als_kopie()
 k = mk.angebot(neu)
-assert k["nummer"].startswith("MK-") and k["bearbeiter"] == "MK" and not k.get("fremd")
+assert nummern.zaehler(k["nummer"]) > nummern.zaehler(pb.angebot(a1)["nummer"]) and k["bearbeiter"] == "MK" and not k.get("fremd")
 ks = f_mk.offen[neu]
 assert not ks.fremd() and ks.kopf_bereich.isEnabled()
-ok("Als Kopie übernehmen: eigenes Angebot MK-… mit Positionen, bearbeitbar")
+ok("Als Kopie übernehmen: eigenes Angebot mit neuer Nummer aus dem gemeinsamen Nummernkreis, bearbeitbar")
 
 # ---------------------------------------------------------------- Änderung beim Bearbeiter, offenes Fenster lädt neu
 pb.angebot_aendern(a1, "kunde", "Kunde A geändert")

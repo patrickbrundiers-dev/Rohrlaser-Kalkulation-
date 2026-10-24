@@ -708,7 +708,8 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
-    i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
+    i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Aus STEP …</b> "
+           "([[angebot_aus_step]]), <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
            "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
            "Hinweis auf Beispielwerte, aufklappbar die Anzahl je Tabelle, <b>Einstellungen öffnen</b>) "
            "und <b>Daten und Sicherung</b>.", kurz=True)
@@ -730,7 +731,7 @@ def kapitel_start(i):
     i.text("Beim ersten Start fragt das Programm, ob vorhandene Daten übernommen werden sollen (z. B. aus einer "
            "portablen Version oder einer Export-Datei, [[datensicherung]]): <b>Daten übernehmen …</b> wählt die Quelle, "
            "<b>Mit Beispieldaten beginnen</b> legt die Datendatei mit Beispiel-Stammdaten an. Danach fragt es nach "
-           "<b>Name und Kürzel</b> des Benutzers; das Kürzel steht vorn in jeder neuen Angebotsnummer. Arbeiten "
+           "<b>Name und Kürzel</b> des Benutzers; das Kürzel zeigt, wer ein Angebot bearbeitet. Arbeiten "
            "mehrere Mitarbeiter mit dem Programm, kommt hier auch der gemeinsame Ordner hinein "
            "([[mehrere_arbeitsplaetze]]).",
            "Die Karte Angebote zeigt die zuletzt bearbeiteten Angebote mit Status und Verkaufspreis; die Karte Daten "
@@ -758,7 +759,8 @@ def kapitel_angebote(i):
     i.text("<b>Verkaufspreis netto</b> ist der Preis aus der Übersicht des Angebots; das Programm merkt ihn sich beim "
            "Anzeigen eines Angebots (Mauszeiger darauf: <i>Stand vom …</i>). Ältere Angebote, die seit dem Update noch "
            "nicht geöffnet wurden, haben dort noch keinen Wert.",
-           "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand. <b>Gültig bis</b> ist das "
+           "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand; vor <i>Verschickt</i> öffnet sich "
+           "das Angebot mit dem Angebots-Check, wenn noch etwas offen ist ([[angebots_check]]). <b>Gültig bis</b> ist das "
            "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
            "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i> oder <i>Verschickt und "
            "abgelaufen</i> zum Nachfassen, <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
@@ -776,6 +778,32 @@ def kapitel_angebote(i):
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
            "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es. <b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
+    i.abschnitt("Neue Fassung", marke="neue_fassung")
+    i.text("Fragt der Kunde ein Angebot noch einmal an (geänderte Mengen, neuer Termin), legen Sie statt einer Kopie "
+           "eine <b>neue Fassung</b> an: <i>Datei → Neue Fassung des Angebots</i> (für das offene oder das in der "
+           "Liste markierte Angebot) oder im Dialog <b>Kopieren</b> der Haken <i>Neue Fassung … statt Kopie</i>.",
+           kurz=True)
+    i.genauer()
+    i.text("Die neue Fassung behält die Nummer mit dem Zusatz <b>-2</b>, <b>-3</b> … (aus A-2026-0123 wird "
+           "A-2026-0123-2, aus der -2 die -3), den Kunden, die Positionen und die Staffeln. Sie bekommt das heutige "
+           "Datum, den Vorgang Entwurf und rechnet mit den aktuellen Preisen und Stundensätzen; festgeschrieben ist "
+           "noch nichts ([[preise_festschreiben]]). Der Zähler der Angebotsnummern zählt dabei nicht weiter.",
+           "Die bisherige Fassung steht danach in der Angebotsliste auf <b>Ersetzt durch …</b> (grau). Sie zählt auf "
+           "der Startseite in keinem Vorgang, erscheint nicht in der Wiedervorlage und nicht unter <i>Offen</i>; der "
+           "Filter <i>Ersetzt (alte Fassungen)</i> zeigt alle alten Fassungen. Ihr Reiter schließt sich, öffnen und "
+           "ansehen lässt sie sich weiter. Angebote der Kollegen bekommen keine Fassung, dort hilft <b>Kopieren</b>.")
+    i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
+    i.text("STEP-Dateien oder einen Ordner auf die Angebotsliste oder die Startseite ziehen, oder <i>Datei → Neues "
+           "Angebot aus STEP …</i> (Startseite: <b>Aus STEP …</b>): Kunde bestätigen, das Programm legt das Angebot an und "
+           "startet gleich den STEP-Import.", kurz=True)
+    i.genauer()
+    i.text("Den Kunden schlägt das Programm aus dem Ordnernamen vor: Steht der Kundenname (ab 3 Zeichen) oder die "
+           "Kundennummer im Ordner der Dateien oder bis zu drei Ordnern darüber, z. B. <i>Anfragen\\Müller GmbH\\"
+           "2026-10</i>, ist dieser Kunde gewählt. Sonst steht der Kunde des zuletzt geänderten eigenen Angebots mit "
+           "Importprofil ([[importprofile]]) vorne; <i>(ohne Kunde)</i> geht auch. Das neue Angebot bekommt die "
+           "Kundenvorgaben ([[kundenvorgaben]]) und öffnet sich; danach läuft der Import wie mit <b>STEP "
+           "importieren</b> mit allen STEP-Dateien des Ordners samt Unterordnern ([[step]]). Andere Dateien (z. B. "
+           "PDF) bleiben unbeachtet; sind keine STEP-Dateien dabei, legt das Programm kein Angebot an.")
 
 
 def kapitel_angebot(i):
@@ -1001,7 +1029,7 @@ def kapitel_angebot(i):
          "Schneidzeit, Materialpreis, Status"]], [32, 80, 70])
     i.abschnitt("Übersicht")
     i.text("Rechts im Angebot: Stand, <b>Herstellkosten</b> und <b>Verkaufspreis</b> groß, darunter Meldungen, "
-           "<b>Prüfen vor Freigabe</b>, Kennzahlen, <b>Preisaufbau</b> und Zeiten. Vor dem Optimieren stehen die "
+           "<b>Angebots-Check</b>, Kennzahlen, <b>Preisaufbau</b> und Zeiten. Vor dem Optimieren stehen die "
            "Preise grau mit „(vorläufig)“.")
     i.genauer()
     i.liste("Ganz oben der <b>Stand der Optimierung</b>: <i>Noch nicht optimiert</i> (gelb), <i>Optimierung "
@@ -1016,11 +1044,10 @@ def kapitel_angebot(i):
             "mit „(vorläufig)“: Material, Stangenwechsel und Verschnitt fehlen dann noch.",
             "<b>Meldungen</b>: die Anzahl der Fehler, Warnungen und Hinweise der Positionen (rot, gelb); aufklappen "
             "zeigt jede Meldung mit ihrer Positionsnummer.",
-            "<b>Prüfen vor Freigabe</b>: alle offenen Punkte vor dem Angebots-PDF in einer Liste: kein Kunde, "
-            "Schnittplan nicht aktuell, Positionen mit FEHLER oder WARNUNG, ungeprüfte Bohrungen/Gewinde-Vorschläge, "
-            "Fracht nicht berechnet, veraltete Staffeln, Abweichung vom verschickten Angebot, abgelaufene Gültigkeit. "
-            "Ist alles erledigt, steht dort grün „alles erledigt“. Beim Angebots-PDF fragt das Programm bei offenen "
-            "Punkten mit dieser Liste nach.",
+            "<b>Angebots-Check</b>: alle offenen Punkte vor dem Versand laufend in einer Liste, jeder mit "
+            "<b>Hinspringen</b> zur Stelle (Position, Feld im Kopf, Staffeln …). Der Titel zählt die offenen Punkte "
+            "(FEHLER, WARNUNG) und die Hinweise; ist alles erledigt, steht dort grün „alles erledigt“. Welche Punkte "
+            "es gibt und wie die eine Rückfrage vor dem PDF aussieht: [[angebots_check]].",
             "Kennzahlen: Positionen, Stückzahl und Gewicht. Stangenbedarf und Längen stehen je Abmessung in den "
             "Reitern <i>Schnittplan</i> und <i>Stangenbild</i>.",
             "<b>Preisaufbau</b> Schritt für Schritt: Material, + Laser schneiden, + Rüsten (Rüsten Maschine, Rüsten "
@@ -1706,6 +1733,18 @@ def kapitel_optimieren(i):
            "Unterreitern <i>Schnittplan</i>, <i>Stangenbild</i> und <i>Auswertung</i>), <i>Staffeln</i>, "
            "<i>Nachkalkulation</i> und <i>STEP-Protokoll</i>. Strg+Bild↓/↑ blättert durch die sieben Reiter, die "
            "Unterreiter wählt ein Klick.")
+    i.abschnitt("Automatisch optimieren")
+    i.text("Entwürfe bis 100 Positionen optimieren sich kurz nach jeder Änderung selbst; F9 ist dann meist nicht "
+           "nötig.", kurz=True)
+    i.genauer()
+    i.text("Ist ein Angebot im Vorgang <i>Entwurf</i> und hat es höchstens so viele aktive Positionen wie die "
+           "Einstellung <i>Automatisch optimieren: Entwürfe bis Positionen (0 = aus)</i> (Vorgabe 100) und weniger "
+           "als 500 Teile, optimiert das Programm etwa 0,8 Sekunden nach der letzten Änderung von selbst. Das "
+           "Ergebnis ist dasselbe wie mit <b>Optimieren</b> (F9); die Statuszeile meldet <i>Automatisch optimiert</i>. "
+           "Verschickte oder beauftragte Angebote, Angebote anderer Benutzer und der Lesemodus behalten ihren "
+           "Schnittplan, bis Sie selbst optimieren. Klappt das automatische Optimieren nicht (z. B. eine Position "
+           "passt auf keine Stange), steht der Grund nur in der Statuszeile, ohne Meldungsfenster; versucht wird es "
+           "erst nach der nächsten Änderung wieder. Mit F9 sehen Sie die vollständige Meldung.")
     i.abschnitt("Regeln der Optimierung")
     i.text("Getrennt je Profil, Werkstoff, Oberfläche und Stangenlänge, nie gemischt. Endbeschnitt, Schnittverlust "
            "und Greiferrest werden abgezogen, gerade Enden teilen sich einen Schnitt.", kurz=True)
@@ -1749,12 +1788,14 @@ def kapitel_optimieren(i):
     i.text("Nach jeder Änderung steht das Angebot rot auf <b>Veraltet</b>: einfach neu optimieren.", kurz=True)
     i.genauer()
     i.text("Ändert sich danach etwas am Angebot oder an den Stammdaten, zeigt die Übersicht <b>Veraltet</b>. Die "
-           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand bietet "
-           "das Programm nur <b>Optimieren und weiter</b> oder <b>Abbrechen</b> an, damit kein PDF mit altem "
-           "Materialbedarf entsteht.")
+           "Ergebnisse gelten dann nicht mehr; einfach neu optimieren. Vor einer Ausgabe mit veraltetem Stand optimiert "
+           "das Programm ohne Rückfrage neu, damit kein PDF mit altem Materialbedarf entsteht.")
     i.text("Große Angebote (ab 150 Teilen) rechnen im Hintergrund: ein Fenster zeigt die gerade geplante Abmessung "
            "und die Zeit, <b>Abbrechen</b> beendet die Optimierung nach der laufenden Abmessung, ohne etwas zu "
            "speichern.")
+    i.text("Die Stammdaten liest das Programm nur neu, wenn sie sich geändert haben (auch durch den Abgleich mit "
+           "Kollegen oder eine Wiederherstellung). Jede Änderung am Angebot wird deshalb spürbar schneller angezeigt; "
+           "der Stand <b>Veraltet</b> wird dabei weiter zuverlässig erkannt.")
     i.abschnitt("Kalkulation", marke="kalkulation")
     i.bild("erg_kalkulation", "Reiter Kalkulation, kompakte Übersicht", hoehe=80 * mm, legende=[
         (1, "<b>Kompakte Übersicht</b> je Bauteil: Profil, Stückzahl, Länge, Material, Oberfläche, "
@@ -2360,7 +2401,8 @@ def kapitel_staffeln(i):
     i.text("<b>Standard-Staffeln automatisch</b>: Hat das Angebot noch keine Stufe, legt das <b>Angebots-PDF</b> die "
            "Standard-Staffeln selbst an und rechnet sie, z. B. für 10 Stück die Stufen 10, 20 und 50. Die Faktoren "
            "stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
-           "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5). Wer alle Stufen löscht, bekommt sie "
+           "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5); eigene Faktoren je Kunde stehen in den "
+           "Kundenvorgaben ([[kundenvorgaben]]). Wer alle Stufen löscht, bekommt sie "
            "beim nächsten PDF nicht wieder, solange das Angebot geöffnet bleibt.")
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
@@ -2556,8 +2598,8 @@ def kapitel_fracht(i):
             "Zone und nimmt die teurere; die Karte nennt alle Zonen mit ihrem Betrag.",
             "In den Staffelpreisen rechnet jede Menge ihre eigene Fracht ([[staffeln]]).",
             "Kann das Programm nicht rechnen (Ziel-PLZ fehlt, Gewicht fehlt, kein Tarif), steht der Grund rot in der "
-            "Karte, das Feld Frachtkosten ist leer, die Kalkulation rechnet bis dahin ohne Fracht und vor dem "
-            "Angebots-PDF fragt das Programm nach. Es setzt nie still 0 € ein. Ist der Grund behoben (Gewicht "
+            "Karte, das Feld Frachtkosten ist leer, die Kalkulation rechnet bis dahin ohne Fracht und der Angebots-Check "
+            "nennt es in seiner Rückfrage vor dem Angebots-PDF ([[angebots_check]]). Es setzt nie still 0 € ein. Ist der Grund behoben (Gewicht "
             "eingetragen, Versandart in den Einstellungen gesetzt), rechnet die nächste Änderung oder das Zurückkehren "
             "ins Angebot die Fracht von selbst neu.",
             "Solange der Haken gesetzt ist, ist die Frachtart fest auf berechnet. Haken aus: der letzte Betrag bleibt "
@@ -3127,6 +3169,39 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Eine <b>Kopie</b> eines Angebots rechnet mit den aktuellen Stammdaten.",
             "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert ("
             "[[zeiten]]), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")
+    i.abschnitt("Angebots-Check vor dem Versand", marke="angebots_check")
+    i.text("Vor dem <b>Angebot (PDF)</b> und vor dem Vorgang <i>Verschickt</i> prüft das Programm das Angebot. Nur "
+           "wenn ein FEHLER oder eine WARNUNG offen ist, kommt <b>eine</b> Rückfrage mit allen Punkten; Hinweise "
+           "allein fragen nicht.", kurz=True)
+    i.liste("<b>Hinspringen</b> schließt das Fenster und springt zur Stelle; danach einfach erneut <b>Angebot "
+            "(PDF)</b>.",
+            "Bei WARNUNG geht es mit <b>Angebot erstellen</b> (bzw. <b>Als verschickt markieren</b>) weiter.",
+            "Bei FEHLER heißt der Knopf <b>Trotzdem weiter</b> und geht erst mit einer <b>Begründung</b>. Die "
+            "übergangenen Punkte und die Begründung stehen danach im Versandverlauf (Mauszeiger auf den Preisstand "
+            "in der Übersicht).",
+            "Ein veralteter Schnittplan wird vorher ohne Rückfrage neu optimiert. Werkstattpapiere, Kalkulation und "
+            "Materialanfrage fragen nur, wenn die Fracht nicht berechnet ist.",
+            "Jederzeit ansehen: <i>Ausgaben → Angebots-Check …</i> oder Strg+K „Angebots-Check“; laufend steht die "
+            "Liste in der Übersicht.", kurz=True)
+    i.tabelle(["Prüfung", "Stufe", "Hinspringen zu"], [
+        ["keine Positionen; Positionen mit FEHLER (z. B. Profil fehlt, Schweißbaugruppe ohne Werte)", "FEHLER",
+         "erste betroffene Position"],
+        ["Positionen mit WARNUNG (z. B. Gewinde ohne Preis), ungeprüfte Bohrungen/Gewinde-Vorschläge und "
+         "Anbauteile, Hinweis in der Kalkulation (z. B. kein Preis, nicht eingeplant), Zukaufteil ohne "
+         "Einkaufspreis", "WARNUNG", "erste betroffene Position"],
+        ["kein Kunde; Schnittplan nicht aktuell; Fracht nicht berechnet", "WARNUNG", "Kunde, Optimieren, Fracht"],
+        ["Marge unter der Mindestmarge (Einstellung, 0 = aus; Zahlen nur im Admin-Bereich)", "WARNUNG",
+         "Reiter Kalkulation"],
+        ["Staffelstufen veraltet; Mindestauftragswert greift (Preis angehoben); Stammdaten seit dem Festschreiben "
+         "geändert; Preis weicht vom verschickten Angebot ab", "HINWEIS",
+         "Staffeln, Mindestauftragswert, Aktuelle Preise übernehmen …"],
+        ["Kunde ohne E-Mail-Adresse; Lieferzeit leer; Kundenreferenz leer; Gültigkeit abgelaufen", "HINWEIS",
+         "Kunde bzw. Feld im Angebotskopf"]], [95, 22, 55])
+    i.genauer()
+    i.text("Die <b>Mindestmarge</b> steht in den Einstellungen unter <i>Angebot</i> (<i>Angebots-Check: "
+           "Mindestmarge (Gewinn am Verkaufspreis, 0 = aus)</i>, Vorgabe 0). Gemeint ist der Gewinn aus dem "
+           "Preisaufbau geteilt durch den Verkaufspreis. Angebote der Kollegen lassen sich ansehen und ausgeben, "
+           "ohne dass der Check fragt.")
     i.abschnitt("Angebot (PDF)")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
     i.abschnitt("Werkstattpapiere (PDF)")
@@ -3334,6 +3409,9 @@ def kapitel_einstellungen(i):
          "Vorgabe der Lieferzeit für neue Angebote (Vorgabe <i>nur Text</i> + „nach Absprache“); ein ungültiger "
          "Wert bleibt im neuen Angebot leer ([[lieferzeit]])."],
         ["Angebot", "Standard-Maschine, Standard-Stangenlänge", "Vorgabe für neue Angebote"],
+        ["Angebot", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)",
+         "Vorgabe 100: Entwürfe mit höchstens so vielen Positionen (und weniger als 500 Teilen) optimieren sich "
+         "kurz nach jeder Änderung selbst; 0 schaltet das ab ([[optimieren]])."],
         ["Angebot", "Standard-Staffeln: Faktoren auf die Bestellmenge, z. B. 1; 2; 5 (leer = aus)",
          "Vorgabe 1; 2; 5: Stufen, die der Knopf <b>Standard-Staffeln</b> und das erste Angebots-PDF ohne Stufe "
          "anlegen ([[staffeln]])."],
@@ -3386,8 +3464,9 @@ def kapitel_einstellungen(i):
          "Zahlungsbedingungen neuer Angebote, wenn der Kunde im Kundenstamm keine eigenen hat (Vorgabe 2 % Skonto "
          "bei Zahlung in 10 Tagen, 30 Tage netto). Das Skonto wird in den Preis eingerechnet. Bestehende Angebote "
          "behalten ihre Werte."],
-        ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (A-2026-0041 → "
-                                             "A-2026-0042)."],
+        ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (2026-00041 → "
+                                             "2026-00042); hier lässt sich der Startwert setzen "
+                                             "([[mehrere_arbeitsplaetze]])."],
         ["STEP-Import", "STEP-Import: ebene flache Teile vorgeben als",
          "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
          "Spalte Art wählbar. Flachstahl bis Breite: Abgrenzung nach der nächsten Einstellung ([[bleche]])."],
@@ -3547,12 +3626,12 @@ def kapitel_einstellungen(i):
 
 
 def kapitel_mehrere(i):
-    i.kapitel("Mehrere Arbeitsplätze: Kürzel und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
+    i.kapitel("Mehrere Arbeitsplätze: Kürzel, Nummernkreis und gemeinsamer Ordner", marke="mehrere_arbeitsplaetze")
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
            "Angebote der anderen sieht und alle mit denselben Stammdaten rechnen, gibt es das <b>Kürzel</b> und einen "
            "<b>gemeinsamen Ordner</b>.", kurz=True)
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
-    i.liste("<b>Kürzel</b> eintragen (z. B. PB): neue Angebote heißen PB-2026-0001 …",
+    i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
             "<b>Abgleichen</b> im Reiter Angebote holt die Angebote der Kollegen; beim Start und Beenden geht das "
             "von selbst.", nummeriert=True, kurz=True)
@@ -3560,11 +3639,36 @@ def kapitel_mehrere(i):
     i.genauer()
     i.liste("<b>Datei → Benutzer und gemeinsamer Ordner …</b> (beim ersten Start von selbst): Name, Kürzel, E-Mail "
             "und Telefon eintragen. Dieselben Felder stehen in den Einstellungen in der Gruppe <i>Benutzer</i>.",
-            "Das <b>Kürzel</b> (Buchstaben und Ziffern, höchstens 5, z. B. PB) steht vorn in jeder neuen "
-            "Angebotsnummer: <b>PB-2026-0001</b>, PB-2026-0002 … Jedes Kürzel zählt je Jahr für sich, eine gelöschte "
-            "Nummer wird nicht wieder vergeben. Ältere Angebote behalten ihre Nummer.",
-            "Im Angebotskopf steht der <b>Bearbeiter</b> (Kürzel und Name), im Angebots-PDF rechts oben als "
-            "<b>Ansprechpartner</b> mit Telefon und E-Mail. Eine Kopie bekommt immer das eigene Kürzel.")
+            "Das <b>Kürzel</b> (Buchstaben und Ziffern, höchstens 5, z. B. PB) steht in der Spalte "
+            "<b>Bearbeiter</b> und im Angebotskopf (Kürzel und Name), im Angebots-PDF rechts oben als "
+            "<b>Ansprechpartner</b> mit Telefon und E-Mail. Eine Kopie bekommt immer das eigene Kürzel. In der "
+            "Angebotsnummer steht es nicht (siehe Angebotsnummern).")
+    i.abschnitt("Angebotsnummern")
+    i.text("Alle Mitarbeiter zählen gemeinsam: <b>2026-00001</b>, 2026-00002 … Keine Nummer kommt doppelt vor.",
+           kurz=True)
+    i.genauer()
+    i.liste("Die Nummer besteht aus dem Jahr und einem fünfstelligen Zähler. Der Zähler läuft über den "
+            "Jahreswechsel weiter (2026-00731 → 2027-00732), er beginnt also nicht jedes Jahr neu.",
+            "Bei <b>Neues Angebot</b> und <b>Kopieren</b> reserviert das Programm die nächste Nummer im gemeinsamen "
+            "Ordner (Unterordner <i>Nummern</i>, je Nummer eine kleine Datei). Legen zwei Mitarbeiter im selben "
+            "Augenblick ein Angebot an, bekommt der zweite automatisch die nächste Nummer.",
+            "Eine vergebene Nummer wird nie wieder vergeben, auch wenn das Angebot gelöscht wird. Lücken in der "
+            "Reihe sind deshalb möglich.",
+            "<b>Ordner nicht erreichbar</b> (Laptop unterwegs, Netz weg): das Angebot bekommt eine <b>vorläufige "
+            "Nummer</b> (V-PB-1); der Reiter zeigt <i>(vorläufige Nummer)</i>. Die endgültige Nummer kommt beim "
+            "nächsten Abgleich von selbst (Meldung in der Statuszeile). Angebots-PDF und Materialanfrage gehen erst "
+            "mit endgültiger Nummer: das Programm versucht sie dann sofort zu holen.",
+            "Ohne gemeinsamen Ordner (nur ein Arbeitsplatz) zählt das Programm im gleichen Format auf diesem Rechner. "
+            "Den Startwert setzt die Einstellung <i>Letzte Angebotsnummer</i> (z. B. 2026-00500: das nächste Angebot "
+            "bekommt 2026-00501).",
+            "Ältere Angebote behalten ihre Nummer (A-2026-0041, PB-2026-0001 …); sie zählen beim neuen Nummernkreis "
+            "nicht mit.",
+            "Gibt jemand eine Nummer von Hand doppelt ein, meldet der Abgleich das (<i>doppelte Angebotsnummer</i>); "
+            "dann bei einem der beiden Angebote die Nummer im Angebotskopf ändern.")
+    i.hinweis("Für einen garantiert eindeutigen Nummernkreis gehört der gemeinsame Ordner auf ein "
+              "<b>Netzlaufwerk</b> (Server oder NAS im Firmennetz). Bei OneDrive/SharePoint kommt die Reservierung "
+              "erst mit der Synchronisierung bei den Kollegen an; legen zwei in diesem Moment ein Angebot an, kann "
+              "eine Nummer selten doppelt entstehen. Der Abgleich meldet das.")
     i.abschnitt("Gemeinsamer Ordner")
     i.genauer()
     i.text("Ein Ordner, den alle erreichen: ein Netzlaufwerk, eine NAS oder ein OneDrive-/SharePoint-Ordner, den "
@@ -3718,6 +3822,30 @@ def kapitel_stammdaten(i):
         ["Skonto [%], Skontofrist [Tage], Zahlungsziel netto [Tage]",
          "Zahlungsbedingungen des Kunden für neue Angebote; leer = Vorgabe aus den Einstellungen. Das Skonto wird in "
          "den Preis eingerechnet ([[kalkulation]])."],
+        ["Bemerkung", "freier Text"]], [75, 190])
+    i.abschnitt("Kundenvorgaben", marke="kundenvorgaben")
+    i.text("Einstellungen → <b>Kundenvorgaben</b>: je Kunde Maschine, Stangenlänge, Gewinn, Lieferzeit, Material und "
+           "Standard-Staffeln. Wählen Sie den Kunden im Angebot, sind diese Kopffelder gleich richtig gefüllt.",
+           kurz=True)
+    i.genauer()
+    i.text("Die Kundenvorgaben sind eine eigene Tabelle, getrennt von den Importprofilen (STEP) "
+           "([[importprofile]]): je Kunde eine Zeile, leere Felder = Einstellungen. Ein neues Angebot für den Kunden "
+           "bekommt die Vorgaben statt der Einstellungen. Wählen Sie den Kunden in einem vorhandenen Angebot, ersetzt "
+           "das Programm ein Kopffeld nur, solange es leer ist oder noch die Vorgabe aus den Einstellungen bzw. des "
+           "vorher gewählten Kunden hat. Von Hand geänderte Werte bleiben. Die Statuszeile nennt, was übernommen "
+           "wurde. Wechseln Sie auf einen Kunden ohne Vorgabe, gelten für diese Felder wieder die Einstellungen.")
+    i.bild("stamm_kundenvorgaben", "Einstellungen, Kundenvorgaben: je Kunde eine Zeile", hoehe=70 * mm)
+    i.tabelle(["Kundenvorgaben", "Bedeutung"], [
+        ["<b>Kunde</b>", "Kundennummer aus dem Reiter Kunden"],
+        ["Maschine, Stangenlänge [mm], Gewinn [%]", "statt Standard-Maschine, Standard-Stangenlänge und Gewinn aus den "
+                                                     "Einstellungen"],
+        ["Lieferzeit als, Lieferzeit, Lieferbedingungen (Freitext)",
+         "wie im Angebotskopf ([[lieferzeit]]); passt der Wert nicht zur Art, wird die Lieferzeit nicht übernommen"],
+        ["Material neuer Positionen", "z. B. <i>Kunde beigestellt</i> für Kunden, die ihr Material immer selbst "
+                                      "liefern ([[kundenmaterial]])"],
+        ["Standard-Staffeln (Faktoren, 0 = keine)", "Faktoren wie in der Einstellung <i>Standard-Staffeln</i>, z. B. "
+                                                    "1; 3; 10; 0 = für diesen Kunden keine Standard-Staffeln "
+                                                    "([[staffeln]])"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
     i.liste("<b>CSV exportieren</b>: alle Kunden als Datei für Excel.",
@@ -4089,7 +4217,7 @@ def kapitel_stammdaten(i):
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
            "Biegerohre und die Zusatzarbeit Biegen beim ersten Start von Version 0.9.39, die drei Regeln für "
-           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.41.")
+           "Knickrahmen und die Zusatzarbeit Knicken beim ersten Start von Version 0.9.48.")
     i.abschnitt("Schweißverfahren, Schweiß-Kennwerte und Faktoren", marke="schweiss_stammdaten")
     i.text("Diese drei Unterreiter sind die Grundlage der Schweißzeit in Schweißbaugruppen. Die Schweißzeit einer "
            "Nahtgruppe kommt nicht aus einem Prozentsatz, sondern aus der Nahtlänge und Kennwerten, die du hier "
@@ -4964,7 +5092,7 @@ def kapitel_step_messung(i):
            hoehe=55 * mm, legende=[(1, "Vorschau umschalten.")])
     i.text("<b>Im Angebot</b> stehen die Anbauteile in der Spalte <i>Anbauteile</i> der Positionen (erscheint, "
            "sobald eine Position welche hat). Solange ein unsicher erkanntes Anbauteil offen ist, zeigt der Status "
-           "<b>HINWEIS: Anbauteile prüfen (Doppelklick)</b>, und <i>Prüfen vor Freigabe</i> meldet „Anbauteile "
+           "<b>HINWEIS: Anbauteile prüfen (Doppelklick)</b>, und der <i>Angebots-Check</i> meldet „Anbauteile "
            "ungeprüft“. Ein <b>Doppelklick</b> auf die Spalte oder den Status (oder Rechtsklick, <i>Anbauteile prüfen "
            "…</i>) öffnet dasselbe Fenster; <b>Übernehmen</b> ändert die Gravur der Position um den Unterschied.")
     i.bild("anbau_position", "Position mit Anbauteilen im Angebot: Spalte Anbauteile (hier alle geprüft)",
@@ -5351,8 +5479,8 @@ STECKBRIEFE = {
     "zukauf": ("Zukaufartikel, Lieferanten, Einkaufspreise und Aufschläge verwalten.", "Reiter <i>Zukaufartikel</i>"),
     "frachtkosten": ("Frachtzonen, Tarife, Ladehilfsmittel und Zuschläge pflegen, Fracht kalkulieren.",
                      "Reiter <i>Frachtkosten</i>"),
-    "mehrere_arbeitsplaetze": ("Kürzel in der Angebotsnummer; Angebote und Stammdaten mit den Kollegen über einen "
-                               "gemeinsamen Ordner teilen.",
+    "mehrere_arbeitsplaetze": ("Kürzel als Bearbeiter, gemeinsamer Nummernkreis 2026-00001; Angebote und Stammdaten "
+                               "mit den Kollegen über einen gemeinsamen Ordner teilen.",
                                "<i>Datei → Benutzer und gemeinsamer Ordner …</i>; Knopf <i>Abgleichen</i> im Reiter "
                                "Angebote"),
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
