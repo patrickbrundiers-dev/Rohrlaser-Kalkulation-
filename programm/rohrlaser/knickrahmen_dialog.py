@@ -139,20 +139,23 @@ class KnickrahmenDialog(QDialog):
 class KnickverbindungDialog(QDialog):
     """Knickverbindung aus Einzelrohren der STEP-Datei (Plan K1-2): zeigt die erkannte Kette (Schenkel, Knickwinkel,
     Stegwand) und lässt ersten Schenkel bzw. Stoß, Laufrichtung, Freistich, Knickzugabe, K-Faktor und schräge
-    Innenwand wählen. Nach OK: kette = Ergebnis von knickverbindung.kette, werte() = Freistich, z, k, schraeg."""
+    Innenwand wählen. Nach OK: kette = Ergebnis von knickverbindung.kette, werte() = Freistich, z, k, schraeg.
+    koerper=True: Knickrahmen aus einem Körper bearbeiten (messwerte = seine Rohrstücke, vorgaben mit start)."""
 
-    def __init__(self, parent, messwerte, indizes, vorgaben=None):
+    def __init__(self, parent, messwerte, indizes, vorgaben=None, koerper=False):
         from . import knickverbindung as kv
         super().__init__(parent)
-        self.setWindowTitle("Knickverbindung erstellen")
+        self.setWindowTitle("Knickrahmen bearbeiten" if koerper else "Knickverbindung erstellen")
         self.messwerte, self.indizes, self.kv = messwerte, list(indizes), kv
         v = dict(vorgaben or {})
-        self.kette = kv.kette(messwerte, self.indizes)      # ValueError: Aufrufer meldet den Grund
+        self.kette = kv.kette(messwerte, self.indizes, v.get("start"))      # ValueError: Aufrufer meldet den Grund
         m0 = messwerte[self.kette["teile"][0]["i"]]
         self.profil = dict(form=m0.get("profilform"), a=kn._z(m0.get("abm_a")),
                            b=kn._z(m0.get("abm_b")) or kn._z(m0.get("abm_a")), wand=kn._z(m0.get("wandstaerke")))
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("Die markierten Rohre stoßen mit Gehrung aneinander und werden ein Knickrahmen: eine "
+        lay.addWidget(QLabel("Der Körper ist ein Knickrahmen: eine Position mit dem gestreckten Rohr und einem "
+                             "V-Ausschnitt je Ecke. Die Schenkel sind an den Ecken getrennt gemessen." if koerper else
+                             "Die markierten Rohre stoßen mit Gehrung aneinander und werden ein Knickrahmen: eine "
                              "Position mit dem gestreckten Rohr und einem V-Ausschnitt je Ecke. Die Rohre werden nicht "
                              "mehr einzeln übernommen."))
         form = QFormLayout()
@@ -167,6 +170,7 @@ class KnickverbindungDialog(QDialog):
         self.z = _spin(v.get("z"), -20, 20, " mm")
         self.k = _spin(v.get("k") or kn.K_FAKTOR, 0.1, 1, "", stellen=2)
         self.schraeg = _schraeg_haken(None)
+        self.schraeg.setChecked(bool(v.get("schraeg")))
         for titel, w in (("Erster Schenkel", self.start), ("", self.umkehren), ("Freistich-Ø", self.freistich),
                          ("Knickzugabe je Knick", self.z), ("K-Faktor", self.k), ("", self.schraeg)):
             form.addRow(titel, w)
@@ -176,7 +180,7 @@ class KnickverbindungDialog(QDialog):
         lay.addWidget(self.vorschau)
         knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.ok_knopf = knoepfe.button(QDialogButtonBox.Ok)
-        self.ok_knopf.setText("Knickverbindung erstellen")
+        self.ok_knopf.setText("Übernehmen" if koerper else "Knickverbindung erstellen")
         knoepfe.accepted.connect(self.accept)
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)

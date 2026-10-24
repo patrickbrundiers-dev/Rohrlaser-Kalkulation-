@@ -26,7 +26,8 @@ DATEIEN = [HIER / "step_konturen" / "K01_RE60x40x3_Konturen.step", HIER / "step_
            HIER / "step_bleche" / "B08_Platte_mit_Tasche.step"]
 KOERPER_FELDER = {"nr", "artikel_vorschlag", "koerperart", "geometrie_gueltig", "volumen_mm3", "oberflaeche_mm2",
                   "anzahl_flaechen", "anzahl_kanten", "huellquader_datei", "bauteiltyp", "profiltyp",
-                  "profil_id_vorschlag", "blech", "normprofil", "kammern", "kontur_umfang", "verbund", "biegerohr", "traeger",
+                  "profil_id_vorschlag", "blech", "normprofil", "kammern", "kontur_umfang", "verbund", "biegerohr", "knick_schenkel",
+                  "traeger",
                   "aussenmasse", "innenmasse", "querschnittsflaeche_mm2", "wandstaerke", "laenge", "laengsachse",
                   "schnittwinkel", "schneidweg", "konturen", "enden", "senkungen", "fliessloecher", "pruefstatus", "warnungen",
                   "erkennungssicherheit", "ersatzwerte", "alternative", "anbauteile", "trennung", "bauteil", "pfad",
