@@ -31,7 +31,7 @@ from .spaltenbreite import AutoGroesse
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
-from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, zahl_als_text
+from .stammdaten import LASER, TABELLEN, EINSTELLUNGEN, Feld, pruefen, wert_aus_text, wert_als_text, werkstoff_info, zahl_als_text
 
 ANLEITUNG = "Bedienungsanleitung.pdf"
 ANLEITUNG_KOPIE = "Anleitung"     # Unterordner im Datenordner (anleitung_kopie)
@@ -203,6 +203,11 @@ def liste_fuellen(cb, k, quelle, erster=""):
             f.setBold(True)
             it.setFont(f)
         cb.addItems(werte)
+        if quelle == "werkstoff":      # Norm, Rohrlaser-Eigenschaften und Laser-Hinweis als Tooltip (24.10.2026)
+            for i in range(cb.count() - len(werte), cb.count()):
+                info = werkstoff_info(k.werkstoffe.get(cb.itemText(i)))
+                if info:
+                    cb.setItemData(i, info, Qt.ToolTipRole)
 
 
 class Auswahl(QStyledItemDelegate):
