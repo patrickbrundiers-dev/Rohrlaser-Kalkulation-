@@ -1077,7 +1077,7 @@ class EditorRahmen(QObject):
         z0, z1 = a.modell.min[2], a.modell.max[2]
         bereiche = []
         e = d.eingaben()
-        lagen = {x["zeile"]: x for x in sk.lagen(e.get("konturen") or [], z1 - z0) if x.get("nr") == 0}
+        lagen = {x["zeile"]: x for x in sk.lagen(e.get("konturen") or [], z1 - z0, getattr(d, "qs", None)) if x.get("nr") == 0}
         hoehe = max(sw._z(d.profil.get("a")), sw._z(d.profil.get("b")), 10.0)
         for mid in ids:
             art, _, nr = mid.partition(":")
@@ -1108,7 +1108,7 @@ class EditorRahmen(QObject):
         x = treffer["punkt"][2] - z0
         e = self.d.eingaben()
         beste = None
-        for lage in sk.lagen(e.get("konturen") or [], z1 - z0):
+        for lage in sk.lagen(e.get("konturen") or [], z1 - z0, getattr(self.d, "qs", None)):
             dist = abs(lage["x"] - x) - max(sw._z(lage.get("huelle")), 6.0) / 2
             if beste is None or dist < beste[0]:
                 beste = (dist, f"kontur:{lage['zeile']}")

@@ -87,7 +87,7 @@ def loecher(e, qs, aussen, cum, L):
     (t = 0) reichende zusätzlich um den Umfang verschoben."""
     T = cum[-1]
     out = []
-    for d in sk.lagen(e.get("konturen") or [], L):
+    for d in sk.lagen(e.get("konturen") or [], L, qs):
         ein = d["eingabe"]
         art = ein.get("art")
         if art not in LOCH_ARTEN and not (art == SONDERKONTUR and ein.get("umriss")):
@@ -257,6 +257,10 @@ def netz(e, profil, laenge):
     T = cum[-1]
     loch_zeile = loecher(e, qs, aussen, cum, L) if innen and T > 0 else []
     loch = [q for q, _ in loch_zeile]
+    zeilen = e.get("konturen") or []
+    parallel = {i for i, z in enumerate(zeilen) if z.get("schnitt") == "parallel"} \
+        if qs.r and e.get("d3") is True and innen else set()
+    cum_i = _laengen(innen) if parallel else None
 
     def ort(t, x, wand):
         """Punkt (t, x) der Abwicklung auf der Außen- bzw. Innenwand (gleiche Spalte, gleicher Anteil)."""
@@ -266,7 +270,34 @@ def netz(e, profil, laenge):
         (u0, v0), (u1, v1) = wand[i], wand[(i + 1) % len(wand)]
         return x, u0 + f * (u1 - u0), v0 + f * (v1 - v0)
 
-    def mantel_loch(poly, art, nach_aussen):
+    def innen_parallel(q):
+        """Lochrand auf der Innenwand bei Schnitt parallel zur Konturachse (Rundrohr, 3D): jeder Punkt des Rands
+        außen geht parallel zur Normalen in der Lochmitte nach innen (statt zur Rohrmitte). [(t, x)] wie q."""
+        tm = sum(p[0] for p in q) / len(q)
+        _, um, vm = ort(tm, 0.0, aussen)
+        lg = math.hypot(um, vm) or 1.0
+        nu, nv = um / lg, vm / lg
+        ri = math.hypot(*innen[0])
+        out = []
+        for t, x in q:
+            _, u, v = ort(t, x, aussen)
+            pn = u * nu + v * nv
+            disk = pn * pn - (u * u + v * v) + ri * ri
+            if disk < 0:
+                out.append((t, x))
+                continue
+            sv = pn - math.sqrt(disk)
+            ti = _t_von(innen, cum_i, u - sv * nu, v - sv * nv)
+            k = max(0, min(len(innen) - 1, bisect.bisect_right(cum_i, ti) - 1))
+            f = 0.0 if cum_i[k + 1] - cum_i[k] < 1e-12 else (ti - cum_i[k]) / (cum_i[k + 1] - cum_i[k])
+            ta = cum[k] + f * (cum[k + 1] - cum[k])
+            ta += T * round((t - ta) / T)          # über die Naht: neben dem Punkt außen bleiben
+            out.append((ta, x))
+        return out
+
+    loch_innen = [innen_parallel(q) if z in parallel else q for q, z in loch_zeile]
+
+    def mantel_loch(poly, art, nach_aussen, loch=loch):
         n = len(poly)
         for i in range(n):
             t0, t1 = cum[i], cum[i + 1]
@@ -291,12 +322,12 @@ def netz(e, profil, laenge):
     gelocht = mantel_loch(aussen, "A", True) if loch else set()
     mantel(aussen, "A", True, gelocht)
     if innen:
-        mantel_loch(innen, "I", False)
-        mantel(innen, "I", False, gelocht)
+        gelocht_i = mantel_loch(innen, "I", False, loch_innen) if loch else set()
+        mantel(innen, "I", False, gelocht_i)
     # Lochwände: je Kante des Lochs ein Viereck von außen nach innen, Vorderseite zur Lochmitte
-    for q, zeile in loch_zeile:
+    for (q, zeile), qi in zip(loch_zeile, loch_innen):
         dreh = 1 if sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(q, q[1:] + q[:1])) > 0 else -1
-        for a, b in zip(q, q[1:] + q[:1]):
+        for (a, b), (ai, bi) in zip(zip(q, q[1:] + q[:1]), zip(qi, qi[1:] + qi[:1])):
             tm, xm = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
             if not 0 <= tm < T:
                 continue
@@ -311,7 +342,7 @@ def netz(e, profil, laenge):
             tu, tv = (u1 - u0) / lg, (v1 - v0) / lg
             soll = (-(nt * tu), nt * tv, nx)
             pa, pb = _xyz(*ort(a[0], a[1], aussen)), _xyz(*ort(b[0], b[1], aussen))
-            qa, qb = _xyz(*ort(a[0], a[1], innen)), _xyz(*ort(b[0], b[1], innen))
+            qa, qb = _xyz(*ort(ai[0], ai[1], innen)), _xyz(*ort(bi[0], bi[1], innen))
             dreieck("K", pa, pb, qb, soll, f"kontur:{zeile}")
             dreieck("K", pa, qb, qa, soll, f"kontur:{zeile}")
     # Stirnflächen (Schnittflächen der Enden): Ring zwischen außen und innen bzw. volles Profil
@@ -338,7 +369,7 @@ def netz(e, profil, laenge):
         zug = [_xyz(z(u, v), u, v) for u, v in aussen + aussen[:1]]
         linie(art, zug, (0, 1, 0), f"ende:{art[1].lower()}")
     # Konturen auf der Außenwand
-    for d in sk.lagen(e.get("konturen") or [], L):
+    for d in sk.lagen(e.get("konturen") or [], L, qs):
         try:
             pts, n_mitte = sk.platzieren(qs, d)
             ns = sk.normalen(qs, d)
