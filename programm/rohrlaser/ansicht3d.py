@@ -583,8 +583,9 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             if sz <= 0:
                 nx, ny, nz = -nx, -ny, -nz
             a, b, c = proj[i], proj[j], proj[k]
-            liste.append((1 if roentgen else 0 if art == "I" else 1, (a[2] + b[2] + c[2]) / 3, (a, b, c), art,
-                          licht_wert(nx, ny, nz), False))
+            # Schicht: Innenwand zuerst, dann Flächen, Schweißnaht-Raupen darüber (immer sichtbar wie ihre Linien)
+            liste.append((1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 1,
+                          (a[2] + b[2] + c[2]) / 3, (a, b, c), art, licht_wert(nx, ny, nz), False))
 
     def gedreht(a):
         q = (m[0][0] * (a[0] - cx) + m[0][1] * (a[1] - cy) + m[0][2] * (a[2] - cz),

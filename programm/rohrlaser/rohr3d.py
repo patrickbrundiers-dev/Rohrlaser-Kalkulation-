@@ -20,7 +20,7 @@ vorne/90°).
 import bisect
 import math
 
-from . import durchdringung as dd, schnittflaeche as sf, skizze as sk
+from . import durchdringung as dd, schnittflaeche as sf, skizze as sk, steckverbindung as stv
 from .blech3d import _flaeche2, _ohrschnitt
 from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, V_AUSSCHNITT, _z, mit_radius)
@@ -192,11 +192,37 @@ def zelle_frei(feld, loch_liste):
     return out
 
 
-def netz(e, profil, laenge, naht_winkel=None, grenze=None):
+def nasen_lage(ende, qs, winkel=None):
+    """Nasen eines Endes (dict der Eingaben a/b): (Länge über den Schnitt hinaus = Flanke [mm], [Winkel der
+    Nasenmitten], halbe Breite am Umfang [mm]) oder None. Winkel von Ende A gesehen wie die Schweißnaht (0° oben,
+    90° vorne); Vorgabe 'quer' = erste Nase oben (Wände der Breite a, steckverbindung.querschnitt), 'längs' = vorne,
+    die zweite gegenüber, bei 4 Nasen alle Wände. Rundrohr: Nase = Bogenstück über der Sehne bN."""
+    n = stv.nasen(ende)
+    if not n or _z(n.get("laenge_plus")) <= 0 or _z(n.get("bN")) <= 0:
+        return None
+    w0 = _z(winkel) if winkel is not None else _z(n.get("winkel")) if n.get("winkel") is not None else \
+        (90.0 if n.get("waende") == stv.WAENDE[1] else 0.0)
+    anzahl = int(_z(n.get("anzahl")) or 2)
+    schritt = {1: (0,), 2: (0, 180), 4: (0, 180, 90, 270)}.get(anzahl, (0, 180))
+    b_n = _z(n.get("bN"))
+    h = qs.r * math.asin(min(1.0, b_n / (2 * qs.r))) if qs.r else b_n / 2
+    return _z(n.get("laenge_plus")), [(w0 + d) % 360 for d in schritt], h
+
+
+def nasen_stuecke(e, profil, laenge, nasen_winkel=None):
+    """Nasen als Körper für den STEP-Export (3E-8): je Nase dict(ende, winkel, aussen, innen) mit aussen/innen =
+    [(Punkt am Schnitt, Punkt an der Spitze)] je Stelle am Umfang, Koordinaten wie netz (Z = Rohrachse ab Ende A)."""
+    n = netz(e, profil, laenge, nasen_winkel=nasen_winkel)
+    return (n or {}).get("nasen") or []
+
+
+def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None):
     """Netz der 3D-Ansicht aus Eingaben e (schneidweg), Profil und Teilelänge [mm]; None ohne Länge/Querschnitt.
     naht_winkel: Lage der Längsschweißnaht (naht.py, von Ende A gesehen 0° oben, 90° rechts) als rote Linie 'NL'
     über die ganze Länge (Patrick 24.10.2026), None = keine feste Naht. grenze: Kopfschwenk der Maschine [°] für
-    Enden in 3D (schnittflaeche.py: 2D Strahl senkrecht zum Mantel, 3D bis zur Grenze, darüber gelb 'GB')."""
+    Enden in 3D (schnittflaeche.py: 2D Strahl senkrecht zum Mantel, 3D bis zur Grenze, darüber gelb 'GB').
+    Nasen einer Steckverbindung (Block 'nasen' an Ende a/b) sind als Laschen der Wand über den Schnitt hinaus
+    modelliert (nasen_stuecke); nasen_winkel = {Ende: Winkel der ersten Nase} statt der Vorgabe (nasen_lage)."""
     L = _z(laenge)
     if L <= 0:
         return None
@@ -230,13 +256,18 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None):
     innen_x = {"a": {}, "b": {}}        # Innenkante der Enden je Punkt des Innenumrisses (schnittflaeche.punkt)
     gelb = {"a": set(), "b": set()}     # Stücke des Umrisses über der 3D-Grenze
 
+    # Nasen einer Steckverbindung: das Teil ist um die Flanke länger (Rohlänge), der Schnitt des Endes liegt um so
+    # viel weiter innen, die Nasen ragen bis zum Teilende
+    nasen = {s_: nasen_lage(es, qs, (nasen_winkel or {}).get(s_)) for s_, es in (("a", ea), ("b", eb))}
+    plus = {s_: (n_[0] if n_ else 0.0) for s_, n_ in nasen.items()}
+
     def za(u, v):
         x = innen_x["a"].get((round(u, 6), round(v, 6)))
-        return sk.schnitt_x(qs, ea, u, v) if x is None else x
+        return (sk.schnitt_x(qs, ea, u, v) if x is None else x) + plus["a"]
 
     def zb(u, v):
         x = innen_x["b"].get((round(u, 6), round(v, 6)))
-        return L - (sk.schnitt_x(qs, eb, u, v) if x is None else x)
+        return L - (sk.schnitt_x(qs, eb, u, v) if x is None else x) - plus["b"]
 
     roh_a = list(umriss[0]) if _flaeche2(umriss[0]) > 0 else list(umriss[0])[::-1]     # ccw in (u, v)
     aussen, teile = _unterteilen(roh_a)
@@ -449,6 +480,43 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None):
         if not (ein.get("art") == GRAVUR and not ein.get("umriss")):
             zug.append(zug[0])
         linie("G" if ein.get("art") in GRAVUREN else "K", zug, _xyz(0, *n_mitte), f"kontur:{d['zeile']}")
+    # Nasen der Steckverbindung: Lasche der Wand (Breite am Umfang 2 h) vom Schnitt bis zum Teilende
+    stuecke = []
+    for s_, z, art in (("a", za, "EA"), ("b", zb, "EB")):
+        if not nasen[s_] or not innen or T <= 0:
+            continue
+        lg, winkel, h = nasen[s_]
+        richtung = -1.0 if s_ == "a" else 1.0
+        ende = f"ende:{s_}"
+        for w in winkel:
+            pt = sk.naht_punkt(qs, w)
+            if pt is None:
+                continue
+            tc = _t_von(aussen, cum, *pt)
+            ts = [tc - h] + [c + T * k for k in (-1, 0, 1) for c in cum[:-1] if tc - h < c + T * k < tc + h] + [tc + h]
+            ts.sort()
+            aus, inn = [], []
+            for t in ts:
+                _, u, v = ort(t, 0.0, aussen)
+                _, ui, vi = ort(t, 0.0, innen)
+                xa, xi = z(u, v), z(ui, vi)
+                aus.append((_xyz(xa, u, v), _xyz(xa + richtung * lg, u, v), (u, v)))
+                inn.append((_xyz(xi, ui, vi), _xyz(xi + richtung * lg, ui, vi)))
+            for (a0, a1, (u0, v0)), (b0, b1, (u1, v1)), (c0, c1), (d0, d1) in zip(aus, aus[1:], inn, inn[1:]):
+                du, dv = u1 - u0, v1 - v0
+                dreieck("A", a0, b0, b1, _xyz(0, dv, -du), ende)
+                dreieck("A", a0, b1, a1, _xyz(0, dv, -du), ende)
+                dreieck("I", c0, d0, d1, _xyz(0, -dv, du), ende)
+                dreieck("I", c0, d1, c1, _xyz(0, -dv, du), ende)
+                dreieck(art, a1, b1, d1, (0, 0, richtung), ende)          # Stirn der Nase
+                dreieck(art, a1, d1, c1, (0, 0, richtung), ende)
+            for (a0, a1, (u0, v0)), (c0, c1), nach in ((aus[0], inn[0], -1), (aus[-1], inn[-1], 1)):
+                (ua, va), (ub, vb) = (aus[0][2], aus[1][2]) if nach < 0 else (aus[-2][2], aus[-1][2])
+                soll = _xyz(0, nach * (ub - ua), nach * (vb - va))      # Flanke: längs des Umfangs nach außen
+                dreieck(art, a0, a1, c1, soll, ende)
+                dreieck(art, a0, c1, c0, soll, ende)
+            linie(art, [aus[0][0], aus[0][1]] + [p[1] for p in aus[1:]] + [aus[-1][0]], (0, 1, 0), ende)
+            stuecke.append(dict(ende=s_, winkel=round(w, 3), aussen=[(p[0], p[1]) for p in aus], innen=inn))
     # Längsschweißnaht: rote Linie auf der Außenwand von Anfangs- bis Endschnitt
     try:
         pt = sk.naht_punkt(qs, naht_winkel)
@@ -461,8 +529,11 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None):
         schritte = max(1, int(abs(x1 - x0) // 50))
         zug = [_xyz(x0 + (x1 - x0) * i / schritte, u, v) for i in range(schritte + 1)]
         linie("NL", zug, _xyz(0, pt[0] / r, pt[1] / r), "naht")
-    return dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True,
-                geo=geometrie(e, qs, L))
+    out = dict(p=punkte, t=dreiecke, ti=flaeche_id, l=linien, ln=normalen, li=kennung, eingaben=True,
+               geo=geometrie(e, qs, L))
+    if stuecke:
+        out["nasen"] = stuecke
+    return out
 
 
 KREIS_ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL)

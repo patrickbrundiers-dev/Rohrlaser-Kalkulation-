@@ -2317,7 +2317,8 @@ def kapitel_optimieren(i):
             "bleiben ein normales Teil (meist <i>nicht messbar</i>).",
             "Die 3D-Ansicht zeigt den Körper gefaltet, wie er in der Datei steht.")
     i.abschnitt("Steckverbindung", marke="steckverbindung")
-    i.text("Bei einer <b>Steckverbindung</b> stecken zwei Rohre einer Schweißbaugruppe ineinander: Das Rohr, das mit "
+    i.text("Bei einer <b>Steckverbindung</b> stecken zwei Rohre einer Schweißbaugruppe oder eines Satzes "
+           "([[satz_3d]]) ineinander: Das Rohr, das mit "
            "dem Ende anstößt (<b>Stecker</b>), bekommt am Ende <b>Nasen</b>, das andere (<b>Aufnahme</b>) an der Stelle "
            "je Nase einen <b>Schlitz</b>. Die Teile richten sich beim Heften selbst aus. Das Programm rechnet beide "
            "Teile: Schlitze als Konturen der Aufnahme, Nasen als längeres Ende des Steckers.", kurz=True)
@@ -2348,11 +2349,13 @@ def kapitel_optimieren(i):
             "<b>Prüfregeln</b> ([[pruefregeln]]): <i>Nase zu schmal</i>; für die Schlitze gilt <i>Kontur zu nah am "
             "Rand</i>. Fehlt ein Teil der Verbindung in der Baugruppe, zeigt die Baugruppe den FEHLER "
             "<i>Steckverbindung ohne Gegenstück</i>.",
-            "Die Verbindung steht in der Schweißbaugruppe; Schlitze und Nasen verweisen auf sie. Wird die "
-            "Verbindung entfernt, fallen Schlitze und Nasen in beiden Teilen weg.",
+            "Die Verbindung steht in der Schweißbaugruppe bzw. beim Satz ([[satz_3d]]); Schlitze und Nasen "
+            "verweisen auf sie. Wird die Verbindung entfernt, fallen Schlitze und Nasen in beiden Teilen weg.",
             "Im <b>Teile-Editor</b> ([[schneidweg_rechner]]) stehen die Schlitze als Zeilen mit Herkunft "
             "<i>Steckverbindung</i>, die Nasen beim Ende (blau). Ändern und Entfernen nur im Reiter "
-            "Steckverbindungen der Schweißbaugruppe.")
+            "Steckverbindungen der Schweißbaugruppe bzw. im Fenster Satz in 3D.",
+            "Im <b>3D</b> des Teile-Editors und der Schweißbaugruppe ([[baugruppe_baum]]) sind die Nasen als "
+            "Laschen der Wand über das Rohrende hinaus modelliert, die Schlitze ausgeschnitten.")
     i.abschnitt("Steckverbindung anlegen", marke="steckverbindung_anlegen")
     i.text("Angelegt wird die Steckverbindung im Editor der Schweißbaugruppe ([[schweissbaugruppe]]), Reiter "
            "<b>Steckverbindungen</b>. Beim Speichern schreibt das Programm Schlitze und Nasen in beide Teile und "
@@ -2381,6 +2384,29 @@ def kapitel_optimieren(i):
             "des Steckers geht zurück.",
             "Ohne Lage x oder mit zu kleinem Winkel lässt sich die Baugruppe nicht speichern; die Spalte "
             "<i>Schlitz und Nasen</i> nennt, was fehlt.")
+    i.abschnitt("Satz in 3D", marke="satz_3d")
+    i.text("Ein <b>Satz</b> aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen, den der Kunde als "
+           "Stecksystem möchte), lässt sich im Fenster <b>Satz in 3D</b> bearbeiten: Rechtsklick auf eine Position des "
+           "Satzes → <i>Satz in 3D …</i>. Es zeigt alle Teile in der "
+           "Einbaulage der STEP-Datei und legt Steckverbindungen an wie der Editor der Schweißbaugruppe; die "
+           "Längsnaht wählt man per Klick auf die Fläche eines Rohrs.", kurz=True)
+    i.genauer()
+    i.liste("<b>Reiter Teile</b>: Position, Artikel, Profil, Länge und Längsnaht je Teil. Markierte Teile sind im "
+            "3D blau. Ein Klick auf ein Teil im 3D markiert es, mit Strg kommt es dazu bzw. fällt wieder weg.",
+            "<b>Reiter Steckverbindungen</b>: dieselbe Tabelle und dieselben Knöpfe wie in der Schweißbaugruppe "
+            "([[steckverbindung_anlegen]]). <i>Steckverbindung hinzufügen</i> nimmt die zwei markierten Rohre (das "
+            "zweite wird Stecker). <i>Alle Stöße stecken</i> braucht die Lage der Rohrenden aus dem STEP-Import: Ein "
+            "Satz merkt sie sich ab Version 0.9.95; ältere Sätze bitte neu einlesen.",
+            "<b>Längsnaht wählen</b> (Leiste über dem 3D): einschalten und die Fläche eines Rohrs anklicken. Bei "
+            "Quadrat- und Rechteckrohr liegt die Naht in der Mitte der angeklickten Wand, beim Rundrohr genau an der "
+            "Stelle. Die Naht ist dann eine feste Position mit Quelle <i>manuell</i> (wie im Dialog Schweißnaht, "
+            "[[schweissnaht]]) und im 3D rot. Messen schaltet die Auswahl aus.",
+            "Die Rohre stehen im 3D so, wie sie gerechnet werden: mit den Schlitzen und Nasen, auch der noch nicht "
+            "gespeicherten.",
+            "<b>OK</b> schreibt Schlitze, Nasen, Länge, Schneidweg und Längsnähte in die Teile; die Verbindungen "
+            "speichert das Angebot je Satz (sie bleiben beim Kopieren des Angebots erhalten). Ist der Satz eine "
+            "Schweißbaugruppe, öffnet der Knopf ihren Editor.",
+            "Knickrahmen aus den Rohren eines Satzes legen Sie weiter im STEP-Prüfdialog an ([[knickrahmen]]).")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
@@ -3402,13 +3428,15 @@ def kapitel_baugruppen(i):
     i.text("Der Reiter <b>Strukturbaum und 3D</b> zeigt die Baugruppe als Baum (Baugruppe → Unterbaugruppen → "
            "Einzelteile und Nahtgruppen, mit Menge und Stück je Baugruppe) und rechts in 3D in Einbaulage, wenn die "
            "Teile aus dem STEP-Import kommen. Ein Klick auf eine Unterbaugruppe, ein Teil oder eine Nahtgruppe hebt "
-           "die Teile blau hervor. Die Schweißnähte sind als Linien eingezeichnet: Nahtgruppen schwarz, noch offene "
-           "Nahtvorschläge aus dem STEP-Import magenta, die gewählte Nahtgruppe rot.", kurz=True)
+           "die Teile blau hervor. Die Schweißnähte sind als Raupe eingezeichnet: Nahtgruppen schwarz, noch offene "
+           "Nahtvorschläge aus dem STEP-Import magenta, die gewählte Nahtgruppe rot. Die Rohre zeichnet das Programm "
+           "aus den Eingaben des Teile-Editors, mit den Schlitzen und Nasen der Steckverbindungen.", kurz=True)
     i.bild("baugruppe_baum", "Reiter Strukturbaum und 3D, Unterbaugruppe gewählt", hoehe=70 * mm, legende=[
         (1, "<b>Strukturbaum</b>: Baugruppe, Unterbaugruppen mit Menge, darin Einzelteile und Nahtgruppen."),
         (2, "Gewählte Zeile: ihre Teile sind rechts blau, alle anderen grau."),
-        (3, "3D-Ansicht der ganzen Baugruppe in Einbaulage mit den Schweißnähten (Knöpfe Schräg, Vorn, Oben, "
-            "Stirnseite).")])
+        (3, "3D-Ansicht der ganzen Baugruppe in Einbaulage mit den Schweißnähten; darüber die Leiste wie im "
+            "Teile-Editor (Blick, Darstellung, Nur Gewähltes, Nähte, Messen, Winkel), oben rechts der "
+            "Ansichtswürfel.")])
     i.genauer()
     i.text("Ohne Auswahl zeigt die Ansicht gleiche Teile in gleicher Farbe. Bei einer Nahtgruppe aus den "
            "Nahtkandidaten sind die beiden gestoßenen Teile blau; bei einer von Hand angelegten Nahtgruppe die Teile "
@@ -3420,10 +3448,30 @@ def kapitel_baugruppen(i):
            "STEP-Datei Körper dafür hat (Menge von Hand erhöht, Unterbaugruppe aus einer eigenen Datei mit mehreren "
            "Sätzen), zeigt die Ansicht nur die vorhandenen Körper und nennt die Teile mit „1 von 4 Stück“; die Lage "
            "der übrigen ist unbekannt und wird nicht erfunden.")
+    i.text("<b>Bedienung wie im Teile-Editor</b> ([[teile_editor]]): <i>Blick</i> stellt die Ausgangsansicht ein, "
+           "der Pfeil daneben Vorn, Oben und Seite; ein Klick auf den <b>Ansichtswürfel</b> oben rechts dreht auf "
+           "diese Seite. <i>Schattiert</i>, <i>Mit Kanten</i> oder <i>Durchsichtig</i> (Röntgen: Nasen in den "
+           "Schlitzen und verdeckte Teile sichtbar). <i>Nur Gewähltes</i> blendet alle Teile außer den gewählten "
+           "(blau) aus, samt ihrer Nähte. <i>Nähte</i> blendet die Schweißnähte ein und aus. <i>Messen</i> (zwei "
+           "Punkte, Abstand) und <i>Winkel</i> (drei Punkte) fangen die nächste Ecke; die Maße bleiben stehen, bis "
+           "<i>Maße löschen</i>. Messen und Naht zeichnen schalten sich gegenseitig aus. <i>Längsnaht wählen</i>: "
+           "die Fläche eines Rohrs anklicken, die Längsnaht liegt dann dort (wie im Fenster Satz in 3D, "
+           "[[satz_3d]]); sie ist im 3D rot.")
+    i.text("<b>Rohre aus den Eingaben</b>: Quadrat-, Rechteck- und Rundrohre (und andere Profile, die der "
+           "Teile-Editor zeichnet) stehen so im 3D, wie sie gerechnet werden: Gehrungen, Konturen und die Schlitze "
+           "und Nasen der Steckverbindungen ([[steckverbindung]]), auch der noch nicht gespeicherten aus dem Reiter "
+           "Steckverbindungen. Die Nasen liegen an den Wänden, die zur Aufnahme zeigen (Einbaulage aus der "
+           "STEP-Datei). Biegerohre, Knickrahmen und Teile mit Anbauteilen zeigen weiter das gemessene STEP-Modell.")
+    i.text("<b>Schweißnähte als Raupe</b>: Eine Kehlnaht ist ein Dreieck mit dem a-Maß der Nahtgruppe (Schenkel a·√2 "
+           "an den beiden Teilen entlang), Stumpf- und Ecknaht eine flache Raupe so breit wie die Dicke. Ohne a-Maß "
+           "zeichnet das Programm die Raupe nur für das Bild mit 0,7 × Dicke bzw. 3 mm; gerechnet wird damit nicht. "
+           "Lage und Richtung kommen aus den Flächen der Teile an der Naht. Die Linie der Naht bleibt dazu immer "
+           "sichtbar, auch wenn ein Teil davor liegt (von weitem ist die Raupe klein).")
     i.text("Den Nahtverlauf liefert der STEP-Import ab Version 0.9.56 (die Schnittkante der sich berührenden "
-           "Körper). Nähte sind immer sichtbar, auch wenn ein Teil davor liegt. Von Hand angelegte Nahtgruppen und "
-           "Nahtgruppen aus einem älteren Import haben keinen Verlauf; die Zeile unter der Ansicht nennt, wie viele "
-           "(STEP-Datei neu importieren, dann erscheinen sie).")
+           "Körper). Hat eine Nahtgruppe keinen Verlauf, aber ihre zwei Teile stoßen mit einem Rohrende aneinander "
+           "(Stoß aus der STEP-Datei), nimmt das Programm die Schnittkante dieses Rohrendes als Verlauf. Von Hand "
+           "angelegte Nahtgruppen ohne Teile und Nahtgruppen aus einem älteren Import haben keinen Verlauf; die "
+           "Zeile unter der Ansicht nennt, wie viele (STEP-Datei neu importieren oder im 3D zeichnen).")
     i.text("<b>Naht im 3D zeichnen</b>: Knopf <i>Naht zeichnen</i> unter der Ansicht drücken, die Nahtart wählen und "
            "die Punkte entlang der Naht am Modell anklicken; jeder Klick fängt die nächste Ecke, <i>Punkt zurück</i> "
            "nimmt den letzten wieder weg. Neben den Knöpfen stehen Punktzahl und Länge. <i>Als Nahtgruppe "

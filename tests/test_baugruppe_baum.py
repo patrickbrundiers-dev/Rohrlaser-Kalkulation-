@@ -7,6 +7,8 @@
 - ohne 3D-Daten nur der Baum mit Hinweis
 - Schweißnähte sichtbar (N1): Nahtkandidaten tragen den Nahtverlauf (STEP-JSON 1.16 'linien'), Vorschlag und
   übernommene Nahtgruppe behalten ihn, die 3D-Ansicht zeichnet Nähte (SN), offene Vorschläge (SV), gewählte Naht (SH)
+- 3D wie im Rohr-Editor (B1–B3, Patrick 24.10.2026): Rohre aus den Eingaben, Nähte als Raupe, Leiste mit
+  Nur Gewähltes, Nähte, Darstellung, Messen
 - Naht im 3D zeichnen (N2): Punkte anklicken (Linienzug), Länge, berührte Teile (Körper), Unterbaugruppe und Wanddicke
   ermittelt das Programm, daraus wird eine Nahtgruppe mit Nahtverlauf
 
@@ -172,6 +174,49 @@ assert d.naht_aus_punkten([(0.0, 0.0, 0.0)]) is None
 d.zeichnen_knopf.setChecked(False)
 assert not a3.messen
 ok("Naht im 3D zeichnen: Linienzug, Teile, Länge und Wand ermittelt, Nahtgruppe mit Nahtverlauf")
+
+# ------------------------------------------------------------------ 3D wie im Rohr-Editor (B1–B3)
+d3 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0}, db=db, netze=netze, profile=k.profile)
+d3.reiter.setCurrentIndex(d3.BAUM)
+v3 = d3.ansicht3d
+rohre = d3._rohr_modelle()
+assert rohre and set(rohre) <= {p["id"] for p in teile}, rohre             # B2: Rohre aus den Eingaben
+assert "Rohre aus den Eingaben" in v3.info.text(), v3.info.text()
+assert any(a in v3.ansicht.netz["t"] for a in ("SN", "SV")), list(v3.ansicht.netz["t"])   # B3: Raupen
+neu, _ = d3.steck_alle(melden=False)
+if neu:                                                                       # Stöße aus der Datei: Nasen im Modell
+    st = {z["_st"] for z in d3.bg["steckverbindungen"] if z.get("_nasen") is not False}
+    assert any(d3._rohr_modelle()[pid].get("nasen") for pid in st if pid in d3._rohr_modelle())
+alle = d3.zeige_3d()
+d3.baum.setCurrentItem(d3.baum_items[("teil", t0["id"])])
+v3.nur_knopf.setChecked(True)                                                 # Nur Gewähltes: nur das Teil
+assert d3.zeige_3d({t0["id"]}, "") < alle
+v3.nur_knopf.setChecked(False)
+v3.naehte_knopf.setChecked(False)                                             # Nähte aus
+assert not {"SN", "SV", "SH"} & set(v3.ansicht.netz["t"]) and not v3.ansicht.netz["l"]
+v3.naehte_knopf.setChecked(True)
+v3.darstellung.setCurrentText("Durchsichtig")
+assert v3.ansicht.darstellung == "Durchsichtig"
+v3.messen_knopf.setChecked(True)                                              # Messen schaltet Naht zeichnen aus
+assert v3.ansicht.messen and v3.ansicht.mess_max == 2 and not d3.zeichnen_knopf.isChecked()
+d3.zeichnen_knopf.setChecked(True)                                            # und umgekehrt
+assert not v3.messen_knopf.isChecked() and v3.ansicht.mess_max == 0
+d3.zeichnen_knopf.setChecked(False)
+assert v3.wuerfel is not None and v3.blick_knopf.menu() is not None
+from rohrlaser.baugruppe_ansicht import in_lage  # noqa: E402
+d3.laengsnaht_knopf.setChecked(True)                                          # Längsnaht per Klick (wie im Satz)
+assert not d3.zeichnen_knopf.isChecked() and not v3.ansicht.messen
+nr = next(i for i, (pid, _, _) in enumerate(d3._koerper_lage) if pid in rohre)
+pid, lage, _ = d3._koerper_lage[nr]
+w = d3._3d_geklickt(dict(id=f"teil:{nr}", punkt=in_lage((0.0, 30.0, 50.0), lage)))
+assert w is not None and d3.laengsnaht_werte()[pid]["naht_winkel"] == w, (w, d3.laengsnaht_werte())
+assert d3.werte()["naehte"][pid]["naht_quelle"] == "manuell"
+assert v3.ansicht.netz["l"].get("NL"), v3.ansicht.netz["l"].keys()
+d3.zeichnen_knopf.setChecked(True)                                            # Naht zeichnen schaltet sie aus
+assert not d3.laengsnaht_knopf.isChecked()
+d3.zeichnen_knopf.setChecked(False)
+ok("3D wie im Rohr-Editor: Rohre aus den Eingaben, Nähte als Raupe, Nur Gewähltes, Nähte aus, Darstellung, "
+   "Messen, Längsnaht per Klick")
 
 # ------------------------------------------------------------------ ohne 3D-Daten
 d2 = BaugruppeDialog(None, bgp, positionen, db.tabellen(), {"Schweißen": 75.0})

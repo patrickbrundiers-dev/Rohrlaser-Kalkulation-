@@ -21,6 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.95", "<b>Satz in 3D</b>: Ein Satz aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen "
+               "als Stecksystem), steht im neuen Fenster <i>Satz in 3D …</i> (Rechtsklick auf eine Position) in der "
+               "Einbaulage der STEP-Datei. Dort "
+               "legen Sie Steckverbindungen an wie in der Schweißbaugruppe: zwei Rohre markieren (auch per Klick im "
+               "3D) oder <i>Alle Stöße stecken</i>; Schlitze und Nasen stehen sofort im Modell. <b>Längsnaht per "
+               "Klick</b>: <i>Längsnaht wählen</i> und die Fläche eines Rohrs anklicken – auch im 3D der "
+               "Schweißbaugruppe. [[satz_3d]]",
+     "Satz in 3D: Steckverbindungen für Sätze ohne Schweißbaugruppe, Längsnaht per Klick auf die Fläche."],
+    ["0.9.94", "<b>3D der Schweißbaugruppe wie im Rohr-Editor</b>: Leiste mit Blick, Ansichtswürfel, Darstellung "
+               "(auch Durchsichtig), <i>Nur Gewähltes</i>, <i>Nähte</i> ein/aus, Messen und Winkel. Die Rohre stehen "
+               "so im 3D, wie sie gerechnet werden: aus den Eingaben, mit den Schlitzen und Nasen der "
+               "Steckverbindungen. Schweißnähte als Raupe (Kehlnaht als Dreieck mit dem a-Maß, Stumpfnaht flach); "
+               "fehlt der Nahtverlauf, kommt er aus dem Stoß der Rohre. Auch im Teile-Editor sind die Nasen jetzt "
+               "modelliert. [[baugruppe_baum]]",
+     "3D der Schweißbaugruppe wie im Rohr-Editor: Nasen und Schlitze im Modell, Nähte als Raupe."],
     ["0.9.93", "<b>3D-Editor: Gegenrohr, Lochfeld, Fase, Schrift</b>: Ein Rohrende lässt sich auf ein "
                "<b>Gegenrohr</b> setzen – rund oder rechteckig, schräg, mit Versatz, auf Rund-, Quadrat- und "
                "Rechteckrohr; das Programm rechnet die echte Schnittkurve, im 3D steht das Gegenrohr pink. Neu als "
