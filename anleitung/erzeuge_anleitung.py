@@ -3039,6 +3039,14 @@ def kapitel_baugruppen(i):
            "Körper). Nähte sind immer sichtbar, auch wenn ein Teil davor liegt. Von Hand angelegte Nahtgruppen und "
            "Nahtgruppen aus einem älteren Import haben keinen Verlauf; die Zeile unter der Ansicht nennt, wie viele "
            "(STEP-Datei neu importieren, dann erscheinen sie).")
+    i.text("<b>Naht im 3D zeichnen</b>: Knopf <i>Naht zeichnen</i> unter der Ansicht drücken, die Nahtart wählen und "
+           "die Punkte entlang der Naht am Modell anklicken; jeder Klick fängt die nächste Ecke, <i>Punkt zurück</i> "
+           "nimmt den letzten wieder weg. Neben den Knöpfen stehen Punktzahl und Länge. <i>Als Nahtgruppe "
+           "übernehmen</i> legt daraus eine Nahtgruppe an: Länge = Länge des Linienzugs, beteiligte Teile = die "
+           "Körper, deren Oberfläche alle Punkte berühren (bis 1 mm Abstand), Unterbaugruppe = die gemeinsame dieser "
+           "Teile, Dicke = dünnste Wand aus den Profilen (bei Stumpf- und Ecknaht auch als Maß). Das a-Maß einer "
+           "Kehlnaht, das Verfahren und die Anzahl trägt man wie gewohnt im Reiter Nahtgruppen nach. Der "
+           "Zeichenmodus bleibt an, bis man den Knopf wieder löst; Drehen und Zoomen gehen weiter.")
     i.abschnitt("Nahtgruppen")
     i.text("Je Zeile eine Gruppe gleicher Nähte. Die Schweißzeit kommt aus den Kennwerten unter Einstellungen "
            "([[schweiss_stammdaten]]), nie aus einer Schätzung: fehlt ein Kennwert oder das a-Maß, ist die Zeile gelb "
