@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.72", "<b>Knickrahmen: Knick verschieben</b> im Teile-Editor (Pfeile ziehen) oder in der Tabelle gab den "
+               "FEHLER „V-Ausschnitte wurden von Hand geändert“. Jetzt folgen die Schenkel dem Knick, die gestreckte "
+               "Länge bleibt ([[knickrahmen]]).",
+     "Knickrahmen: Knick verschieben führt die Schenkel mit ([[knickrahmen]])."],
     ["0.9.71", "<b>Steckverbindung (Rechenkern)</b>: Zwei Rohre einer Schweißbaugruppe können mit Nasen und Schlitzen "
                "ineinanderstecken. Die Aufnahme bekommt je Nase einen Schlitz (Rechteck, Spiel je Seite), das Ende des "
                "Steckers die Nasen (je Nase zwei Flanken, Teil um die Nasenlänge länger). Auch Rundrohr (Bogen-Nase, "
