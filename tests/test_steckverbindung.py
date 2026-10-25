@@ -8,6 +8,9 @@
   Nasen in beide Teile (Schneidweg, Länge), Entfernen nimmt sie wieder heraus.
 - S7 Alle Stöße stecken: der STEP-Import (JSON 1.18) kennt je Rohrende an Rohrwand die Lage („stoss“); der Knopf
   legt daraus die Verbindungen an, bei gleichen Teilen Schlitze nur einmal je Aufnahme und Nasen nur einmal je Ende.
+- S8 Nasen nie in die Außenwand (Patrick 25.10.2026): bündig oben auf dem Träger passen die Nasen; am Ende eines
+  Trägers nur die innere Nase (schmaler, wenn nötig); gleiche Teile an beiden Enden ohne gemeinsame Lage: keine Nasen;
+  Quadratrohr auf Rundrohr: Nasen längs der Achse, nicht seitlich am Bogen.
 - S5 Prüfung: Nase zu schmal (abschaltbar, ältere Datei bekommt die Regel), Steckverbindung ohne Gegenstück (FEHLER
   im Status der Baugruppe), Daten der Baugruppe.
 
@@ -300,6 +303,7 @@ def stecken(d):
                          for z in d.bg["steckverbindungen"]]
     gesehen["fehler"] = [d._steck_fehler(z) for z in d.bg["steckverbindungen"]]
     gesehen["nochmal"] = d.steck_alle(melden=False)
+    gesehen["lagen"] = {str(k): {str(n): w for n, w in v.items()} for k, v in getattr(d, "steck_lagen", {}).items()}
     d._ok()
     return d.result()
 
@@ -309,7 +313,11 @@ assert seite.baugruppe_bearbeiten([i], dialog=stecken)
 assert gesehen["erg"] == (3, 0) and gesehen["nochmal"] == (0, 0), gesehen
 assert gesehen["zeilen"] == [(holm, strebe, "a", 200.0, "oben", True, True),
                              (holm, strebe, "a", 800.0, "oben", True, False),
-                             (holm, strebe, "b", 200.0, "unten", False, True)], gesehen["zeilen"]
+                             (holm, strebe, "b", 200.0, "oben", False, True)], gesehen["zeilen"]
+# der zweite Holm war um 180° gedreht eingebaut: seine Einbaulage wird gedreht, statt das gleiche Teil zu teilen
+from rohrlaser.ansicht3d import entpacken
+netz_h = entpacken(db.netz(holm))
+assert len(netz_h["lagen"]) == 2 and netz_h["lagen"][1] == gesehen["lagen"][str(holm)][str(netz_h["koerper"][1])], netz_h
 assert gesehen["fehler"] == [None, None, None], gesehen["fehler"]
 pos = {q["id"]: q for q in db.positionen(a)}
 eh, est = sw.lesen(pos[holm]["technik"]), sw.lesen(pos[strebe]["technik"])
@@ -323,4 +331,58 @@ assert pos[holm]["einstiche"] == vorher[holm]["einstiche"] + 4
 assert "Steckverbindung" not in bgm.status(next(q for q in pos.values() if ist_baugruppe(q)), {}, list(pos.values()))
 db.schliessen()
 ok("S7 Alle Stöße stecken: 4 Stöße aus STEP (JSON 1.18), 3 Verbindungen, Holm 4 Schlitze oben, Strebe Nasen an A und E")
+
+# ------------------------------------------------------------------ S8 Nasen nur in die Stoßwand
+RE140 = dict(form="Rechteckrohr", a=140, b=80, wand=5, profil_id="RE 140x80x5")
+RE80 = dict(form="Rechteckrohr", a=80, b=40, wand=3, profil_id="RE 80x40x3")
+QR100 = dict(form="Quadratrohr", a=100, b=100, wand=5, profil_id="QR 100x100x5")
+QR40 = dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3")
+RR42 = dict(form="Rundrohr", a=42.4, wand=2.6, profil_id="RR 42,4x2,6")
+bündig = dict(profil_a=RE140, w=648, q=30, laenge=3000, halb=70, quer=(80, 40), phi=0)
+w_, seiten, hinweis = sv.nasen_wahl(sv.vorgaben(RE80), RE80, [bündig])
+assert w_["waende"] == "quer" and w_["anzahl"] == 2 and hinweis is None, (w_, hinweis)
+assert sv.nasen_wahl(dict(sv.vorgaben(RE80), waende="längs"), RE80, [bündig])[0]["waende"] == "quer"    # längs: oben raus
+ecke = dict(profil_a=RE140, w=50, q=10, laenge=3000, halb=40, quer=(100, 100), phi=-90)
+w_, seiten, hinweis = sv.nasen_wahl(sv.vorgaben(QR100), QR100, [ecke])
+assert w_["anzahl"] == 1 and seiten == [1] and w_["bN"] <= 2 * (40 - 10 - 2 - 10 - 0.1) and "nur eine Nase" in hinweis
+v1 = dict(sv.vorgaben(QR100), id="e", **w_, nase_seite=-1 if seiten[0] < 0 else 1)
+assert sv.masse(v1, RE140, QR100)["nasen"][0][0] > 0            # die Nase zur Mitte des Trägers
+andere_ecke = dict(ecke, w=2950)
+w_, seiten, hinweis = sv.nasen_wahl(sv.vorgaben(QR100), QR100, [andere_ecke])
+assert w_["anzahl"] == 1 and seiten == [-1]
+assert sv.masse(dict(sv.vorgaben(QR100), id="e", **w_, nase_seite=-1), RE140, QR100)["nasen"][0][0] < 0
+assert sv.nasen_wahl(sv.vorgaben(QR100), QR100, [ecke, andere_ecke])[0] is None      # gleiche Teile, beide Enden
+rund = dict(profil_a=RR42, w=702.5, q=0, laenge=1426, halb=21.2, quer=(40, 40), phi=0)
+w_, _, hinweis = sv.nasen_wahl(dict(sv.vorgaben(QR40), waende="längs"), QR40, [rund])
+assert w_["waende"] == "quer" and w_["anzahl"] == 2 and "90°" in hinweis, (w_, hinweis)
+# Ecke: Stütze unter zwei Trägern -> je Träger eine Nase, um 90° versetzt, nie zwei auf derselben Wand
+traeger1 = dict(profil_a=RE140, w=50, q=10, laenge=3000, halb=40, quer=(100, 100), phi=0)
+traeger2 = dict(profil_a=RE140, w=2950, q=10, laenge=3000, halb=40, quer=(100, 100), phi=90)
+wahl, hinweis = sv.nasen_wahl_ecke(sv.vorgaben(QR100), QR100, [traeger1, traeger2])
+assert [x["anzahl"] for x in wahl] == [1, 1] and wahl[0]["traegt"] and not wahl[1]["traegt"], wahl
+assert sv.versatz_liste(wahl[0]) and "90°" in hinweis, (wahl, hinweis)
+menge = sv.nasen_winkel_menge(wahl[0], 0, "Quadratrohr")
+assert len(menge) == 2 and (menge[1] - menge[0]) % 180 == 90, menge
+# Rechteckrohr an der Ecke: je Aufnahme ihr eigener Querschnitt, keine Nase um 90° (andere Wandbreite)
+re_1 = dict(traeger1, quer=(80, 40))
+re_2 = dict(traeger2, quer=(40, 80))
+wahl, _ = sv.nasen_wahl_ecke(sv.vorgaben(RE80), RE80, [re_1, re_2])
+assert wahl[0] and (wahl[0]["wandbreite"], wahl[0]["abstand"]) == (80, 40), wahl
+assert wahl[1] is None and not sv.versatz_liste(wahl[0]), wahl
+# gleiche Rohre gedreht/gewendet eingebaut: Kennung im gedrehten Rohrsystem gleich, Einbaulage passend gedreht
+z1 = [dict(art="Rechteck", b=3, h=20, x=200.0, seite="oben"), dict(art="Rechteck", b=3, h=20, x=800.0, seite="oben")]
+z2 = [dict(z, seite="unten") for z in z1]
+z3 = [dict(art="Rechteck", b=3, h=20, x=300.0, seite="vorne")]
+k1 = sv.gleich_lagen(None, None, z1, 1000, "Rechteckrohr")
+assert k1[0][0] in {k for k, _, _ in sv.gleich_lagen(None, None, z2, 1000, "Rechteckrohr")}
+treffer = next((d, w) for k, d, w in sv.gleich_lagen(None, None, [dict(z3[0], seite="hinten", x=700.0)], 1000,
+                                                    "Quadratrohr", True)
+               if k == sv.gleich_lagen(None, None, z3, 1000, "Quadratrohr", True)[0][0])
+assert sv.seite_drehen("hinten", *treffer) == "vorne", treffer
+lage = [0, 0, 0, 1, 0, 0, 0, 1, 0]          # Ende A im Ursprung, Achse X, Rohr-X = Welt-Y
+assert sv.lage_drehen(lage, 0, True, 1000)[:6] == [1000, 0, 0, -1, 0, 0]
+assert [round(v, 6) for v in sv.lage_drehen(lage, 180, False, 1000)[6:]] == [0, -1, 0]
+assert len(sv.gleich_lagen(None, None, [dict(z1[0], q=5)], 1000, "Rechteckrohr")) == 1      # Querversatz: nicht drehen
+ok("S8 Nasen nur in die Stoßwand: bündig quer, Ecke nur die innere Nase, gleiche Teile ohne gemeinsame Lage ohne "
+   "Nasen, auf Rundrohr längs der Achse, Ecke je Träger eine Nase um 90° versetzt, gedreht eingebaute gleiche Rohre")
 print("Alle Steckverbindungs-Tests bestanden.")
