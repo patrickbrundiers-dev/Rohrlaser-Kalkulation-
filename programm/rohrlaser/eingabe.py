@@ -285,6 +285,7 @@ class _Rechnen:
             self._tooltip = None
 
     def focusInEvent(self, e):
+        self._wert_vorher = self.value()
         super().focusInEvent(e)
         if e.reason() in (Qt.MouseFocusReason, Qt.TabFocusReason, Qt.BacktabFocusReason, Qt.ShortcutFocusReason):
             QTimer.singleShot(0, self.selectAll)        # alten Wert gleich überschreiben
@@ -292,6 +293,9 @@ class _Rechnen:
     def focusOutEvent(self, e):
         getippt = self.lineEdit().text()
         super().focusOutEvent(e)
+        vorher = getattr(self, "_wert_vorher", None)
+        if vorher is not None and self._unfertig(self._kern(getippt)) and self.value() != vorher:
+            self.setValue(vorher)       # Zwischenwert beim Tippen („6000“ aus „6000/“) nicht stehen lassen
         self._pruefen(self.lineEdit().text(), verlassen=getippt)
 
 
