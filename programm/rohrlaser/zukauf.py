@@ -43,7 +43,7 @@ KATEGORIE, INDIVIDUELL, STANDARD = QUELLEN
 POSITION = "Position"
 # Startliste der Kategorien (nur Namen, ohne Aufschläge: die trägt der Anwender selbst ein)
 KATEGORIEN_START = ("Blechteile", "Schrauben und Muttern", "Normteile", "Kaufteile", "Fremdfertigung",
-                    "Profile und Rohre", "Sonstige Zukaufartikel")
+                    "Profile und Rohre", "Vollmaterial", "Sonstige Zukaufartikel")
 # Menge eines Zukaufteils gilt je Teil der Position oder je Satz (z. B. 20 Bleche je Rahmen)
 JE_TEIL, JE_SATZ = "Teil", "Satz"
 
@@ -70,6 +70,10 @@ ARTIKEL = Tabelle(
      Feld("breite", "Breite [mm]", "zahl", 0, 100000, stellen=1, breite=70),
      Feld("dicke", "Dicke [mm]", "zahl", 0, 1000, stellen=2, breite=60),
      Feld("werkstoff", "Werkstoff", breite=110),
+     # Vollmaterial (Schema 61, vollmaterial.py): Ø bzw. Kante, Gewicht je Stück, Preis je kg; Länge = Zuschnitt
+     Feld("abmessung", "Ø bzw. Kante [mm]", "zahl", 0, 10000, stellen=2, breite=70),
+     Feld("gewicht", "Gewicht je Stück [kg]", "zahl", 0, 1000000, stellen=4, breite=70),
+     Feld("preis_kg", "Preis [€/kg]", "zahl", 0, 100000, stellen=4, breite=70),
      Feld("herkunft", "Angelegt aus", breite=90),
      Feld("step_datei", "STEP-Datei", breite=200),
      Feld("fingerabdruck", "Geometrie-Kennung", breite=120),
@@ -590,7 +594,8 @@ def artikel_fehler(artikel, bezuege=()):
 # ------------------------------------------------------------------ Blechteile
 BLECH = "Blech"
 STEP_IMPORT = "STEP-Import"
-BLECH_FELDER = ("artikeltyp", "laenge", "breite", "dicke", "werkstoff", "herkunft", "step_datei", "fingerabdruck")
+BLECH_FELDER = ("artikeltyp", "laenge", "breite", "dicke", "werkstoff", "herkunft", "step_datei", "fingerabdruck",
+                "abmessung", "gewicht", "preis_kg")     # bleiben beim Speichern, wenn der Aufrufer sie nicht mitgibt
 TOL_MASS = Decimal("0.5")       # Dubletten: Länge und Breite ± 0,5 mm (auch um 90° gedreht)
 TOL_DICKE = Decimal("0.05")     # Dicke ± 0,05 mm
 
