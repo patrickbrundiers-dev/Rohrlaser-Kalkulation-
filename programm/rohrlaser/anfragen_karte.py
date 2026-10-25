@@ -1,9 +1,12 @@
 """Karte „Neue Anfragen“ auf der Startseite (Plan W6a): Anfragen aus dem Anfrage-Ordner (anfragen.py), Öffnen als
 neues Angebot aus STEP, mehrere Anfragen eines Kunden auf Wunsch zusammen. Sichtbar nur mit Einstellung
-„anfrage_ordner“; alle ANFRAGEN_S Sekunden wird nachgesehen."""
+„anfrage_ordner“; alle ANFRAGEN_S Sekunden wird nachgesehen. Anfrageformulare werden schon vorher im Hintergrund
+gelesen (Scans mit Tesseract dauern einige Sekunden je Seite, Plan W6c); die Liste zeigt solange „liest Formular …“."""
+from concurrent.futures import ThreadPoolExecutor
+
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QAbstractItemView, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, \
-    QPushButton
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, \
+    QMessageBox, QPushButton
 
 from . import anfragen, angebotsordner
 
@@ -47,6 +50,10 @@ class AnfragenKarte:
         zeile.addStretch(1)
         lay.addLayout(zeile)
         self.anfragen, self._stand = [], None
+        self._gelesen, self._laeuft, self._pool = {}, {}, None     # Formulare: Schlüssel -> Ergebnis bzw. Future
+        self._warten = QTimer(self.karte)
+        self._warten.setInterval(1000)
+        self._warten.timeout.connect(self._lesen_pruefen)
         self.timer = QTimer(self.karte)
         self.timer.timeout.connect(self.neu_laden)
         self.timer.start(ANFRAGEN_S * 1000)
@@ -69,9 +76,11 @@ class AnfragenKarte:
         markiert = {a.schluessel for a in self.markierte()}
         self.anfragen, self._stand, self._kunden = neu, st, kunden
         self.liste.clear()
+        self._vorlesen(neu)
         for a in neu:
             kunde = anfragen.kunde_text(kunden, a.kunde) if a.kunde else ""
-            it = QListWidgetItem(f"{kunde}  –  {a.text()}" if kunde else a.text())
+            liest = " · liest Formular …" if any(_schluessel(d) in self._laeuft for d in a.formulare) else ""
+            it = QListWidgetItem((f"{kunde}  –  {a.text()}" if kunde else a.text()) + liest)
             it.setData(Qt.ItemDataRole.UserRole, a.schluessel)
             if a.gesperrt:
                 it.setForeground(self.liste.palette().placeholderText())
@@ -111,21 +120,64 @@ class AnfragenKarte:
         if self.ordner():
             self.f.datei_oeffnen(self.ordner())
 
-    def _formulare(self, gesperrt):
-        """Anfrageformulare (PDF mit Text) lesen (Plan W6b): Anfragenummer ins Feld „Ihre Anfrage“ und in den
-        Ordnernamen 'Kunde – Nummer' (daraus schlägt der Import den Kunden vor), Text für die Stückzahlen. Ändert
-        gesperrt (neue Pfade). Ergebnis: weitere Werte für neu_aus_step (kopf, formular_text)."""
+    def _vorlesen(self, liste):
+        """Formulare offener Anfragen im Hintergrund lesen (ein Formular nach dem anderen)."""
         from . import formular
-        alle = [d for a in gesperrt for d in a.formulare]
-        if not alle:
+        for a in liste:
+            if a.gesperrt:
+                continue
+            for d in a.formulare:
+                k = _schluessel(d)
+                if k not in self._gelesen and k not in self._laeuft:
+                    self._pool = self._pool or ThreadPoolExecutor(max_workers=1)
+                    self._laeuft[k] = self._pool.submit(formular.datei_lesen, d, self.f.programmordner)
+        if self._laeuft and not self._warten.isActive():
+            self._warten.start()
+
+    def _lesen_pruefen(self):
+        fertig = [k for k, f in self._laeuft.items() if f.done()]
+        for k in fertig:
+            self._gelesen[k] = self._ergebnis(self._laeuft.pop(k))
+        if not self._laeuft:
+            self._warten.stop()
+        if fertig:
+            self.neu_laden(erzwingen=True)
+
+    @staticmethod
+    def _ergebnis(future):
+        try:
+            return future.result()
+        except Exception:
+            return None
+
+    def formular_lesen(self, d):
+        """Gelesenes Formular (dict text/ocr/unsicher) oder None; wartet auf das Lesen im Hintergrund bzw. liest jetzt
+        (Sanduhr)."""
+        from . import formular
+        k = _schluessel(d)
+        if self._gelesen.get(k):
+            return self._gelesen[k]
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            if k in self._laeuft:
+                self._gelesen[k] = self._ergebnis(self._laeuft.pop(k))
+            if not self._gelesen.get(k):         # vorher verschoben (Sperre) oder noch nie gelesen
+                self._gelesen[k] = formular.datei_lesen(d, self.f.programmordner)
+        finally:
+            QApplication.restoreOverrideCursor()
+        return self._gelesen[k]
+
+    def _formulare(self, gesperrt):
+        """Anfrageformulare lesen (Plan W6b/W6c): Anfragenummer ins Feld „Ihre Anfrage“ und in den Ordnernamen
+        'Kunde – Nummer' (daraus schlägt der Import den Kunden vor), gelesene Formulare für die Stückzahlen. Ändert
+        gesperrt (neue Pfade). Ergebnis: weitere Werte für neu_aus_step (kopf, formulare)."""
+        from . import formular
+        gelesen = [g for g in (self.formular_lesen(d) for a in gesperrt for d in a.formulare) if g]
+        if not gelesen:
             return {}
         kunden = self.f.db.zeilen("kunden")
         eigene = [self.f.db.einstellung("briefkopf_1") or ""]
-        texte = [formular.pdf_text(d) for d in alle if d.suffix.lower() == ".pdf"]
-        text = "\n".join(t for t in texte if t.strip())
-        if not text:
-            return {}
-        e = formular.auswerten(text, kunden, eigene=eigene)
+        e = formular.auswerten("\n".join(g["text"] for g in gelesen), kunden, eigene=eigene)
         kunde = e["kunde"] or next((a.kunde for a in gesperrt if a.kunde), None)
         if e["nummer"] and len(gesperrt) == 1:
             try:
@@ -136,7 +188,7 @@ class AnfragenKarte:
         if kunde:
             for a in gesperrt:
                 a.kunde = a.kunde or kunde
-        weitere = dict(formular_text=text)
+        weitere = dict(formulare=gelesen)
         if e["nummer"]:
             weitere["kopf"] = dict(kundenreferenz=e["nummer"])
         return weitere
@@ -187,3 +239,12 @@ class AnfragenKarte:
                        + (f" (nicht verschoben: {'; '.join(fehler)})" if fehler else "."), fehler=bool(fehler))
         self.neu_laden(erzwingen=True)
         return seite
+
+
+def _schluessel(d):
+    """Formular wiedererkennen, auch nach dem Verschieben in einen Unterordner: Name, Größe, Änderungszeit."""
+    try:
+        st = d.stat()
+        return d.name, st.st_size, st.st_mtime_ns
+    except OSError:
+        return d.name, None, None

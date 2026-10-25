@@ -508,7 +508,7 @@ class AngeboteSeite(QWidget):
         self.oeffnen.emit(i)
 
     def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
-        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formular_text."""
+        """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare."""
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
@@ -4872,8 +4872,9 @@ class AngebotSeite(QWidget):
         return (messwerte, json_ablage) if mit_ablage else messwerte
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
-                         formular_text=None):
-        """STEP-Dateien messen und übernehmen. formular_text: Text des Anfrageformulars (W6b): Stückzahlen je
+                         formulare=None):
+        """STEP-Dateien messen und übernehmen. formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
+        Stückzahlen je
         Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
         Prüfdialog im Feld „Sätze“ eingetragen, ohne Rückfragen ja). kunde_waehlen: Kunde oben im Prüfdialog wählen
         (neues Angebot aus STEP, Plan Bedienung B1). Alles Weitere fragt der Prüfdialog selbst (fehlende Profile,
@@ -4897,10 +4898,10 @@ class AngebotSeite(QWidget):
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
         formular_bericht = None
-        if formular_text:               # Stückzahlen aus dem Anfrageformular (Plan W6b, Formular gilt)
+        if formulare:                   # Stückzahlen aus dem Anfrageformular (Plan W6b/W6c, Formular gilt)
             from . import formular
             namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
-            st = formular.stueckzahlen(formular_text, namen)
+            st = formular.stueck_aus(formulare, namen)
             n = formular.stueck_setzen(messwerte, st)
             unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
             formular_bericht = (f"Stückzahlen aus dem Anfrageformular: {n} Teil(e)"
@@ -4940,7 +4941,7 @@ class AngebotSeite(QWidget):
                 if self.flach_bis() != flach_gemessen:      # flache Teile gibt der Kunde anders vor: neu messen
                     self.f.meldung("Der gewählte Kunde gibt flache Teile anders vor (Importprofil) – die STEP-Dateien "
                                    "werden dafür neu gemessen.")
-                    return self.step_importieren(dateien, None, stueck, als_satz, formular_text=formular_text)
+                    return self.step_importieren(dateien, None, stueck, als_satz, formulare=formulare)
             if dlg.lernen_werte and not self.db.nur_lesen:      # B8: Korrekturen fürs nächste Mal
                 gelernt = importprofil.merken(self.db, dlg.kundennr, dlg.lernen_werte)
         neue_profile = bool(fehlend) and neue_profile
