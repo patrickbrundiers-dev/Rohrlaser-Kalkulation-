@@ -4,26 +4,11 @@ Auswahl ist in beiden gleich (der Teile-Editor markiert in beiden). Im 3D oben r
 
 Ersetzt die Reiter Skizze/3D des Schneidweg-Rechners und die gestapelten Bilder des Blech-Editors.
 """
-from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
-
-from .ansichtswuerfel import Ansichtswuerfel
 
 D3, SKIZZE, BEIDES = "3D", "Skizze", "Beides"
 MODI = (D3, SKIZZE, BEIDES)
-
-
-class _Groesse(QObject):
-    """Würfel bei jeder Größenänderung der 3D-Ansicht in die Ecke setzen."""
-
-    def __init__(self, wuerfel):
-        super().__init__(wuerfel)
-        self.wuerfel = wuerfel
-
-    def eventFilter(self, obj, ereignis):
-        if ereignis.type() in (QEvent.Resize, QEvent.Show):
-            self.wuerfel.anordnen()
-        return False
 
 
 class Ansichtsbereich(QWidget):
@@ -47,8 +32,7 @@ class Ansichtsbereich(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self.teiler)
-        self.wuerfel = Ansichtswuerfel(ansicht3d.ansicht)
-        ansicht3d.ansicht.installEventFilter(_Groesse(self.wuerfel))
+        self.wuerfel = ansicht3d.wuerfel        # Würfel hat jede Ansicht3DMitKnoepfen (gemeinsame Leiste 3E-11)
         self.modus = None
         self.modus_setzen(modus)
 

@@ -21,11 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.103", "<b>Reiter Versand abschaltbar</b>: Einstellungen › Versand › <i>Reiter Versand und "
+    ["0.9.104", "<b>Reiter Versand abschaltbar</b>: Einstellungen › Versand › <i>Reiter Versand und "
                 "Palettenbegleitschein verwenden</i> = nein blendet den Reiter Versand und alle Wege dorthin aus "
                 "(Menüeinträge <i>Palettenbegleitschein …</i>, Hinweis bei Beauftragt, Palettenscheine in den "
                 "Werkstattpapieren, Suche Strg+K); wieder auf ja ist alles zurück, die Daten bleiben ([[versand]]).",
      "Reiter Versand per Einstellung ein- und ausschaltbar"],
+    ["0.9.103", "<b>3D-Ansichten: Blick, Perspektive, Darstellung, exaktes Messen</b> – in allen 3D-Fenstern gleich "
+               "(Teile-Editor, Positionen, STEP-Prüfdialog, Teilebaum, Schweißbaugruppe, Satz in 3D) mit Leiste und "
+               "Ansichtswürfel. <i>Blick</i>: Isometrie, Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um "
+               "90° drehen (Strg + Pfeiltasten). <i>Perspektivisch</i> umschaltbar (Vorgabe orthogonal, je Benutzer "
+               "gemerkt). Neue Darstellungen <i>Drahtgitter</i> und <i>Verdeckt gestrichelt</i>, Tangentenkanten an "
+               "Rundungen. <b>Messen mit exakten Kernwerten</b>: fängt Kreismitte, Kantenmitte, Ecke und Fläche aus "
+               "der echten Geometrie (Bohrung Ø 8 = 8,000), Abstand mit Δ längs/quer/hoch, Fläche–Fläche, "
+               "Kante–Kante, Punkt–Fläche und Winkel in der kopierbaren Mess-Tafel. [[ansicht_3d_bedienung]]",
+     "3D-Ansichten: sechs Seiten, Perspektive, Drahtgitter, verdeckte Kanten, Messen mit exakten Kernwerten."],
     ["0.9.102", "<b>Nasen der Steckverbindung im Rohr-Editor</b>: Die Schnittebene an einem Ende mit Nasen stand "
                 "an der Spitze der Nasen und verdeckte sie, als wären sie abgeschnitten. Sie steht jetzt am Schnitt, "
                 "die Nasen ragen sichtbar darüber hinaus. [[editor_griffe]]",

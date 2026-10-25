@@ -117,6 +117,22 @@ if GL_KIND:
     abweichend = sum(nah(farbe(gl, x, y), hg, 10) != nah(farbe(sw, x, y), hg, 10)
                      for x in range(0, gl.width(), 8) for y in range(0, gl.height(), 8))
     assert abweichend < 0.05 * (gl.width() // 8) * (gl.height() // 8), f"{abweichend} Bildpunkte anders"
+    # 3E-11: alle Darstellungen und die Perspektive zeichnen ohne Fehler (kein Rückfall auf QPainter)
+    from rohrlaser import rohr3d
+    ansicht3d.renderer_setzen("OpenGL")
+    w3 = ansicht3d.Ansicht3D()
+    w3.resize(400, 300)
+    w3.setzen(rohr3d.netz(dict(a={}, b={}, konturen=[]), dict(form="Quadratrohr", a=40, b=40, wand=3), 300))
+    w3.show()
+    for dar in ansicht3d.DARSTELLUNGEN:
+        for persp in (False, True):
+            w3.darstellung_setzen(dar)
+            w3.perspektive_setzen(persp, merken=False)
+            app.processEvents()
+            img = w3._gl.grabFramebuffer()
+            assert w3._gl is not None and w3._gl.fehler is None, (dar, persp, w3.renderer_grund)
+            assert sum(not nah(farbe(img, x, y), farbe(img, 2, 2), 10) for x in range(0, 400, 10)
+                       for y in range(0, 300, 10)) > 20, (dar, persp)          # Teil sichtbar
     # Fehler beim Zeichnen: diese und alle neuen Ansichten zurück zu QPainter
     w_gl._gl_aus("Test")
     assert w_gl._gl is None and w_gl.renderer == "Software"
