@@ -357,8 +357,10 @@ class AngeboteSeite(QWidget):
         menue.addSeparator()            # Plan A9
         menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen())
         menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen())
-        menue.addSeparator()            # Plan Palettenbegleitschein
-        menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
+        trenner = menue.addSeparator()  # Plan Palettenbegleitschein (ausgeblendet, wenn Versand aus)
+        ps = menue.addAction("Palettenbegleitschein …", lambda: self._gewaehlt() and self.f.palettenschein(self._gewaehlt()))
+        self.palettenschein_aktionen = (trenner, ps)
+        menue.aboutToShow.connect(lambda: [a.setVisible(self.f.versand_an()) for a in self.palettenschein_aktionen])
         self.vorgang_knopf.setMenu(menue)
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
@@ -472,7 +474,7 @@ class AngeboteSeite(QWidget):
             text = "".join((f", Auftrag {auftrag[0]}" if auftrag[0] else "",
                             f", Liefertermin {_datum(auftrag[1])}" if auftrag[1] else ""))
         self.neu_laden()
-        if v == "Beauftragt":
+        if v == "Beauftragt" and self.f.versand_an():
             text += " – Palettenschein und Versand im Reiter Versand"
             self.f.versand.neu_laden()
         self.f.meldung(f"Angebot {self.db.angebot(i)['nummer']}: Vorgang {v}{text}.")
@@ -1561,7 +1563,8 @@ class AngebotSeite(QWidget):
         menue.addAction("Angebots-Check …", lambda: self.check_zeigen())
         menue.addSeparator()
         menue.addAction("Werkstattpapiere (PDF)", lambda: self.werkstatt_pdf())
-        menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
+        self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
+        menue.aboutToShow.connect(lambda: self.palettenschein_aktion.setVisible(self.f.versand_an()))
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
@@ -3922,7 +3925,8 @@ class AngebotSeite(QWidget):
         wp = ausgabe.werkstatt(self.kopf, self.positionen, erg, self.k, self.tabellen)
         if gruppe is not None:          # nur der Schnittplan dieser Abmessung: ohne Zukaufteile und Schweißpläne
             wp = dict(wp, zukaufteile=[], schweissplan=[])
-        elif self.kopf.get("vorgang") == "Beauftragt" and self.db.einstellung("palettenschein_werkstatt") == "ja":
+        elif self.kopf.get("vorgang") == "Beauftragt" and self.f.versand_an() and \
+                self.db.einstellung("palettenschein_werkstatt") == "ja":
             from . import palettenschein        # Palettenscheine hinten anhängen (Plan Palettenbegleitschein F8a)
             z = palettenschein.zusammenstellen(self.db, self.id)
             wp = dict(wp, palettenscheine=palettenschein.seiten(z["kopf"], z["schein"], z["packliste"], z["gruppen"]))
