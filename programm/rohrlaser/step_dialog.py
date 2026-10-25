@@ -131,7 +131,7 @@ class StepPruefDialog(QDialog):
 
     def __init__(self, parent, messwerte, k, werkstoff=None, stueck=None, zukauf_liste=None, blech_werkstoffe=None,
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
-                 kunde_gewechselt=None, vorpruefung=None, lernen=False):
+                 kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -145,6 +145,7 @@ class StepPruefDialog(QDialog):
         self.lernen, self.lernen_werte = lernen, None
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
+        step.offene_rohre_vorbelegen(messwerte, k.profile, maschine)    # offenes Rohr: immer Rohr, außer zu groß
         from . import knickverbindung
         for m in messwerte:     # Knickrahmen aus einem Körper (K1-3), geknickt oder gestreckt gezeichnet
             if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:
@@ -540,8 +541,17 @@ class StepPruefDialog(QDialog):
             # Kantteil, ohne Trennung), bei Rohren und Profilen jede andere Profilform, bei Nachträgen zurücknehmen
             art = QComboBox()
             art.addItem(step.art_text(m, alt) + (f" – {step.VON_HAND}" if m.get("_original") else ""), None)
-            if alt:
+            zu = step.geschlossen(m)
+            if alt and not step.rohr_geschlossen(m):     # die andere Messung gehört zum offenen Teil
                 art.addItem(step.art_text(alt, m), "alt")
+            if step.schalen(m):     # Halbschalen: mehrere je Rohrumfang ↔ eine je Rohr mit Ringen
+                art.addItem(step.art_text(dict(m, _schalen=not step.schalen_gewaehlt(m))), "schalen")
+            if zu:              # offen gezeichnetes Rohr: mit ergänzter Wand bzw. wieder offen (Patrick 25.10.2026)
+                stamm = step.rohr_geschlossen(m) and zu.get("profilform") in ("U-Profil", "C-Profil") and \
+                    step.finde_profil(zu, k.profile)
+                art.addItem(step.art_text(zu, m) + (f" – Stammdaten {stamm}" if stamm else ""), "zu")
+            if zu and step.rohr_geschlossen(m) and alt:     # Kantteil bzw. Profil immer als Auswahl (Patrick)
+                art.addItem(step.art_text(alt), "offen_alt")
             if m.get("_original"):
                 art.addItem("Nachtrag zurücknehmen (nicht übernehmbar)", "zurueck")
             if not ist_blech:
@@ -906,16 +916,16 @@ class StepPruefDialog(QDialog):
                 it.setFont(f)
             cb.addItems(ids)
 
-    def art_wechseln(self, index):
-        """Art der Zeile mit dem Teil Nr. index umstellen (Flachstahl ↔ Blech, Profil ↔ Kantteil): alle gleichen
-        Teile der Zeile bekommen die Messwerte der anderen Art; die Liste wird neu aufgebaut, die Eingaben der
-        anderen Zeilen bleiben. Profil bzw. Zukaufartikel und Werkstoff werden für die neue Art neu vorbelegt
-        (Blech: Werkstoff leer), die Stückzahl bleibt."""
+    def art_wechseln(self, index, rohr=False):
+        """Art der Zeile mit dem Teil Nr. index umstellen (Flachstahl ↔ Blech, Profil ↔ Kantteil; rohr: offenes
+        Rohr ↔ geschlossenes Rohr mit ergänzter Wand): alle gleichen Teile der Zeile bekommen die Messwerte der
+        anderen Art; die Liste wird neu aufgebaut, die Eingaben der anderen Zeilen bleiben. Profil bzw. Zukaufartikel
+        und Werkstoff werden für die neue Art neu vorbelegt (Blech: Werkstoff leer), die Stückzahl bleibt."""
         from . import step
         z = next(z for z in self.zeilen if index in z.liste)
         self.werte_schreiben()
         for i in z.liste:
-            step.art_wechseln(self.messwerte[i])
+            (step.rohr_wechseln if rohr else step.art_wechseln)(self.messwerte[i])
         self._baum_fuellen()
         self.datei_waehlen(self.datei_nr)
         neu = next((x for x in self.zeilen if index in x.liste), None)
@@ -924,15 +934,34 @@ class StepPruefDialog(QDialog):
         return neu
 
     def art_gewaehlt(self, index, wahl):
-        """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zurueck' = Nachtrag zurücknehmen, andere
+        """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zu' = offenes Rohr schließen bzw. wieder offen,
+        'schalen' = Halbschalen mehrere je Rohrumfang bzw. eine je Rohr, 'offen_alt' = offenes Rohr als Kantteil bzw.
+        die andere Art des offenen Teils, 'zurueck' = Nachtrag zurücknehmen, andere
         Profilform 'form:F' (Profil-ID zeigt die Profile dieser Form)."""
         if wahl == "alt":
+            return self.art_wechseln(index)
+        if wahl == "zu":
+            return self.art_wechseln(index, rohr=True)
+        if wahl == "schalen":
+            return self.schalen_wechseln(index)
+        if wahl == "offen_alt":     # offenes Rohr als Kantteil (bzw. die andere Art des offenen Teils)
+            self.art_wechseln(index, rohr=True)
             return self.art_wechseln(index)
         if wahl == "zurueck":
             return self.von_hand_zuruecknehmen(index)
         if isinstance(wahl, str) and wahl.startswith("form:"):
             return self.form_setzen(index, wahl[5:])
         return None
+
+    def schalen_wechseln(self, index):
+        """Halbschalen der Zeile mit dem Teil Nr. index: mehrere je Rohrumfang (ganz freigeschnitten) ↔ eine je Rohr mit
+        Ringen an den Enden (Patrick 25.10.2026, „Rundrohr alle a“). Die Eingaben der Zeile bleiben."""
+        from . import step
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            self.messwerte[i]["_schalen"] = not step.schalen_gewaehlt(self.messwerte[i])
+        return self._neu_aufbauen(index)
 
     def _profile_der_form(self, cb, form):
         """Profil-ID-Auswahl auf die Profile einer Form beschränken (leer = alle)."""

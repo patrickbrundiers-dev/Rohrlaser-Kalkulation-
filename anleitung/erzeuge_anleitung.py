@@ -1744,6 +1744,73 @@ def kapitel_step(i):
             "Profilwerte (Querschnitt, Wandstärke) sind dort <i>null</i>. Ab Version 1.2 steht bei Grenzfällen der "
             "Block <i>alternative</i> (das Teil in der anderen Art) und <i>ersatzwerte</i> (true = abgeleitet, "
             "nicht gemessen).")
+    i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
+    i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech mit einer offenen Seite</b>: "
+           "U offen, C mit Längsschlitz, U mit nur einer Lasche oder eine <b>Halbschale</b> eines Rundrohrs. "
+           "Gefertigt wird das Teil auf dem Rohrlaser <b>aus dem geschlossenen Rohr</b>: An Ende A und Ende B bleibt "
+           "<b>je ein Ring 2 mm</b> des ganzen Rohrs (mit Außenradius) stehen, damit das Teil ein Rohr bleibt; "
+           "dazwischen wird die offene Seite als Fenster ausgeschnitten. Die Datei selbst bleibt unverändert; was "
+           "dazukommt, ist im 3D <b>rot</b>.", kurz=True)
+    i.bild("step_offenes_rohr", "Offen gezeichnetes Rohr im Prüfdialog: aus RE 60×40×3 mit Ringen an den Enden",
+           hoehe=95 * mm, legende=[
+               (1, "Spalte <b>Art</b>: <i>Rechteckrohr – Ringe an den Enden (aus dem Rohr)</i>; zur Auswahl stehen "
+                   "immer auch das offene Teil (<i>… – offen (ohne Ringe)</i>, mit passendem U/C der Stammdaten) und "
+                   "das <b>Kantteil</b>."),
+               (2, "Profil (hier RE 60×40×3). Ein anderes Rohr wählen, wenn das vorgeschlagene nicht passt: Enden "
+                   "und Fenster werden für das gewählte Rohr umgerechnet."),
+               (3, "3D: die Ringe rot; bleibt das Teil offen, sind sie blassrot (werden nicht gefertigt). "
+                   "<b>Orange</b>: was über den Rohrquerschnitt ragt (z. B. scharf gezeichnete Schenkelenden), "
+                   "bleibt nur, wenn kein größeres Rohr passt.")])
+    i.genauer()
+    i.liste("<b>Erkennung</b>: überall gleich dicke Wände (Blechdicke), ein Querschnitt in einem Rechteck, drei "
+            "Seiten mit Material und eine Seite, die <b>über die ganze Länge</b> offen ist. Stellen, an denen die "
+            "Seitenwände ausgeschnitten sind (Laschen), stören nicht. Ein Fenster, das nur über einen Teil der Länge "
+            "geht, ist eine Innenkontur und bleibt; L-Profile (zwei offene Seiten) und Walzprofile (UPN) werden nicht "
+            "umgestellt.",
+            "<b>Ringe</b>: je 2 mm an Ende A und Ende B, Querschnitt des ganzen Rohrs mit dem <b>Radius aus der "
+            "STEP</b> (Biegeradius der geschlossenen Ecken, an allen vier Rohrecken gleich; ohne Radius in der "
+            "Zeichnung nach EN 10219: 2 × Wand bis 6 mm, 2,5 × bis 10 mm, darüber 3 × Wand). Sie laufen wie die "
+            "Nachbarwände: ein gerades Ende bleibt gerade, eine Gehrung eine Gehrung. Die Schnittlänge der Enden "
+            "ist die des Rohrs.",
+            "<b>Im Rohrquerschnitt, nichts fällt weg</b>: ragt das Teil über das Rohr (z. B. scharf gezeichnete "
+            "Schenkelenden an den Rohrecken), nimmt das Programm das nächstgrößere Rohr quer zur offenen Seite, bei "
+            "dem der Radius erst nach den Schenkelenden beginnt (z. B. U 60×40 → RE 60×50); die Seitenwände bleiben "
+            "auf dem Rohr, das Fenster läuft an den Schenkelenden. Hinweis im Prüfdialog.",
+            "<b>Winkel, U oder C aus einem größeren Profil</b>: gibt es den Winkel nur größer (z. B. L 33×30×6 nur als "
+            "L 60×40×6), bei Profil-ID das größere Profil gleicher Form wählen. Beim Übernehmen wird jeder zu lange "
+            "Schenkel gekürzt: ein Längsschnitt zwischen zwei Stegen 2 mm an den Enden, dazu je Steg der Querschnitt "
+            "über die weggeschnittene Breite. Bei U und C muss die Steghöhe gleich sein, sonst kommt ein Hinweis.",
+            "<b>Winkel, U oder C aus dem Rohr</b>: gibt es das Profil gar nicht, in der Spalte Art die Rohrform und "
+            "bei Profil-ID das Rohr wählen. Beim Übernehmen: Enden = Rohrumfang, "
+            "dazu das Fenster zwischen den Ringen 2 mm (zwei Längsschnitte an den Schenkelenden + je Ring der Umfang, "
+            "den das Profil nicht belegt).",
+            "<b>Halbschalen je Umfang</b>: passen mehrere Schalen in einen Rohrumfang (mindestens 5 mm Luft am "
+            "Außendurchmesser) und ist die Stückzahl mindestens 2, wird jede Schale ganz freigeschnitten (zwei "
+            "Längskanten, Bögen an den Enden, Bohrungen; keine Ringe). Art <i>Rundrohr – 2 Schalen je Umfang</i>, "
+            "umschaltbar auf eine je Rohr mit Ringen. Die Position bekommt <b>Teile je Rohrumfang</b>: Rohrstücke = "
+            "Stückzahl ÷ je Umfang aufgerundet (5 Schalen, 2 je Umfang = 3 Rohrstücke). Eine Halbschale von genau "
+            "180° passt mit Luft nur einmal.",
+            "<b>Rohrgröße</b>: das nächstgrößere Rohr einer festen Normreihe (Quadrat-, Rechteck- und Rundrohr nach "
+            "EN 10219/10305), wenn es höchstens 1 mm größer ist als die Zeichnung; sonst Sondermaß mit Hinweis. Steht "
+            "das Rohr in den Stammdaten, wird es genommen, sonst als Profil vorgeschlagen. Wählst du in der Spalte "
+            "<b>Profil-ID</b> ein anderes Rohr (z. B. 70×30×4 statt 60×30×4), werden beim Übernehmen die Enden und "
+            "das Fenster (2 × Unterschied der offenen Seite) für dieses Rohr gerechnet.",
+            "<b>Halbschale</b>: Mantel aus zwei gleichachsigen Zylindern, ein Stück des Umfangs über die ganze Länge "
+            "offen; die Enden müssen eben sein (gerade oder schräg).",
+            "<b>Fenster</b>: genau über der Lücke (Laschen und Schlitzränder bleiben stehen) zwischen den Ringen; es "
+            "zählt als Innenkontur im Schneidweg. Bohrungen und Ausschnitte der Wände bleiben.",
+            "<b>Spalt bis 2 mm</b>: Stoßen die Kanten mit einem schmalen Spalt aneinander, wird der Spalt ganz "
+            "geschlossen (kein Fenster); Art <i>… – Spalt geschlossen</i>.",
+            "<b>Vorbelegung</b>: immer als Rohr, auch wenn ein U- oder C-Profil der Stammdaten passt; als Kantteil "
+            "stellst du es von Hand in der Spalte Art um. Automatisch <b>Kantteil</b> (Hinweis) wird es, wenn kein "
+            "Normrohr passt (Sondermaß) oder das Rohr nicht auf die Maschine des Angebots geht (max. Hüllkreis-Ø "
+            "bzw. Metergewicht). Fehlt das Rohr in den "
+            "Stammdaten, wird es beim Rechnen aus der Profil-ID angelegt (Preis nachtragen). In "
+            "der Spalte <b>Art</b> jederzeit umschaltbar. Prüfstatus immer <i>prüfen</i>, der Hinweis nennt die alte "
+            "Form und die Breite der offenen Seite.",
+            "Im Messergebnis steht das Rohr in der Spalte <i>geschlossen</i> bzw. im JSON (ab Version 1.19) im Block "
+            "<i>geschlossen</i> mit <i>offene_seite</i> (Seite, Lücken, Breite, Länge, Steg, Radius, vergrößert, "
+            "Normrohr, Schalen je Umfang, vorher); die Spalte <i>offene_seite</i> der Messwerte enthält dasselbe.")
     i.abschnitt("Baugruppen als Satz")
     i.text("Mehrere Teile in einer STEP-Datei = <b>Baugruppe</b>. Feld <b>Sätze</b> (Vorgabe 1): gleiche Teile werden "
            "eine Position mit <b>Stück je Satz</b>; leer = jedes Teil einzeln.", kurz=True)

@@ -639,10 +639,10 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "prog_zeit", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
-            "naht_vorgabe", "anbauteile", "gewicht_teil"]
+            "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil")
+                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelklick: Schneidweg-Rechner
 # Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
@@ -769,7 +769,8 @@ class PositionenModell(QAbstractTableModel):
             w["eingeplant"] = ein if p.get("profil_id") and not kein_laserteil(p) else None
             if kein_laserteil(p):
                 ein = None              # Zukaufteile werden nicht eingeplant
-            w["nicht_eingeplant"] = (p["stueck"] - ein) if ein is not None and p.get("stueck") is not None else None
+            w["nicht_eingeplant"] = (rechnen.rohrstuecke(p) - ein) if ein is not None and p.get("stueck") is not None \
+                else None
             self.werte.append(w)
             self.status.append(rechnen.status(p, w, s.kopf, s.k, ein, self.daten))
         self.endResetModel()
@@ -4694,7 +4695,7 @@ class AngebotSeite(QWidget):
                                   kunden=self.db.zeilen("kunden") if kunde_waehlen else None,
                                   kundennr=self.kopf.get("kundennr"), kunde_gewechselt=lambda nr: self._step_kunde_gewechselt(nr, messwerte),
                                   vorpruefung=lambda: step.vorpruefung(messwerte, self.positionen, self.k),
-                                  lernen=True)
+                                  lernen=True, maschine=rechnen.maschine(self.kopf, self.k))
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None

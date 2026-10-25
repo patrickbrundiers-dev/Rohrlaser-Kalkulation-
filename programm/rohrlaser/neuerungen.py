@@ -21,6 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.117", "<b>Offen gezeichnete Rohre aus dem Rohr</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
+                "gekantetes Blech mit einer offenen Seite gezeichnet hat (U offen, C mit Schlitz, U mit Lasche), und "
+                "Halbschalen eines Rundrohrs erkennt der STEP-Import und rechnet sie aus dem geschlossenen Rohr: an "
+                "Ende A und B bleibt je ein Ring 2 mm des ganzen Rohrs stehen (Radius aus der STEP, an allen Ecken "
+                "gleich), dazwischen wird die offene Seite als Fenster ausgeschnitten. Rohrgröße = nächstgrößeres "
+                "Normrohr, die Datei bleibt unverändert. Nichts fällt weg: ragen scharfe Schenkelenden über die "
+                "Rohrecken, wird das nächstgrößere Rohr genommen, bei dem der Radius erst danach beginnt. Halbschalen: "
+                "passen mehrere in einen Umfang (5 mm Luft), werden sie einzeln freigeschnitten, Rohrstücke = Stück ÷ "
+                "je Umfang (neues Feld Teile je Rohrumfang). Ein anderes Rohr in der Profil-ID rechnet Enden und "
+                "Fenster um; ein Winkel, U oder C aus einem größeren Profil gleicher Form (z. B. L 33×30×6 aus L "
+                "60×40×6) bekommt gekürzte Schenkel mit Stegen 2 mm an den Enden, aus einem Rohr Ringe und Fenster. Immer Rohr; ohne Normmaß oder über der Maschinengrenze automatisch Kantteil, Kantteil und "
+                "U/C immer zur Auswahl. Die Ringe sind im 3D rot und laufen wie die Nachbarwände (auch Gehrungen). Ein "
+                "Spalt bis 2 mm wird ganz geschlossen ([[offene_rohre]]).",
+     "Offen gezeichnete Rohre und Halbschalen im STEP: aus dem Rohr mit Ringen 2 mm an den Enden"],
     ["0.9.116", "<b>Bedienung schneller</b>: Neues Angebot aus STEP in einem Fenster: Kunde oben im Prüfdialog, "
                 "fehlende Profile und doppelte Artikel als Häkchen statt Rückfragen, Knopf <b>Übernehmen und Angebot "
                 "(PDF)</b> ([[angebot_aus_step]]). Hinweise als Einblendung ohne OK-Klick, Löschen im Angebot ohne "

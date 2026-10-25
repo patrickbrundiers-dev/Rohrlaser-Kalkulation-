@@ -260,7 +260,10 @@ POSITIONEN = Tabelle(
      Feld("bg_hilfe", "Positionierhilfe", "auswahl", auswahl="positionierhilfe", breite=110),
      # Positionsgravur (Schema 56): Artikelnummer gravieren mit dieser Schrifthöhe [mm]; leer = noch nicht gewählt
      # (Einstellung gravur_artikel gibt das Häkchen im Baugruppen-Editor vor), 0 = nicht gravieren
-     Feld("bg_gravur", "Gravur Artikelnr. h [mm]", "zahl", 0, 200, stellen=1, breite=90)),
+     Feld("bg_gravur", "Gravur Artikelnr. h [mm]", "zahl", 0, 200, stellen=1, breite=90),
+     # Halbschalen aus dem Rundrohr (STEP-Import, offen gezeichnete Rohre): so viele Teile aus einem Rohrumfang,
+     # Rohrstücke = Stückzahl ÷ je Umfang aufgerundet (rechnen.rohrstuecke); leer = 1 Teil je Rohrstück
+     Feld("je_umfang", "Teile je Rohrumfang", "ganz", 1, 100, breite=70)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")
