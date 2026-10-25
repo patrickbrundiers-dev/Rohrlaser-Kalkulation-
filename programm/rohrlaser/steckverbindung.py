@@ -609,7 +609,7 @@ def gleich_lagen(muster_a, muster_b, schlitze, laenge, form, quadrat=False):
             round(_seite_grad(z.get("seite")) or 0.0, 1) for z in schlitze}
         drehungen |= {round(-w % 360, 1) for w in drehungen}
     else:
-        drehungen = (0.0, 90.0, 180.0, 270.0) if quadrat else (0.0, 180.0)
+        drehungen = [0.0, 90.0, 180.0, 270.0] if quadrat else [0.0, 180.0]
     for wenden in (False, True):
         for d in sorted(drehungen):
             if d or wenden:
