@@ -260,7 +260,7 @@ class Werkzeug:
                     "Doppelklick aufs Maß ändert es · Rechtsklick Menü")
         if self.ende() is not None:
             return "Griff an der Schnittebene stellt die Gehrung · Pfeiltaste hoch/runter ±1° · Rechtsklick Menü"
-        return "Linke Maustaste drehen · rechte verschieben · Mausrad zoomen · Rechtsklick Menü"
+        return "Linke Maustaste dreht um den Punkt unter der Maus · rechte verschieben · Mausrad zoomen · Rechtsklick Menü"
 
     def zeichnen(self, p, bild):
         self._griffe, self._mass_felder = [], []

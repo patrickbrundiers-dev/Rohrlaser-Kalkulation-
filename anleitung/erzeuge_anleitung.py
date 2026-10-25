@@ -1647,7 +1647,8 @@ def kapitel_step(i):
            "Schneidzeit kommen aus der Messung", hoehe=110 * mm, kurz=False)
     i.abschnitt("3D-Ansicht", marke="step_3d_ansicht")
     i.text("<b>3D-Ansicht …</b> zeigt die STEP-Teile drehbar: Anfangsschnitt orange, Endschnitt violett, "
-           "Innenkonturen rot, Gravur grün. Linke Maustaste drehen, Mausrad zoomen, Doppelklick zurück. Große "
+           "Innenkonturen rot, Gravur grün. Linke Maustaste drehen (um den Punkt unter der Maus), Mausrad zoomen "
+           "(zur Mausposition), Doppelklick zurück. Große "
            "Baugruppen zeigt die Ansicht beim Drehen und Zoomen vereinfacht (ohne kleine Rundungen, Bohrungen und "
            "Linien), damit sie flüssig bleibt; beim Loslassen wieder vollständig.", kurz=True)
     i.bild("step_3d", "3D-Ansicht der Positionen (Knopf 3D-Ansicht …)", hoehe=95 * mm, legende=[
@@ -1665,8 +1666,13 @@ def kapitel_step(i):
            "aufs Bild öffnet den passenden Editor ([[schneidweg_rechner]], [[blech_editor]]). <b>3D-Ansicht …</b> in der Knopfleiste des Angebots "
            "öffnet alle Positionen mit großer Ansicht, beginnend mit der markierten Zeile. Beim Kopieren eines "
            "Angebots gehen die 3D-Modelle mit.")
-    i.liste("Linke Maustaste ziehen: drehen. Rechte oder mittlere Maustaste ziehen: verschieben. Mausrad: zoomen. "
-            "Doppelklick: zurück zur Ausgangsansicht.",
+    i.liste("Linke Maustaste ziehen: drehen. <b>Drehpunkt ist der Punkt unter dem Mauszeiger</b>: wer auf eine "
+            "Bohrung oder ein Rohrende drückt und zieht, dreht genau um diese Stelle, sie bleibt unter der Maus "
+            "(ein kleiner orangefarbener Kreis zeigt sie beim Drehen). Drückt man neben das Modell, dreht die Ansicht "
+            "um die Modellmitte. Rechte oder mittlere Maustaste ziehen: verschieben. <b>Mausrad: zoomen zur "
+            "Mausposition</b> (die Stelle unter der Maus bleibt stehen). Doppelklick: zurück zur Ausgangsansicht. "
+            "Das gilt in allen 3D-Fenstern: Teile-Editor (Rohr und Blech), Schweißbaugruppe, Satz in 3D, "
+            "STEP-Prüfdialog und 3D-Ansicht der Positionen.",
             "Farben: Außenwand grau, Innenwand dunkelgrau, <b>Anfangsschnitt orange</b>, <b>Endschnitt violett</b>, "
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
@@ -2566,8 +2572,22 @@ def kapitel_optimieren(i):
             "<b>Alle Stöße stecken</b> (Baugruppe aus dem STEP-Import, Häkchen <i>als Schweißbaugruppe</i>): Der "
             "Import merkt sich jedes Rohrende, das auf einem anderen Rohr sitzt, mit Lage x, Seite und Winkel. Der "
             "Knopf legt daraus alle Verbindungen auf einmal an; vorhandene bleiben. Lage und Seite bitte prüfen.",
+            "<b>Nasen nie in die Außenwand</b>: Jede Nase muss mit Breite und Spiel auf dem geraden Teil der Wand "
+            "liegen, auf die der Stecker stößt (ohne Eckradius und Rand; Rundrohr höchstens 45° neben der Mitte), und "
+            "innerhalb der Länge der Aufnahme. Passt die Vorgabe nicht (Stecker bündig mit der Außenkante, breiter als "
+            "die Aufnahme oder am Ende eines Trägers), dreht <i>Alle Stöße stecken</i> die Nasen um 90°, sonst bleibt "
+            "nur die eine Nase, die passt (notfalls schmaler, nicht unter der kleinsten Nasenbreite). Gleiche Teile "
+            "stoßen an einer <b>Ecke</b> zwei Träger auf ein Steckerende (Stütze unter zwei Trägern), bekommt es je "
+            "Träger eine Nase, um 90° versetzt, nie zwei auf derselben Wand. Lage x ist die Mitte des Steckers, auch "
+            "an Ecken, wo er nur teilweise auf der Aufnahme sitzt.",
+            "<b>Gleiche Teile mit anderen Nasen oder Schlitzen werden geteilt</b>: Brauchen Körper derselben Position "
+            "eine andere Lage der Nasen oder Schlitze (z. B. Pfosten in der Ecke, am Ende und in der Mitte eines "
+            "Trägers), legt <i>Alle Stöße stecken</i> für jede Lage eine eigene Position an (Stück je Satz aufgeteilt, "
+            "nächste freie Pos.-Nr.); mit OK wird das gespeichert, die Meldung nennt die neuen Positionen. Rohre ohne "
+            "eigene Konturen mit geraden Enden, die nur gedreht oder gewendet eingebaut sind, bleiben eine Position: "
+            "ihre Einbaulage wird passend gedreht.",
             "<b>Gleiche Teile</b> (eine Position, mehrere Körper): Die Aufnahme bekommt die Schlitze nur vom ersten "
-            "Körper, jedes Ende des Steckers die Nasen nur einmal. Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
+            "Körper, jedes Ende des Steckers die Nasen nur einmal (alle Körper der Position haben dieselben). Die Haken <i>Schlitze schneiden</i> und <i>Nasen "
             "schneiden</i> zeigen das; eine Verbindung ohne Haken liefert nur die Lage. Zwei Verbindungen mit Nasen am "
             "selben Ende meldet die Spalte <i>Schlitz und Nasen</i> als Fehler.",
             "<b>Aufnahme und Stecker tauschen</b> dreht die markierte Verbindung um (Vorgaben neu nach dem neuen "
@@ -4084,9 +4104,12 @@ def kapitel_baugruppen(i):
            "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei.", kurz=True)
     i.liste("<b>Rohre</b> aus den Eingaben des Rohr-Editors mit Schlitzen und Nasen der Steckverbindungen und der "
             "Artikelnummer-Gravur, in der Einbaulage der STEP-Datei ([[step_export]]).",
-            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet. Ihre Lage sucht das Programm am 3D-Netz der "
-            "STEP-Messung (Hauptachsen und Vergleich der Oberfläche); passt es nicht genau, steht ein Hinweis in der "
-            "Meldung.",
+            "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet (auch Flachstahl als Blech). Ihre Lage sucht "
+            "das Programm am 3D-Netz der STEP-Messung: Es probiert die Achsen der Einbaulage, der Datei, der Kanten "
+            "(größte Fläche und Seitenkanten) und die Hauptachsen, setzt den Flächenschwerpunkt aufeinander und "
+            "führt nach, bis die Oberflächen deckungsgleich sind. So sitzen auch quadratische Platten und "
+            "symmetrische Teile genau an ihrer Stelle; passt es nicht genau, steht ein Hinweis in der Meldung.",
+            "Namen mit Umlauten (Fußplatte, Geländer) stehen richtig in der STEP-Datei.",
             "Teile, die es nur als Netz der STEP-Messung gibt (Biegerohr, Knickrahmen, Anbauteile, Zukaufteile), "
             "kommen als facettierter Körper hinein, mit Hinweis.",
             "Teile ohne Lage aus der STEP-Datei (von Hand angelegt) legt das Programm 50 mm neben die Baugruppe, "

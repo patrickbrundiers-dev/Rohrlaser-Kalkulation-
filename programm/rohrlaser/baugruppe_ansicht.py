@@ -155,6 +155,8 @@ def nasen_winkel(v, lage_auf, lage_st, form_s):
     w = math.degrees(math.atan2(-lx, ly))           # Rohrsystem X = −u, Y = v (rohr3d)
     if v.get("waende") == stv.WAENDE[1]:
         w += 90.0
+    if int(stv._z(v.get("anzahl"))) == 1 and stv._z(v.get("nase_seite")) < 0:
+        w += 180.0              # eine Nase auf der Gegenseite (steckverbindung.nasen_wahl)
     if form_s != "Rundrohr":
         w = round(w / 90.0) * 90.0
     return round(w % 360.0, 3)
