@@ -239,7 +239,8 @@ GROSS_AB_MB = 20         # Performance-Update P5: ab dieser Dateigröße beim Ei
 SCHNELL_OHNE = ("FixShape.FixNonAdjacentIntersectingEdgesMode", "FixShape.FixSelfIntersectionMode")
 
 
-def _grosse_datei_einstellen(r, pfad):
+def _grosse_datei_einstellen(leser, pfad):
+    """leser: Reader oder Liste (STEPCAFControl und STEPControl); True, wenn die zwei Prüfungen aus sind."""
     try:
         if _Path(pfad).stat().st_size < GROSS_AB_MB * 1e6:
             return False
@@ -248,7 +249,8 @@ def _grosse_datei_einstellen(r, pfad):
         w = Werte()
         for name in SCHNELL_OHNE:
             w.Bind(TCollection_AsciiString(name), TCollection_AsciiString("0"))
-        r.SetShapeFixParameters(w)
+        for r in leser if isinstance(leser, (list, tuple)) else [leser]:
+            r.SetShapeFixParameters(w)
         return True
     except Exception:       # ältere OpenCascade-Version: wie bisher
         return False
@@ -268,7 +270,7 @@ def lies_step_info(pfad):
         r = caf.ChangeReader()
     except ImportError:
         caf, r = None, STEPControl_Reader()
-    _grosse_datei_einstellen(r, pfad)
+    _grosse_datei_einstellen([x for x in (caf, r) if x is not None], pfad)  # CAF-Leser hat eigene Werte
     status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
     fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
     if status != IFSelect_RetDone:
