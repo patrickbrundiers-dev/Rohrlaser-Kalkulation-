@@ -858,6 +858,30 @@ def kapitel_angebote(i):
            "importieren</b> mit allen STEP-Dateien des Ordners samt Unterordnern ([[step]]). Andere Dateien (z. B. "
            "PDF) bleiben unbeachtet; sind keine STEP-Dateien dabei, legt das Programm kein Angebot an.")
 
+    i.abschnitt("Neue Anfragen aus dem Anfrage-Ordner", marke="anfragen")
+    i.text("STEP-Dateien und das Anfrageformular aus der E-Mail in den <b>Anfrage-Ordner</b> legen (Einstellungen → "
+           "Ablage → <i>Anfrage-Ordner (leer = aus)</i>). Die Startseite zeigt sie unter <b>Neue Anfragen</b>; Doppelklick oder "
+           "<b>Öffnen</b> macht daraus ein neues Angebot aus STEP ([[angebot_aus_step]]), danach liegen die Dateien im "
+           "Ordner des Angebots.", kurz=True)
+    i.genauer()
+    i.liste("<b>Eine Anfrage</b> ist ein Unterordner (samt Unterordnern darin), z. B. <i>Anfragen\\Hessler 25.10. "
+            "Gestell</i>. Dateien direkt im Anfrage-Ordner gehören zusammen, solange zwischen zwei Dateien weniger als "
+            "10 Minuten liegen; mehr Abstand ergibt eine neue Anfrage.",
+            "Gezählt werden STEP-Dateien (*.step, *.stp) und Formulare (PDF, JPG, PNG, TIFF); eine Anfrage ohne STEP "
+            "erscheint nicht. Dateien, die gerade noch kopiert werden, kommen beim nächsten Blick (alle 30 Sekunden).",
+            "Den <b>Kunden</b> schlägt das Programm wie beim Ziehen aus dem Ordnernamen vor (Name oder Kundennummer).",
+            "Hat ein Kunde <b>mehrere offene Anfragen</b>, steht ein Hinweis darunter: getrennt öffnen (je ein "
+            "Angebot) oder beide markieren und <b>Zusammen öffnen</b> – ein Angebot, die Stangen werden gemeinsam "
+            "optimiert.",
+            "Beim Öffnen wird die Anfrage <b>gesperrt</b>: Kollegen sehen <i>in Bearbeitung: PB</i> (Kürzel aus "
+            "[[mehrere_arbeitsplaetze]]). Lose Dateien kommen dazu in einen eigenen Unterordner <i>Anfrage Datum Uhrzeit</i>. "
+            "Eine vergessene Sperre gilt nach 12 Stunden nicht mehr.",
+            "Nach dem <b>Übernehmen</b> verschiebt das Programm die STEP-Dateien in den Unterordner <i>STEP</i> und "
+            "die Formulare in den Unterordner <i>Anfrage</i> des Angebotsordners ([[angebotsordner]]); der leere "
+            "Unterordner im Anfrage-Ordner entfällt. <b>Abbrechen</b> lässt alles liegen und hebt die Sperre auf.",
+            "Bei mehreren Arbeitsplätzen einen gemeinsamen Ordner wählen (z. B. auf dem Server); der Pfad gilt je "
+            "Arbeitsplatz.")
+
 
 def kapitel_angebot(i):
     i.kapitel("Angebot anlegen und bearbeiten", marke="angebot")

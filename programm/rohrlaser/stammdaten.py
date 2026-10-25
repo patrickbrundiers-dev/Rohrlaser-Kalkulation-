@@ -965,6 +965,8 @@ EINSTELLUNGEN = (
                 "ganz", 10, 0, 365),
     # je Angebot ein Ordner darin (angebotsordner.py): '2026-00042 Kunde', Fassungen als 'Fassung 2'
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "ordner", ""),
+    # Anfrage-Ordner (Plan W6a): neue STEP-Anfragen erscheinen auf der Startseite (anfragen.py)
+    Einstellung("anfrage_ordner", "Anfrage-Ordner (leer = aus)", "Ablage", "ordner", ""),
     # CSV-Export (Patrick 24.10.2026): zuletzt gewählter Zielordner, nur dieser Arbeitsplatz
     Einstellung("csv_ordner", "CSV-Export: zuletzt gewählter Ordner (leer = Ordner des Angebots)", "Ablage", "ordner",
                 ""),
