@@ -21,13 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.107", "<b>Offen gezeichnete Rohre schließen</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
+    ["0.9.108", "<b>Offen gezeichnete Rohre schließen</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
                 "gekantetes Blech mit einer offenen Seite gezeichnet hat (U offen, C mit Längsschlitz, U mit einer "
                 "Lasche), erkennt der STEP-Import und ergänzt die fehlende Wand. Steht das Rohr in den Stammdaten, "
                 "wird das Teil als Rohr übernommen und gerechnet; die ergänzte Wand ist im 3D rot, die Enden folgen "
                 "den Nachbarwänden (auch Gehrungen), Ausschnitte über einen Teil der Länge bleiben. In der Spalte Art "
                 "umschaltbar ([[offene_rohre]]).",
      "Offen gezeichnete Rohre im STEP: fehlende Wand ergänzt, als Rohr gerechnet"],
+    ["0.9.107", "<b>STEP speichern</b> im Rohr- und Blech-Editor (Menüband <i>Ausgabe</i>): das Teil als STEP-Datei "
+                "mit echtem Volumenkörper, wie im 3D-Modell. Rohr mit echtem Außenradius, Gehrung, 3D-Schnitt, "
+                "Sattel, Bohrungen als Zylinder, Langlöcher und Rechtecke mit echten Bögen, Ausklinkungen, Nasen der "
+                "Steckverbindung und Gravuren als Rille 0,1 mm tief mit 0,5 mm Abstand; ebene Bleche (auch aus dem "
+                "DXF-Import) mit echten Bögen ([[step_export]]).",
+     "STEP speichern: Rohr und ebenes Blech als Volumenkörper"],
     ["0.9.106", "<b>DXF-Import erkennt Ansichten</b>: Zeichnungen mit mehreren Ansichten ergeben keine Scheinteile "
                "mehr. Bemaßung auf Layer MASSE, verdeckte Kanten und Schraffur fallen weg (weitere Layer in der "
                "Einstellung). Die Isometrie ist nicht angehakt, die Seitenansicht eines Blechs liefert die Dicke, "
