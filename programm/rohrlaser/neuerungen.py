@@ -24,7 +24,8 @@ NEUERUNGEN = [
     ["0.9.111", "<b>DXF-Import für verschiedene Zeichnungen</b>: Rohrzeichnungen nach USA (Drittwinkel), senkrecht "
                 "gezeichnete Rohre, Blattrahmen, mehrere Teile auf einem Blatt und Profiltexte wie Ø42,4x2 werden "
                 "erkannt. Ist das Programm unsicher, zeigt ein Zuordnungsfenster die Ansichten zum Zuordnen; die "
-                "Projektion merkt es sich je Zeichnungsstil ([[dxf_rohr]]).",
+                "Projektion merkt es sich je Zeichnungsstil ([[dxf_rohr]]). Außerdem bleibt eine Gravur über einer Biegung "
+                "im STEP des Kantteils erhalten.",
      "DXF-Import robust: USA-Projektion, gedreht, mehrere Teile, Zuordnungsfenster"],
     ["0.9.110", "<b>Baugruppe und Satz als STEP</b>: STEP speichern im Editor der Schweißbaugruppe und im Fenster "
                 "Satz in 3D schreibt alle Teile als STEP-Baugruppe mit echten Volumenkörpern in der Einbaulage, "
