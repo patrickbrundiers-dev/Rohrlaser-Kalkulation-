@@ -21,13 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.109", "<b>Offen gezeichnete Rohre schließen</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als "
-                "gekantetes Blech mit einer offenen Seite gezeichnet hat (U offen, C mit Längsschlitz, U mit einer "
-                "Lasche), erkennt der STEP-Import und ergänzt die fehlende Wand. Steht das Rohr in den Stammdaten, "
-                "wird das Teil als Rohr übernommen und gerechnet; die ergänzte Wand ist im 3D rot, die Enden folgen "
-                "den Nachbarwänden (auch Gehrungen), Ausschnitte über einen Teil der Länge bleiben. In der Spalte Art "
-                "umschaltbar ([[offene_rohre]]).",
-     "Offen gezeichnete Rohre im STEP: fehlende Wand ergänzt, als Rohr gerechnet"],
+    ["0.9.109", "<b>Rohre mit Spalt schließen</b>: Ein Quadrat- oder Rechteckrohr, das der Kunde als gekantetes "
+                "Blech mit einem schmalen Spalt über die ganze Länge gezeichnet hat, erkennt der STEP-Import und "
+                "schließt den Spalt (bis 2 mm). Steht das Rohr in den Stammdaten, wird das Teil als Rohr übernommen "
+                "und gerechnet; der geschlossene Spalt ist im 3D rot, die Enden laufen wie an den Nachbarwänden "
+                "weiter (auch Gehrungen). Breitere Öffnungen bleiben offen. In der Spalte Art umschaltbar "
+                "([[offene_rohre]]).",
+     "Rohre mit Spalt bis 2 mm im STEP: Spalt geschlossen, als Rohr gerechnet"],
     ["0.9.108", "<b>Rohrteil aus einer DXF-Zeichnung</b>: Zeichnungen mit Vorderansicht, Draufsicht und Schnitt werden "
                 "ein Rohrteil im Rohr-Editor (<i>Neue Position → Aus DXF</i>, DXF aufs Angebot ziehen oder im "
                 "Rohr-Editor <i>DXF importieren</i>). Maßstab je Ansicht aus der Bemaßung, Profil aus dem Schnitt, "

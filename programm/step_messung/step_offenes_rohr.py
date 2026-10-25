@@ -1,6 +1,8 @@
-"""Offene Rohre schließen (Patrick 25.10.2026, Freigabe „Alle a“): Kunden zeichnen Quadrat- oder Rechteckrohre oft
-als gekantetes Blech mit einer offenen Seite (U offen, C mit Längsschlitz, U mit einer Lasche). Gefertigt wird das
-Teil auf dem Rohrlaser aus dem geschlossenen Rohr, also ergänzt die Messung die fehlende Wand.
+"""Offene Rohre schließen (Patrick 25.10.2026, Freigabe „Alle a“, danach „Nur vielleicht 2 mm die Fläche schließen
+nicht komplett“): Kunden zeichnen Quadrat- oder Rechteckrohre oft als gekantetes Blech, dessen Enden mit einem
+schmalen Spalt über die ganze Länge aneinanderstoßen. Gefertigt wird das Teil auf dem Rohrlaser aus dem geschlossenen
+Rohr, also schließt die Messung den Spalt. Nur Spalte bis SPALT_MAX (2 mm) werden geschlossen; eine breitere Öffnung
+(U offen, C mit breitem Schlitz) ist gewollt und bleibt U-/C-Profil bzw. Kantteil.
 
 Erkennung: gleich dicke Wände, Querschnitt mit einer Kontur in einem Hüllrechteck, drei Seiten mit Material belegt,
 eine Seite über die ganze Länge offen (an allen Messlagen dieselbe Lücke). Öffnungen, die nicht über die ganze
@@ -23,7 +25,7 @@ import math
 
 import step_geometrie as g
 
-HINWEIS = "Offenes Rohr geschlossen"
+HINWEIS = "Spalt geschlossen"
 KANDIDATEN = ("U-Profil", "C-Profil", "offenes Sonderprofil", "Blech gekantet")
 ROHRE = ("Quadratrohr", "Rechteckrohr")
 LAGEN = 9               # Messlagen über die Länge (10 … 90 %)
@@ -31,6 +33,8 @@ SCHRITT = 0.25          # mm, Abtastung entlang einer Seite
 LUECKE_INNEN = 0.5      # mm, kleinste Lücke mitten in einer Seite (Schlitz)
 TOL_WAND = 0.15         # mm, Wandstärke des geschlossenen Rohrs gegen die Blechdicke
 TOL_HUELLE = 0.2        # mm, Hüllrechteck an allen Lagen gleich
+SPALT_MAX = 2.0         # mm, breitester Spalt, der geschlossen wird (Patrick 25.10.: „nur vielleicht 2 mm“)
+SPALT_TOL = 0.05        # mm, Messtoleranz auf SPALT_MAX
 
 
 def _dicke(t):
@@ -130,6 +134,8 @@ def erkennen(solid, d):
             luecken[-1] = (luecken[-1][0], max(luecken[-1][1], u1))
         else:
             luecken.append((u0, u1))
+    if any(u1 - u0 > SPALT_MAX + SPALT_TOL for u0, u1 in luecken):
+        return None                 # breite Öffnung: gewollt offen, nicht schließen
     return dict(ax3=ax3, lok=lok, seite=seite, luecken=luecken, huelle=huelle, z=(zmin, zmax))
 
 
@@ -428,8 +434,8 @@ def schliessen(solid, t, datei="", koerper=1, netz=False):
     r.offene_seite = dict(seite=e["seite"], luecken=[[round(u0 - ecke, 2), round(u1 - ecke, 2)] for u0, u1 in felder],
                           breite=round(breite, 2), laenge=round(laenge, 2), vorher=t.profilform)
     r.sicherheit["offene_seite"] = "ergänzt"
-    r.hinweise.append(f"{HINWEIS}: Wand ergänzt (vorher {t.profilform}, Lücke {breite:.1f} mm über {laenge:.1f} mm "
-                      "Länge) – Profil prüfen")
+    r.hinweise.append(f"{HINWEIS}: {breite:.1f} mm über {laenge:.1f} mm Länge (vorher {t.profilform}) – Profil "
+                      "prüfen")
     t.geschlossen = r
     if netz:
         try:

@@ -2706,8 +2706,8 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
 
 
 def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
-    """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
-    Kantteil mit einer Lasche) wird zusätzlich mit ergänzter Wand als Rohr gemessen (t.geschlossen,
+    """Messung eines Körpers (_analysiere); ein Quadrat-/Rechteckrohr, das mit einem Spalt bis 2 mm über die
+    ganze Länge gezeichnet ist, wird zusätzlich mit geschlossenem Spalt als Rohr gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
     t = _analysiere(solid, datei, koerper, netz, flach_bis)
     try:

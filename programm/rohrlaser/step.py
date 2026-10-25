@@ -673,9 +673,9 @@ def art_text(m, gegen=None):
     zusatz = " – Anbauteile abgetrennt" if m.get("trennung") else \
         " – ohne Trennung" if gegen is not None and gegen.get("trennung") else ""
     if rohr_geschlossen(m):
-        zusatz += " – offene Seite ergänzt"
+        zusatz += " – Spalt geschlossen"
     elif gegen is not None and rohr_geschlossen(gegen):
-        zusatz += " – offen (Wand nicht ergänzt)"
+        zusatz += " – mit Spalt (nicht geschlossen)"
     return (("Kantteil (Blech gekantet)" if form == "Blech gekantet" else form) + zusatz
             + (" – Ersatzwerte" if m.get("ersatz") == "1" else ""))
 
