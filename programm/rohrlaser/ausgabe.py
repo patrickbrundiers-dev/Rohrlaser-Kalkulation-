@@ -370,6 +370,7 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
         m["gewicht"] += _wert(w["gewicht"])
     muster = []
     profil_von = stangen_abwicklung.profil_funktion(kopf, k)
+    merker = {}                 # Grundform je Position und Länge einmal für alle Stangen (Performance-Plan P7)
     for s, nummern in rechnen.stangenmuster(dict(stangen=[s for s, _ in paare])):
         w = werte[s["nr"]]
         teile = []
@@ -383,14 +384,14 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                               querschnitt=t.get("querschnitt"), material_gespart=t.get("material_gespart") or 0))
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile,
-                           gespart=rechnen.gehrung_gespart(s), abwicklung=_abwicklung(s, positionen, profil_von)))
+                           gespart=rechnen.gehrung_gespart(s), abwicklung=_abwicklung(s, positionen, profil_von, merker)))
     return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan, hinweise=hinweise)
 
 
-def _abwicklung(s, positionen, profil_von):
+def _abwicklung(s, positionen, profil_von, merker=None):
     """Abwicklung der Stange für die Werkstattpapiere (Lantek-Idee L4, F4a) oder None, wenn sie nicht geht."""
     try:
-        return stangen_abwicklung.stange(s, positionen, profil_von)
+        return stangen_abwicklung.stange(s, positionen, profil_von, merker)
     except (ValueError, KeyError, TypeError, ZeroDivisionError):
         return None
 

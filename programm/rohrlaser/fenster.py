@@ -86,8 +86,8 @@ class StammdatenModell(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.spalten)
 
-    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
-        if rolle != Qt.DisplayRole:
+    def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
+        if rolle != Qt.ItemDataRole.DisplayRole:
             return None
         if richtung == Qt.Vertical:
             return str(abschnitt + 1)
@@ -104,25 +104,25 @@ class StammdatenModell(QAbstractTableModel):
             return s[1](z, self.k)
         return pruefen(self.t, z, self.k)
 
-    def data(self, index, rolle=Qt.DisplayRole):
+    def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
         art, s = self.spalten[index.column()]
         w = self.roh(index.row(), index.column())
-        if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
+        if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             if art == "feld":
                 return wert_als_text(s, w)
             if art == "berechnet":
                 return zahl_als_text(w, s[2]) if w is not None else ""
             return w
-        if rolle == Qt.EditRole and art == "feld":
+        if rolle == Qt.ItemDataRole.EditRole and art == "feld":
             return wert_als_text(s, w, bearbeiten=True)
-        if rolle == Qt.UserRole:
+        if rolle == Qt.ItemDataRole.UserRole:
             return w
-        if rolle == Qt.TextAlignmentRole:
+        if rolle == Qt.ItemDataRole.TextAlignmentRole:
             if art == "berechnet" or (art == "feld" and s.art in ("zahl", "ganz")):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole:
+        if rolle == Qt.ItemDataRole.BackgroundRole:
             if art == "pruefung":
                 return QBrush(FARBE_STATUS.get(str(w).split(":")[0], FARBE_BERECHNET))
             return QBrush(FARBE_EINGABE if art == "feld" else FARBE_BERECHNET)
@@ -134,8 +134,8 @@ class StammdatenModell(QAbstractTableModel):
             f |= Qt.ItemIsEditable
         return f
 
-    def setData(self, index, text, rolle=Qt.EditRole):
-        if rolle != Qt.EditRole or not index.isValid():
+    def setData(self, index, text, rolle=Qt.ItemDataRole.EditRole):
+        if rolle != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
         art, f = self.spalten[index.column()]
         if art != "feld":
@@ -181,7 +181,7 @@ class Sortierung(QSortFilterProxyModel):
         return super().filterAcceptsRow(zeile, eltern)
 
     def lessThan(self, links, rechts):
-        a, b = links.data(Qt.UserRole), rechts.data(Qt.UserRole)
+        a, b = links.data(Qt.ItemDataRole.UserRole), rechts.data(Qt.ItemDataRole.UserRole)
         if a is None or b is None:
             return a is not None and b is None
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
@@ -238,7 +238,7 @@ def liste_fuellen(cb, k, quelle, erster=""):
             for i in range(cb.count() - len(werte), cb.count()):
                 info = werkstoff_info(k.werkstoffe.get(cb.itemText(i)))
                 if info:
-                    cb.setItemData(i, info, Qt.ToolTipRole)
+                    cb.setItemData(i, info, Qt.ItemDataRole.ToolTipRole)
 
 
 class Auswahl(QStyledItemDelegate):
@@ -265,7 +265,7 @@ class Auswahl(QStyledItemDelegate):
 
     def setEditorData(self, editor, index):
         if isinstance(editor, QComboBox):
-            editor.setCurrentText(index.data(Qt.EditRole) or "")
+            editor.setCurrentText(index.data(Qt.ItemDataRole.EditRole) or "")
         else:
             super().setEditorData(editor, index)
 
@@ -274,7 +274,7 @@ class Auswahl(QStyledItemDelegate):
             text = editor.currentText()
             if editor.property("profil_namen") is not None:
                 text = tabellen_eingabe.profil_aufloesen(text, editor.property("profil_namen"))
-            modell.setData(index, text, Qt.EditRole)
+            modell.setData(index, text, Qt.ItemDataRole.EditRole)
         else:
             super().setModelData(editor, modell, index)
 
@@ -1126,7 +1126,7 @@ class StartSeite(QWidget):
         self.wiedervorlage.setToolTip("Angebote zum Nachfassen: verschickt und seit einigen Tagen ohne Antwort, "
                                       "Gültigkeit endet bald, oder Wiedervorlage erreicht (Doppelklick öffnet)")
         self.wiedervorlage.itemActivated.connect(
-            lambda it: fenster.angebot_oeffnen(it.data(Qt.UserRole)))
+            lambda it: fenster.angebot_oeffnen(it.data(Qt.ItemDataRole.UserRole)))
         hl.addWidget(self.wiedervorlage)
         self.wv_knoepfe = QWidget()          # Plan A9: für das markierte Angebot
         wk = QHBoxLayout(self.wv_knoepfe)
@@ -1254,7 +1254,7 @@ class StartSeite(QWidget):
                     else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
             it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
                                  f"({wann})")
-            it.setData(Qt.UserRole, z["id"])
+            it.setData(Qt.ItemDataRole.UserRole, z["id"])
             if rest < 0:
                 it.setForeground(QBrush(stil.farbe("#B42318")))
             self.wiedervorlage.addItem(it)
@@ -1278,7 +1278,7 @@ class StartSeite(QWidget):
         it = self.wiedervorlage.currentItem() or (self.wiedervorlage.item(0) if self.wiedervorlage.count() else None)
         if it is None:
             return None
-        return ziel(it.data(Qt.UserRole))
+        return ziel(it.data(Qt.ItemDataRole.UserRole))
 
     def nachfassen(self, angebot_id):
         from .nachfassen_dialog import nachfassen_dialog
@@ -1398,6 +1398,7 @@ class Hauptfenster(QMainWindow):
             from . import fenster_merken            # zuletzt offene Angebote wieder öffnen (B4, Freigabe F2a)
             fenster_merken.sitzung_wiederherstellen(self)
             QTimer.singleShot(200, self._start_teilen)
+            QTimer.singleShot(800, self._start_systempruefung)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
@@ -1512,6 +1513,9 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         a = QAction("Tastenkürzel …", self)
         a.triggered.connect(self.kuerzel_zeigen)
+        hilfe.addAction(a)
+        a = QAction("Systemprüfung …", self)
+        a.triggered.connect(lambda: self.systempruefung_zeigen())
         hilfe.addAction(a)
         a = QAction("Lizenz …", self)
         a.triggered.connect(lambda: self.lizenz_zeigen())
@@ -1677,6 +1681,49 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def systempruefung_zeigen(self, zeilen=None):
+        """Hilfe → Systemprüfung …: dieser Rechner gegen die Systemvoraussetzungen (systempruefung.py)."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser
+        from . import systempruefung
+        if zeilen is None:
+            zeilen = systempruefung.pruefen(self.db.pfad.parent)
+        d = QDialog(self)
+        d.setWindowTitle("Systemprüfung")
+        d.resize(980, 380)
+        text = QTextBrowser()
+        text.setHtml(systempruefung.html(zeilen))
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        zu_wenig = systempruefung.unter_minimum(zeilen)
+        info = QLabel(("<b style='color:#B42318'>Unter dem Minimum: " + ", ".join(z[0] for z in zu_wenig) +
+                       ".</b> Das Programm läuft, große Angebote, STEP-Dateien und 3D-Ansichten können aber sehr "
+                       "langsam werden.") if zu_wenig else
+                      "Dieser Rechner erfüllt die Mindestvoraussetzungen. „Empfohlen“ gilt für große STEP-Dateien "
+                      "(1.000 Bohrungen und mehr) und große Baugruppen.")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        lay.addWidget(text)
+        lay.addWidget(knoepfe)
+        self.systempruefung_ergebnis = zeilen
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def _start_systempruefung(self):
+        """7a: einmal nach Installation bzw. Update prüfen und nur warnen, wenn etwas unter dem Minimum liegt."""
+        from . import systempruefung
+        try:
+            if not systempruefung.start_pruefung_noetig(self.db, VERSION):
+                return None
+            zeilen = systempruefung.pruefen(self.db.pfad.parent)
+        except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            return None
+        systempruefung.start_gepruft(self.db, VERSION)
+        if systempruefung.unter_minimum(zeilen):
+            return self.systempruefung_zeigen(zeilen)
+        return None
 
     def neuerungen_zeigen(self):
         """Hilfe → Was ist neu …: alle Versionen ausführlich (die Bedienungsanleitung zeigt nur die letzten)."""

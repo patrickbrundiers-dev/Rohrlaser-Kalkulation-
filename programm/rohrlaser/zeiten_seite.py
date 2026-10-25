@@ -49,8 +49,8 @@ class ZeitenModell(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(SPALTEN)
 
-    def headerData(self, abschnitt, richtung, rolle=Qt.DisplayRole):
-        if rolle == Qt.DisplayRole:
+    def headerData(self, abschnitt, richtung, rolle=Qt.ItemDataRole.DisplayRole):
+        if rolle == Qt.ItemDataRole.DisplayRole:
             return SPALTEN[abschnitt][0] if richtung == Qt.Horizontal else str(abschnitt + 1)
         return None
 
@@ -72,25 +72,25 @@ class ZeitenModell(QAbstractTableModel):
             return _z(z["kosten"])
         return z["quelle"] if c == 8 else z["formel"]
 
-    def data(self, index, rolle=Qt.DisplayRole):
+    def data(self, index, rolle=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
         r, c = index.row(), index.column()
         z = self.zeilen[r]
-        if rolle in (Qt.DisplayRole, Qt.ToolTipRole):
+        if rolle in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             t = self.text(r, c)
-            if rolle == Qt.ToolTipRole and self.bearbeitbar(r, c):
+            if rolle == Qt.ItemDataRole.ToolTipRole and self.bearbeitbar(r, c):
                 t += ("\nDoppelklick: Stundensatz für dieses Angebot ändern (gilt für alle Schritte mit diesem Satz)"
                       if c == 6 else "\nDoppelklick: Wert für dieses Angebot ändern")
             return t
-        if rolle == Qt.EditRole:
+        if rolle == Qt.ItemDataRole.EditRole:
             return {3: _z(z.get("ruest_einzeln") or 0, 1),
                     4: _z(z["zeit_einheit_s"] or 0, 1), 6: _z(z["satz"])}.get(c, "")
-        if rolle == Qt.TextAlignmentRole and 2 <= c <= 7:
+        if rolle == Qt.ItemDataRole.TextAlignmentRole and 2 <= c <= 7:
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        if rolle == Qt.BackgroundRole:
+        if rolle == Qt.ItemDataRole.BackgroundRole:
             return QBrush(FARBE_EINGABE if self.bearbeitbar(r, c) else FARBE_BERECHNET)
-        if rolle == Qt.ForegroundRole and z["gesamt_min"] is None and c in (5, 6):
+        if rolle == Qt.ItemDataRole.ForegroundRole and z["gesamt_min"] is None and c in (5, 6):
             return QBrush(stil.farbe("#5F6B7A"))
         return None
 
@@ -100,8 +100,8 @@ class ZeitenModell(QAbstractTableModel):
             f |= Qt.ItemIsEditable
         return f
 
-    def setData(self, index, text, rolle=Qt.EditRole):
-        if rolle != Qt.EditRole or not index.isValid():
+    def setData(self, index, text, rolle=Qt.ItemDataRole.EditRole):
+        if rolle != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
         r, c = index.row(), index.column()
         try:
