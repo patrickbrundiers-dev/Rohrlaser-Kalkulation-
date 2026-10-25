@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.113", "<b>Montagemarken und Steckbarkeit</b>: Steckverbindungen bekommen auf Wunsch eine Zahl, die neben "
+                "die Schlitze der Aufnahme und auf das Ende des Steckers graviert wird (Knopf Marken nummerieren, "
+                "Einstellung für neue Verbindungen, Vorgabe aus). Steckbarkeit prüfen sucht eine Reihenfolge, in der "
+                "sich alle Teile stecken lassen, und meldet Schlitze über Konturen und feste Längsnähte auf Schlitzen "
+                "oder Nasen ([[montagemarken]]).",
+     "Montagemarken an Schlitz und Nase, Steckbarkeit prüfen"],
     ["0.9.112", "<b>DXF-Import für verschiedene Zeichnungen</b>: Rohrzeichnungen nach USA (Drittwinkel), senkrecht "
                 "gezeichnete Rohre, Blattrahmen, mehrere Teile auf einem Blatt und Profiltexte wie Ø42,4x2 werden "
                 "erkannt. Ist das Programm unsicher, zeigt ein Zuordnungsfenster die Ansichten zum Zuordnen; die "

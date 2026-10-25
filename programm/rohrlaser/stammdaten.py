@@ -912,6 +912,9 @@ EINSTELLUNGEN = (
                 2),
     Einstellung("steck_ueberstand", "Steckverbindung: Überstand der Nase über die Aufnahme [mm]", "Steckverbindung",
                 "zahl", 0.0, 0, 20),
+    # Montagemarke (Plan Baugruppen automatisch A4, Patrick 25.10.2026 „4a“: Zahl je Verbindung, Vorgabe aus)
+    Einstellung("steck_marke", "Steckverbindung: neue Verbindungen bekommen eine Montagemarke (Zahl als Gravur an "
+                "Schlitz und Nase)", "Steckverbindung", "auswahl", "nein", auswahl="janein"),
     Einstellung("step_flach_laenge", "Experte: Flachstahl ab Länge × Breite", "STEP-Import", "zahl", 3.0, 1, 100),
     Einstellung("step_gekantet_anteil", "Experte: gekantetes Blech statt Profil, wenn Volumen unter Anteil von Querschnitt × Länge", "STEP-Import",
                 "anteil", 0.85, 0.1, 1),
