@@ -1441,6 +1441,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     hinweise += h_k
             n_ges = (stk or 0) * (int(m.get("_je_satz") or len(gruppen[i])) if satz else 1)
             sch = schalen(m) if schalen_gewaehlt(m) and n_ges >= 2 else None      # nur wenn die Stückzahl reicht
+            if sch and (neu_enden or neu_fenster):  # anderes Rohr gewählt: Schalenschnitt passt nicht mehr zur Messung
+                hinweise.append("Halbschalen: anderes Rohr gewählt, Schalen je Umfang bitte von Hand prüfen")
+                sch = None
             if sch:     # mehrere Schalen aus einem Rohrumfang (Patrick 25.10.2026, „Rundrohr alle a“), je Stück
                 anteil = float(sch["schale_grad"]) / 360.0                  # eine Schale, ganz freigeschnitten
                 a_s, b_s = _z(m, "ende_a") * anteil, _z(m, "ende_b") * anteil

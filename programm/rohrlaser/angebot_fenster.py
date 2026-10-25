@@ -639,10 +639,10 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
              ("Eingeplant [Stk]", "eingeplant", 0), ("Nicht eingeplant [Stk]", "nicht_eingeplant", 0)]
 SICHTBAR = ["pos", "art", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche", "laenge", "stueck", "schneidweg",
             "einstiche", "zeit_manuell", "prog_zeit", "stange", "satz", "je_satz", "preis_m", "material_herkunft", "gewinde", "zusatz", "zukauf",
-            "naht_vorgabe", "anbauteile", "gewicht_teil"]
+            "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil")
+                     "zukauf", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 RECHNER_SPALTEN = {"schneidweg", "einstiche"} | set(STEP_FELDER)     # Doppelklick: Schneidweg-Rechner
 # Ändert sich eines davon, wird das Vorschaubild der Artikelnummer neu gezeichnet
