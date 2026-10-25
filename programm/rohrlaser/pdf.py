@@ -12,6 +12,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame, KeepTogether, LongTable,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
@@ -58,6 +59,29 @@ def _p(text, stil=S):
 AUFDRUCK = ""        # quer über jede Seite, z. B. "TESTVERSION" bei einer Testlizenz (Hauptfenster.lizenz_anwenden)
 
 
+def fuss_zeilen(text, platz, groesse=7.5, kleinste=6.5):
+    """Fußzeilentext so setzen, dass er links neben 'Seite x von y' Platz hat (platz in pt): erst die Schrift bis
+    kleinste verkleinern, sonst an einem Trenner (' | ' bzw. ' · ') in zwei Zeilen teilen. Ergebnis (Größe, Zeilen)."""
+    text = text or ""
+    g = groesse
+    while g > kleinste and stringWidth(text, SCHRIFT, g) > platz:
+        g = round(g - 0.5, 1)
+    if stringWidth(text, SCHRIFT, g) <= platz:
+        return g, [text]
+    for trenner in ("   |   ", " | ", " · "):
+        if trenner in text:
+            teile = text.split(trenner)
+            # Teilung, bei der die längere Zeile am kürzesten ist
+            beste = min(range(1, len(teile)), key=lambda j: max(
+                stringWidth(trenner.join(teile[:j]), SCHRIFT, g), stringWidth(trenner.join(teile[j:]), SCHRIFT, g)))
+            zwei = [trenner.join(teile[:beste]).strip(), trenner.join(teile[beste:]).strip()]
+            g2 = groesse
+            while g2 > kleinste and max(stringWidth(z, SCHRIFT, g2) for z in zwei) > platz:
+                g2 = round(g2 - 0.5, 1)
+            return g2, zwei
+    return g, [text]
+
+
 class _Seitenzahlen(rl_canvas.Canvas):
     """Canvas mit 'Seite x von y' und Fußzeilentext auf jeder Seite."""
     fuss = ""
@@ -82,8 +106,14 @@ class _Seitenzahlen(rl_canvas.Canvas):
                 self.line(12 * mm, 11.5 * mm, breite - 12 * mm, 11.5 * mm)
             self.setFont(SCHRIFT, 7.5)
             self.setFillColor(colors.HexColor("#595959"))
-            self.drawString(12 * mm, 8 * mm, self.fuss)
-            self.drawRightString(breite - 12 * mm, 8 * mm, f"Seite {i} von {n}")
+            seite = f"Seite {i} von {n}"
+            self.drawRightString(breite - 12 * mm, 8 * mm, seite)
+            platz = breite - 24 * mm - stringWidth(seite, SCHRIFT, 7.5) - 5 * mm
+            groesse, zeilen = fuss_zeilen(self.fuss, platz)
+            self.setFont(SCHRIFT, groesse)
+            for k, zeile in enumerate(zeilen):
+                self.drawString(12 * mm, (8 if len(zeilen) == 1 else 9.3 - 3 * k) * mm, zeile)
+            self.setFont(SCHRIFT, 7.5)
             if AUFDRUCK:
                 self.saveState()
                 self.setFont(SCHRIFT, 64)
@@ -844,11 +874,12 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         tab = _tabelle(daten, [12 * mm, 33 * mm, 45 * mm, 69 * mm, 14 * mm, 13 * mm], rechts=(4,))
         tab.setStyle(TableStyle([("ALIGN", (5, 0), (5, -1), "CENTER")]))
         inhalt += [_p("Zukaufteile (nicht lasern, zum Auftrag bereitstellen)", S_H2), tab, Spacer(1, 4 * mm)]
-    breiten = [11 * mm, 12 * mm, 27 * mm, 36 * mm, 18 * mm, 17 * mm, 17 * mm, 13 * mm, 24 * mm, 11 * mm]
+    breiten = [11 * mm, 12 * mm, 27 * mm, 35 * mm, 18 * mm, 17 * mm, 17 * mm, 16 * mm, 22 * mm, 11 * mm]
     for m in wp["muster"]:
         s = m["stange"]
         daten = [_kopfzeile(["Platz", "Pos.", "Artikelnummer", "Bezeichnung", "Länge [mm]", "Von [mm]", "Bis [mm]",
                              "Lage", "Trennung zum Vorgänger", "erl."])]
+        daten[0][7] = _p("Lage", ParagraphStyle("kl", parent=S_KOPF, alignment=1))     # mittig wie die Werte
         for t in m["teile"]:
             daten.append([_z(t["platz"], 0), _p(_z(t["pos"], 0), ParagraphStyle("pz", parent=S_FETT, alignment=1)),
                           _p(t["artikel"], S_KLEIN), _p(t["bezeichnung"], S_KLEIN),

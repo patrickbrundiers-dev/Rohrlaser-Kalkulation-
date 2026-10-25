@@ -4,18 +4,18 @@ Welche Felder und Kennzahlen sichtbar sind, entscheidet sichtbarkeit.py: optiona
 nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer änderbar). Pflichtfelder,
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
-from PySide6.QtCore import QDate, QEvent, QObject, Qt
+from PySide6.QtCore import QDate, QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 from . import fracht_angebot, hilfe, rechnen, teilen
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
 from .angebot import (EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
                       aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
-from .sichtbarkeit import MASCHINE, OPTIONAL, kopf_sichtbar, sichtbar
+from .sichtbarkeit import MASCHINE, OPTIONAL, ist_null, kopf_sichtbar, sichtbar
 from .stammdaten import zahl_als_text
 from .eingabe import RechenSpin, RechenSpinGanz
 
@@ -48,6 +48,11 @@ MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stangenwechsel", "Stangenwechsel je Stange", "s", 0),
                  ("stangenwechsel_sn", "Stangenwechsel SN (Schweißnaht)", "s", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
+
+LIEFERZEIT_TOOLTIP = ("Arbeitstage und Wochen zählen ab Auftragseingang; Kalenderwoche und Lieferdatum sind feste "
+                      "Termine; „nur Text“ zeigt nur den Freitext")
+# Fracht rechts neben der Kalkulation ab dieser Breite der Angebotsseite (darunter steht sie unter der Kalkulation)
+FRACHT_RECHTS_AB = 1800
 
 from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
 
@@ -206,7 +211,7 @@ class KopfBereich(QWidget):
         self._kopf_gewaehlt = None          # None = automatisch (zu, sobald Kunde und Positionen da sind)
         g = QGridLayout()
         g.setHorizontalSpacing(10)
-        g.setVerticalSpacing(5)
+        g.setVerticalSpacing(4)
         anordnung = (("nummer", 0, 0), ("kundennr", 0, 1), ("maschine", 0, 2),
                      ("datum", 1, 0), ("kunde", 1, 1), ("stange", 1, 2))
         for name, zeile, spalte in anordnung:
@@ -222,14 +227,14 @@ class KopfBereich(QWidget):
             g.addWidget(w, zeile, 2 * spalte + 1)
         w = self._eingabe(KOPF_FELD["kundenreferenz"], self.felder)
         w.setPlaceholderText("z. B. Anfrage 4711 vom 20.10.2026")
-        # kompakt (Layout-Plan L2): Anfrage | Bemerkung, Lieferzeit | Material, Vorschau | Bearbeiter
+        # kompakt (Layout-Plan L2, Patrick 25.10.2026): Anfrage | Bemerkung | Bearbeiter, Lieferzeit | Material; die
+        # Vorschau der Lieferzeit nur als eigene Zeile, wenn sie etwas sagt, was die Felder nicht zeigen
         g.addWidget(QLabel(KOPF_FELD["kundenreferenz"].titel), 2, 0)
         g.addWidget(w, 2, 1)
         # Lieferzeit dieses Angebots: Art, Wert passend zur Art und Freitext (ändert keine Preise)
         self.lz_art, self.lz_wert, self.lz_zusatz = QComboBox(), QLineEdit(), QLineEdit()
         self.lz_art.addItems(LIEFERZEIT_ARTEN)
-        self.lz_art.setToolTip("Arbeitstage und Wochen zählen ab Auftragseingang; Kalenderwoche und Lieferdatum sind "
-                               "feste Termine; „nur Text“ zeigt nur den Freitext")
+        self.lz_art.setToolTip(LIEFERZEIT_TOOLTIP)
         self.lz_wert.setMaximumWidth(130)
         self.lz_zusatz.setPlaceholderText("Freitext, z. B. nach Absprache, Teillieferung möglich")
         self.lz_art.currentTextChanged.connect(lambda t: seite._kopf_speichern(KOPF_FELD["lieferzeit_art"], t or None))
@@ -266,13 +271,13 @@ class KopfBereich(QWidget):
         g.addLayout(mz, 3, 5)
         w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
         g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 2, 2)
-        g.addWidget(w, 2, 3, 1, 3)
+        g.addWidget(w, 2, 3)
         # Bearbeiter (Kürzel und Name, teilen.py): nur Anzeige, gesetzt beim Anlegen
         self.bearbeiter = QLabel()
         self.bearbeiter.setToolTip("Mitarbeiter, der das Angebot angelegt hat (Kürzel vorn in der Nummer); im "
                                    "Angebots-PDF als Ansprechpartner")
-        g.addWidget(QLabel(KOPF_FELD["bearbeiter"].titel), 4, 4)
-        g.addWidget(self.bearbeiter, 4, 5)
+        g.addWidget(QLabel(KOPF_FELD["bearbeiter"].titel), 2, 4)
+        g.addWidget(self.bearbeiter, 2, 5)
         for c in (1, 3, 5):
             g.setColumnStretch(c, 1)
         kl.addLayout(g)
@@ -323,12 +328,12 @@ class KopfBereich(QWidget):
         kal.addWidget(self.abweichung_text)
         # Mindestauftragswert je Angebot ein/aus; der Betrag kommt nur aus den Einstellungen (Patrick 23.10.2026)
         self.mindest_an = QCheckBox("Mindestauftragswert anwenden")
-        self.mindest_an.setToolTip("Liegt der Verkaufspreis unter dem Mindestauftragswert der Einstellungen, werden "
+        self.mindest_an.setToolTip("Betrag aus den Einstellungen. "
+                                   "Liegt der Verkaufspreis unter dem Mindestauftragswert der Einstellungen, werden "
                                    "alle Stückpreise anteilig angehoben. Ohne Haken gilt für dieses Angebot kein "
                                    "Mindestauftragswert.")
         self.mindest_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["mindestpreis_anwenden"], None if an else "nein"))
-        kal.addWidget(self.mindest_an)
         gruppen = QGridLayout()
         gruppen.setHorizontalSpacing(18)
         self.gruppen_leer = {}
@@ -345,11 +350,20 @@ class KopfBereich(QWidget):
             form.setHorizontalSpacing(6)
             form.setVerticalSpacing(4)
             r = 0
-            if titel == "Zeit und Rüsten":     # Werte der Maschine (Stammdaten), nur Anzeige
+            if titel == "Zeit und Rüsten":     # Werte der Maschine (Snapshot des Angebots); Stangenwechsel änderbar
                 for name, text, einheit, _ in MASCHINE_KALK:
-                    b, w = QLabel(text), QLabel()
-                    w.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    w.setToolTip("Aus den Stammdaten Maschinen (gewählte Maschine)")
+                    if name == "stangenwechsel":   # je Angebot änderbar wie Rüstzeit je Abmessung (Patrick 25.10.2026)
+                        b, w = QLabel(f"{text} [{einheit}]"), RechenSpinGanz()
+                        w.setRange(0, 3600)
+                        w.setAlignment(Qt.AlignRight)
+                        w.setMinimumWidth(90)
+                        w.editingFinished.connect(lambda w=w: seite.stangenwechsel_setzen(w.value()))
+                        self.stangenwechsel = w
+                    else:
+                        b, w = QLabel(text), QLabel()
+                        w.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                        w.setToolTip("Aus den Stammdaten Maschinen (gewählte Maschine), im Angebot gespeichert; "
+                                     "Stundensatz änderbar im Reiter Zeiten & Arbeitskosten")
                     self.maschine_kalk[name] = (b, w, einheit)
                     form.addWidget(b, r, 0)
                     form.addWidget(w, r, 1)
@@ -362,6 +376,8 @@ class KopfBereich(QWidget):
                 form.addWidget(b, r, 0)
                 form.addWidget(w, r, 1)
                 r += 1
+            if titel == "Verkauf und Gewinn":  # Mindestauftragswert ein/aus gehört zum Verkauf, spart eine Zeile
+                form.addWidget(self.mindest_an, r + 1, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -395,7 +411,12 @@ class KopfBereich(QWidget):
         eg.addWidget(self.erweitert_leer, len(namen), 0, 1, 6)
         self.erweitert_bereich = Aufklapper("Erweiterte Einstellungen", er)
         kal.addWidget(self.erweitert_bereich)
-        lay.addWidget(kalk)
+        # Kalkulation und Fracht: breite Seite nebeneinander, sonst untereinander (karten_anordnen)
+        self.kalk_karte = kalk
+        self.karten = QGridLayout()
+        self.karten.setContentsMargins(0, 0, 0, 0)
+        self.karten.setSpacing(8)
+        lay.addLayout(self.karten)
 
         # Fracht: Frachtart, Verteilung und Berechnung (fracht_angebot.py)
         self.fracht_knopf = QPushButton("Fracht berechnen …")
@@ -426,7 +447,6 @@ class KopfBereich(QWidget):
         frl.setSpacing(6)
         fr0.addWidget(self.fracht_inhalt)
         self.fracht_karte = fr
-        zeile = QHBoxLayout()
         self.fracht_modus, self.fracht_umlage = QComboBox(), QComboBox()
         self.fracht_modus.addItems(MODI)
         self.fracht_umlage.addItems(UMLAGEN)
@@ -435,15 +455,9 @@ class KopfBereich(QWidget):
                                      "Artikelpreis enthalten: 0 € in der Kalkulation, Hinweis im Angebot")
         self.fracht_umlage.setToolTip("je Stück: jedes Teil trägt gleich viel; nach Gewicht: Anteil des Teilegewichts "
                                       "am Gesamtgewicht")
-        for titel, cb, name in (("Frachtart", self.fracht_modus, "fracht_modus"),
-                                ("Fracht verteilen", self.fracht_umlage, "fracht_umlage")):
-            zeile.addWidget(QLabel(titel))
-            zeile.addWidget(cb)
+        for cb, name in ((self.fracht_modus, "fracht_modus"), (self.fracht_umlage, "fracht_umlage")):
             cb.currentTextChanged.connect(lambda t, name=name: seite._kopf_speichern(KOPF_FELD[name], t or None))
-        zeile.addStretch(1)
-        frl.addLayout(zeile)
         # automatisch: Ziel-PLZ (zwei Stellen reichen) und Land; Gewicht, Ladungsträger und Tarif rechnet das Programm
-        zeile = QHBoxLayout()
         self.fracht_auto = QCheckBox("Fracht automatisch berechnen")
         self.fracht_auto.setToolTip("Fracht bei jeder Änderung aus Ziel-PLZ, Gewicht der Positionen, Packvorschlag und "
                                     "automatisch gewähltem Tarif rechnen (Tarifkopie beim Setzen des Hakens bzw. "
@@ -459,18 +473,27 @@ class KopfBereich(QWidget):
                                                                                   self.fracht_land.text()))
         self.fracht_land.editingFinished.connect(lambda: seite.fracht_ziel_setzen(self.fracht_plz.text(),
                                                                                    self.fracht_land.text()))
-        zeile.addWidget(self.fracht_auto)
-        zeile.addWidget(QLabel("Ziel-PLZ"))
-        zeile.addWidget(self.fracht_plz)
-        zeile.addWidget(QLabel("Land"))
-        zeile.addWidget(self.fracht_land)
-        zeile.addStretch(1)
-        frl.addLayout(zeile)
+        ziel = QWidget()
+        zl = QHBoxLayout(ziel)
+        zl.setContentsMargins(0, 0, 0, 0)
+        zl.addWidget(self.fracht_plz)
+        zl.addWidget(QLabel("Land"))
+        zl.addWidget(self.fracht_land)
+        zl.addStretch(1)
+        # Raster: neben der Kalkulation untereinander (schmal), unter ihr in zwei Zeilen (fracht_raster_setzen)
+        self.fracht_raster = QGridLayout()
+        self.fracht_raster.setContentsMargins(0, 0, 0, 0)
+        self.fracht_raster.setHorizontalSpacing(6)
+        self.fracht_raster.setVerticalSpacing(4)
+        self._fracht_zellen = (QLabel("Frachtart"), self.fracht_modus, QLabel("Fracht verteilen"), self.fracht_umlage,
+                               self.fracht_auto, QLabel("Ziel-PLZ"), ziel)
+        frl.addLayout(self.fracht_raster)
         self.fracht_text = QLabel()
         self.fracht_text.setWordWrap(True)
         self.fracht_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
         frl.addWidget(self.fracht_text)
-        lay.addWidget(fr)
+        self.fracht_rechts = None
+        self.karten_anordnen(False)
         offen = self.s.db.einstellung(KALK_OFFEN_EINSTELLUNG)
         self.kalkulation_aufklappen(offen if isinstance(offen, bool) else False)   # Vorgabe: Kurzzeile, Positionen vorn
         offen = self.s.db.einstellung(FRACHT_OFFEN_EINSTELLUNG)
@@ -582,9 +605,42 @@ class KopfBereich(QWidget):
         for c in range(spalten):
             self.gruppen_raster.setColumnStretch(c, 1)
 
+    def karten_anordnen(self, rechts):
+        """Fracht rechts neben der Kalkulation (breite Seite) oder darunter."""
+        if rechts == self.fracht_rechts:
+            return
+        self.fracht_rechts = rechts
+        for w in (self.kalk_karte, self.fracht_karte):
+            self.karten.removeWidget(w)
+        if rechts:          # oben bündig, jede Karte so hoch wie ihr Inhalt
+            self.karten.addWidget(self.kalk_karte, 0, 0, Qt.AlignTop)
+            self.karten.addWidget(self.fracht_karte, 0, 1, Qt.AlignTop)
+        else:
+            self.karten.addWidget(self.kalk_karte, 0, 0)
+            self.karten.addWidget(self.fracht_karte, 1, 0)
+        self.karten.setColumnStretch(0, 3 if rechts else 1)
+        self.karten.setColumnStretch(1, 1 if rechts else 0)
+        # Felder der Fracht: rechts schmal untereinander, unten in zwei Zeilen nebeneinander
+        art_t, art, umlage_t, umlage, auto, ziel_t, ziel = self._fracht_zellen
+        for w in self._fracht_zellen:
+            self.fracht_raster.removeWidget(w)
+        for c in range(5):
+            self.fracht_raster.setColumnStretch(c, 0)
+        if rechts:
+            lage = ((art_t, 0, 0, 1), (art, 0, 1, 1), (umlage_t, 1, 0, 1), (umlage, 1, 1, 1), (auto, 2, 0, 2),
+                    (ziel_t, 3, 0, 1), (ziel, 3, 1, 1))
+            self.fracht_raster.setColumnStretch(1, 1)
+        else:
+            lage = ((art_t, 0, 0, 1), (art, 0, 1, 1), (umlage_t, 0, 2, 1), (umlage, 0, 3, 1), (auto, 1, 0, 2),
+                    (ziel_t, 1, 2, 1), (ziel, 1, 3, 1))
+            self.fracht_raster.setColumnStretch(4, 1)
+        for w, r, c, n in lage:
+            self.fracht_raster.addWidget(w, r, c, 1, n)
+
     def breite_anpassen(self, breite):
         """Von der Angebotsseite bei Größenänderung aufgerufen (Breite der ganzen Seite)."""
         self._gruppen_anordnen(4 if breite >= 1600 else 2)
+        self.karten_anordnen(breite >= FRACHT_RECHTS_AB)
 
     # -------------------------------------------------------------- Eingaben
     def _eingabe(self, fd, ablage):
@@ -675,9 +731,9 @@ class KopfBereich(QWidget):
         betrag = rechnen.einstellungen_fest(s.tabellen, s.db.einstellungen()).get("mindestpreis")
         self.mindest_an.blockSignals(True)
         self.mindest_an.setChecked(s.kopf.get("mindestpreis_anwenden") != "nein")
-        self.mindest_an.setText(f"Mindestauftragswert anwenden ({_z(betrag)} € netto, aus den Einstellungen)"
+        self.mindest_an.setText(f"Mindestauftragswert anwenden ({_z(betrag)} € netto)"
                                 if isinstance(betrag, (int, float)) and betrag > 0 else
-                                "Mindestauftragswert anwenden (in den Einstellungen 0 €)")
+                                "Mindestauftragswert anwenden (0 €)")
         self.mindest_an.blockSignals(False)
         self._abweichungen_anzeigen()
         self.sichtbarkeit()
@@ -733,6 +789,10 @@ class KopfBereich(QWidget):
         text = lieferzeit_text(k)
         self.lz_vorschau.setText(f"Im Angebot: {text}" if text else
                                  "Keine Lieferzeit im Angebot: es gilt der Text der Bedingungen (Einstellungen).")
+        # mit Lieferzeit zeigen die Felder schon alles: Satz im Angebot nur als Tooltip, spart eine Zeile
+        self.lz_vorschau.setVisible(not text)
+        self.lz_art.setToolTip((self.lz_vorschau.text() + "\n\n" if text else "") + LIEFERZEIT_TOOLTIP)
+        self.lz_zusatz.setToolTip(self.lz_vorschau.text() if text else "")
 
     def _fracht_anzeigen(self):
         s = self.s
@@ -815,8 +875,9 @@ class KopfBereich(QWidget):
         if not m:
             self.maschinenwerte.setText("<span style='color:#B42318'>Maschine fehlt oder ist unbekannt.</span>")
             self.maschinen_bereich.setze_titel("Maschinenparameter: Maschine fehlt oder ist unbekannt")
-            for b, w, _ in self.maschine_kalk.values():
-                w.setText("–")
+            for name, (b, w, _) in self.maschine_kalk.items():
+                if name != "stangenwechsel":
+                    w.setText("–")
             return
         teile, kurz = [], []
         for name, titel, einheit, stellen, rolle in MASCHINENPARAMETER:
@@ -828,13 +889,64 @@ class KopfBereich(QWidget):
                     kurz.append(f"{titel.split(' je ')[0]} {text}")
         self.maschinenwerte.setText("<table cellpadding='1'>" + "".join(teile) + "</table>")
         self.maschinen_bereich.setze_titel(f"Maschinenparameter {m.get('maschinen_id') or ''}: " + " · ".join(kurz))
+        # Zeitwerte und Stundensatz aus dem Snapshot des Angebots (damit rechnet der Preis), nicht aus den Stammdaten
+        zb = rechnen.zeitbasis(self.s.kopf, self.s.k, self.s.tabellen)["maschine"]
+        vorgabe = self.s.db.zeitbasis_vorgabe(self.s.kopf.get("maschine"))["maschine"]
+        stellen = {n: st for n, _, _, st in MASCHINE_KALK}
         for name, (b, w, einheit) in self.maschine_kalk.items():
-            w.setText(f"{_z(m.get(name), dict((n, st) for n, _, _, st in MASCHINE_KALK)[name])} {einheit}")
+            v = zb.get(name)
+            if name == "stangenwechsel_sn" and v is None:       # Snapshot vor 0.8.10: SN wie Stangenwechsel
+                v = zb.get("stangenwechsel")
+            if name == "stangenwechsel":
+                w.blockSignals(True)
+                w.setValue(int(round(rechnen._n(v))))
+                w.blockSignals(False)
+                abw = rechnen._n(v) != rechnen._n(vorgabe.get(name))
+                w.setStyleSheet(f"background: {GELB};" if abw else "")
+                w.setToolTip(f"Weicht ab: Standard (Stammdaten Maschine) {_z(vorgabe.get(name), 0)} s" if abw else
+                             "Stangenwechsel je Stange ohne feste Schweißnaht, nur für dieses Angebot; Vorgabe aus den "
+                             "Stammdaten Maschinen")
+                continue
+            w.setText(f"{_z(v, stellen[name])} {einheit}")
+            # Rüstzeit je Maschine 0 min: Zeile weg (Patrick 25.10.2026)
+            zeigen = name != "ruestzeit" or not ist_null(v)
+            b.setVisible(zeigen)
+            w.setVisible(zeigen)
 
 
 def _kundennr(text):
     """'K-1001 – Beispiel GmbH' (Eintrag der Kundenauswahl) -> 'K-1001'; frei eingetippt bleibt der Text."""
     return str(text or "").split(" – ")[0].strip()
+
+
+class UebersichtRahmen(QScrollArea):
+    """Rollbereich der Übersicht rechts: rollt nur senkrecht; die Mindestbreite folgt dem Inhalt (z. B. lange Zeilen
+    im Preisaufbau oder breite Beträge), damit rechts nichts abgeschnitten wird (Design-Prüfung D3)."""
+    HOECHSTENS = 560        # px: breiter wird die Spalte auch bei sehr langen Zeilen nicht
+
+    def __init__(self, inhalt, minimum):
+        super().__init__()
+        self._minimum = minimum
+        self.setWidgetResizable(True)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidget(inhalt)
+        self.setMinimumWidth(minimum)
+        inhalt.installEventFilter(self)
+
+    def noetige_breite(self):
+        w = self.widget()
+        return max(self._minimum, min(self.HOECHSTENS, w.minimumSizeHint().width()
+                                      + self.verticalScrollBar().sizeHint().width() + 2))
+
+    def eventFilter(self, obj, ereignis):
+        if obj is self.widget() and ereignis.type() == QEvent.LayoutRequest:
+            QTimer.singleShot(0, self._breite_anpassen)
+        return False
+
+    def _breite_anpassen(self):
+        if self.widget() is not None and self.minimumWidth() != (b := self.noetige_breite()):
+            self.setMinimumWidth(b)
 
 
 class UebersichtBereich(QWidget):
@@ -931,6 +1043,7 @@ class UebersichtBereich(QWidget):
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar
         self.uebersicht = QLabel()          # Preisaufbau: Material → … → Herstellkosten → … → Verkaufspreis
+        self.uebersicht.setWordWrap(True)   # lange Zeilen umbrechen statt die Spalte zu verbreitern (D3)
         self.uebersicht.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
         self.uebersicht.setToolTip("Preisaufbau: Gruppen mit ▸ per Klick aufklappen")
         self.uebersicht.linkActivated.connect(self._gruppe_umschalten)
@@ -947,6 +1060,7 @@ class UebersichtBereich(QWidget):
         kl.addWidget(self.wasserfall_bereich)
         # Zeiten je Arbeitsschritt (Reiter 'Zeiten & Arbeitskosten'), Zeilen mit 0 ausgeblendet
         self.zeiten = QLabel()
+        self.zeiten.setWordWrap(True)
         self.zeiten.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
         self.zeiten.setToolTip("Maschine und Personal mit ▸ per Klick aufklappen; Einzelheiten je Arbeitsschritt im "
                                "Reiter „Zeiten & Arbeitskosten“. Durchlaufzeit = Maschinenzeit + Personalzeit, die "

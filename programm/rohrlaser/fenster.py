@@ -894,7 +894,8 @@ class EinstellungenSeite(QScrollArea):
         elif e.art == "ordner":
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
                                "ablageordner": "Ablageordner wählen",
-                               "csv_ordner": "Ordner für den CSV-Export wählen"}.get(e.name, "Standardordner wählen"))
+                               "csv_ordner": "Ordner für den CSV-Export wählen",
+                               "anfrage_ordner": "Anfrage-Ordner wählen"}.get(e.name, "Standardordner wählen"))
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
             if e.name == "ablageordner":
@@ -1257,9 +1258,19 @@ class StartSeite(QWidget):
         knoepfe.addStretch(1)
         dl.addLayout(knoepfe)
 
+        # Neue Anfragen aus dem Anfrage-Ordner (Plan W6a), über den Angeboten; nur mit Einstellung sichtbar
+        from .anfragen_karte import AnfragenKarte
+        self.anfragen = AnfragenKarte(fenster)
+        links = QWidget()
+        ll = QVBoxLayout(links)
+        ll.setContentsMargins(0, 0, 0, 0)
+        ll.setSpacing(10)
+        ll.addWidget(self.anfragen.karte)
+        ll.addWidget(angebote, 1)
+
         raster = QGridLayout()
         raster.setSpacing(10)
-        raster.addWidget(angebote, 0, 0, 3, 1)
+        raster.addWidget(links, 0, 0, 3, 1)
         raster.addWidget(heute, 0, 1)
         raster.addWidget(stamm, 1, 1)
         raster.addWidget(sicherung, 2, 1)
@@ -1309,6 +1320,7 @@ class StartSeite(QWidget):
         self.stamm_aufklapper.setze_titel(f"{len(tabellen)} Tabellen, {sum(n for _, n in tabellen)} Einträge")
         self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
                           f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
+        self.anfragen.neu_laden()
         alle = db.angebote()
         self.cockpit_laden(alle)
         zuletzt = sorted(alle, key=lambda z: z.get("geaendert") or "", reverse=True)[:self.ZULETZT]
