@@ -637,21 +637,36 @@ class PasswortEingabe(QWidget):
         self.feld.setEchoMode(QLineEdit.Password)
         self.feld.editingFinished.connect(self._neu)
         self.weg = QPushButton("Entfernen")
-        self.weg.setToolTip("Einstellungen ohne Passwort öffnen (auch keine Admin-Abfrage beim Start)")
         self.weg.clicked.connect(lambda: self.geaendert.emit(""))
         lay.addWidget(self.feld, 1)
         lay.addWidget(self.weg)
 
+    frei = False            # nur mit Admin-Rechten änderbar (Freigabe 25.10.2026, freigeben())
+
+    def anzeigen(self, gesetzt):
+        self.gesetzt = bool(gesetzt)
+        self.feld.clear()
+        self.feld.setPlaceholderText("gesetzt – zum Ändern neues Passwort eingeben" if gesetzt else "ohne Passwort")
+        self.weg.setEnabled(self.frei and self.gesetzt)
+
+    def freigeben(self, an):
+        """Setzen, Ändern und Entfernen nur mit Admin-Rechten (Admin-Lizenz und Admin-Passwort in dieser Sitzung)."""
+        self.frei = bool(an)
+        self.feld.setEnabled(self.frei)
+        self.weg.setEnabled(self.frei and getattr(self, "gesetzt", False))
+        tipp = "" if self.frei else "Ändern nur mit Admin-Rechten (Admin-Lizenz, Hilfe → Lizenz …)"
+        self.feld.setToolTip(tipp)
+        if tipp:
+            self.weg.setToolTip(tipp)
+        else:
+            self.weg.setToolTip("Einstellungen ohne Passwort öffnen (ohne Admin-Lizenz-Passwort auch keine "
+                                "Admin-Abfrage beim Start)")
+
     def _neu(self):
         text = self.feld.text()
         self.feld.clear()
-        if text:
+        if text and self.frei:
             self.geaendert.emit(text)
-
-    def anzeigen(self, gesetzt):
-        self.feld.clear()
-        self.feld.setPlaceholderText("gesetzt – zum Ändern neues Passwort eingeben" if gesetzt else "ohne Passwort")
-        self.weg.setEnabled(bool(gesetzt))
 
 
 class OrdnerEingabe(QWidget):
@@ -692,6 +707,8 @@ class EinstellungenSeite(QScrollArea):
     Karte; ab ZWEI_SPALTEN px Breite stehen die Karten in zwei Spalten (auf die kürzere Spalte verteilt)."""
     ZWEI_SPALTEN = 1150
     BREITE_ZAHL, BREITE_TEXT, BREITE_TITEL = 160, 380, 300
+
+    admin = False           # Admin-Rechte: nur dann ist das Passwort der Einstellungen änderbar (admin_setzen)
 
     def __init__(self, db, meldung, gruppen=None, ohne=()):
         super().__init__()
@@ -800,6 +817,7 @@ class EinstellungenSeite(QScrollArea):
             w.currentTextChanged.connect(lambda text, e=e: self._speichern(e, text.strip()))
         elif e.art == "passwort":
             w = PasswortEingabe()
+            w.freigeben(self.admin)
             w.geaendert.connect(lambda text, e=e, w=w: (self._speichern(e, text), w.anzeigen(text)))
         elif e.art == "bild":
             w = LogoEingabe()
@@ -826,6 +844,13 @@ class EinstellungenSeite(QScrollArea):
         elif e.art == "mehrzeilig":
             w.setMaximumWidth(self.BREITE_TEXT + 160)
         return w
+
+    def admin_setzen(self, an):
+        """Admin-Rechte an/aus (Hauptfenster.lizenz_anwenden): Passwortfelder nur mit Admin-Rechten änderbar."""
+        self.admin = bool(an)
+        for w in self.felder.values():
+            if isinstance(w, PasswortEingabe):
+                w.freigeben(self.admin)
 
     EINHEIT = re.compile(r"\s*\[([^\]]{1,12})\]")
     SONDER = re.compile(r"\s*\((0|leer) = ([^);]+)\)")
@@ -1709,6 +1734,7 @@ class Hauptfenster(QMainWindow):
                                           .get(farbe, ""))
         self.lizenz_hinweis.setVisible(bool(self.lizenz_hinweis.text()) and not z.admin)
         self.bereich.admin = z.admin
+        self.einstellungen.admin_setzen(z.admin)
         if z.admin and not self.bereich.offen:
             self.bereich.offen = True
             self.bereich.neu_laden()

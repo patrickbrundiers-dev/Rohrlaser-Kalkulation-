@@ -95,7 +95,8 @@ class Fenster(QWidget):
         self.tabelle.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         bl.addWidget(self.tabelle, 1)
         zeile = QHBoxLayout()
-        for text, ziel in (("Verlängern …", self.verlaengern), ("Kunden …", self.kunden_zeigen),
+        for text, ziel in (("Verlängern …", self.verlaengern), ("Notfallcode …", self.notfall),
+                           ("Kunden …", self.kunden_zeigen),
                            ("Markierte sperren …", self.sperren), ("Sperrliste hochladen …", self.hochladen),
                            ("Lizenzdatei prüfen …", self.pruefen), ("Aktualisieren", self.neu_laden)):
             b = QPushButton(text)
@@ -111,6 +112,24 @@ class Fenster(QWidget):
     def passwort(self, titel="Passwort des privaten Schlüssels"):
         pw, ok = QInputDialog.getText(self, titel, "Passwort:", QLineEdit.Password)
         return pw.encode("utf-8") if ok and pw else None
+
+    def admin_passwort(self, titel="Admin-Passwort für das Programm"):
+        """Neues Admin-Passwort zweimal abfragen (mindestens ADMIN_PASSWORT_MIN Zeichen). Ergebnis: Text oder None."""
+        pw, ok = QInputDialog.getText(self, titel, f"Admin-Passwort (mindestens {wz.ADMIN_PASSWORT_MIN} Zeichen, "
+                                      "kommt als Hash in die Lizenz):", QLineEdit.Password)
+        if not ok:
+            return None
+        fehler = wz.admin_passwort_pruefen(pw)
+        if fehler:
+            self.fehler(fehler)
+            return None
+        noch, ok = QInputDialog.getText(self, titel, "Admin-Passwort wiederholen:", QLineEdit.Password)
+        if not ok:
+            return None
+        if noch != pw:
+            self.fehler("Die Admin-Passwörter stimmen nicht überein.")
+            return None
+        return pw
 
     def fehler(self, e):
         QMessageBox.warning(self, "Lizenz-Werkzeug", str(e))
@@ -269,6 +288,9 @@ class Fenster(QWidget):
             return self.fehler(f"Eine Admin-Lizenz gilt für höchstens {lizenz.ADMIN_RECHNER_MAX} Rechner.")
         if not self.inhaber.text().strip():
             return self.fehler("Bitte den Inhaber eintragen.")
+        admin_pw = self.admin_passwort() if art == "admin" else ""
+        if admin_pw is None:
+            return
         pw = self.passwort()
         if not pw:
             return
@@ -276,7 +298,7 @@ class Fenster(QWidget):
         bis = None if art == "admin" else datetime.date(q.year(), q.month(), q.day())
         try:
             datei = wz.ausstellen(self.ordner, art, self.inhaber.text().strip(), self.firma.text().strip(), bis,
-                                  rechner, self.hinweis.text().strip(), pw=pw)
+                                  rechner, self.hinweis.text().strip(), pw=pw, admin_passwort=admin_pw)
         except (SystemExit, lizenz.LizenzFehler, ValueError) as e:
             return self.fehler(e)
         self.neu_laden()
@@ -292,7 +314,7 @@ class Fenster(QWidget):
         if z is None:
             return
         if z["art"] == "admin":
-            return self.fehler("Admin-Lizenzen sind unbefristet, eine Verlängerung ist nicht nötig.")
+            return self.admin_ersetzen(z)
         d = QDialog(self)
         d.setWindowTitle(f"{ids[0]} verlängern")
         form = QFormLayout(d)
@@ -323,6 +345,49 @@ class Fenster(QWidget):
         if QMessageBox.question(self, "Lizenz verlängert", f"Neue Lizenzdatei:\n{datei}\n\nOrdner öffnen? Die Datei an "
                                 "den Benutzer schicken; er lädt sie unter Hilfe → Lizenz …") == QMessageBox.Yes:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(datei.parent)))
+
+    def admin_ersetzen(self, z):
+        """Admin-Lizenz neu ausstellen (gleiche Rechner, neues Admin-Passwort). Die alte bleibt gültig, bis die neue
+        geladen ist; danach gilt nur noch das neue Passwort."""
+        if QMessageBox.question(self, "Admin-Lizenz", f"Admin-Lizenz {z['lizenz_id']} neu ausstellen (Rechner "
+                                f"{z['rechner']}) mit neuem Admin-Passwort?") != QMessageBox.Yes:
+            return
+        admin_pw = self.admin_passwort("Neues Admin-Passwort")
+        if admin_pw is None:
+            return
+        pw = self.passwort()
+        if not pw:
+            return
+        try:
+            datei = wz.verlaengern(self.ordner, z["lizenz_id"], pw=pw, admin_passwort=admin_pw)
+        except (SystemExit, lizenz.LizenzFehler, ValueError) as e:
+            return self.fehler(e)
+        self.neu_laden()
+        if QMessageBox.question(self, "Admin-Lizenz", f"Neue Admin-Lizenz:\n{datei}\n\nAm Rechner unter Hilfe → Lizenz … "
+                                "laden. Ordner öffnen?") == QMessageBox.Yes:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(datei.parent)))
+
+    def notfall(self):
+        """Notfallcode (Admin-Passwort vergessen) für eine Rechner-ID, gültig heute und morgen."""
+        ids = self.markierte()
+        z = next((z for z in wz.register_lesen(self.ordner) if ids and z["lizenz_id"] == ids[0]), None)
+        vorgabe = (z["rechner"].split() or [""])[0] if z and z["art"] == "admin" else ""
+        rechner, ok = QInputDialog.getText(self, "Notfallcode", "Rechner-ID (Hilfe → Lizenz … am Rechner):",
+                                           QLineEdit.Normal, vorgabe)
+        if not ok or not rechner.strip():
+            return
+        pw = self.passwort()
+        if not pw:
+            return
+        try:
+            code = wz.notfallcode(self.ordner, rechner, pw)
+        except SystemExit as e:
+            return self.fehler(e)
+        QGuiApplication.clipboard().setText(code)
+        self.notfall_code = code
+        QMessageBox.information(self, "Notfallcode", f"Notfallcode für {lizenz.id_normal(rechner)} (heute und morgen "
+                                f"gültig, ist in der Zwischenablage):\n\n{code}\n\nAm Rechner statt des Admin-Passworts "
+                                "eingeben. Danach die Admin-Lizenz mit „Verlängern …“ neu ausstellen (neues Passwort).")
 
     def kunden_zeigen(self):
         liste = wz.kunden(wz.register_lesen(self.ordner))
