@@ -850,15 +850,16 @@ class SchneidwegDialog(QDialog):
         name = f"Pos {self.p.get('pos') or ''} {self.p.get('artikel') or ''}".strip()
         return step_export.speichern_dialog(self, plan, name, pfad)
 
-    def dxf_importieren(self, pfad=None):
+    def dxf_importieren(self, pfad=None, zuordnung=None):
         """Rohrteil aus einer DXF-Zeichnung mit Ansichten übernehmen (Plan 3E-12, dxf_rohr): Enden, Konturen und
         Teilelänge; bei einer neuen Position auch Profil (wenn in den Stammdaten), Werkstoff, Artikel und Bezeichnung.
+        Unsichere Zeichnung (3E-15): erst das Zuordnungsfenster; zuordnung(d) bedient es statt exec (Tests).
         Ohne pfad: Dateidialog. Ergebnis: True = übernommen."""
         from pathlib import Path
 
         from PySide6.QtWidgets import QFileDialog
 
-        from . import dxf_import as di, dxf_rohr
+        from . import dxf_rohr_dialog
         if pfad is None:
             ordner = (self.db.einstellung("dxf_ordner") if self.db else None) or ""
             pfad, _ = QFileDialog.getOpenFileName(self, "DXF importieren", str(ordner), "DXF-Dateien (*.dxf *.DXF)")
@@ -867,9 +868,11 @@ class SchneidwegDialog(QDialog):
             if self.db and not self.db.nur_lesen:
                 self.db.einstellung_setzen("dxf_ordner", str(Path(pfad).parent))
         try:
-            erg = dxf_rohr.erkennen(di.datei_lesen(pfad), Path(pfad).name)
+            erg = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung, auch_fehler=True)
         except (OSError, ValueError) as x:
             QMessageBox.warning(self, "DXF importieren", str(x))
+            return False
+        if erg.get("abgebrochen"):
             return False
         if not erg["ok"]:
             QMessageBox.information(self, "DXF importieren", "Keine Rohrzeichnung erkannt. " +

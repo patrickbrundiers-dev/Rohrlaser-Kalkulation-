@@ -63,7 +63,7 @@ TESTS = [
     "test_angebot_vorgaben.py", "test_angebot_einstellungen.py", "test_kundenmaterial.py", "test_schneidweg.py",
     "test_blech_editor.py", "test_blech_dxf.py", "test_blech_kfaktor.py", "test_blech_kantbarkeit.py", "test_blech_tafel.py",
     "test_dfm.py", "test_teile_editor.py", "test_editor_ausbau.py", "test_editor_messen.py", "test_3d_ansicht.py", "test_blech_zeichnen.py",
-    "test_konturvorlagen.py", "test_dxf_import.py", "test_dxf_ansichten.py", "test_dxf_rohr.py", "test_schnittflaeche.py", "test_gegenrohr.py", "test_editor_griffe.py", "test_biegerohr.py", "test_knickrahmen.py",
+    "test_konturvorlagen.py", "test_dxf_import.py", "test_dxf_ansichten.py", "test_dxf_rohr.py", "test_dxf_varianten.py", "test_schnittflaeche.py", "test_gegenrohr.py", "test_editor_griffe.py", "test_biegerohr.py", "test_knickrahmen.py",
     "test_knickverbindung.py", "test_knickrahmen_koerper.py", "test_steckverbindung.py", "test_naht.py",
     "test_stangenwechsel_sn.py", "test_3d.py", "test_3d_greifmass.py", "test_3d_editor.py", "test_programmierung.py",
     "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_satz3d.py", "test_satz_knick.py", "test_baugruppe_vorschlaege.py", "test_gravur.py", "test_tastatur.py", "test_materialanfrage.py", "test_plausibel.py",

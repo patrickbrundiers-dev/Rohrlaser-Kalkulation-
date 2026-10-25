@@ -2594,12 +2594,13 @@ class AngebotSeite(QWidget):
                        "je Stück als EK (Zukaufteil).")
         return True
 
-    def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None):
+    def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None, zuordnung=None):
         """Bleche aus DXF-Dateien (3E-9): je Datei das Importfenster (alle Teile mit Haken), je angehaktem Teil eine
         Position wie aus dem Blech-Editor. Zeigt die Datei ein Rohrlaserteil in Ansichten (Rohrschnitt, 3E-12), öffnet
         stattdessen der Rohr-Editor mit Profil, Länge, Enden und Konturen aus der Zeichnung. dialog(d) bzw.
-        rohr_dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Anzahl."""
-        from . import dxf_import as di, dxf_rohr
+        rohr_dialog(d) bedient das Fenster statt exec (Tests). Ist die Rohrzeichnung unsicher (3E-15), kommt erst das
+        Zuordnungsfenster (zuordnung(d) statt exec). Ergebnis: Anzahl."""
+        from . import dxf_rohr_dialog
         from .dxf_import_dialog import DxfImportDialog
         if self.fremd():
             return 0
@@ -2616,9 +2617,11 @@ class AngebotSeite(QWidget):
         for pfad in pfade:
             # Rohrzeichnung (Ansichten eines Rohrlaserteils, 3E-12): Rohr-Editor mit allem aus der Zeichnung
             try:
-                rohr = dxf_rohr.erkennen(di.datei_lesen(pfad), Path(pfad).name)
+                rohr = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung)
             except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
                 rohr = None
+            if rohr and rohr.get("abgebrochen"):
+                continue
             if rohr and rohr["ok"]:
                 n += bool(self.rohr_neu(dialog=rohr_dialog, dxf=(Path(pfad).name, rohr)))
                 continue
