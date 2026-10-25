@@ -233,6 +233,27 @@ def _konsole_mitschneiden(fn):
     return erg, re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
+GROSS_AB_MB = 20         # Performance-Update P5: ab dieser Dateigröße beim Einlesen ohne die Prüfung auf sich
+                        # kreuzende Kanten (wächst quadratisch mit den Kanten einer Fläche: Rohr mit 7.000 Bohrungen über
+                        # 80 min, ohne 89 s und 1,4 GB). Kleinere Dateien werden wie bisher geheilt.
+SCHNELL_OHNE = ("FixShape.FixNonAdjacentIntersectingEdgesMode", "FixShape.FixSelfIntersectionMode")
+
+
+def _grosse_datei_einstellen(r, pfad):
+    try:
+        if _Path(pfad).stat().st_size < GROSS_AB_MB * 1e6:
+            return False
+        from OCP.TCollection import TCollection_AsciiString
+        from OCP.collections import DataMap_TCollection_AsciiString_TCollection_AsciiString as Werte
+        w = Werte()
+        for name in SCHNELL_OHNE:
+            w.Bind(TCollection_AsciiString(name), TCollection_AsciiString("0"))
+        r.SetShapeFixParameters(w)
+        return True
+    except Exception:       # ältere OpenCascade-Version: wie bisher
+        return False
+
+
 def lies_step_info(pfad):
     """Liest eine STEP-Datei. Ergebnis: (Körper, Info). Körper = Liste (Art, Shape) mit Art 'Volumenkörper',
     'aus Flächenmodell genäht' (geschlossene Fläche zu Volumen gemacht) oder 'Flächenmodell offen' (nicht messbar).
@@ -247,6 +268,7 @@ def lies_step_info(pfad):
         r = caf.ChangeReader()
     except ImportError:
         caf, r = None, STEPControl_Reader()
+    _grosse_datei_einstellen(r, pfad)
     status, ausgabe = _konsole_mitschneiden(lambda: r.ReadFile(str(pfad)))
     fehler = [z.strip(" *") for z in ausgabe.splitlines() if "ERR" in z or "Fail" in z]
     if status != IFSelect_RetDone:
