@@ -652,6 +652,83 @@ def _fuss(einst, text):
     return "   |   ".join(t for t in (firma, text) if t)
 
 
+class MontageSkizze(Flowable):
+    """Explosionsskizze einer Montagefolge (A7): je Körper die Achse von Ende A bis Ende E in Isometrie, mit dem
+    Versatz der Explosion, gesteckte Teile blau mit der Nummer ihres Schritts, die übrigen grau."""
+
+    def __init__(self, enden, versatz, nummer, breite=186 * mm, hoehe=85 * mm):
+        super().__init__()
+        self.enden, self.versatz, self.nummer, self.b, self.h = enden, versatz, nummer, breite, hoehe
+
+    def wrap(self, breite, hoehe):
+        return self.b, self.h
+
+    @staticmethod
+    def _iso(p):
+        x, y, z = p
+        return (x - y) * 0.8660254, (x + y) * 0.5 + z
+
+    def draw(self):
+        striche = []
+        for k, (a, e) in self.enden.items():
+            v = self.versatz.get(k) or (0.0, 0.0, 0.0)
+            striche.append((k, self._iso([a[i] + v[i] for i in range(3)]), self._iso([e[i] + v[i] for i in range(3)])))
+        if not striche:
+            return
+        xs = [p[0] for _, a, e in striche for p in (a, e)]
+        ys = [p[1] for _, a, e in striche for p in (a, e)]
+        rand = 6 * mm
+        f = min((self.b - 2 * rand) / max(max(xs) - min(xs), 1e-6), (self.h - 2 * rand) / max(max(ys) - min(ys), 1e-6))
+        dx = rand + (self.b - 2 * rand - f * (max(xs) - min(xs))) / 2 - f * min(xs)
+        dy = rand + (self.h - 2 * rand - f * (max(ys) - min(ys))) / 2 - f * min(ys)
+        c = self.canv
+        c.setStrokeColor(colors.HexColor("#C0C0C0"))
+        c.setLineWidth(0.4)
+        c.rect(0, 0, self.b, self.h, fill=0, stroke=1)
+        c.setLineCap(1)
+        for k, a, e in sorted(striche, key=lambda x: self.nummer.get(x[0]) is not None):
+            nr = self.nummer.get(k)
+            c.setStrokeColor(BLAU if nr is not None else colors.HexColor("#A0A0A0"))
+            c.setLineWidth(3.2 if nr is not None else 2.0)
+            c.line(dx + f * a[0], dy + f * a[1], dx + f * e[0], dy + f * e[1])
+        for k, a, e in striche:
+            nr = self.nummer.get(k)
+            if nr is None:
+                continue
+            mx, my = dx + f * (a[0] + e[0]) / 2, dy + f * (a[1] + e[1]) / 2
+            c.setFillColor(colors.white)
+            c.setStrokeColor(BLAU)
+            c.setLineWidth(0.8)
+            c.circle(mx, my, 3.2 * mm, fill=1, stroke=1)
+            c.setFillColor(BLAU)
+            c.setFont(FETT, 8)
+            c.drawCentredString(mx, my - 1.0 * mm, str(nr))
+
+
+def _montageblaetter(blaetter):
+    """Montageblatt je Schweißbaugruppe bzw. Satz mit Steckverbindungen (Plan „Baugruppen automatisch“ A7, 5a): eine
+    eigene Seite mit Explosionsskizze, Schritten zum Abhaken (Teil, Arbeitsschritt mit Montagemarke, Richtung)."""
+    out = []
+    for b in blaetter or ():
+        out += [PageBreak(), _p(f"Montageblatt {b['titel']}", S_H2)]
+        if not b["ok"]:
+            out.append(_p("ACHTUNG: so nicht vollständig steckbar – " + ", ".join(b["offen"]) + " müsste in "
+                          "verschiedene Richtungen geschoben werden.", ParagraphStyle("mw", parent=S_FETT,
+                                                                                      textColor=colors.HexColor("#C62828"))))
+        out += [Spacer(1, 2 * mm), MontageSkizze(b["enden"], b["versatz"], b["nummer"]), Spacer(1, 3 * mm)]
+        daten = [_kopfzeile(["Schritt", "Teil", "Arbeitsschritt", "Richtung", "erl."])]
+        for t in b["schritte"]:
+            daten.append([_p(str(t["nr"]), S_FETT), _p(t["teil"], S_KLEIN), _p(t["text"], S_KLEIN),
+                          _p(t["richtung"], S_KLEIN), Kaestchen()])
+        tab = _tabelle(daten, [w * mm for w in (14, 58, 84, 18, 12)], wiederholen=True)
+        tab.setStyle(TableStyle([("ALIGN", (0, 0), (0, -1), "CENTER"), ("ALIGN", (4, 0), (4, -1), "CENTER")]))
+        out += [tab, Spacer(1, 2 * mm), _p("Richtung = Steckrichtung des Teils in Achsen der STEP-Datei. Teile mit "
+                                           "gleicher Montagemarke gehören zusammen; graue Teile in der Skizze sind "
+                                           "nicht gesteckt (heften bzw. schweißen nach Schweißplan).",
+                                           ParagraphStyle("mh", parent=S_KLEIN, textColor=GRAU))]
+    return out
+
+
 def _schweissplan(plan):
     """Schweißplan je Baugruppe für die Werkstatt (Verbesserung P2): Struktur, Einzelteile, Nahtgruppen, Arbeitsgänge
     und Vorrichtungen zum Abhaken, Vorgabezeit; ohne Preise. Jede Baugruppe auf einer neuen Seite."""
@@ -775,6 +852,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         else:
             inhalt += [CondPageBreak(60 * mm)] + kopfteil + [tab, Spacer(1, 6 * mm)]
     inhalt += _schweissplan(wp.get("schweissplan") or ())
+    inhalt += _montageblaetter(wp.get("montage"))
     if wp["muster"]:
         inhalt += [NextPageTemplate("quer"), PageBreak()]
         inhalt += _stangenbild(kopf, einst, wp["muster"], None if aktuell else achtung.replace("Schnittplan", "Stangenbild"),

@@ -2413,6 +2413,21 @@ def kapitel_optimieren(i):
             "verschiedene Richtungen müsste. Die Reihenfolge braucht die Stöße aus dem STEP-Import.",
             "Außerdem meldet die Prüfung Schlitze, die eine andere Kontur überschneiden, und feste Längsnähte, die auf "
             "einem Schlitz oder einer Nase liegen.")
+    i.abschnitt("Montagefolge und Montageblatt", marke="montagefolge")
+    i.text("Der Knopf <b>Montage</b> über dem 3D (Schweißbaugruppe und Satz in 3D) baut die gesteckten Teile in der "
+           "Reihenfolge von <i>Steckbarkeit prüfen</i> Schritt für Schritt auf und zieht sie auf Wunsch auseinander "
+           "(Explosionsansicht). Die Werkstattpapiere bekommen dazu je Baugruppe bzw. Satz ein <b>Montageblatt</b>.",
+           kurz=True)
+    i.genauer()
+    i.liste("<b>Schritt</b>: Schieber nach links zeigt nur die Teile bis zu diesem Schritt, das Teil des Schritts "
+            "blau; ganz rechts ist alles da. Darunter steht, was zu tun ist (z. B. <i>in Pos. 10 stecken (Marke 1), "
+            "Richtung −Y</i>). Teile ohne Steckverbindung bleiben immer sichtbar.",
+            "<b>Explosion</b>: 0 = zusammengesteckt, 100 % = jedes gesteckte Teil rückt gegen seine Steckrichtung um "
+            "die halbe größte Teillänge heraus und nimmt mit, was an ihm steckt.",
+            "<b>Montageblatt</b> (Werkstattpapiere, eigene Seite je Schweißbaugruppe bzw. Satz mit Steckverbindungen "
+            "und Stößen aus der STEP-Datei): Explosionsskizze mit den Schrittnummern, darunter die Schritte zum "
+            "Abhaken mit Teil, Arbeitsschritt, Montagemarke ([[montagemarken]]) und Steckrichtung in Achsen der "
+            "STEP-Datei. Ist die Baugruppe nicht vollständig steckbar, steht oben eine Warnung.")
     i.abschnitt("Satz in 3D", marke="satz_3d")
     i.text("Ein <b>Satz</b> aus Rohrlaserteilen, der keine Schweißbaugruppe ist (z. B. ein Rahmen, den der Kunde als "
            "Stecksystem möchte), lässt sich im Fenster <b>Satz in 3D</b> bearbeiten: Rechtsklick auf eine Position des "

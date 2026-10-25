@@ -195,3 +195,108 @@ def naht_auf_schlitz(profil, e, laenge, winkel):
     ee = dict(e or {}, konturen=[z for z in (e or {}).get("konturen") or ()
                                  if str(z.get("quelle") or "").startswith(stv.HERKUNFT + " ")])
     return not bv._frei(s, bv.belegt(qs, ee, laenge), qs.umfang)
+
+
+# ------------------------------------------------------------------ Montagefolge und Explosion (A6), Montageblatt (A7)
+ACHSEN = (((1, 0, 0), "+X"), ((-1, 0, 0), "−X"), ((0, 1, 0), "+Y"), ((0, -1, 0), "−Y"), ((0, 0, 1), "+Z"),
+          ((0, 0, -1), "−Z"))
+
+
+def richtung_text(d):
+    """Fügerichtung als Text: nächste Achse der Datei (+X …), sonst die Richtung gerundet."""
+    if d is None:
+        return ""
+    a, t = max(ACHSEN, key=lambda x: sum(p * q for p, q in zip(x[0], d)))
+    if sum(p * q for p, q in zip(a, d)) >= math.cos(math.radians(GRAD)):
+        return t
+    return "(" + "; ".join(f"{c:.2f}".replace(".", ",") for c in d) + ")"
+
+
+def koerper_aus_netzen(netze):
+    """{Körper: (Positions-ID, Einbaulage)} und {Körper: (Punkt Ende A, Punkt Ende E)} in Dateilage aus den Netzen
+    der Teile {Positions-ID: Netz (entpackt)}."""
+    from .baugruppe_ansicht import _spannen, in_lage
+    koerper, enden = {}, {}
+    for pid, netz in (netze or {}).items():
+        if not netz or not netz.get("p"):
+            continue
+        nummern = netz.get("koerper") or []
+        _, _, z0, z1 = _spannen(netz)
+        for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
+            if j < len(nummern) and lage and len(lage) == 9:
+                koerper[str(nummern[j])] = (pid, lage)
+                enden[str(nummern[j])] = (in_lage((0.0, 0.0, z0), lage), in_lage((0.0, 0.0, z1), lage))
+    return koerper, enden
+
+
+def explosion(schritte, kanten_, enden, faktor=1.0):
+    """Versatz je Körper für die Explosionsansicht: jedes gesteckte Teil rückt gegen seine Fügerichtung aus dem Teil,
+    an dem es steckt, um faktor × halbe größte Teillänge, und nimmt den Versatz dieses Teils mit (Unterbaugruppen
+    bleiben zusammen). {Körper: (dx, dy, dz)}; Körper ohne Steckverbindung bleiben stehen."""
+    lang = max((math.dist(a, b) for a, b in enden.values()), default=0.0)
+    weit = faktor * max(lang / 2, 20.0)
+    out, gesetzt = {}, set()
+    for k, d in schritte:
+        basis = (0.0, 0.0, 0.0)
+        if d is not None:
+            partner = next((p for dd, p in _richtungen(k, gesetzt, kanten_) if _gleich(dd, d)), None)
+            basis = out.get(partner, basis)
+            basis = tuple(b - c * weit for b, c in zip(basis, d))
+        out[k] = basis
+        gesetzt.add(k)
+    return out
+
+
+def schritt_texte(schritte, kanten_, koerper, name, marken=None):
+    """Je Schritt der Steckfolge ein Text: [dict(nr, koerper, teil, text, richtung)]. name {Positions-ID: Text},
+    marken {(Körper Aufnahme, Körper Stecker): Marke}."""
+    marken = marken or {}
+    out, gesetzt = [], set()
+    for nr, (k, d) in enumerate(schritte, 1):
+        pid = koerper.get(k, (None,))[0]
+        if d is None:
+            text = "hinlegen (Anfang)"
+        else:
+            teile = []
+            for ka, ks, dd in kanten_:
+                if ks == k and ka in gesetzt:
+                    p = name.get(koerper[ka][0], "?")
+                    teile.append(f"in {p} stecken" + (f" (Marke {marken[(ka, ks)]})" if marken.get((ka, ks)) else ""))
+                elif ka == k and ks in gesetzt:
+                    p = name.get(koerper[ks][0], "?")
+                    teile.append(f"auf {p} aufstecken" + (f" (Marke {marken[(ka, ks)]})" if marken.get((ka, ks))
+                                                         else ""))
+            text = ", ".join(teile)
+        out.append(dict(nr=nr, koerper=k, teil=name.get(pid, "?"), text=text, richtung=richtung_text(d)))
+        gesetzt.add(k)
+    return out
+
+
+def montage_folge(positionen, verbindungen, stoesse, netze):
+    """Montagefolge einer Baugruppe bzw. eines Satzes ohne Editor (Montageblatt): positionen {Positions-ID:
+    Position}, verbindungen = gespeicherte Steckverbindungen (aufnahme/stecker mit id), stoesse aus der STEP-Messung,
+    netze {Positions-ID: Netz entpackt}. None ohne Steckstöße, sonst dict(ok, schritte (Texte), offen [Teil], enden,
+    versatz, nummer {Körper: Schritt})."""
+    koerper, enden = koerper_aus_netzen({pid: n for pid, n in (netze or {}).items() if pid in positionen})
+    verb = [((v.get("aufnahme") or {}).get("id"), (v.get("stecker") or {}).get("id"),
+             (v.get("stecker") or {}).get("ende") or "a") for v in verbindungen or ()]
+    kanten_ = kanten(koerper, stoesse, verb)
+    if not kanten_:
+        return None
+    marke = {(a, s_, e): str(v.get("marke") or "").strip() for (a, s_, e), v in zip(verb, verbindungen or ())}
+    marken = {}
+    for st in stoesse or ():
+        if isinstance(st, dict) and str(st.get("aufnahme")) in koerper and str(st.get("stecker")) in koerper:
+            ka, ks = str(st["aufnahme"]), str(st["stecker"])
+            m = marke.get((koerper[ka][0], koerper[ks][0], st.get("ende")))
+            if m:
+                marken[(ka, ks)] = m
+    erg = reihenfolge(kanten_)
+    name = {}
+    for pid, q in positionen.items():
+        t = " ".join(str(x) for x in (q.get("artikel"), q.get("bezeichnung")) if x)
+        name[pid] = f"Pos. {q.get('pos') or ''}" + (f" {t}" if t else "")
+    return dict(ok=erg["ok"], schritte=schritt_texte(erg["schritte"], kanten_, koerper, name, marken),
+                offen=[name.get(koerper[k][0], k) for k in erg["offen"]], enden=enden,
+                versatz=explosion(erg["schritte"], kanten_, enden),
+                nummer={k: n for n, (k, _) in enumerate(erg["schritte"], 1)})
