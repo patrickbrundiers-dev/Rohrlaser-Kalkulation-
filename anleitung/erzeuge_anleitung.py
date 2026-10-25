@@ -2486,6 +2486,34 @@ def kapitel_optimieren(i):
             "Schneidweg und Zusatzarbeit Knicken, im 3D gefaltet. Gleiche Rahmen werden eine Position mit "
             "<i>je Satz</i> = Anzahl. Die Rohre zählen je Satz entsprechend weniger; bleibt von einer Position kein "
             "Rohr übrig, wird sie gelöscht. Rohre mit Steckverbindung oder schon als Knickrahmen gehen nicht.")
+    i.abschnitt("Vorschläge: knicken, stecken, Längsnaht", marke="vorschlaege")
+    i.text("Im Fenster Satz in 3D und im Editor der Schweißbaugruppe sucht das Programm selbst, was sich "
+           "<b>knicken</b>, <b>stecken</b> oder bei der <b>Längsnaht</b> günstiger legen lässt, und rechnet je Vorschlag, "
+           "was er spart oder kostet. Neben <i>Knickrahmen lösen</i> steht, wie viele Vorschläge es gibt; "
+           "<b>Vorschläge …</b> zeigt sie. Nichts ändert sich von selbst: anhaken und <b>Übernehmen</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Knickrahmen</b>: Rohre mit Gehrung, die einen Rahmen bilden (wie <i>Knickrahmen erstellen …</i>, "
+            "[[satz_3d]]), mit den Werten aus den Einstellungen (Freistich, Knickzugabe, K-Faktor, Innenwand gerade).",
+            "<b>Steckverbindung</b>: je Stoß aus der STEP-Datei, der noch nicht gesteckt ist (wie <i>Alle Stöße "
+            "stecken</i>, [[steckverbindung_anlegen]]).",
+            "<b>Längsnaht</b>: für Rohre ohne feste Naht eine Stelle, an der keine Kontur, kein Schlitz, keine Gravur "
+            "und keine Nase liegt; bevorzugt die Wand, die zur Mitte der Baugruppe zeigt (innen, später verdeckt). "
+            "Quadrat- und Rechteckrohr: Mitte einer Wand, Rundrohr: alle 15°. Gibt es nichts zu meiden und keine "
+            "Mitte, kommt kein Vorschlag; das Rohr bleibt frei drehbar.",
+            "<b>Ersparnis</b>: + spart, − kostet, je Baugruppe bzw. Satz. Gerechnet wird nur mit vorhandenen Werten: "
+            "wegfallende Ecknähte (Nahtgruppe bzw. Nahtvorschlag, Kosten ÷ Anzahl), weniger bzw. leichter zu "
+            "positionierende Teile (Regeln der Schweiß-Vorkalkulation × Stundensatz), Zusatzarbeit Knicken je Knick und "
+            "die Laserzeit vorher und nachher (Schneidweg-Rechner, Schneiddaten und Stundensatz der Maschine). Im "
+            "Satz zählt nur der Laser. Was fehlt (z. B. Regel, a-Maß, Stundensatz), steht in der Spalte "
+            "<i>Rechnung</i> als <i>offen</i>.",
+            "Ein Klick auf eine Zeile zeigt die Teile im 3D. <i>Alle mit Ersparnis anhaken</i>, <i>Alle anhaken</i> "
+            "und <i>Keine</i> setzen die Haken; unten steht die Summe der angehakten.",
+            "<b>Übernehmen</b> setzt erst die Knickrahmen, dann die Steckverbindungen, dann die Längsnähte (neu "
+            "gerechnet mit den neuen Schlitzen und Nasen) – wie von Hand, gespeichert wird mit OK. Was nicht mehr "
+            "geht, nennt eine Meldung.",
+            "Im Editor der Schweißbaugruppe verlieren auch die Nahtgruppen, die aus den Nahtvorschlägen der "
+            "STEP-Datei entstanden sind, die Ecken eines neuen Knickrahmens; <i>Knickrahmen lösen</i> holt sie "
+            "zurück.")
     i.abschnitt("Teile-Editor: Menüband, Eigenschaften, Merkmale, Prüfmeldungen", marke="teile_editor")
     i.text("Schneidweg-Rechner und Blech-Editor haben denselben Rahmen: oben das <b>Menüband</b>, links die "
            "<b>Merkmale</b> des Teils mit ihrer Herkunft, in der Mitte <b>3D-Modell</b> und <b>Skizze</b>, rechts die "
@@ -2703,8 +2731,22 @@ def kapitel_optimieren(i):
             "40x40x3</i>); steht beides da und passt nicht, gilt der Schnitt mit Hinweis. Das Profil der Stammdaten "
             "sucht das Programm wie beim STEP-Import; fehlt es, steht das im Editor (<i>Neu …</i> legt es an).",
             "<b>Ansichten</b> nach DIN (Projektionsmethode 1): oben die Vorderansicht (Seite vorne), darunter die "
-            "Draufsicht (Seite oben), Ende A links. Beim Rechteckrohr ist die Ansicht mit der Breitseite die "
-            "Draufsicht. Die Isometrie wird nicht ausgewertet.",
+            "Draufsicht (Seite oben), Ende A links. Steht auf der Zeichnung <i>Third angle</i>, <i>Projektionsmethode "
+            "3</i> oder <i>ISO-A</i> (USA), ist es umgekehrt. Ein deutsches Schriftfeld (Benennung, Werkstoff, "
+            "Maßstab) zählt als DIN. Beim Rechteckrohr ist die Ansicht mit der Breitseite die Draufsicht. Die "
+            "Isometrie wird nicht ausgewertet.",
+            "<b>Andere Zeichnungen</b>: Ein senkrecht gezeichnetes Rohr wird gedreht (das obere Ende ist Ende A). "
+            "Blattrahmen und Schriftfeldrahmen fallen weg. Das Profil darf auch als <i>Ø42,4x2</i> dastehen. Maße "
+            "dürfen echte DXF-Bemaßung sein oder Linien und Text, auf beliebigen Layern. Ohne Bemaßung und ohne "
+            "Maßstab im Schriftfeld gilt 1:1. Liegen mehrere Teile auf dem Blatt, nimmt das Programm das längste.",
+            "<b>Zuordnungsfenster</b>: Ist sich das Programm nicht sicher (keine Projektionsmethode auf der "
+            "Zeichnung, mehrere Teile, Maßstab nur angenommen), erscheint vor dem Editor ein Fenster mit der "
+            "Zeichnung und den gefundenen Ansichten (Nummern). Je Ansicht wählst du <i>Vorderansicht</i>, "
+            "<i>Draufsicht</i>, <i>Schnitt</i> oder <i>nicht verwenden</i>, dazu Projektion (Europa/USA), Lage "
+            "(waagrecht/senkrecht) und welches Teil; <b>Neu erkennen</b> rechnet neu, <b>Übernehmen</b> öffnet den "
+            "Editor. Die gewählte Projektion merkt sich das Programm je Zeichnungsstil (gleiche Layernamen), "
+            "beim nächsten Mal fragt es nicht mehr. Im Rohr-Editor erscheint das Fenster auch, wenn keine "
+            "Längsansicht zum Profil passt. Ist alles eindeutig, gibt es kein Fenster.",
             "<b>Länge</b> von Spitze zu Spitze aus den Ansichten. Steht eine andere Länge im Text (z. B. <i>L = "
             "1000</i> in der Mitte einer Gehrung), zeigt der Editor beides.",
             "<b>Enden</b>: die Endkante je Ansicht; schräg in einer Ansicht = Gehrung mit der längsten Seite, schräg "
@@ -3597,7 +3639,8 @@ def kapitel_baugruppen(i):
     i.text("<b>Knickrahmen erstellen …</b> (unter den Einzelteilen): Rohre mit Gehrung markieren, die einen Rahmen "
            "bilden; es geht wie im Fenster Satz in 3D ([[satz_3d]]). Die Nahtvorschläge an den Ecken fallen weg (dort "
            "wird geknickt), der Stoß bleibt. Mit OK wird der Rahmen eine Position der Baugruppe, die Rohre fallen "
-           "weg bzw. zählen weniger.")
+           "weg bzw. zählen weniger. <b>Vorschläge …</b> daneben findet Knickrahmen, Steckverbindungen und eine "
+           "günstige Längsnaht selbst und rechnet die Ersparnis ([[vorschlaege]]).")
     i.abschnitt("Artikelnummer gravieren", marke="positionsgravur")
     i.text("Als Hilfe beim Schweißen kann das Programm die <b>Artikelnummer</b> auf jedes Rohr und jedes Blech der "
            "Baugruppe gravieren. Im Reiter <i>Struktur und Teile</i>: Haken <b>Artikelnr. gravieren</b> je Teil, "

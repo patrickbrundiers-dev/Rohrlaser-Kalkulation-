@@ -2711,12 +2711,13 @@ class AngebotSeite(QWidget):
                        "je Stück als EK (Zukaufteil).")
         return True
 
-    def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None):
+    def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None, zuordnung=None):
         """Bleche aus DXF-Dateien (3E-9): je Datei das Importfenster (alle Teile mit Haken), je angehaktem Teil eine
         Position wie aus dem Blech-Editor. Zeigt die Datei ein Rohrlaserteil in Ansichten (Rohrschnitt, 3E-12), öffnet
         stattdessen der Rohr-Editor mit Profil, Länge, Enden und Konturen aus der Zeichnung. dialog(d) bzw.
-        rohr_dialog(d) bedient das Fenster statt exec (Tests). Ergebnis: Anzahl."""
-        from . import dxf_import as di, dxf_rohr
+        rohr_dialog(d) bedient das Fenster statt exec (Tests). Ist die Rohrzeichnung unsicher (3E-15), kommt erst das
+        Zuordnungsfenster (zuordnung(d) statt exec). Ergebnis: Anzahl."""
+        from . import dxf_rohr_dialog
         from .dxf_import_dialog import DxfImportDialog
         if self.fremd():
             return 0
@@ -2733,9 +2734,11 @@ class AngebotSeite(QWidget):
         for pfad in pfade:
             # Rohrzeichnung (Ansichten eines Rohrlaserteils, 3E-12): Rohr-Editor mit allem aus der Zeichnung
             try:
-                rohr = dxf_rohr.erkennen(di.datei_lesen(pfad), Path(pfad).name)
+                rohr = dxf_rohr_dialog.rohr_erkennen(self, self.db, pfad, dialog=zuordnung)
             except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
                 rohr = None
+            if rohr and rohr.get("abgebrochen"):
+                continue
             if rohr and rohr["ok"]:
                 n += bool(self.rohr_neu(dialog=rohr_dialog, dxf=(Path(pfad).name, rohr)))
                 continue
@@ -3364,6 +3367,35 @@ class AngebotSeite(QWidget):
 
     def _saetze(self):
         return rechnen.zeitbasis(self.kopf, self.k, self.tabellen)["saetze"]
+
+    def laser_teil_eur(self, q, eingaben=None, laenge=None):
+        """Laserkosten je Teil für den €-Vergleich der Vorschläge (Plan Baugruppen automatisch, P1): Schneidweg-Rechner
+        mit den Eingaben (ohne: die der Position), Schneidzeit mit den Schneiddaten des Angebots × Stundensatz
+        Maschine. Ergebnis (€ oder None, Grund)."""
+        profil = self.k.profile.get(q.get("profil_id"))
+        if not profil:
+            return None, "Profil fehlt in den Stammdaten"
+        if eingaben is None:
+            try:
+                eingaben = schneidweg.aus_position(schneidweg.lesen(q.get("technik")), q, profil)[0]
+            except (ValueError, TypeError, KeyError) as f:
+                return None, str(f)
+        profil = rechnen.profil_im_angebot(profil, self.kopf, q.get("profil_id"), q.get("werkstoff_id"), self.k)
+        m = rechnen.maschine(self.kopf, self.k)
+        erg = schneidweg.rechnen(eingaben, profil, rechnen.kontur_regel(m, rechnen.wand_schneiden(profil)),
+                                 gewinde_liste(self.tabellen), m)
+        if erg["fehler"]:
+            return None, " ".join(erg["fehler"])
+        p = dict(q, **erg["felder"])
+        if laenge:
+            p["laenge"] = laenge
+        _, _, zeit = rechnen.schneidzeit(p, self.kopf, rechnen.wand_position(p, self.k), self.tabellen, self.k)
+        satz = (rechnen.zeitbasis(self.kopf, self.k, self.tabellen).get("maschine") or {}).get("stundensatz")
+        if zeit is None:
+            return None, "keine Schneiddaten für Maschine und Werkstoff"
+        if not isinstance(satz, (int, float)) or satz <= 0:
+            return None, "Stundensatz Maschine fehlt"
+        return zeit / 3600 * satz, None
 
     def _auf_bild(self, i, auf_bild=None):
         """Doppelklick auf das kleine Bild der Zelle i (auf_bild vorgegeben: Tests), sonst aus der Mausposition."""

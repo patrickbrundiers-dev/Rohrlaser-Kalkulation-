@@ -8,7 +8,7 @@ echtem Volumenkörper.
   STEP-Datei findet Profil, Länge, Bohrung und Gravur wieder.
 - X4 Rohr- und Blech-Editor: Knopf STEP speichern im Reiter Ausgabe schreibt die Datei (auch Kantteil).
 - X5 Gekantete Bleche (3E-13): U 40/60/40 mit Außenmaßen 40 × 60, Volumen = Abwicklung × Dicke + Bogenanteil,
-  Loch in der Biegezone mitgebogen; Winkel, Z, U mit Ausklinkungen und Schale aus der STEP-Messung: neu
+  Loch und Gravur in der Biegezone mitgebogen; Winkel, Z, U mit Ausklinkungen und Schale aus der STEP-Messung: neu
   geschrieben gleiches Volumen und gleiche Außenmaße, die eigene Messung erkennt das Kantteil wieder.
 
 Aufruf: python tests/test_step_export.py
@@ -195,6 +195,15 @@ assert [round(eu["box"][i + 3] - eu["box"][i], 3) for i in range(3)] == [300, 40
 loch = dict(kant, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=8, x=50, y=lage)])
 el = se.schreiben([se.blech_teil(loch, blech.zuschnitt(loch))], tmp / "u_loch.step", PROGRAMM)["teile"][0]
 assert el["gueltig"] and el["koerper"] == 1 and el["flaechen"] < 40 and 90 < usoll - el["volumen"] < 130, el
+# Gravur über die Biegung: die Rille wird in der Biegezone mitgefaltet (innen gestaucht, nicht weg)
+hh = [dict(art=sw.TEXT_GRAVUR, anzahl=1, text="HH", hoehe=8, x=150, y=lage)]
+flach_hh = dict(art=blech.ZUSCHNITT, form=blech.RECHTECK, dicke=2, laenge=300, breite=kzs["breite"], konturen=hh)
+v_flach = 300 * kzs["breite"] * 2 - se.schreiben([se.blech_teil(flach_hh, blech.zuschnitt(flach_hh))],
+                                                  tmp / "flach_hh.step", PROGRAMM)["teile"][0]["volumen"]
+kant_hh = dict(kant, konturen=hh)
+eg = se.schreiben([se.blech_teil(kant_hh, blech.zuschnitt(kant_hh))], tmp / "u_hh.step", PROGRAMM)
+v_kant = usoll - eg["teile"][0]["volumen"]
+assert eg["ok"] and eg["teile"][0]["koerper"] == 1 and 0.75 * v_flach < v_kant < v_flach, (v_kant, v_flach, eg)
 sys.path[:0] = [str(PROGRAMM / "step_messung"), str(HIER)]
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse  # noqa: E402
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox  # noqa: E402
@@ -239,6 +248,6 @@ for name in ("W_Winkel", "W_Z", "W_U_Ausklinkung", "W_Schale"):
         m2 = t2 if t2.profilform == "Blech gekantet" else t2.alternative
         a1, a2 = b["abwicklung"], m2.blech["abwicklung"]
         assert [round(abs(x["laenge"])) for x in a1["schenkel"]] == [round(abs(x["laenge"])) for x in a2["schenkel"]]
-ok("X5 Kantteile: U 40 × 60 außen, Volumen mit Bogenanteil, Loch in der Biegung; Winkel, Z, U, Schale aus der "
+ok("X5 Kantteile: U 40 × 60 außen, Volumen mit Bogenanteil, Loch und Gravur in der Biegung; Winkel, Z, U, Schale aus der "
    "STEP-Messung gleich groß und schwer, Messung erkennt die Schenkel wieder")
 print("Alle Tests STEP-Export bestanden.")

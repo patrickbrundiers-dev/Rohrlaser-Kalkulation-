@@ -308,11 +308,13 @@ def _bewegt(k, trsf):
     return BRepBuilderAPI_Transform(k, trsf, True).Shape()
 
 
-def _zone_prisma(b, lo, hi, z0, z1, rand=0.0):
-    """Quader der Biegezone (Abwicklung) von z0 bis z1, längs der Biegelinie lo … hi."""
+def _zone_prisma(b, lo, hi, z0, z1, rand=0.0, w0=0.0, w1=None):
+    """Quader der Biegezone (Abwicklung) von z0 bis z1, längs der Biegelinie lo … hi (quer w0 … w1, Vorgabe die
+    ganze Zone)."""
     o, n, d = b["o"], b["n"], b["d"]
+    w1 = b["ba"] if w1 is None else w1
     ecken = []
-    for w, t in ((-rand, lo), (b["ba"] + rand, lo), (b["ba"] + rand, hi), (-rand, hi)):
+    for w, t in ((w0 - rand, lo), (w1 + rand, lo), (w1 + rand, hi), (w0 - rand, hi)):
         ecken.append([o[0] + n[0] * w + d[0] * (t - (o[0] * d[0] + o[1] * d[1])),
                       o[1] + n[1] * w + d[1] * (t - (o[0] * d[0] + o[1] * d[1])), 0.0])
     if (ecken[1][0] - ecken[0][0]) * (ecken[2][1] - ecken[0][1]) - (ecken[1][1] - ecken[0][1]) * \
@@ -438,8 +440,29 @@ def _gefaltetes_werkzeug(f, b, z0, z1):
     return TopoDS.Solid(k.Reversed()) if _volumen(k) < 0 else k
 
 
-def platte_falten(k, koerper, meldungen):
-    """Ebene Platte k (z von 0 bis s, mit Löchern und Gravur) an den Biegungen falten -> ein Körper."""
+def _gemeinsam(a, b):
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+    c = BRepAlgoAPI_Common(a, b)
+    c.Build()
+    return c.Shape() if c.IsDone() else None
+
+
+def _gefaltete_scheiben(f, b, lo, hi, s, n=16):
+    """Stück f einer Gravurrille in der Zone von b gefaltet: in n Scheiben quer zur Biegelinie, jede mit der Lage
+    ihrer Mitte (Fehler bei 16 Scheiben unter 0,01 mm, für die 0,1 mm tiefe Rille genug)."""
+    out = []
+    for i in range(n):
+        w0, w1 = b["ba"] * i / n, b["ba"] * (i + 1) / n
+        stueck = _gemeinsam(f, _zone_prisma(b, lo, hi, -s, s, rand=1e-3, w0=w0, w1=w1))
+        for x in _feste_koerper(stueck) if stueck is not None else ():
+            if _schwerpunkt(x)[3] > 1e-12:
+                out.append(_bewegt(x, _trsf_biegung(b, (w0 + w1) / 2)))
+    return out
+
+
+def platte_falten(k, koerper, meldungen, rillen=()):
+    """Ebene Platte k (z von 0 bis s, mit Löchern und Gravur) an den Biegungen falten -> ein Körper. rillen: die
+    Gravurwerkzeuge (Körper wie k); was davon in einer Biegezone liegt, wird mitgefaltet und dort abgezogen."""
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
     from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon
     from OCP.BRepPrimAPI import BRepPrimAPI_MakeRevol
@@ -501,6 +524,18 @@ def platte_falten(k, koerper, meldungen):
                 bogen = abziehen(bogen, [_gefaltetes_werkzeug(f, b, z0, z1) for f in teile])
             except Exception as ex:
                 meldungen.append(f"Kontur in einer Biegezone nicht erzeugt ({ex})")
+        zone = _zone_prisma(b, lo, hi, -s, s)
+        gravur = []
+        for r in rillen:                    # Gravur in der Biegezone: mitgefaltet (Rille 0,1 mm tief)
+            stueck = _gemeinsam(zone, _bewegt(r, halb))
+            for f in _feste_koerper(stueck) if stueck is not None else ():
+                if _schwerpunkt(f)[3] > 1e-9:
+                    gravur += _gefaltete_scheiben(f, b, lo, hi, s)
+        if gravur:
+            try:
+                bogen = abziehen(bogen, gravur)
+            except Exception as ex:
+                meldungen.append(f"Gravur in einer Biegezone nicht erzeugt ({ex})")
         stuecke.append(_bewegt(bogen, _trsf_kette(kette)) if kette else bogen)
     zurueck = gp_Trsf()
     zurueck.SetTranslation(gp_Vec(0, 0, s / 2))
@@ -541,7 +576,7 @@ def teil_bauen(teil):
     if rillen:
         k = abziehen(k, rillen)
     if teil["koerper"].get("biegungen"):
-        k = platte_falten(k, teil["koerper"], meldungen)
+        k = platte_falten(k, teil["koerper"], meldungen, rillen)
     try:
         k = vereinfachen(k)
     except Exception as ex:
