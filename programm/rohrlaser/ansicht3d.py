@@ -54,6 +54,7 @@ RENDERER = ("Automatisch", "Software", "OpenGL")
 _renderer = RENDERER[0]
 _gl_fehler = None       # OpenGL ist in diesem Programmlauf schon einmal gescheitert: Grund
 GROB_DREIECKE = 10000   # beim Drehen/Zoomen höchstens so viele Dreiecke zeichnen (grobe Stufe, Modell.grob)
+DREHPUNKT_FEIN = 80000  # Drehpunkt bis zu so vielen Dreiecken im vollen Modell suchen, darüber in der groben Stufe
 # Baugruppen-Ansicht: je Teil (Zeile gleicher Teile) eine Farbe, ohne Eintrag in der Legende
 TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
               "#BAB0AC", "#2F4B7C", "#A05195")
@@ -1184,7 +1185,9 @@ class Ansicht3D(QWidget):
         mo = self.modell
         if mo is None:
             return None
-        bild = self.bildpunkt()
+        if len(mo.dreiecke) > DREHPUNKT_FEIN:
+            mo = mo.grob()                      # sehr große Netze: die Stufe, die beim Drehen zu sehen ist
+        bild = self.bildpunkt(mo)
         px = list(map(bild, mo.punkte))
         beste = None
         for i, j, k, _, _ in mo.dreiecke:
