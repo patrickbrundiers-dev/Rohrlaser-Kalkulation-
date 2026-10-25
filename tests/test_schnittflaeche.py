@@ -108,4 +108,14 @@ bild = s.bild(900, 500, ABWICKLUNG, faktor=1)[0]
 assert not any(bild.pixelColor(x, y).name() == "#f2c200" for x in range(0, bild.width(), 2)
                for y in range(0, bild.height(), 2))
 ok("F5 Position: WARNUNG mit Ende und Länge, Zeit je Stück; Skizze mit gelben Stücken ohne Fehler")
+
+# Abwicklung: Konturen ausgeschnitten (Patrick 25.10.2026), Gravur nicht
+s.zeigen(dict(a={}, b={}, konturen=[dict(art="Rechteck", anzahl=1, b=60, h=20, r=0, x=200, seite="oben"),
+                                    dict(art="Text-Gravur", anzahl=1, text="4711", hoehe=8, x=100, seite="oben")]))
+bild = s.bild(900, 500, ABWICKLUNG, faktor=1)[0]
+mitte = {d["art"]: poly.boundingRect().center() for poly, d, an in s.treffer if an[0] == "abw"}
+loch, grav = mitte["Rechteck"], mitte["Text-Gravur"]
+assert bild.pixelColor(int(loch.x()), int(loch.y())).name() == "#ffffff", bild.pixelColor(int(loch.x()), int(loch.y())).name()
+assert bild.pixelColor(int(grav.x()) + 30, int(grav.y()) + 25).name() == "#dce6f2"
+ok("F6 Abwicklung: Konturen ausgeschnitten (Grund scheint durch), Material kräftiger, Gravur nicht ausgeschnitten")
 print("Alle Tests Schnittfläche 2D/3D bestanden.")

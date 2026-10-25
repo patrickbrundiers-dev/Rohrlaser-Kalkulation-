@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.120", "<b>Abwicklung mit ausgeschnittenen Konturen</b>: In der Abwicklung der Skizze (Schneidweg-Rechner, "
+                "Teile-Editor, Zeichnung) sind Bohrungen, Rechtecke, Langlöcher und andere Konturen jetzt als Loch im "
+                "Material zu sehen; das Material ist etwas kräftiger hinterlegt, Gravuren bleiben Linien "
+                "([[schneidweg_rechner]]).",
+     "Abwicklung: Konturen als ausgeschnitten dargestellt"],
     ["0.9.119", "<b>Größte Nasenbreite der Steckverbindung</b>: Die Nase bleibt auf der geraden Wandfläche des "
                 "Steckers (Wandbreite − 2 × Eckradius) mit einem Rand je Seite (neue Einstellung, Vorgabe 2 mm); ein "
                 "breiterer Wert wird automatisch gekürzt und im Text der Verbindung genannt ([[steckverbindung]]).",

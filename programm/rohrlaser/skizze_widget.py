@@ -209,7 +209,7 @@ class Skizze(QWidget):
         la, lb = sk.ende_abwicklung(qs, e_a), sk.ende_abwicklung(qs, e_b)
         umriss = [self._bild(a, d, s) for s, d in la] + [self._bild(a, self.L - d, s) for s, d in reversed(lb)]
         g.setPen(QPen(FARBE_TEIL, 1.4))
-        g.setBrush(QBrush(FARBE_FLAECHE))
+        g.setBrush(QBrush(FARBE_SCHNITT))       # Material kräftiger, damit die Ausschnitte (Grund) hervortreten
         g.drawPolygon(QPolygonF(umriss))
         g.setBrush(Qt.NoBrush)
         # Enden in 3D: Stücke über der Schwenkgrenze gelb (Plan 3E-10, wie im 3D)
@@ -281,7 +281,7 @@ class Skizze(QWidget):
                     g.setClipRect(QRectF(0, oben_.y(), self.width(), unten_.y() - oben_.y()))
                     farbe = FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
                     g.setPen(QPen(farbe, 1.3))
-                    g.setBrush(Qt.NoBrush)
+                    g.setBrush(QBrush(stil.farbe("#FFFFFF")) if d["art"] not in GRAVUREN else Qt.NoBrush)
                     for k_ in (-1, 1):
                         g.drawPolygon(QPolygonF([self._bild(a, d["x"] + dx, s0 + dq + k_ * qs.umfang)
                                                  for dx, dq in umr]))
@@ -316,8 +316,11 @@ class Skizze(QWidget):
                 farbe = QColor(farbe).lighter(135)
             stift = QPen(farbe, 2.2 if wahl else 1.3, Qt.SolidLine if sicht > 0 else Qt.DashLine)
             g.setPen(stift)
-            g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 and
-                       d["art"] not in GRAVUREN else Qt.NoBrush)
+            if a[0] == "abw" and d["art"] not in GRAVUREN:
+                g.setBrush(QBrush(stil.farbe("#FFFFFF")))     # Abwicklung: Kontur ausgeschnitten (Patrick 25.10.2026), Grund scheint durch
+            else:
+                g.setBrush(QBrush(QColor(farbe.red(), farbe.green(), farbe.blue(), 40)) if sicht > 0 and
+                           d["art"] not in GRAVUREN else Qt.NoBrush)
             r = poly.boundingRect()
             if r.width() < 3 and r.height() < 3:
                 g.drawEllipse(r.center(), 2.5, 2.5)
