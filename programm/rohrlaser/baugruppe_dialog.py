@@ -2440,16 +2440,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             modell = rohre.get(t["_id"])
             for j, lage in enumerate(netz.get("lagen") or ([netz["lage"]] if netz.get("lage") else [])):
                 kn = nummern[j] if j < len(nummern) else None
+                akt = False
                 if montage:
                     lage, akt = self.montage_lage(kn, lage)
                     if lage is None:
                         continue
-                    if akt:
-                        aktuell.add(len(netze))
                 if kn is not None:
                     koerper_netz[str(kn)] = (modell or netz, lage)
                 if nur and t["_id"] not in hervor:
                     continue
+                if akt:             # erst nach dem Filter „Nur Gewähltes“: Index des gezeigten Netzes
+                    aktuell.add(len(netze))
                 netze.append(dict(modell or netz, lage=lage))
                 besitzer.append(t["_id"])
                 farbe.append(n)
