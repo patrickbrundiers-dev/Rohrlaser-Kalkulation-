@@ -1399,10 +1399,14 @@ def kapitel_angebot(i):
            "Eingabe, schon steht die Position da (Profil, Werkstoff, Länge in mm, Stückzahl). Daneben zeigt eine "
            "Vorschau, was erkannt wurde.", kurz=True)
     i.liste("Das Profil wird gesucht wie in der Profilspalte: <i>40x3</i> findet <i>QR 40x40x3</i>.",
-            "Werkstoff: die ID oder ein eindeutiger Teil davon (<i>S235</i>, <i>4301</i> für 1.4301). Ohne Angabe "
-            "gilt der Werkstoff der letzten Position bzw. die Vorgabe des STEP-Imports.",
+            "Werkstoff: die ID oder ein eindeutiger Teil davon (<i>S235</i>, <i>4301</i> für 1.4301). Passt ein "
+            "Teil zu mehreren (<i>S235</i> → S235-10219 und S235-10210), gilt der Werkstoff der letzten Position, "
+            "die Vorgabe des STEP-Imports bzw. der zuletzt benutzte, sonst meldet die Vorschau <i>mehrdeutig</i>. "
+            "Ohne Angabe gilt der Werkstoff der letzten Position bzw. die Vorgabe des STEP-Imports.",
+            "Profilmaße dürfen Leerzeichen haben (<i>RR 42,4 x 2</i>, <i>QR 40 x 40 x 3</i>), wenn sie am Anfang "
+            "oder direkt nach dem Kürzel stehen.",
             "Die erste Zahl ist die Länge, die zweite die Stückzahl; eindeutig mit <i>L=1250</i>, <i>1250mm</i>, "
-            "<i>20 Stk</i> oder <i>x20</i>. Eine Artikelnummer steht mit <i>#</i> davor (<i>#4711-01</i>).",
+            "<i>20 Stk</i>, <i>x20</i> oder <i>1250 x 20</i> (Länge × Stück). Eine Artikelnummer steht mit <i>#</i> davor (<i>#4711-01</i>).",
             "Mehrere Zeilen, z. B. aus einer E-Mail oder aus Excel (Tabulator oder ; getrennt), mit Strg+V in die "
             "Schnellzeile einfügen: je Zeile eine Position. Nicht erkannte Zeilen nennt die Einblendung (alle unter "
             "<b>Bericht …</b>); die erste steht danach zum Korrigieren in der Schnellzeile, die übrigen folgen nach "
@@ -1752,7 +1756,9 @@ def kapitel_step(i):
             "Zukaufartikel: <i>automatisch</i> nimmt einen gleichen vorhandenen Artikel (Form, Abmessung, Länge, "
             "Werkstoff) oder legt einen neuen an (EK = Gewicht × Tonnenpreis des Werkstoffs). Die Position bekommt "
             "Werkstoff, Länge, Gewicht und die Zusatzarbeit <b>Sägen</b>. Ein Bolzen, der als Anbauteil an einem "
-            "Rohr erkannt ist, bleibt bei <i>Anbauteile nicht übernehmen</i> weiter außen vor.")
+            "Rohr erkannt ist, bleibt bei <i>Anbauteile nicht übernehmen</i> weiter außen vor. Bohrungen und "
+            "Gewinde im Vollmaterial misst der Import nicht: Der Bericht sagt <i>Bohrungen/Gewinde nicht "
+            "ausgewertet, bitte prüfen</i>; sie bei Bedarf als Zusatzarbeit an der Position ergänzen.")
     i.abschnitt("Offen gezeichnete Rohre", marke="offene_rohre")
     i.text("Manche Kunden zeichnen ein Quadrat- oder Rechteckrohr als <b>gekantetes Blech mit einer offenen Seite</b>: "
            "U offen, C mit Längsschlitz, U mit nur einer Lasche oder eine <b>Halbschale</b> eines Rundrohrs. "
@@ -6503,7 +6509,8 @@ def kapitel_lizenz(i):
             "der Rechner die alte Admin-Lizenz nicht mehr an. Bei einer "
             "älteren Admin-Lizenz ohne Admin-Passwort gilt das Passwort der Einstellungen ([[passwort]]); ist keins "
             "vergeben, entfällt die Frage. Passwort vergessen: Patrick erzeugt im Lizenz-Werkzeug einen "
-            "<b>Notfallcode</b> für die Rechner-ID (gilt heute und morgen); ihn statt des Passworts eingeben, danach "
+            "<b>Notfallcode</b> für die Rechner-ID (gilt heute und morgen, auch eine zurückgestellte Uhr macht "
+            "einen alten Code nicht wieder gültig); ihn statt des Passworts eingeben, danach "
             "eine neue Admin-Lizenz mit neuem Passwort laden. Mit "
             "richtigem Passwort öffnen sich die Einstellungen ohne weitere Abfrage. Nach <b>Abbrechen</b> oder dreimal "
             "falsch startet das Programm ohne Admin-Rechte, wie mit einer Benutzerlizenz: Einstellungen nur mit "

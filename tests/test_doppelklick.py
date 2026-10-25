@@ -21,6 +21,17 @@ from rohrlaser.fenster import Hauptfenster  # noqa: E402
 fehler = []
 
 
+def bearbeitet(app, v, sekunden=3.0):
+    """True, sobald die Tabelle eine Zelle bearbeitet. Unter Last (viele Tests gleichzeitig) öffnet der Editor erst
+    nach einigen Ereignisrunden, daher bis zu sekunden warten statt nur einmal processEvents."""
+    import time
+    ende = time.monotonic() + sekunden
+    while v.state() != QAbstractItemView.EditingState and time.monotonic() < ende:
+        app.processEvents()
+        time.sleep(0.01)
+    return v.state() == QAbstractItemView.EditingState
+
+
 def fall(name):
     def deko(f):
         try:
@@ -87,7 +98,7 @@ def _():
         seite._doppelklick(pm.index(0, sc))
         app.processEvents()
         assert pm.name(v.currentIndex().column()) == "laenge" and v.currentIndex().row() == 0
-        assert v.state() == QAbstractItemView.EditingState
+        assert bearbeitet(app, v)
         v.closePersistentEditor(v.currentIndex())
         v.setFocus()
         app.processEvents()
@@ -131,13 +142,13 @@ def _():
         assert "Doppelklick: Schneidweg-Rechner" in pm.data(pm.index(0, spalte("schneidweg")), Qt.ToolTipRole)
         seite._doppelklick(pm.index(1, spalte("schneidweg")))        # Zukaufteil: Zelle bearbeiten
         app.processEvents()
-        assert rechner == [0, 0, 0] and v.state() == QAbstractItemView.EditingState
+        assert rechner == [0, 0, 0] and bearbeitet(app, v)
         v.closePersistentEditor(v.currentIndex())
         v.setFocus()
         app.processEvents()
         seite._doppelklick(pm.index(0, spalte("artikel")))           # ohne 3D-Daten: Artikelnummer bearbeiten
         app.processEvents()
-        assert ansicht == [] and v.state() == QAbstractItemView.EditingState
+        assert ansicht == [] and bearbeitet(app, v)
         v.closePersistentEditor(v.currentIndex())
         v.setFocus()
         app.processEvents()
@@ -247,7 +258,7 @@ def _():
         assert rechner == [0] and blech_ed == [1], (rechner, blech_ed)
         seite._doppelklick(pm.index(0, c), auf_bild=False)      # Nummer: bearbeiten
         app.processEvents()
-        assert rechner == [0] and v.state() == QAbstractItemView.EditingState
+        assert rechner == [0] and bearbeitet(app, v)
         v.closePersistentEditor(v.currentIndex())
         fenster.close()
         db.con.close()
