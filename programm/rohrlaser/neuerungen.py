@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.133", "<b>Neue Anfragen aus dem Anfrage-Ordner</b>: STEP-Dateien und Anfrageformulare in einen Ordner "
+                "legen (Einstellungen → Ablage → <i>Anfrage-Ordner</i>); die Startseite zeigt sie unter <b>Neue "
+                "Anfragen</b>. Ein Unterordner ist eine Anfrage, lose Dateien mit weniger als 10 Minuten Abstand "
+                "auch. Öffnen macht daraus ein Angebot aus STEP und verschiebt die Dateien danach in den "
+                "Angebotsordner; mehrere Anfragen eines Kunden lassen sich zusammen öffnen, Kollegen sehen <i>in "
+                "Bearbeitung</i> ([[anfragen]]).",
+     "Neue Anfragen aus dem Anfrage-Ordner auf der Startseite, Öffnen als Angebot, Dateien in den Angebotsordner"],
     ["0.9.132", "<b>Design-Prüfung</b>: Die Fußzeile der PDFs wird bei langen Firmendaten kleiner bzw. zweizeilig und "
                 "läuft nicht mehr in „Seite x von y“. In den Werkstattpapieren steht die Spalte <i>Lage</i> mittig "
                 "und breiter. Die <b>Übersicht</b> rechts wird so breit wie ihr Inhalt und schneidet keine Beträge "
