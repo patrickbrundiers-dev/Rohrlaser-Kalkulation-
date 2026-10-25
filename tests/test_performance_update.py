@@ -113,6 +113,9 @@ z2 = dict((z[0], z[4]) for z in sp.pruefen(tempfile.gettempdir(), gl=(True, "GL"
 pruefe(z2["Bildschirm"] == sp.OK and z2["Grafik"] == sp.OK, "P10 Full HD und OpenGL = empfohlen")
 pruefe("Arbeitsspeicher: 8 GB / 16 GB" in sp.text() and "Windows" in sp.text(), "P10 Text für Release")
 pruefe("<table" in sp.html(zeilen), "P10 Tabelle")
+sp._takt_ghz = lambda: 1.6
+zp = dict((z[0], z) for z in sp.pruefen(tempfile.gettempdir(), gl=(True, "GL"), bildschirm=(1920, 1080)))["Prozessor"]
+pruefe(zp[4] in (sp.ZU_WENIG, sp.UNBEKANNT) and "1,6 GHz" in zp[1], f"P10 Takt 1,6 GHz unter Minimum ({zp})")
 yml = (HIER.parent / ".github" / "workflows" / "paket.yml").read_text(encoding="utf-8")
 readme = (HIER.parent / "README.md").read_text(encoding="utf-8")
 for b, m, e in sp.VORAUSSETZUNGEN:

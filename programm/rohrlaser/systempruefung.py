@@ -26,6 +26,7 @@ VORAUSSETZUNGEN = (
     ("Bildschirm", "1366 × 768", "1920 × 1080 oder größer"),
 )
 MIN_KERNE, EMPF_KERNE = 4, 6
+MIN_GHZ, EMPF_GHZ = 1.9, 2.9         # Nenntakt (Registry rundet, z. B. 1.996 MHz)
 MIN_GB, EMPF_GB = 8, 16
 MIN_FREI_GB, EMPF_FREI_GB = 1, 5
 MIN_BILD, EMPF_BILD = (1366, 768), (1920, 1080)
@@ -59,6 +60,18 @@ def _arbeitsspeicher_gb():
             return None
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1024 ** 3
     except (AttributeError, OSError, ValueError):
+        return None
+
+
+def _takt_ghz():
+    """Nenntakt des Prozessors [GHz] aus der Windows-Registry, sonst None."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as k:
+            return winreg.QueryValueEx(k, "~MHz")[0] / 1000
+    except (ImportError, OSError, TypeError):
         return None
 
 
@@ -99,8 +112,12 @@ def pruefen(datenordner=None, gl=None, bildschirm=None):
         zeilen.append((bereich, gemessen) + texte[bereich] + (bewertung,))
 
     dazu("Windows", *_windows())
-    kerne = os.cpu_count()
-    dazu("Prozessor", f"{kerne} logische Kerne" if kerne else "unbekannt", _stufe(kerne, MIN_KERNE, EMPF_KERNE))
+    kerne, ghz = os.cpu_count(), _takt_ghz()
+    stufe = _stufe(kerne, MIN_KERNE, EMPF_KERNE)
+    if ghz is not None and stufe != UNBEKANNT:      # Takt mitbewerten, wenn Windows ihn nennt
+        stufe = min(stufe, _stufe(ghz, MIN_GHZ, EMPF_GHZ), key=(ZU_WENIG, GENUG, OK).index)
+    dazu("Prozessor", (f"{kerne} logische Kerne" if kerne else "Kerne unbekannt") +
+         (f", {_zahl(ghz)} GHz" if ghz is not None else ", Takt nicht ermittelt"), stufe)
     gb = _arbeitsspeicher_gb()
     dazu("Arbeitsspeicher", f"{_zahl(gb)} GB" if gb else "unbekannt",
          _stufe(gb, MIN_GB * RAM_TOLERANZ, EMPF_GB * RAM_TOLERANZ) if gb else UNBEKANNT)
